@@ -6,9 +6,16 @@ import { findDrawSessionForCategory } from '../data/draw-sessions-repository';
 import type { DrawFormat, DrawSession, DrawSessionEntrant } from '../data/draw-session.model';
 import { combinationsOf, formatSummaryOf, readinessChecksOf } from '../data/draw-summary';
 import {
+  currentSeedOrder,
+  headCountOf,
+  movedSeedOrder,
+  sortedByStrength,
+} from '../data/draw-seed-order';
+import {
   createDrawSession,
   startDrawSession,
   updateDrawSessionConfig,
+  updateDrawSessionSeeds,
 } from '../data/organizer-ops.service';
 import { OgCardComponent } from '../ui/card.component';
 import { OgIconComponent } from '../ui/icon.component';
@@ -68,6 +75,21 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
             cada dupla entram no sorteio como estão agora. Se as inscrições confirmadas mudarem
             depois, o sorteio recusa começar e a sessão precisa ser criada de novo.
           </p>
+          <div class="og-sc-quando og-sc-quando-novo">
+            <label class="og-sc-box">
+              <span class="og-sc-label">Data da transmissão</span>
+              <input type="date" [value]="newDate()" (change)="newDate.set(inputValue($event))" />
+            </label>
+            <label class="og-sc-box">
+              <span class="og-sc-label">Hora</span>
+              <input type="time" [value]="newTime()" (change)="newTime.set(inputValue($event))" />
+            </label>
+          </div>
+          <p class="og-sc-ajuda">
+            Opcional aqui — dá pra agendar depois. Com data definida, o telão mostra a contagem
+            regressiva a partir de 24 h antes.
+          </p>
+
           <div class="og-sc-formatos">
             <og-radio-row
               title="Fase de grupos"
@@ -104,6 +126,12 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
           </button>
         </og-card>
       } @else if (session(); as s) {
+        @if (lockNote(s); as nota) {
+          <div class="og-sc-trava" role="status">
+            <og-icon name="alert" [size]="14" />
+            <span>{{ nota }}</span>
+          </div>
+        }
         <div class="og-sc-grid">
           <!-- ── Coluna 1 · o que é fato ─────────────────────────── -->
           <div class="og-sc-col">
@@ -167,32 +195,110 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
           <!-- ── Coluna 2 · o que vai ser sorteado ────────────────── -->
           <div class="og-sc-col">
             <og-card [kicker]="potsKicker(s)" [title]="potsTitle(s)" flex="1">
-              <div class="og-sc-potes">
-                @for (pot of s.pots; track pot.index) {
-                  <section>
-                    <div class="og-sc-pote-head">
-                      <span class="og-sc-label" [class.destaque]="pot.index === 1">
-                        Pote {{ pot.index }}{{ pot.index === 1 ? ' · cabeças' : '' }}
-                      </span>
-                      <span class="og-sc-rule"></span>
-                      <span class="og-sc-label">{{ potRangeOf(s, pot.teamIds) }}</span>
-                    </div>
-                    <div class="og-sc-pote-lista">
-                      @for (teamId of pot.teamIds; track teamId) {
-                        <og-sorteio-dupla-row
-                          [entrant]="entrantOf(s, teamId)"
-                          [num]="seedNumOf(s, teamId)"
-                          [seedStyle]="pot.index === 1"
-                          [compact]="true"
-                        />
-                      }
-                    </div>
-                  </section>
-                }
-                @if (s.pots.length === 0) {
-                  <p class="og-sc-texto">Nenhum pote montado.</p>
+              <div card-action class="og-sc-pote-acoes">
+                @if (draftOrder(); as ordem) {
+                  <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="cancelSeeds()">
+                    Cancelar
+                  </button>
+                  <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="resetSeeds(s)">
+                    Ordem por nível
+                  </button>
+                  <button type="button" class="og-btn og-btn-sm" [disabled]="busy()" (click)="saveSeeds(s)">
+                    {{ busy() ? 'Salvando…' : 'Salvar ordem' }}
+                  </button>
+                } @else if (editable(s)) {
+                  <button type="button" class="og-mini-btn" (click)="editSeeds(s)">
+                    {{ s.format === 'groups_knockout' ? 'Editar potes' : 'Editar cabeças' }}
+                  </button>
                 }
               </div>
+
+              @if (draftOrder(); as ordem) {
+                <p class="og-sc-ajuda">
+                  A ordem define a força: as
+                  {{ s.format === 'groups_knockout' ? headCountOf(s) + ' primeiras viram o pote 1' : s.config.lockedSeedCount + ' primeiras viram as cabeças travadas' }}.
+                  Suba quem você sabe que é mais forte do que o nível declarado diz.
+                </p>
+
+                @if (s.format === 'double_elimination') {
+                  <div class="og-sc-campo">
+                    <span class="og-sc-label">Cabeças travadas</span>
+                    <div class="og-sc-chips">
+                      @for (n of lockedOptions; track n) {
+                        <button
+                          type="button"
+                          class="og-chip"
+                          [class.active]="draftLocked() === n"
+                          (click)="draftLocked.set(n)"
+                        >
+                          {{ n === 0 ? 'nenhuma' : n }}
+                        </button>
+                      }
+                    </div>
+                  </div>
+                }
+
+                <ol class="og-sc-ordem">
+                  @for (teamId of ordem; track teamId) {
+                    <li [class.cabeca]="isHead(s, $index)">
+                      <og-sorteio-dupla-row
+                        [entrant]="entrantOf(s, teamId)"
+                        [num]="$index + 1"
+                        [seedStyle]="isHead(s, $index)"
+                        [compact]="true"
+                      >
+                        <span class="og-sc-mover">
+                          <button
+                            type="button"
+                            class="og-ghost-btn"
+                            aria-label="Subir uma posição"
+                            [disabled]="$first"
+                            (click)="moveSeed($index, -1)"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            class="og-ghost-btn"
+                            aria-label="Descer uma posição"
+                            [disabled]="$last"
+                            (click)="moveSeed($index, 1)"
+                          >
+                            ↓
+                          </button>
+                        </span>
+                      </og-sorteio-dupla-row>
+                    </li>
+                  }
+                </ol>
+              } @else {
+                <div class="og-sc-potes">
+                  @for (pot of s.pots; track pot.index) {
+                    <section>
+                      <div class="og-sc-pote-head">
+                        <span class="og-sc-label" [class.destaque]="pot.index === 1">
+                          Pote {{ pot.index }}{{ pot.index === 1 ? ' · cabeças' : '' }}
+                        </span>
+                        <span class="og-sc-rule"></span>
+                        <span class="og-sc-label">{{ potRangeOf(s, pot.teamIds) }}</span>
+                      </div>
+                      <div class="og-sc-pote-lista">
+                        @for (teamId of pot.teamIds; track teamId) {
+                          <og-sorteio-dupla-row
+                            [entrant]="entrantOf(s, teamId)"
+                            [num]="seedNumOf(s, teamId)"
+                            [seedStyle]="pot.index === 1"
+                            [compact]="true"
+                          />
+                        }
+                      </div>
+                    </section>
+                  }
+                  @if (s.pots.length === 0) {
+                    <p class="og-sc-texto">Nenhum pote montado.</p>
+                  }
+                </div>
+              }
             </og-card>
           </div>
 
@@ -355,6 +461,16 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 10px;
+    }
+    .og-sc-quando-novo {
+      margin-bottom: 8px;
+    }
+    .og-sc-ajuda {
+      margin: 0 0 16px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--nx-text-dim);
+      text-wrap: pretty;
     }
     .og-sc-box {
       display: block;
@@ -545,6 +661,50 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
       gap: 8px;
       margin: 10px 0 4px;
     }
+    /* Trava explicada: desabilitar sem dizer por quê deixa o organizador
+       achando que a tela quebrou. */
+    .og-sc-trava {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 14px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line-strong);
+      color: var(--nx-text-mute);
+      font-size: 13px;
+    }
+    .og-sc-pote-acoes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .og-sc-ordem {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    /* Linha divisória depois da última cabeça: mostra onde a trava termina
+       sem precisar contar posições. */
+    .og-sc-ordem li.cabeca + li:not(.cabeca) {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--nx-line-strong);
+    }
+    .og-sc-mover {
+      display: flex;
+      flex: none;
+      gap: 2px;
+    }
+    .og-sc-mover .og-ghost-btn {
+      /* Área de toque confortável — reordenar é gesto repetido. */
+      min-width: 32px;
+      min-height: 32px;
+      padding: 0;
+    }
     .og-sc-feedback {
       padding: 11px 14px;
       border-radius: var(--nx-r-2);
@@ -606,6 +766,12 @@ export class SorteioConfigComponent {
   protected readonly format = signal<DrawFormat>('groups_knockout');
   protected readonly lockedSeedCount = signal(4);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
+  /** Data e hora escolhidas ANTES de a sessão existir. */
+  protected readonly newDate = signal('');
+  protected readonly newTime = signal('');
+  /** Ordem em edição; `null` quando não está reordenando. */
+  protected readonly draftOrder = signal<string[] | null>(null);
+  protected readonly draftLocked = signal(4);
 
   protected readonly headerSubtitle = computed(() => {
     const s = this.session();
@@ -716,6 +882,15 @@ export class SorteioConfigComponent {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** Instante escolhido no card de criação, ou `null` se ficou em branco. */
+  private newScheduledAt(): number | null {
+    const date = this.newDate();
+    if (!date) return null;
+    const [y, m, d] = date.split('-').map(Number);
+    const [h, min] = (this.newTime() || '20:00').split(':').map(Number);
+    return new Date(y!, (m ?? 1) - 1, d ?? 1, h ?? 0, min ?? 0).getTime();
   }
 
   protected editable(session: DrawSession): boolean {
@@ -837,6 +1012,7 @@ export class SorteioConfigComponent {
         ...(this.format() === 'double_elimination' ?
           { lockedSeedCount: this.lockedSeedCount() } :
           {}),
+        ...(this.newScheduledAt() != null ? { scheduledAt: this.newScheduledAt()! } : {}),
       });
       await this.load(this.id(), this.catId());
       this.feedback.set({
@@ -907,6 +1083,73 @@ export class SorteioConfigComponent {
     } catch (e) {
       this.session.set(session);
       this.feedback.set({ ok: false, message: this.messageOf(e) });
+    }
+  }
+
+  protected inputValue(event: Event): string {
+    return (event.target as HTMLInputElement).value;
+  }
+
+  /** Por que a configuração está travada — a tela precisa DIZER, não só
+   *  desabilitar. Campo cinza sem motivo lê como tela quebrada. */
+  protected lockNote(session: DrawSession): string | null {
+    switch (session.status) {
+      case 'live':
+        return 'A sessão está no ar: data, ritmo, regras e cabeças ficam travados. Anule a sessão no console para refazer.';
+      case 'published':
+        return 'A chave já foi publicada a partir desta sessão. Ela fica aqui como registro.';
+      case 'voided':
+        return `Sessão anulada${session.voidReason ? `: ${session.voidReason}` : ''}. Crie uma nova para sortear de novo.`;
+      default:
+        return null;
+    }
+  }
+
+  protected headCountOf(session: DrawSession): number {
+    return headCountOf(session, this.draftLocked());
+  }
+
+  protected isHead(session: DrawSession, index: number): boolean {
+    return index < this.headCountOf(session);
+  }
+
+  protected editSeeds(session: DrawSession): void {
+    this.draftLocked.set(session.config.lockedSeedCount);
+    this.draftOrder.set(currentSeedOrder(session));
+  }
+
+  protected cancelSeeds(): void {
+    this.draftOrder.set(null);
+  }
+
+  /** Volta à sugestão automática: ordenar pela pontuação de nível, maior
+   *  primeiro. Empate mantém a ordem atual, então clicar duas vezes não mexe. */
+  protected resetSeeds(session: DrawSession): void {
+    this.draftOrder.update((order) =>
+      order ? sortedByStrength(order, (id) => this.entrantOf(session, id)?.points ?? null) : order,
+    );
+  }
+
+  protected moveSeed(index: number, delta: number): void {
+    this.draftOrder.update((order) => (order ? movedSeedOrder(order, index, delta) : order));
+  }
+
+  protected async saveSeeds(session: DrawSession): Promise<void> {
+    const order = this.draftOrder();
+    if (!order || this.busy()) return;
+    this.busy.set(true);
+    this.feedback.set(null);
+    try {
+      await updateDrawSessionSeeds(session.id, order, {
+        ...(session.format === 'double_elimination' ? { lockedSeedCount: this.draftLocked() } : {}),
+      });
+      this.draftOrder.set(null);
+      await this.load(this.id(), this.catId());
+      this.feedback.set({ ok: true, message: 'Ordem salva. Os potes foram remontados.' });
+    } catch (e) {
+      this.feedback.set({ ok: false, message: this.messageOf(e) });
+    } finally {
+      this.busy.set(false);
     }
   }
 

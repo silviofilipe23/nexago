@@ -65,6 +65,7 @@ import {onArenaReviewCreatedAwardXp} from "./arena-review-gamification";
 import {
   createDrawSession,
   updateDrawSessionConfig,
+  updateDrawSessionSeeds,
   startDrawSession,
   drawNextReveal,
   replaceRevealPhrase,
@@ -234,6 +235,7 @@ export {
   onArenaReviewCreatedAwardXp,
   createDrawSession,
   updateDrawSessionConfig,
+  updateDrawSessionSeeds,
   startDrawSession,
   drawNextReveal,
   replaceRevealPhrase,

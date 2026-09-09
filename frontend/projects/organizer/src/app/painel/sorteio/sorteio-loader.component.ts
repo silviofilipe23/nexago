@@ -161,8 +161,8 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
       animation: og-ld-hop 1.7s cubic-bezier(0.35, 0, 0.5, 1) infinite;
     }
     .og-ld-palco {
-      width: 210px;
-      height: 210px;
+      width: 230px;
+      height: 230px;
       transform-style: preserve-3d;
     }
     .og-ld-cubo {
@@ -185,10 +185,12 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
       place-items: center;
       padding: 10px;
       box-sizing: border-box;
-      border-radius: 24px;
-      background: var(--nx-surface-1);
+      border-radius: 30px;
+      background: var(--nx-surface-0);
       border: 2px solid var(--nx-line-strong);
-      box-shadow: inset 0 2px 0 rgb(255 255 255 / 6%);
+      /* Sombra interna: sem ela a face fica um retângulo chapado e o cubo
+         perde volume no giro. */
+      box-shadow: inset 0 0 40px rgb(0 0 0 / 45%);
       font-family: var(--nx-font-display);
       font-weight: 800;
       font-size: 46px;
@@ -199,33 +201,37 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
       /* Sem isto, a face de trás vaza por cima da da frente no meio do giro. */
       backface-visibility: hidden;
     }
-    /* Cubo de 210px: cada face empurrada metade disso para fora do centro. */
+    /* Cubo de 230px: cada face empurrada metade disso para fora do centro. */
     .og-ld-face.f0 {
-      transform: rotateY(0deg) translateZ(105px);
+      transform: rotateY(0deg) translateZ(115px);
     }
+
     .og-ld-face.f1 {
-      transform: rotateY(90deg) translateZ(105px);
+      transform: rotateY(90deg) translateZ(115px);
     }
     .og-ld-face.f2 {
-      transform: rotateY(180deg) translateZ(105px);
+      transform: rotateY(180deg) translateZ(115px);
     }
     .og-ld-face.f3 {
-      transform: rotateY(-90deg) translateZ(105px);
+      transform: rotateY(-90deg) translateZ(115px);
     }
     .og-ld-face.f4 {
-      transform: rotateX(90deg) translateZ(105px);
+      transform: rotateX(90deg) translateZ(115px);
     }
     .og-ld-face.f5 {
-      transform: rotateX(-90deg) translateZ(105px);
+      transform: rotateX(-90deg) translateZ(115px);
     }
-    /* A face da frente carrega o resultado — é nela que o cubo para. */
-    .og-ld-cubo.travado .og-ld-face.f0 {
+    /* UMA face é laranja, sempre. É ela passando no giro que dá o brilho
+       alaranjado nas quinas do cubo — e, como o cubo para de frente, é
+       também a face em que o resultado trava. Texto escuro sobre o laranja
+       dá 6,9:1; branco daria 2,6:1 e reprovaria mesmo em texto grande. */
+    .og-ld-face.f0 {
       background: var(--nx-orange-500);
       border-color: var(--nx-orange-600);
       color: var(--nx-text-on-orange);
     }
     .og-ld-sombra {
-      width: 180px;
+      width: 196px;
       height: 16px;
       margin-top: 26px;
       border-radius: 50%;

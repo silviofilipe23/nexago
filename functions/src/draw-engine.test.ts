@@ -322,3 +322,103 @@ describe("nextReveal — cabeças com lugar já definido", () => {
     assert.equal(out.status === "ok" && out.reveal.preassigned, undefined);
   });
 });
+
+/**
+ * As cabeças da dupla eliminatória ENTRAVAM na chave sem passar pelo sorteio:
+ * `seedOrder` já nascia com elas, e o telão nunca dizia os nomes delas. Agora
+ * elas passam pelo mesmo show — dados, spotlight, frase — só que caindo no seed
+ * que o ranking já definia. Nada de aleatório é gasto nisso.
+ */
+describe("nextReveal — cabeças da dupla eliminatória no ar", () => {
+  const noAr = (over: Partial<DrawEngineState> = {}): DrawEngineState => ({
+    format: "double_elimination",
+    constraints: semRestricao,
+    // O pote agora tem TODO MUNDO: as cabeças na frente, em ordem de ranking.
+    pots: [{index: 1, teamIds: ["c1", "c2", "x", "y"]}],
+    teamsById: {
+      c1: {teamId: "c1", potIndex: 1, city: null, lockedSeed: 1},
+      c2: {teamId: "c2", potIndex: 1, city: null, lockedSeed: 2},
+      x: {teamId: "x", potIndex: 2, city: null, lockedSeed: null},
+      y: {teamId: "y", potIndex: 2, city: null, lockedSeed: null},
+    },
+    groups: [],
+    seedOrder: [null, null, null, null],
+    lockedSeedCount: 2,
+    revealedTeamIds: [],
+    ...over,
+  });
+
+  const nuncaSorteia = (): number => {
+    throw new Error("o sorteador foi chamado numa revelação predeterminada");
+  };
+
+  it("a cabeça 1 abre o sorteio, no seed 1, marcada e sem sortear", () => {
+    assert.deepEqual(nextReveal(noAr(), nuncaSorteia), {
+      status: "ok",
+      reveal: {
+        teamId: "c1",
+        destination: {type: "seed", seed: 1},
+        relaxed: [],
+        preassigned: true,
+      },
+    });
+  });
+
+  it("a cabeça 2 vem em seguida, no seed 2", () => {
+    const out = nextReveal(
+      noAr({revealedTeamIds: ["c1"], seedOrder: ["c1", null, null, null]}),
+      nuncaSorteia,
+    );
+    assert.equal(out.status === "ok" && out.reveal.teamId, "c2");
+    assert.deepEqual(
+      out.status === "ok" ? out.reveal.destination : null,
+      {type: "seed", seed: 2},
+    );
+  });
+
+  it("cabeça sai antes de não-cabeça mesmo se o pote vier fora de ordem", () => {
+    const out = nextReveal(
+      noAr({pots: [{index: 1, teamIds: ["x", "c2", "y", "c1"]}]}),
+      nuncaSorteia,
+    );
+    assert.equal(out.status === "ok" && out.reveal.teamId, "c1");
+  });
+
+  it("acabadas as cabeças, volta a sortear de verdade — e sem a marca", () => {
+    const out = nextReveal(
+      noAr({revealedTeamIds: ["c1", "c2"], seedOrder: ["c1", "c2", null, null]}),
+      scripted(0, 0),
+    );
+    assert.equal(out.status === "ok" && out.reveal.teamId, "x");
+    assert.deepEqual(
+      out.status === "ok" ? out.reveal.destination : null,
+      {type: "seed", seed: 3},
+    );
+    assert.equal(out.status === "ok" && out.reveal.preassigned, undefined);
+  });
+
+  it("o seed de uma cabeça nunca é oferecido ao sorteio", () => {
+    // Sorteador pedindo sempre o índice 0: se o seed 1 estivesse na lista de
+    // abertos, a não-cabeça roubaria o lugar da cabeça.
+    const out = nextReveal(
+      noAr({revealedTeamIds: ["c1", "c2"], seedOrder: ["c1", "c2", null, null]}),
+      () => 0,
+    );
+    assert.ok(out.status === "ok" && out.reveal.destination.type === "seed");
+    assert.ok(
+      out.status === "ok" &&
+        out.reveal.destination.type === "seed" &&
+        out.reveal.destination.seed > 2,
+    );
+  });
+
+  it("sessão antiga — cabeças FORA do pote — segue sorteando como antes", () => {
+    const antiga = noAr({
+      pots: [{index: 1, teamIds: ["x", "y"]}],
+      seedOrder: ["c1", "c2", null, null],
+    });
+    const out = nextReveal(antiga, scripted(0, 0));
+    assert.equal(out.status === "ok" && out.reveal.teamId, "x");
+    assert.equal(out.status === "ok" && out.reveal.preassigned, undefined);
+  });
+});

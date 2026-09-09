@@ -49,13 +49,27 @@ export function groupsOf(
   return groups;
 }
 
+/**
+ * As cabeças têm revelação própria nesta sessão?
+ *
+ * Gêmeo de `seedsRevealedOnAir` no servidor. Sessão nova: o pote leva o elenco
+ * inteiro, `totalReveals` cobre todo mundo e cada cabeça tem seu momento no
+ * telão. Sessão gravada antes disso: só as sorteadas tinham revelação, então as
+ * cabeças precisam ser plantadas na chave ou sumiriam dela pra sempre.
+ */
+export function seedsRevealedOnAir(session: DrawSession): boolean {
+  return session.totalReveals >= session.entrants.length;
+}
+
 export function seedOrderOf(
   session: DrawSession,
   visibleCount: number = session.reveals.length,
 ): Array<DrawSessionEntrant | null> {
   const order: Array<DrawSessionEntrant | null> = new Array(session.entrants.length).fill(null);
-  for (const entrant of session.entrants) {
-    if (entrant.lockedSeed != null) order[entrant.lockedSeed - 1] = entrant;
+  if (!seedsRevealedOnAir(session)) {
+    for (const entrant of session.entrants) {
+      if (entrant.lockedSeed != null) order[entrant.lockedSeed - 1] = entrant;
+    }
   }
   for (const reveal of session.reveals.slice(0, visibleCount)) {
     const destination = reveal.destination;
@@ -68,8 +82,13 @@ export function seedOrderOf(
 /** Duplas ainda no pote. Cabeça travada nunca entra: ela não é sorteada. */
 export function remainingInPot(session: DrawSession): DrawSessionEntrant[] {
   const revealed = new Set(session.reveals.map((r) => r.teamId));
+  // Cabeça só fica FORA da fila quando não passa pelo sorteio (sessão antiga).
+  // Com ela no ar, esconder faria a contagem mentir e a próxima revelação
+  // chegaria sem aviso pra quem narra.
   const locked = new Set(
-    session.entrants.filter((e) => e.lockedSeed != null).map((e) => e.teamId),
+    seedsRevealedOnAir(session) ?
+      [] :
+      session.entrants.filter((e) => e.lockedSeed != null).map((e) => e.teamId),
   );
   const ordered = session.pots.flatMap((p) => p.teamIds);
   const fromPots = ordered.filter((id) => !revealed.has(id) && !locked.has(id));

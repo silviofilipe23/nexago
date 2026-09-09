@@ -68,10 +68,13 @@ export function resequenceSession(
   if (doc.format === "double_elimination") {
     const {locked} = deSeedSlots(ordered.length, doc.config.lockedSeedCount);
     const lockedCount = locked.length;
-    const drawn = ordered.slice(lockedCount);
 
     return {
-      pots: [{index: 1, teamIds: drawn.map((e) => e.teamId)}],
+      // O pote leva TODO MUNDO, cabeças na frente. Antes só carregava quem
+      // seria sorteado, e a consequência era a chave nascer preenchida: as
+      // cabeças nunca tinham um momento no telão. Agora elas entram na fila de
+      // revelação — mesmo show, mesmo seed que o ranking já dava.
+      pots: [{index: 1, teamIds: ordered.map((e) => e.teamId)}],
       entrants: ordered.map((entrant, i) => ({
         ...entrant,
         // Pote 1 = cabeças, pote 2 = quem entra no sorteio. A tela lê isso pra
@@ -79,7 +82,7 @@ export function resequenceSession(
         potIndex: i < lockedCount ? 1 : 2,
         lockedSeed: i < lockedCount ? i + 1 : null,
       })),
-      totalReveals: drawn.length,
+      totalReveals: ordered.length,
     };
   }
 

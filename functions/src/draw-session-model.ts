@@ -117,7 +117,10 @@ export interface DrawSessionDoc {
 /** Metadados que as restrições consultam, indexados por dupla. */
 export function teamsByIdFrom(doc: DrawSessionDoc): Record<string, DrawTeamMeta> {
   return Object.fromEntries(
-    doc.entrants.map((e) => [e.teamId, {teamId: e.teamId, potIndex: e.potIndex, city: e.city}]),
+    doc.entrants.map((e) => [
+      e.teamId,
+      {teamId: e.teamId, potIndex: e.potIndex, city: e.city, lockedSeed: e.lockedSeed},
+    ]),
   );
 }
 
@@ -140,13 +143,27 @@ export function groupsFromReveals(
  * Ordem de seeds da dupla eliminatória: as cabeças já entram cravadas (elas não
  * são sorteadas), e cada revelação preenche um número em aberto.
  */
+/**
+ * As cabeças têm revelação própria nesta sessão?
+ *
+ * Sessão nova: o pote leva todo mundo, então `totalReveals` cobre o elenco
+ * inteiro e cada cabeça ganha seu momento no telão. Sessão gravada antes disso:
+ * só as sorteadas tinham revelação, e as cabeças precisam ser plantadas na
+ * chave — senão sumiriam dela pra sempre.
+ */
+export function seedsRevealedOnAir(doc: DrawSessionDoc): boolean {
+  return doc.totalReveals >= doc.entrants.length;
+}
+
 export function seedOrderFromReveals(
   doc: DrawSessionDoc,
   reveals: readonly DrawSessionReveal[],
 ): Array<string | null> {
   const order: Array<string | null> = new Array(doc.entrants.length).fill(null);
-  for (const entrant of doc.entrants) {
-    if (entrant.lockedSeed != null) order[entrant.lockedSeed - 1] = entrant.teamId;
+  if (!seedsRevealedOnAir(doc)) {
+    for (const entrant of doc.entrants) {
+      if (entrant.lockedSeed != null) order[entrant.lockedSeed - 1] = entrant.teamId;
+    }
   }
   for (const reveal of reveals) {
     if (reveal.destination.type !== "seed") continue;

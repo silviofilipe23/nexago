@@ -136,6 +136,29 @@ function nextDeReveal(state: DrawEngineState, random: RandomIndex): NextRevealRe
     .flatMap((p) => p.teamIds)
     .filter((id) => !placed.has(id) && !state.revealedTeamIds.includes(id));
 
+  // As cabeças saem PRIMEIRO, na ordem do ranking, cada uma no seed que já era
+  // dela. Buscar pela menor `lockedSeed` em vez de confiar na ordem do pote:
+  // assim a fila é a mesma mesmo se o pote vier embaralhado.
+  const nextSeedHead = remaining
+    .map((teamId) => ({teamId, seed: state.teamsById[teamId]?.lockedSeed ?? null}))
+    .filter((c): c is {teamId: string; seed: number} => c.seed != null)
+    .sort((a, b) => a.seed - b.seed)[0];
+  if (nextSeedHead) {
+    return {
+      status: "ok",
+      reveal: {
+        teamId: nextSeedHead.teamId,
+        destination: {type: "seed", seed: nextSeedHead.seed},
+        relaxed: [],
+        preassigned: true,
+      },
+    };
+  }
+
+  // Aqui as cabeças já saíram todas (o bloco acima esgota antes), então os
+  // assentos delas já não estão vazios. Assento vazio que sobra é assento de
+  // ninguém — inclusive o de uma cabeça que saiu do elenco entre a criação e o
+  // sorteio, e que é melhor preencher do que deixar buraco na chave.
   const openSeeds = state.seedOrder
     .map((teamId, i) => (teamId == null ? i + 1 : 0))
     .filter((seed) => seed > 0);

@@ -5,7 +5,8 @@ import {
   remainingInPot,
   seedOrderOf,
 } from '../data/draw-session-selectors';
-import type { DrawSession } from '../data/draw-session.model';
+import type { DrawSession, DrawSessionEntrant } from '../data/draw-session.model';
+import { OgAvatarComponent } from '../ui/avatar.component';
 import {
   LAND_MS,
   ROLL_MS,
@@ -33,6 +34,7 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '[class.retrato]': 'portrait()' },
   imports: [
+    OgAvatarComponent,
     SorteioChaveDeComponent,
     SorteioLoaderComponent,
     SorteioGradeGruposComponent,
@@ -78,7 +80,11 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
               }
               <div class="og-telao-esteira">
                 @for (entrant of s.entrants; track entrant.teamId) {
-                  <span class="og-telao-esteira-item">{{ entrant.label }}</span>
+                  <div class="og-telao-esteira-item" [attr.aria-label]="entrant.label">
+                    @for (slot of avatarSlots(entrant); track $index) {
+                      <og-avatar [initials]="slot.initials" [photoUrl]="slot.photoUrl" [size]="56" />
+                    }
+                  </div>
                 }
               </div>
             </div>
@@ -300,16 +306,21 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
-      gap: 12px;
+      gap: 18px;
       max-width: 1500px;
     }
     .og-telao-esteira-item {
-      padding: 9px 18px;
+      display: flex;
+      flex: none;
+      padding: 6px;
       border-radius: 999px;
       background: var(--nx-surface-1);
       border: 1px solid var(--nx-line);
-      font-size: 22px;
-      color: var(--nx-text-mute);
+    }
+    .og-telao-esteira-item og-avatar + og-avatar {
+      margin-left: -14px;
+      border-radius: 50%;
+      box-shadow: 0 0 0 3px var(--nx-surface-1);
     }
     .og-telao-rodape {
       flex: none;
@@ -397,8 +408,11 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
     :host(.retrato) .og-telao-aviso {
       font-size: 52px;
     }
-    :host(.retrato) .og-telao-esteira-item {
-      font-size: 26px;
+    :host(.retrato) .og-telao-esteira {
+      gap: 22px;
+    }
+    :host(.retrato) .og-telao-esteira-item og-avatar + og-avatar {
+      margin-left: -16px;
     }
     :host(.retrato) .og-telao-rodape {
       padding: 28px 48px;
@@ -562,7 +576,25 @@ export class SorteioTelaoScreenComponent {
     this.session().format === 'groups_knockout' ? 'fase de grupos' : 'dupla eliminatória',
   );
 
+  /** Par de avatares da esteira — sempre 2 círculos, como na fila do console. */
+  protected avatarSlots(entrant: DrawSessionEntrant): Array<{ initials: string; photoUrl: string | null }> {
+    const names = entrant.playerNames.length > 0 ? entrant.playerNames : entrant.label.split('/');
+    return [0, 1].map((i) => ({
+      initials: initialsOf(names[i] ?? ''),
+      photoUrl: entrant.photoUrls[i] ?? null,
+    }));
+  }
+
   protected padded(value: number): string {
     return String(value).padStart(2, '0');
   }
+}
+
+function initialsOf(name: string): string {
+  const clean = name.trim();
+  if (!clean) return '?';
+  const parts = clean.split(/\s+/);
+  const first = parts[0]?.charAt(0) ?? '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.charAt(0) ?? '') : '';
+  return (first + last).toUpperCase() || '?';
 }

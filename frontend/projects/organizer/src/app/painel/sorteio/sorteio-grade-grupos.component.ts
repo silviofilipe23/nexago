@@ -49,7 +49,11 @@ import type { DrawGroupView } from '../data/draw-session.model';
       display: grid;
       gap: 20px;
       height: 100%;
-      align-content: stretch;
+      /* Os cards abraçam o conteúdo e a grade se centraliza. Esticar até o
+         rodapé deixa dois grupos com metade do telão vazia; centralizar
+         funciona igual bem com 2 e com 8 grupos. */
+      grid-auto-rows: minmax(0, max-content);
+      align-content: center;
     }
     .og-grupo {
       display: flex;

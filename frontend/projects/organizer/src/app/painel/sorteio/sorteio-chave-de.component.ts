@@ -115,6 +115,11 @@ interface DeMatchView {
       min-height: 0;
       display: grid;
       gap: 12px;
+      /* Cards abraçam o conteúdo e a grade centraliza — mesmo motivo da grade
+         de grupos: com 4 jogos, esticar até o rodapé deixa metade do telão
+         vazia. */
+      grid-auto-rows: minmax(0, max-content);
+      align-content: center;
     }
     .og-de-jogo {
       display: flex;

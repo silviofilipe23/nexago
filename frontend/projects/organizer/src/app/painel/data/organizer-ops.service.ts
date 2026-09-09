@@ -1,6 +1,7 @@
 import { httpsCallable } from 'firebase/functions';
 import { spDayKey } from './auto-schedule-preview';
 import { organizerFunctions } from './functions';
+import type { DrawFormat, DrawSessionConfig } from './draw-session.model';
 
 /** Write-paths do organizador — mesmos Cloud Functions onCall que o app Flutter chama
  *  (`organizer_category_ops_service.dart`, `organizer_match_schedule_service.dart`,
@@ -396,4 +397,84 @@ export function cancelTournament(tournamentId: string, opts?: { force?: boolean 
  *  (`functions/src/event-timezone.ts`): YYYY-MM-DD na parede SP. */
 export function dayKeyFromDate(date: Date): string {
   return spDayKey(date);
+}
+
+// ── Sorteio ao Vivo (draw-sessions.ts) ───────────────────────────────────────
+// O cliente NUNCA sorteia. O console só pede "próxima" e o resultado nasce no
+// servidor com CSPRNG; as rules recusam qualquer escrita direta em drawSessions.
+
+export interface CreateDrawSessionParams {
+  tournamentId: string;
+  categoryId: string;
+  format: DrawFormat;
+  /** Dupla eliminatória: quantas cabeças entram sem sorteio. */
+  lockedSeedCount?: number;
+  scheduledAt?: number | null;
+}
+
+export function createDrawSession(
+  params: CreateDrawSessionParams,
+): Promise<{ sessionId: string; totalReveals: number; teamCount: number }> {
+  return call('createDrawSession', {
+    tournamentId: params.tournamentId.trim(),
+    categoryId: params.categoryId.trim(),
+    format: params.format,
+    ...(params.lockedSeedCount != null ? { lockedSeedCount: params.lockedSeedCount } : {}),
+    ...(params.scheduledAt != null ? { scheduledAt: params.scheduledAt } : {}),
+  });
+}
+
+export function updateDrawSessionConfig(
+  sessionId: string,
+  config: Partial<DrawSessionConfig>,
+  scheduledAt?: number | null,
+): Promise<{ ok: boolean }> {
+  return call('updateDrawSessionConfig', {
+    sessionId: sessionId.trim(),
+    config,
+    ...(scheduledAt !== undefined ? { scheduledAt } : {}),
+  });
+}
+
+export function startDrawSession(sessionId: string): Promise<{ ok: boolean }> {
+  return call('startDrawSession', { sessionId: sessionId.trim() });
+}
+
+/** `expectedIndex` é quantas revelações o console acredita existirem. Se não
+ *  bater, o servidor NÃO sorteia e devolve `applied: false` — é assim que clique
+ *  duplo, retry e o timer do automático em corrida com o clique acabam sem
+ *  efeito, em vez de sortear duas vezes. */
+export function drawNextReveal(
+  sessionId: string,
+  expectedIndex: number,
+): Promise<{ applied: boolean; currentIndex: number; done?: boolean }> {
+  return call('drawNextReveal', { sessionId: sessionId.trim(), expectedIndex });
+}
+
+export function replaceRevealPhrase(
+  sessionId: string,
+  index: number,
+  opts?: { clear?: boolean },
+): Promise<{ phrase: { id: string; text: string } | null }> {
+  return call('replaceRevealPhrase', {
+    sessionId: sessionId.trim(),
+    index,
+    ...(opts?.clear ? { clear: true } : {}),
+  });
+}
+
+export function publishDrawSession(
+  sessionId: string,
+  opts?: { force?: boolean },
+): Promise<{ matchCount?: number; alreadyPublished?: boolean }> {
+  return call('publishDrawSession', {
+    sessionId: sessionId.trim(),
+    ...(opts?.force ? { force: true } : {}),
+  });
+}
+
+/** Anular é o único "desfazer" que existe — e o comprovante da anulada
+ *  continua público, com o motivo escrito. */
+export function voidDrawSession(sessionId: string, reason: string): Promise<{ ok: boolean }> {
+  return call('voidDrawSession', { sessionId: sessionId.trim(), reason: reason.trim() });
 }

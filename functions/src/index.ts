@@ -61,6 +61,16 @@ import {processCompletedGame} from "./game-completed-gamification";
 import {onBookingInviteAcceptedAwardInviterXp} from "./player-invite-gamification";
 import {onArenaBookingAttendanceWrittenSyncGamification} from "./booking-attendance-gamification";
 import {onArenaReviewCreatedAwardXp} from "./arena-review-gamification";
+// Sorteio ao Vivo — sessão, revelações e publicação da chave.
+import {
+  createDrawSession,
+  updateDrawSessionConfig,
+  startDrawSession,
+  drawNextReveal,
+  replaceRevealPhrase,
+  publishDrawSession,
+  voidDrawSession,
+} from "./draw-sessions";
 import {
   generateCategoryBracket,
   organizerConfirmRegistrationPayment,
@@ -222,6 +232,13 @@ export {
   onBookingInviteAcceptedAwardInviterXp,
   onArenaBookingAttendanceWrittenSyncGamification,
   onArenaReviewCreatedAwardXp,
+  createDrawSession,
+  updateDrawSessionConfig,
+  startDrawSession,
+  drawNextReveal,
+  replaceRevealPhrase,
+  publishDrawSession,
+  voidDrawSession,
   generateCategoryBracket,
   organizerConfirmRegistrationPayment,
   organizerRevertRegistrationPayment,

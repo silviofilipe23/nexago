@@ -1,0 +1,101 @@
+import {createHash} from "node:crypto";
+
+/**
+ * Log imutável do sorteio ao vivo — a cadeia de hash que sustenta o comprovante
+ * público.
+ *
+ * Cada revelação carrega o hash da anterior, então adulterar, reordenar ou
+ * remover uma entrada quebra tudo que vem depois: é o que impede o organizador
+ * de "sortear até dar certo" e reescrever a história em silêncio.
+ *
+ * Módulo puro de propósito — sem Firestore, sem Admin SDK. A callable monta a
+ * entrada, chama daqui e grava; o comprovante público refaz a conta com
+ * `verifyChain` e mostra o resultado.
+ */
+
+/** Uma revelação registrada. `index` é 1-based (é o número que vai ao ar). */
+export interface DrawRevealLogEntry {
+  index: number;
+  teamId: string;
+  /** Destino canônico da revelação: `grupo:A`, `seed:7`. */
+  destinationKey: string;
+  /** Timestamp do SERVIDOR. Nunca do cliente — senão a cadeia não prova horário. */
+  atMillis: number;
+  prevHash: string;
+  hash: string;
+}
+
+/** Campos que entram no hash. `hash` sai porque é o resultado. */
+export type DrawRevealLogInput = Omit<DrawRevealLogEntry, "hash">;
+
+/** O que a callable informa; `index` e `prevHash` saem da própria cadeia. */
+export type DrawRevealDraft = Omit<DrawRevealLogInput, "index" | "prevHash">;
+
+const sha256 = (value: string): string =>
+  createHash("sha256").update(value, "utf8").digest("hex");
+
+/**
+ * Campos separados por `\u0000` (byte nulo) em vez de `|`: o separador não pode
+ * aparecer dentro de nenhum campo, senão `{teamId:"a", destino:"b"}` colidiria
+ * com `{teamId:"a|b", destino:""}` e duas revelações diferentes teriam o mesmo
+ * hash.
+ */
+const SEP = "\u0000";
+
+export function revealHash(entry: DrawRevealLogInput): string {
+  return sha256(
+    [
+      entry.prevHash,
+      String(entry.index),
+      entry.teamId,
+      entry.destinationKey,
+      String(entry.atMillis),
+    ].join(SEP),
+  );
+}
+
+/** Âncora da cadeia — deriva do id da sessão, então duas sessões nunca compartilham raiz. */
+export function genesisHash(sessionSeed: string): string {
+  return sha256(`nexago:sorteio:${sessionSeed}`);
+}
+
+/** Próxima entrada da cadeia. Não muta `chain`. */
+export function appendReveal(
+  chain: readonly DrawRevealLogEntry[],
+  genesis: string,
+  draft: DrawRevealDraft,
+): DrawRevealLogEntry {
+  const previous = chain[chain.length - 1];
+  const input: DrawRevealLogInput = {
+    index: chain.length + 1,
+    teamId: draft.teamId,
+    destinationKey: draft.destinationKey,
+    atMillis: draft.atMillis,
+    prevHash: previous ? previous.hash : genesis,
+  };
+  return {...input, hash: revealHash(input)};
+}
+
+export type ChainVerdict = {ok: true} | {ok: false; brokenAt: number};
+
+/**
+ * Refaz a cadeia inteira. `brokenAt` é a POSIÇÃO na lista recebida (1-based) da
+ * primeira entrada que não confere — não o `index` gravado nela, que pode ser
+ * justamente o campo adulterado.
+ */
+export function verifyChain(
+  genesis: string,
+  entries: readonly DrawRevealLogEntry[],
+): ChainVerdict {
+  let expectedPrev = genesis;
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i]!;
+    const position = i + 1;
+    if (entry.prevHash !== expectedPrev || entry.index !== position) {
+      return {ok: false, brokenAt: position};
+    }
+    if (revealHash(entry) !== entry.hash) return {ok: false, brokenAt: position};
+    expectedPrev = entry.hash;
+  }
+  return {ok: true};
+}

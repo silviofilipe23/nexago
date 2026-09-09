@@ -40,6 +40,24 @@ export const routes: Routes = [
       import('./publico/public-tournament-page.component').then((m) => m.PublicTournamentPageComponent),
   },
   {
+    // Telão do Sorteio ao Vivo — PÚBLICO, sem guard nenhum. É o link que abre na TV da
+    // arena e a janela que o OBS captura; exigir login significaria digitar senha numa
+    // smart TV minutos antes de começar. Lê só `drawSessions`, cuja regra é `read: if true`
+    // e cuja escrita é exclusiva das Cloud Functions.
+    path: 'sorteio/:sessionId',
+    title: 'Sorteio ao vivo — NexaGO',
+    loadComponent: () =>
+      import('./publico/sorteio-telao-page.component').then((m) => m.SorteioTelaoPageComponent),
+  },
+  {
+    // Comprovante público do sorteio: a sequência completa com horários e hashes. É o link
+    // que o organizador manda no grupo quando alguém reclama.
+    path: 'sorteio/:sessionId/comprovante',
+    title: 'Comprovante do sorteio — NexaGO',
+    loadComponent: () =>
+      import('./publico/sorteio-comprovante.component').then((m) => m.SorteioComprovanteComponent),
+  },
+  {
     // Fora do shell do painel: fica aberta na TV da arena em tela cheia. Sem organizerGuard
     // de propósito — staff logado sem a role organizer também pode exibir o telão.
     path: 'telao/:tournamentId',
@@ -209,6 +227,28 @@ export const routes: Routes = [
                 path: 'seeds',
                 title: 'Gerar chave — NexaGO Organizador',
                 loadComponent: () => import('./painel/eventos/seeds.component').then((m) => m.SeedsComponent),
+              },
+              {
+                path: 'sorteio',
+                children: [
+                  {
+                    path: '',
+                    pathMatch: 'full',
+                    title: 'Sorteio ao vivo — NexaGO Organizador',
+                    loadComponent: () =>
+                      import('./painel/sorteio/sorteio-config.component').then(
+                        (m) => m.SorteioConfigComponent,
+                      ),
+                  },
+                  {
+                    path: 'console',
+                    title: 'Console do sorteio — NexaGO Organizador',
+                    loadComponent: () =>
+                      import('./painel/sorteio/sorteio-console.component').then(
+                        (m) => m.SorteioConsoleComponent,
+                      ),
+                  },
+                ],
               },
               {
                 path: 'grupos',

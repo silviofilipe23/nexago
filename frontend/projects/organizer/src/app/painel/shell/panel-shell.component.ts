@@ -365,6 +365,10 @@ export class PanelShellComponent {
       return [
         { label: 'Equipes', icon: 'users', link: `${base}/duplas` },
         { label: 'Cabeças de chave', icon: 'flag', link: `${base}/seeds` },
+        // Entre as cabeças e os grupos: é onde o sorteio cai na cronologia real
+        // do organizador — depois de definir a força das duplas, antes de a
+        // chave existir.
+        { label: 'Sorteio ao vivo', icon: 'tv', link: `${base}/sorteio`, matchPrefixes: [`${base}/sorteio`] },
         { label: 'Grupos', icon: 'grid', link: `${base}/grupos` },
         { label: 'Chaveamento', icon: 'bracket', link: `${base}/chave` },
         { label: 'Jogos & placares', icon: 'whistle', link: `${base}/jogos`, matchPrefixes: [`${base}/jogos`, `${base}/placar`, `${base}/ao-vivo`] },

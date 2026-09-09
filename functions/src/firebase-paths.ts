@@ -27,3 +27,8 @@ export function artifactsInscriptionsPath(projectId: string = getFirebaseProject
 export function artifactsTournamentsPath(projectId: string = getFirebaseProjectId()): string {
   return `${artifactsPublicDataBase(projectId)}/tournaments`;
 }
+
+/** Sessões do Sorteio ao Vivo. Leitura pública (o telão abre sem login); escrita só via CF. */
+export function artifactsDrawSessionsPath(projectId: string = getFirebaseProjectId()): string {
+  return `${artifactsPublicDataBase(projectId)}/drawSessions`;
+}

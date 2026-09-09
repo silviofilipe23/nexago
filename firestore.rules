@@ -2191,6 +2191,22 @@ service cloud.firestore {
       allow write: if request.auth != null && isAdmin();
     }
 
+    // ── Sorteio ao Vivo ──────────────────────────────────────────────────
+    // Sessão de sorteio: o documento único que o console e o TELÃO PÚBLICO
+    // leem. Leitura aberta de propósito — `/sorteio/{sessionId}` é o link que
+    // abre na TV da arena e no OBS, sem login. O id é gerado pelo Firestore
+    // (20 chars), então não é derivável do id do torneio.
+    //
+    // Escrita NENHUMA pelo cliente, nem do dono do torneio: quem escreve são as
+    // callables (`createDrawSession`, `drawNextReveal`, `publishDrawSession`,
+    // `voidDrawSession`) via Admin SDK, que bypassa estas regras. É isso que
+    // garante que o resultado nasce no servidor e que o log encadeado do
+    // comprovante não pode ser reescrito nem apagado.
+    match /artifacts/{appId}/public/data/drawSessions/{sessionId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Ledger append-only de eventos de rating (auditoria/replay). Escrita
     // exclusiva da engine.
     match /artifacts/{appId}/public/data/ratingEvents/{eventId} {

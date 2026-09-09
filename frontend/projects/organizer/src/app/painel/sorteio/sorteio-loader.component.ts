@@ -222,11 +222,10 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
     .og-ld-face.f5 {
       transform: rotateX(-90deg) translateZ(115px);
     }
-    /* UMA face é laranja, sempre. É ela passando no giro que dá o brilho
-       alaranjado nas quinas do cubo — e, como o cubo para de frente, é
-       também a face em que o resultado trava. Texto escuro sobre o laranja
-       dá 6,9:1; branco daria 2,6:1 e reprovaria mesmo em texto grande. */
-    .og-ld-face.f0 {
+    /* Laranja só na travada: no giro todas as faces são iguais — o destaque
+       aparece junto com o resultado, não vaza o mistério no meio do tumble.
+       Texto escuro sobre o laranja dá 6,9:1; branco daria 2,6:1. */
+    .og-ld-cubo.travado .og-ld-face.f0 {
       background: var(--nx-orange-500);
       border-color: var(--nx-orange-600);
       color: var(--nx-text-on-orange);

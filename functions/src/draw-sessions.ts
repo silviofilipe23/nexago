@@ -27,6 +27,7 @@ import {
 } from "./draw-session-model";
 import {runGenerateCategoryBracket} from "./organizer-category-ops";
 import {assertCanManageTournament} from "./tournament-acl";
+import {findCategory, resolveCategoryLabel} from "./tournament-registration-guards";
 import {registrationAthleteUids} from "./tournament-registration-pix-helpers";
 import {chunkList} from "./test-data-cleanup";
 
@@ -159,15 +160,12 @@ interface CategoryMeta {
 }
 
 function categoryMetaOf(tournament: Record<string, unknown>, categoryId: string): CategoryMeta {
-  const categories = Array.isArray(tournament.categories) ? tournament.categories : [];
-  // Casar por `id` é a regra única do projeto — casar por nome devolve undefined.
-  const found = categories.find(
-    (c) => (c as Record<string, unknown>)?.id === categoryId,
-  ) as Record<string, unknown> | undefined;
+  // Mesma resolução de rótulo do resto do produto — `categoryName`/`label`, não só `name`.
+  const found = findCategory(tournament, categoryId);
   const num = (value: unknown, fallback: number): number =>
     typeof value === "number" && Number.isFinite(value) ? value : fallback;
   return {
-    name: str(found?.name) || "Categoria",
+    name: resolveCategoryLabel(tournament, categoryId) || "Categoria",
     teamsPerGroup: num(found?.teamsPerGroup, 4),
     qualifiersPerGroup: num(found?.qualifiersPerGroup, 2),
     bracketFormat: str(found?.bracketFormat) || null,

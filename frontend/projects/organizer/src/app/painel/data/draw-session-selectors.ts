@@ -83,9 +83,21 @@ export function remainingInPot(session: DrawSession): DrawSessionEntrant[] {
     .filter((e): e is DrawSessionEntrant => !!e);
 }
 
-/** Rótulo do destino pra tela: `GRUPO C` ou `SEED 12`. */
+/** Rótulo do destino pra tela: `GRUPO C` ou `POSIÇÃO 12`. */
 export function destinationLabelOf(destination: DrawDestination): string {
-  return destination.type === 'group' ? `GRUPO ${destination.groupId}` : `SEED ${destination.seed}`;
+  return destination.type === 'group' ? `GRUPO ${destination.groupId}` : `POSIÇÃO ${destination.seed}`;
+}
+
+/**
+ * Como citar uma seed na dramaturgia do telão: se a posição já tem equipe
+ * (travada ou sorteada), usa o nome; senão fica "a cabeça N".
+ */
+export function seedRivalPhrase(
+  seedOrder: ReadonlyArray<DrawSessionEntrant | null>,
+  seed: number,
+): string {
+  const label = seedOrder[seed - 1]?.label?.trim();
+  return label || `a cabeça ${seed}`;
 }
 
 /** Aproveitamento em %; `null` pra dupla estreante — mostrar 0% seria mentira. */

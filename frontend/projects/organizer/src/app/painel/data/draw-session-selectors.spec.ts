@@ -4,6 +4,7 @@ import {
   groupsOf,
   remainingInPot,
   seedOrderOf,
+  seedRivalPhrase,
   winRateOf,
 } from './draw-session-selectors';
 
@@ -186,8 +187,19 @@ describe('destinationLabelOf', () => {
     expect(destinationLabelOf({ type: 'group', groupId: 'C' })).toBe('GRUPO C');
   });
 
-  it('seed vira "SEED 12"', () => {
-    expect(destinationLabelOf({ type: 'seed', seed: 12 })).toBe('SEED 12');
+  it('seed vira "POSIÇÃO 12"', () => {
+    expect(destinationLabelOf({ type: 'seed', seed: 12 })).toBe('POSIÇÃO 12');
+  });
+});
+
+describe('seedRivalPhrase', () => {
+  it('usa o nome da equipe quando a posição já está preenchida', () => {
+    const order = [null, entrant('a', { label: 'Ana / Bia' }), null];
+    expect(seedRivalPhrase(order, 2)).toBe('Ana / Bia');
+  });
+
+  it('cai em "a cabeça N" enquanto a posição está vazia', () => {
+    expect(seedRivalPhrase([null, null], 1)).toBe('a cabeça 1');
   });
 });
 

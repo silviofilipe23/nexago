@@ -1,7 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { destinationLabelOf, remainingInPot, winRateOf } from '../data/draw-session-selectors';
+import { destinationLabelOf, remainingInPot, seedOrderOf, seedRivalPhrase, winRateOf } from '../data/draw-session-selectors';
 import type { DrawSession } from '../data/draw-session.model';
 import {
   clearRevealSpotlight,
@@ -984,10 +984,13 @@ export class SorteioConsoleComponent {
   protected readonly consequence = computed(() => {
     const placement = this.current()?.dePlacement;
     if (!placement) return null;
+    const session = this.store.session();
+    const order = session ? seedOrderOf(session) : [];
+    const rival = (seed: number) => seedRivalPhrase(order, seed);
     const debut = placement.hasBye ?
       'Entra direto na segunda rodada — tem bye.' :
       placement.opponentSeed != null ?
-        `Enfrenta a cabeça ${placement.opponentSeed} na primeira rodada.` :
+        `Enfrenta ${rival(placement.opponentSeed)} na primeira rodada.` :
         placement.opponentFromMatch != null ?
           `Enfrenta o vencedor do jogo ${placement.opponentFromMatch}.` :
           null;
@@ -995,8 +998,8 @@ export class SorteioConsoleComponent {
     if (!meeting) return debut;
     const path =
       meeting.winsNeeded === 0 ?
-        `Cruza com a cabeça ${meeting.seed} já na estreia.` :
-        `Se ganhar ${meeting.winsNeeded === 1 ? 'uma' : meeting.winsNeeded}, cruza com a cabeça ${meeting.seed}.`;
+        `Cruza com ${rival(meeting.seed)} já na estreia.` :
+        `Se ganhar ${meeting.winsNeeded === 1 ? 'uma' : meeting.winsNeeded}, cruza com ${rival(meeting.seed)}.`;
     return [debut, path].filter(Boolean).join(' ');
   });
 

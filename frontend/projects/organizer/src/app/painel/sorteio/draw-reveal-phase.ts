@@ -12,9 +12,9 @@
  */
 
 /** Os dados rolam com os nomes ainda no pote. */
-export const ROLL_MS = 2400;
+export const ROLL_MS = 5000;
 /** Os dados desaceleram e param de frente na dupla sorteada. */
-export const LAND_MS = 1100;
+export const LAND_MS = 3000;
 /** A dupla toma o telão inteiro: nomes gigantes, estatística e a frase. */
 export const SPOTLIGHT_MS = 3500;
 

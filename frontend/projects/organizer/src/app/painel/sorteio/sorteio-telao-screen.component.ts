@@ -134,6 +134,7 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
               [entrant]="entrant"
               [reveal]="reveal"
               [destinationLabel]="currentDestination() ?? ''"
+              [seedOrder]="seedOrder()"
               [progress]="spotlightProgress()"
               [portrait]="portrait()"
             />
@@ -553,7 +554,7 @@ export class SorteioTelaoScreenComponent {
     const s = this.session();
     if (s.format === 'groups_knockout') return groupsOf(s, 0).map((g) => `GRUPO ${g.groupId}`);
     return this.seedOrder()
-      .map((entrant, i) => (entrant ? null : `SEED ${i + 1}`))
+      .map((entrant, i) => (entrant ? null : `POSIÇÃO ${i + 1}`))
       .filter((label): label is string => label != null);
   });
 

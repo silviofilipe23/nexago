@@ -48,13 +48,13 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
   template: `
     <og-page-header title="Sorteio ao vivo" [subtitle]="headerSubtitle()">
       @if (session(); as s) {
-        <button type="button" class="og-mini-btn" (click)="copyTelaoLink(s)">
+        <button type="button" class="og-sc-copy" (click)="copyTelaoLink(s)">
           {{ copied() ? 'Link copiado ✓' : 'Copiar link do telão' }}
         </button>
         @if (s.status === 'live') {
-          <button type="button" class="og-btn" (click)="openConsole(s)">Voltar ao console</button>
+          <button type="button" class="og-sc-cta" (click)="openConsole(s)">Voltar ao console</button>
         } @else if (editable(s)) {
-          <button type="button" class="og-btn" [disabled]="busy()" (click)="start(s)">
+          <button type="button" class="og-sc-cta" [disabled]="busy()" (click)="start(s)">
             {{ busy() ? 'Iniciando…' : 'Iniciar sorteio' }}
           </button>
         }
@@ -305,24 +305,26 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
           <!-- ── Coluna 3 · o que o organizador decide ────────────── -->
           <div class="og-sc-col">
             <og-card kicker="Condução" title="Ritmo do sorteio">
-              <og-radio-row
-                title="Manual"
-                desc="Um clique por revelação — para narrar ao vivo"
-                [selected]="s.config.mode === 'manual'"
-                (click)="setMode(s, 'manual')"
-              />
-              <og-radio-row
-                title="Automático"
-                [desc]="'Revela sozinho a cada ' + seconds(s.config.intervalMs) + ' s, com play/pause'"
-                [selected]="s.config.mode === 'auto'"
-                (click)="setMode(s, 'auto')"
-              />
-              <og-radio-row
-                title="Híbrido · recomendado"
-                desc="Automático dentro do pote, pausa entre potes"
-                [selected]="s.config.mode === 'hybrid'"
-                (click)="setMode(s, 'hybrid')"
-              />
+              <div class="og-sc-formatos">
+                <og-radio-row
+                  title="Manual"
+                  desc="Um clique por revelação — para narrar ao vivo"
+                  [selected]="s.config.mode === 'manual'"
+                  (click)="setMode(s, 'manual')"
+                />
+                <og-radio-row
+                  title="Automático"
+                  [desc]="'Revela sozinho a cada ' + seconds(s.config.intervalMs) + ' s, com play/pause'"
+                  [selected]="s.config.mode === 'auto'"
+                  (click)="setMode(s, 'auto')"
+                />
+                <og-radio-row
+                  title="Híbrido · recomendado"
+                  desc="Automático dentro do pote, pausa entre potes"
+                  [selected]="s.config.mode === 'hybrid'"
+                  (click)="setMode(s, 'hybrid')"
+                />
+              </div>
               <label class="og-sc-campo og-sc-slider-campo">
                 <span class="og-sc-label">Intervalo entre revelações</span>
                 <span class="og-sc-slider">
@@ -403,6 +405,61 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
     </div>
   `,
   styles: `
+    /* Ações do page-header — mesmo par outline + laranja do protótipo.
+       Classe og-sc-copy (e nao og-sc-link): og-sc-link ja e o bloco do URL
+       na coluna de transmissao, e as duas regras se atropelavam. */
+    .og-sc-copy,
+    .og-sc-cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 0 24px;
+      border-radius: 15px;
+      cursor: pointer;
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+      transition:
+        background 180ms var(--nx-ease-out),
+        border-color 180ms var(--nx-ease-out),
+        color 180ms var(--nx-ease-out),
+        transform 140ms var(--nx-ease-out),
+        opacity 140ms var(--nx-ease-out);
+    }
+    .og-sc-copy {
+      border: 1px solid var(--nx-line-strong);
+      background: var(--nx-surface-1);
+      color: var(--nx-text);
+    }
+    .og-sc-copy:hover {
+      border-color: rgba(255, 255, 255, 0.28);
+      background: var(--nx-surface-2);
+    }
+    .og-sc-cta {
+      border: none;
+      background: var(--nx-orange-500);
+      color: var(--nx-text-on-orange);
+    }
+    .og-sc-cta:hover:not(:disabled) {
+      background: var(--nx-orange-400);
+    }
+    .og-sc-cta:active:not(:disabled),
+    .og-sc-copy:active {
+      transform: scale(0.99);
+    }
+    .og-sc-cta:disabled {
+      opacity: 0.55;
+      cursor: default;
+    }
+    .og-sc-copy:focus-visible,
+    .og-sc-cta:focus-visible {
+      outline: 2px solid var(--nx-orange-500);
+      outline-offset: 3px;
+    }
+
     .og-sc {
       padding: 20px 32px 32px;
       display: flex;

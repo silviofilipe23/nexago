@@ -127,7 +127,9 @@ class TournamentCategoryDraft {
     this.bracketSystem = TournamentBracketSystem.groupsThenKnockout,
     this.teamsPerGroup = 4,
     this.qualifiersPerGroup = 2,
-    this.bestOf = TournamentBestOf.bestOf3,
+    // Padrão do NexaGO: partida de set único. MD3/MD5 são escolha explícita
+    // do organizador no wizard.
+    this.bestOf = TournamentBestOf.singleSet,
     this.finalBestOf5 = true,
     this.maxRegistrationsPerAthlete = 2,
     this.prizes = const [],

@@ -50,8 +50,20 @@ async function run() {
   if (uids.length === 0) return;
 
   if (!APPLY) {
-    console.log("DRY-RUN: nada foi apagado. Rode com --yes para remover.");
-    console.log("Exemplos:", uids.slice(0, 5).join(", "));
+    // Prévia por NOME, não por uid: é o dry-run de um script destrutivo, e
+    // "masc-ini_1-01 — seed-iniciante_1-m-01@nexago.test" é conferível a olho;
+    // uma lista de uids crus não é. Mesmo formato do delete-users-seed-email.
+    const preview = snap.docs.slice(0, 15);
+    for (const doc of preview) {
+      const d = doc.data();
+      const name = d.fullName || "(sem nome)";
+      const email = d.email || "(sem e-mail)";
+      console.log(`  - ${name}  ${email}  (${doc.id})`);
+    }
+    if (uids.length > preview.length) {
+      console.log(`  … e mais ${uids.length - preview.length}`);
+    }
+    console.log("\nDRY-RUN: nada foi apagado. Rode com --yes para remover.");
     return;
   }
 

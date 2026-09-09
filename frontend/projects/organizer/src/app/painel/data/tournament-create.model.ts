@@ -141,7 +141,8 @@ export function emptyCategoryDraft(id: string): TournamentCategoryDraft {
     bracketSystem: 'groupsThenKnockout',
     teamsPerGroup: 4,
     qualifiersPerGroup: 2,
-    bestOf: 'bestOf3',
+    // Padrão do NexaGO: partida de set único (MD3/MD5 são escolha explícita).
+    bestOf: 'singleSet',
     finalBestOf5: false,
     maxRegistrationsPerAthlete: 2,
     prizes: [],

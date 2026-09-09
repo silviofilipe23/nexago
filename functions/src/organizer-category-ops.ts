@@ -7,11 +7,13 @@ import {
 import * as logger from "firebase-functions/logger";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {MatchStatus, isMatchCompleted, isMatchInProgress} from "./match-status";
+import {matchBestOfFromCategory} from "./match-scoring";
 import {
   buildDoubleEliminationMatches,
   buildGroupsKnockoutMatches,
   buildSingleEliminationMatches,
   isBalancedQualifierTotal,
+  type MatchDraft,
 } from "./category-bracket-builders";
 import {
   BRACKET_DEFINITIONS,
@@ -83,6 +85,38 @@ function normalizePhoneForWhatsApp(phone: string): string {
   return digits;
 }
 
+/**
+ * Documento da partida gerada pela chave (sem os timestamps, que são do
+ * servidor). Extraído para ficar testável: `bestOf` só chega na mesa, no telão
+ * e no app porque é gravado AQUI, na criação.
+ */
+export function bracketMatchDoc(
+  draft: MatchDraft,
+  meta: {tournamentId: string; categoryId: string; bestOf: number},
+): Record<string, unknown> {
+  return {
+    tournamentId: meta.tournamentId,
+    categoryId: meta.categoryId,
+    round: draft.round,
+    matchType: draft.matchType,
+    poolId: draft.poolId,
+    teamAId: draft.teamAId,
+    teamBId: draft.teamBId,
+    status: MatchStatus.scheduled,
+    bestOf: meta.bestOf,
+    resultA: "",
+    resultB: "",
+    isGroupMatch: draft.isGroupMatch,
+    matchNumber: draft.matchNumber,
+    ...(draft.winnerAdvance ? {winnerAdvance: draft.winnerAdvance} : {}),
+    ...(draft.loserAdvance ? {loserAdvance: draft.loserAdvance} : {}),
+    ...(draft.teamAQualifier ? {teamAQualifier: draft.teamAQualifier} : {}),
+    ...(draft.teamBQualifier ? {teamBQualifier: draft.teamBQualifier} : {}),
+    ...(draft.teamADescription ? {teamADescription: draft.teamADescription} : {}),
+    ...(draft.teamBDescription ? {teamBDescription: draft.teamBDescription} : {}),
+  };
+}
+
 export const generateCategoryBracket = onCall(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -126,6 +160,10 @@ export const generateCategoryBracket = onCall(async (request) => {
     (bracketConfig?.qualifiersPerGroup as number | undefined) ??
     (categoryMeta?.qualifiersPerGroup as number | undefined) ??
     2;
+  // Formato de placar escolhido na categoria. Gravar na partida é o que faz a
+  // escolha do organizador chegar na mesa/telão/app — antes o campo nunca era
+  // escrito na criação e TODA partida caía no fallback histórico (MD3).
+  const bestOf = matchBestOfFromCategory(categoryMeta?.bestOf);
 
   const inscriptionsSnap = await db
     .collection(artifactsInscriptionsPath(projectId))
@@ -306,24 +344,7 @@ export const generateCategoryBracket = onCall(async (request) => {
   for (const draft of matchDrafts) {
     const ref = matchesCol.doc();
     batch.set(ref, {
-      tournamentId,
-      categoryId,
-      round: draft.round,
-      matchType: draft.matchType,
-      poolId: draft.poolId,
-      teamAId: draft.teamAId,
-      teamBId: draft.teamBId,
-      status: MatchStatus.scheduled,
-      resultA: "",
-      resultB: "",
-      isGroupMatch: draft.isGroupMatch,
-      matchNumber: draft.matchNumber,
-      ...(draft.winnerAdvance ? {winnerAdvance: draft.winnerAdvance} : {}),
-      ...(draft.loserAdvance ? {loserAdvance: draft.loserAdvance} : {}),
-      ...(draft.teamAQualifier ? {teamAQualifier: draft.teamAQualifier} : {}),
-      ...(draft.teamBQualifier ? {teamBQualifier: draft.teamBQualifier} : {}),
-      ...(draft.teamADescription ? {teamADescription: draft.teamADescription} : {}),
-      ...(draft.teamBDescription ? {teamBDescription: draft.teamBDescription} : {}),
+      ...bracketMatchDoc(draft, {tournamentId, categoryId, bestOf}),
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });

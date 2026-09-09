@@ -3,6 +3,7 @@ import {test} from "node:test";
 
 import {
   isSetWon,
+  matchBestOfFromCategory,
   matchWinnerId,
   parseAndValidateSets,
   setsWon,
@@ -99,4 +100,22 @@ test("parseAndValidateSets respeita o limite de sets do formato", () => {
     parseAndValidateSets([{a: 21, b: 10}, {a: 21, b: 10}], 1),
   );
   assert.doesNotThrow(() => parseAndValidateSets([{a: 21, b: 10}], 1));
+});
+
+test("matchBestOfFromCategory: categoria de set único gera partida de 1 set", () => {
+  assert.equal(matchBestOfFromCategory("singleSet"), 1);
+});
+
+test("matchBestOfFromCategory: MD3 e MD5 geram partida de 3 sets", () => {
+  assert.equal(matchBestOfFromCategory("bestOf3"), 3);
+  // MD5 não é suportado no placar (mesa, telão e app leem só 1 ou 3), então
+  // continua valendo como MD3 — que é como já era jogado antes deste campo.
+  assert.equal(matchBestOfFromCategory("bestOf5"), 3);
+});
+
+test("matchBestOfFromCategory: categoria sem o campo mantém MD3 (torneio antigo)", () => {
+  assert.equal(matchBestOfFromCategory(undefined), 3);
+  assert.equal(matchBestOfFromCategory(null), 3);
+  assert.equal(matchBestOfFromCategory(""), 3);
+  assert.equal(matchBestOfFromCategory(3), 3);
 });

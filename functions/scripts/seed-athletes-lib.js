@@ -9,16 +9,21 @@
 
 const admin = require("firebase-admin");
 
+// `short` entra no NOME do atleta (`masc-ini_1-01`) — mantenha curto, é o que
+// aparece na chave, no telão e na mesa durante os testes. `code`/`label`
+// continuam sendo o nível de verdade.
 const LEVELS = [
-  {code: "iniciante_1", label: "Iniciante 1"},
-  {code: "iniciante_2", label: "Iniciante 2"},
-  {code: "intermediario_1", label: "Intermediário 1"},
-  {code: "intermediario_2", label: "Intermediário 2"},
-  {code: "open", label: "Open"},
+  {code: "iniciante_1", label: "Iniciante 1", short: "ini_1"},
+  {code: "iniciante_2", label: "Iniciante 2", short: "ini_2"},
+  {code: "intermediario_1", label: "Intermediário 1", short: "int_1"},
+  {code: "intermediario_2", label: "Intermediário 2", short: "int_2"},
+  {code: "open", label: "Open", short: "open"},
 ];
+// `short` é do E-MAIL (não mexa: renomear troca o uid do atleta na próxima
+// rodada e quebra a idempotência); `nameShort` é do nome exibido.
 const GENDERS = [
-  {type: "male", label: "Masculino", short: "m"},
-  {type: "female", label: "Feminino", short: "f"},
+  {type: "male", label: "Masculino", short: "m", nameShort: "masc"},
+  {type: "female", label: "Feminino", short: "f", nameShort: "fem"},
 ];
 
 const SPORT_LABEL = "Vôlei de praia";
@@ -111,7 +116,9 @@ async function seedAthletes({
       const baseSeq = (levelIdx * GENDERS.length + genderIdx) * count;
       for (let n = 1; n <= count; n++) {
         const nn = String(n).padStart(2, "0");
-        const fullName = `Atleta ${level.label} ${gender.label} ${nn}`;
+        // Nome curto de propósito: "Atleta Intermediário 1 Masculino 01" não
+        // cabia na chave nem no telão durante os testes.
+        const fullName = `${gender.nameShort}-${level.short}-${nn}`;
         const email = `seed-${level.code}-${gender.short}-${nn}@nexago.test`;
         const phone = phoneFor(baseSeq + n);
         const birthDate = birthDateForLevel(n);
@@ -146,7 +153,16 @@ async function seedAthletes({
             levelsBySport: {[PRIMARY_SPORT]: level.code},
             goals: ["COMPETIR"],
           },
-          keywords: generateKeywords([fullName, city]),
+          // As partes entram soltas porque `generateKeywords` só quebra em
+          // ESPAÇO: sem elas o nome inteiro seria um token só e a busca por
+          // "ini" ou "fem" não acharia mais ninguém do seed.
+          keywords: generateKeywords([
+            fullName,
+            gender.nameShort,
+            level.short,
+            nn,
+            city,
+          ]),
           seedTestAthlete: true,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         };

@@ -46,7 +46,9 @@ void main() {
     final category = (map['categories'] as List).first as Map<String, dynamic>;
     expect(category['bracketFormat'], 'groups_knockout');
     expect(category['teamsPerGroup'], 4);
-    expect(category['bestOf'], 'bestOf3');
+    // Padrão do NexaGO: categoria nasce em set único. É esse `bestOf` que a
+    // geração da chave lê para gravar 1 set em cada partida.
+    expect(category['bestOf'], 'singleSet');
     expect(map['keywords'], isA<List>());
     expect(map['enrolledCount'], 0);
     expect(map['collectedCents'], 0);

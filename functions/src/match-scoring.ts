@@ -13,6 +13,21 @@ export interface ScoreSet {
   b: number;
 }
 
+/**
+ * Formato configurado na categoria (`tournaments/{id}.categories[].bestOf`)
+ * traduzido para o número de sets gravado na partida.
+ *
+ * `bestOf5` cai em MD3 de propósito: o placar (mesa, telão e app) só entende 1
+ * ou 3 sets, então MD5 já era jogado como MD3 — mapear para 5 mudaria o alvo do
+ * 3º set (15 → 21) e o número de sets para vencer.
+ *
+ * Categoria SEM o campo é torneio antigo, criado quando o formato nem era
+ * escolhido: mantém MD3, o padrão histórico.
+ */
+export function matchBestOfFromCategory(raw: unknown): number {
+  return raw === "singleSet" ? 1 : DEFAULT_BEST_OF;
+}
+
 export function targetPointsForSet(setIndex: number, bestOf: number): number {
   if (bestOf === 3 && setIndex === 2) return TIEBREAK_SET_POINTS;
   return DEFAULT_SET_POINTS;

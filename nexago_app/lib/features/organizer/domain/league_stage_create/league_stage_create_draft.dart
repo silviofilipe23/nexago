@@ -27,7 +27,8 @@ class LeagueStageCategoryDraft {
     this.bracketSystem = TournamentBracketSystem.groupsThenKnockout,
     this.teamsPerGroup = 4,
     this.qualifiersPerGroup = 2,
-    this.bestOf = TournamentBestOf.bestOf3,
+    // Mesmo padrão do wizard de torneio: set único.
+    this.bestOf = TournamentBestOf.singleSet,
     this.finalBestOf5 = true,
     this.genderFree = false,
     this.menCount,

@@ -230,6 +230,16 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
       font-size: 10px;
     }
 
+    /* Celular: uma coluna só. Duas colunas em 375px dariam ~160px cada, e a
+       linha da dupla (dois avatares sobrepostos + nome + legenda) não cabe —
+       o nome viraria reticências em todas as linhas. */
+    @media (max-width: 599px) {
+      .og-esp-grade,
+      .og-esp-jogos {
+        grid-template-columns: minmax(0, 1fr) !important;
+      }
+    }
+
     @media (prefers-reduced-motion: reduce) {
       .og-esp-grupo,
       .og-esp-jogo {

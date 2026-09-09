@@ -1,20 +1,31 @@
-import { ChangeDetectionStrategy, Component, effect, inject, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  effect,
+  inject,
+  signal,
+  input,
+} from '@angular/core';
 import { TelaoStageComponent } from '../painel/telao/telao-stage.component';
 import { DrawClockService } from '../painel/sorteio/draw-clock.service';
 import { DrawSessionStore } from '../painel/sorteio/draw-session.store';
 import { SorteioTelaoScreenComponent } from '../painel/sorteio/sorteio-telao-screen.component';
+import { drawCanvasFor, isPortraitViewport } from '../painel/sorteio/draw-canvas-orientation';
 
 /**
  * `/sorteio/:sessionId` — o telão de transmissão, PÚBLICO.
  *
- * Sem guard nenhum, de propósito: é o link que abre na TV da arena e a janela
- * que o OBS captura, e exigir login ali significaria alguém digitando senha
- * numa smart TV minutos antes de começar. A leitura é segura porque as rules
- * abrem só `drawSessions` (e o id é gerado pelo Firestore, não derivável do id
- * do torneio), e porque nenhum cliente escreve nessa coleção.
+ * Sem guard nenhum, de propósito: é o link que abre na TV da arena, a janela
+ * que o OBS captura — e o link que o atleta abre no celular. A leitura é segura
+ * porque as rules abrem só `drawSessions` (e o id é gerado pelo Firestore, não
+ * derivável do id do torneio), e porque nenhum cliente escreve nessa coleção.
  *
- * A arte é desenhada num canvas de 1920×1080 e escalada pelo `og-telao-stage`
- * — o mesmo palco que o telão de jogos já usa.
+ * O canvas vira EM PÉ quando a tela é estreita e mais alta que larga. Num
+ * iPhone em pé o canvas 16:9 escalaria pra 375×211, com o texto de 25px virando
+ * 5px no meio de uma tela preta — o link é público justamente pra ser aberto
+ * daquele jeito.
  */
 @Component({
   selector: 'og-sorteio-telao-page',
@@ -23,8 +34,16 @@ import { SorteioTelaoScreenComponent } from '../painel/sorteio/sorteio-telao-scr
   imports: [TelaoStageComponent, SorteioTelaoScreenComponent],
   template: `
     @if (store.session(); as session) {
-      <og-telao-stage class="og-sorteio-page-stage">
-        <og-sorteio-telao-screen [session]="session" [now]="clock.now()" />
+      <og-telao-stage
+        class="og-sorteio-page-stage"
+        [canvasWidth]="canvas().width"
+        [canvasHeight]="canvas().height"
+      >
+        <og-sorteio-telao-screen
+          [session]="session"
+          [now]="clock.now()"
+          [portrait]="portrait()"
+        />
       </og-telao-stage>
     } @else {
       <div class="og-sorteio-vazio">
@@ -44,6 +63,8 @@ import { SorteioTelaoScreenComponent } from '../painel/sorteio/sorteio-telao-scr
     :host {
       display: block;
       width: 100vw;
+      /* dvh e NÃO vh: no celular a barra do navegador entra e sai, e vh congela
+         na altura maior — o telão ficaria cortado embaixo. */
       height: 100dvh;
       background: var(--nx-bg);
     }
@@ -83,7 +104,26 @@ export class SorteioTelaoPageComponent {
   protected readonly store = inject(DrawSessionStore);
   protected readonly clock = inject(DrawClockService);
 
+  private readonly viewport = signal({ width: 0, height: 0 });
+
+  protected readonly portrait = computed(() => {
+    const { width, height } = this.viewport();
+    return isPortraitViewport(width, height);
+  });
+
+  protected readonly canvas = computed(() => drawCanvasFor(this.portrait()));
+
   constructor() {
     effect(() => this.store.sessionId.set(this.sessionId()));
+
+    const measure = () =>
+      this.viewport.set({ width: window.innerWidth, height: window.innerHeight });
+    measure();
+    window.addEventListener('resize', measure, { passive: true });
+    window.addEventListener('orientationchange', measure);
+    inject(DestroyRef).onDestroy(() => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('orientationchange', measure);
+    });
   }
 }

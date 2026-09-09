@@ -31,6 +31,7 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
 @Component({
   selector: 'og-sorteio-telao-screen',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[class.retrato]': 'portrait()' },
   imports: [
     SorteioChaveDeComponent,
     SorteioLoaderComponent,
@@ -104,6 +105,7 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
               [resultDestination]="currentDestination() ?? ''"
               [landed]="phase() === 'land'"
               [progress]="rollProgress()"
+              [portrait]="portrait()"
             />
           }
           @case ('grid') {
@@ -111,6 +113,7 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
               <og-sorteio-grade-grupos
                 [groups]="groups()"
                 [highlightGroupId]="highlightGroupId()"
+                [portrait]="portrait()"
               />
             } @else {
               <og-sorteio-chave-de
@@ -119,6 +122,7 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
                 [byeSeeds]="s.bracketOutline?.byeSeeds ?? []"
                 [lockedSeedCount]="s.config.lockedSeedCount"
                 [highlightSeed]="highlightSeed()"
+                [portrait]="portrait()"
               />
             }
           }
@@ -131,6 +135,7 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
               [reveal]="reveal"
               [destinationLabel]="currentDestination() ?? ''"
               [progress]="spotlightProgress()"
+              [portrait]="portrait()"
             />
           }
         }
@@ -348,6 +353,59 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
       }
     }
 
+    /* ── Canvas em pé ──────────────────────────────────────────────
+       Mesmo conteúdo, proporções refeitas: mais altura pra respirar, menos
+       largura pra caber. Nada é escondido — o celular vê o mesmo sorteio. */
+    :host(.retrato) {
+      width: 1080px;
+      height: 1920px;
+    }
+    :host(.retrato) .og-telao-head {
+      flex-wrap: wrap;
+      gap: 16px;
+      padding: 40px 48px;
+    }
+    :host(.retrato) .og-telao-sep {
+      display: none;
+    }
+    :host(.retrato) .og-telao-evento {
+      flex: 1 0 100%;
+      order: 3;
+    }
+    :host(.retrato) .og-telao-torneio {
+      font-size: 40px;
+    }
+    :host(.retrato) .og-telao-categoria {
+      font-size: 22px;
+    }
+    :host(.retrato) .og-telao-marca {
+      font-size: 40px;
+    }
+    :host(.retrato) .og-telao-kicker {
+      font-size: 18px;
+    }
+    :host(.retrato) .og-telao-contador-valor {
+      font-size: 46px;
+    }
+    :host(.retrato) .og-telao-palco {
+      padding: 40px 48px;
+    }
+    :host(.retrato) .og-telao-relogio {
+      font-size: 150px;
+    }
+    :host(.retrato) .og-telao-aviso {
+      font-size: 52px;
+    }
+    :host(.retrato) .og-telao-esteira-item {
+      font-size: 26px;
+    }
+    :host(.retrato) .og-telao-rodape {
+      padding: 28px 48px;
+    }
+    :host(.retrato) .og-telao-app {
+      font-size: 26px;
+    }
+
     /* O ponto do AO VIVO é decorativo — a palavra já diz. */
     @media (prefers-reduced-motion: reduce) {
       .og-telao-live-dot {
@@ -360,6 +418,14 @@ export class SorteioTelaoScreenComponent {
   readonly session = input.required<DrawSession>();
   /** Instante atual — vem do `DrawClockService` de quem hospeda a tela. */
   readonly now = input.required<number>();
+  /**
+   * Canvas em pé (1080×1920) em vez de deitado.
+   *
+   * Não é enfeite: no celular em pé, um canvas 16:9 escala pra 375×211 e o
+   * texto de 25px vira 5px. O link do telão é público e é justamente no
+   * celular que o atleta abre.
+   */
+  readonly portrait = input(false);
 
   protected readonly currentReveal = computed(() => {
     const reveals = this.session().reveals;

@@ -16,6 +16,7 @@ import type { DrawSessionEntrant, DrawSessionReveal } from '../data/draw-session
 @Component({
   selector: 'og-sorteio-spotlight',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[class.retrato]': 'portrait()' },
   template: `
     @let e = entrant();
     <div class="og-spot">
@@ -267,6 +268,29 @@ import type { DrawSessionEntrant, DrawSessionReveal } from '../data/draw-session
       line-height: 1.45;
       color: var(--nx-text-mute);
     }
+    /* ── Canvas em pé ─────────────────────────────────────────────── */
+    :host(.retrato) .og-spot {
+      padding: 56px 56px 48px;
+    }
+    :host(.retrato) .og-spot-body {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 40px;
+      align-content: center;
+    }
+    :host(.retrato) .og-spot-name {
+      font-size: 104px;
+    }
+    :host(.retrato) .og-spot-photo {
+      width: 150px;
+      height: 150px;
+    }
+    :host(.retrato) .og-spot-dest {
+      font-size: 60px;
+    }
+    :host(.retrato) .og-spot-phrase {
+      font-size: 34px;
+    }
+
     .og-spot-phrase {
       position: relative;
       flex: none;
@@ -289,6 +313,8 @@ export class SorteioSpotlightComponent {
   readonly destinationLabel = input.required<string>();
   /** 0 a 1 — move a barra de tempo no topo. */
   readonly progress = input(0);
+  /** Canvas em pé: nomes e ficha empilhados em vez de lado a lado. */
+  readonly portrait = input(false);
 
   protected readonly kicker = computed(() => {
     const e = this.entrant();

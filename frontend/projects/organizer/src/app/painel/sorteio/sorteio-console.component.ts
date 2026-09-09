@@ -828,21 +828,62 @@ import { SorteioEspelhoComponent } from './sorteio-espelho.component';
     @media (max-width: 899px) {
       .og-cs-grid {
         grid-template-columns: minmax(0, 1fr);
+        /* O grid é quem rola; a barra de transporte é irmã dele e fica presa
+           no rodapé pela própria coluna flex do host — sem position:sticky,
+           que aqui não teria efeito nenhum. */
         overflow-y: auto;
       }
       .og-cs-head,
       .og-cs-transporte {
         padding-inline: 20px;
       }
-      .og-cs-transporte {
-        position: sticky;
-        bottom: 0;
-      }
       .og-cs-sortear {
         flex: 1 0 100%;
       }
       .og-cs-transporte .og-mini-btn {
         min-height: 44px;
+      }
+    }
+
+    /* Celular: a barra de transporte tem sete controles e ocuparia meia tela.
+       Vira duas fileiras — a barra de progresso com a contagem em cima, os
+       botões embaixo — e a Etapa sai, porque a contagem já diz onde o sorteio
+       está. */
+    @media (max-width: 599px) {
+      .og-cs-transporte {
+        gap: 10px;
+        padding-block: 12px;
+      }
+      .og-cs-medidor:last-of-type {
+        display: none;
+      }
+      .og-cs-medidor {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        order: -1;
+      }
+      .og-cs-medidor strong {
+        margin-top: 0;
+        font-size: 16px;
+      }
+      .og-cs-progresso {
+        order: -1;
+        flex: 1 1 120px;
+      }
+      .og-cs-transporte .og-btn,
+      .og-cs-transporte .og-mini-btn {
+        flex: 1 1 140px;
+      }
+      .og-cs-sortear {
+        min-height: 48px;
+        font-size: 15px;
+      }
+      .og-cs-head h1 {
+        font-size: 18px;
+      }
+      .og-cs-etapas {
+        width: 100%;
       }
     }
 

@@ -211,6 +211,8 @@ export class SorteioChaveDeComponent {
   readonly lockedSeedCount = input(0);
   /** Seed que acabou de ser sorteado. */
   readonly highlightSeed = input<number | null>(null);
+  /** Canvas em pé: uma coluna de jogos. */
+  readonly portrait = input(false);
 
   protected readonly matches = computed<DeMatchView[]>(() =>
     this.pairings().map((p) => ({
@@ -230,6 +232,7 @@ export class SorteioChaveDeComponent {
   /** Duas colunas até 8 jogos; quatro acima disso, pra caber sem afinar. */
   protected readonly columns = computed(() => {
     const count = this.matches().length;
+    if (this.portrait()) return 'repeat(2, minmax(0, 1fr))';
     return `repeat(${count <= 4 ? 2 : count <= 8 ? 2 : 4}, minmax(0, 1fr))`;
   });
 

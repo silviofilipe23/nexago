@@ -184,11 +184,15 @@ export class SorteioGradeGruposComponent {
   readonly groups = input.required<DrawGroupView[]>();
   /** Grupo que acabou de receber dupla — acende sem precisar de contador. */
   readonly highlightGroupId = input<string | null>(null);
+  /** Canvas em pé: menos largura, então menos colunas. */
+  readonly portrait = input(false);
 
   /** Duas colunas até 4 grupos; três a partir daí, pra não afinar a linha. */
   protected readonly columns = computed(() => {
     const count = this.groups().length;
-    const perRow = count <= 4 ? 2 : count <= 9 ? 3 : 4;
+    // Em pé, duas colunas só a partir de 5 grupos: com 4, uma coluna deixa a
+    // linha larga o bastante pro nome não truncar.
+    const perRow = this.portrait() ? (count <= 4 ? 1 : 2) : count <= 4 ? 2 : count <= 9 ? 3 : 4;
     return `repeat(${Math.min(perRow, count || 1)}, minmax(0, 1fr))`;
   });
 

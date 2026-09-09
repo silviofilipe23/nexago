@@ -20,6 +20,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 @Component({
   selector: 'og-sorteio-loader',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[class.retrato]': 'portrait()' },
   template: `
     <div class="og-ld">
       <!-- Coluna esquerda: o pote correndo. Duplicada para o laço não ter emenda. -->
@@ -373,6 +374,29 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
       }
     }
 
+    /* ── Canvas em pé ──────────────────────────────────────────────
+       Sem as colunas do pote: em 1080px de largura elas roubariam espaço dos
+       dados, que são o assunto. O contador continua dizendo quantas faltam. */
+    :host(.retrato) .og-ld {
+      grid-template-columns: minmax(0, 1fr);
+      padding-top: 56px;
+    }
+    :host(.retrato) .og-ld-reel {
+      display: none;
+    }
+    :host(.retrato) .og-ld-centro {
+      gap: 64px;
+    }
+    :host(.retrato) .og-ld-texto h2 {
+      font-size: 76px;
+    }
+    :host(.retrato) .og-ld-texto p {
+      font-size: 22px;
+    }
+    :host(.retrato) .og-ld-conta {
+      font-size: 18px;
+    }
+
     /* O suspense é o conteúdo, mas o movimento é enfeite: sem ele a tela ainda
        diz o que está acontecendo pelo título e pela barra de progresso. */
     @media (prefers-reduced-motion: reduce) {
@@ -397,6 +421,11 @@ export class SorteioLoaderComponent {
   readonly landed = input(false);
   /** 0 a 1 — barra de progresso do rolamento. */
   readonly progress = input(0);
+  /**
+   * Canvas em pé. As colunas do pote saem: em 1080px de largura elas roubariam
+   * espaço dos dados, que são o assunto. O protótipo vertical faz o mesmo.
+   */
+  readonly portrait = input(false);
 
   protected readonly subtitle = computed(() => 'o grupo sai em instantes');
 

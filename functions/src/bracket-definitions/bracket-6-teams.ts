@@ -2,12 +2,12 @@ import { MatchDefinition } from './bracket-definitions';
 
 export const BRACKET_6_TEAMS: MatchDefinition[] = [
     // WB R1
-    { matchNumber: 1, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 1 }, teamB: { type: 'SEED', seed: 2 } },
-    { matchNumber: 2, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 3 }, teamB: { type: 'SEED', seed: 4 } },
+    { matchNumber: 1, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 4 }, teamB: { type: 'SEED', seed: 5 } },
+    { matchNumber: 2, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 3 }, teamB: { type: 'SEED', seed: 6 } },
 
     // WB R2
-    { matchNumber: 3, bracket: 'WB', round: 2, teamA: { type: 'SEED', seed: 5 }, teamB: { type: 'WINNER', matchNumber: 1 } },
-    { matchNumber: 4, bracket: 'WB', round: 2, teamA: { type: 'WINNER', matchNumber: 2 }, teamB: { type: 'SEED', seed: 6 } },
+    { matchNumber: 3, bracket: 'WB', round: 2, teamA: { type: 'SEED', seed: 1 }, teamB: { type: 'WINNER', matchNumber: 1 } },
+    { matchNumber: 4, bracket: 'WB', round: 2, teamA: { type: 'WINNER', matchNumber: 2 }, teamB: { type: 'SEED', seed: 2 } },
     
     // LB R1 (perdedores da WB R1 e WB R2)
     { matchNumber: 5, bracket: 'LB', round: 1, teamA: { type: 'LOSER', matchNumber: 1 }, teamB: { type: 'LOSER', matchNumber: 2 } },

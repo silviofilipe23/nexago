@@ -2,10 +2,10 @@ import { MatchDefinition } from './bracket-definitions';
 
 export const BRACKET_8_TEAMS: MatchDefinition[] = [
     // WB R1
-    { matchNumber: 1, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 1 }, teamB: { type: 'SEED', seed: 2 } },
-    { matchNumber: 2, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 3 }, teamB: { type: 'SEED', seed: 4 } },
-    { matchNumber: 3, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 5 }, teamB: { type: 'SEED', seed: 6 } },
-    { matchNumber: 4, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 7 }, teamB: { type: 'SEED', seed: 8 } },
+    { matchNumber: 1, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 1 }, teamB: { type: 'SEED', seed: 8 } },
+    { matchNumber: 2, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 4 }, teamB: { type: 'SEED', seed: 5 } },
+    { matchNumber: 3, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 2 }, teamB: { type: 'SEED', seed: 7 } },
+    { matchNumber: 4, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 3 }, teamB: { type: 'SEED', seed: 6 } },
 
     // LB R1
     { matchNumber: 5, bracket: 'LB', round: 1, teamA: { type: 'LOSER', matchNumber: 1 }, teamB: { type: 'LOSER', matchNumber: 2 } },

@@ -6,9 +6,15 @@ import {
   seedOrderOf,
 } from '../data/draw-session-selectors';
 import type { DrawSession } from '../data/draw-session.model';
-import { countdownPartsOf, revealPhaseAt, spotlightProgressAt } from './draw-reveal-phase';
+import {
+  LAND_MS,
+  ROLL_MS,
+  countdownPartsOf,
+  revealPhaseAt,
+  spotlightProgressAt,
+} from './draw-reveal-phase';
 import { SorteioChaveDeComponent } from './sorteio-chave-de.component';
-import { SorteioDadosComponent } from './sorteio-dados.component';
+import { SorteioLoaderComponent } from './sorteio-loader.component';
 import { SorteioGradeGruposComponent } from './sorteio-grade-grupos.component';
 import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
 
@@ -27,7 +33,7 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     SorteioChaveDeComponent,
-    SorteioDadosComponent,
+    SorteioLoaderComponent,
     SorteioGradeGruposComponent,
     SorteioSpotlightComponent,
   ],
@@ -91,19 +97,14 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
             </div>
           }
           @case ('rolling') {
-            <div class="og-telao-centro">
-              <span class="og-telao-kicker og-telao-kicker-lg">
-                {{ phase() === 'land' ? 'Saiu!' : 'Sorteando…' }}
-              </span>
-              <og-sorteio-dados
-                [poolLabels]="poolLabels()"
-                [destinationLabels]="destinationLabels()"
-                [elapsedMs]="elapsedMs()"
-                [resultLabel]="currentLabel()"
-                [resultDestination]="currentDestination()"
-                [landed]="phase() === 'land'"
-              />
-            </div>
+            <og-sorteio-loader
+              [poolLabels]="poolLabels()"
+              [resultNames]="currentNames()"
+              [resultLabel]="currentLabel() ?? ''"
+              [resultDestination]="currentDestination() ?? ''"
+              [landed]="phase() === 'land'"
+              [progress]="rollProgress()"
+            />
           }
           @case ('grid') {
             @if (s.format === 'groups_knockout') {
@@ -406,6 +407,18 @@ export class SorteioTelaoScreenComponent {
   });
 
   protected readonly currentLabel = computed(() => this.currentEntrant()?.label ?? null);
+
+  /** Nomes dos dois atletas — é o que trava na face da frente de cada dado. */
+  protected readonly currentNames = computed(() => {
+    const entrant = this.currentEntrant();
+    if (!entrant) return [];
+    return entrant.playerNames.length > 0 ? entrant.playerNames : entrant.label.split('/');
+  });
+
+  /** Progresso do lançamento, do início do rolamento até travar. */
+  protected readonly rollProgress = computed(() =>
+    Math.min(1, this.elapsedMs() / (ROLL_MS + LAND_MS)),
+  );
 
   protected readonly currentDestination = computed(() => {
     const reveal = this.currentReveal();

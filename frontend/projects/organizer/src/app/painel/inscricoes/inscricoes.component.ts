@@ -155,6 +155,7 @@ interface PendingConfirm {
           [busy]="busy()"
           (submitted)="onGrantSpotPass($event)"
           (revoked)="onRevokeSpotPass($event)"
+          (notifyRequested)="onNotifySpotPass($event)"
           (linkRequested)="onCreateSpotPassLink($event)"
           (linkRevoked)="onRevokeSpotPassLink($event)"
         />
@@ -597,11 +598,33 @@ export class InscricoesComponent {
           categoryId: form.categoryId,
           athleteUid: form.athleteUid,
         }),
-      (result) =>
-        result.alreadyGranted
+      (result) => {
+        const base = result.alreadyGranted
           ? `${form.athleteName} já tinha vaga liberada em ${categoriaNome}.`
-          : `Vaga liberada para ${form.athleteName} em ${categoriaNome}. ` +
-            'Ele foi avisado e se inscreve pelo app.',
+          : `Vaga liberada para ${form.athleteName} em ${categoriaNome}.`;
+        // Dizer "foi avisado" sem saber era o pior desfecho: o organizador ia embora achando
+        // que o recado saiu, e o atleta nunca soube da vaga.
+        return result.notified
+          ? `${base} O aviso foi enviado.`
+          : `${base} Não foi possível avisar pelo app — copie o link e mande para o atleta.`;
+      },
+    );
+  }
+
+  /** Reenvia o aviso. A callable de liberar é idempotente: devolve o passe e avisa de novo. */
+  protected onNotifySpotPass(pass: TournamentSpotPass): void {
+    void this.run(
+      'notify-pass',
+      () =>
+        grantTournamentSpotPass({
+          tournamentId: this.id(),
+          categoryId: pass.categoryId,
+          athleteUid: pass.athleteUid,
+        }),
+      (result) =>
+        result.notified
+          ? `Aviso reenviado para ${pass.athleteName}.`
+          : `${pass.athleteName} não tem notificação ativa — copie o link e mande para ele.`,
     );
   }
 

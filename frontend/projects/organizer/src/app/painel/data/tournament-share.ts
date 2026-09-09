@@ -106,19 +106,25 @@ export function tournamentQrFileName(name: string, id: string): string {
 }
 
 /**
- * Link da vaga NOMINAL: é a própria inscrição da categoria.
+ * Link da vaga NOMINAL: a tela de confirmação no portal do atleta.
  *
- * Não carrega token nenhum de propósito — o passe já está preso ao uid do atleta, então quem
- * mais abrir o link esbarra na categoria lotada. O link é só um canal de entrega, para quando o
- * push não basta (app desinstalado, notificação desligada).
+ * Não carrega token nenhum de propósito — o passe já está preso ao uid, então quem mais abrir
+ * esbarra na categoria lotada. É só um canal de entrega, para quando o push não basta.
+ *
+ * O caminho é `/vaga/pessoal` e NÃO `/torneios/{id}/inscricao`, que seria o destino óbvio, por
+ * causa do app publicado: no Android ele reivindica `/torneios/**` como App Link, então o
+ * sistema entrega esse endereço ao APP — e o app publicado bloqueia a categoria lotada antes de
+ * consultar o servidor, porque não conhece passe de vaga. O atleta cairia num "LOTADO" sem
+ * saída. `/vaga/**` não é reivindicado por nenhuma plataforma, então abre no navegador, onde o
+ * portal está em dia; a partir dali a navegação é interna e não dispara App Link nenhum.
  */
 export function spotPassRegistrationLink(
   athleteBaseUrl: string,
   tournamentId: string,
   categoryId: string,
 ): string {
-  const query = categoryId ? `?categoryId=${encodeURIComponent(categoryId)}` : '';
-  return `${trimBase(athleteBaseUrl)}/torneios/${tournamentId}/inscricao${query}`;
+  const category = categoryId ? `&c=${encodeURIComponent(categoryId)}` : '';
+  return `${trimBase(athleteBaseUrl)}/vaga/pessoal?t=${encodeURIComponent(tournamentId)}${category}`;
 }
 
 /**

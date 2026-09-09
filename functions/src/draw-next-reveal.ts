@@ -123,6 +123,7 @@ export function computeNextReveal(
       }),
       new Set(doc.reveals.map((r) => r.phrase?.id).filter((id): id is string => !!id)),
       random,
+      entrant?.label ?? "",
     );
   }
 

@@ -1,0 +1,85 @@
+/* Estilos das telas de vaga liberada (resgate por link e confirmação nominal).
+   Compartilhados porque as duas são a MESMA tela do ponto de vista do atleta: ele abriu um
+   link e quer saber se a vaga é dele. */
+.sp {
+  display: grid;
+  place-items: center;
+  min-height: 60vh;
+  padding: 24px 16px;
+}
+.sp-card {
+  width: min(440px, 100%);
+  padding: 24px;
+  border: 1px solid var(--nexago-border);
+  border-radius: 16px;
+  background: var(--nexago-surface);
+  font-family: var(--font-sans);
+}
+.sp-eyebrow {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--nexago-accent);
+}
+h1 {
+  margin: 0 0 2px;
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--nexago-text);
+}
+.sp-sub {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: var(--nexago-text-muted);
+}
+.sp-count {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--nexago-success);
+}
+.sp-body,
+.sp-dim {
+  margin: 0 0 18px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--nexago-text-muted);
+}
+.sp-cta {
+  width: 100%;
+  height: 46px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--nexago-primary);
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sp-cta:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.sp-cta:focus-visible {
+  outline: 2px solid var(--nexago-accent);
+  outline-offset: 2px;
+}
+.sp-warn,
+.sp-error {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.sp-warn {
+  border: 1px solid var(--nexago-warning);
+  color: var(--nexago-text);
+}
+.sp-error {
+  border: 1px solid var(--nexago-danger);
+  color: var(--nexago-text);
+}

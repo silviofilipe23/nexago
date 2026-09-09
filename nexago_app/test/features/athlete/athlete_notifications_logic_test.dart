@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/notifications/notification_navigation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_inbox_notification.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_notifications_logic.dart';
@@ -306,6 +307,51 @@ void main() {
       final p = notificationPresentation(n);
       expect(p.icon, Icons.schedule_rounded);
       expect(p.routePath, '/my-bookings');
+    });
+  });
+
+  // O bug que isto guarda: o push resolvia o destino SÓ pelo `url`, enquanto a lista remontava
+  // pelos ids. Sem `url`, tocar na lista levava à inscrição e tocar no push só abria o app.
+  group('push e lista terminam no mesmo lugar', () {
+    Map<String, String> payload({String? url}) => {
+          'type': 'tournament_spot_pass_granted',
+          'tournamentId': 't1',
+          'categoryId': 'cat A',
+          if (url != null) 'url': url,
+        };
+
+    AthleteInboxNotification inbox(Map<String, String> data) =>
+        AthleteInboxNotification(
+          id: 'x',
+          title: 'Vaga liberada',
+          body: 'Body',
+          type: 'tournament_spot_pass_granted',
+          data: data,
+          read: false,
+          dismissed: false,
+          createdAt: DateTime(2026, 9, 9),
+        );
+
+    test('com url, os dois usam o url do payload', () {
+      final data = payload(url: '/torneios/t1/inscricao?categoryId=cat%20A');
+      expect(
+        resolveNotificationRoute(data),
+        notificationPresentation(inbox(data)).routePath,
+      );
+    });
+
+    test('SEM url, os dois remontam o mesmo caminho pelos ids', () {
+      final data = payload();
+      final push = resolveNotificationRoute(data);
+      expect(push, isNotNull, reason: 'sem isto o toque no push só abre o app');
+      expect(push, notificationPresentation(inbox(data)).routePath);
+      expect(push, '/torneios/t1/inscricao?categoryId=cat%20A');
+    });
+
+    test('sem torneio não há destino a inventar, nos dois', () {
+      final data = {'type': 'tournament_spot_pass_granted', 'categoryId': 'c1'};
+      expect(resolveNotificationRoute(data), isNull);
+      expect(notificationPresentation(inbox(data)).routePath, isNull);
     });
   });
 }

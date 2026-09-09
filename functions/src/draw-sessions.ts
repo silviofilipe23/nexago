@@ -621,6 +621,7 @@ export const replaceRevealPhrase = onCall(async (request) => {
       }),
       used,
       cryptoIndex,
+      entrant?.label ?? "",
     );
 
   // A frase NÃO entra no hash: ela é editorial, o log prova o sorteio. Trocar a

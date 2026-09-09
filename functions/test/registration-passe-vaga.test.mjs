@@ -139,7 +139,9 @@ describe('passe de vaga — a vaga só existe quando o convidado usa', () => {
     assert.equal((await passOf(passId)).status, 'revoked');
   });
 
-  test('liberar duas vezes para o mesmo atleta devolve o mesmo passe', async () => {
+  // Liberar de novo é o que o organizador faz quando o atleta diz "não recebi": devolve o mesmo
+  // passe (dois abririam duas vagas) MAS passa pelo aviso, senão o clique não faria nada.
+  test('liberar duas vezes devolve o mesmo passe e avisa de novo', async () => {
     const joao = await seedMan({uid: 'joao'});
     const tournamentId = await torneioLotado();
 
@@ -152,6 +154,10 @@ describe('passe de vaga — a vaga só existe quando o convidado usa', () => {
 
     assert.equal(second.passId, first.passId);
     assert.equal(second.alreadyGranted, true);
+    // Sem canal no emulador, `notified` é falso — o que importa é a RESPOSTA existir: é ela que
+    // deixa a tela dizer "copie o link" em vez de mentir "ele foi avisado".
+    assert.equal(typeof second.notified, 'boolean');
+    assert.equal(typeof first.notified, 'boolean');
   });
 
   // Um passe = uma vaga. Com o número velho do portão o segundo convidado acharia que ainda

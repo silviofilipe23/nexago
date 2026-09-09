@@ -2,8 +2,10 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {
   PHRASE_BANK,
+  fillPhrase,
   phraseContextsFor,
   pickPhrase,
+  shortenTeamLabel,
   type PhraseSituation,
 } from "./draw-phrases";
 
@@ -68,14 +70,51 @@ describe("phraseContextsFor — do mais específico ao mais genérico", () => {
   });
 });
 
+describe("fillPhrase / shortenTeamLabel", () => {
+  it("troca {team} pelo rótulo da dupla", () => {
+    const filled = fillPhrase(
+      {id: "x", text: "Chegou {team}. Respira."},
+      "Ana / Bia",
+    );
+    assert.equal(filled.text, "Chegou Ana / Bia. Respira.");
+    assert.equal(filled.id, "x");
+  });
+
+  it("frase sem placeholder passa intacta", () => {
+    const raw = {id: "y", text: "Grupo da morte confirmado."};
+    assert.deepEqual(fillPhrase(raw, "Ana / Bia"), raw);
+  });
+
+  it("sem label usa fallback — o telão nunca mostra {team} literal", () => {
+    assert.equal(
+      fillPhrase({id: "z", text: "{team} caiu aqui."}, "").text,
+      "Essa dupla caiu aqui.",
+    );
+  });
+
+  it("corta rótulo longo com reticências", () => {
+    const long = "Maria Clara Fernandes / Ana Beatriz Souza Lima";
+    const short = shortenTeamLabel(long, 20);
+    assert.ok(short.endsWith("…"));
+    assert.ok(short.length <= 20);
+  });
+});
+
 describe("pickPhrase", () => {
   /** Sorteio falso e previsível: sempre o primeiro candidato. */
   const primeiro = (n: number) => (n > 0 ? 0 : 0);
 
   it("tira do bucket mais específico disponível", () => {
-    const pick = pickPhrase(["seed", "generic"], new Set(), primeiro);
+    const pick = pickPhrase(["seed", "generic"], new Set(), primeiro, "Ana / Bia");
     assert.ok(pick);
     assert.ok(PHRASE_BANK.seed.some((p) => p.id === pick!.id));
+  });
+
+  it("preenche {team} antes de devolver — telão recebe texto pronto", () => {
+    const pick = pickPhrase(["seed"], new Set(), primeiro, "Ana / Bia");
+    assert.ok(pick);
+    assert.ok(!pick!.text.includes("{team}"));
+    assert.ok(pick!.text.includes("Ana / Bia") || !PHRASE_BANK.seed[0]!.text.includes("{team}"));
   });
 
   it("não repete frase já usada na sessão", () => {
@@ -92,8 +131,8 @@ describe("pickPhrase", () => {
 
   it("respeita o sorteador injetado — mesma semente, mesma frase", () => {
     const segundo = () => 1;
-    const a = pickPhrase(["generic"], new Set(), segundo);
-    const b = pickPhrase(["generic"], new Set(), segundo);
+    const a = pickPhrase(["generic"], new Set(), segundo, "Ana / Bia");
+    const b = pickPhrase(["generic"], new Set(), segundo, "Ana / Bia");
     assert.deepEqual(a, b);
     assert.equal(a!.id, PHRASE_BANK.generic[1]!.id);
   });
@@ -126,6 +165,24 @@ describe("PHRASE_BANK — governança do tom", () => {
       for (const p of phrases) {
         assert.ok(!proibidas.test(p.text), `"${p.text}" (bucket ${bucket}) fala da pessoa`);
       }
+    }
+  });
+
+  it("único placeholder permitido é {team}", () => {
+    const outros = /\{(?!team\})[a-z_]+\}/i;
+    for (const [bucket, phrases] of Object.entries(PHRASE_BANK)) {
+      for (const p of phrases) {
+        assert.ok(!outros.test(p.text), `"${p.text}" (bucket ${bucket}) usa placeholder estranho`);
+      }
+    }
+  });
+
+  it("cada bucket tem pelo menos uma frase com {team} e uma sem — mistura no telão", () => {
+    for (const [bucket, phrases] of Object.entries(PHRASE_BANK)) {
+      const withTeam = phrases.some((p) => p.text.includes("{team}"));
+      const without = phrases.some((p) => !p.text.includes("{team}"));
+      assert.ok(withTeam, `bucket "${bucket}" não tem frase com {team}`);
+      assert.ok(without, `bucket "${bucket}" só tem {team} — falta frase de grupo/situação`);
     }
   });
 });

@@ -268,6 +268,15 @@ const STATUS_LABEL: Record<TournamentSpotPass['status'], string> = {
                   <button
                     type="button"
                     class="og-mini-btn"
+                    [disabled]="busy()"
+                    [attr.aria-label]="'Avisar ' + p.athleteName + ' de novo'"
+                    (click)="notifyRequested.emit(p)"
+                  >
+                    Avisar
+                  </button>
+                  <button
+                    type="button"
+                    class="og-mini-btn"
                     [attr.aria-label]="'Copiar o link da vaga de ' + p.athleteName"
                     (click)="copy(p.id, nominalLink(p))"
                   >
@@ -540,6 +549,8 @@ export class OgLiberarVagaComponent {
   readonly revoked = output<string>();
   readonly linkRequested = output<LiberarVagaLinkSubmit>();
   readonly linkRevoked = output<string>();
+  /** Reavisar: a callable de liberar é idempotente e reenvia o push. */
+  readonly notifyRequested = output<TournamentSpotPass>();
 
   protected readonly minTerm = ATHLETE_SEARCH_MIN_TERM;
   protected readonly nameOf = athleteDisplayName;

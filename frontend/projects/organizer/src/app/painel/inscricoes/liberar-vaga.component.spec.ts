@@ -203,6 +203,30 @@ describe('OgLiberarVagaComponent', () => {
     expect(el.textContent).not.toContain('Caio');
   });
 
+  // O organizador só descobre que o aviso não chegou quando o atleta reclama — e aí precisa de
+  // um botão, não de "libera de novo e torce".
+  it('passe ativo oferece Avisar, e emite o passe inteiro', async () => {
+    const el = await render([category()], { passes: [pass({ athleteName: 'Ana' })] });
+    expect(el.textContent).toContain('Avisar');
+
+    const emitted: TournamentSpotPass[] = [];
+    fixture.componentInstance.notifyRequested.subscribe((p) => emitted.push(p));
+    const botao = Array.from(el.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Avisar',
+    );
+    botao?.dispatchEvent(new MouseEvent('click'));
+    await fixture.whenStable();
+
+    expect(emitted.length).toBe(1);
+    expect(emitted[0].athleteUid).toBe('u1');
+    expect(emitted[0].categoryId).toBe('c1');
+  });
+
+  it('passe já usado não oferece Avisar', async () => {
+    const el = await render([category()], { passes: [pass({ status: 'used' })] });
+    expect(el.textContent).not.toContain('Avisar');
+  });
+
   // Passe queimado não volta: a inscrição existe, e desfazê-la é remover da categoria.
   it('só o passe ativo oferece Revogar', async () => {
     const el = await render([category()], { passes: [pass({ status: 'used' })] });

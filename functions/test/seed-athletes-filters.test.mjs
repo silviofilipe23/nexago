@@ -106,3 +106,38 @@ describe("seed de atletas: recorte por nível e gênero", () => {
     }
   });
 });
+
+describe("seed de atletas: nome curto", () => {
+  it("nome sai no formato `<gênero>-<nível>-<nn>`", async () => {
+    const {profiles} = await runSeed({levels: ["iniciante_1"], genders: ["male"]});
+    assert.deepEqual(
+      [...profiles.values()].map((p) => p.fullName).sort(),
+      ["masc-ini_1-01", "masc-ini_1-02"],
+    );
+  });
+
+  it("feminino e Open usam os mesmos códigos curtos", async () => {
+    const {profiles} = await runSeed({levels: ["open"], genders: ["female"]});
+    assert.equal(profiles.get("seed-open-f-01@nexago.test").fullName, "fem-open-01");
+  });
+
+  it("encurtar o nome não mexe no e-mail — é ele que dá a idempotência", async () => {
+    const {profiles} = await runSeed({levels: ["intermediario_2"], genders: ["male"]});
+    assert.ok(profiles.has("seed-intermediario_2-m-01@nexago.test"));
+  });
+
+  it("nível e gênero continuam achaveis na busca, apesar do nome sem espaço", async () => {
+    const {profiles} = await runSeed({levels: ["intermediario_2"], genders: ["female"]});
+    const {keywords} = profiles.get("seed-intermediario_2-f-01@nexago.test");
+    for (const term of ["fem", "int", "int_2", "01"]) {
+      assert.ok(keywords.includes(term), `busca por "${term}" não acharia o atleta`);
+    }
+  });
+
+  it("o nível de verdade segue no perfil, não no nome", async () => {
+    const {profiles} = await runSeed({levels: ["intermediario_1"], genders: ["male"]});
+    const profile = profiles.get("seed-intermediario_1-m-01@nexago.test");
+    assert.equal(profile.level, "Intermediário 1");
+    assert.equal(profile.sportProfile.level, "intermediario_1");
+  });
+});

@@ -45,6 +45,12 @@ export interface DrawTeamMeta {
   /** 1-based. Pote 1 = cabeças. */
   potIndex: number;
   city: string | null;
+  /**
+   * Dupla eliminatória: seed que o ranking já definiu para esta cabeça. A
+   * revelação dela é encenação — o lugar não muda —, mas ela passa pelo mesmo
+   * show pra chave não nascer preenchida e a dupla ver o próprio nome.
+   */
+  lockedSeed?: number | null;
 }
 
 /** Motivos de relaxamento gravados na revelação e mostrados no comprovante. */

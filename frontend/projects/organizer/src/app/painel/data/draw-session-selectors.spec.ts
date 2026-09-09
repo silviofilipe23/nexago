@@ -123,16 +123,29 @@ describe('groupsOf', () => {
 });
 
 describe('seedOrderOf', () => {
+  const deEntrants = () => [
+    entrant('a', { lockedSeed: 1 }),
+    entrant('b', { lockedSeed: 2 }),
+    entrant('c'),
+    entrant('d'),
+  ];
+
+  /** Sessão ANTIGA: só as 2 sorteadas tinham revelação, as cabeças eram plantadas. */
   const deSession = () =>
     session({
       format: 'double_elimination',
       config: { ...session().config, lockedSeedCount: 2 },
-      entrants: [
-        entrant('a', { lockedSeed: 1 }),
-        entrant('b', { lockedSeed: 2 }),
-        entrant('c'),
-        entrant('d'),
-      ],
+      entrants: deEntrants(),
+      totalReveals: 2,
+    });
+
+  /** Sessão NOVA: as 4 passam pelo sorteio, cabeças inclusive. */
+  const noArSession = () =>
+    session({
+      format: 'double_elimination',
+      config: { ...session().config, lockedSeedCount: 2 },
+      entrants: deEntrants(),
+      totalReveals: 4,
     });
 
   it('cabeças travadas já aparecem sem revelação nenhuma', () => {
@@ -155,6 +168,31 @@ describe('seedOrderOf', () => {
     s.reveals = [seedReveal(1, 'c', 3), seedReveal(2, 'd', 4)];
     expect(seedOrderOf(s, 1).map((e) => e?.teamId ?? null)).toEqual(['a', 'b', 'c', null]);
   });
+
+  /**
+   * A chave nascer preenchida era o problema: a cabeça nunca via o próprio nome
+   * entrar. Com todo mundo passando pelo sorteio, ela entra na vez dela.
+   */
+  it('cabeças no ar: a chave começa VAZIA', () => {
+    expect(seedOrderOf(noArSession()).map((e) => e?.teamId ?? null)).toEqual([
+      null,
+      null,
+      null,
+      null,
+    ]);
+  });
+
+  it('cabeças no ar: a revelação da cabeça é que a coloca no seed dela', () => {
+    const s = noArSession();
+    s.reveals = [seedReveal(1, 'a', 1)];
+    expect(seedOrderOf(s).map((e) => e?.teamId ?? null)).toEqual(['a', null, null, null]);
+  });
+
+  it('cabeças no ar: o spotlight segura a cabeça igual às outras', () => {
+    const s = noArSession();
+    s.reveals = [seedReveal(1, 'a', 1), seedReveal(2, 'b', 2)];
+    expect(seedOrderOf(s, 1).map((e) => e?.teamId ?? null)).toEqual(['a', null, null, null]);
+  });
 });
 
 describe('remainingInPot', () => {
@@ -163,10 +201,32 @@ describe('remainingInPot', () => {
     expect(remainingInPot(s).map((e) => e.teamId)).toEqual(['b', 'c', 'd']);
   });
 
-  it('cabeça travada nunca está no pote — ela não é sorteada', () => {
+  it('sessão antiga: cabeça travada não está na fila — ela não passa pelo sorteio', () => {
     const s = session({
       format: 'double_elimination',
       entrants: [entrant('a', { lockedSeed: 1 }), entrant('b'), entrant('c'), entrant('d')],
+      totalReveals: 3,
+    });
+    expect(remainingInPot(s).map((e) => e.teamId)).toEqual(['b', 'c', 'd']);
+  });
+
+  it('cabeças no ar: a cabeça ESTÁ na fila — ela é a próxima a aparecer', () => {
+    // A fila do console é o que o organizador narra. Esconder a cabeça dela
+    // faria a contagem mentir e a próxima revelação chegar sem aviso.
+    const s = session({
+      format: 'double_elimination',
+      entrants: [entrant('a', { lockedSeed: 1 }), entrant('b'), entrant('c'), entrant('d')],
+      totalReveals: 4,
+    });
+    expect(remainingInPot(s).map((e) => e.teamId)).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('cabeças no ar: revelada, a cabeça sai da fila como qualquer outra', () => {
+    const s = session({
+      format: 'double_elimination',
+      entrants: [entrant('a', { lockedSeed: 1 }), entrant('b'), entrant('c'), entrant('d')],
+      totalReveals: 4,
+      reveals: [seedReveal(1, 'a', 1)],
     });
     expect(remainingInPot(s).map((e) => e.teamId)).toEqual(['b', 'c', 'd']);
   });

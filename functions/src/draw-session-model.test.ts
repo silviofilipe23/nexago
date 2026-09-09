@@ -87,6 +87,12 @@ describe("groupsFromReveals", () => {
 });
 
 describe("seedOrderFromReveals", () => {
+  /**
+   * Sessão ANTIGA: só as duplas sorteadas tinham revelação, então as cabeças
+   * precisavam ser plantadas na chave — senão sumiam pra sempre. É por isso que
+   * o pré-preenchimento existe, e é por isso que ele não pode ser removido: há
+   * sessões assim gravadas.
+   */
   const deDoc = baseDoc({
     format: "double_elimination",
     config: {...baseDoc().config, lockedSeedCount: 2},
@@ -94,10 +100,32 @@ describe("seedOrderFromReveals", () => {
       ...e,
       lockedSeed: i < 2 ? i + 1 : null,
     })),
+    totalReveals: 2,
+  });
+
+  /** Sessão NOVA: as cabeças também têm revelação, então nada é plantado. */
+  const noArDoc = baseDoc({
+    ...deDoc,
+    totalReveals: 4,
   });
 
   it("cabeças travadas ocupam os primeiros seeds sem revelação nenhuma", () => {
     assert.deepEqual(seedOrderFromReveals(deDoc, []), ["t1", "t2", null, null]);
+  });
+
+  it("com as cabeças no ar, a chave começa VAZIA — o nome aparece na vez dela", () => {
+    assert.deepEqual(seedOrderFromReveals(noArDoc, []), [null, null, null, null]);
+  });
+
+  it("com as cabeças no ar, a revelação da cabeça é que a coloca na chave", () => {
+    const order = seedOrderFromReveals(noArDoc, [
+      {
+        ...reveal(1, "t1", "A"),
+        destinationKey: "seed:1",
+        destination: {type: "seed", seed: 1},
+      } as never,
+    ]);
+    assert.deepEqual(order, ["t1", null, null, null]);
   });
 
   it("revelação crava a dupla no seed sorteado", () => {
@@ -129,17 +157,35 @@ describe("rebuildEngineState — o telão reconstrói do log, nunca do acumulado
   it("carrega as restrições e os metadados das duplas da configuração", () => {
     const state = rebuildEngineState(baseDoc());
     assert.equal(state.constraints.potsPerGroup, true);
-    assert.deepEqual(state.teamsById["t3"], {teamId: "t3", potIndex: 2, city: "Goiânia"});
+    assert.deepEqual(state.teamsById["t3"], {
+      teamId: "t3",
+      potIndex: 2,
+      city: "Goiânia",
+      // O motor precisa do seed travado pra saber revelar a cabeça no lugar dela.
+      lockedSeed: null,
+    });
   });
 
-  it("dupla eliminatória reconstrói a ordem de seeds, não os grupos", () => {
+  it("sessão antiga: a cabeça já plantada reconstrói a ordem de seeds", () => {
     const doc = baseDoc({
       format: "double_elimination",
       config: {...baseDoc().config, lockedSeedCount: 1},
       entrants: baseDoc().entrants.map((e, i) => ({...e, lockedSeed: i === 0 ? 1 : null})),
+      // 4 duplas, 1 cabeça travada: só as outras 3 tinham revelação.
+      totalReveals: 3,
     });
     const state = rebuildEngineState(doc);
     assert.equal(state.format, "double_elimination");
     assert.deepEqual(state.seedOrder, ["t1", null, null, null]);
+  });
+
+  it("sessão nova: a chave nasce vazia e a cabeça entra pela própria revelação", () => {
+    const doc = baseDoc({
+      format: "double_elimination",
+      config: {...baseDoc().config, lockedSeedCount: 1},
+      entrants: baseDoc().entrants.map((e, i) => ({...e, lockedSeed: i === 0 ? 1 : null})),
+      totalReveals: 4,
+    });
+    assert.deepEqual(rebuildEngineState(doc).seedOrder, [null, null, null, null]);
   });
 });

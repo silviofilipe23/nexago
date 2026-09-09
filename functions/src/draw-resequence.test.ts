@@ -120,10 +120,19 @@ describe("resequenceSession — dupla eliminatória", () => {
     assert.equal(out.entrants.find((e) => e.teamId === "e")!.lockedSeed, 4);
   });
 
-  it("quem não é cabeça fica sem seed e vai pro pote do sorteio", () => {
+  it("quem não é cabeça fica sem seed", () => {
     const out = resequenceSession(deDoc(), ["h", "g", "f", "e", "d", "c", "b", "a"]);
     assert.equal(out.entrants.find((e) => e.teamId === "d")!.lockedSeed, null);
-    assert.deepEqual(out.pots, [{index: 1, teamIds: ["d", "c", "b", "a"]}]);
+  });
+
+  it("o pote leva TODO MUNDO, cabeças na frente — elas passam pelo mesmo show", () => {
+    // Antes o pote só tinha quem seria sorteado, e por isso a chave já nascia
+    // com as cabeças dentro: elas nunca tinham um momento no telão. Agora
+    // entram na fila de revelação, no seed que já era delas.
+    const out = resequenceSession(deDoc(), ["h", "g", "f", "e", "d", "c", "b", "a"]);
+    assert.deepEqual(out.pots, [
+      {index: 1, teamIds: ["h", "g", "f", "e", "d", "c", "b", "a"]},
+    ]);
   });
 
   it("cabeça fica no pote 1 e o resto no pote 2 — é o que a tela lê", () => {
@@ -139,8 +148,8 @@ describe("resequenceSession — dupla eliminatória", () => {
     assert.equal(out.pots[0]!.teamIds.length, 8);
   });
 
-  it("o total de revelações acompanha quantas posições sobraram pra sortear", () => {
-    assert.equal(resequenceSession(deDoc(), ["h", "g", "f", "e", "d", "c", "b", "a"]).totalReveals, 4);
+  it("o total de revelações conta as cabeças também — elas aparecem no telão", () => {
+    assert.equal(resequenceSession(deDoc(), ["h", "g", "f", "e", "d", "c", "b", "a"]).totalReveals, 8);
   });
 
   it("em grupos, o total de revelações é o elenco inteiro", () => {

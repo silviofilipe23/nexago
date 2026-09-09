@@ -117,9 +117,29 @@ export function bracketMatchDoc(
   };
 }
 
-export const generateCategoryBracket = onCall(async (request) => {
-  const uid = request.auth?.uid;
-  if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
+/** Payload da geração de chave, igual ao que a callable recebe. */
+export interface GenerateBracketInput {
+  tournamentId?: string;
+  categoryId?: string;
+  format?: string;
+  seeds?: string[];
+  groupsPreview?: Array<{id: string; teamIds: string[]}>;
+  bracketConfig?: Record<string, unknown>;
+  force?: boolean;
+}
+
+/**
+ * Geração de chave, sem a casca da callable.
+ *
+ * Extraída pra que o Sorteio ao Vivo publique a chave pelo MESMO caminho que a
+ * tela de Gerar chave — byes, plantas, `bestOf` e crossover continuam com uma
+ * implementação só. A callable abaixo virou uma casca de duas linhas.
+ */
+export async function runGenerateCategoryBracket(
+  uid: string,
+  data: GenerateBracketInput,
+): Promise<{matchCount: number; format: string}> {
+  const request = {data};
 
   const tournamentId = (request.data?.tournamentId as string)?.trim();
   const categoryId = (request.data?.categoryId as string)?.trim();
@@ -420,6 +440,12 @@ export const generateCategoryBracket = onCall(async (request) => {
   }
 
   return {matchCount: matchDrafts.length, format};
+}
+
+export const generateCategoryBracket = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
+  return runGenerateCategoryBracket(uid, (request.data ?? {}) as GenerateBracketInput);
 });
 
 // `secrets`: a confirmação agora mata cobranças PIX abertas no Asaas, e sem o

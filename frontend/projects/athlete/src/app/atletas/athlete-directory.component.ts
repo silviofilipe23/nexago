@@ -4,10 +4,10 @@ import {
   Component,
   DestroyRef,
   ElementRef,
+  afterNextRender,
   computed,
   effect,
   inject,
-  signal,
   viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
@@ -25,8 +25,9 @@ import { fetchAthleteDirectoryPage, searchAthleteDirectory, type AthletePublicPr
 import { fetchAthleteRankingGeneral } from '../data/rankings-repository';
 import type { FilterLevel } from '../ranking/athlete-ranking.models';
 import type { AthleteDirectoryEntry } from './athlete-directory.models';
+import { AthleteDirectoryStore, CITY_ALL, type SortBy } from './athlete-directory.store';
 
-export type SortBy = 'ranking' | 'name' | 'level';
+export type { SortBy };
 
 const LEVEL_OPTIONS: readonly FilterLevel[] = [
   'all',
@@ -48,7 +49,6 @@ const LEVEL_ORDER: Record<FilterLevel, number> = {
   'Iniciante 2': 5,
   'Iniciante 1': 6,
 };
-const CITY_ALL = 'all';
 
 const SORT_OPTIONS: readonly { value: SortBy; label: string }[] = [
   { value: 'ranking', label: 'Ranking' },
@@ -131,11 +131,14 @@ function entryFromProfile(profile: AthletePublicProfile, rank: number | null): A
 export class AthleteDirectoryComponent implements AfterViewInit {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly host = inject(ElementRef<HTMLElement>);
+  private readonly store = inject(AthleteDirectoryStore);
   private readonly firestore = createFirestore();
 
   protected readonly searchInputRef = viewChild<ElementRef<HTMLInputElement>>('searchInput');
   private readonly loadMoreSentinel = viewChild<ElementRef<HTMLElement>>('loadMoreSentinel');
   private scrollObserver: IntersectionObserver | null = null;
+  private detachScrollTracker: (() => void) | null = null;
 
   protected readonly accountLabel = computed(() => {
     const liveUser = this.auth.user();
@@ -146,25 +149,25 @@ export class AthleteDirectoryComponent implements AfterViewInit {
   });
   protected readonly headerInitials = computed(() => initialsOf(this.accountLabel()));
 
-  protected readonly queryInput = signal('');
-  protected readonly filterQuery = signal('');
+  // Filtros, páginas já carregadas e posição do scroll moram no store da raiz: abrir
+  // um perfil destrói esta tela, e é o store que devolve tudo intacto na volta.
+  protected readonly queryInput = this.store.queryInput;
+  protected readonly filterQuery = this.store.filterQuery;
   private queryDebounceHandle: ReturnType<typeof setTimeout> | undefined;
 
   protected readonly sportOptions = ARENA_SPORT_CHIP_OPTIONS;
   protected readonly levelOptions = LEVEL_OPTIONS;
   protected readonly sortOptions = SORT_OPTIONS;
 
-  protected readonly sportFilter = signal<ArenaSportChip>('all');
-  protected readonly levelFilter = signal<FilterLevel>('all');
-  protected readonly cityFilter = signal<string>(CITY_ALL);
-  protected readonly sortBy = signal<SortBy>('ranking');
+  protected readonly sportFilter = this.store.sportFilter;
+  protected readonly levelFilter = this.store.levelFilter;
+  protected readonly cityFilter = this.store.cityFilter;
+  protected readonly sortBy = this.store.sortBy;
 
-  protected readonly loading = signal(true);
-  protected readonly allAthletes = signal<readonly AthleteDirectoryEntry[]>([]);
-  private nextCursor: string | null = null;
-  protected readonly hasMore = signal(false);
-  protected readonly loadingMore = signal(false);
-  private rankPositionById = new Map<string, number>();
+  protected readonly loading = this.store.loading;
+  protected readonly allAthletes = this.store.allAthletes;
+  protected readonly hasMore = this.store.hasMore;
+  protected readonly loadingMore = this.store.loadingMore;
   /** Descarta respostas atrasadas quando o usuário troca de filtro rápido. */
   private reloadGeneration = 0;
 
@@ -213,15 +216,19 @@ export class AthleteDirectoryComponent implements AfterViewInit {
     this.destroyRef.onDestroy(() => {
       clearTimeout(this.queryDebounceHandle);
       this.teardownScrollObserver();
+      this.detachScrollTracker?.();
+      this.detachScrollTracker = null;
     });
 
     // Texto, nível e cidade disparam reload (nível/cidade paginam extra no client).
     // Esporte é só filtro local — a query não usa discoverSportIds.
     effect(() => {
       const term = this.filterQuery();
-      this.levelFilter();
-      this.cityFilter();
-      void this.reload(term);
+      const signature = AthleteDirectoryStore.signatureOf(term, this.levelFilter(), this.cityFilter());
+      // Voltando de um perfil, o cache do store já tem estes mesmos filtros: reexibe as
+      // páginas roladas em vez de recarregar a primeira e jogar o atleta pro topo.
+      if (this.store.isWarmFor(signature)) return;
+      void this.reload(term, signature);
     });
 
     // Reconecta o sentinel quando ele entra/sai do DOM (hasMore muda).
@@ -230,15 +237,41 @@ export class AthleteDirectoryComponent implements AfterViewInit {
       this.hasMore();
       queueMicrotask(() => this.setupScrollObserver());
     });
+
+    afterNextRender(() => this.restoreScroll());
   }
 
   ngAfterViewInit(): void {
     this.setupScrollObserver();
+    this.trackScroll();
   }
 
   private teardownScrollObserver(): void {
     this.scrollObserver?.disconnect();
     this.scrollObserver = null;
+  }
+
+  /** `.at-main` (do panel shell) é o overflow real da página — o `<body>` não rola. */
+  private scroller(): HTMLElement | null {
+    return (this.host.nativeElement as HTMLElement).querySelector('.at-main');
+  }
+
+  /** Anota onde o atleta parou, para a volta do perfil cair no mesmo ponto. */
+  private trackScroll(): void {
+    const scroller = this.scroller();
+    if (!scroller) return;
+    const onScroll = (): void => {
+      this.store.scrollTop = scroller.scrollTop;
+    };
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    this.detachScrollTracker = () => scroller.removeEventListener('scroll', onScroll);
+  }
+
+  private restoreScroll(): void {
+    const target = this.store.scrollTop;
+    if (target <= 0) return;
+    const scroller = this.scroller();
+    if (scroller) scroller.scrollTop = target;
   }
 
   /** Infinite scroll no `.at-main` do panel shell (é o overflow real da página). */
@@ -247,7 +280,7 @@ export class AthleteDirectoryComponent implements AfterViewInit {
     const sentinel = this.loadMoreSentinel()?.nativeElement;
     if (!sentinel || !this.hasMore()) return;
 
-    const root = sentinel.closest('.at-main') as Element | null;
+    const root = this.scroller();
     this.scrollObserver = new IntersectionObserver(
       (entries) => {
         if (!entries.some((e) => e.isIntersecting)) return;
@@ -258,13 +291,16 @@ export class AthleteDirectoryComponent implements AfterViewInit {
     this.scrollObserver.observe(sentinel);
   }
 
-  private async reload(term: string): Promise<void> {
+  private async reload(term: string, signature: string): Promise<void> {
     const db = this.firestore;
     const projectId = environment.firebase.projectId;
     const gen = ++this.reloadGeneration;
     const level = this.levelFilter();
     const city = this.cityFilter();
     const sport = this.sportFilter();
+
+    // Filtro novo: o que estava em cache não vale mais e a lista recomeça do topo.
+    this.store.invalidate();
 
     if (!db || !projectId) {
       this.allAthletes.set([]);
@@ -273,21 +309,22 @@ export class AthleteDirectoryComponent implements AfterViewInit {
     }
 
     this.loading.set(true);
-    this.nextCursor = null;
+    this.store.nextCursor = null;
     this.hasMore.set(false);
     try {
-      if (this.rankPositionById.size === 0) {
+      if (this.store.rankPositionById.size === 0) {
         const ranking = await fetchAthleteRankingGeneral(db, projectId);
         if (gen !== this.reloadGeneration) return;
-        ranking.forEach((r, i) => this.rankPositionById.set(r.id, i + 1));
+        ranking.forEach((r, i) => this.store.rankPositionById.set(r.id, i + 1));
       }
 
       if (term.trim()) {
         const profiles = await searchAthleteDirectory(db, term);
         if (gen !== this.reloadGeneration) return;
-        this.allAthletes.set(profiles.map((p) => entryFromProfile(p, this.rankPositionById.get(p.id) ?? null)));
+        this.allAthletes.set(profiles.map((p) => entryFromProfile(p, this.store.rankPositionById.get(p.id) ?? null)));
         this.hasMore.set(false);
-        this.nextCursor = null;
+        this.store.nextCursor = null;
+        this.store.markLoaded(signature);
       } else {
         // Sem discoverSportIds: pagina todos com hasAthleteRole. Se há refino local
         // (esporte/nível/cidade), busca páginas extras até encher a grade.
@@ -302,7 +339,7 @@ export class AthleteDirectoryComponent implements AfterViewInit {
           const page = await fetchAthleteDirectoryPage(db, { sportFirestoreId: null, cursor });
           if (gen !== this.reloadGeneration) return;
           pages += 1;
-          collected.push(...page.profiles.map((p) => entryFromProfile(p, this.rankPositionById.get(p.id) ?? null)));
+          collected.push(...page.profiles.map((p) => entryFromProfile(p, this.store.rankPositionById.get(p.id) ?? null)));
           next = page.nextCursor;
           cursor = page.nextCursor;
           if (!page.nextCursor) break;
@@ -318,14 +355,15 @@ export class AthleteDirectoryComponent implements AfterViewInit {
 
         if (gen !== this.reloadGeneration) return;
         this.allAthletes.set(collected);
-        this.nextCursor = next;
+        this.store.nextCursor = next;
         this.hasMore.set(next != null);
+        this.store.markLoaded(signature);
       }
     } catch {
       if (gen !== this.reloadGeneration) return;
       this.allAthletes.set([]);
       this.hasMore.set(false);
-      this.nextCursor = null;
+      this.store.nextCursor = null;
     } finally {
       if (gen === this.reloadGeneration) this.loading.set(false);
     }
@@ -333,7 +371,7 @@ export class AthleteDirectoryComponent implements AfterViewInit {
 
   protected async loadMore(): Promise<void> {
     const db = this.firestore;
-    if (!db || !this.nextCursor || this.loadingMore() || this.filterQuery().trim()) return;
+    if (!db || !this.store.nextCursor || this.loadingMore() || this.filterQuery().trim()) return;
     this.loadingMore.set(true);
     try {
       const sport = this.sportFilter();
@@ -341,18 +379,18 @@ export class AthleteDirectoryComponent implements AfterViewInit {
       const city = this.cityFilter();
       // Continua paginando se o refino local (esporte/nível/cidade/discoverable) engolir a página.
       let pages = 0;
-      while (this.nextCursor && pages < MAX_REFINE_PAGES) {
+      while (this.store.nextCursor && pages < MAX_REFINE_PAGES) {
         const beforeVisible = this.filteredOthers().length;
-        const page = await fetchAthleteDirectoryPage(db, { sportFirestoreId: null, cursor: this.nextCursor });
+        const page = await fetchAthleteDirectoryPage(db, { sportFirestoreId: null, cursor: this.store.nextCursor });
         pages += 1;
         const seen = new Set(this.allAthletes().map((a) => a.id));
         const appended = page.profiles
-          .map((p) => entryFromProfile(p, this.rankPositionById.get(p.id) ?? null))
+          .map((p) => entryFromProfile(p, this.store.rankPositionById.get(p.id) ?? null))
           .filter((p) => !seen.has(p.id));
         if (appended.length > 0) {
           this.allAthletes.update((current) => [...current, ...appended]);
         }
-        this.nextCursor = page.nextCursor;
+        this.store.nextCursor = page.nextCursor;
         this.hasMore.set(page.nextCursor != null);
         if (!page.nextCursor) break;
         const gained = this.filteredOthers().length - beforeVisible;

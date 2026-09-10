@@ -30,6 +30,7 @@ import {assertCanManageTournament} from "./tournament-acl";
 import {findCategory, resolveCategoryLabel} from "./tournament-registration-guards";
 import {registrationAthleteUids} from "./tournament-registration-pix-helpers";
 import {chunkList} from "./test-data-cleanup";
+import {PORTAL_CALLABLE_REGIONS} from "./function-regions";
 
 /**
  * Sorteio ao Vivo — as callables da sessão.
@@ -176,7 +177,9 @@ function categoryMetaOf(tournament: Record<string, unknown>, categoryId: string)
 // createDrawSession
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const createDrawSession = onCall(async (request) => {
+export const createDrawSession = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -369,7 +372,9 @@ export const createDrawSession = onCall(async (request) => {
 // updateDrawSessionConfig · startDrawSession
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const updateDrawSessionConfig = onCall(async (request) => {
+export const updateDrawSessionConfig = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
   const sessionId = assertSessionId(request.data?.sessionId);
@@ -408,7 +413,9 @@ export const updateDrawSessionConfig = onCall(async (request) => {
   return {ok: true};
 });
 
-export const startDrawSession = onCall(async (request) => {
+export const startDrawSession = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
   const sessionId = assertSessionId(request.data?.sessionId);
@@ -450,7 +457,9 @@ export const startDrawSession = onCall(async (request) => {
 // drawNextReveal — o sorteio
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const drawNextReveal = onCall(async (request) => {
+export const drawNextReveal = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
   const sessionId = assertSessionId(request.data?.sessionId);
@@ -513,7 +522,9 @@ export const drawNextReveal = onCall(async (request) => {
  * Só antes de ir ao ar: com revelações gravadas, mudar os potes reescreveria a
  * história que o log já provou.
  */
-export const updateDrawSessionSeeds = onCall(async (request) => {
+export const updateDrawSessionSeeds = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
   const sessionId = assertSessionId(request.data?.sessionId);
@@ -572,7 +583,9 @@ export const updateDrawSessionSeeds = onCall(async (request) => {
  * `Math.max` em vez de atribuição direta: um clique atrasado chegando depois da
  * revelação seguinte não pode voltar o spotlight de uma dupla que já saiu.
  */
-export const clearRevealSpotlight = onCall(async (request) => {
+export const clearRevealSpotlight = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
   const sessionId = assertSessionId(request.data?.sessionId);
@@ -590,7 +603,9 @@ export const clearRevealSpotlight = onCall(async (request) => {
   return {spotlightClearedIndex: cleared};
 });
 
-export const replaceRevealPhrase = onCall(async (request) => {
+export const replaceRevealPhrase = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
   const sessionId = assertSessionId(request.data?.sessionId);
@@ -634,7 +649,9 @@ export const replaceRevealPhrase = onCall(async (request) => {
   return {phrase: next};
 });
 
-export const publishDrawSession = onCall(async (request) => {
+export const publishDrawSession = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
   const sessionId = assertSessionId(request.data?.sessionId);
@@ -688,7 +705,9 @@ export const publishDrawSession = onCall(async (request) => {
   return result;
 });
 
-export const voidDrawSession = onCall(async (request) => {
+export const voidDrawSession = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
   const sessionId = assertSessionId(request.data?.sessionId);

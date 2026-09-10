@@ -71,6 +71,7 @@ import {buildRegistrationCancellationAudit} from "./tournament-registration-canc
 import {organizerContactFromUser} from "./tournament-contacts";
 import {notifyBracketPublishedAthletes} from "./organizer-category-ops-bracket-notify";
 import {artifactsInscriptionsPath, artifactsMatchesPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
+import {PORTAL_CALLABLE_REGIONS} from "./function-regions";
 import {registrationHoldClearedFields} from
   "./tournament-registration-hold-ops";
 
@@ -442,7 +443,9 @@ export async function runGenerateCategoryBracket(
   return {matchCount: matchDrafts.length, format};
 }
 
-export const generateCategoryBracket = onCall(async (request) => {
+export const generateCategoryBracket = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
   return runGenerateCategoryBracket(uid, (request.data ?? {}) as GenerateBracketInput);
@@ -452,6 +455,7 @@ export const generateCategoryBracket = onCall(async (request) => {
 // segredo ligado à função `getAsaasApiKey()` lança ASAAS_API_KEY_MISSING —
 // o cancelamento viraria um no-op silencioso.
 export const organizerConfirmRegistrationPayment = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
   secrets: asaasArenaSecrets,
 }, async (request) => {
   const uid = request.auth?.uid;
@@ -700,7 +704,9 @@ export const organizerConfirmRegistrationPayment = onCall({
  * confirmação (`paymentBeforeConfirm`) — pendente, "A conferir" ou fila —, e a
  * vaga NÃO é liberada: quem tira a dupla da categoria é a remoção.
  */
-export const organizerRevertRegistrationPayment = onCall(async (request) => {
+export const organizerRevertRegistrationPayment = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -837,7 +843,9 @@ export const organizerRevertRegistrationPayment = onCall(async (request) => {
   return {ok: true, outcome: plan.outcome};
 });
 
-export const organizerMoveToWaitlist = onCall(async (request) => {
+export const organizerMoveToWaitlist = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -868,6 +876,7 @@ export const organizerMoveToWaitlist = onCall(async (request) => {
 // `secrets`: a remoção cancela cobranças PIX abertas no Asaas antes de apagar
 // a inscrição — sem o segredo, `getAsaasApiKey()` lança e a remoção falha.
 export const organizerRemoveFromCategory = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
   secrets: asaasArenaSecrets,
 }, async (request) => {
   const uid = request.auth?.uid;
@@ -993,7 +1002,9 @@ export const organizerRemoveFromCategory = onCall({
   return {ok: true, refundPending: wasPaid, refundAmount};
 });
 
-export const resendRegistrationPayment = onCall(async (request) => {
+export const resendRegistrationPayment = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -1180,7 +1191,9 @@ export async function sendCategoryCommunicationCore(
   return {pushCount: pushSent, pushNoChannel, pushFailed, whatsappLinks};
 }
 
-export const sendCategoryCommunication = onCall(async (request) => {
+export const sendCategoryCommunication = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -1193,7 +1206,9 @@ export const sendCategoryCommunication = onCall(async (request) => {
   });
 });
 
-export const closeTournamentRegistrations = onCall(async (request) => {
+export const closeTournamentRegistrations = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -1256,7 +1271,9 @@ async function notifyPaidTeamsOfCancellation(
   );
 }
 
-export const cancelTournament = onCall(async (request) => {
+export const cancelTournament = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 

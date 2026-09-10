@@ -1,14 +1,18 @@
 import { getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import { getFunctions, type Functions } from 'firebase/functions';
 import { environment } from '../../../environments/environment';
+import { FUNCTIONS_REGION } from '../../shared/firebase-region';
 
 let app: FirebaseApp | null = null;
 
 /** Instância singleton do Cloud Functions client, reaproveitando o FirebaseApp já iniciado pelo
- *  AuthService (`auth/auth.service.ts`) — nunca chama `initializeApp` de novo se o app já existe. */
+ *  AuthService (`auth/auth.service.ts`) — nunca chama `initializeApp` de novo se o app já existe.
+ *
+ *  A região é explícita: sem ela o SDK chama Iowa e cada operação vira uma ida e volta ao
+ *  hemisfério norte (`shared/firebase-region.ts`). */
 export function organizerFunctions(): Functions {
   if (app == null) {
     app = getApps().length ? getApps()[0]! : initializeApp(environment.firebase);
   }
-  return getFunctions(app);
+  return getFunctions(app, FUNCTIONS_REGION);
 }

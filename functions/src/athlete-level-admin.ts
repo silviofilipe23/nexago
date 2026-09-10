@@ -51,6 +51,7 @@ import {
   ratingStateToDoc,
   sportLabel,
 } from "./rating-ladder";
+import {PORTAL_CALLABLE_REGIONS} from "./function-regions";
 
 const DAY_MS = 86_400_000;
 
@@ -570,7 +571,9 @@ export const getAthleteLevelState = onCall(async (request) => {
  * ordem. Notifica o atleta só no caminho admin — a promoção do organizador
  * fica fora do escopo desta rodada (ver report da task).
  */
-export const setAthleteLevel = onCall(async (request) => {
+export const setAthleteLevel = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
+}, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado");

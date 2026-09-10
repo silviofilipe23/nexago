@@ -27,6 +27,7 @@ import {resolveWithdrawalPixFields} from "./asaas-payout";
 import {asaasArenaSecrets} from "./asaas-client";
 import {callerIsOrganizer, callerIsSuperAdmin} from "./auth-roles";
 import {ARENA_WITHDRAWAL_AUTO_MAX_REAIS} from "./arena-booking-payment-constants";
+import {PORTAL_CALLABLE_REGIONS} from "./function-regions";
 
 const ORGANIZER_WITHDRAWALS = "organizerWithdrawals";
 
@@ -87,7 +88,9 @@ async function assertNoPendingOrganizerWithdrawal(
 }
 
 /** Cadastra/atualiza a chave PIX de repasse do organizador (no doc da carteira). */
-export const setOrganizerPayoutPixKey = onCall(async (request) => {
+export const setOrganizerPayoutPixKey = onCall({
+  region: PORTAL_CALLABLE_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
 

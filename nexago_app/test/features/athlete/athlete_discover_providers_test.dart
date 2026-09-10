@@ -20,7 +20,6 @@ import 'package:nexago_app/features/athlete/domain/athlete_discover_providers.da
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
 import 'package:nexago_app/features/athlete/data/athlete_follow_service.dart';
-import 'package:nexago_app/features/ranking/data/ranking_repository.dart';
 
 /// Nunca é chamado de fato: só existe para satisfazer a assinatura de
 /// `FirebaseFirestore.collection`, cujo retorno é descartado (o campo
@@ -69,7 +68,6 @@ class _FakeAthleteDiscoverRepository extends AthleteDiscoverRepository {
   _FakeAthleteDiscoverRepository()
       : super(
           firestore: _NoopFirestore(),
-          rankingRepository: RankingRepository(_NoopFirestore()),
           followService: AthleteFollowService(_NoopFirestore()),
         );
 
@@ -82,9 +80,6 @@ class _FakeAthleteDiscoverRepository extends AthleteDiscoverRepository {
   /// inspecionar o estado exatamente durante a janela do fetch.
   Completer<List<AthleteProfile>>? catalogGate;
   List<AthleteProfile> catalogResult = const [];
-
-  @override
-  void clearRankingCache() {}
 
   @override
   Future<AthleteDiscoverPageResult> fetchPage({
@@ -504,4 +499,18 @@ void main() {
       );
     });
   });
+
+  test(
+    'o repositório do Descobrir não depende mais do RankingRepository — '
+    'ranking mora na tela de Ranking, e a listagem parava de baixar a '
+    'coleção inteira só para descartá-la',
+    () {
+      final repo = AthleteDiscoverRepository(
+        firestore: _NoopFirestore(),
+        followService: AthleteFollowService(_NoopFirestore()),
+      );
+
+      expect(repo, isNotNull);
+    },
+  );
 }

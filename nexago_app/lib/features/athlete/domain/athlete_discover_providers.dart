@@ -144,7 +144,6 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
       errorMessage: null,
       isSearchMode: false,
     );
-    _repo.clearRankingCache();
     try {
       final following = await _followingIds();
       final page = await _repo.fetchPage();
@@ -179,7 +178,6 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
             isSearchMode: false,
           )
         : state.copyWith(isSearchMode: false);
-    _repo.clearRankingCache();
     // O catálogo carregado só é "completo" quando a busca foi SEM constraint de
     // servidor. Com UF=SP no servidor, `rawEntries` tem só paulistas: dizer
     // "completo" faria a próxima troca de filtro (UF=RJ) refiltrar esse recorte
@@ -393,7 +391,6 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
             return AthleteDiscoverEntry(
               userId: e.userId,
               profile: e.profile,
-              ranking: e.ranking,
               isFollowing: isFollowing,
               isCurrentUser: e.isCurrentUser,
               followersCount: followersCount,

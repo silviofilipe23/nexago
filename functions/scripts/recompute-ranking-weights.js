@@ -59,17 +59,26 @@
  *   gcloud auth application-default login
  *   # ou export GOOGLE_APPLICATION_CREDENTIALS=/caminho/serviceAccount.json
  *
+ * ORDEM OBRIGATÓRIA: rode `rederive-knockout-placements.js` ANTES deste script.
+ * Ele é quem converte o `finalPlace: 9` do contrato antigo (participação) em
+ * `0`; sem isso, este recálculo promove quem caiu na fase de grupos a oitavas
+ * (100 → 200 pontos). Ver spec `docs/superpowers/specs/2026-09-10-livre-field-strength-ranking-design.md`.
+ *
  * Uso (na pasta functions/):
+ *   node scripts/rederive-knockout-placements.js --project <id> [--yes]   # PRIMEIRO
  *   node scripts/recompute-ranking-weights.js --project volley-track-dev-4596c
  *   node scripts/recompute-ranking-weights.js --project <id> --yes
  *   node scripts/recompute-ranking-weights.js --project <id> --yes --limit 50
  *
  * Sem --yes é DRY-RUN: lista o contexto por categoria e cada doc que mudaria,
  * sem escrever. `--limit` corta quantos docs que MUDARIAM cada coleção
- * processa nesta execução (o resto fica para a próxima — o script converge) E
- * quantas participações retroativas do Livre são criadas nesta execução — é a
- * válvula da primeira corrida cautelosa em produção, então vale para TODOS os
- * passos, inclusive o único que cria dado.
+ * processa nesta execução (o resto fica para a próxima — o script converge),
+ * quantas participações retroativas do Livre são criadas E quantos carimbos de
+ * força do campo são gravados nesta execução (o carimbo também CRIA dado,
+ * dentro de `resolveContext`, então entra no mesmo corte) — é a válvula da
+ * primeira corrida cautelosa em produção, então vale para TODOS os passos,
+ * inclusive os dois que criam dado. O Resumo reporta `carimbos gravados: N` à
+ * parte para o operador ver o que essa válvula realmente limitou.
  *
  * Falha por doc não aborta a corrida: cada doc é migrado na sua própria
  * transação (que RELÊ o doc no commit, tornando inofensiva uma premiação que
@@ -111,6 +120,9 @@ const {
   shouldStampFieldStrength,
   LIVRE_MIN_WEIGHT,
   LIVRE_MAX_WEIGHT,
+  tournamentSportToLevelSportCode,
+  extractTeamMemberUids,
+  fieldStrengthDocId,
 } = require("./lib/ranking-recompute");
 
 function argValue(flag) {
@@ -145,6 +157,18 @@ const avisos = [];
 function avisar(msg) {
   if (!avisos.includes(msg)) avisos.push(msg);
 }
+
+// `--limit` também vale para o carimbo de força do campo (Important 1 da
+// revisão final): sem isto, `--yes --limit 1` — a corrida cautelosa que o
+// próprio cabeçalho recomenda como primeira execução em produção — carimbava
+// TODA categoria Livre do histórico, porque o carimbo mora dentro de
+// `resolveContext`, chamado para CADA doc antes do `candidatos.slice(0, LIMIT)`
+// do passo de `tournamentCategoryResults`. `stampAttempts` conta candidaturas
+// (elegíveis para carimbar, dry-run ou não) para que o relatório por
+// categoria reflita o mesmo corte em ambos os modos; `stampsGravados` conta só
+// as escritas reais (`--yes`), e é o número que entra no Resumo.
+let stampAttempts = 0;
+let stampsGravados = 0;
 
 // ---------------------------------------------------------------------------
 // Contexto por (torneio, categoria) — resolvido uma vez e reusado.
@@ -185,7 +209,10 @@ async function resolveContext(tournamentId, categoryId) {
     level: categoria?.level ?? null,
     minLevel: categoria?.minLevel ?? null,
     isLeagueStage: String(tournament.leagueId ?? "").trim().length > 0,
-    rankingEnabled: tournament.rankingEnabled === true,
+    // Paridade com o motor (functions/src/tournament-ranking.ts): campo AUSENTE
+    // é "ligado" (`!== false`), não "desligado" (`=== true`) — torneio legado
+    // sem o campo não pode disparar o aviso de "hoje não passaria no gate".
+    rankingEnabled: tournament.rankingEnabled !== false,
   };
 
   if (!categoria) {
@@ -218,6 +245,7 @@ async function resolveContext(tournamentId, categoryId) {
   let measuredTeams = 0;
   let livreWeightSource = null; // "stamp" | "measured" | "declared" — só para o relatório
   let livreStampEligible = false; // cobertura suficiente para carimbar nesta passada
+  let livreStampLimitado = false; // cobertura suficiente, mas --limit já esgotado
   if (peso.presetKey === "livre") {
     const stamp = await readFieldStrengthStamp(tournamentId, categoryId);
     if (stamp) {
@@ -241,18 +269,27 @@ async function resolveContext(tournamentId, categoryId) {
           totalPaidTeams: paidTeams,
         };
         if (shouldStampFieldStrength(stampCandidate)) {
-          livreStampEligible = true;
-          if (APPLY) {
-            try {
-              await stampFieldStrength(tournamentId, categoryId, stampCandidate);
-            } catch (e) {
-              // A escrita do carimbo é só metadado — se falhar, o recálculo não
-              // pode parar por isso (mesma postura de `resolveLivreWeight` em
-              // `functions/src/tournament-ranking.ts`): segue com o peso medido.
-              avisar(
-                `${tournamentId}/${categoryId}: falha ao carimbar força do campo — ` +
-                  `seguindo com o peso medido (${e?.message ?? e})`,
-              );
+          // Checagem contra `LIMIT` ANTES de consumir o contador — o mesmo
+          // corte vale em dry-run (só para o relatório) e com `--yes` (para a
+          // escrita de verdade), então as duas passagens contam igual.
+          if (LIMIT > 0 && stampAttempts >= LIMIT) {
+            livreStampLimitado = true;
+          } else {
+            livreStampEligible = true;
+            stampAttempts++;
+            if (APPLY) {
+              try {
+                await stampFieldStrength(tournamentId, categoryId, stampCandidate);
+                stampsGravados++;
+              } catch (e) {
+                // A escrita do carimbo é só metadado — se falhar, o recálculo não
+                // pode parar por isso (mesma postura de `resolveLivreWeight` em
+                // `functions/src/tournament-ranking.ts`): segue com o peso medido.
+                avisar(
+                  `${tournamentId}/${categoryId}: falha ao carimbar força do campo — ` +
+                    `seguindo com o peso medido (${e?.message ?? e})`,
+                );
+              }
             }
           }
         }
@@ -272,6 +309,7 @@ async function resolveContext(tournamentId, categoryId) {
     measuredTeams,
     livreWeightSource,
     livreStampEligible,
+    livreStampLimitado,
     rankingWeight,
     paidTeams,
     bracketFactor,
@@ -331,44 +369,15 @@ async function loadKnockoutTeamIds(tournamentId, categoryId) {
 }
 
 /**
- * Paridade LITERAL com `extractTeamMemberUids`
- * (functions/src/tournament-team-category.ts): `memberUids` vence, MAS só
- * quando rende ao menos um uid utilizável — array vazio (ou só com strings em
- * branco) cai no legado `player1Id`/`player2Id`, exatamente como o
- * `if (out.length > 0) return out;` do motor. Ler o `Array.isArray` como
- * decisão final deixaria a equipe sem nenhum atleta creditado.
+ * uids da equipe, lendo o doc `teams/{teamId}`. `extractTeamMemberUids` mora
+ * em `scripts/lib/ranking-recompute.js`, em paridade com
+ * `functions/src/tournament-team-category.ts` (ver teste de paridade em
+ * `test/ranking-recompute.test.mjs`).
  */
-function extractTeamMemberUids(team) {
-  if (!team) return [];
-  const out = [];
-  const push = (raw) => {
-    const id = typeof raw === "string" ? raw.trim() : "";
-    if (id && !out.includes(id)) out.push(id);
-  };
-  if (Array.isArray(team.memberUids)) {
-    for (const raw of team.memberUids) push(raw);
-    if (out.length > 0) return out;
-  }
-  push(team.player1Id);
-  push(team.player2Id);
-  return out;
-}
-
-/** uids da equipe, lendo o doc `teams/{teamId}`. */
 async function loadTeamAthleteIds(teamId) {
   const snap = await db.doc(`${dataPath("teams")}/${teamId}`).get();
   if (!snap.exists) return [];
   return extractTeamMemberUids(snap.data() || {});
-}
-
-/** Cópia de `tournamentSportToLevelSportCode` (functions/src/category-level-eligibility.ts). */
-function tournamentSportToLevelSportCode(sport) {
-  const key = String(sport || "").trim().toLowerCase().replace(/\s+/g, "");
-  if (key === "beachvolleyball") return "VOLEI_PRAIA";
-  if (key === "indoorvolleyball") return "VOLEI_QUADRA";
-  if (key === "footvolley") return "FUTEVOLEI";
-  if (key === "beachtennis") return "BEACH_TENNIS";
-  return null;
 }
 
 /** Degraus por atleta, em lote (docs `athleteRatings/{uid}_{SPORT_CODE}`). */
@@ -403,12 +412,10 @@ async function measureLivreFieldStrength(tournament, paidTeams) {
   return fieldStrengthFromTeamRanks(teamRanks);
 }
 
-/** Doc id do carimbo — paridade com `fieldStrengthDocId` (category-field-strength-store.ts). */
-function fieldStrengthDocId(tournamentId, categoryId) {
-  return `${tournamentId}_${categoryId}`;
-}
-
-/** Paridade com `readFieldStrengthStamp` (functions/src/category-field-strength-store.ts). */
+/**
+ * Paridade com `readFieldStrengthStamp` (functions/src/category-field-strength-store.ts).
+ * `fieldStrengthDocId` mora em `scripts/lib/ranking-recompute.js`.
+ */
 async function readFieldStrengthStamp(tournamentId, categoryId) {
   const snap = await db
     .doc(`${dataPath("tournamentCategoryFieldStrength")}/${fieldStrengthDocId(tournamentId, categoryId)}`)
@@ -654,7 +661,7 @@ async function migrateRankingCollection(coll) {
  * dele continua deixando a dupla em `faltantes` (curável), e um aborto por
  * corrida concorrente também não escreve nada — mesmo efeito líquido.
  */
-async function criarParticipacaoFaltanteDoLivre(fresh) {
+async function criarParticipacaoFaltanteDoLivre(apply) {
   const categorias = new Map();
   const anos = new Map();
   const conclusoes = new Map();
@@ -736,11 +743,15 @@ async function criarParticipacaoFaltanteDoLivre(fresh) {
       }
       candidatos++;
 
-      avisar(
-        `${ctx.tournamentName} / ${ctx.categoryName}: ${fresh ? "criando" : "criaria"} ` +
+      // Linha ROTINEIRA (uma por dupla criada), não um aviso — com centenas de
+      // participações retroativas, `avisar` é O(n) por chamada e enterraria os
+      // avisos de verdade (year ausente, roster não resolvido, gate reprovado)
+      // numa parede de texto. `console.log` direto, sem dedupe.
+      console.log(
+        `  ${ctx.tournamentName} / ${ctx.categoryName}: ${apply ? "criando" : "criaria"} ` +
           `participação de ${teamId} (${pontos} pts, ano ${year})`,
       );
-      if (!fresh) continue;
+      if (!apply) continue;
 
       // Falha numa dupla não aborta a corrida (mesma postura de `migrateOneDoc`):
       // o erro é contado, reportado no Resumo e derruba o código de saída.
@@ -809,7 +820,7 @@ async function criarParticipacaoFaltanteDoLivre(fresh) {
 
   console.log(
     `\n[participação do Livre] ` +
-      (fresh
+      (apply
         ? `${criados} resultado(s) criado(s) de ${candidatos} candidato(s)`
         : `${candidatos} a criar`) +
       (limitAtingido ? ` (--limit ${LIMIT} atingido — o resto fica para a próxima)` : ""),
@@ -832,12 +843,35 @@ async function criarParticipacaoFaltanteDoLivre(fresh) {
  * `lastUpdated: FieldValue.serverTimestamp()`. Sem isso, um doc tocado por
  * este script ficaria diferente de um doc tocado pelo motor só por faltar
  * esse campo.
+ *
+ * GUARDA DE ESCALA MISTA (Important 2 da revisão final): a entrada `entrada`
+ * chega em ×10 (fórmula vigente do motor — ver `pointsForEntry`). Um doc que
+ * já existe mas ainda está em `scaleVersion < RANKING_SCALE_VERSION` guarda
+ * `results[]` antigos em ×1. O MOTOR reescala esses ×1 pra ×10 ON-WRITE antes
+ * de mesclar (`upsertGlobalRankingDoc`, `functions/src/tournament-ranking.ts:249-258`)
+ * — este script, de propósito, NÃO reescala nada (ver comentário de
+ * `scaleVersion` acima: ele nunca toca na escala do histórico). Se este
+ * `merge` escrevesse a entrada nova ×10 num doc com entradas antigas ×1 sem
+ * reescalar, o doc ficaria com escala MISTA, e pior: `backfill-ranking-scale-x10.js`,
+ * rodado depois, multiplicaria a entrada nova ×10 de novo (ela já está em
+ * ×10). Por isso a escrita é PULADA e AVISADA em vez de corrigir a escala
+ * aqui: o remédio é rodar `backfill-ranking-scale-x10.js` primeiro (ele SÓ
+ * reescala, sem repesar) e então repetir esta execução — a próxima passada
+ * encontra o doc já em `scaleVersion >= 2` e faz o merge normalmente.
  */
 async function upsertRankingDoc(collectionPath, docId, identity, entrada) {
   const ref = db.collection(collectionPath).doc(docId);
   await db.runTransaction(async (txn) => {
     const snap = await txn.get(ref);
     const prev = snap.data() || {};
+    if (snap.exists && (Number(prev.scaleVersion) || 0) < RANKING_SCALE_VERSION) {
+      avisar(
+        `${collectionPath}/${docId}: doc em scaleVersion < ${RANKING_SCALE_VERSION} — ` +
+          `participação retroativa de ${entrada.tournamentId}/${entrada.categoryId} NÃO gravada ` +
+          "(rode backfill-ranking-scale-x10.js primeiro e repita esta execução)",
+      );
+      return;
+    }
     const results = Array.isArray(prev.results) ? [...prev.results] : [];
     const jaTem = results.some(
       (r) => r.tournamentId === entrada.tournamentId && r.categoryId === entrada.categoryId,
@@ -892,11 +926,16 @@ function imprimirContextos() {
         ` · multiplicador=${(ctx.weight * ctx.rankingWeight * ctx.bracketFactor).toFixed(4)}`,
     );
     if (ctx.presetKey === "livre") {
+      const carimboStatus = ctx.livreStampLimitado
+        ? " — NÃO carimbado (--limit atingido, fica para a próxima)"
+        : ctx.livreStampEligible
+          ? (APPLY ? " — CARIMBADO" : " — SERIA CARIMBADO")
+          : " (cobertura insuficiente para carimbar)";
       const source =
         ctx.livreWeightSource === "stamp"
           ? "carimbo já gravado"
           : ctx.livreWeightSource === "measured"
-            ? `medido agora${ctx.livreStampEligible ? (APPLY ? " — CARIMBADO" : " — SERIA CARIMBADO") : " (cobertura insuficiente para carimbar)"}`
+            ? `medido agora${carimboStatus}`
             : "imensurável — peso declarado do preset";
       console.log(
         `      livre: fonte=${source}` +
@@ -939,7 +978,7 @@ async function run() {
   imprimirContextos();
 
   if (avisos.length > 0) {
-    console.log("\nAvisos (entradas deixadas como estavam, ou participação retroativa a criar):");
+    console.log("\nAvisos (entradas deixadas como estavam, gate reprovado, ou dado incompleto):");
     for (const a of avisos) console.log(`  ! ${a}`);
   }
 
@@ -968,6 +1007,13 @@ async function run() {
         ? `${participacaoOutcome.criados} criado(s) de ${participacaoOutcome.candidatos} candidato(s)`
         : `${participacaoOutcome.candidatos} a criar`) +
       `, ${participacaoOutcome.errors} erro(s)`,
+  );
+  // `stampAttempts` conta candidaturas elegíveis sob o mesmo corte de `--limit`
+  // em dry-run e com `--yes`; `stampsGravados` (sempre 0 em dry-run) é o que de
+  // fato foi escrito. Ver Important 1 da revisão final.
+  console.log(
+    `  carimbos gravados: ${stampsGravados} de ${stampAttempts} elegível(is) nesta execução` +
+      (LIMIT > 0 ? ` (--limit ${LIMIT})` : ""),
   );
   if (!APPLY) {
     console.log("  (dry-run — nada escrito; rode de novo com --yes)");

@@ -299,6 +299,58 @@ function shouldStampFieldStrength(stamp) {
   return stamp.measuredTeams * 2 >= stamp.totalPaidTeams;
 }
 
+/**
+ * Cópia de `tournamentSportToLevelSportCode` (functions/src/category-level-eligibility.ts).
+ * Reusa `normalizeLevelKey` (mesma normalização de `levelRank`, acima: NFD +
+ * strip de diacríticos + espaço) — o script antigo comparava só
+ * lower-case+trim e concordava por acidente, já que nenhum dos quatro nomes
+ * de esporte tem acento; copiar a semântica real evita que um quinto esporte
+ * acentuado divirja um dia.
+ */
+function tournamentSportToLevelSportCode(sport) {
+  const key = normalizeLevelKey(sport);
+  switch (key) {
+    case "beachvolleyball":
+      return "VOLEI_PRAIA";
+    case "indoorvolleyball":
+      return "VOLEI_QUADRA";
+    case "footvolley":
+      return "FUTEVOLEI";
+    case "beachtennis":
+      return "BEACH_TENNIS";
+    default:
+      return null;
+  }
+}
+
+/**
+ * Cópia LITERAL de `extractTeamMemberUids` (functions/src/tournament-team-category.ts):
+ * `memberUids` vence, MAS só quando rende ao menos um uid utilizável — array
+ * vazio (ou só com strings em branco) cai no legado `player1Id`/`player2Id`,
+ * exatamente como o `if (out.length > 0) return out;` do motor. Decide quem
+ * recebe ponto retroativo — uma divergência aqui negaria crédito em silêncio.
+ */
+function extractTeamMemberUids(team) {
+  if (!team) return [];
+  const out = [];
+  const push = (raw) => {
+    const id = typeof raw === "string" ? raw.trim() : "";
+    if (id && !out.includes(id)) out.push(id);
+  };
+  if (Array.isArray(team.memberUids)) {
+    for (const raw of team.memberUids) push(raw);
+    if (out.length > 0) return out;
+  }
+  push(team.player1Id);
+  push(team.player2Id);
+  return out;
+}
+
+/** Cópia de `fieldStrengthDocId` (functions/src/category-field-strength-store.ts). */
+function fieldStrengthDocId(tournamentId, categoryId) {
+  return `${tournamentId}_${categoryId}`;
+}
+
 module.exports = {
   DEFAULT_GLOBAL_POINTS,
   CATEGORY_PRESETS,
@@ -317,4 +369,7 @@ module.exports = {
   fieldStrengthFromTeamRanks,
   inscriptionAthleteUids,
   shouldStampFieldStrength,
+  tournamentSportToLevelSportCode,
+  extractTeamMemberUids,
+  fieldStrengthDocId,
 };

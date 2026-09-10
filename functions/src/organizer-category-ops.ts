@@ -415,6 +415,14 @@ export async function runGenerateCategoryBracket(
         categoryId,
         presetKey: fieldStrengthPreset.key,
         sportCode: tournamentSportToLevelSportCode(tournamentData.sport),
+        // DIVERGÊNCIA DELIBERADA: mede com a mesma definição de "dupla paga"
+        // de `loadPaidTeamIds`/`bracketSizeFactor` (sem excluir `partnerPending`),
+        // e NÃO com o conjunto de duplas da CHAVE (acima, :206-218), que exclui
+        // reserva solo com parceiro pendente só para a semeadura visual. Manter
+        // a medida alinhada ao denominador de `bracketSizeFactor` (que também
+        // não exclui `partnerPending`) é o que importa aqui; efeito colateral:
+        // uma reserva solo contribui o degrau do seu único integrante como se
+        // fosse uma dupla inteira.
         teams: paidTeamsWithParticipants(inscriptionsSnap.docs),
         source: "bracket",
       });

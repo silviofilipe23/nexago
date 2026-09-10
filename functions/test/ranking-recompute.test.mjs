@@ -26,6 +26,9 @@ const {
   fieldStrengthFromTeamRanks,
   inscriptionAthleteUids,
   shouldStampFieldStrength,
+  tournamentSportToLevelSportCode,
+  extractTeamMemberUids,
+  fieldStrengthDocId,
 } = require('../scripts/lib/ranking-recompute.js');
 
 describe('basePointsForFinalPlace', () => {
@@ -235,7 +238,12 @@ describe('paridade da força do campo (cópia de src/category-field-strength.ts)
   test('degrau → peso, com Math.round e clamp', () => {
     assert.equal(weightFromRank(0), 0.125);
     assert.equal(weightFromRank(2), 0.25);
+    // Os dois limites superiores de faixa (M12 da revisão final): a versão TS
+    // (functions/src/category-field-strength.test.ts:34,36) cobre os dois, a
+    // cópia JS não cobria.
+    assert.equal(weightFromRank(3), 0.25);
     assert.equal(weightFromRank(4), 0.5);
+    assert.equal(weightFromRank(5), 0.5);
     assert.equal(weightFromRank(6), 1);
     assert.equal(weightFromRank(4.2), 0.5);
     assert.equal(weightFromRank(5.6), 1);
@@ -291,5 +299,50 @@ describe('inscriptionAthleteUids (cópia de src/tournament-level-lock.ts:62-79)'
   test('sem player1Id nem participantUids: lista vazia', () => {
     assert.deepEqual(inscriptionAthleteUids({ teamId: 'team1' }), []);
     assert.deepEqual(inscriptionAthleteUids(undefined), []);
+  });
+});
+
+describe('tournamentSportToLevelSportCode (paridade com category-level-eligibility.ts)', () => {
+  test('os quatro esportes conhecidos mapeiam pro código de nível', () => {
+    assert.equal(tournamentSportToLevelSportCode('beachVolleyball'), 'VOLEI_PRAIA');
+    assert.equal(tournamentSportToLevelSportCode('indoorVolleyball'), 'VOLEI_QUADRA');
+    assert.equal(tournamentSportToLevelSportCode('footvolley'), 'FUTEVOLEI');
+    assert.equal(tournamentSportToLevelSportCode('beachTennis'), 'BEACH_TENNIS');
+  });
+
+  test('esporte desconhecido ou ausente devolve null', () => {
+    assert.equal(tournamentSportToLevelSportCode('xadrez'), null);
+    assert.equal(tournamentSportToLevelSportCode(undefined), null);
+    assert.equal(tournamentSportToLevelSportCode(''), null);
+  });
+
+  test('acento, caixa e espaço não mudam o código (mesma normalização de levelRank)', () => {
+    assert.equal(tournamentSportToLevelSportCode('  Beach Tennis '), 'BEACH_TENNIS');
+  });
+});
+
+describe('extractTeamMemberUids (paridade com tournament-team-category.ts)', () => {
+  test('memberUids vence e deduplica', () => {
+    assert.deepEqual(
+      extractTeamMemberUids({ memberUids: ['a', 'b', 'b', ' ', 'c'], player1Id: 'x' }),
+      ['a', 'b', 'c'],
+    );
+  });
+
+  test('memberUids vazio (ou só em branco) cai no legado player1Id/player2Id', () => {
+    assert.deepEqual(extractTeamMemberUids({ player1Id: 'a', player2Id: 'b' }), ['a', 'b']);
+    assert.deepEqual(extractTeamMemberUids({ memberUids: [], player1Id: 'a' }), ['a']);
+    assert.deepEqual(extractTeamMemberUids({ memberUids: ['  '], player1Id: 'a' }), ['a']);
+  });
+
+  test('sem nada resolvível devolve lista vazia', () => {
+    assert.deepEqual(extractTeamMemberUids({}), []);
+    assert.deepEqual(extractTeamMemberUids(null), []);
+  });
+});
+
+describe('fieldStrengthDocId (paridade com category-field-strength-store.ts)', () => {
+  test('id é tournamentId_categoryId', () => {
+    assert.equal(fieldStrengthDocId('T1', 'C1'), 'T1_C1');
   });
 });

@@ -122,11 +122,13 @@ class AthleteDiscoverRepository {
     }
 
     try {
-      final profiles = await _fetchWithDiscoverConstraints(
+      // Resultado vazio é RESPOSTA, não falha: uma UF sem atleta devolve zero e
+      // pronto. Só a exceção (índice/regra) justifica cair no catálogo inteiro,
+      // que é o caminho mais caro do app.
+      return await _fetchWithDiscoverConstraints(
         constraints,
         maxProfiles: maxProfiles,
       );
-      if (profiles.isNotEmpty) return profiles;
     } catch (e, stackTrace) {
       if (kDebugMode) {
         debugPrint(
@@ -134,9 +136,8 @@ class AthleteDiscoverRepository {
         );
         debugPrint('$stackTrace');
       }
+      return fetchAllDiscoverableProfiles(maxProfiles: maxProfiles);
     }
-
-    return fetchAllDiscoverableProfiles(maxProfiles: maxProfiles);
   }
 
   Future<List<AthleteProfile>> _fetchWithDiscoverConstraints(
@@ -294,13 +295,21 @@ class AthleteDiscoverRepository {
         byId[id] = Map<String, dynamic>.from(doc)..remove('__id');
       }
 
-      return rankDiscoverSearchProfiles(byId, tokens);
+      // Ranqueia até o teto do FETCH, não o da exibição: o corte de 25 é
+      // aplicado pelo notifier DEPOIS dos filtros de UF/cidade/gênero.
+      return rankDiscoverSearchProfiles(
+        byId,
+        tokens,
+        max: _searchFetchLimit,
+      );
     } catch (e, stackTrace) {
       if (kDebugMode) {
         debugPrint('AthleteDiscoverRepository.searchProfiles failed: $e');
         debugPrint('$stackTrace');
       }
-      return const [];
+      // Falha de regra/índice NÃO pode virar "ninguém encontrado": propaga para
+      // o notifier transformar em `errorMessage`, como nos demais loads.
+      rethrow;
     }
   }
 

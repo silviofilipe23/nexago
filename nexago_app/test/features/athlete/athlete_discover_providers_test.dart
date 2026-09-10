@@ -42,14 +42,20 @@ class _NoopFirestore implements FirebaseFirestore {
       super.noSuchMethod(invocation);
 }
 
+/// `build()` dispara `loadInitial` num microtask. O teste espera esse boot
+/// assentar antes de dirigir o notifier — senão a publicação tardia dele
+/// atropela o resultado da busca.
+Future<void> _settle() => Future<void>.delayed(Duration.zero);
+
 AthleteProfile _profile({
   required String id,
   required String state,
   required String city,
+  String? name,
 }) {
   return AthleteProfile(
     id: id,
-    name: 'Atleta $id',
+    name: name ?? 'Atleta $id',
     sport: 'Vôlei de praia',
     level: 'Open',
     city: city,
@@ -104,9 +110,22 @@ class _FakeAthleteDiscoverRepository extends AthleteDiscoverRepository {
     return catalogResult;
   }
 
+  /// Resultado de [searchProfiles]. Representa o que o repositório REAL
+  /// devolve: os perfis que o servidor já casou pela âncora em `keywords` e
+  /// que o ranqueador compartilhado já ordenou por relevância (multi-token,
+  /// sem acento). O notifier não pode refiltrar esta lista por texto.
+  List<AthleteProfile> searchResult = const [];
+  String? lastSearchTerm;
+
+  /// Quando não nulo, [searchProfiles] lança — simula falha de regra/índice.
+  Object? searchError;
+
   @override
   Future<List<AthleteProfile>> searchProfiles(String term) async {
-    throw UnimplementedError('não usado neste teste');
+    lastSearchTerm = term;
+    final error = searchError;
+    if (error != null) throw error;
+    return searchResult;
   }
 
   @override
@@ -132,6 +151,10 @@ void main() {
         athleteProfileProvider.overrideWith((ref) => Stream.value(null)),
       ],
     );
+    // Mantém o notifier vivo durante o teste: é AutoDispose, e sem nenhum
+    // ouvinte ele é descartado entre os `await`s — cada `read` seguinte
+    // recomeçaria de um estado zerado.
+    container.listen(athleteDiscoverProvider, (_, __) {});
     addTearDown(container.dispose);
   });
 
@@ -149,6 +172,7 @@ void main() {
       repo.initialPageHasMore = true;
 
       final notifier = container.read(athleteDiscoverProvider.notifier);
+      await _settle();
       await notifier.loadInitial();
 
       final afterInitial = container.read(athleteDiscoverProvider);
@@ -195,7 +219,12 @@ void main() {
       await pending;
 
       final afterFetch = container.read(athleteDiscoverProvider);
-      expect(afterFetch.catalogIsComplete, isTrue);
+      expect(
+        afterFetch.catalogIsComplete,
+        isFalse,
+        reason: 'UF=GO foi para o servidor: o catálogo carregado é um recorte '
+            'de goianos, não o catálogo completo',
+      );
       expect(afterFetch.isLoading, isFalse);
       expect(afterFetch.displayEntries.map((e) => e.userId).toSet(), {
         'go1',
@@ -203,4 +232,227 @@ void main() {
       });
     },
   );
+
+  group('busca (caminho real do notifier)', () {
+    test(
+      'busca de duas palavras SEM acento devolve o perfil acentuado que o '
+      'servidor casou — o pipeline do cliente não pode refiltrar por texto',
+      () async {
+        repo.initialPageProfiles = const [];
+        repo.searchResult = [
+          _profile(
+            id: 'joao',
+            state: 'GO',
+            city: 'Goiânia',
+            name: 'João Silva',
+          ),
+          _profile(
+            id: 'joaop',
+            state: 'GO',
+            city: 'Goiânia',
+            name: 'João Pedro Silva',
+          ),
+        ];
+
+        final notifier = container.read(athleteDiscoverProvider.notifier);
+        await _settle();
+        await notifier.loadInitial();
+        await notifier.search('joao silva');
+
+        final state = container.read(athleteDiscoverProvider);
+        expect(repo.lastSearchTerm, 'joao silva');
+        expect(state.isSearchMode, isTrue);
+        expect(
+          state.displayEntries.map((e) => e.profile.name),
+          containsAll(<String>['João Silva', 'João Pedro Silva']),
+          reason: 'o termo já foi casado e ranqueado no servidor; refiltrar '
+              'por `contains` da frase inteira derrubaria os dois',
+        );
+        expect(state.errorMessage, isNull);
+      },
+    );
+
+    test('demais filtros continuam valendo sobre o resultado da busca',
+        () async {
+      repo.initialPageProfiles = const [];
+      repo.catalogResult = const [];
+      final notifier = container.read(athleteDiscoverProvider.notifier);
+      await _settle();
+      await notifier.loadInitial();
+      await notifier.applyFilters(const AthleteDiscoverFilters(stateUf: 'SP'));
+
+      repo.searchResult = [
+        _profile(id: 'go1', state: 'GO', city: 'Goiânia', name: 'João Silva'),
+        _profile(id: 'sp1', state: 'SP', city: 'Santos', name: 'João Silva'),
+      ];
+      await notifier.search('joao silva');
+
+      final state = container.read(athleteDiscoverProvider);
+      expect(state.displayEntries.map((e) => e.userId), ['sp1']);
+    });
+
+    test('teto de 25 é aplicado DEPOIS dos filtros', () async {
+      repo.initialPageProfiles = const [];
+      repo.catalogResult = const [];
+      final notifier = container.read(athleteDiscoverProvider.notifier);
+      await _settle();
+      await notifier.loadInitial();
+      await notifier.applyFilters(const AthleteDiscoverFilters(stateUf: 'SP'));
+
+      // 30 homônimos ranqueados: os 26 primeiros de GO, os 4 últimos de SP.
+      // Cortar em 25 ANTES do filtro deixaria a tela vazia.
+      repo.searchResult = [
+        for (var i = 0; i < 26; i++)
+          _profile(id: 'go$i', state: 'GO', city: 'Goiânia', name: 'Silva $i'),
+        for (var i = 0; i < 4; i++)
+          _profile(id: 'sp$i', state: 'SP', city: 'Santos', name: 'Silva $i'),
+      ];
+      await notifier.search('silva');
+
+      expect(
+        container.read(athleteDiscoverProvider).displayEntries.length,
+        4,
+      );
+    });
+
+    test('teto de 25 continua valendo na exibição', () async {
+      repo.initialPageProfiles = const [];
+      repo.searchResult = [
+        for (var i = 0; i < 40; i++)
+          _profile(id: 'a$i', state: 'GO', city: 'Goiânia', name: 'Silva $i'),
+      ];
+
+      final notifier = container.read(athleteDiscoverProvider.notifier);
+      await _settle();
+      await notifier.loadInitial();
+      await notifier.search('silva');
+
+      expect(
+        container.read(athleteDiscoverProvider).displayEntries.length,
+        25,
+      );
+    });
+
+    test('falha da busca vira errorMessage, não "ninguém encontrado"',
+        () async {
+      repo.initialPageProfiles = const [];
+      repo.searchError = StateError('permission-denied');
+
+      final notifier = container.read(athleteDiscoverProvider.notifier);
+      await _settle();
+      await notifier.loadInitial();
+      await notifier.search('silva');
+
+      final state = container.read(athleteDiscoverProvider);
+      expect(state.errorMessage, isNotNull);
+      expect(state.isLoading, isFalse);
+      // A tela só exibe o erro com a lista vazia: resultado velho na tela
+      // esconderia a falha exatamente como o `return const []` escondia.
+      expect(state.displayEntries, isEmpty);
+    });
+
+    test(
+      'limpar a busca abaixo de 2 caracteres republica com os filtros ativos '
+      'antes do catálogo chegar',
+      () async {
+        repo.initialPageProfiles = const [];
+        repo.catalogResult = const [];
+        final notifier = container.read(athleteDiscoverProvider.notifier);
+        await _settle();
+        await notifier.loadInitial();
+        await notifier.applyFilters(const AthleteDiscoverFilters(stateUf: 'SP'));
+
+        repo.searchResult = [
+          for (var i = 0; i < 30; i++)
+            _profile(id: 'sp$i', state: 'SP', city: 'Santos', name: 'Silva $i'),
+        ];
+        await notifier.search('silva');
+        expect(
+          container.read(athleteDiscoverProvider).displayEntries.length,
+          25,
+          reason: 'teto da busca',
+        );
+
+        // Catálogo filtrado preso: durante a janela do fetch a lista já tem de
+        // refletir "sem busca, só filtros" — não o resultado da busca anterior.
+        final gate = Completer<List<AthleteProfile>>();
+        repo.catalogGate = gate;
+        final pending = notifier.search('');
+
+        final duringFetch = container.read(athleteDiscoverProvider);
+        expect(duringFetch.isSearchMode, isFalse);
+        expect(
+          duringFetch.displayEntries.length,
+          30,
+          reason: 'republicação imediata: sem termo de busca o teto de 25 não '
+              'vale mais, e a lista não pode ficar congelada sob a barra de '
+              'progresso',
+        );
+
+        gate.complete(const []);
+        await pending;
+      },
+    );
+  });
+
+  group('catálogo completo', () {
+    test(
+      'catálogo carregado COM constraint de servidor não se declara completo, '
+      'senão trocar de UF refiltra o recorte antigo e a lista fica vazia',
+      () async {
+        repo.initialPageProfiles = [
+          _profile(id: 'go1', state: 'GO', city: 'Goiânia'),
+        ];
+        repo.initialPageHasMore = true;
+
+        final notifier = container.read(athleteDiscoverProvider.notifier);
+        await _settle();
+        await notifier.loadInitial();
+
+        // UF=SP vai para o servidor: o que volta são só paulistas.
+        repo.catalogResult = [
+          _profile(id: 'sp1', state: 'SP', city: 'Santos'),
+        ];
+        await notifier.applyFilters(const AthleteDiscoverFilters(stateUf: 'SP'));
+
+        var state = container.read(athleteDiscoverProvider);
+        expect(state.displayEntries.map((e) => e.userId), ['sp1']);
+        expect(
+          state.catalogIsComplete,
+          isFalse,
+          reason: 'o fetch teve constraint de UF; o catálogo é um recorte',
+        );
+
+        // Trocar para RJ tem de REFAZER o fetch, não refiltrar os paulistas.
+        repo.catalogResult = [
+          _profile(id: 'rj1', state: 'RJ', city: 'Niterói'),
+        ];
+        await notifier.applyFilters(const AthleteDiscoverFilters(stateUf: 'RJ'));
+
+        state = container.read(athleteDiscoverProvider);
+        expect(state.displayEntries.map((e) => e.userId), ['rj1']);
+      },
+    );
+
+    test('catálogo carregado SEM constraint de servidor é completo', () async {
+      repo.initialPageProfiles = const [];
+      repo.initialPageHasMore = true;
+      repo.catalogResult = [
+        _profile(id: 'go1', state: 'GO', city: 'Goiânia'),
+      ];
+
+      final notifier = container.read(athleteDiscoverProvider.notifier);
+      await _settle();
+      await notifier.loadInitial();
+      // `completeProfileOnly` é filtro só de cliente — não vira constraint.
+      await notifier.applyFilters(
+        const AthleteDiscoverFilters(completeProfileOnly: true),
+      );
+
+      expect(
+        container.read(athleteDiscoverProvider).catalogIsComplete,
+        isTrue,
+      );
+    });
+  });
 }

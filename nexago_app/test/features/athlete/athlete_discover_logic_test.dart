@@ -321,6 +321,51 @@ void main() {
       expect(discoverCityOptions(entries, 'GO'), ['Anápolis', 'Goiânia']);
     });
 
+    test(
+      'mesma cidade com grafias diferentes vira UM chip, na grafia mais bonita',
+      () {
+        final entries = [
+          _entry(profile: _profile(id: '1', city: 'SAO PAULO', state: 'SP')),
+          _entry(profile: _profile(id: '2', city: 'Sao Paulo', state: 'SP')),
+          _entry(profile: _profile(id: '3', city: 'São Paulo', state: 'SP')),
+          _entry(profile: _profile(id: '4', city: 'SÃO PAULO', state: 'SP')),
+        ];
+        expect(discoverCityOptions(entries, 'SP'), ['São Paulo']);
+      },
+    );
+
+    test('skipTextMatch preserva os demais filtros', () {
+      final entries = [
+        _entry(
+          profile: _profile(id: '1', name: 'João Silva', state: 'GO'),
+        ),
+        _entry(
+          profile: _profile(id: '2', name: 'João Silva', state: 'SP'),
+        ),
+      ];
+      // O termo já foi casado no servidor: o texto não refiltra, a UF sim.
+      final result = applyDiscoverFilters(
+        entries: entries,
+        filters: const AthleteDiscoverFilters(stateUf: 'GO'),
+        searchQuery: 'joao silva',
+        skipTextMatch: true,
+      );
+      expect(result.map((e) => e.userId), ['1']);
+    });
+
+    test('sem skipTextMatch o texto ainda filtra localmente (navegação)', () {
+      final entries = [
+        _entry(profile: _profile(id: '1', name: 'João Silva')),
+        _entry(profile: _profile(id: '2', name: 'Rafael Antunes')),
+      ];
+      final result = applyDiscoverFilters(
+        entries: entries,
+        filters: AthleteDiscoverFilters.defaults,
+        searchQuery: 'rafa',
+      );
+      expect(result.map((e) => e.userId), ['2']);
+    });
+
     test('UF entra nas constraints de servidor', () {
       const filters = AthleteDiscoverFilters(stateUf: 'GO');
       expect(discoverFirestoreConstraints(filters).stateUf, 'GO');

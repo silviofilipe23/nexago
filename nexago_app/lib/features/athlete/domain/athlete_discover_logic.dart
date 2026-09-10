@@ -87,21 +87,39 @@ bool _matchesLocation(AthleteProfile profile, AthleteDiscoverFilters filters) {
   return _normalizePlace(profile.city) == city;
 }
 
+/// Prefere a grafia mais "bonita" da mesma cidade: com acento e sem caixa alta.
+int _citySpellingScore(String city) {
+  var score = 0;
+  if (city != city.toUpperCase()) score += 2;
+  if (_normalizePlace(city) != city.toLowerCase()) score += 1;
+  return score;
+}
+
 /// Cidades presentes no catálogo daquela UF — a lista é derivada dos perfis
 /// carregados, não digitada: acento e caixa livres impediriam consulta.
+///
+/// A deduplicação é pela forma NORMALIZADA porque é assim que o filtro compara
+/// ([_matchesLocation]): "São Paulo", "Sao Paulo" e "SÃO PAULO" filtram
+/// idêntico, então não podem virar três chips.
 List<String> discoverCityOptions(
   List<AthleteDiscoverEntry> entries,
   String? stateUf,
 ) {
   final uf = stateUf?.trim().toUpperCase();
   if (uf == null || uf.isEmpty) return const [];
-  final cities = <String>{};
+  final byNormalized = <String, String>{};
   for (final entry in entries) {
     if ((entry.profile.state?.trim().toUpperCase() ?? '') != uf) continue;
     final city = entry.profile.city.trim();
-    if (city.isNotEmpty) cities.add(city);
+    if (city.isEmpty) continue;
+    final key = _normalizePlace(city);
+    final current = byNormalized[key];
+    if (current == null ||
+        _citySpellingScore(city) > _citySpellingScore(current)) {
+      byNormalized[key] = city;
+    }
   }
-  final sorted = cities.toList()
+  final sorted = byNormalized.values.toList()
     ..sort((a, b) => _normalizePlace(a).compareTo(_normalizePlace(b)));
   return sorted;
 }
@@ -111,13 +129,18 @@ List<AthleteDiscoverEntry> applyDiscoverFilters({
   required AthleteDiscoverFilters filters,
   AthleteProfile? viewerProfile,
   String searchQuery = '',
+  bool skipTextMatch = false,
 }) {
   final q = normalizeDiscoverSearch(searchQuery);
 
   return entries.where((entry) {
     final profile = entry.profile;
     if (!isDiscoverableProfile(profile)) return false;
-    if (!matchesDiscoverSearch(entry, q)) return false;
+    // Em modo busca o termo JÁ foi casado no servidor (âncora em `keywords`) e
+    // ranqueado pelo núcleo compartilhado, que quebra em tokens e dobra acento.
+    // Repetir aqui um `contains` da frase inteira desfaria exatamente isso:
+    // "joao silva" não casaria "João Silva". Os demais filtros seguem valendo.
+    if (!skipTextMatch && !matchesDiscoverSearch(entry, q)) return false;
     if (!_matchesGender(profile, filters.gender)) return false;
     if (!_matchesSport(profile, filters.sportFirestoreId)) return false;
     if (!_matchesLevel(profile, filters)) return false;

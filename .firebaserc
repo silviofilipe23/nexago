@@ -6,24 +6,6 @@
   "targets": {
     "volley-track-2dd3b": {
       "hosting": {
-        "site": [
-          "site-4af00"
-        ],
-        "backoffice": [
-          "backoffice-1e753"
-        ],
-        "arena": [
-          "arena-906cc"
-        ],
-        "coach": [
-          "coach-nexago"
-        ],
-        "organizer": [
-          "organizer-nexago"
-        ],
-        "athlete": [
-          "athlete-nexago"
-        ],
         "vegeton": [
           "vegeton-nexago"
         ],
@@ -37,24 +19,6 @@
     },
     "volley-track-dev-4596c": {
       "hosting": {
-        "site": [
-          "site-3fbe8"
-        ],
-        "coach": [
-          "coach-dev2"
-        ],
-        "arena": [
-          "arena-dev2"
-        ],
-        "backoffice": [
-          "backoffice-dev2"
-        ],
-        "organizer": [
-          "organizer-dev2"
-        ],
-        "athlete": [
-          "athlete-dev2"
-        ],
         "vegeton": [
           "vegeton-dev2"
         ],

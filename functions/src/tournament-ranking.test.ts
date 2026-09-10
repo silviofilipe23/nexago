@@ -569,4 +569,43 @@ describe("peso do Livre pela força real do campo", () => {
       false,
     );
   });
+
+  it("cobertura minoritária usa o peso medido nesta premiação, mas não carimba", async () => {
+    const db = livreDb(JHON_JHON_RANKS);
+    // Mantém o degrau só de tA e tB (2 de 10 duplas pagas = minoria): a
+    // medição ainda é possível (rank 6 e 6, peso 1), mas sem cobertura
+    // suficiente para congelar o peso da categoria.
+    for (const key of [...db.store.keys()]) {
+      if (
+        key.includes("/athleteRatings/") &&
+        !key.includes("/athleteRatings/tA-p1_") &&
+        !key.includes("/athleteRatings/tB-p1_")
+      ) {
+        db.store.delete(key);
+      }
+    }
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    const champion = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`);
+    // Peso medido (só tA/tB, ambos rank 6) = 1 → 1000, não o declarado (125).
+    assert.equal(champion?.pointsEarned, 1000);
+    assert.equal(
+      db.store.has(`artifacts/${PROJECT}/public/data/tournamentCategoryFieldStrength/T1_C1`),
+      false,
+    );
+  });
+
+  it("carimbo com peso fora do range é clampado na leitura (piso/teto)", async () => {
+    const db = livreDb(JHON_JHON_RANKS);
+    db.seedDoc(`artifacts/${PROJECT}/public/data/tournamentCategoryFieldStrength/T1_C1`, {
+      tournamentId: "T1", categoryId: "C1", presetKey: "livre",
+      fieldRank: 6, weight: 5, measuredTeams: 10, totalPaidTeams: 10, source: "bracket",
+    });
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    const champion = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`);
+    // Sem clamp, o multiplicador 5 daria 5000. Com o teto (LIVRE_MAX_WEIGHT=1),
+    // vale como se o carimbo tivesse gravado 1.
+    assert.equal(champion?.pointsEarned, 1000);
+  });
 });

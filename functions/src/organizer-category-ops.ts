@@ -82,6 +82,7 @@ import {
   fieldStrengthStampPayload,
   measureFieldStrength,
   paidTeamsWithParticipants,
+  shouldStampFieldStrength,
 } from "./category-field-strength-store";
 
 
@@ -419,7 +420,9 @@ export async function runGenerateCategoryBracket(
       });
       // Campo imensurável NÃO é carimbado: um zero congelaria o pior caso para
       // sempre. Sem carimbo, a premiação mede de novo (caminho preguiçoso).
-      if (strength) {
+      // Cobertura insuficiente (`shouldStampFieldStrength`) também não carimba,
+      // pelo mesmo motivo — os dois caminhos de carimbo têm de concordar.
+      if (strength && shouldStampFieldStrength(strength)) {
         batch.set(
           db.doc(
             `${fieldStrengthPath(projectId)}/${fieldStrengthDocId(tournamentId, categoryId)}`,

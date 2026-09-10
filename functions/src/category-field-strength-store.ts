@@ -1,6 +1,7 @@
 import {FieldValue, type Firestore} from "firebase-admin/firestore";
 import {artifactsInscriptionsPath, artifactsPublicDataBase} from "./firebase-paths";
 import {athleteRatingDocId, athleteRatingsPath} from "./rating-engine";
+import {inscriptionAthleteUids} from "./tournament-level-lock";
 import {
   fieldStrengthFromTeamRanks,
   teamLevelRank,
@@ -36,6 +37,10 @@ export interface FieldStrengthStamp extends FieldStrength {
  * `inscriptions` JÁ LIDO. A definição de "paga" é a mesma de `loadPaidTeamIds`
  * (`isPaid` e fora da fila), para que a medida e o `bracketSizeFactor` enxerguem
  * exatamente o mesmo conjunto de duplas.
+ *
+ * Uids via `inscriptionAthleteUids` (extrator canônico) em vez de ler
+ * `participantUids` na mão — ele junta `player1Id` E `participantUids`, e o
+ * `player1Id` é o reforço para docs legados que só tinham esse campo.
  */
 export function paidTeamsWithParticipants(
   docs: Array<{data: () => Record<string, unknown>}>,
@@ -47,11 +52,7 @@ export function paidTeamsWithParticipants(
     if (data.waitlist === true) continue;
     const teamId = String(data.teamId ?? "").trim();
     if (!teamId) continue;
-    const uids = Array.isArray(data.participantUids)
-      ? data.participantUids
-        .map((uid) => String(uid ?? "").trim())
-        .filter((uid) => uid.length > 0)
-      : [];
+    const uids = inscriptionAthleteUids(data);
     teams.set(teamId, [...(teams.get(teamId) ?? []), ...uids]);
   }
   return teams;
@@ -137,6 +138,17 @@ export async function measureFieldStrength(
     totalPaidTeams: params.teams.size,
     source: params.source,
   };
+}
+
+/**
+ * Carimbar congela o peso da categoria, então só vale a pena quando a medição
+ * cobre a MAIORIA das duplas pagas. Abaixo disso a média sai enviesada para
+ * cima (as duplas sem degrau conhecido saem da conta) e o erro seria permanente
+ * — melhor usar o peso medido só nesta premiação e deixar uma medição futura,
+ * com dado melhor, acontecer.
+ */
+export function shouldStampFieldStrength(stamp: FieldStrengthStamp): boolean {
+  return stamp.measuredTeams * 2 >= stamp.totalPaidTeams;
 }
 
 /** Payload do carimbo (o chamador decide se escreve em batch ou direto). */

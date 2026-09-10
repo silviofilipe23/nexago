@@ -32,6 +32,13 @@ describe("paidTeamsWithParticipants", () => {
     const teams = paidTeamsWithParticipants([doc({teamId: "tA", isPaid: true})]);
     assert.deepEqual(teams.get("tA"), []);
   });
+
+  it("inscrição legada (só player1Id, sem participantUids) entra na medição", () => {
+    const teams = paidTeamsWithParticipants([
+      doc({teamId: "tA", isPaid: true, player1Id: "a1"}),
+    ]);
+    assert.deepEqual(teams.get("tA"), ["a1"]);
+  });
 });
 
 describe("loadAthleteLevelRanks", () => {

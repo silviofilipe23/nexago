@@ -23,7 +23,9 @@ import {
   loadPaidTeamsWithParticipants,
   measureFieldStrength,
   readFieldStrengthStamp,
+  shouldStampFieldStrength,
 } from "./category-field-strength-store";
+import {LIVRE_MIN_WEIGHT, LIVRE_MAX_WEIGHT} from "./category-field-strength";
 import {parseMatchPlayedAt} from "./tournament-match-gamification";
 import {shouldProcessRatingUpdate as shouldAwardForMatch} from "./rating-engine";
 import {artifactsPublicDataBase} from "./firebase-paths";
@@ -378,7 +380,11 @@ async function resolveLivreWeight(
     params.tournamentId,
     params.categoryId,
   );
-  if (stamped) return stamped.weight;
+  // Piso/teto de novo na leitura: o backfill (tasks futuras) escreve estes
+  // docs, e um bug lá não pode escapar sem clamp e amplificar a premiação.
+  if (stamped) {
+    return Math.min(LIVRE_MAX_WEIGHT, Math.max(LIVRE_MIN_WEIGHT, stamped.weight));
+  }
 
   const measured = await measureFieldStrength(db, projectId, {
     tournamentId: params.tournamentId,
@@ -390,16 +396,31 @@ async function resolveLivreWeight(
   });
   if (!measured) return params.declaredWeight;
 
-  await db
-    .doc(
-      `${fieldStrengthPath(projectId)}/` +
-        `${fieldStrengthDocId(params.tournamentId, params.categoryId)}`,
-    )
-    .set(fieldStrengthStampPayload(measured));
-  logger.info(
-    `globalRanking: força do campo medida em ${params.tournamentId}/${params.categoryId} ` +
-      `— degrau ${measured.fieldRank.toFixed(2)}, peso ${measured.weight}`,
-  );
+  // Só carimba com cobertura suficiente (`shouldStampFieldStrength`): uma
+  // medição de minoria enviesa para cima e congelaria o erro para sempre. Sem
+  // cobertura, o peso medido vale só nesta premiação.
+  if (shouldStampFieldStrength(measured)) {
+    // A escrita do carimbo é só metadado — se falhar, a premiação não pode
+    // parar por isso (daí o try/catch isolado só nela).
+    try {
+      await db
+        .doc(
+          `${fieldStrengthPath(projectId)}/` +
+            `${fieldStrengthDocId(params.tournamentId, params.categoryId)}`,
+        )
+        .set(fieldStrengthStampPayload(measured));
+      logger.info(
+        `globalRanking: força do campo medida em ${params.tournamentId}/${params.categoryId} ` +
+          `— degrau ${measured.fieldRank.toFixed(2)}, peso ${measured.weight}`,
+      );
+    } catch (e) {
+      logger.warn(
+        `globalRanking: falha ao carimbar força do campo em ` +
+          `${params.tournamentId}/${params.categoryId} — seguindo com o peso medido`,
+        e,
+      );
+    }
+  }
   return measured.weight;
 }
 

@@ -236,4 +236,145 @@ void main() {
       expect(sorted.first.userId, '2');
     });
   });
+
+  group('filtros de fachada removidos', () {
+    test('filtros padrão não contam como ativos', () {
+      expect(AthleteDiscoverFilters.defaults.hasActiveFilters, isFalse);
+    });
+
+    test('só gênero já conta como ativo', () {
+      const filters = AthleteDiscoverFilters(
+        gender: AthleteDiscoverGenderFilter.female,
+      );
+      expect(filters.hasActiveFilters, isTrue);
+    });
+  });
+
+  group('proximidade honesta', () {
+    test('mesma cidade vira rótulo, não quilometragem', () {
+      final viewer = _profile(id: 'v', city: 'Goiânia', state: 'GO');
+      final entry = _entry(
+        profile: _profile(id: 'a', city: 'Goiânia', state: 'GO'),
+      );
+      expect(entry.proximityLabel(viewer), 'Mesma cidade');
+    });
+
+    test('mesmo estado, cidade diferente', () {
+      final viewer = _profile(id: 'v', city: 'Goiânia', state: 'GO');
+      final entry = _entry(
+        profile: _profile(id: 'a', city: 'Anápolis', state: 'GO'),
+      );
+      expect(entry.proximityLabel(viewer), 'Mesmo estado');
+    });
+
+    test('estado diferente não gera rótulo', () {
+      final viewer = _profile(id: 'v', city: 'Goiânia', state: 'GO');
+      final entry = _entry(
+        profile: _profile(id: 'a', city: 'Santos', state: 'SP'),
+      );
+      expect(entry.proximityLabel(viewer), isNull);
+    });
+
+    test('linha de stats não contém quilometragem', () {
+      final viewer = _profile(id: 'v', city: 'Goiânia', state: 'GO');
+      final entry = _entry(
+        profile: _profile(id: 'a', city: 'Goiânia', state: 'GO'),
+      );
+      expect(
+        discoverStatsLine(entry: entry, viewer: viewer),
+        isNot(contains('km')),
+      );
+    });
+  });
+
+  group('filtro de localização', () {
+    test('UF filtra por estado', () {
+      final entries = [
+        _entry(profile: _profile(id: '1', city: 'Goiânia', state: 'GO')),
+        _entry(profile: _profile(id: '2', city: 'Santos', state: 'SP')),
+      ];
+      final result = applyDiscoverFilters(
+        entries: entries,
+        filters: const AthleteDiscoverFilters(stateUf: 'GO'),
+      );
+      expect(result.map((e) => e.userId), ['1']);
+    });
+
+    test('cidade compara sem acento e sem caixa', () {
+      final entries = [
+        _entry(profile: _profile(id: '1', city: 'Goiânia', state: 'GO')),
+        _entry(profile: _profile(id: '2', city: 'Anápolis', state: 'GO')),
+      ];
+      final result = applyDiscoverFilters(
+        entries: entries,
+        filters: const AthleteDiscoverFilters(stateUf: 'GO', city: 'goiania'),
+      );
+      expect(result.map((e) => e.userId), ['1']);
+    });
+
+    test('opções de cidade saem do catálogo da UF, ordenadas', () {
+      final entries = [
+        _entry(profile: _profile(id: '1', city: 'Goiânia', state: 'GO')),
+        _entry(profile: _profile(id: '2', city: 'Anápolis', state: 'GO')),
+        _entry(profile: _profile(id: '3', city: 'Santos', state: 'SP')),
+      ];
+      expect(discoverCityOptions(entries, 'GO'), ['Anápolis', 'Goiânia']);
+    });
+
+    test(
+      'mesma cidade com grafias diferentes vira UM chip, na grafia mais bonita',
+      () {
+        final entries = [
+          _entry(profile: _profile(id: '1', city: 'SAO PAULO', state: 'SP')),
+          _entry(profile: _profile(id: '2', city: 'Sao Paulo', state: 'SP')),
+          _entry(profile: _profile(id: '3', city: 'São Paulo', state: 'SP')),
+          _entry(profile: _profile(id: '4', city: 'SÃO PAULO', state: 'SP')),
+        ];
+        expect(discoverCityOptions(entries, 'SP'), ['São Paulo']);
+      },
+    );
+
+    test('skipTextMatch preserva os demais filtros', () {
+      final entries = [
+        _entry(
+          profile: _profile(id: '1', name: 'João Silva', state: 'GO'),
+        ),
+        _entry(
+          profile: _profile(id: '2', name: 'João Silva', state: 'SP'),
+        ),
+      ];
+      // O termo já foi casado no servidor: o texto não refiltra, a UF sim.
+      final result = applyDiscoverFilters(
+        entries: entries,
+        filters: const AthleteDiscoverFilters(stateUf: 'GO'),
+        searchQuery: 'joao silva',
+        skipTextMatch: true,
+      );
+      expect(result.map((e) => e.userId), ['1']);
+    });
+
+    test('sem skipTextMatch o texto ainda filtra localmente (navegação)', () {
+      final entries = [
+        _entry(profile: _profile(id: '1', name: 'João Silva')),
+        _entry(profile: _profile(id: '2', name: 'Rafael Antunes')),
+      ];
+      final result = applyDiscoverFilters(
+        entries: entries,
+        filters: AthleteDiscoverFilters.defaults,
+        searchQuery: 'rafa',
+      );
+      expect(result.map((e) => e.userId), ['2']);
+    });
+
+    test('UF entra nas constraints de servidor', () {
+      const filters = AthleteDiscoverFilters(stateUf: 'GO');
+      expect(discoverFirestoreConstraints(filters).stateUf, 'GO');
+    });
+
+    test('cidade NÃO entra nas constraints — não há índice', () {
+      const filters = AthleteDiscoverFilters(stateUf: 'GO', city: 'Goiânia');
+      final c = discoverFirestoreConstraints(filters);
+      expect(c.stateUf, 'GO');
+    });
+  });
 }

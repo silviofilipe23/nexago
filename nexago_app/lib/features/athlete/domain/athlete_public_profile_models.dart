@@ -158,18 +158,14 @@ int resolveAthleteLevelSegments(
   return levelSegmentsFromCode(profile.level);
 }
 
+/// Handle público do atleta. Só existe quando a pessoa ESCOLHEU um apelido —
+/// derivar `@primeiro.ultimo` do nome fabricava identidade: o campo é livre e
+/// não tem unicidade nenhuma, então dois "João Silva" exibiam o mesmo `@`.
 String? athletePublicHandle(AthleteProfile profile) {
   final nick = profile.nickname?.trim();
-  if (nick != null && nick.isNotEmpty) {
-    final handle = nick.startsWith('@') ? nick : '@$nick';
-    return handle.toLowerCase();
-  }
-  final parts = profile.name.trim().split(' ').where((p) => p.isNotEmpty);
-  if (parts.isEmpty) return null;
-  final first = parts.first.toLowerCase();
-  final last = parts.length > 1 ? parts.last.toLowerCase() : '';
-  if (last.isEmpty) return '@$first';
-  return '@$first.$last';
+  if (nick == null || nick.isEmpty) return null;
+  final handle = nick.startsWith('@') ? nick : '@$nick';
+  return handle.toLowerCase();
 }
 
 String athleteAgeCategoryLabel(String? birthDateRaw) {

@@ -33,21 +33,6 @@ bool matchesDiscoverSearch(AthleteDiscoverEntry entry, String query) {
   return parts.any((p) => p.toLowerCase().contains(q));
 }
 
-AthleteDiscoverGameObjective? gameObjectiveFromFirestore(String? raw) {
-  if (raw == null || raw.trim().isEmpty) return null;
-  final n = raw.trim().toLowerCase();
-  if (n.contains('treinar') && (n.contains('-forte') || n.contains('menos'))) {
-    return AthleteDiscoverGameObjective.trainDown;
-  }
-  if (n.contains('evoluir') || n.contains('+forte') || n.contains('mais forte')) {
-    return AthleteDiscoverGameObjective.trainUp;
-  }
-  if (n.contains('equilibr') || n.contains('balanced')) {
-    return AthleteDiscoverGameObjective.balanced;
-  }
-  return null;
-}
-
 bool _matchesGender(AthleteProfile profile, AthleteDiscoverGenderFilter filter) {
   if (filter == AthleteDiscoverGenderFilter.all) return true;
   final g = profile.gender?.trim().toLowerCase() ?? '';
@@ -92,30 +77,51 @@ bool _matchesLevel(AthleteProfile profile, AthleteDiscoverFilters filters) {
   );
 }
 
-bool _matchesProximity(
-  AthleteProfile profile,
-  AthleteProfile? viewer,
-  AthleteDiscoverFilters filters,
-) {
-  if (filters.unlimitedDistance || viewer == null) return true;
-  final viewerCity = viewer.city.trim().toLowerCase();
-  final viewerState = viewer.state?.trim().toLowerCase() ?? '';
-  final city = profile.city.trim().toLowerCase();
-  final state = profile.state?.trim().toLowerCase() ?? '';
-  if (viewerCity.isNotEmpty && city == viewerCity) {
-    if (viewerState.isEmpty || state.isEmpty || viewerState == state) {
-      return true;
-    }
+bool _matchesLocation(AthleteProfile profile, AthleteDiscoverFilters filters) {
+  final uf = filters.stateUf?.trim().toUpperCase();
+  if (uf != null && uf.isNotEmpty) {
+    if ((profile.state?.trim().toUpperCase() ?? '') != uf) return false;
   }
-  // v1: distância curta = mesma cidade; caso contrário exclui quando filtro ativo
-  return filters.maxDistanceKm >= 50;
+  final city = _normalizePlace(filters.city);
+  if (city.isEmpty) return true;
+  return _normalizePlace(profile.city) == city;
 }
 
-bool _matchesGameObjective(AthleteProfile profile, AthleteDiscoverFilters filters) {
-  final wanted = filters.gameObjective;
-  if (wanted == null) return true;
-  final actual = gameObjectiveFromFirestore(profile.gameObjective);
-  return actual == wanted;
+/// Prefere a grafia mais "bonita" da mesma cidade: com acento e sem caixa alta.
+int _citySpellingScore(String city) {
+  var score = 0;
+  if (city != city.toUpperCase()) score += 2;
+  if (_normalizePlace(city) != city.toLowerCase()) score += 1;
+  return score;
+}
+
+/// Cidades presentes no catálogo daquela UF — a lista é derivada dos perfis
+/// carregados, não digitada: acento e caixa livres impediriam consulta.
+///
+/// A deduplicação é pela forma NORMALIZADA porque é assim que o filtro compara
+/// ([_matchesLocation]): "São Paulo", "Sao Paulo" e "SÃO PAULO" filtram
+/// idêntico, então não podem virar três chips.
+List<String> discoverCityOptions(
+  List<AthleteDiscoverEntry> entries,
+  String? stateUf,
+) {
+  final uf = stateUf?.trim().toUpperCase();
+  if (uf == null || uf.isEmpty) return const [];
+  final byNormalized = <String, String>{};
+  for (final entry in entries) {
+    if ((entry.profile.state?.trim().toUpperCase() ?? '') != uf) continue;
+    final city = entry.profile.city.trim();
+    if (city.isEmpty) continue;
+    final key = _normalizePlace(city);
+    final current = byNormalized[key];
+    if (current == null ||
+        _citySpellingScore(city) > _citySpellingScore(current)) {
+      byNormalized[key] = city;
+    }
+  }
+  final sorted = byNormalized.values.toList()
+    ..sort((a, b) => _normalizePlace(a).compareTo(_normalizePlace(b)));
+  return sorted;
 }
 
 List<AthleteDiscoverEntry> applyDiscoverFilters({
@@ -123,27 +129,26 @@ List<AthleteDiscoverEntry> applyDiscoverFilters({
   required AthleteDiscoverFilters filters,
   AthleteProfile? viewerProfile,
   String searchQuery = '',
-  DateTime? now,
+  bool skipTextMatch = false,
 }) {
-  final reference = now ?? DateTime.now();
   final q = normalizeDiscoverSearch(searchQuery);
 
   return entries.where((entry) {
     final profile = entry.profile;
     if (!isDiscoverableProfile(profile)) return false;
-    if (!matchesDiscoverSearch(entry, q)) return false;
+    // Em modo busca o termo JÁ foi casado no servidor (âncora em `keywords`) e
+    // ranqueado pelo núcleo compartilhado, que quebra em tokens e dobra acento.
+    // Repetir aqui um `contains` da frase inteira desfaria exatamente isso:
+    // "joao silva" não casaria "João Silva". Os demais filtros seguem valendo.
+    if (!skipTextMatch && !matchesDiscoverSearch(entry, q)) return false;
     if (!_matchesGender(profile, filters.gender)) return false;
     if (!_matchesSport(profile, filters.sportFirestoreId)) return false;
     if (!_matchesLevel(profile, filters)) return false;
-    if (!_matchesProximity(profile, viewerProfile, filters)) return false;
-    if (!_matchesGameObjective(profile, filters)) return false;
+    if (!_matchesLocation(profile, filters)) return false;
     if (filters.completeProfileOnly && !profile.onboardingCompleted) {
       return false;
     }
     if (filters.lookingForPartnerOnly && !profile.lookingForPartner) {
-      return false;
-    }
-    if (filters.availableNowOnly && !isAthleteOnline(profile, reference)) {
       return false;
     }
     return true;
@@ -362,10 +367,8 @@ String discoverStatsLine({
   );
   if (level.isNotEmpty) parts.add(level);
 
-  final distance = entry.proximityDistanceLabel(viewer);
-  if (distance != null && distance.isNotEmpty) {
-    parts.add(distance.replaceAll('.0', '').replaceAll('.1', ''));
-  }
+  final proximity = entry.proximityLabel(viewer);
+  if (proximity != null) parts.add(proximity);
 
   if (entry.locationLabel.isNotEmpty) parts.add(entry.locationLabel);
   return parts.join(' · ');
@@ -375,11 +378,7 @@ String? discoverContextTag({
   required AthleteDiscoverEntry entry,
   AthleteProfile? viewer,
 }) {
-  final distance = entry.proximityDistanceLabel(viewer);
-  if (distance != null &&
-      (distance.startsWith('2.') || distance.startsWith('3.'))) {
-    return 'Perto de você';
-  }
+  if (entry.proximityLabel(viewer) == 'Mesma cidade') return 'Perto de você';
   final mutual = entry.mutualFollowersCount;
   if (mutual != null && mutual > 0) {
     return '$mutual amigo${mutual == 1 ? '' : 's'} em comum';
@@ -418,16 +417,19 @@ class DiscoverFirestoreConstraints {
     this.gender,
     this.lookingForPartnerOnly = false,
     this.sportFirestoreId,
+    this.stateUf,
   });
 
   final String? gender;
   final bool lookingForPartnerOnly;
   final String? sportFirestoreId;
+  final String? stateUf;
 
   bool get isEmpty =>
       gender == null &&
       !lookingForPartnerOnly &&
-      (sportFirestoreId == null || sportFirestoreId!.isEmpty);
+      (sportFirestoreId == null || sportFirestoreId!.isEmpty) &&
+      stateUf == null;
 }
 
 String? discoverGenderFirestoreValue(AthleteDiscoverGenderFilter filter) {
@@ -446,6 +448,9 @@ DiscoverFirestoreConstraints discoverFirestoreConstraints(
     gender: discoverGenderFirestoreValue(filters.gender),
     lookingForPartnerOnly: filters.lookingForPartnerOnly,
     sportFirestoreId: sportId != null && sportId.isNotEmpty ? sportId : null,
+    stateUf: filters.stateUf?.trim().isNotEmpty == true
+        ? filters.stateUf!.trim().toUpperCase()
+        : null,
   );
 }
 

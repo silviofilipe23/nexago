@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../data/athlete_discover_repository.dart';
 import 'athlete_discover_logic.dart';
+import 'athlete_discover_search.dart';
 import 'athlete_follow_providers.dart';
 import 'athlete_discover_models.dart';
 import 'athlete_profile.dart';
@@ -104,18 +105,27 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
   }
 
   List<AthleteDiscoverEntry> _applyPipeline(List<AthleteDiscoverEntry> source) {
+    final searching = state.isSearchMode;
     final filtered = applyDiscoverFilters(
       entries: source,
       filters: state.filters,
       viewerProfile: _viewerProfile,
       searchQuery: state.searchQuery,
+      // Em busca o texto já foi casado e ranqueado; refiltrar por `contains`
+      // aqui derrubaria o resultado correto do servidor.
+      skipTextMatch: searching,
     );
-    return sortDiscoverEntries(
+    final sorted = sortDiscoverEntries(
       entries: filtered,
       sort: state.sort,
       viewerProfile: _viewerProfile,
       sportFirestoreId: state.filters.sportFirestoreId,
     );
+    // O teto de exibição da busca vale DEPOIS dos filtros: cortar antes deixaria
+    // "silva" com UF=SP vazio só porque os primeiros ranqueados eram de outro
+    // estado.
+    if (!searching || sorted.length <= kDiscoverSearchResultLimit) return sorted;
+    return sorted.sublist(0, kDiscoverSearchResultLimit);
   }
 
   void _publishDisplay(List<AthleteDiscoverEntry> raw) {
@@ -127,7 +137,13 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
   }
 
   Future<void> loadInitial() async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    // Sai do modo busca ANTES do fetch: `_applyPipeline` decide por ele se o
+    // texto é casado no cliente, e daqui em diante a lista é navegação.
+    state = state.copyWith(
+      isLoading: true,
+      errorMessage: null,
+      isSearchMode: false,
+    );
     _repo.clearRankingCache();
     try {
       final following = await _followingIds();
@@ -156,10 +172,19 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
   }
 
   Future<void> _loadFullCatalog({bool showLoading = true}) async {
-    if (showLoading) {
-      state = state.copyWith(isLoading: true, errorMessage: null);
-    }
+    state = showLoading
+        ? state.copyWith(
+            isLoading: true,
+            errorMessage: null,
+            isSearchMode: false,
+          )
+        : state.copyWith(isSearchMode: false);
     _repo.clearRankingCache();
+    // O catálogo carregado só é "completo" quando a busca foi SEM constraint de
+    // servidor. Com UF=SP no servidor, `rawEntries` tem só paulistas: dizer
+    // "completo" faria a próxima troca de filtro (UF=RJ) refiltrar esse recorte
+    // e mostrar lista vazia para sempre, sem nunca refazer o fetch.
+    final wasUnconstrained = discoverFirestoreConstraints(state.filters).isEmpty;
     try {
       final following = await _followingIds();
       final profiles = await _repo.fetchProfilesForDiscover(state.filters);
@@ -176,7 +201,7 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
         hasMore: false,
         lastDocumentId: null,
         isSearchMode: false,
-        catalogIsComplete: true,
+        catalogIsComplete: wasUnconstrained,
         errorMessage: null,
       );
     } catch (e) {
@@ -239,9 +264,11 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
     if (trimmed.length < 2) {
       state = state.copyWith(isSearchMode: false);
       if (state.filters.hasActiveFilters) {
-        if (state.catalogIsComplete) {
-          _publishDisplay(state.rawEntries);
-        } else {
+        // Republica AGORA sem o termo de busca (mesmo motivo de applyFilters):
+        // o resultado da busca anterior não pode ficar na tela sob a barra de
+        // progresso enquanto o catálogo filtrado não chega.
+        _publishDisplay(state.rawEntries);
+        if (!state.catalogIsComplete) {
           await _loadFullCatalog();
         }
       } else {
@@ -270,7 +297,18 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
         errorMessage: null,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, errorMessage: '$e');
+      // Limpa a lista junto: manter o resultado da busca ANTERIOR sob um erro
+      // que a tela só mostra com a lista vazia esconderia a falha de novo.
+      state = state.copyWith(
+        rawEntries: const [],
+        displayEntries: const [],
+        isLoading: false,
+        errorMessage: '$e',
+        // Busca falhou: não há catálogo confiável para reaproveitar. Marcar
+        // como incompleto força o próximo filtro a refazer o fetch em vez de
+        // publicar uma lista vazia "completa" (que esconderia o erro).
+        catalogIsComplete: false,
+      );
     }
   }
 
@@ -286,6 +324,12 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
       if (state.catalogIsComplete) {
         _publishDisplay(state.rawEntries);
       } else {
+        // Republica com os filtros novos AGORA, usando o que já está
+        // carregado, antes de buscar o catálogo completo. Esta entrega é
+        // sobre a tela nunca exibir o que não é verdade: trocar "a lista
+        // pisca" por "a lista mostra atletas que violam o filtro" seria
+        // substituir um defeito por outro pior.
+        _publishDisplay(state.rawEntries);
         await _loadFullCatalog();
       }
     } else {
@@ -300,6 +344,12 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
       if (state.catalogIsComplete) {
         _publishDisplay(state.rawEntries);
       } else {
+        // Republica com os filtros novos AGORA, usando o que já está
+        // carregado, antes de buscar o catálogo completo. Esta entrega é
+        // sobre a tela nunca exibir o que não é verdade: trocar "a lista
+        // pisca" por "a lista mostra atletas que violam o filtro" seria
+        // substituir um defeito por outro pior.
+        _publishDisplay(state.rawEntries);
         await _loadFullCatalog();
       }
     } else {
@@ -313,6 +363,12 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
       if (state.catalogIsComplete) {
         _publishDisplay(state.rawEntries);
       } else {
+        // Republica com os filtros novos AGORA, usando o que já está
+        // carregado, antes de buscar o catálogo completo. Esta entrega é
+        // sobre a tela nunca exibir o que não é verdade: trocar "a lista
+        // pisca" por "a lista mostra atletas que violam o filtro" seria
+        // substituir um defeito por outro pior.
+        _publishDisplay(state.rawEntries);
         await _loadFullCatalog();
       }
     } else {
@@ -355,6 +411,7 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
       filters: draft,
       viewerProfile: _viewerProfile,
       searchQuery: state.searchQuery,
+      skipTextMatch: state.isSearchMode,
     );
     return sortDiscoverEntries(
       entries: filtered,

@@ -7,10 +7,10 @@ import '../../../core/search/search_keywords.dart';
 import 'package:nexago_app/core/firebase/firebase_providers.dart';
 import '../../ranking/data/ranking_repository.dart';
 import '../../ranking/domain/ranking_models.dart';
-import 'package:nexago_app/core/profiles/users_repository.dart';
 import 'athlete_follow_service.dart';
 import '../../tournaments/domain/compete_hub_logic.dart';
 import '../domain/athlete_discover_logic.dart';
+import '../domain/athlete_discover_search.dart';
 import '../domain/athlete_follow_providers.dart';
 import '../domain/athlete_discover_models.dart';
 import '../domain/athlete_profile.dart';
@@ -20,20 +20,18 @@ class AthleteDiscoverRepository {
   AthleteDiscoverRepository({
     required FirebaseFirestore firestore,
     required RankingRepository rankingRepository,
-    required UsersRepository usersRepository,
     required AthleteFollowService followService,
   })  : _users = firestore.collection('public_profiles'),
         _rankingRepository = rankingRepository,
-        _usersRepository = usersRepository,
         _followService = followService;
 
   final CollectionReference<Map<String, dynamic>> _users;
   final RankingRepository _rankingRepository;
-  final UsersRepository _usersRepository;
   final AthleteFollowService _followService;
 
   static const pageSize = 30;
   static const maxDiscoverProfiles = 2000;
+  static const _searchFetchLimit = 100;
 
   final _rankingCache = <String, AthletePublicRankingSnapshot>{};
 
@@ -124,11 +122,13 @@ class AthleteDiscoverRepository {
     }
 
     try {
-      final profiles = await _fetchWithDiscoverConstraints(
+      // Resultado vazio é RESPOSTA, não falha: uma UF sem atleta devolve zero e
+      // pronto. Só a exceção (índice/regra) justifica cair no catálogo inteiro,
+      // que é o caminho mais caro do app.
+      return await _fetchWithDiscoverConstraints(
         constraints,
         maxProfiles: maxProfiles,
       );
-      if (profiles.isNotEmpty) return profiles;
     } catch (e, stackTrace) {
       if (kDebugMode) {
         debugPrint(
@@ -136,9 +136,8 @@ class AthleteDiscoverRepository {
         );
         debugPrint('$stackTrace');
       }
+      return fetchAllDiscoverableProfiles(maxProfiles: maxProfiles);
     }
-
-    return fetchAllDiscoverableProfiles(maxProfiles: maxProfiles);
   }
 
   Future<List<AthleteProfile>> _fetchWithDiscoverConstraints(
@@ -214,6 +213,9 @@ class AthleteDiscoverRepository {
     if (constraints.lookingForPartnerOnly) {
       query = query.where('lookingForPartner', isEqualTo: true);
     }
+    if (constraints.stateUf != null) {
+      query = query.where('state', isEqualTo: constraints.stateUf);
+    }
     if (resolvedSportId != null && resolvedSportId.isNotEmpty) {
       query = sportIsArray
           ? query.where(sportField, arrayContains: resolvedSportId)
@@ -253,46 +255,62 @@ class AthleteDiscoverRepository {
     return profiles;
   }
 
+  Future<List<Map<String, dynamic>>> _keywordDocs(
+    String anchor, {
+    required bool onlyFlagged,
+  }) async {
+    Query<Map<String, dynamic>> query = _users;
+    if (onlyFlagged) {
+      query = query.where('hasAthleteRole', isEqualTo: true);
+    }
+    final snap = await query
+        .where('keywords', arrayContains: anchor)
+        .limit(_searchFetchLimit)
+        .get();
+    return snap.docs
+        .map((d) => {'__id': d.id, ...d.data()})
+        .toList();
+  }
+
+  /// Busca por nome/apelido. Delega o `AND` dos tokens e o ranqueamento ao
+  /// núcleo compartilhado — o `array-contains` do Firestore aceita UM valor,
+  /// então a consulta ancora no token mais longo e o resto sai no client, do
+  /// próprio doc já lido.
   Future<List<AthleteProfile>> searchProfiles(String term) async {
-    final token = normalizeSearchTerm(term);
-    if (!isSearchTermLongEnough(term)) return [];
+    final tokens = searchQueryTokens(term);
+    final anchor = searchAnchorToken(tokens);
+    if (anchor.length < kSearchMinPrefixLength) return const [];
 
     try {
-      final snap = await _users
-          .where('hasAthleteRole', isEqualTo: true)
-          .where('keywords', arrayContains: token)
-          .limit(25)
-          .get();
-      final profiles = <AthleteProfile>[];
-      for (final doc in snap.docs) {
-        final profile = AthleteProfile.fromFirestore(doc);
-        if (isDiscoverableProfile(profile)) {
-          profiles.add(profile);
-        }
+      var docs = await _keywordDocs(anchor, onlyFlagged: true);
+      // Perfil antigo sem `hasAthleteRole` gravado some da busca — repete sem
+      // a flag; o ranqueador confere o papel pelo `roles[]` do próprio doc.
+      if (docs.isEmpty) {
+        docs = await _keywordDocs(anchor, onlyFlagged: false);
       }
-      if (profiles.isNotEmpty) return profiles;
+
+      final byId = <String, Map<String, dynamic>>{};
+      for (final doc in docs) {
+        final id = doc['__id'] as String;
+        byId[id] = Map<String, dynamic>.from(doc)..remove('__id');
+      }
+
+      // Ranqueia até o teto do FETCH, não o da exibição: o corte de 25 é
+      // aplicado pelo notifier DEPOIS dos filtros de UF/cidade/gênero.
+      return rankDiscoverSearchProfiles(
+        byId,
+        tokens,
+        max: _searchFetchLimit,
+      );
     } catch (e, stackTrace) {
       if (kDebugMode) {
-        debugPrint('AthleteDiscoverRepository.searchProfiles keywords failed: $e');
+        debugPrint('AthleteDiscoverRepository.searchProfiles failed: $e');
         debugPrint('$stackTrace');
       }
+      // Falha de regra/índice NÃO pode virar "ninguém encontrado": propaga para
+      // o notifier transformar em `errorMessage`, como nos demais loads.
+      rethrow;
     }
-
-    final results = await _usersRepository.searchUsersByNicknameOrName(
-      term,
-      max: 25,
-      roleFilter: 'athlete',
-    );
-    final profiles = <AthleteProfile>[];
-    for (final user in results) {
-      final snap = await _users.doc(user.uid).get();
-      if (!snap.exists) continue;
-      final profile = AthleteProfile.fromFirestore(snap);
-      if (isDiscoverableProfile(profile)) {
-        profiles.add(profile);
-      }
-    }
-    return profiles;
   }
 
   Future<AthletePublicRankingSnapshot> rankingFor(String athleteId) async {
@@ -444,7 +462,6 @@ final athleteDiscoverRepositoryProvider = Provider<AthleteDiscoverRepository>(
     return AthleteDiscoverRepository(
       firestore: ref.watch(firestoreProvider),
       rankingRepository: ref.watch(rankingRepositoryProvider),
-      usersRepository: ref.watch(usersRepositoryProvider),
       followService: ref.watch(athleteFollowServiceProvider),
     );
   },

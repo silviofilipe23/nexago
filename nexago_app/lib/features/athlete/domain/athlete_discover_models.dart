@@ -9,8 +9,6 @@ enum AthleteDiscoverSort { compatibility, ranking, proximity, level }
 
 enum AthleteDiscoverGenderFilter { all, male, female }
 
-enum AthleteDiscoverGameObjective { balanced, trainDown, trainUp }
-
 /// Chip rápido de nível (Iniciante / Intermediário / Open / Pro).
 class AthleteDiscoverQuickLevel {
   const AthleteDiscoverQuickLevel({required this.label});
@@ -47,25 +45,21 @@ class AthleteDiscoverFilters {
     this.sportFirestoreId,
     this.levels = const {},
     this.gender = AthleteDiscoverGenderFilter.all,
-    this.gameObjective,
-    this.maxDistanceKm = 50,
-    this.unlimitedDistance = true,
-    this.availableNowOnly = false,
     this.lookingForPartnerOnly = false,
     this.completeProfileOnly = false,
     this.quickLevel = AthleteDiscoverQuickLevel.all,
+    this.stateUf,
+    this.city,
   });
 
   final String? sportFirestoreId;
   final Set<String> levels;
   final AthleteDiscoverGenderFilter gender;
-  final AthleteDiscoverGameObjective? gameObjective;
-  final double maxDistanceKm;
-  final bool unlimitedDistance;
-  final bool availableNowOnly;
   final bool lookingForPartnerOnly;
   final bool completeProfileOnly;
   final AthleteDiscoverQuickLevel quickLevel;
+  final String? stateUf;
+  final String? city;
 
   static const defaults = AthleteDiscoverFilters();
 
@@ -73,24 +67,21 @@ class AthleteDiscoverFilters {
       sportFirestoreId != null ||
       levels.isNotEmpty ||
       gender != AthleteDiscoverGenderFilter.all ||
-      gameObjective != null ||
-      !unlimitedDistance ||
-      availableNowOnly ||
       lookingForPartnerOnly ||
       completeProfileOnly ||
-      quickLevel.label.isNotEmpty;
+      quickLevel.label.isNotEmpty ||
+      stateUf != null ||
+      city != null;
 
   AthleteDiscoverFilters copyWith({
     Object? sportFirestoreId = _unset,
     Set<String>? levels,
     AthleteDiscoverGenderFilter? gender,
-    Object? gameObjective = _unset,
-    double? maxDistanceKm,
-    bool? unlimitedDistance,
-    bool? availableNowOnly,
     bool? lookingForPartnerOnly,
     bool? completeProfileOnly,
     AthleteDiscoverQuickLevel? quickLevel,
+    Object? stateUf = _unset,
+    Object? city = _unset,
   }) {
     return AthleteDiscoverFilters(
       sportFirestoreId: identical(sportFirestoreId, _unset)
@@ -98,16 +89,12 @@ class AthleteDiscoverFilters {
           : sportFirestoreId as String?,
       levels: levels ?? this.levels,
       gender: gender ?? this.gender,
-      gameObjective: identical(gameObjective, _unset)
-          ? this.gameObjective
-          : gameObjective as AthleteDiscoverGameObjective?,
-      maxDistanceKm: maxDistanceKm ?? this.maxDistanceKm,
-      unlimitedDistance: unlimitedDistance ?? this.unlimitedDistance,
-      availableNowOnly: availableNowOnly ?? this.availableNowOnly,
       lookingForPartnerOnly:
           lookingForPartnerOnly ?? this.lookingForPartnerOnly,
       completeProfileOnly: completeProfileOnly ?? this.completeProfileOnly,
       quickLevel: quickLevel ?? this.quickLevel,
+      stateUf: identical(stateUf, _unset) ? this.stateUf : stateUf as String?,
+      city: identical(city, _unset) ? this.city : city as String?,
     );
   }
 
@@ -173,16 +160,17 @@ class AthleteDiscoverEntry {
 
   String get locationLabel => athleteLocationLabel(profile);
 
-  /// v1: proxy por cidade/UF (km fixo quando na mesma região).
-  String? proximityDistanceLabel(AthleteProfile? viewer) {
+  /// Proximidade por cidade/UF. NÃO é distância: o app não tem geolocalização
+  /// de atleta, e o `'2.1 km'` que ficava aqui era literal inventado.
+  String? proximityLabel(AthleteProfile? viewer) {
     if (viewer == null) return null;
     final viewerCity = viewer.city.trim().toLowerCase();
     final city = profile.city.trim().toLowerCase();
-    if (viewerCity.isNotEmpty && city == viewerCity) return '2.1 km';
+    if (viewerCity.isNotEmpty && city == viewerCity) return 'Mesma cidade';
     final viewerState = viewer.state?.trim().toLowerCase() ?? '';
     final state = profile.state?.trim().toLowerCase() ?? '';
     if (viewerState.isNotEmpty && state.isNotEmpty && viewerState == state) {
-      return '25 km';
+      return 'Mesmo estado';
     }
     return null;
   }

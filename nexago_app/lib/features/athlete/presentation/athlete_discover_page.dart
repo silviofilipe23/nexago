@@ -8,6 +8,7 @@ import '../../../core/layout/nexa_floating_header.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../domain/athlete_discover_logic.dart';
 import '../domain/athlete_discover_providers.dart';
 import '../domain/athlete_profile.dart';
 import '../domain/athlete_profile_providers.dart';
@@ -54,6 +55,7 @@ class _AthleteDiscoverPageState extends ConsumerState<AthleteDiscoverPage> {
   }
 
   void _onSearchChanged() {
+    setState(() {});
     _searchDebounce?.cancel();
     _searchDebounce = Timer(const Duration(milliseconds: 350), () {
       ref.read(athleteDiscoverProvider.notifier).search(_searchController.text);
@@ -74,6 +76,10 @@ class _AthleteDiscoverPageState extends ConsumerState<AthleteDiscoverPage> {
           .read(athleteDiscoverProvider.notifier)
           .previewForFilters(draft)
           .length,
+      cityOptionsFor: (uf) => discoverCityOptions(
+        ref.read(athleteDiscoverProvider).rawEntries,
+        uf,
+      ),
     );
     if (result != null && mounted) {
       ref.read(athleteDiscoverProvider.notifier).applyFilters(result);
@@ -128,7 +134,7 @@ class _AthleteDiscoverPageState extends ConsumerState<AthleteDiscoverPage> {
                           color: context.themeColors.onSurface,
                         ),
                         decoration: InputDecoration(
-                          hintText: 'Nome, cidade ou esporte...',
+                          hintText: 'Nome ou @apelido',
                           hintStyle: AppTypography.soraRegular(
                             fontSize: 14,
                             color: context.themeColors.onSurfaceMuted,
@@ -137,6 +143,20 @@ class _AthleteDiscoverPageState extends ConsumerState<AthleteDiscoverPage> {
                             Icons.search_rounded,
                             color: context.themeColors.onSurfaceMuted,
                           ),
+                          suffixIcon: _searchController.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  icon: Icon(
+                                    Icons.close_rounded,
+                                    color: context.themeColors.onSurfaceMuted,
+                                  ),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    ref
+                                        .read(athleteDiscoverProvider.notifier)
+                                        .search('');
+                                  },
+                                ),
                           filled: true,
                           fillColor: context.themeColors.surfaceRaised,
                           border: OutlineInputBorder(
@@ -259,8 +279,7 @@ List<Widget> _buildBodySlivers({
   required AthleteProfile? viewer,
   required String? sportFirestoreId,
 }) {
-  if (state.isLoading &&
-      (state.displayEntries.isEmpty || state.filters.hasActiveFilters)) {
+  if (state.isLoading && state.displayEntries.isEmpty) {
     return [
       const SliverFillRemaining(
         hasScrollBody: false,
@@ -306,6 +325,17 @@ List<Widget> _buildBodySlivers({
   }
 
   return [
+    if (state.isLoading)
+      const SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: _discoverHorizontalPadding),
+          child: LinearProgressIndicator(
+            minHeight: 2,
+            color: AppColors.brand,
+            backgroundColor: Colors.transparent,
+          ),
+        ),
+      ),
     SliverPadding(
       padding: const EdgeInsets.fromLTRB(
         _discoverHorizontalPadding,

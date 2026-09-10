@@ -8,10 +8,17 @@ import '../../../domain/athlete_discover_models.dart';
 import '../../../domain/athlete_firestore_codes.dart';
 import '../../../domain/athlete_profile_options.dart';
 
+const _ufOptions = [
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS',
+  'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC',
+  'SP', 'SE', 'TO',
+];
+
 Future<AthleteDiscoverFilters?> showAthleteDiscoverFiltersSheet({
   required BuildContext context,
   required AthleteDiscoverFilters initial,
   required int Function(AthleteDiscoverFilters draft) previewResultCount,
+  required List<String> Function(String? stateUf) cityOptionsFor,
 }) {
   return showModalBottomSheet<AthleteDiscoverFilters>(
     context: context,
@@ -24,6 +31,7 @@ Future<AthleteDiscoverFilters?> showAthleteDiscoverFiltersSheet({
       return _AthleteDiscoverFiltersSheet(
         initial: initial,
         previewResultCount: previewResultCount,
+        cityOptionsFor: cityOptionsFor,
       );
     },
   );
@@ -33,10 +41,12 @@ class _AthleteDiscoverFiltersSheet extends StatefulWidget {
   const _AthleteDiscoverFiltersSheet({
     required this.initial,
     required this.previewResultCount,
+    required this.cityOptionsFor,
   });
 
   final AthleteDiscoverFilters initial;
   final int Function(AthleteDiscoverFilters draft) previewResultCount;
+  final List<String> Function(String? stateUf) cityOptionsFor;
 
   @override
   State<_AthleteDiscoverFiltersSheet> createState() =>
@@ -48,12 +58,10 @@ class _AthleteDiscoverFiltersSheetState
   String? _sportId;
   late Set<String> _levels;
   late AthleteDiscoverGenderFilter _gender;
-  AthleteDiscoverGameObjective? _objective;
-  late double _distanceKm;
-  late bool _unlimitedDistance;
-  late bool _availableNow;
   late bool _lookingForPartner;
   late bool _completeProfile;
+  String? _stateUf;
+  String? _city;
 
   static const _levelOptions = AthleteProfileOptions.levels;
 
@@ -64,12 +72,10 @@ class _AthleteDiscoverFiltersSheetState
     _sportId = f.sportFirestoreId;
     _levels = Set<String>.from(f.levels);
     _gender = f.gender;
-    _objective = f.gameObjective;
-    _distanceKm = f.maxDistanceKm.clamp(5, 100);
-    _unlimitedDistance = f.unlimitedDistance;
-    _availableNow = f.availableNowOnly;
     _lookingForPartner = f.lookingForPartnerOnly;
     _completeProfile = f.completeProfileOnly;
+    _stateUf = f.stateUf;
+    _city = f.city;
   }
 
   void _clear() {
@@ -77,12 +83,10 @@ class _AthleteDiscoverFiltersSheetState
       _sportId = null;
       _levels = {};
       _gender = AthleteDiscoverGenderFilter.all;
-      _objective = null;
-      _distanceKm = 50;
-      _unlimitedDistance = true;
-      _availableNow = false;
       _lookingForPartner = false;
       _completeProfile = false;
+      _stateUf = null;
+      _city = null;
     });
   }
 
@@ -91,12 +95,10 @@ class _AthleteDiscoverFiltersSheetState
       sportFirestoreId: _sportId,
       levels: _levels,
       gender: _gender,
-      gameObjective: _objective,
-      maxDistanceKm: _distanceKm,
-      unlimitedDistance: _unlimitedDistance,
-      availableNowOnly: _availableNow,
       lookingForPartnerOnly: _lookingForPartner,
       completeProfileOnly: _completeProfile,
+      stateUf: _stateUf,
+      city: _city,
     );
   }
 
@@ -210,74 +212,47 @@ class _AthleteDiscoverFiltersSheetState
                       },
                     ),
                     SizedBox(height: 20),
-                    const _SectionLabel(label: 'OBJETIVO DO JOGO'),
+                    const _SectionLabel(label: 'LOCALIZAÇÃO'),
                     _ChipWrap(
-                      options: const [
-                        'Equilibrado',
-                        'Treinar (menos intenso)',
-                        'Evoluir (mais intenso)',
-                      ],
-                      selectedLabel: switch (_objective) {
-                        AthleteDiscoverGameObjective.balanced => 'Equilibrado',
-                        AthleteDiscoverGameObjective.trainDown =>
-                          'Treinar (menos intenso)',
-                        AthleteDiscoverGameObjective.trainUp =>
-                          'Evoluir (mais intenso)',
-                        null => null,
-                      },
+                      options: _ufOptions,
+                      selectedLabel: _stateUf,
                       onToggle: (label) {
                         setState(() {
-                          final next = switch (label) {
-                            'Treinar (menos intenso)' =>
-                              AthleteDiscoverGameObjective.trainDown,
-                            'Evoluir (mais intenso)' =>
-                              AthleteDiscoverGameObjective.trainUp,
-                            'Equilibrado' =>
-                              AthleteDiscoverGameObjective.balanced,
-                            _ => null,
-                          };
-                          _objective = _objective == next ? null : next;
+                          if (_stateUf == label) {
+                            _stateUf = null;
+                          } else {
+                            _stateUf = label;
+                          }
+                          // Cidade pertence a uma UF: trocar de UF invalida.
+                          _city = null;
                         });
                       },
                     ),
-                    SizedBox(height: 20),
-                    const _SectionLabel(label: 'DISTÂNCIA'),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text('Sem limite de distância'),
-                      value: _unlimitedDistance,
-                      activeThumbColor: AppColors.brand,
-                      onChanged: (v) => setState(() => _unlimitedDistance = v),
-                    ),
-                    if (!_unlimitedDistance) ...[
-                      Text(
-                        'Até ${_distanceKm.round()} km (v1: mesma cidade)',
-                        style: AppTypography.mono(
-                          fontSize: 11,
-                          color: context.themeColors.onSurfaceMuted,
-                        ),
-                      ),
-                      Slider(
-                        value: _distanceKm,
-                        min: 5,
-                        max: 100,
-                        divisions: 19,
-                        activeColor: AppColors.brand,
-                        onChanged: (v) => setState(() => _distanceKm = v),
+                    if (_stateUf != null) ...[
+                      const SizedBox(height: 12),
+                      Builder(
+                        builder: (context) {
+                          final cities = widget.cityOptionsFor(_stateUf);
+                          if (cities.isEmpty) {
+                            return Text(
+                              'Nenhuma cidade no catálogo desta UF.',
+                              style: AppTypography.mono(
+                                fontSize: 11,
+                                color: context.themeColors.onSurfaceMuted,
+                              ),
+                            );
+                          }
+                          return _ChipWrap(
+                            options: cities,
+                            selectedLabel: _city,
+                            onToggle: (label) => setState(
+                              () => _city = _city == label ? null : label,
+                            ),
+                          );
+                        },
                       ),
                     ],
-                    SizedBox(height: 12),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text('Disponíveis agora'),
-                      subtitle: Text(
-                        'Requer lastActiveAt no perfil',
-                        style: TextStyle(fontSize: 11),
-                      ),
-                      value: _availableNow,
-                      activeThumbColor: AppColors.brand,
-                      onChanged: (v) => setState(() => _availableNow = v),
-                    ),
+                    SizedBox(height: 20),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text('Procurando dupla'),

@@ -181,6 +181,7 @@ export {
 export {
   setOrganizerPayoutPixKey,
   requestOrganizerWithdrawal,
+  loadOrganizerWalletView,
   listPendingOrganizerWithdrawals,
   reviewOrganizerWithdrawal,
 } from "./organizer-withdrawal";

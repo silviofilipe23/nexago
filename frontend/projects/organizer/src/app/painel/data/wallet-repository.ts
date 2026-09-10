@@ -1,13 +1,17 @@
-import { collection, doc, limit as fsLimit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { organizerFirestore } from './firestore';
 import { organizerFunctions } from './functions';
 
 /** Espelho 1:1 de `organizer_wallet_repository.dart`: `organizerWallets/{uid}` (+ subcoleção
- *  `ledger`, ordenada `createdAt desc`) e `organizerWithdrawals` (`where organizerId == uid`,
- *  `orderBy createdAt desc`, `limit 20` — mesmo índice composto que o Flutter já usa, não criar
- *  um novo). Toda escrita passa por Cloud Function (`setOrganizerPayoutPixKey`/
- *  `requestOrganizerWithdrawal`); o client só lê Firestore diretamente. */
+ *  `ledger` e `organizerWithdrawals` vêm pela callable). Toda escrita passa por Cloud
+ *  Function (`setOrganizerPayoutPixKey`/`requestOrganizerWithdrawal`); do Firestore o
+ *  client só lê o doc da carteira dele, para o saldo ao vivo de Início e Config.
+ *
+ *  Carteira de OUTRO organizador (gestor de equipe) não passa por aqui: as
+ *  rules de `organizerWallets` só liberam leitura para o próprio dono, e a
+ *  relação gestor → dono não cabe nelas. Esse caminho usa a callable
+ *  `loadOrganizerWalletView`, que recalcula a permissão a cada chamada. */
 
 export interface OrganizerWalletSummary {
   availableReais: number;
@@ -65,44 +69,7 @@ export function watchWallet(uid: string, cb: (w: OrganizerWalletSummary) => void
   );
 }
 
-function ledgerEntryFromDoc(id: string, data: Record<string, unknown>): OrganizerLedgerEntry {
-  return {
-    id,
-    netReais: numberOf(data['netReais']),
-    grossReais: numberOf(data['grossReais']),
-    platformFeeReais: numberOf(data['platformFeeReais']),
-    createdAt: toDate(data['createdAt']),
-  };
-}
 
-export function watchLedger(uid: string, cb: (l: OrganizerLedgerEntry[]) => void, limit = 30): () => void {
-  const db = organizerFirestore();
-  return onSnapshot(
-    query(collection(db, 'organizerWallets', uid, 'ledger'), orderBy('createdAt', 'desc'), fsLimit(limit)),
-    (snap) => cb(snap.docs.map((d) => ledgerEntryFromDoc(d.id, d.data() as Record<string, unknown>))),
-    () => cb([]),
-  );
-}
-
-function withdrawalFromDoc(id: string, data: Record<string, unknown>): OrganizerWithdrawal {
-  return {
-    id,
-    amountReais: numberOf(data['amountReais']),
-    status: optionalStr(data['status']) ?? 'pending',
-    pixKey: optionalStr(data['pixKey']) ?? '',
-    createdAt: toDate(data['createdAt']),
-    payoutStatus: optionalStr(data['payoutStatus']),
-  };
-}
-
-export function watchWithdrawals(uid: string, cb: (w: OrganizerWithdrawal[]) => void): () => void {
-  const db = organizerFirestore();
-  return onSnapshot(
-    query(collection(db, 'organizerWithdrawals'), where('organizerId', '==', uid), orderBy('createdAt', 'desc'), fsLimit(20)),
-    (snap) => cb(snap.docs.map((d) => withdrawalFromDoc(d.id, d.data() as Record<string, unknown>))),
-    () => cb([]),
-  );
-}
 
 export class OrganizerWalletError extends Error {}
 
@@ -128,13 +95,22 @@ export interface WithdrawalRequestResult {
   message: string | null;
 }
 
-export async function requestWithdrawal(amountReais: number, pixKey: string, pixKeyType: string): Promise<WithdrawalRequestResult> {
+/** `organizerId` só quando o saque é de uma carteira que não é a sua (gestor
+ *  da equipe). Nesse caso o backend ignora `pixKey`/`pixKeyType` e usa a chave
+ *  cadastrada pelo dono — mandar os dois aqui não muda o destino do dinheiro. */
+export async function requestWithdrawal(
+  amountReais: number,
+  pixKey: string,
+  pixKeyType: string,
+  organizerId?: string,
+): Promise<WithdrawalRequestResult> {
   const functions = organizerFunctions();
   try {
     const result = await httpsCallable<Record<string, unknown>, Record<string, unknown>>(functions, 'requestOrganizerWithdrawal')({
       amountReais,
       pixKey,
       pixKeyType,
+      ...(organizerId ? { organizerId } : {}),
     });
     const data = result.data;
     return {
@@ -143,6 +119,100 @@ export async function requestWithdrawal(amountReais: number, pixKey: string, pix
       payoutStatus: optionalStr(data['payoutStatus']),
       autoProcessed: data['autoProcessed'] === true,
       message: optionalStr(data['message']),
+    };
+  } catch (err) {
+    throw mapCallableError(err);
+  }
+}
+
+/** Uma carteira que o usuário alcança: a própria e a dos donos dos torneios em
+ *  que ele é gestor de equipe. */
+export interface OrganizerWalletRef {
+  organizerId: string;
+  organizerName: string;
+  isOwn: boolean;
+}
+
+export interface OrganizerWalletSelection extends OrganizerWalletRef {
+  availableReais: number;
+  pendingReais: number;
+  /** Na carteira de outro dono vem mascarada — o gestor confere o destino sem
+   *  levar o CPF/telefone dele embora. */
+  payoutPixKey: string;
+  payoutPixKeyType: string;
+  hasPayoutPixKey: boolean;
+  canEditPixKey: boolean;
+}
+
+export interface OrganizerWalletView {
+  wallets: OrganizerWalletRef[];
+  selected: OrganizerWalletSelection;
+  ledger: OrganizerLedgerEntry[];
+  withdrawals: OrganizerWithdrawal[];
+}
+
+function isoToDate(v: unknown): Date | null {
+  const d = typeof v === 'string' ? new Date(v) : null;
+  return d && Number.isFinite(d.getTime()) ? d : null;
+}
+
+function boolOf(v: unknown): boolean {
+  return v === true;
+}
+
+/** Uma chamada para o seletor de carteiras + extrato/saques da escolhida.
+ *  `organizerId` ausente (ou fora do alcance) devolve a carteira do próprio. */
+export async function loadWalletView(organizerId?: string, ledgerLimit?: number): Promise<OrganizerWalletView> {
+  const functions = organizerFunctions();
+  try {
+    const result = await httpsCallable<Record<string, unknown>, Record<string, unknown>>(
+      functions,
+      'loadOrganizerWalletView',
+    )({ ...(organizerId ? { organizerId } : {}), ...(ledgerLimit ? { ledgerLimit } : {}) });
+    const data = result.data;
+    const rawSelected = (data['selected'] ?? {}) as Record<string, unknown>;
+    const wallets = (Array.isArray(data['wallets']) ? data['wallets'] : []).map((w) => {
+      const row = w as Record<string, unknown>;
+      return {
+        organizerId: optionalStr(row['organizerId']) ?? '',
+        organizerName: optionalStr(row['organizerName']) ?? 'Organizador',
+        isOwn: boolOf(row['isOwn']),
+      };
+    });
+    return {
+      wallets,
+      selected: {
+        organizerId: optionalStr(rawSelected['organizerId']) ?? '',
+        organizerName: optionalStr(rawSelected['organizerName']) ?? '',
+        isOwn: boolOf(rawSelected['isOwn']),
+        availableReais: numberOf(rawSelected['availableReais']),
+        pendingReais: numberOf(rawSelected['pendingReais']),
+        payoutPixKey: optionalStr(rawSelected['payoutPixKey']) ?? '',
+        payoutPixKeyType: optionalStr(rawSelected['payoutPixKeyType']) ?? '',
+        hasPayoutPixKey: boolOf(rawSelected['hasPayoutPixKey']),
+        canEditPixKey: boolOf(rawSelected['canEditPixKey']),
+      },
+      ledger: (Array.isArray(data['ledger']) ? data['ledger'] : []).map((e) => {
+        const row = e as Record<string, unknown>;
+        return {
+          id: optionalStr(row['id']) ?? '',
+          netReais: numberOf(row['netReais']),
+          grossReais: numberOf(row['grossReais']),
+          platformFeeReais: numberOf(row['platformFeeReais']),
+          createdAt: isoToDate(row['createdAt']),
+        };
+      }),
+      withdrawals: (Array.isArray(data['withdrawals']) ? data['withdrawals'] : []).map((x) => {
+        const row = x as Record<string, unknown>;
+        return {
+          id: optionalStr(row['id']) ?? '',
+          amountReais: numberOf(row['amountReais']),
+          status: optionalStr(row['status']) ?? 'pending',
+          pixKey: optionalStr(row['pixKey']) ?? '',
+          createdAt: isoToDate(row['createdAt']),
+          payoutStatus: optionalStr(row['payoutStatus']),
+        };
+      }),
     };
   } catch (err) {
     throw mapCallableError(err);

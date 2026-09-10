@@ -25,7 +25,9 @@ export type PhraseContext =
   | "pot_last"
   | "pot_middle"
   | "de_vs_seed"
+  | "de_seed"
   | "de_position"
+  | "de_generic"
   | "generic";
 
 export interface Phrase {
@@ -144,6 +146,20 @@ export const PHRASE_BANK: Record<PhraseContext, Phrase[]> = {
     {id: "dvs-10", text: "O sorteio colocou a favorita no caminho de {team}. Agora é surpreender."},
   ],
 
+  /** Cabeça travada na DE — sem falar em grupo (isso é fase de potes). */
+  de_seed: [
+    {id: "des-1", text: "Chegou {team}. Agora é descobrir quem vai fingir que não ficou com medo."},
+    {id: "des-2", text: "{team} é cabeça de chave. O caminho já começou a apertar."},
+    {id: "des-3", text: "{team} entrou como favorita e saiu com um alvo do tamanho da quadra."},
+    {id: "des-4", text: "Cabeça travada na mesa. Respira e aceita."},
+    {id: "des-5", text: "{team} caiu aqui. Alguém já abriu o regulamento procurando brecha."},
+    {id: "des-6", text: "Chegou a pedreira: {team}. Alguém vai precisar explicar esse sorteio em casa."},
+    {id: "des-7", text: "{team} travada no topo. A esperança do outro lado acaba de diminuir 17%."},
+    {id: "des-8", text: "{team} chegou. Agora é oficialmente proibido chamar esse lado de fácil."},
+    {id: "des-9", text: "Cabeça de chave na área. O chaveamento pediu VAR antes mesmo do primeiro jogo."},
+    {id: "des-10", text: "{team} no seed. O 'boa sorte' no WhatsApp veio com intenção duvidosa."},
+  ],
+
   de_position: [
     {id: "dp-1", text: "{team} caiu nesse lado da chave. O outro lado acabou de respirar aliviado."},
     {id: "dp-2", text: "Posição definida. Agora é descobrir quantas partidas faltam até a crise."},
@@ -155,6 +171,25 @@ export const PHRASE_BANK: Record<PhraseContext, Phrase[]> = {
     {id: "dp-8", text: "Caminho definido. Alguém já está calculando todas as combinações possíveis."},
     {id: "dp-9", text: "{team} caiu no lado difícil. O lado fácil agradece a participação."},
     {id: "dp-10", text: "A chave está montada. Agora começa o verdadeiro campeonato: a resenha."},
+  ],
+
+  /** Fallback da DE — chave/posição, nunca "grupo" de fase de potes. */
+  de_generic: [
+    {id: "dgen-1", text: "{team} sorteada! Agora pode começar a corneta."},
+    {id: "dgen-2", text: "Está definido. Reclamações somente após o primeiro jogo."},
+    {id: "dgen-3", text: "{team} na chave. Menos uma desculpa para faltar."},
+    {id: "dgen-4", text: "Sorteio feito. Agora é treino, jogo e print da chave."},
+    {id: "dgen-5", text: "{team} caiu na posição. Agora é torcer para o algoritmo ter bom coração."},
+    {id: "dgen-6", text: "Mais uma definida. A chave está ficando interessante."},
+    {id: "dgen-7", text: "A chave está tomando forma. A ansiedade também."},
+    {id: "dgen-8", text: "Definido! Agora todo mundo vira especialista em chaveamento."},
+    {id: "dgen-9", text: "{team} no quadro. Já pode começar a estudar os adversários."},
+    {id: "dgen-10", text: "A NexaGO sorteou. Se der ruim, a culpa é da matemática."},
+    {id: "dgen-11", text: "{team} está na chave. Agora só falta jogar bem."},
+    {id: "dgen-12", text: "Pronto. A desculpa 'não sabia quem ia pegar' morreu aqui."},
+    {id: "dgen-13", text: "A chave está pronta. O grupo do WhatsApp também."},
+    {id: "dgen-14", text: "Sorteio concluído. Agora começa a parte em que todo mundo vira comentarista."},
+    {id: "dgen-15", text: "{team} definida. O torneio acabou de ficar mais interessante."},
   ],
 
   generic: [
@@ -177,19 +212,22 @@ export const PHRASE_BANK: Record<PhraseContext, Phrase[]> = {
 };
 
 /**
- * Buckets candidatos, do mais específico ao mais genérico. Sempre termina em
- * `generic`, então nunca existe revelação sem lugar de onde tirar frase.
+ * Buckets candidatos, do mais específico ao mais genérico.
+ *
+ * Formato manda na fila: grupos nunca puxam frase de DE (e vice-versa). Sem
+ * isso, uma cabeça na dupla eliminatória caía no bucket `seed`/`generic` e o
+ * telão falava em "grupo" no meio de uma chave.
  */
 export function phraseContextsFor(situation: PhraseSituation): PhraseContext[] {
-  const contexts: PhraseContext[] = [];
-
   if (situation.format === "double_elimination") {
+    const contexts: PhraseContext[] = [];
     if (situation.meetsSeedOnDebut) contexts.push("de_vs_seed");
-    if (situation.isSeed) contexts.push("seed");
-    contexts.push("de_position", "generic");
+    if (situation.isSeed) contexts.push("de_seed");
+    contexts.push("de_position", "de_generic");
     return contexts;
   }
 
+  const contexts: PhraseContext[] = [];
   if (situation.isStrongestGroup) contexts.push("death_group");
   if (situation.isSeed) contexts.push("seed");
   if (situation.sameCityInGroup) contexts.push("same_city");

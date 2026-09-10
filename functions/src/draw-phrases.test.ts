@@ -44,10 +44,19 @@ describe("phraseContextsFor — do mais específico ao mais genérico", () => {
   });
 
   it("dupla eliminatória usa buckets próprios, nunca os de grupo", () => {
-    const ctx = phraseContextsFor(situacao({format: "double_elimination"}));
-    assert.ok(ctx.includes("de_position"));
+    const ctx = phraseContextsFor(situacao({format: "double_elimination", isSeed: true}));
+    assert.deepEqual(ctx.filter((c) => c.startsWith("de_") || c === "seed" || c === "generic"), [
+      "de_seed",
+      "de_position",
+      "de_generic",
+    ]);
     assert.ok(!ctx.includes("pot_first"));
     assert.ok(!ctx.includes("pot_last"));
+    assert.ok(!ctx.includes("pot_middle"));
+    assert.ok(!ctx.includes("death_group"));
+    assert.ok(!ctx.includes("same_city"));
+    assert.ok(!ctx.includes("seed"));
+    assert.ok(!ctx.includes("generic"));
   });
 
   it("estrear contra cabeça na dupla eliminatória tem bucket próprio e vem primeiro", () => {
@@ -57,18 +66,25 @@ describe("phraseContextsFor — do mais específico ao mais genérico", () => {
     assert.equal(ctx[0], "de_vs_seed");
   });
 
-  it("sempre termina em 'generic' — nunca fica sem lugar de onde tirar frase", () => {
-    for (const s of [
-      situacao(),
-      situacao({isSeed: true}),
-      situacao({format: "double_elimination"}),
-      situacao({potIndex: 9, totalPots: 4}),
-    ]) {
-      const ctx = phraseContextsFor(s);
-      assert.equal(ctx[ctx.length - 1], "generic");
-    }
+  it("grupos nunca puxam buckets de dupla eliminatória", () => {
+    const ctx = phraseContextsFor(situacao({isSeed: true, potIndex: 1}));
+    assert.ok(!ctx.some((c) => c.startsWith("de_")));
+  });
+
+  it("sempre termina no fallback do formato — nunca fica sem lugar de onde tirar frase", () => {
+    assert.equal(lastOf(phraseContextsFor(situacao())), "generic");
+    assert.equal(lastOf(phraseContextsFor(situacao({isSeed: true}))), "generic");
+    assert.equal(
+      lastOf(phraseContextsFor(situacao({format: "double_elimination"}))),
+      "de_generic",
+    );
+    assert.equal(lastOf(phraseContextsFor(situacao({potIndex: 9, totalPots: 4}))), "generic");
   });
 });
+
+function lastOf<T>(items: readonly T[]): T | undefined {
+  return items[items.length - 1];
+}
 
 describe("fillPhrase / shortenTeamLabel", () => {
   it("troca {team} pelo rótulo da dupla", () => {
@@ -183,6 +199,18 @@ describe("PHRASE_BANK — governança do tom", () => {
       const without = phrases.some((p) => !p.text.includes("{team}"));
       assert.ok(withTeam, `bucket "${bucket}" não tem frase com {team}`);
       assert.ok(without, `bucket "${bucket}" só tem {team} — falta frase de grupo/situação`);
+    }
+  });
+
+  it("buckets de DE não falam em grupo de fase — senão a chave vira 'grupo' no telão", () => {
+    for (const bucket of ["de_vs_seed", "de_seed", "de_position", "de_generic"] as const) {
+      for (const p of PHRASE_BANK[bucket]) {
+        const semWhats = p.text.replace(/grupo do WhatsApp/gi, "");
+        assert.ok(
+          !/\bgrupo\b/i.test(semWhats),
+          `"${p.text}" (bucket ${bucket}) fala em grupo de fase`,
+        );
+      }
     }
   });
 });

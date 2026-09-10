@@ -45,8 +45,11 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
     <div class="og-telao">
       <header class="og-telao-head">
         <div class="og-telao-marca">
-          nexa<span>GO</span>
-          <span class="og-telao-kicker">Sorteio ao vivo</span>
+          <img class="og-telao-mark" src="/brand/logo.png" alt="" width="44" height="44" />
+          <div class="og-telao-marca-texto">
+            <div class="og-telao-wordmark">nexa<span>GO</span></div>
+            <span class="og-telao-kicker">Sorteio ao vivo</span>
+          </div>
         </div>
         <div class="og-telao-sep"></div>
         <div class="og-telao-evento">
@@ -191,12 +194,31 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
       border-bottom: 1px solid var(--nx-line);
     }
     .og-telao-marca {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex: none;
+    }
+    .og-telao-mark {
+      width: 44px;
+      height: 44px;
+      object-fit: contain;
+      flex: none;
+    }
+    .og-telao-marca-texto {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .og-telao-wordmark {
       font-family: var(--nx-font-display);
       font-weight: 800;
       font-size: 32px;
       letter-spacing: -0.02em;
+      line-height: 1;
     }
-    .og-telao-marca span {
+    .og-telao-wordmark span {
       color: var(--nx-orange-500);
     }
     .og-telao-kicker {
@@ -474,8 +496,12 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
     :host(.retrato) .og-telao-categoria {
       font-size: 22px;
     }
-    :host(.retrato) .og-telao-marca {
+    :host(.retrato) .og-telao-wordmark {
       font-size: 40px;
+    }
+    :host(.retrato) .og-telao-mark {
+      width: 52px;
+      height: 52px;
     }
     :host(.retrato) .og-telao-kicker {
       font-size: 18px;

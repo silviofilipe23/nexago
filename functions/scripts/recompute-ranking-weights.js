@@ -66,7 +66,10 @@
  *
  * Sem --yes é DRY-RUN: lista o contexto por categoria e cada doc que mudaria,
  * sem escrever. `--limit` corta quantos docs que MUDARIAM cada coleção
- * processa nesta execução (o resto fica para a próxima — o script converge).
+ * processa nesta execução (o resto fica para a próxima — o script converge) E
+ * quantas participações retroativas do Livre são criadas nesta execução — é a
+ * válvula da primeira corrida cautelosa em produção, então vale para TODOS os
+ * passos, inclusive o único que cria dado.
  *
  * Falha por doc não aborta a corrida: cada doc é migrado na sua própria
  * transação (que RELÊ o doc no commit, tornando inofensiva uma premiação que
@@ -132,6 +135,9 @@ const db = admin.firestore();
 
 /** Mesmo valor de `MIN_TEAMS_FOR_GLOBAL_RANKING` no motor (só p/ relatório). */
 const MIN_TEAMS_FOR_GLOBAL_RANKING = 10;
+
+/** Mesmo valor de `RANKING_SCALE_VERSION` (functions/src/tournament-ranking.ts). */
+const RANKING_SCALE_VERSION = 2;
 
 const dataPath = (coll) => `artifacts/${projectId}/public/data/${coll}`;
 
@@ -324,15 +330,35 @@ async function loadKnockoutTeamIds(tournamentId, categoryId) {
   return ids;
 }
 
-/** Paridade com `extractTeamMemberUids` (functions/src/league-ranking.ts). */
+/**
+ * Paridade LITERAL com `extractTeamMemberUids`
+ * (functions/src/tournament-team-category.ts): `memberUids` vence, MAS só
+ * quando rende ao menos um uid utilizável — array vazio (ou só com strings em
+ * branco) cai no legado `player1Id`/`player2Id`, exatamente como o
+ * `if (out.length > 0) return out;` do motor. Ler o `Array.isArray` como
+ * decisão final deixaria a equipe sem nenhum atleta creditado.
+ */
+function extractTeamMemberUids(team) {
+  if (!team) return [];
+  const out = [];
+  const push = (raw) => {
+    const id = typeof raw === "string" ? raw.trim() : "";
+    if (id && !out.includes(id)) out.push(id);
+  };
+  if (Array.isArray(team.memberUids)) {
+    for (const raw of team.memberUids) push(raw);
+    if (out.length > 0) return out;
+  }
+  push(team.player1Id);
+  push(team.player2Id);
+  return out;
+}
+
+/** uids da equipe, lendo o doc `teams/{teamId}`. */
 async function loadTeamAthleteIds(teamId) {
   const snap = await db.doc(`${dataPath("teams")}/${teamId}`).get();
   if (!snap.exists) return [];
-  const d = snap.data() || {};
-  const uids = Array.isArray(d.memberUids)
-    ? d.memberUids
-    : [d.player1Id, d.player2Id];
-  return [...new Set(uids.map((u) => String(u || "").trim()).filter(Boolean))];
+  return extractTeamMemberUids(snap.data() || {});
 }
 
 /** Cópia de `tournamentSportToLevelSportCode` (functions/src/category-level-eligibility.ts). */
@@ -600,10 +626,24 @@ async function migrateRankingCollection(coll) {
  * IDEMPOTÊNCIA: diferente do resto do script, este passo CRIA docs. A garantia
  * de rodar duas vezes sem duplicar vem da checagem de existência do doc
  * `{tournamentId}_{categoryId}_{teamId}` antes de escrever.
+ *
+ * ORDEM DE ESCRITA — o doc de resultado é o MARCADOR DE COMMIT e por isso é a
+ * ÚLTIMA escrita da dupla: as entradas em `teamRankings`/`athleteRankings` vão
+ * primeiro (são idempotentes por `jaTem` em `upsertRankingDoc`) e só então o
+ * resultado é gravado. É a existência DELE que tira a dupla da varredura da
+ * próxima execução (`comResultado`), e `recomputeResults` só reescreve entrada
+ * que já está em `results[]` — nunca acrescenta uma que falte. Se o resultado
+ * fosse escrito primeiro e a corrida morresse antes dos rankings, a dupla ficaria
+ * fora de `faltantes` para sempre, com o resultado gravado e o atleta sem ponto,
+ * e nenhuma reexecução curaria isso. Na ordem atual uma queda no meio deixa, no
+ * pior caso, entradas de ranking sem o doc de resultado — e a próxima passada
+ * cura sozinha: a dupla continua em `faltantes`, os upserts viram no-op e só o
+ * resultado é escrito.
  */
 async function criarParticipacaoFaltanteDoLivre(fresh) {
   const categorias = new Map();
   const anos = new Map();
+  const conclusoes = new Map();
   const snap = await db.collection(dataPath("tournamentCategoryResults")).get();
   for (const doc of snap.docs) {
     const r = doc.data();
@@ -615,10 +655,19 @@ async function criarParticipacaoFaltanteDoLivre(fresh) {
     // errado de `pointsByYear`.
     const ano = Number(r.year);
     if (Number.isFinite(ano) && ano > 0 && !anos.has(chave)) anos.set(chave, ano);
+    // `completedAt` idem: o motor sempre grava esse campo, então copiamos o da
+    // própria categoria para o doc criado não sair mais magro que um escrito
+    // pelo motor. Sem fonte, o campo é OMITIDO — nunca inventamos uma data.
+    if (r.completedAt && !conclusoes.has(chave)) conclusoes.set(chave, r.completedAt);
   }
 
+  let candidatos = 0;
   let criados = 0;
+  let errors = 0;
+  let limitAtingido = false;
+
   for (const [chave, comResultado] of categorias) {
+    if (limitAtingido) break;
     const [tournamentId, categoryId] = chave.split("|");
     const ctx = await contextFor(tournamentId, categoryId);
     if (!ctx.ok || ctx.presetKey !== "livre") continue;
@@ -631,6 +680,20 @@ async function criarParticipacaoFaltanteDoLivre(fresh) {
     const faltantes = [...paidTeams.keys()].filter(
       (teamId) => !comResultado.has(teamId) && !knockout.has(teamId),
     );
+    if (faltantes.length === 0) continue;
+
+    // Sem ano vindo dos resultados já gravados, a participação não tem onde
+    // cair em `pointsByYear` — e o ano de HOJE seria uma mentira silenciosa.
+    // Pular a categoria inteira e reportar é a única saída honesta.
+    const year = anos.get(chave);
+    if (!Number.isFinite(year) || year <= 0) {
+      avisar(
+        `${ctx.tournamentName} / ${ctx.categoryName}: nenhum resultado gravado tem \`year\` ` +
+          "numérico — participação retroativa NÃO criada (o ano não pode ser o de hoje)",
+      );
+      continue;
+    }
+    const completedAt = conclusoes.get(chave);
 
     // A categoria já tem ao menos um resultado gravado — prova de que passou
     // pelo portão de elegibilidade NA ÉPOCA. Se hoje ela não passasse (ex.:
@@ -638,7 +701,7 @@ async function criarParticipacaoFaltanteDoLivre(fresh) {
     // assim é o comportamento certo — o histórico já foi premiado —, mas o
     // dono precisa ver que estes pontos nascem numa categoria que hoje seria
     // reprovada no gate.
-    if (faltantes.length > 0 && !ctx.elegivelHoje) {
+    if (!ctx.elegivelHoje) {
       avisar(
         `${ctx.tournamentName} / ${ctx.categoryName}: HOJE não passaria no gate do ranking ` +
           `geral (pagas=${ctx.paidTeams}, rankingEnabled=${ctx.rankingEnabled}) — criando ` +
@@ -653,36 +716,78 @@ async function criarParticipacaoFaltanteDoLivre(fresh) {
       const existente = await ref.get();
       if (existente.exists) continue;
 
+      if (LIMIT > 0 && candidatos >= LIMIT) {
+        limitAtingido = true;
+        break;
+      }
+      candidatos++;
+
       avisar(
-        `${ctx.tournamentName} / ${ctx.categoryName}: criando participação de ` +
-          `${teamId} (${pontos} pts)`,
+        `${ctx.tournamentName} / ${ctx.categoryName}: ${fresh ? "criando" : "criaria"} ` +
+          `participação de ${teamId} (${pontos} pts, ano ${year})`,
       );
       if (!fresh) continue;
 
-      const year = anos.get(chave) || new Date().getFullYear();
-      await ref.set({
-        tournamentId,
-        categoryId,
-        teamId,
-        finalPlace: 0,
-        pointsEarned: pontos,
-        year,
-        scaleVersion: 2,
-      });
+      // Falha numa dupla não aborta a corrida (mesma postura de `migrateOneDoc`):
+      // o erro é contado, reportado no Resumo e derruba o código de saída.
+      try {
+        const entrada = {tournamentId, categoryId, finalPlace: 0, points: pontos, year};
+        const athleteIds = await loadTeamAthleteIds(teamId);
+        if (athleteIds.length === 0) {
+          avisar(
+            `${ctx.tournamentName} / ${ctx.categoryName}: equipe ${teamId} não resolveu ` +
+              "nenhum atleta (sem `memberUids` utilizável e sem player1Id/player2Id) — " +
+              "só o ranking de equipe recebe estes pontos",
+          );
+        }
 
-      const entrada = {tournamentId, categoryId, finalPlace: 0, points: pontos, year};
-      await upsertRankingDoc(dataPath("teamRankings"), teamId, {teamId}, entrada);
-      for (const athleteId of await loadTeamAthleteIds(teamId)) {
-        await upsertRankingDoc(dataPath("athleteRankings"), athleteId, {athleteId}, entrada);
+        // Rankings primeiro, resultado por último — ver ORDEM DE ESCRITA acima.
+        await upsertRankingDoc(dataPath("teamRankings"), teamId, {teamId}, entrada);
+        for (const athleteId of athleteIds) {
+          await upsertRankingDoc(dataPath("athleteRankings"), athleteId, {athleteId}, entrada);
+        }
+
+        await ref.set({
+          tournamentId,
+          categoryId,
+          teamId,
+          finalPlace: 0,
+          pointsEarned: pontos,
+          year,
+          ...(completedAt ? {completedAt} : {}),
+          scaleVersion: RANKING_SCALE_VERSION,
+        });
+        criados++;
+      } catch (err) {
+        errors++;
+        console.error(
+          `  ${tournamentId}_${categoryId}_${teamId}: ERRO ao criar participação —`,
+          err && err.message ? err.message : err,
+        );
       }
-      criados++;
     }
   }
-  console.log(`\n[participação do Livre] ${criados} resultado(s) criado(s)`);
-  return criados;
+
+  console.log(
+    `\n[participação do Livre] ` +
+      (fresh
+        ? `${criados} resultado(s) criado(s) de ${candidatos} candidato(s)`
+        : `${candidatos} a criar`) +
+      (limitAtingido ? ` (--limit ${LIMIT} atingido — o resto fica para a próxima)` : ""),
+  );
+  return {criados, candidatos, errors};
 }
 
-/** Upsert de uma entrada em `athleteRankings`/`teamRankings`, com agregados. */
+/**
+ * Upsert de uma entrada em `athleteRankings`/`teamRankings`, com agregados.
+ *
+ * `scaleVersion` só é carimbado quando o doc está sendo CRIADO. Num doc que já
+ * existe, carimbar por `merge` seria repetir o erro que o motor evita em
+ * `upsertGlobalRankingDoc` (functions/src/tournament-ranking.ts): um doc ainda
+ * na escala antiga sairia marcado como `>= 2` sem ter sido reescalado e
+ * escaparia para sempre da varredura de `backfill-ranking-scale-x10.js`. O
+ * resto deste script também nunca toca em `scaleVersion`, de propósito.
+ */
 async function upsertRankingDoc(collectionPath, docId, identity, entrada) {
   const ref = db.collection(collectionPath).doc(docId);
   await db.runTransaction(async (txn) => {
@@ -695,6 +800,9 @@ async function upsertRankingDoc(collectionPath, docId, identity, entrada) {
     if (jaTem) return;
     results.push(entrada);
     const agregados = aggregateRankingResults(results);
+    // Guarda de escrita também aqui, como defesa em profundidade: nenhum helper
+    // deste arquivo escreve sem `--yes`.
+    if (!APPLY) return;
     txn.set(
       ref,
       {
@@ -703,7 +811,7 @@ async function upsertRankingDoc(collectionPath, docId, identity, entrada) {
         totalPoints: agregados.totalPoints,
         tournamentsCount: agregados.tournamentsCount,
         pointsByYear: agregados.pointsByYear,
-        scaleVersion: 2,
+        ...(snap.exists ? {} : {scaleVersion: RANKING_SCALE_VERSION}),
       },
       {merge: true},
     );
@@ -780,7 +888,7 @@ async function run() {
   const athletesOutcome = await migrateRankingCollection("athleteRankings");
   const teamsOutcome = await migrateRankingCollection("teamRankings");
 
-  await criarParticipacaoFaltanteDoLivre(APPLY);
+  const participacaoOutcome = await criarParticipacaoFaltanteDoLivre(APPLY);
 
   imprimirContextos();
 
@@ -791,7 +899,11 @@ async function run() {
 
   imprimirGate();
 
-  const totalErrors = resultsOutcome.errors + athletesOutcome.errors + teamsOutcome.errors;
+  const totalErrors =
+    resultsOutcome.errors +
+    athletesOutcome.errors +
+    teamsOutcome.errors +
+    participacaoOutcome.errors;
 
   console.log("\nResumo:");
   for (const [nome, o] of [
@@ -804,6 +916,13 @@ async function run() {
         `em ${o.total} doc(s), ${o.errors} erro(s)`,
     );
   }
+  console.log(
+    `  participação do Livre: ` +
+      (APPLY
+        ? `${participacaoOutcome.criados} criado(s) de ${participacaoOutcome.candidatos} candidato(s)`
+        : `${participacaoOutcome.candidatos} a criar`) +
+      `, ${participacaoOutcome.errors} erro(s)`,
+  );
   if (!APPLY) {
     console.log("  (dry-run — nada escrito; rode de novo com --yes)");
   }

@@ -77,6 +77,35 @@ bool _matchesLevel(AthleteProfile profile, AthleteDiscoverFilters filters) {
   );
 }
 
+bool _matchesLocation(AthleteProfile profile, AthleteDiscoverFilters filters) {
+  final uf = filters.stateUf?.trim().toUpperCase();
+  if (uf != null && uf.isNotEmpty) {
+    if ((profile.state?.trim().toUpperCase() ?? '') != uf) return false;
+  }
+  final city = _normalizePlace(filters.city);
+  if (city.isEmpty) return true;
+  return _normalizePlace(profile.city) == city;
+}
+
+/// Cidades presentes no catálogo daquela UF — a lista é derivada dos perfis
+/// carregados, não digitada: acento e caixa livres impediriam consulta.
+List<String> discoverCityOptions(
+  List<AthleteDiscoverEntry> entries,
+  String? stateUf,
+) {
+  final uf = stateUf?.trim().toUpperCase();
+  if (uf == null || uf.isEmpty) return const [];
+  final cities = <String>{};
+  for (final entry in entries) {
+    if ((entry.profile.state?.trim().toUpperCase() ?? '') != uf) continue;
+    final city = entry.profile.city.trim();
+    if (city.isNotEmpty) cities.add(city);
+  }
+  final sorted = cities.toList()
+    ..sort((a, b) => _normalizePlace(a).compareTo(_normalizePlace(b)));
+  return sorted;
+}
+
 List<AthleteDiscoverEntry> applyDiscoverFilters({
   required List<AthleteDiscoverEntry> entries,
   required AthleteDiscoverFilters filters,
@@ -92,6 +121,7 @@ List<AthleteDiscoverEntry> applyDiscoverFilters({
     if (!_matchesGender(profile, filters.gender)) return false;
     if (!_matchesSport(profile, filters.sportFirestoreId)) return false;
     if (!_matchesLevel(profile, filters)) return false;
+    if (!_matchesLocation(profile, filters)) return false;
     if (filters.completeProfileOnly && !profile.onboardingCompleted) {
       return false;
     }
@@ -364,16 +394,19 @@ class DiscoverFirestoreConstraints {
     this.gender,
     this.lookingForPartnerOnly = false,
     this.sportFirestoreId,
+    this.stateUf,
   });
 
   final String? gender;
   final bool lookingForPartnerOnly;
   final String? sportFirestoreId;
+  final String? stateUf;
 
   bool get isEmpty =>
       gender == null &&
       !lookingForPartnerOnly &&
-      (sportFirestoreId == null || sportFirestoreId!.isEmpty);
+      (sportFirestoreId == null || sportFirestoreId!.isEmpty) &&
+      stateUf == null;
 }
 
 String? discoverGenderFirestoreValue(AthleteDiscoverGenderFilter filter) {
@@ -392,6 +425,9 @@ DiscoverFirestoreConstraints discoverFirestoreConstraints(
     gender: discoverGenderFirestoreValue(filters.gender),
     lookingForPartnerOnly: filters.lookingForPartnerOnly,
     sportFirestoreId: sportId != null && sportId.isNotEmpty ? sportId : null,
+    stateUf: filters.stateUf?.trim().isNotEmpty == true
+        ? filters.stateUf!.trim().toUpperCase()
+        : null,
   );
 }
 

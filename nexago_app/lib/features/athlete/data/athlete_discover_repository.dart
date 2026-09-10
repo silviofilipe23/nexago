@@ -212,6 +212,9 @@ class AthleteDiscoverRepository {
     if (constraints.lookingForPartnerOnly) {
       query = query.where('lookingForPartner', isEqualTo: true);
     }
+    if (constraints.stateUf != null) {
+      query = query.where('state', isEqualTo: constraints.stateUf);
+    }
     if (resolvedSportId != null && resolvedSportId.isNotEmpty) {
       query = sportIsArray
           ? query.where(sportField, arrayContains: resolvedSportId)

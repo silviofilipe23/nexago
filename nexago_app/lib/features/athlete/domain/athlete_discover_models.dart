@@ -48,6 +48,8 @@ class AthleteDiscoverFilters {
     this.lookingForPartnerOnly = false,
     this.completeProfileOnly = false,
     this.quickLevel = AthleteDiscoverQuickLevel.all,
+    this.stateUf,
+    this.city,
   });
 
   final String? sportFirestoreId;
@@ -56,6 +58,8 @@ class AthleteDiscoverFilters {
   final bool lookingForPartnerOnly;
   final bool completeProfileOnly;
   final AthleteDiscoverQuickLevel quickLevel;
+  final String? stateUf;
+  final String? city;
 
   static const defaults = AthleteDiscoverFilters();
 
@@ -65,7 +69,9 @@ class AthleteDiscoverFilters {
       gender != AthleteDiscoverGenderFilter.all ||
       lookingForPartnerOnly ||
       completeProfileOnly ||
-      quickLevel.label.isNotEmpty;
+      quickLevel.label.isNotEmpty ||
+      stateUf != null ||
+      city != null;
 
   AthleteDiscoverFilters copyWith({
     Object? sportFirestoreId = _unset,
@@ -74,6 +80,8 @@ class AthleteDiscoverFilters {
     bool? lookingForPartnerOnly,
     bool? completeProfileOnly,
     AthleteDiscoverQuickLevel? quickLevel,
+    Object? stateUf = _unset,
+    Object? city = _unset,
   }) {
     return AthleteDiscoverFilters(
       sportFirestoreId: identical(sportFirestoreId, _unset)
@@ -85,6 +93,8 @@ class AthleteDiscoverFilters {
           lookingForPartnerOnly ?? this.lookingForPartnerOnly,
       completeProfileOnly: completeProfileOnly ?? this.completeProfileOnly,
       quickLevel: quickLevel ?? this.quickLevel,
+      stateUf: identical(stateUf, _unset) ? this.stateUf : stateUf as String?,
+      city: identical(city, _unset) ? this.city : city as String?,
     );
   }
 

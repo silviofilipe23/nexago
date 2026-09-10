@@ -286,4 +286,50 @@ void main() {
       );
     });
   });
+
+  group('filtro de localização', () {
+    test('UF filtra por estado', () {
+      final entries = [
+        _entry(profile: _profile(id: '1', city: 'Goiânia', state: 'GO')),
+        _entry(profile: _profile(id: '2', city: 'Santos', state: 'SP')),
+      ];
+      final result = applyDiscoverFilters(
+        entries: entries,
+        filters: const AthleteDiscoverFilters(stateUf: 'GO'),
+      );
+      expect(result.map((e) => e.userId), ['1']);
+    });
+
+    test('cidade compara sem acento e sem caixa', () {
+      final entries = [
+        _entry(profile: _profile(id: '1', city: 'Goiânia', state: 'GO')),
+        _entry(profile: _profile(id: '2', city: 'Anápolis', state: 'GO')),
+      ];
+      final result = applyDiscoverFilters(
+        entries: entries,
+        filters: const AthleteDiscoverFilters(stateUf: 'GO', city: 'goiania'),
+      );
+      expect(result.map((e) => e.userId), ['1']);
+    });
+
+    test('opções de cidade saem do catálogo da UF, ordenadas', () {
+      final entries = [
+        _entry(profile: _profile(id: '1', city: 'Goiânia', state: 'GO')),
+        _entry(profile: _profile(id: '2', city: 'Anápolis', state: 'GO')),
+        _entry(profile: _profile(id: '3', city: 'Santos', state: 'SP')),
+      ];
+      expect(discoverCityOptions(entries, 'GO'), ['Anápolis', 'Goiânia']);
+    });
+
+    test('UF entra nas constraints de servidor', () {
+      const filters = AthleteDiscoverFilters(stateUf: 'GO');
+      expect(discoverFirestoreConstraints(filters).stateUf, 'GO');
+    });
+
+    test('cidade NÃO entra nas constraints — não há índice', () {
+      const filters = AthleteDiscoverFilters(stateUf: 'GO', city: 'Goiânia');
+      final c = discoverFirestoreConstraints(filters);
+      expect(c.stateUf, 'GO');
+    });
+  });
 }

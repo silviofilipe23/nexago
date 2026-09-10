@@ -21,6 +21,10 @@ const {
   bracketSizeFactor,
   pointsForEntry,
   aggregateRankingResults,
+  teamLevelRank,
+  weightFromRank,
+  fieldStrengthFromTeamRanks,
+  shouldStampFieldStrength,
 } = require('../scripts/lib/ranking-recompute.js');
 
 describe('basePointsForFinalPlace', () => {
@@ -216,5 +220,50 @@ describe('aggregateRankingResults (paridade pós-D1: soma integral)', () => {
     const got = aggregateRankingResults([{ points: 100 }, { year: 2026, points: 'x' }]);
     assert.deepEqual(got.pointsByYear, { 0: 100, 2026: 0 });
     assert.equal(got.totalPoints, 100);
+  });
+});
+
+describe('paridade da força do campo (cópia de src/category-field-strength.ts)', () => {
+  test('dupla vale o integrante mais forte', () => {
+    assert.equal(teamLevelRank([2, 6]), 6);
+    assert.equal(teamLevelRank([null, 3]), 3);
+    assert.equal(teamLevelRank([null, null]), null);
+    assert.equal(teamLevelRank([]), null);
+  });
+
+  test('degrau → peso, com Math.round e clamp', () => {
+    assert.equal(weightFromRank(0), 0.125);
+    assert.equal(weightFromRank(2), 0.25);
+    assert.equal(weightFromRank(4), 0.5);
+    assert.equal(weightFromRank(6), 1);
+    assert.equal(weightFromRank(4.2), 0.5);
+    assert.equal(weightFromRank(5.6), 1);
+    assert.equal(weightFromRank(-3), 0.125);
+    assert.equal(weightFromRank(99), 1);
+    assert.equal(weightFromRank(Number.NaN), 0.125);
+  });
+
+  test('DESAFIO OPEN - JHON JHON dá o mesmo 0.5 da versão TypeScript', () => {
+    const strength = fieldStrengthFromTeamRanks([6, 6, 6, 6, 6, 3, 3, 2, 2, 2]);
+    assert.equal(strength.fieldRank, 4.2);
+    assert.equal(strength.weight, 0.5);
+    assert.equal(strength.measuredTeams, 10);
+  });
+
+  test('campo imensurável devolve null', () => {
+    assert.equal(fieldStrengthFromTeamRanks([null, null]), null);
+    assert.equal(fieldStrengthFromTeamRanks([]), null);
+  });
+
+  test('shouldStampFieldStrength: maioria exata carimba', () => {
+    assert.equal(shouldStampFieldStrength({ measuredTeams: 5, totalPaidTeams: 10 }), true);
+  });
+
+  test('shouldStampFieldStrength: minoria não carimba', () => {
+    assert.equal(shouldStampFieldStrength({ measuredTeams: 4, totalPaidTeams: 10 }), false);
+  });
+
+  test('shouldStampFieldStrength: cobertura total carimba', () => {
+    assert.equal(shouldStampFieldStrength({ measuredTeams: 10, totalPaidTeams: 10 }), true);
   });
 });

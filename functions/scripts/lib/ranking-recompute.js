@@ -223,6 +223,56 @@ function aggregateRankingResults(results) {
   return {totalPoints, tournamentsCount: results.length, pointsByYear};
 }
 
+/**
+ * Cópias de `functions/src/category-field-strength.ts` (spec 2026-09-10). O
+ * script é standalone e não importa o bundle compilado; `test/ranking-recompute.test.mjs`
+ * é quem cobra a paridade. Mudou lá, muda aqui.
+ */
+const LIVRE_MIN_WEIGHT = 0.125;
+const LIVRE_MAX_WEIGHT = 1;
+
+/** Degrau da dupla = integrante MAIS FORTE; null se nenhum é conhecido. */
+function teamLevelRank(memberRanks) {
+  let best = null;
+  for (const rank of memberRanks) {
+    if (typeof rank !== "number" || !Number.isFinite(rank)) continue;
+    if (best == null || rank > best) best = rank;
+  }
+  return best;
+}
+
+/** Degrau médio → peso, ancorado na escada de presets fechados (Math.round). */
+function weightFromRank(rank) {
+  if (!Number.isFinite(rank)) return LIVRE_MIN_WEIGHT;
+  const step = Math.round(rank);
+  const weight = step <= 1 ? 0.125 : step <= 3 ? 0.25 : step <= 5 ? 0.5 : 1;
+  return Math.min(LIVRE_MAX_WEIGHT, Math.max(LIVRE_MIN_WEIGHT, weight));
+}
+
+/** Média dos degraus das duplas mensuráveis; null quando nenhuma é. */
+function fieldStrengthFromTeamRanks(teamRanks) {
+  const known = teamRanks.filter(
+    (rank) => typeof rank === "number" && Number.isFinite(rank),
+  );
+  if (known.length === 0) return null;
+  const fieldRank = known.reduce((sum, rank) => sum + rank, 0) / known.length;
+  return {
+    fieldRank,
+    weight: weightFromRank(fieldRank),
+    measuredTeams: known.length,
+  };
+}
+
+/**
+ * Cópia de `shouldStampFieldStrength` (functions/src/category-field-strength-store.ts).
+ * Carimbar congela o peso da categoria, então só vale a pena quando a medição
+ * cobre a MAIORIA das duplas pagas — abaixo disso a média sai enviesada para
+ * cima (as duplas sem degrau conhecido saem da conta) e o erro seria permanente.
+ */
+function shouldStampFieldStrength(stamp) {
+  return stamp.measuredTeams * 2 >= stamp.totalPaidTeams;
+}
+
 module.exports = {
   DEFAULT_GLOBAL_POINTS,
   CATEGORY_PRESETS,
@@ -234,4 +284,10 @@ module.exports = {
   bracketSizeFactor,
   pointsForEntry,
   aggregateRankingResults,
+  LIVRE_MIN_WEIGHT,
+  LIVRE_MAX_WEIGHT,
+  teamLevelRank,
+  weightFromRank,
+  fieldStrengthFromTeamRanks,
+  shouldStampFieldStrength,
 };

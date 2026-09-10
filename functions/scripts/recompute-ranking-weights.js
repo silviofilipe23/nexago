@@ -639,6 +639,20 @@ async function migrateRankingCollection(coll) {
  * pior caso, entradas de ranking sem o doc de resultado — e a próxima passada
  * cura sozinha: a dupla continua em `faltantes`, os upserts viram no-op e só o
  * resultado é escrito.
+ *
+ * ESSA ÚLTIMA ESCRITA TAMBÉM RELÊ NO COMMIT: ser a última escrita não basta —
+ * entre a checagem de existência no início do laço e este ponto, os upserts de
+ * ranking acima têm tempo de rodar, e é nesse intervalo que o motor pode gravar
+ * uma colocação REAL desta mesma dupla nesta mesma categoria (chave republicada,
+ * partida decidida de verdade). Por isso o `set` do resultado roda numa
+ * transação que relê o doc e ABORTA se ele já existir, em vez de sobrescrever
+ * `finalPlace: 0` por cima de uma premiação real — a única escrita deste passo
+ * que CRIA dado, e a única para a qual uma perda não se autocura numa próxima
+ * execução (o doc passaria a existir, errado, e a dupla sairia de `faltantes`
+ * para sempre). O aborto não tira o commit-marker de lugar: a checagem
+ * acontece dentro do `set` que já era a última escrita, então uma queda ANTES
+ * dele continua deixando a dupla em `faltantes` (curável), e um aborto por
+ * corrida concorrente também não escreve nada — mesmo efeito líquido.
  */
 async function criarParticipacaoFaltanteDoLivre(fresh) {
   const categorias = new Map();
@@ -747,16 +761,41 @@ async function criarParticipacaoFaltanteDoLivre(fresh) {
           await upsertRankingDoc(dataPath("athleteRankings"), athleteId, {athleteId}, entrada);
         }
 
-        await ref.set({
-          tournamentId,
-          categoryId,
-          teamId,
-          finalPlace: 0,
-          pointsEarned: pontos,
-          year,
-          ...(completedAt ? {completedAt} : {}),
-          scaleVersion: RANKING_SCALE_VERSION,
+        // Última escrita, dentro de uma transação que RELÊ o doc no commit
+        // (mesma postura de `migrateOneDoc`): entre a checagem em `existente`
+        // e este ponto, os upserts de ranking acima podem ter levado tempo
+        // suficiente para o motor gravar uma premiação real desta mesma dupla
+        // nesta mesma categoria (ex.: chave republicada e a partida decidida
+        // de verdade). Sem essa releitura, o `set` incondicional pisaria numa
+        // colocação real com `finalPlace: 0` — e, diferente de toda outra
+        // escrita deste arquivo, essa perda NÃO se autocura numa próxima
+        // execução: o doc passaria a existir (com o valor errado) e a dupla
+        // sairia de `faltantes` para sempre. Por isso a escrita aborta, em vez
+        // de sobrescrever, quando o doc já existe na releitura.
+        const criouResultado = await db.runTransaction(async (txn) => {
+          const atual = await txn.get(ref);
+          if (atual.exists) return false;
+          txn.set(ref, {
+            tournamentId,
+            categoryId,
+            teamId,
+            finalPlace: 0,
+            pointsEarned: pontos,
+            year,
+            ...(completedAt ? {completedAt} : {}),
+            scaleVersion: RANKING_SCALE_VERSION,
+          });
+          return true;
         });
+
+        if (!criouResultado) {
+          avisar(
+            `${ctx.tournamentName} / ${ctx.categoryName}: ${teamId} já tem resultado gravado ` +
+              "(uma corrida concorrente venceu entre a checagem e a escrita) — participação " +
+              "retroativa NÃO sobrescrita",
+          );
+          continue;
+        }
         criados++;
       } catch (err) {
         errors++;
@@ -787,6 +826,12 @@ async function criarParticipacaoFaltanteDoLivre(fresh) {
  * na escala antiga sairia marcado como `>= 2` sem ter sido reescalado e
  * escaparia para sempre da varredura de `backfill-ranking-scale-x10.js`. O
  * resto deste script também nunca toca em `scaleVersion`, de propósito.
+ *
+ * `lastUpdated` sai em toda escrita (criação OU merge), igual ao motor
+ * (`upsertGlobalRankingDoc`, `functions/src/tournament-ranking.ts:272`):
+ * `lastUpdated: FieldValue.serverTimestamp()`. Sem isso, um doc tocado por
+ * este script ficaria diferente de um doc tocado pelo motor só por faltar
+ * esse campo.
  */
 async function upsertRankingDoc(collectionPath, docId, identity, entrada) {
   const ref = db.collection(collectionPath).doc(docId);
@@ -811,6 +856,7 @@ async function upsertRankingDoc(collectionPath, docId, identity, entrada) {
         totalPoints: agregados.totalPoints,
         tournamentsCount: agregados.tournamentsCount,
         pointsByYear: agregados.pointsByYear,
+        lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
         ...(snap.exists ? {} : {scaleVersion: RANKING_SCALE_VERSION}),
       },
       {merge: true},

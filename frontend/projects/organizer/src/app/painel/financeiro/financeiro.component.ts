@@ -15,18 +15,18 @@ import {
 } from '../data/pix-key';
 import {
   OrganizerWalletError,
+  loadWalletView,
   requestWithdrawal,
   setPayoutPixKey,
-  watchLedger,
-  watchWallet,
-  watchWithdrawals,
   type OrganizerLedgerEntry,
-  type OrganizerWalletSummary,
+  type OrganizerWalletRef,
+  type OrganizerWalletSelection,
   type OrganizerWithdrawal,
   type WithdrawalRequestResult,
 } from '../data/wallet-repository';
 import { formatCentsShort } from '../data/tournament-collected';
 import { listMyTournaments } from '../data/tournaments-repository';
+import { shouldExplainZeroBalance, tournamentsOfWallet } from '../data/wallet-view';
 import { OgBarRowComponent } from '../ui/bar-row.component';
 import { OgCardComponent } from '../ui/card.component';
 import { OgFormFieldComponent } from '../ui/form-field.component';
@@ -66,7 +66,17 @@ interface FinanceiroFeedback {
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const DATE_FORMAT = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 0, payoutPixKey: '', payoutPixKeyType: '' };
+const EMPTY_WALLET: OrganizerWalletSelection = {
+  organizerId: '',
+  organizerName: '',
+  isOwn: true,
+  availableReais: 0,
+  pendingReais: 0,
+  payoutPixKey: '',
+  payoutPixKeyType: '',
+  hasPayoutPixKey: false,
+  canEditPixKey: true,
+};
 
 /** Quantos eventos entram no card de arrecadação — o card divide altura com os outros do lado
  *  direito, e passar disso vira rolagem interna. */
@@ -83,7 +93,14 @@ interface EventoArrecadacaoRow {
   tone: 'orange' | 'green';
 }
 
-/** Saldo consolidado, chave PIX de repasse, saque e extrato/saques reais da carteira do organizador. */
+/** Saldo consolidado, chave PIX de repasse, saque e extrato/saques reais da carteira do organizador.
+ *
+ *  Desde 09/09/2026 a tela atende também o GESTOR DE EQUIPE: ele escolhe, no
+ *  seletor do topo, a carteira do dono do torneio que opera. Antes a tela lia
+ *  `organizerWallets/{uid do logado}` direto do Firestore e o gestor via
+ *  R$ 0,00 para sempre. Agora tudo (a própria carteira inclusive) vem da
+ *  callable `loadOrganizerWalletView`, que é quem sabe calcular esse acesso —
+ *  as rules seguem liberando leitura só ao dono. */
 @Component({
   selector: 'og-financeiro',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -108,10 +125,44 @@ interface EventoArrecadacaoRow {
       @if (loading()) {
         <app-nx-page-loading title="Carregando financeiro…" subtitle="Saldo, extrato e saques" />
       } @else {
+        @if (walletRefs().length > 1) {
+          <div class="og-fin-wallets">
+            <span class="og-fin-wallets-label">Carteira</span>
+            @for (w of walletRefs(); track w.organizerId) {
+              <button
+                type="button"
+                class="og-chip"
+                [class.active]="w.organizerId === wallet().organizerId"
+                [disabled]="switching()"
+                (click)="selectWallet(w.organizerId)"
+              >
+                {{ w.isOwn ? 'Minha carteira' : w.organizerName }}
+              </button>
+            }
+            @if (switching()) {
+              <app-nx-spinner [size]="12" />
+            }
+          </div>
+        }
+        @if (!wallet().isOwn) {
+          <p class="og-fin-delegated">
+            <og-icon name="users" [size]="14" />
+            Você opera esta carteira como gestor da equipe de
+            <strong>{{ wallet().organizerName }}</strong>. O saque cai sempre na chave PIX
+            cadastrada por quem é dono da carteira, que também é avisado do pedido.
+          </p>
+        }
         <div class="og-kpi-row">
           <og-card pad="sm" flex="1.2">
             <div class="og-kpi-label">Saldo disponível</div>
             <div class="og-kpi-value" style="font-size:30px">{{ saldoLabel() }}</div>
+            @if (saldoZeradoPorRecebimentoDireto()) {
+              <p class="og-fin-saldo-note">
+                Os {{ arrecadadoDiretoLabel() }} arrecadados foram recebidos direto com o
+                organizador — esse dinheiro não passa pela plataforma e por isso não entra
+                na carteira nem pode ser sacado aqui.
+              </p>
+            }
           </og-card>
           <og-card pad="sm" flex="1">
             <!-- mock (fase 2): sem agregado anual de arrecadação exposto pelo repositório da carteira -->
@@ -200,7 +251,15 @@ interface EventoArrecadacaoRow {
 
             <div class="og-financeiro-side">
               <og-card kicker="Repasse" title="Chave PIX de saque" pad="sm">
-                @if (!editingPix()) {
+                @if (!wallet().canEditPixKey) {
+                  <div class="og-fin-pixrow">
+                    <span class="og-fin-pixkey">{{ ownerPixLabel() }}</span>
+                  </div>
+                  <p class="og-fin-hint">
+                    Só {{ wallet().organizerName }} pode cadastrar ou trocar a chave desta
+                    carteira — é para lá que o saque vai.
+                  </p>
+                } @else if (!editingPix()) {
                   <div class="og-fin-pixrow">
                     <span class="og-fin-pixkey">{{ currentPixLabel() }}</span>
                     <button type="button" class="og-ghost-btn" (click)="startEditPix()">
@@ -250,7 +309,14 @@ interface EventoArrecadacaoRow {
                   <p class="og-fin-error">{{ err }}</p>
                 }
                 @if (!hasPixKey()) {
-                  <p class="og-fin-hint">Cadastre uma chave PIX acima para poder sacar.</p>
+                  <p class="og-fin-hint">
+                    @if (wallet().canEditPixKey) {
+                      Cadastre uma chave PIX acima para poder sacar.
+                    } @else {
+                      {{ wallet().organizerName }} ainda não cadastrou a chave PIX de repasse.
+                      Só quem é dono da carteira pode cadastrar.
+                    }
+                  </p>
                 }
                 <button type="button" class="og-mini-btn og-mini-btn-primary og-fin-submit" [disabled]="!canWithdraw()" (click)="submitWithdrawal()">
                   @if (withdrawing()) {
@@ -409,6 +475,42 @@ interface EventoArrecadacaoRow {
       font-size: 12.5px;
       margin: 10px 0 0;
     }
+    .og-fin-wallets {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .og-fin-wallets-label {
+      font-family: var(--nx-font-ui);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+    }
+    .og-fin-delegated {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--nx-font-ui);
+      font-size: 12.5px;
+      color: var(--nx-text-dim);
+      background: var(--nx-surface-2, rgba(255, 255, 255, 0.04));
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin: 0 0 14px;
+    }
+    .og-fin-delegated strong {
+      color: var(--nx-text);
+    }
+    .og-fin-saldo-note {
+      font-family: var(--nx-font-ui);
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--nx-text-dim);
+      margin: 10px 0 0;
+    }
   `,
 })
 export class FinanceiroComponent {
@@ -422,7 +524,7 @@ export class FinanceiroComponent {
   protected readonly loading = signal(true);
   protected readonly tournamentsLoading = signal(true);
   protected readonly tournaments = signal<OrganizerTournament[]>([]);
-  protected readonly wallet = signal<OrganizerWalletSummary>(EMPTY_WALLET);
+  protected readonly wallet = signal<OrganizerWalletSelection>(EMPTY_WALLET);
   protected readonly ledger = signal<OrganizerLedgerEntry[]>([]);
   protected readonly withdrawals = signal<OrganizerWithdrawal[]>([]);
 
@@ -431,6 +533,11 @@ export class FinanceiroComponent {
   protected readonly payoutPixKey = signal('');
   protected readonly payoutPixKeyType = signal<PixKeyType>('CPF');
   private pixPrefilled = false;
+
+  /** Carteiras que este usuário alcança (a própria + as dos donos que ele opera). */
+  protected readonly walletRefs = signal<OrganizerWalletRef[]>([]);
+  /** Troca de carteira em andamento — só desabilita o seletor, sem piscar a tela. */
+  protected readonly switching = signal(false);
 
   protected readonly editingPix = signal(false);
   protected readonly pixSaving = signal(false);
@@ -453,8 +560,14 @@ export class FinanceiroComponent {
 
   /** Eventos que arrecadaram algo, do maior pro menor. `pct` é a fatia do total arrecadado — a
    *  leitura útil aqui é "quanto deste dinheiro veio de qual evento". */
+  /** Torneios do dono da carteira em exibição — sem esse recorte o gestor veria a
+   *  arrecadação dos próprios torneios somada à da carteira alheia. */
+  protected readonly tournamentsDaCarteira = computed(() =>
+    tournamentsOfWallet(this.tournaments(), this.wallet().organizerId),
+  );
+
   protected readonly eventosArrecadacao = computed<EventoArrecadacaoRow[]>(() => {
-    const comValor = this.tournaments().filter((t) => t.collected.totalCents > 0);
+    const comValor = this.tournamentsDaCarteira().filter((t) => t.collected.totalCents > 0);
     const total = comValor.reduce((sum, t) => sum + t.collected.totalCents, 0);
     if (total === 0) return [];
 
@@ -475,15 +588,47 @@ export class FinanceiroComponent {
       });
   });
 
+  /** Soma do que os torneios desta carteira receberam POR FORA da plataforma. */
+  private readonly arrecadadoDiretoCents = computed(() =>
+    this.tournamentsDaCarteira().reduce((sum, t) => sum + t.collected.viaOrganizerCents, 0),
+  );
+
+  /** O caso que gerou a reclamação de "saldo zerado": o torneio arrecadou, mas o
+   *  dinheiro foi recebido direto com o organizador e nunca passou pela carteira.
+   *  Sem esta explicação a tela mostra arrecadação alta ao lado de R$ 0,00 e o
+   *  organizador conclui que a plataforma perdeu o dinheiro dele. */
+  protected readonly saldoZeradoPorRecebimentoDireto = computed(() =>
+    shouldExplainZeroBalance({
+      availableReais: this.wallet().availableReais,
+      pendingReais: this.wallet().pendingReais,
+      ledgerCount: this.ledger().length,
+      viaOrganizerCents: this.arrecadadoDiretoCents(),
+    }),
+  );
+
+  protected readonly arrecadadoDiretoLabel = computed(() =>
+    BRL.format(this.arrecadadoDiretoCents() / 100),
+  );
+
   protected readonly saldoLabel = computed(() => BRL.format(this.wallet().availableReais));
   protected readonly pendenteLabel = computed(() => BRL.format(this.wallet().pendingReais));
   /** Soma das taxas já descontadas nos créditos da carteira (campo `platformFeeReais` do ledger). */
   protected readonly taxasPlataformaLabel = computed(() =>
     BRL.format(this.ledger().reduce((sum, e) => sum + e.platformFeeReais, 0)),
   );
-  protected readonly hasPixKey = computed(() => this.payoutPixKey().trim().length >= 5);
+  /** Na carteira de outro dono a chave nunca chega inteira ao cliente, então quem
+   *  responde "dá pra sacar?" é o flag que o servidor mandou. */
+  protected readonly hasPixKey = computed(() =>
+    this.wallet().canEditPixKey ? this.payoutPixKey().trim().length >= 5 : this.wallet().hasPayoutPixKey,
+  );
   protected readonly currentPixLabel = computed(() =>
-    this.hasPixKey() ? `${PIX_KEY_TYPE_LABEL[this.payoutPixKeyType()]} · ${this.payoutPixKey()}` : 'Nenhuma chave cadastrada',
+    this.payoutPixKey().trim().length >= 5
+      ? `${PIX_KEY_TYPE_LABEL[this.payoutPixKeyType()]} · ${this.payoutPixKey()}`
+      : 'Nenhuma chave cadastrada',
+  );
+  /** Chave do dono, mascarada pelo servidor. */
+  protected readonly ownerPixLabel = computed(() =>
+    this.wallet().hasPayoutPixKey ? this.wallet().payoutPixKey : 'Nenhuma chave cadastrada',
   );
 
   /** organizer_financial_page.dart:600-602 (`_PixKeyEditSheetState` — erro aparece a partir de chave não-vazia). */
@@ -534,27 +679,55 @@ export class FinanceiroComponent {
     }
 
     // Independente da carteira: uma falha aqui não pode esconder saldo, extrato nem saque.
+    // Traz os torneios próprios E os que o usuário opera como gestor — é o que permite
+    // recortar a arrecadação por dono da carteira escolhida.
     listMyTournaments(uid)
       .then((tournaments) => this.tournaments.set(tournaments))
       .catch(() => this.tournaments.set([]))
       .finally(() => this.tournamentsLoading.set(false));
 
-    const unsubscribeWallet = watchWallet(uid, (wallet) => {
-      this.wallet.set(wallet);
-      this.loading.set(false);
-      if (!this.pixPrefilled && wallet.payoutPixKey.trim().length >= 5) {
-        this.pixPrefilled = true;
-        this.payoutPixKey.set(wallet.payoutPixKey.trim());
-        this.payoutPixKeyType.set(resolveInitialPixKeyType(wallet.payoutPixKeyType, wallet.payoutPixKey));
+    void this.loadWallet();
+  }
+
+  /** Carrega o seletor de carteiras + a carteira escolhida numa chamada só. */
+  private async loadWallet(organizerId?: string): Promise<void> {
+    try {
+      const view = await loadWalletView(organizerId, LEDGER_LIMIT_FINANCEIRO);
+      this.walletRefs.set(view.wallets);
+      this.wallet.set(view.selected);
+      this.ledger.set(view.ledger);
+      this.withdrawals.set(view.withdrawals);
+      // A chave só volta inteira na própria carteira; na do dono vem mascarada e
+      // não pode alimentar o formulário de edição.
+      if (view.selected.canEditPixKey && view.selected.payoutPixKey.trim().length >= 5) {
+        this.payoutPixKey.set(view.selected.payoutPixKey.trim());
+        this.payoutPixKeyType.set(
+          resolveInitialPixKeyType(view.selected.payoutPixKeyType, view.selected.payoutPixKey),
+        );
+      } else if (!view.selected.canEditPixKey) {
+        this.payoutPixKey.set('');
       }
-    });
-    this.destroyRef.onDestroy(() => unsubscribeWallet());
+    } catch {
+      this.wallet.set(EMPTY_WALLET);
+      this.ledger.set([]);
+      this.withdrawals.set([]);
+    } finally {
+      this.loading.set(false);
+    }
+  }
 
-    const unsubscribeLedger = watchLedger(uid, (entries) => this.ledger.set(entries), LEDGER_LIMIT_FINANCEIRO);
-    this.destroyRef.onDestroy(() => unsubscribeLedger());
-
-    const unsubscribeWithdrawals = watchWithdrawals(uid, (items) => this.withdrawals.set(items));
-    this.destroyRef.onDestroy(() => unsubscribeWithdrawals());
+  protected async selectWallet(organizerId: string): Promise<void> {
+    if (organizerId === this.wallet().organizerId || this.switching()) return;
+    this.switching.set(true);
+    this.editingPix.set(false);
+    this.pixFeedback.set(null);
+    this.withdrawFeedback.set(null);
+    this.withdrawForm.controls.amount.setValue('');
+    try {
+      await this.loadWallet(organizerId);
+    } finally {
+      this.switching.set(false);
+    }
   }
 
   protected dateLabel(date: Date | null): string {
@@ -632,10 +805,17 @@ export class FinanceiroComponent {
     this.withdrawing.set(true);
     this.withdrawFeedback.set(null);
     try {
-      const result = await requestWithdrawal(amount, this.payoutPixKey(), this.payoutPixKeyType());
+      const target = this.wallet();
+      // Carteira alheia: nada de chave local — o backend usa a do dono, e mandar a
+      // versão mascarada daqui só serviria pra ele recusar.
+      const result = target.isOwn
+        ? await requestWithdrawal(amount, this.payoutPixKey(), this.payoutPixKeyType())
+        : await requestWithdrawal(amount, '', '', target.organizerId);
       this.withdrawForm.controls.amount.setValue('');
       const failedPayout = result.status === 'pending' && result.payoutStatus === 'failed';
       this.withdrawFeedback.set({ ok: !failedPayout, message: this.resultMessage(result) });
+      // Sem listener ao vivo: saldo, extrato e a lista de saques vêm da recarga.
+      await this.loadWallet(target.organizerId);
     } catch (err) {
       const message = err instanceof OrganizerWalletError ? err.message : 'Não foi possível solicitar o saque.';
       this.withdrawFeedback.set({ ok: false, message });

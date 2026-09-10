@@ -3,6 +3,11 @@
  * (`arena-booking-pix.ts`). Carteira: `organizerWallets/{uid}` (id = uid do
  * organizador; a chave PIX de repasse fica no próprio doc da carteira).
  * Aprovação: auto até R$500, manual acima (revisão no backoffice).
+ *
+ * Desde 09/09/2026 o saque também pode ser pedido por um GESTOR da equipe de
+ * um torneio do organizador (`organizerId` no payload). Nesse caminho a chave
+ * PIX é sempre a que o dono cadastrou — o payload do gestor é ignorado — e o
+ * dono é notificado. Ver `organizer-wallet-access.ts`.
  */
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {
@@ -26,6 +31,13 @@ import {isAsaasPayoutError} from "./arena-withdrawal-payout";
 import {resolveWithdrawalPixFields} from "./asaas-payout";
 import {asaasArenaSecrets} from "./asaas-client";
 import {callerIsOrganizer, callerIsSuperAdmin} from "./auth-roles";
+import {
+  assertCanAccessOrganizerWallet,
+  listAccessibleOrganizerIds,
+  maskDelegatePayoutPixKey,
+  resolveWithdrawalPixSource,
+} from "./organizer-wallet-access";
+import {deliverNotificationToUser} from "./notification-delivery";
 import {ARENA_WITHDRAWAL_AUTO_MAX_REAIS} from "./arena-booking-payment-constants";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 
@@ -87,7 +99,9 @@ async function assertNoPendingOrganizerWithdrawal(
   }
 }
 
-/** Cadastra/atualiza a chave PIX de repasse do organizador (no doc da carteira). */
+/** Cadastra/atualiza a chave PIX de repasse do organizador (no doc da carteira).
+ *  Continua escrevendo SÓ na carteira de quem chama, de propósito: gestor da
+ *  equipe saca, mas não escolhe destino do dinheiro. */
 export const setOrganizerPayoutPixKey = onCall({
   region: CLIENT_FACING_REGIONS,
 }, async (request) => {
@@ -129,6 +143,7 @@ export const requestOrganizerWithdrawal = onCall(
       amountReais?: number;
       pixKey?: string;
       pixKeyType?: string;
+      organizerId?: string;
     };
     const amountReais = typeof data.amountReais === "number" ? data.amountReais : 0;
     if (!Number.isFinite(amountReais) || amountReais <= 0) {
@@ -136,23 +151,27 @@ export const requestOrganizerWithdrawal = onCall(
     }
 
     const db = getFirestore();
-    const walletSnap = await organizerWalletRef(db, uid).get();
-    const wallet = walletSnap.data() ?? {};
+    // Carteira alvo: a própria por omissão (contrato antigo intacto) ou a de um
+    // organizador de quem o chamador é gestor de equipe.
+    const organizerId = data.organizerId?.trim() || uid;
+    const delegated = organizerId !== uid;
+    if (delegated) {
+      await assertCanAccessOrganizerWallet(db, uid, organizerId);
+    }
 
-    let pixKey = data.pixKey?.trim() ?? "";
-    let pixKeyType = data.pixKeyType?.trim().toUpperCase() ?? "";
-    if (pixKey.length < 5) {
-      pixKey = (wallet.payoutPixKey as string | undefined)?.trim() ?? "";
-      if (!pixKeyType) {
-        pixKeyType = (wallet.payoutPixKeyType as string | undefined)?.trim() ?? "";
-      }
-    }
-    if (pixKey.length < 5) {
-      throw new HttpsError(
-        "invalid-argument",
-        "Cadastre uma chave PIX de repasse antes de sacar.",
-      );
-    }
+    const walletSnap = await organizerWalletRef(db, organizerId).get();
+    const wallet = walletSnap.data() ?? {};
+    const walletPixKey = (wallet.payoutPixKey as string | undefined)?.trim() ?? "";
+    const walletPixKeyType =
+      (wallet.payoutPixKeyType as string | undefined)?.trim() ?? "";
+
+    const {pixKey, pixKeyType} = resolveWithdrawalPixSource({
+      delegated,
+      walletPixKey,
+      walletPixKeyType,
+      payloadPixKey: data.pixKey,
+      payloadPixKeyType: data.pixKeyType,
+    });
 
     const {pixAddressKey, pixAddressKeyType} = resolveWithdrawalPixFields(
       pixKey,
@@ -162,11 +181,11 @@ export const requestOrganizerWithdrawal = onCall(
       throw new HttpsError("invalid-argument", "Chave PIX inválida.");
     }
 
-    await assertNoPendingOrganizerWithdrawal(db, uid);
+    await assertNoPendingOrganizerWithdrawal(db, organizerId);
 
     const amount = roundMoney(amountReais);
     try {
-      await reserveOrganizerWithdrawalAmount(db, uid, amount);
+      await reserveOrganizerWithdrawalAmount(db, organizerId, amount);
     } catch (e) {
       if (e instanceof Error && e.message === "INSUFFICIENT_BALANCE") {
         throw new HttpsError("failed-precondition", "Saldo insuficiente para este saque.");
@@ -179,7 +198,7 @@ export const requestOrganizerWithdrawal = onCall(
 
     const withdrawalRef = db.collection(ORGANIZER_WITHDRAWALS).doc();
     await withdrawalRef.set({
-      organizerId: uid,
+      organizerId,
       amountReais: amount,
       pixKey: pixAddressKey,
       pixKeyType: pixAddressKeyType,
@@ -187,18 +206,33 @@ export const requestOrganizerWithdrawal = onCall(
       status: "pending",
       payoutStatus: "pending",
       payoutProvider: "asaas",
+      // Rastro de quem pediu: no saque do próprio dono é ele mesmo; delegado
+      // guarda o gestor, e é isso que o dono vê na notificação.
+      requestedBy: uid,
+      requestedByStaff: delegated,
       createdAt: FieldValue.serverTimestamp(),
     });
 
     const withdrawalId = withdrawalRef.id;
+    if (delegated) {
+      await notifyOwnerOfDelegatedWithdrawal(db, {
+        organizerId,
+        requestedBy: uid,
+        amountReais: amount,
+        pixKey: pixAddressKey,
+      });
+    }
+
     if (autoEligible) {
       try {
         const result = await completeOrganizerWithdrawalPayout(
           db,
           withdrawalRef,
-          {organizerId: uid, amountReais: amount, pixKey: pixAddressKey, pixKeyType: pixAddressKeyType},
+          {organizerId, amountReais: amount, pixKey: pixAddressKey, pixKeyType: pixAddressKeyType},
           uid,
-          "PIX automático na solicitação",
+          delegated ?
+            "PIX automático na solicitação (gestor da equipe)" :
+            "PIX automático na solicitação",
         );
         return {
           withdrawalId,
@@ -237,6 +271,154 @@ export const requestOrganizerWithdrawal = onCall(
     };
   },
 );
+
+/** O dono sempre fica sabendo que alguém da equipe mexeu no dinheiro dele.
+ *  Falha de notificação nunca derruba o saque já registrado. */
+async function notifyOwnerOfDelegatedWithdrawal(
+  db: ReturnType<typeof getFirestore>,
+  params: {
+    organizerId: string;
+    requestedBy: string;
+    amountReais: number;
+    pixKey: string;
+  },
+): Promise<void> {
+  try {
+    const requesterSnap = await db.doc(`users/${params.requestedBy}`).get();
+    const requesterName =
+      (requesterSnap.data()?.displayName as string | undefined)?.trim() ||
+      "Um gestor da sua equipe";
+    await deliverNotificationToUser({
+      userId: params.organizerId,
+      title: "Saque solicitado pela sua equipe",
+      body:
+        `${requesterName} solicitou um saque de ` +
+        `R$ ${params.amountReais.toFixed(2).replace(".", ",")} para a sua chave PIX ` +
+        `${maskDelegatePayoutPixKey(params.pixKey)}.`,
+      type: "organizer_withdrawal_requested",
+      data: {url: "/painel/financeiro"},
+    });
+  } catch (err) {
+    logger.warn("notifyOwnerOfDelegatedWithdrawal falhou", err);
+  }
+}
+
+/**
+ * Tudo que a tela Financeiro precisa numa chamada só: as carteiras que o
+ * chamador alcança (a própria + a dos donos dos torneios em que ele é gestor)
+ * e o extrato/saques da carteira escolhida.
+ *
+ * Existe como callable porque a relação gestor → dono não cabe nas rules
+ * (`organizerWallets` só libera leitura para o próprio dono, e continua assim).
+ */
+export const loadOrganizerWalletView = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
+
+  const db = getFirestore();
+  const organizerIds = await listAccessibleOrganizerIds(db, uid);
+
+  const payload = (request.data ?? {}) as {
+    organizerId?: string;
+    ledgerLimit?: number;
+  };
+  const requested = payload.organizerId?.trim() ?? "";
+  // A tela soma as taxas da plataforma pelo extrato, então precisa de mais que
+  // a primeira página; o teto evita que um cliente peça a coleção inteira.
+  const ledgerLimit = Math.min(
+    500,
+    Math.max(1, Math.trunc(Number(payload.ledgerLimit) || 30)),
+  );
+  // Pedido fora da lista cai na própria carteira em vez de estourar: a lista
+  // muda quando alguém sai da equipe, e o cliente pode ter guardado a antiga.
+  const selectedId = organizerIds.includes(requested) ? requested : uid;
+  const isOwn = selectedId === uid;
+
+  const userSnaps = organizerIds.length > 0 ?
+    await db.getAll(...organizerIds.map((id) => db.doc(`users/${id}`))) :
+    [];
+  const wallets = organizerIds.map((organizerId, i) => ({
+    organizerId,
+    organizerName:
+      (userSnaps[i]?.data()?.displayName as string | undefined)?.trim() ||
+      (organizerId === uid ? "Minha carteira" : "Organizador"),
+    isOwn: organizerId === uid,
+  }));
+
+  const walletSnap = await organizerWalletRef(db, selectedId).get();
+  const w = walletSnap.data() ?? {};
+  const payoutPixKey = (w.payoutPixKey as string | undefined)?.trim() ?? "";
+
+  const ledgerSnap = await organizerWalletRef(db, selectedId)
+    .collection("ledger")
+    .orderBy("createdAt", "desc")
+    .limit(ledgerLimit)
+    .get()
+    .catch(() => null);
+
+  const withdrawalsSnap = await db
+    .collection(ORGANIZER_WITHDRAWALS)
+    .where("organizerId", "==", selectedId)
+    .orderBy("createdAt", "desc")
+    .limit(20)
+    .get()
+    .catch(async (err) => {
+      if (!isFirestoreIndexError(err)) return null;
+      return db
+        .collection(ORGANIZER_WITHDRAWALS)
+        .where("organizerId", "==", selectedId)
+        .limit(20)
+        .get();
+    });
+
+  return {
+    wallets,
+    selected: {
+      organizerId: selectedId,
+      organizerName:
+        wallets.find((x) => x.organizerId === selectedId)?.organizerName ?? "",
+      isOwn,
+      availableReais: Number(w.availableReais) || 0,
+      pendingReais: Number(w.pendingReais) || 0,
+      // A chave inteira é do dono; o gestor vê só as pontas, o bastante para
+      // conferir o destino sem levar o CPF/telefone dele embora.
+      payoutPixKey: isOwn ? payoutPixKey : maskDelegatePayoutPixKey(payoutPixKey),
+      payoutPixKeyType: isOwn ?
+        ((w.payoutPixKeyType as string | undefined)?.trim() ?? "") :
+        "",
+      hasPayoutPixKey: payoutPixKey.length >= 5,
+      canEditPixKey: isOwn,
+    },
+    ledger: (ledgerSnap?.docs ?? []).map((d) => {
+      const e = d.data();
+      return {
+        id: d.id,
+        netReais: Number(e.netReais) || 0,
+        grossReais: Number(e.grossReais) || 0,
+        platformFeeReais: Number(e.platformFeeReais) || 0,
+        createdAt: (e.createdAt as Timestamp | undefined)?.toDate?.()?.toISOString() ?? null,
+      };
+    }),
+    withdrawals: (withdrawalsSnap?.docs ?? []).map((d) => {
+      const x = d.data();
+      return {
+        id: d.id,
+        amountReais: Number(x.amountReais) || 0,
+        status: (x.status as string | undefined) ?? "pending",
+        // Mesma regra do card da chave: na carteira alheia a coluna "Chave PIX"
+        // do histórico não pode entregar o CPF do dono por inteiro.
+        pixKey: isOwn ?
+          ((x.pixKey as string | undefined) ?? "") :
+          maskDelegatePayoutPixKey((x.pixKey as string | undefined) ?? ""),
+        payoutStatus: (x.payoutStatus as string | undefined) ?? null,
+        requestedByStaff: x.requestedByStaff === true,
+        createdAt: (x.createdAt as Timestamp | undefined)?.toDate?.()?.toISOString() ?? null,
+      };
+    }),
+  };
+});
 
 async function fetchPendingOrganizerWithdrawalDocs(
   db: ReturnType<typeof getFirestore>,

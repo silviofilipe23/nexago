@@ -303,6 +303,38 @@ async function loadPaidTeams(tournamentId, categoryId) {
   return teams;
 }
 
+/** Paridade com `loadKnockoutTeamIds` (functions/src/league-ranking.ts). */
+async function loadKnockoutTeamIds(tournamentId, categoryId) {
+  const snap = await db
+    .collection(dataPath("matches"))
+    .where("tournamentId", "==", tournamentId)
+    .where("categoryId", "==", categoryId)
+    .get();
+
+  const ids = new Set();
+  for (const doc of snap.docs) {
+    const d = doc.data();
+    const tipo = String(d.matchType || "").trim().toLowerCase();
+    if (d.isGroupMatch === true || tipo === "group" || tipo === "groups") continue;
+    const a = (d.teamAId || "").trim();
+    const b = (d.teamBId || "").trim();
+    if (a) ids.add(a);
+    if (b) ids.add(b);
+  }
+  return ids;
+}
+
+/** Paridade com `extractTeamMemberUids` (functions/src/league-ranking.ts). */
+async function loadTeamAthleteIds(teamId) {
+  const snap = await db.doc(`${dataPath("teams")}/${teamId}`).get();
+  if (!snap.exists) return [];
+  const d = snap.data() || {};
+  const uids = Array.isArray(d.memberUids)
+    ? d.memberUids
+    : [d.player1Id, d.player2Id];
+  return [...new Set(uids.map((u) => String(u || "").trim()).filter(Boolean))];
+}
+
 /** Cópia de `tournamentSportToLevelSportCode` (functions/src/category-level-eligibility.ts). */
 function tournamentSportToLevelSportCode(sport) {
   const key = String(sport || "").trim().toLowerCase().replace(/\s+/g, "");
@@ -556,6 +588,129 @@ async function migrateRankingCollection(coll) {
 }
 
 // ---------------------------------------------------------------------------
+// Retroativo: participação do Livre que a exceção antiga nunca gravou.
+// ---------------------------------------------------------------------------
+
+/**
+ * Cria os resultados de participação que a antiga exceção do Livre nunca gravou
+ * (spec 2026-09-10, D4/D5). Só toca categorias de preset `livre` que já têm ao
+ * menos um resultado — isto é, que passaram pelo motor — e só duplas pagas que
+ * não aparecem em nenhuma partida de mata-mata.
+ *
+ * IDEMPOTÊNCIA: diferente do resto do script, este passo CRIA docs. A garantia
+ * de rodar duas vezes sem duplicar vem da checagem de existência do doc
+ * `{tournamentId}_{categoryId}_{teamId}` antes de escrever.
+ */
+async function criarParticipacaoFaltanteDoLivre(fresh) {
+  const categorias = new Map();
+  const anos = new Map();
+  const snap = await db.collection(dataPath("tournamentCategoryResults")).get();
+  for (const doc of snap.docs) {
+    const r = doc.data();
+    const chave = `${r.tournamentId}|${r.categoryId}`;
+    if (!categorias.has(chave)) categorias.set(chave, new Set());
+    categorias.get(chave).add(r.teamId);
+    // O ano da participação criada é o dos resultados que o motor JÁ gravou
+    // nesta categoria — nunca a data de hoje, que jogaria os pontos no ano
+    // errado de `pointsByYear`.
+    const ano = Number(r.year);
+    if (Number.isFinite(ano) && ano > 0 && !anos.has(chave)) anos.set(chave, ano);
+  }
+
+  let criados = 0;
+  for (const [chave, comResultado] of categorias) {
+    const [tournamentId, categoryId] = chave.split("|");
+    const ctx = await contextFor(tournamentId, categoryId);
+    if (!ctx.ok || ctx.presetKey !== "livre") continue;
+
+    const paidTeams = await loadPaidTeams(tournamentId, categoryId);
+    const knockout = await loadKnockoutTeamIds(tournamentId, categoryId);
+    const pontos = pointsForEntry(0, ctx);
+    if (pontos == null || pontos <= 0) continue;
+
+    const faltantes = [...paidTeams.keys()].filter(
+      (teamId) => !comResultado.has(teamId) && !knockout.has(teamId),
+    );
+
+    // A categoria já tem ao menos um resultado gravado — prova de que passou
+    // pelo portão de elegibilidade NA ÉPOCA. Se hoje ela não passasse (ex.:
+    // estorno pós-torneio derrubou as pagas abaixo do mínimo), criar mesmo
+    // assim é o comportamento certo — o histórico já foi premiado —, mas o
+    // dono precisa ver que estes pontos nascem numa categoria que hoje seria
+    // reprovada no gate.
+    if (faltantes.length > 0 && !ctx.elegivelHoje) {
+      avisar(
+        `${ctx.tournamentName} / ${ctx.categoryName}: HOJE não passaria no gate do ranking ` +
+          `geral (pagas=${ctx.paidTeams}, rankingEnabled=${ctx.rankingEnabled}) — criando ` +
+          "participação retroativa mesmo assim, porque o histórico já foi premiado",
+      );
+    }
+
+    for (const teamId of faltantes) {
+      const ref = db
+        .collection(dataPath("tournamentCategoryResults"))
+        .doc(`${tournamentId}_${categoryId}_${teamId}`);
+      const existente = await ref.get();
+      if (existente.exists) continue;
+
+      avisar(
+        `${ctx.tournamentName} / ${ctx.categoryName}: criando participação de ` +
+          `${teamId} (${pontos} pts)`,
+      );
+      if (!fresh) continue;
+
+      const year = anos.get(chave) || new Date().getFullYear();
+      await ref.set({
+        tournamentId,
+        categoryId,
+        teamId,
+        finalPlace: 0,
+        pointsEarned: pontos,
+        year,
+        scaleVersion: 2,
+      });
+
+      const entrada = {tournamentId, categoryId, finalPlace: 0, points: pontos, year};
+      await upsertRankingDoc(dataPath("teamRankings"), teamId, {teamId}, entrada);
+      for (const athleteId of await loadTeamAthleteIds(teamId)) {
+        await upsertRankingDoc(dataPath("athleteRankings"), athleteId, {athleteId}, entrada);
+      }
+      criados++;
+    }
+  }
+  console.log(`\n[participação do Livre] ${criados} resultado(s) criado(s)`);
+  return criados;
+}
+
+/** Upsert de uma entrada em `athleteRankings`/`teamRankings`, com agregados. */
+async function upsertRankingDoc(collectionPath, docId, identity, entrada) {
+  const ref = db.collection(collectionPath).doc(docId);
+  await db.runTransaction(async (txn) => {
+    const snap = await txn.get(ref);
+    const prev = snap.data() || {};
+    const results = Array.isArray(prev.results) ? [...prev.results] : [];
+    const jaTem = results.some(
+      (r) => r.tournamentId === entrada.tournamentId && r.categoryId === entrada.categoryId,
+    );
+    if (jaTem) return;
+    results.push(entrada);
+    const agregados = aggregateRankingResults(results);
+    txn.set(
+      ref,
+      {
+        ...identity,
+        results,
+        totalPoints: agregados.totalPoints,
+        tournamentsCount: agregados.tournamentsCount,
+        pointsByYear: agregados.pointsByYear,
+        scaleVersion: 2,
+      },
+      {merge: true},
+    );
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Relatório.
 // ---------------------------------------------------------------------------
 
@@ -625,10 +780,12 @@ async function run() {
   const athletesOutcome = await migrateRankingCollection("athleteRankings");
   const teamsOutcome = await migrateRankingCollection("teamRankings");
 
+  await criarParticipacaoFaltanteDoLivre(APPLY);
+
   imprimirContextos();
 
   if (avisos.length > 0) {
-    console.log("\nAvisos (entradas deixadas como estavam):");
+    console.log("\nAvisos (entradas deixadas como estavam, ou participação retroativa a criar):");
     for (const a of avisos) console.log(`  ! ${a}`);
   }
 

@@ -54,7 +54,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 
         <div class="og-ld-texto">
           <h2 [class.tremendo]="!landed()">
-            {{ landed() ? resultLabel() : 'Quem sai do pote?' }}
+            {{ landed() ? resultLabel() : 'Sorteando equipe...' }}
           </h2>
           <p>{{ landed() ? resultDestination() : subtitle() }}</p>
         </div>
@@ -426,7 +426,7 @@ export class SorteioLoaderComponent {
    */
   readonly portrait = input(false);
 
-  protected readonly subtitle = computed(() => 'o grupo sai em instantes');
+  protected readonly subtitle = computed(() => 'buscando equipe para o sorteio');
 
   /**
    * Seis faces por cubo: o da esquerda leva o primeiro nome de cada dupla, o da

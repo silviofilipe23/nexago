@@ -215,8 +215,18 @@
                 @for (t of teams(); track t.id) {
                   <a class="pp-team-row pp-team-row--link" [routerLink]="['/equipes', t.id]" [queryParams]="{ from: 'perfil' }">
                     <span class="pp-team-avatar-pair" aria-hidden="true">
-                      <span class="pp-team-avatar">{{ t.initials[0] }}</span>
-                      <span class="pp-team-avatar pp-team-avatar--second">{{ t.initials[1] }}</span>
+                      <span class="pp-team-avatar">
+                        <span class="pp-team-avatar-fallback">{{ t.initials[0] }}</span>
+                        @if (t.avatarUrls[0]; as photo) {
+                          <img class="pp-team-avatar-img" [src]="photo" alt="" loading="lazy" />
+                        }
+                      </span>
+                      <span class="pp-team-avatar pp-team-avatar--second">
+                        <span class="pp-team-avatar-fallback">{{ t.initials[1] }}</span>
+                        @if (t.avatarUrls[1]; as photo) {
+                          <img class="pp-team-avatar-img" [src]="photo" alt="" loading="lazy" />
+                        }
+                      </span>
                     </span>
                     <div class="pp-team-info">
                       <p class="pp-team-name">{{ t.teamName }}</p>

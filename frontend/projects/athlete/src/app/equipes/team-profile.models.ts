@@ -6,6 +6,8 @@ export interface TeamMemberRef {
   handle: string | null;
   fullName: string;
   levelLabel: string;
+  /** Foto pública; `null` = só inicial. */
+  avatarUrl: string | null;
 }
 
 export interface TeamTitle {

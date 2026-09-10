@@ -8,6 +8,7 @@ import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { NxToastService } from '../shared/feedback';
+import { NxPhotoLightboxComponent } from '../shared/media/nx-photo-lightbox.component';
 import { levelLabelOf } from '../data/athlete-level';
 import { fetchPublicProfilesByIds, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { fetchTeamRankingGeneral } from '../data/rankings-repository';
@@ -52,6 +53,7 @@ function memberRef(profile: AthletePublicProfile | undefined, uid: string): Team
     handle: profile ? uid : null,
     fullName: profile?.displayName ?? 'Atleta',
     levelLabel: levelLabelOf(profile?.levelCode ?? null) ?? '—',
+    avatarUrl: profile?.avatarUrl ?? null,
   };
 }
 
@@ -61,7 +63,7 @@ function memberRef(profile: AthletePublicProfile | undefined, uid: string): Team
 @Component({
   selector: 'app-team-public-profile',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, NxPageLoadingComponent],
+  imports: [RouterLink, AtPanelShellComponent, NxPageLoadingComponent, NxPhotoLightboxComponent],
   templateUrl: './team-public-profile.component.html',
   styleUrl: './team-public-profile.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -83,6 +85,19 @@ export class TeamPublicProfileComponent {
   protected readonly teamId = computed(() => this.route.snapshot.paramMap.get('teamId') ?? '');
   protected readonly loading = signal(true);
   protected readonly team = signal<TeamPublicProfile | null>(null);
+  /** `null` = lightbox fechado. Objeto (e não índice) pra `@if` aceitar o 0. */
+  protected readonly viewerIndex = signal<{ value: number } | null>(null);
+
+  protected readonly memberPhotos = computed(() =>
+    (this.team()?.members ?? [])
+      .map((m) => m.avatarUrl?.trim() ?? '')
+      .filter((url) => url.length > 0),
+  );
+
+  protected readonly memberPhotoAlt = computed(() => {
+    const name = this.team()?.teamName?.trim();
+    return name ? `Fotos da dupla ${name}` : 'Fotos da dupla';
+  });
 
   /** Origem do link, pra "Voltar" devolver o atleta à tela de onde ele veio. */
   protected readonly origin = computed(() => {
@@ -174,19 +189,23 @@ export class TeamPublicProfileComponent {
     };
   }
 
+  protected openMemberPhoto(memberIndex: number): void {
+    const members = this.team()?.members ?? [];
+    if (!members[memberIndex]?.avatarUrl?.trim()) return;
+    const start = members.slice(0, memberIndex).filter((m) => m.avatarUrl?.trim()).length;
+    this.viewerIndex.set({ value: start });
+  }
+
+  protected closeViewer(): void {
+    this.viewerIndex.set(null);
+  }
+
   protected sportLabel(chip: ArenaSportChip): string {
     return ARENA_SPORT_CHIP_OPTIONS.find((o) => o.chip === chip)?.label ?? chip;
   }
 
   protected pointsLabel(points: number): string {
     return `${new Intl.NumberFormat('pt-BR').format(points)} pts`;
-  }
-
-  protected teamInitials(teamName: string): [string, string] {
-    const [a, b] = teamName.split('/').map((part) => part.trim());
-    const first = (a ?? teamName).slice(0, 2).toUpperCase();
-    const second = (b ?? '').slice(0, 2).toUpperCase() || first;
-    return [first, second];
   }
 
   protected sendMessage(): void {

@@ -131,7 +131,10 @@ class AthleteProfile {
   factory AthleteProfile.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
   ) {
-    final data = doc.data() ?? {};
+    return AthleteProfile.fromMap(doc.id, doc.data() ?? {});
+  }
+
+  factory AthleteProfile.fromMap(String id, Map<String, dynamic> data) {
     final profilePhotoUrl = (data['profilePhotoUrl'] as String?)?.trim();
     final avatarUrl = (data['avatarUrl'] as String?)?.trim();
     final authPhotoUrl = (data['photoURL'] as String?)?.trim();
@@ -248,7 +251,7 @@ class AthleteProfile {
     final birthDate = _readBirthDate(data['birthDate']);
 
     return AthleteProfile(
-      id: doc.id,
+      id: id,
       name: name,
       avatarUrl: resolvedPhotoUrl,
       coverPhotoUrl:

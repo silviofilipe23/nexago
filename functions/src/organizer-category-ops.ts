@@ -406,26 +406,34 @@ export async function runGenerateCategoryBracket(
   // faixa DECLARADA, o que pune um campo forte. O peso medido é carimbado aqui,
   // no mesmo batch da chave, porque é aqui que o elenco congela: a partir de
   // `bracketStatus` a substituição de atleta já é bloqueada.
-  const fieldStrengthPreset = categoryPreset(categoryMeta);
-  if (fieldStrengthPreset?.key === "livre") {
-    const strength = await measureFieldStrength(db, projectId, {
-      tournamentId,
-      categoryId,
-      presetKey: fieldStrengthPreset.key,
-      sportCode: tournamentSportToLevelSportCode(tournamentData.sport),
-      teams: paidTeamsWithParticipants(inscriptionsSnap.docs),
-      source: "bracket",
-    });
-    // Campo imensurável NÃO é carimbado: um zero congelaria o pior caso para
-    // sempre. Sem carimbo, a premiação mede de novo (caminho preguiçoso).
-    if (strength) {
-      batch.set(
-        db.doc(
-          `${fieldStrengthPath(projectId)}/${fieldStrengthDocId(tournamentId, categoryId)}`,
-        ),
-        fieldStrengthStampPayload(strength),
-      );
+  try {
+    const fieldStrengthPreset = categoryPreset(categoryMeta);
+    if (fieldStrengthPreset?.key === "livre") {
+      const strength = await measureFieldStrength(db, projectId, {
+        tournamentId,
+        categoryId,
+        presetKey: fieldStrengthPreset.key,
+        sportCode: tournamentSportToLevelSportCode(tournamentData.sport),
+        teams: paidTeamsWithParticipants(inscriptionsSnap.docs),
+        source: "bracket",
+      });
+      // Campo imensurável NÃO é carimbado: um zero congelaria o pior caso para
+      // sempre. Sem carimbo, a premiação mede de novo (caminho preguiçoso).
+      if (strength) {
+        batch.set(
+          db.doc(
+            `${fieldStrengthPath(projectId)}/${fieldStrengthDocId(tournamentId, categoryId)}`,
+          ),
+          fieldStrengthStampPayload(strength),
+        );
+      }
     }
+  } catch (e) {
+    // Sem carimbo de força, a premiação mede e carimba sozinha (`source: "lazy"`),
+    // então uma falha de leitura de ranking não pode derrubar a publicação da chave.
+    logger.warn("runGenerateCategoryBracket: falha ao medir força do campo", {
+      tournamentId, categoryId, e,
+    });
   }
 
   await batch.commit();

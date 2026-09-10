@@ -3,12 +3,15 @@ import * as logger from "firebase-functions/logger";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 
 import {getFirebaseProjectId} from "./firebase-paths";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Vincula perfil do usuário autenticado com unicidade forte de e-mail.
  * Usa doc de reserva em userEmails/{normalizedEmail} para impedir duplicidade entre UIDs.
  */
-export const linkAuthenticatedUserProfile = onCall(async (request) => {
+export const linkAuthenticatedUserProfile = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");

@@ -2,6 +2,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {deliverNotificationToUser} from "./notification-delivery";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 export type CallUpResponse = "confirmado" | "talvez" | "nao_vou" | "aguardando";
 
@@ -14,7 +15,9 @@ export function buildInitialResponses(recipients: string[]): Record<string, Call
   return out;
 }
 
-export const sendCallUp = onCall(async (request) => {
+export const sendCallUp = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const coachUid = request.auth?.uid;
   if (!coachUid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");
@@ -77,7 +80,9 @@ export const sendCallUp = onCall(async (request) => {
   return {callUpId: ref.id};
 });
 
-export const respondToCallUp = onCall(async (request) => {
+export const respondToCallUp = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");

@@ -20,6 +20,7 @@ import {
 } from 'firebase/auth';
 import { getFunctions, httpsCallable, type Functions } from 'firebase/functions';
 import { environment } from '../../environments/environment';
+import { FUNCTIONS_REGION } from '../shared/firebase-region';
 
 /** Papéis e privilégio de plataforma lidos do ID token. */
 export interface PanelClaims {
@@ -82,8 +83,10 @@ export class AuthService {
     return getAuth(this.app);
   }
 
+  /** Região explícita: sem ela o SDK chama Iowa e o `completeOrganizerSignup` vira uma ida e
+   *  volta ao hemisfério norte (`shared/firebase-region.ts`). */
   private get functions(): Functions {
-    return getFunctions(this.app);
+    return getFunctions(this.app, FUNCTIONS_REGION);
   }
 
   private async readClaims(user: User, forceRefresh = false): Promise<PanelClaims> {

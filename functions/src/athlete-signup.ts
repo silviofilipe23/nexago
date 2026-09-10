@@ -8,6 +8,7 @@ import {
   firestoreRolesPayload,
   rolesFromClaims,
 } from "./auth-roles";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Garante que `athlete` está entre os papéis do usuário, preservando os que já
@@ -26,7 +27,9 @@ export function withAthleteRole(existingRoles: AppRole[]): AppRole[] {
  * organizer) ganham o papel adicional sem perder o que já tinham — mesmo
  * padrão de `completeArenaSignup` em arena-signup.ts.
  */
-export const grantAthleteRole = onCall(async (request) => {
+export const grantAthleteRole = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");

@@ -14,6 +14,7 @@ import {
   type ArenaPlanTier,
   type BillingCycle,
 } from "./arena-plans";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const PLATFORM_COSTS = "platformCosts";
 /** Arenas pré-cadastradas priorizadas no plano de ação — teto por chamada. */
@@ -24,7 +25,7 @@ const MAX_TARGET_ARENAS = 20;
  * preflight OPTIONS. Sem isso o Cloud Run responde 403 sem CORS e o DevTools
  * mostra "blocked by CORS policy". A autenticação Firebase continua no handler.
  */
-const BACKOFFICE_CALLABLE = {invoker: "public" as const};
+const BACKOFFICE_CALLABLE = {region: CLIENT_FACING_REGIONS, invoker: "public" as const};
 
 export type CostCategory = "fixed" | "variable";
 

@@ -43,6 +43,7 @@ import {
   shouldProcessRatingUpdate,
 } from "./rating-engine";
 import {tryAwardGlobalRankingForMatch} from "./tournament-ranking";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 export {RATED_SPORT_CODES} from "./rating-config";
 
@@ -414,7 +415,9 @@ export const evaluateRatingLadderDaily = onSchedule(
 );
 
 /** Replay administrativo do ledger de um atleta (ou lista). */
-export const recomputeAthleteRating = onCall(async (request) => {
+export const recomputeAthleteRating = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   await superAdminOrThrow(request.auth?.uid);
 
   const sportCode = String(request.data?.sportCode ?? "").trim();
@@ -446,7 +449,7 @@ export const recomputeAthleteRating = onCall(async (request) => {
  * retorno até `done`.
  */
 export const backfillRatingsAndResults = onCall(
-  {timeoutSeconds: 540},
+  {region: CLIENT_FACING_REGIONS, timeoutSeconds: 540},
   async (request) => {
     await superAdminOrThrow(request.auth?.uid);
 
@@ -654,7 +657,7 @@ export async function runAthleteLevelsMigrationPage(
  * Repetir com `startAfterId` do retorno até `done`; `dryRun` só conta.
  */
 export const migrateAthleteLevels = onCall(
-  {timeoutSeconds: 540},
+  {region: CLIENT_FACING_REGIONS, timeoutSeconds: 540},
   async (request) => {
     const callerUid = await superAdminOrThrow(request.auth?.uid);
 
@@ -692,7 +695,7 @@ export const migrateAthleteLevels = onCall(
  * repetir com `startAfterId` do retorno até `done`; `dryRun` só conta.
  */
 export const migrateAthleteRatingLevelRanks = onCall(
-  {timeoutSeconds: 540},
+  {region: CLIENT_FACING_REGIONS, timeoutSeconds: 540},
   async (request) => {
     await superAdminOrThrow(request.auth?.uid);
 

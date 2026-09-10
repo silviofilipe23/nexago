@@ -19,6 +19,7 @@ import {
   type FriendlyMatch,
   type FriendlyMatchStatus,
 } from '../data/friendly-matches-repository';
+import { FUNCTIONS_REGION } from '@nexago/firebase-config';
 
 function titleCase(input: string): string {
   return input
@@ -45,7 +46,7 @@ function createFunctions(): Functions | null {
   const cfg = environment.firebase;
   if (cfg == null || (cfg.apiKey ?? '').length === 0) return null;
   const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
-  return getFunctions(app);
+  return getFunctions(app, FUNCTIONS_REGION);
 }
 
 const STATUS_LABEL: Record<FriendlyMatchStatus, string> = {

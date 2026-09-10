@@ -45,6 +45,7 @@ import {
   loadTournamentMatches,
 } from "./match-schedule-allocation";
 import {handleDynamicRescheduleOnMatchUpdate} from "./match-dynamic-reschedule";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 export {compareByMatchNumber} from "./match-schedule-allocation";
 
@@ -377,7 +378,9 @@ export function scheduleCourtFields(
   return {courtId, courtName: name || courtId};
 }
 
-export const scheduleMatch = onCall(async (request) => {
+export const scheduleMatch = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -442,7 +445,9 @@ export const scheduleMatch = onCall(async (request) => {
 
 export const rescheduleMatch = scheduleMatch;
 
-export const unscheduleMatch = onCall(async (request) => {
+export const unscheduleMatch = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -520,7 +525,9 @@ export function callToCourtFields(
   return {patch: null, label: "quadra"};
 }
 
-export const callMatchToCourt = onCall(async (request) => {
+export const callMatchToCourt = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -605,7 +612,9 @@ export const callMatchToCourt = onCall(async (request) => {
   return {ok: true};
 });
 
-export const releaseMatchAfterCheckIn = onCall(async (request) => {
+export const releaseMatchAfterCheckIn = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -643,7 +652,9 @@ export const releaseMatchAfterCheckIn = onCall(async (request) => {
   return {ok: true};
 });
 
-export const declareMatchWalkover = onCall(async (request) => {
+export const declareMatchWalkover = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -715,7 +726,9 @@ export const declareMatchWalkover = onCall(async (request) => {
  * regras (target por set + vantagem), em vez de confiar no que o cliente enviar.
  * O avanço de chave e o ranking são propagados pelo trigger de conclusão.
  */
-export const submitMatchResult = onCall(async (request) => {
+export const submitMatchResult = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -852,7 +865,9 @@ export async function updateLiveMatchScoreCore(
  * Callable para o mesário/staff atualizar o placar ao vivo (games/sets do set
  * em andamento) de uma partida `In Progress`. Ver `updateLiveMatchScoreCore`.
  */
-export const updateLiveMatchScore = onCall(async (request) => {
+export const updateLiveMatchScore = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -942,7 +957,9 @@ export async function revertMatchToScheduledCore(
  * Callable para o organizador/mesário tirar uma partida do ao vivo e devolvê-la
  * para "agendada". Ver `revertMatchToScheduledCore`.
  */
-export const revertMatchToScheduled = onCall(async (request) => {
+export const revertMatchToScheduled = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -950,7 +967,9 @@ export const revertMatchToScheduled = onCall(async (request) => {
   return revertMatchToScheduledCore(db, uid, request.data ?? {});
 });
 
-export const validateMatchResult = onCall(async (request) => {
+export const validateMatchResult = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -984,7 +1003,9 @@ export const validateMatchResult = onCall(async (request) => {
   return {ok: true};
 });
 
-export const advanceBracketWinner = onCall(async (request) => {
+export const advanceBracketWinner = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -1022,7 +1043,9 @@ export async function updateMatchOpsSettingsCore(
   return {ok: true, dynamicRescheduleEnabled};
 }
 
-export const updateMatchOpsSettings = onCall(async (request) => {
+export const updateMatchOpsSettings = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -1036,7 +1059,9 @@ export const updateMatchOpsSettings = onCall(async (request) => {
   return updateMatchOpsSettingsCore(db, uid, tournamentId, dynamicRescheduleEnabled);
 });
 
-export const autoScheduleTournamentDay = onCall(async (request) => {
+export const autoScheduleTournamentDay = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -1202,7 +1227,9 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
   return {ok: true, preview, slots, skipped, count: slots.length, applied};
 });
 
-export const applyLeagueRankingForMatch = onCall(async (request) => {
+export const applyLeagueRankingForMatch = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 

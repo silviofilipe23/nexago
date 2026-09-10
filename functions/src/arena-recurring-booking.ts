@@ -11,6 +11,7 @@ import {isArenaEntitledPro} from "./arena-entitlement";
 import {assertArenaAreaAccess} from "./arena-area-access";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {dayKeyFromEventDate} from "./event-timezone";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 export const ARENA_RECURRING_BOOKINGS = "arenaRecurringBookings";
 const ARENA_BOOKINGS = "arenaBookings";
@@ -600,7 +601,9 @@ export function validateRecurringInput(
   return {arenaId, courtId, weekday, startTime, endTime, athleteId, customerName, amountReais, startDate, endDate, paymentType};
 }
 
-export const createArenaRecurringBooking = onCall(async (request) => {
+export const createArenaRecurringBooking = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   try {
     return await createArenaRecurringBookingHandler(request);
   } catch (e) {
@@ -731,7 +734,9 @@ interface CancelSeriesInput {
   reason?: string;
 }
 
-export const cancelArenaRecurringBooking = onCall(async (request) => {
+export const cancelArenaRecurringBooking = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");
@@ -793,7 +798,9 @@ interface CancelOccurrenceInput {
   reason?: string;
 }
 
-export const cancelArenaRecurringOccurrence = onCall(async (request) => {
+export const cancelArenaRecurringOccurrence = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");
@@ -870,7 +877,9 @@ interface UpdateSeriesInput extends RawRecurringInput {
   seriesId?: string;
 }
 
-export const updateArenaRecurringBooking = onCall(async (request) => {
+export const updateArenaRecurringBooking = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   try {
     return await updateArenaRecurringBookingHandler(request);
   } catch (e) {
@@ -1025,7 +1034,9 @@ interface PauseSeriesInput {
   reason?: string;
 }
 
-export const pauseArenaRecurringBooking = onCall(async (request) => {
+export const pauseArenaRecurringBooking = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");
@@ -1081,7 +1092,9 @@ interface ResumeSeriesInput {
   seriesId?: string;
 }
 
-export const resumeArenaRecurringBooking = onCall(async (request) => {
+export const resumeArenaRecurringBooking = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");

@@ -8,6 +8,7 @@ import {
 import * as logger from "firebase-functions/logger";
 
 import {syncAchievementsForUser} from "./achievement-engine";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Programa de indicação (referral).
@@ -123,7 +124,9 @@ export async function registerReferralForUser(
   });
 }
 
-export const registerReferral = onCall(async (request) => {
+export const registerReferral = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Login necessário.");

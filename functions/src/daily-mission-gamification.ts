@@ -4,6 +4,7 @@ import * as logger from "firebase-functions/logger";
 
 import {parseGamificationSummary, buildStreakActivityFields} from "./tournament-match-gamification";
 import {syncAchievementsForUser} from "./achievement-engine";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /** Porte 1:1 de DailyMissionCatalog (daily_mission_catalog.dart) — mesmos ids/xpReward. */
 interface DailyMissionDef {
@@ -190,7 +191,9 @@ export async function recordProfileSharedForUser(
   return {xpGained: 0, completedMissionIds: [], unlockedAchievementIds};
 }
 
-export const recordProfileShare = onCall(async (request) => {
+export const recordProfileShare = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Login necessário.");
@@ -204,7 +207,9 @@ export const recordProfileShare = onCall(async (request) => {
   }
 });
 
-export const completeDailyMission = onCall(async (request) => {
+export const completeDailyMission = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Login necessário.");

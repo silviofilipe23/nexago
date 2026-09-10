@@ -1,6 +1,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../domain/arena_coupon.dart';
+import '../../../core/firebase/functions_region.dart';
 
 class CouponsException implements Exception {
   CouponsException(this.message);
@@ -16,7 +17,7 @@ class CouponsException implements Exception {
 /// atômica, então toda escrita passa por Cloud Functions.
 class CouponsRepository {
   CouponsRepository({FirebaseFunctions? functions})
-      : _functions = functions ?? FirebaseFunctions.instance;
+      : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFunctions _functions;
 

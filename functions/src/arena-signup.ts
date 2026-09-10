@@ -8,6 +8,7 @@ import {
   firestoreRolesPayload,
   rolesFromClaims,
 } from "./auth-roles";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Garante que `arena` está entre os papéis do usuário, preservando os que já
@@ -23,7 +24,9 @@ export function withArenaRole(existingRoles: AppRole[]): AppRole[] {
  * client-write direto, ver firestore.rules em users/{userId}) e mirra o papel
  * em `users/{uid}`, de onde o login do portal arena confere a role.
  */
-export const completeArenaSignup = onCall(async (request) => {
+export const completeArenaSignup = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");

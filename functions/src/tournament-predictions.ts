@@ -15,6 +15,7 @@ import {
   shouldProcessTournamentMatchXp,
   stringField,
 } from "./tournament-match-gamification";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Palpites da torcida no chaveamento (feature #5, engajamento — NÃO envolve
@@ -138,7 +139,9 @@ export function buildPredictionEntryPatch(params: {
 
 // ─────────────────────────── callable de submissão ────────────────────────
 
-export const submitBracketPrediction = onCall(async (request) => {
+export const submitBracketPrediction = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 

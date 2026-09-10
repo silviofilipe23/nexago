@@ -8,6 +8,7 @@ import {
   firestoreRolesPayload,
   rolesFromClaims,
 } from "./auth-roles";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Garante que `coach` está entre os papéis do usuário, preservando os que já
@@ -22,7 +23,9 @@ export function withCoachRole(existingRoles: AppRole[]): AppRole[] {
  * autocadastro do treinador. Define a claim `coach` (via Admin SDK — nunca
  * client-write direto) e cria o perfil em `coaches/{uid}`.
  */
-export const completeCoachSignup = onCall(async (request) => {
+export const completeCoachSignup = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");

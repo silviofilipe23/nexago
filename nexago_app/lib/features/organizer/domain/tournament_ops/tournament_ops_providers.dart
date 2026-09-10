@@ -15,6 +15,7 @@ import '../category_ops/category_ops_logic.dart';
 import '../category_ops/category_ops_models.dart';
 import 'tournament_ops_logic.dart';
 import 'tournament_ops_models.dart';
+import '../../../../core/firebase/functions_region.dart';
 
 export 'tournament_ops_models.dart';
 
@@ -41,7 +42,7 @@ final organizerUserProfilesRepositoryProvider =
 
 final organizerCategoryOpsServiceProvider =
     Provider<OrganizerCategoryOpsService>((ref) {
-  return OrganizerCategoryOpsService(functions: FirebaseFunctions.instance);
+  return OrganizerCategoryOpsService(functions: nexagoFunctions);
 });
 
 @immutable

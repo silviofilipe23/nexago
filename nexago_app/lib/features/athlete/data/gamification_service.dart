@@ -6,12 +6,13 @@ import '../domain/gamification_models.dart';
 import '../domain/profile_completion_sync_result.dart';
 import '../domain/athlete_profile.dart';
 import '../domain/sand_rank/sand_rank_models.dart';
+import '../../../core/firebase/functions_region.dart';
 
 class GamificationService {
   GamificationService(
     this._firestore, {
     FirebaseFunctions? functions,
-  }) : _functions = functions ?? FirebaseFunctions.instance;
+  }) : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;

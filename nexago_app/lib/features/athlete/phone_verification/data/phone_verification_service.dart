@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/phone_verification_models.dart';
+import '../../../../core/firebase/functions_region.dart';
 
 /// Verificação em andamento: o que é preciso guardar entre o envio do SMS e a
 /// confirmação do código.
@@ -42,7 +43,7 @@ class PhoneVerificationService {
     FirebaseAuth? auth,
     FirebaseFunctions? functions,
   })  : _auth = auth ?? FirebaseAuth.instance,
-        _functions = functions ?? FirebaseFunctions.instance;
+        _functions = functions ?? nexagoFunctions;
 
   final FirebaseAuth _auth;
   final FirebaseFunctions _functions;

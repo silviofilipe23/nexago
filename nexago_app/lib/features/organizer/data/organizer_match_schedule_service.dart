@@ -1,10 +1,11 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../domain/match_ops/schedule_logic.dart';
+import '../../../core/firebase/functions_region.dart';
 
 class OrganizerMatchScheduleService {
   OrganizerMatchScheduleService({FirebaseFunctions? functions})
-      : _functions = functions ?? FirebaseFunctions.instance;
+      : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFunctions _functions;
 

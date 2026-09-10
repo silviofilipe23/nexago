@@ -14,6 +14,7 @@ import {
   normalizeInviteEmail,
   type ArenaStaffRole,
 } from "./arena-staff-roles";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const INVITES = "arenaStaffInvites";
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -194,7 +195,9 @@ async function createStaffDoc(
   await ensureArenaRole(uid);
 }
 
-export const inviteArenaStaff = onCall(async (request) => {
+export const inviteArenaStaff = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Usuário não autenticado.");
 
@@ -295,7 +298,9 @@ export const inviteArenaStaff = onCall(async (request) => {
   return {inviteId: ref.id, status: "pending" as const};
 });
 
-export const acceptArenaStaffInvite = onCall(async (request) => {
+export const acceptArenaStaffInvite = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Usuário não autenticado.");
 
@@ -377,7 +382,9 @@ export const acceptArenaStaffInvite = onCall(async (request) => {
   return {arenaId, role};
 });
 
-export const revokeArenaStaffInvite = onCall(async (request) => {
+export const revokeArenaStaffInvite = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Usuário não autenticado.");
 
@@ -394,7 +401,9 @@ export const revokeArenaStaffInvite = onCall(async (request) => {
   return {ok: true as const};
 });
 
-export const updateArenaStaffRole = onCall(async (request) => {
+export const updateArenaStaffRole = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Usuário não autenticado.");
 
@@ -415,7 +424,9 @@ export const updateArenaStaffRole = onCall(async (request) => {
   return {ok: true as const};
 });
 
-export const removeArenaStaff = onCall(async (request) => {
+export const removeArenaStaff = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Usuário não autenticado.");
 

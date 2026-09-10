@@ -17,6 +17,7 @@ import {
   computeProfileRewardContext,
 } from "./profile-completion-shared";
 import {syncAchievementsForUser} from "./achievement-engine";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 export {
   type ProfileCompletionStepId,
@@ -147,7 +148,9 @@ export async function syncProfileCompletionRewardsForUser(
   };
 }
 
-export const syncProfileCompletionRewards = onCall(async (request) => {
+export const syncProfileCompletionRewards = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Login necessário.");

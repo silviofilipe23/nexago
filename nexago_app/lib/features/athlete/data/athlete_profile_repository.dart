@@ -14,6 +14,7 @@ import '../domain/athlete_profile.dart';
 import '../domain/athlete_profile_options.dart';
 import '../domain/profile_access.dart';
 import '../domain/profile_completion_models.dart';
+import '../../../core/firebase/functions_region.dart';
 
 /// Limites de rede do "Concluir cadastro". Sem eles o atleta fica
 /// "processando" sem fim: o SDK do Storage insiste por até 10 min numa
@@ -32,7 +33,7 @@ const Duration kProfileSaveTimeout = Duration(seconds: 20);
 
 class AthleteProfileRepository {
   AthleteProfileRepository(this._firestore, {FirebaseFunctions? functions})
-      : _functions = functions ?? FirebaseFunctions.instance;
+      : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;

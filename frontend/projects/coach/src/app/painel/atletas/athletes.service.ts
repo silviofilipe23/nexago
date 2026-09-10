@@ -18,6 +18,7 @@ import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { initialsOf } from '../ui/initials';
 import type { AthleteStatus } from '../ui/athlete-avatar.component';
+import { FUNCTIONS_REGION } from '@nexago/firebase-config';
 
 export interface AthleteLink {
   athleteUid: string;
@@ -177,7 +178,7 @@ export class AthletesService {
 
   async searchAthleteByEmail(email: string): Promise<AthleteSearchHit | null> {
     const fn = httpsCallable<{ email: string }, { result: AthleteSearchHit | null }>(
-      getFunctions(getApps()[0]!),
+      getFunctions(getApps()[0]!, FUNCTIONS_REGION),
       'searchAthleteForCoachInvite',
     );
     const res = await fn({ email });
@@ -188,7 +189,7 @@ export class AthletesService {
     const fn = httpsCallable<
       { athleteUid: string; athleteName: string; squadId?: string },
       { inviteId: string }
-    >(getFunctions(getApps()[0]!), 'sendCoachAthleteInvite');
+    >(getFunctions(getApps()[0]!, FUNCTIONS_REGION), 'sendCoachAthleteInvite');
     const res = await fn({ athleteUid, athleteName, ...(squadId ? { squadId } : {}) });
     return res.data.inviteId;
   }

@@ -18,6 +18,7 @@ import {
 } from 'firebase/auth';
 import { getFunctions, httpsCallable, type Functions } from 'firebase/functions';
 import { environment } from '../../environments/environment';
+import { FUNCTIONS_REGION } from '@nexago/firebase-config';
 
 /** Papéis (roles[]) que autorizam login no portal arena. */
 const ARENA_ROLE = 'arena';
@@ -59,7 +60,7 @@ export class AuthService {
   }
 
   private get functions(): Functions {
-    return getFunctions(this.app);
+    return getFunctions(this.app, FUNCTIONS_REGION);
   }
 
   /** `remember=false` derruba a sessão ao fechar o navegador (browserSessionPersistence). */

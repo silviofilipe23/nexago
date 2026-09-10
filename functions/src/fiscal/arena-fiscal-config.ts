@@ -20,6 +20,7 @@ import {
 } from "./focus-nfe-client";
 import type {FiscalIssuer, RegisterIssuerResult} from "./issuer-port";
 import type {FiscalAddress, FiscalMode, FiscalService} from "./types";
+import {CLIENT_FACING_REGIONS} from "../function-regions";
 
 export type SaveSecretFn = (name: string, value: string) => Promise<void>;
 
@@ -209,7 +210,7 @@ export async function saveSecretToSecretManager(name: string, value: string): Pr
 }
 
 export const saveArenaFiscalConfig = onCall(
-  {secrets: focusFiscalSecrets},
+  {region: CLIENT_FACING_REGIONS, secrets: focusFiscalSecrets},
   async (request) => {
     const callerUid = request.auth?.uid;
     if (!callerUid) {
@@ -224,7 +225,9 @@ export const saveArenaFiscalConfig = onCall(
   },
 );
 
-export const setArenaFiscalMode = onCall(async (request) => {
+export const setArenaFiscalMode = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");
@@ -235,7 +238,7 @@ export const setArenaFiscalMode = onCall(async (request) => {
 });
 
 export const getArenaFiscalRequirements = onCall(
-  {secrets: focusFiscalSecrets},
+  {region: CLIENT_FACING_REGIONS, secrets: focusFiscalSecrets},
   async (request) => {
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "Faça login para continuar.");

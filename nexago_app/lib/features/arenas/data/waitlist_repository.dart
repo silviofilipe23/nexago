@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../domain/arena_booking_waitlist_entry.dart';
+import '../../../core/firebase/functions_region.dart';
 
 /// Lista de espera de horário de quadra lotado (`arenaBookingWaitlist`).
 ///
@@ -12,7 +13,7 @@ class WaitlistRepository {
   WaitlistRepository(
     this._firestore, {
     FirebaseFunctions? functions,
-  }) : _functions = functions ?? FirebaseFunctions.instance;
+  }) : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;

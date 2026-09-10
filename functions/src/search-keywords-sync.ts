@@ -19,6 +19,7 @@ import {
   tournamentSearchSourceFieldsChanged,
   userSearchSourceFieldsChanged,
 } from "./search-keywords";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 async function resolveUserDisplayName(uid: string): Promise<string> {
   const trimmed = uid.trim();
@@ -350,7 +351,7 @@ async function backfillCollection(
  * `startAfterId` do último doc até `hasMore` ser false.
  */
 export const backfillSearchKeywords = onCall(
-  {timeoutSeconds: 540},
+  {region: CLIENT_FACING_REGIONS, timeoutSeconds: 540},
   async (request) => {
     const callerUid = request.auth?.uid;
     if (!callerUid) {

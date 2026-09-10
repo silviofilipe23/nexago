@@ -10,6 +10,7 @@ import {
   applyReputationEvent,
   reviewReceivedEventId,
 } from "./friendly-match-reputation";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Bora Jogar — avaliação mútua double-blind, par a par, entre N participantes.
@@ -262,7 +263,9 @@ export async function revealFriendlyMatchReviewsIfDue(
 // Wrappers
 // ---------------------------------------------------------------------------
 
-export const submitFriendlyMatchReview = onCall(async (request) => {
+export const submitFriendlyMatchReview = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
   const data = request.data as {

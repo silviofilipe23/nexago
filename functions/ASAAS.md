@@ -14,6 +14,14 @@ firebase functions:secrets:set ASAAS_ENV   # sandbox | production
 
 URL: `https://us-central1-<PROJECT_ID>.cloudfunctions.net/asaasWebhook`
 
+> **Migração de região em curso.** A função atende em `us-central1` **e** em
+> `southamerica-east1` (ver `src/function-regions.ts`). A URL acima é a que está
+> cadastrada hoje e continua válida. Quando o cadastro for atualizado para
+> `southamerica-east1`, avise o time para tirar `us-central1` de
+> `CLIENT_FACING_REGIONS` — enquanto o cadastro apontar para Iowa, remover a
+> região faz o webhook cair em silêncio e pagamento confirmado nunca chegar.
+
+
 No painel Asaas, configure o mesmo token em **Integrações → Webhooks** (`asaas-access-token` header).
 
 Eventos recomendados:

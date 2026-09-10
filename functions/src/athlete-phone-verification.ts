@@ -2,6 +2,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getAuth} from "firebase-admin/auth";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * O número só existe em `UserRecord.phoneNumber` (Admin SDK) se o client
@@ -25,7 +26,9 @@ export function assertVerifiedPhoneNumber(phoneNumber: string | null | undefined
  * `phoneNumber`/`phoneVerified`/`phoneVerifiedAt` diretamente, ver
  * firestore.rules em users/{userId}.
  */
-export const confirmPhoneVerification = onCall(async (request) => {
+export const confirmPhoneVerification = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");

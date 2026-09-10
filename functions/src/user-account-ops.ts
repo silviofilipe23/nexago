@@ -11,6 +11,7 @@ import {
   applyRolesToClaims,
   firestoreRolesPayload,
 } from "./auth-roles";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /** `auth.getUser(uid)` do próprio chamador: token ainda válido (JWT não
  *  expirou) mas a conta foi apagada depois que o cliente o obteve vira
@@ -34,7 +35,9 @@ async function getCallerUserOrThrowUnauthenticated(callerUid: string) {
  * Cria um novo organizador (admin sem superAdmin).
  * Apenas usuários com custom claim superAdmin === true podem chamar.
  */
-export const createOrganizer = onCall(async (request) => {
+export const createOrganizer = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado");
@@ -97,7 +100,9 @@ export const createOrganizer = onCall(async (request) => {
  * Cria um novo gestor de arena (arena).
  * Apenas usuários com custom claim superAdmin === true podem chamar.
  */
-export const createArena = onCall(async (request) => {
+export const createArena = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado");
@@ -253,7 +258,7 @@ function decodeBackofficeSearchState(tok: string): SearchListState | null {
  * Com `search`, percorre todos os usuários do Auth (em lotes) até encher `maxResults`
  * ou esgotar a base; `nextPageToken` codifica continuação (inclui fila de UIDs pendentes).
  */
-export const listBackofficeUsers = onCall({timeoutSeconds: 300}, async (request) => {
+export const listBackofficeUsers = onCall({region: CLIENT_FACING_REGIONS, timeoutSeconds: 300}, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado");
@@ -435,7 +440,9 @@ export const listBackofficeUsers = onCall({timeoutSeconds: 300}, async (request)
  * Remove a flag mustChangePassword do custom claim do usuário
  * Apenas o próprio usuário ou um admin pode chamar esta função
  */
-export const clearMustChangePassword = onCall(async (request) => {
+export const clearMustChangePassword = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado");
@@ -472,7 +479,9 @@ export const clearMustChangePassword = onCall(async (request) => {
 /**
  * Obtém o role de um usuário pelos custom claims
  */
-export const getUserRole = onCall(async (request) => {
+export const getUserRole = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const {uid} = request.data;
   const callerUid = request.auth?.uid;
 
@@ -506,7 +515,9 @@ export const getUserRole = onCall(async (request) => {
  * Define ou atualiza o status PRO de um atleta
  * Apenas admins podem chamar
  */
-export const setAthletePro = onCall(async (request) => {
+export const setAthletePro = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const {uid, isPro, expiresAt} = request.data || {};
   const callerUid = request.auth?.uid;
 

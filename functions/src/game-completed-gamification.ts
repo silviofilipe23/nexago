@@ -9,6 +9,7 @@ import * as logger from "firebase-functions/logger";
 
 import {parseGamificationSummary, buildStreakActivityFields} from "./tournament-match-gamification";
 import {syncAchievementsForUser} from "./achievement-engine";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 export const XP_GAME_COMPLETED = 50;
 const PLAY_TODAY_GRACE_MS = 5 * 60 * 1000;
@@ -152,7 +153,9 @@ export async function processCompletedGameForUser(
   return {...feedback, unlockedAchievementIds};
 }
 
-export const processCompletedGame = onCall(async (request) => {
+export const processCompletedGame = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Login necessário.");

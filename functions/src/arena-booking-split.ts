@@ -27,6 +27,7 @@ import {
   deleteAsaasPaymentIfOpen,
 } from "./asaas-booking-payment";
 import {deliverNotificationToUser} from "./notification-delivery";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const PAYMENT_SHARES = "paymentShares";
@@ -397,6 +398,7 @@ export async function expireArenaBookingPaymentShareIfDue(
 const splitPaymentSecrets = [...asaasArenaSecrets, PLATFORM_FEE_FIXED_BRL];
 
 export const splitArenaBookingPayment = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: splitPaymentSecrets,
 }, async (request) => {
   const callerUid = request.auth?.uid;

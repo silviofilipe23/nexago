@@ -9,6 +9,7 @@ import * as logger from "firebase-functions/logger";
 
 import {parseGamificationSummary, countGameDaysInWindow} from "./tournament-match-gamification";
 import {computeProfileRewardContext, achievementEventId} from "./profile-completion-shared";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 export {achievementEventId};
 
@@ -408,7 +409,9 @@ export async function syncAchievementsForUser(
   });
 }
 
-export const syncAchievements = onCall(async (request) => {
+export const syncAchievements = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Login necessário.");

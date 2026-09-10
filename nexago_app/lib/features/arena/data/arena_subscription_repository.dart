@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/validation/cpf_cnpj.dart';
 import '../domain/arena_plan.dart';
+import '../../../core/firebase/functions_region.dart';
 
 /// Método de cobrança enviado ao backend (`billingType` do Asaas).
 enum ArenaSubscriptionMethod { pix, creditCard }
@@ -63,7 +64,7 @@ class ArenaSubscriptionException implements Exception {
 
 class ArenaSubscriptionRepository {
   ArenaSubscriptionRepository(this._firestore, {FirebaseFunctions? functions})
-      : _functions = functions ?? FirebaseFunctions.instance;
+      : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;

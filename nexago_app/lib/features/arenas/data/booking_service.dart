@@ -7,6 +7,7 @@ import '../domain/arena_booking_confirm_args.dart';
 import '../domain/arena_booking_quote.dart';
 import '../domain/my_booking_item.dart';
 import '../domain/pending_pix_booking_match.dart';
+import '../../../core/firebase/functions_region.dart';
 
 /// Paridade com o fluxo web: transação em `arenaSlotLocks` + `arenaSlots` + `arenaBookings`,
 /// depois [notifyArenaBookingCreated] (notificação ao gestor; não duplica gravação).
@@ -17,7 +18,7 @@ class BookingService {
   BookingService(
     this._firestore, {
     FirebaseFunctions? functions,
-  }) : _functions = functions ?? FirebaseFunctions.instance;
+  }) : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;

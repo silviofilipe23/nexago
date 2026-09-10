@@ -1,11 +1,12 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../firebase/functions_region.dart';
 
 /// Chama a Cloud Function `deleteOwnAccount`, que apaga os dados pessoais do
 /// usuário e remove a conta de autenticação (LGPD + App Store 5.1.1(v)).
 class AccountDeletionService {
   AccountDeletionService({FirebaseFunctions? functions})
-      : _functions = functions ?? FirebaseFunctions.instance;
+      : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFunctions _functions;
 

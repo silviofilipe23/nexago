@@ -38,6 +38,7 @@ import {
 import {debitArenaWalletForClubRefund} from "./arena-wallet";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {roundMoney} from "./mercadopago-arena-helpers";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /** Estados a partir dos quais o atleta pode tentar entrar de novo. */
 const REJOINABLE_STATUSES = new Set(["expired", "canceled"]);
@@ -121,6 +122,7 @@ interface JoinInput {
 }
 
 export const joinArenaClubSession = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: asaasArenaSecrets,
 }, async (request) => {
   const uid = request.auth?.uid;
@@ -452,6 +454,7 @@ interface LeaveInput {
 }
 
 export const leaveArenaClubSession = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: asaasArenaSecrets,
 }, async (request) => {
   const uid = request.auth?.uid;

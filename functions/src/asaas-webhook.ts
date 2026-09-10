@@ -24,6 +24,7 @@ import {processArenaClubSessionAsaasNotification} from "./asaas-arena-club-webho
 import {ARENA_CLUB_SESSION_PAYMENT_REF_PREFIX} from "./arena-club-constants";
 import {getFirebaseProjectId} from "./firebase-paths";
 import {WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const PAYMENT_EVENTS = new Set([
   "PAYMENT_RECEIVED",
@@ -44,6 +45,7 @@ type AsaasWebhookBody = {
  * Webhook Asaas — reservas (`arenaBooking:*`) e inscrições (`tournamentRegistration:*`).
  */
 export const asaasWebhook = onRequest({
+  region: CLIENT_FACING_REGIONS,
   secrets: [...asaasArenaSecrets, PLATFORM_FEE_FIXED_BRL, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async (req, res) => {
   if (req.method !== "POST") {

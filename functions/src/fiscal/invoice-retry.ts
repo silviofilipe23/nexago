@@ -11,6 +11,7 @@ import {buildDefaultIssuer} from "./focus-nfe-client";
 import {assertManagesArena} from "./arena-fiscal-config";
 import type {FiscalIssuer} from "./issuer-port";
 import type {FiscalInvoice} from "./types";
+import {CLIENT_FACING_REGIONS} from "../function-regions";
 
 export async function reprocessFiscalInvoice(
   db: Firestore,
@@ -84,7 +85,9 @@ export async function retryFiscalInvoiceCore(
   await reprocessFiscalInvoice(db, issuer, readToken, input.invoiceId);
 }
 
-export const retryFiscalInvoice = onCall(async (request) => {
+export const retryFiscalInvoice = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");

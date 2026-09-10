@@ -2,6 +2,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {defineSecret} from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 // Cloudflare Turnstile (captcha) para formulário de contato
 const TURNSTILE_SECRET = defineSecret("TURNSTILE_SECRET");
@@ -10,7 +11,7 @@ const TURNSTILE_SECRET = defineSecret("TURNSTILE_SECRET");
  * Recebe mensagem de contato com token Turnstile; valida o captcha e grava em contactMessages.
  */
 export const submitContactMessageSecure = onCall(
-  {secrets: [TURNSTILE_SECRET]},
+  {region: CLIENT_FACING_REGIONS, secrets: [TURNSTILE_SECRET]},
   async (request) => {
     try {
       const {name, email, subject, message, captchaToken} = request.data || {};

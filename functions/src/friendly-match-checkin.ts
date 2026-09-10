@@ -13,6 +13,7 @@ import {
   matchCompletedEventId,
   noShowEventId,
 } from "./friendly-match-reputation";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Bora Jogar — dia do jogo: check-in mútuo manual e fechamento de no-show.
@@ -222,7 +223,9 @@ export async function closeFriendlyMatchCheckInIfDue(
 // Wrappers
 // ---------------------------------------------------------------------------
 
-export const checkInFriendlyMatch = onCall(async (request) => {
+export const checkInFriendlyMatch = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
   const data = request.data as {matchId: string};

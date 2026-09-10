@@ -23,6 +23,7 @@ import {
   parseCancellationRequest,
 } from "./tournament-cancellation-request";
 import {findCategory} from "./tournament-registration-guards";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const MAX_REASON_LENGTH = 500;
 
@@ -75,6 +76,7 @@ async function loadRegistrationContext(
  * valor é combinada entre os dois fora da plataforma.
  */
 export const requestRegistrationCancellation = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async (request) => {
   const uid = request.auth?.uid;
@@ -173,7 +175,9 @@ export const requestRegistrationCancellation = onCall({
  * Organizador aprova (remove a inscrição e libera a vaga) ou recusa o pedido.
  * Em nenhum dos casos a plataforma movimenta dinheiro.
  */
-export const respondRegistrationCancellationRequest = onCall(async (request) => {
+export const respondRegistrationCancellationRequest = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");

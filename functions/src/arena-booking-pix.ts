@@ -43,6 +43,7 @@ import {
 } from "./asaas-booking-payment";
 import {callerIsOrganizer, callerIsSuperAdmin} from "./auth-roles";
 import {ARENA_BOOKING_PAYMENT_EXPIRY_MINUTES} from "./arena-booking-constants";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_WITHDRAWALS = "arenaWithdrawals";
@@ -58,6 +59,7 @@ type PixPaymentResponse = {
 };
 
 export const createArenaBookingPixPayment = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: pixPaymentSecrets,
 }, async (request): Promise<PixPaymentResponse> => {
   const callerUid = request.auth?.uid;
@@ -261,6 +263,7 @@ export const createArenaBookingPixPayment = onCall({
 
 /** Cancela reserva PIX pendente (atleta) e libera horário + locks. */
 export const cancelPendingArenaBookingPayment = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: pixPaymentSecrets,
 }, async (request) => {
   const callerUid = request.auth?.uid;
@@ -394,6 +397,7 @@ async function assertNoPendingArenaWithdrawal(
 const requestWithdrawalSecrets = [...asaasArenaSecrets];
 
 export const requestArenaWithdrawal = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: requestWithdrawalSecrets,
 }, async (request) => {
   const uid = request.auth?.uid;
@@ -615,7 +619,9 @@ async function fetchPendingWithdrawalDocs(
 }
 
 /** Lista saques pendentes (admin) — evita falha de query/regras no cliente. */
-export const listPendingArenaWithdrawals = onCall(async (request) => {
+export const listPendingArenaWithdrawals = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");
@@ -678,6 +684,7 @@ export const listPendingArenaWithdrawals = onCall(async (request) => {
 const reviewWithdrawalSecrets = [...asaasArenaSecrets];
 
 export const reviewArenaWithdrawal = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: reviewWithdrawalSecrets,
 }, async (request) => {
   const uid = request.auth?.uid;

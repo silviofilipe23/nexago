@@ -2,6 +2,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore, FieldValue, Timestamp, type Firestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {deliverNotificationToUser} from "./notification-delivery";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const INVITES_COLLECTION = "coachAthleteInvites";
 const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
@@ -16,7 +17,9 @@ async function findPendingInvite(db: Firestore, coachUid: string, athleteUid: st
   return !snap.empty;
 }
 
-export const sendCoachAthleteInvite = onCall(async (request) => {
+export const sendCoachAthleteInvite = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const coachUid = request.auth?.uid;
   if (!coachUid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");
@@ -86,7 +89,9 @@ export const sendCoachAthleteInvite = onCall(async (request) => {
   return {inviteId: ref.id};
 });
 
-export const acceptCoachAthleteInvite = onCall(async (request) => {
+export const acceptCoachAthleteInvite = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");
@@ -135,7 +140,9 @@ export const acceptCoachAthleteInvite = onCall(async (request) => {
   return {ok: true};
 });
 
-export const cancelCoachAthleteInvite = onCall(async (request) => {
+export const cancelCoachAthleteInvite = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");

@@ -17,6 +17,7 @@ import {
   findCategory,
   loadTournamentData,
 } from "./tournament-registration-guards";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Convite de dupla/equipe para parceiro que **ainda não tem conta**.
@@ -70,7 +71,9 @@ async function inviterDisplayName(db: Firestore, uid: string): Promise<string> {
  * (gênero, nível, idade) só dá para checar no resgate — o atleta ainda nem
  * existe.
  */
-export const createExternalPartnerInvite = onCall(async (request) => {
+export const createExternalPartnerInvite = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");
@@ -142,7 +145,9 @@ export const createExternalPartnerInvite = onCall(async (request) => {
  * Idempotente: resgatar de novo o mesmo token, pelo mesmo atleta, devolve o
  * convite já criado em vez de erro — o app pode reentrar na tela.
  */
-export const claimExternalPartnerInvite = onCall(async (request) => {
+export const claimExternalPartnerInvite = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");

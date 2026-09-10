@@ -8,6 +8,7 @@ import {
   firestoreRolesPayload,
   rolesFromClaims,
 } from "./auth-roles";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Garante que `organizer` está entre os papéis do usuário, preservando os que
@@ -26,7 +27,9 @@ export function withOrganizerRole(existingRoles: AppRole[]): AppRole[] {
  * o login do portal organizador confere a role. Sem coleção de perfil nova
  * (`organizers/{uid}`) — fora do escopo desta entrega (só auth).
  */
-export const completeOrganizerSignup = onCall(async (request) => {
+export const completeOrganizerSignup = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");

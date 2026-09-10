@@ -11,6 +11,23 @@ import {
   processArenaBookingMercadoPagoNotification,
 } from "./mercadopago-arena-booking-webhook";
 import {getFirebaseProjectId} from "./firebase-paths";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
+
+/**
+ * A região que aparece nas URLs que saem daqui para o Mercado Pago.
+ *
+ * NÃO é a região onde a função roda — `mercadopagoOAuthCallback` e
+ * `mercadopagoWebhook` atendem nas duas (`function-regions.ts`). É a região
+ * que está CADASTRADA do lado de lá: o `redirect_uri` precisa bater caractere
+ * por caractere com o registrado no app OAuth, e o `notification_url` é para
+ * onde eles postam a confirmação de pagamento.
+ *
+ * Trocar isto para `southamerica-east1` sem antes atualizar o cadastro no
+ * painel do Mercado Pago derruba o OAuth e faz pagamento confirmado nunca
+ * chegar. A ordem é: cadastrar a URL nova lá, depois mudar aqui, depois tirar
+ * `us-central1` de `CLIENT_FACING_REGIONS`.
+ */
+const MERCADOPAGO_PUBLIC_REGION = "us-central1";
 
 // Segredos do Mercado Pago (marketplace / split)
 const MERCADOPAGO_APP_ID = defineSecret("MERCADOPAGO_APP_ID");
@@ -130,6 +147,7 @@ function verifyMercadoPagoWebhookSignature(input: {
  * Verifica se o organizador já vinculou a conta Mercado Pago (para exibir "Conta vinculada" no perfil).
  */
 export const getMercadoPagoStatus = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: [MERCADOPAGO_APP_ID],
   cors: MP_CORS_ORIGINS,
 }, async (request) => {
@@ -148,6 +166,7 @@ export const getMercadoPagoStatus = onCall({
  * Redirect URI deve apontar para mercadopagoOAuthCallback (HTTP).
  */
 export const getMercadoPagoAuthUrl = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: [MERCADOPAGO_APP_ID, MERCADOPAGO_APP_SECRET],
   cors: MP_CORS_ORIGINS,
 }, async (request) => {
@@ -187,7 +206,7 @@ export const getMercadoPagoAuthUrl = onCall({
   const mask = (s: string) => s.length <= 8 ? "***" : s.slice(0, 4) + "…" + s.slice(-4);
   logger.info(`getMercadoPagoAuthUrl: MERCADOPAGO_APP_ID em uso appIdMasked=${mask(appId)} appIdLength=${appId.length}`);
   const projectId = getFirebaseProjectId();
-  const redirectUri = `https://us-central1-${projectId}.cloudfunctions.net/mercadopagoOAuthCallback`;
+  const redirectUri = `https://${MERCADOPAGO_PUBLIC_REGION}-${projectId}.cloudfunctions.net/mercadopagoOAuthCallback`;
   const {codeVerifier, codeChallenge} = buildPkcePair();
   const db = getFirestore();
   await db.doc(`users/${uid}/mercadopago/oauthPkce`).set({
@@ -214,6 +233,7 @@ function mercadoPagoOAuthReturnBase(
 }
 
 export const mercadopagoOAuthCallback = onRequest({
+  region: CLIENT_FACING_REGIONS,
   secrets: [MERCADOPAGO_APP_ID, MERCADOPAGO_APP_SECRET],
 }, async (req, res) => {
   const projectId = getFirebaseProjectId();
@@ -250,7 +270,7 @@ export const mercadopagoOAuthCallback = onRequest({
   const mask = (s: string) => s.length <= 8 ? "***" : s.slice(0, 4) + "…" + s.slice(-4);
   logger.info(`mercadopagoOAuthCallback: credenciais em uso appIdMasked=${mask(appId)} appIdLength=${appId.length} appSecretLength=${appSecret.length}`);
 
-  const redirectUri = `https://us-central1-${projectId}.cloudfunctions.net/mercadopagoOAuthCallback`;
+  const redirectUri = `https://${MERCADOPAGO_PUBLIC_REGION}-${projectId}.cloudfunctions.net/mercadopagoOAuthCallback`;
   if (!pkceRef || !pkceSnap?.exists) {
     logger.warn(`mercadopagoOAuthCallback: PKCE doc ausente para uid=${state}`);
     res.redirect(`${returnBase}?mp=error&reason=pkce_missing`);
@@ -352,6 +372,7 @@ async function refreshMercadoPagoToken(managerId: string): Promise<string> {
  * amountType: 'share' = parcela (entryFee/2), 'full' = valor total da equipe.
  */
 export const createMercadoPagoPreference = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: [MERCADOPAGO_APP_ID, MERCADOPAGO_APP_SECRET, PLATFORM_FEE_FIXED_BRL],
   cors: MP_CORS_ORIGINS,
 }, async (request) => {
@@ -447,7 +468,7 @@ export const createMercadoPagoPreference = onCall({
       : `Parcela da inscrição - ${tournamentName} - ${categoryId}`;
 
     const projectIdForUrl = getFirebaseProjectId();
-    const baseUrl = `https://us-central1-${projectIdForUrl}.cloudfunctions.net`;
+    const baseUrl = `https://${MERCADOPAGO_PUBLIC_REGION}-${projectIdForUrl}.cloudfunctions.net`;
     const notificationUrl = `${baseUrl}/mercadopagoWebhook`;
     const backSuccess = `https://${projectIdForUrl}.web.app/athlete/register/success?paid=success`;
     const backPending = `https://${projectIdForUrl}.web.app/athlete/register/success?paid=pending`;
@@ -515,6 +536,7 @@ export const createMercadoPagoPreference = onCall({
  * - Retorna `initPoint` (URL do checkout).
  */
 export const createArenaBookingMercadoPagoPayment = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: [MERCADOPAGO_APP_ID, MERCADOPAGO_APP_SECRET, PLATFORM_FEE_FIXED_BRL],
   cors: MP_CORS_ORIGINS,
 }, async (request) => {
@@ -616,7 +638,7 @@ export const createArenaBookingMercadoPagoPayment = onCall({
   const platformFee = Math.min(platformFeeBrl, amount - 0.01);
 
   const projectIdForUrl = getFirebaseProjectId();
-  const baseUrl = `https://us-central1-${projectIdForUrl}.cloudfunctions.net`;
+  const baseUrl = `https://${MERCADOPAGO_PUBLIC_REGION}-${projectIdForUrl}.cloudfunctions.net`;
   const notificationUrl = `${baseUrl}/mercadopagoWebhook`;
   const arenaName = (booking.arenaName as string) || (arena.name as string) || "Arena";
   const courtName = (booking.courtName as string) || "Quadra";
@@ -693,6 +715,7 @@ export const createArenaBookingMercadoPagoPayment = onCall({
  * - Demais referências (inscrição em torneio): apenas pagamento `approved` atualiza `paidAmount` / `isPaid`.
  */
 export const mercadopagoWebhook = onRequest({
+  region: CLIENT_FACING_REGIONS,
   secrets: [MERCADOPAGO_APP_ID, MERCADOPAGO_APP_SECRET, MERCADOPAGO_WEBHOOK_SECRET, PLATFORM_FEE_FIXED_BRL],
 }, async (req, res) => {
   if (req.method !== "POST") {

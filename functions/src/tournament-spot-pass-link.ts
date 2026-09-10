@@ -36,6 +36,7 @@ import {
   spotPassRegistrationUrl,
   trimmed,
 } from "./tournament-spot-pass-grant";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 export const SPOT_PASS_LINKS_COLLECTION = "tournamentSpotPassLinks";
 
@@ -61,7 +62,9 @@ function isExpired(data: Record<string, unknown>, nowMs: number): boolean {
 }
 
 /** Gera o link do grupo: N vagas, com prazo. */
-export const organizerCreateSpotPassLink = onCall(async (request) => {
+export const organizerCreateSpotPassLink = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const organizerUid = request.auth?.uid;
   if (!organizerUid) {
     throw new HttpsError("unauthenticated", "Login necessário");
@@ -131,7 +134,9 @@ export const organizerCreateSpotPassLink = onCall(async (request) => {
 });
 
 /** Revoga o link. As vagas JÁ resgatadas continuam de pé — elas viraram passes nominais. */
-export const organizerRevokeSpotPassLink = onCall(async (request) => {
+export const organizerRevokeSpotPassLink = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const organizerUid = request.auth?.uid;
   if (!organizerUid) {
     throw new HttpsError("unauthenticated", "Login necessário");
@@ -173,7 +178,9 @@ export const organizerRevokeSpotPassLink = onCall(async (request) => {
  * transação faz só o que precisa ser atômico: reler o contador, criar o passe e descontar. Dois
  * atletas na última vaga se serializam ali — o segundo relê `remaining: 0` e é recusado.
  */
-export const claimSpotPassLink = onCall(async (request) => {
+export const claimSpotPassLink = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Faça login para pegar a vaga.");

@@ -14,6 +14,7 @@ import {onDocumentCreated, onDocumentDeleted} from "firebase-functions/v2/firest
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const COURTS_PATH = "arenas/{arenaId}/courts/{courtId}";
 
@@ -52,7 +53,9 @@ export const onArenaCourtDeletedCountDown = onDocumentDeleted(COURTS_PATH, async
  * Recalcula `courtsCount` de todas as arenas a partir da subcoleção real.
  * Rodar uma vez para popular arenas criadas antes do contador. Super admin only.
  */
-export const backfillArenaCourtsCount = onCall(async (request) => {
+export const backfillArenaCourtsCount = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   if (request.auth?.token?.["superAdmin"] !== true) {
     throw new HttpsError("permission-denied", "Apenas super admins podem executar o backfill.");
   }

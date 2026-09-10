@@ -5,6 +5,7 @@ import { doc, getDoc, getFirestore, type Firestore } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
+import { FUNCTIONS_REGION } from '@nexago/firebase-config';
 
 type InviteState = 'loading' | 'ready' | 'not-found' | 'not-mine' | 'not-pending' | 'responded';
 
@@ -151,7 +152,7 @@ export class ConviteAtletaComponent implements OnInit {
     this.error.set(null);
     this.responding.set(true);
     try {
-      const fn = httpsCallable(getFunctions(getApps()[0]!), 'acceptCoachAthleteInvite');
+      const fn = httpsCallable(getFunctions(getApps()[0]!, FUNCTIONS_REGION), 'acceptCoachAthleteInvite');
       await fn({ inviteId: this.inviteId });
       this.responseMessage.set('Convite aceito! Você agora faz parte da equipe.');
       this.state.set('responded');
@@ -166,7 +167,7 @@ export class ConviteAtletaComponent implements OnInit {
     this.error.set(null);
     this.responding.set(true);
     try {
-      const fn = httpsCallable(getFunctions(getApps()[0]!), 'cancelCoachAthleteInvite');
+      const fn = httpsCallable(getFunctions(getApps()[0]!, FUNCTIONS_REGION), 'cancelCoachAthleteInvite');
       await fn({ inviteId: this.inviteId, asDecline: true });
       this.responseMessage.set('Convite recusado.');
       this.state.set('responded');

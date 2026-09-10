@@ -18,6 +18,7 @@ import {
   SAND_RANK_TRACK,
   shieldsPerMonthForTrackIndex,
 } from "./sand-rank-engine";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Materialização do elo ("sand rank") — único ponto de escrita do sistema.
@@ -242,7 +243,7 @@ export const onGamificationSummaryWrittenSyncSandRank = onDocumentWritten(
  * Não envia push (concessões retroativas aparecem na celebração in-app).
  */
 export const backfillSandRanks = onCall(
-  {timeoutSeconds: 540},
+  {region: CLIENT_FACING_REGIONS, timeoutSeconds: 540},
   async (request) => {
     const callerUid = request.auth?.uid;
     if (!callerUid) {
@@ -296,7 +297,9 @@ export const backfillSandRanks = onCall(
 );
 
 /** Troca a moldura/título equipados. `null` explícito desequipa. */
-export const equipSandRankCosmetic = onCall(async (request) => {
+export const equipSandRankCosmetic = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Login necessário.");

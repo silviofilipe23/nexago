@@ -3,6 +3,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 import '../domain/arena_manager_booking.dart';
 import '../domain/arena_recurring_booking.dart';
+import '../../../core/firebase/functions_region.dart';
 
 class RecurringBookingException implements Exception {
   RecurringBookingException(this.message, {this.code});
@@ -20,7 +21,7 @@ class RecurringBookingService {
   RecurringBookingService(
     this._firestore, {
     FirebaseFunctions? functions,
-  }) : _functions = functions ?? FirebaseFunctions.instance;
+  }) : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;

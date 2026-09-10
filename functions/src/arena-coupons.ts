@@ -11,6 +11,7 @@ import * as logger from "firebase-functions/logger";
 import {callerIsSuperAdmin} from "./auth-roles";
 import {assertArenaAreaAccess, type ArenaAreaAccessMode} from "./arena-area-access";
 import type {BookingTotalResult} from "./arena-pricing";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const ARENAS_COLLECTION = "arenas";
 const COUPONS_SUBCOLLECTION = "coupons";
@@ -393,7 +394,9 @@ function serializeCoupon(c: ArenaCouponDoc) {
 }
 
 /** Cria um cupom de marketing (código digitável, validade, limite de uso). */
-export const createArenaCoupon = onCall(async (request) => {
+export const createArenaCoupon = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");
@@ -478,7 +481,9 @@ export const createArenaCoupon = onCall(async (request) => {
 });
 
 /** Lista os cupons da arena (todos, inclusive inativos — filtro fica na UI). */
-export const listArenaCoupons = onCall(async (request) => {
+export const listArenaCoupons = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");
@@ -500,7 +505,9 @@ export const listArenaCoupons = onCall(async (request) => {
 });
 
 /** Desativa um cupom (ação unidirecional — reativar exige criar um novo código). */
-export const deactivateArenaCoupon = onCall(async (request) => {
+export const deactivateArenaCoupon = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");

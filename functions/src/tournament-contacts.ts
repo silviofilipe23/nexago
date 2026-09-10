@@ -4,6 +4,7 @@ import {assertCanManageTournament} from "./tournament-acl";
 import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
 import {normalizePhoneForWhatsApp} from "./tournament-cancellation-request";
 import {registrationAthleteUids} from "./tournament-registration-pix-helpers";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Contatos (telefone/email) dos atletas INSCRITOS em um torneio, para a
@@ -38,7 +39,9 @@ export interface AthleteContact {
   email: string;
 }
 
-export const getTournamentAthleteContacts = onCall(async (request) => {
+export const getTournamentAthleteContacts = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -98,7 +101,9 @@ export interface OrganizerContact {
  *
  * Existe para o acerto do reembolso, que acontece FORA da plataforma.
  */
-export const getTournamentOrganizerContact = onCall(async (request) => {
+export const getTournamentOrganizerContact = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 

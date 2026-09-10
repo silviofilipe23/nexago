@@ -1,4 +1,5 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import '../../../core/firebase/functions_region.dart';
 
 /// Erro de callable já traduzido para o organizador ler. As recusas de
 /// pagamento vêm do servidor em português ("Esta inscrição já tem pagamento
@@ -25,7 +26,7 @@ String _callableMessage(FirebaseFunctionsException e, String fallback) {
 
 class OrganizerCategoryOpsService {
   OrganizerCategoryOpsService({FirebaseFunctions? functions})
-      : _functions = functions ?? FirebaseFunctions.instance;
+      : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFunctions _functions;
 

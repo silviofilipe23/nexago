@@ -1,6 +1,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/firebase/functions_region.dart';
 
 /// Resposta da callable `createArenaBookingPixPayment`.
 class ArenaBookingPixPaymentResult {
@@ -35,7 +36,7 @@ class ArenaBookingPaymentResult {
 /// Chama a Cloud Function e abre o checkout (navegador in-app ou externo).
 class PaymentService {
   PaymentService({FirebaseFunctions? functions})
-    : _functions = functions ?? FirebaseFunctions.instance;
+    : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFunctions _functions;
 

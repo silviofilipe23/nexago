@@ -48,6 +48,7 @@ import {
 import {asaasArenaSecrets} from "./asaas-client";
 import {debitArenaWalletForClubRefund} from "./arena-wallet";
 import {resolveAthleteDisplay} from "./arena-club-join";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -948,7 +949,9 @@ interface UpsertClubInput {
   endDate?: string | null;
 }
 
-export const upsertArenaClub = onCall(async (request) => {
+export const upsertArenaClub = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");
@@ -1174,7 +1177,9 @@ interface SetClubStatusInput {
   status?: string;
 }
 
-export const setArenaClubStatus = onCall(async (request) => {
+export const setArenaClubStatus = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");
@@ -1267,7 +1272,9 @@ interface CreateSessionInput {
   date?: string;
 }
 
-export const createArenaClubSession = onCall(async (request) => {
+export const createArenaClubSession = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");
@@ -1319,6 +1326,7 @@ interface CancelSessionInput {
 }
 
 export const cancelArenaClubSession = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: asaasArenaSecrets,
   timeoutSeconds: 300,
 }, async (request) => {
@@ -1354,6 +1362,7 @@ interface AddParticipantCallableInput {
 }
 
 export const addArenaClubParticipant = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: asaasArenaSecrets,
 }, async (request) => {
   const uid = request.auth?.uid;
@@ -1411,6 +1420,7 @@ interface RemoveParticipantCallableInput {
 }
 
 export const removeArenaClubParticipant = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: asaasArenaSecrets,
 }, async (request) => {
   const uid = request.auth?.uid;

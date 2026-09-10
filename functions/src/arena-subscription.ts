@@ -17,6 +17,7 @@ import {
   type BillingCycle,
 } from "./arena-plans";
 import {ARENA_SUBSCRIPTION_REF_PREFIX} from "./arena-booking-payment-constants";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 type AsaasBillingType = "PIX" | "CREDIT_CARD" | "UNDEFINED";
 
@@ -176,7 +177,7 @@ async function assertCallerManagesArena(
  * `active` quando o pagamento é confirmado pelo webhook.
  */
 export const createArenaSubscription = onCall(
-  {secrets: asaasArenaSecrets},
+  {region: CLIENT_FACING_REGIONS, secrets: asaasArenaSecrets},
   async (request): Promise<CreateArenaSubscriptionResult> => {
     const callerUid = request.auth?.uid;
     if (!callerUid) {
@@ -347,7 +348,7 @@ export const createArenaSubscription = onCall(
 
 /** Cancela a assinatura do plano da arena no Asaas e zera o plano público. */
 export const cancelArenaSubscription = onCall(
-  {secrets: asaasArenaSecrets},
+  {region: CLIENT_FACING_REGIONS, secrets: asaasArenaSecrets},
   async (request): Promise<{success: true}> => {
     const callerUid = request.auth?.uid;
     if (!callerUid) {

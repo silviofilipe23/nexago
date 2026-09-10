@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/tournament_partner_invite.dart';
 import '../domain/tournament_uniform_selection.dart';
+import '../../../core/firebase/functions_region.dart';
 
 class TournamentPartnerInviteException implements Exception {
   TournamentPartnerInviteException(this.message);
@@ -82,7 +83,7 @@ class TournamentPartnerInviteService {
     FirebaseFunctions? functions,
     FirebaseAuth? auth,
   })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _functions = functions ?? FirebaseFunctions.instance,
+        _functions = functions ?? nexagoFunctions,
         _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _firestore;

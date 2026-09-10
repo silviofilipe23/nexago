@@ -33,6 +33,7 @@ import {
   spotPassRegistrationUrl,
   trimmed,
 } from "./tournament-spot-pass-grant";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Avisa o atleta, e devolve se o aviso chegou a ALGUM canal.
@@ -80,6 +81,7 @@ async function notifySpotPassGranted(params: {
  * vez de criar um segundo — dois passes abririam duas vagas para a mesma pessoa.
  */
 export const organizerGrantTournamentSpotPass = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async (request) => {
   const organizerUid = request.auth?.uid;
@@ -168,7 +170,9 @@ export const organizerGrantTournamentSpotPass = onCall({
 });
 
 /** Revoga um passe ainda não usado. Passe já queimado não volta — a inscrição existe. */
-export const organizerRevokeTournamentSpotPass = onCall(async (request) => {
+export const organizerRevokeTournamentSpotPass = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const organizerUid = request.auth?.uid;
   if (!organizerUid) {
     throw new HttpsError("unauthenticated", "Login necessário");

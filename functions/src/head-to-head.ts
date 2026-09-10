@@ -2,6 +2,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore, type Firestore} from "firebase-admin/firestore";
 import {artifactsMatchesPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 import {isMatchCompleted} from "./match-status";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Head-to-head (confronto direto) entre dois atletas — item #3 de
@@ -279,7 +280,9 @@ async function loadTournamentNames(
  * partidas de torneios daquele esporte (campo `sport` no doc de
  * `tournaments/{id}`, mesmo campo lido em `rating-engine.ts`).
  */
-export const getHeadToHeadRecord = onCall(async (request) => {
+export const getHeadToHeadRecord = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 

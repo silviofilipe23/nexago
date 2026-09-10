@@ -10,12 +10,20 @@ import {isMatchCompleted} from "./match-status";
 import {
   loadCategoryBracketContext,
   loadKnockoutTeamIds,
-  loadPaidTeamIds,
   loadTeamAthleteIds,
   normalizeMatchType,
   resolveLeaguePlacementsFromMatch,
   type LeaguePlacementAward,
 } from "./league-ranking";
+import {tournamentSportToLevelSportCode} from "./category-level-eligibility";
+import {
+  fieldStrengthDocId,
+  fieldStrengthPath,
+  fieldStrengthStampPayload,
+  loadPaidTeamsWithParticipants,
+  measureFieldStrength,
+  readFieldStrengthStamp,
+} from "./category-field-strength-store";
 import {parseMatchPlayedAt} from "./tournament-match-gamification";
 import {shouldProcessRatingUpdate as shouldAwardForMatch} from "./rating-engine";
 import {artifactsPublicDataBase} from "./firebase-paths";
@@ -348,6 +356,54 @@ function isNonGroupCompletedMatch(match: Record<string, unknown>): boolean {
 }
 
 /**
+ * Peso de uma categoria Livre. Ordem: carimbo gravado (o normal, feito na
+ * publicação da chave) → medição na hora + carimbo `lazy` (chave publicada antes
+ * do deploy) → peso declarado (campo imensurável, e aí NÃO carimba, para que uma
+ * medição futura ainda possa acontecer).
+ */
+async function resolveLivreWeight(
+  db: Firestore,
+  projectId: string,
+  params: {
+    tournamentId: string;
+    categoryId: string;
+    sportCode: string | null;
+    paidTeams: Map<string, string[]>;
+    declaredWeight: number;
+  },
+): Promise<number> {
+  const stamped = await readFieldStrengthStamp(
+    db,
+    projectId,
+    params.tournamentId,
+    params.categoryId,
+  );
+  if (stamped) return stamped.weight;
+
+  const measured = await measureFieldStrength(db, projectId, {
+    tournamentId: params.tournamentId,
+    categoryId: params.categoryId,
+    presetKey: "livre",
+    sportCode: params.sportCode,
+    teams: params.paidTeams,
+    source: "lazy",
+  });
+  if (!measured) return params.declaredWeight;
+
+  await db
+    .doc(
+      `${fieldStrengthPath(projectId)}/` +
+        `${fieldStrengthDocId(params.tournamentId, params.categoryId)}`,
+    )
+    .set(fieldStrengthStampPayload(measured));
+  logger.info(
+    `globalRanking: força do campo medida em ${params.tournamentId}/${params.categoryId} ` +
+      `— degrau ${measured.fieldRank.toFixed(2)}, peso ${measured.weight}`,
+  );
+  return measured.weight;
+}
+
+/**
  * Concede pontos de ranking global pela partida encerrada — espelha
  * `tryAwardLeagueStagePointsForMatch`, mas incondicional a `leagueId`.
  */
@@ -388,7 +444,6 @@ export async function tryAwardGlobalRankingForMatch(
     );
   }
   const preset = categoryPreset(category);
-  const presetWeight = preset?.weight ?? LEGACY_CATEGORY_WEIGHT;
 
   const completedAt = parseMatchPlayedAt(match);
   const year = completedAt.getFullYear();
@@ -407,12 +462,15 @@ export async function tryAwardGlobalRankingForMatch(
 
   // Gate de desafio: avaliado a cada premiação, com a mesma contagem de pagas
   // que o bucket "groups" usa (query única, reaproveitada abaixo).
-  const paidTeamIds = await loadPaidTeamIds(
+  // Mesma query de antes, devolvendo também os integrantes — a medição da força
+  // do campo (Livre) sai deste snapshot, sem leitura nova.
+  const paidTeams = await loadPaidTeamsWithParticipants(
     db,
     projectId,
     tournamentId,
     categoryId,
   );
+  const paidTeamIds = new Set(paidTeams.keys());
   if (
     !isGlobalRankingEligible({
       isLeagueStage,
@@ -425,6 +483,20 @@ export async function tryAwardGlobalRankingForMatch(
         `(liga=${isLeagueStage}, rankingEnabled=${rankingEnabled}, pagas=${paidTeamIds.size})`,
     );
     return {awarded: false, teamsUpdated: 0};
+  }
+
+  // Peso do preset. O Livre é a exceção: a faixa declarada (0–6) dá 0.125 pelo
+  // PISO, o que pune um campo forte, então o peso vem da força REAL medida —
+  // carimbada na publicação da chave, ou medida aqui e carimbada se faltar.
+  let presetWeight = preset?.weight ?? LEGACY_CATEGORY_WEIGHT;
+  if (preset?.key === "livre") {
+    presetWeight = await resolveLivreWeight(db, projectId, {
+      tournamentId,
+      categoryId,
+      sportCode: tournamentSportToLevelSportCode(tournament.sport),
+      paidTeams,
+      declaredWeight: preset.weight,
+    });
   }
 
   const pointsMultiplier =

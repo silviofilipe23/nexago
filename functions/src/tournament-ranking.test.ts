@@ -487,3 +487,86 @@ describe("escada por fase alcançada — tabela e colocação persistida", () =>
     assert.strictEqual(globalPointsForAward({teamId: "t", bucket: "r32"}, 0.25), 33);
   });
 });
+
+describe("peso do Livre pela força real do campo", () => {
+  /** `seededDb` não grava `categories` nem `participantUids`; este helper completa. */
+  function livreDb(teamRanks: number[]): FakeFirestore {
+    const db = new FakeFirestore();
+    db.seedDoc("tournaments/T1", {
+      sport: "beachVolleyball",
+      rankingEnabled: true,
+      categories: [{id: "C1", level: "Open", minLevel: "Iniciante 1"}],
+    });
+    db.seedDoc(`artifacts/${PROJECT}/public/data/teams/tA`, {player1Id: "a1", player2Id: "a2"});
+    db.seedDoc(`artifacts/${PROJECT}/public/data/teams/tB`, {player1Id: "b1", player2Id: "b2"});
+    db.seedDoc(`artifacts/${PROJECT}/public/data/matches/m-final`, finalMatch());
+
+    teamRanks.forEach((rank, index) => {
+      const teamId = index === 0 ? "tA" : index === 1 ? "tB" : `tG${index}`;
+      const uid = `${teamId}-p1`;
+      db.seedDoc(`artifacts/${PROJECT}/public/data/inscriptions/i${index}`, {
+        tournamentId: "T1",
+        categoryId: "C1",
+        teamId,
+        isPaid: true,
+        participantUids: [uid],
+      });
+      db.seedDoc(`artifacts/${PROJECT}/public/data/athleteRatings/${uid}_VOLEI_PRAIA`, {
+        levelRank: rank,
+      });
+    });
+    return db;
+  }
+
+  const JHON_JHON_RANKS = [6, 6, 6, 6, 6, 3, 3, 2, 2, 2];
+
+  it("regressão DESAFIO OPEN - JHON JHON: campeão sai com 500, não 125", async () => {
+    const db = livreDb(JHON_JHON_RANKS);
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    const champion = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`);
+    assert.equal(champion?.pointsEarned, 500);
+    const runnerUp = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tB`);
+    assert.equal(runnerUp?.pointsEarned, 400);
+  });
+
+  it("mede e carimba quando a chave saiu antes do deploy (caminho preguiçoso)", async () => {
+    const db = livreDb(JHON_JHON_RANKS);
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    const stamp = db.store.get(
+      `artifacts/${PROJECT}/public/data/tournamentCategoryFieldStrength/T1_C1`,
+    );
+    assert.ok(stamp);
+    assert.equal(stamp.weight, 0.5);
+    assert.equal(stamp.source, "lazy");
+  });
+
+  it("carimbo existente vence a medição (não remede a cada partida)", async () => {
+    const db = livreDb(JHON_JHON_RANKS);
+    db.seedDoc(`artifacts/${PROJECT}/public/data/tournamentCategoryFieldStrength/T1_C1`, {
+      tournamentId: "T1", categoryId: "C1", presetKey: "livre",
+      fieldRank: 6, weight: 1, measuredTeams: 10, totalPaidTeams: 10, source: "bracket",
+    });
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    const champion = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`);
+    assert.equal(champion?.pointsEarned, 1000);
+  });
+
+  it("campo imensurável cai no peso declarado e NÃO carimba", async () => {
+    const db = livreDb(JHON_JHON_RANKS);
+    // Remove todos os degraus: nenhuma dupla é mensurável.
+    for (const key of [...db.store.keys()]) {
+      if (key.includes("/athleteRatings/")) db.store.delete(key);
+    }
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    const champion = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`);
+    assert.equal(champion?.pointsEarned, 125);
+    assert.equal(
+      db.store.has(`artifacts/${PROJECT}/public/data/tournamentCategoryFieldStrength/T1_C1`),
+      false,
+    );
+  });
+});

@@ -36,6 +36,7 @@ import {
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { FUNCTIONS_REGION } from '@nexago/firebase-config';
 
 const WEEKDAY_ABBR = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as const;
 const MONTH_ABBR = [
@@ -68,7 +69,7 @@ function createFunctions(): Functions | null {
     return null;
   }
   const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
-  return getFunctions(app);
+  return getFunctions(app, FUNCTIONS_REGION);
 }
 
 function dateOnly(d: Date): Date {

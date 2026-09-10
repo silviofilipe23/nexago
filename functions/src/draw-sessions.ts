@@ -30,7 +30,7 @@ import {assertCanManageTournament} from "./tournament-acl";
 import {findCategory, resolveCategoryLabel} from "./tournament-registration-guards";
 import {registrationAthleteUids} from "./tournament-registration-pix-helpers";
 import {chunkList} from "./test-data-cleanup";
-import {PORTAL_CALLABLE_REGIONS} from "./function-regions";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Sorteio ao Vivo — as callables da sessão.
@@ -178,7 +178,7 @@ function categoryMetaOf(tournament: Record<string, unknown>, categoryId: string)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const createDrawSession = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -373,7 +373,7 @@ export const createDrawSession = onCall({
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const updateDrawSessionConfig = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -414,7 +414,7 @@ export const updateDrawSessionConfig = onCall({
 });
 
 export const startDrawSession = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -458,7 +458,7 @@ export const startDrawSession = onCall({
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const drawNextReveal = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -523,7 +523,7 @@ export const drawNextReveal = onCall({
  * história que o log já provou.
  */
 export const updateDrawSessionSeeds = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -584,7 +584,7 @@ export const updateDrawSessionSeeds = onCall({
  * revelação seguinte não pode voltar o spotlight de uma dupla que já saiu.
  */
 export const clearRevealSpotlight = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -604,7 +604,7 @@ export const clearRevealSpotlight = onCall({
 });
 
 export const replaceRevealPhrase = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -650,7 +650,7 @@ export const replaceRevealPhrase = onCall({
 });
 
 export const publishDrawSession = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -706,7 +706,7 @@ export const publishDrawSession = onCall({
 });
 
 export const voidDrawSession = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");

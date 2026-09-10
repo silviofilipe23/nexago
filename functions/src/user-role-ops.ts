@@ -12,6 +12,7 @@ import {
   firestoreRolesPayload,
   isAllowedRole,
 } from "./auth-roles";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /** `auth.getUser(uid)` do próprio chamador: token ainda válido (JWT não
  *  expirou) mas a conta foi apagada depois que o cliente o obteve vira
@@ -38,7 +39,9 @@ async function getCallerUserOrThrowUnauthenticated(
  * Substitui todos os papéis do usuário por um único papel (compatível com clients antigos).
  * Grava claim `roles: [role]` (o legado `role` é purgado).
  */
-export const setUserRole = onCall(async (request) => {
+export const setUserRole = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const {uid, role} = request.data || {};
   const callerUid = request.auth?.uid;
 
@@ -102,7 +105,9 @@ export const setUserRole = onCall(async (request) => {
 /**
  * Acrescenta um papel ao usuário (união com os existentes).
  */
-export const addUserRole = onCall(async (request) => {
+export const addUserRole = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const {uid, role} = request.data || {};
   const callerUid = request.auth?.uid;
 
@@ -161,7 +166,9 @@ export const addUserRole = onCall(async (request) => {
 /**
  * Remove um papel do usuário. Deve permanecer ao menos um papel.
  */
-export const removeUserRole = onCall(async (request) => {
+export const removeUserRole = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const {uid, role} = request.data || {};
   const callerUid = request.auth?.uid;
 
@@ -227,7 +234,9 @@ export const removeUserRole = onCall(async (request) => {
 /**
  * Define a lista completa de papéis. Apenas super administrador.
  */
-export const setUserRoles = onCall(async (request) => {
+export const setUserRoles = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const {uid, roles: rolesIn} = request.data || {};
   const callerUid = request.auth?.uid;
 

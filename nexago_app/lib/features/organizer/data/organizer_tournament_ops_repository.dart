@@ -1,13 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../core/firebase/functions_region.dart';
 
 class OrganizerTournamentOpsRepository {
   OrganizerTournamentOpsRepository(
     this._firestore,
     this._auth, {
     FirebaseFunctions? functions,
-  }) : _functions = functions ?? FirebaseFunctions.instance;
+  }) : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;

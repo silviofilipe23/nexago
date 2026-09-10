@@ -1,4 +1,5 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import '../../../core/firebase/functions_region.dart';
 
 /// Resultado de [AthleteReferralService.registerReferral].
 class ReferralRegistrationResult {
@@ -19,7 +20,7 @@ class ReferralRegistrationResult {
 /// Function `registerReferral` (idempotente, valida auto-indicação).
 class AthleteReferralService {
   AthleteReferralService({FirebaseFunctions? functions})
-    : _functions = functions ?? FirebaseFunctions.instance;
+    : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFunctions _functions;
 

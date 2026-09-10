@@ -3,6 +3,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../arenas/domain/arena_club_session.dart';
 import '../domain/arena_club.dart';
+import '../../../core/firebase/functions_region.dart';
 
 class ArenaClubAdminException implements Exception {
   ArenaClubAdminException(this.message, {this.code});
@@ -81,7 +82,7 @@ class ArenaClubService {
   ArenaClubService(
     this._firestore, {
     FirebaseFunctions? functions,
-  }) : _functions = functions ?? FirebaseFunctions.instance;
+  }) : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;

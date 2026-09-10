@@ -1,6 +1,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {getFirestore, FieldValue, Timestamp} from "firebase-admin/firestore";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Cliques no botão "Entre em contato" das arenas pré-cadastradas (`unclaimed: true`).
@@ -24,7 +25,9 @@ import {getFirestore, FieldValue, Timestamp} from "firebase-admin/firestore";
 const SURFACES = new Set(["app", "web"]);
 const DEBOUNCE_SECONDS = 60;
 
-export const trackArenaContactClick = onCall(async (request) => {
+export const trackArenaContactClick = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");

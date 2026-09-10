@@ -24,6 +24,7 @@ import {
   type CouponPricingOutcome,
 } from "./arena-coupons";
 import {ensurePeakRuleSatisfied, parsePeakRulesFromDocs} from "./arena-peak-rules";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -192,7 +193,9 @@ function assertPositiveBookingTotal(total: BookingTotalResult): void {
   }
 }
 
-export const quoteArenaBooking = onCall(async (request) => {
+export const quoteArenaBooking = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");
   }
@@ -209,7 +212,9 @@ export const quoteArenaBooking = onCall(async (request) => {
   };
 });
 
-export const createArenaBooking = onCall(async (request) => {
+export const createArenaBooking = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const athleteId = request.auth?.uid;
   if (!athleteId) {
     throw new HttpsError("unauthenticated", "Faça login para confirmar a reserva.");

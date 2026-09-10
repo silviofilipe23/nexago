@@ -1,6 +1,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore, Timestamp, type Firestore} from "firebase-admin/firestore";
 import {isArenaEntitledPro} from "./arena-entitlement";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Peça na quadra — o atleta lança consumo direto no app numa comanda já
@@ -250,7 +251,9 @@ export async function addAppOrderItemCore(
   });
 }
 
-export const addAppOrderItem = onCall(async (request) => {
+export const addAppOrderItem = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
   const input = (request.data ?? {}) as AddAppOrderItemInput;

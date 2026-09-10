@@ -76,6 +76,7 @@ import {
   sharePaidUidsFromRegistration,
   type AthleteGenderBucket,
 } from "./tournament-registration-pix-helpers";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 function str(raw: unknown): string {
   return typeof raw === "string" ? raw.trim() : "";
@@ -143,7 +144,9 @@ function parseSubstitutionReasonNote(raw: unknown): string | undefined {
  * categoria. NÃO passa por `assertTournamentAcceptsRegistration`: a troca deve
  * funcionar com as inscrições já encerradas.
  */
-export const sendTournamentSubstitutionInvite = onCall(async (request) => {
+export const sendTournamentSubstitutionInvite = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Usuário não autenticado.");
 
@@ -317,7 +320,9 @@ export const SUBSTITUTION_REMINDER_COOLDOWN_MS = 6 * 60 * 60 * 1000;
  * segunda chamada (e as seguintes) é no-op — `viewedAt` só é gravado na
  * primeira vez, nunca sobrescrito.
  */
-export const markSubstitutionInviteViewed = onCall(async (request) => {
+export const markSubstitutionInviteViewed = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Usuário não autenticado.");
 
@@ -354,7 +359,9 @@ export const markSubstitutionInviteViewed = onCall(async (request) => {
  * um lembrete. Só quem enviou o convite pode pedir; rate-limitado por
  * `SUBSTITUTION_REMINDER_COOLDOWN_MS` para não virar spam.
  */
-export const resendSubstitutionInvite = onCall(async (request) => {
+export const resendSubstitutionInvite = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Usuário não autenticado.");
 

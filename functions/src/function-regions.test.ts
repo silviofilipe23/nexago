@@ -1,86 +1,119 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import {PORTAL_CALLABLE_REGIONS} from "./function-regions";
-import * as athleteLevelAdmin from "./athlete-level-admin";
-import * as cancellationRequestOps from "./tournament-cancellation-request-ops";
-import * as categoryOps from "./organizer-category-ops";
-import * as createRegistration from "./organizer-create-registration";
-import * as drawSessions from "./draw-sessions";
-import * as matchOps from "./organizer-match-ops";
-import * as signup from "./organizer-signup";
-import * as spotPassLink from "./tournament-spot-pass-link";
-import * as spotPassOps from "./tournament-spot-pass-ops";
-import * as withdrawal from "./organizer-withdrawal";
+import {readdirSync} from "node:fs";
+import {join} from "node:path";
+// Antes de qualquer coleta: é isto que o `index.ts` faz, e a região dos
+// gatilhos depende de a chamada acontecer antes de a função ser definida.
+import "./global-options";
+import {CLIENT_FACING_REGIONS, DEFAULT_REGION} from "./function-regions";
 
 /**
- * As callables que o portal do organizador chama
- * (`frontend/projects/organizer/src/app/painel/data/organizer-ops.service.ts` e
- * `auth/auth.service.ts`). O portal web pede `southamerica-east1`; o app
- * Flutter e bundles antigos seguem pedindo `us-central1`. Uma callable desta
- * lista sem as duas regiões quebra um dos dois lados.
+ * A política de região, verificada no artefato compilado — não no texto do
+ * código. O que importa é o `__endpoint` que o deploy lê; um `region` escrito
+ * no lugar errado passa por qualquer grep e não chega lá.
  */
-const PORTAL_CALLABLES: Record<string, unknown> = {
-  autoScheduleTournamentDay: matchOps.autoScheduleTournamentDay,
-  cancelTournament: categoryOps.cancelTournament,
-  clearRevealSpotlight: drawSessions.clearRevealSpotlight,
-  closeTournamentRegistrations: categoryOps.closeTournamentRegistrations,
-  completeOrganizerSignup: signup.completeOrganizerSignup,
-  createDrawSession: drawSessions.createDrawSession,
-  declareMatchWalkover: matchOps.declareMatchWalkover,
-  drawNextReveal: drawSessions.drawNextReveal,
-  generateCategoryBracket: categoryOps.generateCategoryBracket,
-  organizerConfirmRegistrationPayment: categoryOps.organizerConfirmRegistrationPayment,
-  organizerCreateSpotPassLink: spotPassLink.organizerCreateSpotPassLink,
-  organizerCreateTeamRegistration: createRegistration.organizerCreateTeamRegistration,
-  organizerGrantTournamentSpotPass: spotPassOps.organizerGrantTournamentSpotPass,
-  organizerMoveToWaitlist: categoryOps.organizerMoveToWaitlist,
-  organizerRemoveFromCategory: categoryOps.organizerRemoveFromCategory,
-  organizerRevertRegistrationPayment: categoryOps.organizerRevertRegistrationPayment,
-  organizerRevokeSpotPassLink: spotPassLink.organizerRevokeSpotPassLink,
-  organizerRevokeTournamentSpotPass: spotPassOps.organizerRevokeTournamentSpotPass,
-  publishDrawSession: drawSessions.publishDrawSession,
-  replaceRevealPhrase: drawSessions.replaceRevealPhrase,
-  resendRegistrationPayment: categoryOps.resendRegistrationPayment,
-  respondRegistrationCancellationRequest:
-    cancellationRequestOps.respondRegistrationCancellationRequest,
-  revertMatchToScheduled: matchOps.revertMatchToScheduled,
-  scheduleMatch: matchOps.scheduleMatch,
-  sendCategoryCommunication: categoryOps.sendCategoryCommunication,
-  setAthleteLevel: athleteLevelAdmin.setAthleteLevel,
-  setOrganizerPayoutPixKey: withdrawal.setOrganizerPayoutPixKey,
-  startDrawSession: drawSessions.startDrawSession,
-  submitMatchResult: matchOps.submitMatchResult,
-  unscheduleMatch: matchOps.unscheduleMatch,
-  updateDrawSessionConfig: drawSessions.updateDrawSessionConfig,
-  updateDrawSessionSeeds: drawSessions.updateDrawSessionSeeds,
-  updateLiveMatchScore: matchOps.updateLiveMatchScore,
-  updateMatchOpsSettings: matchOps.updateMatchOpsSettings,
-  validateMatchResult: matchOps.validateMatchResult,
-  voidDrawSession: drawSessions.voidDrawSession,
-};
 
-const regionOf = (fn: unknown): unknown =>
-  (fn as {__endpoint?: {region?: unknown}})?.__endpoint?.region;
+interface Endpoint {
+  region?: unknown;
+  maxInstances?: unknown;
+  callableTrigger?: unknown;
+  httpsTrigger?: unknown;
+  eventTrigger?: unknown;
+  scheduleTrigger?: unknown;
+}
 
-describe("regiões das callables do portal", () => {
-  it("southamerica-east1 encosta o backend no Firestore", () => {
+function walk(dir: string, out: string[] = []): string[] {
+  for (const e of readdirSync(dir, {withFileTypes: true})) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) walk(p, out);
+    // `index.js` fica de fora: importá-lo roda `initializeApp()`.
+    else if (e.name.endsWith(".js") && !e.name.endsWith(".test.js") && e.name !== "index.js") {
+      out.push(p);
+    }
+  }
+  return out;
+}
+
+/** Todo endpoint exportado pelo bundle, por nome. */
+function collectEndpoints(): Map<string, Endpoint> {
+  const found = new Map<string, Endpoint>();
+  for (const file of walk(__dirname)) {
+    let mod: Record<string, unknown>;
+    try {
+      mod = require(file) as Record<string, unknown>;
+    } catch {
+      continue; // módulo que precisa de credencial para carregar não é endpoint
+    }
+    for (const [name, value] of Object.entries(mod)) {
+      const endpoint = (value as {__endpoint?: Endpoint})?.__endpoint;
+      if (endpoint) found.set(name, endpoint);
+    }
+  }
+  return found;
+}
+
+const ENDPOINTS = collectEndpoints();
+
+const clientFacing = (e: Endpoint): boolean =>
+  e.callableTrigger !== undefined || e.httpsTrigger !== undefined;
+
+describe("política de região", () => {
+  it("a casa é a mesma região do Firestore", () => {
+    assert.equal(DEFAULT_REGION, "southamerica-east1");
+  });
+
+  it("São Paulo é o destino, us-central1 é a ponte", () => {
+    assert.equal(CLIENT_FACING_REGIONS[0], DEFAULT_REGION);
     assert.ok(
-      PORTAL_CALLABLE_REGIONS.includes("southamerica-east1"),
-      "sem a região do banco, toda leitura volta a atravessar o continente",
+      CLIENT_FACING_REGIONS.includes("us-central1"),
+      "apagar Iowa antes da hora derruba o app publicado e os webhooks",
     );
   });
 
-  it("us-central1 continua servindo os clientes que ainda não migraram", () => {
-    assert.ok(
-      PORTAL_CALLABLE_REGIONS.includes("us-central1"),
-      "apagar Iowa faz o app publicado receber NOT FOUND",
-    );
+  it("o bundle expõe os endpoints esperados", () => {
+    assert.ok(ENDPOINTS.size > 150, `só ${ENDPOINTS.size} endpoints carregaram`);
+  });
+});
+
+describe("callables e endpoints HTTP atendem nas duas regiões", () => {
+  const names = [...ENDPOINTS].filter(([, e]) => clientFacing(e)).map(([n]) => n).sort();
+
+  it("há callables e endpoints HTTP para checar", () => {
+    assert.ok(names.length > 150, `só ${names.length} endpoints com cliente`);
   });
 
-  for (const [name, fn] of Object.entries(PORTAL_CALLABLES)) {
-    it(`${name} deploya nas duas regiões`, () => {
-      assert.ok(fn, `${name} não está exportada`);
-      assert.deepEqual(regionOf(fn), PORTAL_CALLABLE_REGIONS);
+  for (const name of names) {
+    it(name, () => {
+      assert.deepEqual(
+        ENDPOINTS.get(name)!.region,
+        CLIENT_FACING_REGIONS,
+        `${name} tem cliente do outro lado e precisa das duas regiões`,
+      );
     });
   }
+});
+
+describe("gatilhos e agendadas ficam em São Paulo pelo padrão global", () => {
+  const names = [...ENDPOINTS].filter(([, e]) => !clientFacing(e)).map(([n]) => n).sort();
+
+  it("há gatilhos e agendadas para checar", () => {
+    assert.ok(names.length > 40, `só ${names.length} gatilhos/agendadas`);
+  });
+
+  for (const name of names) {
+    it(name, () => {
+      // Ninguém os chama por região — quem dispara é o próprio Firestore e o
+      // Cloud Scheduler. Vão direto para a casa, sem ponte.
+      assert.deepEqual(ENDPOINTS.get(name)!.region, [DEFAULT_REGION]);
+    });
+  }
+});
+
+describe("o teto de instâncias vale de verdade", () => {
+  it("chega em todo endpoint, não só nos definidos após a chamada", () => {
+    const semTeto = [...ENDPOINTS]
+      .filter(([, e]) => (e as {maxInstances?: unknown}).maxInstances !== 10)
+      .map(([n]) => n);
+    assert.deepEqual(semTeto, [], "setGlobalOptions rodou tarde demais");
+  });
 });

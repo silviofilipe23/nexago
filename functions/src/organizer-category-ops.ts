@@ -71,7 +71,7 @@ import {buildRegistrationCancellationAudit} from "./tournament-registration-canc
 import {organizerContactFromUser} from "./tournament-contacts";
 import {notifyBracketPublishedAthletes} from "./organizer-category-ops-bracket-notify";
 import {artifactsInscriptionsPath, artifactsMatchesPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
-import {PORTAL_CALLABLE_REGIONS} from "./function-regions";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {registrationHoldClearedFields} from
   "./tournament-registration-hold-ops";
 
@@ -444,7 +444,7 @@ export async function runGenerateCategoryBracket(
 }
 
 export const generateCategoryBracket = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -455,7 +455,7 @@ export const generateCategoryBracket = onCall({
 // segredo ligado à função `getAsaasApiKey()` lança ASAAS_API_KEY_MISSING —
 // o cancelamento viraria um no-op silencioso.
 export const organizerConfirmRegistrationPayment = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
   secrets: asaasArenaSecrets,
 }, async (request) => {
   const uid = request.auth?.uid;
@@ -705,7 +705,7 @@ export const organizerConfirmRegistrationPayment = onCall({
  * vaga NÃO é liberada: quem tira a dupla da categoria é a remoção.
  */
 export const organizerRevertRegistrationPayment = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -844,7 +844,7 @@ export const organizerRevertRegistrationPayment = onCall({
 });
 
 export const organizerMoveToWaitlist = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -876,7 +876,7 @@ export const organizerMoveToWaitlist = onCall({
 // `secrets`: a remoção cancela cobranças PIX abertas no Asaas antes de apagar
 // a inscrição — sem o segredo, `getAsaasApiKey()` lança e a remoção falha.
 export const organizerRemoveFromCategory = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
   secrets: asaasArenaSecrets,
 }, async (request) => {
   const uid = request.auth?.uid;
@@ -1003,7 +1003,7 @@ export const organizerRemoveFromCategory = onCall({
 });
 
 export const resendRegistrationPayment = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -1192,7 +1192,7 @@ export async function sendCategoryCommunicationCore(
 }
 
 export const sendCategoryCommunication = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -1207,7 +1207,7 @@ export const sendCategoryCommunication = onCall({
 });
 
 export const closeTournamentRegistrations = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -1272,7 +1272,7 @@ async function notifyPaidTeamsOfCancellation(
 }
 
 export const cancelTournament = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");

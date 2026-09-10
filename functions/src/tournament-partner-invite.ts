@@ -81,6 +81,7 @@ import {releaseRegistration} from "./tournament-registration-release";
 import {loadTeamMemberUids, loadUserGenderBucket} from "./tournament-team-roster";
 import {normalizeAthleteGenderBucket} from "./tournament-registration-pix-helpers";
 import type {AthleteGenderBucket} from "./tournament-registration-pix-helpers";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 export {INVITES_COLLECTION, INVITE_TTL_MS};
 
@@ -1077,7 +1078,9 @@ export async function sendPartnerInviteFor(
   };
 }
 
-export const sendTournamentPartnerInvite = onCall(async (request) => {
+export const sendTournamentPartnerInvite = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");
@@ -1099,7 +1102,9 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
  * `player2Id` vazio e a inscrição com `partnerPending: true`. O parceiro entra
  * depois ao aceitar um convite (que ANEXA a esta inscrição).
  */
-export const registerSoloTournament = onCall(async (request) => {
+export const registerSoloTournament = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");
@@ -1288,6 +1293,7 @@ export const registerSoloTournament = onCall(async (request) => {
  * convites pendentes ligados. Uma trilha de auditoria é gravada antes do delete.
  */
 export const cancelTournamentRegistration = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: [...asaasArenaSecrets],
 }, async (request) => {
   const uid = request.auth?.uid;
@@ -1441,6 +1447,7 @@ async function notifyOrganizersRegistrationCompleted({
 }
 
 export const acceptTournamentPartnerInvite = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT, ...asaasArenaSecrets],
 }, async (request) => {
   const uid = request.auth?.uid;
@@ -2154,7 +2161,9 @@ async function refreshRegistrationHoldForInvite(
   await refreshRegistrationHold(db, getFirebaseProjectId(), attachId);
 }
 
-export const cancelTournamentPartnerInvite = onCall(async (request) => {
+export const cancelTournamentPartnerInvite = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");
@@ -2236,7 +2245,9 @@ export const cancelTournamentPartnerInvite = onCall(async (request) => {
  * (player1/player2, ou `uniformByUid` em equipe). Vale também na RESERVA SOLO,
  * antes de a dupla existir. Valida o tamanho contra a categoria.
  */
-export const setRegistrationUniform = onCall(async (request) => {
+export const setRegistrationUniform = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");

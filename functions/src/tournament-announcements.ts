@@ -3,6 +3,7 @@ import {getFirestore, FieldValue, type Firestore} from "firebase-admin/firestore
 import {assertCanManageTournament} from "./tournament-acl";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {artifactsInscriptionsPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Avisos do organizador — canal PÚBLICO e PERSISTENTE de comunicados do
@@ -123,7 +124,9 @@ export async function postTournamentAnnouncementCore(
   return {feedId, tournamentId, message, recipientUids};
 }
 
-export const postTournamentAnnouncement = onCall(async (request) => {
+export const postTournamentAnnouncement = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 

@@ -17,6 +17,7 @@ import {
   type FriendlyMatchObjective,
 } from "./friendly-match-logic";
 import {applyReputationEvent, lateCancelEventId} from "./friendly-match-reputation";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Bora Jogar — callables do ciclo de convite (enviar, aceitar, recusar,
@@ -796,7 +797,9 @@ async function deliverAll(notifications: FriendlyMatchNotification[]): Promise<v
   }
 }
 
-export const sendFriendlyMatchInvite = onCall(async (request) => {
+export const sendFriendlyMatchInvite = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = requireAuth(request.auth?.uid);
   const result = await sendFriendlyMatchInviteCore(
     getFirestore(), uid, request.data as SendFriendlyMatchInput);
@@ -804,7 +807,9 @@ export const sendFriendlyMatchInvite = onCall(async (request) => {
   return {matchId: result.matchId};
 });
 
-export const acceptFriendlyMatchInviteSlot = onCall(async (request) => {
+export const acceptFriendlyMatchInviteSlot = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = requireAuth(request.auth?.uid);
   const data = request.data as {matchId: string; chosenTimeMs?: number};
   const result = await acceptFriendlyMatchInviteSlotCore(getFirestore(), uid, data);
@@ -812,7 +817,9 @@ export const acceptFriendlyMatchInviteSlot = onCall(async (request) => {
   return {matchId: result.matchId};
 });
 
-export const declineFriendlyMatchInviteSlot = onCall(async (request) => {
+export const declineFriendlyMatchInviteSlot = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = requireAuth(request.auth?.uid);
   const data = request.data as {matchId: string; reason?: string};
   const result = await declineFriendlyMatchInviteSlotCore(getFirestore(), uid, data);
@@ -820,7 +827,9 @@ export const declineFriendlyMatchInviteSlot = onCall(async (request) => {
   return {matchId: result.matchId};
 });
 
-export const counterFriendlyMatchInvite = onCall(async (request) => {
+export const counterFriendlyMatchInvite = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = requireAuth(request.auth?.uid);
   const data = request.data as {
     matchId: string;
@@ -834,7 +843,9 @@ export const counterFriendlyMatchInvite = onCall(async (request) => {
   return {matchId: result.matchId};
 });
 
-export const fillFriendlyMatchSlot = onCall(async (request) => {
+export const fillFriendlyMatchSlot = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = requireAuth(request.auth?.uid);
   const data = request.data as {matchId: string; slotIndex: number; toUid: string};
   const result = await fillFriendlyMatchSlotCore(getFirestore(), uid, data);
@@ -842,7 +853,9 @@ export const fillFriendlyMatchSlot = onCall(async (request) => {
   return {matchId: result.matchId};
 });
 
-export const cancelFriendlyMatch = onCall(async (request) => {
+export const cancelFriendlyMatch = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = requireAuth(request.auth?.uid);
   const data = request.data as {matchId: string};
   const result = await cancelFriendlyMatchCore(getFirestore(), uid, data);

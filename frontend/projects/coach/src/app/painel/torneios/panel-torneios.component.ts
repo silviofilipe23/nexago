@@ -10,6 +10,7 @@ import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
 import { RowComponent } from '../ui/row.component';
 import { SquadContextService } from '../ui/squad-context.service';
+import { FUNCTIONS_REGION } from '@nexago/firebase-config';
 
 interface AthleteTournamentEntry {
   athleteUid: string;
@@ -99,7 +100,7 @@ export class PanelTorneiosComponent {
     this.error.set(null);
     try {
       const fn = httpsCallable<{ squadId?: string }, { tournaments: CoachTournamentOverviewItem[] }>(
-        getFunctions(getApps()[0]!),
+        getFunctions(getApps()[0]!, FUNCTIONS_REGION),
         'getCoachTournamentOverview',
       );
       const res = await fn(squadId ? { squadId } : {});

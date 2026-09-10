@@ -2,6 +2,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore} from "firebase-admin/firestore";
 import {getAuth} from "firebase-admin/auth";
 import * as logger from "firebase-functions/logger";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Exclusão de conta iniciada pelo próprio usuário (LGPD + App Store 5.1.1(v)).
@@ -12,7 +13,9 @@ import * as logger from "firebase-functions/logger";
  * apagados aqui — são mantidos por exigência fiscal e para não corromper
  * chaves em andamento; a referência ao usuário fica órfã.
  */
-export const deleteOwnAccount = onCall(async (request) => {
+export const deleteOwnAccount = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 

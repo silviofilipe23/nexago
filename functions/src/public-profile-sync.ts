@@ -4,6 +4,7 @@ import {getAuth, type UserRecord} from "firebase-admin/auth";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {hasRoleInClaims} from "./auth-roles";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Espelho público de perfis: `public_profiles/{uid}` contém APENAS campos de
@@ -99,7 +100,7 @@ export const onUserWrittenSyncPublicProfile = onDocumentWritten(
  * e repita com `startAfterId` do último doc até `hasMore` ser false.
  */
 export const backfillPublicProfiles = onCall(
-  {timeoutSeconds: 540},
+  {region: CLIENT_FACING_REGIONS, timeoutSeconds: 540},
   async (request) => {
     const callerUid = request.auth?.uid;
     if (!callerUid) {

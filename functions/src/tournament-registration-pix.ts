@@ -58,6 +58,7 @@ import {
 } from "./notification-delivery";
 import {tournamentManagerUids} from "./tournament-acl";
 import {artifactsInscriptionsPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const pixPaymentSecrets = [...asaasArenaSecrets, PLATFORM_FEE_FIXED_BRL];
 
@@ -405,6 +406,7 @@ async function prepareRegistrationCharge(
 }
 
 export const createTournamentRegistrationPixPayment = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: pixPaymentSecrets,
 }, async (request): Promise<PixPaymentResponse> => {
   const callerUid = request.auth?.uid;
@@ -497,6 +499,7 @@ type CardPaymentResponse = {
  * autorização (`CONFIRMED`) — ver `registration-payment-phases.ts`.
  */
 export const createTournamentRegistrationCardPayment = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: pixPaymentSecrets,
 }, async (request): Promise<CardPaymentResponse> => {
   const callerUid = request.auth?.uid;
@@ -574,6 +577,7 @@ export const createTournamentRegistrationCardPayment = onCall({
 
 /** Cancela cobrança PIX pendente da parcela (sem cancelar a inscrição). */
 export const cancelPendingTournamentRegistrationPix = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: pixPaymentSecrets,
 }, async (request) => {
   const callerUid = request.auth?.uid;
@@ -726,6 +730,7 @@ async function notifyOrganizersPaymentDeclared({
 
 /** Confirma inscrição gratuita (taxa zero) sem PIX. */
 export const confirmFreeTournamentRegistration = onCall({
+  region: CLIENT_FACING_REGIONS,
 }, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) {
@@ -878,6 +883,7 @@ export const confirmFreeTournamentRegistration = onCall({
  *  aceitar o convite depois entra sem taxa). Só é aceito quando ainda não há
  *  pagamento parcial, espelhando o guard do PIX in-app. */
 export const reserveDirectOrganizerRegistration = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async (request) => {
   const callerUid = request.auth?.uid;

@@ -1,5 +1,6 @@
+// PRIMEIRO import, sempre: fixa região e teto antes de qualquer função ser definida.
+import "./global-options";
 import {initializeApp} from "firebase-admin/app";
-import {setGlobalOptions} from "firebase-functions";
 
 import {recalculateArenaReviewAggregates} from "./arena-review-aggregates";
 import {quoteArenaBooking, createArenaBooking} from "./arena-booking-create";
@@ -299,9 +300,7 @@ export {onTournamentMatchCompletedAwardGlobalPoints} from "./tournament-ranking"
 // Initialize Firebase Admin
 initializeApp();
 
-// For cost control, you can set the maximum number of containers that can be
-// running at the same time.
-setGlobalOptions({maxInstances: 10});
+
 
 export const onArenaReviewWriteRecalculateAggregates = recalculateArenaReviewAggregates;
 

@@ -11,12 +11,14 @@ import {
   WEB_PUSH_PRIVATE_KEY,
   WEB_PUSH_SUBJECT,
 } from "./notification-delivery";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Envia notificação push para um usuário específico
  * Requer autenticação e permissão de admin
  */
 export const sendNotification = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async (request) => {
   const {userId, title, body, data, requireInteraction} = request.data;
@@ -88,6 +90,7 @@ export const sendNotification = onCall({
  * - Envia a notificação para `arenas/{arenaId}.managerUserId`.
  */
 export const notifyArenaBookingCreated = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async (request) => {
   const {bookingId} = request.data || {};
@@ -214,6 +217,7 @@ export const notifyArenaBookingCreated = onCall({
  * Envia notificação para múltiplos usuários (ex: todos os participantes de um torneio)
  */
 export const sendBulkNotification = onCall({
+  region: CLIENT_FACING_REGIONS,
   secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async (request) => {
   const {userIds, title, body, data, requireInteraction} = request.data;
@@ -301,6 +305,7 @@ export const sendBulkNotification = onCall({
  *   (Substitua [PROJECT_ID] pelo ID do projeto onde a função está deployada)
  */
 export const sendMatchReminders = onRequest({
+  region: CLIENT_FACING_REGIONS,
   secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async (req, res) => {
   try {

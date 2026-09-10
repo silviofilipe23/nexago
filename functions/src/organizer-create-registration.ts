@@ -94,7 +94,7 @@ import {
   parseCreateTeamRegistrationInput,
   resolveJoiningUid,
 } from "./organizer-create-registration-core";
-import {PORTAL_CALLABLE_REGIONS} from "./function-regions";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Vaga extra na categoria lotada, para o organizador inscrever atleta CONVIDADO.
@@ -275,7 +275,7 @@ async function assertTeamCategoryAvailability(params: {
 }
 
 export const organizerCreateTeamRegistration = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
   secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async (request) => {
   const organizerUid = request.auth?.uid;

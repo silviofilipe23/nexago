@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import '../../../core/firebase/functions_region.dart';
 
 class ArenaWalletSummary {
   const ArenaWalletSummary({
@@ -108,7 +109,7 @@ class ArenaWithdrawalRequestResult {
 
 class ArenaWalletRepository {
   ArenaWalletRepository(this._firestore, {FirebaseFunctions? functions})
-      : _functions = functions ?? FirebaseFunctions.instance;
+      : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;

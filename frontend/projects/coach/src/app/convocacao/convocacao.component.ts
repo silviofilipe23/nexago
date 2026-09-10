@@ -5,6 +5,7 @@ import { doc, getDoc, getFirestore, type Firestore } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
+import { FUNCTIONS_REGION } from '@nexago/firebase-config';
 
 type ViewState = 'loading' | 'ready' | 'not-found' | 'not-mine' | 'already-responded' | 'responded';
 type Response = 'confirmado' | 'talvez' | 'nao_vou';
@@ -175,7 +176,7 @@ export class ConvocacaoComponent implements OnInit {
     this.error.set(null);
     this.responding.set(true);
     try {
-      const fn = httpsCallable(getFunctions(getApps()[0]!), 'respondToCallUp');
+      const fn = httpsCallable(getFunctions(getApps()[0]!, FUNCTIONS_REGION), 'respondToCallUp');
       await fn({ coachUid: this.coachUid, callUpId: this.callUpId, response });
       this.existingResponse.set(response);
       this.state.set('responded');

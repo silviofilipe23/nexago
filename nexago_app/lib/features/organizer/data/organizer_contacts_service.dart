@@ -1,5 +1,6 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/firebase/functions_region.dart';
 
 /// Contatos dos atletas inscritos, via callable `getTournamentAthleteContacts`
 /// (ACL do torneio no backend). Com `users` restrito e o espelho
@@ -43,5 +44,5 @@ class OrganizerContactsService {
 
 final organizerContactsServiceProvider =
     Provider<OrganizerContactsService>((ref) {
-  return OrganizerContactsService(functions: FirebaseFunctions.instance);
+  return OrganizerContactsService(functions: nexagoFunctions);
 });

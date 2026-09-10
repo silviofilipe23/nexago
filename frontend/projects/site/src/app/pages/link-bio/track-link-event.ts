@@ -1,5 +1,6 @@
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '../../../lib/firebase-app';
+import { FUNCTIONS_REGION } from '@nexago/firebase-config';
 
 /**
  * Registra visita na página de links ou clique num link.
@@ -14,7 +15,7 @@ import { app } from '../../../lib/firebase-app';
  */
 export function trackLinkPageEvent(pageId: string, linkId?: string): void {
   try {
-    const callable = httpsCallable(getFunctions(app), 'trackLinkPageEvent');
+    const callable = httpsCallable(getFunctions(app, FUNCTIONS_REGION), 'trackLinkPageEvent');
     void callable(linkId ? { pageId, linkId } : { pageId }).catch(() => undefined);
   } catch {
     // Ambiente sem Functions disponível — segue sem métrica.

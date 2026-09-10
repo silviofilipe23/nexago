@@ -26,6 +26,7 @@ import {
   isBookingCanceledTransition,
   resolveCourtName,
 } from "./slot-vacancy-alerts";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 export const ARENA_BOOKING_WAITLIST = "arenaBookingWaitlist";
 const ARENA_BOOKING_WAITLIST_NOTIFY_LOCKS = "arenaBookingWaitlistNotifyLocks";
@@ -162,7 +163,9 @@ function timestampToMillis(value: unknown): number {
  * (mesma fonte de verdade usada por `createArenaBooking`) para confirmar que o
  * horário está de fato lotado antes de aceitar a entrada.
  */
-export const joinArenaBookingWaitlist = onCall(async (request) => {
+export const joinArenaBookingWaitlist = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const athleteId = request.auth?.uid;
   if (!athleteId) {
     throw new HttpsError(

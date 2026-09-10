@@ -63,6 +63,7 @@ import {
 } from "./tournament-registration-hold-ops";
 import {loadUserGenderBucket} from "./tournament-team-roster";
 import {sharePaidUidsFromRegistration} from "./tournament-registration-pix-helpers";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /** Nome exibível do atleta para notificações (users/{uid}). */
 async function loadAthleteDisplayName(
@@ -87,7 +88,9 @@ async function loadAthleteDisplayName(
  * Params: `{tournamentId, categoryId, teamName, uniform?, lgpdAccepted?}`.
  * Retorna `{registrationId, teamId}`.
  */
-export const createTournamentTeamRegistration = onCall(async (request) => {
+export const createTournamentTeamRegistration = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");
@@ -308,7 +311,9 @@ export const createTournamentTeamRegistration = onCall(async (request) => {
  * A vaga reabre (`partnerPending: true`) e o capitão é avisado. O capitão não
  * sai — ele cancela a inscrição inteira (cancelTournamentRegistration).
  */
-export const leaveTournamentTeamRegistration = onCall(async (request) => {
+export const leaveTournamentTeamRegistration = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");

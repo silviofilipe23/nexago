@@ -51,7 +51,7 @@ import {
   ratingStateToDoc,
   sportLabel,
 } from "./rating-ladder";
-import {PORTAL_CALLABLE_REGIONS} from "./function-regions";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const DAY_MS = 86_400_000;
 
@@ -496,7 +496,9 @@ function requireUid(raw: unknown): string {
  * seria barrado — e porque o espelho `public_profiles` tem alguns segundos de
  * atraso: aqui o diálogo lê o doc canônico.
  */
-export const getAthleteLevelState = onCall(async (request) => {
+export const getAthleteLevelState = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   await assertBackofficeCaller(request.auth?.uid);
   const uid = requireUid((request.data as {uid?: unknown} | undefined)?.uid);
 
@@ -572,7 +574,7 @@ export const getAthleteLevelState = onCall(async (request) => {
  * fica fora do escopo desta rodada (ver report da task).
  */
 export const setAthleteLevel = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
 }, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) {

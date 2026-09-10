@@ -3,6 +3,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../domain/predictions/tournament_prediction_entry.dart';
 import 'tournament_prediction_entry_mapper.dart';
+import '../../../../core/firebase/functions_region.dart';
 
 class TournamentPredictionsRepositoryException implements Exception {
   TournamentPredictionsRepositoryException(this.message, {this.code});
@@ -22,7 +23,7 @@ class TournamentPredictionsRepository {
   TournamentPredictionsRepository(
     this._firestore, {
     FirebaseFunctions? functions,
-  }) : _functions = functions ?? FirebaseFunctions.instance;
+  }) : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;

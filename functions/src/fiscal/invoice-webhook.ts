@@ -3,6 +3,7 @@ import {onRequest} from "firebase-functions/v2/https";
 import {defineSecret} from "firebase-functions/params";
 import {FieldValue, getFirestore, type Firestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
+import {CLIENT_FACING_REGIONS} from "../function-regions";
 
 export const FISCAL_WEBHOOK_TOKEN = defineSecret("FISCAL_WEBHOOK_TOKEN");
 
@@ -79,7 +80,7 @@ export async function applyIssuerNotification(
 }
 
 export const fiscalIssuerWebhook = onRequest(
-  {secrets: [FISCAL_WEBHOOK_TOKEN]},
+  {region: CLIENT_FACING_REGIONS, secrets: [FISCAL_WEBHOOK_TOKEN]},
   async (req, res) => {
     if (req.get("x-fiscal-token") !== FISCAL_WEBHOOK_TOKEN.value()) {
       res.status(401).send("unauthorized");

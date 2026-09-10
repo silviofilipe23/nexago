@@ -3,6 +3,7 @@ import {getFirestore, type Firestore} from "firebase-admin/firestore";
 import {isArenaEntitledPro} from "./arena-entitlement";
 import {assertArenaAreaAccess} from "./arena-area-access";
 import {isValidDateKey, toMinutes} from "./arena-recurring-booking";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const ARENA_BOOKINGS = "arenaBookings";
 
@@ -270,7 +271,9 @@ export async function getArenaOccupancyReportCore(
   return aggregateArenaOccupancyReport(bookings, input.arenaId, input.dateFrom, input.dateTo);
 }
 
-export const getArenaOccupancyReport = onCall(async (request) => {
+export const getArenaOccupancyReport = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");
   }

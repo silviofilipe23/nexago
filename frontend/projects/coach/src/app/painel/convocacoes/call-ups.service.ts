@@ -4,6 +4,7 @@ import { collection, getFirestore, onSnapshot, type Firestore } from 'firebase/f
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
+import { FUNCTIONS_REGION } from '@nexago/firebase-config';
 
 export type CallUpResponseValue = 'confirmado' | 'talvez' | 'nao_vou' | 'aguardando';
 
@@ -75,7 +76,7 @@ export class CallUpsService {
 
   async sendCallUp(input: NewCallUpInput): Promise<string> {
     const fn = httpsCallable<NewCallUpInput, { callUpId: string }>(
-      getFunctions(getApps()[0]!),
+      getFunctions(getApps()[0]!, FUNCTIONS_REGION),
       'sendCallUp',
     );
     const res = await fn(input);

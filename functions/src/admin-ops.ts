@@ -11,6 +11,7 @@ import {
   applyRolesToClaims,
   firestoreRolesPayload,
 } from "./auth-roles";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const ADMIN_ELEVATE_SECRET = defineSecret("ADMIN_ELEVATE_SECRET");
 
@@ -20,7 +21,7 @@ const ADMIN_ELEVATE_SECRET = defineSecret("ADMIN_ELEVATE_SECRET");
  * Promoções do dia a dia usam setUserRole/addUserRole (callables com checagem
  * de super admin). Uso: POST com header 'X-Admin-Secret' e body { uid }.
  */
-export const elevateToAdmin = onRequest({secrets: [ADMIN_ELEVATE_SECRET]}, async (req, res) => {
+export const elevateToAdmin = onRequest({region: CLIENT_FACING_REGIONS, secrets: [ADMIN_ELEVATE_SECRET]}, async (req, res) => {
   try {
     if (process.env.ADMIN_ELEVATE_ENABLED !== "true") {
       res.status(404).send("Not Found");

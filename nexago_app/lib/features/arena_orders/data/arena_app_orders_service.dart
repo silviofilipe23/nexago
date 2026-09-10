@@ -1,11 +1,12 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import '../../../core/firebase/functions_region.dart';
 
 /// Peça na quadra — chama a Cloud Function `addAppOrderItem`
 /// (`functions/src/arena-comanda-app-orders.ts`). O client nunca escreve
 /// direto em `arenaComandas/*\/items`; essa function é o único caminho.
 class ArenaAppOrdersService {
   ArenaAppOrdersService({FirebaseFunctions? functions})
-      : _functions = functions ?? FirebaseFunctions.instance;
+      : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFunctions _functions;
 

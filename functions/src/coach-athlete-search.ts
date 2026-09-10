@@ -2,6 +2,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 export interface AthleteSearchResult {
   uid: string;
@@ -24,7 +25,9 @@ export function initialsFromName(name: string): string {
  * plano sobre por que não é telefone-ou-e-mail). Nunca expõe telefone/e-mail
  * de volta ao caller — só uid/displayName/initials.
  */
-export const searchAthleteForCoachInvite = onCall(async (request) => {
+export const searchAthleteForCoachInvite = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");

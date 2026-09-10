@@ -2,6 +2,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {getFirestore, FieldValue, Timestamp} from "firebase-admin/firestore";
 import {assertArenaAreaAccess} from "./arena-area-access";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Página pública de links (link-in-bio) de arenas e organizadores.
@@ -108,7 +109,9 @@ async function assertOwnership(uid: string, ownerType: OwnerType, ownerId: strin
 /**
  * Cria/atualiza o perfil da página e reivindica o slug de forma atômica.
  */
-export const saveLinkPageProfile = onCall(async (request) => {
+export const saveLinkPageProfile = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Faça login para editar sua página de links.");
@@ -177,7 +180,9 @@ export const saveLinkPageProfile = onCall(async (request) => {
  * Registra visita na página ou clique num link. Aberta a visitantes anônimos — é a página
  * pública que chama.
  */
-export const trackLinkPageEvent = onCall(async (request) => {
+export const trackLinkPageEvent = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const data = (request.data || {}) as Record<string, unknown>;
   const pageId = readString(data["pageId"], "pageId", {max: 200, required: true});
   const linkIdRaw = data["linkId"];

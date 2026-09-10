@@ -2,12 +2,13 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/friendly_match_models.dart';
+import '../../../core/firebase/functions_region.dart';
 
 /// Bora Jogar — ações via Cloud Functions (o client nunca escreve em
 /// `friendlyMatches` direto; as rules bloqueiam).
 class FriendlyMatchService {
   FriendlyMatchService({FirebaseFunctions? functions})
-      : _functions = functions ?? FirebaseFunctions.instance;
+      : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFunctions _functions;
 

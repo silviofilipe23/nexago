@@ -1,6 +1,7 @@
 import {onRequest} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {getFirestore, DocumentData} from "firebase-admin/firestore";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Prévia de link (OG/Twitter Card) pras rotas dinâmicas do site público, que agora é uma SPA
@@ -200,7 +201,9 @@ function renderHtml(canonical: string, data: PreviewData): string {
 </html>`;
 }
 
-export const siteOgPreview = onRequest(async (req, res) => {
+export const siteOgPreview = onRequest({
+  region: CLIENT_FACING_REGIONS,
+}, async (req, res) => {
   try {
     const rawPath = req.query.path;
     const path = typeof rawPath === "string" ? rawPath : "";

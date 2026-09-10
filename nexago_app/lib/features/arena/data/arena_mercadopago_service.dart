@@ -1,10 +1,11 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/firebase/functions_region.dart';
 
 /// Integração OAuth Mercado Pago do gestor (`users/{uid}/mercadopago/credentials`).
 class ArenaMercadoPagoService {
   ArenaMercadoPagoService({FirebaseFunctions? functions})
-      : _functions = functions ?? FirebaseFunctions.instance;
+      : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFunctions _functions;
 

@@ -4,6 +4,7 @@ import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {callerCanAccessBackoffice} from "./auth-roles";
 import {isValidCommissionPercent} from "./platform-fees";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Cadastro do organizador feito pelo backoffice (tela "Promover atleta a
@@ -44,7 +45,9 @@ function record(value: unknown, field: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-export const saveOrganizerRegistration = onCall(async (request) => {
+export const saveOrganizerRegistration = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado");

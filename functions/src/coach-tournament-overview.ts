@@ -2,6 +2,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore} from "firebase-admin/firestore";
 import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
 import {loadTournamentData} from "./tournament-registration-guards";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 export interface RawInscriptionRow {
   athleteUid: string;
@@ -50,7 +51,9 @@ export function groupEntriesByTournament(
  * nunca inscreve/paga (isso continua sendo feito pelo atleta no app dele,
  * por decisão de design). `squadId` opcional filtra pra uma equipe.
  */
-export const getCoachTournamentOverview = onCall(async (request) => {
+export const getCoachTournamentOverview = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const coachUid = request.auth?.uid;
   if (!coachUid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");

@@ -20,6 +20,7 @@ import {buildDefaultIssuer} from "./focus-nfe-client";
 import {readIssuerTokenFromSecretManager, type ReadIssuerToken} from "./invoice-processor";
 import type {FiscalIssuer} from "./issuer-port";
 import type {FiscalInvoice, FiscalInvoiceStatus} from "./types";
+import {CLIENT_FACING_REGIONS} from "../function-regions";
 
 /** Tomador sintético — sem cliente real, sem consequência fiscal fora de homologação. */
 const ACTIVATION_TOMADOR = {
@@ -133,7 +134,9 @@ export async function emitActivationTestInvoiceCore(
   await createInvoiceRequest(db, createInput);
 }
 
-export const emitActivationTestInvoice = onCall(async (request) => {
+export const emitActivationTestInvoice = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");

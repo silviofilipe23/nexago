@@ -18,3 +18,18 @@ export const firebaseConfig: FirebaseOptions = {
  *  secreta por natureza, é feita pra ir no cliente. Usada por `@nexago/push-notifications`. */
 export const webPushVapidPublicKey =
   "BGwZQk2ch54b0ObGnM52ddGFRu2tZ-HFIHcUxPo-f9nDDYFZvb5Ywjpmx5h-giJFn0qwHC5pr8oxtOr4_LfjSBY";
+
+/**
+ * Região das Cloud Functions que os portais chamam.
+ *
+ * O Firestore do projeto vive em `southamerica-east1`, mas o SDK pede a callable em
+ * `us-central1` quando ninguém diz o contrário. Nesse padrão cada clique atravessa o continente
+ * duas vezes — uma para chegar na função em Iowa, e de novo a cada leitura que ela faz no banco
+ * em São Paulo. No portal do organizador isso colocava um piso de ~800 ms em operações que fazem
+ * duas leituras e uma escrita.
+ *
+ * Passe SEMPRE como segundo argumento de `getFunctions(app, FUNCTIONS_REGION)`. As funções
+ * atendem nas duas regiões durante a travessia (`functions/src/function-regions.ts`), então
+ * bundle antigo em cache e o app Flutter continuam funcionando em Iowa enquanto os portais vêm.
+ */
+export const FUNCTIONS_REGION = 'southamerica-east1';

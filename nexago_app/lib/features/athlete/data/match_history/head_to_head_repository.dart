@@ -1,5 +1,6 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/firebase/functions_region.dart';
 
 /// Uma partida recente entre os dois atletas de um confronto direto.
 class HeadToHeadRecentMatch {
@@ -53,7 +54,7 @@ abstract class HeadToHeadDataSource {
 /// Chama a callable `getHeadToHeadRecord` (`functions/src/head-to-head.ts`).
 class FirebaseFunctionsHeadToHeadDataSource implements HeadToHeadDataSource {
   FirebaseFunctionsHeadToHeadDataSource({FirebaseFunctions? functions})
-      : _functions = functions ?? FirebaseFunctions.instance;
+      : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFunctions _functions;
 

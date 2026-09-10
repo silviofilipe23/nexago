@@ -2,6 +2,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import {assertArenaAreaAccess} from "./arena-area-access";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Mini-site público da arena (landing "nexago.com.br/s/{slug}").
@@ -254,7 +255,9 @@ function buildPublicPayload(
  * Publica (ou republica) o mini-site: valida o rascunho, reivindica o slug e
  * grava o espelho público, tudo na mesma transação.
  */
-export const publishArenaSite = onCall(async (request) => {
+export const publishArenaSite = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Faça login para publicar o site da arena.");
@@ -321,7 +324,9 @@ export const publishArenaSite = onCall(async (request) => {
 /**
  * Tira o site do ar (remove o espelho). O slug continua reservado para a arena.
  */
-export const unpublishArenaSite = onCall(async (request) => {
+export const unpublishArenaSite = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Faça login para despublicar o site da arena.");

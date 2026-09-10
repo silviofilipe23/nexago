@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../domain/arena_contact_message.dart';
 import '../domain/arena_list_item.dart';
 import '../domain/arena_booking_success_actions.dart';
+import '../../../core/firebase/functions_region.dart';
 
 /// Clique em "Entre em contato" numa arena pré-cadastrada.
 ///
@@ -13,7 +14,7 @@ import '../domain/arena_booking_success_actions.dart';
 /// aceitável, travar o atleta na frente do contato da arena não é.
 class ArenaContactService {
   ArenaContactService({FirebaseFunctions? functions})
-      : _functions = functions ?? FirebaseFunctions.instance;
+      : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFunctions _functions;
 

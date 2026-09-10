@@ -8,7 +8,7 @@ import {
   firestoreRolesPayload,
   rolesFromClaims,
 } from "./auth-roles";
-import {PORTAL_CALLABLE_REGIONS} from "./function-regions";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
  * Garante que `organizer` está entre os papéis do usuário, preservando os que
@@ -28,7 +28,7 @@ export function withOrganizerRole(existingRoles: AppRole[]): AppRole[] {
  * (`organizers/{uid}`) — fora do escopo desta entrega (só auth).
  */
 export const completeOrganizerSignup = onCall({
-  region: PORTAL_CALLABLE_REGIONS,
+  region: CLIENT_FACING_REGIONS,
 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {

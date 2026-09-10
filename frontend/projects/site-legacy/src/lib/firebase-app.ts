@@ -9,3 +9,11 @@ import { firebaseConfig } from './firebase-config';
  * Firestore inteiro junto — ~114 KB gzip de transporte WebChannel no bundle do cliente.
  */
 export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+
+/** Região das Cloud Functions.
+ *
+ *  O Firestore vive em `southamerica-east1`; sem este argumento o SDK chama Iowa e cada
+ *  operação atravessa o continente duas vezes. Este projeto é um Next.js à parte e não enxerga
+ *  o `@nexago/firebase-config` do workspace Angular, então a constante mora aqui — se o valor
+ *  mudar lá, muda aqui junto. */
+export const FUNCTIONS_REGION = 'southamerica-east1';

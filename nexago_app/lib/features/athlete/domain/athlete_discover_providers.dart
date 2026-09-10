@@ -304,6 +304,10 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
         displayEntries: const [],
         isLoading: false,
         errorMessage: '$e',
+        // Busca falhou: não há catálogo confiável para reaproveitar. Marcar
+        // como incompleto força o próximo filtro a refazer o fetch em vez de
+        // publicar uma lista vazia "completa" (que esconderia o erro).
+        catalogIsComplete: false,
       );
     }
   }

@@ -352,6 +352,55 @@ void main() {
     });
 
     test(
+      'busca que falha com catálogo JÁ completo não trava o próximo filtro '
+      'numa lista vazia e silenciosa',
+      () async {
+        // loadInitial sem hasMore: catalogIsComplete fica true ANTES da busca.
+        repo.initialPageProfiles = [
+          _profile(id: 'go1', state: 'GO', city: 'Goiânia'),
+        ];
+        repo.initialPageHasMore = false;
+
+        final notifier = container.read(athleteDiscoverProvider.notifier);
+        await _settle();
+        await notifier.loadInitial();
+        expect(
+          container.read(athleteDiscoverProvider).catalogIsComplete,
+          isTrue,
+        );
+
+        repo.searchError = StateError('permission-denied');
+        await notifier.search('silva');
+
+        final afterSearchError = container.read(athleteDiscoverProvider);
+        expect(afterSearchError.errorMessage, isNotNull);
+        expect(afterSearchError.displayEntries, isEmpty);
+
+        // Usuário troca o filtro depois do erro. Se `catalogIsComplete`
+        // continuar `true` (valor de ANTES da busca falhar), applyFilters
+        // confia no catálogo vazio deixado pelo erro e nunca refaz o fetch.
+        // Nome bate com o termo de busca que ficou pendurado em `searchQuery`
+        // (`_applyPipeline` reaplica o match de texto fora do modo busca).
+        repo.catalogResult = [
+          _profile(id: 'go2', state: 'GO', city: 'Anápolis', name: 'Silva 2'),
+        ];
+        await notifier.applyFilters(
+          const AthleteDiscoverFilters(stateUf: 'GO'),
+        );
+
+        final afterFilter = container.read(athleteDiscoverProvider);
+        expect(
+          afterFilter.displayEntries.isNotEmpty ||
+              afterFilter.errorMessage != null,
+          isTrue,
+          reason:
+              'nem a lista voltou a ter atletas, nem o erro segue visível: '
+              'o usuário fica preso numa lista vazia sem explicação',
+        );
+      },
+    );
+
+    test(
       'limpar a busca abaixo de 2 caracteres republica com os filtros ativos '
       'antes do catálogo chegar',
       () async {

@@ -532,9 +532,11 @@ export async function tryAwardGlobalRankingForMatch(
 
   // Times pagos que não chegaram ao mata-mata pontuam pela fase de grupos
   // (mesma regra da liga: só a partir da 1ª partida de mata-mata concluída).
-  // Livre não concede participação (D6 emendada): só pontua quem chega
-  // ao mata-mata — fecha o farm de "aparecer e levar o bucket groups".
-  if (shouldAwardGroupsBucket && preset?.key !== "livre") {
+  // O Livre voltou a conceder participação (spec 2026-09-10, D4): o farm que a
+  // exceção combatia agora está PRECIFICADO — num campo fraco a participação
+  // vale 13 pontos, num campo forte vale 100 — e a exceção estava deixando
+  // dupla pagante com zero (18 casos num único torneio).
+  if (shouldAwardGroupsBucket) {
     const knockoutTeamIds = await loadKnockoutTeamIds(
       db,
       projectId,

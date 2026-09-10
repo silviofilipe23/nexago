@@ -683,7 +683,10 @@ export async function tryAwardLeagueStagePointsForMatch(
   }
 
   if (isNonGroupCompletedMatch(match)) {
-    // Livre não concede participação (D6 emendada) — mesma regra do motor geral.
+    // O ranking de LIGA mantém o Livre sem participação de propósito: a spec
+    // 2026-09-10 mudou só o ranking GERAL, onde o peso agora é medido. Aqui o
+    // peso segue vindo da faixa declarada, então a trava anti-farm continua
+    // sendo a única defesa. Não "corrigir" para casar com o motor geral.
     const preset = categoryPreset(findCategory(tournament as never, categoryId));
     if (preset?.key !== "livre") {
       teamsUpdated += await tryAwardGroupsPlacements(db, projectId, baseParams);

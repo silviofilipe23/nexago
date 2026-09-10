@@ -334,7 +334,7 @@ describe("tryAwardGlobalRankingForMatch", () => {
     assert.equal(champion.pointsEarned, 1000);
   });
 
-  it("Livre não concede bucket groups (mas mata-mata segue pontuando)", async () => {
+  it("Livre agora concede bucket groups (peso declarado, sem field strength)", async () => {
     const db = seededDb();
     db.seedDoc("tournaments/T1", {
       sport: "beachVolleyball",
@@ -350,11 +350,14 @@ describe("tryAwardGlobalRankingForMatch", () => {
 
     await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
 
-    // Fora do mata-mata: Livre não concede o bucket "groups" (D6 emendada).
-    assert.equal(
-      db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tC`),
-      undefined,
-    );
+    // Fora do mata-mata: Livre agora concede o bucket "groups" (removed D6 exception).
+    // Sem field strength stamp (nenhuma medição realizada), usa o peso declarado: 0.125.
+    const outsidePlayoffs = db.store.get(
+      `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tC`,
+    )!;
+    assert.ok(outsidePlayoffs, "dupla paga fora do mata-mata deve pontuar");
+    assert.equal(outsidePlayoffs.finalPlace, 0);
+    assert.equal(outsidePlayoffs.pointsEarned, 13); // 100 × 0.125 = 12.5 → 13
 
     // Colocação normal (perdedor da final) segue pontuando, com peso Livre (0.125).
     const runnerUp = db.store.get(
@@ -607,5 +610,16 @@ describe("peso do Livre pela força real do campo", () => {
     // Sem clamp, o multiplicador 5 daria 5000. Com o teto (LIVRE_MAX_WEIGHT=1),
     // vale como se o carimbo tivesse gravado 1.
     assert.equal(champion?.pointsEarned, 1000);
+  });
+
+  it("dupla paga fora do mata-mata recebe participação no Livre", async () => {
+    const db = livreDb(JHON_JHON_RANKS);
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    // tG2 é paga e não aparece na final → balde `groups` (100) × 0.5 = 50.
+    const participante = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tG2`);
+    assert.ok(participante, "dupla paga fora do mata-mata deveria pontuar");
+    assert.equal(participante.finalPlace, 0);
+    assert.equal(participante.pointsEarned, 50);
   });
 });

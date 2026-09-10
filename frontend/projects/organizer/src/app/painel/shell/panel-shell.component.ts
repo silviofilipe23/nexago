@@ -16,7 +16,9 @@ import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router
 import { isPushSupported, pushPermissionStatus, subscribeToPush } from '@nexago/push-notifications';
 import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
+import { ChaveamentoContextService } from '../chaveamento/chaveamento-context.service';
 import { organizerFirestore } from '../data/firestore';
+import { bracketSystemFromRaw } from '../data/tournament-create.model';
 import { listOrganizerNames } from '../data/tournaments-repository';
 import { tournamentUsesUniform } from '../data/uniforms';
 import { OgAvatarComponent } from '../ui/avatar.component';
@@ -264,6 +266,8 @@ export class PanelShellComponent {
   private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly ctx = inject(PanelContextService);
+  /** Mesmo critério de `grupos`/`categoria-detalhe`: chave gerada = categoria com jogos. */
+  private readonly chav = inject(ChaveamentoContextService);
 
   protected readonly url = toSignal(
     this.router.events.pipe(
@@ -362,14 +366,29 @@ export class PanelShellComponent {
     const level = this.ctx.level();
     if (level === 'categoria') {
       const base = this.ctx.categoryBase()!;
+      // Cabeças + sorteio só enquanto a chave ainda não existe — depois de gerada
+      // (categoria com jogos), o fluxo passa a ser grupos/chave/jogos.
+      const preBracket = this.chav.matchesFiltered().length === 0;
+      // Grupos só faz sentido com fase de grupos (SE/DE/RR não têm tabela de pools).
+      const system = bracketSystemFromRaw(this.ctx.category()?.bracketFormat ?? '');
+      const hasGroups = system === 'groupsThenKnockout' || system === 'groupsWithRepechage';
       return [
         { label: 'Equipes', icon: 'users', link: `${base}/duplas` },
-        { label: 'Cabeças de chave', icon: 'flag', link: `${base}/seeds` },
-        // Entre as cabeças e os grupos: é onde o sorteio cai na cronologia real
-        // do organizador — depois de definir a força das duplas, antes de a
-        // chave existir.
-        { label: 'Sorteio ao vivo', icon: 'tv', link: `${base}/sorteio`, matchPrefixes: [`${base}/sorteio`] },
-        { label: 'Grupos', icon: 'grid', link: `${base}/grupos` },
+        ...(preBracket
+          ? [
+              { label: 'Cabeças de chave', icon: 'flag' as OgIconName, link: `${base}/seeds` },
+              // Entre as cabeças e os grupos: é onde o sorteio cai na cronologia real
+              // do organizador — depois de definir a força das duplas, antes de a
+              // chave existir.
+              {
+                label: 'Sorteio ao vivo',
+                icon: 'tv' as OgIconName,
+                link: `${base}/sorteio`,
+                matchPrefixes: [`${base}/sorteio`],
+              },
+            ]
+          : []),
+        ...(hasGroups ? [{ label: 'Grupos', icon: 'grid' as OgIconName, link: `${base}/grupos` }] : []),
         { label: 'Chaveamento', icon: 'bracket', link: `${base}/chave` },
         { label: 'Jogos & placares', icon: 'whistle', link: `${base}/jogos`, matchPrefixes: [`${base}/jogos`, `${base}/placar`, `${base}/ao-vivo`] },
         { label: 'Agendamento', icon: 'calendar', link: `${base}/agendamento` },

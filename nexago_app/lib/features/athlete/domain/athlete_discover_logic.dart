@@ -362,10 +362,8 @@ String discoverStatsLine({
   );
   if (level.isNotEmpty) parts.add(level);
 
-  final distance = entry.proximityDistanceLabel(viewer);
-  if (distance != null && distance.isNotEmpty) {
-    parts.add(distance.replaceAll('.0', '').replaceAll('.1', ''));
-  }
+  final proximity = entry.proximityLabel(viewer);
+  if (proximity != null) parts.add(proximity);
 
   if (entry.locationLabel.isNotEmpty) parts.add(entry.locationLabel);
   return parts.join(' · ');
@@ -375,11 +373,7 @@ String? discoverContextTag({
   required AthleteDiscoverEntry entry,
   AthleteProfile? viewer,
 }) {
-  final distance = entry.proximityDistanceLabel(viewer);
-  if (distance != null &&
-      (distance.startsWith('2.') || distance.startsWith('3.'))) {
-    return 'Perto de você';
-  }
+  if (entry.proximityLabel(viewer) == 'Mesma cidade') return 'Perto de você';
   final mutual = entry.mutualFollowersCount;
   if (mutual != null && mutual > 0) {
     return '$mutual amigo${mutual == 1 ? '' : 's'} em comum';

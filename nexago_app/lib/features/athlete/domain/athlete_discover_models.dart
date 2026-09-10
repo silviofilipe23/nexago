@@ -173,16 +173,17 @@ class AthleteDiscoverEntry {
 
   String get locationLabel => athleteLocationLabel(profile);
 
-  /// v1: proxy por cidade/UF (km fixo quando na mesma região).
-  String? proximityDistanceLabel(AthleteProfile? viewer) {
+  /// Proximidade por cidade/UF. NÃO é distância: o app não tem geolocalização
+  /// de atleta, e o `'2.1 km'` que ficava aqui era literal inventado.
+  String? proximityLabel(AthleteProfile? viewer) {
     if (viewer == null) return null;
     final viewerCity = viewer.city.trim().toLowerCase();
     final city = profile.city.trim().toLowerCase();
-    if (viewerCity.isNotEmpty && city == viewerCity) return '2.1 km';
+    if (viewerCity.isNotEmpty && city == viewerCity) return 'Mesma cidade';
     final viewerState = viewer.state?.trim().toLowerCase() ?? '';
     final state = profile.state?.trim().toLowerCase() ?? '';
     if (viewerState.isNotEmpty && state.isNotEmpty && viewerState == state) {
-      return '25 km';
+      return 'Mesmo estado';
     }
     return null;
   }

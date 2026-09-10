@@ -236,4 +236,41 @@ void main() {
       expect(sorted.first.userId, '2');
     });
   });
+
+  group('proximidade honesta', () {
+    test('mesma cidade vira rótulo, não quilometragem', () {
+      final viewer = _profile(id: 'v', city: 'Goiânia', state: 'GO');
+      final entry = _entry(
+        profile: _profile(id: 'a', city: 'Goiânia', state: 'GO'),
+      );
+      expect(entry.proximityLabel(viewer), 'Mesma cidade');
+    });
+
+    test('mesmo estado, cidade diferente', () {
+      final viewer = _profile(id: 'v', city: 'Goiânia', state: 'GO');
+      final entry = _entry(
+        profile: _profile(id: 'a', city: 'Anápolis', state: 'GO'),
+      );
+      expect(entry.proximityLabel(viewer), 'Mesmo estado');
+    });
+
+    test('estado diferente não gera rótulo', () {
+      final viewer = _profile(id: 'v', city: 'Goiânia', state: 'GO');
+      final entry = _entry(
+        profile: _profile(id: 'a', city: 'Santos', state: 'SP'),
+      );
+      expect(entry.proximityLabel(viewer), isNull);
+    });
+
+    test('linha de stats não contém quilometragem', () {
+      final viewer = _profile(id: 'v', city: 'Goiânia', state: 'GO');
+      final entry = _entry(
+        profile: _profile(id: 'a', city: 'Goiânia', state: 'GO'),
+      );
+      expect(
+        discoverStatsLine(entry: entry, viewer: viewer),
+        isNot(contains('km')),
+      );
+    });
+  });
 }

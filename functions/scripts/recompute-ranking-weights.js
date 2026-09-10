@@ -660,6 +660,19 @@ async function migrateRankingCollection(coll) {
  * acontece dentro do `set` que já era a última escrita, então uma queda ANTES
  * dele continua deixando a dupla em `faltantes` (curável), e um aborto por
  * corrida concorrente também não escreve nada — mesmo efeito líquido.
+ *
+ * RECUSA POR ESCALA MISTA (residual da revisão final): `upsertRankingDoc` tem
+ * uma guarda própria que recusa escrever quando o doc de ranking já existe
+ * mas ainda está em `scaleVersion` antiga (ver docstring da função). Essa
+ * recusa é silenciosa para quem chama — a função retorna normalmente — então
+ * este laço PRECISA checar o valor de retorno e tratar `SCALE_MISMATCH` como
+ * o mesmo tipo de falha que uma exceção: aborta a dupla ANTES da transação do
+ * doc de resultado, sem incrementar `criados`. Se deixasse cair para a
+ * transação de resultado como se nada tivesse acontecido, o doc de resultado
+ * (o commit-marker que tira a dupla de `faltantes`) seria gravado sem o
+ * ranking correspondente — e, ao contrário da queda no meio da corrida
+ * descrita acima, essa perda NÃO se autocura: a dupla nunca mais volta a
+ * `faltantes` para uma reexecução tentar de novo.
  */
 async function criarParticipacaoFaltanteDoLivre(apply) {
   const categorias = new Map();
@@ -685,6 +698,7 @@ async function criarParticipacaoFaltanteDoLivre(apply) {
   let candidatos = 0;
   let criados = 0;
   let errors = 0;
+  let adiadosPorEscala = 0;
   let limitAtingido = false;
 
   for (const [chave, comResultado] of categorias) {
@@ -767,9 +781,44 @@ async function criarParticipacaoFaltanteDoLivre(apply) {
         }
 
         // Rankings primeiro, resultado por último — ver ORDEM DE ESCRITA acima.
-        await upsertRankingDoc(dataPath("teamRankings"), teamId, {teamId}, entrada);
+        const teamUpsertStatus = await upsertRankingDoc(
+          dataPath("teamRankings"),
+          teamId,
+          {teamId},
+          entrada,
+        );
+        let escalaRecusada = teamUpsertStatus === UPSERT_RANKING_STATUS.SCALE_MISMATCH;
         for (const athleteId of athleteIds) {
-          await upsertRankingDoc(dataPath("athleteRankings"), athleteId, {athleteId}, entrada);
+          const athleteUpsertStatus = await upsertRankingDoc(
+            dataPath("athleteRankings"),
+            athleteId,
+            {athleteId},
+            entrada,
+          );
+          if (athleteUpsertStatus === UPSERT_RANKING_STATUS.SCALE_MISMATCH) escalaRecusada = true;
+        }
+
+        // GUARDA DE ESCALA MISTA NO CHAMADOR (residual da revisão final): se
+        // QUALQUER upsert de ranking acima recusou por escala mista, o doc de
+        // resultado NÃO pode ser gravado agora, nem `criados` incrementado —
+        // ele é o MARCADOR DE COMMIT deste passo (ver ORDEM DE ESCRITA no
+        // docstring da função), e gravá-lo sem o ranking correspondente perde
+        // os pontos para sempre: é a existência DELE, e só dela, que tira a
+        // dupla de `faltantes` na próxima varredura. Abortar aqui — sem tocar
+        // no resultado — deixa a dupla em `faltantes`: depois que o operador
+        // rodar `backfill-ranking-scale-x10.js`, a próxima execução encontra
+        // os docs de ranking já em `scaleVersion` corrente e completa a
+        // criação normalmente, incluindo os upserts que tinham sido
+        // recusados (os que já foram escritos aqui viram `ALREADY_PRESENT` e
+        // seguem como no-op, sem duplicar nada).
+        if (escalaRecusada) {
+          adiadosPorEscala++;
+          avisar(
+            `${ctx.tournamentName} / ${ctx.categoryName} / equipe ${teamId}: participação ` +
+              "retroativa ADIADA — ranking em escala mista (rode backfill-ranking-scale-x10.js " +
+              "e repita esta execução)",
+          );
+          continue;
         }
 
         // Última escrita, dentro de uma transação que RELÊ o doc no commit
@@ -823,9 +872,10 @@ async function criarParticipacaoFaltanteDoLivre(apply) {
       (apply
         ? `${criados} resultado(s) criado(s) de ${candidatos} candidato(s)`
         : `${candidatos} a criar`) +
+      (adiadosPorEscala > 0 ? `, ${adiadosPorEscala} adiado(s) por escala mista` : "") +
       (limitAtingido ? ` (--limit ${LIMIT} atingido — o resto fica para a próxima)` : ""),
   );
-  return {criados, candidatos, errors};
+  return {criados, candidatos, errors, adiadosPorEscala};
 }
 
 /**
@@ -858,10 +908,34 @@ async function criarParticipacaoFaltanteDoLivre(apply) {
  * aqui: o remédio é rodar `backfill-ranking-scale-x10.js` primeiro (ele SÓ
  * reescala, sem repesar) e então repetir esta execução — a próxima passada
  * encontra o doc já em `scaleVersion >= 2` e faz o merge normalmente.
+ *
+ * VALOR DE RETORNO (residual da revisão final): a função devolve um dos
+ * valores de `UPSERT_RANKING_STATUS` em vez de um booleano solto, de propósito
+ * — o chamador (`criarParticipacaoFaltanteDoLivre`) precisa distinguir dois
+ * "não escrevi" com consequências opostas:
+ *   - `ALREADY_PRESENT` (era o `jaTem` acima): a entrada já estava lá. É
+ *     idempotência normal — o motor ou uma execução anterior deste script já
+ *     gravou este par torneio/categoria. O chamador segue como se tivesse
+ *     escrito: é exatamente isto que torna uma reexecução segura.
+ *   - `SCALE_MISMATCH`: a guarda de escala mista ACIMA se recusou a escrever.
+ *     O chamador PRECISA tratar isto como falha e abortar a criação da
+ *     participação inteira (ver comentário no ponto de chamada) — confundir
+ *     este caso com `ALREADY_PRESENT` grava o doc de resultado (marcador de
+ *     commit) sem o ranking correspondente e perde os pontos para sempre.
+ * `WRITTEN` é a escrita normal (criação ou merge); `DRY_RUN_SKIPPED` é a
+ * defesa em profundidade de `!APPLY` (nunca deveria disparar por este
+ * caminho, já que o chamador só chega aqui com `apply` verdadeiro).
  */
+const UPSERT_RANKING_STATUS = {
+  WRITTEN: "written",
+  ALREADY_PRESENT: "already_present",
+  SCALE_MISMATCH: "scale_mismatch",
+  DRY_RUN_SKIPPED: "dry_run_skipped",
+};
+
 async function upsertRankingDoc(collectionPath, docId, identity, entrada) {
   const ref = db.collection(collectionPath).doc(docId);
-  await db.runTransaction(async (txn) => {
+  return db.runTransaction(async (txn) => {
     const snap = await txn.get(ref);
     const prev = snap.data() || {};
     if (snap.exists && (Number(prev.scaleVersion) || 0) < RANKING_SCALE_VERSION) {
@@ -870,18 +944,18 @@ async function upsertRankingDoc(collectionPath, docId, identity, entrada) {
           `participação retroativa de ${entrada.tournamentId}/${entrada.categoryId} NÃO gravada ` +
           "(rode backfill-ranking-scale-x10.js primeiro e repita esta execução)",
       );
-      return;
+      return UPSERT_RANKING_STATUS.SCALE_MISMATCH;
     }
     const results = Array.isArray(prev.results) ? [...prev.results] : [];
     const jaTem = results.some(
       (r) => r.tournamentId === entrada.tournamentId && r.categoryId === entrada.categoryId,
     );
-    if (jaTem) return;
+    if (jaTem) return UPSERT_RANKING_STATUS.ALREADY_PRESENT;
     results.push(entrada);
     const agregados = aggregateRankingResults(results);
     // Guarda de escrita também aqui, como defesa em profundidade: nenhum helper
     // deste arquivo escreve sem `--yes`.
-    if (!APPLY) return;
+    if (!APPLY) return UPSERT_RANKING_STATUS.DRY_RUN_SKIPPED;
     txn.set(
       ref,
       {
@@ -895,6 +969,7 @@ async function upsertRankingDoc(collectionPath, docId, identity, entrada) {
       },
       {merge: true},
     );
+    return UPSERT_RANKING_STATUS.WRITTEN;
   });
 }
 
@@ -1006,7 +1081,8 @@ async function run() {
       (APPLY
         ? `${participacaoOutcome.criados} criado(s) de ${participacaoOutcome.candidatos} candidato(s)`
         : `${participacaoOutcome.candidatos} a criar`) +
-      `, ${participacaoOutcome.errors} erro(s)`,
+      `, ${participacaoOutcome.errors} erro(s)` +
+      `, ${participacaoOutcome.adiadosPorEscala} adiado(s) por escala mista`,
   );
   // `stampAttempts` conta candidaturas elegíveis sob o mesmo corte de `--limit`
   // em dry-run e com `--yes`; `stampsGravados` (sempre 0 em dry-run) é o que de

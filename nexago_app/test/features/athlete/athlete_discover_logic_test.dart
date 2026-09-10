@@ -237,6 +237,19 @@ void main() {
     });
   });
 
+  group('filtros de fachada removidos', () {
+    test('filtros padrão não contam como ativos', () {
+      expect(AthleteDiscoverFilters.defaults.hasActiveFilters, isFalse);
+    });
+
+    test('só gênero já conta como ativo', () {
+      const filters = AthleteDiscoverFilters(
+        gender: AthleteDiscoverGenderFilter.female,
+      );
+      expect(filters.hasActiveFilters, isTrue);
+    });
+  });
+
   group('proximidade honesta', () {
     test('mesma cidade vira rótulo, não quilometragem', () {
       final viewer = _profile(id: 'v', city: 'Goiânia', state: 'GO');

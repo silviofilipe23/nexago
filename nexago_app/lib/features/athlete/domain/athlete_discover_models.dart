@@ -9,8 +9,6 @@ enum AthleteDiscoverSort { compatibility, ranking, proximity, level }
 
 enum AthleteDiscoverGenderFilter { all, male, female }
 
-enum AthleteDiscoverGameObjective { balanced, trainDown, trainUp }
-
 /// Chip rápido de nível (Iniciante / Intermediário / Open / Pro).
 class AthleteDiscoverQuickLevel {
   const AthleteDiscoverQuickLevel({required this.label});
@@ -47,10 +45,6 @@ class AthleteDiscoverFilters {
     this.sportFirestoreId,
     this.levels = const {},
     this.gender = AthleteDiscoverGenderFilter.all,
-    this.gameObjective,
-    this.maxDistanceKm = 50,
-    this.unlimitedDistance = true,
-    this.availableNowOnly = false,
     this.lookingForPartnerOnly = false,
     this.completeProfileOnly = false,
     this.quickLevel = AthleteDiscoverQuickLevel.all,
@@ -59,10 +53,6 @@ class AthleteDiscoverFilters {
   final String? sportFirestoreId;
   final Set<String> levels;
   final AthleteDiscoverGenderFilter gender;
-  final AthleteDiscoverGameObjective? gameObjective;
-  final double maxDistanceKm;
-  final bool unlimitedDistance;
-  final bool availableNowOnly;
   final bool lookingForPartnerOnly;
   final bool completeProfileOnly;
   final AthleteDiscoverQuickLevel quickLevel;
@@ -73,9 +63,6 @@ class AthleteDiscoverFilters {
       sportFirestoreId != null ||
       levels.isNotEmpty ||
       gender != AthleteDiscoverGenderFilter.all ||
-      gameObjective != null ||
-      !unlimitedDistance ||
-      availableNowOnly ||
       lookingForPartnerOnly ||
       completeProfileOnly ||
       quickLevel.label.isNotEmpty;
@@ -84,10 +71,6 @@ class AthleteDiscoverFilters {
     Object? sportFirestoreId = _unset,
     Set<String>? levels,
     AthleteDiscoverGenderFilter? gender,
-    Object? gameObjective = _unset,
-    double? maxDistanceKm,
-    bool? unlimitedDistance,
-    bool? availableNowOnly,
     bool? lookingForPartnerOnly,
     bool? completeProfileOnly,
     AthleteDiscoverQuickLevel? quickLevel,
@@ -98,12 +81,6 @@ class AthleteDiscoverFilters {
           : sportFirestoreId as String?,
       levels: levels ?? this.levels,
       gender: gender ?? this.gender,
-      gameObjective: identical(gameObjective, _unset)
-          ? this.gameObjective
-          : gameObjective as AthleteDiscoverGameObjective?,
-      maxDistanceKm: maxDistanceKm ?? this.maxDistanceKm,
-      unlimitedDistance: unlimitedDistance ?? this.unlimitedDistance,
-      availableNowOnly: availableNowOnly ?? this.availableNowOnly,
       lookingForPartnerOnly:
           lookingForPartnerOnly ?? this.lookingForPartnerOnly,
       completeProfileOnly: completeProfileOnly ?? this.completeProfileOnly,

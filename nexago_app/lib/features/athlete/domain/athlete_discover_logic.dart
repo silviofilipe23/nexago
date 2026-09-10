@@ -33,21 +33,6 @@ bool matchesDiscoverSearch(AthleteDiscoverEntry entry, String query) {
   return parts.any((p) => p.toLowerCase().contains(q));
 }
 
-AthleteDiscoverGameObjective? gameObjectiveFromFirestore(String? raw) {
-  if (raw == null || raw.trim().isEmpty) return null;
-  final n = raw.trim().toLowerCase();
-  if (n.contains('treinar') && (n.contains('-forte') || n.contains('menos'))) {
-    return AthleteDiscoverGameObjective.trainDown;
-  }
-  if (n.contains('evoluir') || n.contains('+forte') || n.contains('mais forte')) {
-    return AthleteDiscoverGameObjective.trainUp;
-  }
-  if (n.contains('equilibr') || n.contains('balanced')) {
-    return AthleteDiscoverGameObjective.balanced;
-  }
-  return null;
-}
-
 bool _matchesGender(AthleteProfile profile, AthleteDiscoverGenderFilter filter) {
   if (filter == AthleteDiscoverGenderFilter.all) return true;
   final g = profile.gender?.trim().toLowerCase() ?? '';
@@ -92,40 +77,12 @@ bool _matchesLevel(AthleteProfile profile, AthleteDiscoverFilters filters) {
   );
 }
 
-bool _matchesProximity(
-  AthleteProfile profile,
-  AthleteProfile? viewer,
-  AthleteDiscoverFilters filters,
-) {
-  if (filters.unlimitedDistance || viewer == null) return true;
-  final viewerCity = viewer.city.trim().toLowerCase();
-  final viewerState = viewer.state?.trim().toLowerCase() ?? '';
-  final city = profile.city.trim().toLowerCase();
-  final state = profile.state?.trim().toLowerCase() ?? '';
-  if (viewerCity.isNotEmpty && city == viewerCity) {
-    if (viewerState.isEmpty || state.isEmpty || viewerState == state) {
-      return true;
-    }
-  }
-  // v1: distância curta = mesma cidade; caso contrário exclui quando filtro ativo
-  return filters.maxDistanceKm >= 50;
-}
-
-bool _matchesGameObjective(AthleteProfile profile, AthleteDiscoverFilters filters) {
-  final wanted = filters.gameObjective;
-  if (wanted == null) return true;
-  final actual = gameObjectiveFromFirestore(profile.gameObjective);
-  return actual == wanted;
-}
-
 List<AthleteDiscoverEntry> applyDiscoverFilters({
   required List<AthleteDiscoverEntry> entries,
   required AthleteDiscoverFilters filters,
   AthleteProfile? viewerProfile,
   String searchQuery = '',
-  DateTime? now,
 }) {
-  final reference = now ?? DateTime.now();
   final q = normalizeDiscoverSearch(searchQuery);
 
   return entries.where((entry) {
@@ -135,15 +92,10 @@ List<AthleteDiscoverEntry> applyDiscoverFilters({
     if (!_matchesGender(profile, filters.gender)) return false;
     if (!_matchesSport(profile, filters.sportFirestoreId)) return false;
     if (!_matchesLevel(profile, filters)) return false;
-    if (!_matchesProximity(profile, viewerProfile, filters)) return false;
-    if (!_matchesGameObjective(profile, filters)) return false;
     if (filters.completeProfileOnly && !profile.onboardingCompleted) {
       return false;
     }
     if (filters.lookingForPartnerOnly && !profile.lookingForPartner) {
-      return false;
-    }
-    if (filters.availableNowOnly && !isAthleteOnline(profile, reference)) {
       return false;
     }
     return true;

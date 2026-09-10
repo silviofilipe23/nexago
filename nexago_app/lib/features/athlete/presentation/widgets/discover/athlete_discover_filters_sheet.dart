@@ -48,10 +48,6 @@ class _AthleteDiscoverFiltersSheetState
   String? _sportId;
   late Set<String> _levels;
   late AthleteDiscoverGenderFilter _gender;
-  AthleteDiscoverGameObjective? _objective;
-  late double _distanceKm;
-  late bool _unlimitedDistance;
-  late bool _availableNow;
   late bool _lookingForPartner;
   late bool _completeProfile;
 
@@ -64,10 +60,6 @@ class _AthleteDiscoverFiltersSheetState
     _sportId = f.sportFirestoreId;
     _levels = Set<String>.from(f.levels);
     _gender = f.gender;
-    _objective = f.gameObjective;
-    _distanceKm = f.maxDistanceKm.clamp(5, 100);
-    _unlimitedDistance = f.unlimitedDistance;
-    _availableNow = f.availableNowOnly;
     _lookingForPartner = f.lookingForPartnerOnly;
     _completeProfile = f.completeProfileOnly;
   }
@@ -77,10 +69,6 @@ class _AthleteDiscoverFiltersSheetState
       _sportId = null;
       _levels = {};
       _gender = AthleteDiscoverGenderFilter.all;
-      _objective = null;
-      _distanceKm = 50;
-      _unlimitedDistance = true;
-      _availableNow = false;
       _lookingForPartner = false;
       _completeProfile = false;
     });
@@ -91,10 +79,6 @@ class _AthleteDiscoverFiltersSheetState
       sportFirestoreId: _sportId,
       levels: _levels,
       gender: _gender,
-      gameObjective: _objective,
-      maxDistanceKm: _distanceKm,
-      unlimitedDistance: _unlimitedDistance,
-      availableNowOnly: _availableNow,
       lookingForPartnerOnly: _lookingForPartner,
       completeProfileOnly: _completeProfile,
     );
@@ -210,74 +194,6 @@ class _AthleteDiscoverFiltersSheetState
                       },
                     ),
                     SizedBox(height: 20),
-                    const _SectionLabel(label: 'OBJETIVO DO JOGO'),
-                    _ChipWrap(
-                      options: const [
-                        'Equilibrado',
-                        'Treinar (menos intenso)',
-                        'Evoluir (mais intenso)',
-                      ],
-                      selectedLabel: switch (_objective) {
-                        AthleteDiscoverGameObjective.balanced => 'Equilibrado',
-                        AthleteDiscoverGameObjective.trainDown =>
-                          'Treinar (menos intenso)',
-                        AthleteDiscoverGameObjective.trainUp =>
-                          'Evoluir (mais intenso)',
-                        null => null,
-                      },
-                      onToggle: (label) {
-                        setState(() {
-                          final next = switch (label) {
-                            'Treinar (menos intenso)' =>
-                              AthleteDiscoverGameObjective.trainDown,
-                            'Evoluir (mais intenso)' =>
-                              AthleteDiscoverGameObjective.trainUp,
-                            'Equilibrado' =>
-                              AthleteDiscoverGameObjective.balanced,
-                            _ => null,
-                          };
-                          _objective = _objective == next ? null : next;
-                        });
-                      },
-                    ),
-                    SizedBox(height: 20),
-                    const _SectionLabel(label: 'DISTÂNCIA'),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text('Sem limite de distância'),
-                      value: _unlimitedDistance,
-                      activeThumbColor: AppColors.brand,
-                      onChanged: (v) => setState(() => _unlimitedDistance = v),
-                    ),
-                    if (!_unlimitedDistance) ...[
-                      Text(
-                        'Até ${_distanceKm.round()} km (v1: mesma cidade)',
-                        style: AppTypography.mono(
-                          fontSize: 11,
-                          color: context.themeColors.onSurfaceMuted,
-                        ),
-                      ),
-                      Slider(
-                        value: _distanceKm,
-                        min: 5,
-                        max: 100,
-                        divisions: 19,
-                        activeColor: AppColors.brand,
-                        onChanged: (v) => setState(() => _distanceKm = v),
-                      ),
-                    ],
-                    SizedBox(height: 12),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text('Disponíveis agora'),
-                      subtitle: Text(
-                        'Requer lastActiveAt no perfil',
-                        style: TextStyle(fontSize: 11),
-                      ),
-                      value: _availableNow,
-                      activeThumbColor: AppColors.brand,
-                      onChanged: (v) => setState(() => _availableNow = v),
-                    ),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text('Procurando dupla'),

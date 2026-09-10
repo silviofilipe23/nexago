@@ -210,22 +210,22 @@ async function resolveContext(tournamentId, categoryId) {
   let weight = peso.weight;
   let fieldRank = null;
   let measuredTeams = 0;
-  let livreOrigem = null; // "carimbo" | "medido" | "declarado" — só para o relatório
-  let livreCarimbaria = false; // cobertura suficiente para carimbar nesta passada
+  let livreWeightSource = null; // "stamp" | "measured" | "declared" — só para o relatório
+  let livreStampEligible = false; // cobertura suficiente para carimbar nesta passada
   if (peso.presetKey === "livre") {
-    const carimbo = await readFieldStrengthStamp(tournamentId, categoryId);
-    if (carimbo) {
-      weight = Math.min(LIVRE_MAX_WEIGHT, Math.max(LIVRE_MIN_WEIGHT, carimbo.weight));
-      fieldRank = carimbo.fieldRank;
-      measuredTeams = carimbo.measuredTeams;
-      livreOrigem = "carimbo";
+    const stamp = await readFieldStrengthStamp(tournamentId, categoryId);
+    if (stamp) {
+      weight = Math.min(LIVRE_MAX_WEIGHT, Math.max(LIVRE_MIN_WEIGHT, stamp.weight));
+      fieldRank = stamp.fieldRank;
+      measuredTeams = stamp.measuredTeams;
+      livreWeightSource = "stamp";
     } else {
       const strength = await measureLivreFieldStrength(tournament, paidTeamsMap);
       if (strength) {
         weight = strength.weight;
         fieldRank = strength.fieldRank;
         measuredTeams = strength.measuredTeams;
-        livreOrigem = "medido";
+        livreWeightSource = "measured";
 
         const stampCandidate = {
           presetKey: "livre",
@@ -235,13 +235,23 @@ async function resolveContext(tournamentId, categoryId) {
           totalPaidTeams: paidTeams,
         };
         if (shouldStampFieldStrength(stampCandidate)) {
-          livreCarimbaria = true;
+          livreStampEligible = true;
           if (APPLY) {
-            await stampFieldStrength(tournamentId, categoryId, stampCandidate);
+            try {
+              await stampFieldStrength(tournamentId, categoryId, stampCandidate);
+            } catch (e) {
+              // A escrita do carimbo é só metadado — se falhar, o recálculo não
+              // pode parar por isso (mesma postura de `resolveLivreWeight` em
+              // `functions/src/tournament-ranking.ts`): segue com o peso medido.
+              avisar(
+                `${tournamentId}/${categoryId}: falha ao carimbar força do campo — ` +
+                  `seguindo com o peso medido (${e?.message ?? e})`,
+              );
+            }
           }
         }
       } else {
-        livreOrigem = "declarado";
+        livreWeightSource = "declared";
       }
     }
   }
@@ -254,8 +264,8 @@ async function resolveContext(tournamentId, categoryId) {
     inferred: peso.inferred,
     fieldRank,
     measuredTeams,
-    livreOrigem,
-    livreCarimbaria,
+    livreWeightSource,
+    livreStampEligible,
     rankingWeight,
     paidTeams,
     bracketFactor,
@@ -365,6 +375,11 @@ async function readFieldStrengthStamp(tournamentId, categoryId) {
  * o motor vai LER este carimbo em vez de medir com o dado de hoje — histórico
  * e peso vivo continuam de acordo. Só é chamada quando `APPLY` é verdadeiro
  * (`--yes`); em dry-run o chamador só reporta a intenção.
+ *
+ * Payload em paridade com `fieldStrengthStampPayload`
+ * (`functions/src/category-field-strength-store.ts:155-159`); o local
+ * equivalente da escrita no motor é `resolveLivreWeight`
+ * (`functions/src/tournament-ranking.ts`).
  */
 async function stampFieldStrength(tournamentId, categoryId, stamp) {
   await db
@@ -568,14 +583,14 @@ function imprimirContextos() {
         ` · multiplicador=${(ctx.weight * ctx.rankingWeight * ctx.bracketFactor).toFixed(4)}`,
     );
     if (ctx.presetKey === "livre") {
-      const fonte =
-        ctx.livreOrigem === "carimbo"
+      const source =
+        ctx.livreWeightSource === "stamp"
           ? "carimbo já gravado"
-          : ctx.livreOrigem === "medido"
-            ? `medido agora${ctx.livreCarimbaria ? (APPLY ? " — CARIMBADO" : " — SERIA CARIMBADO") : " (cobertura insuficiente para carimbar)"}`
+          : ctx.livreWeightSource === "measured"
+            ? `medido agora${ctx.livreStampEligible ? (APPLY ? " — CARIMBADO" : " — SERIA CARIMBADO") : " (cobertura insuficiente para carimbar)"}`
             : "imensurável — peso declarado do preset";
       console.log(
-        `      livre: fonte=${fonte}` +
+        `      livre: fonte=${source}` +
           (ctx.fieldRank != null ? ` · degrauCampo=${ctx.fieldRank.toFixed(2)}` : "") +
           ` · duplasMedidas=${ctx.measuredTeams}/${ctx.paidTeams}`,
       );

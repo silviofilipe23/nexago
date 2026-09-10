@@ -286,6 +286,12 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
       if (state.catalogIsComplete) {
         _publishDisplay(state.rawEntries);
       } else {
+        // Republica com os filtros novos AGORA, usando o que já está
+        // carregado, antes de buscar o catálogo completo. Esta entrega é
+        // sobre a tela nunca exibir o que não é verdade: trocar "a lista
+        // pisca" por "a lista mostra atletas que violam o filtro" seria
+        // substituir um defeito por outro pior.
+        _publishDisplay(state.rawEntries);
         await _loadFullCatalog();
       }
     } else {
@@ -300,6 +306,12 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
       if (state.catalogIsComplete) {
         _publishDisplay(state.rawEntries);
       } else {
+        // Republica com os filtros novos AGORA, usando o que já está
+        // carregado, antes de buscar o catálogo completo. Esta entrega é
+        // sobre a tela nunca exibir o que não é verdade: trocar "a lista
+        // pisca" por "a lista mostra atletas que violam o filtro" seria
+        // substituir um defeito por outro pior.
+        _publishDisplay(state.rawEntries);
         await _loadFullCatalog();
       }
     } else {
@@ -313,6 +325,12 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
       if (state.catalogIsComplete) {
         _publishDisplay(state.rawEntries);
       } else {
+        // Republica com os filtros novos AGORA, usando o que já está
+        // carregado, antes de buscar o catálogo completo. Esta entrega é
+        // sobre a tela nunca exibir o que não é verdade: trocar "a lista
+        // pisca" por "a lista mostra atletas que violam o filtro" seria
+        // substituir um defeito por outro pior.
+        _publishDisplay(state.rawEntries);
         await _loadFullCatalog();
       }
     } else {

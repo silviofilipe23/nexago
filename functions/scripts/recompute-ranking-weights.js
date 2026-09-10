@@ -104,6 +104,7 @@ const {
   aggregateRankingResults,
   teamLevelRank,
   fieldStrengthFromTeamRanks,
+  inscriptionAthleteUids,
   shouldStampFieldStrength,
   LIVRE_MIN_WEIGHT,
   LIVRE_MAX_WEIGHT,
@@ -264,7 +265,14 @@ async function resolveContext(tournamentId, categoryId) {
   };
 }
 
-/** Paridade com `paidTeamsWithParticipants` (functions/src/category-field-strength-store.ts). */
+/**
+ * Paridade com `paidTeamsWithParticipants` (functions/src/category-field-strength-store.ts):
+ * mesma query e mesmo filtro de "paga" (`isPaid === true`, sem `waitlist`,
+ * `teamId` distinto), e uids via `inscriptionAthleteUids` — o extrator
+ * canônico, que junta `player1Id` E `participantUids` — em vez de ler
+ * `participantUids` na mão, que perderia inscrições legadas que só tinham
+ * `player1Id`.
+ */
 async function loadPaidTeams(tournamentId, categoryId) {
   const snap = await db
     .collection(dataPath("inscriptions"))
@@ -279,9 +287,7 @@ async function loadPaidTeams(tournamentId, categoryId) {
     if (d.waitlist === true) continue;
     const teamId = (d.teamId || "").trim();
     if (!teamId) continue;
-    const uids = Array.isArray(d.participantUids)
-      ? d.participantUids.map((u) => String(u || "").trim()).filter(Boolean)
-      : [];
+    const uids = inscriptionAthleteUids(d);
     teams.set(teamId, [...(teams.get(teamId) || []), ...uids]);
   }
   return teams;

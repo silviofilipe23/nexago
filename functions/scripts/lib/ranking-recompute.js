@@ -224,9 +224,11 @@ function aggregateRankingResults(results) {
 }
 
 /**
- * Cópias de `functions/src/category-field-strength.ts` (spec 2026-09-10). O
- * script é standalone e não importa o bundle compilado; `test/ranking-recompute.test.mjs`
- * é quem cobra a paridade. Mudou lá, muda aqui.
+ * Cópias de `functions/src/category-field-strength.ts` (spec 2026-09-10) e de
+ * `functions/src/tournament-level-lock.ts:62-79` (`inscriptionAthleteUids`,
+ * mais abaixo). O script é standalone e não importa o bundle compilado;
+ * `test/ranking-recompute.test.mjs` é quem cobra a paridade. Mudou lá, muda
+ * aqui.
  */
 const LIVRE_MIN_WEIGHT = 0.125;
 const LIVRE_MAX_WEIGHT = 1;
@@ -264,6 +266,30 @@ function fieldStrengthFromTeamRanks(teamRanks) {
 }
 
 /**
+ * Cópia de `inscriptionAthleteUids` (functions/src/tournament-level-lock.ts:62-79).
+ * Uids dos atletas de UMA inscrição: `participantUids` cobre solo, dupla e
+ * equipe trio+; `player1Id` entra como reforço para docs legados que só
+ * tinham esse campo. Mesma ordem de inserção (player1Id primeiro) e mesma
+ * de-duplicação (via Set) do original — mudou lá, muda aqui.
+ */
+function inscriptionAthleteUids(data) {
+  if (!data) return [];
+  const uids = new Set();
+
+  const player1 = data.player1Id;
+  if (typeof player1 === "string" && player1.trim()) uids.add(player1.trim());
+
+  const participants = data.participantUids;
+  if (Array.isArray(participants)) {
+    for (const raw of participants) {
+      if (typeof raw === "string" && raw.trim()) uids.add(raw.trim());
+    }
+  }
+
+  return [...uids];
+}
+
+/**
  * Cópia de `shouldStampFieldStrength` (functions/src/category-field-strength-store.ts).
  * Carimbar congela o peso da categoria, então só vale a pena quando a medição
  * cobre a MAIORIA das duplas pagas — abaixo disso a média sai enviesada para
@@ -289,5 +315,6 @@ module.exports = {
   teamLevelRank,
   weightFromRank,
   fieldStrengthFromTeamRanks,
+  inscriptionAthleteUids,
   shouldStampFieldStrength,
 };

@@ -24,6 +24,7 @@ const {
   teamLevelRank,
   weightFromRank,
   fieldStrengthFromTeamRanks,
+  inscriptionAthleteUids,
   shouldStampFieldStrength,
 } = require('../scripts/lib/ranking-recompute.js');
 
@@ -265,5 +266,30 @@ describe('paridade da força do campo (cópia de src/category-field-strength.ts)
 
   test('shouldStampFieldStrength: cobertura total carimba', () => {
     assert.equal(shouldStampFieldStrength({ measuredTeams: 10, totalPaidTeams: 10 }), true);
+  });
+});
+
+describe('inscriptionAthleteUids (cópia de src/tournament-level-lock.ts:62-79)', () => {
+  test('inscrição só com participantUids: todos entram', () => {
+    assert.deepEqual(
+      inscriptionAthleteUids({ teamId: 'team1', participantUids: ['u1', 'u2'] }).sort(),
+      ['u1', 'u2'],
+    );
+  });
+
+  test('inscrição só com player1Id (doc legado sem participantUids)', () => {
+    assert.deepEqual(inscriptionAthleteUids({ player1Id: 'u1' }), ['u1']);
+  });
+
+  test('player1Id repetido em participantUids não duplica', () => {
+    assert.deepEqual(
+      inscriptionAthleteUids({ player1Id: 'u1', participantUids: ['u1', 'u2'] }),
+      ['u1', 'u2'],
+    );
+  });
+
+  test('sem player1Id nem participantUids: lista vazia', () => {
+    assert.deepEqual(inscriptionAthleteUids({ teamId: 'team1' }), []);
+    assert.deepEqual(inscriptionAthleteUids(undefined), []);
   });
 });

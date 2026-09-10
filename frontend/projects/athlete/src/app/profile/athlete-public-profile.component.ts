@@ -10,11 +10,13 @@ import { fetchFollowersCount, fetchIsFollowing, setFollowing } from '../data/ath
 import { MAX_HIGHLIGHT_PHOTOS } from '../data/athlete-highlight-upload';
 import { AthleteHighlightsGalleryComponent } from './athlete-highlights-gallery.component';
 import { NxToastService } from '../shared/feedback';
+import { NxPhotoLightboxComponent } from '../shared/media/nx-photo-lightbox.component';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { NxSkeletonComponent } from '../shared/loading/nx-skeleton.component';
 import { ACHIEVEMENT_CATALOG, buildAchievementViewModels } from './achievement-catalog';
 import { AthleteGamificationService } from './athlete-gamification.service';
+import { sportLabelForCode } from '../data/sport-catalog';
 import { athleteLevelLabel } from './profile-format';
 import {
   loadPublicProfileActivity,
@@ -378,6 +380,7 @@ export interface ProfileStatRow {
     NxSkeletonComponent,
     AuthShellComponent,
     AthleteHighlightsGalleryComponent,
+    NxPhotoLightboxComponent,
   ],
   templateUrl: './athlete-public-profile.component.html',
   styleUrl: './athlete-public-profile.component.scss',
@@ -405,6 +408,8 @@ export class AthletePublicProfileComponent {
   /** Controla o skeleton de cada imagem — falso enquanto o <img> não disparou (load)/(error). */
   protected readonly avatarLoaded = signal(false);
   protected readonly coverLoaded = signal(false);
+  /** Lightbox da foto de perfil — mesmo viewer dos destaques. */
+  protected readonly avatarViewerOpen = signal(false);
 
   protected readonly handle = computed(() => this.route.snapshot.paramMap.get('handle') ?? '');
   protected readonly profileUrl = computed(() => {
@@ -414,12 +419,24 @@ export class AthletePublicProfileComponent {
     const uid = this.profile()?.uid ?? this.handle();
     return `${origin}/atletas/${uid}`;
   });
+  protected readonly sportLabelForCode = sportLabelForCode;
+
   protected readonly sportsHeadline = computed(() => {
     const profile = this.profile();
     if (!profile) {
       return '';
     }
-    return profile.sports.join(' · ');
+    return profile.sports.map((code) => sportLabelForCode(code)).join(' · ');
+  });
+
+  protected readonly avatarPhotos = computed(() => {
+    const url = this.profile()?.profilePhotoUrl?.trim();
+    return url ? [url] : [];
+  });
+
+  protected readonly avatarPhotoAlt = computed(() => {
+    const name = this.profile()?.fullName?.trim();
+    return name ? `Foto de perfil de ${name}` : 'Foto de perfil do atleta';
   });
 
   protected readonly hasSession = computed(() => this.auth.user() != null || this.auth.devEmail() != null);
@@ -569,6 +586,16 @@ export class AthletePublicProfileComponent {
     } catch {
       // Sem contador a linha "Seguidores" some; o botão continua utilizável.
     }
+  }
+
+  protected openAvatarPhoto(): void {
+    if (this.avatarPhotos().length > 0) {
+      this.avatarViewerOpen.set(true);
+    }
+  }
+
+  protected closeAvatarPhoto(): void {
+    this.avatarViewerOpen.set(false);
   }
 
   /** Otimista: o botão responde na hora e volta atrás se a escrita falhar. */

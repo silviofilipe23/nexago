@@ -91,9 +91,14 @@
               </div>
 
               <div class="pp-avatar-wrap">
-                <div class="pp-avatar" aria-hidden="true">
-                  <span class="pp-avatar-fallback">{{ athlete.fullName.charAt(0) }}</span>
-                  @if (athlete.profilePhotoUrl; as photo) {
+                @if (athlete.profilePhotoUrl; as photo) {
+                  <button
+                    type="button"
+                    class="pp-avatar pp-avatar--zoom"
+                    [attr.aria-label]="'Ampliar foto de ' + athlete.fullName"
+                    (click)="openAvatarPhoto()"
+                  >
+                    <span class="pp-avatar-fallback" aria-hidden="true">{{ athlete.fullName.charAt(0) }}</span>
                     @if (!avatarLoaded()) {
                       <app-nx-skeleton class="pp-avatar-skeleton" [w]="'100%'" [h]="'100%'" [r]="'50%'" />
                     }
@@ -105,8 +110,12 @@
                       (load)="avatarLoaded.set(true)"
                       (error)="avatarLoaded.set(true)"
                     />
-                  }
-                </div>
+                  </button>
+                } @else {
+                  <div class="pp-avatar" aria-hidden="true">
+                    <span class="pp-avatar-fallback">{{ athlete.fullName.charAt(0) }}</span>
+                  </div>
+                }
                 @if (gamificationExtras(); as extra) {
                   <span class="pp-level-badge">LV {{ extra.levelNumber }}</span>
                 }
@@ -117,7 +126,7 @@
               <p class="pp-handle">{{ athlete.locationLabel }}</p>
               <div class="pp-pill-row">
                 @if (athlete.primarySport) {
-                  <span class="pp-sport-pill">{{ athlete.primarySport }}</span>
+                  <span class="pp-sport-pill">{{ sportLabelForCode(athlete.primarySport) }}</span>
                 }
                 <span class="pp-level-pill">{{ athlete.level }}</span>
               </div>
@@ -307,5 +316,13 @@
         <ng-container *ngTemplateOutlet="profileBody" />
       </div>
     </div>
+  }
+
+  @if (avatarViewerOpen()) {
+    <app-nx-photo-lightbox
+      [photos]="avatarPhotos()"
+      [alt]="avatarPhotoAlt()"
+      (closed)="closeAvatarPhoto()"
+    />
   }
 }

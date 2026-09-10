@@ -40,6 +40,11 @@
  * dado misto e escaparia da varredura para sempre. Aqui não existe "escapar":
  * a próxima execução reconverge qualquer doc.
  *
+ * EXCEÇÃO — o carimbo de força do campo (§6 da spec) É gravado: ver EMENDA
+ * 2026-09-10 mais abaixo. Ele mora numa coleção separada
+ * (`tournamentCategoryFieldStrength`) e não interfere na convergência deste
+ * recálculo — é lido, não recomputado a cada passada.
+ *
  * O QUE ELE NÃO FAZ:
  *   - NÃO reavalia elegibilidade: entrada que existe continua existindo, mesmo
  *     que a categoria hoje não passasse no gate de 10 duplas pagas ou estivesse
@@ -67,6 +72,27 @@
  * transação (que RELÊ o doc no commit, tornando inofensiva uma premiação que
  * caia no meio da execução), o erro é contado e reportado, e o processo sai
  * com código != 0 se algum doc falhou.
+ *
+ * EMENDA 2026-09-10: categoria de preset `livre` não usa mais o peso 0.125 da
+ * tabela — o peso vem da força REAL do campo (média do degrau das duplas, onde
+ * a dupla vale o integrante mais forte), medida a partir das inscrições pagas e
+ * de `athleteRatings.levelRank`. Continua sendo função pura do dado vivo, então
+ * o script segue convergindo em duas passadas.
+ *
+ * A ordem de resolução do peso do Livre é IDÊNTICA à de `resolveLivreWeight`
+ * (functions/src/tournament-ranking.ts), para que backfill e motor nunca
+ * discordem sobre o mesmo histórico:
+ *   1. Carimbo já gravado em `tournamentCategoryFieldStrength` → usa o peso
+ *      carimbado (com o mesmo piso/teto da leitura no motor).
+ *   2. Sem carimbo → mede o campo agora; com cobertura majoritária
+ *      (`shouldStampFieldStrength`) e `--yes`, grava o carimbo com
+ *      `source: "backfill"` — assim uma chave publicada de novo sobre esta
+ *      partida antiga relê o MESMO peso em vez de medir com o dado de hoje.
+ *   3. Campo imensurável (sem esporte de nível, sem dupla paga, ou nenhum
+ *      atleta com degrau conhecido) → peso declarado do preset (0.125), sem
+ *      carimbar.
+ * Em dry-run (sem `--yes`) nada é escrito — nem o carimbo: o relatório apenas
+ * indica o que SERIA carimbado.
  */
 
 const admin = require("firebase-admin");
@@ -76,6 +102,11 @@ const {
   bracketSizeFactor,
   pointsForEntry,
   aggregateRankingResults,
+  teamLevelRank,
+  fieldStrengthFromTeamRanks,
+  shouldStampFieldStrength,
+  LIVRE_MIN_WEIGHT,
+  LIVRE_MAX_WEIGHT,
 } = require("./lib/ranking-recompute");
 
 function argValue(flag) {
@@ -162,16 +193,68 @@ async function resolveContext(tournamentId, categoryId) {
     };
   }
 
-  const paidTeams = await countPaidTeams(tournamentId, categoryId);
+  const paidTeamsMap = await loadPaidTeams(tournamentId, categoryId);
+  const paidTeams = paidTeamsMap.size;
   const rankingWeight = sanitizeRankingWeight(tournament.rankingWeight);
   const bracketFactor = bracketSizeFactor(paidTeams);
+
+  // Livre: o peso 0.125 da tabela vem do PISO declarado da faixa e pune um campo
+  // forte (spec 2026-09-10). Aqui ele é substituído pela força REAL medida.
+  // Campo imensurável mantém o peso declarado — não vira zero.
+  //
+  // Ordem IDÊNTICA a `resolveLivreWeight` (functions/src/tournament-ranking.ts):
+  // 1) carimbo já gravado; 2) mede agora (e carimba se a cobertura permitir);
+  // 3) peso declarado do preset. Sem o passo 1 o backfill sobrescreveria um
+  // carimbo feito na publicação da chave e as duas fontes discordariam.
+  let weight = peso.weight;
+  let fieldRank = null;
+  let measuredTeams = 0;
+  let livreOrigem = null; // "carimbo" | "medido" | "declarado" — só para o relatório
+  let livreCarimbaria = false; // cobertura suficiente para carimbar nesta passada
+  if (peso.presetKey === "livre") {
+    const carimbo = await readFieldStrengthStamp(tournamentId, categoryId);
+    if (carimbo) {
+      weight = Math.min(LIVRE_MAX_WEIGHT, Math.max(LIVRE_MIN_WEIGHT, carimbo.weight));
+      fieldRank = carimbo.fieldRank;
+      measuredTeams = carimbo.measuredTeams;
+      livreOrigem = "carimbo";
+    } else {
+      const strength = await measureLivreFieldStrength(tournament, paidTeamsMap);
+      if (strength) {
+        weight = strength.weight;
+        fieldRank = strength.fieldRank;
+        measuredTeams = strength.measuredTeams;
+        livreOrigem = "medido";
+
+        const stampCandidate = {
+          presetKey: "livre",
+          fieldRank: strength.fieldRank,
+          weight: strength.weight,
+          measuredTeams: strength.measuredTeams,
+          totalPaidTeams: paidTeams,
+        };
+        if (shouldStampFieldStrength(stampCandidate)) {
+          livreCarimbaria = true;
+          if (APPLY) {
+            await stampFieldStrength(tournamentId, categoryId, stampCandidate);
+          }
+        }
+      } else {
+        livreOrigem = "declarado";
+      }
+    }
+  }
 
   return {
     ...identidade,
     ok: true,
-    weight: peso.weight,
+    weight,
     presetKey: peso.presetKey,
     inferred: peso.inferred,
+    fieldRank,
+    measuredTeams,
+    livreOrigem,
+    livreCarimbaria,
     rankingWeight,
     paidTeams,
     bracketFactor,
@@ -181,23 +264,116 @@ async function resolveContext(tournamentId, categoryId) {
   };
 }
 
-/** Paridade com `loadPaidTeamIds` (functions/src/league-ranking.ts). */
-async function countPaidTeams(tournamentId, categoryId) {
+/** Paridade com `paidTeamsWithParticipants` (functions/src/category-field-strength-store.ts). */
+async function loadPaidTeams(tournamentId, categoryId) {
   const snap = await db
     .collection(dataPath("inscriptions"))
     .where("tournamentId", "==", tournamentId)
     .where("categoryId", "==", categoryId)
     .get();
 
-  const ids = new Set();
+  const teams = new Map();
   for (const doc of snap.docs) {
     const d = doc.data();
     if (d.isPaid !== true) continue;
     if (d.waitlist === true) continue;
     const teamId = (d.teamId || "").trim();
-    if (teamId) ids.add(teamId);
+    if (!teamId) continue;
+    const uids = Array.isArray(d.participantUids)
+      ? d.participantUids.map((u) => String(u || "").trim()).filter(Boolean)
+      : [];
+    teams.set(teamId, [...(teams.get(teamId) || []), ...uids]);
   }
-  return ids.size;
+  return teams;
+}
+
+/** Cópia de `tournamentSportToLevelSportCode` (functions/src/category-level-eligibility.ts). */
+function tournamentSportToLevelSportCode(sport) {
+  const key = String(sport || "").trim().toLowerCase().replace(/\s+/g, "");
+  if (key === "beachvolleyball") return "VOLEI_PRAIA";
+  if (key === "indoorvolleyball") return "VOLEI_QUADRA";
+  if (key === "footvolley") return "FUTEVOLEI";
+  if (key === "beachtennis") return "BEACH_TENNIS";
+  return null;
+}
+
+/** Degraus por atleta, em lote (docs `athleteRatings/{uid}_{SPORT_CODE}`). */
+async function loadAthleteLevelRanks(uids, sportCode) {
+  const ranks = new Map();
+  const unique = [...new Set(uids.filter(Boolean))];
+  if (unique.length === 0 || !sportCode) return ranks;
+
+  const refs = unique.map((uid) =>
+    db.doc(`${dataPath("athleteRatings")}/${uid}_${sportCode}`),
+  );
+  const snaps = await db.getAll(...refs);
+  snaps.forEach((snap, index) => {
+    const rank = Number(snap.data()?.levelRank);
+    if (Number.isFinite(rank)) ranks.set(unique[index], rank);
+  });
+  return ranks;
+}
+
+/** Força do campo de uma categoria Livre; null quando não dá para medir. */
+async function measureLivreFieldStrength(tournament, paidTeams) {
+  const sportCode = tournamentSportToLevelSportCode(tournament.sport);
+  if (!sportCode || paidTeams.size === 0) return null;
+
+  const ranks = await loadAthleteLevelRanks(
+    [...paidTeams.values()].flat(),
+    sportCode,
+  );
+  const teamRanks = [...paidTeams.values()].map((uids) =>
+    teamLevelRank(uids.map((uid) => (ranks.has(uid) ? ranks.get(uid) : null))),
+  );
+  return fieldStrengthFromTeamRanks(teamRanks);
+}
+
+/** Doc id do carimbo — paridade com `fieldStrengthDocId` (category-field-strength-store.ts). */
+function fieldStrengthDocId(tournamentId, categoryId) {
+  return `${tournamentId}_${categoryId}`;
+}
+
+/** Paridade com `readFieldStrengthStamp` (functions/src/category-field-strength-store.ts). */
+async function readFieldStrengthStamp(tournamentId, categoryId) {
+  const snap = await db
+    .doc(`${dataPath("tournamentCategoryFieldStrength")}/${fieldStrengthDocId(tournamentId, categoryId)}`)
+    .get();
+  const data = snap.data();
+  if (!data) return null;
+
+  const weight = Number(data.weight);
+  if (!Number.isFinite(weight) || weight <= 0) return null;
+
+  return {
+    fieldRank: Number(data.fieldRank) || 0,
+    weight,
+    measuredTeams: Number(data.measuredTeams) || 0,
+    totalPaidTeams: Number(data.totalPaidTeams) || 0,
+  };
+}
+
+/**
+ * Grava o carimbo com `source: "backfill"` (spec §6): se uma premiação voltar
+ * a disparar numa partida antiga (organizador corrigindo placar, por exemplo),
+ * o motor vai LER este carimbo em vez de medir com o dado de hoje — histórico
+ * e peso vivo continuam de acordo. Só é chamada quando `APPLY` é verdadeiro
+ * (`--yes`); em dry-run o chamador só reporta a intenção.
+ */
+async function stampFieldStrength(tournamentId, categoryId, stamp) {
+  await db
+    .doc(`${dataPath("tournamentCategoryFieldStrength")}/${fieldStrengthDocId(tournamentId, categoryId)}`)
+    .set({
+      tournamentId,
+      categoryId,
+      presetKey: stamp.presetKey,
+      fieldRank: stamp.fieldRank,
+      weight: stamp.weight,
+      measuredTeams: stamp.measuredTeams,
+      totalPaidTeams: stamp.totalPaidTeams,
+      source: "backfill",
+      stampedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 }
 
 /** Pontos novos de uma entrada, ou `null` quando não dá para decidir. */
@@ -385,6 +561,19 @@ function imprimirContextos() {
         ` · rankingWeight=${ctx.rankingWeight} · pagas=${ctx.paidTeams} → fatorChave=${ctx.bracketFactor}` +
         ` · multiplicador=${(ctx.weight * ctx.rankingWeight * ctx.bracketFactor).toFixed(4)}`,
     );
+    if (ctx.presetKey === "livre") {
+      const fonte =
+        ctx.livreOrigem === "carimbo"
+          ? "carimbo já gravado"
+          : ctx.livreOrigem === "medido"
+            ? `medido agora${ctx.livreCarimbaria ? (APPLY ? " — CARIMBADO" : " — SERIA CARIMBADO") : " (cobertura insuficiente para carimbar)"}`
+            : "imensurável — peso declarado do preset";
+      console.log(
+        `      livre: fonte=${fonte}` +
+          (ctx.fieldRank != null ? ` · degrauCampo=${ctx.fieldRank.toFixed(2)}` : "") +
+          ` · duplasMedidas=${ctx.measuredTeams}/${ctx.paidTeams}`,
+      );
+    }
   }
 }
 

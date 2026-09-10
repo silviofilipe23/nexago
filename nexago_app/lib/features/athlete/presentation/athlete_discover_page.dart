@@ -8,6 +8,7 @@ import '../../../core/layout/nexa_floating_header.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../domain/athlete_discover_logic.dart';
 import '../domain/athlete_discover_providers.dart';
 import '../domain/athlete_profile.dart';
 import '../domain/athlete_profile_providers.dart';
@@ -74,6 +75,10 @@ class _AthleteDiscoverPageState extends ConsumerState<AthleteDiscoverPage> {
           .read(athleteDiscoverProvider.notifier)
           .previewForFilters(draft)
           .length,
+      cityOptionsFor: (uf) => discoverCityOptions(
+        ref.read(athleteDiscoverProvider).rawEntries,
+        uf,
+      ),
     );
     if (result != null && mounted) {
       ref.read(athleteDiscoverProvider.notifier).applyFilters(result);

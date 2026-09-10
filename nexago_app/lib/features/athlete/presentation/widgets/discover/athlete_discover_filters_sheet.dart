@@ -8,10 +8,17 @@ import '../../../domain/athlete_discover_models.dart';
 import '../../../domain/athlete_firestore_codes.dart';
 import '../../../domain/athlete_profile_options.dart';
 
+const _ufOptions = [
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS',
+  'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC',
+  'SP', 'SE', 'TO',
+];
+
 Future<AthleteDiscoverFilters?> showAthleteDiscoverFiltersSheet({
   required BuildContext context,
   required AthleteDiscoverFilters initial,
   required int Function(AthleteDiscoverFilters draft) previewResultCount,
+  required List<String> Function(String? stateUf) cityOptionsFor,
 }) {
   return showModalBottomSheet<AthleteDiscoverFilters>(
     context: context,
@@ -24,6 +31,7 @@ Future<AthleteDiscoverFilters?> showAthleteDiscoverFiltersSheet({
       return _AthleteDiscoverFiltersSheet(
         initial: initial,
         previewResultCount: previewResultCount,
+        cityOptionsFor: cityOptionsFor,
       );
     },
   );
@@ -33,10 +41,12 @@ class _AthleteDiscoverFiltersSheet extends StatefulWidget {
   const _AthleteDiscoverFiltersSheet({
     required this.initial,
     required this.previewResultCount,
+    required this.cityOptionsFor,
   });
 
   final AthleteDiscoverFilters initial;
   final int Function(AthleteDiscoverFilters draft) previewResultCount;
+  final List<String> Function(String? stateUf) cityOptionsFor;
 
   @override
   State<_AthleteDiscoverFiltersSheet> createState() =>
@@ -50,6 +60,8 @@ class _AthleteDiscoverFiltersSheetState
   late AthleteDiscoverGenderFilter _gender;
   late bool _lookingForPartner;
   late bool _completeProfile;
+  String? _stateUf;
+  String? _city;
 
   static const _levelOptions = AthleteProfileOptions.levels;
 
@@ -62,6 +74,8 @@ class _AthleteDiscoverFiltersSheetState
     _gender = f.gender;
     _lookingForPartner = f.lookingForPartnerOnly;
     _completeProfile = f.completeProfileOnly;
+    _stateUf = f.stateUf;
+    _city = f.city;
   }
 
   void _clear() {
@@ -71,6 +85,8 @@ class _AthleteDiscoverFiltersSheetState
       _gender = AthleteDiscoverGenderFilter.all;
       _lookingForPartner = false;
       _completeProfile = false;
+      _stateUf = null;
+      _city = null;
     });
   }
 
@@ -81,6 +97,8 @@ class _AthleteDiscoverFiltersSheetState
       gender: _gender,
       lookingForPartnerOnly: _lookingForPartner,
       completeProfileOnly: _completeProfile,
+      stateUf: _stateUf,
+      city: _city,
     );
   }
 
@@ -193,6 +211,47 @@ class _AthleteDiscoverFiltersSheetState
                         });
                       },
                     ),
+                    SizedBox(height: 20),
+                    const _SectionLabel(label: 'LOCALIZAÇÃO'),
+                    _ChipWrap(
+                      options: _ufOptions,
+                      selectedLabel: _stateUf,
+                      onToggle: (label) {
+                        setState(() {
+                          if (_stateUf == label) {
+                            _stateUf = null;
+                          } else {
+                            _stateUf = label;
+                          }
+                          // Cidade pertence a uma UF: trocar de UF invalida.
+                          _city = null;
+                        });
+                      },
+                    ),
+                    if (_stateUf != null) ...[
+                      const SizedBox(height: 12),
+                      Builder(
+                        builder: (context) {
+                          final cities = widget.cityOptionsFor(_stateUf);
+                          if (cities.isEmpty) {
+                            return Text(
+                              'Nenhuma cidade no catálogo desta UF.',
+                              style: AppTypography.mono(
+                                fontSize: 11,
+                                color: context.themeColors.onSurfaceMuted,
+                              ),
+                            );
+                          }
+                          return _ChipWrap(
+                            options: cities,
+                            selectedLabel: _city,
+                            onToggle: (label) => setState(
+                              () => _city = _city == label ? null : label,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                     SizedBox(height: 20),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,

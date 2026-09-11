@@ -223,6 +223,134 @@ function aggregateRankingResults(results) {
   return {totalPoints, tournamentsCount: results.length, pointsByYear};
 }
 
+/**
+ * Cópias de `functions/src/category-field-strength.ts` (spec 2026-09-10) e de
+ * `functions/src/tournament-level-lock.ts:62-79` (`inscriptionAthleteUids`,
+ * mais abaixo). O script é standalone e não importa o bundle compilado;
+ * `test/ranking-recompute.test.mjs` é quem cobra a paridade. Mudou lá, muda
+ * aqui.
+ */
+const LIVRE_MIN_WEIGHT = 0.125;
+const LIVRE_MAX_WEIGHT = 1;
+
+/** Degrau da dupla = integrante MAIS FORTE; null se nenhum é conhecido. */
+function teamLevelRank(memberRanks) {
+  let best = null;
+  for (const rank of memberRanks) {
+    if (typeof rank !== "number" || !Number.isFinite(rank)) continue;
+    if (best == null || rank > best) best = rank;
+  }
+  return best;
+}
+
+/** Degrau médio → peso, ancorado na escada de presets fechados (Math.round). */
+function weightFromRank(rank) {
+  if (!Number.isFinite(rank)) return LIVRE_MIN_WEIGHT;
+  const step = Math.round(rank);
+  const weight = step <= 1 ? 0.125 : step <= 3 ? 0.25 : step <= 5 ? 0.5 : 1;
+  return Math.min(LIVRE_MAX_WEIGHT, Math.max(LIVRE_MIN_WEIGHT, weight));
+}
+
+/** Média dos degraus das duplas mensuráveis; null quando nenhuma é. */
+function fieldStrengthFromTeamRanks(teamRanks) {
+  const known = teamRanks.filter(
+    (rank) => typeof rank === "number" && Number.isFinite(rank),
+  );
+  if (known.length === 0) return null;
+  const fieldRank = known.reduce((sum, rank) => sum + rank, 0) / known.length;
+  return {
+    fieldRank,
+    weight: weightFromRank(fieldRank),
+    measuredTeams: known.length,
+  };
+}
+
+/**
+ * Cópia de `inscriptionAthleteUids` (functions/src/tournament-level-lock.ts:62-79).
+ * Uids dos atletas de UMA inscrição: `participantUids` cobre solo, dupla e
+ * equipe trio+; `player1Id` entra como reforço para docs legados que só
+ * tinham esse campo. Mesma ordem de inserção (player1Id primeiro) e mesma
+ * de-duplicação (via Set) do original — mudou lá, muda aqui.
+ */
+function inscriptionAthleteUids(data) {
+  if (!data) return [];
+  const uids = new Set();
+
+  const player1 = data.player1Id;
+  if (typeof player1 === "string" && player1.trim()) uids.add(player1.trim());
+
+  const participants = data.participantUids;
+  if (Array.isArray(participants)) {
+    for (const raw of participants) {
+      if (typeof raw === "string" && raw.trim()) uids.add(raw.trim());
+    }
+  }
+
+  return [...uids];
+}
+
+/**
+ * Cópia de `shouldStampFieldStrength` (functions/src/category-field-strength-store.ts).
+ * Carimbar congela o peso da categoria, então só vale a pena quando a medição
+ * cobre a MAIORIA das duplas pagas — abaixo disso a média sai enviesada para
+ * cima (as duplas sem degrau conhecido saem da conta) e o erro seria permanente.
+ */
+function shouldStampFieldStrength(stamp) {
+  return stamp.measuredTeams * 2 >= stamp.totalPaidTeams;
+}
+
+/**
+ * Cópia de `tournamentSportToLevelSportCode` (functions/src/category-level-eligibility.ts).
+ * Reusa `normalizeLevelKey` (mesma normalização de `levelRank`, acima: NFD +
+ * strip de diacríticos + espaço) — o script antigo comparava só
+ * lower-case+trim e concordava por acidente, já que nenhum dos quatro nomes
+ * de esporte tem acento; copiar a semântica real evita que um quinto esporte
+ * acentuado divirja um dia.
+ */
+function tournamentSportToLevelSportCode(sport) {
+  const key = normalizeLevelKey(sport);
+  switch (key) {
+    case "beachvolleyball":
+      return "VOLEI_PRAIA";
+    case "indoorvolleyball":
+      return "VOLEI_QUADRA";
+    case "footvolley":
+      return "FUTEVOLEI";
+    case "beachtennis":
+      return "BEACH_TENNIS";
+    default:
+      return null;
+  }
+}
+
+/**
+ * Cópia LITERAL de `extractTeamMemberUids` (functions/src/tournament-team-category.ts):
+ * `memberUids` vence, MAS só quando rende ao menos um uid utilizável — array
+ * vazio (ou só com strings em branco) cai no legado `player1Id`/`player2Id`,
+ * exatamente como o `if (out.length > 0) return out;` do motor. Decide quem
+ * recebe ponto retroativo — uma divergência aqui negaria crédito em silêncio.
+ */
+function extractTeamMemberUids(team) {
+  if (!team) return [];
+  const out = [];
+  const push = (raw) => {
+    const id = typeof raw === "string" ? raw.trim() : "";
+    if (id && !out.includes(id)) out.push(id);
+  };
+  if (Array.isArray(team.memberUids)) {
+    for (const raw of team.memberUids) push(raw);
+    if (out.length > 0) return out;
+  }
+  push(team.player1Id);
+  push(team.player2Id);
+  return out;
+}
+
+/** Cópia de `fieldStrengthDocId` (functions/src/category-field-strength-store.ts). */
+function fieldStrengthDocId(tournamentId, categoryId) {
+  return `${tournamentId}_${categoryId}`;
+}
+
 module.exports = {
   DEFAULT_GLOBAL_POINTS,
   CATEGORY_PRESETS,
@@ -234,4 +362,14 @@ module.exports = {
   bracketSizeFactor,
   pointsForEntry,
   aggregateRankingResults,
+  LIVRE_MIN_WEIGHT,
+  LIVRE_MAX_WEIGHT,
+  teamLevelRank,
+  weightFromRank,
+  fieldStrengthFromTeamRanks,
+  inscriptionAthleteUids,
+  shouldStampFieldStrength,
+  tournamentSportToLevelSportCode,
+  extractTeamMemberUids,
+  fieldStrengthDocId,
 };

@@ -21,6 +21,14 @@ const {
   bracketSizeFactor,
   pointsForEntry,
   aggregateRankingResults,
+  teamLevelRank,
+  weightFromRank,
+  fieldStrengthFromTeamRanks,
+  inscriptionAthleteUids,
+  shouldStampFieldStrength,
+  tournamentSportToLevelSportCode,
+  extractTeamMemberUids,
+  fieldStrengthDocId,
 } = require('../scripts/lib/ranking-recompute.js');
 
 describe('basePointsForFinalPlace', () => {
@@ -216,5 +224,125 @@ describe('aggregateRankingResults (paridade pós-D1: soma integral)', () => {
     const got = aggregateRankingResults([{ points: 100 }, { year: 2026, points: 'x' }]);
     assert.deepEqual(got.pointsByYear, { 0: 100, 2026: 0 });
     assert.equal(got.totalPoints, 100);
+  });
+});
+
+describe('paridade da força do campo (cópia de src/category-field-strength.ts)', () => {
+  test('dupla vale o integrante mais forte', () => {
+    assert.equal(teamLevelRank([2, 6]), 6);
+    assert.equal(teamLevelRank([null, 3]), 3);
+    assert.equal(teamLevelRank([null, null]), null);
+    assert.equal(teamLevelRank([]), null);
+  });
+
+  test('degrau → peso, com Math.round e clamp', () => {
+    assert.equal(weightFromRank(0), 0.125);
+    assert.equal(weightFromRank(2), 0.25);
+    // Os dois limites superiores de faixa (M12 da revisão final): a versão TS
+    // (functions/src/category-field-strength.test.ts:34,36) cobre os dois, a
+    // cópia JS não cobria.
+    assert.equal(weightFromRank(3), 0.25);
+    assert.equal(weightFromRank(4), 0.5);
+    assert.equal(weightFromRank(5), 0.5);
+    assert.equal(weightFromRank(6), 1);
+    assert.equal(weightFromRank(4.2), 0.5);
+    assert.equal(weightFromRank(5.6), 1);
+    assert.equal(weightFromRank(-3), 0.125);
+    assert.equal(weightFromRank(99), 1);
+    assert.equal(weightFromRank(Number.NaN), 0.125);
+  });
+
+  test('DESAFIO OPEN - JHON JHON dá o mesmo 0.5 da versão TypeScript', () => {
+    const strength = fieldStrengthFromTeamRanks([6, 6, 6, 6, 6, 3, 3, 2, 2, 2]);
+    assert.equal(strength.fieldRank, 4.2);
+    assert.equal(strength.weight, 0.5);
+    assert.equal(strength.measuredTeams, 10);
+  });
+
+  test('campo imensurável devolve null', () => {
+    assert.equal(fieldStrengthFromTeamRanks([null, null]), null);
+    assert.equal(fieldStrengthFromTeamRanks([]), null);
+  });
+
+  test('shouldStampFieldStrength: maioria exata carimba', () => {
+    assert.equal(shouldStampFieldStrength({ measuredTeams: 5, totalPaidTeams: 10 }), true);
+  });
+
+  test('shouldStampFieldStrength: minoria não carimba', () => {
+    assert.equal(shouldStampFieldStrength({ measuredTeams: 4, totalPaidTeams: 10 }), false);
+  });
+
+  test('shouldStampFieldStrength: cobertura total carimba', () => {
+    assert.equal(shouldStampFieldStrength({ measuredTeams: 10, totalPaidTeams: 10 }), true);
+  });
+});
+
+describe('inscriptionAthleteUids (cópia de src/tournament-level-lock.ts:62-79)', () => {
+  test('inscrição só com participantUids: todos entram', () => {
+    assert.deepEqual(
+      inscriptionAthleteUids({ teamId: 'team1', participantUids: ['u1', 'u2'] }).sort(),
+      ['u1', 'u2'],
+    );
+  });
+
+  test('inscrição só com player1Id (doc legado sem participantUids)', () => {
+    assert.deepEqual(inscriptionAthleteUids({ player1Id: 'u1' }), ['u1']);
+  });
+
+  test('player1Id repetido em participantUids não duplica', () => {
+    assert.deepEqual(
+      inscriptionAthleteUids({ player1Id: 'u1', participantUids: ['u1', 'u2'] }),
+      ['u1', 'u2'],
+    );
+  });
+
+  test('sem player1Id nem participantUids: lista vazia', () => {
+    assert.deepEqual(inscriptionAthleteUids({ teamId: 'team1' }), []);
+    assert.deepEqual(inscriptionAthleteUids(undefined), []);
+  });
+});
+
+describe('tournamentSportToLevelSportCode (paridade com category-level-eligibility.ts)', () => {
+  test('os quatro esportes conhecidos mapeiam pro código de nível', () => {
+    assert.equal(tournamentSportToLevelSportCode('beachVolleyball'), 'VOLEI_PRAIA');
+    assert.equal(tournamentSportToLevelSportCode('indoorVolleyball'), 'VOLEI_QUADRA');
+    assert.equal(tournamentSportToLevelSportCode('footvolley'), 'FUTEVOLEI');
+    assert.equal(tournamentSportToLevelSportCode('beachTennis'), 'BEACH_TENNIS');
+  });
+
+  test('esporte desconhecido ou ausente devolve null', () => {
+    assert.equal(tournamentSportToLevelSportCode('xadrez'), null);
+    assert.equal(tournamentSportToLevelSportCode(undefined), null);
+    assert.equal(tournamentSportToLevelSportCode(''), null);
+  });
+
+  test('acento, caixa e espaço não mudam o código (mesma normalização de levelRank)', () => {
+    assert.equal(tournamentSportToLevelSportCode('  Beach Tennis '), 'BEACH_TENNIS');
+  });
+});
+
+describe('extractTeamMemberUids (paridade com tournament-team-category.ts)', () => {
+  test('memberUids vence e deduplica', () => {
+    assert.deepEqual(
+      extractTeamMemberUids({ memberUids: ['a', 'b', 'b', ' ', 'c'], player1Id: 'x' }),
+      ['a', 'b', 'c'],
+    );
+  });
+
+  test('memberUids vazio (ou só em branco) cai no legado player1Id/player2Id', () => {
+    assert.deepEqual(extractTeamMemberUids({ player1Id: 'a', player2Id: 'b' }), ['a', 'b']);
+    assert.deepEqual(extractTeamMemberUids({ memberUids: [], player1Id: 'a' }), ['a']);
+    assert.deepEqual(extractTeamMemberUids({ memberUids: ['  '], player1Id: 'a' }), ['a']);
+  });
+
+  test('sem nada resolvível devolve lista vazia', () => {
+    assert.deepEqual(extractTeamMemberUids({}), []);
+    assert.deepEqual(extractTeamMemberUids(null), []);
+  });
+});
+
+describe('fieldStrengthDocId (paridade com category-field-strength-store.ts)', () => {
+  test('id é tournamentId_categoryId', () => {
+    assert.equal(fieldStrengthDocId('T1', 'C1'), 'T1_C1');
   });
 });

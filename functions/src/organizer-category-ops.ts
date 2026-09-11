@@ -74,6 +74,16 @@ import {artifactsInscriptionsPath, artifactsMatchesPath, artifactsTeamsPath, get
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {registrationHoldClearedFields} from
   "./tournament-registration-hold-ops";
+import {categoryPreset} from "./category-presets";
+import {tournamentSportToLevelSportCode} from "./category-level-eligibility";
+import {
+  fieldStrengthDocId,
+  fieldStrengthPath,
+  fieldStrengthStampPayload,
+  measureFieldStrength,
+  paidTeamsWithParticipants,
+  shouldStampFieldStrength,
+} from "./category-field-strength-store";
 
 
 
@@ -392,6 +402,50 @@ export async function runGenerateCategoryBracket(
     },
     {merge: true},
   );
+
+  // Força real do campo (spec 2026-09-10). A categoria Livre pesa 0.125 pela
+  // faixa DECLARADA, o que pune um campo forte. O peso medido é carimbado aqui,
+  // no mesmo batch da chave, porque é aqui que o elenco congela: a partir de
+  // `bracketStatus` a substituição de atleta já é bloqueada.
+  try {
+    const fieldStrengthPreset = categoryPreset(categoryMeta);
+    if (fieldStrengthPreset?.key === "livre") {
+      const strength = await measureFieldStrength(db, projectId, {
+        tournamentId,
+        categoryId,
+        presetKey: fieldStrengthPreset.key,
+        sportCode: tournamentSportToLevelSportCode(tournamentData.sport),
+        // DIVERGÊNCIA DELIBERADA: mede com a mesma definição de "dupla paga"
+        // de `loadPaidTeamIds`/`bracketSizeFactor` (sem excluir `partnerPending`),
+        // e NÃO com o conjunto de duplas da CHAVE (acima, :206-218), que exclui
+        // reserva solo com parceiro pendente só para a semeadura visual. Manter
+        // a medida alinhada ao denominador de `bracketSizeFactor` (que também
+        // não exclui `partnerPending`) é o que importa aqui; efeito colateral:
+        // uma reserva solo contribui o degrau do seu único integrante como se
+        // fosse uma dupla inteira.
+        teams: paidTeamsWithParticipants(inscriptionsSnap.docs),
+        source: "bracket",
+      });
+      // Campo imensurável NÃO é carimbado: um zero congelaria o pior caso para
+      // sempre. Sem carimbo, a premiação mede de novo (caminho preguiçoso).
+      // Cobertura insuficiente (`shouldStampFieldStrength`) também não carimba,
+      // pelo mesmo motivo — os dois caminhos de carimbo têm de concordar.
+      if (strength && shouldStampFieldStrength(strength)) {
+        batch.set(
+          db.doc(
+            `${fieldStrengthPath(projectId)}/${fieldStrengthDocId(tournamentId, categoryId)}`,
+          ),
+          fieldStrengthStampPayload(strength),
+        );
+      }
+    }
+  } catch (e) {
+    // Sem carimbo de força, a premiação mede e carimba sozinha (`source: "lazy"`),
+    // então uma falha de leitura de ranking não pode derrubar a publicação da chave.
+    logger.warn("runGenerateCategoryBracket: falha ao medir força do campo", {
+      tournamentId, categoryId, e,
+    });
+  }
 
   await batch.commit();
 

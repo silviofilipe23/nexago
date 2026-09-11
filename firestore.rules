@@ -2161,6 +2161,14 @@ service cloud.firestore {
       allow create, update, delete: if request.auth != null && isAdmin();
     }
 
+    // Força medida do campo de uma categoria Livre (spec 2026-09-10).
+    // Leitura pública (auditoria do peso); escrita só server-side — o peso do
+    // ranking não pode ser alcançável pelo organizador.
+    match /artifacts/{appId}/public/data/tournamentCategoryFieldStrength/{stampId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && isAdmin();
+    }
+
     // Ranking de equipes (agregado) - leitura pública para página de ranking
     // Caminho: /artifacts/{appId}/public/data/teamRankings
     // Para aplicar: firebase deploy --only firestore:rules

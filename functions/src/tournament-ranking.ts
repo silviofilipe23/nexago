@@ -10,12 +10,22 @@ import {isMatchCompleted} from "./match-status";
 import {
   loadCategoryBracketContext,
   loadKnockoutTeamIds,
-  loadPaidTeamIds,
   loadTeamAthleteIds,
   normalizeMatchType,
   resolveLeaguePlacementsFromMatch,
   type LeaguePlacementAward,
 } from "./league-ranking";
+import {tournamentSportToLevelSportCode} from "./category-level-eligibility";
+import {
+  fieldStrengthDocId,
+  fieldStrengthPath,
+  fieldStrengthStampPayload,
+  loadPaidTeamsWithParticipants,
+  measureFieldStrength,
+  readFieldStrengthStamp,
+  shouldStampFieldStrength,
+} from "./category-field-strength-store";
+import {LIVRE_MIN_WEIGHT, LIVRE_MAX_WEIGHT} from "./category-field-strength";
 import {parseMatchPlayedAt} from "./tournament-match-gamification";
 import {shouldProcessRatingUpdate as shouldAwardForMatch} from "./rating-engine";
 import {artifactsPublicDataBase} from "./firebase-paths";
@@ -348,6 +358,73 @@ function isNonGroupCompletedMatch(match: Record<string, unknown>): boolean {
 }
 
 /**
+ * Peso de uma categoria Livre. Ordem: carimbo gravado (o normal, feito na
+ * publicação da chave) → medição na hora + carimbo `lazy` (chave publicada antes
+ * do deploy) → peso declarado (campo imensurável, e aí NÃO carimba, para que uma
+ * medição futura ainda possa acontecer).
+ */
+async function resolveLivreWeight(
+  db: Firestore,
+  projectId: string,
+  params: {
+    tournamentId: string;
+    categoryId: string;
+    sportCode: string | null;
+    paidTeams: Map<string, string[]>;
+    declaredWeight: number;
+  },
+): Promise<number> {
+  const stamped = await readFieldStrengthStamp(
+    db,
+    projectId,
+    params.tournamentId,
+    params.categoryId,
+  );
+  // Piso/teto de novo na leitura: o backfill (tasks futuras) escreve estes
+  // docs, e um bug lá não pode escapar sem clamp e amplificar a premiação.
+  if (stamped) {
+    return Math.min(LIVRE_MAX_WEIGHT, Math.max(LIVRE_MIN_WEIGHT, stamped.weight));
+  }
+
+  const measured = await measureFieldStrength(db, projectId, {
+    tournamentId: params.tournamentId,
+    categoryId: params.categoryId,
+    presetKey: "livre",
+    sportCode: params.sportCode,
+    teams: params.paidTeams,
+    source: "lazy",
+  });
+  if (!measured) return params.declaredWeight;
+
+  // Só carimba com cobertura suficiente (`shouldStampFieldStrength`): uma
+  // medição de minoria enviesa para cima e congelaria o erro para sempre. Sem
+  // cobertura, o peso medido vale só nesta premiação.
+  if (shouldStampFieldStrength(measured)) {
+    // A escrita do carimbo é só metadado — se falhar, a premiação não pode
+    // parar por isso (daí o try/catch isolado só nela).
+    try {
+      await db
+        .doc(
+          `${fieldStrengthPath(projectId)}/` +
+            `${fieldStrengthDocId(params.tournamentId, params.categoryId)}`,
+        )
+        .set(fieldStrengthStampPayload(measured));
+      logger.info(
+        `globalRanking: força do campo medida em ${params.tournamentId}/${params.categoryId} ` +
+          `— degrau ${measured.fieldRank.toFixed(2)}, peso ${measured.weight}`,
+      );
+    } catch (e) {
+      logger.warn(
+        `globalRanking: falha ao carimbar força do campo em ` +
+          `${params.tournamentId}/${params.categoryId} — seguindo com o peso medido`,
+        e,
+      );
+    }
+  }
+  return measured.weight;
+}
+
+/**
  * Concede pontos de ranking global pela partida encerrada — espelha
  * `tryAwardLeagueStagePointsForMatch`, mas incondicional a `leagueId`.
  */
@@ -388,7 +465,6 @@ export async function tryAwardGlobalRankingForMatch(
     );
   }
   const preset = categoryPreset(category);
-  const presetWeight = preset?.weight ?? LEGACY_CATEGORY_WEIGHT;
 
   const completedAt = parseMatchPlayedAt(match);
   const year = completedAt.getFullYear();
@@ -407,12 +483,15 @@ export async function tryAwardGlobalRankingForMatch(
 
   // Gate de desafio: avaliado a cada premiação, com a mesma contagem de pagas
   // que o bucket "groups" usa (query única, reaproveitada abaixo).
-  const paidTeamIds = await loadPaidTeamIds(
+  // Mesma query de antes, devolvendo também os integrantes — a medição da força
+  // do campo (Livre) sai deste snapshot, sem leitura nova.
+  const paidTeams = await loadPaidTeamsWithParticipants(
     db,
     projectId,
     tournamentId,
     categoryId,
   );
+  const paidTeamIds = new Set(paidTeams.keys());
   if (
     !isGlobalRankingEligible({
       isLeagueStage,
@@ -427,6 +506,20 @@ export async function tryAwardGlobalRankingForMatch(
     return {awarded: false, teamsUpdated: 0};
   }
 
+  // Peso do preset. O Livre é a exceção: a faixa declarada (0–6) dá 0.125 pelo
+  // PISO, o que pune um campo forte, então o peso vem da força REAL medida —
+  // carimbada na publicação da chave, ou medida aqui e carimbada se faltar.
+  let presetWeight = preset?.weight ?? LEGACY_CATEGORY_WEIGHT;
+  if (preset?.key === "livre") {
+    presetWeight = await resolveLivreWeight(db, projectId, {
+      tournamentId,
+      categoryId,
+      sportCode: tournamentSportToLevelSportCode(tournament.sport),
+      paidTeams,
+      declaredWeight: preset.weight,
+    });
+  }
+
   const pointsMultiplier =
     presetWeight * rankingWeight * bracketSizeFactor(paidTeamIds.size);
   const baseParams = {tournamentId, categoryId, pointsMultiplier, year, completedAt};
@@ -439,9 +532,11 @@ export async function tryAwardGlobalRankingForMatch(
 
   // Times pagos que não chegaram ao mata-mata pontuam pela fase de grupos
   // (mesma regra da liga: só a partir da 1ª partida de mata-mata concluída).
-  // Livre não concede participação (D6 emendada): só pontua quem chega
-  // ao mata-mata — fecha o farm de "aparecer e levar o bucket groups".
-  if (shouldAwardGroupsBucket && preset?.key !== "livre") {
+  // O Livre voltou a conceder participação (spec 2026-09-10, D4): o farm que a
+  // exceção combatia agora está PRECIFICADO — num campo fraco a participação
+  // vale 13 pontos, num campo forte vale 100 — e a exceção estava deixando
+  // dupla pagante com zero (18 casos num único torneio).
+  if (shouldAwardGroupsBucket) {
     const knockoutTeamIds = await loadKnockoutTeamIds(
       db,
       projectId,

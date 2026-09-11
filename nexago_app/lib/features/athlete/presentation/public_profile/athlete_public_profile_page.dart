@@ -14,6 +14,7 @@ import '../../domain/athlete_public_profile_models.dart';
 import '../../domain/athlete_public_profile_providers.dart';
 import '../../domain/gamification_providers.dart';
 import '../../domain/sand_rank/sand_rank_providers.dart';
+import 'widgets/public_profile_achievements_tab.dart';
 import 'widgets/public_profile_about_section.dart';
 import 'widgets/public_profile_action_row.dart';
 import 'widgets/public_profile_header.dart';
@@ -282,9 +283,7 @@ class _AthletePublicProfilePageState
               : null,
         );
       case PublicProfileTab.achievements:
-        return const PublicProfilePlaceholderTab(
-          message: 'Conquistas públicas em breve.',
-        );
+        return PublicProfileAchievementsTab(userId: widget.userId);
     }
   }
 }

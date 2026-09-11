@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/tournaments/domain/team_profile/team_public_profile_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_status.dart';
@@ -199,5 +200,66 @@ void main() {
       );
       expect(name, 'Dupla');
     });
+
+    test('equipe sem nome não vira "Fulano/Beltrano" (esconderia o elenco)',
+        () {
+      final name = teamProfileDisplayName(
+        team: const TournamentTeam(
+          id: 't',
+          player1Id: 'p1',
+          player2Id: 'p2',
+          memberUids: ['p1', 'p2', 'p3'],
+          teamSize: 3,
+        ),
+        player1: null,
+        player2: null,
+      );
+      expect(name, 'Equipe');
+    });
   });
+
+  group('teamProfileGenderLabel', () {
+    test('elenco de um gênero só carimba esse gênero', () {
+      expect(
+        teamProfileGenderLabel([
+          _athlete('a', gender: 'masculino'),
+          _athlete('b', gender: 'masculino'),
+          _athlete('c', gender: 'masculino'),
+        ]),
+        'MASCULINO',
+      );
+    });
+
+    test('gêneros diferentes viram MISTO', () {
+      expect(
+        teamProfileGenderLabel([
+          _athlete('a', gender: 'masculino'),
+          _athlete('b', gender: 'feminino'),
+        ]),
+        'MISTO',
+      );
+    });
+
+    test('integrante sem gênero não decide nada', () {
+      expect(
+        teamProfileGenderLabel([
+          _athlete('a'),
+          _athlete('b', gender: 'feminino'),
+        ]),
+        'FEMININO',
+      );
+      expect(teamProfileGenderLabel([_athlete('a')]), '');
+    });
+  });
+}
+
+AthleteProfile _athlete(String id, {String? gender}) {
+  return AthleteProfile(
+    id: id,
+    name: id,
+    sport: 'BEACH_TENNIS',
+    level: 'INICIANTE',
+    city: 'Goiânia',
+    gender: gender,
+  );
 }

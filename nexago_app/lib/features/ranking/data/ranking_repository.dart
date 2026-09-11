@@ -95,7 +95,7 @@ class RankingRepository {
 
   /// Pódios do atleta: toda colocação até [kPodiumMaxPlace] em torneios.
   ///
-  /// Parte das EQUIPES do atleta (`memberUids array-contains`) em vez de varrer
+  /// Parte das EQUIPES do atleta em vez de varrer
   /// todos os resultados: pódio é raro, e ler a coleção inteira a cada abertura
   /// de perfil sairia caro sem necessidade. Resultados e torneios vão em lotes
   /// de 10 com `whereIn`, em paralelo.
@@ -103,9 +103,7 @@ class RankingRepository {
     final uid = athleteId.trim();
     if (uid.isEmpty) return const [];
 
-    final teamsSnap =
-        await _teams.where('memberUids', arrayContains: uid).get();
-    final teamIds = teamsSnap.docs.map((d) => d.id).toList();
+    final teamIds = await _teamIdsForAthlete(uid);
     if (teamIds.isEmpty) return const [];
 
     final resultSnaps = await Future.wait(
@@ -143,6 +141,30 @@ class RankingRepository {
           completedAt: r.completedAt,
         ),
     ]);
+  }
+
+  /// Equipes de que o atleta participa, por QUALQUER um dos três caminhos.
+  ///
+  /// Dupla NÃO grava `memberUids` — esse campo só existe nas equipes nomeadas
+  /// (trio/quarteto/quinteto). Dupla tem `player1Id`/`player2Id`. Consultar só
+  /// `memberUids` perdia toda dupla, que é justamente o formato do vôlei de
+  /// praia e do beach tennis. É a mesma união que `RankingTeamPlayers.memberIds`
+  /// faz do outro lado, e `extractTeamMemberUids` nas functions.
+  Future<List<String>> _teamIdsForAthlete(String uid) async {
+    final snaps = await Future.wait([
+      _teams.where('memberUids', arrayContains: uid).get(),
+      _teams.where('player1Id', isEqualTo: uid).get(),
+      _teams.where('player2Id', isEqualTo: uid).get(),
+    ]);
+
+    // Set: equipe nomeada aparece em memberUids E em player1/player2.
+    final ids = <String>{};
+    for (final snap in snaps) {
+      for (final doc in snap.docs) {
+        ids.add(doc.id);
+      }
+    }
+    return ids.toList();
   }
 
   /// Nome e esporte dos torneios, em lotes de 10.

@@ -5,8 +5,19 @@ import '../../tournaments/data/recent_partners_repository.dart';
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import '../data/match_history/athlete_match_history_repository.dart';
 import 'athlete_profile.dart';
+import 'athlete_podiums.dart';
 import 'athlete_public_profile_models.dart';
 import 'match_history/athlete_match_history_models.dart';
+
+/// Pódios do atleta — toda colocação até terceiro lugar em torneios.
+///
+/// Vem de `tournamentCategoryResults` + `teams`, ambos públicos, e não da
+/// gamificação, que só o dono pode ler.
+final athletePodiumsProvider =
+    FutureProvider.autoDispose.family<List<AthletePodium>, String>(
+  (ref, athleteId) =>
+      ref.read(rankingRepositoryProvider).loadAthletePodiums(athleteId),
+);
 
 /// Posição do atleta no ranking individual de CADA modalidade, no formato
 /// `{código do esporte: posição}`.

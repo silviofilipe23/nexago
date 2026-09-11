@@ -57,6 +57,8 @@ class PublicProfileHeader extends StatelessWidget {
     final location = athleteLocationLabel(profile);
     final coverUrl = profile.coverPhotoUrl?.trim() ?? '';
     final hasCoverPhoto = coverUrl.isNotEmpty;
+    final avatarUrl = profile.avatarUrl?.trim() ?? '';
+    final hasAvatarPhoto = avatarUrl.isNotEmpty;
     // Sem capa própria, a arte do esporte PRINCIPAL entra no lugar: é mais
     // pessoal que uma genérica igual para todo mundo e não custa asset novo.
     // Quem não tem esporte reconhecido (ou joga `OUTROS`) cai no fundo
@@ -71,47 +73,55 @@ class PublicProfileHeader extends StatelessWidget {
         Stack(
           clipBehavior: Clip.none,
           children: [
-            AspectRatio(
-              aspectRatio: ProfileImageCropTargetX.coverAspectRatio,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (hasCoverPhoto)
-                    CachedNetworkImage(
-                      imageUrl: coverUrl,
-                      fit: BoxFit.cover,
-                      fadeInDuration: const Duration(milliseconds: 280),
-                      placeholder: (_, __) => const _CoverPhotoSkeleton(),
-                      // Falha de rede também cai no esporte, não no pintado.
-                      errorWidget: (_, __, ___) =>
-                          _CoverFallback(art: fallbackArt),
-                    )
-                  else
-                    _CoverFallback(art: fallbackArt),
-                  // O véu escurece o PÉ da capa, que agora é a cama do nome.
-                  // Sem ele o texto cairia sobre a foto crua.
-                  //
-                  // O último passo é a COR DO FUNDO da página, não preto: a
-                  // capa dissolve no canvas em vez de terminar num corte seco,
-                  // e no tema claro não cria uma faixa preta contra um fundo
-                  // claro.
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withValues(alpha: 0.35),
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.55),
-                          context.themeColors.canvas.withValues(alpha: 0.92),
-                          context.themeColors.canvas,
-                        ],
-                        stops: const [0, 0.30, 0.62, 0.88, 1],
+            // A capa só amplia quando é foto do atleta: sem ela entra a arte
+            // do esporte, que é asset local e não tem o que mostrar em tela
+            // cheia.
+            _MaximizableCover(
+              onTap: hasCoverPhoto
+                  ? () => openProfilePhotoViewer(context, photoUrls: [coverUrl])
+                  : null,
+              child: AspectRatio(
+                aspectRatio: ProfileImageCropTargetX.coverAspectRatio,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (hasCoverPhoto)
+                      CachedNetworkImage(
+                        imageUrl: coverUrl,
+                        fit: BoxFit.cover,
+                        fadeInDuration: const Duration(milliseconds: 280),
+                        placeholder: (_, __) => const _CoverPhotoSkeleton(),
+                        // Falha de rede também cai no esporte, não no pintado.
+                        errorWidget: (_, __, ___) =>
+                            _CoverFallback(art: fallbackArt),
+                      )
+                    else
+                      _CoverFallback(art: fallbackArt),
+                    // O véu escurece o PÉ da capa, que agora é a cama do nome.
+                    // Sem ele o texto cairia sobre a foto crua.
+                    //
+                    // O último passo é a COR DO FUNDO da página, não preto: a
+                    // capa dissolve no canvas em vez de terminar num corte seco,
+                    // e no tema claro não cria uma faixa preta contra um fundo
+                    // claro.
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.35),
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.55),
+                            context.themeColors.canvas.withValues(alpha: 0.92),
+                            context.themeColors.canvas,
+                          ],
+                          stops: const [0, 0.30, 0.62, 0.88, 1],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             SafeArea(
@@ -139,11 +149,19 @@ class PublicProfileHeader extends StatelessWidget {
                     sandRank: sandRank,
                     sandRankFrameId: sandRankFrameId,
                     size: heroAvatarSize,
+                    // A foto de perfil abre na primeira posição e o swipe
+                    // segue para os destaques: é a mesma galeria, aberta por
+                    // outra porta.
+                    //
                     // Sem foto o avatar mostra iniciais, e aí não há o que
-                    // ampliar: `openProfilePhotoViewer` ignora lista vazia.
+                    // ampliar — nem os destaques, que abririam no índice 0
+                    // como se fossem a foto do atleta. Lista vazia faz
+                    // `openProfilePhotoViewer` não abrir nada.
                     onTap: () => openProfilePhotoViewer(
                       context,
-                      photoUrls: [profile.avatarUrl ?? ''],
+                      photoUrls: hasAvatarPhoto
+                          ? [avatarUrl, ...profile.highlightPhotoUrls]
+                          : const [],
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -205,6 +223,31 @@ class PublicProfileHeader extends StatelessWidget {
   }
 }
 
+/// Capa do hero, tocável para ampliar quando há foto.
+///
+/// Sem [onTap] a capa é só pintura: nada de rótulo de botão para leitor de
+/// tela anunciar um toque que não leva a lugar nenhum.
+class _MaximizableCover extends StatelessWidget {
+  const _MaximizableCover({required this.child, this.onTap});
+
+  final Widget child;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tap = onTap;
+    if (tap == null) return child;
+
+    return Semantics(
+      button: true,
+      label: 'Ampliar foto de capa',
+      // `GestureDetector`, e não `InkWell`: o respingo ficaria escondido
+      // atrás da foto e do véu.
+      child: GestureDetector(onTap: tap, child: child),
+    );
+  }
+}
+
 class _PublicProfileAvatar extends StatelessWidget {
   const _PublicProfileAvatar({
     required this.profile,
@@ -226,9 +269,8 @@ class _PublicProfileAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rank = sandRank;
-    final step = rank != null
-        ? sandRankStepByTrackIndex(rank.trackIndex)
-        : null;
+    final step =
+        rank != null ? sandRankStepByTrackIndex(rank.trackIndex) : null;
 
     final slot = SizedBox(
       width: size + PublicProfileHeader._avatarEmblemOverflow,

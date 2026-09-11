@@ -65,7 +65,9 @@ class _TabChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? context.themeColors.onSurface : context.themeColors.surfaceCard,
+      color: selected
+          ? context.themeColors.onSurface
+          : context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         onTap: onTap,
@@ -77,7 +79,9 @@ class _TabChip extends StatelessWidget {
             style: AppTypography.soraRegular(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: selected ? context.themeColors.canvas : context.themeColors.onSurfaceMuted,
+              color: selected
+                  ? context.themeColors.canvas
+                  : context.themeColors.onSurfaceMuted,
             ),
           ),
         ),
@@ -229,7 +233,8 @@ class _RankingSeasonCard extends StatelessWidget {
           SizedBox(height: 16),
           Row(
             children: [
-              _MiniStat(value: '${ranking.tournamentsCount}', label: 'TORNEIOS'),
+              _MiniStat(
+                  value: '${ranking.tournamentsCount}', label: 'TORNEIOS'),
               SizedBox(width: 12),
               if (ranking.hasRank)
                 _MiniStat(value: '#${ranking.rank}', label: 'POSIÇÃO'),
@@ -417,9 +422,8 @@ class PublicProfileMatchesTab extends ConsumerWidget {
                   MatchHistoryMatchCard(
                     match: match,
                     compact: true,
-                    onTap: onMatchTap == null
-                        ? null
-                        : () => onMatchTap!(match.id),
+                    onTap:
+                        onMatchTap == null ? null : () => onMatchTap!(match.id),
                   ),
               ],
             ],

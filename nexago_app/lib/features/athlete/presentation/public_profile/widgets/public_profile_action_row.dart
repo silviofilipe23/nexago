@@ -36,16 +36,16 @@ class PublicProfileActionRow extends StatelessWidget {
             child: isSelf
                 ? _PrimaryPillButton(label: 'Editar perfil', onTap: onInvite)
                 : isFollowing
-                ? _SecondaryPillButton(
-                    label: 'Seguindo',
-                    onTap: onFollow,
-                    loading: followLoading,
-                  )
-                : _PrimaryPillButton(
-                    label: 'Seguir',
-                    onTap: onFollow,
-                    loading: followLoading,
-                  ),
+                    ? _SecondaryPillButton(
+                        label: 'Seguindo',
+                        onTap: onFollow,
+                        loading: followLoading,
+                      )
+                    : _PrimaryPillButton(
+                        label: 'Seguir',
+                        onTap: onFollow,
+                        loading: followLoading,
+                      ),
           ),
           SizedBox(width: 8),
           // Expanded(

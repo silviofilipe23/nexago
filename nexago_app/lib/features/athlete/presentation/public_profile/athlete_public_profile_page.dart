@@ -113,8 +113,7 @@ class _AthletePublicProfilePageState
             );
           }
 
-          if (profile.privacyPreferences.isProfilePrivate &&
-              !isSelf) {
+          if (profile.privacyPreferences.isProfilePrivate && !isSelf) {
             return _PrivateBlocked(onBack: () => context.pop());
           }
 
@@ -151,7 +150,8 @@ class _AthletePublicProfilePageState
             color: AppColors.brand,
             onRefresh: () async {
               ref.invalidate(athleteProfileByIdProvider(widget.userId));
-              ref.invalidate(gamificationSummaryByUserIdProvider(widget.userId));
+              ref.invalidate(
+                  gamificationSummaryByUserIdProvider(widget.userId));
               ref.invalidate(athletePublicRankingProvider(widget.userId));
               ref.invalidate(athletePublicPartnersProvider(widget.userId));
               ref.invalidate(athletePublicMatchHistoryProvider(widget.userId));

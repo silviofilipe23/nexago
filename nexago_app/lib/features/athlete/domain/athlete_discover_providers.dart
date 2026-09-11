@@ -36,12 +36,14 @@ class AthleteDiscoverState {
   final String? lastDocumentId;
   final String? errorMessage;
   final bool isSearchMode;
+
   /// Verdadeiro quando [rawEntries] contém todos os atletas discoverable.
   final bool catalogIsComplete;
 
   int get totalCount => displayEntries.length;
 
-  int onlineCount(DateTime now) => countOnlineAthletes(displayEntries, now: now);
+  int onlineCount(DateTime now) =>
+      countOnlineAthletes(displayEntries, now: now);
 
   bool get supportsOnlineFilter =>
       rawEntries.any((e) => e.supportsOnlineStatus);
@@ -83,7 +85,8 @@ class AthleteDiscoverState {
   static const _unset = Object();
 }
 
-class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> {
+class AthleteDiscoverNotifier
+    extends AutoDisposeNotifier<AthleteDiscoverState> {
   @override
   AthleteDiscoverState build() {
     Future.microtask(loadInitial);
@@ -124,7 +127,8 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
     // O teto de exibição da busca vale DEPOIS dos filtros: cortar antes deixaria
     // "silva" com UF=SP vazio só porque os primeiros ranqueados eram de outro
     // estado.
-    if (!searching || sorted.length <= kDiscoverSearchResultLimit) return sorted;
+    if (!searching || sorted.length <= kDiscoverSearchResultLimit)
+      return sorted;
     return sorted.sublist(0, kDiscoverSearchResultLimit);
   }
 
@@ -184,7 +188,8 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
     // servidor. Com UF=SP no servidor, `rawEntries` tem só paulistas: dizer
     // "completo" faria a próxima troca de filtro (UF=RJ) refiltrar esse recorte
     // e mostrar lista vazia para sempre, sem nunca refazer o fetch.
-    final wasUnconstrained = discoverFirestoreConstraints(state.filters).isEmpty;
+    final wasUnconstrained =
+        discoverFirestoreConstraints(state.filters).isEmpty;
     try {
       final following = await _followingIds();
       final profiles = await _repo.fetchProfilesForDiscover(state.filters);
@@ -377,31 +382,29 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
   }
 
   void updateFollowing(String athleteId, bool isFollowing) {
-    final raw = state.rawEntries
-        .map(
-          (e) {
-            if (e.userId != athleteId) return e;
+    final raw = state.rawEntries.map(
+      (e) {
+        if (e.userId != athleteId) return e;
 
-            final wasFollowing = e.isFollowing;
-            var followersCount = e.followersCount;
-            if (isFollowing && !wasFollowing) {
-              followersCount += 1;
-            } else if (!isFollowing && wasFollowing && followersCount > 0) {
-              followersCount -= 1;
-            }
+        final wasFollowing = e.isFollowing;
+        var followersCount = e.followersCount;
+        if (isFollowing && !wasFollowing) {
+          followersCount += 1;
+        } else if (!isFollowing && wasFollowing && followersCount > 0) {
+          followersCount -= 1;
+        }
 
-            return AthleteDiscoverEntry(
-              userId: e.userId,
-              profile: e.profile,
-              ranking: e.ranking,
-              isFollowing: isFollowing,
-              isCurrentUser: e.isCurrentUser,
-              followersCount: followersCount,
-              mutualFollowersCount: e.mutualFollowersCount,
-            );
-          },
-        )
-        .toList();
+        return AthleteDiscoverEntry(
+          userId: e.userId,
+          profile: e.profile,
+          ranking: e.ranking,
+          isFollowing: isFollowing,
+          isCurrentUser: e.isCurrentUser,
+          followersCount: followersCount,
+          mutualFollowersCount: e.mutualFollowersCount,
+        );
+      },
+    ).toList();
     _publishDisplay(raw);
   }
 

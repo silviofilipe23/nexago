@@ -17,7 +17,26 @@ String teamProfileDisplayName({
 }) {
   final name = team.teamName?.trim();
   if (name != null && name.isNotEmpty) return name;
+  // Equipe nomeada sempre tem nome; sem ele, "Fulano/Beltrano" esconderia o
+  // resto do elenco.
+  if (team.isLargeRoster) return 'Equipe';
   return pairDisplayName(player1, player2);
+}
+
+/// Gênero do elenco: 'MISTO' quando os integrantes com gênero conhecido não
+/// concordam. Integrante sem gênero não decide nada.
+String teamProfileGenderLabel(List<AthleteProfile> members) {
+  String? seen;
+  for (final member in members) {
+    final label = athleteGenderShortLabel(member.gender);
+    if (label.isEmpty) continue;
+    if (seen == null) {
+      seen = label;
+      continue;
+    }
+    if (seen != label) return 'MISTO';
+  }
+  return seen ?? '';
 }
 
 String teamProfileSportLabel(AthleteProfile? player1, AthleteProfile? player2) {
@@ -56,7 +75,11 @@ String teamProfileLocationLabel(AthleteProfile? player1, AthleteProfile? player2
   return athleteLocationLabel(profile);
 }
 
-List<String> teamProfileTagLabels(AthleteProfile? player1, AthleteProfile? player2) {
+List<String> teamProfileTagLabels(
+  AthleteProfile? player1,
+  AthleteProfile? player2, {
+  List<AthleteProfile> roster = const [],
+}) {
   final tags = <String>[];
   final category = player1?.category?.trim() ?? player2?.category?.trim() ?? '';
   if (category.isNotEmpty) tags.add(category);
@@ -64,9 +87,9 @@ List<String> teamProfileTagLabels(AthleteProfile? player1, AthleteProfile? playe
   final age = athleteAgeCategoryLabel(player1?.birthDate ?? player2?.birthDate);
   if (age.isNotEmpty) tags.add(age);
 
-  final gender = athleteGenderShortLabel(
-    player1?.gender ?? player2?.gender,
-  );
+  final gender = roster.isNotEmpty
+      ? teamProfileGenderLabel(roster)
+      : athleteGenderShortLabel(player1?.gender ?? player2?.gender);
   if (gender.isNotEmpty) tags.add(gender);
 
   final location = teamProfileLocationLabel(player1, player2);

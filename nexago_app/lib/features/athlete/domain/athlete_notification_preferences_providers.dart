@@ -211,7 +211,9 @@ class AthleteNotificationPreferencesNotifier
     _commitState(state.copyWith(isSaving: true, clearError: true));
 
     try {
-      await ref.read(athleteProfileRepositoryProvider).saveNotificationPreferences(
+      await ref
+          .read(athleteProfileRepositoryProvider)
+          .saveNotificationPreferences(
             uid: profile.id,
             preferences: state.prefs,
           );

@@ -6,15 +6,18 @@ import 'package:nexago_app/core/firebase/firebase_providers.dart';
 import '../data/athlete_profile_repository.dart';
 import 'athlete_profile.dart';
 
-final athleteProfileRepositoryProvider = Provider<AthleteProfileRepository>((ref) {
+final athleteProfileRepositoryProvider =
+    Provider<AthleteProfileRepository>((ref) {
   return AthleteProfileRepository(ref.watch(firestoreProvider));
 });
 
 /// Evita que o redirect do router mande de volta ao onboarding logo após concluir.
-final athleteOnboardingJustCompletedProvider = StateProvider<bool>((ref) => false);
+final athleteOnboardingJustCompletedProvider =
+    StateProvider<bool>((ref) => false);
 
 /// Documento `users/{uid}` do atleta logado ou `null` se ainda não existir.
-final athleteProfileProvider = StreamProvider.autoDispose<AthleteProfile?>((ref) {
+final athleteProfileProvider =
+    StreamProvider.autoDispose<AthleteProfile?>((ref) {
   // Lido pelo `redirect` em toda navegação: mantém vivo para não re-assinar o
   // Firestore a cada troca de tela.
   cacheFor(ref);

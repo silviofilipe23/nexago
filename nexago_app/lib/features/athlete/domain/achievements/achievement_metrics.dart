@@ -115,7 +115,8 @@ class AchievementMetrics {
     final cutoff = DateTime.now().subtract(Duration(days: days));
     var count = 0;
     for (final key in dayKeys) {
-      final parsed = DateTime.tryParse(key.length >= 10 ? key.substring(0, 10) : key);
+      final parsed =
+          DateTime.tryParse(key.length >= 10 ? key.substring(0, 10) : key);
       if (parsed != null && !parsed.isBefore(cutoff)) {
         count++;
       }

@@ -8,8 +8,8 @@ export 'community_feed_models.dart';
 const _communityFeedLimit = 30;
 
 /// Últimos itens do feed da Comunidade (gerados pelo sistema, sem UGC).
-final communityFeedProvider = StreamProvider.autoDispose<
-    List<CommunityFeedItem>>((ref) {
+final communityFeedProvider =
+    StreamProvider.autoDispose<List<CommunityFeedItem>>((ref) {
   return FirebaseFirestore.instance
       .collection('communityFeed')
       .orderBy('createdAt', descending: true)

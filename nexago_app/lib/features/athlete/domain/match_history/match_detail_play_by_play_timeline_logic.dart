@@ -215,14 +215,15 @@ class _RawStreakBlock {
   final List<PlayByPlayPointRow> points;
 }
 
-List<_RawStreakBlock> _buildStreakBlocks(List<MatchDetailPlayByPlayItem> items) {
+List<_RawStreakBlock> _buildStreakBlocks(
+    List<MatchDetailPlayByPlayItem> items) {
   final blocks = <_RawStreakBlock>[];
   if (items.isEmpty) return blocks;
 
   var streakStart = 0;
   for (var i = 1; i <= items.length; i++) {
-    final streakEnded = i == items.length ||
-        items[i].isOurTeam != items[streakStart].isOurTeam;
+    final streakEnded =
+        i == items.length || items[i].isOurTeam != items[streakStart].isOurTeam;
     if (!streakEnded) continue;
 
     final streakItems = items.sublist(streakStart, i);

@@ -218,9 +218,7 @@ abstract final class SandRankRewardCatalog {
   ];
 
   static List<SandRankRewardDefinition> forTrackIndex(int trackIndex) {
-    return all
-        .where((r) => r.trackIndex == trackIndex)
-        .toList(growable: false);
+    return all.where((r) => r.trackIndex == trackIndex).toList(growable: false);
   }
 
   static SandRankRewardDefinition? byId(String id) {

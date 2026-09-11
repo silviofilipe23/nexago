@@ -14,6 +14,7 @@ import '../../domain/athlete_public_profile_models.dart';
 import '../../domain/athlete_public_profile_providers.dart';
 import '../../domain/gamification_providers.dart';
 import '../../domain/sand_rank/sand_rank_providers.dart';
+import 'widgets/public_profile_about_section.dart';
 import 'widgets/public_profile_action_row.dart';
 import 'widgets/public_profile_header.dart';
 import 'widgets/public_profile_highlights_section.dart';
@@ -22,10 +23,7 @@ import 'widgets/public_profile_stats_row.dart';
 import 'widgets/public_profile_tabs.dart';
 
 class AthletePublicProfilePage extends ConsumerStatefulWidget {
-  const AthletePublicProfilePage({
-    super.key,
-    required this.userId,
-  });
+  const AthletePublicProfilePage({super.key, required this.userId});
 
   final String userId;
 
@@ -76,23 +74,26 @@ class _AthletePublicProfilePageState
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(athleteProfileByIdProvider(widget.userId));
     final rankingAsync = ref.watch(athletePublicRankingProvider(widget.userId));
-    final partnersAsync =
-        ref.watch(athletePublicPartnersProvider(widget.userId));
-    final followersAsync =
-        ref.watch(athleteFollowersCountProvider(widget.userId));
-    final followingAsync =
-        ref.watch(athleteFollowingCountProvider(widget.userId));
-    final isFollowingAsync =
-        ref.watch(athleteIsFollowingProvider(widget.userId));
+    final partnersAsync = ref.watch(
+      athletePublicPartnersProvider(widget.userId),
+    );
+    final followersAsync = ref.watch(
+      athleteFollowersCountProvider(widget.userId),
+    );
+    final followingAsync = ref.watch(
+      athleteFollowingCountProvider(widget.userId),
+    );
+    final isFollowingAsync = ref.watch(
+      athleteIsFollowingProvider(widget.userId),
+    );
     final currentUid = ref.watch(authProvider).valueOrNull?.uid.trim();
     final isSelf = currentUid == widget.userId;
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
       body: profileAsync.when(
-        loading: () => Center(
-          child: CircularProgressIndicator(color: AppColors.brand),
-        ),
+        loading: () =>
+            Center(child: CircularProgressIndicator(color: AppColors.brand)),
         error: (e, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -121,7 +122,17 @@ class _AthletePublicProfilePageState
             data: (value) => value,
             orElse: () => const AthletePublicRankingSnapshot(),
           );
-          final sports = ref.watch(athletePublicSportEntriesProvider(profile));
+          final sportsBase = ref.watch(
+            athletePublicSportEntriesProvider(profile),
+          );
+          // A posição por modalidade chega depois (outra consulta). Enquanto
+          // não chega, as entradas seguem sem posição e o card mostra
+          // travessão — a seção não espera por ela para aparecer.
+          final sports = withSportRanks(
+            sportsBase,
+            ref.watch(athleteSportRanksProvider(widget.userId)).valueOrNull ??
+                const {},
+          );
           final partners = partnersAsync.maybeWhen(
             data: (value) => value,
             orElse: () => const <AthletePublicPartnerEntry>[],
@@ -151,7 +162,8 @@ class _AthletePublicProfilePageState
             onRefresh: () async {
               ref.invalidate(athleteProfileByIdProvider(widget.userId));
               ref.invalidate(
-                  gamificationSummaryByUserIdProvider(widget.userId));
+                gamificationSummaryByUserIdProvider(widget.userId),
+              );
               ref.invalidate(athletePublicRankingProvider(widget.userId));
               ref.invalidate(athletePublicPartnersProvider(widget.userId));
               ref.invalidate(athletePublicMatchHistoryProvider(widget.userId));
@@ -165,7 +177,6 @@ class _AthletePublicProfilePageState
                     ranking: ranking,
                     onBack: () => context.pop(),
                     sandRank: sandRankInfo?.rank,
-                    sandRankTitleId: sandRankInfo?.cosmetics.titleId,
                     sandRankFrameId: sandRankInfo?.cosmetics.frameId,
                   ),
                 ),
@@ -189,9 +200,13 @@ class _AthletePublicProfilePageState
                         );
                       },
                       onShare: () {
+                        final nome = athleteDisplayName(profile);
+                        final url = athletePublicProfileUrl(profile);
+                        // Segue por `nexaShareText`, e não por `nexaShareUri`,
+                        // porque é ele quem acrescenta a hashtag da campanha.
                         nexaShareText(
                           context,
-                          'Confira o perfil de ${athleteDisplayName(profile)} no NexaGO.',
+                          'Confira o perfil de $nome no NexaGO. $url',
                         );
                       },
                     ),
@@ -211,6 +226,9 @@ class _AthletePublicProfilePageState
                   child: PublicProfileHighlightsSection(
                     photoUrls: profile.highlightPhotoUrls,
                   ),
+                ),
+                SliverToBoxAdapter(
+                  child: PublicProfileAboutSection(bio: profile.bio ?? ''),
                 ),
                 SliverToBoxAdapter(
                   child: PublicProfileTabBar(

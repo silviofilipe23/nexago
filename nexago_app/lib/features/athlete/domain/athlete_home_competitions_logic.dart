@@ -106,8 +106,7 @@ List<AthleteHomeCompetitionItem> pickAthleteHomeCompetitionsPreview({
 
   final tournamentsById = {for (final t in tournaments) t.id: t};
   final items = <AthleteHomeCompetitionItem>[
-    for (final tournament in tournaments)
-      AthleteHomeTournamentItem(tournament),
+    for (final tournament in tournaments) AthleteHomeTournamentItem(tournament),
     for (final league in leagues)
       if (_leagueSortDate(league, tournamentsById) case final date?)
         AthleteHomeLeagueItem(league: league, sortDate: date),

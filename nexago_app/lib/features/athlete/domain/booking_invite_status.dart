@@ -19,7 +19,8 @@ String? resolveBookingInviteBlockedReason({
 }) {
   if (inviteExpired) return 'Este convite expirou.';
   if (inviteStatus == 'accepted') return 'Este convite já foi aceito.';
-  if (inviteStatus != 'pending') return 'Este convite não está mais disponível.';
+  if (inviteStatus != 'pending')
+    return 'Este convite não está mais disponível.';
   if (!bookingExists ||
       bookingStatus == 'canceled' ||
       bookingStatus == 'cancelled') {

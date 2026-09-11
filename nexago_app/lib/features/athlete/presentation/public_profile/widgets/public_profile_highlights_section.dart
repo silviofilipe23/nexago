@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'profile_photo_viewer.dart';
 import '../../../../../core/theme/app_typography.dart';
 
 /// Galeria de fotos de destaque do perfil público: carrossel horizontal,
@@ -83,72 +84,10 @@ class _HighlightThumb extends StatelessWidget {
   }
 
   void _openViewer(BuildContext context) {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        opaque: false,
-        barrierColor: Colors.black,
-        pageBuilder: (_, __, ___) =>
-            _HighlightPhotoViewer(photoUrls: photoUrls, initialIndex: index),
-      ),
-    );
-  }
-}
-
-/// Visualizador em tela cheia com swipe entre fotos e zoom (pan/pinch).
-class _HighlightPhotoViewer extends StatefulWidget {
-  const _HighlightPhotoViewer({
-    required this.photoUrls,
-    required this.initialIndex,
-  });
-
-  final List<String> photoUrls;
-  final int initialIndex;
-
-  @override
-  State<_HighlightPhotoViewer> createState() => _HighlightPhotoViewerState();
-}
-
-class _HighlightPhotoViewerState extends State<_HighlightPhotoViewer> {
-  late final _controller = PageController(initialPage: widget.initialIndex);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            PageView.builder(
-              controller: _controller,
-              itemCount: widget.photoUrls.length,
-              itemBuilder: (context, index) => InteractiveViewer(
-                child: Center(
-                  child: CachedNetworkImage(
-                    imageUrl: widget.photoUrls[index],
-                    fit: BoxFit.contain,
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Material(
-                color: Colors.black.withValues(alpha: 0.5),
-                shape: const CircleBorder(),
-                child: InkWell(
-                  onTap: () => Navigator.of(context).pop(),
-                  customBorder: const CircleBorder(),
-                  child: const Padding(
-                    padding: EdgeInsets.all(8),
-                    child: Icon(Icons.close_rounded, color: Colors.white),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    openProfilePhotoViewer(
+      context,
+      photoUrls: photoUrls,
+      initialIndex: index,
     );
   }
 }

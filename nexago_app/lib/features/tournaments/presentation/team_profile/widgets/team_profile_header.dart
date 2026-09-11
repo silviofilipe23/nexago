@@ -31,7 +31,11 @@ class TeamProfileHeader extends StatelessWidget {
     );
     final sport = teamProfileSportLabel(profile.player1, profile.player2);
     // final together = formatTeamTogetherLabel(profile.team.createdAt);
-    final tags = teamProfileTagLabels(profile.player1, profile.player2);
+    final tags = teamProfileTagLabels(
+      profile.player1,
+      profile.player2,
+      roster: profile.loadedProfiles,
+    );
     final subtitleParts = <String>[sport];
     // if (together.isNotEmpty) subtitleParts.add('juntos há $together');
 
@@ -62,13 +66,16 @@ class TeamProfileHeader extends StatelessWidget {
               Positioned(
                 top: MediaQuery.paddingOf(context).top + 56,
                 right: 20,
-                child: _RankingBadge(rank: profile.ranking.rank!),
+                child: _RankingBadge(
+                  rank: profile.ranking.rank!,
+                  isLargeRoster: profile.isLargeRoster,
+                ),
               ),
             Positioned(
               left: 0,
               right: 0,
               top: coverHeight - avatarOverlap,
-              child: Center(child: _DualTeamAvatars(profile: profile)),
+              child: Center(child: _TeamAvatars(profile: profile)),
             ),
           ],
         ),
@@ -114,40 +121,46 @@ class TeamProfileHeader extends StatelessWidget {
   }
 }
 
-class _DualTeamAvatars extends StatelessWidget {
-  const _DualTeamAvatars({required this.profile});
+/// Avatares do elenco inteiro, sobrepostos e centrados. A dupla mantém os dois
+/// de sempre; trio pra cima encolhe o avatar para caber sem estourar a capa.
+class _TeamAvatars extends StatelessWidget {
+  const _TeamAvatars({required this.profile});
 
   final TeamPublicProfile profile;
 
+  static double _avatarSizeFor(int count) => switch (count) {
+        <= 2 => TeamProfileHeader.avatarSize * 0.82,
+        3 => TeamProfileHeader.avatarSize * 0.68,
+        4 => TeamProfileHeader.avatarSize * 0.60,
+        _ => TeamProfileHeader.avatarSize * 0.54,
+      };
+
   @override
   Widget build(BuildContext context) {
-    final p1 = profile.player1;
-    final p2 = profile.player2;
-    final p1Initials = p1 != null ? athleteInitials(p1) : '?';
-    final p2Initials = p2 != null ? athleteInitials(p2) : '?';
+    final members = profile.members;
+    if (members.isEmpty) return const SizedBox.shrink();
+
+    final size = _avatarSizeFor(members.length);
+    final step = size * 0.72;
+    final width = size + step * (members.length - 1);
+    final top = (TeamProfileHeader.avatarSize - size) / 2;
 
     return SizedBox(
-      width: 140,
+      width: width,
       height: TeamProfileHeader.avatarSize,
       child: Stack(
         clipBehavior: Clip.none,
-        alignment: Alignment.center,
         children: [
-          Positioned(
-            left: 8,
-            child: AthleteProfileAvatar(
-              size: TeamProfileHeader.avatarSize * 0.82,
-              initials: p1Initials,
-              imageUrl: p1?.avatarUrl,
-            ),
-          ),
-          if (!profile.isLookingForPartner && p2 != null)
+          for (var i = 0; i < members.length; i++)
             Positioned(
-              right: 8,
+              left: step * i,
+              top: top,
               child: AthleteProfileAvatar(
-                size: TeamProfileHeader.avatarSize * 0.82,
-                initials: p2Initials,
-                imageUrl: p2.avatarUrl,
+                size: size,
+                initials: members[i].profile != null
+                    ? athleteInitials(members[i].profile!)
+                    : '?',
+                imageUrl: members[i].profile?.avatarUrl,
               ),
             ),
         ],
@@ -183,9 +196,10 @@ class _TeamCoverBackground extends StatelessWidget {
 }
 
 class _RankingBadge extends StatelessWidget {
-  const _RankingBadge({required this.rank});
+  const _RankingBadge({required this.rank, required this.isLargeRoster});
 
   final int rank;
+  final bool isLargeRoster;
 
   @override
   Widget build(BuildContext context) {
@@ -200,7 +214,7 @@ class _RankingBadge extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Text(
-            'RANKING DUPLAS BR',
+            isLargeRoster ? 'RANKING EQUIPES BR' : 'RANKING DUPLAS BR',
             style: AppTypography.mono(
               fontSize: 8,
               fontWeight: FontWeight.w700,

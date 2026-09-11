@@ -3,20 +3,22 @@ import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../../core/media/profile_image_crop_config.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/athlete_display_name.dart';
 import '../../../domain/athlete_profile.dart';
 import '../../../domain/athlete_public_profile_models.dart';
+import '../../../domain/sport_art_catalog.dart';
 import '../../../domain/sand_rank/sand_rank_catalog.dart';
 import '../../../domain/sand_rank/sand_rank_models.dart';
 import '../../sand_rank/widgets/sand_rank_avatar_frame.dart';
-import '../../sand_rank/widgets/sand_rank_badge.dart';
 import '../../sand_rank/widgets/sand_rank_emblem.dart';
 import '../../widgets/athlete_profile_avatar.dart';
+import 'profile_photo_viewer.dart';
 
-/// Hero do perfil público: capa, avatar centralizado, identidade e tags.
+/// Hero do perfil público: capa, avatar, identidade e info.
 class PublicProfileHeader extends StatelessWidget {
   const PublicProfileHeader({
     super.key,
@@ -24,26 +26,26 @@ class PublicProfileHeader extends StatelessWidget {
     required this.ranking,
     required this.onBack,
     this.sandRank,
-    this.sandRankTitleId,
     this.sandRankFrameId,
   });
 
-  static const coverHeight = 240.0;
+  /// A capa é dimensionada pela MESMA proporção que o recorte do upload usa
+  /// ([ProfileImageCropTargetX.coverAspectRatio]). Altura fixa aqui e razão
+  /// fixa lá são dois números que divergem calados — e foi o que aconteceu:
+  /// recortava-se em 2.63 e exibia-se em ~1.31, jogando metade fora.
   static const avatarSize = 104.0;
 
   /// Avatar do topo: menor que [avatarSize] porque agora divide a linha com a
   /// identidade e o badge de ranking, dentro da capa.
   static const heroAvatarSize = 76.0;
-  static const avatarOverlap = 52.0;
   static const _avatarEmblemOverflow = 12.0;
 
   final AthleteProfile profile;
   final AthletePublicRankingSnapshot ranking;
   final VoidCallback onBack;
 
-  /// Elo público do atleta (badge sob o nome); `null` oculta o badge.
+  /// Elo público do atleta (emblema no avatar); `null` oculta o emblema.
   final PublicSandRank? sandRank;
-  final String? sandRankTitleId;
 
   /// Moldura equipada — anel ao redor do avatar central.
   final String? sandRankFrameId;
@@ -52,14 +54,16 @@ class PublicProfileHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = athleteDisplayName(profile);
     final secondaryName = athleteSecondaryLine(profile);
-    final handle = athletePublicHandle(profile);
-    final ageLabel = athleteAgeCategoryLabel(profile.birthDate);
-    final genderLabel = athleteGenderShortLabel(profile.gender);
     final location = athleteLocationLabel(profile);
-    final sports = buildPublicSportEntries(profile);
     final coverUrl = profile.coverPhotoUrl?.trim() ?? '';
     final hasCoverPhoto = coverUrl.isNotEmpty;
-    final bio = profile.bio?.trim() ?? '';
+    // Sem capa própria, a arte do esporte PRINCIPAL entra no lugar: é mais
+    // pessoal que uma genérica igual para todo mundo e não custa asset novo.
+    // Quem não tem esporte reconhecido (ou joga `OUTROS`) cai no fundo
+    // pintado, que continua sendo o último recurso.
+    final fallbackArt = SportArtCatalog.assetFor(
+      profile.primarySportFirestoreId,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -67,9 +71,8 @@ class PublicProfileHeader extends StatelessWidget {
         Stack(
           clipBehavior: Clip.none,
           children: [
-            SizedBox(
-              height: coverHeight,
-              width: double.infinity,
+            AspectRatio(
+              aspectRatio: ProfileImageCropTargetX.coverAspectRatio,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -79,13 +82,14 @@ class PublicProfileHeader extends StatelessWidget {
                       fit: BoxFit.cover,
                       fadeInDuration: const Duration(milliseconds: 280),
                       placeholder: (_, __) => const _CoverPhotoSkeleton(),
+                      // Falha de rede também cai no esporte, não no pintado.
                       errorWidget: (_, __, ___) =>
-                          const _DefaultCoverBackground(),
+                          _CoverFallback(art: fallbackArt),
                     )
                   else
-                    const _DefaultCoverBackground(),
-                  // O véu escurece o PÉ da capa, que agora é a cama do nome e
-                  // do handle. Sem ele o texto cairia sobre a foto crua.
+                    _CoverFallback(art: fallbackArt),
+                  // O véu escurece o PÉ da capa, que agora é a cama do nome.
+                  // Sem ele o texto cairia sobre a foto crua.
                   //
                   // O último passo é a COR DO FUNDO da página, não preto: a
                   // capa dissolve no canvas em vez de terminar num corte seco,
@@ -121,7 +125,7 @@ class PublicProfileHeader extends StatelessWidget {
                 ),
               ),
             ),
-            // Identidade ancorada no pé da capa: avatar, nome/handle e o badge
+            // Identidade ancorada no pé da capa: avatar, nome e o badge
             // de ranking na mesma linha.
             Positioned(
               left: 20,
@@ -135,6 +139,12 @@ class PublicProfileHeader extends StatelessWidget {
                     sandRank: sandRank,
                     sandRankFrameId: sandRankFrameId,
                     size: heroAvatarSize,
+                    // Sem foto o avatar mostra iniciais, e aí não há o que
+                    // ampliar: `openProfilePhotoViewer` ignora lista vazia.
+                    onTap: () => openProfilePhotoViewer(
+                      context,
+                      photoUrls: [profile.avatarUrl ?? ''],
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -162,18 +172,18 @@ class PublicProfileHeader extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppTypography.soraRegular(
-                              fontSize: 13,
+                              fontSize: 11,
                               fontWeight: FontWeight.w500,
                               color: AppColors.white.withValues(alpha: 0.74),
                             ),
                           ),
-                        if (handle != null)
+                        if (location.isNotEmpty)
                           Text(
-                            handle,
+                            location,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppTypography.soraRegular(
-                              fontSize: 13,
+                              fontSize: 11,
                               fontWeight: FontWeight.w500,
                               color: AppColors.white.withValues(alpha: 0.74),
                             ),
@@ -190,57 +200,6 @@ class PublicProfileHeader extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 14),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            children: [
-              if (sandRank != null) ...[
-                SizedBox(height: 10),
-                SandRankBadge(
-                  rank: sandRank,
-                  equippedTitleId: sandRankTitleId,
-                ),
-              ],
-              SizedBox(height: 10),
-              _InfoRow(
-                ageLabel: ageLabel,
-                genderLabel: genderLabel,
-                location: location,
-              ),
-              if (bio.isNotEmpty) ...[
-                SizedBox(height: 12),
-                Text(
-                  bio,
-                  textAlign: TextAlign.center,
-                  style: AppTypography.soraRegular(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: context.themeColors.onSurface.withValues(
-                      alpha: 0.88,
-                    ),
-                    height: 1.45,
-                  ),
-                ),
-              ],
-              if (sports.isNotEmpty) ...[
-                SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    for (var i = 0; i < sports.length && i < 3; i++)
-                      _SportChip(
-                        label: sports[i].label,
-                        primary: sports[i].isPrimary,
-                      ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -252,7 +211,11 @@ class _PublicProfileAvatar extends StatelessWidget {
     required this.sandRank,
     required this.sandRankFrameId,
     this.size = PublicProfileHeader.avatarSize,
+    this.onTap,
   });
+
+  /// Ampliar a foto. Sem callback o avatar não é tocável.
+  final VoidCallback? onTap;
 
   final double size;
 
@@ -263,10 +226,11 @@ class _PublicProfileAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rank = sandRank;
-    final step =
-        rank != null ? sandRankStepByTrackIndex(rank.trackIndex) : null;
+    final step = rank != null
+        ? sandRankStepByTrackIndex(rank.trackIndex)
+        : null;
 
-    return SizedBox(
+    final slot = SizedBox(
       width: size + PublicProfileHeader._avatarEmblemOverflow,
       height: size + PublicProfileHeader._avatarEmblemOverflow,
       child: Stack(
@@ -301,6 +265,19 @@ class _PublicProfileAvatar extends StatelessWidget {
         ],
       ),
     );
+
+    final tap = onTap;
+    if (tap == null) return slot;
+
+    return Semantics(
+      button: true,
+      label: 'Ampliar foto de perfil',
+      child: InkWell(
+        onTap: tap,
+        customBorder: const CircleBorder(),
+        child: slot,
+      ),
+    );
   }
 }
 
@@ -323,13 +300,7 @@ class _RankingBadge extends StatelessWidget {
         borderRadius: radius,
         boxShadow: metal == null
             ? null
-            : [
-                BoxShadow(
-                  color: metal.glow,
-                  blurRadius: 18,
-                  spreadRadius: 0.5,
-                ),
-              ],
+            : [BoxShadow(color: metal.glow, blurRadius: 18, spreadRadius: 0.5)],
       ),
       child: ClipRRect(
         borderRadius: radius,
@@ -451,93 +422,6 @@ class _RankingBadgeMetal {
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.ageLabel,
-    required this.genderLabel,
-    required this.location,
-  });
-
-  final String ageLabel;
-  final String genderLabel;
-  final String location;
-
-  @override
-  Widget build(BuildContext context) {
-    final parts = <String>[];
-    if (ageLabel.isNotEmpty) parts.add(ageLabel);
-    if (genderLabel.isNotEmpty) parts.add(genderLabel);
-
-    return Wrap(
-      alignment: WrapAlignment.center,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 8,
-      runSpacing: 4,
-      children: [
-        if (parts.isNotEmpty)
-          Text(
-            parts.join(' · '),
-            style: AppTypography.mono(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: AppColors.brand,
-              letterSpacing: 0.3,
-            ),
-          ),
-        if (location.isNotEmpty)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.location_on_outlined,
-                size: 14,
-                color: context.themeColors.onSurfaceMuted,
-              ),
-              SizedBox(width: 2),
-              Text(
-                location,
-                style: AppTypography.soraRegular(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: context.themeColors.onSurfaceMuted,
-                ),
-              ),
-            ],
-          ),
-      ],
-    );
-  }
-}
-
-class _SportChip extends StatelessWidget {
-  const _SportChip({required this.label, required this.primary});
-
-  final String label;
-  final bool primary;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-      decoration: BoxDecoration(
-        color: primary ? AppColors.brand : context.themeColors.surfaceCard,
-        borderRadius: BorderRadius.circular(999),
-        border: primary
-            ? null
-            : Border.all(color: context.themeColors.surfaceRaised),
-      ),
-      child: Text(
-        label,
-        style: AppTypography.soraRegular(
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-          color: primary ? AppColors.black : context.themeColors.onSurfaceMuted,
-        ),
-      ),
-    );
-  }
-}
-
 class _IconButton extends StatelessWidget {
   const _IconButton({required this.onTap, required this.icon});
 
@@ -602,6 +486,30 @@ class _CoverPhotoSkeletonState extends State<_CoverPhotoSkeleton>
           )!,
         );
       },
+    );
+  }
+}
+
+/// Capa de quem não enviou a sua: a arte do esporte principal, ou o fundo
+/// pintado quando nem isso existe.
+class _CoverFallback extends StatelessWidget {
+  const _CoverFallback({required this.art});
+
+  final String? art;
+
+  @override
+  Widget build(BuildContext context) {
+    final asset = art;
+    if (asset == null) return const _DefaultCoverBackground();
+
+    return Image.asset(
+      asset,
+      fit: BoxFit.cover,
+      // Decorativa: quem carrega o significado é o nome, logo abaixo.
+      excludeFromSemantics: true,
+      // Se o asset sumir do bundle, o fundo pintado assume em vez de a tela
+      // quebrar com o ícone de imagem quebrada.
+      errorBuilder: (_, __, ___) => const _DefaultCoverBackground(),
     );
   }
 }

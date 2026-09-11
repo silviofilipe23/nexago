@@ -43,8 +43,7 @@ class AthleteRating {
     DocumentSnapshot<Map<String, dynamic>> doc,
   ) {
     final data = doc.data() ?? {};
-    double readDouble(dynamic value) =>
-        value is num ? value.toDouble() : 0;
+    double readDouble(dynamic value) => value is num ? value.toDouble() : 0;
     int readInt(dynamic value) => value is num ? value.round() : 0;
     String readStr(dynamic value) => value is String ? value.trim() : '';
 

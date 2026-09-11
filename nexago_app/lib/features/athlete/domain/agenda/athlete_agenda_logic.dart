@@ -235,8 +235,7 @@ DateTime agendaTournamentLocalEventEnd(DateTime rawStart, DateTime? endAt) {
 AthleteAgendaItem? mapTournamentEnrollmentToAgendaItem(
   MyTournamentEnrollment enrollment,
 ) {
-  final rawStart =
-      enrollment.startDate ??
+  final rawStart = enrollment.startDate ??
       parseBookingDateOnly(enrollment.registration.dateLabel);
   if (rawStart == null) return null;
 
@@ -247,8 +246,8 @@ AthleteAgendaItem? mapTournamentEnrollmentToAgendaItem(
   final accent = showAsLive
       ? AppColors.live
       : isCompleted
-      ? AppColors.onSurfaceMuted
-      : athleteAgendaTournamentAccent;
+          ? AppColors.onSurfaceMuted
+          : athleteAgendaTournamentAccent;
   final registrationId = enrollment.registration.registrationId.trim();
   if (registrationId.isEmpty) return null;
 
@@ -262,8 +261,8 @@ AthleteAgendaItem? mapTournamentEnrollmentToAgendaItem(
     statusLabel: showAsLive
         ? 'DIA DO EVENTO'
         : isCompleted
-        ? 'FINALIZADO'
-        : enrollment.statusChipLabel,
+            ? 'FINALIZADO'
+            : enrollment.statusChipLabel,
     accentColor: accent,
     tournament: AthleteAgendaTournamentPayload(
       tournamentId: enrollment.tournamentId,
@@ -289,8 +288,7 @@ AthleteAgendaItem mapFriendlyMatchToAgendaItem(
     kind: AthleteAgendaItemKind.friendlyMatch,
     startsAt: match.scheduledAt,
     title: 'Jogo com $other',
-    subtitle:
-        [match.objective.label, match.location.displayLabel].join(' · '),
+    subtitle: [match.objective.label, match.location.displayLabel].join(' · '),
     statusLabel: awaitingReview ? 'AVALIAR' : 'CONFIRMADO',
     accentColor: athleteAgendaFriendlyMatchAccent,
     friendlyMatch: AthleteAgendaFriendlyMatchPayload(
@@ -395,8 +393,7 @@ bool isAgendaItemPast(AthleteAgendaItem item, {DateTime? now}) {
   if (item.tournament != null) {
     if (item.tournament!.isCompleted) return true;
     if (clock.isBefore(item.startsAt)) return false;
-    final end =
-        item.endsAt ??
+    final end = item.endsAt ??
         DateTime(
           item.startsAt.year,
           item.startsAt.month,
@@ -445,8 +442,7 @@ List<AthleteAgendaItem> filterAgendaItems({
   // os jogos do dia mesmo que já tenham acontecido — só reserva cancelada
   // continua escondida. A exclusão de itens passados da aba "Próximos" só
   // faz sentido pra visão geral (mês), não pro dia que o atleta escolheu ver.
-  final dayInFocus =
-      viewMode == AthleteAgendaViewMode.day &&
+  final dayInFocus = viewMode == AthleteAgendaViewMode.day &&
       timeTab == AthleteAgendaTimeTab.upcoming;
 
   if (dayInFocus) {
@@ -454,29 +450,29 @@ List<AthleteAgendaItem> filterAgendaItems({
   } else {
     filtered = switch (timeTab) {
       AthleteAgendaTimeTab.upcoming => filtered.where(
-        (i) => !isAgendaItemPast(i, now: clock),
-      ),
+          (i) => !isAgendaItemPast(i, now: clock),
+        ),
       AthleteAgendaTimeTab.past => filtered.where(
-        (i) => isAgendaItemPast(i, now: clock),
-      ),
+          (i) => isAgendaItemPast(i, now: clock),
+        ),
     };
   }
 
   filtered = switch (filter) {
     AthleteAgendaFilter.all => filtered,
     AthleteAgendaFilter.rentals => filtered.where(
-      (i) =>
-          i.kind == AthleteAgendaItemKind.rental ||
-          i.kind == AthleteAgendaItemKind.clubSession,
-    ),
+        (i) =>
+            i.kind == AthleteAgendaItemKind.rental ||
+            i.kind == AthleteAgendaItemKind.clubSession,
+      ),
     AthleteAgendaFilter.tournaments => filtered.where(
-      (i) => i.kind == AthleteAgendaItemKind.tournament,
-    ),
+        (i) => i.kind == AthleteAgendaItemKind.tournament,
+      ),
     AthleteAgendaFilter.challenges => filtered.where(
-      (i) =>
-          i.kind == AthleteAgendaItemKind.challenge ||
-          i.kind == AthleteAgendaItemKind.friendlyMatch,
-    ),
+        (i) =>
+            i.kind == AthleteAgendaItemKind.challenge ||
+            i.kind == AthleteAgendaItemKind.friendlyMatch,
+      ),
   };
 
   if (viewMode == AthleteAgendaViewMode.month) {
@@ -568,9 +564,8 @@ List<AthleteAgendaMonthDay> buildAgendaMonthDayMarkers({
 
   return List.generate(totalDays, (index) {
     final date = DateTime(monthStart.year, monthStart.month, index + 1);
-    final dayItems = items
-        .where((i) => isSameDay(i.startsAt, date))
-        .toList(growable: false);
+    final dayItems =
+        items.where((i) => isSameDay(i.startsAt, date)).toList(growable: false);
     var rentals = 0;
     var tournaments = 0;
     var challenges = 0;
@@ -685,9 +680,10 @@ List<AthleteAgendaMonthSummaryRow> buildAgendaMonthSummaryRows({
     if (timeTab == AthleteAgendaTimeTab.upcoming && date.isBefore(today)) {
       continue;
     }
-    final dayItems =
-        items.where((i) => isSameDay(i.startsAt, date)).toList(growable: false)
-          ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
+    final dayItems = items
+        .where((i) => isSameDay(i.startsAt, date))
+        .toList(growable: false)
+      ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
 
     if (dayItems.isEmpty) {
       rows.add(
@@ -745,8 +741,8 @@ List<AthleteAgendaItem> filterAgendaItemsForWeekStrip({
   filtered = switch (timeTab) {
     AthleteAgendaTimeTab.upcoming => filtered.where((i) => !i.isCanceled),
     AthleteAgendaTimeTab.past => filtered.where(
-      (i) => isAgendaItemPast(i, now: clock),
-    ),
+        (i) => isAgendaItemPast(i, now: clock),
+      ),
   };
   filtered = filtered.where((i) {
     final d = dateOnly(i.startsAt);
@@ -769,9 +765,8 @@ List<AthleteAgendaWeekDay> buildWeekDayStrip({
 
   return List.generate(dayCount, (index) {
     final date = start.add(Duration(days: index));
-    final dayItems = items
-        .where((i) => isSameDay(i.startsAt, date))
-        .toList(growable: false);
+    final dayItems =
+        items.where((i) => isSameDay(i.startsAt, date)).toList(growable: false);
     var rentals = 0;
     var tournaments = 0;
     var challenges = 0;
@@ -843,9 +838,8 @@ AgendaEmptyHeroDescriptionParts formatAgendaEmptyHeroDescription(
   }
   final phrase = proximityPhrase.trim();
   final arenaLabel = nearbyCount == 1 ? ' arena livre' : ' arenas livres';
-  final suffix = phrase.isNotEmpty
-      ? '$arenaLabel $phrase.'
-      : '$arenaLabel hoje.';
+  final suffix =
+      phrase.isNotEmpty ? '$arenaLabel $phrase.' : '$arenaLabel hoje.';
   return AgendaEmptyHeroDescriptionParts(
     lead: lead,
     nearbyCount: nearbyCount,

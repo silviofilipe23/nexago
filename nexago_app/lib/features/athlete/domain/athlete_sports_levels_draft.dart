@@ -121,8 +121,7 @@ class AthleteSportsLevelsDraft {
     if (!enrolled.contains(appSportId)) return this;
 
     final previousPrimary = primaryAppSportId;
-    final nextOthers = Set<String>.from(otherAppSportIds)
-      ..remove(appSportId);
+    final nextOthers = Set<String>.from(otherAppSportIds)..remove(appSportId);
     if (previousPrimary != null && previousPrimary.isNotEmpty) {
       nextOthers.add(previousPrimary);
     }

@@ -21,14 +21,10 @@ final athleteIsFollowingProvider =
 
 final athleteFollowersCountProvider =
     StreamProvider.autoDispose.family<int, String>((ref, athleteId) {
-  return ref
-      .watch(athleteFollowServiceProvider)
-      .watchFollowersCount(athleteId);
+  return ref.watch(athleteFollowServiceProvider).watchFollowersCount(athleteId);
 });
 
 final athleteFollowingCountProvider =
     StreamProvider.autoDispose.family<int, String>((ref, athleteId) {
-  return ref
-      .watch(athleteFollowServiceProvider)
-      .watchFollowingCount(athleteId);
+  return ref.watch(athleteFollowServiceProvider).watchFollowingCount(athleteId);
 });

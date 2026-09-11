@@ -52,9 +52,8 @@ List<AthleteHomeKpi> buildAthleteHomeKpis({
 
   final wins = matches.where((m) => m.isWin).length;
   final losses = matches.length - wins;
-  final winPct = matches.isNotEmpty
-      ? (wins / matches.length * 100).round()
-      : null;
+  final winPct =
+      matches.isNotEmpty ? (wins / matches.length * 100).round() : null;
 
   final streak = gamification.streak;
 
@@ -68,9 +67,8 @@ List<AthleteHomeKpi> buildAthleteHomeKpis({
       value: '$gamesThisMonth',
       delta: '${monthDiff >= 0 ? '+' : ''}$monthDiff',
       note: 'vs mês anterior',
-      tone: monthDiff >= 0
-          ? AthleteHomeKpiTone.green
-          : AthleteHomeKpiTone.orange,
+      tone:
+          monthDiff >= 0 ? AthleteHomeKpiTone.green : AthleteHomeKpiTone.orange,
       arrow: true,
     ),
     AthleteHomeKpi(

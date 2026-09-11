@@ -48,9 +48,8 @@ AthleteTournamentDetail buildAthleteTournamentDetail({
   final venueName = tournamentDoc?.location.trim().isNotEmpty == true
       ? tournamentDoc!.location
       : (summary.venue.isNotEmpty ? summary.venue : '—');
-  final venueCity = tournamentDoc?.city.trim().isNotEmpty == true
-      ? tournamentDoc!.city
-      : '—';
+  final venueCity =
+      tournamentDoc?.city.trim().isNotEmpty == true ? tournamentDoc!.city : '—';
 
   final games = summary.wins + summary.losses;
   final tag = summary.losses == 0 && summary.wins > 0 ? 'INVICTO' : 'CAMPANHA';
@@ -86,8 +85,7 @@ List<AthleteTournamentCampaignMatch> _campaignMatches({
   required String athleteTeamId,
   required Map<String, String> opponentNames,
 }) {
-  final sorted = [...tournamentMatches]
-    ..sort((a, b) {
+  final sorted = [...tournamentMatches]..sort((a, b) {
       final aDate = playedAtForMatch(a);
       final bDate = playedAtForMatch(b);
       if (aDate == null && bDate == null) {

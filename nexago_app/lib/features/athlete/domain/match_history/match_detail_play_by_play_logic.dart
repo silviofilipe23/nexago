@@ -25,9 +25,8 @@ List<MatchDetailPlayByPlayGroup> buildPlayByPlayTimeline({
       ourIsSideA: ourIsSideA,
     );
   } else {
-    final pointActions =
-        match.lastActions.where((a) => a.isPoint).toList()
-          ..sort((a, b) => a.ts.compareTo(b.ts));
+    final pointActions = match.lastActions.where((a) => a.isPoint).toList()
+      ..sort((a, b) => a.ts.compareTo(b.ts));
 
     for (final action in pointActions) {
       final setIndex = action.setIndex;
@@ -41,13 +40,13 @@ List<MatchDetailPlayByPlayGroup> buildPlayByPlayTimeline({
           : (our: last.our, opp: last.opp + action.delta);
 
       pointsBySet.putIfAbsent(setIndex, () => []).add(
-        _TimelinePoint(
-          ts: action.ts,
-          isOurTeam: isOurPoint,
-          ourScore: updated.our,
-          oppScore: updated.opp,
-        ),
-      );
+            _TimelinePoint(
+              ts: action.ts,
+              isOurTeam: isOurPoint,
+              ourScore: updated.our,
+              oppScore: updated.opp,
+            ),
+          );
     }
 
     if (match.sets.isNotEmpty) {
@@ -127,13 +126,13 @@ void _replayPointEventsToTimeline({
       final isOurTeam = event.side?.trim().toUpperCase() == ourSide;
 
       pointsBySet.putIfAbsent(event.setIndex, () => []).add(
-        _TimelinePoint(
-          ts: event.ts,
-          isOurTeam: isOurTeam,
-          ourScore: ourScore,
-          oppScore: oppScore,
-        ),
-      );
+            _TimelinePoint(
+              ts: event.ts,
+              isOurTeam: isOurTeam,
+              ourScore: ourScore,
+              oppScore: oppScore,
+            ),
+          );
     } else if (event.isUndoPoint) {
       final points = pointsBySet[event.setIndex];
       if (points != null && points.isNotEmpty) {
@@ -154,8 +153,10 @@ void _completeTimelineFromSetScores({
     final targetOpp = ourIsSideA ? set.b : set.a;
     if (targetOur + targetOpp == 0) continue;
 
-    final recorded = List<_TimelinePoint>.from(pointsBySet[setIndex] ?? const []);
-    final setStart = set.startedAt ?? match.matchStartedAt ?? recorded.firstOrNull?.ts;
+    final recorded =
+        List<_TimelinePoint>.from(pointsBySet[setIndex] ?? const []);
+    final setStart =
+        set.startedAt ?? match.matchStartedAt ?? recorded.firstOrNull?.ts;
     final setEnd = set.endedAt ?? match.matchEndedAt ?? recorded.lastOrNull?.ts;
 
     var prefixOur = 0;
@@ -205,9 +206,8 @@ void _completeTimelineFromSetScores({
       countOpp: suffixOpp,
       startOur: recordedEndOur,
       startOpp: recordedEndOpp,
-      startTime: recorded.isEmpty
-          ? (setStart ?? DateTime.now())
-          : recorded.last.ts,
+      startTime:
+          recorded.isEmpty ? (setStart ?? DateTime.now()) : recorded.last.ts,
       endTime: setEnd ?? recorded.lastOrNull?.ts ?? setStart ?? DateTime.now(),
     );
 
@@ -229,9 +229,8 @@ List<_TimelinePoint> _syntheticPoints({
   final sides = _interleavePointSides(countOur: countOur, countOpp: countOpp);
   final start = startTime ?? DateTime.now();
   final end = endTime ?? start;
-  final durationMs = end.isAfter(start)
-      ? end.difference(start).inMilliseconds
-      : total * 1000;
+  final durationMs =
+      end.isAfter(start) ? end.difference(start).inMilliseconds : total * 1000;
 
   var our = startOur;
   var opp = startOpp;

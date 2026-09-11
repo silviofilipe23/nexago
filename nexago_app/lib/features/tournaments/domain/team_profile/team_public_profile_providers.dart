@@ -70,10 +70,22 @@ final teamPublicProfileProvider = FutureProvider.autoDispose
   final team = teams[id];
   if (team == null) return null;
 
-  final player1 = await _loadProfile(ref, team.player1Id);
-  final player2 = team.isLookingForPartner
-      ? null
-      : await _loadProfile(ref, team.player2Id);
+  // Elenco inteiro: equipe nomeada (trio pra cima) espelha só os dois
+  // primeiros em player1Id/player2Id, então ler o espelho esconderia o resto.
+  final memberIds = team.memberIds;
+  final profiles = await Future.wait(
+    memberIds.map((uid) => _loadProfile(ref, uid)),
+  );
+  final captainId = team.captainId;
+  final members = [
+    for (var i = 0; i < memberIds.length; i++)
+      TeamMemberEntry(
+        uid: memberIds[i],
+        profile: profiles[i],
+        isCaptain: memberIds[i] == captainId,
+      ),
+  ];
+
   final ranking = await discoverRepo.rankingFor(id);
   final isCurrentUserTeam = currentUid != null &&
       currentUid.isNotEmpty &&
@@ -81,8 +93,7 @@ final teamPublicProfileProvider = FutureProvider.autoDispose
 
   return TeamPublicProfile(
     team: team,
-    player1: player1,
-    player2: player2,
+    members: members,
     ranking: ranking,
     isCurrentUserTeam: isCurrentUserTeam,
   );

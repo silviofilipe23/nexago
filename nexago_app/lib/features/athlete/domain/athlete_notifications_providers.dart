@@ -12,7 +12,8 @@ final athleteNotificationsProvider =
   return ref.watch(athleteNotificationsRepositoryProvider).watchInbox(uid);
 });
 
-final athleteUnreadNotificationsCountProvider = Provider.autoDispose<int>((ref) {
+final athleteUnreadNotificationsCountProvider =
+    Provider.autoDispose<int>((ref) {
   final items = ref.watch(athleteNotificationsProvider).valueOrNull ?? const [];
   return countUnreadNotifications(items);
 });

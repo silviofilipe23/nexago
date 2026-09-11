@@ -150,9 +150,8 @@ AthleteMatchDetail _buildDetail({
   final setsWon = _setsWonForPerspective(
     match,
     perspectiveTeamId,
-    excludeSetIndex: phase == MatchDetailPhase.live
-        ? match.currentSetIndex
-        : null,
+    excludeSetIndex:
+        phase == MatchDetailPhase.live ? match.currentSetIndex : null,
   );
   final rawSets = setsForMatch(match);
   final displaySets = playedSetsForMatch(match);
@@ -345,13 +344,11 @@ String? _scheduleSubtitle(TournamentMatch match, DateTime? scheduleTime) {
   if (scheduleTime == null) return null;
   final local = toNexagoEventLocal(scheduleTime);
   final now = toNexagoEventLocal(DateTime.now());
-  final sameDay =
-      local.year == now.year &&
+  final sameDay = local.year == now.year &&
       local.month == now.month &&
       local.day == now.day;
-  final dayPart = sameDay
-      ? 'hoje'
-      : DateFormat('EEE', 'pt_BR').format(local).toLowerCase();
+  final dayPart =
+      sameDay ? 'hoje' : DateFormat('EEE', 'pt_BR').format(local).toLowerCase();
   final time = DateFormat('HH:mm', 'pt_BR').format(local);
   final court = _venueLabel(match, '');
   final parts = [dayPart, time];

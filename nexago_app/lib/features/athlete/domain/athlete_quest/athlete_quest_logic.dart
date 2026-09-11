@@ -57,9 +57,8 @@ Set<DateTime> _activityDatesFromSummary(GamificationSummary summary) {
   if (dates.isNotEmpty) return dates;
 
   // Legado: usuários sem `gameCompletionDays` no Firestore.
-  final lastGame = summary.lastGameDate != null
-      ? _dateOnly(summary.lastGameDate!)
-      : null;
+  final lastGame =
+      summary.lastGameDate != null ? _dateOnly(summary.lastGameDate!) : null;
   if (summary.streak > 0 && lastGame != null) {
     for (var i = 0; i < summary.streak; i++) {
       dates.add(lastGame.subtract(Duration(days: i)));
@@ -83,9 +82,7 @@ List<StreakWeekDay> buildStreakWeekDays(
   final streak = summary.streak;
   final activityDates = _activityDatesFromSummary(summary);
   final lastActivity = _latestActivityDate(activityDates) ??
-      (summary.lastGameDate != null
-          ? _dateOnly(summary.lastGameDate!)
-          : null);
+      (summary.lastGameDate != null ? _dateOnly(summary.lastGameDate!) : null);
 
   final streakNeedsPlayToday = streak > 0 &&
       lastActivity != null &&

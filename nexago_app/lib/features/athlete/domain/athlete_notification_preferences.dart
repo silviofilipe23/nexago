@@ -21,7 +21,8 @@ class AthleteNotificationPreferences {
     return AthleteNotificationPreferences(
       channels: AthleteNotificationChannels.fromFirestore(map['channels']),
       topics: AthleteNotificationTopics.fromFirestore(map['topics']),
-      quietHours: AthleteNotificationQuietHours.fromFirestore(map['quietHours']),
+      quietHours:
+          AthleteNotificationQuietHours.fromFirestore(map['quietHours']),
     );
   }
 
@@ -207,6 +208,7 @@ class AthleteNotificationQuietHours {
   });
 
   final bool enabled;
+
   /// `HH:mm` horário local.
   final String start;
   final String end;

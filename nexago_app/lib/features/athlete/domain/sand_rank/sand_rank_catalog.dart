@@ -35,22 +35,102 @@ class SandRankStep {
 }
 
 const List<SandRankStep> sandRankTrack = [
-  SandRankStep(trackIndex: 0, rankCode: 'INICIANTE', rankName: 'Iniciante', division: 3, minXp: 0),
-  SandRankStep(trackIndex: 1, rankCode: 'INICIANTE', rankName: 'Iniciante', division: 2, minXp: 100),
-  SandRankStep(trackIndex: 2, rankCode: 'INICIANTE', rankName: 'Iniciante', division: 1, minXp: 250),
-  SandRankStep(trackIndex: 3, rankCode: 'COMPETIDOR', rankName: 'Competidor', division: 3, minXp: 450),
-  SandRankStep(trackIndex: 4, rankCode: 'COMPETIDOR', rankName: 'Competidor', division: 2, minXp: 700),
-  SandRankStep(trackIndex: 5, rankCode: 'COMPETIDOR', rankName: 'Competidor', division: 1, minXp: 1000),
-  SandRankStep(trackIndex: 6, rankCode: 'DESAFIANTE', rankName: 'Desafiante', division: 3, minXp: 1400),
-  SandRankStep(trackIndex: 7, rankCode: 'DESAFIANTE', rankName: 'Desafiante', division: 2, minXp: 1900),
-  SandRankStep(trackIndex: 8, rankCode: 'DESAFIANTE', rankName: 'Desafiante', division: 1, minXp: 2500),
-  SandRankStep(trackIndex: 9, rankCode: 'ELITE', rankName: 'Elite', division: 3, minXp: 3300),
-  SandRankStep(trackIndex: 10, rankCode: 'ELITE', rankName: 'Elite', division: 2, minXp: 4200),
-  SandRankStep(trackIndex: 11, rankCode: 'ELITE', rankName: 'Elite', division: 1, minXp: 5300),
-  SandRankStep(trackIndex: 12, rankCode: 'MESTRE', rankName: 'Mestre', division: 3, minXp: 6600),
-  SandRankStep(trackIndex: 13, rankCode: 'MESTRE', rankName: 'Mestre', division: 2, minXp: 8200),
-  SandRankStep(trackIndex: 14, rankCode: 'MESTRE', rankName: 'Mestre', division: 1, minXp: 10000),
-  SandRankStep(trackIndex: 15, rankCode: 'LENDA', rankName: 'Lenda', division: 0, minXp: 12500),
+  SandRankStep(
+      trackIndex: 0,
+      rankCode: 'INICIANTE',
+      rankName: 'Iniciante',
+      division: 3,
+      minXp: 0),
+  SandRankStep(
+      trackIndex: 1,
+      rankCode: 'INICIANTE',
+      rankName: 'Iniciante',
+      division: 2,
+      minXp: 100),
+  SandRankStep(
+      trackIndex: 2,
+      rankCode: 'INICIANTE',
+      rankName: 'Iniciante',
+      division: 1,
+      minXp: 250),
+  SandRankStep(
+      trackIndex: 3,
+      rankCode: 'COMPETIDOR',
+      rankName: 'Competidor',
+      division: 3,
+      minXp: 450),
+  SandRankStep(
+      trackIndex: 4,
+      rankCode: 'COMPETIDOR',
+      rankName: 'Competidor',
+      division: 2,
+      minXp: 700),
+  SandRankStep(
+      trackIndex: 5,
+      rankCode: 'COMPETIDOR',
+      rankName: 'Competidor',
+      division: 1,
+      minXp: 1000),
+  SandRankStep(
+      trackIndex: 6,
+      rankCode: 'DESAFIANTE',
+      rankName: 'Desafiante',
+      division: 3,
+      minXp: 1400),
+  SandRankStep(
+      trackIndex: 7,
+      rankCode: 'DESAFIANTE',
+      rankName: 'Desafiante',
+      division: 2,
+      minXp: 1900),
+  SandRankStep(
+      trackIndex: 8,
+      rankCode: 'DESAFIANTE',
+      rankName: 'Desafiante',
+      division: 1,
+      minXp: 2500),
+  SandRankStep(
+      trackIndex: 9,
+      rankCode: 'ELITE',
+      rankName: 'Elite',
+      division: 3,
+      minXp: 3300),
+  SandRankStep(
+      trackIndex: 10,
+      rankCode: 'ELITE',
+      rankName: 'Elite',
+      division: 2,
+      minXp: 4200),
+  SandRankStep(
+      trackIndex: 11,
+      rankCode: 'ELITE',
+      rankName: 'Elite',
+      division: 1,
+      minXp: 5300),
+  SandRankStep(
+      trackIndex: 12,
+      rankCode: 'MESTRE',
+      rankName: 'Mestre',
+      division: 3,
+      minXp: 6600),
+  SandRankStep(
+      trackIndex: 13,
+      rankCode: 'MESTRE',
+      rankName: 'Mestre',
+      division: 2,
+      minXp: 8200),
+  SandRankStep(
+      trackIndex: 14,
+      rankCode: 'MESTRE',
+      rankName: 'Mestre',
+      division: 1,
+      minXp: 10000),
+  SandRankStep(
+      trackIndex: 15,
+      rankCode: 'LENDA',
+      rankName: 'Lenda',
+      division: 0,
+      minXp: 12500),
 ];
 
 final int sandRankTopTrackIndex = sandRankTrack.last.trackIndex;
@@ -132,7 +212,8 @@ SandRankProgress sandRankProgressFromXp(int xp) {
     next: next,
     xpIntoStep: xpIntoStep,
     xpToNext: next.minXp - safeXp,
-    progress: stepSize <= 0 ? 1 : (xpIntoStep / stepSize).clamp(0, 1).toDouble(),
+    progress:
+        stepSize <= 0 ? 1 : (xpIntoStep / stepSize).clamp(0, 1).toDouble(),
   );
 }
 

@@ -8,6 +8,30 @@ import 'athlete_profile.dart';
 import 'athlete_public_profile_models.dart';
 import 'match_history/athlete_match_history_models.dart';
 
+/// Posição do atleta no ranking individual de CADA modalidade, no formato
+/// `{código do esporte: posição}`.
+///
+/// Só o ano corrente: o ranking por modalidade é calculado dos resultados
+/// crus, e o geral pré-calculado não tem esporte. Esporte em que o atleta não
+/// pontuou fica fora do mapa, e a UI mostra travessão.
+final athleteSportRanksProvider =
+    FutureProvider.autoDispose.family<Map<String, int>, String>(
+  (ref, athleteId) async {
+    final repo = ref.read(rankingRepositoryProvider);
+    final bySport = await repo.loadAthleteRankingBySport(
+      year: DateTime.now().year,
+    );
+
+    final out = <String, int>{};
+    for (final entry in bySport.entries) {
+      final row =
+          entry.value.where((r) => r.athleteId == athleteId).firstOrNull;
+      if (row != null) out[entry.key] = row.rank;
+    }
+    return out;
+  },
+);
+
 final athletePublicRankingProvider =
     FutureProvider.autoDispose.family<AthletePublicRankingSnapshot, String>(
   (ref, athleteId) async {

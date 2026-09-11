@@ -26,9 +26,8 @@ List<bool> recentFormResultsForTeam({
     ..sort(compareMatchesChronologicallyDesc);
 
   final recent = eligible.take(limit).toList();
-  final results = recent
-      .map((match) => match.athleteTeamWon(id))
-      .toList(growable: false);
+  final results =
+      recent.map((match) => match.athleteTeamWon(id)).toList(growable: false);
 
   return results.reversed.toList(growable: false);
 }

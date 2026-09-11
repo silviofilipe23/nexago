@@ -37,9 +37,13 @@ class _TeamPublicProfilePageState extends ConsumerState<TeamPublicProfilePage> {
     ]);
   }
 
-  void _onChallenge() {
+  void _onChallenge({required bool isLargeRoster}) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Desafiar dupla — em breve.')),
+      SnackBar(
+        content: Text(
+          'Desafiar ${isLargeRoster ? 'equipe' : 'dupla'} — em breve.',
+        ),
+      ),
     );
   }
 
@@ -123,7 +127,8 @@ class _TeamPublicProfilePageState extends ConsumerState<TeamPublicProfilePage> {
                     onFollowStateChanged: () {
                       ref.invalidate(teamIsFollowedProvider(widget.teamId));
                     },
-                    onChallenge: _onChallenge,
+                    onChallenge: () =>
+                        _onChallenge(isLargeRoster: profile.isLargeRoster),
                   ),
                 ),
                 SliverToBoxAdapter(child: TeamProfileStatsRow(stats: stats)),

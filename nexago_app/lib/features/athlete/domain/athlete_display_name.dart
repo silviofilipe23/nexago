@@ -3,7 +3,8 @@ import 'package:nexago_app/core/text/safe_display_text.dart';
 import 'athlete_profile.dart';
 
 /// Nome exibido do atleta: apelido → nome completo → fallback.
-String athleteDisplayName(AthleteProfile profile, {String fallback = 'Atleta'}) {
+String athleteDisplayName(AthleteProfile profile,
+    {String fallback = 'Atleta'}) {
   return resolveAppUserDisplayName(
     AppUserProfile(
       uid: profile.id,
@@ -38,8 +39,10 @@ String pairDisplayName(AthleteProfile? player1, AthleteProfile? player2) {
     return '$p1Short/$p2Short';
   }
 
-  final p1Full = player1 != null ? athleteDisplayName(player1, fallback: '') : '';
-  final p2Full = player2 != null ? athleteDisplayName(player2, fallback: '') : '';
+  final p1Full =
+      player1 != null ? athleteDisplayName(player1, fallback: '') : '';
+  final p2Full =
+      player2 != null ? athleteDisplayName(player2, fallback: '') : '';
   if (p1Full.isNotEmpty && p2Full.isNotEmpty && p1Full != p2Full) {
     return '$p1Full/$p2Full';
   }

@@ -66,7 +66,8 @@ class BookingInvite {
     );
   }
 
-  factory BookingInvite.fromFirestore(DocumentSnapshot<Map<String, dynamic>> snap) {
+  factory BookingInvite.fromFirestore(
+      DocumentSnapshot<Map<String, dynamic>> snap) {
     final d = snap.data()!;
     return BookingInvite(
       id: snap.id,

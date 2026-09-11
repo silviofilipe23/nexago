@@ -8,37 +8,37 @@ enum GamificationBadge {
   profileComplete;
 
   String get id => switch (this) {
-    GamificationBadge.firstGame => 'FIRST_GAME',
-    GamificationBadge.fiveGames => 'FIVE_GAMES',
-    GamificationBadge.streak3 => 'STREAK_3',
-    GamificationBadge.streak7 => 'STREAK_7',
-    GamificationBadge.profileComplete => 'PROFILE_COMPLETE',
-  };
+        GamificationBadge.firstGame => 'FIRST_GAME',
+        GamificationBadge.fiveGames => 'FIVE_GAMES',
+        GamificationBadge.streak3 => 'STREAK_3',
+        GamificationBadge.streak7 => 'STREAK_7',
+        GamificationBadge.profileComplete => 'PROFILE_COMPLETE',
+      };
 
   String get title => switch (this) {
-    GamificationBadge.firstGame => 'Primeiro jogo',
-    GamificationBadge.fiveGames => '5 jogos completos',
-    GamificationBadge.streak3 => 'Sequência de 3 dias',
-    GamificationBadge.streak7 => 'Sequência de 7 dias',
-    GamificationBadge.profileComplete => 'Perfil completo',
-  };
+        GamificationBadge.firstGame => 'Primeiro jogo',
+        GamificationBadge.fiveGames => '5 jogos completos',
+        GamificationBadge.streak3 => 'Sequência de 3 dias',
+        GamificationBadge.streak7 => 'Sequência de 7 dias',
+        GamificationBadge.profileComplete => 'Perfil completo',
+      };
 
   String get description => switch (this) {
-    GamificationBadge.firstGame => 'Você entrou no ritmo.',
-    GamificationBadge.fiveGames => 'Consistência de atleta dedicado.',
-    GamificationBadge.streak3 => 'Disciplina em alta.',
-    GamificationBadge.streak7 => 'Semana perfeita.',
-    GamificationBadge.profileComplete =>
-      'Você completou todos os passos do perfil.',
-  };
+        GamificationBadge.firstGame => 'Você entrou no ritmo.',
+        GamificationBadge.fiveGames => 'Consistência de atleta dedicado.',
+        GamificationBadge.streak3 => 'Disciplina em alta.',
+        GamificationBadge.streak7 => 'Semana perfeita.',
+        GamificationBadge.profileComplete =>
+          'Você completou todos os passos do perfil.',
+      };
 
   String get icon => switch (this) {
-    GamificationBadge.firstGame => '🎯',
-    GamificationBadge.fiveGames => '🏐',
-    GamificationBadge.streak3 => '🔥',
-    GamificationBadge.streak7 => '👑',
-    GamificationBadge.profileComplete => '🏆',
-  };
+        GamificationBadge.firstGame => '🎯',
+        GamificationBadge.fiveGames => '🏐',
+        GamificationBadge.streak3 => '🔥',
+        GamificationBadge.streak7 => '👑',
+        GamificationBadge.profileComplete => '🏆',
+      };
 
   static GamificationBadge? fromId(String raw) {
     final id = raw.trim().toUpperCase();
@@ -58,13 +58,13 @@ enum GamificationMission {
   shareProfile;
 
   String get id => switch (this) {
-    GamificationMission.playToday => 'PLAY_TODAY',
-    // GamificationMission.inviteOnePlayer => 'INVITE_ONE_PLAYER',
-    GamificationMission.reserveToday => 'RESERVE_TODAY',
-    GamificationMission.favoriteArena => 'FAVORITE_ARENA',
-    GamificationMission.exploreTournament => 'EXPLORE_TOURNAMENT',
-    GamificationMission.shareProfile => 'SHARE_PROFILE',
-  };
+        GamificationMission.playToday => 'PLAY_TODAY',
+        // GamificationMission.inviteOnePlayer => 'INVITE_ONE_PLAYER',
+        GamificationMission.reserveToday => 'RESERVE_TODAY',
+        GamificationMission.favoriteArena => 'FAVORITE_ARENA',
+        GamificationMission.exploreTournament => 'EXPLORE_TOURNAMENT',
+        GamificationMission.shareProfile => 'SHARE_PROFILE',
+      };
 
   static GamificationMission? fromId(String raw) {
     final id = raw.trim().toUpperCase();
@@ -213,9 +213,8 @@ class UserBadgeProgress {
     final unlockedAt = ts is Timestamp ? ts.toDate() : DateTime.now();
     return UserBadgeProgress(
       achievementId: achievementId,
-      title: title?.isNotEmpty == true
-          ? title!
-          : (legacy?.title ?? achievementId),
+      title:
+          title?.isNotEmpty == true ? title! : (legacy?.title ?? achievementId),
       unlockedAt: unlockedAt,
       legacyBadge: legacy,
     );

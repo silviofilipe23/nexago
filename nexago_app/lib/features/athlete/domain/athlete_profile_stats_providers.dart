@@ -17,7 +17,8 @@ final athleteProfileStatsProvider =
   final gamification = ref.watch(gamificationSummaryProvider).valueOrNull ??
       GamificationSummary.initial();
 
-  final history = await ref.watch(currentAthleteMatchHistoryBundleProvider.future);
+  final history =
+      await ref.watch(currentAthleteMatchHistoryBundleProvider.future);
   final ranking = await ref.watch(competeHubUserRankingProvider.future);
 
   return buildAthleteProfileStats(

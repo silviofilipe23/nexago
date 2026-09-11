@@ -23,10 +23,11 @@ final currentAthleteMatchHistoryBundleProvider =
   return ref.watch(athleteMatchHistoryBundleProvider(uid).future);
 });
 
-final matchHistoryTabProvider =
-    StateProvider.autoDispose<MatchHistoryTab>((ref) => MatchHistoryTab.matches);
+final matchHistoryTabProvider = StateProvider.autoDispose<MatchHistoryTab>(
+    (ref) => MatchHistoryTab.matches);
 
-final matchHistoryFilterProvider = StateProvider.autoDispose<MatchHistoryFilter>(
+final matchHistoryFilterProvider =
+    StateProvider.autoDispose<MatchHistoryFilter>(
   (ref) => MatchHistoryFilter.all,
 );
 

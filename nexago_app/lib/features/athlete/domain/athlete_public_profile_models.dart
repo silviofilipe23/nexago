@@ -1,4 +1,5 @@
 import '../../../core/profiles/app_user_profile.dart';
+import 'package:nexago_app/core/deep_link/app_domains.dart';
 import 'athlete_firestore_codes.dart';
 import 'athlete_profile.dart';
 import 'athlete_profile_options.dart';
@@ -12,12 +13,27 @@ class AthletePublicSportEntry {
     required this.levelLabel,
     required this.levelSegments,
     required this.isPrimary,
+    this.firestoreCode,
+    this.rankingPosition,
   });
 
   final String label;
   final String levelLabel;
   final int levelSegments;
   final bool isPrimary;
+
+  /// Código canônico do esporte no Firestore (`VOLEI_PRAIA`, `BASQUETE`…).
+  ///
+  /// É por ele que a arte de fundo é escolhida, não pelo rótulo: casar texto
+  /// (`label.contains('vôlei')`) confunde praia com quadra e quebra em acento.
+  final String? firestoreCode;
+
+  /// Posição do atleta no ranking DESTE esporte.
+  ///
+  /// Nulo por enquanto: o perfil público só conhece o rank geral
+  /// (`AthletePublicRankingSnapshot.rank`), não um por esporte. A UI mostra
+  /// travessão quando é nulo, em vez de inventar número.
+  final int? rankingPosition;
 }
 
 class AthletePublicRankingSnapshot {
@@ -52,6 +68,27 @@ class AthletePublicPartnerEntry {
   final String subtitle;
 }
 
+/// Preenche a posição de ranking de cada esporte a partir de
+/// `{código do esporte: posição}`. Esporte fora do mapa fica sem posição, e a
+/// UI mostra travessão.
+List<AthletePublicSportEntry> withSportRanks(
+  List<AthletePublicSportEntry> entries,
+  Map<String, int> ranksBySport,
+) {
+  if (ranksBySport.isEmpty) return entries;
+  return [
+    for (final e in entries)
+      AthletePublicSportEntry(
+        label: e.label,
+        levelLabel: e.levelLabel,
+        levelSegments: e.levelSegments,
+        isPrimary: e.isPrimary,
+        firestoreCode: e.firestoreCode,
+        rankingPosition: ranksBySport[e.firestoreCode],
+      ),
+  ];
+}
+
 List<AthletePublicSportEntry> buildPublicSportEntries(AthleteProfile profile) {
   final entries = <AthletePublicSportEntry>[];
   final primaryId = profile.primarySportFirestoreId;
@@ -73,6 +110,7 @@ List<AthletePublicSportEntry> buildPublicSportEntries(AthleteProfile profile) {
         levelLabel: levelLabel,
         levelSegments: levelSegmentsFromCode(levelCode ?? profile.level),
         isPrimary: isPrimary,
+        firestoreCode: firestoreId.toUpperCase(),
       ),
     );
   }
@@ -128,8 +166,7 @@ String resolveAthleteLevelLabel(
 }) {
   final sportId = sportFirestoreId ?? profile.primarySportFirestoreId;
   if (sportId != null && sportId.isNotEmpty) {
-    final code =
-        profile.levelsBySportFirestore[sportId] ??
+    final code = profile.levelsBySportFirestore[sportId] ??
         profile.levelsBySportFirestore[sportId.toUpperCase()];
     if (code != null && code.trim().isNotEmpty) {
       final label = AthleteFirestoreCodes.levelFirestoreToLabel(code);
@@ -148,8 +185,7 @@ int resolveAthleteLevelSegments(
 }) {
   final sportId = sportFirestoreId ?? profile.primarySportFirestoreId;
   if (sportId != null && sportId.isNotEmpty) {
-    final code =
-        profile.levelsBySportFirestore[sportId] ??
+    final code = profile.levelsBySportFirestore[sportId] ??
         profile.levelsBySportFirestore[sportId.toUpperCase()];
     if (code != null && code.trim().isNotEmpty) {
       return levelSegmentsFromCode(code);
@@ -166,6 +202,22 @@ String? athletePublicHandle(AthleteProfile profile) {
   if (nick == null || nick.isEmpty) return null;
   final handle = nick.startsWith('@') ? nick : '@$nick';
   return handle.toLowerCase();
+}
+
+/// URL pública do perfil no portal do atleta.
+///
+/// O path leva o UID, não o apelido. A rota do portal se chama `atletas/:handle`,
+/// mas o parâmetro é consumido como id de documento — o repositório faz
+/// `getDoc(doc(db, 'public_profiles', uid))`, e o próprio portal monta o link
+/// dele com `profile.uid`. Mandar apelido ali dá 404.
+///
+/// Usar o uid também torna o link estável: apelido muda, id não.
+///
+/// O mesmo endereço é o que um dia abrirá o app — `atleta.nexago.com.br` já é o
+/// host do entitlement do iOS e o único aceito em `kAppDeepLinkHosts`. Quando a
+/// rota existir no app, os links já compartilhados passam a abrir nele.
+Uri athletePublicProfileUrl(AthleteProfile profile) {
+  return Uri.parse('${AppDomains.athletePortal}/atletas/${profile.id}');
 }
 
 String athleteAgeCategoryLabel(String? birthDateRaw) {

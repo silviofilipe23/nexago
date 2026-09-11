@@ -56,8 +56,7 @@ class AthletePrivacyShowOthers {
     bool? frequentPartners,
   }) {
     return AthletePrivacyShowOthers(
-      achievementsAndLevel:
-          achievementsAndLevel ?? this.achievementsAndLevel,
+      achievementsAndLevel: achievementsAndLevel ?? this.achievementsAndLevel,
       upcomingBookings: upcomingBookings ?? this.upcomingBookings,
       frequentPartners: frequentPartners ?? this.frequentPartners,
     );
@@ -99,9 +98,11 @@ class AthletePrivacyPreferences {
   }
 
   /// Resolve `publicProfileEnabled` a partir da visibilidade (friends = público na v1).
-  bool get publicProfileEnabled => profileVisibility != AthleteProfileVisibility.private;
+  bool get publicProfileEnabled =>
+      profileVisibility != AthleteProfileVisibility.private;
 
-  bool get isProfilePrivate => profileVisibility == AthleteProfileVisibility.private;
+  bool get isProfilePrivate =>
+      profileVisibility == AthleteProfileVisibility.private;
 
   String get visibilitySettingsLabel => switch (profileVisibility) {
         AthleteProfileVisibility.public => 'Perfil público',

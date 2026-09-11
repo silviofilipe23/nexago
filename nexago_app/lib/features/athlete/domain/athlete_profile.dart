@@ -56,6 +56,7 @@ class AthleteProfile {
   final String sport;
   final String level;
   final String city;
+
   /// Sigla da UF (ex.: `GO`).
   final String? state;
   final String? phoneNumber;
@@ -67,9 +68,11 @@ class AthleteProfile {
   final String? cpfCnpj;
   final String? bio;
   final List<String> sports;
+
   /// Códigos Firestore de objetivo (ex.: `RESERVAR_ARENA`).
   final List<String> goals;
   final String? nickname;
+
   /// ISO `YYYY-MM-DD` ou legado `dd/mm/aaaa` (preferir ISO ao salvar).
   final String? birthDate;
   final String? gender;
@@ -77,11 +80,14 @@ class AthleteProfile {
   final List<String> secondarySportFirestoreIds;
   final String? otherSportNote;
   final bool onboardingCompleted;
+
   /// Flag persistida em `users.isProfileComplete` (5 passos + sync de gamificação).
   final bool isProfileComplete;
   final bool useBiometric;
+
   /// Nível por esporte em `sportOnboarding.levelsBySport` (código FS → código nível).
   final Map<String, String> levelsBySportFirestore;
+
   /// Janela de calibração (Task 1–2 do plano): `sportOnboarding.levelLocked`
   /// em `users/{uid}` — código FS → `true` quando o ratchet "nível só sobe"
   /// já vale para aquele esporte (1ª inscrição ativa). Gravado SÓ pelo
@@ -90,20 +96,21 @@ class AthleteProfile {
   final Map<String, bool> levelLocked;
   final AthleteNotificationPreferences notificationPreferences;
   final AthletePrivacyPreferences privacyPreferences;
+
   /// Alinhado com web (`athlete_profiles`); derivado de [privacyPreferences].
   final bool publicProfileEnabled;
   final String? category;
   final bool lookingForPartner;
   final String? gameObjective;
   final DateTime? lastActiveAt;
+
   /// URLs das fotos de destaque (`profiles/{uid}/highlights/*`), na ordem de
   /// exibição. Limitado a [maxHighlightPhotos] na UI de edição.
   final List<String> highlightPhotoUrls;
 
   bool get isDiscoverable =>
       publicProfileEnabled &&
-      privacyPreferences.profileVisibility !=
-          AthleteProfileVisibility.private;
+      privacyPreferences.profileVisibility != AthleteProfileVisibility.private;
 
   factory AthleteProfile.draft(User user) {
     final email = user.email;
@@ -138,13 +145,14 @@ class AthleteProfile {
     final profilePhotoUrl = (data['profilePhotoUrl'] as String?)?.trim();
     final avatarUrl = (data['avatarUrl'] as String?)?.trim();
     final authPhotoUrl = (data['photoURL'] as String?)?.trim();
-    final resolvedPhotoUrl = (profilePhotoUrl != null && profilePhotoUrl.isNotEmpty)
-        ? profilePhotoUrl
-        : ((avatarUrl != null && avatarUrl.isNotEmpty)
-            ? avatarUrl
-            : ((authPhotoUrl != null && authPhotoUrl.isNotEmpty)
-                ? authPhotoUrl
-                : null));
+    final resolvedPhotoUrl =
+        (profilePhotoUrl != null && profilePhotoUrl.isNotEmpty)
+            ? profilePhotoUrl
+            : ((avatarUrl != null && avatarUrl.isNotEmpty)
+                ? avatarUrl
+                : ((authPhotoUrl != null && authPhotoUrl.isNotEmpty)
+                    ? authPhotoUrl
+                    : null));
     final coverPhotoUrl = (data['coverPhotoUrl'] as String?)?.trim();
 
     final name = (data['fullName'] as String?)?.trim().isNotEmpty == true
@@ -170,9 +178,8 @@ class AthleteProfile {
 
     if (sportOnboarding is Map) {
       final rawPrimary = sportOnboarding['primarySportId'] as String?;
-      primarySportFirestoreId = rawPrimary?.trim().isNotEmpty == true
-          ? rawPrimary!.trim()
-          : null;
+      primarySportFirestoreId =
+          rawPrimary?.trim().isNotEmpty == true ? rawPrimary!.trim() : null;
       final fromOnboardingLabel =
           AthleteFirestoreCodes.sportFirestoreToLabel(primarySportFirestoreId);
       if (fromOnboardingLabel != null && fromOnboardingLabel.isNotEmpty) {
@@ -254,8 +261,9 @@ class AthleteProfile {
       id: id,
       name: name,
       avatarUrl: resolvedPhotoUrl,
-      coverPhotoUrl:
-          (coverPhotoUrl != null && coverPhotoUrl.isNotEmpty) ? coverPhotoUrl : null,
+      coverPhotoUrl: (coverPhotoUrl != null && coverPhotoUrl.isNotEmpty)
+          ? coverPhotoUrl
+          : null,
       sport: sport,
       level: level,
       city: _resolveCity(data),
@@ -296,8 +304,9 @@ class AthleteProfile {
       lookingForPartner: data['lookingForPartner'] == true,
       gameObjective: _resolveGameObjective(data),
       lastActiveAt: _readTimestamp(data['lastActiveAt']),
-      highlightPhotoUrls:
-          _stringList(data['highlightPhotoUrls']).take(maxHighlightPhotos).toList(),
+      highlightPhotoUrls: _stringList(data['highlightPhotoUrls'])
+          .take(maxHighlightPhotos)
+          .toList(),
     );
   }
 
@@ -356,7 +365,13 @@ class AthleteProfile {
       );
 
   static String? _resolvePhoneNumber(Map<String, dynamic> data) {
-    for (final key in ['phoneNumber', 'phone', 'whatsapp', 'celular', 'mobile']) {
+    for (final key in [
+      'phoneNumber',
+      'phone',
+      'whatsapp',
+      'celular',
+      'mobile'
+    ]) {
       final raw = data[key];
       if (raw is! String) continue;
       final trimmed = raw.trim();
@@ -402,8 +417,8 @@ class AthleteProfile {
   }
 
   Map<String, dynamic> toFirestore() {
-    final primaryFs = primarySportFirestoreId ??
-        _sportLabelToFirestoreId(sport);
+    final primaryFs =
+        primarySportFirestoreId ?? _sportLabelToFirestoreId(sport);
     final levelFs = AthleteFirestoreCodes.levelLabelToFirestore(level);
     final birthIso =
         AthleteFirestoreCodes.birthDateBrToIso(birthDate) ?? birthDate;
@@ -426,22 +441,26 @@ class AthleteProfile {
     // explicitamente (mesmo sheet/step desta task) — senão esse default
     // silencioso volta a valer pela porta dos fundos.
     for (final sportId in enrolledIds) {
-      if (!levelsBySport.containsKey(sportId) || levelsBySport[sportId]!.isEmpty) {
-        levelsBySport[sportId] =
-            sportId == primaryFs && levelFs.isNotEmpty ? levelFs : 'iniciante_1';
+      if (!levelsBySport.containsKey(sportId) ||
+          levelsBySport[sportId]!.isEmpty) {
+        levelsBySport[sportId] = sportId == primaryFs && levelFs.isNotEmpty
+            ? levelFs
+            : 'iniciante_1';
       }
     }
     if (primaryFs != null &&
         primaryFs.isNotEmpty &&
         levelFs.isNotEmpty &&
-        (levelsBySport[primaryFs] == null || levelsBySport[primaryFs]!.isEmpty)) {
+        (levelsBySport[primaryFs] == null ||
+            levelsBySport[primaryFs]!.isEmpty)) {
       levelsBySport[primaryFs] = levelFs;
     }
 
     final sportOnboarding = <String, dynamic>{
       'version': AthleteFirestoreCodes.sportOnboardingVersion,
       if (onboardingCompleted) 'completedAt': FieldValue.serverTimestamp(),
-      if (primaryFs != null && primaryFs.isNotEmpty) 'primarySportId': primaryFs,
+      if (primaryFs != null && primaryFs.isNotEmpty)
+        'primarySportId': primaryFs,
       'secondarySportIds': secondarySportFirestoreIds,
       'levelsBySport': levelsBySport,
       'goals': goals,
@@ -560,9 +579,8 @@ class AthleteProfile {
       id: id,
       name: name ?? this.name,
       avatarUrl: clearAvatar ? null : (avatarUrl ?? this.avatarUrl),
-      coverPhotoUrl: clearCoverPhoto
-          ? null
-          : (coverPhotoUrl ?? this.coverPhotoUrl),
+      coverPhotoUrl:
+          clearCoverPhoto ? null : (coverPhotoUrl ?? this.coverPhotoUrl),
       sport: sport ?? this.sport,
       level: level ?? this.level,
       city: city ?? this.city,
@@ -592,8 +610,7 @@ class AthleteProfile {
       notificationPreferences:
           notificationPreferences ?? this.notificationPreferences,
       privacyPreferences: privacyPreferences ?? this.privacyPreferences,
-      publicProfileEnabled:
-          publicProfileEnabled ?? this.publicProfileEnabled,
+      publicProfileEnabled: publicProfileEnabled ?? this.publicProfileEnabled,
       category: identical(category, _copyWithUnset)
           ? this.category
           : category as String?,

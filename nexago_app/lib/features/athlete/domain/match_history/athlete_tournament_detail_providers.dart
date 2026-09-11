@@ -34,8 +34,7 @@ final athleteTournamentDetailProvider = FutureProvider.autoDispose
   final tournamentMatches = rawMatches
       .where(
         (m) =>
-            m.tournamentId == id &&
-            TournamentMatchStatus.isCompleted(m.status),
+            m.tournamentId == id && TournamentMatchStatus.isCompleted(m.status),
       )
       .toList();
 

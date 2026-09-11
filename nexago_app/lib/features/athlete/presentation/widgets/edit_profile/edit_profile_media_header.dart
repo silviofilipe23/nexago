@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import '../../../../../core/media/profile_image_crop_config.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -40,7 +41,6 @@ class EditProfileMediaHeader extends StatelessWidget {
   /// Idem para a capa.
   final bool coverSaving;
 
-  static const _coverHeight = 148.0;
   static const _avatarSize = 88.0;
 
   @override
@@ -50,13 +50,19 @@ class EditProfileMediaHeader extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          _CoverArea(
-            height: _coverHeight,
-            coverRemovedPending: coverRemovedPending,
-            existingUrl: existingCoverUrl,
-            pickedBytes: pickedCoverBytes,
-            onEditCover: onEditCover,
-            saving: coverSaving,
+          // A altura sai da MESMA proporção do recorte: o preview aqui tem de
+          // mostrar o mesmo enquadramento que o perfil público vai exibir.
+          // Fixo em 148 ele ficava panorâmico (2.39) e mentia sobre o corte.
+          LayoutBuilder(
+            builder: (context, constraints) => _CoverArea(
+              height: constraints.maxWidth /
+                  ProfileImageCropTargetX.coverAspectRatio,
+              coverRemovedPending: coverRemovedPending,
+              existingUrl: existingCoverUrl,
+              pickedBytes: pickedCoverBytes,
+              onEditCover: onEditCover,
+              saving: coverSaving,
+            ),
           ),
           Positioned(
             left: 16,

@@ -43,8 +43,7 @@ class AthletePrivacyPreferencesUiState {
 }
 
 final athletePrivacyPreferencesProvider = AutoDisposeNotifierProvider<
-    AthletePrivacyPreferencesNotifier,
-    AthletePrivacyPreferencesUiState>(
+    AthletePrivacyPreferencesNotifier, AthletePrivacyPreferencesUiState>(
   AthletePrivacyPreferencesNotifier.new,
 );
 

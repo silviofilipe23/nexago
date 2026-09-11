@@ -33,7 +33,8 @@ bool matchesDiscoverSearch(AthleteDiscoverEntry entry, String query) {
   return parts.any((p) => p.toLowerCase().contains(q));
 }
 
-bool _matchesGender(AthleteProfile profile, AthleteDiscoverGenderFilter filter) {
+bool _matchesGender(
+    AthleteProfile profile, AthleteDiscoverGenderFilter filter) {
   if (filter == AthleteDiscoverGenderFilter.all) return true;
   final g = profile.gender?.trim().toLowerCase() ?? '';
   if (filter == AthleteDiscoverGenderFilter.male) {
@@ -222,9 +223,7 @@ int countOnlineAthletes(
   DateTime? now,
 }) {
   final reference = now ?? DateTime.now();
-  return entries
-      .where((e) => isAthleteOnline(e.profile, reference))
-      .length;
+  return entries.where((e) => isAthleteOnline(e.profile, reference)).length;
 }
 
 List<String> discoverSportFilterOptions() {

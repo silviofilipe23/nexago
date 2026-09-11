@@ -276,8 +276,7 @@ Future<AthleteMatchDetail?> _resolveAthleteMatchDetail({
   final displayNameOverrides = <String, String>{};
   if (athleteProfile != null && athleteProfile.id == uid) {
     final athleteName = athleteDisplayName(athleteProfile, fallback: '');
-    final resolvedName =
-        athleteName.isNotEmpty ? athleteName : null;
+    final resolvedName = athleteName.isNotEmpty ? athleteName : null;
     if (resolvedName != null) {
       displayNameOverrides[uid] = resolvedName;
     }
@@ -304,7 +303,8 @@ Future<AthleteMatchDetail?> _resolveAthleteMatchDetail({
   if (mapped.isParticipantView) {
     final ourTeamId = mapped.ourTeam.teamId?.trim() ?? '';
     final opponentTeamId = mapped.opponentTeam.teamId?.trim() ?? '';
-    if (ourTeamId.isNotEmpty && opponentTeamId.isNotEmpty &&
+    if (ourTeamId.isNotEmpty &&
+        opponentTeamId.isNotEmpty &&
         _needsTeamHistoryEnrichment(mapped.phase)) {
       final history = await fetchMatchDetailTeamHistory(
         matchRepo: matchRepo,
@@ -394,7 +394,8 @@ Future<String?> _categoryLabelForMatch({
         final name = offer.name.trim();
         if (name.isEmpty) return null;
         final stage = stageLabel.trim();
-        if (stage.isNotEmpty && !name.toLowerCase().contains(stage.toLowerCase())) {
+        if (stage.isNotEmpty &&
+            !name.toLowerCase().contains(stage.toLowerCase())) {
           return '$name · $stage';
         }
         return name;

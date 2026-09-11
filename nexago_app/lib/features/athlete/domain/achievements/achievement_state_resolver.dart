@@ -144,9 +144,8 @@ abstract final class AchievementStateResolver {
   ) {
     final map = <String, DateTime>{};
     for (final data in docs) {
-      final rawId = (data['badgeId'] as String?) ??
-          (data['id'] as String?) ??
-          '';
+      final rawId =
+          (data['badgeId'] as String?) ?? (data['id'] as String?) ?? '';
       final id = AchievementCatalog.normalizeId(rawId);
       if (id.isEmpty) continue;
       final ts = data['unlockedAt'];

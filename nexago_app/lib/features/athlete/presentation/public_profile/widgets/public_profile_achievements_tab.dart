@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_radii.dart';
 import '../../../../../core/theme/app_spacing.dart';
@@ -154,73 +156,92 @@ class _PodiumTile extends StatelessWidget {
 
   final AthletePodium podium;
 
+  void _openTournament(BuildContext context) {
+    final id = podium.tournamentId.trim();
+    if (id.isEmpty) return;
+    // Detalhe público do torneio — não o histórico do atleta logado.
+    // athleteTournamentDetail só resolve torneios da campanha do viewer.
+    context.pushNamed(
+      AppRouteNames.tournamentDetail,
+      pathParameters: {'tournamentId': id},
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final metal = _PodiumMetal.of(podium.place);
     final art = SportArtCatalog.assetFor(podium.sportCode);
 
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: colors.surfaceCard,
+    return Material(
+      color: colors.surfaceCard,
+      borderRadius: AppRadii.mdAll,
+      child: InkWell(
+        onTap: () => _openTournament(context),
         borderRadius: AppRadii.mdAll,
-        border:
-            Border.all(color: colors.onSurfaceMuted.withValues(alpha: 0.12)),
-      ),
-      child: Row(
-        children: [
-          _MedalhaCircular(place: podium.place, metal: metal),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  podium.tournamentName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.soraRegular(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: colors.onSurface,
-                  ),
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            borderRadius: AppRadii.mdAll,
+            border: Border.all(
+              color: colors.onSurfaceMuted.withValues(alpha: 0.12),
+            ),
+          ),
+          child: Row(
+            children: [
+              _MedalhaCircular(place: podium.place, metal: metal),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      podium.tournamentName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.soraRegular(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: colors.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      '${metal.label} · ${podium.year}',
+                      style: AppTypography.soraRegular(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: colors.onSurfaceMuted,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  '${metal.label} · ${podium.year}',
-                  style: AppTypography.soraRegular(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: colors.onSurfaceMuted,
+              ),
+              // A arte do esporte marca a modalidade sem precisar de rótulo. Some
+              // quando o esporte não tem arte, em vez de virar caixa vazia.
+              if (art != null) ...[
+                const SizedBox(width: AppSpacing.sm),
+                ClipRRect(
+                  borderRadius: AppRadii.smAll,
+                  child: Image.asset(
+                    art,
+                    width: 52,
+                    height: 40,
+                    fit: BoxFit.cover,
+                    // Ancorado à DIREITA: o miolo destas artes é preto de
+                    // propósito (é onde o texto do card de esporte se apoia), e
+                    // um recorte central viraria um retângulo escuro invisível.
+                    // O atleta mora no terço direito.
+                    alignment: Alignment.centerRight,
+                    excludeFromSemantics: true,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                   ),
                 ),
               ],
-            ),
+            ],
           ),
-          // A arte do esporte marca a modalidade sem precisar de rótulo. Some
-          // quando o esporte não tem arte, em vez de virar caixa vazia.
-          if (art != null) ...[
-            const SizedBox(width: AppSpacing.sm),
-            ClipRRect(
-              borderRadius: AppRadii.smAll,
-              child: Image.asset(
-                art,
-                width: 52,
-                height: 40,
-                fit: BoxFit.cover,
-                // Ancorado à DIREITA: o miolo destas artes é preto de
-                // propósito (é onde o texto do card de esporte se apoia), e
-                // um recorte central viraria um retângulo escuro invisível.
-                // O atleta mora no terço direito.
-                alignment: Alignment.centerRight,
-                excludeFromSemantics: true,
-                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }

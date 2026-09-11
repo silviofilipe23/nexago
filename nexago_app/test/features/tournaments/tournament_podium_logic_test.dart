@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nexago_app/features/organizer/domain/category_ops/podium_logic.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_podium_logic.dart';
 
 PodiumMatch m({
   required String type,

@@ -25,6 +25,7 @@ import '../domain/tournament_listing_status.dart';
 import '../domain/tournament_detail_tabs_logic.dart';
 import '../domain/tournament_match.dart';
 import '../domain/tournament_matches_logic.dart';
+import '../domain/tournament_podium_logic.dart';
 import 'widgets/tournament_detail/tournament_detail_bottom_bar.dart';
 import 'widgets/tournament_detail/tournament_detail_explore_section.dart';
 import 'widgets/tournament_detail/tournament_detail_hero.dart';
@@ -275,6 +276,16 @@ class _TournamentDetailContentState
 
     final isRegistered = isAthleteRegistered || athleteTeamIds.isNotEmpty;
     final live = liveTournamentMatches(matches);
+    // O pódio é derivado das partidas que a tela já transmite — nenhuma
+    // leitura nova no Firestore.
+    final showPodio = tournamentPodiumAvailable(
+      status: widget.tournament.status,
+      podiums: tournamentPodiumsByCategory(
+        categories: widget.tournament.categoryOffers,
+        matches: matches,
+      ),
+      isCancelled: isCancelledListing(widget.tournament.listingStatusRaw),
+    );
     final isToday = tournamentIsEventToday(widget.tournament, now);
     final hasMyMatchToday =
         myTournamentDayTimeline(
@@ -358,6 +369,11 @@ class _TournamentDetailContentState
                   liveNow: live.isNotEmpty,
                   showMinhaInscricao: isRegistered,
                   palpitesEnabled: tournamentHasDefinedMatchups(matches),
+                  showPodio: showPodio,
+                  onOpenPodio: () => context.pushNamed(
+                    AppRouteNames.tournamentPodium,
+                    pathParameters: {'tournamentId': widget.tournament.id},
+                  ),
                   onOpenHoje: () => context.pushNamed(
                     AppRouteNames.tournamentFocus,
                     pathParameters: {'tournamentId': widget.tournament.id},

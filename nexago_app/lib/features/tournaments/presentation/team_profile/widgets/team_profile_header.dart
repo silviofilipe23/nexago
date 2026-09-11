@@ -66,10 +66,7 @@ class TeamProfileHeader extends StatelessWidget {
               Positioned(
                 top: MediaQuery.paddingOf(context).top + 56,
                 right: 20,
-                child: _RankingBadge(
-                  rank: profile.ranking.rank!,
-                  isLargeRoster: profile.isLargeRoster,
-                ),
+                child: _RankingBadge(rank: profile.ranking.rank!),
               ),
             Positioned(
               left: 0,
@@ -196,10 +193,9 @@ class _TeamCoverBackground extends StatelessWidget {
 }
 
 class _RankingBadge extends StatelessWidget {
-  const _RankingBadge({required this.rank, required this.isLargeRoster});
+  const _RankingBadge({required this.rank});
 
   final int rank;
-  final bool isLargeRoster;
 
   @override
   Widget build(BuildContext context) {
@@ -214,7 +210,7 @@ class _RankingBadge extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Text(
-            isLargeRoster ? 'RANKING EQUIPES BR' : 'RANKING DUPLAS BR',
+            'RANKING EQUIPES BR',
             style: AppTypography.mono(
               fontSize: 8,
               fontWeight: FontWeight.w700,

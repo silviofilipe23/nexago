@@ -5,7 +5,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../tournaments/domain/tournament_discovery_models.dart';
 import '../../../../tournaments/domain/tournament_match.dart';
-import '../../../domain/category_ops/podium_logic.dart';
+import '../../../../tournaments/domain/tournament_podium_logic.dart';
 
 /// Pódio da categoria (campeão · vice · 3º) derivado do resultado das finais,
 /// com o prêmio configurado ao lado quando houver. Renderiza nada enquanto a

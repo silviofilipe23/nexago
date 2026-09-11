@@ -34,7 +34,9 @@ bool matchesDiscoverSearch(AthleteDiscoverEntry entry, String query) {
 }
 
 bool _matchesGender(
-    AthleteProfile profile, AthleteDiscoverGenderFilter filter) {
+  AthleteProfile profile,
+  AthleteDiscoverGenderFilter filter,
+) {
   if (filter == AthleteDiscoverGenderFilter.all) return true;
   final g = profile.gender?.trim().toLowerCase() ?? '';
   if (filter == AthleteDiscoverGenderFilter.male) {
@@ -53,7 +55,8 @@ bool _matchesSport(AthleteProfile profile, String? sportFirestoreId) {
 bool _profileHasDefinedLevel(AthleteProfile profile) {
   final sportId = profile.primarySportFirestoreId;
   if (sportId != null && sportId.isNotEmpty) {
-    final code = profile.levelsBySportFirestore[sportId] ??
+    final code =
+        profile.levelsBySportFirestore[sportId] ??
         profile.levelsBySportFirestore[sportId.toUpperCase()];
     if (code != null && code.trim().isNotEmpty) return true;
   }
@@ -156,20 +159,6 @@ List<AthleteDiscoverEntry> applyDiscoverFilters({
   }).toList();
 }
 
-int _proximityScore(AthleteProfile profile, AthleteProfile? viewer) {
-  if (viewer == null) return 0;
-  var score = 0;
-  final viewerCity = viewer.city.trim().toLowerCase();
-  final city = profile.city.trim().toLowerCase();
-  if (viewerCity.isNotEmpty && city == viewerCity) score += 2;
-  final viewerState = viewer.state?.trim().toLowerCase() ?? '';
-  final state = profile.state?.trim().toLowerCase() ?? '';
-  if (viewerState.isNotEmpty && state.isNotEmpty && viewerState == state) {
-    score += 1;
-  }
-  return score;
-}
-
 List<AthleteDiscoverEntry> sortDiscoverEntries({
   required List<AthleteDiscoverEntry> entries,
   required AthleteDiscoverSort sort,
@@ -180,17 +169,18 @@ List<AthleteDiscoverEntry> sortDiscoverEntries({
   switch (sort) {
     case AthleteDiscoverSort.compatibility:
       sorted.sort((a, b) {
-        final cmp = computeDiscoverCompatibilityScore(
-          viewer: viewerProfile,
-          target: b.profile,
-          sportFirestoreId: sportFirestoreId,
-        ).compareTo(
-          computeDiscoverCompatibilityScore(
-            viewer: viewerProfile,
-            target: a.profile,
-            sportFirestoreId: sportFirestoreId,
-          ),
-        );
+        final cmp =
+            computeDiscoverCompatibilityScore(
+              viewer: viewerProfile,
+              target: b.profile,
+              sportFirestoreId: sportFirestoreId,
+            ).compareTo(
+              computeDiscoverCompatibilityScore(
+                viewer: viewerProfile,
+                target: a.profile,
+                sportFirestoreId: sportFirestoreId,
+              ),
+            );
         if (cmp != 0) return cmp;
         return a.displayName.compareTo(b.displayName);
       });
@@ -200,13 +190,6 @@ List<AthleteDiscoverEntry> sortDiscoverEntries({
         final br = b.rankPosition ?? 999999;
         if (ar != br) return ar.compareTo(br);
         return b.rankPoints.compareTo(a.rankPoints);
-      });
-    case AthleteDiscoverSort.proximity:
-      sorted.sort((a, b) {
-        final cmp = _proximityScore(b.profile, viewerProfile)
-            .compareTo(_proximityScore(a.profile, viewerProfile));
-        if (cmp != 0) return cmp;
-        return a.displayName.compareTo(b.displayName);
       });
     case AthleteDiscoverSort.level:
       sorted.sort((a, b) {
@@ -218,10 +201,7 @@ List<AthleteDiscoverEntry> sortDiscoverEntries({
   return sorted;
 }
 
-int countOnlineAthletes(
-  List<AthleteDiscoverEntry> entries, {
-  DateTime? now,
-}) {
+int countOnlineAthletes(List<AthleteDiscoverEntry> entries, {DateTime? now}) {
   final reference = now ?? DateTime.now();
   return entries.where((e) => isAthleteOnline(e.profile, reference)).length;
 }
@@ -316,10 +296,12 @@ int computeDiscoverCompatibilityScore({
   String? sportFirestoreId,
 }) {
   if (viewer == null) return 0;
-  final sport = (sportFirestoreId?.trim().isNotEmpty == true
-          ? sportFirestoreId
-          : viewer.primarySportFirestoreId ?? target.primarySportFirestoreId)
-      ?.trim();
+  final sport =
+      (sportFirestoreId?.trim().isNotEmpty == true
+              ? sportFirestoreId
+              : viewer.primarySportFirestoreId ??
+                    target.primarySportFirestoreId)
+          ?.trim();
   if (sport == null || sport.isEmpty) {
     return _compatibilityLocationPoints(viewer, target) + 34;
   }
@@ -343,41 +325,27 @@ String discoverLevelDisplayLabel(
   final sportId = sportFirestoreId ?? profile.primarySportFirestoreId;
   String? code;
   if (sportId != null && sportId.isNotEmpty) {
-    code = profile.levelsBySportFirestore[sportId] ??
+    code =
+        profile.levelsBySportFirestore[sportId] ??
         profile.levelsBySportFirestore[sportId.toUpperCase()];
   }
   final rank = AthleteProfileOptions.levelRank(code ?? profile.level);
   if (rank == null) {
     final label = resolveAthleteLevelLabel(profile, sportFirestoreId: sportId);
-    return label.isNotEmpty ? 'Nível $label' : '';
+    return label.isNotEmpty ? '$label' : '';
   }
-  return 'Nível ${AthleteProfileOptions.labelForRank(rank)}';
+  return '${AthleteProfileOptions.labelForRank(rank)}';
 }
 
 String discoverStatsLine({
   required AthleteDiscoverEntry entry,
-  AthleteProfile? viewer,
-  String? sportFirestoreId,
 }) {
-  final parts = <String>[];
-  final level = discoverLevelDisplayLabel(
-    entry.profile,
-    sportFirestoreId: sportFirestoreId,
-  );
-  if (level.isNotEmpty) parts.add(level);
-
-  final proximity = entry.proximityLabel(viewer);
-  if (proximity != null) parts.add(proximity);
-
-  if (entry.locationLabel.isNotEmpty) parts.add(entry.locationLabel);
-  return parts.join(' · ');
+  return entry.locationLabel;
 }
 
 String? discoverContextTag({
   required AthleteDiscoverEntry entry,
-  AthleteProfile? viewer,
 }) {
-  if (entry.proximityLabel(viewer) == 'Mesma cidade') return 'Perto de você';
   final mutual = entry.mutualFollowersCount;
   if (mutual != null && mutual > 0) {
     return '$mutual amigo${mutual == 1 ? '' : 's'} em comum';

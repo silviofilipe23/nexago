@@ -17,18 +17,21 @@ class TournamentDetailExploreSection extends StatelessWidget {
     required this.stats,
     required this.onOpenCategorias,
     required this.onOpenPalpites,
+    required this.onOpenPodio,
     required this.onOpenHoje,
     required this.onOpenMinhaInscricao,
     this.showHoje = false,
     this.liveNow = false,
     this.showMinhaInscricao = false,
     this.palpitesEnabled = false,
+    this.showPodio = false,
   });
 
   final TournamentDetail tournament;
   final TournamentDetailStats stats;
   final VoidCallback onOpenCategorias;
   final VoidCallback onOpenPalpites;
+  final VoidCallback onOpenPodio;
   final VoidCallback onOpenHoje;
   final VoidCallback onOpenMinhaInscricao;
 
@@ -41,6 +44,11 @@ class TournamentDetailExploreSection extends StatelessWidget {
 
   /// Palpites só abrem quando existe confronto definido.
   final bool palpitesEnabled;
+
+  /// "Pódio" só depois que o torneio acaba (ou que uma final é decidida) —
+  /// some por completo antes disso, em vez de aparecer desabilitado: um card
+  /// cinza escrito "Pódio" durante o evento já anuncia que existe resultado.
+  final bool showPodio;
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +75,13 @@ class TournamentDetailExploreSection extends StatelessWidget {
                   ? 'Tem jogo em quadra agora — entrar no Modo Focus'
                   : 'Entrar no Modo Focus',
               onTap: onOpenHoje,
+            ),
+          if (showPodio)
+            ExploreCard(
+              icon: Icons.workspace_premium_rounded,
+              title: 'Pódio',
+              subtitle: 'Campeões, vices e terceiros de cada categoria',
+              onTap: onOpenPodio,
             ),
           ExploreCard(
             icon: Icons.grid_view_rounded,

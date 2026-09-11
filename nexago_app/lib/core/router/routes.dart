@@ -419,6 +419,9 @@ abstract final class AppRoutes {
   /// Premiação do torneio: `/torneios/:tournamentId/premiacao`
   static const String tournamentPrizes = '/torneios/:tournamentId/premiacao';
 
+  /// Pódio do torneio: `/torneios/:tournamentId/podio`
+  static const String tournamentPodium = '/torneios/:tournamentId/podio';
+
   /// Palpites da torcida no chaveamento: `/torneios/:tournamentId/palpites`
   static const String tournamentPredictions =
       '/torneios/:tournamentId/palpites';
@@ -703,6 +706,7 @@ abstract final class AppRouteNames {
   static const String tournamentBracket = 'tournamentBracket';
   static const String tournamentGroups = 'tournamentGroups';
   static const String tournamentPrizes = 'tournamentPrizes';
+  static const String tournamentPodium = 'tournamentPodium';
   static const String tournamentPredictions = 'tournamentPredictions';
   static const String tournamentDoubleEliminationBracket =
       'tournamentDoubleEliminationBracket';

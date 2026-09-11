@@ -37,13 +37,9 @@ class _TeamPublicProfilePageState extends ConsumerState<TeamPublicProfilePage> {
     ]);
   }
 
-  void _onChallenge({required bool isLargeRoster}) {
+  void _onChallenge() {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Desafiar ${isLargeRoster ? 'equipe' : 'dupla'} — em breve.',
-        ),
-      ),
+      const SnackBar(content: Text('Desafiar equipe — em breve.')),
     );
   }
 
@@ -63,7 +59,7 @@ class _TeamPublicProfilePageState extends ConsumerState<TeamPublicProfilePage> {
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Text(
-              'Não foi possível carregar a dupla.\n$e',
+              'Não foi possível carregar a equipe.\n$e',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppColors.live),
             ),
@@ -73,7 +69,7 @@ class _TeamPublicProfilePageState extends ConsumerState<TeamPublicProfilePage> {
           if (profile == null) {
             return Center(
               child: Text(
-                'Dupla não encontrada.',
+                'Equipe não encontrada.',
                 style: TextStyle(color: context.themeColors.onSurfaceMuted),
               ),
             );
@@ -127,8 +123,7 @@ class _TeamPublicProfilePageState extends ConsumerState<TeamPublicProfilePage> {
                     onFollowStateChanged: () {
                       ref.invalidate(teamIsFollowedProvider(widget.teamId));
                     },
-                    onChallenge: () =>
-                        _onChallenge(isLargeRoster: profile.isLargeRoster),
+                    onChallenge: _onChallenge,
                   ),
                 ),
                 SliverToBoxAdapter(child: TeamProfileStatsRow(stats: stats)),

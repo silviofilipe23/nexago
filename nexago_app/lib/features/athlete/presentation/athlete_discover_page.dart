@@ -4,17 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/layout/nexa_floating_header.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../domain/athlete_discover_logic.dart';
 import '../domain/athlete_discover_providers.dart';
-import '../domain/athlete_profile.dart';
-import '../domain/athlete_profile_providers.dart';
 import 'widgets/discover/athlete_discover_card.dart';
 import 'widgets/discover/athlete_discover_filters_sheet.dart';
-import 'widgets/discover/athlete_discover_sport_chips.dart';
 
 const _discoverHorizontalPadding = 20.0;
 
@@ -90,101 +86,104 @@ class _AthleteDiscoverPageState extends ConsumerState<AthleteDiscoverPage> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(athleteDiscoverProvider);
-    final viewer = ref.watch(athleteProfileProvider).valueOrNull;
+    final topInset = MediaQuery.paddingOf(context).top;
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        child: ColoredBox(
-          color: context.themeColors.canvas,
-          child: RefreshIndicator(
-            color: AppColors.brand,
-            onRefresh: _refresh,
-            child: CustomScrollView(
-              controller: _scrollController,
-              physics: const AlwaysScrollableScrollPhysics(
-                parent: BouncingScrollPhysics(),
-              ),
-              slivers: [
-                NexaFloatingHeaderSliver(
-                  padding: const EdgeInsets.fromLTRB(
-                    _discoverHorizontalPadding,
-                    0,
-                    _discoverHorizontalPadding,
-                    12,
-                  ),
-                  topGap: 4,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _DiscoverAppBar(
-                        filtersActive: state.filters.hasActiveFilters,
-                        onBack: () => context.pop(),
-                        onFilters: _openFilters,
+      body: ColoredBox(
+        color: context.themeColors.canvas,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ColoredBox(
+              color: context.themeColors.canvas,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  _discoverHorizontalPadding,
+                  topInset + 4,
+                  _discoverHorizontalPadding,
+                  12,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _DiscoverAppBar(
+                      filtersActive: state.filters.hasActiveFilters,
+                      onBack: () => context.pop(),
+                      onFilters: _openFilters,
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _searchController,
+                      style: AppTypography.soraRegular(
+                        fontSize: 13,
+                        color: context.themeColors.onSurface,
                       ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _searchController,
-                        style: AppTypography.soraRegular(
-                          fontSize: 14,
-                          color: context.themeColors.onSurface,
+                      decoration: InputDecoration(
+                        isDense: true,
+                        hintText: 'Nome ou @apelido',
+                        hintStyle: AppTypography.soraRegular(
+                          fontSize: 13,
+                          color: context.themeColors.onSurfaceMuted,
                         ),
-                        decoration: InputDecoration(
-                          hintText: 'Nome ou @apelido',
-                          hintStyle: AppTypography.soraRegular(
-                            fontSize: 14,
-                            color: context.themeColors.onSurfaceMuted,
-                          ),
-                          prefixIcon: Icon(
-                            Icons.search_rounded,
-                            color: context.themeColors.onSurfaceMuted,
-                          ),
-                          suffixIcon: _searchController.text.isEmpty
-                              ? null
-                              : IconButton(
-                                  icon: Icon(
-                                    Icons.close_rounded,
-                                    color: context.themeColors.onSurfaceMuted,
-                                  ),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    ref
-                                        .read(athleteDiscoverProvider.notifier)
-                                        .search('');
-                                  },
+                        prefixIcon: Icon(
+                          Icons.search_rounded,
+                          size: 20,
+                          color: context.themeColors.onSurfaceMuted,
+                        ),
+                        prefixIconConstraints: const BoxConstraints(
+                          minWidth: 40,
+                          minHeight: 36,
+                        ),
+                        suffixIcon: _searchController.text.isEmpty
+                            ? null
+                            : IconButton(
+                                icon: Icon(
+                                  Icons.close_rounded,
+                                  size: 18,
+                                  color: context.themeColors.onSurfaceMuted,
                                 ),
-                          filled: true,
-                          fillColor: context.themeColors.surfaceRaised,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 12,
-                          ),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  ref
+                                      .read(athleteDiscoverProvider.notifier)
+                                      .search('');
+                                },
+                              ),
+                        suffixIconConstraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
+                        ),
+                        filled: true,
+                        fillColor: context.themeColors.surfaceRaised,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      AthleteDiscoverSportChips(
-                        selectedSportId: state.filters.sportFirestoreId,
-                        horizontalPadding: 0,
-                        onSelected: (sportId) => ref
-                            .read(athleteDiscoverProvider.notifier)
-                            .setSportFilter(sportId),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                ..._buildBodySlivers(
-                  state: state,
-                  viewer: viewer,
-                  sportFirestoreId: state.filters.sportFirestoreId,
-                ),
-              ],
+              ),
             ),
-          ),
+            Expanded(
+              child: RefreshIndicator(
+                color: AppColors.brand,
+                onRefresh: _refresh,
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
+                  slivers: _buildBodySlivers(state: state),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -275,8 +274,6 @@ class _DiscoverAppBar extends StatelessWidget {
 
 List<Widget> _buildBodySlivers({
   required AthleteDiscoverState state,
-  required AthleteProfile? viewer,
-  required String? sportFirestoreId,
 }) {
   if (state.isLoading && state.displayEntries.isEmpty) {
     return [
@@ -342,7 +339,7 @@ List<Widget> _buildBodySlivers({
       ),
       sliver: SliverList.separated(
         itemCount: state.displayEntries.length + 1,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        separatorBuilder: (_, __) => const SizedBox(height: 2),
         itemBuilder: (context, index) {
           if (index == state.displayEntries.length) {
             if (state.isLoadingMore) {
@@ -360,11 +357,7 @@ List<Widget> _buildBodySlivers({
           }
 
           final entry = state.displayEntries[index];
-          return AthleteDiscoverCard(
-            entry: entry,
-            viewer: viewer,
-            sportFirestoreId: sportFirestoreId,
-          );
+          return AthleteDiscoverCard(entry: entry);
         },
       ),
     ),

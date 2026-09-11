@@ -86,7 +86,6 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
     final cityLabel = viewer?.city.trim().isNotEmpty == true
         ? viewer!.city.trim()
         : 'sua região';
-    final now = DateTime.now();
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -189,26 +188,6 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
                     ],
                   ),
                 ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(
-                    _discoverHorizontalPadding,
-                    0,
-                    _discoverHorizontalPadding,
-                    12,
-                  ),
-                  sliver: SliverToBoxAdapter(
-                    child: _MetaRow(
-                      total: state.totalCount,
-                      online: state.supportsOnlineFilter
-                          ? state.onlineCount(now)
-                          : null,
-                      sort: state.sort,
-                      onSortChanged: (s) => ref
-                          .read(teamDiscoverProvider.notifier)
-                          .setSort(s),
-                    ),
-                  ),
-                ),
                 ..._buildBodySlivers(state: state),
               ],
             ),
@@ -299,77 +278,6 @@ class _DiscoverAppBar extends StatelessWidget {
                 ),
               ),
           ],
-        ),
-      ],
-    );
-  }
-}
-
-class _MetaRow extends StatelessWidget {
-  const _MetaRow({
-    required this.total,
-    required this.online,
-    required this.sort,
-    required this.onSortChanged,
-  });
-
-  final int total;
-  final int? online;
-  final TeamDiscoverSort sort;
-  final ValueChanged<TeamDiscoverSort> onSortChanged;
-
-  static const _sortLabels = {
-    TeamDiscoverSort.ranking: 'Ranking',
-    TeamDiscoverSort.proximity: 'Proximidade',
-    TeamDiscoverSort.trending: 'Em alta',
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final onlinePart = online != null ? ' · $online online' : '';
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            '$total DUPLAS$onlinePart',
-            style: AppTypography.mono(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: context.themeColors.onSurfaceMuted,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ),
-        PopupMenuButton<TeamDiscoverSort>(
-          initialValue: sort,
-          onSelected: onSortChanged,
-          color: context.themeColors.surfaceCard,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Ordenar',
-                style: AppTypography.soraRegular(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.brand,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                _sortLabels[sort]!,
-                style: AppTypography.mono(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: context.themeColors.onSurfaceMuted,
-                ),
-              ),
-              const Icon(Icons.expand_more_rounded, size: 18, color: AppColors.brand),
-            ],
-          ),
-          itemBuilder: (context) => TeamDiscoverSort.values
-              .map((s) => PopupMenuItem(value: s, child: Text(_sortLabels[s]!)))
-              .toList(),
         ),
       ],
     );

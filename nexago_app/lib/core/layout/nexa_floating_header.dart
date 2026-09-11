@@ -8,6 +8,11 @@ import '../theme/app_theme_colors.dart';
 /// Use como primeiro sliver de um [CustomScrollView]. O fundo é opaco para que,
 /// ao reaparecer sobre o conteúdo já rolado, não haja vazamento visual; o padding
 /// superior já inclui a safe area do dispositivo.
+///
+/// Usa [FloatingHeaderSnapMode.scroll] (não `overlay`): no modo overlay o header
+/// pinta por cima da lista sem layoutExtent, então os toques caem no conteúdo
+/// abaixo — a lista "começa a rolar" e o header some de novo antes de qualquer
+/// ação (voltar/filtros) ser clicável.
 class NexaFloatingHeaderSliver extends StatelessWidget {
   const NexaFloatingHeaderSliver({
     super.key,
@@ -15,7 +20,7 @@ class NexaFloatingHeaderSliver extends StatelessWidget {
     this.padding = EdgeInsets.zero,
     this.topGap = 16,
     this.backgroundColor,
-    this.snapMode = FloatingHeaderSnapMode.overlay,
+    this.snapMode = FloatingHeaderSnapMode.scroll,
   });
 
   /// Conteúdo do header (título, ícones, etc.).

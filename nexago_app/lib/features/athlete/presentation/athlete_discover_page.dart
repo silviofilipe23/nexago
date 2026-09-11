@@ -76,10 +76,8 @@ class _AthleteDiscoverPageState extends ConsumerState<AthleteDiscoverPage> {
           .read(athleteDiscoverProvider.notifier)
           .previewForFilters(draft)
           .length,
-      cityOptionsFor: (uf) => discoverCityOptions(
-        ref.read(athleteDiscoverProvider).rawEntries,
-        uf,
-      ),
+      cityOptionsFor: (uf) =>
+          discoverCityOptions(ref.read(athleteDiscoverProvider).rawEntries, uf),
     );
     if (result != null && mounted) {
       ref.read(athleteDiscoverProvider.notifier).applyFilters(result);
@@ -163,8 +161,9 @@ class _AthleteDiscoverPageState extends ConsumerState<AthleteDiscoverPage> {
                             borderRadius: BorderRadius.circular(14),
                             borderSide: BorderSide.none,
                           ),
-                          contentPadding:
-                              const EdgeInsets.symmetric(vertical: 12),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -229,20 +228,20 @@ class _DiscoverAppBar extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Descobrir',
+                'Atletas',
                 style: AppTypography.soraRegular(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
                   color: context.themeColors.onSurface,
                 ),
               ),
-              Text(
-                'Ordenado por compatibilidade de jogo',
-                style: AppTypography.soraRegular(
-                  fontSize: 13,
-                  color: context.themeColors.onSurfaceMuted,
-                ),
-              ),
+              // Text(
+              //   'Encontrar o seu parceiro de jogo',
+              //   style: AppTypography.soraRegular(
+              //     fontSize: 13,
+              //     color: context.themeColors.onSurfaceMuted,
+              //   ),
+              // ),
             ],
           ),
         ),
@@ -283,9 +282,7 @@ List<Widget> _buildBodySlivers({
     return [
       const SliverFillRemaining(
         hasScrollBody: false,
-        child: Center(
-          child: CircularProgressIndicator(color: AppColors.brand),
-        ),
+        child: Center(child: CircularProgressIndicator(color: AppColors.brand)),
       ),
     ];
   }

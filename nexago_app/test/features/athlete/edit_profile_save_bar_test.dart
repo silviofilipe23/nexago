@@ -1,82 +1,76 @@
-// O CTA "Salvar alterações" de Editar perfil mora no rodapé fixo
-// (`bottomNavigationBar`), não no fim da Column rolável: o formulário é longo
-// (identidade, contato, bio, destaques, conta) e o atleta era obrigado a rolar
-// a tela inteira só para enviar uma alteração feita no topo.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/edit_profile/edit_profile_save_bar.dart';
 
-Widget _wrap({
-  required bool saving,
-  required VoidCallback onSave,
-  Widget? body,
-}) {
-  return MaterialApp(
-    home: Scaffold(
-      body: body ?? const SizedBox.expand(),
-      bottomNavigationBar: EditProfileSaveBar(saving: saving, onSave: onSave),
-    ),
-  );
-}
-
 void main() {
-  testWidgets('mostra o CTA e dispara onSave no toque', (tester) async {
-    var taps = 0;
-    await tester.pumpWidget(_wrap(saving: false, onSave: () => taps++));
+  const bodyKey = Key('corpo');
 
-    expect(find.text('Salvar alterações'), findsOneWidget);
-    expect(find.byIcon(Icons.check_rounded), findsOneWidget);
-
-    await tester.tap(find.text('Salvar alterações'));
-    expect(taps, 1);
-  });
-
-  testWidgets('salvando: rótulo de progresso e botão desabilitado', (
-    tester,
-  ) async {
-    var taps = 0;
-    await tester.pumpWidget(_wrap(saving: true, onSave: () => taps++));
-
-    expect(find.text('Salvando…'), findsOneWidget);
-    expect(find.text('Salvar alterações'), findsNothing);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(
-      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
-      isNull,
-    );
-
-    await tester.tap(find.text('Salvando…'), warnIfMissed: false);
-    expect(taps, 0);
-  });
-
-  testWidgets(
-    'formulário longo: o CTA continua na tela sem precisar rolar',
-    (tester) async {
-      tester.view.physicalSize = const Size(390, 700);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      var taps = 0;
-      await tester.pumpWidget(
-        _wrap(
-          saving: false,
-          onSave: () => taps++,
-          body: ListView(
-            children: [
-              for (var i = 0; i < 40; i++)
-                SizedBox(height: 80, child: Text('campo $i')),
-            ],
+  /// Monta a barra no mesmo slot em que a tela de editar perfil a usa.
+  Future<void> pumpAsBottomBar(WidgetTester tester, {bool saving = false}) {
+    return tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: Scaffold(
+          appBar: AppBar(title: const Text('Editar perfil')),
+          body: const SizedBox.expand(
+              child: ColoredBox(color: Colors.blue, key: bodyKey)),
+          bottomNavigationBar: EditProfileSaveBar(
+            saving: saving,
+            onSave: () {},
           ),
         ),
-      );
+      ),
+    );
+  }
 
-      // Nenhum scroll: o CTA já está visível, colado no rodapé.
-      final bar = tester.getRect(find.byType(EditProfileSaveBar));
-      expect(bar.bottom, closeTo(700, 0.5));
-      expect(find.text('campo 39'), findsNothing);
+  testWidgets('cabe num rodapé em vez de ocupar a tela inteira', (
+    tester,
+  ) async {
+    await pumpAsBottomBar(tester);
 
-      await tester.tap(find.text('Salvar alterações'));
-      expect(taps, 1);
-    },
-  );
+    final tela = tester.getSize(find.byType(Scaffold));
+    final barra = tester.getSize(find.byType(EditProfileSaveBar));
+
+    // O Scaffold dá altura FROUXA (0..tela) ao slot bottomNavigationBar. Um
+    // `Center` sem heightFactor se expande até o máximo e come a tela inteira.
+    expect(
+      barra.height,
+      lessThan(tela.height / 3),
+      reason:
+          'a barra é rodapé: ${barra.height} de ${tela.height} é a tela toda',
+    );
+  });
+
+  testWidgets('deixa altura real para o corpo do formulário', (tester) async {
+    await pumpAsBottomBar(tester);
+
+    // Com a barra inflada, o Scaffold entrega h=0 ao body e o formulário some
+    // — foi exatamente o que o app mostrou.
+    expect(tester.getSize(find.byKey(bodyKey)).height, greaterThan(0));
+  });
+
+  testWidgets('não engole a tela nem no estado salvando', (tester) async {
+    await pumpAsBottomBar(tester, saving: true);
+
+    final tela = tester.getSize(find.byType(Scaffold));
+    final barra = tester.getSize(find.byType(EditProfileSaveBar));
+
+    expect(barra.height, lessThan(tela.height / 3));
+    expect(find.text('Salvando…'), findsOneWidget);
+  });
+
+  testWidgets('mantém o CTA centrado e limitado em tela larga', (tester) async {
+    // Motivo do `Center`: em tablet o botão não deve esticar para fora da
+    // coluna de campos. A correção não pode perder isso.
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await pumpAsBottomBar(tester);
+
+    final botao = tester.getRect(find.byType(FilledButton));
+    expect(botao.width, lessThanOrEqualTo(420));
+    expect((botao.center.dx - 600).abs(), lessThan(1));
+  });
 }

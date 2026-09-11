@@ -116,6 +116,8 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/compete/
+    - assets/images/home/
     - assets/data/br_municipalities_by_uf.json
     - assets/sand_rank/
 

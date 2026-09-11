@@ -16,6 +16,9 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'widgets/compete_hub/compete_hub_menu_card.dart';
 import 'widgets/compete_hub/compete_hub_shell_app_bar.dart';
 
+/// Respiro entre os cards do grid 2x2, nos dois eixos.
+const double _gridGap = AppSpacing.md + 2;
+
 /// Aba Competir — menu de navegação no padrão do painel do portal web:
 /// quatro cards (Torneios e ligas, Ranking, Equipes, Atletas). O conteúdo
 /// em destaque (carrossel de competições, convites) mora na Home.
@@ -31,7 +34,8 @@ class TournamentDiscoveryPage extends ConsumerWidget {
       data: (allowed) => allowed && activeRole == AppMobileRole.arena,
       orElse: () => false,
     );
-    final bottomClearance = nexaBottomNavBarHeight(context) +
+    final bottomClearance =
+        nexaBottomNavBarHeight(context) +
         MediaQuery.viewPaddingOf(context).bottom +
         16;
 
@@ -84,37 +88,54 @@ class TournamentDiscoveryPage extends ConsumerWidget {
                     ),
                     const SizedBox(height: AppSpacing.lg),
                   ],
-                  CompeteHubMenuCard(
-                    icon: Icons.emoji_events_outlined,
-                    title: 'Torneios e ligas',
-                    description:
-                        'Descubra competições abertas e acompanhe suas inscrições',
-                    onTap: () => context.pushNamed(
-                      AppRouteNames.tournamentDiscoveryList,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: CompeteHubMenuCard(
+                          imageAsset: CompeteHubArt.tournaments,
+                          title: 'Torneios e ligas',
+                          description:
+                              'Descubra competições abertas e inscrições',
+                          onTap: () => context.pushNamed(
+                            AppRouteNames.tournamentDiscoveryList,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: _gridGap),
+                      Expanded(
+                        child: CompeteHubMenuCard(
+                          imageAsset: CompeteHubArt.ranking,
+                          title: 'Ranking',
+                          description: 'Sua posição e a pontuação da temporada',
+                          onTap: () =>
+                              context.pushNamed(AppRouteNames.athleteRanking),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: AppSpacing.md + 2),
-                  CompeteHubMenuCard(
-                    icon: Icons.leaderboard_outlined,
-                    title: 'Ranking',
-                    description: 'Sua posição e a pontuação da temporada',
-                    onTap: () =>
-                        context.pushNamed(AppRouteNames.athleteRanking),
-                  ),
-                  const SizedBox(height: AppSpacing.md + 2),
-                  CompeteHubMenuCard(
-                    icon: Icons.group_outlined,
-                    title: 'Equipes',
-                    description: 'Equipes da comunidade perto de você',
-                    onTap: () => context.pushNamed(AppRouteNames.teamDiscover),
-                  ),
-                  const SizedBox(height: AppSpacing.md + 2),
-                  CompeteHubMenuCard(
-                    icon: Icons.person_search_outlined,
-                    title: 'Atletas',
-                    description: 'Encontre jogadores da comunidade',
-                    onTap: () =>
-                        context.pushNamed(AppRouteNames.athleteDiscover),
+                  const SizedBox(height: _gridGap),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: CompeteHubMenuCard(
+                          imageAsset: CompeteHubArt.teams,
+                          title: 'Equipes',
+                          description: 'Equipes da comunidade perto de você',
+                          onTap: () =>
+                              context.pushNamed(AppRouteNames.teamDiscover),
+                        ),
+                      ),
+                      const SizedBox(width: _gridGap),
+                      Expanded(
+                        child: CompeteHubMenuCard(
+                          imageAsset: CompeteHubArt.athletes,
+                          title: 'Atletas',
+                          description: 'Encontre jogadores da comunidade',
+                          onTap: () =>
+                              context.pushNamed(AppRouteNames.athleteDiscover),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

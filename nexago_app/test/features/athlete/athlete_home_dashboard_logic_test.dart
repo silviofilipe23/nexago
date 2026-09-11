@@ -78,7 +78,7 @@ void main() {
     });
   });
 
-  group('buildAthleteHomeKpis — Jogos no mês', () {
+  group('buildAthleteHomeKpis — Jogos', () {
     test('conta só o mês corrente e compara com o anterior', () {
       final kpis = buildKpis(
         matches: [
@@ -90,7 +90,7 @@ void main() {
         ],
       );
 
-      expect(kpis[0].label, 'Jogos no mês');
+      expect(kpis[0].label, 'Jogos');
       expect(kpis[0].value, '3');
       expect(kpis[0].delta, '+2');
       expect(kpis[0].note, 'vs mês anterior');
@@ -234,23 +234,20 @@ void main() {
       expect(series.monthLabels, hasLength(12));
       expect(series.games, hasLength(12));
       expect(series.winRatePct, hasLength(12));
-      expect(
-        series.monthLabels,
-        [
-          'Set',
-          'Out',
-          'Nov',
-          'Dez',
-          'Jan',
-          'Fev',
-          'Mar',
-          'Abr',
-          'Mai',
-          'Jun',
-          'Jul',
-          'Ago',
-        ],
-      );
+      expect(series.monthLabels, [
+        'Set',
+        'Out',
+        'Nov',
+        'Dez',
+        'Jan',
+        'Fev',
+        'Mar',
+        'Abr',
+        'Mai',
+        'Jun',
+        'Jul',
+        'Ago',
+      ]);
     });
 
     test('partidas fora da janela de 12 meses são ignoradas', () {

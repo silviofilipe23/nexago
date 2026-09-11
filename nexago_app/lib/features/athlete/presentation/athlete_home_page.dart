@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/layout/nexa_bottom_nav_bar.dart';
-import '../../../core/layout/nexa_floating_header.dart';
 import '../../../core/router/routes.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/nexa_async_view.dart';
@@ -26,12 +28,15 @@ import '../domain/athlete_display_name.dart';
 import '../domain/athlete_home_dashboard_logic.dart';
 import '../domain/athlete_home_registration_progress_providers.dart';
 import '../domain/athlete_notifications_providers.dart';
+import '../domain/athlete_quest/athlete_quest_logic.dart';
 import '../domain/athlete_profile_providers.dart';
 import '../domain/athlete_shell_providers.dart';
 import '../domain/community/community_feed_providers.dart';
+import '../domain/gamification_models.dart';
 import '../domain/gamification_providers.dart';
-import '../domain/match_history/athlete_match_history_providers.dart';
+import '../domain/sand_rank/sand_rank_catalog.dart';
 import '../domain/sand_rank/sand_rank_providers.dart';
+import '../domain/match_history/athlete_match_history_providers.dart';
 import 'daily_mission_navigation.dart';
 import 'widgets/athlete_home/athlete_home_community_section.dart';
 import 'widgets/athlete_home/athlete_home_competitions_section.dart';
@@ -39,7 +44,10 @@ import 'widgets/athlete_home/athlete_home_daily_missions_section.dart';
 import 'widgets/athlete_home/athlete_home_evolution_chart.dart';
 import 'widgets/athlete_home/athlete_home_focus_button.dart';
 import 'widgets/athlete_home/athlete_home_following_matches_section.dart';
-import 'widgets/athlete_home/athlete_home_header.dart';
+import 'widgets/athlete_home/athlete_home_hero.dart';
+import 'widgets/athlete_profile_avatar.dart';
+import 'sand_rank/widgets/sand_rank_avatar_frame.dart';
+import 'sand_rank/widgets/sand_rank_emblem.dart';
 import 'widgets/athlete_home/athlete_home_kpi_grid.dart';
 import 'widgets/athlete_home/athlete_home_next_reservation_card.dart';
 import 'widgets/athlete_home/athlete_home_registration_tracker.dart';
@@ -84,40 +92,62 @@ class AthleteHomePage extends ConsumerWidget {
                   .watch(athleteShellScrollRegistryProvider)
                   .controllerFor(0),
               slivers: [
-                NexaFloatingHeaderSliver(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.screenH,
-                  ),
+                // O hero sangra até o topo e rola junto com o conteúdo, fora
+                // do NexaFloatingHeaderSliver: ele aplicaria o recorte da
+                // barra de status uma segunda vez (o hero já soma o seu) e
+                // faria a arte voltar inteira a cada rolagem para cima.
+                SliverToBoxAdapter(
                   child: Consumer(
                     builder: (context, ref, _) {
                       final profile = ref
                           .watch(athleteProfileProvider)
                           .valueOrNull;
-                      final name = profile != null
-                          ? athleteDisplayName(profile)
-                          : 'Atleta';
                       final unreadNotifications = ref.watch(
                         athleteUnreadNotificationsCountProvider,
                       );
-                      return AthleteHomeHeader(
-                        displayName: name,
-                        avatarUrl: profile?.avatarUrl,
-                        summary: summary,
-                        onAvatarTap: () =>
-                            context.pushNamed(AppRouteNames.athleteProfile),
-                        onXpTap: () =>
-                            context.pushNamed(AppRouteNames.athleteQuest),
-                        unreadNotificationCount: unreadNotifications,
-                        onNotificationsTap: () => context.pushNamed(
-                          AppRouteNames.athleteNotifications,
+                      return AthleteHomeHero(
+                        name: _firstName(
+                          profile != null
+                              ? athleteDisplayName(profile)
+                              : 'Atleta',
                         ),
-                        sandRankEnabled:
-                            ref.watch(sandRankEnabledProvider).valueOrNull ??
-                            false,
-                        sandRankFrameId: ref
-                            .watch(sandRankCosmeticsProvider)
-                            .valueOrNull
-                            ?.frameId,
+                        gender: profile?.gender,
+                        tagline: 'O esporte conecta.',
+                        // O avatar não está no mockup, mas é a ÚNICA entrada
+                        // para o perfil em todas as cinco abas — a grade de
+                        // atalhos já não é renderizada. Sem ele o atleta fica
+                        // sem caminho para o próprio cadastro.
+                        leading: _HeroAvatar(
+                          initials: profile != null
+                              ? athleteInitials(profile)
+                              : '?',
+                          imageUrl: profile?.avatarUrl,
+                          summary: summary,
+                          sandRankEnabled:
+                              ref.watch(sandRankEnabledProvider).valueOrNull ??
+                              false,
+                          sandRankFrameId: ref
+                              .watch(sandRankCosmeticsProvider)
+                              .valueOrNull
+                              ?.frameId,
+                          onTap: () =>
+                              context.pushNamed(AppRouteNames.athleteProfile),
+                        ),
+                        // A primeira seção sobe para cima da arte: a caixa do
+                        // hero encolhe, a pintura não.
+                        bleedBelow: _heroOverlap,
+                        topRight: _HeroBell(
+                          unreadCount: unreadNotifications,
+                          onTap: () => context.pushNamed(
+                            AppRouteNames.athleteNotifications,
+                          ),
+                        ),
+                        bottomRight: _HeroXpPill(
+                          current: summary.xpInCurrentLevel,
+                          goal: 100,
+                          onTap: () =>
+                              context.pushNamed(AppRouteNames.athleteQuest),
+                        ),
                       );
                     },
                   ),
@@ -126,7 +156,6 @@ class AthleteHomePage extends ConsumerWidget {
                   padding: EdgeInsets.only(bottom: bottomClearance),
                   sliver: SliverList.list(
                     children: [
-                      const SizedBox(height: AppSpacing.lg),
                       // Convites recebidos ainda pendentes — o atleta precisa
                       // responder. Aparecem primeiro na home, logo após o
                       // header, à frente até de "meus torneios".
@@ -498,6 +527,277 @@ class _AthleteHomeSkeleton extends StatelessWidget {
             SizedBox(height: AppSpacing.md),
             NexaSkeleton(height: 148, radius: AppRadii.lgAll),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Quanto a primeira seção da home sobe para cima da arte do hero.
+const double _heroOverlap = 56;
+
+/// Primeiro nome do atleta, mesma regra que o header antigo usava.
+String _firstName(String displayName) {
+  final parts = displayName.trim().split(RegExp(r'\s+'));
+  if (parts.isEmpty || parts.first.isEmpty) return 'Atleta';
+  return parts.first;
+}
+
+/// Sino do hero. Fundo preto translúcido em vez de `surfaceRaised`: ele cai
+/// sobre a parte mais clara da arte (medi p95 164 no masculino) e no tema
+/// claro uma superfície de tema clarearia ainda mais.
+class _HeroBell extends StatelessWidget {
+  const _HeroBell({required this.unreadCount, required this.onTap});
+
+  final int unreadCount;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    // O badge fica FORA da cápsula, no canto. Dentro dela ele cobria o
+    // sino — era assim no header antigo (right: 4 / top: 4 sobre um ícone
+    // de 22 centralizado em 40x40) e com duas casas ficava ilegível.
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Material(
+          color: AppColors.black.withValues(alpha: 0.45),
+          borderRadius: AppRadii.mdAll,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: AppRadii.mdAll,
+            child: Container(
+              width: 42,
+              height: 42,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: AppRadii.mdAll,
+                border: Border.all(
+                  color: AppColors.white.withValues(alpha: 0.14),
+                ),
+              ),
+              child: const Icon(
+                Icons.notifications_outlined,
+                size: 22,
+                color: AppColors.white,
+              ),
+            ),
+          ),
+        ),
+        if (unreadCount > 0)
+          Positioned(
+            right: -5,
+            top: -5,
+            child: _HeroNotificationBadge(count: unreadCount),
+          ),
+      ],
+    );
+  }
+}
+
+/// Contador de não lidas — mesmo desenho do header antigo, para o atleta não
+/// estranhar a troca.
+class _HeroNotificationBadge extends StatelessWidget {
+  const _HeroNotificationBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.brand,
+        borderRadius: AppRadii.smAll,
+        border: Border.all(color: AppColors.black, width: 1.5),
+      ),
+      child: Text(
+        count > 99 ? '99+' : '$count',
+        style: const TextStyle(
+          color: AppColors.black,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          height: 1,
+        ),
+      ),
+    );
+  }
+}
+
+/// Pílula de XP do hero — leva aos Desafios, como levava no header.
+class _HeroXpPill extends StatefulWidget {
+  const _HeroXpPill({
+    required this.current,
+    required this.goal,
+    required this.onTap,
+  });
+
+  final int current;
+  final int goal;
+  final VoidCallback onTap;
+
+  @override
+  State<_HeroXpPill> createState() => _HeroXpPillState();
+}
+
+class _HeroXpPillState extends State<_HeroXpPill> {
+  var _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Ver seus Desafios',
+      child: AnimatedScale(
+        scale: _pressed ? 0.94 : 1,
+        duration: AppMotion.fast,
+        curve: AppMotion.curve,
+        child: Material(
+          color: AppColors.black.withValues(alpha: 0.55),
+          borderRadius: AppRadii.pillAll,
+          child: InkWell(
+            onTap: widget.onTap,
+            onHighlightChanged: _setPressed,
+            borderRadius: AppRadii.pillAll,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                borderRadius: AppRadii.pillAll,
+                border: Border.all(
+                  color: AppColors.brand.withValues(alpha: 0.55),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.bolt_rounded,
+                    size: 16,
+                    color: AppColors.brand,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    '${widget.current}/${widget.goal}',
+                    style: AppTypography.titleS.copyWith(
+                      color: AppColors.white,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Avatar do hero — leva ao perfil, com moldura e emblema do Sand Rank.
+/// Fora do mockup de propósito: sem ele nenhuma das cinco abas leva ao
+/// cadastro do atleta.
+class _HeroAvatar extends StatelessWidget {
+  const _HeroAvatar({
+    required this.initials,
+    required this.summary,
+    required this.sandRankEnabled,
+    required this.onTap,
+    this.imageUrl,
+    this.sandRankFrameId,
+  });
+
+  static const double _avatarSize = 48;
+  static const double _slotSize = 56;
+
+  final String initials;
+  final String? imageUrl;
+  final GamificationSummary summary;
+  final bool sandRankEnabled;
+  final String? sandRankFrameId;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final avatar = AthleteProfileAvatar(
+      size: _avatarSize,
+      initials: initials,
+      imageUrl: imageUrl,
+    );
+    final step = sandRankStepFromXp(summary.xp);
+
+    return Tooltip(
+      message: 'Seu perfil',
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: _slotSize,
+          height: _slotSize,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                left: 0,
+                top: 0,
+                child: sandRankEnabled
+                    ? SandRankAvatarFrame(
+                        frameId: sandRankFrameId,
+                        size: _avatarSize,
+                        child: avatar,
+                      )
+                    : avatar,
+              ),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: sandRankEnabled
+                    ? SandRankEmblem(
+                        rankCode: step.rankCode,
+                        division: step.division,
+                        size: SandRankEmblemSize.badgeCompact,
+                      )
+                    : _HeroLevelBadge(
+                        level: gamificationDisplayLevel(summary),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Nível numérico — fallback de quando o Sand Rank está desligado, mesmo
+/// desenho que o header antigo usava.
+class _HeroLevelBadge extends StatelessWidget {
+  const _HeroLevelBadge({required this.level});
+
+  final int level;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.brand,
+        borderRadius: AppRadii.smAll,
+        border: Border.all(color: AppColors.black, width: 2),
+      ),
+      child: Text(
+        '$level',
+        style: const TextStyle(
+          color: AppColors.black,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.3,
+          height: 1,
         ),
       ),
     );

@@ -52,8 +52,9 @@ List<AthleteHomeKpi> buildAthleteHomeKpis({
 
   final wins = matches.where((m) => m.isWin).length;
   final losses = matches.length - wins;
-  final winPct =
-      matches.isNotEmpty ? (wins / matches.length * 100).round() : null;
+  final winPct = matches.isNotEmpty
+      ? (wins / matches.length * 100).round()
+      : null;
 
   final streak = gamification.streak;
 
@@ -63,7 +64,7 @@ List<AthleteHomeKpi> buildAthleteHomeKpis({
 
   return [
     AthleteHomeKpi(
-      label: 'Jogos no mês',
+      label: 'Jogos',
       value: '$gamesThisMonth',
       delta: '${monthDiff >= 0 ? '+' : ''}$monthDiff',
       note: 'vs mês anterior',
@@ -83,7 +84,7 @@ List<AthleteHomeKpi> buildAthleteHomeKpis({
       label: 'Sequência',
       value: '$streak ${streak == 1 ? 'dia' : 'dias'}',
       delta: 'em jogo',
-      note: 'dias ativos seguidos',
+      note: 'dias ativos',
       tone: AthleteHomeKpiTone.orange,
       flame: true,
     ),
@@ -138,8 +139,9 @@ AthleteEvolutionSeries buildAthleteEvolutionSeries({
 
   final monthFormat = DateFormat('MMM', 'pt_BR');
   String labelOf(int key) {
-    final label =
-        monthFormat.format(DateTime(key ~/ 12, key % 12 + 1)).replaceAll('.', '');
+    final label = monthFormat
+        .format(DateTime(key ~/ 12, key % 12 + 1))
+        .replaceAll('.', '');
     if (label.isEmpty) return label;
     return label[0].toUpperCase() + label.substring(1);
   }
@@ -176,7 +178,5 @@ AthleteEvolutionSeries buildAthleteEvolutionSeries({
 List<double> chartNormalizedValues(List<num> data) {
   final scale = chartScale(data);
   final range = scale.max - scale.min;
-  return [
-    for (final value in data) (value.toDouble() - scale.min) / range,
-  ];
+  return [for (final value in data) (value.toDouble() - scale.min) / range];
 }

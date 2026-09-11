@@ -42,6 +42,11 @@ class EditProfileSaveBar extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
           child: Center(
+            // `heightFactor: 1` é obrigatório aqui. O Scaffold entrega altura
+            // FROUXA (0..tela) ao slot `bottomNavigationBar`, e um `Center`
+            // sem fator cresce até o máximo: a barra virava a tela inteira,
+            // sobrava h=0 para o corpo e o formulário sumia atrás dela.
+            heightFactor: 1,
             child: ConstrainedBox(
               // Mesma largura máxima do formulário: em tablet o CTA não estica
               // sozinho para fora da coluna de campos.

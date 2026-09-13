@@ -70,8 +70,9 @@ import {
 } from "./organizer-removal-description";
 import {
   buildRegistrationCancellationAudit,
-  shouldDeleteTeamOnCancellation,
+  teamDeletionBlockReason,
 } from "./tournament-registration-cancellation";
+import {teamAppearsInAnyMatch} from "./tournament-team-matches";
 import {organizerContactFromUser} from "./tournament-contacts";
 import {notifyBracketPublishedAthletes} from "./organizer-category-ops-bracket-notify";
 import {artifactsInscriptionsPath, artifactsMatchesPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
@@ -996,19 +997,33 @@ export const organizerRemoveFromCategory = onCall({
     teamSnap?.exists ? teamSnap.data() : null,
   );
 
-  // A equipe só morre junto se NENHUMA outra inscrição a referencia (solo
-  // legado reaproveitado) — mesmo predicado do cancelamento pelo atleta.
+  // A equipe morre junto SÓ se for lixo de verdade. Esta remoção aceita
+  // inscrição PAGA (calcula reembolso logo acima), e equipe que pagou tem
+  // partida, ponto no ranking e perfil público — apagar o doc levaria tudo
+  // isso junto e deixaria as partidas apontando pro nada.
   let deleteTeam = false;
   if (teamId) {
-    const teamRegsSnap = await db
-      .collection(artifactsInscriptionsPath(projectId))
-      .where("teamId", "==", teamId)
-      .get();
-    deleteTeam = shouldDeleteTeamOnCancellation(
+    const [teamRegsSnap, teamHasMatches] = await Promise.all([
+      db
+        .collection(artifactsInscriptionsPath(projectId))
+        .where("teamId", "==", teamId)
+        .get(),
+      teamAppearsInAnyMatch(db, projectId, teamId),
+    ]);
+    const block = teamDeletionBlockReason({
       teamId,
-      teamRegsSnap.docs.map((d) => d.id),
-      registrationId,
-    );
+      referencingRegistrationIds: teamRegsSnap.docs.map((d) => d.id),
+      cancellingRegistrationId: registrationId,
+      registration: data,
+      team: teamSnap?.exists ? teamSnap.data() ?? null : null,
+      teamHasMatches,
+    });
+    deleteTeam = block == null;
+    if (block != null && block !== "noTeam") {
+      logger.info("Equipe preservada na remoção pelo organizador", {
+        registrationId, teamId, block,
+      });
+    }
   }
 
   // Contato do organizador vai junto na notificação: a inscrição morre aqui, e

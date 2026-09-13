@@ -16,8 +16,9 @@ import {
 import {registrationAthleteUids} from "./tournament-registration-pix-helpers";
 import {
   buildRegistrationCancellationAudit,
-  shouldDeleteTeamOnCancellation,
+  teamDeletionBlockReason,
 } from "./tournament-registration-cancellation";
+import {teamAppearsInAnyMatch} from "./tournament-team-matches";
 import {
   CANCELLATION_REQUEST_BLOCK_MESSAGES,
   buildCancellationDecline,
@@ -257,23 +258,34 @@ export const respondRegistrationCancellationRequest = onCall({
     requestReason: pending.reason,
     responseNote: note,
   });
-  // A equipe morre junto — mesma regra do cancelamento pelo atleta
-  // (`releaseRegistration`). Aprovar o pedido apagava só a inscrição e deixava
-  // o doc de equipe órfão nas listagens.
+  // A equipe NÃO morre aqui na prática: este caminho só é alcançável com
+  // inscrição paga (`cancellationRequestBlockReason` devolve "notPaid" quando
+  // não há pagamento — quem não pagou cancela sozinho). O predicado fica de pé
+  // mesmo assim, para o dia em que a regra de quem pode pedir mudar.
   const teamId = String(registration.teamId ?? "").trim();
   if (teamId) {
-    const teamRegsSnap = await db
-      .collection(artifactsInscriptionsPath(projectId))
-      .where("teamId", "==", teamId)
-      .get();
-    if (
-      shouldDeleteTeamOnCancellation(
-        teamId,
-        teamRegsSnap.docs.map((d) => d.id),
-        registrationId,
-      )
-    ) {
+    const [teamRegsSnap, teamSnap, teamHasMatches] = await Promise.all([
+      db
+        .collection(artifactsInscriptionsPath(projectId))
+        .where("teamId", "==", teamId)
+        .get(),
+      db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get(),
+      teamAppearsInAnyMatch(db, projectId, teamId),
+    ]);
+    const block = teamDeletionBlockReason({
+      teamId,
+      referencingRegistrationIds: teamRegsSnap.docs.map((d) => d.id),
+      cancellingRegistrationId: registrationId,
+      registration,
+      team: teamSnap.exists ? teamSnap.data() ?? null : null,
+      teamHasMatches,
+    });
+    if (block == null) {
       batch.delete(db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`));
+    } else if (block !== "noTeam") {
+      logger.info("Equipe preservada no cancelamento aprovado", {
+        registrationId, teamId, block,
+      });
     }
   }
   batch.delete(ref);

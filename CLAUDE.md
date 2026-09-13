@@ -8,7 +8,7 @@ App Flutter (mobile) para gestão e participação em torneios e ligas de esport
 - **Backend**: Firebase (Firestore, Auth, Cloud Functions, Storage)
 - **Cloud Functions**: `/functions/`
 - **Frontend web** (painel gestor/arena): `/frontend/`
-- **Versão atual**: 1.0.2+3
+- **Versão atual**: ver `version:` em `nexago_app/pubspec.yaml` (o `+N` é o build number do gate)
 
 ## Estrutura do app Flutter
 ```
@@ -32,6 +32,17 @@ lib/
 
 ## Metas ativas
 Ver `goals.md` — lançamento do app + Liga nexaGO com 1ª etapa em 24/10.
+
+## Release (loja)
+Publicar o build **não basta**: o gate de atualização obrigatória lê `appConfig/appVersion` no
+Firestore ao vivo. Depois que a versão estiver disponível na loja, subir o `minBuildNumber`:
+```bash
+cd functions && node scripts/set-min-app-version.js --project volley-track-dev-4596c --platform <ios|android> --min <build live> --yes
+```
+- `--min` é o **build number** (o `+N` do pubspec), não o `1.0.x`. Use o que ficou live — reenvio por rejeição da Apple bumpa o número.
+- Projeto é sempre `volley-track-dev-4596c`: o app da loja aponta pro dev.
+- Ordem importa: loja primeiro, número depois (iOS propaga em até ~24h). Desligar = `--min 0`, vale ao vivo.
+- O gate só existe a partir do build 101; base anterior não bloqueia. Detalhes em `docs/forced-app-update.md`.
 
 ## Convenções
 - Português nas strings/UI, inglês no código

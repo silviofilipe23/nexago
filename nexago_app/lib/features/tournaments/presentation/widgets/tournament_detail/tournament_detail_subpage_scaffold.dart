@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
-import '../../../../../core/layout/nexa_floating_header.dart';
+import '../../../../../core/layout/nexa_page_header.dart';
 import '../../../../../core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
@@ -30,19 +30,15 @@ class TournamentDetailSubpageScaffold extends StatelessWidget {
       body: SafeArea(
         top: false,
         bottom: false,
-        child: CustomScrollView(
-          slivers: [
-            NexaFloatingHeaderSliver(
-              topGap: 8,
-              padding: const EdgeInsets.fromLTRB(16, 0, 20, 12),
-              child: _SubpageToolbar(
-                title: title,
-                onBack: onBack ?? () => _defaultBack(context),
-                actions: actions,
-              ),
-            ),
-            ...slivers,
-          ],
+        child: NexaPageHeader(
+          topGap: 8,
+          padding: const EdgeInsets.fromLTRB(16, 0, 20, 12),
+          header: _SubpageToolbar(
+            title: title,
+            onBack: onBack ?? () => _defaultBack(context),
+            actions: actions,
+          ),
+          child: CustomScrollView(slivers: slivers),
         ),
       ),
     );

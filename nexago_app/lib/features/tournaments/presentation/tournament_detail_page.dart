@@ -352,8 +352,12 @@ class _TournamentDetailContentState
         ),
         const SizedBox(height: AppSpacing.sm),
         Expanded(
+          // Sem `Clip.none`: o hero mora dentro da lista e, sem recorte, ele
+          // pintava por cima da barra de título acima (o nome do torneio
+          // invadia a barra de status e o botão de compartilhar sumia atrás
+          // do card de prêmio). Aqui o hero já entra com `topInset: 0`, então
+          // não há sangria para preservar.
           child: CustomScrollView(
-            clipBehavior: Clip.none,
             slivers: [
               SliverToBoxAdapter(
                 child: TournamentDetailHero(

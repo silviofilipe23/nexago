@@ -93,7 +93,7 @@ class AthleteHomePage extends ConsumerWidget {
                   .controllerFor(0),
               slivers: [
                 // O hero sangra até o topo e rola junto com o conteúdo, fora
-                // do NexaFloatingHeaderSliver: ele aplicaria o recorte da
+                // do NexaPageHeader: ele aplicaria o recorte da
                 // barra de status uma segunda vez (o hero já soma o seu) e
                 // faria a arte voltar inteira a cada rolagem para cima.
                 SliverToBoxAdapter(

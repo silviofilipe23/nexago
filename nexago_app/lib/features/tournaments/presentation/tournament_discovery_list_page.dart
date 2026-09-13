@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/layout/nexa_floating_header.dart';
+import '../../../core/layout/nexa_page_header.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/search/search_keywords.dart';
 import '../../../core/theme/app_colors.dart';
@@ -308,251 +308,271 @@ class _TournamentDiscoveryListPageState
             final visibleRows = rows.take(_visibleLimit).toList();
             final hasMoreRows = rows.length > visibleRows.length;
 
-            return RefreshIndicator(
-              color: AppColors.brand,
-              onRefresh: _refresh,
-              child: CustomScrollView(
-                controller: _scrollController,
-                physics: const AlwaysScrollableScrollPhysics(
-                  parent: BouncingScrollPhysics(),
-                ),
-                slivers: [
-                  NexaFloatingHeaderSliver(
-                    padding: const EdgeInsets.fromLTRB(
-                      _horizontalPadding,
-                      0,
-                      _horizontalPadding,
-                      12,
-                    ),
-                    topGap: 4,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        DiscoveryListHeader(
-                          searching: _searching,
-                          controller: _searchController,
-                          focusNode: _searchFocus,
-                          onBack: () => _handleDiscoveryListBack(context),
-                          onToggleSearch: () {
-                            setState(() => _searching = !_searching);
-                            if (!_searching) {
-                              _searchController.clear();
-                              _searchFocus.unfocus();
-                              _resetVisibleLimit();
-                            } else {
-                              _searchFocus.requestFocus();
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 10),
-                        // Ordem da toolbar do portal: abas → pills de stats →
-                        // "Mais filtros" com badge de ativos.
-                        NexaSegmentedControl<DiscoveryListSegment>(
-                          segments: const [
-                            NexaSegment(
-                              value: DiscoveryListSegment.all,
-                              label: 'Tudo',
-                            ),
-                            NexaSegment(
-                              value: DiscoveryListSegment.tournaments,
-                              label: 'Torneios',
-                            ),
-                            NexaSegment(
-                              value: DiscoveryListSegment.leagues,
-                              label: 'Ligas',
-                            ),
-                          ],
-                          selected: _segment,
-                          onChanged: (s) => setState(() {
-                            _segment = s;
-                            _resetVisibleLimit();
-                          }),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Expanded(
-                              child: DiscoveryListStatsRow(stats: stats),
-                            ),
-                            const SizedBox(width: AppSpacing.sm),
-                            _MoreFiltersButton(
-                              active: _showFilters,
-                              count: discoveryActiveFilterCount(
-                                category: _category,
-                                openOnly: _openOnly,
-                                format: _format,
-                                dateFrom: _dateFrom,
-                                priceMax: _priceMax,
-                              ),
-                              onTap: () => setState(
-                                () => _showFilters = !_showFilters,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (_showFilters) ...[
-                          const SizedBox(height: 12),
-                          DiscoveryListFiltersPanel(
-                            category: _category,
-                            format: _format,
-                            dateFrom: _dateFrom,
-                            priceMaxController: _priceController,
-                            openOnly: _openOnly,
-                            onCategoryChanged: (v) => setState(() {
-                              _category = v;
-                              _resetVisibleLimit();
-                            }),
-                            onFormatChanged: (v) => setState(() {
-                              _format = v;
-                              _resetVisibleLimit();
-                            }),
-                            onDateFromChanged: (v) => setState(() {
-                              _dateFrom = v;
-                              _resetVisibleLimit();
-                            }),
-                            onPriceMaxChanged: _onPriceMaxChanged,
-                            onOpenOnlyChanged: (v) => setState(() {
-                              _openOnly = v;
-                              _resetVisibleLimit();
-                            }),
-                            onReset: _resetFilters,
-                          ),
-                        ],
-                        if (leaguesFailed &&
-                            _segment != DiscoveryListSegment.tournaments) ...[
-                          const SizedBox(height: 10),
-                          AppInlineErrorView(
-                            message: 'Não foi possível carregar ligas.',
-                            error: leaguesAsync.error,
-                          ),
-                        ],
-                      ],
-                    ),
+            return NexaPageHeader(
+              padding: const EdgeInsets.fromLTRB(
+                _horizontalPadding,
+                0,
+                _horizontalPadding,
+                12,
+              ),
+              topGap: 4,
+              header: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DiscoveryListHeader(
+                    searching: _searching,
+                    controller: _searchController,
+                    focusNode: _searchFocus,
+                    onBack: () => _handleDiscoveryListBack(context),
+                    onToggleSearch: () {
+                      setState(() => _searching = !_searching);
+                      if (!_searching) {
+                        _searchController.clear();
+                        _searchFocus.unfocus();
+                        _resetVisibleLimit();
+                      } else {
+                        _searchFocus.requestFocus();
+                      }
+                    },
                   ),
-                  if (keywordSearchLoading)
-                    const SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 40),
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.brand,
+                  const SizedBox(height: 10),
+                  // Ordem da toolbar do portal: abas → pills de stats →
+                  // "Mais filtros" com badge de ativos.
+                  NexaSegmentedControl<DiscoveryListSegment>(
+                    segments: const [
+                      NexaSegment(
+                        value: DiscoveryListSegment.all,
+                        label: 'Tudo',
+                      ),
+                      NexaSegment(
+                        value: DiscoveryListSegment.tournaments,
+                        label: 'Torneios',
+                      ),
+                      NexaSegment(
+                        value: DiscoveryListSegment.leagues,
+                        label: 'Ligas',
+                      ),
+                    ],
+                    selected: _segment,
+                    onChanged: (s) => setState(() {
+                      _segment = s;
+                      _resetVisibleLimit();
+                    }),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: DiscoveryListStatsRow(stats: stats),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      _MoreFiltersButton(
+                        active: _showFilters,
+                        count: discoveryActiveFilterCount(
+                          category: _category,
+                          openOnly: _openOnly,
+                          format: _format,
+                          dateFrom: _dateFrom,
+                          priceMax: _priceMax,
+                        ),
+                        onTap: () => setState(
+                          () => _showFilters = !_showFilters,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              child: RefreshIndicator(
+                color: AppColors.brand,
+                onRefresh: _refresh,
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
+                  slivers: [
+                    // O painel de filtros e o aviso de ligas rolam com a
+                    // lista: dentro do header fixo eles espremeriam a tela
+                    // (e estourariam a altura no aparelho pequeno).
+                    if (_showFilters ||
+                        (leaguesFailed &&
+                            _segment != DiscoveryListSegment.tournaments))
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(
+                          _horizontalPadding,
+                          12,
+                          _horizontalPadding,
+                          0,
+                        ),
+                        sliver: SliverToBoxAdapter(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (_showFilters)
+                                DiscoveryListFiltersPanel(
+                                  category: _category,
+                                  format: _format,
+                                  dateFrom: _dateFrom,
+                                  priceMaxController: _priceController,
+                                  openOnly: _openOnly,
+                                  onCategoryChanged: (v) => setState(() {
+                                    _category = v;
+                                    _resetVisibleLimit();
+                                  }),
+                                  onFormatChanged: (v) => setState(() {
+                                    _format = v;
+                                    _resetVisibleLimit();
+                                  }),
+                                  onDateFromChanged: (v) => setState(() {
+                                    _dateFrom = v;
+                                    _resetVisibleLimit();
+                                  }),
+                                  onPriceMaxChanged: _onPriceMaxChanged,
+                                  onOpenOnlyChanged: (v) => setState(() {
+                                    _openOnly = v;
+                                    _resetVisibleLimit();
+                                  }),
+                                  onReset: _resetFilters,
+                                ),
+                              if (leaguesFailed &&
+                                  _segment !=
+                                      DiscoveryListSegment.tournaments) ...[
+                                const SizedBox(height: 10),
+                                AppInlineErrorView(
+                                  message: 'Não foi possível carregar ligas.',
+                                  error: leaguesAsync.error,
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       ),
-                    )
-                  else if (rows.isEmpty)
-                    SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: _segment == DiscoveryListSegment.leagues
-                          ? const AppEmptyView(
-                              icon: Icons.flag_outlined,
-                              title: 'Nenhuma liga encontrada',
-                              subtitle:
-                                  'Nenhuma liga encontrada com esses filtros.',
-                            )
-                          : const AppEmptyView(
-                              icon: Icons.emoji_events_outlined,
-                              title: 'Nenhum torneio encontrado',
-                              subtitle:
-                                  'Nenhum torneio encontrado com esses filtros.',
+                    if (keywordSearchLoading)
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 40),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: AppColors.brand,
                             ),
-                    )
-                  else
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(
-                        _horizontalPadding,
-                        8,
-                        _horizontalPadding,
-                        24,
-                      ),
-                      sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            if (index == visibleRows.length) {
-                              if (hasMoreRows) {
-                                return const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 16),
-                                  child: Center(
-                                    child: CircularProgressIndicator(
-                                      color: AppColors.brand,
-                                      strokeWidth: 2,
-                                    ),
-                                  ),
-                                );
-                              }
-                              return const SizedBox(height: 8);
-                            }
-
-                            final row = visibleRows[index];
-                            return switch (row.kind) {
-                              _DiscoveryListRowKind.sectionTitle => Padding(
-                                  padding: EdgeInsets.only(
-                                    top: index == 0 ? 0 : 14,
-                                    bottom: 10,
-                                  ),
-                                  child: NexaSectionHeader(
-                                    title: row.sectionTitle!,
-                                    padding: EdgeInsets.zero,
-                                  ),
-                                ),
-                              _DiscoveryListRowKind.league => Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: LeagueDiscoveryCard(
-                                    league: row.league!,
-                                    tournamentCount: leagueTournamentCount(
-                                      row.league!,
-                                      filteredIds,
-                                    ),
-                                    enrolled: leagueHasRegistration(
-                                      league: row.league!,
-                                      regs: myRegs.valueOrNull ?? const [],
-                                    ),
-                                    open: leagueHasOpenTournaments(
-                                      league: row.league!,
-                                      tournaments: sortedTournaments,
-                                    ),
-                                    onTap: () => context.pushNamed(
-                                      AppRouteNames.leagueDetail,
-                                      pathParameters: {
-                                        'leagueId': row.league!.id,
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              _DiscoveryListRowKind.tournament => Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: TournamentDiscoveryCard(
-                                    tournament: row.tournament!,
-                                    registration:
-                                        regsByTournament[row.tournament!.id],
-                                    onTap: () => context.pushNamed(
-                                      AppRouteNames.tournamentDetail,
-                                      pathParameters: {
-                                        'tournamentId': row.tournament!.id,
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              _DiscoveryListRowKind.emptyTournaments => Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 24,
-                                  ),
-                                  child: Text(
+                          ),
+                        ),
+                      )
+                    else if (rows.isEmpty)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: _segment == DiscoveryListSegment.leagues
+                            ? const AppEmptyView(
+                                icon: Icons.flag_outlined,
+                                title: 'Nenhuma liga encontrada',
+                                subtitle:
+                                    'Nenhuma liga encontrada com esses filtros.',
+                              )
+                            : const AppEmptyView(
+                                icon: Icons.emoji_events_outlined,
+                                title: 'Nenhum torneio encontrado',
+                                subtitle:
                                     'Nenhum torneio encontrado com esses filtros.',
-                                    textAlign: TextAlign.center,
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: context.themeColors.onSurfaceMuted,
+                              ),
+                      )
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(
+                          _horizontalPadding,
+                          8,
+                          _horizontalPadding,
+                          24,
+                        ),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              if (index == visibleRows.length) {
+                                if (hasMoreRows) {
+                                  return const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 16),
+                                    child: Center(
+                                      child: CircularProgressIndicator(
+                                        color: AppColors.brand,
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  );
+                                }
+                                return const SizedBox(height: 8);
+                              }
+
+                              final row = visibleRows[index];
+                              return switch (row.kind) {
+                                _DiscoveryListRowKind.sectionTitle => Padding(
+                                    padding: EdgeInsets.only(
+                                      top: index == 0 ? 0 : 14,
+                                      bottom: 10,
+                                    ),
+                                    child: NexaSectionHeader(
+                                      title: row.sectionTitle!,
+                                      padding: EdgeInsets.zero,
                                     ),
                                   ),
-                                ),
-                            };
-                          },
-                          childCount: visibleRows.length + 1,
+                                _DiscoveryListRowKind.league => Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: LeagueDiscoveryCard(
+                                      league: row.league!,
+                                      tournamentCount: leagueTournamentCount(
+                                        row.league!,
+                                        filteredIds,
+                                      ),
+                                      enrolled: leagueHasRegistration(
+                                        league: row.league!,
+                                        regs: myRegs.valueOrNull ?? const [],
+                                      ),
+                                      open: leagueHasOpenTournaments(
+                                        league: row.league!,
+                                        tournaments: sortedTournaments,
+                                      ),
+                                      onTap: () => context.pushNamed(
+                                        AppRouteNames.leagueDetail,
+                                        pathParameters: {
+                                          'leagueId': row.league!.id,
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                _DiscoveryListRowKind.tournament => Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: TournamentDiscoveryCard(
+                                      tournament: row.tournament!,
+                                      registration:
+                                          regsByTournament[row.tournament!.id],
+                                      onTap: () => context.pushNamed(
+                                        AppRouteNames.tournamentDetail,
+                                        pathParameters: {
+                                          'tournamentId': row.tournament!.id,
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                _DiscoveryListRowKind.emptyTournaments => Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 24,
+                                    ),
+                                    child: Text(
+                                      'Nenhum torneio encontrado com esses filtros.',
+                                      textAlign: TextAlign.center,
+                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                        color: context.themeColors.onSurfaceMuted,
+                                      ),
+                                    ),
+                                  ),
+                              };
+                            },
+                            childCount: visibleRows.length + 1,
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             );
           },

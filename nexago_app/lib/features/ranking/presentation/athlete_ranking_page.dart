@@ -300,11 +300,7 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        RankingClassificationHeader(
-          mode: filter.mode,
-          count: visible.length,
-          yearLabel: filter.seasonLabel,
-        ),
+        RankingClassificationHeader(),
         SizedBox(height: 10),
         for (final entry in sorted)
           if (entry.isCurrentUser)
@@ -340,11 +336,7 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
           ),
           SizedBox(height: 24),
         ],
-        RankingClassificationHeader(
-          mode: filter.mode,
-          count: visible.length,
-          yearLabel: filter.seasonLabel,
-        ),
+        RankingClassificationHeader(),
         SizedBox(height: 10),
         for (final entry in rest)
           if (userInRest && entry.entityId == userEntry!.entityId)

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:nexago_app/core/router/routes.dart';
-import 'package:nexago_app/core/layout/nexa_floating_header.dart';
+import 'package:nexago_app/core/layout/nexa_page_header.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
@@ -41,22 +41,22 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
       body: SafeArea(
         top: false,
         bottom: false,
-        child: CustomScrollView(
-          physics: ArenaDashboardTokens.shellScrollPhysics,
-          slivers: [
-            NexaFloatingHeaderSliver(
-              topGap: 8,
-              padding: const EdgeInsets.fromLTRB(16, 0, 20, 12),
-              child: _PlanPageToolbar(onBack: () => context.pop()),
-            ),
-            if (loading)
-              const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else
-              _buildContentSlivers(context, colors, arenaId),
-          ],
+        child: NexaPageHeader(
+          topGap: 8,
+          padding: const EdgeInsets.fromLTRB(16, 0, 20, 12),
+          header: _PlanPageToolbar(onBack: () => context.pop()),
+          child: CustomScrollView(
+            physics: ArenaDashboardTokens.shellScrollPhysics,
+            slivers: [
+              if (loading)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else
+                _buildContentSlivers(context, colors, arenaId),
+            ],
+          ),
         ),
       ),
     );

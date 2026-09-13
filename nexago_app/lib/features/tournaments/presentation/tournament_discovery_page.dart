@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/app_mobile_role.dart';
 import '../../../core/auth/active_role_providers.dart';
 import '../../../core/layout/nexa_bottom_nav_bar.dart';
-import '../../../core/layout/nexa_floating_header.dart';
+import '../../../core/layout/nexa_page_header.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../arena/domain/arena_access_provider.dart';
@@ -44,103 +44,103 @@ class TournamentDiscoveryPage extends ConsumerWidget {
       bottom: false,
       child: ColoredBox(
         color: context.themeColors.canvas,
-        child: CustomScrollView(
-          controller: ref
-              .watch(athleteShellScrollRegistryProvider)
-              .controllerFor(athleteShellCompeteTabIndex),
-          physics: const AlwaysScrollableScrollPhysics(
-            parent: BouncingScrollPhysics(),
+        child: NexaPageHeader(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenH,
+            0,
+            AppSpacing.screenH,
+            12,
           ),
-          slivers: [
-            NexaFloatingHeaderSliver(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenH,
-                0,
-                AppSpacing.screenH,
-                12,
-              ),
-              child: CompeteHubHeader(
-                trailingActions: showArenaPanelShortcut
-                    ? [
-                        const SizedBox(width: 8),
-                        CompeteHubAppBarIconButton(
-                          icon: Icons.admin_panel_settings_outlined,
-                          onTap: () => context.push(AppRoutes.arenaDashboard),
-                        ),
-                      ]
-                    : const [],
-              ),
-            ),
-            SliverPadding(
-              padding: EdgeInsets.fromLTRB(
-                AppSpacing.screenH,
-                AppSpacing.xs,
-                AppSpacing.screenH,
-                bottomClearance,
-              ),
-              sliver: SliverList.list(
-                children: [
-                  if (!access.canAccess) ...[
-                    TournamentAccessBanner(
-                      onboardingCompleted: access.onboardingCompleted,
-                      blockMessage: access.blockMessage,
-                      missingStepTitles: access.missingStepTitles,
+          header: CompeteHubHeader(
+            trailingActions: showArenaPanelShortcut
+                ? [
+                    const SizedBox(width: 8),
+                    CompeteHubAppBarIconButton(
+                      icon: Icons.admin_panel_settings_outlined,
+                      onTap: () => context.push(AppRoutes.arenaDashboard),
                     ),
-                    const SizedBox(height: AppSpacing.lg),
-                  ],
-                  Row(
-                    children: [
-                      Expanded(
-                        child: CompeteHubMenuCard(
-                          imageAsset: CompeteHubArt.tournaments,
-                          title: 'Torneios e ligas',
-                          description:
-                              'Descubra competições abertas e inscrições',
-                          onTap: () => context.pushNamed(
-                            AppRouteNames.tournamentDiscoveryList,
+                  ]
+                : const [],
+          ),
+          child: CustomScrollView(
+            controller: ref
+                .watch(athleteShellScrollRegistryProvider)
+                .controllerFor(athleteShellCompeteTabIndex),
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            slivers: [
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                  AppSpacing.screenH,
+                  AppSpacing.xs,
+                  AppSpacing.screenH,
+                  bottomClearance,
+                ),
+                sliver: SliverList.list(
+                  children: [
+                    if (!access.canAccess) ...[
+                      TournamentAccessBanner(
+                        onboardingCompleted: access.onboardingCompleted,
+                        blockMessage: access.blockMessage,
+                        missingStepTitles: access.missingStepTitles,
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                    ],
+                    Row(
+                      children: [
+                        Expanded(
+                          child: CompeteHubMenuCard(
+                            imageAsset: CompeteHubArt.tournaments,
+                            title: 'Torneios e ligas',
+                            description:
+                                'Descubra competições abertas e inscrições',
+                            onTap: () => context.pushNamed(
+                              AppRouteNames.tournamentDiscoveryList,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: _gridGap),
-                      Expanded(
-                        child: CompeteHubMenuCard(
-                          imageAsset: CompeteHubArt.ranking,
-                          title: 'Ranking',
-                          description: 'Sua posição e a pontuação da temporada',
-                          onTap: () =>
-                              context.pushNamed(AppRouteNames.athleteRanking),
+                        const SizedBox(width: _gridGap),
+                        Expanded(
+                          child: CompeteHubMenuCard(
+                            imageAsset: CompeteHubArt.ranking,
+                            title: 'Ranking',
+                            description: 'Sua posição e a pontuação da temporada',
+                            onTap: () =>
+                                context.pushNamed(AppRouteNames.athleteRanking),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: _gridGap),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: CompeteHubMenuCard(
-                          imageAsset: CompeteHubArt.teams,
-                          title: 'Equipes',
-                          description: 'Equipes da comunidade perto de você',
-                          onTap: () =>
-                              context.pushNamed(AppRouteNames.teamDiscover),
+                      ],
+                    ),
+                    const SizedBox(height: _gridGap),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: CompeteHubMenuCard(
+                            imageAsset: CompeteHubArt.teams,
+                            title: 'Equipes',
+                            description: 'Equipes da comunidade perto de você',
+                            onTap: () =>
+                                context.pushNamed(AppRouteNames.teamDiscover),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: _gridGap),
-                      Expanded(
-                        child: CompeteHubMenuCard(
-                          imageAsset: CompeteHubArt.athletes,
-                          title: 'Atletas',
-                          description: 'Encontre jogadores da comunidade',
-                          onTap: () =>
-                              context.pushNamed(AppRouteNames.athleteDiscover),
+                        const SizedBox(width: _gridGap),
+                        Expanded(
+                          child: CompeteHubMenuCard(
+                            imageAsset: CompeteHubArt.athletes,
+                            title: 'Atletas',
+                            description: 'Encontre jogadores da comunidade',
+                            onTap: () =>
+                                context.pushNamed(AppRouteNames.athleteDiscover),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

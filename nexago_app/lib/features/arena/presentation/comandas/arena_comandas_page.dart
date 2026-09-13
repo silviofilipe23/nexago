@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:nexago_app/core/layout/nexa_floating_header.dart';
+import 'package:nexago_app/core/layout/nexa_page_header.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -86,109 +86,109 @@ class _ComandasBody extends ConsumerWidget {
             capability: ArenaCapability.pdvComandas,
           );
         }
-        return CustomScrollView(
-          controller: ref
-              .watch(arenaShellScrollRegistryProvider)
-              .controllerFor(2),
-          key: const PageStorageKey<String>('arena-comandas-scroll'),
-          slivers: [
-            NexaFloatingHeaderSliver(
-              topGap: 8,
-              padding: const EdgeInsets.symmetric(
-                horizontal: ArenaDashboardTokens.horizontalPadding,
-              ),
-              child: _ComandasHeader(
-                arenaName: arenaName,
-                onNewComanda: () {
-                  if (!entitled) {
-                    showArenaPlanUpsellSheet(
-                      context,
-                      capability: ArenaCapability.pdvComandas,
-                    );
-                    return;
-                  }
-                  ref.read(arenaComandaDraftProvider.notifier).reset();
-                  context.pushNamed(AppRouteNames.arenaComandaNewType);
-                },
-                onSearch: () {
-                  showAppSnackBar(context, 'Busca em breve.');
-                },
-              ),
-            ),
-            if (!entitled)
+        return NexaPageHeader(
+          topGap: 8,
+          padding: const EdgeInsets.symmetric(
+            horizontal: ArenaDashboardTokens.horizontalPadding,
+          ),
+          header: _ComandasHeader(
+            arenaName: arenaName,
+            onNewComanda: () {
+              if (!entitled) {
+                showArenaPlanUpsellSheet(
+                  context,
+                  capability: ArenaCapability.pdvComandas,
+                );
+                return;
+              }
+              ref.read(arenaComandaDraftProvider.notifier).reset();
+              context.pushNamed(AppRouteNames.arenaComandaNewType);
+            },
+            onSearch: () {
+              showAppSnackBar(context, 'Busca em breve.');
+            },
+          ),
+          child: CustomScrollView(
+            controller: ref
+                .watch(arenaShellScrollRegistryProvider)
+                .controllerFor(2),
+            key: const PageStorageKey<String>('arena-comandas-scroll'),
+            slivers: [
+              if (!entitled)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      ArenaDashboardTokens.horizontalPadding,
+                      12,
+                      ArenaDashboardTokens.horizontalPadding,
+                      0,
+                    ),
+                    child: const ArenaPlanReadOnlyBanner(
+                      message: 'Somente leitura. Você pode fechar as comandas '
+                          'abertas, mas não abrir novas.',
+                    ),
+                  ),
+                ),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
                     ArenaDashboardTokens.horizontalPadding,
-                    12,
+                    20,
                     ArenaDashboardTokens.horizontalPadding,
                     0,
                   ),
-                  child: const ArenaPlanReadOnlyBanner(
-                    message: 'Somente leitura. Você pode fechar as comandas '
-                        'abertas, mas não abrir novas.',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ArenaComandaKpiRow(arenaId: arenaId),
+                      const SizedBox(height: 16),
+                      ArenaComandaFilterChips(openCount: kpis.openCount),
+                      const SizedBox(height: 16),
+                    ],
                   ),
                 ),
               ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  ArenaDashboardTokens.horizontalPadding,
-                  20,
-                  ArenaDashboardTokens.horizontalPadding,
-                  0,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    ArenaComandaKpiRow(arenaId: arenaId),
-                    const SizedBox(height: 16),
-                    ArenaComandaFilterChips(openCount: kpis.openCount),
-                    const SizedBox(height: 16),
-                  ],
-                ),
-              ),
-            ),
-            if (filtered.isEmpty)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: ArenaEmptyState(
-                    title: 'Nenhuma comanda aberta',
-                    message: kpis.openCount == 0
-                        ? 'Toque em Nova para abrir a primeira comanda.'
-                        : 'Nenhuma comanda neste filtro.',
-                    icon: Icons.receipt_long_outlined,
+              if (filtered.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: ArenaEmptyState(
+                      title: 'Nenhuma comanda aberta',
+                      message: kpis.openCount == 0
+                          ? 'Toque em Nova para abrir a primeira comanda.'
+                          : 'Nenhuma comanda neste filtro.',
+                      icon: Icons.receipt_long_outlined,
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(
+                    ArenaDashboardTokens.horizontalPadding,
+                    0,
+                    ArenaDashboardTokens.horizontalPadding,
+                    ArenaDashboardTokens.shellScrollBottomPadding(context),
+                  ),
+                  sliver: SliverList.separated(
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final comanda = filtered[index];
+                      return ArenaComandaCard(
+                        comanda: comanda,
+                        onTap: () {
+                          context.pushNamed(
+                            AppRouteNames.arenaComandaDetail,
+                            pathParameters: {'comandaId': comanda.id},
+                          );
+                        },
+                      );
+                    },
                   ),
                 ),
-              )
-            else
-              SliverPadding(
-                padding: EdgeInsets.fromLTRB(
-                  ArenaDashboardTokens.horizontalPadding,
-                  0,
-                  ArenaDashboardTokens.horizontalPadding,
-                  ArenaDashboardTokens.shellScrollBottomPadding(context),
-                ),
-                sliver: SliverList.separated(
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final comanda = filtered[index];
-                    return ArenaComandaCard(
-                      comanda: comanda,
-                      onTap: () {
-                        context.pushNamed(
-                          AppRouteNames.arenaComandaDetail,
-                          pathParameters: {'comandaId': comanda.id},
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-          ],
+            ],
+          ),
         );
       },
       loading: () => const ArenaLoadingState(label: 'Carregando comandas...'),

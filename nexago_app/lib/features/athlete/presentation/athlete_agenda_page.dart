@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/layout/nexa_floating_header.dart';
+import '../../../core/layout/nexa_page_header.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -251,125 +251,125 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
 
             return Stack(
               children: [
-                RefreshIndicator(
-                  onRefresh: _refresh,
-                  color: AppColors.brand,
-                  child: CustomScrollView(
-                    controller: ref
-                        .watch(athleteShellScrollRegistryProvider)
-                        .controllerFor(athleteShellAgendaTabIndex),
-                    physics: const AlwaysScrollableScrollPhysics(
-                      parent: BouncingScrollPhysics(),
+                NexaPageHeader(
+                  topGap: 8,
+                  header: AgendaHeader(
+                    eyebrow: headerEyebrow,
+                    title: headerTitle,
+                    monthModeActive: isMonthMode,
+                    unreadNotificationCount: unreadNotifications,
+                    searchVisible: _searchVisible,
+                    onSearchTap: _toggleSearch,
+                    onCalendarTap: _toggleViewMode,
+                    onNotificationsTap: () => context.pushNamed(
+                      AppRouteNames.athleteNotifications,
                     ),
-                    slivers: [
-                      NexaFloatingHeaderSliver(
-                        topGap: 8,
-                        child: AgendaHeader(
-                          eyebrow: headerEyebrow,
-                          title: headerTitle,
-                          monthModeActive: isMonthMode,
-                          unreadNotificationCount: unreadNotifications,
-                          searchVisible: _searchVisible,
-                          onSearchTap: _toggleSearch,
-                          onCalendarTap: _toggleViewMode,
-                          onNotificationsTap: () => context.pushNamed(
-                            AppRouteNames.athleteNotifications,
-                          ),
-                        ),
+                  ),
+                  child: RefreshIndicator(
+                    onRefresh: _refresh,
+                    color: AppColors.brand,
+                    child: CustomScrollView(
+                      controller: ref
+                          .watch(athleteShellScrollRegistryProvider)
+                          .controllerFor(athleteShellAgendaTabIndex),
+                      physics: const AlwaysScrollableScrollPhysics(
+                        parent: BouncingScrollPhysics(),
                       ),
-                      if (_searchVisible)
-                        SliverToBoxAdapter(
-                          child: AgendaSearchField(
-                            controller: _searchController,
-                            onChanged: (value) =>
-                                setState(() => _searchQuery = value),
-                          ),
-                        ),
-                      SliverToBoxAdapter(
-                        child: AgendaTabs(
-                          selected: _timeTab,
-                          upcomingCount: timeTabCounts.upcoming,
-                          pastCount: timeTabCounts.past,
-                          onChanged: _onTimeTabChanged,
-                        ),
-                      ),
-                      if (!isMonthMode)
-                        SliverToBoxAdapter(
-                          child: AgendaDayStrip(
-                            days: stripDays,
-                            onSelect: (day) =>
-                                setState(() => _selectedDay = dateOnly(day)),
-                          ),
-                        ),
-                      if (!isEmptyDayHero)
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 12, bottom: 8),
-                            child: AgendaFilterChips(
-                              selected: _filter,
-                              counts: filterCounts,
-                              onSelected: (value) =>
-                                  setState(() => _filter = value),
+                      slivers: [
+                        if (_searchVisible)
+                          SliverToBoxAdapter(
+                            child: AgendaSearchField(
+                              controller: _searchController,
+                              onChanged: (value) =>
+                                  setState(() => _searchQuery = value),
                             ),
                           ),
-                        ),
-                      if (isEmptyDayHero)
                         SliverToBoxAdapter(
-                          child: AgendaEmptyDayView(
-                            selectedDay: _selectedDay,
-                            onDropInTap: () {
-                              ScaffoldMessenger.of(context)
-                                ..hideCurrentSnackBar()
-                                ..showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Drop-in em breve no app.'),
-                                  ),
-                                );
-                            },
-                            onRestDayTap: () {
-                              ScaffoldMessenger.of(context)
-                                ..hideCurrentSnackBar()
-                                ..showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Dia marcado como descanso.',
+                          child: AgendaTabs(
+                            selected: _timeTab,
+                            upcomingCount: timeTabCounts.upcoming,
+                            pastCount: timeTabCounts.past,
+                            onChanged: _onTimeTabChanged,
+                          ),
+                        ),
+                        if (!isMonthMode)
+                          SliverToBoxAdapter(
+                            child: AgendaDayStrip(
+                              days: stripDays,
+                              onSelect: (day) =>
+                                  setState(() => _selectedDay = dateOnly(day)),
+                            ),
+                          ),
+                        if (!isEmptyDayHero)
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 12, bottom: 8),
+                              child: AgendaFilterChips(
+                                selected: _filter,
+                                counts: filterCounts,
+                                onSelected: (value) =>
+                                    setState(() => _filter = value),
+                              ),
+                            ),
+                          ),
+                        if (isEmptyDayHero)
+                          SliverToBoxAdapter(
+                            child: AgendaEmptyDayView(
+                              selectedDay: _selectedDay,
+                              onDropInTap: () {
+                                ScaffoldMessenger.of(context)
+                                  ..hideCurrentSnackBar()
+                                  ..showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Drop-in em breve no app.'),
                                     ),
-                                  ),
-                                );
-                            },
+                                  );
+                              },
+                              onRestDayTap: () {
+                                ScaffoldMessenger.of(context)
+                                  ..hideCurrentSnackBar()
+                                  ..showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Dia marcado como descanso.',
+                                      ),
+                                    ),
+                                  );
+                              },
+                            ),
+                          )
+                        else if (showMonthView)
+                          SliverToBoxAdapter(
+                            child: AgendaMonthView(
+                              visibleMonth: _visibleMonth,
+                              monthDays: monthDays,
+                              summaryRows: summaryRows,
+                              freeDaysCount: freeDaysCount,
+                              onMonthChanged: _onMonthChanged,
+                              onDaySelected: _openDayFromMonth,
+                            ),
+                          )
+                        else if (showFilteredEmpty)
+                          SliverToBoxAdapter(
+                            child: AgendaEmptyState(
+                              filter: _filter,
+                              monthMode: isMonthMode,
+                              pastTab: isPastTab,
+                              searchQuery: _searchQuery,
+                              onPrimaryAction: () =>
+                                  _onFilteredEmptyPrimaryAction(context),
+                            ),
+                          )
+                        else if (showDayTimeline)
+                          SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) => timelineChildren[index],
+                              childCount: timelineChildren.length,
+                            ),
                           ),
-                        )
-                      else if (showMonthView)
-                        SliverToBoxAdapter(
-                          child: AgendaMonthView(
-                            visibleMonth: _visibleMonth,
-                            monthDays: monthDays,
-                            summaryRows: summaryRows,
-                            freeDaysCount: freeDaysCount,
-                            onMonthChanged: _onMonthChanged,
-                            onDaySelected: _openDayFromMonth,
-                          ),
-                        )
-                      else if (showFilteredEmpty)
-                        SliverToBoxAdapter(
-                          child: AgendaEmptyState(
-                            filter: _filter,
-                            monthMode: isMonthMode,
-                            pastTab: isPastTab,
-                            searchQuery: _searchQuery,
-                            onPrimaryAction: () =>
-                                _onFilteredEmptyPrimaryAction(context),
-                          ),
-                        )
-                      else if (showDayTimeline)
-                        SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) => timelineChildren[index],
-                            childCount: timelineChildren.length,
-                          ),
-                        ),
-                      const SliverToBoxAdapter(child: SizedBox(height: 88)),
-                    ],
+                        const SliverToBoxAdapter(child: SizedBox(height: 88)),
+                      ],
+                    ),
                   ),
                 ),
               ],

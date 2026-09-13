@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/layout/nexa_floating_header.dart';
+import '../../../core/layout/nexa_page_header.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
@@ -94,102 +94,102 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
         bottom: false,
         child: ColoredBox(
           color: context.themeColors.canvas,
-          child: RefreshIndicator(
-            color: AppColors.brand,
-            onRefresh: _refresh,
-            child: CustomScrollView(
-              controller: _scrollController,
-              physics: const AlwaysScrollableScrollPhysics(
-                parent: BouncingScrollPhysics(),
-              ),
-              slivers: [
-                NexaFloatingHeaderSliver(
-                  padding: const EdgeInsets.fromLTRB(
-                    _discoverHorizontalPadding,
-                    0,
-                    _discoverHorizontalPadding,
-                    12,
+          child: NexaPageHeader(
+            padding: const EdgeInsets.fromLTRB(
+              _discoverHorizontalPadding,
+              0,
+              _discoverHorizontalPadding,
+              12,
+            ),
+            topGap: 4,
+            header: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _DiscoverAppBar(
+                  subtitle: 'Equipes perto de você · $cityLabel',
+                  filtersActive: state.filters.hasActiveFilters,
+                  onBack: () => context.pop(),
+                  onFilters: _openFilters,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _searchController,
+                  style: AppTypography.soraRegular(
+                    fontSize: 14,
+                    color: context.themeColors.onSurface,
                   ),
-                  topGap: 4,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _DiscoverAppBar(
-                        subtitle: 'Equipes perto de você · $cityLabel',
-                        filtersActive: state.filters.hasActiveFilters,
-                        onBack: () => context.pop(),
-                        onFilters: _openFilters,
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _searchController,
-                        style: AppTypography.soraRegular(
-                          fontSize: 14,
-                          color: context.themeColors.onSurface,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Nome da dupla, atletas ou cidade…',
-                          hintStyle: AppTypography.soraRegular(
-                            fontSize: 14,
-                            color: context.themeColors.onSurfaceMuted,
-                          ),
-                          prefixIcon: Icon(
-                            Icons.search_rounded,
-                            color: context.themeColors.onSurfaceMuted,
-                          ),
-                          filled: true,
-                          fillColor: context.themeColors.surfaceRaised,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding:
-                              const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children:
-                              TeamDiscoverGenderFilter.values.map((gender) {
-                            final selected = state.filters.gender == gender;
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: FilterChip(
-                                label: Text(gender.chipLabel),
-                                selected: selected,
-                                showCheckmark: false,
-                                onSelected: (_) => ref
-                                    .read(teamDiscoverProvider.notifier)
-                                    .setGenderFilter(gender),
-                                labelStyle: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  color: selected
-                                      ? context.themeColors.onSurface
-                                      : context.themeColors.onSurfaceMuted,
-                                ),
-                                backgroundColor:
-                                    context.themeColors.surfaceRaised,
-                                selectedColor: context.themeColors.surfaceCard,
-                                side: BorderSide(
-                                  color: selected
-                                      ? AppColors.brand.withValues(alpha: 0.5)
-                                      : Colors.transparent,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ],
+                  decoration: InputDecoration(
+                    hintText: 'Nome da dupla, atletas ou cidade…',
+                    hintStyle: AppTypography.soraRegular(
+                      fontSize: 14,
+                      color: context.themeColors.onSurfaceMuted,
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      color: context.themeColors.onSurfaceMuted,
+                    ),
+                    filled: true,
+                    fillColor: context.themeColors.surfaceRaised,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding:
+                        const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
-                ..._buildBodySlivers(state: state),
+                const SizedBox(height: 12),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children:
+                        TeamDiscoverGenderFilter.values.map((gender) {
+                      final selected = state.filters.gender == gender;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilterChip(
+                          label: Text(gender.chipLabel),
+                          selected: selected,
+                          showCheckmark: false,
+                          onSelected: (_) => ref
+                              .read(teamDiscoverProvider.notifier)
+                              .setGenderFilter(gender),
+                          labelStyle: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: selected
+                                ? context.themeColors.onSurface
+                                : context.themeColors.onSurfaceMuted,
+                          ),
+                          backgroundColor:
+                              context.themeColors.surfaceRaised,
+                          selectedColor: context.themeColors.surfaceCard,
+                          side: BorderSide(
+                            color: selected
+                                ? AppColors.brand.withValues(alpha: 0.5)
+                                : Colors.transparent,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
               ],
+            ),
+            child: RefreshIndicator(
+              color: AppColors.brand,
+              onRefresh: _refresh,
+              child: CustomScrollView(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
+                slivers: [
+                  ..._buildBodySlivers(state: state),
+                ],
+              ),
             ),
           ),
         ),

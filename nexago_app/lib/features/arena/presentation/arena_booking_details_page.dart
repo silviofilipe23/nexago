@@ -9,7 +9,7 @@ import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../core/formatting/app_currency_format.dart';
-import '../../../core/layout/nexa_floating_header.dart';
+import '../../../core/layout/nexa_page_header.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../domain/arena_booking_canceled_args.dart';
@@ -241,36 +241,36 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
       body: SafeArea(
         top: false,
         bottom: false,
-        child: CustomScrollView(
-          physics: ArenaDashboardTokens.shellScrollPhysics,
-          slivers: [
-            NexaFloatingHeaderSliver(
-              topGap: 4,
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-              child: _ArenaBookingDetailsHeader(
-                eyebrow: eyebrow,
-                onBack: () {
-                  if (context.canPop()) context.pop();
-                },
-              ),
-            ),
-            SliverPadding(
-              padding: EdgeInsets.fromLTRB(
-                ArenaDashboardTokens.horizontalPadding,
-                16,
-                ArenaDashboardTokens.horizontalPadding,
-                bottomPadding,
-              ),
-              sliver: SliverToBoxAdapter(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: minContentHeight.clamp(0, double.infinity),
+        child: NexaPageHeader(
+          topGap: 4,
+          padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+          header: _ArenaBookingDetailsHeader(
+            eyebrow: eyebrow,
+            onBack: () {
+              if (context.canPop()) context.pop();
+            },
+          ),
+          child: CustomScrollView(
+            physics: ArenaDashboardTokens.shellScrollPhysics,
+            slivers: [
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                  ArenaDashboardTokens.horizontalPadding,
+                  16,
+                  ArenaDashboardTokens.horizontalPadding,
+                  bottomPadding,
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: minContentHeight.clamp(0, double.infinity),
+                    ),
+                    child: body,
                   ),
-                  child: body,
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

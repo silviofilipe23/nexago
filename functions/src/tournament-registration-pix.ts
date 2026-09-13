@@ -48,7 +48,7 @@ import {
 } from "./tournament-team-category";
 import {
   loadTeamMemberUids,
-  setTeamGenderWhenRegistrationPaid,
+  markTeamRegistrationPaid,
 } from "./tournament-team-roster";
 import {
   deliverNotificationToUser,
@@ -848,7 +848,7 @@ export const confirmFreeTournamentRegistration = onCall({
 
   if (!wasPaidBefore && isPaid && teamId) {
     try {
-      await setTeamGenderWhenRegistrationPaid(db, projectId, teamId);
+      await markTeamRegistrationPaid(db, projectId, teamId);
     } catch (genderError) {
       logger.warn(
         `Falha ao definir gender da equipe ${teamId} (registration ${registrationId})`,
@@ -1057,7 +1057,7 @@ export const reserveDirectOrganizerRegistration = onCall({
 
   if (bothAthletesReserved && teamId) {
     try {
-      await setTeamGenderWhenRegistrationPaid(db, projectId, teamId);
+      await markTeamRegistrationPaid(db, projectId, teamId);
     } catch (genderError) {
       logger.warn(
         `Falha ao definir gender da equipe ${teamId} (registration ${registrationId})`,

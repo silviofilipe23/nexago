@@ -16,6 +16,7 @@ class TournamentTeam {
     this.captainUid,
     this.teamName,
     this.gender,
+    this.registrationPaid = false,
     this.createdAt,
   });
 
@@ -32,6 +33,14 @@ class TournamentTeam {
   final String? captainUid;
   final String? teamName;
   final String? gender;
+
+  /// A inscrição que criou esta equipe foi PAGA por inteiro. Carimbado só pelas
+  /// Cloud Functions (`markTeamRegistrationPaid`), no mesmo instante do
+  /// [gender]. É o portão das listagens públicas: a equipe nasce no aceite do
+  /// convite, antes de qualquer pagamento, e a que nunca paga não deve aparecer
+  /// em lugar nenhum — nunca jogou, nunca existiu.
+  final bool registrationPaid;
+
   final DateTime? createdAt;
 
   bool get isLookingForPartner {
@@ -96,6 +105,7 @@ class TournamentTeam {
       captainUid: _str(data['captainUid']),
       teamName: _str(data['teamName']),
       gender: _str(data['gender']),
+      registrationPaid: data['registrationPaid'] == true,
       createdAt: _timestamp(data['createdAt']),
     );
   }

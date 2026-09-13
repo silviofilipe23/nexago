@@ -14,7 +14,10 @@ import {
   getFirebaseProjectId,
 } from "./firebase-paths";
 import {registrationAthleteUids} from "./tournament-registration-pix-helpers";
-import {buildRegistrationCancellationAudit} from "./tournament-registration-cancellation";
+import {
+  buildRegistrationCancellationAudit,
+  shouldDeleteTeamOnCancellation,
+} from "./tournament-registration-cancellation";
 import {
   CANCELLATION_REQUEST_BLOCK_MESSAGES,
   buildCancellationDecline,
@@ -190,7 +193,7 @@ export const respondRegistrationCancellationRequest = onCall({
     throw new HttpsError("invalid-argument", "registrationId é obrigatório.");
   }
 
-  const {db, ref, registration, tournamentId, athleteUids} =
+  const {db, projectId, ref, registration, tournamentId, athleteUids} =
     await loadRegistrationContext(registrationId);
 
   await assertCanManageTournament(db, uid, tournamentId);
@@ -254,6 +257,25 @@ export const respondRegistrationCancellationRequest = onCall({
     requestReason: pending.reason,
     responseNote: note,
   });
+  // A equipe morre junto — mesma regra do cancelamento pelo atleta
+  // (`releaseRegistration`). Aprovar o pedido apagava só a inscrição e deixava
+  // o doc de equipe órfão nas listagens.
+  const teamId = String(registration.teamId ?? "").trim();
+  if (teamId) {
+    const teamRegsSnap = await db
+      .collection(artifactsInscriptionsPath(projectId))
+      .where("teamId", "==", teamId)
+      .get();
+    if (
+      shouldDeleteTeamOnCancellation(
+        teamId,
+        teamRegsSnap.docs.map((d) => d.id),
+        registrationId,
+      )
+    ) {
+      batch.delete(db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`));
+    }
+  }
   batch.delete(ref);
   await batch.commit();
 

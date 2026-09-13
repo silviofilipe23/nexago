@@ -52,6 +52,7 @@ class TeamDiscoverRepository {
     try {
       final snap = await _teams
           .where('keywords', arrayContains: token)
+          .where('registrationPaid', isEqualTo: true)
           .limit(max)
           .get();
       return snap.docs.map(TournamentTeam.fromFirestore).toList();
@@ -68,8 +69,15 @@ class TeamDiscoverRepository {
     String? startAfterDocumentId,
     int limit = pageSize,
   }) async {
-    Query<Map<String, dynamic>> query =
-        _teams.orderBy(FieldPath.documentId).limit(limit);
+    // Só equipe com inscrição PAGA entra na listagem. A equipe nasce no aceite
+    // do convite, antes de qualquer pagamento — sem este filtro o Descobrir
+    // mostrava duplas que nunca pagaram e nunca jogaram, além das que sobraram
+    // de inscrições canceladas. `registrationPaid` é carimbado só pelas Cloud
+    // Functions, no instante em que a inscrição fecha.
+    Query<Map<String, dynamic>> query = _teams
+        .where('registrationPaid', isEqualTo: true)
+        .orderBy(FieldPath.documentId)
+        .limit(limit);
 
     if (startAfterDocumentId != null &&
         startAfterDocumentId.trim().isNotEmpty) {
@@ -149,8 +157,16 @@ class TeamDiscoverRepository {
     final uid = currentUserId?.trim();
     if (uid == null || uid.isEmpty) return null;
     final results = await Future.wait([
-      _teams.where('player1Id', isEqualTo: uid).limit(5).get(),
-      _teams.where('player2Id', isEqualTo: uid).limit(5).get(),
+      _teams
+          .where('player1Id', isEqualTo: uid)
+          .where('registrationPaid', isEqualTo: true)
+          .limit(5)
+          .get(),
+      _teams
+          .where('player2Id', isEqualTo: uid)
+          .where('registrationPaid', isEqualTo: true)
+          .limit(5)
+          .get(),
     ]);
     String? teamId;
     for (final snap in results) {

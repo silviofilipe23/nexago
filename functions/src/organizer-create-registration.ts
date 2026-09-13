@@ -80,7 +80,7 @@ import {
 } from "./tournament-team-category";
 import {
   loadUserGenderBucket,
-  setTeamGenderWhenRegistrationPaid,
+  markTeamRegistrationPaid,
 } from "./tournament-team-roster";
 import {
   assertAthleteUidsMatchCategorySize,
@@ -490,7 +490,7 @@ export const organizerCreateTeamRegistration = onCall({
 
     if (result.isPaid) {
       try {
-        await setTeamGenderWhenRegistrationPaid(db, projectId, result.teamId);
+        await markTeamRegistrationPaid(db, projectId, result.teamId);
       } catch (genderError) {
         logger.warn(
           `Falha ao definir gender da equipe ${result.teamId}`,
@@ -795,7 +795,7 @@ export const organizerCreateTeamRegistration = onCall({
 
   if (result.isPaid) {
     try {
-      await setTeamGenderWhenRegistrationPaid(db, projectId, result.teamId);
+      await markTeamRegistrationPaid(db, projectId, result.teamId);
     } catch (genderError) {
       logger.warn(
         `Falha ao definir gender da equipe ${result.teamId}`,

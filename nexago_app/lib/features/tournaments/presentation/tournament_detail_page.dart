@@ -24,6 +24,7 @@ import '../domain/tournament_discovery_providers.dart';
 import '../domain/tournament_listing_status.dart';
 import '../domain/tournament_detail_tabs_logic.dart';
 import '../domain/tournament_match.dart';
+import '../domain/tournament_match_card_view_model.dart';
 import '../domain/tournament_matches_logic.dart';
 import '../domain/tournament_podium_logic.dart';
 import 'widgets/tournament_detail/tournament_detail_bottom_bar.dart';
@@ -215,13 +216,12 @@ class _TournamentDetailContentState
   Widget build(BuildContext context) {
     // Os `watch` ficam aqui, no build do consumer: dentro do builder do
     // [RebuildAt] eles rodariam no ciclo de outro elemento.
-    final matches =
+    final cards =
         ref
             .watch(tournamentMatchCardsProvider(widget.tournament.id))
-            .valueOrNull
-            ?.map((c) => c.match)
-            .toList() ??
-        const [];
+            .valueOrNull ??
+        const <TournamentMatchCardViewModel>[];
+    final matches = cards.map((c) => c.match).toList();
     final teamIdsByCategory =
         ref
             .watch(
@@ -237,6 +237,7 @@ class _TournamentDetailContentState
       builder: (context, now) => _buildContent(
         context,
         now: now,
+        cards: cards,
         matches: matches,
         athleteTeamIds: athleteTeamIdsForHighlight(teamIdsByCategory),
       ),
@@ -246,6 +247,7 @@ class _TournamentDetailContentState
   Widget _buildContent(
     BuildContext context, {
     required DateTime now,
+    required List<TournamentMatchCardViewModel> cards,
     required List<TournamentMatch> matches,
     required Set<String> athleteTeamIds,
   }) {
@@ -282,7 +284,7 @@ class _TournamentDetailContentState
       status: widget.tournament.status,
       podiums: tournamentPodiumsByCategory(
         categories: widget.tournament.categoryOffers,
-        matches: matches,
+        cards: cards,
       ),
       isCancelled: isCancelledListing(widget.tournament.listingStatusRaw),
     );

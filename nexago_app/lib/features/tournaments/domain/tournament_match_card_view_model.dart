@@ -7,11 +7,16 @@ class TournamentMatchCardPlayerViewModel {
     required this.initials,
     required this.avatarColor,
     this.avatarUrl,
+    this.name = '',
   });
 
   final String initials;
   final Color avatarColor;
   final String? avatarUrl;
+
+  /// Nome de exibição do atleta. Vazio quando a partida não trouxe a equipe
+  /// (só há o rótulo da dupla) — quem mostra nome precisa tratar o vazio.
+  final String name;
 }
 
 class TournamentMatchCardTeamViewModel {

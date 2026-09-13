@@ -68,10 +68,6 @@ class _AthleteDiscoverPageState extends ConsumerState<AthleteDiscoverPage> {
     final result = await showAthleteDiscoverFiltersSheet(
       context: context,
       initial: state.filters,
-      previewResultCount: (draft) => ref
-          .read(athleteDiscoverProvider.notifier)
-          .previewForFilters(draft)
-          .length,
       cityOptionsFor: (uf) =>
           discoverCityOptions(ref.read(athleteDiscoverProvider).rawEntries, uf),
     );

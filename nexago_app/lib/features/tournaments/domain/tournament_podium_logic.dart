@@ -1,6 +1,7 @@
 import 'tournament_discovery_models.dart';
 import 'tournament_listing_status.dart';
 import 'tournament_match.dart';
+import 'tournament_match_card_view_model.dart';
 
 /// Entrada mínima para calcular o pódio — desacopla a lógica do modelo
 /// completo de partida (mantém os testes enxutos).
@@ -94,17 +95,22 @@ class TournamentPodiumPlace {
     required this.teamId,
     required this.teamName,
     this.prizeValue = 0,
+    this.players = const [],
   });
 
   /// 1, 2 ou 3.
   final int place;
   final String teamId;
 
-  /// Nome da dupla/equipe; cai no id quando a partida não trouxe descrição.
+  /// Nome da dupla/equipe; cai no id quando o card não trouxe rótulo.
   final String teamName;
 
   /// Prêmio configurado para a colocação, em reais. 0 = sem prêmio declarado.
   final double prizeValue;
+
+  /// Atletas da equipe, com nome e foto — é o que a tela desenha sob o degrau.
+  /// Vazio quando a partida não resolveu a equipe.
+  final List<TournamentMatchCardPlayerViewModel> players;
 }
 
 /// Pódio de UMA categoria do torneio, pronto para renderizar.
@@ -133,23 +139,24 @@ double _prizeValueFor(List<TournamentCategoryPrize> prizes, int place) {
   return 0;
 }
 
-/// Nome da equipe a partir das descrições que as partidas já carregam.
-String _teamNameIn(Iterable<TournamentMatch> matches, String teamId) {
-  for (final m in matches) {
-    if (m.teamAId == teamId) {
-      final d = m.teamADescription?.trim() ?? '';
-      if (d.isNotEmpty) return d;
-    }
-    if (m.teamBId == teamId) {
-      final d = m.teamBDescription?.trim() ?? '';
-      if (d.isNotEmpty) return d;
-    }
+/// O lado (equipe) de um card que corresponde a [teamId], ou `null`.
+TournamentMatchCardTeamViewModel? _sideFor(
+  Iterable<TournamentMatchCardViewModel> cards,
+  String teamId,
+) {
+  for (final card in cards) {
+    if (card.match.teamAId == teamId) return card.teamA;
+    if (card.match.teamBId == teamId) return card.teamB;
   }
-  return teamId;
+  return null;
 }
 
 /// O pódio de cada categoria do torneio, na ordem em que as categorias são
 /// oferecidas.
+///
+/// Recebe os CARDS, não as partidas cruas, porque é o enriquecimento que
+/// carrega nome e foto de cada atleta — sem ele o pódio só teria o rótulo da
+/// dupla.
 ///
 /// O agrupamento por `categoryId` é o ponto crítico: rodar
 /// [computeCategoryPodium] sobre as partidas do torneio inteiro faria a final
@@ -157,22 +164,24 @@ String _teamNameIn(Iterable<TournamentMatch> matches, String teamId) {
 /// guarda só a última partida "Final" que encontra).
 List<TournamentCategoryPodium> tournamentPodiumsByCategory({
   required List<TournamentCategoryOffer> categories,
-  required List<TournamentMatch> matches,
+  required List<TournamentMatchCardViewModel> cards,
 }) {
   return [
     for (final category in categories)
       _podiumForCategory(
         category,
-        matches.where((m) => m.categoryId == category.id).toList(),
+        cards.where((c) => c.match.categoryId == category.id).toList(),
       ),
   ];
 }
 
 TournamentCategoryPodium _podiumForCategory(
   TournamentCategoryOffer category,
-  List<TournamentMatch> categoryMatches,
+  List<TournamentMatchCardViewModel> categoryCards,
 ) {
-  final podium = computeCategoryPodiumFromMatches(categoryMatches);
+  final podium = computeCategoryPodiumFromMatches(
+    categoryCards.map((c) => c.match),
+  );
   final byPlace = <int, String?>{
     1: podium.championTeamId,
     2: podium.runnerUpTeamId,
@@ -185,14 +194,40 @@ TournamentCategoryPodium _podiumForCategory(
     places: [
       for (final entry in byPlace.entries)
         if ((entry.value?.trim() ?? '').isNotEmpty)
-          TournamentPodiumPlace(
-            place: entry.key,
-            teamId: entry.value!.trim(),
-            teamName: _teamNameIn(categoryMatches, entry.value!.trim()),
-            prizeValue: _prizeValueFor(category.prizes, entry.key),
-          ),
+          _placeFor(category, categoryCards, entry.key, entry.value!.trim()),
     ],
   );
+}
+
+TournamentPodiumPlace _placeFor(
+  TournamentCategoryOffer category,
+  List<TournamentMatchCardViewModel> categoryCards,
+  int place,
+  String teamId,
+) {
+  final side = _sideFor(categoryCards, teamId);
+  final label = side?.displayName.trim() ?? '';
+
+  return TournamentPodiumPlace(
+    place: place,
+    teamId: teamId,
+    teamName: label.isNotEmpty ? label : teamId,
+    prizeValue: _prizeValueFor(category.prizes, place),
+    players: side?.players ?? const [],
+  );
+}
+
+/// Categoria de entrada da tela: a primeira com pódio decidido, senão a
+/// primeira da lista.
+///
+/// Abrir numa categoria vazia quando existe outra já premiada faria a tela
+/// parecer quebrada — o pódio é a vitrine, tem que abrir mostrando alguém.
+String defaultPodiumCategoryId(List<TournamentCategoryPodium> podiums) {
+  if (podiums.isEmpty) return '';
+  for (final p in podiums) {
+    if (p.isDecided) return p.categoryId;
+  }
+  return podiums.first.categoryId;
 }
 
 /// A tela de pódio está liberada?

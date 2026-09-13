@@ -1,7 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_listing_status.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_match_card_view_model.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_status.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_podium_logic.dart';
 
@@ -11,8 +13,6 @@ TournamentMatch _match({
   String id = 'm1',
   String teamAId = 'a',
   String teamBId = 'b',
-  String? teamADescription,
-  String? teamBDescription,
   String? winnerId,
   String status = TournamentMatchStatus.completed,
 }) {
@@ -31,8 +31,35 @@ TournamentMatch _match({
     isGroupMatch: false,
     matchNumber: 1,
     winnerId: winnerId,
-    teamADescription: teamADescription,
-    teamBDescription: teamBDescription,
+  );
+}
+
+TournamentMatchCardTeamViewModel _team(String displayName, List<String> names) {
+  return TournamentMatchCardTeamViewModel(
+    displayName: displayName,
+    players: [
+      for (final n in names)
+        TournamentMatchCardPlayerViewModel(
+          initials: n.isEmpty ? '?' : n.substring(0, 1),
+          avatarColor: const Color(0xFF00FF88),
+          avatarUrl: 'https://exemplo/$n.jpg',
+          name: n,
+        ),
+    ],
+  );
+}
+
+TournamentMatchCardViewModel _card(
+  TournamentMatch match, {
+  String teamAName = '',
+  List<String> teamAPlayers = const [],
+  String teamBName = '',
+  List<String> teamBPlayers = const [],
+}) {
+  return TournamentMatchCardViewModel(
+    match: match,
+    teamA: _team(teamAName, teamAPlayers),
+    teamB: _team(teamBName, teamBPlayers),
   );
 }
 
@@ -54,24 +81,29 @@ void main() {
     test('keeps one entry per category, in the tournament order', () {
       final podiums = tournamentPodiumsByCategory(
         categories: [
-          _category(id: 'c1', name: 'Masculino B'),
-          _category(id: 'c2', name: 'Feminino A'),
+          _category(id: 'c1', name: 'Masculino Open'),
+          _category(id: 'c2', name: 'Feminino Open'),
         ],
-        matches: const [],
+        cards: const [],
       );
 
       expect(podiums.map((p) => p.categoryId), ['c1', 'c2']);
-      expect(podiums.map((p) => p.categoryName), ['Masculino B', 'Feminino A']);
+      expect(
+        podiums.map((p) => p.categoryName),
+        ['Masculino Open', 'Feminino Open'],
+      );
     });
 
     test('a category with no decided final has no places', () {
       final podiums = tournamentPodiumsByCategory(
-        categories: [_category(id: 'c1', name: 'Masculino B')],
-        matches: [
-          _match(
-            categoryId: 'c1',
-            matchType: 'Final',
-            status: TournamentMatchStatus.scheduled,
+        categories: [_category(id: 'c1', name: 'Masculino Open')],
+        cards: [
+          _card(
+            _match(
+              categoryId: 'c1',
+              matchType: 'Final',
+              status: TournamentMatchStatus.scheduled,
+            ),
           ),
         ],
       );
@@ -82,27 +114,31 @@ void main() {
 
     test('resolves champion, runner-up and third place with team names', () {
       final podiums = tournamentPodiumsByCategory(
-        categories: [_category(id: 'c1', name: 'Masculino B')],
-        matches: [
-          _match(
-            id: 'final',
-            categoryId: 'c1',
-            matchType: 'Final',
-            teamAId: 't1',
-            teamBId: 't2',
-            teamADescription: 'Ana & Bia',
-            teamBDescription: 'Carla & Duda',
-            winnerId: 't1',
+        categories: [_category(id: 'c1', name: 'Masculino Open')],
+        cards: [
+          _card(
+            _match(
+              id: 'final',
+              categoryId: 'c1',
+              matchType: 'Final',
+              teamAId: 't1',
+              teamBId: 't2',
+              winnerId: 't1',
+            ),
+            teamAName: 'Bruno / Lucas',
+            teamBName: 'Rafael / Diego',
           ),
-          _match(
-            id: 'third',
-            categoryId: 'c1',
-            matchType: 'Third Place',
-            teamAId: 't3',
-            teamBId: 't4',
-            teamADescription: 'Eva & Fran',
-            teamBDescription: 'Gabi & Hel',
-            winnerId: 't3',
+          _card(
+            _match(
+              id: 'third',
+              categoryId: 'c1',
+              matchType: 'Third Place',
+              teamAId: 't3',
+              teamBId: 't4',
+              winnerId: 't3',
+            ),
+            teamAName: 'Matheus / Caio',
+            teamBName: 'João / Pedro',
           ),
         ],
       );
@@ -112,32 +148,64 @@ void main() {
       expect(places.map((p) => p.teamId), ['t1', 't2', 't3']);
       expect(
         places.map((p) => p.teamName),
-        ['Ana & Bia', 'Carla & Duda', 'Eva & Fran'],
+        ['Bruno / Lucas', 'Rafael / Diego', 'Matheus / Caio'],
       );
+    });
+
+    test('carries the players of each team, with name and photo', () {
+      final podiums = tournamentPodiumsByCategory(
+        categories: [_category(id: 'c1', name: 'Masculino Open')],
+        cards: [
+          _card(
+            _match(
+              categoryId: 'c1',
+              matchType: 'Final',
+              teamAId: 't1',
+              teamBId: 't2',
+              winnerId: 't1',
+            ),
+            teamAName: 'Bruno / Lucas',
+            teamAPlayers: const ['Bruno', 'Lucas'],
+            teamBName: 'Rafael / Diego',
+            teamBPlayers: const ['Rafael', 'Diego'],
+          ),
+        ],
+      );
+
+      final champion = podiums.single.places.first;
+      expect(champion.players.map((p) => p.name), ['Bruno', 'Lucas']);
+      expect(champion.players.first.avatarUrl, 'https://exemplo/Bruno.jpg');
+
+      final runnerUp = podiums.single.places[1];
+      expect(runnerUp.players.map((p) => p.name), ['Rafael', 'Diego']);
     });
 
     test('does not mix the finals of two categories', () {
       final podiums = tournamentPodiumsByCategory(
         categories: [
-          _category(id: 'c1', name: 'Masculino B'),
-          _category(id: 'c2', name: 'Feminino A'),
+          _category(id: 'c1', name: 'Masculino Open'),
+          _category(id: 'c2', name: 'Feminino Open'),
         ],
-        matches: [
-          _match(
-            id: 'f1',
-            categoryId: 'c1',
-            matchType: 'Final',
-            teamAId: 't1',
-            teamBId: 't2',
-            winnerId: 't1',
+        cards: [
+          _card(
+            _match(
+              id: 'f1',
+              categoryId: 'c1',
+              matchType: 'Final',
+              teamAId: 't1',
+              teamBId: 't2',
+              winnerId: 't1',
+            ),
           ),
-          _match(
-            id: 'f2',
-            categoryId: 'c2',
-            matchType: 'Final',
-            teamAId: 't9',
-            teamBId: 't8',
-            winnerId: 't9',
+          _card(
+            _match(
+              id: 'f2',
+              categoryId: 'c2',
+              matchType: 'Final',
+              teamAId: 't9',
+              teamBId: 't8',
+              winnerId: 't9',
+            ),
           ),
         ],
       );
@@ -146,16 +214,18 @@ void main() {
       expect(podiums[1].places.first.teamId, 't9');
     });
 
-    test('falls back to the team id when the match carries no description', () {
+    test('falls back to the team id when the card carries no display name', () {
       final podiums = tournamentPodiumsByCategory(
-        categories: [_category(id: 'c1', name: 'Masculino B')],
-        matches: [
-          _match(
-            categoryId: 'c1',
-            matchType: 'Final',
-            teamAId: 't1',
-            teamBId: 't2',
-            winnerId: 't1',
+        categories: [_category(id: 'c1', name: 'Masculino Open')],
+        cards: [
+          _card(
+            _match(
+              categoryId: 'c1',
+              matchType: 'Final',
+              teamAId: 't1',
+              teamBId: 't2',
+              winnerId: 't1',
+            ),
           ),
         ],
       );
@@ -168,20 +238,22 @@ void main() {
         categories: [
           _category(
             id: 'c1',
-            name: 'Masculino B',
+            name: 'Masculino Open',
             prizes: const [
               TournamentCategoryPrize(position: '1', value: 500),
               TournamentCategoryPrize(position: '2', value: 250),
             ],
           ),
         ],
-        matches: [
-          _match(
-            categoryId: 'c1',
-            matchType: 'Final',
-            teamAId: 't1',
-            teamBId: 't2',
-            winnerId: 't1',
+        cards: [
+          _card(
+            _match(
+              categoryId: 'c1',
+              matchType: 'Final',
+              teamAId: 't1',
+              teamBId: 't2',
+              winnerId: 't1',
+            ),
           ),
         ],
       );
@@ -190,10 +262,49 @@ void main() {
     });
   });
 
+  group('defaultPodiumCategoryId', () {
+    TournamentCategoryPodium podium(String id, {required bool decided}) {
+      return TournamentCategoryPodium(
+        categoryId: id,
+        categoryName: id,
+        places: decided
+            ? const [
+                TournamentPodiumPlace(place: 1, teamId: 't1', teamName: 'Ana'),
+              ]
+            : const [],
+      );
+    }
+
+    test('opens on the first category that has a decided podium', () {
+      expect(
+        defaultPodiumCategoryId([
+          podium('c1', decided: false),
+          podium('c2', decided: true),
+          podium('c3', decided: true),
+        ]),
+        'c2',
+      );
+    });
+
+    test('falls back to the first category when none is decided', () {
+      expect(
+        defaultPodiumCategoryId([
+          podium('c1', decided: false),
+          podium('c2', decided: false),
+        ]),
+        'c1',
+      );
+    });
+
+    test('is empty when there are no categories', () {
+      expect(defaultPodiumCategoryId(const []), '');
+    });
+  });
+
   group('tournamentPodiumAvailable', () {
     TournamentCategoryPodium decided() => const TournamentCategoryPodium(
           categoryId: 'c1',
-          categoryName: 'Masculino B',
+          categoryName: 'Masculino Open',
           places: [
             TournamentPodiumPlace(place: 1, teamId: 't1', teamName: 'Ana'),
             TournamentPodiumPlace(place: 2, teamId: 't2', teamName: 'Bia'),
@@ -202,7 +313,7 @@ void main() {
 
     TournamentCategoryPodium undecided() => const TournamentCategoryPodium(
           categoryId: 'c1',
-          categoryName: 'Masculino B',
+          categoryName: 'Masculino Open',
           places: [],
         );
 

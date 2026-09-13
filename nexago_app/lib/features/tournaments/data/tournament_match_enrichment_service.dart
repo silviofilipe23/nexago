@@ -1,9 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import 'package:nexago_app/core/profiles/users_repository.dart';
 
-import '../../ranking/domain/ranking_display_helpers.dart';
 import '../domain/tournament_match.dart';
+import '../domain/tournament_match_card_players.dart';
 import '../domain/tournament_match_card_view_model.dart';
 import '../domain/tournament_team.dart';
 import 'tournament_teams_repository.dart';
@@ -156,7 +155,7 @@ class TournamentMatchEnrichmentService {
       final safeDescription = safeMatchTeamDescription(description);
       return TournamentMatchCardTeamViewModel(
         displayName: safeDescription ?? fallback,
-        players: _playersFromDisplayName(safeDescription ?? fallback),
+        players: playersFromDisplayName(safeDescription ?? fallback),
       );
     }
 
@@ -166,7 +165,7 @@ class TournamentMatchEnrichmentService {
       if (label.isNotEmpty) {
         return TournamentMatchCardTeamViewModel(
           displayName: label,
-          players: _playersFromTeam(team, profiles),
+          players: playersFromTeam(team, profiles),
         );
       }
     }
@@ -177,7 +176,7 @@ class TournamentMatchEnrichmentService {
       if (safeDescription != null) {
         return TournamentMatchCardTeamViewModel(
           displayName: safeDescription,
-          players: _playersFromDisplayName(safeDescription),
+          players: playersFromDisplayName(safeDescription),
         );
       }
     }
@@ -186,53 +185,6 @@ class TournamentMatchEnrichmentService {
       displayName: id,
       players: const [],
     );
-  }
-
-  List<TournamentMatchCardPlayerViewModel> _playersFromTeam(
-    TournamentTeam team,
-    Map<String, AppUserProfile> profiles,
-  ) {
-    final players = <TournamentMatchCardPlayerViewModel>[];
-    for (final playerId in [team.player1Id, team.player2Id]) {
-      if (playerId.isEmpty) continue;
-      final profile = profiles[playerId];
-      players.add(
-        TournamentMatchCardPlayerViewModel(
-          initials: profile != null
-              ? appUserInitials(profile)
-              : rankingInitials(null, playerId),
-          avatarColor: rankingAvatarColor(playerId),
-          avatarUrl: profile?.profilePhotoUrl,
-        ),
-      );
-    }
-    return players;
-  }
-
-  List<TournamentMatchCardPlayerViewModel> _playersFromDisplayName(
-    String displayName,
-  ) {
-    final parts = displayName
-        .split('/')
-        .map((part) => part.trim())
-        .where((part) => part.isNotEmpty)
-        .toList();
-    if (parts.isEmpty) {
-      return const [
-        TournamentMatchCardPlayerViewModel(
-          initials: '?',
-          avatarColor: Color(0xFF5B8DEF),
-        ),
-      ];
-    }
-    return parts
-        .map(
-          (name) => TournamentMatchCardPlayerViewModel(
-            initials: initialsFromDisplayName(name),
-            avatarColor: rankingAvatarColor(name),
-          ),
-        )
-        .toList();
   }
 
   String _pairLabel(
@@ -244,8 +196,8 @@ class TournamentMatchEnrichmentService {
 
     final p1Profile = profiles[team.player1Id];
     final p2Profile = profiles[team.player2Id];
-    final p1 = _playerDisplayName(p1Profile, team.player1Id);
-    final p2 = _playerDisplayName(p2Profile, team.player2Id);
+    final p1 = playerDisplayNameFor(p1Profile, team.player1Id);
+    final p2 = playerDisplayNameFor(p2Profile, team.player2Id);
 
     if (team.isLookingForPartner) {
       if (p1.isNotEmpty) return p1;
@@ -257,11 +209,4 @@ class TournamentMatchEnrichmentService {
     return '';
   }
 
-  String _playerDisplayName(AppUserProfile? profile, String playerId) {
-    final resolved = resolveAppUserDisplayName(profile);
-    if (resolved.isNotEmpty) return resolved;
-    final id = playerId.trim();
-    if (id.isEmpty) return '';
-    return rankingDisplayName(profile, id);
-  }
 }

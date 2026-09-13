@@ -3,8 +3,10 @@ import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
-import { fetchMatchesForTeam, fetchTeamsForAthlete } from '../../data/teams-repository';
-import { focusDayTargetOf, focusMemoKeyOf, type FocusDayTarget } from './focus-day';
+import { fetchMatchesForTournament } from '../../data/matches-repository';
+import { fetchMyRegistrations } from '../../data/tournament-registrations-repository';
+import { fetchTournamentSummariesByIds } from '../../data/tournaments-repository';
+import { focusDayTargetOf, focusMemoKeyOf, tournamentRunsToday, type FocusDayTarget } from './focus-day';
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;
@@ -14,12 +16,10 @@ function createFirestore(): Firestore | null {
 }
 
 /**
- * Descobre se hoje é dia de Focus e para qual torneio.
+ * Descobre se hoje é dia de torneio do atleta e para qual torneio abrir o Focus.
  *
  * Resolve UMA vez por sessão: o alvo do dia não muda a ponto de justificar reler a cada
- * navegação para o painel. São as mesmas leituras que o painel já faz para montar "próximos
- * jogos", então o custo real é próximo de zero — mas a fronteira fica aqui, e não dentro de um
- * componente de quase mil linhas.
+ * navegação para o painel.
  *
  * Toda falha degrada para `null`: não é dia de Focus. Nenhum erro daqui pode quebrar o painel.
  */
@@ -34,8 +34,8 @@ export class FocusDayService {
 
   /**
    * Marca EM MEMÓRIA (nunca `localStorage`) do dia já oferecido nesta sessão do app — a ÚNICA
-   * trava da entrada automática desde que o "silêncio até amanhã" foi removido: no dia de jogo o
-   * Focus abre sempre, e o que impede o loop é isto.
+   * trava da entrada automática desde que o "silêncio até amanhã" foi removido: no dia do
+   * torneio o Focus abre sempre, e o que impede o loop é isto.
    *
    * O que ela resolve: `router.navigate()` empilha uma entrada de histórico, então o botão voltar
    * (e o "×", que devolve o atleta ao painel) remonta o painel e chamaria `resolve()` de novo —
@@ -43,8 +43,8 @@ export class FocusDayService {
    * nenhuma dentro do app.
    *
    * Fica só em memória de propósito: recarregar a página é um gesto deliberado do atleta e DEVE
-   * reoferecer o Focus — é assim que "sempre abrir no dia de jogo" acontece de verdade. Persistir
-   * isto mataria justamente esse caminho.
+   * reoferecer o Focus — é assim que "sempre abrir no dia do torneio" acontece de verdade.
+   * Persistir isto mataria justamente esse caminho.
    */
   private offeredKey: string | null = null;
 
@@ -66,19 +66,44 @@ export class FocusDayService {
     return target;
   }
 
+  /**
+   * As leituras do dia, na ordem mais barata possível.
+   *
+   * O gatilho é o DIA DO EVENTO, não "tem partida agendada hoje" — por isso a pergunta começa
+   * pelas inscrições, e não pelas partidas: no primeiro dia a chave costuma sair depois de o
+   * atleta chegar na arena, e quem perguntasse pelas partidas não acharia nada.
+   *
+   * O filtro por `tournamentRunsToday` fica ANTES da leitura das partidas de propósito: no dia
+   * comum do atleta nenhum torneio dele roda hoje e a função para com duas idas ao Firestore,
+   * sem tocar em `matches`. Só no dia de jogo (quase sempre um torneio) ela paga a terceira.
+   */
   private async load(uid: string | null, now: Date): Promise<FocusDayTarget | null> {
     const db = this.db;
     if (!db || !this.projectId || !uid) return null;
     try {
-      const teams = await fetchTeamsForAthlete(db, this.projectId, uid);
-      if (teams.length === 0) return null;
-      // Em paralelo de propósito: em série isso vira uma ida ao Firestore por equipe e o
-      // painel demora visivelmente para redirecionar.
-      const lists = await Promise.all(teams.map((t) => fetchMatchesForTeam(db, this.projectId, t.id)));
-      return focusDayTargetOf(lists.flat(), now);
+      const registrations = await fetchMyRegistrations(db, this.projectId, uid);
+      const eligible = registrations.filter((r) => r.isPaid && (r.teamId ?? '').trim().length > 0);
+      if (eligible.length === 0) return null;
+
+      const tournamentIds = [...new Set(eligible.map((r) => r.tournamentId))];
+      const summaries = await fetchTournamentSummariesByIds(db, tournamentIds);
+      const runningToday = tournamentIds.filter((id) => {
+        const t = summaries.get(id);
+        return t != null && tournamentRunsToday(t, now);
+      });
+      if (runningToday.length === 0) return null;
+
+      // Em paralelo de propósito: em série isso vira uma ida ao Firestore por torneio e o painel
+      // demora visivelmente para redirecionar.
+      const matchLists = await Promise.all(
+        runningToday.map(
+          async (id) => [id, await fetchMatchesForTournament(db, this.projectId, id)] as const,
+        ),
+      );
+
+      return focusDayTargetOf(eligible, summaries, new Map(matchLists), now);
     } catch {
       return null;
     }
   }
-
 }

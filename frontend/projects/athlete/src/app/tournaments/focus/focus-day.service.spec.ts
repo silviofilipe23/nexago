@@ -6,7 +6,7 @@ import { FocusDayService } from './focus-day.service';
 
 /** 14:00 em São Paulo (UTC-3) no dia 29/08/2026 — mesma referência de `focus-day.spec.ts`. */
 const TODAY = new Date('2026-08-29T17:00:00Z');
-const TARGET: FocusDayTarget = { tournamentId: 't1', matchId: 'm1' };
+const TARGET: FocusDayTarget = { tournamentId: 't1' };
 
 /** Só o que `FocusDayService` de fato lê de `AuthService`. */
 type FakeUser = { uid: string } | null;

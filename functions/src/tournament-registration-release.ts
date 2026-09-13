@@ -20,8 +20,9 @@ import {cancelOpenPixChargesOrThrow} from
 import {
   buildRegistrationCancellationAudit,
   inviteMatchesCancelledRegistration,
-  shouldDeleteTeamOnCancellation,
+  teamDeletionBlockReason,
 } from "./tournament-registration-cancellation";
+import {teamAppearsInAnyMatch} from "./tournament-team-matches";
 import {restoreSpotPassSpot} from "./tournament-spot-pass-claim";
 
 export const REGISTRATION_CANCELLATIONS_COLLECTION =
@@ -71,19 +72,35 @@ export async function releaseRegistration(params: {
     .where("status", "==", "pending")
     .get();
 
-  // A equipe só morre junto se nenhuma OUTRA inscrição a referencia
-  // (ex.: solo legado reaproveitado).
+  // A equipe só morre junto se for lixo de verdade. Aqui a inscrição é sempre
+  // sem pagamento (quem chama barra antes), mas o predicado completo pega o que
+  // esse contexto não garante: equipe que JÁ pagou uma inscrição anterior, e
+  // equipe que já entrou numa chave. Apagar qualquer uma das duas levaria
+  // partida, ranking e perfil público junto.
   let deleteTeam = false;
   if (teamId) {
-    const teamRegsSnap = await db
-      .collection(artifactsInscriptionsPath(projectId))
-      .where("teamId", "==", teamId)
-      .get();
-    deleteTeam = shouldDeleteTeamOnCancellation(
+    const [teamRegsSnap, teamSnap, teamHasMatches] = await Promise.all([
+      db
+        .collection(artifactsInscriptionsPath(projectId))
+        .where("teamId", "==", teamId)
+        .get(),
+      db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get(),
+      teamAppearsInAnyMatch(db, projectId, teamId),
+    ]);
+    const block = teamDeletionBlockReason({
       teamId,
-      teamRegsSnap.docs.map((d) => d.id),
-      registrationId,
-    );
+      referencingRegistrationIds: teamRegsSnap.docs.map((d) => d.id),
+      cancellingRegistrationId: registrationId,
+      registration,
+      team: teamSnap.exists ? teamSnap.data() ?? null : null,
+      teamHasMatches,
+    });
+    deleteTeam = block == null;
+    if (block != null && block !== "noTeam") {
+      logger.info("Equipe preservada na liberação da vaga", {
+        registrationId, teamId, block,
+      });
+    }
   }
 
   const batch = db.batch();

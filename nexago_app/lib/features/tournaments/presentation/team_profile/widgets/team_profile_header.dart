@@ -4,6 +4,7 @@ import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../../athlete/domain/athlete_display_name.dart';
+import '../../../../athlete/presentation/public_profile/widgets/profile_photo_viewer.dart';
 import '../../../../athlete/presentation/widgets/athlete_profile_avatar.dart';
 import '../../../domain/team_profile/team_public_profile_logic.dart';
 import '../../../domain/team_profile/team_public_profile_models.dart';
@@ -18,6 +19,11 @@ class TeamProfileHeader extends StatelessWidget {
   static const coverHeight = 220.0;
   static const avatarSize = 96.0;
   static const avatarOverlap = 48.0;
+
+  /// Capa + a parte do avatar que invade o corpo. O `Stack` precisa dessa
+  /// altura, e não só a da capa: hit test não alcança filho pintado fora dos
+  /// limites do pai, e a metade de baixo do avatar ficaria surda ao toque.
+  static const _stackHeight = coverHeight - avatarOverlap + avatarSize;
 
   final TeamPublicProfile profile;
   final VoidCallback onBack;
@@ -42,41 +48,47 @@ class TeamProfileHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.topCenter,
-          children: [
-            const SizedBox(
-              height: coverHeight,
-              width: double.infinity,
-              child: _TeamCoverBackground(),
-            ),
-            SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-                child: Row(
-                  children: [
-                    _IconButton(onTap: onBack, icon: Icons.arrow_back_rounded),
-                  ],
+        SizedBox(
+          height: _stackHeight,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.topCenter,
+            children: [
+              const SizedBox(
+                height: coverHeight,
+                width: double.infinity,
+                child: _TeamCoverBackground(),
+              ),
+              SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                  child: Row(
+                    children: [
+                      _IconButton(
+                        onTap: onBack,
+                        icon: Icons.arrow_back_rounded,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            if (profile.ranking.hasRank)
+              if (profile.ranking.hasRank)
+                Positioned(
+                  top: MediaQuery.paddingOf(context).top + 56,
+                  right: 20,
+                  child: _RankingBadge(rank: profile.ranking.rank!),
+                ),
               Positioned(
-                top: MediaQuery.paddingOf(context).top + 56,
-                right: 20,
-                child: _RankingBadge(rank: profile.ranking.rank!),
+                left: 0,
+                right: 0,
+                top: coverHeight - avatarOverlap,
+                child: Center(child: _TeamAvatars(profile: profile)),
               ),
-            Positioned(
-              left: 0,
-              right: 0,
-              top: coverHeight - avatarOverlap,
-              child: Center(child: _TeamAvatars(profile: profile)),
-            ),
-          ],
+            ],
+          ),
         ),
-        SizedBox(height: avatarSize - avatarOverlap + 14),
+        const SizedBox(height: 14),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
@@ -142,6 +154,23 @@ class _TeamAvatars extends StatelessWidget {
     final width = size + step * (members.length - 1);
     final top = (TeamProfileHeader.avatarSize - size) / 2;
 
+    // Uma galeria só para o elenco: tocar num avatar abre a foto daquele
+    // atleta e o swipe segue para os companheiros. Quem não tem foto fica de
+    // fora da lista — e por isso a posição na galeria não é a posição no
+    // elenco.
+    final photoUrls = <String>[];
+    final galleryIndexes = <int?>[];
+    for (final member in members) {
+      final url = member.profile?.avatarUrl?.trim() ?? '';
+      if (url.isEmpty) {
+        // Avatar de iniciais não tem o que ampliar: não vira botão.
+        galleryIndexes.add(null);
+        continue;
+      }
+      galleryIndexes.add(photoUrls.length);
+      photoUrls.add(url);
+    }
+
     return SizedBox(
       width: width,
       height: TeamProfileHeader.avatarSize,
@@ -152,15 +181,55 @@ class _TeamAvatars extends StatelessWidget {
             Positioned(
               left: step * i,
               top: top,
-              child: AthleteProfileAvatar(
+              child: _MemberAvatar(
+                member: members[i],
                 size: size,
-                initials: members[i].profile != null
-                    ? athleteInitials(members[i].profile!)
-                    : '?',
-                imageUrl: members[i].profile?.avatarUrl,
+                onTap: galleryIndexes[i] == null
+                    ? null
+                    : () => openProfilePhotoViewer(
+                          context,
+                          photoUrls: photoUrls,
+                          initialIndex: galleryIndexes[i]!,
+                        ),
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Avatar de um integrante — tocável só quando há foto para ampliar.
+class _MemberAvatar extends StatelessWidget {
+  const _MemberAvatar({
+    required this.member,
+    required this.size,
+    this.onTap,
+  });
+
+  final TeamMemberEntry member;
+  final double size;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = member.profile;
+    final avatar = AthleteProfileAvatar(
+      size: size,
+      initials: profile != null ? athleteInitials(profile) : '?',
+      imageUrl: profile?.avatarUrl,
+    );
+
+    final tap = onTap;
+    if (tap == null || profile == null) return avatar;
+
+    return Semantics(
+      button: true,
+      label: 'Ampliar foto de ${athleteDisplayName(profile)}',
+      child: InkWell(
+        onTap: tap,
+        customBorder: const CircleBorder(),
+        child: avatar,
       ),
     );
   }

@@ -46,12 +46,47 @@ export async function loadTeamMemberUids(
   return extractTeamMemberUids(teamSnap.data());
 }
 
+/** Elenco esperado do doc de equipe: `teamSize` quando plausível, senão dupla. */
+function expectedRosterSize(team: Record<string, unknown>): number {
+  const rawSize = Number(team.teamSize);
+  return Number.isInteger(rawSize) &&
+    rawSize >= DUPLA_TEAM_SIZE &&
+    rawSize <= MAX_TEAM_CATEGORY_SIZE ?
+    rawSize :
+    DUPLA_TEAM_SIZE;
+}
+
 /**
- * Define `gender` no documento da equipe quando a inscrição fica 100% paga.
- * Só grava com o elenco completo (dupla ou os N da categoria de equipe) e com
- * o gênero de todos conhecido.
+ * Gênero da equipe a partir do elenco gravado no doc. `null` = elenco
+ * incompleto ou algum atleta sem `gender` declarado em `users/`.
  */
-export async function setTeamGenderWhenRegistrationPaid(
+async function computeTeamGender(
+  db: Firestore,
+  team: Record<string, unknown>,
+): Promise<string | null> {
+  const members = extractTeamMemberUids(team);
+  if (members.length < expectedRosterSize(team)) return null;
+  const buckets = await Promise.all(
+    members.map((uid) => loadUserGenderBucket(db, uid)),
+  );
+  return teamGenderLabelForBuckets(buckets);
+}
+
+/**
+ * Carimba a equipe como inscrição PAGA — o portão único das listagens
+ * públicas ("Descobrir equipes" no app, "Minhas equipes" no portal, busca).
+ *
+ * `registrationPaid` é o marcador de que a equipe existe de verdade: só é
+ * gravado aqui, e só quem chama sabe que a inscrição fechou. Equipe criada no
+ * aceite do convite e nunca paga jamais recebe o campo, então nasce fora das
+ * listagens em vez de precisar ser caçada depois.
+ *
+ * O `gender` vai junto porque é o mesmo instante — e é gravado com o elenco
+ * completo e todos os gêneros conhecidos. Quando não dá para calcular, o
+ * carimbo de pagamento vai sozinho: "pagou" não pode depender de um atleta ter
+ * declarado o gênero no perfil.
+ */
+export async function markTeamRegistrationPaid(
   db: Firestore,
   projectId: string,
   teamId: string,
@@ -61,38 +96,65 @@ export async function setTeamGenderWhenRegistrationPaid(
   const teamRef = db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`);
   const teamSnap = await teamRef.get();
   if (!teamSnap.exists) {
-    logger.warn(`Team ${teamId} não encontrado para definir gender`);
+    logger.warn(`Team ${teamId} não encontrado para carimbar pagamento`);
     return;
   }
 
   const data = teamSnap.data() ?? {};
-  const members = extractTeamMemberUids(data);
-  const rawSize = Number(data.teamSize);
-  const expectedSize =
-    Number.isInteger(rawSize) &&
-    rawSize >= DUPLA_TEAM_SIZE &&
-    rawSize <= MAX_TEAM_CATEGORY_SIZE
-      ? rawSize
-      : DUPLA_TEAM_SIZE;
-  if (members.length < expectedSize) return;
-
-  const buckets = await Promise.all(
-    members.map((uid) => loadUserGenderBucket(db, uid)),
-  );
-  const teamGender = teamGenderLabelForBuckets(buckets);
+  const teamGender = await computeTeamGender(db, data);
   if (!teamGender) {
     logger.warn(
-      `Team ${teamId}: não foi possível calcular gender (${buckets.map(String).join(",")})`,
+      `Team ${teamId}: não foi possível calcular gender (elenco ou perfil incompleto)`,
     );
-    return;
   }
 
   await teamRef.set(
     {
-      gender: teamGender,
+      registrationPaid: true,
+      ...(teamGender ? {gender: teamGender} : {}),
       updatedAt: FieldValue.serverTimestamp(),
     },
     {merge: true},
   );
-  logger.info(`Team ${teamId}: gender=${teamGender}`);
+  logger.info(
+    `Team ${teamId}: registrationPaid=true gender=${teamGender ?? "(indefinido)"}`,
+  );
+}
+
+/**
+ * Recalcula `gender` num elenco que MUDOU depois de pago (substituição de
+ * atleta). Sem isso a equipe que trocou um homem por uma mulher seguia rotulada
+ * "Masculino" — o carimbo original só roda no instante do pagamento.
+ *
+ * Não cria o campo do zero em equipe não paga: sem `registrationPaid` a equipe
+ * não aparece em listagem nenhuma, e o carimbo vem depois com o gênero certo.
+ */
+export async function recomputeTeamGenderAfterRosterChange(
+  db: Firestore,
+  projectId: string,
+  teamId: string,
+): Promise<void> {
+  if (!teamId) return;
+
+  const teamRef = db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`);
+  const teamSnap = await teamRef.get();
+  if (!teamSnap.exists) return;
+
+  const data = teamSnap.data() ?? {};
+  if (data.registrationPaid !== true) return;
+
+  const teamGender = await computeTeamGender(db, data);
+  if (!teamGender) {
+    logger.warn(
+      `Team ${teamId}: elenco mudou mas não foi possível recalcular gender`,
+    );
+    return;
+  }
+  if (teamGender === data.gender) return;
+
+  await teamRef.set(
+    {gender: teamGender, updatedAt: FieldValue.serverTimestamp()},
+    {merge: true},
+  );
+  logger.info(`Team ${teamId}: gender recalculado para ${teamGender}`);
 }

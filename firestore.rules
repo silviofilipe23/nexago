@@ -236,6 +236,14 @@ service cloud.firestore {
       return request.resource.data.player1Id == resource.data.player1Id &&
         request.resource.data.player2Id == resource.data.player2Id;
     }
+    // `registrationPaid` é o portão das listagens públicas de equipe e `gender`
+    // sai dele: quem carimba é só `markTeamRegistrationPaid` (Cloud Function),
+    // no instante em que a inscrição fecha. Sem esta trava, o próprio atleta
+    // marcaria a equipe dele como paga e entraria no Descobrir sem pagar nada.
+    function teamPaidGateUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['registrationPaid', 'gender']);
+    }
     function managerCanOnlyEditMatchFields() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'bestOf',
@@ -2010,7 +2018,8 @@ service cloud.firestore {
       allow update: if request.auth != null && (
         (
           (resource.data.player1Id == request.auth.uid || resource.data.player2Id == request.auth.uid) &&
-          teamPlayerIdsUnchanged()
+          teamPlayerIdsUnchanged() &&
+          teamPaidGateUnchanged()
         ) ||
         isSuperAdmin()
       );

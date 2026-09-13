@@ -48,7 +48,10 @@ import {
   registrationTeamSize,
   teamJoinDenialMessage,
 } from "./tournament-team-category";
-import {loadUserGenderBucket} from "./tournament-team-roster";
+import {
+  loadUserGenderBucket,
+  recomputeTeamGenderAfterRosterChange,
+} from "./tournament-team-roster";
 import {
   INVITES_COLLECTION,
   INVITE_TTL_MS,
@@ -704,6 +707,17 @@ export async function acceptSubstitutionInviteFor(
 
     return {registrationId, teamId, tournamentId, categoryId};
   });
+
+  // O elenco mudou DEPOIS do pagamento, e o `gender` da equipe só era calculado
+  // no instante em que a inscrição fechou. Trocar um homem por uma mulher
+  // deixava o rótulo "Masculino" de pé para sempre.
+  try {
+    await recomputeTeamGenderAfterRosterChange(db, projectId, result.teamId);
+  } catch (genderError) {
+    logger.warn("Falha ao recalcular gender após substituição", {
+      teamId: result.teamId, genderError,
+    });
+  }
 
   await markStaleAfterSubstitutionAccept(db, {
     tournamentId, categoryId, registrationId, outUid, substituteUid: uid, acceptedInviteId: inviteId,

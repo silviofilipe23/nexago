@@ -51,6 +51,7 @@ import {
   sharePaidUidsFromRegistration,
 } from "./tournament-registration-pix-helpers";
 import {registrationTeamSize} from "./tournament-team-category";
+import {markTeamRegistrationPaid} from "./tournament-team-roster";
 import {asaasArenaSecrets} from "./asaas-client";
 import {
   PIX_CANCELLED_ORGANIZER_CONFIRMED,
@@ -67,7 +68,10 @@ import {
   buildRemovalNotificationBody,
   parseRemovalDescription,
 } from "./organizer-removal-description";
-import {buildRegistrationCancellationAudit} from "./tournament-registration-cancellation";
+import {
+  buildRegistrationCancellationAudit,
+  shouldDeleteTeamOnCancellation,
+} from "./tournament-registration-cancellation";
 import {organizerContactFromUser} from "./tournament-contacts";
 import {notifyBracketPublishedAthletes} from "./organizer-category-ops-bracket-notify";
 import {artifactsInscriptionsPath, artifactsMatchesPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
@@ -657,6 +661,21 @@ export const organizerConfirmRegistrationPayment = onCall({
     reason: PIX_CANCELLED_ORGANIZER_CONFIRMED,
   });
 
+  // A baixa manual era o ÚNICO caminho de confirmação que não carimbava a
+  // equipe: gravava `isPaid` e ia embora. Como o carimbo é o que dá `gender` e
+  // o que põe a equipe nas listagens, todo time confirmado no balcão do
+  // organizador nascia sem gênero e fora do Descobrir.
+  if (teamId) {
+    try {
+      await markTeamRegistrationPaid(db, projectId, teamId);
+    } catch (genderError) {
+      logger.warn(
+        `Falha ao carimbar pagamento da equipe ${teamId} (registration ${registrationId})`,
+        genderError,
+      );
+    }
+  }
+
   // Solo que pagou o total e ainda não tem parceiro: avisa para convidar
   // (o parceiro entra sem taxa) com deep link para o passo de parceiro.
   if (data.partnerPending === true) {
@@ -977,6 +996,21 @@ export const organizerRemoveFromCategory = onCall({
     teamSnap?.exists ? teamSnap.data() : null,
   );
 
+  // A equipe só morre junto se NENHUMA outra inscrição a referencia (solo
+  // legado reaproveitado) — mesmo predicado do cancelamento pelo atleta.
+  let deleteTeam = false;
+  if (teamId) {
+    const teamRegsSnap = await db
+      .collection(artifactsInscriptionsPath(projectId))
+      .where("teamId", "==", teamId)
+      .get();
+    deleteTeam = shouldDeleteTeamOnCancellation(
+      teamId,
+      teamRegsSnap.docs.map((d) => d.id),
+      registrationId,
+    );
+  }
+
   // Contato do organizador vai junto na notificação: a inscrição morre aqui, e
   // com ela o acesso do atleta a `getTournamentOrganizerContact` (que exige
   // inscrição ativa). Sem isso ele lê o motivo e não tem a quem responder.
@@ -1014,6 +1048,14 @@ export const organizerRemoveFromCategory = onCall({
   // Subcoleção não morre com o pai: sem isso os `pixPending` ficariam órfãos.
   for (const doc of pixPendingSnap.docs) {
     batch.delete(doc.ref);
+  }
+  // A equipe morre junto — mesma regra do cancelamento pelo atleta
+  // (`releaseRegistration`), que era o único caminho a fazer isso. Sem esta
+  // linha a remoção pelo organizador apagava a inscrição e deixava o doc de
+  // equipe para trás, sem dono e sem partida: era a maior fábrica de equipe
+  // fantasma na listagem do app e do portal.
+  if (deleteTeam) {
+    batch.delete(db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`));
   }
   batch.delete(ref);
   await batch.commit();

@@ -26,7 +26,7 @@ import {
 } from "./tournament-team-category";
 import {
   loadTeamMemberUids,
-  setTeamGenderWhenRegistrationPaid,
+  markTeamRegistrationPaid,
 } from "./tournament-team-roster";
 import {
   findCategory,
@@ -311,7 +311,7 @@ export async function processTournamentRegistrationAsaasNotification(
       if (!wasPaidBefore && isPaid) {
         const teamId = typeof regData.teamId === "string" ? regData.teamId : "";
         try {
-          await setTeamGenderWhenRegistrationPaid(db, projectId, teamId);
+          await markTeamRegistrationPaid(db, projectId, teamId);
         } catch (genderError) {
           logger.warn(
             `Falha ao definir gender da equipe ${teamId} (registration ${registrationId})`,

@@ -14,6 +14,10 @@ export interface ArenaTeam {
   gender: string | null;
   /** 3–5 nas equipes nomeadas (trio/quarteto/quinteto); dupla legada não grava. */
   teamSize: number | null;
+  /** Inscrição que criou a equipe foi paga por inteiro. Carimbado só pelas Cloud Functions
+   *  (`markTeamRegistrationPaid`), junto do `gender`. Portão das listagens: a equipe nasce no
+   *  aceite do convite, antes do pagamento, e a que nunca pagou nunca jogou. */
+  registrationPaid: boolean;
   /** Elenco das equipes nomeadas — dupla legada fica vazio (só player1/player2). */
   memberUids: readonly string[];
   createdAt: Date | null;
@@ -33,6 +37,7 @@ function teamFromDoc(id: string, data: Record<string, unknown>): ArenaTeam {
     teamName: typeof data['teamName'] === 'string' && data['teamName'].trim() ? data['teamName'].trim() : null,
     gender: typeof data['gender'] === 'string' && data['gender'].trim() ? data['gender'].trim() : null,
     teamSize: typeof data['teamSize'] === 'number' && data['teamSize'] >= 3 ? data['teamSize'] : null,
+    registrationPaid: data['registrationPaid'] === true,
     memberUids: Array.isArray(memberUidsRaw) ? memberUidsRaw.filter((u): u is string => typeof u === 'string' && u.trim().length > 0) : [],
     createdAt: typeof createdAtRaw?.toDate === 'function' ? createdAtRaw.toDate() : null,
   };
@@ -78,7 +83,8 @@ export async function fetchTeamsForAthlete(db: Firestore, projectId: string, uid
   for (const d of [...byPlayer1.docs, ...byPlayer2.docs]) {
     byId.set(d.id, teamFromDoc(d.id, d.data() as Record<string, unknown>));
   }
-  return [...byId.values()].filter((t) => !teamIsLookingForPartner(t));
+  // Fora da listagem: equipe sem inscrição paga (nunca jogou) e dupla ainda sem parceiro.
+  return [...byId.values()].filter((t) => t.registrationPaid && !teamIsLookingForPartner(t));
 }
 
 export async function fetchTeamsByIds(db: Firestore, projectId: string, ids: readonly string[]): Promise<Map<string, ArenaTeam>> {

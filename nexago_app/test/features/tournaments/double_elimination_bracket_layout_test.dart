@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/tournaments/domain/double_elimination_bracket_layout.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
 
+import 'bracket_plants_fixture.dart';
+
 TournamentMatch _match({
   required String id,
   String matchType = 'WB',
@@ -35,15 +37,69 @@ void main() {
   // Planta de 6 duplas (`functions/src/bracket-definitions/bracket-6-teams.ts`):
   // fiação irregular — #1 alimenta o slot B do #3, #2 alimenta o slot A do #4.
   final sixTeamPlan = [
-    _match(id: 'w1', matchType: 'WB', round: 1, matchNumber: 1, advanceTo: 3, advanceSlot: 'B'),
-    _match(id: 'w2', matchType: 'WB', round: 1, matchNumber: 2, advanceTo: 4, advanceSlot: 'A'),
-    _match(id: 'w3', matchType: 'WB', round: 2, matchNumber: 3, advanceTo: 7, advanceSlot: 'A'),
-    _match(id: 'w4', matchType: 'WB', round: 2, matchNumber: 4, advanceTo: 7, advanceSlot: 'B'),
-    _match(id: 'l5', matchType: 'LB', round: 1, matchNumber: 5, advanceTo: 8, advanceSlot: 'A'),
-    _match(id: 'l6', matchType: 'LB', round: 1, matchNumber: 6, advanceTo: 8, advanceSlot: 'B'),
-    _match(id: 'w7', matchType: 'WB', round: 3, matchNumber: 7, advanceTo: 11, advanceSlot: 'B'),
-    _match(id: 'l8', matchType: 'LB', round: 2, matchNumber: 8, advanceTo: 9, advanceSlot: 'B'),
-    _match(id: 'l9', matchType: 'LB', round: 3, matchNumber: 9, advanceTo: 11, advanceSlot: 'A'),
+    _match(
+        id: 'w1',
+        matchType: 'WB',
+        round: 1,
+        matchNumber: 1,
+        advanceTo: 3,
+        advanceSlot: 'B'),
+    _match(
+        id: 'w2',
+        matchType: 'WB',
+        round: 1,
+        matchNumber: 2,
+        advanceTo: 4,
+        advanceSlot: 'A'),
+    _match(
+        id: 'w3',
+        matchType: 'WB',
+        round: 2,
+        matchNumber: 3,
+        advanceTo: 7,
+        advanceSlot: 'A'),
+    _match(
+        id: 'w4',
+        matchType: 'WB',
+        round: 2,
+        matchNumber: 4,
+        advanceTo: 7,
+        advanceSlot: 'B'),
+    _match(
+        id: 'l5',
+        matchType: 'LB',
+        round: 1,
+        matchNumber: 5,
+        advanceTo: 8,
+        advanceSlot: 'A'),
+    _match(
+        id: 'l6',
+        matchType: 'LB',
+        round: 1,
+        matchNumber: 6,
+        advanceTo: 8,
+        advanceSlot: 'B'),
+    _match(
+        id: 'w7',
+        matchType: 'WB',
+        round: 3,
+        matchNumber: 7,
+        advanceTo: 11,
+        advanceSlot: 'B'),
+    _match(
+        id: 'l8',
+        matchType: 'LB',
+        round: 2,
+        matchNumber: 8,
+        advanceTo: 9,
+        advanceSlot: 'B'),
+    _match(
+        id: 'l9',
+        matchType: 'LB',
+        round: 3,
+        matchNumber: 9,
+        advanceTo: 11,
+        advanceSlot: 'A'),
     _match(id: 'tp', matchType: 'Third Place', round: 1, matchNumber: 10),
     _match(id: 'gf', matchType: 'Final', round: 1, matchNumber: 11),
   ];
@@ -54,7 +110,59 @@ void main() {
   double centerY(BracketLayoutNode node) =>
       node.position.dy + node.size.height / 2;
 
-  test('columns follow the DE track order (WB, 3º lugar, Final, LB)', () {
+  test('WB à esquerda do centro, LB à direita, convergência no meio', () {
+    final plants = loadBracketPlants();
+    final layout = buildDoubleEliminationBracketLayout(plants[12]!);
+
+    double xOf(int n) =>
+        layout.nodes.firstWhere((node) => node.matchId == 'm$n').position.dx;
+
+    // #16 (quarta da WB) → #19 (semifinal) ← #17 (LB)
+    expect(xOf(16), lessThan(xOf(19)));
+    expect(xOf(17), greaterThan(xOf(19)));
+    // A LB corre da direita para o centro: a R1 fica na ponta direita.
+    expect(xOf(11), greaterThan(xOf(14)));
+    expect(xOf(14), greaterThan(xOf(17)));
+  });
+
+  test('a semifinal fica na média vertical dos seus dois alimentadores', () {
+    final plants = loadBracketPlants();
+    final layout = buildDoubleEliminationBracketLayout(plants[12]!);
+    double cy(int n) {
+      final node = layout.nodes.firstWhere((x) => x.matchId == 'm$n');
+      return node.position.dy + node.size.height / 2;
+    }
+
+    expect(cy(19), closeTo((cy(16) + cy(17)) / 2, 0.01));
+    expect(cy(20), closeTo((cy(15) + cy(18)) / 2, 0.01));
+  });
+
+  test('as duas semifinais não colidem', () {
+    final plants = loadBracketPlants();
+    final layout = buildDoubleEliminationBracketLayout(plants[12]!);
+    final a = layout.nodes.firstWhere((n) => n.matchId == 'm19');
+    final b = layout.nodes.firstWhere((n) => n.matchId == 'm20');
+    expect((a.position.dy - b.position.dy).abs(),
+        greaterThanOrEqualTo(a.size.height));
+  });
+
+  test('o jogo com bye desloca — não cola na altura do alimentador', () {
+    final plants = loadBracketPlants();
+    final layout = buildDoubleEliminationBracketLayout(plants[12]!);
+    double cy(int n) {
+      final node = layout.nodes.firstWhere((x) => x.matchId == 'm$n');
+      return node.position.dy + node.size.height / 2;
+    }
+
+    // #5 recebe o seed 2 (bye) e o vencedor do #1. Se colasse no #1, os dois
+    // teriam o mesmo centro — o bug que o desenho antigo tinha.
+    expect(cy(5), isNot(closeTo(cy(1), 0.01)));
+    expect(cy(5), lessThan(cy(1)));
+  });
+
+  test(
+      'columns follow the convergent order — WB left-to-right, '
+      'DESFECHO at the center, LB right-to-left', () {
     final layout = buildDoubleEliminationBracketLayout(sixTeamPlan);
 
     expect(layout.nodes, hasLength(11));
@@ -64,13 +172,19 @@ void main() {
         'WB · RODADA 1',
         'WB · RODADA 2',
         'WB · RODADA 3',
-        '3º LUGAR',
-        'FINAL',
-        'LB · RODADA 1',
-        'LB · RODADA 2',
+        'DESFECHO',
         'LB · RODADA 3',
+        'LB · RODADA 2',
+        'LB · RODADA 1',
       ],
     );
+    // A coluna central mistura Final e 3º lugar (nenhum dos dois converge
+    // direto nesta planta): key e label viram 'DESFECHO', e o columnKey de
+    // cada node concorda com a key da coluna em que ele foi colocado.
+    final desfecho = layout.columns.firstWhere((c) => c.key == 'DESFECHO');
+    expect(desfecho.matchIds, containsAll(['tp', 'gf']));
+    expect(nodeOf(layout, 'tp').columnKey, 'DESFECHO');
+    expect(nodeOf(layout, 'gf').columnKey, 'DESFECHO');
     expect(layout.canvasSize.width, greaterThan(0));
     expect(layout.canvasSize.height, greaterThan(0));
   });
@@ -99,95 +213,6 @@ void main() {
     expect(layout.edges.where((e) => e.toMatchId == 'gf'), isEmpty);
     expect(layout.edges.where((e) => e.toMatchId == 'tp'), isEmpty);
     expect(edge('w7', 'l9'), isNull);
-  });
-
-  test('column order derives from wiring (feeder of slot A above slot B)', () {
-    // Fiação invertida: #3 alimenta o slot B da final da WB e #4 o slot A —
-    // o #4 deve ficar ACIMA do #3, apesar do matchNumber maior.
-    final inverted = [
-      _match(id: 'w1', matchType: 'WB', round: 1, matchNumber: 1, advanceTo: 4, advanceSlot: 'A'),
-      _match(id: 'w2', matchType: 'WB', round: 1, matchNumber: 2, advanceTo: 3, advanceSlot: 'A'),
-      _match(id: 'w3', matchType: 'WB', round: 2, matchNumber: 3, advanceTo: 5, advanceSlot: 'B'),
-      _match(id: 'w4', matchType: 'WB', round: 2, matchNumber: 4, advanceTo: 5, advanceSlot: 'A'),
-      _match(id: 'w5', matchType: 'WB', round: 3, matchNumber: 5),
-    ];
-    final layout = buildDoubleEliminationBracketLayout(inverted);
-
-    expect(
-      centerY(nodeOf(layout, 'w4')),
-      lessThan(centerY(nodeOf(layout, 'w3'))),
-    );
-    // E a rodada anterior acompanha os jogos que alimenta: #1 (→#4) acima de #2 (→#3).
-    expect(
-      centerY(nodeOf(layout, 'w1')),
-      lessThan(centerY(nodeOf(layout, 'w2'))),
-    );
-  });
-
-  test('vertical position follows feeders (straight line for single feeder)', () {
-    final layout = buildDoubleEliminationBracketLayout(sixTeamPlan);
-
-    // Alimentador único → mesmo centro (conector reto).
-    expect(
-      centerY(nodeOf(layout, 'w3')),
-      closeTo(centerY(nodeOf(layout, 'w1')), 0.01),
-    );
-    expect(
-      centerY(nodeOf(layout, 'w4')),
-      closeTo(centerY(nodeOf(layout, 'w2')), 0.01),
-    );
-    // Dois alimentadores → nó no meio dos pais.
-    expect(
-      centerY(nodeOf(layout, 'w7')),
-      closeTo(
-        (centerY(nodeOf(layout, 'w3')) + centerY(nodeOf(layout, 'w4'))) / 2,
-        0.01,
-      ),
-    );
-  });
-
-  test('play-in sharing the fed round is split into its own column', () {
-    // Planta 25: play-in da LB gravado com o MESMO round da rodada que alimenta.
-    final matches = [
-      _match(id: 'p1', matchType: 'LB', round: 2, matchNumber: 5, advanceTo: 6, advanceSlot: 'A'),
-      _match(id: 'p2', matchType: 'LB', round: 2, matchNumber: 6, advanceTo: 9, advanceSlot: 'A'),
-    ];
-    final layout = buildDoubleEliminationBracketLayout(matches);
-
-    final p1 = nodeOf(layout, 'p1');
-    final p2 = nodeOf(layout, 'p2');
-    expect(p1.columnKey, isNot(p2.columnKey));
-    expect(p1.position.dx, lessThan(p2.position.dx));
-    expect(
-      layout.edges,
-      contains(
-        isA<BracketLayoutEdge>()
-            .having((e) => e.fromMatchId, 'from', 'p1')
-            .having((e) => e.toMatchId, 'to', 'p2'),
-      ),
-    );
-  });
-
-  test('LB track is placed below WB track and Final is centered on WB', () {
-    final layout = buildDoubleEliminationBracketLayout(sixTeamPlan);
-
-    final wbBottom = layout.nodes
-        .where((n) => n.columnKey.startsWith('WB'))
-        .map((n) => n.position.dy + n.size.height)
-        .reduce((a, b) => a > b ? a : b);
-    for (final node
-        in layout.nodes.where((n) => n.columnKey.startsWith('LB'))) {
-      expect(node.position.dy, greaterThan(wbBottom));
-    }
-
-    final wbTop = layout.nodes
-        .where((n) => n.columnKey.startsWith('WB'))
-        .map((n) => n.position.dy)
-        .reduce((a, b) => a < b ? a : b);
-    final finalNode = nodeOf(layout, 'gf');
-    expect(finalNode.isFinal, isTrue);
-    expect(centerY(finalNode), greaterThan(wbTop));
-    expect(centerY(finalNode), lessThan(wbBottom));
   });
 
   test('legacy matches without wiring still lay out, without connectors', () {

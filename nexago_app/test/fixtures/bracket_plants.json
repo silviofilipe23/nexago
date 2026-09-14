@@ -1,0 +1,6901 @@
+{
+  "4": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 4,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 3,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 4,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 3,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 5,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 6,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 7,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 5,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 7,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 6,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "5": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 3,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 4,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 5,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 4,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 5,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 6,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 6,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 7,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 7,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 8,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 8,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "6": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 3,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 5,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 4,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 5,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 7,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 6,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 7,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 6,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 8,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 8,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 11,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 9,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 10,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 11,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 10,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "7": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 4,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 7,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 5,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 6,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 5,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 6,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 8,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 7,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 8,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 10,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 10,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 12,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 11,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 12,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 11,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "8": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 7,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 5,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 7,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 5,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 8,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 6,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 8,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 6,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 10,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 11,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 10,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 11,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 9,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 12,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 12,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 14,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 13,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 14,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 13,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "9": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 4,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 6,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 6,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 8,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 10,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 7,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 10,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 7,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 8,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 11,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 12,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 13,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 11,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 13,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 14,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 14,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 15,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 15,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "10": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 5,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 8,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 6,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 7,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 11,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 7,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 12,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 8,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 11,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 9,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 12,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 10,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 10,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 13,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 14,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 13,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 14,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 17,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 17,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 17,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 18,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "11": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 5,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 6,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 9,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 7,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 10,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 13,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 9,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 13,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 10,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 14,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 14,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 16,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 18,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 17,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 17,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 18,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 19,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 21,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 20,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 21,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 21,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 22,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "12": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 5,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 9,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 6,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 10,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 7,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 11,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 8,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 11,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 10,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 9,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 13,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 13,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 14,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 14,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 17,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 18,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 17,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 18,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 19,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 21,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 20,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 21,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 21,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 22,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "13": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 6,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 7,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 13,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 10,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 10,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 8,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 11,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 11,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 14,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 13,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 14,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 21,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 20,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 21,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 19,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 17,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 18,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 19,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 20,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 21,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 23,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 22,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 23,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 23,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 24,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "14": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 7,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 14,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 8,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 11,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 8,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 11,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 10,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 13,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 15,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 13,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 14,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 16,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 17,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 22,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 18,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 21,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 19,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 21,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 20,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 21,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 22,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 23,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 25,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 24,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 25,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 25,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 26,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "15": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 8,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 18,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 14,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 14,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 10,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 10,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 11,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 13,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 11,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 13,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 16,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 15,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 18,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 17,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 21,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 21,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 17,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 18,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 19,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 25,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 24,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 20,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 25,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 23,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 21,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 22,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 23,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 24,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 25,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 27,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 26,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 27,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 27,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 28,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "16": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 13,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 9,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 13,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 9,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 14,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 10,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 14,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 10,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 11,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 11,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 21,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 20,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 21,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 19,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 18,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 17,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 17,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 18,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 19,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 20,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 21,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 27,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 25,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 22,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 27,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 26,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 23,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 25,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 24,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 25,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 26,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 27,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 29,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 28,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 29,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 29,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 30,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "17": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 10,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 13,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 13,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 10,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 14,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 11,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 11,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 14,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 21,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 19,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 20,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 17,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 21,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 18,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 22,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 19,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 25,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 20,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 25,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 21,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 22,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 23,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 29,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 28,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 24,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 29,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 27,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 25,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 27,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 26,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 27,
+      "matchType": "LB",
+      "round": 6,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 28,
+      "matchType": "LB",
+      "round": 6,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 29,
+      "matchType": "WB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 32,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 31,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 30,
+      "matchType": "LB",
+      "round": 7,
+      "winnerAdvanceMatchNumber": 32,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 31,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 31,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 32,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "18": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 11,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 10,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 16,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 14,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 14,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 15,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 13,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 13,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 11,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 21,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 17,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 25,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 21,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 18,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 25,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 22,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 19,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 23,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 20,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 24,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 21,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 27,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 22,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 27,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 23,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 24,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 25,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 31,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 30,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 26,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 31,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 29,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 27,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 29,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 28,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 29,
+      "matchType": "LB",
+      "round": 6,
+      "winnerAdvanceMatchNumber": 32,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 30,
+      "matchType": "LB",
+      "round": 6,
+      "winnerAdvanceMatchNumber": 32,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 31,
+      "matchType": "WB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 34,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 33,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 32,
+      "matchType": "LB",
+      "round": 7,
+      "winnerAdvanceMatchNumber": 34,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 33,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 33,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 34,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "19": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 10,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 13,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 11,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 14,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 17,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 14,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 18,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 21,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 16,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 15,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 13,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 21,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 15,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 17,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 25,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 18,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 19,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 27,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 23,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 20,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 27,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 24,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 21,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 25,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 22,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 26,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 23,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 29,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 24,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 29,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 25,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 26,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 27,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 33,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 32,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 28,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 33,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 31,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 29,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 31,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 30,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 32,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 31,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 34,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 32,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 34,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 33,
+      "matchType": "WB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 36,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 35,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 34,
+      "matchType": "LB",
+      "round": 7,
+      "winnerAdvanceMatchNumber": 36,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 35,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 35,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 36,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "20": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 13,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 10,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 14,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 11,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 15,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 12,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 16,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 21,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 19,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 20,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 17,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 18,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 21,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 15,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 16,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 13,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 14,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 17,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 25,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 18,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 19,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 27,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 20,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 21,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 29,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 25,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 22,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 29,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 26,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 23,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 27,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 24,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 28,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 25,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 31,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 26,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 31,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 27,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 32,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 28,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 32,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 29,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 35,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 34,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 30,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 35,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 33,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 31,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 33,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 32,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 34,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 33,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 36,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 34,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 36,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 35,
+      "matchType": "WB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 38,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 37,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 36,
+      "matchType": "LB",
+      "round": 6,
+      "winnerAdvanceMatchNumber": 38,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 37,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 37,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 38,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "21": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 14,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 10,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 15,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 11,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 16,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 12,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 17,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 13,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 18,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 20,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 25,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 19,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 16,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 17,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 18,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 21,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 25,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 14,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 15,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 17,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 18,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 21,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 19,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 27,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 20,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 29,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 21,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 22,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 23,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 31,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 27,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 24,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 31,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 28,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 25,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 32,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 29,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 26,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 32,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 30,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 27,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 33,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 28,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 33,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 29,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 34,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 30,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 34,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 31,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 37,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 36,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 32,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 37,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 35,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 33,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 35,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 34,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 36,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 35,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 38,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 36,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 38,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 37,
+      "matchType": "WB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 40,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 39,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 38,
+      "matchType": "LB",
+      "round": 6,
+      "winnerAdvanceMatchNumber": 40,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 39,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 39,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 40,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "22": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 15,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 10,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 16,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 11,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 17,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 12,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 18,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 13,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 19,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 14,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 20,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 25,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 22,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 27,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 21,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 25,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 18,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 19,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 20,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 27,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 15,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 16,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 17,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 21,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 17,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 18,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 19,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 20,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 21,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 29,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 22,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 31,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 23,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 24,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 32,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 25,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 33,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 29,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 26,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 33,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 30,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 27,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 34,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 31,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 28,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 34,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 32,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 29,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 35,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 30,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 35,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 31,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 36,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 32,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 36,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 33,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 39,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 38,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 34,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 39,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 37,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 35,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 37,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 36,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 38,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 37,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 40,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 38,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 40,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 39,
+      "matchType": "WB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 42,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 41,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 40,
+      "matchType": "LB",
+      "round": 6,
+      "winnerAdvanceMatchNumber": 42,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 41,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 41,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 42,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "23": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 16,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 10,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 17,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 11,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 18,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 12,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 19,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 13,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 20,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 14,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 21,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 22,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 27,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 20,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 27,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 19,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 21,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 22,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 29,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 16,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 29,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 23,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 17,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 18,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 17,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 18,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 19,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 25,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 20,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 25,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 21,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 22,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 23,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 31,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 24,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 32,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 25,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 33,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 26,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 34,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 27,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 35,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 31,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 28,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 35,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 32,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 29,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 36,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 33,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 30,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 36,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 34,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 31,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 37,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 32,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 37,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 33,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 38,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 34,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 38,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 35,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 41,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 40,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 36,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 41,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 39,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 37,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 39,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 38,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 40,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 39,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 42,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 40,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 42,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 41,
+      "matchType": "WB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 44,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 43,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 42,
+      "matchType": "LB",
+      "round": 6,
+      "winnerAdvanceMatchNumber": 44,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 43,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 43,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 44,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "24": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 9,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 17,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 10,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 18,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 11,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 19,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 12,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 20,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 13,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 21,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 14,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 22,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 23,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 24,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 29,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 21,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 29,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 22,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 23,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 24,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 31,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 17,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 31,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 18,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 32,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 19,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 32,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 20,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 17,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 25,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 18,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 25,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 19,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 20,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 21,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 27,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 22,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 27,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 23,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 24,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 25,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 33,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 26,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 34,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 27,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 35,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 28,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 36,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 29,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 37,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 33,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 30,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 37,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 34,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 31,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 38,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 35,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 32,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 38,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 36,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 33,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 39,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 34,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 39,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 35,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 40,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 36,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 40,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 37,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 43,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 42,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 38,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 43,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 41,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 39,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 41,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 40,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 42,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 41,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 44,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 42,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 44,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 43,
+      "matchType": "WB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 46,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 45,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 44,
+      "matchType": "LB",
+      "round": 6,
+      "winnerAdvanceMatchNumber": 46,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 45,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 45,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 46,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "25": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 11,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 19,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 10,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 10,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 12,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 20,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 13,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 21,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 14,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 22,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 23,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 24,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 25,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 27,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 22,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 24,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 25,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 29,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 19,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 29,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 26,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 20,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 17,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 21,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 18,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 27,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 23,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 19,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 31,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 20,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 32,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 21,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 32,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 22,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 33,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 23,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 33,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 24,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 34,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 25,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 34,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 26,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 31,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 27,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 39,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 35,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 28,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 40,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 36,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 29,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 39,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 37,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 30,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 40,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 38,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 31,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 35,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 32,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 36,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 33,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 37,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 34,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 38,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 35,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 41,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 36,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 41,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 37,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 42,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 38,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 42,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 39,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 45,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 44,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 40,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 45,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 43,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 41,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 43,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 42,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 44,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 43,
+      "matchType": "LB",
+      "round": 6,
+      "winnerAdvanceMatchNumber": 46,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 44,
+      "matchType": "LB",
+      "round": 6,
+      "winnerAdvanceMatchNumber": 46,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 45,
+      "matchType": "WB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 48,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 47,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 46,
+      "matchType": "LB",
+      "round": 7,
+      "winnerAdvanceMatchNumber": 48,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 47,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 47,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 48,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "26": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 13,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 21,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 11,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 11,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 14,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 22,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 23,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 24,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 25,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 26,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 27,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 29,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 24,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 25,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 26,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 31,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 21,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 17,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 32,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 22,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 18,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 32,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 23,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 19,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 29,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 28,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 20,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 31,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 27,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 21,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 33,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 22,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 34,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 23,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 34,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 24,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 35,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 25,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 36,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 26,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 36,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 27,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 33,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 28,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 35,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 29,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 41,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 37,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 30,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 41,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 38,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 31,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 42,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 39,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 32,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 42,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 40,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 33,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 37,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 34,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 38,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 35,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 39,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 36,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 40,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 37,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 43,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 38,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 43,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 39,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 44,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 40,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 44,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 41,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 47,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 46,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 42,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 47,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 45,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 43,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 45,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 44,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 46,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 45,
+      "matchType": "LB",
+      "round": 6,
+      "winnerAdvanceMatchNumber": 48,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 46,
+      "matchType": "LB",
+      "round": 6,
+      "winnerAdvanceMatchNumber": 48,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 47,
+      "matchType": "WB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 50,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 49,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 48,
+      "matchType": "LB",
+      "round": 7,
+      "winnerAdvanceMatchNumber": 50,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 49,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 49,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 50,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "27": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 15,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 23,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 12,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 16,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 24,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 25,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 26,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 13,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 21,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 14,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 13,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 27,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 21,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 14,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 29,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 30,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 28,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 31,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 26,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 32,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 27,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 17,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 32,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 28,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 18,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 33,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 23,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 19,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 34,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 24,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 20,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 34,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 25,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 21,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 31,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 30,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 22,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 33,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 29,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 23,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 35,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 24,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 36,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 25,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 36,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 26,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 37,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 27,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 38,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 28,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 38,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 29,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 35,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 30,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 37,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 31,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 43,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 39,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 32,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 43,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 40,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 33,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 44,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 41,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 34,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 44,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 42,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 35,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 39,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 36,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 40,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 37,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 41,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 38,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 42,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 39,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 45,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 40,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 45,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 41,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 46,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 42,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 46,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 43,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 49,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 48,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 44,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 49,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 47,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 45,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 47,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 46,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 48,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 47,
+      "matchType": "LB",
+      "round": 6,
+      "winnerAdvanceMatchNumber": 50,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 48,
+      "matchType": "LB",
+      "round": 6,
+      "winnerAdvanceMatchNumber": 50,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 49,
+      "matchType": "WB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 52,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 51,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 50,
+      "matchType": "LB",
+      "round": 7,
+      "winnerAdvanceMatchNumber": 52,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 51,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 51,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 52,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ],
+  "32": [
+    {
+      "matchNumber": 1,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 25,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 2,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 17,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 25,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 3,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 26,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 4,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 18,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 26,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 5,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 27,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 6,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 19,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 27,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 7,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 28,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 8,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 20,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 28,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 9,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 21,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 29,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 10,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 21,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 29,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 11,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 30,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 12,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 22,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 30,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 13,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 31,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 14,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 31,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 15,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 32,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 16,
+      "matchType": "WB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 32,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 17,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 41,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 40,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 18,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 41,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 39,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 19,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 42,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 38,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 20,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 42,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 37,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 21,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 43,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 36,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 22,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 43,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 35,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 23,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 44,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 34,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 24,
+      "matchType": "WB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 44,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 33,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 25,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 33,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 26,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 34,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 27,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 35,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 28,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 36,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 29,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 37,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 30,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 38,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 31,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 39,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 32,
+      "matchType": "LB",
+      "round": 1,
+      "winnerAdvanceMatchNumber": 40,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 33,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 45,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 34,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 45,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 35,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 46,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 36,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 46,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 37,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 47,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 38,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 47,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 39,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 48,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 40,
+      "matchType": "LB",
+      "round": 2,
+      "winnerAdvanceMatchNumber": 48,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 41,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 53,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 50,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 42,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 53,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 49,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 43,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 54,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 52,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 44,
+      "matchType": "WB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 54,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 51,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 45,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 49,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 46,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 50,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 47,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 51,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 48,
+      "matchType": "LB",
+      "round": 3,
+      "winnerAdvanceMatchNumber": 52,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 49,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 55,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 50,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 55,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 51,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 56,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 52,
+      "matchType": "LB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 56,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 53,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 59,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 58,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 54,
+      "matchType": "WB",
+      "round": 4,
+      "winnerAdvanceMatchNumber": 60,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 57,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 55,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 57,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 56,
+      "matchType": "LB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 58,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 57,
+      "matchType": "LB",
+      "round": 6,
+      "winnerAdvanceMatchNumber": 59,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 58,
+      "matchType": "LB",
+      "round": 6,
+      "winnerAdvanceMatchNumber": 60,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 59,
+      "matchType": "WB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 62,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 61,
+      "loserAdvanceSlot": "A"
+    },
+    {
+      "matchNumber": 60,
+      "matchType": "WB",
+      "round": 5,
+      "winnerAdvanceMatchNumber": 62,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 61,
+      "loserAdvanceSlot": "B"
+    },
+    {
+      "matchNumber": 61,
+      "matchType": "Third Place",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    },
+    {
+      "matchNumber": 62,
+      "matchType": "Final",
+      "round": 1,
+      "winnerAdvanceMatchNumber": null,
+      "winnerAdvanceSlot": null,
+      "loserAdvanceMatchNumber": null,
+      "loserAdvanceSlot": null
+    }
+  ]
+}

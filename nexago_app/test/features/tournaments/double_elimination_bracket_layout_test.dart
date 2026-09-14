@@ -249,32 +249,104 @@ void main() {
   });
 
   test(
-      'columns follow the convergent order — WB left-to-right, '
-      'DESFECHO at the center, LB right-to-left', () {
+      'columns follow the convergent order — WB left-to-right, Final no '
+      'centro, LB right-to-left, 3º lugar em coluna própria à direita', () {
     final layout = buildDoubleEliminationBracketLayout(sixTeamPlan);
 
     expect(layout.nodes, hasLength(11));
+    // Nesta planta a Final converge direto (feita por w7 e l9 — um
+    // alimentador de cada chave), então fica sozinha na coluna central; o
+    // vizinho dela (`centerColumn - 1`) já tem o próprio alimentador WB da
+    // Final na mesma altura — nunca cabe o 3º lugar junto. Cai no "dê
+    // coluna própria" do dono: 3º lugar ganha coluna exclusiva à direita de
+    // tudo, mas na MESMA altura da Final (não a posição genérica de uma
+    // coluna órfã).
     expect(
       layout.columns.map((c) => c.label),
       [
         'WB · RODADA 1',
         'WB · RODADA 2',
         'WB · RODADA 3',
-        'DESFECHO',
+        'FINAL',
         'LB · RODADA 3',
         'LB · RODADA 2',
         'LB · RODADA 1',
+        '3º LUGAR',
       ],
     );
-    // A coluna central mistura Final e 3º lugar (nenhum dos dois converge
-    // direto nesta planta): key e label viram 'DESFECHO', e o columnKey de
-    // cada node concorda com a key da coluna em que ele foi colocado.
-    final desfecho = layout.columns.firstWhere((c) => c.key == 'DESFECHO');
-    expect(desfecho.matchIds, containsAll(['tp', 'gf']));
-    expect(nodeOf(layout, 'tp').columnKey, 'DESFECHO');
-    expect(nodeOf(layout, 'gf').columnKey, 'DESFECHO');
+    expect(nodeOf(layout, 'gf').columnKey, 'Final');
+    expect(nodeOf(layout, 'tp').columnKey, 'Third Place');
+    expect(centerY(nodeOf(layout, 'tp')),
+        closeTo(centerY(nodeOf(layout, 'gf')), 0.01));
     expect(layout.canvasSize.width, greaterThan(0));
     expect(layout.canvasSize.height, greaterThan(0));
+  });
+
+  test(
+      'planta 12: Final e 3º lugar dividem as colunas vizinhas ao centro, '
+      'na mesma altura — 3º lugar à esquerda, Final à direita', () {
+    // O exemplo do dono: a coluna das quartas (que alimentam o cruzamento)
+    // tem um vão vertical de sobra — o 3º lugar cabe nele. A coluna da LB
+    // R3 tem o mesmo vão — a Final cabe nela. Nenhuma delas ganha coluna
+    // nova, e a LB não é empurrada.
+    final plants = loadBracketPlants();
+    final layout = buildDoubleEliminationBracketLayout(plants[12]!);
+
+    final terceiro = nodeOf(layout, 'm21'); // 3º lugar
+    final final_ = nodeOf(layout, 'm22'); // Final
+    final quartaWb = nodeOf(layout, 'm15'); // quarta que alimenta o cruzamento
+    final lbR3 = nodeOf(layout, 'm17'); // LB R3 que alimenta o cruzamento
+
+    // Mesma coluna que a quarta da WB (à esquerda do centro) e da LB R3 (à
+    // direita), não uma coluna nova.
+    expect(terceiro.position.dx, quartaWb.position.dx);
+    expect(final_.position.dx, lbR3.position.dx);
+    expect(terceiro.position.dx, lessThan(final_.position.dx));
+
+    // Mesma linha horizontal — o pedido do dono.
+    expect(centerY(terceiro), closeTo(centerY(final_), 0.01));
+
+    // Nenhum card se sobrepõe: nem com a quarta, nem com a LB R3.
+    bool separados(BracketLayoutNode a, BracketLayoutNode b) =>
+        a.position.dx + a.size.width <= b.position.dx ||
+        b.position.dx + b.size.width <= a.position.dx ||
+        a.position.dy + a.size.height <= b.position.dy ||
+        b.position.dy + b.size.height <= a.position.dy;
+    for (final n in layout.nodes) {
+      if (n.matchId == 'm21' || n.matchId == 'm22') continue;
+      expect(separados(terceiro, n), isTrue,
+          reason: '3º lugar se sobrepõe a ${n.matchId}');
+      expect(separados(final_, n), isTrue,
+          reason: 'Final se sobrepõe a ${n.matchId}');
+    }
+  });
+
+  test(
+      'toda planta: Final e 3º lugar ficam na mesma linha horizontal, nunca '
+      'sobrepostas', () {
+    final plants = loadBracketPlants();
+    for (final entry in plants.entries) {
+      final matches = entry.value;
+      final layout = buildDoubleEliminationBracketLayout(matches);
+      final convergencia = bracketConvergenceMatches(matches);
+      final byNumber = {for (final m in matches) m.matchNumber: m};
+      int? finalNum;
+      int? thirdNum;
+      for (final n in convergencia) {
+        final tipo = byNumber[n]!.matchType.trim().toLowerCase();
+        if (tipo == 'final') finalNum = n;
+        if (tipo == 'third place') thirdNum = n;
+      }
+      if (finalNum == null || thirdNum == null) continue;
+      final finalNode = nodeOf(layout, 'm$finalNum');
+      final thirdNode = nodeOf(layout, 'm$thirdNum');
+      expect(
+        centerY(thirdNode),
+        closeTo(centerY(finalNode), 0.01),
+        reason: 'planta ${entry.key}: 3º lugar e Final não estão na mesma '
+            'linha',
+      );
+    }
   });
 
   test('planta 25: duas colunas "LB · RODADA 2" recebem keys diferentes', () {
@@ -392,15 +464,76 @@ void main() {
     expect(edge('l6', 'l8'), isNotNull);
     expect(edge('l8', 'l9'), isNotNull);
 
-    // A Final recebe as duas partidas de cruzamento pela fiação real.
-    expect(edge('w7', 'gf'), isNotNull,
-        reason: 'w7 avança para 11 (Final) — a fiação manda');
-    expect(edge('l9', 'gf'), isNotNull,
-        reason: 'l9 avança para 11 (Final) — a fiação manda');
-    // O 3º lugar não recebe arestas (sem partida que avance pra ele).
+    // A Final NÃO recebe aresta em chave de dupla eliminação (pedido do
+    // dono) mesmo w7/l9 tendo `winnerAdvance` real apontando pra ela.
+    expect(edge('w7', 'gf'), isNull,
+        reason: 'DE não desenha linha até a Final — pedido do dono');
+    expect(edge('l9', 'gf'), isNull);
+    // O 3º lugar também não recebe arestas (nem tinha `winnerAdvance` real).
     expect(layout.edges.where((e) => e.toMatchId == 'tp'), isEmpty);
     // Sem cruzamento direto WB↔LB (w7 e l9 cruzam em gf, não entre si).
     expect(edge('w7', 'l9'), isNull);
+  });
+
+  test(
+      'chave de dupla eliminação: nenhuma aresta chega na Final nem no 3º '
+      'lugar — mata-mata simples continua com aresta até a Final', () {
+    final plants = loadBracketPlants();
+    // Dupla eliminação: nenhuma das 25 plantas tem aresta chegando na Final
+    // ou no 3º lugar, mesmo nas que cruzam (10, 12, 32), onde a fiação real
+    // aponta pra elas.
+    for (final entry in plants.entries) {
+      final matches = entry.value;
+      final layout = buildDoubleEliminationBracketLayout(matches);
+      final byNumber = {for (final m in matches) m.matchNumber: m};
+      for (final e in layout.edges) {
+        final destNumber = int.parse(e.toMatchId.substring(1));
+        final destType = byNumber[destNumber]!.matchType.trim().toLowerCase();
+        expect(
+          destType,
+          isNot(anyOf('final', 'third place')),
+          reason: 'planta ${entry.key}: ${e.fromMatchId} → ${e.toMatchId} '
+              'é aresta pra Final/3º lugar em chave de dupla eliminação',
+        );
+      }
+    }
+
+    // Mata-mata simples (sem wb/lb, caminho legado): a Final é o fim
+    // natural da árvore de rodadas — a aresta até ela continua existindo.
+    final knockout = [
+      _match(
+          id: 'sf1',
+          matchType: 'knockout',
+          round: 1,
+          matchNumber: 1,
+          advanceTo: 3,
+          advanceSlot: 'A'),
+      _match(
+          id: 'sf2',
+          matchType: 'knockout',
+          round: 1,
+          matchNumber: 2,
+          advanceTo: 3,
+          advanceSlot: 'B'),
+      _match(id: 'final', matchType: 'Final', round: 1, matchNumber: 3),
+    ];
+    final knockoutLayout = buildDoubleEliminationBracketLayout(knockout);
+    expect(
+      knockoutLayout.edges,
+      contains(
+        isA<BracketLayoutEdge>()
+            .having((e) => e.fromMatchId, 'from', 'sf1')
+            .having((e) => e.toMatchId, 'to', 'final'),
+      ),
+    );
+    expect(
+      knockoutLayout.edges,
+      contains(
+        isA<BracketLayoutEdge>()
+            .having((e) => e.fromMatchId, 'from', 'sf2')
+            .having((e) => e.toMatchId, 'to', 'final'),
+      ),
+    );
   });
 
   test(
@@ -530,7 +663,10 @@ void main() {
         reason: 'vencedor da LB entra na semifinal');
     expect(hasEdge(18, 20), isTrue);
     expect(hasEdge(16, 19), isTrue);
-    expect(hasEdge(19, 22), isTrue, reason: 'semifinal entra na final');
+    // A semifinal NÃO liga na Final: chave de dupla eliminação não desenha
+    // linha até a Final nem o 3º lugar (pedido do dono) — elas moram lado a
+    // lado nas colunas vizinhas ao centro, sem seta indicando quem alimentou.
+    expect(hasEdge(19, 22), isFalse);
     // Queda: #15 perde e desce pro #17 — sem linha, por decisão do dono.
     expect(hasEdge(15, 17), isFalse);
     // O 3º lugar só recebe perdedores: nenhuma aresta chega nele.

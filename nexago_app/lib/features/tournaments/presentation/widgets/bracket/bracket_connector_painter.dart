@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:nexago_app/core/theme/app_colors.dart';
@@ -34,26 +33,6 @@ class BracketConnectorPainter extends CustomPainter {
     );
   }
 
-  /// X do desvio do contorno "por fora" (aresta de MESMA coluna — cruzamento
-  /// entrando na final, plantas 10/12/32). Usa 3/4 do `columnGap`, nunca a
-  /// metade: o `midX` de QUALQUER aresta entre colunas vizinhas cai
-  /// exatamente na metade do gap entre as duas bordas internas (start/end
-  /// ficam sempre a exatamente `columnGap` de distância, por construção da
-  /// grade de colunas). Nas plantas 10/12/32 a coluna central recebe uma
-  /// aresta vizinha pela MESMA borda direita que o contorno usa (ex.: planta
-  /// 12, #17→#19 chega pela borda direita de #19, e #19→#22 contorna por ali
-  /// também) — com a mesma fração de 1/2 os dois segmentos verticais caíam
-  /// no mesmo x e o traço virava um "cano" contínuo sem separação visual
-  /// entre as duas ligações (achado da revisão do dono). 3/4 continua dentro
-  /// do mesmo vão (não invade a coluna vizinha), mas nunca coincide com a
-  /// metade que as arestas normais usam.
-  @visibleForTesting
-  double debugDetourXFor(BracketLayoutNode from) {
-    return from.position.dx +
-        from.size.width +
-        BracketLayoutMetrics.columnGap * 3 / 4;
-  }
-
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
@@ -71,35 +50,12 @@ class BracketConnectorPainter extends CustomPainter {
       final start = debugStartFor(from, to);
       final end = debugEndFor(from, to);
 
-      if ((from.position.dx - to.position.dx).abs() < 1) {
-        // MESMA COLUNA — é a partida de cruzamento entrando na final, que mora
-        // na faixa central junto dela. Compare a posição dos CARDS, nunca
-        // start/end: com os dois na mesma coluna, `debugStartFor` devolve a
-        // borda direita e `debugEndFor` a esquerda, e a diferença é a largura
-        // do card, não zero.
-        //
-        // O cotovelo normal desenharia o segmento vertical no meio horizontal
-        // da coluna, ou seja, POR DENTRO dos cards empilhados entre os dois —
-        // e como o painter é o primeiro filho do Stack, a linha some atrás
-        // deles. Nas plantas 10, 12 e 32 a ordem da coluna central é
-        // [cruzamento, 3º lugar, final, cruzamento], então a linha do primeiro
-        // cruzamento até a final desaparece atrás do card do 3º lugar e passa
-        // a impressão de que aquele jogo alimenta o 3º lugar.
-        //
-        // Contorna por FORA, saindo e entrando pela mesma borda direita.
-        final borda = from.position.dx + from.size.width;
-        final desvio = debugDetourXFor(from);
-        canvas.drawPath(
-          Path()
-            ..moveTo(borda, start.dy)
-            ..lineTo(desvio, start.dy)
-            ..lineTo(desvio, end.dy)
-            ..lineTo(borda, end.dy),
-          paint,
-        );
-        continue;
-      }
-
+      // Não existe mais aresta de MESMA coluna: a única fonte disso era a
+      // partida de cruzamento entrando na Final (plantas 10/12/32), e a
+      // Final não recebe mais linha nenhuma em chave de dupla eliminação
+      // (pedido do dono) — ela e o 3º lugar moram lado a lado nas colunas
+      // vizinhas ao centro, não mais empilhadas na faixa central. O cotovelo
+      // comum abaixo cobre toda aresta que sobra.
       final midX = start.dx + (end.dx - start.dx) / 2;
       canvas.drawPath(
         Path()

@@ -24,8 +24,23 @@ void main() {
       final layout = buildDoubleEliminationBracketLayout(matches);
       final convergencia = bracketConvergenceMatches(matches);
       final xPorId = {for (final n in layout.nodes) n.matchId: n.position.dx};
-      // Centro = o X da partida de convergência mais à esquerda.
-      final centroX = convergencia
+      final tipoPorNumero = {
+        for (final m in matches)
+          m.matchNumber: m.matchType.trim().toLowerCase(),
+      };
+      // Centro = o X da partida de CRUZAMENTO mais à esquerda (exclui Final
+      // e 3º lugar — desde que passaram a morar ao lado, numa coluna vizinha
+      // ao centro, e não mais nela, elas não servem mais pra achar o centro:
+      // o 3º lugar em especial fica à ESQUERDA do centro de propósito).
+      // Quando não há cruzamento de verdade (a Final converge direto — a
+      // maioria das plantas), ela mesma marca o centro.
+      final cruzamentos = convergencia.where(
+        (n) => tipoPorNumero[n] != 'final' && tipoPorNumero[n] != 'third place',
+      );
+      final referencia = cruzamentos.isNotEmpty
+          ? cruzamentos
+          : convergencia.where((n) => tipoPorNumero[n] == 'final');
+      final centroX = referencia
           .map((n) => xPorId['m$n'])
           .whereType<double>()
           .reduce((a, b) => a < b ? a : b);
@@ -48,24 +63,15 @@ void main() {
     test('planta de $teamCount: toda aresta liga colunas vizinhas', () {
       final layout = buildDoubleEliminationBracketLayout(matches);
       final xPorId = {for (final n in layout.nodes) n.matchId: n.position.dx};
-      final tipoPorId = {
-        for (final m in matches)
-          'm${m.matchNumber}': m.matchType.trim().toLowerCase(),
-      };
       const passo =
           BracketLayoutMetrics.cardWidth + BracketLayoutMetrics.columnGap;
+      // Nenhuma aresta chega na Final nem no 3º lugar em chave de dupla
+      // eliminação (pedido do dono, ver `_buildAdvanceEdges`) — toda aresta
+      // que sobra liga colunas vizinhas de verdade, sem exceção de mesma
+      // coluna.
       for (final e in layout.edges) {
         final de = xPorId[e.fromMatchId]!;
         final para = xPorId[e.toMatchId]!;
-        final destino = tipoPorId[e.toMatchId];
-        if (destino == 'final' || destino == 'third place') {
-          // A final e o 3º lugar moram na mesma coluna central das partidas
-          // de cruzamento: a ligação até eles pode ser vertical (distância 0).
-          expect(
-              (de - para).abs(), anyOf(closeTo(0, 0.01), closeTo(passo, 0.01)),
-              reason: '${e.fromMatchId} → ${e.toMatchId} pula coluna');
-          continue;
-        }
         expect((de - para).abs(), closeTo(passo, 0.01),
             reason: '${e.fromMatchId} → ${e.toMatchId} pula coluna');
       }

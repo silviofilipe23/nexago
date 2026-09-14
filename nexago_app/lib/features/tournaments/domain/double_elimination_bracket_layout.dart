@@ -141,16 +141,30 @@ String bracketColumnHeaderLabel(List<TournamentMatch> columnMatches) {
 ///   posições reais dos seus alimentadores. Bye (lado sem alimentador desenhado
 ///   na WB) e entrada do perdedor (na LB) viram linha livre (`emptySlots`), não
 ///   card — é o mesmo que a tabela impressa faz.
-/// - Final e 3º lugar que não convergem direto (plantas 10, 12 e 32, onde quem
-///   cruza são as semifinais) ficam empilhados na MESMA coluna central,
-///   ordenados pelo centro, com guarda de colisão em duas passadas: primeiro
-///   posiciona as partidas com subárvore, depois encaixa as sem-árvore nos
-///   espaços, sem jamais mexer nas já fixadas.
-/// - Coluna central mista (cruzamento + Final + 3º lugar juntos, como nas
-///   plantas 10/12/32): rótulo E key viram `'DESFECHO'` em vez do rótulo da
-///   primeira partida — senão a Final ficaria escondida atrás de "WB · RODADA
-///   N" no seletor de fases do canvas. `columnKey` do nó sempre concorda com
-///   a key da coluna em que ele foi colocado.
+/// - Final e 3º lugar ficam LADO A LADO, na mesma linha horizontal — não mais
+///   empilhados na coluna central (pedido do dono: "não precisa de ligamento
+///   pras finais, apenas deixe a final e o terceiro na mesma linha
+///   horizontal"). O 3º lugar (nunca tem árvore própria) vai pra coluna
+///   vizinha à ESQUERDA do centro (`centerColumn - 1`, lado WB); a Final
+///   (só fica sem árvore quando ela mesma é o desfecho de um cruzamento —
+///   plantas 10, 12, 32) vai pra vizinha à DIREITA (`centerColumn + 1`, lado
+///   LB) — aproveitando o vão vertical que já sobra nessas colunas em vez de
+///   abrir coluna nova (o que empurraria a LB pra longe). Altura-alvo: a da
+///   Final quando ela converge direto (a maioria das plantas — "mesma linha
+///   horizontal" da Final de verdade); o meio do bloco quando as duas ficam
+///   sem árvore ao mesmo tempo. Se o vizinho já tiver jogo na altura-alvo
+///   (não ocorre nas 25 plantas reais), cai no mecanismo de órfãs — coluna
+///   exclusiva à direita de tudo — em vez de sobrepor um card.
+/// - Guarda de colisão em duas passadas na materialização de toda coluna:
+///   primeiro posiciona as partidas com subárvore própria, depois encaixa as
+///   sem-árvore (Final/3º lugar quando dividem coluna com uma rodada de
+///   verdade) nos espaços que sobram — sem jamais mexer nas já fixadas.
+/// - Coluna mista (cruzamento com tipos WB e LB ao mesmo tempo — planta 10 —
+///   ou uma rodada de verdade dividindo coluna com a Final/3º lugar
+///   realocados): rótulo E key viram `'DESFECHO'` em vez do rótulo da
+///   primeira partida — senão o jogo escondido ficaria atrás de um rótulo
+///   que não é o dele no seletor de fases do canvas. `columnKey` do nó
+///   sempre concorda com a key da coluna em que ele foi colocado.
 ///
 /// **Conectores:**
 /// - Arestas seguem os ponteiros reais de avanço (`winnerAdvance`) em qualquer
@@ -159,6 +173,12 @@ String bracketColumnHeaderLabel(List<TournamentMatch> columnMatches) {
 /// - `loserAdvance` NÃO gera aresta (a queda do perdedor não se desenha,
 ///   decisão do dono — como a tabela impressa que escreve "P 15" em vez de
 ///   puxar uma linha).
+/// - Em chave de dupla eliminação, Final e 3º lugar também não recebem
+///   NENHUMA aresta — outro pedido do dono, já que elas moram lado a lado
+///   sem precisar de seta indicando quem alimentou quem. No mata-mata
+///   simples (sem `wb`/`lb`, caminho legado) a Final é o fim natural da
+///   árvore de rodadas e continua recebendo linha normalmente. Ver
+///   `_buildAdvanceEdges`.
 ///
 /// **Caminho legado (sem convergência):**
 /// - Dispara quando: `bracketConvergenceMatches` é vazio, OU nenhuma partida
@@ -261,37 +281,14 @@ DoubleEliminationBracketLayout buildDoubleEliminationBracketLayout(
     }
     centerColumn = wbDepth;
 
-    // Quantas partidas vão precisar de lugar na faixa central SEM árvore
-    // própria (Final e 3º lugar que não convergem direto — plantas 10, 12 e
-    // 32): tanto as que ficam em `blocos` mas não têm alimentador de nenhum
-    // lado (`trees[root]` com os dois `null`) quanto as que nem chegam a
-    // entrar em `blocos` (a Final nessas três plantas, filtrada por ser
-    // alimentada por outra partida de convergência). Sabendo isso ANTES de
-    // empilhar os blocos dá pra reservar o lugar delas em vez de espremê-las
-    // depois — é a decisão do dono: abrir espaço, não encolher o card.
-    final folgaCentral = convergence.where((root) {
-      final t = trees[root];
-      return t == null || (t['wb'] == null && t['lb'] == null);
-    }).length;
-
     // Cada bloco ocupa uma faixa vertical própria, empilhadas de cima para
-    // baixo, com uma folga de `folgaCentral` LUGARES entre o primeiro e o
-    // segundo bloco real — é ali, no meio dos dois lados que convergem, que
-    // a Final e o 3º lugar (ou qualquer outra partida sem árvore) vão morar.
-    // Cada lugar vale `2·rowUnit` (162px), mais que a altura do card
-    // (150px), então `folgaCentral` lugares bastam pra essa quantidade de
-    // partidas sem espremer nada. Plantas com um só bloco real (a maioria —
-    // a Final converge direto) não têm segundo bloco, então a folga nunca é
-    // inserida: só as plantas que cruzam (10, 12, 32) crescem um pouco.
+    // baixo — sem folga entre elas: a Final e o 3º lugar não moram mais
+    // nesta faixa (ver abaixo), então não sobra nada pra reservar aqui.
     var slotCursor = 0.0;
-    var blocosReaisVistos = 0;
     for (final root in blocos) {
       final wb = trees[root]!['wb'];
       final lb = trees[root]!['lb'];
       if (wb == null && lb == null) continue; // 3º lugar: posicionado depois
-
-      blocosReaisVistos++;
-      if (blocosReaisVistos == 2) slotCursor += folgaCentral;
 
       final span = math.max(wb?.span ?? 0, lb?.span ?? 0);
       for (final entry in <MapEntry<String, BracketFeedNode?>>[
@@ -324,25 +321,93 @@ DoubleEliminationBracketLayout buildDoubleEliminationBracketLayout(
       slotCursor += span;
     }
 
-    // Final e 3º lugar que NÃO convergem direto (plantas 10, 12 e 32, onde
-    // quem converge são as partidas de cruzamento): centro vertical do
-    // conjunto, na MESMA coluna central das partidas de cruzamento — é o que
-    // a folha faz, com a final no meio e as semifinais/cruzamentos acima e
-    // abaixo. Dar coluna própria a elas empurraria a LB para longe e
-    // roubaria o lugar da LB R3. O valor aqui é só um PALPITE pra ordenar
-    // dentro da coluna — espalhado em volta de `middle` pra Final e 3º lugar
-    // não empatarem entre si (a planta 10 tem os dois pendentes ao mesmo
-    // tempo) — a posição REAL sai da guarda de duas passadas na
-    // materialização, que nunca deixa uma partida daqui empurrar uma que já
-    // tem centro próprio.
+    // Final e 3º lugar lado a lado, na mesma linha horizontal — pedido do
+    // dono: nada de empilhar as duas na coluna central. O 3º lugar nunca tem
+    // árvore própria (só recebe perdedores, e `loserAdvance` não é rastreado
+    // por `buildBracketFeedTree`); a Final só fica sem árvore quando ela
+    // mesma é o desfecho de um cruzamento (plantas 10, 12, 32 — as duas
+    // partidas de cruzamento é que convergem, não ela).
+    //
+    // Em vez de dar coluna própria a cada uma (o que empurraria a LB pra
+    // longe), TENTA aproveitar o vão vertical das colunas VIZINHAS ao
+    // centro primeiro — a quarta da WB (`centerColumn - 1`) pro 3º lugar, a
+    // rodada equivalente da LB (`centerColumn + 1`) pra Final. Nas plantas
+    // que cruzam (10, 12, 32) isso sempre cabe: a vizinha ali é a quarta que
+    // alimenta a partida de CRUZAMENTO, dois níveis afastada da Final, com
+    // folga de sobra. Na maioria das plantas (Final converge direto) a
+    // vizinha da Final é sua PRÓPRIA quarta — sempre à mesma altura (é dela
+    // que a média da Final sai) — então nunca cabe ali: cai no "dê coluna
+    // própria" que o dono autorizou para quando não couber, mas mantendo a
+    // altura-alvo (não a posição genérica de uma coluna órfã) — a diferença
+    // entre "não empilhado" e "desconectado".
+    //
+    // Altura-alvo: quando a Final já converge direto, o 3º lugar mira nela —
+    // é a "mesma linha horizontal" de verdade. Só quando a Final também não
+    // converge direto (10, 12, 32) é que as duas miram o meio do bloco.
     final middle = slotCursor / 2;
-    final pendentes = [
-      for (final root in convergence.toList()..sort())
-        if (!centerSlot.containsKey(root)) root,
-    ];
-    for (var i = 0; i < pendentes.length; i++) {
-      final root = pendentes[i];
-      centerSlot[root] = middle + (i - (pendentes.length - 1) / 2) * 0.001;
+    final finalRoot = convergence.firstWhere(
+      (n) => byNumber[n]?.matchType.trim().toLowerCase() == 'final',
+      orElse: () => -1,
+    );
+    final thirdPlaceRoot = convergence.firstWhere(
+      (n) => byNumber[n]?.matchType.trim().toLowerCase() == 'third place',
+      orElse: () => -1,
+    );
+    final targetSlot =
+        centerSlot.containsKey(finalRoot) ? centerSlot[finalRoot]! : middle;
+
+    // Só cabe no vizinho se não colidir com nenhum jogo que a árvore daquele
+    // lado já colocou ali — a mesma régua de 1 LUGAR (162px) que separa
+    // qualquer par de jogos adjacentes no resto do desenho.
+    bool cabeNaColuna(int coluna, double alvo) {
+      for (final entry in columnOf.entries) {
+        if (entry.value != coluna) continue;
+        final outro = centerSlot[entry.key];
+        if (outro != null && (outro - alvo).abs() < 1) return false;
+      }
+      return true;
+    }
+
+    void posicionaAoLado(int root, int coluna, {bool marcaSemArvore = true}) {
+      columnOf[root] = coluna;
+      centerSlot[root] = targetSlot;
+      if (marcaSemArvore) semArvore.add(root);
+    }
+
+    // Coluna exclusiva, à direita de tudo (nunca renumera nada — não
+    // empurra a LB), na altura-alvo. Não entra em `semArvore`: sozinha na
+    // própria coluna, não tem quem a guarda de colisão precise proteger.
+    void posicionaEmColunaPropria(int root) {
+      final novaColuna =
+          (columnOf.values.isEmpty ? -1 : columnOf.values.reduce(math.max)) + 1;
+      posicionaAoLado(root, novaColuna, marcaSemArvore: false);
+    }
+
+    if (thirdPlaceRoot != -1 && !centerSlot.containsKey(thirdPlaceRoot)) {
+      final coluna = centerColumn - 1;
+      if (cabeNaColuna(coluna, targetSlot)) {
+        posicionaAoLado(thirdPlaceRoot, coluna);
+      } else {
+        posicionaEmColunaPropria(thirdPlaceRoot);
+      }
+    }
+    if (finalRoot != -1 && !centerSlot.containsKey(finalRoot)) {
+      final coluna = centerColumn + 1;
+      if (cabeNaColuna(coluna, targetSlot)) {
+        posicionaAoLado(finalRoot, coluna);
+      } else {
+        posicionaEmColunaPropria(finalRoot);
+      }
+    }
+
+    // Rede de segurança: qualquer OUTRA partida de convergência que sobre
+    // sem árvore (não deveria acontecer nas 25 plantas reais — só Final e
+    // 3º lugar ficam sem árvore própria) cai no comportamento antigo,
+    // empilhada na coluna central.
+    for (final root in convergence.toList()..sort()) {
+      if (centerSlot.containsKey(root)) continue;
+      if (root == finalRoot || root == thirdPlaceRoot) continue;
+      centerSlot[root] = middle;
       columnOf[root] = centerColumn;
       semArvore.add(root);
     }
@@ -643,23 +708,39 @@ void _placeLegacyGroups(
 /// os dois lados se encontrarem. `loserAdvance` NÃO gera aresta: a queda do
 /// perdedor não se desenha (decisão do dono, ver a spec de 13/09), do mesmo
 /// jeito que a tabela impressa escreve "P 15" em vez de puxar uma linha.
+///
+/// Em chave de DUPLA ELIMINAÇÃO (tem partidas `wb` E `lb`), a Final e o 3º
+/// lugar também não recebem linha — pedido do dono: "não precisa de
+/// ligamento pras finais". Critério usado para distinguir do mata-mata
+/// simples: a MESMA condição `hasWb && hasLb` que decide o caminho legado
+/// logo acima — sem as duas chaves não há o que "ligar" de qualquer forma, e
+/// COM as duas chaves a Final é sempre o desfecho de um cruzamento, nunca o
+/// fim natural de uma única árvore de rodadas. No mata-mata simples (chave
+/// tipada `knockout`/`Final`, sem `wb`/`lb`, caminho legado) a Final é
+/// exatamente esse fim natural — a linha até ela continua o desenho certo.
 List<BracketLayoutEdge> _buildAdvanceEdges(
   List<TournamentMatch> matches,
   Map<int, BracketLayoutNode> nodeByMatchNumber,
 ) {
   final byNumber = {for (final m in matches) m.matchNumber: m};
+  final isDoubleElimination =
+      matches.any((m) => m.matchType.trim().toLowerCase() == 'wb') &&
+          matches.any((m) => m.matchType.trim().toLowerCase() == 'lb');
   final edges = <BracketLayoutEdge>[];
   for (final m in matches) {
     final dest = m.winnerAdvanceMatchNumber;
     if (dest == null) continue;
-    if (!byNumber.containsKey(dest)) continue;
+    final target = byNumber[dest];
+    if (target == null) continue;
+    if (isDoubleElimination) {
+      final targetType = target.matchType.trim().toLowerCase();
+      if (targetType == 'final' || targetType == 'third place') continue;
+    }
     if (!nodeByMatchNumber.containsKey(m.matchNumber) ||
         !nodeByMatchNumber.containsKey(dest)) {
       continue;
     }
-    edges.add(
-      BracketLayoutEdge(fromMatchId: m.id, toMatchId: byNumber[dest]!.id),
-    );
+    edges.add(BracketLayoutEdge(fromMatchId: m.id, toMatchId: target.id));
   }
   return edges;
 }

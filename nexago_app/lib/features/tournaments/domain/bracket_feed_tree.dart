@@ -69,11 +69,23 @@ int _slotRank(TournamentMatch m) {
 
 /// Árvore de alimentação que entra em [rootMatchNumber] pelo lado de [track]
 /// (`'wb'` ou `'lb'`), descendo só por jogos daquela chave. `null` quando a
-/// chave não alimenta aquela partida.
+/// chave não alimenta aquela partida por exatamente UM lado.
 ///
 /// Toda partida tem DOIS lados: o que não tem alimentador desenhado vira lugar
 /// vago. Sem isso o jogo se alinha em linha reta com o único alimentador e o
 /// lado vazio desaparece da leitura — some o bye e some a entrada do perdedor.
+///
+/// O invariante é "esta é a árvore que entra em [rootMatchNumber] por UM
+/// lado": exige exatamente um alimentador daquela chave na raiz. Zero
+/// alimentadores é o caso comum de `null` (a chave não alimenta ali — ex.: o
+/// 3º lugar, que só recebe perdedores). DOIS alimentadores da MESMA chave
+/// também devolve `null`, e por um motivo diferente: nesse caso
+/// [rootMatchNumber] não é o ponto de encontro das duas chaves, é uma partida
+/// DEPOIS dele — a final das plantas de 12 e 32, por exemplo, onde `#19` e
+/// `#20` (ambas WB) alimentam a final `#22` pelos dois lados. Ali não existe
+/// "a árvore que entra por um lado"; cada alimentador é a raiz da sua própria
+/// árvore, chamada separadamente. Devolver metade da árvore em silêncio
+/// sobrescreveria posições que o outro lado já calculou — pior que `null`.
 BracketFeedNode? buildBracketFeedTree(
   List<TournamentMatch> matches,
   int rootMatchNumber,
@@ -123,6 +135,8 @@ BracketFeedNode? buildBracketFeedTree(
   }
 
   final entry = feeders[rootMatchNumber];
-  if (entry == null || entry.isEmpty) return null;
+  // Exatamente um: zero é "chave não alimenta aqui", dois é "isto não é o
+  // ponto de encontro das chaves" — os dois casos devolvem null.
+  if (entry == null || entry.length != 1) return null;
   return build(entry.first.matchNumber, <int>{});
 }

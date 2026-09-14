@@ -75,5 +75,26 @@ void main() {
       expect(buildBracketFeedTree(plants[12]!, 21, 'wb'), isNull);
       expect(buildBracketFeedTree(plants[12]!, 21, 'lb'), isNull);
     });
+
+    test(
+        'devolve null quando a raiz recebe DOIS alimentadores da mesma chave '
+        '— a final não é "um lado"', () {
+      // bracket-12-teams.ts: #22 (FINAL) = WINNER(#19) x WINNER(#20), as duas
+      // tipadas WB. A final é o encontro de #19 e #20, não a continuação de
+      // um deles só — não existe "a árvore que entra por um lado" aqui.
+      expect(buildBracketFeedTree(plants[12]!, 22, 'wb'), isNull);
+    });
+
+    test(
+        'planta de 8: a final tem um alimentador de cada chave — '
+        'comportamento normal preservado', () {
+      // bracket-8-teams.ts: #14 (FINAL) = WINNER(#12, LB) x WINNER(#11, WB).
+      // Cada chave alimenta a final por exatamente um lado, então as duas
+      // continuam devolvendo árvore normalmente.
+      final wb = buildBracketFeedTree(plants[8]!, 14, 'wb')!;
+      expect(wb.matchNumber, 11);
+      final lb = buildBracketFeedTree(plants[8]!, 14, 'lb')!;
+      expect(lb.matchNumber, 12);
+    });
   });
 }

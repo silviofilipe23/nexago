@@ -369,9 +369,17 @@ export class PanelShellComponent {
       // Cabeças + sorteio só enquanto a chave ainda não existe — depois de gerada
       // (categoria com jogos), o fluxo passa a ser grupos/chave/jogos.
       const preBracket = this.chav.matchesFiltered().length === 0;
-      // Grupos só faz sentido com fase de grupos (SE/DE/RR não têm tabela de pools).
+      // Grupos só com fase de pools de verdade. O `bracketFormat` da categoria
+      // pode ficar desatualizado: na geração o organizador escolhe SE/DE sem
+      // gravar de volta o override — então, com chave publicada, a fonte da
+      // verdade são os jogos (`round` "Grupo …"), não o campo do doc.
+      const matches = this.chav.matchesFiltered();
       const system = bracketSystemFromRaw(this.ctx.category()?.bracketFormat ?? '');
-      const hasGroups = system === 'groupsThenKnockout' || system === 'groupsWithRepechage';
+      const formatHasGroups =
+        system === 'groupsThenKnockout' || system === 'groupsWithRepechage';
+      const hasGroups = matches.length > 0
+        ? matches.some((m) => (m.round ?? '').startsWith('Grupo '))
+        : formatHasGroups;
       return [
         { label: 'Equipes', icon: 'users', link: `${base}/duplas` },
         ...(preBracket

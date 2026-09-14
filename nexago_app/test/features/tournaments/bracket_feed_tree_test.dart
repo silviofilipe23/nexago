@@ -97,4 +97,38 @@ void main() {
       expect(lb.matchNumber, 12);
     });
   });
+
+  group('centros e profundidades', () {
+    test('as pontas ocupam meio lugar cada, o jogo fica na média dos filhos', () {
+      final tree = buildBracketFeedTree(plants[12]!, 19, 'wb')!;
+      final centers = <int, double>{};
+      assignFeedCenters(tree, 0, centers);
+
+      // Lado WB de #19: [#5[ vago, #1 ], #6[ vago, #2 ]] — 4 lugares.
+      expect(centers[1], 1.5);
+      expect(centers[5], 1.0); // média entre o vago (0.5) e o #1 (1.5)
+      expect(centers[2], 3.5);
+      expect(centers[6], 3.0);
+      expect(centers[16], 2.0); // média de #5 e #6
+    });
+
+    test('profundidade cresce ao se afastar do centro', () {
+      final tree = buildBracketFeedTree(plants[12]!, 19, 'wb')!;
+      final depths = <int, int>{};
+      assignFeedDepths(tree, 1, depths);
+      expect(depths[16], 1); // quarta: encostada na faixa central
+      expect(depths[5], 2);
+      expect(depths[1], 3);
+    });
+
+    test('o lugar vago tem centro próprio, para o conector achar a ponta', () {
+      final tree = buildBracketFeedTree(plants[12]!, 19, 'wb')!;
+      final vagos = <int, List<double>>{};
+      assignEmptySlotCenters(tree, 0, vagos);
+      // O bye do #5 ocupa o primeiro lugar do bloco.
+      expect(vagos[5], [0.5]);
+      expect(vagos[6], [2.5]);
+      expect(vagos.containsKey(1), isFalse, reason: 'ponta não tem lado vago');
+    });
+  });
 }

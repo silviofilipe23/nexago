@@ -140,3 +140,62 @@ BracketFeedNode? buildBracketFeedTree(
   if (entry == null || entry.length != 1) return null;
   return build(entry.first.matchNumber, <int>{});
 }
+
+/// Centro vertical de cada jogo, em LUGARES, a partir de [slotStart].
+///
+/// Percorre a árvore dando um lugar a cada ponta e pondo cada jogo interno na
+/// MÉDIA dos filhos. Lugares vagos entram na conta e não viram entrada no mapa,
+/// que é o que reserva o espaço do bye sem criar card. Medir por extensão de
+/// subárvore (e não dobrar por rodada) é o que mantém as plantas irregulares
+/// de pé — play-ins e a entrada desigual na LB das plantas 20 a 24.
+void assignFeedCenters(
+  BracketFeedNode node,
+  double slotStart,
+  Map<int, double> out,
+) {
+  if (node.children.isEmpty) {
+    if (node.matchNumber != null) out[node.matchNumber!] = slotStart + 0.5;
+    return;
+  }
+  var cursor = slotStart;
+  final childCenters = <double>[];
+  for (final child in node.children) {
+    assignFeedCenters(child, cursor, out);
+    childCenters.add(cursor + child.span / 2);
+    cursor += child.span;
+  }
+  if (node.matchNumber != null) {
+    out[node.matchNumber!] =
+        childCenters.reduce((a, b) => a + b) / childCenters.length;
+  }
+}
+
+/// Centro (em lugares) dos LUGARES VAGOS de cada partida. É daqui que sai a
+/// ponta da linha livre que a tabela impressa desenha no lado do bye e no lado
+/// da entrada do perdedor.
+void assignEmptySlotCenters(
+  BracketFeedNode node,
+  double slotStart,
+  Map<int, List<double>> out,
+) {
+  var cursor = slotStart;
+  for (final child in node.children) {
+    if (child.isEmptySlot) {
+      if (node.matchNumber != null) {
+        (out[node.matchNumber!] ??= <double>[]).add(cursor + child.span / 2);
+      }
+    } else {
+      assignEmptySlotCenters(child, cursor, out);
+    }
+    cursor += child.span;
+  }
+}
+
+/// Profundidade de cada jogo: [depth] na raiz da árvore (a coluna encostada na
+/// faixa central), crescendo ao se afastar do centro.
+void assignFeedDepths(BracketFeedNode node, int depth, Map<int, int> out) {
+  if (node.matchNumber != null) out[node.matchNumber!] = depth;
+  for (final child in node.children) {
+    assignFeedDepths(child, depth + 1, out);
+  }
+}

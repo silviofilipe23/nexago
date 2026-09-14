@@ -144,10 +144,17 @@ BracketFeedNode? buildBracketFeedTree(
 /// Centro vertical de cada jogo, em LUGARES, a partir de [slotStart].
 ///
 /// Percorre a árvore dando um lugar a cada ponta e pondo cada jogo interno na
-/// MÉDIA dos filhos. Lugares vagos entram na conta e não viram entrada no mapa,
-/// que é o que reserva o espaço do bye sem criar card. Medir por extensão de
-/// subárvore (e não dobrar por rodada) é o que mantém as plantas irregulares
-/// de pé — play-ins e a entrada desigual na LB das plantas 20 a 24.
+/// MÉDIA das posições REAIS dos filhos — a posição já calculada para cada
+/// filho (`out[child.matchNumber]`), não o meio geométrico do intervalo que
+/// ele ocupa. As duas coisas só coincidem quando a subárvore do filho é
+/// simétrica; em plantas irregulares (entrada desigual na LB das plantas 20 a
+/// 24) o filho fica deslocado dentro do próprio intervalo, e usar o meio
+/// geométrico ali gera um conector torto. O meio geométrico só é usado para o
+/// LUGAR VAGO, que é sempre uma ponta sem posição própria — é ele quem não
+/// vira entrada no mapa, o que reserva o espaço do bye sem criar card. Medir
+/// por extensão de subárvore (e não dobrar por rodada) é o que mantém as
+/// plantas irregulares de pé — play-ins e a entrada desigual na LB das
+/// plantas 20 a 24.
 void assignFeedCenters(
   BracketFeedNode node,
   double slotStart,
@@ -161,7 +168,8 @@ void assignFeedCenters(
   final childCenters = <double>[];
   for (final child in node.children) {
     assignFeedCenters(child, cursor, out);
-    childCenters.add(cursor + child.span / 2);
+    final real = child.matchNumber != null ? out[child.matchNumber!] : null;
+    childCenters.add(real ?? cursor + child.span / 2);
     cursor += child.span;
   }
   if (node.matchNumber != null) {

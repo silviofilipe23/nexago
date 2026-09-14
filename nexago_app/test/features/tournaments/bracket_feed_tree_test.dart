@@ -130,5 +130,23 @@ void main() {
       expect(vagos[6], [2.5]);
       expect(vagos.containsKey(1), isFalse, reason: 'ponta não tem lado vago');
     });
+
+    test(
+        'jogo interno usa a posição REAL do filho, não o meio geométrico do '
+        'intervalo — filhos diretos com span diferente', () {
+      // Planta 9, WB #16: #13[ #10[ #4[ vago, #1 ], #5 ], #9[ #2, #3 ] ].
+      // #10 (span 3) e #9 (span 2) são filhos DIRETOS de #13 com spans
+      // diferentes — a "entrada desigual" que a tarefa precisa suportar.
+      final tree = buildBracketFeedTree(plants[9]!, 16, 'wb')!;
+      final centers = <int, double>{};
+      assignFeedCenters(tree, 0, centers);
+
+      // #10 não fica no meio do seu próprio intervalo [0,3) (que seria 1.5):
+      // fica em 1.75, a média real de #4 (1.0) e #5 (2.5).
+      expect(centers[10], 1.75);
+      // #13 tem de usar a posição REAL de #10 (1.75), não o meio geométrico
+      // do intervalo que #10 ocupa (1.5) — usar o meio geométrico dava 2.75.
+      expect(centers[13], 2.875);
+    });
   });
 }

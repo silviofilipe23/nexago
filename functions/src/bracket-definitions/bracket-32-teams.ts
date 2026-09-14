@@ -16,10 +16,13 @@ import {MatchDefinition} from "./bracket-definitions";
  * derrota só, e o campeão termina com no máximo uma.
  *
  * As semifinais #59/#60 estão no bracket "WB" (rodada 5) porque `BracketName`
- * não tem um nome para "cruzamento": marcá-las como LB faria o resolvedor de
- * colocação premiar o perdedor com um degrau de 5º-8º ANTES de ele jogar o 3º
- * lugar (`resolveDoubleEliminationLbPlacement`), enquanto partidas de WB não
- * concedem colocação nenhuma e deixam o pódio inteiro para #61 e #62.
+ * não tem um nome para "cruzamento", e WB é o lado de onde os dois cabeças
+ * chegam — é também a coluna em que a chave as desenha. A colocação NÃO
+ * depende mais dessa escolha: `resolveLeaguePlacementsFromMatch` não premia
+ * perdedor com `loserAdvance` (quem ainda vai jogar o 3º lugar), então tipar
+ * um cruzamento como LB não concede mais degrau de 5º-8º antecipado — era esse
+ * o risco, e ele valia para a final da LB de TODAS as plantas, não só aqui.
+ * O pódio continua saindo inteiro de #61 e #62.
  *
  * SEMEADURA (a tabela impressa deixa as caixas em branco — a regra é do dono).
  * `seed: N` é a POSIÇÃO NO RANKING, porque o painel manda `seeds` na ordem da

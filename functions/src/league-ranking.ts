@@ -234,6 +234,15 @@ export function resolveLeaguePlacementsFromMatch(
   if (context.isDoubleElimination) {
     if (matchType === "wb") return [];
     if (matchType === "lb") {
+      // Perdedor que ainda AVANÇA não está eliminado, então não há colocação a
+      // conceder: `loserAdvance` da final da LB (e do cruzamento #16 da planta
+      // de 10, tipado "LB") aponta a disputa de 3º lugar. O degrau da rodada
+      // não existe nesse caso — `placementTiersFromMatches` só conta rodadas
+      // que ELIMINAM —, e o balde legado de quartas premiava 5º-8º a quem
+      // ainda ia jogar o pódio. É o mesmo silêncio da WB, de onde o outro
+      // finalista entra na mesma partida pela porta oposta: quem decide os
+      // dois é a disputa de 3º.
+      if (match.loserAdvance != null) return [];
       const lbRound = (match.round as number | undefined) ?? 0;
       const maxLbRound = context.maxLbRound ?? 0;
       return [

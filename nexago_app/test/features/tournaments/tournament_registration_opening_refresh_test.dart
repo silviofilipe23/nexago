@@ -136,13 +136,14 @@ void main() {
         tournament: buildDetail(DateTime.now().add(janela)),
         enrollmentByCategoryId: const {'masc-b': 6},
         enrollmentCountsResolved: true,
+        onBack: () {},
       ),
     );
 
-    expect(find.text('Inscrever-se →'), findsNothing);
+    expect(find.text('Inscreva-se'), findsNothing);
 
     await passaDaAbertura(tester);
 
-    expect(find.text('Inscrever-se →'), findsOneWidget);
+    expect(find.text('Inscreva-se'), findsOneWidget);
   });
 }

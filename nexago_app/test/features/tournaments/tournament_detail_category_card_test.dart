@@ -1,32 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/core/formatting/app_currency_format.dart';
+import 'package:nexago_app/features/tournaments/domain/category_level_identity.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 import 'package:nexago_app/features/tournaments/presentation/widgets/tournament_detail/tournament_detail_category_card.dart';
 
 void main() {
   const offer = TournamentCategoryOffer(
     id: 'masc-b',
-    name: 'Masculino B',
+    name: 'Intermediário Masculino',
     entryFee: 90,
     genderType: 'Masculino',
     spotsLeft: 8,
     spotsTotal: 32,
     bracketFormat: 'Pool Play + SE',
-    prizes: [
-      TournamentCategoryPrize(position: '1', value: 1000),
-    ],
+    prizes: [TournamentCategoryPrize(position: '1', value: 1000)],
   );
 
   Future<void> pumpCard(
     WidgetTester tester,
-    TournamentListingStatus status,
-  ) async {
+    TournamentListingStatus status, {
+    TournamentCategoryOffer category = offer,
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: SingleChildScrollView(
             child: TournamentDetailCategoryCard(
-              offer: offer,
+              offer: category,
               tournamentId: 't1',
               tournamentName: 'Etapa Garden',
               tournamentStatus: status,
@@ -38,33 +39,96 @@ void main() {
     );
   }
 
-  testWidgets('mostra taxa e vagas com torneio em aberto', (tester) async {
+  testWidgets('identidade: nome, frase do nível e ícone na cor da faixa', (
+    tester,
+  ) async {
     await pumpCard(tester, TournamentListingStatus.open);
 
-    expect(find.text('VAGAS'), findsOneWidget);
-    expect(find.text('TAXA'), findsOneWidget);
-    expect(find.text('por equipe'), findsOneWidget);
-    expect(find.text('8 vagas'), findsOneWidget);
+    expect(find.text('Intermediário Masculino'), findsOneWidget);
+    expect(find.text('Equilíbrio e grandes jogos'), findsOneWidget);
+
+    final icon = tester.widget<Icon>(
+      find.byIcon(categoryLevelIcon(CategoryLevelFamily.intermediario)),
+    );
+    expect(icon.color, categoryLevelAccent(CategoryLevelFamily.intermediario));
   });
 
-  testWidgets('esconde taxa e vagas com torneio finalizado', (tester) async {
+  testWidgets('cada faixa de nível pinta o card com sua própria cor', (
+    tester,
+  ) async {
+    const iniciante = TournamentCategoryOffer(
+      id: 'ini',
+      name: 'Iniciante Feminino',
+      entryFee: 60,
+      spotsTotal: 16,
+    );
+    await pumpCard(
+      tester,
+      TournamentListingStatus.open,
+      category: iniciante,
+    );
+
+    final icon = tester.widget<Icon>(
+      find.byIcon(categoryLevelIcon(CategoryLevelFamily.iniciante)),
+    );
+    expect(icon.color, categoryLevelAccent(CategoryLevelFamily.iniciante));
+    expect(
+      icon.color,
+      isNot(categoryLevelAccent(CategoryLevelFamily.intermediario)),
+    );
+  });
+
+  testWidgets('linha de meta traz vagas, formato curto e taxa', (tester) async {
+    await pumpCard(tester, TournamentListingStatus.open);
+
+    expect(find.text('24/32'), findsOneWidget);
+    expect(find.text('equipes'), findsOneWidget);
+    expect(find.text('Grupos'), findsOneWidget);
+    expect(find.text(formatBRL(90)), findsOneWidget);
+    expect(find.text('por equipe'), findsOneWidget);
+  });
+
+  testWidgets('torneio finalizado esconde vagas e taxa', (tester) async {
     await pumpCard(tester, TournamentListingStatus.completed);
 
-    expect(find.text('VAGAS'), findsNothing);
-    expect(find.text('TAXA'), findsNothing);
+    expect(find.text('equipes'), findsNothing);
     expect(find.text('por equipe'), findsNothing);
-    expect(find.textContaining('vagas'), findsNothing);
-    expect(find.textContaining('equipes'), findsNothing);
-    // Identidade e premiação continuam de pé.
-    expect(find.text('Masculino B'), findsOneWidget);
-    expect(find.text('PREMIAÇÃO'), findsOneWidget);
+    expect(find.text(formatBRL(90)), findsNothing);
+    // Identidade e status continuam de pé.
+    expect(find.text('Intermediário Masculino'), findsOneWidget);
     expect(find.text('ENCERRADA'), findsOneWidget);
   });
 
-  testWidgets('esconde taxa e vagas com torneio encerrado', (tester) async {
-    await pumpCard(tester, TournamentListingStatus.ended);
+  // A premiação saiu do card (vive na página da categoria), mas o total é a
+  // única informação viva de um torneio já encerrado — some tudo sem ele.
+  testWidgets('torneio finalizado mantém o total em prêmios', (tester) async {
+    await pumpCard(tester, TournamentListingStatus.completed);
 
-    expect(find.text('VAGAS'), findsNothing);
-    expect(find.text('TAXA'), findsNothing);
+    expect(find.text(formatBRL(1000)), findsOneWidget);
+    expect(find.text('em prêmios'), findsOneWidget);
+  });
+
+  testWidgets('categoria lotada sem fila anuncia o esgotamento',
+      (tester) async {
+    const lotada = TournamentCategoryOffer(
+      id: 'cheia',
+      name: 'Open Masculino',
+      entryFee: 120,
+      spotsLeft: 0,
+      spotsTotal: 16,
+      waitlistEnabled: false,
+    );
+    await pumpCard(tester, TournamentListingStatus.open, category: lotada);
+
+    // O selo do cabeçalho é o anúncio; um segundo aviso embaixo repetia a
+    // mesma informação e espremia o CTA até truncar o rótulo.
+    expect(find.text('LOTADA'), findsOneWidget);
+    expect(find.text('Inscreva-se'), findsNothing);
+  });
+
+  testWidgets('categoria com vaga oferece a inscrição', (tester) async {
+    await pumpCard(tester, TournamentListingStatus.open);
+
+    expect(find.text('Inscreva-se'), findsOneWidget);
   });
 }

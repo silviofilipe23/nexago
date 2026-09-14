@@ -50,8 +50,7 @@ class TournamentCategoriesPage extends ConsumerWidget {
         final enrollmentAsync = ref.watch(
           tournamentCategoryEnrollmentCountsProvider(tournamentId),
         );
-        final enrollment =
-            enrollmentAsync.valueOrNull ?? const <String, int>{};
+        final enrollment = enrollmentAsync.valueOrNull ?? const <String, int>{};
         final registrationsAsync = ref.watch(
           tournamentUserRegistrationsByCategoryProvider(tournamentId),
         );
@@ -60,9 +59,12 @@ class TournamentCategoriesPage extends ConsumerWidget {
         );
         final access = ref.watch(tournamentAccessStateProvider);
 
-        return TournamentDetailSubpageScaffold(
-          title: 'Categorias',
-          slivers: TournamentDetailCategoriesTab(
+        // Sem o scaffold de subpágina: a arte do hero ocupa o header inteiro,
+        // então não existe barra opaca acima da rolagem — o voltar mora
+        // dentro do próprio hero.
+        return Scaffold(
+          backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
+          body: TournamentDetailCategoriesTab(
             tournament: tournament,
             enrollmentByCategoryId: enrollment,
             enrollmentCountsResolved: enrollmentAsync.hasValue,
@@ -71,7 +73,8 @@ class TournamentCategoriesPage extends ConsumerWidget {
             waitlistByCategoryId: waitlistAsync.valueOrNull ?? const {},
             canAccessTournaments: access.canAccess,
             onRegisterBlocked: () {},
-          ).buildSlivers(context),
+            onBack: () => tournamentDetailSubpageBack(context),
+          ),
         );
       },
     );

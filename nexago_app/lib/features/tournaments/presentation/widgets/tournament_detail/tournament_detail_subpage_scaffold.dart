@@ -6,6 +6,19 @@ import '../../../../../core/layout/nexa_page_header.dart';
 import '../../../../../core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
+/// Volta uma subpágina do detalhe do torneio: desempilha quando dá, e cai na
+/// vitrine quando a rota foi aberta direto (deep link, notificação).
+///
+/// Público porque nem toda subpágina usa [TournamentDetailSubpageScaffold] —
+/// a de categorias desenha o próprio cabeçalho sobre a arte do hero.
+void tournamentDetailSubpageBack(BuildContext context) {
+  if (context.canPop()) {
+    context.pop();
+    return;
+  }
+  context.go(AppRoutes.tournamentDiscoveryList);
+}
+
 class TournamentDetailSubpageScaffold extends StatelessWidget {
   const TournamentDetailSubpageScaffold({
     super.key,
@@ -54,13 +67,8 @@ class TournamentDetailSubpageScaffold extends StatelessWidget {
     );
   }
 
-  void _defaultBack(BuildContext context) {
-    if (context.canPop()) {
-      context.pop();
-      return;
-    }
-    context.go(AppRoutes.tournamentDiscoveryList);
-  }
+  void _defaultBack(BuildContext context) =>
+      tournamentDetailSubpageBack(context);
 }
 
 class _SubpageToolbar extends StatelessWidget {

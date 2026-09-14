@@ -38,17 +38,17 @@ import { bracketGroupKey, bracketGroupSortOrder, buildBracketColumns, type Tourn
 
 /** Largura/altura do card — precisam bater exatamente com `.og-bracket-match`/`.og-de-match`
  *  em styles.scss, senão os conectores desalinham. (app: 280×150 numa tela dedicada)
- *  Altura = head 28 + 2 lados de 40 + rodapé de agendamento 28 (dia · hora · quadra) = 136 de
- *  CONTEÚDO — mas o card renderiza 138: soma a borda de 1px do próprio `.og-bracket-match`
+ *  Altura = head 28 + 2 lados de 48 (avatar 32) + rodapé de agendamento 28 = 152 de
+ *  CONTEÚDO — mas o card renderiza 154: soma a borda de 1px do próprio `.og-bracket-match`
  *  (topo e base), que `box-sizing: border-box` não cobre porque o card não declara altura CSS
  *  própria (só os filhos têm altura explícita) — ele cresce pro conteúdo e a borda soma por
- *  FORA. Usar 136 aqui desalinhava todo conector 1px acima do centro visual do card. */
+ *  FORA. */
 export const BRACKET_MATCH_WIDTH = 280;
-export const BRACKET_MATCH_HEIGHT = 138;
+export const BRACKET_MATCH_HEIGHT = 154;
 
 /** Proporções espelhadas de `BracketLayoutMetrics` do app (rowUnit 81 pra card 150 → gap 12;
- *  aqui 80 pra card 138 → gap 22 entre jogos adjacentes). */
-const ROW_UNIT = 80;
+ *  aqui 88 pra card 154 → gap 22 entre jogos adjacentes). */
+const ROW_UNIT = 88;
 const COL_GAP = 56;
 const COL_STEP = BRACKET_MATCH_WIDTH + COL_GAP;
 const HEADER_H = 26;

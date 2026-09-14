@@ -15,11 +15,40 @@ export interface OrganizerTeamPlayers {
   teamName: string | null;
   player1Id: string;
   player2Id: string;
+  /** Elenco de equipe nomeada (trio/quarteto/quinteto). Dupla legada fica vazia. */
+  memberUids: readonly string[];
   isLookingForPartner: boolean;
 }
 
 /** Limite de ids por `where(documentId(), 'in', …)` no Firestore. */
 const IN_LIMIT = 10;
+
+/** Espelha `teamMemberIds` do athlete / `extractTeamMemberUids` das functions:
+ *  `memberUids` vence; dupla legada cai em player1/player2. */
+export function teamMemberIds(
+  team: Pick<OrganizerTeamPlayers, 'player1Id' | 'player2Id' | 'memberUids'>,
+): string[] {
+  const out: string[] = [];
+  const push = (raw: string) => {
+    const id = raw.trim();
+    if (id && !out.includes(id)) out.push(id);
+  };
+  for (const raw of team.memberUids) push(raw);
+  if (out.length === 0) {
+    push(team.player1Id);
+    push(team.player2Id);
+  }
+  return out;
+}
+
+function memberUidsFromDoc(data: Record<string, unknown>): string[] {
+  const raw = data['memberUids'];
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((v): v is string => typeof v === 'string')
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
+}
 
 /** Ids únicos e não vazios, em lotes do tamanho que o `in` aceita. */
 export function chunkIds(ids: readonly string[], size = IN_LIMIT): string[][] {
@@ -76,6 +105,7 @@ export async function fetchTeamsByIds(
     teamName: optionalStr(data['teamName']),
     player1Id: optionalStr(data['player1Id']) ?? '',
     player2Id: optionalStr(data['player2Id']) ?? '',
+    memberUids: memberUidsFromDoc(data),
     isLookingForPartner: data['isLookingForPartner'] === true,
   }));
 }
@@ -110,6 +140,6 @@ export function teamNamesFrom(
 /** Rótulo das duplas buscando times e perfis do zero — para quem só tem os `teamId` na mão. */
 export async function fetchTeamNames(db: Firestore, projectId: string, teamIds: readonly string[]): Promise<Map<string, string>> {
   const teams = await fetchTeamsByIds(db, projectId, teamIds);
-  const playerIds = [...teams.values()].flatMap((t) => [t.player1Id, t.player2Id]);
+  const playerIds = [...teams.values()].flatMap((t) => teamMemberIds(t));
   return teamNamesFrom(teams, await fetchProfileNames(db, playerIds));
 }

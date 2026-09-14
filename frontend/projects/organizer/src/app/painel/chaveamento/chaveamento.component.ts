@@ -1,13 +1,18 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { initialsOf, truncateName, type PillTone } from '../data/mock-data';
+import { truncateName, type PillTone } from '../data/mock-data';
 import type { MatchDisplayStatus, TournamentMatch } from '../data/matches-repository';
 import { matchMetaLabel, matchScheduleLabel } from '../data/schedule-format';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
+import {
+  fetchBracketFaces,
+  facesForTeam,
+  type BracketFace,
+} from './bracket-faces';
 import { BRACKET_MATCH_WIDTH, type DoubleEliminationLayout, buildDoubleEliminationLayout, buildKnockoutTreeLayout, isDoubleElimination } from './bracket-tree';
 import { ChaveamentoContextService } from './chaveamento-context.service';
 
@@ -24,18 +29,6 @@ const STATUS_LABEL: Record<MatchDisplayStatus, string> = {
   completed: 'Finalizado',
   canceled: 'Cancelado',
 };
-
-/** Quebra o nome da dupla ("Martins / Silva") em até 2 nomes de atleta pro stack de avatares —
- *  mesmo separador que `initialsOf` já usa nas outras telas do organizer (categoria-detalhe,
- *  seeds). Rótulos sem "/" (equipe única, "A definir", "Vencedor Jogo #N") caem no fallback de
- *  1 avatar com o rótulo inteiro, igual já acontecia antes. */
-function athleteNamesOf(teamLabel: string): string[] {
-  const parts = teamLabel
-    .split('/')
-    .map((p) => p.trim())
-    .filter(Boolean);
-  return parts.length > 0 ? parts.slice(0, 2) : [teamLabel];
-}
 
 /** Conta quantos sets cada lado venceu a partir do placar formatado ("2-1, 3-2, …") — mesma
  *  lógica de `PlacarComponent.setsWonA/B`, aqui reaproveitada pro número exibido em cada card
@@ -54,17 +47,16 @@ function setsWonOf(score: string): [number, number] {
 /** Chave de mata-mata da categoria selecionada — dados reais (`listMatches`, Task O6).
  *
  *  Dupla eliminação (`matchType` WB/LB gravado por `category-bracket-builders.ts`) ganha a
- *  geometria CONVERGENTE (`bracket-tree.ts`, porte do layout aprovado no app —
- *  `bracket_feed_tree.dart` + `double_elimination_bracket_layout.dart`): a WB cresce da
- *  esquerda pro centro, a LB espelhada da direita pro centro, e o desfecho (cruzamento
- *  WB×LB, Final, 3º Lugar) fica no meio — a leitura da tabela impressa que o dono usa. O
- *  lado sem alimentador desenhado (bye da WB, entrada do perdedor na LB) vira linha livre
- *  (`tree.emptySlots`) em vez de card. Eliminatória simples e grupos+mata-mata (sem `wb`/
- *  `lb`) continuam com o bracket genérico em coluna única (`buildKnockoutTreeLayout`).
+ *  árvore completa (`bracket-tree.ts`, porta do layout canônico do app
+ *  `double_elimination_bracket_layout.dart`): canvas único com o track da WB em cima —
+ *  incluindo 3º Lugar e Final como colunas à direita, a Final centralizada no track — e o da
+ *  LB embaixo; jogos em ordem de matchNumber com espaçamento binário, conectores dos ponteiros
+ *  reais de avanço dentro de cada chave. Eliminatória simples e grupos+mata-mata (sem ponteiro
+ *  salvo) continuam com o bracket genérico em coluna única.
  *
  *  Card da partida espelha o que o app mostra no card da árvore (`BracketMatchNode`, Flutter):
- *  nº do jogo + quadra no topo (`#2 · Quadra 1`), selo de status, avatar de iniciais por
- *  dupla, placar em sets e rodapé com data/hora + chip da quadra — card inteiro clicável
+ *  nº do jogo + quadra no topo (`#2 · Quadra 1`), selo de status, avatar com foto quando o
+ *  perfil tem (senão iniciais), placar em sets e rodapé com data/hora — card inteiro clicável
  *  pro placar. "Sortear chave" leva ao fluxo real de geração (seeds); só a exportação
  *  (PDF/imagem) segue mock — não existe no app também. */
 @Component({
@@ -101,8 +93,17 @@ function setsWonOf(score: string): [number, number] {
         <div class="og-bracket-side" [class.winner]="m.winnerSide === 1">
           <span class="og-bracket-side-team">
             <span class="og-bracket-avatar-stack">
-              @for (name of athleteNames(m.team1Label); track $index; let i = $index) {
-                <og-avatar [initials]="initialsOf(name)" [size]="20" [style.margin-left.px]="i ? -8 : 0" [style.z-index]="2 - i" />
+              @for (face of facesFor(m.teamAId, m.team1Label); track $index; let i = $index; let n = $count) {
+                <og-avatar
+                  zoomable
+                  [initials]="face.initials"
+                  [photoUrl]="face.photoUrl"
+                  [personName]="face.name"
+                  [meta]="m.team1Label"
+                  [size]="32"
+                  [style.margin-left.px]="i ? -12 : 0"
+                  [style.z-index]="n - i"
+                />
               }
             </span>
             <span class="og-bracket-side-name" [title]="m.team1Label">{{ truncate(m.team1Label) }}</span>
@@ -112,8 +113,17 @@ function setsWonOf(score: string): [number, number] {
         <div class="og-bracket-side" [class.winner]="m.winnerSide === 2">
           <span class="og-bracket-side-team">
             <span class="og-bracket-avatar-stack">
-              @for (name of athleteNames(m.team2Label); track $index; let i = $index) {
-                <og-avatar [initials]="initialsOf(name)" [size]="20" [style.margin-left.px]="i ? -8 : 0" [style.z-index]="2 - i" />
+              @for (face of facesFor(m.teamBId, m.team2Label); track $index; let i = $index; let n = $count) {
+                <og-avatar
+                  zoomable
+                  [initials]="face.initials"
+                  [photoUrl]="face.photoUrl"
+                  [personName]="face.name"
+                  [meta]="m.team2Label"
+                  [size]="32"
+                  [style.margin-left.px]="i ? -12 : 0"
+                  [style.z-index]="n - i"
+                />
               }
             </span>
             <span class="og-bracket-side-name" [title]="m.team2Label">{{ truncate(m.team2Label) }}</span>
@@ -139,11 +149,6 @@ function setsWonOf(score: string): [number, number] {
           <svg class="og-de-lines" [attr.width]="tree.width" [attr.height]="tree.height">
             @for (e of tree.edges; track $index) {
               <path [attr.d]="e.d" />
-            }
-            <!-- Lado sem alimentador desenhado (bye da WB, entrada do perdedor na LB): linha
-                 livre até a coluna vizinha, sem card na ponta — como a tabela impressa. -->
-            @for (s of tree.emptySlots; track $index) {
-              <line class="og-de-free-line" [attr.x1]="s.from.x" [attr.y1]="s.from.y" [attr.x2]="s.to.x" [attr.y2]="s.to.y" />
             }
           </svg>
           @for (lbl of tree.labels; track lbl.key) {
@@ -194,9 +199,47 @@ export class ChaveamentoComponent {
 
   protected readonly ctx = inject(ChaveamentoContextService);
   protected readonly matchWidth = BRACKET_MATCH_WIDTH;
-  protected readonly initialsOf = initialsOf;
-  protected readonly athleteNames = athleteNamesOf;
   protected readonly truncate = truncateName;
+
+  /** Fotos por `teamId` — hidratadas sob demanda a partir de `teams` + `public_profiles`. */
+  private readonly facesByTeam = signal<ReadonlyMap<string, BracketFace[]>>(new Map());
+  private readonly hydratedTeamIds = new Set<string>();
+  private hydrateGeneration = 0;
+
+  constructor() {
+    effect(() => {
+      const matches = this.knockoutMatches();
+      void this.hydrateFaces(matches);
+    });
+  }
+
+  protected facesFor(teamId: string, fallbackLabel: string): BracketFace[] {
+    return facesForTeam(this.facesByTeam(), teamId, fallbackLabel);
+  }
+
+  private async hydrateFaces(matches: TournamentMatch[]): Promise<void> {
+    const ids = [
+      ...new Set(matches.flatMap((m) => [m.teamAId, m.teamBId])),
+    ].filter((id) => id.length > 0 && !this.hydratedTeamIds.has(id));
+    if (ids.length === 0) return;
+
+    const generation = ++this.hydrateGeneration;
+    for (const id of ids) this.hydratedTeamIds.add(id);
+    try {
+      const fetched = await fetchBracketFaces(ids);
+      if (generation !== this.hydrateGeneration) return;
+      this.facesByTeam.update((current) => {
+        const next = new Map(current);
+        for (const [teamId, faces] of fetched) next.set(teamId, faces);
+        return next;
+      });
+    } catch {
+      // Falha de rede: cards ficam com iniciais e a próxima mudança de partidas tenta de novo.
+      if (generation === this.hydrateGeneration) {
+        for (const id of ids) this.hydratedTeamIds.delete(id);
+      }
+    }
+  }
 
   protected statusTone(m: TournamentMatch): PillTone {
     return STATUS_TONE[m.status];

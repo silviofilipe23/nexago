@@ -1,7 +1,14 @@
-import { chunkIds, teamNamesFrom, type OrganizerTeamPlayers } from './teams-repository';
+import { chunkIds, teamMemberIds, teamNamesFrom, type OrganizerTeamPlayers } from './teams-repository';
 
 function team(overrides: Partial<OrganizerTeamPlayers> = {}): OrganizerTeamPlayers {
-  return { teamName: null, player1Id: '', player2Id: '', isLookingForPartner: false, ...overrides };
+  return {
+    teamName: null,
+    player1Id: '',
+    player2Id: '',
+    memberUids: [],
+    isLookingForPartner: false,
+    ...overrides,
+  };
 }
 
 describe('chunkIds', () => {
@@ -20,6 +27,30 @@ describe('chunkIds', () => {
   it('não gera lote nenhum sem ids', () => {
     expect(chunkIds([])).toEqual([]);
     expect(chunkIds(['', ''])).toEqual([]);
+  });
+});
+
+describe('teamMemberIds', () => {
+  it('usa memberUids quando existir (equipe trio/quarteto/quinteto)', () => {
+    expect(
+      teamMemberIds(
+        team({
+          memberUids: ['cap', 'm2', 'm3', 'm4'],
+          player1Id: 'legacy1',
+          player2Id: 'legacy2',
+        }),
+      ),
+    ).toEqual(['cap', 'm2', 'm3', 'm4']);
+  });
+
+  it('cai em player1Id/player2Id na dupla legada sem memberUids', () => {
+    expect(teamMemberIds(team({ player1Id: 'p1', player2Id: 'p2' }))).toEqual(['p1', 'p2']);
+  });
+
+  it('deduplica e ignora vazios em memberUids', () => {
+    expect(
+      teamMemberIds(team({ memberUids: ['cap', ' ', 'cap', 'm2'], player1Id: 'x', player2Id: 'y' })),
+    ).toEqual(['cap', 'm2']);
   });
 });
 

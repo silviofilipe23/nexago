@@ -21,7 +21,14 @@ function cacheWith(...changes: InscriptionDocChange[]): Map<string, RawInscripti
 }
 
 function team(overrides: Partial<OrganizerTeamPlayers> = {}): OrganizerTeamPlayers {
-  return { teamName: null, player1Id: '', player2Id: '', isLookingForPartner: false, ...overrides };
+  return {
+    teamName: null,
+    player1Id: '',
+    player2Id: '',
+    memberUids: [],
+    isLookingForPartner: false,
+    ...overrides,
+  };
 }
 
 function profile(name: string | null): InscriptionProfileDisplay {

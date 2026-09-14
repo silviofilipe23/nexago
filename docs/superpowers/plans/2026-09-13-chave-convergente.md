@@ -515,7 +515,13 @@ void assignFeedCenters(
   final childCenters = <double>[];
   for (final child in node.children) {
     assignFeedCenters(child, cursor, out);
-    childCenters.add(cursor + child.span / 2);
+    // A posição REAL do filho, não o meio do intervalo que ele ocupa: as duas
+    // só coincidem quando os filhos dele têm span igual, e num nó de entrada
+    // desigual (LB das plantas 20 a 24) divergem em mais de um lugar inteiro —
+    // o pai miraria um ponto onde o filho não está e o conector sairia torto.
+    // O lugar vago é a exceção: é ponta, não tem posição própria.
+    final real = child.matchNumber != null ? out[child.matchNumber!] : null;
+    childCenters.add(real ?? cursor + child.span / 2);
     cursor += child.span;
   }
   if (node.matchNumber != null) {

@@ -392,9 +392,14 @@ void main() {
     expect(edge('l6', 'l8'), isNotNull);
     expect(edge('l8', 'l9'), isNotNull);
 
-    // Sem conector entrando na Final nem cruzando WB↔LB.
-    expect(layout.edges.where((e) => e.toMatchId == 'gf'), isEmpty);
+    // A Final recebe as duas partidas de cruzamento pela fiação real.
+    expect(edge('w7', 'gf'), isNotNull,
+        reason: 'w7 avança para 11 (Final) — a fiação manda');
+    expect(edge('l9', 'gf'), isNotNull,
+        reason: 'l9 avança para 11 (Final) — a fiação manda');
+    // O 3º lugar não recebe arestas (sem partida que avance pra ele).
     expect(layout.edges.where((e) => e.toMatchId == 'tp'), isEmpty);
+    // Sem cruzamento direto WB↔LB (w7 e l9 cruzam em gf, não entre si).
     expect(edge('w7', 'l9'), isNull);
   });
 
@@ -414,6 +419,22 @@ void main() {
       centerY(nodeOf(layout, 'w1')),
       lessThan(centerY(nodeOf(layout, 'w2'))),
     );
+  });
+
+  test('a LB liga na faixa central; a queda continua sem linha', () {
+    final plants = loadBracketPlants();
+    final layout = buildDoubleEliminationBracketLayout(plants[12]!);
+    bool hasEdge(int from, int to) => layout.edges
+        .any((e) => e.fromMatchId == 'm$from' && e.toMatchId == 'm$to');
+
+    expect(hasEdge(17, 19), isTrue, reason: 'vencedor da LB entra na semifinal');
+    expect(hasEdge(18, 20), isTrue);
+    expect(hasEdge(16, 19), isTrue);
+    expect(hasEdge(19, 22), isTrue, reason: 'semifinal entra na final');
+    // Queda: #15 perde e desce pro #17 — sem linha, por decisão do dono.
+    expect(hasEdge(15, 17), isFalse);
+    // O 3º lugar só recebe perdedores: nenhuma aresta chega nele.
+    expect(layout.edges.any((e) => e.toMatchId == 'm21'), isFalse);
   });
 
   test('returns empty layout for no matches', () {

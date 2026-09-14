@@ -638,8 +638,11 @@ void _placeLegacyGroups(
   }
 }
 
-/// Conectores pelos ponteiros reais de avanço (`winnerAdvance`), só dentro da
-/// mesma chave (WB→WB, LB→LB) — sem linha cruzando WB↔LB nem entrando na Final.
+/// Conectores pelos ponteiros reais de avanço (`winnerAdvance`), em qualquer
+/// direção — inclusive LB→faixa central, que na forma convergente é o que faz
+/// os dois lados se encontrarem. `loserAdvance` NÃO gera aresta: a queda do
+/// perdedor não se desenha (decisão do dono, ver a spec de 13/09), do mesmo
+/// jeito que a tabela impressa escreve "P 15" em vez de puxar uma linha.
 List<BracketLayoutEdge> _buildAdvanceEdges(
   List<TournamentMatch> matches,
   Map<int, BracketLayoutNode> nodeByMatchNumber,
@@ -647,24 +650,16 @@ List<BracketLayoutEdge> _buildAdvanceEdges(
   final byNumber = {for (final m in matches) m.matchNumber: m};
   final edges = <BracketLayoutEdge>[];
   for (final m in matches) {
-    final type = m.matchType.trim().toLowerCase();
     final dest = m.winnerAdvanceMatchNumber;
     if (dest == null) continue;
-    final target = byNumber[dest];
-    if (target == null) continue;
-    final targetType = target.matchType.trim().toLowerCase();
-    // DE: só dentro da mesma chave (WB→WB, LB→LB) — linha entrando na Final
-    // cruzaria os tracks. Eliminatória simples (modelo do portal): as
-    // rodadas ligam entre si E entram na Final.
-    final sameTrack = (type == 'wb' || type == 'lb') && targetType == type;
-    final knockoutFlow = type == 'knockout' &&
-        (targetType == 'knockout' || targetType == 'final');
-    if (!sameTrack && !knockoutFlow) continue;
+    if (!byNumber.containsKey(dest)) continue;
     if (!nodeByMatchNumber.containsKey(m.matchNumber) ||
         !nodeByMatchNumber.containsKey(dest)) {
       continue;
     }
-    edges.add(BracketLayoutEdge(fromMatchId: m.id, toMatchId: target.id));
+    edges.add(
+      BracketLayoutEdge(fromMatchId: m.id, toMatchId: byNumber[dest]!.id),
+    );
   }
   return edges;
 }

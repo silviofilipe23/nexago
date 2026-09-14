@@ -39,4 +39,41 @@ void main() {
       expect(count[size], 2, reason: 'planta $size sem cruzamento, só final + 3º lugar');
     }
   });
+
+  group('árvore de alimentação', () {
+    test('planta de 12, lado WB da semifinal #19: o bye vira lugar vago', () {
+      final tree = buildBracketFeedTree(plants[12]!, 19, 'wb')!;
+      expect(tree.matchNumber, 16); // a quarta que alimenta a semifinal
+      expect(tree.children.map((c) => c.matchNumber), [5, 6]);
+
+      // #5 é seed 2 (bye) contra o vencedor do #1: um lado só tem alimentador.
+      final jogo5 = tree.children.first;
+      expect(jogo5.children, hasLength(2));
+      expect(jogo5.children.where((c) => c.isEmptySlot), hasLength(1));
+      expect(jogo5.span, 2, reason: 'o bye ocupa um lugar');
+    });
+
+    test('planta de 12, lado LB: a entrada do perdedor também vira lugar vago', () {
+      final tree = buildBracketFeedTree(plants[12]!, 19, 'lb')!;
+      expect(tree.matchNumber, 17); // #17 = V14 x P15
+      expect(tree.children.where((c) => c.isEmptySlot), hasLength(1),
+          reason: 'o lado de P15 não tem alimentador desenhado');
+      expect(tree.children.map((c) => c.matchNumber), contains(14));
+      expect(tree.span, 3);
+    });
+
+    test('a ponta da WB não ganha lugar vago — os dois lados são seeds', () {
+      final tree = buildBracketFeedTree(plants[12]!, 19, 'wb')!;
+      final jogo1 = tree.children.first.children
+          .firstWhere((c) => c.matchNumber == 1);
+      expect(jogo1.children, isEmpty);
+      expect(jogo1.span, 1);
+    });
+
+    test('devolve null quando a chave não alimenta aquela partida', () {
+      // O 3º lugar só recebe perdedores: nenhum lado tem alimentador desenhado.
+      expect(buildBracketFeedTree(plants[12]!, 21, 'wb'), isNull);
+      expect(buildBracketFeedTree(plants[12]!, 21, 'lb'), isNull);
+    });
+  });
 }

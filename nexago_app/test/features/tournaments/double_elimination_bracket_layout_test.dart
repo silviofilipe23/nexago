@@ -403,6 +403,105 @@ void main() {
     expect(edge('w7', 'l9'), isNull);
   });
 
+  test(
+      'órfã sem coluna alcançável numa chave com convergência cai no '
+      'agrupamento legado, à direita de tudo', () {
+    // Não ocorre nas 25 plantas reais (ver doc-bloco de
+    // buildDoubleEliminationBracketLayout, "Órfãs"), mas é possível numa
+    // chave editada à mão: #12 aponta pra um matchNumber que não existe (99),
+    // então nunca é alcançada pela travessia que monta a árvore de
+    // alimentação a partir dos pontos de convergência — sobra sem coluna.
+    final comOrfa = [
+      ...sixTeamPlan,
+      _match(
+          id: 'w12', matchType: 'WB', round: 1, matchNumber: 12, advanceTo: 99),
+    ];
+    final layout = buildDoubleEliminationBracketLayout(comOrfa);
+
+    // A órfã não desaparece: ganha um nó como qualquer outra partida.
+    expect(layout.nodes, hasLength(12));
+    final orfa = nodeOf(layout, 'w12');
+
+    // Cai numa coluna extra à direita de TODAS as colunas da geometria
+    // convergente (WB, faixa central e LB).
+    for (final n in layout.nodes) {
+      if (n.matchId == 'w12') continue;
+      expect(orfa.position.dx, greaterThan(n.position.dx),
+          reason: 'a órfã devia ficar à direita de ${n.matchId}');
+    }
+
+    // Nenhum card se sobrepõe, nem a órfã com o resto da chave.
+    for (var i = 0; i < layout.nodes.length; i++) {
+      for (var j = i + 1; j < layout.nodes.length; j++) {
+        final a = layout.nodes[i];
+        final b = layout.nodes[j];
+        final separados = a.position.dx + a.size.width <= b.position.dx ||
+            b.position.dx + b.size.width <= a.position.dx ||
+            a.position.dy + a.size.height <= b.position.dy ||
+            b.position.dy + b.size.height <= a.position.dy;
+        expect(separados, isTrue,
+            reason: '${a.matchId} e ${b.matchId} se sobrepõem');
+      }
+    }
+  });
+
+  test(
+      'mata-mata simples com disputa de 3º lugar: knockout + Final + Third '
+      'Place, sem nenhum wb/lb', () {
+    // Mesmo formato que `category-bracket-builders.ts` gera pro mata-mata
+    // simples (n >= 4 equipes reais): partidas 'knockout', 'Final' e, com
+    // >= 2 rodadas, 'Third Place' — sem NENHUMA partida 'wb'/'lb'. Cai no
+    // caminho legado (sem convergência a ancorar) do mesmo jeito que o teste
+    // 'eliminatória simples' acima, mas aquele não tinha 3º lugar: aqui
+    // `bracketGroupSortOrder` intercala o 3º lugar (8900) ENTRE as rodadas
+    // de knockout e a Final (9000) — isso nunca tinha sido exercitado.
+    final semifinal1 = _match(
+        id: 'sf1',
+        matchType: 'knockout',
+        round: 1,
+        matchNumber: 1,
+        advanceTo: 3,
+        advanceSlot: 'A');
+    final semifinal2 = _match(
+        id: 'sf2',
+        matchType: 'knockout',
+        round: 1,
+        matchNumber: 2,
+        advanceTo: 3,
+        advanceSlot: 'B');
+    final final_ =
+        _match(id: 'final', matchType: 'Final', round: 2, matchNumber: 3);
+    final terceiro =
+        _match(id: 'tp', matchType: 'Third Place', round: 2, matchNumber: 4);
+    final layout = buildDoubleEliminationBracketLayout(
+        [semifinal1, semifinal2, final_, terceiro]);
+
+    expect(layout.nodes, hasLength(4));
+    double xOf(String id) =>
+        layout.nodes.firstWhere((n) => n.matchId == id).position.dx;
+
+    // As duas semis dividem a mesma coluna (mesmo `bracketGroupKey`); o 3º
+    // lugar fica numa coluna própria, ENTRE as semis e a Final.
+    expect(xOf('sf1'), xOf('sf2'));
+    expect(xOf('sf1'), lessThan(xOf('tp')));
+    expect(xOf('tp'), lessThan(xOf('final')));
+
+    // Dentro da coluna das semis, a ordem vertical segue o matchNumber.
+    expect(centerY(nodeOf(layout, 'sf1')),
+        lessThan(centerY(nodeOf(layout, 'sf2'))));
+
+    bool hasEdge(String from, String to) =>
+        layout.edges.any((e) => e.fromMatchId == from && e.toMatchId == to);
+    expect(hasEdge('sf1', 'final'), isTrue);
+    expect(hasEdge('sf2', 'final'), isTrue);
+    // O 3º lugar não recebe nenhuma aresta: nada tem `winnerAdvance` pra ele
+    // (o formato só grava `loserAdvance`, que nunca vira linha).
+    expect(layout.edges.where((e) => e.toMatchId == 'tp'), isEmpty);
+
+    expect(nodeOf(layout, 'final').isFinal, isTrue);
+    expect(nodeOf(layout, 'tp').isFinal, isFalse);
+  });
+
   test('legacy matches without wiring still lay out, without connectors', () {
     final legacy = [
       _match(id: 'w1', matchType: 'WB', round: 1, matchNumber: 1),
@@ -427,7 +526,8 @@ void main() {
     bool hasEdge(int from, int to) => layout.edges
         .any((e) => e.fromMatchId == 'm$from' && e.toMatchId == 'm$to');
 
-    expect(hasEdge(17, 19), isTrue, reason: 'vencedor da LB entra na semifinal');
+    expect(hasEdge(17, 19), isTrue,
+        reason: 'vencedor da LB entra na semifinal');
     expect(hasEdge(18, 20), isTrue);
     expect(hasEdge(16, 19), isTrue);
     expect(hasEdge(19, 22), isTrue, reason: 'semifinal entra na final');

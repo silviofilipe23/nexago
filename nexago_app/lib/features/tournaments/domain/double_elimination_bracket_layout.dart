@@ -141,7 +141,7 @@ String bracketColumnHeaderLabel(List<TournamentMatch> columnMatches) {
 ///   posições reais dos seus alimentadores. Bye (lado sem alimentador desenhado
 ///   na WB) e entrada do perdedor (na LB) viram linha livre (`emptySlots`), não
 ///   card — é o mesmo que a tabela impressa faz.
-/// - Final e 3º lugar que não convergem direto (plantas 12 e 32, onde quem
+/// - Final e 3º lugar que não convergem direto (plantas 10, 12 e 32, onde quem
 ///   cruza são as semifinais) ficam empilhados na MESMA coluna central,
 ///   ordenados pelo centro, com guarda de colisão em duas passadas: primeiro
 ///   posiciona as partidas com subárvore, depois encaixa as sem-árvore nos

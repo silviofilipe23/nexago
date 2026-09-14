@@ -4,10 +4,12 @@ import '../../../athlete/domain/athlete_display_name.dart';
 import '../../../athlete/domain/athlete_firestore_codes.dart';
 import '../../../athlete/domain/athlete_profile.dart';
 import '../../../athlete/domain/athlete_public_profile_models.dart';
+import '../../../athlete/domain/sport_art_catalog.dart';
 import '../tournament_match.dart';
 import '../tournament_match_display.dart';
 import '../tournament_match_status.dart';
 import '../tournament_team.dart';
+import 'team_cover_art_catalog.dart';
 import 'team_public_profile_models.dart';
 
 String teamProfileDisplayName({
@@ -48,6 +50,41 @@ String teamProfileSportLabel(AthleteProfile? player1, AthleteProfile? player2) {
     if (label != null && label.isNotEmpty) return label;
   }
   return profile.sport.trim().isNotEmpty ? profile.sport : '—';
+}
+
+/// Arte de fundo da capa, ou nulo quando nenhuma serve e o fundo pintado
+/// assume.
+///
+/// Escada: arte do esporte no TAMANHO do elenco → arte de um atleta só do
+/// esporte (a mesma do perfil do atleta) → nulo. O degrau do meio é o que
+/// segura esporte sem arte de equipe: uma silhueta de corrida ainda diz mais
+/// do que um gradiente.
+String? teamProfileCoverArt(TeamPublicProfile profile) {
+  final code = teamProfileSportCode(profile.loadedProfiles);
+  return TeamCoverArtCatalog.assetFor(
+        firestoreCode: code,
+        rosterSize: teamProfileRosterSize(profile),
+      ) ??
+      SportArtCatalog.assetFor(code);
+}
+
+/// Esporte da equipe: o primeiro integrante que declara um. O capitão manda,
+/// mas o perfil dele pode não ter esporte principal — e aí o elenco decide em
+/// vez de a capa sumir.
+String? teamProfileSportCode(List<AthleteProfile> roster) {
+  for (final member in roster) {
+    final code = member.primarySportFirestoreId?.trim();
+    if (code != null && code.isNotEmpty) return code;
+  }
+  return null;
+}
+
+/// Tamanho do elenco para efeito de arte: o declarado na categoria manda sobre
+/// quantos já aceitaram o convite — quarteto com dois pendentes é quarteto.
+int teamProfileRosterSize(TeamPublicProfile profile) {
+  final declared = profile.team.teamSize;
+  if (declared != null && declared > 0) return declared;
+  return profile.members.length;
 }
 
 String formatTeamTogetherLabel(DateTime? createdAt) {

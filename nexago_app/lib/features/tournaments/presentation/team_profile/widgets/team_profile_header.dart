@@ -54,10 +54,10 @@ class TeamProfileHeader extends StatelessWidget {
             clipBehavior: Clip.none,
             alignment: Alignment.topCenter,
             children: [
-              const SizedBox(
+              SizedBox(
                 height: coverHeight,
                 width: double.infinity,
-                child: _TeamCoverBackground(),
+                child: _TeamCoverBackground(art: teamProfileCoverArt(profile)),
               ),
               SafeArea(
                 bottom: false,
@@ -235,8 +235,56 @@ class _MemberAvatar extends StatelessWidget {
   }
 }
 
+/// Capa: arte do esporte + elenco quando existe, fundo pintado quando não.
+///
+/// Sobre a arte vai um véu — o topo segura o botão de voltar e o selo de
+/// ranking, e o pé dissolve no canvas para a foto não terminar num corte seco
+/// contra o corpo da página.
 class _TeamCoverBackground extends StatelessWidget {
-  const _TeamCoverBackground();
+  const _TeamCoverBackground({this.art});
+
+  final String? art;
+
+  @override
+  Widget build(BuildContext context) {
+    final asset = art;
+    if (asset == null) return const _PaintedCover();
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.asset(
+          asset,
+          fit: BoxFit.cover,
+          // Decorativa: quem carrega o significado é o nome da equipe, logo
+          // abaixo.
+          excludeFromSemantics: true,
+          // Asset fora do bundle cai no fundo pintado em vez de quebrar a tela
+          // com o ícone de imagem quebrada.
+          errorBuilder: (_, __, ___) => const _PaintedCover(),
+        ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black.withValues(alpha: 0.45),
+                Colors.transparent,
+                Colors.black.withValues(alpha: 0.35),
+                context.themeColors.canvas,
+              ],
+              stops: const [0, 0.32, 0.74, 1],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PaintedCover extends StatelessWidget {
+  const _PaintedCover();
 
   @override
   Widget build(BuildContext context) {

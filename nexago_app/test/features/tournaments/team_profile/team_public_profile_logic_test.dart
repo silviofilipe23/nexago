@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/tournaments/domain/team_profile/team_public_profile_logic.dart';
+import 'package:nexago_app/features/tournaments/domain/team_profile/team_public_profile_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_status.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_team.dart';
@@ -251,9 +252,59 @@ void main() {
       expect(teamProfileGenderLabel([_athlete('a')]), '');
     });
   });
+
+  group('teamProfileCoverArt', () {
+    test('usa a arte do esporte + elenco da equipe', () {
+      expect(
+        teamProfileCoverArt(_teamProfile(
+          sportCodes: ['VOLEI_PRAIA', 'VOLEI_PRAIA'],
+        )),
+        'assets/images/team_covers/volei_praia_dupla.webp',
+      );
+    });
+
+    test('tamanho declarado manda, mesmo com elenco incompleto', () {
+      // Quarteto com dois convites pendentes continua sendo quarteto: quem
+      // diz o tamanho é a categoria, não quem já aceitou.
+      expect(
+        teamProfileCoverArt(_teamProfile(
+          sportCodes: ['VOLEI_PRAIA', 'VOLEI_PRAIA'],
+          teamSize: 4,
+        )),
+        'assets/images/team_covers/volei_praia_quarteto.webp',
+      );
+    });
+
+    test('capitão sem esporte no perfil não apaga a capa do resto do elenco',
+        () {
+      expect(
+        teamProfileCoverArt(_teamProfile(sportCodes: [null, 'FUTEVOLEI'])),
+        'assets/images/team_covers/futevolei_dupla.webp',
+      );
+    });
+
+    test('sem arte de equipe, cai na arte de um atleta do esporte', () {
+      expect(
+        teamProfileCoverArt(_teamProfile(sportCodes: ['CORRIDA', 'CORRIDA'])),
+        'assets/images/sports/corrida.webp',
+      );
+    });
+
+    test('esporte desconhecido devolve nulo para o fundo pintado assumir', () {
+      expect(teamProfileCoverArt(_teamProfile(sportCodes: [null, null])), isNull);
+      expect(
+        teamProfileCoverArt(_teamProfile(sportCodes: ['OUTROS', 'OUTROS'])),
+        isNull,
+      );
+    });
+  });
 }
 
-AthleteProfile _athlete(String id, {String? gender}) {
+AthleteProfile _athlete(
+  String id, {
+  String? gender,
+  String? primarySportFirestoreId,
+}) {
   return AthleteProfile(
     id: id,
     name: id,
@@ -261,5 +312,29 @@ AthleteProfile _athlete(String id, {String? gender}) {
     level: 'INICIANTE',
     city: 'Goiânia',
     gender: gender,
+    primarySportFirestoreId: primarySportFirestoreId,
+  );
+}
+
+TeamPublicProfile _teamProfile({
+  required List<String?> sportCodes,
+  int? teamSize,
+}) {
+  final members = [
+    for (var i = 0; i < sportCodes.length; i++)
+      TeamMemberEntry(
+        uid: 'u$i',
+        profile: _athlete('u$i', primarySportFirestoreId: sportCodes[i]),
+      ),
+  ];
+  return TeamPublicProfile(
+    team: TournamentTeam(
+      id: 't1',
+      player1Id: 'u0',
+      player2Id: sportCodes.length > 1 ? 'u1' : '',
+      memberUids: [for (final m in members) m.uid],
+      teamSize: teamSize,
+    ),
+    members: members,
   );
 }

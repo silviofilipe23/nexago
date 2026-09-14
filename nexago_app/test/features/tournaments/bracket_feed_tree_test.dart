@@ -176,16 +176,6 @@ void main() {
       expect(depths[1], 3);
     });
 
-    test('o lugar vago tem centro próprio, para o conector achar a ponta', () {
-      final tree = buildBracketFeedTree(plants[12]!, 19, 'wb')!;
-      final vagos = <int, List<double>>{};
-      assignEmptySlotCenters(tree, 0, vagos);
-      // O bye do #5 ocupa o primeiro lugar do bloco.
-      expect(vagos[5], [0.5]);
-      expect(vagos[6], [2.5]);
-      expect(vagos.containsKey(1), isFalse, reason: 'ponta não tem lado vago');
-    });
-
     test(
         'jogo interno usa a posição REAL do filho, não o meio geométrico do '
         'intervalo — filhos diretos com span diferente', () {

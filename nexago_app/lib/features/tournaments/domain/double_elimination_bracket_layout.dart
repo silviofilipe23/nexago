@@ -40,22 +40,6 @@ class BracketLayoutNode {
   final bool isFinal;
 }
 
-/// Um lado de partida sem alimentador desenhado — o bye da WB e a entrada do
-/// perdedor na LB. Não vira card: vira a linha livre que a tabela impressa
-/// estica até a coluna vizinha, e é ela que mostra que aquele lado existe.
-class BracketLayoutEmptySlot {
-  const BracketLayoutEmptySlot({
-    required this.matchId,
-    required this.from,
-    required this.to,
-  });
-
-  /// A partida DONA do lado vago.
-  final String matchId;
-  final Offset from;
-  final Offset to;
-}
-
 class BracketLayoutEdge {
   const BracketLayoutEdge({
     required this.fromMatchId,
@@ -85,14 +69,12 @@ class DoubleEliminationBracketLayout {
     required this.nodes,
     required this.edges,
     required this.columns,
-    required this.emptySlots,
     required this.canvasSize,
   });
 
   final List<BracketLayoutNode> nodes;
   final List<BracketLayoutEdge> edges;
   final List<BracketLayoutColumn> columns;
-  final List<BracketLayoutEmptySlot> emptySlots;
   final Size canvasSize;
 
   BracketLayoutNode? nodeForMatch(String matchId) {
@@ -144,9 +126,10 @@ String bracketColumnHeaderLabel(List<TournamentMatch> columnMatches) {
 ///   filhos) e profundidade (que vira coluna: WB em `centerColumn - depth`, LB
 ///   em `centerColumn + depth`).
 /// - Posição vertical segue a subárvore real: cada partida fica na média das
-///   posições reais dos seus alimentadores. Bye (lado sem alimentador desenhado
-///   na WB) e entrada do perdedor (na LB) viram linha livre (`emptySlots`), não
-///   card — é o mesmo que a tabela impressa faz.
+///   posições reais dos seus alimentadores. O lado sem alimentador desenhado
+///   (bye na WB, entrada do perdedor na LB) RESERVA o lugar que empurra a
+///   partida para a altura certa, mas não desenha nada — nem card, nem traço
+///   (pedido do dono: sem linha sobrando onde não há partida).
 /// - Final e 3º lugar ficam LADO A LADO, na mesma linha horizontal — não mais
 ///   empilhados na coluna central (pedido do dono: "não precisa de ligamento
 ///   pras finais, apenas deixe a final e o terceiro na mesma linha
@@ -204,7 +187,7 @@ String bracketColumnHeaderLabel(List<TournamentMatch> columnMatches) {
 ///   com uma exceção: a Final vem antes do 3º lugar (`bracketGroupSortOrder`
 ///   continua intacta, só a ordenação das colunas em `_placeLegacyGroups` é
 ///   ajustada; ver lá o porquê). Jogos em slots fixos `(2i+1)·rowUnit` na
-///   ordem de `matchNumber` — sem geometria convergente, sem linha livre.
+///   ordem de `matchNumber` — sem geometria convergente.
 ///   Resultado visual: rodadas em ordem, depois a Final, depois o 3º lugar.
 /// - Partidas que sobrarem sem coluna mesmo numa chave COM convergência (caso
 ///   misto, não ocorre nas 25 plantas reais mas é possível numa chave editada
@@ -225,7 +208,6 @@ DoubleEliminationBracketLayout buildDoubleEliminationBracketLayout(
       nodes: [],
       edges: [],
       columns: [],
-      emptySlots: [],
       canvasSize: Size.zero,
     );
   }
@@ -239,9 +221,6 @@ DoubleEliminationBracketLayout buildDoubleEliminationBracketLayout(
   // Centros (em lugares) e colunas de cada jogo, montados bloco a bloco.
   final centerSlot = <int, double>{};
   final columnOf = <int, int>{};
-
-  /// Centros dos lados sem alimentador, por partida — viram a linha livre.
-  final vagos = <int, List<double>>{};
 
   /// Partidas de convergência SEM árvore de alimentação própria (Final e 3º
   /// lugar que não convergem direto — plantas 10, 12 e 32, onde quem cruza
@@ -268,8 +247,7 @@ DoubleEliminationBracketLayout buildDoubleEliminationBracketLayout(
     // chaves (eliminatória simples — sem WB e LB não há convergência a
     // ancorar; esta função também serve esse formato, ver
     // `tournament_category_view_page.dart`). A geometria convergente não tem
-    // onde se ancorar. Cai no agrupamento simples, sem linha livre e sem
-    // coluna central.
+    // onde se ancorar. Cai no agrupamento simples, sem coluna central.
     _placeLegacyGroups(matches, 0, columnOf, centerSlot);
   } else {
     // Uma partida de convergência alimentada por OUTRA partida de convergência
@@ -335,7 +313,6 @@ DoubleEliminationBracketLayout buildDoubleEliminationBracketLayout(
         final centers = <int, double>{};
         assignFeedCenters(tree, inicio, centers);
         centerSlot.addAll(centers);
-        assignEmptySlotCenters(tree, inicio, vagos);
         final depths = <int, int>{};
         assignFeedDepths(tree, 1, depths);
         depths.forEach((number, d) {
@@ -683,52 +660,17 @@ DoubleEliminationBracketLayout buildDoubleEliminationBracketLayout(
 
   final edges = _buildAdvanceEdges(matches, nodeByMatchNumber);
 
-  // Linha livre de cada lado vago, correndo para FORA do centro — para a
-  // esquerda na WB, para a direita na LB, ocupando a largura da coluna vizinha.
-  final freeLines = <BracketLayoutEmptySlot>[];
-  vagos.forEach((number, centros) {
-    final col = columnOf[number];
-    final match = byNumber[number];
-    if (col == null || match == null) return;
-    final paraEsquerda = col <= centerColumn;
-    for (final c in centros) {
-      final y = top + c * 2 * BracketLayoutMetrics.rowUnit;
-      freeLines.add(
-        BracketLayoutEmptySlot(
-          matchId: match.id,
-          from: Offset(
-            paraEsquerda
-                ? _columnX(col)
-                : _columnX(col) + BracketLayoutMetrics.cardWidth,
-            y,
-          ),
-          to: Offset(
-            paraEsquerda
-                ? _columnX(col - 1)
-                : _columnX(col + 1) + BracketLayoutMetrics.cardWidth,
-            y,
-          ),
-        ),
-      );
-    }
-  });
-
   var maxX = BracketLayoutMetrics.canvasPadding;
   var maxY = BracketLayoutMetrics.canvasPadding;
   for (final node in nodes) {
     maxX = math.max(maxX, node.position.dx + node.size.width);
     maxY = math.max(maxY, node.position.dy + node.size.height);
   }
-  for (final line in freeLines) {
-    maxX = math.max(maxX, math.max(line.from.dx, line.to.dx));
-    maxY = math.max(maxY, math.max(line.from.dy, line.to.dy));
-  }
 
   return DoubleEliminationBracketLayout(
     nodes: nodes,
     edges: edges,
     columns: columns,
-    emptySlots: freeLines,
     canvasSize: Size(
       maxX + BracketLayoutMetrics.canvasPadding,
       maxY + BracketLayoutMetrics.canvasPadding,

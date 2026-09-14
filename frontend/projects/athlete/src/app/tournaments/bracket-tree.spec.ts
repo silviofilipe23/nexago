@@ -5,7 +5,6 @@ import {
   BRACKET_MATCH_WIDTH,
   type BracketLayoutNode,
   type BracketLayout,
-  assignEmptySlotCenters,
   assignFeedCenters,
   assignFeedDepths,
   bracketConvergenceMatches,
@@ -166,7 +165,7 @@ describe('buildBracketFeedTree', () => {
   });
 });
 
-describe('assignFeedCenters / assignFeedDepths / assignEmptySlotCenters', () => {
+describe('assignFeedCenters / assignFeedDepths', () => {
   it('as pontas ocupam meio lugar cada, o jogo fica na média dos filhos', () => {
     const tree = buildBracketFeedTree(plant(12), 19, 'wb')!;
     const centers = new Map<number, number>();
@@ -187,15 +186,6 @@ describe('assignFeedCenters / assignFeedDepths / assignEmptySlotCenters', () => 
     expect(depths.get(16)).toBe(1); // quarta: encostada na faixa central
     expect(depths.get(5)).toBe(2);
     expect(depths.get(1)).toBe(3);
-  });
-
-  it('o lugar vago tem centro próprio, para o conector achar a ponta', () => {
-    const tree = buildBracketFeedTree(plant(12), 19, 'wb')!;
-    const vagos = new Map<number, number[]>();
-    assignEmptySlotCenters(tree, 0, vagos);
-    expect(vagos.get(5)).toEqual([0.5]); // o bye do #5 ocupa o primeiro lugar do bloco
-    expect(vagos.get(6)).toEqual([2.5]);
-    expect(vagos.has(1)).toBe(false); // ponta não tem lado vago
   });
 
   it('jogo interno usa a posição REAL do filho, não o meio geométrico do intervalo — filhos diretos com span diferente', () => {

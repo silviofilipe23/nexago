@@ -66,17 +66,6 @@ class BracketConnectorPainter extends CustomPainter {
         paint,
       );
     }
-
-    // Linha livre do lado sem alimentador (bye e entrada de perdedor): traço
-    // horizontal até a coluna vizinha, sem card na ponta — como na folha.
-    final livre = Paint()
-      ..color = AppColors.brand.withValues(alpha: 0.35)
-      ..strokeWidth = 4
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    for (final slot in layout.emptySlots) {
-      canvas.drawLine(slot.from, slot.to, livre);
-    }
   }
 
   @override

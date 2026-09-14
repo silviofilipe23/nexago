@@ -86,11 +86,6 @@
               @for (e of tree.edges; track $index) {
                 <path [attr.d]="e.d" />
               }
-              <!-- Lado sem alimentador desenhado (bye da WB, entrada do perdedor na LB): linha
-                   livre até a coluna vizinha, sem card na ponta — como a tabela impressa. -->
-              @for (s of tree.emptySlots; track $index) {
-                <line class="bx-free-line" [attr.x1]="s.from.x" [attr.y1]="s.from.y" [attr.x2]="s.to.x" [attr.y2]="s.to.y" />
-              }
             </svg>
 
             @for (lbl of tree.labels; track lbl.key) {

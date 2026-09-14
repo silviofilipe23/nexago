@@ -113,26 +113,37 @@ void main() {
       });
     });
 
-    test('planta de $teamCount: todo lado sem alimentador vira linha livre',
-        () {
+    test(
+        'planta de $teamCount: o lado sem alimentador continua reservando '
+        'lugar, mesmo sem desenhar traço', () {
+      // A linha livre do bye e da entrada do perdedor saiu do desenho (pedido
+      // do dono: nada de traço onde não há partida), mas o LUGAR VAGO segue
+      // existindo na árvore — é ele que impede o jogo de se alinhar em linha
+      // reta com o seu único alimentador. Sem nada visível denunciando a
+      // reserva, é esta suíte que a segura: quem recebe UM alimentador só
+      // nunca fica na mesma altura dele.
       final layout = buildDoubleEliminationBracketLayout(matches);
-      final desenhados = <int, int>{};
+      final cyPorId = <String, double>{
+        for (final n in layout.nodes)
+          n.matchId: n.position.dy + n.size.height / 2,
+      };
+      final fontesDe = <int, List<int>>{};
       for (final m in matches) {
         final dest = m.winnerAdvanceMatchNumber;
         if (dest == null) continue;
-        desenhados[dest] = (desenhados[dest] ?? 0) + 1;
-      }
-      final livresPorId = <String, int>{};
-      for (final slot in layout.emptySlots) {
-        livresPorId[slot.matchId] = (livresPorId[slot.matchId] ?? 0) + 1;
+        (fontesDe[dest] ??= <int>[]).add(m.matchNumber);
       }
       for (final m in matches) {
-        final entradas = desenhados[m.matchNumber] ?? 0;
-        if (entradas == 0) continue; // ponta da WB: dois seeds, sem lado vago
+        final fontes = fontesDe[m.matchNumber] ?? const <int>[];
+        if (fontes.length != 1) continue;
         final tipo = m.matchType.trim().toLowerCase();
         if (tipo == 'final' || tipo == 'third place') continue;
-        expect(entradas + (livresPorId['m${m.matchNumber}'] ?? 0), 2,
-            reason: '#${m.matchNumber} não tem os dois lados ocupados');
+        final destino = cyPorId['m${m.matchNumber}'];
+        final fonte = cyPorId['m${fontes.single}'];
+        if (destino == null || fonte == null) continue;
+        expect((destino - fonte).abs(), greaterThan(1),
+            reason: '#${m.matchNumber} colou na altura do único alimentador '
+                '#${fontes.single}: o lado vago deixou de reservar lugar');
       }
     });
 

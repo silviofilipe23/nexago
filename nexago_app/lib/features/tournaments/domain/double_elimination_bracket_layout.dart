@@ -30,7 +30,6 @@ class BracketLayoutNode {
     required this.position,
     required this.size,
     required this.isFinal,
-    this.isEmptySlot = false,
   });
 
   final String matchId;
@@ -39,11 +38,6 @@ class BracketLayoutNode {
   final Offset position;
   final Size size;
   final bool isFinal;
-
-  /// Marca o card cujo lado oposto não tem alimentador desenhado (bye da WB,
-  /// entrada do perdedor na LB) — é nele que o conector desenha a linha livre
-  /// em vez de uma seta vinda de outro card.
-  final bool isEmptySlot;
 }
 
 /// Um lado de partida sem alimentador desenhado — o bye da WB e a entrada do

@@ -148,14 +148,16 @@ void main() {
       return node.position.dy + node.size.height / 2;
     }
 
-    // #15 e #16 são as partidas de cruzamento (WB×LB) da planta 10. #17 (3º
-    // lugar) e #18 (Final) não convergem direto e caem entre elas na coluna
-    // central — isso NUNCA pode empurrar #15 ou #16 pra fora da média exata
-    // dos seus dois alimentadores. A planta 10 é onde isso quebrava antes:
-    // os dois blocos são pequenos, e sem reservar lugar pra #17/#18 a faixa
-    // central sobrava só 121,5px pra dois cards de 150px. A correção abre
-    // espaço ENTRE os blocos (uma folga em LUGARES do tamanho de quantas
-    // partidas sem árvore existem) em vez de espremer #17/#18 no meio.
+    // #15 e #16 são as partidas de cruzamento (WB×LB) da planta 10, empilhadas
+    // pelo `slotCursor` sem folga reservada entre blocos (a folga foi
+    // removida — Final e 3º lugar não moram mais nesta faixa central; ver
+    // comentário em `buildDoubleEliminationBracketLayout`). #17 (3º lugar) e
+    // #18 (Final) não têm árvore própria nesta planta e são posicionadas
+    // DEPOIS, fora da sequência do `slotCursor`, lado a lado nas colunas
+    // vizinhas ao centro (a Final na 2, o 3º lugar na 4 — a coluna central é
+    // a 3, exclusiva das partidas de cruzamento). Por estarem fora dessa
+    // sequência, #17/#18 nunca podem empurrar #15 ou #16 pra fora da média
+    // exata dos seus dois alimentadores — é isso que este teste protege.
     expect(cy(15), closeTo((cy(11) + cy(13)) / 2, 0.01));
     expect(cy(16), closeTo((cy(12) + cy(14)) / 2, 0.01));
   });

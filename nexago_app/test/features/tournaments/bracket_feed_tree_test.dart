@@ -1,5 +1,3 @@
-// ignore_for_file: avoid_print
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/tournaments/domain/bracket_feed_tree.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';

@@ -11,6 +11,7 @@ import {
   bracketConvergenceMatches,
   buildBracketFeedTree,
   buildDoubleEliminationLayout,
+  buildKnockoutTreeLayout,
 } from './bracket-tree';
 
 /** Fábrica mínima de `TournamentMatch` pros testes — só os campos que a geometria da chave
@@ -280,9 +281,14 @@ describe('buildDoubleEliminationLayout — geometria convergente', () => {
   });
 
   it('partida de cruzamento fica na média dos alimentadores mesmo com Final/3º lugar espremidos entre elas (planta 10)', () => {
-    // #15 e #16 são as partidas de cruzamento (WB×LB) da planta 10. #17 (3º lugar) e #18
-    // (Final) não convergem direto e caem entre elas na coluna central — isso NUNCA pode
-    // empurrar #15 ou #16 pra fora da média exata dos seus dois alimentadores.
+    // #15 e #16 são as partidas de cruzamento (WB×LB) da planta 10, empilhadas pelo
+    // `slotCursor` sem folga reservada entre blocos (a folga foi removida — Final e 3º
+    // lugar não moram mais nesta faixa central; ver comentário em `buildDoubleEliminationLayout`).
+    // #17 (3º lugar) e #18 (Final) não têm árvore própria nesta planta e são posicionadas
+    // DEPOIS, fora da sequência do `slotCursor`, lado a lado nas colunas vizinhas ao centro
+    // (a Final na 2, o 3º lugar na 4 — a coluna central é a 3, exclusiva das partidas de
+    // cruzamento). Por estarem fora dessa sequência, #17/#18 nunca podem empurrar #15 ou
+    // #16 pra fora da média exata dos seus dois alimentadores — é isso que este teste protege.
     const layout = buildDoubleEliminationLayout(plant(10))!;
     const cy = (n: number): number => centerY(nodeOf(layout, `m${n}`));
     expect(cy(15)).toBeCloseTo((cy(11) + cy(13)) / 2, 2);
@@ -542,5 +548,43 @@ describe('buildDoubleEliminationLayout — geometria convergente', () => {
 
   it('devolve null pra lista de partidas vazia', () => {
     expect(buildDoubleEliminationLayout([])).toBeNull();
+  });
+});
+
+describe('buildKnockoutTreeLayout — mata-mata simples', () => {
+  // 4 duplas: duas semifinais (mesma coluna 'knockout:1'), Final e 3º lugar.
+  const simpleKnockout: TournamentMatch[] = [
+    match({ id: 'sf1', matchType: 'knockout', roundNumber: 1, matchNumber: 1, winnerAdvanceMatchNumber: 3, winnerAdvanceSlot: 'A' }),
+    match({ id: 'sf2', matchType: 'knockout', roundNumber: 1, matchNumber: 2, winnerAdvanceMatchNumber: 3, winnerAdvanceSlot: 'B' }),
+    match({ id: 'final', matchType: 'Final', roundNumber: 1, matchNumber: 3 }),
+    match({ id: 'third', matchType: 'Third Place', roundNumber: 1, matchNumber: 4 }),
+  ];
+
+  // Paridade com o app (`_placeLegacyGroups`): a Final vem ANTES do 3º lugar na disposição
+  // horizontal. Antes desta correção, `buildKnockoutTreeLayout` colocava o 3º lugar primeiro
+  // (`… Semifinais → 3º LUGAR → FINAL`), divergindo do app (`… Semifinais → FINAL → 3º LUGAR`).
+  it('Final vem antes do 3º lugar na disposição horizontal', () => {
+    const layout = buildKnockoutTreeLayout(simpleKnockout)!;
+    const finalNode = layout.nodes.find((n) => n.match.id === 'final')!;
+    const thirdNode = layout.nodes.find((n) => n.match.id === 'third')!;
+    expect(finalNode.left).toBeLessThan(thirdNode.left);
+  });
+
+  // Com o 3º lugar espremido ENTRE a corrente e a Final (ordem antiga), o cotovelo de
+  // `pathFor` (a única aresta desenhada nesse trecho — semi→Final) caía dentro da faixa X do
+  // card do 3º lugar. Colocar a Final logo após a corrente resolve as duas coisas juntas.
+  it('a aresta semi→Final não atravessa a coluna do 3º lugar', () => {
+    const layout = buildKnockoutTreeLayout(simpleKnockout)!;
+    const thirdNode = layout.nodes.find((n) => n.match.id === 'third')!;
+    expect(layout.edges.length).toBeGreaterThan(0);
+    for (const edge of layout.edges) {
+      // A path é sempre "M x1 y1 H midX V y2 H x2" — só os X importam aqui.
+      const numbers = [...edge.d.matchAll(/-?\d+(\.\d+)?/g)].map((m) => Number(m[0]));
+      const [x1, , midX, , x2] = numbers;
+      for (const x of [x1, midX, x2]) {
+        const dentroDoCard = x! > thirdNode.left && x! < thirdNode.left + BRACKET_MATCH_WIDTH;
+        expect(dentroDoCard).toBeFalse();
+      }
+    }
   });
 });

@@ -814,9 +814,12 @@ function buildEmptySlots(vagos: Map<number, number[]>, columnOf: Map<number, num
 
 /** Árvore do mata-mata SIMPLES (eliminatória simples / fase final de grupos+mata-mata) —
  *  mesmo visual da árvore DE, num track único: colunas canônicas de `buildBracketColumns`
- *  (Quartas → Semifinais → …), 3º Lugar como coluna sem conector (paridade com a DE, que não
- *  desenha linha de perdedor) e a Final por último, centralizada na altura da coluna que a
- *  alimenta. Ligações pelos ponteiros reais (`winnerAdvance`, que o builder SE grava com
+ *  (Quartas → Semifinais → …), a Final logo em seguida à corrente — centralizada na altura da
+ *  coluna que a alimenta — e o 3º Lugar por último, como coluna sem conector (paridade com a
+ *  DE, que não desenha linha de perdedor). Essa ordem (Final antes do 3º lugar) é paridade com
+ *  o app (`_placeLegacyGroups`): a aresta semi→Final liga a última coluna da corrente direto em
+ *  `finals[0]`, e se o 3º lugar ficasse entre as duas o cotovelo de `pathFor` passaria por cima
+ *  do card dele. Ligações pelos ponteiros reais (`winnerAdvance`, que o builder SE grava com
  *  numeração global) com fallback posicional `i → i÷2` — a regra de avanço do servidor — pra
  *  chaves geradas antes da fiação explícita.
  *
@@ -871,20 +874,22 @@ export function buildKnockoutTreeLayout(matches: readonly TournamentMatch[]): Do
     centersByColumn.push(centers);
   });
 
+  // Final antes do 3º lugar (paridade com o app — ver dartdoc acima): a corrente termina e a
+  // Final já vem na sequência, com o 3º lugar por último, fora do caminho da aresta semi→Final.
   let nextColumnIndex = chain.length;
-  for (const column of thirds) {
-    const left = colX(nextColumnIndex);
-    labels.push({ key: column.key, label: column.label, left, top: trackTop });
-    column.matches.forEach((match, i) => placeAt(match, left, trackTop + HEADER_H + (2 * i + 1) * ROW_UNIT));
-    nextColumnIndex++;
-  }
-
   for (const column of finals) {
     const left = colX(nextColumnIndex);
     labels.push({ key: column.key, label: column.label, left, top: trackTop });
     const lastChainCenters = centersByColumn[centersByColumn.length - 1] ?? [];
     const anchor = lastChainCenters.length > 0 ? lastChainCenters.reduce((a, b) => a + b, 0) / lastChainCenters.length : trackTop + HEADER_H + ROW_UNIT;
     column.matches.forEach((match, i) => placeAt(match, left, anchor + i * 2 * ROW_UNIT));
+    nextColumnIndex++;
+  }
+
+  for (const column of thirds) {
+    const left = colX(nextColumnIndex);
+    labels.push({ key: column.key, label: column.label, left, top: trackTop });
+    column.matches.forEach((match, i) => placeAt(match, left, trackTop + HEADER_H + (2 * i + 1) * ROW_UNIT));
     nextColumnIndex++;
   }
 

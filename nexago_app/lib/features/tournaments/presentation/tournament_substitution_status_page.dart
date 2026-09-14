@@ -322,14 +322,13 @@ class _PendingBody extends ConsumerWidget {
     final outFirst = _firstName(outName);
     final inFirst = _firstName(inName);
 
-    final profileUids = <String>{
+    final profilesKey = rosterProfilesKey([
       ...?registration?.participantUids,
-      if ((invite.replacedUid ?? '').isNotEmpty) invite.replacedUid!,
-      if (invite.inviteeUid.isNotEmpty) invite.inviteeUid,
-    }.toList()
-      ..sort();
+      invite.replacedUid ?? '',
+      invite.inviteeUid,
+    ]);
     final profilesAsync =
-        ref.watch(registrationRosterProfilesProvider(profileUids));
+        ref.watch(registrationRosterProfilesProvider(profilesKey));
     final profiles = profilesAsync.valueOrNull ?? const <String, AppUserProfile>{};
     final authUser = ref.watch(authProvider).valueOrNull;
     final outProfile = _profileForSubstitutionAthlete(

@@ -127,7 +127,11 @@ class _TournamentRegistrationDetailPageState
     final reg = registration;
     final uid = ref.watch(authProvider).valueOrNull?.uid ?? '';
     final profiles = ref
-            .watch(registrationRosterProfilesProvider(reg.participantUids))
+            .watch(
+              registrationRosterProfilesProvider(
+                rosterProfilesKey(reg.participantUids),
+              ),
+            )
             .valueOrNull ??
         const <String, AppUserProfile>{};
     final replaceableUids = substitutionReplaceableUids(

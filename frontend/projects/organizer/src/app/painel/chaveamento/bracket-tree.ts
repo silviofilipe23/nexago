@@ -38,12 +38,16 @@ import { bracketGroupKey, bracketGroupSortOrder, buildBracketColumns, type Tourn
 
 /** Largura/altura do card — precisam bater exatamente com `.og-bracket-match`/`.og-de-match`
  *  em styles.scss, senão os conectores desalinham. (app: 280×150 numa tela dedicada)
- *  Altura = head 28 + 2 lados de 40 + rodapé de agendamento 28 (dia · hora · quadra). */
+ *  Altura = head 28 + 2 lados de 40 + rodapé de agendamento 28 (dia · hora · quadra) = 136 de
+ *  CONTEÚDO — mas o card renderiza 138: soma a borda de 1px do próprio `.og-bracket-match`
+ *  (topo e base), que `box-sizing: border-box` não cobre porque o card não declara altura CSS
+ *  própria (só os filhos têm altura explícita) — ele cresce pro conteúdo e a borda soma por
+ *  FORA. Usar 136 aqui desalinhava todo conector 1px acima do centro visual do card. */
 export const BRACKET_MATCH_WIDTH = 280;
-export const BRACKET_MATCH_HEIGHT = 136;
+export const BRACKET_MATCH_HEIGHT = 138;
 
 /** Proporções espelhadas de `BracketLayoutMetrics` do app (rowUnit 81 pra card 150 → gap 12;
- *  aqui 80 pra card 136 → gap 24 entre jogos adjacentes). */
+ *  aqui 80 pra card 138 → gap 22 entre jogos adjacentes). */
 const ROW_UNIT = 80;
 const COL_GAP = 56;
 const COL_STEP = BRACKET_MATCH_WIDTH + COL_GAP;
@@ -119,7 +123,12 @@ function colX(columnIndex: number): number {
  *  WB×LB antes da Final, e nelas a partida de cruzamento pode estar tipada "WB" ou "LB".
  *  Exemplo: na planta de 10, a partida #15 é "WB" e a #16 é "LB", ambas alimentando a Final.
  *  Uma lista de tipos nunca funcionaria. Marcá-las incorretamente faria o resolvedor de
- *  colocação premiar o perdedor antes do 3º lugar. */
+ *  colocação premiar o perdedor antes do 3º lugar.
+ *
+ *  Usa `isFinalType`/`isThirdPlaceType` (não comparação literal) pra reconhecer também os
+ *  aliases `Grand Final`/`grand_final`: uma Final gravada assim ficava de fora daqui, não virava
+ *  `finalRoot` mais abaixo, e sobrava como órfã numa coluna extra à direita de tudo — mesmo bug
+ *  em Dart (`bracket_feed_tree.dart`). */
 export function bracketConvergenceMatches(matches: readonly TournamentMatch[]): Set<number> {
   const typeByNumber = new Map<number, string>();
   for (const m of matches) typeByNumber.set(m.matchNumber, typeOf(m));
@@ -134,7 +143,7 @@ export function bracketConvergenceMatches(matches: readonly TournamentMatch[]): 
   const result = new Set<number>();
   for (const m of matches) {
     const type = typeOf(m);
-    if (type === 'final' || type === 'third place') {
+    if (isFinalType(type) || isThirdPlaceType(type)) {
       result.add(m.matchNumber);
       continue;
     }

@@ -1,10 +1,10 @@
 import type { TournamentMatch } from '../data/matches-repository';
-import { BRACKET_PLANTS, type RawBracketMatch } from '../../../testing/bracket-plants.fixture';
+import { BRACKET_PLANTS, type RawBracketMatch } from '../../testing/bracket-plants.fixture';
 import {
   BRACKET_MATCH_HEIGHT,
   BRACKET_MATCH_WIDTH,
-  type DeLayoutNode,
-  type DoubleEliminationLayout,
+  type BracketLayoutNode,
+  type BracketLayout,
   assignEmptySlotCenters,
   assignFeedCenters,
   assignFeedDepths,
@@ -14,36 +14,34 @@ import {
 } from './bracket-tree';
 
 /** Fábrica mínima de `TournamentMatch` pros testes — só os campos que a geometria da chave
- *  lê (`matchType`, `roundNumber`, `matchNumber`, `winnerAdvance*`); o resto é o placeholder
- *  padrão do painel (mesmo padrão de `agendamento.component.spec.ts`). */
+ *  lê (`matchType`, `round`, `matchNumber`, `winnerAdvance*`); o resto é o placeholder padrão
+ *  do atleta (mesmo padrão de `focus-journey.spec.ts`). */
 function match(overrides: Partial<TournamentMatch> & Pick<TournamentMatch, 'id' | 'matchType' | 'matchNumber'>): TournamentMatch {
   return {
     tournamentId: 't1',
     categoryId: 'cat-a',
-    round: null,
-    team1Label: 'A definir',
-    team2Label: 'A definir',
-    score: null,
-    winnerSide: null,
-    scheduledAt: null,
-    court: null,
-    status: 'scheduled',
+    round: 1,
+    poolId: '',
     teamAId: '',
     teamBId: '',
+    teamADescription: null,
+    teamBDescription: null,
+    status: 'scheduled',
+    resultA: null,
+    resultB: null,
     sets: [],
-    courtId: '',
-    scheduleEndAt: null,
-    dayKey: '',
-    bestOf: 3,
-    roundNumber: 1,
+    winnerId: null,
+    isGroupMatch: false,
     winnerAdvanceMatchNumber: null,
     winnerAdvanceSlot: null,
-    loserAdvanceMatchNumber: null,
+    scheduleTime: null,
+    courtName: null,
     liveScore: null,
-    currentSetIndex: null,
-    servingTeamId: '',
     matchStartedAt: null,
-    matchEndedAt: null,
+    checkIn: { teamA: null, teamB: null },
+    queueStatus: null,
+    bestOf: 3,
+    currentSetIndex: null,
     ...overrides,
   };
 }
@@ -58,10 +56,9 @@ function plant(size: number): TournamentMatch[] {
       id: `m${m.matchNumber}`,
       matchType: m.matchType,
       matchNumber: m.matchNumber,
-      roundNumber: m.round,
+      round: m.round,
       winnerAdvanceMatchNumber: m.winnerAdvanceMatchNumber,
       winnerAdvanceSlot: m.winnerAdvanceSlot,
-      loserAdvanceMatchNumber: m.loserAdvanceMatchNumber,
     }),
   );
 }
@@ -75,14 +72,14 @@ const PLANT_SIZES = Object.keys(BRACKET_PLANTS).map(Number);
  *  exercita. É esta planta que expõe o bug do alias "Grand Final" não reconhecido: os testes
  *  antigos com `sixTeamPlan`/`comAlias` continuavam verdes com o bug em pé. */
 const CROSSOVER_FINAL_PLAN: TournamentMatch[] = [
-  match({ id: 'w1', matchType: 'WB', roundNumber: 1, matchNumber: 1, winnerAdvanceMatchNumber: 5, winnerAdvanceSlot: 'A' }),
-  match({ id: 'l2', matchType: 'LB', roundNumber: 1, matchNumber: 2, winnerAdvanceMatchNumber: 5, winnerAdvanceSlot: 'B' }),
-  match({ id: 'w3', matchType: 'WB', roundNumber: 1, matchNumber: 3, winnerAdvanceMatchNumber: 6, winnerAdvanceSlot: 'A' }),
-  match({ id: 'l4', matchType: 'LB', roundNumber: 1, matchNumber: 4, winnerAdvanceMatchNumber: 6, winnerAdvanceSlot: 'B' }),
+  match({ id: 'w1', matchType: 'WB', round: 1, matchNumber: 1, winnerAdvanceMatchNumber: 5, winnerAdvanceSlot: 'A' }),
+  match({ id: 'l2', matchType: 'LB', round: 1, matchNumber: 2, winnerAdvanceMatchNumber: 5, winnerAdvanceSlot: 'B' }),
+  match({ id: 'w3', matchType: 'WB', round: 1, matchNumber: 3, winnerAdvanceMatchNumber: 6, winnerAdvanceSlot: 'A' }),
+  match({ id: 'l4', matchType: 'LB', round: 1, matchNumber: 4, winnerAdvanceMatchNumber: 6, winnerAdvanceSlot: 'B' }),
   // #5 e #6 são as "semifinais cruzadas" — tipadas WB de propósito, como #19/#20 na planta 12.
-  match({ id: 'w5', matchType: 'WB', roundNumber: 2, matchNumber: 5, winnerAdvanceMatchNumber: 7, winnerAdvanceSlot: 'A' }),
-  match({ id: 'w6', matchType: 'WB', roundNumber: 2, matchNumber: 6, winnerAdvanceMatchNumber: 7, winnerAdvanceSlot: 'B' }),
-  match({ id: 'gf', matchType: 'Grand Final', roundNumber: 1, matchNumber: 7 }),
+  match({ id: 'w5', matchType: 'WB', round: 2, matchNumber: 5, winnerAdvanceMatchNumber: 7, winnerAdvanceSlot: 'A' }),
+  match({ id: 'w6', matchType: 'WB', round: 2, matchNumber: 6, winnerAdvanceMatchNumber: 7, winnerAdvanceSlot: 'B' }),
+  match({ id: 'gf', matchType: 'Grand Final', round: 1, matchNumber: 7 }),
 ];
 
 describe('bracketConvergenceMatches', () => {
@@ -218,20 +215,20 @@ describe('assignFeedCenters / assignFeedDepths / assignEmptySlotCenters', () => 
 });
 
 describe('buildDoubleEliminationLayout — geometria convergente', () => {
-  function nodeOf(layout: DoubleEliminationLayout, id: string): DeLayoutNode {
+  function nodeOf(layout: BracketLayout, id: string): BracketLayoutNode {
     return layout.nodes.find((n) => n.match.id === id)!;
   }
-  function centerY(node: DeLayoutNode): number {
+  function centerY(node: BracketLayoutNode): number {
     return node.top + BRACKET_MATCH_HEIGHT / 2;
   }
-  function separados(a: DeLayoutNode, b: DeLayoutNode): boolean {
+  function separados(a: BracketLayoutNode, b: BracketLayoutNode): boolean {
     return a.left + BRACKET_MATCH_WIDTH <= b.left || b.left + BRACKET_MATCH_WIDTH <= a.left || a.top + BRACKET_MATCH_HEIGHT <= b.top || b.top + BRACKET_MATCH_HEIGHT <= a.top;
   }
   /** Mesma fórmula de `pathFor` (privada em `bracket-tree.ts`): borda direita quando o
    *  destino está à direita, esquerda quando está à esquerda — reconstruída aqui só pra
    *  comparar com `edges[].d`, já que o edge não guarda `fromMatchId`/`toMatchId` (o mesmo
    *  formato que o painel já usava antes desta tarefa). */
-  function pathBetween(a: DeLayoutNode, b: DeLayoutNode): string {
+  function pathBetween(a: BracketLayoutNode, b: BracketLayoutNode): string {
     const toRight = b.left >= a.left;
     const x1 = toRight ? a.left + BRACKET_MATCH_WIDTH : a.left;
     const y1 = a.top + BRACKET_MATCH_HEIGHT / 2;
@@ -240,24 +237,24 @@ describe('buildDoubleEliminationLayout — geometria convergente', () => {
     const midX = x1 + (x2 - x1) / 2;
     return `M ${x1} ${y1} H ${midX} V ${y2} H ${x2}`;
   }
-  function hasEdge(layout: DoubleEliminationLayout, fromId: string, toId: string): boolean {
+  function hasEdge(layout: BracketLayout, fromId: string, toId: string): boolean {
     return layout.edges.some((e) => e.d === pathBetween(nodeOf(layout, fromId), nodeOf(layout, toId)));
   }
 
   // Planta de 6 duplas (`functions/src/bracket-definitions/bracket-6-teams.ts`): fiação
   // irregular — #1 alimenta o slot B do #3, #2 alimenta o slot A do #4.
   const sixTeamPlan: TournamentMatch[] = [
-    match({ id: 'w1', matchType: 'WB', roundNumber: 1, matchNumber: 1, winnerAdvanceMatchNumber: 3, winnerAdvanceSlot: 'B' }),
-    match({ id: 'w2', matchType: 'WB', roundNumber: 1, matchNumber: 2, winnerAdvanceMatchNumber: 4, winnerAdvanceSlot: 'A' }),
-    match({ id: 'w3', matchType: 'WB', roundNumber: 2, matchNumber: 3, winnerAdvanceMatchNumber: 7, winnerAdvanceSlot: 'A' }),
-    match({ id: 'w4', matchType: 'WB', roundNumber: 2, matchNumber: 4, winnerAdvanceMatchNumber: 7, winnerAdvanceSlot: 'B' }),
-    match({ id: 'l5', matchType: 'LB', roundNumber: 1, matchNumber: 5, winnerAdvanceMatchNumber: 8, winnerAdvanceSlot: 'A' }),
-    match({ id: 'l6', matchType: 'LB', roundNumber: 1, matchNumber: 6, winnerAdvanceMatchNumber: 8, winnerAdvanceSlot: 'B' }),
-    match({ id: 'w7', matchType: 'WB', roundNumber: 3, matchNumber: 7, winnerAdvanceMatchNumber: 11, winnerAdvanceSlot: 'B' }),
-    match({ id: 'l8', matchType: 'LB', roundNumber: 2, matchNumber: 8, winnerAdvanceMatchNumber: 9, winnerAdvanceSlot: 'B' }),
-    match({ id: 'l9', matchType: 'LB', roundNumber: 3, matchNumber: 9, winnerAdvanceMatchNumber: 11, winnerAdvanceSlot: 'A' }),
-    match({ id: 'tp', matchType: 'Third Place', roundNumber: 1, matchNumber: 10 }),
-    match({ id: 'gf', matchType: 'Final', roundNumber: 1, matchNumber: 11 }),
+    match({ id: 'w1', matchType: 'WB', round: 1, matchNumber: 1, winnerAdvanceMatchNumber: 3, winnerAdvanceSlot: 'B' }),
+    match({ id: 'w2', matchType: 'WB', round: 1, matchNumber: 2, winnerAdvanceMatchNumber: 4, winnerAdvanceSlot: 'A' }),
+    match({ id: 'w3', matchType: 'WB', round: 2, matchNumber: 3, winnerAdvanceMatchNumber: 7, winnerAdvanceSlot: 'A' }),
+    match({ id: 'w4', matchType: 'WB', round: 2, matchNumber: 4, winnerAdvanceMatchNumber: 7, winnerAdvanceSlot: 'B' }),
+    match({ id: 'l5', matchType: 'LB', round: 1, matchNumber: 5, winnerAdvanceMatchNumber: 8, winnerAdvanceSlot: 'A' }),
+    match({ id: 'l6', matchType: 'LB', round: 1, matchNumber: 6, winnerAdvanceMatchNumber: 8, winnerAdvanceSlot: 'B' }),
+    match({ id: 'w7', matchType: 'WB', round: 3, matchNumber: 7, winnerAdvanceMatchNumber: 11, winnerAdvanceSlot: 'B' }),
+    match({ id: 'l8', matchType: 'LB', round: 2, matchNumber: 8, winnerAdvanceMatchNumber: 9, winnerAdvanceSlot: 'B' }),
+    match({ id: 'l9', matchType: 'LB', round: 3, matchNumber: 9, winnerAdvanceMatchNumber: 11, winnerAdvanceSlot: 'A' }),
+    match({ id: 'tp', matchType: 'Third Place', round: 1, matchNumber: 10 }),
+    match({ id: 'gf', matchType: 'Final', round: 1, matchNumber: 11 }),
   ];
 
   it('WB à esquerda do centro, LB à direita, convergência no meio (planta 12)', () => {
@@ -404,13 +401,13 @@ describe('buildDoubleEliminationLayout — geometria convergente', () => {
     // "Grand Final"/"grand_final" como sinônimo — o motor de layout não pode ser o único
     // lugar que não reconhece o alias.
     const comAlias: TournamentMatch[] = [
-      match({ id: 'w1', matchType: 'WB', roundNumber: 1, matchNumber: 1, winnerAdvanceMatchNumber: 4, winnerAdvanceSlot: 'A' }),
-      match({ id: 'w2', matchType: 'WB', roundNumber: 1, matchNumber: 2, winnerAdvanceMatchNumber: 4, winnerAdvanceSlot: 'B' }),
-      match({ id: 'l3', matchType: 'LB', roundNumber: 1, matchNumber: 3, winnerAdvanceMatchNumber: 5, winnerAdvanceSlot: 'A' }),
-      match({ id: 'w4', matchType: 'WB', roundNumber: 2, matchNumber: 4, winnerAdvanceMatchNumber: 7, winnerAdvanceSlot: 'A' }),
-      match({ id: 'l5', matchType: 'LB', roundNumber: 2, matchNumber: 5, winnerAdvanceMatchNumber: 7, winnerAdvanceSlot: 'B' }),
-      match({ id: 'tp', matchType: 'Third Place', roundNumber: 1, matchNumber: 6 }),
-      match({ id: 'gf', matchType: 'Grand Final', roundNumber: 1, matchNumber: 7 }),
+      match({ id: 'w1', matchType: 'WB', round: 1, matchNumber: 1, winnerAdvanceMatchNumber: 4, winnerAdvanceSlot: 'A' }),
+      match({ id: 'w2', matchType: 'WB', round: 1, matchNumber: 2, winnerAdvanceMatchNumber: 4, winnerAdvanceSlot: 'B' }),
+      match({ id: 'l3', matchType: 'LB', round: 1, matchNumber: 3, winnerAdvanceMatchNumber: 5, winnerAdvanceSlot: 'A' }),
+      match({ id: 'w4', matchType: 'WB', round: 2, matchNumber: 4, winnerAdvanceMatchNumber: 7, winnerAdvanceSlot: 'A' }),
+      match({ id: 'l5', matchType: 'LB', round: 2, matchNumber: 5, winnerAdvanceMatchNumber: 7, winnerAdvanceSlot: 'B' }),
+      match({ id: 'tp', matchType: 'Third Place', round: 1, matchNumber: 6 }),
+      match({ id: 'gf', matchType: 'Grand Final', round: 1, matchNumber: 7 }),
     ];
     const layout = buildDoubleEliminationLayout(comAlias)!;
     expect(layout.nodes.length).toBe(7);
@@ -486,7 +483,7 @@ describe('buildDoubleEliminationLayout — geometria convergente', () => {
     // Não ocorre nas 25 plantas reais, mas é possível numa chave editada à mão: #12 aponta
     // pra um matchNumber que não existe (99), então nunca é alcançada pela travessia que
     // monta a árvore de alimentação a partir dos pontos de convergência — sobra sem coluna.
-    const comOrfa: TournamentMatch[] = [...sixTeamPlan, match({ id: 'w12', matchType: 'WB', roundNumber: 1, matchNumber: 12, winnerAdvanceMatchNumber: 99, winnerAdvanceSlot: null })];
+    const comOrfa: TournamentMatch[] = [...sixTeamPlan, match({ id: 'w12', matchType: 'WB', round: 1, matchNumber: 12, winnerAdvanceMatchNumber: 99, winnerAdvanceSlot: null })];
     const layout = buildDoubleEliminationLayout(comOrfa)!;
 
     expect(layout.nodes.length).toBe(12);
@@ -506,10 +503,10 @@ describe('buildDoubleEliminationLayout — geometria convergente', () => {
     // Formato anterior à migração que passou a gravar `winnerAdvance` — precisa continuar
     // desenhando algo em vez de quebrar. Ver decisão nº 8 no topo de `bracket-tree.ts`.
     const legacy: TournamentMatch[] = [
-      match({ id: 'w1', matchType: 'WB', roundNumber: 1, matchNumber: 1 }),
-      match({ id: 'w2', matchType: 'WB', roundNumber: 1, matchNumber: 2 }),
-      match({ id: 'w3', matchType: 'WB', roundNumber: 2, matchNumber: 3 }),
-      match({ id: 'gf', matchType: 'Final', roundNumber: 1, matchNumber: 4 }),
+      match({ id: 'w1', matchType: 'WB', round: 1, matchNumber: 1 }),
+      match({ id: 'w2', matchType: 'WB', round: 1, matchNumber: 2 }),
+      match({ id: 'w3', matchType: 'WB', round: 2, matchNumber: 3 }),
+      match({ id: 'gf', matchType: 'Final', round: 1, matchNumber: 4 }),
     ];
     const layout = buildDoubleEliminationLayout(legacy)!;
     expect(layout.nodes.length).toBe(4);
@@ -533,9 +530,9 @@ describe('buildDoubleEliminationLayout — geometria convergente', () => {
     // próprio no portal (`buildKnockoutTreeLayout`), diferente do app, onde a MESMA função
     // serve os dois formatos.
     const knockout: TournamentMatch[] = [
-      match({ id: 'sf1', matchType: 'knockout', roundNumber: 1, matchNumber: 1, winnerAdvanceMatchNumber: 3, winnerAdvanceSlot: 'A' }),
-      match({ id: 'sf2', matchType: 'knockout', roundNumber: 1, matchNumber: 2, winnerAdvanceMatchNumber: 3, winnerAdvanceSlot: 'B' }),
-      match({ id: 'final', matchType: 'Final', roundNumber: 1, matchNumber: 3 }),
+      match({ id: 'sf1', matchType: 'knockout', round: 1, matchNumber: 1, winnerAdvanceMatchNumber: 3, winnerAdvanceSlot: 'A' }),
+      match({ id: 'sf2', matchType: 'knockout', round: 1, matchNumber: 2, winnerAdvanceMatchNumber: 3, winnerAdvanceSlot: 'B' }),
+      match({ id: 'final', matchType: 'Final', round: 1, matchNumber: 3 }),
     ];
     expect(buildDoubleEliminationLayout(knockout)).toBeNull();
   });

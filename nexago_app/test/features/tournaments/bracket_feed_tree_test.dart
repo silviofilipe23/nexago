@@ -2,8 +2,54 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/tournaments/domain/bracket_feed_tree.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
 
 import 'bracket_plants_fixture.dart';
+
+TournamentMatch _match({
+  required String id,
+  String matchType = 'WB',
+  int round = 1,
+  int matchNumber = 0,
+  int? advanceTo,
+  String? advanceSlot,
+}) {
+  return TournamentMatch(
+    id: id,
+    tournamentId: 't1',
+    categoryId: 'cat-a',
+    round: round,
+    matchType: matchType,
+    poolId: '',
+    teamAId: 'a$id',
+    teamBId: 'b$id',
+    status: 'Scheduled',
+    resultA: '',
+    resultB: '',
+    isGroupMatch: false,
+    matchNumber: matchNumber,
+    winnerAdvanceMatchNumber: advanceTo,
+    winnerAdvanceSlot: advanceSlot,
+  );
+}
+
+/// Planta mínima com o MESMO padrão de #19/#20 → #22 na planta 12: os dois
+/// alimentadores diretos da Final são tipados "WB" (a fiação decide quem
+/// cruza, não o `matchType`) — então a Final só cai em `bracketConvergenceMatches`
+/// pelo reconhecimento direto do tipo (`_isFinalType`), nunca pelo atalho "um
+/// WB + um LB" que o teste de alias em `double_elimination_bracket_layout_test.dart`
+/// (com `w4`/`l5` alimentando a Final) já exercita — e continuava verde com o
+/// bug em pé.
+final _crossoverFinalPlan = [
+  _match(id: 'w1', matchType: 'WB', round: 1, matchNumber: 1, advanceTo: 5, advanceSlot: 'A'),
+  _match(id: 'l2', matchType: 'LB', round: 1, matchNumber: 2, advanceTo: 5, advanceSlot: 'B'),
+  _match(id: 'w3', matchType: 'WB', round: 1, matchNumber: 3, advanceTo: 6, advanceSlot: 'A'),
+  _match(id: 'l4', matchType: 'LB', round: 1, matchNumber: 4, advanceTo: 6, advanceSlot: 'B'),
+  // #5 e #6 são as "semifinais cruzadas" — tipadas WB de propósito, como #19/#20 na planta 12.
+  _match(id: 'w5', matchType: 'WB', round: 2, matchNumber: 5, advanceTo: 7, advanceSlot: 'A'),
+  _match(id: 'w6', matchType: 'WB', round: 2, matchNumber: 6, advanceTo: 7, advanceSlot: 'B'),
+  _match(id: 'gf', matchType: 'Grand Final', round: 1, matchNumber: 7),
+];
 
 void main() {
   final plants = loadBracketPlants();
@@ -23,6 +69,17 @@ void main() {
 
   test('planta de 8: convergência só na final e no 3º lugar', () {
     expect(bracketConvergenceMatches(plants[8]!), {13, 14});
+  });
+
+  test(
+      'Final cruzada (dois alimentadores WB, padrão da planta 12) tipada '
+      '"Grand Final" ainda entra em convergência', () {
+    // Bug de uma correção anterior que só ensinou o alias "Grand Final" pro
+    // rótulo (`_isFinalType` em `double_elimination_bracket_layout.dart`) e
+    // não pra convergência: aqui os dois alimentadores diretos da Final são
+    // "WB" (`hasWb && hasLb` nunca bate), então só o reconhecimento direto do
+    // tipo salva.
+    expect(bracketConvergenceMatches(_crossoverFinalPlan), contains(7));
   });
 
   test('plantasConvergenciaCount derivado do fixture', () {

@@ -538,6 +538,82 @@ void main() {
     );
   });
 
+  test(
+      'Final cruzada (padrão da planta 12) tipada "Grand Final" não vira '
+      'órfã: ganha coluna adjacente ao cruzamento, rotulada FINAL', () {
+    // Diferente do teste acima (`comAlias`, onde w4/l5 alimentam a Final com
+    // um WB e um LB cada — o atalho que `bracketConvergenceMatches` já
+    // acertava mesmo com o bug): aqui os dois alimentadores diretos são
+    // "WB" (o padrão real de #19/#20 → #22 na planta 12). Sem o
+    // reconhecimento do alias em `bracketConvergenceMatches`, a Final não
+    // virava a raiz da Final e sobrava como órfã numa coluna extra à
+    // direita de tudo.
+    final crossoverFinalPlan = [
+      _match(
+          id: 'w1',
+          matchType: 'WB',
+          round: 1,
+          matchNumber: 1,
+          advanceTo: 5,
+          advanceSlot: 'A'),
+      _match(
+          id: 'l2',
+          matchType: 'LB',
+          round: 1,
+          matchNumber: 2,
+          advanceTo: 5,
+          advanceSlot: 'B'),
+      _match(
+          id: 'w3',
+          matchType: 'WB',
+          round: 1,
+          matchNumber: 3,
+          advanceTo: 6,
+          advanceSlot: 'A'),
+      _match(
+          id: 'l4',
+          matchType: 'LB',
+          round: 1,
+          matchNumber: 4,
+          advanceTo: 6,
+          advanceSlot: 'B'),
+      // #5 e #6 são as "semifinais cruzadas" — tipadas WB de propósito,
+      // como #19/#20 na planta 12.
+      _match(
+          id: 'w5',
+          matchType: 'WB',
+          round: 2,
+          matchNumber: 5,
+          advanceTo: 7,
+          advanceSlot: 'A'),
+      _match(
+          id: 'w6',
+          matchType: 'WB',
+          round: 2,
+          matchNumber: 6,
+          advanceTo: 7,
+          advanceSlot: 'B'),
+      _match(id: 'gf', matchType: 'Grand Final', round: 1, matchNumber: 7),
+    ];
+    final layout = buildDoubleEliminationBracketLayout(crossoverFinalPlan);
+
+    expect(layout.nodes, hasLength(7));
+    expect(nodeOf(layout, 'gf').isFinal, isTrue);
+    expect(
+      layout.columns.firstWhere((c) => c.matchIds.contains('gf')).label,
+      'FINAL',
+    );
+    // Não some pra um canto qualquer: fica ADJACENTE à coluna de
+    // cruzamento (w5/w6), não numa coluna extra isolada à direita de tudo.
+    const passo =
+        BracketLayoutMetrics.cardWidth + BracketLayoutMetrics.columnGap;
+    expect(
+      (nodeOf(layout, 'gf').position.dx - nodeOf(layout, 'w5').position.dx)
+          .abs(),
+      closeTo(passo, 0.01),
+    );
+  });
+
   test('edges follow the real advance wiring, not positional pairing', () {
     final layout = buildDoubleEliminationBracketLayout(sixTeamPlan);
 

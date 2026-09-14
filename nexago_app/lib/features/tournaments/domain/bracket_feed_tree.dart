@@ -1,5 +1,17 @@
 import 'tournament_match.dart';
 
+/// `matchType` da decisão em minúsculas, considerando o alias `Grand Final`
+/// (com ou sem underline) — mesmo reconhecimento de `_isFinalType` em
+/// `double_elimination_bracket_layout.dart` (privado lá, então não dá pra
+/// importar; duplicado aqui de propósito, não fundido, porque este arquivo é
+/// importado POR aquele, nunca o contrário).
+bool _isFinalType(String typeLower) =>
+    typeLower == 'final' ||
+    typeLower == 'grand final' ||
+    typeLower == 'grand_final';
+
+bool _isThirdPlaceType(String typeLower) => typeLower == 'third place';
+
 /// Partidas da FAIXA CENTRAL da chave convergente: as que juntam um alimentador
 /// da WB com um da LB, mais a Final e a disputa de 3º lugar.
 ///
@@ -9,6 +21,12 @@ import 'tournament_match.dart';
 /// e a #16 é "LB", ambas alimentando a final. Uma lista de tipos nunca
 /// funcionaria. Marcá-las incorretamente faria o resolvedor de colocação premiar
 /// o perdedor antes do 3º lugar.
+///
+/// Usa `_isFinalType`/`_isThirdPlaceType` (não comparação literal) pra
+/// reconhecer também o alias `Grand Final`/`grand_final`: uma final gravada
+/// assim ficava de fora daqui, não virava a raiz da Final mais acima
+/// (`double_elimination_bracket_layout.dart`), e sobrava como órfã numa coluna
+/// extra à direita de tudo — mesmo bug no porte web (`bracket-tree.ts`).
 Set<int> bracketConvergenceMatches(List<TournamentMatch> matches) {
   final typeByNumber = <int, String>{
     for (final m in matches) m.matchNumber: m.matchType.trim().toLowerCase(),
@@ -23,7 +41,7 @@ Set<int> bracketConvergenceMatches(List<TournamentMatch> matches) {
   final result = <int>{};
   for (final m in matches) {
     final type = m.matchType.trim().toLowerCase();
-    if (type == 'final' || type == 'third place') {
+    if (_isFinalType(type) || _isThirdPlaceType(type)) {
       result.add(m.matchNumber);
       continue;
     }

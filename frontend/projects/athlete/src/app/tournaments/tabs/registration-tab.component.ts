@@ -230,17 +230,11 @@ export class RegistrationTabComponent {
     const entryFeeLabel = category ? formatBRL(category.entryFee) : '—';
     const rosterComplete = !r.partnerPending && !r.waitlist;
     const athletes = this.athletesOf(r, uid, profiles);
-    const partnerUid = r.participantUids.find((id) => id !== uid) ?? null;
-    const partnerName = partnerUid
-      ? (profiles.get(partnerUid)?.name ?? this.fallbackNameOf(partnerUid))
-      : null;
     const hero = registrationTabHeroBody({
       paymentState,
       teamLabel: roster.teamLabel,
       rosterComplete,
-      partnerFirstName: partnerName ? firstNameOf(partnerName) : null,
       entryFee: category?.entryFee ?? null,
-      teamSize: r.teamSize ?? category?.teamSize ?? 2,
       paymentHint,
     });
     const pageTitle =

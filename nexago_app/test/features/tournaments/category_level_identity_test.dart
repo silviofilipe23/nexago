@@ -49,6 +49,29 @@ void main() {
         CategoryLevelFamily.open,
       );
     });
+
+    // `AthleteProfileOptions.levelRank` trata 'livre' como apelido legado de
+    // 'open' (rank 6). Vale para o NÍVEL DO ATLETA; para uma CATEGORIA, Livre
+    // significa o contrário — sem teto, aberta a todos. E Livre é o preset
+    // padrão, então herdar o apelido pintaria de dourado a categoria mais
+    // comum do app, chamando de elite o que é aberto.
+    test('Livre NÃO é Open: é a categoria sem teto de nível', () {
+      expect(
+        categoryLevelFamily(offerWith(level: 'Livre')),
+        CategoryLevelFamily.livre,
+      );
+      expect(
+        categoryLevelFamily(offerWith(level: 'livre')),
+        CategoryLevelFamily.livre,
+      );
+    });
+
+    test('categoria sem nível declarado é Livre', () {
+      expect(
+        categoryLevelFamily(offerWith(name: 'Dupla Mista')),
+        CategoryLevelFamily.livre,
+      );
+    });
   });
 
   group('fallback pelo nome quando o organizador não preenche o nível', () {
@@ -76,12 +99,6 @@ void main() {
     // Sem nível declarado e sem pista no nome, a cor NÃO pode virar Open:
     // `categoryLevelRank` devolve Open nesse caso (aceita todos), e usar isso
     // pintaria de dourado todo torneio que não preenche nível.
-    test('sem nível e sem pista no nome fica indefinido, não Open', () {
-      expect(
-        categoryLevelFamily(offerWith(name: 'Dupla Mista')),
-        CategoryLevelFamily.indefinido,
-      );
-    });
 
     test('campo level vence o nome quando os dois existem', () {
       expect(
@@ -92,14 +109,36 @@ void main() {
     });
   });
 
+  group('arte de fundo do card', () {
+    test('cada família aponta para um asset próprio', () {
+      final artes = {
+        for (final family in CategoryLevelFamily.values)
+          categoryLevelArt(family),
+      };
+      expect(
+        artes.length,
+        CategoryLevelFamily.values.length,
+        reason: 'duas famílias apontando para a mesma arte apagam a distinção',
+      );
+    });
+
+    test('todas moram na mesma pasta, em webp', () {
+      for (final family in CategoryLevelFamily.values) {
+        final arte = categoryLevelArt(family);
+        expect(arte, startsWith('assets/images/category_levels/'));
+        expect(arte, endsWith('.webp'), reason: '$family');
+      }
+    });
+  });
+
   group('identidade visual', () {
     test('cada família tem cor de acento própria', () {
       final colors = {
         for (final family in CategoryLevelFamily.values)
-          if (family != CategoryLevelFamily.indefinido)
-            categoryLevelAccent(family),
+          categoryLevelAccent(family),
       };
-      expect(colors.length, 4, reason: 'as 4 famílias não podem repetir cor');
+      expect(colors.length, CategoryLevelFamily.values.length,
+          reason: 'nenhuma família pode repetir a cor de outra');
     });
 
     test('cada família tem tagline própria e não vazia', () {
@@ -114,6 +153,7 @@ void main() {
         categoryLevelFamilyLabel(CategoryLevelFamily.intermediario),
         'Intermediário',
       );
+      expect(categoryLevelFamilyLabel(CategoryLevelFamily.livre), 'Livre');
     });
   });
 }

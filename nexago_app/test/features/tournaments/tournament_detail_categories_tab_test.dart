@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_detail_model.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
+import 'package:nexago_app/features/tournaments/presentation/widgets/tournament_detail/tournament_categories_hero.dart';
 import 'package:nexago_app/features/tournaments/presentation/widgets/tournament_detail/tournament_detail_categories_tab.dart';
 
 const _masculina = TournamentCategoryOffer(
@@ -38,6 +39,7 @@ TournamentDetail buildDetail(List<TournamentCategoryOffer> offers) {
     featured: false,
     enrolledCount: 22,
     liveMatchesNow: 0,
+    imageUrl: 'https://exemplo.invalido/capa-do-torneio.jpg',
     categoryOffers: offers,
   );
 }
@@ -66,6 +68,33 @@ void main() {
 
     expect(find.textContaining('Escolha sua'), findsOneWidget);
     expect(find.textContaining('categoria'), findsWidgets);
+  });
+
+  // A arte do HERO é sempre a do app: uma capa enviada pelo organizador não se
+  // compromete a ter área escura no topo, onde o voltar e o título precisam ler.
+  testWidgets('hero não usa a capa do torneio', (tester) async {
+    await pumpTab(tester, const [_masculina, _feminina]);
+
+    // Escopo: só o HERO. O card usa a capa no próprio fundo, de propósito, e
+    // isso não é assunto deste teste.
+    final noHero = find.descendant(
+      of: find.byType(TournamentCategoriesSliverHero),
+      matching: find.byType(Image),
+    );
+    final imagens = tester.widgetList<Image>(noHero).toList();
+    expect(imagens, isNotEmpty);
+    for (final imagem in imagens) {
+      // `cacheWidth` embrulha o provider num ResizeImage — o que interessa é
+      // quem está dentro.
+      final provider = imagem.image;
+      final interno =
+          provider is ResizeImage ? provider.imageProvider : provider;
+      expect(
+        interno,
+        isA<AssetImage>(),
+        reason: 'a capa do torneio não pode chegar ao hero de categorias',
+      );
+    }
   });
 
   // A arte ocupa o header inteiro, então o voltar mora SOBRE ela — não existe

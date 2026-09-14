@@ -27,24 +27,21 @@ LinearGradient _scrimTo(Color canvas) => LinearGradient(
       stops: const [0, 0.26, 0.5, 0.88, 1],
     );
 
-/// Cabeçalho da aba de categorias: a capa do torneio ocupando o header
-/// inteiro, com o voltar e o título por cima dela.
+/// Cabeçalho da aba de categorias: arte do app ocupando o header inteiro, com
+/// o voltar e o título por cima dela.
+///
+/// A arte é SEMPRE a do app, nunca a capa do torneio: a capa já identifica o
+/// torneio no detalhe, e uma imagem enviada pelo organizador não se compromete
+/// a ter área escura no topo onde o voltar e o título precisam ler.
 ///
 /// É um [SliverAppBar] fixo: a arte encolhe ao rolar até sobrar só a barra,
 /// então o voltar nunca sai da tela e a lista não perde altura permanente.
 class TournamentCategoriesSliverHero extends StatelessWidget {
-  const TournamentCategoriesSliverHero({
-    super.key,
-    required this.onBack,
-    this.imageUrl,
-  });
-
-  /// Capa do torneio. Vazia/ausente ou fora do ar → arte padrão do app.
-  final String? imageUrl;
+  const TournamentCategoriesSliverHero({super.key, required this.onBack});
 
   final VoidCallback onBack;
 
-  static const String _fallbackAsset = 'assets/images/home/hero_neutro.webp';
+  static const String _art = 'assets/images/home/hero_neutro.webp';
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +73,7 @@ class TournamentCategoriesSliverHero extends StatelessWidget {
           children: [
             // Fundo escuro fixo: se a arte falhar, o texto branco ainda lê.
             const ColoredBox(color: AppColors.canvas),
-            _HeroArt(imageUrl: imageUrl, fallbackAsset: _fallbackAsset),
+            const _HeroArt(asset: _art),
             DecoratedBox(
               decoration: BoxDecoration(gradient: _scrimTo(canvas)),
             ),
@@ -160,10 +157,9 @@ class _BackButton extends StatelessWidget {
 }
 
 class _HeroArt extends StatelessWidget {
-  const _HeroArt({required this.imageUrl, required this.fallbackAsset});
+  const _HeroArt({required this.asset});
 
-  final String? imageUrl;
-  final String fallbackAsset;
+  final String asset;
 
   @override
   Widget build(BuildContext context) {
@@ -174,28 +170,15 @@ class _HeroArt extends StatelessWidget {
             ? (maxWidth * MediaQuery.devicePixelRatioOf(context)).round()
             : null;
 
-        final url = imageUrl?.trim() ?? '';
-        if (url.isEmpty) return _asset(cacheWidth);
-        return Image.network(
-          url,
+        return Image.asset(
+          asset,
           fit: BoxFit.cover,
           cacheWidth: cacheWidth,
+          // Decorativa: quem carrega o significado é o título.
           excludeFromSemantics: true,
-          // Capa fora do ar não pode derrubar a tela: cai na arte do app.
-          errorBuilder: (_, _, _) => _asset(cacheWidth),
+          errorBuilder: (_, _, _) => const SizedBox.shrink(),
         );
       },
-    );
-  }
-
-  Widget _asset(int? cacheWidth) {
-    return Image.asset(
-      fallbackAsset,
-      fit: BoxFit.cover,
-      cacheWidth: cacheWidth,
-      // Decorativa: quem carrega o significado é o título.
-      excludeFromSemantics: true,
-      errorBuilder: (_, _, _) => const SizedBox.shrink(),
     );
   }
 }

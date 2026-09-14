@@ -117,6 +117,7 @@ flutter:
   assets:
     - assets/images/
     - assets/images/compete/
+    - assets/images/category_levels/
     - assets/images/home/
     - assets/images/sports/
     - assets/images/team_covers/

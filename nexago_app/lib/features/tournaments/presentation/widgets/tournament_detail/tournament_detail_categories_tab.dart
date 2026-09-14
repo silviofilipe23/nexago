@@ -52,10 +52,7 @@ class _TournamentDetailCategoriesTabState
   Widget build(BuildContext context) {
     final offers = widget.tournament.categoryOffers;
 
-    final hero = TournamentCategoriesSliverHero(
-      imageUrl: widget.tournament.imageUrl,
-      onBack: widget.onBack,
-    );
+    final hero = TournamentCategoriesSliverHero(onBack: widget.onBack);
 
     if (offers.isEmpty) {
       return CustomScrollView(
@@ -104,44 +101,35 @@ class _TournamentDetailCategoriesTabState
     return RebuildAt(
       instant: widget.tournament.registrationOpensAt,
       builder: (context, now) {
-        // Card inteiro abre a visão da categoria (Partidas/Grupos/Chave),
-        // como no portal; os botões internos continuam ganhando o toque.
-        return GestureDetector(
-          onTap: () => context.pushNamed(
-            AppRouteNames.tournamentCategoryView,
-            pathParameters: {
-              'tournamentId': widget.tournament.id,
-              'categoryId': offer.id,
-            },
+        // Card abre a visão da categoria; o CTA interno (Inscreva-se etc.)
+        // ganha o gesto na arena e não dispara a navegação do card.
+        return TournamentDetailCategoryCard(
+          offer: offer,
+          tournamentId: widget.tournament.id,
+          tournamentName: widget.tournament.name,
+          tournamentStatus: widget.tournament.status,
+          registrationNotYetOpen: tournamentRegistrationNotYetOpen(
+            widget.tournament.registrationOpensAt,
+            now: now,
           ),
-          child: TournamentDetailCategoryCard(
-            offer: offer,
-            tournamentId: widget.tournament.id,
-            tournamentName: widget.tournament.name,
-            tournamentStatus: widget.tournament.status,
-            registrationNotYetOpen: tournamentRegistrationNotYetOpen(
-              widget.tournament.registrationOpensAt,
-              now: now,
-            ),
-            inscriptionCount: resolveInscriptionCountForOffer(
-              widget.enrollmentByCategoryId,
-              offer,
-              countsResolved: widget.enrollmentCountsResolved,
-            ),
-            registration: widget.registrationsByCategoryId[offer.id],
-            isOnWaitlist: widget.waitlistByCategoryId[offer.id] == true,
-            onRegister: () {
-              if (!widget.canAccessTournaments) {
-                widget.onRegisterBlocked?.call();
-                return;
-              }
-              context.pushNamed(
-                AppRouteNames.tournamentRegistration,
-                pathParameters: {'tournamentId': widget.tournament.id},
-                queryParameters: {'categoryId': offer.id},
-              );
-            },
+          inscriptionCount: resolveInscriptionCountForOffer(
+            widget.enrollmentByCategoryId,
+            offer,
+            countsResolved: widget.enrollmentCountsResolved,
           ),
+          registration: widget.registrationsByCategoryId[offer.id],
+          isOnWaitlist: widget.waitlistByCategoryId[offer.id] == true,
+          onRegister: () {
+            if (!widget.canAccessTournaments) {
+              widget.onRegisterBlocked?.call();
+              return;
+            }
+            context.pushNamed(
+              AppRouteNames.tournamentRegistration,
+              pathParameters: {'tournamentId': widget.tournament.id},
+              queryParameters: {'categoryId': offer.id},
+            );
+          },
         );
       },
     );

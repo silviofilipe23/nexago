@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/formatting/app_currency_format.dart';
-import 'package:nexago_app/features/tournaments/domain/category_level_identity.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 import 'package:nexago_app/features/tournaments/presentation/widgets/tournament_detail/tournament_detail_category_card.dart';
 
@@ -39,23 +38,14 @@ void main() {
     );
   }
 
-  testWidgets('identidade: nome, frase do nível e ícone na cor da faixa', (
-    tester,
-  ) async {
+  testWidgets('identidade: nome e frase do nível', (tester) async {
     await pumpCard(tester, TournamentListingStatus.open);
 
     expect(find.text('Intermediário Masculino'), findsOneWidget);
     expect(find.text('Equilíbrio e grandes jogos'), findsOneWidget);
-
-    final icon = tester.widget<Icon>(
-      find.byIcon(categoryLevelIcon(CategoryLevelFamily.intermediario)),
-    );
-    expect(icon.color, categoryLevelAccent(CategoryLevelFamily.intermediario));
   });
 
-  testWidgets('cada faixa de nível pinta o card com sua própria cor', (
-    tester,
-  ) async {
+  testWidgets('cada faixa de nível traz a própria frase', (tester) async {
     const iniciante = TournamentCategoryOffer(
       id: 'ini',
       name: 'Iniciante Feminino',
@@ -68,14 +58,8 @@ void main() {
       category: iniciante,
     );
 
-    final icon = tester.widget<Icon>(
-      find.byIcon(categoryLevelIcon(CategoryLevelFamily.iniciante)),
-    );
-    expect(icon.color, categoryLevelAccent(CategoryLevelFamily.iniciante));
-    expect(
-      icon.color,
-      isNot(categoryLevelAccent(CategoryLevelFamily.intermediario)),
-    );
+    expect(find.text('Comece sua jornada'), findsOneWidget);
+    expect(find.text('Equilíbrio e grandes jogos'), findsNothing);
   });
 
   testWidgets('linha de meta traz vagas, formato curto e taxa', (tester) async {

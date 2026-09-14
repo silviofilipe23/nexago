@@ -5,6 +5,9 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../../../core/formatting/app_currency_format.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/theme/app_motion.dart';
+import '../../../../../core/theme/app_radii.dart';
+import '../../../../../core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../data/tournament_inscriptions_repository.dart';
 import '../../../domain/category_level_identity.dart';
@@ -13,10 +16,14 @@ import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_listing_status.dart';
 import '../../../domain/tournament_registration_success_args.dart';
 
-/// Card de categoria: identidade da faixa de nível (cor + ícone + frase), uma
-/// linha de meta com vagas/formato/taxa e a ação. O detalhe (grade de vagas,
-/// premiação completa) mora na página da categoria, que o card abre.
-class TournamentDetailCategoryCard extends StatelessWidget {
+/// Card de categoria no layout do protótipo: arte da faixa com scrim,
+/// identidade (nome + frase), meta empilhada (uma info por linha) e CTA
+/// numa faixa própria abaixo.
+///
+/// Ao tocar, encolhe levemente (`pressedScale`) — o mesmo feedback dos cards
+/// do hub Competir — e abre a visão da categoria. O CTA interno ganha o gesto
+/// na arena e não dispara a navegação do card.
+class TournamentDetailCategoryCard extends StatefulWidget {
   const TournamentDetailCategoryCard({
     super.key,
     required this.offer,
@@ -30,11 +37,15 @@ class TournamentDetailCategoryCard extends StatelessWidget {
     this.registrationNotYetOpen = false,
   });
 
+  /// Quanto o card encolhe enquanto está sob o dedo.
+  static const double pressedScale = 0.97;
+
   final TournamentCategoryOffer offer;
   final String tournamentId;
   final String tournamentName;
   final TournamentListingStatus tournamentStatus;
   final VoidCallback? onRegister;
+
   final int? inscriptionCount;
   final UserCategoryRegistration? registration;
   final bool isOnWaitlist;
@@ -42,129 +53,244 @@ class TournamentDetailCategoryCard extends StatelessWidget {
   /// `registrationOpensAt` do torneio ainda no futuro — CTA de inscrição some.
   final bool registrationNotYetOpen;
 
+  @override
+  State<TournamentDetailCategoryCard> createState() =>
+      _TournamentDetailCategoryCardState();
+}
+
+class _TournamentDetailCategoryCardState
+    extends State<TournamentDetailCategoryCard> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
   void _openRegistrationSuccess(BuildContext context) {
-    final regId = registration?.registrationId.trim() ?? '';
-    if (regId.isEmpty || tournamentId.isEmpty) return;
+    final regId = widget.registration?.registrationId.trim() ?? '';
+    if (regId.isEmpty || widget.tournamentId.isEmpty) return;
     context.pushNamed(
       AppRouteNames.tournamentRegistrationSuccess,
-      pathParameters: {'tournamentId': tournamentId},
+      pathParameters: {'tournamentId': widget.tournamentId},
       extra: TournamentRegistrationSuccessArgs(
-        tournamentId: tournamentId,
+        tournamentId: widget.tournamentId,
         registrationId: regId,
-        tournamentName: tournamentName,
-        categoryName: offer.name,
+        tournamentName: widget.tournamentName,
+        categoryName: widget.offer.name,
       ),
       queryParameters: {
         'registrationId': regId,
-        'tournamentName': tournamentName,
-        'categoryName': offer.name,
+        'tournamentName': widget.tournamentName,
+        'categoryName': widget.offer.name,
       },
     );
   }
 
   void _openCategoryView(BuildContext context) {
-    if (tournamentId.isEmpty || offer.id.isEmpty) return;
+    if (widget.tournamentId.isEmpty || widget.offer.id.isEmpty) return;
     context.pushNamed(
       AppRouteNames.tournamentCategoryView,
-      pathParameters: {'tournamentId': tournamentId, 'categoryId': offer.id},
+      pathParameters: {
+        'tournamentId': widget.tournamentId,
+        'categoryId': widget.offer.id,
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final isRegistrationPaid = registration?.isPaid == true;
-    final isEnrolled = isRegistrationPaid || isOnWaitlist;
+    final offer = widget.offer;
+    final isRegistrationPaid = widget.registration?.isPaid == true;
+    final isEnrolled = isRegistrationPaid || widget.isOnWaitlist;
     final status = tournamentCategoryRowStatus(
       offer,
-      inscriptionCount: inscriptionCount,
-      tournamentStatus: tournamentStatus,
+      inscriptionCount: widget.inscriptionCount,
+      tournamentStatus: widget.tournamentStatus,
     );
     final vacancy = tournamentCategoryVacancyUi(
       offer,
-      inscriptionCount: inscriptionCount,
+      inscriptionCount: widget.inscriptionCount,
     );
     final ctaKind = tournamentCategoryCtaKindForAthlete(
       offer: offer,
-      tournamentStatus: tournamentStatus,
+      tournamentStatus: widget.tournamentStatus,
       isRegistrationPaid: isRegistrationPaid,
-      inscriptionCount: inscriptionCount,
-      registrationNotYetOpen: registrationNotYetOpen,
+      inscriptionCount: widget.inscriptionCount,
+      registrationNotYetOpen: widget.registrationNotYetOpen,
     );
     final family = categoryLevelFamily(offer);
     final accent = categoryLevelAccent(family);
     final prizesTotal = tournamentCategoryPrizesTotal(offer);
-    // Torneio finalizado: taxa e vagas viram informação vencida — sobra a
-    // identidade, o formato e o que a categoria pagou.
-    final isTournamentOver = isTournamentTerminal(tournamentStatus);
+    final isTournamentOver = isTournamentTerminal(widget.tournamentStatus);
+    // A arte de fundo é da FAIXA DE NÍVEL, não do torneio: é ela que o card
+    // está anunciando, e cada arte nasce com os dois terços da esquerda
+    // escuros, onde o texto é desenhado. Sendo asset local, está sempre lá.
+    final art = categoryLevelArt(family);
+    // Sobre a arte o scrim é escuro: o texto precisa ficar claro em qualquer
+    // tema — `onSurface` escureceria no tema claro e sumiria na foto.
+    const onCard = Colors.white;
+    final onCardMuted = Colors.white.withValues(alpha: 0.72);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: context.themeColors.surfaceRaised,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: accent.withValues(alpha: 0.22)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Fio da cor do nível: identifica a faixa antes de ler o nome.
-          Container(
-            height: 3,
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(17),
-              ),
-              gradient: LinearGradient(
-                colors: [accent, accent.withValues(alpha: 0)],
-              ),
-            ),
+    final showCta = ctaKind != TournamentCategoryCtaKind.disabled;
+    final cta = showCta
+        ? _CategoryCtaButton(
+            kind: ctaKind,
+            lightOnDark: true,
+            onPressed: switch (ctaKind) {
+              TournamentCategoryCtaKind.register => widget.onRegister,
+              TournamentCategoryCtaKind.waitlist => widget.onRegister,
+              TournamentCategoryCtaKind.viewRegistration =>
+                () => _openRegistrationSuccess(context),
+              TournamentCategoryCtaKind.viewCategory =>
+                () => _openCategoryView(context),
+              TournamentCategoryCtaKind.disabled => null,
+            },
+          )
+        : null;
+
+    return AnimatedScale(
+      scale: _pressed ? TournamentDetailCategoryCard.pressedScale : 1,
+      duration: AppMotion.fast,
+      curve: AppMotion.curve,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => _setPressed(true),
+        onTapUp: (_) => _setPressed(false),
+        onTapCancel: () => _setPressed(false),
+        onTap: () => _openCategoryView(context),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: AppSpacing.md),
+          constraints: const BoxConstraints(minHeight: 200),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadii.lg),
+            // Sempre há arte sob o conteúdo, então a borda é um fio claro por
+            // cima dela — a borda tingida pelo nível brigaria com a foto.
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadii.lg),
+            child: Stack(
               children: [
-                _CategoryHeadline(
-                  offer: offer,
-                  family: family,
-                  accent: accent,
-                  isEnrolled: isEnrolled,
-                  isOnWaitlist: isOnWaitlist,
-                  status: status,
+                Positioned.fill(
+                  child: _CardBackdrop(art: art, accent: accent),
                 ),
-                const SizedBox(height: 14),
-                _CategoryMetaRow(
-                  vacancy: vacancy,
-                  formatLabel: tournamentCategoryShortFormatTag(offer),
-                  feeLabel: formatCategoryEntryFee(offer),
-                  prizesLabel: prizesTotal > 0 ? formatBRL(prizesTotal) : null,
-                  showSpots: !isTournamentOver,
-                  showFee: !isTournamentOver,
-                  showPrizes: isTournamentOver,
-                ),
-                if (ctaKind != TournamentCategoryCtaKind.disabled) ...[
-                  const SizedBox(height: 16),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: _CategoryCtaButton(
-                      kind: ctaKind,
-                      accent: accent,
-                      onPressed: switch (ctaKind) {
-                        TournamentCategoryCtaKind.register => onRegister,
-                        TournamentCategoryCtaKind.waitlist => onRegister,
-                        TournamentCategoryCtaKind.viewRegistration => () =>
-                            _openRegistrationSuccess(context),
-                        TournamentCategoryCtaKind.viewCategory => () =>
-                            _openCategoryView(context),
-                        TournamentCategoryCtaKind.disabled => null,
-                      },
-                    ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.xl,
+                    AppSpacing.xl,
+                    AppSpacing.xl,
+                    AppSpacing.lg,
                   ),
-                ],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _CategoryHeadline(
+                        offer: offer,
+                        family: family,
+                        isEnrolled: isEnrolled,
+                        isOnWaitlist: widget.isOnWaitlist,
+                        status: status,
+                        titleColor: onCard,
+                        subtitleColor: onCardMuted,
+                        chevronColor: onCardMuted,
+                      ),
+                      const SizedBox(height: AppSpacing.xl),
+                      // Uma info por linha — vagas, formato e taxa empilhados
+                      // pra não competirem na mesma faixa.
+                      _CategoryMetaColumn(
+                        vacancy: vacancy,
+                        formatLabel: tournamentCategoryShortFormatTag(offer),
+                        feeLabel: formatCategoryEntryFee(offer),
+                        prizesLabel:
+                            prizesTotal > 0 ? formatBRL(prizesTotal) : null,
+                        showSpots: !isTournamentOver,
+                        showFee: !isTournamentOver,
+                        showPrizes: isTournamentOver,
+                        valueColor: onCard,
+                        mutedColor: onCardMuted,
+                      ),
+                      if (cta != null) ...[
+                        const SizedBox(height: AppSpacing.xl),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: cta,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CardBackdrop extends StatelessWidget {
+  const _CardBackdrop({required this.art, required this.accent});
+
+  final String art;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.asset(
+          art,
+          fit: BoxFit.cover,
+          // Decorativa: quem carrega o significado é o nome da categoria.
+          excludeFromSemantics: true,
+          // Arte ausente não pode deixar o card ilegível: o texto é branco
+          // fixo, então o fallback precisa ser escuro, nunca a superfície.
+          errorBuilder: (_, _, _) => _SolidFallback(accent: accent),
+        ),
+        // Scrim: mantém a arte visível sem matar a leitura do texto. Mais
+        // pesado à esquerda, que é onde o nome e a linha de meta vivem.
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                Colors.black.withValues(alpha: 0.78),
+                Colors.black.withValues(alpha: 0.6),
+                Colors.black.withValues(alpha: 0.42),
+              ],
+            ),
+          ),
+        ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.18),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SolidFallback extends StatelessWidget {
+  const _SolidFallback({required this.accent});
+
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.alphaBlend(accent.withValues(alpha: 0.35), AppColors.canvas),
+            AppColors.canvas,
+          ],
+        ),
       ),
     );
   }
@@ -174,35 +300,28 @@ class _CategoryHeadline extends StatelessWidget {
   const _CategoryHeadline({
     required this.offer,
     required this.family,
-    required this.accent,
     required this.isEnrolled,
     required this.isOnWaitlist,
     required this.status,
+    required this.titleColor,
+    required this.subtitleColor,
+    required this.chevronColor,
   });
 
   final TournamentCategoryOffer offer;
   final CategoryLevelFamily family;
-  final Color accent;
   final bool isEnrolled;
   final bool isOnWaitlist;
   final TournamentCategoryRowStatus status;
+  final Color titleColor;
+  final Color subtitleColor;
+  final Color chevronColor;
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: accent.withValues(alpha: 0.16),
-            shape: BoxShape.circle,
-            border: Border.all(color: accent.withValues(alpha: 0.4)),
-          ),
-          child: Icon(categoryLevelIcon(family), size: 24, color: accent),
-        ),
-        const SizedBox(width: 14),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -210,19 +329,19 @@ class _CategoryHeadline extends StatelessWidget {
               Text(
                 offer.name,
                 style: AppTypography.soraRegular(
-                  fontSize: 17,
+                  fontSize: 18,
                   fontWeight: FontWeight.w800,
-                  color: context.themeColors.onSurface,
+                  color: titleColor,
                   height: 1.2,
                 ),
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: AppSpacing.xs),
               Text(
                 categoryLevelTagline(family),
                 style: AppTypography.soraRegular(
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: context.themeColors.onSurfaceMuted,
+                  color: subtitleColor,
                 ),
               ),
             ],
@@ -237,11 +356,7 @@ class _CategoryHeadline extends StatelessWidget {
         else if (status.isClosed)
           _StatePill(label: status.label, color: status.color)
         else
-          Icon(
-            Icons.chevron_right_rounded,
-            size: 22,
-            color: context.themeColors.onSurfaceMuted,
-          ),
+          Icon(Icons.chevron_right_rounded, size: 22, color: chevronColor),
       ],
     );
   }
@@ -258,9 +373,9 @@ class _StatePill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.45)),
+        color: color.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Text(
         label,
@@ -275,8 +390,8 @@ class _StatePill extends StatelessWidget {
   }
 }
 
-class _CategoryMetaRow extends StatelessWidget {
-  const _CategoryMetaRow({
+class _CategoryMetaColumn extends StatelessWidget {
+  const _CategoryMetaColumn({
     required this.vacancy,
     required this.formatLabel,
     required this.feeLabel,
@@ -284,6 +399,8 @@ class _CategoryMetaRow extends StatelessWidget {
     required this.showSpots,
     required this.showFee,
     required this.showPrizes,
+    required this.valueColor,
+    required this.mutedColor,
   });
 
   final TournamentCategoryVacancyUi vacancy;
@@ -293,51 +410,53 @@ class _CategoryMetaRow extends StatelessWidget {
   final bool showSpots;
   final bool showFee;
   final bool showPrizes;
+  final Color valueColor;
+  final Color mutedColor;
 
   @override
   Widget build(BuildContext context) {
-    final showPrizeItem = showPrizes && prizesLabel != null;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (showSpots)
-          Expanded(
-            flex: 3,
-            child: _MetaItem(
-              icon: Icons.groups_rounded,
-              value: vacancy.total > 0
-                  ? '${vacancy.enrolled}/${vacancy.total}'
-                  : '—',
-              caption: 'equipes',
-            ),
-          ),
-        Expanded(
-          flex: 4,
-          child: _MetaItem(
-            icon: Icons.account_tree_rounded,
-            value: formatLabel,
-          ),
+    final items = <Widget>[
+      if (showSpots)
+        _MetaItem(
+          icon: Icons.person_outline_rounded,
+          value: vacancy.total > 0
+              ? '${vacancy.enrolled}/${vacancy.total}'
+              : '—',
+          caption: 'equipes',
+          valueColor: valueColor,
+          mutedColor: mutedColor,
         ),
-        if (showFee)
-          Expanded(
-            flex: 4,
-            child: _MetaItem(
-              icon: Icons.sell_rounded,
-              value: feeLabel,
-              caption: 'por equipe',
-              valueColor: AppColors.brand,
-            ),
-          ),
-        if (showPrizeItem)
-          Expanded(
-            flex: 4,
-            child: _MetaItem(
-              icon: Icons.emoji_events_rounded,
-              value: prizesLabel!,
-              caption: 'em prêmios',
-              valueColor: AppColors.brand,
-            ),
-          ),
+      _MetaItem(
+        icon: Icons.local_offer_outlined,
+        value: formatLabel,
+        valueColor: valueColor,
+        mutedColor: mutedColor,
+      ),
+      if (showFee)
+        _MetaItem(
+          icon: Icons.account_balance_wallet_outlined,
+          value: feeLabel,
+          caption: 'por equipe',
+          valueColor: valueColor,
+          mutedColor: mutedColor,
+        ),
+      if (showPrizes && prizesLabel != null)
+        _MetaItem(
+          icon: Icons.emoji_events_outlined,
+          value: prizesLabel!,
+          caption: 'em prêmios',
+          valueColor: valueColor,
+          mutedColor: mutedColor,
+        ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < items.length; i++) ...[
+          if (i > 0) const SizedBox(height: AppSpacing.md),
+          items[i],
+        ],
       ],
     );
   }
@@ -347,56 +466,50 @@ class _MetaItem extends StatelessWidget {
   const _MetaItem({
     required this.icon,
     required this.value,
+    required this.valueColor,
+    required this.mutedColor,
     this.caption,
-    this.valueColor,
   });
 
   final IconData icon;
   final String value;
   final String? caption;
-  final Color? valueColor;
+  final Color valueColor;
+  final Color mutedColor;
 
   @override
   Widget build(BuildContext context) {
-    final muted = context.themeColors.onSurfaceMuted;
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 1),
-          child: Icon(icon, size: 15, color: muted),
-        ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.soraRegular(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: valueColor ?? context.themeColors.onSurface,
-                  height: 1.2,
-                ),
-              ),
-              if (caption != null)
-                Text(
-                  caption!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.soraRegular(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w500,
-                    color: muted,
-                    height: 1.3,
-                  ),
-                ),
-            ],
+        Icon(icon, size: 18, color: mutedColor),
+        const SizedBox(width: AppSpacing.sm),
+        Flexible(
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.soraRegular(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: valueColor,
+              height: 1.25,
+            ),
           ),
         ),
+        if (caption != null) ...[
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            caption!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.soraRegular(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: mutedColor,
+              height: 1.25,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -405,18 +518,19 @@ class _MetaItem extends StatelessWidget {
 class _CategoryCtaButton extends StatelessWidget {
   const _CategoryCtaButton({
     required this.kind,
-    required this.accent,
+    required this.lightOnDark,
     this.onPressed,
   });
 
   final TournamentCategoryCtaKind kind;
-  final Color accent;
+  final bool lightOnDark;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     final label = tournamentCategoryCtaLabel(kind);
-    final isPrimary = kind == TournamentCategoryCtaKind.register ||
+    final isPrimary =
+        kind == TournamentCategoryCtaKind.register ||
         kind == TournamentCategoryCtaKind.viewRegistration ||
         (kind == TournamentCategoryCtaKind.waitlist && onPressed != null);
 
@@ -427,11 +541,9 @@ class _CategoryCtaButton extends StatelessWidget {
         style: FilledButton.styleFrom(
           backgroundColor: isEnrolled ? AppColors.win : AppColors.brand,
           foregroundColor: AppColors.black,
-          minimumSize: const Size(0, 42),
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          minimumSize: const Size(0, 44),
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+          shape: const RoundedRectangleBorder(borderRadius: AppRadii.pillAll),
         ),
         child: Text(
           label,
@@ -446,21 +558,25 @@ class _CategoryCtaButton extends StatelessWidget {
     }
 
     final enabled = onPressed != null;
-    final foreground = enabled
-        ? context.themeColors.onSurface
-        : context.themeColors.onSurfaceMuted;
+    final foreground = lightOnDark
+        ? (enabled ? Colors.white : Colors.white54)
+        : (enabled
+              ? context.themeColors.onSurface
+              : context.themeColors.onSurfaceMuted);
+    final border = lightOnDark
+        ? Colors.white.withValues(alpha: enabled ? 0.45 : 0.2)
+        : context.themeColors.onSurfaceMuted.withValues(
+            alpha: enabled ? 0.35 : 0.2,
+          );
+
     return OutlinedButton(
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
         foregroundColor: foreground,
-        minimumSize: const Size(0, 42),
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        side: BorderSide(
-          color: enabled
-              ? accent.withValues(alpha: 0.45)
-              : context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        minimumSize: const Size(0, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        side: BorderSide(color: border),
+        shape: const RoundedRectangleBorder(borderRadius: AppRadii.pillAll),
       ),
       child: Text(
         label,

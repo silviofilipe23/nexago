@@ -151,13 +151,14 @@ void main() {
     ]);
 
     final antes = idsNaTela(tester);
-    final topoAntes = tester.getTopLeft(find.text('quartas A')).dy;
+    expect(antes, ['semi', 'quartas', 'grupo']);
+    final topoAntes = tester.getTopLeft(find.text('semi A')).dy;
 
-    await tester.tap(find.text('quartas A'));
+    await tester.tap(find.text('semi A'));
     await tester.pump();
 
     expect(idsNaTela(tester), antes);
-    expect(tester.getTopLeft(find.text('quartas A')).dy, topoAntes);
+    expect(tester.getTopLeft(find.text('semi A')).dy, topoAntes);
   });
 }
 

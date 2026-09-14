@@ -15,9 +15,12 @@ export const BRACKET_14_TEAMS: MatchDefinition[] = [
     { matchNumber: 9, bracket: 'WB', round: 2, teamA: { type: 'WINNER', matchNumber: 4 }, teamB: { type: 'WINNER', matchNumber: 5 } },
     { matchNumber: 10, bracket: 'WB', round: 2, teamA: { type: 'SEED', seed: 1 }, teamB: { type: 'WINNER', matchNumber: 6 } },
 
-    // LB R1
-    { matchNumber: 11, bracket: 'LB', round: 1, teamA: { type: 'LOSER', matchNumber: 3 }, teamB: { type: 'LOSER', matchNumber: 2 } },
-    { matchNumber: 12, bracket: 'LB', round: 1, teamA: { type: 'LOSER', matchNumber: 4 }, teamB: { type: 'LOSER', matchNumber: 5 } },
+    // LB R1 — entrada CRUZADA: quem perde na metade de cima da WB cai na metade
+    // de baixo da LB, e vice-versa ("perdi em cima, vou pra baixo", que é como
+    // o atleta lê a tabela). A fiação sequencial é o conserto óbvio que alguém
+    // faria achando que a inversão é deslize — e antecipa o reencontro.
+    { matchNumber: 11, bracket: 'LB', round: 1, teamA: { type: 'LOSER', matchNumber: 4 }, teamB: { type: 'LOSER', matchNumber: 5 } },
+    { matchNumber: 12, bracket: 'LB', round: 1, teamA: { type: 'LOSER', matchNumber: 3 }, teamB: { type: 'LOSER', matchNumber: 2 } },
 
     // LB R2
     { matchNumber: 13, bracket: 'LB', round: 2, teamA: { type: 'LOSER', matchNumber: 6 }, teamB: { type: 'LOSER', matchNumber: 8 } },

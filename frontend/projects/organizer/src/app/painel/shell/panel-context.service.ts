@@ -100,6 +100,17 @@ export class PanelContextService {
     return base && cid ? `${base}/categorias/${cid}` : null;
   });
 
+  /** Telas que leem/escrevem jogos e chave — precisam de matches frescos a cada entrada.
+   *  Sem isso, gerar a chave em Seeds e voltar pra Grupos/Chave mostrava lista vazia
+   *  (o `selectTournament` era no-op pro mesmo id e o cache do serviço singleton ficava velho). */
+  private readonly isChaveamentoOpsPath = computed(() => {
+    const path = this.path();
+    if (/\/painel\/eventos\/[^/]+\/agendamento(?:\/|$)/.test(path)) return true;
+    return /\/painel\/eventos\/[^/]+\/categorias\/[^/]+\/(?:grupos|chave|jogos|agendamento|placar|ao-vivo|seeds|sorteio)(?:\/|$)/.test(
+      path,
+    );
+  });
+
   /** Trilha de ancestrais pro breadcrumb do cabeçalho (o nível atual fica no título). */
   readonly crumbs = computed<PanelCrumb[]>(() => {
     const level = this.level();
@@ -152,13 +163,18 @@ export class PanelContextService {
 
     // Dirige o contexto compartilhado do chaveamento a partir da rota — as telas de
     // grupos/chave/jogos/agendamento/placar continuam lendo dele como antes.
+    // Em rotas operacionais, SEMPRE relê jogos + doc do torneio: o serviço é singleton e
+    // trocar só a sub-rota (duplas → chave) não muda tid/cid, então sem forceReload o
+    // cache ficava desatualizado (chave gerada, placar lançado noutro dispositivo, etc.).
     effect(() => {
       const tid = this.tournamentId();
       if (!tid) return;
       const cid = this.categoryId();
+      const refresh = this.isChaveamentoOpsPath();
       this.chav.ensureLoaded();
-      this.chav.selectTournament(tid);
+      this.chav.selectTournament(tid, { forceReload: refresh });
       this.chav.selectCategory(cid);
+      if (refresh) void this.refreshTournament();
     });
   }
 

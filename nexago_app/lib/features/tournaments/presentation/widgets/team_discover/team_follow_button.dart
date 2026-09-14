@@ -94,7 +94,9 @@ class _TeamFollowButtonState extends ConsumerState<TeamFollowButton>
         .updateFollowing(widget.entry.teamId, follow);
     setState(() => _loading = true);
     try {
-      await ref.read(teamFollowServiceProvider).setTeamFollowing(
+      await ref
+          .read(teamFollowServiceProvider)
+          .setTeamFollowing(
             followerId: uid,
             team: widget.entry.team,
             follow: follow,
@@ -134,7 +136,9 @@ class _TeamFollowButtonState extends ConsumerState<TeamFollowButton>
       onTapCancel: () => _setPressed(false),
       onTap: _loading ? null : _toggle,
       child: ScaleTransition(
-        scale: _animationsEnabled ? _pressScale : const AlwaysStoppedAnimation(1),
+        scale: _animationsEnabled
+            ? _pressScale
+            : const AlwaysStoppedAnimation(1),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
@@ -143,9 +147,7 @@ class _TeamFollowButtonState extends ConsumerState<TeamFollowButton>
             color: bgColor,
             borderRadius: BorderRadius.circular(widget.borderRadius),
           ),
-          padding: EdgeInsets.symmetric(
-            horizontal: widget.compact ? 16 : 20,
-          ),
+          padding: EdgeInsets.symmetric(horizontal: widget.compact ? 16 : 20),
           child: Center(
             child: _loading
                 ? SizedBox(
@@ -188,7 +190,7 @@ class TeamProfileFollowButton extends ConsumerStatefulWidget {
     required this.team,
     required this.isFollowing,
     required this.isCurrentUserTeam,
-    this.followLabel = 'Seguir dupla',
+    this.followLabel = 'Seguir',
     this.followingLabel = 'Seguindo',
     this.onFollowStateChanged,
   });
@@ -277,11 +279,9 @@ class _TeamProfileFollowButtonState
       _following = follow;
     });
     try {
-      await ref.read(teamFollowServiceProvider).setTeamFollowing(
-            followerId: uid,
-            team: team,
-            follow: follow,
-          );
+      await ref
+          .read(teamFollowServiceProvider)
+          .setTeamFollowing(followerId: uid, team: team, follow: follow);
       if (mounted && _animationsEnabled) {
         HapticFeedback.lightImpact();
       }
@@ -313,7 +313,9 @@ class _TeamProfileFollowButtonState
       onTapCancel: () => _setPressed(false),
       onTap: _loading ? null : _toggle,
       child: ScaleTransition(
-        scale: _animationsEnabled ? _pressScale : const AlwaysStoppedAnimation(1),
+        scale: _animationsEnabled
+            ? _pressScale
+            : const AlwaysStoppedAnimation(1),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,

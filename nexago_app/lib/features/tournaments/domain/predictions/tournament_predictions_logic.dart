@@ -35,6 +35,10 @@ bool isPredictionLockedForMatch(TournamentMatch match) {
 /// que a chave define os dois lados, e como ela ainda está `Scheduled` já
 /// nasce no topo, sem precisar de nenhum carimbo de "recém-definida".
 ///
+/// Dentro de cada bloco a ordem é por `matchNumber` decrescente (final /
+/// fases finais antes das rodadas iniciais), pra o torcedor ver primeiro o
+/// que mais importa.
+///
 /// O bloco depende do STATUS, nunca do palpite: escolher um vencedor não
 /// reordena a lista debaixo do dedo de quem tocou.
 List<TournamentMatchCardViewModel> predictableMatchCards(
@@ -59,7 +63,8 @@ int _comparePredictionCards(
       .compareTo(isPredictionLockedForMatch(b.match) ? 1 : 0);
   if (byBlock != 0) return byBlock;
 
-  final byNumber = a.match.matchNumber.compareTo(b.match.matchNumber);
+  // Decrescente: número maior (fases finais) primeiro.
+  final byNumber = b.match.matchNumber.compareTo(a.match.matchNumber);
   if (byNumber != 0) return byNumber;
 
   // `matchNumber` só é único DENTRO da categoria e `List.sort` do Dart não

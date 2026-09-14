@@ -89,10 +89,13 @@ export class ChaveamentoContextService {
     }
   }
 
-  selectTournament(id: string): void {
-    if (this.selectedTournamentId() === id) return;
-    this.selectedTournamentId.set(id);
-    this.selectedCategoryId.set(null);
+  selectTournament(id: string, opts?: { forceReload?: boolean }): void {
+    const same = this.selectedTournamentId() === id;
+    if (same && !opts?.forceReload) return;
+    if (!same) {
+      this.selectedTournamentId.set(id);
+      this.selectedCategoryId.set(null);
+    }
     void this.loadMatches(id);
   }
 
@@ -101,7 +104,8 @@ export class ChaveamentoContextService {
   }
 
   /** Recarrega os jogos do torneio selecionado — chamado após operações de escrita
-   *  (placar/agendamento/geração de chave) pra refletir o estado novo do servidor. */
+   *  (placar/agendamento/geração de chave) e sempre que a rota de chaveamento abre,
+   *  pra não operar em cima de cache velho. */
   async reloadMatches(): Promise<void> {
     const id = this.selectedTournamentId();
     if (id) await this.loadMatches(id);

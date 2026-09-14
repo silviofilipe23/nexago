@@ -24,6 +24,18 @@ import {MatchDefinition} from "./bracket-definitions";
  * o risco, e ele valia para a final da LB de TODAS as plantas, não só aqui.
  * O pódio continua saindo inteiro de #61 e #62.
  *
+ * ENTRADA CRUZADA NA CHAVE DE PERDEDORES. Quem perde na metade de cima da WB
+ * (#1-8) cai na metade de BAIXO da LB (#29-32), e quem perde na metade de
+ * baixo (#9-16) cai na metade de cima (#25-28). A leitura do atleta na tabela
+ * impressa é "perdi em cima, vou pra baixo" — e a fiação sequencial (#25
+ * recebendo L1 e L2) é o conserto óbvio que alguém faria achando que a
+ * inversão é deslize. É isomórfica à sequencial: mesmo teto de reencontro
+ * (#55), mesmas 30 rotas. O que segura o reencontro NÃO é esta rodada — os 16
+ * perdedores da R1 nunca se enfrentaram, não há o que cruzar — e sim os
+ * cruzamentos de quem CAI depois: a entrada espelhada da R2 (#33-40), a da R3
+ * (#49-52) e a das semis (#57/#58). Mexer em qualquer uma delas antecipa o
+ * reencontro; `bracket-32-teams.test.ts` trava o #55 derivando da fiação.
+ *
  * SEMEADURA (a tabela impressa deixa as caixas em branco — a regra é do dono).
  * `seed: N` é a POSIÇÃO NO RANKING, porque o painel manda `seeds` na ordem da
  * tela sem redistribuir nada; a planta é o único lugar onde a distribuição
@@ -75,15 +87,16 @@ export const BRACKET_32_TEAMS: MatchDefinition[] = [
   {matchNumber: 23, bracket: "WB", round: 2, teamA: {type: "WINNER", matchNumber: 13}, teamB: {type: "WINNER", matchNumber: 14}},
   {matchNumber: 24, bracket: "WB", round: 2, teamA: {type: "WINNER", matchNumber: 15}, teamB: {type: "WINNER", matchNumber: 16}},
 
-  // LB R1 — os 16 perdedores da WB R1
-  {matchNumber: 25, bracket: "LB", round: 1, teamA: {type: "LOSER", matchNumber: 1}, teamB: {type: "LOSER", matchNumber: 2}},
-  {matchNumber: 26, bracket: "LB", round: 1, teamA: {type: "LOSER", matchNumber: 3}, teamB: {type: "LOSER", matchNumber: 4}},
-  {matchNumber: 27, bracket: "LB", round: 1, teamA: {type: "LOSER", matchNumber: 5}, teamB: {type: "LOSER", matchNumber: 6}},
-  {matchNumber: 28, bracket: "LB", round: 1, teamA: {type: "LOSER", matchNumber: 7}, teamB: {type: "LOSER", matchNumber: 8}},
-  {matchNumber: 29, bracket: "LB", round: 1, teamA: {type: "LOSER", matchNumber: 9}, teamB: {type: "LOSER", matchNumber: 10}},
-  {matchNumber: 30, bracket: "LB", round: 1, teamA: {type: "LOSER", matchNumber: 11}, teamB: {type: "LOSER", matchNumber: 12}},
-  {matchNumber: 31, bracket: "LB", round: 1, teamA: {type: "LOSER", matchNumber: 13}, teamB: {type: "LOSER", matchNumber: 14}},
-  {matchNumber: 32, bracket: "LB", round: 1, teamA: {type: "LOSER", matchNumber: 15}, teamB: {type: "LOSER", matchNumber: 16}},
+  // LB R1 — os 16 perdedores da WB R1, entrando CRUZADOS: quem perde na metade
+  // de cima (#1-8) cai na metade de baixo da LB (#29-32) e vice-versa.
+  {matchNumber: 25, bracket: "LB", round: 1, teamA: {type: "LOSER", matchNumber: 9}, teamB: {type: "LOSER", matchNumber: 10}},
+  {matchNumber: 26, bracket: "LB", round: 1, teamA: {type: "LOSER", matchNumber: 11}, teamB: {type: "LOSER", matchNumber: 12}},
+  {matchNumber: 27, bracket: "LB", round: 1, teamA: {type: "LOSER", matchNumber: 13}, teamB: {type: "LOSER", matchNumber: 14}},
+  {matchNumber: 28, bracket: "LB", round: 1, teamA: {type: "LOSER", matchNumber: 15}, teamB: {type: "LOSER", matchNumber: 16}},
+  {matchNumber: 29, bracket: "LB", round: 1, teamA: {type: "LOSER", matchNumber: 1}, teamB: {type: "LOSER", matchNumber: 2}},
+  {matchNumber: 30, bracket: "LB", round: 1, teamA: {type: "LOSER", matchNumber: 3}, teamB: {type: "LOSER", matchNumber: 4}},
+  {matchNumber: 31, bracket: "LB", round: 1, teamA: {type: "LOSER", matchNumber: 5}, teamB: {type: "LOSER", matchNumber: 6}},
+  {matchNumber: 32, bracket: "LB", round: 1, teamA: {type: "LOSER", matchNumber: 7}, teamB: {type: "LOSER", matchNumber: 8}},
 
   // LB R2 — entram os 8 perdedores da WB R2, em ordem espelhada (#24 no #33)
   {matchNumber: 33, bracket: "LB", round: 2, teamA: {type: "WINNER", matchNumber: 25}, teamB: {type: "LOSER", matchNumber: 24}},

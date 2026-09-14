@@ -78,14 +78,14 @@ void main() {
   });
 
   group('predictableMatchCards', () {
-    test('exclui partidas sem os dois competidores e ordena por matchNumber', () {
+    test('exclui partidas sem os dois competidores e ordena por matchNumber decrescente', () {
       final cards = [
         _card(_match(id: 'm2', matchNumber: 2)),
         _card(_match(id: 'm3', matchNumber: 3, teamBId: '')),
         _card(_match(id: 'm1', matchNumber: 1)),
       ];
       final result = predictableMatchCards(cards);
-      expect(result.map((c) => c.match.id), ['m1', 'm2']);
+      expect(result.map((c) => c.match.id), ['m2', 'm1']);
     });
 
     test('abertas vêm antes das travadas, mesmo com matchNumber maior', () {
@@ -109,11 +109,11 @@ void main() {
       final result = predictableMatchCards(cards);
       expect(
         result.map((c) => c.match.id),
-        ['quartas', 'semi', 'grupo-1', 'grupo-2'],
+        ['semi', 'quartas', 'grupo-2', 'grupo-1'],
       );
     });
 
-    test('dentro de cada bloco continua em ordem de jogo', () {
+    test('dentro de cada bloco ordena por matchNumber decrescente', () {
       final cards = [
         _card(_match(id: 'final', matchNumber: 50)),
         _card(_match(
@@ -132,7 +132,7 @@ void main() {
       final result = predictableMatchCards(cards);
       expect(
         result.map((c) => c.match.id),
-        ['semi', 'final', 'grupo-a', 'grupo-b'],
+        ['final', 'semi', 'grupo-b', 'grupo-a'],
       );
     });
 

@@ -10,13 +10,23 @@ class TournamentDetailSubpageScaffold extends StatelessWidget {
   const TournamentDetailSubpageScaffold({
     super.key,
     required this.title,
-    required this.slivers,
+    this.slivers,
+    this.body,
     this.onBack,
     this.actions = const [],
-  });
+  }) : assert(
+          (slivers != null) ^ (body != null),
+          'Informe slivers ou body, não os dois.',
+        );
 
   final String title;
-  final List<Widget> slivers;
+
+  /// Conteúdo em slivers (padrão das subpáginas do detalhe).
+  final List<Widget>? slivers;
+
+  /// Conteúdo já montado (ex.: Stack / layout custom acima da rolagem).
+  final Widget? body;
+
   final VoidCallback? onBack;
 
   /// Botões/ícones extras no fim da barra de título (ex.: atalho pra
@@ -38,7 +48,7 @@ class TournamentDetailSubpageScaffold extends StatelessWidget {
             onBack: onBack ?? () => _defaultBack(context),
             actions: actions,
           ),
-          child: CustomScrollView(slivers: slivers),
+          child: body ?? CustomScrollView(slivers: slivers!),
         ),
       ),
     );

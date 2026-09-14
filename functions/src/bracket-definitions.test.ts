@@ -281,3 +281,125 @@ describe("describeTeamCounts", () => {
     );
   });
 });
+
+/**
+ * ENTRADA CRUZADA NA CHAVE DE PERDEDORES. Nas plantas cuja LB R1 é um bloco
+ * limpo de perdedores da WB R1, quem perde na metade de CIMA da WB entra pela
+ * metade de BAIXO do bloco da LB, e vice-versa. É regra do dono, pela leitura
+ * do atleta na tabela impressa — "perdi em cima, vou pra baixo" — e a fiação
+ * sequencial é o "conserto" óbvio que alguém faria achando que a inversão é
+ * deslize de transcrição.
+ *
+ * A lista é explícita de propósito: derivar o formato por heurística faria a
+ * planta sair da cobertura em silêncio no dia em que alguém mudasse a forma da
+ * LB R1 dela. As demais plantas não entram aqui porque já cruzam de outro
+ * jeito — casam um perdedor de cima com um de baixo DENTRO da mesma partida.
+ */
+describe("entrada cruzada na chave de perdedores", () => {
+  const PLANTAS_CRUZADAS = [8, 14, 16, 26, 32];
+
+  for (const numTeams of PLANTAS_CRUZADAS) {
+    const def = ALL_BRACKET_DEFINITIONS.find(([n]) => n === numTeams)![1];
+
+    it(`bracket-${numTeams}-teams: perdedor de cima entra por baixo, e vice-versa`, () => {
+      const wb1 = def
+        .filter((m) => m.bracket === "WB" && m.round === 1)
+        .map((m) => m.matchNumber)
+        .sort((a, b) => a - b);
+      const lb1 = def
+        .filter((m) => m.bracket === "LB" && m.round === 1)
+        .sort((a, b) => a.matchNumber - b.matchNumber);
+
+      assert.ok(lb1.length >= 2 && lb1.length % 2 === 0, "LB R1 precisa de metades");
+      const metadeDeCima = (posicao: number, total: number) => posicao < total / 2;
+
+      lb1.forEach((m, i) => {
+        const ladoDeCimaNaLb = metadeDeCima(i, lb1.length);
+        for (const src of [m.teamA, m.teamB]) {
+          assert.equal(src.type, "LOSER", `#${m.matchNumber} não recebe perdedor`);
+          const origem = (src as {matchNumber: number}).matchNumber;
+          const posicao = wb1.indexOf(origem);
+          assert.ok(posicao >= 0, `#${m.matchNumber} recebe perdedor de fora da WB R1`);
+          assert.notEqual(
+            metadeDeCima(posicao, wb1.length),
+            ladoDeCimaNaLb,
+            `#${m.matchNumber} (metade ${ladoDeCimaNaLb ? "de cima" : "de baixo"} da LB) ` +
+              `recebe o perdedor da #${origem}, da mesma metade da WB`,
+          );
+        }
+      });
+    });
+  }
+});
+
+/**
+ * PRIMEIRO REENCONTRO POSSÍVEL. Seguindo a fiação, o vencedor e o perdedor de
+ * uma mesma partida podem voltar a se cruzar. Nenhuma planta consegue empurrar
+ * o reencontro para depois da final: é limite do formato, não da fiação.
+ *
+ * Os números abaixo são o que cada planta alcança hoje e travam a única coisa
+ * que nenhum outro teste vê: as entradas ESPELHADAS/CRUZADAS de quem cai da WB
+ * (a da R2, a da R3, a das semis). Mexer em qualquer uma delas antecipa o
+ * reencontro — na de 32, "arrumar" o espelho da R2 derruba de #55 para #49 —
+ * sem quebrar nenhum outro invariante. O teste passaria em silêncio e duas
+ * duplas se reencontrariam no meio da chave.
+ */
+describe("primeiro reencontro possível por planta", () => {
+  const PRIMEIRO_REENCONTRO: Record<number, number> = {
+    4: 5, 5: 6, 6: 8, 7: 10, 8: 12, 9: 12, 10: 13, 11: 17, 12: 17,
+    13: 19, 14: 21, 15: 23, 16: 25, 17: 19, 18: 21, 19: 23, 20: 25,
+    21: 27, 22: 29, 23: 31, 24: 33, 25: 35, 26: 37, 27: 29, 32: 55,
+  };
+
+  type Destino = {match: number; slot: "A" | "B"};
+
+  /** Para onde vai o vencedor e para onde vai o perdedor de cada partida. */
+  function avancos(def: MatchDefinition[]) {
+    const vencedor = new Map<number, Destino>();
+    const perdedor = new Map<number, Destino>();
+    for (const m of def) {
+      for (const [slot, src] of [["A", m.teamA], ["B", m.teamB]] as const) {
+        const destino: Destino = {match: m.matchNumber, slot};
+        if (src.type === "WINNER") vencedor.set(src.matchNumber, destino);
+        if (src.type === "LOSER") perdedor.set(src.matchNumber, destino);
+      }
+    }
+    return {vencedor, perdedor};
+  }
+
+  for (const [numTeams, def] of ALL_BRACKET_DEFINITIONS) {
+    it(`bracket-${numTeams}-teams: ninguém se reencontra antes da #${PRIMEIRO_REENCONTRO[numTeams]}`, () => {
+      const {vencedor, perdedor} = avancos(def);
+
+      /** Partidas (com o slot) que quem sai de `destino` ainda pode alcançar. */
+      const alcance = (destino: Destino | undefined): Set<string> => {
+        if (!destino) return new Set();
+        const alcancadas = new Set([`${destino.match}:${destino.slot}`]);
+        for (const seguinte of [vencedor.get(destino.match), perdedor.get(destino.match)]) {
+          for (const chave of alcance(seguinte)) alcancadas.add(chave);
+        }
+        return alcancadas;
+      };
+
+      let maisCedo = {origem: 0, reencontro: Number.POSITIVE_INFINITY};
+      for (const m of def) {
+        const ganhou = alcance(vencedor.get(m.matchNumber));
+        const perdeu = alcance(perdedor.get(m.matchNumber));
+        for (const chave of ganhou) {
+          const [partida, slot] = chave.split(":");
+          if (!perdeu.has(`${partida}:${slot === "A" ? "B" : "A"}`)) continue;
+          if (Number(partida) < maisCedo.reencontro) {
+            maisCedo = {origem: m.matchNumber, reencontro: Number(partida)};
+          }
+        }
+      }
+
+      assert.equal(
+        maisCedo.reencontro,
+        PRIMEIRO_REENCONTRO[numTeams],
+        `vencedor e perdedor da #${maisCedo.origem} podem se reencontrar já na ` +
+          `#${maisCedo.reencontro}`,
+      );
+    });
+  }
+});

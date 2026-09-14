@@ -1125,7 +1125,7 @@ void main() {
 - [ ] **Step 2: Rodar**
 
 Run: `cd nexago_app && flutter test test/features/tournaments/bracket_layout_plants_test.dart`
-Esperado: 175 testes (25 plantas × 7). Se alguma planta falhar, o defeito é do motor — corrigir o motor, nunca afrouxar a invariante.
+Esperado: cerca de 125 testes (25 plantas × 5). O número exato depende de quantas invariantes já estiverem cobertas de forma equivalente pela suíte irmã `double_elimination_bracket_layout_test.dart`, que as Tasks 5 e 6 ampliaram — escrever uma segunda cópia não acrescenta cobertura. Se alguma planta falhar, o defeito é do motor: corrigir o motor, nunca afrouxar a invariante.
 
 - [ ] **Step 3: Commit**
 
@@ -1280,17 +1280,30 @@ Substituir o `paint` de `BracketConnectorPainter` por:
       final start = debugStartFor(from, to);
       final end = debugEndFor(from, to);
 
-      if ((start.dx - end.dx).abs() < 1) {
-        // Mesma coluna — é a semifinal entrando na final, que na folha mora no
-        // meio. Contorna pela direita em vez de degenerar num traço vertical
-        // em cima dos dois cards.
-        final desvio = start.dx + BracketLayoutMetrics.columnGap / 2;
+      if ((from.position.dx - to.position.dx).abs() < 1) {
+        // MESMA COLUNA — é a partida de cruzamento entrando na final, que mora
+        // na faixa central junto dela. Compare a posição dos CARDS, nunca
+        // start/end: com os dois na mesma coluna, `debugStartFor` devolve a
+        // borda direita e `debugEndFor` a esquerda, e a diferença é a largura
+        // do card, não zero.
+        //
+        // O cotovelo normal desenharia o segmento vertical no meio horizontal
+        // da coluna, ou seja, POR DENTRO dos cards empilhados entre os dois —
+        // e como o painter é o primeiro filho do Stack, a linha some atrás
+        // deles. Nas plantas 10, 12 e 32 a ordem da coluna central é
+        // [cruzamento, 3º lugar, final, cruzamento], então a linha do primeiro
+        // cruzamento até a final desaparece atrás do card do 3º lugar e passa
+        // a impressão de que aquele jogo alimenta o 3º lugar.
+        //
+        // Contorna por FORA, saindo e entrando pela mesma borda direita.
+        final borda = from.position.dx + from.size.width;
+        final desvio = borda + BracketLayoutMetrics.columnGap / 2;
         canvas.drawPath(
           Path()
-            ..moveTo(start.dx, start.dy)
+            ..moveTo(borda, start.dy)
             ..lineTo(desvio, start.dy)
             ..lineTo(desvio, end.dy)
-            ..lineTo(end.dx, end.dy),
+            ..lineTo(borda, end.dy),
           paint,
         );
         continue;

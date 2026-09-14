@@ -192,4 +192,11 @@ uma vez multiplica por três qualquer erro de geometria antes de alguém olhar a
 - Desenhar a queda do perdedor (recusado explicitamente)
 - Telão e versão para imprimir
 - Mudar cards, plantas ou qualquer coisa server-side
-- Eliminatória simples (`buildKnockoutTreeLayout`)
+- **Mudar a forma da eliminatória simples.** Ela continua desenhada como hoje, em colunas da
+  esquerda para a direita — mas isso NÃO significa que o motor a ignore. Nos portais web ela tem
+  função própria (`buildKnockoutTreeLayout`); **no app Dart não existe função separada**:
+  `buildDoubleEliminationBracketLayout` serve os dois formatos, e
+  `tournament_category_view_page.dart:292` manda qualquer categoria com chave para lá. Por isso o
+  motor precisa reconhecer que uma chave sem partidas de ambos os lados (WB e LB) não tem
+  convergência a ancorar, e cair no caminho legado — que reproduz o desenho de hoje. Sem esse
+  reconhecimento, o mata-mata simples renderiza ao contrário, com a final à esquerda de tudo.

@@ -3,10 +3,12 @@ import 'tournament_match.dart';
 /// Partidas da FAIXA CENTRAL da chave convergente: as que juntam um alimentador
 /// da WB com um da LB, mais a Final e a disputa de 3º lugar.
 ///
-/// A identificação sai da FIAÇÃO, nunca do `matchType`: nas plantas de 12 e 32
-/// as semifinais cruzadas são gravadas como "WB" de propósito (marcá-las LB
-/// faria o resolvedor de colocação premiar o perdedor antes do 3º lugar), então
-/// procurar por um tipo "semifinal" não acharia nada.
+/// A identificação sai da FIAÇÃO, nunca do `matchType`: algumas plantas fecham
+/// com cruzamento WB×LB antes da final, e nelas a partida de cruzamento pode
+/// estar tipada "WB" ou "LB". Exemplo: na planta de 10, a partida #15 é "WB"
+/// e a #16 é "LB", ambas alimentando a final. Uma lista de tipos nunca
+/// funcionaria. Marcá-las incorretamente faria o resolvedor de colocação premiar
+/// o perdedor antes do 3º lugar.
 Set<int> bracketConvergenceMatches(List<TournamentMatch> matches) {
   final typeByNumber = <int, String>{
     for (final m in matches) m.matchNumber: m.matchType.trim().toLowerCase(),

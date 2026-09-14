@@ -168,7 +168,7 @@ const STATUS_TONE: Record<OrganizerTournamentStatus, 'orange' | 'green' | 'dim' 
             <og-card kicker="Comunicação" title="Avisos recentes" flex="1">
               <!-- mock (fase 2): backend não persiste histórico de avisos — sendCategoryCommunication
                    retorna só pushCount/links, sem gravar nada (ver comunicacao.component.ts) -->
-              <div class="og-inicio-aviso-row">
+              <!-- <div class="og-inicio-aviso-row">
                 <span class="og-dot og-dot-yellow"></span>
                 <div>
                   <div class="txt">3 inscrições pendentes de pagamento — Copa Verão</div>
@@ -181,7 +181,7 @@ const STATUS_TONE: Record<OrganizerTournamentStatus, 'orange' | 'green' | 'dim' 
                   <div class="txt">Rodada 5 da Liga Beach Tennis publicada</div>
                   <div class="time">ontem</div>
                 </div>
-              </div>
+              </div> -->
             </og-card>
           </div>
         </div>

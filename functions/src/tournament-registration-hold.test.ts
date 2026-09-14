@@ -92,6 +92,33 @@ describe("computeRegistrationHoldExpiryMs", () => {
       NOW + 30 * MIN,
     );
   });
+
+  /** Carência da reversão: 30 minutos para pagar de novo é pouco para quem
+   *  nem sabia que tinha deixado de estar pago. */
+  it("a carência levanta o piso do prazo", () => {
+    assert.equal(
+      computeRegistrationHoldExpiryMs({
+        nowMs: NOW,
+        holdMinutes: 30,
+        graceMinutes: 48 * 60,
+      }),
+      NOW + 48 * 60 * MIN,
+    );
+  });
+
+  /** Piso, não substituição: a carência nunca ENCURTA um prazo maior. */
+  it("a carência não encurta o prazo que o convite vivo empurrou", () => {
+    const inviteExpiry = NOW + 72 * 60 * MIN;
+    assert.equal(
+      computeRegistrationHoldExpiryMs({
+        nowMs: NOW,
+        holdMinutes: 30,
+        liveInviteExpiresAtMs: inviteExpiry,
+        graceMinutes: 48 * 60,
+      }),
+      inviteExpiry + 30 * MIN,
+    );
+  });
 });
 
 describe("computePixWindow", () => {

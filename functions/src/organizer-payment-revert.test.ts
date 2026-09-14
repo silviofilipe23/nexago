@@ -7,6 +7,7 @@ import {
   paymentRevertBlock,
   paymentSnapshotOf,
   shouldCapturePaymentSnapshot,
+  shouldRestoreHoldAfterRevert,
 } from "./organizer-payment-revert";
 
 /** Inscrição depois da baixa manual — o que a callable de confirmar grava. */
@@ -201,5 +202,31 @@ describe("buildPaymentRevertNotificationBody", () => {
     });
     assert.match(body, /não paga/);
     assert.ok(!body.includes(" em ."));
+  });
+});
+
+describe("shouldRestoreHoldAfterRevert", () => {
+  /** O buraco: a confirmação APAGA `holdExpiresAt`, e reverter devolvia a
+   *  inscrição a "não paga" sem o prazo — imune à varredura para sempre. */
+  it("devolve o prazo à inscrição que voltou a não paga", () => {
+    assert.equal(shouldRestoreHoldAfterRevert(confirmed()), true);
+  });
+
+  /** Imunidade por ORIGEM, declarada em `organizer-create-registration`: a
+   *  inscrição que o organizador criou nasce sem prazo e nunca ganha um. */
+  it("não inventa prazo para inscrição criada pelo organizador", () => {
+    assert.equal(
+      shouldRestoreHoldAfterRevert(confirmed({createdVia: "organizer"})),
+      false,
+    );
+  });
+
+  /** Quem já tem prazo não precisa de restauração: quem manda ali é o
+   *  recálculo normal, não a reversão. */
+  it("deixa quieta a inscrição que já tem prazo", () => {
+    assert.equal(
+      shouldRestoreHoldAfterRevert(confirmed({holdExpiresAt: new Date()})),
+      false,
+    );
   });
 });

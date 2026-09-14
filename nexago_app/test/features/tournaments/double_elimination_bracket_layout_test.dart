@@ -137,6 +137,27 @@ void main() {
     expect(cy(20), closeTo((cy(15) + cy(18)) / 2, 0.01));
   });
 
+  test(
+      'partida de cruzamento fica na média dos alimentadores mesmo com '
+      'Final/3º lugar espremidos entre elas — planta 10', () {
+    final plants = loadBracketPlants();
+    final layout = buildDoubleEliminationBracketLayout(plants[10]!);
+    double cy(int n) {
+      final node = layout.nodes.firstWhere((x) => x.matchId == 'm$n');
+      return node.position.dy + node.size.height / 2;
+    }
+
+    // #15 e #16 são as partidas de cruzamento (WB×LB) da planta 10. #17 (3º
+    // lugar) e #18 (Final) não convergem direto e caem entre elas na coluna
+    // central — isso NUNCA pode empurrar #15 ou #16 pra fora da média exata
+    // dos seus dois alimentadores, mesmo quando não sobra espaço de sobra
+    // pro 3º lugar e a Final (nesta planta a janela entre #15 e #16 é curta
+    // demais pra encaixar as duas com o espaçamento padrão — a guarda
+    // encolhe o espaço ENTRE ELAS, nunca empurra uma partida de cruzamento).
+    expect(cy(15), closeTo((cy(11) + cy(13)) / 2, 0.01));
+    expect(cy(16), closeTo((cy(12) + cy(14)) / 2, 0.01));
+  });
+
   test('as duas semifinais não colidem', () {
     final plants = loadBracketPlants();
     final layout = buildDoubleEliminationBracketLayout(plants[12]!);
@@ -187,6 +208,101 @@ void main() {
     expect(nodeOf(layout, 'gf').columnKey, 'DESFECHO');
     expect(layout.canvasSize.width, greaterThan(0));
     expect(layout.canvasSize.height, greaterThan(0));
+  });
+
+  test('planta 25: duas colunas "LB · RODADA 2" recebem keys diferentes', () {
+    final plants = loadBracketPlants();
+    final layout = buildDoubleEliminationBracketLayout(plants[25]!);
+
+    // #10 é o play-in da LB gravado com o MESMO round (2) da coluna real
+    // "LB · RODADA 2" (#19…#26) que ele alimenta — `bracketGroupKey` bate
+    // por coincidência de round, mas são colunas (profundidades) diferentes
+    // e não podem reivindicar a mesma identidade visual.
+    final m10 = nodeOf(layout, 'm10');
+    final m19 = nodeOf(layout, 'm19');
+    expect(m10.columnKey, isNot(m19.columnKey));
+
+    final keys = layout.columns.map((c) => c.key).toList();
+    expect(keys.toSet(), hasLength(keys.length));
+  });
+
+  test('eliminatória simples (sem WB/LB): a Final fica à DIREITA das rodadas',
+      () {
+    // 4 quartas → 2 semis → Final, tipadas 'knockout' + 'Final' — o formato
+    // que `tournament_category_view_page.dart` também manda pra esta função
+    // (o motor próprio de eliminatória simples, `buildKnockoutTreeLayout`,
+    // só existe nos portais web; no app é esta função que serve os dois
+    // formatos). Sem nenhuma partida WB/LB, não existe convergência a
+    // ancorar: cai no caminho legado, que ordena por `bracketGroupSortOrder`
+    // — rodadas em ordem, Final por último (9000) — em vez de tentar montar
+    // a faixa central e jogar a chave inteira pra coluna 0.
+    final knockout = [
+      _match(
+          id: 'qf1',
+          matchType: 'knockout',
+          round: 1,
+          matchNumber: 1,
+          advanceTo: 5,
+          advanceSlot: 'A'),
+      _match(
+          id: 'qf2',
+          matchType: 'knockout',
+          round: 1,
+          matchNumber: 2,
+          advanceTo: 5,
+          advanceSlot: 'B'),
+      _match(
+          id: 'qf3',
+          matchType: 'knockout',
+          round: 1,
+          matchNumber: 3,
+          advanceTo: 6,
+          advanceSlot: 'A'),
+      _match(
+          id: 'qf4',
+          matchType: 'knockout',
+          round: 1,
+          matchNumber: 4,
+          advanceTo: 6,
+          advanceSlot: 'B'),
+      _match(
+          id: 'sf1',
+          matchType: 'knockout',
+          round: 2,
+          matchNumber: 5,
+          advanceTo: 7,
+          advanceSlot: 'A'),
+      _match(
+          id: 'sf2',
+          matchType: 'knockout',
+          round: 2,
+          matchNumber: 6,
+          advanceTo: 7,
+          advanceSlot: 'B'),
+      _match(id: 'final', matchType: 'Final', round: 1, matchNumber: 7),
+    ];
+    final layout = buildDoubleEliminationBracketLayout(knockout);
+
+    expect(layout.nodes, hasLength(7));
+    double xOf(String id) =>
+        layout.nodes.firstWhere((n) => n.matchId == id).position.dx;
+
+    expect(xOf('qf1'), lessThan(xOf('sf1')));
+    expect(xOf('qf2'), lessThan(xOf('sf1')));
+    expect(xOf('qf3'), lessThan(xOf('sf2')));
+    expect(xOf('qf4'), lessThan(xOf('sf2')));
+    expect(xOf('sf1'), lessThan(xOf('final')));
+    expect(xOf('sf2'), lessThan(xOf('final')));
+
+    // A fiação continua ligando as rodadas entre si e na Final.
+    bool hasEdge(String from, String to) =>
+        layout.edges.any((e) => e.fromMatchId == from && e.toMatchId == to);
+    expect(hasEdge('qf1', 'sf1'), isTrue);
+    expect(hasEdge('qf2', 'sf1'), isTrue);
+    expect(hasEdge('qf3', 'sf2'), isTrue);
+    expect(hasEdge('qf4', 'sf2'), isTrue);
+    expect(hasEdge('sf1', 'final'), isTrue);
+    expect(hasEdge('sf2', 'final'), isTrue);
   });
 
   test('edges follow the real advance wiring, not positional pairing', () {

@@ -125,62 +125,62 @@ String bracketColumnHeaderLabel(List<TournamentMatch> columnMatches) {
   return bracketRoundGroupLabel(columnMatches).toUpperCase();
 }
 
-/// Monta a chave interativa na forma CONVERGENTE da tabela impressa: a chave
-/// dos vencedores cresce da esquerda para o centro, a dos perdedores cresce
-/// espelhada da direita para o centro, e o desfecho (cruzamento WB×LB, Final
-/// e 3º lugar) mora na faixa do meio — paridade com o desenho manual que o
-/// dono usa (ver spec de 13/09, `2026-09-13-chave-convergente`).
+/// Monta a chave interativa na forma CONVERGENTE da tabela impressa: a faixa
+/// central é o desfecho (cruzamento WB×LB, Final e 3º lugar), e os dois lados
+/// caminham para trás dela — WB da esquerda, LB da direita espelhada — paridade
+/// com o desenho manual que o dono usa (ver spec de 13/09, `2026-09-13-chave-convergente`).
 ///
-/// - `bracketConvergenceMatches` marca a faixa central; `buildBracketFeedTree`
-///   (por `matches`, `rootMatchNumber`, `'wb'`/`'lb'`) monta, para cada ponto
-///   de convergência, a árvore de alimentação de cada lado. `assignFeedCenters`
-///   /`assignFeedDepths` convertem essa árvore em centro vertical (em LUGARES)
-///   e profundidade (que vira coluna: WB em `centerColumn - depth`, LB em
-///   `centerColumn + depth`). Lados sem alimentador desenhado (bye da WB,
-///   entrada do perdedor na LB) viram linha livre (`emptySlots`), não card.
+/// **Geometria convergente:**
+/// - `bracketConvergenceMatches` marca a faixa central. Para cada ponto de
+///   convergência, `buildBracketFeedTree` monta a árvore de alimentação de cada
+///   lado (WB e LB). `assignFeedCenters`/`assignFeedDepths` convertem essa
+///   árvore em centro vertical (em LUGARES, resultado de subárvore real dos
+///   filhos) e profundidade (que vira coluna: WB em `centerColumn - depth`, LB
+///   em `centerColumn + depth`).
+/// - Posição vertical segue a subárvore real: cada partida fica na média das
+///   posições reais dos seus alimentadores. Bye (lado sem alimentador desenhado
+///   na WB) e entrada do perdedor (na LB) viram linha livre (`emptySlots`), não
+///   card — é o mesmo que a tabela impressa faz.
 /// - Final e 3º lugar que não convergem direto (plantas 12 e 32, onde quem
 ///   cruza são as semifinais) ficam empilhados na MESMA coluna central,
-///   ordenados pelo centro, com guarda de colisão separando.
+///   ordenados pelo centro, com guarda de colisão em duas passadas: primeiro
+///   posiciona as partidas com subárvore, depois encaixa as sem-árvore nos
+///   espaços, sem jamais mexer nas já fixadas.
 /// - Coluna central mista (cruzamento + Final + 3º lugar juntos, como nas
 ///   plantas 10/12/32): rótulo E key viram `'DESFECHO'` em vez do rótulo da
 ///   primeira partida — senão a Final ficaria escondida atrás de "WB · RODADA
 ///   N" no seletor de fases do canvas. `columnKey` do nó sempre concorda com
 ///   a key da coluna em que ele foi colocado.
-/// - **Caminho legado**: quando `bracketConvergenceMatches` devolve vazio, OU
-///   nenhuma partida tem `winnerAdvanceMatchNumber`, OU a chave não tem
-///   partidas de AMBAS as chaves (nenhuma `wb` ou nenhuma `lb` — o caso da
-///   eliminatória simples, que também é servida por esta função: sem duas
-///   chaves não existe convergência a ancorar), não existe ponto de encontro
-///   para a geometria convergente — é também o caso de chaves anteriores à
-///   migração que passou a gravar `winnerAdvance` (`bracket-placement-tiers.ts`
-///   trata o mesmo buraco do lado do servidor: sem fiação não dá para saber
-///   quem seguiu vivo). Nesse caso o motor cai num agrupamento simples por
-///   `bracketGroupKey`, ordenado por `bracketGroupSortOrder`, jogos em slots
-///   fixos `(2i+1)·rowUnit` na ordem de `matchNumber` — sem geometria
-///   convergente, sem linha livre; é o mesmo resultado visual que o motor de
-///   tracks antigo dava pra mata-mata simples (rodadas em ordem, 3º lugar,
-///   Final por último). Partidas que sobrarem sem coluna mesmo numa chave COM
-///   convergência (caso misto, que não ocorre nas 25 plantas reais mas é
-///   possível numa chave editada à mão) caem no mesmo agrupamento, em colunas
-///   extras à direita de tudo.
-/// - **Keys de coluna únicas**: duas colunas distintas (índices diferentes)
-///   podem calcular o mesmo `bracketGroupKey` por coincidência — ex.: planta
-///   25, onde o play-in `#10` (LB, `round` 2) fica numa coluna própria mas
-///   tem o MESMO round da coluna "LB · RODADA 2" de verdade (`#19`…`#26`).
-///   `_uniqueColumnKey` sufixa (`+2`, `+3`, …) a segunda ocorrência em diante,
-///   e `columnKey` do nó sempre recebe a key FINAL (já sufixada) da coluna.
-/// - **Guarda de colisão em duas passadas**: Final e 3º lugar que não
-///   convergem direto (plantas 10, 12 e 32) recebem um centro só PROVISÓRIO
-///   em volta do meio do bloco, espalhado pra não empatar entre si — mas
-///   nunca podem empurrar uma partida de cruzamento pra fora da média exata
-///   dos seus alimentadores. Por isso a guarda roda primeiro só entre as
-///   partidas com centro PRÓPRIO (a mesma guarda de sempre, sem Final/3º
-///   lugar no meio), e só depois encaixa as sem-árvore nos espaços que
-///   sobraram — sem jamais reabrir uma posição já fixada na primeira passada.
-/// - Conectores: ponteiros reais de avanço (`winnerAdvance`), só dentro da
-///   mesma chave (WB→WB, LB→LB) — sem linha cruzando WB↔LB nem entrando na
-///   Final. `loserAdvance` nunca vira aresta (a queda do perdedor não se
-///   desenha, decisão do dono).
+///
+/// **Conectores:**
+/// - Arestas seguem os ponteiros reais de avanço (`winnerAdvance`) em qualquer
+///   direção — inclusive LB→faixa central, que é o que faz os dois lados se
+///   encontrarem na forma convergente.
+/// - `loserAdvance` NÃO gera aresta (a queda do perdedor não se desenha,
+///   decisão do dono — como a tabela impressa que escreve "P 15" em vez de
+///   puxar uma linha).
+///
+/// **Caminho legado (sem convergência):**
+/// - Dispara quando: `bracketConvergenceMatches` é vazio, OU nenhuma partida
+///   tem `winnerAdvanceMatchNumber`, OU a chave não tem partidas de AMBAS as
+///   chaves (nenhuma `wb` ou nenhuma `lb` — o caso da eliminatória simples,
+///   que também é servida por esta função). Sem dois lados não existe ponto de
+///   encontro para a geometria convergente.
+/// - Agrupa por `bracketGroupKey`, ordenado por `bracketGroupSortOrder`,
+///   jogos em slots fixos `(2i+1)·rowUnit` na ordem de `matchNumber` — sem
+///   geometria convergente, sem linha livre. Resultado visual igual ao motor de
+///   fases antigo: rodadas em ordem, depois 3º lugar, Final por último.
+/// - Partidas que sobrarem sem coluna mesmo numa chave COM convergência (caso
+///   misto, não ocorre nas 25 plantas reais mas é possível numa chave editada
+///   à mão) caem no agrupamento legado, em colunas extras à direita de tudo.
+///
+/// **Keys de coluna únicas:**
+/// - Duas colunas distintas (índices diferentes) podem calcular o mesmo
+///   `bracketGroupKey` por coincidência — ex.: planta 25, onde o play-in
+///   `#10` (LB, `round` 2) fica numa coluna própria mas tem o MESMO round da
+///   coluna "LB · RODADA 2" de verdade (`#19`…`#26`). `_uniqueColumnKey` sufixa
+///   (`+2`, `+3`, …) a segunda ocorrência em diante, e `columnKey` do nó sempre
+///   recebe a key FINAL (já sufixada) da coluna.
 DoubleEliminationBracketLayout buildDoubleEliminationBracketLayout(
   List<TournamentMatch> matches,
 ) {

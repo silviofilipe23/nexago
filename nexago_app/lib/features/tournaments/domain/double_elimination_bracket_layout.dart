@@ -261,12 +261,37 @@ DoubleEliminationBracketLayout buildDoubleEliminationBracketLayout(
     }
     centerColumn = wbDepth;
 
-    // Cada bloco ocupa uma faixa vertical própria, empilhadas de cima para baixo.
+    // Quantas partidas vão precisar de lugar na faixa central SEM árvore
+    // própria (Final e 3º lugar que não convergem direto — plantas 10, 12 e
+    // 32): tanto as que ficam em `blocos` mas não têm alimentador de nenhum
+    // lado (`trees[root]` com os dois `null`) quanto as que nem chegam a
+    // entrar em `blocos` (a Final nessas três plantas, filtrada por ser
+    // alimentada por outra partida de convergência). Sabendo isso ANTES de
+    // empilhar os blocos dá pra reservar o lugar delas em vez de espremê-las
+    // depois — é a decisão do dono: abrir espaço, não encolher o card.
+    final folgaCentral = convergence.where((root) {
+      final t = trees[root];
+      return t == null || (t['wb'] == null && t['lb'] == null);
+    }).length;
+
+    // Cada bloco ocupa uma faixa vertical própria, empilhadas de cima para
+    // baixo, com uma folga de `folgaCentral` LUGARES entre o primeiro e o
+    // segundo bloco real — é ali, no meio dos dois lados que convergem, que
+    // a Final e o 3º lugar (ou qualquer outra partida sem árvore) vão morar.
+    // Cada lugar vale `2·rowUnit` (162px), mais que a altura do card
+    // (150px), então `folgaCentral` lugares bastam pra essa quantidade de
+    // partidas sem espremer nada. Plantas com um só bloco real (a maioria —
+    // a Final converge direto) não têm segundo bloco, então a folga nunca é
+    // inserida: só as plantas que cruzam (10, 12, 32) crescem um pouco.
     var slotCursor = 0.0;
+    var blocosReaisVistos = 0;
     for (final root in blocos) {
       final wb = trees[root]!['wb'];
       final lb = trees[root]!['lb'];
       if (wb == null && lb == null) continue; // 3º lugar: posicionado depois
+
+      blocosReaisVistos++;
+      if (blocosReaisVistos == 2) slotCursor += folgaCentral;
 
       final span = math.max(wb?.span ?? 0, lb?.span ?? 0);
       for (final entry in <MapEntry<String, BracketFeedNode?>>[

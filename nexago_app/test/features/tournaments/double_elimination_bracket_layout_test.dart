@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/features/tournaments/domain/bracket_feed_tree.dart';
 import 'package:nexago_app/features/tournaments/domain/double_elimination_bracket_layout.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
 
@@ -150,12 +151,78 @@ void main() {
     // #15 e #16 são as partidas de cruzamento (WB×LB) da planta 10. #17 (3º
     // lugar) e #18 (Final) não convergem direto e caem entre elas na coluna
     // central — isso NUNCA pode empurrar #15 ou #16 pra fora da média exata
-    // dos seus dois alimentadores, mesmo quando não sobra espaço de sobra
-    // pro 3º lugar e a Final (nesta planta a janela entre #15 e #16 é curta
-    // demais pra encaixar as duas com o espaçamento padrão — a guarda
-    // encolhe o espaço ENTRE ELAS, nunca empurra uma partida de cruzamento).
+    // dos seus dois alimentadores. A planta 10 é onde isso quebrava antes:
+    // os dois blocos são pequenos, e sem reservar lugar pra #17/#18 a faixa
+    // central sobrava só 121,5px pra dois cards de 150px. A correção abre
+    // espaço ENTRE os blocos (uma folga em LUGARES do tamanho de quantas
+    // partidas sem árvore existem) em vez de espremer #17/#18 no meio.
     expect(cy(15), closeTo((cy(11) + cy(13)) / 2, 0.01));
     expect(cy(16), closeTo((cy(12) + cy(14)) / 2, 0.01));
+  });
+
+  test('nenhum par de cards se sobrepõe em nenhuma das 25 plantas', () {
+    final plants = loadBracketPlants();
+    for (final entry in plants.entries) {
+      final layout = buildDoubleEliminationBracketLayout(entry.value);
+      for (var i = 0; i < layout.nodes.length; i++) {
+        for (var j = i + 1; j < layout.nodes.length; j++) {
+          final a = layout.nodes[i];
+          final b = layout.nodes[j];
+          // Cards separados se não se tocam em X OU não se tocam em Y.
+          final separados = a.position.dx + a.size.width <= b.position.dx ||
+              b.position.dx + b.size.width <= a.position.dx ||
+              a.position.dy + a.size.height <= b.position.dy ||
+              b.position.dy + b.size.height <= a.position.dy;
+          expect(
+            separados,
+            isTrue,
+            reason: 'planta ${entry.key}: ${a.matchId} e ${b.matchId} '
+                'se sobrepõem',
+          );
+        }
+      }
+    }
+  });
+
+  test(
+      'toda partida de cruzamento fica na média dos alimentadores, '
+      'nas 25 plantas', () {
+    final plants = loadBracketPlants();
+    for (final entry in plants.entries) {
+      final matches = entry.value;
+      final layout = buildDoubleEliminationBracketLayout(matches);
+      final convergencia = bracketConvergenceMatches(matches);
+      final centerYById = {
+        for (final node in layout.nodes)
+          node.matchId: node.position.dy + node.size.height / 2,
+      };
+      final alimentadores = <int, List<int>>{};
+      for (final m in matches) {
+        final dest = m.winnerAdvanceMatchNumber;
+        if (dest == null) continue;
+        (alimentadores[dest] ??= <int>[]).add(m.matchNumber);
+      }
+      for (final destino in convergencia) {
+        final fontes = alimentadores[destino];
+        if (fontes == null || fontes.length != 2) continue;
+        // Uma partida de convergência alimentada por OUTRA partida de
+        // convergência (a Final nas plantas 10/12/32, alimentada pelas DUAS
+        // partidas de cruzamento) não é ela mesma o cruzamento — quem cruza
+        // são as fontes. Ela é posicionada pela guarda de colisão (coberta
+        // pelo teste de overlap acima), não por esta média.
+        if (fontes.every(convergencia.contains)) continue;
+        final cyDestino = centerYById['m$destino'];
+        final cyA = centerYById['m${fontes[0]}'];
+        final cyB = centerYById['m${fontes[1]}'];
+        if (cyDestino == null || cyA == null || cyB == null) continue;
+        expect(
+          cyDestino,
+          closeTo((cyA + cyB) / 2, 0.5),
+          reason: 'planta ${entry.key}: #$destino não está na média de '
+              '$fontes',
+        );
+      }
+    }
   });
 
   test('as duas semifinais não colidem', () {

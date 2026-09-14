@@ -34,6 +34,26 @@ class BracketConnectorPainter extends CustomPainter {
     );
   }
 
+  /// X do desvio do contorno "por fora" (aresta de MESMA coluna — cruzamento
+  /// entrando na final, plantas 10/12/32). Usa 3/4 do `columnGap`, nunca a
+  /// metade: o `midX` de QUALQUER aresta entre colunas vizinhas cai
+  /// exatamente na metade do gap entre as duas bordas internas (start/end
+  /// ficam sempre a exatamente `columnGap` de distância, por construção da
+  /// grade de colunas). Nas plantas 10/12/32 a coluna central recebe uma
+  /// aresta vizinha pela MESMA borda direita que o contorno usa (ex.: planta
+  /// 12, #17→#19 chega pela borda direita de #19, e #19→#22 contorna por ali
+  /// também) — com a mesma fração de 1/2 os dois segmentos verticais caíam
+  /// no mesmo x e o traço virava um "cano" contínuo sem separação visual
+  /// entre as duas ligações (achado da revisão do dono). 3/4 continua dentro
+  /// do mesmo vão (não invade a coluna vizinha), mas nunca coincide com a
+  /// metade que as arestas normais usam.
+  @visibleForTesting
+  double debugDetourXFor(BracketLayoutNode from) {
+    return from.position.dx +
+        from.size.width +
+        BracketLayoutMetrics.columnGap * 3 / 4;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
@@ -68,7 +88,7 @@ class BracketConnectorPainter extends CustomPainter {
         //
         // Contorna por FORA, saindo e entrando pela mesma borda direita.
         final borda = from.position.dx + from.size.width;
-        final desvio = borda + BracketLayoutMetrics.columnGap / 2;
+        final desvio = debugDetourXFor(from);
         canvas.drawPath(
           Path()
             ..moveTo(borda, start.dy)

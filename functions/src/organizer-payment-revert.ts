@@ -15,6 +15,7 @@
  * como "pendente" quem estava na lista de espera.
  */
 import {ORGANIZER_DIRECT_PAYMENT_METHOD} from "./organizer-category-ops-payments";
+import {ORGANIZER_CREATED_VIA} from "./organizer-create-registration-core";
 
 /** Campo do doc de inscrição onde o retrato do "antes" é guardado. */
 export const PAYMENT_SNAPSHOT_FIELD = "paymentBeforeConfirm";
@@ -169,4 +170,33 @@ export function buildPaymentRevertNotificationBody(params: {
   }
   return `O organizador desfez a confirmação do pagamento da sua inscrição${where}. ` +
     "A inscrição voltou a constar como não paga — fale com ele se isso não bate.";
+}
+
+/**
+ * Reverter a baixa precisa DEVOLVER o prazo da vaga?
+ *
+ * A confirmação apaga `holdExpiresAt` — a vaga passou a ser comprada, e vaga
+ * comprada não tem prazo. Reverter desfaz a compra, mas o campo apagado não
+ * voltava sozinho: a inscrição caía em "não paga" e, sem o campo, ficava fora
+ * da varredura (`expirePendingTournamentRegistrations`) para sempre, segurando
+ * vaga na categoria sem ninguém ter pago nada.
+ *
+ * Duas recusas, as duas por motivo próprio:
+ *
+ * - `createdVia: "organizer"` é imunidade por ORIGEM, declarada em
+ *   `organizer-create-registration`: a inscrição que o organizador criou nasce
+ *   sem prazo de propósito. Reverter um pagamento não é ocasião para inventar
+ *   um prazo que ela nunca teve.
+ * - Quem ainda tem o campo não perdeu nada para restaurar — ali quem manda é o
+ *   recálculo normal (`refreshRegistrationHold`), não a reversão.
+ *
+ * Quem responde `true` não ganha prazo aqui: ganha uma passada do recálculo,
+ * que ainda pode decidir que não há prazo nenhum (fila de espera, torneio com
+ * o prazo desligado, ou dinheiro que sobreviveu à reversão).
+ */
+export function shouldRestoreHoldAfterRevert(
+  registration: Record<string, unknown>,
+): boolean {
+  if (registration["createdVia"] === ORGANIZER_CREATED_VIA) return false;
+  return registration["holdExpiresAt"] === undefined;
 }

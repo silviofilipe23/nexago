@@ -211,6 +211,24 @@ describe("refreshRegistrationHold", () => {
     assert.notEqual(holdMsOf(fake), NOW + 30 * MIN);
   });
 
+  /** Elo com `organizerRevertRegistrationPayment`: reverter a baixa devolve o
+   *  prazo, mas com a carência — 30 minutos secos cairiam sobre um atleta que
+   *  via "Pago" e não fazia ideia de que voltou a dever. */
+  it("a carência da reversão chega ao documento", async () => {
+    const {fake, db} = makeDb();
+    seedTournament(fake);
+    // Retrato do pós-reversão: a confirmação apagou o campo e a inscrição
+    // voltou a não paga.
+    seedRegistration(fake, {isPaid: false, paymentRevertedAt: new Date()});
+
+    await refreshRegistrationHold(db, PROJECT, REG_ID, {
+      nowMs: NOW,
+      graceMinutes: 48 * 60,
+    });
+
+    assert.equal(holdMsOf(fake), NOW + 48 * 60 * MIN);
+  });
+
   it("fila de espera não ocupa vaga, então não ganha prazo", async () => {
     const {fake, db} = makeDb();
     seedTournament(fake);

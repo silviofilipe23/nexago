@@ -30,6 +30,7 @@ import {
   PAYMENT_SNAPSHOT_FIELD,
   buildPaymentRevertNotificationBody,
   buildPaymentRevertPlan,
+  shouldRestoreHoldAfterRevert,
   paymentRevertBlock,
   paymentSnapshotOf,
   shouldCapturePaymentSnapshot,
@@ -77,6 +78,9 @@ import {organizerContactFromUser} from "./tournament-contacts";
 import {notifyBracketPublishedAthletes} from "./organizer-category-ops-bracket-notify";
 import {artifactsInscriptionsPath, artifactsMatchesPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {refreshRegistrationHold} from "./tournament-registration-hold-ops";
+import {REGISTRATION_HOLD_REVERT_GRACE_MINUTES} from
+  "./tournament-registration-hold";
 import {registrationHoldClearedFields} from
   "./tournament-registration-hold-ops";
 import {categoryPreset} from "./category-presets";
@@ -819,6 +823,13 @@ export const organizerRevertRegistrationPayment = onCall({
       paymentRevertedByUid: uid,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    // A baixa deste atleta apagou o prazo da vaga; desfazê-la sem devolver o
+    // prazo deixaria a inscrição fora da varredura para sempre.
+    if (shouldRestoreHoldAfterRevert(data)) {
+      await refreshRegistrationHold(db, projectId, registrationId, {
+        graceMinutes: REGISTRATION_HOLD_REVERT_GRACE_MINUTES,
+      });
+    }
     try {
       const tournament = await loadTournamentData(db, projectId, tournamentId);
       const body = buildPaymentRevertNotificationBody({
@@ -868,6 +879,17 @@ export const organizerRevertRegistrationPayment = onCall({
     paymentRevertedByUid: uid,
     updatedAt: FieldValue.serverTimestamp(),
   });
+
+  // Mesma dívida da confirmação: ela apagou o prazo da vaga, e sem devolvê-lo
+  // a inscrição volta a "não paga" já imune à varredura. O recálculo relê o doc
+  // JÁ revertido, então ele ainda pode concluir que não há prazo — a reversão
+  // que devolveu a inscrição para a fila de espera, ou para um pagamento que
+  // sobreviveu ao retrato, continua sem prazo, como deve.
+  if (shouldRestoreHoldAfterRevert(data)) {
+    await refreshRegistrationHold(db, projectId, registrationId, {
+      graceMinutes: REGISTRATION_HOLD_REVERT_GRACE_MINUTES,
+    });
+  }
 
   // O atleta viu "Pago" e a inscrição volta a não paga: sem aviso ele só
   // descobre por acaso, abrindo o app.

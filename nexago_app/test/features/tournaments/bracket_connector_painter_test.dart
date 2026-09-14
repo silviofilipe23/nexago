@@ -31,7 +31,6 @@ void main() {
       nodes: const [origem, destino],
       edges: const [BracketLayoutEdge(fromMatchId: 'lb', toMatchId: 'centro')],
       columns: const [],
-      emptySlots: const [],
       canvasSize: const Size(1000, 400),
     );
     final painter = BracketConnectorPainter(
@@ -73,7 +72,6 @@ void main() {
         nodes: [],
         edges: [],
         columns: [],
-        emptySlots: [],
         canvasSize: Size.zero,
       ),
       nodeByMatchId: const {},
@@ -82,21 +80,20 @@ void main() {
     expect(painter.debugEndFor(origem, destino).dx, 356);
   });
 
-  testWidgets('a linha livre do bye é desenhada na chave de 12',
-      (tester) async {
+  testWidgets(
+      'lado sem alimentador não desenha traço nenhum: a chave de 12 só tem '
+      'aresta entre cards', (tester) async {
+    // O bye da WB (#5 recebe o seed 2) e a entrada do perdedor na LB (#17
+    // recebe P15) continuam RESERVANDO o lugar que empurra o jogo para a
+    // altura certa — mas não viram mais linha (pedido do dono: nada de traço
+    // sobrando onde não há partida). Toda aresta desenhada liga dois cards.
     final plants = loadBracketPlants();
     final layout = buildDoubleEliminationBracketLayout(plants[12]!);
-    // #5 recebe o seed 2 (bye): tem um lado livre, e ele corre para a ESQUERDA
-    // porque #5 está na WB.
-    final doJogo5 = layout.emptySlots.where((s) => s.matchId == 'm5').toList();
-    expect(doJogo5, hasLength(1));
-    expect(doJogo5.single.to.dx, lessThan(doJogo5.single.from.dx));
-
-    // #17 recebe P15: lado livre correndo para a DIREITA, porque está na LB.
-    final doJogo17 =
-        layout.emptySlots.where((s) => s.matchId == 'm17').toList();
-    expect(doJogo17, hasLength(1));
-    expect(doJogo17.single.to.dx, greaterThan(doJogo17.single.from.dx));
+    final ids = {for (final n in layout.nodes) n.matchId};
+    for (final edge in layout.edges) {
+      expect(ids, contains(edge.fromMatchId));
+      expect(ids, contains(edge.toMatchId));
+    }
   });
 
   test(

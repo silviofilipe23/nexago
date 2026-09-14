@@ -6,7 +6,7 @@ import { bracketGroupKey, bracketGroupSortOrder, buildBracketColumns, isBracketM
  *  direita pro centro, e o desfecho (cruzamento WB×LB, Final, 3º Lugar) fica no meio — a
  *  leitura da tabela impressa que o dono usa. Os nomes dos tipos/funções abaixo
  *  (`BracketFeedNode`, `bracketConvergenceMatches`, `buildBracketFeedTree`,
- *  `assignFeedCenters`, `assignEmptySlotCenters`, `assignFeedDepths`) espelham o Dart de
+ *  `assignFeedCenters`, `assignFeedDepths`) espelham o Dart de
  *  propósito, pra as duas árvores ficarem comparáveis linha a linha.
  *
  *  **Decisões que custaram uma rodada de correção cada no app (preservar aqui):**
@@ -17,8 +17,9 @@ import { bracketGroupKey, bracketGroupSortOrder, buildBracketColumns, isBracketM
  *    como `LB` (ver `bracketConvergenceMatches`).
  *  - Uma partida de convergência alimentada por OUTRA partida de convergência não abre bloco
  *    — é o caso da Final nas três plantas que cruzam (ver `buildDoubleEliminationLayout`).
- *  - Todo lado sem alimentador desenhado vira LUGAR VAGO: ocupa espaço e vira linha livre
- *    (`emptySlots`) — é o que reserva o lugar do bye e o da entrada do perdedor.
+ *  - Todo lado sem alimentador desenhado vira LUGAR VAGO: RESERVA o lugar do bye e o da
+ *    entrada do perdedor (empurrando o jogo pra altura certa) sem desenhar nada — nem card,
+ *    nem traço (pedido do dono: sem linha sobrando onde não há partida).
  *  - A posição do pai é a média das posições REAIS dos filhos, não o meio geométrico do
  *    intervalo — as duas só coincidem em chave simétrica (ver `assignFeedCenters`).
  *  - Final e 3º lugar: Final à ESQUERDA, 3º lugar à DIREITA, mesma altura, SEM nenhuma aresta
@@ -77,19 +78,10 @@ export interface BracketLayoutEdge {
   d: string;
 }
 
-/** Ponta da linha livre que a tabela impressa desenha no lado sem alimentador (bye da WB,
- *  entrada do perdedor na LB) — sem card na ponta, só o traço até a coluna vizinha. */
-export interface BracketEmptySlot {
-  readonly matchId: string;
-  readonly from: { x: number; y: number };
-  readonly to: { x: number; y: number };
-}
-
 export interface BracketLayout {
   nodes: BracketLayoutNode[];
   labels: BracketLayoutLabel[];
   edges: BracketLayoutEdge[];
-  emptySlots: BracketEmptySlot[];
   width: number;
   height: number;
 }
@@ -269,23 +261,6 @@ export function assignFeedCenters(node: BracketFeedNode, slotStart: number, out:
   }
 }
 
-/** Centro (em lugares) dos LUGARES VAGOS de cada partida. É daqui que sai a ponta da linha
- *  livre que a tabela impressa desenha no lado do bye e no lado da entrada do perdedor. */
-export function assignEmptySlotCenters(node: BracketFeedNode, slotStart: number, out: Map<number, number[]>): void {
-  let cursor = slotStart;
-  for (const child of node.children) {
-    if (child.matchNumber == null) {
-      if (node.matchNumber != null) {
-        const list = out.get(node.matchNumber) ?? out.set(node.matchNumber, []).get(node.matchNumber)!;
-        list.push(cursor + child.span / 2);
-      }
-    } else {
-      assignEmptySlotCenters(child, cursor, out);
-    }
-    cursor += child.span;
-  }
-}
-
 /** Profundidade de cada jogo: `depth` na raiz da árvore (a coluna encostada na faixa
  *  central), crescendo ao se afastar do centro. */
 export function assignFeedDepths(node: BracketFeedNode, depth: number, out: Map<number, number>): void {
@@ -383,9 +358,6 @@ export function buildDoubleEliminationLayout(matches: readonly TournamentMatch[]
   const centerSlot = new Map<number, number>();
   const columnOf = new Map<number, number>();
 
-  /** Centros dos lados sem alimentador, por partida — viram a linha livre. */
-  const vagos = new Map<number, number[]>();
-
   /** Partidas de convergência SEM árvore de alimentação própria (Final e 3º lugar que não
    *  convergem direto — plantas 10, 12 e 32, onde quem cruza são as partidas de cruzamento,
    *  não elas). O centro delas é só um palpite em volta do meio do bloco: a materialização
@@ -403,7 +375,7 @@ export function buildDoubleEliminationLayout(matches: readonly TournamentMatch[]
     // Sem ponto de encontro alcançável: chave sem fiação nenhuma (legado anterior à
     // migração que passou a gravar `winnerAdvance`), fiação que nunca cruza WB×LB nem chega
     // numa Final/3º lugar, OU falta uma das duas chaves. A geometria convergente não tem
-    // onde se ancorar. Cai no agrupamento simples, sem linha livre e sem coluna central.
+    // onde se ancorar. Cai no agrupamento simples, sem coluna central.
     placeLegacyGroups(matches, 0, columnOf, centerSlot);
   } else {
     // Uma partida de convergência alimentada por OUTRA partida de convergência não abre
@@ -468,7 +440,6 @@ export function buildDoubleEliminationLayout(matches: readonly TournamentMatch[]
         const centers = new Map<number, number>();
         assignFeedCenters(tree, inicio, centers);
         for (const [k, v] of centers) centerSlot.set(k, v);
-        assignEmptySlotCenters(tree, inicio, vagos);
         const depths = new Map<number, number>();
         assignFeedDepths(tree, 1, depths);
         for (const [number, d] of depths) {
@@ -725,7 +696,6 @@ export function buildDoubleEliminationLayout(matches: readonly TournamentMatch[]
   }
 
   const edges = buildAdvanceEdges(matches, nodeByMatchNumber);
-  const emptySlots = buildEmptySlots(vagos, columnOf, byNumber, centerColumn);
 
   let width = 0;
   let height = 0;
@@ -734,12 +704,8 @@ export function buildDoubleEliminationLayout(matches: readonly TournamentMatch[]
     height = Math.max(height, node.top + BRACKET_MATCH_HEIGHT);
   }
   for (const label of labels) width = Math.max(width, label.left + BRACKET_MATCH_WIDTH);
-  for (const slot of emptySlots) {
-    width = Math.max(width, slot.from.x, slot.to.x);
-    height = Math.max(height, slot.from.y, slot.to.y);
-  }
 
-  return { nodes, labels, edges, emptySlots, width, height };
+  return { nodes, labels, edges, width, height };
 }
 
 function firstConvergenceOfType(convergence: Set<number>, byNumber: Map<number, TournamentMatch>, predicate: (typeLower: string) => boolean): number {
@@ -793,27 +759,6 @@ function buildAdvanceEdges(matches: readonly TournamentMatch[], nodeByMatchNumbe
     edges.push({ d: pathFor(from, to) });
   }
   return edges;
-}
-
-/** Linha livre de cada lado vago, correndo para FORA do centro — para a esquerda na WB,
- *  para a direita na LB, ocupando a largura da coluna vizinha. */
-function buildEmptySlots(vagos: Map<number, number[]>, columnOf: Map<number, number>, byNumber: Map<number, TournamentMatch>, centerColumn: number): BracketEmptySlot[] {
-  const emptySlots: BracketEmptySlot[] = [];
-  for (const [number, centros] of vagos) {
-    const col = columnOf.get(number);
-    const match = byNumber.get(number);
-    if (col == null || match == null) continue;
-    const paraEsquerda = col <= centerColumn;
-    for (const c of centros) {
-      const y = HEADER_H + c * 2 * ROW_UNIT;
-      emptySlots.push({
-        matchId: match.id,
-        from: { x: paraEsquerda ? colX(col) : colX(col) + BRACKET_MATCH_WIDTH, y },
-        to: { x: paraEsquerda ? colX(col - 1) : colX(col + 1) + BRACKET_MATCH_WIDTH, y },
-      });
-    }
-  }
-  return emptySlots;
 }
 
 /** Árvore do mata-mata SIMPLES (eliminatória simples / fase final de grupos+mata-mata) —
@@ -922,7 +867,7 @@ export function buildKnockoutTreeLayout(matches: readonly TournamentMatch[]): Br
   }
   for (const label of labels) width = Math.max(width, label.left + BRACKET_MATCH_WIDTH);
 
-  return { nodes, labels, edges, emptySlots: [], width, height };
+  return { nodes, labels, edges, width, height };
 }
 
 /** Árvore da categoria: DE quando há partidas WB/LB; senão a do mata-mata simples. Recebe as

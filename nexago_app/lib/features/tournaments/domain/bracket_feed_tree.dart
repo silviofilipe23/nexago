@@ -62,8 +62,8 @@ class BracketFeedNode {
   });
 
   /// `null` é LUGAR VAGO: o lado da partida que não tem alimentador desenhado —
-  /// o bye na WB e a entrada do perdedor na LB. Ocupa espaço e não vira card;
-  /// é ele que empurra o jogo para a altura certa, como na tabela impressa.
+  /// o bye na WB e a entrada do perdedor na LB. Ocupa espaço e não desenha
+  /// nada; é ele que empurra o jogo para a altura certa.
   final int? matchNumber;
   final List<BracketFeedNode> children;
 
@@ -169,9 +169,9 @@ BracketFeedNode? buildBracketFeedTree(
 /// 24) o filho fica deslocado dentro do próprio intervalo, e usar o meio
 /// geométrico ali gera um conector torto. O meio geométrico só é usado para o
 /// LUGAR VAGO, que é sempre uma ponta sem posição própria — é ele quem não
-/// vira entrada no mapa, o que reserva o espaço do bye sem criar card. Medir
-/// por extensão de subárvore (e não dobrar por rodada) é o que mantém as
-/// plantas irregulares de pé — play-ins e a entrada desigual na LB das
+/// vira entrada no mapa, o que reserva o espaço do bye sem desenhar nada.
+/// Medir por extensão de subárvore (e não dobrar por rodada) é o que mantém
+/// as plantas irregulares de pé — play-ins e a entrada desigual na LB das
 /// plantas 20 a 24.
 void assignFeedCenters(
   BracketFeedNode node,
@@ -193,27 +193,6 @@ void assignFeedCenters(
   if (node.matchNumber != null) {
     out[node.matchNumber!] =
         childCenters.reduce((a, b) => a + b) / childCenters.length;
-  }
-}
-
-/// Centro (em lugares) dos LUGARES VAGOS de cada partida. É daqui que sai a
-/// ponta da linha livre que a tabela impressa desenha no lado do bye e no lado
-/// da entrada do perdedor.
-void assignEmptySlotCenters(
-  BracketFeedNode node,
-  double slotStart,
-  Map<int, List<double>> out,
-) {
-  var cursor = slotStart;
-  for (final child in node.children) {
-    if (child.isEmptySlot) {
-      if (node.matchNumber != null) {
-        (out[node.matchNumber!] ??= <double>[]).add(cursor + child.span / 2);
-      }
-    } else {
-      assignEmptySlotCenters(child, cursor, out);
-    }
-    cursor += child.span;
   }
 }
 

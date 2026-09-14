@@ -7,9 +7,12 @@ import { MatchDefinition } from './bracket-definitions';
  * PRAIA", cuja numeração de jogos (#1..#22) é preservada aqui como
  * `matchNumber`.
  *
- * O FECHAMENTO É O DA PLANTA DE 32, NÃO O DAS VIZINHAS (4–11, 13–27). Nelas a
- * WB vai até uma final única, a LB até a dela, e as duas se cruzam UMA vez na
- * grande final. Aqui a WB para com DOIS sobreviventes (#15 e #16, que nunca se
+ * O FECHAMENTO É POR CRUZAMENTO, como nas plantas de 10 e de 32 — e ao
+ * contrário das outras 22, em que a WB vai até uma final única, a LB até a
+ * dela, e as duas se encontram UMA vez na grande final. (A de 10 tipa uma das
+ * duas partidas de cruzamento como LB e a outra como WB, então nem o tamanho
+ * da chave nem o `matchType` servem para reconhecer o padrão: só a fiação.)
+ * Aqui a WB para com DOIS sobreviventes (#15 e #16, que nunca se
  * enfrentam) e a LB também com dois (#17 e #18); o cruzamento acontece DUAS
  * vezes, nas semifinais #19 e #20 — cada sobrevivente da WB pega o da LB do
  * lado oposto. Os vencedores fazem a final (#22) e os perdedores o 3º lugar

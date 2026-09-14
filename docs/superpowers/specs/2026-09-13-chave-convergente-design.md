@@ -69,9 +69,20 @@ ancora a última coluna por `matchNumber`), e não de **qual partida de desfecho
 A faixa central passa a ser a âncora, e o layout caminha para trás pelos dois lados.
 
 1. **Identificar o desfecho.** São as partidas `FINAL` e `THIRD_PLACE`, mais qualquer partida cujos
-   alimentadores incluam pelo menos um jogo de `WB` e pelo menos um de `LB` — é assim que as
-   semifinais cruzadas das plantas de 12 e 32 são encontradas sem depender do `matchType` delas,
-   que nas duas é `WB` de propósito (ver `bracket-12-teams.ts` e `bracket-32-teams.ts`).
+   alimentadores incluam pelo menos um jogo de `WB` e pelo menos um de `LB`.
+
+   São **três** as plantas que cruzam antes da final, e o `matchType` delas NÃO segue um padrão —
+   por isso a identificação sai da fiação:
+
+   | Planta | Partidas de cruzamento | Tipadas |
+   |---|---|---|
+   | 10 | #15 e #16 | `WB` e **`LB`** |
+   | 12 | #19 e #20 | `WB` e `WB` |
+   | 32 | #59 e #60 | `WB` e `WB` |
+
+   A de 10 é a que prova a regra: uma das duas está tipada `LB`, então qualquer identificação por
+   tipo — ou por uma lista fechada de tamanhos — erra. As outras 22 plantas fecham com uma final da
+   WB, uma final da LB e um único encontro na grande final.
 2. **Montar a árvore de cada bloco.** Cada partida de desfecho é a raiz; os filhos são os jogos que
    avançam para ela por `winnerAdvance`, recursivamente. Os alimentadores de `WB` formam o ramo
    esquerdo, os de `LB` o direito.
@@ -87,11 +98,11 @@ A faixa central passa a ser a âncora, e o layout caminha para trás pelos dois 
 A faixa central não é sempre uma coluna só, e a regra precisa ser explícita porque as plantas
 divergem:
 
-- **Plantas com semifinal cruzada (12 e 32).** A coluna central é a das **semifinais** — são elas
-  que encostam a WB na LB. A final e o 3º lugar ficam na mesma região em X, porém centralizados
-  verticalmente **entre** os blocos, como na folha: o 3º lugar à esquerda do eixo, a final à
-  direita.
-- **Demais 23 plantas.** Não há convergência intermediária: a **final** ocupa a coluna central, com
+- **Plantas com cruzamento (10, 12 e 32).** A coluna central é a das partidas de cruzamento — são
+  elas que encostam a WB na LB. A final e o 3º lugar ficam na MESMA coluna central, empilhados com
+  elas e centralizados verticalmente entre os blocos. Dar coluna própria a cada um empurraria a LB
+  para longe e roubaria o lugar da última rodada dela.
+- **Demais 22 plantas.** Não há cruzamento intermediário: a **final** ocupa a coluna central, com
   a final da WB imediatamente à esquerda e a da LB imediatamente à direita. O 3º lugar fica logo
   abaixo da final, no mesmo X.
 

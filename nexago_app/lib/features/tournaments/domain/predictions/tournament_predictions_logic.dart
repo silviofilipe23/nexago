@@ -26,18 +26,104 @@ bool isPredictionLockedForMatch(TournamentMatch match) {
 /// ainda sem os dois competidores definidos (chave ainda não propagou até
 /// ali) — partidas já travadas continuam visíveis (mostradas desabilitadas),
 /// pra o torcedor ver o palpite que já fez antes da trava.
+///
+/// A ordem põe as partidas AINDA palpitáveis na frente das travadas. Antes a
+/// lista era só por `matchNumber`, e num torneio com a fase de grupos
+/// concluída o atleta abria a tela em cima de dezenas de cards cinzas: as
+/// quartas, semis e a final — as únicas em que ainda dá pra palpitar — ficavam
+/// no fim da rolagem. Uma partida de mata-mata entra na lista no instante em
+/// que a chave define os dois lados, e como ela ainda está `Scheduled` já
+/// nasce no topo, sem precisar de nenhum carimbo de "recém-definida".
+///
+/// O bloco depende do STATUS, nunca do palpite: escolher um vencedor não
+/// reordena a lista debaixo do dedo de quem tocou.
 List<TournamentMatchCardViewModel> predictableMatchCards(
   List<TournamentMatchCardViewModel> cards,
 ) {
-  final sorted = [...cards]
-    ..sort((a, b) => a.match.matchNumber.compareTo(b.match.matchNumber));
-  return sorted
+  final sorted = cards
       .where(
         (card) =>
             card.match.teamAId.trim().isNotEmpty &&
             card.match.teamBId.trim().isNotEmpty,
       )
-      .toList();
+      .toList()
+    ..sort(_comparePredictionCards);
+  return sorted;
+}
+
+int _comparePredictionCards(
+  TournamentMatchCardViewModel a,
+  TournamentMatchCardViewModel b,
+) {
+  final byBlock = (isPredictionLockedForMatch(a.match) ? 1 : 0)
+      .compareTo(isPredictionLockedForMatch(b.match) ? 1 : 0);
+  if (byBlock != 0) return byBlock;
+
+  final byNumber = a.match.matchNumber.compareTo(b.match.matchNumber);
+  if (byNumber != 0) return byNumber;
+
+  // `matchNumber` só é único DENTRO da categoria e `List.sort` do Dart não
+  // garante estabilidade: sem estes desempates, dois cards empatados podiam
+  // trocar de lugar sozinhos a cada rebuild da tela.
+  final byCategory = a.match.categoryId.compareTo(b.match.categoryId);
+  if (byCategory != 0) return byCategory;
+  return a.match.id.compareTo(b.match.id);
+}
+
+/// Os dois blocos da lista de palpites.
+enum PredictionSectionKind {
+  /// Ainda dá pra palpitar (`Scheduled`, com os dois lados definidos).
+  open,
+
+  /// Palpite travado — a partida começou, terminou ou foi cancelada.
+  locked,
+}
+
+/// Um bloco da lista de palpites, com os cards que caem nele.
+class PredictionCardSection {
+  const PredictionCardSection({required this.kind, required this.cards});
+
+  final PredictionSectionKind kind;
+  final List<TournamentMatchCardViewModel> cards;
+}
+
+/// Corta a lista já ordenada por [predictableMatchCards] no ponto em que ela
+/// passa das partidas abertas para as travadas, pra a tela poder marcar essa
+/// fronteira — sem o rótulo, a mudança de cor do card é a única pista.
+///
+/// CORTA, não reagrupa: a ordem continua sendo decisão de
+/// [_comparePredictionCards], e só dele. Uma versão que reparticionasse a
+/// lista por conta própria devolveria os blocos certos mesmo com o
+/// comparador quebrado — e esconderia a regressão de quem testa pela tela.
+/// Exige, portanto, a lista como [predictableMatchCards] a devolve.
+List<PredictionCardSection> predictionCardSections(
+  List<TournamentMatchCardViewModel> cards,
+) {
+  if (cards.isEmpty) return const [];
+
+  final firstLocked =
+      cards.indexWhere((card) => isPredictionLockedForMatch(card.match));
+  if (firstLocked < 0) {
+    return [
+      PredictionCardSection(kind: PredictionSectionKind.open, cards: cards),
+    ];
+  }
+  if (firstLocked == 0) {
+    return [
+      PredictionCardSection(kind: PredictionSectionKind.locked, cards: cards),
+    ];
+  }
+
+  return [
+    PredictionCardSection(
+      kind: PredictionSectionKind.open,
+      cards: cards.sublist(0, firstLocked),
+    ),
+    PredictionCardSection(
+      kind: PredictionSectionKind.locked,
+      cards: cards.sublist(firstLocked),
+    ),
+  ];
 }
 
 /// A grande final decide o campeão (`matchType == 'Final'`) — mesma regra

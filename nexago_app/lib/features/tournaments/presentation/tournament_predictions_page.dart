@@ -5,6 +5,7 @@ import 'package:nexago_app/core/auth/auth_providers.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_radii.dart';
 import 'package:nexago_app/core/theme/app_shadows.dart';
+import 'package:nexago_app/core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
@@ -254,26 +255,41 @@ class _TournamentPredictionsPageState
     _picksCanSave = canSave;
     _picksMatches = matches;
 
+    final sections = predictionCardSections(cards);
+    // O rótulo existe só pra marcar a FRONTEIRA entre os dois blocos. Com um
+    // bloco só não há fronteira nenhuma, e o rótulo viraria ruído no topo —
+    // é o estado mais comum no começo do torneio, quando tudo está aberto.
+    final showSectionLabels = sections.length > 1;
+
     return [
-      SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            final card = cards[index];
-            final match = card.match;
-            final locked = isPredictionLockedForMatch(match);
-            return PredictionMatchPickCard(
-              viewModel: card,
-              selectedTeamId: _draftPicks[match.id],
-              locked: locked,
-              wasCorrect: predictionWasCorrectForMatch(match, entry),
-              onSelect: (teamId) {
-                setState(() => _draftPicks[match.id] = teamId);
-              },
-            );
-          },
-          childCount: cards.length,
+      for (var i = 0; i < sections.length; i++) ...[
+        if (showSectionLabels)
+          SliverToBoxAdapter(
+            child: _PicksSectionLabel(
+              kind: sections[i].kind,
+              isFirst: i == 0,
+            ),
+          ),
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              final card = sections[i].cards[index];
+              final match = card.match;
+              final locked = isPredictionLockedForMatch(match);
+              return PredictionMatchPickCard(
+                viewModel: card,
+                selectedTeamId: _draftPicks[match.id],
+                locked: locked,
+                wasCorrect: predictionWasCorrectForMatch(match, entry),
+                onSelect: (teamId) {
+                  setState(() => _draftPicks[match.id] = teamId);
+                },
+              );
+            },
+            childCount: sections[i].cards.length,
+          ),
         ),
-      ),
+      ],
       SliverToBoxAdapter(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
@@ -484,6 +500,42 @@ class _TournamentPredictionsPageState
     } finally {
       if (mounted) setState(() => _sharing = false);
     }
+  }
+}
+
+/// Rótulo que separa as partidas ainda palpitáveis das já travadas.
+///
+/// Sem ele a única pista da fronteira é o card ficar apagado — pouco pra
+/// explicar por que o card de cima aceita toque e o de baixo não.
+class _PicksSectionLabel extends StatelessWidget {
+  const _PicksSectionLabel({required this.kind, required this.isFirst});
+
+  final PredictionSectionKind kind;
+
+  /// O primeiro rótulo já vem colado na folga do seletor de seção; os
+  /// seguintes precisam da própria respiração depois do último card.
+  final bool isFirst;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.screenH,
+        isFirst ? 0 : AppSpacing.lg,
+        AppSpacing.screenH,
+        AppSpacing.sm,
+      ),
+      child: Text(
+        kind == PredictionSectionKind.open
+            ? 'ABERTAS PARA PALPITE'
+            : 'PALPITES ENCERRADOS',
+        style: AppTypography.mono(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: context.themeColors.onSurfaceMuted,
+        ).copyWith(letterSpacing: 1.4),
+      ),
+    );
   }
 }
 

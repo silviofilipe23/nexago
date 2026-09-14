@@ -13,11 +13,12 @@ TournamentMatch _match({
   String matchType = 'knockout',
   String? winnerId,
   int matchNumber = 1,
+  String categoryId = 'cat-a',
 }) {
   return TournamentMatch(
     id: id,
     tournamentId: 't1',
-    categoryId: 'cat-a',
+    categoryId: categoryId,
     round: 1,
     matchType: matchType,
     poolId: '',
@@ -85,6 +86,114 @@ void main() {
       ];
       final result = predictableMatchCards(cards);
       expect(result.map((c) => c.match.id), ['m1', 'm2']);
+    });
+
+    test('abertas vêm antes das travadas, mesmo com matchNumber maior', () {
+      // O caso que motivou a ordem: grupos já jogados (números baixos) não
+      // podem empurrar as quartas/semis/final pro fim da rolagem.
+      final cards = [
+        _card(_match(
+          id: 'grupo-1',
+          matchNumber: 1,
+          status: TournamentMatchStatus.completed,
+        )),
+        _card(_match(
+          id: 'grupo-2',
+          matchNumber: 2,
+          status: TournamentMatchStatus.inProgress,
+        )),
+        _card(_match(id: 'quartas', matchNumber: 30)),
+        _card(_match(id: 'semi', matchNumber: 40)),
+      ];
+
+      final result = predictableMatchCards(cards);
+      expect(
+        result.map((c) => c.match.id),
+        ['quartas', 'semi', 'grupo-1', 'grupo-2'],
+      );
+    });
+
+    test('dentro de cada bloco continua em ordem de jogo', () {
+      final cards = [
+        _card(_match(id: 'final', matchNumber: 50)),
+        _card(_match(
+          id: 'grupo-b',
+          matchNumber: 20,
+          status: TournamentMatchStatus.completed,
+        )),
+        _card(_match(id: 'semi', matchNumber: 40)),
+        _card(_match(
+          id: 'grupo-a',
+          matchNumber: 10,
+          status: TournamentMatchStatus.completed,
+        )),
+      ];
+
+      final result = predictableMatchCards(cards);
+      expect(
+        result.map((c) => c.match.id),
+        ['semi', 'final', 'grupo-a', 'grupo-b'],
+      );
+    });
+
+    test('matchNumber repetido entre categorias tem ordem determinística', () {
+      // `matchNumber` só é único DENTRO da categoria, e `List.sort` do Dart
+      // não é estável: sem desempate os cards trocavam de lugar sozinhos.
+      final cards = [
+        _card(_match(id: 'z', matchNumber: 7, categoryId: 'cat-b')),
+        _card(_match(id: 'a', matchNumber: 7, categoryId: 'cat-a')),
+      ];
+
+      expect(
+        predictableMatchCards(cards).map((c) => c.match.id),
+        predictableMatchCards(cards.reversed.toList()).map((c) => c.match.id),
+      );
+      expect(predictableMatchCards(cards).map((c) => c.match.id), ['a', 'z']);
+    });
+  });
+
+  group('predictionCardSections', () {
+    test('separa abertas de travadas, preservando a ordem recebida', () {
+      final cards = predictableMatchCards([
+        _card(_match(id: 'quartas', matchNumber: 30)),
+        _card(_match(
+          id: 'grupo',
+          matchNumber: 1,
+          status: TournamentMatchStatus.completed,
+        )),
+      ]);
+
+      final sections = predictionCardSections(cards);
+      expect(sections.map((s) => s.kind), [
+        PredictionSectionKind.open,
+        PredictionSectionKind.locked,
+      ]);
+      expect(sections.first.cards.map((c) => c.match.id), ['quartas']);
+      expect(sections.last.cards.map((c) => c.match.id), ['grupo']);
+    });
+
+    test('devolve um bloco só quando todas as partidas estão abertas', () {
+      final sections = predictionCardSections([
+        _card(_match(id: 'm1', matchNumber: 1)),
+        _card(_match(id: 'm2', matchNumber: 2)),
+      ]);
+
+      expect(sections, hasLength(1));
+      expect(sections.single.kind, PredictionSectionKind.open);
+      expect(sections.single.cards, hasLength(2));
+    });
+
+    test('devolve um bloco só quando todas as partidas estão travadas', () {
+      final sections = predictionCardSections([
+        _card(_match(id: 'm1', status: TournamentMatchStatus.completed)),
+      ]);
+
+      expect(sections, hasLength(1));
+      expect(sections.single.kind, PredictionSectionKind.locked);
+    });
+
+    test('lista vazia não gera seção nenhuma', () {
+      expect(predictionCardSections(const []), isEmpty);
     });
   });
 

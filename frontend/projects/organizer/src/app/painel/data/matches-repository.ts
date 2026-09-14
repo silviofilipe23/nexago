@@ -275,7 +275,10 @@ function isBracketMatch(m: TournamentMatch): boolean {
   return m.matchType.trim().toLowerCase() !== 'group' && !m.round?.startsWith('Grupo ');
 }
 
-function bracketGroupKey(m: TournamentMatch): string {
+/** Exportada porque `bracket-tree.ts` reusa a MESMA regra de agrupamento no caminho
+ *  legado da árvore de dupla eliminação (chave sem convergência alcançável) — nunca
+ *  duplicar esta lógica lá. */
+export function bracketGroupKey(m: TournamentMatch): string {
   const t = m.matchType.trim();
   const tLower = t.toLowerCase();
   if (tLower === 'wb' || tLower === 'lb') return `${t.toUpperCase()}:${m.roundNumber}`;
@@ -284,7 +287,8 @@ function bracketGroupKey(m: TournamentMatch): string {
   return `round:${m.roundNumber}`;
 }
 
-function bracketGroupSortOrder(m: TournamentMatch): number {
+/** Exportada pelo mesmo motivo de `bracketGroupKey` — ver comentário acima. */
+export function bracketGroupSortOrder(m: TournamentMatch): number {
   const tLower = m.matchType.trim().toLowerCase();
   if (tLower === 'wb') return m.roundNumber * 10;
   if (tLower === 'lb') return m.roundNumber * 10 + 5;

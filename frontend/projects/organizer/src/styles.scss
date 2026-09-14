@@ -2650,7 +2650,11 @@ button {
   color: var(--nx-orange-500);
 }
 
-/* ── Chave de dupla eliminação (canvas único WB+LB, layout do app) ── */
+/* ── Chave de dupla eliminação (geometria convergente, porte do layout do app) ──
+   WB cresce da esquerda pro centro, LB espelhada da direita pro centro — o conector
+   já sai calculado com o sentido certo em `bracket-tree.ts` (`pathFor`: borda direita
+   quando o destino está à direita, esquerda quando está à esquerda), então o CSS não
+   precisa saber de lado nenhum. */
 
 .og-de-canvas {
   position: relative;
@@ -2674,6 +2678,15 @@ button {
   fill: none;
   stroke: var(--nx-line-strong);
   stroke-width: 1.5px;
+}
+
+/* Linha livre do lado sem alimentador desenhado (bye da WB, entrada do perdedor na
+   LB) — traço mais apagado, sem seta, sem card na ponta, como a tabela impressa
+   (espelha a opacidade 0,35 vs. 0,85 do conector cheio em `BracketConnectorPainter`). */
+.og-de-free-line {
+  stroke: var(--nx-line-strong);
+  stroke-width: 1.5px;
+  opacity: 0.4;
 }
 
 .og-de-match {

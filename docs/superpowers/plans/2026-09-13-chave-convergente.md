@@ -654,11 +654,28 @@ Substituir o corpo de `buildDoubleEliminationBracketLayout` (de `final byColumn 
   /// Centros dos lados sem alimentador, por partida — viram a linha livre.
   final vagos = <int, List<double>>{};
 
+  // Uma partida de convergência alimentada por OUTRA partida de convergência
+  // não abre bloco: o encontro das duas chaves aconteceu antes dela. É o caso
+  // da final nas plantas 10, 12 e 32 — ela vem DEPOIS do cruzamento, não é o
+  // cruzamento. Sem este filtro, montar a árvore da final remontaria subárvores
+  // já posicionadas e sobrescreveria os centros que o bloco anterior calculou.
+  final feedersDe = <int, List<TournamentMatch>>{};
+  for (final m in matches) {
+    final dest = m.winnerAdvanceMatchNumber;
+    if (dest == null) continue;
+    (feedersDe[dest] ??= <TournamentMatch>[]).add(m);
+  }
+  final blocos = convergence.where((n) {
+    final fontes = feedersDe[n] ?? const <TournamentMatch>[];
+    return !fontes.any((f) => convergence.contains(f.matchNumber));
+  }).toList()
+    ..sort();
+
   // Profundidade máxima da WB decide onde fica o centro: a WB começa na
   // coluna 0 e a faixa central fica logo depois da coluna mais funda dela.
   var wbDepth = 0;
   final trees = <int, Map<String, BracketFeedNode?>>{};
-  for (final root in convergence) {
+  for (final root in blocos) {
     final wb = buildBracketFeedTree(matches, root, 'wb');
     final lb = buildBracketFeedTree(matches, root, 'lb');
     trees[root] = {'wb': wb, 'lb': lb};
@@ -674,8 +691,7 @@ Substituir o corpo de `buildDoubleEliminationBracketLayout` (de `final byColumn 
 
   // Cada bloco ocupa uma faixa vertical própria, empilhadas de cima para baixo.
   var slotCursor = 0.0;
-  final rootsInOrder = convergence.toList()..sort();
-  for (final root in rootsInOrder) {
+  for (final root in blocos) {
     final wb = trees[root]!['wb'];
     final lb = trees[root]!['lb'];
     if (wb == null && lb == null) continue; // 3º lugar: posicionado depois
@@ -714,7 +730,7 @@ Substituir o corpo de `buildDoubleEliminationBracketLayout` (de `final byColumn 
   // semifinais acima e abaixo. Dar coluna própria a elas empurraria a LB para
   // longe e roubaria o lugar da LB R3.
   final middle = slotCursor / 2;
-  for (final root in rootsInOrder) {
+  for (final root in convergence.toList()..sort()) {
     if (centerSlot.containsKey(root)) continue;
     centerSlot[root] = middle;
     columnOf[root] = centerColumn;

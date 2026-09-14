@@ -223,12 +223,24 @@ async function mapLimit(items, size, fn) {
       if (!id) return {morto: true, motivo: "sem tournamentId"};
       if (tournamentCache.has(id)) return tournamentCache.get(id);
       const snap = await db.doc(`tournaments/${id}`).get();
-      const status = snap.exists ? String(snap.data().status ?? "") : "";
+      // `listingStatus ?? status`, e não `status` cru: é a MESMA leitura de
+      // `assertTournamentAcceptsRegistration`, que é quem decide se o torneio
+      // ainda aceita inscrição. Torneio CANCELADO costuma ficar com
+      // `status: "open"` e só o `listingStatus` conta a verdade — julgando pelo
+      // campo cru, o evento cancelado passava por vivo e a reserva solo dele
+      // ficava num beco: ninguém para apagá-la aqui, e o prazo de garantia
+      // também não a alcança (a vaga é de um evento que não vai acontecer).
+      const t = snap.exists ? snap.data() : null;
+      const status = String((t ? (t.listingStatus ?? t.status) : "") ?? "")
+        .trim().toLowerCase().replace(/_/g, " ");
+      const cancelado =
+        status === "cancelled" || status === "canceled" ||
+        status === "cancelado" || status === "cancelada";
       const state = !snap.exists ?
         {morto: true, motivo: "torneio inexistente", nome: "(apagado)"} :
-        status === "completed" ?
-          {morto: true, motivo: "completed", nome: String(snap.data().name ?? id)} :
-          {morto: false, motivo: status || "(sem status)", nome: String(snap.data().name ?? id)};
+        status === "completed" || cancelado ?
+          {morto: true, motivo: status, nome: String(t.name ?? id)} :
+          {morto: false, motivo: status || "(sem status)", nome: String(t.name ?? id)};
       tournamentCache.set(id, state);
       return state;
     }

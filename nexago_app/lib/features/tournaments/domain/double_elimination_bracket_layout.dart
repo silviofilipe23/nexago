@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import 'bracket_feed_tree.dart';
 import 'tournament_match.dart';
 import 'tournament_match_display.dart';
 import 'tournament_matches_logic.dart';
@@ -15,7 +16,6 @@ abstract final class BracketLayoutMetrics {
   static const rowUnit = 81.0;
   static const canvasPadding = 24.0;
   static const columnHeaderHeight = 32.0;
-  static const wbLbGap = 56.0;
 }
 
 /// Gap vertical entre jogos adjacentes de uma coluna (2·rowUnit − cardHeight).
@@ -38,6 +38,22 @@ class BracketLayoutNode {
   final Offset position;
   final Size size;
   final bool isFinal;
+}
+
+/// Um lado de partida sem alimentador desenhado — o bye da WB e a entrada do
+/// perdedor na LB. Não vira card: vira a linha livre que a tabela impressa
+/// estica até a coluna vizinha, e é ela que mostra que aquele lado existe.
+class BracketLayoutEmptySlot {
+  const BracketLayoutEmptySlot({
+    required this.matchId,
+    required this.from,
+    required this.to,
+  });
+
+  /// A partida DONA do lado vago.
+  final String matchId;
+  final Offset from;
+  final Offset to;
 }
 
 class BracketLayoutEdge {
@@ -69,12 +85,14 @@ class DoubleEliminationBracketLayout {
     required this.nodes,
     required this.edges,
     required this.columns,
+    required this.emptySlots,
     required this.canvasSize,
   });
 
   final List<BracketLayoutNode> nodes;
   final List<BracketLayoutEdge> edges;
   final List<BracketLayoutColumn> columns;
+  final List<BracketLayoutEmptySlot> emptySlots;
   final Size canvasSize;
 
   BracketLayoutNode? nodeForMatch(String matchId) {
@@ -85,6 +103,18 @@ class DoubleEliminationBracketLayout {
   }
 }
 
+/// `matchType` da decisão em minúsculas, considerando o alias `Grand Final`
+/// (com ou sem underline) que a CF nunca grava hoje, mas que o resto do
+/// código (`tournament_matches_logic.dart`, `tournament_match_display.dart`,
+/// `focus_journey_logic.dart`, `focus_double_elimination.dart`) já trata como
+/// sinônimo de `Final` — este arquivo não pode ser o único que não reconhece.
+bool _isFinalType(String typeLower) =>
+    typeLower == 'final' ||
+    typeLower == 'grand final' ||
+    typeLower == 'grand_final';
+
+bool _isThirdPlaceType(String typeLower) => typeLower == 'third place';
+
 /// Cabeçalho de coluna no formato do portal web: WB/LB por rodada e as
 /// fases eliminatórias pelo TAMANHO da rodada inteira ("Quartas de final",
 /// "Semifinais") — rotular por uma partida só rebaixava tudo pra
@@ -92,31 +122,101 @@ class DoubleEliminationBracketLayout {
 String bracketColumnHeaderLabel(List<TournamentMatch> columnMatches) {
   if (columnMatches.isEmpty) return '';
   final first = columnMatches.first;
-  final type = first.matchType.trim().toUpperCase();
-  if (type == 'WB' || type == 'LB') {
-    return '$type · RODADA ${first.round}';
+  final type = first.matchType.trim().toLowerCase();
+  if (type == 'wb' || type == 'lb') {
+    return '${type.toUpperCase()} · RODADA ${first.round}';
   }
-  if (type == 'FINAL') return 'FINAL';
-  if (type == 'THIRD PLACE') return '3º LUGAR';
+  if (_isFinalType(type)) return 'FINAL';
+  if (_isThirdPlaceType(type)) return '3º LUGAR';
   return bracketRoundGroupLabel(columnMatches).toUpperCase();
 }
 
-/// Monta a chave interativa com a SEQUÊNCIA DE LIGAÇÕES das plantas
-/// (`functions/src/bracket-definitions`) como autoridade da ordem visual —
-/// paridade com `bracket-tree.ts` do painel web do organizador:
+/// Monta a chave interativa na forma CONVERGENTE da tabela impressa: a faixa
+/// central é o desfecho (cruzamento WB×LB, Final e 3º lugar), e os dois lados
+/// caminham para trás dela — WB da esquerda, LB da direita espelhada — paridade
+/// com o desenho manual que o dono usa (ver spec de 13/09, `2026-09-13-chave-convergente`).
 ///
-/// - Dentro de cada chave (WB/LB), a ordem dos jogos numa coluna deriva da
-///   fiação real (`winnerAdvance` gravado por `buildMatchesFromDefinition`):
-///   a última coluna ancora (por matchNumber) e cada coluna anterior se ordena
-///   pelos jogos que alimenta — alimentador do slot A acima do slot B. Ordenar
-///   por matchNumber cru quebra as plantas de fiação irregular (ex.: 27 duplas,
-///   onde o vencedor do #2 vai pro #21, não pro #14) e cruzaria os conectores.
-/// - Posição vertical: coluna-base (a maior do track) em slots fixos
-///   (`(2i+1)·rowUnit`); colunas seguintes na média dos alimentadores; play-ins
-///   anteriores à base alinhados ao jogo que alimentam. Guarda de colisão em
-///   toda coluna.
-/// - Conectores: ponteiros reais de avanço, só dentro da mesma chave
-///   (WB→WB, LB→LB) — sem linha cruzando WB↔LB nem entrando na Final.
+/// **Geometria convergente:**
+/// - `bracketConvergenceMatches` marca a faixa central. Para cada ponto de
+///   convergência, `buildBracketFeedTree` monta a árvore de alimentação de cada
+///   lado (WB e LB). `assignFeedCenters`/`assignFeedDepths` convertem essa
+///   árvore em centro vertical (em LUGARES, resultado de subárvore real dos
+///   filhos) e profundidade (que vira coluna: WB em `centerColumn - depth`, LB
+///   em `centerColumn + depth`).
+/// - Posição vertical segue a subárvore real: cada partida fica na média das
+///   posições reais dos seus alimentadores. Bye (lado sem alimentador desenhado
+///   na WB) e entrada do perdedor (na LB) viram linha livre (`emptySlots`), não
+///   card — é o mesmo que a tabela impressa faz.
+/// - Final e 3º lugar ficam LADO A LADO, na mesma linha horizontal — não mais
+///   empilhados na coluna central (pedido do dono: "não precisa de ligamento
+///   pras finais, apenas deixe a final e o terceiro na mesma linha
+///   horizontal"). Ordem da folha impressa (Goiânia Open: "22 - FINAL" à
+///   esquerda, "21 - 3º Lugar" à direita): a Final vai pra coluna vizinha à
+///   ESQUERDA do centro (`centerColumn - 1`, lado WB); o 3º lugar (nunca tem
+///   árvore própria) vai pra vizinha à DIREITA (`centerColumn + 1`, lado
+///   LB) — aproveitando o vão vertical que já sobra nessas colunas em vez de
+///   abrir coluna nova. Altura-alvo: a da Final quando ela converge direto
+///   (a maioria das plantas — "mesma linha horizontal" da Final de
+///   verdade); o meio do bloco quando as duas ficam sem árvore ao mesmo
+///   tempo (plantas 10, 12, 32). Se o vizinho já tiver jogo na altura-alvo
+///   (o caso comum: a Final converge direto, e seu próprio alimentador
+///   daquele lado mora exatamente na vizinha) a partida ganha coluna
+///   PRÓPRIA, mas ADJACENTE ao centro — empurrando pra fora o que já
+///   estava lá, nunca anexando no fim da chave. Custa uma coluna de largura
+///   nas plantas sem cruzamento (a maioria), mas é o preço de ficarem lado
+///   a lado de verdade, não só na mesma altura em algum canto da figura.
+/// - Guarda de colisão em duas passadas na materialização de toda coluna:
+///   primeiro posiciona as partidas com subárvore própria, depois encaixa as
+///   sem-árvore (Final/3º lugar quando dividem coluna com uma rodada de
+///   verdade) nos espaços que sobram — sem jamais mexer nas já fixadas.
+/// - Final e 3º lugar são PASSAGEIROS quando dividem coluna com uma rodada
+///   de verdade: não sequestram o rótulo dela (a coluna das quartas
+///   continua "WB · RODADA N"). A coluna de CRUZAMENTO de verdade (abre
+///   bloco de convergência com árvore dos dois lados, mas não é a Final —
+///   plantas 10, 12, 32) se identifica como `'SEMIFINAIS'`, o encontro das
+///   duas chaves — nunca pelo número da planta ou tamanho da chave, sempre
+///   por essa propriedade. Quando a Final converge direto e fica sozinha
+///   numa coluna (a maioria das plantas), o rótulo continua `'FINAL'`.
+///   `columnKey` do nó sempre concorda com a key da coluna em que foi
+///   colocado.
+///
+/// **Conectores:**
+/// - Arestas seguem os ponteiros reais de avanço (`winnerAdvance`) em qualquer
+///   direção — inclusive LB→faixa central, que é o que faz os dois lados se
+///   encontrarem na forma convergente.
+/// - `loserAdvance` NÃO gera aresta (a queda do perdedor não se desenha,
+///   decisão do dono — como a tabela impressa que escreve "P 15" em vez de
+///   puxar uma linha).
+/// - Em chave de dupla eliminação, Final e 3º lugar também não recebem
+///   NENHUMA aresta — outro pedido do dono, já que elas moram lado a lado
+///   sem precisar de seta indicando quem alimentou quem. No mata-mata
+///   simples (sem `wb`/`lb`, caminho legado) a Final é o fim natural da
+///   árvore de rodadas e continua recebendo linha normalmente. Ver
+///   `_buildAdvanceEdges`.
+///
+/// **Caminho legado (sem convergência):**
+/// - Dispara quando: `bracketConvergenceMatches` é vazio, OU nenhuma partida
+///   tem `winnerAdvanceMatchNumber`, OU a chave não tem partidas de AMBAS as
+///   chaves (nenhuma `wb` ou nenhuma `lb` — o caso da eliminatória simples,
+///   que também é servida por esta função). Sem dois lados não existe ponto de
+///   encontro para a geometria convergente.
+/// - Agrupa por `bracketGroupKey`, ordenado por `bracketGroupSortOrder` —
+///   com uma exceção: a Final vem antes do 3º lugar (`bracketGroupSortOrder`
+///   continua intacta, só a ordenação das colunas em `_placeLegacyGroups` é
+///   ajustada; ver lá o porquê). Jogos em slots fixos `(2i+1)·rowUnit` na
+///   ordem de `matchNumber` — sem geometria convergente, sem linha livre.
+///   Resultado visual: rodadas em ordem, depois a Final, depois o 3º lugar.
+/// - Partidas que sobrarem sem coluna mesmo numa chave COM convergência (caso
+///   misto, não ocorre nas 25 plantas reais mas é possível numa chave editada
+///   à mão) caem no agrupamento legado, em colunas extras à direita de tudo.
+///
+/// **Keys de coluna únicas:**
+/// - Duas colunas distintas (índices diferentes) podem calcular o mesmo
+///   `bracketGroupKey` por coincidência — ex.: planta 25, onde o play-in
+///   `#10` (LB, `round` 2) fica numa coluna própria mas tem o MESMO round da
+///   coluna "LB · RODADA 2" de verdade (`#19`…`#26`). `_uniqueColumnKey` sufixa
+///   (`+2`, `+3`, …) a segunda ocorrência em diante, e `columnKey` do nó sempre
+///   recebe a key FINAL (já sufixada) da coluna.
 DoubleEliminationBracketLayout buildDoubleEliminationBracketLayout(
   List<TournamentMatch> matches,
 ) {
@@ -125,101 +225,493 @@ DoubleEliminationBracketLayout buildDoubleEliminationBracketLayout(
       nodes: [],
       edges: [],
       columns: [],
+      emptySlots: [],
       canvasSize: Size.zero,
     );
   }
 
-  final byColumn = <String, List<TournamentMatch>>{};
-  for (final match in matches) {
-    byColumn.putIfAbsent(bracketGroupKey(match), () => []).add(match);
+  final convergence = bracketConvergenceMatches(matches);
+  final byNumber = {for (final m in matches) m.matchNumber: m};
+  final hasAnyWiring = matches.any((m) => m.winnerAdvanceMatchNumber != null);
+  final hasWb = matches.any((m) => m.matchType.trim().toLowerCase() == 'wb');
+  final hasLb = matches.any((m) => m.matchType.trim().toLowerCase() == 'lb');
+
+  // Centros (em lugares) e colunas de cada jogo, montados bloco a bloco.
+  final centerSlot = <int, double>{};
+  final columnOf = <int, int>{};
+
+  /// Centros dos lados sem alimentador, por partida — viram a linha livre.
+  final vagos = <int, List<double>>{};
+
+  /// Partidas de convergência SEM árvore de alimentação própria (Final e 3º
+  /// lugar que não convergem direto — plantas 10, 12 e 32, onde quem cruza
+  /// são as partidas de cruzamento, não elas). O centro delas é só um palpite
+  /// em volta do meio do bloco: a materialização nunca deixa uma partida
+  /// desta lista empurrar uma partida com centro próprio calculado.
+  final semArvore = <int>{};
+
+  /// Partidas de CRUZAMENTO de verdade: abrem bloco de convergência (não são
+  /// alimentadas por outra partida de convergência) e têm árvore própria dos
+  /// dois lados — mas NÃO são a Final. É essa propriedade (não o número da
+  /// planta, não o tamanho da chave) que decide o rótulo `'SEMIFINAIS'` da
+  /// coluna onde moram: a Final, quando ela mesma converge direto (a
+  /// maioria das plantas, ex. planta 8), abre bloco do mesmo jeito, mas
+  /// `_isFinalType` a exclui daqui — a coluna dela continua rotulada
+  /// `'FINAL'`.
+  final cruzamentoRoots = <int>{};
+  var centerColumn = 0;
+
+  if (convergence.isEmpty || !hasAnyWiring || !hasWb || !hasLb) {
+    // Sem ponto de encontro alcançável: chave sem fiação nenhuma (o legado
+    // anterior à migração que passou a gravar `winnerAdvance`), fiação que
+    // nunca cruza WB×LB nem chega numa Final/3º lugar, OU chave sem as DUAS
+    // chaves (eliminatória simples — sem WB e LB não há convergência a
+    // ancorar; esta função também serve esse formato, ver
+    // `tournament_category_view_page.dart`). A geometria convergente não tem
+    // onde se ancorar. Cai no agrupamento simples, sem linha livre e sem
+    // coluna central.
+    _placeLegacyGroups(matches, 0, columnOf, centerSlot);
+  } else {
+    // Uma partida de convergência alimentada por OUTRA partida de convergência
+    // não abre bloco: o encontro das duas chaves aconteceu antes dela. É o caso
+    // da final nas plantas 10, 12 e 32 — ela vem DEPOIS do cruzamento, não é o
+    // cruzamento. Sem este filtro, montar a árvore da final remontaria subárvores
+    // já posicionadas e sobrescreveria os centros que o bloco anterior calculou.
+    final feedersDe = <int, List<TournamentMatch>>{};
+    for (final m in matches) {
+      final dest = m.winnerAdvanceMatchNumber;
+      if (dest == null) continue;
+      (feedersDe[dest] ??= <TournamentMatch>[]).add(m);
+    }
+    final blocos = convergence.where((n) {
+      final fontes = feedersDe[n] ?? const <TournamentMatch>[];
+      return !fontes.any((f) => convergence.contains(f.matchNumber));
+    }).toList()
+      ..sort();
+
+    // Profundidade máxima da WB decide onde fica o centro: a WB começa na
+    // coluna 0 e a faixa central fica logo depois da coluna mais funda dela.
+    var wbDepth = 0;
+    final trees = <int, Map<String, BracketFeedNode?>>{};
+    for (final root in blocos) {
+      final wb = buildBracketFeedTree(matches, root, 'wb');
+      final lb = buildBracketFeedTree(matches, root, 'lb');
+      trees[root] = {'wb': wb, 'lb': lb};
+      if (wb != null) {
+        final depths = <int, int>{};
+        assignFeedDepths(wb, 1, depths);
+        for (final d in depths.values) {
+          if (d > wbDepth) wbDepth = d;
+        }
+      }
+    }
+    centerColumn = wbDepth;
+
+    // Cada bloco ocupa uma faixa vertical própria, empilhadas de cima para
+    // baixo — sem folga entre elas: a Final e o 3º lugar não moram mais
+    // nesta faixa (ver abaixo), então não sobra nada pra reservar aqui.
+    var slotCursor = 0.0;
+    for (final root in blocos) {
+      final wb = trees[root]!['wb'];
+      final lb = trees[root]!['lb'];
+      if (wb == null && lb == null) continue; // 3º lugar: posicionado depois
+
+      // Abre bloco com árvore própria e não é a Final: é uma partida de
+      // CRUZAMENTO de verdade (o encontro das duas chaves), não o desfecho
+      // de uma delas. Vira `'SEMIFINAIS'` na materialização, mais abaixo.
+      if (!_isFinalType(byNumber[root]!.matchType.trim().toLowerCase())) {
+        cruzamentoRoots.add(root);
+      }
+
+      final span = math.max(wb?.span ?? 0, lb?.span ?? 0);
+      for (final entry in <MapEntry<String, BracketFeedNode?>>[
+        MapEntry('wb', wb),
+        MapEntry('lb', lb),
+      ]) {
+        final tree = entry.value;
+        if (tree == null) continue;
+        // Blocos de spans diferentes ficam centralizados um sobre o outro.
+        final inicio = slotCursor + (span - tree.span) / 2;
+        final centers = <int, double>{};
+        assignFeedCenters(tree, inicio, centers);
+        centerSlot.addAll(centers);
+        assignEmptySlotCenters(tree, inicio, vagos);
+        final depths = <int, int>{};
+        assignFeedDepths(tree, 1, depths);
+        depths.forEach((number, d) {
+          columnOf[number] =
+              entry.key == 'wb' ? centerColumn - d : centerColumn + d;
+        });
+      }
+
+      final wbCenter =
+          wb?.matchNumber != null ? centerSlot[wb!.matchNumber!] : null;
+      final lbCenter =
+          lb?.matchNumber != null ? centerSlot[lb!.matchNumber!] : null;
+      final both = [wbCenter, lbCenter].whereType<double>().toList();
+      centerSlot[root] = both.reduce((a, b) => a + b) / both.length;
+      columnOf[root] = centerColumn;
+      slotCursor += span;
+    }
+
+    // Final e 3º lugar lado a lado, na mesma linha horizontal — pedido do
+    // dono: nada de empilhar as duas na coluna central. Ordem da folha
+    // impressa do Goiânia Open ("22 - FINAL" à esquerda, "21 - 3º Lugar" à
+    // direita): a Final vai pro lado WB (`centerColumn - 1`), o 3º lugar pro
+    // lado LB (`centerColumn + 1`). O 3º lugar nunca tem árvore própria (só
+    // recebe perdedores, e `loserAdvance` não é rastreado por
+    // `buildBracketFeedTree`); a Final só fica sem árvore quando ela mesma é
+    // o desfecho de um cruzamento (plantas 10, 12, 32 — as duas partidas de
+    // cruzamento é que convergem, não ela).
+    //
+    // Em vez de dar coluna própria a cada uma (o que empurraria a LB pra
+    // longe), TENTA aproveitar o vão vertical das colunas VIZINHAS ao
+    // centro primeiro. Nas plantas que cruzam (10, 12, 32) isso sempre cabe:
+    // a vizinha ali é a quarta que alimenta a partida de CRUZAMENTO, dois
+    // níveis afastada da Final, com folga de sobra. Na maioria das plantas
+    // (Final converge direto) a vizinha da Final é sua PRÓPRIA quarta —
+    // sempre à mesma altura (é dela que a média da Final sai) — então nunca
+    // cabe ali: cai na coluna própria ADJACENTE ao centro (empurrando o que
+    // vier depois pro lado de fora, nunca anexando no fim da chave — "lado a
+    // lado", não "em algum lugar na mesma altura"), preservando a
+    // altura-alvo.
+    //
+    // Altura-alvo: quando a Final já converge direto, o 3º lugar mira nela —
+    // é a "mesma linha horizontal" de verdade. Só quando a Final também não
+    // converge direto (10, 12, 32) é que as duas miram o meio do bloco.
+    final middle = slotCursor / 2;
+    final finalRoot = convergence.firstWhere(
+      (n) => _isFinalType(byNumber[n]?.matchType.trim().toLowerCase() ?? ''),
+      orElse: () => -1,
+    );
+    final thirdPlaceRoot = convergence.firstWhere(
+      (n) =>
+          _isThirdPlaceType(byNumber[n]?.matchType.trim().toLowerCase() ?? ''),
+      orElse: () => -1,
+    );
+    final targetSlot =
+        centerSlot.containsKey(finalRoot) ? centerSlot[finalRoot]! : middle;
+
+    // Só cabe no vizinho se não colidir com nenhum jogo que a árvore daquele
+    // lado já colocou ali — a mesma régua de 1 LUGAR (162px) que separa
+    // qualquer par de jogos adjacentes no resto do desenho.
+    bool cabeNaColuna(int coluna, double alvo) {
+      for (final entry in columnOf.entries) {
+        if (entry.value != coluna) continue;
+        final outro = centerSlot[entry.key];
+        if (outro != null && (outro - alvo).abs() < 1) return false;
+      }
+      return true;
+    }
+
+    void posicionaAoLado(int root, int coluna, {bool marcaSemArvore = true}) {
+      columnOf[root] = coluna;
+      centerSlot[root] = targetSlot;
+      if (marcaSemArvore) semArvore.add(root);
+    }
+
+    // Insere uma coluna nova, exclusiva, ADJACENTE a `centerColumn` do lado
+    // indicado — empurra pra fora o que já estava lá (e além de lá), nunca
+    // anexa no fim da chave. Custa uma coluna de largura no lado empurrado;
+    // é o preço combinado por ficarem lado a lado de verdade, não só na
+    // mesma altura em algum canto da figura.
+    int inserirColunaAdjacente({required bool aEsquerda}) {
+      if (aEsquerda) {
+        for (final k in columnOf.keys.toList()) {
+          if (columnOf[k]! < centerColumn) columnOf[k] = columnOf[k]! - 1;
+        }
+        return centerColumn - 1;
+      }
+      for (final k in columnOf.keys.toList()) {
+        if (columnOf[k]! > centerColumn) columnOf[k] = columnOf[k]! + 1;
+      }
+      return centerColumn + 1;
+    }
+
+    // Não entra em `semArvore`: sozinha na própria coluna, não tem quem a
+    // guarda de colisão precise proteger.
+    void posicionaEmColunaPropria(int root, {required bool aEsquerda}) {
+      final novaColuna = inserirColunaAdjacente(aEsquerda: aEsquerda);
+      posicionaAoLado(root, novaColuna, marcaSemArvore: false);
+    }
+
+    if (finalRoot != -1 && !centerSlot.containsKey(finalRoot)) {
+      final coluna = centerColumn - 1;
+      if (cabeNaColuna(coluna, targetSlot)) {
+        posicionaAoLado(finalRoot, coluna);
+      } else {
+        posicionaEmColunaPropria(finalRoot, aEsquerda: true);
+      }
+    }
+    if (thirdPlaceRoot != -1 && !centerSlot.containsKey(thirdPlaceRoot)) {
+      final coluna = centerColumn + 1;
+      if (cabeNaColuna(coluna, targetSlot)) {
+        posicionaAoLado(thirdPlaceRoot, coluna);
+      } else {
+        posicionaEmColunaPropria(thirdPlaceRoot, aEsquerda: false);
+      }
+    }
+
+    // Rede de segurança: qualquer OUTRA partida de convergência que sobre
+    // sem árvore (não deveria acontecer nas 25 plantas reais — só Final e
+    // 3º lugar ficam sem árvore própria) cai no comportamento antigo,
+    // empilhada na coluna central.
+    for (final root in convergence.toList()..sort()) {
+      if (centerSlot.containsKey(root)) continue;
+      if (root == finalRoot || root == thirdPlaceRoot) continue;
+      centerSlot[root] = middle;
+      columnOf[root] = centerColumn;
+      semArvore.add(root);
+    }
+
+    // Órfãs: partidas que sobraram sem coluna mesmo numa chave COM
+    // convergência — não ocorre nas 25 plantas reais, mas é possível numa
+    // chave editada à mão (ex.: um jogo com `winnerAdvance` apontando pra
+    // fora de qualquer árvore alcançada). Melhor aparecer fora de lugar do
+    // que sumir da tela: mesmo agrupamento do caminho legado, em colunas
+    // extras à direita de tudo.
+    final orphans = [
+      for (final m in matches)
+        if (!columnOf.containsKey(m.matchNumber)) m,
+    ];
+    if (orphans.isNotEmpty) {
+      final maxCol = columnOf.values.reduce(math.max);
+      _placeLegacyGroups(orphans, maxCol + 1, columnOf, centerSlot);
+    }
+
+    // Normaliza os índices de coluna pra sempre começar em 0 — inserir uma
+    // coluna adjacente à ESQUERDA do centro (`inserirColunaAdjacente`,
+    // acima) empurra as colunas da WB pra índices negativos. Devolve tudo
+    // pro zero somando a MESMA constante em todo mundo — não muda a ordem
+    // relativa de nada — e atualiza `centerColumn` junto, já que ele
+    // também é um índice de coluna e precisa continuar apontando pro mesmo
+    // lugar depois da soma.
+    if (columnOf.isNotEmpty) {
+      final minCol = columnOf.values.reduce(math.min);
+      if (minCol < 0) {
+        final offset = -minCol;
+        for (final k in columnOf.keys.toList()) {
+          columnOf[k] = columnOf[k]! + offset;
+        }
+        centerColumn += offset;
+      }
+    }
   }
 
-  final wbKeys = _sortedKeysForType(byColumn, 'wb');
-  final lbKeys = _sortedKeysForType(byColumn, 'lb');
-  final finalKeys = byColumn.keys
-      .where(
-        (k) => byColumn[k]!.first.matchType.trim().toLowerCase() == 'final',
-      )
-      .toList();
-  final otherKeys = byColumn.keys
-      .where((k) {
-        final type = byColumn[k]!.first.matchType.trim().toLowerCase();
-        return type != 'wb' && type != 'lb' && type != 'final';
-      })
-      .toList()
-    ..sort((a, b) {
-      final cmp = bracketGroupSortOrder(byColumn[a]!.first)
-          .compareTo(bracketGroupSortOrder(byColumn[b]!.first));
-      if (cmp != 0) return cmp;
-      return a.compareTo(b);
-    });
-
+  // Materializa nós e colunas.
   final nodes = <BracketLayoutNode>[];
   final columns = <BracketLayoutColumn>[];
   final nodeByMatchNumber = <int, BracketLayoutNode>{};
+  const top = BracketLayoutMetrics.canvasPadding +
+      BracketLayoutMetrics.columnHeaderHeight;
+
+  final byColumnIndex = <int, List<TournamentMatch>>{};
+  for (final m in matches) {
+    final col = columnOf[m.matchNumber];
+    if (col == null) continue;
+    (byColumnIndex[col] ??= []).add(m);
+  }
+
+  final columnKeys = byColumnIndex.keys.toList()..sort();
   final usedColumnKeys = <String>{};
-
-  // ── Track da WB (com 3º lugar e Final à direita) ──
-  const wbTrackTop = BracketLayoutMetrics.canvasPadding;
-  final wbColumns =
-      _splitIntraColumnDeps([for (final k in wbKeys) byColumn[k]!]);
-  final wbBottom = _placeTrack(
-    trackColumns: wbColumns,
-    trackTop: wbTrackTop,
-    startColumnIndex: 0,
-    nodes: nodes,
-    columns: columns,
-    nodeByMatchNumber: nodeByMatchNumber,
-    usedColumnKeys: usedColumnKeys,
-  );
-
-  var nextColumnIndex = wbColumns.length;
-  for (final key in otherKeys) {
-    _placeFixedColumn(
-      columnMatches: byColumn[key]!,
-      trackTop: wbTrackTop,
-      columnIndex: nextColumnIndex,
-      nodes: nodes,
-      columns: columns,
-      nodeByMatchNumber: nodeByMatchNumber,
-      usedColumnKeys: usedColumnKeys,
+  for (final col in columnKeys) {
+    final columnMatches = byColumnIndex[col]!
+      ..sort((a, b) =>
+          centerSlot[a.matchNumber]!.compareTo(centerSlot[b.matchNumber]!));
+    final x = _columnX(col);
+    // Final e 3º lugar são PASSAGEIROS quando dividem coluna com uma rodada
+    // de verdade (a quarta da WB, a rodada da LB): não sequestram o rótulo
+    // dela — a coluna das quartas continua "WB · RODADA N", a da LB
+    // continua "LB · RODADA N". O rótulo (e a key) saem das partidas HOST
+    // (tudo que não está em `semArvore`); só quando a coluna não tem
+    // NENHUM host (a Final ou o 3º lugar sozinhos, de coluna própria) é que
+    // o rótulo vem delas mesmas — daí "FINAL"/"3º LUGAR" continuam corretos.
+    //
+    // A coluna de CRUZAMENTO de verdade (`cruzamentoRoots` — abre bloco de
+    // convergência com árvore dos dois lados, mas não é a Final) se
+    // identifica como o encontro das duas chaves: `'SEMIFINAIS'`, nunca o
+    // rótulo por tipo/round da partida (que enterraria o cruzamento atrás
+    // de "WB · RODADA N", escondendo que é ali que as chaves se encontram).
+    //
+    // Duas colunas (índices diferentes) também podem calcular o MESMO
+    // `bracketGroupKey` por coincidência de round (planta 25: o play-in #10
+    // e a coluna real "LB · RODADA 2" são as duas round 2) —
+    // `_uniqueColumnKey` sufixa a partir da segunda ocorrência. `columnKey`
+    // do nó sempre recebe a key FINAL (já única) da coluna: são a MESMA
+    // identidade.
+    final hasCruzamento =
+        columnMatches.any((m) => cruzamentoRoots.contains(m.matchNumber));
+    final hostMatches = [
+      for (final m in columnMatches)
+        if (!semArvore.contains(m.matchNumber)) m,
+    ];
+    final referencia = hostMatches.isNotEmpty ? hostMatches : columnMatches;
+    final hostGroupKeys = {for (final m in referencia) bracketGroupKey(m)};
+    final String baseKey;
+    final String label;
+    if (hasCruzamento) {
+      baseKey = 'SEMIFINAIS';
+      label = 'SEMIFINAIS';
+    } else if (hostGroupKeys.length > 1) {
+      // Mistura inesperada entre hosts de verdade (não deveria ocorrer nas
+      // 25 plantas reais) — mantém o aviso genérico de antes.
+      baseKey = 'DESFECHO';
+      label = 'DESFECHO';
+    } else {
+      baseKey = bracketGroupKey(referencia.first);
+      label = bracketColumnHeaderLabel(referencia);
+    }
+    final columnKey = _uniqueColumnKey(baseKey, usedColumnKeys);
+    columns.add(
+      BracketLayoutColumn(
+        key: columnKey,
+        label: label,
+        matchIds: [for (final m in columnMatches) m.id],
+        headerPosition: Offset(x, BracketLayoutMetrics.canvasPadding),
+      ),
     );
-    nextColumnIndex++;
-  }
 
-  // Final: última coluna, centralizada verticalmente na altura REAL do track
-  // da WB (medida, não calculada — a fórmula por potência de 2 assume que a
-  // 1ª rodada é a maior, o que não vale pros play-ins das plantas irregulares).
-  for (final key in finalKeys) {
-    _placeFinalColumn(
-      columnMatches: byColumn[key]!,
-      trackTop: wbTrackTop,
-      trackBottom: wbBottom,
-      columnIndex: nextColumnIndex,
-      nodes: nodes,
-      columns: columns,
-      nodeByMatchNumber: nodeByMatchNumber,
-      usedColumnKeys: usedColumnKeys,
-    );
-    nextColumnIndex++;
-  }
+    // Guarda de colisão em DUAS passadas. 1ª: só as partidas com centro
+    // PRÓPRIO (tudo que não está em `semArvore`), na ordem de sempre — é
+    // exatamente a guarda de antes, e por isso não muda nada em nenhuma
+    // coluna sem Final/3º lugar pendente. 2ª: cada BLOCO de partidas SEM
+    // árvore consecutivas (ex.: Final+3º lugar juntas, planta 10) é
+    // distribuído por igual dentro da janela livre entre o jogo real
+    // anterior e o seguinte — nunca reabrindo uma posição já fixada na 1ª
+    // passada. Quando a janela é curta demais pra caber todo mundo com o
+    // espaçamento padrão (planta 10: só 121,5px pra Final+3º lugar, que
+    // precisariam de 162px só entre si), o espaçamento ENCOLHE em vez de
+    // estourar pra fora da janela — a sobra vira uma leve proximidade entre
+    // Final e 3º lugar, nunca um empurrão na partida de cruzamento vizinha.
+    final centerYByNumber = <int, double>{};
+    var prevComArvore = double.negativeInfinity;
+    for (final match in columnMatches) {
+      if (semArvore.contains(match.matchNumber)) continue;
+      final wanted = top +
+          centerSlot[match.matchNumber]! * 2 * BracketLayoutMetrics.rowUnit;
+      final minCenter =
+          prevComArvore + BracketLayoutMetrics.cardHeight + _adjacentGap;
+      final centerY = math.max(wanted, minCenter);
+      prevComArvore = centerY;
+      centerYByNumber[match.matchNumber] = centerY;
+    }
 
-  // ── Track da LB (embaixo, colunas recomeçando da esquerda) ──
-  var upperBottom = wbBottom;
-  for (final node in nodes) {
-    upperBottom = math.max(upperBottom, node.position.dy + node.size.height);
+    const passo = BracketLayoutMetrics.cardHeight + _adjacentGap;
+    var idx = 0;
+    while (idx < columnMatches.length) {
+      if (!semArvore.contains(columnMatches[idx].matchNumber)) {
+        idx++;
+        continue;
+      }
+      var fim = idx;
+      while (fim < columnMatches.length &&
+          semArvore.contains(columnMatches[fim].matchNumber)) {
+        fim++;
+      }
+      // Bloco de partidas sem árvore em [idx, fim).
+      final n = fim - idx;
+      final piso = idx == 0
+          ? double.negativeInfinity
+          : centerYByNumber[columnMatches[idx - 1].matchNumber]! + passo;
+      final teto = fim == columnMatches.length
+          ? double.infinity
+          : centerYByNumber[columnMatches[fim].matchNumber]! - passo;
+      final disponivel = (piso.isFinite && teto.isFinite) ? teto - piso : null;
+
+      if (n == 1) {
+        final wanted = top +
+            centerSlot[columnMatches[idx].matchNumber]! *
+                2 *
+                BracketLayoutMetrics.rowUnit;
+        double pos;
+        if (disponivel != null && disponivel < 0) {
+          pos = (piso + teto) / 2; // sem espaço algum — meio do conflito
+        } else {
+          pos = wanted;
+          if (piso.isFinite) pos = math.max(pos, piso);
+          if (teto.isFinite) pos = math.min(pos, teto);
+        }
+        centerYByNumber[columnMatches[idx].matchNumber] = pos;
+      } else {
+        final espacamentoIdeal = passo * (n - 1);
+        final espacamento = disponivel == null
+            ? passo
+            : (disponivel >= espacamentoIdeal ? passo : disponivel / (n - 1));
+        final vao = espacamento * (n - 1);
+        double inicio;
+        if (piso.isFinite && teto.isFinite) {
+          inicio = piso + math.max(0.0, (disponivel! - vao) / 2);
+        } else if (piso.isFinite) {
+          inicio = piso;
+        } else if (teto.isFinite) {
+          inicio = teto - vao;
+        } else {
+          inicio = top +
+              centerSlot[columnMatches[idx].matchNumber]! *
+                  2 *
+                  BracketLayoutMetrics.rowUnit;
+        }
+        for (var k = 0; k < n; k++) {
+          centerYByNumber[columnMatches[idx + k].matchNumber] =
+              inicio + k * espacamento;
+        }
+      }
+      idx = fim;
+    }
+
+    for (var i = 0; i < columnMatches.length; i++) {
+      final match = columnMatches[i];
+      final centerY = centerYByNumber[match.matchNumber]!;
+      final node = BracketLayoutNode(
+        matchId: match.id,
+        columnKey: columnKey,
+        slotIndex: i,
+        position: Offset(
+          x,
+          centerY - BracketLayoutMetrics.cardHeight / 2,
+        ),
+        size: const Size(
+          BracketLayoutMetrics.cardWidth,
+          BracketLayoutMetrics.cardHeight,
+        ),
+        isFinal: _isFinalType(match.matchType.trim().toLowerCase()),
+      );
+      nodes.add(node);
+      nodeByMatchNumber[match.matchNumber] = node;
+    }
   }
-  _placeTrack(
-    trackColumns: _splitIntraColumnDeps([for (final k in lbKeys) byColumn[k]!]),
-    trackTop: upperBottom + BracketLayoutMetrics.wbLbGap,
-    startColumnIndex: 0,
-    nodes: nodes,
-    columns: columns,
-    nodeByMatchNumber: nodeByMatchNumber,
-    usedColumnKeys: usedColumnKeys,
-  );
 
   final edges = _buildAdvanceEdges(matches, nodeByMatchNumber);
+
+  // Linha livre de cada lado vago, correndo para FORA do centro — para a
+  // esquerda na WB, para a direita na LB, ocupando a largura da coluna vizinha.
+  final freeLines = <BracketLayoutEmptySlot>[];
+  vagos.forEach((number, centros) {
+    final col = columnOf[number];
+    final match = byNumber[number];
+    if (col == null || match == null) return;
+    final paraEsquerda = col <= centerColumn;
+    for (final c in centros) {
+      final y = top + c * 2 * BracketLayoutMetrics.rowUnit;
+      freeLines.add(
+        BracketLayoutEmptySlot(
+          matchId: match.id,
+          from: Offset(
+            paraEsquerda
+                ? _columnX(col)
+                : _columnX(col) + BracketLayoutMetrics.cardWidth,
+            y,
+          ),
+          to: Offset(
+            paraEsquerda
+                ? _columnX(col - 1)
+                : _columnX(col + 1) + BracketLayoutMetrics.cardWidth,
+            y,
+          ),
+        ),
+      );
+    }
+  });
 
   var maxX = BracketLayoutMetrics.canvasPadding;
   var maxY = BracketLayoutMetrics.canvasPadding;
@@ -227,116 +719,21 @@ DoubleEliminationBracketLayout buildDoubleEliminationBracketLayout(
     maxX = math.max(maxX, node.position.dx + node.size.width);
     maxY = math.max(maxY, node.position.dy + node.size.height);
   }
-  for (final column in columns) {
-    maxX = math.max(
-      maxX,
-      column.headerPosition.dx + BracketLayoutMetrics.cardWidth,
-    );
+  for (final line in freeLines) {
+    maxX = math.max(maxX, math.max(line.from.dx, line.to.dx));
+    maxY = math.max(maxY, math.max(line.from.dy, line.to.dy));
   }
 
   return DoubleEliminationBracketLayout(
     nodes: nodes,
     edges: edges,
     columns: columns,
+    emptySlots: freeLines,
     canvasSize: Size(
       maxX + BracketLayoutMetrics.canvasPadding,
       maxY + BracketLayoutMetrics.canvasPadding,
     ),
   );
-}
-
-List<String> _sortedKeysForType(
-  Map<String, List<TournamentMatch>> byColumn,
-  String type,
-) {
-  return byColumn.keys.where((k) {
-    return byColumn[k]!.first.matchType.trim().toLowerCase() == type;
-  }).toList()
-    ..sort((a, b) {
-      final cmp = byColumn[a]!.first.round.compareTo(byColumn[b]!.first.round);
-      if (cmp != 0) return cmp;
-      return a.compareTo(b);
-    });
-}
-
-/// Garante que nenhum jogo divida coluna com um jogo que ele alimenta: algumas
-/// plantas gravam o play-in da LB com o MESMO `round` da rodada que ele
-/// alimenta (ex.: planta 25, jogo #10 "LB R1" com round 2, alimentando o #26
-/// da LB R2) — se ficassem juntos, a ligação apontaria pra dentro da própria
-/// coluna. Extrai os alimentadores pra uma coluna própria antes, recursivamente.
-List<List<TournamentMatch>> _splitIntraColumnDeps(
-  List<List<TournamentMatch>> columns,
-) {
-  final result = <List<TournamentMatch>>[];
-  for (final col in columns) {
-    final chain = <List<TournamentMatch>>[col];
-    for (;;) {
-      final first = chain[0];
-      final numbers = {for (final m in first) m.matchNumber};
-      final feeders = [
-        for (final m in first)
-          if (m.winnerAdvanceMatchNumber != null &&
-              numbers.contains(m.winnerAdvanceMatchNumber))
-            m,
-      ];
-      if (feeders.isEmpty || feeders.length == first.length) break;
-      final feederNumbers = {for (final m in feeders) m.matchNumber};
-      chain[0] = [
-        for (final m in first)
-          if (!feederNumbers.contains(m.matchNumber)) m,
-      ];
-      chain.insert(0, feeders);
-    }
-    result.addAll(chain);
-  }
-  return result;
-}
-
-/// Ordena as colunas de um track (WB ou LB) seguindo as ligações da planta:
-/// a última coluna ancora por matchNumber; cada coluna anterior é ordenada
-/// pelos jogos que alimenta na coluna seguinte (alimentador do slot A acima
-/// do B). Jogos sem destino na coluna seguinte (não deveria acontecer em
-/// planta válida) vão pro fim, por matchNumber.
-List<List<TournamentMatch>> _orderColumnsByWiring(
-  List<List<TournamentMatch>> columns,
-) {
-  if (columns.isEmpty) return const [];
-  final ordered = List<List<TournamentMatch>>.filled(columns.length, const []);
-  final last = columns.length - 1;
-  ordered[last] = [...columns[last]]
-    ..sort((a, b) => a.matchNumber.compareTo(b.matchNumber));
-
-  int slotRank(TournamentMatch m) {
-    if (m.winnerAdvanceSlot == 'A') return 0;
-    if (m.winnerAdvanceSlot == 'B') return 1;
-    return 2;
-  }
-
-  for (var c = last - 1; c >= 0; c--) {
-    final current = columns[c];
-    final used = <int>{};
-    final result = <TournamentMatch>[];
-    for (final target in ordered[c + 1]) {
-      final feeders = [
-        for (final m in current)
-          if (m.winnerAdvanceMatchNumber == target.matchNumber) m,
-      ]..sort((a, b) {
-          final cmp = slotRank(a).compareTo(slotRank(b));
-          if (cmp != 0) return cmp;
-          return a.matchNumber.compareTo(b.matchNumber);
-        });
-      for (final f in feeders) {
-        if (used.add(f.matchNumber)) result.add(f);
-      }
-    }
-    final rest = [...current]
-      ..sort((a, b) => a.matchNumber.compareTo(b.matchNumber));
-    for (final m in rest) {
-      if (!used.contains(m.matchNumber)) result.add(m);
-    }
-    ordered[c] = result;
-  }
-  return ordered;
 }
 
 double _columnX(int columnIndex) {
@@ -345,10 +742,13 @@ double _columnX(int columnIndex) {
           (BracketLayoutMetrics.cardWidth + BracketLayoutMetrics.columnGap);
 }
 
-/// Chaves de coluna únicas mesmo quando `_splitIntraColumnDeps` divide um
-/// mesmo `round` em mais de uma coluna.
-String _uniqueColumnKey(TournamentMatch first, Set<String> used) {
-  final base = bracketGroupKey(first);
+/// Garante que cada coluna materializada tenha uma key única. Duas colunas
+/// (índices diferentes, portanto profundidades/posições diferentes) podem
+/// calcular o MESMO `bracketGroupKey` por coincidência de round — ex.: planta
+/// 25, onde o play-in `#10` (LB, round 2) e a coluna real "LB · RODADA 2"
+/// (`#19`…`#26`) são as duas round 2 — mas nunca podem reivindicar a mesma
+/// identidade visual. Sufixa a partir da segunda ocorrência (`+2`, `+3`, …).
+String _uniqueColumnKey(String base, Set<String> used) {
   var key = base;
   var n = 2;
   while (!used.add(key)) {
@@ -357,259 +757,93 @@ String _uniqueColumnKey(TournamentMatch first, Set<String> used) {
   return key;
 }
 
-/// Posiciona um track (WB ou LB) seguindo as ligações da planta. A coluna-BASE
-/// é a maior do track (nas plantas não-potência-de-2 a 1ª rodada é um play-in
-/// pequeno — ancorar nela estouraria o track): base em slots fixos; colunas
-/// seguintes na média dos alimentadores; colunas anteriores (play-ins)
-/// alinhadas ao jogo que alimentam (2 alimentadores abrem ±rowUnit em volta do
-/// destino, slot A em cima). Retorna o Y mais baixo ocupado.
-double _placeTrack({
-  required List<List<TournamentMatch>> trackColumns,
-  required double trackTop,
-  required int startColumnIndex,
-  required List<BracketLayoutNode> nodes,
-  required List<BracketLayoutColumn> columns,
-  required Map<int, BracketLayoutNode> nodeByMatchNumber,
-  required Set<String> usedColumnKeys,
-}) {
-  final orderedColumns = _orderColumnsByWiring(trackColumns);
-  if (orderedColumns.isEmpty) return trackTop;
-
-  final centerOf = <int, double>{}; // matchNumber → centerY absoluto
-
-  var baseCol = 0;
-  for (var c = 1; c < orderedColumns.length; c++) {
-    if (orderedColumns[c].length > orderedColumns[baseCol].length) baseCol = c;
+/// Caminho legado, sem geometria convergente: uma coluna por
+/// `bracketGroupKey`, colunas ordenadas por `bracketGroupSortOrder` da
+/// esquerda para a direita — com UMA exceção: a Final vem antes do 3º lugar
+/// (`bracketGroupSortOrder` continua intacta, com o 3º lugar em 8900 e a
+/// Final em 9000 — ela é compartilhada com listagens fora do layout; a
+/// inversão vale só aqui, na ordenação das colunas). Duas razões: é a ordem
+/// da folha impressa (Final à esquerda, 3º lugar à direita — mesmo critério
+/// da faixa central convergente) e evita que a aresta semi→final pule por
+/// cima do card do 3º lugar quando os dois saem do mesmo bloco de semis —
+/// com a Final logo depois das semis, a aresta liga colunas vizinhas, sem
+/// nada no meio. Jogos de cada coluna em slots fixos `(2i+1)·rowUnit` na
+/// ordem de `matchNumber`. Usado tanto para a chave inteira (sem nenhum
+/// ponto de convergência alcançável) quanto para as partidas órfãs que
+/// sobrarem fora da árvore convergente. Preenche `columnOf`/`centerSlot` a
+/// partir de `startColumn` — `centerSlot` guarda `i + 0.5` (o `+0.5` é o
+/// mesmo ajuste que o resto do arquivo usa pra converter índice de slot em
+/// centro de LUGAR) para que a materialização de nós comum
+/// (`centerSlot * 2 * rowUnit`) resulte exatamente em `(2i+1)·rowUnit`, o
+/// slot fixo da coluna.
+void _placeLegacyGroups(
+  List<TournamentMatch> matches,
+  int startColumn,
+  Map<int, int> columnOf,
+  Map<int, double> centerSlot,
+) {
+  final byGroup = <String, List<TournamentMatch>>{};
+  for (final m in matches) {
+    byGroup.putIfAbsent(bracketGroupKey(m), () => []).add(m);
   }
+  final keys = byGroup.keys.toList()
+    ..sort((a, b) {
+      final typeA = byGroup[a]!.first.matchType.trim().toLowerCase();
+      final typeB = byGroup[b]!.first.matchType.trim().toLowerCase();
+      if (_isFinalType(typeA) && _isThirdPlaceType(typeB)) return -1;
+      if (_isThirdPlaceType(typeA) && _isFinalType(typeB)) return 1;
+      final cmp = bracketGroupSortOrder(byGroup[a]!.first)
+          .compareTo(bracketGroupSortOrder(byGroup[b]!.first));
+      if (cmp != 0) return cmp;
+      return a.compareTo(b);
+    });
 
-  void applyColumn(int col, List<double> centers) {
-    _applyColumn(
-      columnMatches: orderedColumns[col],
-      centers: centers,
-      trackTop: trackTop,
-      columnIndex: startColumnIndex + col,
-      nodes: nodes,
-      columns: columns,
-      nodeByMatchNumber: nodeByMatchNumber,
-      usedColumnKeys: usedColumnKeys,
-      centerOf: centerOf,
-    );
-  }
-
-  // Base: slots fixos.
-  applyColumn(baseCol, [
-    for (var i = 0; i < orderedColumns[baseCol].length; i++)
-      trackTop +
-          BracketLayoutMetrics.columnHeaderHeight +
-          (2 * i + 1) * BracketLayoutMetrics.rowUnit,
-  ]);
-
-  // Antes da base (play-ins): alinhado ao destino que alimenta.
-  for (var col = baseCol - 1; col >= 0; col--) {
-    final columnMatches = orderedColumns[col];
-    final centers = <double>[];
-    var fallback = trackTop +
-        BracketLayoutMetrics.columnHeaderHeight +
-        BracketLayoutMetrics.rowUnit;
-    for (final match in columnMatches) {
-      final dest = match.winnerAdvanceMatchNumber;
-      final targetCenter = dest != null ? centerOf[dest] : null;
-      if (targetCenter == null) {
-        centers.add(fallback);
-        fallback += 2 * BracketLayoutMetrics.rowUnit;
-        continue;
-      }
-      final siblings = [
-        for (final m in columnMatches)
-          if (m.winnerAdvanceMatchNumber == dest) m,
-      ];
-      if (siblings.length >= 2) {
-        final idx = siblings.indexOf(match);
-        centers.add(
-          targetCenter +
-              (idx == 0
-                  ? -BracketLayoutMetrics.rowUnit
-                  : BracketLayoutMetrics.rowUnit),
-        );
-      } else {
-        centers.add(targetCenter);
-      }
-      fallback = centers.last + 2 * BracketLayoutMetrics.rowUnit;
+  var col = startColumn;
+  for (final key in keys) {
+    final columnMatches = [...byGroup[key]!]
+      ..sort((a, b) => a.matchNumber.compareTo(b.matchNumber));
+    for (var i = 0; i < columnMatches.length; i++) {
+      final m = columnMatches[i];
+      columnOf[m.matchNumber] = col;
+      centerSlot[m.matchNumber] = i + 0.5;
     }
-    applyColumn(col, centers);
-  }
-
-  // Depois da base: média dos alimentadores.
-  for (var col = baseCol + 1; col < orderedColumns.length; col++) {
-    final columnMatches = orderedColumns[col];
-    final centers = <double>[];
-    var fallback = trackTop +
-        BracketLayoutMetrics.columnHeaderHeight +
-        BracketLayoutMetrics.rowUnit;
-    for (final match in columnMatches) {
-      final feederCenters = [
-        for (final f in orderedColumns[col - 1])
-          if (f.winnerAdvanceMatchNumber == match.matchNumber &&
-              centerOf.containsKey(f.matchNumber))
-            centerOf[f.matchNumber]!,
-      ];
-      if (feederCenters.isNotEmpty) {
-        centers.add(
-          feederCenters.reduce((a, b) => a + b) / feederCenters.length,
-        );
-      } else {
-        centers.add(fallback);
-      }
-      fallback = centers.last + 2 * BracketLayoutMetrics.rowUnit;
-    }
-    applyColumn(col, centers);
-  }
-
-  var bottom = trackTop;
-  for (final columnMatches in orderedColumns) {
-    for (final m in columnMatches) {
-      final center = centerOf[m.matchNumber];
-      if (center != null) {
-        bottom =
-            math.max(bottom, center + BracketLayoutMetrics.cardHeight / 2);
-      }
-    }
-  }
-  return bottom;
-}
-
-/// Materializa uma coluna: header + nodes na ordem visual recebida, com guarda
-/// de colisão preservando a ordem (jogo nunca sobe acima do anterior).
-void _applyColumn({
-  required List<TournamentMatch> columnMatches,
-  required List<double> centers,
-  required double trackTop,
-  required int columnIndex,
-  required List<BracketLayoutNode> nodes,
-  required List<BracketLayoutColumn> columns,
-  required Map<int, BracketLayoutNode> nodeByMatchNumber,
-  required Set<String> usedColumnKeys,
-  Map<int, double>? centerOf,
-}) {
-  if (columnMatches.isEmpty) return;
-  final x = _columnX(columnIndex);
-  final key = _uniqueColumnKey(columnMatches.first, usedColumnKeys);
-
-  columns.add(
-    BracketLayoutColumn(
-      key: key,
-      label: bracketColumnHeaderLabel(columnMatches),
-      matchIds: [for (final m in columnMatches) m.id],
-      headerPosition: Offset(x, trackTop),
-    ),
-  );
-
-  var prev = double.negativeInfinity;
-  for (var i = 0; i < columnMatches.length; i++) {
-    final match = columnMatches[i];
-    final minCenter = prev + BracketLayoutMetrics.cardHeight + _adjacentGap;
-    final centerY = math.max(centers[i], minCenter);
-    prev = centerY;
-    centerOf?[match.matchNumber] = centerY;
-
-    final node = BracketLayoutNode(
-      matchId: match.id,
-      columnKey: key,
-      slotIndex: i,
-      position: Offset(x, centerY - BracketLayoutMetrics.cardHeight / 2),
-      size: const Size(
-        BracketLayoutMetrics.cardWidth,
-        BracketLayoutMetrics.cardHeight,
-      ),
-      isFinal: match.matchType.trim().toLowerCase() == 'final',
-    );
-    nodes.add(node);
-    nodeByMatchNumber[match.matchNumber] = node;
+    col++;
   }
 }
 
-/// Coluna fora dos tracks em slots fixos (3º lugar e afins).
-void _placeFixedColumn({
-  required List<TournamentMatch> columnMatches,
-  required double trackTop,
-  required int columnIndex,
-  required List<BracketLayoutNode> nodes,
-  required List<BracketLayoutColumn> columns,
-  required Map<int, BracketLayoutNode> nodeByMatchNumber,
-  required Set<String> usedColumnKeys,
-}) {
-  final sorted = [...columnMatches]
-    ..sort((a, b) => a.matchNumber.compareTo(b.matchNumber));
-  _applyColumn(
-    columnMatches: sorted,
-    centers: [
-      for (var i = 0; i < sorted.length; i++)
-        trackTop +
-            BracketLayoutMetrics.columnHeaderHeight +
-            (2 * i + 1) * BracketLayoutMetrics.rowUnit,
-    ],
-    trackTop: trackTop,
-    columnIndex: columnIndex,
-    nodes: nodes,
-    columns: columns,
-    nodeByMatchNumber: nodeByMatchNumber,
-    usedColumnKeys: usedColumnKeys,
-  );
-}
-
-/// Final centralizada verticalmente na altura MEDIDA do track da WB.
-void _placeFinalColumn({
-  required List<TournamentMatch> columnMatches,
-  required double trackTop,
-  required double trackBottom,
-  required int columnIndex,
-  required List<BracketLayoutNode> nodes,
-  required List<BracketLayoutColumn> columns,
-  required Map<int, BracketLayoutNode> nodeByMatchNumber,
-  required Set<String> usedColumnKeys,
-}) {
-  final sorted = [...columnMatches]
-    ..sort((a, b) => a.matchNumber.compareTo(b.matchNumber));
-  final contentTop = trackTop + BracketLayoutMetrics.columnHeaderHeight;
-  _applyColumn(
-    columnMatches: sorted,
-    centers: [
-      for (var i = 0; i < sorted.length; i++)
-        contentTop +
-            (trackBottom - contentTop) / 2 +
-            i * BracketLayoutMetrics.rowUnit,
-    ],
-    trackTop: trackTop,
-    columnIndex: columnIndex,
-    nodes: nodes,
-    columns: columns,
-    nodeByMatchNumber: nodeByMatchNumber,
-    usedColumnKeys: usedColumnKeys,
-  );
-}
-
-/// Conectores pelos ponteiros reais de avanço (`winnerAdvance`), só dentro da
-/// mesma chave (WB→WB, LB→LB) — sem linha cruzando WB↔LB nem entrando na Final.
+/// Conectores pelos ponteiros reais de avanço (`winnerAdvance`), em qualquer
+/// direção — inclusive LB→faixa central, que na forma convergente é o que faz
+/// os dois lados se encontrarem. `loserAdvance` NÃO gera aresta: a queda do
+/// perdedor não se desenha (decisão do dono, ver a spec de 13/09), do mesmo
+/// jeito que a tabela impressa escreve "P 15" em vez de puxar uma linha.
+///
+/// Em chave de DUPLA ELIMINAÇÃO (tem partidas `wb` E `lb`), a Final e o 3º
+/// lugar também não recebem linha — pedido do dono: "não precisa de
+/// ligamento pras finais". Critério usado para distinguir do mata-mata
+/// simples: a MESMA condição `hasWb && hasLb` que decide o caminho legado
+/// logo acima — sem as duas chaves não há o que "ligar" de qualquer forma, e
+/// COM as duas chaves a Final é sempre o desfecho de um cruzamento, nunca o
+/// fim natural de uma única árvore de rodadas. No mata-mata simples (chave
+/// tipada `knockout`/`Final`, sem `wb`/`lb`, caminho legado) a Final é
+/// exatamente esse fim natural — a linha até ela continua o desenho certo.
 List<BracketLayoutEdge> _buildAdvanceEdges(
   List<TournamentMatch> matches,
   Map<int, BracketLayoutNode> nodeByMatchNumber,
 ) {
   final byNumber = {for (final m in matches) m.matchNumber: m};
+  final isDoubleElimination =
+      matches.any((m) => m.matchType.trim().toLowerCase() == 'wb') &&
+          matches.any((m) => m.matchType.trim().toLowerCase() == 'lb');
   final edges = <BracketLayoutEdge>[];
   for (final m in matches) {
-    final type = m.matchType.trim().toLowerCase();
     final dest = m.winnerAdvanceMatchNumber;
     if (dest == null) continue;
     final target = byNumber[dest];
     if (target == null) continue;
-    final targetType = target.matchType.trim().toLowerCase();
-    // DE: só dentro da mesma chave (WB→WB, LB→LB) — linha entrando na Final
-    // cruzaria os tracks. Eliminatória simples (modelo do portal): as
-    // rodadas ligam entre si E entram na Final.
-    final sameTrack = (type == 'wb' || type == 'lb') && targetType == type;
-    final knockoutFlow = type == 'knockout' &&
-        (targetType == 'knockout' || targetType == 'final');
-    if (!sameTrack && !knockoutFlow) continue;
+    if (isDoubleElimination) {
+      final targetType = target.matchType.trim().toLowerCase();
+      if (_isFinalType(targetType) || _isThirdPlaceType(targetType)) continue;
+    }
     if (!nodeByMatchNumber.containsKey(m.matchNumber) ||
         !nodeByMatchNumber.containsKey(dest)) {
       continue;

@@ -54,12 +54,13 @@ function setsWonOf(score: string): [number, number] {
 /** Chave de mata-mata da categoria selecionada — dados reais (`listMatches`, Task O6).
  *
  *  Dupla eliminação (`matchType` WB/LB gravado por `category-bracket-builders.ts`) ganha a
- *  árvore completa (`bracket-tree.ts`, porta do layout canônico do app
- *  `double_elimination_bracket_layout.dart`): canvas único com o track da WB em cima —
- *  incluindo 3º Lugar e Final como colunas à direita, a Final centralizada no track — e o da
- *  LB embaixo; jogos em ordem de matchNumber com espaçamento binário, conectores dos ponteiros
- *  reais de avanço dentro de cada chave. Eliminatória simples e grupos+mata-mata (sem ponteiro
- *  salvo) continuam com o bracket genérico em coluna única.
+ *  geometria CONVERGENTE (`bracket-tree.ts`, porte do layout aprovado no app —
+ *  `bracket_feed_tree.dart` + `double_elimination_bracket_layout.dart`): a WB cresce da
+ *  esquerda pro centro, a LB espelhada da direita pro centro, e o desfecho (cruzamento
+ *  WB×LB, Final, 3º Lugar) fica no meio — a leitura da tabela impressa que o dono usa. O
+ *  lado sem alimentador desenhado (bye da WB, entrada do perdedor na LB) vira linha livre
+ *  (`tree.emptySlots`) em vez de card. Eliminatória simples e grupos+mata-mata (sem `wb`/
+ *  `lb`) continuam com o bracket genérico em coluna única (`buildKnockoutTreeLayout`).
  *
  *  Card da partida espelha o que o app mostra no card da árvore (`BracketMatchNode`, Flutter):
  *  nº do jogo + quadra no topo (`#2 · Quadra 1`), selo de status, avatar de iniciais por
@@ -138,6 +139,11 @@ function setsWonOf(score: string): [number, number] {
           <svg class="og-de-lines" [attr.width]="tree.width" [attr.height]="tree.height">
             @for (e of tree.edges; track $index) {
               <path [attr.d]="e.d" />
+            }
+            <!-- Lado sem alimentador desenhado (bye da WB, entrada do perdedor na LB): linha
+                 livre até a coluna vizinha, sem card na ponta — como a tabela impressa. -->
+            @for (s of tree.emptySlots; track $index) {
+              <line class="og-de-free-line" [attr.x1]="s.from.x" [attr.y1]="s.from.y" [attr.x2]="s.to.x" [attr.y2]="s.to.y" />
             }
           </svg>
           @for (lbl of tree.labels; track lbl.key) {

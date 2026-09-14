@@ -230,6 +230,17 @@
   }
 }
 
+// Linha livre do lado sem alimentador desenhado (bye da WB, entrada do perdedor na LB) —
+// traço mais apagado, sem seta, sem card na ponta, como a tabela impressa (aproxima a razão
+// 0,35/0,85 ≈ 0,41 entre linha livre e conector cheio do `BracketConnectorPainter` — aqui
+// `.bx-lines path` não tem opacity própria [opacidade 1 implícita], então o valor absoluto
+// do app não se aplica, só a proporção; mesmo tratamento do organizador — `.og-de-free-line`).
+.bx-free-line {
+  stroke: var(--nx-orange-500);
+  stroke-width: 1.5px;
+  opacity: 0.4;
+}
+
 .bx-round-label {
   position: absolute;
   text-align: center;
@@ -242,9 +253,11 @@
 }
 
 // ── Card da partida ──────────────────────────────────────────
-// Altura fixa = head 28 + 2 lados de 40 + rodapé 28 = BRACKET_MATCH_HEIGHT (136). Mexer em
-// qualquer uma dessas faixas exige atualizar `bracket-tree.ts` junto, senão os conectores
-// desalinham dos cards.
+// Altura fixa = head 28 + 2 lados de 40 + rodapé 28 = 136 de conteúdo + a borda de 1px do
+// próprio card (topo e base) = BRACKET_MATCH_HEIGHT (138) — a altura vem do TS via
+// `[style.height.px]="matchHeight"`, com `box-sizing: border-box` a borda entra DENTRO dela.
+// Mexer em qualquer uma dessas faixas exige atualizar `bracket-tree.ts` junto, senão os
+// conectores desalinham dos cards.
 .bx-match {
   position: absolute;
   z-index: 1;

@@ -240,9 +240,12 @@ service cloud.firestore {
     // sai dele: quem carimba é só `markTeamRegistrationPaid` (Cloud Function),
     // no instante em que a inscrição fecha. Sem esta trava, o próprio atleta
     // marcaria a equipe dele como paga e entraria no Descobrir sem pagar nada.
-    function teamPaidGateUnchanged() {
+    // `pairKey` entrou junto: é a chave que faz a inscrição seguinte reencontrar
+    // a equipe da dupla, e um cliente que a forjasse apontaria a próxima
+    // inscrição de OUTRO par para o doc dele.
+    function teamServerOnlyFieldsUnchanged() {
       return !request.resource.data.diff(resource.data).affectedKeys()
-        .hasAny(['registrationPaid', 'gender']);
+        .hasAny(['registrationPaid', 'gender', 'pairKey']);
     }
     function managerCanOnlyEditMatchFields() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -2019,7 +2022,7 @@ service cloud.firestore {
         (
           (resource.data.player1Id == request.auth.uid || resource.data.player2Id == request.auth.uid) &&
           teamPlayerIdsUnchanged() &&
-          teamPaidGateUnchanged()
+          teamServerOnlyFieldsUnchanged()
         ) ||
         isSuperAdmin()
       );

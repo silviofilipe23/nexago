@@ -46,6 +46,7 @@ import {
   type InviterCategoryRegistration,
 } from "./tournament-solo-registration";
 import {
+  buildPairKey,
   loadCategoryRegistrationsTx,
   parseCategoryRegistration,
   registrationConflictMessage,
@@ -53,6 +54,7 @@ import {
 } from "./tournament-pair-uniqueness";
 import {formatCategoryInviteNotificationLabel} from "./category-display-labels";
 import {artifactsInscriptionsPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
+import {resolvePairTeamTx} from "./tournament-pair-team";
 import {registrationAthleteUids} from "./tournament-registration-pix-helpers";
 import {asaasArenaSecrets} from "./asaas-client";
 import {
@@ -1891,17 +1893,23 @@ export const acceptTournamentPartnerInvite = onCall({
 
       let teamId = baseTeamId;
       if (baseTeamId) {
-        // Solo legado: já existe equipe de 1 atleta → preenche o player2.
-        tx.update(teamsRef.doc(baseTeamId), {player2Id: joiningUid});
+        // Solo legado: já existe equipe de 1 atleta → preenche o player2. O par
+        // só fica completo aqui, então é aqui que a chave nasce.
+        tx.update(teamsRef.doc(baseTeamId), {
+          player2Id: joiningUid,
+          pairKey: buildPairKey(baseOwnerUid, joiningUid),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
       } else {
-        // Solo novo: CRIA a equipe agora (player1 + player2) — "criar equipe".
-        const teamRef = teamsRef.doc();
-        tx.set(teamRef, {
+        // Solo novo: a equipe da dupla é resolvida (reaproveitada ou criada).
+        const resolved = await resolvePairTeamTx(tx, {
+          teamsRef,
+          inscriptionsRef,
+          tournamentId,
           player1Id: baseOwnerUid,
           player2Id: joiningUid,
-          createdAt: FieldValue.serverTimestamp(),
         });
-        teamId = teamRef.id;
+        teamId = resolved.teamId;
         attachUpdate.teamId = teamId;
       }
 
@@ -1931,17 +1939,17 @@ export const acceptTournamentPartnerInvite = onCall({
     // Leitura antes de qualquer escrita desta transação (exigência do Firestore).
     const spotPassReads = await readSpotPassClaimTx(tx, db, spotPassClaim);
 
-    const teamRef = teamsRef.doc();
-    const regRef = inscriptionsRef.doc();
-
-    tx.set(teamRef, {
+    const resolvedTeam = await resolvePairTeamTx(tx, {
+      teamsRef,
+      inscriptionsRef,
+      tournamentId,
       player1Id: inviterUid,
       player2Id: uid,
-      createdAt: FieldValue.serverTimestamp(),
     });
+    const regRef = inscriptionsRef.doc();
 
     const registrationData: Record<string, unknown> = {
-      teamId: teamRef.id,
+      teamId: resolvedTeam.teamId,
       tournamentId,
       categoryId,
       participantUids: [inviterUid, uid],
@@ -1981,14 +1989,14 @@ export const acceptTournamentPartnerInvite = onCall({
 
     tx.update(inviteRef, {
       status: "accepted",
-      teamId: teamRef.id,
+      teamId: resolvedTeam.teamId,
       registrationId: regRef.id,
       acceptedAt: FieldValue.serverTimestamp(),
     });
 
     return {
       registrationId: regRef.id,
-      teamId: teamRef.id,
+      teamId: resolvedTeam.teamId,
       tournamentId,
       categoryId,
     };

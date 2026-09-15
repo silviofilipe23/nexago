@@ -164,8 +164,10 @@ node scripts/check-registration-team-integrity.js --project volley-track-dev-459
 ```
 
 Anotar os números da saída (`equipe inexistente` e `elenco divergente`). **Esta é a linha de
-base** — se já houver quebradas hoje, elas são pré-existentes e não são desta entrega; o que não
-pode é o número crescer.
+base.** Em 15/09 os dois projetos estavam em `0`/`0` (`integridade OK`), então o portão da entrega
+é **zero quebradas**, não "não pode crescer". Se uma execução futura encontrar quebrada ANTES da
+migração, ela é pré-existente e vira a linha de base daquele dia — mas registre o caso, porque
+inscrição órfã é sintoma de outro defeito, não ruído.
 
 - [ ] **Step 3: Rodar no prod**
 
@@ -1502,9 +1504,17 @@ function isPairTeamDoc(team) {
 node scripts/backfill-team-pair-key.js --project volley-track-dev-4596c
 ```
 
-Esperado: `equipes=218 nomeadas=11 incompletas=0 ja_tinham=0` e `a gravar: 207`. Se `nomeadas`
-vier diferente de 11, parar e investigar antes de aplicar — a contagem é a prova de que o guarda
-de equipe nomeada está certo.
+O dev é banco **vivo** — o app das lojas aponta para ele, então os totais mudam entre uma execução
+e outra. Não confira contra um número decorado; confira a **relação**:
+
+- `nomeadas + incompletas + ja_tinham + a_gravar == equipes`
+- `nomeadas` tem de bater com a quantidade real de equipes de 3+ no projeto (no dev era 11 e no
+  prod 54 em 15/09). Esse é o número que prova que o guarda de equipe nomeada classifica certo —
+  se ele destoar, **pare e investigue** antes de qualquer `--apply`.
+- `incompletas` deve ser 0 nos dois projetos (nenhum doc solo vivo).
+
+Na medição de 15/09: dev `equipes=219 nomeadas=11 incompletas=0 ja_tinham=0`, `a gravar: 208`;
+prod `equipes=59 nomeadas=54 incompletas=0 ja_tinham=0`, `a gravar: 5`.
 
 - [ ] **Step 3: Commit (ainda sem aplicar)**
 
@@ -2253,8 +2263,8 @@ com `--force` e exigir a linha de sucesso.
 node scripts/check-registration-team-integrity.js --project volley-track-dev-4596c
 ```
 
-Esperado: os **mesmos** números da linha de base da Task 0. Cresceu, parar aqui — o deploy mexeu
-em inscrição existente, o que não devia.
+Esperado: `integridade OK` (zero quebradas), igual à linha de base. Qualquer quebrada aqui
+significa que o deploy mexeu em inscrição existente, o que não devia — parar.
 
 - [ ] **Step 5: Fusão dos duplicados no dev**
 
@@ -2279,9 +2289,9 @@ seguem íntegras — investigar e rodar de novo. Nunca apagar doc de equipe à m
 node scripts/check-registration-team-integrity.js --project volley-track-dev-4596c
 ```
 
-Esperado: os mesmos números da linha de base. Este é o portão da exigência do dono — qualquer
-crescimento em `equipe inexistente` ou `elenco divergente` é regressão, e o de-para salvo pelo
-script diz exatamente qual equipe absorveu qual para desfazer.
+Esperado: `integridade OK` — zero em `equipe inexistente` e zero em `elenco divergente`. Este é o
+portão da exigência do dono: uma única quebrada aqui é regressão, e o de-para salvo pelo script diz
+exatamente qual equipe absorveu qual para desfazer.
 
 - [ ] **Step 7: Conferir que não sobrou duplicado**
 

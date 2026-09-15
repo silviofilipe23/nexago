@@ -88,6 +88,16 @@ UIDs ordenados e juntados por `:`. A mudança é passar a **gravar** esse valor 
 `pairKey` só existe em doc de dupla. A ausência do campo é o que marca equipe nomeada e impede
 qualquer fusão acidental de trio/quarteto/quinteto.
 
+**`pairKey` é índice, não prova.** A regra de update de `teams` deixa o atleta da equipe escrever
+campos livres, então um cliente poderia gravar o `pairKey` de outra dupla e sequestrar o doc dela
+na próxima inscrição. Duas travas:
+
+- o helper **revalida** todo candidato recomputando `buildPairKey` a partir do `player1Id`/
+  `player2Id` do próprio doc, e descarta quem não bater — o campo serve só para achar, nunca para
+  decidir;
+- `pairKey` entra na lista de campos que o cliente não pode tocar, junto de `registrationPaid` e
+  `gender` (a função `teamPaidGateUnchanged` das rules vira `teamServerOnlyFieldsUnchanged`).
+
 ## Mudança no servidor
 
 Criar equipe é exclusivo do servidor — `firestore.rules` tem `allow create: if false` no match de
@@ -153,9 +163,17 @@ Grava `pairKey` nas duplas existentes (207 no dev, 5 no prod). Pula equipe nomea
 
 ## Migração: `functions/scripts/merge-duplicate-pair-teams.js`
 
-Agrupa duplas por `pairKey`, e para cada grupo com 2+ docs elege o **sobrevivente**: o doc com o
-maior número de documentos apontando para ele nas 8 coleções do inventário abaixo (minimiza
-escrita); empate, o `createdAt` mais antigo. Os demais são absorvidos e apagados.
+Agrupa duplas pela chave do par calculada dos próprios `player1Id`/`player2Id` (não depende do
+backfill ter rodado) e, para cada grupo com 2+ docs, elege o **sobrevivente**: o doc com o maior
+número de documentos apontando para ele nas 8 coleções do inventário abaixo (minimiza escrita);
+empate, o `createdAt` mais antigo. Os demais são absorvidos e apagados.
+
+**Nem todo grupo de 2+ é duplicação.** A decisão 2 cria docs distintos de propósito quando o par
+entra em duas categorias do mesmo torneio. O script só funde um grupo quando os torneios dos docs
+**não se cruzam**; grupo com torneio em comum é pulado e sai no relatório como
+`convivência legítima`. Hoje isso não existe em nenhum dos dois projetos (0 casos medidos), mas
+fundir esses docs colocaria a mesma equipe em duas chaves do mesmo evento — exatamente o que a
+decisão 2 evita.
 
 O inventário abaixo veio de varredura real do dev (todo doc de cada coleção, procurando os ids
 duplicados em qualquer campo aninhado), não de leitura de código:
@@ -218,7 +236,7 @@ plano de repontamento. O I/O em si é validado pelo `--dry-run` contra o dev.
 ## Rollout
 
 1. `node scripts/backfill-team-pair-key.js --project volley-track-dev-4596c --apply`
-2. deploy das Functions (estanca o sangramento: nenhum duplicado novo)
+2. deploy das Functions **e das rules** (estanca o sangramento: nenhum duplicado novo)
 3. `node scripts/merge-duplicate-pair-teams.js --project volley-track-dev-4596c --dry-run`,
    conferir o plano, depois `--apply`
 4. mesma ordem no prod **só do passo 1 e 2** — não há duplicado para fundir lá

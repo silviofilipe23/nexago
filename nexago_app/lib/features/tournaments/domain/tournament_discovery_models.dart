@@ -103,11 +103,11 @@ class DiscoveryTournament {
     this.leagueId,
     this.leagueStageId,
     this.imageUrl,
-    this.sport = '',
+    String? sport,
     this.categoryOffers = const [],
     this.createdAt,
     this.registrationOpensAt,
-  });
+  }) : _sport = sport;
 
   final String id;
   final String name;
@@ -134,7 +134,11 @@ class DiscoveryTournament {
 
   /// Esporte do torneio (`tournaments/{id}.sport`, nome do enum
   /// `TournamentSport`). Escolhe a capa padrão quando `imageUrl` falta.
-  final String sport;
+  ///
+  /// Getter (não `final String`) de propósito: hot reload após adicionar o
+  /// campo deixava instâncias em memória com slot nulo e derrubava a home.
+  final String? _sport;
+  String get sport => _sport ?? '';
 
   /// Categorias para inscrição (espelha Firestore `categories[]`).
   final List<TournamentCategoryOffer> categoryOffers;

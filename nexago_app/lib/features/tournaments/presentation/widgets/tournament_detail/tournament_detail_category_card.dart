@@ -36,6 +36,7 @@ class TournamentDetailCategoryCard extends StatefulWidget {
     this.registration,
     this.isOnWaitlist = false,
     this.registrationNotYetOpen = false,
+    this.hasLiveMatch = false,
   });
 
   /// Quanto o card encolhe enquanto está sob o dedo.
@@ -53,6 +54,9 @@ class TournamentDetailCategoryCard extends StatefulWidget {
 
   /// `registrationOpensAt` do torneio ainda no futuro — CTA de inscrição some.
   final bool registrationNotYetOpen;
+
+  /// Há partida em andamento nesta categoria — selo "AO VIVO".
+  final bool hasLiveMatch;
 
   @override
   State<TournamentDetailCategoryCard> createState() =>
@@ -108,6 +112,7 @@ class _TournamentDetailCategoryCardState
       offer,
       inscriptionCount: widget.inscriptionCount,
       tournamentStatus: widget.tournamentStatus,
+      hasLiveMatch: widget.hasLiveMatch,
     );
     final vacancy = tournamentCategoryVacancyUi(
       offer,
@@ -254,7 +259,8 @@ class _CardBackdrop extends StatelessWidget {
           excludeFromSemantics: true,
           // Arte ausente não pode deixar o card ilegível: o texto é branco
           // fixo, então o fallback precisa ser escuro, nunca a superfície.
-          errorBuilder: (_, _, _) => _SolidFallback(accent: accent),
+          errorBuilder: (context, error, stackTrace) =>
+              _SolidFallback(accent: accent),
         ),
         // Scrim: mantém a arte visível sem matar a leitura do texto. Mais
         // pesado à esquerda, que é onde o nome e a linha de meta vivem.
@@ -355,7 +361,9 @@ class _CategoryHeadline extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        if (isEnrolled)
+        if (status.isLive)
+          _StatePill(label: status.label, color: status.color)
+        else if (isEnrolled)
           _StatePill(
             label: isOnWaitlist ? 'NA FILA' : 'INSCRITO',
             color: isOnWaitlist ? AppColors.pending : AppColors.win,

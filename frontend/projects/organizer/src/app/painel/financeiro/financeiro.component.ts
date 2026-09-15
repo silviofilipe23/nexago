@@ -183,6 +183,7 @@ interface EventoArrecadacaoRow {
           <div class="og-financeiro-grid">
             <og-card kicker="Movimentação" title="Extrato" pad="0">
               <div class="og-table-head">
+                <span style="flex:1.4">Atletas</span>
                 <span style="flex:1">Data</span>
                 <span style="width:90px;text-align:right">Bruto</span>
                 <span style="width:90px;text-align:right">Taxa</span>
@@ -191,6 +192,7 @@ interface EventoArrecadacaoRow {
               <div class="og-table-body">
                 @for (e of ledger(); track e.id) {
                   <div class="og-row">
+                    <span style="flex:1.4" class="og-fin-evento" [title]="e.athleteLabel || 'Inscrição'">{{ e.athleteLabel || '—' }}</span>
                     <span style="flex:1" class="og-fin-date">{{ dateLabel(e.createdAt) }}</span>
                     <span style="width:90px;text-align:right" class="og-fin-value">{{ brl(e.grossReais) }}</span>
                     <span style="width:90px;text-align:right;color:var(--nx-text-dim)" class="og-fin-value">{{ brl(e.platformFeeReais) }}</span>

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
@@ -6,15 +7,18 @@ import '../../../../../core/ui/rebuild_at.dart';
 import '../../../data/tournament_inscriptions_repository.dart';
 import '../../../domain/category_filter.dart';
 import '../../../domain/tournament_category_spots.dart';
+import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_detail_model.dart';
 import '../../../domain/tournament_discovery_models.dart';
+import '../../../domain/tournament_discovery_providers.dart';
 import '../../../domain/tournament_listing_status.dart';
+import '../../../domain/tournament_match.dart';
 import 'tournament_categories_hero.dart';
 import 'tournament_detail_category_card.dart';
 import 'tournament_detail_category_chips.dart';
 import 'tournament_detail_tab_slivers.dart';
 
-class TournamentDetailCategoriesTab extends StatefulWidget {
+class TournamentDetailCategoriesTab extends ConsumerStatefulWidget {
   const TournamentDetailCategoriesTab({
     super.key,
     required this.tournament,
@@ -40,17 +44,26 @@ class TournamentDetailCategoriesTab extends StatefulWidget {
   final VoidCallback onBack;
 
   @override
-  State<TournamentDetailCategoriesTab> createState() =>
+  ConsumerState<TournamentDetailCategoriesTab> createState() =>
       _TournamentDetailCategoriesTabState();
 }
 
 class _TournamentDetailCategoriesTabState
-    extends State<TournamentDetailCategoriesTab> {
+    extends ConsumerState<TournamentDetailCategoriesTab> {
   String _filterId = categoryFilterAllId;
 
   @override
   Widget build(BuildContext context) {
     final offers = widget.tournament.categoryOffers;
+    // Mesmo stream da visão/chave — Riverpod compartilha; sem leitura extra
+    // no Firestore. Só marca "AO VIVO" por categoria.
+    final matches =
+        ref
+            .watch(tournamentMatchCardsProvider(widget.tournament.id))
+            .valueOrNull
+            ?.map((c) => c.match)
+            .toList() ??
+        const <TournamentMatch>[];
 
     final hero = TournamentCategoriesSliverHero(onBack: widget.onBack);
 
@@ -89,13 +102,18 @@ class _TournamentDetailCategoriesTabState
         ...tournamentDetailTabSliversFromBuilder(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
           itemCount: visible.length,
-          itemBuilder: (context, index) => _buildCard(context, visible[index]),
+          itemBuilder: (context, index) =>
+              _buildCard(context, visible[index], matches),
         ),
       ],
     );
   }
 
-  Widget _buildCard(BuildContext context, TournamentCategoryOffer offer) {
+  Widget _buildCard(
+    BuildContext context,
+    TournamentCategoryOffer offer,
+    List<TournamentMatch> matches,
+  ) {
     // Abertura agendada: cada card se acerta sozinho na hora marcada — só
     // os visíveis estão montados, e cada um gasta um único timer.
     return RebuildAt(
@@ -119,6 +137,7 @@ class _TournamentDetailCategoriesTabState
           ),
           registration: widget.registrationsByCategoryId[offer.id],
           isOnWaitlist: widget.waitlistByCategoryId[offer.id] == true,
+          hasLiveMatch: categoryHasInProgressMatch(matches, offer),
           onRegister: () {
             if (!widget.canAccessTournaments) {
               widget.onRegisterBlocked?.call();

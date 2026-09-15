@@ -20,6 +20,7 @@ void main() {
     WidgetTester tester,
     TournamentListingStatus status, {
     TournamentCategoryOffer category = offer,
+    bool hasLiveMatch = false,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -30,6 +31,7 @@ void main() {
               tournamentId: 't1',
               tournamentName: 'Etapa Garden',
               tournamentStatus: status,
+              hasLiveMatch: hasLiveMatch,
               onRegister: () {},
             ),
           ),
@@ -138,5 +140,11 @@ void main() {
     await pumpCard(tester, TournamentListingStatus.open);
 
     expect(find.text('Inscreva-se'), findsOneWidget);
+  });
+
+  testWidgets('partida em andamento mostra selo AO VIVO', (tester) async {
+    await pumpCard(tester, TournamentListingStatus.open, hasLiveMatch: true);
+
+    expect(find.text('AO VIVO'), findsOneWidget);
   });
 }

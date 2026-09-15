@@ -3,7 +3,9 @@ import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_detail_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_detail_model.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_listing_status.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_match_status.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_logic.dart';
 
 void main() {
@@ -140,6 +142,133 @@ void main() {
       expect(rowStatus.isClosed, isTrue);
     }
   });
+
+  test('tournamentCategoryRowStatus vira AO VIVO com partida em andamento', () {
+    final row = tournamentCategoryRowStatus(
+      sample.categoryOffers[0],
+      hasLiveMatch: true,
+    );
+    expect(row.label, 'AO VIVO');
+    expect(row.isLive, isTrue);
+    expect(row.isClosed, isFalse);
+    expect(row.color, AppColors.live);
+  });
+
+  test(
+    'tournamentCategoryRowStatus AO VIVO sobrescreve inscrição fechada',
+    () {
+      const closedPlaying = TournamentCategoryOffer(
+        id: 'c1',
+        name: 'Misto A',
+        entryFee: 90,
+        spotsLeft: 0,
+        spotsTotal: 16,
+        registrationClosed: true,
+      );
+      final row = tournamentCategoryRowStatus(
+        closedPlaying,
+        hasLiveMatch: true,
+      );
+      expect(row.label, 'AO VIVO');
+      expect(row.isLive, isTrue);
+    },
+  );
+
+  // Terminal/completed vêm antes de hasLiveMatch — selo esportivo não reabre
+  // categoria já encerrada (nem torneio finalizado).
+  test(
+    'tournamentCategoryRowStatus ENCERRADA ganha de hasLiveMatch',
+    () {
+      const completed = TournamentCategoryOffer(
+        id: 'done',
+        name: 'Masculino A',
+        entryFee: 90,
+        spotsLeft: 0,
+        spotsTotal: 16,
+        isCompleted: true,
+      );
+      final completedRow = tournamentCategoryRowStatus(
+        completed,
+        hasLiveMatch: true,
+      );
+      expect(completedRow.label, 'ENCERRADA');
+      expect(completedRow.isClosed, isTrue);
+      expect(completedRow.isLive, isFalse);
+
+      for (final status in [
+        TournamentListingStatus.completed,
+        TournamentListingStatus.ended,
+      ]) {
+        final terminalRow = tournamentCategoryRowStatus(
+          sample.categoryOffers[0],
+          tournamentStatus: status,
+          hasLiveMatch: true,
+        );
+        expect(terminalRow.label, 'ENCERRADA');
+        expect(terminalRow.isClosed, isTrue);
+        expect(terminalRow.isLive, isFalse);
+      }
+    },
+  );
+
+  TournamentMatch liveMatch({
+    required String id,
+    required String categoryId,
+    String status = TournamentMatchStatus.inProgress,
+  }) =>
+      TournamentMatch(
+        id: id,
+        tournamentId: 't1',
+        categoryId: categoryId,
+        round: 1,
+        matchType: 'bracket',
+        poolId: '',
+        teamAId: 'a',
+        teamBId: 'b',
+        status: status,
+        resultA: '',
+        resultB: '',
+        isGroupMatch: false,
+        matchNumber: 1,
+      );
+
+  test('categoryHasInProgressMatch aceita id ou nome legado', () {
+    final offer = sample.categoryOffers[0];
+    final byId = [liveMatch(id: 'm1', categoryId: offer.id)];
+    final byName = [liveMatch(id: 'm2', categoryId: offer.name)];
+    final scheduled = [
+      liveMatch(
+        id: 'm3',
+        categoryId: offer.id,
+        status: TournamentMatchStatus.scheduled,
+      ),
+    ];
+
+    expect(categoryHasInProgressMatch(byId, offer), isTrue);
+    expect(categoryHasInProgressMatch(byName, offer), isTrue);
+    expect(categoryHasInProgressMatch(scheduled, offer), isFalse);
+    expect(categoryHasInProgressMatch(byId, sample.categoryOffers[1]), isFalse);
+  });
+
+  test(
+    'categoryHasInProgressMatch ignora partida ao vivo de outra categoria',
+    () {
+      final masc = sample.categoryOffers[0];
+      final fem = sample.categoryOffers[1];
+      final matches = [
+        liveMatch(id: 'm-other', categoryId: fem.id),
+        liveMatch(
+          id: 'm-scheduled',
+          categoryId: masc.id,
+          status: TournamentMatchStatus.scheduled,
+        ),
+      ];
+
+      expect(categoryHasInProgressMatch(matches, masc), isFalse);
+      expect(categoryHasInProgressMatch(matches, fem), isTrue);
+      expect(categoryHasInProgressMatch(const [], masc), isFalse);
+    },
+  );
 
   test('bracketFormatLabel translates pool play', () {
     expect(bracketFormatLabel('Pool Play + SE'), 'Fase de Grupos + Mata-mata');

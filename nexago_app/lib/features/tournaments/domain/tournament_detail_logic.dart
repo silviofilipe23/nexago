@@ -31,11 +31,15 @@ class TournamentCategoryRowStatus {
     required this.label,
     required this.color,
     required this.isClosed,
+    this.isLive = false,
   });
 
   final String label;
   final Color color;
   final bool isClosed;
+
+  /// Primeira partida da categoria já em quadra — selo "AO VIVO".
+  final bool isLive;
 }
 
 final _longDateFmt = DateFormat("d 'de' MMMM 'de' y", 'pt_BR');
@@ -183,6 +187,7 @@ TournamentCategoryRowStatus tournamentCategoryRowStatus(
   TournamentCategoryOffer offer, {
   int? inscriptionCount,
   TournamentListingStatus? tournamentStatus,
+  bool hasLiveMatch = false,
 }) {
   // Torneio finalizado: o selo nunca anuncia vaga, mesmo que o organizador não
   // tenha fechado o doc da categoria.
@@ -193,7 +198,24 @@ TournamentCategoryRowStatus tournamentCategoryRowStatus(
       isClosed: true,
     );
   }
-  if (offer.registrationClosed || offer.isCompleted) {
+  if (offer.isCompleted) {
+    return const TournamentCategoryRowStatus(
+      label: 'ENCERRADA',
+      color: AppColors.live,
+      isClosed: true,
+    );
+  }
+  // Primeira partida em andamento: status esportivo sobrescreve vaga/fila —
+  // inscrição já fechou na prática quando a categoria está jogando.
+  if (hasLiveMatch) {
+    return const TournamentCategoryRowStatus(
+      label: 'AO VIVO',
+      color: AppColors.live,
+      isClosed: false,
+      isLive: true,
+    );
+  }
+  if (offer.registrationClosed) {
     return const TournamentCategoryRowStatus(
       label: 'ENCERRADA',
       color: AppColors.live,
@@ -228,6 +250,25 @@ TournamentCategoryRowStatus tournamentCategoryRowStatus(
     color: AppColors.win,
     isClosed: false,
   );
+}
+
+/// Há partida `In Progress` nesta categoria.
+///
+/// `matches.categoryId` às vezes guarda o **nome** (legado) em vez de
+/// `categories[].id` — aceita os dois, igual ao resolve de inscrição.
+bool categoryHasInProgressMatch(
+  Iterable<TournamentMatch> matches,
+  TournamentCategoryOffer offer,
+) {
+  final id = offer.id.trim();
+  final name = offer.name.trim();
+  if (id.isEmpty && name.isEmpty) return false;
+  return matches.any((m) {
+    if (!m.isInProgress) return false;
+    final cid = m.categoryId.trim();
+    if (cid.isEmpty) return false;
+    return cid == id || cid == name;
+  });
 }
 
 String bracketFormatLabel(String raw) {

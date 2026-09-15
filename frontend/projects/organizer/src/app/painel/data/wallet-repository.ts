@@ -26,6 +26,8 @@ export interface OrganizerLedgerEntry {
   grossReais: number;
   platformFeeReais: number;
   createdAt: Date | null;
+  /** Dupla/equipe ou pagador — resolvido na callable a partir da inscrição. */
+  athleteLabel: string;
 }
 
 export interface OrganizerWithdrawal {
@@ -200,6 +202,7 @@ export async function loadWalletView(organizerId?: string, ledgerLimit?: number)
           grossReais: numberOf(row['grossReais']),
           platformFeeReais: numberOf(row['platformFeeReais']),
           createdAt: isoToDate(row['createdAt']),
+          athleteLabel: optionalStr(row['athleteLabel']) ?? '',
         };
       }),
       withdrawals: (Array.isArray(data['withdrawals']) ? data['withdrawals'] : []).map((x) => {

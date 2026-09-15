@@ -282,6 +282,24 @@ void main() {
       expect(timeline.map((m) => m.id), ['manha', 'tarde']);
     });
 
+    test('visitante sem time não vê card mesmo com jogo ao vivo no torneio',
+        () {
+      final matches = [
+        _match(
+          id: 'ao-vivo',
+          teamAId: 'x',
+          teamBId: 'y',
+          status: TournamentMatchStatus.inProgress,
+          scheduleTime: DateTime(2026, 8, 20, 10, 0),
+        ),
+      ];
+
+      expect(
+        myTournamentDayTimeline(matches, const {}, reference),
+        isEmpty,
+      );
+    });
+
     test('partida sem scheduleTime fica fora', () {
       final matches = [
         _match(id: 'sem-horario', teamAId: 'meu', teamBId: 'y'),

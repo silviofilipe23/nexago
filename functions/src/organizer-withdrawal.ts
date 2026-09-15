@@ -14,6 +14,7 @@ import {
   getFirestore,
   FieldValue,
   Timestamp,
+  type DocumentData,
   type QueryDocumentSnapshot,
 } from "firebase-admin/firestore";
 import {getAuth} from "firebase-admin/auth";
@@ -40,8 +41,15 @@ import {
 import {deliverNotificationToUser} from "./notification-delivery";
 import {ARENA_WITHDRAWAL_AUTO_MAX_REAIS} from "./arena-booking-payment-constants";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {
+  artifactsInscriptionsPath,
+  artifactsTeamsPath,
+} from "./firebase-paths";
+import {chunkList} from "./test-data-cleanup";
 
 const ORGANIZER_WITHDRAWALS = "organizerWithdrawals";
+/** Admin `getAll` aceita no máximo 100 refs por chamada. */
+const GET_ALL_CHUNK = 100;
 
 async function assertPlatformAdmin(uid: string): Promise<void> {
   let caller;
@@ -373,6 +381,9 @@ export const loadOrganizerWalletView = onCall({
         .get();
     });
 
+  const ledgerDocs = ledgerSnap?.docs ?? [];
+  const athleteLabelByKey = await resolveLedgerAthleteLabels(db, ledgerDocs);
+
   return {
     wallets,
     selected: {
@@ -391,14 +402,21 @@ export const loadOrganizerWalletView = onCall({
       hasPayoutPixKey: payoutPixKey.length >= 5,
       canEditPixKey: isOwn,
     },
-    ledger: (ledgerSnap?.docs ?? []).map((d) => {
+    ledger: ledgerDocs.map((d) => {
       const e = d.data();
+      const registrationId =
+        typeof e.registrationId === "string" ? e.registrationId.trim() : "";
+      const payerUid = typeof e.payerUid === "string" ? e.payerUid.trim() : "";
       return {
         id: d.id,
         netReais: Number(e.netReais) || 0,
         grossReais: Number(e.grossReais) || 0,
         platformFeeReais: Number(e.platformFeeReais) || 0,
         createdAt: (e.createdAt as Timestamp | undefined)?.toDate?.()?.toISOString() ?? null,
+        athleteLabel:
+          (registrationId && athleteLabelByKey.get(registrationId)) ||
+          (payerUid && athleteLabelByKey.get(`payer:${payerUid}`)) ||
+          "",
       };
     }),
     withdrawals: (withdrawalsSnap?.docs ?? []).map((d) => {
@@ -420,6 +438,178 @@ export const loadOrganizerWalletView = onCall({
   };
 });
 
+/** Até duas palavras — o extrato não precisa do nome civil completo. */
+function twoWordPersonName(raw: string): string {
+  const parts = raw.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0]!;
+  return `${parts[0]} ${parts[1]}`;
+}
+
+function profileDisplayName(data: DocumentData | undefined): string {
+  if (!data) return "";
+  const raw =
+    (typeof data.nickname === "string" && data.nickname.trim()) ||
+    (typeof data.fullName === "string" && data.fullName.trim()) ||
+    (typeof data.name === "string" && data.name.trim()) ||
+    (typeof data.displayName === "string" && data.displayName.trim()) ||
+    "";
+  return twoWordPersonName(raw);
+}
+
+/**
+ * Resolve o rótulo do extrato a partir de `registrationId` (preferido) ou
+ * `payerUid` (fallback). Lê inscriptions → teams → public_profiles em lote —
+ * uma passada por load da tela, não por linha.
+ */
+async function resolveLedgerAthleteLabels(
+  db: ReturnType<typeof getFirestore>,
+  ledgerDocs: QueryDocumentSnapshot[],
+): Promise<Map<string, string>> {
+  const labels = new Map<string, string>();
+  if (ledgerDocs.length === 0) return labels;
+
+  const registrationIds = [...new Set(
+    ledgerDocs
+      .map((d) => {
+        const id = d.data().registrationId;
+        return typeof id === "string" ? id.trim() : "";
+      })
+      .filter(Boolean),
+  )];
+  const payerUids = [...new Set(
+    ledgerDocs
+      .map((d) => {
+        const id = d.data().payerUid;
+        return typeof id === "string" ? id.trim() : "";
+      })
+      .filter(Boolean),
+  )];
+
+  const inscriptionById = new Map<string, DocumentData>();
+  const teamIds = new Set<string>();
+  const profileUids = new Set<string>(payerUids);
+
+  for (const chunk of chunkList(registrationIds, GET_ALL_CHUNK)) {
+    if (chunk.length === 0) continue;
+    const snaps = await db.getAll(
+      ...chunk.map((id) => db.doc(`${artifactsInscriptionsPath()}/${id}`)),
+    );
+    for (const snap of snaps) {
+      if (!snap.exists) continue;
+      const data = snap.data() ?? {};
+      inscriptionById.set(snap.id, data);
+      const teamId = typeof data.teamId === "string" ? data.teamId.trim() : "";
+      if (teamId) teamIds.add(teamId);
+      if (Array.isArray(data.participantUids)) {
+        for (const uid of data.participantUids) {
+          if (typeof uid === "string" && uid.trim()) profileUids.add(uid.trim());
+        }
+      }
+      const player1 =
+        typeof data.player1Id === "string" ? data.player1Id.trim() : "";
+      if (player1) profileUids.add(player1);
+    }
+  }
+
+  const teamById = new Map<string, DocumentData>();
+  for (const chunk of chunkList([...teamIds], GET_ALL_CHUNK)) {
+    if (chunk.length === 0) continue;
+    const snaps = await db.getAll(
+      ...chunk.map((id) => db.doc(`${artifactsTeamsPath()}/${id}`)),
+    );
+    for (const snap of snaps) {
+      if (!snap.exists) continue;
+      const data = snap.data() ?? {};
+      teamById.set(snap.id, data);
+      for (const key of ["player1Id", "player2Id"] as const) {
+        const uid =
+          typeof data[key] === "string" ? (data[key] as string).trim() : "";
+        if (uid) profileUids.add(uid);
+      }
+      if (Array.isArray(data.memberUids)) {
+        for (const uid of data.memberUids) {
+          if (typeof uid === "string" && uid.trim()) profileUids.add(uid.trim());
+        }
+      }
+    }
+  }
+
+  const nameByUid = new Map<string, string>();
+  for (const chunk of chunkList([...profileUids], GET_ALL_CHUNK)) {
+    if (chunk.length === 0) continue;
+    const snaps = await db.getAll(
+      ...chunk.map((id) => db.doc(`public_profiles/${id}`)),
+    );
+    for (const snap of snaps) {
+      if (!snap.exists) continue;
+      const name = profileDisplayName(snap.data());
+      if (name) nameByUid.set(snap.id, name);
+    }
+    // Fallback users/{uid} quando o espelho público ainda não tem o nome.
+    const missing = chunk.filter((id) => !nameByUid.has(id));
+    if (missing.length === 0) continue;
+    const userSnaps = await db.getAll(
+      ...missing.map((id) => db.doc(`users/${id}`)),
+    );
+    for (const snap of userSnaps) {
+      if (!snap.exists) continue;
+      const name = profileDisplayName(snap.data());
+      if (name) nameByUid.set(snap.id, name);
+    }
+  }
+
+  for (const [registrationId, inscription] of inscriptionById) {
+    const teamId = typeof inscription.teamId === "string" ?
+      inscription.teamId.trim() :
+      "";
+    const team = teamId ? teamById.get(teamId) : undefined;
+    const customName =
+      (typeof inscription.customTeamName === "string" &&
+        inscription.customTeamName.trim()) ||
+      (typeof team?.teamName === "string" && team.teamName.trim()) ||
+      "";
+    if (customName) {
+      labels.set(registrationId, customName);
+      continue;
+    }
+
+    const uids: string[] = [];
+    const seen = new Set<string>();
+    const pushUid = (raw: unknown) => {
+      if (typeof raw !== "string") return;
+      const id = raw.trim();
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      uids.push(id);
+    };
+    if (Array.isArray(inscription.participantUids)) {
+      for (const uid of inscription.participantUids) pushUid(uid);
+    }
+    if (team) {
+      pushUid(team.player1Id);
+      pushUid(team.player2Id);
+      if (Array.isArray(team.memberUids)) {
+        for (const uid of team.memberUids) pushUid(uid);
+      }
+    }
+    pushUid(inscription.player1Id);
+
+    const names = uids
+      .map((uid) => nameByUid.get(uid) ?? "")
+      .filter(Boolean);
+    if (names.length > 0) {
+      labels.set(registrationId, names.join(" / "));
+    }
+  }
+
+  for (const payerUid of payerUids) {
+    const name = nameByUid.get(payerUid);
+    if (name) labels.set(`payer:${payerUid}`, name);
+  }
+
+  return labels;
+}
 async function fetchPendingOrganizerWithdrawalDocs(
   db: ReturnType<typeof getFirestore>,
 ): Promise<QueryDocumentSnapshot[]> {

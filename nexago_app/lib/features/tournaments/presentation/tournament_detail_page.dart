@@ -277,7 +277,6 @@ class _TournamentDetailContentState
         '${tournamentSpotsRemainingLabel(widget.stats)} · garanta já';
 
     final isRegistered = isAthleteRegistered || athleteTeamIds.isNotEmpty;
-    final live = liveTournamentMatches(matches);
     // O pódio é derivado das partidas que a tela já transmite — nenhuma
     // leitura nova no Firestore.
     final showPodio = tournamentPodiumAvailable(
@@ -289,14 +288,17 @@ class _TournamentDetailContentState
       isCancelled: isCancelledListing(widget.tournament.listingStatusRaw),
     );
     final isToday = tournamentIsEventToday(widget.tournament, now);
-    final hasMyMatchToday =
-        myTournamentDayTimeline(
-          matches,
-          athleteTeamIds,
-          now,
-          tournamentRunningToday: isToday,
-        ).isNotEmpty ||
-        live.isNotEmpty;
+    // Só partidas DO atleta — `live` é do torneio inteiro e fazia o card
+    // "Você joga hoje" aparecer pra qualquer visitante enquanto houvesse
+    // jogo em quadra.
+    final myDayMatches = myTournamentDayTimeline(
+      matches,
+      athleteTeamIds,
+      now,
+      tournamentRunningToday: isToday,
+    );
+    final hasMyMatchToday = myDayMatches.isNotEmpty;
+    final myLiveNow = myDayMatches.any((m) => m.isInProgress);
 
     return Column(
       children: [
@@ -372,7 +374,7 @@ class _TournamentDetailContentState
                   tournament: widget.tournament,
                   stats: widget.stats,
                   showHoje: hasMyMatchToday,
-                  liveNow: live.isNotEmpty,
+                  liveNow: myLiveNow,
                   showMinhaInscricao: isRegistered,
                   palpitesEnabled: tournamentHasDefinedMatchups(matches),
                   showPodio: showPodio,

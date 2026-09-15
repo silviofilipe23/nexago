@@ -905,9 +905,18 @@ Passa a ser:
       if (baseTeamId) {
         // Solo legado: já existe equipe de 1 atleta → preenche o player2. O par
         // só fica completo aqui, então é aqui que a chave nasce.
+        //
+        // A chave sai do player1 do PRÓPRIO doc de equipe (já lido em
+        // `existingTeamSnap`), não do dono da inscrição: o helper revalida todo
+        // candidato recomputando `buildPairKey` a partir dos player ids do doc.
+        // Uma chave derivada de outra fonte pode não bater — e aí o carimbo,
+        // cujo único propósito é tornar o par reaproveitável, não serve pra nada.
+        const teamOwnerUid =
+          (existingTeamSnap?.data()?.player1Id as string | undefined)?.trim() ||
+          baseOwnerUid;
         tx.update(teamsRef.doc(baseTeamId), {
           player2Id: joiningUid,
-          pairKey: buildPairKey(baseOwnerUid, joiningUid),
+          pairKey: buildPairKey(teamOwnerUid, joiningUid),
           updatedAt: FieldValue.serverTimestamp(),
         });
       } else {
@@ -1035,9 +1044,17 @@ Passa a ser:
       if (baseTeamId) {
         // Solo legado: a equipe de 1 atleta já existe → preenche o player2. O
         // par só fica completo aqui, então é aqui que a chave nasce.
+        //
+        // Mesma regra da Task 4: a chave sai do player1 do PRÓPRIO doc (já lido
+        // em `existingTeamSnap`), porque é assim que o helper revalida o
+        // candidato. Derivar do dono da inscrição pode gravar uma chave que os
+        // player ids do doc não produzem, e o carimbo vira letra morta.
+        const teamOwnerUid =
+          (existingTeamSnap?.data()?.player1Id as string | undefined)?.trim() ||
+          baseOwnerUid;
         tx.update(teamsRef.doc(baseTeamId), {
           player2Id: joiningUid,
-          pairKey: buildPairKey(baseOwnerUid, joiningUid),
+          pairKey: buildPairKey(teamOwnerUid, joiningUid),
           updatedAt: FieldValue.serverTimestamp(),
         });
       } else {
@@ -1114,6 +1131,176 @@ Esperado: tudo verde, sem editar teste existente.
 ```bash
 git add functions/src/organizer-create-registration.ts
 git commit -m "feat: inscrição pelo organizador reaproveita a equipe da dupla"
+```
+
+---
+
+### Task 5b: Prova ponta a ponta na matriz de inscrições
+
+As Tasks 2 a 5 provam o helper isolado e que nada regrediu. **Nenhuma delas prova que a promessa
+da entrega acontece de verdade pelo caminho real.** O repositório já tem o harness certo para
+isso: `functions/test/registration-*.test.mjs` chama as callables de verdade contra o emulador do
+Firestore.
+
+**Files:**
+- Create: `functions/test/registration-identidade-dupla.test.mjs`
+
+**Interfaces:**
+- Consumes: `functions/test/registration-harness.mjs` — `seedTournament`, `duplaCategory`,
+  `teamCategory`, `seedMan`, `formDupla`, `formTeam`, `getTeam`, `getRegistration`,
+  `clearFirestore`, `db`, `TEAMS`. `seedTournament` devolve o `tournamentId` (string);
+  `formDupla` devolve `{inviteId, registrationId, teamId, ...}`.
+- Produces: nada — é o teste de aceitação da entrega.
+
+- [ ] **Step 1: Escrever o teste**
+
+Criar `functions/test/registration-identidade-dupla.test.mjs`:
+
+```js
+/**
+ * Identidade única da dupla, provada pelo caminho REAL: callables de verdade
+ * contra o emulador.
+ *
+ * Os testes de unidade provam o helper isolado; a suíte antiga prova que nada
+ * regrediu. Só este arquivo prova a promessa da entrega — que a mesma dupla,
+ * inscrita em dois torneios, é UMA equipe — e a exceção deliberada, que duas
+ * categorias do mesmo torneio continuam sendo duas.
+ *
+ * Rodar (na pasta functions/): npm run test:registrations
+ */
+
+import {beforeEach, describe, test} from 'node:test';
+import assert from 'node:assert/strict';
+
+import {
+  clearFirestore,
+  duplaCategory,
+  formDupla,
+  formTeam,
+  getTeam,
+  seedMan,
+  seedTournament,
+  teamCategory,
+} from './registration-harness.mjs';
+
+beforeEach(clearFirestore);
+
+/** Torneio com uma categoria de dupla masculina. */
+async function torneioDupla(categoryId = 'masc') {
+  return seedTournament({
+    categories: [duplaCategory({id: categoryId, categoryName: 'Dupla Masculina'})],
+  });
+}
+
+describe('identidade única da dupla', () => {
+  test('a mesma dupla em DOIS torneios é uma equipe só', async () => {
+    const t1 = await torneioDupla();
+    const t2 = await torneioDupla();
+    const a = await seedMan({uid: 'atleta-a'});
+    const b = await seedMan({uid: 'atleta-b'});
+
+    const r1 = await formDupla({
+      tournamentId: t1, categoryId: 'masc', inviterUid: a, inviteeUid: b,
+    });
+    const r2 = await formDupla({
+      tournamentId: t2, categoryId: 'masc', inviterUid: a, inviteeUid: b,
+    });
+
+    assert.equal(r2.teamId, r1.teamId);
+  });
+
+  test('papéis invertidos no 2º torneio: mesma equipe, e os player ids NÃO mudam', async () => {
+    const t1 = await torneioDupla();
+    const t2 = await torneioDupla();
+    const a = await seedMan({uid: 'atleta-a'});
+    const b = await seedMan({uid: 'atleta-b'});
+
+    const r1 = await formDupla({
+      tournamentId: t1, categoryId: 'masc', inviterUid: a, inviteeUid: b,
+    });
+    const antes = await getTeam(r1.teamId);
+
+    // Agora quem convida é o outro.
+    const r2 = await formDupla({
+      tournamentId: t2, categoryId: 'masc', inviterUid: b, inviteeUid: a,
+    });
+
+    assert.equal(r2.teamId, r1.teamId);
+    const depois = await getTeam(r1.teamId);
+    assert.equal(depois.player1Id, antes.player1Id);
+    assert.equal(depois.player2Id, antes.player2Id);
+  });
+
+  test('duas categorias do MESMO torneio continuam sendo duas equipes', async () => {
+    const tournamentId = await seedTournament({
+      categories: [
+        duplaCategory({id: 'masc', categoryName: 'Dupla Masculina'}),
+        duplaCategory({id: 'masc-b', categoryName: 'Dupla Masculina B'}),
+      ],
+    });
+    const a = await seedMan({uid: 'atleta-a'});
+    const b = await seedMan({uid: 'atleta-b'});
+
+    const r1 = await formDupla({
+      tournamentId, categoryId: 'masc', inviterUid: a, inviteeUid: b,
+    });
+    const r2 = await formDupla({
+      tournamentId, categoryId: 'masc-b', inviterUid: a, inviteeUid: b,
+    });
+
+    assert.notEqual(r2.teamId, r1.teamId);
+  });
+
+  test('equipe NOMEADA nunca deduplica: dois torneios, duas equipes', async () => {
+    const t1 = await seedTournament({
+      categories: [teamCategory({id: 'trio', teamSize: 3})],
+    });
+    const t2 = await seedTournament({
+      categories: [teamCategory({id: 'trio', teamSize: 3})],
+    });
+    const a = await seedMan({uid: 'atleta-a'});
+    const b = await seedMan({uid: 'atleta-b'});
+    const c = await seedMan({uid: 'atleta-c'});
+
+    const e1 = await formTeam({
+      tournamentId: t1, categoryId: 'trio', captainUid: a, memberUids: [b, c],
+    });
+    const e2 = await formTeam({
+      tournamentId: t2, categoryId: 'trio', captainUid: a, memberUids: [b, c],
+    });
+
+    assert.notEqual(e2.teamId, e1.teamId);
+  });
+});
+```
+
+Se a assinatura de algum helper do harness não bater com o que está escrito aqui (o retorno de
+`formTeam`, os parâmetros de `teamCategory`), **ajuste a chamada ao harness, nunca a asserção** —
+as quatro asserções são o contrato da entrega.
+
+- [ ] **Step 2: Rodar**
+
+Na pasta `functions/`:
+
+```bash
+npm run test:registrations
+```
+
+Esperado: os 4 testes novos passam e a matriz inteira continua verde. O harness sobe o emulador
+sozinho e roda com `--test-concurrency=1`.
+
+- [ ] **Step 3: Ver o 1º teste falhar sem a fiação (prova de que ele testa algo)**
+
+Reverta temporariamente a chamada do helper em `tournament-partner-invite.ts` para o
+`teamsRef.doc()` de antes, rode só este arquivo, e confirme que o teste "a mesma dupla em DOIS
+torneios" FALHA. Depois desfaça a reversão. Um teste de aceitação que passa com e sem a mudança
+não prova nada — esta é a única forma de saber.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add functions/test/registration-identidade-dupla.test.mjs
+git commit -m "test: a promessa da entrega provada pelas callables reais"
 ```
 
 ---

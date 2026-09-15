@@ -34,14 +34,21 @@ admin.initializeApp({projectId});
 const db = admin.firestore();
 const base = `artifacts/${projectId}/public/data`;
 
-/** Cópia de `extractTeamMemberUids` (functions/src/tournament-team-category.ts). */
+/** Cópia de `extractTeamMemberUids` (functions/src/tournament-team-category.ts:154-171).
+ * CRÍTICO: `memberUids` vence; legado (player1/2) é apenas fallback.
+ * Early return após memberUids evita falso "OK" ao rodar contra roster desatualizado.
+ */
 function teamMemberUids(team) {
+  if (!team) return [];
   const out = [];
   const push = (raw) => {
     const id = typeof raw === "string" ? raw.trim() : "";
     if (id && !out.includes(id)) out.push(id);
   };
-  if (Array.isArray(team.memberUids)) team.memberUids.forEach(push);
+  if (Array.isArray(team.memberUids)) {
+    for (const raw of team.memberUids) push(raw);
+    if (out.length > 0) return out;
+  }
   push(team.player1Id);
   push(team.player2Id);
   return out;

@@ -66,6 +66,41 @@ describe('planGroupMerge', () => {
       refCountByTeamId: { velho: 5, novo: 5 },
     });
     assert.equal(plan.survivorId, 'velho');
+
+    // Mesma expectativa com a ordem invertida: `velho` é o mais antigo, não
+    // simplesmente o primeiro elemento — um stub que devolvesse members[0]
+    // passaria na asserção de cima e falharia só aqui.
+    const reversed = planGroupMerge({
+      members: [...members].reverse(),
+      tournamentsByTeamId: { velho: ['T1'], novo: ['T2'] },
+      refCountByTeamId: { velho: 5, novo: 5 },
+    });
+    assert.equal(reversed.survivorId, 'velho');
+  });
+
+  test('lookup ausente é falha de dados, não ausência de sobreposição', () => {
+    const plan = planGroupMerge({
+      members,
+      // `novo` não tem entrada nenhuma — nem `[]` — então não dá pra saber se
+      // ele está ou não no mesmo torneio que `velho`. Isso tem de pular, não
+      // fundir: fundir errado é irreversível, pular só adia.
+      tournamentsByTeamId: { velho: ['T1'] },
+      refCountByTeamId: { velho: 5, novo: 5 },
+    });
+    assert.equal(plan.skipped, true);
+    assert.equal(plan.reason, 'dados-incompletos');
+  });
+
+  test('array vazio declarado explicitamente permite fusão normal', () => {
+    const plan = planGroupMerge({
+      members,
+      // `velho` está declaradamente em ZERO torneios (não ausente) — um doc
+      // órfão sem nenhuma inscrição é fundível de verdade.
+      tournamentsByTeamId: { velho: [], novo: ['T2'] },
+      refCountByTeamId: { velho: 3, novo: 9 },
+    });
+    assert.equal(plan.skipped, false);
+    assert.equal(plan.survivorId, 'novo');
   });
 
   test('torneio em comum é convivência legítima, não duplicação', () => {
@@ -148,6 +183,30 @@ describe('mergeTeamRankingDocs', () => {
     assert.equal(merged.totalPoints, 25);
     assert.equal(merged.results.length, 1);
   });
+
+  test('mesmo torneio, categorias diferentes contam como 2 (espelha o servidor)', () => {
+    // O servidor conta RESULTADOS, não torneios distintos — um par que jogou
+    // duas categorias do mesmo torneio tem tournamentsCount: 2 de propósito.
+    // Um Set de tournamentId daria 1 aqui e o próximo recompute do servidor
+    // desfaria a fusão em silêncio.
+    const merged = mergeTeamRankingDocs(
+      {
+        totalPoints: 83,
+        pointsByYear: { 2026: 83 },
+        tournamentsCount: 1,
+        results: [{ tournamentId: 'T1', categoryId: 'C1', finalPlace: 3, points: 83, year: 2026 }],
+      },
+      [
+        {
+          totalPoints: 25,
+          pointsByYear: { 2026: 25 },
+          tournamentsCount: 1,
+          results: [{ tournamentId: 'T1', categoryId: 'C2', finalPlace: 5, points: 25, year: 2026 }],
+        },
+      ],
+    );
+    assert.equal(merged.tournamentsCount, 2);
+  });
 });
 
 describe('isPairTeamDoc', () => {
@@ -155,5 +214,11 @@ describe('isPairTeamDoc', () => {
     assert.equal(isPairTeamDoc({ player1Id: 'a', player2Id: 'b' }), true);
     assert.equal(isPairTeamDoc({ teamName: 'X' }), false);
     assert.equal(isPairTeamDoc({ teamSize: 5 }), false);
+  });
+
+  test('memberUids com 3+ também não é dupla', () => {
+    // Doc histórico com elenco de 3+ mas sem `teamName` e sem `teamSize`
+    // passaria pelos dois testes acima; `memberUids` é o elenco canônico.
+    assert.equal(isPairTeamDoc({ memberUids: ['a', 'b', 'c'] }), false);
   });
 });

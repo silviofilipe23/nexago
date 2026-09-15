@@ -1,4 +1,5 @@
 import {FieldValue, getFirestore} from "firebase-admin/firestore";
+import {getAuth} from "firebase-admin/auth";
 import {
   fetchAsaas,
   getAsaasEnvTag,
@@ -28,6 +29,108 @@ export function isValidCpfCnpj(value: string): boolean {
   if (s.length === 11) return /^\d{11}$/.test(s);
   if (s.length === 14) return /^[0-9A-Z]{12}[0-9]{2}$/.test(s);
   return false;
+}
+
+/** Último recurso: sem isso o Asaas recebe uma cobrança sem dono rastreável. */
+export const GENERIC_PAYER_NAME = "Atleta NexaGO";
+
+/** Limite do campo `name` do customer no Asaas. */
+const ASAAS_NAME_MAX_LENGTH = 80;
+
+/**
+ * Campos de nome em `users/{uid}`, do mais completo ao mais fraco. O nome que
+ * vai pro Asaas precisa casar com o CPF da cobrança, então `fullName` (nome
+ * completo do onboarding) vem antes de apelido e primeiro nome.
+ */
+const ATHLETE_NAME_FIELDS = [
+  "fullName",
+  "name",
+  "displayName",
+  "nickname",
+  "firstName",
+] as const;
+
+function firstFilledName(
+  userData: Record<string, unknown> | null | undefined,
+): string {
+  for (const key of ATHLETE_NAME_FIELDS) {
+    const value = userData?.[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+/**
+ * Nome do pagador da cobrança: doc do atleta primeiro, Auth só como fallback.
+ *
+ * O `displayName` do Firebase Auth só existe quando a conta nasceu de
+ * Google/Apple — o cadastro por e-mail/senha do app nunca grava esse campo, e
+ * é por isso que cobranças iam ao Asaas como [GENERIC_PAYER_NAME]. O nome real
+ * do atleta sempre esteve em `users/{uid}.fullName`.
+ */
+export function pickAthletePayerName(
+  userData: Record<string, unknown> | null | undefined,
+  authDisplayName?: string,
+): string {
+  const fromDoc = firstFilledName(userData);
+  if (fromDoc) return fromDoc.slice(0, ASAAS_NAME_MAX_LENGTH);
+  const fromAuth = authDisplayName?.trim();
+  if (fromAuth) return fromAuth.slice(0, ASAAS_NAME_MAX_LENGTH);
+  return GENERIC_PAYER_NAME;
+}
+
+/**
+ * Resolve o nome do pagador (`users/{uid}` → `authDisplayName` → Auth).
+ *
+ * `authDisplayName` é só um atalho pra quem já buscou o usuário no Auth (os
+ * fluxos de cobrança fazem isso pelo e-mail); quem não tem, deixa em branco e
+ * a busca no Auth só acontece se o doc do atleta não tiver nome nenhum.
+ */
+export async function resolveAthletePayerName(
+  uid: string,
+  authDisplayName?: string,
+): Promise<string> {
+  let userData: Record<string, unknown> | undefined;
+  try {
+    userData = (await getFirestore().collection("users").doc(uid).get()).data();
+  } catch {
+    // sem o doc, segue pro Auth
+  }
+
+  let hint = authDisplayName?.trim() ?? "";
+  if (!hint && !firstFilledName(userData)) {
+    try {
+      hint = (await getAuth().getUser(uid)).displayName?.trim() ?? "";
+    } catch {
+      // conta sem Auth (ex.: perfil criado por convite) — cai no genérico
+    }
+  }
+
+  return pickAthletePayerName(userData, hint);
+}
+
+/**
+ * O customer cacheado só serve se id, CPF, ambiente **e nome** ainda batem.
+ *
+ * O nome entra no critério porque customers criados antes desta checagem
+ * ficaram com [GENERIC_PAYER_NAME] gravado no Asaas: é a diferença de nome que
+ * dispara o PUT que os renomeia na próxima cobrança.
+ */
+export function asaasCustomerCacheIsFresh(params: {
+  cachedId: string;
+  cachedCpf: string;
+  cachedEnv: string;
+  cachedName: string;
+  cpfCnpj: string;
+  env: string;
+  name: string;
+}): boolean {
+  return (
+    Boolean(params.cachedId) &&
+    params.cachedCpf === params.cpfCnpj &&
+    params.cachedEnv === params.env &&
+    params.cachedName === params.name
+  );
 }
 
 async function readStoredCpfCnpj(uid: string): Promise<string> {
@@ -119,11 +222,14 @@ export async function resolveAthleteCpfCnpj(
 
 /**
  * Retorna o customerId Asaas do atleta, criando ou atualizando com CPF/CNPJ.
+ *
+ * `authDisplayName` é apenas uma dica de quem já tem o usuário do Auth em mão:
+ * o nome que vale é o de `users/{uid}` (ver [resolveAthletePayerName]).
  */
 export async function getOrCreateAsaasCustomer(
   uid: string,
   email: string,
-  displayName: string | undefined,
+  authDisplayName: string | undefined,
   cpfCnpj: string,
 ): Promise<string> {
   const digits = normalizeCpfCnpj(cpfCnpj);
@@ -137,13 +243,24 @@ export async function getOrCreateAsaasCustomer(
   const cachedId = (snap.data()?.customerId as string | undefined)?.trim() ?? "";
   const cachedCpf = normalizeCpfCnpj(snap.data()?.cpfCnpj as string | undefined);
   const cachedEnv = (snap.data()?.asaasEnv as string | undefined)?.trim() ?? "";
+  const cachedName = (snap.data()?.name as string | undefined)?.trim() ?? "";
   const currentEnv = getAsaasEnvTag();
   const envMatches = cachedEnv === currentEnv;
 
   const safeEmail = email.trim() || `athlete+${uid}@nexago.app`;
-  const name = (displayName?.trim() || "Atleta NexaGO").slice(0, 80);
+  const name = await resolveAthletePayerName(uid, authDisplayName);
 
-  if (cachedId && cachedCpf === digits && envMatches) {
+  if (
+    asaasCustomerCacheIsFresh({
+      cachedId,
+      cachedCpf,
+      cachedEnv,
+      cachedName,
+      cpfCnpj: digits,
+      env: currentEnv,
+      name,
+    })
+  ) {
     return cachedId;
   }
 
@@ -183,6 +300,9 @@ export async function getOrCreateAsaasCustomer(
     customerId,
     cpfCnpj: digits,
     email: safeEmail,
+    // Gravado pra detectar renomeação do atleta: nome diferente do cacheado
+    // invalida o cache e reenvia o PUT (ver [asaasCustomerCacheIsFresh]).
+    name,
     asaasEnv: currentEnv,
     updatedAt: FieldValue.serverTimestamp(),
   });

@@ -13,7 +13,6 @@ import {
   type Firestore,
   type Transaction,
 } from "firebase-admin/firestore";
-import {getAuth} from "firebase-admin/auth";
 import * as logger from "firebase-functions/logger";
 import type {AsaasPaymentDetails} from "./asaas-booking-payment";
 import {refundAsaasPayment} from "./asaas-booking-payment";
@@ -26,7 +25,7 @@ import {creditArenaWalletFromClubPayment} from "./arena-wallet";
 import {CLUB_FEE_PERCENT, computePlatformFeeReais} from "./platform-fees";
 import {roundMoney} from "./mercadopago-arena-helpers";
 import {deliverNotificationToUser} from "./notification-delivery";
-import {resolveAthleteCpfCnpj} from "./asaas-customer";
+import {resolveAthleteCpfCnpj, resolveAthletePayerName} from "./asaas-customer";
 import {
   requestInvoiceForPaidClubSpot,
   shouldAttemptFiscalInvoice,
@@ -60,19 +59,13 @@ const defaultDeps: ClubWebhookDeps = {
 
 /**
  * Nome e CPF do atleta pagador, para a nota fiscal. Mesma resolução usada na
- * cobrança PIX (getAuth + resolveAthleteCpfCnpj) — o webhook não tem CPF em
- * escopo, só o uid do participante.
+ * cobrança PIX (resolveAthletePayerName + resolveAthleteCpfCnpj) — o webhook
+ * não tem CPF em escopo, só o uid do participante.
  */
 async function resolvePayerForInvoice(
   athleteId: string,
 ): Promise<{nome: string; cpfCnpj: string} | null> {
-  let nome = "Atleta NexaGO";
-  try {
-    const user = await getAuth().getUser(athleteId);
-    nome = user.displayName?.trim() || nome;
-  } catch {
-    // segue com fallback
-  }
+  const nome = await resolveAthletePayerName(athleteId);
   try {
     const cpfCnpj = await resolveAthleteCpfCnpj(athleteId);
     return {nome, cpfCnpj};

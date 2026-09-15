@@ -17,6 +17,14 @@
  * `matches/{id}/pointEvents` (usa `side: "A"/"B"`) e `matches/{id}/auditLog`
  * (usa `byUid`) NÃO guardam teamId e por isso não são tocados.
  *
+ * `drawSessions` é EXCLUÍDA de propósito (ver `PRESERVED_COLLECTIONS` mais
+ * abaixo) — `reveals[].teamId` mora dentro de uma cadeia de hash à prova de
+ * adulteração; nem remapear nem recalcular é seguro ali.
+ *
+ * `entries` de palpite e `ratingEvents` ficam de FORA da contagem de
+ * referências que decide o sobrevivente (mas continuam no remap) — ver o
+ * comentário perto de `refCountByTeamId`.
+ *
  * VERIFICAÇÃO (fase 2 e a checagem de cobertura do dry-run): NÃO usa a mesma
  * lista da escrita. Usa DESCOBERTA (`db.listCollections()` + subcoleções do
  * doc `${base}` + os nomes de subcoleção aninhada já conhecidos via
@@ -130,25 +138,14 @@ function preflightMissingFields({label, snap, absorbedIds, requiredFields}) {
   return null;
 }
 
-/** Bloqueia o GRUPO INTEIRO se o sobrevivente já tiver doc próprio no id que um absorvido ocuparia (fundir isso exigiria lógica de negócio que não existe nem é testada em lugar nenhum). */
-function preflightSurvivorCollision({label, snap, survivorId, absorbedIds, buildNewId}) {
-  for (const absorbedId of absorbedIds) {
-    for (const doc of snap.docs) {
-      const data = doc.data();
-      if (trim(data.teamId) !== absorbedId) continue;
-      const newId = buildNewId(data, survivorId);
-      if (snap.docs.some((d) => d.id === newId)) {
-        return `${label}: sobrevivente já tem linha própria em .../${newId}`;
-      }
-    }
-  }
-  return null;
-}
+// Chave estável do `loaded` pra `ratingEvents` — usada tanto pra carregar
+// quanto pra EXCLUIR da contagem de referências (ver `refCountByTeamId`
+// abaixo).
+const RATING_EVENTS_KEY = `${base}/ratingEvents`;
 
 const SIMPLE_COLLECTIONS = [
   `${base}/matches`,
   `${base}/inscriptions`,
-  `${base}/drawSessions`,
   "tournaments",
   "tournamentRegistrationInvites",
   "tournamentRegistrationCancellations",
@@ -161,14 +158,38 @@ const SIMPLE_COLLECTIONS = [
   // o "quem ganhou" é uma comparação INTERNA ao próprio doc
   // (`winnerTeamId === teamA.teamId`) — então não remapear não quebraria o
   // rating hoje, mas deixaria o ledger citando pra sempre um `teams/{id}`
-  // apagado. É história de partida encerrada (não preferência de usuário),
-  // então conta na tally de referências igual `matches`.
-  `${base}/ratingEvents`,
+  // apagado.
+  RATING_EVENTS_KEY,
+  // NOTA: `drawSessions` NÃO entra aqui — ver `PRESERVED_COLLECTIONS` abaixo.
 ];
 // Chave estável do `loaded` pras entries de palpite — usada tanto pra
 // carregar quanto pra EXCLUIR da contagem de referências (ver mais abaixo,
 // "quantos apontam pra ele" precisa ignorar isso).
 const ENTRIES_KEY = "tournamentPredictions/*/entries";
+
+/**
+ * Coleções que ficam de FORA da verificação (fase 2 e a checagem de
+ * cobertura) de propósito — não é um buraco, é uma decisão. Hoje só
+ * `drawSessions`: `reveals[].teamId` mora dentro de uma cadeia de hash à
+ * prova de adulteração (`revealHash` em `functions/src/draw-log.ts:44-55`,
+ * que hasheia `prevHash ∥ index ∥ teamId ∥ destinationKey ∥ atMillis`).
+ * Remapear o campo sem recalcular a cadeia QUEBRA a prova a partir daquele
+ * reveal em diante; recalcular a cadeia FALSIFICA a prova (o comprovante já
+ * publicado passa a divergir do hash republicado, mesmo que o hash novo
+ * "feche" sozinho — é forjar com boa intenção). Nenhuma das duas é
+ * aceitável, então a coleção INTEIRA fica de fora tanto do remap
+ * (`SIMPLE_COLLECTIONS` não a lista) quanto da verificação.
+ *
+ * O que torna isso seguro: o doc de sorteio é um registro histórico
+ * AUTOSSUFICIENTE — `DrawSessionEntrant`
+ * (`functions/src/draw-session-model.ts:28-38`) já guarda
+ * label/playerNames/photoUrls/city/levelLabel/points; a tela e o comprovante
+ * nunca resolvem o teamId vivo pra renderizar. `reveals` e `entrants`
+ * continuam citando o MESMO id um do outro (internamente consistentes),
+ * então o documento inteiro, intocado, continua sendo prova válida do que
+ * foi sorteado — só que sob um id que deixou de ter `teams/{id}` vivo.
+ */
+const PRESERVED_COLLECTIONS = new Set([`${base}/drawSessions`]);
 
 /**
  * Nomes de subcoleção aninhada (moram sob um documento pai que não dá pra
@@ -282,8 +303,16 @@ async function discoverScanSources() {
   // FORA da tally — são conjuntos que sempre foram pra ser diferentes.
   // `followingTeams` (preferência de "seguir", nem chega a ficar em `loaded`)
   // é a mesma categoria de coisa e por isso também nunca entra aqui.
+  //
+  // `ratingEvents` também sai daqui, por um motivo diferente: cada partida
+  // RATEADA já conta uma vez via `matches` — contar de novo via
+  // `ratingEvents` dobraria o peso só das partidas rateadas (W.O. e esportes
+  // sem rating não duplicam), uma assimetria arbitrária no desempate. Não
+  // inverte a regra contra si mesma como `entries` invertia (aponta pro
+  // MESMO lado que `matches` já aponta), mas uma partida encerrada só deve
+  // contar uma vez.
   for (const [key, snap] of loaded) {
-    if (key === ENTRIES_KEY) continue;
+    if (key === ENTRIES_KEY || key === RATING_EVENTS_KEY) continue;
     for (const doc of snap.docs) {
       const text = JSON.stringify(doc.data());
       for (const [, members] of duplicated) {
@@ -340,7 +369,7 @@ async function discoverScanSources() {
         .map((d) => (d.data().scaleVersion == null ? 0 : Number(d.data().scaleVersion))),
     );
     if (scaleVersions.size > 1) {
-      console.error(
+      console.log(
         `PULADO ${pairKey}: scaleVersion divergente em teamRankings (${[...scaleVersions].join(", ")}) — somar pontos de escalas diferentes corromperia o ranking. Requer reconciliação manual.`,
       );
       continue;
@@ -353,7 +382,7 @@ async function discoverScanSources() {
       requiredFields: ["tournamentId", "categoryId"],
     });
     if (resultsMissing) {
-      console.error(
+      console.log(
         `PULADO ${pairKey}: ${resultsMissing} — requer reconciliação manual antes de fundir. Grupo inteiro preservado.`,
       );
       continue;
@@ -366,27 +395,8 @@ async function discoverScanSources() {
       requiredFields: ["leagueId", "categoryId"],
     });
     if (leagueMissing) {
-      console.error(
+      console.log(
         `PULADO ${pairKey}: ${leagueMissing} — requer reconciliação manual antes de fundir. Grupo inteiro preservado.`,
-      );
-      continue;
-    }
-
-    // Ao contrário de tournamentCategoryResults (overwrite semântico
-    // conhecido e deferido — ver comentário mais abaixo), leagueTeamRankings
-    // NÃO tem lógica de fusão de `stageResults` em lugar nenhum, então uma
-    // colisão aqui bloqueia o grupo inteiro em vez de arriscar inventar essa
-    // lógica no meio de uma migração irreversível.
-    const leagueCollision = preflightSurvivorCollision({
-      label: "leagueTeamRankings",
-      snap: leagueRankingsSnap,
-      survivorId: plan.survivorId,
-      absorbedIds: plan.absorbedIds,
-      buildNewId: (data, sid) => `${trim(data.leagueId)}_${trim(data.categoryId)}_${sid}`,
-    });
-    if (leagueCollision) {
-      console.error(
-        `PULADO ${pairKey}: ${leagueCollision} — fusão de ranking de liga não implementada aqui, requer reconciliação manual. Grupo inteiro preservado.`,
       );
       continue;
     }
@@ -415,8 +425,7 @@ async function discoverScanSources() {
         // DEFERIDO por instrução do controlador: se o sobrevivente já tem
         // doc próprio em `newId`, este `update` sobrescreve o resultado do
         // sobrevivente com o do absorvido — overwrite semântico conhecido,
-        // fora do escopo desta rodada (ao contrário de leagueTeamRankings,
-        // que bloqueia o grupo no preflight acima).
+        // fora do escopo desta rodada.
         const existingAtNewId = resultsSnap.docs.find((d) => d.id === newId);
         const newRef = db.doc(`${base}/tournamentCategoryResults/${newId}`);
         remapsByPath.set(newRef.path, {
@@ -439,17 +448,30 @@ async function discoverScanSources() {
           );
         }
         const newId = `${leagueId}_${categoryId}_${plan.survivorId}`;
-        if (leagueRankingsSnap.docs.some((d) => d.id === newId)) {
-          throw new Error(
-            `estado inesperado: leagueTeamRankings colidiria em ${newId} — o preflight deveria ter bloqueado ${pairKey} antes de chegar aqui.`,
-          );
-        }
         const newRef = db.doc(`${base}/leagueTeamRankings/${newId}`);
-        remapsByPath.set(newRef.path, {
-          ref: newRef,
-          data: {...data, teamId: plan.survivorId},
-          op: "create",
-        });
+        // Idempotência ACEITA de propósito, sem distinguir de uma colisão
+        // genuína: um doc já pode existir em `newId` porque (a) uma corrida
+        // anterior desta MESMA migração criou-o na fase 1 e morreu antes da
+        // fase 3 apagar o absorvido (o caso que motivou este comentário —
+        // sem isso, o re-run ficava preso pra sempre nesse par), ou (b) o
+        // sobrevivente genuinamente já tinha linha própria ali antes de
+        // qualquer fusão. Não dá pra distinguir os dois só pelo dado (as
+        // duas produzem exatamente `teamId: survivorId` no id novo). Tratar
+        // como resolvido A FAVOR da reconvergência: não sobrescreve nem
+        // funde `stageResults` (não existe lógica de fusão pra isso em
+        // lugar nenhum) — no caso (b), os pontos de liga do absorvido não
+        // entram no sobrevivente, só o doc antigo é apagado abaixo. Zero
+        // docs de leagueTeamRankings existem no dev hoje; latente até a
+        // Liga nexaGO ganhar dado de verdade.
+        const alreadyResolved =
+          leagueRankingsSnap.docs.some((d) => d.id === newId) || remapsByPath.has(newRef.path);
+        if (!alreadyResolved) {
+          remapsByPath.set(newRef.path, {
+            ref: newRef,
+            data: {...data, teamId: plan.survivorId},
+            op: "create",
+          });
+        }
         queueRemoval(removals, doc.ref, doc.updateTime);
       }
 
@@ -521,7 +543,11 @@ async function discoverScanSources() {
   }
 
   const remaps = [...remapsByPath.values()];
-  console.log(`\nfase 1 (repontar): ${remaps.length} escritas`);
+  const skippedGroups = duplicated.length - mapping.length;
+  console.log(
+    `\nresumo do planejamento: ${mapping.length} par(es) planejado(s) para fusão, ${skippedGroups} pulado(s) de ${duplicated.length} grupo(s) com 2+ docs.`,
+  );
+  console.log(`fase 1 (repontar): ${remaps.length} escritas`);
   console.log(`fase 3 (apagar):   ${removals.length} remoções`);
 
   const absorbedAll = new Set(mapping.flatMap((m) => m.absorbedIds));
@@ -563,13 +589,18 @@ async function discoverScanSources() {
     console.log(`fontes descobertas (${sources.length}): ${sources.map((s) => s.label).join(", ")}`);
     let scannedDocs = 0;
     let gaps = 0;
-    for (const {get} of sources) {
+    const preservedPaths = new Set();
+    for (const {label, get} of sources) {
       const snap = await get();
       scannedDocs += snap.size;
       for (const doc of snap.docs) {
         const text = `${doc.id} ${JSON.stringify(doc.data())}`;
         for (const id of absorbedAll) {
           if (!text.includes(id)) continue;
+          if (PRESERVED_COLLECTIONS.has(label)) {
+            preservedPaths.add(doc.ref.path);
+            continue;
+          }
           if (remapsByPath.has(doc.ref.path)) continue;
           if (removals.some((r) => r.ref.path === doc.ref.path)) continue;
           console.error(
@@ -580,10 +611,14 @@ async function discoverScanSources() {
       }
     }
     console.log(`checagem de cobertura: ${scannedDocs} docs varridos, ${gaps} buraco(s).`);
+    console.log(
+      `drawSessions PRESERVADO (cadeia de hash do sorteio): ${preservedPaths.size} doc(s) seguem citando id absorvido, por decisão.`,
+    );
+    console.log("\n(dry-run) nada foi gravado. Rode de novo com --apply.");
     if (gaps > 0) {
       console.error("NÃO rode --apply até investigar o(s) buraco(s) de cobertura acima.");
+      process.exit(1);
     }
-    console.log("\n(dry-run) nada foi gravado. Rode de novo com --apply.");
     return;
   }
 
@@ -623,19 +658,26 @@ async function discoverScanSources() {
   const sources = await discoverScanSources();
   console.log(`\nfase 2: varrendo ${sources.length} fontes descobertas...`);
   let leftovers = 0;
-  for (const {get} of sources) {
+  const preservedPathsPhase2 = new Set();
+  for (const {label, get} of sources) {
     const snap = await get();
     for (const doc of snap.docs) {
       if (removalPaths.has(doc.ref.path)) continue;
       const text = `${doc.id} ${JSON.stringify(doc.data())}`;
       for (const id of absorbedAll) {
-        if (text.includes(id)) {
-          console.error(`SOBRA: ${doc.ref.path} ainda cita ${id}`);
-          leftovers += 1;
+        if (!text.includes(id)) continue;
+        if (PRESERVED_COLLECTIONS.has(label)) {
+          preservedPathsPhase2.add(doc.ref.path);
+          continue;
         }
+        console.error(`SOBRA: ${doc.ref.path} ainda cita ${id}`);
+        leftovers += 1;
       }
     }
   }
+  console.log(
+    `drawSessions PRESERVADO (cadeia de hash do sorteio): ${preservedPathsPhase2.size} doc(s) seguem citando id absorvido, por decisão.`,
+  );
   if (leftovers > 0) {
     console.error(`\nFALHOU na fase 2: ${leftovers} sobra(s). NADA foi apagado —`);
     console.error("os docs absorvidos continuam vivos e as inscrições seguem íntegras.");

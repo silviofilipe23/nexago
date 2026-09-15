@@ -11,22 +11,29 @@
  * ORDEM DE ROLLOUT: backfill-team-pair-key.js -> deploy (functions + rules) ->
  * ESTE script. Rodar antes do deploy funciona, mas o sangramento continua.
  *
- * O inventário abaixo veio de varredura real do dev, revisada numa 2ª rodada
- * depois de auditar `functions/src` inteiro atrás de todo campo que guarda um
- * teamId — foi assim que `leagueTeamRankings` e `tournamentPredictions/*\/entries`
- * entraram. `matches/{id}/pointEvents` (usa `side: "A"/"B"`) e
- * `matches/{id}/auditLog` (usa `byUid`) NÃO guardam teamId e por isso não são
- * tocados.
+ * INVENTÁRIO DE ESCRITA: curado à mão, auditando `functions/src` (server) E
+ * `firestore.rules` + o app Flutter (cliente — é assim que achamos
+ * `users/{uid}/followingTeams/{teamId}`, que só o CLIENTE escreve).
+ * `matches/{id}/pointEvents` (usa `side: "A"/"B"`) e `matches/{id}/auditLog`
+ * (usa `byUid`) NÃO guardam teamId e por isso não são tocados.
+ *
+ * VERIFICAÇÃO (fase 2 e a checagem de cobertura do dry-run): NÃO usa a mesma
+ * lista da escrita. Usa DESCOBERTA (`db.listCollections()` + subcoleções do
+ * doc `${base}` + os nomes de subcoleção aninhada já conhecidos via
+ * `collectionGroup`) — varre o que EXISTE de verdade no banco, não o que
+ * alguém lembrou de escrever. Uma lista à mão só poderia discordar de si
+ * mesma; descoberta pode discordar da escrita de verdade.
  *
  * SEGURANÇA CONTRA ESCRITA CONCORRENTE: o banco é um banco AO VIVO — atletas e
  * o servidor continuam escrevendo enquanto este script roda. Toda escrita da
  * fase 1 usa `update(ref, data, {lastUpdateTime})` (nunca `set` cego): se o
  * doc mudou entre a leitura e o commit, o batch INTEIRO falha em vez de
  * sobrescrever silenciosamente — e `update` nunca ressuscita um doc apagado
- * nesse meio-tempo (falha com NOT_FOUND, que é o sinal certo). Quando o alvo é
- * um doc NOVO (recriação sob outro id, ex. `tournamentCategoryResults`),
- * usa-se `create`, que falha se algo já existir ali — de novo, falha alto em
- * vez de corromper. Toda remoção carrega o mesmo `lastUpdateTime` do doc lido.
+ * nesse meio-tempo (falha com FAILED_PRECONDITION, já que SEMPRE passamos
+ * `lastUpdateTime` — não existe update "nu" aqui). Quando o alvo é um doc
+ * NOVO (recriação sob outro id, ex. `tournamentCategoryResults`), usa-se
+ * `create`, que falha se algo já existir ali. Toda remoção carrega o mesmo
+ * `lastUpdateTime` do doc lido.
  *
  * Uso (na pasta functions/):
  *   node scripts/merge-duplicate-pair-teams.js --project volley-track-dev-4596c
@@ -55,6 +62,8 @@ const apply = process.argv.includes("--apply");
 admin.initializeApp({projectId});
 const db = admin.firestore();
 const base = `artifacts/${projectId}/public/data`;
+
+const trim = (v) => String(v ?? "").trim();
 
 /** Troca `from` por `to` em qualquer string aninhada; devolve null se nada mudou. */
 function remap(value, from, to) {
@@ -86,9 +95,54 @@ function remap(value, from, to) {
   return null;
 }
 
+/**
+ * Enfileira/mescla um remap num Map por `ref.path`, em vez de um array. Se o
+ * MESMO doc já tinha uma escrita enfileirada por um absorvido anterior do
+ * grupo, aplica o remap desta vez EM CIMA do dado já acumulado, não em cima
+ * do snapshot original — senão um doc citando dois ids absorvidos do mesmo
+ * grupo geraria duas entradas pro MESMO ref, cada uma com só um id trocado, e
+ * a fase 2 pegaria a sobra depois que a fase 1 já tivesse comitado.
+ */
+function queueGenericRemap(remapsByPath, doc, from, to) {
+  const key = doc.ref.path;
+  const current = remapsByPath.has(key) ? remapsByPath.get(key).data : doc.data();
+  const next = remap(current, from, to);
+  if (next) {
+    remapsByPath.set(key, {ref: doc.ref, data: next, op: "update", updateTime: doc.updateTime});
+  }
+}
+
 /** Enfileira uma remoção com o `lastUpdateTime` do doc lido (protege contra apagar por cima de escrita concorrente). */
 function queueRemoval(removals, ref, updateTime) {
   removals.push(updateTime ? {ref, updateTime} : {ref});
+}
+
+/** Bloqueia o GRUPO INTEIRO (não só um doc) se faltar campo obrigatório pra montar o id novo de recriação. */
+function preflightMissingFields({label, snap, absorbedIds, requiredFields}) {
+  for (const absorbedId of absorbedIds) {
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      if (trim(data.teamId) !== absorbedId) continue;
+      const missing = requiredFields.filter((f) => !trim(data[f]));
+      if (missing.length > 0) return `${label}/${doc.id}: ${missing.join("/")} ausente`;
+    }
+  }
+  return null;
+}
+
+/** Bloqueia o GRUPO INTEIRO se o sobrevivente já tiver doc próprio no id que um absorvido ocuparia (fundir isso exigiria lógica de negócio que não existe nem é testada em lugar nenhum). */
+function preflightSurvivorCollision({label, snap, survivorId, absorbedIds, buildNewId}) {
+  for (const absorbedId of absorbedIds) {
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      if (trim(data.teamId) !== absorbedId) continue;
+      const newId = buildNewId(data, survivorId);
+      if (snap.docs.some((d) => d.id === newId)) {
+        return `${label}: sobrevivente já tem linha própria em .../${newId}`;
+      }
+    }
+  }
+  return null;
 }
 
 const SIMPLE_COLLECTIONS = [
@@ -98,7 +152,57 @@ const SIMPLE_COLLECTIONS = [
   "tournaments",
   "tournamentRegistrationInvites",
   "tournamentRegistrationCancellations",
+  // Achado pela PRÓPRIA checagem de cobertura desta rodada (não por auditoria
+  // manual): `ratingEvents/{sportCode}_{matchId}` (rating-engine.ts) guarda
+  // `teamA.teamId`/`teamB.teamId`/`winnerTeamId` como string solta — doc id
+  // não é team-keyed (é `sportCode_matchId`), então remap genérico no lugar
+  // já resolve, sem precisar recriar sob outro id. `replayAthleteLedger` só
+  // consulta por `sportCode`+`athleteIds array-contains`, nunca por teamId, e
+  // o "quem ganhou" é uma comparação INTERNA ao próprio doc
+  // (`winnerTeamId === teamA.teamId`) — então não remapear não quebraria o
+  // rating hoje, mas deixaria o ledger citando pra sempre um `teams/{id}`
+  // apagado. É história de partida encerrada (não preferência de usuário),
+  // então conta na tally de referências igual `matches`.
+  `${base}/ratingEvents`,
 ];
+// Chave estável do `loaded` pras entries de palpite — usada tanto pra
+// carregar quanto pra EXCLUIR da contagem de referências (ver mais abaixo,
+// "quantos apontam pra ele" precisa ignorar isso).
+const ENTRIES_KEY = "tournamentPredictions/*/entries";
+
+/**
+ * Nomes de subcoleção aninhada (moram sob um documento pai que não dá pra
+ * enumerar sem varrer TODOS os pais — `tournamentPredictions/{tid}/entries`,
+ * `users/{uid}/followingTeams`) que já sabemos que existem e guardam teamId.
+ * Não tem como descobrir esses NOMES sozinho sem a Firestore Admin API (fora
+ * do escopo); mas uma vez que o NOME é conhecido, `collectionGroup` varre
+ * TODOS os docs daquele nome no projeto inteiro, não uma amostra. A lacuna
+ * que este script tinha não era "não sabíamos fazer isso", era "não sabíamos
+ * que `followingTeams` existia" — se aparecer outra, entra aqui.
+ */
+const KNOWN_NESTED_SUBCOLLECTIONS = ["entries", "followingTeams"];
+
+/**
+ * Descobre TUDO que existe pra varrer, em vez de uma lista escrita à mão: as
+ * coleções de topo (`listCollections`), as subcoleções do próprio doc
+ * `${base}` (onde moram `teams`, `matches`, `teamRankings` etc.), e os nomes
+ * conhecidos acima via `collectionGroup`. Usada pela fase 2 (depois da fase
+ * 1 já ter escrito) E pela checagem de cobertura do dry-run (antes de
+ * escrever qualquer coisa) — as duas fazem a MESMA pergunta ("o que existe
+ * de verdade cita um id absorvido?"), só comparam a resposta contra coisas
+ * diferentes.
+ */
+async function discoverScanSources() {
+  const sources = [];
+  const topLevel = await db.listCollections();
+  for (const col of topLevel) sources.push({label: col.path, get: () => col.get()});
+  const baseSubs = await db.doc(base).listCollections();
+  for (const col of baseSubs) sources.push({label: col.path, get: () => col.get()});
+  for (const name of KNOWN_NESTED_SUBCOLLECTIONS) {
+    sources.push({label: `collectionGroup(${name})`, get: () => db.collectionGroup(name).get()});
+  }
+  return sources;
+}
 
 (async () => {
   const teamsSnap = await db.collection(`${base}/teams`).get();
@@ -118,14 +222,13 @@ const SIMPLE_COLLECTIONS = [
     loaded.set(path, await db.collection(path).get());
   }
   // `entries` é subcoleção (`tournamentPredictions/{tid}/entries/{uid}`) — só
-  // dá pra varrer com collectionGroup (é a ÚNICA coleção chamada "entries" no
-  // projeto, conferido em functions/src). `picks` guarda teamId como VALOR de
+  // dá pra varrer com collectionGroup. `picks` guarda teamId como VALOR de
   // mapa (`{[matchId]: predictedWinnerTeamId}`) e `championPick` como string
-  // solta; o remap genérico abaixo já cobre os dois. O id do doc é o uid do
+  // solta; o remap genérico já cobre os dois. O id do doc é o uid do
   // palpiteiro, não um teamId, então — ao contrário de
-  // tournamentCategoryResults/leagueTeamRankings — não precisa recriar sob
-  // outro id, só editar o campo no lugar.
-  loaded.set("tournamentPredictions/*/entries", await db.collectionGroup("entries").get());
+  // tournamentCategoryResults/leagueTeamRankings/followingTeams — não
+  // precisa recriar sob outro id, só editar o campo no lugar.
+  loaded.set(ENTRIES_KEY, await db.collectionGroup("entries").get());
   const resultsSnap = await db.collection(`${base}/tournamentCategoryResults`).get();
   const rankingsSnap = await db.collection(`${base}/teamRankings`).get();
   // `teamId` mora no corpo do doc (`leagueTeamRankings/{leagueId}_{categoryId}_{teamId}`),
@@ -133,6 +236,15 @@ const SIMPLE_COLLECTIONS = [
   // editar o campo. Pode vir vazia num projeto sem ligas; `.get()` numa
   // coleção vazia/ausente não erra.
   const leagueRankingsSnap = await db.collection(`${base}/leagueTeamRankings`).get();
+  // `users/{uid}/followingTeams/{teamId}` — achado auditando `firestore.rules`
+  // (não `functions/src`: SÓ O CLIENTE escreve isso,
+  // `team_follow_service.dart`). O ID do doc É o teamId — a regra de create
+  // exige `request.resource.data.teamId == teamId`, e a leitura do app faz
+  // `.doc(teamId).get()`, NUNCA uma query pelo campo. Editar só o campo por
+  // dentro deixaria o doc "seguido" sob o id ERRADO pra sempre (o usuário
+  // continuaria não-seguindo o sobrevivente) — precisa recriar sob o id do
+  // sobrevivente, igual leagueTeamRankings/tournamentCategoryResults.
+  const followingTeamsSnap = await db.collectionGroup("followingTeams").get();
 
   // Em que torneios cada equipe está — é o que separa duplicação de convivência
   // legítima (o par em duas categorias do MESMO torneio).
@@ -146,8 +258,8 @@ const SIMPLE_COLLECTIONS = [
   }
   for (const doc of loaded.get(`${base}/inscriptions`).docs) {
     const data = doc.data();
-    const teamId = String(data.teamId ?? "").trim();
-    const tournamentId = String(data.tournamentId ?? "").trim();
+    const teamId = trim(data.teamId);
+    const tournamentId = trim(data.tournamentId);
     if (!teamId || !tournamentId) continue;
     if (!tournamentsByTeamId[teamId]) tournamentsByTeamId[teamId] = [];
     if (!tournamentsByTeamId[teamId].includes(tournamentId)) {
@@ -159,7 +271,19 @@ const SIMPLE_COLLECTIONS = [
   const countRef = (teamId) => {
     refCountByTeamId[teamId] = (refCountByTeamId[teamId] || 0) + 1;
   };
-  for (const [, snap] of loaded) {
+  // A regra do sobrevivente existe pra "minimizar reescrita de partida
+  // ENCERRADA" (comentário da própria lib). `entries` de palpite é o
+  // chute de um torcedor — reescrever é semanticamente inerte e não custa
+  // nada (os dois lados são remapeados de qualquer jeito), então NÃO conta
+  // pra tally: contar entraria pra decidir o sobrevivente por algo que não é
+  // história de partida jogada, e pode até inverter a decisão contra o
+  // próprio objetivo da regra (o lado com mais PARTIDAS reais perderia pra
+  // quem só tem mais palpites). Está no inventário de escrita (`loaded`) mas
+  // FORA da tally — são conjuntos que sempre foram pra ser diferentes.
+  // `followingTeams` (preferência de "seguir", nem chega a ficar em `loaded`)
+  // é a mesma categoria de coisa e por isso também nunca entra aqui.
+  for (const [key, snap] of loaded) {
+    if (key === ENTRIES_KEY) continue;
     for (const doc of snap.docs) {
       const text = JSON.stringify(doc.data());
       for (const [, members] of duplicated) {
@@ -170,11 +294,11 @@ const SIMPLE_COLLECTIONS = [
     }
   }
   for (const doc of resultsSnap.docs) {
-    const teamId = String(doc.data().teamId ?? "").trim();
+    const teamId = trim(doc.data().teamId);
     if (teamId) countRef(teamId);
   }
   for (const doc of leagueRankingsSnap.docs) {
-    const teamId = String(doc.data().teamId ?? "").trim();
+    const teamId = trim(doc.data().teamId);
     if (teamId) countRef(teamId);
   }
 
@@ -183,7 +307,7 @@ const SIMPLE_COLLECTIONS = [
   // seguem resolvendo. O contrário (apagar antes) deixaria inscrição órfã —
   // some da listagem e trava no `inscriptionParticipantUidsMatchTeam`.
   const mapping = [];
-  const remaps = [];
+  const remapsByPath = new Map();
   const removals = [];
   for (const [pairKey, members] of duplicated) {
     const plan = planGroupMerge({members, tournamentsByTeamId, refCountByTeamId});
@@ -192,12 +316,20 @@ const SIMPLE_COLLECTIONS = [
       continue;
     }
 
-    // Ranking do sobrevivente e dos absorvidos — calculado ANTES de enfileirar
-    // qualquer coisa, porque a checagem de `scaleVersion` abaixo pode pular o
-    // GRUPO INTEIRO, não só a fusão do ranking: se só pulássemos a fusão do
-    // ranking e seguíssemos fundindo o time, o `teamRankings` do absorvido
-    // ficaria órfão quando `teams/{absorvido}` fosse apagado na fase 3 — o
-    // mesmo tipo de buraco que este script existe para fechar.
+    // ── Preflight: TUDO que pode bloquear o grupo é checado ANTES de
+    // enfileirar qualquer coisa, nunca no meio. Um `continue` no meio (pular
+    // só um doc, deixando o resto do grupo seguir) tira aquele doc tanto do
+    // remap quanto da remoção — a fase 2 encontra ele ainda citando o id
+    // absorvido e aborta, mas SÓ DEPOIS que a fase 1 já comitou o resto do
+    // grupo. Bloquear aqui, antes de qualquer `mapping.push`, garante que um
+    // grupo problemático fica 100% intocado — os outros 8 fundem limpo.
+
+    // scaleVersion: o SERVIDOR lê o campo ausente como 0
+    // (`Number(prev.scaleVersion) || 0` em tournament-ranking.ts) — ausência
+    // NÃO é "concorda com qualquer coisa", é "versão 0" (pré-escala).
+    // Normaliza aqui do MESMO jeito antes de comparar: scaleVersion:2 ao
+    // lado de um SEM o campo são DIVERGENTES (2 vs 0), não concordância por
+    // default de um `filter` que descarta os ausentes.
     const survivorRankDoc = rankingsSnap.docs.find((d) => d.id === plan.survivorId) ?? null;
     const absorbedRankDocs = plan.absorbedIds
       .map((id) => rankingsSnap.docs.find((d) => d.id === id))
@@ -205,12 +337,56 @@ const SIMPLE_COLLECTIONS = [
     const scaleVersions = new Set(
       [survivorRankDoc, ...absorbedRankDocs]
         .filter(Boolean)
-        .map((d) => d.data().scaleVersion)
-        .filter((v) => v != null),
+        .map((d) => (d.data().scaleVersion == null ? 0 : Number(d.data().scaleVersion))),
     );
     if (scaleVersions.size > 1) {
       console.error(
         `PULADO ${pairKey}: scaleVersion divergente em teamRankings (${[...scaleVersions].join(", ")}) — somar pontos de escalas diferentes corromperia o ranking. Requer reconciliação manual.`,
+      );
+      continue;
+    }
+
+    const resultsMissing = preflightMissingFields({
+      label: "tournamentCategoryResults",
+      snap: resultsSnap,
+      absorbedIds: plan.absorbedIds,
+      requiredFields: ["tournamentId", "categoryId"],
+    });
+    if (resultsMissing) {
+      console.error(
+        `PULADO ${pairKey}: ${resultsMissing} — requer reconciliação manual antes de fundir. Grupo inteiro preservado.`,
+      );
+      continue;
+    }
+
+    const leagueMissing = preflightMissingFields({
+      label: "leagueTeamRankings",
+      snap: leagueRankingsSnap,
+      absorbedIds: plan.absorbedIds,
+      requiredFields: ["leagueId", "categoryId"],
+    });
+    if (leagueMissing) {
+      console.error(
+        `PULADO ${pairKey}: ${leagueMissing} — requer reconciliação manual antes de fundir. Grupo inteiro preservado.`,
+      );
+      continue;
+    }
+
+    // Ao contrário de tournamentCategoryResults (overwrite semântico
+    // conhecido e deferido — ver comentário mais abaixo), leagueTeamRankings
+    // NÃO tem lógica de fusão de `stageResults` em lugar nenhum, então uma
+    // colisão aqui bloqueia o grupo inteiro em vez de arriscar inventar essa
+    // lógica no meio de uma migração irreversível.
+    const leagueCollision = preflightSurvivorCollision({
+      label: "leagueTeamRankings",
+      snap: leagueRankingsSnap,
+      survivorId: plan.survivorId,
+      absorbedIds: plan.absorbedIds,
+      buildNewId: (data, sid) => `${trim(data.leagueId)}_${trim(data.categoryId)}_${sid}`,
+    });
+    if (leagueCollision) {
+      console.error(
+        `PULADO ${pairKey}: ${leagueCollision} — fusão de ranking de liga não implementada aqui, requer reconciliação manual. Grupo inteiro preservado.`,
       );
       continue;
     }
@@ -221,35 +397,30 @@ const SIMPLE_COLLECTIONS = [
     for (const absorbedId of plan.absorbedIds) {
       for (const [, snap] of loaded) {
         for (const doc of snap.docs) {
-          const next = remap(doc.data(), absorbedId, plan.survivorId);
-          if (next) remaps.push({ref: doc.ref, data: next, op: "update", updateTime: doc.updateTime});
+          queueGenericRemap(remapsByPath, doc, absorbedId, plan.survivorId);
         }
       }
 
       for (const doc of resultsSnap.docs) {
         const data = doc.data();
-        if (String(data.teamId ?? "").trim() !== absorbedId) continue;
-        const tournamentId = String(data.tournamentId ?? "").trim();
-        const categoryId = String(data.categoryId ?? "").trim();
-        // Doc legado sem um dos dois ids produziria `undefined_undefined_<id>`
-        // — um resultado de pódio perdido num id de garbage. Preserva o doc
-        // original (não move, não apaga) e loga alto pra alguém investigar.
+        if (trim(data.teamId) !== absorbedId) continue;
+        const tournamentId = trim(data.tournamentId);
+        const categoryId = trim(data.categoryId);
         if (!tournamentId || !categoryId) {
-          console.error(
-            `PULADO tournamentCategoryResults/${doc.id}: tournamentId/categoryId ausente — doc original preservado, não apagado.`,
+          throw new Error(
+            `estado inesperado: tournamentCategoryResults/${doc.id} sem tournamentId/categoryId — o preflight deveria ter bloqueado ${pairKey} antes de chegar aqui.`,
           );
-          continue;
         }
         const newId = `${tournamentId}_${categoryId}_${plan.survivorId}`;
-        // Se já existe um doc do PRÓPRIO sobrevivente nesse torneio+categoria
-        // (convivência que escapou do `planGroupMerge`, ou dado legado), usa
-        // `update` com o `lastUpdateTime` dele — se mudou desde a leitura, o
-        // batch falha alto em vez de sobrescrever o resultado do sobrevivente
-        // com o do absorvido. Se não existe, `create` (e falha alto se algo
-        // aparecer ali entre a leitura e o commit).
+        // DEFERIDO por instrução do controlador: se o sobrevivente já tem
+        // doc próprio em `newId`, este `update` sobrescreve o resultado do
+        // sobrevivente com o do absorvido — overwrite semântico conhecido,
+        // fora do escopo desta rodada (ao contrário de leagueTeamRankings,
+        // que bloqueia o grupo no preflight acima).
         const existingAtNewId = resultsSnap.docs.find((d) => d.id === newId);
-        remaps.push({
-          ref: db.doc(`${base}/tournamentCategoryResults/${newId}`),
+        const newRef = db.doc(`${base}/tournamentCategoryResults/${newId}`);
+        remapsByPath.set(newRef.path, {
+          ref: newRef,
           data: {...data, teamId: plan.survivorId},
           op: existingAtNewId ? "update" : "create",
           updateTime: existingAtNewId ? existingAtNewId.updateTime : undefined,
@@ -257,42 +428,55 @@ const SIMPLE_COLLECTIONS = [
         queueRemoval(removals, doc.ref, doc.updateTime);
       }
 
-      // `leagueTeamRankings/{leagueId}_{categoryId}_{teamId}` — mesmo desenho
-      // de tournamentCategoryResults: teamId mora no ID, então repontar o
-      // campo no lugar deixaria o doc órfão sob o id antigo (a próxima
-      // premiação do sobrevivente escreveria em OUTRO doc, sob o id novo, e a
-      // história de liga continuaria partida em dois — o bug que este script
-      // existe para fechar).
       for (const doc of leagueRankingsSnap.docs) {
         const data = doc.data();
-        if (String(data.teamId ?? "").trim() !== absorbedId) continue;
-        const leagueId = String(data.leagueId ?? "").trim();
-        const categoryId = String(data.categoryId ?? "").trim();
+        if (trim(data.teamId) !== absorbedId) continue;
+        const leagueId = trim(data.leagueId);
+        const categoryId = trim(data.categoryId);
         if (!leagueId || !categoryId) {
-          console.error(
-            `PULADO leagueTeamRankings/${doc.id}: leagueId/categoryId ausente — doc original preservado, não apagado.`,
+          throw new Error(
+            `estado inesperado: leagueTeamRankings/${doc.id} sem leagueId/categoryId — o preflight deveria ter bloqueado ${pairKey} antes de chegar aqui.`,
           );
-          continue;
         }
         const newId = `${leagueId}_${categoryId}_${plan.survivorId}`;
-        // Ao contrário de tournamentCategoryResults, aqui NÃO fundimos por
-        // cima: se o sobrevivente já tem linha própria nessa liga+categoria,
-        // somar `stageResults` exigiria lógica de negócio que não existe nem
-        // é testada em lugar nenhum — arriscar isso numa fusão irreversível é
-        // pior que deixar os dois docs vivos (órfão, mas visível) até alguém
-        // reconciliar à mão.
-        const collision = leagueRankingsSnap.docs.find((d) => d.id === newId);
-        if (collision) {
-          console.error(
-            `ATENÇÃO leagueTeamRankings/${doc.id}: sobrevivente já tem linha própria em .../${newId} — fusão de ranking de liga não implementada aqui, docs preservados. Requer reconciliação manual.`,
+        if (leagueRankingsSnap.docs.some((d) => d.id === newId)) {
+          throw new Error(
+            `estado inesperado: leagueTeamRankings colidiria em ${newId} — o preflight deveria ter bloqueado ${pairKey} antes de chegar aqui.`,
           );
-          continue;
         }
-        remaps.push({
-          ref: db.doc(`${base}/leagueTeamRankings/${newId}`),
+        const newRef = db.doc(`${base}/leagueTeamRankings/${newId}`);
+        remapsByPath.set(newRef.path, {
+          ref: newRef,
           data: {...data, teamId: plan.survivorId},
           op: "create",
         });
+        queueRemoval(removals, doc.ref, doc.updateTime);
+      }
+
+      for (const doc of followingTeamsSnap.docs) {
+        if (doc.id !== absorbedId) continue;
+        const userRef = doc.ref.parent.parent;
+        if (!userRef) continue; // não deveria acontecer — followingTeams sempre tem um users/{uid} pai
+        const survivorRef = userRef.collection("followingTeams").doc(plan.survivorId);
+        // Já resolvido se: o usuário JÁ seguia o sobrevivente antes (doc
+        // pré-existente no snapshot), ou outro absorvido do MESMO grupo já
+        // recriou o doc do sobrevivente nesta mesma corrida. Em qualquer um
+        // dos dois casos não recria nada — o doc do sobrevivente já reflete
+        // a preferência corretamente, só sobra apagar o antigo. Ao contrário
+        // de leagueTeamRankings, aqui NÃO precisa de preflight nem de
+        // bloquear o grupo: não há dado de negócio em jogo (`followedAt` do
+        // absorvido é descartável), então "já resolvido, só apaga" é sempre
+        // seguro.
+        const alreadyResolved =
+          followingTeamsSnap.docs.some((d) => d.ref.path === survivorRef.path) ||
+          remapsByPath.has(survivorRef.path);
+        if (!alreadyResolved) {
+          remapsByPath.set(survivorRef.path, {
+            ref: survivorRef,
+            data: {...doc.data(), teamId: plan.survivorId},
+            op: "create",
+          });
+        }
         queueRemoval(removals, doc.ref, doc.updateTime);
       }
 
@@ -310,12 +494,16 @@ const SIMPLE_COLLECTIONS = [
       // `scaleVersion` ausente no doc fundido faria o próximo award do
       // servidor tratar o merge inteiro como "pré-escala" e multiplicar todo
       // `results[].points` por 10 (`tournament-ranking.ts`, upsertGlobalRankingDoc).
-      // Os dois lados já foram checados acima e concordam (ou um dos dois não
-      // tem o campo) — não há mistura de escalas aqui.
+      // A checagem acima já normaliza ausência pra 0 antes de comparar — os
+      // dois lados batem de verdade (mesmo scaleVersion, OU nenhum dos dois
+      // tem, que é o MESMO que dizer que os dois valem 0); um ausente ao
+      // lado de um presente já teria sido pego como divergência e pulado o
+      // grupo INTEIRO lá em cima, antes de chegar aqui.
       const scaleVersion =
         survivorRanking?.scaleVersion ?? absorbedRankings.find((d) => d.scaleVersion != null)?.scaleVersion;
-      remaps.push({
-        ref: db.doc(`${base}/teamRankings/${plan.survivorId}`),
+      const rankingRef = db.doc(`${base}/teamRankings/${plan.survivorId}`);
+      remapsByPath.set(rankingRef.path, {
+        ref: rankingRef,
         data: {
           ...(survivorRanking || {}),
           teamId: plan.survivorId,
@@ -332,10 +520,70 @@ const SIMPLE_COLLECTIONS = [
     }
   }
 
+  const remaps = [...remapsByPath.values()];
   console.log(`\nfase 1 (repontar): ${remaps.length} escritas`);
   console.log(`fase 3 (apagar):   ${removals.length} remoções`);
+
+  const absorbedAll = new Set(mapping.flatMap((m) => m.absorbedIds));
+
+  // Aviso sempre impresso, independente de dry-run/--apply: `picks.<matchId>`
+  // com PONTO LITERAL no nome do campo (não um mapa `picks` aninhado) já foi
+  // gravado historicamente por `submitBracketPrediction`. `batch.update()`
+  // interpreta ponto no nome do campo como CAMINHO aninhado — um campo assim
+  // seria mal-interpretado (grava dentro de um mapa `picks` que talvez nem
+  // exista) em vez de reescrito corretamente.
+  const entriesSnap = loaded.get(ENTRIES_KEY);
+  const dottedFieldDocs = entriesSnap.docs.filter((doc) =>
+    Object.keys(doc.data()).some((key) => key.includes(".")),
+  );
+  console.log(
+    "\nAVISO: confirme, antes de rodar --apply, que nenhum doc de tournamentPredictions/*/entries",
+  );
+  console.log(
+    "tem campo de TOPO com ponto literal no nome (`submitBracketPrediction` já gravou",
+  );
+  console.log(
+    "`picks.<matchId>` assim historicamente) — batch.update() trataria isso como caminho aninhado.",
+  );
+  if (dottedFieldDocs.length > 0) {
+    console.error(`ATENÇÃO: ${dottedFieldDocs.length} doc(s) com campo de topo pontuado:`);
+    for (const doc of dottedFieldDocs) console.error(`  ${doc.ref.path}`);
+  } else {
+    console.log(`Nenhum encontrado nesta varredura (${entriesSnap.size} docs de entries checados).`);
+  }
+
   if (!apply) {
-    console.log("(dry-run) nada foi gravado. Rode de novo com --apply.");
+    // Checagem de cobertura: a MESMA descoberta da fase 2, rodada aqui só de
+    // LEITURA, comparando contra o plano em vez de contra "o que sobrou
+    // depois da fase 1". Não escreve nada, custa uma passada a mais, e é
+    // exatamente o jeito de ter pego `followingTeams` ANTES de um humano ter
+    // pego, em vez de só depois que a fase 1 já tivesse comitado.
+    console.log("\nchecagem de cobertura (dry-run, só leitura): descobrindo fontes...");
+    const sources = await discoverScanSources();
+    console.log(`fontes descobertas (${sources.length}): ${sources.map((s) => s.label).join(", ")}`);
+    let scannedDocs = 0;
+    let gaps = 0;
+    for (const {get} of sources) {
+      const snap = await get();
+      scannedDocs += snap.size;
+      for (const doc of snap.docs) {
+        const text = `${doc.id} ${JSON.stringify(doc.data())}`;
+        for (const id of absorbedAll) {
+          if (!text.includes(id)) continue;
+          if (remapsByPath.has(doc.ref.path)) continue;
+          if (removals.some((r) => r.ref.path === doc.ref.path)) continue;
+          console.error(
+            `BURACO DE COBERTURA: ${doc.ref.path} cita ${id} mas não está no plano de remap nem de remoção.`,
+          );
+          gaps += 1;
+        }
+      }
+    }
+    console.log(`checagem de cobertura: ${scannedDocs} docs varridos, ${gaps} buraco(s).`);
+    if (gaps > 0) {
+      console.error("NÃO rode --apply até investigar o(s) buraco(s) de cobertura acima.");
+    }
+    console.log("\n(dry-run) nada foi gravado. Rode de novo com --apply.");
     return;
   }
 
@@ -348,32 +596,7 @@ const SIMPLE_COLLECTIONS = [
   fs.writeFileSync(file, JSON.stringify(mapping, null, 2));
   console.log(`de-para salvo em ${file} (antes de qualquer escrita no Firestore).`);
 
-  const absorbedAll = new Set(mapping.flatMap((m) => m.absorbedIds));
   const removalPaths = new Set(removals.map((r) => r.ref.path));
-  // Lista independente de tudo que pode citar um teamId — mantida à MÃO, sem
-  // derivar de SIMPLE_COLLECTIONS por spread: se a fase de escrita ganhar uma
-  // coleção nova e alguém esquecer de repetir a mudança aqui, as duas listas
-  // divergem de um jeito visível em code review, em vez de a verificação
-  // herdar automaticamente (e silenciosamente) a mesma cegueira da escrita.
-  // `leagueTeamRankings` e `tournamentPredictions/*/entries` entraram aqui no
-  // MESMO round em que entraram no inventário de escrita, depois de auditar
-  // `functions/src` atrás de todo campo que guarda um teamId — não porque a
-  // lista de escrita "vazou" pra cá.
-  // Cada item é só o getter — o `doc.ref.path` de cada resultado já identifica
-  // a coleção (e, pra `entries`, o torneio+usuário exatos), então não precisa
-  // de um rótulo redundante aqui.
-  const VERIFY_COLLECTIONS = [
-    () => db.collection(`${base}/matches`).get(),
-    () => db.collection(`${base}/inscriptions`).get(),
-    () => db.collection(`${base}/drawSessions`).get(),
-    () => db.collection("tournaments").get(),
-    () => db.collection("tournamentRegistrationInvites").get(),
-    () => db.collection("tournamentRegistrationCancellations").get(),
-    () => db.collection(`${base}/tournamentCategoryResults`).get(),
-    () => db.collection(`${base}/teamRankings`).get(),
-    () => db.collection(`${base}/leagueTeamRankings`).get(),
-    () => db.collectionGroup("entries").get(),
-  ];
 
   // ── Fase 1: repontar. Nenhuma remoção acontece aqui. ──────────────────────
   let done = 0;
@@ -393,14 +616,14 @@ const SIMPLE_COLLECTIONS = [
   }
 
   // ── Fase 2: provar que nada mais cita um id absorvido. ────────────────────
-  // Pula docs já enfileirados para a fase 3: esses TÊM que citar o id
-  // absorvido até serem apagados — não são sobra, são o próprio motivo de
-  // existir da fase 3. Sem esse filtro, `teamRankings/{absorvido}` e
-  // `tournamentCategoryResults/{...}_{absorvido}` sempre apareceriam como
-  // sobra (o novo doc nasce na fase 1, o antigo só morre na fase 3), e a fase
-  // 2 falharia 100% das vezes — depois que a fase 1 já tinha comitado.
+  // Descoberta, não lista à mão (mesmo mecanismo da checagem de cobertura
+  // acima) — varre o que EXISTE de verdade no banco agora. Pula docs já
+  // enfileirados pra fase 3: esses TÊM que citar o id absorvido até serem
+  // apagados — não são sobra, são o próprio motivo de existir da fase 3.
+  const sources = await discoverScanSources();
+  console.log(`\nfase 2: varrendo ${sources.length} fontes descobertas...`);
   let leftovers = 0;
-  for (const get of VERIFY_COLLECTIONS) {
+  for (const {get} of sources) {
     const snap = await get();
     for (const doc of snap.docs) {
       if (removalPaths.has(doc.ref.path)) continue;

@@ -40,4 +40,19 @@ describe("FakeFirestore.runTransaction", () => {
     });
     assert.equal(db.store.has("teams/t2"), false);
   });
+
+  it("tx.update em doc ausente é erro, não upsert", async () => {
+    const db = new FakeFirestore();
+
+    await assert.rejects(
+      db.runTransaction(async (tx) => {
+        const t = tx as {
+          update: (ref: unknown, data: Record<string, unknown>) => void;
+        };
+        t.update(db.doc("teams/nao-existe"), {pairKey: "a:b"});
+      }),
+      /update em doc ausente/,
+    );
+    assert.equal(db.store.has("teams/nao-existe"), false);
+  });
 });

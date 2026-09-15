@@ -217,6 +217,13 @@ export class FakeFirestore {
         self.write(ref.path, data, opts);
       },
       update: (ref: {path: string}, data: DocData) => {
+        // Espelha `ref.update` desta mesma classe e o Admin SDK de verdade:
+        // update em doc ausente é ERRO, não upsert. Um fake permissivo aqui
+        // deixaria passar teste verde sobre código que o Firestore real
+        // recusaria — exatamente o que um dublê de transação existe pra pegar.
+        if (!self.store.has(ref.path)) {
+          throw new Error(`update em doc ausente: ${ref.path}`);
+        }
         self.write(ref.path, data, {merge: true});
       },
       delete: (ref: {path: string}) => {

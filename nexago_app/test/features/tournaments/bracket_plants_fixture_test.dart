@@ -4,12 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'bracket_plants_fixture.dart';
 
 void main() {
-  test('o fixture traz as 25 plantas, com o buraco de 28 a 31', () {
+  test('o fixture traz as 29 plantas, de 4 a 32 sem buraco', () {
     final plants = loadBracketPlants();
-    expect(plants.keys.toList()..sort(), [
-      ...List.generate(24, (i) => i + 4), // 4 a 27
-      32,
-    ]);
+    // O buraco de 28 a 31 fechou em 15/09/2026: essas quatro saem por derivação
+    // da de 32 (um bye por dupla faltante), em `bracket-32-with-byes.ts`.
+    expect(plants.keys.toList()..sort(), List.generate(29, (i) => i + 4));
     // A de 12 é a do Goiânia Open: 22 partidas, semifinais cruzadas em #19/#20.
     expect(plants[12], hasLength(22));
     final semi = plants[12]!.firstWhere((m) => m.matchNumber == 19);

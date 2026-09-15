@@ -109,10 +109,16 @@ describe('bracketConvergenceMatches', () => {
     expect(bracketConvergenceMatches(CROSSOVER_FINAL_PLAN)).toContain(7);
   });
 
-  it('plantas com cruzamento WB×LB antes da final (10, 12, 32) têm 4 partidas de convergência; as demais, 2', () => {
+  it('plantas que fecham por cruzamento WB×LB têm 4 partidas de convergência; as demais, 2', () => {
+    // Lista de EXPECTATIVA, não de identificação: o código reconhece pela FIAÇÃO
+    // (alimentadores com pelo menos um WB e um LB), nunca pelo tamanho nem pelo
+    // matchType — a de 10 tipa um dos cruzamentos como LB e escaparia. As de 28 a 31
+    // entram porque saem da de 32 por derivação (um bye por dupla faltante) e herdam o
+    // fechamento dela: quem acrescentar planta derivada tem de somar aqui também.
+    const comCruzamento = new Set([10, 12, 28, 29, 30, 31, 32]);
     for (const size of PLANT_SIZES) {
       const count = bracketConvergenceMatches(plant(size)).size;
-      if (size === 10 || size === 12 || size === 32) {
+      if (comCruzamento.has(size)) {
         expect(count).withContext(`planta ${size} com cruzamento`).toBe(4);
       } else {
         expect(count).withContext(`planta ${size} sem cruzamento, só final + 3º lugar`).toBe(2);
@@ -285,7 +291,7 @@ describe('buildDoubleEliminationLayout — geometria convergente', () => {
     expect(cy(16)).toBeCloseTo((cy(12) + cy(14)) / 2, 2);
   });
 
-  it('nenhum par de cards se sobrepõe em nenhuma das 25 plantas', () => {
+  it('nenhum par de cards se sobrepõe em nenhuma das 29 plantas', () => {
     for (const size of PLANT_SIZES) {
       const layout = buildDoubleEliminationLayout(plant(size))!;
       for (let i = 0; i < layout.nodes.length; i++) {
@@ -461,8 +467,8 @@ describe('buildDoubleEliminationLayout — geometria convergente', () => {
     expect(hasEdge(layout, 'w7', 'l9')).toBeFalse();
   });
 
-  it('chave de dupla eliminação: nenhuma aresta chega na Final nem no 3º lugar, nas 25 plantas', () => {
-    // As 25 plantas têm `winnerAdvance` real apontando pra Final/3º lugar (inclusive nas
+  it('chave de dupla eliminação: nenhuma aresta chega na Final nem no 3º lugar, nas 29 plantas', () => {
+    // As 29 plantas têm `winnerAdvance` real apontando pra Final/3º lugar (inclusive nas
     // que cruzam, 10/12/32) — a garantia é que isso NUNCA vira uma aresta desenhada.
     for (const size of PLANT_SIZES) {
       const matches = plant(size);
@@ -479,7 +485,7 @@ describe('buildDoubleEliminationLayout — geometria convergente', () => {
   });
 
   it('órfã sem coluna alcançável numa chave com convergência cai no agrupamento legado, à direita de tudo', () => {
-    // Não ocorre nas 25 plantas reais, mas é possível numa chave editada à mão: #12 aponta
+    // Não ocorre nas 29 plantas reais, mas é possível numa chave editada à mão: #12 aponta
     // pra um matchNumber que não existe (99), então nunca é alcançada pela travessia que
     // monta a árvore de alimentação a partir dos pontos de convergência — sobra sem coluna.
     const comOrfa: TournamentMatch[] = [...sixTeamPlan, match({ id: 'w12', matchType: 'WB', roundNumber: 1, matchNumber: 12, winnerAdvanceMatchNumber: 99, winnerAdvanceSlot: null })];

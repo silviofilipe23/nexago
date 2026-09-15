@@ -535,7 +535,7 @@ export function buildDoubleEliminationLayout(matches: readonly TournamentMatch[]
     }
 
     // Rede de segurança: qualquer OUTRA partida de convergência que sobre sem árvore (não
-    // deveria acontecer nas 25 plantas reais — só Final e 3º lugar ficam sem árvore
+    // deveria acontecer nas 29 plantas reais — só Final e 3º lugar ficam sem árvore
     // própria) cai no comportamento antigo, empilhada na coluna central.
     for (const root of [...convergence].sort((a, b) => a - b)) {
       if (centerSlot.has(root)) continue;
@@ -546,7 +546,7 @@ export function buildDoubleEliminationLayout(matches: readonly TournamentMatch[]
     }
 
     // Órfãs: partidas que sobraram sem coluna mesmo numa chave COM convergência — não
-    // ocorre nas 25 plantas reais, mas é possível numa chave editada à mão (ex.: um jogo
+    // ocorre nas 29 plantas reais, mas é possível numa chave editada à mão (ex.: um jogo
     // com `winnerAdvance` apontando pra fora de qualquer árvore alcançada). Melhor aparecer
     // fora de lugar do que sumir da tela: mesmo agrupamento do caminho legado, em colunas
     // extras à direita de tudo.
@@ -606,7 +606,7 @@ export function buildDoubleEliminationLayout(matches: readonly TournamentMatch[]
       baseKey = 'SEMIFINAIS';
       label = 'SEMIFINAIS';
     } else if (hostGroupKeys.size > 1) {
-      // Mistura inesperada entre hosts de verdade (não deveria ocorrer nas 25 plantas
+      // Mistura inesperada entre hosts de verdade (não deveria ocorrer nas 29 plantas
       // reais) — mantém o aviso genérico de antes.
       baseKey = 'DESFECHO';
       label = 'DESFECHO';

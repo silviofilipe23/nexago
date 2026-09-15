@@ -14,6 +14,7 @@ import '../../../domain/category_level_identity.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_listing_status.dart';
+import '../../../domain/tournament_registration_logic.dart';
 import '../../../domain/tournament_registration_success_args.dart';
 
 /// Card de categoria no layout do protótipo: arte da faixa com scrim,
@@ -140,10 +141,10 @@ class _TournamentDetailCategoryCardState
             onPressed: switch (ctaKind) {
               TournamentCategoryCtaKind.register => widget.onRegister,
               TournamentCategoryCtaKind.waitlist => widget.onRegister,
-              TournamentCategoryCtaKind.viewRegistration =>
-                () => _openRegistrationSuccess(context),
-              TournamentCategoryCtaKind.viewCategory =>
-                () => _openCategoryView(context),
+              TournamentCategoryCtaKind.viewRegistration => () =>
+                  _openRegistrationSuccess(context),
+              TournamentCategoryCtaKind.viewCategory => () =>
+                  _openCategoryView(context),
               TournamentCategoryCtaKind.disabled => null,
             },
           )
@@ -200,6 +201,8 @@ class _TournamentDetailCategoryCardState
                       // pra não competirem na mesma faixa.
                       _CategoryMetaColumn(
                         vacancy: vacancy,
+                        levelLabel: categoryLevelFamilyLabel(family),
+                        genderLabel: categoryGenderDisplayLabel(offer),
                         formatLabel: tournamentCategoryShortFormatTag(offer),
                         feeLabel: formatCategoryEntryFee(offer),
                         prizesLabel:
@@ -243,6 +246,10 @@ class _CardBackdrop extends StatelessWidget {
         Image.asset(
           art,
           fit: BoxFit.cover,
+          // As artes são bem mais largas que o card, então `cover` corta a
+          // largura. Ancorar à direita preserva o terço onde mora o assunto —
+          // centralizado, ele é justamente o pedaço que se perde.
+          alignment: Alignment.centerRight,
           // Decorativa: quem carrega o significado é o nome da categoria.
           excludeFromSemantics: true,
           // Arte ausente não pode deixar o card ilegível: o texto é branco
@@ -393,6 +400,8 @@ class _StatePill extends StatelessWidget {
 class _CategoryMetaColumn extends StatelessWidget {
   const _CategoryMetaColumn({
     required this.vacancy,
+    required this.levelLabel,
+    required this.genderLabel,
     required this.formatLabel,
     required this.feeLabel,
     required this.prizesLabel,
@@ -404,6 +413,8 @@ class _CategoryMetaColumn extends StatelessWidget {
   });
 
   final TournamentCategoryVacancyUi vacancy;
+  final String levelLabel;
+  final String genderLabel;
   final String formatLabel;
   final String feeLabel;
   final String? prizesLabel;
@@ -416,12 +427,26 @@ class _CategoryMetaColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = <Widget>[
+      _MetaItem(
+        icon: Icons.stairs_outlined,
+        value: levelLabel,
+        caption: 'nível',
+        valueColor: valueColor,
+        mutedColor: mutedColor,
+      ),
+      if (genderLabel.isNotEmpty)
+        _MetaItem(
+          icon: Icons.wc_outlined,
+          value: genderLabel,
+          caption: 'gênero',
+          valueColor: valueColor,
+          mutedColor: mutedColor,
+        ),
       if (showSpots)
         _MetaItem(
           icon: Icons.person_outline_rounded,
-          value: vacancy.total > 0
-              ? '${vacancy.enrolled}/${vacancy.total}'
-              : '—',
+          value:
+              vacancy.total > 0 ? '${vacancy.enrolled}/${vacancy.total}' : '—',
           caption: 'equipes',
           valueColor: valueColor,
           mutedColor: mutedColor,
@@ -529,8 +554,7 @@ class _CategoryCtaButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = tournamentCategoryCtaLabel(kind);
-    final isPrimary =
-        kind == TournamentCategoryCtaKind.register ||
+    final isPrimary = kind == TournamentCategoryCtaKind.register ||
         kind == TournamentCategoryCtaKind.viewRegistration ||
         (kind == TournamentCategoryCtaKind.waitlist && onPressed != null);
 
@@ -561,8 +585,8 @@ class _CategoryCtaButton extends StatelessWidget {
     final foreground = lightOnDark
         ? (enabled ? Colors.white : Colors.white54)
         : (enabled
-              ? context.themeColors.onSurface
-              : context.themeColors.onSurfaceMuted);
+            ? context.themeColors.onSurface
+            : context.themeColors.onSurfaceMuted);
     final border = lightOnDark
         ? Colors.white.withValues(alpha: enabled ? 0.45 : 0.2)
         : context.themeColors.onSurfaceMuted.withValues(

@@ -550,14 +550,21 @@ void main() {
           'Grupos');
     });
 
-    test('mata-mata vira "Eliminatórias"', () {
+    test('mata-mata simples vira "Eliminatórias"', () {
       expect(
         tournamentCategoryShortFormatTag(withFormat('single_elimination')),
         'Eliminatórias',
       );
+    });
+
+    test('dupla eliminatória mantém o nome completo', () {
       expect(
         tournamentCategoryShortFormatTag(withFormat('double_elimination')),
-        'Eliminatórias',
+        'Dupla eliminatória',
+      );
+      expect(
+        tournamentCategoryShortFormatTag(withFormat('Double Elimination')),
+        'Dupla eliminatória',
       );
     });
 

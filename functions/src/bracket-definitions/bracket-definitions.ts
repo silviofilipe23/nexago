@@ -47,6 +47,12 @@ import {BRACKET_25_TEAMS} from "./bracket-25-teams";
 import {BRACKET_26_TEAMS} from "./bracket-26-teams";
 import {BRACKET_27_TEAMS} from "./bracket-27-teams";
 import {BRACKET_32_TEAMS} from "./bracket-32-teams";
+import {
+  BRACKET_28_TEAMS,
+  BRACKET_29_TEAMS,
+  BRACKET_30_TEAMS,
+  BRACKET_31_TEAMS,
+} from "./bracket-32-with-byes";
 
 export const BRACKET_DEFINITIONS: {[numTeams: number]: MatchDefinition[]} = {
   4: BRACKET_4_TEAMS,
@@ -73,13 +79,20 @@ export const BRACKET_DEFINITIONS: {[numTeams: number]: MatchDefinition[]} = {
   25: BRACKET_25_TEAMS,
   26: BRACKET_26_TEAMS,
   27: BRACKET_27_TEAMS,
+  28: BRACKET_28_TEAMS,
+  29: BRACKET_29_TEAMS,
+  30: BRACKET_30_TEAMS,
+  31: BRACKET_31_TEAMS,
   32: BRACKET_32_TEAMS,
 };
 
 /**
- * Tamanhos de chave com planta, em ordem crescente. O conjunto TEM buraco —
- * 4 a 27 e 32, sem 28 a 31 — então nunca descreva a cobertura como uma faixa
- * de min a max.
+ * Tamanhos de chave com planta, em ordem crescente: 4 a 32, contíguo desde
+ * 15/09/2026, quando 28 a 31 entraram por derivação da de 32 (ver
+ * `bracket-32-with-byes.ts`). Até então havia buraco, e a cobertura NÃO podia
+ * ser descrita como faixa de min a max — por isso `describeTeamCounts` existe
+ * e continua sendo a fonte da frase mostrada ao organizador: se um tamanho sair
+ * do conjunto de novo, a descrição volta a abrir a exceção sozinha.
  */
 export const SUPPORTED_DE_TEAM_COUNTS: readonly number[] = Object.keys(
   BRACKET_DEFINITIONS,
@@ -88,9 +101,11 @@ export const SUPPORTED_DE_TEAM_COUNTS: readonly number[] = Object.keys(
   .sort((a, b) => a - b);
 
 /**
- * Descreve tamanhos suportados agrupando os contíguos em faixas — "4 a 27 ou
- * 32", nunca "4 a 32". Um min-a-max diria ao organizador que uma quantidade
- * sem planta (28 a 31) é aceita, e a chave seria recusada só na publicação.
+ * Descreve tamanhos suportados agrupando os contíguos em faixas. Hoje o
+ * conjunto é contíguo e isso dá "4 a 32"; enquanto faltavam as plantas de 28 a
+ * 31 dava "4 a 27 ou 32". Nunca troque por um min-a-max escrito à mão: um
+ * buraco novo passaria a prometer ao organizador um tamanho sem planta, e a
+ * chave só seria recusada na publicação.
  */
 export function describeTeamCounts(counts: readonly number[]): string {
   const ranges: string[] = [];

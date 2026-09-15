@@ -62,9 +62,15 @@ void main() {
     expect(find.text('Equilíbrio e grandes jogos'), findsNothing);
   });
 
-  testWidgets('linha de meta traz vagas, formato curto e taxa', (tester) async {
+  testWidgets('linha de meta traz nível, gênero, vagas, formato e taxa', (
+    tester,
+  ) async {
     await pumpCard(tester, TournamentListingStatus.open);
 
+    expect(find.text('Intermediário'), findsOneWidget);
+    expect(find.text('nível'), findsOneWidget);
+    expect(find.text('Masculino'), findsOneWidget);
+    expect(find.text('gênero'), findsOneWidget);
     expect(find.text('24/32'), findsOneWidget);
     expect(find.text('equipes'), findsOneWidget);
     expect(find.text('Grupos'), findsOneWidget);

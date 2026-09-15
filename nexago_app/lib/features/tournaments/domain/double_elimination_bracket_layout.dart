@@ -141,7 +141,8 @@ String bracketColumnHeaderLabel(List<TournamentMatch> columnMatches) {
 ///   abrir coluna nova. Altura-alvo: a da Final quando ela converge direto
 ///   (a maioria das plantas — "mesma linha horizontal" da Final de
 ///   verdade); o meio do bloco quando as duas ficam sem árvore ao mesmo
-///   tempo (plantas 10, 12, 32). Se o vizinho já tiver jogo na altura-alvo
+///   tempo (plantas 10, 12 e 32, mais as de 28 a 31, derivadas dela). Se o
+///   vizinho já tiver jogo na altura-alvo
 ///   (o caso comum: a Final converge direto, e seu próprio alimentador
 ///   daquele lado mora exatamente na vizinha) a partida ganha coluna
 ///   PRÓPRIA, mas ADJACENTE ao centro — empurrando pra fora o que já
@@ -156,7 +157,8 @@ String bracketColumnHeaderLabel(List<TournamentMatch> columnMatches) {
 ///   de verdade: não sequestram o rótulo dela (a coluna das quartas
 ///   continua "WB · RODADA N"). A coluna de CRUZAMENTO de verdade (abre
 ///   bloco de convergência com árvore dos dois lados, mas não é a Final —
-///   plantas 10, 12, 32) se identifica como `'SEMIFINAIS'`, o encontro das
+///   plantas 10, 12, 32 e as de 28 a 31) se identifica como `'SEMIFINAIS'`,
+///   o encontro das
 ///   duas chaves — nunca pelo número da planta ou tamanho da chave, sempre
 ///   por essa propriedade. Quando a Final converge direto e fica sozinha
 ///   numa coluna (a maioria das plantas), o rótulo continua `'FINAL'`.
@@ -223,7 +225,8 @@ DoubleEliminationBracketLayout buildDoubleEliminationBracketLayout(
   final columnOf = <int, int>{};
 
   /// Partidas de convergência SEM árvore de alimentação própria (Final e 3º
-  /// lugar que não convergem direto — plantas 10, 12 e 32, onde quem cruza
+  /// lugar que não convergem direto — plantas 10, 12, 32 e as de 28 a 31,
+  /// derivadas da de 32, onde quem cruza
   /// são as partidas de cruzamento, não elas). O centro delas é só um palpite
   /// em volta do meio do bloco: a materialização nunca deixa uma partida
   /// desta lista empurrar uma partida com centro próprio calculado.

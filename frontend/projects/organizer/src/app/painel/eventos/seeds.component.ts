@@ -36,16 +36,20 @@ const FORMAT_LABEL: Record<BracketFormat, string> = {
 
 /**
  * Tamanhos suportados pelas plantas estáticas de dupla eliminação
- * (`functions/src/bracket-definitions`). O conjunto TEM buraco — 4 a 27 e 32,
- * sem 28 a 31 — então uma faixa min-a-max liberaria aqui contagens que a CF
- * `generateCategoryBracket` recusa (`de_unsupported_team_count`).
+ * (`functions/src/bracket-definitions`). É CÓPIA: a fonte da verdade é
+ * `SUPPORTED_DE_TEAM_COUNTS` lá, e esta lista existe só para o painel não
+ * chamar a CF sabendo que ela vai recusar (`de_unsupported_team_count`).
+ * Contígua de 4 a 32 desde 15/09/2026, quando 28 a 31 entraram por derivação
+ * da de 32 — antes disso havia buraco. Se um tamanho sair do conjunto de novo,
+ * é aqui que o painel precisa acompanhar, senão ele libera na tela o que a CF
+ * recusa na publicação.
  */
 const DE_TEAM_COUNTS: readonly number[] = [
   4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-  25, 26, 27, 32,
+  25, 26, 27, 28, 29, 30, 31, 32,
 ];
 
-/** "4 a 27 ou 32" — faixas contíguas agrupadas, para a mensagem não mentir. */
+/** Faixas contíguas agrupadas, para a mensagem não mentir: hoje "4 a 32". */
 function describeTeamCounts(counts: readonly number[]): string {
   const ranges: string[] = [];
   for (let i = 0; i < counts.length; ) {

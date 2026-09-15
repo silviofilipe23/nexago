@@ -529,7 +529,13 @@ String tournamentCategoryFormatTag(TournamentCategoryOffer offer) {
 
 /// Rótulo curto do formato — cabe na linha de meta do card, ao lado de vagas e
 /// taxa, onde o nome inteiro ("Fase de Grupos + Mata-mata") não cabe.
+///
+/// Dupla eliminatória mantém o nome completo: "Eliminatórias" sozinho
+/// confundiria com mata-mata simples.
 String tournamentCategoryShortFormatTag(TournamentCategoryOffer offer) {
+  if (isDoubleEliminationBracketFormat(offer.bracketFormat)) {
+    return 'Dupla eliminatória';
+  }
   if (categoryHasGroupsPhase(offer)) return 'Grupos';
   final label = bracketFormatLabel(offer.bracketFormat);
   if (label.isEmpty) return 'A confirmar';

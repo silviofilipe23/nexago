@@ -27,6 +27,12 @@ import {BRACKET_26_TEAMS} from "./bracket-definitions/bracket-26-teams";
 import {BRACKET_27_TEAMS} from "./bracket-definitions/bracket-27-teams";
 import {BRACKET_32_TEAMS} from "./bracket-definitions/bracket-32-teams";
 import {
+  BRACKET_28_TEAMS,
+  BRACKET_29_TEAMS,
+  BRACKET_30_TEAMS,
+  BRACKET_31_TEAMS,
+} from "./bracket-definitions/bracket-32-with-byes";
+import {
   BRACKET_DEFINITIONS,
   SUPPORTED_DE_TEAM_COUNTS,
   describeTeamCounts,
@@ -60,6 +66,10 @@ const ALL_BRACKET_DEFINITIONS: [number, MatchDefinition[]][] = [
   [25, BRACKET_25_TEAMS],
   [26, BRACKET_26_TEAMS],
   [27, BRACKET_27_TEAMS],
+  [28, BRACKET_28_TEAMS],
+  [29, BRACKET_29_TEAMS],
+  [30, BRACKET_30_TEAMS],
+  [31, BRACKET_31_TEAMS],
   [32, BRACKET_32_TEAMS],
 ];
 
@@ -264,10 +274,10 @@ describe("describeTeamCounts", () => {
     assert.equal(describeTeamCounts([]), "");
   });
 
-  it("descreve as plantas registradas sem prometer 28 a 31", () => {
-    assert.equal(describeTeamCounts(SUPPORTED_DE_TEAM_COUNTS), "4 a 27 ou 32");
-    for (const n of [28, 29, 30, 31]) {
-      assert.equal(BRACKET_DEFINITIONS[n], undefined, `${n} não tem planta`);
+  it("a cobertura é contígua de 4 a 32", () => {
+    assert.equal(describeTeamCounts(SUPPORTED_DE_TEAM_COUNTS), "4 a 32");
+    for (let n = 4; n <= 32; n++) {
+      assert.ok(BRACKET_DEFINITIONS[n], `${n} duplas ficou sem planta`);
     }
   });
 
@@ -348,7 +358,8 @@ describe("primeiro reencontro possível por planta", () => {
   const PRIMEIRO_REENCONTRO: Record<number, number> = {
     4: 5, 5: 6, 6: 8, 7: 10, 8: 12, 9: 12, 10: 13, 11: 17, 12: 17,
     13: 19, 14: 21, 15: 23, 16: 25, 17: 19, 18: 21, 19: 23, 20: 25,
-    21: 27, 22: 29, 23: 31, 24: 33, 25: 35, 26: 37, 27: 29, 32: 55,
+    21: 27, 22: 29, 23: 31, 24: 33, 25: 35, 26: 37, 27: 29,
+    28: 47, 29: 49, 30: 51, 31: 53, 32: 55,
   };
 
   type Destino = {match: number; slot: "A" | "B"};
@@ -400,6 +411,57 @@ describe("primeiro reencontro possível por planta", () => {
         `vencedor e perdedor da #${maisCedo.origem} podem se reencontrar já na ` +
           `#${maisCedo.reencontro}`,
       );
+    });
+  }
+});
+
+/**
+ * BYE NAS PLANTAS DE 28 A 31. Elas não são transcrição de tabela nenhuma: saem
+ * da de 32 por derivação, tirando o complemento dos primeiros do ranking (ver
+ * `bracket-32-with-byes.ts`). Os testes abaixo travam o que a derivação promete
+ * ao organizador — quem folga a estreia, e que a semeadura do dono continua de
+ * pé. O resto (perdedor órfão, seed repetido, reencontro) já é coberto pelas
+ * suítes genéricas acima, que rodam sobre estas plantas como sobre as outras.
+ *
+ * A suíte de entrada cruzada NÃO as inclui de propósito: tirar uma estreia tira
+ * também uma partida da LB R1, que fica com número ímpar de jogos e deixa de
+ * ser o bloco em metades que aquele teste mede. O cruzamento continua lá, mas
+ * herdado da de 32 — é a derivação que o garante, e é ela que está travada aqui.
+ */
+describe("bye nas plantas derivadas da de 32", () => {
+  for (const numTeams of [28, 29, 30, 31]) {
+    const def = ALL_BRACKET_DEFINITIONS.find(([n]) => n === numTeams)![1];
+    const byes = 32 - numTeams;
+
+    it(`bracket-${numTeams}-teams: os ${byes} primeiros do ranking folgam a estreia`, () => {
+      const naRodada = (round: number) =>
+        new Set(
+          def
+            .filter((m) => m.bracket === "WB" && m.round === round)
+            .flatMap((m) => [m.teamA, m.teamB])
+            .filter((src) => src.type === "SEED")
+            .map((src) => (src as {seed: number}).seed),
+        );
+      const estreia = naRodada(1);
+      const segunda = naRodada(2);
+
+      for (let seed = 1; seed <= byes; seed++) {
+        assert.ok(!estreia.has(seed), `${seed}º do ranking joga a estreia em vez de folgar`);
+        assert.ok(segunda.has(seed), `${seed}º do ranking não entra na 2ª rodada`);
+      }
+      for (let seed = byes + 1; seed <= numTeams; seed++) {
+        assert.ok(estreia.has(seed), `${seed}º do ranking deveria jogar a estreia`);
+      }
+      assert.equal(segunda.size, byes, "só quem tem bye entra direto na 2ª rodada");
+    });
+
+    it(`bracket-${numTeams}-teams: estreia mantém a soma 33 e são ${2 * numTeams - 2} partidas`, () => {
+      for (const m of def.filter((x) => x.bracket === "WB" && x.round === 1)) {
+        const a = (m.teamA as {seed: number}).seed;
+        const b = (m.teamB as {seed: number}).seed;
+        assert.equal(a + b, 33, `#${m.matchNumber} casa ${a} com ${b}, fora da semeadura da de 32`);
+      }
+      assert.equal(def.length, 2 * numTeams - 2);
     });
   }
 });

@@ -1895,9 +1895,16 @@ export const acceptTournamentPartnerInvite = onCall({
       if (baseTeamId) {
         // Solo legado: já existe equipe de 1 atleta → preenche o player2. O par
         // só fica completo aqui, então é aqui que a chave nasce.
+        // A chave vem do player1Id do PRÓPRIO doc de equipe, não de baseOwnerUid
+        // (que tem fallback pro inviterUid): o helper revalida cada candidato
+        // recomputando a chave a partir dos player ids gravados no doc, então
+        // qualquer outra origem arrisca gravar uma chave que o doc nunca bate.
+        const teamOwnerUid =
+          (existingTeamSnap?.data()?.player1Id as string | undefined)?.trim() ||
+          baseOwnerUid;
         tx.update(teamsRef.doc(baseTeamId), {
           player2Id: joiningUid,
-          pairKey: buildPairKey(baseOwnerUid, joiningUid),
+          pairKey: buildPairKey(teamOwnerUid, joiningUid),
           updatedAt: FieldValue.serverTimestamp(),
         });
       } else {

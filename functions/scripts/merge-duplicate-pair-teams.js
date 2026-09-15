@@ -138,6 +138,69 @@ function preflightMissingFields({label, snap, absorbedIds, requiredFields}) {
   return null;
 }
 
+/**
+ * Igualdade profunda que entende `Timestamp` do Firestore (via `.isEqual`,
+ * já que dois Timestamps com o MESMO instante não são `===` nem batem por
+ * `JSON.stringify` de forma confiável) — usada só pra separar "já resolvido"
+ * de "colisão genuína" em `leagueTeamRankings` (ver mais abaixo).
+ */
+function deepEqualFirestoreValue(a, b) {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (typeof a.isEqual === "function" && typeof b?.toDate === "function") {
+    return a.isEqual(b);
+  }
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((item, i) => deepEqualFirestoreValue(item, b[i]));
+  }
+  if (typeof a === "object" && typeof b === "object") {
+    const keysA = Object.keys(a);
+    const keysB = Object.keys(b);
+    if (keysA.length !== keysB.length) return false;
+    return keysA.every(
+      (k) => Object.prototype.hasOwnProperty.call(b, k) && deepEqualFirestoreValue(a[k], b[k]),
+    );
+  }
+  return false;
+}
+
+/**
+ * Bloqueia o GRUPO INTEIRO se `leagueTeamRankings` tiver uma colisão GENUÍNA
+ * no id novo — distinta de uma reconvergência idempotente. As duas situações
+ * produzem um doc já existente em `{leagueId}_{categoryId}_{survivorId}`,
+ * mas divergem no CONTEÚDO, não só no `teamId`:
+ *  - JÁ RESOLVIDO: o doc ali é EXATAMENTE `{...dadoDoAbsorvido, teamId:
+ *    sobrevivente}` — a própria escrita de uma corrida anterior desta
+ *    migração que morreu antes da fase 3 apagar o absorvido. Deep-equal
+ *    bate; não bloqueia (o enfileiramento mais abaixo trata como resolvido).
+ *  - COLISÃO GENUÍNA: o sobrevivente já tinha linha PRÓPRIA ali antes de
+ *    qualquer fusão — `stageResults` (e os agregados derivados) são dele
+ *    mesmo, não uma cópia do absorvido. Deep-equal não bate; bloqueia o
+ *    grupo inteiro, porque não existe lógica de fusão de `stageResults` em
+ *    lugar nenhum e apagar o absorvido aqui perderia os pontos de liga dele
+ *    em silêncio.
+ */
+function preflightLeagueCollision({snap, survivorId, absorbedIds}) {
+  for (const absorbedId of absorbedIds) {
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      if (trim(data.teamId) !== absorbedId) continue;
+      const leagueId = trim(data.leagueId);
+      const categoryId = trim(data.categoryId);
+      if (!leagueId || !categoryId) continue; // pego por preflightMissingFields
+      const newId = `${leagueId}_${categoryId}_${survivorId}`;
+      const existing = snap.docs.find((d) => d.id === newId);
+      if (!existing) continue;
+      const wouldWrite = {...data, teamId: survivorId};
+      if (!deepEqualFirestoreValue(existing.data(), wouldWrite)) {
+        return `leagueTeamRankings: .../${newId} (liga ${leagueId}, categoria ${categoryId}) já tem uma linha DIFERENTE do que a fusão escreveria — parece colisão genuína (o sobrevivente tem stageResults próprio ali), não idempotência de uma corrida anterior`;
+      }
+    }
+  }
+  return null;
+}
+
 // Chave estável do `loaded` pra `ratingEvents` — usada tanto pra carregar
 // quanto pra EXCLUIR da contagem de referências (ver `refCountByTeamId`
 // abaixo).
@@ -190,6 +253,12 @@ const ENTRIES_KEY = "tournamentPredictions/*/entries";
  * foi sorteado — só que sob um id que deixou de ter `teams/{id}` vivo.
  */
 const PRESERVED_COLLECTIONS = new Set([`${base}/drawSessions`]);
+// Nomes curtos pra imprimir na saída — derivados do Set acima, não escritos
+// à mão de novo: se um dia entrar uma segunda coleção aqui (por outro
+// motivo, não a cadeia de hash), a mensagem lista as duas pelo nome sem
+// precisar editar a string; o PORQUÊ de cada uma fica só no comentário
+// acima, não duplicado na mensagem de log.
+const preservedCollectionNames = () => [...PRESERVED_COLLECTIONS].map((p) => p.split("/").pop()).join(", ");
 
 /**
  * Nomes de subcoleção aninhada (moram sob um documento pai que não dá pra
@@ -401,6 +470,18 @@ async function discoverScanSources() {
       continue;
     }
 
+    const leagueCollision = preflightLeagueCollision({
+      snap: leagueRankingsSnap,
+      survivorId: plan.survivorId,
+      absorbedIds: plan.absorbedIds,
+    });
+    if (leagueCollision) {
+      console.log(
+        `PULADO ${pairKey}: ${leagueCollision} — requer reconciliação manual antes de fundir. Grupo inteiro preservado.`,
+      );
+      continue;
+    }
+
     mapping.push({pairKey, survivorId: plan.survivorId, absorbedIds: plan.absorbedIds});
     console.log(`${pairKey}: ${plan.absorbedIds.join(", ")} -> ${plan.survivorId}`);
 
@@ -449,20 +530,15 @@ async function discoverScanSources() {
         }
         const newId = `${leagueId}_${categoryId}_${plan.survivorId}`;
         const newRef = db.doc(`${base}/leagueTeamRankings/${newId}`);
-        // Idempotência ACEITA de propósito, sem distinguir de uma colisão
-        // genuína: um doc já pode existir em `newId` porque (a) uma corrida
-        // anterior desta MESMA migração criou-o na fase 1 e morreu antes da
-        // fase 3 apagar o absorvido (o caso que motivou este comentário —
-        // sem isso, o re-run ficava preso pra sempre nesse par), ou (b) o
-        // sobrevivente genuinamente já tinha linha própria ali antes de
-        // qualquer fusão. Não dá pra distinguir os dois só pelo dado (as
-        // duas produzem exatamente `teamId: survivorId` no id novo). Tratar
-        // como resolvido A FAVOR da reconvergência: não sobrescreve nem
-        // funde `stageResults` (não existe lógica de fusão pra isso em
-        // lugar nenhum) — no caso (b), os pontos de liga do absorvido não
-        // entram no sobrevivente, só o doc antigo é apagado abaixo. Zero
-        // docs de leagueTeamRankings existem no dev hoje; latente até a
-        // Liga nexaGO ganhar dado de verdade.
+        // Se um doc já existe em `newId`, o preflight (`preflightLeagueCollision`,
+        // antes de `mapping.push`) já provou por deep-equal que é a PRÓPRIA
+        // escrita de uma corrida anterior desta migração (idêntico a
+        // `{...dado atual do absorvido, teamId: sobrevivente}`) — uma colisão
+        // GENUÍNA (sobrevivente com stageResults próprio ali) já teria
+        // bloqueado o grupo inteiro antes de chegar aqui. Então "já existe"
+        // aqui só pode significar "já resolvido": não recria (evita um
+        // `create` redundante — o doc já é o que escreveríamos), só
+        // enfileira a remoção do antigo abaixo.
         const alreadyResolved =
           leagueRankingsSnap.docs.some((d) => d.id === newId) || remapsByPath.has(newRef.path);
         if (!alreadyResolved) {
@@ -612,7 +688,7 @@ async function discoverScanSources() {
     }
     console.log(`checagem de cobertura: ${scannedDocs} docs varridos, ${gaps} buraco(s).`);
     console.log(
-      `drawSessions PRESERVADO (cadeia de hash do sorteio): ${preservedPaths.size} doc(s) seguem citando id absorvido, por decisão.`,
+      `${preservedCollectionNames()} PRESERVADO(S) (ver PRESERVED_COLLECTIONS no código pro motivo de cada uma): ${preservedPaths.size} doc(s) seguem citando id absorvido, por decisão.`,
     );
     console.log("\n(dry-run) nada foi gravado. Rode de novo com --apply.");
     if (gaps > 0) {
@@ -676,7 +752,7 @@ async function discoverScanSources() {
     }
   }
   console.log(
-    `drawSessions PRESERVADO (cadeia de hash do sorteio): ${preservedPathsPhase2.size} doc(s) seguem citando id absorvido, por decisão.`,
+    `${preservedCollectionNames()} PRESERVADO(S) (ver PRESERVED_COLLECTIONS no código pro motivo de cada uma): ${preservedPathsPhase2.size} doc(s) seguem citando id absorvido, por decisão.`,
   );
   if (leftovers > 0) {
     console.error(`\nFALHOU na fase 2: ${leftovers} sobra(s). NADA foi apagado —`);

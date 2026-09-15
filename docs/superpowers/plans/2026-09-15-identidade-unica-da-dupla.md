@@ -22,6 +22,158 @@
 
 ---
 
+### Task 0: Auditor da integridade inscrição ↔ equipe
+
+**Exigência do dono: nenhuma inscrição que já existe pode quebrar.** Este auditor é a régua disso
+— roda antes de tudo para tirar a linha de base e de novo depois de cada `--apply`. Vem primeiro
+porque sem a linha de base não há como provar que nada quebrou.
+
+Uma inscrição com `teamId` apontando para doc inexistente some das listagens e passa a ser barrada
+pela regra `inscriptionParticipantUidsMatchTeam` em qualquer update do cliente.
+
+**Files:**
+- Create: `functions/scripts/check-registration-team-integrity.js`
+
+**Interfaces:**
+- Consumes: nada.
+- Produces: saída de console e código de saída (0 = íntegro, 1 = há quebradas). Consumido pela
+  Task 9 como portão de cada etapa.
+
+- [ ] **Step 1: Escrever o auditor**
+
+Criar `functions/scripts/check-registration-team-integrity.js`:
+
+```js
+/* eslint-disable */
+/**
+ * Auditor da integridade inscrição ↔ equipe: toda inscrição com `teamId` tem de
+ * resolver para um doc de equipe existente cujos integrantes batam com
+ * `participantUids`.
+ *
+ * POR QUE existe: a entrega da identidade única da dupla reponta o `teamId` de
+ * inscrições que JÁ EXISTEM. Uma inscrição apontando para equipe inexistente
+ * some das listagens e passa a ser barrada pela regra
+ * `inscriptionParticipantUidsMatchTeam` em qualquer update do cliente — quebra
+ * silenciosa, que nenhum teste de unidade pega.
+ *
+ * Uso: rodar ANTES da migração (linha de base) e DEPOIS de cada --apply. O
+ * conjunto de quebradas não pode crescer.
+ *
+ *   node scripts/check-registration-team-integrity.js --project volley-track-dev-4596c
+ *
+ * Só leitura. Sai com código 1 se achar inscrição quebrada.
+ */
+const admin = require("firebase-admin");
+
+function argValue(flag) {
+  const i = process.argv.indexOf(flag);
+  return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : undefined;
+}
+
+const projectId = argValue("--project") || process.env.GCLOUD_PROJECT;
+if (!projectId) {
+  console.error("Informe --project <projectId>");
+  process.exit(1);
+}
+
+admin.initializeApp({projectId});
+const db = admin.firestore();
+const base = `artifacts/${projectId}/public/data`;
+
+/** Cópia de `extractTeamMemberUids` (functions/src/tournament-team-category.ts). */
+function teamMemberUids(team) {
+  const out = [];
+  const push = (raw) => {
+    const id = typeof raw === "string" ? raw.trim() : "";
+    if (id && !out.includes(id)) out.push(id);
+  };
+  if (Array.isArray(team.memberUids)) team.memberUids.forEach(push);
+  push(team.player1Id);
+  push(team.player2Id);
+  return out;
+}
+
+(async () => {
+  const [inscriptions, teams] = await Promise.all([
+    db.collection(`${base}/inscriptions`).get(),
+    db.collection(`${base}/teams`).get(),
+  ]);
+  const teamById = new Map(teams.docs.map((d) => [d.id, d.data()]));
+
+  const missingTeam = [];
+  const memberMismatch = [];
+  let semTeamId = 0;
+
+  for (const doc of inscriptions.docs) {
+    const data = doc.data();
+    const teamId = String(data.teamId ?? "").trim();
+    if (!teamId) {
+      semTeamId += 1;
+      continue;
+    }
+    const team = teamById.get(teamId);
+    if (!team) {
+      missingTeam.push(`${doc.id} -> teams/${teamId} (INEXISTENTE)`);
+      continue;
+    }
+    const participants = Array.isArray(data.participantUids) ?
+      data.participantUids.map((p) => String(p).trim()).filter(Boolean) :
+      [];
+    if (participants.length === 0) continue;
+    const members = teamMemberUids(team);
+    const orphan = participants.filter((uid) => !members.includes(uid));
+    if (orphan.length > 0) {
+      memberMismatch.push(
+        `${doc.id} -> teams/${teamId}: participante(s) fora do elenco: ${orphan.join(", ")}`,
+      );
+    }
+  }
+
+  console.log(`inscricoes=${inscriptions.size} equipes=${teams.size} sem_teamId=${semTeamId}`);
+  console.log(`equipe inexistente: ${missingTeam.length}`);
+  missingTeam.forEach((line) => console.log(`  ${line}`));
+  console.log(`elenco divergente: ${memberMismatch.length}`);
+  memberMismatch.forEach((line) => console.log(`  ${line}`));
+
+  const broken = missingTeam.length + memberMismatch.length;
+  if (broken > 0) {
+    console.error(`\nQUEBRADAS: ${broken}`);
+    process.exit(1);
+  }
+  console.log("\nintegridade OK.");
+})().catch((e) => {
+  console.error("ERRO:", e.message);
+  process.exit(1);
+});
+```
+
+- [ ] **Step 2: Rodar no dev e guardar a linha de base**
+
+```bash
+node scripts/check-registration-team-integrity.js --project volley-track-dev-4596c
+```
+
+Anotar os números da saída (`equipe inexistente` e `elenco divergente`). **Esta é a linha de
+base** — se já houver quebradas hoje, elas são pré-existentes e não são desta entrega; o que não
+pode é o número crescer.
+
+- [ ] **Step 3: Rodar no prod**
+
+```bash
+node scripts/check-registration-team-integrity.js --project volley-track-2dd3b
+```
+
+Anotar do mesmo jeito.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add functions/scripts/check-registration-team-integrity.js
+git commit -m "feat: auditor da integridade inscrição x equipe"
+```
+
+---
+
 ### Task 1: `FakeFirestore` suporta query e update dentro da transação
 
 O helper lê por query dentro da transação e atualiza doc. O fake de teste hoje só sabe `tx.get(ref)` e `tx.set` — sem isso nenhum teste da Task 2 consegue rodar.
@@ -1567,8 +1719,13 @@ const SIMPLE_COLLECTIONS = [
     if (teamId) countRef(teamId);
   }
 
+  // DUAS listas, nunca uma. Apagar é sempre a ÚLTIMA fase: se a fase de
+  // repontamento falhar no meio, o doc antigo continua vivo e as inscrições
+  // seguem resolvendo. O contrário (apagar antes) deixaria inscrição órfã —
+  // some da listagem e trava no `inscriptionParticipantUidsMatchTeam`.
   const mapping = [];
-  const writes = [];
+  const remaps = [];
+  const removals = [];
   for (const [pairKey, members] of duplicated) {
     const plan = planGroupMerge({members, tournamentsByTeamId, refCountByTeamId});
     if (plan.skipped) {
@@ -1579,10 +1736,10 @@ const SIMPLE_COLLECTIONS = [
     console.log(`${pairKey}: ${plan.absorbedIds.join(", ")} -> ${plan.survivorId}`);
 
     for (const absorbedId of plan.absorbedIds) {
-      for (const [path, snap] of loaded) {
+      for (const [, snap] of loaded) {
         for (const doc of snap.docs) {
           const next = remap(doc.data(), absorbedId, plan.survivorId);
-          if (next) writes.push({kind: "set", ref: doc.ref, data: next});
+          if (next) remaps.push({ref: doc.ref, data: next});
         }
       }
 
@@ -1590,15 +1747,14 @@ const SIMPLE_COLLECTIONS = [
         const data = doc.data();
         if (String(data.teamId ?? "").trim() !== absorbedId) continue;
         const newId = `${data.tournamentId}_${data.categoryId}_${plan.survivorId}`;
-        writes.push({
-          kind: "set",
+        remaps.push({
           ref: db.doc(`${base}/tournamentCategoryResults/${newId}`),
           data: {...data, teamId: plan.survivorId},
         });
-        writes.push({kind: "delete", ref: doc.ref});
+        removals.push(doc.ref);
       }
 
-      writes.push({kind: "delete", ref: db.doc(`${base}/teams/${absorbedId}`)});
+      removals.push(db.doc(`${base}/teams/${absorbedId}`));
     }
 
     const survivorRanking =
@@ -1608,8 +1764,7 @@ const SIMPLE_COLLECTIONS = [
       .filter(Boolean);
     if (survivorRanking || absorbedRankings.length > 0) {
       const merged = mergeTeamRankingDocs(survivorRanking, absorbedRankings);
-      writes.push({
-        kind: "set",
+      remaps.push({
         ref: db.doc(`${base}/teamRankings/${plan.survivorId}`),
         data: {
           ...(survivorRanking || {}),
@@ -1619,38 +1774,39 @@ const SIMPLE_COLLECTIONS = [
         },
       });
       for (const id of plan.absorbedIds) {
-        writes.push({kind: "delete", ref: db.doc(`${base}/teamRankings/${id}`)});
+        removals.push(db.doc(`${base}/teamRankings/${id}`));
       }
     }
   }
 
-  console.log(`\nescritas planejadas: ${writes.length}`);
+  console.log(`\nfase 1 (repontar): ${remaps.length} escritas`);
+  console.log(`fase 3 (apagar):   ${removals.length} remoções`);
   if (!apply) {
     console.log("(dry-run) nada foi gravado. Rode de novo com --apply.");
     return;
   }
 
+  const absorbedAll = new Set(mapping.flatMap((m) => m.absorbedIds));
+  const VERIFY_PATHS = [
+    ...SIMPLE_COLLECTIONS,
+    `${base}/tournamentCategoryResults`,
+    `${base}/teamRankings`,
+  ];
+
+  // ── Fase 1: repontar. Nenhuma remoção acontece aqui. ──────────────────────
   let done = 0;
-  while (done < writes.length) {
-    const chunk = writes.slice(done, done + 400);
+  while (done < remaps.length) {
+    const chunk = remaps.slice(done, done + 400);
     const batch = db.batch();
-    for (const write of chunk) {
-      if (write.kind === "delete") batch.delete(write.ref);
-      else batch.set(write.ref, write.data);
-    }
+    for (const write of chunk) batch.set(write.ref, write.data);
     await batch.commit();
     done += chunk.length;
-    console.log(`aplicadas ${done}/${writes.length}`);
+    console.log(`fase 1: ${done}/${remaps.length}`);
   }
 
-  const file = `merge-pair-teams-${projectId}-${Date.now()}.json`;
-  fs.writeFileSync(file, JSON.stringify(mapping, null, 2));
-  console.log(`de-para salvo em ${file}`);
-
-  // Passe de verificação: nenhum id absorvido pode ter sobrado.
-  const absorbedAll = new Set(mapping.flatMap((m) => m.absorbedIds));
+  // ── Fase 2: provar que nada mais cita um id absorvido. ────────────────────
   let leftovers = 0;
-  for (const path of [...SIMPLE_COLLECTIONS, `${base}/tournamentCategoryResults`, `${base}/teamRankings`, `${base}/teams`]) {
+  for (const path of VERIFY_PATHS) {
     const snap = await db.collection(path).get();
     for (const doc of snap.docs) {
       const text = `${doc.id} ${JSON.stringify(doc.data())}`;
@@ -1663,10 +1819,41 @@ const SIMPLE_COLLECTIONS = [
     }
   }
   if (leftovers > 0) {
-    console.error(`\nFALHOU: ${leftovers} sobra(s).`);
+    console.error(`\nFALHOU na fase 2: ${leftovers} sobra(s). NADA foi apagado —`);
+    console.error("os docs absorvidos continuam vivos e as inscrições seguem íntegras.");
     process.exit(1);
   }
-  console.log("verificação limpa.");
+  console.log("fase 2: nenhuma sobra.");
+
+  // ── Fase 3: guarda-costas por inscrição, e só então apagar. ───────────────
+  for (const id of absorbedAll) {
+    const stillUsed = await db
+      .collection(`${base}/inscriptions`)
+      .where("teamId", "==", id)
+      .get();
+    if (!stillUsed.empty) {
+      console.error(
+        `ABORTADO: ${stillUsed.size} inscrição(ões) ainda apontam para teams/${id}.`,
+      );
+      console.error("Nada foi apagado. Rode o script de novo.");
+      process.exit(1);
+    }
+  }
+
+  let removed = 0;
+  while (removed < removals.length) {
+    const chunk = removals.slice(removed, removed + 400);
+    const batch = db.batch();
+    for (const ref of chunk) batch.delete(ref);
+    await batch.commit();
+    removed += chunk.length;
+    console.log(`fase 3: ${removed}/${removals.length}`);
+  }
+
+  const file = `merge-pair-teams-${projectId}-${Date.now()}.json`;
+  fs.writeFileSync(file, JSON.stringify(mapping, null, 2));
+  console.log(`de-para salvo em ${file}`);
+  console.log("fusão concluída.");
 })().catch((e) => {
   console.error("ERRO:", e.message);
   process.exit(1);
@@ -1708,7 +1895,15 @@ de verdade.
 
 **Files:** nenhum — é execução.
 
-- [ ] **Step 1: Suíte inteira verde**
+- [ ] **Step 1: Linha de base da integridade e suíte verde**
+
+```bash
+node scripts/check-registration-team-integrity.js --project volley-track-dev-4596c
+```
+
+Anotar os números — nenhuma etapa seguinte pode fazê-los crescer.
+
+- [ ] **Step 1b: Suíte inteira verde**
 
 ```bash
 npm run lint && npm test
@@ -1734,7 +1929,16 @@ Esperado: `Successful update` (ou `Successful create`) para cada função tocada
 changes detected" depois de uma falha parcial mente — se alguma função falhar, redeployar por nome
 com `--force` e exigir a linha de sucesso.
 
-- [ ] **Step 4: Fusão dos duplicados no dev**
+- [ ] **Step 4: Reconferir a integridade depois do deploy**
+
+```bash
+node scripts/check-registration-team-integrity.js --project volley-track-dev-4596c
+```
+
+Esperado: os **mesmos** números da linha de base da Task 0. Cresceu, parar aqui — o deploy mexeu
+em inscrição existente, o que não devia.
+
+- [ ] **Step 5: Fusão dos duplicados no dev**
 
 ```bash
 node scripts/merge-duplicate-pair-teams.js --project volley-track-dev-4596c
@@ -1746,10 +1950,22 @@ Conferir o plano impresso e só então:
 node scripts/merge-duplicate-pair-teams.js --project volley-track-dev-4596c --apply
 ```
 
-Esperado: `verificação limpa.` e o arquivo de de-para salvo. Se sair `SOBRA:`, o script sai com
-código 1 — investigar antes de qualquer outra coisa.
+Esperado: `fase 2: nenhuma sobra.`, `fase 3: N/N` e `fusão concluída.`
 
-- [ ] **Step 5: Conferir o resultado no banco**
+Se parar na fase 2 (`SOBRA:`) ou na fase 3 (`ABORTADO:`), **nada foi apagado** e as inscrições
+seguem íntegras — investigar e rodar de novo. Nunca apagar doc de equipe à mão para "destravar".
+
+- [ ] **Step 6: Provar que nenhuma inscrição quebrou**
+
+```bash
+node scripts/check-registration-team-integrity.js --project volley-track-dev-4596c
+```
+
+Esperado: os mesmos números da linha de base. Este é o portão da exigência do dono — qualquer
+crescimento em `equipe inexistente` ou `elenco divergente` é regressão, e o de-para salvo pelo
+script diz exatamente qual equipe absorveu qual para desfazer.
+
+- [ ] **Step 7: Conferir que não sobrou duplicado**
 
 ```bash
 node scripts/merge-duplicate-pair-teams.js --project volley-track-dev-4596c
@@ -1757,7 +1973,7 @@ node scripts/merge-duplicate-pair-teams.js --project volley-track-dev-4596c
 
 Esperado agora: `pares com 2+ docs=0`.
 
-- [ ] **Step 6: Backfill e deploy no prod**
+- [ ] **Step 8: Backfill e deploy no prod**
 
 ```bash
 node scripts/backfill-team-pair-key.js --project volley-track-2dd3b --apply

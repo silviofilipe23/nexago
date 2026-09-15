@@ -205,6 +205,24 @@ deixam de abrir; são todos do dev, e prod não tem nenhum. O script grava um JS
 `--dry-run` por padrão, `--apply` para escrever, e um passe final que revarre as 8 coleções
 procurando sobra de id absorvido. Sobra encontrada = a execução falha ruidosamente.
 
+### Inscrição existente não pode quebrar (exigência do dono)
+
+Uma inscrição cujo `teamId` aponte para doc inexistente está quebrada: some das listagens, e a
+regra `inscriptionParticipantUidsMatchTeam` passa a barrar qualquer update do cliente sobre ela.
+O script nunca pode produzir esse estado, nem por falha no meio do caminho. Três travas:
+
+1. **Apagar é a última fase, nunca a primeira.** O script roda em três etapas commitadas em
+   sequência: (1) reponta tudo, (2) reverifica que nenhum id absorvido sobrou em lugar nenhum,
+   (3) só então apaga os docs absorvidos. Falha na etapa 1 ou 2 deixa o doc antigo **vivo** — as
+   inscrições continuam resolvendo, e o pior caso é uma fusão pela metade, reparável rodando de
+   novo. Nunca o contrário.
+2. **Guarda-costas por inscrição**: antes de apagar um doc absorvido, o script confere que nenhuma
+   inscrição ainda o cita. Citação encontrada aborta a fase 3 inteira.
+3. **Invariante auditável nas pontas**: `check-registration-team-integrity.js` percorre todas as
+   inscrições e afirma que cada `teamId` resolve para um doc existente cujos integrantes batem com
+   `participantUids`. Roda **antes** (linha de base — pode já haver quebrada) e **depois** de cada
+   `--apply`. O conjunto de quebradas não pode crescer; cresceu, a entrega para.
+
 ### Os 9 pares do dev
 
 Oito são triviais: o doc perdedor é a inscrição do Goiânia Open, sem partida e sem ponto —

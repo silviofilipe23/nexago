@@ -97,6 +97,7 @@ class DiscoveryTournament {
     this.leagueId,
     this.leagueStageId,
     this.imageUrl,
+    this.sport = '',
     this.categoryOffers = const [],
     this.createdAt,
     this.registrationOpensAt,
@@ -124,6 +125,10 @@ class DiscoveryTournament {
 
   /// Capa do torneio (`coverUrl`, `imageUrl`, etc. no Firestore).
   final String? imageUrl;
+
+  /// Esporte do torneio (`tournaments/{id}.sport`, nome do enum
+  /// `TournamentSport`). Escolhe a capa padrão quando `imageUrl` falta.
+  final String sport;
 
   /// Categorias para inscrição (espelha Firestore `categories[]`).
   final List<TournamentCategoryOffer> categoryOffers;

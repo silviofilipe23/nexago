@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/nexa_chips.dart';
@@ -6,10 +5,12 @@ import 'package:nexago_app/core/ui/nexa_chips.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_radii.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../domain/tournament_cover_art.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_detail_model.dart';
 import '../../../domain/tournament_discovery_labels.dart';
 import '../../../domain/tournament_listing_status.dart';
+import '../tournament_cover_image.dart';
 
 /// Hero de conversão: capa imersiva, badges, título, meta, prêmio/inscrição e vagas.
 class TournamentDetailHero extends StatelessWidget {
@@ -48,7 +49,12 @@ class TournamentDetailHero extends StatelessWidget {
         tournamentRegistrationOpensBanner(tournament.registrationOpensAt) ??
         tournamentRecentlyOpenedBanner(tournament, stats);
     final coverUrl = tournament.imageUrl?.trim();
-    final hasCover = coverUrl != null && coverUrl.isNotEmpty;
+    // "Tem capa" aqui é sobre CONTRASTE: a arte do esporte é foto igual à capa
+    // enviada, então os chips e o scrim precisam do mesmo tratamento. Só o
+    // gradiente dispensa.
+    final hasCover =
+        (coverUrl != null && coverUrl.isNotEmpty) ||
+        TournamentCoverArt.assetFor(tournament.sport) != null;
     final onCover = Colors.white;
     final onCoverMuted = Colors.white.withValues(alpha: 0.72);
 
@@ -67,7 +73,9 @@ class TournamentDetailHero extends StatelessWidget {
                 top: -topInset,
                 bottom: 0,
                 child: _HeroCoverBackground(
-                  imageUrl: hasCover ? coverUrl : null,
+                  coverUrl: coverUrl,
+                  sport: tournament.sport,
+                  hasCover: hasCover,
                   featured: tournament.featured,
                 ),
               ),
@@ -192,29 +200,32 @@ class TournamentDetailHero extends StatelessWidget {
 }
 
 class _HeroCoverBackground extends StatelessWidget {
-  const _HeroCoverBackground({required this.imageUrl, required this.featured});
+  const _HeroCoverBackground({
+    required this.coverUrl,
+    required this.sport,
+    required this.hasCover,
+    required this.featured,
+  });
 
-  final String? imageUrl;
+  final String? coverUrl;
+  final String sport;
+
+  /// Se o fundo é foto (capa enviada ou arte do esporte) — liga o scrim do topo.
+  final bool hasCover;
   final bool featured;
 
   @override
   Widget build(BuildContext context) {
     final canvas = context.themeColors.canvas;
-    final hasCover = imageUrl != null;
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (hasCover)
-          CachedNetworkImage(
-            imageUrl: imageUrl!,
-            fit: BoxFit.cover,
-            fadeInDuration: const Duration(milliseconds: 220),
-            placeholder: (_, __) => _CoverPlaceholder(featured: featured),
-            errorWidget: (_, __, ___) => _CoverPlaceholder(featured: featured),
-          )
-        else
-          _CoverPlaceholder(featured: featured),
+        TournamentCoverImage(
+          coverUrl: coverUrl,
+          sport: sport,
+          placeholder: (_) => _CoverPlaceholder(featured: featured),
+        ),
         DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(

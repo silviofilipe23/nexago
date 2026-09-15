@@ -619,6 +619,7 @@ class _TournamentPartnerInvitePageState
                       : '',
                   locationLabel: tournament?.location.trim() ?? '',
                   imageUrl: tournament?.imageUrl,
+                  sport: tournament?.sport ?? '',
                 ),
               ],
             ),

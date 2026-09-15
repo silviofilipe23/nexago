@@ -5,6 +5,7 @@ import { ButtonDirective } from '../../../shared/ui/button.directive';
 import { StatusBadge } from '../../../shared/hub/status-badge';
 import { getActiveTournaments } from '../../../../lib/firestore/tournaments';
 import { sportLabel } from '../../../../lib/format';
+import { tournamentCoverOrDefault } from '@nexago/tournament-covers';
 import { toSlugId } from '../../../../lib/slug';
 import type { TournamentSummary } from '../../../../lib/firestore/types';
 
@@ -64,7 +65,7 @@ import type { TournamentSummary } from '../../../../lib/firestore/types';
                   ></span>
 
                   <div class="relative aspect-[16/10] overflow-hidden bg-surface-2">
-                    @if (t.coverUrl; as cover) {
+                    @if (coverOf(t); as cover) {
                       <img [src]="cover" [alt]="t.name" loading="lazy" class="size-full object-cover" />
                     } @else {
                       <div class="flex h-full items-center justify-center bg-gradient-to-br from-surface-2 to-surface-1">
@@ -153,6 +154,11 @@ export class TorneiosDestaqueSection {
       this.tournaments.set(tournaments);
       this.loading.set(false);
     });
+  }
+
+  /** Capa enviada, senão a arte do esporte; `null` cai no troféu do gradiente. */
+  protected coverOf(t: TournamentSummary): string | null {
+    return tournamentCoverOrDefault(t.coverUrl, t.sport);
   }
 
   protected slugFor(t: TournamentSummary): string {

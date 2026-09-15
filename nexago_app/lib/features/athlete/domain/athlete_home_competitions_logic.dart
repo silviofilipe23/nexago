@@ -8,6 +8,10 @@ sealed class AthleteHomeCompetitionItem {
   String get title;
   String get subtitle;
   String? get imageUrl;
+
+  /// Esporte que escolhe a capa padrão quando `imageUrl` falta. Vazio = sem
+  /// arte, cai no gradiente do tile.
+  String get coverSport;
 }
 
 final class AthleteHomeTournamentItem extends AthleteHomeCompetitionItem {
@@ -29,6 +33,9 @@ final class AthleteHomeTournamentItem extends AthleteHomeCompetitionItem {
     final url = tournament.imageUrl?.trim();
     return url != null && url.isNotEmpty ? url : null;
   }
+
+  @override
+  String get coverSport => tournament.sport;
 }
 
 final class AthleteHomeLeagueItem extends AthleteHomeCompetitionItem {
@@ -58,6 +65,11 @@ final class AthleteHomeLeagueItem extends AthleteHomeCompetitionItem {
     final url = league.coverUrl?.trim();
     return url != null && url.isNotEmpty ? url : null;
   }
+
+  /// Liga não tem arte padrão: a do esporte é de torneio, e a etapa não define
+  /// o circuito. Fica no gradiente até existir arte própria.
+  @override
+  String get coverSport => '';
 }
 
 DateTime _dayStart(DateTime dt) => DateTime(dt.year, dt.month, dt.day);

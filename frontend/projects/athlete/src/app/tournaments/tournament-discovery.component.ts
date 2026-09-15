@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
+import { tournamentCoverOrDefault } from '@nexago/tournament-covers';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { interval } from 'rxjs';
@@ -60,7 +61,7 @@ function dateLabelFrom(d: Date | null): string {
 
 /** `enrolled`: inscrições contadas em `inscriptions` — `null` quando a contagem não veio (aí o
  *  card cai nos contadores do doc; ver `tournament-discovery.spots.ts`). */
-function discoveryTournamentFromSummary(
+export function discoveryTournamentFromSummary(
   s: TournamentSummary,
   myTournamentIds: ReadonlySet<string>,
   enrolled: number | null,
@@ -86,7 +87,7 @@ function discoveryTournamentFromSummary(
     liveMatchesNow: s.liveMatchesNow,
     enrolled: myTournamentIds.has(s.id),
     registrationOpensAt: registrationOpensAt(s),
-    coverUrl: s.coverUrl,
+    coverUrl: tournamentCoverOrDefault(s.coverUrl, s.sport),
     leagueId: s.leagueId ?? undefined,
     leagueStageId: s.leagueStageId ?? undefined,
   };

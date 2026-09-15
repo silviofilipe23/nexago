@@ -1,10 +1,10 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../domain/tournament_detail_model.dart';
+import '../tournament_cover_image.dart';
 
 class PartnerInviteTournamentCard extends StatelessWidget {
   const PartnerInviteTournamentCard({
@@ -14,6 +14,7 @@ class PartnerInviteTournamentCard extends StatelessWidget {
     required this.dateLabel,
     required this.locationLabel,
     this.imageUrl,
+    this.sport = '',
   });
 
   final String tournamentName;
@@ -21,6 +22,9 @@ class PartnerInviteTournamentCard extends StatelessWidget {
   final String dateLabel;
   final String locationLabel;
   final String? imageUrl;
+
+  /// Esporte do torneio, pra capa padrão quando `imageUrl` falta.
+  final String sport;
 
   factory PartnerInviteTournamentCard.fromDetail({
     required TournamentDetail tournament,
@@ -33,13 +37,12 @@ class PartnerInviteTournamentCard extends StatelessWidget {
       dateLabel: dateLabel,
       locationLabel: tournament.location.trim(),
       imageUrl: tournament.imageUrl,
+      sport: tournament.sport,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final cover = imageUrl?.trim();
-
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -57,14 +60,11 @@ class PartnerInviteTournamentCard extends StatelessWidget {
             child: SizedBox(
               width: 64,
               height: 64,
-              child: cover != null && cover.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: cover,
-                      fit: BoxFit.cover,
-                      errorWidget: (_, __, ___) => _CoverPlaceholder(),
-                      placeholder: (_, __) => _CoverPlaceholder(),
-                    )
-                  : const _CoverPlaceholder(),
+              child: TournamentCoverImage(
+                coverUrl: imageUrl,
+                sport: sport,
+                placeholder: (_) => _CoverPlaceholder(),
+              ),
             ),
           ),
           const SizedBox(width: 12),

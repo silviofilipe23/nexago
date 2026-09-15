@@ -77,6 +77,7 @@ class CompeteHubTournamentsSection extends ConsumerWidget {
                   sortDate: tournament.startDate,
                   imageUrl:
                       imageUrl != null && imageUrl.isNotEmpty ? imageUrl : null,
+                  sport: tournament.sport,
                   onTap: () => context.pushNamed(
                     AppRouteNames.tournamentDetail,
                     pathParameters: {'tournamentId': tournament.id},

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { tournamentCoverOrDefault } from '@nexago/tournament-covers';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
@@ -195,7 +196,14 @@ export class RegistrationTabComponent {
   private cardOf(
     r: AthleteTournamentRegistration,
     category: TournamentCategoryOffer | null,
-    tournament: { name: string; city: string; location: string; startAt: Date | null; coverUrl: string | null },
+    tournament: {
+      name: string;
+      city: string;
+      location: string;
+      startAt: Date | null;
+      coverUrl: string | null;
+      sport: string | null;
+    },
   ): RegistrationCard {
     const uid = this.auth.user()?.uid ?? null;
     const isPlayer1 = uid != null && (r.player1Id === uid || r.participantUids[0] === uid);
@@ -290,7 +298,7 @@ export class RegistrationTabComponent {
       whenLabel: registrationTabWhenLabel(tournament.startAt),
       whereLabel: registrationTabWhereLabel(tournament.location, tournament.city),
       tournamentName: tournament.name,
-      tournamentCoverUrl: tournament.coverUrl,
+      tournamentCoverUrl: tournamentCoverOrDefault(tournament.coverUrl, tournament.sport),
       canOfferSubstitution: slots.length > 0 && pendingInvite == null,
     };
   }

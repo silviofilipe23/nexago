@@ -14,6 +14,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { StatusBadge } from '../../shared/hub/status-badge';
 import { sportLabel, formatDate } from '../../../lib/format';
+import { tournamentCoverOrDefault } from '@nexago/tournament-covers';
 import type { TournamentDetail } from '../../../lib/firestore/types';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -33,7 +34,7 @@ gsap.registerPlugin(ScrollTrigger);
   host: { class: 'relative block w-full overflow-hidden h-[clamp(26rem,62vh,36rem)]' },
   template: `
     <div #imageLayer class="absolute inset-0 scale-[1.08] will-change-transform">
-      @if (t().coverUrl; as cover) {
+      @if (cover(); as cover) {
         <img [src]="cover" alt="" class="size-full object-cover" />
       } @else {
         <div aria-hidden="true" class="absolute inset-0 bg-gradient-to-br from-surface-2 via-surface-1 to-bg">
@@ -112,6 +113,11 @@ export class TournamentHero {
 
   protected readonly sportLabel = sportLabel;
   protected readonly formatDate = formatDate;
+
+  /** Capa enviada, senão a arte do esporte; `null` cai no gradiente do herói. */
+  protected readonly cover = computed(() =>
+    tournamentCoverOrDefault(this.t().coverUrl, this.t().sport),
+  );
   protected readonly place = computed(() => {
     const t = this.t();
     return [t.locationName, t.city, t.state].filter(Boolean).join(', ');

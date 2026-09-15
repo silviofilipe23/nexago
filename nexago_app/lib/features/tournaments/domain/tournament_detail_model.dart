@@ -147,6 +147,7 @@ class TournamentDetail {
       leagueId: leagueId,
       leagueStageId: leagueStageId,
       imageUrl: imageUrl,
+      sport: sport,
       categoryOffers: categoryOffers,
       createdAt: createdAt,
       registrationOpensAt: registrationOpensAt,

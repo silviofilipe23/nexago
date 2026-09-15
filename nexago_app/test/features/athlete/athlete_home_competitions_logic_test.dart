@@ -7,6 +7,7 @@ DiscoveryTournament _tournament({
   required String name,
   required DateTime startDate,
   String city = 'Goiânia',
+  String sport = '',
 }) {
   return DiscoveryTournament(
     id: id,
@@ -25,6 +26,7 @@ DiscoveryTournament _tournament({
     featured: false,
     enrolledCount: 0,
     liveMatchesNow: 0,
+    sport: sport,
   );
 }
 
@@ -183,6 +185,32 @@ void main() {
           as AthleteHomeLeagueItem;
       expect(leagueItem.sortDate, DateTime(2026, 6, 11));
       expect(leagueItem.subtitle, 'Liga · Circuito');
+    });
+  });
+
+  group('esporte da capa padrão', () {
+    test('torneio leva o esporte pro carrossel escolher a arte', () {
+      final item = AthleteHomeTournamentItem(
+        _tournament(
+          id: 't1',
+          name: 'Etapa Areia',
+          startDate: DateTime(2026, 5, 28),
+          sport: 'beachVolleyball',
+        ),
+      );
+
+      expect(item.coverSport, 'beachVolleyball');
+    });
+
+    test('liga não tem esporte de capa e segue no gradiente', () {
+      // Liga ainda não escolheu arte padrão: devolver o esporte do torneio ali
+      // seria arte de torneio num card de liga.
+      final item = AthleteHomeLeagueItem(
+        league: _league(id: 'l1', name: 'Liga nexaGO'),
+        sortDate: DateTime(2026, 5, 28),
+      );
+
+      expect(item.coverSport, '');
     });
   });
 }

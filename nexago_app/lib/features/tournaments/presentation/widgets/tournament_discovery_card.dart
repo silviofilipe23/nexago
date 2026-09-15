@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
@@ -13,6 +12,7 @@ import '../../domain/tournament_discovery_labels.dart';
 import '../../domain/tournament_discovery_models.dart';
 import '../../domain/tournament_listing_status.dart';
 import 'tournament_category_spots_section.dart';
+import 'tournament_cover_image.dart';
 
 /// Card de torneio com capa, status, vagas por categoria e CTA (hub Competir).
 ///
@@ -68,9 +68,6 @@ class TournamentDiscoveryCard extends StatelessWidget {
     final fillRatio = tournament.spotsTotal > 0
         ? 1 - (tournament.spotsLeft / tournament.spotsTotal)
         : 0.0;
-    final imageUrl = tournament.imageUrl?.trim();
-    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
-
     final isFinished = isTournamentTerminal(tournament.status);
     final offers = tournament.categoryOffers;
     final hasCategoryOffers = offers.isNotEmpty;
@@ -110,9 +107,11 @@ class TournamentDiscoveryCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    _TournamentCoverImage(
-                      imageUrl: hasImage ? imageUrl : null,
-                      featured: tournament.featured,
+                    TournamentCoverImage(
+                      coverUrl: tournament.imageUrl,
+                      sport: tournament.sport,
+                      placeholder: (_) =>
+                          _CoverPlaceholder(featured: tournament.featured),
                     ),
                     Positioned(
                       left: 0,
@@ -479,27 +478,6 @@ class _TournamentCardFooter extends StatelessWidget {
         ),
       ],
     );
-  }
-}
-
-class _TournamentCoverImage extends StatelessWidget {
-  const _TournamentCoverImage({required this.imageUrl, required this.featured});
-
-  final String? imageUrl;
-  final bool featured;
-
-  @override
-  Widget build(BuildContext context) {
-    if (imageUrl != null) {
-      return CachedNetworkImage(
-        imageUrl: imageUrl!,
-        fit: BoxFit.cover,
-        fadeInDuration: const Duration(milliseconds: 220),
-        placeholder: (_, __) => const _CoverPlaceholder(),
-        errorWidget: (_, __, ___) => const _CoverPlaceholder(),
-      );
-    }
-    return _CoverPlaceholder(featured: featured);
   }
 }
 

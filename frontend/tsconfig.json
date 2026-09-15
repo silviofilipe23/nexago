@@ -24,7 +24,8 @@
       "@nexago/search-keywords": [
         "shared/search-keywords/index.ts"
       ],
-      "@nexago/push-notifications": ["shared/push-notifications/index.ts"]
+      "@nexago/push-notifications": ["shared/push-notifications/index.ts"],
+      "@nexago/tournament-covers": ["shared/tournament-covers/index.ts"]
     }
   },
   "angularCompilerOptions": {

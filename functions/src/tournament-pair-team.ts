@@ -52,9 +52,11 @@ export function isPairTeamDoc(
 }
 
 /**
- * Duplicado legado: o mais antigo vence. Determinístico (desempate pelo id) para
- * que duas transações concorrentes escolham o MESMO doc — é o que faz o sistema
- * convergir sozinho se um duplicado escapar.
+ * Duplicado legado: o mais antigo vence. Determinístico (desempate pelo id) só
+ * para as resoluções SEGUINTES concordarem — o Firestore não trava o intervalo
+ * vazio de uma query transacional, então duas primeiras resoluções concorrentes
+ * do mesmo par ainda podem criar dois docs. Isso não converge sozinho: quem
+ * repara um par já dividido é o script de merge.
  */
 export function pickPairTeamId(candidates: PairTeamCandidate[]): string {
   let best: PairTeamCandidate | null = null;
@@ -101,6 +103,10 @@ export async function resolvePairTeamTx(
     player2Id: string;
   },
 ): Promise<PairTeamResolution> {
+  if (!trimmed(params.tournamentId)) {
+    throw new Error("resolvePairTeamTx exige tournamentId");
+  }
+
   const player1Id = trimmed(params.player1Id);
   const player2Id = trimmed(params.player2Id);
   const pairKey = buildPairKey(player1Id, player2Id);
@@ -133,7 +139,10 @@ export async function resolvePairTeamTx(
     );
     if (!alreadyInTournament) {
       const ref = params.teamsRef.doc(chosenId);
-      tx.update(ref, {pairKey, updatedAt: FieldValue.serverTimestamp()});
+      // `pairKey` já bate — o candidato só chegou aqui por casar a query E a
+      // revalidação. Regravá-lo seria um "backfill" que nunca dispara: um doc
+      // sem `pairKey` é invisível pra query que o encontrou.
+      tx.update(ref, {updatedAt: FieldValue.serverTimestamp()});
       return {ref, teamId: chosenId, reused: true};
     }
   }

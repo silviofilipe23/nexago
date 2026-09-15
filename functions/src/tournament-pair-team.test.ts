@@ -103,6 +103,23 @@ describe("resolvePairTeamTx", () => {
 
     assert.equal(out.reused, true);
     assert.equal(out.teamId, "time-antigo");
+    const team = db.store.get(`${TEAMS}/time-antigo`)!;
+    assert.notEqual(team.updatedAt, undefined);
+  });
+
+  it("tournamentId vazio lança em vez de reaproveitar às cegas", async () => {
+    const db = new FakeFirestore();
+    db.seedDoc(`${TEAMS}/time-antigo`, {
+      player1Id: "uid-a",
+      player2Id: "uid-b",
+      pairKey: "uid-a:uid-b",
+      createdAt: ts("2026-09-01T00:00:00Z"),
+    });
+
+    await assert.rejects(
+      () => resolve(db, {tournamentId: "", player1Id: "uid-a", player2Id: "uid-b"}),
+      /tournamentId/,
+    );
   });
 
   it("reaproveita mesmo com os papéis invertidos, sem trocar os player ids", async () => {

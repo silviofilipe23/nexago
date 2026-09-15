@@ -242,6 +242,21 @@ describe("FakeFirestore.runTransaction", () => {
     });
     assert.equal(db.store.has("teams/t2"), false);
   });
+
+  it("tx.update em doc ausente é erro, não upsert", async () => {
+    const db = new FakeFirestore();
+
+    await assert.rejects(
+      db.runTransaction(async (tx) => {
+        const t = tx as {
+          update: (ref: unknown, data: Record<string, unknown>) => void;
+        };
+        t.update(db.doc("teams/nao-existe"), {pairKey: "a:b"});
+      }),
+      /update em doc ausente/,
+    );
+    assert.equal(db.store.has("teams/nao-existe"), false);
+  });
 });
 ```
 
@@ -275,6 +290,13 @@ Em `functions/src/fake-firestore.test-helper.ts`, trocar o corpo de `runTransact
         self.write(ref.path, data, opts);
       },
       update: (ref: {path: string}, data: DocData) => {
+        // Espelha `ref.update` desta mesma classe e o Admin SDK de verdade:
+        // update em doc ausente é ERRO, não upsert. Um fake permissivo aqui
+        // deixaria passar teste verde sobre código que o Firestore real
+        // recusaria — exatamente o que um dublê de transação existe pra pegar.
+        if (!self.store.has(ref.path)) {
+          throw new Error(`update em doc ausente: ${ref.path}`);
+        }
         self.write(ref.path, data, {merge: true});
       },
       delete: (ref: {path: string}) => {

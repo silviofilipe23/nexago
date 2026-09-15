@@ -46,6 +46,8 @@ export interface League {
   organizationName: string | null;
   description: string | null;
   coverUrl: string | null;
+  /** `leagues/{id}.sport` — mesmo vocabulário do torneio. Escolhe a capa padrão. */
+  sport: string | null;
   rawStatus: string | null;
   isDraftOrCancelled: boolean;
   seasonStartAt: Date | null;
@@ -92,6 +94,7 @@ function leagueFromDoc(id: string, data: Record<string, unknown>): League {
     organizationName: optionalStr(data['organizationName']),
     description: optionalStr(data['description']),
     coverUrl: optionalStr(data['coverUrl']) ?? optionalStr(data['imageUrl']),
+    sport: optionalStr(data['sport']),
     rawStatus: statusRaw || null,
     isDraftOrCancelled: statusRaw.includes('draft') || statusRaw.includes('programado') || statusRaw.includes('cancel'),
     seasonStartAt: toDate(data['seasonStartAt']),

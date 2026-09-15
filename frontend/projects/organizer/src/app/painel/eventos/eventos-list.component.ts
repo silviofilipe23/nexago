@@ -529,7 +529,7 @@ export class EventosListComponent {
       metaLabel: `Liga · ${l.sportLabel}${l.seasonLabel ? ' · ' + l.seasonLabel : ''}`,
       statusLabel: LEAGUE_STATUS_LABEL[l.listingStatus],
       statusTone: LEAGUE_STATUS_TONE[l.listingStatus],
-      coverUrl: l.coverUrl,
+      coverUrl: tournamentCoverOrDefault(l.coverUrl, l.sport),
       inscritos: null,
       vagas: null,
       etapas: l.stages.length,

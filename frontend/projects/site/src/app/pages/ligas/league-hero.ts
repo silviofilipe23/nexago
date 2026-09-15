@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRe
 import { RouterLink } from '@angular/router';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { tournamentCoverOrDefault } from '@nexago/tournament-covers';
 import type { LeagueSummary } from '../../../lib/firestore/types';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -22,7 +23,7 @@ gsap.registerPlugin(ScrollTrigger);
   template: `
     <header #root class="relative w-full overflow-hidden h-[clamp(26rem,62vh,36rem)]">
       <div #imageLayer class="absolute inset-0 scale-[1.08] will-change-transform">
-        @if (league().coverUrl; as src) {
+        @if (cover(); as src) {
           <img [src]="src" alt="" class="size-full object-cover" />
         } @else {
           <div aria-hidden="true" class="absolute inset-0 bg-gradient-to-br from-surface-2 via-surface-1 to-bg">
@@ -90,6 +91,11 @@ export class LeagueHero {
   readonly league = input.required<LeagueSummary>();
 
   protected readonly stageCount = computed(() => this.league().stages.length);
+
+  /** Capa enviada, senão a arte do esporte; `null` cai no gradiente do herói. */
+  protected readonly cover = computed(() =>
+    tournamentCoverOrDefault(this.league().coverUrl, this.league().sport),
+  );
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly root = viewChild.required<ElementRef<HTMLElement>>('root');

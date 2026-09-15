@@ -66,10 +66,8 @@ final class AthleteHomeLeagueItem extends AthleteHomeCompetitionItem {
     return url != null && url.isNotEmpty ? url : null;
   }
 
-  /// Liga não tem arte padrão: a do esporte é de torneio, e a etapa não define
-  /// o circuito. Fica no gradiente até existir arte própria.
   @override
-  String get coverSport => '';
+  String get coverSport => league.sport;
 }
 
 DateTime _dayStart(DateTime dt) => DateTime(dt.year, dt.month, dt.day);

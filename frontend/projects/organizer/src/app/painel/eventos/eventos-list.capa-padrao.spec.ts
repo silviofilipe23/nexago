@@ -1,7 +1,9 @@
 import { provideZonelessChangeDetection, signal, type WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import type { League } from '@nexago/leagues';
 import { AuthService } from '../../auth/auth.service';
+import { liga } from '../ligas/liga-capa-padrao.spec';
 import { EMPTY_TOURNAMENT_COLLECTED } from '../data/tournament-collected';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { EventosListComponent } from './eventos-list.component';
@@ -129,5 +131,39 @@ describe('TorneioDetalheComponent — capa padrão', () => {
 
   it('torneio sem esporte reconhecido segue sem hero', async () => {
     expect(await capaDoHero(torneio({ sportId: null }))).toBeNull();
+  });
+});
+
+describe('EventosListComponent — capa padrão da liga', () => {
+  async function capaDaLiga(l: League): Promise<string | null> {
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({
+      imports: [EventosListComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([]),
+        { provide: AuthService, useValue: fakeAuth() },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(EventosListComponent);
+    (fixture.componentInstance as unknown as { leagues: WritableSignal<League[]> }).leagues.set([
+      l,
+    ]);
+    fixture.detectChanges();
+
+    return (
+      fixture.nativeElement.querySelector('.og-evento-card-cover img')?.getAttribute('src') ?? null
+    );
+  }
+
+  it('liga sem capa usa a arte do próprio esporte', async () => {
+    expect(await capaDaLiga(liga({ sport: 'footvolley' }))).toBe(
+      '/media/tournament-covers/futevolei.webp',
+    );
+  });
+
+  it('liga sem esporte reconhecido segue no ícone da bandeira', async () => {
+    expect(await capaDaLiga(liga({ sport: null }))).toBeNull();
   });
 });

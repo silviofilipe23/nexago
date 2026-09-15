@@ -1144,13 +1144,29 @@ Firestore.
 
 **Files:**
 - Create: `functions/test/registration-identidade-dupla.test.mjs`
+- Modify: `functions/test/registration-harness.mjs` (acrescentar `organizerCreateTeamRegistration`
+  ao mapa `callables`)
 
 **Interfaces:**
 - Consumes: `functions/test/registration-harness.mjs` — `seedTournament`, `duplaCategory`,
-  `teamCategory`, `seedMan`, `formDupla`, `formTeam`, `getTeam`, `getRegistration`,
-  `clearFirestore`, `db`, `TEAMS`. `seedTournament` devolve o `tournamentId` (string);
+  `teamCategory`, `seedMan`, `formDupla`, `formTeam`, `getTeam`, `getRegistration`, `call`,
+  `callables`, `clearFirestore`, `db`, `TEAMS`. `seedTournament` devolve o `tournamentId` (string);
   `formDupla` devolve `{inviteId, registrationId, teamId, ...}`.
 - Produces: nada — é o teste de aceitação da entrega.
+
+**As DUAS portas precisam de cobertura.** O caminho do atleta (`acceptTournamentPartnerInvite`) já
+é exercitado pela matriz; o do organizador (`organizerCreateTeamRegistration`) **não é exercitado
+por teste nenhum, em nível nenhum** — a revisão da Task 5 confirmou com grep que a callable não
+aparece em `functions/test/` e não existe unit test para o módulo. É a porta por onde o organizador
+inscreve dupla no balcão, e hoje ela muda de comportamento sem nenhuma rede.
+
+Por isso esta task começa acrescentando a callable ao harness:
+
+```js
+  organizerCreateRegistration: organizerCreateRegistration.organizerCreateTeamRegistration,
+```
+
+seguindo o padrão de import dos outros módulos no topo de `registration-harness.mjs`.
 
 - [ ] **Step 1: Escrever o teste**
 
@@ -1246,6 +1262,59 @@ describe('identidade única da dupla', () => {
     });
     const r2 = await formDupla({
       tournamentId, categoryId: 'masc-b', inviterUid: a, inviteeUid: b,
+    });
+
+    assert.notEqual(r2.teamId, r1.teamId);
+  });
+
+  test('pelo ORGANIZADOR: a mesma dupla em dois torneios é uma equipe só', async () => {
+    const t1 = await torneioDupla();
+    const t2 = await torneioDupla();
+    const a = await seedMan({uid: 'atleta-a'});
+    const b = await seedMan({uid: 'atleta-b'});
+
+    const r1 = await call(callables.organizerCreateRegistration, 'organizador-1', {
+      tournamentId: t1, categoryId: 'masc', athleteUids: [a, b], markAsPaid: true,
+    });
+    const r2 = await call(callables.organizerCreateRegistration, 'organizador-1', {
+      tournamentId: t2, categoryId: 'masc', athleteUids: [a, b], markAsPaid: true,
+    });
+
+    assert.equal(r2.teamId, r1.teamId);
+  });
+
+  test('as DUAS portas chegam na mesma equipe: organizador e convite', async () => {
+    const t1 = await torneioDupla();
+    const t2 = await torneioDupla();
+    const a = await seedMan({uid: 'atleta-a'});
+    const b = await seedMan({uid: 'atleta-b'});
+
+    const peloOrganizador = await call(
+      callables.organizerCreateRegistration, 'organizador-1',
+      {tournamentId: t1, categoryId: 'masc', athleteUids: [a, b], markAsPaid: true},
+    );
+    const peloConvite = await formDupla({
+      tournamentId: t2, categoryId: 'masc', inviterUid: a, inviteeUid: b,
+    });
+
+    assert.equal(peloConvite.teamId, peloOrganizador.teamId);
+  });
+
+  test('pelo ORGANIZADOR: duas categorias do mesmo torneio continuam sendo duas', async () => {
+    const tournamentId = await seedTournament({
+      categories: [
+        duplaCategory({id: 'masc', categoryName: 'Dupla Masculina'}),
+        duplaCategory({id: 'masc-b', categoryName: 'Dupla Masculina B'}),
+      ],
+    });
+    const a = await seedMan({uid: 'atleta-a'});
+    const b = await seedMan({uid: 'atleta-b'});
+
+    const r1 = await call(callables.organizerCreateRegistration, 'organizador-1', {
+      tournamentId, categoryId: 'masc', athleteUids: [a, b], markAsPaid: true,
+    });
+    const r2 = await call(callables.organizerCreateRegistration, 'organizador-1', {
+      tournamentId, categoryId: 'masc-b', athleteUids: [a, b], markAsPaid: true,
     });
 
     assert.notEqual(r2.teamId, r1.teamId);

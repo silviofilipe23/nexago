@@ -107,7 +107,11 @@ class _TournamentSubstitutionWizardPageState
       bracketPublished: reg.category?.bracketPublished ?? false,
     );
     final profiles = ref
-            .watch(registrationRosterProfilesProvider(reg.participantUids))
+            .watch(
+              registrationRosterProfilesProvider(
+                rosterProfilesKey(reg.participantUids),
+              ),
+            )
             .valueOrNull ??
         const <String, AppUserProfile>{};
 

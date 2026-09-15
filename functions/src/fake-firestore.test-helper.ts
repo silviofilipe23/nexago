@@ -204,10 +204,23 @@ export class FakeFirestore {
 
   async runTransaction<T>(fn: (tx: unknown) => Promise<T>): Promise<T> {
     const self = this;
+    // `Transaction.get` do Admin SDK aceita DocumentReference OU Query. O que
+    // separa os dois aqui é o `path`: só a ref de documento tem.
+    const isDocRef = (target: unknown): target is {path: string} =>
+      typeof (target as {path?: unknown})?.path === "string";
     const tx = {
-      get: async (ref: {path: string}) => self.snapshotOf(ref.path),
+      get: async (target: unknown) => {
+        if (isDocRef(target)) return self.snapshotOf(target.path);
+        return (target as {get: () => Promise<unknown>}).get();
+      },
       set: (ref: {path: string}, data: DocData, opts?: {merge?: boolean}) => {
         self.write(ref.path, data, opts);
+      },
+      update: (ref: {path: string}, data: DocData) => {
+        self.write(ref.path, data, {merge: true});
+      },
+      delete: (ref: {path: string}) => {
+        self.store.delete(ref.path);
       },
     };
     return fn(tx);

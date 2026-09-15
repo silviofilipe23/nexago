@@ -1,5 +1,15 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  ElementRef,
+  inject,
+  input,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { truncateName, type PillTone } from '../data/mock-data';
 import type { MatchDisplayStatus, TournamentMatch } from '../data/matches-repository';
@@ -13,8 +23,23 @@ import {
   facesForTeam,
   type BracketFace,
 } from './bracket-faces';
-import { BRACKET_MATCH_WIDTH, type DoubleEliminationLayout, buildDoubleEliminationLayout, buildKnockoutTreeLayout, isDoubleElimination } from './bracket-tree';
+import {
+  BRACKET_MATCH_WIDTH,
+  type DoubleEliminationLayout,
+  buildDoubleEliminationLayout,
+  buildKnockoutTreeLayout,
+  isDoubleElimination,
+} from './bracket-tree';
 import { ChaveamentoContextService } from './chaveamento-context.service';
+import {
+  BRACKET_ZOOM_DEFAULT,
+  BRACKET_ZOOM_MAX,
+  BRACKET_ZOOM_MIN,
+  clampBracketZoom,
+  scrollAfterBracketZoom,
+  stepBracketZoom,
+  wheelBracketZoom,
+} from './chaveamento-zoom';
 
 const STATUS_TONE: Record<MatchDisplayStatus, PillTone> = {
   scheduled: 'orange',
@@ -58,7 +83,10 @@ function setsWonOf(score: string): [number, number] {
  *  nº do jogo + quadra no topo (`#2 · Quadra 1`), selo de status, avatar com foto quando o
  *  perfil tem (senão iniciais), placar em sets e rodapé com data/hora — card inteiro clicável
  *  pro placar. "Sortear chave" leva ao fluxo real de geração (seeds); só a exportação
- *  (PDF/imagem) segue mock — não existe no app também. */
+ *  (PDF/imagem) segue mock — não existe no app também.
+ *
+ *  Zoom no desktop: botões ± no header e Ctrl/Cmd + scroll (mantém o ponto sob o cursor),
+ *  espelhando o `InteractiveViewer` do app sem engolir o pan normal da chave. */
 @Component({
   selector: 'og-chaveamento',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -75,11 +103,48 @@ function setsWonOf(score: string): [number, number] {
       @if (seedsLink(); as link) {
         <a class="og-mini-btn" [routerLink]="link"><og-icon name="whistle" [size]="14" />Sortear chave</a>
       }
+      @if (treeLayout()) {
+        <div class="og-bracket-zoom" role="group" aria-label="Zoom da chave">
+          <button
+            type="button"
+            class="og-mini-btn og-bracket-zoom-btn"
+            [disabled]="zoom() <= zoomMin"
+            title="Diminuir zoom"
+            aria-label="Diminuir zoom"
+            (click)="zoomOut()"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            class="og-mini-btn og-bracket-zoom-pct"
+            title="Voltar a 100%"
+            aria-label="Resetar zoom para 100%"
+            (click)="resetZoom()"
+          >
+            {{ zoomPercent() }}%
+          </button>
+          <button
+            type="button"
+            class="og-mini-btn og-bracket-zoom-btn"
+            [disabled]="zoom() >= zoomMax"
+            title="Aumentar zoom"
+            aria-label="Aumentar zoom"
+            (click)="zoomIn()"
+          >
+            +
+          </button>
+        </div>
+      }
       <!-- mock (fase 2): exportação de chave (PDF/imagem) ainda não existe no app nem na web -->
       <button type="button" class="og-mini-btn og-mini-btn-primary"><og-icon name="download" [size]="14" />Exportar</button>
     </og-page-header>
 
-    <div class="og-content og-bracket-scroll">
+    <div
+      #viewport
+      class="og-content og-bracket-scroll"
+      (wheel)="onWheel($event)"
+    >
       <ng-template #cardBody let-m>
         <div class="og-bracket-match-head">
           <span class="og-bracket-match-num">{{ metaLabel(m) }}</span>
@@ -145,36 +210,49 @@ function setsWonOf(score: string): [number, number] {
       } @else if (knockoutMatches().length === 0) {
         <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Chave ainda não gerada pra esta categoria.</div>
       } @else if (treeLayout(); as tree) {
-        <div class="og-de-canvas" [style.width.px]="tree.width" [style.height.px]="tree.height">
-          <svg class="og-de-lines" [attr.width]="tree.width" [attr.height]="tree.height">
-            @for (e of tree.edges; track $index) {
-              <path [attr.d]="e.d" />
+        <!-- Espaço reservado = canvas × zoom: o transform scale não ocupa layout, então
+             sem este wrapper o scroll cortaria o conteúdo ampliado. -->
+        <div
+          class="og-bracket-zoom-space"
+          [style.width.px]="tree.width * zoom()"
+          [style.height.px]="tree.height * zoom()"
+        >
+          <div
+            class="og-de-canvas"
+            [style.width.px]="tree.width"
+            [style.height.px]="tree.height"
+            [style.transform]="'scale(' + zoom() + ')'"
+          >
+            <svg class="og-de-lines" [attr.width]="tree.width" [attr.height]="tree.height">
+              @for (e of tree.edges; track $index) {
+                <path [attr.d]="e.d" />
+              }
+            </svg>
+            @for (lbl of tree.labels; track lbl.key) {
+              <div class="og-bracket-round-label og-de-col-label" [style.left.px]="lbl.left" [style.top.px]="lbl.top" [style.width.px]="matchWidth">{{ lbl.label }}</div>
             }
-          </svg>
-          @for (lbl of tree.labels; track lbl.key) {
-            <div class="og-bracket-round-label og-de-col-label" [style.left.px]="lbl.left" [style.top.px]="lbl.top" [style.width.px]="matchWidth">{{ lbl.label }}</div>
-          }
-          @for (n of tree.nodes; track n.match.id) {
-            @if (canOpenScore(n.match)) {
-              <a
-                class="og-bracket-match og-de-match"
-                [style.left.px]="n.left"
-                [style.top.px]="n.top"
-                [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'placar', n.match.id]"
-              >
-                <ng-container [ngTemplateOutlet]="cardBody" [ngTemplateOutletContext]="{ $implicit: n.match }" />
-              </a>
-            } @else {
-              <div
-                class="og-bracket-match og-de-match is-pending"
-                [style.left.px]="n.left"
-                [style.top.px]="n.top"
-                title="Aguardando as duas equipes pra lançar placar"
-              >
-                <ng-container [ngTemplateOutlet]="cardBody" [ngTemplateOutletContext]="{ $implicit: n.match }" />
-              </div>
+            @for (n of tree.nodes; track n.match.id) {
+              @if (canOpenScore(n.match)) {
+                <a
+                  class="og-bracket-match og-de-match"
+                  [style.left.px]="n.left"
+                  [style.top.px]="n.top"
+                  [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'placar', n.match.id]"
+                >
+                  <ng-container [ngTemplateOutlet]="cardBody" [ngTemplateOutletContext]="{ $implicit: n.match }" />
+                </a>
+              } @else {
+                <div
+                  class="og-bracket-match og-de-match is-pending"
+                  [style.left.px]="n.left"
+                  [style.top.px]="n.top"
+                  title="Aguardando as duas equipes pra lançar placar"
+                >
+                  <ng-container [ngTemplateOutlet]="cardBody" [ngTemplateOutletContext]="{ $implicit: n.match }" />
+                </div>
+              }
             }
-          }
+          </div>
         </div>
       }
     </div>
@@ -191,6 +269,37 @@ function setsWonOf(score: string): [number, number] {
       touch-action: pan-x pan-y;
       -webkit-overflow-scrolling: touch;
     }
+    .og-bracket-zoom-space {
+      position: relative;
+      flex: none;
+    }
+    .og-bracket-zoom-space .og-de-canvas {
+      transform-origin: 0 0;
+    }
+    /* Controles de zoom só no desktop com ponteiro fino — no touch o pan
+       já cobre a navegação e botões extras competem com Exportar. */
+    .og-bracket-zoom {
+      display: none;
+      align-items: center;
+      gap: 2px;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .og-bracket-zoom {
+        display: inline-flex;
+      }
+    }
+    .og-bracket-zoom-btn {
+      min-width: 32px;
+      padding-inline: 0;
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .og-bracket-zoom-pct {
+      min-width: 52px;
+      font-family: var(--nx-font-mono);
+      font-variant-numeric: tabular-nums;
+    }
   `,
 })
 export class ChaveamentoComponent {
@@ -200,6 +309,14 @@ export class ChaveamentoComponent {
   protected readonly ctx = inject(ChaveamentoContextService);
   protected readonly matchWidth = BRACKET_MATCH_WIDTH;
   protected readonly truncate = truncateName;
+  protected readonly zoomMin = BRACKET_ZOOM_MIN;
+  protected readonly zoomMax = BRACKET_ZOOM_MAX;
+
+  private readonly viewport = viewChild<ElementRef<HTMLElement>>('viewport');
+
+  /** Escala do canvas (1 = 100%). Reseta ao trocar de categoria. */
+  protected readonly zoom = signal(BRACKET_ZOOM_DEFAULT);
+  protected readonly zoomPercent = computed(() => Math.round(this.zoom() * 100));
 
   /** Fotos por `teamId` — hidratadas sob demanda a partir de `teams` + `public_profiles`. */
   private readonly facesByTeam = signal<ReadonlyMap<string, BracketFace[]>>(new Map());
@@ -210,6 +327,13 @@ export class ChaveamentoComponent {
     effect(() => {
       const matches = this.knockoutMatches();
       void this.hydrateFaces(matches);
+    });
+    // Trocar de categoria (ou de torneio) não deve herdar o zoom da chave anterior —
+    // a árvore muda de tamanho e o usuário espera partir de 100%.
+    effect(() => {
+      this.catId();
+      this.id();
+      this.zoom.set(BRACKET_ZOOM_DEFAULT);
     });
   }
 
@@ -298,5 +422,63 @@ export class ChaveamentoComponent {
     if (!m.score) return '–';
     const [a, b] = setsWonOf(m.score);
     return side === 1 ? a : b;
+  }
+
+  protected zoomIn(): void {
+    this.applyZoom(stepBracketZoom(this.zoom(), 1));
+  }
+
+  protected zoomOut(): void {
+    this.applyZoom(stepBracketZoom(this.zoom(), -1));
+  }
+
+  protected resetZoom(): void {
+    this.applyZoom(BRACKET_ZOOM_DEFAULT);
+  }
+
+  /** Ctrl/Cmd + scroll: zoom em direção ao cursor. Sem modificador, deixa o pan
+   *  nativo do overflow rolar a chave. */
+  protected onWheel(event: WheelEvent): void {
+    if (!this.treeLayout()) return;
+    if (!event.ctrlKey && !event.metaKey) return;
+    event.preventDefault();
+    const viewport = this.viewport()?.nativeElement;
+    if (!viewport) {
+      this.zoom.set(wheelBracketZoom(this.zoom(), event.deltaY));
+      return;
+    }
+    const rect = viewport.getBoundingClientRect();
+    this.applyZoom(wheelBracketZoom(this.zoom(), event.deltaY), {
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+    });
+  }
+
+  private applyZoom(
+    next: number,
+    anchor?: { offsetX: number; offsetY: number },
+  ): void {
+    const prev = this.zoom();
+    const clamped = clampBracketZoom(next);
+    if (clamped === prev) return;
+    this.zoom.set(clamped);
+    const viewport = this.viewport()?.nativeElement;
+    if (!viewport) return;
+    const offsetX = anchor?.offsetX ?? viewport.clientWidth / 2;
+    const offsetY = anchor?.offsetY ?? viewport.clientHeight / 2;
+    const nextScroll = scrollAfterBracketZoom({
+      prevZoom: prev,
+      nextZoom: clamped,
+      scrollLeft: viewport.scrollLeft,
+      scrollTop: viewport.scrollTop,
+      offsetX,
+      offsetY,
+    });
+    // O layout do wrapper só atualiza no próximo frame — aplicar o scroll
+    // antes deixaria o browser clampar no tamanho antigo.
+    requestAnimationFrame(() => {
+      viewport.scrollLeft = nextScroll.scrollLeft;
+      viewport.scrollTop = nextScroll.scrollTop;
+    });
   }
 }

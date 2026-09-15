@@ -197,8 +197,8 @@ class _TournamentDetailCategoryCardState
                         chevronColor: onCardMuted,
                       ),
                       const SizedBox(height: AppSpacing.xl),
-                      // Uma info por linha — vagas, formato e taxa empilhados
-                      // pra não competirem na mesma faixa.
+                      // Uma info por linha — vagas, formato, taxa e premiação
+                      // empilhados pra não competirem na mesma faixa.
                       _CategoryMetaColumn(
                         vacancy: vacancy,
                         levelLabel: categoryLevelFamilyLabel(family),
@@ -209,7 +209,7 @@ class _TournamentDetailCategoryCardState
                             prizesTotal > 0 ? formatBRL(prizesTotal) : null,
                         showSpots: !isTournamentOver,
                         showFee: !isTournamentOver,
-                        showPrizes: isTournamentOver,
+                        showPrizes: prizesTotal > 0,
                         valueColor: onCard,
                         mutedColor: onCardMuted,
                       ),

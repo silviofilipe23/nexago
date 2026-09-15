@@ -31,7 +31,11 @@ TournamentDetail _tournament() {
   );
 }
 
-Widget _app({required bool showPodio, VoidCallback? onOpenPodio}) {
+Widget _app({
+  required bool showPodio,
+  VoidCallback? onOpenPodio,
+  VoidCallback? onOpenAtletasInscritos,
+}) {
   final tournament = _tournament();
   return MaterialApp(
     home: Scaffold(
@@ -41,6 +45,7 @@ Widget _app({required bool showPodio, VoidCallback? onOpenPodio}) {
         showPodio: showPodio,
         onOpenPodio: onOpenPodio ?? () {},
         onOpenCategorias: () {},
+        onOpenAtletasInscritos: onOpenAtletasInscritos ?? () {},
         onOpenPalpites: () {},
         onOpenHoje: () {},
         onOpenMinhaInscricao: () {},
@@ -69,6 +74,21 @@ void main() {
     await tester.tap(find.text('Pódio'));
     await tester.pump();
 
+    expect(opened, 1);
+  });
+
+  testWidgets('card Equipes inscritas abre a lista', (tester) async {
+    var opened = 0;
+    await tester.pumpWidget(
+      _app(
+        showPodio: false,
+        onOpenAtletasInscritos: () => opened++,
+      ),
+    );
+
+    expect(find.text('Equipes inscritas'), findsOneWidget);
+    await tester.tap(find.text('Equipes inscritas'));
+    await tester.pump();
     expect(opened, 1);
   });
 }

@@ -388,6 +388,10 @@ class _TournamentDetailContentState
                     AppRouteNames.tournamentCategories,
                     pathParameters: {'tournamentId': widget.tournament.id},
                   ),
+                  onOpenAtletasInscritos: () => context.pushNamed(
+                    AppRouteNames.tournamentEnrolledAthletes,
+                    pathParameters: {'tournamentId': widget.tournament.id},
+                  ),
                   onOpenMinhaInscricao: () => context.pushNamed(
                     AppRouteNames.tournamentMyRegistration,
                     pathParameters: {'tournamentId': widget.tournament.id},

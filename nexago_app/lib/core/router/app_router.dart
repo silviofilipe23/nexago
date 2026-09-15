@@ -178,6 +178,7 @@ import '../../features/tournaments/presentation/focus/focus_shell_page.dart';
 import '../../features/tournaments/presentation/tournament_bracket_page.dart';
 import '../../features/tournaments/presentation/tournament_groups_page.dart';
 import '../../features/tournaments/presentation/tournament_podium_page.dart';
+import '../../features/tournaments/presentation/tournament_enrolled_athletes_page.dart';
 import '../../features/tournaments/presentation/tournament_prizes_page.dart';
 import '../../features/tournaments/presentation/tournament_predictions_page.dart';
 import '../../features/tournaments/presentation/tournament_external_invite_page.dart';
@@ -1227,6 +1228,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) {
               final id = state.pathParameters['tournamentId']?.trim() ?? '';
               return TournamentPodiumPage(tournamentId: id);
+            },
+          ),
+          GoRoute(
+            path: 'atletas-inscritos',
+            name: AppRouteNames.tournamentEnrolledAthletes,
+            builder: (context, state) {
+              final id = state.pathParameters['tournamentId']?.trim() ?? '';
+              return TournamentEnrolledAthletesPage(tournamentId: id);
             },
           ),
           GoRoute(

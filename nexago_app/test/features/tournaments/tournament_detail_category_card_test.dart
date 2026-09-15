@@ -62,7 +62,7 @@ void main() {
     expect(find.text('Equilíbrio e grandes jogos'), findsNothing);
   });
 
-  testWidgets('linha de meta traz nível, gênero, vagas, formato e taxa', (
+  testWidgets('linha de meta traz nível, gênero, vagas, formato, taxa e prêmios', (
     tester,
   ) async {
     await pumpCard(tester, TournamentListingStatus.open);
@@ -76,6 +76,8 @@ void main() {
     expect(find.text('Grupos'), findsOneWidget);
     expect(find.text(formatBRL(90)), findsOneWidget);
     expect(find.text('por equipe'), findsOneWidget);
+    expect(find.text(formatBRL(1000)), findsOneWidget);
+    expect(find.text('em prêmios'), findsOneWidget);
   });
 
   testWidgets('torneio finalizado esconde vagas e taxa', (tester) async {
@@ -89,13 +91,29 @@ void main() {
     expect(find.text('ENCERRADA'), findsOneWidget);
   });
 
-  // A premiação saiu do card (vive na página da categoria), mas o total é a
-  // única informação viva de um torneio já encerrado — some tudo sem ele.
+  // Encerrado some vagas/taxa, mas o total de prêmios continua — é o que
+  // resta de valor da categoria depois do jogo.
   testWidgets('torneio finalizado mantém o total em prêmios', (tester) async {
     await pumpCard(tester, TournamentListingStatus.completed);
 
     expect(find.text(formatBRL(1000)), findsOneWidget);
     expect(find.text('em prêmios'), findsOneWidget);
+  });
+
+  testWidgets('categoria sem prêmios não inventa a linha', (tester) async {
+    const semPremio = TournamentCategoryOffer(
+      id: 'sem',
+      name: 'Iniciante Feminino',
+      entryFee: 60,
+      spotsTotal: 16,
+    );
+    await pumpCard(
+      tester,
+      TournamentListingStatus.open,
+      category: semPremio,
+    );
+
+    expect(find.text('em prêmios'), findsNothing);
   });
 
   testWidgets('categoria lotada sem fila anuncia o esgotamento',

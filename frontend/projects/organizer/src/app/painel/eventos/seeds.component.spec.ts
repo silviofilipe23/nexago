@@ -102,7 +102,13 @@ interface Internals {
   tournament: WritableSignal<OrganizerTournament | null>;
   eligible: WritableSignal<TournamentInscription[]>;
   loading: WritableSignal<boolean>;
+  useSeeds: WritableSignal<boolean>;
+  dragFrom: WritableSignal<number | null>;
+  dragOver: WritableSignal<number | null>;
   redraw(): void;
+  onDrop(targetIndex: number, event: DragEvent): void;
+  onDragStart(index: number, event: DragEvent): void;
+  onDragEnd(): void;
 }
 
 describe('SeedsComponent — avatares dos atletas', () => {
@@ -206,5 +212,58 @@ describe('SeedsComponent — avatares dos atletas', () => {
     const groupAvatars = el.querySelectorAll('.og-seeds-group-team .og-seed-avatars .og-avatar');
     expect(groupAvatars.length).toBe(1);
     expect(groupAvatars[0]!.getAttribute('aria-label')).toBe('Ver foto de Ana Paula');
+  });
+});
+
+describe('SeedsComponent — drag and drop da ordem de seeds', () => {
+  let fixture: ComponentFixture<SeedsComponent>;
+
+  async function mount(eligible: TournamentInscription[]): Promise<Internals> {
+    await TestBed.configureTestingModule({
+      imports: [SeedsComponent],
+      providers: [provideZonelessChangeDetection(), provideRouter([])],
+    }).compileComponents();
+    fixture = TestBed.createComponent(SeedsComponent);
+    fixture.componentRef.setInput('catId', 'femB');
+    await fixture.whenStable();
+    const internals = fixture.componentInstance as unknown as Internals;
+    internals.tournament.set(tournament());
+    internals.eligible.set(eligible);
+    internals.loading.set(false);
+    internals.useSeeds.set(true);
+    internals.redraw();
+    await fixture.whenStable();
+    return internals;
+  }
+
+  function threeTeams(): TournamentInscription[] {
+    return [
+      inscription({ id: 'i1', teamId: 'team-1', teamName: 'Alpha / A' }),
+      inscription({ id: 'i2', teamId: 'team-2', teamName: 'Bravo / B' }),
+      inscription({ id: 'i3', teamId: 'team-3', teamName: 'Charlie / C' }),
+    ];
+  }
+
+  it('mostra o handle de arraste quando a ordem de seeds está ligada', async () => {
+    await mount(threeTeams());
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelectorAll('.og-seed-handle').length).toBe(3);
+  });
+
+  it('arrastar uma dupla para outro índice reordena a lista', async () => {
+    const internals = await mount(threeTeams());
+    internals.dragFrom.set(0);
+    internals.onDrop(2, new DragEvent('drop', { bubbles: true, cancelable: true }));
+    expect(internals.eligible().map((t) => t.teamId)).toEqual(['team-2', 'team-3', 'team-1']);
+    expect(internals.dragFrom()).toBeNull();
+    expect(internals.dragOver()).toBeNull();
+  });
+
+  it('sem seeds ligados o drop não muda a ordem', async () => {
+    const internals = await mount(threeTeams());
+    internals.useSeeds.set(false);
+    internals.dragFrom.set(0);
+    internals.onDrop(2, new DragEvent('drop', { bubbles: true, cancelable: true }));
+    expect(internals.eligible().map((t) => t.teamId)).toEqual(['team-1', 'team-2', 'team-3']);
   });
 });

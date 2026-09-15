@@ -178,9 +178,33 @@ function shuffled<T>(items: readonly T[]): T[] {
             @if (eligible().length < minTeams) {
               <p class="og-seeds-empty">É necessário ao menos {{ minTeams }} duplas pagas (e completas) pra gerar a chave.</p>
             }
-            <div style="display:flex;flex-direction:column;gap:8px">
+            <div
+              class="og-seed-list"
+              [class.reorderable]="useSeeds()"
+              (dragover)="onListDragOver($event)"
+            >
               @for (t of eligible(); track t.teamId; let i = $index; let last = $last) {
-                <div class="og-seed-row" [class.top]="useSeeds() && i < headCount()">
+                <div
+                  class="og-seed-row"
+                  [class.top]="useSeeds() && i < headCount()"
+                  [class.dragging]="dragFrom() === i"
+                  [class.drag-over]="dragOver() === i && dragFrom() !== i"
+                  (dragover)="onRowDragOver(i, $event)"
+                  (dragleave)="onRowDragLeave(i, $event)"
+                  (drop)="onDrop(i, $event)"
+                >
+                  @if (useSeeds()) {
+                    <span
+                      class="og-seed-handle"
+                      draggable="true"
+                      title="Arrastar para reordenar"
+                      aria-label="Arrastar para reordenar"
+                      (dragstart)="onDragStart(i, $event)"
+                      (dragend)="onDragEnd()"
+                    >
+                      <og-icon name="grip" [size]="14" />
+                    </span>
+                  }
                   <span class="og-seed-pos" [class.top]="useSeeds() && i < headCount()">{{ i + 1 }}</span>
                   <span class="og-seed-avatars">
                     @for (p of athletesOf(t); track $index; let ai = $index; let n = $count) {
@@ -271,6 +295,11 @@ function shuffled<T>(items: readonly T[]): T[] {
       position: relative;
     }
 
+    .og-seed-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
     .og-seed-row {
       display: flex;
       align-items: center;
@@ -279,9 +308,35 @@ function shuffled<T>(items: readonly T[]): T[] {
       border-radius: var(--nx-r-3);
       background: var(--nx-surface-0);
       border: 1px solid var(--nx-line);
+      transition: border-color 120ms ease, opacity 120ms ease, box-shadow 120ms ease;
     }
     .og-seed-row.top {
       border-color: rgba(255, 106, 26, 0.3);
+    }
+    .og-seed-row.dragging {
+      opacity: 0.45;
+    }
+    .og-seed-row.drag-over {
+      border-color: var(--nx-orange-500);
+      box-shadow: inset 0 0 0 1px rgba(255, 106, 26, 0.35);
+    }
+    .og-seed-handle {
+      flex: none;
+      display: grid;
+      place-items: center;
+      width: 22px;
+      height: 28px;
+      margin: 0 -4px 0 -2px;
+      color: var(--nx-text-mute);
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+    .og-seed-handle:active {
+      cursor: grabbing;
+    }
+    .og-seed-handle:hover {
+      color: var(--nx-text);
     }
     .og-seed-pos {
       width: 28px;
@@ -456,6 +511,10 @@ export class SeedsComponent {
   protected readonly qualifiersPerGroup = signal(2);
   protected readonly groups = signal<GroupPreview[]>([]);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
+  /** Índice da dupla sendo arrastada na lista de seeds — null fora do drag. */
+  protected readonly dragFrom = signal<number | null>(null);
+  /** Índice sob o cursor durante o drag — feedback visual de onde a linha cai. */
+  protected readonly dragOver = signal<number | null>(null);
   /** Rating técnico por uid — vazio nos esportes sem engine de rating. */
   private readonly ratings = signal<Map<string, AthleteRatingLite>>(new Map());
 
@@ -482,7 +541,7 @@ export class SeedsComponent {
   protected readonly sortByLevelHint = computed(() => {
     if (!this.useSeeds()) return 'Ligue "Respeitar ordem de seeds" para ordenar pela pontuação de nível.';
     if (!this.canSortByLevel()) return 'Nenhuma dupla tem nível informado.';
-    return 'Ordena da maior para a menor pontuação de nível — você ainda pode ajustar com as setas.';
+    return 'Ordena da maior para a menor pontuação de nível — você ainda pode ajustar arrastando ou com as setas.';
   });
 
   protected readonly category = computed<OrganizerTournamentCategory | null>(
@@ -619,7 +678,7 @@ export class SeedsComponent {
 
   /** Sugestão de semeadura pela força declarada: maior pontuação primeiro, rating como
    *  desempate, duplas sem nível no fim. Só reordena a lista — o organizador ainda ajusta
-   *  com as setas antes de publicar. */
+   *  arrastando ou com as setas antes de publicar. */
   protected sortByLevel(): void {
     if (!this.canSortByLevel()) return;
     const scores = this.scores();
@@ -641,6 +700,65 @@ export class SeedsComponent {
       return next;
     });
     this.redraw();
+  }
+
+  /** Reordena a lista de seeds pelo handle (HTML5 DnD). Só ativo com "Respeitar ordem
+   *  de seeds" — sem seeds a ordem da tela não importa (o publish embaralha). */
+  protected onDragStart(index: number, event: DragEvent): void {
+    if (!this.useSeeds()) {
+      event.preventDefault();
+      return;
+    }
+    this.dragFrom.set(index);
+    this.dragOver.set(index);
+    event.dataTransfer?.setData('text/plain', String(index));
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+    const row = (event.currentTarget as HTMLElement | null)?.closest('.og-seed-row');
+    if (row instanceof HTMLElement && event.dataTransfer) {
+      event.dataTransfer.setDragImage(row, 24, row.offsetHeight / 2);
+    }
+  }
+
+  protected onListDragOver(event: DragEvent): void {
+    if (this.dragFrom() == null) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  }
+
+  protected onRowDragOver(index: number, event: DragEvent): void {
+    if (this.dragFrom() == null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    if (this.dragOver() !== index) this.dragOver.set(index);
+  }
+
+  protected onRowDragLeave(index: number, event: DragEvent): void {
+    const related = event.relatedTarget;
+    if (related instanceof Node && (event.currentTarget as Node).contains(related)) return;
+    if (this.dragOver() === index) this.dragOver.set(null);
+  }
+
+  protected onDrop(targetIndex: number, event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const from = this.dragFrom();
+    this.dragFrom.set(null);
+    this.dragOver.set(null);
+    if (from == null || from === targetIndex || !this.useSeeds()) return;
+    this.eligible.update((list) => {
+      if (from < 0 || from >= list.length || targetIndex < 0 || targetIndex >= list.length) return list;
+      const next = [...list];
+      const [item] = next.splice(from, 1);
+      next.splice(targetIndex, 0, item!);
+      return next;
+    });
+    this.redraw();
+  }
+
+  protected onDragEnd(): void {
+    this.dragFrom.set(null);
+    this.dragOver.set(null);
   }
 
   /** Snake draft — espelha `distributeTeamsIntoGroups` (Flutter). */

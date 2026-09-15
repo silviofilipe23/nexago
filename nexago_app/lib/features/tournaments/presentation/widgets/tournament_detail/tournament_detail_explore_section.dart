@@ -16,6 +16,7 @@ class TournamentDetailExploreSection extends StatelessWidget {
     required this.tournament,
     required this.stats,
     required this.onOpenCategorias,
+    required this.onOpenAtletasInscritos,
     required this.onOpenPalpites,
     required this.onOpenPodio,
     required this.onOpenHoje,
@@ -30,6 +31,7 @@ class TournamentDetailExploreSection extends StatelessWidget {
   final TournamentDetail tournament;
   final TournamentDetailStats stats;
   final VoidCallback onOpenCategorias;
+  final VoidCallback onOpenAtletasInscritos;
   final VoidCallback onOpenPalpites;
   final VoidCallback onOpenPodio;
   final VoidCallback onOpenHoje;
@@ -88,6 +90,12 @@ class TournamentDetailExploreSection extends StatelessWidget {
             title: 'Categorias',
             subtitle: tournamentExploreCategoriesSubtitle(stats),
             onTap: onOpenCategorias,
+          ),
+          ExploreCard(
+            icon: Icons.groups_outlined,
+            title: 'Equipes inscritas',
+            subtitle: 'Duplas e equipes confirmadas',
+            onTap: onOpenAtletasInscritos,
           ),
           if (showMinhaInscricao)
             ExploreCard(

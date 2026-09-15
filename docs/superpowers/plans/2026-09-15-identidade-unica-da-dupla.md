@@ -650,8 +650,12 @@ export function isPairTeamDoc(
 
 /**
  * Duplicado legado: o mais antigo vence. Determinístico (desempate pelo id) para
- * que duas transações concorrentes escolham o MESMO doc — é o que faz o sistema
- * convergir sozinho se um duplicado escapar.
+ * que duas resoluções concorrentes escolham o MESMO doc.
+ *
+ * NÃO é auto-cura: o Firestore não tranca a faixa VAZIA de uma query em
+ * transação, então duas primeiras resoluções simultâneas do mesmo par ainda
+ * criam dois docs. O que esta regra garante é que toda resolução SEGUINTE
+ * concorda; quem repara um racha que já aconteceu é o script de fusão.
  */
 export function pickPairTeamId(candidates: PairTeamCandidate[]): string {
   let best: PairTeamCandidate | null = null;
@@ -698,6 +702,14 @@ export async function resolvePairTeamTx(
     player2Id: string;
   },
 ): Promise<PairTeamResolution> {
+  // Precondição antes de qualquer leitura: `tournamentId` em branco desligaria
+  // silenciosamente a exceção por categoria (nenhuma inscrição casa com "") e o
+  // helper passaria a SEMPRE reaproveitar. A polaridade importa — um doc novo a
+  // mais o script de fusão absorve; duas campanhas na mesma chave, não.
+  if (!trimmed(params.tournamentId)) {
+    throw new Error("resolvePairTeamTx exige tournamentId");
+  }
+
   const player1Id = trimmed(params.player1Id);
   const player2Id = trimmed(params.player2Id);
   const pairKey = buildPairKey(player1Id, player2Id);
@@ -730,7 +742,10 @@ export async function resolvePairTeamTx(
     );
     if (!alreadyInTournament) {
       const ref = params.teamsRef.doc(chosenId);
-      tx.update(ref, {pairKey, updatedAt: FieldValue.serverTimestamp()});
+      // Só `updatedAt`: regravar o `pairKey` seria no-op provável — o candidato
+      // só chegou aqui porque a query por `pairKey` o achou. Quem preenche o
+      // campo em doc legado é o backfill da Task 6, não este caminho.
+      tx.update(ref, {updatedAt: FieldValue.serverTimestamp()});
       return {ref, teamId: chosenId, reused: true};
     }
   }
@@ -810,20 +825,35 @@ grep -n "teamPaidGateUnchanged" firestore.rules
 
 Esperado: nenhuma saída.
 
-- [ ] **Step 4: Validar a sintaxe das rules**
+- [ ] **Step 4: Estender o teste de rules que já existe**
+
+`functions/test/team-registration-paid-gate.rules.test.mjs` é o teste deste exato portão — ele
+prova que o jogador da equipe não consegue carimbar `registrationPaid`/`gender`. `pairKey` entra
+na mesma família e merece o mesmo teste. Acrescentar, no mesmo arquivo e no mesmo estilo dos casos
+existentes:
+
+- jogador da equipe tentando `updateDoc(TEAM, {pairKey: 'outro:par'})` → `assertFails`
+- jogador da equipe tentando `updateDoc(TEAM, {jerseyNumber: 7})` → `assertSucceeds`, provando que
+  a trava nova não fechou a porta para os campos legítimos
+
+O segundo caso importa tanto quanto o primeiro: sem ele, um `hasAny` escrito errado que bloqueasse
+TODO update passaria no teste.
+
+- [ ] **Step 5: Rodar o teste de rules**
+
+A partir da **raiz do repositório** (não de `functions/`):
 
 ```bash
-npx firebase deploy --only firestore:rules --project volley-track-dev-4596c --dry-run
+npx firebase emulators:exec --only firestore "node --test functions/test/team-registration-paid-gate.rules.test.mjs"
 ```
 
-Esperado: compila sem erro. (Se o `--dry-run` não for aceito pela versão do CLI instalada, rodar
-`npx firebase firestore:rules:validate --project volley-track-dev-4596c`; o objetivo é só provar
-que o arquivo compila — o deploy de verdade é a Task 8.)
+Esperado: todos os casos passam, incluindo os que já existiam. Um caso antigo quebrando significa
+que a renomeação da função deixou chamador órfão ou mudou o alcance do portão.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add firestore.rules
+git add firestore.rules functions/test/team-registration-paid-gate.rules.test.mjs
 git commit -m "fix: pairKey é imutável pelo cliente nas rules de teams"
 ```
 

@@ -63,6 +63,8 @@ export interface LeagueSummary {
   seasonLabel: string | null;
   description: string | null;
   coverUrl: string | null;
+  /** `leagues/{id}.sport` — mesmo vocabulário do torneio. Escolhe a capa padrão. */
+  sport: string | null;
   stages: LeagueStage[];
 }
 

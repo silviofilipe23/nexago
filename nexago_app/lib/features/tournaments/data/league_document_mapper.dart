@@ -76,6 +76,7 @@ abstract final class LeagueDocumentMapper {
       description: _str(data['description']),
       stages: stages,
       coverUrl: _str(data['coverUrl'] ?? data['imageUrl']),
+      sport: _str(data['sport']) ?? '',
       listingStatus: _str(data['listingStatus'] ?? data['status']),
       seasonStartAt: _timestamp(data['seasonStartAt']),
       seasonEndAt: _timestamp(data['seasonEndAt']),

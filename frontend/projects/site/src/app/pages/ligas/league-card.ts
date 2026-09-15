@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { toSlugId } from '../../../lib/slug';
+import { tournamentCoverOrDefault } from '@nexago/tournament-covers';
 import type { LeagueSummary } from '../../../lib/firestore/types';
 
 /**
@@ -19,7 +20,7 @@ import type { LeagueSummary } from '../../../lib/firestore/types';
       class="group/league flex h-full flex-col overflow-hidden rounded-4 border border-line bg-surface-1 transition-colors duration-200 ease-out hover:border-brand/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-bg motion-reduce:transition-none"
     >
       <div class="relative aspect-[16/10] overflow-hidden bg-surface-2">
-        @if (league().coverUrl; as src) {
+        @if (cover(); as src) {
           <img
             [src]="src"
             [alt]="'Liga ' + league().name"
@@ -76,6 +77,11 @@ import type { LeagueSummary } from '../../../lib/firestore/types';
 })
 export class LeagueCard {
   readonly league = input.required<LeagueSummary>();
+
+  /** Capa enviada, senão a arte do esporte; `null` cai no troféu do gradiente. */
+  protected readonly cover = computed(() =>
+    tournamentCoverOrDefault(this.league().coverUrl, this.league().sport),
+  );
 
   protected readonly href = computed(() => `/ligas/${toSlugId(this.league().name, this.league().id)}`);
   protected readonly stageCount = computed(() => this.league().stages.length);

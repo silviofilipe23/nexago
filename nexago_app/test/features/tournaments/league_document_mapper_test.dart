@@ -53,4 +53,22 @@ void main() {
     expect(league.totalStagesCount, 6);
     expect(league.countingStagesMode, LeaguePointsCountingMode.allStages);
   });
+
+  test('o esporte da liga chega no modelo, pra capa padrão', () {
+    // A liga grava `sport` com o MESMO vocabulário do torneio
+    // (`league_create_mapper.dart`), então a capa padrão sai direto do doc —
+    // não precisa inferir nada das etapas.
+    final league = LeagueDocumentMapper.fromMap('liga-1', {
+      'name': 'Liga nexaGO',
+      'sport': 'beachVolleyball',
+    });
+
+    expect(league.sport, 'beachVolleyball');
+  });
+
+  test('liga sem esporte fica com string vazia, não nulo', () {
+    final league = LeagueDocumentMapper.fromMap('liga-legado', {'name': 'Antiga'});
+
+    expect(league.sport, '');
+  });
 }

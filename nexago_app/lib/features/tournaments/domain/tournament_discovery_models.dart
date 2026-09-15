@@ -28,6 +28,7 @@ class DiscoveryLeague {
     this.organizationName,
     this.description,
     this.coverUrl,
+    this.sport = '',
     this.listingStatus,
     this.seasonStartAt,
     this.seasonEndAt,
@@ -47,6 +48,11 @@ class DiscoveryLeague {
   final String? description;
   final List<DiscoveryLeagueStage> stages;
   final String? coverUrl;
+
+  /// Esporte da liga (`leagues/{id}.sport`, mesmo vocabulário do torneio —
+  /// `league_create_mapper.dart` grava o nome do `TournamentSport`). Escolhe a
+  /// capa padrão quando `coverUrl` falta.
+  final String sport;
   final String? listingStatus;
   final DateTime? seasonStartAt;
   final DateTime? seasonEndAt;

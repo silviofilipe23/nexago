@@ -36,11 +36,13 @@ DiscoveryLeague _league({
   List<String> tournamentIds = const [],
   DateTime? seasonStartAt,
   String? city,
+  String sport = '',
 }) {
   return DiscoveryLeague(
     id: id,
     name: name,
     city: city,
+    sport: sport,
     seasonStartAt: seasonStartAt,
     stages: [
       DiscoveryLeagueStage(
@@ -202,11 +204,20 @@ void main() {
       expect(item.coverSport, 'beachVolleyball');
     });
 
-    test('liga não tem esporte de capa e segue no gradiente', () {
-      // Liga ainda não escolheu arte padrão: devolver o esporte do torneio ali
-      // seria arte de torneio num card de liga.
+    test('liga leva o PRÓPRIO esporte, não o de uma etapa', () {
+      // A liga grava `sport` no doc dela, com o mesmo vocabulário do torneio:
+      // não precisa (nem deve) inferir das etapas.
       final item = AthleteHomeLeagueItem(
-        league: _league(id: 'l1', name: 'Liga nexaGO'),
+        league: _league(id: 'l1', name: 'Liga nexaGO', sport: 'footvolley'),
+        sortDate: DateTime(2026, 5, 28),
+      );
+
+      expect(item.coverSport, 'footvolley');
+    });
+
+    test('liga sem esporte no doc segue no gradiente', () {
+      final item = AthleteHomeLeagueItem(
+        league: _league(id: 'l1', name: 'Liga legada'),
         sortDate: DateTime(2026, 5, 28),
       );
 

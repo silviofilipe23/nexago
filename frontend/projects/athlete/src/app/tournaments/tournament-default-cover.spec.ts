@@ -2,12 +2,16 @@ import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
+import type { League } from '../data/leagues-repository';
 import type { TournamentSummary } from '../data/tournaments-repository';
 import type { AthleteTournamentRegistration } from '../data/tournament-registrations-repository';
 import { NxToastService } from '../shared/feedback/nx-toast.service';
 import { OverviewTabComponent } from './tabs/overview-tab.component';
 import { RegistrationTabComponent } from './tabs/registration-tab.component';
-import { discoveryTournamentFromSummary } from './tournament-discovery.component';
+import {
+  discoveryLeagueFromLeague,
+  discoveryTournamentFromSummary,
+} from './tournament-discovery.component';
 import { TournamentLiveStore } from './tournament-live.store';
 
 function resumo(over: Partial<TournamentSummary> = {}): TournamentSummary {
@@ -168,5 +172,48 @@ describe('capa padrão do torneio — card da minha inscrição', () => {
 
   it('torneio sem esporte reconhecido segue sem capa no card', () => {
     expect(capaDoCard(resumo({ sport: null }))).toBeNull();
+  });
+});
+
+describe('capa padrão da liga — listagem do atleta', () => {
+  function liga(over: Partial<League> = {}): League {
+    return {
+      id: 'l1',
+      name: 'Liga nexaGO',
+      seasonLabel: 'Temporada 2026',
+      city: 'Goiânia',
+      state: 'GO',
+      organizationName: null,
+      description: null,
+      coverUrl: null,
+      sport: 'beachVolleyball',
+      rawStatus: 'open',
+      isDraftOrCancelled: false,
+      seasonStartAt: null,
+      seasonEndAt: null,
+      plannedStagesCount: null,
+      grandFinalEnabled: false,
+      grandFinalSpots: 16,
+      countingStagesMode: 'best_4_of_6',
+      stages: [],
+      categories: [],
+      ...over,
+    };
+  }
+
+  it('liga sem capa entra na listagem com a arte do próprio esporte', () => {
+    expect(discoveryLeagueFromLeague(liga()).coverUrl).toBe(
+      '/media/tournament-covers/volei_praia.webp',
+    );
+  });
+
+  it('a arte não substitui a capa que o organizador subiu', () => {
+    const l = liga({ coverUrl: 'https://cdn.example.com/liga.jpg' });
+
+    expect(discoveryLeagueFromLeague(l).coverUrl).toBe('https://cdn.example.com/liga.jpg');
+  });
+
+  it('liga sem esporte reconhecido segue no gradiente', () => {
+    expect(discoveryLeagueFromLeague(liga({ sport: null })).coverUrl).toBeNull();
   });
 });

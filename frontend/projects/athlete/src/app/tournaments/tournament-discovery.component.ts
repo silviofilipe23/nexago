@@ -93,13 +93,13 @@ export function discoveryTournamentFromSummary(
   };
 }
 
-function discoveryLeagueFromLeague(l: League): DiscoveryLeague {
+export function discoveryLeagueFromLeague(l: League): DiscoveryLeague {
   return {
     id: l.id,
     name: l.name,
     seasonLabel: l.seasonLabel ?? undefined,
     city: l.city ?? undefined,
-    coverUrl: l.coverUrl,
+    coverUrl: tournamentCoverOrDefault(l.coverUrl, l.sport),
     stages: l.stages.map((s) => ({ id: s.id, name: s.name, order: s.order, dateLabel: s.dateLabel ?? undefined, tournamentIds: s.tournamentIds })),
   };
 }

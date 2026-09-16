@@ -48,7 +48,7 @@ test('administrador NÃO exclui o torneio', async () => {
   await assertFails(deleteDoc(doc(asAdminEvento(), 'tournaments', TORNEIO)));
 });
 
-test('administrador lê a equipe', async () => {
+test('administrador lê o próprio doc de staff (autoleitura, não prova canManageTournament)', async () => {
   await assertSucceeds(
     getDoc(doc(asAdminEvento(), 'tournaments', TORNEIO, 'staff', ADMIN_EVENTO)),
   );
@@ -122,5 +122,25 @@ test('torneio que nunca teve caixa o dono exclui', async () => {
   });
   await assertSucceeds(
     deleteDoc(doc(testEnv.authenticatedContext(DONO).firestore(), 'tournaments', 'copa-sem-caixa')),
+  );
+});
+
+// O caso "autoleitura" acima passa pela segunda cláusula do `allow read` de
+// `staff` (`request.auth.uid == staffUserId`) e não prova nada sobre
+// `canManageTournament`. O ganho real do papel `eventAdmin` sobre `staff` —
+// ler o doc de OUTRO membro da equipe, que só passa pela primeira cláusula —
+// não tinha teste nenhum. Este caso fecha o buraco: o uid de quem lê
+// (ADMIN_EVENTO) é diferente do uid do doc lido (MESARIO), então a
+// autoleitura não pode salvá-lo.
+const MESARIO = 'mesario-uid';
+
+test('administrador lê o doc de staff de outro membro da equipe', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'tournaments', TORNEIO, 'staff', MESARIO), {
+      role: 'scorer', status: 'active',
+    });
+  });
+  await assertSucceeds(
+    getDoc(doc(asAdminEvento(), 'tournaments', TORNEIO, 'staff', MESARIO)),
   );
 });

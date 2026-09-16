@@ -39,6 +39,14 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('VENCEDORES'), findsOneWidget);
       expect(find.text('REPESCAGEM'), findsOneWidget);
+      expect(
+        find.textContaining(switch (side) {
+          FocusBracketSide.winners => 'Duas vidas',
+          FocusBracketSide.losers => 'Última vida',
+          FocusBracketSide.eliminated => 'Torneio encerrado',
+        }),
+        findsOneWidget,
+      );
     });
   }
 

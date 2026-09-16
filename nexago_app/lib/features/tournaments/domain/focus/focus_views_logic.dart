@@ -91,6 +91,7 @@ class NextMatchView {
     required this.bestOfLabel,
     required this.formatLabel,
     required this.countdownClock,
+    required this.scheduleTime,
     required this.checkedIn,
     required this.live,
     required this.liveScoreLine,
@@ -116,6 +117,10 @@ class NextMatchView {
   /// "42:18" — a contagem regressiva como relógio, que é o elemento maior do
   /// herói. `null` quando não há horário ou a partida já começou.
   final String? countdownClock;
+
+  /// Âncora do ticker do herói — o relógio recalcula a cada segundo a partir
+  /// deste instante, sem depender de outro rebuild da tela.
+  final DateTime? scheduleTime;
   final bool checkedIn;
   final bool live;
   final String? liveScoreLine;
@@ -360,6 +365,7 @@ NextMatchView? nextMatchViewOf(FocusViewContext ctx, DateTime now) {
     bestOfLabel: 'MD${matchBestOf(m)}',
     formatLabel: 'MD${matchBestOf(m)} · $matchSetPoints PTS',
     countdownClock: live ? null : countdownClockOf(m.scheduleTime, now),
+    scheduleTime: m.scheduleTime,
     checkedIn: checkIn.trim().toLowerCase() == 'present',
     live: live,
     liveScoreLine: liveScoreLineOf(m),

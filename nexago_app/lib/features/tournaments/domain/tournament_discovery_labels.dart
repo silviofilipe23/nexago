@@ -18,9 +18,9 @@ String tournamentDiscoveryCardCtaLabel({
   bool registrationNotYetOpen = false,
 }) {
   if (isEnrolled) return 'Ver inscrição';
-  if (registrationNotYetOpen) return 'Ver detalhes →';
-  if (canRegisterForTournament(status)) return 'Inscrever →';
-  return 'Ver detalhes →';
+  if (registrationNotYetOpen) return 'Ver detalhes';
+  if (canRegisterForTournament(status)) return 'Inscrever';
+  return 'Ver detalhes';
 }
 
 /// "Inscrições abrem em 05/09 às 10:00" — parede local do instante gravado
@@ -152,8 +152,18 @@ String tournamentEnrolledEntriesLabel(int count, TournamentFormat format) {
 /// devolve `jul.` (com ponto), e o portal web escreve sem. Duas superfícies
 /// com grafias diferentes para a mesma data leem como bug.
 const _shortMonths = [
-  'jan', 'fev', 'mar', 'abr', 'mai', 'jun',
-  'jul', 'ago', 'set', 'out', 'nov', 'dez',
+  'jan',
+  'fev',
+  'mar',
+  'abr',
+  'mai',
+  'jun',
+  'jul',
+  'ago',
+  'set',
+  'out',
+  'nov',
+  'dez',
 ];
 
 const _shortWeekdays = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];

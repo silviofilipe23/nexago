@@ -268,10 +268,18 @@ class _TournamentDetailContentState
         .any(
           (registration) => registration.isPaid && !registration.partnerPending,
         );
+    // Lotado: esconde "Inscrever minha dupla". Quem já tem inscrição
+    // incompleta continua vendo a barra ("Minha inscrição").
+    // `spotsTotal <= 0` = capacidade ainda indefinida ("Vagas a confirmar") —
+    // aí a barra segue disponível.
+    final soldOut =
+        widget.stats.spotsTotal > 0 &&
+        tournamentSpotsRemaining(widget.stats) == 0;
     final showBottomBar =
         canRegister &&
         widget.registrationResolved &&
-        !hasConfirmedPaidRegistration;
+        !hasConfirmedPaidRegistration &&
+        (isAthleteRegistered || !soldOut);
     final topInset = MediaQuery.paddingOf(context).top;
     final spotsSubtitle =
         '${tournamentSpotsRemainingLabel(widget.stats)} · garanta já';

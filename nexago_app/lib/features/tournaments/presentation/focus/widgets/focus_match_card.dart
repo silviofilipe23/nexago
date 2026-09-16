@@ -28,6 +28,9 @@ class FocusMatchCard extends StatelessWidget {
     required this.viewModel,
     this.athleteTeamIds = const {},
     this.categoryName = '',
+    this.avatarSize = 40,
+    this.nameFontSize = 14,
+    this.namesOnePerLine = false,
     this.onTap,
     this.followAction,
   });
@@ -40,6 +43,14 @@ class FocusMatchCard extends StatelessWidget {
   /// Só nas listas do torneio INTEIRO (seção Arena). Vazio numa lista já
   /// recortada por categoria, onde a informação é redundante.
   final String categoryName;
+
+  /// Diâmetro de cada rosto. A Arena sobe pra 56; home/live mantêm 40.
+  final double avatarSize;
+
+  final double nameFontSize;
+
+  /// Na Arena cada atleta fica em uma linha sob os rostos.
+  final bool namesOnePerLine;
 
   final VoidCallback? onTap;
 
@@ -78,14 +89,29 @@ class FocusMatchCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: MatchCardSide(side: row.sideA)),
+              Expanded(
+                child: MatchCardSide(
+                  side: row.sideA,
+                  avatarSize: avatarSize,
+                  nameFontSize: nameFontSize,
+                  namesOnePerLine: namesOnePerLine,
+                ),
+              ),
               _Score(
                 center: score.center,
                 detail: score.detail,
                 state: row.state,
                 stage: row.stage,
+                avatarSize: avatarSize,
               ),
-              Expanded(child: MatchCardSide(side: row.sideB)),
+              Expanded(
+                child: MatchCardSide(
+                  side: row.sideB,
+                  avatarSize: avatarSize,
+                  nameFontSize: nameFontSize,
+                  namesOnePerLine: namesOnePerLine,
+                ),
+              ),
             ],
           ),
           if (followAction != null)
@@ -106,12 +132,14 @@ class _Score extends StatelessWidget {
     required this.detail,
     required this.state,
     required this.stage,
+    required this.avatarSize,
   });
 
   final String center;
   final String? detail;
   final TournamentMatchRowState state;
   final TournamentMatchRowStage? stage;
+  final double avatarSize;
 
   /// Largura FIXA, e é o que segura o layout de pé.
   ///
@@ -144,9 +172,8 @@ class _Score extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Alinha o número grande com os rostos das duplas, não com o topo do
-          // bloco: sem isto ele flutuaria acima dos avatares.
-          const SizedBox(height: 4),
+          // Alinha o placar com o centro aproximado dos rostos.
+          SizedBox(height: (avatarSize * 0.28).clamp(4.0, 28.0)),
           Text(
             center,
             style: AppTypography.mono(

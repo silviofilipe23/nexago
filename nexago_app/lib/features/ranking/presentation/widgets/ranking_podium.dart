@@ -9,7 +9,7 @@ import '../../domain/ranking_list_models.dart';
 
 /// Tamanhos dos avatares na tela de ranking.
 abstract final class RankingAvatarSizes {
-  static const list = 48.0;
+  static const list = 36.0;
   static const podiumFirst = 72.0;
   static const podiumOther = 58.0;
 }
@@ -186,7 +186,7 @@ class RankingAvatarGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     if (entry.isTeam) {
       return SizedBox(
-        width: size + 16,
+        width: size + size * 0.28,
         height: size,
         child: Stack(
           clipBehavior: Clip.none,
@@ -201,13 +201,13 @@ class RankingAvatarGroup extends StatelessWidget {
               ),
             ),
             Positioned(
-              left: size * 0.45,
+              left: size * 0.28,
               child: _AvatarCircle(
                 initials: entry.player2Initials ?? '?',
                 color: entry.player2Color ?? AppColors.win,
                 imageUrl: entry.player2AvatarUrl,
                 size: size,
-                borderColor: context.themeColors.surfaceCard,
+                borderColor: context.themeColors.canvas,
               ),
             ),
           ],

@@ -22,21 +22,19 @@ import '../../../domain/tournament_match.dart';
 import '../../../domain/tournament_match_card_view_model.dart';
 import '../../../domain/tournament_group_standings_logic.dart';
 import '../../../domain/tournament_match_display.dart';
-import '../../../domain/tournament_match_status.dart';
+import '../../../../../core/time/nexago_event_timezone.dart';
 import '../focus_bottom_clearance.dart';
 import '../focus_rosters.dart';
 import '../focus_section_header.dart';
 import '../../../domain/tournament_detail_logic.dart';
+import '../widgets/focus_day_rail.dart';
 import '../widgets/focus_lives_card.dart';
-import '../widgets/focus_match_card.dart';
 import '../widgets/focus_now_hero.dart';
 import '../widgets/focus_share_match_sheet.dart';
-import '../widgets/focus_timeline.dart';
-import '../../widgets/follow_match_button.dart';
 
 /// Seção "Agora": o que o atleta precisa saber nos próximos minutos, seguido da
 /// ordem do dia, dos avisos do organizador e do que está em quadra na categoria
-/// dele. Mesma ordem e mesma cópia do portal.
+/// dele.
 class FocusAgoraSection extends ConsumerWidget {
   const FocusAgoraSection({
     super.key,
@@ -60,8 +58,7 @@ class FocusAgoraSection extends ConsumerWidget {
   }
 
   /// Rota até a ARENA, não até a quadra: as quadras do torneio são só `{id,
-  /// name}`, sem posição. O rótulo nomeia a arena justamente para não prometer
-  /// o que não temos.
+  /// name}`, sem posição.
   Future<void> _openMaps() async {
     final query = tournament.locationAddress?.trim().isNotEmpty == true
         ? tournament.locationAddress!.trim()
@@ -85,12 +82,16 @@ class FocusAgoraSection extends ConsumerWidget {
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
       ),
-      error: (_, _) => Padding(
+      error: (error, stackTrace) => Padding(
         padding: const EdgeInsets.all(AppSpacing.xxl),
-        child: Text(
-          'Não foi possível carregar as partidas de hoje.',
-          textAlign: TextAlign.center,
-          style: AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
+        child: Center(
+          child: Text(
+            'Não foi possível carregar as partidas de hoje.',
+            textAlign: TextAlign.center,
+            style: AppTypography.bodyM.copyWith(
+              color: colors.onSurfaceMuted,
+            ),
+          ),
         ),
       ),
       data: (cards) => _body(context, ref, cards),
@@ -102,17 +103,12 @@ class FocusAgoraSection extends ConsumerWidget {
     WidgetRef ref,
     List<TournamentMatchCardViewModel> cards,
   ) {
-    final colors = context.themeColors;
     final byId = {for (final c in cards) c.match.id: c};
     final all = [for (final c in cards) c.match];
     final now = DateTime.now();
 
-    // Nome por ID DE TIME: `byId` é indexado por id de PARTIDA, e consultá-lo
-    // com um teamId devolve null em silêncio — todo adversário viraria
-    // "A definir".
     final rosters = FocusRosters.fromCards(cards);
 
-    // A categoria em foco recorta TUDO: `poolId` só é único dentro dela.
     final categoryMatches = categoryId == null
         ? all
         : all.where((m) => m.categoryId == categoryId).toList();
@@ -124,7 +120,9 @@ class FocusAgoraSection extends ConsumerWidget {
       tournamentRunningToday: tournamentIsEventToday(tournament, now),
     );
 
-    final next = _nextMatchOf(day);
+    // Herói: próxima partida do atleta em QUALQUER dia. A ordem do dia
+    // (rail) continua só com o que é hoje.
+    final next = pickAthleteFocusNextMatch(all, athleteTeamIds);
     final acknowledged = ref.watch(focusAcknowledgedCallProvider);
     final state = focusNowStateOf(
       next,
@@ -143,8 +141,6 @@ class FocusAgoraSection extends ConsumerWidget {
       nextMatch: next,
     );
 
-    // Dupla eliminação: a moldura, o kicker e os blocos de vida mudam. O
-    // formato vem do que a categoria DECLARA, não de adivinhar pelas partidas.
     final offer = _offerOf();
     final isDouble =
         offer != null && isDoubleEliminationBracketFormat(offer.bracketFormat);
@@ -161,9 +157,6 @@ class FocusAgoraSection extends ConsumerWidget {
     final accent = inRepescagem ? AppColors.pending : AppColors.brand;
 
     final heroView = nextMatchViewOf(ctx, now);
-    // As fases que ainda vêm entram na ordem do dia: se o atleta passar, ele
-    // joga de novo hoje, e a lista precisa dizer isso. Só as pendentes SEM
-    // dono — as dele já estão em `day`.
     final futurePhases = categoryId == null
         ? const <TournamentMatch>[]
         : (journeyPathOf(categoryMatches, categoryId!, athleteTeamIds).future
@@ -173,10 +166,8 @@ class FocusAgoraSection extends ConsumerWidget {
         ref.watch(tournamentAnnouncementsProvider(tournament.id)).valueOrNull ??
         const [];
 
-    final live = categoryMatches
-        .where((m) => TournamentMatchStatus.isInProgress(m.status))
-        .where((m) => m.id != next?.id)
-        .toList();
+    final phaseMeta = _phaseMetaOf(next);
+    final dayItems = _dayRailItems(entries, byId);
 
     return ListView(
       padding: EdgeInsets.only(
@@ -188,14 +179,9 @@ class FocusAgoraSection extends ConsumerWidget {
           state: state,
           view: heroView,
           card: next == null ? null : byId[next.id],
-          kicker: standing != null
-              ? _bracketKickerOf(next, standing)
-              : _kickerOf(next),
-          progress: focusCountdownProgress(
-            previousEndedAt: _previousEndedAt(day, next),
-            scheduleTime: next?.scheduleTime,
-            now: now,
-          ),
+          contextTag: standing != null
+              ? _bracketContextTag(next, standing)
+              : _contextTag(next),
           calledAt: next?.matchStartedAt != null
               ? matchTimeLabelForCard(next!)
               : null,
@@ -206,8 +192,11 @@ class FocusAgoraSection extends ConsumerWidget {
                     'Ainda dá título — pela repescagem o caminho passa pela '
                     'final dos perdedores.'
               : null,
+          phaseEyebrow: phaseMeta.$1,
+          phaseValue: phaseMeta.$2,
+          timeEyebrow: _timeEyebrowOf(next, now),
+          timeLabel: _matchDateTimeLabel(next),
           firstMatchStarted: athleteFirstMatchStarted(day),
-          footnote: _footnoteOf(day, next, now),
           onAcknowledge: () => ref
               .read(focusAcknowledgedCallProvider.notifier)
               .acknowledge(next!.id),
@@ -216,8 +205,6 @@ class FocusAgoraSection extends ConsumerWidget {
           onShare: () => showFocusShareMatchSheet(context, next!.id),
         ),
         if (standing != null) ...[
-          const FocusSectionHeader(label: 'SUAS VIDAS'),
-          FocusLivesCard(standing: standing),
           const FocusSectionHeader(label: 'ONDE VOCÊ ESTÁ'),
           FocusBracketSideCards(
             standing: standing,
@@ -232,23 +219,10 @@ class FocusAgoraSection extends ConsumerWidget {
             },
           ),
         ],
-        const FocusSectionHeader(label: 'ORDEM DO SEU DIA'),
-        if (entries.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.screenH,
-              vertical: AppSpacing.sm,
-            ),
-            child: Text(
-              'Nenhuma partida sua hoje.',
-              style: AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
-            ),
-          )
-        else
-          FocusTimeline(
-            entries: entries,
-            onOpen: (id) => _openMatch(context, id),
-          ),
+        FocusDayRail(
+          items: dayItems,
+          onOpen: (id) => _openMatch(context, id),
+        ),
         if (announcements.isNotEmpty) ...[
           const FocusSectionHeader(label: 'AVISOS DO ORGANIZADOR'),
           for (final a in announcements)
@@ -256,33 +230,6 @@ class FocusAgoraSection extends ConsumerWidget {
               time: a.createdAt != null ? _hhmm(a.createdAt!) : '',
               message: a.message,
             ),
-        ],
-        if (live.isNotEmpty) ...[
-          const FocusSectionHeader(
-            label: 'AO VIVO NA SUA CATEGORIA',
-            live: true,
-          ),
-          for (final m in live)
-            if (byId[m.id] != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.screenH,
-                  0,
-                  AppSpacing.screenH,
-                  AppSpacing.lg,
-                ),
-                child: FocusMatchCard(
-                  viewModel: byId[m.id]!,
-                  athleteTeamIds: athleteTeamIds,
-                  // Sem categoria: a lista já está recortada pela categoria em
-                  // foco, e repeti-la em todo card só roubaria espaço do grupo.
-                  onTap: () => _openMatch(context, m.id),
-                  followAction: FollowMatchButton(
-                    match: byId[m.id]!.match,
-                    compact: true,
-                  ),
-                ),
-              ),
         ],
       ],
     );
@@ -301,10 +248,16 @@ class FocusAgoraSection extends ConsumerWidget {
     return null;
   }
 
-  /// "VENCEDORES · QUARTAS" / "REPESCAGEM · RODADA 3" — na dupla eliminação a
-  /// chave importa tanto quanto a fase, porque WB e LB numeram rodadas por
-  /// conta própria.
-  static String _bracketKickerOf(
+  /// Tag curta do herói: "GRUPO B • R3" / "QUARTAS".
+  static String _contextTag(TournamentMatch? m) {
+    if (m == null) return 'SUA PRÓXIMA';
+    if (m.poolId.trim().isNotEmpty) {
+      return '${poolLabelForId(m.poolId).toUpperCase()} • R${m.round}';
+    }
+    return matchPhaseDisplayLabel(m).toUpperCase();
+  }
+
+  static String _bracketContextTag(
     TournamentMatch? m,
     FocusDoubleEliminationStanding standing,
   ) {
@@ -314,75 +267,72 @@ class FocusAgoraSection extends ConsumerWidget {
       FocusBracketSide.eliminated => 'ELIMINADO',
     };
     if (m == null) return side;
-    return '$side · ${matchPhaseDisplayLabel(m)}';
+    return '$side • ${matchPhaseDisplayLabel(m).toUpperCase()}';
   }
 
-  /// "SUA PRÓXIMA · GRUPO B · R3" — o contexto da partida.
-  static String _kickerOf(TournamentMatch? m) {
-    if (m == null) return 'SUA PRÓXIMA';
-    final parts = <String>['SUA PRÓXIMA'];
+  /// Coluna da faixa glass: eyebrow + valor.
+  static (String, String) _phaseMetaOf(TournamentMatch? m) {
+    if (m == null) return ('Fase', '—');
     if (m.poolId.trim().isNotEmpty) {
-      parts.add(poolLabelForId(m.poolId).toUpperCase());
-      parts.add('R${m.round}');
-    } else {
-      parts.add(matchPhaseDisplayLabel(m));
+      return ('Fase de Grupos', poolLabelForId(m.poolId));
     }
-    return parts.join(' · ');
+    return ('Chave', matchPhaseDisplayLabel(m));
   }
 
-  /// Fim da última partida ENCERRADA do atleta antes desta — a origem da barra
-  /// de progresso e do "descanso desde o último".
-  static DateTime? _previousEndedAt(
-    List<TournamentMatch> day,
-    TournamentMatch? next,
+  /// "Hoje" / "Amanhã" / "Sáb" — a coluna de horário da faixa glass.
+  static String _timeEyebrowOf(TournamentMatch? m, DateTime now) {
+    final at = m?.scheduleTime;
+    if (at == null) return 'Horário';
+    final local = toNexagoEventLocal(at);
+    final todayLocal = toNexagoEventLocal(now);
+    final today = DateTime(todayLocal.year, todayLocal.month, todayLocal.day);
+    final day = DateTime(local.year, local.month, local.day);
+    final delta = day.difference(today).inDays;
+    if (delta == 0) return 'Hoje';
+    if (delta == 1) return 'Amanhã';
+    const weekdays = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+    return weekdays[local.weekday - 1];
+  }
+
+  /// Data + hora do jogo — sempre com dia, porque a próxima pode ser outro dia.
+  static String _matchDateTimeLabel(TournamentMatch? m) {
+    final at = m?.scheduleTime;
+    if (at == null) return 'A definir';
+    final local = toNexagoEventLocal(at);
+    final dd = local.day.toString().padLeft(2, '0');
+    final mm = local.month.toString().padLeft(2, '0');
+    final hh = local.hour.toString().padLeft(2, '0');
+    final min = local.minute.toString().padLeft(2, '0');
+    return '$dd/$mm · $hh:$min';
+  }
+
+  static List<FocusDayRailItem> _dayRailItems(
+    List<TimelineEntry> entries,
+    Map<String, TournamentMatchCardViewModel> byId,
   ) {
-    DateTime? latest;
-    for (final m in day) {
-      if (next != null && m.id == next.id) continue;
-      final ended = m.matchEndedAt;
-      if (ended == null) continue;
-      if (latest == null || ended.isAfter(latest)) latest = ended;
+    final items = <FocusDayRailItem>[];
+    for (final e in entries) {
+      // Só partidas concretas no rail — fases futuras sem match viram card
+      // "A definir" quando têm note/phase.
+      final id = e.matchId;
+      String title;
+      if (id != null && byId[id] != null) {
+        final number = matchNumberLabelForCard(byId[id]!.match).trim();
+        title = number.isEmpty ? e.phaseLabel : 'Jogo $number';
+      } else {
+        title = e.phaseLabel;
+      }
+      items.add(
+        FocusDayRailItem(
+          title: title,
+          subtitle: e.time ?? 'A definir',
+          state: e.state,
+          matchId: id,
+          outcome: e.outcome,
+        ),
+      );
     }
-    return latest;
-  }
-
-  /// "3º jogo do dia · 46 min de descanso desde o último". Cada metade só entra
-  /// se puder ser calculada — nada de estimar descanso sem o fim do jogo
-  /// anterior gravado.
-  static String? _footnoteOf(
-    List<TournamentMatch> day,
-    TournamentMatch? next,
-    DateTime now,
-  ) {
-    if (next == null) return null;
-    final parts = <String>[];
-
-    final index = day.indexWhere((m) => m.id == next.id);
-    if (index >= 0) parts.add('${index + 1}º jogo do dia');
-
-    final previous = _previousEndedAt(day, next);
-    if (previous != null) {
-      final minutes = now.difference(previous).inMinutes;
-      if (minutes > 0) parts.add('$minutes min de descanso desde o último');
-    }
-
-    return parts.isEmpty ? null : parts.join(' · ');
-  }
-
-  /// A próxima partida relevante: chamada de quadra e ao vivo primeiro, depois
-  /// a mais cedo do dia. Mesma precedência de `athleteMatchPriority`.
-  TournamentMatch? _nextMatchOf(List<TournamentMatch> day) {
-    final mine = day
-        .where((m) => !TournamentMatchStatus.isCompleted(m.status))
-        .toList();
-    if (mine.isEmpty) return null;
-    for (final m in mine) {
-      if (m.queueStatus == kQueueStatusOnCourt) return m;
-    }
-    for (final m in mine) {
-      if (TournamentMatchStatus.isInProgress(m.status)) return m;
-    }
-    return mine.first;
+    return items;
   }
 }
 

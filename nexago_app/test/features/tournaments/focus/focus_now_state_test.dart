@@ -8,6 +8,7 @@ TournamentMatch _match({
   String status = TournamentMatchStatus.scheduled,
   String queueStatus = '',
   DateTime? matchStartedAt,
+  DateTime? scheduleTime,
 }) {
   return TournamentMatch(
     id: id,
@@ -25,6 +26,7 @@ TournamentMatch _match({
     matchNumber: 1,
     queueStatus: queueStatus,
     matchStartedAt: matchStartedAt,
+    scheduleTime: scheduleTime,
   );
 }
 
@@ -167,6 +169,70 @@ void main() {
         eliminatedFromKnockout([ko(id: 'slot')], 'c1', const {'meu'}),
         isFalse,
       );
+    });
+  });
+
+  group('pickAthleteFocusNextMatch', () {
+    test('escolhe partida de outro dia quando não há jogo hoje', () {
+      final next = pickAthleteFocusNextMatch(
+        [
+          _match(
+            id: 'amanha',
+            scheduleTime: DateTime(2026, 9, 17, 14),
+          ),
+        ],
+        const {'meu'},
+      );
+      expect(next?.id, 'amanha');
+    });
+
+    test('chamada de quadra vence partida agendada amanhã', () {
+      final next = pickAthleteFocusNextMatch(
+        [
+          _match(
+            id: 'amanha',
+            scheduleTime: DateTime(2026, 9, 17, 14),
+          ),
+          _match(id: 'chamada', queueStatus: 'on_court'),
+        ],
+        const {'meu'},
+      );
+      expect(next?.id, 'chamada');
+    });
+
+    test('entre agendadas, pega a mais cedo', () {
+      final next = pickAthleteFocusNextMatch(
+        [
+          _match(
+            id: 'depois',
+            scheduleTime: DateTime(2026, 9, 20, 10),
+          ),
+          _match(
+            id: 'antes',
+            scheduleTime: DateTime(2026, 9, 18, 10),
+          ),
+        ],
+        const {'meu'},
+      );
+      expect(next?.id, 'antes');
+    });
+
+    test('ignora partida concluída', () {
+      final next = pickAthleteFocusNextMatch(
+        [
+          _match(
+            id: 'feita',
+            status: TournamentMatchStatus.completed,
+            scheduleTime: DateTime(2026, 9, 16, 10),
+          ),
+          _match(
+            id: 'proxima',
+            scheduleTime: DateTime(2026, 9, 19, 10),
+          ),
+        ],
+        const {'meu'},
+      );
+      expect(next?.id, 'proxima');
     });
   });
 }

@@ -1466,10 +1466,12 @@ git commit -m "feat(withdrawal): payout e revisao liberam a reserva do caixa do 
 - Consumes: `listWithdrawableTournamentIds` (Task 6), `tournamentWalletRef` (Task 2),
   `loadPayoutPixKey` (Task 5), `resolveLedgerAthleteLabels` (já existe no arquivo).
 - Produces: a callable devolve
-  `{tournaments: Array<{tournamentId, tournamentName, availableReais, pendingReais, canWithdraw}>,
+  `{tournaments: Array<{tournamentId, tournamentName, availableReais, pendingReais}>,
     selected: {tournamentId, tournamentName, availableReais, pendingReais},
     payout: {pixKey, pixKeyType, hasPixKey},
     ledger: […], withdrawals: […]}`.
+  Sem campo `canWithdraw`: a lista vem de `listWithdrawableTournamentIds`, que já é
+  só de caixas de onde quem chamou pode sacar — o campo seria constante `true`.
   Função pura exportada: `buildWalletViewRows(tournaments, wallets)` →
   as linhas do seletor, ordenadas por saldo disponível decrescente e, em empate,
   por nome.
@@ -2446,3 +2448,23 @@ cd <worktree>/functions && npx firebase functions:list --project volley-track-de
 A migração (Task 13) roda **depois** do deploy das functions, senão o crédito novo
 ainda cai na carteira antiga durante a janela. Produção fica intocada até o dono
 decidir, e depois da Fase 2 estar publicada.
+
+### Corrigido durante a execução (16/09/2026): a Fase 2 é pré-requisito
+
+Este plano dizia que a janela entre o deploy das functions e a publicação do
+portal apenas mostraria "saldo congelado". Está errado, e a Task 9 provou: ela
+muda o **formato** do retorno de `loadOrganizerWalletView` — de
+`{wallets, selected: {organizerId, …}}` para `{tournaments, selected: {tournamentId, …}}` —
+e o portal publicado (`frontend/projects/organizer/src/app/painel/data/wallet-repository.ts`
+e `financeiro.component.ts`) lê o formato antigo. Deployar as functions antes da
+Fase 2 **quebra a tela Financeiro**; não a deixa desatualizada.
+
+Consequência: rules, functions e migração podem ir ao DEV para teste a qualquer
+momento, mas em PRODUÇÃO o deploy só faz sentido junto com a Fase 2. Nenhum
+dinheiro se perde nessa janela — o que se perde é a tela.
+
+Atenção antes de começar a Fase 2: existe um worktree irmão do portal
+(`frontend/projects/organizer/.claude/worktrees/laughing-haibt-7f7439`, parado no
+commit de main `01911e6b`) com cópia própria desses dois arquivos. Conferir se há
+trabalho em curso ali antes de editar — este repo já perdeu trabalho por sessões
+paralelas no mesmo arquivo.

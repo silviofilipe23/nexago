@@ -40,7 +40,7 @@ class MatchDetailPlayByPlaySection extends StatelessWidget {
           children: [
             const Expanded(
               child: MatchDetailSectionHeader(
-                eyebrow: 'PONTO A PONTO',
+                eyebrow: 'AO VIVO',
                 title: 'Últimos lances',
               ),
             ),
@@ -279,10 +279,7 @@ class _MirroredPlayByPlayRow extends StatelessWidget {
 }
 
 class _PlayByPlaySideRow extends StatelessWidget {
-  const _PlayByPlaySideRow({
-    required this.alignment,
-    required this.children,
-  });
+  const _PlayByPlaySideRow({required this.alignment, required this.children});
 
   final Alignment alignment;
   final List<Widget> children;
@@ -294,10 +291,7 @@ class _PlayByPlaySideRow extends StatelessWidget {
       child: FittedBox(
         fit: BoxFit.scaleDown,
         alignment: alignment,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: children,
-        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: children),
       ),
     );
   }

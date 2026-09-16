@@ -1,6 +1,7 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
-
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class MatchDetailInfoSection extends StatelessWidget {
@@ -10,25 +11,31 @@ class MatchDetailInfoSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: context.themeColors.surfaceCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: context.themeColors.surfaceRaised),
-      ),
-      child: Column(
-        children: [
-          for (var i = 0; i < rows.length; i++) ...[
-            rows[i],
-            if (i < rows.length - 1)
-              Divider(
-                height: 1,
-                thickness: 1,
-                color: context.themeColors.surfaceRaised.withValues(alpha: 0.8),
-                indent: 52,
-              ),
-          ],
-        ],
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: Column(
+            children: [
+              for (var i = 0; i < rows.length; i++) ...[
+                rows[i],
+                if (i < rows.length - 1)
+                  Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: Colors.white.withValues(alpha: 0.08),
+                    indent: 52,
+                  ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -56,7 +63,7 @@ class MatchDetailInfoRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, size: 20, color: context.themeColors.onSurfaceMuted),
-          SizedBox(width: 14),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -69,7 +76,7 @@ class MatchDetailInfoRow extends StatelessWidget {
                     letterSpacing: 0.4,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
                   value,
                   style: AppTypography.soraRegular(

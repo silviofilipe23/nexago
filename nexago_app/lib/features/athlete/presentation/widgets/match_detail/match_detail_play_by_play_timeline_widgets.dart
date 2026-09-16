@@ -779,22 +779,10 @@ class PlayByPlaySetSummaryFooter extends StatelessWidget {
           ),
           child: Row(
             children: [
-              _SummaryStat(
-                value: '${summary.maxStreak}',
-                label: 'SEQ. MÁX',
-              ),
-              _SummaryStat(
-                value: '${summary.comebackCount}',
-                label: 'VIRADAS',
-              ),
-              _SummaryStat(
-                value: '${summary.tieCount}',
-                label: 'EMPATES',
-              ),
-              _SummaryStat(
-                value: summary.durationLabel,
-                label: 'DURAÇÃO',
-              ),
+              _SummaryStat(value: '${summary.maxStreak}', label: 'SEQ. MÁX'),
+              _SummaryStat(value: '${summary.comebackCount}', label: 'VIRADAS'),
+              _SummaryStat(value: '${summary.tieCount}', label: 'EMPATES'),
+              _SummaryStat(value: summary.durationLabel, label: 'DURAÇÃO'),
             ],
           ),
         ),

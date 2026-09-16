@@ -66,16 +66,15 @@ String focusMatchCardContext({
 
   return switch (state) {
     TournamentMatchRowState.live => (
-        center: '$setsA-$setsB',
-        detail: _liveDetailOf(match),
-      ),
+      center: '$setsA-$setsB',
+      detail: _liveDetailOf(match),
+    ),
     TournamentMatchRowState.done => (
-        center: '$setsA-$setsB',
-        detail: _closedDetailOf(match),
-      ),
+      center: '$setsA-$setsB',
+      detail: _closedDetailOf(match),
+    ),
     TournamentMatchRowState.scheduled ||
-    TournamentMatchRowState.tbd =>
-      (center: 'vs', detail: null),
+    TournamentMatchRowState.tbd => (center: 'vs', detail: null),
     // "vs" prometeria um jogo que não vai acontecer.
     TournamentMatchRowState.canceled => (center: '—', detail: null),
   };

@@ -284,8 +284,9 @@ class _SetStripCard extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
-                    color:
-                        aWins ? AppColors.win : context.themeColors.onSurface,
+                    color: aWins
+                        ? AppColors.win
+                        : context.themeColors.onSurface,
                   ),
                 ),
                 Text(
@@ -539,8 +540,8 @@ class _ScoreControlButton extends StatelessWidget {
       child: Material(
         color: filled
             ? (enabled
-                ? AppColors.brand
-                : AppColors.brand.withValues(alpha: 0.35))
+                  ? AppColors.brand
+                  : AppColors.brand.withValues(alpha: 0.35))
             : context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
@@ -643,8 +644,9 @@ class _FormatChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color =
-        enabled ? AppColors.brand : context.themeColors.onSurfaceMuted;
+    final color = enabled
+        ? AppColors.brand
+        : context.themeColors.onSurfaceMuted;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1337,8 +1339,9 @@ class _TimeoutTeamCard extends StatelessWidget {
                           shape: BoxShape.circle,
                           color: i < timeoutsUsed
                               ? AppColors.brand
-                              : context.themeColors.onSurfaceMuted
-                                  .withValues(alpha: 0.25),
+                              : context.themeColors.onSurfaceMuted.withValues(
+                                  alpha: 0.25,
+                                ),
                         ),
                       ),
                     ],
@@ -1486,10 +1489,8 @@ class LiveTableTechnicalTimeoutOverlay extends StatelessWidget {
                             painter: _TimeoutRingPainter(
                               progress: progress,
                               color: ringColor,
-                              trackColor:
-                                  context.themeColors.onSurfaceMuted.withValues(
-                                alpha: 0.14,
-                              ),
+                              trackColor: context.themeColors.onSurfaceMuted
+                                  .withValues(alpha: 0.14),
                             ),
                             child: Center(
                               child: Text(
@@ -1517,7 +1518,8 @@ class LiveTableTechnicalTimeoutOverlay extends StatelessWidget {
                               color: AppColors.win.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                  color: AppColors.win.withValues(alpha: 0.4)),
+                                color: AppColors.win.withValues(alpha: 0.4),
+                              ),
                             ),
                             child: Text(
                               'TEMPO ENCERRADO',
@@ -1537,7 +1539,8 @@ class LiveTableTechnicalTimeoutOverlay extends StatelessWidget {
                           children: [
                             if (!isEnded)
                               OutlinedButton.icon(
-                                onPressed: timeout.phase ==
+                                onPressed:
+                                    timeout.phase ==
                                         LiveTableTimeoutPhase.paused
                                     ? onResume
                                     : onPause,
@@ -1780,10 +1783,12 @@ class _PointFeedRow extends StatelessWidget {
         ? team.player1.name.trim().split(' ').first
         : team.label.split('/').first.trim();
     final actionLabel = event.isUndoPoint ? 'Desfeito' : 'Ponto';
-    final description =
-        playerName.isNotEmpty ? '$actionLabel · $playerName' : actionLabel;
-    final dotColor =
-        isSideA ? AppColors.brand : context.themeColors.onSurfaceMuted;
+    final description = playerName.isNotEmpty
+        ? '$actionLabel · $playerName'
+        : actionLabel;
+    final dotColor = isSideA
+        ? AppColors.brand
+        : context.themeColors.onSurfaceMuted;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -2328,11 +2333,11 @@ class _StartingServeOption extends StatelessWidget {
   }
 }
 
-typedef LiveTableQuickScoreSubmit = Future<void> Function(
-    List<TournamentMatchSet> sets, int bestOf);
+typedef LiveTableQuickScoreSubmit =
+    Future<void> Function(List<TournamentMatchSet> sets, int bestOf);
 
-typedef LiveTableQuickScoreWalkover = Future<void> Function(
-    String winnerTeamId);
+typedef LiveTableQuickScoreWalkover =
+    Future<void> Function(String winnerTeamId);
 
 Future<void> showLiveTableQuickScoreSheet({
   required BuildContext context,
@@ -2674,8 +2679,8 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
     final winnerLabel = winnerId == widget.match.teamAId
         ? widget.teamA.label
         : winnerId == widget.match.teamBId
-            ? widget.teamB.label
-            : null;
+        ? widget.teamB.label
+        : null;
     final hasWinner = winnerLabel != null;
 
     return Column(
@@ -2742,7 +2747,8 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
               const SizedBox(height: 20),
               _QuickScoreSectionHeader(
                 title: 'GAMES POR SET',
-                trailing: 'set até ${MatchScoringLogic.defaultSetPoints} · '
+                trailing:
+                    'set até ${MatchScoringLogic.defaultSetPoints} · '
                     'decisivo até ${MatchScoringLogic.tiebreakSetPoints}',
               ),
               const SizedBox(height: 12),
@@ -2819,8 +2825,8 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
                 _saving
                     ? 'Salvando…'
                     : hasWinner
-                        ? 'Confirmar · $winnerLabel venceu'
-                        : 'Confirmar placar',
+                    ? 'Confirmar · $winnerLabel venceu'
+                    : 'Confirmar placar',
               ),
               style: FilledButton.styleFrom(
                 backgroundColor: hasWinner ? AppColors.win : AppColors.brand,
@@ -2874,8 +2880,9 @@ class _QuickScoreSummaryCard extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 32,
                     fontWeight: FontWeight.w800,
-                    color:
-                        aWins ? AppColors.win : context.themeColors.onSurface,
+                    color: aWins
+                        ? AppColors.win
+                        : context.themeColors.onSurface,
                   ),
                 ),
                 Text(
@@ -2908,8 +2915,9 @@ class _QuickScoreSummaryCard extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 32,
                     fontWeight: FontWeight.w800,
-                    color:
-                        bWins ? AppColors.win : context.themeColors.onSurface,
+                    color: bWins
+                        ? AppColors.win
+                        : context.themeColors.onSurface,
                   ),
                 ),
                 Text(
@@ -3203,8 +3211,8 @@ class _QuickScoreNumericFieldState extends State<_QuickScoreNumericField> {
     final borderColor = widget.hasError
         ? AppColors.live.withValues(alpha: 0.65)
         : widget.isWinning
-            ? AppColors.win.withValues(alpha: 0.45)
-            : context.themeColors.onSurfaceMuted.withValues(alpha: 0.22);
+        ? AppColors.win.withValues(alpha: 0.45)
+        : context.themeColors.onSurfaceMuted.withValues(alpha: 0.22);
 
     return SizedBox(
       width: 56,
@@ -3220,8 +3228,8 @@ class _QuickScoreNumericFieldState extends State<_QuickScoreNumericField> {
           color: widget.hasError
               ? AppColors.live
               : widget.isWinning
-                  ? AppColors.win
-                  : context.themeColors.onSurface,
+              ? AppColors.win
+              : context.themeColors.onSurface,
           height: 1.1,
         ),
         decoration: InputDecoration(
@@ -3438,7 +3446,7 @@ String _liveTableEnrichedTeamLabel(
 }
 
 (OrganizerCategoryPlayerInfo, OrganizerCategoryPlayerInfo)
-    _liveTablePlayersFromLabel(String teamLabel, String teamId) {
+_liveTablePlayersFromLabel(String teamLabel, String teamId) {
   final names = teamLabel
       .split('/')
       .map((p) => p.trim())

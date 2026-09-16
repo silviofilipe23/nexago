@@ -1122,6 +1122,9 @@ service cloud.firestore {
     // Caixa do torneio (id = tournamentId). Escrita só pelas Cloud Functions.
     // Leitura: dono do evento e GESTOR da equipe. `eventAdmin` (administrador)
     // opera o torneio mas não vê dinheiro — é esta linha que garante isso.
+    // NÃO trocar por `canManageTournament(tournamentId)`: aquele helper aceita
+    // `eventAdmin` (administrador do evento), e é justamente ele que não pode
+    // ver dinheiro. A duplicação aqui é deliberada.
     match /tournamentWallets/{tournamentId} {
       allow read: if request.auth != null && (
         isSuperAdmin() ||
@@ -1131,6 +1134,7 @@ service cloud.firestore {
       );
       allow create, update, delete: if false;
       match /ledger/{entryId} {
+        // Mesma regra do caixa acima — não usar `canManageTournament`.
         allow read: if request.auth != null && (
           isSuperAdmin() ||
           isAdmin() ||

@@ -11,7 +11,6 @@ import '../../../domain/team_discover_models.dart';
 Future<TeamDiscoverFilters?> showTeamDiscoverFiltersSheet({
   required BuildContext context,
   required TeamDiscoverFilters initial,
-  required int Function(TeamDiscoverFilters draft) previewResultCount,
 }) {
   return showModalBottomSheet<TeamDiscoverFilters>(
     context: context,
@@ -21,22 +20,15 @@ Future<TeamDiscoverFilters?> showTeamDiscoverFiltersSheet({
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (context) {
-      return _TeamDiscoverFiltersSheet(
-        initial: initial,
-        previewResultCount: previewResultCount,
-      );
+      return _TeamDiscoverFiltersSheet(initial: initial);
     },
   );
 }
 
 class _TeamDiscoverFiltersSheet extends StatefulWidget {
-  const _TeamDiscoverFiltersSheet({
-    required this.initial,
-    required this.previewResultCount,
-  });
+  const _TeamDiscoverFiltersSheet({required this.initial});
 
   final TeamDiscoverFilters initial;
-  final int Function(TeamDiscoverFilters draft) previewResultCount;
 
   @override
   State<_TeamDiscoverFiltersSheet> createState() =>
@@ -46,12 +38,6 @@ class _TeamDiscoverFiltersSheet extends StatefulWidget {
 class _TeamDiscoverFiltersSheetState extends State<_TeamDiscoverFiltersSheet> {
   String? _sportId;
   late TeamDiscoverGenderFilter _gender;
-  late TeamDiscoverPartnershipFilter _partnership;
-  late double _distanceKm;
-  late bool _unlimitedDistance;
-  late bool _availableNow;
-  late bool _trendingOnly;
-  late bool _sameRankingRange;
 
   @override
   void initState() {
@@ -59,24 +45,12 @@ class _TeamDiscoverFiltersSheetState extends State<_TeamDiscoverFiltersSheet> {
     final f = widget.initial;
     _sportId = f.sportFirestoreId;
     _gender = f.gender;
-    _partnership = f.partnership;
-    _distanceKm = f.maxDistanceKm.clamp(5, 100);
-    _unlimitedDistance = f.unlimitedDistance;
-    _availableNow = f.availableNowOnly;
-    _trendingOnly = f.trendingOnly;
-    _sameRankingRange = f.sameRankingRangeOnly;
   }
 
   void _clear() {
     setState(() {
       _sportId = null;
       _gender = TeamDiscoverGenderFilter.all;
-      _partnership = TeamDiscoverPartnershipFilter.all;
-      _distanceKm = 50;
-      _unlimitedDistance = true;
-      _availableNow = false;
-      _trendingOnly = false;
-      _sameRankingRange = false;
     });
   }
 
@@ -84,12 +58,13 @@ class _TeamDiscoverFiltersSheetState extends State<_TeamDiscoverFiltersSheet> {
     return widget.initial.copyWith(
       sportFirestoreId: _sportId,
       gender: _gender,
-      partnership: _partnership,
-      maxDistanceKm: _distanceKm,
-      unlimitedDistance: _unlimitedDistance,
-      availableNowOnly: _availableNow,
-      trendingOnly: _trendingOnly,
-      sameRankingRangeOnly: _sameRankingRange,
+      // Removidos da UI — sempre resetados ao aplicar/limpar.
+      partnership: TeamDiscoverPartnershipFilter.all,
+      maxDistanceKm: 50,
+      unlimitedDistance: true,
+      availableNowOnly: false,
+      trendingOnly: false,
+      sameRankingRangeOnly: false,
     );
   }
 
@@ -97,7 +72,6 @@ class _TeamDiscoverFiltersSheetState extends State<_TeamDiscoverFiltersSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final count = widget.previewResultCount(_draft());
     final theme = Theme.of(context);
     final bottom = MediaQuery.paddingOf(context).bottom;
     final sports = teamDiscoverSportFilterOptions();
@@ -106,9 +80,9 @@ class _TeamDiscoverFiltersSheetState extends State<_TeamDiscoverFiltersSheet> {
       padding: EdgeInsets.only(bottom: bottom),
       child: DraggableScrollableSheet(
         expand: false,
-        initialChildSize: 0.88,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
+        initialChildSize: 0.52,
+        minChildSize: 0.35,
+        maxChildSize: 0.85,
         builder: (context, scrollController) {
           return Column(
             children: [
@@ -194,87 +168,6 @@ class _TeamDiscoverFiltersSheetState extends State<_TeamDiscoverFiltersSheet> {
                         });
                       },
                     ),
-                    SizedBox(height: 20),
-                    const _SectionLabel(label: 'STATUS DA PARCERIA'),
-                    _ChipWrap(
-                      options: const ['Todos', 'Ativa', 'Procura dupla'],
-                      selectedLabel: switch (_partnership) {
-                        TeamDiscoverPartnershipFilter.all => 'Todos',
-                        TeamDiscoverPartnershipFilter.active => 'Ativa',
-                        TeamDiscoverPartnershipFilter.lookingForPartner =>
-                          'Procura dupla',
-                      },
-                      onToggle: (label) {
-                        setState(() {
-                          _partnership = switch (label) {
-                            'Ativa' => TeamDiscoverPartnershipFilter.active,
-                            'Procura dupla' =>
-                              TeamDiscoverPartnershipFilter.lookingForPartner,
-                            _ => TeamDiscoverPartnershipFilter.all,
-                          };
-                        });
-                      },
-                    ),
-                    SizedBox(height: 20),
-                    const _SectionLabel(label: 'DISTÂNCIA'),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text('Sem limite de distância'),
-                      value: _unlimitedDistance,
-                      activeThumbColor: AppColors.brand,
-                      onChanged: (v) => setState(() => _unlimitedDistance = v),
-                    ),
-                    if (!_unlimitedDistance) ...[
-                      Text(
-                        'Até ${_distanceKm.round()} km (v1: mesma cidade)',
-                        style: AppTypography.mono(
-                          fontSize: 11,
-                          color: context.themeColors.onSurfaceMuted,
-                        ),
-                      ),
-                      Slider(
-                        value: _distanceKm,
-                        min: 5,
-                        max: 100,
-                        divisions: 19,
-                        activeColor: AppColors.brand,
-                        onChanged: (v) => setState(() => _distanceKm = v),
-                      ),
-                    ],
-                    SizedBox(height: 12),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text('Disponíveis agora'),
-                      subtitle: Text(
-                        'Algum atleta online nos últimos 15 min',
-                        style: TextStyle(fontSize: 11),
-                      ),
-                      value: _availableNow,
-                      activeThumbColor: AppColors.brand,
-                      onChanged: (v) => setState(() => _availableNow = v),
-                    ),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text('Em alta'),
-                      subtitle: Text(
-                        'Ordena por pontos de ranking',
-                        style: TextStyle(fontSize: 11),
-                      ),
-                      value: _trendingOnly,
-                      activeThumbColor: AppColors.brand,
-                      onChanged: (v) => setState(() => _trendingOnly = v),
-                    ),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text('Faixa de ranking similar'),
-                      subtitle: Text(
-                        'Compara com a dupla do seu perfil',
-                        style: TextStyle(fontSize: 11),
-                      ),
-                      value: _sameRankingRange,
-                      activeThumbColor: AppColors.brand,
-                      onChanged: (v) => setState(() => _sameRankingRange = v),
-                    ),
                   ],
                 ),
               ),
@@ -296,7 +189,7 @@ class _TeamDiscoverFiltersSheetState extends State<_TeamDiscoverFiltersSheet> {
                     ),
                   ),
                   child: Text(
-                    'Ver $count duplas',
+                    'Ver duplas',
                     style: TextStyle(fontWeight: FontWeight.w900),
                   ),
                 ),

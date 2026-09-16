@@ -8,7 +8,6 @@ import '../../../core/layout/nexa_page_header.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../athlete/domain/athlete_profile_providers.dart';
 import '../domain/team_discover_providers.dart';
 import 'widgets/team_discover/team_discover_card.dart';
 import 'widgets/team_discover/team_discover_filters_sheet.dart';
@@ -67,10 +66,6 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
     final result = await showTeamDiscoverFiltersSheet(
       context: context,
       initial: state.filters,
-      previewResultCount: (draft) => ref
-          .read(teamDiscoverProvider.notifier)
-          .previewForFilters(draft)
-          .length,
     );
     if (result != null && mounted) {
       ref.read(teamDiscoverProvider.notifier).applyFilters(result);
@@ -82,10 +77,6 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(teamDiscoverProvider);
-    final viewer = ref.watch(athleteProfileProvider).valueOrNull;
-    final cityLabel = viewer?.city.trim().isNotEmpty == true
-        ? viewer!.city.trim()
-        : 'sua região';
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -106,7 +97,6 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _DiscoverAppBar(
-                  subtitle: 'Equipes perto de você · $cityLabel',
                   filtersActive: state.filters.hasActiveFilters,
                   onBack: () => context.pop(),
                   onFilters: _openFilters,
@@ -120,7 +110,7 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
                   ),
                   decoration: InputDecoration(
                     isDense: true,
-                    hintText: 'Nome da dupla, atletas ou cidade…',
+                    hintText: 'Nome da dupla ou atletas',
                     hintStyle: AppTypography.soraRegular(
                       fontSize: 13,
                       color: context.themeColors.onSurfaceMuted,
@@ -175,9 +165,7 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
                 physics: const AlwaysScrollableScrollPhysics(
                   parent: BouncingScrollPhysics(),
                 ),
-                slivers: [
-                  ..._buildBodySlivers(state: state),
-                ],
+                slivers: [..._buildBodySlivers(state: state)],
               ),
             ),
           ),
@@ -189,13 +177,11 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
 
 class _DiscoverAppBar extends StatelessWidget {
   const _DiscoverAppBar({
-    required this.subtitle,
     required this.filtersActive,
     required this.onBack,
     required this.onFilters,
   });
 
-  final String subtitle;
   final bool filtersActive;
   final VoidCallback onBack;
   final VoidCallback onFilters;
@@ -222,27 +208,13 @@ class _DiscoverAppBar extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Duplas',
-                style: AppTypography.soraRegular(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: context.themeColors.onSurface,
-                ),
-              ),
-              Text(
-                subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.soraRegular(
-                  fontSize: 13,
-                  color: context.themeColors.onSurfaceMuted,
-                ),
-              ),
-            ],
+          child: Text(
+            'Duplas',
+            style: AppTypography.soraRegular(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: context.themeColors.onSurface,
+            ),
           ),
         ),
         Stack(
@@ -275,11 +247,7 @@ class _DiscoverAppBar extends StatelessWidget {
 
 List<Widget> _buildBodySlivers({required TeamDiscoverState state}) {
   if (state.isLoading && state.displayEntries.isEmpty) {
-    return const [
-      SliverFillRemaining(
-        child: TeamDiscoverListSkeleton(),
-      ),
-    ];
+    return const [SliverFillRemaining(child: TeamDiscoverListSkeleton())];
   }
 
   if (state.errorMessage != null && state.displayEntries.isEmpty) {

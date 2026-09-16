@@ -1,6 +1,6 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import {resolveWithdrawalRequest} from "./organizer-withdrawal";
+import {resolveWithdrawalRequest, assertTournamentHasOwner} from "./organizer-withdrawal";
 
 describe("resolveWithdrawalRequest", () => {
   it("usa a chave do perfil de quem pede", () => {
@@ -25,11 +25,12 @@ describe("resolveWithdrawalRequest", () => {
     );
   });
 
-  it("torneio vazio (só espaços) falha com invalid-argument, não com erro de I/O", () => {
-    // A ordem importa: isto tem de estourar ANTES de qualquer consulta ao
-    // Firestore. Confere pelo `code` do HttpsError, não pela mensagem — é o
-    // código que garante que o cliente recebe invalid-argument e não um
-    // "internal" cru de um path do Firestore com segmento vazio.
+  it("torneio vazio (só espaços) falha com invalid-argument, não com mensagem crua", () => {
+    // Confere pelo `code` do HttpsError, não pela mensagem — é o código que
+    // garante que o cliente recebe invalid-argument daqui. A ORDEM em que a
+    // callable chama isto (antes do controle de acesso, antes de qualquer
+    // consulta ao Firestore) não é exercitada por este teste — esta função é
+    // pura, sem I/O; aquela garantia foi conferida por leitura do código.
     assert.throws(
       () => resolveWithdrawalRequest({
         tournamentId: "   ", amountReais: 40,
@@ -67,5 +68,24 @@ describe("resolveWithdrawalRequest", () => {
       profilePixKey: "pessoa@exemplo.com", profilePixKeyType: "EMAIL",
     });
     assert.equal(out.amount, 40.01);
+  });
+});
+
+describe("assertTournamentHasOwner", () => {
+  it("torneio sem managerId (string vazia) é recusado com failed-precondition", () => {
+    // `assertCanWithdrawFromTournament` libera esse uid pelo caminho de super
+    // admin, que não garante managerId preenchido — sem esta guarda o saque
+    // gravaria organizerId: "" e ficaria órfão, fora da fila do backoffice.
+    assert.throws(
+      () => assertTournamentHasOwner(""),
+      (err: unknown) => {
+        assert.equal((err as {code?: string}).code, "failed-precondition");
+        return true;
+      },
+    );
+  });
+
+  it("torneio com dono definido passa direto", () => {
+    assert.doesNotThrow(() => assertTournamentHasOwner("donoUid"));
   });
 });

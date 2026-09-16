@@ -122,6 +122,9 @@ export function resolveWithdrawalRequest(params: {
   profilePixKey: string;
   profilePixKeyType: string;
 }): {amount: number; pixKey: string; pixKeyType: string} {
+  // Revalida a forma mesmo quando a callable já validou antes do controle de
+  // acesso — aqui é no-op (os valores já vieram trimados e positivos), mas
+  // mantém esta função íntegra pra quem a chamar direto, fora da callable.
   const {amountReais} = validateWithdrawalRequestShape(params);
   const pixKey = params.profilePixKey.trim();
   if (pixKey.length < 5) {
@@ -135,6 +138,20 @@ export function resolveWithdrawalRequest(params: {
     pixKey,
     pixKeyType: params.profilePixKeyType.trim().toUpperCase(),
   };
+}
+
+/**
+ * `assertCanWithdrawFromTournament` libera por dono, por gestor da equipe OU
+ * por super admin — o caminho de super admin alcança qualquer torneio,
+ * inclusive um com `managerId` malformado/ausente. Sem esta guarda, um saque
+ * assim grava `organizerId: ""` no doc e nunca aparece na fila do backoffice
+ * nem no payout: o PIX ainda vai pra chave de quem pediu (não é desvio), mas
+ * o registro do saque fica órfão, sem ninguém pra encontrá-lo depois.
+ */
+export function assertTournamentHasOwner(ownerId: string): void {
+  if (!ownerId) {
+    throw new HttpsError("failed-precondition", "Torneio sem responsável definido.");
+  }
 }
 
 /** Um saque pendente por CAIXA: vários gestores sacam do mesmo dinheiro, então
@@ -238,6 +255,7 @@ export const requestOrganizerWithdrawal = onCall(
       (tournamentSnap.data()?.managerId as string | undefined)?.trim() ?? "";
     const tournamentName =
       (tournamentSnap.data()?.name as string | undefined)?.trim() ?? "";
+    assertTournamentHasOwner(ownerId);
     const delegated = ownerId !== uid;
 
     try {

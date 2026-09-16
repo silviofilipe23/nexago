@@ -20,8 +20,9 @@ resolve o sintoma, mas mantém dois defeitos de fundo: o KPI do Início continua
 lendo a carteira própria (R$ 0,00 para o gestor), e o dinheiro de N eventos fica
 num balaio único por pessoa.
 
-Decisão do dono: **o caixa passa a ser do torneio**, e qualquer organizador da
-equipe saca quando quiser, para a própria chave PIX.
+Decisão do dono: **o caixa passa a ser do torneio**, e qualquer **gestor** da
+equipe saca quando quiser, para a própria chave PIX — com um papel novo,
+"administrador", para quem opera o evento sem tocar no dinheiro.
 
 ## Decisões tomadas
 
@@ -33,11 +34,40 @@ equipe saca quando quiser, para a própria chave PIX.
 | Escopo | Portal web **e** app Flutter na mesma entrega |
 | Modelo | Coleção própria `tournamentWallets/{tournamentId}` |
 | Torneio excluído com saldo | Exclusão **recusada** enquanto houver saldo |
+| Quem opera sem tocar no dinheiro | Papel novo `eventAdmin` ("Administrador") |
 
 Risco aceito explicitamente pelo dono: como a chave é de quem saca e a equipe é
 adicionada pelo dono sem convite/aceite, qualquer gestor passa a poder transferir
 o caixa do evento para a conta dele. O contrapeso escolhido foi a notificação ao
-dono, não a aprovação prévia.
+dono, não a aprovação prévia — mais o papel novo abaixo, que dá o alcance
+operacional sem dar o dinheiro.
+
+## Papéis da equipe do torneio
+
+Hoje existem dois: `manager` (gestor) e `scorer` (mesário). Entra um terceiro.
+
+| Papel | Rótulo | Opera o evento | Vê o caixa | Saca | Exclui o evento |
+|---|---|---|---|---|---|
+| `manager` | gestor | sim | sim | **sim** | sim |
+| `eventAdmin` | administrador | sim | **não** | não | não |
+| `scorer` | mesário | só placar | não | não | não |
+
+O papel se chama `eventAdmin` no código de propósito: `admin` já significa
+administrador **da plataforma** nas rules (`isAdmin()`), e reusar a palavra num
+papel de staff viraria armadilha de leitura em cima de dinheiro.
+
+"Não vê o caixa" quer dizer: sem tela Financeiro, sem saldo, sem extrato de
+repasse e sem os totais de arrecadação. Ele **continua** vendo pago/pendente por
+inscrição, que é operação de credenciamento — mesma fronteira que a decisão de
+02/07/2026 já tinha traçado para o gestor no app.
+
+Quem adiciona a equipe continua sendo só o dono (e o super admin, por suporte).
+É essa trava que faz o papel valer algo: um administrador não consegue se
+promover a gestor para sacar.
+
+`staffRoleGrantsOrganizerAccess` já libera o portal para qualquer papel que não
+seja `scorer`, então o administrador entra no portal sem mudança. O que muda é o
+que ele encontra lá.
 
 ## Modelo de dados
 
@@ -102,8 +132,10 @@ explicação do saldo zerado por recebimento direto (`wallet-view.ts`,
 
 `requestOrganizerWithdrawal` passa a receber `tournamentId`:
 
-1. **Autorização** — dono do torneio (`managerId`) ou gestor ativo da equipe.
-   Mesário (`scorer`) não. Super admin continua alcançando.
+1. **Autorização** — dono do torneio (`managerId`) ou `manager` ativo da equipe.
+   `eventAdmin` e `scorer` recebem `permission-denied` mesmo mandando
+   `tournamentId` na mão — a regra vive no servidor, não na tela. Super admin
+   continua alcançando.
 2. **Chave PIX** — sempre do `organizerPayoutProfiles/{uid do solicitante}`. O
    payload não escolhe destino (mesma garantia de `resolveWithdrawalPixSource`,
    agora sem o caso delegado). Sem chave cadastrada → `failed-precondition`
@@ -158,6 +190,26 @@ Os dois helpers já existem (`tournamentManagerId`, `isTournamentStaff` em
 `firestore.rules:93`), então o custo é pequeno. **Medir o orçamento de expressões
 antes e depois** — o arquivo já bateu no teto de 1000 antes.
 
+A leitura do caixa é `['manager']` de propósito: é ela que mantém o
+administrador fora do dinheiro.
+
+### O papel novo nas rules
+
+`canManageTournament` (`firestore.rules:101`, 9 usos) passa a aceitar
+`['manager', 'eventAdmin']`. O custo é zero — `allowedRoles.hasAny([...])` compara
+uma lista já carregada, sem `get` adicional — e cobre de uma vez os pontos
+operacionais: partidas (`:285`, `:2114`, `:2120`), leitura da equipe (`:1986`),
+comunicações por categoria (`:2004`), passes de vaga (`:2352`, `:2366`) e `:2086`.
+Nenhum deles toca carteira — conferido um por um.
+
+Os pontos que listam o papel na mão decidem o resto:
+
+- `allow update` de `tournaments` (`:1968`) ganha `eventAdmin` — ele edita o evento
+- `allow delete` de `tournaments` (`:1981`) **fica em `['manager']`** — ele não exclui
+- `tournaments/{id}/staff` create/update segue dono-only, e a validação
+  `request.resource.data.role in ['manager', 'scorer']` ganha `'eventAdmin'`
+- `tournamentWallets` e o `ledger`: `['manager']`
+
 **Armadilha conhecida:** `isTournamentStaff` exige `role == 'manager'` explícito,
 enquanto a CF (`staffRoleGrantsOrganizerAccess`, `buildStaffMirrorData`) trata
 papel **ausente** como gestor. Um doc de staff legado sem `role` sacaria pelo
@@ -193,6 +245,16 @@ campo. O teste de rules cobre o doc sem `role` para registrar o comportamento.
 - `painel/data/wallet-view.ts`: `tournamentsOfWallet` é **removida** com seu spec
   (o recorte agora é o próprio caixa) e `shouldExplainZeroBalance` passa a
   receber o `collectedViaOrganizerCents` de um evento só.
+- **Guard novo** no menu e na rota `/painel/financeiro`: hoje não existe nenhum
+  (qualquer staff que entra no portal vê o item). Passa a exigir dono ou
+  `manager` em algum torneio; o administrador não vê o item, e o KPI de saldo do
+  Início também não aparece para ele. Deep-link no Financeiro cai numa tela
+  dizendo que o financeiro é do dono e dos gestores — e, mesmo que caísse na
+  tela, as rules e a callable já negam.
+- **Equipe** (`painel/equipe/equipe.component.ts`): terceiro chip na adição e na
+  troca de papel, terceiro KPI de contagem, e uma linha dizendo que
+  administrador não mexe em dinheiro. `ROLE_TONE`, `ROLE_TAB` e `ROLE_REF`
+  (`:29-31`) ganham a entrada.
 
 ### App Flutter
 
@@ -200,6 +262,11 @@ campo. O teste de rules cobre o doc sem `role` para registrar o comportamento.
 `domain/organizer_wallet_providers.dart` e
 `presentation/organizer_financial_page.dart` (667 linhas) — mesma lista por
 evento. É a parte mais longa da entrega.
+
+O guard de staff (`hasActiveTournamentStaffAccess`,
+`isOrganizerStaffOperablePath`) passa a conhecer `eventAdmin`: ele opera o
+torneio e não alcança carteira nem financeiro do organizador. `scorer` continua
+caindo direto em Partidas.
 
 ### Backoffice
 
@@ -233,8 +300,10 @@ Volume pequeno, migração barata. PROD tem de ser medido antes de rodar.
 **Functions (`node --test`):**
 - crédito da inscrição paga vai para `tournamentWallets/{tournamentId}`, com
   `ownerId` do `managerId`
-- saque autorizado para dono e gestor ativo; negado para mesário, para estranho e
-  para gestor `status != 'active'`
+- saque autorizado para dono e gestor ativo; negado para **administrador**, para
+  mesário, para estranho e para gestor `status != 'active'`
+- `staffRoleLabel('eventAdmin')` devolve "administrador" (a notificação de adição
+  à equipe usa esse rótulo, e hoje qualquer papel desconhecido volta "gestor")
 - chave PIX é sempre a do solicitante, inclusive com `pixKey` adulterada no
   payload
 - sem chave cadastrada, o saque falha pedindo cadastro
@@ -243,12 +312,21 @@ Volume pequeno, migração barata. PROD tem de ser medido antes de rodar.
 - reserva e liberação do `pendingReais` do caixa do torneio
 
 **Rules (`functions/test/*.rules.test.mjs`):** leitura do caixa pelo dono, por
-gestor ativo, negada para mesário/estranho/anônimo; doc de staff **sem** `role`;
-escrita sempre negada; `organizerPayoutProfiles` só do dono; delete de torneio
-recusado com saldo e permitido com caixa zerado.
+gestor ativo, negada para **administrador**/mesário/estranho/anônimo; doc de
+staff **sem** `role`; escrita sempre negada; `organizerPayoutProfiles` só do
+dono; delete de torneio recusado com saldo e permitido com caixa zerado.
+
+Para o papel novo, os testes que importam são os de fronteira — cada um vale por
+uma decisão desta sessão: administrador **edita** o torneio mas **não exclui**;
+administrador escreve partidas e lê a equipe; administrador **não** lê
+`tournamentWallets` nem o `ledger`; o dono consegue criar staff com
+`role: 'eventAdmin'` e o próprio administrador **não** consegue criar nem se
+promover a `manager`.
 
 **Portal (specs Angular):** funções puras da lista de caixas, soma do KPI do
-Início, explicação do zero por evento.
+Início, explicação do zero por evento, e o predicado do guard do Financeiro
+(dono sim, gestor sim, administrador não, mesário não) — função pura testada
+fora do componente, como `staff-permissions.spec.ts` já faz.
 
 **App (Flutter):** repositório e tela do financeiro por evento.
 
@@ -274,3 +352,8 @@ PROD segue intocado até o dono decidir — mesma postura de `platform-fees-plan
 - Rateio automático entre organizadores (dividir o caixa em cotas) — o saque é
   manual, quem saca decide o valor.
 - Aprovação prévia do dono para saque de gestor (descartada explicitamente).
+- Permissão por área, como a arena tem (4 cargos sobre 9 áreas, em
+  `arena-team-rbac`). Aqui são três papéis fixos: se no futuro aparecer "vê
+  chaves mas não inscrições", é aí que o modelo muda — e o lugar já está
+  preparado, porque tudo passa por `canManageTournament`.
+- Teto de saque por pessoa e limite de quantos gestores um torneio pode ter.

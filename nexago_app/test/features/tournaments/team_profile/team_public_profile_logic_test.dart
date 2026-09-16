@@ -186,6 +186,71 @@ void main() {
       expect(entries.last.opponentLabel, 'Lima/Santos');
       expect(entries.last.wins, 1);
     });
+
+    test('prefere o nome da equipe ao apelido da vaga na chave', () {
+      final matches = [
+        _match(
+          id: 'm1',
+          tournamentId: 't1',
+          teamAId: ourTeamId,
+          teamBId: opponentId,
+          status: TournamentMatchStatus.completed,
+          winnerId: ourTeamId,
+          matchType: 'Semifinal',
+          teamBDescription: 'Vencedor do Jogo 3',
+        ),
+      ];
+
+      final entries = buildTeamHeadToHead(
+        matches: matches,
+        teamId: ourTeamId,
+        teamDisplayNames: const {opponentId: 'Duarte/Reis'},
+      );
+
+      expect(entries.single.opponentLabel, 'Duarte/Reis');
+    });
+
+    test('cai no apelido da vaga só quando a equipe não resolve', () {
+      final matches = [
+        _match(
+          id: 'm1',
+          tournamentId: 't1',
+          teamAId: opponentId,
+          teamBId: ourTeamId,
+          status: TournamentMatchStatus.completed,
+          winnerId: ourTeamId,
+          matchType: 'Semifinal',
+          teamADescription: 'Vencedor do Jogo 3',
+        ),
+      ];
+
+      final entries = buildTeamHeadToHead(
+        matches: matches,
+        teamId: ourTeamId,
+      );
+
+      expect(entries.single.opponentLabel, 'Vencedor do Jogo 3');
+    });
+
+    test('nunca expõe o id cru da equipe adversária', () {
+      final matches = [
+        _match(
+          id: 'm1',
+          tournamentId: 't1',
+          teamAId: ourTeamId,
+          teamBId: opponentId,
+          status: TournamentMatchStatus.completed,
+          winnerId: ourTeamId,
+        ),
+      ];
+
+      final entries = buildTeamHeadToHead(
+        matches: matches,
+        teamId: ourTeamId,
+      );
+
+      expect(entries.single.opponentLabel, 'Adversário');
+    });
   });
 
   group('teamProfileDisplayName', () {

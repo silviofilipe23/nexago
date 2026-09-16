@@ -160,6 +160,11 @@ class TournamentGroupViewPage extends ConsumerWidget {
                             group: group,
                             qualifiersPerGroup: qualifiersPerGroup,
                           ),
+                          // Mesma legenda da aba Grupos: aqui a tabela aparece
+                          // sozinha, sem nada explicando PF/PT/SP.
+                          TournamentGroupStandingsFooter(
+                            qualifiersPerGroup: qualifiersPerGroup,
+                          ),
                           Padding(
                             padding: const EdgeInsets.fromLTRB(
                               AppSpacing.screenH,

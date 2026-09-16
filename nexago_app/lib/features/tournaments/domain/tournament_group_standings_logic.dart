@@ -32,6 +32,8 @@ class TournamentPoolStandingsRow {
     required this.losses,
     required this.setsWon,
     required this.setsLost,
+    required this.gamesWon,
+    required this.gamesLost,
     required this.points,
     required this.qualifies,
     required this.isAthleteTeam,
@@ -44,11 +46,26 @@ class TournamentPoolStandingsRow {
   final int losses;
   final int setsWon;
   final int setsLost;
+
+  /// Pontos feitos (PF) — soma dos pontos de todos os sets do grupo. Fica em 0
+  /// quando o placar foi lançado só como contagem de sets, sem detalhe de pontos.
+  final int gamesWon;
+
+  /// Pontos tomados (PT) — contraparte de [gamesWon].
+  final int gamesLost;
+
   final int points;
   final bool qualifies;
   final bool isAthleteTeam;
 
   String get setsForDisplay => '$setsWon-$setsLost';
+
+  /// Saldo de pontos (SP) — é o 1º desempate da classificação, depois das
+  /// vitórias, em `computePoolStandings`.
+  int get pointsDiff => gamesWon - gamesLost;
+
+  String get pointsDiffLabel =>
+      pointsDiff > 0 ? '+$pointsDiff' : '$pointsDiff';
 }
 
 class TournamentPoolStandingsGroup {
@@ -490,6 +507,8 @@ List<TournamentPoolStandingsGroup> buildPoolStandingsGroups({
           losses: stats.losses,
           setsWon: stats.setsWon,
           setsLost: stats.setsLost,
+          gamesWon: stats.gamesWon,
+          gamesLost: stats.gamesLost,
           points: stats.wins * 2,
           qualifies: rank <= safeQualifiers,
           isAthleteTeam: athleteTeamIds.contains(teamId),

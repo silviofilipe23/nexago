@@ -270,6 +270,110 @@ void main() {
       expect(group.rows.first.isAthleteTeam, isTrue);
     });
 
+    test('carries points scored and conceded so the standings can show the balance', () {
+      // Saldo de pontos e o 1o desempate da classificacao (depois das vitorias),
+      // entao a linha precisa carregar PF/PT para a tabela conseguir explicar a ordem.
+      final matches = [
+        _groupMatch(
+          id: 'm1',
+          poolId: 'A',
+          teamAId: 't1',
+          teamBId: 't2',
+          winnerId: 't1',
+          sets: const [TournamentMatchSet(a: 6, b: 3)],
+          matchNumber: 1,
+        ),
+        _groupMatch(
+          id: 'm2',
+          poolId: 'A',
+          teamAId: 't2',
+          teamBId: 't3',
+          winnerId: 't2',
+          sets: const [TournamentMatchSet(a: 6, b: 4)],
+          matchNumber: 2,
+        ),
+      ];
+
+      final groups = buildPoolStandingsGroups(
+        poolMatches: matches,
+        cardsById: const {},
+        qualifiersPerGroup: 2,
+        athleteTeamIds: const {},
+      );
+
+      final rowsById = {
+        for (final row in groups.single.rows) row.teamId: row,
+      };
+
+      expect(rowsById['t1']!.gamesWon, 6);
+      expect(rowsById['t1']!.gamesLost, 3);
+      expect(rowsById['t1']!.pointsDiff, 3);
+
+      expect(rowsById['t2']!.gamesWon, 9);
+      expect(rowsById['t2']!.gamesLost, 10);
+      expect(rowsById['t2']!.pointsDiff, -1);
+
+      expect(rowsById['t3']!.gamesWon, 4);
+      expect(rowsById['t3']!.gamesLost, 6);
+      expect(rowsById['t3']!.pointsDiff, -2);
+    });
+
+    test('labels the points balance with an explicit sign', () {
+      final matches = [
+        _groupMatch(
+          id: 'm1',
+          poolId: 'A',
+          teamAId: 't1',
+          teamBId: 't2',
+          winnerId: 't1',
+          sets: const [TournamentMatchSet(a: 6, b: 3)],
+          matchNumber: 1,
+        ),
+      ];
+
+      final rowsById = {
+        for (final row in buildPoolStandingsGroups(
+          poolMatches: matches,
+          cardsById: const {},
+          qualifiersPerGroup: 2,
+          athleteTeamIds: const {},
+        ).single.rows)
+          row.teamId: row,
+      };
+
+      expect(rowsById['t1']!.pointsDiffLabel, '+3');
+      expect(rowsById['t2']!.pointsDiffLabel, '-3');
+    });
+
+    test('keeps the points balance at zero when matches carry no set scores', () {
+      // Placar lancado so como contagem de sets (sem detalhe de pontos): PF/PT
+      // nao existem, entao o saldo e zero — igual ao portal do organizador.
+      final matches = [
+        _groupMatch(
+          id: 'm1',
+          poolId: 'A',
+          teamAId: 't1',
+          teamBId: 't2',
+          winnerId: 't1',
+          resultA: '2',
+          resultB: '0',
+          matchNumber: 1,
+        ),
+      ];
+
+      final row = buildPoolStandingsGroups(
+        poolMatches: matches,
+        cardsById: const {},
+        qualifiersPerGroup: 2,
+        athleteTeamIds: const {},
+      ).single.rows.first;
+
+      expect(row.gamesWon, 0);
+      expect(row.gamesLost, 0);
+      expect(row.pointsDiff, 0);
+      expect(row.pointsDiffLabel, '0');
+    });
+
     test('resolves team names from match descriptions when cards only have ids', () {
       final matches = [
         _groupMatch(

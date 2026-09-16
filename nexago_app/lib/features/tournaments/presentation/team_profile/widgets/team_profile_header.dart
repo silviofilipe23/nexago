@@ -18,14 +18,13 @@ class TeamProfileHeader extends StatelessWidget {
     required this.onBack,
   });
 
-  static const coverHeight = 220.0;
-  static const avatarSize = 96.0;
-  static const avatarOverlap = 48.0;
+  /// Mesma proporção da capa do perfil público — banner largo, sem altura
+  /// fixa que estreita o recorte da arte.
+  static const coverAspectRatio = 4 / 3;
+  static const avatarSize = 120.0;
 
-  /// Capa + a parte do avatar que invade o corpo. O `Stack` precisa dessa
-  /// altura, e não só a da capa: hit test não alcança filho pintado fora dos
-  /// limites do pai, e a metade de baixo do avatar ficaria surda ao toque.
-  static const _stackHeight = coverHeight - avatarOverlap + avatarSize;
+  /// Quanto o avatar sobe sobre a capa (maior = mais sobreposição na arte).
+  static const avatarOverlap = 96.0;
 
   final TeamPublicProfile profile;
   final VoidCallback onBack;
@@ -47,11 +46,14 @@ class TeamProfileHeader extends StatelessWidget {
     final subtitleParts = <String>[sport];
     // if (together.isNotEmpty) subtitleParts.add('juntos há $together');
 
+    final coverHeight = MediaQuery.sizeOf(context).width / coverAspectRatio;
+    final stackHeight = coverHeight - avatarOverlap + avatarSize;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
-          height: _stackHeight,
+          height: stackHeight,
           child: Stack(
             clipBehavior: Clip.none,
             alignment: Alignment.topCenter,
@@ -77,8 +79,8 @@ class TeamProfileHeader extends StatelessWidget {
               ),
               if (profile.ranking.hasRank)
                 Positioned(
-                  top: MediaQuery.paddingOf(context).top + 56,
-                  right: 20,
+                  top: MediaQuery.paddingOf(context).top + 4,
+                  right: 12,
                   child: _RankingBadge(rank: profile.ranking.rank!),
                 ),
               Positioned(
@@ -107,11 +109,11 @@ class TeamProfileHeader extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                subtitleParts.join(' · '),
+                subtitleParts.join(' · ').toUpperCase(),
                 textAlign: TextAlign.center,
-                style: AppTypography.soraRegular(
+                style: AppTypography.mono(
                   fontSize: 13,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w400,
                   color: context.themeColors.onSurfaceMuted,
                 ),
               ),
@@ -140,11 +142,11 @@ class _TeamAvatars extends StatelessWidget {
   final TeamPublicProfile profile;
 
   static double _avatarSizeFor(int count) => switch (count) {
-        <= 2 => TeamProfileHeader.avatarSize * 0.82,
-        3 => TeamProfileHeader.avatarSize * 0.68,
-        4 => TeamProfileHeader.avatarSize * 0.60,
-        _ => TeamProfileHeader.avatarSize * 0.54,
-      };
+    <= 2 => TeamProfileHeader.avatarSize,
+    3 => TeamProfileHeader.avatarSize * 0.82,
+    4 => TeamProfileHeader.avatarSize * 0.72,
+    _ => TeamProfileHeader.avatarSize * 0.64,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -189,10 +191,10 @@ class _TeamAvatars extends StatelessWidget {
                 onTap: galleryIndexes[i] == null
                     ? null
                     : () => openProfilePhotoViewer(
-                          context,
-                          photoUrls: photoUrls,
-                          initialIndex: galleryIndexes[i]!,
-                        ),
+                        context,
+                        photoUrls: photoUrls,
+                        initialIndex: galleryIndexes[i]!,
+                      ),
               ),
             ),
         ],
@@ -202,36 +204,61 @@ class _TeamAvatars extends StatelessWidget {
 }
 
 /// Avatar de um integrante — tocável só quando há foto para ampliar.
-class _MemberAvatar extends StatelessWidget {
-  const _MemberAvatar({
-    required this.member,
-    required this.size,
-    this.onTap,
-  });
+class _MemberAvatar extends StatefulWidget {
+  const _MemberAvatar({required this.member, required this.size, this.onTap});
 
   final TeamMemberEntry member;
   final double size;
   final VoidCallback? onTap;
 
   @override
+  State<_MemberAvatar> createState() => _MemberAvatarState();
+}
+
+class _MemberAvatarState extends State<_MemberAvatar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _press = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 110),
+    reverseDuration: const Duration(milliseconds: 180),
+  );
+  late final Animation<double> _scale = Tween<double>(
+    begin: 1,
+    end: 0.92,
+  ).animate(CurvedAnimation(parent: _press, curve: Curves.easeOutCubic));
+
+  @override
+  void dispose() {
+    _press.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleTap() async {
+    final tap = widget.onTap;
+    if (tap == null) return;
+    await _press.forward();
+    await _press.reverse();
+    if (!mounted) return;
+    tap();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final profile = member.profile;
+    final profile = widget.member.profile;
     final avatar = AthleteProfileAvatar(
-      size: size,
+      size: widget.size,
       initials: profile != null ? athleteInitials(profile) : '?',
       imageUrl: profile?.avatarUrl,
     );
 
-    final tap = onTap;
-    if (tap == null || profile == null) return avatar;
+    if (widget.onTap == null || profile == null) return avatar;
 
     return Semantics(
       button: true,
       label: 'Ampliar foto de ${athleteDisplayName(profile)}',
-      child: InkWell(
-        onTap: tap,
-        customBorder: const CircleBorder(),
-        child: avatar,
+      child: GestureDetector(
+        onTap: _handleTap,
+        child: ScaleTransition(scale: _scale, child: avatar),
       ),
     );
   }
@@ -320,10 +347,10 @@ class _RankingBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final metal = _RankingBadgeMetal.of(rank);
     const radius = BorderRadius.all(Radius.circular(14));
-    final fill = metal?.fill ?? AppColors.white.withValues(alpha: 0.14);
-    final border = metal?.border ?? AppColors.white.withValues(alpha: 0.28);
-    final labelColor = metal?.label ?? AppColors.white.withValues(alpha: 0.72);
-    final valueColor = metal?.value ?? AppColors.white;
+    final fill = metal?.fill ?? Colors.black.withValues(alpha: 0.01);
+    final border = metal?.border ?? Colors.white.withValues(alpha: 0.18);
+    final labelColor = metal?.label ?? Colors.white.withValues(alpha: 0.85);
+    final valueColor = metal?.value ?? Colors.white;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -341,7 +368,8 @@ class _RankingBadge extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: radius,
               gradient: metal?.sheen,
-              color: metal == null ? fill : null,
+              // Sempre um véu leve por baixo do sheen — o blur da capa aparece.
+              color: fill,
               border: Border.all(color: border, width: metal == null ? 1 : 1.2),
             ),
             child: Column(
@@ -397,52 +425,52 @@ class _RankingBadgeMetal {
     switch (rank) {
       case 1:
         return _RankingBadgeMetal(
-          fill: const Color(0xFFFFD700).withValues(alpha: 0.28),
-          border: const Color(0xFFFFE566).withValues(alpha: 0.85),
+          fill: const Color(0xFFFFD700).withValues(alpha: 0.14),
+          border: const Color(0xFFFFE566).withValues(alpha: 0.55),
           label: const Color(0xFFFFF1B0),
           value: const Color(0xFFFFF8D6),
-          glow: const Color(0xFFFFD700).withValues(alpha: 0.55),
+          glow: const Color(0xFFFFD700).withValues(alpha: 0.35),
           sheen: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              const Color(0xFFFFF6C8).withValues(alpha: 0.42),
-              const Color(0xFFFFD700).withValues(alpha: 0.22),
-              const Color(0xFFFFB800).withValues(alpha: 0.30),
+              const Color(0xFFFFF6C8).withValues(alpha: 0.28),
+              const Color(0xFFFFD700).withValues(alpha: 0.12),
+              const Color(0xFFFFB800).withValues(alpha: 0.18),
             ],
           ),
         );
       case 2:
         return _RankingBadgeMetal(
-          fill: const Color(0xFFE8ECF4).withValues(alpha: 0.28),
-          border: const Color(0xFFF5F7FA).withValues(alpha: 0.88),
+          fill: const Color(0xFFE8ECF4).withValues(alpha: 0.14),
+          border: const Color(0xFFF5F7FA).withValues(alpha: 0.55),
           label: const Color(0xFFE9EDF5),
           value: const Color(0xFFF8FAFC),
-          glow: const Color(0xFFD7DCE6).withValues(alpha: 0.55),
+          glow: const Color(0xFFD7DCE6).withValues(alpha: 0.35),
           sheen: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              const Color(0xFFFFFFFF).withValues(alpha: 0.48),
-              const Color(0xFFD8DEE8).withValues(alpha: 0.22),
-              const Color(0xFFB8C0CE).withValues(alpha: 0.32),
+              const Color(0xFFFFFFFF).withValues(alpha: 0.28),
+              const Color(0xFFD8DEE8).withValues(alpha: 0.12),
+              const Color(0xFFB8C0CE).withValues(alpha: 0.18),
             ],
           ),
         );
       case 3:
         return _RankingBadgeMetal(
-          fill: const Color(0xFFE8A05A).withValues(alpha: 0.30),
-          border: const Color(0xFFFFC08A).withValues(alpha: 0.85),
+          fill: const Color(0xFFE8A05A).withValues(alpha: 0.14),
+          border: const Color(0xFFFFC08A).withValues(alpha: 0.55),
           label: const Color(0xFFFFD7B0),
           value: const Color(0xFFFFE6CC),
-          glow: const Color(0xFFD08A5A).withValues(alpha: 0.55),
+          glow: const Color(0xFFD08A5A).withValues(alpha: 0.35),
           sheen: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              const Color(0xFFFFD9B0).withValues(alpha: 0.44),
-              const Color(0xFFD08A5A).withValues(alpha: 0.24),
-              const Color(0xFFB86A3A).withValues(alpha: 0.32),
+              const Color(0xFFFFD9B0).withValues(alpha: 0.28),
+              const Color(0xFFD08A5A).withValues(alpha: 0.12),
+              const Color(0xFFB86A3A).withValues(alpha: 0.18),
             ],
           ),
         );

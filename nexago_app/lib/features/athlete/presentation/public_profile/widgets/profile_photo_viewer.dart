@@ -14,13 +14,29 @@ void openProfilePhotoViewer(
   if (urls.isEmpty) return;
 
   Navigator.of(context).push(
-    PageRouteBuilder(
+    PageRouteBuilder<void>(
       opaque: false,
       barrierColor: Colors.black,
+      transitionDuration: const Duration(milliseconds: 320),
+      reverseTransitionDuration: const Duration(milliseconds: 240),
       pageBuilder: (_, __, ___) => ProfilePhotoViewer(
         photoUrls: urls,
         initialIndex: initialIndex.clamp(0, urls.length - 1),
       ),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.92, end: 1).animate(curved),
+            child: child,
+          ),
+        );
+      },
     ),
   );
 }

@@ -26,11 +26,9 @@ import {
 import {getAuth} from "firebase-admin/auth";
 import * as logger from "firebase-functions/logger";
 import {roundMoney} from "./mercadopago-arena-helpers";
-import {releaseOrganizerWithdrawalReservation} from "./organizer-wallet";
 import {loadPayoutPixKey, savePayoutPixKey} from "./organizer-payout-profile";
 import {
   reserveTournamentWithdrawalAmount,
-  releaseTournamentWithdrawalReservation,
   tournamentWalletRef,
 } from "./tournament-wallet";
 import {
@@ -39,6 +37,7 @@ import {
 } from "./tournament-wallet-access";
 import {
   completeOrganizerWithdrawalPayout,
+  releaseWithdrawalReservation,
   resolveWithdrawalWalletTarget,
 } from "./organizer-withdrawal-payout";
 import {isAsaasPayoutError} from "./arena-withdrawal-payout";
@@ -152,6 +151,45 @@ export function assertTournamentHasOwner(ownerId: string): void {
   if (!ownerId) {
     throw new HttpsError("failed-precondition", "Torneio sem responsável definido.");
   }
+}
+
+/**
+ * O documento do saque, montado num lugar só — e é ESTE mesmo objeto que o
+ * caminho automático entrega ao payout. Campo esquecido aqui é campo que falta
+ * no payout também: foi assim que `tournamentId` ficou de fora do literal do
+ * saque automático e `resolveWithdrawalWalletTarget` passou a resolver a
+ * carteira antiga, debitando o caixa errado (ou nenhum, e o PIX nunca saía).
+ * `createdAt` fica fora de propósito — é sentinela do servidor, e o payout não
+ * tem uso para ela.
+ */
+export function buildWithdrawalDocData(params: {
+  tournamentId: string;
+  tournamentName: string;
+  /** Dono do evento (`tournaments/{id}.managerId`), não quem pede. */
+  ownerId: string;
+  amountReais: number;
+  pixKey: string;
+  pixKeyType: string;
+  processingMode: string;
+  requestedBy: string;
+  delegated: boolean;
+}): Record<string, unknown> {
+  return {
+    tournamentId: params.tournamentId,
+    tournamentName: params.tournamentName,
+    // `organizerId` segue gravado com o dono do evento: é por ele que a fila
+    // do backoffice e o webhook de payout encontram o saque.
+    organizerId: params.ownerId,
+    amountReais: params.amountReais,
+    pixKey: params.pixKey,
+    pixKeyType: params.pixKeyType,
+    processingMode: params.processingMode,
+    status: "pending",
+    payoutStatus: "pending",
+    payoutProvider: "asaas",
+    requestedBy: params.requestedBy,
+    requestedByStaff: params.delegated,
+  };
 }
 
 /** Um saque pendente por CAIXA: vários gestores sacam do mesmo dinheiro, então
@@ -271,21 +309,19 @@ export const requestOrganizerWithdrawal = onCall(
     const processingMode = autoEligible ? "auto" : "manual_review";
 
     const withdrawalRef = db.collection(ORGANIZER_WITHDRAWALS).doc();
-    await withdrawalRef.set({
+    const withdrawalData = buildWithdrawalDocData({
       tournamentId,
       tournamentName,
-      // `organizerId` segue gravado com o dono do evento: é por ele que a fila
-      // do backoffice e o webhook de payout encontram o saque.
-      organizerId: ownerId,
+      ownerId,
       amountReais: amount,
       pixKey: pixAddressKey,
       pixKeyType: pixAddressKeyType,
       processingMode,
-      status: "pending",
-      payoutStatus: "pending",
-      payoutProvider: "asaas",
       requestedBy: uid,
-      requestedByStaff: delegated,
+      delegated,
+    });
+    await withdrawalRef.set({
+      ...withdrawalData,
       createdAt: FieldValue.serverTimestamp(),
     });
 
@@ -305,12 +341,9 @@ export const requestOrganizerWithdrawal = onCall(
         const result = await completeOrganizerWithdrawalPayout(
           db,
           withdrawalRef,
-          {
-            organizerId: ownerId,
-            amountReais: amount,
-            pixKey: pixAddressKey,
-            pixKeyType: pixAddressKeyType,
-          },
+          // O MESMO objeto que acabou de ser gravado — inclusive
+          // `tournamentId`, que decide de qual caixa o valor sai.
+          withdrawalData,
           uid,
           delegated ?
             "PIX automático na solicitação (gestor da equipe)" :
@@ -841,11 +874,7 @@ export const reviewOrganizerWithdrawal = onCall(
 
     if (decision === "rejected") {
       const target = resolveWithdrawalWalletTarget(w);
-      if (target.kind === "tournament") {
-        await releaseTournamentWithdrawalReservation(db, target.tournamentId, amountReais, false);
-      } else {
-        await releaseOrganizerWithdrawalReservation(db, target.organizerId, amountReais, false);
-      }
+      await releaseWithdrawalReservation(db, target, amountReais, false);
       await ref.update({
         status: "rejected",
         reviewedBy: uid,
@@ -857,11 +886,7 @@ export const reviewOrganizerWithdrawal = onCall(
 
     if (decision === "approved_manual") {
       const target = resolveWithdrawalWalletTarget(w);
-      if (target.kind === "tournament") {
-        await releaseTournamentWithdrawalReservation(db, target.tournamentId, amountReais, true);
-      } else {
-        await releaseOrganizerWithdrawalReservation(db, target.organizerId, amountReais, true);
-      }
+      await releaseWithdrawalReservation(db, target, amountReais, true);
       await ref.update({
         status: "approved",
         payoutStatus: "manual",

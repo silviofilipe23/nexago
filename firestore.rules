@@ -1117,6 +1117,37 @@ service cloud.firestore {
         allow create, update, delete: if false;
       }
     }
+    // Caixa do torneio (id = tournamentId). Escrita só pelas Cloud Functions.
+    // Leitura: dono do evento e GESTOR da equipe. `eventAdmin` (administrador)
+    // opera o torneio mas não vê dinheiro — é esta linha que garante isso.
+    match /tournamentWallets/{tournamentId} {
+      allow read: if request.auth != null && (
+        isSuperAdmin() ||
+        isAdmin() ||
+        tournamentManagerId(tournamentId) == request.auth.uid ||
+        isTournamentStaff(tournamentId, ['manager'])
+      );
+      allow create, update, delete: if false;
+      match /ledger/{entryId} {
+        allow read: if request.auth != null && (
+          isSuperAdmin() ||
+          isAdmin() ||
+          tournamentManagerId(tournamentId) == request.auth.uid ||
+          isTournamentStaff(tournamentId, ['manager'])
+        );
+        allow create, update, delete: if false;
+      }
+    }
+    // Chave PIX de repasse da pessoa. Escrita write-only por CF: admin semeando
+    // destino de dinheiro é vetor de fraude (mesma regra de `organizerWallets`).
+    match /organizerPayoutProfiles/{uid} {
+      allow read: if request.auth != null && (
+        isSuperAdmin() ||
+        isAdmin() ||
+        request.auth.uid == uid
+      );
+      allow create, update, delete: if false;
+    }
     match /arenaWithdrawals/{withdrawalId} {
       allow read: if request.auth != null && (
         isSuperAdmin() ||

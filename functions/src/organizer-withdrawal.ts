@@ -25,6 +25,7 @@ import {
   releaseOrganizerWithdrawalReservation,
   organizerWalletRef,
 } from "./organizer-wallet";
+import {savePayoutPixKey} from "./organizer-payout-profile";
 import {
   completeOrganizerWithdrawalPayout,
 } from "./organizer-withdrawal-payout";
@@ -107,9 +108,9 @@ async function assertNoPendingOrganizerWithdrawal(
   }
 }
 
-/** Cadastra/atualiza a chave PIX de repasse do organizador (no doc da carteira).
- *  Continua escrevendo SÓ na carteira de quem chama, de propósito: gestor da
- *  equipe saca, mas não escolhe destino do dinheiro. */
+/** Cadastra/atualiza a chave PIX de repasse da PESSOA (`organizerPayoutProfiles`).
+ *  Com o caixa morando no torneio, cada um saca para a própria chave — não há
+ *  mais "destino da carteira" pra escolher, é sempre a chave de quem chama. */
 export const setOrganizerPayoutPixKey = onCall({
   region: CLIENT_FACING_REGIONS,
 }, async (request) => {
@@ -129,15 +130,10 @@ export const setOrganizerPayoutPixKey = onCall({
   }
 
   const db = getFirestore();
-  await organizerWalletRef(db, uid).set(
-    {
-      organizerId: uid,
-      payoutPixKey: pixAddressKey,
-      payoutPixKeyType: pixAddressKeyType,
-      updatedAt: FieldValue.serverTimestamp(),
-    },
-    {merge: true},
-  );
+  await savePayoutPixKey(db, uid, {
+    pixKey: pixAddressKey,
+    pixKeyType: pixAddressKeyType,
+  });
   return {success: true, pixKey: pixAddressKey, pixKeyType: pixAddressKeyType};
 });
 

@@ -227,12 +227,6 @@ class TeamDiscoverNotifier extends AutoDisposeNotifier<TeamDiscoverState> {
     _publishDisplay(state.rawEntries);
   }
 
-  void setGenderFilter(TeamDiscoverGenderFilter gender) {
-    final filters = state.filters.copyWith(gender: gender);
-    state = state.copyWith(filters: filters);
-    _publishDisplay(state.rawEntries);
-  }
-
   void applyFilters(TeamDiscoverFilters filters) {
     state = state.copyWith(filters: filters);
     _publishDisplay(state.rawEntries);

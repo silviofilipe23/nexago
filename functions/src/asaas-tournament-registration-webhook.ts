@@ -380,8 +380,9 @@ export async function processTournamentRegistrationAsaasNotification(
       }
     }
 
-    // Credita o organizador com o líquido (bruto − taxa da plataforma − taxa
-    // do gateway). A plataforma retém a sua taxa; o organizador saca depois.
+    // Credita o CAIXA DO TORNEIO (`tournamentWallets/{tournamentId}`) com o
+    // líquido (bruto − taxa da plataforma − taxa do gateway). A plataforma
+    // retém a sua taxa; o dono do evento e os gestores da equipe sacam depois.
     //
     // Só na LIQUIDAÇÃO: no cartão a vaga já foi garantida lá em cima, na
     // autorização, mas o dinheiro só chega à plataforma ~D+30. Creditar antes
@@ -409,7 +410,7 @@ export async function processTournamentRegistrationAsaasNotification(
         }, {merge: true});
       } catch (walletErr) {
         logger.error(
-          `Asaas tournament registration ${registrationId}: organizer wallet credit failed`,
+          `Asaas tournament registration ${registrationId}: tournament wallet credit failed`,
           walletErr,
         );
       }

@@ -56,7 +56,10 @@ describe("papel eventAdmin", () => {
   });
 
   it("entra na lista de papéis aceitos", () => {
-    assert.ok(TOURNAMENT_STAFF_ROLES.includes("eventAdmin" as never));
+    // Sem cast: `eventAdmin` faz parte de `TOURNAMENT_STAFF_ROLES`, então o
+    // `includes` é tipado — um rename do papel volta a quebrar o build aqui,
+    // que é o ponto do teste.
+    assert.ok(TOURNAMENT_STAFF_ROLES.includes("eventAdmin"));
   });
 
   it("ganha acesso ao portal do organizador", () => {

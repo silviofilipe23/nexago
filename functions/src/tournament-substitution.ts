@@ -660,6 +660,7 @@ export async function acceptSubstitutionInviteFor(
           inUid: uid,
           rosterAfter: rosterAfterTx,
           namedTeam: isTeam,
+          registrationPaid: reg.isPaid === true,
         }) :
         null;
     const effectiveTeamId = teamOutcome?.teamId ?? teamId;

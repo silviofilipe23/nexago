@@ -47,6 +47,8 @@ export interface SubstitutionTeamParams {
   rosterAfter: string[];
   /** Categoria de equipe nomeada (trio+): doc escopado ao torneio. */
   namedTeam: boolean;
+  /** `isPaid` da inscrição — mesmo critério dos chamadores de `markTeamRegistrationPaid`. */
+  registrationPaid: boolean;
 }
 
 export interface SubstitutionTeamOutcome {
@@ -114,6 +116,21 @@ export async function applySubstitutionToTeamTx(
       player1Id,
       player2Id,
     });
+    // `registrationPaid` é o portão das listagens públicas de equipe, e só
+    // `markTeamRegistrationPaid` o grava — no instante em que a inscrição
+    // fecha, que para esta já passou. Um doc NOVO nasceria fora do Descobrir
+    // com a inscrição paga na mão, reabrindo pela porta dos fundos o que o PR
+    // #429 fechou. Vale a mesma verdade de lá: a dupla nova tem inscrição paga.
+    // `set(merge)` porque `update` exigiria o doc já existindo no commit.
+    // Doc REAPROVEITADO fica como está — o carimbo dele é história própria.
+    //
+    // O `gender`, a outra metade do mesmo PR, vem de graça DEPOIS: o chamador
+    // já roda `recomputeTeamGenderAfterRosterChange` com o teamId novo, e ela
+    // só age em doc com `registrationPaid: true`. O carimbo destrava o cálculo
+    // sem custar leitura nenhuma dentro desta transação.
+    if (!resolved.reused && params.registrationPaid) {
+      tx.set(resolved.ref, {registrationPaid: true}, {merge: true});
+    }
     return {teamId: resolved.teamId, forked: true};
   }
 

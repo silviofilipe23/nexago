@@ -22,6 +22,7 @@ async function substitute(
     inUid: string;
     rosterAfter: string[];
     namedTeam?: boolean;
+    registrationPaid?: boolean;
   },
 ) {
   return db.runTransaction(async (tx) => {
@@ -37,6 +38,7 @@ async function substitute(
       inUid: opts.inUid,
       rosterAfter: opts.rosterAfter,
       namedTeam: opts.namedTeam === true,
+      registrationPaid: opts.registrationPaid === true,
     });
   });
 }
@@ -111,6 +113,77 @@ describe("applySubstitutionToTeamTx", () => {
     assert.equal(forked.player1Id, "uid-c");
     assert.equal(forked.player2Id, "uid-b");
     assert.equal(forked.pairKey, "uid-b:uid-c");
+  });
+
+  it("inscrição paga: o doc criado no fork nasce carimbado", async () => {
+    const db = new FakeFirestore();
+    seedSharedPair(db);
+
+    const out = await substitute(db, {
+      tournamentId: "T2",
+      registrationId: "insc-t2",
+      teamId: "time-ab",
+      outUid: "uid-b",
+      inUid: "uid-c",
+      rosterAfter: ["uid-a", "uid-c"],
+      registrationPaid: true,
+    });
+
+    assert.equal(out.forked, true);
+    const forked = db.store.get(`${TEAMS}/${out.teamId}`)!;
+    assert.equal(
+      forked.registrationPaid, true,
+      "sem o carimbo a dupla paga sairia do Descobrir pela porta dos fundos",
+    );
+    // O doc criado não perdeu nada do que `resolvePairTeamTx` grava.
+    assert.equal(forked.player1Id, "uid-a");
+    assert.equal(forked.player2Id, "uid-c");
+    assert.equal(forked.pairKey, "uid-a:uid-c");
+  });
+
+  it("inscrição não paga: o doc criado no fork nasce sem carimbo", async () => {
+    const db = new FakeFirestore();
+    seedSharedPair(db);
+
+    const out = await substitute(db, {
+      tournamentId: "T2",
+      registrationId: "insc-t2",
+      teamId: "time-ab",
+      outUid: "uid-b",
+      inUid: "uid-c",
+      rosterAfter: ["uid-a", "uid-c"],
+      registrationPaid: false,
+    });
+
+    assert.equal(out.forked, true);
+    assert.equal(db.store.get(`${TEAMS}/${out.teamId}`)!.registrationPaid, undefined);
+  });
+
+  it("fork que REAPROVEITA um doc não mexe no carimbo dele", async () => {
+    const db = new FakeFirestore();
+    seedSharedPair(db);
+    db.seedDoc(`${TEAMS}/time-ac`, {
+      player1Id: "uid-a",
+      player2Id: "uid-c",
+      pairKey: "uid-a:uid-c",
+      createdAt: ts("2026-08-15T00:00:00Z"),
+    });
+
+    const out = await substitute(db, {
+      tournamentId: "T2",
+      registrationId: "insc-t2",
+      teamId: "time-ab",
+      outUid: "uid-b",
+      inUid: "uid-c",
+      rosterAfter: ["uid-a", "uid-c"],
+      registrationPaid: true,
+    });
+
+    assert.equal(out.teamId, "time-ac");
+    assert.equal(
+      db.store.get(`${TEAMS}/time-ac`)!.registrationPaid, undefined,
+      "o carimbo do doc reaproveitado é história dele, não desta inscrição",
+    );
   });
 
   it("doc compartilhado: a dupla nova reaproveita o doc que já tem", async () => {

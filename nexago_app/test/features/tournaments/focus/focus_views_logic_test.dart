@@ -49,6 +49,8 @@ TournamentPoolStandingsRow _row(
     losses: losses,
     setsWon: 0,
     setsLost: 0,
+    gamesWon: 0,
+    gamesLost: 0,
     points: wins * 3,
     qualifies: rank <= 2,
     isAthleteTeam: teamId == 'meu',

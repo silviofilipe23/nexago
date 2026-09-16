@@ -5,6 +5,7 @@ import {
   buildStaffMirrorData,
   staffRoleGrantsOrganizerAccess,
   staffRoleLabel,
+  TOURNAMENT_STAFF_ROLES,
 } from "./tournament-staff-sync";
 
 describe("staffRoleLabel", () => {
@@ -46,6 +47,27 @@ describe("staffRoleGrantsOrganizerAccess", () => {
   it("treats missing/unknown role as manager (same default as the mirror)", () => {
     assert.equal(staffRoleGrantsOrganizerAccess(undefined), true);
     assert.equal(staffRoleGrantsOrganizerAccess(""), true);
+  });
+});
+
+describe("papel eventAdmin", () => {
+  it("tem rótulo próprio", () => {
+    assert.equal(staffRoleLabel("eventAdmin"), "administrador");
+  });
+
+  it("entra na lista de papéis aceitos", () => {
+    assert.ok(TOURNAMENT_STAFF_ROLES.includes("eventAdmin" as never));
+  });
+
+  it("ganha acesso ao portal do organizador", () => {
+    assert.equal(staffRoleGrantsOrganizerAccess("eventAdmin"), true);
+  });
+
+  it("a notificação de adição usa o rótulo novo", () => {
+    assert.equal(
+      buildStaffAddedNotificationBody("eventAdmin", "Copa Teste"),
+      "Você agora é administrador de Copa Teste",
+    );
   });
 });
 

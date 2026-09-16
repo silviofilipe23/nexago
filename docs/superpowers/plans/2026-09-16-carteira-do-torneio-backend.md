@@ -2468,3 +2468,22 @@ Atenção antes de começar a Fase 2: existe um worktree irmão do portal
 commit de main `01911e6b`) com cópia própria desses dois arquivos. Conferir se há
 trabalho em curso ali antes de editar — este repo já perdeu trabalho por sessões
 paralelas no mesmo arquivo.
+
+### O app Flutter publicado também quebra — e ele aponta para o DEV
+
+Descoberto pela revisão final (16/09/2026), e é pior que o portal:
+`nexago_app/lib/features/organizer/data/organizer_wallet_repository.dart:161-173`
+chama `requestOrganizerWithdrawal` com `{amountReais, pixKey, pixKeyType}` e **sem
+`tournamentId`**. Com esta fase no ar, todo saque pelo app volta
+`invalid-argument: "Informe o torneio do saque."`, e a tela Financeiro do app (que
+lê `organizerWallets/{uid}` direto) congela em R$ 0.
+
+Por que é pior que o portal: portal se conserta com upload; o app exige build de
+loja (Fase 3). E, pela topologia deste projeto, **o app publicado na loja aponta
+para `volley-track-dev-4596c`** — então a frase "DEV segue livre" acima não vale
+inteira: deployar as functions no dev já quebra o saque pelo app da loja.
+
+Ordem recomendada depois desta descoberta: rules → índices → functions + Fase 2 +
+Fase 3 na mesma janela → migração. Se a Fase 3 não puder acompanhar, as opções são
+um fallback temporário na callable (sem `tournamentId`, resolver o único torneio
+sacável e recusar quando houver mais de um) ou o gate de atualização obrigatória.

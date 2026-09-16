@@ -9,11 +9,10 @@ import '../../../../../core/theme/app_typography.dart';
 import '../../../../athlete/domain/athlete_public_profile_models.dart';
 import '../../../domain/team_discover_models.dart';
 import 'team_discover_dual_avatars.dart';
-import 'team_follow_button.dart';
 
 /// Linha da listagem de duplas — mesma anatomia do `AthleteDiscoverCard`:
-/// sem card, nome em cima e duas linhas mono embaixo. O que sobrevive de
-/// exclusivo da dupla é o `#rank` e o seguir, este último como botão-ícone.
+/// sem card, nome em cima e linhas mono embaixo. O único elemento exclusivo da
+/// dupla é o `#rank`; seguir mora no perfil dela, não aqui.
 class TeamDiscoverCard extends StatefulWidget {
   const TeamDiscoverCard({super.key, required this.entry});
 
@@ -114,9 +113,7 @@ class _TeamDiscoverCardState extends State<TeamDiscoverCard> {
                     const SizedBox(height: 3),
                     Row(
                       children: [
-                        _LevelDots(segments: entry.levelSegments),
                         if (sportLabel.isNotEmpty) ...[
-                          const SizedBox(width: 7),
                           Flexible(
                             child: Text(
                               sportLabel,
@@ -131,7 +128,9 @@ class _TeamDiscoverCardState extends State<TeamDiscoverCard> {
                               ),
                             ),
                           ),
+                          const SizedBox(width: 7),
                         ],
+                        _LevelDots(segments: entry.levelSegments),
                       ],
                     ),
                   ],
@@ -149,15 +148,6 @@ class _TeamDiscoverCardState extends State<TeamDiscoverCard> {
                   ),
                 ),
               ],
-              if (!entry.isCurrentUserTeam) ...[
-                const SizedBox(width: 10),
-                TeamFollowButton(
-                  entry: entry,
-                  iconOnly: true,
-                  height: 32,
-                  borderRadius: 999,
-                ),
-              ],
             ],
           ),
         ),
@@ -166,8 +156,8 @@ class _TeamDiscoverCardState extends State<TeamDiscoverCard> {
   }
 }
 
-/// `PROCURA DUPLA · GOIÂNIA · GO · VÔLEI DE PRAIA` numa linha só: a etiqueta
-/// em brand ocupa o lugar do `contextTag` do card de atleta.
+/// `PROCURA DUPLA · GOIÂNIA · GO` numa linha só: a etiqueta em brand ocupa o
+/// lugar do `contextTag` do card de atleta.
 class _ContextLine extends StatelessWidget {
   const _ContextLine({required this.lookingForPartner, required this.detail});
 

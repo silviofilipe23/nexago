@@ -25,6 +25,23 @@ describe("resolveWithdrawalRequest", () => {
     );
   });
 
+  it("torneio vazio (só espaços) falha com invalid-argument, não com erro de I/O", () => {
+    // A ordem importa: isto tem de estourar ANTES de qualquer consulta ao
+    // Firestore. Confere pelo `code` do HttpsError, não pela mensagem — é o
+    // código que garante que o cliente recebe invalid-argument e não um
+    // "internal" cru de um path do Firestore com segmento vazio.
+    assert.throws(
+      () => resolveWithdrawalRequest({
+        tournamentId: "   ", amountReais: 40,
+        profilePixKey: "pessoa@exemplo.com", profilePixKeyType: "EMAIL",
+      }),
+      (err: unknown) => {
+        assert.equal((err as {code?: string}).code, "invalid-argument");
+        return true;
+      },
+    );
+  });
+
   it("exige valor positivo", () => {
     assert.throws(
       () => resolveWithdrawalRequest({

@@ -91,6 +91,27 @@ function isFirestoreIndexError(err: unknown): boolean {
 }
 
 /**
+ * Valida só a FORMA do pedido (torneio e valor) — sem tocar em I/O nenhum,
+ * nem no controle de acesso, nem na leitura de perfil. A callable chama isto
+ * antes de qualquer consulta ao Firestore: um `tournamentId` vazio não pode
+ * chegar a `db.doc("tournaments/")` e estourar um erro cru de path — tem de
+ * virar `invalid-argument` com mensagem em português primeiro.
+ */
+function validateWithdrawalRequestShape(params: {
+  tournamentId: string;
+  amountReais: number;
+}): {tournamentId: string; amountReais: number} {
+  const tournamentId = params.tournamentId.trim();
+  if (!tournamentId) {
+    throw new HttpsError("invalid-argument", "Informe o torneio do saque.");
+  }
+  if (!Number.isFinite(params.amountReais) || params.amountReais <= 0) {
+    throw new HttpsError("invalid-argument", "Informe um valor válido para saque.");
+  }
+  return {tournamentId, amountReais: params.amountReais};
+}
+
+/**
  * Regras de entrada do saque, sem I/O — é aqui que mora a garantia de destino:
  * a chave é SEMPRE a do perfil de quem pede, e o payload não tem voz nenhuma
  * sobre para onde o dinheiro vai.
@@ -101,13 +122,7 @@ export function resolveWithdrawalRequest(params: {
   profilePixKey: string;
   profilePixKeyType: string;
 }): {amount: number; pixKey: string; pixKeyType: string} {
-  const tournamentId = params.tournamentId.trim();
-  if (!tournamentId) {
-    throw new HttpsError("invalid-argument", "Informe o torneio do saque.");
-  }
-  if (!Number.isFinite(params.amountReais) || params.amountReais <= 0) {
-    throw new HttpsError("invalid-argument", "Informe um valor válido para saque.");
-  }
+  const {amountReais} = validateWithdrawalRequestShape(params);
   const pixKey = params.profilePixKey.trim();
   if (pixKey.length < 5) {
     throw new HttpsError(
@@ -116,7 +131,7 @@ export function resolveWithdrawalRequest(params: {
     );
   }
   return {
-    amount: roundMoney(params.amountReais),
+    amount: roundMoney(amountReais),
     pixKey,
     pixKeyType: params.profilePixKeyType.trim().toUpperCase(),
   };
@@ -189,14 +204,21 @@ export const requestOrganizerWithdrawal = onCall(
       tournamentId?: string;
     };
 
+    // Forma do payload antes de qualquer I/O — inclusive antes do controle de
+    // acesso: um pedido malformado não paga consulta ao Firestore, e um
+    // `tournamentId` vazio não pode estourar um erro cru de path.
+    const {tournamentId, amountReais} = validateWithdrawalRequestShape({
+      tournamentId: data.tournamentId?.trim() ?? "",
+      amountReais: typeof data.amountReais === "number" ? data.amountReais : 0,
+    });
+
     const db = getFirestore();
-    const tournamentId = data.tournamentId?.trim() ?? "";
     await assertCanWithdrawFromTournament(db, uid, tournamentId);
 
     const profile = await loadPayoutPixKey(db, uid);
     const {amount, pixKey, pixKeyType} = resolveWithdrawalRequest({
       tournamentId,
-      amountReais: typeof data.amountReais === "number" ? data.amountReais : 0,
+      amountReais,
       profilePixKey: profile.pixKey,
       profilePixKeyType: profile.pixKeyType,
     });

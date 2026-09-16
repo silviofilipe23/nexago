@@ -26,16 +26,17 @@ import {
 import {getAuth} from "firebase-admin/auth";
 import * as logger from "firebase-functions/logger";
 import {roundMoney} from "./mercadopago-arena-helpers";
-import {
-  releaseOrganizerWithdrawalReservation,
-  organizerWalletRef,
-} from "./organizer-wallet";
+import {releaseOrganizerWithdrawalReservation} from "./organizer-wallet";
 import {loadPayoutPixKey, savePayoutPixKey} from "./organizer-payout-profile";
 import {
   reserveTournamentWithdrawalAmount,
   releaseTournamentWithdrawalReservation,
+  tournamentWalletRef,
 } from "./tournament-wallet";
-import {assertCanWithdrawFromTournament} from "./tournament-wallet-access";
+import {
+  assertCanWithdrawFromTournament,
+  listWithdrawableTournamentIds,
+} from "./tournament-wallet-access";
 import {
   completeOrganizerWithdrawalPayout,
   resolveWithdrawalWalletTarget,
@@ -44,10 +45,7 @@ import {isAsaasPayoutError} from "./arena-withdrawal-payout";
 import {resolveWithdrawalPixFields} from "./asaas-payout";
 import {asaasArenaSecrets} from "./asaas-client";
 import {callerIsOrganizer, callerIsSuperAdmin} from "./auth-roles";
-import {
-  listAccessibleOrganizerIds,
-  maskDelegatePayoutPixKey,
-} from "./organizer-wallet-access";
+import {maskDelegatePayoutPixKey} from "./organizer-wallet-access";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {ARENA_WITHDRAWAL_AUTO_MAX_REAIS} from "./arena-booking-payment-constants";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
@@ -389,13 +387,36 @@ async function notifyOwnerOfDelegatedWithdrawal(
   }
 }
 
+/** Linhas do seletor de caixas: o mais cheio primeiro, empate pelo nome. */
+export function buildWalletViewRows(
+  tournaments: Array<{id: string; name: string}>,
+  wallets: Map<string, {availableReais: number; pendingReais: number}>,
+): Array<{
+  tournamentId: string;
+  tournamentName: string;
+  availableReais: number;
+  pendingReais: number;
+}> {
+  return tournaments
+    .map((t) => ({
+      tournamentId: t.id,
+      tournamentName: t.name,
+      availableReais: wallets.get(t.id)?.availableReais ?? 0,
+      pendingReais: wallets.get(t.id)?.pendingReais ?? 0,
+    }))
+    .sort((a, b) =>
+      b.availableReais - a.availableReais ||
+      a.tournamentName.localeCompare(b.tournamentName, "pt-BR"),
+    );
+}
+
 /**
- * Tudo que a tela Financeiro precisa numa chamada só: as carteiras que o
- * chamador alcança (a própria + a dos donos dos torneios em que ele é gestor)
- * e o extrato/saques da carteira escolhida.
+ * Tudo que a tela Financeiro precisa numa chamada só: os caixas de torneio que
+ * o chamador alcança (dono + gestor ativo, via `listWithdrawableTournamentIds`)
+ * e o extrato/saques do caixa escolhido.
  *
- * Existe como callable porque a relação gestor → dono não cabe nas rules
- * (`organizerWallets` só libera leitura para o próprio dono, e continua assim).
+ * Existe como callable porque a relação gestor → torneio não cabe nas rules
+ * (ver `tournament-wallet-access.ts`).
  */
 export const loadOrganizerWalletView = onCall({
   region: CLIENT_FACING_REGIONS,
@@ -404,40 +425,55 @@ export const loadOrganizerWalletView = onCall({
   if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
 
   const db = getFirestore();
-  const organizerIds = await listAccessibleOrganizerIds(db, uid);
-
   const payload = (request.data ?? {}) as {
-    organizerId?: string;
+    tournamentId?: string;
     ledgerLimit?: number;
   };
-  const requested = payload.organizerId?.trim() ?? "";
   // A tela soma as taxas da plataforma pelo extrato, então precisa de mais que
   // a primeira página; o teto evita que um cliente peça a coleção inteira.
   const ledgerLimit = Math.min(
     500,
     Math.max(1, Math.trunc(Number(payload.ledgerLimit) || 30)),
   );
-  // Pedido fora da lista cai na própria carteira em vez de estourar: a lista
-  // muda quando alguém sai da equipe, e o cliente pode ter guardado a antiga.
-  const selectedId = organizerIds.includes(requested) ? requested : uid;
-  const isOwn = selectedId === uid;
 
-  const userSnaps = organizerIds.length > 0 ?
-    await db.getAll(...organizerIds.map((id) => db.doc(`users/${id}`))) :
-    [];
-  const wallets = organizerIds.map((organizerId, i) => ({
-    organizerId,
-    organizerName:
-      (userSnaps[i]?.data()?.displayName as string | undefined)?.trim() ||
-      (organizerId === uid ? "Minha carteira" : "Organizador"),
-    isOwn: organizerId === uid,
-  }));
+  const tournamentIds = await listWithdrawableTournamentIds(db, uid);
+  if (tournamentIds.length === 0) {
+    return {
+      tournaments: [],
+      selected: null,
+      payout: {...(await loadPayoutPixKey(db, uid)), hasPixKey: false},
+      ledger: [],
+      withdrawals: [],
+    };
+  }
 
-  const walletSnap = await organizerWalletRef(db, selectedId).get();
-  const w = walletSnap.data() ?? {};
-  const payoutPixKey = (w.payoutPixKey as string | undefined)?.trim() ?? "";
+  const [tournamentSnaps, walletSnaps] = await Promise.all([
+    db.getAll(...tournamentIds.map((id) => db.doc(`tournaments/${id}`))),
+    db.getAll(...tournamentIds.map((id) => tournamentWalletRef(db, id))),
+  ]);
+  const wallets = new Map(
+    walletSnaps.map((snap, i) => [
+      tournamentIds[i]!,
+      {
+        availableReais: Number(snap.data()?.availableReais) || 0,
+        pendingReais: Number(snap.data()?.pendingReais) || 0,
+      },
+    ]),
+  );
+  const rows = buildWalletViewRows(
+    tournamentIds.map((id, i) => ({
+      id,
+      name: (tournamentSnaps[i]?.data()?.name as string | undefined)?.trim() || "Torneio",
+    })),
+    wallets,
+  );
 
-  const ledgerSnap = await organizerWalletRef(db, selectedId)
+  // Pedido fora da lista cai no caixa mais cheio em vez de estourar: a lista
+  // muda quando alguém sai da equipe e o cliente pode ter guardado a antiga.
+  const requested = payload.tournamentId?.trim() ?? "";
+  const selected = rows.find((r) => r.tournamentId === requested) ?? rows[0]!;
+
+  const ledgerSnap = await tournamentWalletRef(db, selected.tournamentId)
     .collection("ledger")
     .orderBy("createdAt", "desc")
     .limit(ledgerLimit)
@@ -446,7 +482,7 @@ export const loadOrganizerWalletView = onCall({
 
   const withdrawalsSnap = await db
     .collection(ORGANIZER_WITHDRAWALS)
-    .where("organizerId", "==", selectedId)
+    .where("tournamentId", "==", selected.tournamentId)
     .orderBy("createdAt", "desc")
     .limit(20)
     .get()
@@ -454,32 +490,19 @@ export const loadOrganizerWalletView = onCall({
       if (!isFirestoreIndexError(err)) return null;
       return db
         .collection(ORGANIZER_WITHDRAWALS)
-        .where("organizerId", "==", selectedId)
+        .where("tournamentId", "==", selected.tournamentId)
         .limit(20)
         .get();
     });
 
   const ledgerDocs = ledgerSnap?.docs ?? [];
   const athleteLabelByKey = await resolveLedgerAthleteLabels(db, ledgerDocs);
+  const payout = await loadPayoutPixKey(db, uid);
 
   return {
-    wallets,
-    selected: {
-      organizerId: selectedId,
-      organizerName:
-        wallets.find((x) => x.organizerId === selectedId)?.organizerName ?? "",
-      isOwn,
-      availableReais: Number(w.availableReais) || 0,
-      pendingReais: Number(w.pendingReais) || 0,
-      // A chave inteira é do dono; o gestor vê só as pontas, o bastante para
-      // conferir o destino sem levar o CPF/telefone dele embora.
-      payoutPixKey: isOwn ? payoutPixKey : maskDelegatePayoutPixKey(payoutPixKey),
-      payoutPixKeyType: isOwn ?
-        ((w.payoutPixKeyType as string | undefined)?.trim() ?? "") :
-        "",
-      hasPayoutPixKey: payoutPixKey.length >= 5,
-      canEditPixKey: isOwn,
-    },
+    tournaments: rows,
+    selected,
+    payout: {...payout, hasPixKey: payout.pixKey.length >= 5},
     ledger: ledgerDocs.map((d) => {
       const e = d.data();
       const registrationId =
@@ -499,17 +522,19 @@ export const loadOrganizerWalletView = onCall({
     }),
     withdrawals: (withdrawalsSnap?.docs ?? []).map((d) => {
       const x = d.data();
+      const requestedBy = (x.requestedBy as string | undefined)?.trim() ?? "";
       return {
         id: d.id,
         amountReais: Number(x.amountReais) || 0,
         status: (x.status as string | undefined) ?? "pending",
-        // Mesma regra do card da chave: na carteira alheia a coluna "Chave PIX"
-        // do histórico não pode entregar o CPF do dono por inteiro.
-        pixKey: isOwn ?
+        // Chave de OUTRA pessoa nunca vai inteira para a tela: cada um só vê a
+        // sua por extenso. `maskPixKey` do cliente não protege CPF (11 < 12).
+        pixKey: requestedBy === uid ?
           ((x.pixKey as string | undefined) ?? "") :
           maskDelegatePayoutPixKey((x.pixKey as string | undefined) ?? ""),
-        payoutStatus: (x.payoutStatus as string | undefined) ?? null,
+        requestedBy,
         requestedByStaff: x.requestedByStaff === true,
+        payoutStatus: (x.payoutStatus as string | undefined) ?? null,
         createdAt: (x.createdAt as Timestamp | undefined)?.toDate?.()?.toISOString() ?? null,
       };
     }),

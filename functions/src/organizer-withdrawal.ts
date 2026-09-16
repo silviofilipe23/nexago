@@ -387,6 +387,17 @@ async function notifyOwnerOfDelegatedWithdrawal(
   }
 }
 
+/**
+ * Chave PIX "cadastrada" pra tela: mesmo piso usado no saque automático
+ * (`resolveWithdrawalPixFields`/`asaas-payout.ts`). Extraída pra função pura
+ * porque o payload devolve `hasPixKey` em dois retornos diferentes da
+ * callable (sem torneio × com torneio) — a regra não pode divergir entre
+ * eles.
+ */
+export function hasUsablePixKey(pixKey: string): boolean {
+  return pixKey.length >= 5;
+}
+
 /** Linhas do seletor de caixas: o mais cheio primeiro, empate pelo nome. */
 export function buildWalletViewRows(
   tournaments: Array<{id: string; name: string}>,
@@ -436,12 +447,18 @@ export const loadOrganizerWalletView = onCall({
     Math.max(1, Math.trunc(Number(payload.ledgerLimit) || 30)),
   );
 
-  const tournamentIds = await listWithdrawableTournamentIds(db, uid);
+  // Uma leitura só do perfil de repasse: os dois retornos da callable (sem
+  // torneio × com torneio) usam o mesmo `payout` e a mesma regra de
+  // `hasPixKey`, pra nunca se contradizer sobre a própria chave do chamador.
+  const [tournamentIds, payout] = await Promise.all([
+    listWithdrawableTournamentIds(db, uid),
+    loadPayoutPixKey(db, uid),
+  ]);
   if (tournamentIds.length === 0) {
     return {
       tournaments: [],
       selected: null,
-      payout: {...(await loadPayoutPixKey(db, uid)), hasPixKey: false},
+      payout: {...payout, hasPixKey: hasUsablePixKey(payout.pixKey)},
       ledger: [],
       withdrawals: [],
     };
@@ -497,12 +514,11 @@ export const loadOrganizerWalletView = onCall({
 
   const ledgerDocs = ledgerSnap?.docs ?? [];
   const athleteLabelByKey = await resolveLedgerAthleteLabels(db, ledgerDocs);
-  const payout = await loadPayoutPixKey(db, uid);
 
   return {
     tournaments: rows,
     selected,
-    payout: {...payout, hasPixKey: payout.pixKey.length >= 5},
+    payout: {...payout, hasPixKey: hasUsablePixKey(payout.pixKey)},
     ledger: ledgerDocs.map((d) => {
       const e = d.data();
       const registrationId =

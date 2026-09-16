@@ -1,6 +1,22 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import {buildWalletViewRows} from "./organizer-withdrawal";
+import {buildWalletViewRows, hasUsablePixKey} from "./organizer-withdrawal";
+
+describe("hasUsablePixKey", () => {
+  it("chave vazia não é utilizável", () => {
+    assert.equal(hasUsablePixKey(""), false);
+  });
+
+  it("chave curta (abaixo do piso de 5) não é utilizável", () => {
+    assert.equal(hasUsablePixKey("1234"), false);
+  });
+
+  it("chave no piso ou maior é utilizável — mesma regra nos dois retornos" +
+     " da callable (sem torneio × com torneio)", () => {
+    assert.equal(hasUsablePixKey("12345"), true);
+    assert.equal(hasUsablePixKey("11144477735"), true); // CPF, 11 dígitos
+  });
+});
 
 describe("buildWalletViewRows", () => {
   it("põe o caixa mais cheio na frente", () => {

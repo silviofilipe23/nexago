@@ -103,7 +103,9 @@ service cloud.firestore {
         isAdmin() ||
         isSuperAdmin() ||
         isTournamentOwner(tournamentId) ||
-        isTournamentStaff(tournamentId, ['manager'])
+        // `eventAdmin` (administrador) opera o evento inteiro, mas não vê
+        // dinheiro: quem depende dele nunca é a leitura do caixa.
+        isTournamentStaff(tournamentId, ['manager', 'eventAdmin'])
       );
     }
     function canScoreTournament(tournamentId) {
@@ -1996,14 +1998,15 @@ service cloud.firestore {
         isSuperAdmin() ||
         (isTournamentOrganizer() && organizerCanUpdateOwnTournament()) ||
         resource.data.managerId == request.auth.uid ||
-        isTournamentStaff(tournamentId, ['manager']) ||
+        isTournamentStaff(tournamentId, ['manager', 'eventAdmin']) ||
         (
           canScoreTournament(tournamentId) &&
           scorerCanOnlyEditLiveMatchesNowField()
         )
       );
 
-      // Deletar: nunca o mesário — só quem já podia gerenciar o torneio.
+      // Deletar: nunca o mesário, nunca o administrador — só quem já podia
+      // gerenciar o torneio de fato (dono, admin da plataforma ou gestor).
       allow delete: if request.auth != null && (
         isAdmin() ||
         isSuperAdmin() ||
@@ -2019,9 +2022,11 @@ service cloud.firestore {
         );
         // Dono e super admin gerenciam a equipe (ver `canManageTournamentStaff`); sem
         // convite/aceite, o acesso é imediato — daí `status` só aceitar 'active'.
+        // `eventAdmin` é papel atribuível aqui, mas quem escreve continua sendo
+        // só o dono (ou super admin) — o administrador não se promove.
         allow create, update: if request.auth != null &&
           canManageTournamentStaff(tournamentId, staffUserId) &&
-          request.resource.data.role in ['manager', 'scorer'] &&
+          request.resource.data.role in ['manager', 'eventAdmin', 'scorer'] &&
           request.resource.data.status == 'active';
         // Remover não passa pela guarda do dono: se um doc de staff no nome dele existir
         // (lixo de uma escrita anterior), alguém precisa conseguir apagar.

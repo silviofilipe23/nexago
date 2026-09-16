@@ -41,10 +41,13 @@ class _TeamDiscoverCardState extends State<TeamDiscoverCard> {
     final hasOwnName = (entry.team.teamName ?? '').trim().isNotEmpty;
     final members = hasOwnName ? entry.membersLabel.toUpperCase() : '';
 
-    // Só cidade · UF: com o esporte junto, a linha truncava em quase toda
-    // dupla num aparelho de 390px.
+    // Só cidade · UF: o esporte tem linha própria, porque junto aqui a linha
+    // truncava em quase toda dupla num aparelho de 390pt.
     final detail = entry.locationLabel.toUpperCase();
     final hasContextLine = entry.isLookingForPartner || detail.isNotEmpty;
+
+    final sport = entry.primarySportLabel.trim();
+    final sportLabel = sport == '—' ? '' : sport.toUpperCase();
 
     return AnimatedScale(
       scale: _pressed ? 0.97 : 1,
@@ -100,19 +103,37 @@ class _TeamDiscoverCardState extends State<TeamDiscoverCard> {
                     ],
                     if (hasContextLine) ...[
                       const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Flexible(
-                            child: _ContextLine(
-                              lookingForPartner: entry.isLookingForPartner,
-                              detail: detail,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          _LevelDots(segments: entry.levelSegments),
-                        ],
+                      _ContextLine(
+                        lookingForPartner: entry.isLookingForPartner,
+                        detail: detail,
                       ),
                     ],
+                    // Força da equipe: o nível vem colado no esporte a que ele
+                    // se refere — solto numa linha compartilhada, não dizia de
+                    // que esporte era aquele nível.
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        _LevelDots(segments: entry.levelSegments),
+                        if (sportLabel.isNotEmpty) ...[
+                          const SizedBox(width: 7),
+                          Flexible(
+                            child: Text(
+                              sportLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.mono(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                                color: context.themeColors.onSurfaceMuted,
+                                height: 1.2,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -197,10 +218,10 @@ class _LevelDots extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         for (var i = 0; i < athleteLevelSegmentCount; i++) ...[
-          if (i > 0) const SizedBox(width: 3),
+          if (i > 0) const SizedBox(width: 4),
           Container(
-            width: 4,
-            height: 4,
+            width: 5,
+            height: 5,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: i < segments

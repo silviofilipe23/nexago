@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 
+import '../../../../core/profiles/app_user_profile.dart';
 import '../../../athlete/domain/athlete_display_name.dart';
 import '../../../athlete/domain/athlete_firestore_codes.dart';
 import '../../../athlete/domain/athlete_profile.dart';
@@ -257,10 +258,10 @@ List<TeamHeadToHeadEntry> buildTeamHeadToHead({
     } else if (match.winnerId?.trim().isNotEmpty == true) {
       acc.losses++;
     }
-    acc.opponentLabel = _opponentLabel(
-      match: match,
-      teamId: id,
-      teamDisplayNames: teamDisplayNames,
+    acc.fallbackDescription ??= safeMatchTeamDescription(
+      match.teamAId.trim() == id
+          ? match.teamBDescription
+          : match.teamADescription,
     );
     final played = playedAtForMatch(match);
     if (played != null &&
@@ -273,7 +274,11 @@ List<TeamHeadToHeadEntry> buildTeamHeadToHead({
       .map(
         (e) => TeamHeadToHeadEntry(
           opponentTeamId: e.key,
-          opponentLabel: e.value.opponentLabel,
+          opponentLabel: _opponentLabel(
+            opponentId: e.key,
+            fallbackDescription: e.value.fallbackDescription,
+            teamDisplayNames: teamDisplayNames,
+          ),
           wins: e.value.wins,
           losses: e.value.losses,
           lastPlayedAt: e.value.lastPlayedAt,
@@ -350,25 +355,26 @@ int _matchRoundDepth(TournamentMatch match) {
   return 10;
 }
 
+/// Contra quem se jogou. O nome real da equipe manda: `teamADescription`/
+/// `teamBDescription` guardam o apelido da VAGA na chave ("Vencedor do Jogo 3",
+/// "1º do Grupo A"), que diz de onde o adversário veio, não quem ele é — e o
+/// mesmo apelido ainda se repete entre equipes diferentes. O apelido só volta
+/// quando a equipe não resolve (inscrição removida, elenco sem perfil), e o id
+/// cru nunca chega à tela.
 String _opponentLabel({
-  required TournamentMatch match,
-  required String teamId,
+  required String opponentId,
+  required String? fallbackDescription,
   Map<String, String> teamDisplayNames = const {},
 }) {
-  final id = teamId.trim();
-  final isTeamA = match.teamAId.trim() == id;
-  final description = isTeamA
-      ? match.teamBDescription?.trim()
-      : match.teamADescription?.trim();
-  if (description != null && description.isNotEmpty) return description;
-  final opponentId = match.opponentTeamIdFor(id)?.trim();
-  if (opponentId != null && opponentId.isNotEmpty) {
-    final resolved = teamDisplayNames[opponentId]?.trim();
-    if (resolved != null && resolved.isNotEmpty && resolved != opponentId) {
-      return resolved;
-    }
-    return opponentId;
+  final id = opponentId.trim();
+  final resolved = teamDisplayNames[id]?.trim();
+  if (resolved != null && resolved.isNotEmpty && resolved != id) {
+    return resolved;
   }
+
+  final description = fallbackDescription?.trim();
+  if (description != null && description.isNotEmpty) return description;
+
   return 'Adversário';
 }
 
@@ -383,6 +389,6 @@ String _campaignLocationLabel(List<TournamentMatch> matches) {
 class _HeadToHeadAccumulator {
   int wins = 0;
   int losses = 0;
-  String opponentLabel = 'Adversário';
+  String? fallbackDescription;
   DateTime? lastPlayedAt;
 }

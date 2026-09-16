@@ -1,8 +1,8 @@
 /* eslint-disable */
 /**
  * Apaga TODOS os dados de teste criados por `seed-test-data.js`, em cascata:
- * ranking → matches → teams → inscriptions → tournaments → public_profiles →
- * Auth → users.
+ * ranking → comunidade → matches → teams → inscriptions → tournaments →
+ * public_profiles → Auth → users.
  *
  * "ranking" cobre o que os TRIGGERS criaram a partir do seed e que, por isso,
  * não carrega flag `seedTest*` nenhuma: `athleteRankings`, `teamRankings`,
@@ -11,6 +11,11 @@
  * Sem esse passo, apagar `users`/`public_profiles`/Auth NÃO tira o atleta de
  * teste das telas de ranking — elas leem `athleteRankings` direto e caem num
  * nome de fallback ("Atleta ab12cd") quando o perfil não existe mais.
+ *
+ * "comunidade" é `communityFeed`, pelo mesmo motivo dos palpites: a coleção é
+ * TOP-LEVEL indexada pelo torneio, então nada dela sai no `recursiveDelete` de
+ * `tournaments/{id}` — sem esse passo, o card do torneio seed fica para sempre
+ * no feed do app e do portal, apontando para um torneio que não existe mais.
  *
  * A ordem NÃO é "filho antes do pai" — é "o índice morre por último". `users`
  * é o documento que guarda os flags (`seedTestAthlete`/`seedTestOrganizer`)
@@ -43,6 +48,7 @@ const admin = require("firebase-admin");
 const {
   chunkList,
   partitionCleanupTargets,
+  partitionCommunityFeed,
   partitionOrganizerCleanup,
   partitionRankingDocs,
   partitionRatingEvents,
@@ -109,6 +115,12 @@ function matchesPath(pid) {
   return `artifacts/${pid}/public/data/matches`;
 }
 
+/**
+ * Feed da Comunidade — top-level, sem prefixo de projeto
+ * (`community-feed.ts`, `tournament-announcements.ts`).
+ */
+const COMMUNITY_FEED_PATH = "communityFeed";
+
 function ratingEventsPath(pid) {
   return `artifacts/${pid}/public/data/ratingEvents`;
 }
@@ -166,15 +178,25 @@ async function findSeedMatches(db, projectId, tournamentIds) {
  * pelo mesmo motivo, `tournaments` também é lido por completo (não só
  * `seedTestTournament == true`): é preciso o `managerId` dos torneios REAIS
  * para detectar organizador seed contaminando torneio de verdade.
+ *
+ * `communityFeed` também é lido por completo: os itens são escritos por
+ * trigger/callable e não têm flag de seed, então a decisão é pelo torneio —
+ * e um dos dois motivos de apagar (torneio inexistente) não é consultável.
  */
 async function discover(db, projectId) {
-  const [tournamentsSnap, athletesSnap, organizersSnap, inscriptionsSnap] =
-    await Promise.all([
-      db.collection("tournaments").get(),
-      db.collection("users").where("seedTestAthlete", "==", true).get(),
-      db.collection("users").where("seedTestOrganizer", "==", true).get(),
-      db.collection(inscriptionsPath(projectId)).get(),
-    ]);
+  const [
+    tournamentsSnap,
+    athletesSnap,
+    organizersSnap,
+    inscriptionsSnap,
+    feedSnap,
+  ] = await Promise.all([
+    db.collection("tournaments").get(),
+    db.collection("users").where("seedTestAthlete", "==", true).get(),
+    db.collection("users").where("seedTestOrganizer", "==", true).get(),
+    db.collection(inscriptionsPath(projectId)).get(),
+    db.collection(COMMUNITY_FEED_PATH).get(),
+  ]);
 
   const tournaments = tournamentsSnap.docs.map((d) => ({
     id: d.id,
@@ -207,6 +229,15 @@ async function discover(db, projectId) {
 
   const organizerPlan = partitionOrganizerCleanup({organizerUids, tournaments});
 
+  const feedPlan = partitionCommunityFeed({
+    items: feedSnap.docs.map((d) => ({
+      id: d.id,
+      tournamentId: d.data().tournamentId,
+    })),
+    seedTournamentIds,
+    existingTournamentIds: tournaments.map((t) => t.id),
+  });
+
   const matchDocs = seedTournamentIds.length ?
     await findSeedMatches(db, projectId, seedTournamentIds) :
     [];
@@ -226,6 +257,7 @@ async function discover(db, projectId) {
     matchIds: matchDocs.map((d) => d.id),
     ...plan,
     ...organizerPlan,
+    ...feedPlan,
     ...ranking,
   };
 }
@@ -395,6 +427,9 @@ function printReport(d) {
   }
   console.log(`  ratingEvents ............ ${d.deletableRatingEventIds.length}`);
   console.log(`  palpites (entries) ...... ${d.predictionEntryPaths.length}`);
+  console.log("\nComunidade (communityFeed — não sai junto com o torneio):");
+  console.log(`  publicações do seed ..... ${d.seedFeedItemIds.length}`);
+  console.log(`  órfãs (torneio apagado) . ${d.orphanFeedItemIds.length}`);
 
   if (d.orphanRankingPaths.length) {
     console.log(
@@ -500,7 +535,11 @@ function nothingToDo(d) {
     d.seedRankingPaths.length === 0 &&
     d.orphanRankingPaths.length === 0 &&
     d.deletableRatingEventIds.length === 0 &&
-    d.predictionEntryPaths.length === 0
+    d.predictionEntryPaths.length === 0 &&
+    // Mesmo caso do ranking: um projeto sem seed nenhum ainda pode ter card
+    // de torneio já apagado no feed, e aí há trabalho a fazer.
+    d.seedFeedItemIds.length === 0 &&
+    d.orphanFeedItemIds.length === 0
   );
 }
 
@@ -602,14 +641,34 @@ async function deleteRankingArtifacts(db, d, log) {
 }
 
 /**
+ * Publicações da Comunidade. Vem no mesmo ponto do ranking e pelo mesmo
+ * motivo: a descoberta depende de `tournaments` — os seed desta rodada e os
+ * que ainda existem —, e `tournaments` morre no meio da cascata. Rodando aqui,
+ * a lista ainda está de pé; rodando depois, todo card viraria indistinguível
+ * de um card de torneio real e nenhuma execução futura o reencontraria.
+ *
+ * `communityFeed` não tem subcoleção, então `batch.delete` basta.
+ */
+async function deleteCommunityFeedItems(db, d, log) {
+  const refs = [...d.seedFeedItemIds, ...d.orphanFeedItemIds].map(
+    (id) => db.doc(`${COMMUNITY_FEED_PATH}/${id}`),
+  );
+  log(
+    `comunidade: ${await deleteRefs(db, refs)} publicações apagadas` +
+      ` (${d.orphanFeedItemIds.length} de torneio que já não existe)`,
+  );
+}
+
+/**
  * Cascata: o índice (`users`) morre por último.
  *
  * `discover()` reencontra tudo a partir dos flags em `users/{uid}`
  * (`seedTestAthlete`/`seedTestOrganizer`) e do `tournamentId` em cada
  * `matches`/inscription. Enquanto `users` existir, um rerun depois de uma
  * interrupção redescobre exatamente o que falta (apagar doc inexistente é
- * no-op). Por isso a ordem é ranking → matches → teams → inscriptions →
- * tournaments → public_profiles → Auth → users — e não "filho antes do pai"
+ * no-op). Por isso a ordem é ranking → comunidade → matches → teams →
+ * inscriptions → tournaments → public_profiles → Auth → users — e não
+ * "filho antes do pai"
  * ingênuo, que apagaria `users` (o índice) antes de `public_profiles`/Auth, ou
  * `inscriptions` (de onde `teamIds` é lido) antes de `teams`.
  *
@@ -618,6 +677,8 @@ async function deleteRankingArtifacts(db, d, log) {
  *   - depois de ranking: nada foi tirado das fontes de descoberta
  *     (tournaments/inscriptions/users seguem intactos) — o rerun redescobre
  *     tudo igual e reapaga por cima (no-op para o que já sumiu).
+ *   - depois de comunidade: idem — nada do que decide o feed
+ *     (`tournaments`, seed e existentes) foi tocado ainda.
  *   - depois de matches: teams/inscriptions/tournaments/users continuam
  *     achável por seedTournamentIds/flags: nada mudou na descoberta.
  *   - depois de teams: os teams já apagados não existem mais para
@@ -644,6 +705,7 @@ async function applyCleanup(db, auth, d) {
   const log = console.log;
 
   await deleteRankingArtifacts(db, d, log);
+  await deleteCommunityFeedItems(db, d, log);
 
   const matchRefs = d.matchIds.map((id) => db.doc(`${matchesPath(d.projectId)}/${id}`));
   log(`\nmatches: ${await deleteRefs(db, matchRefs)} apagados`);

@@ -5,6 +5,7 @@ import {
   chunkList,
   inscriptionParticipantUids,
   partitionCleanupTargets,
+  partitionCommunityFeed,
   partitionOrganizerCleanup,
   partitionRankingDocs,
   partitionRatingEvents,
@@ -526,5 +527,78 @@ describe("partitionOrganizerCleanup", () => {
 
     assert.deepEqual(plan.preservedOrganizerUids, ["o1"]);
     assert.deepEqual(plan.deletableOrganizerUids, []);
+  });
+});
+
+describe("partitionCommunityFeed", () => {
+  const base = {
+    seedTournamentIds: ["seed1"],
+    existingTournamentIds: ["seed1", "real1"],
+  };
+
+  it("apaga os três tipos de item de um torneio seed", () => {
+    const plan = partitionCommunityFeed({
+      ...base,
+      items: [
+        {id: "open_seed1", tournamentId: "seed1"},
+        {id: "champions_seed1", tournamentId: "seed1"},
+        {id: "announcement_seed1_1737000000000", tournamentId: "seed1"},
+      ],
+    });
+
+    assert.deepEqual(plan.seedFeedItemIds, [
+      "open_seed1",
+      "champions_seed1",
+      "announcement_seed1_1737000000000",
+    ]);
+    assert.deepEqual(plan.orphanFeedItemIds, []);
+  });
+
+  it("apaga item cujo torneio não existe mais (sobra de limpeza antiga)", () => {
+    const plan = partitionCommunityFeed({
+      ...base,
+      items: [{id: "open_apagado", tournamentId: "apagado"}],
+    });
+
+    assert.deepEqual(plan.seedFeedItemIds, []);
+    assert.deepEqual(plan.orphanFeedItemIds, ["open_apagado"]);
+  });
+
+  it("mantém item de torneio real existente", () => {
+    const plan = partitionCommunityFeed({
+      ...base,
+      items: [{id: "champions_real1", tournamentId: "real1"}],
+    });
+
+    assert.deepEqual(plan.seedFeedItemIds, []);
+    assert.deepEqual(plan.orphanFeedItemIds, []);
+  });
+
+  it("mantém item sem tournamentId — não dá para provar que é lixo", () => {
+    const plan = partitionCommunityFeed({
+      ...base,
+      items: [{id: "sem_dono"}, {id: "vazio", tournamentId: "  "}],
+    });
+
+    assert.deepEqual(plan.seedFeedItemIds, []);
+    assert.deepEqual(plan.orphanFeedItemIds, []);
+  });
+
+  it("torneio seed já apagado à mão conta como seed, não como órfão", () => {
+    const plan = partitionCommunityFeed({
+      items: [{id: "open_seed1", tournamentId: "seed1"}],
+      seedTournamentIds: ["seed1"],
+      existingTournamentIds: ["real1"],
+    });
+
+    assert.deepEqual(plan.seedFeedItemIds, ["open_seed1"]);
+    assert.deepEqual(plan.orphanFeedItemIds, []);
+  });
+
+  it("sem itens, devolve tudo vazio", () => {
+    const plan = partitionCommunityFeed({...base, items: []});
+
+    assert.deepEqual(plan.seedFeedItemIds, []);
+    assert.deepEqual(plan.orphanFeedItemIds, []);
   });
 });

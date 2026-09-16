@@ -15,6 +15,7 @@ const rules = fs.readFileSync(path.join(__dirname, '../../firestore.rules'), 'ut
 const PROJECT_ID = 'nexago-event-admin-test';
 const DONO = 'dono-uid';
 const ADMIN_EVENTO = 'admin-evento-uid';
+const GESTOR = 'gestor-uid';
 const TORNEIO = 'copa-admin';
 
 const testEnv = await initializeTestEnvironment({
@@ -31,6 +32,9 @@ before(async () => {
     await setDoc(doc(db, 'tournaments', TORNEIO, 'staff', ADMIN_EVENTO), {
       role: 'eventAdmin', status: 'active',
     });
+    await setDoc(doc(db, 'tournaments', TORNEIO, 'staff', GESTOR), {
+      role: 'manager', status: 'active',
+    });
   });
 });
 
@@ -41,6 +45,29 @@ const asAdminEvento = () => testEnv.authenticatedContext(ADMIN_EVENTO).firestore
 test('administrador edita o torneio', async () => {
   await assertSucceeds(
     updateDoc(doc(asAdminEvento(), 'tournaments', TORNEIO), { name: 'Copa Admin 2026' }),
+  );
+});
+
+// O papel dizia "opera o evento, não toca no dinheiro", mas o `allow update`
+// não tinha guarda de campo nenhuma: o administrador gravava `managerId` = ele
+// mesmo e virava DONO numa escrita só — e dono lê o caixa e saca
+// (`tournament-wallet-access.ts`, ramo `managerId === uid`). Ele não se
+// promovia a gestor; se promovia a dono. Vale para o gestor também: quem
+// sequestra `managerId` tranca o dono fora de `canManageTournamentStaff`.
+for (const [papel, uid] of [['administrador', ADMIN_EVENTO], ['gestor', GESTOR]]) {
+  test(`${papel} NÃO se grava como managerId do torneio`, async () => {
+    await assertFails(
+      updateDoc(
+        doc(testEnv.authenticatedContext(uid).firestore(), 'tournaments', TORNEIO),
+        { managerId: uid },
+      ),
+    );
+  });
+}
+
+test('administrador NÃO mexe no total arrecadado', async () => {
+  await assertFails(
+    updateDoc(doc(asAdminEvento(), 'tournaments', TORNEIO), { collectedCents: 0 }),
   );
 });
 
@@ -111,6 +138,39 @@ test('torneio com caixa zerado o dono exclui', async () => {
   });
   await assertSucceeds(
     deleteDoc(doc(testEnv.authenticatedContext(DONO).firestore(), 'tournaments', SEM_SALDO)),
+  );
+});
+
+// Caixa PARCIAL: a migração grava `availableReais` e de propósito não grava
+// `pendingReais` (não pode apagar reserva de saque em curso). Acesso direto a
+// campo ausente estoura a avaliação da regra, e aí o delete ficava negado para
+// sempre — o torneio virava impossível de excluir, com mensagem que não
+// explica nada. Com `.get(campo, 0)` o campo ausente é zero.
+test('caixa sem os campos de saldo não tranca a exclusão', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'tournaments', 'copa-caixa-parcial'), {
+      managerId: DONO, name: 'Caixa parcial',
+    });
+    await setDoc(doc(db, 'tournamentWallets', 'copa-caixa-parcial'), {
+      tournamentId: 'copa-caixa-parcial', ownerId: DONO,
+    });
+  });
+  await assertSucceeds(
+    deleteDoc(doc(testEnv.authenticatedContext(DONO).firestore(), 'tournaments', 'copa-caixa-parcial')),
+  );
+});
+
+test('caixa só com availableReais zerado (sem pendingReais) o dono exclui', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'tournaments', 'copa-migrada'), { managerId: DONO, name: 'Migrada' });
+    await setDoc(doc(db, 'tournamentWallets', 'copa-migrada'), {
+      tournamentId: 'copa-migrada', ownerId: DONO, availableReais: 0,
+    });
+  });
+  await assertSucceeds(
+    deleteDoc(doc(testEnv.authenticatedContext(DONO).firestore(), 'tournaments', 'copa-migrada')),
   );
 });
 

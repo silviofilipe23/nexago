@@ -19,6 +19,8 @@ const GESTOR = 'gestor-uid';
 const ADMIN_EVENTO = 'admin-evento-uid';
 const MESARIO = 'mesario-uid';
 const ESTRANHO = 'estranho-uid';
+/** Doc de staff LEGADO, sem o campo `role` — ver o último caso do arquivo. */
+const SEM_ROLE = 'sem-role-uid';
 const TORNEIO = 'copa-caixa';
 
 const testEnv = await initializeTestEnvironment({
@@ -33,6 +35,7 @@ before(async () => {
     await setDoc(doc(db, 'tournaments', TORNEIO, 'staff', GESTOR), { role: 'manager', status: 'active' });
     await setDoc(doc(db, 'tournaments', TORNEIO, 'staff', ADMIN_EVENTO), { role: 'eventAdmin', status: 'active' });
     await setDoc(doc(db, 'tournaments', TORNEIO, 'staff', MESARIO), { role: 'scorer', status: 'active' });
+    await setDoc(doc(db, 'tournaments', TORNEIO, 'staff', SEM_ROLE), { status: 'active' });
     await setDoc(doc(db, 'tournamentWallets', TORNEIO), {
       tournamentId: TORNEIO, ownerId: DONO, availableReais: 100, pendingReais: 0,
     });
@@ -79,6 +82,18 @@ test('extrato segue a mesma regra do caixa', async () => {
 
 test('ninguém escreve no caixa pelo cliente', async () => {
   await assertFails(setDoc(walletOf(DONO), { availableReais: 999 }, { merge: true }));
+});
+
+// Incoerência CONHECIDA e registrada de propósito (ver o desenho de
+// 16/09/2026, seção Rules): `isTournamentStaff` exige `role` explícito, então
+// um doc de staff legado SEM o campo tem a leitura do caixa negada — enquanto o
+// servidor (`isActiveWithdrawalStaffMirror`, `staffRoleGrantsOrganizerAccess`)
+// trata papel ausente como GESTOR e deixaria sacar. Nenhuma das duas camadas
+// muda de semântica; quem conserta é o backfill da migração, que grava
+// `role: 'manager'` nesses docs. Este teste fixa o comportamento para que a
+// divergência seja uma decisão visível, não uma surpresa.
+test('doc de staff sem `role` não lê o caixa (as rules exigem papel explícito)', async () => {
+  await assertFails(getDoc(walletOf(SEM_ROLE)));
 });
 
 test('perfil de repasse é privado do dono', async () => {

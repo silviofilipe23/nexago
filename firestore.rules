@@ -80,12 +80,39 @@ service cloud.firestore {
         tournamentManagerId(tournamentId) == request.auth.uid;
     }
     /** Caixa do torneio com dinheiro dentro — excluir o evento sumiria com ele.
-     *  Doc ausente conta como zerado (torneio que nunca recebeu pagamento). */
+     *  Doc ausente conta como zerado (torneio que nunca recebeu pagamento), e
+     *  campo ausente também: os dois saldos saem por `.get(campo, 0)` porque a
+     *  migração grava `availableReais` sem tocar em `pendingReais`. Acesso
+     *  direto a campo que não existe estoura a AVALIAÇÃO da regra, e aí o
+     *  delete do evento ficava negado para sempre, com mensagem que não
+     *  explica nada. */
     function tournamentHasWalletBalance(tournamentId) {
       return exists(/databases/$(database)/documents/tournamentWallets/$(tournamentId)) && (
-        get(/databases/$(database)/documents/tournamentWallets/$(tournamentId)).data.availableReais > 0 ||
-        get(/databases/$(database)/documents/tournamentWallets/$(tournamentId)).data.pendingReais > 0
+        get(/databases/$(database)/documents/tournamentWallets/$(tournamentId)).data.get('availableReais', 0) > 0 ||
+        get(/databases/$(database)/documents/tournamentWallets/$(tournamentId)).data.get('pendingReais', 0) > 0
       );
+    }
+    /** Campos do torneio que a EQUIPE não escreve, nem por descuido.
+     *
+     *  `managerId` é o que decide quem alcança o caixa
+     *  (`tournament-wallet-access.ts`, ramo `managerId === uid`): sem esta
+     *  guarda, o administrador — que por decisão do dono não vê dinheiro — se
+     *  gravava como `managerId` e virava DONO numa escrita só, passando a ler
+     *  o caixa e a sacar. Vale para o gestor também: quem sequestra `managerId`
+     *  tranca o dono fora de `canManageTournamentStaff` e ninguém mais mexe na
+     *  equipe.
+     *
+     *  Os totais de arrecadação entram na mesma lista: o dono já os tem
+     *  congelados no caminho dele (`organizerCanUpdateOwnTournament`), e um
+     *  papel que não devia VER totais de dinheiro não pode zerá-los.
+     *
+     *  Comparação por `.get(campo, null)` dos dois lados: torneio antigo pode
+     *  não ter os contadores, e acesso direto a campo ausente estoura a
+     *  avaliação em vez de negar. */
+    function staffKeepsTournamentMoneyFields() {
+      return request.resource.data.get('managerId', null) == resource.data.get('managerId', null) &&
+        request.resource.data.get('collectedCents', null) == resource.data.get('collectedCents', null) &&
+        request.resource.data.get('enrolledCount', null) == resource.data.get('enrolledCount', null);
     }
     /** Quem mexe na equipe do torneio: o dono e o super admin (suporte a torneio alheio).
      *  Duas invariantes que valem para os dois: ninguém se adiciona, e o dono nunca vira
@@ -2005,12 +2032,21 @@ service cloud.firestore {
       // ou mesário, só pra manter `liveMatchesNow` em dia a cada ponto marcado
       // (`TournamentLiveMatchesSync.syncForTournament`, chamado pelo app depois
       // de cada `recordPointTransaction`).
+      //
+      // A equipe (gestor e administrador) edita o evento — nome, datas, o que é
+      // dela editar — mas NUNCA `managerId` nem os totais de arrecadação:
+      // trocar `managerId` é se promover a dono e alcançar o caixa. Os
+      // parênteses do disjunto da equipe são obrigatórios: `&&` liga mais
+      // forte que `||`, e a forma sem eles mudaria o sentido da regra inteira.
       allow update: if request.auth != null && (
         isAdmin() ||
         isSuperAdmin() ||
         (isTournamentOrganizer() && organizerCanUpdateOwnTournament()) ||
         resource.data.managerId == request.auth.uid ||
-        isTournamentStaff(tournamentId, ['manager', 'eventAdmin']) ||
+        (
+          isTournamentStaff(tournamentId, ['manager', 'eventAdmin']) &&
+          staffKeepsTournamentMoneyFields()
+        ) ||
         (
           canScoreTournament(tournamentId) &&
           scorerCanOnlyEditLiveMatchesNowField()

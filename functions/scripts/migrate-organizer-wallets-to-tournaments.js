@@ -138,20 +138,32 @@ async function main() {
     // o extrato não registra de qual evento saiu cada saque, então proporção
     // é o mais defensável — e o relatório mostra a conta para conferência.
     //
-    // O ÚLTIMO torneio leva o resto exato (distribuível − já rateado aos
-    // anteriores), não a própria fatia arredondada: fatias independentes,
-    // cada uma arredondada pra cima ou pra baixo, podem somar mais do que
-    // existe (ex.: R$ 0,01 dividido 50/50 entre dois torneios viraria
-    // R$0,01+R$0,01=R$0,02). Dar o resto ao último fecha a soma por
-    // construção.
+    // A soma NUNCA passa do distribuível — nem antes do último torneio. Dar
+    // o resto exato só ao último não bastava: com 3+ torneios, cada fatia
+    // não-última é arredondada de forma INDEPENDENTE (pode arredondar pra
+    // cima até +0,005 cada), e o acúmulo desses arredondamentos pra cima
+    // pode passar do distribuível antes do último termo entrar — quando
+    // isso acontece, o "resto" do último vira 0 e a diferença é tirada do
+    // órfão sem avisar (provado por contraexemplo: available=100,00, órfão
+    // reservado 0,02 → distribuível=99,98; 3 torneios com fatias
+    // independentes 70,00 + 29,99 + 0,00 somam 99,99 > 99,98 — a mais vem do
+    // órfão). Por isso TODO torneio, não só o último, tem sua fatia limitada
+    // ao que ainda cabe no distribuível (`min(fatia arredondada, distribuível
+    // − já distribuído)`, nunca negativa); o último continua levando o resto
+    // exato. O que a proporção pedia e não coube fica com o órfão — nunca é
+    // apagado.
     let distribuidoCarteira = 0;
     const torneiosArr = [...porTorneio.entries()];
     for (let i = 0; i < torneiosArr.length; i++) {
       const [tournamentId, acc] = torneiosArr[i];
       const isUltimo = i === torneiosArr.length - 1;
+      const restanteDistribuivel = Math.max(0, Math.round((distribuivel - distribuidoCarteira) * 100) / 100);
+      const fatiaIndependente = creditadoTotal > 0 ?
+        Math.round((available * (acc.net / creditadoTotal)) * 100) / 100 :
+        0;
       const fatia = isUltimo ?
-        Math.max(0, Math.round((distribuivel - distribuidoCarteira) * 100) / 100) :
-        (creditadoTotal > 0 ? Math.round((available * (acc.net / creditadoTotal)) * 100) / 100 : 0);
+        restanteDistribuivel :
+        Math.max(0, Math.min(fatiaIndependente, restanteDistribuivel));
       const tSnap = await db.doc(`tournaments/${tournamentId}`).get();
       const nome = (tSnap.data()?.name || "(torneio apagado)").trim();
       const ownerId = (tSnap.data()?.managerId || uid).trim();
@@ -163,12 +175,14 @@ async function main() {
     }
 
     // Cinto de segurança: se por qualquer motivo o distribuído passar do
-    // disponível, avisa explicitamente em vez de deixar o leitor comparar
-    // duas linhas de cabeça.
-    if (distribuidoCarteira > available + 0.005) {
+    // DISTRIBUÍVEL (não do disponível bruto — o disponível inclui a reserva
+    // do órfão, então comparar com ele deixaria passar batido justamente o
+    // caso em que o órfão foi comido), avisa explicitamente em vez de deixar
+    // o leitor comparar duas linhas de cabeça.
+    if (distribuidoCarteira > distribuivel + 0.005) {
       console.log(
-        `  ALERTA: distribuído (${BRL(distribuidoCarteira)}) passou do disponível ` +
-        `(${BRL(available)}) — parar e investigar antes de aplicar!`,
+        `  ALERTA: distribuído (${BRL(distribuidoCarteira)}) passou do distribuível ` +
+        `(${BRL(distribuivel)}) — parar e investigar antes de aplicar!`,
       );
     }
 
@@ -215,11 +229,16 @@ async function main() {
     if (APPLY && !excedeLimiteBatch && numOperacoes > 0) {
       const batch = db.batch();
       for (const [tournamentId, acc] of torneiosArr) {
+        // Sem `pendingReais` aqui: o caixa do torneio já pode estar
+        // recebendo saques em curso desde o deploy das functions (crédito
+        // novo já cai nele). Escrever `pendingReais: 0` em merge apagaria
+        // uma reserva legítima de um saque que já esteja em andamento.
+        // Quem cuida de `pendingReais` são as funções de reserva/liberação,
+        // não esta migração.
         batch.set(db.doc(`tournamentWallets/${tournamentId}`), {
           tournamentId,
           ownerId: acc.ownerId,
           availableReais: admin.firestore.FieldValue.increment(acc.fatia),
-          pendingReais: 0,
           migratedFromOrganizerWallet: uid,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }, {merge: true});

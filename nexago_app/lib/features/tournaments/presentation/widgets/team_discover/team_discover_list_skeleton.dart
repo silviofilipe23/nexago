@@ -72,14 +72,12 @@ class _RowSkeleton extends StatelessWidget {
                 const SizedBox(height: 5),
                 _ShimmerLine(widthFactor: 0.4, height: 8, pulse: pulse),
                 const SizedBox(height: 6),
-                _ShimmerLine(widthFactor: 0.58, height: 8, pulse: pulse),
+                _ShimmerLine(widthFactor: 0.52, height: 8, pulse: pulse),
               ],
             ),
           ),
           const SizedBox(width: 10),
           _ShimmerBox(width: 24, height: 14, pulse: pulse),
-          const SizedBox(width: 10),
-          _ShimmerBox(width: 32, height: 32, pulse: pulse, radius: 999),
         ],
       ),
     );
@@ -171,13 +169,11 @@ class _ShimmerBox extends StatelessWidget {
     required this.width,
     required this.height,
     required this.pulse,
-    this.radius = 6,
   });
 
   final double width;
   final double height;
   final double pulse;
-  final double radius;
 
   @override
   Widget build(BuildContext context) {
@@ -188,7 +184,7 @@ class _ShimmerBox extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(radius),
+        borderRadius: BorderRadius.circular(6),
         color: Color.lerp(base, highlight, pulse),
       ),
     );

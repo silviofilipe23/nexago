@@ -90,6 +90,15 @@ void main() {
     expect(find.text('VÔLEI DE PRAIA'), findsOneWidget);
   });
 
+  testWidgets('não traz botão de seguir na linha', (tester) async {
+    await _pump(tester, _entry(teamName: 'Areia Viva'));
+
+    // Seguir dupla mora no perfil dela, não na listagem.
+    expect(find.byIcon(Icons.add_rounded), findsNothing);
+    expect(find.byIcon(Icons.check_rounded), findsNothing);
+    expect(find.text('Seguir'), findsNothing);
+  });
+
   testWidgets('nunca imprime distância em km', (tester) async {
     await _pump(tester, _entry(teamName: 'Areia Viva'));
 

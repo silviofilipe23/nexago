@@ -203,7 +203,7 @@ async function main() {
     console.log(
       `  carteira: distribuído=${BRL(distribuidoCarteira)} | resto órfão=${BRL(restanteCarteira)} | ` +
       (vaiGravarNaCarteiraAntiga ?
-        `ficará gravado availableReais=${BRL(restanteCarteira)}` :
+        `debitará availableReais em ${BRL(distribuidoCarteira)} (sobra prevista ${BRL(restanteCarteira)})` :
         "nada será gravado aqui — carteira fica intocada (nenhuma fatia distribuível)"),
     );
 
@@ -260,13 +260,19 @@ async function main() {
 
       if (vaiGravarNaCarteiraAntiga) {
         // Debita só o que foi distribuído — NUNCA zera incondicionalmente.
-        // `restanteCarteira` pode ficar > 0 de propósito: é o órfão (ou
-        // resíduo de arredondamento) que a carteira antiga preserva para
-        // decisão manual, não dinheiro perdido no processo. É a presença
-        // deste `migratedToTournamentWalletsAt` que a guarda de
-        // idempotência checa na próxima rodada.
+        // O resto fica de propósito: é o órfão (ou resíduo de arredondamento)
+        // que a carteira antiga preserva para decisão manual, não dinheiro
+        // perdido no processo. É a presença deste
+        // `migratedToTournamentWalletsAt` que a guarda de idempotência checa
+        // na próxima rodada.
+        //
+        // `increment`, não saldo absoluto, e pela mesma razão dos caixas de
+        // torneio: `restanteCarteira` foi calculado da leitura do INÍCIO da
+        // rodada. Se um saque legado pendente for rejeitado nesta janela,
+        // `releaseOrganizerWithdrawalReservation` devolve o valor ao
+        // `availableReais` — e a escrita absoluta apagaria a devolução.
         batch.set(walletDoc.ref, {
-          availableReais: restanteCarteira,
+          availableReais: admin.firestore.FieldValue.increment(-distribuidoCarteira),
           migratedToTournamentWalletsAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }, {merge: true});

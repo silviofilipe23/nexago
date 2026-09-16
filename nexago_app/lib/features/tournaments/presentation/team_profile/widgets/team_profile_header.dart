@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
@@ -316,37 +318,137 @@ class _RankingBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    final metal = _RankingBadgeMetal.of(rank);
+    const radius = BorderRadius.all(Radius.circular(14));
+    final fill = metal?.fill ?? AppColors.white.withValues(alpha: 0.14);
+    final border = metal?.border ?? AppColors.white.withValues(alpha: 0.28);
+    final labelColor = metal?.label ?? AppColors.white.withValues(alpha: 0.72);
+    final valueColor = metal?.value ?? AppColors.white;
+
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: context.themeColors.surfaceCard.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.brand.withValues(alpha: 0.35)),
+        borderRadius: radius,
+        boxShadow: metal == null
+            ? null
+            : [BoxShadow(color: metal.glow, blurRadius: 18, spreadRadius: 0.5)],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            'RANKING EQUIPES BR',
-            style: AppTypography.mono(
-              fontSize: 8,
-              fontWeight: FontWeight.w700,
-              color: context.themeColors.onSurfaceMuted,
-              letterSpacing: 0.4,
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+            decoration: BoxDecoration(
+              borderRadius: radius,
+              gradient: metal?.sheen,
+              color: metal == null ? fill : null,
+              border: Border.all(color: border, width: metal == null ? 1 : 1.2),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  'RANKING EQUIPES',
+                  style: AppTypography.mono(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    color: labelColor,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '#$rank',
+                  style: AppTypography.soraRegular(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: valueColor,
+                    height: 1,
+                  ),
+                ),
+              ],
             ),
           ),
-          Text(
-            '#$rank',
-            style: AppTypography.soraRegular(
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              color: AppColors.brand,
-              height: 1,
-            ),
-          ),
-        ],
+        ),
       ),
     );
+  }
+}
+
+/// Paleta luminosa do pódio no badge de ranking (1 ouro · 2 prata · 3 bronze).
+class _RankingBadgeMetal {
+  const _RankingBadgeMetal({
+    required this.fill,
+    required this.border,
+    required this.label,
+    required this.value,
+    required this.glow,
+    required this.sheen,
+  });
+
+  final Color fill;
+  final Color border;
+  final Color label;
+  final Color value;
+  final Color glow;
+  final LinearGradient sheen;
+
+  static _RankingBadgeMetal? of(int rank) {
+    switch (rank) {
+      case 1:
+        return _RankingBadgeMetal(
+          fill: const Color(0xFFFFD700).withValues(alpha: 0.28),
+          border: const Color(0xFFFFE566).withValues(alpha: 0.85),
+          label: const Color(0xFFFFF1B0),
+          value: const Color(0xFFFFF8D6),
+          glow: const Color(0xFFFFD700).withValues(alpha: 0.55),
+          sheen: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFFFFF6C8).withValues(alpha: 0.42),
+              const Color(0xFFFFD700).withValues(alpha: 0.22),
+              const Color(0xFFFFB800).withValues(alpha: 0.30),
+            ],
+          ),
+        );
+      case 2:
+        return _RankingBadgeMetal(
+          fill: const Color(0xFFE8ECF4).withValues(alpha: 0.28),
+          border: const Color(0xFFF5F7FA).withValues(alpha: 0.88),
+          label: const Color(0xFFE9EDF5),
+          value: const Color(0xFFF8FAFC),
+          glow: const Color(0xFFD7DCE6).withValues(alpha: 0.55),
+          sheen: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFFFFFFFF).withValues(alpha: 0.48),
+              const Color(0xFFD8DEE8).withValues(alpha: 0.22),
+              const Color(0xFFB8C0CE).withValues(alpha: 0.32),
+            ],
+          ),
+        );
+      case 3:
+        return _RankingBadgeMetal(
+          fill: const Color(0xFFE8A05A).withValues(alpha: 0.30),
+          border: const Color(0xFFFFC08A).withValues(alpha: 0.85),
+          label: const Color(0xFFFFD7B0),
+          value: const Color(0xFFFFE6CC),
+          glow: const Color(0xFFD08A5A).withValues(alpha: 0.55),
+          sheen: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFFFFD9B0).withValues(alpha: 0.44),
+              const Color(0xFFD08A5A).withValues(alpha: 0.24),
+              const Color(0xFFB86A3A).withValues(alpha: 0.32),
+            ],
+          ),
+        );
+      default:
+        return null;
+    }
   }
 }
 

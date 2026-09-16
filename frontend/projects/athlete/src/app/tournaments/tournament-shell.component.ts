@@ -28,6 +28,7 @@ function nameFromEmail(email: string | null | undefined): string {
 const TAB_LABELS: Record<TournamentTabId, string> = {
   'visao-geral': 'Visão geral',
   categorias: 'Categorias',
+  equipes: 'Equipes',
   'minha-inscricao': 'Minha inscrição',
   palpites: 'Palpites',
 };

@@ -463,19 +463,19 @@ describe('knockoutLabelOf', () => {
 
 describe('visibleTabsOf / defaultTabOf', () => {
   it('mostra só visão geral e categorias para quem não está inscrito', () => {
-    const tabs = visibleTabsOf({ hasMyMatchToday: false, isRegistered: false, hasDefinedMatchups: false });
+    const tabs = visibleTabsOf({ hasMyMatchToday: false, isRegistered: false, hasDefinedMatchups: false, enrolledTeamsVisible: false });
     expect(tabs).toEqual(['visao-geral', 'categorias']);
     expect(defaultTabOf(false)).toBe('visao-geral');
   });
 
   it('não emite mais a aba Hoje — o dia do atleta vive no Focus', () => {
-    const tabs = visibleTabsOf({ hasMyMatchToday: true, isRegistered: true, hasDefinedMatchups: true });
+    const tabs = visibleTabsOf({ hasMyMatchToday: true, isRegistered: true, hasDefinedMatchups: true, enrolledTeamsVisible: false });
     expect(tabs).toEqual(['visao-geral', 'categorias', 'minha-inscricao', 'palpites']);
     expect(defaultTabOf(true)).toBe('minha-inscricao');
   });
 
   it('mantém "minha inscrição" para o inscrito sem jogo hoje', () => {
-    expect(visibleTabsOf({ hasMyMatchToday: false, isRegistered: true, hasDefinedMatchups: false })).toEqual([
+    expect(visibleTabsOf({ hasMyMatchToday: false, isRegistered: true, hasDefinedMatchups: false, enrolledTeamsVisible: false })).toEqual([
       'visao-geral',
       'categorias',
       'minha-inscricao',
@@ -483,10 +483,28 @@ describe('visibleTabsOf / defaultTabOf', () => {
   });
 
   it('libera "palpites" assim que existe confronto definido, sempre por último', () => {
-    expect(visibleTabsOf({ hasMyMatchToday: false, isRegistered: false, hasDefinedMatchups: true })).toEqual([
+    expect(visibleTabsOf({ hasMyMatchToday: false, isRegistered: false, hasDefinedMatchups: true, enrolledTeamsVisible: false })).toEqual([
       'visao-geral',
       'categorias',
       'palpites',
+    ]);
+  });
+
+  it('"equipes" entra logo depois de categorias quando o organizador expõe o roster', () => {
+    expect(visibleTabsOf({ hasMyMatchToday: false, isRegistered: true, hasDefinedMatchups: true, enrolledTeamsVisible: true })).toEqual([
+      'visao-geral',
+      'categorias',
+      'equipes',
+      'minha-inscricao',
+      'palpites',
+    ]);
+  });
+
+  it('"equipes" some quando o organizador esconde o roster, sem mexer nas outras abas', () => {
+    expect(visibleTabsOf({ hasMyMatchToday: false, isRegistered: false, hasDefinedMatchups: false, enrolledTeamsVisible: true })).toEqual([
+      'visao-geral',
+      'categorias',
+      'equipes',
     ]);
   });
 });

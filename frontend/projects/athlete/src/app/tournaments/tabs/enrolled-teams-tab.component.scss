@@ -1,0 +1,167 @@
+@use '../tournament-live' as tl;
+
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.et {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-4);
+}
+
+.et-kicker {
+  margin: 0;
+  @include tl.kicker;
+}
+
+.et-empty {
+  margin: 0;
+  padding: var(--nx-s-6) var(--nx-s-4);
+  text-align: center;
+  color: var(--nx-text-mute);
+}
+
+.et-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nx-s-2);
+}
+
+.et-chip {
+  padding: 6px 12px;
+  border: 1px solid var(--nx-line);
+  border-radius: 999px;
+  background: var(--nx-surface-0);
+  color: var(--nx-text-mute);
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    border-color: rgba(255, 106, 26, 0.45);
+    color: var(--nx-text);
+  }
+}
+
+.et-chip--on {
+  border-color: rgba(255, 106, 26, 0.45);
+  background: var(--nx-surface-1);
+  color: var(--nx-text);
+  font-weight: 600;
+}
+
+.et-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-2);
+}
+
+.et-group-title {
+  margin: 0;
+  @include tl.kicker;
+}
+
+.et-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.et-row {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-s-3);
+  min-width: 0;
+  padding: var(--nx-s-3) var(--nx-s-4);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-0);
+  text-decoration: none;
+  color: inherit;
+}
+
+.et-row--linked {
+  transition:
+    border-color var(--nx-d-fast) var(--nx-ease-out),
+    background var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover,
+  &:focus-visible {
+    border-color: rgba(255, 106, 26, 0.45);
+    background: var(--nx-surface-1);
+  }
+}
+
+.et-avatars {
+  display: flex;
+  flex: none;
+  align-items: center;
+  // Compensa o `margin-left` negativo do primeiro avatar, senão a pilha nasce cortada.
+  padding-left: 10px;
+}
+
+.et-avatar {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-left: -10px;
+  border-radius: 50%;
+  border: 2px solid var(--nx-surface-2);
+  overflow: hidden;
+  background: linear-gradient(135deg, #ff6a1a, #c2185b);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.et-avatar-fallback {
+  font-family: var(--nx-font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.et-names {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+// Sem nome próprio o título É "Ana Paula / Bia Costa" — reticências ali apagariam justamente
+// quem joga. Então esta linha QUEBRA em vez de truncar; quem tem nome de equipe (curto) não
+// chega a usar a segunda linha. A de membros, secundária, continua numa linha só.
+.et-team {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.et-members {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--nx-text-mute);
+}
+
+.et-chevron {
+  flex: none;
+  color: var(--nx-text-mute);
+  font-size: 18px;
+  line-height: 1;
+}

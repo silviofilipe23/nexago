@@ -151,6 +151,7 @@ export function tournamentDraftToFirestore(params: {
     listingStatus,
     status: listingStatus,
     visibility: draft.visibility,
+    enrolledTeamsVisible: draft.enrolledTeamsVisible,
     featured: false,
     liveMatchesNow: 0,
     managerId,
@@ -390,6 +391,8 @@ export function tournamentDraftFromFirestore(data: Record<string, unknown>, id: 
     rankingEnabled: data['rankingEnabled'] !== false,
     rankingTableId: str(data['rankingTableId']) || 'nexago_standalone',
     visibility: (data['visibility'] === 'linkOnly' ? 'linkOnly' : 'publicListing') as TournamentVisibility,
+    // Ausente = VISÍVEL: a lista já existia antes da flag, e torneio antigo não pode perdê-la.
+    enrolledTeamsVisible: data['enrolledTeamsVisible'] !== false,
   };
 
   const listingStatus = str(data['listingStatus']) || str(data['status']) || null;

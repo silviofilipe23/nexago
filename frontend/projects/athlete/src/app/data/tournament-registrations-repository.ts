@@ -11,6 +11,8 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
+import type { RosterRow } from '../tournaments/enrolled-teams';
+import { fetchTeamsByIds } from './teams-repository';
 
 const INVITES_COLLECTION = 'tournamentRegistrationInvites';
 
@@ -199,6 +201,39 @@ function myRegistrationsQuery(db: Firestore, projectId: string, uid: string) {
 export async function fetchMyRegistrations(db: Firestore, projectId: string, uid: string): Promise<AthleteTournamentRegistration[]> {
   const snap = await getDocs(myRegistrationsQuery(db, projectId, uid));
   return snap.docs.map((d) => registrationFromDoc(d.id, d.data() as Record<string, unknown>));
+}
+
+/** Roster público do torneio: TODAS as inscrições dele, com o doc de equipe de cada uma.
+ *
+ *  Busca única, sem listener: o roster muda algumas vezes por dia e um `onSnapshot` aqui custaria
+ *  clientes × mudanças em cima de uma lista que ninguém acompanha ao vivo. `allow list` nas
+ *  inscrições exige login, e a rota do torneio já passa pelo `authGuard`.
+ *
+ *  Quem separa confirmada de pendente é `buildEnrolledTeams` — a mesma regra do app. */
+export async function fetchTournamentRosterRows(db: Firestore, projectId: string, tournamentId: string): Promise<RosterRow[]> {
+  const id = tournamentId.trim();
+  if (!id) return [];
+
+  const snap = await getDocs(
+    query(collection(db, 'artifacts', projectId, 'public', 'data', 'inscriptions'), where('tournamentId', '==', id)),
+  );
+  const docs = snap.docs.map((d) => ({ registrationId: d.id, inscription: d.data() as Record<string, unknown> }));
+
+  const teamIds = docs.map((d) => d.inscription['teamId']).filter((t): t is string => typeof t === 'string' && t.trim().length > 0);
+  const teams = await fetchTeamsByIds(db, projectId, teamIds);
+
+  return docs.map(({ registrationId, inscription }) => {
+    const teamId = typeof inscription['teamId'] === 'string' ? inscription['teamId'].trim() : '';
+    const team = teamId ? teams.get(teamId) : undefined;
+    return {
+      registrationId,
+      inscription,
+      // `ArenaTeam` tipado vira o mapa cru que a lógica espelhada do app lê por chave.
+      team: team
+        ? { id: team.id, player1Id: team.player1Id, player2Id: team.player2Id, teamName: team.teamName, memberUids: [...team.memberUids] }
+        : null,
+    };
+  });
 }
 
 /** Minhas inscrições AO VIVO. Diferente de {@link watchRegistration}, que observa um doc: quando

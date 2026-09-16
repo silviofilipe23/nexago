@@ -418,6 +418,12 @@ export const routes: Routes = [
           { path: 'partidas', pathMatch: 'full', redirectTo: legacyCategoryRedirect('partidas') },
           { path: 'chaves', pathMatch: 'full', redirectTo: legacyCategoryRedirect('chave') },
           {
+            // Roster público — a aba só aparece quando o organizador expõe (`enrolledTeamsVisible`),
+            // mas a rota fica sempre de pé: o portão mora no componente, como no app.
+            path: 'equipes',
+            loadComponent: () => import('./tournaments/tabs/enrolled-teams-tab.component').then((m) => m.EnrolledTeamsTabComponent),
+          },
+          {
             path: 'minha-inscricao',
             loadComponent: () => import('./tournaments/tabs/registration-tab.component').then((m) => m.RegistrationTabComponent),
           },

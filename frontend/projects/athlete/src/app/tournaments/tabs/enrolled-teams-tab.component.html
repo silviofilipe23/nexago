@@ -1,0 +1,74 @@
+@if (hidden()) {
+  <p class="et-empty">O organizador não está exibindo as equipes inscritas deste torneio.</p>
+} @else if (loading()) {
+  <p class="et-empty">Carregando as equipes inscritas…</p>
+} @else if (failed()) {
+  <p class="et-empty">Não foi possível carregar as equipes inscritas.</p>
+} @else if (total() === 0) {
+  <p class="et-empty">Nenhuma equipe com inscrição confirmada ainda.</p>
+} @else {
+  <section class="et">
+    <h2 class="et-kicker">Equipes inscritas</h2>
+
+    @if (chips().length > 0) {
+      <div class="et-chips" role="tablist" aria-label="Filtrar por categoria">
+        @for (chip of chips(); track chip.id) {
+          <button
+            type="button"
+            role="tab"
+            class="et-chip"
+            [class.et-chip--on]="chip.id === selectedCategoryId()"
+            [attr.aria-selected]="chip.id === selectedCategoryId()"
+            (click)="selectCategory(chip.id)"
+          >
+            {{ chip.name }}
+          </button>
+        }
+      </div>
+    }
+
+    @for (group of groups(); track group.categoryId) {
+      <div class="et-group">
+        <h3 class="et-group-title">{{ group.categoryName }}</h3>
+        <ul class="et-list">
+          @for (team of group.teams; track team.registrationId) {
+            <li>
+              @if (team.teamId) {
+                <a class="et-row et-row--linked" [routerLink]="['/equipes', team.teamId]">
+                  <ng-container [ngTemplateOutlet]="rowBody" [ngTemplateOutletContext]="{ $implicit: team }" />
+                  <span class="et-chevron" aria-hidden="true">›</span>
+                </a>
+              } @else {
+                <div class="et-row">
+                  <ng-container [ngTemplateOutlet]="rowBody" [ngTemplateOutletContext]="{ $implicit: team }" />
+                </div>
+              }
+            </li>
+          }
+        </ul>
+      </div>
+    }
+  </section>
+}
+
+<!-- Uma linha só, usada com e sem link: duplicar o corpo deixaria as duas versões saírem de
+     sincronia no primeiro ajuste de layout. -->
+<ng-template #rowBody let-team>
+  <span class="et-avatars" aria-hidden="true">
+    @for (member of team.members; track member.uid) {
+      <span class="et-avatar" [style.z-index]="team.members.length - $index">
+        @if (member.photoUrl) {
+          <img [src]="member.photoUrl" [alt]="member.name" />
+        } @else {
+          <span class="et-avatar-fallback">{{ member.initials }}</span>
+        }
+      </span>
+    }
+  </span>
+  <span class="et-names">
+    <span class="et-team">{{ team.displayName }}</span>
+    @if (membersLine(team.displayName, team.members); as line) {
+      <span class="et-members">{{ line }}</span>
+    }
+  </span>
+</ng-template>

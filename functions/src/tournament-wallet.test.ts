@@ -122,4 +122,15 @@ describe("reserva de saque no caixa do torneio", () => {
       /WITHDRAWAL_RESERVATION_INVALID/,
     );
   });
+
+  it("validação recusa PIX de caixa com saldo negativo", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(WALLET_PATH, {availableReais: -5, pendingReais: 40});
+    await assert.rejects(
+      () => assertTournamentWithdrawalReservationValid(
+        fake as unknown as Firestore, TOURNAMENT, 40,
+      ),
+      /WALLET_STATE_INVALID/,
+    );
+  });
 });

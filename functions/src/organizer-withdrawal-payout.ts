@@ -11,6 +11,10 @@ import {
   assertOrganizerWithdrawalReservationValid,
   releaseOrganizerWithdrawalReservation,
 } from "./organizer-wallet";
+import {
+  assertTournamentWithdrawalReservationValid,
+  releaseTournamentWithdrawalReservation,
+} from "./tournament-wallet";
 import {ORGANIZER_WITHDRAWAL_REF_PREFIX} from "./arena-booking-payment-constants";
 import {
   type PayoutSendResult,
@@ -22,6 +26,23 @@ export type CompleteOrganizerWithdrawalPayoutResult = PayoutSendResult & {
   status: "approved";
 };
 
+/**
+ * De qual caixa o saque sai. Saque criado a partir de 16/09/2026 traz
+ * `tournamentId`; os que ficaram pendentes antes da virada continuam debitando
+ * `organizerWallets/{uid}` — é o único caminho que não deixa dinheiro preso.
+ */
+export function resolveWithdrawalWalletTarget(
+  withdrawal: Record<string, unknown>,
+):
+  | {kind: "tournament"; tournamentId: string}
+  | {kind: "organizer"; organizerId: string} {
+  const tournamentId = (withdrawal.tournamentId as string | undefined)?.trim() ?? "";
+  if (tournamentId) return {kind: "tournament", tournamentId};
+  const organizerId = (withdrawal.organizerId as string | undefined)?.trim() ?? "";
+  if (organizerId) return {kind: "organizer", organizerId};
+  throw new Error("WITHDRAWAL_DATA_INVALID");
+}
+
 export async function completeOrganizerWithdrawalPayout(
   db: Firestore,
   withdrawalRef: DocumentReference,
@@ -29,20 +50,29 @@ export async function completeOrganizerWithdrawalPayout(
   reviewedBy: string,
   reviewNote?: string,
 ): Promise<CompleteOrganizerWithdrawalPayoutResult> {
-  const organizerId = (withdrawal.organizerId as string | undefined)?.trim() ?? "";
+  const target = resolveWithdrawalWalletTarget(withdrawal);
   const amountReais = Number(withdrawal.amountReais) || 0;
-  if (!organizerId || amountReais <= 0) {
+  if (amountReais <= 0) {
     throw new Error("WITHDRAWAL_DATA_INVALID");
   }
 
-  await assertOrganizerWithdrawalReservationValid(db, organizerId, amountReais);
+  if (target.kind === "tournament") {
+    await assertTournamentWithdrawalReservationValid(db, target.tournamentId, amountReais);
+  } else {
+    await assertOrganizerWithdrawalReservationValid(db, target.organizerId, amountReais);
+  }
 
   const payout = await sendArenaWithdrawalPixTransfer(
     withdrawalRef,
     withdrawal,
     ORGANIZER_WITHDRAWAL_REF_PREFIX,
   );
-  await releaseOrganizerWithdrawalReservation(db, organizerId, amountReais, true);
+
+  if (target.kind === "tournament") {
+    await releaseTournamentWithdrawalReservation(db, target.tournamentId, amountReais, true);
+  } else {
+    await releaseOrganizerWithdrawalReservation(db, target.organizerId, amountReais, true);
+  }
 
   await withdrawalRef.update({
     status: "approved",

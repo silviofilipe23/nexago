@@ -33,10 +33,12 @@ import {
 import {loadPayoutPixKey, savePayoutPixKey} from "./organizer-payout-profile";
 import {
   reserveTournamentWithdrawalAmount,
+  releaseTournamentWithdrawalReservation,
 } from "./tournament-wallet";
 import {assertCanWithdrawFromTournament} from "./tournament-wallet-access";
 import {
   completeOrganizerWithdrawalPayout,
+  resolveWithdrawalWalletTarget,
 } from "./organizer-withdrawal-payout";
 import {isAsaasPayoutError} from "./arena-withdrawal-payout";
 import {resolveWithdrawalPixFields} from "./asaas-payout";
@@ -794,11 +796,15 @@ export const reviewOrganizerWithdrawal = onCall(
       throw new HttpsError("failed-precondition", "Saque já foi revisado.");
     }
 
-    const organizerId = w.organizerId as string;
     const amountReais = Number(w.amountReais) || 0;
 
     if (decision === "rejected") {
-      await releaseOrganizerWithdrawalReservation(db, organizerId, amountReais, false);
+      const target = resolveWithdrawalWalletTarget(w);
+      if (target.kind === "tournament") {
+        await releaseTournamentWithdrawalReservation(db, target.tournamentId, amountReais, false);
+      } else {
+        await releaseOrganizerWithdrawalReservation(db, target.organizerId, amountReais, false);
+      }
       await ref.update({
         status: "rejected",
         reviewedBy: uid,
@@ -809,7 +815,12 @@ export const reviewOrganizerWithdrawal = onCall(
     }
 
     if (decision === "approved_manual") {
-      await releaseOrganizerWithdrawalReservation(db, organizerId, amountReais, true);
+      const target = resolveWithdrawalWalletTarget(w);
+      if (target.kind === "tournament") {
+        await releaseTournamentWithdrawalReservation(db, target.tournamentId, amountReais, true);
+      } else {
+        await releaseOrganizerWithdrawalReservation(db, target.organizerId, amountReais, true);
+      }
       await ref.update({
         status: "approved",
         payoutStatus: "manual",

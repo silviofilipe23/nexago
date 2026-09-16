@@ -50,6 +50,11 @@ function isPairTeamDoc(team) {
   if (name) return false;
   const size = Number(team.teamSize ?? 0);
   if (Number.isFinite(size) && size >= 3) return false;
+  // `memberUids` é o elenco canônico no resto do código. Um doc histórico com
+  // 3+ membros, sem nome e sem `teamSize`, passaria pelos dois testes acima e
+  // ganharia aqui um `pairKey` dos 2 primeiros players — carimbando uma equipe
+  // de verdade como dupla, visível pro helper de reaproveitamento.
+  if (Array.isArray(team.memberUids) && team.memberUids.length >= 3) return false;
   return true;
 }
 

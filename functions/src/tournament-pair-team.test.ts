@@ -40,6 +40,11 @@ describe("isPairTeamDoc", () => {
     assert.equal(isPairTeamDoc({teamSize: 3}), false);
     assert.equal(isPairTeamDoc(null), false);
   });
+
+  it("elenco de 3+ não é par nem sem nome e sem teamSize", () => {
+    assert.equal(isPairTeamDoc({memberUids: ["a", "b", "c"]}), false);
+    assert.equal(isPairTeamDoc({memberUids: ["a", "b"]}), true);
+  });
 });
 
 describe("pickPairTeamId", () => {

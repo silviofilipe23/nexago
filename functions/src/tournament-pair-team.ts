@@ -48,6 +48,11 @@ export function isPairTeamDoc(
   if (name) return false;
   const size = Number(team.teamSize ?? 0);
   if (Number.isFinite(size) && size >= 3) return false;
+  // `memberUids` é o elenco canônico no resto do código. Um doc histórico com
+  // 3+ membros, sem nome e sem `teamSize`, passaria pelos dois testes acima e
+  // seria tratado como dupla pelos 2 primeiros players.
+  const memberUids = team.memberUids;
+  if (Array.isArray(memberUids) && memberUids.length >= 3) return false;
   return true;
 }
 

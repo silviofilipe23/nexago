@@ -650,6 +650,14 @@ async function discoverScanSources() {
   if (dottedFieldDocs.length > 0) {
     console.error(`ATENÇÃO: ${dottedFieldDocs.length} doc(s) com campo de topo pontuado:`);
     for (const doc of dottedFieldDocs) console.error(`  ${doc.ref.path}`);
+    // PORTÃO, não aviso: a fase 1 escreveria um mapa `picks` aninhado ao lado
+    // do campo literal (palpite de um usuário adulterado) e a fase 2 abortaria
+    // no meio da migração ao achar a sobra. Sai ANTES de qualquer escrita —
+    // dry-run inclusive, pra que o operador veja o bloqueio sem --apply.
+    console.error(
+      "Migração ABORTADA: corrija os campos pontuados (ver docs do script) antes de rodar de novo.",
+    );
+    process.exit(1);
   } else {
     console.log(`Nenhum encontrado nesta varredura (${entriesSnap.size} docs de entries checados).`);
   }

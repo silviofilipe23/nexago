@@ -326,6 +326,72 @@ describe('substituição — aceite', () => {
     assert.deepEqual(team.memberUids, [cap, sub, m2]);
   });
 
+  test('dupla: doc de equipe compartilhado com outro torneio é BIFURCADO, não reescrito', async () => {
+    const a = await seedMan({uid: 'ana-a', name: 'Atleta A'});
+    const b = await seedMan({uid: 'beto-b', name: 'Atleta B'});
+    const c = await seedMan({uid: 'caio-c', name: 'Atleta C'});
+    // Mesma dupla em dois torneios: desde a identidade única, UM doc de equipe
+    // serve as duas inscrições — o cenário dos 7 pares vivos no dev.
+    const encerrado = await seedTournament({
+      id: 'torneio-encerrado',
+      categories: [duplaCategory({id: 'masc', categoryName: 'Dupla Masculina'})],
+    });
+    const aberto = await seedTournament({
+      id: 'torneio-aberto',
+      categories: [duplaCategory({id: 'masc', categoryName: 'Dupla Masculina'})],
+    });
+    const antiga = await formDupla({
+      tournamentId: encerrado, categoryId: 'masc', inviterUid: a, inviteeUid: b,
+    });
+    const atual = await formDupla({
+      tournamentId: aberto, categoryId: 'masc', inviterUid: a, inviteeUid: b,
+    });
+    assert.equal(atual.teamId, antiga.teamId, 'pré-condição: as duas inscrições dividem o doc');
+
+    const inviteId = await enviarConvite({
+      registrationId: atual.registrationId, replacedUid: b, inviteeUid: c, inviterUid: a,
+    });
+    const result = await call(callables.acceptInvite, c, {inviteId, lgpdAccepted: true});
+
+    assert.notEqual(result.teamId, antiga.teamId, 'a troca ganhou doc próprio');
+
+    // Torneio encerrado: inscrição e equipe intocadas.
+    const regAntiga = await getRegistration(antiga.registrationId);
+    assert.equal(regAntiga.teamId, antiga.teamId);
+    assert.deepEqual(regAntiga.participantUids, [a, b]);
+    const compartilhada = await getTeam(antiga.teamId);
+    assert.equal(compartilhada.player1Id, a, 'elenco do torneio encerrado preservado');
+    assert.equal(compartilhada.player2Id, b);
+    assert.equal(compartilhada.pairKey, [a, b].sort().join(':'));
+
+    // Torneio aberto: inscrição repontada para a dupla nova, elenco batendo.
+    const regAtual = await getRegistration(atual.registrationId);
+    assert.equal(regAtual.teamId, result.teamId);
+    assert.deepEqual(regAtual.participantUids, [a, c]);
+    const nova = await getTeam(result.teamId);
+    assert.equal(nova.player1Id, a);
+    assert.equal(nova.player2Id, c);
+    assert.equal(nova.pairKey, [a, c].sort().join(':'), 'dupla nova nasce achável');
+
+    const invite = await getInvite(inviteId);
+    assert.equal(invite.teamId, result.teamId, 'o convite registra o doc novo');
+  });
+
+  test('dupla: doc de equipe de uma inscrição só muda de mãos COM a chave do par', async () => {
+    const {a, b, c, registrationId, teamId} = await duplaFormada();
+
+    const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});
+    const result = await call(callables.acceptInvite, c, {inviteId});
+
+    assert.equal(result.teamId, teamId, 'sem ninguém dividindo o doc, nada bifurca');
+    const team = await getTeam(teamId);
+    assert.equal(team.player2Id, c);
+    assert.equal(
+      team.pairKey, [a, c].sort().join(':'),
+      'pairKey stale deixaria o doc invisível pro par novo e recusado pro velho',
+    );
+  });
+
   test('aceite mata o convite concorrente da mesma vaga e os convites do substituto na categoria', async () => {
     const {a, b, c, registrationId, tournamentId} = await duplaFormada();
     const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});

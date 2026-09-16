@@ -67,3 +67,75 @@ export async function creditTournamentWalletFromRegistration(
     });
   });
 }
+
+/** Move valor de `availableReais` para `pendingReais` ao solicitar saque. */
+export async function reserveTournamentWithdrawalAmount(
+  db: Firestore,
+  tournamentId: string,
+  amountReais: number,
+): Promise<void> {
+  const walletRef = tournamentWalletRef(db, tournamentId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(walletRef);
+    const available = snap.exists ? Number(snap.data()?.availableReais) || 0 : 0;
+    const pending = snap.exists ? Number(snap.data()?.pendingReais) || 0 : 0;
+    if (amountReais > available + 0.001) {
+      throw new Error("INSUFFICIENT_BALANCE");
+    }
+    tx.set(
+      walletRef,
+      {
+        tournamentId,
+        availableReais: roundMoney(available - amountReais),
+        pendingReais: roundMoney(pending + amountReais),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      {merge: true},
+    );
+  });
+}
+
+/** Confirma que o valor do saque segue reservado antes de disparar o PIX. */
+export async function assertTournamentWithdrawalReservationValid(
+  db: Firestore,
+  tournamentId: string,
+  amountReais: number,
+): Promise<void> {
+  const walletRef = tournamentWalletRef(db, tournamentId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(walletRef);
+    const pending = snap.exists ? Number(snap.data()?.pendingReais) || 0 : 0;
+    const available = snap.exists ? Number(snap.data()?.availableReais) || 0 : 0;
+    if (amountReais > pending + 0.001) {
+      throw new Error("WITHDRAWAL_RESERVATION_INVALID");
+    }
+    if (available < -0.001) {
+      throw new Error("WALLET_STATE_INVALID");
+    }
+  });
+}
+
+/** Libera a reserva: `approve` consome o pending; caso contrário devolve ao disponível. */
+export async function releaseTournamentWithdrawalReservation(
+  db: Firestore,
+  tournamentId: string,
+  amountReais: number,
+  approve: boolean,
+): Promise<void> {
+  const walletRef = tournamentWalletRef(db, tournamentId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(walletRef);
+    const available = snap.exists ? Number(snap.data()?.availableReais) || 0 : 0;
+    const pending = snap.exists ? Number(snap.data()?.pendingReais) || 0 : 0;
+    tx.set(
+      walletRef,
+      {
+        tournamentId,
+        availableReais: approve ? available : roundMoney(available + amountReais),
+        pendingReais: roundMoney(Math.max(0, pending - amountReais)),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      {merge: true},
+    );
+  });
+}

@@ -1,13 +1,19 @@
 /**
  * Saque do organizador — espelha os callables de saque de arena
- * (`arena-booking-pix.ts`). Carteira: `organizerWallets/{uid}` (id = uid do
- * organizador; a chave PIX de repasse fica no próprio doc da carteira).
- * Aprovação: auto até R$500, manual acima (revisão no backoffice).
+ * (`arena-booking-pix.ts`). Desde 16/09/2026 o dinheiro sai do caixa do
+ * TORNEIO (`tournamentWallets/{tournamentId}`), não mais da carteira por uid:
+ * qualquer GESTOR ativo da equipe do evento pode solicitar o saque, sempre
+ * para a PRÓPRIA chave PIX — ela vem do perfil de quem pede
+ * (`organizerPayoutProfiles/{uid}`, ver `organizer-payout-profile.ts`), o
+ * payload não tem voz nenhuma sobre o destino. `organizerId` continua gravado
+ * no doc do saque com o DONO do evento (`tournaments/{id}.managerId`): é por
+ * ele que a fila do backoffice e o webhook de payout encontram o saque, e é
+ * ele quem é notificado quando quem pediu não é ele mesmo. Aprovação: auto até
+ * R$500, manual acima (revisão no backoffice).
  *
- * Desde 09/09/2026 o saque também pode ser pedido por um GESTOR da equipe de
- * um torneio do organizador (`organizerId` no payload). Nesse caminho a chave
- * PIX é sempre a que o dono cadastrou — o payload do gestor é ignorado — e o
- * dono é notificado. Ver `organizer-wallet-access.ts`.
+ * O caminho antigo por uid (`organizerWallets/{uid}`, `organizer-wallet.ts`)
+ * segue existindo só para saque legado ainda em voo — ver
+ * `organizer-wallet-access.ts` para a regra de acesso que valia antes.
  */
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {
@@ -21,11 +27,14 @@ import {getAuth} from "firebase-admin/auth";
 import * as logger from "firebase-functions/logger";
 import {roundMoney} from "./mercadopago-arena-helpers";
 import {
-  reserveOrganizerWithdrawalAmount,
   releaseOrganizerWithdrawalReservation,
   organizerWalletRef,
 } from "./organizer-wallet";
-import {savePayoutPixKey} from "./organizer-payout-profile";
+import {loadPayoutPixKey, savePayoutPixKey} from "./organizer-payout-profile";
+import {
+  reserveTournamentWithdrawalAmount,
+} from "./tournament-wallet";
+import {assertCanWithdrawFromTournament} from "./tournament-wallet-access";
 import {
   completeOrganizerWithdrawalPayout,
 } from "./organizer-withdrawal-payout";
@@ -34,10 +43,8 @@ import {resolveWithdrawalPixFields} from "./asaas-payout";
 import {asaasArenaSecrets} from "./asaas-client";
 import {callerIsOrganizer, callerIsSuperAdmin} from "./auth-roles";
 import {
-  assertCanAccessOrganizerWallet,
   listAccessibleOrganizerIds,
   maskDelegatePayoutPixKey,
-  resolveWithdrawalPixSource,
 } from "./organizer-wallet-access";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {ARENA_WITHDRAWAL_AUTO_MAX_REAIS} from "./arena-booking-payment-constants";
@@ -83,19 +90,53 @@ function isFirestoreIndexError(err: unknown): boolean {
   return code === 9 || message.includes("requires an index");
 }
 
-async function assertNoPendingOrganizerWithdrawal(
+/**
+ * Regras de entrada do saque, sem I/O — é aqui que mora a garantia de destino:
+ * a chave é SEMPRE a do perfil de quem pede, e o payload não tem voz nenhuma
+ * sobre para onde o dinheiro vai.
+ */
+export function resolveWithdrawalRequest(params: {
+  tournamentId: string;
+  amountReais: number;
+  profilePixKey: string;
+  profilePixKeyType: string;
+}): {amount: number; pixKey: string; pixKeyType: string} {
+  const tournamentId = params.tournamentId.trim();
+  if (!tournamentId) {
+    throw new HttpsError("invalid-argument", "Informe o torneio do saque.");
+  }
+  if (!Number.isFinite(params.amountReais) || params.amountReais <= 0) {
+    throw new HttpsError("invalid-argument", "Informe um valor válido para saque.");
+  }
+  const pixKey = params.profilePixKey.trim();
+  if (pixKey.length < 5) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Cadastre sua chave PIX de repasse antes de sacar.",
+    );
+  }
+  return {
+    amount: roundMoney(params.amountReais),
+    pixKey,
+    pixKeyType: params.profilePixKeyType.trim().toUpperCase(),
+  };
+}
+
+/** Um saque pendente por CAIXA: vários gestores sacam do mesmo dinheiro, então
+ *  a trava tem de ser do torneio, não de quem pede. */
+async function assertNoPendingTournamentWithdrawal(
   db: ReturnType<typeof getFirestore>,
-  organizerId: string,
+  tournamentId: string,
 ): Promise<void> {
   const col = db.collection(ORGANIZER_WITHDRAWALS);
   const snap = await col
-    .where("organizerId", "==", organizerId)
+    .where("tournamentId", "==", tournamentId)
     .where("status", "==", "pending")
     .limit(1)
     .get()
     .catch(async (err) => {
       if (!isFirestoreIndexError(err)) throw err;
-      return col.where("organizerId", "==", organizerId).limit(20).get();
+      return col.where("tournamentId", "==", tournamentId).limit(20).get();
     });
   const hasPending = snap.docs.some(
     (d) => (d.data().status as string | undefined)?.toLowerCase() === "pending",
@@ -103,7 +144,7 @@ async function assertNoPendingOrganizerWithdrawal(
   if (hasPending) {
     throw new HttpsError(
       "failed-precondition",
-      "Já existe um saque pendente. Aguarde a conclusão ou contate o suporte.",
+      "Já existe um saque pendente neste torneio. Aguarde a conclusão.",
     );
   }
 }
@@ -145,36 +186,19 @@ export const requestOrganizerWithdrawal = onCall(
 
     const data = (request.data ?? {}) as {
       amountReais?: number;
-      pixKey?: string;
-      pixKeyType?: string;
-      organizerId?: string;
+      tournamentId?: string;
     };
-    const amountReais = typeof data.amountReais === "number" ? data.amountReais : 0;
-    if (!Number.isFinite(amountReais) || amountReais <= 0) {
-      throw new HttpsError("invalid-argument", "Informe um valor válido para saque.");
-    }
 
     const db = getFirestore();
-    // Carteira alvo: a própria por omissão (contrato antigo intacto) ou a de um
-    // organizador de quem o chamador é gestor de equipe.
-    const organizerId = data.organizerId?.trim() || uid;
-    const delegated = organizerId !== uid;
-    if (delegated) {
-      await assertCanAccessOrganizerWallet(db, uid, organizerId);
-    }
+    const tournamentId = data.tournamentId?.trim() ?? "";
+    await assertCanWithdrawFromTournament(db, uid, tournamentId);
 
-    const walletSnap = await organizerWalletRef(db, organizerId).get();
-    const wallet = walletSnap.data() ?? {};
-    const walletPixKey = (wallet.payoutPixKey as string | undefined)?.trim() ?? "";
-    const walletPixKeyType =
-      (wallet.payoutPixKeyType as string | undefined)?.trim() ?? "";
-
-    const {pixKey, pixKeyType} = resolveWithdrawalPixSource({
-      delegated,
-      walletPixKey,
-      walletPixKeyType,
-      payloadPixKey: data.pixKey,
-      payloadPixKeyType: data.pixKeyType,
+    const profile = await loadPayoutPixKey(db, uid);
+    const {amount, pixKey, pixKeyType} = resolveWithdrawalRequest({
+      tournamentId,
+      amountReais: typeof data.amountReais === "number" ? data.amountReais : 0,
+      profilePixKey: profile.pixKey,
+      profilePixKeyType: profile.pixKeyType,
     });
 
     const {pixAddressKey, pixAddressKeyType} = resolveWithdrawalPixFields(
@@ -185,11 +209,17 @@ export const requestOrganizerWithdrawal = onCall(
       throw new HttpsError("invalid-argument", "Chave PIX inválida.");
     }
 
-    await assertNoPendingOrganizerWithdrawal(db, organizerId);
+    await assertNoPendingTournamentWithdrawal(db, tournamentId);
 
-    const amount = roundMoney(amountReais);
+    const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
+    const ownerId =
+      (tournamentSnap.data()?.managerId as string | undefined)?.trim() ?? "";
+    const tournamentName =
+      (tournamentSnap.data()?.name as string | undefined)?.trim() ?? "";
+    const delegated = ownerId !== uid;
+
     try {
-      await reserveOrganizerWithdrawalAmount(db, organizerId, amount);
+      await reserveTournamentWithdrawalAmount(db, tournamentId, amount);
     } catch (e) {
       if (e instanceof Error && e.message === "INSUFFICIENT_BALANCE") {
         throw new HttpsError("failed-precondition", "Saldo insuficiente para este saque.");
@@ -202,7 +232,11 @@ export const requestOrganizerWithdrawal = onCall(
 
     const withdrawalRef = db.collection(ORGANIZER_WITHDRAWALS).doc();
     await withdrawalRef.set({
-      organizerId,
+      tournamentId,
+      tournamentName,
+      // `organizerId` segue gravado com o dono do evento: é por ele que a fila
+      // do backoffice e o webhook de payout encontram o saque.
+      organizerId: ownerId,
       amountReais: amount,
       pixKey: pixAddressKey,
       pixKeyType: pixAddressKeyType,
@@ -210,8 +244,6 @@ export const requestOrganizerWithdrawal = onCall(
       status: "pending",
       payoutStatus: "pending",
       payoutProvider: "asaas",
-      // Rastro de quem pediu: no saque do próprio dono é ele mesmo; delegado
-      // guarda o gestor, e é isso que o dono vê na notificação.
       requestedBy: uid,
       requestedByStaff: delegated,
       createdAt: FieldValue.serverTimestamp(),
@@ -220,7 +252,8 @@ export const requestOrganizerWithdrawal = onCall(
     const withdrawalId = withdrawalRef.id;
     if (delegated) {
       await notifyOwnerOfDelegatedWithdrawal(db, {
-        organizerId,
+        organizerId: ownerId,
+        tournamentName,
         requestedBy: uid,
         amountReais: amount,
         pixKey: pixAddressKey,
@@ -232,7 +265,12 @@ export const requestOrganizerWithdrawal = onCall(
         const result = await completeOrganizerWithdrawalPayout(
           db,
           withdrawalRef,
-          {organizerId, amountReais: amount, pixKey: pixAddressKey, pixKeyType: pixAddressKeyType},
+          {
+            organizerId: ownerId,
+            amountReais: amount,
+            pixKey: pixAddressKey,
+            pixKeyType: pixAddressKeyType,
+          },
           uid,
           delegated ?
             "PIX automático na solicitação (gestor da equipe)" :
@@ -282,6 +320,7 @@ async function notifyOwnerOfDelegatedWithdrawal(
   db: ReturnType<typeof getFirestore>,
   params: {
     organizerId: string;
+    tournamentName: string;
     requestedBy: string;
     amountReais: number;
     pixKey: string;
@@ -297,7 +336,8 @@ async function notifyOwnerOfDelegatedWithdrawal(
       title: "Saque solicitado pela sua equipe",
       body:
         `${requesterName} solicitou um saque de ` +
-        `R$ ${params.amountReais.toFixed(2).replace(".", ",")} para a sua chave PIX ` +
+        `R$ ${params.amountReais.toFixed(2).replace(".", ",")} do caixa de ` +
+        `${params.tournamentName || "um torneio seu"} para a chave PIX ` +
         `${maskDelegatePayoutPixKey(params.pixKey)}.`,
       type: "organizer_withdrawal_requested",
       data: {url: "/painel/financeiro"},

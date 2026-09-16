@@ -33,6 +33,20 @@ describe("perfil de repasse do organizador", () => {
     });
   });
 
+  it("com as duas cadastradas, o perfil vence a carteira antiga", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(`organizerPayoutProfiles/${UID}`, {
+      payoutPixKey: "nova@exemplo.com", payoutPixKeyType: "EMAIL",
+    });
+    fake.seedDoc(`organizerWallets/${UID}`, {
+      payoutPixKey: "antiga@exemplo.com", payoutPixKeyType: "EMAIL",
+    });
+
+    assert.deepEqual(await loadPayoutPixKey(fake as unknown as Firestore, UID), {
+      pixKey: "nova@exemplo.com", pixKeyType: "EMAIL",
+    });
+  });
+
   it("sem chave em lugar nenhum devolve vazio", async () => {
     const fake = new FakeFirestore();
     assert.deepEqual(await loadPayoutPixKey(fake as unknown as Firestore, UID), {

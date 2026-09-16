@@ -26,6 +26,7 @@ class TournamentDetailExploreSection extends StatelessWidget {
     this.showMinhaInscricao = false,
     this.palpitesEnabled = false,
     this.showPodio = false,
+    this.showEquipesInscritas = true,
   });
 
   final TournamentDetail tournament;
@@ -51,6 +52,12 @@ class TournamentDetailExploreSection extends StatelessWidget {
   /// some por completo antes disso, em vez de aparecer desabilitado: um card
   /// cinza escrito "Pódio" durante o evento já anuncia que existe resultado.
   final bool showPodio;
+
+  /// Lista de equipes inscritas exposta pelo organizador
+  /// (`enrolledTeamsVisible`). Padrão `true` porque o campo AUSENTE no
+  /// Firestore significa visível — torneio criado antes da flag não pode
+  /// perder a tela.
+  final bool showEquipesInscritas;
 
   @override
   Widget build(BuildContext context) {
@@ -91,12 +98,13 @@ class TournamentDetailExploreSection extends StatelessWidget {
             subtitle: tournamentExploreCategoriesSubtitle(stats),
             onTap: onOpenCategorias,
           ),
-          ExploreCard(
-            icon: Icons.groups_outlined,
-            title: 'Equipes inscritas',
-            subtitle: 'Duplas e equipes confirmadas',
-            onTap: onOpenAtletasInscritos,
-          ),
+          if (showEquipesInscritas)
+            ExploreCard(
+              icon: Icons.groups_outlined,
+              title: 'Equipes inscritas',
+              subtitle: 'Duplas e equipes confirmadas',
+              onTap: onOpenAtletasInscritos,
+            ),
           if (showMinhaInscricao)
             ExploreCard(
               icon: Icons.verified_outlined,

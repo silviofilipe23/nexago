@@ -378,6 +378,8 @@ class _TournamentDetailContentState
                   showMinhaInscricao: isRegistered,
                   palpitesEnabled: tournamentHasDefinedMatchups(matches),
                   showPodio: showPodio,
+                  showEquipesInscritas:
+                      widget.tournament.enrolledTeamsVisible,
                   onOpenPodio: () => context.pushNamed(
                     AppRouteNames.tournamentPodium,
                     pathParameters: {'tournamentId': widget.tournament.id},

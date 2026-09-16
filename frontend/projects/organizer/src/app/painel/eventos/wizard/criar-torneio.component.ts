@@ -545,6 +545,12 @@ function inputToDatetime(v: string): Date | null {
                       (click)="patch({ visibility: 'linkOnly' })"
                     />
                   </div>
+                  <og-toggle-row
+                    title="Mostrar equipes inscritas"
+                    desc="O atleta vê quem já confirmou vaga, dupla por dupla. Desligado, a lista some do app e do portal — a contagem de inscritos continua aparecendo."
+                    [on]="draft().enrolledTeamsVisible"
+                    (toggled)="patch({ enrolledTeamsVisible: $event })"
+                  />
                 </og-card>
                 @if (publishBlock(); as msg) {
                   <div class="og-banner">{{ msg }}</div>

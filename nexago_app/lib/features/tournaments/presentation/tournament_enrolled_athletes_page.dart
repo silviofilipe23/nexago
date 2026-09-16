@@ -41,9 +41,6 @@ class _TournamentEnrolledAthletesPageState
     final tournamentAsync = ref.watch(
       tournamentDetailProvider(widget.tournamentId),
     );
-    final teamsAsync = ref.watch(
-      tournamentEnrolledTeamsProvider(widget.tournamentId),
-    );
 
     return tournamentAsync.when(
       loading: () => const _Loading(),
@@ -58,6 +55,24 @@ class _TournamentEnrolledAthletesPageState
             slivers: [_MessageSliver('Torneio não encontrado.')],
           );
         }
+
+        // Esconder o card da seção Explorar não fecha a rota: sem este portão,
+        // o link direto (ou o histórico de quem já entrou) continuaria
+        // entregando o roster que o organizador escolheu não expor.
+        if (!tournament.enrolledTeamsVisible) {
+          return const TournamentDetailSubpageScaffold(
+            title: _title,
+            slivers: [
+              _MessageSliver(
+                'O organizador não está exibindo as equipes inscritas deste torneio.',
+              ),
+            ],
+          );
+        }
+
+        final teamsAsync = ref.watch(
+          tournamentEnrolledTeamsProvider(widget.tournamentId),
+        );
 
         return teamsAsync.when(
           loading: () => const _Loading(),

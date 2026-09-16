@@ -39,47 +39,45 @@ class _TeamDiscoverListSkeletonState extends State<TeamDiscoverListSkeleton>
         return ListView.separated(
           physics: const NeverScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-          itemCount: 4,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (_, __) => _CardSkeleton(pulse: pulse),
+          itemCount: 7,
+          separatorBuilder: (_, __) => const SizedBox(height: 2),
+          itemBuilder: (_, __) => _RowSkeleton(pulse: pulse),
         );
       },
     );
   }
 }
 
-class _CardSkeleton extends StatelessWidget {
-  const _CardSkeleton({required this.pulse});
+class _RowSkeleton extends StatelessWidget {
+  const _RowSkeleton({required this.pulse});
 
   final double pulse;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: context.themeColors.surfaceCard,
-        borderRadius: BorderRadius.circular(16),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _DualAvatarSkeleton(pulse: pulse),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                _ShimmerLine(widthFactor: 0.55, height: 14, pulse: pulse),
-                const SizedBox(height: 8),
-                _ShimmerLine(widthFactor: 0.75, height: 11, pulse: pulse),
-                const SizedBox(height: 6),
-                _ShimmerLine(widthFactor: 0.45, height: 11, pulse: pulse),
+                _ShimmerLine(widthFactor: 0.5, height: 12, pulse: pulse),
+                const SizedBox(height: 5),
+                _ShimmerLine(widthFactor: 0.72, height: 8, pulse: pulse),
+                const SizedBox(height: 5),
+                _ShimmerLine(widthFactor: 0.56, height: 8, pulse: pulse),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          _ShimmerBox(width: 40, height: 36, pulse: pulse),
+          const SizedBox(width: 10),
+          _ShimmerBox(width: 24, height: 14, pulse: pulse),
+          const SizedBox(width: 10),
+          _ShimmerBox(width: 32, height: 32, pulse: pulse, radius: 999),
         ],
       ),
     );
@@ -93,9 +91,9 @@ class _DualAvatarSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = TeamDiscoverDualAvatars.avatarSize;
+    const size = TeamDiscoverDualAvatars.listAvatarSize;
     return SizedBox(
-      width: size + 16,
+      width: TeamDiscoverDualAvatars.footprintFor(size),
       height: size,
       child: Stack(
         clipBehavior: Clip.none,
@@ -105,7 +103,7 @@ class _DualAvatarSkeleton extends StatelessWidget {
             child: _ShimmerCircle(size: size, pulse: pulse),
           ),
           Positioned(
-            left: size * 0.45,
+            left: size * TeamDiscoverDualAvatars.listOverlap,
             child: _ShimmerCircle(size: size, pulse: pulse),
           ),
         ],
@@ -131,8 +129,9 @@ class _ShimmerCircle extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: Color.lerp(base, highlight, pulse),
+        // A linha mora no canvas agora, não dentro de um card.
         border: Border.all(
-          color: context.themeColors.surfaceCard,
+          color: context.themeColors.canvas,
           width: 2,
         ),
       ),

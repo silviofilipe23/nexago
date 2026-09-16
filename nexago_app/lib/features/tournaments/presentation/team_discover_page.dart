@@ -9,7 +9,6 @@ import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
-import '../domain/team_discover_models.dart';
 import '../domain/team_discover_providers.dart';
 import 'widgets/team_discover/team_discover_card.dart';
 import 'widgets/team_discover/team_discover_filters_sheet.dart';
@@ -53,6 +52,8 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
   }
 
   void _onSearchChanged() {
+    // Redesenha pro botão de limpar aparecer/sumir junto com o texto.
+    setState(() {});
     _searchDebounce?.cancel();
     _searchDebounce = Timer(const Duration(milliseconds: 350), () {
       ref
@@ -76,8 +77,7 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
     }
   }
 
-  Future<void> _refresh() =>
-      ref.read(teamDiscoverProvider.notifier).refresh();
+  Future<void> _refresh() => ref.read(teamDiscoverProvider.notifier).refresh();
 
   @override
   Widget build(BuildContext context) {
@@ -115,65 +115,54 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
                 TextField(
                   controller: _searchController,
                   style: AppTypography.soraRegular(
-                    fontSize: 14,
+                    fontSize: 13,
                     color: context.themeColors.onSurface,
                   ),
                   decoration: InputDecoration(
+                    isDense: true,
                     hintText: 'Nome da dupla, atletas ou cidade…',
                     hintStyle: AppTypography.soraRegular(
-                      fontSize: 14,
+                      fontSize: 13,
                       color: context.themeColors.onSurfaceMuted,
                     ),
                     prefixIcon: Icon(
                       Icons.search_rounded,
+                      size: 20,
                       color: context.themeColors.onSurfaceMuted,
+                    ),
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 36,
+                    ),
+                    suffixIcon: _searchController.text.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: Icon(
+                              Icons.close_rounded,
+                              size: 18,
+                              color: context.themeColors.onSurfaceMuted,
+                            ),
+                            onPressed: () {
+                              _searchController.clear();
+                              ref
+                                  .read(teamDiscoverProvider.notifier)
+                                  .setSearchQuery('');
+                            },
+                          ),
+                    suffixIconConstraints: const BoxConstraints(
+                      minWidth: 36,
+                      minHeight: 36,
                     ),
                     filled: true,
                     fillColor: context.themeColors.surfaceRaised,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
                     ),
-                    contentPadding:
-                        const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children:
-                        TeamDiscoverGenderFilter.values.map((gender) {
-                      final selected = state.filters.gender == gender;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: FilterChip(
-                          label: Text(gender.chipLabel),
-                          selected: selected,
-                          showCheckmark: false,
-                          onSelected: (_) => ref
-                              .read(teamDiscoverProvider.notifier)
-                              .setGenderFilter(gender),
-                          labelStyle: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: selected
-                                ? context.themeColors.onSurface
-                                : context.themeColors.onSurfaceMuted,
-                          ),
-                          backgroundColor:
-                              context.themeColors.surfaceRaised,
-                          selectedColor: context.themeColors.surfaceCard,
-                          side: BorderSide(
-                            color: selected
-                                ? AppColors.brand.withValues(alpha: 0.5)
-                                : Colors.transparent,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                   ),
                 ),
               ],
@@ -328,6 +317,17 @@ List<Widget> _buildBodySlivers({required TeamDiscoverState state}) {
   }
 
   return [
+    if (state.isLoading)
+      const SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: _discoverHorizontalPadding),
+          child: LinearProgressIndicator(
+            minHeight: 2,
+            color: AppColors.brand,
+            backgroundColor: Colors.transparent,
+          ),
+        ),
+      ),
     SliverPadding(
       padding: const EdgeInsets.fromLTRB(
         _discoverHorizontalPadding,
@@ -337,7 +337,7 @@ List<Widget> _buildBodySlivers({required TeamDiscoverState state}) {
       ),
       sliver: SliverList.separated(
         itemCount: state.displayEntries.length + 1,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        separatorBuilder: (_, __) => const SizedBox(height: 2),
         itemBuilder: (context, index) {
           if (index == state.displayEntries.length) {
             if (state.isLoadingMore) {

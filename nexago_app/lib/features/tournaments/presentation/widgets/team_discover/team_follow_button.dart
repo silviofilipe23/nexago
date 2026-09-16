@@ -22,6 +22,7 @@ class TeamFollowButton extends ConsumerStatefulWidget {
     this.height = 44,
     this.borderRadius = 12,
     this.compact = true,
+    this.iconOnly = false,
   });
 
   final TeamDiscoverEntry entry;
@@ -30,6 +31,11 @@ class TeamFollowButton extends ConsumerStatefulWidget {
   final double height;
   final double borderRadius;
   final bool compact;
+
+  /// Botão quadrado só com ícone (`+` / `✓`), do tamanho de [height]. Usado na
+  /// listagem enxuta, onde não cabe pílula com texto. O rótulo sobrevive em
+  /// `Semantics` para o leitor de tela.
+  final bool iconOnly;
 
   @override
   ConsumerState<TeamFollowButton> createState() => _TeamFollowButtonState();
@@ -94,9 +100,7 @@ class _TeamFollowButtonState extends ConsumerState<TeamFollowButton>
         .updateFollowing(widget.entry.teamId, follow);
     setState(() => _loading = true);
     try {
-      await ref
-          .read(teamFollowServiceProvider)
-          .setTeamFollowing(
+      await ref.read(teamFollowServiceProvider).setTeamFollowing(
             followerId: uid,
             team: widget.entry.team,
             follow: follow,
@@ -123,36 +127,38 @@ class _TeamFollowButtonState extends ConsumerState<TeamFollowButton>
     }
 
     final following = widget.entry.isFollowing;
-    final bgColor = following
-        ? context.themeColors.surfaceRaised
-        : AppColors.brand;
-    final fgColor = following
-        ? context.themeColors.onSurfaceMuted
-        : AppColors.black;
+    final bgColor =
+        following ? context.themeColors.surfaceRaised : AppColors.brand;
+    final fgColor =
+        following ? context.themeColors.onSurfaceMuted : AppColors.black;
+    final label = following ? widget.followingLabel : widget.followLabel;
+    final iconOnly = widget.iconOnly;
 
-    return GestureDetector(
+    final button = GestureDetector(
       onTapDown: (_) => _setPressed(true),
       onTapUp: (_) => _setPressed(false),
       onTapCancel: () => _setPressed(false),
       onTap: _loading ? null : _toggle,
       child: ScaleTransition(
-        scale: _animationsEnabled
-            ? _pressScale
-            : const AlwaysStoppedAnimation(1),
+        scale:
+            _animationsEnabled ? _pressScale : const AlwaysStoppedAnimation(1),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
           height: widget.height,
+          width: iconOnly ? widget.height : null,
           decoration: BoxDecoration(
             color: bgColor,
             borderRadius: BorderRadius.circular(widget.borderRadius),
           ),
-          padding: EdgeInsets.symmetric(horizontal: widget.compact ? 16 : 20),
+          padding: iconOnly
+              ? EdgeInsets.zero
+              : EdgeInsets.symmetric(horizontal: widget.compact ? 16 : 20),
           child: Center(
             child: _loading
                 ? SizedBox(
-                    width: 18,
-                    height: 18,
+                    width: iconOnly ? 14 : 18,
+                    height: iconOnly ? 14 : 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
                       color: fgColor,
@@ -165,20 +171,30 @@ class _TeamFollowButtonState extends ConsumerState<TeamFollowButton>
                     transitionBuilder: (child, animation) {
                       return FadeTransition(opacity: animation, child: child);
                     },
-                    child: Text(
-                      following ? widget.followingLabel : widget.followLabel,
-                      key: ValueKey(following),
-                      style: AppTypography.soraRegular(
-                        fontSize: widget.compact ? 14 : 15,
-                        fontWeight: FontWeight.w900,
-                        color: fgColor,
-                      ),
-                    ),
+                    child: iconOnly
+                        ? Icon(
+                            following ? Icons.check_rounded : Icons.add_rounded,
+                            key: ValueKey(following),
+                            size: 18,
+                            color: fgColor,
+                          )
+                        : Text(
+                            label,
+                            key: ValueKey(following),
+                            style: AppTypography.soraRegular(
+                              fontSize: widget.compact ? 14 : 15,
+                              fontWeight: FontWeight.w900,
+                              color: fgColor,
+                            ),
+                          ),
                   ),
           ),
         ),
       ),
     );
+
+    if (!iconOnly) return button;
+    return Semantics(button: true, label: label, child: button);
   }
 }
 
@@ -300,12 +316,10 @@ class _TeamProfileFollowButtonState
   Widget build(BuildContext context) {
     if (widget.isCurrentUserTeam) return const SizedBox.shrink();
 
-    final bgColor = _following
-        ? context.themeColors.surfaceRaised
-        : AppColors.brand;
-    final fgColor = _following
-        ? context.themeColors.onSurfaceMuted
-        : AppColors.black;
+    final bgColor =
+        _following ? context.themeColors.surfaceRaised : AppColors.brand;
+    final fgColor =
+        _following ? context.themeColors.onSurfaceMuted : AppColors.black;
 
     return GestureDetector(
       onTapDown: (_) => _setPressed(true),
@@ -313,9 +327,8 @@ class _TeamProfileFollowButtonState
       onTapCancel: () => _setPressed(false),
       onTap: _loading ? null : _toggle,
       child: ScaleTransition(
-        scale: _animationsEnabled
-            ? _pressScale
-            : const AlwaysStoppedAnimation(1),
+        scale:
+            _animationsEnabled ? _pressScale : const AlwaysStoppedAnimation(1),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,

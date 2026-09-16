@@ -84,6 +84,12 @@ void main() {
     expect(find.textContaining('GOIÂNIA', findRichText: true), findsOneWidget);
   });
 
+  testWidgets('mostra o esporte na linha de força da equipe', (tester) async {
+    await _pump(tester, _entry(teamName: 'Areia Viva'));
+
+    expect(find.text('VÔLEI DE PRAIA'), findsOneWidget);
+  });
+
   testWidgets('nunca imprime distância em km', (tester) async {
     await _pump(tester, _entry(teamName: 'Areia Viva'));
 

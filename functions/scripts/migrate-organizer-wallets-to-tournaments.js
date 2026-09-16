@@ -12,6 +12,12 @@
  * papel explícito; o backend trata ausente como gestor, e essa divergência
  * deixaria alguém sacando sem conseguir ver).
  *
+ * ATENÇÃO — DEV é base viva: o app publicado na loja aponta para este mesmo
+ * projeto, então o saldo muda com o tráfego real entre uma rodada e outra.
+ * Um dry-run de horas atrás não autoriza o apply: rode o dry-run de novo
+ * IMEDIATAMENTE antes do `--yes` e confira o resumo na hora — é esse número,
+ * não o de uma rodada anterior, que vale para decidir aplicar.
+ *
  * Pré-requisitos:
  *   gcloud auth application-default login
  *
@@ -91,6 +97,7 @@ async function main() {
     // Rateia o saldo vivo na proporção do que cada torneio creditou: o extrato
     // não registra de qual evento saiu cada saque, então proporção é o mais
     // defensável — e o relatório mostra a conta para conferência.
+    let distribuidoCarteira = 0;
     for (const [tournamentId, acc] of porTorneio) {
       const fatia = creditadoTotal > 0 ?
         Math.round((available * (acc.net / creditadoTotal)) * 100) / 100 :
@@ -100,6 +107,7 @@ async function main() {
       const ownerId = (tSnap.data()?.managerId || uid).trim();
       console.log(`  → ${tournamentId} "${nome}": creditou ${BRL(acc.net)}, leva ${BRL(fatia)}`);
       totalMovido += fatia;
+      distribuidoCarteira += fatia;
       if (!APPLY) continue;
 
       await db.doc(`tournamentWallets/${tournamentId}`).set({
@@ -123,6 +131,22 @@ async function main() {
       console.log(`  ÓRFÃO: ${BRL(semTorneio)} sem inscrição resolvível — fica na carteira antiga`);
     }
 
+    // Reconciliação da carteira: só debitamos o que foi de fato distribuído
+    // (a mesma soma das fatias acima). O que sobra fica na carteira antiga
+    // por construção — é a parte que não pôde ser atribuída (mais eventual
+    // resíduo de arredondamento das fatias) — e é exatamente isso que o
+    // cabeçalho promete não apagar. Nunca abaixo de zero.
+    const restanteCarteira = distribuidoCarteira > 0 ?
+      Math.max(0, Math.round((available - distribuidoCarteira) * 100) / 100) :
+      available;
+    const vaiGravarNaCarteiraAntiga = distribuidoCarteira > 0;
+    console.log(
+      `  carteira: distribuído=${BRL(distribuidoCarteira)} | resto órfão=${BRL(restanteCarteira)} | ` +
+      (vaiGravarNaCarteiraAntiga ?
+        `ficará gravado availableReais=${BRL(restanteCarteira)}` :
+        "nada será gravado aqui — carteira fica intocada (nenhuma fatia distribuível)"),
+    );
+
     const pixKey = (w.payoutPixKey || "").trim();
     if (pixKey) {
       console.log(`  chave PIX → organizerPayoutProfiles/${uid}`);
@@ -135,15 +159,20 @@ async function main() {
       }
     }
 
-    if (APPLY && available > 0) {
-      // Zera a carteira antiga só depois de distribuir: o doc fica como
-      // histórico, com o rastro de para onde o dinheiro foi.
+    if (APPLY && vaiGravarNaCarteiraAntiga) {
+      // Debita só o que foi distribuído — NUNCA zera incondicionalmente.
+      // `restanteCarteira` pode ficar > 0 de propósito: é a parte órfã (ou
+      // resíduo de arredondamento) que a carteira antiga preserva para
+      // decisão manual, não dinheiro perdido no processo.
       await walletDoc.ref.set({
-        availableReais: 0,
+        availableReais: restanteCarteira,
         migratedToTournamentWalletsAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, {merge: true});
     }
+    // Se nada foi distribuído (carteira 100% órfã ou sem saldo), não
+    // escrevemos nada aqui — nem o timestamp — para a carteira não parecer
+    // migrada quando na verdade não teve nenhuma fatia movida.
   }
 
   // Backfill do papel: as rules exigem `role` explícito.

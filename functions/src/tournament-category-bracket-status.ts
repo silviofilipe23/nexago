@@ -19,8 +19,10 @@ const PUBLISHED_BRACKET_STATUSES = ["published", "completed"] as const;
  * grava `categoryOps` pela chave que ele usa, e torneio legado referencia a categoria pelo
  * próprio nome — checar todas é o que evita ler "sem chave" numa categoria que já tem chave.
  *
- * `draft` fica de fora porque a chave em rascunho referencia `teamId`, que não muda quando o
- * elenco muda.
+ * `draft` fica de fora — e NÃO porque o `teamId` seja estável: a substituição BIFURCA o doc de
+ * equipe compartilhado entre torneios e o id MUDA. O rascunho sobrevive porque publicar
+ * re-deriva as duplas pagas das inscrições vivas e descarta seed que não bate (a bifurcada cai
+ * pro fim da ordem: perde a semeadura, não a vaga); `groups_knockout` recusa a prévia velha.
  */
 export function categoryBracketPublished(
   tournament: Record<string, unknown> | null | undefined,

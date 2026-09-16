@@ -185,7 +185,7 @@ duplicados em qualquer campo aninhado), não de leitura de código:
 | `tournamentCategoryResults` | `teamId` **e o id do doc** (`{tid}_{cid}_{teamId}`): recria e apaga o antigo |
 | `teamRankings` | funde `results[]`, recalcula `totalPoints`, `pointsByYear` e `tournamentsCount`; apaga o doc antigo |
 | `tournaments` | `categoryOps.{cid}.seeds[]`, `.groupsPreview[].teamIds[]`, `.championTeamId` |
-| `drawSessions` | `pots[].teamIds[]`, `entrants[].teamId`, `reveals[].teamId` |
+| ~~`drawSessions`~~ | **EXCLUÍDA na execução** — ver "O sorteio publicado não se toca", abaixo |
 | `tournamentRegistrationInvites` | `teamId`, `attachTeamId` |
 | `tournamentRegistrationCancellations` | `registrationSnapshot.teamId` |
 
@@ -285,7 +285,72 @@ De brinde, `teamDeletionBlockReason` passa a ser exercitado muito mais (`otherRe
 
 | Risco | Mitigação |
 |---|---|
-| Duas inscrições simultâneas do mesmo par em torneios diferentes criam dois docs | Transação do Firestore cobre a maior parte; a regra "o mais antigo vence" converge, e o script de fusão pode rodar de novo |
+| Duas inscrições simultâneas do mesmo par em torneios diferentes criam dois docs | **NÃO se auto-cura.** O Firestore não tranca a faixa VAZIA de uma query em transação, então as duas primeiras resoluções simultâneas criam dois docs. A regra "o mais antigo vence" só garante que as resoluções SEGUINTES concordem; quem repara um racha já acontecido é o script de fusão. Por isso existe o vigia semanal (ver Operação) |
 | Script de fusão deixa referência órfã | Passe de verificação revarre as 8 coleções; sobra faz a execução falhar |
 | Equipe nomeada fundida por engano | `pairKey` nunca é gravado em doc com `teamName`/`teamSize >= 3`; teste cobre |
 | Backfill rodar depois do deploy | Não quebra nada, só não deduplica — a ordem está no passo a passo e o script de fusão conserta o que passou |
+
+## Emendas da execução (15/09/2026)
+
+A spec acima é o desenho. Estas três coisas mudaram durante a execução e valem mais que o texto
+original — a tabela de inventário da seção "Migração", em particular, **não deve mais ser usada
+como referência**.
+
+### O inventário estava incompleto, e a correção foi estrutural
+
+As 8 coleções listadas vieram de uma auditoria de `functions/src` mais uma varredura das coleções
+que eu escolhi olhar. Faltavam cinco: `leagueTeamRankings`, `tournamentPredictions/*/entries`,
+`ratingEvents`, `users/{uid}/followingTeams` — esta última escrita pelo **app Flutter**, que a
+auditoria do servidor nunca ia encontrar.
+
+O conserto que importa não foi acrescentar as cinco: foi parar de manter uma lista à mão. A
+verificação passou a **descobrir** as coleções em tempo de execução (`listCollections()` na raiz e
+no doc base, mais `collectionGroup` para as subcoleções conhecidas) e a afirmar que todo doc que
+cita um id absorvido está coberto pelo plano. Na primeira execução real, esse detector achou
+sozinho o `ratingEvents`, que duas revisões humanas e eu tínhamos deixado passar.
+
+**Lição:** uma verificação derivada do mesmo inventário que a escrita só pega erro de escrita,
+nunca buraco de inventário. Ela certifica "limpo" exatamente onde o código é cego.
+
+### O sorteio publicado não se toca
+
+`drawSessions` saiu da migração. `reveals[].teamId` entra num sha256 encadeado
+(`revealHash` = `prevHash ∥ index ∥ teamId ∥ destino ∥ instante`) que é a prova pública
+anti-adulteração do Sorteio ao Vivo. Remapear quebra a cadeia; **recalcular seria pior** — produz
+uma corrente que verifica mas não bate com a publicada, ou seja, forja a prova.
+
+O que decide é o doc ser autossuficiente: `DrawSessionEntrant` guarda `label`, `playerNames`,
+`photoUrls`, cidade, nível e pontos, e console e telão leem só ele. O custo aceito é uma referência
+pendurada num registro histórico congelado que nada usa para renderizar.
+
+### Compartilhar o doc removeu uma invariante que outro caminho usava
+
+Fazer a dupla ter um doc só apagou a invariante "um doc de equipe pertence a uma inscrição" — e a
+**substituição de atleta** dependia dela sem dizer. Ela reescrevia `player1Id`/`player2Id`/
+`memberUids` no lugar, o que depois da migração corromperia a inscrição do outro torneio e
+vazaria permissão de escrita nos dois sentidos (as rules derivam o direito de editar inscrição do
+doc de EQUIPE, não dos participantes dela).
+
+A substituição agora **bifurca**: se outra inscrição referencia o doc, ela resolve um doc para o
+elenco novo via `resolvePairTeamTx` e reaponta só aquela inscrição, deixando o compartilhado
+intacto. Equipe nomeada segue mutando no lugar — o doc dela nunca é compartilhado.
+
+**Lição:** ao remover uma invariante, procure quem a usava sem declarar. A auditoria certa não é
+"quem lê este campo", é "quem assumia o que eu acabei de deixar de garantir".
+
+## Operação
+
+O helper **não impede** duplicado novo: duas inscrições simultâneas da mesma dupla ainda criam dois
+docs, e isso não converge sozinho. Esta entrega inteira existiu porque nove rankings rachados
+passaram meses sem ninguém ver.
+
+Vigia semanal (segundas, 9h), só leitura, a partir de `functions/`:
+
+```bash
+node scripts/check-registration-team-integrity.js --project volley-track-dev-4596c
+node scripts/merge-duplicate-pair-teams.js --project volley-track-dev-4596c
+```
+
+O esperado é `integridade OK` e `pares com 2+ docs=0`. Um grupo `PULADO ... convivencia-legitima`
+não é problema: é a dupla em duas categorias do mesmo torneio, que tem dois docs de propósito.
+**Nunca** rode o segundo com `--apply` sem decisão do dono — é irreversível.

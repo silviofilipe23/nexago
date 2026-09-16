@@ -79,6 +79,14 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/tournaments/$(tournamentId)) &&
         tournamentManagerId(tournamentId) == request.auth.uid;
     }
+    /** Caixa do torneio com dinheiro dentro — excluir o evento sumiria com ele.
+     *  Doc ausente conta como zerado (torneio que nunca recebeu pagamento). */
+    function tournamentHasWalletBalance(tournamentId) {
+      return exists(/databases/$(database)/documents/tournamentWallets/$(tournamentId)) && (
+        get(/databases/$(database)/documents/tournamentWallets/$(tournamentId)).data.availableReais > 0 ||
+        get(/databases/$(database)/documents/tournamentWallets/$(tournamentId)).data.pendingReais > 0
+      );
+    }
     /** Quem mexe na equipe do torneio: o dono e o super admin (suporte a torneio alheio).
      *  Duas invariantes que valem para os dois: ninguém se adiciona, e o dono nunca vira
      *  staff do próprio torneio — o acesso dele já vem de `managerId`, e um doc de staff no
@@ -2009,15 +2017,16 @@ service cloud.firestore {
         )
       );
 
-      // Deletar: nunca o mesário, nunca o administrador — só quem já podia
-      // gerenciar o torneio de fato (dono, admin da plataforma ou gestor).
-      allow delete: if request.auth != null && (
-        isAdmin() ||
-        isSuperAdmin() ||
-        (isTournamentOrganizer() && organizerCanUpdateOwnTournament()) ||
-        resource.data.managerId == request.auth.uid ||
-        isTournamentStaff(tournamentId, ['manager'])
-      );
+      // Deletar: nunca o mesário nem o administrador — e nunca com dinheiro no
+      // caixa (o saldo tem de ser sacado antes, senão evapora com o evento).
+      allow delete: if request.auth != null &&
+        !tournamentHasWalletBalance(tournamentId) && (
+          isAdmin() ||
+          isSuperAdmin() ||
+          (isTournamentOrganizer() && organizerCanUpdateOwnTournament()) ||
+          resource.data.managerId == request.auth.uid ||
+          isTournamentStaff(tournamentId, ['manager'])
+        );
 
       match /staff/{staffUserId} {
         allow read: if request.auth != null && (

@@ -71,3 +71,56 @@ test('o dono cria staff com o papel novo', async () => {
     ),
   );
 });
+
+const COM_SALDO = 'copa-com-saldo';
+const SEM_SALDO = 'copa-sem-saldo';
+
+test('torneio com saldo no caixa não pode ser excluído', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'tournaments', COM_SALDO), { managerId: DONO, name: 'Com saldo' });
+    await setDoc(doc(db, 'tournamentWallets', COM_SALDO), {
+      tournamentId: COM_SALDO, availableReais: 42, pendingReais: 0,
+    });
+  });
+  await assertFails(
+    deleteDoc(doc(testEnv.authenticatedContext(DONO).firestore(), 'tournaments', COM_SALDO)),
+  );
+});
+
+test('saque pendente também tranca a exclusão', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'tournaments', 'copa-pendente'), { managerId: DONO, name: 'Pendente' });
+    await setDoc(doc(db, 'tournamentWallets', 'copa-pendente'), {
+      tournamentId: 'copa-pendente', availableReais: 0, pendingReais: 30,
+    });
+  });
+  await assertFails(
+    deleteDoc(doc(testEnv.authenticatedContext(DONO).firestore(), 'tournaments', 'copa-pendente')),
+  );
+});
+
+test('torneio com caixa zerado o dono exclui', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'tournaments', SEM_SALDO), { managerId: DONO, name: 'Sem saldo' });
+    await setDoc(doc(db, 'tournamentWallets', SEM_SALDO), {
+      tournamentId: SEM_SALDO, availableReais: 0, pendingReais: 0,
+    });
+  });
+  await assertSucceeds(
+    deleteDoc(doc(testEnv.authenticatedContext(DONO).firestore(), 'tournaments', SEM_SALDO)),
+  );
+});
+
+test('torneio que nunca teve caixa o dono exclui', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'tournaments', 'copa-sem-caixa'), {
+      managerId: DONO, name: 'Sem caixa',
+    });
+  });
+  await assertSucceeds(
+    deleteDoc(doc(testEnv.authenticatedContext(DONO).firestore(), 'tournaments', 'copa-sem-caixa')),
+  );
+});

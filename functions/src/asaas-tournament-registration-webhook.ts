@@ -36,7 +36,7 @@ import {
 import {deliverNotificationToUser} from "./notification-delivery";
 import {registrationHoldClearedFields} from "./tournament-registration-hold-ops";
 import {tournamentManagerUids} from "./tournament-acl";
-import {creditOrganizerWalletFromRegistration} from "./organizer-wallet";
+import {creditTournamentWalletFromRegistration} from "./tournament-wallet";
 import {computePlatformFeeReais, resolveOrganizerTournamentFeePercent} from "./platform-fees";
 import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
 import {
@@ -393,7 +393,8 @@ export async function processTournamentRegistrationAsaasNotification(
         // valor fora da faixa) cai nos 8% padrão.
         const organizerSnap = await db.doc(`organizers/${organizerId}`).get();
         const feePercent = resolveOrganizerTournamentFeePercent(organizerSnap.data());
-        await creditOrganizerWalletFromRegistration(db, organizerId, {
+        await creditTournamentWalletFromRegistration(db, tournamentId, {
+          ownerId: organizerId,
           registrationId,
           payerUid,
           paymentId,

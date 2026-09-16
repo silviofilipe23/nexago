@@ -790,11 +790,14 @@ gravar no perfil. Substituir o bloco que escreve na carteira (linhas ~131-140):
   return {success: true, pixKey: pixAddressKey, pixKeyType: pixAddressKeyType};
 ```
 
-E acrescentar o import:
+E acrescentar o import — **só `savePayoutPixKey` nesta task**:
 
 ```ts
-import {loadPayoutPixKey, savePayoutPixKey} from "./organizer-payout-profile";
+import {savePayoutPixKey} from "./organizer-payout-profile";
 ```
+
+`loadPayoutPixKey` entra no import na Task 7, que é quem passa a consumi-lo.
+Importar agora quebraria o build: `noUnusedLocals: true`.
 
 Atualizar o comentário do cabeçalho da função, que hoje diz que a chave fica no
 doc da carteira e que o gestor não escolhe destino — agora cada um escreve a sua
@@ -2355,8 +2358,14 @@ async function main() {
   }
 
   // Backfill do papel: as rules exigem `role` explícito.
+  //
+  // O filtro de caminho NÃO é decorativo: `arenas/{arenaId}/staff/{uid}` usa a
+  // mesma subcoleção, com outro conjunto de cargos (RBAC da arena). Sem ele,
+  // este backfill gravaria `role: 'manager'` na equipe das arenas.
   const staff = await db.collectionGroup("staff").get();
-  const semRole = staff.docs.filter((d) => !d.data().role);
+  const semRole = staff.docs.filter(
+    (d) => !d.data().role && d.ref.path.startsWith("tournaments/"),
+  );
   console.log(`\nstaff sem campo role: ${semRole.length}`);
   for (const d of semRole) {
     console.log(`  → ${d.ref.path} = manager`);

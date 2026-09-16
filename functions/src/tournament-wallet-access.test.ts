@@ -13,12 +13,21 @@ const EVENT_ADMIN = "eventAdminUid";
 const SCORER = "scorerUid";
 const OUTSIDER = "outsiderUid";
 const TOURNAMENT = "t1";
+const MISSING_TOURNAMENT = "missingTournament";
 
 function dbWith(entries: Array<[string, Record<string, unknown>]>): Firestore {
   const fake = new FakeFirestore();
   fake.seedDoc(`tournaments/${TOURNAMENT}`, {managerId: OWNER});
   for (const [path, data] of entries) fake.seedDoc(path, data);
   return fake as unknown as Firestore;
+}
+
+/** Confirma o `code` do `HttpsError` — mais preciso que casar a mensagem. */
+async function assertHttpsErrorCode(promise: Promise<unknown>, code: string): Promise<void> {
+  await assert.rejects(promise, (err: {code?: string}) => {
+    assert.equal(err.code, code, `esperava HttpsError ${code}, veio ${err.code}`);
+    return true;
+  });
 }
 
 describe("isActiveWithdrawalStaffMirror", () => {
@@ -81,6 +90,24 @@ describe("assertCanWithdrawFromTournament", () => {
     await assert.rejects(
       () => assertCanWithdrawFromTournament(db, OUTSIDER, TOURNAMENT),
       /permission-denied|acesso/i,
+    );
+  });
+
+  it("gestor inativo (status removed) é recusado", async () => {
+    const db = dbWith([
+      [`users/${MANAGER}/tournamentStaff/${TOURNAMENT}`, {role: "manager", status: "removed"}],
+    ]);
+    await assertHttpsErrorCode(
+      assertCanWithdrawFromTournament(db, MANAGER, TOURNAMENT),
+      "permission-denied",
+    );
+  });
+
+  it("torneio inexistente é recusado com not-found, não permission-denied", async () => {
+    const db = dbWith([]);
+    await assertHttpsErrorCode(
+      assertCanWithdrawFromTournament(db, OUTSIDER, MISSING_TOURNAMENT),
+      "not-found",
     );
   });
 });

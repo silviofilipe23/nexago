@@ -454,6 +454,73 @@ export function buildWalletViewRows(
     );
 }
 
+/** Linha do histórico de saques como a tela a recebe. */
+export interface WithdrawalHistoryRow {
+  id: string;
+  amountReais: number;
+  status: string;
+  pixKey: string;
+  requestedBy: string;
+  requestedByStaff: boolean;
+  payoutStatus: string | null;
+  createdAt: string | null;
+}
+
+/**
+ * Uma linha do histórico de saques do caixa, com a MÁSCARA do destino: cada um
+ * vê a própria chave por extenso e a de qualquer outra pessoa mascarada. O
+ * caixa é compartilhado — vários gestores sacam dele —, então a linha de um
+ * saque do colega chega a quem está lendo.
+ *
+ * Função pura de propósito: a `maskPixKey` do cliente só trunca acima de 12
+ * caracteres, e CPF tem 11 — a chave passava inteira. A máscara tem de ser
+ * exercitada com um CPF, e dentro da callable isso não era testável.
+ */
+export function buildWithdrawalRow(
+  row: {id: string; data: Record<string, unknown>},
+  uid: string,
+): WithdrawalHistoryRow {
+  const x = row.data;
+  const requestedBy = (x.requestedBy as string | undefined)?.trim() ?? "";
+  const pixKey = (x.pixKey as string | undefined) ?? "";
+  return {
+    id: row.id,
+    amountReais: Number(x.amountReais) || 0,
+    status: (x.status as string | undefined) ?? "pending",
+    pixKey: requestedBy === uid ? pixKey : maskDelegatePayoutPixKey(pixKey),
+    requestedBy,
+    requestedByStaff: x.requestedByStaff === true,
+    payoutStatus: (x.payoutStatus as string | undefined) ?? null,
+    createdAt: (x.createdAt as Timestamp | undefined)?.toDate?.()?.toISOString() ?? null,
+  };
+}
+
+/**
+ * Qual caixa a tela abre. Pedido fora da lista cai no caixa mais cheio (o
+ * primeiro, porque `buildWalletViewRows` já ordena por disponível) em vez de
+ * estourar: a lista muda quando alguém sai da equipe e o cliente pode ter
+ * guardado a antiga. Lista vazia devolve `null` — não existe caixa para abrir.
+ */
+export function selectWalletRow<T extends {tournamentId: string}>(
+  rows: T[],
+  requested: string,
+): T | null {
+  const wanted = requested.trim();
+  return rows.find((r) => r.tournamentId === wanted) ?? rows[0] ?? null;
+}
+
+/** Retorno da view para quem não alcança caixa nenhum — um lugar só, para os
+ *  dois caminhos que chegam nele não divergirem sobre `hasPixKey`. */
+function emptyWalletView(payout: {pixKey: string; pixKeyType: string}) {
+  return {
+    tournaments: [] as ReturnType<typeof buildWalletViewRows>,
+    selected: null,
+    payout: {...payout, hasPixKey: hasUsablePixKey(payout.pixKey)},
+    ledger: [] as Array<Record<string, unknown>>,
+    withdrawals: [] as WithdrawalHistoryRow[],
+  };
+}
+
 /**
  * Tudo que a tela Financeiro precisa numa chamada só: os caixas de torneio que
  * o chamador alcança (dono + gestor ativo, via `listWithdrawableTournamentIds`)
@@ -488,13 +555,7 @@ export const loadOrganizerWalletView = onCall({
     loadPayoutPixKey(db, uid),
   ]);
   if (tournamentIds.length === 0) {
-    return {
-      tournaments: [],
-      selected: null,
-      payout: {...payout, hasPixKey: hasUsablePixKey(payout.pixKey)},
-      ledger: [],
-      withdrawals: [],
-    };
+    return emptyWalletView(payout);
   }
 
   const [tournamentSnaps, walletSnaps] = await Promise.all([
@@ -518,10 +579,10 @@ export const loadOrganizerWalletView = onCall({
     wallets,
   );
 
-  // Pedido fora da lista cai no caixa mais cheio em vez de estourar: a lista
-  // muda quando alguém sai da equipe e o cliente pode ter guardado a antiga.
-  const requested = payload.tournamentId?.trim() ?? "";
-  const selected = rows.find((r) => r.tournamentId === requested) ?? rows[0]!;
+  const selected = selectWalletRow(rows, payload.tournamentId ?? "");
+  // `rows` não pode estar vazia aqui (o retorno sem torneio já saiu acima); o
+  // tipo é que não sabe disso.
+  if (!selected) return emptyWalletView(payout);
 
   const ledgerSnap = await tournamentWalletRef(db, selected.tournamentId)
     .collection("ledger")
@@ -569,24 +630,11 @@ export const loadOrganizerWalletView = onCall({
           "",
       };
     }),
-    withdrawals: (withdrawalsSnap?.docs ?? []).map((d) => {
-      const x = d.data();
-      const requestedBy = (x.requestedBy as string | undefined)?.trim() ?? "";
-      return {
-        id: d.id,
-        amountReais: Number(x.amountReais) || 0,
-        status: (x.status as string | undefined) ?? "pending",
-        // Chave de OUTRA pessoa nunca vai inteira para a tela: cada um só vê a
-        // sua por extenso. `maskPixKey` do cliente não protege CPF (11 < 12).
-        pixKey: requestedBy === uid ?
-          ((x.pixKey as string | undefined) ?? "") :
-          maskDelegatePayoutPixKey((x.pixKey as string | undefined) ?? ""),
-        requestedBy,
-        requestedByStaff: x.requestedByStaff === true,
-        payoutStatus: (x.payoutStatus as string | undefined) ?? null,
-        createdAt: (x.createdAt as Timestamp | undefined)?.toDate?.()?.toISOString() ?? null,
-      };
-    }),
+    // Chave de OUTRA pessoa nunca vai inteira para a tela — a máscara mora em
+    // `buildWithdrawalRow`, testada com CPF de 11 dígitos.
+    withdrawals: (withdrawalsSnap?.docs ?? []).map((d) =>
+      buildWithdrawalRow({id: d.id, data: d.data()}, uid),
+    ),
   };
 });
 
@@ -784,6 +832,48 @@ async function fetchPendingOrganizerWithdrawalDocs(
   }
 }
 
+/** Nomes de várias pessoas em lote (`getAll` por chunk) — a fila do backoffice
+ *  não pode disparar uma leitura por linha. */
+async function resolveUserDisplayNames(
+  db: ReturnType<typeof getFirestore>,
+  uids: string[],
+): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  const unique = [...new Set(uids.filter(Boolean))];
+  for (const chunk of chunkList(unique, GET_ALL_CHUNK)) {
+    if (chunk.length === 0) continue;
+    const snaps = await db.getAll(...chunk.map((id) => db.doc(`users/${id}`)));
+    for (const snap of snaps) {
+      const data = snap.data();
+      const name =
+        (typeof data?.displayName === "string" && data.displayName.trim()) ||
+        (typeof data?.fullName === "string" && data.fullName.trim()) ||
+        "";
+      if (name) names.set(snap.id, name);
+    }
+  }
+  return names;
+}
+
+/** Nome dos torneios em lote — só para os saques cujo doc não trouxe o nome
+ *  gravado (saque anterior a 16/09/2026 não tem `tournamentName`). */
+async function resolveTournamentNames(
+  db: ReturnType<typeof getFirestore>,
+  tournamentIds: string[],
+): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  const unique = [...new Set(tournamentIds.filter(Boolean))];
+  for (const chunk of chunkList(unique, GET_ALL_CHUNK)) {
+    if (chunk.length === 0) continue;
+    const snaps = await db.getAll(...chunk.map((id) => db.doc(`tournaments/${id}`)));
+    for (const snap of snaps) {
+      const name = (snap.data()?.name as string | undefined)?.trim() ?? "";
+      if (name) names.set(snap.id, name);
+    }
+  }
+  return names;
+}
+
 export const listPendingOrganizerWithdrawals = onCall({
   region: CLIENT_FACING_REGIONS,
 }, async (request) => {
@@ -793,15 +883,20 @@ export const listPendingOrganizerWithdrawals = onCall({
 
   const db = getFirestore();
   const docs = await fetchPendingOrganizerWithdrawalDocs(db);
-  const organizerIds = new Set<string>();
   const items = docs.map((docSnap) => {
     const data = docSnap.data();
-    const organizerId = (data.organizerId as string | undefined)?.trim() ?? "";
-    if (organizerId) organizerIds.add(organizerId);
     const createdAt = data.createdAt as Timestamp | undefined;
     return {
       id: docSnap.id,
-      organizerId,
+      organizerId: (data.organizerId as string | undefined)?.trim() ?? "",
+      // O evento de onde o dinheiro sai e QUEM pediu: é aqui que um humano
+      // aprova saque acima de R$ 500, e desde 16/09/2026 quem pede pode ser um
+      // gestor da equipe, não o dono. Sem estes campos a fila mostrava o nome
+      // do dono para um saque que não foi ele quem pediu.
+      tournamentId: (data.tournamentId as string | undefined)?.trim() ?? "",
+      tournamentName: (data.tournamentName as string | undefined)?.trim() ?? "",
+      requestedBy: (data.requestedBy as string | undefined)?.trim() ?? "",
+      requestedByStaff: data.requestedByStaff === true,
       amountReais: Number(data.amountReais) || 0,
       pixKey: (data.pixKey as string | undefined) ?? "",
       status: (data.status as string | undefined) ?? "pending",
@@ -812,19 +907,25 @@ export const listPendingOrganizerWithdrawals = onCall({
     };
   });
 
-  const names: Record<string, string> = {};
-  await Promise.all(
-    [...organizerIds].map(async (organizerId) => {
-      const userSnap = await db.collection("users").doc(organizerId).get();
-      names[organizerId] =
-        (userSnap.data()?.displayName as string | undefined)?.trim() || organizerId;
-    }),
-  );
+  // Dois lotes, não duas leituras por linha: donos e solicitantes saem da mesma
+  // varredura de `users`, e só os torneios sem nome gravado são buscados.
+  const [names, tournamentNames] = await Promise.all([
+    resolveUserDisplayNames(db, [
+      ...items.map((row) => row.organizerId),
+      ...items.map((row) => row.requestedBy),
+    ]),
+    resolveTournamentNames(
+      db,
+      items.filter((row) => !row.tournamentName).map((row) => row.tournamentId),
+    ),
+  ]);
 
   return {
     items: items.map((row) => ({
       ...row,
-      organizerName: names[row.organizerId] ?? row.organizerId,
+      organizerName: names.get(row.organizerId) || row.organizerId,
+      tournamentName: row.tournamentName || tournamentNames.get(row.tournamentId) || "",
+      requestedByName: names.get(row.requestedBy) || row.requestedBy,
     })),
   };
 });

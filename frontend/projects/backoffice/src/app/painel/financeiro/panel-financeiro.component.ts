@@ -220,7 +220,7 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
         <bo-confirm-dialog
           [open]="true"
           [title]="copy[decision.decision].title"
-          [description]="copy[decision.decision].description"
+          [description]="decisionDescription(decision)"
           [confirmLabel]="copy[decision.decision].confirm"
           [tone]="copy[decision.decision].tone"
           [busy]="submitting()"
@@ -625,6 +625,19 @@ export class PanelFinanceiroComponent {
 
   private successMessage({ withdrawal, decision }: PendingDecision): string {
     return withdrawalDecisionMessage(withdrawal, decision, this.money(withdrawal.amountReais));
+  }
+
+  /**
+   * Descrição da decisão. `copy` é indexado só pela decisão, mas recusar
+   * devolve o dinheiro para lugares diferentes: caixa do evento no saque de
+   * organizador, carteira no de arena. As outras duas decisões não citam
+   * destino e seguem vindo do mapa.
+   */
+  protected decisionDescription({ withdrawal, decision }: PendingDecision): string {
+    if (decision === 'rejected' && withdrawal.kind === 'organizer') {
+      return 'O valor reservado volta para o caixa do evento e o solicitante pode pedir de novo.';
+    }
+    return this.copy[decision].description;
   }
 
   protected money(amount: number): string {

@@ -149,6 +149,17 @@ export function withdrawalRequesterLine(row: PendingWithdrawal): string {
  * pediu, o texto ainda diz isso — e, no caso aprovado, diz pra quem o PIX
  * foi de verdade, não finge que foi pro dono.
  */
+/**
+ * Trecho "do evento X" das mensagens de decisão. Sem nome gravado, a frase
+ * muda de forma em vez de encaixar o rótulo cru: "do evento Evento não
+ * identificado" é texto de máquina, não de gente. O rótulo solto continua
+ * valendo na linha da fila, onde ele é o sujeito e lê bem.
+ */
+function eventClause(row: PendingWithdrawal): string {
+  const name = row.tournamentName?.trim();
+  return name ? `do evento ${name}` : 'de um evento não identificado';
+}
+
 export function withdrawalDecisionMessage(
   row: PendingWithdrawal,
   decision: WithdrawalDecision,
@@ -165,24 +176,28 @@ export function withdrawalDecisionMessage(
     return `PIX de ${value} enviado para ${who}.`;
   }
 
-  const evento = withdrawalEventName(row);
+  // Dinheiro de organizador não tem mais "carteira": desde 16/09/2026 ele mora
+  // no caixa do evento, e recusar devolve para lá. Arena continua com carteira
+  // de verdade, e é por isso que o ramo acima fala outra língua.
+  const evento = eventClause(row);
   const requester = withdrawalRequestedByStaffName(row);
   if (decision === 'rejected') {
-    return `Saque de ${value} do evento ${evento} recusado${requester ? ` (pedido por ${requester})` : ''} — o valor voltou para a carteira.`;
+    return `Saque de ${value} ${evento} recusado${requester ? ` (pedido por ${requester})` : ''} — o valor voltou para o caixa do evento.`;
   }
   if (decision === 'approved_manual') {
-    return `Saque de ${value} do evento ${evento} marcado como pago por fora${requester ? ` (pedido por ${requester})` : ''}.`;
+    return `Saque de ${value} ${evento} marcado como pago por fora${requester ? ` (pedido por ${requester})` : ''}.`;
   }
   return requester
-    ? `PIX de ${value} do evento ${evento} enviado para ${requester} (gestor da equipe).`
-    : `PIX de ${value} do evento ${evento} enviado para ${who}.`;
+    ? `PIX de ${value} ${evento} enviado para ${requester} (gestor da equipe).`
+    : `PIX de ${value} ${evento} enviado para ${who}.`;
 }
 
 /**
  * Fila de saques pendentes do backoffice.
  *
  * `approved` dispara o PIX de verdade (Asaas); `approved_manual` só registra que
- * o repasse saiu por fora; `rejected` devolve o valor reservado para a carteira.
+ * o repasse saiu por fora; `rejected` devolve o valor reservado — para o caixa
+ * do evento, no caso de organizador, e para a carteira, no caso de arena.
  */
 @Injectable({ providedIn: 'root' })
 export class WithdrawalsRepository {

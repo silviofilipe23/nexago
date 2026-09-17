@@ -105,19 +105,19 @@ describe('withdrawalDecisionMessage', () => {
 
   it('recusa pedida por gestor cita o evento e quem pediu', () => {
     expect(withdrawalDecisionMessage(staffRow, 'rejected', 'R$ 600,00')).toBe(
-      'Saque de R$ 600,00 do evento Copa Goiás recusado (pedido por Marina) — o valor voltou para a carteira.',
+      'Saque de R$ 600,00 do evento Copa Goiás recusado (pedido por Marina) — o valor voltou para o caixa do evento.',
     );
   });
 
   it('recusa pedida pelo dono cita o evento e não cita mais ninguém', () => {
     expect(withdrawalDecisionMessage(ownerRow, 'rejected', 'R$ 600,00')).toBe(
-      'Saque de R$ 600,00 do evento Copa Goiás recusado — o valor voltou para a carteira.',
+      'Saque de R$ 600,00 do evento Copa Goiás recusado — o valor voltou para o caixa do evento.',
     );
   });
 
   it('recusa sem evento gravado não inventa nome', () => {
     expect(withdrawalDecisionMessage(noEventRow, 'rejected', 'R$ 600,00')).toBe(
-      'Saque de R$ 600,00 do evento Evento não identificado recusado — o valor voltou para a carteira.',
+      'Saque de R$ 600,00 de um evento não identificado recusado — o valor voltou para o caixa do evento.',
     );
   });
 

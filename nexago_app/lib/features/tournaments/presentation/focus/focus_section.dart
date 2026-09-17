@@ -16,18 +16,34 @@ enum FocusSection {
   final String slug;
 }
 
-/// As abas visíveis, na ordem da nav. A segunda é [FocusSection.chave] quando
-/// a categoria é dupla eliminação (não há fase de grupos para mostrar) e
-/// [FocusSection.grupo] caso contrário.
+/// As abas visíveis, na ordem da nav.
+///
+/// - Dupla eliminação: `CHAVE` no lugar do grupo (não há fase de grupos).
+/// - Com fase de grupos: `GRUPO` sempre; `CHAVE` entra depois que a fase
+///   fecha ou o mata-mata já existe — o atleta precisa ver o bracket assim
+///   que a classificação encerra.
 ///
 /// [FocusSection.arena] e [FocusSection.palpites] fecham a barra e não variam:
 /// são as duas seções que olham o torneio INTEIRO, sem depender da categoria em
 /// foco, então servem inclusive a quem ainda não tem partida nenhuma — ou a
 /// quem já foi eliminado e continua acompanhando.
-List<FocusSection> visibleFocusSections({required bool isDoubleElimination}) {
+List<FocusSection> visibleFocusSections({
+  required bool isDoubleElimination,
+  bool groupsComplete = false,
+  bool hasKnockoutBracket = false,
+}) {
+  if (isDoubleElimination) {
+    return const [
+      FocusSection.agora,
+      FocusSection.chave,
+      FocusSection.arena,
+      FocusSection.palpites,
+    ];
+  }
   return [
     FocusSection.agora,
-    isDoubleElimination ? FocusSection.chave : FocusSection.grupo,
+    FocusSection.grupo,
+    if (groupsComplete || hasKnockoutBracket) FocusSection.chave,
     FocusSection.arena,
     FocusSection.palpites,
   ];

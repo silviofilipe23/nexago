@@ -28,7 +28,9 @@ import '../focus_section_header.dart';
 ///
 /// A tabela é a mesma [TournamentPoolStandingsCard] do detalhe do torneio —
 /// mesmo motor ([buildPoolStandingsGroups]) e mesmo desenho, para o Focus não
-/// discordar do que o atleta vê fora do Modo Focus.
+/// discordar do que o atleta vê fora do Modo Focus. Com vários grupos na
+/// categoria, a classificação vira carrossel (chips + PageView), começando no
+/// grupo do atleta.
 ///
 /// A categoria vem travada de fora: `poolId` só é único DENTRO da categoria —
 /// os grupos são 'A', 'B', 'C'… em todas elas.
@@ -49,11 +51,29 @@ class FocusGrupoSection extends ConsumerStatefulWidget {
 }
 
 class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
+  PageController? _standingsController;
+  int _standingsPage = 0;
+
   TournamentCategoryOffer? get _offer {
     for (final offer in widget.tournament.categoryOffers) {
       if (offer.id == widget.categoryId) return offer;
     }
     return null;
+  }
+
+  @override
+  void dispose() {
+    _standingsController?.dispose();
+    super.dispose();
+  }
+
+  void _ensureStandingsController(int initialPage) {
+    if (_standingsController != null) return;
+    _standingsPage = initialPage;
+    _standingsController = PageController(
+      initialPage: initialPage,
+      viewportFraction: 0.92,
+    );
   }
 
   @override
@@ -79,22 +99,56 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
       );
     }
 
-    final poolMatches = categoryMatches
+    final myPoolMatches = categoryMatches
         .where((m) => m.poolId == poolId)
+        .toList();
+    // Todos os grupos da categoria — o carrossel deixa o atleta ver o resto.
+    final allPoolMatches = categoryMatches
+        .where((m) => m.poolId.trim().isNotEmpty)
         .toList();
     final byId = {for (final c in cards) c.match.id: c};
     final qualifiers = _offer?.qualifiersPerGroup ?? 2;
+    final resolvedTeamNames =
+        ref
+            .watch(
+              tournamentCategoryPoolTeamDisplayNamesProvider((
+                tournamentId: widget.tournament.id,
+                categoryId: widget.categoryId,
+              )),
+            )
+            .valueOrNull ??
+        const <String, String>{};
     final standingsGroups = buildPoolStandingsGroups(
-      poolMatches: poolMatches,
+      poolMatches: allPoolMatches.isEmpty ? myPoolMatches : allPoolMatches,
       cardsById: byId,
       qualifiersPerGroup: qualifiers,
       athleteTeamIds: widget.athleteTeamIds,
+      resolvedTeamNamesById: mergeTeamDisplayNameMaps(
+        resolvedTeamNames,
+        rosters.duoNamesByTeamId,
+      ),
     );
-    final standingsGroup = standingsGroups.isEmpty
-        ? null
-        : standingsGroups.first;
 
-    final myPending = _myPendingMatch(poolMatches, myTeamId);
+    final myGroupIndex = standingsGroups.indexWhere((g) => g.poolId == poolId);
+    final initialPage = myGroupIndex < 0 ? 0 : myGroupIndex;
+    if (standingsGroups.length > 1) {
+      _ensureStandingsController(initialPage);
+    }
+
+    final visibleIndex = standingsGroups.isEmpty
+        ? 0
+        : _standingsPage.clamp(0, standingsGroups.length - 1);
+    final visibleGroup = standingsGroups.isEmpty
+        ? null
+        : standingsGroups[visibleIndex];
+    final visiblePoolMatches = visibleGroup == null
+        ? myPoolMatches
+        : categoryMatches
+              .where((m) => m.poolId == visibleGroup.poolId)
+              .toList();
+    final kickerPoolId = visibleGroup?.poolId ?? poolId;
+
+    final myPending = _myPendingMatch(myPoolMatches, myTeamId);
     final scenarios = myPending == null
         ? const <RoundScenario>[]
         : roundScenariosOf(
@@ -147,7 +201,7 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _kicker(poolId, poolMatches),
+                _kicker(kickerPoolId, visiblePoolMatches),
                 style: AppTypography.eyebrow.copyWith(color: AppColors.brand),
               ),
               const SizedBox(height: AppSpacing.xs),
@@ -159,17 +213,35 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
           ),
         ),
         const FocusSectionHeader(label: 'CLASSIFICAÇÃO'),
-        if (standingsGroup != null)
-          TournamentPoolStandingsCard(
-            group: standingsGroup,
+        if (standingsGroups.length > 1) ...[
+          _StandingsGroupChips(
+            groups: standingsGroups,
+            selectedIndex: visibleIndex,
+            athletePoolId: poolId,
+            onSelected: (i) {
+              setState(() => _standingsPage = i);
+              _standingsController?.animateToPage(
+                i,
+                duration: const Duration(milliseconds: 280),
+                curve: Curves.easeOutCubic,
+              );
+            },
+          ),
+          const SizedBox(height: 4),
+        ],
+        if (standingsGroups.isNotEmpty)
+          _StandingsCarousel(
+            groups: standingsGroups,
             qualifiersPerGroup: qualifiers,
+            controller: standingsGroups.length > 1 ? _standingsController : null,
+            onPageChanged: (i) => setState(() => _standingsPage = i),
           ),
         if (scenariosComDestino.isNotEmpty)
           _ScenariosCard(
             scenarios: scenariosComDestino,
             scenarioRound: myPending == null
                 ? null
-                : poolRoundDisplayNumberOf(poolMatches, myPending),
+                : poolRoundDisplayNumberOf(myPoolMatches, myPending),
           ),
         if (crossing.isNotEmpty) ...[
           const FocusSectionHeader(label: 'CRUZAMENTO NO MATA-MATA'),
@@ -247,6 +319,199 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
             .toList()
           ..sort((a, b) => a.matchNumber.compareTo(b.matchNumber));
     return mine.isEmpty ? null : mine.first;
+  }
+}
+
+/// Chips A/B/C… — atalho pro carrossel (além do swipe).
+class _StandingsGroupChips extends StatelessWidget {
+  const _StandingsGroupChips({
+    required this.groups,
+    required this.selectedIndex,
+    required this.athletePoolId,
+    required this.onSelected,
+  });
+
+  final List<TournamentPoolStandingsGroup> groups;
+  final int selectedIndex;
+  final String athletePoolId;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
+        itemCount: groups.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final group = groups[i];
+          final selected = i == selectedIndex;
+          final isMine = group.poolId == athletePoolId;
+          final letter = _groupLetter(group);
+          return GestureDetector(
+            onTap: () => onSelected(i),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected
+                    ? AppColors.brand
+                    : Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: selected
+                      ? AppColors.brand
+                      : Colors.white.withValues(alpha: 0.12),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    letter,
+                    style: AppTypography.soraRegular(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: selected ? AppColors.black : Colors.white,
+                    ),
+                  ),
+                  if (isMine) ...[
+                    const SizedBox(width: 6),
+                    Text(
+                      'SEU',
+                      style: AppTypography.mono(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.4,
+                        color: selected
+                            ? AppColors.black.withValues(alpha: 0.7)
+                            : AppColors.brand,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  static String _groupLetter(TournamentPoolStandingsGroup group) {
+    final label = group.poolLabel.trim();
+    final lower = label.toLowerCase();
+    if (lower.startsWith('grupo ')) {
+      final parts = label.split(' ');
+      if (parts.length >= 2) return parts.last.toUpperCase();
+    }
+    return (group.poolId.isNotEmpty ? group.poolId : label).toUpperCase();
+  }
+}
+
+/// Carrossel das classificações — um card por grupo, começa no do atleta.
+class _StandingsCarousel extends StatelessWidget {
+  const _StandingsCarousel({
+    required this.groups,
+    required this.qualifiersPerGroup,
+    required this.onPageChanged,
+    this.controller,
+  });
+
+  final List<TournamentPoolStandingsGroup> groups;
+  final int qualifiersPerGroup;
+  final ValueChanged<int> onPageChanged;
+  final PageController? controller;
+
+  @override
+  Widget build(BuildContext context) {
+    if (groups.length == 1) {
+      return TournamentPoolStandingsCard(
+        group: groups.first,
+        qualifiersPerGroup: qualifiersPerGroup,
+        showFooter: true,
+      );
+    }
+
+    final height = groups
+        .map(_estimateHeight)
+        .reduce((a, b) => a > b ? a : b);
+
+    return Column(
+      children: [
+        SizedBox(
+          height: height,
+          child: PageView.builder(
+            controller: controller,
+            itemCount: groups.length,
+            onPageChanged: onPageChanged,
+            itemBuilder: (context, i) {
+              return TournamentPoolStandingsCard(
+                group: groups[i],
+                qualifiersPerGroup: qualifiersPerGroup,
+                showFooter: true,
+                padding: const EdgeInsets.fromLTRB(6, 8, 6, 0),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+        _StandingsDots(
+          count: groups.length,
+          controller: controller,
+        ),
+      ],
+    );
+  }
+
+  /// Altura estável pro PageView: cabeçalho + linhas (até 2 linhas de nome) +
+  /// rodapé da legenda.
+  static double _estimateHeight(TournamentPoolStandingsGroup group) {
+    const chrome = 14.0 * 2 + 52 + 12 + 20 + 12 + 52;
+    return chrome + group.rows.length * 48.0;
+  }
+}
+
+class _StandingsDots extends StatelessWidget {
+  const _StandingsDots({required this.count, required this.controller});
+
+  final int count;
+  final PageController? controller;
+
+  @override
+  Widget build(BuildContext context) {
+    if (controller == null || count <= 1) return const SizedBox.shrink();
+
+    return AnimatedBuilder(
+      animation: controller!,
+      builder: (context, _) {
+        final page = controller!.hasClients
+            ? (controller!.page ?? controller!.initialPage.toDouble())
+            : controller!.initialPage.toDouble();
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var i = 0; i < count; i++) ...[
+              if (i > 0) const SizedBox(width: 6),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: (page - i).abs() < 0.5 ? 16 : 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: (page - i).abs() < 0.5
+                      ? AppColors.brand
+                      : Colors.white.withValues(alpha: 0.28),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
   }
 }
 

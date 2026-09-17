@@ -49,8 +49,8 @@ TournamentDetailTab defaultTournamentDetailTab(
 /// Sub-visões da categoria — o segmentado que substitui abas Partidas/Chaves
 /// (porte de `categoryViewsOf` do portal): "Grupos" só existe em categoria
 /// com fase de grupos; "Partidas" só depois que o organizador publica os
-/// jogos; "Chave" fica sempre — é onde a mensagem de "ainda não sorteada"
-/// aparece.
+/// jogos; "Chave" em categoria SEM grupos é o esqueleto fixo, e COM grupos
+/// só entra depois que a fase fecha (ou o mata-mata já foi gerado).
 enum TournamentCategoryView {
   partidas('Partidas'),
   grupos('Grupos'),
@@ -64,19 +64,42 @@ enum TournamentCategoryView {
 List<TournamentCategoryView> visibleCategoryViews({
   required bool hasMatches,
   required bool hasGroups,
+  bool groupsComplete = false,
+  bool hasBracket = false,
 }) {
+  final showChave = !hasGroups || groupsComplete || hasBracket;
   return [
     if (hasMatches) TournamentCategoryView.partidas,
     if (hasGroups) TournamentCategoryView.grupos,
-    TournamentCategoryView.chave,
+    if (showChave) TournamentCategoryView.chave,
   ];
 }
 
-/// Sub-visão de entrada: os jogos quando existem, senão a chave.
+/// Sub-visão de entrada: com grupos encerrados (ou chave já gerada), a
+/// chave; senão os jogos quando existem.
 TournamentCategoryView defaultCategoryView(
-  List<TournamentCategoryView> views,
-) {
+  List<TournamentCategoryView> views, {
+  bool preferBracket = false,
+}) {
+  if (preferBracket && views.contains(TournamentCategoryView.chave)) {
+    return TournamentCategoryView.chave;
+  }
   return views.isNotEmpty ? views.first : TournamentCategoryView.chave;
+}
+
+/// A fase de grupos desta categoria parece encerrada? Todos os jogos de
+/// pool/grupo estão Completed ou Canceled. Usado para liberar a aba Chave
+/// sem montar a tabela de classificação.
+bool categoryGroupStageComplete(List<TournamentMatch> categoryMatches) {
+  final pool = categoryMatches
+      .where((m) => m.isGroupMatch || m.poolId.trim().isNotEmpty)
+      .toList();
+  if (pool.isEmpty) return false;
+  return pool.every(
+    (m) =>
+        TournamentMatchStatus.isCompleted(m.status) ||
+        TournamentMatchStatus.isCanceled(m.status),
+  );
 }
 
 /// Existe ao menos um confronto definido? Antes disso não há em quem palpitar.
@@ -175,10 +198,10 @@ List<TournamentMatch> myTournamentDayTimeline(
     ..sort(_byScheduleTime);
 }
 
-/// Todas as partidas do atleta (jogadas + a jogar), em ordem cronológica.
+/// Todas as partidas **definidas** do atleta (jogadas + a jogar), em ordem.
 ///
-/// Fonte do rail "Ordem do seu dia" no Focus: filtrar só o dia escondia jogos
-/// encerrados sem âncora de calendário e partidas de outros dias do evento.
+/// Só entram confrontos com os dois lados resolvidos — slot sem adversário e
+/// fase futura sem dono ficam de fora do rail "Ordem do seu dia".
 List<TournamentMatch> myFocusMatchRailTimeline(
   List<TournamentMatch> matches,
   Set<String> myTeamIds,
@@ -187,7 +210,9 @@ List<TournamentMatch> myFocusMatchRailTimeline(
   return matches
       .where(
         (m) =>
-            myTeamIds.contains(m.teamAId) || myTeamIds.contains(m.teamBId),
+            m.teamAId.trim().isNotEmpty &&
+            m.teamBId.trim().isNotEmpty &&
+            (myTeamIds.contains(m.teamAId) || myTeamIds.contains(m.teamBId)),
       )
       .toList()
     ..sort(_byScheduleTime);

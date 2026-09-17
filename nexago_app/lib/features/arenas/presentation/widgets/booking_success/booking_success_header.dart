@@ -40,11 +40,7 @@ class BookingSuccessHeader extends StatelessWidget {
           style: headlineStyle,
           textAlign: TextAlign.center,
         ),
-        Text(
-          'Bora jogar! 🏐',
-          style: headlineStyle,
-          textAlign: TextAlign.center,
-        ),
+        Text('Bora jogar!', style: headlineStyle, textAlign: TextAlign.center),
         if (paymentSubtitle.trim().isNotEmpty) ...[
           SizedBox(height: 14),
           Text(

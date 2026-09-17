@@ -70,19 +70,25 @@ class AthleteMatchDetailPage extends ConsumerWidget {
           );
         }
 
-        final individualH2h = _watchIndividualHeadToHead(ref, detail);
+        final individualH2hs = _watchIndividualHeadToHeads(ref, detail);
         return Scaffold(
           backgroundColor: Colors.black,
-          extendBodyBehindAppBar: true,
-          appBar: _appBar(context, theme, detail),
           body: Stack(
             fit: StackFit.expand,
             children: [
               const _MatchDetailFullBleedBackground(),
-              _MatchDetailTabbedBody(
-                detail: detail,
-                hideTournamentAction: hideTournamentAction,
-                individualHeadToHead: individualH2h,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _MatchDetailCompactAppBar(detail: detail, theme: theme),
+                  Expanded(
+                    child: _MatchDetailTabbedBody(
+                      detail: detail,
+                      hideTournamentAction: hideTournamentAction,
+                      individualHeadToHeads: individualH2hs,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -119,39 +125,62 @@ class AthleteMatchDetailPage extends ConsumerWidget {
   }
 }
 
-/// H2H individual (por atleta, não por dupla) do adversário desta partida.
-/// Resolvido de forma desacoplada do resto da tela (provider próprio) — se a
-/// callable falhar ou demorar, só essa seção deixa de aparecer, sem afetar o
-/// restante do detalhe da partida já carregado.
-HeadToHeadRecord? _watchIndividualHeadToHead(
-  WidgetRef ref,
-  AthleteMatchDetail detail,
-) {
-  if (!detail.isParticipantView) return null;
+/// H2H individual (por atleta) de cada adversário da partida.
+///
+/// Resolvido à parte do detalhe — se a callable falhar ou demorar, só essa
+/// seção some, sem afetar o restante da tela.
+///
+/// Um bloco por adversário distinto (`athleteId`). Históricos iguais NÃO são
+/// mesclados: cada atleta pode ter outras equipes/parceiros e o placar H2H é
+/// sempre atleta × atleta.
+List<({String opponentName, HeadToHeadRecord record})>
+    _watchIndividualHeadToHeads(WidgetRef ref, AthleteMatchDetail detail) {
+  if (!detail.isParticipantView) return const [];
 
   final myAthleteId = (ref.watch(authProvider).valueOrNull?.uid ?? '').trim();
-  final opponentAthleteId = detail.opponentTeam.players.isEmpty
-      ? ''
-      : (detail.opponentTeam.players.first.athleteId ?? '').trim();
-  if (myAthleteId.isEmpty || opponentAthleteId.isEmpty) return null;
+  if (myAthleteId.isEmpty) return const [];
 
-  final query = HeadToHeadQuery(
-    athleteIdA: myAthleteId,
-    athleteIdB: opponentAthleteId,
-  );
-  return ref.watch(headToHeadRecordProvider(query)).valueOrNull;
+  final out = <({String opponentName, HeadToHeadRecord record})>[];
+  final seenIds = <String>{};
+
+  for (final player in detail.opponentTeam.players) {
+    final opponentId = (player.athleteId ?? '').trim();
+    if (opponentId.isEmpty || opponentId == myAthleteId) continue;
+    if (!seenIds.add(opponentId)) continue;
+
+    final record = ref
+        .watch(
+          headToHeadRecordProvider(
+            HeadToHeadQuery(
+              athleteIdA: myAthleteId,
+              athleteIdB: opponentId,
+            ),
+          ),
+        )
+        .valueOrNull;
+    if (record == null || !record.hasHistory) continue;
+
+    final name = (player.name ?? '').trim();
+    out.add((
+      opponentName: name.isEmpty ? player.initials : name,
+      record: record,
+    ));
+  }
+
+  return out;
 }
 
 class _MatchDetailTabbedBody extends ConsumerStatefulWidget {
   const _MatchDetailTabbedBody({
     required this.detail,
     required this.hideTournamentAction,
-    this.individualHeadToHead,
+    this.individualHeadToHeads = const [],
   });
 
   final AthleteMatchDetail detail;
   final bool hideTournamentAction;
-  final HeadToHeadRecord? individualHeadToHead;
+  final List<({String opponentName, HeadToHeadRecord record})>
+      individualHeadToHeads;
 
   @override
   ConsumerState<_MatchDetailTabbedBody> createState() =>
@@ -174,8 +203,7 @@ class _MatchDetailTabbedBodyState extends ConsumerState<_MatchDetailTabbedBody> 
     return ListView(
       padding: EdgeInsets.fromLTRB(
         10,
-        MediaQuery.paddingOf(context).top +
-            _MatchDetailCompactAppBar.rowHeight,
+        8,
         20,
         10 + MediaQuery.paddingOf(context).bottom,
       ),
@@ -362,15 +390,16 @@ class _MatchDetailTabbedBodyState extends ConsumerState<_MatchDetailTabbedBody> 
       ]);
     }
 
-    final individual = widget.individualHeadToHead;
-    if (individual != null && individual.hasHistory) {
-      final opponentName = detail.opponentTeam.players.isNotEmpty
-          ? (detail.opponentTeam.players.first.name ?? '')
-          : '';
+    if (widget.individualHeadToHeads.isNotEmpty) {
       sections.addAll([
         MatchDetailIndividualHeadToHeadSection(
-          record: individual,
-          opponentName: opponentName,
+          entries: [
+            for (final entry in widget.individualHeadToHeads)
+              IndividualHeadToHeadEntry(
+                opponentName: entry.opponentName,
+                record: entry.record,
+              ),
+          ],
         ),
         const SizedBox(height: 20),
       ]);
@@ -507,53 +536,52 @@ class _MatchDetailCompactAppBar extends StatelessWidget {
     final top = MediaQuery.paddingOf(context).top;
     const chipColor = Color(0x59000000); // black 35%
 
-    return Material(
-      type: MaterialType.transparency,
-      child: Padding(
-        padding: EdgeInsets.only(top: top),
-        child: SizedBox(
-          height: rowHeight,
-          child: Row(
-            children: [
-              const SizedBox(width: 12),
-              _NavChip(
-                color: chipColor,
-                onTap: () => context.pop(),
-                child: const Icon(
-                  Icons.chevron_left_rounded,
+    // Transparente: a arte full-bleed do Stack aparece até o topo.
+    // O header fica fora do ListView, então o conteúdo não passa por trás.
+    return Padding(
+      padding: EdgeInsets.only(top: top),
+      child: SizedBox(
+        height: rowHeight,
+        child: Row(
+          children: [
+            const SizedBox(width: 12),
+            _NavChip(
+              color: chipColor,
+              onTap: () => context.pop(),
+              child: const Icon(
+                Icons.chevron_left_rounded,
+                color: AppColors.onSurface,
+              ),
+            ),
+            Expanded(
+              child: Text(
+                'Detalhes da partida',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
                   color: AppColors.onSurface,
+                  letterSpacing: -0.3,
                 ),
               ),
-              Expanded(
-                child: Text(
-                  'Detalhes da partida',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
-                    letterSpacing: -0.3,
-                  ),
-                ),
+            ),
+            _NavChip(
+              color: chipColor,
+              onTap: () {
+                final share = detail?.sharePoster;
+                if (share != null) {
+                  showMatchDetailShareSheet(context, share);
+                } else {
+                  showAppSnackBar(context, 'Em breve.');
+                }
+              },
+              child: const Icon(
+                Icons.ios_share_rounded,
+                color: AppColors.onSurface,
+                size: 20,
               ),
-              _NavChip(
-                color: chipColor,
-                onTap: () {
-                  final share = detail?.sharePoster;
-                  if (share != null) {
-                    showMatchDetailShareSheet(context, share);
-                  } else {
-                    showAppSnackBar(context, 'Em breve.');
-                  }
-                },
-                child: const Icon(
-                  Icons.ios_share_rounded,
-                  color: AppColors.onSurface,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-            ],
-          ),
+            ),
+            const SizedBox(width: 12),
+          ],
         ),
       ),
     );
@@ -605,12 +633,12 @@ class _MatchDetailFullBleedBackground extends StatelessWidget {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Colors.black.withValues(alpha: 0.25),
-                Colors.black.withValues(alpha: 0.3),
-                Colors.black.withValues(alpha: 0.18),
+                Colors.black.withValues(alpha: 0.55),
+                Colors.black.withValues(alpha: 0.48),
+                Colors.black.withValues(alpha: 0.62),
                 const Color(0xFF050505),
               ],
-              stops: const [0, 0.18, 0.72, 1],
+              stops: const [0, 0.22, 0.68, 1],
             ),
           ),
         ),

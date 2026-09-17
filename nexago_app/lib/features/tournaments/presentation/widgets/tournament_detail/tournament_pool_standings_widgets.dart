@@ -58,6 +58,7 @@ class TournamentPoolStandingsCard extends StatelessWidget {
     required this.group,
     required this.qualifiersPerGroup,
     this.showFooter = true,
+    this.padding = const EdgeInsets.fromLTRB(20, 8, 20, 0),
   });
 
   final TournamentPoolStandingsGroup group;
@@ -66,6 +67,9 @@ class TournamentPoolStandingsCard extends StatelessWidget {
   /// Legenda (regra + siglas) no rodapé interno do card. Na aba com vários
   /// grupos, só o último card liga — evita repetir a mesma linha N vezes.
   final bool showFooter;
+
+  /// Recuo externo. No carrossel do Focus o PageView já controla a margem.
+  final EdgeInsetsGeometry padding;
 
   static const _radius = 14.0;
 
@@ -88,7 +92,7 @@ class TournamentPoolStandingsCard extends StatelessWidget {
         group.isComplete ? AppColors.win : context.themeColors.onSurfaceMuted;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+      padding: padding,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(_radius),
         child: BackdropFilter(
@@ -239,9 +243,9 @@ const double _colGap = 10;
 
 const double _colRank = 28;
 
-/// Piso do nome da dupla em uma linha (ex.: "Silvio / Marcos"). Sobra de
-/// tela vai toda pra cá; nomes longos cortam com reticências e a tabela rola.
-const double _colNameMin = 168;
+/// Piso do nome da dupla. Cabe "Nome Completo / Nome Completo" na maioria dos
+/// celulares; o que passar disso rola na horizontal com o resto da tabela.
+const double _colNameMin = 240;
 
 /// As numéricas são justas de propósito. Num celular de 360dp o corte tem de
 /// cair DEPOIS do SP — ele é o dado que a tabela existe pra mostrar, e nascer
@@ -425,13 +429,14 @@ class _StandingsTableRow extends StatelessWidget {
                       width: nameWidth,
                       child: Text(
                         row.displayName,
-                        maxLines: 1,
-                        softWrap: false,
+                        maxLines: 2,
+                        softWrap: true,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.soraRegular(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: context.themeColors.onSurface,
+                          height: 1.2,
                         ),
                       ),
                     ),

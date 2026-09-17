@@ -473,7 +473,7 @@ export class AthleteBookingDetailComponent {
     const b = this.booking();
     const perPerson = this.splitPerPersonLabel();
     if (!b || !perPerson) return;
-    const text = `Ei! Sua parte da reserva na ${b.arenaName} (${this.dateEyebrow()}, ${this.timeRangeLabel()}) é de ${perPerson}. Combina o PIX comigo? 🏐`;
+    const text = `Ei! Sua parte da reserva na ${b.arenaName} (${this.dateEyebrow()}, ${this.timeRangeLabel()}) é de ${perPerson}. Combina o PIX comigo?`;
     try {
       if (typeof navigator !== 'undefined' && navigator.clipboard) {
         await navigator.clipboard.writeText(text);

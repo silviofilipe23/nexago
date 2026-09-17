@@ -2,8 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/tournament_inscriptions_repository.dart';
 import '../athlete_tournament_day_providers.dart';
+import '../tournament_detail_logic.dart';
 import '../tournament_discovery_providers.dart';
 import '../tournament_matches_logic.dart';
+import 'focus_campaign_ended.dart';
 import 'focus_category_logic.dart';
 
 /// NOTA: NÃO existe um `focusMatchesProvider` aqui de propósito.
@@ -90,3 +92,48 @@ class FocusAcknowledgedCall extends Notifier<String?> {
 
 final focusAcknowledgedCallProvider =
     NotifierProvider<FocusAcknowledgedCall, String?>(FocusAcknowledgedCall.new);
+
+/// Backdrop "eliminada" no Agora — true quando a campanha acabou sem caminho e
+/// não há próxima partida. A casca troca a foto full-bleed sem duplicar a UI.
+final focusAgoraEliminatedProvider =
+    Provider.family<bool, String>((ref, tournamentId) {
+  final cards =
+      ref.watch(tournamentMatchCardsProvider(tournamentId)).valueOrNull;
+  if (cards == null) return false;
+
+  final categoryId = ref.watch(focusCategoryIdProvider(tournamentId));
+  if (categoryId == null || categoryId.isEmpty) return false;
+
+  final teamIdsByCategory = ref
+          .watch(tournamentUserTeamIdsByCategoryProvider(tournamentId))
+          .valueOrNull ??
+      const <String, String>{};
+  final athleteTeamIds = athleteTeamIdsForHighlight(teamIdsByCategory);
+  if (athleteTeamIds.isEmpty) return false;
+
+  final all = [for (final c in cards) c.match];
+
+  final detail = ref.watch(tournamentDetailProvider(tournamentId)).valueOrNull;
+  var isDouble = false;
+  var qualifiers = 2;
+  if (detail != null) {
+    for (final o in detail.categoryOffers) {
+      if (o.id == categoryId) {
+        isDouble = isDoubleEliminationBracketFormat(o.bracketFormat);
+        qualifiers = o.qualifiersPerGroup;
+        break;
+      }
+    }
+  }
+
+  final categoryMatches =
+      all.where((m) => m.categoryId == categoryId).toList();
+  return athleteFocusCampaignEnded(
+    matches: categoryMatches,
+    categoryId: categoryId,
+    myTeamIds: athleteTeamIds,
+    isDoubleElimination: isDouble,
+    qualifiersPerGroup: qualifiers,
+  );
+});
+

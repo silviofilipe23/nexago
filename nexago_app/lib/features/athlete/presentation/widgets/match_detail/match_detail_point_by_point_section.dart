@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
@@ -75,6 +77,8 @@ class _SetGroupCard extends StatelessWidget {
   final String ourTeamHeader;
   final String opponentTeamHeader;
 
+  static const _radius = 14.0;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -86,85 +90,107 @@ class _SetGroupCard extends StatelessWidget {
           ];
     final omitted = group.items.length - preview.length;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-      decoration: BoxDecoration(
-        color: context.themeColors.surfaceCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: context.themeColors.surfaceRaised),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(_radius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(_radius),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: Stack(
             children: [
-              Text(
-                'SET ${group.setNumber}',
-                style: AppTypography.mono(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.brand,
-                  letterSpacing: 0.4,
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 34,
+                bottom: 0,
+                child: Center(
+                  child: Container(
+                    width: 1,
+                    color: Colors.white.withValues(alpha: 0.12),
+                  ),
                 ),
               ),
-              const Spacer(),
-              Text(
-                group.finalScoreLabel,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: context.themeColors.onSurface,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'SET ${group.setNumber}',
+                        style: AppTypography.mono(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.brand,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        group.finalScoreLabel,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: context.themeColors.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          ourTeamHeader.toUpperCase(),
+                          style: AppTypography.soraRegular(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.brand,
+                            fontSize: 10,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          opponentTeamHeader.toUpperCase(),
+                          textAlign: TextAlign.right,
+                          style: AppTypography.soraRegular(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.onSurfaceMuted,
+                            fontSize: 10,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  for (var i = 0; i < preview.length; i++) ...[
+                    if (omitted > 0 && i == 3) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Text(
+                          '· · · +$omitted pontos · · ·',
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: context.themeColors.onSurfaceMuted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                    _PointRow(item: preview[i]),
+                    if (i < preview.length - 1) const SizedBox(height: 6),
+                  ],
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  ourTeamHeader.toUpperCase(),
-                  style: AppTypography.soraRegular(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.brand,
-                    fontSize: 10,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  opponentTeamHeader.toUpperCase(),
-                  textAlign: TextAlign.right,
-                  style: AppTypography.soraRegular(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.onSurfaceMuted,
-                    fontSize: 10,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          for (var i = 0; i < preview.length; i++) ...[
-            if (omitted > 0 && i == 3) ...[
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Text(
-                  '· · · +$omitted pontos · · ·',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: context.themeColors.onSurfaceMuted,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-            _PointRow(item: preview[i]),
-            if (i < preview.length - 1) const SizedBox(height: 6),
-          ],
-        ],
+        ),
       ),
     );
   }
@@ -183,12 +209,12 @@ class _PointRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: item.isOurTeam
             ? AppColors.brand.withValues(alpha: 0.16)
-            : context.themeColors.surfaceRaised,
+            : Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: item.isOurTeam
               ? AppColors.brand.withValues(alpha: 0.28)
-              : context.themeColors.surfaceSheet,
+              : Colors.white.withValues(alpha: 0.14),
         ),
       ),
       child: Text(
@@ -196,7 +222,7 @@ class _PointRow extends StatelessWidget {
         style: AppTypography.mono(
           fontSize: 12,
           fontWeight: FontWeight.w800,
-          color: AppColors.onSurface,
+          color: Colors.white,
         ),
       ),
     );

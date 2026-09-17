@@ -2,7 +2,7 @@ import '../tournament_match.dart';
 import '../tournament_match_status.dart';
 
 /// Estado do bloco principal da seção "Agora", em ordem de precedência.
-enum FocusNowState { called, live, next, pendingKnockout, idle }
+enum FocusNowState { called, live, next, pendingKnockout, eliminated, idle }
 
 /// `queueStatus` que a mesa grava quando chama a dupla para a quadra.
 const String kQueueStatusOnCourt = 'on_court';

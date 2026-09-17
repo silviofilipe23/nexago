@@ -34,7 +34,8 @@ class _BookingInvitePageState extends ConsumerState<BookingInvitePage> {
       appBar: NexaAppBar(title: Text('Convite para jogar')),
       body: inviteAsync.when(
         loading: () => Center(child: CircularProgressIndicator()),
-        error: (e, _) => _ErrorBody(message: 'Não foi possível carregar o convite.'),
+        error: (e, _) =>
+            _ErrorBody(message: 'Não foi possível carregar o convite.'),
         data: (invite) {
           if (invite == null) {
             return _ErrorBody(message: 'Convite não encontrado ou expirado.');
@@ -80,8 +81,8 @@ class _BookingInvitePageState extends ConsumerState<BookingInvitePage> {
       final displayName = fromProfile.isNotEmpty
           ? fromProfile
           : (user?.displayName?.trim().isNotEmpty == true
-              ? user!.displayName!.trim()
-              : 'Atleta');
+                ? user!.displayName!.trim()
+                : 'Atleta');
 
       final service = ref.read(bookingInviteServiceProvider);
       await service.acceptInvite(
@@ -100,16 +101,18 @@ class _BookingInvitePageState extends ConsumerState<BookingInvitePage> {
       );
 
       // Navega para a página de horários da arena com data/hora pré-selecionadas
-      final query = StringBuffer('?date=${invite.date}&startTime=${invite.startTime}');
+      final query = StringBuffer(
+        '?date=${invite.date}&startTime=${invite.startTime}',
+      );
       if (invite.courtId != null && invite.courtId!.isNotEmpty) {
         query.write('&courtId=${invite.courtId}');
       }
       context.go('/arena/${invite.arenaId}/slots$query');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao aceitar convite: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao aceitar convite: $e')));
     } finally {
       if (mounted) setState(() => _accepting = false);
     }
@@ -149,7 +152,7 @@ class _InviteBody extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '🏐 Você foi convidado!',
+                'Você foi convidado!',
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w800,
                   color: AppColors.brand,
@@ -206,7 +209,9 @@ class _InviteBody extends StatelessWidget {
             backgroundColor: AppColors.brand,
             foregroundColor: Colors.white,
             minimumSize: const Size.fromHeight(50),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
           ),
         ),
         SizedBox(height: 12),
@@ -214,7 +219,9 @@ class _InviteBody extends StatelessWidget {
           onPressed: () => Navigator.of(context).maybePop(),
           style: OutlinedButton.styleFrom(
             minimumSize: const Size.fromHeight(50),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
           ),
           child: Text('Agora não'),
         ),
@@ -226,7 +233,10 @@ class _InviteBody extends StatelessWidget {
     if (dateKey.length < 10) return dateKey;
     final parsed = DateTime.tryParse(dateKey);
     if (parsed == null) return dateKey;
-    final formatted = DateFormat("EEEE, d 'de' MMMM 'de' yyyy", 'pt_BR').format(parsed);
+    final formatted = DateFormat(
+      "EEEE, d 'de' MMMM 'de' yyyy",
+      'pt_BR',
+    ).format(parsed);
     return formatted[0].toUpperCase() + formatted.substring(1);
   }
 }
@@ -243,7 +253,9 @@ class _Card extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.12)),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.12),
+        ),
       ),
       child: child,
     );
@@ -281,7 +293,11 @@ class _ErrorBody extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.link_off_rounded, size: 56, color: Theme.of(context).colorScheme.error),
+            Icon(
+              Icons.link_off_rounded,
+              size: 56,
+              color: Theme.of(context).colorScheme.error,
+            ),
             SizedBox(height: 16),
             Text(
               message,

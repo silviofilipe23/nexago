@@ -161,11 +161,11 @@ describe('registration-share', () => {
     };
 
     it('fala no plural para dupla', () => {
-      expect(registrationShareText(base)).toBe('Estamos confirmados no Copa Verão — Mista C. Nos vemos na quadra! 🏐');
+      expect(registrationShareText(base)).toBe('Estamos confirmados no Copa Verão — Mista C. Nos vemos na quadra!');
     });
 
     it('usa o nome da equipe quando existe', () => {
-      expect(registrationShareText({ ...base, teamName: 'Bloco na Rede' })).toBe('A Bloco na Rede está confirmada no Copa Verão — Mista C. Nos vemos na quadra! 🏐');
+      expect(registrationShareText({ ...base, teamName: 'Bloco na Rede' })).toBe('A Bloco na Rede está confirmada no Copa Verão — Mista C. Nos vemos na quadra!');
     });
   });
 

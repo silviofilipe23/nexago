@@ -98,7 +98,7 @@ void main() {
         // são, elas mesmas, pontos de convergência. Ali quem cruza são as
         // partidas de cruzamento, não a Final; o centro dela sai da guarda de
         // colisão de duas passadas, não desta média. Verificado empiricamente
-        // (diff de 81px nas 3 plantas) antes de excluir — não é o defeito que
+        // (diff de um rowUnit nas 3 plantas) antes de excluir — não é o defeito que
         // esta suíte existe para pegar, é o mesmo caso que a suíte irmã já
         // recorta em 'toda partida de cruzamento fica na média dos
         // alimentadores, nas 25 plantas'.

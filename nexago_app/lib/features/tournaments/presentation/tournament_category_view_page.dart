@@ -188,13 +188,21 @@ class _TournamentCategoryViewPageState
               athleteTeamIds.isNotEmpty || registrations.isNotEmpty;
           final bracketMatches =
               bracketMatchesForCategory(allMatches, _categoryId);
+          final categoryMatchList = [for (final c in categoryCards) c.match];
+          final hasGroups =
+              categoryCards.any((c) => c.match.isGroupMatch);
+          final groupsComplete = categoryGroupStageComplete(categoryMatchList);
           final views = visibleCategoryViews(
             hasMatches: categoryCards.isNotEmpty,
-            hasGroups: categoryCards.any((c) => c.match.isGroupMatch),
+            hasGroups: hasGroups,
+            groupsComplete: groupsComplete,
+            hasBracket: bracketMatches.isNotEmpty,
           );
+          final preferBracket = hasGroups &&
+              (groupsComplete || bracketMatches.isNotEmpty);
           final selected = _selected != null && views.contains(_selected)
               ? _selected!
-              : defaultCategoryView(views);
+              : defaultCategoryView(views, preferBracket: preferBracket);
 
           final metaParts = [
             offer.formatLabel,

@@ -250,8 +250,7 @@ Future<AthleteMatchDetail?> _resolveAthleteMatchDetail({
 
   final userIds = <String>{};
   for (final team in teams.values) {
-    if (team.player1Id.isNotEmpty) userIds.add(team.player1Id);
-    if (team.player2Id.isNotEmpty) userIds.add(team.player2Id);
+    userIds.addAll(team.memberIds);
   }
 
   final profiles = <String, AppUserProfile>{};

@@ -16,7 +16,10 @@ void main() {
       columnKey: 'LB:1',
       slotIndex: 0,
       position: Offset(600, 100),
-      size: Size(280, 150),
+      size: Size(
+        BracketLayoutMetrics.cardWidth,
+        BracketLayoutMetrics.cardHeight,
+      ),
       isFinal: false,
     );
     const destino = BracketLayoutNode(
@@ -24,7 +27,10 @@ void main() {
       columnKey: 'WB:4',
       slotIndex: 0,
       position: Offset(200, 100),
-      size: Size(280, 150),
+      size: Size(
+        BracketLayoutMetrics.cardWidth,
+        BracketLayoutMetrics.cardHeight,
+      ),
       isFinal: false,
     );
     final layout = DoubleEliminationBracketLayout(
@@ -56,7 +62,10 @@ void main() {
       columnKey: 'WB:1',
       slotIndex: 0,
       position: Offset(20, 100),
-      size: Size(280, 150),
+      size: Size(
+        BracketLayoutMetrics.cardWidth,
+        BracketLayoutMetrics.cardHeight,
+      ),
       isFinal: false,
     );
     const destino = BracketLayoutNode(
@@ -64,7 +73,10 @@ void main() {
       columnKey: 'WB:2',
       slotIndex: 0,
       position: Offset(356, 100),
-      size: Size(280, 150),
+      size: Size(
+        BracketLayoutMetrics.cardWidth,
+        BracketLayoutMetrics.cardHeight,
+      ),
       isFinal: false,
     );
     final painter = BracketConnectorPainter(

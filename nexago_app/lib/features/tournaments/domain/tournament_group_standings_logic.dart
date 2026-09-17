@@ -408,8 +408,12 @@ Map<String, String> mergeTeamDisplayNameMaps(
   if (secondary.isEmpty) return primary;
   final merged = Map<String, String>.from(primary);
   for (final entry in secondary.entries) {
-    if (isResolvedTeamDisplayName(entry.key, entry.value) &&
-        !isResolvedTeamDisplayName(entry.key, merged[entry.key] ?? '')) {
+    if (!isResolvedTeamDisplayName(entry.key, entry.value)) continue;
+    final existing = merged[entry.key] ?? '';
+    // Prefere o nome mais completo quando os dois já estão resolvidos
+    // (ex.: "Ana / Bia" vence um rótulo curto do card).
+    if (!isResolvedTeamDisplayName(entry.key, existing) ||
+        entry.value.trim().length > existing.trim().length) {
       merged[entry.key] = entry.value;
     }
   }

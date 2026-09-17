@@ -8,7 +8,7 @@ import 'sand_rank_catalog.dart';
 String sandRankShareText(SandRankStep step) {
   final label = sandRankLabel(step);
   return withNexaHashtag(
-    'Cheguei ao elo $label no nexaGO! 🏐🔥 '
+    'Cheguei ao elo $label no nexaGO!🔥 '
     'Bora pra areia comigo: ${AppShareLinks.appDownload}',
   );
 }

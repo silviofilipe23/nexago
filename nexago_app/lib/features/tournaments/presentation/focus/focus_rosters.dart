@@ -46,4 +46,22 @@ class FocusRosters {
 
   List<TournamentMatchCardPlayerViewModel> playersOf(String teamId) =>
       _players[teamId] ?? const [];
+
+  /// "Nome1 / Nome2" a partir do elenco do card — útil na classificação quando
+  /// o `displayName` do time veio truncado ou só com o rótulo da partida.
+  Map<String, String> get duoNamesByTeamId {
+    final out = <String, String>{};
+    for (final entry in _players.entries) {
+      final names = entry.value
+          .map((p) => p.name.trim())
+          .where((n) => n.isNotEmpty)
+          .toList();
+      if (names.length >= 2) {
+        out[entry.key] = '${names[0]} / ${names[1]}';
+      } else if (names.length == 1) {
+        out[entry.key] = names[0];
+      }
+    }
+    return out;
+  }
 }

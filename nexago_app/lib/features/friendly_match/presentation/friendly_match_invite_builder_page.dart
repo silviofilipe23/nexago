@@ -80,7 +80,13 @@ class _FriendlyMatchInviteBuilderPageState
       _scheduledAt = null;
       return;
     }
-    _scheduledAt = DateTime(day.year, day.month, day.day, time.hour, time.minute);
+    _scheduledAt = DateTime(
+      day.year,
+      day.month,
+      day.day,
+      time.hour,
+      time.minute,
+    );
   }
 
   Future<DateTime?> _pickAlternativeDateTime({DateTime? initial}) async {
@@ -122,11 +128,7 @@ class _FriendlyMatchInviteBuilderPageState
     }
     final freeText = _freeTextController.text.trim();
     if (_locationMode == InviteBuilderLocationMode.catalog && _arena == null) {
-      showAppSnackBar(
-        context,
-        'Escolha uma arena do catálogo.',
-        isError: true,
-      );
+      showAppSnackBar(context, 'Escolha uma arena do catálogo.', isError: true);
       return;
     }
     if (_locationMode == InviteBuilderLocationMode.other && freeText.isEmpty) {
@@ -157,12 +159,14 @@ class _FriendlyMatchInviteBuilderPageState
         message: '',
       );
       if (!mounted) return;
-      ref.read(analyticsServiceProvider).logFriendlyMatchInviteSent(
+      ref
+          .read(analyticsServiceProvider)
+          .logFriendlyMatchInviteSent(
             objective: _objective.firestoreValue,
             sport: sport,
             hasArena: _arena != null,
           );
-      showAppSnackBar(context, 'Convite enviado para ${widget.toName}! 🏐');
+      showAppSnackBar(context, 'Convite enviado para ${widget.toName}!');
       context.pushReplacement(
         AppRoutes.friendlyMatchDetail.replaceFirst(':matchId', matchId),
       );
@@ -228,10 +232,10 @@ class _FriendlyMatchInviteBuilderPageState
         title: Text(
           'Convidar $_inviteFirstName',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: colors.onSurface,
-                letterSpacing: -0.3,
-              ),
+            fontWeight: FontWeight.w800,
+            color: colors.onSurface,
+            letterSpacing: -0.3,
+          ),
         ),
       ),
       body: Column(
@@ -253,8 +257,8 @@ class _FriendlyMatchInviteBuilderPageState
                   Text(
                     'Complete seu perfil esportivo para convidar alguém.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceMuted,
-                        ),
+                      color: colors.onSurfaceMuted,
+                    ),
                   )
                 else
                   InviteBuilderSportChips(
@@ -344,10 +348,7 @@ class _FriendlyMatchInviteBuilderPageState
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: InviteBuilderSendButton(
-                busy: _sending,
-                onPressed: _send,
-              ),
+              child: InviteBuilderSendButton(busy: _sending, onPressed: _send),
             ),
           ),
         ],
@@ -357,10 +358,7 @@ class _FriendlyMatchInviteBuilderPageState
 }
 
 class _AlternativeTimeChip extends StatelessWidget {
-  const _AlternativeTimeChip({
-    required this.label,
-    required this.onRemove,
-  });
+  const _AlternativeTimeChip({required this.label, required this.onRemove});
 
   final String label;
   final VoidCallback onRemove;
@@ -384,16 +382,20 @@ class _AlternativeTimeChip extends StatelessWidget {
             child: Text(
               'Alternativa: $label',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: colors.onSurface,
-                  ),
+                fontWeight: FontWeight.w600,
+                color: colors.onSurface,
+              ),
             ),
           ),
           IconButton(
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            icon: Icon(Icons.close_rounded, size: 18, color: colors.onSurfaceMuted),
+            icon: Icon(
+              Icons.close_rounded,
+              size: 18,
+              color: colors.onSurfaceMuted,
+            ),
             onPressed: onRemove,
           ),
         ],

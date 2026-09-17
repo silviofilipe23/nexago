@@ -47,8 +47,7 @@ import { bracketGroupKey, bracketGroupSortOrder, buildBracketColumns, type Tourn
 export const BRACKET_MATCH_WIDTH = 280;
 export const BRACKET_MATCH_HEIGHT = 154;
 
-/** Proporções espelhadas de `BracketLayoutMetrics` do app (rowUnit 81 pra card 150 → gap 12;
- *  aqui 88 pra card 154 → gap 22 entre jogos adjacentes). */
+/** Proporções espelhadas de `BracketLayoutMetrics` do app (rowUnit 88 pra card 154 → gap 22). */
 const ROW_UNIT = 88;
 const COL_GAP = 56;
 const COL_STEP = BRACKET_MATCH_WIDTH + COL_GAP;

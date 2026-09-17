@@ -9,8 +9,8 @@ import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../data/tournament_announcements_repository.dart';
+import '../../../domain/focus/focus_campaign_ended.dart';
 import '../../../domain/focus/focus_double_elimination.dart';
-import '../../../domain/focus/focus_journey_view.dart';
 import '../../../domain/focus/focus_now_state.dart';
 import '../../../domain/focus/focus_providers.dart';
 import '../../../domain/focus/focus_views_logic.dart';
@@ -131,13 +131,32 @@ class FocusAgoraSection extends ConsumerWidget {
     // Herói: próxima partida do atleta em QUALQUER dia.
     final next = pickAthleteFocusNextMatch(all, athleteTeamIds);
     final acknowledged = ref.watch(focusAcknowledgedCallProvider);
-    final state = focusNowStateOf(
+    final offer = _offerOf();
+    final isDouble =
+        offer != null && isDoubleEliminationBracketFormat(offer.bracketFormat);
+    final qualifiers = offer?.qualifiersPerGroup ?? 2;
+    final campaignEnded = categoryId != null &&
+        athleteFocusCampaignEnded(
+          matches: categoryMatches,
+          categoryId: categoryId!,
+          myTeamIds: athleteTeamIds,
+          isDoubleElimination: isDouble,
+          qualifiersPerGroup: qualifiers,
+        );
+    final state = focusNowStateWithCampaignOf(
       next,
       acknowledged,
       categoryHasPendingKnockout:
           categoryId != null &&
           hasPendingKnockoutInCategory(categoryMatches, categoryId!) &&
-          !eliminatedFromKnockout(categoryMatches, categoryId!, athleteTeamIds),
+          !campaignEnded &&
+          (isDouble ||
+              !eliminatedFromKnockout(
+                categoryMatches,
+                categoryId!,
+                athleteTeamIds,
+              )),
+      campaignEnded: campaignEnded,
     );
 
     final ctx = FocusViewContext(
@@ -148,9 +167,6 @@ class FocusAgoraSection extends ConsumerWidget {
       nextMatch: next,
     );
 
-    final offer = _offerOf();
-    final isDouble =
-        offer != null && isDoubleEliminationBracketFormat(offer.bracketFormat);
     final standing = isDouble && categoryId != null
         ? focusDoubleEliminationStandingOf(
             categoryMatches,
@@ -164,17 +180,21 @@ class FocusAgoraSection extends ConsumerWidget {
     final accent = inRepescagem ? AppColors.pending : AppColors.brand;
 
     final heroView = nextMatchViewOf(ctx, now);
-    final futurePhases = categoryId == null
-        ? const <TournamentMatch>[]
-        : (journeyPathOf(categoryMatches, categoryId!, athleteTeamIds).future
-            ..sort((a, b) => a.round.compareTo(b.round)));
-    final entries = timelineOf(ctx, railMatches, futurePhases: futurePhases);
+    // Só confrontos definidos — sem fases futuras / slots sem adversário.
+    final entries = timelineOf(ctx, railMatches);
     final announcements =
         ref.watch(tournamentAnnouncementsProvider(tournament.id)).valueOrNull ??
         const [];
 
     final phaseMeta = _phaseMetaOf(next);
     final dayItems = _dayRailItems(entries, byId);
+    final campaign = state == FocusNowState.eliminated && categoryId != null
+        ? focusCampaignSummaryOf(
+            matches: categoryMatches,
+            categoryId: categoryId!,
+            myTeamIds: athleteTeamIds,
+          )
+        : null;
 
     return ListView(
       padding: EdgeInsets.only(
@@ -204,6 +224,7 @@ class FocusAgoraSection extends ConsumerWidget {
           timeEyebrow: _timeEyebrowOf(next, now),
           timeLabel: _matchDateTimeLabel(next),
           firstMatchStarted: athleteFirstMatchStarted(day),
+          campaign: campaign,
           onAcknowledge: () => ref
               .read(focusAcknowledgedCallProvider.notifier)
               .acknowledge(next!.id),
@@ -211,7 +232,7 @@ class FocusAgoraSection extends ConsumerWidget {
           onOpenMaps: _openMaps,
           onShare: () => showFocusShareMatchSheet(context, next!.id),
         ),
-        if (standing != null) ...[
+        if (standing != null && state != FocusNowState.eliminated) ...[
           const FocusSectionHeader(label: 'ONDE VOCÊ ESTÁ'),
           FocusBracketSideCards(
             standing: standing,
@@ -228,6 +249,7 @@ class FocusAgoraSection extends ConsumerWidget {
         ],
         FocusDayRail(
           items: dayItems,
+          eliminated: state == FocusNowState.eliminated,
           onOpen: (id) => _openMatch(context, id),
         ),
         if (announcements.isNotEmpty) ...[

@@ -473,6 +473,17 @@ void main() {
     expect(hasEdge('qf4', 'sf2'), isTrue);
     expect(hasEdge('sf1', 'final'), isTrue);
     expect(hasEdge('sf2', 'final'), isTrue);
+
+    // Cascata: cada rodada na média vertical do par que a alimenta —
+    // sem isso a semi cola na 1ª quarta e a Final cola na 1ª semi.
+    double cy(String id) {
+      final node = layout.nodes.firstWhere((n) => n.matchId == id);
+      return node.position.dy + node.size.height / 2;
+    }
+
+    expect(cy('sf1'), closeTo((cy('qf1') + cy('qf2')) / 2, 0.01));
+    expect(cy('sf2'), closeTo((cy('qf3') + cy('qf4')) / 2, 0.01));
+    expect(cy('final'), closeTo((cy('sf1') + cy('sf2')) / 2, 0.01));
   });
 
   test(

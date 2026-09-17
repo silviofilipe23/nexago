@@ -34,11 +34,15 @@ class FocusDayRail extends StatelessWidget {
     required this.items,
     required this.onOpen,
     this.onSeeAll,
+    this.eliminated = false,
   });
 
   final List<FocusDayRailItem> items;
   final ValueChanged<String> onOpen;
   final VoidCallback? onSeeAll;
+
+  /// Campanha encerrada — o rail vira retrospectiva, não ordem do dia.
+  final bool eliminated;
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +60,7 @@ class FocusDayRail extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'ORDEM DO SEU DIA',
+                  eliminated ? 'COMO FOI SEU DIA' : 'ORDEM DO SEU DIA',
                   style: AppTypography.eyebrow.copyWith(
                     color: Colors.white.withValues(alpha: 0.55),
                   ),

@@ -39,6 +39,29 @@ void main() {
       );
     });
 
+    test('após grupos (ou com mata-mata) a Chave entra na nav', () {
+      expect(
+        visibleFocusSections(
+          isDoubleElimination: false,
+          groupsComplete: true,
+        ),
+        [
+          FocusSection.agora,
+          FocusSection.grupo,
+          FocusSection.chave,
+          FocusSection.arena,
+          FocusSection.palpites,
+        ],
+      );
+      expect(
+        visibleFocusSections(
+          isDoubleElimination: false,
+          hasKnockoutBracket: true,
+        ),
+        contains(FocusSection.chave),
+      );
+    });
+
     test('a segunda aba é Chave na dupla eliminação', () {
       // Não há fase de grupos para mostrar; a mesma posição vira a chave.
       expect(

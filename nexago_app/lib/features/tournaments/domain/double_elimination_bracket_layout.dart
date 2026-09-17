@@ -8,12 +8,13 @@ import 'tournament_matches_logic.dart';
 
 /// Dimensões do canvas da chave interativa (protótipo NexaGO).
 /// cardHeight inclui o rodapé de agendamento do card (dia · hora · quadra);
-/// rowUnit acompanha pra manter o gap de 12 entre jogos adjacentes (2·81−150).
+/// rowUnit acompanha o painel web (`bracket-tree.ts`: 88 pra card 154 → gap
+/// 22 entre jogos adjacentes).
 abstract final class BracketLayoutMetrics {
   static const cardWidth = 280.0;
-  static const cardHeight = 150.0;
+  static const cardHeight = 154.0;
   static const columnGap = 56.0;
-  static const rowUnit = 81.0;
+  static const rowUnit = 88.0;
   static const canvasPadding = 24.0;
   static const columnHeaderHeight = 32.0;
 }
@@ -188,8 +189,8 @@ String bracketColumnHeaderLabel(List<TournamentMatch> columnMatches) {
 /// - Agrupa por `bracketGroupKey`, ordenado por `bracketGroupSortOrder` —
 ///   com uma exceção: a Final vem antes do 3º lugar (`bracketGroupSortOrder`
 ///   continua intacta, só a ordenação das colunas em `_placeLegacyGroups` é
-///   ajustada; ver lá o porquê). Jogos em slots fixos `(2i+1)·rowUnit` na
-///   ordem de `matchNumber` — sem geometria convergente.
+///   ajustada; ver lá o porquê). Cascata: 1ª coluna em `i + 0.5`, demais na
+///   média dos alimentadores (paridade com `buildKnockoutTreeLayout` web).
 ///   Resultado visual: rodadas em ordem, depois a Final, depois o 3º lugar.
 /// - Partidas que sobrarem sem coluna mesmo numa chave COM convergência (caso
 ///   misto, não ocorre nas 25 plantas reais mas é possível numa chave editada
@@ -712,15 +713,16 @@ String _uniqueColumnKey(String base, Set<String> used) {
 /// da faixa central convergente) e evita que a aresta semi→final pule por
 /// cima do card do 3º lugar quando os dois saem do mesmo bloco de semis —
 /// com a Final logo depois das semis, a aresta liga colunas vizinhas, sem
-/// nada no meio. Jogos de cada coluna em slots fixos `(2i+1)·rowUnit` na
-/// ordem de `matchNumber`. Usado tanto para a chave inteira (sem nenhum
-/// ponto de convergência alcançável) quanto para as partidas órfãs que
-/// sobrarem fora da árvore convergente. Preenche `columnOf`/`centerSlot` a
-/// partir de `startColumn` — `centerSlot` guarda `i + 0.5` (o `+0.5` é o
-/// mesmo ajuste que o resto do arquivo usa pra converter índice de slot em
-/// centro de LUGAR) para que a materialização de nós comum
-/// (`centerSlot * 2 * rowUnit`) resulte exatamente em `(2i+1)·rowUnit`, o
-/// slot fixo da coluna.
+/// nada no meio.
+///
+/// **Cascata:** a 1ª coluna espalha folhas em `i + 0.5`; cada coluna seguinte
+/// põe o jogo na MÉDIA dos alimentadores (`winnerAdvance` → este número),
+/// caindo no pareamento posicional `prev[i·2]`/`prev[i·2+1]` (mesma regra do
+/// `buildKnockoutTreeLayout` web) quando a fiação falta. Empilhar `i + 0.5`
+/// em toda coluna alinhava a semi com a 1ª quarta — a cascata da referência
+/// sumia. Usado tanto para a chave inteira (sem nenhum ponto de convergência
+/// alcançável) quanto para as partidas órfãs que sobrarem fora da árvore
+/// convergente.
 void _placeLegacyGroups(
   List<TournamentMatch> matches,
   int startColumn,
@@ -743,17 +745,65 @@ void _placeLegacyGroups(
       return a.compareTo(b);
     });
 
+  final feedersOf = <int, List<int>>{};
+  for (final m in matches) {
+    final dest = m.winnerAdvanceMatchNumber;
+    if (dest == null) continue;
+    (feedersOf[dest] ??= <int>[]).add(m.matchNumber);
+  }
+
   var col = startColumn;
+  List<TournamentMatch>? prevColumn;
   for (final key in keys) {
     final columnMatches = [...byGroup[key]!]
       ..sort((a, b) => a.matchNumber.compareTo(b.matchNumber));
     for (var i = 0; i < columnMatches.length; i++) {
       final m = columnMatches[i];
       columnOf[m.matchNumber] = col;
-      centerSlot[m.matchNumber] = i + 0.5;
+      centerSlot[m.matchNumber] = _legacyCascadeSlot(
+        matchNumber: m.matchNumber,
+        indexInColumn: i,
+        feedersOf: feedersOf,
+        centerSlot: centerSlot,
+        prevColumn: prevColumn,
+      );
     }
+    prevColumn = columnMatches;
     col++;
   }
+}
+
+/// Centro em LUGARES pra uma partida do caminho legado (cascata).
+double _legacyCascadeSlot({
+  required int matchNumber,
+  required int indexInColumn,
+  required Map<int, List<int>> feedersOf,
+  required Map<int, double> centerSlot,
+  required List<TournamentMatch>? prevColumn,
+}) {
+  final feederSlots = <double>[
+    for (final n in feedersOf[matchNumber] ?? const <int>[])
+      if (centerSlot.containsKey(n)) centerSlot[n]!,
+  ];
+  if (feederSlots.length >= 2) {
+    return feederSlots.reduce((a, b) => a + b) / feederSlots.length;
+  }
+  if (feederSlots.length == 1) {
+    return feederSlots.first;
+  }
+  if (prevColumn != null) {
+    final a = indexInColumn * 2 < prevColumn.length
+        ? centerSlot[prevColumn[indexInColumn * 2].matchNumber]
+        : null;
+    final b = indexInColumn * 2 + 1 < prevColumn.length
+        ? centerSlot[prevColumn[indexInColumn * 2 + 1].matchNumber]
+        : null;
+    final pair = [a, b].whereType<double>().toList();
+    if (pair.isNotEmpty) {
+      return pair.reduce((x, y) => x + y) / pair.length;
+    }
+  }
+  return indexInColumn + 0.5;
 }
 
 /// Conectores pelos ponteiros reais de avanço (`winnerAdvance`), em qualquer

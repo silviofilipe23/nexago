@@ -8,6 +8,7 @@ import '../../../../../core/theme/app_radii.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../domain/focus/focus_campaign_ended.dart';
 import '../../../domain/focus/focus_now_state.dart';
 import '../../../domain/focus/focus_views_logic.dart';
 import '../../../domain/tournament_match_card_view_model.dart';
@@ -17,6 +18,10 @@ import '../../../../athlete/presentation/public_profile/widgets/profile_photo_vi
 /// Arte de fundo do Agora (protótipo Focus) — full-bleed atrás da lista.
 const kFocusNowHeroBackgroundAsset =
     'assets/images/sports/match_detail_live_bg.webp';
+
+/// Arte de fundo do herói "eliminada" — high-five no pôr do sol.
+const kFocusEliminadaBackgroundAsset =
+    'assets/images/sports/focus_eliminada_bg.webp';
 
 /// Arte de fundo da seção Grupo — pôr do sol / rede / bola.
 const kFocusGrupoBackgroundAsset =
@@ -30,13 +35,23 @@ const kFocusPalpitesBackgroundAsset =
     'assets/images/sports/focus_palpites_bg.webp';
 
 /// Foto + gradiente cobrindo a seção Agora inteira.
+///
+/// Com [eliminated] usa a arte de despedida; senão a do próximo jogo / ao vivo.
 class FocusAgoraScreenBackground extends StatelessWidget {
-  const FocusAgoraScreenBackground({super.key});
+  const FocusAgoraScreenBackground({super.key, this.eliminated = false});
+
+  final bool eliminated;
 
   @override
   Widget build(BuildContext context) {
-    return const FocusPhotoScreenBackground(
-      asset: kFocusNowHeroBackgroundAsset,
+    return FocusPhotoScreenBackground(
+      asset: eliminated
+          ? kFocusEliminadaBackgroundAsset
+          : kFocusNowHeroBackgroundAsset,
+      // High-five e sol no centro vertical do asset eliminada.
+      alignment: eliminated
+          ? const Alignment(0, -0.05)
+          : const Alignment(0, -0.15),
     );
   }
 }
@@ -78,6 +93,19 @@ class FocusPalpitesScreenBackground extends StatelessWidget {
       asset: kFocusPalpitesBackgroundAsset,
       // Celular e bola no terço inferior — céu atrás do seletor.
       alignment: Alignment(0, 0.25),
+    );
+  }
+}
+
+/// Foto + gradiente da seção Chave — mesma arte do Agora (próximo jogo / ao vivo).
+class FocusChaveScreenBackground extends StatelessWidget {
+  const FocusChaveScreenBackground({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const FocusPhotoScreenBackground(
+      asset: kFocusNowHeroBackgroundAsset,
+      alignment: Alignment(0, -0.15),
     );
   }
 }
@@ -125,10 +153,12 @@ class FocusPhotoScreenBackground extends StatelessWidget {
   }
 }
 
-/// O bloco principal da seção "Agora", nos cinco estados.
+/// O bloco principal da seção "Agora".
 ///
 /// Protótipo: foto full-bleed no topo com "PRÓXIMO JOGO" + countdown, depois
 /// confronto horizontal, faixa glass de horário/quadra/fase e CTA de chegar.
+/// Estado [FocusNowState.eliminated]: manchete motivacional + card "NOSSA
+/// CAMPANHA".
 ///
 /// [accent] pinta CTA e destaques: laranja no fluxo normal, amarelo na
 /// repescagem, vermelho na chamada de quadra.
@@ -152,6 +182,7 @@ class FocusNowHero extends StatelessWidget {
     this.phaseValue,
     this.timeEyebrow,
     this.timeLabel,
+    this.campaign,
   });
 
   final FocusNowState state;
@@ -181,6 +212,9 @@ class FocusNowHero extends StatelessWidget {
   /// precisa mostrar data + hora (próxima partida pode ser outro dia).
   final String? timeLabel;
 
+  /// Só no estado [FocusNowState.eliminated].
+  final FocusCampaignSummary? campaign;
+
   final VoidCallback onAcknowledge;
   final VoidCallback onOpenMatch;
   final VoidCallback onOpenMaps;
@@ -206,27 +240,26 @@ class FocusNowHero extends StatelessWidget {
             onOpenMaps: onOpenMaps,
           ),
         ),
-        FocusNowState.live || FocusNowState.next => _MatchBody(
-          view: view,
-          card: card,
-          contextTag: contextTag,
-          accent: accent,
-          leadIn: leadIn,
-          phaseEyebrow: phaseEyebrow,
-          phaseValue: phaseValue,
-          timeEyebrow: timeEyebrow,
-          timeLabel: timeLabel,
-          firstMatchStarted: firstMatchStarted,
-          onOpenMaps: onOpenMaps,
-          onShare: onShare,
-        ),
-        FocusNowState.pendingKnockout => const _Shell(
-          child: _Message(
-            title: 'A chave ainda está sendo definida',
-            body:
-                'Os confrontos e as quadras saem conforme as partidas '
-                'pendentes terminam.',
+        FocusNowState.live || FocusNowState.next => _Shell(
+          child: _MatchBody(
+            view: view,
+            card: card,
+            contextTag: contextTag,
+            accent: accent,
+            leadIn: leadIn,
+            phaseEyebrow: phaseEyebrow,
+            phaseValue: phaseValue,
+            timeEyebrow: timeEyebrow,
+            timeLabel: timeLabel,
+            firstMatchStarted: firstMatchStarted,
+            onOpenMaps: onOpenMaps,
+            onShare: onShare,
           ),
+        ),
+        FocusNowState.pendingKnockout => const _PendingKnockoutBody(),
+        FocusNowState.eliminated => _EliminatedBody(
+          campaign: campaign ??
+              const FocusCampaignSummary(wins: 0, losses: 0),
         ),
         FocusNowState.idle => const _Shell(
           child: _Message(
@@ -239,23 +272,31 @@ class FocusNowHero extends StatelessWidget {
   }
 }
 
+/// Casca glass do herói — mesma linguagem dos cards Arena / Grupo / rail.
 class _Shell extends StatelessWidget {
   const _Shell({required this.child});
 
   final Widget child;
 
+  static const _radius = 20.0;
+
   @override
   Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: colors.surfaceCard,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colors.outline),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(_radius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(_radius),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: child,
+        ),
       ),
-      child: child,
     );
   }
 }
@@ -367,6 +408,12 @@ class _MatchBody extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.lg),
         _InfoStrip(
+          matchNumber: () {
+            final raw = v.numberLabel?.trim() ?? '';
+            if (raw.isEmpty) return null;
+            // numberLabel vem como "Jogo #12" — o eyebrow já diz "Jogo".
+            return raw.replaceFirst(RegExp(r'^Jogo\s*', caseSensitive: false), '');
+          }(),
           timeEyebrow: timeEyebrow ?? 'Hoje',
           timeLabel: timeLabel ?? v.timeLabel,
           courtNumber: courtShort,
@@ -616,8 +663,11 @@ class _InfoStrip extends StatelessWidget {
     required this.courtNumber,
     required this.phaseEyebrow,
     required this.phaseValue,
+    this.matchNumber,
   });
 
+  /// "#12" — número do jogo na categoria. `null` omite a coluna.
+  final String? matchNumber;
   final String timeEyebrow;
   final String timeLabel;
   final String? courtNumber;
@@ -626,45 +676,50 @@ class _InfoStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+    // Painel interno translúcido — o blur fica só no `_Shell` (evita double blur).
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+      ),
+      child: Row(
+        children: [
+          if (matchNumber != null && matchNumber!.isNotEmpty) ...[
+            Expanded(
+              child: _InfoCell(
+                icon: Icons.tag_rounded,
+                eyebrow: 'Jogo',
+                value: matchNumber!,
+              ),
+            ),
+            _Divider(),
+          ],
+          Expanded(
+            child: _InfoCell(
+              icon: Icons.calendar_today_outlined,
+              eyebrow: timeEyebrow,
+              value: timeLabel,
+            ),
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: _InfoCell(
-                  icon: Icons.calendar_today_outlined,
-                  eyebrow: timeEyebrow,
-                  value: timeLabel,
-                ),
-              ),
-              _Divider(),
-              Expanded(
-                child: _InfoCell(
-                  icon: Icons.place_outlined,
-                  eyebrow: 'Quadra',
-                  value: courtNumber ?? '—',
-                ),
-              ),
-              _Divider(),
-              Expanded(
-                child: _InfoCell(
-                  icon: Icons.account_tree_outlined,
-                  eyebrow: phaseEyebrow,
-                  value: phaseValue,
-                ),
-              ),
-            ],
+          _Divider(),
+          Expanded(
+            child: _InfoCell(
+              icon: Icons.place_outlined,
+              eyebrow: 'Quadra',
+              value: courtNumber ?? '—',
+            ),
           ),
-        ),
+          _Divider(),
+          Expanded(
+            child: _InfoCell(
+              icon: Icons.account_tree_outlined,
+              eyebrow: phaseEyebrow,
+              value: phaseValue,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -932,6 +987,7 @@ class _CalledBody extends StatelessWidget {
         Center(
           child: Text(
             [
+              if (view?.numberLabel != null) view!.numberLabel!,
               if (opponent?.name != null)
                 'Sua partida é contra ${opponent!.name}.',
               if (calledAt != null) 'A mesa chamou às $calledAt.',
@@ -1034,6 +1090,267 @@ class _Message extends StatelessWidget {
         Text(
           body,
           style: AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
+        ),
+      ],
+    );
+  }
+}
+
+/// Herói enquanto a chave do mata-mata ainda está sendo montada
+/// (`FocusNowState.pendingKnockout`).
+class _PendingKnockoutBody extends StatelessWidget {
+  const _PendingKnockoutBody();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppColors.brand.withValues(alpha: 0.85),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.brand.withValues(alpha: 0.22),
+                  blurRadius: 18,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.hourglass_empty_rounded,
+              size: 32,
+              color: AppColors.brand,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          Text.rich(
+            TextSpan(
+              style: AppTypography.displayL.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.8,
+                height: 1.1,
+                color: Colors.white,
+              ),
+              children: const [
+                TextSpan(text: 'Aguardando\n'),
+                TextSpan(
+                  text: 'definição da chave',
+                  style: TextStyle(color: AppColors.brand),
+                ),
+              ],
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text(
+            'Você já concluiu todos os jogos da fase de grupos. '
+            'Agora estamos finalizando os confrontos e em breve '
+            'os classificados serão definidos.',
+            textAlign: TextAlign.center,
+            style: AppTypography.bodyM.copyWith(
+              color: Colors.white.withValues(alpha: 0.72),
+              height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Herói de despedida — eliminado no mata-mata ou sem classificação no grupo.
+class _EliminatedBody extends StatelessWidget {
+  const _EliminatedBody({required this.campaign});
+
+  final FocusCampaignSummary campaign;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text.rich(
+          TextSpan(
+            style: AppTypography.displayL.copyWith(
+              fontStyle: FontStyle.italic,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -1.2,
+              height: 1.05,
+              color: Colors.white,
+            ),
+            children: const [
+              TextSpan(text: 'JOGARAM COM\nATITUDE.\n'),
+              TextSpan(
+                text: 'ISSO JÁ É GRANDE.',
+                style: TextStyle(color: AppColors.brand),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xxl),
+        Text(
+          'SUA DUPLA FOI',
+          style: AppTypography.eyebrow.copyWith(
+            color: Colors.white.withValues(alpha: 0.85),
+            letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'ELIMINADA',
+          style: AppTypography.displayL.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -1,
+            height: 1,
+            fontSize: 40,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          'Nem todo caminho termina no pódio.\n'
+          'O importante é continuar jogando.',
+          style: AppTypography.bodyM.copyWith(
+            color: Colors.white.withValues(alpha: 0.78),
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xxl),
+        _CampaignGlassCard(campaign: campaign),
+      ],
+    );
+  }
+}
+
+class _CampaignGlassCard extends StatelessWidget {
+  const _CampaignGlassCard({required this.campaign});
+
+  final FocusCampaignSummary campaign;
+
+  @override
+  Widget build(BuildContext context) {
+    const radius = 20.0;
+    final rank = campaign.groupRank;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(radius),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'NOSSA CAMPANHA',
+                style: AppTypography.eyebrow.copyWith(
+                  color: Colors.white.withValues(alpha: 0.55),
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  Expanded(
+                    child: _CampaignStat(
+                      icon: Icons.emoji_events_outlined,
+                      iconColor: AppColors.win,
+                      value: '${campaign.wins}',
+                      label: campaign.wins == 1 ? 'VITÓRIA' : 'VITÓRIAS',
+                    ),
+                  ),
+                  _CampaignDivider(),
+                  Expanded(
+                    child: _CampaignStat(
+                      icon: Icons.close_rounded,
+                      iconColor: AppColors.live,
+                      value: '${campaign.losses}',
+                      label: campaign.losses == 1 ? 'DERROTA' : 'DERROTAS',
+                    ),
+                  ),
+                  if (rank != null) ...[
+                    _CampaignDivider(),
+                    Expanded(
+                      child: _CampaignStat(
+                        icon: Icons.bar_chart_rounded,
+                        iconColor: Colors.white.withValues(alpha: 0.85),
+                        value: focusCampaignRankLabel(rank),
+                        label: 'NO GRUPO',
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CampaignDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 44,
+      color: Colors.white.withValues(alpha: 0.10),
+    );
+  }
+}
+
+class _CampaignStat extends StatelessWidget {
+  const _CampaignStat({
+    required this.icon,
+    required this.iconColor,
+    required this.value,
+    required this.label,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Icon(icon, size: 18, color: iconColor),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          style: AppTypography.monoStat.copyWith(
+            color: Colors.white,
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: AppTypography.eyebrow.copyWith(
+            color: Colors.white.withValues(alpha: 0.7),
+            fontSize: 10,
+            letterSpacing: 0.6,
+          ),
         ),
       ],
     );

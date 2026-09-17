@@ -167,22 +167,35 @@ void main() {
       ]);
     });
 
-    test('Grupos entra quando a categoria tem fase de grupos', () {
+    test('Grupos sem fase encerrada: Chave ainda não aparece', () {
       final views = visibleCategoryViews(
         hasMatches: false,
         hasGroups: true,
       );
 
+      expect(views, [TournamentCategoryView.grupos]);
+    });
+
+    test('Grupos encerrados liberam a Chave', () {
+      final views = visibleCategoryViews(
+        hasMatches: true,
+        hasGroups: true,
+        groupsComplete: true,
+      );
+
       expect(views, [
+        TournamentCategoryView.partidas,
         TournamentCategoryView.grupos,
         TournamentCategoryView.chave,
       ]);
     });
 
-    test('ordem completa com tudo true', () {
+    test('mata-mata já gerado libera a Chave mesmo com grupos em andamento',
+        () {
       final views = visibleCategoryViews(
         hasMatches: true,
         hasGroups: true,
+        hasBracket: true,
       );
 
       expect(views, [
@@ -198,12 +211,26 @@ void main() {
       final views = visibleCategoryViews(
         hasMatches: true,
         hasGroups: true,
+        groupsComplete: true,
       );
 
       expect(defaultCategoryView(views), TournamentCategoryView.partidas);
     });
 
-    test('cai nos Grupos quando só há Grupos e Chave', () {
+    test('com preferBracket cai na Chave após os grupos', () {
+      final views = visibleCategoryViews(
+        hasMatches: true,
+        hasGroups: true,
+        groupsComplete: true,
+      );
+
+      expect(
+        defaultCategoryView(views, preferBracket: true),
+        TournamentCategoryView.chave,
+      );
+    });
+
+    test('cai nos Grupos quando só há Grupos (fase ainda aberta)', () {
       final views = visibleCategoryViews(
         hasMatches: false,
         hasGroups: true,
@@ -223,6 +250,93 @@ void main() {
 
     test('lista vazia cai na Chave por segurança', () {
       expect(defaultCategoryView(const []), TournamentCategoryView.chave);
+    });
+  });
+
+  group('categoryGroupStageComplete', () {
+    test('false sem jogos de grupo', () {
+      expect(
+        categoryGroupStageComplete([
+          _match(id: 'b1', teamAId: 'a', teamBId: 'b'),
+        ]),
+        isFalse,
+      );
+    });
+
+    test('true quando todos os jogos de grupo estão encerrados', () {
+      expect(
+        categoryGroupStageComplete([
+          TournamentMatch(
+            id: 'g1',
+            tournamentId: 't1',
+            categoryId: 'c1',
+            round: 1,
+            matchType: 'group',
+            poolId: 'A',
+            teamAId: 'a',
+            teamBId: 'b',
+            status: TournamentMatchStatus.completed,
+            resultA: '2',
+            resultB: '0',
+            isGroupMatch: true,
+            matchNumber: 1,
+          ),
+          TournamentMatch(
+            id: 'g2',
+            tournamentId: 't1',
+            categoryId: 'c1',
+            round: 1,
+            matchType: 'group',
+            poolId: 'A',
+            teamAId: 'c',
+            teamBId: 'd',
+            status: TournamentMatchStatus.canceled,
+            resultA: '',
+            resultB: '',
+            isGroupMatch: true,
+            matchNumber: 2,
+          ),
+        ]),
+        isTrue,
+      );
+    });
+
+    test('false com algum jogo de grupo ainda aberto', () {
+      expect(
+        categoryGroupStageComplete([
+          TournamentMatch(
+            id: 'g1',
+            tournamentId: 't1',
+            categoryId: 'c1',
+            round: 1,
+            matchType: 'group',
+            poolId: 'A',
+            teamAId: 'a',
+            teamBId: 'b',
+            status: TournamentMatchStatus.completed,
+            resultA: '2',
+            resultB: '0',
+            isGroupMatch: true,
+            matchNumber: 1,
+          ),
+          TournamentMatch(
+            id: 'g2',
+            tournamentId: 't1',
+            categoryId: 'c1',
+            round: 1,
+            matchType: 'group',
+            poolId: 'A',
+            teamAId: 'c',
+            teamBId: 'd',
+            status: TournamentMatchStatus.scheduled,
+            resultA: '',
+            resultB: '',
+            isGroupMatch: true,
+            matchNumber: 2,
+          ),
+        ]),
+        isFalse,
+      );
     });
   });
 
@@ -511,6 +625,19 @@ void main() {
         ),
         isEmpty,
       );
+    });
+
+    test('descarta slot sem os dois lados definidos', () {
+      final rail = myFocusMatchRailTimeline(
+        [
+          _match(id: 'ok', teamAId: 'meu', teamBId: 'y'),
+          _match(id: 'bye', teamAId: 'meu', teamBId: ''),
+          _match(id: 'vazio', teamAId: '', teamBId: ''),
+        ],
+        {'meu'},
+      );
+
+      expect(rail.map((m) => m.id), ['ok']);
     });
   });
 

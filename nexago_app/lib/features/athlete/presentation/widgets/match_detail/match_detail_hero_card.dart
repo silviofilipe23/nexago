@@ -36,6 +36,13 @@ class _CompletedHero extends StatelessWidget {
         ? (detail.isWin ? AppColors.win : AppColors.live)
         : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55);
 
+    // Um set só: o placar grande é a pontuação do jogo (ex.: 21–18), não 1–0.
+    final singleSet = detail.sets.length == 1;
+    final ourPoints =
+        singleSet ? detail.sets.first.ourScore : detail.ourSetsWon;
+    final oppPoints =
+        singleSet ? detail.sets.first.opponentScore : detail.opponentSetsWon;
+
     return _HorizontalMatchHero(
       detail: detail,
       statusAccent: accent,
@@ -44,12 +51,12 @@ class _CompletedHero extends StatelessWidget {
           : null,
       scoreCard: _GlassScoreCard(
         setLabel: 'Placar final',
-        ourPoints: detail.ourSetsWon,
-        oppPoints: detail.opponentSetsWon,
+        ourPoints: ourPoints,
+        oppPoints: oppPoints,
         ourSetsWon: detail.ourSetsWon,
         opponentSetsWon: detail.opponentSetsWon,
         bestOf: _bestOfSlots(detail),
-        showSetDots: detail.sets.isNotEmpty,
+        showSetDots: !singleSet && detail.sets.isNotEmpty,
       ),
     );
   }
@@ -295,20 +302,22 @@ class _GlassScoreCard extends StatelessWidget {
   final int bestOf;
   final bool showSetDots;
 
+  static const _radius = 16.0;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(_radius),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.45),
-            borderRadius: BorderRadius.circular(16),
+            color: Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(_radius),
             border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
           ),
           child: Column(
@@ -391,20 +400,22 @@ class _GlassVsCard extends StatelessWidget {
 
   final String subtitle;
 
+  static const _radius = 16.0;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(_radius),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.45),
-            borderRadius: BorderRadius.circular(16),
+            color: Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(_radius),
             border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
           ),
           child: Column(

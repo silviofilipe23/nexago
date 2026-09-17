@@ -331,7 +331,7 @@ export async function sendFriendlyMatchInviteCore(
     const body = input.objective === "partner" ?
       `${fromName} quer formar dupla com você` :
       `${fromName} te convidou para jogar`;
-    return notificationFor(doc, ref.id, slot.uid as string, "friendly_match_invite", "Bora jogar? 🏐", body);
+    return notificationFor(doc, ref.id, slot.uid as string, "friendly_match_invite", "Bora jogar?", body);
   });
   return {matchId: ref.id, notifications};
 }
@@ -757,7 +757,7 @@ export async function fillFriendlyMatchSlotCore(
     return {
       kind: "ok", data,
       notifications: [
-        notificationFor(data, ref.id, toUid, "friendly_match_invite", "Bora jogar? 🏐",
+        notificationFor(data, ref.id, toUid, "friendly_match_invite", "Bora jogar?",
           `${data.organizerName} te convidou para jogar`),
       ],
     };

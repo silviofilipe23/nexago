@@ -18,8 +18,10 @@ import '../../domain/focus/focus_boot_logic.dart';
 import '../../domain/focus/focus_providers.dart';
 import '../../domain/tournament_detail_logic.dart';
 import '../../domain/tournament_detail_model.dart';
+import '../../domain/tournament_detail_tabs_logic.dart';
 import '../../domain/tournament_discovery_models.dart';
 import '../../domain/tournament_discovery_providers.dart';
+import '../../domain/tournament_match.dart';
 import '../../domain/tournament_matches_logic.dart';
 import '../tournament_predictions_page.dart';
 import 'focus_bottom_clearance.dart';
@@ -160,7 +162,26 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
     final offer = _offer(tournament, categoryId);
     final isDouble =
         offer != null && isDoubleEliminationBracketFormat(offer.bracketFormat);
-    final sections = visibleFocusSections(isDoubleElimination: isDouble);
+    final cards =
+        ref.watch(tournamentMatchCardsProvider(widget.tournamentId)).valueOrNull ??
+            const [];
+    final categoryMatches = categoryId == null
+        ? const <TournamentMatch>[]
+        : [
+            for (final c in cards)
+              if (c.match.categoryId == categoryId) c.match,
+          ];
+    final groupsComplete = categoryGroupStageComplete(categoryMatches);
+    final hasKnockout = categoryId != null &&
+        bracketMatchesForCategory(
+          [for (final c in cards) c.match],
+          categoryId,
+        ).isNotEmpty;
+    final sections = visibleFocusSections(
+      isDoubleElimination: isDouble,
+      groupsComplete: groupsComplete,
+      hasKnockoutBracket: hasKnockout,
+    );
 
     // A seção corrente pode sair da lista quando o formato resolve (ex.: entrou
     // por deep link em `grupo` e a categoria é dupla eliminação). Cai na
@@ -172,6 +193,7 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
         tournament != null &&
         (current == FocusSection.agora ||
             current == FocusSection.grupo ||
+            current == FocusSection.chave ||
             current == FocusSection.arena ||
             current == FocusSection.palpites);
 
@@ -182,9 +204,15 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
         fit: StackFit.expand,
         children: [
           if (showPhotoBackdrop && current == FocusSection.agora)
-            const FocusAgoraScreenBackground(),
+            FocusAgoraScreenBackground(
+              eliminated: ref.watch(
+                focusAgoraEliminatedProvider(widget.tournamentId),
+              ),
+            ),
           if (showPhotoBackdrop && current == FocusSection.grupo)
             const FocusGrupoScreenBackground(),
+          if (showPhotoBackdrop && current == FocusSection.chave)
+            const FocusChaveScreenBackground(),
           if (showPhotoBackdrop && current == FocusSection.arena)
             const FocusArenaScreenBackground(),
           if (showPhotoBackdrop && current == FocusSection.palpites)

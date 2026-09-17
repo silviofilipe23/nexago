@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../domain/tournament_detail_model.dart';
 import '../../widgets/bracket/double_elimination_bracket_view.dart';
-import '../focus_bottom_clearance.dart';
 
 /// Seção "Chave" do Focus — a chave navegável da dupla eliminação, desenhada
 /// DENTRO da casca.
@@ -28,10 +27,13 @@ class FocusChaveSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // A chave é pinça/arrasto: a viewport do canvas pode descer atrás da
+    // nav flutuante (glass). Só reserva o home indicator — clearance cheia
+    // encolhia a visualização sem necessidade.
     return DoubleEliminationBracketView(
       tournamentId: tournament.id,
       categoryId: categoryId,
-      bottomPadding: focusBottomClearance(context),
+      bottomPadding: MediaQuery.viewPaddingOf(context).bottom + 8,
     );
   }
 }

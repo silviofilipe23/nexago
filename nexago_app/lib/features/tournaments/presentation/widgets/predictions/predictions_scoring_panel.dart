@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import 'package:nexago_app/core/theme/app_colors.dart';
@@ -11,38 +13,46 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 class PredictionsScoringPanel extends StatelessWidget {
   const PredictionsScoringPanel({super.key});
 
+  static const _radius = 14.0;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colors.surfaceRaised),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Como pontuar',
-            style: AppTypography.soraRegular(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: colors.onSurface,
-            ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(_radius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(_radius),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
           ),
-          const SizedBox(height: 12),
-          const _Rule(
-            title: 'Vencedor certo',
-            detail: '+1 ponto por jogo',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Como pontuar',
+                style: AppTypography.soraRegular(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: colors.onSurface,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const _Rule(
+                title: 'Vencedor certo',
+                detail: '+1 ponto por jogo',
+              ),
+              const SizedBox(height: 10),
+              const _Rule(
+                title: 'Campeão do torneio',
+                detail: '+3 pontos extras — o palpite da final vale 4',
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
-          const _Rule(
-            title: 'Campeão do torneio',
-            detail: '+3 pontos extras — o palpite da final vale 4',
-          ),
-        ],
+        ),
       ),
     );
   }

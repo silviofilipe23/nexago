@@ -1,25 +1,4 @@
-import { shouldExplainZeroBalance, tournamentsOfWallet } from './wallet-view';
-import type { OrganizerTournament } from './tournament.model';
-
-function tournament(id: string, managerId: string): OrganizerTournament {
-  return { id, managerId } as OrganizerTournament;
-}
-
-describe('tournamentsOfWallet', () => {
-  const lista = [tournament('t1', 'dono'), tournament('t2', 'gestor'), tournament('t3', 'dono')];
-
-  it('fica só com os torneios do dono da carteira em exibição', () => {
-    expect(tournamentsOfWallet(lista, 'dono').map((t) => t.id)).toEqual(['t1', 't3']);
-  });
-
-  it('carteira própria do gestor traz só os torneios dele', () => {
-    expect(tournamentsOfWallet(lista, 'gestor').map((t) => t.id)).toEqual(['t2']);
-  });
-
-  it('sem carteira carregada não filtra nada', () => {
-    expect(tournamentsOfWallet(lista, '')).toEqual(lista);
-  });
-});
+import { shouldExplainZeroBalance } from './wallet-view';
 
 describe('shouldExplainZeroBalance', () => {
   it('explica quando tudo foi recebido direto com o organizador', () => {
@@ -75,5 +54,21 @@ describe('shouldExplainZeroBalance', () => {
         viaOrganizerCents: 0,
       }),
     ).toBe(false);
+  });
+});
+
+/** Mesma regra, alimentada agora por UM evento: os números vêm do caixa do
+ *  torneio em exibição, não da soma dos torneios da carteira de uma pessoa. */
+describe('shouldExplainZeroBalance por evento', () => {
+  it('explica quando o caixa do evento está zerado e o dinheiro entrou por fora', () => {
+    expect(shouldExplainZeroBalance({ availableReais: 0, pendingReais: 0, ledgerCount: 0, viaOrganizerCents: 529000 })).toBeTrue();
+  });
+
+  it('não explica quando o evento já creditou pela plataforma', () => {
+    expect(shouldExplainZeroBalance({ availableReais: 0, pendingReais: 0, ledgerCount: 3, viaOrganizerCents: 529000 })).toBeFalse();
+  });
+
+  it('não explica quando há saldo', () => {
+    expect(shouldExplainZeroBalance({ availableReais: 10, pendingReais: 0, ledgerCount: 0, viaOrganizerCents: 529000 })).toBeFalse();
   });
 });

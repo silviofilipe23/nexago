@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './auth/auth.guard';
+import { financeiroGuard } from './auth/financeiro.guard';
 import { organizerGuard } from './auth/organizer.guard';
 
 export const routes: Routes = [
@@ -85,6 +86,7 @@ export const routes: Routes = [
       },
       {
         path: 'financeiro',
+        canActivate: [financeiroGuard],
         title: 'Financeiro — NexaGO Organizador',
         loadComponent: () => import('./painel/financeiro/financeiro.component').then((m) => m.FinanceiroComponent),
       },

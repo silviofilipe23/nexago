@@ -19,6 +19,7 @@ import { AuthService } from '../../auth/auth.service';
 import { ChaveamentoContextService } from '../chaveamento/chaveamento-context.service';
 import { organizerFirestore } from '../data/firestore';
 import { bracketSystemFromRaw } from '../data/tournament-create.model';
+import { canSeeFinanceiro } from '../data/tournament-role';
 import { listOrganizerNames } from '../data/tournaments-repository';
 import { tournamentUsesUniform } from '../data/uniforms';
 import { OgAvatarComponent } from '../ui/avatar.component';
@@ -313,6 +314,13 @@ export class PanelShellComponent {
   );
 
   constructor() {
+    // Fonte dos torneios do item "Financeiro" (nível global) e de outras partes do menu —
+    // o mesmo serviço que a cascata torneio/categoria já usa. `ensureLoaded` é idempotente
+    // por uid: o `PanelContextService` chama de novo ao entrar num torneio sem duplicar a
+    // busca. Sem esta chamada, quem loga e nunca abriu um torneio na sessão veria a lista
+    // vazia e o item "Financeiro" some mesmo sendo dono/gestor.
+    this.chav.ensureLoaded();
+
     const mq = window.matchMedia(COMPACT_QUERY);
     this.compact.set(mq.matches);
     const onCompactChange = (e: MediaQueryListEvent) => {
@@ -438,7 +446,11 @@ export class PanelShellComponent {
         link: '/painel/novo-evento',
         matchPrefixes: ['/painel/novo-evento', '/painel/novo-torneio', '/painel/nova-liga', '/painel/nova-etapa'],
       },
-      { label: 'Financeiro', icon: 'cash', link: '/painel/financeiro' },
+      // Só dono/gestor de ao menos um evento — administrador do evento não vê o item
+      // (mesmo predicado do guard da rota; ver `canSeeFinanceiro`).
+      ...(canSeeFinanceiro(this.chav.tournaments())
+        ? [{ label: 'Financeiro', icon: 'cash' as OgIconName, link: '/painel/financeiro' }]
+        : []),
       { label: 'Links', icon: 'share', link: '/painel/links' },
     ];
   });

@@ -25,3 +25,11 @@ export function roleReachesMoney(role: TournamentRole | null): boolean {
 export function myMoneyTournaments(tournaments: OrganizerTournament[]): OrganizerTournament[] {
   return tournaments.filter((t) => roleReachesMoney(t.myRole));
 }
+
+/** Se o Financeiro faz sentido para esta pessoa: ela é dona ou gestora de ao
+ *  menos um evento. Administrador do evento não vê o item de menu nem entra na
+ *  rota — e, se entrar à mão, o servidor recusa de qualquer forma (a tela é
+ *  conveniência, a fronteira é a callable e as rules). */
+export function canSeeFinanceiro(tournaments: OrganizerTournament[]): boolean {
+  return myMoneyTournaments(tournaments).length > 0;
+}

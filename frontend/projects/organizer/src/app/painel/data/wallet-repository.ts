@@ -11,17 +11,7 @@ import { organizerFunctions } from './functions';
  *  caixa. Toda escrita passa por Cloud Function (`setOrganizerPayoutPixKey`/
  *  `requestOrganizerWithdrawal`); do Firestore o client só lê o saldo, porque a
  *  relação gestor → torneio não cabe nas rules a ponto de listar os caixas — quem
- *  sabe calcular esse alcance é a callable `loadOrganizerWalletView`.
- *
- *  `watchWallet` (carteira por uid, `organizerWallets/{uid}`) segue aqui só porque
- *  Início e Config ainda leem dela; sai quando essas duas telas saírem. */
-
-export interface OrganizerWalletSummary {
-  availableReais: number;
-  pendingReais: number;
-  payoutPixKey: string;
-  payoutPixKeyType: string;
-}
+ *  sabe calcular esse alcance é a callable `loadOrganizerWalletView`. */
 
 export interface OrganizerLedgerEntry {
   id: string;
@@ -56,27 +46,6 @@ function numberOf(v: unknown): number {
 function optionalStr(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
-
-const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 0, payoutPixKey: '', payoutPixKeyType: '' };
-
-export function watchWallet(uid: string, cb: (w: OrganizerWalletSummary) => void): () => void {
-  const db = organizerFirestore();
-  return onSnapshot(
-    doc(db, 'organizerWallets', uid),
-    (snap) => {
-      const d = snap.data() as Record<string, unknown> | undefined;
-      cb({
-        availableReais: numberOf(d?.['availableReais']),
-        pendingReais: numberOf(d?.['pendingReais']),
-        payoutPixKey: optionalStr(d?.['payoutPixKey']) ?? '',
-        payoutPixKeyType: optionalStr(d?.['payoutPixKeyType']) ?? '',
-      });
-    },
-    () => cb(EMPTY_WALLET),
-  );
-}
-
-
 
 export class OrganizerWalletError extends Error {}
 

@@ -820,7 +820,12 @@ export class FinanceiroComponent {
     // `listMyTournaments` e não pode aparecer na arrecadação ao lado de dinheiro.
     listMyTournaments(this.uid)
       .then((tournaments) => this.tournaments.set(myMoneyTournaments(tournaments)))
-      .catch(() => this.tournaments.set([]))
+      .catch((err) => {
+        // Lista vazia esvazia o card de Arrecadacao e neutraliza a explicacao do saldo
+        // zero — a tela passa a dizer menos do que sabe, sem avisar ninguem.
+        console.warn('Financeiro: falha ao listar os eventos da arrecadacao', err);
+        this.tournaments.set([]);
+      })
       .finally(() => this.tournamentsLoading.set(false));
 
     void this.loadWallet();

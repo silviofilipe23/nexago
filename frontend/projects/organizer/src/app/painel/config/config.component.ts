@@ -108,7 +108,10 @@ export class ConfigComponent {
     try {
       const view = await loadWalletView(undefined, 1);
       this.payout.set(view.payout);
-    } catch {
+    } catch (err) {
+      // Vazio aqui faz o card AFIRMAR "Nenhuma chave de saque cadastrada" — afirmacao
+      // falsa sobre destino de dinheiro, indistinguivel de nao ter chave mesmo.
+      console.warn('Config: falha ao ler a chave PIX de repasse', err);
       this.payout.set(EMPTY_PAYOUT);
     }
   }

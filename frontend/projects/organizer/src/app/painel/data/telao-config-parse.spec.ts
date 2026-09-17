@@ -48,6 +48,7 @@ describe('effectiveTelaoConfig · showPublicQr', () => {
       uniformRequired: false,
       uniformNumberOnShirt: false,
       uniformNameOnShirt: false,
+      myRole: null,
     };
   }
 

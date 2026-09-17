@@ -115,4 +115,15 @@ export interface OrganizerTournament {
   uniformRequired: boolean;
   uniformNumberOnShirt: boolean;
   uniformNameOnShirt: boolean;
+  /** Papel de quem está logado NESTE torneio — `'owner'` quando `managerId` é o
+   *  próprio uid, senão vem do espelho de staff. Só `listMyTournaments` sabe
+   *  calcular isso hoje (é quem recebe o uid). As outras fontes de
+   *  `OrganizerTournament` (`getTournament`, `listTournamentsByLeague`,
+   *  `watchTournament`, `listAllTournaments`) não recebem uid e gravam `null`
+   *  de propósito — `null` = papel desconhecido ou não aplicável (leitura
+   *  pública, telão, torneio alheio visto em suporte). `null` nunca alcança
+   *  dinheiro (`roleReachesMoney(null)` é sempre `false`), e o campo é
+   *  obrigatório: cada fonte precisa escrever `null` de propósito em vez de
+   *  deixá-lo de fora. */
+  myRole: TournamentRole | null;
 }

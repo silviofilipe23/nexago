@@ -49,6 +49,7 @@ function torneio(over: Partial<OrganizerTournament> = {}): OrganizerTournament {
     },
     bigScreen: null,
     uniformRequired: false,
+    myRole: null,
     uniformNumberOnShirt: false,
     uniformNameOnShirt: false,
     ...over,

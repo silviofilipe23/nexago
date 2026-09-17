@@ -1,4 +1,4 @@
-import type { TournamentRole } from './tournament.model';
+import type { OrganizerTournament, TournamentRole } from './tournament.model';
 
 /** Papel a partir de um doc do espelho `users/{uid}/tournamentStaff/{tid}`.
  *  Papel ausente conta como gestor e status ausente conta como ativo — os
@@ -17,4 +17,11 @@ export function roleFromStaffMirror(data: Record<string, unknown>): TournamentRo
  *  servidor recusa o saque dele mesmo se a tela deixasse pedir. */
 export function roleReachesMoney(role: TournamentRole | null): boolean {
   return role === 'owner' || role === 'manager';
+}
+
+/** Torneios cujo caixa a pessoa alcança — a lista que o Financeiro e o KPI do
+ *  Início usam. Um administrador do evento vê o torneio em Meus Torneios e NÃO
+ *  vê o caixa dele. */
+export function myMoneyTournaments(tournaments: OrganizerTournament[]): OrganizerTournament[] {
+  return tournaments.filter((t) => roleReachesMoney(t.myRole));
 }

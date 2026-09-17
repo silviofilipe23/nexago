@@ -1,4 +1,5 @@
-import { roleFromStaffMirror, roleReachesMoney } from './tournament-role';
+import { myMoneyTournaments, roleFromStaffMirror, roleReachesMoney } from './tournament-role';
+import type { OrganizerTournament } from './tournament.model';
 
 describe('roleFromStaffMirror', () => {
   it('gestor ativo é manager', () => {
@@ -38,5 +39,24 @@ describe('roleReachesMoney', () => {
 
   it('sem papel não alcança', () => {
     expect(roleReachesMoney(null)).toBe(false);
+  });
+});
+
+function t(id: string, myRole: 'owner' | 'manager' | 'eventAdmin' | null): OrganizerTournament {
+  return { id, name: id, myRole } as OrganizerTournament;
+}
+
+describe('myMoneyTournaments', () => {
+  it('mantém próprios e os que gerencia, tira os que só administra', () => {
+    const rows = myMoneyTournaments([t('a', 'owner'), t('b', 'eventAdmin'), t('c', 'manager')]);
+    expect(rows.map((r) => r.id)).toEqual(['a', 'c']);
+  });
+
+  it('só administrador devolve lista vazia', () => {
+    expect(myMoneyTournaments([t('b', 'eventAdmin')])).toEqual([]);
+  });
+
+  it('torneio sem papel conhecido (leitura pública/telão/suporte) não entra', () => {
+    expect(myMoneyTournaments([t('d', null)])).toEqual([]);
   });
 });

@@ -177,7 +177,6 @@ class OrganizerWalletView {
     final rawTournaments = data['tournaments'];
     final cashBoxes = rawTournaments is List
         ? rawTournaments
-            .whereType<Object?>()
             .map((e) => e is Map
                 ? TournamentCashBox.fromCallable(Map<String, dynamic>.from(e))
                 : null)
@@ -198,7 +197,6 @@ class OrganizerWalletView {
     final rawLedger = data['ledger'];
     final ledger = rawLedger is List
         ? rawLedger
-            .whereType<Object?>()
             .map((e) => e is Map
                 ? OrganizerLedgerEntry.fromCallable(Map<String, dynamic>.from(e))
                 : null)
@@ -209,7 +207,6 @@ class OrganizerWalletView {
     final rawWithdrawals = data['withdrawals'];
     final withdrawals = rawWithdrawals is List
         ? rawWithdrawals
-            .whereType<Object?>()
             .map((e) => e is Map
                 ? OrganizerWithdrawalItem.fromCallable(
                     Map<String, dynamic>.from(e))

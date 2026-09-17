@@ -85,13 +85,38 @@ function mapCallableError(err: unknown): OrganizerWalletError {
   return new OrganizerWalletError(message);
 }
 
-export async function setPayoutPixKey(pixKey: string, pixKeyType: string): Promise<void> {
+/** Grava a chave de repasse da PESSOA e devolve o que o servidor guardou de fato.
+ *  O que foi digitado não é necessariamente o que fica gravado: o servidor normaliza
+ *  a chave (`resolveWithdrawalPixFields` — telefone ganha `+55`, tipo vira maiúscula)
+ *  e ecoa o valor final. Quem mostra DESTINO DE SAQUE tem de exibir o eco, não o
+ *  rascunho do formulário. */
+export async function setPayoutPixKey(pixKey: string, pixKeyType: string): Promise<OrganizerPayoutProfile> {
   const functions = organizerFunctions();
   try {
-    await httpsCallable(functions, 'setOrganizerPayoutPixKey')({ pixKey, pixKeyType });
+    const result = await httpsCallable<Record<string, unknown>, Record<string, unknown>>(
+      functions,
+      'setOrganizerPayoutPixKey',
+    )({ pixKey, pixKeyType });
+    return parseSavedPayout(result.data, { pixKey, pixKeyType });
   } catch (err) {
     throw mapCallableError(err);
   }
+}
+
+/** Perfil de repasse depois de um save bem-sucedido: o eco do servidor quando vem,
+ *  senão o que foi enviado (deploy antigo da callable, que não ecoava). `hasPixKey`
+ *  é derivado do mesmo piso de 5 caracteres que o servidor usa (`hasUsablePixKey`),
+ *  porque este retorno não traz o flag. */
+export function parseSavedPayout(
+  data: Record<string, unknown>,
+  sent: { pixKey: string; pixKeyType: string },
+): OrganizerPayoutProfile {
+  const pixKey = optionalStr(data['pixKey']) ?? sent.pixKey.trim();
+  return {
+    pixKey,
+    pixKeyType: optionalStr(data['pixKeyType']) ?? sent.pixKeyType.trim().toUpperCase(),
+    hasPixKey: pixKey.length >= 5,
+  };
 }
 
 export interface WithdrawalRequestResult {
@@ -234,10 +259,25 @@ export async function requestWithdrawal(tournamentId: string, amountReais: numbe
   }
 }
 
+/** Saldo do doc do caixa. Doc ausente é zero de verdade — caixa que nunca creditou —,
+ *  e é o mesmo zero que a callable devolve nesse caso (`buildWalletViewRows`). */
+export function walletBalanceFromDoc(data: Record<string, unknown> | undefined): {
+  availableReais: number;
+  pendingReais: number;
+} {
+  return { availableReais: numberOf(data?.['availableReais']), pendingReais: numberOf(data?.['pendingReais']) };
+}
+
 /** Saldo do caixa ao vivo. Virou possível na Fase 1: as rules passaram a liberar
  *  a leitura de `tournamentWallets/{id}` para dono e gestor, então o saldo não
- *  precisa mais de callable. Erro de permissão cai em zero em vez de derrubar a
- *  tela — administrador do evento chega aqui se alguém abrir a rota à mão. */
+ *  precisa mais de callable.
+ *
+ *  ERRO DE LEITURA NÃO CHAMA O CALLBACK. Este listener só existe para atualizar um
+ *  saldo que a callable já entregou certo; zerar na falha reproduzia o bug que abriu
+ *  este projeto — saldo correto virando R$ 0,00, "Máximo disponível: R$ 0,00" e saque
+ *  impossível, sem explicação nenhuma. Os cenários de falha reais aqui são rules não
+ *  deployadas no projeto alvo, offline e erro transitório: em todos eles o certo é o
+ *  saldo ficar parado no valor da callable. */
 export function watchTournamentWallet(
   tournamentId: string,
   cb: (w: { availableReais: number; pendingReais: number }) => void,
@@ -245,10 +285,9 @@ export function watchTournamentWallet(
   const db = organizerFirestore();
   return onSnapshot(
     doc(db, 'tournamentWallets', tournamentId),
-    (snap) => {
-      const d = snap.data() as Record<string, unknown> | undefined;
-      cb({ availableReais: numberOf(d?.['availableReais']), pendingReais: numberOf(d?.['pendingReais']) });
+    (snap) => cb(walletBalanceFromDoc(snap.data() as Record<string, unknown> | undefined)),
+    () => {
+      /* de propósito: ver o comentário acima — o erro não pode apagar o saldo em tela. */
     },
-    () => cb({ availableReais: 0, pendingReais: 0 }),
   );
 }

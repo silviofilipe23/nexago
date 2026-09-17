@@ -119,8 +119,3 @@ export function inferPixKeyType(pixKey: string): PixKeyType {
 export function resolveInitialPixKeyType(storedType: string, pixKey: string): PixKeyType {
   return pixKeyTypeFromStored(storedType) ?? inferPixKeyType(pixKey);
 }
-
-export function maskPixKey(key: string): string {
-  const trimmed = key.trim();
-  return trimmed.length <= 12 ? trimmed : `${trimmed.slice(0, 8)}…`;
-}

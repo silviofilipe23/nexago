@@ -1,4 +1,4 @@
-import { shouldExplainZeroBalance, sumWalletRows } from './wallet-view';
+import { applyLiveBalance, shouldExplainZeroBalance, sumWalletRows, withdrawalRequesterLabel } from './wallet-view';
 
 describe('shouldExplainZeroBalance', () => {
   it('explica quando tudo foi recebido direto com o organizador', () => {
@@ -90,5 +90,53 @@ describe('sumWalletRows', () => {
       { availableReais: 0.1, pendingReais: 0 },
       { availableReais: 0.2, pendingReais: 0 },
     ]).availableReais).toBe(0.3);
+  });
+});
+
+describe('applyLiveBalance', () => {
+  const row = { tournamentId: 't1', tournamentName: 'Copa A', availableReais: 300, pendingReais: 0 };
+
+  it('atualiza a linha do caixa observado', () => {
+    expect(applyLiveBalance(row, 't1', { availableReais: 420, pendingReais: 10 })).toEqual({
+      tournamentId: 't1',
+      tournamentName: 'Copa A',
+      availableReais: 420,
+      pendingReais: 10,
+    });
+  });
+
+  it('não encosta na linha de outro caixa — snapshot atrasado do anterior não reescreve o atual', () => {
+    expect(applyLiveBalance(row, 'outro', { availableReais: 0, pendingReais: 0 })).toBe(row);
+  });
+
+  it('aceita saldo PARA MENOS do caixa observado: saque reserva valor', () => {
+    expect(applyLiveBalance(row, 't1', { availableReais: 0, pendingReais: 300 })).toEqual({
+      tournamentId: 't1',
+      tournamentName: 'Copa A',
+      availableReais: 0,
+      pendingReais: 300,
+    });
+  });
+});
+
+describe('withdrawalRequesterLabel', () => {
+  it('marca o saque de quem está olhando', () => {
+    expect(withdrawalRequesterLabel({ requestedBy: 'eu', requestedByStaff: false }, 'eu')).toBe('Você');
+  });
+
+  it('marca o pedido da equipe', () => {
+    expect(withdrawalRequesterLabel({ requestedBy: 'gestor', requestedByStaff: true }, 'eu')).toBe('Gestor da equipe');
+  });
+
+  it('pedido de quem é dono do evento', () => {
+    expect(withdrawalRequesterLabel({ requestedBy: 'dono', requestedByStaff: false }, 'eu')).toBe('Dono do evento');
+  });
+
+  it('sem quem pediu não inventa autor', () => {
+    expect(withdrawalRequesterLabel({ requestedBy: '', requestedByStaff: false }, 'eu')).toBe('—');
+  });
+
+  it('sem saber quem está olhando, ninguém é "Você"', () => {
+    expect(withdrawalRequesterLabel({ requestedBy: 'eu', requestedByStaff: false }, '')).toBe('Dono do evento');
   });
 });

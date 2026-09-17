@@ -26,6 +26,34 @@ export function shouldExplainZeroBalance(params: {
   return params.viaOrganizerCents > 0;
 }
 
+/** Aplica numa linha o saldo que o listener do caixa trouxe.
+ *
+ *  Só a linha do caixa OBSERVADO muda: um snapshot atrasado do caixa anterior não pode
+ *  reescrever o saldo do que está na tela. O valor que chega é autoritativo, inclusive
+ *  para menos — um saque move disponível para pendente. O que nunca chega aqui é falha
+ *  de leitura: o erro do listener não chama o callback (ver `watchTournamentWallet`),
+ *  senão um saldo correto viraria R$ 0,00 na tela. */
+export function applyLiveBalance<
+  T extends { tournamentId: string; availableReais: number; pendingReais: number },
+>(row: T, tournamentId: string, live: { availableReais: number; pendingReais: number }): T {
+  return row.tournamentId === tournamentId ? { ...row, ...live } : row;
+}
+
+/** Quem pediu o saque, do ponto de vista de quem está olhando a lista.
+ *
+ *  Sem nome de pessoa: a callable manda o uid de quem pediu e o flag
+ *  `requestedByStaff` (quem pediu não é o dono do evento). Saque sem `requestedBy` —
+ *  registro antigo, campo ausente — vira `—`: é melhor não dizer nada do que atribuir
+ *  o saque à pessoa errada. Por isso também `viewerUid` vazio não gera "Você". */
+export function withdrawalRequesterLabel(
+  w: { requestedBy: string; requestedByStaff: boolean },
+  viewerUid: string,
+): string {
+  if (!w.requestedBy) return '—';
+  if (viewerUid && w.requestedBy === viewerUid) return 'Você';
+  return w.requestedByStaff ? 'Gestor da equipe' : 'Dono do evento';
+}
+
 /** Soma dos caixas que a pessoa alcança — é o que o KPI do Início mostra.
  *  Arredonda no fim para não acumular erro de ponto flutuante numa tela de
  *  dinheiro (0.1 + 0.2 = 0.30000000000000004). */

@@ -28,7 +28,7 @@ import {
 import { formatCentsShort } from '../data/tournament-collected';
 import { myMoneyTournaments } from '../data/tournament-role';
 import { listMyTournaments } from '../data/tournaments-repository';
-import { shouldExplainZeroBalance } from '../data/wallet-view';
+import { applyLiveBalance, shouldExplainZeroBalance, withdrawalRequesterLabel } from '../data/wallet-view';
 import { OgBarRowComponent } from '../ui/bar-row.component';
 import { OgCardComponent } from '../ui/card.component';
 import { OgFormFieldComponent } from '../ui/form-field.component';
@@ -117,17 +117,16 @@ interface EventoArrecadacaoRow {
     <div class="og-content">
       @if (loading()) {
         <app-nx-page-loading title="Carregando financeiro…" subtitle="Saldo, extrato e saques" />
-      } @else if (loadError()) {
-        <!-- Falha de carga NÃO pode cair no estado vazio: "você não alcança caixa nenhum"
-             seria mentira, e é justamente a tela vazia sem explicação que abriu este projeto. -->
-        <og-card kicker="Financeiro" title="Não foi possível carregar o caixa" pad="sm">
-          <p class="og-fin-empty-text">{{ loadError() }}</p>
-          <p class="og-fin-empty-text">
-            Nada foi perdido: o saldo, o extrato e os saques continuam no lugar. Recarregue a
-            página para tentar de novo.
-          </p>
-        </og-card>
       } @else if (selected(); as caixa) {
+        @if (loadError(); as erro) {
+          <!-- Falhou a TROCA de evento: a vista anterior segue na tela (e concordando
+               consigo mesma), então o erro é aviso, não substituição de tela. -->
+          <p class="og-fin-loaderr">
+            <og-icon name="alert" [size]="14" />
+            <span>{{ erro }}</span>
+            <button type="button" class="og-ghost-btn" [disabled]="switching()" (click)="retryLoad()">Tentar de novo</button>
+          </p>
+        }
         @if (caixas().length > 1) {
           <div class="og-fin-caixas">
             <span class="og-fin-caixas-label">Caixa do evento</span>
@@ -299,6 +298,24 @@ interface EventoArrecadacaoRow {
               </og-card>
             </div>
           </div>
+        </div>
+      } @else if (loadError(); as erro) {
+        <!-- Falha de carga sem nada a preservar. NÃO pode cair no estado vazio: "você não
+             alcança caixa nenhum" seria mentira, e é justamente a tela vazia sem explicação
+             que abriu este projeto. -->
+        <div class="og-financeiro-grid">
+          <og-card kicker="Financeiro" title="Não foi possível carregar o caixa" pad="sm">
+            <p class="og-fin-empty-text">{{ erro }}</p>
+            <p class="og-fin-empty-text">
+              Nada foi perdido: o saldo, o extrato e os saques continuam no lugar.
+            </p>
+            <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="switching()" (click)="retryLoad()">
+              @if (switching()) {
+                <app-nx-spinner [size]="12" tone="dark" />
+              }
+              {{ switching() ? 'Tentando…' : 'Tentar de novo' }}
+            </button>
+          </og-card>
         </div>
       } @else {
         <div class="og-financeiro-grid">
@@ -588,6 +605,24 @@ interface EventoArrecadacaoRow {
     .og-fin-caixa-single strong {
       color: var(--nx-text);
     }
+    /* Aviso de falha na troca de caixa: a vista anterior fica, o erro entra acima dela. */
+    .og-fin-loaderr {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--nx-font-ui);
+      font-size: 12.5px;
+      color: var(--nx-text);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-live);
+      border-radius: var(--nx-r-2);
+      padding: 9px 12px;
+      margin: 0 0 14px;
+    }
+    .og-fin-loaderr span {
+      flex: 1;
+      min-width: 0;
+    }
     .og-fin-empty-text {
       font-family: var(--nx-font-ui);
       font-size: 13px;
@@ -717,8 +752,10 @@ export class FinanceiroComponent {
     BRL.format(this.ledger().reduce((sum, e) => sum + e.platformFeeReais, 0)),
   );
 
-  /** Quem responde "dá pra sacar?" é o flag do servidor (mesmo piso de 5 caracteres
-   *  que o saque usa) — a chave é a de quem está logado, sempre vem por extenso. */
+  /** Quem responde "dá pra sacar?" é o `payout`, que só recebe valor confirmado pelo
+   *  servidor — na carga (`loadWalletView`) ou no retorno do save (`setPayoutPixKey`).
+   *  Nada de rascunho de formulário aqui: liberar o botão com uma chave que o servidor
+   *  não gravou manda o dinheiro para a chave antiga. */
   protected readonly hasPixKey = computed(() => this.payout().hasPixKey);
   private readonly payoutPixKeyType = computed<PixKeyType>(() =>
     resolveInitialPixKeyType(this.payout().pixKeyType, this.payout().pixKey),
@@ -805,24 +842,32 @@ export class FinanceiroComponent {
     } catch (err) {
       const message = err instanceof OrganizerWalletError ? err.message : 'Não foi possível carregar o financeiro.';
       this.loadError.set(message);
-      this.stopWatchingWallet();
-      this.caixas.set([]);
-      this.selected.set(null);
-      this.ledger.set([]);
-      this.withdrawals.set([]);
+      // Já tem caixa na tela (troca de evento que falhou): mantém a vista anterior
+      // inteira — saldo, extrato e saques continuam concordando entre si, e o listener
+      // ainda é o daquele caixa. O erro aparece como aviso com "Tentar de novo" em vez
+      // de trocar a tela por um card. Só quando não há nada a preservar a tela fica
+      // vazia de fato.
+      if (this.selected() == null) {
+        this.stopWatchingWallet();
+        this.caixas.set([]);
+        this.ledger.set([]);
+        this.withdrawals.set([]);
+      }
     } finally {
       this.loading.set(false);
     }
   }
 
   /** Saldo ao vivo do caixa em exibição: uma inscrição paga durante a visita cai aqui
-   *  sem recarregar a tela. O snapshot só escreve no caixa que ele observa — um
-   *  snapshot atrasado do caixa anterior não pode reescrever o saldo do novo. */
+   *  sem recarregar a tela. A escrita passa por `applyLiveBalance`, que só deixa o
+   *  snapshot mexer na linha do caixa que ele observa. Falha de leitura não chega a
+   *  este callback (ver `watchTournamentWallet`), então o listener nunca apaga um
+   *  saldo que a callable trouxe certo. */
   private watchSelectedWallet(tournamentId: string): void {
     this.stopWatchingWallet();
     this.stopWalletWatch = watchTournamentWallet(tournamentId, (w) => {
-      this.selected.update((cur) => (cur && cur.tournamentId === tournamentId ? { ...cur, ...w } : cur));
-      this.caixas.update((rows) => rows.map((r) => (r.tournamentId === tournamentId ? { ...r, ...w } : r)));
+      this.selected.update((cur) => (cur ? applyLiveBalance(cur, tournamentId, w) : cur));
+      this.caixas.update((rows) => rows.map((r) => applyLiveBalance(r, tournamentId, w)));
     });
   }
 
@@ -840,6 +885,18 @@ export class FinanceiroComponent {
     this.withdrawForm.controls.amount.setValue('');
     try {
       await this.loadWallet(tournamentId);
+    } finally {
+      this.switching.set(false);
+    }
+  }
+
+  /** Nova tentativa depois de uma falha de carga — do caixa em exibição, ou do boot
+   *  (sem caixa, o servidor escolhe o mais cheio). Poupa recarregar a página inteira. */
+  protected async retryLoad(): Promise<void> {
+    if (this.switching()) return;
+    this.switching.set(true);
+    try {
+      await this.loadWallet(this.selected()?.tournamentId);
     } finally {
       this.switching.set(false);
     }
@@ -869,11 +926,8 @@ export class FinanceiroComponent {
     return withdrawalTone(w);
   }
 
-  /** Quem pediu o saque. Sem nome: a callable manda o uid, e `requestedByStaff` já
-   *  diz o que importa — se foi a equipe ou quem é dono do evento. */
   protected requestedByLabel(w: OrganizerWithdrawal): string {
-    if (w.requestedBy && w.requestedBy === this.uid) return 'Você';
-    return w.requestedByStaff ? 'Gestor da equipe' : 'Dono do evento';
+    return withdrawalRequesterLabel(w, this.uid);
   }
 
   protected startEditPix(): void {
@@ -886,20 +940,22 @@ export class FinanceiroComponent {
     this.editingPix.set(false);
   }
 
-  /** organizer_financial_page.dart:73-103 (`_editPixKey`) — atualiza o estado local e só então
-   *  chama a callable; erro na callable não desfaz o valor local (mesmo comportamento do Flutter). */
+  /** organizer_financial_page.dart:73-103 (`_editPixKey`), com uma DIVERGÊNCIA deliberada do
+   *  Flutter: lá o valor local é escrito antes da callable e não volta atrás no erro. Aqui não.
+   *  Este card mostra o DESTINO do saque, e um save que falhou deixaria a tela afirmando um
+   *  destino que o servidor não tem — com o botão de saque liberado e o dinheiro indo para a
+   *  chave antiga. Então `payout` só muda depois do OK, e com o valor que o SERVIDOR gravou
+   *  (ele normaliza a chave). Na falha o formulário fica aberto: ninguém perde o que digitou. */
   protected async submitPixKey(): Promise<void> {
     if (!this.canSavePix()) return;
     const type = this.pixKeyTypeValueSignal();
     const key = this.pixKeyValueSignal().trim();
 
-    // `hasPixKey: true` acompanha o piso do servidor (5 caracteres), já garantido por `canSavePix`.
-    this.payout.set({ pixKey: key, pixKeyType: type, hasPixKey: true });
-    this.editingPix.set(false);
     this.pixSaving.set(true);
     this.pixFeedback.set(null);
     try {
-      await setPayoutPixKey(key, type);
+      this.payout.set(await setPayoutPixKey(key, type));
+      this.editingPix.set(false);
       this.pixFeedback.set({ ok: true, message: 'Chave PIX salva.' });
     } catch (err) {
       const message = err instanceof OrganizerWalletError ? err.message : 'Não foi possível salvar a chave.';

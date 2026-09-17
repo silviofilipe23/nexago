@@ -1,4 +1,4 @@
-import { shouldExplainZeroBalance } from './wallet-view';
+import { shouldExplainZeroBalance, sumWalletRows } from './wallet-view';
 
 describe('shouldExplainZeroBalance', () => {
   it('explica quando tudo foi recebido direto com o organizador', () => {
@@ -70,5 +70,25 @@ describe('shouldExplainZeroBalance por evento', () => {
 
   it('não explica quando há saldo', () => {
     expect(shouldExplainZeroBalance({ availableReais: 10, pendingReais: 0, ledgerCount: 0, viaOrganizerCents: 529000 })).toBeFalse();
+  });
+});
+
+describe('sumWalletRows', () => {
+  it('soma disponível e pendente de todos os caixas', () => {
+    expect(sumWalletRows([
+      { availableReais: 90, pendingReais: 5 },
+      { availableReais: 10.5, pendingReais: 0 },
+    ])).toEqual({ availableReais: 100.5, pendingReais: 5 });
+  });
+
+  it('lista vazia soma zero', () => {
+    expect(sumWalletRows([])).toEqual({ availableReais: 0, pendingReais: 0 });
+  });
+
+  it('não acumula erro de ponto flutuante', () => {
+    expect(sumWalletRows([
+      { availableReais: 0.1, pendingReais: 0 },
+      { availableReais: 0.2, pendingReais: 0 },
+    ]).availableReais).toBe(0.3);
   });
 });

@@ -25,3 +25,19 @@ export function shouldExplainZeroBalance(params: {
   if (params.ledgerCount > 0) return false;
   return params.viaOrganizerCents > 0;
 }
+
+/** Soma dos caixas que a pessoa alcança — é o que o KPI do Início mostra.
+ *  Arredonda no fim para não acumular erro de ponto flutuante numa tela de
+ *  dinheiro (0.1 + 0.2 = 0.30000000000000004). */
+export function sumWalletRows(
+  rows: Array<{ availableReais: number; pendingReais: number }>,
+): { availableReais: number; pendingReais: number } {
+  const total = rows.reduce(
+    (acc, r) => ({ availableReais: acc.availableReais + r.availableReais, pendingReais: acc.pendingReais + r.pendingReais }),
+    { availableReais: 0, pendingReais: 0 },
+  );
+  return {
+    availableReais: Math.round(total.availableReais * 100) / 100,
+    pendingReais: Math.round(total.pendingReais * 100) / 100,
+  };
+}

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
 import type { League } from '@nexago/leagues';
@@ -7,7 +7,8 @@ import { listInscriptions } from '../data/inscriptions-repository';
 import { listMatches, resolveCourtNames, type TournamentMatch } from '../data/matches-repository';
 import type { OrganizerTournament, OrganizerTournamentStatus } from '../data/tournament.model';
 import { listMyTournaments } from '../data/tournaments-repository';
-import { watchWallet } from '../data/wallet-repository';
+import { loadWalletView } from '../data/wallet-repository';
+import { sumWalletRows } from '../data/wallet-view';
 import { OgCardComponent } from '../ui/card.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
@@ -104,11 +105,13 @@ const STATUS_TONE: Record<OrganizerTournamentStatus, 'orange' | 'green' | 'dim' 
             <div class="og-kpi-value">{{ totalInscritos() }}</div>
             <div class="og-kpi-sub green">{{ inscritosSemanaLabel() }}</div>
           </og-card>
-          <og-card pad="sm" flex="1">
-            <div class="og-kpi-label">Saldo disponível</div>
-            <div class="og-kpi-value">{{ saldoLabel() }}</div>
-            <div class="og-kpi-sub">{{ pendenteLabel() }} pendente</div>
-          </og-card>
+          @if (temCaixa()) {
+            <og-card pad="sm" flex="1">
+              <div class="og-kpi-label">Saldo disponível</div>
+              <div class="og-kpi-value">{{ saldoLabel() }}</div>
+              <div class="og-kpi-sub">{{ pendenteLabel() }} pendente · em {{ saldoEventosCount() }} evento(s)</div>
+            </og-card>
+          }
           <og-card pad="sm" flex="1">
             <div class="og-kpi-label">Jogos hoje</div>
             <div class="og-kpi-value">{{ jogosHojeCount() }}</div>
@@ -367,7 +370,6 @@ const STATUS_TONE: Record<OrganizerTournamentStatus, 'orange' | 'green' | 'dim' 
 })
 export class PanelInicioComponent {
   private readonly auth = inject(AuthService);
-  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly loading = signal(true);
   protected readonly tournaments = signal<OrganizerTournament[]>([]);
@@ -376,6 +378,9 @@ export class PanelInicioComponent {
   protected readonly inscritosPorTorneio = signal<Map<string, number>>(new Map());
   protected readonly saldoDisponivel = signal(0);
   protected readonly saldoPendente = signal(0);
+  /** Quantos caixas de evento entraram na soma — 0 esconde o KPI (ver `temCaixa`). É o
+   *  caso do administrador do evento, o papel criado para não ver dinheiro nenhum. */
+  protected readonly saldoEventosCount = signal(0);
   protected readonly inscritosSemana = signal(0);
   protected readonly proximosJogos = signal<UpcomingMatchRow[]>([]);
   protected readonly jogosHojeCount = signal(0);
@@ -393,6 +398,9 @@ export class PanelInicioComponent {
   protected readonly recentTournaments = computed(() => this.eventosAtivos().slice(0, RECENT_LIMIT));
   protected readonly saldoLabel = computed(() => BRL.format(this.saldoDisponivel()));
   protected readonly pendenteLabel = computed(() => BRL.format(this.saldoPendente()));
+  /** Zero sem explicação é pior que a ausência do número — só mostra o KPI quando a
+   *  pessoa alcança algum caixa (dono ou gestor de ao menos um evento). */
+  protected readonly temCaixa = computed(() => this.saldoEventosCount() > 0);
   protected readonly inscritosSemanaLabel = computed(() => `+${this.inscritosSemana()} esta semana`);
   protected readonly jogosHojeSubLabel = computed(() => {
     const proximo = this.jogosHojeProximo();
@@ -407,13 +415,27 @@ export class PanelInicioComponent {
       return;
     }
 
-    const unsubscribeWallet = watchWallet(uid, (wallet) => {
-      this.saldoDisponivel.set(wallet.availableReais);
-      this.saldoPendente.set(wallet.pendingReais);
-    });
-    this.destroyRef.onDestroy(() => unsubscribeWallet());
-
+    void this.loadWallet();
     void this.loadOverview(uid);
+  }
+
+  /** Soma os caixas de evento que a pessoa alcança (dono ou gestor) — é o servidor que
+   *  decide o alcance, não a tela (ver `loadOrganizerWalletView`). `ledgerLimit: 1`
+   *  porque o Início não mostra extrato nem saques, só o saldo somado.
+   *  Falha ou lista vazia caem no mesmo lugar: `saldoEventosCount` em 0 esconde o KPI
+   *  em vez de mostrar R$ 0,00 — é o caso do administrador do evento. */
+  private async loadWallet(): Promise<void> {
+    try {
+      const view = await loadWalletView(undefined, 1);
+      const sum = sumWalletRows(view.tournaments);
+      this.saldoDisponivel.set(sum.availableReais);
+      this.saldoPendente.set(sum.pendingReais);
+      this.saldoEventosCount.set(view.tournaments.length);
+    } catch {
+      this.saldoDisponivel.set(0);
+      this.saldoPendente.set(0);
+      this.saldoEventosCount.set(0);
+    }
   }
 
   private async loadOverview(uid: string): Promise<void> {

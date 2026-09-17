@@ -11,8 +11,9 @@ import { FinanceOverviewComponent } from './finance-overview.component';
 import {
   WithdrawalsRepository,
   withdrawalDecisionMessage,
+  withdrawalEventName,
   withdrawalQueueSubtitle,
-  withdrawalRequestedByStaffName,
+  withdrawalRequesterLine,
   type PendingWithdrawal,
   type WithdrawalDecision,
   type WithdrawalKind,
@@ -229,14 +230,23 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
           (dismissed)="cancel()"
         >
           <div class="dialog-summary">
-            <div>
-              <span>Solicitante</span>
-              <strong>{{ decision.withdrawal.requesterName }}</strong>
-            </div>
-            @if (requestedByStaffName(decision.withdrawal); as requester) {
+            @if (decision.withdrawal.kind === 'organizer') {
               <div>
-                <span>Pedido por</span>
-                <strong>{{ requester }} (gestor da equipe)</strong>
+                <span>Organizador</span>
+                <strong>{{ decision.withdrawal.requesterName }}</strong>
+              </div>
+              <div>
+                <span>Solicitante</span>
+                <strong>{{ requesterLine(decision.withdrawal) }}</strong>
+              </div>
+              <div>
+                <span>Evento</span>
+                <strong>{{ eventName(decision.withdrawal) }}</strong>
+              </div>
+            } @else {
+              <div>
+                <span>Solicitante</span>
+                <strong>{{ decision.withdrawal.requesterName }}</strong>
               </div>
             }
             <div>
@@ -630,14 +640,14 @@ export class PanelFinanceiroComponent {
     return withdrawalQueueSubtitle(row);
   }
 
-  /**
-   * Nome de quem de fato pediu, só quando é um gestor da equipe — `null`
-   * quando foi o próprio dono (aí "Solicitante" já é a resposta completa).
-   * Evita repetir em toda tela um dado que só importa quando muda o
-   * resultado: pra quem o PIX realmente vai.
-   */
-  protected requestedByStaffName(withdrawal: PendingWithdrawal): string | null {
-    return withdrawalRequestedByStaffName(withdrawal);
+  /** Texto da linha "Solicitante" do diálogo — nunca fica em branco, mesmo quando é o próprio dono. */
+  protected requesterLine(row: PendingWithdrawal): string {
+    return withdrawalRequesterLine(row);
+  }
+
+  /** Nome do evento no diálogo — mesmo aviso da linha da fila quando falta `tournamentName`. */
+  protected eventName(row: PendingWithdrawal): string {
+    return withdrawalEventName(row);
   }
 
   protected noteValue(event: Event): string {

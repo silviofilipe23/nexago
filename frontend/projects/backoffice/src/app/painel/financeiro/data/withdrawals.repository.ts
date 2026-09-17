@@ -88,17 +88,25 @@ function toWithdrawal(raw: unknown, kind: WithdrawalKind): PendingWithdrawal | n
   };
 }
 
+/**
+ * Nome do evento de onde o dinheiro sai, para exibir. Cai no aviso quando
+ * falta `tournamentName` (saques anteriores a 16/09/2026, que não gravavam
+ * o campo) — nunca inventa um nome.
+ */
+export function withdrawalEventName(row: PendingWithdrawal): string {
+  return row.tournamentName?.trim() || 'Evento não identificado';
+}
+
 /** Contexto da linha na fila de aprovação. É aqui que um humano decide sobre
  *  dinheiro, então a linha diz de qual evento o dinheiro sai e quem pediu —
  *  antes mostrava só o nome do organizador, mesmo quando o pedido era de um
  *  gestor da equipe. */
 export function withdrawalQueueSubtitle(row: PendingWithdrawal): string {
   if (row.kind !== 'organizer') return row.requesterName;
-  const evento = row.tournamentName?.trim() || 'Evento não identificado';
   const quem = row.requestedByStaff
     ? `pedido por ${row.requestedByName?.trim() || 'gestor da equipe'} (gestor da equipe)`
     : 'pedido pelo dono';
-  return `${evento} · ${quem}`;
+  return `${withdrawalEventName(row)} · ${quem}`;
 }
 
 /**
@@ -116,12 +124,30 @@ export function withdrawalRequestedByStaffName(row: PendingWithdrawal): string |
 }
 
 /**
+ * Texto da linha "Solicitante" do diálogo de aprovação (saques de
+ * organizador — o diálogo de arena não usa esta função, o campo "Solicitante"
+ * dele já é a resposta completa). Nunca fica em branco: quando foi o próprio
+ * dono, diz isso explicitamente. Omitir a linha era seguro enquanto o campo
+ * do dono ainda se chamava "Solicitante"; virou "Organizador", e uma linha
+ * ausente vira pergunta sem resposta, não mais implicação óbvia.
+ */
+export function withdrawalRequesterLine(row: PendingWithdrawal): string {
+  const staffName = withdrawalRequestedByStaffName(row);
+  return staffName ? `${staffName} (gestor da equipe)` : 'O próprio organizador';
+}
+
+/**
  * Mensagem de retorno depois de uma decisão na fila. `value` já vem
  * formatado em reais pelo chamador — esta função só compõe o texto, não
- * formata dinheiro. Quando um gestor da equipe pediu, o texto diz isso
- * (e, no caso aprovado, diz pra quem o PIX foi de verdade — não é sempre o
- * organizador); quando foi o próprio dono, ou é saque de arena, a frase é a
- * mesma de sempre.
+ * formata dinheiro.
+ *
+ * Saque de arena identifica pelo nome de quem pediu, como sempre — não tem
+ * evento, e nada aqui muda o texto que já existia. Saque de organizador
+ * passa a identificar pelo EVENTO (`Saque de R$ X do evento Copa Goiás...`),
+ * não mais só pelo dono: dois saques do mesmo organizador em torneios
+ * diferentes não podem gerar a mesma frase. Quando um gestor da equipe
+ * pediu, o texto ainda diz isso — e, no caso aprovado, diz pra quem o PIX
+ * foi de verdade, não finge que foi pro dono.
  */
 export function withdrawalDecisionMessage(
   row: PendingWithdrawal,
@@ -129,16 +155,27 @@ export function withdrawalDecisionMessage(
   value: string,
 ): string {
   const who = row.requesterName;
+  if (row.kind !== 'organizer') {
+    if (decision === 'rejected') {
+      return `Saque de ${value} de ${who} recusado — o valor voltou para a carteira.`;
+    }
+    if (decision === 'approved_manual') {
+      return `Saque de ${value} de ${who} marcado como pago por fora.`;
+    }
+    return `PIX de ${value} enviado para ${who}.`;
+  }
+
+  const evento = withdrawalEventName(row);
   const requester = withdrawalRequestedByStaffName(row);
   if (decision === 'rejected') {
-    return `Saque de ${value} de ${who} recusado${requester ? ` (pedido por ${requester})` : ''} — o valor voltou para a carteira.`;
+    return `Saque de ${value} do evento ${evento} recusado${requester ? ` (pedido por ${requester})` : ''} — o valor voltou para a carteira.`;
   }
   if (decision === 'approved_manual') {
-    return `Saque de ${value} de ${who} marcado como pago por fora${requester ? ` (pedido por ${requester})` : ''}.`;
+    return `Saque de ${value} do evento ${evento} marcado como pago por fora${requester ? ` (pedido por ${requester})` : ''}.`;
   }
   return requester
-    ? `PIX de ${value} enviado para ${requester}, gestor do evento de ${who}.`
-    : `PIX de ${value} enviado para ${who}.`;
+    ? `PIX de ${value} do evento ${evento} enviado para ${requester} (gestor da equipe).`
+    : `PIX de ${value} do evento ${evento} enviado para ${who}.`;
 }
 
 /**

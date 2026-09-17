@@ -71,6 +71,75 @@ test('administrador NÃO mexe no total arrecadado', async () => {
   );
 });
 
+// Torneio próprio para os casos de `organizerPix`, com equipe própria: o mapa da
+// chave muda ao longo destes casos, e cruzar isso com os outros testes do
+// arquivo deixaria o resultado dependendo da ordem.
+const PIX_TORNEIO = 'copa-pix';
+const PIX_MAPA = {
+  key: 'dono@exemplo.com', keyType: 'EMAIL',
+  recipientName: 'Dono do Evento', city: 'Goiania',
+};
+
+before(async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'tournaments', PIX_TORNEIO), {
+      managerId: DONO, name: 'Copa Pix', listingStatus: 'open',
+      paymentMode: 'directWithOrganizer', organizerPix: PIX_MAPA,
+      collectedViaAppCents: 50000, collectedViaOrganizerCents: 12000,
+    });
+    await setDoc(doc(db, 'tournaments', PIX_TORNEIO, 'staff', ADMIN_EVENTO), {
+      role: 'eventAdmin', status: 'active',
+    });
+    await setDoc(doc(db, 'tournaments', PIX_TORNEIO, 'staff', GESTOR), {
+      role: 'manager', status: 'active',
+    });
+  });
+});
+
+// `organizerPix` é o mapa que o app lê para montar o BR Code do pagamento
+// direto: quem reescreve recebe na própria conta o que os atletas pagam ao
+// evento. Decisão do dono (17/09/2026): nem gestor nem administrador mexem.
+for (const [papel, uid] of [['administrador', ADMIN_EVENTO], ['gestor', GESTOR]]) {
+  test(`${papel} NÃO reescreve a chave de recebimento direto`, async () => {
+    await assertFails(
+      updateDoc(
+        doc(testEnv.authenticatedContext(uid).firestore(), 'tournaments', PIX_TORNEIO),
+        { organizerPix: { ...PIX_MAPA, key: `${uid}@exemplo.com` } },
+      ),
+    );
+  });
+}
+
+test('administrador NÃO mexe no total arrecadado que o painel exibe', async () => {
+  await assertFails(
+    updateDoc(doc(asAdminEvento(), 'tournaments', PIX_TORNEIO), {
+      collectedViaOrganizerCents: 0,
+    }),
+  );
+});
+
+// O wizard do portal reenvia `organizerPix` em TODA edição, reconstruído do
+// próprio doc. A guarda compara valor, não presença: reenviar o mesmo mapa tem
+// de passar, senão a edição de evento por staff morria inteira. Este caso
+// também é a prova de que igualdade de MAPA funciona nas rules.
+test('equipe reenviando o MESMO mapa de chave continua editando o evento', async () => {
+  await assertSucceeds(
+    updateDoc(doc(asAdminEvento(), 'tournaments', PIX_TORNEIO), {
+      name: 'Copa Pix 2026', organizerPix: { ...PIX_MAPA },
+    }),
+  );
+});
+
+test('o dono troca a própria chave de recebimento direto', async () => {
+  await assertSucceeds(
+    updateDoc(
+      doc(testEnv.authenticatedContext(DONO).firestore(), 'tournaments', PIX_TORNEIO),
+      { organizerPix: { ...PIX_MAPA, key: 'outra-chave@exemplo.com' } },
+    ),
+  );
+});
+
 test('administrador NÃO exclui o torneio', async () => {
   await assertFails(deleteDoc(doc(asAdminEvento(), 'tournaments', TORNEIO)));
 });

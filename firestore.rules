@@ -105,13 +105,29 @@ service cloud.firestore {
      *  Os totais de arrecadação entram na mesma lista: o dono já os tem
      *  congelados no caminho dele (`organizerCanUpdateOwnTournament`), e um
      *  papel que não devia VER totais de dinheiro não pode zerá-los.
+     *  `collectedCents` não é o total que o painel exibe — quem aparece na tela
+     *  é o par `collectedViaAppCents`/`collectedViaOrganizerCents`
+     *  (`painel/data/tournament-collected.ts`), então congelar só o primeiro
+     *  deixava justamente os números vistos por aí.
+     *
+     *  `organizerPix` é o mapa que o app lê para montar o BR Code do pagamento
+     *  direto (`tournament_document_mapper.dart`): quem reescreve esse mapa
+     *  passa a receber na própria conta o dinheiro que os atletas pagam ao
+     *  evento. Decisão do dono em 17/09/2026: nem gestor nem administrador
+     *  mexem na chave de recebimento direto — só o dono, que continua passando
+     *  pelo disjunto `resource.data.managerId == request.auth.uid`. A
+     *  comparação é do MAPA inteiro; reenviar o mesmo mapa (o que o wizard do
+     *  portal faz em toda edição) segue permitido, porque o valor não mudou.
      *
      *  Comparação por `.get(campo, null)` dos dois lados: torneio antigo pode
-     *  não ter os contadores, e acesso direto a campo ausente estoura a
-     *  avaliação em vez de negar. */
+     *  não ter os contadores nem a chave, e acesso direto a campo ausente
+     *  estoura a avaliação em vez de negar. */
     function staffKeepsTournamentMoneyFields() {
       return request.resource.data.get('managerId', null) == resource.data.get('managerId', null) &&
         request.resource.data.get('collectedCents', null) == resource.data.get('collectedCents', null) &&
+        request.resource.data.get('collectedViaAppCents', null) == resource.data.get('collectedViaAppCents', null) &&
+        request.resource.data.get('collectedViaOrganizerCents', null) == resource.data.get('collectedViaOrganizerCents', null) &&
+        request.resource.data.get('organizerPix', null) == resource.data.get('organizerPix', null) &&
         request.resource.data.get('enrolledCount', null) == resource.data.get('enrolledCount', null);
     }
     /** Quem mexe na equipe do torneio: o dono e o super admin (suporte a torneio alheio).

@@ -56,7 +56,8 @@ function toDate(v: unknown): Date | null {
  *  linha do `eventAdmin`, um "Administrador" voltava como "Gestor" a cada recarga da aba —
  *  e a tela "funcionava" até alguém dar refresh. Papel desconhecido (ou ausente) cai em
  *  `manager` porque as rules só aceitam os três valores na escrita, e o gestor é o papel
- *  que a equipe sempre teve. */
+ *  que a equipe sempre teve. Não confundir com `roleFromStaffMirror`, que é estrita no
+ *  papel desconhecido: lá a resposta decide alcance de dinheiro, aqui é rótulo de tela. */
 export function roleFromRaw(raw: unknown): TournamentStaffRole {
   if (raw === 'scorer') return 'scorer';
   if (raw === 'eventAdmin') return 'eventAdmin';

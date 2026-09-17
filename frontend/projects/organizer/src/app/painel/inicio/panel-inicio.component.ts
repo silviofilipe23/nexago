@@ -432,10 +432,10 @@ export class PanelInicioComponent {
       this.saldoPendente.set(sum.pendingReais);
       this.saldoEventosCount.set(view.tournaments.length);
     } catch (err) {
-      // O KPI desaparece — a tela fica IGUAL a de um administrador de evento, que nao
-      // alcanca caixa nenhum. Sem este aviso nao ha como descobrir em producao que o
-      // dono parou de ver o proprio dinheiro por falha de leitura.
-      console.warn('Inicio: falha ao somar os caixas dos eventos', err);
+      // O KPI desaparece — a tela fica IGUAL à de um administrador de evento, que não
+      // alcança caixa nenhum. Sem este aviso não há como descobrir em produção que o
+      // dono parou de ver o próprio dinheiro por falha de leitura.
+      console.warn('Início: falha ao somar os caixas dos eventos', err);
       this.saldoDisponivel.set(0);
       this.saldoPendente.set(0);
       this.saldoEventosCount.set(0);

@@ -821,9 +821,9 @@ export class FinanceiroComponent {
     listMyTournaments(this.uid)
       .then((tournaments) => this.tournaments.set(myMoneyTournaments(tournaments)))
       .catch((err) => {
-        // Lista vazia esvazia o card de Arrecadacao e neutraliza a explicacao do saldo
-        // zero — a tela passa a dizer menos do que sabe, sem avisar ninguem.
-        console.warn('Financeiro: falha ao listar os eventos da arrecadacao', err);
+        // Lista vazia esvazia o card de Arrecadação e neutraliza a explicação do saldo
+        // zero — a tela passa a dizer menos do que sabe, sem avisar ninguém.
+        console.warn('Financeiro: falha ao listar os eventos da arrecadação', err);
         this.tournaments.set([]);
       })
       .finally(() => this.tournamentsLoading.set(false));

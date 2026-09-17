@@ -27,9 +27,10 @@ export function myMoneyTournaments(tournaments: OrganizerTournament[]): Organize
 }
 
 /** Se o Financeiro faz sentido para esta pessoa: ela é dona ou gestora de ao
- *  menos um evento. Administrador do evento não vê o item de menu nem entra na
- *  rota — e, se entrar à mão, o servidor recusa de qualquer forma (a tela é
- *  conveniência, a fronteira é a callable e as rules). */
+ *  menos um evento. Administrador do evento não vê o item de menu; a ROTA não é
+ *  bloqueada (decisão do spec, 16/09/2026) — quem abrir à mão cai no estado
+ *  vazio da tela, que explica de quem é o Financeiro. A tela é conveniência; a
+ *  fronteira do dinheiro é a callable de saque e as rules. */
 export function canSeeFinanceiro(tournaments: OrganizerTournament[]): boolean {
   return myMoneyTournaments(tournaments).length > 0;
 }

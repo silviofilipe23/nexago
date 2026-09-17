@@ -2,14 +2,14 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signa
 import { AuthService } from '../../auth/auth.service';
 import { watchOrganizerSettings } from '../data/organizer-settings-repository';
 import { DEFAULT_ORGANIZER_SETTINGS, type OrganizerSettings } from '../data/organizer-settings.model';
-import { watchWallet, type OrganizerWalletSummary } from '../data/wallet-repository';
+import { loadWalletView, type OrganizerPayoutProfile } from '../data/wallet-repository';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgConfigNotificacoesCardComponent } from './notificacoes-card.component';
 import { OgConfigPagamentosCardComponent } from './pagamentos-card.component';
 import { OgConfigPerfilCardComponent } from './perfil-card.component';
 import { OgConfigRegrasCardComponent } from './regras-card.component';
 
-const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 0, payoutPixKey: '', payoutPixKeyType: '' };
+const EMPTY_PAYOUT: OrganizerPayoutProfile = { pixKey: '', pixKeyType: '', hasPixKey: false };
 
 /** Configurações do organizador: perfil da organização, dados de recebimento e regras padrão de
  *  evento — os três mapas de `users/{uid}` descritos em `organizer-settings.model.ts`.
@@ -43,8 +43,8 @@ const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 
       <og-config-pagamentos
         [uid]="uid()"
         [payments]="settings().payments"
-        [payoutPixKey]="wallet().payoutPixKey"
-        [payoutPixKeyType]="wallet().payoutPixKeyType"
+        [payoutPixKey]="payout().pixKey"
+        [payoutPixKeyType]="payout().pixKeyType"
         [loading]="loading()"
       />
       <og-config-regras [uid]="uid()" [defaults]="settings().defaults" [loading]="loading()" />
@@ -75,7 +75,7 @@ export class ConfigComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly settings = signal<OrganizerSettings>(DEFAULT_ORGANIZER_SETTINGS);
-  protected readonly wallet = signal<OrganizerWalletSummary>(EMPTY_WALLET);
+  protected readonly payout = signal<OrganizerPayoutProfile>(EMPTY_PAYOUT);
   protected readonly loading = signal(true);
 
   protected readonly uid = computed(() => this.auth.user()?.uid ?? '');
@@ -93,12 +93,23 @@ export class ConfigComponent {
       this.settings.set(s);
       this.loading.set(false);
     });
-    // Só leitura: a chave de saque é escrita por Cloud Function na tela Financeiro.
-    const stopWallet = watchWallet(uid, (w) => this.wallet.set(w));
+    void this.loadPayout();
 
     this.destroyRef.onDestroy(() => {
       stopSettings();
-      stopWallet();
     });
+  }
+
+  /** Chave Pix de saque: dado da PESSOA (`organizerPayoutProfiles/{uid}`), não do caixa
+   *  de um torneio — a mesma chave vale pro saque de qualquer evento que a pessoa alcance.
+   *  Só leitura aqui: quem grava é a tela Financeiro. `ledgerLimit: 1` porque a Config não
+   *  mostra extrato nem lista de caixas. Falha cai em vazio, como o Início já faz. */
+  private async loadPayout(): Promise<void> {
+    try {
+      const view = await loadWalletView(undefined, 1);
+      this.payout.set(view.payout);
+    } catch {
+      this.payout.set(EMPTY_PAYOUT);
+    }
   }
 }

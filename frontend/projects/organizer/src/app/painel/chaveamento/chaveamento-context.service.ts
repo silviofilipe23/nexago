@@ -84,6 +84,12 @@ export class ChaveamentoContextService {
         if (uid !== this.loadedUid) return;
         this.selectTournament(tournaments[0]!.id);
       }
+    } catch (err) {
+      // Sem isto a falha saía como rejeição pendente do `void loadTournaments(uid)` e as
+      // telas de chaveamento ficavam com "nenhum torneio" — indistinguível de não ter
+      // torneio nenhum. O item "Financeiro" do menu NÃO depende mais daqui (ver
+      // `FinanceiroReachService`), justamente porque ali o silêncio escondia dinheiro.
+      console.warn('Chaveamento: falha ao listar os torneios do organizador', err);
     } finally {
       this.loadingTournaments.set(false);
     }

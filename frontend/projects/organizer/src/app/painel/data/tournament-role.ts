@@ -33,3 +33,21 @@ export function myMoneyTournaments(tournaments: OrganizerTournament[]): Organize
 export function canSeeFinanceiro(tournaments: OrganizerTournament[]): boolean {
   return myMoneyTournaments(tournaments).length > 0;
 }
+
+/** Alcance do Financeiro para o menu: `carregado` = a lista de torneios da pessoa chegou;
+ *  `desconhecido` = ainda está carregando OU a leitura falhou. Os dois viram um estado só
+ *  de propósito — pra tela eles são indistinguíveis, e tratar "falhou" como "não tem
+ *  torneio" é exatamente o bug que originou este projeto. */
+export type FinanceiroReachStatus = 'desconhecido' | 'carregado';
+
+/** Se o menu do painel mostra o item "Financeiro". FALHA ABERTO: com alcance desconhecido
+ *  o item aparece, e ele só desaparece quando a lista carregou e ninguém ali dá caixa.
+ *  Mostrar demais custa uma tela que explica de quem é o Financeiro (a rota não é
+ *  bloqueada); esconder demais faz o dono perder o acesso ao dinheiro por rede instável,
+ *  sem mensagem e sem retry. */
+export function showsFinanceiroMenuItem(
+  status: FinanceiroReachStatus,
+  tournaments: OrganizerTournament[],
+): boolean {
+  return status === 'desconhecido' || canSeeFinanceiro(tournaments);
+}

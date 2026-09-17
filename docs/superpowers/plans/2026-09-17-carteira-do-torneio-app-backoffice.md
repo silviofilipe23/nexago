@@ -628,7 +628,13 @@ export function withdrawalQueueSubtitle(row: PendingWithdrawal): string {
 
 `requestedByStaff` vem do backend como booleano de verdade (`organizer-withdrawal.ts:899`), não derivado de comparação de uid — use o campo. Já `requestedByName` cai no uid cru quando o doc de `users` não tem nome; exibir o uid é feio mas é verdade, e inventar "gestor da equipe" no lugar dele seria pior.
 
-Em `panel-financeiro.component.ts`, a linha da fila passa a exibir esse subtítulo abaixo do nome do organizador. Não remova o nome do organizador: ele é quem responde pelo evento, e o valor sai do caixa dele.
+Em `panel-financeiro.component.ts`, **três lugares** mentem hoje, e os três são a mesma mentira: chamam o dono de "Solicitante".
+
+1. **Linha da fila** (`:172-175`): a coluna `cell-who` mostra `requesterName` (o dono) sobre `requesterId` (o uid cru). Troque a linha do uid pelo subtítulo — o uid não ajuda ninguém a decidir, o evento e o solicitante ajudam. Mantenha o nome do organizador em cima: ele responde pelo evento e o dinheiro sai do caixa dele.
+2. **Diálogo de aprovação** (`:224-236`): é o momento em que um humano decide sobre dinheiro, e o campo rotulado "Solicitante" mostra o dono mesmo quando não foi ele quem pediu. Renomeie esse campo para "Organizador" e acrescente uma linha "Solicitante" com `requestedByName` quando `requestedByStaff` for verdadeiro (quando for falso, foi o próprio dono — não repita o nome em duas linhas), mais uma linha "Evento" com `tournamentName`. Este item é o mais importante da task.
+3. **Mensagem de sucesso** (`successMessage`, `:594-601`): "Saque de R$ X de {who}" usa o nome do dono. Passe a nomear o evento, que é o que identifica o saque sem ambiguidade — `Saque de ${value} do evento ${evento} recusado — o valor voltou para a carteira.` e equivalentes nos outros dois ramos, mantendo o resto do texto como está.
+
+O cabeçalho da coluna (`:165`, "Solicitado em") não muda.
 
 - [ ] **Step 4: Rodar e confirmar que passa**
 
@@ -638,6 +644,12 @@ cd <worktree>/frontend && npx tsc -p projects/backoffice/tsconfig.app.json --noE
 ```
 
 Esperado: 4 testes passando e `tsc` limpo.
+
+Depois, a suíte inteira do backoffice — o componente tem spec e você mexeu no template dele:
+
+```bash
+cd <worktree>/frontend && npx ng test backoffice --watch=false --browsers=ChromeHeadless
+```
 
 - [ ] **Step 5: Commit**
 

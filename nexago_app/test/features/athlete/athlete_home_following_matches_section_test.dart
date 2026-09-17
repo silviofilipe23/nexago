@@ -4,6 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/athlete_home/athlete_home_following_matches_section.dart';
 import 'package:nexago_app/features/tournaments/domain/followed_match.dart';
 import 'package:nexago_app/features/tournaments/domain/followed_matches_providers.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_match_card_view_model.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_match_status.dart';
 
 FollowedMatch followOf({
   required String matchId,
@@ -15,6 +18,41 @@ FollowedMatch followOf({
     categoryId: 'c1',
     source: 'manual',
     followedAt: DateTime.utc(2026, 10, 24),
+  );
+}
+
+TournamentMatch _match({
+  required String id,
+  String status = TournamentMatchStatus.scheduled,
+}) {
+  return TournamentMatch(
+    id: id,
+    tournamentId: 't1',
+    categoryId: 'c1',
+    round: 1,
+    matchType: 'knockout',
+    poolId: '',
+    teamAId: 'a',
+    teamBId: 'b',
+    status: status,
+    resultA: '',
+    resultB: '',
+    isGroupMatch: false,
+    matchNumber: 1,
+  );
+}
+
+TournamentMatchCardViewModel _card(TournamentMatch match) {
+  return TournamentMatchCardViewModel(
+    match: match,
+    teamA: const TournamentMatchCardTeamViewModel(
+      displayName: 'Time A',
+      players: [],
+    ),
+    teamB: const TournamentMatchCardTeamViewModel(
+      displayName: 'Time B',
+      players: [],
+    ),
   );
 }
 
@@ -64,6 +102,49 @@ void main() {
     });
   });
 
+  group('activeFollowedMatches', () {
+    test('mantém agendada e ao vivo; descarta encerrada e cancelada', () {
+      final cards = {
+        'live': _card(
+          _match(id: 'live', status: TournamentMatchStatus.inProgress),
+        ),
+        'soon': _card(_match(id: 'soon')),
+        'done': _card(
+          _match(id: 'done', status: TournamentMatchStatus.completed),
+        ),
+        'out': _card(
+          _match(id: 'out', status: TournamentMatchStatus.canceled),
+        ),
+      };
+
+      final active = activeFollowedMatches(
+        followed: [
+          followOf(matchId: 'live'),
+          followOf(matchId: 'soon'),
+          followOf(matchId: 'done'),
+          followOf(matchId: 'out'),
+          followOf(matchId: 'ghost'),
+        ],
+        cardsById: cards,
+      );
+
+      expect(active.map((m) => m.matchId), ['live', 'soon']);
+    });
+
+    test('lista só de encerradas devolve vazia — a seção some', () {
+      final active = activeFollowedMatches(
+        followed: [followOf(matchId: 'done')],
+        cardsById: {
+          'done': _card(
+            _match(id: 'done', status: TournamentMatchStatus.completed),
+          ),
+        },
+      );
+
+      expect(active, isEmpty);
+    });
+  });
+
   group('AthleteHomeFollowingMatchesSection', () {
     Future<void> pump(
       WidgetTester tester,
@@ -72,7 +153,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            followedMatchesProvider.overrideWith((ref) => Stream.value(followed)),
+            followedMatchesProvider.overrideWith(
+              (ref) => Stream.value(followed),
+            ),
           ],
           child: const MaterialApp(
             home: Scaffold(body: AthleteHomeFollowingMatchesSection()),

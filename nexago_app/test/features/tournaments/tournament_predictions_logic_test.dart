@@ -427,4 +427,32 @@ void main() {
       expect(stats.delta, isNull);
     });
   });
+
+  group('unpickedOpenPredictionCount', () {
+    test('conta só abertas sem escolha no draft', () {
+      final openA = _card(_match(id: 'a'));
+      final openB = _card(_match(id: 'b'));
+      final locked = _card(
+        _match(id: 'c', status: TournamentMatchStatus.inProgress),
+      );
+
+      expect(
+        unpickedOpenPredictionCount(
+          cards: [openA, openB, locked],
+          draftPicks: const {'a': 'team-a'},
+        ),
+        1,
+      );
+    });
+
+    test('zero quando todas as abertas já foram palpitadas', () {
+      expect(
+        unpickedOpenPredictionCount(
+          cards: [_card(_match(id: 'a')), _card(_match(id: 'b'))],
+          draftPicks: const {'a': 'team-a', 'b': 'team-b'},
+        ),
+        0,
+      );
+    });
+  });
 }

@@ -443,6 +443,100 @@ String matchRoundLabel(TournamentMatch match) {
   return 'Eliminatórias';
 }
 
+/// Quantas duplas distintas jogam no pool (ids vazios ignorados).
+int poolTeamCount(List<TournamentMatch> poolMatches) {
+  final ids = <String>{};
+  for (final m in poolMatches) {
+    final a = m.teamAId.trim();
+    final b = m.teamBId.trim();
+    if (a.isNotEmpty) ids.add(a);
+    if (b.isNotEmpty) ids.add(b);
+  }
+  return ids.length;
+}
+
+bool _poolRoundsCollapsed(List<TournamentMatch> poolMatches) =>
+    poolMatches.map((m) => m.round).toSet().length <= 1;
+
+/// Rodadas do grupo como o atleta enxerga.
+///
+/// O gerador grava `round: 0` em TODAS as partidas de grupo (pares do
+/// round-robin achatados). Quando há um único índice de rodada, reconstruímos
+/// pela ordem de `matchNumber` em fatias de `times/2` jogos — o mesmo que o
+/// `roundRobinRounds(...).flat()` do backend produz. Quando o Firestore já
+/// separa 0/1/2…, usamos a contagem de índices distintos (portal
+/// `roundGroupsOf`).
+int poolTotalRounds(List<TournamentMatch> poolMatches) {
+  if (poolMatches.isEmpty) return 0;
+  if (!_poolRoundsCollapsed(poolMatches)) {
+    return poolMatches.map((m) => m.round).toSet().length;
+  }
+  final teams = poolTeamCount(poolMatches);
+  if (teams >= 2) return teams - 1;
+  return 1;
+}
+
+/// Quantas rodadas do grupo já fecharam por completo.
+int poolCompletedRounds(List<TournamentMatch> poolMatches) {
+  if (poolMatches.isEmpty) return 0;
+  if (!_poolRoundsCollapsed(poolMatches)) {
+    return poolMatches
+        .where(
+          (m) =>
+              TournamentMatchStatus.isCompleted(m.status) ||
+              TournamentMatchStatus.isCanceled(m.status),
+        )
+        .map((m) => m.round)
+        .toSet()
+        .length;
+  }
+
+  final teams = poolTeamCount(poolMatches);
+  final perRound = teams >= 2 ? teams ~/ 2 : 1;
+  final ordered = [...poolMatches]
+    ..sort((a, b) => a.matchNumber.compareTo(b.matchNumber));
+  final total = poolTotalRounds(poolMatches);
+  var completed = 0;
+  for (var r = 0; r < total; r++) {
+    final chunk = ordered.skip(r * perRound).take(perRound).toList();
+    if (chunk.isEmpty) break;
+    final done = chunk.every(
+      (m) =>
+          TournamentMatchStatus.isCompleted(m.status) ||
+          TournamentMatchStatus.isCanceled(m.status),
+    );
+    if (done) {
+      completed++;
+    }
+  }
+  return completed;
+}
+
+/// Número 1-based da rodada da partida no grupo (nunca mostra "Rodada 0").
+///
+/// Paridade com o portal `roundDisplayNumberOf`, com fallback para o caso em
+/// que o gerador colapsou todas as partidas em `round: 0`.
+int poolRoundDisplayNumberOf(
+  List<TournamentMatch> poolMatches,
+  TournamentMatch match,
+) {
+  if (poolMatches.isEmpty) return match.round < 1 ? 1 : match.round;
+
+  if (!_poolRoundsCollapsed(poolMatches)) {
+    final rounds = poolMatches.map((m) => m.round).toSet().toList()..sort();
+    final index = rounds.indexOf(match.round);
+    return index < 0 ? match.round + 1 : index + 1;
+  }
+
+  final teams = poolTeamCount(poolMatches);
+  final perRound = teams >= 2 ? teams ~/ 2 : 1;
+  final ordered = [...poolMatches]
+    ..sort((a, b) => a.matchNumber.compareTo(b.matchNumber));
+  final index = ordered.indexWhere((m) => m.id == match.id);
+  if (index < 0) return match.round < 1 ? 1 : match.round;
+  return (index ~/ perRound) + 1;
+}
+
 /// Rótulo da fase eliminatória a partir do nº de jogos na rodada.
 String knockoutPhaseLabelForMatchCount(int matchesInRound) {
   return switch (matchesInRound) {

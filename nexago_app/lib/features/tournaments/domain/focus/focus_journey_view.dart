@@ -560,13 +560,16 @@ class CrossingRow {
 /// precisam ter `teamDescription`, que é o que o gerador escreve enquanto os
 /// grupos não terminam. Sem descrição não há cruzamento a mostrar: seria só um
 /// slot vazio.
+///
+/// Só a **primeira rodada** do mata-mata entra aqui (onde está o cruzamento de
+/// grupo). Rodadas seguintes ("Vencedor Jogo #…") não são cruzamento.
 List<CrossingRow> crossingRowsOf(
   List<TournamentMatch> matches,
   String? categoryId, {
   int limit = 4,
 }) {
   if (categoryId == null) return const [];
-  final rows =
+  final knockout =
       matches
           .where(
             (m) =>
@@ -586,9 +589,15 @@ List<CrossingRow> crossingRowsOf(
               ? byRound
               : a.matchNumber.compareTo(b.matchNumber);
         });
+  if (knockout.isEmpty) return const [];
+
+  final firstRound = knockout.first.round;
+  final firstRoundMatches = knockout
+      .where((m) => m.round == firstRound)
+      .toList();
 
   return [
-    for (final m in rows.take(limit))
+    for (final m in firstRoundMatches.take(limit))
       CrossingRow(
         id: m.id,
         label: matchPhaseDisplayLabel(m, categoryMatches: matches),
@@ -596,4 +605,25 @@ List<CrossingRow> crossingRowsOf(
         b: m.teamBDescription!.trim(),
       ),
   ];
+}
+
+/// Posição no slot ("1º Grupo A" → 1). `null` se a descrição não for de
+/// classificado de grupo.
+int? crossingSlotPlace(String description) {
+  final raw = description.trim();
+  final end = raw.indexOf('º');
+  if (end <= 0) return null;
+  return int.tryParse(raw.substring(0, end).trim());
+}
+
+/// Orienta o confronto pro desenho do protótipo: menor colocação à esquerda
+/// (1º), maior à direita (2º). Assim "2º A × 1º B" vira "1º B | 2º A" e o
+/// atleta não lê "primeiro × primeiro" quando o gerador inverteu os lados.
+({String left, String right}) crossingBracketSides(CrossingRow row) {
+  final placeA = crossingSlotPlace(row.a);
+  final placeB = crossingSlotPlace(row.b);
+  if (placeA != null && placeB != null && placeA > placeB) {
+    return (left: row.b, right: row.a);
+  }
+  return (left: row.a, right: row.b);
 }

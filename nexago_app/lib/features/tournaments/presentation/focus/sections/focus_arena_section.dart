@@ -179,6 +179,7 @@ class _FocusArenaSectionState extends ConsumerState<FocusArenaSection> {
                     avatarSize: 56,
                     nameFontSize: 11,
                     namesOnePerLine: true,
+                    glass: true,
                     onTap: () => _openMatch(match.id),
                     followAction: FollowMatchButton(
                       match: byId[match.id]!.match,

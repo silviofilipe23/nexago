@@ -120,8 +120,15 @@ class FocusAgoraSection extends ConsumerWidget {
       tournamentRunningToday: tournamentIsEventToday(tournament, now),
     );
 
-    // Herói: próxima partida do atleta em QUALQUER dia. A ordem do dia
-    // (rail) continua só com o que é hoje.
+    // Rail: TODAS as partidas do atleta na categoria (ou no torneio), não só
+    // as de hoje — jogadas e a jogar. O filtro de dia escondia encerradas sem
+    // horário e jogos de outros dias do evento.
+    final railMatches = myFocusMatchRailTimeline(
+      categoryMatches,
+      athleteTeamIds,
+    );
+
+    // Herói: próxima partida do atleta em QUALQUER dia.
     final next = pickAthleteFocusNextMatch(all, athleteTeamIds);
     final acknowledged = ref.watch(focusAcknowledgedCallProvider);
     final state = focusNowStateOf(
@@ -161,7 +168,7 @@ class FocusAgoraSection extends ConsumerWidget {
         ? const <TournamentMatch>[]
         : (journeyPathOf(categoryMatches, categoryId!, athleteTeamIds).future
             ..sort((a, b) => a.round.compareTo(b.round)));
-    final entries = timelineOf(ctx, day, futurePhases: futurePhases);
+    final entries = timelineOf(ctx, railMatches, futurePhases: futurePhases);
     final announcements =
         ref.watch(tournamentAnnouncementsProvider(tournament.id)).valueOrNull ??
         const [];
@@ -181,7 +188,7 @@ class FocusAgoraSection extends ConsumerWidget {
           card: next == null ? null : byId[next.id],
           contextTag: standing != null
               ? _bracketContextTag(next, standing)
-              : _contextTag(next),
+              : _contextTag(next, categoryMatches),
           calledAt: next?.matchStartedAt != null
               ? matchTimeLabelForCard(next!)
               : null,
@@ -249,10 +256,16 @@ class FocusAgoraSection extends ConsumerWidget {
   }
 
   /// Tag curta do herói: "GRUPO B • R3" / "QUARTAS".
-  static String _contextTag(TournamentMatch? m) {
+  static String _contextTag(
+    TournamentMatch? m,
+    List<TournamentMatch> categoryMatches,
+  ) {
     if (m == null) return 'SUA PRÓXIMA';
     if (m.poolId.trim().isNotEmpty) {
-      return '${poolLabelForId(m.poolId).toUpperCase()} • R${m.round}';
+      final pool =
+          categoryMatches.where((o) => o.poolId == m.poolId).toList();
+      return '${poolLabelForId(m.poolId).toUpperCase()} • '
+          'R${poolRoundDisplayNumberOf(pool, m)}';
     }
     return matchPhaseDisplayLabel(m).toUpperCase();
   }
@@ -322,10 +335,17 @@ class FocusAgoraSection extends ConsumerWidget {
       } else {
         title = e.phaseLabel;
       }
+
+      // Encerrada: placar sob a ótica do atleta (V/D). Sem isso o card jogado
+      // parecia "só horário" e sumia no meio das próximas.
+      final subtitle = e.state == TimelineState.done
+          ? (e.outcomeLabel ?? e.time ?? 'Encerrada')
+          : (e.time ?? e.note ?? 'A definir');
+
       items.add(
         FocusDayRailItem(
           title: title,
-          subtitle: e.time ?? 'A definir',
+          subtitle: subtitle,
           state: e.state,
           matchId: id,
           outcome: e.outcome,

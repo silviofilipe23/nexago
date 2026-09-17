@@ -131,6 +131,22 @@ List<PredictionCardSection> predictionCardSections(
   ];
 }
 
+/// Quantas partidas ainda abertas para palpite não têm escolha no draft.
+///
+/// Só conta `Scheduled` com lados definidos (as do bloco [PredictionSectionKind.open]).
+int unpickedOpenPredictionCount({
+  required List<TournamentMatchCardViewModel> cards,
+  required Map<String, String> draftPicks,
+}) {
+  var count = 0;
+  for (final card in cards) {
+    if (isPredictionLockedForMatch(card.match)) continue;
+    final pick = draftPicks[card.match.id]?.trim() ?? '';
+    if (pick.isEmpty) count++;
+  }
+  return count;
+}
+
 /// A grande final decide o campeão (`matchType == 'Final'`) — mesma regra
 /// usada no backend (`isFinalMatchType`). É a partida cujo palpite também
 /// vale como palpite de campeão (evita um seletor de campeão à parte).

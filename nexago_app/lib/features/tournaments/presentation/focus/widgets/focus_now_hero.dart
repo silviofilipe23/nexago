@@ -18,9 +18,80 @@ import '../../../../athlete/presentation/public_profile/widgets/profile_photo_vi
 const kFocusNowHeroBackgroundAsset =
     'assets/images/sports/match_detail_live_bg.webp';
 
+/// Arte de fundo da seção Grupo — pôr do sol / rede / bola.
+const kFocusGrupoBackgroundAsset =
+    'assets/images/sports/focus_grupo_bg.webp';
+
+/// Mesma arte do Grupo: Arena compartilha a imersão foto + glass.
+const kFocusArenaBackgroundAsset = kFocusGrupoBackgroundAsset;
+
+/// Arte de fundo da seção Palpites — pôr do sol / celular / odds.
+const kFocusPalpitesBackgroundAsset =
+    'assets/images/sports/focus_palpites_bg.webp';
+
 /// Foto + gradiente cobrindo a seção Agora inteira.
 class FocusAgoraScreenBackground extends StatelessWidget {
   const FocusAgoraScreenBackground({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const FocusPhotoScreenBackground(
+      asset: kFocusNowHeroBackgroundAsset,
+    );
+  }
+}
+
+/// Foto + gradiente cobrindo a seção Grupo inteira (glass da classificação).
+class FocusGrupoScreenBackground extends StatelessWidget {
+  const FocusGrupoScreenBackground({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const FocusPhotoScreenBackground(
+      asset: kFocusGrupoBackgroundAsset,
+      // Bola e areia no terço inferior — mantém o céu atrás do hero da seção.
+      alignment: Alignment(0, 0.2),
+    );
+  }
+}
+
+/// Foto + gradiente da seção Arena (mesmo asset do Grupo).
+class FocusArenaScreenBackground extends StatelessWidget {
+  const FocusArenaScreenBackground({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const FocusPhotoScreenBackground(
+      asset: kFocusArenaBackgroundAsset,
+      alignment: Alignment(0, 0.2),
+    );
+  }
+}
+
+/// Foto + gradiente da seção Palpites (glass dos cards de partida).
+class FocusPalpitesScreenBackground extends StatelessWidget {
+  const FocusPalpitesScreenBackground({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const FocusPhotoScreenBackground(
+      asset: kFocusPalpitesBackgroundAsset,
+      // Celular e bola no terço inferior — céu atrás do seletor.
+      alignment: Alignment(0, 0.25),
+    );
+  }
+}
+
+/// Foto full-bleed + vinheta escura para legibilidade dos cards glass.
+class FocusPhotoScreenBackground extends StatelessWidget {
+  const FocusPhotoScreenBackground({
+    super.key,
+    required this.asset,
+    this.alignment = const Alignment(0, -0.15),
+  });
+
+  final String asset;
+  final Alignment alignment;
 
   @override
   Widget build(BuildContext context) {
@@ -28,9 +99,9 @@ class FocusAgoraScreenBackground extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         Image.asset(
-          kFocusNowHeroBackgroundAsset,
+          asset,
           fit: BoxFit.cover,
-          alignment: const Alignment(0, -0.15),
+          alignment: alignment,
           errorBuilder: (_, __, ___) =>
               const ColoredBox(color: Color(0xFF0A0A0A)),
         ),

@@ -14,6 +14,8 @@ TournamentMatch _match({
   int matchNumber = 1,
   DateTime? scheduleTime,
   DateTime? matchStartedAt,
+  DateTime? matchEndedAt,
+  String dayKey = '',
 }) {
   return TournamentMatch(
     id: id,
@@ -31,6 +33,8 @@ TournamentMatch _match({
     matchNumber: matchNumber,
     scheduleTime: scheduleTime,
     matchStartedAt: matchStartedAt,
+    matchEndedAt: matchEndedAt,
+    dayKey: dayKey,
   );
 }
 
@@ -386,6 +390,46 @@ void main() {
       expect(timeline.map((m) => m.id), ['atrasada']);
     });
 
+    test('encerrada hoje entra mesmo sem scheduleTime — ordem do dia no Focus',
+        () {
+      // Ao fechar o jogo a mesa às vezes limpa o horário; sem matchEndedAt a
+      // partida jogada sumia e o rail ficava só com as próximas.
+      final matches = [
+        _match(
+          id: 'jogada',
+          teamAId: 'meu',
+          teamBId: 'y',
+          status: TournamentMatchStatus.completed,
+          matchEndedAt: DateTime(2026, 8, 20, 11, 0),
+        ),
+        _match(
+          id: 'proxima',
+          teamAId: 'meu',
+          teamBId: 'z',
+          scheduleTime: DateTime(2026, 8, 20, 15, 0),
+        ),
+      ];
+
+      final timeline = myTournamentDayTimeline(matches, {'meu'}, reference);
+
+      expect(timeline.map((m) => m.id), ['jogada', 'proxima']);
+    });
+
+    test('dayKey de hoje ancora partida mesmo sem horário', () {
+      final matches = [
+        _match(
+          id: 'na-fila',
+          teamAId: 'meu',
+          teamBId: 'y',
+          dayKey: '2026-08-20',
+        ),
+      ];
+
+      final timeline = myTournamentDayTimeline(matches, {'meu'}, reference);
+
+      expect(timeline.map((m) => m.id), ['na-fila']);
+    });
+
     test('âncora de outro dia não cai no caso do torneio rolando', () {
       final matches = [
         _match(
@@ -427,6 +471,46 @@ void main() {
       );
 
       expect(timeline.map((m) => m.id), ['com-horario', 'sem-a', 'sem-b']);
+    });
+  });
+
+  group('myFocusMatchRailTimeline', () {
+    test('traz jogadas e a jogar, de qualquer dia', () {
+      final matches = [
+        _match(
+          id: 'ontem',
+          teamAId: 'meu',
+          teamBId: 'y',
+          status: TournamentMatchStatus.completed,
+          matchEndedAt: DateTime(2026, 8, 19, 18, 0),
+        ),
+        _match(
+          id: 'hoje',
+          teamAId: 'meu',
+          teamBId: 'z',
+          scheduleTime: DateTime(2026, 8, 20, 15, 0),
+        ),
+        _match(
+          id: 'outros',
+          teamAId: 'x',
+          teamBId: 'y',
+          scheduleTime: DateTime(2026, 8, 20, 10, 0),
+        ),
+      ];
+
+      final rail = myFocusMatchRailTimeline(matches, {'meu'});
+
+      expect(rail.map((m) => m.id), ['ontem', 'hoje']);
+    });
+
+    test('sem time do atleta devolve vazio', () {
+      expect(
+        myFocusMatchRailTimeline(
+          [_match(teamAId: 'x', teamBId: 'y')],
+          const {},
+        ),
+        isEmpty,
+      );
     });
   });
 

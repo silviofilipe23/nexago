@@ -167,19 +167,28 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
     // primeira, em vez de mostrar uma aba que a nav não tem.
     final current = sections.contains(_section) ? _section : sections.first;
 
-    final showAgoraBackdrop =
-        !unavailable &&
+    final showPhotoBackdrop = !unavailable &&
         !showBoot &&
         tournament != null &&
-        current == FocusSection.agora;
+        (current == FocusSection.agora ||
+            current == FocusSection.grupo ||
+            current == FocusSection.arena ||
+            current == FocusSection.palpites);
 
     return Scaffold(
-      backgroundColor: showAgoraBackdrop ? Colors.black : colors.canvas,
+      backgroundColor: showPhotoBackdrop ? Colors.black : colors.canvas,
       extendBody: true,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          if (showAgoraBackdrop) const FocusAgoraScreenBackground(),
+          if (showPhotoBackdrop && current == FocusSection.agora)
+            const FocusAgoraScreenBackground(),
+          if (showPhotoBackdrop && current == FocusSection.grupo)
+            const FocusGrupoScreenBackground(),
+          if (showPhotoBackdrop && current == FocusSection.arena)
+            const FocusArenaScreenBackground(),
+          if (showPhotoBackdrop && current == FocusSection.palpites)
+            const FocusPalpitesScreenBackground(),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

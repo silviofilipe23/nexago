@@ -22,8 +22,8 @@ class FocusDayRailItem {
   final TimelineState state;
   final String? matchId;
 
-  /// Vitória/derrota quando a partida já terminou — pinta o card de verde
-  /// nas vitórias.
+  /// Vitória/derrota quando a partida já terminou — verde nas vitórias,
+  /// vermelho nas derrotas.
   final TimelineOutcome? outcome;
 }
 
@@ -84,7 +84,7 @@ class FocusDayRail extends StatelessWidget {
               vertical: AppSpacing.sm,
             ),
             child: Text(
-              'Nenhuma partida sua hoje.',
+              'Nenhuma partida sua ainda.',
               style: AppTypography.bodyM.copyWith(
                 color: Colors.white.withValues(alpha: 0.55),
               ),
@@ -128,14 +128,18 @@ class _DayCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isWin = item.state == TimelineState.done &&
         item.outcome == TimelineOutcome.win;
+    final isLoss = item.state == TimelineState.done &&
+        item.outcome == TimelineOutcome.loss;
     final isActive =
         item.state == TimelineState.next || item.state == TimelineState.live;
     final accent = isWin
         ? AppColors.win
-        : item.state == TimelineState.live
+        : isLoss
             ? AppColors.live
-            : AppColors.brand;
-    final highlight = isActive || isWin;
+            : item.state == TimelineState.live
+                ? AppColors.live
+                : AppColors.brand;
+    final highlight = isActive || isWin || isLoss;
     final borderColor = highlight
         ? accent.withValues(alpha: 0.85)
         : Colors.white.withValues(alpha: 0.12);

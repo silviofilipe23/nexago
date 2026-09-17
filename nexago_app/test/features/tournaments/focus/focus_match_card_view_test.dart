@@ -104,8 +104,8 @@ void main() {
   });
 
   group('focusMatchCardScoreOf', () {
-    test('ao vivo: sets vencidos no centro e o set em andamento embaixo', () {
-      // O número grande é SETS, não pontos: "1-0" com "2° SET 14-11" embaixo.
+    test('ao vivo: placar do set no centro e sets vencidos embaixo', () {
+      // Número grande = pontos do set em andamento; sets da partida embaixo.
       final score = focusMatchCardScoreOf(
         _match(
           status: TournamentMatchStatus.inProgress,
@@ -118,8 +118,8 @@ void main() {
         TournamentMatchRowState.live,
       );
 
-      expect(score.center, '1-0');
-      expect(score.detail, '2° SET 14-11');
+      expect(score.center, '14-11');
+      expect(score.detail, 'SETS 1-0');
     });
 
     test('encerrada: sets vencidos no centro e as parciais embaixo', () {
@@ -160,7 +160,7 @@ void main() {
       expect(score.detail, isNull);
     });
 
-    test('ao vivo sem set aberto: centro sem linha de detalhe', () {
+    test('ao vivo sem set aberto: só sets vencidos no centro', () {
       final score = focusMatchCardScoreOf(
         _match(status: TournamentMatchStatus.inProgress),
         TournamentMatchRowState.live,

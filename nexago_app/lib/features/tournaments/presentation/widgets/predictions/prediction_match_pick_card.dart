@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/theme/app_motion.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/focus/focus_match_card_view.dart';
@@ -69,6 +71,7 @@ class PredictionMatchPickCard extends StatelessWidget {
         // A borda de destaque é do palpite, não da dupla do atleta: nesta tela
         // ele é torcedor, e "minha partida" não quer dizer nada.
         isMine: false,
+        glass: true,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -119,7 +122,10 @@ class PredictionMatchPickCard extends StatelessWidget {
 ///
 /// O anel envolve o lado inteiro em vez de sublinhar o nome: é ele que diz onde
 /// se toca, e o card não tem outro affordance de escolha.
-class _PickSide extends StatelessWidget {
+///
+/// Ao virar selecionado: pulse curto + check que nasce + haptic — confirma o
+/// palpite sem roubar a atenção do próximo card.
+class _PickSide extends StatefulWidget {
   const _PickSide({
     required this.side,
     required this.selected,
@@ -133,59 +139,164 @@ class _PickSide extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
+  State<_PickSide> createState() => _PickSideState();
+}
+
+class _PickSideState extends State<_PickSide>
+    with SingleTickerProviderStateMixin {
+  static const _radius = 14.0;
+
+  late final AnimationController _pop;
+  late final Animation<double> _scale;
+  late final Animation<double> _glow;
+  late final Animation<double> _check;
+
+  @override
+  void initState() {
+    super.initState();
+    _pop = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+    );
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1, end: 1.05)
+            .chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 38,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.05, end: 1)
+            .chain(CurveTween(curve: Curves.easeInOutCubic)),
+        weight: 62,
+      ),
+    ]).animate(_pop);
+    _glow = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0, end: 1)
+            .chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 35,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1, end: 0)
+            .chain(CurveTween(curve: Curves.easeInCubic)),
+        weight: 65,
+      ),
+    ]).animate(_pop);
+    _check = CurvedAnimation(
+      parent: _pop,
+      curve: const Interval(0.28, 1, curve: Curves.easeOutCubic),
+    );
+    // Já selecionado no load: estado final, sem replay do pulse.
+    if (widget.selected) _pop.value = 1;
+  }
+
+  @override
+  void didUpdateWidget(covariant _PickSide oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.selected && widget.selected) {
+      HapticFeedback.selectionClick();
+      _pop.forward(from: 0);
+    } else if (oldWidget.selected && !widget.selected) {
+      _pop.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pop.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final selected = widget.selected;
+    final locked = widget.locked;
+
     return Opacity(
       // Depois da trava, o lado que NÃO foi palpitado recua — o que sobra na
       // tela é a escolha que o atleta fez.
       opacity: locked && !selected ? 0.55 : 1,
-      child: Material(
-        color: selected
-            ? AppColors.brand.withValues(alpha: 0.10)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 6,
-              vertical: AppSpacing.sm,
-            ),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: selected ? AppColors.brand : Colors.transparent,
-                width: 1.5,
+      child: AnimatedBuilder(
+        animation: _pop,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _scale.value,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(_radius),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.brand.withValues(
+                      alpha: 0.28 * _glow.value,
+                    ),
+                    blurRadius: 16 * _glow.value,
+                    spreadRadius: 0.5 * _glow.value,
+                  ),
+                ],
               ),
+              child: child,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                MatchCardSide(
-                  side: side,
-                  emphasized: selected,
-                  // Palpite: rostos maiores, nome menor — o toque é no lado
-                  // inteiro; o rosto carrega a escolha.
-                  avatarSize: 56,
-                  nameFontSize: 11,
-                  namesOnePerLine: true,
+          );
+        },
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(_radius),
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(_radius),
+            child: AnimatedContainer(
+              duration: AppMotion.base,
+              curve: AppMotion.curve,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 6,
+                vertical: AppSpacing.sm,
+              ),
+              decoration: BoxDecoration(
+                color: selected
+                    ? AppColors.brand.withValues(alpha: 0.12)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(_radius),
+                border: Border.all(
+                  color: selected ? AppColors.brand : Colors.transparent,
+                  width: 1.5,
                 ),
-                // Altura reservada nos dois lados: sem isso o card sobe e desce
-                // um pouco a cada troca de palpite.
-                SizedBox(
-                  height: 20,
-                  child: selected
-                      ? const Padding(
-                          padding: EdgeInsets.only(top: 4),
-                          child: Icon(
-                            Icons.check_circle_rounded,
-                            size: 16,
-                            color: AppColors.brand,
-                          ),
-                        )
-                      : null,
-                ),
-              ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  MatchCardSide(
+                    side: widget.side,
+                    emphasized: selected,
+                    // Palpite: rostos maiores, nome menor — o toque é no lado
+                    // inteiro; o rosto carrega a escolha.
+                    avatarSize: 56,
+                    nameFontSize: 11,
+                    namesOnePerLine: true,
+                  ),
+                  // Altura reservada nos dois lados: sem isso o card sobe e
+                  // desce um pouco a cada troca de palpite.
+                  SizedBox(
+                    height: 20,
+                    child: selected
+                        ? FadeTransition(
+                            opacity: _check,
+                            child: ScaleTransition(
+                              scale: Tween<double>(begin: 0.6, end: 1)
+                                  .animate(_check),
+                              child: const Padding(
+                                padding: EdgeInsets.only(top: 4),
+                                child: Icon(
+                                  Icons.check_circle_rounded,
+                                  size: 16,
+                                  color: AppColors.brand,
+                                ),
+                              ),
+                            ),
+                          )
+                        : null,
+                  ),
+                ],
+              ),
             ),
           ),
         ),

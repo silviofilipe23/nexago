@@ -27,6 +27,7 @@ class TournamentDetailSubpageScaffold extends StatelessWidget {
     this.body,
     this.onBack,
     this.actions = const [],
+    this.background,
   }) : assert(
           (slivers != null) ^ (body != null),
           'Informe slivers ou body, não os dois.',
@@ -46,24 +47,39 @@ class TournamentDetailSubpageScaffold extends StatelessWidget {
   /// "Palpites" na chave). Vazio por padrão — não afeta subpáginas existentes.
   final List<Widget> actions;
 
+  /// Foto full-bleed atrás do conteúdo (ex.: Palpites). Quando presente o
+  /// scaffold fica preto pra a foto não “vazar” nas bordas.
+  final Widget? background;
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.themeColors.canvas,
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        child: NexaPageHeader(
-          topGap: 8,
-          padding: const EdgeInsets.fromLTRB(16, 0, 20, 12),
-          header: _SubpageToolbar(
-            title: title,
-            onBack: onBack ?? () => _defaultBack(context),
-            actions: actions,
-          ),
-          child: body ?? CustomScrollView(slivers: slivers!),
+    final content = SafeArea(
+      top: false,
+      bottom: false,
+      child: NexaPageHeader(
+        topGap: 8,
+        padding: const EdgeInsets.fromLTRB(16, 0, 20, 12),
+        header: _SubpageToolbar(
+          title: title,
+          onBack: onBack ?? () => _defaultBack(context),
+          actions: actions,
         ),
+        child: body ?? CustomScrollView(slivers: slivers!),
       ),
+    );
+
+    return Scaffold(
+      backgroundColor:
+          background != null ? Colors.black : context.themeColors.canvas,
+      body: background == null
+          ? content
+          : Stack(
+              fit: StackFit.expand,
+              children: [
+                background!,
+                content,
+              ],
+            ),
     );
   }
 

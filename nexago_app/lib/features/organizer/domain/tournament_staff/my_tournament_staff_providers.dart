@@ -105,6 +105,19 @@ final myStaffRoleForTournamentProvider =
   return null;
 });
 
+/// Os números de dinheiro do evento aparecem para quem está logado?
+///
+/// Vale para toda tela sob `/organizer/tournaments/...`, que é rota operável
+/// por staff: o administrador do evento chega nela e não pode ver arrecadação
+/// nem repasse. A fronteira de verdade é o servidor (rules e callable); esta é
+/// a da tela, para o número não chegar aos olhos de quem não deve vê-lo.
+final organizerSeesTournamentMoneyProvider =
+    Provider.family<bool, String>((ref, tournamentId) {
+  return tournamentStaffSeesMoney(
+    ref.watch(myStaffRoleForTournamentProvider(tournamentId)),
+  );
+});
+
 /// True se o usuário tem ao menos um torneio como staff ativo. Aguarda a
 /// primeira emissão do stream (uma leitura; depois fica em cache).
 Future<bool> hasActiveTournamentStaffAccess(Ref ref) async {

@@ -38,6 +38,26 @@ enum TournamentStaffRole {
       };
 }
 
+/// Este papel alcança os números de dinheiro do evento (arrecadação, taxa,
+/// repasse líquido)?
+///
+/// O administrador do evento organiza tudo e **não vê nada de dinheiro**: nem
+/// extrato de repasse, nem total arrecadado. O gestor vê, e é coerente que
+/// veja — ele saca desse caixa. O mesário só lança placar.
+///
+/// `null` é o dono: dono não é staff de si mesmo, então
+/// `myStaffRoleForTournamentProvider` devolve `null` para ele. Por isso a
+/// função só ESCONDE quando sabe positivamente que o papel não alcança —
+/// papel desconhecido nunca tira número de dinheiro de quem tem direito.
+bool tournamentStaffSeesMoney(TournamentStaffRole? role) {
+  return switch (role) {
+    TournamentStaffRole.eventAdmin => false,
+    TournamentStaffRole.scorer => false,
+    TournamentStaffRole.manager => true,
+    null => true,
+  };
+}
+
 class TournamentStaffMember {
   const TournamentStaffMember({
     required this.uid,

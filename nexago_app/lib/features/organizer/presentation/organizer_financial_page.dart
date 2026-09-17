@@ -42,6 +42,11 @@ class _OrganizerFinancialPageState
   /// servidor não gravou manda o dinheiro para a chave antiga. O servidor
   /// ainda normaliza a chave (telefone ganha `+55`), então o que fica na tela
   /// é o que ele devolveu, não o que foi digitado.
+  ///
+  /// Vale só até a próxima vista chegar (ver o `ref.listen` no `build`): se a
+  /// pessoa trocar a chave no portal ou em outro aparelho, é o perfil recém
+  /// carregado que manda — o eco não pode envelhecer na tela justamente no
+  /// card que diz para onde o dinheiro vai.
   OrganizerPayoutProfile? _savedPayout;
 
   @override
@@ -201,6 +206,15 @@ class _OrganizerFinancialPageState
     final colors = context.themeColors;
     final selectedId = ref.watch(selectedCashBoxIdProvider);
     final walletAsync = ref.watch(organizerWalletViewProvider(selectedId));
+
+    // Vista nova traz o perfil de repasse atual do servidor, então o eco local
+    // do último save sai de cena. Sem isso ele venceria toda recarga pelo
+    // resto da vida da tela, e uma chave trocada no portal ficaria invisível
+    // aqui — no card que diz o destino do saque.
+    ref.listen(organizerWalletViewProvider(selectedId), (_, next) {
+      if (next.isLoading || !next.hasValue) return;
+      if (_savedPayout != null) setState(() => _savedPayout = null);
+    });
 
     return Scaffold(
       backgroundColor: colors.canvas,
@@ -949,6 +963,10 @@ class _LedgerTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    // A dupla/equipe que pagou: a callable resolve esse rótulo (custa leitura
+    // de inscrição) e o app vinha jogando fora, deixando o extrato mais pobre
+    // que o do portal. Sem rótulo, `—`, como no portal.
+    final label = entry.athleteLabel.trim();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -958,8 +976,17 @@ class _LedgerTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '+ ${formatBRL(entry.netReais)}',
+                  label.isEmpty ? '—' : label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: colors.onSurface,
+                      ),
+                ),
+                Text(
+                  '+ ${formatBRL(entry.netReais)}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                         color: AppColors.win,
                       ),

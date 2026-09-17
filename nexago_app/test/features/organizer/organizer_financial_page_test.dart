@@ -360,6 +360,99 @@ void main() {
     expect(find.text('Disponível para saque'), findsOneWidget);
   });
 
+  testWidgets('vista nova manda no destino: eco local nao envelhece na tela',
+      (tester) async {
+    // A chave e da PESSOA e pode mudar em outro lugar (portal, outro
+    // aparelho). Se o eco do ultimo save vencesse toda recarga, este card —
+    // que diz PARA ONDE o dinheiro vai — ficaria afirmando a chave antiga.
+    late _FakeWalletRepository repo;
+    repo = _FakeWalletRepository(
+      load: (_) => vista(
+        caixas: [caixa('a', 'Etapa Aurora', disponivel: 1000)],
+        selecionado: caixa('a', 'Etapa Aurora', disponivel: 1000),
+        payout: repo.payoutCalls.isEmpty
+            ? payoutComChave
+            : const OrganizerPayoutProfile(
+                pixKey: 'portal@nexago.app',
+                pixKeyType: 'EMAIL',
+                hasPixKey: true,
+              ),
+      ),
+    )..payoutEcho = const OrganizerPayoutProfile(
+        pixKey: '+5562999990000',
+        pixKeyType: 'PHONE',
+        hasPixKey: true,
+      );
+    addTearDown(repo.closeLive);
+
+    await abrirTela(tester, repo);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('antigo@nexago.app'), findsOneWidget);
+
+    // Salva: o eco do servidor aparece na hora.
+    await tester.tap(find.text('Chave PIX de repasse'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byWidgetPredicate(
+        (w) => w is TextField && w.decoration?.labelText == 'Chave',
+      ),
+      'novo@nexago.app',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Salvar'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('+5562999990000'), findsOneWidget);
+
+    // Um saque recarrega a vista, que traz o perfil atual do servidor.
+    await tester.enterText(find.byType(TextField), '100');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Solicitar saque'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.textContaining('portal@nexago.app'), findsOneWidget);
+    expect(find.textContaining('+5562999990000'), findsNothing);
+  });
+
+  testWidgets('extrato nomeia a dupla que pagou', (tester) async {
+    // A callable paga uma leitura de inscricao para resolver esse rotulo
+    // (`resolveLedgerAthleteLabels`); o app vinha jogando fora.
+    final repo = _FakeWalletRepository(
+      load: (_) => vista(
+        caixas: [caixa('a', 'Etapa Aurora', disponivel: 1000)],
+        selecionado: caixa('a', 'Etapa Aurora', disponivel: 1000),
+        payout: payoutComChave,
+        ledger: [
+          OrganizerLedgerEntry(
+            id: 'l1',
+            netReais: 100,
+            grossReais: 106.38,
+            platformFeeReais: 6.38,
+            createdAt: DateTime(2026, 9, 10),
+            athleteLabel: 'Ana & Bia',
+          ),
+        ],
+      ),
+    );
+    addTearDown(repo.closeLive);
+
+    await abrirTela(tester, repo);
+    await tester.pumpAndSettle();
+
+    // O extrato fica no fim da lista: sem rolar, a ListView nem constroi a
+    // linha.
+    await tester.scrollUntilVisible(
+      find.text('Ana & Bia'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ana & Bia'), findsOneWidget);
+    expect(find.text('+ ${formatBRL(100)}'), findsOneWidget);
+  });
+
   testWidgets('depois do saque a tela continua no MESMO caixa', (tester) async {
     final aurora = caixa('a', 'Etapa Aurora', disponivel: 1000);
     final boreal = caixa('b', 'Etapa Boreal', disponivel: 800);

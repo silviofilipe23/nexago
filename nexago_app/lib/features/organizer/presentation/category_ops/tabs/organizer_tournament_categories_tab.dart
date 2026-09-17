@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
@@ -9,10 +10,11 @@ import 'package:nexago_app/core/ui/app_snackbar.dart';
 import '../../../domain/tournament_create/tournament_create_logic.dart';
 import '../../../domain/tournament_ops/tournament_ops_logic.dart';
 import '../../../domain/tournament_ops/tournament_ops_models.dart';
+import '../../../domain/tournament_staff/my_tournament_staff_providers.dart';
 import '../organizer_tournament_navigation.dart';
 import '../widgets/organizer_tournament_category_card.dart';
 
-class OrganizerTournamentCategoriesTab extends StatelessWidget {
+class OrganizerTournamentCategoriesTab extends ConsumerWidget {
   const OrganizerTournamentCategoriesTab({
     super.key,
     required this.categories,
@@ -25,9 +27,12 @@ class OrganizerTournamentCategoriesTab extends StatelessWidget {
   final DateTime? tournamentStartAt;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final canAddCategory = organizerCanAddTournamentCategory(
       startAt: tournamentStartAt,
+    );
+    final seesMoney = ref.watch(
+      organizerSeesTournamentMoneyProvider(tournamentId),
     );
 
     return ListView(
@@ -77,6 +82,7 @@ class OrganizerTournamentCategoriesTab extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 12),
             child: OrganizerTournamentCategoryCard(
               category: category,
+              showCollected: seesMoney,
               onTap: () => pushOrganizerCategoryShell(
                 GoRouter.of(context),
                 tournamentId: tournamentId,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,13 +34,25 @@ const _summary = OrganizerCategoryPaymentsSummary(
   expectedCents: 96000,
 );
 
+/// `roleLoaded: false` reproduz o que abriu esta rodada: o espelho de staff
+/// ainda não emitiu (stream que não entrega nada), que é o estado dos
+/// primeiros frames de um link direto ou de um push.
 Future<void> abrirAba(
   WidgetTester tester, {
   required TournamentStaffRole? role,
+  bool isOwner = false,
+  bool roleLoaded = true,
 }) async {
+  final espelho = StreamController<List<MyTournamentStaffEntry>>();
+  addTearDown(espelho.close);
+  if (roleLoaded) espelho.add(const []);
+
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        isOrganizerTournamentOwnerProvider(_tournamentId)
+            .overrideWithValue(isOwner),
+        myTournamentStaffEntriesProvider.overrideWith((ref) => espelho.stream),
         myStaffRoleForTournamentProvider(_tournamentId).overrideWithValue(role),
         organizerCategoryPaymentsProvider(_key).overrideWithValue(_summary),
         organizerCategoryVisibleTeamsProvider(_key).overrideWithValue(
@@ -81,25 +95,97 @@ void main() {
 
   testWidgets('dono do evento (sem papel de staff) vê os dois',
       (tester) async {
-    // Dono não é staff de si mesmo: o provider devolve `null` para ele.
-    await abrirAba(tester, role: null);
+    // Dono não é staff de si mesmo: o papel é `null` e quem responde é o
+    // `managerId`.
+    await abrirAba(tester, role: null, isOwner: true);
 
     expect(find.textContaining('Repasse líquido'), findsOneWidget);
     expect(find.text('ARRECADADO NESTA CATEGORIA'), findsOneWidget);
   });
 
+  testWidgets('dono vê o dinheiro mesmo com o papel ainda carregando',
+      (tester) async {
+    // O dono não depende do espelho de staff: quem responde é o `managerId`,
+    // que chega junto com os dados sem os quais não haveria número na tela.
+    await abrirAba(tester, role: null, isOwner: true, roleLoaded: false);
+
+    expect(find.textContaining('Repasse líquido'), findsOneWidget);
+    expect(find.text('ARRECADADO NESTA CATEGORIA'), findsOneWidget);
+  });
+
+  testWidgets('papel ainda carregando e sem ser dono NÃO mostra dinheiro',
+      (tester) async {
+    // A janela real: quem atua como organizador nos próprios eventos e é
+    // administrador no evento de outra pessoa não passa pelo pré-carregamento
+    // do login. Caindo aqui por link direto, os primeiros frames mostravam
+    // arrecadação e repasse até o primeiro snapshot do espelho chegar.
+    await abrirAba(tester, role: null, roleLoaded: false);
+
+    expect(find.textContaining('Repasse líquido'), findsNothing);
+    expect(find.text('ARRECADADO NESTA CATEGORIA'), findsNothing);
+    expect(find.textContaining(r'R$'), findsNothing);
+  });
+
   group('tournamentStaffSeesMoney', () {
     test('administrador e mesário não alcançam dinheiro', () {
-      expect(tournamentStaffSeesMoney(TournamentStaffRole.eventAdmin), isFalse);
-      expect(tournamentStaffSeesMoney(TournamentStaffRole.scorer), isFalse);
+      expect(
+        tournamentStaffSeesMoney(
+          isOwner: false,
+          roleLoaded: true,
+          role: TournamentStaffRole.eventAdmin,
+        ),
+        isFalse,
+      );
+      expect(
+        tournamentStaffSeesMoney(
+          isOwner: false,
+          roleLoaded: true,
+          role: TournamentStaffRole.scorer,
+        ),
+        isFalse,
+      );
     });
 
     test('gestor alcança — é dele que sai o saque', () {
-      expect(tournamentStaffSeesMoney(TournamentStaffRole.manager), isTrue);
+      expect(
+        tournamentStaffSeesMoney(
+          isOwner: false,
+          roleLoaded: true,
+          role: TournamentStaffRole.manager,
+        ),
+        isTrue,
+      );
     });
 
-    test('sem papel de staff é o dono, e o dono alcança', () {
-      expect(tournamentStaffSeesMoney(null), isTrue);
+    test('dono alcança mesmo com o papel desconhecido', () {
+      expect(
+        tournamentStaffSeesMoney(isOwner: true, roleLoaded: false, role: null),
+        isTrue,
+      );
+    });
+
+    test('papel desconhecido sem ser dono não alcança', () {
+      expect(
+        tournamentStaffSeesMoney(isOwner: false, roleLoaded: false, role: null),
+        isFalse,
+      );
+      // Administrador com o espelho ainda carregando: o papel nem precisa ser
+      // conhecido para o número ficar fora da tela.
+      expect(
+        tournamentStaffSeesMoney(
+          isOwner: false,
+          roleLoaded: false,
+          role: TournamentStaffRole.eventAdmin,
+        ),
+        isFalse,
+      );
+    });
+
+    test('sem papel, carregado e sem ser dono: também não alcança', () {
+      expect(
+        tournamentStaffSeesMoney(isOwner: false, roleLoaded: true, role: null),
+        isFalse,
+      );
     });
   });
 }

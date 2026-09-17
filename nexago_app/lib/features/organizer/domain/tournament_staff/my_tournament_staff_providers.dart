@@ -6,6 +6,7 @@ import '../../../../core/firebase/firebase_providers.dart';
 import '../../../tournaments/data/tournament_detail_lookup.dart';
 import '../../../tournaments/domain/tournament_detail_model.dart';
 import '../../../tournaments/domain/tournament_listing_status.dart';
+import '../tournament_ops/tournament_ops_providers.dart';
 import 'tournament_staff_models.dart';
 
 /// Torneio em que o usuário logado atua como staff — espelho
@@ -105,16 +106,40 @@ final myStaffRoleForTournamentProvider =
   return null;
 });
 
+/// O usuário logado é o dono deste torneio?
+///
+/// Vem do `managerId` do documento do torneio — a mesma conta que
+/// `organizer_tournament_detail_page.dart` faz. É a resposta que existe junto
+/// com os dados que a tela precisa para mostrar qualquer número, e por isso
+/// serve de base segura para a guarda de dinheiro.
+/// `autoDispose` porque observa o stream do detalhe do torneio: sem isso o
+/// listener do Firestore ficaria de pé para cada torneio visitado na sessão.
+final isOrganizerTournamentOwnerProvider =
+    Provider.autoDispose.family<bool, String>((ref, tournamentId) {
+  final uid = ref.watch(authProvider).valueOrNull?.uid;
+  if (uid == null || uid.isEmpty) return false;
+  final detail =
+      ref.watch(organizerTournamentDetailProvider(tournamentId)).valueOrNull;
+  return detail?.tournament?['managerId'] == uid;
+});
+
 /// Os números de dinheiro do evento aparecem para quem está logado?
 ///
 /// Vale para toda tela sob `/organizer/tournaments/...`, que é rota operável
 /// por staff: o administrador do evento chega nela e não pode ver arrecadação
 /// nem repasse. A fronteira de verdade é o servidor (rules e callable); esta é
 /// a da tela, para o número não chegar aos olhos de quem não deve vê-lo.
+///
+/// Junta as duas coisas que a regra precisa: se é o dono (pelo `managerId`) e
+/// se o papel de staff já é **conhecido** — `AsyncValue.hasValue` do espelho.
+/// Sem distinguir "carregando" de "carregado", papel ainda não emitido virava
+/// "pode ver" e mostrava dinheiro nos primeiros frames de um link direto.
 final organizerSeesTournamentMoneyProvider =
-    Provider.family<bool, String>((ref, tournamentId) {
+    Provider.autoDispose.family<bool, String>((ref, tournamentId) {
   return tournamentStaffSeesMoney(
-    ref.watch(myStaffRoleForTournamentProvider(tournamentId)),
+    isOwner: ref.watch(isOrganizerTournamentOwnerProvider(tournamentId)),
+    roleLoaded: ref.watch(myTournamentStaffEntriesProvider).hasValue,
+    role: ref.watch(myStaffRoleForTournamentProvider(tournamentId)),
   );
 });
 

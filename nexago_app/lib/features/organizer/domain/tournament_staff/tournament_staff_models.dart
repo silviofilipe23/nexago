@@ -38,24 +38,35 @@ enum TournamentStaffRole {
       };
 }
 
-/// Este papel alcança os números de dinheiro do evento (arrecadação, taxa,
-/// repasse líquido)?
+/// Os números de dinheiro do evento (arrecadação, taxa, repasse líquido)
+/// podem aparecer para quem está olhando?
 ///
 /// O administrador do evento organiza tudo e **não vê nada de dinheiro**: nem
 /// extrato de repasse, nem total arrecadado. O gestor vê, e é coerente que
 /// veja — ele saca desse caixa. O mesário só lança placar.
 ///
-/// `null` é o dono: dono não é staff de si mesmo, então
-/// `myStaffRoleForTournamentProvider` devolve `null` para ele. Por isso a
-/// função só ESCONDE quando sabe positivamente que o papel não alcança —
-/// papel desconhecido nunca tira número de dinheiro de quem tem direito.
-bool tournamentStaffSeesMoney(TournamentStaffRole? role) {
-  return switch (role) {
-    TournamentStaffRole.eventAdmin => false,
-    TournamentStaffRole.scorer => false,
-    TournamentStaffRole.manager => true,
-    null => true,
-  };
+/// **Papel desconhecido conta como "sem dinheiro".** É o caso de
+/// `roleLoaded: false`: o espelho `users/{uid}/tournamentStaff` ainda não
+/// emitiu. Isso é seguro porque o dono entra por `isOwner`, que sai do
+/// `managerId` do documento do torneio e não depende do espelho — e sem o
+/// documento do torneio em mão a tela não teria número nenhum para mostrar.
+/// Então ninguém que tem direito perde o número por causa desta guarda.
+///
+/// A alternativa (tratar desconhecido como "pode ver") abria uma janela real:
+/// quem atua como organizador nos próprios eventos E é administrador no evento
+/// de outra pessoa não passa pelo pré-carregamento do login — a espera do
+/// espelho em `post_login_destination.dart` é só para quem não tem papel de
+/// organizador. Caindo por link direto ou push numa tela de dinheiro, os
+/// primeiros frames mostravam arrecadação e repasse até o primeiro snapshot
+/// chegar.
+bool tournamentStaffSeesMoney({
+  required bool isOwner,
+  required bool roleLoaded,
+  required TournamentStaffRole? role,
+}) {
+  if (isOwner) return true;
+  if (!roleLoaded) return false;
+  return role == TournamentStaffRole.manager;
 }
 
 class TournamentStaffMember {

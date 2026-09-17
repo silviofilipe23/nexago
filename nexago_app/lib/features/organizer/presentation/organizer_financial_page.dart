@@ -12,8 +12,6 @@ import '../../arena/domain/payout_pix_key_type.dart';
 import '../data/organizer_wallet_repository.dart';
 import '../domain/organizer_wallet_providers.dart';
 
-const double _minWithdrawalReais = 20;
-
 /// Caixa de cada EVENTO que a pessoa alcança: saldo, extrato, saques e o
 /// pedido de saque.
 ///
@@ -52,34 +50,22 @@ class _OrganizerFinancialPageState
     super.dispose();
   }
 
-  double? _parsedAmount() {
-    final raw = _amountController.text.trim().replaceAll(',', '.');
-    if (raw.isEmpty) return null;
-    return double.tryParse(raw);
-  }
-
-  String? _amountError(double available) {
-    final raw = _amountController.text.trim();
-    if (raw.isEmpty) return null;
-    final amount = _parsedAmount();
-    if (amount == null) return 'Informe um valor válido.';
-    if (amount < _minWithdrawalReais) {
-      return 'Mínimo: ${formatBRL(_minWithdrawalReais)}.';
-    }
-    if (amount > available + 0.001) {
-      return 'Máximo disponível: ${formatBRL(available)}.';
-    }
-    return null;
-  }
+  /// Regras do valor moram em `domain/` (piso, teto e parse de vírgula) — aqui
+  /// só passa o texto do campo.
+  String? _amountError(double available) => withdrawalAmountError(
+        raw: _amountController.text,
+        availableReais: available,
+      );
 
   /// Quem responde "dá para sacar?" é o perfil de repasse confirmado pelo
   /// servidor — nunca um rascunho de formulário.
   bool _canSubmit({required double available, required bool hasPixKey}) {
     if (_submitting) return false;
     if (!hasPixKey) return false;
-    final amount = _parsedAmount();
-    if (amount == null || amount < _minWithdrawalReais) return false;
-    return _amountError(available) == null;
+    return canRequestWithdrawalAmount(
+      raw: _amountController.text,
+      availableReais: available,
+    );
   }
 
   void _withdrawAll(double available) {
@@ -135,13 +121,13 @@ class _OrganizerFinancialPageState
     required String tournamentId,
     required double available,
   }) async {
-    final amount = _parsedAmount();
     final error = _amountError(available);
     if (error != null) {
       showAppSnackBar(context, error, isError: true);
       return;
     }
-    if (amount == null || amount < _minWithdrawalReais) return;
+    final amount = parseWithdrawalAmount(_amountController.text);
+    if (amount == null || amount < minWithdrawalReais) return;
 
     setState(() => _submitting = true);
     try {
@@ -158,10 +144,8 @@ class _OrganizerFinancialPageState
         isError: result.status == 'pending' && result.payoutStatus == 'failed',
       );
       // O listener do caixa cobre o saldo, mas não o extrato nem a lista de
-      // saques: recarrega a vista do caixa em exibição.
-      ref.invalidate(
-        organizerWalletViewProvider(ref.read(selectedCashBoxIdProvider)),
-      );
+      // saques: recarrega a vista DESTE caixa.
+      _reloadCashBox(tournamentId);
     } catch (e) {
       if (!mounted) return;
       showAppSnackBar(context, 'Não foi possível solicitar: $e', isError: true);
@@ -175,6 +159,28 @@ class _OrganizerFinancialPageState
     // O valor digitado valia para o saldo do caixa anterior.
     _amountController.clear();
     ref.read(selectedCashBoxIdProvider.notifier).state = tournamentId;
+  }
+
+  /// Recarrega o caixa que está NA TELA, fixando a seleção nele.
+  ///
+  /// Recarregar com a seleção vazia pediria de novo "o caixa mais cheio de
+  /// agora", e é aí que estava o defeito: o saque move o disponível do caixa
+  /// atual para pendente, o servidor passa a devolver OUTRO evento, e a tela
+  /// troca de caixa sozinha depois do pedido — extrato de outro evento, saldo
+  /// que sobe, nenhum sinal do saque recém-pedido e o próximo saque saindo do
+  /// caixa errado. Por isso todo recarregamento daqui para frente vai com o
+  /// `tournamentId` explícito.
+  ///
+  /// Fixar a seleção numa chave nova já dispara a carga dessa chave; se ela já
+  /// era a observada, aí sim é preciso invalidar — invalidar uma chave
+  /// diferente da observada não recarrega nada.
+  void _reloadCashBox(String tournamentId) {
+    if (tournamentId.isEmpty) return;
+    if (ref.read(selectedCashBoxIdProvider) != tournamentId) {
+      ref.read(selectedCashBoxIdProvider.notifier).state = tournamentId;
+      return;
+    }
+    ref.invalidate(organizerWalletViewProvider(tournamentId));
   }
 
   String _resultMessage(OrganizerWithdrawalRequestResult r) {
@@ -220,15 +226,20 @@ class _OrganizerFinancialPageState
   /// estado vazio diria à pessoa que ela perdeu o acesso ao dinheiro.
   Widget _body(AsyncValue<OrganizerWalletView> walletAsync, String? selectedId) {
     final view = walletAsync.valueOrNull;
+    final busy = walletAsync.isLoading;
     if (view == null) {
       if (walletAsync.hasError) {
         return AppErrorView(
           title: 'Não foi possível carregar o Financeiro',
           message: 'Falhou a busca dos caixas dos seus eventos. Nada foi '
               'perdido: o saldo, o extrato e os saques continuam no lugar.',
-          retryLabel: 'Tentar de novo',
-          onRetry: () =>
-              ref.invalidate(organizerWalletViewProvider(selectedId)),
+          // Enquanto a nova tentativa está no ar o card é idêntico ao de
+          // antes — e com o cold start da callable (5–16 s) a pessoa toca de
+          // novo e dispara N cargas. O rótulo é o único sinal de vida.
+          retryLabel: busy ? 'Tentando…' : 'Tentar de novo',
+          onRetry: busy
+              ? () {}
+              : () => ref.invalidate(organizerWalletViewProvider(selectedId)),
         );
       }
       return const AppLoadingView(
@@ -236,9 +247,23 @@ class _OrganizerFinancialPageState
       );
     }
 
+    // Erro SOBRE dado carregado: `AsyncError.copyWithPrevious` preserva
+    // `hasValue`, então este caso nunca cai no card de erro acima. Sem aviso, a
+    // recarga que falhou depois de um saque deixaria o saldo caindo pelo
+    // listener enquanto o extrato e os saques seguem velhos — dinheiro saindo
+    // sem linha de saque nenhuma na tela.
+    final staleWarning = walletAsync.hasError;
+
     final payout = _savedPayout ?? view.payout;
     final selected = view.selected;
-    if (selected == null) return _noCashBoxBody(payout);
+    if (selected == null) {
+      return _noCashBoxBody(
+        payout,
+        staleWarning: staleWarning,
+        busy: busy,
+        selectedId: selectedId,
+      );
+    }
 
     // Saldo ao vivo por cima da linha que a callable trouxe: a fusão mantém o
     // nome do torneio, que o doc do caixa não guarda. Stream com erro não
@@ -246,9 +271,9 @@ class _OrganizerFinancialPageState
     final live = ref
         .watch(organizerCashBoxLiveProvider(selected.tournamentId))
         .valueOrNull;
-    final current = applyLiveBalance(selected, selected.tournamentId, live);
+    final current = applyLiveBalance(selected, live);
     final boxes = view.cashBoxes
-        .map((b) => applyLiveBalance(b, selected.tournamentId, live))
+        .map((b) => applyLiveBalance(b, live))
         .toList(growable: false);
     final available = current.availableReais;
     final viewerUid = ref.watch(currentOrganizerIdProvider) ?? '';
@@ -256,6 +281,13 @@ class _OrganizerFinancialPageState
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
       children: [
+        if (staleWarning) ...[
+          _StaleDataWarning(
+            busy: busy,
+            onRetry: () => _reloadCashBox(current.tournamentId),
+          ),
+          const SizedBox(height: 14),
+        ],
         if (boxes.length > 1)
           _CashBoxSelector(
             boxes: boxes,
@@ -311,10 +343,25 @@ class _OrganizerFinancialPageState
   /// quem acabou de criar o primeiro evento e ainda não teve inscrição paga
   /// pela plataforma. Por isso o texto explica a regra em vez de dizer que não
   /// há nada aqui. A chave PIX continua editável: ela é da pessoa.
-  Widget _noCashBoxBody(OrganizerPayoutProfile payout) {
+  Widget _noCashBoxBody(
+    OrganizerPayoutProfile payout, {
+    required bool staleWarning,
+    required bool busy,
+    required String? selectedId,
+  }) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
       children: [
+        if (staleWarning) ...[
+          _StaleDataWarning(
+            busy: busy,
+            // Sem caixa em exibição não há id para fixar: a nova tentativa é
+            // da mesma chave que já está sendo observada.
+            onRetry: () =>
+                ref.invalidate(organizerWalletViewProvider(selectedId)),
+          ),
+          const SizedBox(height: 14),
+        ],
         const _NoCashBoxCard(),
         const SizedBox(height: 20),
         _PixKeyRow(payout: payout, onEdit: () => _editPixKey(payout)),
@@ -324,6 +371,50 @@ class _OrganizerFinancialPageState
           'para ela.',
         ),
       ],
+    );
+  }
+}
+
+/// Aviso de recarga que falhou com dado já na tela. É aviso, não substituição:
+/// os números continuam valendo, só podem estar velhos — e trocar a tela pelo
+/// card de erro esconderia o saldo e o extrato que a pessoa já tinha.
+class _StaleDataWarning extends StatelessWidget {
+  const _StaleDataWarning({required this.busy, required this.onRetry});
+
+  final bool busy;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: AppColors.pending.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.pending.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_rounded,
+              size: 18, color: AppColors.pending),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Não foi possível atualizar o caixa. O extrato e os saques '
+              'abaixo podem estar desatualizados.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.onSurface,
+                    height: 1.35,
+                  ),
+            ),
+          ),
+          TextButton(
+            onPressed: busy ? null : onRetry,
+            child: Text(busy ? 'Tentando…' : 'Tentar de novo'),
+          ),
+        ],
+      ),
     );
   }
 }

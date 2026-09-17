@@ -102,6 +102,46 @@ export function withdrawalQueueSubtitle(row: PendingWithdrawal): string {
 }
 
 /**
+ * Nome de quem de fato pediu, só quando é um gestor da equipe — `null`
+ * quando foi o próprio dono (aí "Solicitante" já é a resposta completa) ou
+ * quando é saque de arena (não existe esse conceito lá). Nunca cai no nome
+ * do dono quando falta o nome de quem pediu: diria que ele pediu pra si
+ * mesmo, o que seria falso — mesma regra de `withdrawalQueueSubtitle`.
+ */
+export function withdrawalRequestedByStaffName(row: PendingWithdrawal): string | null {
+  if (row.kind !== 'organizer' || !row.requestedByStaff) {
+    return null;
+  }
+  return row.requestedByName?.trim() || 'gestor da equipe';
+}
+
+/**
+ * Mensagem de retorno depois de uma decisão na fila. `value` já vem
+ * formatado em reais pelo chamador — esta função só compõe o texto, não
+ * formata dinheiro. Quando um gestor da equipe pediu, o texto diz isso
+ * (e, no caso aprovado, diz pra quem o PIX foi de verdade — não é sempre o
+ * organizador); quando foi o próprio dono, ou é saque de arena, a frase é a
+ * mesma de sempre.
+ */
+export function withdrawalDecisionMessage(
+  row: PendingWithdrawal,
+  decision: WithdrawalDecision,
+  value: string,
+): string {
+  const who = row.requesterName;
+  const requester = withdrawalRequestedByStaffName(row);
+  if (decision === 'rejected') {
+    return `Saque de ${value} de ${who} recusado${requester ? ` (pedido por ${requester})` : ''} — o valor voltou para a carteira.`;
+  }
+  if (decision === 'approved_manual') {
+    return `Saque de ${value} de ${who} marcado como pago por fora${requester ? ` (pedido por ${requester})` : ''}.`;
+  }
+  return requester
+    ? `PIX de ${value} enviado para ${requester}, gestor do evento de ${who}.`
+    : `PIX de ${value} enviado para ${who}.`;
+}
+
+/**
  * Fila de saques pendentes do backoffice.
  *
  * `approved` dispara o PIX de verdade (Asaas); `approved_manual` só registra que

@@ -10,7 +10,9 @@ import { PillComponent } from '../ui/pill.component';
 import { FinanceOverviewComponent } from './finance-overview.component';
 import {
   WithdrawalsRepository,
+  withdrawalDecisionMessage,
   withdrawalQueueSubtitle,
+  withdrawalRequestedByStaffName,
   type PendingWithdrawal,
   type WithdrawalDecision,
   type WithdrawalKind,
@@ -172,7 +174,11 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
                     <div class="table-row">
                       <div class="cell-who">
                         <div class="who-name">{{ row.requesterName }}</div>
-                        <div class="who-id">{{ row.kind === 'organizer' ? subtitleOf(row) : row.requesterId }}</div>
+                        @if (row.kind === 'organizer') {
+                          <div class="who-context" [title]="subtitleOf(row)">{{ subtitleOf(row) }}</div>
+                        } @else {
+                          <div class="who-id">{{ row.requesterId }}</div>
+                        }
                         @if (row.payoutError) {
                           <div class="who-error">
                             <bo-pill tone="red">Falha anterior</bo-pill>
@@ -350,6 +356,15 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .who-context {
+      font-family: var(--nx-font-mono);
+      font-size: 9.5px;
+      color: var(--nx-text-dim);
+      line-height: 1.35;
+      white-space: normal;
+      overflow-wrap: break-word;
     }
 
     .who-error {
@@ -599,18 +614,7 @@ export class PanelFinanceiroComponent {
   }
 
   private successMessage({ withdrawal, decision }: PendingDecision): string {
-    const who = withdrawal.requesterName;
-    const value = BRL.format(withdrawal.amountReais);
-    const requester = this.requestedByStaffName(withdrawal);
-    if (decision === 'rejected') {
-      return `Saque de ${value} de ${who} recusado${requester ? ` (pedido por ${requester})` : ''} — o valor voltou para a carteira.`;
-    }
-    if (decision === 'approved_manual') {
-      return `Saque de ${value} de ${who} marcado como pago por fora${requester ? ` (pedido por ${requester})` : ''}.`;
-    }
-    return requester
-      ? `PIX de ${value} enviado para ${requester}, gestor do evento de ${who}.`
-      : `PIX de ${value} enviado para ${who}.`;
+    return withdrawalDecisionMessage(withdrawal, decision, this.money(withdrawal.amountReais));
   }
 
   protected money(amount: number): string {
@@ -633,10 +637,7 @@ export class PanelFinanceiroComponent {
    * resultado: pra quem o PIX realmente vai.
    */
   protected requestedByStaffName(withdrawal: PendingWithdrawal): string | null {
-    if (withdrawal.kind !== 'organizer' || !withdrawal.requestedByStaff) {
-      return null;
-    }
-    return withdrawal.requestedByName?.trim() || withdrawal.requesterName;
+    return withdrawalRequestedByStaffName(withdrawal);
   }
 
   protected noteValue(event: Event): string {

@@ -178,7 +178,7 @@ function seedTournamentWithOrganizer(fake: FakeFirestore): void {
 }
 
 function walletDoc(fake: FakeFirestore): Record<string, unknown> | undefined {
-  return fake.store.get("organizerWallets/org1");
+  return fake.store.get("tournamentWallets/t1");
 }
 
 describe("asaas-tournament-registration-webhook: cartão em duas fases", () => {
@@ -262,6 +262,21 @@ describe("asaas-tournament-registration-webhook: cartão em duas fases", () => {
     );
 
     assert.equal(walletDoc(fake)!["availableReais"], 92);
+  });
+
+  it("grava o dono do torneio no caixa", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, CARD_PENDING_A);
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", cardPayment("RECEIVED", {netValue: 96.71}),
+      processedRefOf(db), makeDeps().deps,
+    );
+
+    assert.equal(walletDoc(fake)!["ownerId"], "org1");
+    assert.equal(walletDoc(fake)!["tournamentId"], "t1");
   });
 });
 

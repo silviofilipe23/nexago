@@ -143,6 +143,7 @@ abstract final class TournamentDocumentMapper {
       organizerPixRecipientName: _pixField(data['organizerPix'], 'recipientName'),
       organizerPixCity: _pixField(data['organizerPix'], 'city'),
       requireFormedPair: data['requireFormedPair'] == true,
+      enrolledTeamsVisible: data['enrolledTeamsVisible'] != false,
       registrationHoldMinutes: _registrationHoldMinutes(data),
     );
   }

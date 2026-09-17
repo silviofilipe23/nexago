@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
@@ -9,25 +12,62 @@ import '../../../domain/focus/focus_now_state.dart';
 import '../../../domain/focus/focus_views_logic.dart';
 import '../../../domain/tournament_match_card_view_model.dart';
 import '../../widgets/nexa_duo_avatars.dart';
+import '../../../../athlete/presentation/public_profile/widgets/profile_photo_viewer.dart';
+
+/// Arte de fundo do Agora (protótipo Focus) — full-bleed atrás da lista.
+const kFocusNowHeroBackgroundAsset =
+    'assets/images/sports/match_detail_live_bg.webp';
+
+/// Foto + gradiente cobrindo a seção Agora inteira.
+class FocusAgoraScreenBackground extends StatelessWidget {
+  const FocusAgoraScreenBackground({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.asset(
+          kFocusNowHeroBackgroundAsset,
+          fit: BoxFit.cover,
+          alignment: const Alignment(0, -0.15),
+          errorBuilder: (_, __, ___) =>
+              const ColoredBox(color: Color(0xFF0A0A0A)),
+        ),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0x99000000),
+                Color(0x66000000),
+                Color(0xB3000000),
+                Color(0xF2050505),
+              ],
+              stops: [0, 0.18, 0.55, 1],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 /// O bloco principal da seção "Agora", nos cinco estados.
 ///
-/// Layout dos protótipos: as duplas ficam LADO A LADO com o "vs" no meio, e a
-/// contagem regressiva fica ACIMA delas, com a barra do intervalo. É diferente
-/// do portal (que empilha no celular) e é deliberado — a leitura de "quem
-/// contra quem" é o que o atleta procura primeiro na tela.
+/// Protótipo: foto full-bleed no topo com "PRÓXIMO JOGO" + countdown, depois
+/// confronto horizontal, faixa glass de horário/quadra/fase e CTA de chegar.
 ///
-/// [accent] pinta a moldura: laranja no fluxo normal, vermelho na chamada de
-/// quadra e amarelo na repescagem da dupla eliminação, onde uma derrota
-/// elimina.
+/// [accent] pinta CTA e destaques: laranja no fluxo normal, amarelo na
+/// repescagem, vermelho na chamada de quadra.
 class FocusNowHero extends StatelessWidget {
   const FocusNowHero({
     super.key,
     required this.state,
     required this.view,
     required this.card,
-    required this.kicker,
-    required this.progress,
+    required this.contextTag,
     required this.calledAt,
     required this.walkAwayLabel,
     required this.accent,
@@ -37,39 +77,38 @@ class FocusNowHero extends StatelessWidget {
     required this.onOpenMaps,
     required this.onShare,
     this.leadIn,
-    this.footnote,
+    this.phaseEyebrow,
+    this.phaseValue,
+    this.timeEyebrow,
+    this.timeLabel,
   });
 
   final FocusNowState state;
   final NextMatchView? view;
   final TournamentMatchCardViewModel? card;
 
-  /// "SUA PRÓXIMA · GRUPO B · R3" — o contexto da partida, montado por quem
-  /// chama porque depende do formato (grupo, chave dos vencedores, repescagem).
-  final String kicker;
+  /// "GRUPO B • R3" — contexto curto no canto do herói.
+  final String contextTag;
 
-  /// Quanto do intervalo desde o jogo anterior já passou. `null` esconde a
-  /// barra — ver [focusCountdownProgress].
-  final double? progress;
-
-  /// "11:26" — quando a mesa chamou. `null` esconde a linha.
   final String? calledAt;
-
-  /// "W.O. em 8:42" quando há prazo a mostrar.
   final String? walkAwayLabel;
-
   final Color accent;
 
-  /// O atleta já começou a jogar hoje — ver [athleteFirstMatchStarted]. Troca a
-  /// ação principal do card: rota até a arena antes, compartilhar depois.
+  /// True quando alguma partida do atleta hoje já começou/terminou — aí o
+  /// "Como chegar" some: ele já está na arena.
   final bool firstMatchStarted;
-
-  /// Parágrafo acima da contagem — usado na repescagem para explicar o que
-  /// ainda está em jogo.
   final String? leadIn;
 
-  /// Linha de rodapé do card ("3º jogo do dia · 46 min de descanso").
-  final String? footnote;
+  /// "Fase de Grupos" / "Mata-mata" — coluna da direita na faixa glass.
+  final String? phaseEyebrow;
+  final String? phaseValue;
+
+  /// "Hoje" / "Amanhã" / "12/10" — coluna de horário da faixa glass.
+  final String? timeEyebrow;
+
+  /// "16/09 · 14:30" — sobrescreve [NextMatchView.timeLabel] quando a seção
+  /// precisa mostrar data + hora (próxima partida pode ser outro dia).
+  final String? timeLabel;
 
   final VoidCallback onAcknowledge;
   final VoidCallback onOpenMatch;
@@ -78,8 +117,6 @@ class FocusNowHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.themeColors;
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.screenH,
@@ -87,144 +124,67 @@ class FocusNowHero extends StatelessWidget {
         AppSpacing.screenH,
         AppSpacing.lg,
       ),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        decoration: BoxDecoration(
-          color: colors.surfaceCard,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: accent.withValues(alpha: 0.55)),
-          boxShadow: [
-            BoxShadow(
-              color: accent.withValues(alpha: 0.10),
-              blurRadius: 40,
-              spreadRadius: -8,
-            ),
-          ],
+      child: switch (state) {
+        FocusNowState.called => _Shell(
+          child: _CalledBody(
+            view: view,
+            calledAt: calledAt,
+            walkAwayLabel: walkAwayLabel,
+            onAcknowledge: onAcknowledge,
+            onOpenMatch: onOpenMatch,
+            onOpenMaps: onOpenMaps,
+          ),
         ),
-        child: switch (state) {
-          FocusNowState.called => _CalledBody(
-              view: view,
-              calledAt: calledAt,
-              walkAwayLabel: walkAwayLabel,
-              onAcknowledge: onAcknowledge,
-              onOpenMatch: onOpenMatch,
-              onOpenMaps: onOpenMaps,
-            ),
-          FocusNowState.live ||
-          FocusNowState.next =>
-            _MatchBody(
-              view: view,
-              card: card,
-              kicker: kicker,
-              progress: progress,
-              accent: accent,
-              leadIn: leadIn,
-              footnote: footnote,
-              firstMatchStarted: firstMatchStarted,
-              onOpenMaps: onOpenMaps,
-              onOpenMatch: onOpenMatch,
-              onShare: onShare,
-            ),
-          // Fato da CATEGORIA, não promessa ao leitor: a checagem de pendência
-          // não distingue quem classificou de quem já caiu no mata-mata, então
-          // o texto nunca diz "seu adversário" nem menciona grupos.
-          FocusNowState.pendingKnockout => const _Message(
-              title: 'A chave ainda está sendo definida',
-              body: 'Os confrontos e as quadras saem conforme as partidas '
-                  'pendentes terminam.',
-            ),
-          FocusNowState.idle => const _Message(
-              title: 'Seu dia acabou por aqui',
-              body: 'Você não tem mais partidas pendentes neste torneio.',
-            ),
-        },
-      ),
+        FocusNowState.live || FocusNowState.next => _MatchBody(
+          view: view,
+          card: card,
+          contextTag: contextTag,
+          accent: accent,
+          leadIn: leadIn,
+          phaseEyebrow: phaseEyebrow,
+          phaseValue: phaseValue,
+          timeEyebrow: timeEyebrow,
+          timeLabel: timeLabel,
+          firstMatchStarted: firstMatchStarted,
+          onOpenMaps: onOpenMaps,
+          onShare: onShare,
+        ),
+        FocusNowState.pendingKnockout => const _Shell(
+          child: _Message(
+            title: 'A chave ainda está sendo definida',
+            body:
+                'Os confrontos e as quadras saem conforme as partidas '
+                'pendentes terminam.',
+          ),
+        ),
+        FocusNowState.idle => const _Shell(
+          child: _Message(
+            title: 'Seu dia acabou por aqui',
+            body: 'Você não tem mais partidas pendentes neste torneio.',
+          ),
+        ),
+      },
     );
   }
 }
 
-/// Uma dupla no herói: rostos, nome e a linha de posição/cartel.
-class _Side extends StatelessWidget {
-  const _Side({
-    required this.duo,
-    required this.players,
-    required this.accent,
-  });
+class _Shell extends StatelessWidget {
+  const _Shell({required this.child});
 
-  final DuoView? duo;
-  final List<TournamentMatchCardPlayerViewModel> players;
-  final Color accent;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final d = duo;
-    final isMe = d?.isMe ?? false;
-
-    return Column(
-      children: [
-        NexaDuoAvatars(players: players, size: 44),
-        const SizedBox(height: AppSpacing.sm),
-        Text(
-          d?.name ?? 'A definir',
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: AppTypography.titleM.copyWith(
-            color: colors.onSurface,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        if (d?.standingLine != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 3),
-            child: Text(
-              isMe ? 'VOCÊS · ${d!.standingLine}' : d!.standingLine!,
-              textAlign: TextAlign.center,
-              style: AppTypography.monoMeta.copyWith(
-                color: isMe ? accent : colors.onSurfaceMuted,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  const _Chip({required this.label, this.icon, this.accent});
-
-  final String label;
-  final IconData? icon;
-  final Color? accent;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    final color = accent ?? colors.onSurfaceMuted;
-
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.xs + 2,
-      ),
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: accent != null ? accent! : colors.outline,
-        ),
+        color: colors.surfaceCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.outline),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 12, color: color),
-            const SizedBox(width: 4),
-          ],
-          Text(label, style: AppTypography.monoMeta.copyWith(color: color)),
-        ],
-      ),
+      child: child,
     );
   }
 }
@@ -233,27 +193,29 @@ class _MatchBody extends StatelessWidget {
   const _MatchBody({
     required this.view,
     required this.card,
-    required this.kicker,
-    required this.progress,
+    required this.contextTag,
     required this.accent,
     required this.leadIn,
-    required this.footnote,
+    required this.phaseEyebrow,
+    required this.phaseValue,
+    required this.timeEyebrow,
+    required this.timeLabel,
     required this.firstMatchStarted,
     required this.onOpenMaps,
-    required this.onOpenMatch,
     required this.onShare,
   });
 
   final NextMatchView? view;
   final TournamentMatchCardViewModel? card;
-  final String kicker;
-  final double? progress;
+  final String contextTag;
   final Color accent;
   final String? leadIn;
-  final String? footnote;
+  final String? phaseEyebrow;
+  final String? phaseValue;
+  final String? timeEyebrow;
+  final String? timeLabel;
   final bool firstMatchStarted;
   final VoidCallback onOpenMaps;
-  final VoidCallback onOpenMatch;
   final VoidCallback onShare;
 
   @override
@@ -262,87 +224,47 @@ class _MatchBody extends StatelessWidget {
     final v = view;
     if (v == null) return const SizedBox.shrink();
 
+    final courtShort = _courtNumber(v.courtLabel);
+    // Mapa só na 1ª partida do dia — depois o atleta já está na arena.
+    // Compartilhar só fecha o poster com os dois lados preenchidos.
+    final showMaps = !firstMatchStarted;
+    final showShare = v.sideA.teamId.trim().isNotEmpty &&
+        v.sideB.teamId.trim().isNotEmpty;
+    final mapsLabel = courtShort != null
+        ? 'Como chegar na quadra $courtShort'
+        : 'Como chegar';
+    final filledStyle = FilledButton.styleFrom(
+      backgroundColor: accent,
+      foregroundColor: _onAccent(accent),
+      minimumSize: const Size(0, 52),
+      shape: const RoundedRectangleBorder(borderRadius: AppRadii.mdAll),
+    );
+    final outlineStyle = OutlinedButton.styleFrom(
+      foregroundColor: accent,
+      side: BorderSide(color: accent.withValues(alpha: 0.85), width: 1.5),
+      minimumSize: const Size(0, 52),
+      shape: const RoundedRectangleBorder(borderRadius: AppRadii.mdAll),
+    );
+
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                kicker,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.eyebrow.copyWith(color: accent),
-              ),
-            ),
-            if (v.checkedIn)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm + 2,
-                  vertical: 3,
-                ),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: colors.win),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.check_rounded, size: 11, color: colors.win),
-                    const SizedBox(width: 3),
-                    Text(
-                      'CHECK-IN',
-                      style:
-                          AppTypography.eyebrow.copyWith(color: colors.win),
-                    ),
-                  ],
-                ),
-              ),
-          ],
+        _HeroHeadline(
+          contextTag: contextTag,
+          checkedIn: v.checkedIn,
+          live: v.live,
+          scheduleTime: v.scheduleTime,
+          liveScoreLine: v.liveScoreLine,
+          accent: accent,
         ),
-        if (leadIn != null)
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.md),
-            child: Text(
-              leadIn!,
-              style: AppTypography.bodyM.copyWith(color: colors.onSurface),
-            ),
-          ),
-        const SizedBox(height: AppSpacing.lg),
-        Center(
-          child: Column(
-            children: [
-              Text(
-                v.live ? 'EM QUADRA' : 'COMEÇA EM',
-                style:
-                    AppTypography.eyebrow.copyWith(color: colors.onSurfaceMuted),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                v.live
-                    ? (v.liveScoreLine ?? 'Ao vivo')
-                    : (v.countdownClock ?? v.timeLabel),
-                style: AppTypography.monoStat.copyWith(
-                  color: accent,
-                  fontSize: v.live ? 28 : 54,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (progress != null) ...[
+        if (leadIn != null) ...[
           const SizedBox(height: AppSpacing.md),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 5,
-              backgroundColor: colors.surfaceRaised,
-              valueColor: AlwaysStoppedAnimation(accent),
-            ),
+          Text(
+            leadIn!,
+            style: AppTypography.bodyM.copyWith(color: colors.onSurface),
           ),
         ],
-        const SizedBox(height: AppSpacing.xl),
+        const SizedBox(height: AppSpacing.lg),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -350,89 +272,466 @@ class _MatchBody extends StatelessWidget {
               child: _Side(
                 duo: v.sideA,
                 players: card?.teamA.players ?? const [],
-                accent: accent,
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-              child: Text(
-                'vs',
-                style: AppTypography.monoMeta
-                    .copyWith(color: colors.onSurfaceMuted),
+            SizedBox(
+              height: _kFocusHeroAvatarSize,
+              child: Center(
+                child: Text(
+                  'VS',
+                  style: AppTypography.monoMeta.copyWith(
+                    color: colors.onSurface,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
             ),
             Expanded(
               child: _Side(
                 duo: v.sideB,
                 players: card?.teamB.players ?? const [],
-                accent: accent,
               ),
             ),
           ],
         ),
         const SizedBox(height: AppSpacing.lg),
+        _InfoStrip(
+          timeEyebrow: timeEyebrow ?? 'Hoje',
+          timeLabel: timeLabel ?? v.timeLabel,
+          courtNumber: courtShort,
+          phaseEyebrow: phaseEyebrow ?? 'Fase',
+          phaseValue: phaseValue ?? v.kicker,
+        ),
+        if (showMaps || showShare) const SizedBox(height: AppSpacing.md),
+        if (showMaps)
+          FilledButton.icon(
+            onPressed: onOpenMaps,
+            style: filledStyle,
+            icon: const Icon(Icons.near_me_rounded, size: 18),
+            label: Text(mapsLabel),
+          ),
+        if (showMaps && showShare) const SizedBox(height: AppSpacing.sm),
+        if (showShare)
+          showMaps
+              ? OutlinedButton.icon(
+                  onPressed: onShare,
+                  style: outlineStyle,
+                  icon: const Icon(Icons.ios_share_rounded, size: 18),
+                  label: const Text('Compartilhar'),
+                )
+              : FilledButton.icon(
+                  onPressed: onShare,
+                  style: filledStyle,
+                  icon: const Icon(Icons.ios_share_rounded, size: 18),
+                  label: const Text('Compartilhar'),
+                ),
+      ],
+    );
+  }
+}
+
+class _HeroHeadline extends StatefulWidget {
+  const _HeroHeadline({
+    required this.contextTag,
+    required this.checkedIn,
+    required this.live,
+    required this.scheduleTime,
+    required this.liveScoreLine,
+    required this.accent,
+  });
+
+  final String contextTag;
+  final bool checkedIn;
+  final bool live;
+  final DateTime? scheduleTime;
+  final String? liveScoreLine;
+  final Color accent;
+
+  @override
+  State<_HeroHeadline> createState() => _HeroHeadlineState();
+}
+
+class _HeroHeadlineState extends State<_HeroHeadline> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncTicker();
+  }
+
+  @override
+  void didUpdateWidget(covariant _HeroHeadline oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.live != widget.live ||
+        oldWidget.scheduleTime != widget.scheduleTime) {
+      _syncTicker();
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  void _syncTicker() {
+    _ticker?.cancel();
+    _ticker = null;
+    // Só tica enquanto há contagem regressiva — ao vivo o placar vem do
+    // stream da partida, não deste relógio.
+    if (widget.live || widget.scheduleTime == null) return;
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {});
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final clock = widget.live
+        ? null
+        : countdownClockOf(widget.scheduleTime, DateTime.now());
+    final overdue =
+        !widget.live && widget.scheduleTime != null && clock == null;
+    final statusLabel = widget.live
+        ? 'EM QUADRA'
+        : overdue
+        ? 'ATRASADA'
+        : 'COMEÇA EM';
+    final valueLabel = widget.live
+        ? (widget.liveScoreLine ?? 'Ao vivo')
+        : overdue
+        ? (countdownLabelOf(widget.scheduleTime, DateTime.now()) ?? '—')
+              .replaceFirst('atrasada ', '')
+        : (clock ?? '—');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                widget.contextTag,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.eyebrow.copyWith(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+            if (widget.checkedIn)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.win.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: AppColors.win.withValues(alpha: 0.7),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.check_rounded,
+                      size: 12,
+                      color: AppColors.win,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'CHECK-IN LIBERADO',
+                      style: AppTypography.eyebrow.copyWith(
+                        color: AppColors.win,
+                        fontSize: 9,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xl),
         Center(
-          child: Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm - 2,
-            alignment: WrapAlignment.center,
+          child: Column(
             children: [
-              _Chip(label: v.timeLabel, accent: accent),
-              if (v.courtLabel != null)
-                _Chip(label: v.courtLabel!, icon: Icons.place_outlined),
-              _Chip(label: v.formatLabel),
+              _PrototypeTitle(live: widget.live),
+              const SizedBox(height: 6),
+              Text(
+                statusLabel,
+                style: AppTypography.eyebrow.copyWith(
+                  color: Colors.white.withValues(alpha: 0.7),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                valueLabel,
+                style: AppTypography.monoStat.copyWith(
+                  color: overdue ? AppColors.live : widget.accent,
+                  fontSize: widget.live || overdue ? 28 : 40,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ],
           ),
         ),
-        const SizedBox(height: AppSpacing.lg),
-        // Uma ação só, e ela muda de dono no meio do dia: até a primeira
-        // partida entrar em quadra o atleta está a caminho e quer a rota;
-        // depois disso ele já está na areia e o que sobra é mostrar o jogo.
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: firstMatchStarted ? onShare : onOpenMaps,
-            style: FilledButton.styleFrom(
-              backgroundColor: accent,
-              foregroundColor: _onAccent(accent),
-              minimumSize: const Size(0, 48),
-              shape: const RoundedRectangleBorder(
-                borderRadius: AppRadii.mdAll,
+      ],
+    );
+  }
+}
+
+/// "PRÓXIMO JOGO" no estilo do protótipo — Sora pesado (sem fonte brush).
+class _PrototypeTitle extends StatelessWidget {
+  const _PrototypeTitle({required this.live});
+
+  final bool live;
+
+  @override
+  Widget build(BuildContext context) {
+    if (live) {
+      return Text(
+        'AO VIVO',
+        style: AppTypography.displayL.copyWith(
+          color: AppColors.live,
+          fontStyle: FontStyle.italic,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -1,
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Text.rich(
+          TextSpan(
+            style: AppTypography.displayL.copyWith(
+              fontStyle: FontStyle.italic,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -1.2,
+              height: 1,
+            ),
+            children: const [
+              TextSpan(
+                text: 'PRÓXIMO ',
+                style: TextStyle(color: Colors.white),
               ),
-            ),
-            icon: Icon(
-              firstMatchStarted ? Icons.ios_share_rounded : Icons.place_rounded,
-              size: 18,
-            ),
-            label: Text(
-              firstMatchStarted
-                  ? 'COMPARTILHAR'
-                  : v.courtLabel != null
-                  ? 'Como chegar na ${v.courtLabel}'
-                  : 'Como chegar',
-            ),
+              TextSpan(
+                text: 'JOGO',
+                style: TextStyle(color: AppColors.brand),
+              ),
+            ],
           ),
         ),
-        if (footnote != null)
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.md),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.notifications_none_rounded,
-                  size: 14,
-                  color: colors.onSurfaceMuted,
+        const SizedBox(height: 4),
+        Container(
+          width: 72,
+          height: 3,
+          decoration: BoxDecoration(
+            color: AppColors.brand,
+            borderRadius: BorderRadius.circular(999),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InfoStrip extends StatelessWidget {
+  const _InfoStrip({
+    required this.timeEyebrow,
+    required this.timeLabel,
+    required this.courtNumber,
+    required this.phaseEyebrow,
+    required this.phaseValue,
+  });
+
+  final String timeEyebrow;
+  final String timeLabel;
+  final String? courtNumber;
+  final String phaseEyebrow;
+  final String phaseValue;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _InfoCell(
+                  icon: Icons.calendar_today_outlined,
+                  eyebrow: timeEyebrow,
+                  value: timeLabel,
                 ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    footnote!,
-                    style: AppTypography.bodyS
-                        .copyWith(color: colors.onSurfaceMuted),
+              ),
+              _Divider(),
+              Expanded(
+                child: _InfoCell(
+                  icon: Icons.place_outlined,
+                  eyebrow: 'Quadra',
+                  value: courtNumber ?? '—',
+                ),
+              ),
+              _Divider(),
+              Expanded(
+                child: _InfoCell(
+                  icon: Icons.account_tree_outlined,
+                  eyebrow: phaseEyebrow,
+                  value: phaseValue,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Divider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 36,
+      color: Colors.white.withValues(alpha: 0.10),
+    );
+  }
+}
+
+class _InfoCell extends StatelessWidget {
+  const _InfoCell({
+    required this.icon,
+    required this.eyebrow,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String eyebrow;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return Column(
+      children: [
+        Icon(icon, size: 14, color: colors.onSurfaceMuted),
+        const SizedBox(height: 4),
+        Text(
+          eyebrow,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTypography.monoMeta.copyWith(
+            color: colors.onSurfaceMuted,
+            fontSize: 9,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTypography.titleS.copyWith(
+            color: colors.onSurface,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Side extends StatelessWidget {
+  const _Side({required this.duo, required this.players});
+
+  static const _avatarSize = _kFocusHeroAvatarSize;
+
+  final DuoView? duo;
+  final List<TournamentMatchCardPlayerViewModel> players;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final d = duo;
+    final isMe = d?.isMe ?? false;
+    final nameList = players
+        .map((p) => p.name.trim())
+        .where((n) => n.isNotEmpty)
+        .take(2)
+        .toList();
+    // Só o adversário abre o visualizador — o atleta já conhece a própria
+    // dupla; o gesto serve para olhar quem vem pela frente.
+    final canPreview =
+        !isMe && players.any((p) => (p.avatarUrl ?? '').trim().isNotEmpty);
+
+    return Column(
+      children: [
+        _PressableDuoAvatars(
+          players: players,
+          size: _avatarSize,
+          enabled: canPreview,
+          onTap: canPreview
+              ? () => openProfilePhotoViewer(
+                  context,
+                  photoUrls: [
+                    for (final p in players)
+                      if ((p.avatarUrl ?? '').trim().isNotEmpty)
+                        p.avatarUrl!.trim(),
+                  ],
+                )
+              : null,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        if (isMe)
+          Text(
+            'Você',
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.titleS.copyWith(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w800,
+            ),
+          )
+        else if (nameList.isNotEmpty)
+          Column(
+            children: [
+              for (var i = 0; i < nameList.length; i++) ...[
+                if (i > 0) const SizedBox(height: 2),
+                Text(
+                  nameList[i],
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.titleS.copyWith(
+                    color: colors.onSurface,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
                   ),
                 ),
               ],
+            ],
+          )
+        else
+          Text(
+            d?.name ?? 'A definir',
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.titleS.copyWith(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w800,
             ),
           ),
       ],
@@ -440,7 +739,67 @@ class _MatchBody extends StatelessWidget {
   }
 }
 
-/// Amarelo pede tinta escura; laranja e vermelho pedem branco.
+/// Escala de pressão (0.94 → 1) antes de abrir o viewer — confirma o toque
+/// sem bounce exagerado.
+class _PressableDuoAvatars extends StatefulWidget {
+  const _PressableDuoAvatars({
+    required this.players,
+    required this.size,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final List<TournamentMatchCardPlayerViewModel> players;
+  final double size;
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  @override
+  State<_PressableDuoAvatars> createState() => _PressableDuoAvatarsState();
+}
+
+class _PressableDuoAvatarsState extends State<_PressableDuoAvatars> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (!widget.enabled || _pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: widget.enabled ? (_) => _setPressed(true) : null,
+      onTapUp: widget.enabled ? (_) => _setPressed(false) : null,
+      onTapCancel: widget.enabled ? () => _setPressed(false) : null,
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _pressed ? 0.94 : 1,
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOutCubic,
+        child: NexaDuoAvatars(players: widget.players, size: widget.size),
+      ),
+    );
+  }
+}
+
+String? _courtNumber(String? courtLabel) {
+  final raw = (courtLabel ?? '').trim();
+  if (raw.isEmpty) return null;
+  final numbered = RegExp(
+    r'(?:quadra\s*)?(\d+)$',
+    caseSensitive: false,
+  ).firstMatch(raw);
+  if (numbered != null) return numbered.group(1);
+  final q = RegExp(r'^Q(\d+)$', caseSensitive: false).firstMatch(raw);
+  if (q != null) return q.group(1);
+  return raw;
+}
+
+/// Diâmetro dos avatares da dupla no herói Agora.
+const double _kFocusHeroAvatarSize = 80;
+
 Color _onAccent(Color accent) =>
     accent == AppColors.pending ? const Color(0xFF0A0A0A) : Colors.white;
 
@@ -502,7 +861,8 @@ class _CalledBody extends StatelessWidget {
         Center(
           child: Text(
             [
-              if (opponent?.name != null) 'Sua partida é contra ${opponent!.name}.',
+              if (opponent?.name != null)
+                'Sua partida é contra ${opponent!.name}.',
               if (calledAt != null) 'A mesa chamou às $calledAt.',
             ].join(' '),
             textAlign: TextAlign.center,
@@ -519,14 +879,17 @@ class _CalledBody extends StatelessWidget {
               ),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.live.withValues(alpha: 0.6)),
+                border: Border.all(
+                  color: AppColors.live.withValues(alpha: 0.6),
+                ),
               ),
               child: Column(
                 children: [
                   Text(
                     'W.O. EM',
-                    style: AppTypography.eyebrow
-                        .copyWith(color: colors.onSurfaceMuted),
+                    style: AppTypography.eyebrow.copyWith(
+                      color: colors.onSurfaceMuted,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -551,8 +914,6 @@ class _CalledBody extends StatelessWidget {
               foregroundColor: Colors.white,
             ),
             icon: const Icon(Icons.check_rounded, size: 18),
-            // Só recolhe o alerta: não existe callable para avisar a mesa, e o
-            // rótulo não promete mais do que isso.
             label: const Text('Estou indo pra quadra'),
           ),
         ),

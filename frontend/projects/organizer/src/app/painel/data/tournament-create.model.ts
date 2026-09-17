@@ -115,6 +115,9 @@ export interface TournamentCreateDraft {
   rankingEnabled: boolean;
   rankingTableId: string;
   visibility: TournamentVisibility;
+  /** O atleta vê a lista de equipes inscritas (tela no app, aba no portal). Desligar esconde a
+   *  lista nas duas superfícies, não a contagem de inscritos. */
+  enrolledTeamsVisible: boolean;
 }
 
 export function emptyCategoryDraft(id: string): TournamentCategoryDraft {
@@ -187,6 +190,7 @@ export function emptyTournamentDraft(): TournamentCreateDraft {
     rankingEnabled: true,
     rankingTableId: 'nexago_standalone',
     visibility: 'publicListing',
+    enrolledTeamsVisible: true,
   };
 }
 

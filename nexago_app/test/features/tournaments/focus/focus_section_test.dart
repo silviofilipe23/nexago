@@ -5,18 +5,20 @@ void main() {
   group('focusSectionFromSlug', () {
     test('resolve cada slug', () {
       expect(focusSectionFromSlug('agora'), FocusSection.agora);
-      expect(focusSectionFromSlug('trajetoria'), FocusSection.trajetoria);
       expect(focusSectionFromSlug('grupo'), FocusSection.grupo);
       expect(focusSectionFromSlug('chave'), FocusSection.chave);
       expect(focusSectionFromSlug('arena'), FocusSection.arena);
       expect(focusSectionFromSlug('palpites'), FocusSection.palpites);
     });
 
-    test('slug desconhecido, vazio ou nulo cai em Agora', () {
-      // Deep link torto não pode deixar o atleta numa tela em branco.
+    test('slug desconhecido, vazio, nulo ou legado trajetoria cai em Agora',
+        () {
+      // Deep link torto / seção removida não pode deixar o atleta numa tela
+      // em branco.
       expect(focusSectionFromSlug('inexistente'), FocusSection.agora);
       expect(focusSectionFromSlug(''), FocusSection.agora);
       expect(focusSectionFromSlug(null), FocusSection.agora);
+      expect(focusSectionFromSlug('trajetoria'), FocusSection.agora);
     });
 
     test('tolera caixa e espaço', () {
@@ -24,28 +26,12 @@ void main() {
     });
   });
 
-  group('rótulos', () {
-    // Com cinco abas o slot cai para ~71px no iPhone comum, e "TRAJETÓRIA"
-    // (76px em Sora 11/w700) truncava como "TRAJETÓR…". "Jornada" cabe e é o
-    // termo que o domínio já usa (`focus_journey_logic`, `journeyStepsOf`).
-    test('a aba da trajetória se chama Jornada', () {
-      expect(FocusSection.trajetoria.label, 'Jornada');
-    });
-
-    test('o slug dela continua "trajetoria", para não quebrar deep link', () {
-      // `?secao=trajetoria` já circula; o rótulo é de tela, o slug é contrato.
-      expect(FocusSection.trajetoria.slug, 'trajetoria');
-      expect(focusSectionFromSlug('trajetoria'), FocusSection.trajetoria);
-    });
-  });
-
   group('visibleFocusSections', () {
-    test('a terceira aba é Grupo em categoria com fase de grupos', () {
+    test('a segunda aba é Grupo em categoria com fase de grupos', () {
       expect(
         visibleFocusSections(isDoubleElimination: false),
         [
           FocusSection.agora,
-          FocusSection.trajetoria,
           FocusSection.grupo,
           FocusSection.arena,
           FocusSection.palpites,
@@ -53,13 +39,12 @@ void main() {
       );
     });
 
-    test('a terceira aba é Chave na dupla eliminação', () {
+    test('a segunda aba é Chave na dupla eliminação', () {
       // Não há fase de grupos para mostrar; a mesma posição vira a chave.
       expect(
         visibleFocusSections(isDoubleElimination: true),
         [
           FocusSection.agora,
-          FocusSection.trajetoria,
           FocusSection.chave,
           FocusSection.arena,
           FocusSection.palpites,

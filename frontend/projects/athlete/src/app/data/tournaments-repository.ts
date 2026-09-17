@@ -262,6 +262,9 @@ export interface TournamentSummary {
    *  aceita o convite. A trava real é da CF `registerSoloTournament`; aqui o portal só deixa de
    *  oferecer o caminho da reserva solo. */
   requireFormedPair: boolean;
+  /** O atleta vê a lista de equipes inscritas (aba Equipes). Decisão do organizador; campo
+   *  AUSENTE vale `true` — ver `enrolledTeamsVisibleOf`. */
+  enrolledTeamsVisible: boolean;
   /** Minutos de garantia da vaga após o elenco fechar — default 30 quando ausente. */
   registrationHoldMinutes: number;
   /** Instante em que as inscrições abrem (`registrationOpensAt` no doc). Antes dele a CF
@@ -274,6 +277,13 @@ export interface TournamentSummary {
   registrationClosesAt: Date | null;
   tournamentPrizes: TournamentPrize[];
   categories: TournamentCategoryOffer[];
+}
+
+/** O organizador expõe o roster? Campo AUSENTE = VISÍVEL: a lista existia antes da flag, e
+ *  torneio já criado não pode perdê-la porque ninguém marcou uma caixa nova. Só o `false`
+ *  explícito esconde. */
+export function enrolledTeamsVisibleOf(data: Record<string, unknown>): boolean {
+  return data['enrolledTeamsVisible'] !== false;
 }
 
 export function organizerPixOf(raw: unknown): TournamentSummary['organizerPix'] {
@@ -344,6 +354,7 @@ function summaryFromDoc(id: string, data: Record<string, unknown>): TournamentSu
     organizerPix: organizerPixOf(data['organizerPix']),
     waitlistEnabled: data['waitlistEnabled'] !== false,
     requireFormedPair: data['requireFormedPair'] === true,
+    enrolledTeamsVisible: enrolledTeamsVisibleOf(data),
     registrationHoldMinutes: resolveRegistrationHoldMinutes(data),
     registrationOpensAt: toDate(data['registrationOpensAt']),
     registrationClosesAt: toDate(data['registrationClosesAt']),

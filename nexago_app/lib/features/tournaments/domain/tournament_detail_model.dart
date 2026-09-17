@@ -56,6 +56,7 @@ class TournamentDetail {
     this.organizerPixRecipientName = '',
     this.organizerPixCity = '',
     this.requireFormedPair = false,
+    this.enrolledTeamsVisible = true,
     this.registrationHoldMinutes = 30,
   });
 
@@ -120,6 +121,12 @@ class TournamentDetail {
   /// A trava real é da Cloud Function `registerSoloTournament`; aqui o app só
   /// deixa de oferecer o caminho da reserva solo.
   final bool requireFormedPair;
+
+  /// O organizador expõe a lista de equipes inscritas
+  /// (`tournaments/{id}.enrolledTeamsVisible`). Campo AUSENTE vale `true`: a
+  /// tela existia antes da flag e torneio antigo não pode perdê-la. Desligado,
+  /// o card da seção Explorar some e a própria tela recusa o acesso por link.
+  final bool enrolledTeamsVisible;
 
   /// Minutos de garantia da vaga após o elenco fechar (`registrationHoldMinutes`
   /// no Firestore). Default 30 — mesma regra do backend quando o campo falta.

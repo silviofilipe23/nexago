@@ -147,6 +147,9 @@ export class TournamentLiveStore {
       hasMyMatchToday: this.hasMyMatchToday(),
       isRegistered: this.isRegistered(),
       hasDefinedMatchups: this.hasDefinedMatchups(),
+      // Torneio ainda carregando não acende a aba: ausente no DOC significa visível, mas doc
+      // ausente significa "não sei" — piscar a aba e tirá-la em seguida é pior que esperar.
+      enrolledTeamsVisible: this.tournament()?.enrolledTeamsVisible ?? false,
     }),
   );
 

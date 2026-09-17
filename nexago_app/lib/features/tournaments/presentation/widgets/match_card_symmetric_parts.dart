@@ -130,7 +130,14 @@ class _StateMark extends StatelessWidget {
 
 /// Uma dupla: os dois rostos sobrepostos e o nome centralizado embaixo.
 class MatchCardSide extends StatelessWidget {
-  const MatchCardSide({super.key, required this.side, this.emphasized = false});
+  const MatchCardSide({
+    super.key,
+    required this.side,
+    this.emphasized = false,
+    this.avatarSize = 40,
+    this.nameFontSize = 14,
+    this.namesOnePerLine = false,
+  });
 
   final TournamentMatchRowSide side;
 
@@ -138,38 +145,71 @@ class MatchCardSide extends StatelessWidget {
   /// partida nunca liga isto.
   final bool emphasized;
 
+  /// Diâmetro de cada rosto. O card de palpite sobe pra 56; o de partida
+  /// mantém 40.
+  final double avatarSize;
+
+  /// Tamanho do nome sob os avatares.
+  final double nameFontSize;
+
+  /// No palpite cada atleta fica em uma linha; no card de partida o nome da
+  /// dupla continua numa só.
+  final bool namesOnePerLine;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    final nameStyle = AppTypography.soraRegular(
+      fontSize: nameFontSize,
+      fontWeight: side.mine || emphasized
+          ? FontWeight.w700
+          : side.lost || side.tbd
+              ? FontWeight.w500
+              : FontWeight.w600,
+      color: emphasized
+          ? AppColors.brand
+          : side.tbd
+              ? colors.onSurfaceMuted.withValues(alpha: 0.85)
+              : side.lost
+                  ? colors.onSurfaceMuted
+                  : colors.onSurface,
+    ).copyWith(
+      fontStyle: side.tbd ? FontStyle.italic : FontStyle.normal,
+    );
+    final playerNames = side.players
+        .map((p) => p.name.trim())
+        .where((n) => n.isNotEmpty)
+        .take(2)
+        .toList();
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        NexaDuoAvatars(players: side.players, size: 40),
+        NexaDuoAvatars(players: side.players, size: avatarSize),
         const SizedBox(height: AppSpacing.sm),
-        Text(
-          side.name,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: AppTypography.soraRegular(
-            fontSize: 14,
-            fontWeight: side.mine || emphasized
-                ? FontWeight.w700
-                : side.lost || side.tbd
-                    ? FontWeight.w500
-                    : FontWeight.w600,
-            color: emphasized
-                ? AppColors.brand
-                : side.tbd
-                    ? colors.onSurfaceMuted.withValues(alpha: 0.85)
-                    : side.lost
-                        ? colors.onSurfaceMuted
-                        : colors.onSurface,
-          ).copyWith(
-            fontStyle: side.tbd ? FontStyle.italic : FontStyle.normal,
+        if (namesOnePerLine && playerNames.isNotEmpty)
+          Column(
+            children: [
+              for (var i = 0; i < playerNames.length; i++) ...[
+                if (i > 0) const SizedBox(height: 2),
+                Text(
+                  playerNames[i],
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: nameStyle,
+                ),
+              ],
+            ],
+          )
+        else
+          Text(
+            side.name,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: nameStyle,
           ),
-        ),
       ],
     );
   }

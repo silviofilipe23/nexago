@@ -1,15 +1,10 @@
 /// As seções do Modo Focus.
 ///
-/// A terceira depende do FORMATO da categoria — nos protótipos a nav mostra
-/// `GRUPO` nas categorias com fase de grupos e `CHAVE` na dupla eliminação. É a
-/// mesma posição, com o conteúdo que faz sentido para aquele torneio.
+/// A segunda depende do FORMATO da categoria — a nav mostra `GRUPO` nas
+/// categorias com fase de grupos e `CHAVE` na dupla eliminação. É a mesma
+/// posição, com o conteúdo que faz sentido para aquele torneio.
 enum FocusSection {
   agora('Agora', 'agora'),
-  // "Jornada" e não "Trajetória": com cinco abas o rótulo tem ~71px no iPhone
-  // comum, e "TRAJETÓRIA" mede 76px em Sora 11/w700 — truncava como
-  // "TRAJETÓR…". O slug NÃO muda junto: `?secao=trajetoria` já circula em deep
-  // link, e rótulo é tela enquanto slug é contrato.
-  trajetoria('Jornada', 'trajetoria'),
   grupo('Grupo', 'grupo'),
   chave('Chave', 'chave'),
   arena('Arena', 'arena'),
@@ -21,8 +16,8 @@ enum FocusSection {
   final String slug;
 }
 
-/// As cinco abas visíveis, na ordem da nav. A terceira é [FocusSection.chave]
-/// quando a categoria é dupla eliminação (não há fase de grupos para mostrar) e
+/// As abas visíveis, na ordem da nav. A segunda é [FocusSection.chave] quando
+/// a categoria é dupla eliminação (não há fase de grupos para mostrar) e
 /// [FocusSection.grupo] caso contrário.
 ///
 /// [FocusSection.arena] e [FocusSection.palpites] fecham a barra e não variam:
@@ -32,16 +27,16 @@ enum FocusSection {
 List<FocusSection> visibleFocusSections({required bool isDoubleElimination}) {
   return [
     FocusSection.agora,
-    FocusSection.trajetoria,
     isDoubleElimination ? FocusSection.chave : FocusSection.grupo,
     FocusSection.arena,
     FocusSection.palpites,
   ];
 }
 
-/// Resolve `?secao=` para uma seção. Valor desconhecido, ausente ou vazio cai
-/// em [FocusSection.agora] — é a seção de entrada, e um deep link torto não
-/// pode deixar o atleta numa tela em branco.
+/// Resolve `?secao=` para uma seção. Valor desconhecido, ausente, vazio ou o
+/// slug legado `trajetoria` (seção removida) cai em [FocusSection.agora] — é a
+/// seção de entrada, e um deep link torto não pode deixar o atleta numa tela
+/// em branco.
 FocusSection focusSectionFromSlug(String? slug) {
   final key = slug?.trim().toLowerCase() ?? '';
   for (final section in FocusSection.values) {

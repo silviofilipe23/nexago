@@ -389,7 +389,7 @@ export function qualificationOf(
   };
 }
 
-export type TournamentTabId = 'visao-geral' | 'categorias' | 'minha-inscricao' | 'palpites';
+export type TournamentTabId = 'visao-geral' | 'categorias' | 'equipes' | 'minha-inscricao' | 'palpites';
 
 export interface TabVisibilityInput {
   /** Não decide mais aba nenhuma aqui — o dia do atleta em jogo virou o Modo Focus, uma casca
@@ -399,6 +399,9 @@ export interface TabVisibilityInput {
   isRegistered: boolean;
   /** Existe ao menos um confronto definido? Antes disso não há em quem palpitar. */
   hasDefinedMatchups: boolean;
+  /** O organizador expõe o roster (`tournaments/{id}.enrolledTeamsVisible`)? Esta aba é a única
+   *  que não depende do estado do atleta: quem decide é quem criou o torneio. */
+  enrolledTeamsVisible: boolean;
 }
 
 /** Abas adaptativas: "Visão geral" e "Categorias" são o esqueleto fixo; as outras só aparecem
@@ -410,6 +413,9 @@ export interface TabVisibilityInput {
  *  torneio acaba: é justamente aí que o ranking de palpiteiros e o "você acertou" importam. */
 export function visibleTabsOf(input: TabVisibilityInput): TournamentTabId[] {
   const tabs: TournamentTabId[] = ['visao-geral', 'categorias'];
+  // Logo depois de Categorias, como no app: quem está olhando o torneio quer ver quem vai jogar
+  // antes de qualquer coisa que dependa de estar inscrito.
+  if (input.enrolledTeamsVisible) tabs.push('equipes');
   if (input.isRegistered) tabs.push('minha-inscricao');
   if (input.hasDefinedMatchups) tabs.push('palpites');
   return tabs;

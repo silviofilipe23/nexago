@@ -161,7 +161,15 @@ class _PickSide extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                MatchCardSide(side: side, emphasized: selected),
+                MatchCardSide(
+                  side: side,
+                  emphasized: selected,
+                  // Palpite: rostos maiores, nome menor — o toque é no lado
+                  // inteiro; o rosto carrega a escolha.
+                  avatarSize: 56,
+                  nameFontSize: 11,
+                  namesOnePerLine: true,
+                ),
                 // Altura reservada nos dois lados: sem isso o card sobe e desce
                 // um pouco a cada troca de palpite.
                 SizedBox(
@@ -222,7 +230,7 @@ class _Center extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Alinha com os rostos das duplas, não com o topo do bloco.
-          SizedBox(height: open ? 12 : 4),
+          SizedBox(height: open ? 18 : 4),
           Text(
             center,
             style: AppTypography.mono(

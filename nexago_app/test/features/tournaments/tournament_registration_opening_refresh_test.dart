@@ -118,12 +118,12 @@ void main() {
       ),
     );
 
-    expect(find.text('Ver detalhes →'), findsOneWidget);
+    expect(find.text('Ver detalhes'), findsOneWidget);
     expect(find.text('INSCRIÇÕES EM BREVE'), findsOneWidget);
 
     await passaDaAbertura(tester);
 
-    expect(find.text('Inscrever →'), findsOneWidget);
+    expect(find.text('Inscrever'), findsOneWidget);
     expect(find.text('INSCRIÇÕES ABERTAS'), findsOneWidget);
   });
 

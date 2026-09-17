@@ -79,7 +79,7 @@ class _FocusArenaSectionState extends ConsumerState<FocusArenaSection> {
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
       ),
-      error: (_, _) => Padding(
+      error: (error, stackTrace) => Padding(
         padding: const EdgeInsets.all(AppSpacing.xxl),
         child: Text(
           'Não foi possível carregar o que está acontecendo na arena.',
@@ -176,6 +176,9 @@ class _FocusArenaSectionState extends ConsumerState<FocusArenaSection> {
                     // A lista é do torneio inteiro: a categoria é o que
                     // distingue um "#14" do outro.
                     categoryName: _categoryNameOf(match.categoryId),
+                    avatarSize: 56,
+                    nameFontSize: 11,
+                    namesOnePerLine: true,
                     onTap: () => _openMatch(match.id),
                     followAction: FollowMatchButton(
                       match: byId[match.id]!.match,

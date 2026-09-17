@@ -1,5 +1,6 @@
 import {
   categoryAcceptsRegistration,
+  enrolledTeamsVisibleOf,
   isPubliclyListedTournamentDoc,
   organizerPixOf,
   registrationOpensAt,
@@ -9,6 +10,17 @@ import {
   type TournamentCategoryOffer,
 } from './tournaments-repository';
 import { normalizePixKeyForBrCode } from './pix-brcode';
+
+describe('enrolledTeamsVisibleOf', () => {
+  it('torneio sem o campo continua expondo as equipes inscritas', () => {
+    expect(enrolledTeamsVisibleOf({})).toBe(true);
+  });
+
+  it('só o `false` explícito esconde o roster', () => {
+    expect(enrolledTeamsVisibleOf({ enrolledTeamsVisible: false })).toBe(false);
+    expect(enrolledTeamsVisibleOf({ enrolledTeamsVisible: true })).toBe(true);
+  });
+});
 
 describe('organizerPixOf', () => {
   it('não força keyType para "random" quando o organizador não declarou o tipo da chave', () => {

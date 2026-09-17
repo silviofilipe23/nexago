@@ -101,3 +101,44 @@ bool eliminatedFromKnockout(
     return winner.isNotEmpty && !myTeamIds.contains(winner);
   });
 }
+
+/// Próxima partida do atleta no Focus Agora — SEM filtro de dia.
+///
+/// Diferente de [pickAthleteNextMatch] (home / oferta do dia): o herói do
+/// Agora precisa mostrar o próximo confronto mesmo quando ele é amanhã ou na
+/// próxima etapa. Precedência: chamada de quadra → ao vivo → mais cedo
+/// agendada → fila.
+TournamentMatch? pickAthleteFocusNextMatch(
+  List<TournamentMatch> matches,
+  Set<String> athleteTeamIds,
+) {
+  if (athleteTeamIds.isEmpty) return null;
+
+  final mine = matches
+      .where(
+        (m) =>
+            (athleteTeamIds.contains(m.teamAId) ||
+                athleteTeamIds.contains(m.teamBId)) &&
+            !TournamentMatchStatus.isCompleted(m.status) &&
+            !TournamentMatchStatus.isCanceled(m.status),
+      )
+      .toList();
+  if (mine.isEmpty) return null;
+
+  for (final m in mine) {
+    if (m.queueStatus == kQueueStatusOnCourt) return m;
+  }
+  for (final m in mine) {
+    if (TournamentMatchStatus.isInProgress(m.status)) return m;
+  }
+
+  mine.sort((a, b) {
+    final aTime = a.scheduleTime;
+    final bTime = b.scheduleTime;
+    if (aTime != null && bTime != null) return aTime.compareTo(bTime);
+    if (aTime != null) return -1;
+    if (bTime != null) return 1;
+    return a.queueOrder.compareTo(b.queueOrder);
+  });
+  return mine.first;
+}

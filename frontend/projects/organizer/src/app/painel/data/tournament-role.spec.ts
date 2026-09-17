@@ -24,6 +24,10 @@ describe('roleFromStaffMirror', () => {
     expect(roleFromStaffMirror({ role: 'scorer', status: 'active' })).toBeNull();
   });
 
+  it('papel desconhecido não conta como gestor — o servidor exige "manager" explícito', () => {
+    expect(roleFromStaffMirror({ role: 'viewer', status: 'active' })).toBeNull();
+  });
+
   it('staff inativo não tem papel', () => {
     expect(roleFromStaffMirror({ role: 'manager', status: 'removed' })).toBeNull();
   });

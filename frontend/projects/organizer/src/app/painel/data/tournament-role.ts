@@ -1,15 +1,19 @@
 import type { OrganizerTournament, TournamentRole } from './tournament.model';
 
 /** Papel a partir de um doc do espelho `users/{uid}/tournamentStaff/{tid}`.
- *  Papel ausente conta como gestor e status ausente conta como ativo — os
- *  mesmos defaults de `buildStaffMirrorData` no backend. Divergir deles aqui
- *  criaria tela que mostra uma coisa e servidor que decide outra. */
+ *  Papel AUSENTE conta como gestor e status ausente conta como ativo — os
+ *  mesmos defaults de `buildStaffMirrorData` no backend. Papel DESCONHECIDO
+ *  (mesário, ou um `viewer` que o backend passe a gravar amanhã) não conta:
+ *  `isActiveWithdrawalStaffMirror` exige `role === "manager"` explícito, então
+ *  cair em gestor aqui deixaria o cliente mais frouxo que o servidor — menu e
+ *  tela liberados pra quem a callable recusa, e nenhuma explicação na tela. */
 export function roleFromStaffMirror(data: Record<string, unknown>): TournamentRole | null {
   const status = (data['status'] as string | undefined) ?? 'active';
   if (status !== 'active') return null;
   const role = (data['role'] as string | undefined) ?? 'manager';
-  if (role === 'scorer') return null;
-  return role === 'eventAdmin' ? 'eventAdmin' : 'manager';
+  if (role === 'eventAdmin') return 'eventAdmin';
+  if (role !== 'manager') return null;
+  return 'manager';
 }
 
 /** Quem alcança o caixa do torneio: o dono e o gestor. O administrador do

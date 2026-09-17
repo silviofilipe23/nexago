@@ -7,6 +7,14 @@ import type { TournamentCollected } from './tournament-collected';
 
 export type OrganizerTournamentStatus = 'inscricoes' | 'andamento' | 'concluido' | 'cancelado';
 
+/** O papel de quem está logado num torneio, do ponto de vista deste portal.
+ *
+ *  `scorer` (mesário) não aparece aqui: sem a role `organizer` ele não loga no
+ *  portal. O papel `eventAdmin` ("administrador", criado em 16/09/2026) opera o
+ *  evento inteiro mas não alcança dinheiro — é essa distinção que o portal não
+ *  tinha e que o guard do Financeiro precisa. */
+export type TournamentRole = 'owner' | 'manager' | 'eventAdmin';
+
 export interface OrganizerTournamentCategory {
   id: string; // categoryId usado em inscriptions/matches
   name: string;

@@ -14,6 +14,22 @@ export interface PendingWithdrawal {
   /** Nome do organizador ou da arena, já resolvido pelo callable. */
   requesterName: string;
   requesterId: string;
+  /**
+   * Nome do evento de onde o dinheiro sai. Só existe para `kind: 'organizer'`;
+   * vem vazio em saques anteriores a 16/09/2026, que não gravavam este campo.
+   */
+  tournamentName: string;
+  /**
+   * Nome de quem de fato pediu o saque — pode ser um gestor da equipe, não o
+   * dono do evento. Cai no uid cru quando o doc de `users` não tem nome. Só
+   * existe para `kind: 'organizer'`.
+   */
+  requestedByName: string;
+  /**
+   * `true` quando quem pediu é um gestor da equipe, não o dono do evento. Vem
+   * pronto do backend — não é derivado de comparação de uid.
+   */
+  requestedByStaff: boolean;
   amountReais: number;
   pixKey: string;
   /** Falha de repasse de uma tentativa anterior, quando houver. */
@@ -61,12 +77,28 @@ function toWithdrawal(raw: unknown, kind: WithdrawalKind): PendingWithdrawal | n
     kind,
     requesterName: str(kind === 'arena' ? row['arenaName'] : row['organizerName']) || id,
     requesterId: str(kind === 'arena' ? row['arenaId'] : row['organizerId']),
+    tournamentName: str(row['tournamentName']),
+    requestedByName: str(row['requestedByName']),
+    requestedByStaff: row['requestedByStaff'] === true,
     amountReais: Number(row['amountReais']) || 0,
     pixKey: str(row['pixKey']),
     payoutStatus: nullableStr(row['payoutStatus']),
     payoutError: nullableStr(row['payoutError']),
     createdAt: createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt : null,
   };
+}
+
+/** Contexto da linha na fila de aprovação. É aqui que um humano decide sobre
+ *  dinheiro, então a linha diz de qual evento o dinheiro sai e quem pediu —
+ *  antes mostrava só o nome do organizador, mesmo quando o pedido era de um
+ *  gestor da equipe. */
+export function withdrawalQueueSubtitle(row: PendingWithdrawal): string {
+  if (row.kind !== 'organizer') return row.requesterName;
+  const evento = row.tournamentName?.trim() || 'Evento não identificado';
+  const quem = row.requestedByStaff
+    ? `pedido por ${row.requestedByName?.trim() || 'gestor da equipe'} (gestor da equipe)`
+    : 'pedido pelo dono';
+  return `${evento} · ${quem}`;
 }
 
 /**

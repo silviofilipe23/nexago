@@ -52,7 +52,12 @@ function toDate(v: unknown): Date | null {
   return typeof t?.toDate === 'function' ? t.toDate() : null;
 }
 
-function roleFromRaw(raw: unknown): TournamentStaffRole {
+/** Papel do doc de equipe. Única guarda contra o papel ser reinterpretado na carga: sem a
+ *  linha do `eventAdmin`, um "Administrador" voltava como "Gestor" a cada recarga da aba —
+ *  e a tela "funcionava" até alguém dar refresh. Papel desconhecido (ou ausente) cai em
+ *  `manager` porque as rules só aceitam os três valores na escrita, e o gestor é o papel
+ *  que a equipe sempre teve. */
+export function roleFromRaw(raw: unknown): TournamentStaffRole {
   if (raw === 'scorer') return 'scorer';
   if (raw === 'eventAdmin') return 'eventAdmin';
   return 'manager';

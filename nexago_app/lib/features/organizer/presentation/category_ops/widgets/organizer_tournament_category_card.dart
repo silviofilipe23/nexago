@@ -12,11 +12,16 @@ class OrganizerTournamentCategoryCard extends StatelessWidget {
     required this.category,
     required this.onTap,
     required this.onGenerateBracket,
+    this.showCollected = true,
   });
 
   final OrganizerTournamentCategorySummary category;
   final VoidCallback onTap;
   final VoidCallback onGenerateBracket;
+
+  /// Arrecadação da categoria: fora da tela para quem é administrador do
+  /// evento (ou mesário), que opera sem ver dinheiro.
+  final bool showCollected;
 
   @override
   Widget build(BuildContext context) {
@@ -129,11 +134,13 @@ class OrganizerTournamentCategoryCard extends StatelessWidget {
                       color: AppColors.pending,
                     ),
                     const Spacer(),
-                    _StatChip(
-                      icon: Icons.payments_outlined,
-                      label: formatOrganizerMoneyCents(category.collectedCents),
-                      color: context.themeColors.onSurfaceMuted,
-                    ),
+                    if (showCollected)
+                      _StatChip(
+                        icon: Icons.payments_outlined,
+                        label:
+                            formatOrganizerMoneyCents(category.collectedCents),
+                        color: context.themeColors.onSurfaceMuted,
+                      ),
                   ],
                 ),
                 if (category.readyToGenerateBracket &&

@@ -18,8 +18,9 @@ import {
 } from 'firebase/firestore';
 import { organizerFirestore } from './firestore';
 import { collectedFromDoc } from './tournament-collected';
+import { roleFromStaffMirror } from './tournament-role';
 import type { TournamentPaymentMode } from './tournament-create.model';
-import type { OrganizerMatchOpsConfig, OrganizerTournament, OrganizerTournamentCategory, OrganizerTournamentStatus, TelaoConfig } from './tournament.model';
+import type { OrganizerMatchOpsConfig, OrganizerTournament, OrganizerTournamentCategory, OrganizerTournamentStatus, TelaoConfig, TournamentRole } from './tournament.model';
 
 /** `tournaments/{id}` (top-level, leitura pública, espelha `TournamentDocumentMapper`/
  *  `tournament_create_mapper.dart` + `league_stage_tournament_factory.dart`) filtrado por
@@ -147,7 +148,7 @@ function coverUrlOf(data: Record<string, unknown>): string | null {
   return null;
 }
 
-function tournamentFromDoc(id: string, data: Record<string, unknown>): OrganizerTournament {
+function tournamentFromDoc(id: string, data: Record<string, unknown>, myRole: TournamentRole | null): OrganizerTournament {
   const categories = Array.isArray(data['categories'])
     ? data['categories'].map(categoryFromRaw).filter((c): c is OrganizerTournamentCategory => c != null)
     : [];
@@ -188,6 +189,7 @@ function tournamentFromDoc(id: string, data: Record<string, unknown>): Organizer
     uniformRequired: data['uniformRequired'] === true,
     uniformNumberOnShirt: data['uniformNumberOnShirt'] === true,
     uniformNameOnShirt: data['uniformNameOnShirt'] === true,
+    myRole,
   };
 }
 
@@ -204,38 +206,41 @@ export function effectiveTelaoConfig(t: OrganizerTournament): TelaoConfig {
   return { ...cfg, courtIds: courtIds.length > 0 ? courtIds : allCourtIds };
 }
 
-/** Ids de torneios em que o uid é gestor ativo — espelho `users/{uid}/tournamentStaff`
- *  mantido por Cloud Function, mesma fonte do `myTournamentStaffEntriesProvider` (Flutter).
- *  Mesário fica de fora: sem a role `organizer`, ele nem loga neste portal. Falha aqui não
- *  pode derrubar a lista de torneios próprios (ex.: rules antigas sem a regra do espelho). */
-async function listStaffManagerTournamentIds(uid: string): Promise<string[]> {
+/** Ids + papel dos torneios em que o uid é staff que entra neste portal —
+ *  espelho `users/{uid}/tournamentStaff`, mantido por Cloud Function. Mesário
+ *  fica de fora (sem a role `organizer` ele não loga aqui). Falha aqui não pode
+ *  derrubar a lista de torneios próprios. */
+async function listStaffTournamentRoles(uid: string): Promise<Map<string, TournamentRole>> {
   try {
     const db = organizerFirestore();
     const snap = await getDocs(collection(db, 'users', uid, 'tournamentStaff'));
-    return snap.docs
-      .filter((d) => {
-        const data = d.data() as Record<string, unknown>;
-        return data['role'] !== 'scorer' && (data['status'] ?? 'active') === 'active';
-      })
-      .map((d) => d.id);
+    const roles = new Map<string, TournamentRole>();
+    for (const d of snap.docs) {
+      const role = roleFromStaffMirror(d.data() as Record<string, unknown>);
+      if (role) roles.set(d.id, role);
+    }
+    return roles;
   } catch {
-    return [];
+    return new Map();
   }
 }
 
-/** Torneios próprios (`managerId == uid`) + torneios em que o uid é gestor da equipe. */
+/** Torneios próprios (`managerId == uid`) + torneios em que o uid é staff da equipe —
+ *  cada um marcado com `myRole` (`'owner'` nos próprios, o papel do espelho nos de staff),
+ *  o campo que o guard do Financeiro e o KPI do Início usam pra saber quem alcança o caixa. */
 export async function listMyTournaments(uid: string): Promise<OrganizerTournament[]> {
   const db = organizerFirestore();
-  const [ownedSnap, staffIds] = await Promise.all([
+  const [ownedSnap, staffRoles] = await Promise.all([
     getDocs(query(collection(db, 'tournaments'), where('managerId', '==', uid))),
-    listStaffManagerTournamentIds(uid),
+    listStaffTournamentRoles(uid),
   ]);
-  const tournaments = ownedSnap.docs.map((d) => tournamentFromDoc(d.id, d.data() as Record<string, unknown>));
+  const tournaments = ownedSnap.docs.map((d) => tournamentFromDoc(d.id, d.data() as Record<string, unknown>, 'owner'));
   const ownedIds = new Set(tournaments.map((t) => t.id));
-  const staffSnaps = await Promise.all(staffIds.filter((id) => !ownedIds.has(id)).map((id) => getDoc(doc(db, 'tournaments', id))));
-  for (const snap of staffSnaps) {
-    if (snap.exists()) tournaments.push(tournamentFromDoc(snap.id, snap.data() as Record<string, unknown>));
-  }
+  const staffIds = [...staffRoles.keys()].filter((id) => !ownedIds.has(id));
+  const staffSnaps = await Promise.all(staffIds.map((id) => getDoc(doc(db, 'tournaments', id))));
+  staffSnaps.forEach((snap, i) => {
+    if (snap.exists()) tournaments.push(tournamentFromDoc(snap.id, snap.data() as Record<string, unknown>, staffRoles.get(staffIds[i]!)!));
+  });
   return tournaments.sort((a, b) => (b.startAt?.getTime() ?? 0) - (a.startAt?.getTime() ?? 0));
 }
 
@@ -244,14 +249,18 @@ export async function listMyTournaments(uid: string): Promise<OrganizerTournamen
 export async function listTournamentsByLeague(leagueId: string): Promise<OrganizerTournament[]> {
   const db = organizerFirestore();
   const snap = await getDocs(query(collection(db, 'tournaments'), where('leagueId', '==', leagueId)));
-  return snap.docs.map((d) => tournamentFromDoc(d.id, d.data() as Record<string, unknown>));
+  // Sem uid em mão nesta função (LigaStore não injeta AuthService) — não dá pra saber se quem
+  // está vendo é dono, staff ou alheio ao torneio. `null` nunca alcança dinheiro.
+  return snap.docs.map((d) => tournamentFromDoc(d.id, d.data() as Record<string, unknown>, null));
 }
 
 export async function getTournament(id: string): Promise<OrganizerTournament | null> {
   const db = organizerFirestore();
   const snap = await getDoc(doc(db, 'tournaments', id));
   if (!snap.exists()) return null;
-  return tournamentFromDoc(snap.id, snap.data() as Record<string, unknown>);
+  // Idem: função genérica usada por várias telas do painel sem receber o uid de quem está
+  // logado — `organizerGuard` não confere vínculo com ESTE torneio (super admin passa livre).
+  return tournamentFromDoc(snap.id, snap.data() as Record<string, unknown>, null);
 }
 
 /** Versão ao vivo de `getTournament` — o telão escuta o doc pra reagir a mudança de config
@@ -259,7 +268,9 @@ export async function getTournament(id: string): Promise<OrganizerTournament | n
 export function watchTournament(id: string, onChange: (t: OrganizerTournament | null) => void, onError?: (error: unknown) => void): Unsubscribe {
   return onSnapshot(
     doc(organizerFirestore(), 'tournaments', id),
-    (snap) => onChange(snap.exists() ? tournamentFromDoc(snap.id, snap.data() as Record<string, unknown>) : null),
+    // Atende a página pública `/t/:id` e o telão de TV — nenhuma sessão organizadora aqui,
+    // não existe "meu papel" pra preencher.
+    (snap) => onChange(snap.exists() ? tournamentFromDoc(snap.id, snap.data() as Record<string, unknown>, null) : null),
     (err) => onError?.(err),
   );
 }
@@ -319,7 +330,10 @@ export async function listAllTournaments(options: { term?: string; cursor?: Quer
 
   const snap = await getDocs(query(collection(db, 'tournaments'), ...constraints));
   return {
-    tournaments: snap.docs.map((d) => tournamentFromDoc(d.id, d.data() as Record<string, unknown>)),
+    // Aba Plataforma (super admin): lista torneios de TODOS os organizadores, então "meu papel"
+    // não se aplica na maioria das linhas — não dá pra saber sem ler o espelho de staff por
+    // torneio, e mesmo o super admin não vira staff de si (ver memória `tournament-staff`).
+    tournaments: snap.docs.map((d) => tournamentFromDoc(d.id, d.data() as Record<string, unknown>, null)),
     cursor: snap.docs.length > 0 ? (snap.docs[snap.docs.length - 1] ?? null) : null,
     hasMore: allTournamentsHasMore(term, snap.docs.length),
   };

@@ -19,11 +19,13 @@ import { AuthService } from '../../auth/auth.service';
 import { ChaveamentoContextService } from '../chaveamento/chaveamento-context.service';
 import { organizerFirestore } from '../data/firestore';
 import { bracketSystemFromRaw } from '../data/tournament-create.model';
+import { showsFinanceiroMenuItem } from '../data/tournament-role';
 import { listOrganizerNames } from '../data/tournaments-repository';
 import { tournamentUsesUniform } from '../data/uniforms';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgIconComponent, type OgIconName } from '../ui/icon.component';
 import { OgPersonPhotoComponent } from '../ui/person-photo.component';
+import { FinanceiroReachService } from './financeiro-reach.service';
 import { OgBellComponent } from './og-bell.component';
 import { PanelContextService } from './panel-context.service';
 
@@ -266,8 +268,13 @@ export class PanelShellComponent {
   private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly ctx = inject(PanelContextService);
-  /** Mesmo critério de `grupos`/`categoria-detalhe`: chave gerada = categoria com jogos. */
+  /** Mesmo critério de `grupos`/`categoria-detalhe`: chave gerada = categoria com jogos.
+   *  Só o nível "categoria" lê daqui — quem carrega este contexto é o
+   *  `PanelContextService`, a partir da rota do torneio. */
   private readonly chav = inject(ChaveamentoContextService);
+  /** Alcance do Financeiro (item do menu no nível global) — uma leitura por uid, sem
+   *  arrastar jogos de torneio nenhum pro boot do painel. */
+  private readonly financeiroReach = inject(FinanceiroReachService);
 
   protected readonly url = toSignal(
     this.router.events.pipe(
@@ -313,6 +320,11 @@ export class PanelShellComponent {
   );
 
   constructor() {
+    // Nada de `chav.ensureLoaded()` aqui: aquele serviço auto-seleciona o primeiro torneio
+    // ao carregar a lista, e a seleção baixa a coleção de jogos inteira dele. O menu
+    // precisava só saber se mostra "Financeiro", e todo login pagava por isso — inclusive
+    // quem ia direto ao Início. Quem serve o menu agora é o `FinanceiroReachService`, que
+    // lê a lista de torneios uma vez por uid e mais nada.
     const mq = window.matchMedia(COMPACT_QUERY);
     this.compact.set(mq.matches);
     const onCompactChange = (e: MediaQueryListEvent) => {
@@ -438,7 +450,13 @@ export class PanelShellComponent {
         link: '/painel/novo-evento',
         matchPrefixes: ['/painel/novo-evento', '/painel/novo-torneio', '/painel/nova-liga', '/painel/nova-etapa'],
       },
-      { label: 'Financeiro', icon: 'cash', link: '/painel/financeiro' },
+      // Só dono/gestor de ao menos um evento — administrador do evento não vê o item.
+      // Enquanto o alcance é desconhecido (carregando ou falhou) o item APARECE: a rota
+      // não é bloqueada, então quem não alcança caixa cai na tela que explica de quem é o
+      // Financeiro — muito melhor que esconder o dinheiro do dono por rede instável.
+      ...(showsFinanceiroMenuItem(this.financeiroReach.status(), this.financeiroReach.tournaments())
+        ? [{ label: 'Financeiro', icon: 'cash' as OgIconName, link: '/painel/financeiro' }]
+        : []),
       { label: 'Links', icon: 'share', link: '/painel/links' },
     ];
   });

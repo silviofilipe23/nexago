@@ -84,9 +84,9 @@ class OrganizerTournamentStaffPage extends ConsumerWidget {
             for (final role in TournamentStaffRole.values)
               ListTile(
                 leading: Icon(
-                  role == TournamentStaffRole.manager
-                      ? Icons.manage_accounts_rounded
-                      : Icons.scoreboard_rounded,
+                  role == TournamentStaffRole.scorer
+                      ? Icons.scoreboard_rounded
+                      : Icons.manage_accounts_rounded,
                   color: AppColors.brand,
                 ),
                 title: Text(role.label),

@@ -10,6 +10,10 @@ import { PillComponent } from '../ui/pill.component';
 import { FinanceOverviewComponent } from './finance-overview.component';
 import {
   WithdrawalsRepository,
+  withdrawalDecisionMessage,
+  withdrawalEventName,
+  withdrawalQueueSubtitle,
+  withdrawalRequesterLine,
   type PendingWithdrawal,
   type WithdrawalDecision,
   type WithdrawalKind,
@@ -171,7 +175,11 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
                     <div class="table-row">
                       <div class="cell-who">
                         <div class="who-name">{{ row.requesterName }}</div>
-                        <div class="who-id">{{ row.requesterId }}</div>
+                        @if (row.kind === 'organizer') {
+                          <div class="who-context" [title]="subtitleOf(row)">{{ subtitleOf(row) }}</div>
+                        } @else {
+                          <div class="who-id">{{ row.requesterId }}</div>
+                        }
                         @if (row.payoutError) {
                           <div class="who-error">
                             <bo-pill tone="red">Falha anterior</bo-pill>
@@ -212,7 +220,7 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
         <bo-confirm-dialog
           [open]="true"
           [title]="copy[decision.decision].title"
-          [description]="copy[decision.decision].description"
+          [description]="decisionDescription(decision)"
           [confirmLabel]="copy[decision.decision].confirm"
           [tone]="copy[decision.decision].tone"
           [busy]="submitting()"
@@ -222,10 +230,25 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
           (dismissed)="cancel()"
         >
           <div class="dialog-summary">
-            <div>
-              <span>Solicitante</span>
-              <strong>{{ decision.withdrawal.requesterName }}</strong>
-            </div>
+            @if (decision.withdrawal.kind === 'organizer') {
+              <div>
+                <span>Organizador</span>
+                <strong>{{ decision.withdrawal.requesterName }}</strong>
+              </div>
+              <div>
+                <span>Solicitante</span>
+                <strong>{{ requesterLine(decision.withdrawal) }}</strong>
+              </div>
+              <div>
+                <span>Evento</span>
+                <strong>{{ eventName(decision.withdrawal) }}</strong>
+              </div>
+            } @else {
+              <div>
+                <span>Solicitante</span>
+                <strong>{{ decision.withdrawal.requesterName }}</strong>
+              </div>
+            }
             <div>
               <span>Valor</span>
               <strong>{{ money(decision.withdrawal.amountReais) }}</strong>
@@ -343,6 +366,15 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .who-context {
+      font-family: var(--nx-font-mono);
+      font-size: 9.5px;
+      color: var(--nx-text-dim);
+      line-height: 1.35;
+      white-space: normal;
+      overflow-wrap: break-word;
     }
 
     .who-error {
@@ -592,15 +624,20 @@ export class PanelFinanceiroComponent {
   }
 
   private successMessage({ withdrawal, decision }: PendingDecision): string {
-    const who = withdrawal.requesterName;
-    const value = BRL.format(withdrawal.amountReais);
-    if (decision === 'rejected') {
-      return `Saque de ${value} de ${who} recusado — o valor voltou para a carteira.`;
+    return withdrawalDecisionMessage(withdrawal, decision, this.money(withdrawal.amountReais));
+  }
+
+  /**
+   * Descrição da decisão. `copy` é indexado só pela decisão, mas recusar
+   * devolve o dinheiro para lugares diferentes: caixa do evento no saque de
+   * organizador, carteira no de arena. As outras duas decisões não citam
+   * destino e seguem vindo do mapa.
+   */
+  protected decisionDescription({ withdrawal, decision }: PendingDecision): string {
+    if (decision === 'rejected' && withdrawal.kind === 'organizer') {
+      return 'O valor reservado volta para o caixa do evento e o solicitante pode pedir de novo.';
     }
-    if (decision === 'approved_manual') {
-      return `Saque de ${value} de ${who} marcado como pago por fora.`;
-    }
-    return `PIX de ${value} enviado para ${who}.`;
+    return this.copy[decision].description;
   }
 
   protected money(amount: number): string {
@@ -609,6 +646,21 @@ export class PanelFinanceiroComponent {
 
   protected dateOf(row: PendingWithdrawal): string {
     return row.createdAt ? DATE_TIME.format(row.createdAt) : '—';
+  }
+
+  /** Contexto da linha na fila — evento e quem pediu (ou só o nome, na fila de arenas). */
+  protected subtitleOf(row: PendingWithdrawal): string {
+    return withdrawalQueueSubtitle(row);
+  }
+
+  /** Texto da linha "Solicitante" do diálogo — nunca fica em branco, mesmo quando é o próprio dono. */
+  protected requesterLine(row: PendingWithdrawal): string {
+    return withdrawalRequesterLine(row);
+  }
+
+  /** Nome do evento no diálogo — mesmo aviso da linha da fila quando falta `tournamentName`. */
+  protected eventName(row: PendingWithdrawal): string {
+    return withdrawalEventName(row);
   }
 
   protected noteValue(event: Event): string {

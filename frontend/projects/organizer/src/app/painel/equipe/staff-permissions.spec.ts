@@ -1,4 +1,4 @@
-import { canManageTournamentStaff, staffCandidateExclusions } from './equipe.component';
+import { ROLE_REF, ROLE_TAB, ROLE_TONE, canManageTournamentStaff, staffCandidateExclusions } from './equipe.component';
 
 /** Quem mexe na equipe do torneio no portal: o dono e o super admin em suporte. Os testes
  *  espelham `functions/test/tournament-staff.rules.test.mjs` — se a tela liberar um botão que
@@ -56,5 +56,20 @@ describe('staffCandidateExclusions', () => {
 
   it('funciona antes do torneio e do usuário resolverem', () => {
     expect(staffCandidateExclusions({ memberUids: [membro], uid: undefined, managerId: null })).toEqual([membro]);
+  });
+});
+
+/** O papel `eventAdmin` (administrador) já existe no servidor — rules e callable — mas a
+ *  tela só oferecia gestor e mesário. Espelha `TOURNAMENT_STAFF_ROLES` de
+ *  `functions/src/tournament-staff-sync.ts`, que também lista `['manager', 'eventAdmin', 'scorer']`. */
+describe('papel eventAdmin na tela de Equipe', () => {
+  it('o papel novo é oferecido na adição', () => {
+    expect(ROLE_REF.map((r) => r.role)).toEqual(['manager', 'eventAdmin', 'scorer']);
+  });
+
+  it('cada papel tem rótulo e tom próprios', () => {
+    expect(ROLE_TAB['eventAdmin']).toBe('administrador');
+    expect(ROLE_TONE['eventAdmin']).toBeDefined();
+    expect(ROLE_TONE['eventAdmin']).not.toBe(ROLE_TONE['manager']);
   });
 });

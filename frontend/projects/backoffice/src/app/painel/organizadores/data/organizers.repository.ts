@@ -60,7 +60,12 @@ export interface OrganizerTermsInput {
 export interface OrganizerRegistration {
   profile: OrganizerProfileInput;
   terms: OrganizerTermsInput | null;
-  /** `organizerWallets/{uid}.payoutPixKey`; `''` = não configurada. */
+  /**
+   * `organizerPayoutProfiles/{uid}.payoutPixKey` — perfil de repasse da
+   * PESSOA, usado em qualquer evento de que ela saque (o caixa mora no
+   * torneio agora, a chave não é mais um dado da carteira). `''` = não
+   * configurada.
+   */
   payoutPixKey: string;
 }
 
@@ -174,10 +179,10 @@ export class OrganizersRepository {
    * o admin ainda consegue preencher tudo à mão.
    */
   async loadRegistration(uid: string): Promise<OrganizerRegistration> {
-    const [user, terms, wallet] = await Promise.all([
+    const [user, terms, payoutPixKey] = await Promise.all([
       this.readDoc(`users/${uid}`),
       this.readDoc(`organizers/${uid}`),
-      this.readDoc(`organizerWallets/${uid}`),
+      this.loadPayoutPixKey(uid),
     ]);
 
     const profile = (user?.['organizerProfile'] ?? {}) as Record<string, unknown>;
@@ -202,7 +207,7 @@ export class OrganizersRepository {
             permissions: stringList(terms['permissions']),
           }
         : null,
-      payoutPixKey: str(wallet?.['payoutPixKey']) ?? '',
+      payoutPixKey,
     };
   }
 
@@ -230,6 +235,28 @@ export class OrganizersRepository {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Chave PIX de repasse de `uid`, do perfil da pessoa
+   * (`organizerPayoutProfiles/{uid}`) — usada em qualquer evento de que ela
+   * saque, já que o caixa mora no torneio agora, não mais na carteira do
+   * organizador.
+   *
+   * Fallback deliberado: enquanto a migração não roda em todos os ambientes,
+   * existe chave que só está em `organizerWallets/{uid}`. Mesma tolerância
+   * que `loadPayoutPixKey` tem no backend
+   * (`functions/src/organizer-payout-profile.ts`) — este fallback sai quando
+   * a migração tiver rodado em todo lugar.
+   */
+  private async loadPayoutPixKey(uid: string): Promise<string> {
+    const profile = await this.readDoc(`organizerPayoutProfiles/${uid}`);
+    const fromProfile = str(profile?.['payoutPixKey']);
+    if (fromProfile) {
+      return fromProfile;
+    }
+    const wallet = await this.readDoc(`organizerWallets/${uid}`);
+    return str(wallet?.['payoutPixKey']) ?? '';
   }
 
   /** Atribui a role de organizador preservando os papéis existentes. */

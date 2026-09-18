@@ -22,8 +22,10 @@ import { OgIconComponent } from '../ui/icon.component';
 /** Card "Pagamentos" de `/painel/config`.
  *
  *  Existem DUAS chaves Pix no produto e elas não se misturam:
- *   - a de SAQUE (`organizerWallets/{uid}.payoutPixKey`) — pra onde a NexaGO deposita. Gravada por
- *     Cloud Function e gerenciada na tela Financeiro; aqui aparece só em leitura, com link.
+ *   - a de SAQUE (`organizerPayoutProfiles/{uid}.pixKey`) — dado da PESSOA, não do caixa de um
+ *     torneio: é pra ela que caem os saques de qualquer evento que a pessoa alcance (dono ou
+ *     gestor). Gravada por Cloud Function e gerenciada na tela Financeiro; aqui aparece só em
+ *     leitura, com link.
  *   - a de RECEBIMENTO DIRETO (`organizerPayments`, este card) — usada quando o torneio cobra
  *     fora do app (`paymentMode: 'directWithOrganizer'`).
  *
@@ -79,6 +81,9 @@ import { OgIconComponent } from '../ui/icon.component';
           <div>
             <div class="og-cfg-payout-title">Chave Pix de saque</div>
             <div class="og-cfg-payout-value">{{ payoutLabel() }}</div>
+            <div class="og-cfg-payout-note">
+              Chave da sua conta — vale para o saque de qualquer evento em que você for dono ou gestor.
+            </div>
           </div>
           <a class="og-ghost-btn" routerLink="/painel/financeiro">Gerenciar no Financeiro</a>
         </div>
@@ -153,12 +158,20 @@ import { OgIconComponent } from '../ui/icon.component';
       color: var(--nx-text);
       overflow-wrap: anywhere;
     }
+    .og-cfg-payout-note {
+      margin-top: 4px;
+      font-family: var(--nx-font-ui);
+      font-size: 11.5px;
+      line-height: 1.4;
+      color: var(--nx-text-dim);
+    }
   `,
 })
 export class OgConfigPagamentosCardComponent {
   readonly uid = input.required<string>();
   readonly payments = input.required<OrganizerPaymentSettings>();
-  /** Só leitura — a fonte é `organizerWallets/{uid}`, escrita por Cloud Function no Financeiro. */
+  /** Só leitura — a fonte é `organizerPayoutProfiles/{uid}` (dado da pessoa, não do evento),
+   *  escrita por Cloud Function no Financeiro. */
   readonly payoutPixKey = input<string>('');
   readonly payoutPixKeyType = input<string>('');
   readonly loading = input(false);

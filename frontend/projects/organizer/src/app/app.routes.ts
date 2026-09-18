@@ -85,6 +85,11 @@ export const routes: Routes = [
       },
       {
         path: 'financeiro',
+        // Sem guard de propósito (spec da carteira do torneio, 16/09/2026): quem não
+        // alcança caixa nenhum cai no estado vazio da tela, que explica de quem é o
+        // Financeiro. Redirecionar em silêncio escondia o motivo e tornava aquele estado
+        // vazio inalcançável. O menu é que esconde o item; a fronteira do dinheiro são as
+        // rules e a callable de saque, que recusam o administrador com id forjado.
         title: 'Financeiro — NexaGO Organizador',
         loadComponent: () => import('./painel/financeiro/financeiro.component').then((m) => m.FinanceiroComponent),
       },

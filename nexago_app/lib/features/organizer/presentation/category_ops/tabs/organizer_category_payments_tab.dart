@@ -10,6 +10,7 @@ import '../../../domain/category_ops/category_ops_logic.dart';
 import '../../../domain/category_ops/category_ops_models.dart';
 import '../../../domain/tournament_ops/tournament_ops_logic.dart';
 import '../../../domain/tournament_ops/tournament_ops_providers.dart';
+import '../../../domain/tournament_staff/my_tournament_staff_providers.dart';
 import '../widgets/organizer_team_dual_avatars.dart';
 
 class OrganizerCategoryPaymentsTab extends ConsumerStatefulWidget {
@@ -64,6 +65,13 @@ class _OrganizerCategoryPaymentsTabState
     );
     final summary = ref.watch(organizerCategoryPaymentsProvider(key));
     final teamsAsync = ref.watch(organizerCategoryVisibleTeamsProvider(key));
+    // Esta rota é operável por staff, e o administrador do evento não vê
+    // dinheiro: os totais (arrecadado e repasse líquido) saem da tela, sem
+    // card vazio no lugar. O que sobra — pendentes e recebidas — é o que ele
+    // precisa para cobrar inscrição.
+    final seesMoney = ref.watch(
+      organizerSeesTournamentMoneyProvider(widget.tournamentId),
+    );
 
     return teamsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -82,10 +90,12 @@ class _OrganizerCategoryPaymentsTabState
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
           children: [
-            _CollectedSummaryCard(summary: summary),
-            if (summary.viaAppCents > 0) ...[
-              const SizedBox(height: 12),
-              _PayoutCard(netTransferCents: summary.netTransferCents),
+            if (seesMoney) ...[
+              _CollectedSummaryCard(summary: summary),
+              if (summary.viaAppCents > 0) ...[
+                const SizedBox(height: 12),
+                _PayoutCard(netTransferCents: summary.netTransferCents),
+              ],
             ],
             if (pending.isNotEmpty) ...[
               const SizedBox(height: 20),

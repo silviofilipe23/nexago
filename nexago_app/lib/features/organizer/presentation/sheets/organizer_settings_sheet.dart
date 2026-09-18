@@ -83,8 +83,11 @@ class _OrganizerSettingsSheet extends ConsumerWidget {
             const SizedBox(height: 10),
             _OrganizerSettingsRow(
               icon: Icons.account_balance_wallet_rounded,
-              title: 'Carteira e saques',
-              subtitle: 'Saldo de inscrições, chave PIX e saque',
+              // "Carteira" era o modelo por pessoa, que saiu de cena: o
+              // dinheiro agora é o caixa de cada evento. O nome acompanha o
+              // título da tela — e o do menu do portal.
+              title: 'Financeiro',
+              subtitle: 'Caixa dos seus eventos, chave PIX e saque',
               onTap: () {
                 Navigator.of(context).pop();
                 context.pushNamed(AppRouteNames.organizerWallet);

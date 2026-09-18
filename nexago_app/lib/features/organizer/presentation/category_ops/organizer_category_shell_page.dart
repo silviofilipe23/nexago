@@ -11,6 +11,7 @@ import '../../domain/category_ops/category_ops_models.dart';
 import '../../domain/tournament_create/tournament_create_logic.dart';
 import '../../domain/tournament_ops/tournament_ops_logic.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
+import '../../domain/tournament_staff/my_tournament_staff_providers.dart';
 import 'organizer_tournament_navigation.dart';
 import 'widgets/organizer_category_explore_section.dart';
 import 'widgets/organizer_category_shell_header.dart';
@@ -128,6 +129,9 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
                   pendingCount: pendingCount,
                   waitlistCount: waitlistCount,
                   collectedCents: category.collectedCents,
+                  showCollected: ref.watch(
+                    organizerSeesTournamentMoneyProvider(tournamentId),
+                  ),
                 ),
               ),
               if (showGenerateBracketCta(category)) ...[

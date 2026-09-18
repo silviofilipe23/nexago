@@ -11,9 +11,9 @@ void main() {
       expect(target.maxOutputWidth, 1024);
     });
 
-    test('cover uses wide aspect ratio', () {
+    test('cover uses 4:3 aspect ratio', () {
       const target = ProfileImageCropTarget.cover;
-      expect(target.aspectRatio, 2.63);
+      expect(target.aspectRatio, 4 / 3);
       expect(target.withCircleUi, isFalse);
       expect(target.useCircleCrop, isFalse);
       expect(target.maxOutputWidth, 2200);

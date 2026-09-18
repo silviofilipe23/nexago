@@ -35,11 +35,18 @@ TeamPublicProfile _profile(List<TeamMemberEntry> members) {
 Widget _wrap(TeamPublicProfile profile) {
   return MaterialApp(
     theme: AppTheme.dark,
-    home: MediaQuery(
-      data: const MediaQueryData(padding: EdgeInsets.only(top: 59)),
-      child: Scaffold(
-        body: SingleChildScrollView(
-          child: TeamProfileHeader(profile: profile, onBack: () {}),
+    // O MediaQuery tem de herdar o `size` da view: fabricar um
+    // `MediaQueryData` do zero deixa `size` em `Size.zero`, e a capa do
+    // cabeçalho (`largura / 4:3`) colapsa levando o layout inteiro junto.
+    home: Builder(
+      builder: (context) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(padding: const EdgeInsets.only(top: 59)),
+        child: Scaffold(
+          body: SingleChildScrollView(
+            child: TeamProfileHeader(profile: profile, onBack: () {}),
+          ),
         ),
       ),
     ),
@@ -121,7 +128,20 @@ void main() {
 
     await tester.pumpWidget(_wrap(named));
 
-    expect(tester.getTopLeft(find.text('Dupla Teste')).dy, 282);
+    // O nome senta exatamente na base da pilha capa+avatar — ou seja, dar
+    // alcance de toque ao avatar não empurrou o conteúdo para baixo.
+    // Derivado das constantes do widget: número fixo apodrece quando a
+    // geometria muda (era 282 na capa de altura fixa, antes de 89e20b97).
+    const gapAbaixoDaPilha = 14.0;
+    final largura = tester.getSize(find.byType(TeamProfileHeader)).width;
+    final baseDaPilha =
+        largura / TeamProfileHeader.coverAspectRatio -
+        TeamProfileHeader.avatarOverlap +
+        TeamProfileHeader.avatarSize;
+    expect(
+      tester.getTopLeft(find.text('Dupla Teste')).dy,
+      baseDaPilha + gapAbaixoDaPilha,
+    );
   });
 
   testWidgets('elenco de quatro mantém cada avatar na própria foto',

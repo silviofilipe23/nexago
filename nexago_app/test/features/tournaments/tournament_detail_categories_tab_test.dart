@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_detail_model.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 import 'package:nexago_app/features/tournaments/presentation/widgets/tournament_detail/tournament_categories_hero.dart';
 import 'package:nexago_app/features/tournaments/presentation/widgets/tournament_detail/tournament_detail_categories_tab.dart';
+import 'package:nexago_app/features/tournaments/presentation/widgets/tournament_detail/tournament_detail_category_chips.dart';
 
 const _masculina = TournamentCategoryOffer(
   id: 'masc',
@@ -49,18 +51,35 @@ Future<void> pumpTab(
   List<TournamentCategoryOffer> offers, {
   VoidCallback? onBack,
 }) async {
+  // Os cards de categoria cresceram (capa por esporte). Na superfície padrão
+  // de 800x600 o segundo fica fora da tela e o sliver preguiçoso nem chega a
+  // construí-lo — `find.text` do nome dele voltaria vazio sem nada de errado
+  // na filtragem, que é o que este arquivo mede.
+  tester.view.physicalSize = const Size(800, 2400);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+
   await tester.pumpWidget(
-    MaterialApp(
-      home: Scaffold(
-        body: TournamentDetailCategoriesTab(
-          tournament: buildDetail(offers),
-          onBack: onBack ?? () {},
+    ProviderScope(
+      child: MaterialApp(
+        home: Scaffold(
+          body: TournamentDetailCategoriesTab(
+            tournament: buildDetail(offers),
+            onBack: onBack ?? () {},
+          ),
         ),
       ),
     ),
   );
   await tester.pump();
 }
+
+// O card de categoria exibe um chip de gênero próprio, com o mesmo texto do
+// chip do filtro. Sem ancorar na barra, `find.text('Feminino')` casa os dois.
+Finder _chipDoFiltro(String label) => find.descendant(
+  of: find.byType(TournamentDetailCategoryChips),
+  matching: find.text(label),
+);
 
 void main() {
   testWidgets('hero convida a escolher a categoria', (tester) async {
@@ -120,7 +139,7 @@ void main() {
     expect(find.text('Open Masculino'), findsOneWidget);
     expect(find.text('Open Feminino'), findsOneWidget);
 
-    await tester.tap(find.text('Feminino'));
+    await tester.tap(_chipDoFiltro('Feminino'));
     await tester.pump();
 
     expect(find.text('Open Masculino'), findsNothing);
@@ -130,9 +149,9 @@ void main() {
   testWidgets('Todas restaura a lista inteira', (tester) async {
     await pumpTab(tester, const [_masculina, _feminina]);
 
-    await tester.tap(find.text('Feminino'));
+    await tester.tap(_chipDoFiltro('Feminino'));
     await tester.pump();
-    await tester.tap(find.text('Todas'));
+    await tester.tap(_chipDoFiltro('Todas'));
     await tester.pump();
 
     expect(find.text('Open Masculino'), findsOneWidget);
@@ -145,7 +164,9 @@ void main() {
     await pumpTab(tester, const [_masculina]);
 
     expect(find.text('Todas'), findsNothing);
-    expect(find.text('Masculino'), findsNothing);
+    // O próprio card exibe um chip de gênero ('Masculino'), então procurar
+    // esse texto não distingue mais "sem barra de filtros" de "com barra".
+    expect(find.byType(TournamentDetailCategoryChips), findsNothing);
   });
 
   // O organizador pode publicar um torneio sem nenhuma categoria ainda.

@@ -105,7 +105,7 @@ void main() {
     testWidgets('mantém o CTA de ver detalhes', (tester) async {
       await pumpCard(tester, TournamentListingStatus.completed);
 
-      expect(find.text('Ver detalhes →'), findsOneWidget);
+      expect(find.text('Ver detalhes'), findsOneWidget);
     });
   });
 

@@ -2035,7 +2035,7 @@
       "matchNumber": 17,
       "matchType": "LB",
       "round": 2,
-      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceMatchNumber": 23,
       "winnerAdvanceSlot": "A",
       "loserAdvanceMatchNumber": null,
       "loserAdvanceSlot": null
@@ -2044,7 +2044,7 @@
       "matchNumber": 18,
       "matchType": "LB",
       "round": 2,
-      "winnerAdvanceMatchNumber": 24,
+      "winnerAdvanceMatchNumber": 23,
       "winnerAdvanceSlot": "B",
       "loserAdvanceMatchNumber": null,
       "loserAdvanceSlot": null
@@ -2053,7 +2053,7 @@
       "matchNumber": 19,
       "matchType": "LB",
       "round": 2,
-      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceMatchNumber": 24,
       "winnerAdvanceSlot": "A",
       "loserAdvanceMatchNumber": null,
       "loserAdvanceSlot": null
@@ -2062,7 +2062,7 @@
       "matchNumber": 20,
       "matchType": "LB",
       "round": 2,
-      "winnerAdvanceMatchNumber": 23,
+      "winnerAdvanceMatchNumber": 24,
       "winnerAdvanceSlot": "B",
       "loserAdvanceMatchNumber": null,
       "loserAdvanceSlot": null
@@ -2072,8 +2072,8 @@
       "matchType": "WB",
       "round": 3,
       "winnerAdvanceMatchNumber": 27,
-      "winnerAdvanceSlot": "B",
-      "loserAdvanceMatchNumber": 25,
+      "winnerAdvanceSlot": "A",
+      "loserAdvanceMatchNumber": 26,
       "loserAdvanceSlot": "B"
     },
     {
@@ -2081,8 +2081,8 @@
       "matchType": "WB",
       "round": 3,
       "winnerAdvanceMatchNumber": 27,
-      "winnerAdvanceSlot": "A",
-      "loserAdvanceMatchNumber": 26,
+      "winnerAdvanceSlot": "B",
+      "loserAdvanceMatchNumber": 25,
       "loserAdvanceSlot": "B"
     },
     {
@@ -2108,7 +2108,7 @@
       "matchType": "LB",
       "round": 4,
       "winnerAdvanceMatchNumber": 28,
-      "winnerAdvanceSlot": "B",
+      "winnerAdvanceSlot": "A",
       "loserAdvanceMatchNumber": null,
       "loserAdvanceSlot": null
     },
@@ -2117,7 +2117,7 @@
       "matchType": "LB",
       "round": 4,
       "winnerAdvanceMatchNumber": 28,
-      "winnerAdvanceSlot": "A",
+      "winnerAdvanceSlot": "B",
       "loserAdvanceMatchNumber": null,
       "loserAdvanceSlot": null
     },

@@ -306,7 +306,7 @@ describe('happyPathOf (dupla eliminação)', () => {
  * formato do "Torneio seed nexaGO". Os números abaixo — matchNumber, rodada e slot de destino —
  * saíram de uma execução do gerador, não de suposição:
  *
- *   #1 WB R1 (t1 × t2) → #13 WB R2 (slot A) → #21 WB R3 (slot A) → #27 WB R4 (slot B) → #30 Final (slot B)
+ *   #1 WB R1 (t1 × t2) → #13 WB R2 (slot A) → #21 WB R3 (slot A) → #27 WB R4 (slot A) → #30 Final (slot B)
  *
  * São 30 partidas no total (15 WB, 13 LB, 3º lugar e final) e as rodadas COLIDEM entre as chaves:
  * WB vai de 1 a 4, LB de 1 a 5. É por isso que agrupar por rodada misturava as duas.
@@ -319,9 +319,9 @@ describe('happyPathOf · planta real de 16 duplas', () => {
     de('m1', { matchType: 'WB', round: 1, matchNumber: 1, teamAId: 'mine', teamBId: 't2', winnerAdvanceMatchNumber: 13, winnerAdvanceSlot: 'A' }),
     // LB com rodadas 1 e 2 — as mesmas da WB. Nenhuma pode entrar no caminho de quem está invicto.
     de('m9', { matchType: 'LB', round: 1, matchNumber: 9, winnerAdvanceMatchNumber: 17, winnerAdvanceSlot: 'B' }),
-    de('m17', { matchType: 'LB', round: 2, matchNumber: 17, winnerAdvanceMatchNumber: 23, winnerAdvanceSlot: 'B' }),
+    de('m17', { matchType: 'LB', round: 2, matchNumber: 17, winnerAdvanceMatchNumber: 23, winnerAdvanceSlot: 'A' }),
     de('m13', { matchType: 'WB', round: 2, matchNumber: 13, winnerAdvanceMatchNumber: 21, winnerAdvanceSlot: 'A' }),
-    de('m21', { matchType: 'WB', round: 3, matchNumber: 21, winnerAdvanceMatchNumber: 27, winnerAdvanceSlot: 'B' }),
+    de('m21', { matchType: 'WB', round: 3, matchNumber: 21, winnerAdvanceMatchNumber: 27, winnerAdvanceSlot: 'A' }),
     de('m27', { matchType: 'WB', round: 4, matchNumber: 27, winnerAdvanceMatchNumber: 30, winnerAdvanceSlot: 'B' }),
     de('m30', { matchType: 'Final', round: 1, matchNumber: 30 }),
   ];

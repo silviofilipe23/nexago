@@ -465,3 +465,96 @@ describe("bye nas plantas derivadas da de 32", () => {
     });
   }
 });
+
+/**
+ * NUMERAÇÃO SEGUE O DESENHO NAS PLANTAS CHEIAS. Nas plantas sem bye (4, 8, 16 e
+ * 32 — toda dupla joga a estreia) a tabela é um bracket limpo, e o organizador
+ * lê os jogos de cima pra baixo: o #1 no topo, o seguinte logo abaixo. Quem
+ * decide essa altura NÃO é o `matchNumber`, e sim a FIAÇÃO — o layout
+ * (`bracket-tree.ts` no portal, `double_elimination_bracket_layout.dart` no
+ * app) empilha os alimentadores de cada partida pelo SLOT em que eles entram:
+ * quem avança pro `teamA` fica acima de quem avança pro `teamB`.
+ *
+ * É por isso que inverter os dois lados de UMA partida vira a metade inteira da
+ * chave de cabeça pra baixo. A planta de 16 fazia isso na final da WB (#27
+ * listava `WINNER(#22)` antes do `WINNER(#21)`): o desenho começava pelo jogo
+ * #5, e o gerador de semeadura — que desce pelo `teamA` — punha o 1º do ranking
+ * lá no #5 junto. O efeito colateral era a entrada cruzada na LB deixar de
+ * cruzar NO DESENHO: a metade de cima da WB desenhada caía na metade de cima da
+ * LB, o oposto da regra do dono ("perdi em cima, vou pra baixo").
+ *
+ * As plantas com bye ficam FORA de propósito: nelas a tabela impressa numera os
+ * jogos em outra ordem (o play-in antes dos cabeças, por exemplo), e a
+ * numeração não acompanha o desenho em nenhuma — cobrar isso delas seria
+ * inventar uma regra que a tabela do dono não tem.
+ */
+describe("numeração segue o desenho nas plantas cheias", () => {
+  const PLANTAS_CHEIAS = [4, 8, 16, 32];
+
+  /** Ordem de cima pra baixo em que o layout desenha as partidas de um lado. */
+  function ordemDeDesenho(def: MatchDefinition[], chave: "WB" | "LB"): number[] {
+    const alimentadores = new Map<number, Array<{numero: number; slot: "A" | "B"}>>();
+    for (const m of def) {
+      for (const [slot, src] of [["A", m.teamA], ["B", m.teamB]] as const) {
+        if (src.type !== "WINNER") continue;
+        const lista = alimentadores.get(m.matchNumber) ?? [];
+        lista.push({numero: src.matchNumber, slot});
+        alimentadores.set(m.matchNumber, lista);
+      }
+    }
+    // Mesmo critério do layout: slot A acima do slot B (ver `slotRank`).
+    for (const lista of alimentadores.values()) {
+      lista.sort((a, b) => (a.slot === "A" ? 0 : 1) - (b.slot === "A" ? 0 : 1) || a.numero - b.numero);
+    }
+    const doLado = new Set(def.filter((m) => m.bracket === chave).map((m) => m.matchNumber));
+    const desenhadas: number[] = [];
+    const descer = (numero: number) => {
+      for (const filho of alimentadores.get(numero) ?? []) descer(filho.numero);
+      if (doLado.has(numero)) desenhadas.push(numero);
+    };
+    const ultimaRodada = Math.max(...def.filter((m) => m.bracket === chave).map((m) => m.round));
+    const raizes = def
+      .filter((m) => m.bracket === chave && m.round === ultimaRodada)
+      .map((m) => m.matchNumber)
+      .sort((a, b) => a - b);
+    for (const raiz of raizes) descer(raiz);
+    return desenhadas;
+  }
+
+  for (const numTeams of PLANTAS_CHEIAS) {
+    const def = ALL_BRACKET_DEFINITIONS.find(([n]) => n === numTeams)![1];
+
+    for (const chave of ["WB", "LB"] as const) {
+      it(`bracket-${numTeams}-teams: ${chave} desenhada de cima pra baixo na ordem dos jogos`, () => {
+        const desenhadas = ordemDeDesenho(def, chave);
+        const porRodada = new Map<number, number[]>();
+        const rodadaDe = new Map(def.map((m) => [m.matchNumber, m.round]));
+        for (const numero of desenhadas) {
+          const rodada = rodadaDe.get(numero)!;
+          porRodada.set(rodada, [...(porRodada.get(rodada) ?? []), numero]);
+        }
+        for (const [rodada, naColuna] of porRodada) {
+          const emOrdem = [...naColuna].sort((a, b) => a - b);
+          assert.deepEqual(
+            naColuna,
+            emOrdem,
+            `${chave} r${rodada} desenha os jogos na ordem ${naColuna.join(", ")} — ` +
+              "o organizador lê de cima pra baixo e os números voltam atrás " +
+              "(inverta o teamA/teamB da partida que junta essas duas metades)",
+          );
+        }
+      });
+    }
+
+    it(`bracket-${numTeams}-teams: o 1º do ranking abre o jogo #1`, () => {
+      const primeiro = def.find((m) =>
+        [m.teamA, m.teamB].some((src) => src.type === "SEED" && src.seed === 1));
+      assert.ok(primeiro, "planta sem seed 1");
+      assert.equal(
+        primeiro!.matchNumber,
+        Math.min(...def.filter((m) => m.bracket === "WB").map((m) => m.matchNumber)),
+        `1º do ranking estreia na #${primeiro!.matchNumber} em vez da primeira partida da tabela`,
+      );
+    });
+  }
+});

@@ -57,6 +57,7 @@ class PredictionMatchPickCard extends StatelessWidget {
     final row = buildTournamentMatchRow(viewModel: viewModel);
     final score = focusMatchCardScoreOf(match, row.state);
     final pick = selectedTeamId?.trim();
+    final contextParts = focusMatchCardContextParts(match: match);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -77,7 +78,8 @@ class PredictionMatchPickCard extends StatelessWidget {
           children: [
             MatchCardHead(
               row: row,
-              contextLabel: focusMatchCardContext(match: match),
+              categoryLabel: contextParts.category,
+              contextLabel: contextParts.meta,
               trailing: _HeadBadges(
                 isChampionMatch: isChampionDecidingMatch(match),
                 locked: locked,

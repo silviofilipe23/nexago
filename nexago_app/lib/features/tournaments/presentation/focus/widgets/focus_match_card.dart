@@ -71,6 +71,10 @@ class FocusMatchCard extends StatelessWidget {
       athleteTeamIds: athleteTeamIds,
     );
     final score = focusMatchCardScoreOf(match, row.state);
+    final contextParts = focusMatchCardContextParts(
+      match: match,
+      categoryName: categoryName,
+    );
 
     return TournamentMatchCardSkin(
       stage: row.stage,
@@ -83,10 +87,8 @@ class FocusMatchCard extends StatelessWidget {
         children: [
           MatchCardHead(
             row: row,
-            contextLabel: focusMatchCardContext(
-              match: match,
-              categoryName: categoryName,
-            ),
+            categoryLabel: contextParts.category,
+            contextLabel: contextParts.meta,
           ),
           const SizedBox(height: AppSpacing.lg),
           // Sem `IntrinsicHeight`: as três colunas alinham pelo TOPO, e o custo

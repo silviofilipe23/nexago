@@ -29,27 +29,47 @@ String focusMatchCourtShortLabel(TournamentMatch match) {
   return raw;
 }
 
-/// "Misto B · Grupo B · Q3" — de onde vem a partida, à direita do cabeçalho.
+/// "Misto B · Grupo B · Q3" — de onde vem a partida.
 ///
 /// [categoryName] só entra nas listas do torneio inteiro (seção Arena): numa
 /// lista já recortada por categoria ela é redundante e rouba espaço do grupo.
 ///
 /// Na fase de grupos usa o rótulo do POOL, e não [matchPhaseDisplayLabel], que
 /// devolveria "FASE DE GRUPOS · GRUPO B" e empurraria a quadra para fora.
+///
+/// Preferir [focusMatchCardContextParts] no card: categoria sobe pra linha do
+/// status e o restante (grupo/fase · quadra) fica embaixo.
 String focusMatchCardContext({
+  required TournamentMatch match,
+  String categoryName = '',
+}) {
+  final parts = focusMatchCardContextParts(
+    match: match,
+    categoryName: categoryName,
+  );
+  return [
+    if (parts.category.isNotEmpty) parts.category,
+    if (parts.meta.isNotEmpty) parts.meta,
+  ].join(' · ');
+}
+
+/// Partes do contexto do card: [category] na linha do status, [meta] embaixo.
+({String category, String meta}) focusMatchCardContextParts({
   required TournamentMatch match,
   String categoryName = '',
 }) {
   final phase = match.isPoolMatch
       ? poolLabelForId(match.poolId)
       : matchPhaseDisplayLabel(match);
+  final court = focusMatchCourtShortLabel(match);
 
-  return [
-    if (categoryName.trim().isNotEmpty) categoryName.trim(),
-    if (phase.isNotEmpty) phase,
-    if (focusMatchCourtShortLabel(match).isNotEmpty)
-      focusMatchCourtShortLabel(match),
-  ].join(' · ');
+  return (
+    category: categoryName.trim(),
+    meta: [
+      if (phase.isNotEmpty) phase,
+      if (court.isNotEmpty) court,
+    ].join(' · '),
+  );
 }
 
 /// O centro do card: o número grande e a linha fina embaixo.

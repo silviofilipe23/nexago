@@ -84,6 +84,35 @@ void main() {
       expect(label, 'Misto B · Grupo B · Q3');
     });
 
+    test('parts: categoria em cima, grupo/quadra embaixo', () {
+      final parts = focusMatchCardContextParts(
+        match: _match(
+          poolId: 'B',
+          isGroupMatch: true,
+          matchType: 'group',
+          courtName: '3',
+        ),
+        categoryName: 'Misto B',
+      );
+
+      expect(parts.category, 'Misto B');
+      expect(parts.meta, 'Grupo B · Q3');
+    });
+
+    test('parts sem categoria: meta carrega grupo e quadra', () {
+      final parts = focusMatchCardContextParts(
+        match: _match(
+          poolId: 'B',
+          isGroupMatch: true,
+          matchType: 'group',
+          courtName: '3',
+        ),
+      );
+
+      expect(parts.category, '');
+      expect(parts.meta, 'Grupo B · Q3');
+    });
+
     test('sem quadra definida, a linha não fica com separador solto', () {
       final label = focusMatchCardContext(
         match: _match(poolId: 'A', isGroupMatch: true, matchType: 'group'),

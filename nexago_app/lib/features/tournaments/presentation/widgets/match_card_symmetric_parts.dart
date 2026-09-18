@@ -20,63 +20,89 @@ import 'tournament_match_live_badge.dart';
 /// O que NÃO mora aqui é a casca ([TournamentMatchCardSkin]) nem o centro: a
 /// casca já é compartilhada, e o centro é o que muda entre os dois cards.
 
-/// "#14 ● AO VIVO" à esquerda, "MISTO B · GRUPO B · Q3" à direita.
+/// "#14 ● AO VIVO" + categoria na primeira linha; grupo/fase · quadra embaixo.
 ///
 /// O nº abre a linha e não encolhe: é por ele que o organizador chama o jogo na
-/// quadra. O contexto é quem quebra — em até duas linhas, como no protótipo.
+/// quadra. A categoria (quando a lista é do torneio inteiro) fica à direita do
+/// status; o restante do contexto sobra sozinho na linha de baixo.
 class MatchCardHead extends StatelessWidget {
   const MatchCardHead({
     super.key,
     required this.row,
-    required this.contextLabel,
+    this.categoryLabel = '',
+    this.contextLabel = '',
     this.trailing,
   });
 
   final TournamentMatchRow row;
+
+  /// Nome da categoria — só nas listas do torneio inteiro (Arena).
+  final String categoryLabel;
+
+  /// Grupo/fase · quadra, na linha de baixo.
   final String contextLabel;
 
-  /// Entra à direita, DEPOIS do contexto. O card de palpite pendura aqui o
+  /// Entra à direita da linha de cima. O card de palpite pendura aqui o
   /// "VALE CAMPEÃO" e o cadeado, que o card de partida não tem.
   final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    final mutedStyle = AppTypography.mono(
+      fontSize: 10,
+      fontWeight: FontWeight.w400,
+      color: colors.onSurfaceMuted.withValues(alpha: 0.85),
+      letterSpacing: 1.32,
+    );
+    final category = categoryLabel.trim();
+    final meta = contextLabel.trim();
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (row.number.isNotEmpty) ...[
+        Row(
+          children: [
+            if (row.number.isNotEmpty) ...[
+              Text(
+                row.number,
+                style: AppTypography.mono(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: colors.onSurfaceMuted,
+                  letterSpacing: 0.66,
+                ),
+              ),
+              const SizedBox(width: 7),
+            ],
+            _StateMark(row: row),
+            if (category.isNotEmpty) ...[
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  category.toUpperCase(),
+                  textAlign: TextAlign.right,
+                  style: mutedStyle.copyWith(fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ] else if (trailing != null)
+              const Spacer(),
+            if (trailing != null) ...[
+              if (category.isNotEmpty) const SizedBox(width: 6),
+              trailing!,
+            ],
+          ],
+        ),
+        if (meta.isNotEmpty) ...[
+          const SizedBox(height: 4),
           Text(
-            row.number,
-            style: AppTypography.mono(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: colors.onSurfaceMuted,
-              letterSpacing: 0.66,
-            ),
-          ),
-          const SizedBox(width: 7),
-        ],
-        _StateMark(row: row),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: Text(
-            contextLabel.toUpperCase(),
-            textAlign: TextAlign.right,
-            style: AppTypography.mono(
-              fontSize: 11,
-              fontWeight: FontWeight.w400,
-              color: colors.onSurfaceMuted.withValues(alpha: 0.85),
-              letterSpacing: 1.32,
-            ),
+            meta.toUpperCase(),
+            style: mutedStyle,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
-        ),
-        if (trailing != null) ...[
-          const SizedBox(width: 6),
-          trailing!,
         ],
       ],
     );
@@ -102,8 +128,7 @@ class _StateMark extends StatelessWidget {
       TournamentMatchRowState.live => AppColors.live,
       TournamentMatchRowState.done => AppColors.win,
       TournamentMatchRowState.scheduled ||
-      TournamentMatchRowState.tbd =>
-        AppColors.pending,
+      TournamentMatchRowState.tbd => AppColors.pending,
       TournamentMatchRowState.canceled => colors.onSurfaceMuted,
     };
 
@@ -164,18 +189,16 @@ class MatchCardSide extends StatelessWidget {
       fontWeight: side.mine || emphasized
           ? FontWeight.w700
           : side.lost || side.tbd
-              ? FontWeight.w500
-              : FontWeight.w600,
+          ? FontWeight.w500
+          : FontWeight.w600,
       color: emphasized
           ? AppColors.brand
           : side.tbd
-              ? colors.onSurfaceMuted.withValues(alpha: 0.85)
-              : side.lost
-                  ? colors.onSurfaceMuted
-                  : colors.onSurface,
-    ).copyWith(
-      fontStyle: side.tbd ? FontStyle.italic : FontStyle.normal,
-    );
+          ? colors.onSurfaceMuted.withValues(alpha: 0.85)
+          : side.lost
+          ? colors.onSurfaceMuted
+          : colors.onSurface,
+    ).copyWith(fontStyle: side.tbd ? FontStyle.italic : FontStyle.normal);
     final playerNames = side.players
         .map((p) => p.name.trim())
         .where((n) => n.isNotEmpty)

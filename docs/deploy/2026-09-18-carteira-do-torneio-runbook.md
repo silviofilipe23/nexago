@@ -35,11 +35,19 @@ acontecido.
 
 ## Passo 1 — loja
 
-Versão `1.0.12+109`, na branch `chore/app-1-0-12-109`.
+Versão **`1.0.12+110`**, já na `main`.
 
-1. Submeter Android (AAB) e iOS.
-2. **Esperar estar live de verdade.** Reenvio por rejeição da Apple bumpa o número do build — se
-   isso acontecer, o `--min` do passo 3 é o número que ficou live, não o 109.
+> **Correção de 19/09.** Este runbook nasceu dizendo `1.0.12+109`, e estava errado: o `109` já
+> havia sido consumido na loja. Quem descobriu foi a sessão do PR #457, que subiu para `110`
+> (commit `2ae6fd98`, "build 110, porque o 109 já foi consumido"). Houve bump duplicado —
+> duas sessões fizeram o mesmo trabalho — e o PR #460 ficou como draft justamente porque
+> mergeá-lo **rebaixaria** a main de 110 para 109. Antes de gerar build de loja, **confira o
+> `version:` do `pubspec.yaml` na `main`** em vez de confiar em qualquer número escrito aqui.
+
+1. Gerar AAB e IPA **a partir da `main`**, não de branch de release paralela.
+2. Submeter os dois.
+3. **Esperar estar live de verdade.** Reenvio por rejeição da Apple bumpa o número do build — e o
+   `--min` do passo 3 é sempre o número que ficou live, nunca o que estava planejado.
 
 ## Passo 2 — a janela do backend (só depois de o build estar live)
 
@@ -86,16 +94,19 @@ aplicar: órfão é crédito cujo `registrationId` não resolveu para nenhum tor
 
 ## Passo 3 — fechar a porta do build velho
 
-Só depois de o `109` estar live na loja:
+Só depois de o build estar live na loja:
 
 ```bash
 cd functions && node scripts/set-min-app-version.js \
-  --project volley-track-dev-4596c --platform android --min 109 --yes
+  --project volley-track-dev-4596c --platform android --min <build que ficou live> --yes
 ```
 
 `--min` é o **build number** (o `+N`), não o `1.0.x`. O gate lê `appConfig/appVersion` ao vivo.
 Em 18/09 estava em `android.minBuildNumber: 101`, e **não havia chave `ios`** — se iOS também
 tiver de ser fechado, é uma chamada própria com `--platform ios`. iOS propaga em até ~24h.
+
+Não escreva o número aqui: pegue o que a loja mostra como live. Foi confiar num número planejado
+que gerou o build inútil no 109.
 
 Aqui o gate não é cosmético: é o que tira de circulação o build que mostra R$ 0,00.
 
@@ -117,6 +128,27 @@ Não há rollback automático. O que existe: `migratedToTournamentWalletsAt` em 
 migrada, os `tournamentWallets` criados, e o `increment(-distribuído)` aplicado em
 `organizerWallets`. Reverter é trabalho manual e exige o resumo daquele momento — **guarde a
 saída do dry-run e a do `--yes`** antes de aplicar.
+
+## Antes de qualquer build de loja: checar as sessões irmãs
+
+O bump duplicado de 18/09 aconteceu porque eu não fiz isto. Custa segundos:
+
+```bash
+git worktree list                 # quem mais está com o repo aberto
+git fetch origin && git log --oneline origin/main -8
+git branch -r | grep -iE "chore|versao|version|loja"
+```
+
+Uma branch chamada algo como `claude/gerar-versoes-lojas` significa que outra sessão já está
+nisso. E artefato pronto pode já existir noutro worktree:
+
+```bash
+find . -path "*/build/app/outputs/bundle/release/app-release.aab" -o -path "*/build/ios/ipa/*.ipa"
+```
+
+Achar o arquivo não basta — **confira a versão dentro dele**, porque artefato velho fica no disco:
+`grep flutter.version <worktree>/nexago_app/android/local.properties` para o AAB, e o
+`CFBundleVersion` do `Info.plist` dentro do IPA.
 
 ## Residuais conhecidos, nenhum bloqueando
 

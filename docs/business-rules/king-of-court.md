@@ -16,8 +16,9 @@ tem `teamAId`/`teamBId` — tem um elenco (`kocTeamIds`) e uma tabela de pontos.
 - Quem entra no lado do desafiante saca.
 
 ## Fim da rodada
-- Por **tempo** (padrão: 15 min) e/ou por **alvo de pontos**. O rally em andamento
-  no estouro do cronômetro é concluído antes do encerramento.
+- Por **tempo**, definido pelo organizador (padrão 15 min, faixa de 5 a 40). Pode
+  variar por fase — é comum a final ser mais longa que a classificatória.
+- O rally em andamento no estouro do cronômetro é concluído antes do encerramento.
 - Vence a rodada quem tem mais pontos.
 
 ## Desempate (na ordem)

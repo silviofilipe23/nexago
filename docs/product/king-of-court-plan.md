@@ -77,7 +77,7 @@ em `firestore.rules` para o placar. Só `kocRallies` precisa de bloco de leitura
 |---------|---------|
 | Escopo | **Categoria KOTC dentro de torneio existente** — convive com grupos/mata-mata nas outras categorias do mesmo torneio |
 | Pontuação | **Só o rei pontua** — coroação não vale ponto (`crownScores: false`, sem flag no wizard) |
-| Fim da rodada | **Tempo, 15 min** (`roundEndMode: "time"`, `roundDurationSec: 900`); alvo de pontos não entra no MVP |
+| Fim da rodada | **Tempo, configurável pelo organizador** (`roundEndMode: "time"`, padrão 900s); alvo de pontos não entra no MVP |
 | Prazo | **Rodar na 1ª etapa da Liga, 24/10** |
 
 A escolha de escopo reforça a decisão da seção 1: no **mesmo torneio** vão conviver
@@ -128,8 +128,8 @@ falha segura, mas o guard explícito é o que trava a regressão.
 - Enum + labels (`tournament_create_logic.dart`), `supportedBracketSystems`.
 - Parse nos 3 mappers: `tournament_create_mapper`, `league_create_mapper`,
   `league_stage_create_logic` (os três têm o mesmo `switch` de formato).
-- UI de config em `organizer_category_format_section.dart`: duplas por quadra e
-  quantos classificam. Duração fica fixa em 15 min no MVP.
+- UI de config em `organizer_category_format_section.dart`: duplas por quadra,
+  quantos classificam e **duração da rodada** (ver seção 8).
 - `koc-bracket-builders.ts`: distribui o elenco pago em rodadas de `teamsPerCourt`
   por semeadura serpentina; devolve `MatchDraft[]`.
 - Branch em `runGenerateCategoryBracket` (`organizer-category-ops.ts:367`).
@@ -168,6 +168,7 @@ tudo somente leitura. Chave por fase, pódio e histórico podem vir depois.
 | Torneio não fechar por `isFinalMatchType` não conhecer `koc_final` | Coberto na Fase 3, com teste de fechamento |
 | Mesário errar o rally (ritmo é alto) | `kocUndoRally` com log em `kocRallies` |
 | Relógio divergir entre mesa e app | `clockEndsAt` no servidor; cliente só renderiza |
+| Duração alterada na categoria mudar rodada já em jogo | `kocConfig` é snapshot na geração; o relógio lê a duração do doc da rodada, nunca da categoria |
 | Elenco ímpar não fechar rodadas | Rodadas de 3 e 4 na mesma fase; semeadura serpentina |
 | Prazo apertado com o lançamento nas lojas em paralelo | KOTC fica atrás de uma categoria só; se atrasar, a etapa roda nos formatos atuais sem regressão |
 
@@ -252,3 +253,53 @@ cronômetro fechado no servidor (`clockEndsAt`), 5 min de troca entre rodadas e 
 1h depois. Isso sai de graça: a agenda já grava `scheduleTime` por partida e o
 push de convocação da Fase 5 usa o mesmo campo. Sem isso, 12 duplas ficam
 esperando na beira da quadra.
+
+## 8. Duração da rodada — configuração
+
+A duração não é constante: é o parâmetro que o organizador mais vai querer mexer,
+porque é ele que define se o dia cabe na reserva da quadra.
+
+### Três níveis, do mais amplo ao mais local
+
+**1. Padrão da categoria** (wizard, Fase 1) — `roundDurationSec`, stepper de 5 em
+5 min, faixa de **5 a 40 min**, padrão 15. É o valor que popula todas as rodadas
+na geração da chave.
+
+**2. Override por fase** (wizard, opcional) — `phaseDurationsSec: {"1": 900, "2":
+900, "3": 1200}`. Fase sem entrada cai no padrão. Atende o caso real de querer uma
+final mais longa que a classificatória.
+
+**3. Ajuste da rodada no dia D** (mesa, Fase 2) — `kocSetRoundDuration` antes de
+iniciar, e `kocAdjustClock` (±1 min) com a rodada em andamento.
+
+O nível 3 não é luxo: é a mitigação direta do risco de cascata da seção 7. Com uma
+quadra e sete rodadas em sequência, um estouro na R1 empurra as outras seis, e
+encurtar uma rodada no meio do dia é o único jeito de recuperar o horário sem
+cortar rodada.
+
+### Onde o valor mora
+
+`kocConfig` no doc da rodada é a **fonte da verdade** do relógio, gravada como
+snapshot na geração. A config da categoria é só o molde que a preenche: mudar a
+categoria depois não mexe em rodada já gerada nem, muito menos, em rodada em jogo.
+
+`clockEndsAt` é derivado no servidor em `kocStartRound` (`startedAt + duração +
+pausedAccumSec`) e **recalculado** por `kocSetRoundDuration` / `kocAdjustClock`.
+O cliente nunca calcula prazo — só renderiza a contagem até `clockEndsAt`.
+
+### O wizard precisa mostrar a conta
+
+Duração isolada não diz nada ao organizador; o que ele precisa ver é o **tempo
+total de quadra**:
+
+> 7 rodadas × 15 min + intervalos = **2h30**
+
+Com 20 min vira 3h05, com 10 min vira 1h55. É essa linha que responde a pergunta
+real ("cabe na minha reserva?") e evita descobrir o estouro no dia. A conta usa o
+número de rodadas que a própria geração produz, então já está disponível.
+
+### Limites e aviso
+
+Abaixo de 10 min a rodada fica rasa: a ~25s por rally, 10 min dão ~24 rallies e,
+com 4 duplas em quadra, cerca de 12 por dupla. O wizard aceita, mas avisa. Abaixo
+de 5 min recusa.

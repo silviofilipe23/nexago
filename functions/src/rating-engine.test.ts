@@ -70,6 +70,13 @@ describe("isWalkoverMatch / shouldProcessRatingUpdate", () => {
     assert.equal(isWalkoverMatch({resultA: "2", resultB: "1"}), false);
   });
 
+  it("ignora rodada King of the Court", () => {
+    // Sem dois lados não há confronto: aplicar Glicko aqui marcaria derrota
+    // para todo mundo que não é o `winnerId`.
+    const after = {status: "Completed", winnerId: "tA", matchType: "koc_round"};
+    assert.equal(shouldProcessRatingUpdate({status: "In Progress"}, after), false);
+  });
+
   it("dispara ao concluir com vencedor e na correção; ignora repetição", () => {
     const after = {status: "Completed", winnerId: "tA"};
     assert.equal(shouldProcessRatingUpdate({status: "In Progress"}, after), true);

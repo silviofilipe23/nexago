@@ -2,6 +2,7 @@ import 'tournament_match_live_score.dart';
 import 'tournament_match_point_action.dart';
 import 'tournament_match_set.dart';
 import 'tournament_match_status.dart';
+import 'tournament_match_type.dart';
 
 /// Partida em `artifacts/{projectId}/public/data/matches`.
 class TournamentMatch {
@@ -122,7 +123,16 @@ class TournamentMatch {
   bool get isWaitingQueue =>
       queueStatus == 'waiting' || queueStatus == 'on_deck';
 
+  /// Rodada King of the Court — 3 a 5 duplas na mesma quadra, sem lados fixos.
+  /// `teamAId`/`teamBId` vêm VAZIOS: quem consome os dois lados tem de sair por
+  /// [isDuel] antes (ver `tournament_match_type.dart`).
+  bool get isKingOfCourt => TournamentMatchType.isKingOfCourt(matchType);
+
+  /// Partida de duelo: dois lados e um vencedor.
+  bool get isDuel => TournamentMatchType.isDuel(matchType);
+
   bool get isBracketMatch {
+    if (isKingOfCourt) return false;
     if (isGroupMatch) return false;
     final t = matchType.toLowerCase();
     if (t == 'group') return false;
@@ -130,8 +140,12 @@ class TournamentMatch {
     return true;
   }
 
+  /// Atenção: a rodada KOTC usa `poolId` para a quadra lógica da fase, então
+  /// sem a saída por [isKingOfCourt] ela cairia aqui como partida de grupo e
+  /// entraria na tabela de classificação de grupos.
   bool get isPoolMatch =>
-      isGroupMatch || matchType.toLowerCase() == 'group' || poolId.isNotEmpty;
+      !isKingOfCourt &&
+      (isGroupMatch || matchType.toLowerCase() == 'group' || poolId.isNotEmpty);
 
   bool get isCompleted => TournamentMatchStatus.isCompleted(status);
 

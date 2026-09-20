@@ -94,6 +94,35 @@ describe("updateLiveMatchScoreCore", () => {
     assert.equal(fake.store.get("tournaments/t1")!.liveMatchesNow, 1);
   });
 
+  it("recusa placar de duelo numa rodada King of the Court", async () => {
+    // Blindagem da fase 0: a rodada KOTC divide a coleção `matches` com as
+    // categorias de duelo do MESMO torneio e passa pelo mesmo ACL, então só o
+    // `matchType` separa as duas. Sem a guarda, ela receberia sets e viraria
+    // "In Progress" com um placar que a mesa do KOTC não sabe ler.
+    const fake = new FakeFirestore();
+    seedTournamentAndMatch(fake, {
+      tournamentId: "t-koc",
+      matchId: "m-koc",
+      managerId: "owner-koc",
+      matchOverrides: {matchType: "koc_round", teamAId: "", teamBId: ""},
+    });
+
+    await assertHttpsError(
+      updateLiveMatchScoreCore(db(fake), "owner-koc", {
+        matchId: "m-koc",
+        setsA: 1,
+        setsB: 0,
+        currentGamesA: 3,
+        currentGamesB: 2,
+      }),
+      "failed-precondition",
+    );
+
+    const data = fake.store.get(`${matchesPath}/m-koc`)!;
+    assert.equal(data.liveScore, undefined);
+    assert.equal(data.status, "Scheduled");
+  });
+
   it("dono do torneio (manager) também pode atualizar sem precisar de staff/claims", async () => {
     const fake = new FakeFirestore();
     seedTournamentAndMatch(fake, {

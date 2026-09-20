@@ -66,6 +66,18 @@ test("shouldPropagateMatchAdvance dispara ao concluir com vencedor", () => {
   );
 });
 
+test("shouldPropagateMatchAdvance ignora rodada King of the Court", () => {
+  // A rodada KOTC conclui COM `winnerId` (o 1º da tabela) — passaria por todas
+  // as outras condições. Quem classifica sai da tabela, não da fiação da chave.
+  assert.equal(
+    shouldPropagateMatchAdvance(
+      {status: "In Progress", matchType: "koc_final"},
+      {status: "Completed", winnerId: "t1", matchType: "koc_final"},
+    ),
+    false,
+  );
+});
+
 test("shouldPropagateMatchAdvance ignora partida sem vencedor", () => {
   assert.equal(
     shouldPropagateMatchAdvance(

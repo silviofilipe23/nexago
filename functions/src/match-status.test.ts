@@ -1,7 +1,10 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {
+  KocMatchType,
   MatchStatus,
+  isDuelMatch,
+  isKingOfCourtMatch,
   isMatchCompleted,
   isMatchInProgress,
   isMatchScheduled,
@@ -62,5 +65,46 @@ describe("isWinnerInMatch", () => {
   it("ignores surrounding whitespace", () => {
     assert.equal(isWinnerInMatch(" tA ", "tA", "tB"), true);
     assert.equal(isWinnerInMatch("tB", "tA", " tB "), true);
+  });
+});
+
+describe("isDuelMatch / isKingOfCourtMatch", () => {
+  it("reconhece os tipos KOTC gerados pela chave", () => {
+    for (const type of Object.values(KocMatchType)) {
+      assert.equal(isKingOfCourtMatch(type), true, type);
+      assert.equal(isDuelMatch(type), false, type);
+    }
+  });
+
+  it("aceita caixa alta e espaço no lugar do underscore", () => {
+    for (const raw of ["KOC_ROUND", "Koc Final", "  koc_semifinal  "]) {
+      assert.equal(isKingOfCourtMatch(raw), true, raw);
+    }
+  });
+
+  it("blinda tipo KOTC futuro pelo prefixo", () => {
+    assert.equal(isKingOfCourtMatch("koc_repechage"), true);
+    assert.equal(isDuelMatch("koc_repechage"), false);
+  });
+
+  it("trata todo tipo de duelo como duelo, inclusive vazio e nulo", () => {
+    for (const raw of [
+      "final",
+      "semifinal",
+      "third place",
+      "group",
+      "winners_r1",
+      "",
+      null,
+      undefined,
+    ]) {
+      assert.equal(isDuelMatch(raw), true, String(raw));
+    }
+  });
+
+  it("não confunde tipo de duelo que apenas começa com as letras de koc", () => {
+    // "kocround" (sem separador) não é um tipo KOTC: o prefixo exige a
+    // fronteira, senão um tipo novo qualquer entraria por acidente.
+    assert.equal(isKingOfCourtMatch("kocround"), false);
   });
 });

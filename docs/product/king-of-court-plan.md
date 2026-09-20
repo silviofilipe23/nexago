@@ -110,19 +110,59 @@ individual/trio, pontos de ranking global pela colocação KOTC.
 
 ## 5. Fases de entrega
 
-### Fase 0 — Blindagem dos consumidores de duelo
+### Fase 0 — Blindagem dos consumidores de duelo ✅ concluída
 Pré-requisito de tudo. Sem isso, uma rodada KOTC vaza para histórico e rating do
 mesmo torneio que tem categorias normais.
 
-- `isDuelMatch(matchType)` em TS (`match-status.ts`) e Dart (`tournament_match.dart`).
-- Aplicar em: `rating-engine`, `head-to-head`, `tournament-predictions`,
-  `group-standings`, `category-bracket-advance`, `league-ranking`,
-  `tournament_podium_logic`, histórico do atleta (`athlete_match_history_mapper`),
-  `athlete_profile_stats_logic`.
-- Teste de regressão: um doc `koc_round` não entra em nenhum desses caminhos.
+**Fronteira.** `isDuelMatch` / `isKingOfCourtMatch` em `match-status.ts` e
+`TournamentMatchType` em `tournament_match_type.dart`. Testam o **prefixo**
+`koc_`, não uma lista fechada, para que um tipo KOTC novo já nasça blindado.
 
-Nota: `rating-engine.ts` já falha em `missing_fields` sem `teamAId`/`teamBId` —
-falha segura, mas o guard explícito é o que trava a regressão.
+**Backend — seis triggers na coleção `matches`.** Cinco passam por três
+predicados puros, que é onde a guarda entrou:
+
+| Predicado | Protege |
+|-----------|---------|
+| `shouldPropagateMatchAdvance` | avanço de chave, ranking de liga, conclusão do torneio |
+| `shouldProcessRatingUpdate` | Glicko e ranking global (que o importa como `shouldAwardForMatch`) |
+| `shouldProcessTournamentMatchXp` | XP e palpites de chave |
+
+O sexto (`onMatchLiveScoreChanged`) tem guarda direta: o push monta
+"dupla A × dupla B".
+
+**Backend — callables de escrita.** `assertDuelMatch` em `declareMatchWalkover`,
+`submitMatchResult`, `updateLiveMatchScoreCore`, `advanceBracketWinner` e
+`applyLeagueRankingForMatch`. As de **agenda** ficaram de fora de propósito
+(`scheduleMatch`, `callMatchToCourt`, `releaseMatchAfterCheckIn`,
+`revertMatchToScheduled`): a rodada KOTC ocupa quadra e horário como qualquer
+outra e precisa delas.
+
+**App.** `isBracketMatch` e `isPoolMatch` no modelo. O segundo era o vazamento
+real: a rodada usa `poolId` para a quadra da fase, então sem a guarda ela
+entraria na tabela de grupos da categoria. Mais o filtro por `isDuel` na campanha
+do atleta.
+
+#### O que a auditoria mostrou que NÃO precisava de guarda
+
+Metade do inventário previsto já era segura, por dois motivos que vale registrar
+porque também protegem o que vier depois:
+
+- **Quem busca por `teamId`** nunca vê a rodada: ela grava `teamAId`/`teamBId`
+  vazios, e nenhuma query `where(teamAId == <id real>)` casa com string vazia.
+  Cobre `head-to-head`, `draw-sessions`, histórico e estatísticas do atleta.
+- **Quem compara `matchType` por igualdade exata** já não casa com `koc_final`.
+  Cobre `group-standings`, `tournament_podium_logic`, `league-ranking` e
+  `focus_journey_logic`.
+
+O perigo mora em quem usa `contains("final")`: `koc_final` casa. Havia dois,
+ambos hoje inalcançáveis por serem alimentados por `teamId`, mas que passam a ser
+alcançáveis na Fase 4, quando a rodada chega ao Focus do atleta —
+`athlete_tournament_detail_mapper` (corrigido) e `draw-sessions` (segue seguro
+pela query, com a fronteira anotada).
+
+**Cobertura.** Suíte do backend verde: 2735 testes. Os testes Dart foram escritos
+(`test/features/tournaments/domain/tournament_match_type_test.dart`) mas **não
+executados** — não há SDK Flutter no ambiente onde a fase foi feita.
 
 ### Fase 1 — Configuração e geração da chave — **antes de 10/10**
 - Enum + labels (`tournament_create_logic.dart`), `supportedBracketSystems`.

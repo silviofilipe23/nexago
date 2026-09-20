@@ -28,6 +28,7 @@ import {
 } from "./firebase-paths";
 import {coerceNotificationData} from "./notification-delivery";
 import {
+  isDuelMatch,
   isMatchCanceled,
   isMatchCompleted,
   isMatchInProgress,
@@ -643,6 +644,9 @@ export const onMatchLiveScoreChanged = onDocumentUpdated(
 
     const tournamentId = String(after.tournamentId ?? "").trim();
     if (!tournamentId || !matchId.trim()) return;
+    // O push de acompanhamento monta "dupla A x dupla B" a partir dos dois
+    // lados. Rodada KOTC terá o seu próprio aviso (fase 5), com a tabela.
+    if (!isDuelMatch(after.matchType)) return;
 
     const db = getFirestore();
     const notifyRef = db.doc(`${NOTIFY_COLLECTION}/${matchId}`);

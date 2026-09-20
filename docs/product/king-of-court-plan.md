@@ -291,6 +291,35 @@ O card mostra a tabela ao vivo, o trono, a fila e o cronômetro; o rodapé expli
 a regra que o público mais erra — **destronar não dá ponto**. Tudo somente
 leitura: quem registra rally é a mesa.
 
+### Fase 4b — Telão ✅ concluída
+- `PublicKocRoundPage`: telão da rodada, tipografia grande, sem interação.
+- `PublicKocBoardPage` + `kocBoardRoundId`: telão **por categoria**, que segue a
+  rodada valendo.
+- `PublicMatchLivePage` desvia para o telão KOTC quando a partida é uma rodada —
+  o link público e o compartilhamento que já existem continuam valendo.
+- Botão "abrir telão" na mesa, que é de onde o organizador opera no dia.
+
+#### Por categoria, não por rodada
+
+Numa quadra só as sete rodadas acontecem em sequência. Um telão por rodada
+obrigaria alguém a trocar o link **sete vezes durante a etapa, na frente do
+público**. O telão da categoria abre uma vez de manhã e acompanha até a final.
+
+A precedência responde a quem está esperando: em andamento → **próxima a
+entrar** → última concluída. Entre rodadas ele mostra quem sobe, não o resultado
+de quem acabou de sair.
+
+#### Um defeito da fase 4 que este trabalho revelou
+
+`FocusRosters` indexa nomes de dupla pelos **dois lados** das partidas. A rodada
+KOTC grava os dois vazios, então o card do atleta da fase 4 sairia com
+"A definir" em **todas** as linhas do elenco — o dado que mais importa na tela.
+
+Corrigido com `kocRosterNamesProvider`, que resolve os nomes pelos ids do
+elenco. O `select` sobre o elenco é necessário, não decorativo: `kocRoundProvider`
+emite a cada rally, e sem ele a busca de nomes seria refeita dezenas de vezes por
+rodada para um dado que não muda. A mesa ganhou o mesmo resolver como fallback.
+
 ### Fase 5 — Notificações — **pós-evento**
 - Push de rodada (quadra, horário, elenco).
 

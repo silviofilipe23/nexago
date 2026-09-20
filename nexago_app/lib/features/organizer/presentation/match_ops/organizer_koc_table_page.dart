@@ -15,6 +15,7 @@ import '../../../tournaments/domain/koc/koc_round_state.dart';
 import '../../data/organizer_koc_ops_service.dart';
 import '../../domain/category_ops/category_ops_models.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
+import 'organizer_match_navigation.dart';
 
 /// Mesa da rodada King of the Court.
 ///
@@ -144,6 +145,15 @@ class _OrganizerKocTablePageState extends ConsumerState<OrganizerKocTablePage> {
         scrolledUnderElevation: 0,
         centerTitle: false,
         title: const Text('Mesa — King of the Court'),
+        actions: [
+          IconButton(
+            tooltip: 'Abrir telão',
+            icon: const Icon(Icons.cast_rounded),
+            onPressed: () => context.push(
+              publicKocBoardPath(widget.tournamentId, widget.categoryId),
+            ),
+          ),
+        ],
       ),
       body: roundAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -153,9 +163,14 @@ class _OrganizerKocTablePageState extends ConsumerState<OrganizerKocTablePage> {
             return const Center(child: Text('Rodada não encontrada.'));
           }
           final labels = _labelsFrom(teamsAsync.valueOrNull);
+          // Inscrição sem perfil resolvido cai no mesmo resolver do telão, em
+          // vez de a mesa inteira virar "Dupla".
+          final fallback =
+              ref.watch(kocRosterNamesProvider(widget.matchId)).valueOrNull;
           return _KocTableBody(
             round: round,
-            labelFor: (teamId) => labels[teamId] ?? 'Dupla',
+            labelFor: (teamId) =>
+                labels[teamId] ?? fallback?[teamId] ?? 'Dupla',
             busy: _busy,
             onStart: () => _run(() => _ops.startRound(matchId: widget.matchId)),
             onRally: (kingWon) => _run(

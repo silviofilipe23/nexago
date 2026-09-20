@@ -188,6 +188,13 @@ class FocusAgoraSection extends ConsumerWidget {
         ref.watch(tournamentAnnouncementsProvider(tournament.id)).valueOrNull ??
         const [];
 
+    // `FocusRosters` indexa nomes pelos DOIS LADOS das partidas, e a rodada
+    // KOTC grava os dois vazios — sem isto o card sairia com "A definir" em
+    // todas as linhas do elenco.
+    final kocNames = next != null && next.isKingOfCourt
+        ? ref.watch(kocRosterNamesProvider(next.id)).valueOrNull
+        : null;
+
     final phaseMeta = _phaseMetaOf(next);
     final dayItems = _dayRailItems(entries, byId);
     final campaign = state == FocusNowState.eliminated && categoryId != null
@@ -211,7 +218,8 @@ class FocusAgoraSection extends ConsumerWidget {
             match: next,
             round: ref.watch(kocRoundProvider(next.id)).valueOrNull,
             myTeamIds: athleteTeamIds,
-            nameOf: rosters.nameOf,
+            nameOf: (teamId) =>
+                kocNames?[teamId] ?? rosters.nameOf(teamId),
             phaseLabel: kingOfCourtPhaseLabel(next).toUpperCase(),
             onOpenMaps: athleteFirstMatchStarted(day) ? null : _openMaps,
           )

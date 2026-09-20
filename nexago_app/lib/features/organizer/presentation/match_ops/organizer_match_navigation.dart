@@ -73,6 +73,16 @@ String publicMatchLivePath(String tournamentId, String matchId) =>
         .replaceAll(':tournamentId', tournamentId)
         .replaceAll(':matchId', matchId);
 
+/// Telão da categoria King of the Court.
+///
+/// Por CATEGORIA, não por rodada: numa quadra só as rodadas acontecem em
+/// sequência, e um link por rodada obrigaria a trocar a tela sete vezes durante
+/// a etapa. Este acompanha sozinho.
+String publicKocBoardPath(String tournamentId, String categoryId) =>
+    AppRoutes.publicKocBoard
+        .replaceAll(':tournamentId', tournamentId)
+        .replaceAll(':categoryId', categoryId);
+
 /// Mesa certa para a partida.
 ///
 /// Rodada King of the Court tem elenco, fila e tabela; duelo tem placar por

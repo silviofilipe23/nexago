@@ -73,6 +73,7 @@ import '../../features/organizer/presentation/match_ops/organizer_match_quick_sc
 import '../../features/organizer/presentation/match_ops/organizer_match_validate_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_summary_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_insights_page.dart';
+import '../../features/tournaments/presentation/public_koc_board_page.dart';
 import '../../features/tournaments/presentation/public_match_live_page.dart';
 import '../../features/arena/domain/arena_manager_booking.dart';
 import '../../features/arena/domain/arena_booking_canceled_args.dart';
@@ -1117,6 +1118,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final teamId = state.pathParameters['teamId']?.trim() ?? '';
           return TeamPublicProfilePage(teamId: teamId);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.publicKocBoard,
+        name: AppRouteNames.publicKocBoard,
+        builder: (context, state) {
+          final tournamentId =
+              state.pathParameters['tournamentId']?.trim() ?? '';
+          final categoryId = state.pathParameters['categoryId']?.trim() ?? '';
+          return PublicKocBoardPage(
+            tournamentId: tournamentId,
+            categoryId: categoryId,
+          );
         },
       ),
       GoRoute(

@@ -33,6 +33,11 @@ tem `teamAId`/`teamBId` — tem um elenco (`kocTeamIds`) e uma tabela de pontos.
   redistribuídos em serpentina pela colocação.
 - A **rodada final** define o pódio direto pela tabela: 1º, 2º, 3º, 4º.
 
+## Telão
+A rodada é exibida num telão público: trono, cronômetro, tabela ao vivo e fila.
+O telão é **por categoria**, não por rodada — segue sozinho a que está valendo
+(em andamento → próxima a entrar → última concluída).
+
 ## Ranking
 A categoria King of the Court **não pontua**: não soma no ranking global, no
 ranking da liga nem em XP. O pódio da categoria existe e é registrado; o que não

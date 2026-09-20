@@ -75,6 +75,7 @@ em `firestore.rules` para o placar. Só `kocRallies` precisa de bloco de leitura
 
 | Decisão | Escolha |
 |---------|---------|
+| Pontuação no ranking | **Não pontua** — nem ranking global, nem liga, nem XP (decidido 20/09) |
 | Escopo | **Categoria KOTC dentro de torneio existente** — convive com grupos/mata-mata nas outras categorias do mesmo torneio |
 | Pontuação | **Só o rei pontua** — coroação não vale ponto (`crownScores: false`, sem flag no wizard) |
 | Fim da rodada | **Tempo, configurável pelo organizador** (`roundEndMode: "time"`, padrão 900s); alvo de pontos não entra no MVP |
@@ -105,8 +106,9 @@ Duas datas mandam no plano, e nenhuma das duas é 24/10:
 | 24/10 | 1ª etapa |
 | Pós-evento | Fase 5: ranking, XP e push |
 
-O que **não** entra no MVP: alvo de pontos, `crownScores` configurável, modalidade
-individual/trio, pontos de ranking global pela colocação KOTC.
+O que **não** entra no MVP: alvo de pontos, `crownScores` configurável e
+modalidade individual/trio. Pontuação no ranking não entra **nem depois** — ver
+Fase 5.
 
 ## 5. Fases de entrega
 
@@ -289,10 +291,21 @@ O card mostra a tabela ao vivo, o trono, a fila e o cronômetro; o rodapé expli
 a regra que o público mais erra — **destronar não dá ponto**. Tudo somente
 leitura: quem registra rally é a mesa.
 
-### Fase 5 — Ranking, XP e notificações — **pós-evento**
-- Colocação KOTC → pontos de ranking (`tryAwardGlobalRankingForMatch` resolvendo por
-  `kocStandings`, não pelo `winnerId` da final).
+### Fase 5 — Notificações — **pós-evento**
 - Push de rodada (quadra, horário, elenco).
+
+**Ranking saiu do escopo.** A categoria KOTC não pontua: nem ranking global, nem
+ranking da liga, nem XP. Isso já é o comportamento — as guardas da fase 0 e o
+ramo KOTC do trigger, que retorna antes de `tryAwardLeagueStagePointsForMatch`,
+fecham os quatro caminhos.
+
+Por isso `koc-no-ranking.test.ts` existe: a decisão está travada em teste, não só
+aqui. Documento é revertido pelo commit seguinte; teste não. O mesmo arquivo
+garante o outro lado — a rodada KOTC **continua** montando a fase seguinte e
+fechando o torneio.
+
+Uma categoria de duelo no MESMO torneio segue pontuando normalmente: a decisão é
+sobre o formato, não sobre a etapa.
 
 ## 6. Riscos
 

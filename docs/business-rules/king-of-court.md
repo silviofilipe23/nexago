@@ -33,6 +33,11 @@ tem `teamAId`/`teamBId` — tem um elenco (`kocTeamIds`) e uma tabela de pontos.
   redistribuídos em serpentina pela colocação.
 - A **rodada final** define o pódio direto pela tabela: 1º, 2º, 3º, 4º.
 
+## Ranking
+A categoria King of the Court **não pontua**: não soma no ranking global, no
+ranking da liga nem em XP. O pódio da categoria existe e é registrado; o que não
+existe é pontuação. Categorias de duelo do mesmo torneio seguem pontuando.
+
 ## Restrições
 - Elenco da rodada: mínimo 3, máximo 5 duplas.
 - Publicada a chave, o elenco congela (mesma trava de substituição dos outros formatos).

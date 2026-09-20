@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { truncateName } from '../data/mock-data';
 import type { TournamentMatch } from '../data/matches-repository';
 import {
@@ -11,6 +12,8 @@ import {
   previewBlocksByCourt,
   spWallToDate,
   startTimeOptions,
+  tournamentDayKeys,
+  tournamentDayKeysFromMatches,
   wallClockLabel,
 } from '../data/auto-schedule-preview';
 import type { AutoScheduleSkip, AutoScheduleSlot } from '../data/organizer-ops.service';
@@ -55,7 +58,7 @@ interface AgendaBloco {
 @Component({
   selector: 'og-agendamento',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgConfirmDialogComponent, NxProcessingOverlayComponent, NxSpinnerComponent],
+  imports: [RouterLink, OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgConfirmDialogComponent, NxProcessingOverlayComponent, NxSpinnerComponent],
   host: { '(document:keydown.escape)': 'onEscape()' },
   template: `
     <og-page-header title="Agendamento de jogos" [subtitle]="headerSubtitle()">
@@ -74,10 +77,14 @@ interface AgendaBloco {
     </og-page-header>
 
     <div class="og-content">
-      @if (dayKeys().length > 1) {
+      @if (dayKeys().length > 0) {
         <div class="og-filter-bar">
-          @for (d of dayKeys(); track d) {
-            <button type="button" class="og-chip" [class.active]="selectedDayKey() === d" (click)="selectDay(d)">{{ dayLabel(d) }}</button>
+          @if (dayKeys().length > 1) {
+            @for (d of dayKeys(); track d) {
+              <button type="button" class="og-chip" [class.active]="selectedDayKey() === d" (click)="selectDay(d)">{{ dayLabel(d) }}</button>
+            }
+          } @else {
+            <span class="og-agenda-day-static">{{ dayLabel(dayKeys()[0]!) }}</span>
           }
         </div>
       }
@@ -97,7 +104,19 @@ interface AgendaBloco {
       @if (ctx.loadingTournaments() || ctx.loadingMatches()) {
         <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Carregando jogos…</div>
       } @else if (ctx.tournaments().length > 0 && ctx.matches().length === 0) {
-        <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Chaves ainda não geradas</div>
+        <div class="og-card og-agenda-empty">
+          <p class="og-agenda-empty-title">Chaves ainda não geradas</p>
+          <p class="og-agenda-empty-copy">
+            O agendamento precisa das partidas da chave. Gere a chave em Seeds (cabeças de chave)
+            ou em Grupos pra liberar a grade e a fila.
+          </p>
+          @if (seedsLink(); as link) {
+            <a class="og-mini-btn og-mini-btn-primary" [routerLink]="link">
+              <og-icon name="whistle" [size]="14" />
+              Ir para Seeds
+            </a>
+          }
+        </div>
       } @else {
         <div class="og-agenda-layout" [class.with-minibar]="autoMinibar()">
         <og-card style="min-height:0;overflow:hidden">
@@ -405,6 +424,28 @@ interface AgendaBloco {
          dele uma coluna flex de altura limitada — é o que dá altura pro .og-content rolar por
          dentro. Aqui fica só o que é desta tela: a âncora do overlay de processamento. */
       position: relative;
+    }
+
+    .og-agenda-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+      color: var(--nx-text-dim);
+      font-family: var(--nx-font-ui);
+      font-size: 13px;
+    }
+    .og-agenda-empty-title {
+      margin: 0;
+      color: var(--nx-text);
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 15px;
+    }
+    .og-agenda-empty-copy {
+      margin: 0;
+      max-width: 42rem;
+      line-height: 1.45;
     }
 
     .og-agenda-layout {
@@ -1022,6 +1063,15 @@ export class AgendamentoComponent {
     return cat ? `${t.name} · categoria ${cat}` : t.name;
   });
 
+  /** Mesmo deep-link do Grupos — só com torneio + categoria e enquanto não há jogos. */
+  protected readonly seedsLink = computed<string[] | null>(() => {
+    const tid = this.ctx.selectedTournamentId();
+    const cid = this.ctx.selectedCategoryId();
+    if (!tid || !cid) return null;
+    if (this.ctx.matchesFiltered().length > 0) return null;
+    return ['/painel/eventos', tid, 'categorias', cid, 'seeds'];
+  });
+
   protected readonly courts = computed(() => this.ctx.tournament()?.courts ?? []);
 
   protected readonly durationMin = computed(() => this.ctx.tournament()?.matchOps.defaultMatchDurationMin ?? 30);
@@ -1031,19 +1081,14 @@ export class AgendamentoComponent {
    *  no resumo do auto-agendamento. O eixo DESENHADO pode passar dele: ver `gridEnd`. */
   protected readonly endMin = computed(() => parseHHMM(this.ctx.tournament()?.matchOps.dayEnd ?? '24:00'));
 
-  /** Dias do torneio (startAt..endAt na parede SP, máx. 14) + hoje como fallback. */
+  /** Dias do torneio (startAt..endAt na parede SP, máx. 14). Sem startAt, cai nos
+   *  dayKeys das partidas + hoje — mesma regra do app (`tournamentDayKeys` /
+   *  `tournamentDayKeysFromMatches`). */
   protected readonly dayKeys = computed<string[]>(() => {
     const t = this.ctx.tournament();
-    if (!t?.startAt) return [this.selectedDayKey()];
-    const keys: string[] = [];
-    const end = t.endAt ?? t.startAt;
-    const cursor = new Date(t.startAt);
-    for (let i = 0; i < 14 && cursor <= end; i++) {
-      keys.push(dayKeyFromDate(cursor));
-      cursor.setDate(cursor.getDate() + 1);
-    }
-    if (keys.length === 0) keys.push(dayKeyFromDate(t.startAt));
-    return keys;
+    const fromTournament = tournamentDayKeys(t?.startAt, t?.endAt);
+    if (fromTournament.length > 0) return fromTournament;
+    return tournamentDayKeysFromMatches(this.ctx.matches(), dayKeyFromDate(new Date()));
   });
 
   /** Barra fina no lugar do sheet — o painel segue aberto e configurado. */

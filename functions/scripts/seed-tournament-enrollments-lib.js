@@ -344,6 +344,9 @@ function normalizeText(raw) {
 function namesMatch(a, b) {
   const na = normalizeText(a);
   const nb = normalizeText(b);
+  // Nome vazio: `"".includes(...)` / `x.includes("")` é true em JS e faria
+  // qualquer --tournament-name casar com um torneio sem name (ex.: lHRK4…).
+  if (!na || !nb) return false;
   return na === nb || na.includes(nb) || nb.includes(na);
 }
 

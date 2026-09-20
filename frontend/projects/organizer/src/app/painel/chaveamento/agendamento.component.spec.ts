@@ -151,6 +151,26 @@ describe('AgendamentoComponent — painel de auto-agendamento', () => {
     fixture.detectChanges();
   });
 
+  describe('chips de dia', () => {
+    it('mostra o dia estático em torneio de um dia', () => {
+      expect(host().querySelector('.og-agenda-day-static')?.textContent?.trim()).toBe('24/10');
+      expect(host().querySelectorAll('.og-filter-bar .og-chip').length).toBe(0);
+    });
+
+    it('mostra um chip por dia em torneio multi-dia', () => {
+      const multi = tournamentFixture({
+        startAt: new Date('2026-09-18T03:00:00.000Z'),
+        endAt: new Date('2026-09-20T03:00:00.000Z'),
+      });
+      ctx.tournament.set(multi);
+      ctx.tournaments.set([multi]);
+      fixture.detectChanges();
+
+      expect(texts('.og-filter-bar .og-chip')).toEqual(['18/09', '19/09', '20/09']);
+      expect(host().querySelector('.og-agenda-day-static')).toBeNull();
+    });
+  });
+
   function openPanel(): void {
     // A prévia dispara uma callable real (rejeita sem backend) — o painel abre
     // do mesmo jeito, que é o que este teste verifica.

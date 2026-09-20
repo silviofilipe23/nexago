@@ -170,3 +170,85 @@ tudo somente leitura. Chave por fase, pódio e histórico podem vir depois.
 | Relógio divergir entre mesa e app | `clockEndsAt` no servidor; cliente só renderiza |
 | Elenco ímpar não fechar rodadas | Rodadas de 3 e 4 na mesma fase; semeadura serpentina |
 | Prazo apertado com o lançamento nas lojas em paralelo | KOTC fica atrás de uma categoria só; se atrasar, a etapa roda nos formatos atuais sem regressão |
+
+## 7. Desenho da 1ª etapa — 16 duplas, 1 quadra
+
+Decidido em 20/09: campo de **16 duplas**, **uma quadra** dedicada à categoria,
+**um turno** de classificatória.
+
+### Config da categoria
+
+```json
+{
+  "teamsPerCourt": 4,
+  "qualifiersPerRound": 2,
+  "phaseCount": 3,
+  "roundEndMode": "time",
+  "roundDurationSec": 900,
+  "crownScores": false
+}
+```
+
+16 ÷ 4 fecha exato: 4 rodadas → 8 duplas → 2 semifinais → 4 duplas → final.
+Sete rodadas, sem bye e sem sobra.
+
+### Semeadura
+
+Classificatória em serpentina pelo seed — cada rodada soma 34, então não existe
+rodada da morte:
+
+| Rodada | Seeds |
+|--------|-------|
+| R1 | 1, 8, 9, 16 |
+| R2 | 2, 7, 10, 15 |
+| R3 | 3, 6, 11, 14 |
+| R4 | 4, 5, 12, 13 |
+
+Semifinais por cruzamento, reaproveitando o padrão de
+`crossoverFirstRoundPairings` (`category-bracket-builders.ts`):
+
+- **SF1** — 1º R1, 2º R2, 1º R3, 2º R4
+- **SF2** — 1º R2, 2º R1, 1º R4, 2º R3
+
+Os dois classificados de uma mesma rodada caem em semifinais diferentes: ninguém
+reencontra adversário antes da final. Cada semi leva dois primeiros e dois
+segundos colocados.
+
+Final: 1º e 2º de cada semifinal. A tabela da final **é** o pódio.
+
+### Agenda do dia (2h30 de quadra contínua)
+
+| Rodada | Horário | Elenco |
+|--------|---------|--------|
+| R1 | 0:00–0:15 | seeds 1, 8, 9, 16 |
+| R2 | 0:20–0:35 | seeds 2, 7, 10, 15 |
+| R3 | 0:40–0:55 | seeds 3, 6, 11, 14 |
+| R4 | 1:00–1:15 | seeds 4, 5, 12, 13 |
+| — | 1:15–1:30 | intervalo de fase |
+| SF1 | 1:30–1:45 | 1ºR1, 2ºR2, 1ºR3, 2ºR4 |
+| SF2 | 1:50–2:05 | 1ºR2, 2ºR1, 1ºR4, 2ºR3 |
+| Final | 2:15–2:30 | 1º e 2º de cada semi |
+
+O **intervalo de fase de 15 min não é folga**: sem ele, o 2º da R4 sai às 1:15 e
+entra na SF1 às 1:20. É o descanso mínimo do caminho mais apertado.
+
+### O que 1 quadra muda no formato
+
+**A favor.** Todas as rodadas acontecem na mesma quadra, e a classificação é
+sempre *dentro* da rodada (top 2). Não existe comparação de pontos entre quadras
+com ritmos diferentes — o problema de justiça da seção anterior simplesmente não
+existe aqui, e o desempate por aproveitamento deixa de ser necessário no MVP.
+
+**Contra.** Quem cai na classificatória joga 15 min de um evento de 2h30. É o
+preço de um turno só, e foi decisão consciente: dois turnos custariam +1h20 na
+mesma quadra.
+
+**Risco novo.** Rodadas sequenciais cascateiam atraso: um estouro na R1 empurra
+as outras seis. Com quadras em paralelo o atraso fica contido em uma. Mitigação:
+cronômetro fechado no servidor (`clockEndsAt`), 5 min de troca entre rodadas e os
+15 min de intervalo de fase como colchão.
+
+**Convocação escalonada.** As duplas da R4 não precisam chegar às 0:00 — chegam
+1h depois. Isso sai de graça: a agenda já grava `scheduleTime` por partida e o
+push de convocação da Fase 5 usa o mesmo campo. Sem isso, 12 duplas ficam
+esperando na beira da quadra.

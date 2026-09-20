@@ -6,6 +6,9 @@ import { generateKeywords } from './search-keywords';
 import {
   BRACKET_FORMAT_FIRESTORE,
   DISPUTE_TEAM_SIZE,
+  KOC_DEFAULT_QUALIFIERS_PER_ROUND,
+  KOC_DEFAULT_ROUND_DURATION_SEC,
+  KOC_DEFAULT_TEAMS_PER_COURT,
   SKILL_LEVEL_LABEL,
   type AgeBand,
   type AgeReference,
@@ -90,6 +93,11 @@ export function categoryToMap(category: TournamentCategoryDraft, draft: Tourname
     bracketFormat: BRACKET_FORMAT_FIRESTORE[category.bracketSystem],
     teamsPerGroup: category.teamsPerGroup,
     qualifiersPerGroup: category.qualifiersPerGroup,
+    // Config do King of the Court — mesmos nomes que `resolveKocConfig` lê no
+    // backend. Gravada sempre, para o roundtrip de edição não perder a escolha.
+    teamsPerCourt: category.kocTeamsPerCourt,
+    qualifiersPerRound: category.kocQualifiersPerRound,
+    roundDurationSec: category.kocRoundDurationSec,
     bestOf: category.bestOf,
     finalBestOf5: category.finalBestOf5,
     maxRegistrationsPerAthlete: category.maxRegistrationsPerAthlete,
@@ -335,6 +343,9 @@ export function categoryFromMap(map: Record<string, unknown>): TournamentCategor
     bracketSystem: (bracketRaw ? bracketSystemFromRaw(bracketRaw) : null) ?? 'groupsThenKnockout',
     teamsPerGroup: num(map['teamsPerGroup']) ?? 4,
     qualifiersPerGroup: num(map['qualifiersPerGroup']) ?? 2,
+    kocTeamsPerCourt: num(map['teamsPerCourt']) ?? KOC_DEFAULT_TEAMS_PER_COURT,
+    kocQualifiersPerRound: num(map['qualifiersPerRound']) ?? KOC_DEFAULT_QUALIFIERS_PER_ROUND,
+    kocRoundDurationSec: num(map['roundDurationSec']) ?? KOC_DEFAULT_ROUND_DURATION_SEC,
     bestOf: parseBestOf(map['bestOf']),
     finalBestOf5: map['finalBestOf5'] === true,
     maxRegistrationsPerAthlete: num(map['maxRegistrationsPerAthlete']) ?? 2,

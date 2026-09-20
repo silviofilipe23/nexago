@@ -320,6 +320,51 @@ elenco. O `select` sobre o elenco é necessário, não decorativo: `kocRoundProv
 emite a cada rally, e sem ele a busca de nomes seria refeita dezenas de vezes por
 rodada para um dado que não muda. A mesa ganhou o mesmo resolver como fallback.
 
+### Fase 4c — Portal do organizador ✅ concluída
+
+**O erro que motivou esta fase.** O portal do organizador é o Angular em
+`frontend/projects/organizer`, um **port próprio** do modelo Flutter — o
+`tournament-create.model.ts` declara isso no topo. As fases 1 a 4 mexeram só no
+app Flutter e nas functions, então a modalidade **não aparecia no wizard do
+portal**: ele renderiza as opções de `SUPPORTED_BRACKET_SYSTEMS`, que tinha três
+valores e nenhum era KOTC. Não era erro — era ausência.
+
+Sete arquivos do portal duplicam o que o app já tinha, e todos precisaram da
+modalidade:
+
+| Arquivo | O que duplicava |
+|---------|-----------------|
+| `data/tournament-create.model.ts` | tipo, mapa Firestore, rótulos, descrição, `SUPPORTED_BRACKET_SYSTEMS`, parse |
+| `data/tournament-create-mapper.ts` | escrita/leitura da config no doc |
+| `data/league-create.model.ts` | escrita da config na categoria da liga |
+| `data/organizer-ops.service.ts` | union de `format` da callable |
+| `data/organizer-settings.model.ts` | lista de sistemas das preferências |
+| `eventos/seeds.component.ts` | `BracketFormat` próprio, lista de formatos, piso de publicação |
+| `eventos/wizard/criar-torneio.component.ts` | opções e config da categoria |
+
+O wizard ganhou os steppers de duplas por quadra, classificam e duração, mais a
+**estimativa de tempo total de quadra** (porta de `king_of_court_plan.dart`, que
+por sua vez espelha o gerador no backend — a fonte da verdade continua sendo o
+backend).
+
+**Cobertura.** Portal: build de produção OK e 902 de 903 testes passando. A
+falha restante é de FUSO (`14:32` esperado, `17:32` recebido = UTC-3) em
+`inscricoes.rows.spec.ts`, arquivo não tocado aqui — pré-existente num ambiente
+UTC.
+
+#### O que este episódio revelou, e que segue ABERTO
+
+O portal tem **mesa e telão próprios**: `painel/telao/` (`telao-screen`,
+`telao-court-card`, `telao-config`) e `mesa-ao-vivo`, `placar`, `chaveamento`.
+
+A mesa (fase 2) e o telão (fase 4b) foram construídos **no app Flutter**. Se o
+organizador opera o dia pelo portal, faltam as duas telas lá — e sem a mesa no
+portal **ninguém registra rally em 24/10**. O `telao-court-card` atual mostra
+placar de duelo.
+
+Decisão pendente: onde a etapa será operada. A resposta define se as duas telas
+do Flutter bastam ou se precisam de par no portal.
+
 ### Fase 5 — Notificações — **pós-evento**
 - Push de rodada (quadra, horário, elenco).
 

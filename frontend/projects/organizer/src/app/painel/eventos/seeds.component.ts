@@ -26,13 +26,17 @@ import { OgToggleRowComponent } from '../ui/toggle-row.component';
 import { NxProcessingOverlayComponent } from '../../shared/loading/nx-processing-overlay.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 
-type BracketFormat = 'groups_knockout' | 'single_elimination' | 'double_elimination';
+type BracketFormat = 'groups_knockout' | 'single_elimination' | 'double_elimination' | 'king_of_court';
 
 const FORMAT_LABEL: Record<BracketFormat, string> = {
   groups_knockout: 'Grupos + mata-mata',
   single_elimination: 'Eliminatória simples',
   double_elimination: 'Dupla eliminatória',
+  king_of_court: 'King of the Court',
 };
+
+/** Piso do King of the Court: com 2 duplas não há fila nem trono. */
+const KOC_MIN_TEAMS = 3;
 
 /**
  * Tamanhos suportados pelas plantas estáticas de dupla eliminação
@@ -494,7 +498,7 @@ export class SeedsComponent {
   private readonly ctx = inject(ChaveamentoContextService);
 
   protected readonly truncate = truncateName;
-  protected readonly formats: BracketFormat[] = ['groups_knockout', 'single_elimination', 'double_elimination'];
+  protected readonly formats: BracketFormat[] = ['groups_knockout', 'single_elimination', 'double_elimination', 'king_of_court'];
   protected readonly formatLabel = FORMAT_LABEL;
   protected readonly deCounts = describeTeamCounts(DE_TEAM_COUNTS);
   protected readonly minTeams = MIN_TEAMS_FOR_BRACKET;
@@ -576,6 +580,9 @@ export class SeedsComponent {
 
   protected readonly canPublish = computed(() => {
     if (this.eligible().length < MIN_TEAMS_FOR_BRACKET) return false;
+    // KOTC tem piso próprio e não usa grupos nem plantas de dupla eliminação:
+    // sai antes das duas checagens abaixo.
+    if (this.format() === 'king_of_court') return this.eligible().length >= KOC_MIN_TEAMS;
     if (this.format() === 'double_elimination') return this.deCountOk();
     if (this.format() === 'groups_knockout') return this.knockoutBalanced() && this.groups().length > 0;
     return true;
@@ -608,7 +615,12 @@ export class SeedsComponent {
       );
       const cat = tournament?.categories.find((c) => c.id === cid) ?? null;
       const savedFormat = cat?.bracketFormat;
-      if (savedFormat === 'single_elimination' || savedFormat === 'double_elimination' || savedFormat === 'groups_knockout') {
+      if (
+        savedFormat === 'single_elimination' ||
+        savedFormat === 'double_elimination' ||
+        savedFormat === 'groups_knockout' ||
+        savedFormat === 'king_of_court'
+      ) {
         this.format.set(savedFormat);
       }
       if (cat) {

@@ -175,6 +175,7 @@ const BRACKET_SYSTEMS: readonly TournamentBracketSystem[] = [
   'roundRobin',
   'groupsWithRepechage',
   'doubleElimination',
+  'kingOfCourt',
 ];
 const BEST_OFS: readonly TournamentBestOf[] = ['singleSet', 'bestOf3', 'bestOf5'];
 const PAYMENT_MODES: readonly TournamentPaymentMode[] = ['appPixCard', 'directWithOrganizer'];

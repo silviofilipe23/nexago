@@ -259,10 +259,35 @@ duelo final (`winnerId` + os dois lados). Para KOTC a colocação vem de
 `kocStandings`, o que exige um resolver próprio — trabalho de ranking, não de
 encerramento. O torneio já fecha sem isso; o que falta é **pontuar** a etapa.
 
-### Fase 4 — App do atleta (mínimo para o dia D)
-Não é opcional: sem isso o card "Agora" renderiza uma rodada com os dois lados
-vazios. O mínimo é card KOTC (elenco, quadra, horário) + tabela ao vivo da rodada,
-tudo somente leitura. Chave por fase, pódio e histórico podem vir depois.
+### Fase 4 — App do atleta ✅ concluída
+- `TournamentMatch.kocTeamIds` + `matchInvolvesTeam` ciente do elenco.
+- `FocusKocRoundCard`: card próprio no Focus, no lugar do herói de duelo.
+- `kocRoundProvider`: uma stream do doc, assinada pela mesa E pelo card.
+- `kingOfCourtPhaseLabel`: "CLASSIFICATÓRIA · RODADA 3" / "SEMIFINAL" / "FINAL".
+
+#### O bug que a fase 0 criou de propósito, e que esta fase pagou
+
+A fase 0 gravou os dois lados VAZIOS para esconder a rodada dos consumidores de
+duelo. O efeito colateral: ela ficou escondida **do próprio atleta**, porque
+"esta partida é minha" era `teamAId == meuTime`. A rodada não renderizava errado
+— simplesmente não aparecia.
+
+A correção mora num ponto só: `matchInvolvesTeam`, o único lugar do app que
+decide se a partida é do atleta. Numa rodada a dupla está no ELENCO. Com isso a
+rodada volta a aparecer no Focus, na agenda e na convocação sem espalhar o
+formato pelas telas.
+
+#### O que ficou de fora, e por quê
+
+A **jornada** (trilha da chave), o **pôster de campanha** e o "eliminado"
+continuam com a checagem de duelo inline, o que exclui KOTC. Não é esquecimento:
+são conceitos de chave. No KOTC ninguém é eliminado por perder um rally — deixa
+de classificar pela tabela, e não existe "trilha" porque não existe caminho
+único. O guard em `eliminatedFromKnockout` é explícito para dizer isso.
+
+O card mostra a tabela ao vivo, o trono, a fila e o cronômetro; o rodapé explica
+a regra que o público mais erra — **destronar não dá ponto**. Tudo somente
+leitura: quem registra rally é a mesa.
 
 ### Fase 5 — Ranking, XP e notificações — **pós-evento**
 - Colocação KOTC → pontos de ranking (`tryAwardGlobalRankingForMatch` resolvendo por

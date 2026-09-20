@@ -1,3 +1,4 @@
+import { isKingOfCourtMatchType, kocRoundStateFrom, type KocRoundState } from './koc';
 import { collection, getDocs, onSnapshot, query, where, type Unsubscribe } from 'firebase/firestore';
 import { statusOf, type MatchDisplayStatus } from '@nexago/live-scoring';
 import { environment } from '../../../environments/environment';
@@ -73,6 +74,11 @@ export interface TournamentMatch {
   liveScore: MatchLiveScore | null;
   currentSetIndex: number | null;
   servingTeamId: string;
+  /** Rodada King of the Court, quando `matchType` é `koc_*`. A rodada não tem
+   *  dois lados: `teamAId`/`teamBId` vêm vazios e o elenco/estado vivem aqui.
+   *  Ausente em toda partida de duelo — opcional de propósito, para que nenhuma
+   *  fixture de duelo precise conhecer o formato. Ver `koc.ts`. */
+  koc?: KocRoundState | null;
   matchStartedAt: Date | null;
   /** Fim real da partida (mesa/lançamento gravam ao completar) — o telão usa pra celebrar
    *  partidas recém-encerradas mesmo quando a TV recarregou no ponto do jogo. */
@@ -205,6 +211,7 @@ interface RawMatch {
   liveScore: MatchLiveScore | null;
   currentSetIndex: number | null;
   servingTeamId: string;
+  koc?: KocRoundState | null;
   matchStartedAt: Date | null;
   matchEndedAt: Date | null;
 }
@@ -249,6 +256,7 @@ function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawMatch {
     liveScore: liveScoreFromRaw(data['liveScore']),
     currentSetIndex: intOf(data['currentSetIndex']),
     servingTeamId: optionalStr(data['servingTeamId']) ?? '',
+    koc: isKingOfCourtMatchType(matchType) ? kocRoundStateFrom(data) : null,
     matchStartedAt: toDate(data['matchStartedAt']),
     matchEndedAt: toDate(data['matchEndedAt']),
   };
@@ -505,6 +513,7 @@ function rawToMatch(r: RawMatch, labelOf: (description: string | null, teamId: s
     liveScore: r.liveScore,
     currentSetIndex: r.currentSetIndex,
     servingTeamId: r.servingTeamId,
+    koc: r.koc,
     matchStartedAt: r.matchStartedAt,
     matchEndedAt: r.matchEndedAt,
   };

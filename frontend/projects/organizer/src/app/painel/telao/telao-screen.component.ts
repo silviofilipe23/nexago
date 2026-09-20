@@ -78,6 +78,8 @@ interface TelaoQueueRow {
             [showAvatars]="showAvatars()"
             [streakA]="card.streakA"
             [streakB]="card.streakB"
+            [teamsById]="teams()"
+            [nowMs]="now()"
           />
         } @empty {
           <div class="og-telao-empty">{{ error() ? 'Sem conexão — reconectando…' : 'Carregando telão…' }}</div>
@@ -466,6 +468,9 @@ export class TelaoScreenComponent {
   private readonly svc = inject(TelaoDataService);
 
   protected readonly now = signal(Date.now());
+  /** Mapa `teamId` → dupla, para o card da rodada KOTC: ela tem elenco, não dois
+   *  lados, então `teamA`/`teamB` não bastam. */
+  protected readonly teams = computed(() => this.svc.teams());
   protected readonly pageIndex = signal(0);
 
   protected readonly tournament = this.svc.tournament;

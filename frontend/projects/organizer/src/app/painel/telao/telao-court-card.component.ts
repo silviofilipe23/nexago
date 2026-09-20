@@ -1,6 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, input } from '@angular/core';
 import { matchClosedSets, matchLiveCurrentSet, matchSetWins } from '../data/live-set-display';
 import type { TournamentMatch } from '../data/matches-repository';
+import {
+  kocHasQualifyingTie,
+  kocHasStarted,
+  kocIsExpired,
+  kocLiveOrder,
+  kocPointsOf,
+  kocRemainingLabel,
+} from '../data/koc';
 import { initialsOf } from '../data/mock-data';
 import { spDayLabel, spTimeLabel } from '../data/schedule-format';
 import { OgAvatarComponent } from '../ui/avatar.component';
@@ -40,6 +48,43 @@ import { fireLevelOf } from './telao-streaks';
 
     @if (kind() === 'free') {
       <div class="og-tlc-free">Quadra livre</div>
+    } @else if (koc(); as round) {
+      <!-- Rodada King of the Court: não há dois lados nem sets. O que o público
+           na beira da quadra precisa ler, em ordem: quem está no trono, quanto
+           tempo falta, a tabela e quem entra depois. -->
+      <div class="og-tlc-koc">
+        @if (kocClockLabel(); as clock) {
+          <div class="og-tlc-koc-clock" [class.expired]="kocExpired()">{{ clock }}</div>
+        }
+        @if (round.kingTeamId && round.challengerTeamId) {
+          <div class="og-tlc-koc-court">
+            <span class="og-tlc-koc-crown" role="img" aria-label="No trono">👑</span>
+            <span class="og-tlc-koc-king">{{ kocName(round.kingTeamId) }}</span>
+            <span class="og-tlc-koc-vs">vs {{ kocName(round.challengerTeamId) }}</span>
+            <span class="og-tlc-koc-kingpts">{{ kocPoints(round.kingTeamId) }}</span>
+          </div>
+        }
+        <div class="og-tlc-koc-table">
+          @for (row of kocRows(); track row.teamId) {
+            <div class="og-tlc-koc-row" [class.qualifies]="row.qualifies">
+              <span class="og-tlc-koc-place">{{ row.place }}</span>
+              @if (row.isKing) {
+                <span class="og-tlc-koc-rowcrown" role="img" aria-label="No trono">👑</span>
+              }
+              <span class="og-tlc-koc-name">{{ row.name }}</span>
+              @if (row.points !== null) {
+                <span class="og-tlc-koc-pts">{{ row.points }}</span>
+              }
+            </div>
+          }
+        </div>
+        @if (kocTie()) {
+          <div class="og-tlc-koc-tie">Empate na vaga · bola de ouro</div>
+        }
+        @if (round.queue.length > 0) {
+          <div class="og-tlc-koc-queue">Fila: {{ kocQueueLabel() }}</div>
+        }
+      </div>
     } @else {
       <div class="og-tlc-teams">
         @for (row of rows(); track row.side) {
@@ -416,6 +461,111 @@ import { fireLevelOf } from './telao-streaks';
         transform: scale(1);
       }
     }
+    /* ── King of the Court ─────────────────────────────────────────────────
+       Sem placar por sets e sem dois lados: cronômetro, quem está na quadra,
+       tabela e fila. Tamanhos pensados para leitura à distância. */
+    .og-tlc-koc {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 4px 0;
+    }
+    .og-tlc-koc-clock {
+      font-size: 44px;
+      font-weight: 800;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .og-tlc-koc-clock.expired {
+      font-size: 32px;
+      color: #f4c543;
+    }
+    .og-tlc-koc-court {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgb(255 106 26 / 16%);
+      border: 1px solid rgb(255 106 26 / 45%);
+    }
+    .og-tlc-koc-crown {
+      font-size: 22px;
+    }
+    .og-tlc-koc-king {
+      font-size: 24px;
+      font-weight: 800;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .og-tlc-koc-vs {
+      flex: 1;
+      font-size: 16px;
+      opacity: 0.75;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .og-tlc-koc-kingpts {
+      font-size: 34px;
+      font-weight: 800;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .og-tlc-koc-table {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .og-tlc-koc-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 10px;
+      background: rgb(255 255 255 / 5%);
+    }
+    /* A faixa de classificação é o que o atleta procura primeiro na tabela. */
+    .og-tlc-koc-row.qualifies {
+      background: rgb(255 106 26 / 14%);
+    }
+    .og-tlc-koc-place {
+      min-width: 22px;
+      font-size: 17px;
+      font-weight: 800;
+      opacity: 0.6;
+    }
+    .og-tlc-koc-row.qualifies .og-tlc-koc-place {
+      color: #ff6a1a;
+      opacity: 1;
+    }
+    .og-tlc-koc-name {
+      flex: 1;
+      font-size: 19px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .og-tlc-koc-pts {
+      font-size: 24px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+    .og-tlc-koc-tie {
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.6px;
+      color: #f4c543;
+    }
+    .og-tlc-koc-queue {
+      font-size: 14px;
+      opacity: 0.6;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     @keyframes og-tlc-in {
       from {
         transform: scale(0.7);
@@ -458,6 +608,12 @@ import { fireLevelOf } from './telao-streaks';
 })
 export class TelaoCourtCardComponent {
   readonly courtName = input.required<string>();
+  /** Mapa `teamId` → dupla resolvida, para a rodada KOTC: ela tem elenco, não
+   *  dois lados, então `teamA`/`teamB` não bastam. */
+  readonly teamsById = input<ReadonlyMap<string, TelaoTeamDisplay>>(new Map());
+  /** Relógio do host, passado como input para o card não criar timer próprio —
+   *  o telão já redesenha a cada segundo. */
+  readonly nowMs = input(0);
   readonly kind = input.required<'live' | 'finished' | 'next' | 'free'>();
   readonly match = input<TournamentMatch | null>(null);
   readonly categoryLabel = input('');
@@ -574,5 +730,57 @@ export class TelaoCourtCardComponent {
         canvas?.remove();
       });
     });
+  }
+
+  // ── King of the Court ───────────────────────────────────────────────────────
+
+  protected readonly koc = computed(() => this.match()?.koc ?? null);
+
+  protected kocName(teamId: string): string {
+    return this.teamsById().get(teamId)?.short ?? 'Dupla';
+  }
+
+  protected kocPoints(teamId: string): number {
+    const round = this.koc();
+    return round ? kocPointsOf(round, teamId) : 0;
+  }
+
+  /** Nulo antes do apito: rodada sem relógio não mostra contagem. */
+  protected kocClockLabel(): string | null {
+    const round = this.koc();
+    if (!round?.clock) return null;
+    return kocIsExpired(round.clock, this.nowMs()) ? 'TEMPO!' : kocRemainingLabel(round.clock, this.nowMs());
+  }
+
+  protected kocExpired(): boolean {
+    const round = this.koc();
+    return round?.clock != null && kocIsExpired(round.clock, this.nowMs());
+  }
+
+  /** Antes do apito a ordem é a de entrada (quem abre no trono); depois, a tabela. */
+  protected readonly kocRows = computed(() => {
+    const round = this.koc();
+    if (!round) return [];
+    const started = kocHasStarted(round);
+    const order = started ? kocLiveOrder(round) : round.teamIds;
+    return order.map((teamId, i) => ({
+      teamId,
+      place: i + 1,
+      name: this.kocName(teamId),
+      points: started ? kocPointsOf(round, teamId) : null,
+      qualifies: started && i < round.qualifiersPerRound,
+      isKing: round.kingTeamId === teamId,
+    }));
+  });
+
+  protected kocTie(): boolean {
+    const round = this.koc();
+    return round != null && kocHasStarted(round) && kocHasQualifyingTie(round);
+  }
+
+  protected kocQueueLabel(): string {
+    const round = this.koc();
+    if (!round) return '';
+    return round.queue.map((id) => this.kocName(id)).join('  →  ');
   }
 }

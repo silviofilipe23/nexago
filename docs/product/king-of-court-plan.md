@@ -186,13 +186,36 @@ executados** — não há SDK Flutter no ambiente onde a fase foi feita.
 (`minTeamsToGenerateBracketFor`) e no backend. O mínimo genérico de 2 valeria
 para KOTC e deixaria publicar uma rodada que não gira.
 
-### Fase 2 — Mesa ao vivo
-- `koc-engine.ts` **puro** (fila, coroação, pontos, relógio) + testes — mesmo padrão
-  de `match-scoring.ts`.
-- Callables: `kocStartRound`, `kocRegisterRally`, `kocUndoRally`, `kocPauseClock`,
-  `kocFinishRound`.
-- Tela do mesário: trono, fila, cronômetro, dois botões grandes (rei venceu /
-  desafiante venceu), desfazer.
+### Fase 2 — Mesa ao vivo ✅ concluída
+- `koc-engine.ts` **puro**: fila, coroação, pontos e relógio, sem Firestore.
+- Callables `kocStartRound`, `kocRegisterRally`, `kocUndoRally`, `kocSetClock`,
+  `kocFinishRound` em `koc-match-ops.ts`.
+- App: `koc_round_state.dart` (leitura do doc), `OrganizerKocOpsService` e a mesa
+  em `organizer_koc_table_page.dart` — dois alvos grandes, fila, cronômetro e
+  tabela ao vivo. `organizerMatchTablePath` escolhe a mesa pelo tipo da partida,
+  num lugar só.
+
+**Cobertura.** Backend verde: 2854 testes (76 novos). Testes Dart escritos, não
+executados.
+
+#### Três decisões que o código fixou
+
+**O estado é sempre reproduzido do log, nunca ajustado.** O log de rallies vive
+num array no próprio doc (`kocRallies`) — o relógio limita a rodada a algumas
+dezenas de rallies, então cabe folgado, e toda operação vira uma leitura só.
+Desfazer é reproduzir sem o último rally. Isso não é preciosismo: **desfazer uma
+coroação não tem inversa única** (quem voltou para o trono? em que posição da
+fila entrou o destronado?), e a mesa erra com frequência num formato de 20s por
+rally.
+
+**Rally carrega `expectedSeq`.** Duplo toque com rede ruim reenviaria o mesmo
+rally e viraria ponto fantasma. Com o seq, o servidor recusa e a mesa recarrega.
+
+**Empate que decide vaga TRAVA o encerramento.** O regulamento resolve na areia
+(bola de ouro), e um critério silencioso decidindo classificação seria pior que
+um erro visível. `kocFinishRound` recusa com `koc_unresolved_tie`; a mesa
+oferece voltar e jogar o rally, ou aceitar o desempate automático
+explicitamente. Empate que não atravessa o corte não trava nada.
 
 ### Fase 3 — Avanço de fase e encerramento
 - `koc-standings.ts`: ordena por pontos → bola de ouro → último rei → confronto direto.

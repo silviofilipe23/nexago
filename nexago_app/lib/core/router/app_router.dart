@@ -68,6 +68,7 @@ import '../../features/organizer/presentation/match_ops/organizer_schedule_time_
 import '../../features/organizer/presentation/match_ops/organizer_auto_schedule_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_check_in_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_live_table_page.dart';
+import '../../features/organizer/presentation/match_ops/organizer_koc_table_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_quick_score_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_validate_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_summary_page.dart';
@@ -598,6 +599,25 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                           state.pathParameters['matchId']?.trim() ?? '';
                       return OrganizerMatchLiveTablePage(
                         tournamentId: tournamentId,
+                        matchId: matchId,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    // Mesa da rodada King of the Court: elenco, fila e tabela —
+                    // a tela de sets não serve a uma rodada sem dois lados.
+                    path: ':matchId/koc',
+                    name: AppRouteNames.organizerKocTable,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      final matchId =
+                          state.pathParameters['matchId']?.trim() ?? '';
+                      final categoryId =
+                          state.uri.queryParameters['categoryId']?.trim() ?? '';
+                      return OrganizerKocTablePage(
+                        tournamentId: tournamentId,
+                        categoryId: categoryId,
                         matchId: matchId,
                       );
                     },

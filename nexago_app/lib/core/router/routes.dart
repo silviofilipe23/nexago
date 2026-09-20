@@ -148,6 +148,10 @@ abstract final class AppRoutes {
   static const String organizerMatchQuickScore =
       '/organizer/tournaments/:tournamentId/matches/:matchId/quick-score';
 
+  /// Mesa da rodada King of the Court.
+  static const String organizerKocTable =
+      '/organizer/tournaments/:tournamentId/matches/:matchId/koc';
+
   static const String organizerMatchValidate =
       '/organizer/tournaments/:tournamentId/matches/:matchId/validate';
 
@@ -604,6 +608,7 @@ abstract final class AppRouteNames {
   static const String organizerMatchCheckIn = 'organizerMatchCheckIn';
   static const String organizerMatchLive = 'organizerMatchLive';
   static const String organizerMatchQuickScore = 'organizerMatchQuickScore';
+  static const String organizerKocTable = 'organizerKocTable';
   static const String organizerMatchValidate = 'organizerMatchValidate';
   static const String organizerMatchSummary = 'organizerMatchSummary';
   static const String publicMatchLive = 'publicMatchLive';

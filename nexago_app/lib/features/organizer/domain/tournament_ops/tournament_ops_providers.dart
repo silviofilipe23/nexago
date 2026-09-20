@@ -10,9 +10,7 @@ import '../../data/organizer_koc_ops_service.dart';
 import '../../data/organizer_contacts_service.dart';
 import '../../data/organizer_tournament_ops_repository.dart';
 import '../../data/organizer_user_profiles_repository.dart';
-import '../../../tournaments/data/nexago_artifacts_paths.dart';
 import '../../../tournaments/data/tournament_inscriptions_repository.dart';
-import '../../../tournaments/domain/koc/koc_round_state.dart';
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import '../category_ops/category_ops_logic.dart';
 import '../category_ops/category_ops_models.dart';
@@ -53,23 +51,6 @@ final organizerKocOpsServiceProvider = Provider<OrganizerKocOpsService>((ref) {
   return OrganizerKocOpsService(functions: nexagoFunctions);
 });
 
-/// Doc CRU da rodada KOTC.
-///
-/// Não passa por `TournamentMatch` de propósito: aquele modelo fala em dois
-/// lados, e a mesa precisa de `kocState`/`kocClock`/`kocTeamIds`.
-final organizerKocRoundProvider = StreamProvider.autoDispose
-    .family<KocRoundState?, String>((ref, matchId) {
-  if (matchId.trim().isEmpty) return Stream.value(null);
-  return FirebaseFirestore.instance
-      .collection(NexagoArtifactsPaths.matchesCollection())
-      .doc(matchId.trim())
-      .snapshots()
-      .map((snap) {
-        final data = snap.data();
-        if (data == null) return null;
-        return kocRoundStateFromMap(data);
-      });
-});
 
 @immutable
 class OrganizerCategoryKey {

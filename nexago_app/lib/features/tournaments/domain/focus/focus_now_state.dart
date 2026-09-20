@@ -1,5 +1,6 @@
 import '../tournament_match.dart';
 import '../tournament_match_status.dart';
+import '../tournament_matches_logic.dart';
 
 /// Estado do bloco principal da seção "Agora", em ordem de precedência.
 enum FocusNowState { called, live, next, pendingKnockout, eliminated, idle }
@@ -91,11 +92,14 @@ bool eliminatedFromKnockout(
   Set<String> myTeamIds,
 ) {
   return matches.any((m) {
+    // "Eliminado" é conceito de chave: no KOTC ninguém é eliminado por perder
+    // um rally — deixa de classificar pela TABELA. O `poolId` da rodada já
+    // bloquearia aqui, mas depender disso é frágil: a intenção fica explícita.
+    if (m.isKingOfCourt) return false;
     if (m.categoryId != categoryId || m.isGroupMatch || m.poolId.isNotEmpty) {
       return false;
     }
-    final mine = myTeamIds.contains(m.teamAId) || myTeamIds.contains(m.teamBId);
-    if (!mine) return false;
+    if (!matchInvolvesAnyTeam(m, myTeamIds)) return false;
     if (!TournamentMatchStatus.isCompleted(m.status)) return false;
     final winner = m.winnerId?.trim() ?? '';
     return winner.isNotEmpty && !myTeamIds.contains(winner);
@@ -117,8 +121,9 @@ TournamentMatch? pickAthleteFocusNextMatch(
   final mine = matches
       .where(
         (m) =>
-            (athleteTeamIds.contains(m.teamAId) ||
-                athleteTeamIds.contains(m.teamBId)) &&
+            // `matchInvolvesAnyTeam` cobre elenco de rodada KOTC; comparar
+            // `teamAId`/`teamBId` na mão esconderia a rodada do atleta.
+            matchInvolvesAnyTeam(m, athleteTeamIds) &&
             !TournamentMatchStatus.isCompleted(m.status) &&
             !TournamentMatchStatus.isCanceled(m.status),
       )

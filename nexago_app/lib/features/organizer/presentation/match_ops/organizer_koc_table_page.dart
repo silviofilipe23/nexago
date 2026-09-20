@@ -10,6 +10,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
+import '../../../tournaments/domain/koc/koc_round_providers.dart';
 import '../../../tournaments/domain/koc/koc_round_state.dart';
 import '../../data/organizer_koc_ops_service.dart';
 import '../../domain/category_ops/category_ops_models.dart';
@@ -123,7 +124,7 @@ class _OrganizerKocTablePageState extends ConsumerState<OrganizerKocTablePage> {
 
   @override
   Widget build(BuildContext context) {
-    final roundAsync = ref.watch(organizerKocRoundProvider(widget.matchId));
+    final roundAsync = ref.watch(kocRoundProvider(widget.matchId));
     final teamsAsync = ref.watch(
       organizerCategoryRegistrationsProvider(
         OrganizerCategoryKey(

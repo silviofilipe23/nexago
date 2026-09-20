@@ -52,6 +52,7 @@ class TournamentMatch {
     this.loserAdvanceSlot,
     this.liveScore,
     this.kocStandingTeamIds = const [],
+    this.kocTeamIds = const [],
   });
 
   final String id;
@@ -117,6 +118,12 @@ class TournamentMatch {
   /// duelo — e é de onde sai o pódio, já que a rodada final não tem dois lados.
   /// Vazia em toda partida de duelo.
   final List<String> kocStandingTeamIds;
+
+  /// Elenco da rodada King of the Court, na ordem de entrada (o primeiro abre no
+  /// trono). É o análogo dos dois lados de um duelo: sem ele o atleta NUNCA
+  /// encontraria a própria rodada, porque `teamAId`/`teamBId` vêm vazios.
+  /// Vazia em toda partida de duelo.
+  final List<String> kocTeamIds;
 
   String get effectiveCourtLabel {
     if (courtId.isNotEmpty) return courtId;

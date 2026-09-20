@@ -63,6 +63,7 @@ abstract final class TournamentMatchMapper {
       teamBConfirmed: _reportBool(data['report'], 'teamBConfirmed'),
       bestOf: _bestOf(data['bestOf']),
       kocStandingTeamIds: _kocStandingTeamIds(data['kocStandings']),
+      kocTeamIds: _teamIdList(data['kocTeamIds']),
       winnerAdvanceMatchNumber: _advanceMatchNumber(data['winnerAdvance']),
       winnerAdvanceSlot: _advanceSlot(data['winnerAdvance']),
       loserAdvanceMatchNumber: _advanceMatchNumber(data['loserAdvance']),
@@ -193,6 +194,14 @@ abstract final class TournamentMatchMapper {
     if (value is Timestamp) return value.toDate().toUtc();
     if (value is DateTime) return value.toUtc();
     return null;
+  }
+
+  static List<String> _teamIdList(dynamic raw) {
+    if (raw is! List) return const [];
+    return raw
+        .map((e) => e is String ? e.trim() : '')
+        .where((e) => e.isNotEmpty)
+        .toList(growable: false);
   }
 
   /// `kocStandings` → ids em ordem de colocação. Entrada corrompida é

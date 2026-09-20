@@ -152,9 +152,18 @@ String matchStatusLabel(String status) {
   return 'Agendada';
 }
 
+/// A dupla está NESTA partida.
+///
+/// Numa rodada King of the Court não há dois lados: a dupla está no ELENCO.
+/// Este é o único ponto do app que decide "esta partida é minha", então tratar
+/// os dois formatos aqui é o que faz a rodada aparecer no Focus, na agenda e na
+/// convocação sem espalhar o formato por todas as telas.
 bool matchInvolvesTeam(TournamentMatch match, String teamId) {
   final id = teamId.trim();
   if (id.isEmpty) return false;
+  if (match.isKingOfCourt) {
+    return match.kocTeamIds.any((rosterId) => rosterId.trim() == id);
+  }
   return match.teamAId.trim() == id || match.teamBId.trim() == id;
 }
 

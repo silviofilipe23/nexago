@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'organizer_category_generate_de_page.dart';
 import 'organizer_category_generate_groups_page.dart';
+import 'organizer_category_generate_koc_page.dart';
 import 'organizer_category_generate_se_page.dart';
 
 class OrganizerCategoryGenerateBracketPage extends StatelessWidget {
@@ -20,6 +21,11 @@ class OrganizerCategoryGenerateBracketPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (format) {
       'double_elimination' => OrganizerCategoryGenerateDePage(
+          tournamentId: tournamentId,
+          categoryId: categoryId,
+          format: format,
+        ),
+      'king_of_court' => OrganizerCategoryGenerateKocPage(
           tournamentId: tournamentId,
           categoryId: categoryId,
           format: format,

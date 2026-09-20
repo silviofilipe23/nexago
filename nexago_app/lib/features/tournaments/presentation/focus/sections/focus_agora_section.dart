@@ -14,6 +14,7 @@ import '../../../domain/focus/focus_double_elimination.dart';
 import '../../../domain/focus/focus_now_state.dart';
 import '../../../domain/focus/focus_providers.dart';
 import '../../../domain/focus/focus_views_logic.dart';
+import '../../../domain/koc/koc_round_providers.dart';
 import '../../../domain/tournament_detail_model.dart';
 import '../../../domain/tournament_detail_tabs_logic.dart';
 import '../../../domain/tournament_discovery_models.dart';
@@ -28,6 +29,7 @@ import '../focus_rosters.dart';
 import '../focus_section_header.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../widgets/focus_day_rail.dart';
+import '../widgets/focus_koc_round_card.dart';
 import '../widgets/focus_lives_card.dart';
 import '../widgets/focus_now_hero.dart';
 import '../widgets/focus_share_match_sheet.dart';
@@ -186,6 +188,13 @@ class FocusAgoraSection extends ConsumerWidget {
         ref.watch(tournamentAnnouncementsProvider(tournament.id)).valueOrNull ??
         const [];
 
+    // `FocusRosters` indexa nomes pelos DOIS LADOS das partidas, e a rodada
+    // KOTC grava os dois vazios — sem isto o card sairia com "A definir" em
+    // todas as linhas do elenco.
+    final kocNames = next != null && next.isKingOfCourt
+        ? ref.watch(kocRosterNamesProvider(next.id)).valueOrNull
+        : null;
+
     final phaseMeta = _phaseMetaOf(next);
     final dayItems = _dayRailItems(entries, byId);
     final campaign = state == FocusNowState.eliminated && categoryId != null
@@ -202,36 +211,49 @@ class FocusAgoraSection extends ConsumerWidget {
         bottom: focusBottomClearance(context),
       ),
       children: [
-        FocusNowHero(
-          state: state,
-          view: heroView,
-          card: next == null ? null : byId[next.id],
-          contextTag: standing != null
-              ? _bracketContextTag(next, standing)
-              : _contextTag(next, categoryMatches),
-          calledAt: next?.matchStartedAt != null
-              ? matchTimeLabelForCard(next!)
-              : null,
-          walkAwayLabel: null,
-          accent: accent,
-          leadIn: inRepescagem
-              ? 'Você perdeu ${standing!.lastLossPhase != null ? 'em ${standing.lastLossPhase!.toLowerCase()}' : 'na chave dos vencedores'}. '
-                    'Ainda dá título — pela repescagem o caminho passa pela '
-                    'final dos perdedores.'
-              : null,
-          phaseEyebrow: phaseMeta.$1,
-          phaseValue: phaseMeta.$2,
-          timeEyebrow: _timeEyebrowOf(next, now),
-          timeLabel: _matchDateTimeLabel(next),
-          firstMatchStarted: athleteFirstMatchStarted(day),
-          campaign: campaign,
-          onAcknowledge: () => ref
-              .read(focusAcknowledgedCallProvider.notifier)
-              .acknowledge(next!.id),
-          onOpenMatch: () => _openMatch(context, next!.id),
-          onOpenMaps: _openMaps,
-          onShare: () => showFocusShareMatchSheet(context, next!.id),
-        ),
+        // Rodada KOTC tem card próprio: o herói de duelo mostra
+        // "você × adversário", e a rodada não tem adversário — tem elenco.
+        if (next != null && next.isKingOfCourt)
+          FocusKocRoundCard(
+            match: next,
+            round: ref.watch(kocRoundProvider(next.id)).valueOrNull,
+            myTeamIds: athleteTeamIds,
+            nameOf: (teamId) =>
+                kocNames?[teamId] ?? rosters.nameOf(teamId),
+            phaseLabel: kingOfCourtPhaseLabel(next).toUpperCase(),
+            onOpenMaps: athleteFirstMatchStarted(day) ? null : _openMaps,
+          )
+        else
+          FocusNowHero(
+            state: state,
+            view: heroView,
+            card: next == null ? null : byId[next.id],
+            contextTag: standing != null
+                ? _bracketContextTag(next, standing)
+                : _contextTag(next, categoryMatches),
+            calledAt: next?.matchStartedAt != null
+                ? matchTimeLabelForCard(next!)
+                : null,
+            walkAwayLabel: null,
+            accent: accent,
+            leadIn: inRepescagem
+                ? 'Você perdeu ${standing!.lastLossPhase != null ? 'em ${standing.lastLossPhase!.toLowerCase()}' : 'na chave dos vencedores'}. '
+                      'Ainda dá título — pela repescagem o caminho passa pela '
+                      'final dos perdedores.'
+                : null,
+            phaseEyebrow: phaseMeta.$1,
+            phaseValue: phaseMeta.$2,
+            timeEyebrow: _timeEyebrowOf(next, now),
+            timeLabel: _matchDateTimeLabel(next),
+            firstMatchStarted: athleteFirstMatchStarted(day),
+            campaign: campaign,
+            onAcknowledge: () => ref
+                .read(focusAcknowledgedCallProvider.notifier)
+                .acknowledge(next!.id),
+            onOpenMatch: () => _openMatch(context, next!.id),
+            onOpenMaps: _openMaps,
+            onShare: () => showFocusShareMatchSheet(context, next!.id),
+          ),
         if (standing != null && state != FocusNowState.eliminated) ...[
           const FocusSectionHeader(label: 'ONDE VOCÊ ESTÁ'),
           FocusBracketSideCards(

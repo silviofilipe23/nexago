@@ -242,6 +242,11 @@ bool categoryUsesDoubleElimination(String bracketFormat) =>
     isDoubleEliminationBracketFormat(bracketFormat);
 
 String generateBracketRouteFormat(String bracketFormat) {
+  // KOTC primeiro: sem isto a categoria cai no fallback de eliminatória simples
+  // e o organizador publica uma chave de duelo numa categoria de rodadas.
+  if (isKingOfCourtBracketFormat(bracketFormat)) {
+    return 'king_of_court';
+  }
   if (categoryUsesDoubleElimination(bracketFormat)) {
     return 'double_elimination';
   }
@@ -253,6 +258,17 @@ String generateBracketRouteFormat(String bracketFormat) {
 
 /// Mínimo de duplas confirmadas para publicar qualquer formato de chave.
 const int minTeamsToGenerateBracket = 2;
+
+/// Mínimo do King of the Court: com 2 duplas não existe fila nem trono — é um
+/// jogo, não uma rodada.
+const int minTeamsToGenerateKingOfCourt = 3;
+
+/// Mínimo do formato da categoria. O backend recusa de todo jeito; isto é para
+/// o organizador ler o motivo antes de tentar publicar.
+int minTeamsToGenerateBracketFor(String? bracketFormat) =>
+    bracketFormat != null && isKingOfCourtBracketFormat(bracketFormat)
+    ? minTeamsToGenerateKingOfCourt
+    : minTeamsToGenerateBracket;
 
 bool canGenerateCategoryBracket({
   required int confirmedCount,
@@ -269,7 +285,10 @@ bool showGenerateBracketQuickAction({
 }) =>
     showGenerateBracketCta(category) &&
     isBracketFormatSupportedRaw(category.bracketFormat) &&
-    canGenerateCategoryBracket(confirmedCount: eligibleConfirmedCount);
+    canGenerateCategoryBracket(
+      confirmedCount: eligibleConfirmedCount,
+      minTeams: minTeamsToGenerateBracketFor(category.bracketFormat),
+    );
 
 String generateBracketBlockedHint({
   required int confirmedCount,
@@ -281,11 +300,17 @@ String generateBracketBlockedHint({
       : unsupportedBracketFormatHint(bracketFormat);
   if (unsupported != null && unsupported.isNotEmpty) return unsupported;
 
-  if (confirmedCount >= minTeams) return '';
+  // O chamador pode não conhecer o piso do formato; quando passa o formato, ele
+  // manda — senão o KOTC herdaria o mínimo 2, que não fecha uma rodada.
+  final effectiveMin = bracketFormat == null
+      ? minTeams
+      : minTeamsToGenerateBracketFor(bracketFormat);
+
+  if (confirmedCount >= effectiveMin) return '';
   if (confirmedCount == 0) {
-    return 'Precisa de pelo menos $minTeams duplas confirmadas para gerar a chave.';
+    return 'Precisa de pelo menos $effectiveMin duplas confirmadas para gerar a chave.';
   }
-  final missing = minTeams - confirmedCount;
+  final missing = effectiveMin - confirmedCount;
   return 'Falta $missing dupla(s) confirmada(s) para gerar a chave.';
 }
 

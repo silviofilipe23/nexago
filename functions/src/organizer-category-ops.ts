@@ -16,6 +16,15 @@ import {
   type MatchDraft,
 } from "./category-bracket-builders";
 import {
+  KOC_DEFAULT_ROUND_DURATION_SEC,
+  KOC_MIN_TEAMS_PER_ROUND,
+  KocBracketError,
+  buildKingOfCourtRounds,
+  kocQualifierDescription,
+  type KocConfig,
+  type KocRoundDraft,
+} from "./koc-bracket-builders";
+import {
   BRACKET_DEFINITIONS,
   SUPPORTED_DE_TEAM_COUNTS,
   describeTeamCounts,
@@ -137,6 +146,93 @@ export function bracketMatchDoc(
   };
 }
 
+/**
+ * Documento da RODADA King of the Court.
+ *
+ * Mora na mesma coleção `matches` das partidas de duelo — é o que lhe dá agenda,
+ * quadra e status de graça — mas com `teamAId`/`teamBId` VAZIOS de propósito: a
+ * rodada tem elenco (`kocTeamIds`), não dois lados. Quem lê os dois lados sai
+ * antes por `isDuelMatch` (fase 0).
+ *
+ * Sem `bestOf`: a rodada não tem sets, tem cronômetro.
+ */
+export function kocRoundDoc(
+  draft: KocRoundDraft,
+  meta: {tournamentId: string; categoryId: string; config: KocConfig},
+): Record<string, unknown> {
+  const qualifiers = draft.qualifiers.map((slot) => ({
+    fromMatchNumber: slot.fromMatchNumber,
+    fromRoundLabel: slot.fromRoundLabel,
+    place: slot.place,
+    description: kocQualifierDescription(slot),
+  }));
+  return {
+    tournamentId: meta.tournamentId,
+    categoryId: meta.categoryId,
+    round: draft.phase,
+    kocPhase: draft.phase,
+    matchType: draft.matchType,
+    poolId: draft.poolId,
+    teamAId: "",
+    teamBId: "",
+    status: MatchStatus.scheduled,
+    resultA: "",
+    resultB: "",
+    isGroupMatch: false,
+    matchNumber: draft.matchNumber,
+    kocRoundLabel: draft.roundLabel,
+    kocTeamIds: draft.teamIds,
+    kocSize: draft.size,
+    // Snapshot: o relógio da rodada lê DAQUI, nunca da categoria. Mexer na
+    // duração padrão depois não pode alterar rodada já gerada nem em jogo.
+    kocConfig: {
+      roundEndMode: "time",
+      durationSec: draft.durationSec,
+      teamsPerCourt: meta.config.teamsPerCourt,
+      qualifiersPerRound: meta.config.qualifiersPerRound,
+      crownScores: false,
+    },
+    ...(qualifiers.length > 0 ? {kocQualifiers: qualifiers} : {}),
+  };
+}
+
+/**
+ * Config KOTC da categoria: o que o organizador escolheu no wizard, saneado.
+ *
+ * Valor inválido NÃO derruba a publicação — cai no padrão do formato. A trava
+ * real é o gerador, que recusa o que não fecha (campo pequeno demais, fase que
+ * não reduz).
+ */
+export function resolveKocConfig(
+  bracketConfig: Record<string, unknown> | undefined,
+  categoryMeta: Record<string, unknown> | undefined,
+): KocConfig {
+  const pick = (key: string): unknown =>
+    bracketConfig?.[key] ?? categoryMeta?.[key];
+  const int = (value: unknown, fallback: number): number => {
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? Math.round(n) : fallback;
+  };
+
+  const phaseDurations: Record<string, number> = {};
+  const rawPhases = pick("phaseDurationsSec");
+  if (rawPhases != null && typeof rawPhases === "object") {
+    for (const [phase, value] of Object.entries(rawPhases as Record<string, unknown>)) {
+      const n = Number(value);
+      if (Number.isFinite(n) && n > 0) phaseDurations[phase] = Math.round(n);
+    }
+  }
+
+  return {
+    teamsPerCourt: int(pick("teamsPerCourt"), 4),
+    qualifiersPerRound: int(pick("qualifiersPerRound"), 2),
+    roundDurationSec: int(pick("roundDurationSec"), KOC_DEFAULT_ROUND_DURATION_SEC),
+    ...(Object.keys(phaseDurations).length > 0 ?
+      {phaseDurationsSec: phaseDurations} :
+      {}),
+  };
+}
+
 /** Payload da geração de chave, igual ao que a callable recebe. */
 export interface GenerateBracketInput {
   tournamentId?: string;
@@ -168,10 +264,13 @@ export async function runGenerateCategoryBracket(
     throw new HttpsError("invalid-argument", "tournamentId e categoryId obrigatórios");
   }
 
+  const isKingOfCourt = format === "king_of_court";
+
   const supportedBracketFormats = new Set([
     "groups_knockout",
     "single_elimination",
     "double_elimination",
+    "king_of_court",
   ]);
   if (!supportedBracketFormats.has(format)) {
     throw new HttpsError(
@@ -248,6 +347,17 @@ export async function runGenerateCategoryBracket(
     throw new HttpsError(
       "failed-precondition",
       "É necessário ao menos 2 equipes pagas para publicar a chave.",
+    );
+  }
+
+  // King of the Court tem piso próprio: com 2 duplas não há fila nem trono.
+  // Mensagem própria para o organizador não ler "2 equipes" e achar que basta.
+  if (isKingOfCourt && teamIds.length < KOC_MIN_TEAMS_PER_ROUND) {
+    throw new HttpsError(
+      "failed-precondition",
+      `King of the Court precisa de ao menos ${KOC_MIN_TEAMS_PER_ROUND} duplas ` +
+        `pagas para publicar as rodadas (há ${teamIds.length}).`,
+      {reason: "koc_field_too_small", teamCount: teamIds.length},
     );
   }
 
@@ -363,16 +473,31 @@ export async function runGenerateCategoryBracket(
     }
   }
 
-  const matchDrafts =
-    format === "double_elimination"
-      ? buildDoubleEliminationMatches(teamIds)
-      : format === "single_elimination"
-        ? buildSingleEliminationMatches(teamIds)
-        : buildGroupsKnockoutMatches(
-            teamIds,
-            resolvedGroups,
-            qualifiersPerGroup,
-          );
+  // King of the Court não passa pelos builders de duelo: a rodada não tem dois
+  // lados. O gerador devolve rodadas, e o erro dele (campo pequeno, fase que não
+  // reduz) vira `failed-precondition` para o wizard mostrar antes do dia.
+  const kocConfig = isKingOfCourt ?
+    resolveKocConfig(bracketConfig, categoryMeta as Record<string, unknown> | undefined) :
+    null;
+  let kocRounds: KocRoundDraft[] = [];
+  if (isKingOfCourt && kocConfig) {
+    try {
+      kocRounds = buildKingOfCourtRounds(teamIds, kocConfig);
+    } catch (e) {
+      if (e instanceof KocBracketError) {
+        throw new HttpsError("failed-precondition", e.message, {reason: e.reason});
+      }
+      throw e;
+    }
+  }
+
+  const matchDrafts = isKingOfCourt ?
+    [] :
+    format === "double_elimination" ?
+      buildDoubleEliminationMatches(teamIds) :
+      format === "single_elimination" ?
+        buildSingleEliminationMatches(teamIds) :
+        buildGroupsKnockoutMatches(teamIds, resolvedGroups, qualifiersPerGroup);
 
   const batch = db.batch();
   const matchesCol = db.collection(artifactsMatchesPath(projectId));
@@ -381,10 +506,19 @@ export async function runGenerateCategoryBracket(
     batch.delete(doc.ref);
   }
 
-  for (const draft of matchDrafts) {
+  const newMatchDocs: Array<Record<string, unknown>> =
+    isKingOfCourt && kocConfig ?
+      kocRounds.map((draft) =>
+        kocRoundDoc(draft, {tournamentId, categoryId, config: kocConfig}),
+      ) :
+      matchDrafts.map((draft) =>
+        bracketMatchDoc(draft, {tournamentId, categoryId, bestOf}),
+      );
+
+  for (const doc of newMatchDocs) {
     const ref = matchesCol.doc();
     batch.set(ref, {
-      ...bracketMatchDoc(draft, {tournamentId, categoryId, bestOf}),
+      ...doc,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -401,9 +535,14 @@ export async function runGenerateCategoryBracket(
           seeds: teamIds,
           bracketConfig: {
             ...(bracketConfig ?? {}),
-            qualifiersPerGroup,
+            ...(isKingOfCourt && kocConfig ?
+              // Config EFETIVA da geração, não o que o cliente mandou: é o que
+              // a mesa e o app leem para explicar a rodada.
+              {...kocConfig, phaseCount: kocRounds[kocRounds.length - 1]?.phase ?? 1} :
+              {qualifiersPerGroup}),
           },
-          groupsPreview: resolvedGroups,
+          // Rodada KOTC não tem grupo: o elenco vive em `kocTeamIds`, na rodada.
+          groupsPreview: isKingOfCourt ? [] : resolvedGroups,
           updatedAt: FieldValue.serverTimestamp(),
         },
       },
@@ -503,7 +642,7 @@ export async function runGenerateCategoryBracket(
     });
   }
 
-  return {matchCount: matchDrafts.length, format};
+  return {matchCount: newMatchDocs.length, format};
 }
 
 export const generateCategoryBracket = onCall({

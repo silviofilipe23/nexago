@@ -8,6 +8,10 @@ enum TournamentBracketSystem {
   roundRobin,
   groupsWithRepechage,
   doubleElimination,
+  /// King of the Court: a unidade é uma RODADA com 3 a 5 duplas na mesma quadra
+  /// e uma tabela de pontos, não uma partida de dois lados
+  /// (`docs/business-rules/king-of-court.md`).
+  kingOfCourt,
 }
 
 enum TournamentBestOf { singleSet, bestOf3, bestOf5 }
@@ -127,6 +131,9 @@ class TournamentCategoryDraft {
     this.bracketSystem = TournamentBracketSystem.groupsThenKnockout,
     this.teamsPerGroup = 4,
     this.qualifiersPerGroup = 2,
+    this.kocTeamsPerCourt = 4,
+    this.kocQualifiersPerRound = 2,
+    this.kocRoundDurationSec = 900,
     // Padrão do NexaGO: partida de set único. MD3/MD5 são escolha explícita
     // do organizador no wizard.
     this.bestOf = TournamentBestOf.singleSet,
@@ -161,6 +168,14 @@ class TournamentCategoryDraft {
   final TournamentBracketSystem bracketSystem;
   final int teamsPerGroup;
   final int qualifiersPerGroup;
+
+  /// Config do King of the Court. Só vale quando [bracketSystem] é
+  /// `kingOfCourt`; nos outros formatos fica no doc sem efeito, o que mantém a
+  /// escolha do organizador se ele trocar de formato e voltar.
+  final int kocTeamsPerCourt;
+  final int kocQualifiersPerRound;
+  final int kocRoundDurationSec;
+
   final TournamentBestOf bestOf;
   final bool finalBestOf5;
   final int maxRegistrationsPerAthlete;
@@ -203,6 +218,9 @@ class TournamentCategoryDraft {
     TournamentBracketSystem? bracketSystem,
     int? teamsPerGroup,
     int? qualifiersPerGroup,
+    int? kocTeamsPerCourt,
+    int? kocQualifiersPerRound,
+    int? kocRoundDurationSec,
     TournamentBestOf? bestOf,
     bool? finalBestOf5,
     int? maxRegistrationsPerAthlete,
@@ -229,6 +247,10 @@ class TournamentCategoryDraft {
       bracketSystem: bracketSystem ?? this.bracketSystem,
       teamsPerGroup: teamsPerGroup ?? this.teamsPerGroup,
       qualifiersPerGroup: qualifiersPerGroup ?? this.qualifiersPerGroup,
+      kocTeamsPerCourt: kocTeamsPerCourt ?? this.kocTeamsPerCourt,
+      kocQualifiersPerRound:
+          kocQualifiersPerRound ?? this.kocQualifiersPerRound,
+      kocRoundDurationSec: kocRoundDurationSec ?? this.kocRoundDurationSec,
       bestOf: bestOf ?? this.bestOf,
       finalBestOf5: finalBestOf5 ?? this.finalBestOf5,
       maxRegistrationsPerAthlete:

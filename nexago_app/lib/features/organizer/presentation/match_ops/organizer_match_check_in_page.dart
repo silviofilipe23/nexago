@@ -400,7 +400,7 @@ class _OrganizerMatchCheckInPageState
       if (mounted) {
         showAppSnackBar(context, 'Partida liberada.');
         context.pushReplacement(
-          organizerMatchLivePath(widget.tournamentId, match.id),
+          organizerMatchTablePath(widget.tournamentId, match),
         );
       }
     } catch (e) {

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/organizer_category_ops_repository.dart';
 import '../../data/organizer_category_ops_service.dart';
+import '../../data/organizer_koc_ops_service.dart';
 import '../../data/organizer_contacts_service.dart';
 import '../../data/organizer_tournament_ops_repository.dart';
 import '../../data/organizer_user_profiles_repository.dart';
@@ -44,6 +45,12 @@ final organizerCategoryOpsServiceProvider =
     Provider<OrganizerCategoryOpsService>((ref) {
   return OrganizerCategoryOpsService(functions: nexagoFunctions);
 });
+
+/// Mesa da rodada King of the Court.
+final organizerKocOpsServiceProvider = Provider<OrganizerKocOpsService>((ref) {
+  return OrganizerKocOpsService(functions: nexagoFunctions);
+});
+
 
 @immutable
 class OrganizerCategoryKey {

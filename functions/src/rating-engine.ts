@@ -20,7 +20,7 @@ import {
   stringField,
 } from "./tournament-match-gamification";
 import {tournamentSportToLevelSportCode} from "./category-level-eligibility";
-import {isWinnerInMatch} from "./match-status";
+import {isDuelMatch, isWinnerInMatch} from "./match-status";
 import {artifactsPublicDataBase} from "./firebase-paths";
 import {loadTeamAthleteIds} from "./league-ranking";
 
@@ -67,6 +67,9 @@ export function shouldProcessRatingUpdate(
   after: Record<string, unknown> | undefined,
 ): boolean {
   if (!after) return false;
+  // Sem dois lados não há confronto para o Glicko medir. Vale também para o
+  // ranking global, que importa este predicado como `shouldAwardForMatch`.
+  if (!isDuelMatch(after["matchType"])) return false;
   if (!isTournamentMatchCompleted(after["status"])) return false;
   const winnerId = stringField(after["winnerId"]);
   if (!winnerId) return false;

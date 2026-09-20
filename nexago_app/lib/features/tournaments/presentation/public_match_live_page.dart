@@ -9,6 +9,7 @@ import '../../organizer/presentation/match_ops/organizer_match_navigation.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_providers.dart';
 import 'focus/widgets/focus_match_card.dart';
+import 'public_koc_round_page.dart';
 import 'widgets/follow_match_button.dart';
 
 /// J2 — Transmissão pública (read-only).
@@ -68,6 +69,14 @@ class PublicMatchLivePage extends ConsumerWidget {
           final card = cards[matchId];
           if (card == null) {
             return const Center(child: Text('Partida não encontrada'));
+          }
+          // Rodada KOTC não tem placar por sets nem dois lados: o card de duelo
+          // sairia vazio. O telão dela é outro desenho.
+          if (card.match.isKingOfCourt) {
+            return PublicKocRoundPage(
+              matchId: matchId,
+              match: card.match,
+            );
           }
           final categoryName = tournament == null
               ? ''

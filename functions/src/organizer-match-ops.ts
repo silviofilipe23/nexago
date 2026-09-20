@@ -14,12 +14,14 @@ import {
 } from "./event-timezone";
 import {
   MatchStatus,
+  isDuelMatch,
   isMatchCanceled,
   isMatchCompleted,
   isMatchInProgress,
   isWinnerInMatch,
 } from "./match-status";
 import {syncTournamentLiveMatchesNow} from "./tournament-live-matches";
+import {shouldAdvanceKocPhase, tryAdvanceKocPhase} from "./koc-phase-advance";
 import {tryAwardLeagueStagePointsForMatch} from "./league-ranking";
 import {applyBracketAdvances, canFillBracketSlot} from "./category-bracket-advance";
 import {
@@ -157,6 +159,24 @@ function detectCourtOverlap(
     }
   }
   return null;
+}
+
+/**
+ * Recusa operação de DUELO numa rodada King of the Court.
+ *
+ * Só vale para as callables que escrevem semântica de dois lados (placar, W.O.,
+ * avanço de chave, ranking). As de agenda — `scheduleMatch`, `callMatchToCourt`,
+ * `releaseMatchAfterCheckIn`, `revertMatchToScheduled` — ficam de fora de
+ * propósito: a rodada KOTC ocupa quadra e horário como qualquer outra e PRECISA
+ * delas.
+ */
+function assertDuelMatch(data: Record<string, unknown>): void {
+  if (isDuelMatch(data.matchType)) return;
+  throw new HttpsError(
+    "failed-precondition",
+    "Rodada King of the Court não tem placar de duelo — use a mesa do KOTC.",
+    {reason: "not_a_duel_match"},
+  );
 }
 
 async function getMatchOrThrow(
@@ -668,6 +688,7 @@ export const declareMatchWalkover = onCall({
   const projectId = getFirebaseProjectId();
   const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
   await assertCanManageTournament(db, uid, data.tournamentId as string);
+  assertDuelMatch(data);
 
   // O vencedor tem que ser um dos dois lados: `winnerId` corrompido premia
   // colocação a um time que não jogou e quebra ranking e rating.
@@ -739,6 +760,7 @@ export const submitMatchResult = onCall({
   const projectId = getFirebaseProjectId();
   const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
   await assertCanScoreTournament(db, uid, data.tournamentId as string);
+  assertDuelMatch(data);
 
   // Formato (nº de sets): request (lançamento rápido) → doc da partida → padrão.
   const normalizeBestOf = (raw: unknown): number | null => {
@@ -825,6 +847,8 @@ export async function updateLiveMatchScoreCore(
   const projectId = getFirebaseProjectId();
   const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
   await assertCanScoreTournament(db, uid, data.tournamentId as string);
+
+  assertDuelMatch(data);
 
   if (isMatchCompleted(data.status) || isMatchCanceled(data.status)) {
     throw new HttpsError(
@@ -1017,6 +1041,7 @@ export const advanceBracketWinner = onCall({
   const {data} = await getMatchOrThrow(db, projectId, matchId);
   await assertCanManageTournament(db, uid, data.tournamentId as string);
 
+  assertDuelMatch(data);
   if (!data.winnerId) {
     throw new HttpsError("failed-precondition", "Partida sem vencedor");
   }
@@ -1240,6 +1265,7 @@ export const applyLeagueRankingForMatch = onCall({
   const projectId = getFirebaseProjectId();
   const {data} = await getMatchOrThrow(db, projectId, matchId);
   await assertCanManageTournament(db, uid, data.tournamentId as string);
+  assertDuelMatch(data);
 
   const result = await tryAwardLeagueStagePointsForMatch(db, projectId, {
     ...data,
@@ -1258,6 +1284,9 @@ export function shouldPropagateMatchAdvance(
   after: Record<string, unknown> | undefined,
 ): boolean {
   if (!after) return false;
+  // Rodada KOTC não avança vencedor por fiação de chave: quem classifica sai da
+  // TABELA da rodada, não de um `winnerId` único (fase 3 do KOTC cuida disso).
+  if (!isDuelMatch(after.matchType)) return false;
   if (!isMatchCompleted(after.status)) return false;
   const winnerId = String(after.winnerId ?? "").trim();
   if (!winnerId) return false;
@@ -1352,6 +1381,30 @@ export const onTournamentMatchCompletedAdvance = onDocumentUpdated(
       await handleDynamicRescheduleOnMatchUpdate(db, projectId, matchId, before, after);
     } catch (e) {
       logger.error("onTournamentMatchCompletedAdvance: reagendamento dinâmico falhou", {matchId, e});
+    }
+
+    // KOTC tem o seu próprio caminho: a fase só é montada quando TODAS as
+    // rodadas dela terminam, então não passa pelo gate de duelo abaixo — que a
+    // fase 0 fechou para KOTC de propósito.
+    if (shouldAdvanceKocPhase(before, after) && after) {
+      try {
+        const result = await tryAdvanceKocPhase(db, projectId, after);
+        if (result.advanced > 0) {
+          logger.info("koc: fase montada", {
+            matchId, phase: result.phase, rounds: result.advanced,
+          });
+        }
+      } catch (e) {
+        logger.error("onTournamentMatchCompletedAdvance: avanço KOTC falhou", {matchId, e});
+      }
+      try {
+        // A final KOTC decide a categoria pela TABELA; daqui para baixo é o
+        // mesmo caminho de conclusão das outras (campeão + fechamento).
+        await tryCompleteTournamentAfterFinal(db, projectId, after);
+      } catch (e) {
+        logger.error("onTournamentMatchCompletedAdvance: conclusão KOTC falhou", {matchId, e});
+      }
+      return;
     }
 
     if (!shouldPropagateMatchAdvance(before, after) || !after) return;

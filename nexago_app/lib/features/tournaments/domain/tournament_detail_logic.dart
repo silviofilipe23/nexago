@@ -324,6 +324,14 @@ bool isDoubleEliminationBracketFormat(String raw) {
       (n.contains('dupla') && n.contains('elim'));
 }
 
+/// Categorias King of the Court: a unidade é uma RODADA com 3 a 5 duplas, não
+/// uma partida de dois lados (`docs/business-rules/king-of-court.md`).
+bool isKingOfCourtBracketFormat(String raw) {
+  final n = raw.trim().toLowerCase().replaceAll('_', ' ');
+  if (n.isEmpty) return false;
+  return n == 'king of court' || n == 'kotc' || n.startsWith('king of court');
+}
+
 /// Categorias com fase de grupos/pools (ex.: Pool Play + SE).
 bool bracketFormatHasGroupsPhase(String raw) {
   final n = raw.trim().toLowerCase().replaceAll('_', ' ');

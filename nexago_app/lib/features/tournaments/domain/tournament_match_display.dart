@@ -573,6 +573,10 @@ String matchPhaseDisplayLabel(
   List<TournamentMatch> categoryMatches = const [],
 }) {
   late final String label;
+  // KOTC não tem grupo nem mata-mata: a fase é a própria rodada.
+  if (match.isKingOfCourt) {
+    return kingOfCourtPhaseLabel(match).toUpperCase();
+  }
   if (match.isPoolMatch) {
     final pool = _poolLabelForId(match.poolId);
     label = pool == 'Geral' ? 'Fase de grupos' : 'Fase de grupos · $pool';
@@ -606,4 +610,17 @@ String _knockoutFallbackPhaseLabel(TournamentMatch match, String typeLower) {
     return 'Mata-mata · $roundLabel';
   }
   return roundLabel;
+}
+
+/// Fase da rodada King of the Court, pelo `matchType`.
+///
+/// A classificatória ganha o número da rodada ("Classificatória · Rodada 3")
+/// porque, numa quadra só, elas acontecem uma depois da outra e o atleta precisa
+/// saber qual é a dele.
+String kingOfCourtPhaseLabel(TournamentMatch match) {
+  final type = match.matchType.trim().toLowerCase().replaceAll('_', ' ');
+  if (type == 'koc final') return 'Final';
+  if (type == 'koc semifinal') return 'Semifinal';
+  final round = match.matchNumber;
+  return round > 0 ? 'Classificatória · Rodada $round' : 'Classificatória';
 }

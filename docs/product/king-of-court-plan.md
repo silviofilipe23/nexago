@@ -320,6 +320,93 @@ elenco. O `select` sobre o elenco é necessário, não decorativo: `kocRoundProv
 emite a cada rally, e sem ele a busca de nomes seria refeita dezenas de vezes por
 rodada para um dado que não muda. A mesa ganhou o mesmo resolver como fallback.
 
+### Fase 4c — Portal do organizador ✅ concluída
+
+**O erro que motivou esta fase.** O portal do organizador é o Angular em
+`frontend/projects/organizer`, um **port próprio** do modelo Flutter — o
+`tournament-create.model.ts` declara isso no topo. As fases 1 a 4 mexeram só no
+app Flutter e nas functions, então a modalidade **não aparecia no wizard do
+portal**: ele renderiza as opções de `SUPPORTED_BRACKET_SYSTEMS`, que tinha três
+valores e nenhum era KOTC. Não era erro — era ausência.
+
+Sete arquivos do portal duplicam o que o app já tinha, e todos precisaram da
+modalidade:
+
+| Arquivo | O que duplicava |
+|---------|-----------------|
+| `data/tournament-create.model.ts` | tipo, mapa Firestore, rótulos, descrição, `SUPPORTED_BRACKET_SYSTEMS`, parse |
+| `data/tournament-create-mapper.ts` | escrita/leitura da config no doc |
+| `data/league-create.model.ts` | escrita da config na categoria da liga |
+| `data/organizer-ops.service.ts` | union de `format` da callable |
+| `data/organizer-settings.model.ts` | lista de sistemas das preferências |
+| `eventos/seeds.component.ts` | `BracketFormat` próprio, lista de formatos, piso de publicação |
+| `eventos/wizard/criar-torneio.component.ts` | opções e config da categoria |
+
+O wizard ganhou os steppers de duplas por quadra, classificam e duração, mais a
+**estimativa de tempo total de quadra** (porta de `king_of_court_plan.dart`, que
+por sua vez espelha o gerador no backend — a fonte da verdade continua sendo o
+backend).
+
+**Cobertura.** Portal: build de produção OK e 902 de 903 testes passando. A
+falha restante é de FUSO (`14:32` esperado, `17:32` recebido = UTC-3) em
+`inscricoes.rows.spec.ts`, arquivo não tocado aqui — pré-existente num ambiente
+UTC.
+
+#### O que este episódio revelou, e que segue ABERTO
+
+O portal tem **mesa e telão próprios**: `painel/telao/` (`telao-screen`,
+`telao-court-card`, `telao-config`) e `mesa-ao-vivo`, `placar`, `chaveamento`.
+
+A mesa (fase 2) e o telão (fase 4b) foram construídos **no app Flutter**. Se o
+organizador opera o dia pelo portal, faltam as duas telas lá — e sem a mesa no
+portal **ninguém registra rally em 24/10**. O `telao-court-card` atual mostra
+placar de duelo.
+
+Decisão pendente: onde a etapa será operada. A resposta define se as duas telas
+do Flutter bastam ou se precisam de par no portal.
+
+### Fase 4d — Mesa e telão no portal ✅ concluída
+
+A etapa será operada **nos dois** — app e portal —, então as duas telas do dia
+precisam existir nos dois lugares.
+
+| Peça | App Flutter | Portal Angular |
+|------|-------------|----------------|
+| Mesa | `organizer_koc_table_page.dart` | `mesa-koc.component.ts` |
+| Telão | `public_koc_round_page.dart` | ramo KOTC em `telao-court-card` |
+
+**Telão.** O do portal é organizado por QUADRA, o que encaixa melhor que a página
+por categoria do app: a rodada ocupa quadra, então `courtNowOf` já a escolhe como
+"ao vivo" sem mudança. Só faltava o corpo do card.
+
+**Mesa.** Componente próprio, e a mesa de duelo **delega** — assim todo link
+existente para `ao-vivo/:matchId` continua valendo. A checagem vem antes de
+`teamsReady()`, que exige os dois lados definidos: a rodada não tem lados e
+cairia para sempre no aviso de "aguardando as duas equipes".
+
+#### Operar nos dois exigiu uma garantia que já existia
+
+Duas mesas abertas na mesma rodada poderiam registrar o mesmo rally. O
+`expectedSeq` da fase 2 resolve: o servidor recusa a segunda com
+`koc_seq_mismatch`, a tela avisa, e o doc em tempo real já traz o estado certo —
+não há nada a sincronizar na mão. Foi projetado contra duplo toque com rede ruim
+e serviu de graça para duas mesas.
+
+#### O mesmo defeito, pela terceira vez
+
+`hydrateTeams` do telão colhia ids de `teamAId`/`teamBId` para resolver nomes e
+fotos — vazios na rodada. O telão sairia com "Dupla" em todas as linhas, como o
+card do app sairia com "A definir". **Todo código que junta ids pelos dois lados
+perde a rodada**, e é o primeiro lugar a olhar ao levar KOTC para uma superfície
+nova.
+
+**Cobertura.** Portal: build de produção OK, 922 de 923 testes (20 novos em
+`koc.spec.ts`). A falha é a de fuso pré-existente em `inscricoes.rows.spec.ts`.
+
+`koc` é OPCIONAL em `TournamentMatch`: como obrigatório, toda fixture de duelo dos
+specs teria de declarar `null`. E o `tsc` do app não pega isso — specs ficam fora
+do `tsconfig.app.json`, então só `ng test` acusa.
+
 ### Fase 5 — Notificações — **pós-evento**
 - Push de rodada (quadra, horário, elenco).
 

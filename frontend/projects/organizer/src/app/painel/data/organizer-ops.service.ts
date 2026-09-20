@@ -67,7 +67,7 @@ export function revokeSpotPassLink(linkId: string): Promise<void> {
 export interface GenerateBracketParams {
   tournamentId: string;
   categoryId: string;
-  format: 'groups_knockout' | 'single_elimination' | 'double_elimination';
+  format: 'groups_knockout' | 'single_elimination' | 'double_elimination' | 'king_of_court';
   seeds?: string[];
   groupsPreview?: Array<{ id: string; teamIds: string[] }>;
   bracketConfig?: Record<string, unknown>;
@@ -505,4 +505,55 @@ export function clearRevealSpotlight(
   index: number,
 ): Promise<{ spotlightClearedIndex: number }> {
   return call('clearRevealSpotlight', { sessionId: sessionId.trim(), index });
+}
+
+// ── King of the Court (koc-match-ops.ts) ──────────────────────────────────────
+
+/** Mesa da rodada King of the Court.
+ *
+ *  Mesmas callables que a mesa do app Flutter chama — a etapa é operada pelos
+ *  DOIS, e é por isso que `registerKocRally` manda `expectedSeq`: se as duas
+ *  mesas registrarem o mesmo rally, o servidor recusa a segunda com
+ *  `koc_seq_mismatch` em vez de criar um ponto fantasma. */
+export function startKocRound(params: { matchId: string; restart?: boolean }): Promise<{ ok?: boolean; endsAtMs?: number }> {
+  return call('kocStartRound', {
+    matchId: params.matchId.trim(),
+    ...(params.restart ? { restart: true } : {}),
+  });
+}
+
+/** [expectedSeq] é o número do rally que ESTA mesa acredita estar registrando. */
+export function registerKocRally(params: { matchId: string; kingWon: boolean; expectedSeq?: number }): Promise<{ ok?: boolean; seq?: number; kingTeamId?: string }> {
+  return call('kocRegisterRally', {
+    matchId: params.matchId.trim(),
+    winner: params.kingWon ? 'king' : 'challenger',
+    ...(params.expectedSeq != null ? { expectedSeq: params.expectedSeq } : {}),
+  });
+}
+
+export function undoKocRally(matchId: string): Promise<{ ok?: boolean; rallies?: number }> {
+  return call('kocUndoRally', { matchId: matchId.trim() });
+}
+
+export type KocClockAction = 'pause' | 'resume' | 'setDuration' | 'nudge';
+
+/** `nudge` é o ajuste de ±1 min: com uma quadra e rodadas em sequência, é o que
+ *  recupera horário depois de um estouro sem cortar rodada do chaveamento. */
+export function setKocClock(params: { matchId: string; action: KocClockAction; durationSec?: number; deltaSec?: number }): Promise<{ ok?: boolean; endsAtMs?: number; remainingSec?: number }> {
+  return call('kocSetClock', {
+    matchId: params.matchId.trim(),
+    action: params.action,
+    ...(params.durationSec != null ? { durationSec: params.durationSec } : {}),
+    ...(params.deltaSec != null ? { deltaSec: params.deltaSec } : {}),
+  });
+}
+
+/** `acceptTiebreak` confirma o desempate automático quando há empate decidindo
+ *  vaga. Sem ele o servidor RECUSA encerrar (`koc_unresolved_tie`), para a bola
+ *  de ouro ser jogada na areia em vez de a vaga sair de critério silencioso. */
+export function finishKocRound(params: { matchId: string; acceptTiebreak?: boolean }): Promise<{ ok?: boolean; standings?: Array<{ teamId: string; place: number; points: number }>; unresolvedTies?: string[][] }> {
+  return call('kocFinishRound', {
+    matchId: params.matchId.trim(),
+    ...(params.acceptTiebreak ? { acceptTiebreak: true } : {}),
+  });
 }

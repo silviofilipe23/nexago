@@ -114,7 +114,12 @@ export class TelaoDataService {
   }
 
   private async hydrateTeams(matches: TournamentMatch[], generation: number): Promise<void> {
-    const ids = [...new Set(matches.flatMap((m) => [m.teamAId, m.teamBId]))].filter((id) => id.length > 0 && !this.hydrated.has(id));
+    // Rodada King of the Court NÃO tem dois lados: o elenco vive em
+    // `koc.teamIds`. Colher só `teamAId`/`teamBId` deixaria o telão sem nome
+    // nenhum na rodada — é o mesmo defeito que apareceu no card do app.
+    const ids = [
+      ...new Set(matches.flatMap((m) => [m.teamAId, m.teamBId, ...(m.koc?.teamIds ?? [])])),
+    ].filter((id) => id.length > 0 && !this.hydrated.has(id));
     if (ids.length === 0) return;
     for (const id of ids) this.hydrated.add(id); // marca antes: snapshots em rajada não duplicam fetch
     try {

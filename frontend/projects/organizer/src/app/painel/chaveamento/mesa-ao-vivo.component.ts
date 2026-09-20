@@ -24,6 +24,7 @@ import {
   type LivePointEvent,
   type MatchDisplayStatus,
 } from '@nexago/live-scoring';
+import { isKingOfCourtMatchType } from '../data/koc';
 import { organizerLiveScoringContext } from '../data/live-scoring-context';
 import { revertMatchToScheduled, updateLiveMatchScore, validateMatchResult } from '../data/organizer-ops.service';
 import { OgAvatarComponent } from '../ui/avatar.component';
@@ -34,6 +35,7 @@ import { OgPillComponent } from '../ui/pill.component';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 import { ChaveamentoContextService } from './chaveamento-context.service';
+import { MesaKocComponent } from './mesa-koc.component';
 
 const STATUS_TONE: Record<MatchDisplayStatus, PillTone> = { scheduled: 'orange', in_progress: 'red', completed: 'green', canceled: 'dim' };
 const STATUS_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendada', in_progress: 'Ao vivo', completed: 'Encerrada', canceled: 'Cancelada' };
@@ -66,7 +68,7 @@ interface FeedRowView {
 @Component({
   selector: 'og-mesa-ao-vivo',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, OgPageHeaderComponent, OgCardComponent, OgAvatarComponent, OgPillComponent, OgConfirmDialogComponent, NxPageLoadingComponent, NxSpinnerComponent],
+  imports: [RouterLink, OgPageHeaderComponent, OgCardComponent, OgAvatarComponent, OgPillComponent, OgConfirmDialogComponent, NxPageLoadingComponent, NxSpinnerComponent, MesaKocComponent],
   template: `
     <og-page-header title="Mesa ao vivo" [subtitle]="headerSubtitle()">
       <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'jogos']">Voltar</a>
@@ -79,6 +81,11 @@ interface FeedRowView {
           <og-card><app-nx-page-loading title="Carregando partida…" subtitle="Conectando à mesa ao vivo" /></og-card>
         } @else if (!match()) {
           <og-card><p class="og-mesa-empty">Partida não encontrada — abra pela lista de jogos.</p></og-card>
+        } @else if (isKingOfCourt()) {
+          <!-- Rodada KOTC: mesa própria. A checagem vem ANTES de teamsReady(),
+               que exige os dois lados definidos — a rodada não tem lados, então
+               cairia no aviso de "aguardando as duas equipes" para sempre. -->
+          <og-mesa-koc [id]="id()" [matchId]="matchId()" />
         } @else if (!teamsReady()) {
           <og-card kicker="Mesa ao vivo" title="Aguardando as duas equipes">
             <p class="og-mesa-empty">A mesa só abre quando os dois lados da partida estiverem definidos na chave.</p>
@@ -577,6 +584,12 @@ export class MesaAoVivoComponent {
   readonly id = input<string>('');
   readonly catId = input<string>('');
   readonly matchId = input<string>('');
+
+  /** Rodada King of the Court — a mesa de duelo delega para `og-mesa-koc`, o que
+   *  mantém válido todo link existente para `ao-vivo/:matchId`. */
+  protected readonly isKingOfCourt = computed(() =>
+    isKingOfCourtMatchType(this.match()?.matchType ?? ''),
+  );
 
   private readonly live = signal<LiveMatch | null>(null);
   protected readonly liveLoaded = signal(false);

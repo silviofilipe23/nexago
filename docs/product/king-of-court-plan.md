@@ -365,6 +365,48 @@ placar de duelo.
 Decisão pendente: onde a etapa será operada. A resposta define se as duas telas
 do Flutter bastam ou se precisam de par no portal.
 
+### Fase 4d — Mesa e telão no portal ✅ concluída
+
+A etapa será operada **nos dois** — app e portal —, então as duas telas do dia
+precisam existir nos dois lugares.
+
+| Peça | App Flutter | Portal Angular |
+|------|-------------|----------------|
+| Mesa | `organizer_koc_table_page.dart` | `mesa-koc.component.ts` |
+| Telão | `public_koc_round_page.dart` | ramo KOTC em `telao-court-card` |
+
+**Telão.** O do portal é organizado por QUADRA, o que encaixa melhor que a página
+por categoria do app: a rodada ocupa quadra, então `courtNowOf` já a escolhe como
+"ao vivo" sem mudança. Só faltava o corpo do card.
+
+**Mesa.** Componente próprio, e a mesa de duelo **delega** — assim todo link
+existente para `ao-vivo/:matchId` continua valendo. A checagem vem antes de
+`teamsReady()`, que exige os dois lados definidos: a rodada não tem lados e
+cairia para sempre no aviso de "aguardando as duas equipes".
+
+#### Operar nos dois exigiu uma garantia que já existia
+
+Duas mesas abertas na mesma rodada poderiam registrar o mesmo rally. O
+`expectedSeq` da fase 2 resolve: o servidor recusa a segunda com
+`koc_seq_mismatch`, a tela avisa, e o doc em tempo real já traz o estado certo —
+não há nada a sincronizar na mão. Foi projetado contra duplo toque com rede ruim
+e serviu de graça para duas mesas.
+
+#### O mesmo defeito, pela terceira vez
+
+`hydrateTeams` do telão colhia ids de `teamAId`/`teamBId` para resolver nomes e
+fotos — vazios na rodada. O telão sairia com "Dupla" em todas as linhas, como o
+card do app sairia com "A definir". **Todo código que junta ids pelos dois lados
+perde a rodada**, e é o primeiro lugar a olhar ao levar KOTC para uma superfície
+nova.
+
+**Cobertura.** Portal: build de produção OK, 922 de 923 testes (20 novos em
+`koc.spec.ts`). A falha é a de fuso pré-existente em `inscricoes.rows.spec.ts`.
+
+`koc` é OPCIONAL em `TournamentMatch`: como obrigatório, toda fixture de duelo dos
+specs teria de declarar `null`. E o `tsc` do app não pega isso — specs ficam fora
+do `tsconfig.app.json`, então só `ng test` acusa.
+
 ### Fase 5 — Notificações — **pós-evento**
 - Push de rodada (quadra, horário, elenco).
 

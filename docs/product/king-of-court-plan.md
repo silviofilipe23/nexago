@@ -164,15 +164,27 @@ pela query, com a fronteira anotada).
 (`test/features/tournaments/domain/tournament_match_type_test.dart`) mas **não
 executados** — não há SDK Flutter no ambiente onde a fase foi feita.
 
-### Fase 1 — Configuração e geração da chave — **antes de 10/10**
-- Enum + labels (`tournament_create_logic.dart`), `supportedBracketSystems`.
-- Parse nos 3 mappers: `tournament_create_mapper`, `league_create_mapper`,
-  `league_stage_create_logic` (os três têm o mesmo `switch` de formato).
-- UI de config em `organizer_category_format_section.dart`: duplas por quadra,
-  quantos classificam e **duração da rodada** (ver seção 8).
-- `koc-bracket-builders.ts`: distribui o elenco pago em rodadas de `teamsPerCourt`
-  por semeadura serpentina; devolve `MatchDraft[]`.
-- Branch em `runGenerateCategoryBracket` (`organizer-category-ops.ts:367`).
+### Fase 1 — Configuração e geração da chave ✅ concluída
+- `koc-bracket-builders.ts`: fases sucessivas, serpentina por seed na
+  classificatória e cruzamento `(origem + colocação - 1) % destino` nas fases
+  seguintes — a fórmula que garante que ninguém reencontre na fase seguinte quem
+  acabou de enfrentar. Devolve `KocRoundDraft[]`, tipo próprio: `MatchDraft` fala
+  em dois lados.
+- `kocRoundDoc` + `resolveKocConfig` em `organizer-category-ops.ts`, e branch em
+  `runGenerateCategoryBracket`. O doc grava `kocConfig` como snapshot.
+- Enum, labels, `supportedBracketSystems` e os 3 mappers no app.
+- `king_of_court_plan.dart`: espelho Dart do gerador, para o wizard mostrar o
+  **tempo total de quadra** (ver seção 8).
+- Tela `organizer_category_generate_koc_page.dart`, com a prévia calculada sobre
+  as duplas REALMENTE pagas, e `generateBracketRouteFormat` reconhecendo KOTC —
+  sem isso a categoria caía na tela de eliminatória simples.
+
+**Cobertura.** Backend verde: 2778 testes (43 novos), incluindo a grade exata da
+1ª etapa. Testes Dart escritos, não executados (sem SDK Flutter no ambiente).
+
+**Piso do formato.** 3 duplas, checado no wizard
+(`minTeamsToGenerateBracketFor`) e no backend. O mínimo genérico de 2 valeria
+para KOTC e deixaria publicar uma rodada que não gira.
 
 ### Fase 2 — Mesa ao vivo
 - `koc-engine.ts` **puro** (fila, coroação, pontos, relógio) + testes — mesmo padrão
@@ -257,7 +269,7 @@ segundos colocados.
 
 Final: 1º e 2º de cada semifinal. A tabela da final **é** o pódio.
 
-### Agenda do dia (2h30 de quadra contínua)
+### Agenda do dia (2h35 de quadra contínua)
 
 | Rodada | Horário | Elenco |
 |--------|---------|--------|
@@ -268,7 +280,8 @@ Final: 1º e 2º de cada semifinal. A tabela da final **é** o pódio.
 | — | 1:15–1:30 | intervalo de fase |
 | SF1 | 1:30–1:45 | 1ºR1, 2ºR2, 1ºR3, 2ºR4 |
 | SF2 | 1:50–2:05 | 1ºR2, 2ºR1, 1ºR4, 2ºR3 |
-| Final | 2:15–2:30 | 1º e 2º de cada semi |
+| — | 2:05–2:20 | intervalo de fase |
+| Final | 2:20–2:35 | 1º e 2º de cada semi |
 
 O **intervalo de fase de 15 min não é folga**: sem ele, o 2º da R4 sai às 1:15 e
 entra na SF1 às 1:20. É o descanso mínimo do caminho mais apertado.
@@ -280,7 +293,7 @@ sempre *dentro* da rodada (top 2). Não existe comparação de pontos entre quad
 com ritmos diferentes — o problema de justiça da seção anterior simplesmente não
 existe aqui, e o desempate por aproveitamento deixa de ser necessário no MVP.
 
-**Contra.** Quem cai na classificatória joga 15 min de um evento de 2h30. É o
+**Contra.** Quem cai na classificatória joga 15 min de um evento de 2h35. É o
 preço de um turno só, e foi decisão consciente: dois turnos custariam +1h20 na
 mesma quadra.
 
@@ -332,11 +345,16 @@ O cliente nunca calcula prazo — só renderiza a contagem até `clockEndsAt`.
 Duração isolada não diz nada ao organizador; o que ele precisa ver é o **tempo
 total de quadra**:
 
-> 7 rodadas × 15 min + intervalos = **2h30**
+> 7 rodadas × 15 min + trocas e intervalos = **2h35**
 
-Com 20 min vira 3h05, com 10 min vira 1h55. É essa linha que responde a pergunta
+Com 20 min vira 3h10, com 10 min vira 2h. É essa linha que responde a pergunta
 real ("cabe na minha reserva?") e evita descobrir o estouro no dia. A conta usa o
 número de rodadas que a própria geração produz, então já está disponível.
+
+Os números saem de `king_of_court_plan.dart`, que espelha o gerador do backend e
+soma 5 min de troca entre rodadas mais os 15 min de intervalo entre fases. A
+mesma conta com 2 quadras dá 1h35, e com 4 dá 1h15 — é o paralelismo, não a
+duração, que domina o dia.
 
 ### Limites e aviso
 

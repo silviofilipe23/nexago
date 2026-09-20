@@ -15,6 +15,7 @@ String bracketSystemLabel(TournamentBracketSystem system) => switch (system) {
   TournamentBracketSystem.roundRobin => 'Todos contra todos',
   TournamentBracketSystem.groupsWithRepechage => 'Grupos + repescagem',
   TournamentBracketSystem.doubleElimination => 'Dupla eliminatória',
+  TournamentBracketSystem.kingOfCourt => 'King of the Court',
 };
 
 String bracketSystemShortLabel(TournamentBracketSystem system) =>
@@ -24,6 +25,7 @@ String bracketSystemShortLabel(TournamentBracketSystem system) =>
       TournamentBracketSystem.roundRobin => 'Pontos corridos',
       TournamentBracketSystem.groupsWithRepechage => 'Grupos + repescagem',
       TournamentBracketSystem.doubleElimination => 'Dupla eliminatória',
+      TournamentBracketSystem.kingOfCourt => 'King of the Court',
     };
 
 String bracketSystemDescription(
@@ -38,6 +40,8 @@ String bracketSystemDescription(
     'Quem perde cedo ganha uma segunda chance.',
   TournamentBracketSystem.doubleElimination =>
     'Dupla eliminatória — sem fase de grupos.',
+  TournamentBracketSystem.kingOfCourt =>
+    'Rodadas de 3 a 5 duplas na mesma quadra. Só quem está no trono pontua.',
 };
 
 /// Formatos com geração de chave e operação dia D implementados.
@@ -45,6 +49,7 @@ const supportedBracketSystems = <TournamentBracketSystem>[
   TournamentBracketSystem.groupsThenKnockout,
   TournamentBracketSystem.singleElimination,
   TournamentBracketSystem.doubleElimination,
+  TournamentBracketSystem.kingOfCourt,
 ];
 
 /// Formatos visíveis no wizard mas ainda sem backend completo.
@@ -642,6 +647,7 @@ List<TournamentCategoryPrizeDraft> defaultCategoryPrizes(int totalCents) {
 
 String bracketFormatFirestoreValue(TournamentBracketSystem system) =>
     switch (system) {
+      TournamentBracketSystem.kingOfCourt => 'king_of_court',
       TournamentBracketSystem.groupsThenKnockout => 'groups_knockout',
       TournamentBracketSystem.singleElimination => 'single_elimination',
       TournamentBracketSystem.roundRobin => 'round_robin',
@@ -672,6 +678,9 @@ TournamentBracketSystem? bracketSystemFromRaw(String raw) {
     'groups with repechage' => TournamentBracketSystem.groupsWithRepechage,
     'double_elimination' ||
     'double elimination' => TournamentBracketSystem.doubleElimination,
+    'king_of_court' ||
+    'king of court' ||
+    'kotc' => TournamentBracketSystem.kingOfCourt,
     _
         when n.contains('pool') &&
             (n.contains('se') || n.contains('mata') || n.contains('elim')) =>

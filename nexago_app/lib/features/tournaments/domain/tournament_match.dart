@@ -51,6 +51,7 @@ class TournamentMatch {
     this.loserAdvanceMatchNumber,
     this.loserAdvanceSlot,
     this.liveScore,
+    this.kocStandingTeamIds = const [],
   });
 
   final String id;
@@ -110,6 +111,12 @@ class TournamentMatch {
   /// Placar parcial "ao vivo" do set em andamento (games/sets), gravado por
   /// `updateLiveMatchScore`. Só faz sentido exibir quando [isInProgress].
   final MatchLiveScore? liveScore;
+
+  /// Duplas da rodada King of the Court em ordem de colocação, gravadas no
+  /// encerramento. É o RESULTADO da rodada, como `winnerId` e `sets` são o de um
+  /// duelo — e é de onde sai o pódio, já que a rodada final não tem dois lados.
+  /// Vazia em toda partida de duelo.
+  final List<String> kocStandingTeamIds;
 
   String get effectiveCourtLabel {
     if (courtId.isNotEmpty) return courtId;

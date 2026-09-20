@@ -62,6 +62,7 @@ abstract final class TournamentMatchMapper {
       teamAConfirmed: _reportBool(data['report'], 'teamAConfirmed'),
       teamBConfirmed: _reportBool(data['report'], 'teamBConfirmed'),
       bestOf: _bestOf(data['bestOf']),
+      kocStandingTeamIds: _kocStandingTeamIds(data['kocStandings']),
       winnerAdvanceMatchNumber: _advanceMatchNumber(data['winnerAdvance']),
       winnerAdvanceSlot: _advanceSlot(data['winnerAdvance']),
       loserAdvanceMatchNumber: _advanceMatchNumber(data['loserAdvance']),
@@ -192,5 +193,22 @@ abstract final class TournamentMatchMapper {
     if (value is Timestamp) return value.toDate().toUtc();
     if (value is DateTime) return value.toUtc();
     return null;
+  }
+
+  /// `kocStandings` → ids em ordem de colocação. Entrada corrompida é
+  /// descartada: pódio torto é pior que pódio ausente.
+  static List<String> _kocStandingTeamIds(dynamic raw) {
+    if (raw is! List) return const [];
+    final entries = <({int place, String teamId})>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final teamId = item['teamId'];
+      final place = item['place'];
+      if (teamId is! String || teamId.trim().isEmpty) continue;
+      if (place is! num) continue;
+      entries.add((place: place.toInt(), teamId: teamId.trim()));
+    }
+    entries.sort((a, b) => a.place.compareTo(b.place));
+    return entries.map((e) => e.teamId).toList(growable: false);
   }
 }

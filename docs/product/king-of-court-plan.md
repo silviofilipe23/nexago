@@ -217,12 +217,47 @@ um erro visível. `kocFinishRound` recusa com `koc_unresolved_tie`; a mesa
 oferece voltar e jogar o rally, ou aceitar o desempate automático
 explicitamente. Empate que não atravessa o corte não trava nada.
 
-### Fase 3 — Avanço de fase e encerramento
-- `koc-standings.ts`: ordena por pontos → bola de ouro → último rei → confronto direto.
-- `kocAdvancePhase`: fase completa → monta as rodadas da fase seguinte.
-- `koc_final` completa → pódio pela tabela.
-- Integrações: `tournament-completion.isFinalMatchType` (hoje `=== "final"` exato) e
-  `league-ranking.ts:70` precisam aceitar `koc_final`, senão o torneio **não fecha**.
+### Fase 3 — Avanço de fase e encerramento ✅ concluída
+- `koc-phase-advance.ts`: monta a fase seguinte a partir das tabelas da anterior.
+- `tournament-completion.isFinalMatchType` passou a aceitar `koc_final` — era a
+  linha que fazia a categoria terminar e o **torneio nunca fechar**.
+- Pódio no app: `TournamentMatch.kocStandingTeamIds` + `computeCategoryPodium`.
+
+**Cobertura.** Backend verde: 2876 testes (22 novos).
+
+#### O gatilho é diferente do de duelo, e isso é o ponto
+
+Uma partida de duelo propaga o vencedor **assim que acaba**. Uma fase KOTC só
+pode ser montada quando **todas** as suas rodadas terminaram: antes disso as
+vagas ainda estão em disputa nas outras quadras. Por isso `shouldAdvanceKocPhase`
+não reaproveita `shouldPropagateMatchAdvance` — aquele é o gate dos consumidores
+de duelo, que a fase 0 fechou para KOTC de propósito.
+
+O avanço é **idempotente**: rodada que já tem elenco não é tocada, então retry de
+trigger ou correção de resultado não embaralha quadra. E vaga sem dono (tabela
+ausente ou curta) **não monta a rodada** — deixa o buraco visível para o
+organizador em vez de publicar um elenco incompleto.
+
+#### A ordem do elenco é decisão de mérito, não cosmética
+
+Quem abre `kocTeamIds` começa **no trono**, e o trono é de onde os pontos vêm.
+`resolveKocRoster` ordena por colocação e, dentro dela, pela rodada de origem —
+então o melhor classificado entra defendendo, como o cabeça de chave abre a
+classificatória.
+
+#### O pódio KOTC não tem disputa de 3º
+
+Sem eliminação, a tabela da rodada final já ordena todos: 1º, 2º e 3º saem dela.
+`computeCategoryPodium` trata `koc_final` por esse caminho e ignora
+`Third Place`, que não existe no formato. Tabela ausente devolve pódio vazio —
+pódio torto é pior que pódio ausente.
+
+#### Fica para a Fase 5 (ranking)
+
+`league-ranking.ts` e `tournament-ranking.ts` resolvem colocação a partir de um
+duelo final (`winnerId` + os dois lados). Para KOTC a colocação vem de
+`kocStandings`, o que exige um resolver próprio — trabalho de ranking, não de
+encerramento. O torneio já fecha sem isso; o que falta é **pontuar** a etapa.
 
 ### Fase 4 — App do atleta (mínimo para o dia D)
 Não é opcional: sem isso o card "Agora" renderiza uma rodada com os dois lados

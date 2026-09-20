@@ -21,6 +21,7 @@ import {
   isWinnerInMatch,
 } from "./match-status";
 import {syncTournamentLiveMatchesNow} from "./tournament-live-matches";
+import {shouldAdvanceKocPhase, tryAdvanceKocPhase} from "./koc-phase-advance";
 import {tryAwardLeagueStagePointsForMatch} from "./league-ranking";
 import {applyBracketAdvances, canFillBracketSlot} from "./category-bracket-advance";
 import {
@@ -1380,6 +1381,30 @@ export const onTournamentMatchCompletedAdvance = onDocumentUpdated(
       await handleDynamicRescheduleOnMatchUpdate(db, projectId, matchId, before, after);
     } catch (e) {
       logger.error("onTournamentMatchCompletedAdvance: reagendamento dinâmico falhou", {matchId, e});
+    }
+
+    // KOTC tem o seu próprio caminho: a fase só é montada quando TODAS as
+    // rodadas dela terminam, então não passa pelo gate de duelo abaixo — que a
+    // fase 0 fechou para KOTC de propósito.
+    if (shouldAdvanceKocPhase(before, after) && after) {
+      try {
+        const result = await tryAdvanceKocPhase(db, projectId, after);
+        if (result.advanced > 0) {
+          logger.info("koc: fase montada", {
+            matchId, phase: result.phase, rounds: result.advanced,
+          });
+        }
+      } catch (e) {
+        logger.error("onTournamentMatchCompletedAdvance: avanço KOTC falhou", {matchId, e});
+      }
+      try {
+        // A final KOTC decide a categoria pela TABELA; daqui para baixo é o
+        // mesmo caminho de conclusão das outras (campeão + fechamento).
+        await tryCompleteTournamentAfterFinal(db, projectId, after);
+      } catch (e) {
+        logger.error("onTournamentMatchCompletedAdvance: conclusão KOTC falhou", {matchId, e});
+      }
+      return;
     }
 
     if (!shouldPropagateMatchAdvance(before, after) || !after) return;

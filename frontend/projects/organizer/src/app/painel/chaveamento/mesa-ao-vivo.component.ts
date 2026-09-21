@@ -106,7 +106,6 @@ interface MedicalOptionView {
           <span class="og-mesa-koc-badge">{{ badge }}</span>
         }
         <a class="og-ghost-btn" [href]="'/telao/' + id()" target="_blank" rel="noopener">Abrir telão</a>
-        <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'jogos']">Placar completo</a>
         <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'jogos']">Voltar</a>
       } @else {
         <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'jogos']">Voltar</a>

@@ -103,6 +103,19 @@ interface AgendaBloco {
 
       @if (ctx.loadingTournaments() || ctx.loadingMatches()) {
         <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Carregando jogos…</div>
+      } @else if (!ctx.tournament()) {
+        <div class="og-card og-agenda-empty">
+          <p class="og-agenda-empty-title">Torneio não está disponível</p>
+          <p class="og-agenda-empty-copy">
+            A grade tira as quadras do doc do torneio, e ele não está na sua lista de eventos.
+            Costuma ser sessão expirada (a conta que abriu esta página não é mais dona do evento)
+            ou torneio que trocou de dono. Entre de novo e abra o evento por Meus eventos.
+          </p>
+          <a class="og-mini-btn og-mini-btn-primary" routerLink="/painel/eventos">
+            <og-icon name="whistle" [size]="14" />
+            Ir para Meus eventos
+          </a>
+        </div>
       } @else if (ctx.tournaments().length > 0 && ctx.matches().length === 0) {
         <div class="og-card og-agenda-empty">
           <p class="og-agenda-empty-title">Chaves ainda não geradas</p>
@@ -1072,6 +1085,11 @@ export class AgendamentoComponent {
     return ['/painel/eventos', tid, 'categorias', cid, 'seeds'];
   });
 
+  /** Quadras da grade. Sem torneio no contexto isto é `[]` — e uma grade sem coluna
+   *  nenhuma nao tem onde clicar, entao o template corta antes, no estado
+   *  "Torneio não está disponível". O caso real: `listMyTournaments` devolve vazio
+   *  (sessão de conta apagada/sem acesso) enquanto as partidas, que são consultadas
+   *  pelo tournamentId da rota numa coleção pública, continuam chegando. */
   protected readonly courts = computed(() => this.ctx.tournament()?.courts ?? []);
 
   protected readonly durationMin = computed(() => this.ctx.tournament()?.matchOps.defaultMatchDurationMin ?? 30);

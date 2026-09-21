@@ -1332,18 +1332,43 @@ export function shouldPropagateMatchAdvance(
  * pela partida anterior (winner/loser advance já aplicado). Partidas de grupo
  * nunca são afetadas: já nascem com as duas duplas reais.
  */
+/**
+ * Rodada King of the Court já descrita o bastante para reservar quadra e hora.
+ *
+ * O análogo do placeholder de chave ("Vencedor Jogo #7") aqui são as VAGAS
+ * (`kocQualifiers`: "1º Rodada 1", "2º Rodada 1"…), que a geração já grava na
+ * semifinal e na final. Como o placeholder, elas descrevem uma rodada que VAI
+ * acontecer — dá para pré-reservar antes de saber quem joga, que é o que a
+ * etapa de uma quadra só exige: o dia inteiro na grade logo de manhã.
+ *
+ * Fica de fora só a rodada sem elenco E sem vagas, que não descreve nada.
+ */
+export function kocRoundIsPlanned(
+  data: {kocTeamIds?: unknown; kocQualifiers?: unknown},
+): boolean {
+  const hasRoster = Array.isArray(data.kocTeamIds) &&
+    data.kocTeamIds.some((id) => typeof id === "string" && id.trim() !== "");
+  const hasSlots = Array.isArray(data.kocQualifiers) &&
+    data.kocQualifiers.length > 0;
+  return hasRoster || hasSlots;
+}
+
 export function isMatchAutoSchedulable(
-  data: {teamAId?: unknown; teamBId?: unknown; matchType?: unknown; kocTeamIds?: unknown},
+  data: {
+    teamAId?: unknown;
+    teamBId?: unknown;
+    matchType?: unknown;
+    kocTeamIds?: unknown;
+    kocQualifiers?: unknown;
+  },
   respectBracketDeps: boolean,
 ): boolean {
   if (!respectBracketDeps) return true;
   // A rodada KOTC nasce com os DOIS LADOS VAZIOS — pela regra do duelo ela
   // nunca seria agendável, e o auto-agendamento pulava a categoria inteira em
-  // silêncio. O equivalente ao "placeholder de chave" aqui é o ELENCO vazio,
-  // que é exatamente como a fase seguinte nasce até a anterior terminar.
+  // silêncio. Ver `kocRoundIsPlanned`.
   if (isKingOfCourtMatch(data.matchType)) {
-    return Array.isArray(data.kocTeamIds) &&
-      data.kocTeamIds.some((id) => typeof id === "string" && id.trim() !== "");
+    return kocRoundIsPlanned(data);
   }
   const teamA = typeof data.teamAId === "string" ? data.teamAId.trim() : "";
   const teamB = typeof data.teamBId === "string" ? data.teamBId.trim() : "";

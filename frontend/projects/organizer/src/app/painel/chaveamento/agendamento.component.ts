@@ -402,6 +402,9 @@ interface AgendaBloco {
                   @if (m.round) {
                     · {{ m.round }}
                   }
+                  @if (kocSlotsLabel(m); as slots) {
+                    · {{ slots }}
+                  }
                   @if (m.scheduledAt) {
                     · {{ timeLabel(m.scheduledAt) }} ({{ matchDayLabel(m) }})
                   }
@@ -1313,20 +1316,39 @@ export class AgendamentoComponent {
     const round = m.koc;
     if (round) {
       const size = round.teamIds.length;
-      if (size === 0) return 'Elenco a definir';
-      return size === 1 ? '1 dupla' : `${size} duplas`;
+      if (size > 0) return size === 1 ? '1 dupla' : `${size} duplas`;
+      // Sem elenco, o que descreve a rodada são as VAGAS — é o que a torna
+      // pré-reservável. Aqui só o número; de ONDE vem cada uma vai na linha de
+      // apoio da fila, que é onde o organizador decide.
+      const slots = round.qualifierSlots.length;
+      if (slots > 0) return slots === 1 ? '1 vaga' : `${slots} vagas`;
+      return 'Elenco a definir';
     }
     return `${truncateName(m.team1Label, max)} vs ${truncateName(m.team2Label, max)}`;
   }
 
   protected matchTitle(m: TournamentMatch): string {
-    if (m.koc) return `${m.round ?? 'Rodada'} · ${this.matchLabel(m, 40)}`;
+    const round = m.koc;
+    if (round) {
+      const detail = round.teamIds.length > 0 ?
+        `${round.teamIds.length} duplas` :
+        round.qualifierSlots.join(' · ') || 'elenco a definir';
+      return `${m.round ?? 'Rodada'} · ${detail}`;
+    }
     return `${m.team1Label} vs ${m.team2Label}`;
   }
 
   /** Minutos que a partida ocupa na grade. A rodada KOTC tem a sua no snapshot
    *  (`configuredDurationSec`, que varia por fase) e some a troca — a mesma
    *  conta que o servidor IMPÕE ao gravar, pra prévia e grade não mentirem. */
+  /** De onde vem cada vaga ("1º Rodada 1 · 2º Rodada 2"), vazio quando o elenco
+   *  já existe ou quando a rodada ainda não tem nem vagas. */
+  protected kocSlotsLabel(m: TournamentMatch): string {
+    const round = m.koc;
+    if (!round || round.teamIds.length > 0) return '';
+    return round.qualifierSlots.join(' · ');
+  }
+
   protected slotMinutesOf(m: TournamentMatch): number {
     const sec = m.koc?.configuredDurationSec ?? 0;
     if (sec <= 0) return this.durationMin();

@@ -133,13 +133,10 @@ abstract final class ScheduleLogic {
     if (!respectBracketDeps) return matches;
     return matches.where((m) {
       // A rodada KOTC nasce com os DOIS LADOS VAZIOS: pela regra do duelo ela
-      // nunca seria agendável e a categoria inteira sumia da prévia. O
-      // equivalente ao placeholder de chave aqui é o ELENCO vazio, que é como a
-      // fase seguinte nasce até a anterior terminar. Mesma regra de
-      // `isMatchAutoSchedulable` no servidor.
-      if (m.isKingOfCourt) {
-        return m.kocTeamIds.any((id) => id.trim().isNotEmpty);
-      }
+      // nunca seria agendável e a categoria inteira sumia da prévia. Vale o
+      // elenco ou, na fase que ainda não começou, as VAGAS — mesma regra de
+      // `kocRoundIsPlanned` no servidor.
+      if (m.isKingOfCourt) return m.kocRoundIsPlanned;
       return m.teamAId.trim().isNotEmpty && m.teamBId.trim().isNotEmpty;
     }).toList();
   }

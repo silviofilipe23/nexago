@@ -72,12 +72,25 @@ abstract final class TournamentMatchMapper {
       kocStandingTeamIds: _kocStandingTeamIds(data['kocStandings']),
       kocTeamIds: _teamIdList(data['kocTeamIds']),
       kocDurationSec: _kocDurationSec(data['kocConfig']),
+      kocQualifierSlots: _kocQualifierSlots(data['kocQualifiers']),
       winnerAdvanceMatchNumber: _advanceMatchNumber(data['winnerAdvance']),
       winnerAdvanceSlot: _advanceSlot(data['winnerAdvance']),
       loserAdvanceMatchNumber: _advanceMatchNumber(data['loserAdvance']),
       loserAdvanceSlot: _advanceSlot(data['loserAdvance']),
       liveScore: _liveScore(data['liveScore']),
     );
+  }
+
+  /// Descrição de cada vaga da rodada ("1º Rodada 1"), na ordem gravada.
+  static List<String> _kocQualifierSlots(dynamic raw) {
+    if (raw is! List) return const [];
+    final out = <String>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final description = (item['description'] as String?)?.trim() ?? '';
+      if (description.isNotEmpty) out.add(description);
+    }
+    return out;
   }
 
   /// Duração de jogo da rodada KOTC, do snapshot `kocConfig`.

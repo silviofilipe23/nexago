@@ -60,6 +60,7 @@ class TournamentMatch {
     this.kocStandingTeamIds = const [],
     this.kocTeamIds = const [],
     this.kocDurationSec = 0,
+    this.kocQualifierSlots = const [],
   });
 
   final String id;
@@ -151,6 +152,20 @@ class TournamentMatch {
   /// Varia por fase (a final costuma ser mais longa). Zero em toda partida de
   /// duelo, que usa o padrão do torneio.
   final int kocDurationSec;
+
+  /// De onde vem cada vaga da rodada — "1º Rodada 1", "2º Rodada 2"…
+  ///
+  /// É o análogo do "Vencedor Jogo #7" de um mata-mata: descreve uma rodada
+  /// que VAI acontecer, mesmo antes de a fase anterior terminar. Vazia na
+  /// classificatória (que já nasce com elenco) e em todo duelo.
+  final List<String> kocQualifierSlots;
+
+  /// Rodada KOTC já descrita o bastante para reservar quadra e horário: tem
+  /// elenco fechado ou, ao menos, as vagas. Espelha `kocRoundIsPlanned` do
+  /// servidor.
+  bool get kocRoundIsPlanned =>
+      kocTeamIds.any((id) => id.trim().isNotEmpty) ||
+      kocQualifierSlots.isNotEmpty;
 
   /// Duplas que a partida ocupa naquele horário.
   ///

@@ -51,13 +51,18 @@ function kocTournament(): OrganizerTournament {
 }
 
 /** Partida KoC como o builder grava: sem teamAId/teamBId (as 4 equipes vivem em kocTeamIds). */
-function kocMatch(n: number, matchType: string, teamIds = ['t1', 't2', 't3', 't4']): TournamentMatch {
+function kocMatch(
+  n: number,
+  matchType: string,
+  teamIds = ['t1', 't2', 't3', 't4'],
+  qualifierSlots: string[] = [],
+): TournamentMatch {
   return {
     id: `koc-${n}`, tournamentId: 'NmmfPlnPRNNPmPcvBJWk', categoryId: 'intermediario_2-masc',
     koc: {
       teamIds, kingTeamId: '', challengerTeamId: '', queue: [], points: {}, rallies: 0,
       servingTeamId: '', clock: null, standings: [], qualifiersPerRound: 2,
-      configuredDurationSec: 900, rallySeq: 0, roundLabel: n, qualifierSlots: [],
+      configuredDurationSec: 900, rallySeq: 0, roundLabel: n, qualifierSlots,
     },
     round: 'Classificatória · Rodada 1', team1Label: 'A definir', team2Label: 'A definir', score: null, winnerSide: null,
     scheduledAt: null, court: null, status: 'scheduled', teamAId: '', teamBId: '', sets: [],
@@ -69,8 +74,11 @@ function kocMatch(n: number, matchType: string, teamIds = ['t1', 't2', 't3', 't4
 
 const KOC_MATCHES = [
   kocMatch(1, 'koc_round'), kocMatch(2, 'koc_round'), kocMatch(3, 'koc_round'),
-  kocMatch(4, 'koc_round'), kocMatch(5, 'koc_semifinal'), kocMatch(6, 'koc_semifinal'),
-  kocMatch(7, 'koc_final'),
+  kocMatch(4, 'koc_round'),
+  // Semis e final nascem SEM elenco: o que as descreve são as vagas.
+  kocMatch(5, 'koc_semifinal', [], ['1º Rodada 1', '2º Rodada 2', '1º Rodada 3', '2º Rodada 4']),
+  kocMatch(6, 'koc_semifinal', [], ['1º Rodada 2', '2º Rodada 1', '1º Rodada 4', '2º Rodada 3']),
+  kocMatch(7, 'koc_final', [], ['1º Semifinal 1', '2º Semifinal 1', '1º Semifinal 2', '2º Semifinal 2']),
 ];
 
 class CtxStub {
@@ -148,8 +156,24 @@ describe('AgendamentoComponent — torneio King of the Court', () => {
       .map((e) => e.textContent?.trim() ?? '');
     expect(linhas.length).toBe(7);
     for (const linha of linhas) {
-      expect(linha).toBe('4 duplas');
       expect(linha).not.toContain('A definir');
     }
+    // As 4 classificatórias já têm elenco fechado.
+    expect(linhas.slice(0, 4)).toEqual(['4 duplas', '4 duplas', '4 duplas', '4 duplas']);
+  });
+
+  /** Semis e final nascem sem elenco. As vagas são o análogo do "Vencedor Jogo
+   *  #7": descrevem a rodada e é o que permite pré-reservar o horário dela. */
+  it('descreve a fase seguinte pelas vagas, não por um elenco que ainda não existe', () => {
+    const linhas = Array.from(host().querySelectorAll('.og-agenda-fila-item .partida'))
+      .map((e) => e.textContent?.trim() ?? '');
+    for (const linha of linhas.slice(4)) {
+      expect(linha).toBe('4 vagas');
+    }
+    // De onde vem cada vaga fica na linha de apoio, que é onde se decide.
+    const metas = Array.from(host().querySelectorAll('.og-agenda-fila-item .meta'))
+      .map((e) => e.textContent?.replace(/\s+/g, ' ').trim() ?? '');
+    expect(metas[4]).toContain('1º Rodada 1 · 2º Rodada 2');
+    expect(metas[0]).not.toContain('Rodada 1 ·');
   });
 });

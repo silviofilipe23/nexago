@@ -414,17 +414,41 @@ class SchedulePickMatchCard extends StatelessWidget {
                   // nada sobre o que se está agendando — o que identifica a
                   // rodada é a fase (já no meta) e o tamanho do elenco.
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: Text(
-                          match.kocTeamIds.isEmpty
-                              ? 'Elenco a definir'
-                              : '${match.kocTeamIds.length} duplas na quadra',
-                          style: AppTypography.soraRegular(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: context.themeColors.onSurface,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              match.kocTeamIds.isNotEmpty
+                                  ? '${match.kocTeamIds.length} duplas na quadra'
+                                  : match.kocQualifierSlots.isNotEmpty
+                                      ? '${match.kocQualifierSlots.length} vagas'
+                                      : 'Elenco a definir',
+                              style: AppTypography.soraRegular(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: context.themeColors.onSurface,
+                              ),
+                            ),
+                            // As vagas dizem DE ONDE vem quem joga: é o que
+                            // permite reservar a quadra antes da fase anterior
+                            // terminar, e o que o organizador confere na grade.
+                            if (match.kocTeamIds.isEmpty &&
+                                match.kocQualifierSlots.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                match.kocQualifierSlots.join(' · '),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.soraRegular(
+                                  fontSize: 12,
+                                  color: context.themeColors.onSurfaceMuted,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       if (selectable) ...[

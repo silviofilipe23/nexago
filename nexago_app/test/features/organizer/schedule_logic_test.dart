@@ -41,6 +41,7 @@ TournamentMatch _match({
 TournamentMatch _kocRound({
   String id = 'r1',
   List<String> teamIds = const ['t1', 't2', 't3', 't4'],
+  List<String> slots = const [],
   int durationSec = 900,
   int matchNumber = 1,
 }) {
@@ -61,6 +62,7 @@ TournamentMatch _kocRound({
     courtId: '',
     kocTeamIds: teamIds,
     kocDurationSec: durationSec,
+    kocQualifierSlots: slots,
   );
 }
 
@@ -285,18 +287,24 @@ void main() {
     /// A rodada grava os DOIS LADOS VAZIOS e guarda o elenco em `kocTeamIds`:
     /// pela regra do duelo ela nunca seria agendável, e a categoria inteira
     /// sumia da prévia sem dizer por quê.
-    test('filterAutoSchedulable libera rodada KOTC com elenco', () {
+    test('filterAutoSchedulable libera rodada KOTC com elenco ou vagas', () {
       final matches = [
         _kocRound(id: 'r1', teamIds: const ['t1', 't2', 't3', 't4']),
-        _kocRound(id: 'sf1', teamIds: const []),
+        // Semifinal só com as vagas: pré-reserva, entra na grade.
+        _kocRound(
+          id: 'sf1',
+          teamIds: const [],
+          slots: const ['1º Rodada 1', '2º Rodada 2'],
+        ),
+        // Sem elenco e sem vagas não descreve nada: fica de fora.
+        _kocRound(id: 'vazia', teamIds: const []),
         _match(id: 'duelo', teamAId: 't1', teamBId: 't2'),
       ];
       final result = ScheduleLogic.filterAutoSchedulable(
         matches,
         respectBracketDeps: true,
       );
-      // A semifinal sem elenco é o placeholder do formato: fica de fora.
-      expect(result.map((m) => m.id).toList(), ['r1', 'duelo']);
+      expect(result.map((m) => m.id).toList(), ['r1', 'sf1', 'duelo']);
     });
 
     test('buildDaySchedule reserva a quadra pela duração da rodada', () {

@@ -92,6 +92,32 @@ export function parseStoredRallies(raw: unknown): KocRally[] {
   return out.sort((a, b) => a.seq - b.seq);
 }
 
+/** Serializa o log preservando `atMs` já gravados; opcionalmente carimba um seq novo. */
+export function serializeKocRallies(
+  rallies: readonly KocRally[],
+  previousRaw: unknown,
+  stampSeq?: number,
+): Array<{seq: number; winner: KocRallyWinner; atMs?: number}> {
+  const prevAt = new Map<number, number>();
+  if (Array.isArray(previousRaw)) {
+    for (const item of previousRaw) {
+      if (item == null || typeof item !== "object") continue;
+      const entry = item as Record<string, unknown>;
+      const seq = Number(entry.seq);
+      const at = Number(entry.atMs);
+      if (!Number.isInteger(seq) || seq < 1) continue;
+      if (!Number.isFinite(at) || at <= 0) continue;
+      prevAt.set(seq, Math.trunc(at));
+    }
+  }
+  return rallies.map((r) => {
+    const atMs = stampSeq === r.seq ? Date.now() : prevAt.get(r.seq);
+    return atMs != null
+      ? {seq: r.seq, winner: r.winner, atMs}
+      : {seq: r.seq, winner: r.winner};
+  });
+}
+
 export function parseStoredClock(raw: unknown): KocClock | null {
   if (raw == null || typeof raw !== "object") return null;
   const clock = raw as Record<string, unknown>;
@@ -119,6 +145,7 @@ export function kocStateFields(
   state: KocState,
   clock: KocClock,
   rallies: readonly KocRally[],
+  opts?: {previousRalliesRaw?: unknown; stampSeq?: number},
 ): Record<string, unknown> {
   return {
     kocState: {
@@ -139,7 +166,11 @@ export function kocStateFields(
       // Derivado no servidor, de propósito.
       endsAtMs: kocClockEndsAtMs(clock),
     },
-    kocRallies: rallies.map((r) => ({seq: r.seq, winner: r.winner})),
+    kocRallies: serializeKocRallies(
+      rallies,
+      opts?.previousRalliesRaw,
+      opts?.stampSeq,
+    ),
     kocRallySeq: rallies.length,
   };
 }
@@ -375,7 +406,10 @@ export async function kocRegisterRallyCore(
   }
 
   await round.ref.update({
-    ...kocStateFields(state, clock, rallies),
+    ...kocStateFields(state, clock, rallies, {
+      previousRalliesRaw: round.data.kocRallies,
+      stampSeq: nextSeq,
+    }),
     updatedAt: FieldValue.serverTimestamp(),
   });
   return {ok: true, seq: nextSeq, kingTeamId: state.kingTeamId};
@@ -409,7 +443,9 @@ export async function kocUndoRallyCore(
   }
 
   await round.ref.update({
-    ...kocStateFields(state, clock, rallies),
+    ...kocStateFields(state, clock, rallies, {
+      previousRalliesRaw: round.data.kocRallies,
+    }),
     updatedAt: FieldValue.serverTimestamp(),
   });
   return {ok: true, rallies: rallies.length};

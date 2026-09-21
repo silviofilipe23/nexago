@@ -29,6 +29,24 @@ export interface KocStanding {
   crowns: number;
 }
 
+/** Entrada do log de rallies gravado em `kocRallies`. */
+export interface KocRallyEntry {
+  seq: number;
+  winner: 'king' | 'challenger';
+  /** Epoch ms quando o rally foi registrado (opcional em docs antigos). */
+  atMs: number | null;
+}
+
+/** Linha pronta pra UI do log da rodada. */
+export interface KocLogLine {
+  key: string;
+  seq: number;
+  atMs: number | null;
+  teamId: string;
+  /** `point` = rei defendeu; `crown` = desafiante coroou. */
+  kind: 'point' | 'crown';
+}
+
 export interface KocRoundState {
   teamIds: string[];
   kingTeamId: string;
@@ -43,6 +61,8 @@ export interface KocRoundState {
   configuredDurationSec: number;
   /** Nº do último rally gravado — vai em `expectedSeq` no próximo. */
   rallySeq: number;
+  /** Log bruto de rallies (`kocRallies`) — base do histórico da mesa. */
+  rallyLog: KocRallyEntry[];
   /** Índice da rodada DENTRO da fase (1, 2, 3…), gravado pelo gerador.
    *  `matchNumber` é global e serviria só enquanto a primeira fase é a única
    *  classificatória — num campo com duas fases de classificatória ele diria
@@ -151,6 +171,25 @@ function standingsOf(value: unknown): KocStanding[] {
   return out.sort((a, b) => a.place - b.place);
 }
 
+function rallyLogOf(value: unknown): KocRallyEntry[] {
+  if (!Array.isArray(value)) return [];
+  const out: KocRallyEntry[] = [];
+  for (const item of value) {
+    if (item == null || typeof item !== 'object') continue;
+    const raw = item as Record<string, unknown>;
+    const seq = intOf(raw['seq'], 0);
+    const winner = strOf(raw['winner']);
+    if (seq < 1 || (winner !== 'king' && winner !== 'challenger')) continue;
+    const at = raw['atMs'];
+    out.push({
+      seq,
+      winner,
+      atMs: typeof at === 'number' && Number.isFinite(at) && at > 0 ? Math.trunc(at) : null,
+    });
+  }
+  return out.sort((a, b) => a.seq - b.seq);
+}
+
 /** Lê a rodada do doc de `matches`.
  *
  *  Tolerante por escolha: campo ausente ou corrompido vira vazio em vez de
@@ -172,6 +211,7 @@ export function kocRoundStateFrom(data: Record<string, unknown>): KocRoundState 
     qualifiersPerRound: intOf(config['qualifiersPerRound'], 2),
     configuredDurationSec: intOf(config['durationSec'], 900),
     rallySeq: intOf(data['kocRallySeq']),
+    rallyLog: rallyLogOf(data['kocRallies']),
     roundLabel: intOf(data['kocRoundLabel']),
     qualifierSlots: qualifierSlotsOf(data['kocQualifiers']),
   };
@@ -239,4 +279,47 @@ export function kocHasQualifyingTie(round: KocRoundState): boolean {
   const cut = round.qualifiersPerRound;
   if (cut < 1 || cut >= order.length) return false;
   return kocPointsOf(round, order[cut - 1]) === kocPointsOf(round, order[cut]);
+}
+
+/**
+ * Reconstrói o log da mesa a partir do array de rallies.
+ *
+ * Espelha `kocApplyRally` do backend: só o rei pontua; o desafiante que vence
+ * coroa sem ponto. Devolve do mais recente pro mais antigo (como o protótipo).
+ */
+export function kocLogLines(round: KocRoundState): KocLogLine[] {
+  const roster = round.teamIds;
+  if (roster.length < 3 || round.rallyLog.length === 0) return [];
+
+  let king = roster[0]!;
+  let challenger = roster[1]!;
+  let queue = roster.slice(2);
+  const lines: KocLogLine[] = [];
+
+  for (const entry of round.rallyLog) {
+    if (entry.winner === 'king') {
+      lines.push({
+        key: `r${entry.seq}`,
+        seq: entry.seq,
+        atMs: entry.atMs,
+        teamId: king,
+        kind: 'point',
+      });
+      queue = [...queue, challenger];
+      challenger = queue.shift() ?? '';
+    } else {
+      lines.push({
+        key: `r${entry.seq}`,
+        seq: entry.seq,
+        atMs: entry.atMs,
+        teamId: challenger,
+        kind: 'crown',
+      });
+      queue = [...queue, king];
+      king = challenger;
+      challenger = queue.shift() ?? '';
+    }
+  }
+
+  return lines.reverse();
 }

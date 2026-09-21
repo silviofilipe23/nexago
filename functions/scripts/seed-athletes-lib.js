@@ -9,9 +9,9 @@
 
 const admin = require("firebase-admin");
 
-// `short` entra no NOME do atleta (`masc-ini_1-01`) — mantenha curto, é o que
-// aparece na chave, no telão e na mesa durante os testes. `code`/`label`
-// continuam sendo o nível de verdade.
+// `short` entra nas KEYWORDS do atleta (busca por "ini_1" no seed) e o
+// `code`/`label` continua sendo o nível de verdade. O nome exibido não
+// carrega mais o nível — ele é um nome de gente (veja `MALE_NAMES`).
 const LEVELS = [
   {code: "iniciante_1", label: "Iniciante 1", short: "ini_1"},
   {code: "iniciante_2", label: "Iniciante 2", short: "ini_2"},
@@ -19,11 +19,53 @@ const LEVELS = [
   {code: "intermediario_2", label: "Intermediário 2", short: "int_2"},
   {code: "open", label: "Open", short: "open"},
 ];
+
+// Primeiros nomes reais para o atleta de teste parecer gente na chave, no
+// telão e na mesa. Quem IDENTIFICA é o número colado no nome ("Carlos 07"),
+// não o nome: as listas giram quando o seed é maior que elas.
+const MALE_NAMES = [
+  "Carlos", "Matheus", "Rafael", "Lucas", "Gabriel", "Bruno",
+  "Felipe", "Thiago", "Pedro", "João", "Gustavo", "Rodrigo",
+  "Vinícius", "André", "Leonardo", "Eduardo", "Marcelo", "Fernando",
+  "Diego", "Ricardo", "Daniel", "Guilherme", "Henrique", "Caio",
+  "Murilo", "Otávio", "Renato", "Samuel", "Igor", "Fábio",
+  "Alexandre", "Arthur", "Bernardo", "Breno", "César", "Davi",
+  "Emerson", "Enzo", "Fabrício", "Francisco", "Heitor", "Hugo",
+  "Jonas", "Juliano", "Kaique", "Luiz", "Marcos", "Maurício",
+  "Nathan", "Nícolas", "Paulo", "Rogério", "Sérgio", "Tiago",
+  "Vitor", "Wagner", "Wesley", "Yuri", "Alan", "Everton",
+];
+const FEMALE_NAMES = [
+  "Ana", "Beatriz", "Camila", "Carolina", "Daniela", "Eduarda",
+  "Fernanda", "Gabriela", "Helena", "Isabela", "Juliana", "Karina",
+  "Larissa", "Letícia", "Luiza", "Mariana", "Marina", "Natália",
+  "Patrícia", "Priscila", "Rafaela", "Renata", "Sabrina", "Tatiana",
+  "Vanessa", "Vitória", "Amanda", "Bianca", "Bruna", "Carla",
+  "Cecília", "Clara", "Débora", "Elisa", "Emanuela", "Flávia",
+  "Gisele", "Giovana", "Ingrid", "Jéssica", "Joana", "Júlia",
+  "Laura", "Lívia", "Lorena", "Manuela", "Melissa", "Michele",
+  "Milena", "Nicole", "Olívia", "Paula", "Raquel", "Rebeca",
+  "Sofia", "Talita", "Thaís", "Valentina", "Yasmin", "Andressa",
+];
+
 // `short` é do E-MAIL (não mexa: renomear troca o uid do atleta na próxima
-// rodada e quebra a idempotência); `nameShort` é do nome exibido.
+// rodada e quebra a idempotência); `nameShort` entra nas keywords (busca por
+// "fem") e `names` é de onde sai o nome exibido.
 const GENDERS = [
-  {type: "male", label: "Masculino", short: "m", nameShort: "masc"},
-  {type: "female", label: "Feminino", short: "f", nameShort: "fem"},
+  {
+    type: "male",
+    label: "Masculino",
+    short: "m",
+    nameShort: "masc",
+    names: MALE_NAMES,
+  },
+  {
+    type: "female",
+    label: "Feminino",
+    short: "f",
+    nameShort: "fem",
+    names: FEMALE_NAMES,
+  },
 ];
 
 const SPORT_LABEL = "Vôlei de praia";
@@ -116,11 +158,14 @@ async function seedAthletes({
       const baseSeq = (levelIdx * GENDERS.length + genderIdx) * count;
       for (let n = 1; n <= count; n++) {
         const nn = String(n).padStart(2, "0");
-        // Nome curto de propósito: "Atleta Intermediário 1 Masculino 01" não
-        // cabia na chave nem no telão durante os testes.
-        const fullName = `${gender.nameShort}-${level.short}-${nn}`;
+        // O número é GLOBAL (a mesma posição que dá o telefone), não o `nn` do
+        // e-mail: ele não renumera sob recorte e, quando a lista de nomes gira,
+        // é o que mantém "Carlos 07" e "Carlos 67" pessoas diferentes.
+        const seq = baseSeq + n;
+        const firstName = gender.names[(seq - 1) % gender.names.length];
+        const fullName = `${firstName} ${String(seq).padStart(2, "0")}`;
         const email = `seed-${level.code}-${gender.short}-${nn}@nexago.test`;
-        const phone = phoneFor(baseSeq + n);
+        const phone = phoneFor(seq);
         const birthDate = birthDateForLevel(n);
 
         const uid = await ensureAuthUser(auth, email, fullName, password);
@@ -153,14 +198,12 @@ async function seedAthletes({
             levelsBySport: {[PRIMARY_SPORT]: level.code},
             goals: ["COMPETIR"],
           },
-          // As partes entram soltas porque `generateKeywords` só quebra em
-          // ESPAÇO: sem elas o nome inteiro seria um token só e a busca por
-          // "ini" ou "fem" não acharia mais ninguém do seed.
+          // Gênero e nível entram soltos porque o nome não os carrega mais:
+          // sem eles a busca por "fem" ou "ini_1" não acharia ninguém do seed.
           keywords: generateKeywords([
             fullName,
             gender.nameShort,
             level.short,
-            nn,
             city,
           ]),
           seedTestAthlete: true,

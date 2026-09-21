@@ -9,6 +9,7 @@ import {
   kocHasStarted,
   kocIsExpired,
   kocLiveOrder,
+  kocLogLines,
   kocPhaseLabel,
   kocPointsOf,
   kocRemainingLabel,
@@ -25,6 +26,7 @@ import {
   undoKocRally,
 } from '../data/organizer-ops.service';
 import { formatCourtLabel } from '../data/schedule-format';
+import { shareQrSvgDataUrl } from '../data/share-qr';
 import { fetchProfileDisplays, fetchTeamsByIds } from '../data/teams-repository';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgIconComponent } from '../ui/icon.component';
@@ -47,6 +49,9 @@ interface TeamFace {
   selector: 'og-mesa-koc',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, OgAvatarComponent, OgIconComponent],
+  host: {
+    '(document:keydown.escape)': 'onDocEscape()',
+  },
   template: `
     @if (!loaded()) {
       <div class="og-mk-msg">Carregando rodada…</div>
@@ -173,70 +178,88 @@ interface TeamFace {
         </div>
 
         <aside class="og-mk-prep-side">
-          <section class="og-mk-panel">
-            <span class="og-mk-panel-title">Duração da rodada</span>
-            <div class="og-mk-chips">
-              @for (min of durationOptions; track min) {
-                <button
-                  type="button"
-                  class="og-mk-chip"
-                  [class.active]="draftDurationMin() === min"
-                  (click)="draftDurationMin.set(min)"
-                >
-                  {{ min }} min
-                </button>
-              }
+          <section class="og-mk-panel og-mk-config">
+            <div class="og-mk-config-block">
+              <span class="og-mk-panel-title">Duração da rodada</span>
+              <div class="og-mk-chips">
+                @for (min of durationOptions; track min) {
+                  <button
+                    type="button"
+                    class="og-mk-chip"
+                    [class.active]="draftDurationMin() === min"
+                    (click)="draftDurationMin.set(min)"
+                  >
+                    {{ min }} min
+                  </button>
+                }
+              </div>
             </div>
-          </section>
 
-          <section class="og-mk-panel">
-            <span class="og-mk-panel-title">Duplas que avançam</span>
-            <div class="og-mk-chips">
-              @for (n of qualifierOptions(); track n) {
-                <button
-                  type="button"
-                  class="og-mk-chip"
-                  [class.active]="draftQualifiers() === n"
-                  (click)="draftQualifiers.set(n)"
-                >
-                  {{ n }}
-                </button>
-              }
+            <div class="og-mk-config-block">
+              <span class="og-mk-panel-title">Duplas que avançam</span>
+              <div class="og-mk-chips og-mk-chips-qualifiers">
+                @for (n of qualifierOptions(); track n) {
+                  <button
+                    type="button"
+                    class="og-mk-chip"
+                    [class.active]="draftQualifiers() === n"
+                    (click)="draftQualifiers.set(n)"
+                  >
+                    {{ n }}
+                  </button>
+                }
+              </div>
             </div>
           </section>
 
           <section class="og-mk-panel">
             <span class="og-mk-panel-title">Regras da rodada</span>
             <ul class="og-mk-rules">
-              <li>Trono vence o rally: <strong>+1 ponto</strong> e segue no trono</li>
-              <li>Desafiante vence: <strong>assume o trono, sem ponto</strong></li>
-              <li>Quem sai: vai para o fim da fila</li>
               <li>
-                Fim da rodada: <strong>{{ draftDurationMin() }} min</strong> —
-                <strong>{{ draftQualifiers() }}</strong>
-                dupla{{ draftQualifiers() === 1 ? '' : 's' }} avançam
+                <strong>Trono vence o rally:</strong>
+                <span>+1 ponto e segue no trono</span>
+              </li>
+              <li>
+                <strong>Desafiante vence:</strong>
+                <span>assume o trono, sem ponto</span>
+              </li>
+              <li>
+                <strong>Quem sai:</strong>
+                <span>vai para o fim da fila</span>
+              </li>
+              <li>
+                <strong>Fim da rodada:</strong>
+                <span>{{ draftDurationMin() }} min · {{ draftQualifiers() }} dupla{{ draftQualifiers() === 1 ? '' : 's' }} avançam</span>
               </li>
             </ul>
           </section>
 
           <section class="og-mk-panel">
             <span class="og-mk-panel-title">Telão da quadra</span>
-            <p class="og-mk-telao-hint">A TV segue a rodada ao vivo nas quadras do telão.</p>
-            <div class="og-mk-telao-actions">
-              <a class="og-ghost-btn og-mk-telao-btn" [href]="telaoHref()" target="_blank" rel="noopener">
-                Abrir em nova janela
-              </a>
-              <button type="button" class="og-ghost-btn og-mk-telao-btn" (click)="copyTelaoLink()">
-                <og-icon name="copy" [size]="14" />
-                Copiar
-              </button>
+            <div class="og-mk-telao">
+              <div class="og-mk-telao-qr" aria-hidden="true">
+                @if (telaoQr(); as qr) {
+                  <img [src]="qr" alt="" />
+                } @else {
+                  <span>QR telão</span>
+                }
+              </div>
+              <div class="og-mk-telao-body">
+                <span class="og-mk-telao-url" [title]="telaoAbsoluteUrl()">{{ telaoDisplayUrl() }}</span>
+                <div class="og-mk-telao-actions">
+                  <a class="og-ghost-btn og-mk-telao-open" [href]="telaoHref()" target="_blank" rel="noopener">
+                    Abrir em nova janela
+                  </a>
+                  <button type="button" class="og-ghost-btn og-mk-telao-copy" (click)="copyTelaoLink()">Copiar</button>
+                </div>
+              </div>
             </div>
           </section>
 
-          <button type="button" class="og-primary-btn og-mk-start" [disabled]="busy() || !canStart()" (click)="start()">
-            Iniciar rodada
+          <button type="button" class="og-btn-primary og-mk-start" [disabled]="busy() || !canStart()" (click)="askStart()">
+            <span class="og-mk-start-label">Iniciar rodada</span>
+            <span class="og-mk-start-meta">{{ startMeta() }}</span>
           </button>
-          <p class="og-mk-start-meta">{{ startMeta() }}</p>
           <a class="og-mk-cancel" [routerLink]="backLink()">Cancelar e voltar ao evento</a>
 
           @if (feedback(); as f) {
@@ -246,83 +269,199 @@ interface TeamFace {
       </div>
     } @else {
       <div class="og-mk-live">
-        <div class="og-mk-clock" [class.expired]="expired()">
-          <span class="og-mk-time">{{ clockLabel() }}</span>
-          @if (expired()) {
-            <span class="og-mk-clock-note">Conclua o rally em andamento e encerre.</span>
-          } @else if (paused()) {
-            <span class="og-mk-clock-note">Pausado</span>
-          }
-          <span class="og-mk-flex"></span>
-          <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="nudge(-60)" title="-1 min">−1 min</button>
-          <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="nudge(60)" title="+1 min">+1 min</button>
-          <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="togglePause()">
-            {{ paused() ? 'Retomar' : 'Pausar' }}
-          </button>
-        </div>
-
-        <button type="button" class="og-mk-target king" [disabled]="busy()" (click)="rally(true)">
-          <span class="og-mk-target-badge">No trono</span>
-          <span class="og-mk-target-avatars">
-            @for (p of faceOf(kingId()).players; track $index) {
-              <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="48" />
-            }
-          </span>
-          <span class="og-mk-target-body">
-            <span class="og-mk-target-name">{{ faceOf(kingId()).name }}</span>
-            <span class="og-mk-target-desc">Defendeu o trono · +1 ponto</span>
-          </span>
-          <span class="og-mk-target-pts">{{ pointsOf(kingId()) }}</span>
-        </button>
-        <button type="button" class="og-mk-target challenger" [disabled]="busy()" (click)="rally(false)">
-          <span class="og-mk-target-badge muted">Desafiante · saca</span>
-          <span class="og-mk-target-avatars">
-            @for (p of faceOf(challengerId()).players; track $index) {
-              <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="48" />
-            }
-          </span>
-          <span class="og-mk-target-body">
-            <span class="og-mk-target-name">{{ faceOf(challengerId()).name }}</span>
-            <span class="og-mk-target-desc">Destronou · assume o trono, sem ponto</span>
-          </span>
-          <span class="og-mk-target-pts">{{ pointsOf(challengerId()) }}</span>
-        </button>
-
-        @if (queue().length > 0) {
-          <p class="og-mk-queue"><span>FILA</span> {{ queueLabel() }}</p>
-        }
-
-        <div class="og-mk-table">
-          <div class="og-mk-table-head">
-            <span>TABELA</span>
-            <span class="og-mk-flex"></span>
-            <span>{{ rallies() }} rallies</span>
-          </div>
-          @for (row of rows(); track row.teamId) {
-            <div class="og-mk-row" [class.qualifies]="row.qualifies">
-              <span class="og-mk-place">{{ row.place }}º</span>
-              <span class="og-mk-name">{{ row.name }}</span>
-              @if (row.tied) {
-                <span class="og-mk-tied">empate</span>
-              }
-              <span class="og-mk-pts">{{ row.points }}</span>
+        <div class="og-mk-live-main">
+          <section class="og-mk-open">
+            <header class="og-mk-section-head">
+              <span class="og-mk-section-title">Confronto de abertura</span>
+              <span class="og-mk-section-rule">Só o trono pontua · coroação não vale ponto</span>
+            </header>
+            <div class="og-mk-sides">
+              <article class="og-mk-side throne">
+                <span class="og-mk-side-badge">
+                  <span class="og-mk-side-dot" aria-hidden="true"></span>
+                  No trono
+                </span>
+                <div class="og-mk-side-avatars">
+                  @for (p of faceOf(kingId()).players; track $index) {
+                    <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="72" />
+                  } @empty {
+                    <og-avatar initials="?" [size]="72" />
+                  }
+                </div>
+                <p class="og-mk-side-name">{{ faceOf(kingId()).name }}</p>
+                @if (faceOf(kingId()).sub; as sub) {
+                  <p class="og-mk-side-sub">{{ sub }}</p>
+                }
+                <p class="og-mk-side-pts">
+                  <strong>{{ pointsOf(kingId()) }}</strong>
+                  <span>PTS</span>
+                </p>
+              </article>
+              <span class="og-mk-vs">vs</span>
+              <article class="og-mk-side challenger">
+                <span class="og-mk-side-badge muted">Desafiante · saca</span>
+                <div class="og-mk-side-avatars">
+                  @for (p of faceOf(challengerId()).players; track $index) {
+                    <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="72" />
+                  } @empty {
+                    <og-avatar initials="?" [size]="72" />
+                  }
+                </div>
+                <p class="og-mk-side-name">{{ faceOf(challengerId()).name }}</p>
+                @if (faceOf(challengerId()).sub; as sub) {
+                  <p class="og-mk-side-sub">{{ sub }}</p>
+                }
+                <p class="og-mk-side-pts muted">
+                  <strong>{{ pointsOf(challengerId()) }}</strong>
+                  <span>PTS</span>
+                </p>
+              </article>
             </div>
-          }
-          @if (tie()) {
-            <p class="og-mk-tie-note">Empate na vaga de classificação — bola de ouro entre as empatadas.</p>
-          }
+          </section>
+
+          <section class="og-mk-order">
+            <header class="og-mk-section-head">
+              <span class="og-mk-section-title">Ordem da fila</span>
+            </header>
+            <ul class="og-mk-order-list">
+              @for (row of liveQueueRows(); track row.teamId) {
+                <li
+                  class="og-mk-order-row"
+                  [class.throne]="row.role === 'trono'"
+                  [class.challenger]="row.role === 'desafia'"
+                >
+                  <span class="og-mk-order-n" [class.lead]="row.place === 1">{{ row.place }}</span>
+                  <span class="og-mk-order-avatars">
+                    @for (p of faceOf(row.teamId).players; track $index) {
+                      <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="36" />
+                    }
+                  </span>
+                  <span class="og-mk-order-body">
+                    <span class="og-mk-order-name">{{ faceOf(row.teamId).name }}</span>
+                    @if (faceOf(row.teamId).sub; as sub) {
+                      <span class="og-mk-order-sub">{{ sub }}</span>
+                    }
+                  </span>
+                  <span class="og-mk-order-pts">{{ row.points }}</span>
+                  <span class="og-mk-order-role" [attr.data-role]="row.role">{{ row.roleLabel }}</span>
+                </li>
+              }
+            </ul>
+
+            <div class="og-mk-live-actions">
+              <button type="button" class="og-btn-primary og-mk-rally-king" [disabled]="busy()" (click)="rally(true)">
+                Ponto do trono
+              </button>
+              <button type="button" class="og-ghost-btn og-mk-rally-crown" [disabled]="busy()" (click)="rally(false)">
+                Desafiante venceu · coroa
+              </button>
+            </div>
+
+            @if (tie()) {
+              <p class="og-mk-tie-note">Empate na vaga de classificação — bola de ouro entre as empatadas.</p>
+            }
+            @if (feedback(); as f) {
+              <p class="og-mk-feedback" [class.err]="!f.ok">{{ f.message }}</p>
+            }
+          </section>
         </div>
 
-        <div class="og-mk-actions">
-          <button type="button" class="og-ghost-btn" [disabled]="busy() || rallies() === 0" (click)="undo()">
-            <og-icon name="back" [size]="14" />Desfazer
-          </button>
-          <button type="button" class="og-primary-btn" [disabled]="busy()" (click)="finish()">Encerrar rodada</button>
-        </div>
+        <aside class="og-mk-live-side">
+          <section class="og-mk-panel og-mk-live-clock" [class.expired]="expired()">
+            <span class="og-mk-panel-title">Tempo restante</span>
+            <span class="og-mk-live-time">{{ clockLabel() }}</span>
+            <span class="og-mk-live-clock-meta">{{ clockMeta() }}</span>
+            @if (expired()) {
+              <span class="og-mk-clock-note">Conclua o rally em andamento e encerre.</span>
+            } @else if (paused()) {
+              <span class="og-mk-clock-note">Pausado</span>
+            }
+            <div class="og-mk-live-clock-actions">
+              <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="togglePause()">
+                {{ paused() ? 'Retomar' : 'Pausar' }}
+              </button>
+              <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="nudge(60)">+1 min</button>
+            </div>
+          </section>
 
-        @if (feedback(); as f) {
-          <p class="og-mk-feedback" [class.err]="!f.ok">{{ f.message }}</p>
-        }
+          <section class="og-mk-panel og-mk-live-log">
+            <span class="og-mk-panel-title">Log da rodada</span>
+            <div class="og-mk-log-body">
+              @if (logRows().length === 0) {
+                <p class="og-mk-log-empty">Nada registrado ainda.</p>
+              } @else {
+                <ul class="og-mk-log-list">
+                  @for (row of logRows(); track row.key) {
+                    <li class="og-mk-log-row">
+                      <span class="og-mk-log-time">{{ row.time }}</span>
+                      <span class="og-mk-log-text">
+                        <strong>{{ row.name }}</strong>
+                        {{ row.action }}
+                      </span>
+                    </li>
+                  }
+                </ul>
+                <button type="button" class="og-ghost-btn og-mk-log-undo" [disabled]="busy()" (click)="undo()">
+                  <og-icon name="back" [size]="14" />
+                  Desfazer último
+                </button>
+              }
+            </div>
+          </section>
+
+          <button type="button" class="og-mk-end" [disabled]="busy()" (click)="finish()">Encerrar rodada</button>
+        </aside>
+      </div>
+    }
+
+    @if (confirmStartOpen()) {
+      <div
+        class="og-mk-confirm-backdrop"
+        role="presentation"
+        (click)="cancelStart()"
+      >
+        <div
+          class="og-mk-confirm"
+          role="dialog"
+          aria-modal="true"
+          [attr.aria-label]="confirmStartTitle()"
+          (click)="$event.stopPropagation()"
+        >
+          <span class="og-mk-confirm-badge">Confirmar início</span>
+          <h2 class="og-mk-confirm-title">{{ confirmStartTitle() }}</h2>
+          <p class="og-mk-confirm-text">
+            O cronômetro começa agora e o telão da quadra passa a exibir o confronto. A ordem da fila fica travada até o
+            fim da rodada.
+          </p>
+          <div class="og-mk-confirm-grid">
+            <div class="og-mk-confirm-tile">
+              <span class="og-mk-confirm-kicker">Trono</span>
+              <strong class="og-mk-confirm-value">{{ faceOf(kingDraftId()).name }}</strong>
+            </div>
+            <div class="og-mk-confirm-tile">
+              <span class="og-mk-confirm-kicker">Desafiante</span>
+              <strong class="og-mk-confirm-value">{{ faceOf(challengerDraftId()).name }}</strong>
+            </div>
+            <div class="og-mk-confirm-tile">
+              <span class="og-mk-confirm-kicker">Duração</span>
+              <strong class="og-mk-confirm-value">{{ draftDurationMin() }} min</strong>
+            </div>
+            <div class="og-mk-confirm-tile">
+              <span class="og-mk-confirm-kicker">Avançam</span>
+              <strong class="og-mk-confirm-value">
+                {{ draftQualifiers() }} dupla{{ draftQualifiers() === 1 ? '' : 's' }}
+              </strong>
+            </div>
+          </div>
+          <div class="og-mk-confirm-actions">
+            <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="cancelStart()">
+              Voltar e ajustar
+            </button>
+            <button type="button" class="og-btn-primary og-mk-confirm-go" [disabled]="busy()" (click)="confirmStart()">
+              {{ busy() ? 'Iniciando…' : 'Confirmar e iniciar' }}
+            </button>
+          </div>
+        </div>
       </div>
     }
   `,
@@ -388,6 +527,9 @@ interface TeamFace {
       text-transform: uppercase;
       color: var(--nx-text-dim);
     }
+    .og-mk-open .og-mk-section-rule {
+      margin-left: auto;
+    }
     .og-mk-shuffle {
       margin-left: auto;
     }
@@ -413,6 +555,9 @@ interface TeamFace {
       background: linear-gradient(160deg, rgba(255, 106, 26, 0.16), rgba(20, 12, 8, 0.9));
     }
     .og-mk-side-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
       font-size: 11px;
       font-weight: 800;
       letter-spacing: 0.1em;
@@ -422,9 +567,34 @@ interface TeamFace {
     .og-mk-side-badge.muted {
       color: var(--nx-text-mute);
     }
+    .og-mk-side-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--nx-orange-500);
+      box-shadow: 0 0 8px rgba(255, 106, 26, 0.55);
+    }
     .og-mk-side-avatars {
-      display: flex;
-      gap: 6px;
+      display: inline-flex;
+      align-items: center;
+      margin-top: 4px;
+    }
+    .og-mk-side-avatars og-avatar {
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+      position: relative;
+    }
+    .og-mk-side.throne .og-mk-side-avatars og-avatar {
+      border-color: rgba(255, 106, 26, 0.55);
+    }
+    .og-mk-side-avatars og-avatar + og-avatar {
+      margin-left: -18px;
+    }
+    .og-mk-side-avatars og-avatar:nth-child(1) {
+      z-index: 1;
+    }
+    .og-mk-side-avatars og-avatar:nth-child(2) {
+      z-index: 2;
     }
     .og-mk-side-name {
       margin: 0;
@@ -437,6 +607,30 @@ interface TeamFace {
     .og-mk-side-sub {
       margin: 0;
       font-size: 12px;
+      color: var(--nx-text-mute);
+    }
+    .og-mk-side-pts {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      margin: 6px 0 0;
+      color: var(--nx-orange-500);
+    }
+    .og-mk-side-pts strong {
+      font-family: var(--nx-font-display);
+      font-size: 56px;
+      font-weight: 800;
+      line-height: 0.95;
+      letter-spacing: -0.03em;
+      font-variant-numeric: tabular-nums;
+    }
+    .og-mk-side-pts span {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+    }
+    .og-mk-side-pts.muted {
       color: var(--nx-text-mute);
     }
     .og-mk-vs {
@@ -473,9 +667,26 @@ interface TeamFace {
       font-weight: 700;
       color: var(--nx-text-mute);
     }
+    .og-mk-order-n.lead {
+      color: var(--nx-orange-500);
+    }
     .og-mk-order-avatars {
-      display: flex;
-      gap: 4px;
+      display: inline-flex;
+      align-items: center;
+    }
+    .og-mk-order-avatars og-avatar {
+      border: 2px solid rgba(255, 255, 255, 0.08);
+      border-radius: 50%;
+      position: relative;
+    }
+    .og-mk-order-avatars og-avatar + og-avatar {
+      margin-left: -10px;
+    }
+    .og-mk-order-avatars og-avatar:nth-child(1) {
+      z-index: 1;
+    }
+    .og-mk-order-avatars og-avatar:nth-child(2) {
+      z-index: 2;
     }
     .og-mk-order-body {
       display: flex;
@@ -496,11 +707,20 @@ interface TeamFace {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .og-mk-order-pts {
+      font-family: var(--nx-font-mono);
+      font-size: 16px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      min-width: 1.5ch;
+      text-align: right;
+    }
     .og-mk-order-role {
       font-size: 10px;
       font-weight: 800;
       letter-spacing: 0.08em;
       color: var(--nx-text-dim);
+      white-space: nowrap;
     }
     .og-mk-order-role[data-role='trono'] {
       color: var(--nx-brand);
@@ -545,16 +765,24 @@ interface TeamFace {
       text-transform: uppercase;
       color: var(--nx-text-mute);
     }
+    .og-mk-config {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .og-mk-config-block .og-mk-panel-title {
+      margin-bottom: 10px;
+    }
     .og-mk-chips {
       display: flex;
-      flex-wrap: wrap;
       gap: 8px;
     }
     .og-mk-chip {
-      min-width: 52px;
-      height: 36px;
-      padding: 0 12px;
-      border-radius: 10px;
+      flex: 1 1 0;
+      min-width: 0;
+      height: 40px;
+      padding: 0 8px;
+      border-radius: 12px;
       border: 1px solid var(--nx-line);
       background: var(--nx-surface-1);
       color: var(--nx-text-mute);
@@ -562,51 +790,144 @@ interface TeamFace {
       font-weight: 700;
       font-size: 13px;
       cursor: pointer;
+      transition: border-color 140ms ease, color 140ms ease, background 140ms ease;
+    }
+    .og-mk-chip:hover:not(.active) {
+      border-color: color-mix(in srgb, var(--nx-line) 60%, var(--nx-text-mute));
+      color: var(--nx-text);
     }
     .og-mk-chip.active {
-      border-color: var(--nx-brand);
-      color: var(--nx-brand);
-      background: rgba(255, 106, 26, 0.12);
+      border-color: var(--nx-orange-500);
+      color: var(--nx-orange-500);
+      background: color-mix(in srgb, var(--nx-surface-1) 88%, var(--nx-orange-500));
+    }
+    .og-mk-chips-qualifiers .og-mk-chip {
+      height: 44px;
+      font-size: 16px;
+      font-weight: 800;
     }
     .og-mk-rules {
       margin: 0;
-      padding-left: 18px;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .og-mk-rules li {
+      position: relative;
+      padding-left: 16px;
       font-size: 13px;
-      line-height: 1.55;
-      color: var(--nx-text-mute);
+      line-height: 1.45;
+    }
+    .og-mk-rules li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 6px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--nx-brand);
     }
     .og-mk-rules strong {
+      display: block;
       color: var(--nx-text);
       font-weight: 700;
     }
-    .og-mk-telao-hint {
-      margin: 0 0 10px;
-      font-size: 13px;
+    .og-mk-rules span {
+      display: block;
+      color: var(--nx-text-mute);
+    }
+    .og-mk-telao {
+      display: grid;
+      grid-template-columns: 88px minmax(0, 1fr);
+      gap: 12px;
+      align-items: center;
+    }
+    .og-mk-telao-qr {
+      width: 88px;
+      height: 88px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      background: #fff;
+      border: 1px solid var(--nx-line);
+      overflow: hidden;
       color: var(--nx-text-dim);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .og-mk-telao-qr img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    .og-mk-telao-body {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 0;
+    }
+    .og-mk-telao-url {
+      font-family: var(--nx-font-mono);
+      font-size: 12px;
+      color: var(--nx-text-mute);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .og-mk-telao-actions {
       display: flex;
-      flex-direction: column;
       gap: 8px;
+      flex-wrap: wrap;
     }
-    .og-mk-telao-btn {
-      width: 100%;
+    .og-mk-telao-open {
+      flex: 1 1 auto;
       justify-content: center;
-      gap: 6px;
+      min-height: 36px;
+      padding-inline: 12px;
+      white-space: nowrap;
+    }
+    .og-mk-telao-copy {
+      flex: 0 0 auto;
+      justify-content: center;
+      min-height: 36px;
+      padding-inline: 14px;
     }
     .og-mk-start {
+      height: auto;
       width: 100%;
-      min-height: 48px;
-      font-size: 15px;
+      min-height: 64px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 14px 20px;
+      border-radius: 18px;
+      color: var(--nx-text-on-orange);
+      line-height: 1.15;
+      box-shadow: 0 10px 28px rgba(255, 106, 26, 0.28);
+    }
+    .og-mk-start-label {
+      font-family: var(--nx-font-display);
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      color: inherit;
     }
     .og-mk-start-meta {
-      margin: 0;
-      text-align: center;
+      font-family: var(--nx-font-ui);
       font-size: 11px;
       font-weight: 700;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
-      color: var(--nx-text-dim);
+      color: inherit;
+      opacity: 0.92;
     }
     .og-mk-cancel {
       display: block;
@@ -620,7 +941,171 @@ interface TeamFace {
     }
 
     /* ── Ao vivo / final ────────────────────────────────────── */
-    .og-mk-live,
+    .og-mk-live {
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) minmax(260px, 0.85fr);
+      gap: 18px;
+      align-items: start;
+      padding: 4px 0 8px;
+    }
+    @media (max-width: 1023.98px) {
+      .og-mk-live {
+        grid-template-columns: 1fr;
+      }
+    }
+    .og-mk-live-main {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 0;
+    }
+    .og-mk-live-side {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: sticky;
+      top: 12px;
+    }
+    .og-mk-live-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+    .og-mk-rally-king {
+      flex: 1 1 180px;
+      min-height: 48px;
+      border-radius: 14px;
+      box-shadow: 0 10px 28px rgba(255, 106, 26, 0.28);
+    }
+    .og-mk-rally-crown {
+      flex: 1 1 200px;
+      min-height: 48px;
+      justify-content: center;
+    }
+    .og-mk-live-clock {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      text-align: center;
+    }
+    .og-mk-live-clock .og-mk-panel-title {
+      margin-bottom: 0;
+    }
+    .og-mk-live-time {
+      font-family: var(--nx-font-mono);
+      font-size: 56px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.03em;
+      font-variant-numeric: tabular-nums;
+    }
+    .og-mk-live-clock.expired .og-mk-live-time {
+      color: var(--nx-pending);
+    }
+    .og-mk-live-clock-meta {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--nx-text-mute);
+    }
+    .og-mk-live-clock-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      width: 100%;
+      margin-top: 8px;
+    }
+    .og-mk-live-clock-actions .og-ghost-btn {
+      justify-content: center;
+      min-height: 42px;
+      font-weight: 700;
+    }
+    .og-mk-clock-note {
+      font-size: 12px;
+      color: var(--nx-text-mute);
+    }
+    .og-mk-live-log {
+      flex: 1;
+      min-height: 220px;
+      display: flex;
+      flex-direction: column;
+    }
+    .og-mk-log-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 160px;
+    }
+    .og-mk-log-empty {
+      margin: auto 0;
+      padding: 24px 4px;
+      font-size: 13px;
+      color: var(--nx-text-mute);
+      text-align: center;
+    }
+    .og-mk-log-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: auto;
+      max-height: 280px;
+    }
+    .og-mk-log-row {
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr);
+      gap: 10px;
+      align-items: baseline;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .og-mk-log-time {
+      font-family: var(--nx-font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--nx-text-mute);
+      font-variant-numeric: tabular-nums;
+    }
+    .og-mk-log-text {
+      min-width: 0;
+      color: var(--nx-text-mute);
+    }
+    .og-mk-log-text strong {
+      color: var(--nx-text);
+      font-weight: 700;
+      margin-right: 4px;
+    }
+    .og-mk-log-undo {
+      align-self: flex-start;
+      gap: 6px;
+      margin-top: auto;
+    }
+    .og-mk-end {
+      width: 100%;
+      min-height: 52px;
+      border-radius: 14px;
+      border: 1px solid color-mix(in srgb, var(--nx-live) 45%, transparent);
+      background: color-mix(in srgb, var(--nx-live) 16%, transparent);
+      color: var(--nx-live);
+      font: inherit;
+      font-weight: 800;
+      font-size: 15px;
+      cursor: pointer;
+      transition: background 140ms ease, border-color 140ms ease;
+    }
+    .og-mk-end:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--nx-live) 24%, transparent);
+    }
+    .og-mk-end:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
     .og-mk-done {
       display: flex;
       flex-direction: column;
@@ -631,95 +1116,6 @@ interface TeamFace {
       margin: 0;
       font-size: 13px;
       color: var(--nx-text-mute);
-    }
-    .og-mk-clock {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .og-mk-time {
-      font-family: var(--nx-font-mono);
-      font-size: 34px;
-      font-weight: 800;
-      line-height: 1;
-    }
-    .og-mk-clock.expired .og-mk-time {
-      color: var(--nx-pending);
-    }
-    .og-mk-clock-note {
-      font-size: 12px;
-      color: var(--nx-text-mute);
-    }
-    .og-mk-target {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      width: 100%;
-      padding: 16px;
-      border: 1px solid var(--nx-line);
-      border-radius: 16px;
-      background: var(--nx-surface-0);
-      color: inherit;
-      cursor: pointer;
-      text-align: left;
-      font: inherit;
-    }
-    .og-mk-target.king {
-      background: linear-gradient(160deg, rgba(255, 106, 26, 0.18), var(--nx-surface-0));
-      border-color: rgba(255, 106, 26, 0.5);
-    }
-    .og-mk-target:disabled {
-      opacity: 0.55;
-      cursor: default;
-    }
-    .og-mk-target-badge {
-      font-size: 10px;
-      font-weight: 800;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--nx-brand);
-      writing-mode: vertical-rl;
-      transform: rotate(180deg);
-    }
-    .og-mk-target-badge.muted {
-      color: var(--nx-text-mute);
-    }
-    .og-mk-target-avatars {
-      display: flex;
-      gap: 4px;
-    }
-    .og-mk-target-body {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-    }
-    .og-mk-target-name {
-      font-size: 18px;
-      font-weight: 800;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .og-mk-target-desc {
-      font-size: 12px;
-      color: var(--nx-text-mute);
-    }
-    .og-mk-target-pts {
-      font-family: var(--nx-font-mono);
-      font-size: 28px;
-      font-weight: 800;
-    }
-    .og-mk-queue {
-      margin: 0;
-      font-size: 13px;
-      color: var(--nx-text-mute);
-    }
-    .og-mk-queue span {
-      font-size: 10px;
-      letter-spacing: 0.08em;
-      margin-right: 8px;
     }
     .og-mk-table-head {
       display: flex;
@@ -780,20 +1176,104 @@ interface TeamFace {
       font-size: 12px;
       color: var(--nx-pending);
     }
-    .og-mk-actions {
-      display: flex;
-      gap: 12px;
-      margin-top: 6px;
-    }
-    .og-mk-actions button {
-      flex: 1;
-    }
     .og-mk-feedback {
-      margin: 4px 0 0;
+      margin: 8px 0 0;
       font-size: 13px;
     }
     .og-mk-feedback.err {
       color: var(--nx-pending);
+    }
+
+    /* ── Confirmar início ───────────────────────────────────── */
+    .og-mk-confirm-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(7, 7, 8, 0.72);
+      backdrop-filter: blur(5px);
+    }
+    .og-mk-confirm {
+      width: min(480px, 100%);
+      padding: 22px;
+      border-radius: var(--nx-r-4);
+      border: 1px solid var(--nx-line);
+      background: var(--nx-surface-0);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+    }
+    .og-mk-confirm-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 10px;
+      border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--nx-orange-500) 55%, transparent);
+      color: var(--nx-orange-500);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .og-mk-confirm-title {
+      margin: 12px 0 0;
+      font-family: var(--nx-font-display);
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.25;
+      color: var(--nx-text);
+    }
+    .og-mk-confirm-text {
+      margin: 10px 0 0;
+      font-size: 13px;
+      line-height: 1.55;
+      color: var(--nx-text-mute);
+    }
+    .og-mk-confirm-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .og-mk-confirm-tile {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--nx-line);
+      background: var(--nx-surface-1);
+    }
+    .og-mk-confirm-kicker {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+    }
+    .og-mk-confirm-value {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--nx-text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .og-mk-confirm-actions {
+      display: flex;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .og-mk-confirm-go {
+      width: auto;
+      min-width: 168px;
+      height: 44px;
+      padding-inline: 18px;
+      border-radius: 12px;
+      box-shadow: 0 10px 28px rgba(255, 106, 26, 0.28);
     }
   `,
 })
@@ -819,6 +1299,8 @@ export class MesaKocComponent {
   protected readonly loaded = signal(false);
   protected readonly busy = signal(false);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
+  protected readonly telaoQr = signal<string | null>(null);
+  protected readonly confirmStartOpen = signal(false);
 
   constructor() {
     effect((onCleanup) => {
@@ -839,6 +1321,16 @@ export class MesaKocComponent {
         () => this.loaded.set(true),
       );
       onCleanup(() => stop());
+    });
+
+    effect(() => {
+      const tid = this.id();
+      this.telaoQr.set(null);
+      if (!tid) return;
+      const url = this.telaoAbsoluteUrl();
+      void shareQrSvgDataUrl(url).then((src) => {
+        if (this.id() === tid) this.telaoQr.set(src);
+      });
     });
 
     const timer = setInterval(() => this.nowMs.set(Date.now()), 1000);
@@ -895,6 +1387,35 @@ export class MesaKocComponent {
     }));
   });
 
+  protected readonly liveQueueRows = computed(() => {
+    const r = this.round();
+    if (!r?.kingTeamId || !r.challengerTeamId) return [];
+    const ids = [r.kingTeamId, r.challengerTeamId, ...r.queue];
+    return ids.map((teamId, i) => {
+      const role: 'trono' | 'desafia' | 'fila' = i === 0 ? 'trono' : i === 1 ? 'desafia' : 'fila';
+      const roleLabel =
+        role === 'trono' ? 'TRONO' : role === 'desafia' ? 'DESAFIA' : `${i - 1}º NA FILA`;
+      return {
+        teamId,
+        place: i + 1,
+        points: kocPointsOf(r, teamId),
+        role,
+        roleLabel,
+      };
+    });
+  });
+
+  protected readonly logRows = computed(() => {
+    const r = this.round();
+    if (!r) return [];
+    return kocLogLines(r).map((line) => ({
+      key: line.key,
+      time: formatLogTime(line.atMs),
+      name: this.faceOf(line.teamId).name,
+      action: line.kind === 'crown' ? 'coroou — assume o trono' : '+1 · defendeu o trono',
+    }));
+  });
+
   protected faceOf(teamId: string): TeamFace {
     return this.faces().get(teamId) ?? { name: 'Dupla', sub: null, players: [] };
   }
@@ -920,12 +1441,62 @@ export class MesaKocComponent {
     return `${this.draftOrder().length} duplas · ${this.draftDurationMin()} min · ${court}`;
   }
 
+  protected confirmStartTitle(): string {
+    const m = this.match();
+    const n = m?.koc?.roundLabel || m?.matchNumber || 0;
+    const court = (formatCourtLabel(m?.court ?? '') || 'quadra').toLowerCase();
+    const roundBit = n > 0 ? `rodada ${n}` : 'rodada';
+    return `Iniciar a ${roundBit} na ${court}?`;
+  }
+
+  protected askStart(): void {
+    if (!this.canStart() || this.busy()) return;
+    this.feedback.set(null);
+    this.confirmStartOpen.set(true);
+  }
+
+  protected cancelStart(): void {
+    if (this.busy()) return;
+    this.confirmStartOpen.set(false);
+  }
+
+  protected onDocEscape(): void {
+    if (this.confirmStartOpen()) this.cancelStart();
+  }
+
+  protected confirmStart(): void {
+    if (!this.canStart() || this.busy()) return;
+    void this.run(async () => {
+      await startKocRound({
+        matchId: this.matchId(),
+        teamIds: this.draftOrder(),
+        durationSec: this.draftDurationMin() * 60,
+        qualifiersPerRound: this.draftQualifiers(),
+      });
+      this.confirmStartOpen.set(false);
+    }, 'Rodada iniciada.');
+  }
+
   protected telaoHref(): string {
     return `/telao/${encodeURIComponent(this.id())}`;
   }
 
+  protected telaoAbsoluteUrl(): string {
+    if (typeof location === 'undefined') return this.telaoHref();
+    return `${location.origin}${this.telaoHref()}`;
+  }
+
+  protected telaoDisplayUrl(): string {
+    try {
+      const u = new URL(this.telaoAbsoluteUrl());
+      return `${u.host}${u.pathname}`;
+    } catch {
+      return this.telaoHref().replace(/^\//, '');
+    }
+  }
+
   protected async copyTelaoLink(): Promise<void> {
-    const url = `${window.location.origin}${this.telaoHref()}`;
+    const url = this.telaoAbsoluteUrl();
     try {
       await navigator.clipboard.writeText(url);
       this.feedback.set({ ok: true, message: 'Link do telão copiado.' });
@@ -960,6 +1531,14 @@ export class MesaKocComponent {
     return kocIsExpired(clock, this.nowMs()) ? 'TEMPO!' : kocRemainingLabel(clock, this.nowMs());
   }
 
+  protected clockMeta(): string {
+    const r = this.round();
+    const sec = r?.clock?.durationSec ?? r?.configuredDurationSec ?? 900;
+    const min = Math.max(1, Math.round(sec / 60));
+    const court = (formatCourtLabel(this.match()?.court ?? '') || 'Quadra').toUpperCase();
+    return `DE ${min} MIN · ${court}`;
+  }
+
   protected expired(): boolean {
     const clock = this.round()?.clock;
     return clock != null && kocIsExpired(clock, this.nowMs());
@@ -967,12 +1546,6 @@ export class MesaKocComponent {
 
   protected paused(): boolean {
     return this.round()?.clock?.pausedAtMs != null;
-  }
-
-  protected queueLabel(): string {
-    return this.queue()
-      .map((id) => this.faceOf(id).name)
-      .join('  →  ');
   }
 
   protected tie(): boolean {
@@ -999,19 +1572,6 @@ export class MesaKocComponent {
       next[j] = tmp;
     }
     this.draftOrder.set(next);
-  }
-
-  protected start(): void {
-    void this.run(
-      () =>
-        startKocRound({
-          matchId: this.matchId(),
-          teamIds: this.draftOrder(),
-          durationSec: this.draftDurationMin() * 60,
-          qualifiersPerRound: this.draftQualifiers(),
-        }),
-      'Rodada iniciada.',
-    );
   }
 
   protected rally(kingWon: boolean): void {
@@ -1134,5 +1694,18 @@ function reasonOf(error: unknown): string {
 function messageOf(error: unknown): string {
   const message = (error as { message?: unknown } | null)?.message;
   const text = typeof message === 'string' ? message.trim() : '';
-  return text.length > 0 ? text : 'Não foi possível registrar. Tente de novo.';
+  if (text.length > 0) return text;
+  return error instanceof Error && error.message ? error.message : 'Não foi possível registrar. Tente de novo.';
+}
+
+const LOG_TIME = new Intl.DateTimeFormat('pt-BR', {
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+  timeZone: 'America/Sao_Paulo',
+});
+
+function formatLogTime(atMs: number | null): string {
+  if (atMs == null || atMs <= 0) return '—:—';
+  return LOG_TIME.format(new Date(atMs));
 }

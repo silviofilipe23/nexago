@@ -145,6 +145,7 @@ describe('PublicCourtCardComponent', () => {
           qualifiersPerRound: 2,
           configuredDurationSec: 900,
           rallySeq: 12,
+          rallyLog: [],
           roundLabel: 3,
           qualifierSlots: [],
         },

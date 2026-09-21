@@ -17,6 +17,7 @@ function koc(overrides: Partial<KocRoundState> = {}): KocRoundState {
     qualifiersPerRound: 2,
     configuredDurationSec: 900,
     rallySeq: 4,
+    rallyLog: [],
     roundLabel: 1,
     qualifierSlots: [],
     ...overrides,

@@ -68,10 +68,12 @@ import '../../features/organizer/presentation/match_ops/organizer_schedule_time_
 import '../../features/organizer/presentation/match_ops/organizer_auto_schedule_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_check_in_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_live_table_page.dart';
+import '../../features/organizer/presentation/match_ops/organizer_koc_table_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_quick_score_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_validate_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_summary_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_insights_page.dart';
+import '../../features/tournaments/presentation/public_koc_board_page.dart';
 import '../../features/tournaments/presentation/public_match_live_page.dart';
 import '../../features/arena/domain/arena_manager_booking.dart';
 import '../../features/arena/domain/arena_booking_canceled_args.dart';
@@ -603,6 +605,25 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                     },
                   ),
                   GoRoute(
+                    // Mesa da rodada King of the Court: elenco, fila e tabela —
+                    // a tela de sets não serve a uma rodada sem dois lados.
+                    path: ':matchId/koc',
+                    name: AppRouteNames.organizerKocTable,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      final matchId =
+                          state.pathParameters['matchId']?.trim() ?? '';
+                      final categoryId =
+                          state.uri.queryParameters['categoryId']?.trim() ?? '';
+                      return OrganizerKocTablePage(
+                        tournamentId: tournamentId,
+                        categoryId: categoryId,
+                        matchId: matchId,
+                      );
+                    },
+                  ),
+                  GoRoute(
                     path: ':matchId/quick-score',
                     name: AppRouteNames.organizerMatchQuickScore,
                     builder: (context, state) {
@@ -1097,6 +1118,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final teamId = state.pathParameters['teamId']?.trim() ?? '';
           return TeamPublicProfilePage(teamId: teamId);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.publicKocBoard,
+        name: AppRouteNames.publicKocBoard,
+        builder: (context, state) {
+          final tournamentId =
+              state.pathParameters['tournamentId']?.trim() ?? '';
+          final categoryId = state.pathParameters['categoryId']?.trim() ?? '';
+          return PublicKocBoardPage(
+            tournamentId: tournamentId,
+            categoryId: categoryId,
+          );
         },
       ),
       GoRoute(

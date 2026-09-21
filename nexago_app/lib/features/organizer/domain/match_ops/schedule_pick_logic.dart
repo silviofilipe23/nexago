@@ -44,6 +44,14 @@ abstract final class SchedulePickLogic {
   SchedulePickLogic._();
 
   static const String blockedReason = 'Aguardando definição das duplas';
+
+  /// Rodada KOTC sem elenco NEM vagas: não há o que reservar ainda, e
+  /// "aguardando as duplas" descreveria errado o que falta.
+  static const String kocBlockedReason = 'Elenco definido ao fim da fase anterior';
+
+  /// Por que a partida não pode ser agendada agora.
+  static String reasonFor(TournamentMatch match) =>
+      match.isKingOfCourt ? kocBlockedReason : blockedReason;
   static const String tentativeReason = 'Pré-reserva';
   static const String partialReason = 'Falta quadra';
 
@@ -77,18 +85,33 @@ abstract final class SchedulePickLogic {
       (sideA ? match.teamAId : match.teamBId).trim().isNotEmpty;
 
   /// As duas duplas já estão confirmadas (sem TBD).
-  static bool isConfirmed(TournamentMatch match) =>
-      _sideConfirmed(match, sideA: true) && _sideConfirmed(match, sideA: false);
+  ///
+  /// Na rodada KOTC o que confirma é o ELENCO fechado: com só as vagas
+  /// ("1º Rodada 1"…) ela é pré-reserva, igual a um jogo de chave que ainda
+  /// espera o vencedor.
+  static bool isConfirmed(TournamentMatch match) {
+    if (match.isKingOfCourt) {
+      return match.kocTeamIds.any((id) => id.trim().isNotEmpty);
+    }
+    return _sideConfirmed(match, sideA: true) &&
+        _sideConfirmed(match, sideA: false);
+  }
 
   /// Partida agendável: ambos os lados resolvíveis (dupla real ou placeholder
   /// de chave). Inclui pré-reservas de fase eliminatória.
   static bool isReady(TournamentMatch match) {
     if (!isUnscheduled(match)) return false;
+    // A rodada KOTC não tem lados: pela regra do duelo ela caía eternamente na
+    // aba "Bloqueadas", com o selo "Aguardando definição das duplas" — e o
+    // toque nela era ignorado. O que decide aqui é o elenco ou, na fase que
+    // ainda não começou, as VAGAS — o análogo do placeholder de chave.
+    if (match.isKingOfCourt) return match.kocRoundIsPlanned;
     return _sideResolvable(match, sideA: true) &&
         _sideResolvable(match, sideA: false);
   }
 
-  /// Agendável, porém com ao menos um lado ainda TBD (pré-reserva).
+  /// Agendável, porém ainda sem quem joga (pré-reserva). Na rodada KOTC é a
+  /// fase montada só pelas vagas.
   static bool isTentative(TournamentMatch match) =>
       isReady(match) && !isConfirmed(match);
 

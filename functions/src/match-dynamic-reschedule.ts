@@ -8,7 +8,12 @@ import {isMatchCanceled, isMatchCompleted} from "./match-status";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {eventTimeLabel} from "./event-timezone";
 import {loadTeamMemberUids} from "./tournament-team-roster";
-import {allocateCourtSlots, loadTournamentMatches} from "./match-schedule-allocation";
+import {
+  allocateCourtSlots,
+  loadTournamentMatches,
+  matchDurationMin,
+  matchTeamIds,
+} from "./match-schedule-allocation";
 
 /** Atraso no início a partir do qual a cascata considera que a fila escorregou. */
 export const SCHEDULE_DRIFT_THRESHOLD_MIN = 10;
@@ -88,7 +93,10 @@ export function determineRecalcTrigger(
     if (!startedAt || !scheduled) return null;
     const delayMin = (startedAt.toMillis() - scheduled.toMillis()) / 60000;
     if (delayMin < SCHEDULE_DRIFT_THRESHOLD_MIN) return null;
-    const anchor = new Date(startedAt.toDate().getTime() + defaultDurationMin * 60 * 1000);
+    const anchor = new Date(
+      startedAt.toDate().getTime() +
+        matchDurationMin(after, defaultDurationMin) * 60 * 1000,
+    );
     return {
       tournamentId,
       dayKey,
@@ -114,7 +122,10 @@ export function determineRecalcTrigger(
     const afterEnd = after.scheduleEndTime as Timestamp | undefined;
     const anchor = afterEnd ?
       afterEnd.toDate() :
-      new Date(afterTime.toDate().getTime() + defaultDurationMin * 60 * 1000);
+      new Date(
+        afterTime.toDate().getTime() +
+          matchDurationMin(after, defaultDurationMin) * 60 * 1000,
+      );
     return {
       tournamentId,
       dayKey,
@@ -130,8 +141,9 @@ export function determineRecalcTrigger(
 
 export interface ScheduleShift {
   matchId: string;
-  teamAId: string;
-  teamBId: string;
+  /** Duplas a avisar. Lista, e não dois lados: a rodada KOTC tem elenco, e com
+   *  `teamAId`/`teamBId` vazios NINGUÉM era notificado do reagendamento. */
+  teamIds: string[];
   oldStart: Date | null;
   newStart: Date;
   courtLabel: string;
@@ -193,10 +205,11 @@ export async function recalculateCourtSchedule(
     const start = (d.scheduleTime as Timestamp).toDate();
     const end = d.scheduleEndTime ?
       (d.scheduleEndTime as Timestamp).toDate() :
-      new Date(start.getTime() + config.durationMin * 60 * 1000);
+      new Date(
+        start.getTime() + matchDurationMin(d, config.durationMin) * 60 * 1000,
+      );
     const restUntil = new Date(end.getTime() + config.minRestMin * 60 * 1000);
-    for (const tid of [d.teamAId, d.teamBId]) {
-      if (typeof tid !== "string" || !tid.trim()) continue;
+    for (const tid of matchTeamIds(d)) {
       const prev = teamBusyUntil[tid];
       if (!prev || restUntil > prev) teamBusyUntil[tid] = restUntil;
     }
@@ -246,8 +259,7 @@ export async function recalculateCourtSchedule(
     }
     shifts.push({
       matchId: slot.matchId,
-      teamAId: String(data.teamAId ?? ""),
-      teamBId: String(data.teamBId ?? ""),
+      teamIds: matchTeamIds(data),
       oldStart,
       newStart: slot.start,
       courtLabel: String(data.courtName ?? trigger.courtId),
@@ -281,8 +293,7 @@ export async function notifyScheduleShifts(
       `Horário: ${eventTimeLabel(shift.newStart)} na ${shift.courtLabel}.` :
       `Nova previsão: ${eventTimeLabel(shift.newStart)} na ${shift.courtLabel}.`;
 
-    for (const teamId of [shift.teamAId, shift.teamBId]) {
-      if (!teamId) continue;
+    for (const teamId of shift.teamIds) {
       // Elenco COMPLETO (trio/quarteto/quinteto incluídos), não só player1/2.
       const players = await loadTeamMemberUids(db, projectId, teamId);
       for (const playerId of players) {

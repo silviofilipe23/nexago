@@ -409,51 +409,101 @@ class SchedulePickMatchCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                _SchedulePickTeamRow(team: teamA, seed: seedA),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Row(
+                if (match.isKingOfCourt)
+                  // Rodada: não há confronto. "A definir vs A definir" não diz
+                  // nada sobre o que se está agendando — o que identifica a
+                  // rodada é a fase (já no meta) e o tamanho do elenco.
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: Divider(
-                          color: context.themeColors.onSurfaceMuted.withValues(
-                            alpha: 0.12,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              match.kocTeamIds.isNotEmpty
+                                  ? '${match.kocTeamIds.length} duplas na quadra'
+                                  : match.kocQualifierSlots.isNotEmpty
+                                      ? '${match.kocQualifierSlots.length} vagas'
+                                      : 'Elenco a definir',
+                              style: AppTypography.soraRegular(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: context.themeColors.onSurface,
+                              ),
+                            ),
+                            // As vagas dizem DE ONDE vem quem joga: é o que
+                            // permite reservar a quadra antes da fase anterior
+                            // terminar, e o que o organizador confere na grade.
+                            if (match.kocTeamIds.isEmpty &&
+                                match.kocQualifierSlots.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                match.kocQualifierSlots.join(' · '),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.soraRegular(
+                                  fontSize: 12,
+                                  color: context.themeColors.onSurfaceMuted,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: Text(
-                          'vs',
-                          style: AppTypography.mono(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: context.themeColors.onSurfaceMuted,
+                      if (selectable) ...[
+                        const SizedBox(width: 8),
+                        _SchedulePickSelectIndicator(selected: selected),
+                      ],
+                    ],
+                  )
+                else ...[
+                  _SchedulePickTeamRow(team: teamA, seed: seedA),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Divider(
+                            color: context.themeColors.onSurfaceMuted.withValues(
+                              alpha: 0.12,
+                            ),
                           ),
                         ),
-                      ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Text(
+                            'vs',
+                            style: AppTypography.mono(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: context.themeColors.onSurfaceMuted,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Divider(
+                            color: context.themeColors.onSurfaceMuted.withValues(
+                              alpha: 0.12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
                       Expanded(
-                        child: Divider(
-                          color: context.themeColors.onSurfaceMuted.withValues(
-                            alpha: 0.12,
-                          ),
-                        ),
+                        child: _SchedulePickTeamRow(team: teamB, seed: seedB),
                       ),
+                      if (selectable) ...[
+                        const SizedBox(width: 8),
+                        _SchedulePickSelectIndicator(selected: selected),
+                      ],
                     ],
                   ),
-                ),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: _SchedulePickTeamRow(team: teamB, seed: seedB),
-                    ),
-                    if (selectable) ...[
-                      const SizedBox(width: 8),
-                      _SchedulePickSelectIndicator(selected: selected),
-                    ],
-                  ],
-                ),
+                ],
                 if (suggestionLabel != null && suggestionLabel!.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Row(
@@ -486,7 +536,7 @@ class SchedulePickMatchCard extends StatelessWidget {
   (String, Color) _statusBadge(BuildContext context) {
     if (!SchedulePickLogic.isReady(match)) {
       return (
-        SchedulePickLogic.blockedReason.toUpperCase(),
+        SchedulePickLogic.reasonFor(match).toUpperCase(),
         context.themeColors.onSurfaceMuted,
       );
     }

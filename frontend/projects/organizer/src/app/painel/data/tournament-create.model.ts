@@ -4,7 +4,7 @@
  *  renomear. */
 
 export type TournamentSport = 'beachVolleyball' | 'indoorVolleyball' | 'footvolley';
-export type TournamentBracketSystem = 'groupsThenKnockout' | 'singleElimination' | 'roundRobin' | 'groupsWithRepechage' | 'doubleElimination';
+export type TournamentBracketSystem = 'groupsThenKnockout' | 'singleElimination' | 'roundRobin' | 'groupsWithRepechage' | 'doubleElimination' | 'kingOfCourt';
 export type TournamentBestOf = 'singleSet' | 'bestOf3' | 'bestOf5';
 export type TournamentPaymentMode = 'appPixCard' | 'directWithOrganizer';
 export type TournamentVisibility = 'publicListing' | 'linkOnly';
@@ -68,6 +68,13 @@ export interface TournamentCategoryDraft {
   bracketSystem: TournamentBracketSystem;
   teamsPerGroup: number;
   qualifiersPerGroup: number;
+  /** Config do King of the Court (`teamsPerCourt`/`qualifiersPerRound`/
+   *  `roundDurationSec` no doc). Gravada sempre, e não só quando o formato é
+   *  KOTC, para o roundtrip de edição não perder a escolha de quem troca de
+   *  formato e volta — `resolveKocConfig` no backend lê esses nomes. */
+  kocTeamsPerCourt: number;
+  kocQualifiersPerRound: number;
+  kocRoundDurationSec: number;
   bestOf: TournamentBestOf;
   finalBestOf5: boolean;
   maxRegistrationsPerAthlete: number;
@@ -144,6 +151,9 @@ export function emptyCategoryDraft(id: string): TournamentCategoryDraft {
     bracketSystem: 'groupsThenKnockout',
     teamsPerGroup: 4,
     qualifiersPerGroup: 2,
+    kocTeamsPerCourt: KOC_DEFAULT_TEAMS_PER_COURT,
+    kocQualifiersPerRound: KOC_DEFAULT_QUALIFIERS_PER_ROUND,
+    kocRoundDurationSec: KOC_DEFAULT_ROUND_DURATION_SEC,
     // Padrão do NexaGO: partida de set único (MD3/MD5 são escolha explícita).
     bestOf: 'singleSet',
     finalBestOf5: false,
@@ -208,6 +218,7 @@ export const BRACKET_SYSTEM_LABEL: Record<TournamentBracketSystem, string> = {
   roundRobin: 'Todos contra todos',
   groupsWithRepechage: 'Grupos + repescagem',
   doubleElimination: 'Dupla eliminatória',
+  kingOfCourt: 'King of the Court',
 };
 
 export const BRACKET_SYSTEM_SHORT_LABEL: Record<TournamentBracketSystem, string> = {
@@ -216,6 +227,7 @@ export const BRACKET_SYSTEM_SHORT_LABEL: Record<TournamentBracketSystem, string>
   roundRobin: 'Pontos corridos',
   groupsWithRepechage: 'Grupos + repescagem',
   doubleElimination: 'Dupla eliminatória',
+  kingOfCourt: 'King of the Court',
 };
 
 export const BRACKET_SYSTEM_DESCRIPTION: Record<TournamentBracketSystem, string> = {
@@ -224,10 +236,11 @@ export const BRACKET_SYSTEM_DESCRIPTION: Record<TournamentBracketSystem, string>
   roundRobin: 'Pontos corridos — todos se enfrentam.',
   groupsWithRepechage: 'Quem perde cedo ganha uma segunda chance.',
   doubleElimination: 'Dupla eliminatória — sem fase de grupos.',
+  kingOfCourt: 'Rodadas de 3 a 5 duplas na mesma quadra. Só quem está no trono pontua.',
 };
 
 /** Formatos com geração de chave implementada (mesma lista do app). */
-export const SUPPORTED_BRACKET_SYSTEMS: readonly TournamentBracketSystem[] = ['groupsThenKnockout', 'singleElimination', 'doubleElimination'];
+export const SUPPORTED_BRACKET_SYSTEMS: readonly TournamentBracketSystem[] = ['groupsThenKnockout', 'singleElimination', 'doubleElimination', 'kingOfCourt'];
 
 export const BEST_OF_LABEL: Record<TournamentBestOf, string> = {
   singleSet: 'Set único',
@@ -385,12 +398,96 @@ export const CATEGORY_LEVEL_PRESETS: readonly CategoryLevelPreset[] = [
   { label: 'Livre', min: 'iniciante1', max: 'open' },
 ];
 
+// ── King of the Court ─────────────────────────────────────────────────────────
+// Porta de `king_of_court_plan.dart`, que por sua vez espelha
+// `functions/src/koc-bracket-builders.ts` — a FONTE DA VERDADE é o backend. Aqui
+// a conta serve para o wizard responder, antes de publicar, a pergunta que o
+// organizador realmente tem: *cabe na minha reserva de quadra?*
+
+export const KOC_MIN_TEAMS_PER_ROUND = 3;
+export const KOC_MAX_TEAMS_PER_ROUND = 5;
+export const KOC_DEFAULT_TEAMS_PER_COURT = 4;
+export const KOC_DEFAULT_QUALIFIERS_PER_ROUND = 2;
+export const KOC_DEFAULT_ROUND_DURATION_SEC = 900;
+export const KOC_MIN_ROUND_DURATION_SEC = 300;
+export const KOC_MAX_ROUND_DURATION_SEC = 2400;
+/** Abaixo disso a rodada fica rasa para uma classificatória (~12 rallies por dupla). */
+export const KOC_SHALLOW_ROUND_DURATION_SEC = 600;
+const KOC_CHANGEOVER_SEC = 300;
+/** Descanso mínimo de quem se classifica na última rodada e entra na primeira semi. */
+const KOC_PHASE_BREAK_SEC = 900;
+const KOC_MAX_PHASES = 6;
+
+/** Em quantas rodadas dividir `teamCount` duplas; 0 = não fecha uma rodada. */
+export function kocRoundCount(teamCount: number, teamsPerCourt: number): number {
+  if (teamCount < KOC_MIN_TEAMS_PER_ROUND) return 0;
+  const perCourt = Math.min(KOC_MAX_TEAMS_PER_ROUND, Math.max(KOC_MIN_TEAMS_PER_ROUND, Math.floor(teamsPerCourt)));
+  let rounds = Math.max(1, Math.ceil(teamCount / perCourt));
+  // Rodada de 2 não é King of the Court: junta em vez de deixar malformada.
+  while (rounds > 1 && Math.floor(teamCount / rounds) < KOC_MIN_TEAMS_PER_ROUND) rounds--;
+  while (Math.ceil(teamCount / rounds) > KOC_MAX_TEAMS_PER_ROUND) rounds++;
+  return rounds;
+}
+
+/** Rodadas de cada fase, da classificatória à final. Vazio = config não fecha. */
+export function kocRoundsPerPhase(teamCount: number, teamsPerCourt: number, qualifiersPerRound: number): number[] {
+  const qualifiers = Math.max(1, Math.floor(qualifiersPerRound));
+  const phases: number[] = [];
+  let fieldSize = teamCount;
+  while (phases.length < KOC_MAX_PHASES) {
+    const rounds = kocRoundCount(fieldSize, teamsPerCourt);
+    if (rounds === 0) return [];
+    phases.push(rounds);
+    if (rounds === 1) return phases;
+    const next = rounds * qualifiers;
+    // Fase que não reduz o campo entraria em laço na geração.
+    if (next >= fieldSize) return [];
+    fieldSize = next;
+  }
+  return [];
+}
+
+export interface KocSchedule {
+  roundsPerPhase: number[];
+  totalRounds: number;
+  totalSeconds: number;
+  /** "2h35" / "45min" — o número que responde se cabe na reserva da quadra. */
+  totalLabel: string;
+  valid: boolean;
+}
+
+export function kocSchedule(teamCount: number, teamsPerCourt: number, qualifiersPerRound: number, roundDurationSec: number, courts = 1): KocSchedule {
+  const roundsPerPhase = kocRoundsPerPhase(teamCount, teamsPerCourt, qualifiersPerRound);
+  if (roundsPerPhase.length === 0) {
+    return {roundsPerPhase: [], totalRounds: 0, totalSeconds: 0, totalLabel: '', valid: false};
+  }
+  const parallel = Math.max(1, courts);
+  const duration = Math.min(KOC_MAX_ROUND_DURATION_SEC, Math.max(KOC_MIN_ROUND_DURATION_SEC, Math.round(roundDurationSec)));
+  let seconds = 0;
+  for (let i = 0; i < roundsPerPhase.length; i++) {
+    const waves = Math.ceil(roundsPerPhase[i] / parallel);
+    seconds += waves * duration + (waves - 1) * KOC_CHANGEOVER_SEC;
+    if (i < roundsPerPhase.length - 1) seconds += KOC_PHASE_BREAK_SEC;
+  }
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const totalLabel = hours === 0 ? `${minutes}min` : minutes === 0 ? `${hours}h` : `${hours}h${String(minutes).padStart(2, '0')}`;
+  return {
+    roundsPerPhase,
+    totalRounds: roundsPerPhase.reduce((a, b) => a + b, 0),
+    totalSeconds: seconds,
+    totalLabel,
+    valid: true,
+  };
+}
+
 export const BRACKET_FORMAT_FIRESTORE: Record<TournamentBracketSystem, string> = {
   groupsThenKnockout: 'groups_knockout',
   singleElimination: 'single_elimination',
   roundRobin: 'round_robin',
   groupsWithRepechage: 'groups_repechage',
   doubleElimination: 'double_elimination',
+  kingOfCourt: 'king_of_court',
 };
 
 export function bracketSystemFromRaw(raw: string): TournamentBracketSystem | null {
@@ -402,6 +499,7 @@ export function bracketSystemFromRaw(raw: string): TournamentBracketSystem | nul
     roundRobin: 'roundRobin',
     groupsWithRepechage: 'groupsWithRepechage',
     doubleElimination: 'doubleElimination',
+    kingOfCourt: 'kingOfCourt',
     groups_knockout: 'groupsThenKnockout',
     groups_then_knockout: 'groupsThenKnockout',
     single_elimination: 'singleElimination',
@@ -409,6 +507,8 @@ export function bracketSystemFromRaw(raw: string): TournamentBracketSystem | nul
     groups_repechage: 'groupsWithRepechage',
     groups_with_repechage: 'groupsWithRepechage',
     double_elimination: 'doubleElimination',
+    king_of_court: 'kingOfCourt',
+    kotc: 'kingOfCourt',
   };
   const exact = byName[trimmed] ?? byName[trimmed.toLowerCase()];
   if (exact) return exact;

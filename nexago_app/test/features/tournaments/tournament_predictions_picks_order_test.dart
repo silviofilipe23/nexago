@@ -121,7 +121,7 @@ void main() {
       card('quartas', matchNumber: 30),
     ]);
 
-    final abertas = find.text('ABERTAS PARA PALPITE');
+    final abertas = find.textContaining('ABERTAS PARA PALPITE');
     final encerrados = find.text('PALPITES ENCERRADOS');
     expect(abertas, findsOneWidget);
     expect(encerrados, findsOneWidget);
@@ -131,13 +131,17 @@ void main() {
     );
   });
 
-  testWidgets('com um bloco só, nenhum rótulo aparece', (tester) async {
+  testWidgets('com um bloco só, só o rótulo de abertas aparece', (
+    tester,
+  ) async {
     await abrirTela(tester, [
       card('m1', matchNumber: 1),
       card('m2', matchNumber: 2),
     ]);
 
-    expect(find.text('ABERTAS PARA PALPITE'), findsNothing);
+    // Não há fronteira a marcar, então o rótulo de travadas some; o de
+    // abertas fica, porque é ele que carrega o "N sem palpite".
+    expect(find.textContaining('ABERTAS PARA PALPITE'), findsOneWidget);
     expect(find.text('PALPITES ENCERRADOS'), findsNothing);
   });
 

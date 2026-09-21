@@ -54,7 +54,7 @@ class _OrganizerScheduleTimePageState
     if (_saving) return;
     setState(() => _saving = true);
     try {
-      final durationMin = config.defaultMatchDurationMin;
+      final durationMin = match.scheduleSlotMin(config.defaultMatchDurationMin);
       final end = slotStart.add(Duration(minutes: durationMin));
       final service = ref.read(organizerMatchScheduleServiceProvider);
       final result = await service.scheduleMatch(
@@ -124,7 +124,7 @@ class _OrganizerScheduleTimePageState
 
     final config = state.config;
     final courts = state.courts;
-    final durationMin = config.defaultMatchDurationMin;
+    final durationMin = match.scheduleSlotMin(config.defaultMatchDurationMin);
     final minRestMin = config.minRestBetweenMatchesMin;
     final slots = ScheduleTimeLogic.timeSlotsForDay(
       dayKey: dayKey,

@@ -113,6 +113,14 @@ import {
   applyLeagueRankingForMatch,
   onTournamentMatchCompletedAdvance,
 } from "./organizer-match-ops";
+import {
+  kocStartRound,
+  kocRegisterRally,
+  kocUndoRally,
+  kocSetClock,
+  kocGoldenPoint,
+  kocFinishRound,
+} from "./koc-match-ops";
 import {deleteOwnAccount} from "./account-deletion";
 import {onTournamentInscriptionWriteSyncCollectedCents} from "./tournament-collected-stats";
 import {onInscriptionWrittenLockLevels} from "./tournament-level-lock";
@@ -274,6 +282,12 @@ export {
   advanceBracketWinner,
   applyLeagueRankingForMatch,
   onTournamentMatchCompletedAdvance,
+  kocStartRound,
+  kocRegisterRally,
+  kocUndoRally,
+  kocSetClock,
+  kocGoldenPoint,
+  kocFinishRound,
   deleteOwnAccount,
   onTournamentInscriptionWriteSyncCollectedCents,
   onInscriptionWrittenLockLevels,

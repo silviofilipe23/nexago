@@ -42,6 +42,8 @@ function match(overrides: Partial<TournamentMatch> & Pick<TournamentMatch, 'id' 
     liveScore: null,
     currentSetIndex: null,
     servingTeamId: '',
+    servingPlayerSlot: 0,
+    medicalTimeout: null,
     matchStartedAt: null,
     matchEndedAt: null,
     ...overrides,
@@ -583,4 +585,41 @@ describe('buildKnockoutTreeLayout — mata-mata simples', () => {
       }
     }
   });
+});
+
+/**
+ * ORDEM VERTICAL DENTRO DA COLUNA — o que a suíte de invariantes das plantas NÃO vê. Ela
+ * cobre altura relativa entre pai e filho, mas não "qual número fica em cima", e foi por aí
+ * que a planta de 16 desenhou a partir do jogo #5 até 09/2026: a final da WB listava
+ * `WINNER(#22)` antes do `WINNER(#21)` e a metade de baixo subia inteira (o mesmo na final
+ * da LB, que invertia as rodadas 3 e 4).
+ *
+ * Nas plantas CHEIAS (4, 8, 16 e 32 — sem bye) a tabela é um bracket limpo e o organizador lê
+ * os jogos de cima pra baixo. O teste roda contra o LAYOUT DE VERDADE, não contra uma
+ * simulação da regra de slot: é o único jeito de provar que a planta corrigida chega na tela
+ * na ordem certa. `bracket-definitions.test.ts` trava o outro lado (a planta em si).
+ */
+describe('plantas cheias desenham cada coluna na ordem dos jogos', () => {
+  for (const size of [4, 8, 16, 32]) {
+    it(`planta de ${size}: nenhuma coluna volta atrás na numeração`, () => {
+      const layout = buildDoubleEliminationLayout(plant(size))!;
+      expect(layout).toBeTruthy();
+
+      const porColuna = new Map<number, DeLayoutNode[]>();
+      for (const node of layout.nodes) {
+        porColuna.set(node.left, [...(porColuna.get(node.left) ?? []), node]);
+      }
+
+      for (const [left, coluna] of porColuna) {
+        // Final e 3º lugar dividem faixa com outras rodadas e não seguem a corrente.
+        const daChave = coluna.filter((n) => n.match.matchType === 'WB' || n.match.matchType === 'LB');
+        if (daChave.length < 2) continue;
+        const deCimaPraBaixo = [...daChave].sort((a, b) => a.top - b.top).map((n) => n.match.matchNumber);
+        const crescente = [...deCimaPraBaixo].sort((a, b) => a - b);
+        expect(deCimaPraBaixo)
+          .withContext(`coluna left=${left} desenha ${deCimaPraBaixo.join(', ')}`)
+          .toEqual(crescente);
+      }
+    });
+  }
 });

@@ -388,8 +388,11 @@ abstract final class MatchOpsLogic {
 
   static const int defaultCourtsCount = 4;
 
-  static int normalizeCourtsCount(int? raw) {
-    final count = raw ?? defaultCourtsCount;
+  /// [fallback] é o que vale quando o doc NÃO tem `courtsCount` — passe o
+  /// tamanho da lista real de quadras. Sem fallback, mantém o padrão de 4
+  /// (usado na criação de torneio, onde ainda não existe lista).
+  static int normalizeCourtsCount(int? raw, {int? fallback}) {
+    final count = raw ?? fallback ?? defaultCourtsCount;
     return count < 1 ? 1 : count;
   }
 
@@ -403,16 +406,49 @@ abstract final class MatchOpsLogic {
       ..sort((a, b) => a.order.compareTo(b.order));
   }
 
-  /// [courtsCount] é a fonte de verdade; reutiliza [courtsRaw] só quando o
-  /// tamanho bate e todos os IDs são válidos (preserva nomes customizados).
+  /// [courtsCount] manda QUANDO EXISTE — subir de 2 pra 4 quadras precisa valer
+  /// mesmo com a lista antiga de 2 ainda gravada. Mas só quando existe: doc sem
+  /// o campo (o caso dos torneios já criados) caía num 4 inventado, que
+  /// descartava as quadras REAIS e fabricava Q1..Q4 — quadras que o torneio não
+  /// tem. Contador ausente cai no tamanho da lista real; sem lista e sem
+  /// contador, o piso de 1 garante ao menos uma quadra.
   static List<TournamentCourt> resolveTournamentCourts({
-    required int courtsCount,
+    required int? courtsCount,
     List<dynamic>? courtsRaw,
   }) {
-    final count = normalizeCourtsCount(courtsCount);
     final parsed = parseCourtsRaw(courtsRaw);
+    final count = normalizeCourtsCount(courtsCount, fallback: parsed.length);
     if (parsed.length == count) return parsed;
     return defaultCourtsFromCount(count);
+  }
+
+  /// Só regrava `courts` no Firestore quando a lista guardada não serve: ausente,
+  /// vazia/inválida, ou desmentida por um `courtsCount` informado. Sem essa
+  /// distinção, abrir a tela de operações num torneio sem `courtsCount`
+  /// sobrescrevia as quadras reais pelas fabricadas.
+  static bool courtsNeedSync({
+    required int? courtsCount,
+    List<dynamic>? courtsRaw,
+  }) {
+    final parsed = parseCourtsRaw(courtsRaw);
+    if (parsed.isEmpty) return true;
+    final resolved = resolveTournamentCourts(
+      courtsCount: courtsCount,
+      courtsRaw: courtsRaw,
+    );
+    return !_sameCourts(parsed, resolved);
+  }
+
+  static bool _sameCourts(List<TournamentCourt> a, List<TournamentCourt> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].id != b[i].id ||
+          a[i].name != b[i].name ||
+          a[i].order != b[i].order) {
+        return false;
+      }
+    }
+    return true;
   }
 
   static int compareMatchesForGrid(TournamentMatch a, TournamentMatch b) {

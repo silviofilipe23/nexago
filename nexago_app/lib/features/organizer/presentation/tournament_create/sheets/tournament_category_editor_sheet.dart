@@ -232,6 +232,23 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
                   bracketSystem: _category.bracketSystem,
                   teamsPerGroup: _category.teamsPerGroup,
                   qualifiersPerGroup: _category.qualifiersPerGroup,
+                  spots: _category.spots,
+                  kocTeamsPerCourt: _category.kocTeamsPerCourt,
+                  kocQualifiersPerRound: _category.kocQualifiersPerRound,
+                  kocRoundDurationSec: _category.kocRoundDurationSec,
+                  onKocTeamsPerCourtChanged: (value) => setState(
+                    () => _category = _category.copyWith(kocTeamsPerCourt: value),
+                  ),
+                  onKocQualifiersPerRoundChanged: (value) => setState(
+                    () => _category = _category.copyWith(
+                      kocQualifiersPerRound: value,
+                    ),
+                  ),
+                  onKocRoundDurationSecChanged: (value) => setState(
+                    () => _category = _category.copyWith(
+                      kocRoundDurationSec: value,
+                    ),
+                  ),
                   onBracketSystemChanged: (system) => setState(
                     () => _category = _category.copyWith(bracketSystem: system),
                   ),

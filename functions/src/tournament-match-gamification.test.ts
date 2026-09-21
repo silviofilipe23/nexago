@@ -32,6 +32,17 @@ test("shouldProcessTournamentMatchXp on completed transition", () => {
   );
 });
 
+test("shouldProcessTournamentMatchXp ignora rodada King of the Court", () => {
+  // Guarda compartilhada com os palpites de chave, que usam o mesmo predicado.
+  assert.equal(
+    shouldProcessTournamentMatchXp(
+      {status: "In Progress", matchType: "koc_semifinal"},
+      {status: "Completed", winnerId: "team-a", matchType: "koc_semifinal"},
+    ),
+    false,
+  );
+});
+
 test("shouldProcessTournamentMatchXp when winner is set after completion", () => {
   assert.equal(
     shouldProcessTournamentMatchXp(

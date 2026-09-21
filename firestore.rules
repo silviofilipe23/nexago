@@ -178,6 +178,11 @@ service cloud.firestore {
     // Sem ele aqui, todo ponto de mesário voltava permission-denied enquanto o do gestor
     // passava — o gestor cai em `managerCanOnlyEditMatchFields`, que já o listava.
     // Coberto por `functions/test/mesa-scorer-point.rules.test.mjs`.
+    //
+    // `servingPlayerSlot`/`servingPlayerSlots` (qual ATLETA da dupla está sacando) andam junto
+    // com o saque, no mesmo update do ponto — mesma razão. `medicalTimeout`/
+    // `medicalTimeoutPlayers` são o atendimento de 5 minutos: quem para a partida por lesão é a
+    // MESA, então a cota e o atendimento em andamento também são escrita de mesário.
     function scorerCanOnlyEditScoreFields() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'resultA',
@@ -187,6 +192,10 @@ service cloud.firestore {
         'sets',
         'currentSetIndex',
         'servingTeamId',
+        'servingPlayerSlot',
+        'servingPlayerSlots',
+        'medicalTimeout',
+        'medicalTimeoutPlayers',
         'matchStartedAt',
         'matchEndedAt',
         'lastActions',
@@ -309,6 +318,10 @@ service cloud.firestore {
         'queueStatus',
         'checkIn',
         'servingTeamId',
+        'servingPlayerSlot',
+        'servingPlayerSlots',
+        'medicalTimeout',
+        'medicalTimeoutPlayers',
         'report',
         'liveElapsedSec',
         'resultA',
@@ -344,7 +357,7 @@ service cloud.firestore {
       return request.resource.data.keys().hasAll(['seq', 'type', 'setIndex', 'scoreA', 'scoreB', 'ts']) &&
         request.resource.data.seq is int &&
         request.resource.data.seq == expectedSeq &&
-        request.resource.data.type in ['match-start', 'point', 'set-end', 'undo-point', 'undo-set-end', 'match-end'] &&
+        request.resource.data.type in ['match-start', 'point', 'set-end', 'undo-point', 'undo-set-end', 'match-end', 'medical-timeout', 'medical-timeout-end'] &&
         request.resource.data.setIndex is int &&
         request.resource.data.setIndex >= 0 &&
         request.resource.data.setIndex <= 2 &&

@@ -2,6 +2,7 @@ import '../../../../core/deep_link/app_domains.dart';
 import '../../../tournaments/domain/tournament_detail_logic.dart';
 import '../tournament_create/tournament_create_logic.dart';
 import '../category_ops/category_ops_models.dart';
+import '../match_ops/match_ops_logic.dart';
 import 'tournament_ops_models.dart';
 
 String organizerTournamentShareLink(String tournamentId) =>
@@ -242,6 +243,11 @@ bool categoryUsesDoubleElimination(String bracketFormat) =>
     isDoubleEliminationBracketFormat(bracketFormat);
 
 String generateBracketRouteFormat(String bracketFormat) {
+  // KOTC primeiro: sem isto a categoria cai no fallback de eliminatória simples
+  // e o organizador publica uma chave de duelo numa categoria de rodadas.
+  if (isKingOfCourtBracketFormat(bracketFormat)) {
+    return 'king_of_court';
+  }
   if (categoryUsesDoubleElimination(bracketFormat)) {
     return 'double_elimination';
   }
@@ -253,6 +259,17 @@ String generateBracketRouteFormat(String bracketFormat) {
 
 /// Mínimo de duplas confirmadas para publicar qualquer formato de chave.
 const int minTeamsToGenerateBracket = 2;
+
+/// Mínimo do King of the Court: com 2 duplas não existe fila nem trono — é um
+/// jogo, não uma rodada.
+const int minTeamsToGenerateKingOfCourt = 3;
+
+/// Mínimo do formato da categoria. O backend recusa de todo jeito; isto é para
+/// o organizador ler o motivo antes de tentar publicar.
+int minTeamsToGenerateBracketFor(String? bracketFormat) =>
+    bracketFormat != null && isKingOfCourtBracketFormat(bracketFormat)
+    ? minTeamsToGenerateKingOfCourt
+    : minTeamsToGenerateBracket;
 
 bool canGenerateCategoryBracket({
   required int confirmedCount,
@@ -269,7 +286,10 @@ bool showGenerateBracketQuickAction({
 }) =>
     showGenerateBracketCta(category) &&
     isBracketFormatSupportedRaw(category.bracketFormat) &&
-    canGenerateCategoryBracket(confirmedCount: eligibleConfirmedCount);
+    canGenerateCategoryBracket(
+      confirmedCount: eligibleConfirmedCount,
+      minTeams: minTeamsToGenerateBracketFor(category.bracketFormat),
+    );
 
 String generateBracketBlockedHint({
   required int confirmedCount,
@@ -281,11 +301,17 @@ String generateBracketBlockedHint({
       : unsupportedBracketFormatHint(bracketFormat);
   if (unsupported != null && unsupported.isNotEmpty) return unsupported;
 
-  if (confirmedCount >= minTeams) return '';
+  // O chamador pode não conhecer o piso do formato; quando passa o formato, ele
+  // manda — senão o KOTC herdaria o mínimo 2, que não fecha uma rodada.
+  final effectiveMin = bracketFormat == null
+      ? minTeams
+      : minTeamsToGenerateBracketFor(bracketFormat);
+
+  if (confirmedCount >= effectiveMin) return '';
   if (confirmedCount == 0) {
-    return 'Precisa de pelo menos $minTeams duplas confirmadas para gerar a chave.';
+    return 'Precisa de pelo menos $effectiveMin duplas confirmadas para gerar a chave.';
   }
-  final missing = minTeams - confirmedCount;
+  final missing = effectiveMin - confirmedCount;
   return 'Falta $missing dupla(s) confirmada(s) para gerar a chave.';
 }
 
@@ -317,7 +343,13 @@ OrganizerTournamentSummary buildTournamentSummary({
     paymentMode: (data['paymentMode'] as String?) ?? '',
     defaultEntryFeeCents:
         (data['defaultEntryFeeCents'] as num?)?.toInt() ?? 0,
-    courtsCount: (data['courtsCount'] as num?)?.toInt() ?? 4,
+    // Mesma regra da grade (`resolveTournamentCourts`): o stat precisa contar as
+    // quadras que a operação realmente oferece. O `?? 4` mostrava 4 em torneio
+    // de 2 quadras, porque doc sem `courtsCount` é o caso dos já criados.
+    courtsCount: MatchOpsLogic.resolveTournamentCourts(
+      courtsCount: (data['courtsCount'] as num?)?.toInt(),
+      courtsRaw: data['courts'] is List ? data['courts'] as List : null,
+    ).length,
     bracketSystem: (data['bracketSystem'] as String?) ?? '',
   );
 }

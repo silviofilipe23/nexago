@@ -271,7 +271,7 @@ class _OrganizerMatchCheckInPageState
     });
     try {
       final service = ref.read(organizerMatchScheduleServiceProvider);
-      final durationMin = config.defaultMatchDurationMin;
+      final durationMin = match.scheduleSlotMin(config.defaultMatchDurationMin);
       final dayKey = config.activeDayKey.isNotEmpty
           ? config.activeDayKey
           : ScheduleLogic.dayKeyFromDate(nexagoEventNow());
@@ -400,7 +400,7 @@ class _OrganizerMatchCheckInPageState
       if (mounted) {
         showAppSnackBar(context, 'Partida liberada.');
         context.pushReplacement(
-          organizerMatchLivePath(widget.tournamentId, match.id),
+          organizerMatchTablePath(widget.tournamentId, match),
         );
       }
     } catch (e) {

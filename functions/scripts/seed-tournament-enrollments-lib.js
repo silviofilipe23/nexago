@@ -51,8 +51,25 @@ function resolveVolleyballLevelCode(raw) {
 
 const DEFAULT_ENTRY_FEE_CENTS = 18000;
 const MAX_TEAMS_PER_CATEGORY = 16;
-/** 10 = 5 níveis × 2 gêneros — quantas categorias `buildCategories()` gera. */
+/** 10 = 5 níveis × 2 gêneros — o GRID de categorias de duelo que
+ *  `buildCategories()` gera. A categoria King of the Court é somada por fora
+ *  (ver [KOC_CATEGORY_ID]), para `maxCategories` continuar significando
+ *  "as N primeiras da ordem nível×gênero". */
 const TOTAL_CATEGORIES = LEVELS.length * GENDERS.length;
+
+/** Categoria King of the Court do seed. Existe para o torneio de teste ter os
+ *  DOIS formatos, que é o cenário real: a rodada KOTC divide a coleção
+ *  `matches` com partidas de duelo do mesmo torneio, e é isso que a blindagem
+ *  do formato protege. Seed sem ela testa só metade. */
+const KOC_CATEGORY_ID = "koc-open-masc";
+/** Pool de atletas que alimenta a categoria KOTC.
+ *
+ *  Reaproveita o pool de Open Masculino de propósito: o seed cria 32 atletas
+ *  por nível×gênero, exatamente as 16 duplas da categoria de duelo, e não
+ *  sobra ninguém. Como `enrolledUids` não é mutado durante o planejamento, o
+ *  mesmo atleta entra nas duas categorias — o que a categoria permite
+ *  (`maxRegistrationsPerAthlete: 2`) e o que acontece numa etapa real. */
+const KOC_SOURCE_CATEGORY_ID = "open-masc";
 const COURTS_COUNT = 4;
 
 function argValue(flag) {
@@ -153,6 +170,7 @@ function buildCategories({
   maxTeamsPerCategory,
   levels,
   genders,
+  kingOfCourt = true,
 } = {}) {
   const maxTeams =
     Number.isInteger(maxTeamsPerCategory) && maxTeamsPerCategory > 0 ?
@@ -193,10 +211,56 @@ function buildCategories({
       });
     }
   }
-  if (Number.isInteger(maxCategories) && maxCategories > 0) {
-    return categories.slice(0, Math.min(maxCategories, categories.length));
-  }
-  return categories;
+  const grid =
+    Number.isInteger(maxCategories) && maxCategories > 0 ?
+      categories.slice(0, Math.min(maxCategories, categories.length)) :
+      categories;
+
+  // A KOTC entra DEPOIS do corte: `maxCategories` corta o grid nível×gênero, e
+  // somá-la antes faria um seed enxuto (`--categories 1`) nunca incluir o
+  // formato novo — justamente o que se quer testar.
+  if (!kingOfCourt) return grid;
+  return [...grid, buildKingOfCourtCategory(maxTeams)];
+}
+
+/** Categoria King of the Court, com a config que `resolveKocConfig` lê no
+ *  backend (`teamsPerCourt`/`qualifiersPerRound`/`roundDurationSec`).
+ *
+ *  16 duplas em quadras de 4 fecham exato: 4 rodadas → 2 semifinais → final,
+ *  que é o desenho da 1ª etapa em `docs/product/king-of-court-plan.md`. */
+function buildKingOfCourtCategory(maxTeams) {
+  return {
+    id: KOC_CATEGORY_ID,
+    categoryName: "King of the Court Open Masculino",
+    genderType: "male",
+    disputeType: "dupla",
+    ageBand: "open",
+    ageRestriction: {mode: "none", reference: "tournamentStart"},
+    level: "Open",
+    maxTeams,
+    spotsTotal: maxTeams,
+    spotsLeft: maxTeams,
+    entryFee: DEFAULT_ENTRY_FEE_CENTS / 100,
+    entryFeeCents: DEFAULT_ENTRY_FEE_CENTS,
+    useDefaultPrice: true,
+    bracketFormat: "king_of_court",
+    // Grid de grupos não se aplica, mas os campos existem no shape da
+    // categoria — ficam no padrão para não virar `undefined` no doc.
+    teamsPerGroup: 4,
+    qualifiersPerGroup: 2,
+    teamsPerCourt: 4,
+    qualifiersPerRound: 2,
+    roundDurationSec: 900,
+    // A rodada tem cronômetro, não sets — `bestOf` fica no padrão e é ignorado
+    // pelo gerador KOTC.
+    bestOf: "singleSet",
+    finalBestOf5: false,
+    maxRegistrationsPerAthlete: 2,
+    registrationClosed: false,
+    isCompleted: false,
+    prizes: [],
+    uniformType: "none",
+  };
 }
 
 function buildMatchOps(activeDayKey = "") {
@@ -344,6 +408,9 @@ function normalizeText(raw) {
 function namesMatch(a, b) {
   const na = normalizeText(a);
   const nb = normalizeText(b);
+  // Nome vazio: `"".includes(...)` / `x.includes("")` é true em JS e faria
+  // qualquer --tournament-name casar com um torneio sem name (ex.: lHRK4…).
+  if (!na || !nb) return false;
   return na === nb || na.includes(nb) || nb.includes(na);
 }
 
@@ -438,6 +505,20 @@ async function loadSeedAthletesByCategory(db) {
       return ea.localeCompare(eb);
     });
     byCategory.set(categoryId, athletes);
+  }
+
+  // Pool da categoria King of the Court.
+  //
+  // `buildPairPlans` casa BUCKET com id de categoria: sem um bucket próprio, a
+  // categoria KOTC nasceria vazia e o seed não testaria nada do formato.
+  //
+  // Reaproveita o pool de Open Masculino INVERTIDO: o seed cria 32 atletas por
+  // nível×gênero, exatamente as 16 duplas da categoria de duelo, então não há
+  // pool livre. Inverter forma duplas DIFERENTES com os mesmos atletas, o que é
+  // mais próximo de uma etapa real do que repetir as mesmas duplas.
+  const kocSource = byCategory.get(KOC_SOURCE_CATEGORY_ID);
+  if (kocSource) {
+    byCategory.set(KOC_CATEGORY_ID, [...kocSource].reverse());
   }
 
   return byCategory;
@@ -786,6 +867,8 @@ module.exports = {
   GENDERS,
   TOTAL_CATEGORIES,
   MAX_TEAMS_PER_CATEGORY,
+  KOC_CATEGORY_ID,
+  KOC_SOURCE_CATEGORY_ID,
   dayKeyInSaoPaulo,
   buildCategories,
   buildTournamentDocFuture,

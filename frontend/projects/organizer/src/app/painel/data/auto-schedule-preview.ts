@@ -53,6 +53,54 @@ export function spDayKey(date: Date): string {
   return date.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 }
 
+/** Soma dias civis a um dayKey SP sem passar pelo fuso local do browser
+ *  (`Date#setDate` quebrava a lista quando o operador não está em UTC−3). */
+export function addSpDayKey(dayKey: string, days: number): string {
+  const noon = spWallToDate(dayKey, 12 * 60);
+  return spDayKey(new Date(noon.getTime() + Math.round(days) * 86400000));
+}
+
+/**
+ * Dias do torneio no calendário SP (`startAt` → `endAt` inclusive), máx. `maxDays`.
+ * Espelho de `ScheduleLogic.tournamentDayKeys` no app — itera dayKey, não
+ * `Date#setDate` no fuso da máquina.
+ */
+export function tournamentDayKeys(
+  startAt: Date | null | undefined,
+  endAt: Date | null | undefined,
+  maxDays = 14,
+): string[] {
+  if (!startAt) return [];
+  const startKey = spDayKey(startAt);
+  const endKey = spDayKey(endAt ?? startAt);
+  const lastKey = endKey < startKey ? startKey : endKey;
+  const keys: string[] = [];
+  let cursor = startKey;
+  for (let i = 0; i < maxDays; i++) {
+    keys.push(cursor);
+    if (cursor >= lastKey) break;
+    cursor = addSpDayKey(cursor, 1);
+  }
+  return keys;
+}
+
+/** Fallback quando o doc não tem `startAt` — hoje + dayKeys / horários das partidas. */
+export function tournamentDayKeysFromMatches(
+  matches: readonly { dayKey: string; scheduledAt: Date | null }[],
+  todayKey: string,
+): string[] {
+  const keys = new Set<string>([todayKey]);
+  for (const match of matches) {
+    const stored = match.dayKey.trim();
+    if (stored) {
+      keys.add(stored);
+      continue;
+    }
+    if (match.scheduledAt) keys.add(spDayKey(match.scheduledAt));
+  }
+  return [...keys].sort();
+}
+
 /** A partida pertence à JORNADA de `dayKey` — que não é o mesmo que o dia de calendário
  *  do horário dela. O servidor grava em `dayKey` o dia pedido no agendamento, inclusive
  *  quando a grade transborda a meia-noite (`scheduleMatch`/`autoScheduleTournamentDay`),

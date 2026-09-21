@@ -58,7 +58,7 @@ void main() {
         primarySportFirestoreId: 'VOLEI_PRAIA',
         levelsBySportFirestore: {'VOLEI_PRAIA': 'intermediario_1'},
       );
-      expect(discoverLevelDisplayLabel(profile), 'Nível Intermediário 1');
+      expect(discoverLevelDisplayLabel(profile), 'Intermediário 1');
     });
 
     test('cai no nível global quando falta o por esporte', () {
@@ -71,7 +71,7 @@ void main() {
         primarySportFirestoreId: 'VOLEI_QUADRA',
         levelsBySportFirestore: {},
       );
-      expect(discoverLevelDisplayLabel(profile), 'Nível Open');
+      expect(discoverLevelDisplayLabel(profile), 'Open');
     });
   });
 }

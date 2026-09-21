@@ -149,9 +149,26 @@ Extensões operacionais (além dos campos de chave/placar existentes):
 | `queueOrder` / `queueStatus` | number / string | Fila: `waiting`, `on_deck`, `on_court`, `completed` |
 | `checkIn` | map | `teamA` / `teamB`: `{ status, at, byUid }` (`pending`/`present`/`wo`) |
 | `servingTeamId` | string | Equipe no saque |
+| `servingPlayerSlot` | number | Posição (1 ou 2) do ATLETA no saque dentro da dupla de `servingTeamId`; `0` = não declarada. Denormalizado de `servingPlayerSlots` |
+| `servingPlayerSlots` | map | `{ A: 0\|1\|2, B: 0\|1\|2 }` — ordem de saque declarada por cada dupla no set corrente; zera a cada virada de set |
+| `medicalTimeout` | map | Atendimento médico EM ANDAMENTO: `{ side, teamId, playerSlot, playerName, startedAt, durationSec, setIndex }`. Ausente quando não há atendimento |
+| `medicalTimeoutPlayers` | array&lt;string&gt; | Atletas que já usaram o tempo médico na partida (`"A1"`, `"B2"`) — a cota é 1 por atleta |
 | `liveElapsedSec` | number | Timer denormalizado |
 | `pointEventSeq` | number | Sequência monotônica para `pointEvents` |
 | `report` | map | `{ status, reportedByUid, teamAConfirmed, teamBConfirmed }` |
+
+A POSIÇÃO na dupla (1/2) é a ordem de `player1Id`/`player2Id` do doc em `teams` — a mesma em
+que as mesas, o telão e os cards já listam os dois atletas. Guardar a posição, e não o uid,
+mantém o motor de placar puro: a transação do ponto lê só o doc da partida.
+
+A contagem do tempo médico é DERIVADA de `startedAt` (carimbo do servidor) + `durationSec`;
+nada é escrito durante os 5 minutos, e por isso as três mesas e o telão mostram o mesmo número.
+Regras em `frontend/shared/live-scoring/medical-timeout.ts` e `match_medical_timeout_logic.dart`.
+
+Subcoleção `pointEvents/{eventId}`: além de `point`/`undo-point`/`set-end`/`match-start`/
+`match-end`, o chamado e o fim do atendimento entram como `medical-timeout` /
+`medical-timeout-end` (com `playerSlot`) — é o que sobra de auditoria depois que `medicalTimeout`
+sai do doc.
 
 Subcoleção `auditLog/{eventId}`: append-only (`type`, `at`, `byUid`, `byRole`, `meta`).
 

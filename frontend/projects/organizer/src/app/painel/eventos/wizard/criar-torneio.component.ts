@@ -22,9 +22,15 @@ import {
   DISPUTE_LABEL,
   DISPUTE_OPTIONS,
   GENDER_LABEL,
+  KOC_MAX_ROUND_DURATION_SEC,
+  KOC_MAX_TEAMS_PER_ROUND,
+  KOC_MIN_ROUND_DURATION_SEC,
+  KOC_MIN_TEAMS_PER_ROUND,
+  KOC_SHALLOW_ROUND_DURATION_SEC,
   SKILL_LEVEL_LABEL,
   SPORT_LABEL,
   SUPPORTED_BRACKET_SYSTEMS,
+  kocSchedule,
   TOURNAMENT_CREATE_STEPS,
   type AgeBand,
   type CategoryDispute,
@@ -282,6 +288,32 @@ function inputToDatetime(v: string): Date | null {
                   <og-stepper-static [label]="catIsTeam() ? 'Equipes por grupo' : 'Duplas por grupo'" [value]="'' + cat().teamsPerGroup" (bump)="bumpCat('teamsPerGroup', $event, 2, 8)" />
                   <og-stepper-static label="Classificam" [value]="'' + cat().qualifiersPerGroup" (bump)="bumpCat('qualifiersPerGroup', $event, 1, 4)" />
                 </div>
+              }
+              @if (cat().bracketSystem === 'kingOfCourt') {
+                <div class="og-field-grid" style="margin-top:14px">
+                  <og-stepper-static label="Duplas por quadra" [value]="'' + cat().kocTeamsPerCourt" (bump)="bumpCat('kocTeamsPerCourt', $event, kocMinTeams, kocMaxTeams)" />
+                  <og-stepper-static label="Classificam" [value]="'' + cat().kocQualifiersPerRound" (bump)="bumpCat('kocQualifiersPerRound', $event, 1, cat().kocTeamsPerCourt - 1)" />
+                </div>
+                <div style="margin-top:14px">
+                  <og-stepper-static label="Duração da rodada" [value]="kocDurationLabel()" (bump)="bumpKocDuration($event)" />
+                </div>
+                <!-- O número que decide a publicação não é nenhum stepper: é o
+                     tempo TOTAL de quadra. Duração de rodada isolada não
+                     responde "cabe na minha reserva?"; o total responde. -->
+                <div class="og-radio-row" style="margin-top:14px">
+                  <div class="og-radio-body">
+                    <div class="og-radio-title">{{ kocPlanTitle() }}</div>
+                    <div class="og-radio-desc">{{ kocPlanDesc() }}</div>
+                  </div>
+                </div>
+                @if (cat().kocRoundDurationSec < kocShallowSec) {
+                  <div class="og-radio-row" style="margin-top:10px">
+                    <div class="og-radio-body">
+                      <div class="og-radio-title">Rodada curta</div>
+                      <div class="og-radio-desc">Abaixo de 10 min dá cerca de 12 rallies por dupla — raso para uma classificatória.</div>
+                    </div>
+                  </div>
+                }
               }
               <div style="margin-top:14px">
                 <og-form-field label="Melhor de">
@@ -748,7 +780,7 @@ export class CriarTorneioComponent {
   protected readonly bracketShortLabel = BRACKET_SYSTEM_SHORT_LABEL;
   protected readonly bracketDesc = BRACKET_SYSTEM_DESCRIPTION;
   protected readonly supported = SUPPORTED_BRACKET_SYSTEMS;
-  protected readonly bracketOptions: TournamentBracketSystem[] = ['groupsThenKnockout', 'singleElimination', 'doubleElimination', 'roundRobin', 'groupsWithRepechage'];
+  protected readonly bracketOptions: TournamentBracketSystem[] = ['groupsThenKnockout', 'singleElimination', 'doubleElimination', 'kingOfCourt', 'roundRobin', 'groupsWithRepechage'];
   protected readonly sportOptions = Object.values(SPORT_LABEL);
   protected readonly genderOptions = Object.values(GENDER_LABEL);
   protected readonly ageBandOptions = Object.values(AGE_BAND_LABEL);
@@ -1007,8 +1039,54 @@ export class CriarTorneioComponent {
     this.patchCat({ spots: Math.min(Math.max(this.cat().spots + delta * step, 2), 64) });
   }
 
-  protected bumpCat(field: 'teamsPerGroup' | 'qualifiersPerGroup' | 'maxRegistrationsPerAthlete', delta: number, min: number, max: number): void {
+  protected bumpCat(field: 'teamsPerGroup' | 'qualifiersPerGroup' | 'maxRegistrationsPerAthlete' | 'kocTeamsPerCourt' | 'kocQualifiersPerRound', delta: number, min: number, max: number): void {
     this.patchCat({ [field]: Math.min(Math.max(this.cat()[field] + delta, min), max) } as Partial<TournamentCategoryDraft>);
+  }
+
+  // ── King of the Court ──────────────────────────────────────────────────────
+
+  protected readonly kocMinTeams = KOC_MIN_TEAMS_PER_ROUND;
+  protected readonly kocMaxTeams = KOC_MAX_TEAMS_PER_ROUND;
+  protected readonly kocShallowSec = KOC_SHALLOW_ROUND_DURATION_SEC;
+
+  /**
+   * Plano da categoria com a CAPACIDADE (`spots`), que é o que existe no
+   * wizard — as duplas pagas só existem no dia da geração da chave, e lá a tela
+   * de publicação refaz a mesma conta com o elenco real.
+   */
+  protected readonly kocPlan = computed(() => {
+    const c = this.cat();
+    return kocSchedule(c.spots, c.kocTeamsPerCourt, c.kocQualifiersPerRound, c.kocRoundDurationSec);
+  });
+
+  protected kocDurationLabel(): string {
+    return `${Math.round(this.cat().kocRoundDurationSec / 60)} min`;
+  }
+
+  protected bumpKocDuration(delta: number): void {
+    const step = 300;
+    const next = this.cat().kocRoundDurationSec + delta * step;
+    this.patchCat({
+      kocRoundDurationSec: Math.min(KOC_MAX_ROUND_DURATION_SEC, Math.max(KOC_MIN_ROUND_DURATION_SEC, next)),
+    });
+  }
+
+  protected kocPlanTitle(): string {
+    const plan = this.kocPlan();
+    return plan.valid ? `${plan.totalLabel} de quadra` : 'Configuração não fecha';
+  }
+
+  protected kocPlanDesc(): string {
+    const c = this.cat();
+    const plan = this.kocPlan();
+    if (c.spots < KOC_MIN_TEAMS_PER_ROUND) {
+      return `King of the Court precisa de pelo menos ${KOC_MIN_TEAMS_PER_ROUND} duplas.`;
+    }
+    if (!plan.valid) {
+      return `Com ${c.spots} duplas, esse número de classificadas não reduz o campo entre as fases. Reduza "Classificam".`;
+    }
+    const phases = plan.roundsPerPhase.map((r) => (r === 1 ? '1 rodada' : `${r} rodadas`)).join(' → ');
+    return `${c.spots} duplas · ${plan.totalRounds} rodadas de ${Math.round(c.kocRoundDurationSec / 60)} min em uma quadra (${phases}), já com trocas e intervalos.`;
   }
 
   protected bumpCourts(delta: number): void {

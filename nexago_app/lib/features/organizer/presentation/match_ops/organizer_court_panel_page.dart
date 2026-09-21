@@ -138,7 +138,7 @@ class _CourtCard extends StatelessWidget {
                   Expanded(
                     child: FilledButton(
                       onPressed: () => context.push(
-                        organizerMatchLivePath(tournamentId, current.id),
+                        organizerMatchTablePath(tournamentId, current),
                       ),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.brand,

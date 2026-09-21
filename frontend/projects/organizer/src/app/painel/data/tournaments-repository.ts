@@ -110,7 +110,7 @@ export function matchOpsFromRaw(raw: unknown): OrganizerMatchOpsConfig {
   };
 }
 
-function courtsFromRaw(raw: unknown, courtsCount: number): { id: string; name: string; order: number }[] {
+export function courtsFromRaw(raw: unknown, courtsCount: number | null): { id: string; name: string; order: number }[] {
   const parsed = Array.isArray(raw)
     ? raw
         .filter((x): x is Record<string, unknown> => x != null && typeof x === 'object')
@@ -118,10 +118,16 @@ function courtsFromRaw(raw: unknown, courtsCount: number): { id: string; name: s
         .filter((c) => c.id)
         .sort((a, b) => a.order - b.order)
     : [];
-  if (parsed.length === courtsCount) return parsed;
-  // Mesma regra do app (`resolveTournamentCourts`): courtsCount manda; senão gera Q1..Qn.
-  const n = Math.max(courtsCount, 1);
-  return Array.from({ length: n }, (_, i) => ({ id: `Q${i + 1}`, name: `Quadra ${i + 1}`, order: i + 1 }));
+  // Mesma regra do app (`resolveTournamentCourts`): courtsCount manda — subir de 2 pra 4
+  // quadras precisa valer mesmo com a lista antiga de 2 ainda gravada. Mas ele só manda
+  // quando EXISTE: doc sem o campo (todo torneio de produção) caía num 4 inventado, que
+  // descartava as quadras REAIS e fabricava Q1..Q4 — a grade de Agendamento passava a
+  // oferecer quadra que o torneio não tem, e `scheduleMatch` gravava esse courtId na
+  // partida. Sem lista e sem contador, o piso de 1 garante ao menos uma coluna (com
+  // `courtsCount: 0`, o `=== ` de antes devolvia [] e a grade ficava sem onde clicar).
+  const count = Math.max(courtsCount ?? parsed.length, 1);
+  if (parsed.length === count) return parsed;
+  return Array.from({ length: count }, (_, i) => ({ id: `Q${i + 1}`, name: `Quadra ${i + 1}`, order: i + 1 }));
 }
 
 export function telaoConfigFromRaw(raw: unknown): TelaoConfig | null {
@@ -182,7 +188,7 @@ function tournamentFromDoc(id: string, data: Record<string, unknown>, myRole: To
     // Ausente = fila ligada, exatamente como o servidor lê (`waitlistEnabled !== false`).
     waitlistEnabled: data['waitlistEnabled'] !== false,
     leagueId: optionalStr(data['leagueId']),
-    courts: courtsFromRaw(data['courts'], courtsCount),
+    courts: courtsFromRaw(data['courts'], numberOf(data['courtsCount'])),
     courtsCount,
     matchOps: matchOpsFromRaw(data['matchOps']),
     bigScreen: telaoConfigFromRaw(data['bigScreen']),

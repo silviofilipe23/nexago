@@ -486,8 +486,7 @@ describe("notifyScheduleShifts", () => {
     await notifyScheduleShifts(db(fake), PROJECT_ID, TOURNAMENT_ID, [
       {
         matchId: "next-match",
-        teamAId: "team-trio",
-        teamBId: "team-quarteto",
+        teamIds: ["team-trio", "team-quarteto"],
         oldStart: new Date("2026-08-25T14:30:00-03:00"),
         newStart: new Date("2026-08-25T15:30:00-03:00"),
         courtLabel: "Quadra 1",
@@ -509,8 +508,7 @@ describe("notifyScheduleShifts", () => {
     await notifyScheduleShifts(db(fake), PROJECT_ID, TOURNAMENT_ID, [
       {
         matchId: "next-match",
-        teamAId: "team-a",
-        teamBId: "team-c",
+        teamIds: ["team-a", "team-c"],
         oldStart: new Date("2026-08-25T14:30:00-03:00"),
         newStart: new Date("2026-08-25T14:20:00-03:00"),
         courtLabel: "Quadra 1",
@@ -530,8 +528,7 @@ describe("notifyScheduleShifts", () => {
     await notifyScheduleShifts(db(fake), PROJECT_ID, TOURNAMENT_ID, [
       {
         matchId: "next-match",
-        teamAId: "team-a",
-        teamBId: "",
+        teamIds: ["team-a"],
         oldStart: new Date("2026-08-25T14:30:00-03:00"),
         newStart: new Date("2026-08-25T14:28:00-03:00"), // só 2min
         courtLabel: "Quadra 1",
@@ -550,8 +547,7 @@ describe("notifyScheduleShifts", () => {
     await notifyScheduleShifts(db(fake), PROJECT_ID, TOURNAMENT_ID, [
       {
         matchId: "next-match",
-        teamAId: "team-a",
-        teamBId: "",
+        teamIds: ["team-a"],
         oldStart: same,
         newStart: new Date(same),
         courtLabel: "Quadra 1",
@@ -569,8 +565,7 @@ describe("notifyScheduleShifts", () => {
     await notifyScheduleShifts(db(fake), PROJECT_ID, TOURNAMENT_ID, [
       {
         matchId: "next-match",
-        teamAId: "team-a",
-        teamBId: "",
+        teamIds: ["team-a"],
         oldStart: null,
         newStart: new Date("2026-08-25T14:30:00-03:00"),
         courtLabel: "Quadra 1",

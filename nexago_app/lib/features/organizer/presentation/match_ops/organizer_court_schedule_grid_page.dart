@@ -92,8 +92,10 @@ class _OrganizerCourtScheduleGridPageState
     TournamentMatchOpsConfig config,
     String dayKey,
   ) async {
+    // A rodada KOTC tem duração própria; o servidor impõe a mesma janela ao
+    // gravar, então mandar o padrão do torneio só faria a grade piscar errada.
     final end = slotStart.add(
-      Duration(minutes: config.defaultMatchDurationMin),
+      Duration(minutes: match.scheduleSlotMin(config.defaultMatchDurationMin)),
     );
     try {
       final service = ref.read(organizerMatchScheduleServiceProvider);

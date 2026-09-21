@@ -9,6 +9,9 @@ import { fallbackTeamDisplay, TelaoDataService } from './telao-data.service';
 import { TelaoCourtCardComponent } from './telao-court-card.component';
 import { TelaoFinalModeComponent } from './telao-final-mode.component';
 import { finalShowcaseOf, hasOtherLiveCourts } from './telao-final-mode';
+import { TelaoKocModeComponent } from './telao-koc-mode.component';
+import { kocShowcaseOf } from './telao-koc-mode';
+import { isKingOfCourtMatchType } from '../data/koc';
 import { callOf, courtNowOf, courtPageCount, courtPageOf, ROTATE_INTERVAL_MS, teamShortLabel, upcomingQueue } from './telao-selectors';
 
 /** Rodízio do modo GRANDE FINAL quando outras quadras também estão jogando: a final segura a
@@ -35,7 +38,7 @@ interface TelaoQueueRow {
 @Component({
   selector: 'og-telao-screen',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TelaoCourtCardComponent, TelaoFinalModeComponent, OgPulseDirective],
+  imports: [TelaoCourtCardComponent, TelaoFinalModeComponent, TelaoKocModeComponent, OgPulseDirective],
   host: { class: 'og-telao' },
   template: `
     @if (finalTakeover(); as fm) {
@@ -51,6 +54,16 @@ interface TelaoQueueRow {
         [clock]="clock()"
         [streakA]="finalStreak().a"
         [streakB]="finalStreak().b"
+      />
+    } @else if (kocTakeover(); as koc) {
+      <og-telao-koc-mode
+        [match]="koc.match"
+        [eventLine]="kocEventLine()"
+        [locationLine]="kocLocationLine()"
+        [clock]="clockShort()"
+        [nowMs]="now()"
+        [teamsById]="teams()"
+        [roundTotal]="kocRoundTotal()"
       />
     } @else {
     <header class="og-telao-head">
@@ -78,6 +91,8 @@ interface TelaoQueueRow {
             [showAvatars]="showAvatars()"
             [streakA]="card.streakA"
             [streakB]="card.streakB"
+            [teamsById]="teams()"
+            [nowMs]="now()"
           />
         } @empty {
           <div class="og-telao-empty">{{ error() ? 'Sem conexão — reconectando…' : 'Carregando telão…' }}</div>
@@ -466,6 +481,9 @@ export class TelaoScreenComponent {
   private readonly svc = inject(TelaoDataService);
 
   protected readonly now = signal(Date.now());
+  /** Mapa `teamId` → dupla, para o card da rodada KOTC: ela tem elenco, não dois
+   *  lados, então `teamA`/`teamB` não bastam. */
+  protected readonly teams = computed(() => this.svc.teams());
   protected readonly pageIndex = signal(0);
 
   protected readonly tournament = this.svc.tournament;
@@ -490,12 +508,51 @@ export class TelaoScreenComponent {
   private readonly categoryNameById = computed(() => new Map((this.svc.tournament()?.categories ?? []).map((c) => [c.id, c.name])));
 
   protected readonly clock = computed(() => CLOCK_FMT.format(new Date(this.now())));
+  /** Relógio de parede sem segundos — o mockup KOTC usa HH:mm. */
+  protected readonly clockShort = computed(() => {
+    const full = this.clock();
+    const parts = full.split(':');
+    return parts.length >= 2 ? `${parts[0]}:${parts[1]}` : full;
+  });
 
   protected readonly headerSub = computed(() => {
     const t = this.svc.tournament();
     if (!t) return '';
     const day = HEADER_DAY_FMT.format(new Date(this.now()));
     return [t.sportLabel, t.location ?? t.city, day].filter(Boolean).join(' · ');
+  });
+
+  // ── Modo King of the Court (tela cheia) ─────────────────────
+  /** Rodada KOTC ao vivo (ou recém-encerrada) nas quadras do telão. A Grande
+   *  Final de duelo tem prioridade no template; sem ela, isto assume a TV. */
+  protected readonly kocTakeover = computed(() => {
+    const cfg = this.cfg();
+    if (!cfg) return null;
+    return kocShowcaseOf(this.matches(), cfg.courtIds, this.now(), this.svc.finishMemory());
+  });
+
+  protected readonly kocEventLine = computed(() => {
+    const t = this.svc.tournament();
+    const m = this.kocTakeover()?.match;
+    if (!t || !m) return t?.name ?? '';
+    const cat = m.categoryId ? this.categoryNameById().get(m.categoryId) : null;
+    return [t.name, cat].filter(Boolean).join(' · ');
+  });
+
+  protected readonly kocLocationLine = computed(() => {
+    const t = this.svc.tournament();
+    return (t?.location ?? t?.city ?? '').trim();
+  });
+
+  protected readonly kocRoundTotal = computed(() => {
+    const m = this.kocTakeover()?.match;
+    if (!m?.categoryId) return 0;
+    return this.matches().filter(
+      (x) =>
+        x.categoryId === m.categoryId &&
+        isKingOfCourtMatchType(x.matchType) &&
+        (x.matchType ?? '').toLowerCase().replace(/_/g, ' ').includes('koc round'),
+    ).length;
   });
 
   protected readonly courtCards = computed(() => {

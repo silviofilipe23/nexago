@@ -8,6 +8,8 @@ import {
   spDayKey,
   spWallToDate,
   startTimeOptions,
+  tournamentDayKeys,
+  tournamentDayKeysFromMatches,
   wallClockLabel,
 } from './auto-schedule-preview';
 
@@ -161,5 +163,43 @@ describe('gridEndMin', () => {
 
   it('sobrevive a uma jornada degenerada', () => {
     expect(gridEndMin({ ...base, dayEndMin: 300, lastBlockEndMin: 0 })).toBe(450);
+  });
+});
+
+describe('tournamentDayKeys', () => {
+  it('lista dias inclusivos na parede SP', () => {
+    expect(
+      tournamentDayKeys(
+        new Date('2026-09-18T03:00:00.000Z'),
+        new Date('2026-09-20T03:00:00.000Z'),
+      ),
+    ).toEqual(['2026-09-18', '2026-09-19', '2026-09-20']);
+  });
+
+  it('devolve um dia quando start e end caem no mesmo dia SP', () => {
+    expect(
+      tournamentDayKeys(
+        new Date('2026-10-24T12:00:00-03:00'),
+        new Date('2026-10-24T22:00:00-03:00'),
+      ),
+    ).toEqual(['2026-10-24']);
+  });
+
+  it('sem startAt devolve lista vazia', () => {
+    expect(tournamentDayKeys(null, null)).toEqual([]);
+  });
+});
+
+describe('tournamentDayKeysFromMatches', () => {
+  it('inclui hoje e os dayKeys das partidas', () => {
+    expect(
+      tournamentDayKeysFromMatches(
+        [
+          { dayKey: '2026-10-25', scheduledAt: null },
+          { dayKey: '', scheduledAt: new Date('2026-10-26T15:00:00-03:00') },
+        ],
+        '2026-10-24',
+      ),
+    ).toEqual(['2026-10-24', '2026-10-25', '2026-10-26']);
   });
 });

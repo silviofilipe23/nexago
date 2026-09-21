@@ -51,7 +51,7 @@ async function run() {
 
   if (!APPLY) {
     // Prévia por NOME, não por uid: é o dry-run de um script destrutivo, e
-    // "masc-ini_1-01 — seed-iniciante_1-m-01@nexago.test" é conferível a olho;
+    // "Carlos 01 — seed-iniciante_1-m-01@nexago.test" é conferível a olho;
     // uma lista de uids crus não é. Mesmo formato do delete-users-seed-email.
     const preview = snap.docs.slice(0, 15);
     for (const doc of preview) {

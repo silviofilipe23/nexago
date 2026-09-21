@@ -11,6 +11,8 @@ typedef PodiumMatch = ({
   String teamAId,
   String teamBId,
   bool isCompleted,
+  /// Colocação da rodada King of the Court, em ordem. Vazia em duelo.
+  List<String> standingTeamIds,
 });
 
 PodiumMatch podiumMatchFromMatch(TournamentMatch m) => (
@@ -19,6 +21,7 @@ PodiumMatch podiumMatchFromMatch(TournamentMatch m) => (
       teamAId: m.teamAId,
       teamBId: m.teamBId,
       isCompleted: m.isCompleted,
+      standingTeamIds: m.kocStandingTeamIds,
     );
 
 /// Pódio de uma categoria, derivado dos resultados das partidas decisivas.
@@ -39,8 +42,15 @@ class CategoryPodium {
   static const empty = CategoryPodium();
 }
 
-bool _isFinalType(String matchType) =>
-    matchType.trim().toLowerCase() == 'final';
+bool _isFinalType(String matchType) {
+  final t = matchType.trim().toLowerCase().replaceAll('_', ' ');
+  // A rodada final do King of the Court É a decisão: a tabela dela é o pódio,
+  // não existe "jogo da final".
+  return t == 'final' || t == 'koc final';
+}
+
+bool _isKingOfCourtType(String matchType) =>
+    matchType.trim().toLowerCase().replaceAll('_', ' ').startsWith('koc ');
 
 bool _isThirdPlaceType(String matchType) {
   final t = matchType.trim().toLowerCase();
@@ -67,10 +77,27 @@ CategoryPodium computeCategoryPodium(Iterable<PodiumMatch> matches) {
     }
   }
 
-  final winner = finalMatch?.winnerId?.trim() ?? '';
-  if (finalMatch == null || !finalMatch.isCompleted || winner.isEmpty) {
+  if (finalMatch == null || !finalMatch.isCompleted) {
     return CategoryPodium.empty;
   }
+
+  // King of the Court: o pódio inteiro sai da TABELA da rodada final, incluindo
+  // o 3º lugar — não há disputa de 3º porque não há eliminação.
+  if (_isKingOfCourtType(finalMatch.matchType)) {
+    final order = finalMatch.standingTeamIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toList();
+    if (order.length < 2) return CategoryPodium.empty;
+    return CategoryPodium(
+      championTeamId: order[0],
+      runnerUpTeamId: order[1],
+      thirdPlaceTeamId: order.length > 2 ? order[2] : null,
+    );
+  }
+
+  final winner = finalMatch.winnerId?.trim() ?? '';
+  if (winner.isEmpty) return CategoryPodium.empty;
 
   final third = thirdMatch?.winnerId?.trim() ?? '';
   return CategoryPodium(

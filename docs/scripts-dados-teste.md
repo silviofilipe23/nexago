@@ -38,10 +38,34 @@ npm run seed-test-data -- --project volley-track-dev-4596c --yes
 ```
 
 Cria, numa execução: organizador seed, **320 atletas** (5 níveis × 2 gêneros ×
-`--count 32`), **1 torneio** com **10 categorias**, **160 duplas** e **160
+`--count 32`), **1 torneio** com **11 categorias**, **176 duplas** e **176
 inscrições pagas** (16 duplas por categoria — `MAX_TEAMS_PER_CATEGORY`). O
 torneio nasce `open`, sem chave gerada — gerar a chave pelo painel é o fluxo
 que se quer testar manualmente depois.
+
+O atleta de seed tem cara de gente: nome real com o número colado
+(`Carlos 01`, `Débora 33`) e um avatar ilustrado em `profilePhotoUrl`. O
+número é a posição GLOBAL no grid nível×gênero — é ele que identifica, já que
+a lista de nomes gira. Nome e avatar saem da identidade do **e-mail**, que
+segue sendo a chave de idempotência: rodar de novo devolve a mesma pessoa,
+com a mesma cara, e atualiza também o Auth (`displayName`/`photoURL`).
+
+> O avatar vem do `api.dicebear.com` (CORS liberado, de propósito: sem isso a
+> foto sumiria dos cards desenhados em canvas). Base já semeada antes desta
+> mudança é **renomeada** na próxima rodada — os e-mails não mudam.
+
+A 11ª é a **King of the Court** (`koc-open-masc`), somada por fora do grid
+nível×gênero. O torneio de teste nasce com os DOIS formatos de propósito: é o
+cenário real, em que a rodada KOTC divide a coleção `matches` com partidas de
+duelo do mesmo torneio — e é isso que a blindagem do formato protege. Seed com
+um formato só testaria metade.
+
+Ela tira elenco do pool de **Open Masculino, invertido**: o seed cria 32
+atletas por nível×gênero, exatamente as 16 duplas da categoria de duelo, e não
+sobra ninguém. Os mesmos atletas entram nas duas categorias — o que
+`maxRegistrationsPerAthlete: 2` permite e o que acontece numa etapa real —, e a
+inversão forma duplas diferentes. `--categories <n>` NÃO a remove: ela entra
+depois do corte, para um seed enxuto ainda trazer o formato novo.
 
 Login dos seeds: `seed-<nivel>-<m|f>-NN@nexago.test` (ex.:
 `seed-iniciante_1-m-01@nexago.test`, níveis `iniciante_1`, `iniciante_2`,
@@ -54,7 +78,7 @@ senha `Senha123!` (ou `SEED_PASSWORD`).
 | `--yes` | dry-run | aplica de verdade |
 | `--manager-uid <uid>` | cria organizador seed próprio | organizador do torneio |
 | `--count <n>` | `32` (ou `COUNT`) | atletas por nível×gênero (total = `n × 10`) |
-| `--categories <n>` | `10` | mantém só as `n` primeiras categorias (ordem nível×gênero) |
+| `--categories <n>` | `10` | mantém só as `n` primeiras categorias do grid nível×gênero (não afeta a categoria KOTC) |
 | `--teams-per-category <n>` | `16` | vagas e duplas inscritas por categoria |
 | `--today` | em 14 dias | torneio no dia de hoje |
 | `--tournament-name <s>` | `Torneio seed nexaGO` | nome do torneio |

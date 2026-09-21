@@ -180,6 +180,7 @@ TournamentBracketSystem _parseBracketFormat(String? raw) {
     'round_robin' => TournamentBracketSystem.roundRobin,
     'groups_repechage' => TournamentBracketSystem.groupsWithRepechage,
     'double_elimination' => TournamentBracketSystem.doubleElimination,
+    'king_of_court' => TournamentBracketSystem.kingOfCourt,
     _ => TournamentBracketSystem.groupsThenKnockout,
   };
 }

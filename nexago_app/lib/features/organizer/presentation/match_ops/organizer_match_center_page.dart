@@ -138,9 +138,9 @@ class _OrganizerMatchCenterPageState
                           row: row,
                           variant: OrganizerMatchCardVariant.center,
                           onTap: () => context.push(
-                            organizerMatchLivePath(
+                            organizerMatchTablePath(
                               widget.tournamentId,
-                              row.match.id,
+                              row.match,
                             ),
                           ),
                         ),

@@ -31,6 +31,58 @@ void main() {
       expect(summary.collectedCents, 80000);
       expect(summary.categoryCount, 1);
     });
+
+    test('courtsCount ausente vem do tamanho da lista real de quadras', () {
+      final summary = buildTournamentSummary(
+        tournamentId: 't1',
+        data: {
+          'name': 'Copa Teste',
+          'courts': [
+            {'id': 'c-areia-1', 'name': 'Areia 1', 'order': 1},
+            {'id': 'c-areia-2', 'name': 'Areia 2', 'order': 2},
+          ],
+        },
+        categories: const [],
+        paidCount: 0,
+        pendingCount: 0,
+        paymentsBreakdown: const OrganizerPaymentsBreakdown(),
+      );
+
+      expect(summary.courtsCount, 2);
+    });
+
+    test('courtsCount informado continua mandando sobre a lista', () {
+      final summary = buildTournamentSummary(
+        tournamentId: 't1',
+        data: {
+          'name': 'Copa Teste',
+          'courtsCount': 4,
+          'courts': [
+            {'id': 'c-areia-1', 'name': 'Areia 1', 'order': 1},
+            {'id': 'c-areia-2', 'name': 'Areia 2', 'order': 2},
+          ],
+        },
+        categories: const [],
+        paidCount: 0,
+        pendingCount: 0,
+        paymentsBreakdown: const OrganizerPaymentsBreakdown(),
+      );
+
+      expect(summary.courtsCount, 4);
+    });
+
+    test('sem lista e sem contador o resumo mostra 1 quadra', () {
+      final summary = buildTournamentSummary(
+        tournamentId: 't1',
+        data: {'name': 'Copa Teste'},
+        categories: const [],
+        paidCount: 0,
+        pendingCount: 0,
+        paymentsBreakdown: const OrganizerPaymentsBreakdown(),
+      );
+
+      expect(summary.courtsCount, 1);
+    });
   });
 
   group('share links', () {

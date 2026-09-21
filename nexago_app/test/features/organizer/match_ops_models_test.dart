@@ -3,12 +3,31 @@ import 'package:nexago_app/features/organizer/domain/match_ops/match_ops_models.
 
 void main() {
   group('TournamentMatchOpsConfig.dynamicRescheduleEnabled', () {
-    test('default é false quando o campo não existe no map', () {
+    test('default é true quando o campo não existe no map', () {
       final config = TournamentMatchOpsConfig.fromMap({
         'defaultMatchDurationMin': 30,
       });
 
+      expect(config.dynamicRescheduleEnabled, isTrue);
+    });
+
+    test('só false explícito desliga', () {
+      final config = TournamentMatchOpsConfig.fromMap({
+        'dynamicRescheduleEnabled': false,
+      });
+
       expect(config.dynamicRescheduleEnabled, isFalse);
+    });
+
+    test('map vazio também nasce ligado', () {
+      expect(
+        TournamentMatchOpsConfig.fromMap({}).dynamicRescheduleEnabled,
+        isTrue,
+      );
+      expect(
+        TournamentMatchOpsConfig.fromMap(null).dynamicRescheduleEnabled,
+        isTrue,
+      );
     });
 
     test('lê true quando gravado no map', () {

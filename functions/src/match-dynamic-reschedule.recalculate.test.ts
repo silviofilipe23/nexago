@@ -108,7 +108,7 @@ describe("recalculateCourtSchedule", () => {
       matchNumber: 1,
       scheduleTime: ts("2026-08-25T14:00:00-03:00"),
       scheduleEndTime: ts("2026-08-25T14:30:00-03:00"),
-      matchEndedAt: ts("2026-08-25T14:20:00-03:00"),
+      matchEndedAt: ts("2026-08-25T14:45:00-03:00"), // 15min ALÉM do previsto
     });
     seedMatch(fake, "next-match", {
       matchNumber: 2,
@@ -125,7 +125,7 @@ describe("recalculateCourtSchedule", () => {
         tournamentId: TOURNAMENT_ID,
         dayKey: DAY_KEY,
         courtId: COURT_ID,
-        anchor: new Date("2026-08-25T14:20:00-03:00"),
+        anchor: new Date("2026-08-25T14:45:00-03:00"),
         triggerMatchId: "trigger-match",
         matchNumber: 1,
       },
@@ -134,12 +134,12 @@ describe("recalculateCourtSchedule", () => {
 
     assert.equal(shifts.length, 1);
     assert.equal(shifts[0].matchId, "next-match");
-    assert.equal(shifts[0].newStart.toISOString(), new Date("2026-08-25T14:20:00-03:00").toISOString());
+    assert.equal(shifts[0].newStart.toISOString(), new Date("2026-08-25T14:45:00-03:00").toISOString());
 
     const updated = (await fake.doc(`${MATCHES_PATH}/next-match`).get()).data();
     assert.equal(
       (updated?.scheduleTime as Timestamp).toMillis(),
-      ts("2026-08-25T14:20:00-03:00").toMillis(),
+      ts("2026-08-25T14:45:00-03:00").toMillis(),
     );
     assert.ok(updated?.scheduleRecalcAt);
   });
@@ -500,7 +500,7 @@ describe("notifyScheduleShifts", () => {
     );
   });
 
-  it("notifica os dois times quando o desvio é >= 10min", async () => {
+  it("notifica os dois times quando o horário muda", async () => {
     mockDeliver();
     const fake = new FakeFirestore();
     fake.seedDoc(`${TEAMS_PATH}/team-a`, {player1Id: "p1", player2Id: "p2"});
@@ -522,7 +522,7 @@ describe("notifyScheduleShifts", () => {
     assert.deepEqual(sent.map((n) => n.userId).sort(), ["p1", "p2", "p3", "p4"]);
   });
 
-  it("NÃO notifica quando o desvio é menor que o limiar", async () => {
+  it("avisa TAMBÉM em mudança pequena — o atleta decide se importa", async () => {
     mockDeliver();
     const fake = new FakeFirestore();
     fake.seedDoc(`${TEAMS_PATH}/team-a`, {player1Id: "p1", player2Id: "p2"});
@@ -533,23 +533,68 @@ describe("notifyScheduleShifts", () => {
         teamAId: "team-a",
         teamBId: "",
         oldStart: new Date("2026-08-25T14:30:00-03:00"),
-        newStart: new Date("2026-08-25T14:25:00-03:00"), // só 5min
+        newStart: new Date("2026-08-25T14:28:00-03:00"), // só 2min
+        courtLabel: "Quadra 1",
+      },
+    ]);
+
+    assert.deepEqual(sent.map((n) => n.userId).sort(), ["p1", "p2"]);
+  });
+
+  it("não avisa quando o horário não mudou — a cascata regrava sem mexer", async () => {
+    mockDeliver();
+    const fake = new FakeFirestore();
+    fake.seedDoc(`${TEAMS_PATH}/team-a`, {player1Id: "p1", player2Id: "p2"});
+    const same = new Date("2026-08-25T14:30:00-03:00");
+
+    await notifyScheduleShifts(db(fake), PROJECT_ID, TOURNAMENT_ID, [
+      {
+        matchId: "next-match",
+        teamAId: "team-a",
+        teamBId: "",
+        oldStart: same,
+        newStart: new Date(same),
         courtLabel: "Quadra 1",
       },
     ]);
 
     assert.equal(sent.length, 0);
   });
+
+  it("avisa quem ganhou horário pela primeira vez, com texto de agendamento", async () => {
+    mockDeliver();
+    const fake = new FakeFirestore();
+    fake.seedDoc(`${TEAMS_PATH}/team-a`, {player1Id: "p1", player2Id: "p2"});
+
+    await notifyScheduleShifts(db(fake), PROJECT_ID, TOURNAMENT_ID, [
+      {
+        matchId: "next-match",
+        teamAId: "team-a",
+        teamBId: "",
+        oldStart: null,
+        newStart: new Date("2026-08-25T14:30:00-03:00"),
+        courtLabel: "Quadra 1",
+      },
+    ]);
+
+    assert.deepEqual(sent.map((n) => n.userId).sort(), ["p1", "p2"]);
+    assert.equal(sent[0].title, "Sua partida foi agendada");
+    assert.equal(sent[0].body, "Horário: 14:30 na Quadra 1.");
+  });
 });
 
 describe("handleDynamicRescheduleOnMatchUpdate", () => {
   afterEach(mockDeliver);
 
-  it("não faz nada quando o torneio não ligou a flag", async () => {
+  it("não faz nada quando o torneio DESLIGOU a cascata (false explícito)", async () => {
     mockDeliver();
     const fake = new FakeFirestore();
     fake.seedDoc(`tournaments/${TOURNAMENT_ID}`, {
-      matchOps: {defaultMatchDurationMin: 30, minRestBetweenMatchesMin: 30},
+      matchOps: {
+        dynamicRescheduleEnabled: false,
+        defaultMatchDurationMin: 30,
+        minRestBetweenMatchesMin: 30,
+      },
     });
     seedMatch(fake, "next-match", {matchNumber: 2, scheduleTime: ts("2026-08-25T14:30:00-03:00")});
 
@@ -570,6 +615,40 @@ describe("handleDynamicRescheduleOnMatchUpdate", () => {
       ts("2026-08-25T14:30:00-03:00").toMillis(),
     );
     assert.equal(sent.length, 0);
+  });
+
+  it("torneio SEM matchOps reagenda assim mesmo: ausência = ligado", async () => {
+    mockDeliver();
+    const fake = new FakeFirestore();
+    fake.seedDoc(`tournaments/${TOURNAMENT_ID}`, {name: "Torneio sem matchOps"});
+    fake.seedDoc(`${TEAMS_PATH}/team-c`, {player1Id: "p3", player2Id: "p4"});
+    fake.seedDoc(`${TEAMS_PATH}/team-d`, {player1Id: "p5", player2Id: "p6"});
+    seedMatch(fake, "next-match", {
+      matchNumber: 2,
+      scheduleTime: ts("2026-08-25T14:30:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T15:00:00-03:00"),
+      teamAId: "team-c",
+      teamBId: "team-d",
+    });
+
+    const before = {tournamentId: TOURNAMENT_ID, dayKey: DAY_KEY, courtId: COURT_ID, status: "In Progress"};
+    const after = {
+      tournamentId: TOURNAMENT_ID,
+      dayKey: DAY_KEY,
+      courtId: COURT_ID,
+      status: "Completed",
+      matchEndedAt: ts("2026-08-25T14:45:00-03:00"),
+    };
+
+    await handleDynamicRescheduleOnMatchUpdate(db(fake), PROJECT_ID, "trigger-match", before, after);
+
+    const updated = (await fake.doc(`${MATCHES_PATH}/next-match`).get()).data();
+    assert.equal(
+      (updated?.scheduleTime as Timestamp).toMillis(),
+      ts("2026-08-25T14:45:00-03:00").toMillis(),
+      "torneio sem matchOps ficou sem o ajuste automático",
+    );
+    assert.equal(sent.length, 4);
   });
 
   it("recalcula e notifica de ponta a ponta quando a flag está ligada", async () => {
@@ -594,7 +673,8 @@ describe("handleDynamicRescheduleOnMatchUpdate", () => {
       dayKey: DAY_KEY,
       courtId: COURT_ID,
       status: "Completed",
-      matchEndedAt: ts("2026-08-25T14:15:00-03:00"), // terminou 15min antes do previsto
+      // Terminou 15min DEPOIS do previsto: atraso empurra na hora, sem colchão.
+      matchEndedAt: ts("2026-08-25T14:45:00-03:00"),
     };
 
     await handleDynamicRescheduleOnMatchUpdate(db(fake), PROJECT_ID, "trigger-match", before, after);
@@ -602,8 +682,193 @@ describe("handleDynamicRescheduleOnMatchUpdate", () => {
     const updated = (await fake.doc(`${MATCHES_PATH}/next-match`).get()).data();
     assert.equal(
       (updated?.scheduleTime as Timestamp).toMillis(),
-      ts("2026-08-25T14:15:00-03:00").toMillis(),
+      ts("2026-08-25T14:45:00-03:00").toMillis(),
     );
     assert.equal(sent.length, 4); // 2 jogadores x 2 times
+  });
+});
+
+/**
+ * Colchão de antecipação: a cascata pode puxar a fila para mais cedo quando a
+ * partida termina antes, mas nunca para menos de `MIN_ANTICIPATION_LEAD_MIN`
+ * a partir de agora — e nunca ADIA ninguém por causa do colchão, senão a
+ * quadra ficaria parada de castigo justamente no caso de atraso.
+ */
+describe("colchão de antecipação", () => {
+  it("não puxa a próxima para menos de 10min a partir de agora", async () => {
+    const fake = new FakeFirestore();
+    const now = new Date("2026-08-25T14:00:00-03:00");
+    seedMatch(fake, "m1", {
+      status: "Completed",
+      matchNumber: 1,
+      scheduleTime: ts("2026-08-25T13:30:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T14:30:00-03:00"),
+      matchEndedAt: ts("2026-08-25T14:00:00-03:00"),
+    });
+    seedMatch(fake, "m2", {
+      matchNumber: 2,
+      scheduleTime: ts("2026-08-25T14:30:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T15:00:00-03:00"),
+      teamAId: "team-c",
+      teamBId: "team-d",
+    });
+
+    await recalculateCourtSchedule(
+      db(fake),
+      PROJECT_ID,
+      {
+        tournamentId: TOURNAMENT_ID,
+        dayKey: DAY_KEY,
+        courtId: COURT_ID,
+        anchor: now,
+        triggerMatchId: "m1",
+        matchNumber: 1,
+      },
+      {durationMin: 30, minRestMin: 30, now},
+    );
+
+    const m2 = (await fake.doc(`${MATCHES_PATH}/m2`).get()).data();
+    assert.equal(
+      (m2?.scheduleTime as Timestamp).toDate().toISOString(),
+      new Date("2026-08-25T14:10:00-03:00").toISOString(),
+      "antecipou sem dar 10min de aviso ao atleta",
+    );
+  });
+
+  it("nunca ADIA a partida por causa do colchão", async () => {
+    const fake = new FakeFirestore();
+    const now = new Date("2026-08-25T14:00:00-03:00");
+    seedMatch(fake, "m1", {
+      status: "Completed",
+      matchNumber: 1,
+      scheduleTime: ts("2026-08-25T13:30:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T14:30:00-03:00"),
+      matchEndedAt: ts("2026-08-25T14:00:00-03:00"),
+    });
+    // Publicada para daqui a 5min — menos que o colchão. O piso não pode
+    // empurrá-la para 14:10: quem está publicado manda.
+    seedMatch(fake, "m2", {
+      matchNumber: 2,
+      scheduleTime: ts("2026-08-25T14:05:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T14:35:00-03:00"),
+      teamAId: "team-c",
+      teamBId: "team-d",
+    });
+
+    await recalculateCourtSchedule(
+      db(fake),
+      PROJECT_ID,
+      {
+        tournamentId: TOURNAMENT_ID,
+        dayKey: DAY_KEY,
+        courtId: COURT_ID,
+        anchor: now,
+        triggerMatchId: "m1",
+        matchNumber: 1,
+      },
+      {durationMin: 30, minRestMin: 30, now},
+    );
+
+    const m2 = (await fake.doc(`${MATCHES_PATH}/m2`).get()).data();
+    assert.equal(
+      (m2?.scheduleTime as Timestamp).toDate().toISOString(),
+      new Date("2026-08-25T14:05:00-03:00").toISOString(),
+      "o colchão adiou uma partida em vez de só proteger a antecipação",
+    );
+  });
+
+  it("atraso não ganha colchão: empurra assim que a quadra vaga", async () => {
+    const fake = new FakeFirestore();
+    const now = new Date("2026-08-25T15:20:00-03:00");
+    seedMatch(fake, "m1", {
+      status: "Completed",
+      matchNumber: 1,
+      scheduleTime: ts("2026-08-25T14:00:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T14:30:00-03:00"),
+      matchEndedAt: ts("2026-08-25T15:20:00-03:00"),
+    });
+    seedMatch(fake, "m2", {
+      matchNumber: 2,
+      scheduleTime: ts("2026-08-25T14:30:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T15:00:00-03:00"),
+      teamAId: "team-c",
+      teamBId: "team-d",
+    });
+
+    await recalculateCourtSchedule(
+      db(fake),
+      PROJECT_ID,
+      {
+        tournamentId: TOURNAMENT_ID,
+        dayKey: DAY_KEY,
+        courtId: COURT_ID,
+        anchor: now,
+        triggerMatchId: "m1",
+        matchNumber: 1,
+      },
+      {durationMin: 30, minRestMin: 30, now},
+    );
+
+    const m2 = (await fake.doc(`${MATCHES_PATH}/m2`).get()).data();
+    assert.equal(
+      (m2?.scheduleTime as Timestamp).toDate().toISOString(),
+      new Date("2026-08-25T15:20:00-03:00").toISOString(),
+      "o colchão deixou a quadra parada depois de um atraso",
+    );
+  });
+
+  it("a fila inteira encadeia a partir do piso, sem sobreposição", async () => {
+    const fake = new FakeFirestore();
+    const now = new Date("2026-08-25T14:00:00-03:00");
+    seedMatch(fake, "m1", {
+      status: "Completed",
+      matchNumber: 1,
+      scheduleTime: ts("2026-08-25T13:30:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T14:30:00-03:00"),
+      matchEndedAt: ts("2026-08-25T14:00:00-03:00"),
+    });
+    seedMatch(fake, "m2", {
+      matchNumber: 2,
+      scheduleTime: ts("2026-08-25T14:30:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T15:00:00-03:00"),
+      teamAId: "team-c",
+      teamBId: "team-d",
+    });
+    seedMatch(fake, "m3", {
+      matchNumber: 3,
+      scheduleTime: ts("2026-08-25T15:00:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T15:30:00-03:00"),
+      teamAId: "team-e",
+      teamBId: "team-f",
+    });
+
+    await recalculateCourtSchedule(
+      db(fake),
+      PROJECT_ID,
+      {
+        tournamentId: TOURNAMENT_ID,
+        dayKey: DAY_KEY,
+        courtId: COURT_ID,
+        anchor: now,
+        triggerMatchId: "m1",
+        matchNumber: 1,
+      },
+      {durationMin: 30, minRestMin: 30, now},
+    );
+
+    const m2 = (await fake.doc(`${MATCHES_PATH}/m2`).get()).data();
+    const m3 = (await fake.doc(`${MATCHES_PATH}/m3`).get()).data();
+    assert.equal(
+      (m2?.scheduleTime as Timestamp).toDate().toISOString(),
+      new Date("2026-08-25T14:10:00-03:00").toISOString(),
+    );
+    assert.equal(
+      (m3?.scheduleTime as Timestamp).toDate().toISOString(),
+      new Date("2026-08-25T14:40:00-03:00").toISOString(),
+    );
+    // m1 fica de fora: terminou 14:00 e seu `scheduleEndTime` publicado (14:30)
+    // virou letra morta — a quadra está livre desde então. A invariante que
+    // importa é entre as partidas que ainda vão acontecer.
+    await assertNoCourtOverlap(fake, ["m2", "m3"]);
   });
 });

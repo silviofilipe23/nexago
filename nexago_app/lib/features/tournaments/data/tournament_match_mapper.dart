@@ -71,12 +71,20 @@ abstract final class TournamentMatchMapper {
       bestOf: _bestOf(data['bestOf']),
       kocStandingTeamIds: _kocStandingTeamIds(data['kocStandings']),
       kocTeamIds: _teamIdList(data['kocTeamIds']),
+      kocDurationSec: _kocDurationSec(data['kocConfig']),
       winnerAdvanceMatchNumber: _advanceMatchNumber(data['winnerAdvance']),
       winnerAdvanceSlot: _advanceSlot(data['winnerAdvance']),
       loserAdvanceMatchNumber: _advanceMatchNumber(data['loserAdvance']),
       loserAdvanceSlot: _advanceSlot(data['loserAdvance']),
       liveScore: _liveScore(data['liveScore']),
     );
+  }
+
+  /// Duração de jogo da rodada KOTC, do snapshot `kocConfig`.
+  static int _kocDurationSec(dynamic raw) {
+    if (raw is! Map) return 0;
+    final value = _int(raw['durationSec']) ?? 0;
+    return value > 0 ? value : 0;
   }
 
   /// Posição do sacador; qualquer coisa fora de 1/2 vira "não declarada".

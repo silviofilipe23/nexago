@@ -51,10 +51,15 @@ function kocTournament(): OrganizerTournament {
 }
 
 /** Partida KoC como o builder grava: sem teamAId/teamBId (as 4 equipes vivem em kocTeamIds). */
-function kocMatch(n: number, matchType: string): TournamentMatch {
+function kocMatch(n: number, matchType: string, teamIds = ['t1', 't2', 't3', 't4']): TournamentMatch {
   return {
     id: `koc-${n}`, tournamentId: 'NmmfPlnPRNNPmPcvBJWk', categoryId: 'intermediario_2-masc',
-    round: null, team1Label: 'A definir', team2Label: 'A definir', score: null, winnerSide: null,
+    koc: {
+      teamIds, kingTeamId: '', challengerTeamId: '', queue: [], points: {}, rallies: 0,
+      servingTeamId: '', clock: null, standings: [], qualifiersPerRound: 2,
+      configuredDurationSec: 900, rallySeq: 0, roundLabel: n, qualifierSlots: [],
+    },
+    round: 'Classificatória · Rodada 1', team1Label: 'A definir', team2Label: 'A definir', score: null, winnerSide: null,
     scheduledAt: null, court: null, status: 'scheduled', teamAId: '', teamBId: '', sets: [],
     courtId: '', dayKey: '', scheduleEndAt: null, bestOf: 1, matchType, roundNumber: 1,
     matchNumber: n, winnerAdvanceMatchNumber: null, winnerAdvanceSlot: null,
@@ -134,5 +139,17 @@ describe('AgendamentoComponent — torneio King of the Court', () => {
 
   it('lista as 7 partidas KoC na fila de agendamento', () => {
     expect(host().querySelectorAll('.og-agenda-fila-item').length).toBe(7);
+  });
+
+  /** A rodada não tem confronto: "A definir vs A definir" não diz nada sobre o
+   *  que se está agendando, e era o que a fila mostrava nas 7 linhas. */
+  it('identifica a rodada pelo elenco, não por um confronto que não existe', () => {
+    const linhas = Array.from(host().querySelectorAll('.og-agenda-fila-item .partida'))
+      .map((e) => e.textContent?.trim() ?? '');
+    expect(linhas.length).toBe(7);
+    for (const linha of linhas) {
+      expect(linha).toBe('4 duplas');
+      expect(linha).not.toContain('A definir');
+    }
   });
 });

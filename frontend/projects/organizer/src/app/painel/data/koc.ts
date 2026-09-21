@@ -77,6 +77,12 @@ export function kocPhaseLabel(matchType: string, matchNumber: number): string {
   return matchNumber > 0 ? `Classificatória · Rodada ${matchNumber}` : 'Classificatória';
 }
 
+/** Troca entre rodadas, em minutos. Espelha `KOC_CHANGEOVER_MIN` do servidor
+ *  (`functions/src/match-schedule-allocation.ts`): a duração configurada é o
+ *  tempo de JOGO, e o slot de quadra precisa da troca também. O servidor impõe
+ *  essa janela ao gravar — aqui é só pra tela não mostrar outro número. */
+export const KOC_CHANGEOVER_MIN = 5;
+
 /** Cabeçalho da COLUNA da chave: a fase, sem o número da rodada — a coluna
  *  reúne as rodadas daquela fase, e o número de cada uma vai no card. */
 export function kocColumnLabel(matchType: string): string {

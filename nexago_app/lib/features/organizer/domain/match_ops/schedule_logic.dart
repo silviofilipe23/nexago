@@ -14,8 +14,10 @@ abstract final class ScheduleLogic {
     required int minRestMin,
   }) {
     final conflicts = <ScheduleConflict>[];
-    final teamIds = {target.teamAId, target.teamBId}
-        .where((id) => id.trim().isNotEmpty);
+    // Elenco, não os dois lados: a rodada KOTC os grava vazios, e sem isto ela
+    // nunca acusaria descanso insuficiente — nem para ela, nem para o duelo que
+    // caísse em cima dela. Mesma regra de `matchTeamIds` no servidor.
+    final teamIds = target.scheduleTeamIds.toSet();
 
     for (final other in allMatches) {
       if (other.id == target.id) continue;
@@ -23,11 +25,12 @@ abstract final class ScheduleLogic {
 
       final otherStart = other.scheduleTime!;
       final otherEnd = other.scheduleEndTime ??
-          otherStart.add(const Duration(minutes: 50));
+          otherStart.add(Duration(minutes: other.scheduleSlotMin(50)));
 
-      final sharesTeam = teamIds.contains(other.teamAId) ||
-          teamIds.contains(other.teamBId);
-      if (!sharesTeam) continue;
+      final otherTeamIds = other.scheduleTeamIds;
+      final shared = otherTeamIds.where(teamIds.contains).toList();
+      if (shared.isEmpty) continue;
+      final sharedTeamId = shared.first;
 
       final gapBefore = scheduleStart.difference(otherEnd).inMinutes;
       final gapAfter = otherStart.difference(scheduleEnd).inMinutes;
@@ -39,9 +42,7 @@ abstract final class ScheduleLogic {
             message:
                 'Descanso insuficiente (${gapBefore}min) após partida anterior.',
             matchId: other.id,
-            teamId: teamIds.contains(other.teamAId)
-                ? other.teamAId
-                : other.teamBId,
+            teamId: sharedTeamId,
           ),
         );
       }
@@ -52,9 +53,7 @@ abstract final class ScheduleLogic {
             message:
                 'Descanso insuficiente (${gapAfter}min) antes da próxima partida.',
             matchId: other.id,
-            teamId: teamIds.contains(other.teamAId)
-                ? other.teamAId
-                : other.teamBId,
+            teamId: sharedTeamId,
           ),
         );
       }
@@ -83,7 +82,8 @@ abstract final class ScheduleLogic {
       if (m.scheduleTime == null) continue;
 
       final start = m.scheduleTime!;
-      final end = m.scheduleEndTime ?? start.add(const Duration(minutes: 50));
+      final end =
+          m.scheduleEndTime ?? start.add(Duration(minutes: m.scheduleSlotMin(50)));
 
       final overlaps = scheduleStart.isBefore(end) && scheduleEnd.isAfter(start);
       if (overlaps) {
@@ -131,9 +131,17 @@ abstract final class ScheduleLogic {
     required bool respectBracketDeps,
   }) {
     if (!respectBracketDeps) return matches;
-    return matches
-        .where((m) => m.teamAId.trim().isNotEmpty && m.teamBId.trim().isNotEmpty)
-        .toList();
+    return matches.where((m) {
+      // A rodada KOTC nasce com os DOIS LADOS VAZIOS: pela regra do duelo ela
+      // nunca seria agendável e a categoria inteira sumia da prévia. O
+      // equivalente ao placeholder de chave aqui é o ELENCO vazio, que é como a
+      // fase seguinte nasce até a anterior terminar. Mesma regra de
+      // `isMatchAutoSchedulable` no servidor.
+      if (m.isKingOfCourt) {
+        return m.kocTeamIds.any((id) => id.trim().isNotEmpty);
+      }
+      return m.teamAId.trim().isNotEmpty && m.teamBId.trim().isNotEmpty;
+    }).toList();
   }
 
   /// Prévia de auto-programação para um dia (H3).
@@ -155,13 +163,14 @@ abstract final class ScheduleLogic {
     for (final m in existingScheduled) {
       if (m.courtId.isEmpty || m.scheduleTime == null) continue;
       final end = m.scheduleEndTime ??
-          m.scheduleTime!.add(Duration(minutes: matchDurationMin));
+          m.scheduleTime!.add(
+            Duration(minutes: m.scheduleSlotMin(matchDurationMin)),
+          );
       final prev = courtBusyUntil[m.courtId];
       if (prev == null || end.isAfter(prev)) {
         courtBusyUntil[m.courtId] = end;
       }
-      for (final tid in [m.teamAId, m.teamBId]) {
-        if (tid.isEmpty) continue;
+      for (final tid in m.scheduleTeamIds) {
         final tPrev = teamBusyUntil[tid];
         if (tPrev == null || end.isAfter(tPrev)) {
           teamBusyUntil[tid] = end.add(Duration(minutes: minRestMin));
@@ -187,8 +196,7 @@ abstract final class ScheduleLogic {
         if (start.isBefore(dayStart)) start = dayStart;
 
         if (avoidAthleteConflict) {
-          for (final tid in [match.teamAId, match.teamBId]) {
-            if (tid.isEmpty) continue;
+          for (final tid in match.scheduleTeamIds) {
             final busy = teamBusyUntil[tid];
             if (busy != null && busy.isAfter(start)) {
               start = busy;
@@ -204,7 +212,11 @@ abstract final class ScheduleLogic {
 
       if (chosenCourt == null || chosenStart == null) continue;
 
-      final end = chosenStart.add(Duration(minutes: matchDurationMin));
+      // A rodada KOTC tem duração própria e ela varia por fase: o padrão do
+      // dia erraria nas duas direções.
+      final end = chosenStart.add(
+        Duration(minutes: match.scheduleSlotMin(matchDurationMin)),
+      );
       slots.add(
         AutoScheduleSlot(
           matchId: match.id,
@@ -215,8 +227,7 @@ abstract final class ScheduleLogic {
       );
 
       courtBusyUntil[chosenCourt.id] = end;
-      for (final tid in [match.teamAId, match.teamBId]) {
-        if (tid.isEmpty) continue;
+      for (final tid in match.scheduleTeamIds) {
         teamBusyUntil[tid] = end.add(Duration(minutes: minRestMin));
       }
     }

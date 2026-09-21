@@ -44,6 +44,14 @@ abstract final class SchedulePickLogic {
   SchedulePickLogic._();
 
   static const String blockedReason = 'Aguardando definição das duplas';
+
+  /// Rodada KOTC sem elenco: a fase seguinte só é montada quando a anterior
+  /// termina, e "aguardando as duplas" descreveria errado o que falta.
+  static const String kocBlockedReason = 'Elenco definido ao fim da fase anterior';
+
+  /// Por que a partida não pode ser agendada agora.
+  static String reasonFor(TournamentMatch match) =>
+      match.isKingOfCourt ? kocBlockedReason : blockedReason;
   static const String tentativeReason = 'Pré-reserva';
   static const String partialReason = 'Falta quadra';
 
@@ -84,13 +92,22 @@ abstract final class SchedulePickLogic {
   /// de chave). Inclui pré-reservas de fase eliminatória.
   static bool isReady(TournamentMatch match) {
     if (!isUnscheduled(match)) return false;
+    // A rodada KOTC não tem lados: pela regra do duelo ela caía eternamente na
+    // aba "Bloqueadas", com o selo "Aguardando definição das duplas" — e o
+    // toque nela era ignorado. O que decide aqui é o ELENCO.
+    if (match.isKingOfCourt) {
+      return match.kocTeamIds.any((id) => id.trim().isNotEmpty);
+    }
     return _sideResolvable(match, sideA: true) &&
         _sideResolvable(match, sideA: false);
   }
 
   /// Agendável, porém com ao menos um lado ainda TBD (pré-reserva).
+  ///
+  /// A rodada KOTC com elenco não é pré-reserva: o elenco É definitivo, então
+  /// ela nunca deve aparecer como "Pré-reserva".
   static bool isTentative(TournamentMatch match) =>
-      isReady(match) && !isConfirmed(match);
+      !match.isKingOfCourt && isReady(match) && !isConfirmed(match);
 
   /// Bloqueada de fato: não dá para agendar (sem dupla nem placeholder).
   static bool isBlocked(TournamentMatch match) {

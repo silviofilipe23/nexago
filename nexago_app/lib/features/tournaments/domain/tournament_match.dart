@@ -59,6 +59,7 @@ class TournamentMatch {
     this.liveScore,
     this.kocStandingTeamIds = const [],
     this.kocTeamIds = const [],
+    this.kocDurationSec = 0,
   });
 
   final String id;
@@ -145,6 +146,33 @@ class TournamentMatch {
   /// encontraria a própria rodada, porque `teamAId`/`teamBId` vêm vazios.
   /// Vazia em toda partida de duelo.
   final List<String> kocTeamIds;
+
+  /// Duração de JOGO da rodada, do snapshot `kocConfig` gravado na geração.
+  /// Varia por fase (a final costuma ser mais longa). Zero em toda partida de
+  /// duelo, que usa o padrão do torneio.
+  final int kocDurationSec;
+
+  /// Duplas que a partida ocupa naquele horário.
+  ///
+  /// A rodada KOTC grava `teamAId`/`teamBId` VAZIOS e põe o elenco em
+  /// `kocTeamIds`: colher só os dois lados deixaria a rodada sem marcar ninguém
+  /// ocupado, e a mesma dupla cairia em dois lugares no mesmo horário.
+  /// Espelha `matchTeamIds` do servidor.
+  List<String> get scheduleTeamIds {
+    final out = <String>[];
+    for (final raw in [teamAId, teamBId, ...kocTeamIds]) {
+      final id = raw.trim();
+      if (id.isNotEmpty && !out.contains(id)) out.add(id);
+    }
+    return out;
+  }
+
+  /// Quanto tempo de quadra a partida ocupa, em minutos. Espelha
+  /// `matchDurationMin` do servidor — que é quem IMPÕE essa janela ao gravar.
+  int scheduleSlotMin(int fallbackMin) {
+    if (kocDurationSec <= 0) return fallbackMin;
+    return (kocDurationSec / 60).ceil() + kocChangeoverMin;
+  }
 
   String get effectiveCourtLabel {
     if (courtId.isNotEmpty) return courtId;

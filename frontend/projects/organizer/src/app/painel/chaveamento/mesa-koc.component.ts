@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, injec
 import { environment } from '../../../environments/environment';
 import {
   KOC_MIN_TEAMS_PER_ROUND,
+  kocFinalTable,
   kocHasQualifyingTie,
   kocHasStarted,
   kocIsExpired,
@@ -52,7 +53,39 @@ import { OgIconComponent } from '../ui/icon.component';
       <div class="og-mk-msg">Elenco definido quando a fase anterior terminar.</div>
     } @else {
       <og-card [kicker]="'King of the Court'" [title]="phaseLabel()">
-        @if (!started()) {
+        @if (finished()) {
+          <!-- Rodada encerrada: a mesa fica aberta em LEITURA. O servidor ja recusa
+               rally em rodada concluida, entao manter os botoes vivos so renderia
+               erro; e a tabela final e justamente o que se volta a consultar. -->
+          <p class="og-mk-lead og-mk-done">
+            Rodada encerrada · {{ rallies() }} rallies
+            @if (crownsKnown()) {
+              <span> · coroas = vezes que assumiu o trono</span>
+            }
+          </p>
+          <div class="og-mk-table">
+            <div class="og-mk-table-head">
+              <span>TABELA FINAL</span>
+              <span class="og-mk-flex"></span>
+              @if (crownsKnown()) {
+                <span>COROAS</span>
+              }
+            </div>
+            @for (row of finalRows(); track row.teamId) {
+              <div class="og-mk-row" [class.qualifies]="row.qualifies">
+                <span class="og-mk-place">{{ row.place }}º</span>
+                <span class="og-mk-name">{{ row.name }}</span>
+                @if (crownsKnown()) {
+                  <span class="og-mk-crowns">{{ row.crowns }}</span>
+                }
+                <span class="og-mk-pts">{{ row.points }}</span>
+              </div>
+            }
+          </div>
+          <p class="og-mk-queue og-mk-done-note">
+            Destacadas: as {{ qualifiers() }} que avançam.
+          </p>
+        } @else if (!started()) {
           <p class="og-mk-lead">
             O primeiro entra no trono, o segundo desafia, os outros formam a fila.
             Rodada de {{ durationMin() }} min.
@@ -288,6 +321,19 @@ import { OgIconComponent } from '../ui/icon.component';
       font-weight: 800;
       font-variant-numeric: tabular-nums;
     }
+    .og-mk-crowns {
+      min-width: 26px;
+      text-align: right;
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+      opacity: 0.65;
+    }
+    .og-mk-done {
+      margin-bottom: 14px;
+    }
+    .og-mk-done-note {
+      margin-top: 12px;
+    }
     .og-mk-tie-note {
       margin: 10px 0 0;
       font-size: 12px;
@@ -359,6 +405,30 @@ export class MesaKocComponent {
   protected readonly challengerId = computed(() => this.round()?.challengerTeamId ?? '');
   protected readonly queue = computed(() => this.round()?.queue ?? []);
   protected readonly rallies = computed(() => this.round()?.rallies ?? 0);
+
+  /** Rodada concluida — o que troca a mesa para leitura. Vem do `status` do doc,
+   *  a MESMA fonte que o servidor usa para recusar rally. */
+  protected readonly finished = computed(() => this.match()?.status === 'completed');
+
+  protected readonly qualifiers = computed(() => this.round()?.qualifiersPerRound ?? 0);
+
+  /** `kocStandings` so e gravado ao encerrar. Sem ele (rodada encerrada por um
+   *  caminho antigo), a tabela final cai na ordem por pontos e a coluna de coroas
+   *  some, em vez de mostrar zero para todo mundo. */
+  protected readonly crownsKnown = computed(() => (this.round()?.standings.length ?? 0) > 0);
+
+  protected readonly finalRows = computed(() => {
+    const r = this.round();
+    if (!r) return [];
+    return kocFinalTable(r).map((row) => ({
+      teamId: row.teamId,
+      place: row.place,
+      name: this.nameOf(row.teamId),
+      points: row.points,
+      crowns: row.crowns,
+      qualifies: row.place <= r.qualifiersPerRound,
+    }));
+  });
 
   protected phaseLabel(): string {
     const m = this.match();

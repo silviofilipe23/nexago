@@ -7,6 +7,8 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+import '../tournament_match_status.dart';
+
 /// Quem venceu o rally — o lado, não a dupla.
 enum KocRallyWinner { king, challenger }
 
@@ -79,6 +81,7 @@ class KocRoundState {
     required this.standings,
     required this.qualifiersPerRound,
     required this.configuredDurationSec,
+    this.isFinished = false,
   });
 
   /// Elenco da rodada, na ordem de semeadura.
@@ -100,7 +103,29 @@ class KocRoundState {
   final int qualifiersPerRound;
   final int configuredDurationSec;
 
+  /// Rodada concluída — vem do `status` do doc, a MESMA fonte que o servidor usa
+  /// para recusar rally. A mesa troca para leitura em vez de manter botões que
+  /// só renderiam erro.
+  final bool isFinished;
+
   bool get hasStarted => clock != null;
+
+  /// Tabela final, quando existe. `kocStandings` só é gravado no encerramento;
+  /// uma rodada encerrada por um caminho antigo cai na ordem ao vivo, em vez de
+  /// a tela ficar vazia.
+  List<KocStanding> get finalTable {
+    if (standings.isNotEmpty) return standings;
+    final order = liveOrder;
+    return [
+      for (var i = 0; i < order.length; i++)
+        KocStanding(
+          teamId: order[i],
+          place: i + 1,
+          points: pointsOf(order[i]),
+          crowns: crowns[order[i]] ?? 0,
+        ),
+    ];
+  }
 
   int pointsOf(String teamId) => points[teamId] ?? 0;
 
@@ -211,5 +236,8 @@ KocRoundState kocRoundStateFromMap(Map<String, dynamic> data) {
     standings: _parseStandings(data['kocStandings']),
     qualifiersPerRound: _asInt(configMap['qualifiersPerRound'], 2),
     configuredDurationSec: _asInt(configMap['durationSec'], 900),
+    isFinished: TournamentMatchStatus.isCompleted(
+      data['status'] is String ? data['status'] as String : '',
+    ),
   );
 }

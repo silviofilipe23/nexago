@@ -116,7 +116,7 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
                     @if (round.teamIds.length === 0) {
                       <span class="og-ghost-btn" style="opacity:0.45;pointer-events:none" title="Elenco definido quando a fase anterior terminar">Aguardando</span>
                     } @else if (j.status === 'completed') {
-                      <span class="og-ghost-btn" style="opacity:0.45;pointer-events:none" title="Rodada encerrada">Encerrada</span>
+                      <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'ao-vivo', j.match.id]" title="Tabela final da rodada">Ver tabela</a>
                     } @else if (j.status === 'in_progress') {
                       <a class="og-mini-btn og-mini-btn-primary" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'ao-vivo', j.match.id]">Mesa</a>
                     } @else {

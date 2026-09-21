@@ -112,4 +112,52 @@ describe('PublicCourtCardComponent', () => {
 
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Sem jogo por enquanto.');
   });
+
+  it('na rodada KOTC mostra trono × desafiante em vez de placar de sets', async () => {
+    const fixture = TestBed.createComponent(PublicCourtCardComponent);
+    fixture.componentRef.setInput('courtName', 'Quadra 1');
+    fixture.componentRef.setInput('kind', 'live');
+    fixture.componentRef.setInput('nowMs', Date.now());
+    fixture.componentRef.setInput(
+      'teamNames',
+      new Map([
+        ['king', 'Martins / Costa'],
+        ['chal', 'Ferreira / Nunes'],
+      ]),
+    );
+    fixture.componentRef.setInput(
+      'match',
+      match({
+        status: 'in_progress',
+        matchType: 'koc_round',
+        team1Label: '',
+        team2Label: '',
+        koc: {
+          teamIds: ['king', 'chal', 'q'],
+          kingTeamId: 'king',
+          challengerTeamId: 'chal',
+          queue: ['q'],
+          points: { king: 7, chal: 5, q: 2 },
+          rallies: 12,
+          servingTeamId: 'chal',
+          clock: { endsAtMs: Date.now() + 120_000, durationSec: 900, pausedAtMs: null },
+          standings: [],
+          qualifiersPerRound: 2,
+          configuredDurationSec: 900,
+          rallySeq: 12,
+          roundLabel: 3,
+          qualifierSlots: [],
+        },
+      }),
+    );
+    await fixture.whenStable();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('No trono');
+    expect(text).toContain('Martins / Costa');
+    expect(text).toContain('Desafiante');
+    expect(text).toContain('Ferreira / Nunes');
+    expect(text).toContain('7 pts');
+    expect(text).not.toContain('Ana / Bia');
+  });
 });

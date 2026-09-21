@@ -9,6 +9,8 @@ export type OgIconName =
   | 'bell'
   | 'search'
   | 'chevron'
+  | 'chevronUp'
+  | 'chevronDown'
   | 'check'
   | 'edit'
   | 'download'
@@ -75,6 +77,12 @@ export type OgIconName =
         }
         @case ('chevron') {
           <path d="m9 6 6 6-6 6" />
+        }
+        @case ('chevronUp') {
+          <path d="m6 15 6-6 6 6" />
+        }
+        @case ('chevronDown') {
+          <path d="m6 9 6 6 6-6" />
         }
         @case ('check') {
           <path d="m4.5 12.5 5 5 10-11" />

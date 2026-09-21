@@ -21,10 +21,16 @@ class OrganizerKocOpsService {
   Future<void> startRound({
     required String matchId,
     bool restart = false,
+    List<String>? teamIds,
+    int? durationSec,
+    int? qualifiersPerRound,
   }) async {
     await _functions.httpsCallable('kocStartRound').call({
       'matchId': matchId.trim(),
       if (restart) 'restart': true,
+      if (teamIds != null) 'teamIds': teamIds,
+      if (durationSec != null) 'durationSec': durationSec,
+      if (qualifiersPerRound != null) 'qualifiersPerRound': qualifiersPerRound,
     });
   }
 

@@ -234,16 +234,34 @@ export async function kocStartRoundCore(
     );
   }
 
+  // Ordem / duração / vagas: a mesa de preparação ajusta ANTES do apito. Sem
+  // isso a UI só mostraria chips decorativos — o elenco e o relógio nasceriam
+  // da config gerada na chave, não do que o mesário configurou na areia.
+  const teamIds = resolveStartRoster(round.teamIds, input.teamIds);
+  const durationSec = resolveStartDuration(round.durationSec, input.durationSec);
+  const qualifiersPerRound = resolveStartQualifiers(
+    round.qualifiersPerRound,
+    teamIds.length,
+    input.qualifiersPerRound,
+  );
+
   let state: KocState;
   try {
-    state = kocReplay(round.teamIds, []);
+    state = kocReplay(teamIds, []);
   } catch (e) {
     engineErrorToHttps(e);
   }
 
-  const clock = kocClockStart(nowMs, round.durationSec);
+  const clock = kocClockStart(nowMs, durationSec);
+  const prevConfig = (round.data.kocConfig ?? {}) as Record<string, unknown>;
   await round.ref.update({
     ...kocStateFields(state, clock, []),
+    kocTeamIds: teamIds,
+    kocConfig: {
+      ...prevConfig,
+      durationSec,
+      qualifiersPerRound,
+    },
     status: MatchStatus.inProgress,
     matchStartedAt: FieldValue.serverTimestamp(),
     matchEndedAt: FieldValue.delete(),
@@ -258,6 +276,61 @@ export async function kocStartRoundCore(
     asString(round.data.tournamentId),
   );
   return {ok: true, endsAtMs: kocClockEndsAtMs(clock)};
+}
+
+/** Permutação do elenco atual — mesma coleção, ordem nova. Recusa id forasteiro. */
+function resolveStartRoster(
+  current: readonly string[],
+  requested: unknown,
+): string[] {
+  if (!Array.isArray(requested)) return [...current];
+  const next = requested.map(asString).filter((id) => id.length > 0);
+  if (next.length !== current.length) {
+    throw new HttpsError(
+      "invalid-argument",
+      "A ordem da fila precisa incluir exatamente as duplas da rodada.",
+      {reason: "koc_roster_mismatch"},
+    );
+  }
+  const currentSet = new Set(current);
+  const seen = new Set<string>();
+  for (const id of next) {
+    if (!currentSet.has(id) || seen.has(id)) {
+      throw new HttpsError(
+        "invalid-argument",
+        "A ordem da fila precisa incluir exatamente as duplas da rodada.",
+        {reason: "koc_roster_mismatch"},
+      );
+    }
+    seen.add(id);
+  }
+  return next;
+}
+
+function resolveStartDuration(current: number, requested: unknown): number {
+  if (requested == null) return current;
+  const raw = Number(requested);
+  if (!Number.isFinite(raw)) {
+    throw new HttpsError("invalid-argument", "durationSec inválido.");
+  }
+  return Math.min(
+    KOC_MAX_ROUND_DURATION_SEC,
+    Math.max(KOC_MIN_ROUND_DURATION_SEC, Math.round(raw)),
+  );
+}
+
+function resolveStartQualifiers(
+  current: number,
+  rosterSize: number,
+  requested: unknown,
+): number {
+  if (requested == null) return current;
+  const raw = Number(requested);
+  if (!Number.isFinite(raw)) {
+    throw new HttpsError("invalid-argument", "qualifiersPerRound inválido.");
+  }
+  const max = Math.max(1, rosterSize - 1);
+  return Math.min(max, Math.max(1, Math.round(raw)));
 }
 
 // ─── Rally ──────────────────────────────────────────────────────────────────

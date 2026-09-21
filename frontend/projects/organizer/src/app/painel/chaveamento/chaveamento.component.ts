@@ -11,6 +11,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { kocColumnLabel, kocHasStarted, kocLiveOrder, kocPointsOf } from '../data/koc';
 import { truncateName, type PillTone } from '../data/mock-data';
 import type { MatchDisplayStatus, TournamentMatch } from '../data/matches-repository';
 import { matchMetaLabel, matchScheduleLabel } from '../data/schedule-format';
@@ -155,6 +156,28 @@ function setsWonOf(score: string): [number, number] {
             {{ statusLabel(m) }}
           </og-pill>
         </div>
+        @if (m.koc; as round) {
+          <!-- Rodada King of the Court: o card mostra o ELENCO, não dois lados.
+               Enquanto a fase anterior não termina o elenco não existe — e aí
+               o que descreve a chave são as VAGAS ("1º Rodada 1"), que é
+               justamente o que se quer ler numa chave. -->
+          <div class="og-bracket-koc">
+            <span class="og-bracket-koc-phase">{{ kocCardLabel(m) }}</span>
+            @for (entry of kocEntries(m); track $index) {
+              <div class="og-bracket-koc-row" [class.slot]="entry.isSlot">
+                <span class="og-bracket-koc-place">{{ $index + 1 }}</span>
+                <span class="og-bracket-koc-name" [title]="entry.label">{{ truncate(entry.label) }}</span>
+                @if (entry.points !== null) {
+                  <span class="og-bracket-koc-pts">{{ entry.points }}</span>
+                }
+              </div>
+            } @empty {
+              <div class="og-bracket-koc-row slot">
+                <span class="og-bracket-koc-name">Elenco a definir</span>
+              </div>
+            }
+          </div>
+        } @else {
         <div class="og-bracket-side" [class.winner]="m.winnerSide === 1">
           <span class="og-bracket-side-team">
             <span class="og-bracket-avatar-stack">
@@ -195,6 +218,7 @@ function setsWonOf(score: string): [number, number] {
           </span>
           <span class="og-bracket-side-score">{{ sideScore(m, 2) }}</span>
         </div>
+        }
         <div class="og-bracket-match-sched" [class.set]="!!m.scheduledAt">
           <span class="og-bracket-sched-when">
             @if (m.scheduledAt) {
@@ -232,7 +256,29 @@ function setsWonOf(score: string): [number, number] {
               <div class="og-bracket-round-label og-de-col-label" [style.left.px]="lbl.left" [style.top.px]="lbl.top" [style.width.px]="matchWidth">{{ lbl.label }}</div>
             }
             @for (n of tree.nodes; track n.match.id) {
-              @if (canOpenScore(n.match)) {
+              @if (n.match.koc; as round) {
+                <!-- Rodada: o destino é a MESA (elenco, fila, tabela), não o
+                     placar por sets, que não existe aqui. -->
+                @if (round.teamIds.length > 0) {
+                  <a
+                    class="og-bracket-match og-de-match"
+                    [style.left.px]="n.left"
+                    [style.top.px]="n.top"
+                    [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'ao-vivo', n.match.id]"
+                  >
+                    <ng-container [ngTemplateOutlet]="cardBody" [ngTemplateOutletContext]="{ $implicit: n.match }" />
+                  </a>
+                } @else {
+                  <div
+                    class="og-bracket-match og-de-match is-pending"
+                    [style.left.px]="n.left"
+                    [style.top.px]="n.top"
+                    title="Elenco definido quando a fase anterior terminar"
+                  >
+                    <ng-container [ngTemplateOutlet]="cardBody" [ngTemplateOutletContext]="{ $implicit: n.match }" />
+                  </div>
+                }
+              } @else if (canOpenScore(n.match)) {
                 <a
                   class="og-bracket-match og-de-match"
                   [style.left.px]="n.left"
@@ -268,6 +314,48 @@ function setsWonOf(score: string): [number, number] {
       overscroll-behavior: contain;
       touch-action: pan-x pan-y;
       -webkit-overflow-scrolling: touch;
+    }
+    /* Card da rodada KOTC: lista de elenco, não dois lados. */
+    .og-bracket-koc {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      /* Mesmo recuo lateral do lado do duelo, pro card não trocar de
+         alinhamento entre o duelo e a rodada. */
+      padding: 8px 12px 6px;
+      border-bottom: 1px solid var(--nx-line);
+    }
+    .og-bracket-koc-phase {
+      font-size: 10px;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+      margin-bottom: 2px;
+    }
+    .og-bracket-koc-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .og-bracket-koc-row.slot {
+      color: var(--nx-text-dim);
+      font-style: italic;
+    }
+    .og-bracket-koc-place {
+      min-width: 12px;
+      color: var(--nx-text-dim);
+      font-size: 11px;
+    }
+    .og-bracket-koc-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .og-bracket-koc-pts {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
     }
     .og-bracket-zoom-space {
       position: relative;
@@ -341,9 +429,46 @@ export class ChaveamentoComponent {
     return facesForTeam(this.facesByTeam(), teamId, fallbackLabel);
   }
 
+  /** Título do card da rodada — a fase já está no cabeçalho da coluna, então
+   *  aqui vale o número da rodada dentro dela. */
+  protected kocCardLabel(m: TournamentMatch): string {
+    const round = m.koc;
+    if (!round) return '';
+    const n = round.roundLabel > 0 ? round.roundLabel : m.matchNumber;
+    return kocColumnLabel(m.matchType) === 'Classificatória' ? `Rodada ${n}` : kocColumnLabel(m.matchType);
+  }
+
+  /** Linhas do card: o elenco quando existe, senão as VAGAS que a fase anterior
+   *  vai preencher. Pontos só depois de a rodada começar — antes disso um zero
+   *  na chave passaria por resultado. */
+  protected kocEntries(m: TournamentMatch): { label: string; points: number | null; isSlot: boolean }[] {
+    const round = m.koc;
+    if (!round) return [];
+    if (round.teamIds.length === 0) {
+      return round.qualifierSlots.map((label) => ({ label, points: null, isSlot: true }));
+    }
+    const started = kocHasStarted(round);
+    const order = started ? kocLiveOrder(round) : round.teamIds;
+    return order.map((teamId) => ({
+      label: this.kocTeamLabel(teamId),
+      points: started ? kocPointsOf(round, teamId) : null,
+      isSlot: false,
+    }));
+  }
+
+  /** Nome da dupla a partir dos rostos já hidratados — o mesmo mapa que os
+   *  avatares usam, para a chave não abrir uma segunda fonte de nomes. */
+  private kocTeamLabel(teamId: string): string {
+    const faces = this.facesByTeam().get(teamId) ?? [];
+    const names = faces.map((f) => f.name.trim().split(/\s+/)[0] ?? '').filter((n) => n.length > 0);
+    return names.length > 0 ? names.join(' / ') : 'Dupla';
+  }
+
   private async hydrateFaces(matches: TournamentMatch[]): Promise<void> {
     const ids = [
-      ...new Set(matches.flatMap((m) => [m.teamAId, m.teamBId])),
+      // O elenco entra aqui porque a rodada KOTC grava os dois lados VAZIOS:
+      // colher só `teamAId`/`teamBId` deixaria a chave inteira sem nomes.
+      ...new Set(matches.flatMap((m) => [m.teamAId, m.teamBId, ...(m.koc?.teamIds ?? [])])),
     ].filter((id) => id.length > 0 && !this.hydratedTeamIds.has(id));
     if (ids.length === 0) return;
 

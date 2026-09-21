@@ -1,4 +1,10 @@
-import { isKingOfCourtMatchType, kocPhaseLabel, kocRoundStateFrom, type KocRoundState } from './koc';
+import {
+  isKingOfCourtMatchType,
+  kocColumnLabel,
+  kocPhaseLabel,
+  kocRoundStateFrom,
+  type KocRoundState,
+} from './koc';
 import { collection, getDocs, onSnapshot, query, where, type Unsubscribe } from 'firebase/firestore';
 import { medicalTimeoutFromRaw, statusOf, type MatchDisplayStatus, type MedicalTimeout } from '@nexago/live-scoring';
 import { environment } from '../../../environments/environment';
@@ -175,10 +181,13 @@ function roundLabelOf(
   matchType: string,
   round: number,
   poolId: string,
+  koc: KocRoundState | null,
   matchNumber: number,
 ): string | null {
-  if (isKingOfCourtMatchType(matchType)) {
-    return kocPhaseLabel(matchType, matchNumber);
+  if (koc) {
+    // `kocRoundLabel` é o índice DENTRO da fase; `matchNumber` é global e só
+    // coincide enquanto a primeira fase é a única classificatória.
+    return kocPhaseLabel(matchType, koc.roundLabel > 0 ? koc.roundLabel : matchNumber);
   }
   if (poolId) return `Grupo ${poolId}`;
   const t = matchType.trim().toLowerCase();
@@ -254,6 +263,7 @@ export function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawM
   const sets = setsFromRaw(data['sets']);
   const resultA = optionalStr(data['resultA']);
   const resultB = optionalStr(data['resultB']);
+  const koc = isKingOfCourtMatchType(matchType) ? kocRoundStateFrom(data) : null;
   const teamAId = optionalStr(data['teamAId']);
   const teamBId = optionalStr(data['teamBId']);
   const winnerId = optionalStr(data['winnerId']);
@@ -263,7 +273,7 @@ export function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawM
     id,
     tournamentId: optionalStr(data['tournamentId']) ?? '',
     categoryId: optionalStr(data['categoryId']),
-    round: roundLabelOf(matchType, round, poolId, matchNumberOf(data)),
+    round: roundLabelOf(matchType, round, poolId, koc, matchNumberOf(data)),
     teamAId,
     teamBId,
     teamADescription: optionalStr(data['teamADescription']),
@@ -289,7 +299,7 @@ export function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawM
     servingTeamId: optionalStr(data['servingTeamId']) ?? '',
     servingPlayerSlot: data['servingPlayerSlot'] === 1 || data['servingPlayerSlot'] === 2 ? data['servingPlayerSlot'] : 0,
     medicalTimeout: medicalTimeoutFromRaw(data['medicalTimeout']),
-    koc: isKingOfCourtMatchType(matchType) ? kocRoundStateFrom(data) : null,
+    koc,
     matchStartedAt: toDate(data['matchStartedAt']),
     matchEndedAt: toDate(data['matchEndedAt']),
   };
@@ -322,6 +332,9 @@ function isBracketMatch(m: TournamentMatch): boolean {
 export function bracketGroupKey(m: TournamentMatch): string {
   const t = m.matchType.trim();
   const tLower = t.toLowerCase();
+  // KOTC: a fase mora no `round`. Sem ele na chave, um campo com DUAS fases de
+  // classificatória colapsaria as duas numa coluna só.
+  if (isKingOfCourtMatchType(t)) return `${tLower}:${m.roundNumber}`;
   if (tLower === 'wb' || tLower === 'lb') return `${t.toUpperCase()}:${m.roundNumber}`;
   if (tLower === 'knockout') return `knockout:${m.roundNumber}`;
   if (t) return t;
@@ -372,6 +385,8 @@ function bracketColumnHeaderLabel(matches: readonly TournamentMatch[]): string {
   if (tLower === 'grand final' || tLower === 'grand_final') return 'Grand Final';
   if (tLower === 'third place' || tLower === 'third_place') return '3º Lugar';
   if (tLower === 'knockout') return knockoutPhaseLabel(matches.length);
+  // Sem isto a coluna KOTC vira o identificador cru ("koc_round") no cabeçalho.
+  if (isKingOfCourtMatchType(first.matchType)) return kocColumnLabel(first.matchType);
   return first.matchType.trim() || `Rodada ${first.roundNumber}`;
 }
 

@@ -43,6 +43,15 @@ export interface KocRoundState {
   configuredDurationSec: number;
   /** Nº do último rally gravado — vai em `expectedSeq` no próximo. */
   rallySeq: number;
+  /** Índice da rodada DENTRO da fase (1, 2, 3…), gravado pelo gerador.
+   *  `matchNumber` é global e serviria só enquanto a primeira fase é a única
+   *  classificatória — num campo com duas fases de classificatória ele diria
+   *  "Rodada 5". */
+  roundLabel: number;
+  /** De onde vem cada vaga desta rodada — "1º Rodada 1", "2º Rodada 2"… É o que
+   *  torna a chave legível antes de a fase anterior terminar, quando o elenco
+   *  ainda não existe. */
+  qualifierSlots: string[];
 }
 
 /** Rodada King of the Court, pelo prefixo do `matchType`.
@@ -66,6 +75,15 @@ export function kocPhaseLabel(matchType: string, matchNumber: number): string {
   // Numa quadra só as classificatórias acontecem em sequência: o número
   // responde "qual é a minha".
   return matchNumber > 0 ? `Classificatória · Rodada ${matchNumber}` : 'Classificatória';
+}
+
+/** Cabeçalho da COLUNA da chave: a fase, sem o número da rodada — a coluna
+ *  reúne as rodadas daquela fase, e o número de cada uma vai no card. */
+export function kocColumnLabel(matchType: string): string {
+  const t = normalizeMatchType(matchType);
+  if (t === 'koc final') return 'Final';
+  if (t === 'koc semifinal') return 'Semifinal';
+  return 'Classificatória';
 }
 
 function intOf(value: unknown, fallback = 0): number {
@@ -100,6 +118,17 @@ function clockOf(value: unknown): KocClock | null {
     durationSec: intOf(raw['durationSec'], 900),
     pausedAtMs: typeof paused === 'number' && paused > 0 ? paused : null,
   };
+}
+
+function qualifierSlotsOf(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  for (const item of value) {
+    if (item == null || typeof item !== 'object') continue;
+    const description = strOf((item as Record<string, unknown>)['description']);
+    if (description) out.push(description);
+  }
+  return out;
 }
 
 function standingsOf(value: unknown): KocStanding[] {
@@ -137,6 +166,8 @@ export function kocRoundStateFrom(data: Record<string, unknown>): KocRoundState 
     qualifiersPerRound: intOf(config['qualifiersPerRound'], 2),
     configuredDurationSec: intOf(config['durationSec'], 900),
     rallySeq: intOf(data['kocRallySeq']),
+    roundLabel: intOf(data['kocRoundLabel']),
+    qualifierSlots: qualifierSlotsOf(data['kocQualifiers']),
   };
 }
 

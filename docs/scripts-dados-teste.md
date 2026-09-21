@@ -43,6 +43,17 @@ inscrições pagas** (16 duplas por categoria — `MAX_TEAMS_PER_CATEGORY`). O
 torneio nasce `open`, sem chave gerada — gerar a chave pelo painel é o fluxo
 que se quer testar manualmente depois.
 
+O atleta de seed tem cara de gente: nome real com o número colado
+(`Carlos 01`, `Débora 33`) e um avatar ilustrado em `profilePhotoUrl`. O
+número é a posição GLOBAL no grid nível×gênero — é ele que identifica, já que
+a lista de nomes gira. Nome e avatar saem da identidade do **e-mail**, que
+segue sendo a chave de idempotência: rodar de novo devolve a mesma pessoa,
+com a mesma cara, e atualiza também o Auth (`displayName`/`photoURL`).
+
+> O avatar vem do `api.dicebear.com` (CORS liberado, de propósito: sem isso a
+> foto sumiria dos cards desenhados em canvas). Base já semeada antes desta
+> mudança é **renomeada** na próxima rodada — os e-mails não mudam.
+
 A 11ª é a **King of the Court** (`koc-open-masc`), somada por fora do grid
 nível×gênero. O torneio de teste nasce com os DOIS formatos de propósito: é o
 cenário real, em que a rodada KOTC divide a coleção `matches` com partidas de

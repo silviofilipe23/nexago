@@ -48,9 +48,21 @@ const FEMALE_NAMES = [
   "Sofia", "Talita", "Thaís", "Valentina", "Yasmin", "Andressa",
 ];
 
+// O desenho do avatar não tem gênero — quem separa é a lista de opções: cabelo
+// curto com barba de vez em quando de um lado, cabelo longo e barba nunca do
+// outro. Sem isso o "Carlos" saía de cabelão e ruivo.
+const MALE_AVATAR =
+  "top=dreads01,dreads02,frizzle,shaggy,shortCurly,shortFlat," +
+  "shortRound,shortWaved,sides,theCaesar,theCaesarAndSidePart" +
+  "&facialHairProbability=50";
+const FEMALE_AVATAR =
+  "top=bob,bun,curly,curvy,fro,froBand,longButNotTooLong,miaWallace," +
+  "straight01,straight02,straightAndStrand,bigHair" +
+  "&facialHairProbability=0";
+
 // `short` é do E-MAIL (não mexa: renomear troca o uid do atleta na próxima
 // rodada e quebra a idempotência); `nameShort` entra nas keywords (busca por
-// "fem") e `names` é de onde sai o nome exibido.
+// "fem"), `names` é de onde sai o nome exibido e `avatar` a cara.
 const GENDERS = [
   {
     type: "male",
@@ -58,6 +70,7 @@ const GENDERS = [
     short: "m",
     nameShort: "masc",
     names: MALE_NAMES,
+    avatar: MALE_AVATAR,
   },
   {
     type: "female",
@@ -65,6 +78,7 @@ const GENDERS = [
     short: "f",
     nameShort: "fem",
     names: FEMALE_NAMES,
+    avatar: FEMALE_AVATAR,
   },
 ];
 
@@ -109,20 +123,67 @@ function phoneFor(seq) {
   return `629${String(seq).padStart(8, "0")}`;
 }
 
-async function ensureAuthUser(auth, email, displayName, password) {
-  let uid;
+// Avatar ILUSTRADO, não banco de fotos: o DiceBear responde com
+// `Access-Control-Allow-Origin: *` e os bancos de foto grátis não. Sem esse
+// cabeçalho a imagem até aparece no app e nos portais, mas some justamente
+// dos cards/pôsteres desenhados em canvas — que pedem `crossOrigin`
+// anônimo e caem nas iniciais quando o host nega CORS.
+const AVATAR_STYLE = "avataaars";
+// Cada opção é uma LISTA e o DiceBear escolhe uma pelo seed. O fundo é sólido
+// porque o PNG transparente sumia com cabelo escuro no fundo escuro do telão;
+// boca/olho/sobrancelha vêm recortados no alegre — o padrão sorteia caras
+// gritando e chorando, que num card de campeão ficavam esquisitas.
+const AVATAR_COMMON =
+  "size=256" +
+  "&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf" +
+  "&mouth=default,smile,twinkle,serious" +
+  "&eyes=default,happy,squint,wink" +
+  "&eyebrows=default,defaultNatural,flatNatural,raisedExcited";
+
+/**
+ * O seed é a identidade do E-MAIL (`iniciante_1-m-01`), não o nome: a mesma
+ * conta volta com a mesma cara em toda rodada, e trocar a lista de nomes não
+ * redesenha ninguém.
+ */
+function avatarUrlFor(identity, genderType) {
+  const gender = GENDERS.find((g) => g.type === genderType);
+  if (!gender) throw new Error(`gênero desconhecido: ${genderType}`);
+  return (
+    `https://api.dicebear.com/9.x/${AVATAR_STYLE}/png` +
+    `?seed=${encodeURIComponent(identity)}&${AVATAR_COMMON}&${gender.avatar}`
+  );
+}
+
+async function ensureAuthUser(auth, email, displayName, photoURL, password) {
+  // Só a BUSCA fica no try: com o update aqui dentro, uma falha dele cairia no
+  // catch e tentaria criar uma conta que já existe.
+  let existing = null;
   try {
-    const existing = await auth.getUserByEmail(email);
-    uid = existing.uid;
+    existing = await auth.getUserByEmail(email);
   } catch (e) {
+    existing = null;
+  }
+
+  let uid;
+  if (existing) {
+    uid = existing.uid;
+    // Conta que já existia também precisa acompanhar: nome e foto do seed
+    // mudam entre rodadas e, sem isso, o Auth ficaria preso no nome antigo
+    // enquanto o Firestore mostra o novo.
+    if (existing.displayName !== displayName || existing.photoURL !== photoURL) {
+      await auth.updateUser(uid, {displayName, photoURL});
+    }
+  } else {
     const created = await auth.createUser({
       email,
       password,
       displayName,
+      photoURL,
       emailVerified: true,
     });
     uid = created.uid;
   }
+
   await auth.setCustomUserClaims(uid, {role: "athlete", roles: ["athlete"]});
   return uid;
 }
@@ -164,15 +225,26 @@ async function seedAthletes({
         const seq = baseSeq + n;
         const firstName = gender.names[(seq - 1) % gender.names.length];
         const fullName = `${firstName} ${String(seq).padStart(2, "0")}`;
-        const email = `seed-${level.code}-${gender.short}-${nn}@nexago.test`;
+        const identity = `${level.code}-${gender.short}-${nn}`;
+        const email = `seed-${identity}@nexago.test`;
         const phone = phoneFor(seq);
         const birthDate = birthDateForLevel(n);
+        const photoUrl = avatarUrlFor(identity, gender.type);
 
-        const uid = await ensureAuthUser(auth, email, fullName, password);
+        const uid = await ensureAuthUser(
+          auth,
+          email,
+          fullName,
+          photoUrl,
+          password,
+        );
 
         const profile = {
           fullName,
           email,
+          // Campo canônico da foto; `avatarUrl`/`photoURL` são só leitura
+          // legada e caem neste quando existe.
+          profilePhotoUrl: photoUrl,
           gender: gender.label,
           role: "athlete",
           roles: ["athlete"],
@@ -223,5 +295,6 @@ module.exports = {
   LEVELS,
   GENDERS,
   generateKeywords,
+  avatarUrlFor,
   seedAthletes,
 };

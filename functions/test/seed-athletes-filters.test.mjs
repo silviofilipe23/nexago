@@ -19,7 +19,9 @@ import assert from "node:assert/strict";
 import {createRequire} from "node:module";
 
 const require = createRequire(import.meta.url);
-const {seedAthletes, LEVELS, GENDERS} = require("../scripts/seed-athletes-lib");
+const {seedAthletes, avatarUrlFor, LEVELS, GENDERS} = require(
+  "../scripts/seed-athletes-lib",
+);
 
 const COUNT = 2;
 
@@ -156,10 +158,75 @@ describe("seed de atletas: nome de gente", () => {
     const {profiles} = await runSeed({levels: ["intermediario_2"], genders: ["female"]});
     const {fullName, keywords} = profiles.get("seed-intermediario_2-f-01@nexago.test");
     const firstName = fullName.split(" ")[0].toLowerCase()
-      .normalize("NFD").replace(/[̀-ͯ]/g, "");
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     for (const term of ["fem", "int", "int_2", firstName]) {
       assert.ok(keywords.includes(term), `busca por "${term}" não acharia o atleta`);
     }
+  });
+
+  it("todo atleta nasce com avatar no campo canônico da foto", async () => {
+    const {profiles, total} = await runSeed();
+    const urls = [...profiles.values()].map((p) => p.profilePhotoUrl);
+    assert.ok(urls.every((u) => typeof u === "string" && u.startsWith("https://")));
+    assert.equal(new Set(urls).size, total, "avatares repetidos entre atletas");
+  });
+
+  it("o avatar é do e-mail, não do nome: renomear não troca a cara", async () => {
+    const {profiles} = await runSeed({levels: ["open"], genders: ["male"]});
+    const {profilePhotoUrl} = profiles.get("seed-open-m-01@nexago.test");
+    assert.equal(profilePhotoUrl, avatarUrlFor("open-m-01", "male"));
+    assert.ok(
+      profilePhotoUrl.includes("seed=open-m-01"),
+      `seed do avatar fora do esperado: ${profilePhotoUrl}`,
+    );
+  });
+
+  it("a conta que já existia é atualizada — nome e foto novos chegam no Auth", async () => {
+    const atualizados = [];
+    const {profiles} = await runSeed({
+      levels: ["open"],
+      genders: ["male"],
+      auth: {
+        getUserByEmail: async (email) => ({
+          uid: `uid-${email}`,
+          displayName: "nome antigo",
+          photoURL: null,
+        }),
+        updateUser: async (uid, patch) => atualizados.push({uid, ...patch}),
+        createUser: async () => assert.fail("não deveria criar conta que existe"),
+        setCustomUserClaims: async () => {},
+      },
+    });
+    assert.equal(atualizados.length, profiles.size);
+    const primeiro = profiles.get("seed-open-m-01@nexago.test");
+    assert.equal(atualizados[0].displayName, primeiro.fullName);
+    assert.equal(atualizados[0].photoURL, primeiro.profilePhotoUrl);
+  });
+
+  it("nada a mudar no Auth não gera escrita", async () => {
+    let updates = 0;
+    await runSeed({
+      levels: ["open"],
+      genders: ["male"],
+      auth: {
+        getUserByEmail: async (email) => {
+          const nn = email.slice("seed-open-m-".length, -"@nexago.test".length);
+          const seq = 4 * GENDERS.length * COUNT + Number(nn);
+          const names = GENDERS.find((g) => g.type === "male").names;
+          return {
+            uid: `uid-${email}`,
+            displayName: `${names[(seq - 1) % names.length]} ${String(seq).padStart(2, "0")}`,
+            photoURL: avatarUrlFor(`open-m-${nn}`, "male"),
+          };
+        },
+        updateUser: async () => {
+          updates += 1;
+        },
+        createUser: async () => assert.fail("não deveria criar conta que existe"),
+        setCustomUserClaims: async () => {},
+      },
+    });
+    assert.equal(updates, 0);
   });
 
   it("o nível de verdade segue no perfil, não no nome", async () => {

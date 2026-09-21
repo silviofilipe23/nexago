@@ -6,6 +6,7 @@ import {
   kocHasStarted,
   kocIsExpired,
   kocLiveOrder,
+  kocLogLines,
   kocPhaseLabel,
   kocPointsOf,
   kocRemainingLabel,
@@ -238,5 +239,29 @@ describe('kocQualifyingTieGroup', () => {
 
   it('sem corte a decidir, não há bola de ouro', () => {
     expect(kocQualifyingTieGroup(withPoints({ A: 0, B: 0, C: 0, D: 0 }, 4))).toEqual([]);
+  });
+});
+
+describe('kocLogLines', () => {
+  it('reconstrói quem pontuou e quem coroou, do mais recente ao mais antigo', () => {
+    // A no trono, B desafia, C/D na fila.
+    // 1) A defende → C entra. 2) C coroa → D entra. 3) C defende.
+    const round = kocRoundStateFrom(
+      doc({
+        kocTeamIds: ['A', 'B', 'C', 'D'],
+        kocRallies: [
+          { seq: 1, winner: 'king', atMs: 1_000 },
+          { seq: 2, winner: 'challenger', atMs: 2_000 },
+          { seq: 3, winner: 'king', atMs: 3_000 },
+        ],
+      }),
+    );
+    const lines = kocLogLines(round);
+    expect(lines.map((l) => ({ teamId: l.teamId, kind: l.kind }))).toEqual([
+      { teamId: 'C', kind: 'point' },
+      { teamId: 'C', kind: 'crown' },
+      { teamId: 'A', kind: 'point' },
+    ]);
+    expect(lines[0]?.atMs).toBe(3_000);
   });
 });

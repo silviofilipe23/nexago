@@ -117,7 +117,7 @@ interface AgendaBloco {
             Ir para Meus eventos
           </a>
         </div>
-      } @else if (ctx.tournaments().length > 0 && ctx.matches().length === 0) {
+      } @else if (ctx.matches().length === 0) {
         <div class="og-card og-agenda-empty">
           <p class="og-agenda-empty-title">Chaves ainda não geradas</p>
           <p class="og-agenda-empty-copy">

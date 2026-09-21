@@ -107,29 +107,57 @@ describe("seed de atletas: recorte por nível e gênero", () => {
   });
 });
 
-describe("seed de atletas: nome curto", () => {
-  it("nome sai no formato `<gênero>-<nível>-<nn>`", async () => {
+describe("seed de atletas: nome de gente", () => {
+  const namesOf = (type) => GENDERS.find((g) => g.type === type).names;
+
+  it("nome sai no formato `<Primeiro nome> <nº>`", async () => {
     const {profiles} = await runSeed({levels: ["iniciante_1"], genders: ["male"]});
+    const [first, second] = namesOf("male");
     assert.deepEqual(
       [...profiles.values()].map((p) => p.fullName).sort(),
-      ["masc-ini_1-01", "masc-ini_1-02"],
+      [`${first} 01`, `${second} 02`],
     );
   });
 
-  it("feminino e Open usam os mesmos códigos curtos", async () => {
+  it("o gênero escolhe a lista de nomes", async () => {
     const {profiles} = await runSeed({levels: ["open"], genders: ["female"]});
-    assert.equal(profiles.get("seed-open-f-01@nexago.test").fullName, "fem-open-01");
+    for (const {fullName} of profiles.values()) {
+      const [firstName] = fullName.split(" ");
+      assert.ok(
+        namesOf("female").includes(firstName),
+        `"${firstName}" não é nome da lista feminina`,
+      );
+    }
   });
 
-  it("encurtar o nome não mexe no e-mail — é ele que dá a idempotência", async () => {
+  it("o número é global: ninguém repete nome, nem quando a lista gira", async () => {
+    const {profiles, total} = await runSeed();
+    const nomes = new Set([...profiles.values()].map((p) => p.fullName));
+    assert.equal(nomes.size, total);
+  });
+
+  it("o número do nome não renumera sob recorte", async () => {
+    const {profiles: completo} = await runSeed();
+    const {profiles: recortado} = await runSeed({
+      levels: ["open"],
+      genders: ["female"],
+    });
+    for (const [email, profile] of recortado.entries()) {
+      assert.equal(profile.fullName, completo.get(email).fullName);
+    }
+  });
+
+  it("o nome não manda no e-mail — é ele que dá a idempotência", async () => {
     const {profiles} = await runSeed({levels: ["intermediario_2"], genders: ["male"]});
     assert.ok(profiles.has("seed-intermediario_2-m-01@nexago.test"));
   });
 
-  it("nível e gênero continuam achaveis na busca, apesar do nome sem espaço", async () => {
+  it("nível e gênero continuam achaveis na busca, apesar do nome de gente", async () => {
     const {profiles} = await runSeed({levels: ["intermediario_2"], genders: ["female"]});
-    const {keywords} = profiles.get("seed-intermediario_2-f-01@nexago.test");
-    for (const term of ["fem", "int", "int_2", "01"]) {
+    const {fullName, keywords} = profiles.get("seed-intermediario_2-f-01@nexago.test");
+    const firstName = fullName.split(" ")[0].toLowerCase()
+      .normalize("NFD").replace(/[̀-ͯ]/g, "");
+    for (const term of ["fem", "int", "int_2", firstName]) {
       assert.ok(keywords.includes(term), `busca por "${term}" não acharia o atleta`);
     }
   });

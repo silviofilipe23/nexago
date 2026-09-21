@@ -62,7 +62,7 @@ function kocMatch(
     koc: {
       teamIds, kingTeamId: '', challengerTeamId: '', queue: [], points: {}, rallies: 0,
       servingTeamId: '', clock: null, standings: [], qualifiersPerRound: 2,
-      configuredDurationSec: 900, rallySeq: 0, roundLabel: n, qualifierSlots,
+      configuredDurationSec: 900, rallySeq: 0, rallyLog: [], roundLabel: n, qualifierSlots,
     },
     round: 'Classificatória · Rodada 1', team1Label: 'A definir', team2Label: 'A definir', score: null, winnerSide: null,
     scheduledAt: null, court: null, status: 'scheduled', teamAId: '', teamBId: '', sets: [],
@@ -137,6 +137,29 @@ describe('AgendamentoComponent — torneio King of the Court', () => {
 
     it('explica que o torneio nao esta disponivel em vez de ficar em branco', () => {
       expect(host().querySelector('.og-agenda-empty')?.textContent ?? '').toContain('não está disponível');
+    });
+  });
+
+  /** Super admin abrindo evento alheio pela aba Plataforma: `listMyTournaments` não traz o
+   *  torneio (é dono + staff), mas o doc dele chega pelo id da rota — ver `tournamentReach`.
+   *  A grade tem que sair mesmo com a lista de eventos próprios vazia. */
+  describe('torneio alheio alcançado por super admin', () => {
+    beforeEach(() => {
+      ctx.tournaments.set([]);
+      fixture.detectChanges();
+    });
+
+    it('desenha as quadras do torneio, sem evento próprio na lista', () => {
+      expect(Array.from(host().querySelectorAll('.og-agenda-col-label')).map((e) => e.textContent?.trim()))
+        .toEqual(['Quadra 1', 'Quadra 2']);
+      expect(host().querySelector('.og-agenda-empty')).toBeNull();
+    });
+
+    it('avisa que a chave não foi gerada quando não há partida', () => {
+      ctx.matches.set([]);
+      ctx.matchesFiltered.set([]);
+      fixture.detectChanges();
+      expect(host().querySelector('.og-agenda-empty')?.textContent ?? '').toContain('Chaves ainda não geradas');
     });
   });
 

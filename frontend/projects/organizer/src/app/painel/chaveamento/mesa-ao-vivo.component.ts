@@ -33,9 +33,10 @@ import {
   type MatchDisplayStatus,
   type MatchSide,
 } from '@nexago/live-scoring';
-import { isKingOfCourtMatchType } from '../data/koc';
+import { isKingOfCourtMatchType, kocIsExpired, kocPhaseLabel, kocRemainingLabel } from '../data/koc';
 import { organizerFirestore } from '../data/firestore';
 import { organizerLiveScoringContext } from '../data/live-scoring-context';
+import { formatCourtLabel } from '../data/schedule-format';
 import { fetchProfileNames, fetchTeamsByIds } from '../data/teams-repository';
 import { environment } from '../../../environments/environment';
 import { revertMatchToScheduled, updateLiveMatchScore, validateMatchResult } from '../data/organizer-ops.service';
@@ -92,12 +93,29 @@ interface MedicalOptionView {
   imports: [RouterLink, OgPageHeaderComponent, OgCardComponent, OgAvatarComponent, OgPillComponent, OgConfirmDialogComponent, NxPageLoadingComponent, NxSpinnerComponent, MesaKocComponent],
   template: `
     <og-page-header title="Mesa ao vivo" [subtitle]="headerSubtitle()">
-      <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'jogos']">Voltar</a>
-      <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'placar', matchId()]">Placar completo</a>
+      @if (isKingOfCourt()) {
+        @if (status() === 'in_progress') {
+          <span class="og-mesa-koc-live">
+            <span class="og-mesa-koc-live-dot" aria-hidden="true"></span>
+            Rodada ao vivo
+          </span>
+          @if (kocHeaderClock(); as clock) {
+            <span class="og-mesa-koc-clock">{{ clock }}</span>
+          }
+        } @else if (kocCourtBadge(); as badge) {
+          <span class="og-mesa-koc-badge">{{ badge }}</span>
+        }
+        <a class="og-ghost-btn" [href]="'/telao/' + id()" target="_blank" rel="noopener">Abrir telão</a>
+        <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'jogos']">Placar completo</a>
+        <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'jogos']">Voltar</a>
+      } @else {
+        <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'jogos']">Voltar</a>
+        <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'placar', matchId()]">Placar completo</a>
+      }
     </og-page-header>
 
     <div class="og-wizard-body">
-      <div class="og-wizard-col">
+      <div class="og-wizard-col" [class.og-mesa-koc-wrap]="isKingOfCourt()">
         @if (!liveLoaded()) {
           <og-card><app-nx-page-loading title="Carregando partida…" subtitle="Conectando à mesa ao vivo" /></og-card>
         } @else if (!match()) {
@@ -106,7 +124,7 @@ interface MedicalOptionView {
           <!-- Rodada KOTC: mesa própria. A checagem vem ANTES de teamsReady(),
                que exige os dois lados definidos — a rodada não tem lados, então
                cairia no aviso de "aguardando as duas equipes" para sempre. -->
-          <og-mesa-koc [id]="id()" [matchId]="matchId()" />
+          <og-mesa-koc [id]="id()" [matchId]="matchId()" [catId]="catId()" />
         } @else if (!teamsReady()) {
           <og-card kicker="Mesa ao vivo" title="Aguardando as duas equipes">
             <p class="og-mesa-empty">A mesa só abre quando os dois lados da partida estiverem definidos na chave.</p>
@@ -750,6 +768,68 @@ interface MedicalOptionView {
       color: var(--nx-text-mute);
       margin: 0;
     }
+    .og-mesa-koc-wrap {
+      max-width: none;
+      width: 100%;
+    }
+    .og-mesa-koc-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--nx-orange-500) 55%, transparent);
+      color: var(--nx-orange-500);
+      font-family: var(--nx-font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .og-mesa-koc-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--nx-live) 55%, transparent);
+      color: var(--nx-live);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .og-mesa-koc-live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--nx-live);
+      box-shadow: 0 0 8px color-mix(in srgb, var(--nx-live) 70%, transparent);
+      animation: og-mesa-koc-dot 1.4s ease-in-out infinite;
+    }
+    @keyframes og-mesa-koc-dot {
+      0%,
+      100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.35;
+      }
+    }
+    .og-mesa-koc-clock {
+      font-family: var(--nx-font-mono);
+      font-size: 28px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .og-mesa-koc-live-dot {
+        animation: none;
+      }
+    }
     @media (max-width: 640px) {
       .og-mesa-board {
         gap: 8px;
@@ -790,6 +870,25 @@ export class MesaAoVivoComponent {
   protected readonly isKingOfCourt = computed(() =>
     isKingOfCourtMatchType(this.match()?.matchType ?? ''),
   );
+
+  /** Badge do protótipo: "QUADRA 3 · PRONTA" / "AO VIVO" / "ENCERRADA". */
+  protected readonly kocCourtBadge = computed(() => {
+    const m = this.match();
+    if (!m || !this.isKingOfCourt()) return null;
+    const court = formatCourtLabel(m.courtName) || 'Quadra';
+    const status =
+      m.status === 'in_progress' ? 'Ao vivo' : m.status === 'completed' ? 'Encerrada' : 'Pronta';
+    return `${court} · ${status}`;
+  });
+
+  /** Relógio do header KOTC — lê o match do contexto (mesmo doc que a mesa). */
+  protected readonly kocHeaderClock = computed(() => {
+    if (!this.isKingOfCourt() || this.status() !== 'in_progress') return null;
+    const clock = this.cachedRow()?.koc?.clock;
+    if (!clock) return null;
+    this.now(); // tick a cada 1s
+    return kocIsExpired(clock, this.now()) ? 'TEMPO!' : kocRemainingLabel(clock, this.now());
+  });
 
   private readonly live = signal<LiveMatch | null>(null);
   protected readonly liveLoaded = signal(false);
@@ -1042,6 +1141,10 @@ export class MesaAoVivoComponent {
   });
 
   protected readonly headerSubtitle = computed(() => {
+    const m = this.match();
+    if (m && this.isKingOfCourt()) {
+      return kocPhaseLabel(m.matchType, m.matchNumber);
+    }
     const t = this.ctx.tournament();
     const row = this.cachedRow();
     return [t?.name, row?.round ?? null].filter((p): p is string => Boolean(p)).join(' · ');

@@ -209,11 +209,24 @@ describe("kocRegisterRallyCore", () => {
     seedRound(fake);
     await play(fake, ["king", "challenger", "king"]);
 
-    assert.deepEqual(round(fake).kocRallies, [
-      {seq: 1, winner: "king"},
-      {seq: 2, winner: "challenger"},
-      {seq: 3, winner: "king"},
-    ]);
+    // `atMs` é carimbado no registro e preservado nas regravações — o log
+    // guarda QUANDO, além de o quê. Compara o par (seq, winner) para não
+    // prender o teste ao relógio.
+    const log = round(fake).kocRallies as Array<Record<string, unknown>>;
+    assert.deepEqual(
+      log.map((r) => ({seq: r.seq, winner: r.winner})),
+      [
+        {seq: 1, winner: "king"},
+        {seq: 2, winner: "challenger"},
+        {seq: 3, winner: "king"},
+      ],
+    );
+    for (const entry of log) {
+      assert.ok(
+        typeof entry.atMs === "number" && entry.atMs > 0,
+        `rally ${entry.seq} sem atMs`,
+      );
+    }
     assert.equal(round(fake).kocRallySeq, 3);
   });
 

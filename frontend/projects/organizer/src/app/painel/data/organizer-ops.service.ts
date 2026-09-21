@@ -515,10 +515,22 @@ export function clearRevealSpotlight(
  *  DOIS, e é por isso que `registerKocRally` manda `expectedSeq`: se as duas
  *  mesas registrarem o mesmo rally, o servidor recusa a segunda com
  *  `koc_seq_mismatch` em vez de criar um ponto fantasma. */
-export function startKocRound(params: { matchId: string; restart?: boolean }): Promise<{ ok?: boolean; endsAtMs?: number }> {
+export function startKocRound(params: {
+  matchId: string;
+  restart?: boolean;
+  /** Ordem do elenco no apito — 1º no trono, 2º desafia, resto na fila. */
+  teamIds?: readonly string[];
+  /** Duração da rodada em segundos (clamp no servidor: 5–40 min). */
+  durationSec?: number;
+  /** Quantas duplas avançam. */
+  qualifiersPerRound?: number;
+}): Promise<{ ok?: boolean; endsAtMs?: number }> {
   return call('kocStartRound', {
     matchId: params.matchId.trim(),
     ...(params.restart ? { restart: true } : {}),
+    ...(params.teamIds != null ? { teamIds: [...params.teamIds] } : {}),
+    ...(params.durationSec != null ? { durationSec: params.durationSec } : {}),
+    ...(params.qualifiersPerRound != null ? { qualifiersPerRound: params.qualifiersPerRound } : {}),
   });
 }
 

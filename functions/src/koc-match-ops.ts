@@ -94,10 +94,43 @@ export function parseStoredRallies(raw: unknown): KocRally[] {
 }
 
 /** Desfecho reconhecido pelo motor. `serve_fault` = erro de saque do
- *  desafiante: perde a vez, ninguém pontua. */
+ *  desafiante: perde a vez, ninguém pontua. `golden_point` aponta uma dupla. */
 function isKocRallyOutcome(value: string): value is KocRallyOutcome {
   return value === "king" || value === "challenger" ||
     value === "serve_fault" || value === "golden_point";
+}
+
+/** Serializa o log preservando `atMs` já gravados; opcionalmente carimba um seq novo.
+ *
+ *  `teamId` precisa sobreviver aqui: é o que diz QUEM venceu a bola de ouro, e
+ *  o log é a única verdade do placar. Perdê-lo numa regravação faria o replay
+ *  seguinte recusar a rodada inteira (`koc_golden_team_not_in_roster`). */
+export function serializeKocRallies(
+  rallies: readonly KocRally[],
+  previousRaw: unknown,
+  stampSeq?: number,
+): Array<{seq: number; winner: KocRallyOutcome; teamId?: string; atMs?: number}> {
+  const prevAt = new Map<number, number>();
+  if (Array.isArray(previousRaw)) {
+    for (const item of previousRaw) {
+      if (item == null || typeof item !== "object") continue;
+      const entry = item as Record<string, unknown>;
+      const seq = Number(entry.seq);
+      const at = Number(entry.atMs);
+      if (!Number.isInteger(seq) || seq < 1) continue;
+      if (!Number.isFinite(at) || at <= 0) continue;
+      prevAt.set(seq, Math.trunc(at));
+    }
+  }
+  return rallies.map((r) => {
+    const atMs = stampSeq === r.seq ? Date.now() : prevAt.get(r.seq);
+    return {
+      seq: r.seq,
+      winner: r.winner,
+      ...(r.teamId ? {teamId: r.teamId} : {}),
+      ...(atMs != null ? {atMs} : {}),
+    };
+  });
 }
 
 export function parseStoredClock(raw: unknown): KocClock | null {
@@ -127,6 +160,7 @@ export function kocStateFields(
   state: KocState,
   clock: KocClock,
   rallies: readonly KocRally[],
+  opts?: {previousRalliesRaw?: unknown; stampSeq?: number},
 ): Record<string, unknown> {
   return {
     kocState: {
@@ -147,7 +181,11 @@ export function kocStateFields(
       // Derivado no servidor, de propósito.
       endsAtMs: kocClockEndsAtMs(clock),
     },
-    kocRallies: rallies.map((r) => ({seq: r.seq, winner: r.winner})),
+    kocRallies: serializeKocRallies(
+      rallies,
+      opts?.previousRalliesRaw,
+      opts?.stampSeq,
+    ),
     kocRallySeq: rallies.length,
   };
 }
@@ -242,16 +280,34 @@ export async function kocStartRoundCore(
     );
   }
 
+  // Ordem / duração / vagas: a mesa de preparação ajusta ANTES do apito. Sem
+  // isso a UI só mostraria chips decorativos — o elenco e o relógio nasceriam
+  // da config gerada na chave, não do que o mesário configurou na areia.
+  const teamIds = resolveStartRoster(round.teamIds, input.teamIds);
+  const durationSec = resolveStartDuration(round.durationSec, input.durationSec);
+  const qualifiersPerRound = resolveStartQualifiers(
+    round.qualifiersPerRound,
+    teamIds.length,
+    input.qualifiersPerRound,
+  );
+
   let state: KocState;
   try {
-    state = kocReplay(round.teamIds, []);
+    state = kocReplay(teamIds, []);
   } catch (e) {
     engineErrorToHttps(e);
   }
 
-  const clock = kocClockStart(nowMs, round.durationSec);
+  const clock = kocClockStart(nowMs, durationSec);
+  const prevConfig = (round.data.kocConfig ?? {}) as Record<string, unknown>;
   await round.ref.update({
     ...kocStateFields(state, clock, []),
+    kocTeamIds: teamIds,
+    kocConfig: {
+      ...prevConfig,
+      durationSec,
+      qualifiersPerRound,
+    },
     status: MatchStatus.inProgress,
     matchStartedAt: FieldValue.serverTimestamp(),
     matchEndedAt: FieldValue.delete(),
@@ -266,6 +322,61 @@ export async function kocStartRoundCore(
     asString(round.data.tournamentId),
   );
   return {ok: true, endsAtMs: kocClockEndsAtMs(clock)};
+}
+
+/** Permutação do elenco atual — mesma coleção, ordem nova. Recusa id forasteiro. */
+function resolveStartRoster(
+  current: readonly string[],
+  requested: unknown,
+): string[] {
+  if (!Array.isArray(requested)) return [...current];
+  const next = requested.map(asString).filter((id) => id.length > 0);
+  if (next.length !== current.length) {
+    throw new HttpsError(
+      "invalid-argument",
+      "A ordem da fila precisa incluir exatamente as duplas da rodada.",
+      {reason: "koc_roster_mismatch"},
+    );
+  }
+  const currentSet = new Set(current);
+  const seen = new Set<string>();
+  for (const id of next) {
+    if (!currentSet.has(id) || seen.has(id)) {
+      throw new HttpsError(
+        "invalid-argument",
+        "A ordem da fila precisa incluir exatamente as duplas da rodada.",
+        {reason: "koc_roster_mismatch"},
+      );
+    }
+    seen.add(id);
+  }
+  return next;
+}
+
+function resolveStartDuration(current: number, requested: unknown): number {
+  if (requested == null) return current;
+  const raw = Number(requested);
+  if (!Number.isFinite(raw)) {
+    throw new HttpsError("invalid-argument", "durationSec inválido.");
+  }
+  return Math.min(
+    KOC_MAX_ROUND_DURATION_SEC,
+    Math.max(KOC_MIN_ROUND_DURATION_SEC, Math.round(raw)),
+  );
+}
+
+function resolveStartQualifiers(
+  current: number,
+  rosterSize: number,
+  requested: unknown,
+): number {
+  if (requested == null) return current;
+  const raw = Number(requested);
+  if (!Number.isFinite(raw)) {
+    throw new HttpsError("invalid-argument", "qualifiersPerRound inválido.");
+  }
+  const max = Math.max(1, rosterSize - 1);
+  return Math.min(max, Math.max(1, Math.round(raw)));
 }
 
 // ─── Rally ──────────────────────────────────────────────────────────────────
@@ -312,7 +423,10 @@ export async function kocRegisterRallyCore(
   }
 
   await round.ref.update({
-    ...kocStateFields(state, clock, rallies),
+    ...kocStateFields(state, clock, rallies, {
+      previousRalliesRaw: round.data.kocRallies,
+      stampSeq: nextSeq,
+    }),
     updatedAt: FieldValue.serverTimestamp(),
   });
   return {ok: true, seq: nextSeq, kingTeamId: state.kingTeamId};
@@ -395,7 +509,10 @@ export async function kocGoldenPointCore(
   }
 
   await round.ref.update({
-    ...kocStateFields(next, clock, rallies),
+    ...kocStateFields(next, clock, rallies, {
+      previousRalliesRaw: round.data.kocRallies,
+      stampSeq: nextSeq,
+    }),
     updatedAt: FieldValue.serverTimestamp(),
   });
   return {ok: true, seq: nextSeq, teamId};
@@ -429,7 +546,9 @@ export async function kocUndoRallyCore(
   }
 
   await round.ref.update({
-    ...kocStateFields(state, clock, rallies),
+    ...kocStateFields(state, clock, rallies, {
+      previousRalliesRaw: round.data.kocRallies,
+    }),
     updatedAt: FieldValue.serverTimestamp(),
   });
   return {ok: true, rallies: rallies.length};

@@ -7,6 +7,14 @@
 ///
 /// Só o `matchType` separa as duas coisas, então todo consumidor que lê
 /// `teamAId`/`teamBId` precisa passar por [TournamentMatchType.isDuel].
+/// Troca entre rodadas King of the Court, em minutos.
+///
+/// A duração configurada é o tempo de JOGO; o slot de quadra precisa da troca
+/// também. Espelha `KOC_CHANGEOVER_MIN` de
+/// `functions/src/match-schedule-allocation.ts`, que é quem impõe a janela ao
+/// gravar — aqui é só pra prévia e grade do app não mostrarem outro número.
+const int kocChangeoverMin = 5;
+
 abstract final class TournamentMatchType {
   TournamentMatchType._();
 

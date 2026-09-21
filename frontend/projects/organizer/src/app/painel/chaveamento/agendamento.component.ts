@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { KOC_CHANGEOVER_MIN } from '../data/koc';
 import { truncateName } from '../data/mock-data';
 import type { TournamentMatch } from '../data/matches-repository';
 import {
@@ -182,7 +183,7 @@ interface AgendaBloco {
                           [style.height.px]="(b.durMin / slotMin) * rowH - 3"
                           (click)="onBlockClick(b.match)"
                         >
-                          <div class="partida" [title]="b.match.team1Label + ' vs ' + b.match.team2Label">{{ truncate(b.match.team1Label, 14) }} vs {{ truncate(b.match.team2Label, 14) }}</div>
+                          <div class="partida" [title]="matchTitle(b.match)">{{ matchLabel(b.match, 14) }}</div>
                           <div class="meta">
                             <span>#{{ b.match.matchNumber || '—' }}</span>
                             @if (b.match.round; as round) {
@@ -355,7 +356,7 @@ interface AgendaBloco {
             @for (m of bulkSelectedMatches(); track m.id) {
               <div class="og-agenda-fila-item bulk-item">
                 <div class="bulk-item-info">
-                  <div class="partida" [title]="m.team1Label + ' vs ' + m.team2Label">{{ truncate(m.team1Label, 16) }} vs {{ truncate(m.team2Label, 16) }}</div>
+                  <div class="partida" [title]="matchTitle(m)">{{ matchLabel(m, 16) }}</div>
                   <div class="meta">
                     #{{ m.matchNumber || '—' }}
                     @if (m.scheduledAt) {
@@ -382,7 +383,7 @@ interface AgendaBloco {
         <og-card kicker="Aguardando horário" title="Fila de partidas" style="min-height:0;overflow:hidden">
           @if (selectedMatch(); as sel) {
             <div class="og-agenda-selected">
-              <div class="partida" [title]="sel.team1Label + ' vs ' + sel.team2Label">{{ truncate(sel.team1Label, 16) }} vs {{ truncate(sel.team2Label, 16) }}</div>
+              <div class="partida" [title]="matchTitle(sel)">{{ matchLabel(sel, 16) }}</div>
               <div class="meta">Clique num slot livre da grade pra {{ sel.scheduledAt ? 'reagendar' : 'agendar' }}</div>
               <div style="display:flex;gap:8px;margin-top:8px">
                 @if (sel.scheduledAt) {
@@ -395,11 +396,14 @@ interface AgendaBloco {
           <div class="og-agenda-fila">
             @for (m of fila(); track m.id) {
               <button type="button" class="og-agenda-fila-item" [class.selected]="selectedMatchId() === m.id" (click)="toggleSelectQueue(m.id)">
-                <div class="partida" [title]="m.team1Label + ' vs ' + m.team2Label">{{ truncate(m.team1Label, 16) }} vs {{ truncate(m.team2Label, 16) }}</div>
+                <div class="partida" [title]="matchTitle(m)">{{ matchLabel(m, 16) }}</div>
                 <div class="meta">
                   #{{ m.matchNumber || '—' }}
                   @if (m.round) {
                     · {{ m.round }}
+                  }
+                  @if (kocSlotsLabel(m); as slots) {
+                    · {{ slots }}
                   }
                   @if (m.scheduledAt) {
                     · {{ timeLabel(m.scheduledAt) }} ({{ matchDayLabel(m) }})
@@ -410,7 +414,18 @@ interface AgendaBloco {
               <p class="og-empty">Nenhuma partida aguardando horário</p>
             }
           </div>
-          <div class="og-agenda-fila-hint">Clique numa partida da fila (ou num bloco da grade) e depois num horário livre pra agendar. Duração padrão: {{ durationMin() }} min.</div>
+          <div class="og-agenda-fila-hint">
+            Clique numa partida da fila (ou num bloco da grade) e depois num horário livre pra agendar.
+            @if (selectedMatch(); as sel) {
+              @if (sel.koc) {
+                Rodada King of the Court: {{ slotMinutesOf(sel) }} min (jogo + troca).
+              } @else {
+                Duração padrão: {{ durationMin() }} min.
+              }
+            } @else {
+              Duração padrão: {{ durationMin() }} min.
+            }
+          </div>
         </og-card>
         }
         </div>
@@ -1291,7 +1306,53 @@ export class AgendamentoComponent {
   protected previewLabel(matchId: string): string {
     const match = this.matchById().get(matchId);
     if (!match) return 'Partida';
-    return `${truncateName(match.team1Label, 14)} vs ${truncateName(match.team2Label, 14)}`;
+    return this.matchLabel(match, 14);
+  }
+
+  /** Rodada KOTC não tem confronto: mostrar "A definir vs A definir" na fila de
+   *  agendamento não diz NADA sobre o que se está agendando. O que identifica a
+   *  rodada é a fase (já no `round`) e o tamanho do elenco. */
+  protected matchLabel(m: TournamentMatch, max: number): string {
+    const round = m.koc;
+    if (round) {
+      const size = round.teamIds.length;
+      if (size > 0) return size === 1 ? '1 dupla' : `${size} duplas`;
+      // Sem elenco, o que descreve a rodada são as VAGAS — é o que a torna
+      // pré-reservável. Aqui só o número; de ONDE vem cada uma vai na linha de
+      // apoio da fila, que é onde o organizador decide.
+      const slots = round.qualifierSlots.length;
+      if (slots > 0) return slots === 1 ? '1 vaga' : `${slots} vagas`;
+      return 'Elenco a definir';
+    }
+    return `${truncateName(m.team1Label, max)} vs ${truncateName(m.team2Label, max)}`;
+  }
+
+  protected matchTitle(m: TournamentMatch): string {
+    const round = m.koc;
+    if (round) {
+      const detail = round.teamIds.length > 0 ?
+        `${round.teamIds.length} duplas` :
+        round.qualifierSlots.join(' · ') || 'elenco a definir';
+      return `${m.round ?? 'Rodada'} · ${detail}`;
+    }
+    return `${m.team1Label} vs ${m.team2Label}`;
+  }
+
+  /** Minutos que a partida ocupa na grade. A rodada KOTC tem a sua no snapshot
+   *  (`configuredDurationSec`, que varia por fase) e some a troca — a mesma
+   *  conta que o servidor IMPÕE ao gravar, pra prévia e grade não mentirem. */
+  /** De onde vem cada vaga ("1º Rodada 1 · 2º Rodada 2"), vazio quando o elenco
+   *  já existe ou quando a rodada ainda não tem nem vagas. */
+  protected kocSlotsLabel(m: TournamentMatch): string {
+    const round = m.koc;
+    if (!round || round.teamIds.length > 0) return '';
+    return round.qualifierSlots.join(' · ');
+  }
+
+  protected slotMinutesOf(m: TournamentMatch): number {
+    const sec = m.koc?.configuredDurationSec ?? 0;
+    if (sec <= 0) return this.durationMin();
+    return Math.ceil(sec / 60) + KOC_CHANGEOVER_MIN;
   }
 
   protected previewMeta(matchId: string): string {
@@ -1529,7 +1590,7 @@ export class AgendamentoComponent {
     if (!match || this.isFinished(match) || this.busy() || this.autoOpen()) return;
     const dayKey = this.selectedDayKey();
     const start = spWallToDate(dayKey, startMinOfDay);
-    const end = new Date(start.getTime() + this.durationMin() * 60000);
+    const end = new Date(start.getTime() + this.slotMinutesOf(match) * 60000);
     this.busy.set(true);
     this.feedback.set(null);
     try {

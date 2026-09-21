@@ -136,7 +136,9 @@ class _OrganizerScheduleMatchSheetState
       match: widget.match,
       courtId: courtId,
       slotStart: slotStart,
-      durationMin: widget.config.defaultMatchDurationMin,
+      durationMin: widget.match.scheduleSlotMin(
+        widget.config.defaultMatchDurationMin,
+      ),
       allMatches: widget.allMatches,
       minRestMin: widget.config.minRestBetweenMatchesMin,
       courtName: courtName,
@@ -197,7 +199,11 @@ class _OrganizerScheduleMatchSheetState
       final dayKey = _effectiveDayKey(ref);
       final start = _selectedSlot;
       final end = start.add(
-        Duration(minutes: widget.config.defaultMatchDurationMin),
+        Duration(
+          minutes: widget.match.scheduleSlotMin(
+            widget.config.defaultMatchDurationMin,
+          ),
+        ),
       );
       final service = ref.read(organizerMatchScheduleServiceProvider);
       final isReschedule = widget.match.scheduleTime != null;

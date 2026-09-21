@@ -133,6 +133,57 @@ test("isMatchAutoSchedulable libera partida com as duas duplas já decididas", (
   );
 });
 
+// A rodada KOTC nasce com os dois lados VAZIOS: pela regra do duelo ela nunca
+// seria agendável, e o auto-agendamento pulava a categoria inteira em silêncio.
+test("isMatchAutoSchedulable libera rodada KOTC com elenco definido", () => {
+  assert.equal(
+    isMatchAutoSchedulable(
+      {
+        teamAId: "",
+        teamBId: "",
+        matchType: "koc_round",
+        kocTeamIds: ["t1", "t2", "t3", "t4"],
+      },
+      true,
+    ),
+    true,
+  );
+});
+
+test("isMatchAutoSchedulable pula rodada KOTC sem elenco e sem vagas", () => {
+  for (const kocTeamIds of [[], ["", "  "], undefined]) {
+    assert.equal(
+      isMatchAutoSchedulable(
+        {teamAId: "", teamBId: "", matchType: "koc_semifinal", kocTeamIds},
+        true,
+      ),
+      false,
+    );
+  }
+});
+
+// As vagas são o análogo do "Vencedor Jogo #7": descrevem uma rodada que vai
+// acontecer, então dá pra pré-reservar quadra e horário antes de saber quem
+// joga — é o que a etapa de uma quadra só exige.
+test("isMatchAutoSchedulable pré-reserva rodada KOTC pelas vagas", () => {
+  assert.equal(
+    isMatchAutoSchedulable(
+      {
+        teamAId: "",
+        teamBId: "",
+        matchType: "koc_semifinal",
+        kocTeamIds: [],
+        kocQualifiers: [
+          {fromMatchNumber: 1, fromRoundLabel: 1, place: 1, description: "1º Rodada 1"},
+          {fromMatchNumber: 1, fromRoundLabel: 1, place: 2, description: "2º Rodada 1"},
+        ],
+      },
+      true,
+    ),
+    true,
+  );
+});
+
 test("compareByMatchNumber ordena pela numeração global, não por round por trilha", () => {
   // Em dupla eliminação, WB, LB, 3º lugar e final reiniciam `round` em 1 cada
   // um na sua própria trilha. Se a auto-programação ordenasse por round antes

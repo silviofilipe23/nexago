@@ -59,6 +59,8 @@ class TournamentMatch {
     this.liveScore,
     this.kocStandingTeamIds = const [],
     this.kocTeamIds = const [],
+    this.kocDurationSec = 0,
+    this.kocQualifierSlots = const [],
   });
 
   final String id;
@@ -145,6 +147,47 @@ class TournamentMatch {
   /// encontraria a própria rodada, porque `teamAId`/`teamBId` vêm vazios.
   /// Vazia em toda partida de duelo.
   final List<String> kocTeamIds;
+
+  /// Duração de JOGO da rodada, do snapshot `kocConfig` gravado na geração.
+  /// Varia por fase (a final costuma ser mais longa). Zero em toda partida de
+  /// duelo, que usa o padrão do torneio.
+  final int kocDurationSec;
+
+  /// De onde vem cada vaga da rodada — "1º Rodada 1", "2º Rodada 2"…
+  ///
+  /// É o análogo do "Vencedor Jogo #7" de um mata-mata: descreve uma rodada
+  /// que VAI acontecer, mesmo antes de a fase anterior terminar. Vazia na
+  /// classificatória (que já nasce com elenco) e em todo duelo.
+  final List<String> kocQualifierSlots;
+
+  /// Rodada KOTC já descrita o bastante para reservar quadra e horário: tem
+  /// elenco fechado ou, ao menos, as vagas. Espelha `kocRoundIsPlanned` do
+  /// servidor.
+  bool get kocRoundIsPlanned =>
+      kocTeamIds.any((id) => id.trim().isNotEmpty) ||
+      kocQualifierSlots.isNotEmpty;
+
+  /// Duplas que a partida ocupa naquele horário.
+  ///
+  /// A rodada KOTC grava `teamAId`/`teamBId` VAZIOS e põe o elenco em
+  /// `kocTeamIds`: colher só os dois lados deixaria a rodada sem marcar ninguém
+  /// ocupado, e a mesma dupla cairia em dois lugares no mesmo horário.
+  /// Espelha `matchTeamIds` do servidor.
+  List<String> get scheduleTeamIds {
+    final out = <String>[];
+    for (final raw in [teamAId, teamBId, ...kocTeamIds]) {
+      final id = raw.trim();
+      if (id.isNotEmpty && !out.contains(id)) out.add(id);
+    }
+    return out;
+  }
+
+  /// Quanto tempo de quadra a partida ocupa, em minutos. Espelha
+  /// `matchDurationMin` do servidor — que é quem IMPÕE essa janela ao gravar.
+  int scheduleSlotMin(int fallbackMin) {
+    if (kocDurationSec <= 0) return fallbackMin;
+    return (kocDurationSec / 60).ceil() + kocChangeoverMin;
+  }
 
   String get effectiveCourtLabel {
     if (courtId.isNotEmpty) return courtId;

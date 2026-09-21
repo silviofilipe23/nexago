@@ -108,7 +108,22 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
                   }
                   <og-pill [tone]="jogoTone[j.status]">{{ jogoLabel[j.status] }}</og-pill>
                 </span>
-                @if (canOpenScore(j.match)) {
+                @if (j.match.koc; as round) {
+                  <!-- Rodada KOTC: a mesa é a de elenco/fila/tabela (a rota ao-vivo
+                       delega pelo formato). NÃO oferecer "lançar placar": a rodada não
+                       tem sets nem dois lados pra preencher. -->
+                  <span class="og-jogos-actions">
+                    @if (round.teamIds.length === 0) {
+                      <span class="og-ghost-btn" style="opacity:0.45;pointer-events:none" title="Elenco definido quando a fase anterior terminar">Aguardando</span>
+                    } @else if (j.status === 'completed') {
+                      <span class="og-ghost-btn" style="opacity:0.45;pointer-events:none" title="Rodada encerrada">Encerrada</span>
+                    } @else if (j.status === 'in_progress') {
+                      <a class="og-mini-btn og-mini-btn-primary" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'ao-vivo', j.match.id]">Mesa</a>
+                    } @else {
+                      <a class="og-mini-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'ao-vivo', j.match.id]">Abrir mesa</a>
+                    }
+                  </span>
+                } @else if (canOpenScore(j.match)) {
                   <span class="og-jogos-actions">
                     @if (j.status === 'in_progress') {
                       <a class="og-mini-btn og-mini-btn-primary" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'ao-vivo', j.match.id]">Ao vivo</a>
@@ -437,6 +452,9 @@ export class JogosComponent {
     return size === 1 ? '1 dupla' : `${size} duplas`;
   }
 
+  /** Só o caminho de DUELO passa por aqui — a rodada KOTC sai antes, no template.
+   *  Ela nunca teria os dois lados preenchidos, e por isso o botão da mesa
+   *  sumia: a linha caía direto no "Aguardando". */
   protected canOpenScore(m: TournamentMatch): boolean {
     return m.teamAId.length > 0 && m.teamBId.length > 0;
   }

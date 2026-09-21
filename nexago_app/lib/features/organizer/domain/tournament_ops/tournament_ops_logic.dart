@@ -2,6 +2,7 @@ import '../../../../core/deep_link/app_domains.dart';
 import '../../../tournaments/domain/tournament_detail_logic.dart';
 import '../tournament_create/tournament_create_logic.dart';
 import '../category_ops/category_ops_models.dart';
+import '../match_ops/match_ops_logic.dart';
 import 'tournament_ops_models.dart';
 
 String organizerTournamentShareLink(String tournamentId) =>
@@ -342,7 +343,13 @@ OrganizerTournamentSummary buildTournamentSummary({
     paymentMode: (data['paymentMode'] as String?) ?? '',
     defaultEntryFeeCents:
         (data['defaultEntryFeeCents'] as num?)?.toInt() ?? 0,
-    courtsCount: (data['courtsCount'] as num?)?.toInt() ?? 4,
+    // Mesma regra da grade (`resolveTournamentCourts`): o stat precisa contar as
+    // quadras que a operação realmente oferece. O `?? 4` mostrava 4 em torneio
+    // de 2 quadras, porque doc sem `courtsCount` é o caso dos já criados.
+    courtsCount: MatchOpsLogic.resolveTournamentCourts(
+      courtsCount: (data['courtsCount'] as num?)?.toInt(),
+      courtsRaw: data['courts'] is List ? data['courts'] as List : null,
+    ).length,
     bracketSystem: (data['bracketSystem'] as String?) ?? '',
   );
 }

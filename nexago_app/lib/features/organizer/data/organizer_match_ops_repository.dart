@@ -35,13 +35,11 @@ class OrganizerMatchOpsRepository {
     return _tournaments.doc(id).snapshots().map((snap) {
       if (!snap.exists) return const <TournamentCourt>[];
       final data = snap.data();
-      final courtsCount =
-          MatchOpsLogic.normalizeCourtsCount(
-            (data?['courtsCount'] as num?)?.toInt(),
-          );
+      // Passa o contador CRU: `null` (doc sem `courtsCount`) precisa chegar
+      // ausente na regra, senão vira 4 e descarta as quadras reais.
       final courtsRaw = data?['courts'];
       return MatchOpsLogic.resolveTournamentCourts(
-        courtsCount: courtsCount,
+        courtsCount: (data?['courtsCount'] as num?)?.toInt(),
         courtsRaw: courtsRaw is List ? courtsRaw : null,
       );
     });
@@ -55,26 +53,26 @@ class OrganizerMatchOpsRepository {
     final snap = await _tournaments.doc(id).get();
     if (!snap.exists) return;
     final data = snap.data() ?? {};
-    final courtsCount = MatchOpsLogic.normalizeCourtsCount(
-      (data['courtsCount'] as num?)?.toInt(),
-    );
+    final courtsCount = (data['courtsCount'] as num?)?.toInt();
     final courtsRaw = data['courts'];
     final existing = courtsRaw is List ? courtsRaw : null;
-    final needsSync = existing == null ||
-        existing.isEmpty ||
-        existing.length != courtsCount;
-
-    if (!needsSync) return;
-
-    final courts = MatchOpsLogic.resolveTournamentCourts(
+    // Lista real e válida não é sobrescrita só porque o contador está ausente.
+    final needsCourtsSync = MatchOpsLogic.courtsNeedSync(
       courtsCount: courtsCount,
       courtsRaw: existing,
     );
+    final needsMatchOps = data['matchOps'] == null;
+
+    if (!needsCourtsSync && !needsMatchOps) return;
+
     await _tournaments.doc(id).set(
       {
-        'courts': courts.map((c) => c.toMap()).toList(),
-        if (data['matchOps'] == null)
-          'matchOps': const TournamentMatchOpsConfig().toMap(),
+        if (needsCourtsSync)
+          'courts': MatchOpsLogic.resolveTournamentCourts(
+            courtsCount: courtsCount,
+            courtsRaw: existing,
+          ).map((c) => c.toMap()).toList(),
+        if (needsMatchOps) 'matchOps': const TournamentMatchOpsConfig().toMap(),
         'updatedAt': FieldValue.serverTimestamp(),
       },
       SetOptions(merge: true),

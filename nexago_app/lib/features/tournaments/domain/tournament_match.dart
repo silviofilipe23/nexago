@@ -1,5 +1,7 @@
 import 'tournament_match_live_score.dart';
+import 'tournament_match_medical_timeout.dart';
 import 'tournament_match_point_action.dart';
+import 'tournament_match_serving_players.dart';
 import 'tournament_match_set.dart';
 import 'tournament_match_status.dart';
 import 'tournament_match_type.dart';
@@ -39,6 +41,10 @@ class TournamentMatch {
     this.checkInTeamAStatus = '',
     this.checkInTeamBStatus = '',
     this.servingTeamId = '',
+    this.servingPlayerSlot = 0,
+    this.servingPlayers = MatchServingPlayers.none,
+    this.medicalTimeout,
+    this.medicalTimeoutPlayers = const [],
     this.liveElapsedSec = 0,
     this.pointEventSeq = 0,
     this.reportStatus = '',
@@ -87,6 +93,21 @@ class TournamentMatch {
   final String checkInTeamAStatus;
   final String checkInTeamBStatus;
   final String servingTeamId;
+
+  /// Posição (1 ou 2) do atleta no saque dentro da dupla de [servingTeamId]; 0 = não declarada.
+  /// Denormalizada no doc pra quem só exibe (telão, cards) não precisar saber o lado — a fonte
+  /// é [servingPlayers]. Ver `tournament_match_serving_players.dart`.
+  final int servingPlayerSlot;
+
+  /// A ordem de saque declarada por cada dupla no set corrente.
+  final MatchServingPlayers servingPlayers;
+
+  /// Atendimento médico em andamento — nulo quando ninguém está sendo atendido.
+  final MatchMedicalTimeout? medicalTimeout;
+
+  /// Atletas que já usaram o tempo médico nesta partida ("A1", "B2") — a cota é por atleta.
+  final List<String> medicalTimeoutPlayers;
+
   final int liveElapsedSec;
   final int pointEventSeq;
   final String reportStatus;

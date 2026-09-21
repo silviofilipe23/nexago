@@ -27,3 +27,14 @@ export async function fetchTeamNamesFor(db: Firestore, projectId: string, teamId
 export function teamLabelOf(names: MesaTeamNames, teamId: string, fallback: string | null): string {
   return duoNameOf(teamId, names.teams, names.profiles, fallback);
 }
+
+/** Nome do atleta pela POSIÇÃO na dupla (1 ou 2) — a mesma ordem de `player1Id`/`player2Id` que
+ *  o doc da partida usa pra dizer quem está sacando (ver `serving-player.ts`). Cai em
+ *  "Atleta N" enquanto o join não chegou ou o perfil não tem nome: o que importa na mesa é a
+ *  posição, que é o que fica gravado. */
+export function playerNameOf(names: MesaTeamNames, teamId: string, slot: 1 | 2): string {
+  const team = teamId ? names.teams.get(teamId) : undefined;
+  const uid = slot === 1 ? team?.player1Id : team?.player2Id;
+  const name = (uid ? names.profiles.get(uid)?.displayName : '')?.trim() ?? '';
+  return name || `Atleta ${slot}`;
+}

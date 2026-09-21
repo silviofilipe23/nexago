@@ -146,6 +146,10 @@ function liveMatch(partial: Partial<LiveMatch> = {}): LiveMatch {
     currentSetIndex: 0,
     bestOf: 3,
     servingTeamId: 'time-a',
+    servingPlayerSlot: 1,
+    servingPlayerSlots: { A: 1, B: 0 },
+    medicalTimeout: null,
+    medicalTimeoutPlayers: [],
     matchStartedAt: new Date('2026-08-29T13:00:00Z'),
     winnerId: null,
     courtName: '2',
@@ -362,7 +366,9 @@ describe('MesaLiveComponent', () => {
       askButtonFor('Carla / Duda').click();
       await fixture.whenStable();
 
-      expect(gateway.fields).toEqual([{ matchId: 'm1', fields: { servingTeamId: 'time-b' } }]);
+      // O saque individual acompanha a dupla: a dupla B ainda não declarou ordem neste set,
+      // então a posição do sacador volta a "não declarada" e a faixa do atleta aparece.
+      expect(gateway.fields).toEqual([{ matchId: 'm1', fields: { servingTeamId: 'time-b', servingPlayerSlot: 0 } }]);
       expect(gateway.points.length).toBe(0);
       expect(gateway.started.length).toBe(0);
     });

@@ -29,6 +29,21 @@ class LiveTableTeamData {
   final String label;
   final OrganizerCategoryPlayerInfo player1;
   final OrganizerCategoryPlayerInfo player2;
+
+  /// Nome do atleta pela POSIÇÃO na dupla (1 ou 2) — a mesma ordem que o doc de `teams` grava
+  /// em `player1Id`/`player2Id`, que é como o saque individual é guardado na partida. Vazio
+  /// quando a posição não existe (dupla sem segundo atleta) ou o slot não foi declarado.
+  String nameForSlot(int slot) {
+    if (slot == 1) return player1.name.trim();
+    if (slot == 2) return player2.name.trim();
+    return '';
+  }
+
+  OrganizerCategoryPlayerInfo? playerForSlot(int slot) {
+    if (slot == 1) return player1;
+    if (slot == 2) return player2;
+    return null;
+  }
 }
 
 class LiveTableHeader extends StatelessWidget {
@@ -329,6 +344,7 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
     this.onSubtractB,
     this.seedA,
     this.seedB,
+    this.servingPlayerName,
     this.enabled = true,
   });
 
@@ -338,6 +354,9 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
   final int scoreB;
   final bool isServingA;
   final bool isServingB;
+
+  /// Atleta no saque dentro da dupla que está sacando — vai no selo SAQUE do card dela.
+  final String? servingPlayerName;
   final VoidCallback? onAddPointA;
   final VoidCallback? onAddPointB;
   final VoidCallback? onSubtractA;
@@ -357,6 +376,7 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
               team: teamA,
               score: scoreA,
               isServing: isServingA,
+              servingPlayerName: isServingA ? servingPlayerName : null,
               seed: seedA,
               enabled: enabled,
               onAddPoint: onAddPointA,
@@ -369,6 +389,7 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
               team: teamB,
               score: scoreB,
               isServing: isServingB,
+              servingPlayerName: isServingB ? servingPlayerName : null,
               seed: seedB,
               enabled: enabled,
               onAddPoint: onAddPointB,
@@ -388,6 +409,7 @@ class LiveTableTeamScoreCard extends StatelessWidget {
     required this.score,
     required this.isServing,
     this.seed,
+    this.servingPlayerName,
     this.onAddPoint,
     this.onSubtract,
     this.enabled = true,
@@ -397,6 +419,10 @@ class LiveTableTeamScoreCard extends StatelessWidget {
   final int score;
   final bool isServing;
   final int? seed;
+
+  /// Nome do atleta no saque — o selo vira "SAQUE · BRUNO". Nulo/vazio mantém só "SAQUE",
+  /// que é o estado enquanto a dupla ainda não declarou a ordem dela no set.
+  final String? servingPlayerName;
   final VoidCallback? onAddPoint;
   final VoidCallback? onSubtract;
   final bool enabled;
@@ -430,13 +456,17 @@ class LiveTableTeamScoreCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 5),
-                Text(
-                  'SAQUE',
-                  style: AppTypography.mono(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.brand,
-                    letterSpacing: 0.6,
+                Flexible(
+                  child: Text(
+                    liveTableServeBadgeLabel(servingPlayerName),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.mono(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.brand,
+                      letterSpacing: 0.6,
+                    ),
                   ),
                 ),
               ],
@@ -684,6 +714,9 @@ class LiveTableActionBar extends StatelessWidget {
     required this.onSwapServe,
     this.onHistory,
     this.onQuickScore,
+    this.onSwapServingPlayer,
+    this.onMedicalTimeout,
+    this.medicalTimeoutEnabled = true,
     this.enabled = true,
   });
 
@@ -691,6 +724,15 @@ class LiveTableActionBar extends StatelessWidget {
   final VoidCallback? onSwapServe;
   final VoidCallback? onHistory;
   final VoidCallback? onQuickScore;
+
+  /// Troca o atleta no saque dentro da dupla que está sacando — o par de "Trocar saque", que
+  /// troca a DUPLA. Desabilitado enquanto ninguém está com o saque.
+  final VoidCallback? onSwapServingPlayer;
+
+  /// Abre o seletor de quem vai receber atendimento. Fica desabilitado quando todo mundo já
+  /// usou a cota da partida (ou já existe atendimento rolando).
+  final VoidCallback? onMedicalTimeout;
+  final bool medicalTimeoutEnabled;
   final bool enabled;
 
   @override
@@ -740,6 +782,31 @@ class LiveTableActionBar extends StatelessWidget {
               _LiveTableIconButton(
                 icon: Icons.schedule_rounded,
                 onPressed: enabled ? (onHistory ?? () {}) : () {},
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _ActionBarButton(
+                  label: 'Tempo médico',
+                  icon: Icons.medical_services_outlined,
+                  iconColor: AppColors.live,
+                  enabled: enabled && medicalTimeoutEnabled,
+                  onPressed: onMedicalTimeout,
+                  borderColor: AppColors.live.withValues(alpha: 0.28),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _ActionBarButton(
+                  label: 'Trocar sacador',
+                  icon: Icons.sync_alt_rounded,
+                  enabled: enabled && onSwapServingPlayer != null,
+                  onPressed: onSwapServingPlayer,
+                  borderColor: mutedBorder,
+                ),
               ),
             ],
           ),
@@ -806,6 +873,8 @@ class LiveTableFullModeMesa extends StatelessWidget {
     this.onPickTimeoutTeamA,
     this.onPickTimeoutTeamB,
     this.onCancelTimeoutPicker,
+    this.servingPlayerName,
+    this.onSwapServingPlayer,
   });
 
   final LiveTableTeamData teamA;
@@ -839,6 +908,11 @@ class LiveTableFullModeMesa extends StatelessWidget {
   final VoidCallback? onPickTimeoutTeamB;
   final VoidCallback? onCancelTimeoutPicker;
 
+  /// Atleta no saque dentro da dupla que está sacando; o selo do painel dela vira
+  /// "SAQUE · BRUNO" e ganha o toque pra trocar de sacador.
+  final String? servingPlayerName;
+  final VoidCallback? onSwapServingPlayer;
+
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
@@ -856,6 +930,8 @@ class LiveTableFullModeMesa extends StatelessWidget {
                           team: teamA,
                           score: scoreA,
                           isServing: isServingA,
+                          servingPlayerName: isServingA ? servingPlayerName : null,
+                          onSwapServingPlayer: isServingA ? onSwapServingPlayer : null,
                           timeouts: timeoutsA,
                           enabled: enabled,
                           onTap: onTapA,
@@ -873,6 +949,8 @@ class LiveTableFullModeMesa extends StatelessWidget {
                           team: teamB,
                           score: scoreB,
                           isServing: isServingB,
+                          servingPlayerName: isServingB ? servingPlayerName : null,
+                          onSwapServingPlayer: isServingB ? onSwapServingPlayer : null,
                           timeouts: timeoutsB,
                           enabled: enabled,
                           onTap: onTapB,
@@ -987,6 +1065,8 @@ class _FullModeTeamPanel extends StatelessWidget {
     required this.enabled,
     required this.onTap,
     required this.onRemoveTimeout,
+    this.servingPlayerName,
+    this.onSwapServingPlayer,
   });
 
   final LiveTableTeamData team;
@@ -996,6 +1076,8 @@ class _FullModeTeamPanel extends StatelessWidget {
   final bool enabled;
   final VoidCallback onTap;
   final VoidCallback onRemoveTimeout;
+  final String? servingPlayerName;
+  final VoidCallback? onSwapServingPlayer;
 
   @override
   Widget build(BuildContext context) {
@@ -1028,22 +1110,35 @@ class _FullModeTeamPanel extends StatelessWidget {
                   ),
                   if (isServing) ...[
                     const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.brand,
+                    // Toque no selo troca o SACADOR sem marcar ponto: o painel inteiro é o
+                    // alvo do ponto, então o alvo menor precisa comer o toque antes dele.
+                    Material(
+                      color: AppColors.brand,
+                      borderRadius: BorderRadius.circular(20),
+                      child: InkWell(
+                        onTap: enabled ? onSwapServingPlayer : null,
                         borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        'SAQUE',
-                        style: AppTypography.mono(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.black,
-                          letterSpacing: 0.6,
+                        child: Container(
+                          constraints: const BoxConstraints(minHeight: 26),
+                          alignment: Alignment.center,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          child: Text(
+                            liveTableServeBadgeLabel(
+                              servingPlayerName,
+                              promptWhenEmpty: onSwapServingPlayer != null,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.mono(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.black,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -2324,6 +2419,496 @@ class _StartingServeOption extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// "SAQUE" ou "SAQUE · BRUNO" — o selo do saque quando a dupla já declarou quem saca.
+/// Primeiro nome só, e em caixa alta, pro selo caber no card e no painel gigante do modo full.
+///
+/// [promptWhenEmpty] é pro modo full, onde o selo é o ÚNICO caminho pra declarar o sacador
+/// (não há espaço pra faixa): sem ordem declarada ele vira um convite ao toque.
+String liveTableServeBadgeLabel(String? playerName, {bool promptWhenEmpty = false}) {
+  final name = playerName?.trim() ?? '';
+  if (name.isEmpty) return promptWhenEmpty ? 'SAQUE · QUEM?' : 'SAQUE';
+  final first = name.split(RegExp(r'\s+')).first;
+  final short = first.length > 10 ? first.substring(0, 10) : first;
+  return 'SAQUE · ${short.toUpperCase()}';
+}
+
+/// "Quem saca pela dupla?" — a faixa do andar de baixo do saque, irmã de
+/// [LiveTableStartingServe]. Aparece quando a dupla que está com o saque ainda não declarou a
+/// ordem dela neste set (`MatchServingPlayerLogic.needsServingPlayer`), inclusive no meio do
+/// set: a outra dupla só estreia no saque quando vira o rally.
+///
+/// Não bloqueia a mesa: o mesário pode seguir marcando ponto e declarar depois — o placar é o
+/// que não pode esperar.
+class LiveTableServingPlayer extends StatelessWidget {
+  const LiveTableServingPlayer({
+    super.key,
+    required this.team,
+    required this.onChoose,
+    this.enabled = true,
+  });
+
+  final LiveTableTeamData team;
+
+  /// Recebe a POSIÇÃO do atleta na dupla (1 ou 2) — a mesma que o doc grava.
+  final ValueChanged<int> onChoose;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final names = [team.nameForSlot(1), team.nameForSlot(2)];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.brand.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.brand.withValues(alpha: 0.24)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Quem saca por ${team.label}?',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.soraRegular(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.1,
+                color: AppColors.brand,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                for (var slot = 1; slot <= 2; slot++) ...[
+                  if (slot > 1) const SizedBox(width: 10),
+                  Expanded(
+                    child: _StartingServeOption(
+                      label: names[slot - 1].isNotEmpty
+                          ? names[slot - 1]
+                          : 'Atleta $slot',
+                      enabled: enabled,
+                      onTap: () => onChoose(slot),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Um atleta no seletor do tempo médico: quem é, de que lado, e se a cota dele já foi usada.
+class LiveTableMedicalOption {
+  const LiveTableMedicalOption({
+    required this.side,
+    required this.slot,
+    required this.playerName,
+    required this.teamLabel,
+    required this.used,
+  });
+
+  final String side;
+  final int slot;
+  final String playerName;
+  final String teamLabel;
+
+  /// Já usou o tempo médico nesta partida — a cota é 1 por atleta e não volta.
+  final bool used;
+}
+
+/// Seletor de QUEM vai ser atendido. Diferente do tempo técnico, que é da equipe, o tempo
+/// médico é de um ATLETA: a cota é individual e o telão mostra o nome de quem está sendo
+/// atendido, então a mesa pergunta pelos quatro.
+class LiveTableMedicalTimeoutPicker extends StatelessWidget {
+  const LiveTableMedicalTimeoutPicker({
+    super.key,
+    required this.options,
+    required this.onPick,
+    this.onCancel,
+  });
+
+  final List<LiveTableMedicalOption> options;
+  final ValueChanged<LiveTableMedicalOption> onPick;
+  final VoidCallback? onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: Container(color: Colors.black.withValues(alpha: 0.68)),
+          ),
+        ),
+        SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'QUEM VAI SER ATENDIDO?',
+                    style: AppTypography.mono(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: context.themeColors.onSurfaceMuted,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Atendimento de 5 minutos — um por atleta na partida.',
+                    textAlign: TextAlign.center,
+                    style: AppTypography.soraRegular(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: context.themeColors.onSurfaceMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  for (final option in options) ...[
+                    _MedicalOptionCard(
+                      option: option,
+                      onTap: option.used ? null : () => onPick(option),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  const SizedBox(height: 8),
+                  OutlinedButton(
+                    onPressed: onCancel,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: context.themeColors.onSurface,
+                      side: BorderSide(
+                        color: context.themeColors.onSurfaceMuted.withValues(
+                          alpha: 0.3,
+                        ),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                    ),
+                    child: const Text('Cancelar'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MedicalOptionCard extends StatelessWidget {
+  const _MedicalOptionCard({required this.option, this.onTap});
+
+  final LiveTableMedicalOption option;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return Opacity(
+      opacity: enabled ? 1 : 0.45,
+      child: Material(
+        color: context.themeColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            width: 320,
+            constraints: const BoxConstraints(minHeight: 56),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: context.themeColors.onSurfaceMuted.withValues(
+                  alpha: 0.14,
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: option.side == 'A'
+                        ? _timeoutPickerSideAColor
+                        : AppColors.brand,
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: Text(
+                    option.side,
+                    style: AppTypography.mono(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        option.playerName.isNotEmpty
+                            ? option.playerName
+                            : 'Atleta ${option.slot}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.soraRegular(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: context.themeColors.onSurface,
+                        ),
+                      ),
+                      Text(
+                        option.teamLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.mono(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: context.themeColors.onSurfaceMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  option.used ? 'já usou' : 'disponível',
+                  style: AppTypography.mono(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: option.used
+                        ? context.themeColors.onSurfaceMuted
+                        : AppColors.win,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Instantâneo do atendimento em andamento — montado a partir do DOC da partida, não de estado
+/// de tela: é o que faz a mesa do app, as mesas web e o telão mostrarem a mesma contagem.
+class LiveTableMedicalTimeoutView {
+  const LiveTableMedicalTimeoutView({
+    required this.playerName,
+    required this.teamLabel,
+    required this.remainingSeconds,
+    required this.totalSeconds,
+    required this.ended,
+  });
+
+  final String playerName;
+  final String teamLabel;
+  final int remainingSeconds;
+  final int totalSeconds;
+
+  /// Chegou a zero — o overlay fica aberto até o mesário encerrar: quem decide se o atleta
+  /// volta é a mesa, não o relógio.
+  final bool ended;
+}
+
+/// Overlay do tempo médico: cobre a mesa inteira e ABSORVE o toque, então nada é marcado
+/// enquanto o atleta está sendo atendido — a partida está parada de verdade.
+class LiveTableMedicalTimeoutOverlay extends StatelessWidget {
+  const LiveTableMedicalTimeoutOverlay({
+    super.key,
+    required this.timeout,
+    this.onEnd,
+  });
+
+  final LiveTableMedicalTimeoutView timeout;
+  final VoidCallback? onEnd;
+
+  static const _criticalThresholdSeconds = 30;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCritical =
+        !timeout.ended && timeout.remainingSeconds <= _criticalThresholdSeconds;
+    final ringColor = timeout.ended
+        ? AppColors.win
+        : (isCritical ? AppColors.live : AppColors.brand);
+    final progress = timeout.ended
+        ? 1.0
+        : (timeout.totalSeconds <= 0
+              ? 1.0
+              : (timeout.remainingSeconds / timeout.totalSeconds).clamp(
+                  0.0,
+                  1.0,
+                ));
+    final minutes = timeout.remainingSeconds ~/ 60;
+    final seconds = (timeout.remainingSeconds % 60).toString().padLeft(2, '0');
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: Container(color: Colors.black.withValues(alpha: 0.72)),
+          ),
+        ),
+        SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: SizedBox(
+                      width: constraints.maxWidth,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.medical_services_rounded,
+                                size: 16,
+                                color: AppColors.live,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'TEMPO MÉDICO · 5 MINUTOS',
+                                textAlign: TextAlign.center,
+                                style: AppTypography.mono(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.live,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            timeout.playerName.isNotEmpty
+                                ? timeout.playerName
+                                : 'Atleta em atendimento',
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.soraRegular(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: context.themeColors.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            timeout.teamLabel,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.mono(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: context.themeColors.onSurfaceMuted,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          SizedBox(
+                            width: 260,
+                            height: 260,
+                            child: CustomPaint(
+                              painter: _TimeoutRingPainter(
+                                progress: progress,
+                                color: ringColor,
+                                trackColor: context.themeColors.onSurfaceMuted
+                                    .withValues(alpha: 0.14),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '$minutes:$seconds',
+                                  style: AppTypography.mono(
+                                    fontSize: 52,
+                                    fontWeight: FontWeight.w800,
+                                    color: timeout.ended || isCritical
+                                        ? ringColor
+                                        : context.themeColors.onSurface,
+                                    height: 1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          if (timeout.ended)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.win.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: AppColors.win.withValues(alpha: 0.4),
+                                ),
+                              ),
+                              child: Text(
+                                'ATENDIMENTO ENCERRADO',
+                                style: AppTypography.mono(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.win,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 20),
+                          FilledButton(
+                            onPressed: onEnd,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.brand,
+                              foregroundColor: AppColors.black,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 22,
+                                vertical: 14,
+                              ),
+                            ),
+                            child: const Text('Encerrar atendimento'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

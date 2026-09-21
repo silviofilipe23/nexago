@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, input } from '@angular/core';
+import { formatMedicalTimeoutMmSs, medicalTimeoutRemainingSeconds } from '@nexago/live-scoring';
 import { matchClosedSets, matchLiveCurrentSet, matchSetWins } from '../data/live-set-display';
 import type { TournamentMatch } from '../data/matches-repository';
 import {
@@ -86,6 +87,16 @@ import { fireLevelOf } from './telao-streaks';
         }
       </div>
     } @else {
+      <!-- Tempo médico: a partida está PARADA, e na parede isso precisa ser óbvio — quem está
+           sendo atendido e quanto falta, com a mesma contagem das mesas (derivada do carimbo
+           do servidor, sem escrita nenhuma durante os 5 minutos). -->
+      @if (medical(); as med) {
+        <div class="og-tlc-med" role="status">
+          <span class="og-tlc-med-kicker">TEMPO MÉDICO</span>
+          <span class="og-tlc-med-who">{{ med.playerName }}</span>
+          <span class="og-tlc-med-clock">{{ med.clock }}</span>
+        </div>
+      }
       <div class="og-tlc-teams">
         @for (row of rows(); track row.side) {
           <div
@@ -110,6 +121,9 @@ import { fireLevelOf } from './telao-streaks';
                 {{ row.team.short }}
                 @if (servingSide() === row.side) {
                   <span class="og-tlc-serve" title="No saque"></span>
+                  @if (servingPlayerName(); as who) {
+                    <span class="og-tlc-server" [attr.aria-label]="who + ' no saque'">{{ who }}</span>
+                  }
                 }
                 @if (winnerSide() === row.side) {
                   <span class="og-tlc-champ" role="img" aria-label="Vencedora da partida"><og-icon name="trophy" [size]="20" [strokeWidth]="2" /></span>
@@ -348,6 +362,47 @@ import { fireLevelOf } from './telao-streaks';
       margin-left: 6px;
       vertical-align: middle;
       animation: og-tlc-in 220ms var(--nx-ease-out);
+    }
+    .og-tlc-server {
+      margin-left: 6px;
+      font-family: var(--nx-font-mono);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--nx-orange-500);
+      vertical-align: middle;
+    }
+    .og-tlc-med {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      padding: 8px 12px;
+      border-radius: var(--nx-r-2);
+      border: 1px solid color-mix(in srgb, var(--nx-live) 45%, transparent);
+      background: color-mix(in srgb, var(--nx-live) 12%, transparent);
+    }
+    .og-tlc-med-kicker {
+      font-family: var(--nx-font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--nx-live);
+    }
+    .og-tlc-med-who {
+      flex: 1;
+      min-width: 0;
+      font-size: 16px;
+      color: var(--nx-text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .og-tlc-med-clock {
+      font-family: var(--nx-font-mono);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--nx-text);
     }
     .og-tlc-sub {
       font-size: 15px;
@@ -672,6 +727,35 @@ export class TelaoCourtCardComponent {
     if (m.servingTeamId === m.teamAId) return 'A';
     if (m.servingTeamId === m.teamBId) return 'B';
     return null;
+  });
+
+  /** O ATLETA no saque — a partida grava a posição na dupla (1 ou 2) e o telão resolve o nome
+   *  no elenco que já carregou pro rótulo, sem join novo. Primeiro nome só: na parede o que
+   *  identifica é ele, e o sobrenome não cabe ao lado do nome da dupla. */
+  protected readonly servingPlayerName = computed(() => {
+    const m = this.match();
+    const side = this.servingSide();
+    if (!m || side == null) return null;
+    const slot = m.servingPlayerSlot;
+    if (slot !== 1 && slot !== 2) return null;
+    const team = side === 'A' ? this.teamA() : this.teamB();
+    const name = team?.playerNames[slot - 1]?.trim() ?? '';
+    return name ? (name.split(/\s+/)[0] ?? '') : null;
+  });
+
+  /** Atendimento médico em andamento: a partida está parada. A contagem sai de `startedAt`
+   *  (carimbo do servidor) contra o relógio do telão — nenhuma escrita durante os 5 minutos,
+   *  e o número bate com o das três mesas. */
+  protected readonly medical = computed<{ playerName: string; clock: string } | null>(() => {
+    const m = this.match();
+    const active = m?.medicalTimeout;
+    if (!m || !active || this.kind() !== 'live') return null;
+    const team = active.side === 'A' ? this.teamA() : this.teamB();
+    const name = active.playerName.trim() || team?.playerNames[active.playerSlot - 1]?.trim() || 'Atleta';
+    return {
+      playerName: name,
+      clock: formatMedicalTimeoutMmSs(medicalTimeoutRemainingSeconds(active, new Date(this.nowMs() || Date.now()))),
+    };
   });
 
   /** "Em seguida · 15:30" (com o dia junto quando o jogo não é hoje na parede SP). */

@@ -1,9 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../tournaments/domain/tournament_match.dart';
+import '../../tournaments/domain/tournament_match_medical_timeout.dart';
 import '../../tournaments/domain/tournament_match_set.dart';
 import '../../tournaments/domain/tournament_match_status.dart';
+import '../domain/match_ops/match_medical_timeout_logic.dart';
 import '../domain/match_ops/match_scoring_logic.dart';
+import '../domain/match_ops/match_serving_player_logic.dart';
 
 /// O que o motor devolve ao mexer no placar — mesmo formato de [MatchScoringLogic.applyPoint].
 typedef MatchPointResult = ({
@@ -58,6 +61,13 @@ MatchPointWrite? buildPointWrite(TournamentMatch match, String side) {
   );
   final wins = MatchScoringLogic.setsWon(result.sets, bestOf: match.bestOf);
   final current = result.sets.length > setIndex ? result.sets[setIndex] : null;
+  final slots = MatchServingPlayerLogic.slotsAfterScore(
+    slots: match.servingPlayers,
+    previousServingTeamId: match.servingTeamId,
+    nextServingTeamId: result.servingTeamId,
+    teamAId: match.teamAId,
+    teamBId: match.teamBId,
+  );
 
   return MatchPointWrite(
     matchUpdate: {
@@ -67,6 +77,13 @@ MatchPointWrite? buildPointWrite(TournamentMatch match, String side) {
           ? TournamentMatchStatus.completed
           : TournamentMatchStatus.inProgress,
       'servingTeamId': result.servingTeamId,
+      'servingPlayerSlots': slots.toMap(),
+      'servingPlayerSlot': MatchServingPlayerLogic.servingPlayerSlot(
+        slots: slots,
+        servingTeamId: result.servingTeamId,
+        teamAId: match.teamAId,
+        teamBId: match.teamBId,
+      ),
       if (result.winnerId != null) 'winnerId': result.winnerId,
       if (result.winnerId != null) 'matchEndedAt': FieldValue.serverTimestamp(),
       if (match.matchStartedAt == null)
@@ -104,6 +121,10 @@ MatchPointWrite buildUndoWrite(
   final wins = MatchScoringLogic.setsWon(result.sets, bestOf: match.bestOf);
   final idx = result.currentSetIndex;
   final current = result.sets.length > idx ? result.sets[idx] : null;
+  final slots = MatchServingPlayerLogic.slotsAfterUndo(
+    slots: match.servingPlayers,
+    nextServingTeamId: result.servingTeamId,
+  );
 
   return MatchPointWrite(
     matchUpdate: {
@@ -111,6 +132,13 @@ MatchPointWrite buildUndoWrite(
       'currentSetIndex': idx,
       'status': TournamentMatchStatus.inProgress,
       'servingTeamId': result.servingTeamId,
+      'servingPlayerSlots': slots.toMap(),
+      'servingPlayerSlot': MatchServingPlayerLogic.servingPlayerSlot(
+        slots: slots,
+        servingTeamId: result.servingTeamId,
+        teamAId: match.teamAId,
+        teamBId: match.teamBId,
+      ),
       'winnerId': FieldValue.delete(),
       'matchEndedAt': FieldValue.delete(),
       'resultA': '${wins.a}',
@@ -130,5 +158,131 @@ MatchPointWrite buildUndoWrite(
       servingTeamId: result.servingTeamId,
     ),
     setIndex: idx,
+  );
+}
+
+/// Campos de uma troca MANUAL da dupla no saque ("Quem começa sacando?" e "Trocar saque"). Não
+/// mexe na ordem declarada de cada dupla — só reaponta quem está sacando agora, que é o atleta
+/// que aquela dupla já tinha na vez. Espelha `servingTeamFields` de `live-match-repository.ts`.
+Map<String, dynamic> servingTeamFields(TournamentMatch match, String teamId) {
+  return {
+    'servingTeamId': teamId,
+    'servingPlayerSlot': MatchServingPlayerLogic.servingPlayerSlot(
+      slots: match.servingPlayers,
+      servingTeamId: teamId,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+    ),
+  };
+}
+
+/// Campos de "quem saca pela dupla X" — a faixa que aparece quando
+/// [MatchServingPlayerLogic.needsServingPlayer], e também o "Trocar sacador".
+Map<String, dynamic> servingPlayerFields(
+  TournamentMatch match,
+  String side,
+  int slot,
+) {
+  final slots = match.servingPlayers.withSide(side, slot);
+  return {
+    'servingPlayerSlots': slots.toMap(),
+    'servingPlayerSlot': MatchServingPlayerLogic.servingPlayerSlot(
+      slots: slots,
+      servingTeamId: match.servingTeamId,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+    ),
+  };
+}
+
+/// Abre o tempo médico de um atleta: grava o atendimento em andamento, marca a cota do atleta
+/// como usada e registra o chamado na timeline — é o que sobra de auditoria depois que o
+/// atendimento termina e o campo some do doc.
+///
+/// Devolve `null` quando o atleta já usou o dele, quando outro atendimento está rolando ou
+/// quando a partida já encerrou: a mesma guarda do ponto, avaliada sobre o doc FRESCO da
+/// transação. Espelha `buildMedicalTimeoutStartWrite` de `live-match-repository.ts`.
+MatchPointWrite? buildMedicalTimeoutStartWrite(
+  TournamentMatch match, {
+  required String side,
+  required int playerSlot,
+  required String playerName,
+}) {
+  if (match.isCompleted || match.isCanceled) return null;
+  if (!MatchMedicalTimeoutLogic.canRequest(
+    usedKeys: match.medicalTimeoutPlayers,
+    active: match.medicalTimeout,
+    side: side,
+    slot: playerSlot,
+  )) {
+    return null;
+  }
+
+  final setIndex = _clampedSetIndex(match);
+  final current = match.sets.length > setIndex ? match.sets[setIndex] : null;
+  final teamId = side.toUpperCase() == 'A' ? match.teamAId : match.teamBId;
+
+  return MatchPointWrite(
+    matchUpdate: {
+      'medicalTimeout': {
+        'side': side.toUpperCase(),
+        'teamId': teamId,
+        'playerSlot': playerSlot,
+        'playerName': playerName,
+        // Carimbo do SERVIDOR: é ele que faz app, mesas web e telão mostrarem a mesma
+        // contagem sem nenhuma escrita durante os 5 minutos.
+        'startedAt': FieldValue.serverTimestamp(),
+        'durationSec': medicalTimeoutSeconds,
+        'setIndex': setIndex,
+      },
+      'medicalTimeoutPlayers': [
+        ...match.medicalTimeoutPlayers,
+        MatchMedicalTimeoutLogic.playerKey(side, playerSlot),
+      ],
+    },
+    pointEvent: {
+      'type': 'medical-timeout',
+      'side': side.toUpperCase(),
+      'setIndex': setIndex,
+      'scoreA': current?.a ?? 0,
+      'scoreB': current?.b ?? 0,
+      'playerSlot': playerSlot,
+    },
+    result: (
+      sets: match.sets,
+      currentSetIndex: match.currentSetIndex ?? 0,
+      winnerId: null,
+      servingTeamId: match.servingTeamId,
+    ),
+    setIndex: setIndex,
+  );
+}
+
+/// Encerra o atendimento (com ou sem os 5 minutos cheios) — o campo sai do doc e a mesa volta a
+/// marcar ponto. A cota do atleta NÃO volta: chamado é chamado.
+MatchPointWrite? buildMedicalTimeoutEndWrite(TournamentMatch match) {
+  final active = match.medicalTimeout;
+  if (active == null) return null;
+
+  final setIndex = _clampedSetIndex(match);
+  final current = match.sets.length > setIndex ? match.sets[setIndex] : null;
+
+  return MatchPointWrite(
+    matchUpdate: {'medicalTimeout': FieldValue.delete()},
+    pointEvent: {
+      'type': 'medical-timeout-end',
+      'side': active.side,
+      'setIndex': setIndex,
+      'scoreA': current?.a ?? 0,
+      'scoreB': current?.b ?? 0,
+      'playerSlot': active.playerSlot,
+    },
+    result: (
+      sets: match.sets,
+      currentSetIndex: match.currentSetIndex ?? 0,
+      winnerId: null,
+      servingTeamId: match.servingTeamId,
+    ),
+    setIndex: setIndex,
   );
 }

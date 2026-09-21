@@ -15,14 +15,61 @@ import {
   kocReplay,
   kocStandings,
   type KocRally,
-  type KocRallyWinner,
+  type KocRallyOutcome,
 } from "./koc-engine";
 
 const ROSTER = ["A", "B", "C", "D"];
 
-function log(winners: KocRallyWinner[]): KocRally[] {
-  return winners.map((winner, i) => ({seq: i + 1, winner}));
+function log(outcomes: KocRallyOutcome[]): KocRally[] {
+  return outcomes.map((winner, i) => ({seq: i + 1, winner}));
 }
+
+/**
+ * Erro de saque do desafiante.
+ *
+ * Terceiro desfecho, e o único em que o placar não se mexe: o desafiante perde
+ * a vez e volta para o fim da fila, o rei fica. Tratar como "rei venceu" daria
+ * ao rei um ponto que o regulamento não dá.
+ */
+describe("kocApplyRally · erro de saque", () => {
+  it("não pontua para ninguém", () => {
+    const state = kocReplay(ROSTER, log(["serve_fault"]));
+    assert.deepEqual(state.points, {A: 0, B: 0, C: 0, D: 0});
+  });
+
+  it("mantém o rei no trono e manda o desafiante para o fim da fila", () => {
+    const state = kocReplay(ROSTER, log(["serve_fault"]));
+    assert.equal(state.kingTeamId, "A");
+    assert.equal(state.challengerTeamId, "C");
+    assert.deepEqual(state.queue, ["D", "B"]);
+    assert.equal(state.servingTeamId, "C");
+  });
+
+  it("não conta coroação", () => {
+    const state = kocReplay(ROSTER, log(["serve_fault", "serve_fault"]));
+    assert.deepEqual(state.crowns, {A: 1, B: 0, C: 0, D: 0});
+    assert.deepEqual(state.crownOrder, ["A"]);
+  });
+
+  it("conta como rally disputado (a rodada acaba por tempo, não por rally)", () => {
+    assert.equal(kocReplay(ROSTER, log(["serve_fault"])).rallies, 1);
+  });
+
+  it("desfazer devolve a vez ao desafiante que errou", () => {
+    // Desfazer é reproduzir sem o último: o log é a verdade.
+    const antes = kocReplay(ROSTER, log(["king"]));
+    const depois = kocReplay(ROSTER, log(["king", "serve_fault"]));
+    const desfeito = kocReplay(ROSTER, log(["king"]));
+    assert.equal(depois.challengerTeamId, "D");
+    assert.deepEqual(desfeito, antes);
+  });
+
+  it("não atrapalha a contagem de quem defende depois", () => {
+    // A defende, C erra o saque, A defende de novo: 2 pontos, não 3.
+    const state = kocReplay(ROSTER, log(["king", "serve_fault", "king"]));
+    assert.equal(state.points.A, 2);
+  });
+});
 
 describe("kocInitialState", () => {
   it("põe o cabeça de chave no trono e o segundo desafiando", () => {
@@ -149,7 +196,7 @@ describe("kocReplay — invariantes", () => {
   it("o elenco nunca muda de tamanho, quaisquer que sejam os resultados", () => {
     // Percorre 2^10 combinações de resultado: ninguém pode sumir da quadra.
     for (let mask = 0; mask < 1024; mask++) {
-      const winners: KocRallyWinner[] = [];
+      const winners: KocRallyOutcome[] = [];
       for (let i = 0; i < 10; i++) {
         winners.push((mask >> i) & 1 ? "king" : "challenger");
       }
@@ -161,7 +208,7 @@ describe("kocReplay — invariantes", () => {
   });
 
   it("o total de pontos é igual ao número de rallies vencidos pelo rei", () => {
-    const winners: KocRallyWinner[] = [
+    const winners: KocRallyOutcome[] = [
       "king", "challenger", "king", "king", "challenger", "king", "king",
     ];
     const state = kocReplay(ROSTER, log(winners));

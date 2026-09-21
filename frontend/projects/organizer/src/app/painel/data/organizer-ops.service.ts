@@ -522,11 +522,15 @@ export function startKocRound(params: { matchId: string; restart?: boolean }): P
   });
 }
 
+/** Desfecho do rally. `serve_fault` é o erro de saque do desafiante: ele perde
+ *  a vez e ninguém pontua — por isso não dá pra representar como 'king'. */
+export type KocRallyOutcome = 'king' | 'challenger' | 'serve_fault';
+
 /** [expectedSeq] é o número do rally que ESTA mesa acredita estar registrando. */
-export function registerKocRally(params: { matchId: string; kingWon: boolean; expectedSeq?: number }): Promise<{ ok?: boolean; seq?: number; kingTeamId?: string }> {
+export function registerKocRally(params: { matchId: string; outcome: KocRallyOutcome; expectedSeq?: number }): Promise<{ ok?: boolean; seq?: number; kingTeamId?: string }> {
   return call('kocRegisterRally', {
     matchId: params.matchId.trim(),
-    winner: params.kingWon ? 'king' : 'challenger',
+    winner: params.outcome,
     ...(params.expectedSeq != null ? { expectedSeq: params.expectedSeq } : {}),
   });
 }

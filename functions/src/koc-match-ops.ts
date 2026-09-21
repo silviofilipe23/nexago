@@ -32,7 +32,7 @@ import {
   kocStandings,
   type KocClock,
   type KocRally,
-  type KocRallyWinner,
+  type KocRallyOutcome,
   type KocState,
 } from "./koc-engine";
 
@@ -86,10 +86,16 @@ export function parseStoredRallies(raw: unknown): KocRally[] {
     const seq = Number(entry.seq);
     const winner = asString(entry.winner);
     if (!Number.isInteger(seq) || seq < 1) continue;
-    if (winner !== "king" && winner !== "challenger") continue;
-    out.push({seq, winner: winner as KocRallyWinner});
+    if (!isKocRallyOutcome(winner)) continue;
+    out.push({seq, winner});
   }
   return out.sort((a, b) => a.seq - b.seq);
+}
+
+/** Desfecho reconhecido pelo motor. `serve_fault` = erro de saque do
+ *  desafiante: perde a vez, ninguém pontua. */
+function isKocRallyOutcome(value: string): value is KocRallyOutcome {
+  return value === "king" || value === "challenger" || value === "serve_fault";
 }
 
 export function parseStoredClock(raw: unknown): KocClock | null {
@@ -272,10 +278,10 @@ export async function kocRegisterRallyCore(
   const clock = requireClock(round);
 
   const winner = asString(input.winner);
-  if (winner !== "king" && winner !== "challenger") {
+  if (!isKocRallyOutcome(winner)) {
     throw new HttpsError(
       "invalid-argument",
-      "winner deve ser 'king' ou 'challenger'.",
+      "winner deve ser 'king', 'challenger' ou 'serve_fault'.",
     );
   }
 
@@ -292,7 +298,7 @@ export async function kocRegisterRallyCore(
 
   const rallies: KocRally[] = [
     ...round.rallies,
-    {seq: nextSeq, winner: winner as KocRallyWinner},
+    {seq: nextSeq, winner},
   ];
   let state: KocState;
   try {

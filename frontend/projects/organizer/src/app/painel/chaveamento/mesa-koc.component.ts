@@ -16,6 +16,7 @@ import { watchMatches, type TournamentMatch } from '../data/matches-repository';
 import { organizerFirestore } from '../data/firestore';
 import {
   finishKocRound,
+  type KocRallyOutcome,
   registerKocRally,
   setKocClock,
   startKocRound,
@@ -116,7 +117,7 @@ import { OgIconComponent } from '../ui/icon.component';
           </div>
 
           <!-- Dois alvos grandes: o mesário toca olhando a quadra. -->
-          <button type="button" class="og-mk-target king" [disabled]="busy()" (click)="rally(true)">
+          <button type="button" class="og-mk-target king" [disabled]="busy()" (click)="rally('king')">
             <span class="og-mk-crown" role="img" aria-label="No trono">👑</span>
             <span class="og-mk-target-body">
               <span class="og-mk-target-name">{{ nameOf(kingId()) }}</span>
@@ -124,13 +125,20 @@ import { OgIconComponent } from '../ui/icon.component';
             </span>
             <span class="og-mk-target-pts">{{ pointsOf(kingId()) }}</span>
           </button>
-          <button type="button" class="og-mk-target challenger" [disabled]="busy()" (click)="rally(false)">
+          <button type="button" class="og-mk-target challenger" [disabled]="busy()" (click)="rally('challenger')">
             <span class="og-mk-crown" role="img" aria-label="Desafiante">⬆️</span>
             <span class="og-mk-target-body">
               <span class="og-mk-target-name">{{ nameOf(challengerId()) }}</span>
               <span class="og-mk-target-desc">Destronou · assume o trono, sem ponto</span>
             </span>
             <span class="og-mk-target-pts">{{ pointsOf(challengerId()) }}</span>
+          </button>
+
+          <!-- Terceiro desfecho, menor de propósito: é o menos frequente, e
+               confundi-lo com "o rei defendeu" daria ao rei um ponto que o
+               regulamento não dá. -->
+          <button type="button" class="og-mk-fault" [disabled]="busy()" (click)="rally('serve_fault')">
+            Erro de saque de {{ nameOf(challengerId()) }} · perde a vez, sem ponto
           </button>
 
           @if (queue().length > 0) {
@@ -266,6 +274,23 @@ import { OgIconComponent } from '../ui/icon.component';
       font-size: 26px;
       font-weight: 800;
       font-variant-numeric: tabular-nums;
+    }
+    .og-mk-fault {
+      width: 100%;
+      margin: 2px 0 12px;
+      padding: 10px 12px;
+      border: 1px dashed rgb(255 255 255 / 22%);
+      border-radius: 12px;
+      background: none;
+      color: inherit;
+      opacity: 0.75;
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .og-mk-fault:disabled {
+      opacity: 0.4;
+      cursor: default;
     }
     .og-mk-queue {
       margin: 4px 0 16px;
@@ -493,9 +518,9 @@ export class MesaKocComponent {
 
   /** `expectedSeq` é o que impede o mesmo rally de entrar duas vezes quando as
    *  duas mesas (app e portal) estão abertas na mesma rodada. */
-  protected rally(kingWon: boolean): void {
+  protected rally(outcome: KocRallyOutcome): void {
     void this.run(
-      () => registerKocRally({ matchId: this.matchId(), kingWon, expectedSeq: this.rallies() + 1 }),
+      () => registerKocRally({ matchId: this.matchId(), outcome, expectedSeq: this.rallies() + 1 }),
       null,
     );
   }

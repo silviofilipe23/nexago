@@ -174,10 +174,10 @@ class _OrganizerKocTablePageState extends ConsumerState<OrganizerKocTablePage> {
                 labels[teamId] ?? fallback?[teamId] ?? 'Dupla',
             busy: _busy,
             onStart: () => _run(() => _ops.startRound(matchId: widget.matchId)),
-            onRally: (kingWon) => _run(
+            onRally: (outcome) => _run(
               () => _ops.registerRally(
                 matchId: widget.matchId,
-                kingWon: kingWon,
+                outcome: outcome,
                 expectedSeq: round.rallies + 1,
               ),
             ),
@@ -238,7 +238,7 @@ class _KocTableBody extends StatelessWidget {
   final String Function(String teamId) labelFor;
   final bool busy;
   final VoidCallback onStart;
-  final void Function(bool kingWon) onRally;
+  final void Function(KocRallyOutcome outcome) onRally;
   final VoidCallback onUndo;
   final VoidCallback onTogglePause;
   final void Function(int deltaSec) onNudge;
@@ -532,7 +532,7 @@ class _RallyButtons extends StatelessWidget {
   final KocRoundState round;
   final String Function(String teamId) labelFor;
   final bool busy;
-  final void Function(bool kingWon) onRally;
+  final void Function(KocRallyOutcome outcome) onRally;
 
   @override
   Widget build(BuildContext context) {
@@ -544,7 +544,7 @@ class _RallyButtons extends StatelessWidget {
           subtitle: 'Defendeu o trono · +1 ponto',
           points: round.pointsOf(round.kingTeamId),
           color: AppColors.brand,
-          onTap: busy ? null : () => onRally(true),
+          onTap: busy ? null : () => onRally(KocRallyOutcome.king),
         ),
         const SizedBox(height: 12),
         _RallyButton(
@@ -553,9 +553,60 @@ class _RallyButtons extends StatelessWidget {
           subtitle: 'Destronou · assume o trono, sem ponto',
           points: round.pointsOf(round.challengerTeamId),
           color: context.themeColors.surfaceRaised,
-          onTap: busy ? null : () => onRally(false),
+          onTap: busy ? null : () => onRally(KocRallyOutcome.challenger),
+        ),
+        const SizedBox(height: 10),
+        // Terceiro desfecho, deliberadamente menor: é o menos frequente, e
+        // confundi-lo com "o rei defendeu" daria ao rei um ponto que o
+        // regulamento não dá.
+        _ServeFaultButton(
+          challengerLabel: labelFor(round.challengerTeamId),
+          onTap: busy ? null : () => onRally(KocRallyOutcome.serveFault),
         ),
       ],
+    );
+  }
+}
+
+/// Erro de saque do desafiante: perde a vez, ninguém pontua.
+class _ServeFaultButton extends StatelessWidget {
+  const _ServeFaultButton({required this.challengerLabel, required this.onTap});
+
+  final String challengerLabel;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: onTap == null ? 0.4 : 0.75,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: context.themeColors.onSurfaceMuted.withValues(
+                  alpha: 0.35,
+                ),
+              ),
+            ),
+            child: Text(
+              'Erro de saque de $challengerLabel · perde a vez, sem ponto',
+              textAlign: TextAlign.center,
+              style: AppTypography.soraRegular(
+                fontSize: 13,
+                color: context.themeColors.onSurface,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

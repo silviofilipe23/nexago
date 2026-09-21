@@ -11,13 +11,21 @@
  * pontuar no rally seguinte, já no trono (`docs/business-rules/king-of-court.md`).
  */
 
-/** Quem venceu o rally. O lado, não o time: é o que torna o replay determinístico. */
-export type KocRallyWinner = "king" | "challenger";
+/**
+ * Desfecho do rally. O LADO, não o time: é o que torna o replay determinístico.
+ *
+ * `serve_fault` é o erro de saque do desafiante: ele perde a vez e volta para o
+ * fim da fila, o rei fica no trono e NINGUÉM pontua. Não é "rei venceu" — se
+ * fosse, o rei somaria um ponto que o regulamento não dá.
+ */
+export type KocRallyOutcome = "king" | "challenger" | "serve_fault";
 
 export interface KocRally {
   /** Sequencial 1-based, na ordem de disputa. */
   seq: number;
-  winner: KocRallyWinner;
+  /** Nome herdado de quando só havia dois desfechos; os docs já gravados usam
+   *  este campo, então ele fica — o que mudou é o conjunto de valores. */
+  winner: KocRallyOutcome;
 }
 
 export interface KocState {
@@ -81,9 +89,14 @@ export function kocInitialState(teamIds: readonly string[]): KocState {
  *
  * Rei vence → +1 e fica; o desafiante vai para o fim da fila.
  * Desafiante vence → assume o trono SEM pontuar; o rei destronado vai para o fim.
- * Nos dois casos entra o próximo da fila e ele passa a sacar.
+ * Erro de saque do desafiante → ele perde a vez e vai para o fim da fila; o rei
+ * fica, e ninguém pontua (o saque errado não é um rally ganho).
+ * Nos três casos entra o próximo da fila e ele passa a sacar.
  */
-export function kocApplyRally(state: KocState, winner: KocRallyWinner): KocState {
+export function kocApplyRally(
+  state: KocState,
+  outcome: KocRallyOutcome,
+): KocState {
   const {kingTeamId, challengerTeamId, queue} = state;
   const points = {...state.points};
   const crowns = {...state.crowns};
@@ -91,7 +104,11 @@ export function kocApplyRally(state: KocState, winner: KocRallyWinner): KocState
 
   let nextKing: string;
   let leaving: string;
-  if (winner === "king") {
+  if (outcome === "serve_fault") {
+    // Trono e placar intactos: só a vez do desafiante se perde.
+    nextKing = kingTeamId;
+    leaving = challengerTeamId;
+  } else if (outcome === "king") {
     points[kingTeamId] = (points[kingTeamId] ?? 0) + 1;
     nextKing = kingTeamId;
     leaving = challengerTeamId;

@@ -13,7 +13,12 @@ tem `teamAId`/`teamBId` — tem um elenco (`kocTeamIds`) e uma tabela de pontos.
 - **Rei vence** → +1 ponto para o rei; o desafiante volta para o fim da fila; entra o próximo.
 - **Desafiante vence** → ele cruza para o trono e vira o novo rei (**não pontua pela coroação**);
   o rei destronado vai para o fim da fila.
+- **Desafiante erra o saque** → **perde a vez**: volta para o fim da fila e o rei fica no trono,
+  mas **ninguém pontua**. O saque errado não é rally ganho pelo rei — tratá-lo assim daria ao rei
+  um ponto que o regulamento não dá.
 - Quem entra no lado do desafiante saca.
+
+Nos três casos entra o próximo da fila, e ele passa a sacar.
 
 ## Fim da rodada
 - Por **tempo**, definido pelo organizador (padrão 15 min, faixa de 5 a 40). Pode

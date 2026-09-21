@@ -9,8 +9,21 @@ import 'package:flutter/foundation.dart';
 
 import '../tournament_match_status.dart';
 
-/// Quem venceu o rally — o lado, não a dupla.
-enum KocRallyWinner { king, challenger }
+/// Desfecho do rally — o lado, não a dupla.
+///
+/// [serveFault] é o erro de saque do desafiante: ele perde a vez e volta para o
+/// fim da fila, o rei fica no trono e NINGUÉM pontua. Não é "o rei venceu" — se
+/// fosse, o rei somaria um ponto que o regulamento não dá.
+enum KocRallyOutcome {
+  king('king'),
+  challenger('challenger'),
+  serveFault('serve_fault');
+
+  const KocRallyOutcome(this.wire);
+
+  /// Valor mandado na callable (espelha `KocRallyOutcome` do servidor).
+  final String wire;
+}
 
 @immutable
 class KocStanding {

@@ -99,6 +99,22 @@ export function isCityStepDone(data: Record<string, unknown>): boolean {
   return parseLegacyLocation(city).state.length === 2;
 }
 
+/**
+ * Foto do atleta em `users/{uid}`, na MESMA ordem que o app resolve
+ * (`AthleteProfile.fromMap`): `profilePhotoUrl` -> `avatarUrl` -> `photoURL`.
+ *
+ * `profilePhotoUrl` é o único campo que as superfícies gravam hoje (app e portal
+ * do atleta); `avatarUrl` é legado (só leituras) e `photoURL` vem do provedor
+ * social. Ler só `avatarUrl` fazia o passo `photo` nunca fechar.
+ */
+export function resolveProfilePhotoUrl(data: Record<string, unknown>): string {
+  for (const field of ["profilePhotoUrl", "avatarUrl", "photoURL"]) {
+    const value = stringField(data[field]);
+    if (value) return value;
+  }
+  return "";
+}
+
 export function isSportLevelStepDone(data: Record<string, unknown>): boolean {
   const primarySport = stringField(data["primarySportFirestoreId"]);
   if (primarySport) return true;
@@ -123,7 +139,7 @@ export function computeProfileRewardContext(
   data: Record<string, unknown>,
 ): ProfileRewardContext {
   const stepDone: Record<ProfileCompletionStepId, boolean> = {
-    photo: stringField(data["avatarUrl"]).length > 0,
+    photo: resolveProfilePhotoUrl(data).length > 0,
     sport_level: isSportLevelStepDone(data),
     city: isCityStepDone(data),
     whatsapp: data["phoneVerified"] === true,

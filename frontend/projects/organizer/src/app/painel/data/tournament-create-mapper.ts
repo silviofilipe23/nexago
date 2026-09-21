@@ -6,6 +6,9 @@ import { generateKeywords } from './search-keywords';
 import {
   BRACKET_FORMAT_FIRESTORE,
   DISPUTE_TEAM_SIZE,
+  KOC_DEFAULT_QUALIFIERS_PER_ROUND,
+  KOC_DEFAULT_ROUND_DURATION_SEC,
+  KOC_DEFAULT_TEAMS_PER_COURT,
   SKILL_LEVEL_LABEL,
   type AgeBand,
   type AgeReference,
@@ -90,6 +93,11 @@ export function categoryToMap(category: TournamentCategoryDraft, draft: Tourname
     bracketFormat: BRACKET_FORMAT_FIRESTORE[category.bracketSystem],
     teamsPerGroup: category.teamsPerGroup,
     qualifiersPerGroup: category.qualifiersPerGroup,
+    // Config do King of the Court — mesmos nomes que `resolveKocConfig` lê no
+    // backend. Gravada sempre, para o roundtrip de edição não perder a escolha.
+    teamsPerCourt: category.kocTeamsPerCourt,
+    qualifiersPerRound: category.kocQualifiersPerRound,
+    roundDurationSec: category.kocRoundDurationSec,
     bestOf: category.bestOf,
     finalBestOf5: category.finalBestOf5,
     maxRegistrationsPerAthlete: category.maxRegistrationsPerAthlete,
@@ -151,9 +159,16 @@ export function tournamentDraftToFirestore(params: {
     listingStatus,
     status: listingStatus,
     visibility: draft.visibility,
+    enrolledTeamsVisible: draft.enrolledTeamsVisible,
     featured: false,
     liveMatchesNow: 0,
-    managerId,
+    // `managerId` só na CRIAÇÃO. O wizard mandava o uid de quem salvou também na
+    // edição, então um gestor/administrador da equipe editando o evento passava
+    // a ser o DONO dele — e dono lê o caixa e saca (`tournamentWallets`). As
+    // rules passaram a congelar o campo para a equipe (16/09/2026), o que sem
+    // esta linha faria toda edição de staff voltar permission-denied. Dono não
+    // muda por edição de evento: quem transfere evento é outro fluxo.
+    ...(isUpdate ? {} : { managerId }),
     categories,
     defaultEntryFeeCents: draft.defaultPriceCents,
     registrationOpensAt: draft.registrationOpensAt ? Timestamp.fromDate(draft.registrationOpensAt) : null,
@@ -328,6 +343,9 @@ export function categoryFromMap(map: Record<string, unknown>): TournamentCategor
     bracketSystem: (bracketRaw ? bracketSystemFromRaw(bracketRaw) : null) ?? 'groupsThenKnockout',
     teamsPerGroup: num(map['teamsPerGroup']) ?? 4,
     qualifiersPerGroup: num(map['qualifiersPerGroup']) ?? 2,
+    kocTeamsPerCourt: num(map['teamsPerCourt']) ?? KOC_DEFAULT_TEAMS_PER_COURT,
+    kocQualifiersPerRound: num(map['qualifiersPerRound']) ?? KOC_DEFAULT_QUALIFIERS_PER_ROUND,
+    kocRoundDurationSec: num(map['roundDurationSec']) ?? KOC_DEFAULT_ROUND_DURATION_SEC,
     bestOf: parseBestOf(map['bestOf']),
     finalBestOf5: map['finalBestOf5'] === true,
     maxRegistrationsPerAthlete: num(map['maxRegistrationsPerAthlete']) ?? 2,
@@ -390,6 +408,8 @@ export function tournamentDraftFromFirestore(data: Record<string, unknown>, id: 
     rankingEnabled: data['rankingEnabled'] !== false,
     rankingTableId: str(data['rankingTableId']) || 'nexago_standalone',
     visibility: (data['visibility'] === 'linkOnly' ? 'linkOnly' : 'publicListing') as TournamentVisibility,
+    // Ausente = VISÍVEL: a lista já existia antes da flag, e torneio antigo não pode perdê-la.
+    enrolledTeamsVisible: data['enrolledTeamsVisible'] !== false,
   };
 
   const listingStatus = str(data['listingStatus']) || str(data['status']) || null;

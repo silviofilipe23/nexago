@@ -88,7 +88,8 @@ String? _partnerIdForTeam(TournamentTeam team, String athleteId) {
   return null;
 }
 
-String? _athleteTeamIdForMatch(TournamentMatch match, Set<String> athleteTeamIds) {
+String? _athleteTeamIdForMatch(
+    TournamentMatch match, Set<String> athleteTeamIds) {
   if (athleteTeamIds.contains(match.teamAId)) return match.teamAId;
   if (athleteTeamIds.contains(match.teamBId)) return match.teamBId;
   return null;

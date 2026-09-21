@@ -15,6 +15,58 @@ export function compareByMatchNumber(
   return (a.matchNumber ?? 0) - (b.matchNumber ?? 0);
 }
 
+/**
+ * Troca entre rodadas King of the Court, em minutos.
+ *
+ * A duração configurada é o tempo de JOGO da rodada; o slot de quadra precisa
+ * da troca também, senão a grade sai com as rodadas coladas uma na outra e o
+ * dia inteiro estoura logo na primeira. É o mesmo colchão do desenho da etapa
+ * (`docs/product/king-of-court-plan.md`, seção 7).
+ */
+export const KOC_CHANGEOVER_MIN = 5;
+
+/**
+ * Duplas que a partida ocupa naquele horário.
+ *
+ * A rodada KOTC grava `teamAId`/`teamBId` VAZIOS e põe o elenco em
+ * `kocTeamIds`: colher só os dois lados deixaria a rodada sem marcar ninguém
+ * ocupado, e a mesma dupla poderia ser agendada para um duelo no mesmo horário
+ * em que está na rodada.
+ */
+export function matchTeamIds(data: FirebaseFirestore.DocumentData): string[] {
+  const out: string[] = [];
+  const push = (value: unknown): void => {
+    if (typeof value !== "string") return;
+    const id = value.trim();
+    if (id && !out.includes(id)) out.push(id);
+  };
+  push(data.teamAId);
+  push(data.teamBId);
+  if (Array.isArray(data.kocTeamIds)) for (const id of data.kocTeamIds) push(id);
+  return out;
+}
+
+/**
+ * Quanto tempo de quadra a partida ocupa, em minutos.
+ *
+ * A rodada KOTC tem a sua própria duração no snapshot `kocConfig.durationSec`,
+ * e ela VARIA POR FASE (a final costuma ser mais longa que a classificatória).
+ * Reservar o padrão do dia erraria nas duas direções: sobraria quadra numa
+ * rodada de 15 min e faltaria numa de 40.
+ */
+export function matchDurationMin(
+  data: FirebaseFirestore.DocumentData,
+  fallbackMin: number,
+): number {
+  const config = data.kocConfig;
+  const raw = config && typeof config === "object" ?
+    (config as Record<string, unknown>).durationSec :
+    undefined;
+  const sec = Number(raw);
+  if (!Number.isFinite(sec) || sec <= 0) return fallbackMin;
+  return Math.ceil(sec / 60) + KOC_CHANGEOVER_MIN;
+}
+
 export interface CourtAllocationSlot {
   matchId: string;
   courtId: string;
@@ -40,6 +92,12 @@ export function allocateCourtSlots(params: {
   minRestMin: number;
   avoidAthleteConflict: boolean;
   dayStart: Date;
+  /**
+   * Piso de início por partida (id → instante). Usado pela cascata para não
+   * puxar ninguém para antes do colchão de aviso; `autoScheduleTournamentDay`
+   * não passa nada e segue alocando a partir do `dayStart`.
+   */
+  minStartById?: Record<string, Date>;
 }): CourtAllocationSlot[] {
   const {
     courts,
@@ -50,6 +108,7 @@ export function allocateCourtSlots(params: {
     minRestMin,
     avoidAthleteConflict,
     dayStart,
+    minStartById,
   } = params;
 
   const slots: CourtAllocationSlot[] = [];
@@ -65,12 +124,17 @@ export function allocateCourtSlots(params: {
       if (start < dayStart) start = new Date(dayStart);
 
       if (avoidAthleteConflict) {
-        for (const tid of [data.teamAId, data.teamBId]) {
-          if (typeof tid !== "string" || !tid.trim()) continue;
+        for (const tid of matchTeamIds(data)) {
           const busy = teamBusyUntil[tid];
           if (busy && busy > start) start = busy;
         }
       }
+
+      // O piso entra ANTES da comparação entre quadras, como o ajuste de
+      // conflito: comparar um candidato já ajustado contra outro cru elege a
+      // quadra errada.
+      const floor = minStartById?.[doc.id];
+      if (floor && floor > start) start = new Date(floor);
 
       return {courtId: court.id, start};
     });
@@ -80,14 +144,15 @@ export function allocateCourtSlots(params: {
     const chosenCourt = chosen.courtId;
     const chosenStart = chosen.start;
 
-    const end = new Date(chosenStart.getTime() + durationMin * 60 * 1000);
+    const end = new Date(
+      chosenStart.getTime() + matchDurationMin(data, durationMin) * 60 * 1000,
+    );
     slots.push({matchId: doc.id, courtId: chosenCourt, start: chosenStart, end});
     courtBusyUntil[chosenCourt] = end;
 
     if (avoidAthleteConflict) {
       const teamRestUntil = new Date(end.getTime() + minRestMin * 60 * 1000);
-      for (const tid of [data.teamAId, data.teamBId]) {
-        if (typeof tid !== "string" || !tid.trim()) continue;
+      for (const tid of matchTeamIds(data)) {
         teamBusyUntil[tid] = teamRestUntil;
       }
     }

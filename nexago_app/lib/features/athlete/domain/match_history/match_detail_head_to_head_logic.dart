@@ -50,9 +50,8 @@ MatchDetailHeadToHeadInfo? buildMatchDetailHeadToHeadInfo({
   final ourId = ourTeamId.trim();
   if (ourId.isEmpty) return null;
 
-  final effectiveExcludeMatchId = phase == MatchDetailPhase.scheduled
-      ? excludeMatchId
-      : '';
+  final effectiveExcludeMatchId =
+      phase == MatchDetailPhase.scheduled ? excludeMatchId : '';
 
   final mutual = mutualMatchesBetweenTeams(
     ourTeamMatches: ourTeamMatches,

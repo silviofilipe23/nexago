@@ -41,8 +41,8 @@ final matchWinProbabilityProvider = FutureProvider.autoDispose
   final teamB = teams[teamBId];
   if (teamA == null || teamB == null) return null;
 
-  final ratingA = await _resolveTeamRating(ref, teamA.playerIds, sportCode);
-  final ratingB = await _resolveTeamRating(ref, teamB.playerIds, sportCode);
+  final ratingA = await _resolveTeamRating(ref, teamA.memberIds, sportCode);
+  final ratingB = await _resolveTeamRating(ref, teamB.memberIds, sportCode);
   if (ratingA == null || ratingB == null) return null;
 
   return winProbability(ratingA: ratingA, ratingB: ratingB);

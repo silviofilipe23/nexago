@@ -142,8 +142,7 @@ class AthleteAgendaItem {
   final AthleteAgendaClubSessionPayload? clubSession;
   final bool isMock;
 
-  bool get isCanceled =>
-      rental?.stage == AthleteAgendaBookingStage.canceled;
+  bool get isCanceled => rental?.stage == AthleteAgendaBookingStage.canceled;
 }
 
 class AthleteAgendaDaySummary {
@@ -194,6 +193,7 @@ class AthleteAgendaWeekDay {
   final int rentalDots;
   final int tournamentDots;
   final int challengeDots;
+
   /// Total de eventos no dia.
   final int eventCount;
 

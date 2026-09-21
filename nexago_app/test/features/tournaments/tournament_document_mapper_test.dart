@@ -391,4 +391,22 @@ void main() {
       expect(t.requireFormedPair, isFalse);
     });
   });
+
+  test('o esporte chega no item de descoberta, pra capa padrão', () {
+    // O card de descoberta cai na arte do esporte quando não há capa. Sem o
+    // `sport` atravessando o `toDiscovery()` ele fica no gradiente, que é
+    // exatamente o que a capa padrão veio tirar.
+    final d = TournamentDocumentMapper.fromMap('t-sport', {
+      'name': 'Etapa Areia',
+      'sport': 'beachVolleyball',
+    });
+
+    expect(d.sport, 'beachVolleyball');
+  });
+
+  test('torneio sem esporte fica com string vazia, não nulo', () {
+    final d = TournamentDocumentMapper.fromMap('t-legado', {'name': 'Antigo'});
+
+    expect(d.sport, '');
+  });
 }

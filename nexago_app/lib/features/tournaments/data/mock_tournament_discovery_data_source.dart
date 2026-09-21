@@ -53,6 +53,7 @@ class MockTournamentDiscoveryDataSource implements TournamentDiscoveryDataSource
       leagueId: t.leagueId,
       leagueStageId: t.leagueStageId,
       imageUrl: t.imageUrl,
+      sport: t.sport,
       categoryOffers: t.categoryOffers,
     );
   }

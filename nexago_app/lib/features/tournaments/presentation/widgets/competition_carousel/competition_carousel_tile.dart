@@ -1,10 +1,10 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
+import '../tournament_cover_image.dart';
 
 const competitionCarouselTileWidth = 250.0;
 const competitionCarouselImageHeight = 120.0;
@@ -17,12 +17,16 @@ class CompetitionCarouselTile extends StatefulWidget {
     required this.sortDate,
     required this.imageUrl,
     required this.onTap,
+    this.sport = '',
   });
 
   final String title;
   final String subtitle;
   final DateTime sortDate;
   final String? imageUrl;
+
+  /// Esporte do torneio, pra capa padrão. Vazio (liga) fica no gradiente.
+  final String sport;
   final VoidCallback onTap;
 
   @override
@@ -69,7 +73,10 @@ class _CompetitionCarouselTileState extends State<CompetitionCarouselTile> {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      _CoverImage(imageUrl: widget.imageUrl),
+                      _CoverImage(
+                        imageUrl: widget.imageUrl,
+                        sport: widget.sport,
+                      ),
                       Positioned(
                         top: 8,
                         left: 8,
@@ -213,30 +220,21 @@ class _DateBadge extends StatelessWidget {
 }
 
 class _CoverImage extends StatelessWidget {
-  const _CoverImage({required this.imageUrl});
+  const _CoverImage({required this.imageUrl, required this.sport});
 
   final String? imageUrl;
+  final String sport;
 
   @override
   Widget build(BuildContext context) {
-    final url = imageUrl?.trim();
-    if (url != null && url.isNotEmpty) {
-      // Decodifica só no tamanho exibido — sem isso a imagem original (ex.:
-      // foto de câmera) é decodificada em resolução cheia pra caber num
-      // tile de 250x120, custando memória e frames a cada tile que entra
-      // em cena.
-      final dpr = MediaQuery.devicePixelRatioOf(context);
-      return CachedNetworkImage(
-        imageUrl: url,
-        fit: BoxFit.cover,
-        fadeInDuration: const Duration(milliseconds: 220),
-        memCacheWidth: (competitionCarouselTileWidth * dpr).round(),
-        memCacheHeight: (competitionCarouselImageHeight * dpr).round(),
-        placeholder: (_, __) => const _CoverPlaceholder(),
-        errorWidget: (_, __, ___) => const _CoverPlaceholder(),
-      );
-    }
-    return const _CoverPlaceholder();
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    return TournamentCoverImage(
+      coverUrl: imageUrl,
+      sport: sport,
+      placeholder: (_) => const _CoverPlaceholder(),
+      memCacheWidth: (competitionCarouselTileWidth * dpr).round(),
+      memCacheHeight: (competitionCarouselImageHeight * dpr).round(),
+    );
   }
 }
 

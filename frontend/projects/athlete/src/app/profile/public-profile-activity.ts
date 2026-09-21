@@ -29,6 +29,8 @@ export interface PublicProfileTeamRow {
   teamName: string;
   detailLabel: string;
   initials: readonly [string, string];
+  /** Fotos dos dois atletas (`public_profiles.avatarUrl`); `null` = só iniciais. */
+  avatarUrls: readonly [string | null, string | null];
 }
 
 export interface PublicProfileMatchRow {
@@ -214,6 +216,7 @@ export async function loadPublicProfileActivity(db: Firestore, projectId: string
         teamName: teamDisplayName(team, p1, p2),
         detailLabel: teamDetailLabel(rankByTeamId.get(team.id) ?? null, wins, teamMatches.length - wins),
         initials: [initialsOf(p1?.displayName ?? 'Atleta'), initialsOf(p2?.displayName ?? 'Atleta')] as const,
+        avatarUrls: [p1?.avatarUrl ?? null, p2?.avatarUrl ?? null] as const,
       };
     });
 

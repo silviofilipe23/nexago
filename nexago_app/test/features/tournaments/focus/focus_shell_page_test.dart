@@ -132,22 +132,23 @@ void main() {
     await initializeDateFormatting('pt_BR', null);
   });
 
-  testWidgets('nav inferior traz as cinco seções e o cabeçalho tem o ×',
+  testWidgets('nav inferior traz as quatro seções e o cabeçalho tem o ×',
       (tester) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
     // Rótulos em caixa alta: é o `uppercaseLabels` da nav do app.
     expect(find.text('AGORA'), findsOneWidget);
-    expect(find.text('JORNADA'), findsOneWidget);
+    expect(find.text('JORNADA'), findsNothing);
     expect(find.text('TRAJETÓRIA'), findsNothing);
-    // Sem formato de dupla eliminação resolvido, a terceira aba é o Grupo.
+    // Sem formato de dupla eliminação resolvido, a segunda aba é o Grupo.
     expect(find.text('GRUPO'), findsOneWidget);
     expect(find.text('CHAVE'), findsNothing);
     expect(find.text('ARENA'), findsOneWidget);
     expect(find.text('PALPITES'), findsOneWidget);
     expect(find.byIcon(Icons.close_rounded), findsOneWidget);
     expect(find.text('FOCUS'), findsOneWidget);
+    expect(find.text('DUPLA ELIMINATÓRIA'), findsNothing);
   });
 
   // A Arena é a única seção que não se recorta por categoria: tem que abrir
@@ -169,7 +170,7 @@ void main() {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('JORNADA'));
+    await tester.tap(find.text('ARENA'));
     await tester.pumpAndSettle();
 
     expect(find.text('AGORA'), findsOneWidget);
@@ -239,7 +240,8 @@ void main() {
 
     expect(find.text('CHAVE'), findsOneWidget);
     expect(find.text('GRUPO'), findsNothing);
-    expect(find.text('FOCUS · DUPLA ELIMINATÓRIA'), findsOneWidget);
+    expect(find.text('FOCUS'), findsOneWidget);
+    expect(find.text('DUPLA ELIMINATÓRIA'), findsOneWidget);
   });
 
   // Palpites é do torneio INTEIRO, como a Arena: tem que abrir mesmo para quem

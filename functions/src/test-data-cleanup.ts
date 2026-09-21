@@ -390,3 +390,78 @@ export function partitionOrganizerCleanup(input: {
     deletableOrganizerUids,
   };
 }
+
+/** Campos de `communityFeed` usados pela decisão de limpeza. */
+export interface CleanupFeedItem {
+  id: string;
+  /** Torneio que o item divulga — presente nos três `type` publicados. */
+  tournamentId?: unknown;
+}
+
+/** O que a limpeza do feed da Comunidade decide apagar, e por qual motivo. */
+export interface CommunityFeedCleanupPlan {
+  /** Item de torneio seed desta rodada — sai junto com o torneio. */
+  seedFeedItemIds: string[];
+  /**
+   * Item cujo torneio não existe mais — sobra das execuções anteriores a
+   * este passo existir.
+   */
+  orphanFeedItemIds: string[];
+}
+
+/**
+ * Decide o que sai de `communityFeed`.
+ *
+ * A coleção é TOP-LEVEL indexada pelo torneio, então nada dela sai junto com o
+ * `recursiveDelete` de `tournaments/{id}` — mesma armadilha de
+ * `tournamentPredictions/{tid}/entries`. Os itens são escritos por trigger
+ * (`community-feed.ts`: `open_{tid}`, `champions_{tid}`) e por callable
+ * (`tournament-announcements.ts`: `announcement_{tid}_{ms}`), nunca pelo seed
+ * — logo não carregam flag `seedTest*` e precisam ser decididos pelo torneio,
+ * campo que os três tipos têm.
+ *
+ * Dois motivos para apagar, como em `partitionRankingDocs`:
+ *
+ * 1. **Seed** — o item é de um torneio seed desta rodada.
+ * 2. **Órfão** — o torneio apontado não existe mais. O card não some sozinho:
+ *    ele guarda `tournamentName` copiado e continua desenhado no feed, levando
+ *    a um torneio que já foi apagado. São as sobras de quando a limpeza
+ *    apagava `tournaments` sem tocar em `communityFeed`.
+ *
+ * Seed ganha de órfão na classificação (um torneio seed apagado à mão pelo
+ * console cai nos dois): os dois apagam, a separação existe só para o
+ * relatório distinguir lixo desta rodada de sobra antiga.
+ *
+ * Item sem `tournamentId` é MANTIDO: sem dono não dá para provar nem que é
+ * seed nem que é órfão, e a limpeza não apaga o que não conseguiu provar.
+ */
+export function partitionCommunityFeed(input: {
+  items: CleanupFeedItem[];
+  seedTournamentIds: string[];
+  existingTournamentIds: string[];
+}): CommunityFeedCleanupPlan {
+  const seedTournaments = new Set(
+    input.seedTournamentIds.map(cleanUid).filter(Boolean),
+  );
+  const existingTournaments = new Set(
+    input.existingTournamentIds.map(cleanUid).filter(Boolean),
+  );
+
+  const seedFeedItemIds: string[] = [];
+  const orphanFeedItemIds: string[] = [];
+
+  for (const item of input.items) {
+    const tournamentId = cleanUid(item.tournamentId);
+    if (!tournamentId) continue;
+
+    if (seedTournaments.has(tournamentId)) {
+      seedFeedItemIds.push(item.id);
+      continue;
+    }
+    if (!existingTournaments.has(tournamentId)) {
+      orphanFeedItemIds.push(item.id);
+    }
+  }
+
+  return {seedFeedItemIds, orphanFeedItemIds};
+}

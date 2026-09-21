@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:nexago_app/core/auth/auth_providers.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_radii.dart';
-import 'package:nexago_app/core/theme/app_shadows.dart';
+import 'package:nexago_app/core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
@@ -17,6 +16,7 @@ import '../domain/predictions/tournament_predictions_logic.dart';
 import '../domain/predictions/tournament_predictions_providers.dart';
 import '../domain/tournament_discovery_providers.dart';
 import '../domain/tournament_match.dart';
+import 'focus/widgets/focus_now_hero.dart';
 import 'widgets/predictions/prediction_match_pick_card.dart';
 import 'widgets/predictions/prediction_rank_delta.dart';
 import 'widgets/predictions/prediction_share_capture.dart';
@@ -29,6 +29,8 @@ enum _PredictionsSection { picks, leaderboard }
 /// Tela "Palpites": qualquer atleta autenticado palpita quem vence cada
 /// partida `Scheduled` do torneio (e o campeão, via a partida final) e
 /// acompanha o leaderboard de quem mais acerta.
+///
+/// O palpite grava ao tocar na equipe — sem CTA "Salvar".
 class TournamentPredictionsPage extends ConsumerStatefulWidget {
   const TournamentPredictionsPage({
     super.key,
@@ -45,9 +47,9 @@ class TournamentPredictionsPage extends ConsumerStatefulWidget {
 
   /// Folga no fim da rolagem, para quando a casca que embute esta tela tem uma
   /// nav flutuando POR CIMA do corpo — é o caso do Modo Focus, que usa
-  /// `extendBody: true`. Sem ela o botão "Salvar palpites" e o painel de
-  /// pontuação terminam atrás do vidro. Na rota própria vale 0: lá o scaffold
-  /// da subpágina já cuida do fim da lista.
+  /// `extendBody: true`. Sem ela o painel de pontuação e o fim da lista
+  /// terminam atrás do vidro. Na rota própria vale 0: lá o scaffold da
+  /// subpágina já cuida do fim da lista.
   final double bottomPadding;
 
   @override
@@ -57,42 +59,14 @@ class TournamentPredictionsPage extends ConsumerStatefulWidget {
 
 class _TournamentPredictionsPageState
     extends ConsumerState<TournamentPredictionsPage> {
-  static const _scrollFloatThreshold = 16.0;
-
   _PredictionsSection _section = _PredictionsSection.picks;
   final Map<String, String> _draftPicks = {};
-  final _scrollController = ScrollController();
   bool _draftInitialized = false;
-  bool _submitting = false;
   bool _sharing = false;
-  bool _scrolledDown = false;
 
-  // Espelham o resultado de `_buildPicksSlivers()` pro botão flutuante — ele
-  // vive fora da sliver list (precisa ficar por cima da rolagem), mas usa o
-  // mesmo `canSave`/`matches` já calculados ali, sem reler os providers.
-  bool _picksReady = false;
-  bool _picksCanSave = false;
-  List<TournamentMatch> _picksMatches = const [];
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_updateScrolledDown);
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _updateScrolledDown() {
-    final offset = _scrollController.hasClients ? _scrollController.offset : 0;
-    final scrolledDown = offset > _scrollFloatThreshold;
-    if (scrolledDown != _scrolledDown) {
-      setState(() => _scrolledDown = scrolledDown);
-    }
-  }
+  /// Serializa gravações: toques rápidos em várias partidas não correm em
+  /// paralelo e o último draft sempre vence.
+  Future<void> _persistChain = Future<void>.value();
 
   void _seedDraftIfNeeded(TournamentPredictionEntry? entry) {
     if (_draftInitialized) return;
@@ -102,21 +76,28 @@ class _TournamentPredictionsPageState
     }
   }
 
-  bool _hasUnsavedChanges(
-    TournamentPredictionEntry? savedEntry,
-    List<TournamentMatch> matches,
-  ) {
-    final toSubmit = openMatchPicksToSubmit(_draftPicks, matches);
-    for (final entry in toSubmit.entries) {
-      if (savedEntry?.pickFor(entry.key) != entry.value) return true;
-    }
-    return false;
+  void _onSelectTeam({
+    required String matchId,
+    required String teamId,
+    required List<TournamentMatch> matches,
+    required TournamentPredictionEntry? savedEntry,
+  }) {
+    if (_draftPicks[matchId] == teamId) return;
+
+    setState(() => _draftPicks[matchId] = teamId);
+
+    // Já igual ao salvo (re-tap no mesmo depois de sync) — nada a gravar.
+    if (savedEntry?.pickFor(matchId) == teamId) return;
+
+    _persistChain = _persistChain
+        .catchError((_) {})
+        .then((_) => _persist(matches));
   }
 
-  Future<void> _save(List<TournamentMatch> matches) async {
+  Future<void> _persist(List<TournamentMatch> matches) async {
     final uid = ref.read(firebaseAuthProvider).currentUser?.uid;
     if (uid == null || uid.trim().isEmpty) {
-      _showSnack('Faça login para enviar seus palpites.');
+      if (mounted) _showSnack('Faça login para enviar seus palpites.');
       return;
     }
 
@@ -124,19 +105,22 @@ class _TournamentPredictionsPageState
     final championPick = deriveChampionPickFromDraft(_draftPicks, matches);
     if (picks.isEmpty && championPick == null) return;
 
-    setState(() => _submitting = true);
     try {
-      await ref.read(tournamentPredictionsRepositoryProvider).submitPrediction(
+      await ref
+          .read(tournamentPredictionsRepositoryProvider)
+          .submitPrediction(
             tournamentId: widget.tournamentId,
             picks: picks,
             championPick: championPick,
           );
-      ref.invalidate(myTournamentPredictionEntryProvider(widget.tournamentId));
-      if (mounted) _showSnack('Palpites salvos!');
+      // Só o ranking precisa refrescar — invalidar o meu entry aqui faz a
+      // lista de palpites voltar a `isLoading` e a tela pisca a cada toque.
+      // O draft local já é a fonte de verdade nesta sessão.
+      ref.invalidate(
+        tournamentPredictionLeaderboardProvider(widget.tournamentId),
+      );
     } catch (e) {
       if (mounted) _showSnack('Não foi possível salvar: $e');
-    } finally {
-      if (mounted) setState(() => _submitting = false);
     }
   }
 
@@ -148,7 +132,9 @@ class _TournamentPredictionsPageState
 
   @override
   Widget build(BuildContext context) {
-    _picksReady = false;
+    final contentSlivers = _section == _PredictionsSection.picks
+        ? _buildPicksSlivers()
+        : _buildLeaderboardSlivers();
 
     final slivers = [
       SliverToBoxAdapter(
@@ -160,57 +146,34 @@ class _TournamentPredictionsPageState
           ),
         ),
       ),
-      if (_section == _PredictionsSection.picks)
-        ..._buildPicksSlivers()
-      else
-        ..._buildLeaderboardSlivers(),
+      ...contentSlivers,
       if (widget.bottomPadding > 0)
         SliverToBoxAdapter(child: SizedBox(height: widget.bottomPadding)),
     ];
 
     if (!widget.embedded) {
-      return TournamentDetailSubpageScaffold(title: 'Palpites', slivers: slivers);
+      return TournamentDetailSubpageScaffold(
+        title: 'Palpites',
+        background: const FocusPalpitesScreenBackground(),
+        slivers: slivers,
+      );
     }
 
-    // Sem essa flutuante, "Salvar palpites" só existe no fim de uma lista que
-    // pode ter dezenas de partidas — o atleta troca um palpite lá em cima e
-    // nunca descobre que precisa rolar até o fim pra salvar.
-    final showFloatingSave =
-        _picksReady && (_scrolledDown || _picksCanSave);
-
-    return Stack(
-      children: [
-        CustomScrollView(controller: _scrollController, slivers: slivers),
-        Positioned(
-          left: 20,
-          right: 20,
-          bottom: widget.bottomPadding > 0
-              ? widget.bottomPadding
-              : MediaQuery.paddingOf(context).bottom + 16,
-          child: IgnorePointer(
-            ignoring: !showFloatingSave,
-            child: AnimatedOpacity(
-              opacity: showFloatingSave ? 1 : 0,
-              duration: const Duration(milliseconds: 150),
-              child: _FloatingSaveButton(
-                canSave: _picksCanSave,
-                submitting: _submitting,
-                onPressed: () => _save(_picksMatches),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
+    return CustomScrollView(slivers: slivers);
   }
 
   List<Widget> _buildPicksSlivers() {
-    final cardsAsync =
-        ref.watch(tournamentMatchCardsProvider(widget.tournamentId));
-    final entryAsync =
-        ref.watch(myTournamentPredictionEntryProvider(widget.tournamentId));
+    final cardsAsync = ref.watch(
+      tournamentMatchCardsProvider(widget.tournamentId),
+    );
+    final entryAsync = ref.watch(
+      myTournamentPredictionEntryProvider(widget.tournamentId),
+    );
 
-    if (cardsAsync.isLoading || entryAsync.isLoading) {
+    // Só o 1º carregamento: um refresh/invalidate não pode trocar a lista
+    // inteira por um spinner (era o "pisca" a cada palpite).
+    if ((cardsAsync.isLoading && !cardsAsync.hasValue) ||
+        (entryAsync.isLoading && !entryAsync.hasValue)) {
       return const [
         SliverToBoxAdapter(
           child: Padding(
@@ -242,23 +205,37 @@ class _TournamentPredictionsPageState
         SliverToBoxAdapter(
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-            child: Text('A chave ainda não tem partidas com os dois lados definidos.'),
+            child: Text(
+              'A chave ainda não tem partidas com os dois lados definidos.',
+            ),
           ),
         ),
       ];
     }
 
     final matches = cards.map((c) => c.match).toList();
-    final canSave = _hasUnsavedChanges(entry, matches);
-    _picksReady = true;
-    _picksCanSave = canSave;
-    _picksMatches = matches;
+    final sections = predictionCardSections(cards);
+    final unpickedOpen = unpickedOpenPredictionCount(
+      cards: cards,
+      draftPicks: _draftPicks,
+    );
+    // O rótulo do bloco aberto sempre aparece: carrega quantas ainda faltam.
+    // O do bloco travado só quando há fronteira (os dois blocos na lista).
+    final showLockedLabel = sections.length > 1;
 
     return [
-      SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            final card = cards[index];
+      for (var i = 0; i < sections.length; i++) ...[
+        if (sections[i].kind == PredictionSectionKind.open || showLockedLabel)
+          SliverToBoxAdapter(
+            child: _PicksSectionLabel(
+              kind: sections[i].kind,
+              isFirst: i == 0,
+              unpickedCount: unpickedOpen,
+            ),
+          ),
+        SliverList(
+          delegate: SliverChildBuilderDelegate((context, index) {
+            final card = sections[i].cards[index];
             final match = card.match;
             final locked = isPredictionLockedForMatch(match);
             return PredictionMatchPickCard(
@@ -266,55 +243,30 @@ class _TournamentPredictionsPageState
               selectedTeamId: _draftPicks[match.id],
               locked: locked,
               wasCorrect: predictionWasCorrectForMatch(match, entry),
-              onSelect: (teamId) {
-                setState(() => _draftPicks[match.id] = teamId);
-              },
-            );
-          },
-          childCount: cards.length,
-        ),
-      ),
-      SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-          child: SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: !canSave || _submitting
+              onSelect: locked
                   ? null
-                  : () => _save(matches),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.brand,
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: _submitting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.black,
+                  : (teamId) => _onSelectTeam(
+                        matchId: match.id,
+                        teamId: teamId,
+                        matches: matches,
+                        savedEntry: entry,
                       ),
-                    )
-                  : const Text('Salvar palpites'),
-            ),
-          ),
+            );
+          }, childCount: sections[i].cards.length),
         ),
-      ),
+      ],
     ];
   }
 
   List<Widget> _buildLeaderboardSlivers() {
-    final entriesAsync =
-        ref.watch(tournamentPredictionLeaderboardProvider(widget.tournamentId));
-    final profilesAsync = ref
-        .watch(tournamentPredictionLeaderboardProfilesProvider(widget.tournamentId));
+    final entriesAsync = ref.watch(
+      tournamentPredictionLeaderboardProvider(widget.tournamentId),
+    );
+    final profilesAsync = ref.watch(
+      tournamentPredictionLeaderboardProfilesProvider(widget.tournamentId),
+    );
 
-    if (entriesAsync.isLoading) {
+    if (entriesAsync.isLoading && !entriesAsync.hasValue) {
       return const [
         SliverToBoxAdapter(
           child: Padding(
@@ -343,7 +295,9 @@ class _TournamentPredictionsPageState
         SliverToBoxAdapter(
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-            child: Text('Ninguém palpitou nesse torneio ainda. Seja o primeiro!'),
+            child: Text(
+              'Ninguém palpitou nesse torneio ainda. Seja o primeiro!',
+            ),
           ),
         ),
       ];
@@ -351,10 +305,11 @@ class _TournamentPredictionsPageState
 
     final profiles = profilesAsync.value ?? const {};
     final uid = ref.watch(firebaseAuthProvider).currentUser?.uid;
-    final matches = (ref.watch(tournamentMatchCardsProvider(widget.tournamentId)).value ??
-            const [])
-        .map((c) => c.match)
-        .toList();
+    final matches =
+        (ref.watch(tournamentMatchCardsProvider(widget.tournamentId)).value ??
+                const [])
+            .map((c) => c.match)
+            .toList();
 
     final rows = buildPredictionLeaderboard(
       entries,
@@ -367,8 +322,9 @@ class _TournamentPredictionsPageState
     final podium = podiumEntries(listEntries);
     final rest = listEntriesFromRank4(listEntries);
 
-    final myEntry =
-        ref.watch(myTournamentPredictionEntryProvider(widget.tournamentId)).value;
+    final myEntry = ref
+        .watch(myTournamentPredictionEntryProvider(widget.tournamentId))
+        .value;
     final stats = predictionStatsOf(myEntry, matches, rows);
     final hasPlayed = (myEntry?.picks.isNotEmpty ?? false);
 
@@ -430,19 +386,16 @@ class _TournamentPredictionsPageState
           ),
         ),
       SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            final row = rest[index];
-            final trailing = PredictionRankDelta(delta: deltas[row.entityId]);
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: row.isCurrentUser
-                  ? RankingUserHighlightTile(entry: row, trailing: trailing)
-                  : RankingListTile(entry: row, trailing: trailing),
-            );
-          },
-          childCount: rest.length,
-        ),
+        delegate: SliverChildBuilderDelegate((context, index) {
+          final row = rest[index];
+          final trailing = PredictionRankDelta(delta: deltas[row.entityId]);
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: row.isCurrentUser
+                ? RankingUserHighlightTile(entry: row, trailing: trailing)
+                : RankingListTile(entry: row, trailing: trailing),
+          );
+        }, childCount: rest.length),
       ),
       SliverToBoxAdapter(
         child: Padding(
@@ -487,42 +440,51 @@ class _TournamentPredictionsPageState
   }
 }
 
-class _FloatingSaveButton extends StatelessWidget {
-  const _FloatingSaveButton({
-    required this.canSave,
-    required this.submitting,
-    required this.onPressed,
+/// Rótulo que separa as partidas ainda palpitáveis das já travadas.
+///
+/// Sem ele a única pista da fronteira é o card ficar apagado — pouco pra
+/// explicar por que o card de cima aceita toque e o de baixo não.
+class _PicksSectionLabel extends StatelessWidget {
+  const _PicksSectionLabel({
+    required this.kind,
+    required this.isFirst,
+    this.unpickedCount = 0,
   });
 
-  final bool canSave;
-  final bool submitting;
-  final VoidCallback onPressed;
+  final PredictionSectionKind kind;
+
+  /// O primeiro rótulo já vem colado na folga do seletor de seção; os
+  /// seguintes precisam da própria respiração depois do último card.
+  final bool isFirst;
+
+  /// Partidas abertas ainda sem escolha no draft — só entra no rótulo aberto.
+  final int unpickedCount;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: AppRadii.pillAll,
-        boxShadow: AppShadows.floating(context.themeColors),
+    final label = switch (kind) {
+      PredictionSectionKind.open => unpickedCount <= 0
+          ? 'ABERTAS PARA PALPITE'
+          : unpickedCount == 1
+              ? 'ABERTAS PARA PALPITE · 1 SEM PALPITE'
+              : 'ABERTAS PARA PALPITE · $unpickedCount SEM PALPITE',
+      PredictionSectionKind.locked => 'PALPITES ENCERRADOS',
+    };
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.screenH,
+        isFirst ? 0 : AppSpacing.lg,
+        AppSpacing.screenH,
+        AppSpacing.sm,
       ),
-      child: FilledButton(
-        onPressed: !canSave || submitting ? null : onPressed,
-        style: FilledButton.styleFrom(
-          backgroundColor: AppColors.brand,
-          foregroundColor: Colors.black,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: const RoundedRectangleBorder(borderRadius: AppRadii.pillAll),
-        ),
-        child: submitting
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.black,
-                ),
-              )
-            : const Text('Salvar palpites'),
+      child: Text(
+        label,
+        style: AppTypography.mono(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: context.themeColors.onSurfaceMuted,
+        ).copyWith(letterSpacing: 1.4),
       ),
     );
   }
@@ -592,8 +554,9 @@ class _SegmentButton extends StatelessWidget {
               style: AppTypography.soraRegular(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
-                color:
-                    selected ? Colors.black : context.themeColors.onSurfaceMuted,
+                color: selected
+                    ? Colors.black
+                    : context.themeColors.onSurfaceMuted,
               ),
             ),
           ),

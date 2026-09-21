@@ -17,7 +17,6 @@ const _ufOptions = [
 Future<AthleteDiscoverFilters?> showAthleteDiscoverFiltersSheet({
   required BuildContext context,
   required AthleteDiscoverFilters initial,
-  required int Function(AthleteDiscoverFilters draft) previewResultCount,
   required List<String> Function(String? stateUf) cityOptionsFor,
 }) {
   return showModalBottomSheet<AthleteDiscoverFilters>(
@@ -30,7 +29,6 @@ Future<AthleteDiscoverFilters?> showAthleteDiscoverFiltersSheet({
     builder: (context) {
       return _AthleteDiscoverFiltersSheet(
         initial: initial,
-        previewResultCount: previewResultCount,
         cityOptionsFor: cityOptionsFor,
       );
     },
@@ -40,12 +38,10 @@ Future<AthleteDiscoverFilters?> showAthleteDiscoverFiltersSheet({
 class _AthleteDiscoverFiltersSheet extends StatefulWidget {
   const _AthleteDiscoverFiltersSheet({
     required this.initial,
-    required this.previewResultCount,
     required this.cityOptionsFor,
   });
 
   final AthleteDiscoverFilters initial;
-  final int Function(AthleteDiscoverFilters draft) previewResultCount;
   final List<String> Function(String? stateUf) cityOptionsFor;
 
   @override
@@ -106,7 +102,6 @@ class _AthleteDiscoverFiltersSheetState
 
   @override
   Widget build(BuildContext context) {
-    final count = widget.previewResultCount(_draft());
     final theme = Theme.of(context);
     final bottom = MediaQuery.paddingOf(context).bottom;
     final sports = discoverSportFilterOptions();
@@ -288,7 +283,7 @@ class _AthleteDiscoverFiltersSheetState
                     ),
                   ),
                   child: Text(
-                    'Ver $count atletas',
+                    'Aplicar filtros',
                     style: TextStyle(fontWeight: FontWeight.w900),
                   ),
                 ),

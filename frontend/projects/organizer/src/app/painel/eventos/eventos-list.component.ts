@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { tournamentCoverOrDefault } from '@nexago/tournament-covers';
 import { AuthService } from '../../auth/auth.service';
 import { LEAGUE_STATUS_LABEL, type League, type LeagueListingStatus } from '@nexago/leagues';
 import { listMyLeagues } from '../data/leagues-repository';
@@ -511,7 +512,7 @@ export class EventosListComponent {
       metaLabel: `Torneio · ${t.sportLabel} · ${this.dateRangeLabel(t.startAt, t.endAt)}`,
       statusLabel: STATUS_LABEL[t.status],
       statusTone: STATUS_TONE[t.status],
-      coverUrl: t.coverUrl,
+      coverUrl: tournamentCoverOrDefault(t.coverUrl, t.sportId),
       inscritos: inscritosMap.get(t.id) ?? null,
       vagas: t.capacity,
       etapas: null,
@@ -528,7 +529,7 @@ export class EventosListComponent {
       metaLabel: `Liga · ${l.sportLabel}${l.seasonLabel ? ' · ' + l.seasonLabel : ''}`,
       statusLabel: LEAGUE_STATUS_LABEL[l.listingStatus],
       statusTone: LEAGUE_STATUS_TONE[l.listingStatus],
-      coverUrl: l.coverUrl,
+      coverUrl: tournamentCoverOrDefault(l.coverUrl, l.sport),
       inscritos: null,
       vagas: null,
       etapas: l.stages.length,
@@ -553,7 +554,7 @@ export class EventosListComponent {
       metaLabel: `Torneio · ${t.sportLabel} · ${this.dateRangeLabel(t.startAt, t.endAt)}`,
       statusLabel: STATUS_LABEL[t.status],
       statusTone: STATUS_TONE[t.status],
-      coverUrl: t.coverUrl,
+      coverUrl: tournamentCoverOrDefault(t.coverUrl, t.sportId),
       inscritos: null,
       vagas: t.capacity,
       etapas: null,

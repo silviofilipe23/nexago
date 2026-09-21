@@ -24,7 +24,9 @@ import '../domain/tournament_discovery_providers.dart';
 import '../domain/tournament_listing_status.dart';
 import '../domain/tournament_detail_tabs_logic.dart';
 import '../domain/tournament_match.dart';
+import '../domain/tournament_match_card_view_model.dart';
 import '../domain/tournament_matches_logic.dart';
+import '../domain/tournament_podium_logic.dart';
 import 'widgets/tournament_detail/tournament_detail_bottom_bar.dart';
 import 'widgets/tournament_detail/tournament_detail_explore_section.dart';
 import 'widgets/tournament_detail/tournament_detail_hero.dart';
@@ -214,13 +216,12 @@ class _TournamentDetailContentState
   Widget build(BuildContext context) {
     // Os `watch` ficam aqui, no build do consumer: dentro do builder do
     // [RebuildAt] eles rodariam no ciclo de outro elemento.
-    final matches =
+    final cards =
         ref
             .watch(tournamentMatchCardsProvider(widget.tournament.id))
-            .valueOrNull
-            ?.map((c) => c.match)
-            .toList() ??
-        const [];
+            .valueOrNull ??
+        const <TournamentMatchCardViewModel>[];
+    final matches = cards.map((c) => c.match).toList();
     final teamIdsByCategory =
         ref
             .watch(
@@ -236,6 +237,7 @@ class _TournamentDetailContentState
       builder: (context, now) => _buildContent(
         context,
         now: now,
+        cards: cards,
         matches: matches,
         athleteTeamIds: athleteTeamIdsForHighlight(teamIdsByCategory),
       ),
@@ -245,6 +247,7 @@ class _TournamentDetailContentState
   Widget _buildContent(
     BuildContext context, {
     required DateTime now,
+    required List<TournamentMatchCardViewModel> cards,
     required List<TournamentMatch> matches,
     required Set<String> athleteTeamIds,
   }) {
@@ -265,25 +268,45 @@ class _TournamentDetailContentState
         .any(
           (registration) => registration.isPaid && !registration.partnerPending,
         );
+    // Lotado: esconde "Inscrever minha dupla". Quem já tem inscrição
+    // incompleta continua vendo a barra ("Minha inscrição").
+    // `spotsTotal <= 0` = capacidade ainda indefinida ("Vagas a confirmar") —
+    // aí a barra segue disponível.
+    final soldOut =
+        widget.stats.spotsTotal > 0 &&
+        tournamentSpotsRemaining(widget.stats) == 0;
     final showBottomBar =
         canRegister &&
         widget.registrationResolved &&
-        !hasConfirmedPaidRegistration;
+        !hasConfirmedPaidRegistration &&
+        (isAthleteRegistered || !soldOut);
     final topInset = MediaQuery.paddingOf(context).top;
     final spotsSubtitle =
         '${tournamentSpotsRemainingLabel(widget.stats)} · garanta já';
 
     final isRegistered = isAthleteRegistered || athleteTeamIds.isNotEmpty;
-    final live = liveTournamentMatches(matches);
+    // O pódio é derivado das partidas que a tela já transmite — nenhuma
+    // leitura nova no Firestore.
+    final showPodio = tournamentPodiumAvailable(
+      status: widget.tournament.status,
+      podiums: tournamentPodiumsByCategory(
+        categories: widget.tournament.categoryOffers,
+        cards: cards,
+      ),
+      isCancelled: isCancelledListing(widget.tournament.listingStatusRaw),
+    );
     final isToday = tournamentIsEventToday(widget.tournament, now);
-    final hasMyMatchToday =
-        myTournamentDayTimeline(
-          matches,
-          athleteTeamIds,
-          now,
-          tournamentRunningToday: isToday,
-        ).isNotEmpty ||
-        live.isNotEmpty;
+    // Só partidas DO atleta — `live` é do torneio inteiro e fazia o card
+    // "Você joga hoje" aparecer pra qualquer visitante enquanto houvesse
+    // jogo em quadra.
+    final myDayMatches = myTournamentDayTimeline(
+      matches,
+      athleteTeamIds,
+      now,
+      tournamentRunningToday: isToday,
+    );
+    final hasMyMatchToday = myDayMatches.isNotEmpty;
+    final myLiveNow = myDayMatches.any((m) => m.isInProgress);
 
     return Column(
       children: [
@@ -339,8 +362,12 @@ class _TournamentDetailContentState
         ),
         const SizedBox(height: AppSpacing.sm),
         Expanded(
+          // Sem `Clip.none`: o hero mora dentro da lista e, sem recorte, ele
+          // pintava por cima da barra de título acima (o nome do torneio
+          // invadia a barra de status e o botão de compartilhar sumia atrás
+          // do card de prêmio). Aqui o hero já entra com `topInset: 0`, então
+          // não há sangria para preservar.
           child: CustomScrollView(
-            clipBehavior: Clip.none,
             slivers: [
               SliverToBoxAdapter(
                 child: TournamentDetailHero(
@@ -355,15 +382,26 @@ class _TournamentDetailContentState
                   tournament: widget.tournament,
                   stats: widget.stats,
                   showHoje: hasMyMatchToday,
-                  liveNow: live.isNotEmpty,
+                  liveNow: myLiveNow,
                   showMinhaInscricao: isRegistered,
                   palpitesEnabled: tournamentHasDefinedMatchups(matches),
+                  showPodio: showPodio,
+                  showEquipesInscritas:
+                      widget.tournament.enrolledTeamsVisible,
+                  onOpenPodio: () => context.pushNamed(
+                    AppRouteNames.tournamentPodium,
+                    pathParameters: {'tournamentId': widget.tournament.id},
+                  ),
                   onOpenHoje: () => context.pushNamed(
                     AppRouteNames.tournamentFocus,
                     pathParameters: {'tournamentId': widget.tournament.id},
                   ),
                   onOpenCategorias: () => context.pushNamed(
                     AppRouteNames.tournamentCategories,
+                    pathParameters: {'tournamentId': widget.tournament.id},
+                  ),
+                  onOpenAtletasInscritos: () => context.pushNamed(
+                    AppRouteNames.tournamentEnrolledAthletes,
                     pathParameters: {'tournamentId': widget.tournament.id},
                   ),
                   onOpenMinhaInscricao: () => context.pushNamed(

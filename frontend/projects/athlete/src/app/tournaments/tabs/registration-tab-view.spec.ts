@@ -44,7 +44,7 @@ describe('registration-tab-view', () => {
     it('confirmação paga e completa', () => {
       expect(
         registrationTabHeroTitle({ paymentState: 'paid', teamLabel: 'Dupla', rosterComplete: true }),
-      ).toBe('Dupla completa. Vocês estão dentro.');
+      ).toBe('Inscrição completa. Vocês estão dentro.');
     });
 
     it('equipe incompleta', () => {
@@ -55,20 +55,17 @@ describe('registration-tab-view', () => {
   });
 
   describe('registrationTabHeroBody', () => {
-    it('conta a história das cotas quando pago', () => {
+    it('conta o total quitado quando pago', () => {
       const copy = registrationTabHeroBody({
         paymentState: 'paid',
         teamLabel: 'Dupla',
         rosterComplete: true,
-        partnerFirstName: 'Gabriel',
         entryFee: 220,
-        teamSize: 2,
         paymentHint: 'Sua vaga está garantida.',
       });
-      expect(copy.title).toBe('Dupla completa. Vocês estão dentro.');
-      expect(copy.body).toContain('Gabriel aceitou');
+      expect(copy.title).toBe('Inscrição completa. Vocês estão dentro.');
       expect(copy.body).toContain('R$');
-      expect(copy.highlights.length).toBe(2);
+      expect(copy.highlights.some((h) => copy.body.includes(h))).toBe(true);
     });
 
     it('usa o hint operacional fora do estado pago', () => {
@@ -76,9 +73,7 @@ describe('registration-tab-view', () => {
         paymentState: 'pending',
         teamLabel: 'Dupla',
         rosterComplete: true,
-        partnerFirstName: 'Gabriel',
         entryFee: 220,
-        teamSize: 2,
         paymentHint: 'A vaga só é confirmada depois do pagamento.',
       });
       expect(copy.body).toBe('A vaga só é confirmada depois do pagamento.');

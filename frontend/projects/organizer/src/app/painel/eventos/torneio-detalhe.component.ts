@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { tournamentCoverOrDefault } from '@nexago/tournament-covers';
 import { environment } from '../../../environments/environment';
 import { listInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
 import { listMatches } from '../data/matches-repository';
@@ -103,15 +104,17 @@ interface CategoriaRow {
       } @else if (!tournament()) {
         <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Torneio não encontrado.</div>
       } @else {
-        @if (tournament()!.coverUrl && !coverFailed()) {
-          <div class="og-torneio-hero" aria-hidden="true">
-            <img [src]="tournament()!.coverUrl" alt="" (error)="coverFailed.set(true)" />
-          </div>
+        @if (cover(); as capa) {
+          @if (!coverFailed()) {
+            <div class="og-torneio-hero" aria-hidden="true">
+              <img [src]="capa" alt="" (error)="coverFailed.set(true)" />
+            </div>
+          }
         }
         @if (feedback(); as fb) {
           <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
         }
-        <div class="og-kpi-row og-torneio-kpis" [class.over-hero]="tournament()!.coverUrl && !coverFailed()">
+        <div class="og-kpi-row og-torneio-kpis" [class.over-hero]="cover() && !coverFailed()">
           <div class="og-card og-card-pad-sm og-torneio-kpi">
             <div class="og-kpi-label">Inscritos</div>
             <div class="og-kpi-value sm">{{ inscritosCount() }}</div>
@@ -541,6 +544,12 @@ export class TorneioDetalheComponent {
   protected readonly categoriesWithMatches = signal<ReadonlySet<string>>(new Set<string>());
   /** Capa falhou ao carregar — o banner some (a página funciona igual sem ele). */
   protected readonly coverFailed = signal(false);
+
+  /** Capa enviada, senão a arte do esporte; `null` = torneio sem hero. */
+  protected readonly cover = computed(() => {
+    const t = this.tournament();
+    return t ? tournamentCoverOrDefault(t.coverUrl, t.sportId) : null;
+  });
   protected readonly shareOpen = signal(false);
 
   protected readonly shareBases = {

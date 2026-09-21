@@ -5,7 +5,8 @@ import '../gamification_providers.dart';
 import 'athlete_quest_logic.dart';
 import 'athlete_quest_models.dart';
 
-final athleteQuestUiProvider = Provider.autoDispose<AthleteQuestUiState?>((ref) {
+final athleteQuestUiProvider =
+    Provider.autoDispose<AthleteQuestUiState?>((ref) {
   final summary = ref.watch(gamificationSummaryProvider).valueOrNull;
   if (summary == null) return null;
 

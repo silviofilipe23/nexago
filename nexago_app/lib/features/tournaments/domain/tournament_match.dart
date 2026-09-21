@@ -1,7 +1,10 @@
 import 'tournament_match_live_score.dart';
+import 'tournament_match_medical_timeout.dart';
 import 'tournament_match_point_action.dart';
+import 'tournament_match_serving_players.dart';
 import 'tournament_match_set.dart';
 import 'tournament_match_status.dart';
+import 'tournament_match_type.dart';
 
 /// Partida em `artifacts/{projectId}/public/data/matches`.
 class TournamentMatch {
@@ -38,6 +41,10 @@ class TournamentMatch {
     this.checkInTeamAStatus = '',
     this.checkInTeamBStatus = '',
     this.servingTeamId = '',
+    this.servingPlayerSlot = 0,
+    this.servingPlayers = MatchServingPlayers.none,
+    this.medicalTimeout,
+    this.medicalTimeoutPlayers = const [],
     this.liveElapsedSec = 0,
     this.pointEventSeq = 0,
     this.reportStatus = '',
@@ -50,6 +57,10 @@ class TournamentMatch {
     this.loserAdvanceMatchNumber,
     this.loserAdvanceSlot,
     this.liveScore,
+    this.kocStandingTeamIds = const [],
+    this.kocTeamIds = const [],
+    this.kocDurationSec = 0,
+    this.kocQualifierSlots = const [],
   });
 
   final String id;
@@ -84,6 +95,21 @@ class TournamentMatch {
   final String checkInTeamAStatus;
   final String checkInTeamBStatus;
   final String servingTeamId;
+
+  /// Posição (1 ou 2) do atleta no saque dentro da dupla de [servingTeamId]; 0 = não declarada.
+  /// Denormalizada no doc pra quem só exibe (telão, cards) não precisar saber o lado — a fonte
+  /// é [servingPlayers]. Ver `tournament_match_serving_players.dart`.
+  final int servingPlayerSlot;
+
+  /// A ordem de saque declarada por cada dupla no set corrente.
+  final MatchServingPlayers servingPlayers;
+
+  /// Atendimento médico em andamento — nulo quando ninguém está sendo atendido.
+  final MatchMedicalTimeout? medicalTimeout;
+
+  /// Atletas que já usaram o tempo médico nesta partida ("A1", "B2") — a cota é por atleta.
+  final List<String> medicalTimeoutPlayers;
+
   final int liveElapsedSec;
   final int pointEventSeq;
   final String reportStatus;
@@ -110,6 +136,59 @@ class TournamentMatch {
   /// `updateLiveMatchScore`. Só faz sentido exibir quando [isInProgress].
   final MatchLiveScore? liveScore;
 
+  /// Duplas da rodada King of the Court em ordem de colocação, gravadas no
+  /// encerramento. É o RESULTADO da rodada, como `winnerId` e `sets` são o de um
+  /// duelo — e é de onde sai o pódio, já que a rodada final não tem dois lados.
+  /// Vazia em toda partida de duelo.
+  final List<String> kocStandingTeamIds;
+
+  /// Elenco da rodada King of the Court, na ordem de entrada (o primeiro abre no
+  /// trono). É o análogo dos dois lados de um duelo: sem ele o atleta NUNCA
+  /// encontraria a própria rodada, porque `teamAId`/`teamBId` vêm vazios.
+  /// Vazia em toda partida de duelo.
+  final List<String> kocTeamIds;
+
+  /// Duração de JOGO da rodada, do snapshot `kocConfig` gravado na geração.
+  /// Varia por fase (a final costuma ser mais longa). Zero em toda partida de
+  /// duelo, que usa o padrão do torneio.
+  final int kocDurationSec;
+
+  /// De onde vem cada vaga da rodada — "1º Rodada 1", "2º Rodada 2"…
+  ///
+  /// É o análogo do "Vencedor Jogo #7" de um mata-mata: descreve uma rodada
+  /// que VAI acontecer, mesmo antes de a fase anterior terminar. Vazia na
+  /// classificatória (que já nasce com elenco) e em todo duelo.
+  final List<String> kocQualifierSlots;
+
+  /// Rodada KOTC já descrita o bastante para reservar quadra e horário: tem
+  /// elenco fechado ou, ao menos, as vagas. Espelha `kocRoundIsPlanned` do
+  /// servidor.
+  bool get kocRoundIsPlanned =>
+      kocTeamIds.any((id) => id.trim().isNotEmpty) ||
+      kocQualifierSlots.isNotEmpty;
+
+  /// Duplas que a partida ocupa naquele horário.
+  ///
+  /// A rodada KOTC grava `teamAId`/`teamBId` VAZIOS e põe o elenco em
+  /// `kocTeamIds`: colher só os dois lados deixaria a rodada sem marcar ninguém
+  /// ocupado, e a mesma dupla cairia em dois lugares no mesmo horário.
+  /// Espelha `matchTeamIds` do servidor.
+  List<String> get scheduleTeamIds {
+    final out = <String>[];
+    for (final raw in [teamAId, teamBId, ...kocTeamIds]) {
+      final id = raw.trim();
+      if (id.isNotEmpty && !out.contains(id)) out.add(id);
+    }
+    return out;
+  }
+
+  /// Quanto tempo de quadra a partida ocupa, em minutos. Espelha
+  /// `matchDurationMin` do servidor — que é quem IMPÕE essa janela ao gravar.
+  int scheduleSlotMin(int fallbackMin) {
+    if (kocDurationSec <= 0) return fallbackMin;
+    return (kocDurationSec / 60).ceil() + kocChangeoverMin;
+  }
+
   String get effectiveCourtLabel {
     if (courtId.isNotEmpty) return courtId;
     final name = courtName?.trim();
@@ -122,7 +201,16 @@ class TournamentMatch {
   bool get isWaitingQueue =>
       queueStatus == 'waiting' || queueStatus == 'on_deck';
 
+  /// Rodada King of the Court — 3 a 5 duplas na mesma quadra, sem lados fixos.
+  /// `teamAId`/`teamBId` vêm VAZIOS: quem consome os dois lados tem de sair por
+  /// [isDuel] antes (ver `tournament_match_type.dart`).
+  bool get isKingOfCourt => TournamentMatchType.isKingOfCourt(matchType);
+
+  /// Partida de duelo: dois lados e um vencedor.
+  bool get isDuel => TournamentMatchType.isDuel(matchType);
+
   bool get isBracketMatch {
+    if (isKingOfCourt) return false;
     if (isGroupMatch) return false;
     final t = matchType.toLowerCase();
     if (t == 'group') return false;
@@ -130,8 +218,12 @@ class TournamentMatch {
     return true;
   }
 
+  /// Atenção: a rodada KOTC usa `poolId` para a quadra lógica da fase, então
+  /// sem a saída por [isKingOfCourt] ela cairia aqui como partida de grupo e
+  /// entraria na tabela de classificação de grupos.
   bool get isPoolMatch =>
-      isGroupMatch || matchType.toLowerCase() == 'group' || poolId.isNotEmpty;
+      !isKingOfCourt &&
+      (isGroupMatch || matchType.toLowerCase() == 'group' || poolId.isNotEmpty);
 
   bool get isCompleted => TournamentMatchStatus.isCompleted(status);
 

@@ -58,6 +58,7 @@ class CommunityFeedItem {
   final DateTime? createdAt;
   final int categoriesCount;
   final List<CommunityFeedChampion> champions;
+
   /// Texto do aviso — só preenchido para `CommunityFeedType.organizerAnnouncement`.
   final String message;
 

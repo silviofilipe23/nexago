@@ -1,13 +1,16 @@
 import 'package:intl/intl.dart';
 
+import '../../../../core/profiles/app_user_profile.dart';
 import '../../../athlete/domain/athlete_display_name.dart';
 import '../../../athlete/domain/athlete_firestore_codes.dart';
 import '../../../athlete/domain/athlete_profile.dart';
 import '../../../athlete/domain/athlete_public_profile_models.dart';
+import '../../../athlete/domain/sport_art_catalog.dart';
 import '../tournament_match.dart';
 import '../tournament_match_display.dart';
 import '../tournament_match_status.dart';
 import '../tournament_team.dart';
+import 'team_cover_art_catalog.dart';
 import 'team_public_profile_models.dart';
 
 String teamProfileDisplayName({
@@ -17,7 +20,26 @@ String teamProfileDisplayName({
 }) {
   final name = team.teamName?.trim();
   if (name != null && name.isNotEmpty) return name;
+  // Equipe nomeada sempre tem nome; sem ele, "Fulano/Beltrano" esconderia o
+  // resto do elenco.
+  if (team.isLargeRoster) return 'Equipe';
   return pairDisplayName(player1, player2);
+}
+
+/// Gênero do elenco: 'MISTO' quando os integrantes com gênero conhecido não
+/// concordam. Integrante sem gênero não decide nada.
+String teamProfileGenderLabel(List<AthleteProfile> members) {
+  String? seen;
+  for (final member in members) {
+    final label = athleteGenderShortLabel(member.gender);
+    if (label.isEmpty) continue;
+    if (seen == null) {
+      seen = label;
+      continue;
+    }
+    if (seen != label) return 'MISTO';
+  }
+  return seen ?? '';
 }
 
 String teamProfileSportLabel(AthleteProfile? player1, AthleteProfile? player2) {
@@ -29,6 +51,41 @@ String teamProfileSportLabel(AthleteProfile? player1, AthleteProfile? player2) {
     if (label != null && label.isNotEmpty) return label;
   }
   return profile.sport.trim().isNotEmpty ? profile.sport : '—';
+}
+
+/// Arte de fundo da capa, ou nulo quando nenhuma serve e o fundo pintado
+/// assume.
+///
+/// Escada: arte do esporte no TAMANHO do elenco → arte de um atleta só do
+/// esporte (a mesma do perfil do atleta) → nulo. O degrau do meio é o que
+/// segura esporte sem arte de equipe: uma silhueta de corrida ainda diz mais
+/// do que um gradiente.
+String? teamProfileCoverArt(TeamPublicProfile profile) {
+  final code = teamProfileSportCode(profile.loadedProfiles);
+  return TeamCoverArtCatalog.assetFor(
+        firestoreCode: code,
+        rosterSize: teamProfileRosterSize(profile),
+      ) ??
+      SportArtCatalog.assetFor(code);
+}
+
+/// Esporte da equipe: o primeiro integrante que declara um. O capitão manda,
+/// mas o perfil dele pode não ter esporte principal — e aí o elenco decide em
+/// vez de a capa sumir.
+String? teamProfileSportCode(List<AthleteProfile> roster) {
+  for (final member in roster) {
+    final code = member.primarySportFirestoreId?.trim();
+    if (code != null && code.isNotEmpty) return code;
+  }
+  return null;
+}
+
+/// Tamanho do elenco para efeito de arte: o declarado na categoria manda sobre
+/// quantos já aceitaram o convite — quarteto com dois pendentes é quarteto.
+int teamProfileRosterSize(TeamPublicProfile profile) {
+  final declared = profile.team.teamSize;
+  if (declared != null && declared > 0) return declared;
+  return profile.members.length;
 }
 
 String formatTeamTogetherLabel(DateTime? createdAt) {
@@ -56,7 +113,11 @@ String teamProfileLocationLabel(AthleteProfile? player1, AthleteProfile? player2
   return athleteLocationLabel(profile);
 }
 
-List<String> teamProfileTagLabels(AthleteProfile? player1, AthleteProfile? player2) {
+List<String> teamProfileTagLabels(
+  AthleteProfile? player1,
+  AthleteProfile? player2, {
+  List<AthleteProfile> roster = const [],
+}) {
   final tags = <String>[];
   final category = player1?.category?.trim() ?? player2?.category?.trim() ?? '';
   if (category.isNotEmpty) tags.add(category);
@@ -64,9 +125,9 @@ List<String> teamProfileTagLabels(AthleteProfile? player1, AthleteProfile? playe
   final age = athleteAgeCategoryLabel(player1?.birthDate ?? player2?.birthDate);
   if (age.isNotEmpty) tags.add(age);
 
-  final gender = athleteGenderShortLabel(
-    player1?.gender ?? player2?.gender,
-  );
+  final gender = roster.isNotEmpty
+      ? teamProfileGenderLabel(roster)
+      : athleteGenderShortLabel(player1?.gender ?? player2?.gender);
   if (gender.isNotEmpty) tags.add(gender);
 
   final location = teamProfileLocationLabel(player1, player2);
@@ -197,10 +258,10 @@ List<TeamHeadToHeadEntry> buildTeamHeadToHead({
     } else if (match.winnerId?.trim().isNotEmpty == true) {
       acc.losses++;
     }
-    acc.opponentLabel = _opponentLabel(
-      match: match,
-      teamId: id,
-      teamDisplayNames: teamDisplayNames,
+    acc.fallbackDescription ??= safeMatchTeamDescription(
+      match.teamAId.trim() == id
+          ? match.teamBDescription
+          : match.teamADescription,
     );
     final played = playedAtForMatch(match);
     if (played != null &&
@@ -213,7 +274,11 @@ List<TeamHeadToHeadEntry> buildTeamHeadToHead({
       .map(
         (e) => TeamHeadToHeadEntry(
           opponentTeamId: e.key,
-          opponentLabel: e.value.opponentLabel,
+          opponentLabel: _opponentLabel(
+            opponentId: e.key,
+            fallbackDescription: e.value.fallbackDescription,
+            teamDisplayNames: teamDisplayNames,
+          ),
           wins: e.value.wins,
           losses: e.value.losses,
           lastPlayedAt: e.value.lastPlayedAt,
@@ -290,25 +355,26 @@ int _matchRoundDepth(TournamentMatch match) {
   return 10;
 }
 
+/// Contra quem se jogou. O nome real da equipe manda: `teamADescription`/
+/// `teamBDescription` guardam o apelido da VAGA na chave ("Vencedor do Jogo 3",
+/// "1º do Grupo A"), que diz de onde o adversário veio, não quem ele é — e o
+/// mesmo apelido ainda se repete entre equipes diferentes. O apelido só volta
+/// quando a equipe não resolve (inscrição removida, elenco sem perfil), e o id
+/// cru nunca chega à tela.
 String _opponentLabel({
-  required TournamentMatch match,
-  required String teamId,
+  required String opponentId,
+  required String? fallbackDescription,
   Map<String, String> teamDisplayNames = const {},
 }) {
-  final id = teamId.trim();
-  final isTeamA = match.teamAId.trim() == id;
-  final description = isTeamA
-      ? match.teamBDescription?.trim()
-      : match.teamADescription?.trim();
-  if (description != null && description.isNotEmpty) return description;
-  final opponentId = match.opponentTeamIdFor(id)?.trim();
-  if (opponentId != null && opponentId.isNotEmpty) {
-    final resolved = teamDisplayNames[opponentId]?.trim();
-    if (resolved != null && resolved.isNotEmpty && resolved != opponentId) {
-      return resolved;
-    }
-    return opponentId;
+  final id = opponentId.trim();
+  final resolved = teamDisplayNames[id]?.trim();
+  if (resolved != null && resolved.isNotEmpty && resolved != id) {
+    return resolved;
   }
+
+  final description = fallbackDescription?.trim();
+  if (description != null && description.isNotEmpty) return description;
+
   return 'Adversário';
 }
 
@@ -323,6 +389,6 @@ String _campaignLocationLabel(List<TournamentMatch> matches) {
 class _HeadToHeadAccumulator {
   int wins = 0;
   int losses = 0;
-  String opponentLabel = 'Adversário';
+  String? fallbackDescription;
   DateTime? lastPlayedAt;
 }

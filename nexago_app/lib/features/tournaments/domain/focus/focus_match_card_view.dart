@@ -54,10 +54,10 @@ String focusMatchCardContext({
 
 /// O centro do card: o número grande e a linha fina embaixo.
 ///
-/// **O número grande é SETS, não pontos.** Ao vivo, `TournamentMatchRowSide`
-/// carrega os PONTOS do set em andamento — é o que o card compartilhado mostra
-/// ao lado de cada dupla. Aqui o centro é um placar só, e um "14-11" gigante
-/// sem dizer de que set é seria mentira sobre quem está ganhando a partida.
+/// **Ao vivo o número grande é o PLACAR do set em andamento** (pontos), e os
+/// sets vencidos ficam na linha de baixo — é o que o olho busca na Arena
+/// ("como está esse jogo agora?"). Encerrada, o grande volta a ser o placar
+/// da partida (sets) e as parciais ficam embaixo.
 ({String center, String? detail}) focusMatchCardScoreOf(
   TournamentMatch match,
   TournamentMatchRowState state,
@@ -65,10 +65,7 @@ String focusMatchCardContext({
   final (setsA, setsB) = _closedSetsWonOf(match);
 
   return switch (state) {
-    TournamentMatchRowState.live => (
-        center: '$setsA-$setsB',
-        detail: _liveDetailOf(match),
-      ),
+    TournamentMatchRowState.live => _liveScoreOf(match, setsA, setsB),
     TournamentMatchRowState.done => (
         center: '$setsA-$setsB',
         detail: _closedDetailOf(match),
@@ -79,6 +76,22 @@ String focusMatchCardContext({
     // "vs" prometeria um jogo que não vai acontecer.
     TournamentMatchRowState.canceled => (center: '—', detail: null),
   };
+}
+
+({String center, String? detail}) _liveScoreOf(
+  TournamentMatch match,
+  int setsA,
+  int setsB,
+) {
+  final live = matchLiveCurrentSet(match);
+  if (live == null) {
+    // Sem set aberto ainda (intervalo / WO parcial): só os sets vencidos.
+    return (center: '$setsA-$setsB', detail: null);
+  }
+  return (
+    center: '${live.a}-${live.b}',
+    detail: 'SETS $setsA-$setsB',
+  );
 }
 
 /// Sets vencidos contando SÓ os já fechados.
@@ -100,13 +113,6 @@ String focusMatchCardContext({
     }
   }
   return (a, b);
-}
-
-/// "2° SET 14-11".
-String? _liveDetailOf(TournamentMatch match) {
-  final live = matchLiveCurrentSet(match);
-  if (live == null) return null;
-  return '${live.setNumber}° SET ${live.a}-${live.b}';
 }
 
 /// "21-14 · 21-18" — as parciais da partida encerrada.

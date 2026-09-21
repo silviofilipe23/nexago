@@ -35,13 +35,44 @@ export {
 export type { MatchDisplayStatus } from './match-status';
 export { statusOf } from './match-status';
 
+export type { MatchSide, ServingPlayerSlot, ServingPlayerSlots } from './serving-player';
+export {
+  NO_SERVING_PLAYER_SLOTS,
+  needsServingPlayer,
+  servingPlayerSlotOf,
+  servingPlayerSlotsAfterScore,
+  servingPlayerSlotsAfterUndo,
+  servingPlayerSlotsFromRaw,
+  sideOfTeam,
+  swappedServingPlayerSlots,
+  withServingPlayerSlot,
+} from './serving-player';
+
+export type { MedicalTimeout } from './medical-timeout';
+export {
+  MEDICAL_TIMEOUTS_PER_PLAYER,
+  MEDICAL_TIMEOUT_SECONDS,
+  canRequestMedicalTimeout,
+  formatMedicalTimeoutMmSs,
+  hasUsedMedicalTimeout,
+  isMedicalTimeoutEnded,
+  medicalTimeoutFromRaw,
+  medicalTimeoutPlayerKey,
+  medicalTimeoutPlayerKeysFromRaw,
+  medicalTimeoutRemainingSeconds,
+} from './medical-timeout';
+
 export type { LiveMatch, LivePointEvent, LiveScoringContext, PointWrite } from './live-match-repository';
 export {
+  buildMedicalTimeoutEndWrite,
+  buildMedicalTimeoutStartWrite,
   buildPointWrite,
   buildUndoWrite,
   lastUndoablePoint,
   liveMatchFromDoc,
   recordPointTransaction,
+  servingPlayerFields,
+  servingTeamFields,
   updateMatchFields,
   watchLiveMatch,
   watchPointEvents,

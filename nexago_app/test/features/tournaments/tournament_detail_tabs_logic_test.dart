@@ -14,6 +14,8 @@ TournamentMatch _match({
   int matchNumber = 1,
   DateTime? scheduleTime,
   DateTime? matchStartedAt,
+  DateTime? matchEndedAt,
+  String dayKey = '',
 }) {
   return TournamentMatch(
     id: id,
@@ -31,6 +33,8 @@ TournamentMatch _match({
     matchNumber: matchNumber,
     scheduleTime: scheduleTime,
     matchStartedAt: matchStartedAt,
+    matchEndedAt: matchEndedAt,
+    dayKey: dayKey,
   );
 }
 
@@ -163,22 +167,35 @@ void main() {
       ]);
     });
 
-    test('Grupos entra quando a categoria tem fase de grupos', () {
+    test('Grupos sem fase encerrada: Chave ainda não aparece', () {
       final views = visibleCategoryViews(
         hasMatches: false,
         hasGroups: true,
       );
 
+      expect(views, [TournamentCategoryView.grupos]);
+    });
+
+    test('Grupos encerrados liberam a Chave', () {
+      final views = visibleCategoryViews(
+        hasMatches: true,
+        hasGroups: true,
+        groupsComplete: true,
+      );
+
       expect(views, [
+        TournamentCategoryView.partidas,
         TournamentCategoryView.grupos,
         TournamentCategoryView.chave,
       ]);
     });
 
-    test('ordem completa com tudo true', () {
+    test('mata-mata já gerado libera a Chave mesmo com grupos em andamento',
+        () {
       final views = visibleCategoryViews(
         hasMatches: true,
         hasGroups: true,
+        hasBracket: true,
       );
 
       expect(views, [
@@ -194,12 +211,26 @@ void main() {
       final views = visibleCategoryViews(
         hasMatches: true,
         hasGroups: true,
+        groupsComplete: true,
       );
 
       expect(defaultCategoryView(views), TournamentCategoryView.partidas);
     });
 
-    test('cai nos Grupos quando só há Grupos e Chave', () {
+    test('com preferBracket cai na Chave após os grupos', () {
+      final views = visibleCategoryViews(
+        hasMatches: true,
+        hasGroups: true,
+        groupsComplete: true,
+      );
+
+      expect(
+        defaultCategoryView(views, preferBracket: true),
+        TournamentCategoryView.chave,
+      );
+    });
+
+    test('cai nos Grupos quando só há Grupos (fase ainda aberta)', () {
       final views = visibleCategoryViews(
         hasMatches: false,
         hasGroups: true,
@@ -219,6 +250,93 @@ void main() {
 
     test('lista vazia cai na Chave por segurança', () {
       expect(defaultCategoryView(const []), TournamentCategoryView.chave);
+    });
+  });
+
+  group('categoryGroupStageComplete', () {
+    test('false sem jogos de grupo', () {
+      expect(
+        categoryGroupStageComplete([
+          _match(id: 'b1', teamAId: 'a', teamBId: 'b'),
+        ]),
+        isFalse,
+      );
+    });
+
+    test('true quando todos os jogos de grupo estão encerrados', () {
+      expect(
+        categoryGroupStageComplete([
+          TournamentMatch(
+            id: 'g1',
+            tournamentId: 't1',
+            categoryId: 'c1',
+            round: 1,
+            matchType: 'group',
+            poolId: 'A',
+            teamAId: 'a',
+            teamBId: 'b',
+            status: TournamentMatchStatus.completed,
+            resultA: '2',
+            resultB: '0',
+            isGroupMatch: true,
+            matchNumber: 1,
+          ),
+          TournamentMatch(
+            id: 'g2',
+            tournamentId: 't1',
+            categoryId: 'c1',
+            round: 1,
+            matchType: 'group',
+            poolId: 'A',
+            teamAId: 'c',
+            teamBId: 'd',
+            status: TournamentMatchStatus.canceled,
+            resultA: '',
+            resultB: '',
+            isGroupMatch: true,
+            matchNumber: 2,
+          ),
+        ]),
+        isTrue,
+      );
+    });
+
+    test('false com algum jogo de grupo ainda aberto', () {
+      expect(
+        categoryGroupStageComplete([
+          TournamentMatch(
+            id: 'g1',
+            tournamentId: 't1',
+            categoryId: 'c1',
+            round: 1,
+            matchType: 'group',
+            poolId: 'A',
+            teamAId: 'a',
+            teamBId: 'b',
+            status: TournamentMatchStatus.completed,
+            resultA: '2',
+            resultB: '0',
+            isGroupMatch: true,
+            matchNumber: 1,
+          ),
+          TournamentMatch(
+            id: 'g2',
+            tournamentId: 't1',
+            categoryId: 'c1',
+            round: 1,
+            matchType: 'group',
+            poolId: 'A',
+            teamAId: 'c',
+            teamBId: 'd',
+            status: TournamentMatchStatus.scheduled,
+            resultA: '',
+            resultB: '',
+            isGroupMatch: true,
+            matchNumber: 2,
+          ),
+        ]),
+        isFalse,
+      );
     });
   });
 
@@ -280,6 +398,24 @@ void main() {
       final timeline = myTournamentDayTimeline(matches, {'meu'}, reference);
 
       expect(timeline.map((m) => m.id), ['manha', 'tarde']);
+    });
+
+    test('visitante sem time não vê card mesmo com jogo ao vivo no torneio',
+        () {
+      final matches = [
+        _match(
+          id: 'ao-vivo',
+          teamAId: 'x',
+          teamBId: 'y',
+          status: TournamentMatchStatus.inProgress,
+          scheduleTime: DateTime(2026, 8, 20, 10, 0),
+        ),
+      ];
+
+      expect(
+        myTournamentDayTimeline(matches, const {}, reference),
+        isEmpty,
+      );
     });
 
     test('partida sem scheduleTime fica fora', () {
@@ -368,6 +504,46 @@ void main() {
       expect(timeline.map((m) => m.id), ['atrasada']);
     });
 
+    test('encerrada hoje entra mesmo sem scheduleTime — ordem do dia no Focus',
+        () {
+      // Ao fechar o jogo a mesa às vezes limpa o horário; sem matchEndedAt a
+      // partida jogada sumia e o rail ficava só com as próximas.
+      final matches = [
+        _match(
+          id: 'jogada',
+          teamAId: 'meu',
+          teamBId: 'y',
+          status: TournamentMatchStatus.completed,
+          matchEndedAt: DateTime(2026, 8, 20, 11, 0),
+        ),
+        _match(
+          id: 'proxima',
+          teamAId: 'meu',
+          teamBId: 'z',
+          scheduleTime: DateTime(2026, 8, 20, 15, 0),
+        ),
+      ];
+
+      final timeline = myTournamentDayTimeline(matches, {'meu'}, reference);
+
+      expect(timeline.map((m) => m.id), ['jogada', 'proxima']);
+    });
+
+    test('dayKey de hoje ancora partida mesmo sem horário', () {
+      final matches = [
+        _match(
+          id: 'na-fila',
+          teamAId: 'meu',
+          teamBId: 'y',
+          dayKey: '2026-08-20',
+        ),
+      ];
+
+      final timeline = myTournamentDayTimeline(matches, {'meu'}, reference);
+
+      expect(timeline.map((m) => m.id), ['na-fila']);
+    });
+
     test('âncora de outro dia não cai no caso do torneio rolando', () {
       final matches = [
         _match(
@@ -409,6 +585,59 @@ void main() {
       );
 
       expect(timeline.map((m) => m.id), ['com-horario', 'sem-a', 'sem-b']);
+    });
+  });
+
+  group('myFocusMatchRailTimeline', () {
+    test('traz jogadas e a jogar, de qualquer dia', () {
+      final matches = [
+        _match(
+          id: 'ontem',
+          teamAId: 'meu',
+          teamBId: 'y',
+          status: TournamentMatchStatus.completed,
+          matchEndedAt: DateTime(2026, 8, 19, 18, 0),
+        ),
+        _match(
+          id: 'hoje',
+          teamAId: 'meu',
+          teamBId: 'z',
+          scheduleTime: DateTime(2026, 8, 20, 15, 0),
+        ),
+        _match(
+          id: 'outros',
+          teamAId: 'x',
+          teamBId: 'y',
+          scheduleTime: DateTime(2026, 8, 20, 10, 0),
+        ),
+      ];
+
+      final rail = myFocusMatchRailTimeline(matches, {'meu'});
+
+      expect(rail.map((m) => m.id), ['ontem', 'hoje']);
+    });
+
+    test('sem time do atleta devolve vazio', () {
+      expect(
+        myFocusMatchRailTimeline(
+          [_match(teamAId: 'x', teamBId: 'y')],
+          const {},
+        ),
+        isEmpty,
+      );
+    });
+
+    test('descarta slot sem os dois lados definidos', () {
+      final rail = myFocusMatchRailTimeline(
+        [
+          _match(id: 'ok', teamAId: 'meu', teamBId: 'y'),
+          _match(id: 'bye', teamAId: 'meu', teamBId: ''),
+          _match(id: 'vazio', teamAId: '', teamBId: ''),
+        ],
+        {'meu'},
+      );
+
+      expect(rail.map((m) => m.id), ['ok']);
     });
   });
 

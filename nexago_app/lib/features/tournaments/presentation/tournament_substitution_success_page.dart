@@ -193,14 +193,13 @@ class _SuccessHeroCard extends ConsumerWidget {
     final colors = context.themeColors;
     final outName = invite.replacedName ?? 'Atleta';
 
-    final profileUids = <String>{
+    final profilesKey = rosterProfilesKey([
       ...?registration?.participantUids,
-      if ((invite.replacedUid ?? '').isNotEmpty) invite.replacedUid!,
-      if (invite.inviteeUid.isNotEmpty) invite.inviteeUid,
-    }.toList()
-      ..sort();
+      invite.replacedUid ?? '',
+      invite.inviteeUid,
+    ]);
     final profiles =
-        ref.watch(registrationRosterProfilesProvider(profileUids)).valueOrNull ??
+        ref.watch(registrationRosterProfilesProvider(profilesKey)).valueOrNull ??
             const <String, AppUserProfile>{};
     final authUser = ref.watch(authProvider).valueOrNull;
     final outProfile = _profileForSubstitutionAthlete(

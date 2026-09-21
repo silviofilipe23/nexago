@@ -76,6 +76,7 @@ class AthleteHomeCompetitionsSection extends ConsumerWidget {
               subtitle: item.subtitle,
               sortDate: item.sortDate,
               imageUrl: item.imageUrl,
+              sport: item.coverSport,
               onTap: () => _openItem(context, item),
             );
           },

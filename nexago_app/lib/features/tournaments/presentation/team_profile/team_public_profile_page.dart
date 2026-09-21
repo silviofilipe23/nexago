@@ -39,7 +39,7 @@ class _TeamPublicProfilePageState extends ConsumerState<TeamPublicProfilePage> {
 
   void _onChallenge() {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Desafiar dupla — em breve.')),
+      const SnackBar(content: Text('Desafiar equipe — em breve.')),
     );
   }
 
@@ -59,7 +59,7 @@ class _TeamPublicProfilePageState extends ConsumerState<TeamPublicProfilePage> {
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Text(
-              'Não foi possível carregar a dupla.\n$e',
+              'Não foi possível carregar a equipe.\n$e',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppColors.live),
             ),
@@ -69,7 +69,7 @@ class _TeamPublicProfilePageState extends ConsumerState<TeamPublicProfilePage> {
           if (profile == null) {
             return Center(
               child: Text(
-                'Dupla não encontrada.',
+                'Equipe não encontrada.',
                 style: TextStyle(color: context.themeColors.onSurfaceMuted),
               ),
             );

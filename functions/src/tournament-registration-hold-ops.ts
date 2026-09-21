@@ -84,6 +84,11 @@ export interface RefreshRegistrationHoldOptions {
    * um convite que não segura mais nada, dando 48h a uma dupla já formada.
    */
   rosterClosed?: boolean;
+  /**
+   * Piso do prazo, em minutos. Existe para a reversão da baixa do organizador:
+   * ver `REGISTRATION_HOLD_REVERT_GRACE_MINUTES`.
+   */
+  graceMinutes?: number;
 }
 
 /**
@@ -150,6 +155,7 @@ export async function refreshRegistrationHold(
           nowMs,
           holdMinutes,
           liveInviteExpiresAtMs,
+          graceMinutes: options.graceMinutes,
         }),
       ),
     }, {merge: true});

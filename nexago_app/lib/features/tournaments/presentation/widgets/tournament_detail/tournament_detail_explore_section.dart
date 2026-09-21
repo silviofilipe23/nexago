@@ -16,19 +16,25 @@ class TournamentDetailExploreSection extends StatelessWidget {
     required this.tournament,
     required this.stats,
     required this.onOpenCategorias,
+    required this.onOpenAtletasInscritos,
     required this.onOpenPalpites,
+    required this.onOpenPodio,
     required this.onOpenHoje,
     required this.onOpenMinhaInscricao,
     this.showHoje = false,
     this.liveNow = false,
     this.showMinhaInscricao = false,
     this.palpitesEnabled = false,
+    this.showPodio = false,
+    this.showEquipesInscritas = true,
   });
 
   final TournamentDetail tournament;
   final TournamentDetailStats stats;
   final VoidCallback onOpenCategorias;
+  final VoidCallback onOpenAtletasInscritos;
   final VoidCallback onOpenPalpites;
+  final VoidCallback onOpenPodio;
   final VoidCallback onOpenHoje;
   final VoidCallback onOpenMinhaInscricao;
 
@@ -41,6 +47,17 @@ class TournamentDetailExploreSection extends StatelessWidget {
 
   /// Palpites só abrem quando existe confronto definido.
   final bool palpitesEnabled;
+
+  /// "Pódio" só depois que o torneio acaba (ou que uma final é decidida) —
+  /// some por completo antes disso, em vez de aparecer desabilitado: um card
+  /// cinza escrito "Pódio" durante o evento já anuncia que existe resultado.
+  final bool showPodio;
+
+  /// Lista de equipes inscritas exposta pelo organizador
+  /// (`enrolledTeamsVisible`). Padrão `true` porque o campo AUSENTE no
+  /// Firestore significa visível — torneio criado antes da flag não pode
+  /// perder a tela.
+  final bool showEquipesInscritas;
 
   @override
   Widget build(BuildContext context) {
@@ -68,12 +85,26 @@ class TournamentDetailExploreSection extends StatelessWidget {
                   : 'Entrar no Modo Focus',
               onTap: onOpenHoje,
             ),
+          if (showPodio)
+            ExploreCard(
+              icon: Icons.workspace_premium_rounded,
+              title: 'Pódio',
+              subtitle: 'Campeões, vices e terceiros de cada categoria',
+              onTap: onOpenPodio,
+            ),
           ExploreCard(
             icon: Icons.grid_view_rounded,
             title: 'Categorias',
             subtitle: tournamentExploreCategoriesSubtitle(stats),
             onTap: onOpenCategorias,
           ),
+          if (showEquipesInscritas)
+            ExploreCard(
+              icon: Icons.groups_outlined,
+              title: 'Equipes inscritas',
+              subtitle: 'Duplas e equipes confirmadas',
+              onTap: onOpenAtletasInscritos,
+            ),
           if (showMinhaInscricao)
             ExploreCard(
               icon: Icons.verified_outlined,

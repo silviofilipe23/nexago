@@ -31,11 +31,15 @@ class TournamentCategoryRowStatus {
     required this.label,
     required this.color,
     required this.isClosed,
+    this.isLive = false,
   });
 
   final String label;
   final Color color;
   final bool isClosed;
+
+  /// Primeira partida da categoria já em quadra — selo "AO VIVO".
+  final bool isLive;
 }
 
 final _longDateFmt = DateFormat("d 'de' MMMM 'de' y", 'pt_BR');
@@ -183,6 +187,7 @@ TournamentCategoryRowStatus tournamentCategoryRowStatus(
   TournamentCategoryOffer offer, {
   int? inscriptionCount,
   TournamentListingStatus? tournamentStatus,
+  bool hasLiveMatch = false,
 }) {
   // Torneio finalizado: o selo nunca anuncia vaga, mesmo que o organizador não
   // tenha fechado o doc da categoria.
@@ -193,7 +198,24 @@ TournamentCategoryRowStatus tournamentCategoryRowStatus(
       isClosed: true,
     );
   }
-  if (offer.registrationClosed || offer.isCompleted) {
+  if (offer.isCompleted) {
+    return const TournamentCategoryRowStatus(
+      label: 'ENCERRADA',
+      color: AppColors.live,
+      isClosed: true,
+    );
+  }
+  // Primeira partida em andamento: status esportivo sobrescreve vaga/fila —
+  // inscrição já fechou na prática quando a categoria está jogando.
+  if (hasLiveMatch) {
+    return const TournamentCategoryRowStatus(
+      label: 'AO VIVO',
+      color: AppColors.live,
+      isClosed: false,
+      isLive: true,
+    );
+  }
+  if (offer.registrationClosed) {
     return const TournamentCategoryRowStatus(
       label: 'ENCERRADA',
       color: AppColors.live,
@@ -202,7 +224,7 @@ TournamentCategoryRowStatus tournamentCategoryRowStatus(
   }
   if (categoryMaxTeams(offer) > 0 &&
       categorySpotsLeft(offer, inscriptionCount: inscriptionCount) <= 0) {
-    if (offer.waitlistEnabled) {
+    if (categoryAcceptsWaitlist(offer)) {
       return const TournamentCategoryRowStatus(
         label: 'LISTA ESP.',
         color: AppColors.pending,
@@ -228,6 +250,25 @@ TournamentCategoryRowStatus tournamentCategoryRowStatus(
     color: AppColors.win,
     isClosed: false,
   );
+}
+
+/// Há partida `In Progress` nesta categoria.
+///
+/// `matches.categoryId` às vezes guarda o **nome** (legado) em vez de
+/// `categories[].id` — aceita os dois, igual ao resolve de inscrição.
+bool categoryHasInProgressMatch(
+  Iterable<TournamentMatch> matches,
+  TournamentCategoryOffer offer,
+) {
+  final id = offer.id.trim();
+  final name = offer.name.trim();
+  if (id.isEmpty && name.isEmpty) return false;
+  return matches.any((m) {
+    if (!m.isInProgress) return false;
+    final cid = m.categoryId.trim();
+    if (cid.isEmpty) return false;
+    return cid == id || cid == name;
+  });
 }
 
 String bracketFormatLabel(String raw) {
@@ -281,6 +322,14 @@ bool isDoubleEliminationBracketFormat(String raw) {
   return n == 'double elimination' ||
       n.contains('double elim') ||
       (n.contains('dupla') && n.contains('elim'));
+}
+
+/// Categorias King of the Court: a unidade é uma RODADA com 3 a 5 duplas, não
+/// uma partida de dois lados (`docs/business-rules/king-of-court.md`).
+bool isKingOfCourtBracketFormat(String raw) {
+  final n = raw.trim().toLowerCase().replaceAll('_', ' ');
+  if (n.isEmpty) return false;
+  return n == 'king of court' || n == 'kotc' || n.startsWith('king of court');
 }
 
 /// Categorias com fase de grupos/pools (ex.: Pool Play + SE).
@@ -424,6 +473,17 @@ enum TournamentCategoryCtaKind {
   waitlist,
   disabled,
   viewRegistration,
+
+  /// Abre a visão da categoria (partidas / grupos / chave) quando não há
+  /// inscrição disponível — categoria lotada sem fila, chave publicada, etc.
+  viewCategory,
+}
+
+/// Lista de espera só enquanto a categoria ainda não começou (chave não
+/// publicada). Depois de `bracketStatus: published`, promover da fila não
+/// entra no chaveamento — o CTA e os selos não devem mais oferecer a fila.
+bool categoryAcceptsWaitlist(TournamentCategoryOffer offer) {
+  return offer.waitlistEnabled && !offer.bracketPublished;
 }
 
 class TournamentCategoryVacancyUi {
@@ -516,6 +576,23 @@ String tournamentCategoryFormatTag(TournamentCategoryOffer offer) {
   return label.isEmpty ? 'FORMATO A CONFIRMAR' : label.toUpperCase();
 }
 
+/// Rótulo curto do formato — cabe na linha de meta do card, ao lado de vagas e
+/// taxa, onde o nome inteiro ("Fase de Grupos + Mata-mata") não cabe.
+///
+/// Dupla eliminatória mantém o nome completo: "Eliminatórias" sozinho
+/// confundiria com mata-mata simples.
+String tournamentCategoryShortFormatTag(TournamentCategoryOffer offer) {
+  if (isDoubleEliminationBracketFormat(offer.bracketFormat)) {
+    return 'Dupla eliminatória';
+  }
+  if (categoryHasGroupsPhase(offer)) return 'Grupos';
+  final label = bracketFormatLabel(offer.bracketFormat);
+  if (label.isEmpty) return 'A confirmar';
+  final lower = label.toLowerCase();
+  if (lower.contains('eliminat')) return 'Eliminatórias';
+  return label;
+}
+
 TournamentCategoryVacancyUi tournamentCategoryVacancyUi(
   TournamentCategoryOffer offer, {
   int? inscriptionCount,
@@ -547,7 +624,7 @@ TournamentCategoryVacancyUi tournamentCategoryVacancyUi(
   }
 
   if (spotsLeft <= 0 && total > 0) {
-    if (offer.waitlistEnabled) {
+    if (categoryAcceptsWaitlist(offer)) {
       return TournamentCategoryVacancyUi(
         enrolled: enrolled,
         total: total,
@@ -585,21 +662,21 @@ TournamentCategoryCtaKind tournamentCategoryCtaKind(
   bool registrationNotYetOpen = false,
 }) {
   if (offer.isCompleted) {
-    return TournamentCategoryCtaKind.disabled;
+    return TournamentCategoryCtaKind.viewCategory;
   }
   // Espelha o guard do servidor: `registrationOpensAt` futuro recusa inscrição
-  // mesmo com o torneio publicado como aberto.
+  // mesmo com o torneio publicado como aberto — ainda dá pra ver a categoria.
   if (registrationNotYetOpen) {
-    return TournamentCategoryCtaKind.disabled;
+    return TournamentCategoryCtaKind.viewCategory;
   }
   if (offer.registrationClosed || !canRegisterForTournament(tournamentStatus)) {
-    return TournamentCategoryCtaKind.disabled;
+    return TournamentCategoryCtaKind.viewCategory;
   }
   if (categoryMaxTeams(offer) > 0 &&
       categorySpotsLeft(offer, inscriptionCount: inscriptionCount) <= 0) {
-    return offer.waitlistEnabled
+    return categoryAcceptsWaitlist(offer)
         ? TournamentCategoryCtaKind.waitlist
-        : TournamentCategoryCtaKind.disabled;
+        : TournamentCategoryCtaKind.viewCategory;
   }
   return TournamentCategoryCtaKind.register;
 }
@@ -625,10 +702,11 @@ TournamentCategoryCtaKind tournamentCategoryCtaKindForAthlete({
 
 String tournamentCategoryCtaLabel(TournamentCategoryCtaKind kind) {
   return switch (kind) {
-    TournamentCategoryCtaKind.register => 'Inscrever-se →',
-    TournamentCategoryCtaKind.waitlist => 'Entrar na lista de espera →',
+    TournamentCategoryCtaKind.register => 'Inscreva-se',
+    TournamentCategoryCtaKind.waitlist => 'Entrar na lista de espera',
     TournamentCategoryCtaKind.disabled => 'Inscrições indisponíveis',
     TournamentCategoryCtaKind.viewRegistration => 'Ver inscrição',
+    TournamentCategoryCtaKind.viewCategory => 'Ver categoria',
   };
 }
 

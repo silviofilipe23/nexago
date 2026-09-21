@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/search/search_keywords.dart';
 import '../domain/league_create/league_create_draft.dart';
 import '../domain/league_create/league_create_logic.dart';
+import '../domain/tournament_create/king_of_court_plan.dart';
 import '../domain/tournament_create/tournament_create_draft.dart';
 import '../domain/tournament_create/tournament_create_logic.dart';
 
@@ -243,6 +244,10 @@ abstract final class LeagueCreateMapper {
       'bracketFormat': bracketFormatFirestoreValue(category.bracketSystem),
       'teamsPerGroup': category.teamsPerGroup,
       'qualifiersPerGroup': category.qualifiersPerGroup,
+      // Config do King of the Court — mesmos nomes que `resolveKocConfig` lê.
+      'teamsPerCourt': category.kocTeamsPerCourt,
+      'qualifiersPerRound': category.kocQualifiersPerRound,
+      'roundDurationSec': category.kocRoundDurationSec,
       'bestOf': category.bestOf.name,
       'finalBestOf5': category.finalBestOf5,
       'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,
@@ -296,6 +301,14 @@ abstract final class LeagueCreateMapper {
           : TournamentBracketSystem.groupsThenKnockout,
       teamsPerGroup: (map['teamsPerGroup'] as num?)?.toInt() ?? 4,
       qualifiersPerGroup: (map['qualifiersPerGroup'] as num?)?.toInt() ?? 2,
+      kocTeamsPerCourt:
+          (map['teamsPerCourt'] as num?)?.toInt() ?? kocDefaultTeamsPerCourt,
+      kocQualifiersPerRound:
+          (map['qualifiersPerRound'] as num?)?.toInt() ??
+          kocDefaultQualifiersPerRound,
+      kocRoundDurationSec:
+          (map['roundDurationSec'] as num?)?.toInt() ??
+          kocDefaultRoundDurationSec,
       bestOf: _parseBestOf(map['bestOf'] as String?),
       finalBestOf5: map['finalBestOf5'] as bool? ?? true,
       maxRegistrationsPerAthlete:
@@ -345,6 +358,7 @@ abstract final class LeagueCreateMapper {
       'round_robin' => TournamentBracketSystem.roundRobin,
       'groups_repechage' => TournamentBracketSystem.groupsWithRepechage,
       'double_elimination' => TournamentBracketSystem.doubleElimination,
+      'king_of_court' => TournamentBracketSystem.kingOfCourt,
       _ => TournamentBracketSystem.groupsThenKnockout,
     };
   }

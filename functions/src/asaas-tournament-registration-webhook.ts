@@ -26,7 +26,7 @@ import {
 } from "./tournament-team-category";
 import {
   loadTeamMemberUids,
-  setTeamGenderWhenRegistrationPaid,
+  markTeamRegistrationPaid,
 } from "./tournament-team-roster";
 import {
   findCategory,
@@ -36,7 +36,7 @@ import {
 import {deliverNotificationToUser} from "./notification-delivery";
 import {registrationHoldClearedFields} from "./tournament-registration-hold-ops";
 import {tournamentManagerUids} from "./tournament-acl";
-import {creditOrganizerWalletFromRegistration} from "./organizer-wallet";
+import {creditTournamentWalletFromRegistration} from "./tournament-wallet";
 import {computePlatformFeeReais, resolveOrganizerTournamentFeePercent} from "./platform-fees";
 import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
 import {
@@ -311,7 +311,7 @@ export async function processTournamentRegistrationAsaasNotification(
       if (!wasPaidBefore && isPaid) {
         const teamId = typeof regData.teamId === "string" ? regData.teamId : "";
         try {
-          await setTeamGenderWhenRegistrationPaid(db, projectId, teamId);
+          await markTeamRegistrationPaid(db, projectId, teamId);
         } catch (genderError) {
           logger.warn(
             `Falha ao definir gender da equipe ${teamId} (registration ${registrationId})`,
@@ -380,8 +380,9 @@ export async function processTournamentRegistrationAsaasNotification(
       }
     }
 
-    // Credita o organizador com o líquido (bruto − taxa da plataforma − taxa
-    // do gateway). A plataforma retém a sua taxa; o organizador saca depois.
+    // Credita o CAIXA DO TORNEIO (`tournamentWallets/{tournamentId}`) com o
+    // líquido (bruto − taxa da plataforma − taxa do gateway). A plataforma
+    // retém a sua taxa; o dono do evento e os gestores da equipe sacam depois.
     //
     // Só na LIQUIDAÇÃO: no cartão a vaga já foi garantida lá em cima, na
     // autorização, mas o dinheiro só chega à plataforma ~D+30. Creditar antes
@@ -393,7 +394,8 @@ export async function processTournamentRegistrationAsaasNotification(
         // valor fora da faixa) cai nos 8% padrão.
         const organizerSnap = await db.doc(`organizers/${organizerId}`).get();
         const feePercent = resolveOrganizerTournamentFeePercent(organizerSnap.data());
-        await creditOrganizerWalletFromRegistration(db, organizerId, {
+        await creditTournamentWalletFromRegistration(db, tournamentId, {
+          ownerId: organizerId,
           registrationId,
           payerUid,
           paymentId,
@@ -408,7 +410,7 @@ export async function processTournamentRegistrationAsaasNotification(
         }, {merge: true});
       } catch (walletErr) {
         logger.error(
-          `Asaas tournament registration ${registrationId}: organizer wallet credit failed`,
+          `Asaas tournament registration ${registrationId}: tournament wallet credit failed`,
           walletErr,
         );
       }

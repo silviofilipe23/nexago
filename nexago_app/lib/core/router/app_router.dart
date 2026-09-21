@@ -68,10 +68,12 @@ import '../../features/organizer/presentation/match_ops/organizer_schedule_time_
 import '../../features/organizer/presentation/match_ops/organizer_auto_schedule_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_check_in_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_live_table_page.dart';
+import '../../features/organizer/presentation/match_ops/organizer_koc_table_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_quick_score_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_validate_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_summary_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_insights_page.dart';
+import '../../features/tournaments/presentation/public_koc_board_page.dart';
 import '../../features/tournaments/presentation/public_match_live_page.dart';
 import '../../features/arena/domain/arena_manager_booking.dart';
 import '../../features/arena/domain/arena_booking_canceled_args.dart';
@@ -177,6 +179,8 @@ import '../../features/tournaments/presentation/focus/focus_section.dart';
 import '../../features/tournaments/presentation/focus/focus_shell_page.dart';
 import '../../features/tournaments/presentation/tournament_bracket_page.dart';
 import '../../features/tournaments/presentation/tournament_groups_page.dart';
+import '../../features/tournaments/presentation/tournament_podium_page.dart';
+import '../../features/tournaments/presentation/tournament_enrolled_athletes_page.dart';
 import '../../features/tournaments/presentation/tournament_prizes_page.dart';
 import '../../features/tournaments/presentation/tournament_predictions_page.dart';
 import '../../features/tournaments/presentation/tournament_external_invite_page.dart';
@@ -596,6 +600,25 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                           state.pathParameters['matchId']?.trim() ?? '';
                       return OrganizerMatchLiveTablePage(
                         tournamentId: tournamentId,
+                        matchId: matchId,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    // Mesa da rodada King of the Court: elenco, fila e tabela —
+                    // a tela de sets não serve a uma rodada sem dois lados.
+                    path: ':matchId/koc',
+                    name: AppRouteNames.organizerKocTable,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      final matchId =
+                          state.pathParameters['matchId']?.trim() ?? '';
+                      final categoryId =
+                          state.uri.queryParameters['categoryId']?.trim() ?? '';
+                      return OrganizerKocTablePage(
+                        tournamentId: tournamentId,
+                        categoryId: categoryId,
                         matchId: matchId,
                       );
                     },
@@ -1098,6 +1121,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: AppRoutes.publicKocBoard,
+        name: AppRouteNames.publicKocBoard,
+        builder: (context, state) {
+          final tournamentId =
+              state.pathParameters['tournamentId']?.trim() ?? '';
+          final categoryId = state.pathParameters['categoryId']?.trim() ?? '';
+          return PublicKocBoardPage(
+            tournamentId: tournamentId,
+            categoryId: categoryId,
+          );
+        },
+      ),
+      GoRoute(
         path: AppRoutes.publicMatchLive,
         name: AppRouteNames.publicMatchLive,
         builder: (context, state) {
@@ -1218,6 +1254,22 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) {
               final id = state.pathParameters['tournamentId']?.trim() ?? '';
               return TournamentPrizesPage(tournamentId: id);
+            },
+          ),
+          GoRoute(
+            path: 'podio',
+            name: AppRouteNames.tournamentPodium,
+            builder: (context, state) {
+              final id = state.pathParameters['tournamentId']?.trim() ?? '';
+              return TournamentPodiumPage(tournamentId: id);
+            },
+          ),
+          GoRoute(
+            path: 'atletas-inscritos',
+            name: AppRouteNames.tournamentEnrolledAthletes,
+            builder: (context, state) {
+              final id = state.pathParameters['tournamentId']?.trim() ?? '';
+              return TournamentEnrolledAthletesPage(tournamentId: id);
             },
           ),
           GoRoute(

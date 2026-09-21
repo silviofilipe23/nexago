@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -26,6 +28,7 @@ class TournamentMatchCardSkin extends StatefulWidget {
     required this.isMine,
     required this.child,
     this.onTap,
+    this.glass = false,
   });
 
   final TournamentMatchRowStage? stage;
@@ -33,6 +36,9 @@ class TournamentMatchCardSkin extends StatefulWidget {
   final bool isMine;
   final Widget child;
   final VoidCallback? onTap;
+
+  /// Fundo translúcido + blur — Focus Arena / superfícies sobre foto.
+  final bool glass;
 
   @override
   State<TournamentMatchCardSkin> createState() =>
@@ -138,28 +144,39 @@ class _TournamentMatchCardSkinState extends State<TournamentMatchCardSkin>
   Widget build(BuildContext context) {
     final surface = context.themeColors.surfaceCard;
     final border = _borderColor(context);
+    final glass = widget.glass;
 
     Widget card(double breath) {
-      return Container(
+      final fill = glass
+          ? Colors.white.withValues(alpha: 0.06)
+          : surface;
+      final borderColor = glass &&
+              widget.stage == null &&
+              !widget.isLive &&
+              !widget.isMine
+          ? Colors.white.withValues(alpha: 0.12)
+          : border;
+
+      final body = Container(
         decoration: BoxDecoration(
-          color: widget.stage == null ? surface : null,
+          color: widget.stage == null ? fill : null,
           gradient: widget.stage != null
               ? LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
                     Color.alphaBlend(
-                      _accent.withValues(alpha: 0.08),
-                      surface,
+                      _accent.withValues(alpha: glass ? 0.14 : 0.08),
+                      fill,
                     ),
-                    surface,
+                    fill,
                   ],
                   stops: const [0, 0.58],
                 )
               : null,
           borderRadius: BorderRadius.circular(_radius),
-          border: Border.all(color: border),
-          boxShadow: _shadows(breath),
+          border: Border.all(color: borderColor),
+          boxShadow: glass ? const [] : _shadows(breath),
         ),
         clipBehavior: Clip.antiAlias,
         child: Material(
@@ -189,6 +206,16 @@ class _TournamentMatchCardSkinState extends State<TournamentMatchCardSkin>
           ),
         ),
       );
+
+      if (!glass) return body;
+
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(_radius),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: body,
+        ),
+      );
     }
 
     final breathe = _breathe;
@@ -196,7 +223,8 @@ class _TournamentMatchCardSkinState extends State<TournamentMatchCardSkin>
 
     return AnimatedBuilder(
       animation: breathe,
-      builder: (_, _) => card(Curves.easeInOut.transform(breathe.value)),
+      builder: (context, child) =>
+          card(Curves.easeInOut.transform(breathe.value)),
     );
   }
 }
@@ -213,7 +241,7 @@ class _Shimmer extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: animation,
-      builder: (_, _) {
+      builder: (context, child) {
         final t = Curves.easeInOut.transform(
           (animation.value / 0.6).clamp(0.0, 1.0),
         );

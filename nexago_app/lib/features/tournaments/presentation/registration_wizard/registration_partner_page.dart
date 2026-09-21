@@ -595,7 +595,11 @@ class _RegistrationPartnerPageState
     );
     final profiles =
         ref
-            .watch(registrationRosterProfilesProvider(snap.participantUids))
+            .watch(
+              registrationRosterProfilesProvider(
+                rosterProfilesKey(snap.participantUids),
+              ),
+            )
             .valueOrNull ??
         const <String, AppUserProfile>{};
     final remainingSlots = registrationRemainingInviteSlots(

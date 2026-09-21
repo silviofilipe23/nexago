@@ -93,7 +93,7 @@ void drawMatchSharePoster(
   _drawHeader(canvas, data.tournamentName, assets.logo);
 
   // selo da fase
-  final badge = m.badge ?? '🏐 ${data.phaseLabel.toUpperCase()}';
+  final badge = m.badge ?? '${data.phaseLabel.toUpperCase()}';
   final badgeStyle = _sora(700, 40);
   _drawPill(
     canvas,
@@ -218,14 +218,13 @@ TextStyle _style(
   double size,
   Color? color,
   Paint? foreground,
-) =>
-    posterStyle(
-      family,
-      weight,
-      size,
-      color: foreground == null ? (color ?? _ink) : null,
-      foreground: foreground,
-    );
+) => posterStyle(
+  family,
+  weight,
+  size,
+  color: foreground == null ? (color ?? _ink) : null,
+  foreground: foreground,
+);
 
 /// Emoji sem família definida: quem desenha é a fonte de emoji do sistema.
 TextStyle _emoji(double size) => TextStyle(fontSize: size, height: 1);
@@ -243,8 +242,7 @@ void _fillText(
   double x,
   double baselineY, {
   _Align align = PosterAlign.left,
-}) =>
-    posterFillText(canvas, text, style, x, baselineY, align: align);
+}) => posterFillText(canvas, text, style, x, baselineY, align: align);
 
 void _fillTextMiddle(
   Canvas canvas,
@@ -252,8 +250,7 @@ void _fillTextMiddle(
   TextStyle style,
   double cx,
   double cy,
-) =>
-    posterFillTextMiddle(canvas, text, style, cx, cy);
+) => posterFillTextMiddle(canvas, text, style, cx, cy);
 
 void _tracked(
   Canvas canvas,
@@ -263,8 +260,7 @@ void _tracked(
   double baselineY,
   double spacing, {
   _Align align = PosterAlign.center,
-}) =>
-    posterTracked(canvas, text, style, x, baselineY, spacing, align: align);
+}) => posterTracked(canvas, text, style, x, baselineY, spacing, align: align);
 
 TextStyle _fitFont(
   String text,
@@ -272,22 +268,14 @@ TextStyle _fitFont(
   double start,
   double min,
   TextStyle Function(double size) font,
-) =>
-    posterFitFont(text, maxWidth, start, min, font);
+) => posterFitFont(text, maxWidth, start, min, font);
 
 String _truncate(String text, TextStyle style, double maxWidth) =>
     posterTruncate(text, style, maxWidth);
 
-
 // --- Pintura base -----------------------------------------------------------
 
-ui.Gradient _metalShader(
-  _Metal m,
-  double x0,
-  double y0,
-  double x1,
-  double y1,
-) {
+ui.Gradient _metalShader(_Metal m, double x0, double y0, double x1, double y1) {
   return ui.Gradient.linear(Offset(x0, y0), Offset(x1, y1), [m.hi, m.main]);
 }
 
@@ -323,7 +311,9 @@ void _drawAvatar(
   canvas.drawCircle(Offset(x, y), r + ringWidth / 2 + 4, ringPaint);
 
   canvas.save();
-  canvas.clipPath(Path()..addOval(Rect.fromCircle(center: Offset(x, y), radius: r)));
+  canvas.clipPath(
+    Path()..addOval(Rect.fromCircle(center: Offset(x, y), radius: r)),
+  );
   if (image != null) {
     canvas.drawImageRect(
       image,
@@ -336,11 +326,7 @@ void _drawAvatar(
     canvas.drawRect(
       Rect.fromCircle(center: Offset(x, y), radius: r),
       _shaderPaint(
-        ui.Gradient.linear(
-          Offset(x - r, y - r),
-          Offset(x + r, y + r),
-          colors,
-        ),
+        ui.Gradient.linear(Offset(x - r, y - r), Offset(x + r, y + r), colors),
       ),
     );
     _fillTextMiddle(
@@ -495,11 +481,7 @@ void _drawBackdrop(Canvas canvas, _Metal m, String mark, bool finished) {
     ..color = Colors.white.withValues(alpha: 0.028)
     ..strokeWidth = 2;
   for (var i = -13; i <= 13; i++) {
-    canvas.drawLine(
-      Offset(i * 115, -1400),
-      Offset(i * 115, 1400),
-      linePaint,
-    );
+    canvas.drawLine(Offset(i * 115, -1400), Offset(i * 115, 1400), linePaint);
   }
   canvas.restore();
 
@@ -677,7 +659,9 @@ void _drawResult(
     _sora(
       800,
       46,
-      foreground: _shaderPaint(_metalShader(m, _cx - 240, 1150, _cx + 240, 1195)),
+      foreground: _shaderPaint(
+        _metalShader(m, _cx - 240, 1150, _cx + 240, 1195),
+      ),
     ),
     _cx,
     1188,

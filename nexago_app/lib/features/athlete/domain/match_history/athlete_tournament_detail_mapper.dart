@@ -48,9 +48,8 @@ AthleteTournamentDetail buildAthleteTournamentDetail({
   final venueName = tournamentDoc?.location.trim().isNotEmpty == true
       ? tournamentDoc!.location
       : (summary.venue.isNotEmpty ? summary.venue : '—');
-  final venueCity = tournamentDoc?.city.trim().isNotEmpty == true
-      ? tournamentDoc!.city
-      : '—';
+  final venueCity =
+      tournamentDoc?.city.trim().isNotEmpty == true ? tournamentDoc!.city : '—';
 
   final games = summary.wins + summary.losses;
   final tag = summary.losses == 0 && summary.wins > 0 ? 'INVICTO' : 'CAMPANHA';
@@ -86,17 +85,21 @@ List<AthleteTournamentCampaignMatch> _campaignMatches({
   required String athleteTeamId,
   required Map<String, String> opponentNames,
 }) {
-  final sorted = [...tournamentMatches]
-    ..sort((a, b) {
-      final aDate = playedAtForMatch(a);
-      final bDate = playedAtForMatch(b);
-      if (aDate == null && bDate == null) {
-        return a.matchNumber.compareTo(b.matchNumber);
-      }
-      if (aDate == null) return -1;
-      if (bDate == null) return 1;
-      return aDate.compareTo(bDate);
-    });
+  // A campanha do atleta é uma sequência de DUELOS: rótulo de fase, adversário
+  // e placar saem dos dois lados. Uma rodada KOTC sairia daqui como "vs
+  // Adversário" num "Grupo C1" que é a quadra, não um grupo — ela tem a sua
+  // própria leitura (tabela da rodada), fora desta lista.
+  final sorted = tournamentMatches.where((m) => m.isDuel).toList();
+  sorted.sort((a, b) {
+    final aDate = playedAtForMatch(a);
+    final bDate = playedAtForMatch(b);
+    if (aDate == null && bDate == null) {
+      return a.matchNumber.compareTo(b.matchNumber);
+    }
+    if (aDate == null) return -1;
+    if (bDate == null) return 1;
+    return aDate.compareTo(bDate);
+  });
 
   return sorted.map((match) {
     final opponentId = match.opponentTeamIdFor(athleteTeamId);

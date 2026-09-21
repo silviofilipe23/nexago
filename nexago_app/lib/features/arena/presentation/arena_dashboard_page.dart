@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
-import '../../../core/layout/nexa_floating_header.dart';
+import '../../../core/layout/nexa_page_header.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../athlete/domain/favorites_providers.dart';
 import '../domain/arena_dashboard_providers.dart';
@@ -49,29 +49,13 @@ class ArenaDashboardPage extends ConsumerWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final maxW = constraints.maxWidth > 720 ? 640.0 : double.infinity;
-            return CustomScrollView(
+            final content = CustomScrollView(
               controller: ref
                   .watch(arenaShellScrollRegistryProvider)
                   .controllerFor(0),
               key: const PageStorageKey<String>('arena-dashboard-scroll'),
               physics: ArenaDashboardTokens.shellScrollPhysics,
               slivers: [
-                if (!hideFloatingHeader)
-                  NexaFloatingHeaderSliver(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: ArenaDashboardTokens.horizontalPadding,
-                    ),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: maxW),
-                        child: const FadeSlideIn(
-                          duration: Duration(milliseconds: 420),
-                          offsetY: 14,
-                          child: ArenaDashboardHeader(),
-                        ),
-                      ),
-                    ),
-                  ),
                 SliverPadding(
                   padding: EdgeInsets.fromLTRB(
                     ArenaDashboardTokens.horizontalPadding,
@@ -211,6 +195,24 @@ class ArenaDashboardPage extends ConsumerWidget {
                   ),
                 ),
               ],
+            );
+
+            if (hideFloatingHeader) return content;
+            return NexaPageHeader(
+              padding: const EdgeInsets.symmetric(
+                horizontal: ArenaDashboardTokens.horizontalPadding,
+              ),
+              header: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxW),
+                  child: const FadeSlideIn(
+                    duration: Duration(milliseconds: 420),
+                    offsetY: 14,
+                    child: ArenaDashboardHeader(),
+                  ),
+                ),
+              ),
+              child: content,
             );
           },
         ),

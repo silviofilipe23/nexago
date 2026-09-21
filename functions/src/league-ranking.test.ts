@@ -218,6 +218,33 @@ describe("resolveLeaguePlacementsFromMatch", () => {
     assert.deepEqual(awards, [{teamId: "team-b", bucket: "quarters"}]);
   });
 
+  // Perdedor que ainda joga o pódio não recebe degrau. A final da LB — e o
+  // cruzamento #16 da planta de 10, tipado "LB" — manda quem perde para a
+  // disputa de 3º lugar via `loserAdvance`; essa rodada não ELIMINA, então
+  // `tiers.lb` não tem degrau para ela e o balde legado de quartas premiava
+  // 5º-8º a quem ainda ia disputar o 3º. Só a disputa de 3º decide esses dois.
+  it("não premia perdedor da LB que ainda vai jogar a disputa de 3º", () => {
+    const awards = resolveLeaguePlacementsFromMatch(
+      completedMatch({
+        matchType: "LB",
+        round: 4,
+        loserAdvance: {matchNumber: 17, teamSlot: "teamAId"},
+      }),
+      {hasThirdPlaceMatch: true, isDoubleElimination: true, maxLbRound: 4},
+    );
+    assert.deepEqual(awards, []);
+  });
+
+  // Retrocompatibilidade: chave legada, materializada sem fiação. Sem
+  // `loserAdvance` no doc, a regra antiga continua valendo inteira.
+  it("mantém 3º lugar na última rodada da LB de chave sem fiação", () => {
+    const awards = resolveLeaguePlacementsFromMatch(
+      completedMatch({matchType: "LB", round: 2}),
+      {...noThirdPlace, isDoubleElimination: true, maxLbRound: 2},
+    );
+    assert.deepEqual(awards, [{teamId: "team-b", place: 3}]);
+  });
+
   // Incidente 18/08 (Copa Goiás): a disputa de 3º lugar tinha winnerId igual ao
   // id do TORNEIO. Sem guarda, o loser virava teamAId e o 3º lugar era premiado
   // a um time inexistente — com dois times marcados em 4º na mesma categoria.

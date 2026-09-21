@@ -1,8 +1,9 @@
 import '../tournament_match.dart';
 import '../tournament_match_status.dart';
+import '../tournament_matches_logic.dart';
 
 /// Estado do bloco principal da seção "Agora", em ordem de precedência.
-enum FocusNowState { called, live, next, pendingKnockout, idle }
+enum FocusNowState { called, live, next, pendingKnockout, eliminated, idle }
 
 /// `queueStatus` que a mesa grava quando chama a dupla para a quadra.
 const String kQueueStatusOnCourt = 'on_court';
@@ -91,13 +92,58 @@ bool eliminatedFromKnockout(
   Set<String> myTeamIds,
 ) {
   return matches.any((m) {
+    // "Eliminado" é conceito de chave: no KOTC ninguém é eliminado por perder
+    // um rally — deixa de classificar pela TABELA. O `poolId` da rodada já
+    // bloquearia aqui, mas depender disso é frágil: a intenção fica explícita.
+    if (m.isKingOfCourt) return false;
     if (m.categoryId != categoryId || m.isGroupMatch || m.poolId.isNotEmpty) {
       return false;
     }
-    final mine = myTeamIds.contains(m.teamAId) || myTeamIds.contains(m.teamBId);
-    if (!mine) return false;
+    if (!matchInvolvesAnyTeam(m, myTeamIds)) return false;
     if (!TournamentMatchStatus.isCompleted(m.status)) return false;
     final winner = m.winnerId?.trim() ?? '';
     return winner.isNotEmpty && !myTeamIds.contains(winner);
   });
+}
+
+/// Próxima partida do atleta no Focus Agora — SEM filtro de dia.
+///
+/// Diferente de [pickAthleteNextMatch] (home / oferta do dia): o herói do
+/// Agora precisa mostrar o próximo confronto mesmo quando ele é amanhã ou na
+/// próxima etapa. Precedência: chamada de quadra → ao vivo → mais cedo
+/// agendada → fila.
+TournamentMatch? pickAthleteFocusNextMatch(
+  List<TournamentMatch> matches,
+  Set<String> athleteTeamIds,
+) {
+  if (athleteTeamIds.isEmpty) return null;
+
+  final mine = matches
+      .where(
+        (m) =>
+            // `matchInvolvesAnyTeam` cobre elenco de rodada KOTC; comparar
+            // `teamAId`/`teamBId` na mão esconderia a rodada do atleta.
+            matchInvolvesAnyTeam(m, athleteTeamIds) &&
+            !TournamentMatchStatus.isCompleted(m.status) &&
+            !TournamentMatchStatus.isCanceled(m.status),
+      )
+      .toList();
+  if (mine.isEmpty) return null;
+
+  for (final m in mine) {
+    if (m.queueStatus == kQueueStatusOnCourt) return m;
+  }
+  for (final m in mine) {
+    if (TournamentMatchStatus.isInProgress(m.status)) return m;
+  }
+
+  mine.sort((a, b) {
+    final aTime = a.scheduleTime;
+    final bTime = b.scheduleTime;
+    if (aTime != null && bTime != null) return aTime.compareTo(bTime);
+    if (aTime != null) return -1;
+    if (bTime != null) return 1;
+    return a.queueOrder.compareTo(b.queueOrder);
+  });
+  return mine.first;
 }

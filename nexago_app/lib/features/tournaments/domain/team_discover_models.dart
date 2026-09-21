@@ -16,11 +16,11 @@ enum TeamDiscoverGenderFilter {
   mixed;
 
   String get chipLabel => switch (this) {
-    TeamDiscoverGenderFilter.all => 'Todos',
-    TeamDiscoverGenderFilter.male => 'Masculino',
-    TeamDiscoverGenderFilter.female => 'Feminino',
-    TeamDiscoverGenderFilter.mixed => 'Misto',
-  };
+        TeamDiscoverGenderFilter.all => 'Todos',
+        TeamDiscoverGenderFilter.male => 'Masculino',
+        TeamDiscoverGenderFilter.female => 'Feminino',
+        TeamDiscoverGenderFilter.mixed => 'Misto',
+      };
 }
 
 enum TeamDiscoverPartnershipFilter { all, active, lookingForPartner }
@@ -129,12 +129,10 @@ class TeamDiscoverEntry {
   }
 
   String get membersLabel {
-    final p1 = player1 != null
-        ? athleteDisplayName(player1!, fallback: '')
-        : '';
-    final p2 = player2 != null
-        ? athleteDisplayName(player2!, fallback: '')
-        : '';
+    final p1 =
+        player1 != null ? athleteDisplayName(player1!, fallback: '') : '';
+    final p2 =
+        player2 != null ? athleteDisplayName(player2!, fallback: '') : '';
     if (p1.isNotEmpty && p2.isNotEmpty && p1 != p2) {
       return '$p1 · $p2';
     }
@@ -185,20 +183,15 @@ class TeamDiscoverEntry {
     return levelSegmentsFromCode(profile.level);
   }
 
-  /// v1: proxy por cidade/UF (km fixo quando na mesma região).
-  String? proximityDistanceLabel(AthleteProfile? viewer) {
-    if (viewer == null) return null;
+  /// Cidade · UF da dupla, pelo primeiro atleta com perfil.
+  ///
+  /// Substitui a antiga `proximityDistanceLabel`, que devolvia `'8 km'` ou
+  /// `'25 km'` HARD-CODED só comparando cidade/UF com quem olhava — número
+  /// inventado, impresso como se fosse medido.
+  String get locationLabel {
     final profile = player1 ?? player2;
-    if (profile == null) return null;
-    final viewerCity = viewer.city.trim().toLowerCase();
-    final city = profile.city.trim().toLowerCase();
-    if (viewerCity.isNotEmpty && city == viewerCity) return '8 km';
-    final viewerState = viewer.state?.trim().toLowerCase() ?? '';
-    final state = profile.state?.trim().toLowerCase() ?? '';
-    if (viewerState.isNotEmpty && state.isNotEmpty && viewerState == state) {
-      return '25 km';
-    }
-    return null;
+    if (profile == null) return '';
+    return athleteLocationLabel(profile);
   }
 }
 

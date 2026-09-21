@@ -1,6 +1,5 @@
 import {
   inferPixKeyType,
-  maskPixKey,
   pixKeyTypeFromStored,
   resolveInitialPixKeyType,
   validatePixKeyForType,
@@ -104,13 +103,6 @@ describe('pix-key', () => {
     it('infere pela chave quando o tipo gravado é inválido — inclusive o legado "random"', () => {
       expect(resolveInitialPixKeyType('random', '6239998539')).toBe('PHONE');
       expect(resolveInitialPixKeyType('', VALID_CNPJ)).toBe('CNPJ');
-    });
-  });
-
-  describe('maskPixKey', () => {
-    it('só encurta chave longa', () => {
-      expect(maskPixKey('62999853983')).toBe('62999853983');
-      expect(maskPixKey('organizador@email.com')).toBe('organiza…');
     });
   });
 });

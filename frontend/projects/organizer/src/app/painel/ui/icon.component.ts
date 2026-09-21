@@ -9,6 +9,8 @@ export type OgIconName =
   | 'bell'
   | 'search'
   | 'chevron'
+  | 'chevronUp'
+  | 'chevronDown'
   | 'check'
   | 'edit'
   | 'download'
@@ -32,7 +34,8 @@ export type OgIconName =
   | 'phone'
   | 'whatsapp'
   | 'copy'
-  | 'menu';
+  | 'menu'
+  | 'grip';
 
 /** Ícones de contorno do design system NexaGO — mesmo traçado do protótipo (stroke 24, 1.8–2.2px). */
 @Component({
@@ -74,6 +77,12 @@ export type OgIconName =
         }
         @case ('chevron') {
           <path d="m9 6 6 6-6 6" />
+        }
+        @case ('chevronUp') {
+          <path d="m6 15 6-6 6 6" />
+        }
+        @case ('chevronDown') {
+          <path d="m6 9 6 6 6-6" />
         }
         @case ('check') {
           <path d="m4.5 12.5 5 5 10-11" />
@@ -143,6 +152,14 @@ export type OgIconName =
         }
         @case ('menu') {
           <path d="M4 7h16M4 12h16M4 17h16" />
+        }
+        @case ('grip') {
+          <circle cx="9" cy="6" r="1.2" fill="currentColor" stroke="none" />
+          <circle cx="15" cy="6" r="1.2" fill="currentColor" stroke="none" />
+          <circle cx="9" cy="12" r="1.2" fill="currentColor" stroke="none" />
+          <circle cx="15" cy="12" r="1.2" fill="currentColor" stroke="none" />
+          <circle cx="9" cy="18" r="1.2" fill="currentColor" stroke="none" />
+          <circle cx="15" cy="18" r="1.2" fill="currentColor" stroke="none" />
         }
         @case ('share') {
           <circle cx="18" cy="5" r="2.7" /><circle cx="6" cy="12" r="2.7" /><circle cx="18" cy="19" r="2.7" />

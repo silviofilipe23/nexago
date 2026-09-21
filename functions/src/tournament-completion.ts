@@ -1,4 +1,4 @@
-import {isMatchCompleted} from "./match-status";
+import {isMatchCompleted, normalizeMatchType} from "./match-status";
 
 export interface CompletionMatch {
   categoryId: string;
@@ -6,9 +6,18 @@ export interface CompletionMatch {
   status: unknown;
 }
 
-/** Verdadeiro para a partida que decide o título (grande final). */
+/**
+ * Verdadeiro para a decisão do título da categoria.
+ *
+ * `koc_final` entra aqui porque a rodada final do King of the Court É a decisão
+ * — a tabela dela é o pódio, não existe "jogo da final". Sem esta linha a
+ * categoria termina e o TORNEIO nunca fecha.
+ *
+ * `normalizeMatchType` troca `_` por espaço, daí a grafia com espaço.
+ */
 export function isFinalMatchType(matchType: string): boolean {
-  return String(matchType ?? "").trim().toLowerCase() === "final";
+  const normalized = normalizeMatchType(matchType);
+  return normalized === "final" || normalized === "koc final";
 }
 
 /**

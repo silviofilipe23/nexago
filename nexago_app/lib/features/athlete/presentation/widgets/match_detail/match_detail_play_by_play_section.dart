@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
@@ -23,6 +25,8 @@ class MatchDetailPlayByPlaySection extends StatelessWidget {
   final String opponentTeamHeader;
   final List<MatchDetailPlayByPlayGroup> playByPlayGroups;
   final VoidCallback? onViewFullAnalysis;
+
+  static const _radius = 14.0;
 
   @override
   Widget build(BuildContext context) {
@@ -62,46 +66,52 @@ class MatchDetailPlayByPlaySection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 14),
-        Container(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-          decoration: BoxDecoration(
-            color: context.themeColors.surfaceCard,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: context.themeColors.surfaceRaised),
-          ),
-          child: Stack(
-            children: [
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 34,
-                bottom: 0,
-                child: Center(
-                  child: Container(
-                    width: 1,
-                    color: context.themeColors.surfaceRaised.withValues(
-                      alpha: 0.9,
-                    ),
-                  ),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(_radius),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(_radius),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.12),
                 ),
               ),
-              Column(
+              child: Stack(
                 children: [
-                  _TeamHeadersRow(
-                    ourTeamHeader: ourTeamHeader,
-                    opponentTeamHeader: opponentTeamHeader,
-                  ),
-                  const SizedBox(height: 10),
-                  for (var i = 0; i < items.length; i++) ...[
-                    if (i > 0) const SizedBox(height: 8),
-                    _MirroredPlayByPlayRow(
-                      item: items[i],
-                      isSetClosing: _isSetClosingPoint(items[i]),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: 34,
+                    bottom: 0,
+                    child: Center(
+                      child: Container(
+                        width: 1,
+                        color: Colors.white.withValues(alpha: 0.12),
+                      ),
                     ),
-                  ],
+                  ),
+                  Column(
+                    children: [
+                      _TeamHeadersRow(
+                        ourTeamHeader: ourTeamHeader,
+                        opponentTeamHeader: opponentTeamHeader,
+                      ),
+                      const SizedBox(height: 10),
+                      for (var i = 0; i < items.length; i++) ...[
+                        if (i > 0) const SizedBox(height: 8),
+                        _MirroredPlayByPlayRow(
+                          item: items[i],
+                          isSetClosing: _isSetClosingPoint(items[i]),
+                        ),
+                      ],
+                    ],
+                  ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
         if (showCta) ...[

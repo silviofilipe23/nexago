@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import { StatusBadge } from '../../shared/hub/status-badge';
 import { sportLabel } from '../../../lib/format';
 import { toSlugId } from '../../../lib/slug';
+import { tournamentCoverOrDefault } from '@nexago/tournament-covers';
 import type { TournamentSummary } from '../../../lib/firestore/types';
 
 /**
@@ -28,7 +29,7 @@ import type { TournamentSummary } from '../../../lib/firestore/types';
       ></span>
 
       <div class="relative aspect-[16/10] overflow-hidden bg-surface-2">
-        @if (t().coverUrl; as cover) {
+        @if (cover(); as cover) {
           <img [src]="cover" alt="" loading="lazy" class="size-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.04] motion-reduce:transition-none" />
         } @else {
           <div class="flex h-full items-center justify-center bg-gradient-to-br from-surface-2 to-surface-1">
@@ -109,6 +110,11 @@ export class TournamentCard {
 
   protected readonly sportLabel = sportLabel;
   protected readonly slug = computed(() => toSlugId(this.t().name, this.t().id));
+
+  /** Capa enviada, senão a arte do esporte; `null` cai no troféu do gradiente. */
+  protected readonly cover = computed(() =>
+    tournamentCoverOrDefault(this.t().coverUrl, this.t().sport),
+  );
   protected readonly place = computed(() => {
     const t = this.t();
     return [t.locationName, t.city].filter(Boolean).join(' · ') || t.city || 'Local a definir';

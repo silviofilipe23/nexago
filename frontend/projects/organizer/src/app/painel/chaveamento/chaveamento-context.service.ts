@@ -1,8 +1,9 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { AuthService } from '../../auth/auth.service';
 import { listMatches, resolveCourtNames, type TournamentMatch } from '../data/matches-repository';
 import type { OrganizerTournament, OrganizerTournamentCategory } from '../data/tournament.model';
-import { listMyTournaments } from '../data/tournaments-repository';
+import { getTournament, listMyTournaments } from '../data/tournaments-repository';
+import { tournamentReach } from './tournament-reach';
 
 /** Estado compartilhado da seção Chaveamento & Jogos (grupos/jogos/agendamento — a "chave"
  *  em si e o placar ficam fora, ver comentários nos componentes correspondentes): torneio e
@@ -25,9 +26,24 @@ export class ChaveamentoContextService {
   readonly loadingMatches = signal(false);
   private readonly matchesLoaded = signal<TournamentMatch[]>([]);
 
-  readonly tournament = computed<OrganizerTournament | null>(
-    () => this.tournaments().find((t) => t.id === this.selectedTournamentId()) ?? null,
+  /** Doc do torneio buscado por id — o caminho do super admin pra um evento alheio
+   *  (aba Plataforma), que não aparece em `listMyTournaments`. Ver `tournamentReach`. */
+  private readonly fetchedTournament = signal<OrganizerTournament | null>(null);
+  /** Id já pedido ao Firestore — evita repetir o `get` (inclusive quando o doc não existe,
+   *  caso em que `fetchedTournament` fica nulo e a decisão segue pedindo o mesmo id). */
+  private fetchAttemptedId: string | null = null;
+
+  private readonly reach = computed(() =>
+    tournamentReach({
+      selectedId: this.selectedTournamentId(),
+      owned: this.tournaments(),
+      loadingOwned: this.loadingTournaments(),
+      fetched: this.fetchedTournament(),
+      isSuperAdmin: this.auth.isSuperAdmin(),
+    }),
   );
+
+  readonly tournament = computed<OrganizerTournament | null>(() => this.reach().tournament);
 
   /** Jogos do torneio selecionado com o nome da quadra resolvido pelas quadras do torneio —
    *  ver `resolveCourtNames` (jogos auto-agendados antes do fix só têm `courtId`). */
@@ -48,6 +64,35 @@ export class ChaveamentoContextService {
     return catId ? ms.filter((m) => m.categoryId === catId) : ms;
   });
 
+  constructor() {
+    // Busca o doc do torneio quando ele está fora da lista do organizador e quem está
+    // vendo é super admin. É o mesmo doc que a sidebar já lê (`PanelContextService`),
+    // mas este serviço é singleton de raiz e não pode depender dela (dependência cíclica).
+    effect(() => {
+      const id = this.reach().fetchId;
+      if (!id || id === this.fetchAttemptedId) return;
+      this.fetchAttemptedId = id;
+      void this.loadTournamentDoc(id);
+    });
+  }
+
+  /** Esquece o doc alheio (e o id já pedido) — trocar de torneio ou de organizador não
+   *  pode deixar o contexto respondendo com o torneio anterior. */
+  private resetFetchedTournament(): void {
+    this.fetchedTournament.set(null);
+    this.fetchAttemptedId = null;
+  }
+
+  private async loadTournamentDoc(id: string): Promise<void> {
+    try {
+      const tournament = await getTournament(id);
+      if (this.fetchAttemptedId !== id) return;
+      this.fetchedTournament.set(tournament);
+    } catch (err) {
+      console.warn('Chaveamento: falha ao carregar o doc do torneio', id, err);
+    }
+  }
+
   private initialized = false;
   /** uid pro qual o estado atual foi carregado — permite detectar troca de organizador
    *  (logout→login com outro uid) num serviço singleton e resetar antes de recarregar. */
@@ -66,6 +111,7 @@ export class ChaveamentoContextService {
     this.selectedTournamentId.set(null);
     this.selectedCategoryId.set(null);
     this.matchesLoaded.set([]);
+    this.resetFetchedTournament();
     this.loadingMatches.set(false);
     this.loadingTournaments.set(true);
     if (!uid) {
@@ -84,15 +130,27 @@ export class ChaveamentoContextService {
         if (uid !== this.loadedUid) return;
         this.selectTournament(tournaments[0]!.id);
       }
+    } catch (err) {
+      // Sem isto a falha saía como rejeição pendente do `void loadTournaments(uid)` e as
+      // telas de chaveamento ficavam com "nenhum torneio" — indistinguível de não ter
+      // torneio nenhum. O item "Financeiro" do menu NÃO depende mais daqui (ver
+      // `FinanceiroReachService`), justamente porque ali o silêncio escondia dinheiro.
+      console.warn('Chaveamento: falha ao listar os torneios do organizador', err);
     } finally {
       this.loadingTournaments.set(false);
     }
   }
 
-  selectTournament(id: string): void {
-    if (this.selectedTournamentId() === id) return;
-    this.selectedTournamentId.set(id);
-    this.selectedCategoryId.set(null);
+  selectTournament(id: string, opts?: { forceReload?: boolean }): void {
+    const same = this.selectedTournamentId() === id;
+    if (same && !opts?.forceReload) return;
+    if (!same) {
+      this.selectedTournamentId.set(id);
+      this.selectedCategoryId.set(null);
+    }
+    // `forceReload` existe pra não operar em cima de cache velho — o doc alheio (quadras,
+    // janela do dia) envelhece igual aos jogos, então cai fora junto.
+    this.resetFetchedTournament();
     void this.loadMatches(id);
   }
 
@@ -101,7 +159,8 @@ export class ChaveamentoContextService {
   }
 
   /** Recarrega os jogos do torneio selecionado — chamado após operações de escrita
-   *  (placar/agendamento/geração de chave) pra refletir o estado novo do servidor. */
+   *  (placar/agendamento/geração de chave) e sempre que a rota de chaveamento abre,
+   *  pra não operar em cima de cache velho. */
   async reloadMatches(): Promise<void> {
     const id = this.selectedTournamentId();
     if (id) await this.loadMatches(id);
@@ -118,7 +177,10 @@ export class ChaveamentoContextService {
       const tournaments = await listMyTournaments(uid);
       if (uid !== this.loadedUid) return;
       this.tournaments.set(tournaments);
-      if (selected && !tournaments.some((t) => t.id === selected)) {
+      // Torneio alheio de super admin nunca está nesta lista: trocar a seleção dele pelo
+      // primeiro evento próprio tiraria o usuário do evento que ele está operando.
+      const alcancaForaDaLista = this.auth.isSuperAdmin();
+      if (selected && !alcancaForaDaLista && !tournaments.some((t) => t.id === selected)) {
         this.selectedTournamentId.set(null);
         this.selectedCategoryId.set(null);
         this.matchesLoaded.set([]);

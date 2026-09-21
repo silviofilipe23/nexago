@@ -60,6 +60,8 @@ const STATUS_LABEL: Record<string, string> = {
                 [kind]="row.kind"
                 [match]="row.match"
                 [categoryLabel]="row.categoryLabel"
+                [teamNames]="store.teamLabels()"
+                [nowMs]="now()"
               />
             } @empty {
               <p class="pub-note">Nenhuma quadra cadastrada neste torneio.</p>
@@ -270,7 +272,7 @@ export class PublicTournamentPageComponent {
   private readonly title = inject(Title);
 
   /** Relógio de baixa frequência: decide o que é "agora" na quadra e o que entra na fila. */
-  private readonly now = signal(Date.now());
+  protected readonly now = signal(Date.now());
 
   private readonly matchesWithCourtNames = computed(() =>
     applyTeamLabels(

@@ -148,6 +148,14 @@ abstract final class AppRoutes {
   static const String organizerMatchQuickScore =
       '/organizer/tournaments/:tournamentId/matches/:matchId/quick-score';
 
+  /// Telão da categoria King of the Court — segue a rodada que está valendo.
+  static const String publicKocBoard =
+      '/tournaments/:tournamentId/koc-board/:categoryId';
+
+  /// Mesa da rodada King of the Court.
+  static const String organizerKocTable =
+      '/organizer/tournaments/:tournamentId/matches/:matchId/koc';
+
   static const String organizerMatchValidate =
       '/organizer/tournaments/:tournamentId/matches/:matchId/validate';
 
@@ -390,7 +398,7 @@ abstract final class AppRoutes {
   static const String tournamentToday = '/torneios/:tournamentId/hoje';
 
   /// Modo Focus:
-  /// `/torneios/:tournamentId/focus?secao=agora|trajetoria|grupo|chave|arena`
+  /// `/torneios/:tournamentId/focus?secao=agora|grupo|chave|arena|palpites`
   static const String tournamentFocus = '/torneios/:tournamentId/focus';
 
   /// Query que escolhe a seção de entrada do Modo Focus.
@@ -418,6 +426,14 @@ abstract final class AppRoutes {
 
   /// Premiação do torneio: `/torneios/:tournamentId/premiacao`
   static const String tournamentPrizes = '/torneios/:tournamentId/premiacao';
+
+  /// Pódio do torneio: `/torneios/:tournamentId/podio`
+  static const String tournamentPodium = '/torneios/:tournamentId/podio';
+
+  /// Atletas com inscrição confirmada:
+  /// `/torneios/:tournamentId/atletas-inscritos`
+  static const String tournamentEnrolledAthletes =
+      '/torneios/:tournamentId/atletas-inscritos';
 
   /// Palpites da torcida no chaveamento: `/torneios/:tournamentId/palpites`
   static const String tournamentPredictions =
@@ -596,6 +612,8 @@ abstract final class AppRouteNames {
   static const String organizerMatchCheckIn = 'organizerMatchCheckIn';
   static const String organizerMatchLive = 'organizerMatchLive';
   static const String organizerMatchQuickScore = 'organizerMatchQuickScore';
+  static const String organizerKocTable = 'organizerKocTable';
+  static const String publicKocBoard = 'publicKocBoard';
   static const String organizerMatchValidate = 'organizerMatchValidate';
   static const String organizerMatchSummary = 'organizerMatchSummary';
   static const String publicMatchLive = 'publicMatchLive';
@@ -703,6 +721,9 @@ abstract final class AppRouteNames {
   static const String tournamentBracket = 'tournamentBracket';
   static const String tournamentGroups = 'tournamentGroups';
   static const String tournamentPrizes = 'tournamentPrizes';
+  static const String tournamentPodium = 'tournamentPodium';
+  static const String tournamentEnrolledAthletes =
+      'tournamentEnrolledAthletes';
   static const String tournamentPredictions = 'tournamentPredictions';
   static const String tournamentDoubleEliminationBracket =
       'tournamentDoubleEliminationBracket';

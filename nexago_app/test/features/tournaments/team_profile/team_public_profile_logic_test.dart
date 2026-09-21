@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/tournaments/domain/team_profile/team_public_profile_logic.dart';
+import 'package:nexago_app/features/tournaments/domain/team_profile/team_public_profile_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_status.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_team.dart';
@@ -184,6 +186,71 @@ void main() {
       expect(entries.last.opponentLabel, 'Lima/Santos');
       expect(entries.last.wins, 1);
     });
+
+    test('prefere o nome da equipe ao apelido da vaga na chave', () {
+      final matches = [
+        _match(
+          id: 'm1',
+          tournamentId: 't1',
+          teamAId: ourTeamId,
+          teamBId: opponentId,
+          status: TournamentMatchStatus.completed,
+          winnerId: ourTeamId,
+          matchType: 'Semifinal',
+          teamBDescription: 'Vencedor do Jogo 3',
+        ),
+      ];
+
+      final entries = buildTeamHeadToHead(
+        matches: matches,
+        teamId: ourTeamId,
+        teamDisplayNames: const {opponentId: 'Duarte/Reis'},
+      );
+
+      expect(entries.single.opponentLabel, 'Duarte/Reis');
+    });
+
+    test('cai no apelido da vaga só quando a equipe não resolve', () {
+      final matches = [
+        _match(
+          id: 'm1',
+          tournamentId: 't1',
+          teamAId: opponentId,
+          teamBId: ourTeamId,
+          status: TournamentMatchStatus.completed,
+          winnerId: ourTeamId,
+          matchType: 'Semifinal',
+          teamADescription: 'Vencedor do Jogo 3',
+        ),
+      ];
+
+      final entries = buildTeamHeadToHead(
+        matches: matches,
+        teamId: ourTeamId,
+      );
+
+      expect(entries.single.opponentLabel, 'Vencedor do Jogo 3');
+    });
+
+    test('nunca expõe o id cru da equipe adversária', () {
+      final matches = [
+        _match(
+          id: 'm1',
+          tournamentId: 't1',
+          teamAId: ourTeamId,
+          teamBId: opponentId,
+          status: TournamentMatchStatus.completed,
+          winnerId: ourTeamId,
+        ),
+      ];
+
+      final entries = buildTeamHeadToHead(
+        matches: matches,
+        teamId: ourTeamId,
+      );
+
+      expect(entries.single.opponentLabel, 'Adversário');
+    });
   });
 
   group('teamProfileDisplayName', () {
@@ -199,5 +266,140 @@ void main() {
       );
       expect(name, 'Dupla');
     });
+
+    test('equipe sem nome não vira "Fulano/Beltrano" (esconderia o elenco)',
+        () {
+      final name = teamProfileDisplayName(
+        team: const TournamentTeam(
+          id: 't',
+          player1Id: 'p1',
+          player2Id: 'p2',
+          memberUids: ['p1', 'p2', 'p3'],
+          teamSize: 3,
+        ),
+        player1: null,
+        player2: null,
+      );
+      expect(name, 'Equipe');
+    });
   });
+
+  group('teamProfileGenderLabel', () {
+    test('elenco de um gênero só carimba esse gênero', () {
+      expect(
+        teamProfileGenderLabel([
+          _athlete('a', gender: 'masculino'),
+          _athlete('b', gender: 'masculino'),
+          _athlete('c', gender: 'masculino'),
+        ]),
+        'MASCULINO',
+      );
+    });
+
+    test('gêneros diferentes viram MISTO', () {
+      expect(
+        teamProfileGenderLabel([
+          _athlete('a', gender: 'masculino'),
+          _athlete('b', gender: 'feminino'),
+        ]),
+        'MISTO',
+      );
+    });
+
+    test('integrante sem gênero não decide nada', () {
+      expect(
+        teamProfileGenderLabel([
+          _athlete('a'),
+          _athlete('b', gender: 'feminino'),
+        ]),
+        'FEMININO',
+      );
+      expect(teamProfileGenderLabel([_athlete('a')]), '');
+    });
+  });
+
+  group('teamProfileCoverArt', () {
+    test('usa a arte do esporte + elenco da equipe', () {
+      expect(
+        teamProfileCoverArt(_teamProfile(
+          sportCodes: ['VOLEI_PRAIA', 'VOLEI_PRAIA'],
+        )),
+        'assets/images/team_covers/volei_praia_dupla.webp',
+      );
+    });
+
+    test('tamanho declarado manda, mesmo com elenco incompleto', () {
+      // Quarteto com dois convites pendentes continua sendo quarteto: quem
+      // diz o tamanho é a categoria, não quem já aceitou.
+      expect(
+        teamProfileCoverArt(_teamProfile(
+          sportCodes: ['VOLEI_PRAIA', 'VOLEI_PRAIA'],
+          teamSize: 4,
+        )),
+        'assets/images/team_covers/volei_praia_quarteto.webp',
+      );
+    });
+
+    test('capitão sem esporte no perfil não apaga a capa do resto do elenco',
+        () {
+      expect(
+        teamProfileCoverArt(_teamProfile(sportCodes: [null, 'FUTEVOLEI'])),
+        'assets/images/team_covers/futevolei_dupla.webp',
+      );
+    });
+
+    test('sem arte de equipe, cai na arte de um atleta do esporte', () {
+      expect(
+        teamProfileCoverArt(_teamProfile(sportCodes: ['CORRIDA', 'CORRIDA'])),
+        'assets/images/sports/corrida.webp',
+      );
+    });
+
+    test('esporte desconhecido devolve nulo para o fundo pintado assumir', () {
+      expect(teamProfileCoverArt(_teamProfile(sportCodes: [null, null])), isNull);
+      expect(
+        teamProfileCoverArt(_teamProfile(sportCodes: ['OUTROS', 'OUTROS'])),
+        isNull,
+      );
+    });
+  });
+}
+
+AthleteProfile _athlete(
+  String id, {
+  String? gender,
+  String? primarySportFirestoreId,
+}) {
+  return AthleteProfile(
+    id: id,
+    name: id,
+    sport: 'BEACH_TENNIS',
+    level: 'INICIANTE',
+    city: 'Goiânia',
+    gender: gender,
+    primarySportFirestoreId: primarySportFirestoreId,
+  );
+}
+
+TeamPublicProfile _teamProfile({
+  required List<String?> sportCodes,
+  int? teamSize,
+}) {
+  final members = [
+    for (var i = 0; i < sportCodes.length; i++)
+      TeamMemberEntry(
+        uid: 'u$i',
+        profile: _athlete('u$i', primarySportFirestoreId: sportCodes[i]),
+      ),
+  ];
+  return TeamPublicProfile(
+    team: TournamentTeam(
+      id: 't1',
+      player1Id: 'u0',
+      player2Id: sportCodes.length > 1 ? 'u1' : '',
+      memberUids: [for (final m in members) m.uid],
+      teamSize: teamSize,
+    ),
+    members: members,
+  );
 }

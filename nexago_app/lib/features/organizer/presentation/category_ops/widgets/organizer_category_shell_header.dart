@@ -134,6 +134,7 @@ class OrganizerCategoryKpiRow extends StatelessWidget {
     required this.pendingCount,
     required this.waitlistCount,
     required this.collectedCents,
+    this.showCollected = true,
   });
 
   final int confirmedCount;
@@ -141,17 +142,22 @@ class OrganizerCategoryKpiRow extends StatelessWidget {
   final int waitlistCount;
   final int collectedCents;
 
+  /// Arrecadação é número de dinheiro: sai da lista para quem é administrador
+  /// do evento (ou mesário), fica para dono e gestor.
+  final bool showCollected;
+
   @override
   Widget build(BuildContext context) {
     final items = [
       _KpiItem('Confirmadas', '$confirmedCount', AppColors.win),
       _KpiItem('Pendentes', '$pendingCount', AppColors.brand),
       _KpiItem('Lista espera', '$waitlistCount', null),
-      _KpiItem(
-        'Arrecadado',
-        formatOrganizerMoneyCents(collectedCents),
-        AppColors.win,
-      ),
+      if (showCollected)
+        _KpiItem(
+          'Arrecadado',
+          formatOrganizerMoneyCents(collectedCents),
+          AppColors.win,
+        ),
     ];
 
     return SizedBox(

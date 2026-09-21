@@ -7,10 +7,12 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../firebase_options.dart';
 import 'foreground_local_notifications.dart';
 import 'match_live_notification.dart';
+import 'token_app_version.dart';
 
 typedef NotificationMessageHandler = void Function(RemoteMessage message);
 typedef NotificationDataHandler = void Function(Map<String, dynamic> data);
@@ -53,6 +55,7 @@ class NotificationService {
   StreamSubscription<RemoteMessage>? _messageForegroundSub;
   StreamSubscription<String>? _tokenRefreshSub;
   String? _installationIdCache;
+  Map<String, Object>? _appVersionFieldsCache;
   bool _pluginAvailable = true;
   Timer? _apnsRetryTimer;
   int _apnsRetryCount = 0;
@@ -281,9 +284,32 @@ class NotificationService {
         'tokenId': tokenId,
         'updatedAt': FieldValue.serverTimestamp(),
         'createdAt': FieldValue.serverTimestamp(),
+        ...await _appVersionFields(),
       },
       SetOptions(merge: true),
     );
+  }
+
+  /// Versão do binário para gravar junto do token, cacheada: `saveUserToken`
+  /// roda a cada boot e a versão não muda enquanto o processo vive.
+  ///
+  /// Falha do plugin devolve mapa vazio — o write é `merge`, então o valor
+  /// salvo anteriormente fica de pé em vez de ser sobrescrito por lixo.
+  Future<Map<String, Object>> _appVersionFields() async {
+    final cached = _appVersionFieldsCache;
+    if (cached != null) return cached;
+    try {
+      final info = await PackageInfo.fromPlatform();
+      final fields = tokenAppVersionFields(
+        version: info.version,
+        buildNumber: info.buildNumber,
+      );
+      _appVersionFieldsCache = fields;
+      return fields;
+    } catch (e) {
+      debugPrint('PackageInfo indisponível; versão não gravada no token: $e');
+      return const {};
+    }
   }
 
   Future<String> _getInstallationTokenId() async {

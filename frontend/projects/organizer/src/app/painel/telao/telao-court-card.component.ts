@@ -1,6 +1,16 @@
 import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, input } from '@angular/core';
+import { formatMedicalTimeoutMmSs, medicalTimeoutRemainingSeconds } from '@nexago/live-scoring';
 import { matchClosedSets, matchLiveCurrentSet, matchSetWins } from '../data/live-set-display';
 import type { TournamentMatch } from '../data/matches-repository';
+import {
+  kocFinalTable,
+  kocHasQualifyingTie,
+  kocHasStarted,
+  kocIsExpired,
+  kocLiveOrder,
+  kocPointsOf,
+  kocRemainingLabel,
+} from '../data/koc';
 import { initialsOf } from '../data/mock-data';
 import { spDayLabel, spTimeLabel } from '../data/schedule-format';
 import { OgAvatarComponent } from '../ui/avatar.component';
@@ -40,7 +50,63 @@ import { fireLevelOf } from './telao-streaks';
 
     @if (kind() === 'free') {
       <div class="og-tlc-free">Quadra livre</div>
+    } @else if (koc(); as round) {
+      <!-- Rodada King of the Court: não há dois lados nem sets. O que o público
+           na beira da quadra precisa ler, em ordem: quem está no trono, quanto
+           tempo falta, a tabela e quem entra depois. -->
+      <div class="og-tlc-koc">
+        @if (kocClockLabel(); as clock) {
+          <div class="og-tlc-koc-clock" [class.expired]="kocExpired()">{{ clock }}</div>
+        }
+        @if (round.kingTeamId && round.challengerTeamId) {
+          <div class="og-tlc-koc-court">
+            <span class="og-tlc-koc-crown" role="img" aria-label="No trono">👑</span>
+            <span class="og-tlc-koc-king">{{ kocName(round.kingTeamId) }}</span>
+            <span class="og-tlc-koc-vs">vs {{ kocName(round.challengerTeamId) }}</span>
+            <span class="og-tlc-koc-kingpts">{{ kocPoints(round.kingTeamId) }}</span>
+          </div>
+        }
+        <div class="og-tlc-koc-table">
+          @for (row of kocRows(); track row.teamId) {
+            <div class="og-tlc-koc-row" [class.qualifies]="row.qualifies">
+              <span class="og-tlc-koc-place">{{ row.place }}</span>
+              @if (row.isKing) {
+                <span class="og-tlc-koc-rowcrown" role="img" aria-label="No trono">👑</span>
+              }
+              <span class="og-tlc-koc-name">{{ row.name }}</span>
+              @if (row.points !== null) {
+                <span class="og-tlc-koc-pts">{{ row.points }}</span>
+              }
+            </div>
+          }
+        </div>
+        @if (kocTie()) {
+          <div class="og-tlc-koc-tie">Empate na vaga · bola de ouro</div>
+        }
+        @if (kocFinished()) {
+          <!-- "Eu passei?" não se responde com um destaque de cor visto de longe. -->
+          <div class="og-tlc-koc-next"><span class="og-tlc-koc-next-kicker">AVANÇAM</span>{{ kocQualifiedLabel() }}</div>
+        } @else if (kocNextLabel(); as next) {
+          <!-- Quem espera pergunta "quando eu entro?": o PRÓXIMO sai da fila. -->
+          <div class="og-tlc-koc-next">
+            <span class="og-tlc-koc-next-kicker">PRÓXIMO</span>{{ next }}
+            @if (kocAfterLabel(); as after) {
+              <span class="og-tlc-koc-after">depois {{ after }}</span>
+            }
+          </div>
+        }
+      </div>
     } @else {
+      <!-- Tempo médico: a partida está PARADA, e na parede isso precisa ser óbvio — quem está
+           sendo atendido e quanto falta, com a mesma contagem das mesas (derivada do carimbo
+           do servidor, sem escrita nenhuma durante os 5 minutos). -->
+      @if (medical(); as med) {
+        <div class="og-tlc-med" role="status">
+          <span class="og-tlc-med-kicker">TEMPO MÉDICO</span>
+          <span class="og-tlc-med-who">{{ med.playerName }}</span>
+          <span class="og-tlc-med-clock">{{ med.clock }}</span>
+        </div>
+      }
       <div class="og-tlc-teams">
         @for (row of rows(); track row.side) {
           <div
@@ -65,6 +131,9 @@ import { fireLevelOf } from './telao-streaks';
                 {{ row.team.short }}
                 @if (servingSide() === row.side) {
                   <span class="og-tlc-serve" title="No saque"></span>
+                  @if (servingPlayerName(); as who) {
+                    <span class="og-tlc-server" [attr.aria-label]="who + ' no saque'">{{ who }}</span>
+                  }
                 }
                 @if (winnerSide() === row.side) {
                   <span class="og-tlc-champ" role="img" aria-label="Vencedora da partida"><og-icon name="trophy" [size]="20" [strokeWidth]="2" /></span>
@@ -304,6 +373,47 @@ import { fireLevelOf } from './telao-streaks';
       vertical-align: middle;
       animation: og-tlc-in 220ms var(--nx-ease-out);
     }
+    .og-tlc-server {
+      margin-left: 6px;
+      font-family: var(--nx-font-mono);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--nx-orange-500);
+      vertical-align: middle;
+    }
+    .og-tlc-med {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      padding: 8px 12px;
+      border-radius: var(--nx-r-2);
+      border: 1px solid color-mix(in srgb, var(--nx-live) 45%, transparent);
+      background: color-mix(in srgb, var(--nx-live) 12%, transparent);
+    }
+    .og-tlc-med-kicker {
+      font-family: var(--nx-font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--nx-live);
+    }
+    .og-tlc-med-who {
+      flex: 1;
+      min-width: 0;
+      font-size: 16px;
+      color: var(--nx-text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .og-tlc-med-clock {
+      font-family: var(--nx-font-mono);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--nx-text);
+    }
     .og-tlc-sub {
       font-size: 15px;
       color: var(--nx-text-mute);
@@ -416,6 +526,129 @@ import { fireLevelOf } from './telao-streaks';
         transform: scale(1);
       }
     }
+    /* ── King of the Court ─────────────────────────────────────────────────
+       Sem placar por sets e sem dois lados: cronômetro, quem está na quadra,
+       tabela e fila. Tamanhos pensados para leitura à distância. */
+    .og-tlc-koc {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 4px 0;
+    }
+    .og-tlc-koc-clock {
+      font-size: 44px;
+      font-weight: 800;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .og-tlc-koc-clock.expired {
+      font-size: 32px;
+      color: #f4c543;
+    }
+    .og-tlc-koc-court {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgb(255 106 26 / 16%);
+      border: 1px solid rgb(255 106 26 / 45%);
+    }
+    .og-tlc-koc-crown {
+      font-size: 22px;
+    }
+    .og-tlc-koc-king {
+      font-size: 24px;
+      font-weight: 800;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .og-tlc-koc-vs {
+      flex: 1;
+      font-size: 16px;
+      opacity: 0.75;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .og-tlc-koc-kingpts {
+      font-size: 34px;
+      font-weight: 800;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .og-tlc-koc-table {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .og-tlc-koc-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 10px;
+      background: rgb(255 255 255 / 5%);
+    }
+    /* A faixa de classificação é o que o atleta procura primeiro na tabela. */
+    .og-tlc-koc-row.qualifies {
+      background: rgb(255 106 26 / 14%);
+    }
+    .og-tlc-koc-place {
+      min-width: 22px;
+      font-size: 17px;
+      font-weight: 800;
+      opacity: 0.6;
+    }
+    .og-tlc-koc-row.qualifies .og-tlc-koc-place {
+      color: #ff6a1a;
+      opacity: 1;
+    }
+    .og-tlc-koc-name {
+      flex: 1;
+      font-size: 19px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .og-tlc-koc-pts {
+      font-size: 24px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+    .og-tlc-koc-tie {
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.6px;
+      color: #f4c543;
+    }
+    .og-tlc-koc-next {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-size: 20px;
+      font-weight: 800;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .og-tlc-koc-next-kicker {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: #ff6a1a;
+    }
+    .og-tlc-koc-after {
+      flex: 1;
+      text-align: right;
+      font-size: 13px;
+      font-weight: 400;
+      opacity: 0.45;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     @keyframes og-tlc-in {
       from {
         transform: scale(0.7);
@@ -458,6 +691,12 @@ import { fireLevelOf } from './telao-streaks';
 })
 export class TelaoCourtCardComponent {
   readonly courtName = input.required<string>();
+  /** Mapa `teamId` → dupla resolvida, para a rodada KOTC: ela tem elenco, não
+   *  dois lados, então `teamA`/`teamB` não bastam. */
+  readonly teamsById = input<ReadonlyMap<string, TelaoTeamDisplay>>(new Map());
+  /** Relógio do host, passado como input para o card não criar timer próprio —
+   *  o telão já redesenha a cada segundo. */
+  readonly nowMs = input(0);
   readonly kind = input.required<'live' | 'finished' | 'next' | 'free'>();
   readonly match = input<TournamentMatch | null>(null);
   readonly categoryLabel = input('');
@@ -518,6 +757,35 @@ export class TelaoCourtCardComponent {
     return null;
   });
 
+  /** O ATLETA no saque — a partida grava a posição na dupla (1 ou 2) e o telão resolve o nome
+   *  no elenco que já carregou pro rótulo, sem join novo. Primeiro nome só: na parede o que
+   *  identifica é ele, e o sobrenome não cabe ao lado do nome da dupla. */
+  protected readonly servingPlayerName = computed(() => {
+    const m = this.match();
+    const side = this.servingSide();
+    if (!m || side == null) return null;
+    const slot = m.servingPlayerSlot;
+    if (slot !== 1 && slot !== 2) return null;
+    const team = side === 'A' ? this.teamA() : this.teamB();
+    const name = team?.playerNames[slot - 1]?.trim() ?? '';
+    return name ? (name.split(/\s+/)[0] ?? '') : null;
+  });
+
+  /** Atendimento médico em andamento: a partida está parada. A contagem sai de `startedAt`
+   *  (carimbo do servidor) contra o relógio do telão — nenhuma escrita durante os 5 minutos,
+   *  e o número bate com o das três mesas. */
+  protected readonly medical = computed<{ playerName: string; clock: string } | null>(() => {
+    const m = this.match();
+    const active = m?.medicalTimeout;
+    if (!m || !active || this.kind() !== 'live') return null;
+    const team = active.side === 'A' ? this.teamA() : this.teamB();
+    const name = active.playerName.trim() || team?.playerNames[active.playerSlot - 1]?.trim() || 'Atleta';
+    return {
+      playerName: name,
+      clock: formatMedicalTimeoutMmSs(medicalTimeoutRemainingSeconds(active, new Date(this.nowMs() || Date.now()))),
+    };
+  });
+
   /** "Em seguida · 15:30" (com o dia junto quando o jogo não é hoje na parede SP). */
   protected readonly nextTimeLabel = computed(() => {
     const d = this.match()?.scheduledAt;
@@ -574,5 +842,90 @@ export class TelaoCourtCardComponent {
         canvas?.remove();
       });
     });
+  }
+
+  // ── King of the Court ───────────────────────────────────────────────────────
+
+  protected readonly koc = computed(() => this.match()?.koc ?? null);
+
+  protected kocName(teamId: string): string {
+    return this.teamsById().get(teamId)?.short ?? 'Dupla';
+  }
+
+  protected kocPoints(teamId: string): number {
+    const round = this.koc();
+    return round ? kocPointsOf(round, teamId) : 0;
+  }
+
+  /** Nulo antes do apito: rodada sem relógio não mostra contagem. */
+  protected kocClockLabel(): string | null {
+    const round = this.koc();
+    if (!round?.clock) return null;
+    return kocIsExpired(round.clock, this.nowMs()) ? 'TEMPO!' : kocRemainingLabel(round.clock, this.nowMs());
+  }
+
+  protected kocExpired(): boolean {
+    const round = this.koc();
+    return round?.clock != null && kocIsExpired(round.clock, this.nowMs());
+  }
+
+  /** Antes do apito a ordem é a de entrada (quem abre no trono); depois, a tabela. */
+  protected readonly kocRows = computed(() => {
+    const round = this.koc();
+    if (!round) return [];
+    // Encerrada, a tabela OFICIAL (a que resolveu o empate), não a ao vivo.
+    if (this.kocFinished()) {
+      return kocFinalTable(round).map((row) => ({
+        teamId: row.teamId,
+        place: row.place,
+        name: this.kocName(row.teamId),
+        points: row.points,
+        qualifies: row.place <= round.qualifiersPerRound,
+        isKing: false,
+      }));
+    }
+    const started = kocHasStarted(round);
+    const order = started ? kocLiveOrder(round) : round.teamIds;
+    return order.map((teamId, i) => ({
+      teamId,
+      place: i + 1,
+      name: this.kocName(teamId),
+      points: started ? kocPointsOf(round, teamId) : null,
+      qualifies: started && i < round.qualifiersPerRound,
+      isKing: round.kingTeamId === teamId,
+    }));
+  });
+
+  protected kocTie(): boolean {
+    const round = this.koc();
+    if (this.kocFinished()) return false;
+    return round != null && kocHasStarted(round) && kocHasQualifyingTie(round);
+  }
+
+  /** Rodada concluída — do `status` do jogo, a mesma fonte do guard do servidor.
+   *  `kind()` diz o papel do card na grade, não o estado da rodada. */
+  protected kocFinished(): boolean {
+    return this.match()?.status === 'completed';
+  }
+
+  /** Quem entra depois do rally atual. Vazio quando não há fila. */
+  protected kocNextLabel(): string {
+    const next = this.koc()?.queue[0];
+    return next ? this.kocName(next) : '';
+  }
+
+  /** O resto da fila, atrás do próximo. */
+  protected kocAfterLabel(): string {
+    const queue = this.koc()?.queue ?? [];
+    return queue.slice(1).map((id) => this.kocName(id)).join('  →  ');
+  }
+
+  protected kocQualifiedLabel(): string {
+    const round = this.koc();
+    if (!round) return '';
+    return kocFinalTable(round)
+      .filter((row) => row.place <= round.qualifiersPerRound)
+      .map((row) => this.kocName(row.teamId))
+      .join('  ·  ');
   }
 }

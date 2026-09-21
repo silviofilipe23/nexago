@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/search/search_keywords.dart';
 import '../domain/match_ops/match_ops_logic.dart';
+import '../domain/tournament_create/king_of_court_plan.dart';
 import '../domain/tournament_create/tournament_create_draft.dart';
 import '../domain/tournament_create/tournament_create_logic.dart';
 
@@ -237,6 +238,14 @@ abstract final class TournamentCreateMapper {
       qualifiersPerGroup:
           (map['qualifiersPerGroup'] as num?)?.toInt() ??
           fallbackQualifiersPerGroup,
+      kocTeamsPerCourt:
+          (map['teamsPerCourt'] as num?)?.toInt() ?? kocDefaultTeamsPerCourt,
+      kocQualifiersPerRound:
+          (map['qualifiersPerRound'] as num?)?.toInt() ??
+          kocDefaultQualifiersPerRound,
+      kocRoundDurationSec:
+          (map['roundDurationSec'] as num?)?.toInt() ??
+          kocDefaultRoundDurationSec,
       bestOf: map['bestOf'] != null
           ? _parseBestOf(map['bestOf'] as String?)
           : fallbackBestOf,
@@ -294,6 +303,7 @@ abstract final class TournamentCreateMapper {
       'round_robin' => TournamentBracketSystem.roundRobin,
       'groups_repechage' => TournamentBracketSystem.groupsWithRepechage,
       'double_elimination' => TournamentBracketSystem.doubleElimination,
+      'king_of_court' => TournamentBracketSystem.kingOfCourt,
       _ => TournamentBracketSystem.groupsThenKnockout,
     };
   }
@@ -479,6 +489,12 @@ abstract final class TournamentCreateMapper {
       'bracketFormat': bracketFormatFirestoreValue(category.bracketSystem),
       'teamsPerGroup': category.teamsPerGroup,
       'qualifiersPerGroup': category.qualifiersPerGroup,
+      // Config do King of the Court. Gravada sempre, e não só quando o formato
+      // é KOTC, para o roundtrip de edição não perder a escolha de quem troca
+      // de formato e volta. `resolveKocConfig` no backend lê estes nomes.
+      'teamsPerCourt': category.kocTeamsPerCourt,
+      'qualifiersPerRound': category.kocQualifiersPerRound,
+      'roundDurationSec': category.kocRoundDurationSec,
       'bestOf': category.bestOf.name,
       'finalBestOf5': category.finalBestOf5,
       'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,

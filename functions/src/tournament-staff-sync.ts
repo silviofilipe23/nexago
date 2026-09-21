@@ -12,12 +12,15 @@ import {
 } from "./auth-roles";
 import {deliverNotificationToUser} from "./notification-delivery";
 
-export const TOURNAMENT_STAFF_ROLES = ["manager", "scorer"] as const;
+export const TOURNAMENT_STAFF_ROLES = ["manager", "eventAdmin", "scorer"] as const;
 export type TournamentStaffRole = (typeof TOURNAMENT_STAFF_ROLES)[number];
 
-/** Rótulo pt-BR do papel de staff. */
+/** Rótulo pt-BR do papel de staff. Papel ausente/desconhecido cai em gestor,
+ *  mesmo default de `buildStaffMirrorData`. */
 export function staffRoleLabel(role: string): string {
-  return role === "scorer" ? "mesário" : "gestor";
+  if (role === "scorer") return "mesário";
+  if (role === "eventAdmin") return "administrador";
+  return "gestor";
 }
 
 /** Monta o corpo da notificação de adição à equipe. */

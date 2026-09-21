@@ -171,6 +171,7 @@ const PROFILE_GAMIFICATION_FIELDS = [
   "fullName",
   "profilePhotoUrl",
   "avatarUrl",
+  "photoURL",
   "sport",
   "level",
   "city",

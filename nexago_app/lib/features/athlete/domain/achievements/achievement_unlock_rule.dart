@@ -22,14 +22,13 @@ sealed class AchievementUnlockRule {
   const factory AchievementUnlockRule.profileAllComplete() =
       ProfileAllCompleteRule;
 
-  const factory AchievementUnlockRule.identityComplete() =
-      IdentityCompleteRule;
+  const factory AchievementUnlockRule.identityComplete() = IdentityCompleteRule;
 
   const factory AchievementUnlockRule.invitesCount({required int target}) =
       InvitesCountRule;
 
-  const factory AchievementUnlockRule.profileSharesCount({required int target}) =
-      ProfileSharesCountRule;
+  const factory AchievementUnlockRule.profileSharesCount(
+      {required int target}) = ProfileSharesCountRule;
 
   const factory AchievementUnlockRule.attendanceConfirmations({
     required int target,
@@ -41,8 +40,8 @@ sealed class AchievementUnlockRule {
   const factory AchievementUnlockRule.totalBookings({required int target}) =
       TotalBookingsRule;
 
-  const factory AchievementUnlockRule.favoriteArenasCount({required int target}) =
-      FavoriteArenasCountRule;
+  const factory AchievementUnlockRule.favoriteArenasCount(
+      {required int target}) = FavoriteArenasCountRule;
 
   const factory AchievementUnlockRule.checkInsCount({required int target}) =
       CheckInsCountRule;

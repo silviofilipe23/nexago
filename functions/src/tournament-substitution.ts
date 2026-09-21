@@ -43,12 +43,14 @@ import {deleteAsaasPaymentOrThrow} from "./asaas-booking-payment";
 import {
   MIN_TEAM_CATEGORY_SIZE,
   evaluateTeamJoin,
-  extractTeamMemberUids,
   parseGenderComposition,
   registrationTeamSize,
   teamJoinDenialMessage,
 } from "./tournament-team-category";
-import {loadUserGenderBucket} from "./tournament-team-roster";
+import {
+  loadUserGenderBucket,
+  recomputeTeamGenderAfterRosterChange,
+} from "./tournament-team-roster";
 import {
   INVITES_COLLECTION,
   INVITE_TTL_MS,
@@ -71,6 +73,7 @@ import {
   buildPairKey,
   loadCategoryRegistrationsTx,
 } from "./tournament-pair-uniqueness";
+import {applySubstitutionToTeamTx} from "./tournament-substitution-team";
 import {
   normalizeAthleteGenderBucket,
   sharePaidUidsFromRegistration,
@@ -540,6 +543,7 @@ export async function acceptSubstitutionInviteFor(
 
   const inscriptionsRef = db.collection(artifactsInscriptionsPath(projectId));
   const teamsPath = artifactsTeamsPath(projectId);
+  const teamsRef = db.collection(teamsPath);
 
   const result = await db.runTransaction(async (tx) => {
     const invite = (await tx.get(inviteRef)).data();
@@ -635,13 +639,41 @@ export async function acceptSubstitutionInviteFor(
       }
     }
 
+    const rosterAfterTx = replaceUidInList(participants, outUid, uid);
+
+    // ── doc de equipe: ÚLTIMA leitura e primeira escrita da transação ──
+    // Desde a identidade única, o doc da dupla é compartilhado entre torneios:
+    // mutá-lo no lugar reescreveria o elenco da inscrição do outro torneio (que
+    // pode estar encerrado). O helper lê quem mais aponta pro doc e decide
+    // entre mutar e bifurcar — ele chama `resolvePairTeamTx`, que lê antes de
+    // escrever, então nada pode ler na transação depois daqui.
+    const teamOutcome =
+      teamId && team ?
+        await applySubstitutionToTeamTx(tx, {
+          teamsRef,
+          inscriptionsRef,
+          tournamentId,
+          registrationId,
+          teamId,
+          team,
+          outUid,
+          inUid: uid,
+          rosterAfter: rosterAfterTx,
+          namedTeam: isTeam,
+          registrationPaid: reg.isPaid === true,
+        }) :
+        null;
+    const effectiveTeamId = teamOutcome?.teamId ?? teamId;
+
     // ── escritas ──
     const outHadPaid = sharePaidUidsFromRegistration(reg).includes(outUid);
     const outIndex = participants.indexOf(outUid);
     const regUpdate: Record<string, unknown> = {
-      participantUids: replaceUidInList(participants, outUid, uid),
+      participantUids: rosterAfterTx,
       updatedAt: FieldValue.serverTimestamp(),
     };
+    // A inscrição acompanha o fork; quem não bifurcou segue no mesmo doc.
+    if (teamOutcome?.forked) regUpdate.teamId = effectiveTeamId;
     if (str(reg.player1Id) === outUid) regUpdate.player1Id = uid;
     if (outHadPaid) {
       regUpdate.sharePaidUids = replaceUidInList(sharePaidUidsFromRegistration(reg), outUid, uid);
@@ -683,27 +715,28 @@ export async function acceptSubstitutionInviteFor(
     });
     tx.update(regRef, regUpdate);
 
-    if (teamRef && team) {
-      const teamUpdate: Record<string, unknown> = {
-        memberUids: replaceUidInList(extractTeamMemberUids(team), outUid, uid),
-        updatedAt: FieldValue.serverTimestamp(),
-      };
-      if (str(team.player1Id) === outUid) teamUpdate.player1Id = uid;
-      if (str(team.player2Id) === outUid) teamUpdate.player2Id = uid;
-      tx.update(teamRef, teamUpdate);
-    }
-
     if (outPixSnap.exists) tx.delete(outPixRef);
 
     tx.update(inviteRef, {
       status: "accepted",
       registrationId,
-      ...(teamId ? {teamId} : {}),
+      ...(effectiveTeamId ? {teamId: effectiveTeamId} : {}),
       acceptedAt: FieldValue.serverTimestamp(),
     });
 
-    return {registrationId, teamId, tournamentId, categoryId};
+    return {registrationId, teamId: effectiveTeamId, tournamentId, categoryId};
   });
+
+  // O elenco mudou DEPOIS do pagamento, e o `gender` da equipe só era calculado
+  // no instante em que a inscrição fechou. Trocar um homem por uma mulher
+  // deixava o rótulo "Masculino" de pé para sempre.
+  try {
+    await recomputeTeamGenderAfterRosterChange(db, projectId, result.teamId);
+  } catch (genderError) {
+    logger.warn("Falha ao recalcular gender após substituição", {
+      teamId: result.teamId, genderError,
+    });
+  }
 
   await markStaleAfterSubstitutionAccept(db, {
     tournamentId, categoryId, registrationId, outUid, substituteUid: uid, acceptedInviteId: inviteId,

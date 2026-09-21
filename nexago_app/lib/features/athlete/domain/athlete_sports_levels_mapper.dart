@@ -31,8 +31,8 @@ abstract final class AthleteSportsLevelsMapper {
   static const String _defaultLevel = AthleteSportsLevelsDraft.defaultLevel;
 
   static List<AthleteSportEnrollment> fromProfile(AthleteProfile profile) {
-    final primaryFs = profile.primarySportFirestoreId ??
-        _labelToFirestoreId(profile.sport);
+    final primaryFs =
+        profile.primarySportFirestoreId ?? _labelToFirestoreId(profile.sport);
     final secondaryFs = profile.secondarySportFirestoreIds;
 
     if (primaryFs == null || primaryFs.isEmpty) {

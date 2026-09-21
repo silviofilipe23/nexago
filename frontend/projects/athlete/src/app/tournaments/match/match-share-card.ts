@@ -468,7 +468,7 @@ export async function drawShareCard(ctx: CanvasRenderingContext2D, data: ShareCa
   drawHeader(ctx, data.tournamentName, logo);
 
   // selo da fase
-  const badge = m.badge || `🏐 ${data.phaseLabel.toUpperCase()}`;
+  const badge = m.badge || `${data.phaseLabel.toUpperCase()}`;
   ctx.save();
   ctx.shadowColor = hexA(m.main, 0.5);
   ctx.shadowBlur = 46;

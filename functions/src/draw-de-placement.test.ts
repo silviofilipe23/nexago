@@ -19,18 +19,18 @@ const P12 = BRACKET_DEFINITIONS[12]!;
 
 describe("expectedWinnerSeed — favoritismo puro", () => {
   it("numa partida entre dois seeds, o favorito é o menor", () => {
-    // #1 na planta de 16: seed 2 × seed 15.
-    assert.equal(expectedWinnerSeed(P16, 1), 2);
+    // #5 na planta de 16: seed 2 × seed 15.
+    assert.equal(expectedWinnerSeed(P16, 5), 2);
   });
 
   it("propaga pelo ramo: a WB R2 herda o favorito das duas de baixo", () => {
-    // #13 = vencedor(#1: 2×15) × vencedor(#2: 7×10) → 2.
-    assert.equal(expectedWinnerSeed(P16, 13), 2);
+    // #15 = vencedor(#5: 2×15) × vencedor(#6: 7×10) → 2.
+    assert.equal(expectedWinnerSeed(P16, 15), 2);
   });
 
   it("chega na cabeça 1 no topo do ramo dela", () => {
-    // #22 = vencedor(#15) × vencedor(#16); #15 vem de 1×16 e 8×9.
-    assert.equal(expectedWinnerSeed(P16, 22), 1);
+    // #21 = vencedor(#13) × vencedor(#14); #13 vem de 1×16 e 8×9.
+    assert.equal(expectedWinnerSeed(P16, 21), 1);
   });
 });
 
@@ -38,8 +38,8 @@ describe("winnersRoundOnePairings", () => {
   it("planta de 16 abre com 8 jogos, todos entre seeds", () => {
     const pairs = winnersRoundOnePairings(P16);
     assert.equal(pairs.length, 8);
-    assert.deepEqual(pairs[0], {matchNumber: 1, seedA: 2, seedB: 15});
-    assert.deepEqual(pairs[4], {matchNumber: 5, seedA: 1, seedB: 16});
+    assert.deepEqual(pairs[0], {matchNumber: 1, seedA: 1, seedB: 16});
+    assert.deepEqual(pairs[4], {matchNumber: 5, seedA: 2, seedB: 15});
   });
 
   it("planta de 12 abre com 4 jogos — as cabeças não jogam a primeira rodada", () => {
@@ -62,7 +62,7 @@ describe("byeSeeds", () => {
 describe("dePlacementFor — planta de 16", () => {
   it("seed 15 estreia contra a cabeça 2 já na primeira rodada", () => {
     const p = dePlacementFor(P16, 15, 4);
-    assert.equal(p.entryMatchNumber, 1);
+    assert.equal(p.entryMatchNumber, 5);
     assert.equal(p.entryRound, 1);
     assert.equal(p.hasBye, false);
     assert.equal(p.opponentSeed, 2);
@@ -72,7 +72,7 @@ describe("dePlacementFor — planta de 16", () => {
 
   it("seed 12 estreia contra a 5 e só cruza com cabeça se ganhar uma", () => {
     const p = dePlacementFor(P16, 12, 4);
-    assert.equal(p.entryMatchNumber, 8);
+    assert.equal(p.entryMatchNumber, 4);
     assert.equal(p.opponentSeed, 5);
     assert.deepEqual(p.meetsSeed, {seed: 4, round: 2, winsNeeded: 1});
   });

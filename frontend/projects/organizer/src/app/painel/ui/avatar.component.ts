@@ -94,6 +94,9 @@ export class OgAvatarComponent {
     if (!this.canZoom()) return;
     // Espaço rolaria a página.
     event.preventDefault();
+    // Card da chave / linhas de lista são <a> ou clicáveis: sem isso o clique
+    // na foto navega junto com o zoom.
+    event.stopPropagation();
     const element = this.host.nativeElement as HTMLElement;
     const box = element.getBoundingClientRect();
     this.photos.open({

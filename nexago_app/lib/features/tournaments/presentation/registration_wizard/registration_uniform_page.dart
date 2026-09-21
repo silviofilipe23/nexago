@@ -390,7 +390,9 @@ class _RegistrationUniformPageState
             snap != null
                 ? ref
                       .watch(
-                        registrationRosterProfilesProvider(snap.participantUids),
+                        registrationRosterProfilesProvider(
+                          rosterProfilesKey(snap.participantUids),
+                        ),
                       )
                       .valueOrNull
                 : null;

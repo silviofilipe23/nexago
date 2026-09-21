@@ -194,7 +194,7 @@ export function shortAthleteName(fullName: string): string {
 export function registrationShareText(data: RegistrationShareData): string {
   const who = data.teamName?.trim() ? `A ${data.teamName.trim()} está confirmada` : 'Estamos confirmados';
   const where = data.tournamentName.trim() ? ` no ${data.tournamentName.trim()}` : '';
-  return `${who}${where} — ${data.categoryName}. Nos vemos na quadra! 🏐`;
+  return `${who}${where} — ${data.categoryName}. Nos vemos na quadra!`;
 }
 
 export function registrationShareFileName(tournamentName: string): string {

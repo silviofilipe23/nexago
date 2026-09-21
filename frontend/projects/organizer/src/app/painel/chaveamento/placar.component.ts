@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { initialsOf, truncateName } from '../data/mock-data';
+import { truncateName } from '../data/mock-data';
 import { courtChangeBlockReason, courtChangePayload } from '../data/match-court-change';
 import { type ScoreSet, matchWinnerSide, setsWon, targetPointsForSet, validateScoreSubmission } from '@nexago/live-scoring';
 import { declareMatchWalkover, scheduleMatch, submitMatchResult, validateMatchResult } from '../data/organizer-ops.service';
@@ -13,6 +13,11 @@ import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
+import {
+  fetchBracketFaces,
+  facesForTeam,
+  type BracketFace,
+} from './bracket-faces';
 import { ChaveamentoContextService } from './chaveamento-context.service';
 
 const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -59,7 +64,20 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
           <og-card kicker="Partida" [title]="truncate(match()!.team1Label, 20) + ' vs ' + truncate(match()!.team2Label, 20)">
             <div class="og-placar-header">
               <div class="og-placar-side">
-                <og-avatar [initials]="initialsOf(match()!.team1Label)" [size]="40" />
+                <span class="og-placar-avatar-stack">
+                  @for (face of facesFor(match()!.teamAId, match()!.team1Label); track $index; let i = $index; let n = $count) {
+                    <og-avatar
+                      zoomable
+                      [initials]="face.initials"
+                      [photoUrl]="face.photoUrl"
+                      [personName]="face.name"
+                      [meta]="match()!.team1Label"
+                      [size]="40"
+                      [style.margin-left.px]="i ? -14 : 0"
+                      [style.z-index]="n - i"
+                    />
+                  }
+                </span>
                 <span class="og-placar-name" [title]="match()!.team1Label">{{ truncate(match()!.team1Label) }}</span>
               </div>
               <div class="og-placar-score">
@@ -69,7 +87,20 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
               </div>
               <div class="og-placar-side reverse">
                 <span class="og-placar-name" [title]="match()!.team2Label">{{ truncate(match()!.team2Label) }}</span>
-                <og-avatar [initials]="initialsOf(match()!.team2Label)" [size]="40" />
+                <span class="og-placar-avatar-stack">
+                  @for (face of facesFor(match()!.teamBId, match()!.team2Label); track $index; let i = $index; let n = $count) {
+                    <og-avatar
+                      zoomable
+                      [initials]="face.initials"
+                      [photoUrl]="face.photoUrl"
+                      [personName]="face.name"
+                      [meta]="match()!.team2Label"
+                      [size]="40"
+                      [style.margin-left.px]="i ? -14 : 0"
+                      [style.z-index]="n - i"
+                    />
+                  }
+                </span>
               </div>
             </div>
           </og-card>
@@ -239,15 +270,26 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
       display: flex;
       align-items: center;
       gap: 12px;
+      min-width: 0;
     }
     .og-placar-side.reverse {
       flex-direction: row-reverse;
+    }
+    .og-placar-avatar-stack {
+      display: flex;
+      align-items: center;
+      flex: none;
+      flex-shrink: 0;
+    }
+    .og-placar-avatar-stack .og-avatar {
+      box-shadow: 0 0 0 2px var(--nx-surface-0);
     }
     .og-placar-name {
       font-family: var(--nx-font-display);
       font-weight: 700;
       font-size: 16px;
       color: var(--nx-text);
+      min-width: 0;
     }
     .og-placar-score {
       display: flex;
@@ -387,18 +429,25 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
 export class PlacarComponent {
   private readonly router = inject(Router);
   protected readonly ctx = inject(ChaveamentoContextService);
-  protected readonly initialsOf = initialsOf;
   protected readonly truncate = truncateName;
 
   readonly id = input<string>('');
   readonly catId = input<string>('');
   readonly matchId = input<string>('');
 
+  /** Fotos por `teamId` — hidratadas quando a partida chega. */
+  private readonly facesByTeam = signal<ReadonlyMap<string, BracketFace[]>>(new Map());
+  private readonly hydratedTeamIds = new Set<string>();
+
   protected readonly match = computed(() => {
     const id = this.matchId();
     if (!id) return null;
     return this.ctx.matches().find((m) => m.id === id) ?? null;
   });
+
+  protected facesFor(teamId: string, fallbackLabel: string): BracketFace[] {
+    return facesForTeam(this.facesByTeam(), teamId, fallbackLabel);
+  }
 
   protected readonly sets = signal<ScoreSet[]>([]);
   protected readonly bestOf = signal<number>(3);
@@ -427,6 +476,28 @@ export class PlacarComponent {
       this.feedback.set(null);
       this.courtFeedback.set(null);
     });
+
+    effect(() => {
+      const m = this.match();
+      if (!m) return;
+      void this.hydrateFaces([m.teamAId, m.teamBId]);
+    });
+  }
+
+  private async hydrateFaces(teamIds: string[]): Promise<void> {
+    const ids = teamIds.filter((id) => id.length > 0 && !this.hydratedTeamIds.has(id));
+    if (ids.length === 0) return;
+    for (const id of ids) this.hydratedTeamIds.add(id);
+    try {
+      const fetched = await fetchBracketFaces(ids);
+      this.facesByTeam.update((current) => {
+        const next = new Map(current);
+        for (const [teamId, faces] of fetched) next.set(teamId, faces);
+        return next;
+      });
+    } catch {
+      for (const id of ids) this.hydratedTeamIds.delete(id);
+    }
   }
 
   /** Quadras reais do torneio (`courts` do doc) — mesma fonte das colunas do Agendamento. */

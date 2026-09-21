@@ -66,10 +66,14 @@ export class OrganizerRoleForm {
   readonly cityLabel = computed(() => cityStateLabel(this.city(), this.state()));
 
   /**
-   * Chave PIX de SAQUE lida de `organizerWallets/{uid}` — exibição apenas.
-   * O backoffice não grava: a carteira é write-only por Cloud Function e o
-   * destino do dinheiro é escolha do próprio organizador, no portal dele.
-   * `''` = não configurada.
+   * Chave PIX de repasse lida de `organizerPayoutProfiles/{uid}` — perfil da
+   * PESSOA, usado em qualquer evento de que ela saque (o caixa mora no
+   * torneio agora; a chave deixou de ser um dado da carteira). Exibição
+   * apenas: o backoffice não grava, e o destino do dinheiro é escolha da
+   * própria pessoa, no portal dela.
+   * `OrganizersRepository.loadRegistration` ainda cai na carteira antiga
+   * (`organizerWallets/{uid}`) enquanto a migração não roda em todos os
+   * ambientes. `''` = não configurada.
    */
   readonly payoutPixKey = signal('');
 

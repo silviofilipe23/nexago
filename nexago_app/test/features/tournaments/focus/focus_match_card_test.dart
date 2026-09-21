@@ -115,9 +115,9 @@ void main() {
     expect(find.text('GRUPO B · Q3'), findsOneWidget);
     expect(find.text('Marcelo / Enzo'), findsOneWidget);
     expect(find.text('Sá / Toledo'), findsOneWidget);
-    // O número grande é SETS; os pontos do set aberto vão na linha fina.
-    expect(find.text('1-0'), findsOneWidget);
-    expect(find.text('2° SET 14-11'), findsOneWidget);
+    // Placar do set em andamento no centro; sets da partida embaixo.
+    expect(find.text('14-11'), findsOneWidget);
+    expect(find.text('SETS 1-0'), findsOneWidget);
   });
 
   testWidgets('a categoria entra no contexto quando informada', (tester) async {

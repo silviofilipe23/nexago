@@ -162,24 +162,23 @@ class TournamentDetailGroupsTab extends ConsumerWidget {
               ),
               // Cascata Torneio → Categoria → Grupo: o card abre a visão do
               // grupo (classificação + partidas dele).
-              for (final group in standingsGroups)
+              for (var i = 0; i < standingsGroups.length; i++)
                 GestureDetector(
                   onTap: () => context.pushNamed(
                     AppRouteNames.tournamentGroupView,
                     pathParameters: {
                       'tournamentId': tournament.id,
                       'categoryId': categoryId,
-                      'poolId': group.poolId,
+                      'poolId': standingsGroups[i].poolId,
                     },
                   ),
                   child: TournamentPoolStandingsCard(
-                    group: group,
+                    group: standingsGroups[i],
                     qualifiersPerGroup: qualifiersPerGroup,
+                    // Legenda só no último card — evita repetir N vezes.
+                    showFooter: i == standingsGroups.length - 1,
                   ),
                 ),
-              TournamentGroupStandingsFooter(
-                qualifiersPerGroup: qualifiersPerGroup,
-              ),
             ],
           ],
         );

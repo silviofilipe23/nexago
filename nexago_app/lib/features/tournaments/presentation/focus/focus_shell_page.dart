@@ -18,8 +18,10 @@ import '../../domain/focus/focus_boot_logic.dart';
 import '../../domain/focus/focus_providers.dart';
 import '../../domain/tournament_detail_logic.dart';
 import '../../domain/tournament_detail_model.dart';
+import '../../domain/tournament_detail_tabs_logic.dart';
 import '../../domain/tournament_discovery_models.dart';
 import '../../domain/tournament_discovery_providers.dart';
+import '../../domain/tournament_match.dart';
 import '../../domain/tournament_matches_logic.dart';
 import '../tournament_predictions_page.dart';
 import 'focus_bottom_clearance.dart';
@@ -28,8 +30,8 @@ import 'sections/focus_agora_section.dart';
 import 'sections/focus_arena_section.dart';
 import 'sections/focus_chave_section.dart';
 import 'sections/focus_grupo_section.dart';
-import 'sections/focus_trajetoria_section.dart';
 import 'widgets/focus_boot_loader.dart';
+import 'widgets/focus_now_hero.dart';
 
 /// Casca do Modo Focus: cabeçalho, corpo e a navegação inferior das seções.
 ///
@@ -160,41 +162,92 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
     final offer = _offer(tournament, categoryId);
     final isDouble =
         offer != null && isDoubleEliminationBracketFormat(offer.bracketFormat);
-    final sections = visibleFocusSections(isDoubleElimination: isDouble);
+    final cards =
+        ref.watch(tournamentMatchCardsProvider(widget.tournamentId)).valueOrNull ??
+            const [];
+    final categoryMatches = categoryId == null
+        ? const <TournamentMatch>[]
+        : [
+            for (final c in cards)
+              if (c.match.categoryId == categoryId) c.match,
+          ];
+    final groupsComplete = categoryGroupStageComplete(categoryMatches);
+    final hasKnockout = categoryId != null &&
+        bracketMatchesForCategory(
+          [for (final c in cards) c.match],
+          categoryId,
+        ).isNotEmpty;
+    final sections = visibleFocusSections(
+      isDoubleElimination: isDouble,
+      groupsComplete: groupsComplete,
+      hasKnockoutBracket: hasKnockout,
+    );
 
     // A seção corrente pode sair da lista quando o formato resolve (ex.: entrou
     // por deep link em `grupo` e a categoria é dupla eliminação). Cai na
     // primeira, em vez de mostrar uma aba que a nav não tem.
     final current = sections.contains(_section) ? _section : sections.first;
 
+    final showPhotoBackdrop = !unavailable &&
+        !showBoot &&
+        tournament != null &&
+        (current == FocusSection.agora ||
+            current == FocusSection.grupo ||
+            current == FocusSection.chave ||
+            current == FocusSection.arena ||
+            current == FocusSection.palpites);
+
     return Scaffold(
-      backgroundColor: colors.canvas,
+      backgroundColor: showPhotoBackdrop ? Colors.black : colors.canvas,
       extendBody: true,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: Stack(
+        fit: StackFit.expand,
         children: [
-          SizedBox(height: topInset + AppSpacing.xs),
-          _Header(
-            tournament: tournament,
-            isDoubleElimination: isDouble,
-            onExit: _exit,
-          ),
-          Expanded(
-            child: switch ((unavailable, showBoot, tournament)) {
-              (true, _, _) => const _TournamentUnavailable(),
-              (_, _, null) || (_, true, _) => FocusBootLoader(
-                progress: progress,
-                tournamentName: tournament?.name,
+          if (showPhotoBackdrop && current == FocusSection.agora)
+            FocusAgoraScreenBackground(
+              eliminated: ref.watch(
+                focusAgoraEliminatedProvider(widget.tournamentId),
               ),
-              (_, _, final TournamentDetail loaded) => IndexedStack(
-                index: sections.indexOf(current),
-                sizing: StackFit.expand,
-                children: [
-                  for (final section in sections)
-                    _sectionBody(section, loaded, categoryId, athleteTeamIds),
-                ],
+            ),
+          if (showPhotoBackdrop && current == FocusSection.grupo)
+            const FocusGrupoScreenBackground(),
+          if (showPhotoBackdrop && current == FocusSection.chave)
+            const FocusChaveScreenBackground(),
+          if (showPhotoBackdrop && current == FocusSection.arena)
+            const FocusArenaScreenBackground(),
+          if (showPhotoBackdrop && current == FocusSection.palpites)
+            const FocusPalpitesScreenBackground(),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(height: topInset + AppSpacing.xs),
+              _Header(
+                isDoubleElimination: isDouble,
+                onExit: _exit,
               ),
-            },
+              Expanded(
+                child: switch ((unavailable, showBoot, tournament)) {
+                  (true, _, _) => const _TournamentUnavailable(),
+                  (_, _, null) || (_, true, _) => FocusBootLoader(
+                    progress: progress,
+                    tournamentName: tournament?.name,
+                  ),
+                  (_, _, final TournamentDetail loaded) => IndexedStack(
+                    index: sections.indexOf(current),
+                    sizing: StackFit.expand,
+                    children: [
+                      for (final section in sections)
+                        _sectionBody(
+                          section,
+                          loaded,
+                          categoryId,
+                          athleteTeamIds,
+                        ),
+                    ],
+                  ),
+                },
+              ),
+            ],
           ),
         ],
       ),
@@ -222,7 +275,6 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
 
   IconData _iconOf(FocusSection section) => switch (section) {
     FocusSection.agora => Icons.local_fire_department_outlined,
-    FocusSection.trajetoria => Icons.emoji_events_outlined,
     FocusSection.grupo => Icons.table_rows_outlined,
     FocusSection.chave => Icons.account_tree_outlined,
     FocusSection.arena => Icons.place_outlined,
@@ -231,7 +283,6 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
 
   IconData _selectedIconOf(FocusSection section) => switch (section) {
     FocusSection.agora => Icons.local_fire_department_rounded,
-    FocusSection.trajetoria => Icons.emoji_events_rounded,
     FocusSection.grupo => Icons.table_rows_rounded,
     FocusSection.chave => Icons.account_tree_rounded,
     FocusSection.arena => Icons.place_rounded,
@@ -240,7 +291,6 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
 
   String _sfSymbolOf(FocusSection section) => switch (section) {
     FocusSection.agora => 'flame',
-    FocusSection.trajetoria => 'trophy',
     FocusSection.grupo => 'tablecells',
     FocusSection.chave => 'arrow.triangle.branch',
     FocusSection.arena => 'mappin.and.ellipse',
@@ -249,7 +299,6 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
 
   String _selectedSfSymbolOf(FocusSection section) => switch (section) {
     FocusSection.agora => 'flame.fill',
-    FocusSection.trajetoria => 'trophy.fill',
     FocusSection.grupo => 'tablecells.fill',
     // Sem variante preenchida no SF; repete a de contorno em vez de cair
     // no `iconData`, que é o caminho que quebra a escala.
@@ -266,11 +315,6 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
   ) {
     return switch (section) {
       FocusSection.agora => FocusAgoraSection(
-        tournament: tournament,
-        categoryId: categoryId,
-        athleteTeamIds: athleteTeamIds,
-      ),
-      FocusSection.trajetoria => FocusTrajetoriaSection(
         tournament: tournament,
         categoryId: categoryId,
         athleteTeamIds: athleteTeamIds,
@@ -305,18 +349,16 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
   }
 }
 
-/// "× | ● FOCUS / Nome do torneio".
+/// "× | ● FOCUS / DUPLA ELIMINATÓRIA".
 ///
-/// Sem relógio nem clima à direita: o relógio do sistema já fica na barra de
-/// status logo acima, e o clima dos protótipos nunca teve fonte de dado.
+/// Sem nome do torneio nem categoria: o protótipo deixa o hero e a nav
+/// carregarem o contexto; o cabeçalho só identifica o Modo Focus.
 class _Header extends StatelessWidget {
   const _Header({
-    required this.tournament,
     required this.isDoubleElimination,
     required this.onExit,
   });
 
-  final TournamentDetail? tournament;
   final bool isDoubleElimination;
   final VoidCallback onExit;
 
@@ -357,21 +399,24 @@ class _Header extends StatelessWidget {
                     ),
                     const SizedBox(width: 5),
                     Text(
-                      isDoubleElimination
-                          ? 'FOCUS · DUPLA ELIMINATÓRIA'
-                          : 'FOCUS',
+                      'FOCUS',
                       style: AppTypography.eyebrow.copyWith(
                         color: AppColors.brand,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ],
                 ),
-                Text(
-                  tournament?.name ?? 'Modo Focus',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.titleM.copyWith(color: colors.onSurface),
-                ),
+                if (isDoubleElimination)
+                  Text(
+                    'DUPLA ELIMINATÓRIA',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.bodyS.copyWith(
+                      color: colors.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
               ],
             ),
           ),

@@ -7,6 +7,7 @@ DiscoveryTournament _tournament({
   required String name,
   required DateTime startDate,
   String city = 'Goiânia',
+  String sport = '',
 }) {
   return DiscoveryTournament(
     id: id,
@@ -25,6 +26,7 @@ DiscoveryTournament _tournament({
     featured: false,
     enrolledCount: 0,
     liveMatchesNow: 0,
+    sport: sport,
   );
 }
 
@@ -34,11 +36,13 @@ DiscoveryLeague _league({
   List<String> tournamentIds = const [],
   DateTime? seasonStartAt,
   String? city,
+  String sport = '',
 }) {
   return DiscoveryLeague(
     id: id,
     name: name,
     city: city,
+    sport: sport,
     seasonStartAt: seasonStartAt,
     stages: [
       DiscoveryLeagueStage(
@@ -183,6 +187,41 @@ void main() {
           as AthleteHomeLeagueItem;
       expect(leagueItem.sortDate, DateTime(2026, 6, 11));
       expect(leagueItem.subtitle, 'Liga · Circuito');
+    });
+  });
+
+  group('esporte da capa padrão', () {
+    test('torneio leva o esporte pro carrossel escolher a arte', () {
+      final item = AthleteHomeTournamentItem(
+        _tournament(
+          id: 't1',
+          name: 'Etapa Areia',
+          startDate: DateTime(2026, 5, 28),
+          sport: 'beachVolleyball',
+        ),
+      );
+
+      expect(item.coverSport, 'beachVolleyball');
+    });
+
+    test('liga leva o PRÓPRIO esporte, não o de uma etapa', () {
+      // A liga grava `sport` no doc dela, com o mesmo vocabulário do torneio:
+      // não precisa (nem deve) inferir das etapas.
+      final item = AthleteHomeLeagueItem(
+        league: _league(id: 'l1', name: 'Liga nexaGO', sport: 'footvolley'),
+        sortDate: DateTime(2026, 5, 28),
+      );
+
+      expect(item.coverSport, 'footvolley');
+    });
+
+    test('liga sem esporte no doc segue no gradiente', () {
+      final item = AthleteHomeLeagueItem(
+        league: _league(id: 'l1', name: 'Liga legada'),
+        sortDate: DateTime(2026, 5, 28),
+      );
+
+      expect(item.coverSport, '');
     });
   });
 }

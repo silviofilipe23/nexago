@@ -26,9 +26,13 @@ import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
 
-const ROLE_TONE: Record<TournamentStaffRole, 'orange' | 'green'> = { manager: 'orange', scorer: 'green' };
-const ROLE_TAB: Record<TournamentStaffRole, string> = { manager: 'gestor', scorer: 'mesário' };
-const ROLE_REF: { role: TournamentStaffRole }[] = [{ role: 'manager' }, { role: 'scorer' }];
+/** Exportadas só para o spec alcançá-las (mesmo padrão de `staff-permissions.spec.ts`). Tom do
+ *  `eventAdmin` tem de ser diferente do `manager` — senão os dois chips ficam iguais e o dono
+ *  não distingue o que atribuiu. Ordem espelha `TOURNAMENT_STAFF_ROLES` em
+ *  `functions/src/tournament-staff-sync.ts`. */
+export const ROLE_TONE: Record<TournamentStaffRole, 'orange' | 'yellow' | 'green'> = { manager: 'orange', eventAdmin: 'yellow', scorer: 'green' };
+export const ROLE_TAB: Record<TournamentStaffRole, string> = { manager: 'gestor', eventAdmin: 'administrador', scorer: 'mesário' };
+export const ROLE_REF: { role: TournamentStaffRole }[] = [{ role: 'manager' }, { role: 'eventAdmin' }, { role: 'scorer' }];
 const SEARCH_DEBOUNCE_MS = 350;
 const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
 
@@ -89,6 +93,10 @@ export function staffCandidateExclusions(params: {
           <div class="og-kpi-value sm">{{ countOf('manager') }}</div>
         </og-card>
         <og-card pad="sm" flex="1">
+          <div class="og-kpi-label">Administradores</div>
+          <div class="og-kpi-value sm">{{ countOf('eventAdmin') }}</div>
+        </og-card>
+        <og-card pad="sm" flex="1">
           <div class="og-kpi-label">Mesários</div>
           <div class="og-kpi-value sm">{{ countOf('scorer') }}</div>
         </og-card>
@@ -146,8 +154,12 @@ export function staffCandidateExclusions(params: {
               </div>
               <div class="og-filter-bar">
                 <button type="button" class="og-chip" [class.active]="pickedRole() === 'manager'" (click)="pickedRole.set('manager')">Gestor</button>
+                <button type="button" class="og-chip" [class.active]="pickedRole() === 'eventAdmin'" (click)="pickedRole.set('eventAdmin')">Administrador</button>
                 <button type="button" class="og-chip" [class.active]="pickedRole() === 'scorer'" (click)="pickedRole.set('scorer')">Mesário</button>
               </div>
+              <p class="og-equipe-role-hint">
+                O administrador organiza o evento inteiro, mas não vê o caixa nem saca — quem mexe em dinheiro é o dono e os gestores.
+              </p>
               <div class="og-equipe-role-pick-actions">
                 <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="toggleAdd()">Cancelar</button>
                 <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="busy()" (click)="confirmAdd()">
@@ -203,6 +215,7 @@ export function staffCandidateExclusions(params: {
                         <div class="og-equipe-actions">
                           <span class="og-equipe-actions-label">Papel:</span>
                           <button type="button" class="og-chip" [class.active]="m.role === 'manager'" [disabled]="busy()" (click)="changeRole(m, 'manager')">Gestor</button>
+                          <button type="button" class="og-chip" [class.active]="m.role === 'eventAdmin'" [disabled]="busy()" (click)="changeRole(m, 'eventAdmin')">Administrador</button>
                           <button type="button" class="og-chip" [class.active]="m.role === 'scorer'" [disabled]="busy()" (click)="changeRole(m, 'scorer')">Mesário</button>
                           <button type="button" class="og-ghost-btn danger" [disabled]="busy()" (click)="remove(m)">
                             @if (busyKey() === 'remove:' + m.uid) {
@@ -441,6 +454,13 @@ export function staffCandidateExclusions(params: {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .og-equipe-role-hint {
+      font-family: var(--nx-font-ui);
+      font-size: 12px;
+      color: var(--nx-text-mute);
+      line-height: 1.5;
+      margin: 0;
+    }
     .og-equipe-role-pick-actions {
       display: flex;
       justify-content: flex-end;
@@ -518,7 +538,7 @@ export class EquipeComponent {
 
   readonly id = input<string>('');
 
-  protected readonly tabs = ['todos', 'gestor', 'mesário'];
+  protected readonly tabs = ['todos', 'gestor', 'administrador', 'mesário'];
   protected readonly tab = signal<string>('todos');
   protected readonly roleTone = ROLE_TONE;
   protected readonly roleLabel = TOURNAMENT_STAFF_ROLE_LABEL;

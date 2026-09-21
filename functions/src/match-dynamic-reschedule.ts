@@ -8,10 +8,24 @@ import {isMatchCanceled, isMatchCompleted} from "./match-status";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {eventTimeLabel} from "./event-timezone";
 import {loadTeamMemberUids} from "./tournament-team-roster";
-import {allocateCourtSlots, loadTournamentMatches} from "./match-schedule-allocation";
+import {
+  allocateCourtSlots,
+  loadTournamentMatches,
+  matchDurationMin,
+  matchTeamIds,
+} from "./match-schedule-allocation";
 
-/** Mudança de horário abaixo disso não dispara push nem conta como "atraso". */
+/** Atraso no início a partir do qual a cascata considera que a fila escorregou. */
 export const SCHEDULE_DRIFT_THRESHOLD_MIN = 10;
+
+/**
+ * Aviso mínimo, em minutos, para ANTECIPAR uma partida já publicada. A quadra
+ * que vaga cedo puxa a fila, mas nunca para menos que isso a partir de agora —
+ * o atleta se planejou pelo horário que viu no app e pode estar a caminho.
+ * Só protege antecipação: atraso empurra na hora que a quadra vagou, senão ela
+ * ficaria parada de castigo.
+ */
+export const MIN_ANTICIPATION_LEAD_MIN = 10;
 
 export interface RecalcTrigger {
   tournamentId: string;
@@ -79,7 +93,10 @@ export function determineRecalcTrigger(
     if (!startedAt || !scheduled) return null;
     const delayMin = (startedAt.toMillis() - scheduled.toMillis()) / 60000;
     if (delayMin < SCHEDULE_DRIFT_THRESHOLD_MIN) return null;
-    const anchor = new Date(startedAt.toDate().getTime() + defaultDurationMin * 60 * 1000);
+    const anchor = new Date(
+      startedAt.toDate().getTime() +
+        matchDurationMin(after, defaultDurationMin) * 60 * 1000,
+    );
     return {
       tournamentId,
       dayKey,
@@ -105,7 +122,10 @@ export function determineRecalcTrigger(
     const afterEnd = after.scheduleEndTime as Timestamp | undefined;
     const anchor = afterEnd ?
       afterEnd.toDate() :
-      new Date(afterTime.toDate().getTime() + defaultDurationMin * 60 * 1000);
+      new Date(
+        afterTime.toDate().getTime() +
+          matchDurationMin(after, defaultDurationMin) * 60 * 1000,
+      );
     return {
       tournamentId,
       dayKey,
@@ -121,8 +141,9 @@ export function determineRecalcTrigger(
 
 export interface ScheduleShift {
   matchId: string;
-  teamAId: string;
-  teamBId: string;
+  /** Duplas a avisar. Lista, e não dois lados: a rodada KOTC tem elenco, e com
+   *  `teamAId`/`teamBId` vazios NINGUÉM era notificado do reagendamento. */
+  teamIds: string[];
   oldStart: Date | null;
   newStart: Date;
   courtLabel: string;
@@ -139,7 +160,7 @@ export async function recalculateCourtSchedule(
   db: Firestore,
   projectId: string,
   trigger: RecalcTrigger,
-  config: {durationMin: number; minRestMin: number},
+  config: {durationMin: number; minRestMin: number; now?: Date},
 ): Promise<ScheduleShift[]> {
   const allMatches = await loadTournamentMatches(
     db,
@@ -184,13 +205,26 @@ export async function recalculateCourtSchedule(
     const start = (d.scheduleTime as Timestamp).toDate();
     const end = d.scheduleEndTime ?
       (d.scheduleEndTime as Timestamp).toDate() :
-      new Date(start.getTime() + config.durationMin * 60 * 1000);
+      new Date(
+        start.getTime() + matchDurationMin(d, config.durationMin) * 60 * 1000,
+      );
     const restUntil = new Date(end.getTime() + config.minRestMin * 60 * 1000);
-    for (const tid of [d.teamAId, d.teamBId]) {
-      if (typeof tid !== "string" || !tid.trim()) continue;
+    for (const tid of matchTeamIds(d)) {
       const prev = teamBusyUntil[tid];
       if (!prev || restUntil > prev) teamBusyUntil[tid] = restUntil;
     }
+  }
+
+  // Piso de cada partida: `min(agora + colchão, horário publicado)`. Fica
+  // abaixo do publicado, então nunca ADIA ninguém — só corta a antecipação.
+  const now = config.now ?? new Date();
+  const leadFloor = new Date(now.getTime() + MIN_ANTICIPATION_LEAD_MIN * 60 * 1000);
+  const minStartById: Record<string, Date> = {};
+  for (const doc of reassign) {
+    const published = doc.data().scheduleTime as Timestamp | undefined;
+    if (!published) continue; // sem horário publicado não há promessa a proteger
+    const publishedStart = published.toDate();
+    minStartById[doc.id] = leadFloor < publishedStart ? leadFloor : publishedStart;
   }
 
   const slots = allocateCourtSlots({
@@ -202,6 +236,7 @@ export async function recalculateCourtSchedule(
     minRestMin: config.minRestMin,
     avoidAthleteConflict: true,
     dayStart: trigger.anchor,
+    minStartById,
   });
 
   const matchesById = new Map(reassign.map((doc) => [doc.id, doc] as const));
@@ -224,8 +259,7 @@ export async function recalculateCourtSchedule(
     }
     shifts.push({
       matchId: slot.matchId,
-      teamAId: String(data.teamAId ?? ""),
-      teamBId: String(data.teamBId ?? ""),
+      teamIds: matchTeamIds(data),
       oldStart,
       newStart: slot.start,
       courtLabel: String(data.courtName ?? trigger.courtId),
@@ -234,7 +268,12 @@ export async function recalculateCourtSchedule(
   return shifts;
 }
 
-/** Notifica os atletas das partidas cujo horário moveu >= `SCHEDULE_DRIFT_THRESHOLD_MIN`. */
+/**
+ * Avisa os atletas de TODA mudança de horário da cascata, por menor que seja:
+ * quem se planejou pelo horário publicado é quem decide se 2 minutos importam.
+ * A única partida que não gera push é a que a cascata regravou sem mexer no
+ * relógio — aí não houve mudança para contar.
+ */
 export async function notifyScheduleShifts(
   db: Firestore,
   projectId: string,
@@ -242,20 +281,27 @@ export async function notifyScheduleShifts(
   shifts: ScheduleShift[],
 ): Promise<void> {
   for (const shift of shifts) {
-    if (!shift.oldStart) continue;
-    const driftMin = Math.abs(shift.newStart.getTime() - shift.oldStart.getTime()) / 60000;
-    if (driftMin < SCHEDULE_DRIFT_THRESHOLD_MIN) continue;
+    const oldStart = shift.oldStart;
+    // Sem horário anterior a partida não "mudou": ela acabou de ganhar um.
+    const isFirstSchedule = oldStart === null;
+    if (oldStart && shift.newStart.getTime() === oldStart.getTime()) continue;
 
-    for (const teamId of [shift.teamAId, shift.teamBId]) {
-      if (!teamId) continue;
+    const title = isFirstSchedule ?
+      "Sua partida foi agendada" :
+      "Horário da sua partida mudou";
+    const body = isFirstSchedule ?
+      `Horário: ${eventTimeLabel(shift.newStart)} na ${shift.courtLabel}.` :
+      `Nova previsão: ${eventTimeLabel(shift.newStart)} na ${shift.courtLabel}.`;
+
+    for (const teamId of shift.teamIds) {
       // Elenco COMPLETO (trio/quarteto/quinteto incluídos), não só player1/2.
       const players = await loadTeamMemberUids(db, projectId, teamId);
       for (const playerId of players) {
         try {
           await deliverNotificationToUser({
             userId: playerId,
-            title: "Horário da sua partida mudou",
-            body: `Nova previsão: ${eventTimeLabel(shift.newStart)} na ${shift.courtLabel}.`,
+            title,
+            body,
             type: "match_schedule_updated",
             data: {
               type: "match_schedule_updated",
@@ -291,7 +337,9 @@ export async function handleDynamicRescheduleOnMatchUpdate(
 
   const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
   const matchOps = tournamentSnap.data()?.matchOps as Record<string, unknown> | undefined;
-  if (matchOps?.dynamicRescheduleEnabled !== true) return;
+  // Ligado por padrão: só `false` explícito (o organizador desmarcou no painel
+  // ou no app) desliga a cascata. Torneio antigo, sem `matchOps`, reagenda.
+  if (matchOps?.dynamicRescheduleEnabled === false) return;
 
   const durationMin = (matchOps?.defaultMatchDurationMin as number) ?? 30;
   const minRestMin = (matchOps?.minRestBetweenMatchesMin as number) ?? 30;

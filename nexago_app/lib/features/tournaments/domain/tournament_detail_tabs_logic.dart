@@ -49,8 +49,8 @@ TournamentDetailTab defaultTournamentDetailTab(
 /// Sub-visões da categoria — o segmentado que substitui abas Partidas/Chaves
 /// (porte de `categoryViewsOf` do portal): "Grupos" só existe em categoria
 /// com fase de grupos; "Partidas" só depois que o organizador publica os
-/// jogos; "Chave" fica sempre — é onde a mensagem de "ainda não sorteada"
-/// aparece.
+/// jogos; "Chave" em categoria SEM grupos é o esqueleto fixo, e COM grupos
+/// só entra depois que a fase fecha (ou o mata-mata já foi gerado).
 enum TournamentCategoryView {
   partidas('Partidas'),
   grupos('Grupos'),
@@ -64,19 +64,42 @@ enum TournamentCategoryView {
 List<TournamentCategoryView> visibleCategoryViews({
   required bool hasMatches,
   required bool hasGroups,
+  bool groupsComplete = false,
+  bool hasBracket = false,
 }) {
+  final showChave = !hasGroups || groupsComplete || hasBracket;
   return [
     if (hasMatches) TournamentCategoryView.partidas,
     if (hasGroups) TournamentCategoryView.grupos,
-    TournamentCategoryView.chave,
+    if (showChave) TournamentCategoryView.chave,
   ];
 }
 
-/// Sub-visão de entrada: os jogos quando existem, senão a chave.
+/// Sub-visão de entrada: com grupos encerrados (ou chave já gerada), a
+/// chave; senão os jogos quando existem.
 TournamentCategoryView defaultCategoryView(
-  List<TournamentCategoryView> views,
-) {
+  List<TournamentCategoryView> views, {
+  bool preferBracket = false,
+}) {
+  if (preferBracket && views.contains(TournamentCategoryView.chave)) {
+    return TournamentCategoryView.chave;
+  }
   return views.isNotEmpty ? views.first : TournamentCategoryView.chave;
+}
+
+/// A fase de grupos desta categoria parece encerrada? Todos os jogos de
+/// pool/grupo estão Completed ou Canceled. Usado para liberar a aba Chave
+/// sem montar a tabela de classificação.
+bool categoryGroupStageComplete(List<TournamentMatch> categoryMatches) {
+  final pool = categoryMatches
+      .where((m) => m.isGroupMatch || m.poolId.trim().isNotEmpty)
+      .toList();
+  if (pool.isEmpty) return false;
+  return pool.every(
+    (m) =>
+        TournamentMatchStatus.isCompleted(m.status) ||
+        TournamentMatchStatus.isCanceled(m.status),
+  );
 }
 
 /// Existe ao menos um confronto definido? Antes disso não há em quem palpitar.
@@ -91,8 +114,9 @@ bool _sameEventDay(DateTime a, DateTime b) =>
     nexagoEventDayKey(a) == nexagoEventDayKey(b);
 
 int _byScheduleTime(TournamentMatch a, TournamentMatch b) {
-  final at = a.scheduleTime;
-  final bt = b.scheduleTime;
+  // Encerrada sem horário ainda precisa de posição no rail: usa início/fim.
+  final at = a.scheduleTime ?? a.matchStartedAt ?? a.matchEndedAt;
+  final bt = b.scheduleTime ?? b.matchStartedAt ?? b.matchEndedAt;
   if (at == null && bt == null) return a.matchNumber.compareTo(b.matchNumber);
   if (at == null) return 1;
   if (bt == null) return -1;
@@ -100,18 +124,23 @@ int _byScheduleTime(TournamentMatch a, TournamentMatch b) {
 }
 
 /// Uma partida pertence ao dia de referência quando tem âncora de tempo nesse
-/// dia — horário agendado OU início real —, ou quando não tem âncora nenhuma e
-/// o torneio está rolando hoje.
+/// dia — horário agendado, início real, **fim real** ou `dayKey` —, ou quando
+/// não tem âncora nenhuma e o torneio está rolando hoje.
 ///
-/// As duas âncoras valem INDEPENDENTEMENTE, não em cascata: partida agendada
-/// para ontem que só entrou em quadra hoje pertence a hoje também. Torneio que
+/// As âncoras valem INDEPENDENTEMENTE, não em cascata: partida agendada para
+/// ontem que só entrou em quadra hoje pertence a hoje também. Torneio que
 /// atrasa e empurra jogo pro dia seguinte é rotina, e a versão em cascata
 /// (`matchStartedAt` só quando não há `scheduleTime`) prenderia esse jogo no
 /// dia em que ele não aconteceu.
 ///
-/// Ter âncora de outro dia é resposta definitiva: quem tem horário ou início
-/// fora do dia NÃO cai no caso do torneio rolando. Sem isso, a partida de
-/// ontem reapareceria hoje em todo torneio que ocupa mais de um dia.
+/// `matchEndedAt` e `dayKey` importam especialmente no Focus: ao encerrar, a
+/// mesa às vezes limpa `scheduleTime`/`dayKey` na refila — sem o fim real, a
+/// partida JOGADA sumia da "Ordem do seu dia" e o rail ficava só com as
+/// próximas.
+///
+/// Ter âncora de outro dia é resposta definitiva: quem tem horário, início,
+/// fim ou dayKey fora do dia NÃO cai no caso do torneio rolando. Sem isso, a
+/// partida de ontem reapareceria hoje em todo torneio que ocupa mais de um dia.
 ///
 /// Sem âncora nenhuma exige partida em aberto: não existe evidência de que ela
 /// pertence a hoje além da janela do torneio, e afirmar resultado de partida
@@ -123,9 +152,21 @@ bool matchBelongsToDay(
 }) {
   final scheduled = match.scheduleTime;
   final started = match.matchStartedAt;
+  final ended = match.matchEndedAt;
+  final dayKey = match.dayKey.trim();
+  final refKey = nexagoEventDayKey(reference);
+
   if (scheduled != null && _sameEventDay(scheduled, reference)) return true;
   if (started != null && _sameEventDay(started, reference)) return true;
-  if (scheduled != null || started != null) return false;
+  if (ended != null && _sameEventDay(ended, reference)) return true;
+  if (dayKey.isNotEmpty && dayKey == refKey) return true;
+
+  if (scheduled != null ||
+      started != null ||
+      ended != null ||
+      dayKey.isNotEmpty) {
+    return false;
+  }
   if (!tournamentRunningToday) return false;
   return !TournamentMatchStatus.isCompleted(match.status) &&
       !TournamentMatchStatus.isCanceled(match.status);
@@ -152,6 +193,26 @@ List<TournamentMatch> myTournamentDayTimeline(
               reference,
               tournamentRunningToday: tournamentRunningToday,
             ),
+      )
+      .toList()
+    ..sort(_byScheduleTime);
+}
+
+/// Todas as partidas **definidas** do atleta (jogadas + a jogar), em ordem.
+///
+/// Só entram confrontos com os dois lados resolvidos — slot sem adversário e
+/// fase futura sem dono ficam de fora do rail "Ordem do seu dia".
+List<TournamentMatch> myFocusMatchRailTimeline(
+  List<TournamentMatch> matches,
+  Set<String> myTeamIds,
+) {
+  if (myTeamIds.isEmpty) return const [];
+  return matches
+      .where(
+        (m) =>
+            m.teamAId.trim().isNotEmpty &&
+            m.teamBId.trim().isNotEmpty &&
+            (myTeamIds.contains(m.teamAId) || myTeamIds.contains(m.teamBId)),
       )
       .toList()
     ..sort(_byScheduleTime);

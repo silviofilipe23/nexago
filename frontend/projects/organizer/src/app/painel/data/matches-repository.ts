@@ -1,5 +1,12 @@
+import {
+  isKingOfCourtMatchType,
+  kocColumnLabel,
+  kocPhaseLabel,
+  kocRoundStateFrom,
+  type KocRoundState,
+} from './koc';
 import { collection, getDocs, onSnapshot, query, where, type Unsubscribe } from 'firebase/firestore';
-import { statusOf, type MatchDisplayStatus } from '@nexago/live-scoring';
+import { medicalTimeoutFromRaw, statusOf, type MatchDisplayStatus, type MedicalTimeout } from '@nexago/live-scoring';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from './firestore';
 import { fetchTeamNames } from './teams-repository';
@@ -73,6 +80,18 @@ export interface TournamentMatch {
   liveScore: MatchLiveScore | null;
   currentSetIndex: number | null;
   servingTeamId: string;
+  /** Posição (1 ou 2) do atleta no saque dentro da dupla de `servingTeamId`; 0 = não declarada.
+   *  A posição é a ordem de `player1Id`/`player2Id` do doc de `teams` — é assim que o telão
+   *  resolve QUEM está sacando sem nenhum join novo (ver `serving-player.ts`). */
+  servingPlayerSlot: number;
+  /** Atendimento médico em andamento — o telão mostra quem está sendo atendido e a contagem,
+   *  derivada de `startedAt`. Nulo quando ninguém está sendo atendido. */
+  medicalTimeout: MedicalTimeout | null;
+  /** Rodada King of the Court, quando `matchType` é `koc_*`. A rodada não tem
+   *  dois lados: `teamAId`/`teamBId` vêm vazios e o elenco/estado vivem aqui.
+   *  Ausente em toda partida de duelo — opcional de propósito, para que nenhuma
+   *  fixture de duelo precise conhecer o formato. Ver `koc.ts`. */
+  koc?: KocRoundState | null;
   matchStartedAt: Date | null;
   /** Fim real da partida (mesa/lançamento gravam ao completar) — o telão usa pra celebrar
    *  partidas recém-encerradas mesmo quando a TV recarregou no ponto do jogo. */
@@ -149,8 +168,27 @@ function scoreOf(sets: RawSet[], resultA: string | null, resultB: string | null)
 }
 
 /** Espelha (versão simplificada) `bracketColumnHeaderLabel`/`bracketGroupKey` do athlete —
- *  aqui só o rótulo de texto, sem agrupar partidas em colunas. */
-function roundLabelOf(matchType: string, round: number, poolId: string): string | null {
+ *  aqui só o rótulo de texto, sem agrupar partidas em colunas.
+ *
+ *  ATENÇÃO ao `poolId`: ele significa GRUPO numa partida de duelo, mas numa
+ *  rodada King of the Court é a QUADRA da fase (C1, C2…). Sem a saída pelo
+ *  formato, a rodada vira "Grupo C1" — e como três telas filtram justamente por
+ *  `round` começando em "Grupo " (a aba de grupos, o menu do painel e
+ *  `isBracketMatch`), a categoria KOTC inteira aparecia como fase de grupos, com
+ *  "A definir × A definir" em todas as linhas, porque a rodada não tem dois
+ *  lados. Este é o ponto único que conserta as três. */
+function roundLabelOf(
+  matchType: string,
+  round: number,
+  poolId: string,
+  koc: KocRoundState | null,
+  matchNumber: number,
+): string | null {
+  if (koc) {
+    // `kocRoundLabel` é o índice DENTRO da fase; `matchNumber` é global e só
+    // coincide enquanto a primeira fase é a única classificatória.
+    return kocPhaseLabel(matchType, koc.roundLabel > 0 ? koc.roundLabel : matchNumber);
+  }
   if (poolId) return `Grupo ${poolId}`;
   const t = matchType.trim().toLowerCase();
   if (t === 'wb') return `WB · Rodada ${round}`;
@@ -161,6 +199,10 @@ function roundLabelOf(matchType: string, round: number, poolId: string): string 
   if (t === 'knockout') return `Rodada ${round}`;
   if (matchType.trim()) return matchType.trim();
   return round > 0 ? `Rodada ${round}` : null;
+}
+
+function matchNumberOf(data: Record<string, unknown>): number {
+  return typeof data['matchNumber'] === 'number' ? data['matchNumber'] : 0;
 }
 
 function advanceMatchNumberOf(raw: unknown): number | null {
@@ -177,7 +219,7 @@ function advanceSlotOf(raw: unknown): 'A' | 'B' | null {
   return null;
 }
 
-interface RawMatch {
+export interface RawMatch {
   id: string;
   tournamentId: string;
   categoryId: string | null;
@@ -205,17 +247,23 @@ interface RawMatch {
   liveScore: MatchLiveScore | null;
   currentSetIndex: number | null;
   servingTeamId: string;
+  servingPlayerSlot: number;
+  medicalTimeout: MedicalTimeout | null;
+  koc?: KocRoundState | null;
   matchStartedAt: Date | null;
   matchEndedAt: Date | null;
 }
 
-function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawMatch {
+/** Exportada para teste: é o ponto onde o documento do Firestore vira linha de
+ *  tela, e onde a rodada King of the Court já foi rotulada como grupo. */
+export function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawMatch {
   const matchType = optionalStr(data['matchType']) ?? '';
   const poolId = optionalStr(data['poolId']) ?? '';
   const round = typeof data['round'] === 'number' ? data['round'] : 0;
   const sets = setsFromRaw(data['sets']);
   const resultA = optionalStr(data['resultA']);
   const resultB = optionalStr(data['resultB']);
+  const koc = isKingOfCourtMatchType(matchType) ? kocRoundStateFrom(data) : null;
   const teamAId = optionalStr(data['teamAId']);
   const teamBId = optionalStr(data['teamBId']);
   const winnerId = optionalStr(data['winnerId']);
@@ -225,7 +273,7 @@ function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawMatch {
     id,
     tournamentId: optionalStr(data['tournamentId']) ?? '',
     categoryId: optionalStr(data['categoryId']),
-    round: roundLabelOf(matchType, round, poolId),
+    round: roundLabelOf(matchType, round, poolId, koc, matchNumberOf(data)),
     teamAId,
     teamBId,
     teamADescription: optionalStr(data['teamADescription']),
@@ -237,7 +285,7 @@ function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawMatch {
     status: statusOf(data['status']),
     matchType,
     roundNumber: round,
-    matchNumber: typeof data['matchNumber'] === 'number' ? data['matchNumber'] : 0,
+    matchNumber: matchNumberOf(data),
     winnerAdvanceMatchNumber: advanceMatchNumberOf(data['winnerAdvance']),
     winnerAdvanceSlot: advanceSlotOf(data['winnerAdvance']),
     loserAdvanceMatchNumber: advanceMatchNumberOf(data['loserAdvance']),
@@ -249,6 +297,9 @@ function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawMatch {
     liveScore: liveScoreFromRaw(data['liveScore']),
     currentSetIndex: intOf(data['currentSetIndex']),
     servingTeamId: optionalStr(data['servingTeamId']) ?? '',
+    servingPlayerSlot: data['servingPlayerSlot'] === 1 || data['servingPlayerSlot'] === 2 ? data['servingPlayerSlot'] : 0,
+    medicalTimeout: medicalTimeoutFromRaw(data['medicalTimeout']),
+    koc,
     matchStartedAt: toDate(data['matchStartedAt']),
     matchEndedAt: toDate(data['matchEndedAt']),
   };
@@ -275,16 +326,23 @@ function isBracketMatch(m: TournamentMatch): boolean {
   return m.matchType.trim().toLowerCase() !== 'group' && !m.round?.startsWith('Grupo ');
 }
 
-function bracketGroupKey(m: TournamentMatch): string {
+/** Exportada porque `bracket-tree.ts` reusa a MESMA regra de agrupamento no caminho
+ *  legado da árvore de dupla eliminação (chave sem convergência alcançável) — nunca
+ *  duplicar esta lógica lá. */
+export function bracketGroupKey(m: TournamentMatch): string {
   const t = m.matchType.trim();
   const tLower = t.toLowerCase();
+  // KOTC: a fase mora no `round`. Sem ele na chave, um campo com DUAS fases de
+  // classificatória colapsaria as duas numa coluna só.
+  if (isKingOfCourtMatchType(t)) return `${tLower}:${m.roundNumber}`;
   if (tLower === 'wb' || tLower === 'lb') return `${t.toUpperCase()}:${m.roundNumber}`;
   if (tLower === 'knockout') return `knockout:${m.roundNumber}`;
   if (t) return t;
   return `round:${m.roundNumber}`;
 }
 
-function bracketGroupSortOrder(m: TournamentMatch): number {
+/** Exportada pelo mesmo motivo de `bracketGroupKey` — ver comentário acima. */
+export function bracketGroupSortOrder(m: TournamentMatch): number {
   const tLower = m.matchType.trim().toLowerCase();
   if (tLower === 'wb') return m.roundNumber * 10;
   if (tLower === 'lb') return m.roundNumber * 10 + 5;
@@ -327,6 +385,8 @@ function bracketColumnHeaderLabel(matches: readonly TournamentMatch[]): string {
   if (tLower === 'grand final' || tLower === 'grand_final') return 'Grand Final';
   if (tLower === 'third place' || tLower === 'third_place') return '3º Lugar';
   if (tLower === 'knockout') return knockoutPhaseLabel(matches.length);
+  // Sem isto a coluna KOTC vira o identificador cru ("koc_round") no cabeçalho.
+  if (isKingOfCourtMatchType(first.matchType)) return kocColumnLabel(first.matchType);
   return first.matchType.trim() || `Rodada ${first.roundNumber}`;
 }
 
@@ -501,6 +561,9 @@ function rawToMatch(r: RawMatch, labelOf: (description: string | null, teamId: s
     liveScore: r.liveScore,
     currentSetIndex: r.currentSetIndex,
     servingTeamId: r.servingTeamId,
+    servingPlayerSlot: r.servingPlayerSlot,
+    medicalTimeout: r.medicalTimeout,
+    koc: r.koc,
     matchStartedAt: r.matchStartedAt,
     matchEndedAt: r.matchEndedAt,
   };

@@ -2533,7 +2533,7 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  height: 40px;
+  height: 48px;
   padding: 0 12px;
   border-bottom: 1px solid var(--nx-line);
 }
@@ -2650,7 +2650,11 @@ button {
   color: var(--nx-orange-500);
 }
 
-/* ── Chave de dupla eliminação (canvas único WB+LB, layout do app) ── */
+/* ── Chave de dupla eliminação (geometria convergente, porte do layout do app) ──
+   WB cresce da esquerda pro centro, LB espelhada da direita pro centro — o conector
+   já sai calculado com o sentido certo em `bracket-tree.ts` (`pathFor`: borda direita
+   quando o destino está à direita, esquerda quando está à esquerda), então o CSS não
+   precisa saber de lado nenhum. */
 
 .og-de-canvas {
   position: relative;

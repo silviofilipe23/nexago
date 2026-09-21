@@ -5,33 +5,47 @@ import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_discovery_models.dart';
 
+/// Uma opção do seletor: só o que o chip precisa saber.
+typedef TournamentCategoryChipOption = ({String id, String name});
+
 class TournamentDetailCategoryChips extends StatelessWidget {
-  const TournamentDetailCategoryChips({
+  /// Construtor usual: as categorias oferecidas pelo torneio.
+  TournamentDetailCategoryChips({
     super.key,
-    required this.offers,
+    required List<TournamentCategoryOffer> offers,
+    required this.selectedId,
+    required this.onSelected,
+  }) : options = [
+          for (final o in offers) (id: o.id, name: o.name),
+        ];
+
+  /// Para quem já tem só o par id/nome (o pódio, por exemplo) e não a oferta.
+  const TournamentDetailCategoryChips.fromOptions({
+    super.key,
+    required this.options,
     required this.selectedId,
     required this.onSelected,
   });
 
-  final List<TournamentCategoryOffer> offers;
+  final List<TournamentCategoryChipOption> options;
   final String selectedId;
   final ValueChanged<String> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    if (offers.isEmpty) return const SizedBox.shrink();
+    if (options.isEmpty) return const SizedBox.shrink();
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
       child: Row(
         children: [
-          for (final offer in offers) ...[
-            if (offer != offers.first) SizedBox(width: 8),
+          for (final option in options) ...[
+            if (option != options.first) const SizedBox(width: 8),
             _Chip(
-              label: offer.name,
-              selected: offer.id == selectedId,
-              onTap: () => onSelected(offer.id),
+              label: option.name,
+              selected: option.id == selectedId,
+              onTap: () => onSelected(option.id),
             ),
           ],
         ],

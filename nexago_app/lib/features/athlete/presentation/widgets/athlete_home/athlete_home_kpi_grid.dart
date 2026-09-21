@@ -7,8 +7,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/ui/nexa_card.dart';
 import '../../../domain/athlete_home_dashboard_logic.dart';
 
-/// Linha de KPIs 2×2 da Home (paridade com o painel web: Jogos no mês ·
-/// Vitórias · Sequência · Ranking).
+/// Linha única de KPIs da Home (Jogos no mês · Vitórias · Sequência · Ranking).
 class AthleteHomeKpiGrid extends StatelessWidget {
   const AthleteHomeKpiGrid({super.key, required this.kpis});
 
@@ -17,28 +16,17 @@ class AthleteHomeKpiGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (kpis.isEmpty) return const SizedBox.shrink();
-    return Column(
-      children: [
-        for (var row = 0; row * 2 < kpis.length; row++) ...[
-          if (row > 0) const SizedBox(height: AppSpacing.md),
-          // IntrinsicHeight dá altura finita ao stretch (num sliver a altura
-          // da Row seria infinita) e iguala os dois cards da linha.
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: _KpiCard(kpi: kpis[row * 2])),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: row * 2 + 1 < kpis.length
-                      ? _KpiCard(kpi: kpis[row * 2 + 1])
-                      : const SizedBox.shrink(),
-                ),
-              ],
-            ),
-          ),
+    // IntrinsicHeight iguala a altura dos cards; Expanded divide a largura.
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < kpis.length; i++) ...[
+            if (i > 0) const SizedBox(width: AppSpacing.sm),
+            Expanded(child: _KpiCard(kpi: kpis[i])),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -51,11 +39,15 @@ class _KpiCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final toneColor =
-        kpi.tone == AthleteHomeKpiTone.green ? AppColors.win : AppColors.brand;
+    final toneColor = kpi.tone == AthleteHomeKpiTone.green
+        ? AppColors.win
+        : AppColors.brand;
 
     return NexaCard(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.md,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -64,16 +56,19 @@ class _KpiCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   kpi.label.toUpperCase(),
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTypography.eyebrow
-                      .copyWith(color: colors.onSurfaceMuted),
+                  style: AppTypography.eyebrow.copyWith(
+                    color: colors.onSurfaceMuted,
+                    fontSize: 8,
+                    height: 1.15,
+                  ),
                 ),
               ),
               if (kpi.flame)
                 Icon(
                   Icons.local_fire_department_rounded,
-                  size: 14,
+                  size: 12,
                   color: AppColors.brand,
                 ),
             ],
@@ -81,16 +76,16 @@ class _KpiCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           Text(
             kpi.value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: AppTypography.mono(
-              fontSize: 22,
+              fontSize: 14,
               fontWeight: FontWeight.w800,
               color: colors.onSurface,
               height: 1,
             ),
           ),
-          const SizedBox(height: AppSpacing.sm + 2),
-          // Delta e nota empilhados: lado a lado (como no desktop do painel)
-          // a nota trunca na largura de celular.
+          const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
               if (kpi.arrow) ...[
@@ -98,17 +93,20 @@ class _KpiCard extends StatelessWidget {
                   kpi.tone == AthleteHomeKpiTone.green
                       ? Icons.arrow_upward_rounded
                       : Icons.arrow_downward_rounded,
-                  size: 11,
+                  size: 10,
                   color: toneColor,
                 ),
-                const SizedBox(width: 2),
+                const SizedBox(width: 1),
               ],
               Expanded(
                 child: Text(
                   kpi.delta,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTypography.monoMeta.copyWith(color: toneColor),
+                  style: AppTypography.monoMeta.copyWith(
+                    color: toneColor,
+                    fontSize: 10,
+                  ),
                 ),
               ),
             ],
@@ -118,8 +116,10 @@ class _KpiCard extends StatelessWidget {
             kpi.note,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AppTypography.bodyS
-                .copyWith(color: colors.onSurfaceMuted, fontSize: 11),
+            style: AppTypography.bodyS.copyWith(
+              color: colors.onSurfaceMuted,
+              fontSize: 8,
+            ),
           ),
         ],
       ),

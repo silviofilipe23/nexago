@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:nexago_app/core/layout/nexa_floating_header.dart';
+import 'package:nexago_app/core/layout/nexa_page_header.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
@@ -58,51 +58,52 @@ class _BookingsScrollBody extends ConsumerWidget {
     final mode = ref.watch(bookingViewModeProvider);
     final insight = ref.watch(arenaBookingsTodayInsightProvider);
 
-    return CustomScrollView(
-      controller:
-          ref.watch(arenaShellScrollRegistryProvider).controllerFor(3),
-      key: const PageStorageKey<String>('arena-bookings-scroll'),
-      physics: ArenaDashboardTokens.shellScrollPhysics,
-      slivers: [
-        NexaFloatingHeaderSliver(
-          topGap: 8,
-          padding: const EdgeInsets.symmetric(
-            horizontal: ArenaDashboardTokens.horizontalPadding,
-          ),
-          child: const FadeSlideIn(
-            duration: Duration(milliseconds: 420),
-            offsetY: 14,
-            child: ArenaBookingsHeader(),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              ArenaDashboardTokens.horizontalPadding,
-              16,
-              ArenaDashboardTokens.horizontalPadding,
-              0,
+    return NexaPageHeader(
+      topGap: 8,
+      padding: const EdgeInsets.symmetric(
+        horizontal: ArenaDashboardTokens.horizontalPadding,
+      ),
+      header: const FadeSlideIn(
+        duration: Duration(milliseconds: 420),
+        offsetY: 14,
+        child: ArenaBookingsHeader(),
+      ),
+      child: CustomScrollView(
+        controller:
+            ref.watch(arenaShellScrollRegistryProvider).controllerFor(3),
+        key: const PageStorageKey<String>('arena-bookings-scroll'),
+        physics: ArenaDashboardTokens.shellScrollPhysics,
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                ArenaDashboardTokens.horizontalPadding,
+                16,
+                ArenaDashboardTokens.horizontalPadding,
+                0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const ArenaBookingsModeChips(),
+                  const SizedBox(height: 10),
+                  const _RecurringEntryRow(),
+                  const SizedBox(height: 8),
+                  const _ClubsEntryRow(),
+                  const SizedBox(height: 12),
+                ],
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const ArenaBookingsModeChips(),
-                const SizedBox(height: 10),
-                const _RecurringEntryRow(),
-                const SizedBox(height: 8),
-                const _ClubsEntryRow(),
-                const SizedBox(height: 12),
-              ],
-            ),
           ),
-        ),
-        ..._BookingsBody.sliversFor(
-          ref: ref,
-          mode: mode,
-          insight: insight,
-          bottomPadding: ArenaDashboardTokens.shellScrollBottomPadding(context),
-        ),
-      ],
+          ..._BookingsBody.sliversFor(
+            ref: ref,
+            mode: mode,
+            insight: insight,
+            bottomPadding:
+                ArenaDashboardTokens.shellScrollBottomPadding(context),
+          ),
+        ],
+      ),
     );
   }
 }

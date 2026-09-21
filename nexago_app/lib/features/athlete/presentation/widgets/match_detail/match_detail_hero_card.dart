@@ -1,7 +1,9 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 import '../../../../../core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/match_history/athlete_match_detail_models.dart';
 import 'match_detail_team_avatar_stack.dart';
 
@@ -12,11 +14,13 @@ class MatchDetailHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Fundo full-bleed mora no scaffold — aqui só o placar horizontal.
     return switch (detail.phase) {
-      MatchDetailPhase.scheduled => _ScheduledHero(detail: detail),
       MatchDetailPhase.live => _LiveHero(detail: detail),
       MatchDetailPhase.completed => _CompletedHero(detail: detail),
-      MatchDetailPhase.canceled => _ScheduledHero(detail: detail),
+      MatchDetailPhase.scheduled ||
+      MatchDetailPhase.canceled =>
+        _ScheduledHero(detail: detail),
     };
   }
 }
@@ -28,47 +32,31 @@ class _CompletedHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final accent = detail.isParticipantView
         ? (detail.isWin ? AppColors.win : AppColors.live)
-        : context.themeColors.onSurfaceMuted;
+        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55);
 
-    return _HeroShell(
-      gradientColors: const [Color(0xFF0D1F14), Color(0xFF0A1510)],
-      borderColor: accent.withValues(alpha: 0.3),
-      child: Column(
-        children: [
-          _StageLabel(label: detail.stageLabel),
-          SizedBox(height: 12),
-          _StatusRow(
-            icon: detail.isParticipantView && detail.isWin
-                ? Icons.emoji_events_rounded
-                : null,
-            label: detail.resultBadgeLabel,
-            accent: accent,
-          ),
-          SizedBox(height: 20),
-          _VerticalTeamBlock(
-            side: detail.ourTeam,
-            highlight: detail.isParticipantView,
-          ),
-          SizedBox(height: 16),
-          Text(
-            detail.matchScoreLabel,
-            style: theme.textTheme.displaySmall?.copyWith(
-              fontWeight: FontWeight.w900,
-              color: context.themeColors.onSurface,
-              letterSpacing: -1,
-              height: 1,
-            ),
-          ),
-          SizedBox(height: 16),
-          _VerticalTeamBlock(side: detail.opponentTeam),
-          if (detail.sets.isNotEmpty) ...[
-            SizedBox(height: 20),
-            _SetChipsRow(sets: detail.sets, highlightWins: detail.isParticipantView),
-          ],
-        ],
+    // Um set só: o placar grande é a pontuação do jogo (ex.: 21–18), não 1–0.
+    final singleSet = detail.sets.length == 1;
+    final ourPoints =
+        singleSet ? detail.sets.first.ourScore : detail.ourSetsWon;
+    final oppPoints =
+        singleSet ? detail.sets.first.opponentScore : detail.opponentSetsWon;
+
+    return _HorizontalMatchHero(
+      detail: detail,
+      statusAccent: accent,
+      statusIcon: detail.isParticipantView && detail.isWin
+          ? Icons.emoji_events_rounded
+          : null,
+      scoreCard: _GlassScoreCard(
+        setLabel: 'Placar final',
+        ourPoints: ourPoints,
+        oppPoints: oppPoints,
+        ourSetsWon: detail.ourSetsWon,
+        opponentSetsWon: detail.opponentSetsWon,
+        bestOf: _bestOfSlots(detail),
+        showSetDots: !singleSet && detail.sets.isNotEmpty,
       ),
     );
   }
@@ -81,103 +69,32 @@ class _LiveHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final setNum =
+        (detail.currentSetIndex ??
+            (detail.sets.isEmpty ? 0 : detail.sets.length - 1)) +
+        1;
+    final ourPoints = detail.currentSetOurPoints ?? 0;
+    final oppPoints = detail.currentSetOpponentPoints ?? 0;
+    final statusLine = [
+      detail.resultBadgeLabel,
+      if ((detail.statusSubtitle ?? '').trim().isNotEmpty)
+        detail.statusSubtitle!.trim(),
+    ].join(' | ');
 
-    return _HeroShell(
-      gradientColors: const [Color(0xFF1A0A0A), Color(0xFF0D0808)],
-      borderColor: AppColors.live.withValues(alpha: 0.35),
-      child: Column(
-        children: [
-          _StageLabel(label: detail.stageLabel),
-          SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _StatusRow(
-                label: detail.resultBadgeLabel,
-                accent: AppColors.live,
-                showDot: true,
-              ),
-              if (detail.statusSubtitle != null) ...[
-                SizedBox(width: 10),
-                Text(
-                  detail.statusSubtitle!,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: context.themeColors.onSurfaceMuted,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ],
-          ),
-          SizedBox(height: 20),
-          _VerticalTeamBlock(
-            side: detail.ourTeam,
-            highlight: detail.ourTeam.isCurrentUser,
-          ),
-          SizedBox(height: 12),
-          Text(
-            detail.matchScoreLabel,
-            style: theme.textTheme.displayMedium?.copyWith(
-              fontWeight: FontWeight.w900,
-              color: AppColors.brand,
-              letterSpacing: -1,
-            ),
-          ),
-          Text(
-            'SETS GANHOS',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: context.themeColors.onSurfaceMuted,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.8,
-              fontSize: 9,
-            ),
-          ),
-          SizedBox(height: 12),
-          _VerticalTeamBlock(side: detail.opponentTeam),
-          if (detail.sets.isNotEmpty) ...[
-            SizedBox(height: 20),
-            _SetChipsRow(
-              sets: detail.sets,
-              highlightWins: true,
-              liveMode: true,
-            ),
-          ],
-          if (detail.currentSetOurPoints != null &&
-              detail.currentSetOpponentPoints != null) ...[
-            SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: context.themeColors.surfaceCard.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: AppColors.live.withValues(alpha: 0.4),
-                ),
-              ),
-              child: Text(
-                _liveSetBanner(detail),
-                textAlign: TextAlign.center,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.live,
-                  letterSpacing: 0.3,
-                ),
-              ),
-            ),
-          ],
-        ],
+    return _HorizontalMatchHero(
+      detail: detail,
+      statusLabel: statusLine,
+      statusAccent: AppColors.live,
+      showLiveDot: true,
+      scoreCard: _GlassScoreCard(
+        setLabel: 'Set $setNum',
+        ourPoints: ourPoints,
+        oppPoints: oppPoints,
+        ourSetsWon: detail.ourSetsWon,
+        opponentSetsWon: detail.opponentSetsWon,
+        bestOf: _bestOfSlots(detail),
       ),
     );
-  }
-
-  String _liveSetBanner(AthleteMatchDetail detail) {
-    final idx = detail.currentSetIndex ?? (detail.sets.length - 1);
-    final setNum = idx + 1;
-    final our = detail.currentSetOurPoints!;
-    final opp = detail.currentSetOpponentPoints!;
-    return 'SET $setNum • $our-$opp • ATÉ 21';
   }
 }
 
@@ -188,147 +105,136 @@ class _ScheduledHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final isCanceled = detail.phase == MatchDetailPhase.canceled;
+    final accent = isCanceled ? AppColors.live : AppColors.pending;
 
-    return _HeroShell(
-      gradientColors: const [Color(0xFF12100A), Color(0xFF0B0B0C)],
-      borderColor: AppColors.brand.withValues(alpha: 0.35),
-      child: Column(
-        children: [
-          _StageLabel(label: detail.stageLabel),
-          SizedBox(height: 12),
-          _StatusRow(
-            label: detail.resultBadgeLabel,
-            accent: AppColors.pending,
-            showDot: true,
-          ),
-          SizedBox(height: 20),
-          _VerticalTeamBlock(
-            side: detail.ourTeam,
-            highlight: detail.ourTeam.isCurrentUser,
-          ),
-          SizedBox(height: 16),
-          Text(
-            'VS',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w900,
-              color: context.themeColors.onSurfaceMuted,
-            ),
-          ),
-          SizedBox(height: 16),
-          _VerticalTeamBlock(side: detail.opponentTeam),
-        ],
+    return _HorizontalMatchHero(
+      detail: detail,
+      statusAccent: accent,
+      showLiveDot: !isCanceled,
+      scoreCard: _GlassVsCard(
+        subtitle: isCanceled
+            ? 'Partida cancelada'
+            : (detail.scheduleSubtitle?.trim().isNotEmpty == true
+                  ? detail.scheduleSubtitle!.trim()
+                  : detail.dateTimeLabel),
       ),
     );
   }
 }
 
-class _HeroShell extends StatelessWidget {
-  const _HeroShell({
-    required this.gradientColors,
-    required this.borderColor,
-    required this.child,
+class _HorizontalMatchHero extends StatelessWidget {
+  const _HorizontalMatchHero({
+    required this.detail,
+    required this.statusAccent,
+    required this.scoreCard,
+    this.statusLabel,
+    this.statusIcon,
+    this.showLiveDot = false,
   });
 
-  final List<Color> gradientColors;
-  final Color borderColor;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: gradientColors,
-        ),
-        border: Border.all(color: borderColor),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
-      child: child,
-    );
-  }
-}
-
-class _StageLabel extends StatelessWidget {
-  const _StageLabel({required this.label});
-
-  final String label;
+  final AthleteMatchDetail detail;
+  final Color statusAccent;
+  final Widget scoreCard;
+  final String? statusLabel;
+  final IconData? statusIcon;
+  final bool showLiveDot;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    if (label.isEmpty) return const SizedBox.shrink();
+    final label = (statusLabel ?? detail.resultBadgeLabel).trim();
 
-    return Text(
-      label,
-      textAlign: TextAlign.center,
-      style: theme.textTheme.labelSmall?.copyWith(
-        fontWeight: FontWeight.w800,
-        color: AppColors.brand,
-        letterSpacing: 1.1,
-        fontSize: 10,
-      ),
-    );
-  }
-}
-
-class _StatusRow extends StatelessWidget {
-  const _StatusRow({
-    required this.label,
-    required this.accent,
-    this.icon,
-    this.showDot = false,
-  });
-
-  final String label;
-  final Color accent;
-  final IconData? icon;
-  final bool showDot;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        if (showDot) ...[
+        if (detail.stageLabel.trim().isNotEmpty)
           Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
-          ),
-          SizedBox(width: 8),
-        ],
-        if (icon != null) ...[
-          Icon(icon, size: 16, color: accent),
-          SizedBox(width: 6),
-        ],
-        Flexible(
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: accent,
-              letterSpacing: 0.3,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: AppColors.brand.withValues(alpha: 0.85),
+              ),
+            ),
+            child: Text(
+              detail.stageLabel.trim().toUpperCase(),
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: AppColors.brand,
+                letterSpacing: 0.8,
+                fontSize: 10,
+              ),
             ),
           ),
+        if (detail.stageLabel.trim().isNotEmpty) const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (showLiveDot) ...[
+              Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  color: statusAccent,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            if (statusIcon != null) ...[
+              Icon(statusIcon, size: 16, color: statusAccent),
+              const SizedBox(width: 6),
+            ],
+            Flexible(
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: statusAccent,
+                  letterSpacing: 0.2,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _HorizontalTeamBlock(
+                side: detail.ourTeam,
+                highlight: detail.isParticipantView ||
+                    detail.ourTeam.isCurrentUser,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 38),
+              child: Text(
+                'vs',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: context.themeColors.onSurfaceMuted,
+                ),
+              ),
+            ),
+            Expanded(child: _HorizontalTeamBlock(side: detail.opponentTeam)),
+          ],
+        ),
+        const SizedBox(height: 18),
+        scoreCard,
       ],
     );
   }
 }
 
-class _VerticalTeamBlock extends StatelessWidget {
-  const _VerticalTeamBlock({
-    required this.side,
-    this.highlight = false,
-  });
+class _HorizontalTeamBlock extends StatelessWidget {
+  const _HorizontalTeamBlock({required this.side, this.highlight = false});
 
   final MatchTeamSide side;
   final bool highlight;
@@ -336,149 +242,272 @@ class _VerticalTeamBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final roleColor = side.isCurrentUser || highlight
-        ? AppColors.brand
-        : context.themeColors.onSurfaceMuted;
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        MatchDetailTeamAvatarStack(players: side.players),
-        SizedBox(height: 10),
-        Text(
-          side.label,
-          textAlign: TextAlign.center,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: context.themeColors.onSurface,
-          ),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
+        MatchDetailTeamAvatarStack(
+          players: side.players,
+          size: 100,
+          stackWidth: 160,
+          stackHeight: 100,
         ),
-        if (side.roleLabel.isNotEmpty) ...[
-          SizedBox(height: 4),
+        const SizedBox(height: 8),
+        for (final player in side.players.take(2))
           Text(
-            side.roleLabel,
+            player.name?.trim().isNotEmpty == true
+                ? player.name!.trim()
+                : player.initials,
+            textAlign: TextAlign.center,
             style: theme.textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: roleColor,
-              letterSpacing: 0.4,
+              fontWeight: FontWeight.w600,
+              color: highlight
+                  ? AppColors.brand
+                  : context.themeColors.onSurface,
+              fontSize: 11,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-        ],
       ],
     );
   }
 }
 
-class _SetChipsRow extends StatelessWidget {
-  const _SetChipsRow({
-    required this.sets,
-    required this.highlightWins,
-    this.liveMode = false,
+
+int _bestOfSlots(AthleteMatchDetail detail) {
+  final needed = detail.ourSetsWon + detail.opponentSetsWon + 1;
+  if (needed <= 1) return 3;
+  if (needed <= 3) return 3;
+  if (needed <= 5) return 5;
+  return needed.clamp(3, 5);
+}
+
+class _GlassScoreCard extends StatelessWidget {
+  const _GlassScoreCard({
+    required this.setLabel,
+    required this.ourPoints,
+    required this.oppPoints,
+    required this.ourSetsWon,
+    required this.opponentSetsWon,
+    required this.bestOf,
+    this.showSetDots = true,
   });
 
-  final List<MatchSetScore> sets;
-  final bool highlightWins;
-  final bool liveMode;
+  final String setLabel;
+  final int ourPoints;
+  final int oppPoints;
+  final int ourSetsWon;
+  final int opponentSetsWon;
+  final int bestOf;
+  final bool showSetDots;
+
+  static const _radius = 16.0;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Row(
-      children: [
-        for (var i = 0; i < sets.length; i++) ...[
-          if (i > 0) SizedBox(width: 8),
-          Expanded(
-            child: _SetChip(
-              set: sets[i],
-              theme: theme,
-              highlightWins: highlightWins,
-              liveMode: liveMode,
-            ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(_radius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(_radius),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
           ),
-        ],
+          child: Column(
+            children: [
+              Text(
+                setLabel,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: context.themeColors.onSurface,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    '$ourPoints',
+                    style: theme.textTheme.displayMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.brand,
+                      height: 1,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: Text(
+                      ':',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: AppColors.brand.withValues(alpha: 0.7),
+                        fontWeight: FontWeight.w300,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '$oppPoints',
+                    style: theme.textTheme.displayMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: context.themeColors.onSurface,
+                      height: 1,
+                    ),
+                  ),
+                ],
+              ),
+              if (showSetDots) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _SetsWonDots(
+                        label: 'Sets ganhos',
+                        won: ourSetsWon,
+                        slots: bestOf,
+                        accent: AppColors.brand,
+                        alignEnd: false,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _SetsWonDots(
+                        label: 'Sets ganhos',
+                        won: opponentSetsWon,
+                        slots: bestOf,
+                        accent: context.themeColors.onSurfaceMuted,
+                        alignEnd: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassVsCard extends StatelessWidget {
+  const _GlassVsCard({required this.subtitle});
+
+  final String subtitle;
+
+  static const _radius = 16.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(_radius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(_radius),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: Column(
+            children: [
+              Text(
+                'VS',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: context.themeColors.onSurfaceMuted,
+                  letterSpacing: 2,
+                ),
+              ),
+              if (subtitle.trim().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  subtitle.trim(),
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: context.themeColors.onSurfaceMuted,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SetsWonDots extends StatelessWidget {
+  const _SetsWonDots({
+    required this.label,
+    required this.won,
+    required this.slots,
+    required this.accent,
+    required this.alignEnd,
+  });
+
+  final String label;
+  final int won;
+  final int slots;
+  final Color accent;
+  final bool alignEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cross = alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+
+    return Column(
+      crossAxisAlignment: cross,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: context.themeColors.onSurfaceMuted,
+            fontWeight: FontWeight.w600,
+            fontSize: 10,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: alignEnd
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
+          children: [
+            for (var i = 0; i < slots; i++) ...[
+              if (i > 0) const SizedBox(width: 6),
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: i < won ? accent : Colors.transparent,
+                  border: Border.all(
+                    color: i < won
+                        ? accent
+                        : context.themeColors.onSurfaceMuted.withValues(
+                            alpha: 0.45,
+                          ),
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ],
     );
   }
 }
 
-class _SetChip extends StatelessWidget {
-  const _SetChip({
-    required this.set,
-    required this.theme,
-    required this.highlightWins,
-    required this.liveMode,
-  });
 
-  final MatchSetScore set;
-  final ThemeData theme;
-  final bool highlightWins;
-  final bool liveMode;
-
-  @override
-  Widget build(BuildContext context) {
-    final isCurrent = liveMode && set.isCurrentSet;
-    final borderColor = isCurrent
-        ? AppColors.live.withValues(alpha: 0.6)
-        : (highlightWins && set.isWin
-            ? AppColors.win.withValues(alpha: 0.5)
-            : context.themeColors.surfaceRaised);
-    final labelColor = isCurrent
-        ? AppColors.live
-        : (highlightWins && set.isWin
-            ? AppColors.win
-            : context.themeColors.onSurfaceMuted);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
-      decoration: BoxDecoration(
-        color: context.themeColors.surfaceCard.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: borderColor),
-      ),
-      child: Column(
-        children: [
-          Text(
-            set.label.toUpperCase(),
-            style: theme.textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: labelColor,
-              fontSize: 9,
-              letterSpacing: 0.3,
-            ),
-          ),
-          SizedBox(height: 4),
-          RichText(
-            textAlign: TextAlign.center,
-            text: TextSpan(
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w900,
-                color: context.themeColors.onSurface,
-              ),
-              children: [
-                TextSpan(
-                  text: '${set.ourScore}',
-                  style: TextStyle(
-                    color: highlightWins && set.isWin
-                        ? AppColors.win
-                        : context.themeColors.onSurface,
-                  ),
-                ),
-                const TextSpan(text: ' - '),
-                TextSpan(
-                  text: '${set.opponentScore}',
-                  style: TextStyle(
-                    color: highlightWins && !set.isWin && set.opponentScore > set.ourScore
-                        ? AppColors.win
-                        : context.themeColors.onSurface,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

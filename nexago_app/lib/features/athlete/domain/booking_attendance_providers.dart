@@ -43,7 +43,8 @@ final bookingAttendanceProvider =
       if (!doc.exists) return null;
       final data = doc.data() ?? <String, dynamic>{};
       final rawStatus =
-          ((data['attendanceStatus'] as String?)?.trim().toLowerCase() ?? 'pending');
+          ((data['attendanceStatus'] as String?)?.trim().toLowerCase() ??
+              'pending');
       final confirmed = data['attendanceConfirmed'] == true;
       final deadline = (data['confirmationDeadline'] as Timestamp?)?.toDate();
       final now = DateTime.now();
@@ -98,7 +99,8 @@ final bookingAttendanceProvider =
         windowOpen: isWindowOpen,
         confirmedPlayers: participants,
         checkInAllowed: checkInAllowed,
-        attendanceConfirmedAt: (data['attendanceConfirmedAt'] as Timestamp?)?.toDate(),
+        attendanceConfirmedAt:
+            (data['attendanceConfirmedAt'] as Timestamp?)?.toDate(),
         confirmationDeadline: deadline,
         checkedInAt: checkedInAt,
         locationVerified: data['locationVerified'] == true,

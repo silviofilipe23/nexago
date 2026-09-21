@@ -1,171 +1,153 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../../core/theme/app_motion.dart';
 import '../../../../../core/theme/app_typography.dart';
-import '../../../../athlete/domain/athlete_profile_providers.dart';
 import '../../../../athlete/domain/athlete_public_profile_models.dart';
 import '../../../domain/team_discover_models.dart';
 import 'team_discover_dual_avatars.dart';
-import 'team_follow_button.dart';
 
-class TeamDiscoverCard extends ConsumerWidget {
+/// Linha da listagem de duplas — mesma anatomia do `AthleteDiscoverCard`:
+/// sem card, nome em cima e linhas mono embaixo. O único elemento exclusivo da
+/// dupla é o `#rank`; seguir mora no perfil dela, não aqui.
+class TeamDiscoverCard extends StatefulWidget {
   const TeamDiscoverCard({super.key, required this.entry});
 
   final TeamDiscoverEntry entry;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final viewer = ref.watch(athleteProfileProvider).valueOrNull;
-    final distance = entry.proximityDistanceLabel(viewer);
+  State<TeamDiscoverCard> createState() => _TeamDiscoverCardState();
+}
 
-    return Material(
-      color: context.themeColors.surfaceCard,
-      borderRadius: BorderRadius.circular(16),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
+class _TeamDiscoverCardState extends State<TeamDiscoverCard> {
+  var _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entry = widget.entry;
+    final rank = entry.rankPosition;
+
+    // Sem nome próprio, `displayName` já é derivado dos dois atletas — repetir
+    // os nomes embaixo seria eco.
+    final hasOwnName = (entry.team.teamName ?? '').trim().isNotEmpty;
+    final members = hasOwnName ? entry.membersLabel.toUpperCase() : '';
+
+    // Só cidade · UF: o esporte tem linha própria, porque junto aqui a linha
+    // truncava em quase toda dupla num aparelho de 390pt.
+    final detail = entry.locationLabel.toUpperCase();
+    final hasContextLine = entry.isLookingForPartner || detail.isNotEmpty;
+
+    final sport = entry.primarySportLabel.trim();
+    final sportLabel = sport == '—' ? '' : sport.toUpperCase();
+
+    return AnimatedScale(
+      scale: _pressed ? 0.97 : 1,
+      duration: AppMotion.fast,
+      curve: AppMotion.curve,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => _setPressed(true),
+        onTapUp: (_) => _setPressed(false),
+        onTapCancel: () => _setPressed(false),
         onTap: () => context.pushNamed(
           AppRouteNames.teamProfile,
           pathParameters: {'teamId': entry.teamId},
         ),
-        borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TeamDiscoverDualAvatars(entry: entry),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                entry.displayName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTypography.soraRegular(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  color: context.themeColors.onSurface,
-                                ),
-                              ),
-                            ),
-                            if (entry.displayCategory.isNotEmpty) ...[
-                              SizedBox(width: 6),
-                              _CategoryBadge(label: entry.displayCategory),
-                            ],
-                          ],
+              TeamDiscoverDualAvatars(
+                entry: entry,
+                size: TeamDiscoverDualAvatars.listAvatarSize,
+                overlapFactor: TeamDiscoverDualAvatars.listOverlap,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      entry.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.soraRegular(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: context.themeColors.onSurface,
+                      ),
+                    ),
+                    if (members.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        members,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.mono(
+                          fontSize: 9,
+                          color: context.themeColors.onSurfaceMuted,
+                          height: 1.2,
+                          letterSpacing: 0,
                         ),
-                        if (entry.membersLabel.isNotEmpty) ...[
-                          SizedBox(height: 2),
-                          Text(
-                            entry.membersLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTypography.mono(
-                              fontSize: 11,
-                              color: context.themeColors.onSurfaceMuted,
+                      ),
+                    ],
+                    if (hasContextLine) ...[
+                      const SizedBox(height: 2),
+                      _ContextLine(
+                        lookingForPartner: entry.isLookingForPartner,
+                        detail: detail,
+                      ),
+                    ],
+                    // Força da equipe: o nível vem colado no esporte a que ele
+                    // se refere — solto numa linha compartilhada, não dizia de
+                    // que esporte era aquele nível.
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        if (sportLabel.isNotEmpty) ...[
+                          Flexible(
+                            child: Text(
+                              sportLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.mono(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                                color: context.themeColors.onSurfaceMuted,
+                                height: 1.2,
+                                letterSpacing: 0,
+                              ),
                             ),
                           ),
+                          const SizedBox(width: 7),
                         ],
-                        SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                entry.primarySportLabel,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTypography.soraRegular(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: context.themeColors.onSurface,
-                                  height: 1.25,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            _LevelDots(segments: entry.levelSegments),
-                          ],
-                        ),
+                        _LevelDots(segments: entry.levelSegments),
                       ],
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  _RankColumn(entry: entry),
-                ],
-              ),
-              if (distance != null) ...[
-                SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Icon(
-                      Icons.location_on_outlined,
-                      size: 14,
-                      color: context.themeColors.onSurfaceMuted.withValues(
-                        alpha: 0.8,
-                      ),
-                    ),
-                    SizedBox(width: 2),
-                    Text(
-                      distance,
-                      style: AppTypography.mono(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: context.themeColors.onSurfaceMuted,
-                      ),
                     ),
                   ],
                 ),
-              ],
-              if (entry.isLookingForPartner) ...[
-                SizedBox(height: 10),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.brand.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: AppColors.brand.withValues(alpha: 0.35),
-                      ),
-                    ),
-                    child: Text(
-                      'PROCURA DUPLA',
-                      style: AppTypography.mono(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.brand,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
+              ),
+              if (rank != null) ...[
+                const SizedBox(width: 10),
+                Text(
+                  '#$rank',
+                  style: AppTypography.soraRegular(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: context.themeColors.onSurface,
+                    height: 1,
                   ),
                 ),
               ],
-              SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Spacer(flex: 2),
-                  SizedBox(width: 8),
-                  Expanded(flex: 3, child: TeamFollowButton(entry: entry)),
-                ],
-              ),
             ],
           ),
         ),
@@ -174,72 +156,43 @@ class TeamDiscoverCard extends ConsumerWidget {
   }
 }
 
-class _CategoryBadge extends StatelessWidget {
-  const _CategoryBadge({required this.label});
+/// `PROCURA DUPLA · GOIÂNIA · GO` numa linha só: a etiqueta em brand ocupa o
+/// lugar do `contextTag` do card de atleta.
+class _ContextLine extends StatelessWidget {
+  const _ContextLine({required this.lookingForPartner, required this.detail});
 
-  final String label;
+  final bool lookingForPartner;
+  final String detail;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: AppColors.brand.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppColors.brand.withValues(alpha: 0.25)),
-      ),
-      child: Text(
-        label,
-        style: AppTypography.mono(
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          color: AppColors.brand,
-        ),
-      ),
+    final base = AppTypography.mono(
+      fontSize: 9,
+      fontWeight: FontWeight.w600,
+      color: context.themeColors.onSurfaceMuted,
+      height: 1.2,
+      letterSpacing: 0,
     );
-  }
-}
 
-class _RankColumn extends StatelessWidget {
-  const _RankColumn({required this.entry});
-
-  final TeamDiscoverEntry entry;
-
-  @override
-  Widget build(BuildContext context) {
-    final rank = entry.rankPosition;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(
-          'RANK',
-          style: AppTypography.mono(
-            fontSize: 9,
-            fontWeight: FontWeight.w700,
-            color: context.themeColors.onSurfaceMuted,
-            letterSpacing: 0.6,
-          ),
-        ),
-        SizedBox(height: 2),
-        Text(
-          rank != null ? '#$rank' : '—',
-          style: AppTypography.soraRegular(
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: context.themeColors.onSurface,
-            height: 1,
-          ),
-        ),
-        SizedBox(height: 2),
-        Text(
-          '${entry.formattedRankPoints} pts',
-          style: AppTypography.mono(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: context.themeColors.onSurfaceMuted,
-          ),
-        ),
-      ],
+    return Text.rich(
+      TextSpan(
+        children: [
+          if (lookingForPartner)
+            TextSpan(
+              text: 'PROCURA DUPLA',
+              style: base.copyWith(
+                color: AppColors.brand,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          if (lookingForPartner && detail.isNotEmpty)
+            const TextSpan(text: ' · '),
+          if (detail.isNotEmpty) TextSpan(text: detail),
+        ],
+      ),
+      style: base,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }
@@ -255,10 +208,10 @@ class _LevelDots extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         for (var i = 0; i < athleteLevelSegmentCount; i++) ...[
-          if (i > 0) SizedBox(width: 5),
+          if (i > 0) const SizedBox(width: 4),
           Container(
-            width: 7,
-            height: 7,
+            width: 5,
+            height: 5,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: i < segments

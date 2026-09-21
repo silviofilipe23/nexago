@@ -150,9 +150,8 @@ AthleteMatchDetail _buildDetail({
   final setsWon = _setsWonForPerspective(
     match,
     perspectiveTeamId,
-    excludeSetIndex: phase == MatchDetailPhase.live
-        ? match.currentSetIndex
-        : null,
+    excludeSetIndex:
+        phase == MatchDetailPhase.live ? match.currentSetIndex : null,
   );
   final rawSets = setsForMatch(match);
   final displaySets = playedSetsForMatch(match);
@@ -345,13 +344,11 @@ String? _scheduleSubtitle(TournamentMatch match, DateTime? scheduleTime) {
   if (scheduleTime == null) return null;
   final local = toNexagoEventLocal(scheduleTime);
   final now = toNexagoEventLocal(DateTime.now());
-  final sameDay =
-      local.year == now.year &&
+  final sameDay = local.year == now.year &&
       local.month == now.month &&
       local.day == now.day;
-  final dayPart = sameDay
-      ? 'hoje'
-      : DateFormat('EEE', 'pt_BR').format(local).toLowerCase();
+  final dayPart =
+      sameDay ? 'hoje' : DateFormat('EEE', 'pt_BR').format(local).toLowerCase();
   final time = DateFormat('HH:mm', 'pt_BR').format(local);
   final court = _venueLabel(match, '');
   final parts = [dayPart, time];
@@ -464,9 +461,10 @@ MatchTeamSide _teamSide({
   final team = teams[teamId];
   final players = <MatchTeamPlayer>[];
   if (team != null) {
+    // `memberIds` já deduplica (ex.: looking-for-partner com player1 == player2).
     final playerIds = isCurrentUser
         ? _orderedPlayerIds(team: team, athleteUid: athleteUid)
-        : [team.player1Id, team.player2Id];
+        : team.memberIds;
     for (final playerId in playerIds) {
       if (playerId.isEmpty) continue;
       final profile = profiles[playerId];
@@ -507,11 +505,12 @@ List<String> _orderedPlayerIds({
   required TournamentTeam team,
   required String athleteUid,
 }) {
+  final ids = team.memberIds;
   final uid = athleteUid.trim();
-  if (uid.isNotEmpty && team.player2Id == uid) {
-    return [team.player2Id, team.player1Id];
-  }
-  return [team.player1Id, team.player2Id];
+  if (uid.isEmpty || ids.length < 2) return ids;
+  final index = ids.indexOf(uid);
+  if (index <= 0) return ids;
+  return [ids[index], ...ids.where((id) => id != uid)];
 }
 
 String _pairLabel(
@@ -520,7 +519,7 @@ String _pairLabel(
   Map<String, String> displayNameOverrides = const {},
 }) {
   final names = <String>[];
-  for (final playerId in [team.player1Id, team.player2Id]) {
+  for (final playerId in team.memberIds) {
     if (playerId.isEmpty) continue;
     final name = resolveAppUserDisplayName(
       profiles[playerId],

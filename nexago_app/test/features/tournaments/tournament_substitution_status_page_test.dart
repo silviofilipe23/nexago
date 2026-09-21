@@ -20,6 +20,7 @@ import 'package:nexago_app/features/tournaments/domain/substitution_journey_logi
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite_providers.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_registration_providers.dart';
 import 'package:nexago_app/features/tournaments/presentation/tournament_substitution_status_page.dart';
 
 void main() {
@@ -465,6 +466,51 @@ void main() {
     });
   });
 
+  group('sem loop de rebuild (regressão)', () {
+    // A tela montava a lista de uids do elenco DENTRO do `build` e a passava
+    // como argumento da family `registrationRosterProfilesProvider`. A family
+    // guarda um provider por argumento comparando com `==`, e `List` compara
+    // por identidade: cada frame criava um provider novo, que nascia
+    // carregando, resolvia, reconstruía a tela, que montava outra lista... —
+    // rebuild sem fim, com uma leitura de perfis por volta. No teste isso
+    // aparecia como `pumpAndSettle timed out`; no aparelho, como bateria e
+    // leituras do Firestore queimando enquanto o atleta ficasse na tela.
+    testWidgets('a tela assenta e o provider de perfis é criado uma vez só',
+        (tester) async {
+      final espiao = _ContagemDeProvidersDeElenco();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          observers: [espiao],
+          overrides: [
+            tournamentPartnerInviteProvider(
+              inviteId,
+            ).overrideWith((ref) => Stream.value(convite())),
+            myTournamentRegistrationsProvider.overrideWith(
+              (ref) => Stream.value([inscricao()]),
+            ),
+            tournamentPartnerInviteServiceProvider.overrideWithValue(
+              _FakeInviteService(),
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark,
+            home: const TournamentSubstitutionStatusPage(
+              tournamentId: tournamentId,
+              inviteId: inviteId,
+            ),
+          ),
+        ),
+      );
+
+      // Com o loop de pé, isto estourava o timeout do `pumpAndSettle`.
+      await tester.pumpAndSettle();
+
+      expect(find.text('O QUE FALTA'), findsOneWidget);
+      expect(espiao.criados, 1);
+    });
+  });
+
   group('convite não encontrado', () {
     testWidgets('mostra estado vazio com Voltar', (tester) async {
       await abrirStatus(tester, invite: null);
@@ -480,6 +526,24 @@ void main() {
 /// provider. Também captura as chamadas de lembrete (`resendSubstitutionInvite`)
 /// e cancelamento (`cancelInvite`), reproduzindo o erro do backend quando
 /// configurado. `noSuchMethod` denuncia qualquer chamada não coberta.
+/// Conta quantas instâncias da family `registrationRosterProfilesProvider`
+/// nasceram: uma só por elenco. Mais de uma denuncia a chave voltando a ser
+/// comparada por identidade (o loop de rebuild acima).
+class _ContagemDeProvidersDeElenco extends ProviderObserver {
+  int criados = 0;
+
+  @override
+  void didAddProvider(
+    ProviderBase<Object?> provider,
+    Object? value,
+    ProviderContainer container,
+  ) {
+    if (identical(provider.from, registrationRosterProfilesProvider)) {
+      criados++;
+    }
+  }
+}
+
 class _FakeInviteService implements TournamentPartnerInviteService {
   _FakeInviteService({this.resendError, this.cancelError});
 

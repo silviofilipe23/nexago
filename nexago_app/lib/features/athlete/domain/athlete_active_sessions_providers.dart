@@ -49,16 +49,14 @@ class AthleteActiveSessionsState {
     if (isLoading) return 'Carregando...';
     final n = deviceCount;
     if (n == 0) return 'Nenhum dispositivo';
-    final suffix = tokens.any((t) => t.isCurrent)
-        ? ' · $currentDeviceLabel'
-        : '';
+    final suffix =
+        tokens.any((t) => t.isCurrent) ? ' · $currentDeviceLabel' : '';
     return '$n dispositivo${n == 1 ? '' : 's'}$suffix';
   }
 }
 
-final athleteActiveSessionsProvider =
-    AutoDisposeAsyncNotifierProvider<AthleteActiveSessionsNotifier,
-        AthleteActiveSessionsState>(
+final athleteActiveSessionsProvider = AutoDisposeAsyncNotifierProvider<
+    AthleteActiveSessionsNotifier, AthleteActiveSessionsState>(
   AthleteActiveSessionsNotifier.new,
 );
 
@@ -82,7 +80,8 @@ class AthleteActiveSessionsNotifier
       final id = (data['id'] as String?) ?? '';
       final platform = (data['platform'] as String?)?.trim() ?? 'unknown';
       final updated = data['updatedAt'];
-      final DateTime? updatedAt = updated is Timestamp ? updated.toDate() : null;
+      final DateTime? updatedAt =
+          updated is Timestamp ? updated.toDate() : null;
       return AthleteDeviceToken(
         id: id,
         platform: platform,

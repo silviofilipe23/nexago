@@ -34,6 +34,63 @@ export function registrationCancellationBlockReason(
   return null;
 }
 
+export type TeamDeletionBlockReason =
+  | "noTeam"
+  | "otherRegistrations"
+  | "registrationPaid"
+  | "teamPaidBefore"
+  | "teamHasMatches";
+
+/**
+ * Pode apagar o doc de equipe junto com esta inscrição? `null` = pode.
+ *
+ * `shouldDeleteTeamOnCancellation` sozinho responde só "outra inscrição aponta
+ * pra ela?". A trava de pagamento vivia no CHAMADOR: `releaseRegistration` só
+ * é alcançável quando não há pagamento nenhum (`registrationCancellationBlockReason`
+ * barra antes), então lá o predicado bastava. Nos dois caminhos do organizador
+ * a invariante não existe — `organizerRemoveFromCategory` aceita inscrição paga
+ * (calcula reembolso) e o pedido de cancelamento ao organizador SÓ existe para
+ * inscrição paga. Esta função traz a trava para dentro, onde não dá para
+ * esquecer dela.
+ *
+ * Equipe que pagou é história: tem partida, ponto no ranking, seguidor e perfil
+ * público. Some o doc, some tudo isso — e as partidas ficam apontando pro nada.
+ */
+export function teamDeletionBlockReason(params: {
+  teamId: string;
+  /** Ids de TODAS as inscrições que referenciam a equipe. */
+  referencingRegistrationIds: string[];
+  cancellingRegistrationId: string;
+  /** A inscrição sendo cancelada. */
+  registration: Record<string, unknown>;
+  /** O doc da equipe, quando existe. */
+  team: Record<string, unknown> | null;
+  /** A equipe aparece em alguma partida (chave já publicada). */
+  teamHasMatches: boolean;
+}): TeamDeletionBlockReason | null {
+  if (!params.teamId.trim()) return "noTeam";
+  if (
+    !shouldDeleteTeamOnCancellation(
+      params.teamId,
+      params.referencingRegistrationIds,
+      params.cancellingRegistrationId,
+    )
+  ) {
+    return "otherRegistrations";
+  }
+  // Qualquer dinheiro nesta inscrição — inclusive a parcela de um atleta só —
+  // já faz a equipe ter existido.
+  if (registrationCancellationBlockReason(params.registration) != null) {
+    return "registrationPaid";
+  }
+  // Inscrição ANTERIOR paga: o doc dela pode nem existir mais, mas o carimbo
+  // fica na equipe para sempre.
+  if (params.team?.registrationPaid === true) return "teamPaidBefore";
+  // Chave publicada com equipe não paga: apagar deixa a partida órfã.
+  if (params.teamHasMatches) return "teamHasMatches";
+  return null;
+}
+
 /** A equipe só morre junto se nenhuma OUTRA inscrição a referencia. */
 export function shouldDeleteTeamOnCancellation(
   teamId: string,

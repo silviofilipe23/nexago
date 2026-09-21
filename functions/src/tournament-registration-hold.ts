@@ -53,17 +53,33 @@ export function resolveRegistrationHoldMinutes(
 }
 
 /**
+ * Carência de quem volta a dever depois de já ter constado pago — hoje só a
+ * reversão da baixa do organizador. Os 30 minutos do prazo normal contam a
+ * partir de um ato do próprio atleta (reservar a vaga, fechar o elenco), com o
+ * relógio à vista na tela. A reversão não: ela chega de fora, e o atleta que
+ * via "Pago" precisa de tempo para descobrir, entender e pagar de novo.
+ */
+export const REGISTRATION_HOLD_REVERT_GRACE_MINUTES = 48 * 60;
+
+/**
  * Instante em que a vaga cai: o convite vivo mais longe, quando há, mais os
  * minutos de garantia. Sem convite vivo, conta de agora.
+ *
+ * `graceMinutes` é PISO, não substituição: ele só levanta um prazo curto
+ * demais, e nunca encurta o que o convite vivo empurrou para mais longe.
  */
 export function computeRegistrationHoldExpiryMs(params: {
   nowMs: number;
   holdMinutes: number;
   liveInviteExpiresAtMs?: number | null;
+  graceMinutes?: number | null;
 }): number {
   const invite = params.liveInviteExpiresAtMs ?? 0;
   const base = Math.max(params.nowMs, invite);
-  return base + params.holdMinutes * 60 * 1000;
+  const expiry = base + params.holdMinutes * 60 * 1000;
+  const grace = params.graceMinutes ?? 0;
+  if (grace <= 0) return expiry;
+  return Math.max(expiry, params.nowMs + grace * 60 * 1000);
 }
 
 /** Por que a cobrança não pode nascer. */

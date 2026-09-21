@@ -126,7 +126,11 @@ class _TournamentRegistrationPaymentPageState
   ) {
     final profiles =
         ref
-            .watch(registrationRosterProfilesProvider(snap.participantUids))
+            .watch(
+              registrationRosterProfilesProvider(
+                rosterProfilesKey(snap.participantUids),
+              ),
+            )
             .valueOrNull ??
         const <String, AppUserProfile>{};
     return buildTeamRoster(

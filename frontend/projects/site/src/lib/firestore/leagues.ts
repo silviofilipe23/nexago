@@ -26,6 +26,7 @@ function mapLeague(id: string, d: DocumentData): LeagueSummary {
     seasonLabel: d['seasonLabel'] ?? null,
     description: d['description'] ?? null,
     coverUrl: d['coverUrl'] ?? d['imageUrl'] ?? null,
+    sport: d['sport'] ?? null,
     stages,
   };
 }

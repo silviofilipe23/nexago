@@ -202,8 +202,9 @@ final arenaReviewsStreamProvider = StreamProvider.autoDispose
       final bMs = b.createdAt?.millisecondsSinceEpoch ?? 0;
       return bMs.compareTo(aMs);
     });
-    final capped =
-        items.length > 50 ? items.sublist(0, 50) : List<ArenaReview>.from(items);
+    final capped = items.length > 50
+        ? items.sublist(0, 50)
+        : List<ArenaReview>.from(items);
 
     final userIds = capped
         .map((e) => e.userId.trim())
@@ -239,8 +240,8 @@ final arenaReviewsStreamProvider = StreamProvider.autoDispose
   });
 });
 
-final arenaReviewsProvider =
-    StreamProvider.autoDispose.family<List<ArenaReview>, String>((ref, arenaId) {
+final arenaReviewsProvider = StreamProvider.autoDispose
+    .family<List<ArenaReview>, String>((ref, arenaId) {
   return ref.watch(arenaReviewsStreamProvider(arenaId).stream);
 });
 
@@ -294,8 +295,7 @@ final recentArenaReviewerProvider =
       .snapshots()
       .asyncMap((snap) async {
     if (snap.docs.isEmpty) return null;
-    final docs = [...snap.docs]
-      ..sort((a, b) {
+    final docs = [...snap.docs]..sort((a, b) {
         final aTs = a.data()['createdAt'];
         final bTs = b.data()['createdAt'];
         final aMs = aTs is Timestamp ? aTs.millisecondsSinceEpoch : 0;
@@ -305,7 +305,8 @@ final recentArenaReviewerProvider =
     final data = docs.first.data();
     final userId = (data['userId'] as String?)?.trim() ?? '';
     if (userId.isEmpty) return null;
-    final userDoc = await firestore.collection('public_profiles').doc(userId).get();
+    final userDoc =
+        await firestore.collection('public_profiles').doc(userId).get();
     final name = (userDoc.data()?['name'] as String?)?.trim();
     if (name == null || name.isEmpty) return null;
     return 'Avaliado recentemente por $name';

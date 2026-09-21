@@ -26,26 +26,34 @@ import { OgToggleRowComponent } from '../ui/toggle-row.component';
 import { NxProcessingOverlayComponent } from '../../shared/loading/nx-processing-overlay.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 
-type BracketFormat = 'groups_knockout' | 'single_elimination' | 'double_elimination';
+type BracketFormat = 'groups_knockout' | 'single_elimination' | 'double_elimination' | 'king_of_court';
 
 const FORMAT_LABEL: Record<BracketFormat, string> = {
   groups_knockout: 'Grupos + mata-mata',
   single_elimination: 'Eliminatória simples',
   double_elimination: 'Dupla eliminatória',
+  king_of_court: 'King of the Court',
 };
+
+/** Piso do King of the Court: com 2 duplas não há fila nem trono. */
+const KOC_MIN_TEAMS = 3;
 
 /**
  * Tamanhos suportados pelas plantas estáticas de dupla eliminação
- * (`functions/src/bracket-definitions`). O conjunto TEM buraco — 4 a 27 e 32,
- * sem 28 a 31 — então uma faixa min-a-max liberaria aqui contagens que a CF
- * `generateCategoryBracket` recusa (`de_unsupported_team_count`).
+ * (`functions/src/bracket-definitions`). É CÓPIA: a fonte da verdade é
+ * `SUPPORTED_DE_TEAM_COUNTS` lá, e esta lista existe só para o painel não
+ * chamar a CF sabendo que ela vai recusar (`de_unsupported_team_count`).
+ * Contígua de 4 a 32 desde 15/09/2026, quando 28 a 31 entraram por derivação
+ * da de 32 — antes disso havia buraco. Se um tamanho sair do conjunto de novo,
+ * é aqui que o painel precisa acompanhar, senão ele libera na tela o que a CF
+ * recusa na publicação.
  */
 const DE_TEAM_COUNTS: readonly number[] = [
   4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-  25, 26, 27, 32,
+  25, 26, 27, 28, 29, 30, 31, 32,
 ];
 
-/** "4 a 27 ou 32" — faixas contíguas agrupadas, para a mensagem não mentir. */
+/** Faixas contíguas agrupadas, para a mensagem não mentir: hoje "4 a 32". */
 function describeTeamCounts(counts: readonly number[]): string {
   const ranges: string[] = [];
   for (let i = 0; i < counts.length; ) {
@@ -174,9 +182,33 @@ function shuffled<T>(items: readonly T[]): T[] {
             @if (eligible().length < minTeams) {
               <p class="og-seeds-empty">É necessário ao menos {{ minTeams }} duplas pagas (e completas) pra gerar a chave.</p>
             }
-            <div style="display:flex;flex-direction:column;gap:8px">
+            <div
+              class="og-seed-list"
+              [class.reorderable]="useSeeds()"
+              (dragover)="onListDragOver($event)"
+            >
               @for (t of eligible(); track t.teamId; let i = $index; let last = $last) {
-                <div class="og-seed-row" [class.top]="useSeeds() && i < headCount()">
+                <div
+                  class="og-seed-row"
+                  [class.top]="useSeeds() && i < headCount()"
+                  [class.dragging]="dragFrom() === i"
+                  [class.drag-over]="dragOver() === i && dragFrom() !== i"
+                  (dragover)="onRowDragOver(i, $event)"
+                  (dragleave)="onRowDragLeave(i, $event)"
+                  (drop)="onDrop(i, $event)"
+                >
+                  @if (useSeeds()) {
+                    <span
+                      class="og-seed-handle"
+                      draggable="true"
+                      title="Arrastar para reordenar"
+                      aria-label="Arrastar para reordenar"
+                      (dragstart)="onDragStart(i, $event)"
+                      (dragend)="onDragEnd()"
+                    >
+                      <og-icon name="grip" [size]="14" />
+                    </span>
+                  }
                   <span class="og-seed-pos" [class.top]="useSeeds() && i < headCount()">{{ i + 1 }}</span>
                   <span class="og-seed-avatars">
                     @for (p of athletesOf(t); track $index; let ai = $index; let n = $count) {
@@ -267,6 +299,11 @@ function shuffled<T>(items: readonly T[]): T[] {
       position: relative;
     }
 
+    .og-seed-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
     .og-seed-row {
       display: flex;
       align-items: center;
@@ -275,9 +312,35 @@ function shuffled<T>(items: readonly T[]): T[] {
       border-radius: var(--nx-r-3);
       background: var(--nx-surface-0);
       border: 1px solid var(--nx-line);
+      transition: border-color 120ms ease, opacity 120ms ease, box-shadow 120ms ease;
     }
     .og-seed-row.top {
       border-color: rgba(255, 106, 26, 0.3);
+    }
+    .og-seed-row.dragging {
+      opacity: 0.45;
+    }
+    .og-seed-row.drag-over {
+      border-color: var(--nx-orange-500);
+      box-shadow: inset 0 0 0 1px rgba(255, 106, 26, 0.35);
+    }
+    .og-seed-handle {
+      flex: none;
+      display: grid;
+      place-items: center;
+      width: 22px;
+      height: 28px;
+      margin: 0 -4px 0 -2px;
+      color: var(--nx-text-mute);
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+    .og-seed-handle:active {
+      cursor: grabbing;
+    }
+    .og-seed-handle:hover {
+      color: var(--nx-text);
     }
     .og-seed-pos {
       width: 28px;
@@ -435,7 +498,7 @@ export class SeedsComponent {
   private readonly ctx = inject(ChaveamentoContextService);
 
   protected readonly truncate = truncateName;
-  protected readonly formats: BracketFormat[] = ['groups_knockout', 'single_elimination', 'double_elimination'];
+  protected readonly formats: BracketFormat[] = ['groups_knockout', 'single_elimination', 'double_elimination', 'king_of_court'];
   protected readonly formatLabel = FORMAT_LABEL;
   protected readonly deCounts = describeTeamCounts(DE_TEAM_COUNTS);
   protected readonly minTeams = MIN_TEAMS_FOR_BRACKET;
@@ -452,6 +515,10 @@ export class SeedsComponent {
   protected readonly qualifiersPerGroup = signal(2);
   protected readonly groups = signal<GroupPreview[]>([]);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
+  /** Índice da dupla sendo arrastada na lista de seeds — null fora do drag. */
+  protected readonly dragFrom = signal<number | null>(null);
+  /** Índice sob o cursor durante o drag — feedback visual de onde a linha cai. */
+  protected readonly dragOver = signal<number | null>(null);
   /** Rating técnico por uid — vazio nos esportes sem engine de rating. */
   private readonly ratings = signal<Map<string, AthleteRatingLite>>(new Map());
 
@@ -478,7 +545,7 @@ export class SeedsComponent {
   protected readonly sortByLevelHint = computed(() => {
     if (!this.useSeeds()) return 'Ligue "Respeitar ordem de seeds" para ordenar pela pontuação de nível.';
     if (!this.canSortByLevel()) return 'Nenhuma dupla tem nível informado.';
-    return 'Ordena da maior para a menor pontuação de nível — você ainda pode ajustar com as setas.';
+    return 'Ordena da maior para a menor pontuação de nível — você ainda pode ajustar arrastando ou com as setas.';
   });
 
   protected readonly category = computed<OrganizerTournamentCategory | null>(
@@ -513,6 +580,9 @@ export class SeedsComponent {
 
   protected readonly canPublish = computed(() => {
     if (this.eligible().length < MIN_TEAMS_FOR_BRACKET) return false;
+    // KOTC tem piso próprio e não usa grupos nem plantas de dupla eliminação:
+    // sai antes das duas checagens abaixo.
+    if (this.format() === 'king_of_court') return this.eligible().length >= KOC_MIN_TEAMS;
     if (this.format() === 'double_elimination') return this.deCountOk();
     if (this.format() === 'groups_knockout') return this.knockoutBalanced() && this.groups().length > 0;
     return true;
@@ -545,7 +615,12 @@ export class SeedsComponent {
       );
       const cat = tournament?.categories.find((c) => c.id === cid) ?? null;
       const savedFormat = cat?.bracketFormat;
-      if (savedFormat === 'single_elimination' || savedFormat === 'double_elimination' || savedFormat === 'groups_knockout') {
+      if (
+        savedFormat === 'single_elimination' ||
+        savedFormat === 'double_elimination' ||
+        savedFormat === 'groups_knockout' ||
+        savedFormat === 'king_of_court'
+      ) {
         this.format.set(savedFormat);
       }
       if (cat) {
@@ -615,7 +690,7 @@ export class SeedsComponent {
 
   /** Sugestão de semeadura pela força declarada: maior pontuação primeiro, rating como
    *  desempate, duplas sem nível no fim. Só reordena a lista — o organizador ainda ajusta
-   *  com as setas antes de publicar. */
+   *  arrastando ou com as setas antes de publicar. */
   protected sortByLevel(): void {
     if (!this.canSortByLevel()) return;
     const scores = this.scores();
@@ -637,6 +712,65 @@ export class SeedsComponent {
       return next;
     });
     this.redraw();
+  }
+
+  /** Reordena a lista de seeds pelo handle (HTML5 DnD). Só ativo com "Respeitar ordem
+   *  de seeds" — sem seeds a ordem da tela não importa (o publish embaralha). */
+  protected onDragStart(index: number, event: DragEvent): void {
+    if (!this.useSeeds()) {
+      event.preventDefault();
+      return;
+    }
+    this.dragFrom.set(index);
+    this.dragOver.set(index);
+    event.dataTransfer?.setData('text/plain', String(index));
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+    const row = (event.currentTarget as HTMLElement | null)?.closest('.og-seed-row');
+    if (row instanceof HTMLElement && event.dataTransfer) {
+      event.dataTransfer.setDragImage(row, 24, row.offsetHeight / 2);
+    }
+  }
+
+  protected onListDragOver(event: DragEvent): void {
+    if (this.dragFrom() == null) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  }
+
+  protected onRowDragOver(index: number, event: DragEvent): void {
+    if (this.dragFrom() == null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    if (this.dragOver() !== index) this.dragOver.set(index);
+  }
+
+  protected onRowDragLeave(index: number, event: DragEvent): void {
+    const related = event.relatedTarget;
+    if (related instanceof Node && (event.currentTarget as Node).contains(related)) return;
+    if (this.dragOver() === index) this.dragOver.set(null);
+  }
+
+  protected onDrop(targetIndex: number, event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const from = this.dragFrom();
+    this.dragFrom.set(null);
+    this.dragOver.set(null);
+    if (from == null || from === targetIndex || !this.useSeeds()) return;
+    this.eligible.update((list) => {
+      if (from < 0 || from >= list.length || targetIndex < 0 || targetIndex >= list.length) return list;
+      const next = [...list];
+      const [item] = next.splice(from, 1);
+      next.splice(targetIndex, 0, item!);
+      return next;
+    });
+    this.redraw();
+  }
+
+  protected onDragEnd(): void {
+    this.dragFrom.set(null);
+    this.dragOver.set(null);
   }
 
   /** Snake draft — espelha `distributeTeamsIntoGroups` (Flutter). */

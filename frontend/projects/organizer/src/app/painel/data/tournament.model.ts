@@ -7,6 +7,14 @@ import type { TournamentCollected } from './tournament-collected';
 
 export type OrganizerTournamentStatus = 'inscricoes' | 'andamento' | 'concluido' | 'cancelado';
 
+/** O papel de quem está logado num torneio, do ponto de vista deste portal.
+ *
+ *  `scorer` (mesário) não aparece aqui: sem a role `organizer` ele não loga no
+ *  portal. O papel `eventAdmin` ("administrador", criado em 16/09/2026) opera o
+ *  evento inteiro mas não alcança dinheiro — é essa distinção que o portal não
+ *  tinha e que o guard do Financeiro precisa. */
+export type TournamentRole = 'owner' | 'manager' | 'eventAdmin';
+
 export interface OrganizerTournamentCategory {
   id: string; // categoryId usado em inscriptions/matches
   name: string;
@@ -60,7 +68,7 @@ export interface OrganizerMatchOpsConfig {
   dayEnd: string; // "24:00" (exclusivo)
   defaultMatchDurationMin: number;
   minRestBetweenMatchesMin: number;
-  /** Opt-in por torneio (default `false`) — liga `functions/src/match-dynamic-reschedule.ts`:
+  /** Ligado por padrão (só `false` gravado desliga) — `functions/src/match-dynamic-reschedule.ts`:
    *  recalcula o horário das próximas partidas da quadra quando uma termina antes/depois ou
    *  vira W.O. Mesmo campo que o app organizador lê/grava (`TournamentMatchOpsConfig`). */
   dynamicRescheduleEnabled: boolean;
@@ -107,4 +115,15 @@ export interface OrganizerTournament {
   uniformRequired: boolean;
   uniformNumberOnShirt: boolean;
   uniformNameOnShirt: boolean;
+  /** Papel de quem está logado NESTE torneio — `'owner'` quando `managerId` é o
+   *  próprio uid, senão vem do espelho de staff. Só `listMyTournaments` sabe
+   *  calcular isso hoje (é quem recebe o uid). As outras fontes de
+   *  `OrganizerTournament` (`getTournament`, `listTournamentsByLeague`,
+   *  `watchTournament`, `listAllTournaments`) não recebem uid e gravam `null`
+   *  de propósito — `null` = papel desconhecido ou não aplicável (leitura
+   *  pública, telão, torneio alheio visto em suporte). `null` nunca alcança
+   *  dinheiro (`roleReachesMoney(null)` é sempre `false`), e o campo é
+   *  obrigatório: cada fonte precisa escrever `null` de propósito em vez de
+   *  deixá-lo de fora. */
+  myRole: TournamentRole | null;
 }

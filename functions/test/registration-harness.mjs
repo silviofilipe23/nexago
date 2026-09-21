@@ -41,6 +41,7 @@ const registrationPix = await import('../lib/tournament-registration-pix.js');
 const substitution = await import('../lib/tournament-substitution.js');
 const spotPass = await import('../lib/tournament-spot-pass-ops.js');
 const spotPassLink = await import('../lib/tournament-spot-pass-link.js');
+const organizerCreateRegistration = await import('../lib/organizer-create-registration.js');
 
 export const callables = {
   registerSolo: partnerInvite.registerSoloTournament,
@@ -63,6 +64,7 @@ export const callables = {
   sendSubstitution: substitution.sendTournamentSubstitutionInvite,
   markViewed: substitution.markSubstitutionInviteViewed,
   resendSubstitution: substitution.resendSubstitutionInvite,
+  organizerCreateRegistration: organizerCreateRegistration.organizerCreateTeamRegistration,
 };
 
 export const markStaleSubstitutionInvitesForCategory = substitution.markStaleSubstitutionInvitesForCategory;

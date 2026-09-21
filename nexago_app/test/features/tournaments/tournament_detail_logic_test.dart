@@ -3,7 +3,9 @@ import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_detail_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_detail_model.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_listing_status.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_match_status.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_logic.dart';
 
 void main() {
@@ -86,24 +88,23 @@ void main() {
   test('tournamentDetailStats uses live enrollment when resolved', () {
     final stats = tournamentDetailStats(
       sample,
-      enrollmentByCategoryId: const {
-        'Masc': 10,
-        'Misto': 5,
-      },
+      enrollmentByCategoryId: const {'Masc': 10, 'Misto': 5},
       enrollmentCountsResolved: true,
     );
     expect(stats.spotsEnrolled, 15);
   });
 
-  test('tournamentDetailStats does not fall back to enrolledCount when live is zero',
-      () {
-    final stats = tournamentDetailStats(
-      sample,
-      enrollmentByCategoryId: const {},
-      enrollmentCountsResolved: true,
-    );
-    expect(stats.spotsEnrolled, 0);
-  });
+  test(
+    'tournamentDetailStats does not fall back to enrolledCount when live is zero',
+    () {
+      final stats = tournamentDetailStats(
+        sample,
+        enrollmentByCategoryId: const {},
+        enrollmentCountsResolved: true,
+      );
+      expect(stats.spotsEnrolled, 0);
+    },
+  );
 
   test('tournamentDetailStats keeps legacy fallback while loading', () {
     final stats = tournamentDetailStats(
@@ -142,11 +143,135 @@ void main() {
     }
   });
 
-  test('bracketFormatLabel translates pool play', () {
-    expect(
-      bracketFormatLabel('Pool Play + SE'),
-      'Fase de Grupos + Mata-mata',
+  test('tournamentCategoryRowStatus vira AO VIVO com partida em andamento', () {
+    final row = tournamentCategoryRowStatus(
+      sample.categoryOffers[0],
+      hasLiveMatch: true,
     );
+    expect(row.label, 'AO VIVO');
+    expect(row.isLive, isTrue);
+    expect(row.isClosed, isFalse);
+    expect(row.color, AppColors.live);
+  });
+
+  test(
+    'tournamentCategoryRowStatus AO VIVO sobrescreve inscrição fechada',
+    () {
+      const closedPlaying = TournamentCategoryOffer(
+        id: 'c1',
+        name: 'Misto A',
+        entryFee: 90,
+        spotsLeft: 0,
+        spotsTotal: 16,
+        registrationClosed: true,
+      );
+      final row = tournamentCategoryRowStatus(
+        closedPlaying,
+        hasLiveMatch: true,
+      );
+      expect(row.label, 'AO VIVO');
+      expect(row.isLive, isTrue);
+    },
+  );
+
+  // Terminal/completed vêm antes de hasLiveMatch — selo esportivo não reabre
+  // categoria já encerrada (nem torneio finalizado).
+  test(
+    'tournamentCategoryRowStatus ENCERRADA ganha de hasLiveMatch',
+    () {
+      const completed = TournamentCategoryOffer(
+        id: 'done',
+        name: 'Masculino A',
+        entryFee: 90,
+        spotsLeft: 0,
+        spotsTotal: 16,
+        isCompleted: true,
+      );
+      final completedRow = tournamentCategoryRowStatus(
+        completed,
+        hasLiveMatch: true,
+      );
+      expect(completedRow.label, 'ENCERRADA');
+      expect(completedRow.isClosed, isTrue);
+      expect(completedRow.isLive, isFalse);
+
+      for (final status in [
+        TournamentListingStatus.completed,
+        TournamentListingStatus.ended,
+      ]) {
+        final terminalRow = tournamentCategoryRowStatus(
+          sample.categoryOffers[0],
+          tournamentStatus: status,
+          hasLiveMatch: true,
+        );
+        expect(terminalRow.label, 'ENCERRADA');
+        expect(terminalRow.isClosed, isTrue);
+        expect(terminalRow.isLive, isFalse);
+      }
+    },
+  );
+
+  TournamentMatch liveMatch({
+    required String id,
+    required String categoryId,
+    String status = TournamentMatchStatus.inProgress,
+  }) =>
+      TournamentMatch(
+        id: id,
+        tournamentId: 't1',
+        categoryId: categoryId,
+        round: 1,
+        matchType: 'bracket',
+        poolId: '',
+        teamAId: 'a',
+        teamBId: 'b',
+        status: status,
+        resultA: '',
+        resultB: '',
+        isGroupMatch: false,
+        matchNumber: 1,
+      );
+
+  test('categoryHasInProgressMatch aceita id ou nome legado', () {
+    final offer = sample.categoryOffers[0];
+    final byId = [liveMatch(id: 'm1', categoryId: offer.id)];
+    final byName = [liveMatch(id: 'm2', categoryId: offer.name)];
+    final scheduled = [
+      liveMatch(
+        id: 'm3',
+        categoryId: offer.id,
+        status: TournamentMatchStatus.scheduled,
+      ),
+    ];
+
+    expect(categoryHasInProgressMatch(byId, offer), isTrue);
+    expect(categoryHasInProgressMatch(byName, offer), isTrue);
+    expect(categoryHasInProgressMatch(scheduled, offer), isFalse);
+    expect(categoryHasInProgressMatch(byId, sample.categoryOffers[1]), isFalse);
+  });
+
+  test(
+    'categoryHasInProgressMatch ignora partida ao vivo de outra categoria',
+    () {
+      final masc = sample.categoryOffers[0];
+      final fem = sample.categoryOffers[1];
+      final matches = [
+        liveMatch(id: 'm-other', categoryId: fem.id),
+        liveMatch(
+          id: 'm-scheduled',
+          categoryId: masc.id,
+          status: TournamentMatchStatus.scheduled,
+        ),
+      ];
+
+      expect(categoryHasInProgressMatch(matches, masc), isFalse);
+      expect(categoryHasInProgressMatch(matches, fem), isTrue);
+      expect(categoryHasInProgressMatch(const [], masc), isFalse);
+    },
+  );
+
+  test('bracketFormatLabel translates pool play', () {
+    expect(bracketFormatLabel('Pool Play + SE'), 'Fase de Grupos + Mata-mata');
   });
 
   group('groups tab visibility', () {
@@ -205,9 +330,12 @@ void main() {
       expect(tournamentShouldShowGroupsTab(deOnly), isFalse);
     });
 
-    test('tournamentShouldShowGroupsTab shows when any category has groups', () {
-      expect(tournamentShouldShowGroupsTab(sample), isTrue);
-    });
+    test(
+      'tournamentShouldShowGroupsTab shows when any category has groups',
+      () {
+        expect(tournamentShouldShowGroupsTab(sample), isTrue);
+      },
+    );
 
     test('tournamentShouldShowBracketExploreCard hides without matches', () {
       expect(tournamentShouldShowBracketExploreCard(const []), isFalse);
@@ -242,25 +370,15 @@ void main() {
   });
 
   test('tournamentCategoryPrizesTotal sums offer prizes', () {
-    expect(
-      tournamentCategoryPrizesTotal(sample.categoryOffers[0]),
-      1500,
-    );
+    expect(tournamentCategoryPrizesTotal(sample.categoryOffers[0]), 1500);
   });
 
   test('tournamentCategoryPrizesTotalAll sums all offers prizes', () {
-    expect(
-      tournamentCategoryPrizesTotalAll(sample.categoryOffers),
-      4000,
-    );
+    expect(tournamentCategoryPrizesTotalAll(sample.categoryOffers), 4000);
   });
 
-  test('tournamentCategoryPrizesCategoriesCount counts offers with prizes',
-      () {
-    expect(
-      tournamentCategoryPrizesCategoriesCount(sample.categoryOffers),
-      2,
-    );
+  test('tournamentCategoryPrizesCategoriesCount counts offers with prizes', () {
+    expect(tournamentCategoryPrizesCategoriesCount(sample.categoryOffers), 2);
   });
 
   test('tournamentEventPrizesTotalValue sums tournament + categories', () {
@@ -274,10 +392,7 @@ void main() {
   });
 
   test('tournamentCategoryFirstPlaceTotalAll sums first place prizes', () {
-    expect(
-      tournamentCategoryFirstPlaceTotalAll(sample.categoryOffers),
-      3000,
-    );
+    expect(tournamentCategoryFirstPlaceTotalAll(sample.categoryOffers), 3000);
   });
 
   test('tournamentCategoryPrizeSubtitle joins gender and format', () {
@@ -363,6 +478,15 @@ void main() {
       spotsTotal: 16,
       waitlistEnabled: false,
     );
+    const fullStarted = TournamentCategoryOffer(
+      id: 's',
+      name: 'Started',
+      entryFee: 90,
+      spotsLeft: 0,
+      spotsTotal: 16,
+      waitlistEnabled: true,
+      bracketPublished: true,
+    );
     expect(
       tournamentCategoryCtaKind(open, TournamentListingStatus.open),
       TournamentCategoryCtaKind.register,
@@ -373,18 +497,24 @@ void main() {
     );
     expect(
       tournamentCategoryCtaKind(fullNoWaitlist, TournamentListingStatus.open),
-      TournamentCategoryCtaKind.disabled,
+      TournamentCategoryCtaKind.viewCategory,
     );
     expect(
-      tournamentCategoryCtaKind(
-        open,
-        TournamentListingStatus.bracketsReady,
-      ),
-      TournamentCategoryCtaKind.disabled,
+      tournamentCategoryCtaKind(fullStarted, TournamentListingStatus.open),
+      TournamentCategoryCtaKind.viewCategory,
+      reason: 'chave publicada = categoria iniciada — sem lista de espera',
+    );
+    expect(
+      tournamentCategoryCtaKind(open, TournamentListingStatus.bracketsReady),
+      TournamentCategoryCtaKind.viewCategory,
     );
     expect(
       tournamentCategoryCtaLabel(TournamentCategoryCtaKind.waitlist),
-      'Entrar na lista de espera →',
+      'Entrar na lista de espera',
+    );
+    expect(
+      tournamentCategoryCtaLabel(TournamentCategoryCtaKind.viewCategory),
+      'Ver categoria',
     );
   });
 
@@ -441,14 +571,8 @@ void main() {
   });
 
   test('bracketFormatLabel translates internal codes', () {
-    expect(
-      bracketFormatLabel('groups_knockout'),
-      'Fase de Grupos + Mata-mata',
-    );
-    expect(
-      bracketFormatLabel('single_elimination'),
-      'Eliminatória simples',
-    );
+    expect(bracketFormatLabel('groups_knockout'), 'Fase de Grupos + Mata-mata');
+    expect(bracketFormatLabel('single_elimination'), 'Eliminatória simples');
   });
 
   test('categoryHasGroupsPhase recognizes groups_knockout', () {
@@ -486,7 +610,8 @@ void main() {
   group('inscrições agendadas (registrationOpensAt futuro)', () {
     final opensAt = DateTime(2026, 9, 5, 10, 0);
 
-    test('CTA da categoria desabilita enquanto as inscrições não abrem', () {
+    test('CTA da categoria vira Ver categoria enquanto as inscrições não abrem',
+        () {
       final offer = sample.categoryOffers.first;
 
       expect(
@@ -495,7 +620,7 @@ void main() {
           TournamentListingStatus.open,
           registrationNotYetOpen: true,
         ),
-        TournamentCategoryCtaKind.disabled,
+        TournamentCategoryCtaKind.viewCategory,
       );
       expect(
         tournamentCategoryCtaKind(offer, TournamentListingStatus.open),
@@ -506,7 +631,7 @@ void main() {
     // O organizador pode inscrever uma dupla antes da abertura (o guard do
     // servidor tem bypass para ele). Uma inscrição paga já é do atleta: o CTA
     // precisa continuar levando à inscrição, não sumir atrás do EM BREVE.
-    test('inscrição paga ganha do EM BREVE; sem inscrição, desabilita', () {
+    test('inscrição paga ganha do EM BREVE; sem inscrição, Ver categoria', () {
       final offer = sample.categoryOffers.first;
 
       expect(
@@ -525,7 +650,7 @@ void main() {
           isRegistrationPaid: false,
           registrationNotYetOpen: true,
         ),
-        TournamentCategoryCtaKind.disabled,
+        TournamentCategoryCtaKind.viewCategory,
       );
     });
 
@@ -539,6 +664,51 @@ void main() {
       );
       expect(tournamentRegistrationOpensBanner(opensAt, now: opensAt), isNull);
       expect(tournamentRegistrationOpensBanner(null), isNull);
+    });
+  });
+
+  group('rótulo curto de formato (linha de meta do card)', () {
+    TournamentCategoryOffer withFormat(String format) =>
+        TournamentCategoryOffer(
+            id: 'c', name: 'C', entryFee: 0, bracketFormat: format);
+
+    test('fase de grupos vira só "Grupos"', () {
+      expect(tournamentCategoryShortFormatTag(withFormat('groups_knockout')),
+          'Grupos');
+      expect(tournamentCategoryShortFormatTag(withFormat('Pool Play + SE')),
+          'Grupos');
+    });
+
+    test('mata-mata simples vira "Eliminatórias"', () {
+      expect(
+        tournamentCategoryShortFormatTag(withFormat('single_elimination')),
+        'Eliminatórias',
+      );
+    });
+
+    test('dupla eliminatória mantém o nome completo', () {
+      expect(
+        tournamentCategoryShortFormatTag(withFormat('double_elimination')),
+        'Dupla eliminatória',
+      );
+      expect(
+        tournamentCategoryShortFormatTag(withFormat('Double Elimination')),
+        'Dupla eliminatória',
+      );
+    });
+
+    // `bracketFormatHasGroupsPhase` já trata round robin como fase de grupos
+    // (é o que acende a aba Grupos). O rótulo tem de concordar com o filtro:
+    // quem toca em "Grupos" recebe essa categoria na lista.
+    test('todos contra todos também é Grupos', () {
+      expect(
+        tournamentCategoryShortFormatTag(withFormat('round_robin')),
+        'Grupos',
+      );
+    });
+
+    test('formato ausente não inventa rótulo', () {
+      expect(tournamentCategoryShortFormatTag(withFormat('')), 'A confirmar');
     });
   });
 }

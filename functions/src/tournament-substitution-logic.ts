@@ -30,7 +30,9 @@ export const SUBSTITUTION_MEMBER_LEFT_MESSAGE = "Este atleta já saiu da equipe.
  * `categoryKeys` são as chaves equivalentes da categoria
  * (`resolveCategoryMatchKeys`): o organizador grava `categoryOps` pela chave
  * que o painel usa, e inscrições legadas podem usar o nome — checar todas.
- * `draft` NÃO trava: a chave em rascunho referencia `teamId`, que não muda.
+ * `draft` NÃO trava — e não porque o `teamId` seja estável: a troca BIFURCA o
+ * doc de equipe compartilhado e o id MUDA. Quem segura é a publicação; o porquê
+ * está em `categoryBracketPublished` (tournament-category-bracket-status.ts).
  */
 export function substitutionBlockReason(
   tournament: Record<string, unknown>,

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import type { KocRoundState } from '../data/koc';
 import { compactTeamLabel, type PillTone } from '../data/mock-data';
 import type { MatchDisplayStatus, TournamentMatch } from '../data/matches-repository';
 import { formatCourtLabel, spDayLabel, spTimeLabel } from '../data/schedule-format';
@@ -68,9 +69,16 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
                 </span>
                 <span class="og-jogos-match" [title]="j.info">
                   <span class="og-jogos-teams">
-                    <span class="og-jogos-team" [title]="j.match.team1Label">{{ compact(j.match.team1Label) }}</span>
-                    <span class="og-jogos-vs">vs</span>
-                    <span class="og-jogos-team" [title]="j.match.team2Label">{{ compact(j.match.team2Label) }}</span>
+                    @if (j.match.koc; as round) {
+                      <!-- Rodada King of the Court: não há confronto. Mostrar
+                           "A definir vs A definir" seria mentira — a rodada tem
+                           ELENCO, e o que identifica a linha é o tamanho dele. -->
+                      <span class="og-jogos-team">{{ kocRosterLabel(round) }}</span>
+                    } @else {
+                      <span class="og-jogos-team" [title]="j.match.team1Label">{{ compact(j.match.team1Label) }}</span>
+                      <span class="og-jogos-vs">vs</span>
+                      <span class="og-jogos-team" [title]="j.match.team2Label">{{ compact(j.match.team2Label) }}</span>
+                    }
                   </span>
                   <!-- Linha de apoio: a fase, e o que as colunas soltarem quando o card aperta,
                        pra o dado descer em vez de sumir da tela (padrão da lista de inscrições).
@@ -100,7 +108,22 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
                   }
                   <og-pill [tone]="jogoTone[j.status]">{{ jogoLabel[j.status] }}</og-pill>
                 </span>
-                @if (canOpenScore(j.match)) {
+                @if (j.match.koc; as round) {
+                  <!-- Rodada KOTC: a mesa é a de elenco/fila/tabela (a rota ao-vivo
+                       delega pelo formato). NÃO oferecer "lançar placar": a rodada não
+                       tem sets nem dois lados pra preencher. -->
+                  <span class="og-jogos-actions">
+                    @if (round.teamIds.length === 0) {
+                      <span class="og-ghost-btn" style="opacity:0.45;pointer-events:none" title="Elenco definido quando a fase anterior terminar">Aguardando</span>
+                    } @else if (j.status === 'completed') {
+                      <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'ao-vivo', j.match.id]" title="Tabela final da rodada">Ver tabela</a>
+                    } @else if (j.status === 'in_progress') {
+                      <a class="og-mini-btn og-mini-btn-primary" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'ao-vivo', j.match.id]">Mesa</a>
+                    } @else {
+                      <a class="og-mini-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'ao-vivo', j.match.id]">Abrir mesa</a>
+                    }
+                  </span>
+                } @else if (canOpenScore(j.match)) {
                   <span class="og-jogos-actions">
                     @if (j.status === 'in_progress') {
                       <a class="og-mini-btn og-mini-btn-primary" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'ao-vivo', j.match.id]">Ao vivo</a>
@@ -420,6 +443,18 @@ export class JogosComponent {
   protected readonly jogoLabel = JOGO_LABEL;
   protected readonly compact = compactTeamLabel;
 
+  /** "4 duplas" / "Elenco a definir" — o que identifica uma rodada KOTC na
+   *  lista, já que ela não tem confronto. Elenco vazio é o estado legítimo da
+   *  fase seguinte, montada só quando a anterior termina. */
+  protected kocRosterLabel(round: KocRoundState): string {
+    const size = round.teamIds.length;
+    if (size === 0) return 'Elenco a definir';
+    return size === 1 ? '1 dupla' : `${size} duplas`;
+  }
+
+  /** Só o caminho de DUELO passa por aqui — a rodada KOTC sai antes, no template.
+   *  Ela nunca teria os dois lados preenchidos, e por isso o botão da mesa
+   *  sumia: a linha caía direto no "Aguardando". */
   protected canOpenScore(m: TournamentMatch): boolean {
     return m.teamAId.length > 0 && m.teamBId.length > 0;
   }

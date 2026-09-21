@@ -6,6 +6,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../domain/tournament_discovery_providers.dart';
+import 'focus/widgets/focus_now_hero.dart';
 import 'widgets/bracket/double_elimination_bracket_view.dart';
 
 class DoubleEliminationBracketPage extends ConsumerWidget {
@@ -29,9 +30,10 @@ class DoubleEliminationBracketPage extends ConsumerWidget {
         categoryId;
 
     return Scaffold(
-      backgroundColor: context.themeColors.canvas,
+      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: false,
       appBar: NexaAppBar(
-        backgroundColor: context.themeColors.canvas,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
@@ -61,9 +63,15 @@ class DoubleEliminationBracketPage extends ConsumerWidget {
           ],
         ),
       ),
-      body: DoubleEliminationBracketView(
-        tournamentId: tournamentId,
-        categoryId: categoryId,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const FocusChaveScreenBackground(),
+          DoubleEliminationBracketView(
+            tournamentId: tournamentId,
+            categoryId: categoryId,
+          ),
+        ],
       ),
     );
   }

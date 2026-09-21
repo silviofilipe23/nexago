@@ -28,6 +28,7 @@ class DiscoveryLeague {
     this.organizationName,
     this.description,
     this.coverUrl,
+    this.sport = '',
     this.listingStatus,
     this.seasonStartAt,
     this.seasonEndAt,
@@ -47,6 +48,11 @@ class DiscoveryLeague {
   final String? description;
   final List<DiscoveryLeagueStage> stages;
   final String? coverUrl;
+
+  /// Esporte da liga (`leagues/{id}.sport`, mesmo vocabulário do torneio —
+  /// `league_create_mapper.dart` grava o nome do `TournamentSport`). Escolhe a
+  /// capa padrão quando `coverUrl` falta.
+  final String sport;
   final String? listingStatus;
   final DateTime? seasonStartAt;
   final DateTime? seasonEndAt;
@@ -97,10 +103,11 @@ class DiscoveryTournament {
     this.leagueId,
     this.leagueStageId,
     this.imageUrl,
+    String? sport,
     this.categoryOffers = const [],
     this.createdAt,
     this.registrationOpensAt,
-  });
+  }) : _sport = sport;
 
   final String id;
   final String name;
@@ -124,6 +131,14 @@ class DiscoveryTournament {
 
   /// Capa do torneio (`coverUrl`, `imageUrl`, etc. no Firestore).
   final String? imageUrl;
+
+  /// Esporte do torneio (`tournaments/{id}.sport`, nome do enum
+  /// `TournamentSport`). Escolhe a capa padrão quando `imageUrl` falta.
+  ///
+  /// Getter (não `final String`) de propósito: hot reload após adicionar o
+  /// campo deixava instâncias em memória com slot nulo e derrubava a home.
+  final String? _sport;
+  String get sport => _sport ?? '';
 
   /// Categorias para inscrição (espelha Firestore `categories[]`).
   final List<TournamentCategoryOffer> categoryOffers;

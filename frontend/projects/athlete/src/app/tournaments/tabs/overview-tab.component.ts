@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { tournamentCoverOrDefault } from '@nexago/tournament-covers';
 import { fetchAllLeagues } from '../../data/leagues-repository';
 import {
   categoryAcceptsRegistration,
@@ -112,10 +113,12 @@ export class OverviewTabComponent {
 
   protected readonly heroBackground = computed(() => heroGradient(this.tournament()?.id ?? ''));
 
-  /** Capa do organizador; o gradiente segue por baixo enquanto carrega e vira fallback se falhar. */
+  /** Capa do organizador, senão a arte do esporte; o gradiente segue por baixo
+   *  enquanto carrega e vira fallback se falhar. */
   protected readonly heroCover = computed(() => {
-    const url = this.tournament()?.coverUrl;
-    return url && !this.coverFailed() ? url : null;
+    const t = this.tournament();
+    if (!t || this.coverFailed()) return null;
+    return tournamentCoverOrDefault(t.coverUrl, t.sport);
   });
 
   constructor() {
@@ -134,7 +137,7 @@ export class OverviewTabComponent {
           name: l.name,
           seasonLabel: l.seasonLabel ?? undefined,
           city: l.city ?? undefined,
-          coverUrl: l.coverUrl,
+          coverUrl: tournamentCoverOrDefault(l.coverUrl, l.sport),
           stages: l.stages.map((s) => ({ id: s.id, name: s.name, order: s.order, dateLabel: s.dateLabel ?? undefined, tournamentIds: s.tournamentIds })),
         })),
       );

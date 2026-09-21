@@ -9,7 +9,7 @@
 export type RegistrationTabPaymentState = 'paid' | 'share-paid' | 'pending' | 'waitlist';
 
 export interface RegistrationTabHeroCopy {
-  /** "Dupla completa. Vocês estão dentro." */
+  /** "Inscrição completa. Vocês estão dentro." */
   title: string;
   /** Parágrafo sob o título. */
   body: string;
@@ -60,16 +60,14 @@ export function registrationTabHeroTitle(params: {
 }
 
 /**
- * Corpo do hero. Em pagamento confirmado conta a história do parceiro + cotas;
+ * Corpo do hero. Em pagamento confirmado conta o total quitado;
  * nos outros estados usa o hint operacional.
  */
 export function registrationTabHeroBody(params: {
   paymentState: RegistrationTabPaymentState;
   teamLabel: 'Dupla' | 'Equipe';
   rosterComplete: boolean;
-  partnerFirstName: string | null;
   entryFee: number | null;
-  teamSize: number;
   paymentHint: string;
 }): RegistrationTabHeroCopy {
   const title = registrationTabHeroTitle({
@@ -79,17 +77,10 @@ export function registrationTabHeroBody(params: {
   });
 
   if (params.paymentState === 'paid' && params.rosterComplete && params.entryFee != null && params.entryFee > 0) {
-    const size = Math.max(2, params.teamSize);
-    const share = params.entryFee / size;
-    const shareLabel = formatBRL(share);
     const totalLabel = formatBRL(params.entryFee);
-    const partner = params.partnerFirstName?.trim() || 'Seu parceiro';
-    const split = Array.from({ length: size }, () => shareLabel).join(' + ');
     const unit = params.teamLabel.toLowerCase();
-    const shareWord = size > 2 ? 'a própria cota' : 'sua metade';
-    const body =
-      `A inscrição de ${totalLabel} está quitada e a ${unit} entra no sorteio da chave.`;
-    return { title, body, highlights: [split, totalLabel] };
+    const body = `A inscrição de ${totalLabel} está quitada e a ${unit} entra no sorteio da chave.`;
+    return { title, body, highlights: [totalLabel] };
   }
 
   if (params.paymentState === 'paid' && params.rosterComplete) {

@@ -645,8 +645,6 @@ class _ProfileIdentityRow extends StatelessWidget {
               _SportTag(label: sport),
               SizedBox(width: 8),
               _MutedTag(label: levelLabel),
-              SizedBox(width: 8),
-              const _OnlineTag(),
             ],
           ),
         ),
@@ -710,47 +708,6 @@ class _MutedTag extends StatelessWidget {
           letterSpacing: 0.6,
           fontFamily: 'monospace',
         ),
-      ),
-    );
-  }
-}
-
-class _OnlineTag extends StatelessWidget {
-  const _OnlineTag();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: context.themeColors.surfaceCard,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.28),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: AppColors.win,
-              shape: BoxShape.circle,
-            ),
-          ),
-          SizedBox(width: 6),
-          Text(
-            'ONLINE',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: AppColors.win,
-              letterSpacing: 0.6,
-              fontFamily: 'monospace',
-            ),
-          ),
-        ],
       ),
     );
   }

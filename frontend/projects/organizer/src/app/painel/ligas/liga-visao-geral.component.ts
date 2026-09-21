@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { tournamentCoverOrDefault } from '@nexago/tournament-covers';
 import {
   LEAGUE_COUNTING_MODE_LABEL,
   LEAGUE_STATUS_LABEL,
@@ -54,8 +55,8 @@ const LONG_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sho
     <div class="og-content">
       @if (league(); as l) {
         <div class="og-liga-hero">
-          @if (l.coverUrl && !coverFailed()) {
-            <img [src]="l.coverUrl" alt="" (error)="coverFailed.set(true)" />
+          @if (cover() && !coverFailed()) {
+            <img [src]="cover()" alt="" (error)="coverFailed.set(true)" />
           } @else {
             <span class="og-liga-hero-fallback"><og-icon name="flag" [size]="34" [strokeWidth]="1.5" /></span>
           }
@@ -290,6 +291,12 @@ export class LigaVisaoGeralComponent {
   protected readonly league = this.store.league;
   protected readonly base = computed(() => this.store.leagueBase() ?? '/painel/eventos');
   protected readonly coverFailed = signal(false);
+
+  /** Capa enviada, senão a arte do esporte; `null` = liga sem hero de imagem. */
+  protected readonly cover = computed(() => {
+    const l = this.league();
+    return l ? tournamentCoverOrDefault(l.coverUrl, l.sport) : null;
+  });
 
   protected readonly pending = signal<PendingAction | null>(null);
   protected readonly acting = signal(false);

@@ -7,10 +7,10 @@ import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../../athlete/domain/athlete_display_name.dart';
-import '../../../../athlete/domain/athlete_profile.dart';
 import '../../../../athlete/domain/athlete_public_profile_models.dart';
 import '../../../../athlete/domain/athlete_public_profile_providers.dart';
 import '../../../../athlete/presentation/widgets/athlete_profile_avatar.dart';
+import '../../../domain/team_profile/team_public_profile_logic.dart';
 import '../../../domain/team_profile/team_public_profile_models.dart';
 
 class TeamProfileAthletesSection extends ConsumerWidget {
@@ -20,17 +20,11 @@ class TeamProfileAthletesSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final players = <_PlayerSlot>[
-      if (profile.player1 != null)
-        _PlayerSlot(profile: profile.player1!, isCaptain: true),
-      if (profile.player2 != null) _PlayerSlot(profile: profile.player2!),
-    ];
+    final members = profile.members;
+    if (members.isEmpty) return const SizedBox.shrink();
 
-    if (players.isEmpty) return const SizedBox.shrink();
-
-    final gender = athleteGenderShortLabel(
-      profile.player1?.gender ?? profile.player2?.gender,
-    );
+    final gender = teamProfileGenderLabel(profile.loadedProfiles);
+    final showCaptainBadge = profile.isLargeRoster;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
@@ -50,7 +44,7 @@ class TeamProfileAthletesSection extends ConsumerWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                '${players.length}${gender.isNotEmpty ? ' · $gender' : ''}',
+                '${members.length}${gender.isNotEmpty ? ' · $gender' : ''}',
                 style: AppTypography.mono(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
@@ -60,9 +54,12 @@ class TeamProfileAthletesSection extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 12),
-          for (var i = 0; i < players.length; i++) ...[
+          for (var i = 0; i < members.length; i++) ...[
             if (i > 0) const SizedBox(height: 8),
-            _AthleteCard(slot: players[i]),
+            _AthleteCard(
+              member: members[i],
+              showCaptainBadge: showCaptainBadge,
+            ),
           ],
         ],
       ),
@@ -70,28 +67,22 @@ class TeamProfileAthletesSection extends ConsumerWidget {
   }
 }
 
-class _PlayerSlot {
-  const _PlayerSlot({required this.profile, this.isCaptain = false});
-
-  final AthleteProfile profile;
-  final bool isCaptain;
-}
-
 class _AthleteCard extends ConsumerWidget {
-  const _AthleteCard({required this.slot});
+  const _AthleteCard({required this.member, required this.showCaptainBadge});
 
-  final _PlayerSlot slot;
+  final TeamMemberEntry member;
+  final bool showCaptainBadge;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profile = slot.profile;
-    final rankingAsync = ref.watch(athletePublicRankingProvider(profile.id));
+    final profile = member.profile;
+    final rankingAsync = ref.watch(athletePublicRankingProvider(member.uid));
     final rankLabel = rankingAsync.maybeWhen(
       data: (snapshot) => snapshot.hasRank ? '#${snapshot.rank}' : '—',
       orElse: () => '—',
     );
-    final name = athleteDisplayName(profile);
-    final ageLabel = athleteAgeCategoryLabel(profile.birthDate);
+    final name = profile != null ? athleteDisplayName(profile) : 'Atleta';
+    final ageLabel = athleteAgeCategoryLabel(profile?.birthDate);
 
     return Material(
       color: context.themeColors.surfaceCard,
@@ -99,7 +90,7 @@ class _AthleteCard extends ConsumerWidget {
       child: InkWell(
         onTap: () => context.pushNamed(
           AppRouteNames.athleteProfile,
-          queryParameters: {'userId': profile.id},
+          queryParameters: {'userId': member.uid},
         ),
         borderRadius: BorderRadius.circular(14),
         child: Container(
@@ -112,23 +103,33 @@ class _AthleteCard extends ConsumerWidget {
             children: [
               AthleteProfileAvatar(
                 size: 48,
-                initials: athleteInitials(profile),
-                imageUrl: profile.avatarUrl,
+                initials: profile != null ? athleteInitials(profile) : '?',
+                imageUrl: profile?.avatarUrl,
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.soraRegular(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: context.themeColors.onSurface,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.soraRegular(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: context.themeColors.onSurface,
+                            ),
+                          ),
+                        ),
+                        if (showCaptainBadge && member.isCaptain) ...[
+                          const SizedBox(width: 6),
+                          const _CaptainBadge(),
+                        ],
+                      ],
                     ),
                     if (ageLabel.isNotEmpty) ...[
                       const SizedBox(height: 2),
@@ -160,7 +161,7 @@ class _AthleteCard extends ConsumerWidget {
                     style: AppTypography.soraRegular(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
-                      color: slot.isCaptain
+                      color: member.isCaptain
                           ? AppColors.brand
                           : context.themeColors.onSurface,
                     ),
@@ -169,6 +170,31 @@ class _AthleteCard extends ConsumerWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CaptainBadge extends StatelessWidget {
+  const _CaptainBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.brand.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.brand.withValues(alpha: 0.35)),
+      ),
+      child: Text(
+        'CAPITÃO',
+        style: AppTypography.mono(
+          fontSize: 8,
+          fontWeight: FontWeight.w700,
+          color: AppColors.brand,
+          letterSpacing: 0.4,
         ),
       ),
     );

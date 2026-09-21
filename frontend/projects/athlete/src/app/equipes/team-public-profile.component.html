@@ -26,8 +26,24 @@
           <div class="tp-card tp-identity-card">
             <div class="tp-identity-head">
               <span class="tp-avatar-pair">
-                <span class="tp-avatar">{{ teamInitials(t.teamName)[0] }}</span>
-                <span class="tp-avatar tp-avatar--second">{{ teamInitials(t.teamName)[1] }}</span>
+                @for (m of t.members; track m.handle ?? m.fullName; let i = $index) {
+                  @if (m.avatarUrl) {
+                    <button
+                      type="button"
+                      class="tp-avatar tp-avatar--zoom"
+                      [class.tp-avatar--second]="i === 1"
+                      [attr.aria-label]="'Ampliar foto de ' + m.fullName"
+                      (click)="openMemberPhoto(i)"
+                    >
+                      <span class="tp-avatar-fallback" aria-hidden="true">{{ m.fullName.charAt(0) }}</span>
+                      <img class="tp-avatar-img" [src]="m.avatarUrl" alt="" loading="lazy" />
+                    </button>
+                  } @else {
+                    <span class="tp-avatar" [class.tp-avatar--second]="i === 1" aria-hidden="true">
+                      <span class="tp-avatar-fallback">{{ m.fullName.charAt(0) }}</span>
+                    </span>
+                  }
+                }
               </span>
               <h2 class="tp-name">{{ t.teamName }}</h2>
               <p class="tp-meta">Dupla fixa{{ t.city ? ' · ' + t.city : '' }}</p>
@@ -53,9 +69,14 @@
             <span class="tp-card-kicker">Os dois atletas da dupla</span>
             <h2 class="tp-card-title">Elenco</h2>
             <div class="tp-member-list">
-              @for (m of t.members; track m.fullName) {
+              @for (m of t.members; track m.handle ?? m.fullName) {
                 <div class="tp-member-row">
-                  <span class="tp-member-avatar">{{ m.fullName.charAt(0) }}</span>
+                  <span class="tp-member-avatar" aria-hidden="true">
+                    <span class="tp-member-avatar-fallback">{{ m.fullName.charAt(0) }}</span>
+                    @if (m.avatarUrl; as photo) {
+                      <img class="tp-member-avatar-img" [src]="photo" alt="" loading="lazy" />
+                    }
+                  </span>
                   <div class="tp-member-info">
                     <p class="tp-member-name">{{ m.fullName }}</p>
                   </div>
@@ -121,5 +142,14 @@
       <p class="tp-empty-sub">Esta equipe pode não existir mais ou o link está incorreto.</p>
       <a [routerLink]="origin().path" class="tp-btn-ghost">Voltar a {{ origin().label }}</a>
     </div>
+  }
+
+  @if (viewerIndex(); as start) {
+    <app-nx-photo-lightbox
+      [photos]="memberPhotos()"
+      [startIndex]="start.value"
+      [alt]="memberPhotoAlt()"
+      (closed)="closeViewer()"
+    />
   }
 </app-at-panel-shell>

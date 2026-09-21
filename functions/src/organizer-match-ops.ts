@@ -14,12 +14,15 @@ import {
 } from "./event-timezone";
 import {
   MatchStatus,
+  isDuelMatch,
+  isKingOfCourtMatch,
   isMatchCanceled,
   isMatchCompleted,
   isMatchInProgress,
   isWinnerInMatch,
 } from "./match-status";
 import {syncTournamentLiveMatchesNow} from "./tournament-live-matches";
+import {shouldAdvanceKocPhase, tryAdvanceKocPhase} from "./koc-phase-advance";
 import {tryAwardLeagueStagePointsForMatch} from "./league-ranking";
 import {applyBracketAdvances, canFillBracketSlot} from "./category-bracket-advance";
 import {
@@ -39,12 +42,15 @@ import {
   isTerminalListingStatus,
   type CompletionMatch,
 } from "./tournament-completion";
-import {artifactsMatchesPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
+import {artifactsMatchesPath, getFirebaseProjectId} from "./firebase-paths";
 import {
   allocateCourtSlots,
+  matchDurationMin,
+  matchTeamIds,
   loadTournamentMatches,
 } from "./match-schedule-allocation";
 import {handleDynamicRescheduleOnMatchUpdate} from "./match-dynamic-reschedule";
+import {loadTeamMemberUids} from "./tournament-team-roster";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 export {compareByMatchNumber} from "./match-schedule-allocation";
@@ -80,6 +86,9 @@ interface RestConflict {
   matchId?: string;
 }
 
+/** Janela assumida quando a partida não tem `scheduleEndTime` gravado. */
+const FALLBACK_SLOT_MIN = 50;
+
 function detectRestConflict(
   target: FirebaseFirestore.DocumentData,
   scheduleStart: Date,
@@ -89,9 +98,10 @@ function detectRestConflict(
   excludeMatchId: string,
 ): RestConflict[] {
   const conflicts: RestConflict[] = [];
-  const teamIds = new Set(
-    [target.teamAId, target.teamBId].filter((id) => typeof id === "string" && id),
-  );
+  // Elenco, não os dois lados: a rodada KOTC os grava vazios, e sem isto ela
+  // nunca acusaria descanso insuficiente — nem para ela, nem para o duelo que
+  // caísse em cima dela.
+  const teamIds = new Set(matchTeamIds(target));
 
   for (const doc of allMatches) {
     if (doc.id === excludeMatchId) continue;
@@ -101,10 +111,12 @@ function detectRestConflict(
     const otherStart = (other.scheduleTime as Timestamp).toDate();
     const otherEnd = other.scheduleEndTime ?
       (other.scheduleEndTime as Timestamp).toDate() :
-      new Date(otherStart.getTime() + 50 * 60 * 1000);
+      new Date(
+        otherStart.getTime() +
+          matchDurationMin(other, FALLBACK_SLOT_MIN) * 60 * 1000,
+      );
 
-    const sharesTeam =
-      teamIds.has(other.teamAId) || teamIds.has(other.teamBId);
+    const sharesTeam = matchTeamIds(other).some((id) => teamIds.has(id));
     if (!sharesTeam) continue;
 
     const gapBefore =
@@ -146,7 +158,9 @@ function detectCourtOverlap(
     const start = (m.scheduleTime as Timestamp).toDate();
     const end = m.scheduleEndTime ?
       (m.scheduleEndTime as Timestamp).toDate() :
-      new Date(start.getTime() + 50 * 60 * 1000);
+      new Date(
+        start.getTime() + matchDurationMin(m, FALLBACK_SLOT_MIN) * 60 * 1000,
+      );
 
     if (scheduleStart < end && scheduleEnd > start) {
       return {
@@ -157,6 +171,24 @@ function detectCourtOverlap(
     }
   }
   return null;
+}
+
+/**
+ * Recusa operação de DUELO numa rodada King of the Court.
+ *
+ * Só vale para as callables que escrevem semântica de dois lados (placar, W.O.,
+ * avanço de chave, ranking). As de agenda — `scheduleMatch`, `callMatchToCourt`,
+ * `releaseMatchAfterCheckIn`, `revertMatchToScheduled` — ficam de fora de
+ * propósito: a rodada KOTC ocupa quadra e horário como qualquer outra e PRECISA
+ * delas.
+ */
+function assertDuelMatch(data: Record<string, unknown>): void {
+  if (isDuelMatch(data.matchType)) return;
+  throw new HttpsError(
+    "failed-precondition",
+    "Rodada King of the Court não tem placar de duelo — use a mesa do KOTC.",
+    {reason: "not_a_duel_match"},
+  );
 }
 
 async function getMatchOrThrow(
@@ -387,7 +419,7 @@ export const scheduleMatch = onCall({
   const matchId = (request.data?.matchId as string)?.trim();
   const courtId = (request.data?.courtId as string)?.trim();
   const scheduleTime = parseIsoDate(request.data?.scheduleTime);
-  const scheduleEndTime = parseIsoDate(request.data?.scheduleEndTime);
+  const requestedEndTime = parseIsoDate(request.data?.scheduleEndTime);
   const dayKey =
     (request.data?.dayKey as string)?.trim() || dayKeyFromEventDate(scheduleTime);
 
@@ -404,6 +436,20 @@ export const scheduleMatch = onCall({
   const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
   const matchOps = tournamentSnap.data()?.matchOps as Record<string, unknown> | undefined;
   const minRest = (matchOps?.minRestBetweenMatchesMin as number) ?? 45;
+
+  // A rodada KOTC tem duração PRÓPRIA (`kocConfig.durationSec`, que varia por
+  // fase). Os três clientes — portal, app e grade de arrastar — mandam o padrão
+  // do torneio, então a janela vinha errada por todos os caminhos. Impor aqui
+  // blinda os três de uma vez, e o duelo segue com o que o cliente pediu.
+  const requestedMin = Math.max(
+    1,
+    Math.round((requestedEndTime.getTime() - scheduleTime.getTime()) / 60000),
+  );
+  const scheduleEndTime = isKingOfCourtMatch(data.matchType) ?
+    new Date(
+      scheduleTime.getTime() + matchDurationMin(data, requestedMin) * 60 * 1000,
+    ) :
+    requestedEndTime;
 
   const allMatches = await loadTournamentMatches(db, projectId, tournamentId);
   const overlap = detectCourtOverlap(
@@ -525,6 +571,43 @@ export function callToCourtFields(
   return {patch: null, label: "quadra"};
 }
 
+/**
+ * Push "sua partida está prestes a começar" para os atletas das duas equipes.
+ * Best-effort: falha de entrega não derruba a chamada para a quadra.
+ */
+export async function notifyMatchCalledToCourt(
+  db: Firestore,
+  projectId: string,
+  params: {
+    matchId: string;
+    tournamentId: string;
+    teamIds: ReadonlyArray<unknown>;
+    courtId: string;
+    courtLabel: string;
+  },
+): Promise<void> {
+  const {matchId, tournamentId, courtId, courtLabel} = params;
+  try {
+    const teamIds = params.teamIds.filter(Boolean) as string[];
+    for (const teamId of teamIds) {
+      // Elenco COMPLETO (trio/quarteto/quinteto incluídos), não só player1/2 —
+      // mesma fonte usada por `notifyScheduleShifts`.
+      const players = await loadTeamMemberUids(db, projectId, teamId);
+      for (const playerId of players) {
+        await deliverNotificationToUser({
+          userId: playerId,
+          title: "Sua partida está prestes a começar",
+          body: `Sua partida foi chamada. Dirija-se à ${courtLabel}.`,
+          type: "match_call",
+          data: {type: "match_call", matchId, tournamentId, courtId},
+        });
+      }
+    }
+  } catch (e) {
+    logger.warn("callMatchToCourt notify failed", e);
+  }
+}
+
 export const callMatchToCourt = onCall({
   region: CLIENT_FACING_REGIONS,
 }, async (request) => {
@@ -585,29 +668,15 @@ export const callMatchToCourt = onCall({
 
   await syncTournamentLiveMatchesNow(db, projectId, tournamentId);
 
-  // Notificar atletas (best-effort)
-  try {
-    const teamIds = [data.teamAId, data.teamBId].filter(Boolean) as string[];
-    for (const teamId of teamIds) {
-      const teamSnap = await db
-        .doc(`${artifactsTeamsPath(projectId)}/${teamId}`)
-        .get();
-      const team = teamSnap.data();
-      if (!team) continue;
-      const players = [team.player1Id, team.player2Id].filter(Boolean) as string[];
-      for (const playerId of players) {
-        await deliverNotificationToUser({
-          userId: playerId,
-          title: "Sua partida está prestes a começar",
-          body: `Sua partida foi chamada. Dirija-se à ${courtLabel}.`,
-          type: "match_call",
-          data: {type: "match_call", matchId, tournamentId, courtId: effectiveCourtId},
-        });
-      }
-    }
-  } catch (e) {
-    logger.warn("callMatchToCourt notify failed", e);
-  }
+  await notifyMatchCalledToCourt(db, projectId, {
+    matchId,
+    tournamentId,
+    // `matchTeamIds` cobre a rodada KOTC: lá os dois lados estão vazios e as
+    // quatro duplas chamadas para a quadra ficariam sem aviso nenhum.
+    teamIds: matchTeamIds(data),
+    courtId: effectiveCourtId,
+    courtLabel,
+  });
 
   return {ok: true};
 });
@@ -668,6 +737,7 @@ export const declareMatchWalkover = onCall({
   const projectId = getFirebaseProjectId();
   const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
   await assertCanManageTournament(db, uid, data.tournamentId as string);
+  assertDuelMatch(data);
 
   // O vencedor tem que ser um dos dois lados: `winnerId` corrompido premia
   // colocação a um time que não jogou e quebra ranking e rating.
@@ -739,6 +809,7 @@ export const submitMatchResult = onCall({
   const projectId = getFirebaseProjectId();
   const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
   await assertCanScoreTournament(db, uid, data.tournamentId as string);
+  assertDuelMatch(data);
 
   // Formato (nº de sets): request (lançamento rápido) → doc da partida → padrão.
   const normalizeBestOf = (raw: unknown): number | null => {
@@ -826,6 +897,8 @@ export async function updateLiveMatchScoreCore(
   const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
   await assertCanScoreTournament(db, uid, data.tournamentId as string);
 
+  assertDuelMatch(data);
+
   if (isMatchCompleted(data.status) || isMatchCanceled(data.status)) {
     throw new HttpsError(
       "failed-precondition",
@@ -896,6 +969,10 @@ export function revertToScheduledFields(): Record<string, unknown> {
     sets: FieldValue.delete(),
     currentSetIndex: FieldValue.delete(),
     servingTeamId: FieldValue.delete(),
+    servingPlayerSlot: FieldValue.delete(),
+    servingPlayerSlots: FieldValue.delete(),
+    medicalTimeout: FieldValue.delete(),
+    medicalTimeoutPlayers: FieldValue.delete(),
     resultA: FieldValue.delete(),
     resultB: FieldValue.delete(),
     winnerId: FieldValue.delete(),
@@ -1017,6 +1094,7 @@ export const advanceBracketWinner = onCall({
   const {data} = await getMatchOrThrow(db, projectId, matchId);
   await assertCanManageTournament(db, uid, data.tournamentId as string);
 
+  assertDuelMatch(data);
   if (!data.winnerId) {
     throw new HttpsError("failed-precondition", "Partida sem vencedor");
   }
@@ -1127,7 +1205,9 @@ export const autoScheduleTournamentDay = onCall({
     const schedStart = (d.scheduleTime as Timestamp).toDate();
     const schedEnd = d.scheduleEndTime ?
       (d.scheduleEndTime as Timestamp).toDate() :
-      new Date(schedStart.getTime() + duration * 60 * 1000);
+      new Date(
+        schedStart.getTime() + matchDurationMin(d, duration) * 60 * 1000,
+      );
 
     const prevCourt = courtBusyUntil[courtId];
     if (!prevCourt || schedEnd > prevCourt) {
@@ -1135,8 +1215,7 @@ export const autoScheduleTournamentDay = onCall({
     }
 
     const teamRestUntil = new Date(schedEnd.getTime() + minRest * 60 * 1000);
-    for (const tid of [d.teamAId, d.teamBId]) {
-      if (typeof tid !== "string" || !tid.trim()) continue;
+    for (const tid of matchTeamIds(d)) {
       const prevTeam = teamBusyUntil[tid];
       if (!prevTeam || teamRestUntil > prevTeam) {
         teamBusyUntil[tid] = teamRestUntil;
@@ -1240,6 +1319,7 @@ export const applyLeagueRankingForMatch = onCall({
   const projectId = getFirebaseProjectId();
   const {data} = await getMatchOrThrow(db, projectId, matchId);
   await assertCanManageTournament(db, uid, data.tournamentId as string);
+  assertDuelMatch(data);
 
   const result = await tryAwardLeagueStagePointsForMatch(db, projectId, {
     ...data,
@@ -1258,6 +1338,9 @@ export function shouldPropagateMatchAdvance(
   after: Record<string, unknown> | undefined,
 ): boolean {
   if (!after) return false;
+  // Rodada KOTC não avança vencedor por fiação de chave: quem classifica sai da
+  // TABELA da rodada, não de um `winnerId` único (fase 3 do KOTC cuida disso).
+  if (!isDuelMatch(after.matchType)) return false;
   if (!isMatchCompleted(after.status)) return false;
   const winnerId = String(after.winnerId ?? "").trim();
   if (!winnerId) return false;
@@ -1272,11 +1355,44 @@ export function shouldPropagateMatchAdvance(
  * pela partida anterior (winner/loser advance já aplicado). Partidas de grupo
  * nunca são afetadas: já nascem com as duas duplas reais.
  */
+/**
+ * Rodada King of the Court já descrita o bastante para reservar quadra e hora.
+ *
+ * O análogo do placeholder de chave ("Vencedor Jogo #7") aqui são as VAGAS
+ * (`kocQualifiers`: "1º Rodada 1", "2º Rodada 1"…), que a geração já grava na
+ * semifinal e na final. Como o placeholder, elas descrevem uma rodada que VAI
+ * acontecer — dá para pré-reservar antes de saber quem joga, que é o que a
+ * etapa de uma quadra só exige: o dia inteiro na grade logo de manhã.
+ *
+ * Fica de fora só a rodada sem elenco E sem vagas, que não descreve nada.
+ */
+export function kocRoundIsPlanned(
+  data: {kocTeamIds?: unknown; kocQualifiers?: unknown},
+): boolean {
+  const hasRoster = Array.isArray(data.kocTeamIds) &&
+    data.kocTeamIds.some((id) => typeof id === "string" && id.trim() !== "");
+  const hasSlots = Array.isArray(data.kocQualifiers) &&
+    data.kocQualifiers.length > 0;
+  return hasRoster || hasSlots;
+}
+
 export function isMatchAutoSchedulable(
-  data: {teamAId?: unknown; teamBId?: unknown},
+  data: {
+    teamAId?: unknown;
+    teamBId?: unknown;
+    matchType?: unknown;
+    kocTeamIds?: unknown;
+    kocQualifiers?: unknown;
+  },
   respectBracketDeps: boolean,
 ): boolean {
   if (!respectBracketDeps) return true;
+  // A rodada KOTC nasce com os DOIS LADOS VAZIOS — pela regra do duelo ela
+  // nunca seria agendável, e o auto-agendamento pulava a categoria inteira em
+  // silêncio. Ver `kocRoundIsPlanned`.
+  if (isKingOfCourtMatch(data.matchType)) {
+    return kocRoundIsPlanned(data);
+  }
   const teamA = typeof data.teamAId === "string" ? data.teamAId.trim() : "";
   const teamB = typeof data.teamBId === "string" ? data.teamBId.trim() : "";
   return teamA !== "" && teamB !== "";
@@ -1352,6 +1468,30 @@ export const onTournamentMatchCompletedAdvance = onDocumentUpdated(
       await handleDynamicRescheduleOnMatchUpdate(db, projectId, matchId, before, after);
     } catch (e) {
       logger.error("onTournamentMatchCompletedAdvance: reagendamento dinâmico falhou", {matchId, e});
+    }
+
+    // KOTC tem o seu próprio caminho: a fase só é montada quando TODAS as
+    // rodadas dela terminam, então não passa pelo gate de duelo abaixo — que a
+    // fase 0 fechou para KOTC de propósito.
+    if (shouldAdvanceKocPhase(before, after) && after) {
+      try {
+        const result = await tryAdvanceKocPhase(db, projectId, after);
+        if (result.advanced > 0) {
+          logger.info("koc: fase montada", {
+            matchId, phase: result.phase, rounds: result.advanced,
+          });
+        }
+      } catch (e) {
+        logger.error("onTournamentMatchCompletedAdvance: avanço KOTC falhou", {matchId, e});
+      }
+      try {
+        // A final KOTC decide a categoria pela TABELA; daqui para baixo é o
+        // mesmo caminho de conclusão das outras (campeão + fechamento).
+        await tryCompleteTournamentAfterFinal(db, projectId, after);
+      } catch (e) {
+        logger.error("onTournamentMatchCompletedAdvance: conclusão KOTC falhou", {matchId, e});
+      }
+      return;
     }
 
     if (!shouldPropagateMatchAdvance(before, after) || !after) return;

@@ -32,6 +32,8 @@ class TournamentPoolStandingsRow {
     required this.losses,
     required this.setsWon,
     required this.setsLost,
+    required this.gamesWon,
+    required this.gamesLost,
     required this.points,
     required this.qualifies,
     required this.isAthleteTeam,
@@ -44,11 +46,26 @@ class TournamentPoolStandingsRow {
   final int losses;
   final int setsWon;
   final int setsLost;
+
+  /// Pontos feitos (PF) — soma dos pontos de todos os sets do grupo. Fica em 0
+  /// quando o placar foi lançado só como contagem de sets, sem detalhe de pontos.
+  final int gamesWon;
+
+  /// Pontos tomados (PT) — contraparte de [gamesWon].
+  final int gamesLost;
+
   final int points;
   final bool qualifies;
   final bool isAthleteTeam;
 
   String get setsForDisplay => '$setsWon-$setsLost';
+
+  /// Saldo de pontos (SP) — é o 1º desempate da classificação, depois das
+  /// vitórias, em `computePoolStandings`.
+  int get pointsDiff => gamesWon - gamesLost;
+
+  String get pointsDiffLabel =>
+      pointsDiff > 0 ? '+$pointsDiff' : '$pointsDiff';
 }
 
 class TournamentPoolStandingsGroup {
@@ -391,8 +408,12 @@ Map<String, String> mergeTeamDisplayNameMaps(
   if (secondary.isEmpty) return primary;
   final merged = Map<String, String>.from(primary);
   for (final entry in secondary.entries) {
-    if (isResolvedTeamDisplayName(entry.key, entry.value) &&
-        !isResolvedTeamDisplayName(entry.key, merged[entry.key] ?? '')) {
+    if (!isResolvedTeamDisplayName(entry.key, entry.value)) continue;
+    final existing = merged[entry.key] ?? '';
+    // Prefere o nome mais completo quando os dois já estão resolvidos
+    // (ex.: "Ana / Bia" vence um rótulo curto do card).
+    if (!isResolvedTeamDisplayName(entry.key, existing) ||
+        entry.value.trim().length > existing.trim().length) {
       merged[entry.key] = entry.value;
     }
   }
@@ -490,6 +511,8 @@ List<TournamentPoolStandingsGroup> buildPoolStandingsGroups({
           losses: stats.losses,
           setsWon: stats.setsWon,
           setsLost: stats.setsLost,
+          gamesWon: stats.gamesWon,
+          gamesLost: stats.gamesLost,
           points: stats.wins * 2,
           qualifies: rank <= safeQualifiers,
           isAthleteTeam: athleteTeamIds.contains(teamId),

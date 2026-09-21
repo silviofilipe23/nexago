@@ -103,8 +103,7 @@ List<AthleteNotificationSection> groupNotificationsByDay(
     }
   }
 
-  final remainingKeys = buckets.keys.toList()
-    ..sort((a, b) => b.compareTo(a));
+  final remainingKeys = buckets.keys.toList()..sort((a, b) => b.compareTo(a));
   for (final key in remainingKeys) {
     sections.add(
       AthleteNotificationSection(label: key, items: buckets[key]!),
@@ -220,9 +219,8 @@ AthleteNotificationPresentation notificationPresentation(
               ? AppColors.win.withValues(alpha: 0.15)
               : AppColors.surfaceRaised,
           statusLine: statusLine,
-          routePath: accepted
-              ? _tournamentPartnerInviteAcceptedRoute(data)
-              : null,
+          routePath:
+              accepted ? _tournamentPartnerInviteAcceptedRoute(data) : null,
         );
       }
       return AthleteNotificationPresentation(
@@ -240,8 +238,7 @@ AthleteNotificationPresentation notificationPresentation(
             isDestructive: true,
           ),
         ],
-        routePath:
-            inviteId.isNotEmpty ? '/torneios-convite/$inviteId' : null,
+        routePath: inviteId.isNotEmpty ? '/torneios-convite/$inviteId' : null,
       );
     case 'tournament_partner_invite_accepted':
       final tournamentId = data['tournamentId'] ?? '';
@@ -406,8 +403,9 @@ AthleteNotificationPresentation notificationPresentation(
             kind: AthleteNotificationActionKind.primary,
           ),
         ],
-        routePath:
-            matchId.isNotEmpty ? '/athlete/history/match/$matchId' : '/athlete/history',
+        routePath: matchId.isNotEmpty
+            ? '/athlete/history/match/$matchId'
+            : '/athlete/history',
       );
     case 'quest_completed':
     case 'achievement':

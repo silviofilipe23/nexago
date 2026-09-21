@@ -79,6 +79,57 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/tournaments/$(tournamentId)) &&
         tournamentManagerId(tournamentId) == request.auth.uid;
     }
+    /** Caixa do torneio com dinheiro dentro — excluir o evento sumiria com ele.
+     *  Doc ausente conta como zerado (torneio que nunca recebeu pagamento), e
+     *  campo ausente também: os dois saldos saem por `.get(campo, 0)` porque a
+     *  migração grava `availableReais` sem tocar em `pendingReais`. Acesso
+     *  direto a campo que não existe estoura a AVALIAÇÃO da regra, e aí o
+     *  delete do evento ficava negado para sempre, com mensagem que não
+     *  explica nada. */
+    function tournamentHasWalletBalance(tournamentId) {
+      return exists(/databases/$(database)/documents/tournamentWallets/$(tournamentId)) && (
+        get(/databases/$(database)/documents/tournamentWallets/$(tournamentId)).data.get('availableReais', 0) > 0 ||
+        get(/databases/$(database)/documents/tournamentWallets/$(tournamentId)).data.get('pendingReais', 0) > 0
+      );
+    }
+    /** Campos do torneio que a EQUIPE não escreve, nem por descuido.
+     *
+     *  `managerId` é o que decide quem alcança o caixa
+     *  (`tournament-wallet-access.ts`, ramo `managerId === uid`): sem esta
+     *  guarda, o administrador — que por decisão do dono não vê dinheiro — se
+     *  gravava como `managerId` e virava DONO numa escrita só, passando a ler
+     *  o caixa e a sacar. Vale para o gestor também: quem sequestra `managerId`
+     *  tranca o dono fora de `canManageTournamentStaff` e ninguém mais mexe na
+     *  equipe.
+     *
+     *  Os totais de arrecadação entram na mesma lista: o dono já os tem
+     *  congelados no caminho dele (`organizerCanUpdateOwnTournament`), e um
+     *  papel que não devia VER totais de dinheiro não pode zerá-los.
+     *  `collectedCents` não é o total que o painel exibe — quem aparece na tela
+     *  é o par `collectedViaAppCents`/`collectedViaOrganizerCents`
+     *  (`painel/data/tournament-collected.ts`), então congelar só o primeiro
+     *  deixava justamente os números vistos por aí.
+     *
+     *  `organizerPix` é o mapa que o app lê para montar o BR Code do pagamento
+     *  direto (`tournament_document_mapper.dart`): quem reescreve esse mapa
+     *  passa a receber na própria conta o dinheiro que os atletas pagam ao
+     *  evento. Decisão do dono em 17/09/2026: nem gestor nem administrador
+     *  mexem na chave de recebimento direto — só o dono, que continua passando
+     *  pelo disjunto `resource.data.managerId == request.auth.uid`. A
+     *  comparação é do MAPA inteiro; reenviar o mesmo mapa (o que o wizard do
+     *  portal faz em toda edição) segue permitido, porque o valor não mudou.
+     *
+     *  Comparação por `.get(campo, null)` dos dois lados: torneio antigo pode
+     *  não ter os contadores nem a chave, e acesso direto a campo ausente
+     *  estoura a avaliação em vez de negar. */
+    function staffKeepsTournamentMoneyFields() {
+      return request.resource.data.get('managerId', null) == resource.data.get('managerId', null) &&
+        request.resource.data.get('collectedCents', null) == resource.data.get('collectedCents', null) &&
+        request.resource.data.get('collectedViaAppCents', null) == resource.data.get('collectedViaAppCents', null) &&
+        request.resource.data.get('collectedViaOrganizerCents', null) == resource.data.get('collectedViaOrganizerCents', null) &&
+        request.resource.data.get('organizerPix', null) == resource.data.get('organizerPix', null) &&
+        request.resource.data.get('enrolledCount', null) == resource.data.get('enrolledCount', null);
+    }
     /** Quem mexe na equipe do torneio: o dono e o super admin (suporte a torneio alheio).
      *  Duas invariantes que valem para os dois: ninguém se adiciona, e o dono nunca vira
      *  staff do próprio torneio — o acesso dele já vem de `managerId`, e um doc de staff no
@@ -103,7 +154,9 @@ service cloud.firestore {
         isAdmin() ||
         isSuperAdmin() ||
         isTournamentOwner(tournamentId) ||
-        isTournamentStaff(tournamentId, ['manager'])
+        // `eventAdmin` (administrador) opera o evento inteiro, mas não vê
+        // dinheiro: quem depende dele nunca é a leitura do caixa.
+        isTournamentStaff(tournamentId, ['manager', 'eventAdmin'])
       );
     }
     function canScoreTournament(tournamentId) {
@@ -125,6 +178,11 @@ service cloud.firestore {
     // Sem ele aqui, todo ponto de mesário voltava permission-denied enquanto o do gestor
     // passava — o gestor cai em `managerCanOnlyEditMatchFields`, que já o listava.
     // Coberto por `functions/test/mesa-scorer-point.rules.test.mjs`.
+    //
+    // `servingPlayerSlot`/`servingPlayerSlots` (qual ATLETA da dupla está sacando) andam junto
+    // com o saque, no mesmo update do ponto — mesma razão. `medicalTimeout`/
+    // `medicalTimeoutPlayers` são o atendimento de 5 minutos: quem para a partida por lesão é a
+    // MESA, então a cota e o atendimento em andamento também são escrita de mesário.
     function scorerCanOnlyEditScoreFields() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'resultA',
@@ -134,6 +192,10 @@ service cloud.firestore {
         'sets',
         'currentSetIndex',
         'servingTeamId',
+        'servingPlayerSlot',
+        'servingPlayerSlots',
+        'medicalTimeout',
+        'medicalTimeoutPlayers',
         'matchStartedAt',
         'matchEndedAt',
         'lastActions',
@@ -236,6 +298,17 @@ service cloud.firestore {
       return request.resource.data.player1Id == resource.data.player1Id &&
         request.resource.data.player2Id == resource.data.player2Id;
     }
+    // `registrationPaid` é o portão das listagens públicas de equipe e `gender`
+    // sai dele: quem carimba é só `markTeamRegistrationPaid` (Cloud Function),
+    // no instante em que a inscrição fecha. Sem esta trava, o próprio atleta
+    // marcaria a equipe dele como paga e entraria no Descobrir sem pagar nada.
+    // `pairKey` entrou junto: é a chave que faz a inscrição seguinte reencontrar
+    // a equipe da dupla, e um cliente que a forjasse apontaria a próxima
+    // inscrição de OUTRO par para o doc dele.
+    function teamServerOnlyFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['registrationPaid', 'gender', 'pairKey']);
+    }
     function managerCanOnlyEditMatchFields() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'bestOf',
@@ -248,6 +321,10 @@ service cloud.firestore {
         'queueStatus',
         'checkIn',
         'servingTeamId',
+        'servingPlayerSlot',
+        'servingPlayerSlots',
+        'medicalTimeout',
+        'medicalTimeoutPlayers',
         'report',
         'liveElapsedSec',
         'resultA',
@@ -283,7 +360,7 @@ service cloud.firestore {
       return request.resource.data.keys().hasAll(['seq', 'type', 'setIndex', 'scoreA', 'scoreB', 'ts']) &&
         request.resource.data.seq is int &&
         request.resource.data.seq == expectedSeq &&
-        request.resource.data.type in ['match-start', 'point', 'set-end', 'undo-point', 'undo-set-end', 'match-end'] &&
+        request.resource.data.type in ['match-start', 'point', 'set-end', 'undo-point', 'undo-set-end', 'match-end', 'medical-timeout', 'medical-timeout-end'] &&
         request.resource.data.setIndex is int &&
         request.resource.data.setIndex >= 0 &&
         request.resource.data.setIndex <= 2 &&
@@ -1108,6 +1185,41 @@ service cloud.firestore {
         );
         allow create, update, delete: if false;
       }
+    }
+    // Caixa do torneio (id = tournamentId). Escrita só pelas Cloud Functions.
+    // Leitura: dono do evento e GESTOR da equipe. `eventAdmin` (administrador)
+    // opera o torneio mas não vê dinheiro — é esta linha que garante isso.
+    // NÃO trocar por `canManageTournament(tournamentId)`: aquele helper aceita
+    // `eventAdmin` (administrador do evento), e é justamente ele que não pode
+    // ver dinheiro. A duplicação aqui é deliberada.
+    match /tournamentWallets/{tournamentId} {
+      allow read: if request.auth != null && (
+        isSuperAdmin() ||
+        isAdmin() ||
+        tournamentManagerId(tournamentId) == request.auth.uid ||
+        isTournamentStaff(tournamentId, ['manager'])
+      );
+      allow create, update, delete: if false;
+      match /ledger/{entryId} {
+        // Mesma regra do caixa acima — não usar `canManageTournament`.
+        allow read: if request.auth != null && (
+          isSuperAdmin() ||
+          isAdmin() ||
+          tournamentManagerId(tournamentId) == request.auth.uid ||
+          isTournamentStaff(tournamentId, ['manager'])
+        );
+        allow create, update, delete: if false;
+      }
+    }
+    // Chave PIX de repasse da pessoa. Escrita write-only por CF: admin semeando
+    // destino de dinheiro é vetor de fraude (mesma regra de `organizerWallets`).
+    match /organizerPayoutProfiles/{uid} {
+      allow read: if request.auth != null && (
+        isSuperAdmin() ||
+        isAdmin() ||
+        request.auth.uid == uid
+      );
+      allow create, update, delete: if false;
     }
     match /arenaWithdrawals/{withdrawalId} {
       allow read: if request.auth != null && (
@@ -1952,26 +2064,37 @@ service cloud.firestore {
       // ou mesário, só pra manter `liveMatchesNow` em dia a cada ponto marcado
       // (`TournamentLiveMatchesSync.syncForTournament`, chamado pelo app depois
       // de cada `recordPointTransaction`).
+      //
+      // A equipe (gestor e administrador) edita o evento — nome, datas, o que é
+      // dela editar — mas NUNCA `managerId` nem os totais de arrecadação:
+      // trocar `managerId` é se promover a dono e alcançar o caixa. Os
+      // parênteses do disjunto da equipe são obrigatórios: `&&` liga mais
+      // forte que `||`, e a forma sem eles mudaria o sentido da regra inteira.
       allow update: if request.auth != null && (
         isAdmin() ||
         isSuperAdmin() ||
         (isTournamentOrganizer() && organizerCanUpdateOwnTournament()) ||
         resource.data.managerId == request.auth.uid ||
-        isTournamentStaff(tournamentId, ['manager']) ||
+        (
+          isTournamentStaff(tournamentId, ['manager', 'eventAdmin']) &&
+          staffKeepsTournamentMoneyFields()
+        ) ||
         (
           canScoreTournament(tournamentId) &&
           scorerCanOnlyEditLiveMatchesNowField()
         )
       );
 
-      // Deletar: nunca o mesário — só quem já podia gerenciar o torneio.
-      allow delete: if request.auth != null && (
-        isAdmin() ||
-        isSuperAdmin() ||
-        (isTournamentOrganizer() && organizerCanUpdateOwnTournament()) ||
-        resource.data.managerId == request.auth.uid ||
-        isTournamentStaff(tournamentId, ['manager'])
-      );
+      // Deletar: nunca o mesário nem o administrador — e nunca com dinheiro no
+      // caixa (o saldo tem de ser sacado antes, senão evapora com o evento).
+      allow delete: if request.auth != null &&
+        !tournamentHasWalletBalance(tournamentId) && (
+          isAdmin() ||
+          isSuperAdmin() ||
+          (isTournamentOrganizer() && organizerCanUpdateOwnTournament()) ||
+          resource.data.managerId == request.auth.uid ||
+          isTournamentStaff(tournamentId, ['manager'])
+        );
 
       match /staff/{staffUserId} {
         allow read: if request.auth != null && (
@@ -1980,9 +2103,11 @@ service cloud.firestore {
         );
         // Dono e super admin gerenciam a equipe (ver `canManageTournamentStaff`); sem
         // convite/aceite, o acesso é imediato — daí `status` só aceitar 'active'.
+        // `eventAdmin` é papel atribuível aqui, mas quem escreve continua sendo
+        // só o dono (ou super admin) — o administrador não se promove.
         allow create, update: if request.auth != null &&
           canManageTournamentStaff(tournamentId, staffUserId) &&
-          request.resource.data.role in ['manager', 'scorer'] &&
+          request.resource.data.role in ['manager', 'eventAdmin', 'scorer'] &&
           request.resource.data.status == 'active';
         // Remover não passa pela guarda do dono: se um doc de staff no nome dele existir
         // (lixo de uma escrita anterior), alguém precisa conseguir apagar.
@@ -2010,7 +2135,8 @@ service cloud.firestore {
       allow update: if request.auth != null && (
         (
           (resource.data.player1Id == request.auth.uid || resource.data.player2Id == request.auth.uid) &&
-          teamPlayerIdsUnchanged()
+          teamPlayerIdsUnchanged() &&
+          teamServerOnlyFieldsUnchanged()
         ) ||
         isSuperAdmin()
       );
@@ -2157,6 +2283,14 @@ service cloud.firestore {
     // Resultados por categoria (posição final e pontos) - ranking
     // Caminho: /artifacts/{appId}/public/data/tournamentCategoryResults
     match /artifacts/{appId}/public/data/tournamentCategoryResults/{resultId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && isAdmin();
+    }
+
+    // Força medida do campo de uma categoria Livre (spec 2026-09-10).
+    // Leitura pública (auditoria do peso); escrita só server-side — o peso do
+    // ranking não pode ser alcançável pelo organizador.
+    match /artifacts/{appId}/public/data/tournamentCategoryFieldStrength/{stampId} {
       allow read: if true;
       allow create, update, delete: if request.auth != null && isAdmin();
     }

@@ -334,7 +334,7 @@ describe("tryAwardGlobalRankingForMatch", () => {
     assert.equal(champion.pointsEarned, 1000);
   });
 
-  it("Livre não concede bucket groups (mas mata-mata segue pontuando)", async () => {
+  it("Livre agora concede bucket groups (peso declarado, sem field strength)", async () => {
     const db = seededDb();
     db.seedDoc("tournaments/T1", {
       sport: "beachVolleyball",
@@ -350,11 +350,14 @@ describe("tryAwardGlobalRankingForMatch", () => {
 
     await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
 
-    // Fora do mata-mata: Livre não concede o bucket "groups" (D6 emendada).
-    assert.equal(
-      db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tC`),
-      undefined,
-    );
+    // Fora do mata-mata: Livre agora concede o bucket "groups" (removed D6 exception).
+    // Sem field strength stamp (nenhuma medição realizada), usa o peso declarado: 0.125.
+    const outsidePlayoffs = db.store.get(
+      `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tC`,
+    )!;
+    assert.ok(outsidePlayoffs, "dupla paga fora do mata-mata deve pontuar");
+    assert.equal(outsidePlayoffs.finalPlace, 0);
+    assert.equal(outsidePlayoffs.pointsEarned, 13); // 100 × 0.125 = 12.5 → 13
 
     // Colocação normal (perdedor da final) segue pontuando, com peso Livre (0.125).
     const runnerUp = db.store.get(
@@ -485,5 +488,138 @@ describe("escada por fase alcançada — tabela e colocação persistida", () =>
     // Intermediário (0.25): 200 × 0.25 = 50 · 130 × 0.25 = 32.5 → 33
     assert.strictEqual(globalPointsForAward({teamId: "t", bucket: "r16"}, 0.25), 50);
     assert.strictEqual(globalPointsForAward({teamId: "t", bucket: "r32"}, 0.25), 33);
+  });
+});
+
+describe("peso do Livre pela força real do campo", () => {
+  /** `seededDb` não grava `categories` nem `participantUids`; este helper completa. */
+  function livreDb(teamRanks: number[]): FakeFirestore {
+    const db = new FakeFirestore();
+    db.seedDoc("tournaments/T1", {
+      sport: "beachVolleyball",
+      rankingEnabled: true,
+      categories: [{id: "C1", level: "Open", minLevel: "Iniciante 1"}],
+    });
+    db.seedDoc(`artifacts/${PROJECT}/public/data/teams/tA`, {player1Id: "a1", player2Id: "a2"});
+    db.seedDoc(`artifacts/${PROJECT}/public/data/teams/tB`, {player1Id: "b1", player2Id: "b2"});
+    db.seedDoc(`artifacts/${PROJECT}/public/data/matches/m-final`, finalMatch());
+
+    teamRanks.forEach((rank, index) => {
+      const teamId = index === 0 ? "tA" : index === 1 ? "tB" : `tG${index}`;
+      const uid = `${teamId}-p1`;
+      db.seedDoc(`artifacts/${PROJECT}/public/data/inscriptions/i${index}`, {
+        tournamentId: "T1",
+        categoryId: "C1",
+        teamId,
+        isPaid: true,
+        participantUids: [uid],
+      });
+      db.seedDoc(`artifacts/${PROJECT}/public/data/athleteRatings/${uid}_VOLEI_PRAIA`, {
+        levelRank: rank,
+      });
+    });
+    return db;
+  }
+
+  const JHON_JHON_RANKS = [6, 6, 6, 6, 6, 3, 3, 2, 2, 2];
+
+  it("regressão DESAFIO OPEN - JHON JHON: campeão sai com 500, não 125", async () => {
+    const db = livreDb(JHON_JHON_RANKS);
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    const champion = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`);
+    assert.equal(champion?.pointsEarned, 500);
+    const runnerUp = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tB`);
+    assert.equal(runnerUp?.pointsEarned, 400);
+  });
+
+  it("mede e carimba quando a chave saiu antes do deploy (caminho preguiçoso)", async () => {
+    const db = livreDb(JHON_JHON_RANKS);
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    const stamp = db.store.get(
+      `artifacts/${PROJECT}/public/data/tournamentCategoryFieldStrength/T1_C1`,
+    );
+    assert.ok(stamp);
+    assert.equal(stamp.weight, 0.5);
+    assert.equal(stamp.source, "lazy");
+  });
+
+  it("carimbo existente vence a medição (não remede a cada partida)", async () => {
+    const db = livreDb(JHON_JHON_RANKS);
+    db.seedDoc(`artifacts/${PROJECT}/public/data/tournamentCategoryFieldStrength/T1_C1`, {
+      tournamentId: "T1", categoryId: "C1", presetKey: "livre",
+      fieldRank: 6, weight: 1, measuredTeams: 10, totalPaidTeams: 10, source: "bracket",
+    });
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    const champion = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`);
+    assert.equal(champion?.pointsEarned, 1000);
+  });
+
+  it("campo imensurável cai no peso declarado e NÃO carimba", async () => {
+    const db = livreDb(JHON_JHON_RANKS);
+    // Remove todos os degraus: nenhuma dupla é mensurável.
+    for (const key of [...db.store.keys()]) {
+      if (key.includes("/athleteRatings/")) db.store.delete(key);
+    }
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    const champion = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`);
+    assert.equal(champion?.pointsEarned, 125);
+    assert.equal(
+      db.store.has(`artifacts/${PROJECT}/public/data/tournamentCategoryFieldStrength/T1_C1`),
+      false,
+    );
+  });
+
+  it("cobertura minoritária usa o peso medido nesta premiação, mas não carimba", async () => {
+    const db = livreDb(JHON_JHON_RANKS);
+    // Mantém o degrau só de tA e tB (2 de 10 duplas pagas = minoria): a
+    // medição ainda é possível (rank 6 e 6, peso 1), mas sem cobertura
+    // suficiente para congelar o peso da categoria.
+    for (const key of [...db.store.keys()]) {
+      if (
+        key.includes("/athleteRatings/") &&
+        !key.includes("/athleteRatings/tA-p1_") &&
+        !key.includes("/athleteRatings/tB-p1_")
+      ) {
+        db.store.delete(key);
+      }
+    }
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    const champion = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`);
+    // Peso medido (só tA/tB, ambos rank 6) = 1 → 1000, não o declarado (125).
+    assert.equal(champion?.pointsEarned, 1000);
+    assert.equal(
+      db.store.has(`artifacts/${PROJECT}/public/data/tournamentCategoryFieldStrength/T1_C1`),
+      false,
+    );
+  });
+
+  it("carimbo com peso fora do range é clampado na leitura (piso/teto)", async () => {
+    const db = livreDb(JHON_JHON_RANKS);
+    db.seedDoc(`artifacts/${PROJECT}/public/data/tournamentCategoryFieldStrength/T1_C1`, {
+      tournamentId: "T1", categoryId: "C1", presetKey: "livre",
+      fieldRank: 6, weight: 5, measuredTeams: 10, totalPaidTeams: 10, source: "bracket",
+    });
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    const champion = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`);
+    // Sem clamp, o multiplicador 5 daria 5000. Com o teto (LIVRE_MAX_WEIGHT=1),
+    // vale como se o carimbo tivesse gravado 1.
+    assert.equal(champion?.pointsEarned, 1000);
+  });
+
+  it("dupla paga fora do mata-mata recebe participação no Livre", async () => {
+    const db = livreDb(JHON_JHON_RANKS);
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    // tG2 é paga e não aparece na final → balde `groups` (100) × 0.5 = 50.
+    const participante = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tG2`);
+    assert.ok(participante, "dupla paga fora do mata-mata deveria pontuar");
+    assert.equal(participante.finalPlace, 0);
+    assert.equal(participante.pointsEarned, 50);
   });
 });

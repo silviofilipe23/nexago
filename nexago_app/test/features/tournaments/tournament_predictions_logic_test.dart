@@ -13,11 +13,12 @@ TournamentMatch _match({
   String matchType = 'knockout',
   String? winnerId,
   int matchNumber = 1,
+  String categoryId = 'cat-a',
 }) {
   return TournamentMatch(
     id: id,
     tournamentId: 't1',
-    categoryId: 'cat-a',
+    categoryId: categoryId,
     round: 1,
     matchType: matchType,
     poolId: '',
@@ -77,14 +78,122 @@ void main() {
   });
 
   group('predictableMatchCards', () {
-    test('exclui partidas sem os dois competidores e ordena por matchNumber', () {
+    test('exclui partidas sem os dois competidores e ordena por matchNumber decrescente', () {
       final cards = [
         _card(_match(id: 'm2', matchNumber: 2)),
         _card(_match(id: 'm3', matchNumber: 3, teamBId: '')),
         _card(_match(id: 'm1', matchNumber: 1)),
       ];
       final result = predictableMatchCards(cards);
-      expect(result.map((c) => c.match.id), ['m1', 'm2']);
+      expect(result.map((c) => c.match.id), ['m2', 'm1']);
+    });
+
+    test('abertas vêm antes das travadas, mesmo com matchNumber maior', () {
+      // O caso que motivou a ordem: grupos já jogados (números baixos) não
+      // podem empurrar as quartas/semis/final pro fim da rolagem.
+      final cards = [
+        _card(_match(
+          id: 'grupo-1',
+          matchNumber: 1,
+          status: TournamentMatchStatus.completed,
+        )),
+        _card(_match(
+          id: 'grupo-2',
+          matchNumber: 2,
+          status: TournamentMatchStatus.inProgress,
+        )),
+        _card(_match(id: 'quartas', matchNumber: 30)),
+        _card(_match(id: 'semi', matchNumber: 40)),
+      ];
+
+      final result = predictableMatchCards(cards);
+      expect(
+        result.map((c) => c.match.id),
+        ['semi', 'quartas', 'grupo-2', 'grupo-1'],
+      );
+    });
+
+    test('dentro de cada bloco ordena por matchNumber decrescente', () {
+      final cards = [
+        _card(_match(id: 'final', matchNumber: 50)),
+        _card(_match(
+          id: 'grupo-b',
+          matchNumber: 20,
+          status: TournamentMatchStatus.completed,
+        )),
+        _card(_match(id: 'semi', matchNumber: 40)),
+        _card(_match(
+          id: 'grupo-a',
+          matchNumber: 10,
+          status: TournamentMatchStatus.completed,
+        )),
+      ];
+
+      final result = predictableMatchCards(cards);
+      expect(
+        result.map((c) => c.match.id),
+        ['final', 'semi', 'grupo-b', 'grupo-a'],
+      );
+    });
+
+    test('matchNumber repetido entre categorias tem ordem determinística', () {
+      // `matchNumber` só é único DENTRO da categoria, e `List.sort` do Dart
+      // não é estável: sem desempate os cards trocavam de lugar sozinhos.
+      final cards = [
+        _card(_match(id: 'z', matchNumber: 7, categoryId: 'cat-b')),
+        _card(_match(id: 'a', matchNumber: 7, categoryId: 'cat-a')),
+      ];
+
+      expect(
+        predictableMatchCards(cards).map((c) => c.match.id),
+        predictableMatchCards(cards.reversed.toList()).map((c) => c.match.id),
+      );
+      expect(predictableMatchCards(cards).map((c) => c.match.id), ['a', 'z']);
+    });
+  });
+
+  group('predictionCardSections', () {
+    test('separa abertas de travadas, preservando a ordem recebida', () {
+      final cards = predictableMatchCards([
+        _card(_match(id: 'quartas', matchNumber: 30)),
+        _card(_match(
+          id: 'grupo',
+          matchNumber: 1,
+          status: TournamentMatchStatus.completed,
+        )),
+      ]);
+
+      final sections = predictionCardSections(cards);
+      expect(sections.map((s) => s.kind), [
+        PredictionSectionKind.open,
+        PredictionSectionKind.locked,
+      ]);
+      expect(sections.first.cards.map((c) => c.match.id), ['quartas']);
+      expect(sections.last.cards.map((c) => c.match.id), ['grupo']);
+    });
+
+    test('devolve um bloco só quando todas as partidas estão abertas', () {
+      final sections = predictionCardSections([
+        _card(_match(id: 'm1', matchNumber: 1)),
+        _card(_match(id: 'm2', matchNumber: 2)),
+      ]);
+
+      expect(sections, hasLength(1));
+      expect(sections.single.kind, PredictionSectionKind.open);
+      expect(sections.single.cards, hasLength(2));
+    });
+
+    test('devolve um bloco só quando todas as partidas estão travadas', () {
+      final sections = predictionCardSections([
+        _card(_match(id: 'm1', status: TournamentMatchStatus.completed)),
+      ]);
+
+      expect(sections, hasLength(1));
+      expect(sections.single.kind, PredictionSectionKind.locked);
+    });
+
+    test('lista vazia não gera seção nenhuma', () {
+      expect(predictionCardSections(const []), isEmpty);
     });
   });
 
@@ -316,6 +425,34 @@ void main() {
       expect(stats.rank, isNull);
       expect(stats.totalPlayers, 0);
       expect(stats.delta, isNull);
+    });
+  });
+
+  group('unpickedOpenPredictionCount', () {
+    test('conta só abertas sem escolha no draft', () {
+      final openA = _card(_match(id: 'a'));
+      final openB = _card(_match(id: 'b'));
+      final locked = _card(
+        _match(id: 'c', status: TournamentMatchStatus.inProgress),
+      );
+
+      expect(
+        unpickedOpenPredictionCount(
+          cards: [openA, openB, locked],
+          draftPicks: const {'a': 'team-a'},
+        ),
+        1,
+      );
+    });
+
+    test('zero quando todas as abertas já foram palpitadas', () {
+      expect(
+        unpickedOpenPredictionCount(
+          cards: [_card(_match(id: 'a')), _card(_match(id: 'b'))],
+          draftPicks: const {'a': 'team-a', 'b': 'team-b'},
+        ),
+        0,
+      );
     });
   });
 }

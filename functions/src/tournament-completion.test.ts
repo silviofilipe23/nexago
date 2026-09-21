@@ -15,6 +15,36 @@ test("isFinalMatchType matches only the grand final", () => {
   assert.equal(isFinalMatchType("knockout"), false);
 });
 
+test("a rodada final do King of the Court decide a categoria", () => {
+  // A tabela da rodada final É o pódio — não existe "jogo da final" no KOTC.
+  // Sem estas duas linhas a categoria termina e o TORNEIO nunca fecha.
+  assert.equal(isFinalMatchType("koc_final"), true);
+  assert.equal(isFinalMatchType("KOC_FINAL"), true);
+  assert.equal(isFinalMatchType("koc final"), true);
+  // As outras fases do KOTC não decidem nada.
+  assert.equal(isFinalMatchType("koc_round"), false);
+  assert.equal(isFinalMatchType("koc_semifinal"), false);
+});
+
+test("torneio com categoria KOTC fecha junto com as de duelo", () => {
+  const matches: CompletionMatch[] = [
+    {categoryId: "duplas", matchType: "Final", status: "completed"},
+    {categoryId: "kotc", matchType: "koc_round", status: "completed"},
+    {categoryId: "kotc", matchType: "koc_semifinal", status: "completed"},
+    {categoryId: "kotc", matchType: "koc_final", status: "completed"},
+  ];
+  assert.equal(allCategoryFinalsComplete(["duplas", "kotc"], matches), true);
+});
+
+test("categoria KOTC sem a final concluída bloqueia o torneio", () => {
+  const matches: CompletionMatch[] = [
+    {categoryId: "duplas", matchType: "Final", status: "completed"},
+    {categoryId: "kotc", matchType: "koc_semifinal", status: "completed"},
+    {categoryId: "kotc", matchType: "koc_final", status: "in_progress"},
+  ];
+  assert.equal(allCategoryFinalsComplete(["duplas", "kotc"], matches), false);
+});
+
 test("allCategoryFinalsComplete is false with no categories", () => {
   assert.equal(allCategoryFinalsComplete([], []), false);
 });

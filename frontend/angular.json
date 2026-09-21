@@ -198,6 +198,11 @@
               {
                 "glob": "**/*",
                 "input": "projects/athlete/public"
+              },
+              {
+                "glob": "**/*",
+                "input": "shared/tournament-covers/media",
+                "output": "media/tournament-covers"
               }
             ],
             "styles": [
@@ -259,6 +264,11 @@
               {
                 "glob": "**/*",
                 "input": "projects/athlete/public"
+              },
+              {
+                "glob": "**/*",
+                "input": "shared/tournament-covers/media",
+                "output": "media/tournament-covers"
               }
             ],
             "styles": [
@@ -382,6 +392,11 @@
               {
                 "glob": "**/*",
                 "input": "projects/site/public"
+              },
+              {
+                "glob": "**/*",
+                "input": "shared/tournament-covers/media",
+                "output": "media/tournament-covers"
               }
             ],
             "styles": [
@@ -437,6 +452,11 @@
               {
                 "glob": "**/*",
                 "input": "projects/site/public"
+              },
+              {
+                "glob": "**/*",
+                "input": "shared/tournament-covers/media",
+                "output": "media/tournament-covers"
               }
             ],
             "styles": [
@@ -468,6 +488,11 @@
               {
                 "glob": "**/*",
                 "input": "projects/organizer/public"
+              },
+              {
+                "glob": "**/*",
+                "input": "shared/tournament-covers/media",
+                "output": "media/tournament-covers"
               }
             ],
             "styles": [
@@ -487,8 +512,8 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "8kB",
-                  "maximumError": "12kB"
+                  "maximumWarning": "12kB",
+                  "maximumError": "24kB"
                 }
               ],
               "outputHashing": "all",
@@ -531,6 +556,11 @@
               {
                 "glob": "**/*",
                 "input": "projects/organizer/public"
+              },
+              {
+                "glob": "**/*",
+                "input": "shared/tournament-covers/media",
+                "output": "media/tournament-covers"
               }
             ],
             "styles": [

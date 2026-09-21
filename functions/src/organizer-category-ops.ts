@@ -16,6 +16,15 @@ import {
   type MatchDraft,
 } from "./category-bracket-builders";
 import {
+  KOC_DEFAULT_ROUND_DURATION_SEC,
+  KOC_MIN_TEAMS_PER_ROUND,
+  KocBracketError,
+  buildKingOfCourtRounds,
+  kocQualifierDescription,
+  type KocConfig,
+  type KocRoundDraft,
+} from "./koc-bracket-builders";
+import {
   BRACKET_DEFINITIONS,
   SUPPORTED_DE_TEAM_COUNTS,
   describeTeamCounts,
@@ -30,6 +39,7 @@ import {
   PAYMENT_SNAPSHOT_FIELD,
   buildPaymentRevertNotificationBody,
   buildPaymentRevertPlan,
+  shouldRestoreHoldAfterRevert,
   paymentRevertBlock,
   paymentSnapshotOf,
   shouldCapturePaymentSnapshot,
@@ -51,6 +61,7 @@ import {
   sharePaidUidsFromRegistration,
 } from "./tournament-registration-pix-helpers";
 import {registrationTeamSize} from "./tournament-team-category";
+import {markTeamRegistrationPaid} from "./tournament-team-roster";
 import {asaasArenaSecrets} from "./asaas-client";
 import {
   PIX_CANCELLED_ORGANIZER_CONFIRMED,
@@ -67,13 +78,30 @@ import {
   buildRemovalNotificationBody,
   parseRemovalDescription,
 } from "./organizer-removal-description";
-import {buildRegistrationCancellationAudit} from "./tournament-registration-cancellation";
+import {
+  buildRegistrationCancellationAudit,
+  teamDeletionBlockReason,
+} from "./tournament-registration-cancellation";
+import {teamAppearsInAnyMatch} from "./tournament-team-matches";
 import {organizerContactFromUser} from "./tournament-contacts";
 import {notifyBracketPublishedAthletes} from "./organizer-category-ops-bracket-notify";
 import {artifactsInscriptionsPath, artifactsMatchesPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {refreshRegistrationHold} from "./tournament-registration-hold-ops";
+import {REGISTRATION_HOLD_REVERT_GRACE_MINUTES} from
+  "./tournament-registration-hold";
 import {registrationHoldClearedFields} from
   "./tournament-registration-hold-ops";
+import {categoryPreset} from "./category-presets";
+import {tournamentSportToLevelSportCode} from "./category-level-eligibility";
+import {
+  fieldStrengthDocId,
+  fieldStrengthPath,
+  fieldStrengthStampPayload,
+  measureFieldStrength,
+  paidTeamsWithParticipants,
+  shouldStampFieldStrength,
+} from "./category-field-strength-store";
 
 
 
@@ -118,6 +146,93 @@ export function bracketMatchDoc(
   };
 }
 
+/**
+ * Documento da RODADA King of the Court.
+ *
+ * Mora na mesma coleção `matches` das partidas de duelo — é o que lhe dá agenda,
+ * quadra e status de graça — mas com `teamAId`/`teamBId` VAZIOS de propósito: a
+ * rodada tem elenco (`kocTeamIds`), não dois lados. Quem lê os dois lados sai
+ * antes por `isDuelMatch` (fase 0).
+ *
+ * Sem `bestOf`: a rodada não tem sets, tem cronômetro.
+ */
+export function kocRoundDoc(
+  draft: KocRoundDraft,
+  meta: {tournamentId: string; categoryId: string; config: KocConfig},
+): Record<string, unknown> {
+  const qualifiers = draft.qualifiers.map((slot) => ({
+    fromMatchNumber: slot.fromMatchNumber,
+    fromRoundLabel: slot.fromRoundLabel,
+    place: slot.place,
+    description: kocQualifierDescription(slot),
+  }));
+  return {
+    tournamentId: meta.tournamentId,
+    categoryId: meta.categoryId,
+    round: draft.phase,
+    kocPhase: draft.phase,
+    matchType: draft.matchType,
+    poolId: draft.poolId,
+    teamAId: "",
+    teamBId: "",
+    status: MatchStatus.scheduled,
+    resultA: "",
+    resultB: "",
+    isGroupMatch: false,
+    matchNumber: draft.matchNumber,
+    kocRoundLabel: draft.roundLabel,
+    kocTeamIds: draft.teamIds,
+    kocSize: draft.size,
+    // Snapshot: o relógio da rodada lê DAQUI, nunca da categoria. Mexer na
+    // duração padrão depois não pode alterar rodada já gerada nem em jogo.
+    kocConfig: {
+      roundEndMode: "time",
+      durationSec: draft.durationSec,
+      teamsPerCourt: meta.config.teamsPerCourt,
+      qualifiersPerRound: meta.config.qualifiersPerRound,
+      crownScores: false,
+    },
+    ...(qualifiers.length > 0 ? {kocQualifiers: qualifiers} : {}),
+  };
+}
+
+/**
+ * Config KOTC da categoria: o que o organizador escolheu no wizard, saneado.
+ *
+ * Valor inválido NÃO derruba a publicação — cai no padrão do formato. A trava
+ * real é o gerador, que recusa o que não fecha (campo pequeno demais, fase que
+ * não reduz).
+ */
+export function resolveKocConfig(
+  bracketConfig: Record<string, unknown> | undefined,
+  categoryMeta: Record<string, unknown> | undefined,
+): KocConfig {
+  const pick = (key: string): unknown =>
+    bracketConfig?.[key] ?? categoryMeta?.[key];
+  const int = (value: unknown, fallback: number): number => {
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? Math.round(n) : fallback;
+  };
+
+  const phaseDurations: Record<string, number> = {};
+  const rawPhases = pick("phaseDurationsSec");
+  if (rawPhases != null && typeof rawPhases === "object") {
+    for (const [phase, value] of Object.entries(rawPhases as Record<string, unknown>)) {
+      const n = Number(value);
+      if (Number.isFinite(n) && n > 0) phaseDurations[phase] = Math.round(n);
+    }
+  }
+
+  return {
+    teamsPerCourt: int(pick("teamsPerCourt"), 4),
+    qualifiersPerRound: int(pick("qualifiersPerRound"), 2),
+    roundDurationSec: int(pick("roundDurationSec"), KOC_DEFAULT_ROUND_DURATION_SEC),
+    ...(Object.keys(phaseDurations).length > 0 ?
+      {phaseDurationsSec: phaseDurations} :
+      {}),
+  };
+}
+
 /** Payload da geração de chave, igual ao que a callable recebe. */
 export interface GenerateBracketInput {
   tournamentId?: string;
@@ -149,10 +264,13 @@ export async function runGenerateCategoryBracket(
     throw new HttpsError("invalid-argument", "tournamentId e categoryId obrigatórios");
   }
 
+  const isKingOfCourt = format === "king_of_court";
+
   const supportedBracketFormats = new Set([
     "groups_knockout",
     "single_elimination",
     "double_elimination",
+    "king_of_court",
   ]);
   if (!supportedBracketFormats.has(format)) {
     throw new HttpsError(
@@ -229,6 +347,17 @@ export async function runGenerateCategoryBracket(
     throw new HttpsError(
       "failed-precondition",
       "É necessário ao menos 2 equipes pagas para publicar a chave.",
+    );
+  }
+
+  // King of the Court tem piso próprio: com 2 duplas não há fila nem trono.
+  // Mensagem própria para o organizador não ler "2 equipes" e achar que basta.
+  if (isKingOfCourt && teamIds.length < KOC_MIN_TEAMS_PER_ROUND) {
+    throw new HttpsError(
+      "failed-precondition",
+      `King of the Court precisa de ao menos ${KOC_MIN_TEAMS_PER_ROUND} duplas ` +
+        `pagas para publicar as rodadas (há ${teamIds.length}).`,
+      {reason: "koc_field_too_small", teamCount: teamIds.length},
     );
   }
 
@@ -344,16 +473,31 @@ export async function runGenerateCategoryBracket(
     }
   }
 
-  const matchDrafts =
-    format === "double_elimination"
-      ? buildDoubleEliminationMatches(teamIds)
-      : format === "single_elimination"
-        ? buildSingleEliminationMatches(teamIds)
-        : buildGroupsKnockoutMatches(
-            teamIds,
-            resolvedGroups,
-            qualifiersPerGroup,
-          );
+  // King of the Court não passa pelos builders de duelo: a rodada não tem dois
+  // lados. O gerador devolve rodadas, e o erro dele (campo pequeno, fase que não
+  // reduz) vira `failed-precondition` para o wizard mostrar antes do dia.
+  const kocConfig = isKingOfCourt ?
+    resolveKocConfig(bracketConfig, categoryMeta as Record<string, unknown> | undefined) :
+    null;
+  let kocRounds: KocRoundDraft[] = [];
+  if (isKingOfCourt && kocConfig) {
+    try {
+      kocRounds = buildKingOfCourtRounds(teamIds, kocConfig);
+    } catch (e) {
+      if (e instanceof KocBracketError) {
+        throw new HttpsError("failed-precondition", e.message, {reason: e.reason});
+      }
+      throw e;
+    }
+  }
+
+  const matchDrafts = isKingOfCourt ?
+    [] :
+    format === "double_elimination" ?
+      buildDoubleEliminationMatches(teamIds) :
+      format === "single_elimination" ?
+        buildSingleEliminationMatches(teamIds) :
+        buildGroupsKnockoutMatches(teamIds, resolvedGroups, qualifiersPerGroup);
 
   const batch = db.batch();
   const matchesCol = db.collection(artifactsMatchesPath(projectId));
@@ -362,10 +506,19 @@ export async function runGenerateCategoryBracket(
     batch.delete(doc.ref);
   }
 
-  for (const draft of matchDrafts) {
+  const newMatchDocs: Array<Record<string, unknown>> =
+    isKingOfCourt && kocConfig ?
+      kocRounds.map((draft) =>
+        kocRoundDoc(draft, {tournamentId, categoryId, config: kocConfig}),
+      ) :
+      matchDrafts.map((draft) =>
+        bracketMatchDoc(draft, {tournamentId, categoryId, bestOf}),
+      );
+
+  for (const doc of newMatchDocs) {
     const ref = matchesCol.doc();
     batch.set(ref, {
-      ...bracketMatchDoc(draft, {tournamentId, categoryId, bestOf}),
+      ...doc,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -382,9 +535,14 @@ export async function runGenerateCategoryBracket(
           seeds: teamIds,
           bracketConfig: {
             ...(bracketConfig ?? {}),
-            qualifiersPerGroup,
+            ...(isKingOfCourt && kocConfig ?
+              // Config EFETIVA da geração, não o que o cliente mandou: é o que
+              // a mesa e o app leem para explicar a rodada.
+              {...kocConfig, phaseCount: kocRounds[kocRounds.length - 1]?.phase ?? 1} :
+              {qualifiersPerGroup}),
           },
-          groupsPreview: resolvedGroups,
+          // Rodada KOTC não tem grupo: o elenco vive em `kocTeamIds`, na rodada.
+          groupsPreview: isKingOfCourt ? [] : resolvedGroups,
           updatedAt: FieldValue.serverTimestamp(),
         },
       },
@@ -392,6 +550,50 @@ export async function runGenerateCategoryBracket(
     },
     {merge: true},
   );
+
+  // Força real do campo (spec 2026-09-10). A categoria Livre pesa 0.125 pela
+  // faixa DECLARADA, o que pune um campo forte. O peso medido é carimbado aqui,
+  // no mesmo batch da chave, porque é aqui que o elenco congela: a partir de
+  // `bracketStatus` a substituição de atleta já é bloqueada.
+  try {
+    const fieldStrengthPreset = categoryPreset(categoryMeta);
+    if (fieldStrengthPreset?.key === "livre") {
+      const strength = await measureFieldStrength(db, projectId, {
+        tournamentId,
+        categoryId,
+        presetKey: fieldStrengthPreset.key,
+        sportCode: tournamentSportToLevelSportCode(tournamentData.sport),
+        // DIVERGÊNCIA DELIBERADA: mede com a mesma definição de "dupla paga"
+        // de `loadPaidTeamIds`/`bracketSizeFactor` (sem excluir `partnerPending`),
+        // e NÃO com o conjunto de duplas da CHAVE (acima, :206-218), que exclui
+        // reserva solo com parceiro pendente só para a semeadura visual. Manter
+        // a medida alinhada ao denominador de `bracketSizeFactor` (que também
+        // não exclui `partnerPending`) é o que importa aqui; efeito colateral:
+        // uma reserva solo contribui o degrau do seu único integrante como se
+        // fosse uma dupla inteira.
+        teams: paidTeamsWithParticipants(inscriptionsSnap.docs),
+        source: "bracket",
+      });
+      // Campo imensurável NÃO é carimbado: um zero congelaria o pior caso para
+      // sempre. Sem carimbo, a premiação mede de novo (caminho preguiçoso).
+      // Cobertura insuficiente (`shouldStampFieldStrength`) também não carimba,
+      // pelo mesmo motivo — os dois caminhos de carimbo têm de concordar.
+      if (strength && shouldStampFieldStrength(strength)) {
+        batch.set(
+          db.doc(
+            `${fieldStrengthPath(projectId)}/${fieldStrengthDocId(tournamentId, categoryId)}`,
+          ),
+          fieldStrengthStampPayload(strength),
+        );
+      }
+    }
+  } catch (e) {
+    // Sem carimbo de força, a premiação mede e carimba sozinha (`source: "lazy"`),
+    // então uma falha de leitura de ranking não pode derrubar a publicação da chave.
+    logger.warn("runGenerateCategoryBracket: falha ao medir força do campo", {
+      tournamentId, categoryId, e,
+    });
+  }
 
   await batch.commit();
 
@@ -440,7 +642,7 @@ export async function runGenerateCategoryBracket(
     });
   }
 
-  return {matchCount: matchDrafts.length, format};
+  return {matchCount: newMatchDocs.length, format};
 }
 
 export const generateCategoryBracket = onCall({
@@ -603,6 +805,21 @@ export const organizerConfirmRegistrationPayment = onCall({
     reason: PIX_CANCELLED_ORGANIZER_CONFIRMED,
   });
 
+  // A baixa manual era o ÚNICO caminho de confirmação que não carimbava a
+  // equipe: gravava `isPaid` e ia embora. Como o carimbo é o que dá `gender` e
+  // o que põe a equipe nas listagens, todo time confirmado no balcão do
+  // organizador nascia sem gênero e fora do Descobrir.
+  if (teamId) {
+    try {
+      await markTeamRegistrationPaid(db, projectId, teamId);
+    } catch (genderError) {
+      logger.warn(
+        `Falha ao carimbar pagamento da equipe ${teamId} (registration ${registrationId})`,
+        genderError,
+      );
+    }
+  }
+
   // Solo que pagou o total e ainda não tem parceiro: avisa para convidar
   // (o parceiro entra sem taxa) com deep link para o passo de parceiro.
   if (data.partnerPending === true) {
@@ -745,6 +962,13 @@ export const organizerRevertRegistrationPayment = onCall({
       paymentRevertedByUid: uid,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    // A baixa deste atleta apagou o prazo da vaga; desfazê-la sem devolver o
+    // prazo deixaria a inscrição fora da varredura para sempre.
+    if (shouldRestoreHoldAfterRevert(data)) {
+      await refreshRegistrationHold(db, projectId, registrationId, {
+        graceMinutes: REGISTRATION_HOLD_REVERT_GRACE_MINUTES,
+      });
+    }
     try {
       const tournament = await loadTournamentData(db, projectId, tournamentId);
       const body = buildPaymentRevertNotificationBody({
@@ -794,6 +1018,17 @@ export const organizerRevertRegistrationPayment = onCall({
     paymentRevertedByUid: uid,
     updatedAt: FieldValue.serverTimestamp(),
   });
+
+  // Mesma dívida da confirmação: ela apagou o prazo da vaga, e sem devolvê-lo
+  // a inscrição volta a "não paga" já imune à varredura. O recálculo relê o doc
+  // JÁ revertido, então ele ainda pode concluir que não há prazo — a reversão
+  // que devolveu a inscrição para a fila de espera, ou para um pagamento que
+  // sobreviveu ao retrato, continua sem prazo, como deve.
+  if (shouldRestoreHoldAfterRevert(data)) {
+    await refreshRegistrationHold(db, projectId, registrationId, {
+      graceMinutes: REGISTRATION_HOLD_REVERT_GRACE_MINUTES,
+    });
+  }
 
   // O atleta viu "Pago" e a inscrição volta a não paga: sem aviso ele só
   // descobre por acaso, abrindo o app.
@@ -923,6 +1158,35 @@ export const organizerRemoveFromCategory = onCall({
     teamSnap?.exists ? teamSnap.data() : null,
   );
 
+  // A equipe morre junto SÓ se for lixo de verdade. Esta remoção aceita
+  // inscrição PAGA (calcula reembolso logo acima), e equipe que pagou tem
+  // partida, ponto no ranking e perfil público — apagar o doc levaria tudo
+  // isso junto e deixaria as partidas apontando pro nada.
+  let deleteTeam = false;
+  if (teamId) {
+    const [teamRegsSnap, teamHasMatches] = await Promise.all([
+      db
+        .collection(artifactsInscriptionsPath(projectId))
+        .where("teamId", "==", teamId)
+        .get(),
+      teamAppearsInAnyMatch(db, projectId, teamId),
+    ]);
+    const block = teamDeletionBlockReason({
+      teamId,
+      referencingRegistrationIds: teamRegsSnap.docs.map((d) => d.id),
+      cancellingRegistrationId: registrationId,
+      registration: data,
+      team: teamSnap?.exists ? teamSnap.data() ?? null : null,
+      teamHasMatches,
+    });
+    deleteTeam = block == null;
+    if (block != null && block !== "noTeam") {
+      logger.info("Equipe preservada na remoção pelo organizador", {
+        registrationId, teamId, block,
+      });
+    }
+  }
+
   // Contato do organizador vai junto na notificação: a inscrição morre aqui, e
   // com ela o acesso do atleta a `getTournamentOrganizerContact` (que exige
   // inscrição ativa). Sem isso ele lê o motivo e não tem a quem responder.
@@ -960,6 +1224,14 @@ export const organizerRemoveFromCategory = onCall({
   // Subcoleção não morre com o pai: sem isso os `pixPending` ficariam órfãos.
   for (const doc of pixPendingSnap.docs) {
     batch.delete(doc.ref);
+  }
+  // A equipe morre junto — mesma regra do cancelamento pelo atleta
+  // (`releaseRegistration`), que era o único caminho a fazer isso. Sem esta
+  // linha a remoção pelo organizador apagava a inscrição e deixava o doc de
+  // equipe para trás, sem dono e sem partida: era a maior fábrica de equipe
+  // fantasma na listagem do app e do portal.
+  if (deleteTeam) {
+    batch.delete(db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`));
   }
   batch.delete(ref);
   await batch.commit();

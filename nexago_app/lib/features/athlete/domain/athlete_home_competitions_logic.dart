@@ -8,6 +8,10 @@ sealed class AthleteHomeCompetitionItem {
   String get title;
   String get subtitle;
   String? get imageUrl;
+
+  /// Esporte que escolhe a capa padrão quando `imageUrl` falta. Vazio = sem
+  /// arte, cai no gradiente do tile.
+  String get coverSport;
 }
 
 final class AthleteHomeTournamentItem extends AthleteHomeCompetitionItem {
@@ -29,6 +33,9 @@ final class AthleteHomeTournamentItem extends AthleteHomeCompetitionItem {
     final url = tournament.imageUrl?.trim();
     return url != null && url.isNotEmpty ? url : null;
   }
+
+  @override
+  String get coverSport => tournament.sport;
 }
 
 final class AthleteHomeLeagueItem extends AthleteHomeCompetitionItem {
@@ -58,6 +65,9 @@ final class AthleteHomeLeagueItem extends AthleteHomeCompetitionItem {
     final url = league.coverUrl?.trim();
     return url != null && url.isNotEmpty ? url : null;
   }
+
+  @override
+  String get coverSport => league.sport;
 }
 
 DateTime _dayStart(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
@@ -106,8 +116,7 @@ List<AthleteHomeCompetitionItem> pickAthleteHomeCompetitionsPreview({
 
   final tournamentsById = {for (final t in tournaments) t.id: t};
   final items = <AthleteHomeCompetitionItem>[
-    for (final tournament in tournaments)
-      AthleteHomeTournamentItem(tournament),
+    for (final tournament in tournaments) AthleteHomeTournamentItem(tournament),
     for (final league in leagues)
       if (_leagueSortDate(league, tournamentsById) case final date?)
         AthleteHomeLeagueItem(league: league, sortDate: date),

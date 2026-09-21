@@ -105,8 +105,7 @@ AthleteSeasonSummary buildSeasonSummary({
     bars.add(
       MonthlyWinLossBar(
         month: month,
-        label:
-            _monthLabels[month] ??
+        label: _monthLabels[month] ??
             DateFormat('MMM').format(DateTime(year, month)).toUpperCase(),
         wins: mWins,
         losses: mLosses,

@@ -78,9 +78,10 @@ export class PublicTournamentStore {
   }
 
   private async hydrateTeamLabels(matches: TournamentMatch[], generation: number): Promise<void> {
-    const ids = [...new Set(matches.flatMap((m) => [m.teamAId, m.teamBId]))].filter(
-      (id) => id.length > 0 && !this.hydrated.has(id),
-    );
+    // Rodada KOTC não tem teamA/teamB — o elenco vive em `koc.teamIds`.
+    const ids = [
+      ...new Set(matches.flatMap((m) => [m.teamAId, m.teamBId, ...(m.koc?.teamIds ?? [])])),
+    ].filter((id) => id.length > 0 && !this.hydrated.has(id));
     if (ids.length === 0) return;
     for (const id of ids) this.hydrated.add(id); // marca antes: snapshots em rajada não duplicam fetch
     try {

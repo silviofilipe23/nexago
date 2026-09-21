@@ -3,7 +3,7 @@ import 'athlete_firestore_codes.dart';
 import 'athlete_profile.dart';
 import 'athlete_public_profile_models.dart';
 
-enum AthleteDiscoverSort { compatibility, proximity, level }
+enum AthleteDiscoverSort { compatibility, level }
 
 enum AthleteDiscoverGenderFilter { all, male, female }
 
@@ -152,21 +152,6 @@ class AthleteDiscoverEntry {
       formatSocialCount(mutualFollowersCount ?? 0);
 
   String get locationLabel => athleteLocationLabel(profile);
-
-  /// Proximidade por cidade/UF. NÃO é distância: o app não tem geolocalização
-  /// de atleta, e o `'2.1 km'` que ficava aqui era literal inventado.
-  String? proximityLabel(AthleteProfile? viewer) {
-    if (viewer == null) return null;
-    final viewerCity = viewer.city.trim().toLowerCase();
-    final city = profile.city.trim().toLowerCase();
-    if (viewerCity.isNotEmpty && city == viewerCity) return 'Mesma cidade';
-    final viewerState = viewer.state?.trim().toLowerCase() ?? '';
-    final state = profile.state?.trim().toLowerCase() ?? '';
-    if (viewerState.isNotEmpty && state.isNotEmpty && viewerState == state) {
-      return 'Mesmo estado';
-    }
-    return null;
-  }
 
   String get genderShortLabel {
     final g = profile.gender?.trim().toLowerCase() ?? '';

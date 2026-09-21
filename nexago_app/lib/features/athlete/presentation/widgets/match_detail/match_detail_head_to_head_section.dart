@@ -1,109 +1,105 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/match_history/athlete_match_detail_models.dart';
-import 'match_detail_section_header.dart';
 
+/// Histórico de confrontos **dupla × dupla** (mesmo `teamId`).
 class MatchDetailHeadToHeadSection extends StatelessWidget {
   const MatchDetailHeadToHeadSection({super.key, required this.info});
 
   final MatchDetailHeadToHeadInfo info;
 
+  static const _radius = 14.0;
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final total = info.totalMatches;
-    final winRatio = total > 0 ? info.ourWins / total : 0.0;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        MatchDetailSectionHeader(
-          eyebrow: 'HISTÓRICO',
-          title: info.title,
-        ),
-        SizedBox(height: 14),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: context.themeColors.surfaceCard,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: context.themeColors.surfaceRaised),
-          ),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: _StatColumn(
-                      value: '${info.ourWins}',
-                      label: 'SUAS VITÓRIAS',
-                      color: AppColors.win,
-                      theme: theme,
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Column(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: SizedBox(
-                            height: 8,
-                            child: Row(
-                              children: [
-                                if (winRatio > 0)
-                                  Expanded(
-                                    flex: (winRatio * 100).round().clamp(1, 100),
-                                    child: ColoredBox(color: AppColors.win),
-                                  ),
-                                if (winRatio < 1)
-                                  Expanded(
-                                    flex: ((1 - winRatio) * 100).round().clamp(1, 100),
-                                    child: ColoredBox(color: AppColors.live),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 6),
-                        Text(
-                          '$total CONFRONTOS',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: context.themeColors.onSurfaceMuted,
-                            letterSpacing: 0.4,
-                            fontSize: 9,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: _StatColumn(
-                      value: '${info.ourLosses}',
-                      label: 'DERROTAS',
-                      color: AppColors.live,
-                      theme: theme,
-                      alignEnd: true,
-                    ),
-                  ),
-                ],
-              ),
-              if (info.pastMatches.isNotEmpty) ...[
-                SizedBox(height: 16),
-                ...info.pastMatches.map(
-                  (m) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _PastMatchRow(match: m, theme: theme),
+    return Semantics(
+      label: '${info.title}. $total confrontos',
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(_radius),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(_radius),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  info.title.toUpperCase(),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.soraRegular(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
                   ),
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  '$total ${total == 1 ? 'CONFRONTO' : 'CONFRONTOS'}',
+                  textAlign: TextAlign.center,
+                  style: AppTypography.eyebrow.copyWith(
+                    color: Colors.white.withValues(alpha: 0.55),
+                    fontSize: 10,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _StatColumn(
+                        value: '${info.ourWins}',
+                        label: info.ourWins == 1 ? 'VITÓRIA' : 'VITÓRIAS',
+                        color: AppColors.win,
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 36,
+                      color: Colors.white.withValues(alpha: 0.14),
+                    ),
+                    Expanded(
+                      child: _StatColumn(
+                        value: '${info.ourLosses}',
+                        label: info.ourLosses == 1 ? 'DERROTA' : 'DERROTAS',
+                        color: AppColors.live,
+                      ),
+                    ),
+                  ],
+                ),
+                if (info.pastMatches.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Colors.white.withValues(alpha: 0.12),
+                    ),
+                  ),
+                  for (var i = 0; i < info.pastMatches.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 10),
+                    _PastMatchRow(match: info.pastMatches[i]),
+                  ],
+                ],
               ],
-            ],
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -113,38 +109,32 @@ class _StatColumn extends StatelessWidget {
     required this.value,
     required this.label,
     required this.color,
-    required this.theme,
-    this.alignEnd = false,
   });
 
   final String value;
   final String label;
   final Color color;
-  final ThemeData theme;
-  final bool alignEnd;
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment:
-          alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
         Text(
           value,
-          style: theme.textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.w900,
+          style: AppTypography.monoStat.copyWith(
             color: color,
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
             height: 1,
           ),
         ),
-        SizedBox(height: 4),
+        const SizedBox(height: 4),
         Text(
           label,
-          style: theme.textTheme.labelSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: context.themeColors.onSurfaceMuted,
-            fontSize: 8,
-            letterSpacing: 0.3,
+          style: AppTypography.eyebrow.copyWith(
+            color: Colors.white.withValues(alpha: 0.85),
+            fontSize: 10,
+            letterSpacing: 0.8,
           ),
         ),
       ],
@@ -153,59 +143,57 @@ class _StatColumn extends StatelessWidget {
 }
 
 class _PastMatchRow extends StatelessWidget {
-  const _PastMatchRow({required this.match, required this.theme});
+  const _PastMatchRow({required this.match});
 
   final MatchDetailHeadToHeadPastMatch match;
-  final ThemeData theme;
 
   @override
   Widget build(BuildContext context) {
     final accent = match.isWin ? AppColors.win : AppColors.live;
     final letter = match.isWin ? 'V' : 'D';
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: context.themeColors.surfaceRaised.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: accent,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              letter,
-              style: theme.textTheme.labelMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-                color: AppColors.black,
-              ),
+    return Row(
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: accent,
+            borderRadius: BorderRadius.circular(5),
+          ),
+          child: Text(
+            letter,
+            style: AppTypography.soraRegular(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: AppColors.black,
             ),
           ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              match.label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: context.themeColors.onSurface,
-              ),
-            ),
-          ),
-          Text(
-            match.score,
-            style: theme.textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w800,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            match.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.soraRegular(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
               color: context.themeColors.onSurface,
             ),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          match.score.replaceAll('-', ' — '),
+          style: AppTypography.mono(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: context.themeColors.onSurface,
+          ),
+        ),
+      ],
     );
   }
 }

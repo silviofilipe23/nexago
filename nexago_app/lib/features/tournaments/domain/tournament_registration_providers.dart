@@ -94,14 +94,40 @@ final tournamentRegistrationReceiptProvider =
   },
 );
 
+/// Chave da family de perfis do elenco: os uids em ordem canônica, unidos por
+/// vírgula. Use SEMPRE este helper para chamar
+/// `registrationRosterProfilesProvider`.
+///
+/// A family guarda um provider por argumento e compara argumentos com `==` —
+/// e `List`, em Dart, compara por IDENTIDADE, não por conteúdo. Com a lista
+/// como chave, uma tela que a monta dentro do `build` (o caso das telas de
+/// substituição) ganhava um provider NOVO a cada frame: ele nasce carregando,
+/// resolve, reconstrói a tela, que monta outra lista, que cria outro
+/// provider... — loop infinito de rebuild, com uma leitura de perfis no
+/// Firestore por volta. `String` compara por conteúdo, então o mesmo elenco
+/// cai sempre no mesmo provider (inclusive entre telas).
+String rosterProfilesKey(Iterable<String> uids) {
+  final canonicos = uids
+      .map((uid) => uid.trim())
+      .where((uid) => uid.isNotEmpty)
+      .toSet()
+      .toList()
+    ..sort();
+  return canonicos.join(',');
+}
+
 /// Perfis públicos do elenco de uma inscrição, em lote — nome e foto para as
 /// linhas do elenco. Falha vira mapa vazio: o elenco ainda aparece, com
 /// "Você"/"Atleta" (ver `buildTeamRoster`).
+///
+/// A chave vem de `rosterProfilesKey` (lá está o porquê de não ser a lista).
 final registrationRosterProfilesProvider = FutureProvider.autoDispose
-    .family<Map<String, AppUserProfile>, List<String>>((ref, uids) async {
-  if (uids.isEmpty) return const {};
+    .family<Map<String, AppUserProfile>, String>((ref, uidsKey) async {
+  if (uidsKey.isEmpty) return const {};
   try {
-    return await ref.read(usersRepositoryProvider).getUsersByIds(uids);
+    return await ref
+        .read(usersRepositoryProvider)
+        .getUsersByIds(uidsKey.split(','));
   } catch (_) {
     return const {};
   }

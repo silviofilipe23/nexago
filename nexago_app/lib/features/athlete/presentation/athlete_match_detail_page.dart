@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -7,6 +6,8 @@ import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
+import '../../auth/widgets/auth_form_widgets.dart';
+import '../../tournaments/domain/tournament_match.dart';
 import '../data/match_history/head_to_head_repository.dart';
 import '../domain/match_history/athlete_match_detail_models.dart';
 import '../domain/match_history/athlete_match_detail_providers.dart';
@@ -16,14 +17,19 @@ import 'widgets/match_detail/match_detail_form_section.dart';
 import 'widgets/match_detail/match_detail_head_to_head_section.dart';
 import 'widgets/match_detail/match_detail_hero_card.dart';
 import 'widgets/match_detail/match_detail_individual_head_to_head_section.dart';
-import 'widgets/match_detail/match_detail_live_score_panel.dart';
+import 'widgets/match_detail/match_detail_live_actions.dart';
 import 'widgets/match_detail/match_detail_momentum_section.dart';
 import 'widgets/match_detail/match_detail_play_by_play_section.dart';
+import 'widgets/match_detail/match_detail_point_by_point_section.dart';
 import 'widgets/match_detail/match_detail_set_timeline_section.dart';
 import 'widgets/match_detail/match_detail_share_section.dart';
 import 'widgets/match_detail/match_detail_where_when_section.dart';
 import 'widgets/match_detail/match_detail_win_probability_section.dart';
 import 'widgets/match_detail/match_detail_xp_card.dart';
+
+/// Arte de fundo das telas de detalhe da partida — cobre a tela inteira.
+const kMatchDetailLiveBackgroundAsset =
+    'assets/images/sports/match_detail_live_bg.webp';
 
 /// Detalhes de uma partida do histórico (protótipo B).
 class AthleteMatchDetailPage extends ConsumerWidget {
@@ -41,27 +47,53 @@ class AthleteMatchDetailPage extends ConsumerWidget {
     final detailAsync = ref.watch(athleteMatchDetailProvider(matchId));
     final theme = Theme.of(context);
 
-    return Scaffold(
-      backgroundColor: AppColors.canvas,
-      appBar: _appBar(context, theme, detailAsync.valueOrNull),
-      body: detailAsync.when(
-        loading: () =>
-            Center(child: CircularProgressIndicator(color: AppColors.brand)),
-        error: (error, stackTrace) => _messageBody(
+    return detailAsync.when(
+      loading: () => Scaffold(
+        backgroundColor: AppColors.canvas,
+        appBar: _appBar(context, theme, null),
+        body: Center(child: CircularProgressIndicator(color: AppColors.brand)),
+      ),
+      error: (error, stackTrace) => Scaffold(
+        backgroundColor: AppColors.canvas,
+        appBar: _appBar(context, theme, null),
+        body: _messageBody(
           theme,
           'Não foi possível carregar os detalhes da partida.',
         ),
-        data: (detail) {
-          if (detail == null) {
-            return _messageBody(theme, 'Partida não encontrada.');
-          }
-          return _DetailBody(
-            detail: detail,
-            hideTournamentAction: hideTournamentAction,
-            individualHeadToHead: _watchIndividualHeadToHead(ref, detail),
-          );
-        },
       ),
+      data: (detail) {
+        if (detail == null) {
+          return Scaffold(
+            backgroundColor: AppColors.canvas,
+            appBar: _appBar(context, theme, null),
+            body: _messageBody(theme, 'Partida não encontrada.'),
+          );
+        }
+
+        final individualH2hs = _watchIndividualHeadToHeads(ref, detail);
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              const _MatchDetailFullBleedBackground(),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _MatchDetailCompactAppBar(detail: detail, theme: theme),
+                  Expanded(
+                    child: _MatchDetailTabbedBody(
+                      detail: detail,
+                      hideTournamentAction: hideTournamentAction,
+                      individualHeadToHeads: individualH2hs,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -70,69 +102,10 @@ class AthleteMatchDetailPage extends ConsumerWidget {
     ThemeData theme,
     AthleteMatchDetail? detail,
   ) {
-    return NexaAppBar(
-      backgroundColor: AppColors.canvas,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      centerTitle: true,
-      leading: Padding(
-        padding: const EdgeInsets.only(left: 12),
-        child: Center(
-          child: Material(
-            color: AppColors.surfaceRaised,
-            borderRadius: BorderRadius.circular(12),
-            child: InkWell(
-              onTap: () => context.pop(),
-              borderRadius: BorderRadius.circular(12),
-              child: SizedBox(
-                width: 40,
-                height: 40,
-                child: Icon(
-                  Icons.chevron_left_rounded,
-                  color: AppColors.onSurface,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-      title: Text(
-        'Detalhes da partida',
-        style: theme.textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w800,
-          color: AppColors.onSurface,
-          letterSpacing: -0.3,
-        ),
-      ),
-      actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: Material(
-            color: AppColors.surfaceRaised,
-            borderRadius: BorderRadius.circular(12),
-            child: InkWell(
-              onTap: () {
-                final share = detail?.sharePoster;
-                if (share != null) {
-                  showMatchDetailShareSheet(context, share);
-                } else {
-                  showAppSnackBar(context, 'Em breve.');
-                }
-              },
-              borderRadius: BorderRadius.circular(12),
-              child: SizedBox(
-                width: 40,
-                height: 40,
-                child: Icon(
-                  Icons.ios_share_rounded,
-                  color: AppColors.onSurface,
-                  size: 20,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+    final top = MediaQuery.paddingOf(context).top;
+    return PreferredSize(
+      preferredSize: Size.fromHeight(top + _MatchDetailCompactAppBar.rowHeight),
+      child: _MatchDetailCompactAppBar(detail: detail, theme: theme),
     );
   }
 
@@ -152,73 +125,109 @@ class AthleteMatchDetailPage extends ConsumerWidget {
   }
 }
 
-/// H2H individual (por atleta, não por dupla) do adversário desta partida.
-/// Resolvido de forma desacoplada do resto da tela (provider próprio) — se a
-/// callable falhar ou demorar, só essa seção deixa de aparecer, sem afetar o
-/// restante do detalhe da partida já carregado.
-HeadToHeadRecord? _watchIndividualHeadToHead(
-  WidgetRef ref,
-  AthleteMatchDetail detail,
-) {
-  if (!detail.isParticipantView) return null;
+/// H2H individual (por atleta) de cada adversário da partida.
+///
+/// Resolvido à parte do detalhe — se a callable falhar ou demorar, só essa
+/// seção some, sem afetar o restante da tela.
+///
+/// Um bloco por adversário distinto (`athleteId`). Históricos iguais NÃO são
+/// mesclados: cada atleta pode ter outras equipes/parceiros e o placar H2H é
+/// sempre atleta × atleta.
+List<({String opponentName, HeadToHeadRecord record})>
+    _watchIndividualHeadToHeads(WidgetRef ref, AthleteMatchDetail detail) {
+  if (!detail.isParticipantView) return const [];
 
   final myAthleteId = (ref.watch(authProvider).valueOrNull?.uid ?? '').trim();
-  final opponentAthleteId = detail.opponentTeam.players.isEmpty
-      ? ''
-      : (detail.opponentTeam.players.first.athleteId ?? '').trim();
-  if (myAthleteId.isEmpty || opponentAthleteId.isEmpty) return null;
+  if (myAthleteId.isEmpty) return const [];
 
-  final query = HeadToHeadQuery(
-    athleteIdA: myAthleteId,
-    athleteIdB: opponentAthleteId,
-  );
-  return ref.watch(headToHeadRecordProvider(query)).valueOrNull;
+  final out = <({String opponentName, HeadToHeadRecord record})>[];
+  final seenIds = <String>{};
+
+  for (final player in detail.opponentTeam.players) {
+    final opponentId = (player.athleteId ?? '').trim();
+    if (opponentId.isEmpty || opponentId == myAthleteId) continue;
+    if (!seenIds.add(opponentId)) continue;
+
+    final record = ref
+        .watch(
+          headToHeadRecordProvider(
+            HeadToHeadQuery(
+              athleteIdA: myAthleteId,
+              athleteIdB: opponentId,
+            ),
+          ),
+        )
+        .valueOrNull;
+    if (record == null || !record.hasHistory) continue;
+
+    final name = (player.name ?? '').trim();
+    out.add((
+      opponentName: name.isEmpty ? player.initials : name,
+      record: record,
+    ));
+  }
+
+  return out;
 }
 
-class _DetailBody extends StatelessWidget {
-  const _DetailBody({
+class _MatchDetailTabbedBody extends ConsumerStatefulWidget {
+  const _MatchDetailTabbedBody({
     required this.detail,
     required this.hideTournamentAction,
-    this.individualHeadToHead,
+    this.individualHeadToHeads = const [],
   });
 
   final AthleteMatchDetail detail;
   final bool hideTournamentAction;
-  final HeadToHeadRecord? individualHeadToHead;
+  final List<({String opponentName, HeadToHeadRecord record})>
+      individualHeadToHeads;
+
+  @override
+  ConsumerState<_MatchDetailTabbedBody> createState() =>
+      _MatchDetailTabbedBodyState();
+}
+
+enum _MatchDetailTab { placar, estatisticas, historico }
+
+class _MatchDetailTabbedBodyState extends ConsumerState<_MatchDetailTabbedBody> {
+  _MatchDetailTab _tab = _MatchDetailTab.placar;
+
+  AthleteMatchDetail get detail => widget.detail;
 
   @override
   Widget build(BuildContext context) {
-    if (detail.phase == MatchDetailPhase.canceled) {
-      return ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-        children: [
-          MatchDetailHeroCard(detail: detail),
-          SizedBox(height: 24),
-          Text(
-            'Esta partida foi cancelada.',
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyLarge?.copyWith(color: AppColors.onSurfaceMuted),
-          ),
-        ],
-      );
-    }
+    final match = ref
+        .watch(matchDetailTournamentMatchProvider(detail.id))
+        .valueOrNull;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+      padding: EdgeInsets.fromLTRB(
+        10,
+        8,
+        20,
+        10 + MediaQuery.paddingOf(context).bottom,
+      ),
       children: [
         MatchDetailHeroCard(detail: detail),
-        SizedBox(height: 16),
-        ..._phaseSections(context),
-        SizedBox(height: 24),
-        MatchDetailFooter(
-          kind: _footerKind,
-          hideTournamentAction: hideTournamentAction,
-          onTournament: () => _onTournament(context),
-          onRematch: () => showAppSnackBar(context, 'Em breve.'),
-          onOpponentProfile: () => showAppSnackBar(context, 'Em breve.'),
+        const SizedBox(height: 12),
+        _MatchDetailTabs(
+          selected: _tab,
+          onSelected: (tab) => setState(() => _tab = tab),
         ),
+        const SizedBox(height: 12),
+        ..._tabContent(match),
+        if (!widget.hideTournamentAction) ...[
+          const SizedBox(height: 20),
+          MatchDetailFooter(
+            kind: _footerKind,
+            hideTournamentAction: false,
+            onTournament: _onTournament,
+            onRematch: () => showAppSnackBar(context, 'Em breve.'),
+            onOpponentProfile: () => showAppSnackBar(context, 'Em breve.'),
+          ),
+        ],
+        const SizedBox(height: 28),
+        const _BrandFooter(),
       ],
     );
   }
@@ -235,193 +244,199 @@ class _DetailBody extends StatelessWidget {
     };
   }
 
-  List<Widget> _phaseSections(BuildContext context) {
-    return switch (detail.phase) {
-      MatchDetailPhase.completed => _completedSections(context),
-      MatchDetailPhase.live => _liveSections(context),
-      MatchDetailPhase.scheduled => _scheduledSections(context),
-      MatchDetailPhase.canceled => const [],
+  List<Widget> _tabContent(TournamentMatch? match) {
+    return switch (_tab) {
+      _MatchDetailTab.placar => _placarSections(match),
+      _MatchDetailTab.estatisticas => _statsSections(),
+      _MatchDetailTab.historico => _historySections(),
     };
   }
 
-  List<Widget> _completedSections(BuildContext context) {
+  List<Widget> _placarSections(TournamentMatch? match) {
+    return switch (detail.phase) {
+      MatchDetailPhase.live => [
+        MatchDetailLiveStatusCard(
+          detail: detail,
+          matchStartedAt: match?.matchStartedAt,
+          liveElapsedSec: match?.liveElapsedSec ?? 0,
+        ),
+        const SizedBox(height: 12),
+        MatchDetailLiveActionsRow(detail: detail),
+      ],
+      MatchDetailPhase.scheduled => [
+        MatchDetailCountdownCard(detail: detail),
+        const SizedBox(height: 12),
+        MatchDetailLiveActionsRow(detail: detail),
+      ],
+      MatchDetailPhase.completed => [
+        if (detail.isParticipantView && detail.xpInfo != null) ...[
+          MatchDetailXpCard(xp: detail.xpInfo!),
+          const SizedBox(height: 12),
+        ],
+        // Encerrada: só compartilhar (seguir não faz sentido).
+        MatchDetailLiveActionsRow(detail: detail, showFollow: false),
+      ],
+      MatchDetailPhase.canceled => [
+        Text(
+          'Esta partida foi cancelada.',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            color: AppColors.onSurfaceMuted,
+          ),
+        ),
+      ],
+    };
+  }
+
+  List<Widget> _statsSections() {
+    final ourHeader = detail.isParticipantView
+        ? 'Sua dupla'
+        : detail.ourTeam.label;
+    final oppHeader = detail.isParticipantView
+        ? 'Adversário'
+        : detail.opponentTeam.label;
     final sections = <Widget>[];
 
-    if (detail.isParticipantView && detail.xpInfo != null) {
-      sections.addAll([
-        MatchDetailXpCard(xp: detail.xpInfo!),
-        SizedBox(height: 16),
-      ]);
+    if (detail.phase == MatchDetailPhase.scheduled) {
+      sections.add(MatchDetailWinProbabilitySection(detail: detail));
+      if (detail.isParticipantView && detail.formRows.isNotEmpty) {
+        sections.addAll([
+          const SizedBox(height: 20),
+          MatchDetailFormSection(rows: detail.formRows),
+        ]);
+      }
+      return sections.isEmpty
+          ? [
+              Text(
+                'Estatísticas pré-jogo em breve.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.onSurfaceMuted,
+                ),
+              ),
+            ]
+          : sections;
     }
 
     if (detail.momentumInfo != null) {
       sections.addAll([
         MatchDetailMomentumSection(
           momentum: detail.momentumInfo!,
+          isLive: detail.phase == MatchDetailPhase.live,
           onViewPlayByPlay: detail.playByPlay.isNotEmpty
-              ? () => _openPlayByPlay(context)
+              ? _openPlayByPlay
               : null,
         ),
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
       ]);
     }
 
-    sections.addAll(_playByPlaySection(context));
+    if (detail.playByPlay.isNotEmpty) {
+      sections.addAll([
+        MatchDetailPlayByPlaySection(
+          items: detail.playByPlay,
+          totalPoints: detail.totalPlayByPlayPoints,
+          ourTeamHeader: ourHeader,
+          opponentTeamHeader: oppHeader,
+          playByPlayGroups: detail.playByPlayGroups,
+          onViewFullAnalysis: detail.playByPlayGroups.isEmpty
+              ? _openPlayByPlay
+              : null,
+        ),
+        const SizedBox(height: 20),
+      ]);
+    }
+
+    if (detail.playByPlayGroups.isNotEmpty) {
+      sections.add(
+        MatchDetailPointByPointSection(
+          groups: detail.playByPlayGroups,
+          ourTeamHeader: ourHeader,
+          opponentTeamHeader: oppHeader,
+          onViewFullAnalysis: _openPlayByPlay,
+        ),
+      );
+    }
+
+    if (sections.isEmpty) {
+      return [
+        Text(
+          detail.phase == MatchDetailPhase.canceled
+              ? 'Sem estatísticas para partida cancelada.'
+              : 'Estatísticas em breve quando houver pontos registrados.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.onSurfaceMuted,
+          ),
+        ),
+      ];
+    }
+
+    return sections;
+  }
+
+  List<Widget> _historySections() {
+    final sections = <Widget>[];
 
     if (detail.setTimelineItems.isNotEmpty) {
       sections.addAll([
         MatchDetailSetTimelineSection(items: detail.setTimelineItems),
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
       ]);
     }
 
     if (detail.isParticipantView && detail.headToHead != null) {
       sections.addAll([
         MatchDetailHeadToHeadSection(info: detail.headToHead!),
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
       ]);
     }
 
-    sections.addAll(_individualHeadToHeadSection());
-
-    sections.addAll([
-      MatchDetailWhereWhenSection(
-        detail: detail,
-        showActions: false,
-        onViewBracket: () => _onTournament(context),
-      ),
-      SizedBox(height: 20),
-    ]);
-
-    sections.addAll(_shareSectionWidgets());
-
-    return sections;
-  }
-
-  List<Widget> _liveSections(BuildContext context) {
-    final tournamentId = detail.tournamentId?.trim() ?? '';
-    return [
-      MatchDetailLiveScorePanel(detail: detail),
-      // SizedBox(height: 20),
-      // if (tournamentId.isNotEmpty && detail.id.isNotEmpty)
-      //   Padding(
-      //     padding: const EdgeInsets.only(bottom: 16),
-      //     child: SizedBox(
-      //       width: double.infinity,
-      //       child: OutlinedButton.icon(
-      //         onPressed: () => context.pushNamed(
-      //           AppRouteNames.publicMatchLive,
-      //           pathParameters: {
-      //             'tournamentId': tournamentId,
-      //             'matchId': detail.id,
-      //           },
-      //         ),
-      //         icon: const Icon(Icons.live_tv_rounded),
-      //         label: const Text('Compartilhar transmissão ao vivo'),
-      //       ),
-      //     ),
-      //   ),
-      if (detail.momentumInfo != null) ...[
-        MatchDetailMomentumSection(
-          momentum: detail.momentumInfo!,
-          isLive: true,
-          onViewPlayByPlay: detail.playByPlay.isNotEmpty
-              ? () => _openPlayByPlay(context)
-              : null,
+    if (widget.individualHeadToHeads.isNotEmpty) {
+      sections.addAll([
+        MatchDetailIndividualHeadToHeadSection(
+          entries: [
+            for (final entry in widget.individualHeadToHeads)
+              IndividualHeadToHeadEntry(
+                opponentName: entry.opponentName,
+                record: entry.record,
+              ),
+          ],
         ),
-        SizedBox(height: 20),
-      ],
-      ..._playByPlaySection(context),
-      ..._shareSectionWidgets(),
-    ];
-  }
-
-  List<Widget> _scheduledSections(BuildContext context) {
-    final sections = <Widget>[
-      MatchDetailCountdownCard(detail: detail),
-      SizedBox(height: 16),
-      MatchDetailWinProbabilitySection(detail: detail),
-    ];
-
-    if (detail.isParticipantView && detail.formRows.isNotEmpty) {
-      sections.addAll([
-        MatchDetailFormSection(rows: detail.formRows),
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
       ]);
     }
 
-    if (detail.isParticipantView && detail.headToHead != null) {
+    sections.add(MatchDetailWhereWhenSection(detail: detail));
+
+    final poster = detail.sharePoster;
+    if (poster != null && detail.phase != MatchDetailPhase.live) {
       sections.addAll([
-        MatchDetailHeadToHeadSection(info: detail.headToHead!),
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
+        MatchDetailShareSection(poster: poster),
       ]);
     }
 
-    sections.addAll(_individualHeadToHeadSection());
-
-    sections.add(
-      MatchDetailWhereWhenSection(
-        detail: detail,
-        onViewBracket: () => _onTournament(context),
-      ),
-    );
-
-    sections.addAll(_shareSectionWidgets());
+    if (sections.isEmpty) {
+      return [
+        Text(
+          'Histórico do confronto em breve.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.onSurfaceMuted,
+          ),
+        ),
+      ];
+    }
 
     return sections;
   }
 
-  List<Widget> _playByPlaySection(BuildContext context) {
-    if (detail.playByPlay.isEmpty) return const [];
-    return [
-      MatchDetailPlayByPlaySection(
-        items: detail.playByPlay,
-        totalPoints: detail.totalPlayByPlayPoints,
-        ourTeamHeader: detail.isParticipantView
-            ? 'Sua dupla'
-            : detail.ourTeam.label,
-        opponentTeamHeader: detail.isParticipantView
-            ? 'Adversário'
-            : detail.opponentTeam.label,
-        playByPlayGroups: detail.playByPlayGroups,
-        onViewFullAnalysis: () => _openPlayByPlay(context),
-      ),
-      SizedBox(height: 20),
-    ];
-  }
-
-  List<Widget> _shareSectionWidgets() {
-    final poster = detail.sharePoster;
-    if (poster == null) return const [];
-    return [SizedBox(height: 20), MatchDetailShareSection(poster: poster)];
-  }
-
-  /// H2H individual (por atleta) vs o adversário — complementa
-  /// `MatchDetailHeadToHeadSection` (que é por dupla exata) capturando
-  /// confrontos entre as mesmas duas pessoas mesmo com parceiros diferentes.
-  List<Widget> _individualHeadToHeadSection() {
-    final record = individualHeadToHead;
-    if (record == null || !record.hasHistory) return const [];
-    final opponentName = detail.opponentTeam.players.isNotEmpty
-        ? (detail.opponentTeam.players.first.name ?? '')
-        : '';
-    return [
-      MatchDetailIndividualHeadToHeadSection(
-        record: record,
-        opponentName: opponentName,
-      ),
-      SizedBox(height: 20),
-    ];
-  }
-
-  void _openPlayByPlay(BuildContext context) {
+  void _openPlayByPlay() {
     context.pushNamed(
       AppRouteNames.athleteMatchPlayByPlay,
       pathParameters: {'matchId': detail.id},
     );
   }
 
-  void _onTournament(BuildContext context) {
+  void _onTournament() {
     final id = detail.tournamentId?.trim();
     if (id != null && id.isNotEmpty) {
       context.push(
@@ -435,3 +450,232 @@ class _DetailBody extends StatelessWidget {
     showAppSnackBar(context, 'Em breve.');
   }
 }
+
+class _MatchDetailTabs extends StatelessWidget {
+  const _MatchDetailTabs({required this.selected, required this.onSelected});
+
+  final _MatchDetailTab selected;
+  final ValueChanged<_MatchDetailTab> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (final tab in _MatchDetailTab.values) ...[
+          if (tab != _MatchDetailTab.values.first) const SizedBox(width: 8),
+          Expanded(
+            child: _TabChip(
+              label: switch (tab) {
+                _MatchDetailTab.placar => 'Placar',
+                _MatchDetailTab.estatisticas => 'Estatísticas',
+                _MatchDetailTab.historico => 'Histórico',
+              },
+              selected: selected == tab,
+              onTap: () => onSelected(tab),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _TabChip extends StatelessWidget {
+  const _TabChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: selected
+                    ? AppColors.onSurface
+                    : AppColors.onSurfaceMuted,
+              ),
+            ),
+          ),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            height: 2,
+            width: double.infinity,
+            color: selected ? AppColors.brand : Colors.transparent,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MatchDetailCompactAppBar extends StatelessWidget {
+  const _MatchDetailCompactAppBar({required this.detail, required this.theme});
+
+  final AthleteMatchDetail? detail;
+  final ThemeData theme;
+
+  static const rowHeight = 44.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.paddingOf(context).top;
+    const chipColor = Color(0x59000000); // black 35%
+
+    // Transparente: a arte full-bleed do Stack aparece até o topo.
+    // O header fica fora do ListView, então o conteúdo não passa por trás.
+    return Padding(
+      padding: EdgeInsets.only(top: top),
+      child: SizedBox(
+        height: rowHeight,
+        child: Row(
+          children: [
+            const SizedBox(width: 12),
+            _NavChip(
+              color: chipColor,
+              onTap: () => context.pop(),
+              child: const Icon(
+                Icons.chevron_left_rounded,
+                color: AppColors.onSurface,
+              ),
+            ),
+            Expanded(
+              child: Text(
+                'Detalhes da partida',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.onSurface,
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ),
+            _NavChip(
+              color: chipColor,
+              onTap: () {
+                final share = detail?.sharePoster;
+                if (share != null) {
+                  showMatchDetailShareSheet(context, share);
+                } else {
+                  showAppSnackBar(context, 'Em breve.');
+                }
+              },
+              child: const Icon(
+                Icons.ios_share_rounded,
+                color: AppColors.onSurface,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NavChip extends StatelessWidget {
+  const _NavChip({
+    required this.color,
+    required this.onTap,
+    required this.child,
+  });
+
+  final Color color;
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(width: 40, height: 40, child: Center(child: child)),
+      ),
+    );
+  }
+}
+
+class _MatchDetailFullBleedBackground extends StatelessWidget {
+  const _MatchDetailFullBleedBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.asset(
+          kMatchDetailLiveBackgroundAsset,
+          fit: BoxFit.cover,
+          alignment: Alignment.center,
+          errorBuilder: (_, __, ___) => const ColoredBox(color: Colors.black),
+        ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black.withValues(alpha: 0.55),
+                Colors.black.withValues(alpha: 0.48),
+                Colors.black.withValues(alpha: 0.62),
+                const Color(0xFF050505),
+              ],
+              stops: const [0, 0.22, 0.68, 1],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BrandFooter extends StatelessWidget {
+  const _BrandFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Image.asset(
+          kNexagoLogoAsset,
+          height: 22,
+          errorBuilder: (_, __, ___) => Text(
+            'nexaGO',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+              color: AppColors.brand,
+            ),
+          ),
+        ),
+        const Spacer(),
+        Text(
+          'VAMOS NEXA',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: AppColors.onSurfaceMuted,
+            letterSpacing: 1.6,
+          ),
+        ),
+      ],
+    );
+  }
+}
+

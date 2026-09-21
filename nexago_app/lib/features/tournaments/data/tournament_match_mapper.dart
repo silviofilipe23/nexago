@@ -2,7 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../domain/tournament_match.dart';
 import '../domain/tournament_match_live_score.dart';
+import '../domain/tournament_match_medical_timeout.dart';
 import '../domain/tournament_match_point_action.dart';
+import '../domain/tournament_match_serving_players.dart';
 import '../domain/tournament_match_set.dart';
 import '../domain/tournament_match_status.dart';
 
@@ -55,6 +57,11 @@ abstract final class TournamentMatchMapper {
       checkInTeamAStatus: _checkInStatus(data['checkIn'], 'teamA'),
       checkInTeamBStatus: _checkInStatus(data['checkIn'], 'teamB'),
       servingTeamId: _str(data['servingTeamId']) ?? '',
+      servingPlayerSlot: _servingPlayerSlot(data['servingPlayerSlot']),
+      servingPlayers: _servingPlayers(data['servingPlayerSlots']),
+      medicalTimeout: _medicalTimeout(data['medicalTimeout']),
+      medicalTimeoutPlayers:
+          medicalTimeoutPlayerKeysFromRaw(data['medicalTimeoutPlayers']),
       liveElapsedSec: _int(data['liveElapsedSec']) ?? 0,
       pointEventSeq: _int(data['pointEventSeq']) ?? 0,
       reportStatus: _reportStatus(data['report']),
@@ -62,12 +69,51 @@ abstract final class TournamentMatchMapper {
       teamAConfirmed: _reportBool(data['report'], 'teamAConfirmed'),
       teamBConfirmed: _reportBool(data['report'], 'teamBConfirmed'),
       bestOf: _bestOf(data['bestOf']),
+      kocStandingTeamIds: _kocStandingTeamIds(data['kocStandings']),
+      kocTeamIds: _teamIdList(data['kocTeamIds']),
+      kocDurationSec: _kocDurationSec(data['kocConfig']),
+      kocQualifierSlots: _kocQualifierSlots(data['kocQualifiers']),
       winnerAdvanceMatchNumber: _advanceMatchNumber(data['winnerAdvance']),
       winnerAdvanceSlot: _advanceSlot(data['winnerAdvance']),
       loserAdvanceMatchNumber: _advanceMatchNumber(data['loserAdvance']),
       loserAdvanceSlot: _advanceSlot(data['loserAdvance']),
       liveScore: _liveScore(data['liveScore']),
     );
+  }
+
+  /// Descrição de cada vaga da rodada ("1º Rodada 1"), na ordem gravada.
+  static List<String> _kocQualifierSlots(dynamic raw) {
+    if (raw is! List) return const [];
+    final out = <String>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final description = (item['description'] as String?)?.trim() ?? '';
+      if (description.isNotEmpty) out.add(description);
+    }
+    return out;
+  }
+
+  /// Duração de jogo da rodada KOTC, do snapshot `kocConfig`.
+  static int _kocDurationSec(dynamic raw) {
+    if (raw is! Map) return 0;
+    final value = _int(raw['durationSec']) ?? 0;
+    return value > 0 ? value : 0;
+  }
+
+  /// Posição do sacador; qualquer coisa fora de 1/2 vira "não declarada".
+  static int _servingPlayerSlot(dynamic raw) {
+    final value = _int(raw);
+    return value == 1 || value == 2 ? value! : 0;
+  }
+
+  static MatchServingPlayers _servingPlayers(dynamic raw) {
+    if (raw is! Map) return MatchServingPlayers.none;
+    return MatchServingPlayers.fromMap(Map<String, dynamic>.from(raw));
+  }
+
+  static MatchMedicalTimeout? _medicalTimeout(dynamic raw) {
+    if (raw is! Map) return null;
+    return MatchMedicalTimeout.fromMap(Map<String, dynamic>.from(raw));
   }
 
   static MatchLiveScore? _liveScore(dynamic raw) {
@@ -192,5 +238,30 @@ abstract final class TournamentMatchMapper {
     if (value is Timestamp) return value.toDate().toUtc();
     if (value is DateTime) return value.toUtc();
     return null;
+  }
+
+  static List<String> _teamIdList(dynamic raw) {
+    if (raw is! List) return const [];
+    return raw
+        .map((e) => e is String ? e.trim() : '')
+        .where((e) => e.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  /// `kocStandings` → ids em ordem de colocação. Entrada corrompida é
+  /// descartada: pódio torto é pior que pódio ausente.
+  static List<String> _kocStandingTeamIds(dynamic raw) {
+    if (raw is! List) return const [];
+    final entries = <({int place, String teamId})>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final teamId = item['teamId'];
+      final place = item['place'];
+      if (teamId is! String || teamId.trim().isEmpty) continue;
+      if (place is! num) continue;
+      entries.add((place: place.toInt(), teamId: teamId.trim()));
+    }
+    entries.sort((a, b) => a.place.compareTo(b.place));
+    return entries.map((e) => e.teamId).toList(growable: false);
   }
 }

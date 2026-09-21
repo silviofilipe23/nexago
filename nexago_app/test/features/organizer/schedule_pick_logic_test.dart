@@ -57,6 +57,34 @@ Widget _wrap(Widget child) {
   );
 }
 
+/// Rodada King of the Court: sem lados, elenco em `kocTeamIds` e — na fase que
+/// ainda não começou — só as vagas herdadas da anterior.
+TournamentMatch _kocRound({
+  String id = 'r1',
+  String matchType = 'koc_round',
+  List<String> teamIds = const ['t1', 't2', 't3', 't4'],
+  List<String> slots = const [],
+}) {
+  return TournamentMatch(
+    id: id,
+    tournamentId: 't1',
+    categoryId: 'cat1',
+    round: 1,
+    matchType: matchType,
+    poolId: 'C1',
+    teamAId: '',
+    teamBId: '',
+    status: TournamentMatchStatus.scheduled,
+    resultA: '',
+    resultB: '',
+    isGroupMatch: false,
+    matchNumber: 1,
+    courtId: '',
+    kocTeamIds: teamIds,
+    kocQualifierSlots: slots,
+  );
+}
+
 void main() {
   group('SchedulePickLogic', () {
     test('classifies ready and blocked matches', () {
@@ -77,6 +105,43 @@ void main() {
       expect(SchedulePickLogic.isConfirmed(tentative), isFalse);
       expect(SchedulePickLogic.isTentative(tentative), isTrue);
       expect(SchedulePickLogic.isBlocked(tentative), isFalse);
+    });
+
+    /// A rodada KOTC não tem lados: pela regra do duelo ela caía eternamente na
+    /// aba "Bloqueadas" e o toque nela era ignorado.
+    test('rodada KOTC com elenco é agendável e confirmada', () {
+      final rodada = _kocRound(teamIds: const ['t1', 't2', 't3', 't4']);
+
+      expect(SchedulePickLogic.isReady(rodada), isTrue);
+      expect(SchedulePickLogic.isConfirmed(rodada), isTrue);
+      expect(SchedulePickLogic.isTentative(rodada), isFalse);
+      expect(SchedulePickLogic.isBlocked(rodada), isFalse);
+    });
+
+    /// As vagas são o análogo do "Vencedor SF2": descrevem uma rodada que vai
+    /// acontecer, então dá pra reservar o horário antes de saber quem joga.
+    test('rodada KOTC só com vagas é pré-reserva', () {
+      final semi = _kocRound(
+        matchType: 'koc_semifinal',
+        teamIds: const [],
+        slots: const ['1º Rodada 1', '2º Rodada 2', '1º Rodada 3', '2º Rodada 4'],
+      );
+
+      expect(SchedulePickLogic.isReady(semi), isTrue);
+      expect(SchedulePickLogic.isConfirmed(semi), isFalse);
+      expect(SchedulePickLogic.isTentative(semi), isTrue);
+      expect(SchedulePickLogic.isBlocked(semi), isFalse);
+    });
+
+    test('rodada KOTC sem elenco e sem vagas continua bloqueada', () {
+      final vazia = _kocRound(teamIds: const [], slots: const []);
+
+      expect(SchedulePickLogic.isReady(vazia), isFalse);
+      expect(SchedulePickLogic.isBlocked(vazia), isTrue);
+      expect(
+        SchedulePickLogic.reasonFor(vazia),
+        SchedulePickLogic.kocBlockedReason,
+      );
     });
 
     test('pool match without teams is blocked even with description', () {

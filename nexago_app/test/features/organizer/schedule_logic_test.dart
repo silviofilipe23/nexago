@@ -4,6 +4,7 @@ import 'package:nexago_app/features/organizer/domain/match_ops/schedule_logic.da
 import 'package:nexago_app/features/organizer/domain/match_ops/match_ops_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_status.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_match_type.dart';
 
 TournamentMatch _match({
   String id = 'm1',
@@ -32,6 +33,36 @@ TournamentMatch _match({
     scheduleTime: scheduleTime,
     scheduleEndTime: scheduleEndTime,
     courtId: courtId,
+  );
+}
+
+/// Rodada King of the Court: dois lados vazios, elenco em `kocTeamIds` e
+/// duração própria no snapshot `kocConfig`.
+TournamentMatch _kocRound({
+  String id = 'r1',
+  List<String> teamIds = const ['t1', 't2', 't3', 't4'],
+  List<String> slots = const [],
+  int durationSec = 900,
+  int matchNumber = 1,
+}) {
+  return TournamentMatch(
+    id: id,
+    tournamentId: 'tor1',
+    categoryId: 'A',
+    round: 1,
+    matchType: 'koc_round',
+    poolId: 'C1',
+    teamAId: '',
+    teamBId: '',
+    status: TournamentMatchStatus.scheduled,
+    resultA: '',
+    resultB: '',
+    isGroupMatch: false,
+    matchNumber: matchNumber,
+    courtId: '',
+    kocTeamIds: teamIds,
+    kocDurationSec: durationSec,
+    kocQualifierSlots: slots,
   );
 }
 
@@ -249,6 +280,92 @@ void main() {
         respectBracketDeps: true,
       );
       expect(result.map((m) => m.id).toList(), ['ready']);
+    });
+
+    /// Rodada King of the Court na grade.
+    ///
+    /// A rodada grava os DOIS LADOS VAZIOS e guarda o elenco em `kocTeamIds`:
+    /// pela regra do duelo ela nunca seria agendável, e a categoria inteira
+    /// sumia da prévia sem dizer por quê.
+    test('filterAutoSchedulable libera rodada KOTC com elenco ou vagas', () {
+      final matches = [
+        _kocRound(id: 'r1', teamIds: const ['t1', 't2', 't3', 't4']),
+        // Semifinal só com as vagas: pré-reserva, entra na grade.
+        _kocRound(
+          id: 'sf1',
+          teamIds: const [],
+          slots: const ['1º Rodada 1', '2º Rodada 2'],
+        ),
+        // Sem elenco e sem vagas não descreve nada: fica de fora.
+        _kocRound(id: 'vazia', teamIds: const []),
+        _match(id: 'duelo', teamAId: 't1', teamBId: 't2'),
+      ];
+      final result = ScheduleLogic.filterAutoSchedulable(
+        matches,
+        respectBracketDeps: true,
+      );
+      expect(result.map((m) => m.id).toList(), ['r1', 'sf1', 'duelo']);
+    });
+
+    test('buildDaySchedule reserva a quadra pela duração da rodada', () {
+      final dayStart = nexagoEventDateTime(
+        year: 2026,
+        month: 10,
+        day: 24,
+        hour: 9,
+      );
+      final slots = ScheduleLogic.buildDaySchedule(
+        unscheduled: [
+          _kocRound(
+            id: 'r1',
+            teamIds: const ['t1', 't2', 't3', 't4'],
+            durationSec: 900,
+          ),
+        ],
+        courts: const [TournamentCourt(id: 'Q1', name: 'Quadra 1', order: 1)],
+        dayStart: dayStart,
+        matchDurationMin: 40,
+        minRestMin: 30,
+        existingScheduled: const [],
+      );
+      expect(slots.length, 1);
+      expect(
+        slots.first.end.difference(slots.first.start).inMinutes,
+        15 + kocChangeoverMin,
+      );
+    });
+
+    test('elenco da rodada bloqueia a dupla para outro jogo no mesmo horário', () {
+      // Sem isto a dupla seria marcada num duelo enquanto está na rodada.
+      final dayStart = nexagoEventDateTime(
+        year: 2026,
+        month: 10,
+        day: 24,
+        hour: 9,
+      );
+      final slots = ScheduleLogic.buildDaySchedule(
+        unscheduled: [
+          _kocRound(
+            id: 'r1',
+            teamIds: const ['t1', 't2', 't3', 't4'],
+            durationSec: 900,
+            matchNumber: 1,
+          ),
+          _match(id: 'duelo', teamAId: 't1', teamBId: 'tX', matchNumber: 2),
+        ],
+        courts: const [
+          TournamentCourt(id: 'Q1', name: 'Quadra 1', order: 1),
+          TournamentCourt(id: 'Q2', name: 'Quadra 2', order: 2),
+        ],
+        dayStart: dayStart,
+        matchDurationMin: 40,
+        minRestMin: 30,
+        existingScheduled: const [],
+      );
+      final rodada = slots.firstWhere((s) => s.matchId == 'r1');
+      final duelo = slots.firstWhere((s) => s.matchId == 'duelo');
+      // `t1` está nas duas: o duelo só pode começar depois da rodada + descanso.
+      expect(duelo.start.isBefore(rodada.end), isFalse);
     });
 
     test('tournamentDayKeys spans start to end inclusive', () {

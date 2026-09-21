@@ -145,7 +145,7 @@ class _DoubleEliminationBracketCanvasState
             // por cima do cabeçalho e do segmentado da categoria.
             clipBehavior: Clip.hardEdge,
             alignment: Alignment.topLeft,
-            boundaryMargin: const EdgeInsets.all(80),
+            boundaryMargin: const EdgeInsets.fromLTRB(80, 80, 80, 200),
             minScale: 0.35,
             maxScale: 2.5,
             child: SizedBox(

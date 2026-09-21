@@ -12,6 +12,10 @@ void main() {
         TournamentStaffRole.fromValue('manager'),
         TournamentStaffRole.manager,
       );
+      expect(
+        TournamentStaffRole.fromValue('eventAdmin'),
+        TournamentStaffRole.eventAdmin,
+      );
       expect(TournamentStaffRole.fromValue(null), TournamentStaffRole.manager);
       expect(
         TournamentStaffRole.fromValue('unknown'),
@@ -21,12 +25,29 @@ void main() {
 
     test('exposes pt-BR labels', () {
       expect(TournamentStaffRole.manager.label, 'Gestor');
+      expect(TournamentStaffRole.eventAdmin.label, 'Administrador');
       expect(TournamentStaffRole.scorer.label, 'Mesário');
     });
 
     test('serializes to rules-compatible values', () {
       expect(TournamentStaffRole.manager.value, 'manager');
+      expect(TournamentStaffRole.eventAdmin.value, 'eventAdmin');
       expect(TournamentStaffRole.scorer.value, 'scorer');
+    });
+
+    test('describes each role, flagging that eventAdmin has no cash access', () {
+      expect(
+        TournamentStaffRole.manager.description,
+        'Opera inscrições, chaves, agenda e placar',
+      );
+      expect(
+        TournamentStaffRole.eventAdmin.description,
+        'Opera inscrições, chaves, agenda e placar — sem acesso ao caixa',
+      );
+      expect(
+        TournamentStaffRole.scorer.description,
+        'Lança placar das partidas',
+      );
     });
   });
 

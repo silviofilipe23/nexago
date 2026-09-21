@@ -8,6 +8,7 @@ import {
 import * as logger from "firebase-functions/logger";
 
 import {shieldsPerMonthForTrackIndex} from "./sand-rank-engine";
+import {isDuelMatch} from "./match-status";
 
 export const XP_GAME_COMPLETED = 50;
 export const TOURNAMENT_MATCH_WON_EVENT_TYPE = "TOURNAMENT_MATCH_WON";
@@ -32,6 +33,9 @@ export function shouldProcessTournamentMatchXp(
   after: Record<string, unknown> | undefined,
 ): boolean {
   if (!after) return false;
+  // Usado por XP e por palpites de chave: os dois premiam acerto de VENCEDOR
+  // entre dois lados, que uma rodada KOTC não tem.
+  if (!isDuelMatch(after["matchType"])) return false;
   if (!isTournamentMatchCompleted(after["status"])) return false;
   const winnerId = stringField(after["winnerId"]);
   if (!winnerId) return false;

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/layout/nexa_bottom_nav_bar.dart';
-import '../../../core/layout/nexa_floating_header.dart';
+import '../../../core/layout/nexa_page_header.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
@@ -30,50 +30,50 @@ class AthleteCommunityPage extends ConsumerWidget {
         MediaQuery.viewPaddingOf(context).bottom +
         16;
 
-    return CustomScrollView(
-      controller: ref
-          .watch(athleteShellScrollRegistryProvider)
-          .controllerFor(athleteShellCommunityTabIndex),
-      slivers: [
-        NexaFloatingHeaderSliver(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Comunidade',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                  color: context.themeColors.onSurface,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                'O QUE ESTÁ ROLANDO NOS ESPORTES DE AREIA',
-                style: AppTypography.eyebrow.copyWith(
-                  color: context.themeColors.onSurfaceMuted,
-                ),
-              ),
-            ],
+    return NexaPageHeader(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
+      header: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Comunidade',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+              color: context.themeColors.onSurface,
+            ),
           ),
-        ),
-        SliverPadding(
-          padding: EdgeInsets.fromLTRB(
-            AppSpacing.screenH,
-            AppSpacing.sm,
-            AppSpacing.screenH,
-            bottomClearance,
+          const SizedBox(height: 3),
+          Text(
+            'O QUE ESTÁ ROLANDO NOS ESPORTES DE AREIA',
+            style: AppTypography.eyebrow.copyWith(
+              color: context.themeColors.onSurfaceMuted,
+            ),
           ),
-          sliver: SliverList.list(
-            children: const [
-              CommunityFeedSection(),
-              SizedBox(height: AppSpacing.sectionGap),
-              _CommunityRankingCard(),
-            ],
+        ],
+      ),
+      child: CustomScrollView(
+        controller: ref
+            .watch(athleteShellScrollRegistryProvider)
+            .controllerFor(athleteShellCommunityTabIndex),
+        slivers: [
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.screenH,
+              AppSpacing.sm,
+              AppSpacing.screenH,
+              bottomClearance,
+            ),
+            sliver: SliverList.list(
+              children: const [
+                CommunityFeedSection(),
+                SizedBox(height: AppSpacing.sectionGap),
+                _CommunityRankingCard(),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

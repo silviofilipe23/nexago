@@ -81,7 +81,7 @@ class TeamProfileOverviewTab extends StatelessWidget {
           if (formedLabel.isNotEmpty) ...[
             const SizedBox(height: 16),
             Text(
-              'Dupla formada em $formedLabel',
+              'Equipe formada em $formedLabel',
               style: AppTypography.soraRegular(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -129,7 +129,7 @@ class TeamProfileHistoryTab extends StatelessWidget {
             const SizedBox(height: 20),
             Center(
               child: Text(
-                'Dupla formada em $formedLabel',
+                'Equipe formada em $formedLabel',
                 style: AppTypography.soraRegular(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,

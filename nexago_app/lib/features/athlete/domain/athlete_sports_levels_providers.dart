@@ -38,6 +38,7 @@ class AthleteSportsLevelsUiState {
   final int totalGames;
   final bool isSaving;
   final String? errorMessage;
+
   /// Espelho de `users/{uid}.sportOnboarding.levelLocked` — código Firestore
   /// do esporte (ex.: `VOLEI_PRAIA`) → `true` quando a janela de calibração
   /// já fechou (1ª inscrição ativa naquele esporte).

@@ -424,6 +424,75 @@ void main() {
       );
     });
   });
+
+  group('poolRoundDisplayNumberOf', () {
+    TournamentMatch poolMatch({
+      required String id,
+      required int matchNumber,
+      int round = 0,
+      String status = TournamentMatchStatus.scheduled,
+      String teamAId = 't1',
+      String teamBId = 't2',
+    }) {
+      return TournamentMatch(
+        id: id,
+        tournamentId: 't1',
+        categoryId: 'cat-a',
+        round: round,
+        matchType: 'group',
+        poolId: 'A',
+        teamAId: teamAId,
+        teamBId: teamBId,
+        status: status,
+        resultA: '',
+        resultB: '',
+        isGroupMatch: true,
+        matchNumber: matchNumber,
+      );
+    }
+
+    test('nunca mostra rodada 0 quando o Firestore começa em zero', () {
+      final matches = [
+        poolMatch(id: 'a', matchNumber: 1, round: 0),
+        poolMatch(id: 'b', matchNumber: 2, round: 1),
+      ];
+      expect(poolRoundDisplayNumberOf(matches, matches[0]), 1);
+      expect(poolRoundDisplayNumberOf(matches, matches[1]), 2);
+    });
+
+    test('reconstrói rodadas quando todas as partidas do grupo têm round 0', () {
+      // Grupo de 4: 3 rodadas × 2 jogos, tudo round:0 (formato do gerador).
+      final matches = [
+        poolMatch(id: 'r1a', matchNumber: 1, teamAId: 'a', teamBId: 'b'),
+        poolMatch(id: 'r1b', matchNumber: 2, teamAId: 'c', teamBId: 'd'),
+        poolMatch(id: 'r2a', matchNumber: 3, teamAId: 'a', teamBId: 'c'),
+        poolMatch(id: 'r2b', matchNumber: 4, teamAId: 'b', teamBId: 'd'),
+        poolMatch(id: 'r3a', matchNumber: 5, teamAId: 'a', teamBId: 'd'),
+        poolMatch(id: 'r3b', matchNumber: 6, teamAId: 'b', teamBId: 'c'),
+      ];
+
+      expect(poolTotalRounds(matches), 3);
+      expect(poolRoundDisplayNumberOf(matches, matches[0]), 1);
+      expect(poolRoundDisplayNumberOf(matches, matches[2]), 2);
+      expect(poolRoundDisplayNumberOf(matches, matches[5]), 3);
+
+      expect(
+        poolCompletedRounds([
+          ...matches.take(2).map(
+            (m) => poolMatch(
+              id: m.id,
+              matchNumber: m.matchNumber,
+              teamAId: m.teamAId,
+              teamBId: m.teamBId,
+              status: TournamentMatchStatus.completed,
+            ),
+          ),
+          ...matches.skip(2),
+        ]),
+        1,
+      );
+    });
+  });
 }
 
 TournamentMatch _bracketMatch({

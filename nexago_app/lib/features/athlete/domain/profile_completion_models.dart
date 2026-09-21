@@ -100,9 +100,8 @@ class ProfileCompletionState {
 
   int get remainingSteps => totalSteps - completedCount;
 
-  int get remainingXp => steps
-      .where((s) => !s.isDone)
-      .fold(0, (sum, s) => sum + s.step.xpReward);
+  int get remainingXp =>
+      steps.where((s) => !s.isDone).fold(0, (sum, s) => sum + s.step.xpReward);
 
   int get totalXpReward =>
       ProfileCompletionStep.values.fold(0, (sum, s) => sum + s.xpReward);
@@ -116,10 +115,8 @@ class ProfileCompletionState {
       .map((s) => s.step.tournamentAccessLabel)
       .toList();
 
-  List<String> get pendingStepTitles => steps
-      .where((s) => !s.isDone)
-      .map((s) => s.step.title)
-      .toList();
+  List<String> get pendingStepTitles =>
+      steps.where((s) => !s.isDone).map((s) => s.step.title).toList();
 
   static ProfileCompletionState fromProfile(
     AthleteProfile profile, {
@@ -147,15 +144,15 @@ class ProfileCompletionState {
                 profile.primarySportFirestoreId!.isNotEmpty) ||
             profile.levelsBySportFirestore.isNotEmpty ||
             profile.sports.isNotEmpty ||
-            (profile.sport.trim().isNotEmpty && profile.level.trim().isNotEmpty) ||
+            (profile.sport.trim().isNotEmpty &&
+                profile.level.trim().isNotEmpty) ||
             profile.sport.trim().isNotEmpty,
       ProfileCompletionStep.city => _isCityStepDone(profile),
       // Só conta com posse comprovada por SMS, igual ao servidor
       // (`profile-completion-shared.ts`: `data["phoneVerified"] === true`).
       ProfileCompletionStep.whatsapp => profile.phoneVerified,
-      ProfileCompletionStep.goals =>
-        profile.goals.isNotEmpty ||
-        (profile.gameObjective?.trim().isNotEmpty ?? false),
+      ProfileCompletionStep.goals => profile.goals.isNotEmpty ||
+          (profile.gameObjective?.trim().isNotEmpty ?? false),
     };
   }
 
@@ -165,7 +162,8 @@ class ProfileCompletionState {
     return BrLocationsData.parseLegacyLocation(profile.city).state.isNotEmpty;
   }
 
-  static String _doneSubtitle(AthleteProfile profile, ProfileCompletionStep step) {
+  static String _doneSubtitle(
+      AthleteProfile profile, ProfileCompletionStep step) {
     return switch (step) {
       ProfileCompletionStep.photo => 'Foto adicionada.',
       ProfileCompletionStep.sportLevel => _sportLevelSubtitle(profile),

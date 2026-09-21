@@ -383,4 +383,3 @@ int _maxPointDifference(
 
   return (streakSideIsOur, length);
 }
-

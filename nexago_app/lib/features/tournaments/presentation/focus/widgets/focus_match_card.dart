@@ -28,6 +28,10 @@ class FocusMatchCard extends StatelessWidget {
     required this.viewModel,
     this.athleteTeamIds = const {},
     this.categoryName = '',
+    this.avatarSize = 40,
+    this.nameFontSize = 14,
+    this.namesOnePerLine = false,
+    this.glass = false,
     this.onTap,
     this.followAction,
   });
@@ -40,6 +44,17 @@ class FocusMatchCard extends StatelessWidget {
   /// Só nas listas do torneio INTEIRO (seção Arena). Vazio numa lista já
   /// recortada por categoria, onde a informação é redundante.
   final String categoryName;
+
+  /// Diâmetro de cada rosto. A Arena sobe pra 56; home/live mantêm 40.
+  final double avatarSize;
+
+  final double nameFontSize;
+
+  /// Na Arena cada atleta fica em uma linha sob os rostos.
+  final bool namesOnePerLine;
+
+  /// Glass sobre foto de fundo (seção Arena do Focus).
+  final bool glass;
 
   final VoidCallback? onTap;
 
@@ -61,6 +76,7 @@ class FocusMatchCard extends StatelessWidget {
       stage: row.stage,
       isLive: row.state == TournamentMatchRowState.live,
       isMine: row.isMine,
+      glass: glass,
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -78,14 +94,29 @@ class FocusMatchCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: MatchCardSide(side: row.sideA)),
+              Expanded(
+                child: MatchCardSide(
+                  side: row.sideA,
+                  avatarSize: avatarSize,
+                  nameFontSize: nameFontSize,
+                  namesOnePerLine: namesOnePerLine,
+                ),
+              ),
               _Score(
                 center: score.center,
                 detail: score.detail,
                 state: row.state,
                 stage: row.stage,
+                avatarSize: avatarSize,
               ),
-              Expanded(child: MatchCardSide(side: row.sideB)),
+              Expanded(
+                child: MatchCardSide(
+                  side: row.sideB,
+                  avatarSize: avatarSize,
+                  nameFontSize: nameFontSize,
+                  namesOnePerLine: namesOnePerLine,
+                ),
+              ),
             ],
           ),
           if (followAction != null)
@@ -99,19 +130,21 @@ class FocusMatchCard extends StatelessWidget {
   }
 }
 
-/// O placar no meio: sets em número grande e a linha fina embaixo.
+/// O placar no meio: número grande em cima, sets / parciais embaixo.
 class _Score extends StatelessWidget {
   const _Score({
     required this.center,
     required this.detail,
     required this.state,
     required this.stage,
+    required this.avatarSize,
   });
 
   final String center;
   final String? detail;
   final TournamentMatchRowState state;
   final TournamentMatchRowStage? stage;
+  final double avatarSize;
 
   /// Largura FIXA, e é o que segura o layout de pé.
   ///
@@ -139,25 +172,30 @@ class _Score extends StatelessWidget {
       _ => colors.onSurfaceMuted.withValues(alpha: 0.5),
     };
 
+    // Ao vivo o centro é placar de pontos (pode ser "14-11"); agendada é "vs".
+    // Encerrada / sem set aberto continua curto ("2-0").
+    final centerSize = state == TournamentMatchRowState.live ? 28.0 : 26.0;
+
     return SizedBox(
       width: _width,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Alinha o número grande com os rostos das duplas, não com o topo do
-          // bloco: sem isto ele flutuaria acima dos avatares.
-          const SizedBox(height: 4),
+          // Alinha o placar com o centro aproximado dos rostos.
+          SizedBox(height: (avatarSize * 0.28).clamp(4.0, 28.0)),
           Text(
             center,
+            textAlign: TextAlign.center,
             style: AppTypography.mono(
-              fontSize: 26,
+              fontSize: centerSize,
               fontWeight: FontWeight.w800,
               color: color,
               letterSpacing: 0.5,
+              height: 1.05,
             ),
           ),
           if (detail != null) ...[
-            const SizedBox(height: 5),
+            const SizedBox(height: 4),
             Text(
               detail!,
               textAlign: TextAlign.center,
@@ -166,10 +204,10 @@ class _Score extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: AppTypography.mono(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
                 color: colors.onSurfaceMuted,
-                letterSpacing: 1.1,
+                letterSpacing: 0.8,
               ),
             ),
           ],

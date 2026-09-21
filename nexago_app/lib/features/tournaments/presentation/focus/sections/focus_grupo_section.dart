@@ -1,6 +1,7 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_spacing.dart';
@@ -17,16 +18,19 @@ import '../../../domain/tournament_match_display.dart';
 import '../../../domain/tournament_match_status.dart';
 import '../../../domain/tournament_match_card_view_model.dart';
 import '../../widgets/nexa_duo_avatars.dart';
+import '../../widgets/tournament_detail/tournament_pool_standings_widgets.dart';
 import '../focus_bottom_clearance.dart';
 import '../focus_rosters.dart';
 import '../focus_section_header.dart';
 
-/// Seção "Grupo": a classificação do atleta, o que a rodada decide, o que está
-/// em quadra na categoria e onde é o quê.
+/// Seção "Grupo": a classificação do atleta, o que a rodada decide, o cruzamento
+/// no mata-mata e o que está em quadra na categoria.
 ///
-/// A tabela é desenhada aqui, mas o MOTOR de classificação é o mesmo
-/// [computePoolStandings] que o resto do app usa — o Focus nunca pode discordar
-/// da tabela que o atleta vê no detalhe do torneio.
+/// A tabela é a mesma [TournamentPoolStandingsCard] do detalhe do torneio —
+/// mesmo motor ([buildPoolStandingsGroups]) e mesmo desenho, para o Focus não
+/// discordar do que o atleta vê fora do Modo Focus. Com vários grupos na
+/// categoria, a classificação vira carrossel (chips + PageView), começando no
+/// grupo do atleta.
 ///
 /// A categoria vem travada de fora: `poolId` só é único DENTRO da categoria —
 /// os grupos são 'A', 'B', 'C'… em todas elas.
@@ -47,6 +51,9 @@ class FocusGrupoSection extends ConsumerStatefulWidget {
 }
 
 class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
+  PageController? _standingsController;
+  int _standingsPage = 0;
+
   TournamentCategoryOffer? get _offer {
     for (final offer in widget.tournament.categoryOffers) {
       if (offer.id == widget.categoryId) return offer;
@@ -54,38 +61,33 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
     return null;
   }
 
-  String? get _address {
-    final t = widget.tournament;
-    final raw = t.locationAddress?.trim();
-    if (raw != null && raw.isNotEmpty) return raw;
-    final fallback = [t.location.trim(), t.city.trim()]
-        .where((p) => p.isNotEmpty)
-        .join(', ');
-    return fallback.isEmpty ? null : fallback;
+  @override
+  void dispose() {
+    _standingsController?.dispose();
+    super.dispose();
   }
 
-  Future<void> _openMaps() async {
-    final address = _address;
-    if (address == null) return;
-    await launchUrl(
-      Uri.parse(
-        'https://www.google.com/maps/search/?api=1'
-        '&query=${Uri.encodeComponent(address)}',
-      ),
-      mode: LaunchMode.externalApplication,
+  void _ensureStandingsController(int initialPage) {
+    if (_standingsController != null) return;
+    _standingsPage = initialPage;
+    _standingsController = PageController(
+      initialPage: initialPage,
+      viewportFraction: 0.92,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final cards = ref
+    final cards =
+        ref
             .watch(tournamentMatchCardsProvider(widget.tournament.id))
             .valueOrNull ??
         const [];
     final all = [for (final c in cards) c.match];
-    final categoryMatches =
-        all.where((m) => m.categoryId == widget.categoryId).toList();
+    final categoryMatches = all
+        .where((m) => m.categoryId == widget.categoryId)
+        .toList();
 
     final rosters = FocusRosters.fromCards(cards);
 
@@ -97,21 +99,56 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
       );
     }
 
-    final poolMatches =
-        categoryMatches.where((m) => m.poolId == poolId).toList();
-    final order = computePoolStandings(
-      poolId,
-      teamIdsInPool(poolMatches),
-      poolMatches,
-    );
-    final stats = computePoolTeamStats(
-      poolId,
-      teamIdsInPool(poolMatches),
-      poolMatches,
-    );
+    final myPoolMatches = categoryMatches
+        .where((m) => m.poolId == poolId)
+        .toList();
+    // Todos os grupos da categoria — o carrossel deixa o atleta ver o resto.
+    final allPoolMatches = categoryMatches
+        .where((m) => m.poolId.trim().isNotEmpty)
+        .toList();
+    final byId = {for (final c in cards) c.match.id: c};
     final qualifiers = _offer?.qualifiersPerGroup ?? 2;
+    final resolvedTeamNames =
+        ref
+            .watch(
+              tournamentCategoryPoolTeamDisplayNamesProvider((
+                tournamentId: widget.tournament.id,
+                categoryId: widget.categoryId,
+              )),
+            )
+            .valueOrNull ??
+        const <String, String>{};
+    final standingsGroups = buildPoolStandingsGroups(
+      poolMatches: allPoolMatches.isEmpty ? myPoolMatches : allPoolMatches,
+      cardsById: byId,
+      qualifiersPerGroup: qualifiers,
+      athleteTeamIds: widget.athleteTeamIds,
+      resolvedTeamNamesById: mergeTeamDisplayNameMaps(
+        resolvedTeamNames,
+        rosters.duoNamesByTeamId,
+      ),
+    );
 
-    final myPending = _myPendingMatch(poolMatches, myTeamId);
+    final myGroupIndex = standingsGroups.indexWhere((g) => g.poolId == poolId);
+    final initialPage = myGroupIndex < 0 ? 0 : myGroupIndex;
+    if (standingsGroups.length > 1) {
+      _ensureStandingsController(initialPage);
+    }
+
+    final visibleIndex = standingsGroups.isEmpty
+        ? 0
+        : _standingsPage.clamp(0, standingsGroups.length - 1);
+    final visibleGroup = standingsGroups.isEmpty
+        ? null
+        : standingsGroups[visibleIndex];
+    final visiblePoolMatches = visibleGroup == null
+        ? myPoolMatches
+        : categoryMatches
+              .where((m) => m.poolId == visibleGroup.poolId)
+              .toList();
+    final kickerPoolId = visibleGroup?.poolId ?? poolId;
+
+    final myPending = _myPendingMatch(myPoolMatches, myTeamId);
     final scenarios = myPending == null
         ? const <RoundScenario>[]
         : roundScenariosOf(
@@ -141,9 +178,8 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
                     m,
                     categoryMatches: categoryMatches,
                   ),
-                  timeLabelOf: (m) => m.scheduleTime == null
-                      ? null
-                      : matchTimeLabelForCard(m),
+                  timeLabelOf: (m) =>
+                      m.scheduleTime == null ? null : matchTimeLabelForCard(m),
                 ),
         ),
     ];
@@ -165,38 +201,54 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _kicker(poolId, poolMatches),
-                style:
-                    AppTypography.eyebrow.copyWith(color: AppColors.brand),
+                _kicker(kickerPoolId, visiblePoolMatches),
+                style: AppTypography.eyebrow.copyWith(color: AppColors.brand),
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(
                 qualifiers == 1 ? 'Um avança.' : '$_qualifiersWord avançam.',
-                style:
-                    AppTypography.displayL.copyWith(color: colors.onSurface),
+                style: AppTypography.displayL.copyWith(color: colors.onSurface),
               ),
             ],
           ),
         ),
         const FocusSectionHeader(label: 'CLASSIFICAÇÃO'),
-        _StandingsTable(
-          order: order,
-          stats: stats,
-          rosters: rosters,
-          myTeamId: myTeamId,
-          qualifiers: qualifiers,
-          scenarios: scenariosComDestino,
-          scenarioRound: myPending?.round,
-        ),
+        if (standingsGroups.length > 1) ...[
+          _StandingsGroupChips(
+            groups: standingsGroups,
+            selectedIndex: visibleIndex,
+            athletePoolId: poolId,
+            onSelected: (i) {
+              setState(() => _standingsPage = i);
+              _standingsController?.animateToPage(
+                i,
+                duration: const Duration(milliseconds: 280),
+                curve: Curves.easeOutCubic,
+              );
+            },
+          ),
+          const SizedBox(height: 4),
+        ],
+        if (standingsGroups.isNotEmpty)
+          _StandingsCarousel(
+            groups: standingsGroups,
+            qualifiersPerGroup: qualifiers,
+            controller: standingsGroups.length > 1 ? _standingsController : null,
+            onPageChanged: (i) => setState(() => _standingsPage = i),
+          ),
+        if (scenariosComDestino.isNotEmpty)
+          _ScenariosCard(
+            scenarios: scenariosComDestino,
+            scenarioRound: myPending == null
+                ? null
+                : poolRoundDisplayNumberOf(myPoolMatches, myPending),
+          ),
         if (crossing.isNotEmpty) ...[
           const FocusSectionHeader(label: 'CRUZAMENTO NO MATA-MATA'),
-          for (final row in crossing) _CrossingTile(row: row),
+          _CrossingBracket(rows: crossing),
         ],
         if (live.isNotEmpty) ...[
-          const FocusSectionHeader(
-            label: 'AO VIVO NA CATEGORIA',
-            live: true,
-          ),
+          const FocusSectionHeader(label: 'AO VIVO NA CATEGORIA', live: true),
           for (final m in live)
             _LiveRow(
               nameA: rosters.nameOf(m.teamAId),
@@ -210,25 +262,6 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
               ].join(' · '),
               score: matchCardScoreLabel(m),
             ),
-        ],
-        if (_address != null) ...[
-          const FocusSectionHeader(label: 'ONDE É O QUÊ'),
-          _WhereCard(
-            rows: [
-              (
-                'Sua quadra agora',
-                myPending != null &&
-                        matchCourtLabelForCard(myPending).trim().isNotEmpty
-                    ? matchCourtLabelForCard(myPending)
-                    : 'A definir',
-              ),
-              if (widget.tournament.location.trim().isNotEmpty)
-                ('Arena', widget.tournament.location.trim()),
-              if (widget.tournament.city.trim().isNotEmpty)
-                ('Cidade', widget.tournament.city.trim()),
-            ],
-            onOpenMaps: _openMaps,
-          ),
         ],
       ],
     );
@@ -246,12 +279,8 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
 
   /// "GRUPO B · APÓS 2 DE 3 RODADAS".
   String _kicker(String poolId, List<TournamentMatch> poolMatches) {
-    final rounds = poolMatches.map((m) => m.round).toSet().length;
-    final played = poolMatches
-        .where((m) => TournamentMatchStatus.isCompleted(m.status))
-        .map((m) => m.round)
-        .toSet()
-        .length;
+    final rounds = poolTotalRounds(poolMatches);
+    final played = poolCompletedRounds(poolMatches);
     final label = poolLabelForId(poolId).toUpperCase();
     if (rounds == 0) return label;
     return '$label · APÓS $played DE $rounds RODADAS';
@@ -279,267 +308,267 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
     String? myTeamId,
   ) {
     if (myTeamId == null) return null;
-    final mine = poolMatches
-        .where((m) =>
-            (m.teamAId == myTeamId || m.teamBId == myTeamId) &&
-            !TournamentMatchStatus.isCompleted(m.status) &&
-            !TournamentMatchStatus.isCanceled(m.status))
-        .toList()
-      ..sort((a, b) => a.matchNumber.compareTo(b.matchNumber));
+    final mine =
+        poolMatches
+            .where(
+              (m) =>
+                  (m.teamAId == myTeamId || m.teamBId == myTeamId) &&
+                  !TournamentMatchStatus.isCompleted(m.status) &&
+                  !TournamentMatchStatus.isCanceled(m.status),
+            )
+            .toList()
+          ..sort((a, b) => a.matchNumber.compareTo(b.matchNumber));
     return mine.isEmpty ? null : mine.first;
   }
 }
 
-/// A tabela do grupo, no desenho do protótipo: cabeçalho de colunas, uma linha
-/// por dupla e — no MESMO card, separado por um divisor — o que a rodada
-/// decide. Manter os dois juntos é o ponto: a pergunta "em que posição eu
-/// estou" e a pergunta "o que muda se eu vencer" se leem na mesma olhada.
-class _StandingsTable extends StatelessWidget {
-  const _StandingsTable({
-    required this.order,
-    required this.stats,
-    required this.rosters,
-    required this.myTeamId,
-    required this.qualifiers,
-    required this.scenarios,
-    required this.scenarioRound,
+/// Chips A/B/C… — atalho pro carrossel (além do swipe).
+class _StandingsGroupChips extends StatelessWidget {
+  const _StandingsGroupChips({
+    required this.groups,
+    required this.selectedIndex,
+    required this.athletePoolId,
+    required this.onSelected,
   });
 
-  final List<String> order;
-  final Map<String, TournamentPoolTeamStats> stats;
-  final FocusRosters rosters;
-  final String? myTeamId;
-  final int qualifiers;
-  final List<({RoundScenario scenario, String? destination})> scenarios;
-  final int? scenarioRound;
-
-  static const double _wV = 26;
-  static const double _wD = 26;
-  static const double _wSets = 44;
-  static const double _wPts = 32;
+  final List<TournamentPoolStandingsGroup> groups;
+  final int selectedIndex;
+  final String athletePoolId;
+  final ValueChanged<int> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.themeColors;
-
-    Widget head(String text, double width) => SizedBox(
-          width: width,
-          child: Text(
-            text,
-            textAlign: TextAlign.center,
-            style: AppTypography.monoMeta.copyWith(
-              color: colors.onSurfaceMuted,
-              fontSize: 10,
-            ),
-          ),
-        );
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
-      child: Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: colors.surfaceCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colors.outline),
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.md,
-                AppSpacing.md,
-                AppSpacing.md,
-                AppSpacing.sm,
-              ),
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
+        itemCount: groups.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final group = groups[i];
+          final selected = i == selectedIndex;
+          final isMine = group.poolId == athletePoolId;
+          final letter = _groupLetter(group);
+          return GestureDetector(
+            onTap: () => onSelected(i),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              alignment: Alignment.center,
               decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: colors.outline.withValues(alpha: 0.6),
-                  ),
+                color: selected
+                    ? AppColors.brand
+                    : Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: selected
+                      ? AppColors.brand
+                      : Colors.white.withValues(alpha: 0.12),
                 ),
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // O mesmo recuo da barra de classificação, para o "#" ficar
-                  // alinhado com os números das linhas.
-                  const SizedBox(width: 3),
-                  SizedBox(width: 20, child: head('#', 20)),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      'DUPLA',
-                      style: AppTypography.monoMeta.copyWith(
-                        color: colors.onSurfaceMuted,
-                        fontSize: 10,
-                      ),
+                  Text(
+                    letter,
+                    style: AppTypography.soraRegular(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: selected ? AppColors.black : Colors.white,
                     ),
                   ),
-                  head('V', _wV),
-                  head('D', _wD),
-                  head('SETS', _wSets),
-                  head('PTS', _wPts),
+                  if (isMine) ...[
+                    const SizedBox(width: 6),
+                    Text(
+                      'SEU',
+                      style: AppTypography.mono(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.4,
+                        color: selected
+                            ? AppColors.black.withValues(alpha: 0.7)
+                            : AppColors.brand,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
-            for (var i = 0; i < order.length; i++)
-              _StandingRow(
-                rank: i + 1,
-                stats: stats[order[i]],
-                name: rosters.nameOf(order[i], 'Dupla'),
-                isMe: order[i] == myTeamId,
-                qualifies: i < qualifiers,
-                isLast: i == order.length - 1 && scenarios.isEmpty,
-              ),
-            if (scenarios.isNotEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.md,
-                  AppSpacing.md,
-                  AppSpacing.md,
-                  AppSpacing.md,
-                ),
-                decoration: BoxDecoration(
-                  color: colors.surfaceRaised.withValues(alpha: 0.4),
-                  border: Border(
-                    top: BorderSide(
-                      color: colors.outline.withValues(alpha: 0.6),
-                    ),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      scenarioRound != null
-                          ? 'EM JOGO NA RODADA $scenarioRound'
-                          : 'EM JOGO NESTA RODADA',
-                      style: AppTypography.monoMeta.copyWith(
-                        color: colors.onSurfaceMuted,
-                        fontSize: 10,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    for (final entry in scenarios)
-                      _ScenarioRow(
-                        scenario: entry.scenario,
-                        destination: entry.destination,
-                      ),
-                  ],
-                ),
-              ),
-          ],
-        ),
+          );
+        },
       ),
+    );
+  }
+
+  static String _groupLetter(TournamentPoolStandingsGroup group) {
+    final label = group.poolLabel.trim();
+    final lower = label.toLowerCase();
+    if (lower.startsWith('grupo ')) {
+      final parts = label.split(' ');
+      if (parts.length >= 2) return parts.last.toUpperCase();
+    }
+    return (group.poolId.isNotEmpty ? group.poolId : label).toUpperCase();
+  }
+}
+
+/// Carrossel das classificações — um card por grupo, começa no do atleta.
+class _StandingsCarousel extends StatelessWidget {
+  const _StandingsCarousel({
+    required this.groups,
+    required this.qualifiersPerGroup,
+    required this.onPageChanged,
+    this.controller,
+  });
+
+  final List<TournamentPoolStandingsGroup> groups;
+  final int qualifiersPerGroup;
+  final ValueChanged<int> onPageChanged;
+  final PageController? controller;
+
+  @override
+  Widget build(BuildContext context) {
+    if (groups.length == 1) {
+      return TournamentPoolStandingsCard(
+        group: groups.first,
+        qualifiersPerGroup: qualifiersPerGroup,
+        showFooter: true,
+      );
+    }
+
+    final height = groups
+        .map(_estimateHeight)
+        .reduce((a, b) => a > b ? a : b);
+
+    return Column(
+      children: [
+        SizedBox(
+          height: height,
+          child: PageView.builder(
+            controller: controller,
+            itemCount: groups.length,
+            onPageChanged: onPageChanged,
+            itemBuilder: (context, i) {
+              return TournamentPoolStandingsCard(
+                group: groups[i],
+                qualifiersPerGroup: qualifiersPerGroup,
+                showFooter: true,
+                padding: const EdgeInsets.fromLTRB(6, 8, 6, 0),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+        _StandingsDots(
+          count: groups.length,
+          controller: controller,
+        ),
+      ],
+    );
+  }
+
+  /// Altura estável pro PageView: cabeçalho + linhas (até 2 linhas de nome) +
+  /// rodapé da legenda.
+  static double _estimateHeight(TournamentPoolStandingsGroup group) {
+    const chrome = 14.0 * 2 + 52 + 12 + 20 + 12 + 52;
+    return chrome + group.rows.length * 48.0;
+  }
+}
+
+class _StandingsDots extends StatelessWidget {
+  const _StandingsDots({required this.count, required this.controller});
+
+  final int count;
+  final PageController? controller;
+
+  @override
+  Widget build(BuildContext context) {
+    if (controller == null || count <= 1) return const SizedBox.shrink();
+
+    return AnimatedBuilder(
+      animation: controller!,
+      builder: (context, _) {
+        final page = controller!.hasClients
+            ? (controller!.page ?? controller!.initialPage.toDouble())
+            : controller!.initialPage.toDouble();
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var i = 0; i < count; i++) ...[
+              if (i > 0) const SizedBox(width: 6),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: (page - i).abs() < 0.5 ? 16 : 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: (page - i).abs() < 0.5
+                      ? AppColors.brand
+                      : Colors.white.withValues(alpha: 0.28),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
 
-/// Uma linha da classificação. A do atleta ganha fundo e o nome marcado com
-/// "você"; quem está na faixa de classificação ganha a barra verde à esquerda.
-///
-/// SEM avatar, seguindo o protótipo: a linha carrega cinco colunas numéricas
-/// além do nome, e um rosto aqui espremeria V/D/SETS/PTS. Os rostos seguem nas
-/// outras listas do Focus, que têm espaço para eles.
-class _StandingRow extends StatelessWidget {
-  const _StandingRow({
-    required this.rank,
-    required this.stats,
-    required this.name,
-    required this.isMe,
-    required this.qualifies,
-    required this.isLast,
-  });
+/// O que a rodada decide — fica sob a tabela compartilhada, não embutido nela.
+class _ScenariosCard extends StatelessWidget {
+  const _ScenariosCard({required this.scenarios, required this.scenarioRound});
 
-  final int rank;
-  final TournamentPoolTeamStats? stats;
-  final String name;
-  final bool isMe;
-  final bool qualifies;
-  final bool isLast;
+  final List<({RoundScenario scenario, String? destination})> scenarios;
+  final int? scenarioRound;
+
+  static const _radius = 16.0;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final s = stats;
 
-    Widget cell(String text, double width, {bool strong = false}) => SizedBox(
-          width: width,
-          child: Text(
-            text,
-            textAlign: TextAlign.center,
-            style: AppTypography.monoMeta.copyWith(
-              color: strong ? colors.onSurface : colors.onSurfaceMuted,
-              fontWeight: strong ? FontWeight.w800 : FontWeight.w600,
-            ),
-          ),
-        );
-
-    return Container(
-      decoration: BoxDecoration(
-        color: isMe ? AppColors.brand.withValues(alpha: 0.10) : null,
-        border: Border(
-          left: BorderSide(
-            color: qualifies ? colors.win : Colors.transparent,
-            width: 3,
-          ),
-          bottom: isLast
-              ? BorderSide.none
-              : BorderSide(color: colors.outline.withValues(alpha: 0.5)),
-        ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenH,
+        AppSpacing.md,
+        AppSpacing.screenH,
+        0,
       ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.md,
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 20,
-            child: Text(
-              '$rank',
-              textAlign: TextAlign.center,
-              style: AppTypography.monoMeta.copyWith(
-                color: qualifies ? colors.win : colors.onSurfaceMuted,
-                fontWeight: FontWeight.w800,
-              ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(_radius),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(_radius),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
             ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Flexible(
-                  child: Text(
-                    name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    // Menor que o corpo padrão: a linha divide a largura com
-                    // quatro colunas numéricas, e nome grande empurra as duas
-                    // últimas para fora no celular.
-                    style: AppTypography.bodyS.copyWith(
-                      color: colors.onSurface,
-                      fontWeight: isMe ? FontWeight.w800 : FontWeight.w500,
-                    ),
+                Text(
+                  scenarioRound != null
+                      ? 'EM JOGO NA RODADA $scenarioRound'
+                      : 'EM JOGO NESTA RODADA',
+                  style: AppTypography.monoMeta.copyWith(
+                    color: colors.onSurfaceMuted,
+                    fontSize: 10,
                   ),
                 ),
-                if (isMe)
-                  Text(
-                    ' · você',
-                    style: AppTypography.bodyS.copyWith(
-                      color: AppColors.brand,
-                      fontWeight: FontWeight.w700,
-                    ),
+                const SizedBox(height: AppSpacing.sm),
+                for (final entry in scenarios)
+                  _ScenarioRow(
+                    scenario: entry.scenario,
+                    destination: entry.destination,
                   ),
               ],
             ),
           ),
-          cell('${s?.wins ?? 0}', _StandingsTable._wV, strong: isMe),
-          cell('${s?.losses ?? 0}', _StandingsTable._wD, strong: isMe),
-          cell('${s?.setsWon ?? 0}–${s?.setsLost ?? 0}', _StandingsTable._wSets),
-          cell('${(s?.wins ?? 0) * 3}', _StandingsTable._wPts, strong: true),
-        ],
+        ),
       ),
     );
   }
@@ -560,26 +589,50 @@ class _ScenarioRow extends StatelessWidget {
     final colors = context.themeColors;
     final tag = scenario.won ? 'VENCE' : 'PERDE';
     final tagColor = scenario.won ? colors.win : AppColors.pending;
+    final icon = scenario.won
+        ? Icons.trending_up_rounded
+        : Icons.trending_down_rounded;
 
-    // Sem recuo horizontal: esta linha vive DENTRO do card da tabela, que já
-    // tem o seu próprio.
+    // Sem padding horizontal extra: o card pai já tem o recuo.
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: tagColor.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: tagColor.withValues(alpha: 0.35)),
+            ),
+            child: Icon(icon, size: 16, color: tagColor),
+          ),
+          const SizedBox(width: AppSpacing.sm),
           SizedBox(
             width: 52,
-            child: Text(
-              tag,
-              style: AppTypography.eyebrow.copyWith(color: tagColor),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: Text(
+                tag,
+                style: AppTypography.eyebrow.copyWith(color: tagColor),
+              ),
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Text(
-              [scenario.text, ?destination].join(' · '),
-              style: AppTypography.bodyS.copyWith(color: colors.onSurface),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                [
+                  scenario.text,
+                  if (destination != null && destination!.trim().isNotEmpty)
+                    destination!.trim(),
+                ].join(' · '),
+                style: AppTypography.bodyS.copyWith(color: colors.onSurface),
+              ),
             ),
           ),
         ],
@@ -646,14 +699,16 @@ class _LiveRow extends StatelessWidget {
                     '$nameA vs $nameB',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style:
-                        AppTypography.bodyM.copyWith(color: colors.onSurface),
+                    style: AppTypography.bodyM.copyWith(
+                      color: colors.onSurface,
+                    ),
                   ),
                   if (context.trim().isNotEmpty)
                     Text(
                       context.toUpperCase(),
-                      style: AppTypography.eyebrow
-                          .copyWith(color: colors.onSurfaceMuted),
+                      style: AppTypography.eyebrow.copyWith(
+                        color: colors.onSurfaceMuted,
+                      ),
                     ),
                 ],
               ),
@@ -661,14 +716,306 @@ class _LiveRow extends StatelessWidget {
             if (score.trim().isNotEmpty)
               Text(
                 score,
-                style: AppTypography.monoMeta
-                    .copyWith(color: colors.onSurface),
+                style: AppTypography.monoMeta.copyWith(color: colors.onSurface),
               ),
           ],
         ),
       ),
     );
   }
+}
+
+/// Cruzamento em 3 colunas (protótipo): seeds à esquerda, troféu + fase no
+/// centro, adversários à direita, com linhas de chave convergindo.
+/// Cruzamento em 3 colunas. Em cada lado, os slots vêm **dois a dois** por
+/// jogo: cards 1–2 = equipes do 1º confronto, 3–4 = do 2º, etc.
+class _CrossingBracket extends StatelessWidget {
+  const _CrossingBracket({required this.rows});
+
+  final List<CrossingRow> rows;
+
+  static const _slotHeight = 36.0;
+  static const _slotGap = 10.0;
+  static const _hubWidth = 64.0;
+  static const _gutterWidth = 28.0;
+
+  /// Metade esquerda / direita dos confrontos; cada confronto vira 2 slots
+  /// (1º em cima, 2º embaixo na coluna).
+  static List<String> _slotsForHalf(List<CrossingRow> matches) {
+    final slots = <String>[];
+    for (final row in matches) {
+      final sides = crossingBracketSides(row);
+      slots.add(_compactCrossingSlot(sides.left));
+      slots.add(_compactCrossingSlot(sides.right));
+    }
+    return slots;
+  }
+
+  static double _heightForSlotCount(int n) {
+    if (n == 0) return 0;
+    return n * _slotHeight + (n - 1) * _slotGap;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (rows.length == 1) {
+      return _CrossingTile(row: rows.first);
+    }
+
+    final colors = context.themeColors;
+    final phase = rows.first.label.trim().toUpperCase();
+    final lineColor = Colors.white.withValues(alpha: 0.22);
+
+    // Metade dos jogos à esquerda, metade à direita — assim o 1º e o 2º card
+    // da coluna esquerda são as duas equipes do primeiro confronto.
+    final split = (rows.length + 1) ~/ 2;
+    final leftSlots = _slotsForHalf(rows.sublist(0, split));
+    final rightSlots = _slotsForHalf(rows.sublist(split));
+    final columnHeight = _heightForSlotCount(
+      leftSlots.length > rightSlots.length
+          ? leftSlots.length
+          : rightSlots.length,
+    );
+
+    Widget slotColumn(List<String> slots) {
+      return Column(
+        children: [
+          for (var i = 0; i < slots.length; i++) ...[
+            if (i > 0) const SizedBox(height: _slotGap),
+            _CrossingSlot(label: slots[i], height: _slotHeight),
+          ],
+        ],
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenH,
+        0,
+        AppSpacing.screenH,
+        AppSpacing.md,
+      ),
+      child: SizedBox(
+        height: columnHeight,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: slotColumn(leftSlots)),
+            SizedBox(
+              width: _gutterWidth,
+              child: CustomPaint(
+                painter: _CrossingSidePainter(
+                  slotCount: leftSlots.length,
+                  slotHeight: _slotHeight,
+                  slotGap: _slotGap,
+                  color: lineColor,
+                  towardCenter: true,
+                ),
+              ),
+            ),
+            SizedBox(
+              width: _hubWidth,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.emoji_events_rounded,
+                      color: AppColors.brand,
+                      size: 28,
+                      shadows: [
+                        Shadow(
+                          color: AppColors.brand.withValues(alpha: 0.55),
+                          blurRadius: 12,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      phase.replaceAll(' ', '\n'),
+                      textAlign: TextAlign.center,
+                      style: AppTypography.mono(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: colors.onSurfaceMuted,
+                        letterSpacing: 0.6,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(
+              width: _gutterWidth,
+              child: CustomPaint(
+                painter: _CrossingSidePainter(
+                  slotCount: rightSlots.length,
+                  slotHeight: _slotHeight,
+                  slotGap: _slotGap,
+                  color: lineColor,
+                  towardCenter: false,
+                ),
+              ),
+            ),
+            Expanded(child: slotColumn(rightSlots)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "1º do Grupo A" → "1º Grupo A" (como no protótipo).
+String _compactCrossingSlot(String raw) =>
+    raw.replaceAll(' do ', ' ').replaceAll(' Do ', ' ').trim();
+
+class _CrossingSlot extends StatelessWidget {
+  const _CrossingSlot({required this.label, required this.height});
+
+  final String label;
+  final double height;
+
+  static const _radius = 10.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+
+    return SizedBox(
+      height: height,
+      width: double.infinity,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(_radius),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(_radius),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${label}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.soraRegular(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: colors.onSurface,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 16,
+                  color: colors.onSurfaceMuted,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Linhas no vão entre slots e hub: pares → nível seguinte → centro.
+class _CrossingSidePainter extends CustomPainter {
+  const _CrossingSidePainter({
+    required this.slotCount,
+    required this.slotHeight,
+    required this.slotGap,
+    required this.color,
+    required this.towardCenter,
+  });
+
+  final int slotCount;
+  final double slotHeight;
+  final double slotGap;
+  final Color color;
+
+  /// `true` = coluna esquerda (linhas correm para a direita / hub).
+  final bool towardCenter;
+
+  double _slotCenterY(int index) =>
+      index * (slotHeight + slotGap) + slotHeight / 2;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (slotCount < 2) return;
+
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final startX = towardCenter ? 0.0 : size.width;
+    final endX = towardCenter ? size.width : 0.0;
+    final joinX = towardCenter ? size.width * 0.45 : size.width * 0.55;
+
+    void pairBracket(double y1, double y2, double outX) {
+      final midY = (y1 + y2) / 2;
+      final path = Path()
+        ..moveTo(startX, y1)
+        ..lineTo(joinX, y1)
+        ..lineTo(joinX, y2)
+        ..moveTo(startX, y2)
+        ..lineTo(joinX, y2)
+        ..moveTo(joinX, midY)
+        ..lineTo(outX, midY);
+      canvas.drawPath(path, paint);
+    }
+
+    final pairMids = <double>[];
+    for (var i = 0; i + 1 < slotCount; i += 2) {
+      final y1 = _slotCenterY(i);
+      final y2 = _slotCenterY(i + 1);
+      final outX = slotCount <= 2
+          ? endX
+          : (towardCenter ? size.width * 0.72 : size.width * 0.28);
+      pairBracket(y1, y2, outX);
+      pairMids.add((y1 + y2) / 2);
+    }
+
+    if (slotCount.isOdd) {
+      final y = _slotCenterY(slotCount - 1);
+      canvas.drawLine(Offset(startX, y), Offset(endX, y), paint);
+    }
+
+    if (pairMids.length >= 2) {
+      final y1 = pairMids[0];
+      final y2 = pairMids[1];
+      final midY = (y1 + y2) / 2;
+      final level2X = towardCenter ? size.width * 0.72 : size.width * 0.28;
+      final path = Path()
+        ..moveTo(level2X, y1)
+        ..lineTo(level2X, y2)
+        ..moveTo(level2X, midY)
+        ..lineTo(endX, midY);
+      canvas.drawPath(path, paint);
+    } else if (pairMids.length == 1 && slotCount > 2) {
+      canvas.drawLine(
+        Offset(joinX, pairMids.first),
+        Offset(endX, pairMids.first),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CrossingSidePainter oldDelegate) =>
+      oldDelegate.slotCount != slotCount ||
+      oldDelegate.slotHeight != slotHeight ||
+      oldDelegate.slotGap != slotGap ||
+      oldDelegate.color != color ||
+      oldDelegate.towardCenter != towardCenter;
 }
 
 class _CrossingTile extends StatelessWidget {
@@ -687,114 +1034,35 @@ class _CrossingTile extends StatelessWidget {
         AppSpacing.screenH,
         AppSpacing.sm,
       ),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: colors.surfaceCard,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: colors.outline),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              row.label,
-              style:
-                  AppTypography.eyebrow.copyWith(color: colors.onSurfaceMuted),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
             ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              '${row.a}  ×  ${row.b}',
-              style: AppTypography.bodyM.copyWith(color: colors.onSurface),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// "Onde é o quê": as referências do dia, uma por linha, com o mapa da arena
-/// no rodapé do mesmo card — o desenho do protótipo.
-///
-/// O protótipo traz também mesa/súmula, ponto de hidratação e fisioterapia.
-/// Nenhum tem campo no projeto: as comodidades da arena são estacionamento,
-/// vestiário, quadra coberta, bar, aluguel e acessibilidade, e o torneio nem
-/// carrega `arenaId`. Entram quando alguém puder preenchê-los — até lá o card
-/// mostra só o que é verdade.
-class _WhereCard extends StatelessWidget {
-  const _WhereCard({required this.rows, required this.onOpenMaps});
-
-  final List<(String, String)> rows;
-  final VoidCallback onOpenMaps;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    final visible =
-        rows.where((r) => r.$2.trim().isNotEmpty).toList(growable: false);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
-      child: Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: colors.surfaceCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colors.outline),
-        ),
-        child: Column(
-          children: [
-            for (var i = 0; i < visible.length; i++)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg,
-                  vertical: AppSpacing.lg - 2,
-                ),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: colors.outline.withValues(alpha: 0.5),
-                    ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  row.label,
+                  style: AppTypography.eyebrow.copyWith(
+                    color: colors.onSurfaceMuted,
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        visible[i].$1,
-                        style: AppTypography.bodyM
-                            .copyWith(color: colors.onSurfaceMuted),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Flexible(
-                      child: Text(
-                        visible[i].$2,
-                        textAlign: TextAlign.right,
-                        style: AppTypography.bodyM.copyWith(
-                          color: colors.onSurface,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  '${_compactCrossingSlot(crossingBracketSides(row).left)}  ×  '
+                  '${_compactCrossingSlot(crossingBracketSides(row).right)}',
+                  style: AppTypography.bodyM.copyWith(color: colors.onSurface),
                 ),
-              ),
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: onOpenMaps,
-                  icon: const Icon(Icons.place_outlined, size: 16),
-                  // Mapa da ARENA: as quadras do torneio são só `{id, name}`,
-                  // sem posição, então apontar a quadra seria mentira.
-                  label: const Text('Abrir mapa da arena'),
-                ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

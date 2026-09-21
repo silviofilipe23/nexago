@@ -1,11 +1,12 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/league_detail_logic.dart';
+import '../../../domain/tournament_cover_art.dart';
 import '../../../domain/tournament_discovery_models.dart';
+import '../tournament_cover_image.dart';
 
 class LeagueDetailHero extends StatelessWidget {
   const LeagueDetailHero({
@@ -29,7 +30,12 @@ class LeagueDetailHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final coverUrl = league.coverUrl?.trim();
-    final hasCover = coverUrl != null && coverUrl.isNotEmpty;
+    // "Tem capa" aqui é sobre CONTRASTE: a arte do esporte é foto igual à capa
+    // enviada, então o texto e os ícones sobre ela precisam do mesmo
+    // tratamento. Só o gradiente dispensa.
+    final hasCover =
+        (coverUrl != null && coverUrl.isNotEmpty) ||
+        TournamentCoverArt.assetFor(league.sport) != null;
     final onCover = Colors.white;
     final onCoverMuted = Colors.white.withValues(alpha: 0.72);
     final statusLabel = leagueStatusBadgeLabel(league.listingStatus);
@@ -53,7 +59,8 @@ class LeagueDetailHero extends StatelessWidget {
             top: -topInset,
             bottom: 0,
             child: _LeagueHeroCoverBackground(
-              imageUrl: hasCover ? coverUrl : null,
+              coverUrl: coverUrl,
+              sport: league.sport,
             ),
           ),
           Column(
@@ -186,9 +193,13 @@ class LeagueDetailHero extends StatelessWidget {
 }
 
 class _LeagueHeroCoverBackground extends StatelessWidget {
-  const _LeagueHeroCoverBackground({this.imageUrl});
+  const _LeagueHeroCoverBackground({
+    required this.coverUrl,
+    required this.sport,
+  });
 
-  final String? imageUrl;
+  final String? coverUrl;
+  final String sport;
 
   @override
   Widget build(BuildContext context) {
@@ -197,16 +208,11 @@ class _LeagueHeroCoverBackground extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (imageUrl != null)
-          CachedNetworkImage(
-            imageUrl: imageUrl!,
-            fit: BoxFit.cover,
-            fadeInDuration: const Duration(milliseconds: 220),
-            placeholder: (_, __) => const _CoverPlaceholder(),
-            errorWidget: (_, __, ___) => const _CoverPlaceholder(),
-          )
-        else
-          const _CoverPlaceholder(),
+        TournamentCoverImage(
+          coverUrl: coverUrl,
+          sport: sport,
+          placeholder: (_) => const _CoverPlaceholder(),
+        ),
         DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(

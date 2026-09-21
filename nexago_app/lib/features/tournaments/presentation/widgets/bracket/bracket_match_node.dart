@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
@@ -11,7 +13,7 @@ import '../../../domain/tournament_match_display.dart';
 import '../../../domain/tournament_match_live_score.dart';
 import '../tournament_match_live_badge.dart';
 
-class BracketMatchNode extends StatelessWidget {
+class BracketMatchNode extends StatefulWidget {
   const BracketMatchNode({
     super.key,
     required this.viewModel,
@@ -27,127 +29,162 @@ class BracketMatchNode extends StatelessWidget {
   final Set<String> athleteTeamIds;
   final VoidCallback? onTap;
 
-  static const _finalBackground = Color(0xFF1C1206);
+  static const pressedScale = 0.97;
+
+  @override
+  State<BracketMatchNode> createState() => _BracketMatchNodeState();
+}
+
+class _BracketMatchNodeState extends State<BracketMatchNode> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final match = viewModel.match;
+    final match = widget.viewModel.match;
     final isLive = match.isInProgress;
-    final counts = setsWonCountForMatch(match);
-    final hasScore = matchHasScoreData(match);
+    final singleSet = matchBestOf(match) == 1;
+    final (scoreA, scoreB, hasScore) = _bracketSideScores(match);
     final teamAWon = isMatchTeamWinner(match, isTeamA: true);
     final teamBWon = isMatchTeamWinner(match, isTeamA: false);
     final statusLabel = matchStatusPillLabelPt(match.status);
     final headerLabel = _bracketMatchHeaderLabel(match);
 
     final borderColor = isLive
-        ? AppColors.brand.withValues(alpha: 0.55)
-        : isAthleteMatch
+        ? AppColors.live.withValues(alpha: 0.85)
+        : widget.isAthleteMatch
             ? AppColors.brand.withValues(alpha: 0.85)
-            : AppColors.brand.withValues(alpha: 0.35);
-    final borderWidth = isAthleteMatch || isFinal ? 2.0 : 1.5;
-    final backgroundColor = isFinal
-        ? _finalBackground
-        : isAthleteMatch && !isLive
-            ? AppColors.brand.withValues(alpha: 0.06)
-            : context.themeColors.surfaceRaised;
+            : Colors.white.withValues(alpha: 0.14);
+    final borderWidth =
+        isLive || widget.isAthleteMatch || widget.isFinal ? 2.0 : 1.5;
+    // Glass padrão; ao vivo tinge de vermelho, final/sua partida tingem o fill.
+    final fillColor = isLive
+        ? AppColors.live.withValues(alpha: 0.16)
+        : widget.isFinal
+            ? AppColors.pending.withValues(alpha: 0.14)
+            : widget.isAthleteMatch
+                ? AppColors.brand.withValues(alpha: 0.12)
+                : Colors.white.withValues(alpha: 0.06);
 
-    final winnerSetPills = teamAWon
-        ? _setPillsForTeam(match: match, isTeamA: true)
-        : teamBWon
-            ? _setPillsForTeam(match: match, isTeamA: false)
-            : const <String>[];
+    // Em MD1 o número ao lado do nome já é a pontuação — pills/parciais
+    // repetiriam o mesmo placar.
+    final winnerSetPills = singleSet
+        ? const <String>[]
+        : teamAWon
+            ? _setPillsForTeam(match: match, isTeamA: true)
+            : teamBWon
+                ? _setPillsForTeam(match: match, isTeamA: false)
+                : const <String>[];
+    final showLiveScoreLine =
+        !singleSet && isLive && match.liveScore != null;
 
     const radius = BorderRadius.all(Radius.circular(18));
-    final content = Container(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: radius,
-          border: Border.all(color: borderColor, width: borderWidth),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    headerLabel,
-                    style: AppTypography.mono(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: context.themeColors.onSurfaceMuted,
-                      letterSpacing: 0.3,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+    final body = Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      decoration: BoxDecoration(
+        color: fillColor,
+        borderRadius: radius,
+        border: Border.all(color: borderColor, width: borderWidth),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  headerLabel,
+                  style: AppTypography.mono(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: context.themeColors.onSurfaceMuted,
+                    letterSpacing: 0.3,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                if (isLive)
-                  const TournamentMatchLiveBadge()
-                else if (match.isCompleted)
-                  const TournamentMatchFinalizedBadge()
-                else
-                  _StatusPill(label: statusLabel, isLive: false),
+              ),
+              if (isLive)
+                const TournamentMatchLiveBadge()
+              else if (match.isCompleted)
+                const TournamentMatchFinalizedBadge()
+              else
+                _StatusPill(label: statusLabel, isLive: false),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _TeamRow(
+                  team: widget.viewModel.teamA,
+                  score: scoreA,
+                  hasScore: hasScore,
+                  isWinner: teamAWon,
+                  isYou: widget.athleteTeamIds.contains(match.teamAId.trim()),
+                ),
+                const SizedBox(height: 6),
+                _TeamRow(
+                  team: widget.viewModel.teamB,
+                  score: scoreB,
+                  hasScore: hasScore,
+                  isWinner: teamBWon,
+                  isYou: widget.athleteTeamIds.contains(match.teamBId.trim()),
+                ),
               ],
             ),
-            SizedBox(height: 6),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _TeamRow(
-                    team: viewModel.teamA,
-                    setsWon: counts.$1,
-                    hasScore: hasScore,
-                    isWinner: teamAWon,
-                    isYou: athleteTeamIds.contains(match.teamAId.trim()),
-                  ),
-                  SizedBox(height: 6),
-                  _TeamRow(
-                    team: viewModel.teamB,
-                    setsWon: counts.$2,
-                    hasScore: hasScore,
-                    isWinner: teamBWon,
-                    isYou: athleteTeamIds.contains(match.teamBId.trim()),
-                  ),
+          ),
+          if (winnerSetPills.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                for (var i = 0; i < winnerSetPills.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 6),
+                  _SetPill(label: winnerSetPills[i]),
                 ],
-              ),
+              ],
             ),
-            if (winnerSetPills.isNotEmpty) ...[
-              SizedBox(height: 4),
-              Row(
-                children: [
-                  for (var i = 0; i < winnerSetPills.length; i++) ...[
-                    if (i > 0) SizedBox(width: 6),
-                    _SetPill(label: winnerSetPills[i]),
-                  ],
-                ],
-              ),
-            ] else if (isLive && match.liveScore != null) ...[
-              SizedBox(height: 4),
-              _LiveScoreLine(liveScore: match.liveScore!),
-            ],
-            SizedBox(height: 6),
-            _ScheduleFooter(match: match),
+          ] else if (showLiveScoreLine) ...[
+            const SizedBox(height: 4),
+            _LiveScoreLine(liveScore: match.liveScore!),
           ],
-        ),
-      );
+          const SizedBox(height: 6),
+          _ScheduleFooter(match: match),
+        ],
+      ),
+    );
 
-    return SizedBox(
+    final card = SizedBox(
       width: BracketLayoutMetrics.cardWidth,
       height: BracketLayoutMetrics.cardHeight,
-      child: onTap == null
-          ? content
-          : Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onTap,
-                borderRadius: radius,
-                child: content,
-              ),
-            ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: body,
+        ),
+      ),
+    );
+
+    if (widget.onTap == null) return card;
+
+    return AnimatedScale(
+      scale: _pressed ? BracketMatchNode.pressedScale : 1,
+      duration: const Duration(milliseconds: 110),
+      curve: Curves.easeOutCubic,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => _setPressed(true),
+        onTapUp: (_) => _setPressed(false),
+        onTapCancel: () => _setPressed(false),
+        onTap: widget.onTap,
+        child: card,
+      ),
     );
   }
 }
@@ -159,6 +196,20 @@ String _bracketMatchHeaderLabel(TournamentMatch match) {
     return '#${match.matchNumber} · $qualifier';
   }
   return '#${match.matchNumber}';
+}
+
+/// Placar ao lado do nome: em melhor-de-1 são os pontos do set; senão, sets
+/// vencidos. Retorna `(a, b, hasScore)`.
+(int, int, bool) _bracketSideScores(TournamentMatch match) {
+  if (matchBestOf(match) == 1) {
+    final live = matchLiveCurrentSet(match);
+    if (live != null) return (live.a, live.b, true);
+    final sets = setsForMatch(match);
+    if (sets.isNotEmpty) return (sets.first.a, sets.first.b, true);
+    return (0, 0, false);
+  }
+  final counts = setsWonCountForMatch(match);
+  return (counts.$1, counts.$2, matchHasScoreData(match));
 }
 
 List<String> _setPillsForTeam({
@@ -299,14 +350,14 @@ class _SetPill extends StatelessWidget {
 class _TeamRow extends StatelessWidget {
   const _TeamRow({
     required this.team,
-    required this.setsWon,
+    required this.score,
     required this.hasScore,
     required this.isWinner,
     required this.isYou,
   });
 
   final TournamentMatchCardTeamViewModel team;
-  final int setsWon;
+  final int score;
   final bool hasScore;
   final bool isWinner;
   final bool isYou;
@@ -317,7 +368,7 @@ class _TeamRow extends StatelessWidget {
         isWinner ? context.themeColors.onSurface : context.themeColors.onSurfaceMuted;
     final fontWeight = isWinner ? FontWeight.w700 : FontWeight.w500;
     final scoreColor = isWinner ? AppColors.brand : textColor;
-    final scoreLabel = hasScore ? '$setsWon' : '—';
+    final scoreLabel = hasScore ? '$score' : '—';
 
     return Row(
       children: [

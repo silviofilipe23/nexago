@@ -13,7 +13,8 @@ enum AchievementCategory {
       };
 
   IconData get headerIcon => switch (this) {
-        AchievementCategory.primeirosPassos => Icons.local_fire_department_rounded,
+        AchievementCategory.primeirosPassos =>
+          Icons.local_fire_department_rounded,
         AchievementCategory.constancia => Icons.fitness_center_rounded,
         AchievementCategory.social => Icons.person_add_alt_1_rounded,
       };

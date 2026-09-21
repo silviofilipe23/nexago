@@ -242,9 +242,11 @@
 }
 
 // ── Card da partida ──────────────────────────────────────────
-// Altura fixa = head 28 + 2 lados de 40 + rodapé 28 = BRACKET_MATCH_HEIGHT (136). Mexer em
-// qualquer uma dessas faixas exige atualizar `bracket-tree.ts` junto, senão os conectores
-// desalinham dos cards.
+// Altura fixa = head 28 + 2 lados de 40 + rodapé 28 = 136 de conteúdo + a borda de 1px do
+// próprio card (topo e base) = BRACKET_MATCH_HEIGHT (138) — a altura vem do TS via
+// `[style.height.px]="matchHeight"`, com `box-sizing: border-box` a borda entra DENTRO dela.
+// Mexer em qualquer uma dessas faixas exige atualizar `bracket-tree.ts` junto, senão os
+// conectores desalinham dos cards.
 .bx-match {
   position: absolute;
   z-index: 1;

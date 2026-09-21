@@ -95,7 +95,8 @@ class _OrganizerKocTablePageState extends ConsumerState<OrganizerKocTablePage> {
     } else {
       await _run(() => _ops.finishRound(matchId: widget.matchId));
     }
-    if (mounted) context.pop();
+    // Sem `pop`: a mesa continua aberta e vira LEITURA, com a tabela final. É o
+    // que a mesa precisa na mão logo depois do apito, para anunciar quem avança.
   }
 
   Future<bool?> _confirmTiebreak(KocRoundState round) {
@@ -245,6 +246,12 @@ class _KocTableBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (round.isFinished) {
+      // Rodada concluída: o servidor já recusa rally, então manter os alvos
+      // vivos só renderia erro. Fica a tabela final, que é o que se volta a
+      // consultar.
+      return _FinishedPanel(round: round, labelFor: labelFor);
+    }
     if (!round.hasStarted) {
       return _StartPanel(round: round, labelFor: labelFor, onStart: onStart, busy: busy);
     }
@@ -361,6 +368,73 @@ class _StartPanel extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Mesa em leitura, depois do encerramento.
+class _FinishedPanel extends StatelessWidget {
+  const _FinishedPanel({required this.round, required this.labelFor});
+
+  final KocRoundState round;
+  final String Function(String teamId) labelFor;
+
+  @override
+  Widget build(BuildContext context) {
+    final table = round.finalTable;
+    // As coroas só existem no que o encerramento gravou; sem `kocStandings` a
+    // coluna some, em vez de mostrar zero para todo mundo.
+    final showCrowns = round.standings.isNotEmpty;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+      children: [
+        Text(
+          'Rodada encerrada',
+          style: AppTypography.soraRegular(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: context.themeColors.onSurface,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          showCrowns
+              ? '${round.rallies} rallies · coroas = vezes que assumiu o trono'
+              : '${round.rallies} rallies',
+          style: AppTypography.soraRegular(
+            fontSize: 13,
+            color: context.themeColors.onSurfaceMuted,
+          ),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          'TABELA FINAL',
+          style: AppTypography.soraRegular(
+            fontSize: 11,
+            color: context.themeColors.onSurfaceMuted,
+            letterSpacing: 0.6,
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (final row in table)
+          _TableRow(
+            place: row.place,
+            label: labelFor(row.teamId),
+            points: row.points,
+            qualifies: row.place <= round.qualifiersPerRound,
+            tied: false,
+            crowns: showCrowns ? row.crowns : null,
+          ),
+        const SizedBox(height: 14),
+        Text(
+          'Destacadas: as ${round.qualifiersPerRound} que avançam.',
+          style: AppTypography.soraRegular(
+            fontSize: 12,
+            color: context.themeColors.onSurfaceMuted,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -662,6 +736,7 @@ class _TableRow extends StatelessWidget {
     required this.points,
     required this.qualifies,
     required this.tied,
+    this.crowns,
   });
 
   final int place;
@@ -669,6 +744,9 @@ class _TableRow extends StatelessWidget {
   final int points;
   final bool qualifies;
   final bool tied;
+
+  /// Nulo na tabela ao vivo: a contagem de coroas só sai no encerramento.
+  final int? crowns;
 
   @override
   Widget build(BuildContext context) {
@@ -708,6 +786,17 @@ class _TableRow extends StatelessWidget {
                 style: AppTypography.soraRegular(
                   fontSize: 11,
                   color: AppColors.pending,
+                ),
+              ),
+            ),
+          if (crowns != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Text(
+                '👑 $crowns',
+                style: AppTypography.soraRegular(
+                  fontSize: 12,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
               ),
             ),

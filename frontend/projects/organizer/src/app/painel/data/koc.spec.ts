@@ -1,5 +1,6 @@
 import {
   isKingOfCourtMatchType,
+  kocFinalTable,
   kocHasQualifyingTie,
   kocHasStarted,
   kocIsExpired,
@@ -180,5 +181,35 @@ describe('tabela ao vivo', () => {
 
   it('sem corte a decidir, não há empate a resolver', () => {
     expect(kocHasQualifyingTie(withPoints({ A: 0, B: 0, C: 0, D: 0 }, 4))).toBe(false);
+  });
+});
+
+/** A mesa fica aberta em leitura depois do apito, e é esta tabela que ela
+ *  mostra. Mesmos casos de `KocRoundState.finalTable` no app. */
+describe('kocFinalTable', () => {
+  it('usa as posições gravadas no encerramento', () => {
+    const round = kocRoundStateFrom(
+      doc({
+        kocState: { points: { A: 1, B: 4, C: 2, D: 0 }, rallies: 7 },
+        kocStandings: [
+          { teamId: 'B', place: 1, points: 4, crowns: 2 },
+          { teamId: 'C', place: 2, points: 2, crowns: 1 },
+          { teamId: 'A', place: 3, points: 1, crowns: 1 },
+          { teamId: 'D', place: 4, points: 0, crowns: 0 },
+        ],
+      }),
+    );
+    expect(kocFinalTable(round).map((r) => r.teamId)).toEqual(['B', 'C', 'A', 'D']);
+    expect(kocFinalTable(round)[0].crowns).toBe(2);
+  });
+
+  it('sem standings gravadas, cai na ordem por pontos', () => {
+    // Rodada encerrada por um caminho antigo: a mesa mostra a ordem ao vivo em
+    // vez de uma tabela vazia.
+    const round = kocRoundStateFrom(
+      doc({ kocState: { points: { A: 1, B: 4, C: 2, D: 0 }, rallies: 7 } }),
+    );
+    expect(kocFinalTable(round).map((r) => r.teamId)).toEqual(['B', 'C', 'A', 'D']);
+    expect(kocFinalTable(round).map((r) => r.place)).toEqual([1, 2, 3, 4]);
   });
 });

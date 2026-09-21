@@ -15,6 +15,7 @@ void main() {
     Map<String, dynamic>? clock,
     List<dynamic>? standings,
     int qualifiers = 2,
+    String? status,
   }) {
     return {
       'kocTeamIds': ['A', 'B', 'C', 'D'],
@@ -22,6 +23,7 @@ void main() {
       if (state != null) 'kocState': state,
       if (clock != null) 'kocClock': clock,
       if (standings != null) 'kocStandings': standings,
+      if (status != null) 'status': status,
     };
   }
 
@@ -172,6 +174,62 @@ void main() {
     test('sem corte a decidir, não há empate a resolver', () {
       final round = withPoints({'A': 0, 'B': 0, 'C': 0, 'D': 0}, qualifiers: 4);
       expect(round.hasQualifyingTie, isFalse);
+    });
+  });
+
+  /// A mesa fica aberta em leitura depois do apito, e é `isFinished` que a
+  /// troca de modo. Ela vem do `status` do doc — a MESMA fonte que o servidor
+  /// usa para recusar rally —, e não de `kocStandings`, que pode faltar.
+  group('rodada encerrada', () {
+    test('status ausente ou agendado não é rodada encerrada', () {
+      expect(kocRoundStateFromMap(doc()).isFinished, isFalse);
+      expect(kocRoundStateFromMap(doc(status: 'Scheduled')).isFinished, isFalse);
+      expect(kocRoundStateFromMap(doc(status: 'In Progress')).isFinished, isFalse);
+    });
+
+    test('reconhece o encerrado, inclusive na grafia legada', () {
+      expect(kocRoundStateFromMap(doc(status: 'Completed')).isFinished, isTrue);
+      expect(kocRoundStateFromMap(doc(status: 'completed')).isFinished, isTrue);
+    });
+
+    test('status de tipo inesperado não derruba a leitura', () {
+      final round = kocRoundStateFromMap({...doc(), 'status': 42});
+      expect(round.isFinished, isFalse);
+    });
+
+    test('tabela final usa as posições gravadas no encerramento', () {
+      final round = kocRoundStateFromMap(
+        doc(
+          status: 'Completed',
+          state: {'points': {'A': 1, 'B': 4, 'C': 2, 'D': 0}},
+          standings: [
+            {'teamId': 'B', 'place': 1, 'points': 4, 'crowns': 2},
+            {'teamId': 'C', 'place': 2, 'points': 2, 'crowns': 1},
+            {'teamId': 'A', 'place': 3, 'points': 1, 'crowns': 1},
+            {'teamId': 'D', 'place': 4, 'points': 0, 'crowns': 0},
+          ],
+        ),
+      );
+      expect(round.finalTable.map((r) => r.teamId), ['B', 'C', 'A', 'D']);
+      expect(round.finalTable.first.crowns, 2);
+    });
+
+    test('sem standings gravadas, a tabela final cai na ordem por pontos', () {
+      // Rodada encerrada por um caminho antigo: a mesa mostra a ordem ao vivo
+      // em vez de uma tabela vazia.
+      final round = kocRoundStateFromMap(
+        doc(
+          status: 'Completed',
+          state: {
+            'points': {'A': 1, 'B': 4, 'C': 2, 'D': 0},
+            'crowns': {'B': 2},
+          },
+        ),
+      );
+      expect(round.standings, isEmpty);
+      expect(round.finalTable.map((r) => r.teamId), ['B', 'C', 'A', 'D']);
+      expect(round.finalTable.map((r) => r.place), [1, 2, 3, 4]);
+      expect(round.finalTable.first.crowns, 2);
     });
   });
 }

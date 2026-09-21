@@ -174,6 +174,21 @@ export function kocLiveOrder(round: KocRoundState): string[] {
   });
 }
 
+/** Tabela final da rodada encerrada.
+ *
+ *  `kocStandings` só é gravado no encerramento; uma rodada encerrada por um
+ *  caminho antigo cai na ordem por pontos, em vez de a mesa ficar vazia. Espelha
+ *  `KocRoundState.finalTable` do app — as duas mesas mostram a MESMA tabela. */
+export function kocFinalTable(round: KocRoundState): KocStanding[] {
+  if (round.standings.length > 0) return round.standings;
+  return kocLiveOrder(round).map((teamId, i) => ({
+    teamId,
+    place: i + 1,
+    points: kocPointsOf(round, teamId),
+    crowns: 0,
+  }));
+}
+
 /** Duplas empatadas em pontos com [teamId]. */
 export function kocTiedWith(round: KocRoundState, teamId: string): string[] {
   const mine = kocPointsOf(round, teamId);

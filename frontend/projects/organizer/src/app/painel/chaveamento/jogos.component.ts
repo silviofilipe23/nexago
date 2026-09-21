@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import type { KocRoundState } from '../data/koc';
 import { compactTeamLabel, type PillTone } from '../data/mock-data';
 import type { MatchDisplayStatus, TournamentMatch } from '../data/matches-repository';
 import { formatCourtLabel, spDayLabel, spTimeLabel } from '../data/schedule-format';
@@ -68,9 +69,16 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
                 </span>
                 <span class="og-jogos-match" [title]="j.info">
                   <span class="og-jogos-teams">
-                    <span class="og-jogos-team" [title]="j.match.team1Label">{{ compact(j.match.team1Label) }}</span>
-                    <span class="og-jogos-vs">vs</span>
-                    <span class="og-jogos-team" [title]="j.match.team2Label">{{ compact(j.match.team2Label) }}</span>
+                    @if (j.match.koc; as round) {
+                      <!-- Rodada King of the Court: não há confronto. Mostrar
+                           "A definir vs A definir" seria mentira — a rodada tem
+                           ELENCO, e o que identifica a linha é o tamanho dele. -->
+                      <span class="og-jogos-team">{{ kocRosterLabel(round) }}</span>
+                    } @else {
+                      <span class="og-jogos-team" [title]="j.match.team1Label">{{ compact(j.match.team1Label) }}</span>
+                      <span class="og-jogos-vs">vs</span>
+                      <span class="og-jogos-team" [title]="j.match.team2Label">{{ compact(j.match.team2Label) }}</span>
+                    }
                   </span>
                   <!-- Linha de apoio: a fase, e o que as colunas soltarem quando o card aperta,
                        pra o dado descer em vez de sumir da tela (padrão da lista de inscrições).
@@ -419,6 +427,15 @@ export class JogosComponent {
   protected readonly jogoTone = JOGO_TONE;
   protected readonly jogoLabel = JOGO_LABEL;
   protected readonly compact = compactTeamLabel;
+
+  /** "4 duplas" / "Elenco a definir" — o que identifica uma rodada KOTC na
+   *  lista, já que ela não tem confronto. Elenco vazio é o estado legítimo da
+   *  fase seguinte, montada só quando a anterior termina. */
+  protected kocRosterLabel(round: KocRoundState): string {
+    const size = round.teamIds.length;
+    if (size === 0) return 'Elenco a definir';
+    return size === 1 ? '1 dupla' : `${size} duplas`;
+  }
 
   protected canOpenScore(m: TournamentMatch): boolean {
     return m.teamAId.length > 0 && m.teamBId.length > 0;

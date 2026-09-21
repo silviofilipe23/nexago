@@ -1,4 +1,4 @@
-import { isKingOfCourtMatchType, kocRoundStateFrom, type KocRoundState } from './koc';
+import { isKingOfCourtMatchType, kocPhaseLabel, kocRoundStateFrom, type KocRoundState } from './koc';
 import { collection, getDocs, onSnapshot, query, where, type Unsubscribe } from 'firebase/firestore';
 import { statusOf, type MatchDisplayStatus } from '@nexago/live-scoring';
 import { environment } from '../../../environments/environment';
@@ -155,8 +155,24 @@ function scoreOf(sets: RawSet[], resultA: string | null, resultB: string | null)
 }
 
 /** Espelha (versão simplificada) `bracketColumnHeaderLabel`/`bracketGroupKey` do athlete —
- *  aqui só o rótulo de texto, sem agrupar partidas em colunas. */
-function roundLabelOf(matchType: string, round: number, poolId: string): string | null {
+ *  aqui só o rótulo de texto, sem agrupar partidas em colunas.
+ *
+ *  ATENÇÃO ao `poolId`: ele significa GRUPO numa partida de duelo, mas numa
+ *  rodada King of the Court é a QUADRA da fase (C1, C2…). Sem a saída pelo
+ *  formato, a rodada vira "Grupo C1" — e como três telas filtram justamente por
+ *  `round` começando em "Grupo " (a aba de grupos, o menu do painel e
+ *  `isBracketMatch`), a categoria KOTC inteira aparecia como fase de grupos, com
+ *  "A definir × A definir" em todas as linhas, porque a rodada não tem dois
+ *  lados. Este é o ponto único que conserta as três. */
+function roundLabelOf(
+  matchType: string,
+  round: number,
+  poolId: string,
+  matchNumber: number,
+): string | null {
+  if (isKingOfCourtMatchType(matchType)) {
+    return kocPhaseLabel(matchType, matchNumber);
+  }
   if (poolId) return `Grupo ${poolId}`;
   const t = matchType.trim().toLowerCase();
   if (t === 'wb') return `WB · Rodada ${round}`;
@@ -167,6 +183,10 @@ function roundLabelOf(matchType: string, round: number, poolId: string): string 
   if (t === 'knockout') return `Rodada ${round}`;
   if (matchType.trim()) return matchType.trim();
   return round > 0 ? `Rodada ${round}` : null;
+}
+
+function matchNumberOf(data: Record<string, unknown>): number {
+  return typeof data['matchNumber'] === 'number' ? data['matchNumber'] : 0;
 }
 
 function advanceMatchNumberOf(raw: unknown): number | null {
@@ -183,7 +203,7 @@ function advanceSlotOf(raw: unknown): 'A' | 'B' | null {
   return null;
 }
 
-interface RawMatch {
+export interface RawMatch {
   id: string;
   tournamentId: string;
   categoryId: string | null;
@@ -216,7 +236,9 @@ interface RawMatch {
   matchEndedAt: Date | null;
 }
 
-function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawMatch {
+/** Exportada para teste: é o ponto onde o documento do Firestore vira linha de
+ *  tela, e onde a rodada King of the Court já foi rotulada como grupo. */
+export function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawMatch {
   const matchType = optionalStr(data['matchType']) ?? '';
   const poolId = optionalStr(data['poolId']) ?? '';
   const round = typeof data['round'] === 'number' ? data['round'] : 0;
@@ -232,7 +254,7 @@ function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawMatch {
     id,
     tournamentId: optionalStr(data['tournamentId']) ?? '',
     categoryId: optionalStr(data['categoryId']),
-    round: roundLabelOf(matchType, round, poolId),
+    round: roundLabelOf(matchType, round, poolId, matchNumberOf(data)),
     teamAId,
     teamBId,
     teamADescription: optionalStr(data['teamADescription']),
@@ -244,7 +266,7 @@ function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawMatch {
     status: statusOf(data['status']),
     matchType,
     roundNumber: round,
-    matchNumber: typeof data['matchNumber'] === 'number' ? data['matchNumber'] : 0,
+    matchNumber: matchNumberOf(data),
     winnerAdvanceMatchNumber: advanceMatchNumberOf(data['winnerAdvance']),
     winnerAdvanceSlot: advanceSlotOf(data['winnerAdvance']),
     loserAdvanceMatchNumber: advanceMatchNumberOf(data['loserAdvance']),

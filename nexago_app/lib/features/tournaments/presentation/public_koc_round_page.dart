@@ -129,7 +129,8 @@ class _Board extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final started = round.hasStarted;
+    final finished = round.isFinished;
+    final started = round.hasStarted && !finished;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
       child: Column(
@@ -143,11 +144,93 @@ class _Board extends StatelessWidget {
             child: _Standings(
               round: round,
               nameOf: nameOf,
-              showPoints: started,
+              showPoints: started || finished,
+              finished: finished,
             ),
           ),
-          if (started && round.queue.isNotEmpty)
-            _Queue(round: round, nameOf: nameOf),
+          // O rodapé responde a pergunta do momento. Encerrada: quem passou.
+          // Em jogo: quando eu entro. Antes do apito: como se pontua — a 1ª
+          // etapa é o primeiro contato da maioria com o formato.
+          if (finished)
+            _Qualified(round: round, nameOf: nameOf)
+          else if (started && round.queue.isNotEmpty)
+            _Queue(round: round, nameOf: nameOf)
+          else if (!started)
+            const _Legend(),
+        ],
+      ),
+    );
+  }
+}
+
+/// A regra que o formato inteiro depende, para quem nunca viu King of the Court.
+class _Legend extends StatelessWidget {
+  const _Legend();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Text(
+        'Só quem está no trono pontua · quem destrona assume o trono, sem ponto',
+        textAlign: TextAlign.center,
+        style: AppTypography.soraRegular(
+          fontSize: 18,
+          color: Colors.white38,
+        ),
+      ),
+    );
+  }
+}
+
+/// Quem avançou, dito com todas as letras: na tabela isso é um destaque de cor,
+/// e de longe uma faixa colorida não responde "eu passei?".
+class _Qualified extends StatelessWidget {
+  const _Qualified({required this.round, required this.nameOf});
+
+  final KocRoundState round;
+  final String Function(String teamId) nameOf;
+
+  @override
+  Widget build(BuildContext context) {
+    final names = round.finalTable
+        .where((row) => row.place <= round.qualifiersPerRound)
+        .map((row) => nameOf(row.teamId))
+        .toList();
+    if (names.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: AppColors.brand.withValues(alpha: 0.18),
+        border: Border.all(color: AppColors.brand.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        children: [
+          Text(
+            'AVANÇAM',
+            style: AppTypography.soraRegular(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: AppColors.brand,
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              names.join('   ·   '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.soraRegular(
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -165,6 +248,9 @@ class _TopBar extends StatelessWidget {
     final clock = round.clock;
     final now = DateTime.now();
     final expired = clock?.isExpired(now) ?? false;
+    // Encerrada, o relógio não conta mais nada — o que o telão precisa dizer é
+    // que a rodada acabou, senão um cronômetro zerado parece rodada travada.
+    final finished = round.isFinished;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -182,7 +268,17 @@ class _TopBar extends StatelessWidget {
             ),
           ),
         ),
-        if (clock != null)
+        if (finished)
+          Text(
+            'ENCERRADA',
+            style: AppTypography.soraRegular(
+              fontSize: 30,
+              fontWeight: FontWeight.w800,
+              color: Colors.white54,
+              letterSpacing: 1.2,
+            ),
+          )
+        else if (clock != null)
           Text(
             expired ? 'TEMPO!' : clock.remainingLabel(now),
             style: AppTypography.soraRegular(
@@ -190,6 +286,16 @@ class _TopBar extends StatelessWidget {
               fontWeight: FontWeight.w800,
               color: expired ? AppColors.pending : Colors.white,
               height: 1,
+            ),
+          )
+        else
+          Text(
+            'A COMEÇAR',
+            style: AppTypography.soraRegular(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              color: Colors.white38,
+              letterSpacing: 1.2,
             ),
           ),
       ],
@@ -268,17 +374,21 @@ class _Standings extends StatelessWidget {
     required this.round,
     required this.nameOf,
     required this.showPoints,
+    this.finished = false,
   });
 
   final KocRoundState round;
   final String Function(String teamId) nameOf;
   final bool showPoints;
+  final bool finished;
 
   @override
   Widget build(BuildContext context) {
-    // Antes do apito a ordem é a de entrada (quem abre no trono); depois, a
-    // tabela.
-    final order = showPoints ? round.liveOrder : round.teamIds;
+    // Antes do apito a ordem é a de entrada (quem abre no trono); em jogo, a
+    // tabela ao vivo; encerrada, a tabela OFICIAL, que é a que resolve empate.
+    final order = finished
+        ? round.finalTable.map((row) => row.teamId).toList()
+        : (showPoints ? round.liveOrder : round.teamIds);
     final cut = round.qualifiersPerRound;
 
     return Column(
@@ -294,7 +404,7 @@ class _Standings extends StatelessWidget {
               isKing: round.kingTeamId == order[i],
             ),
           ),
-        if (showPoints && round.hasQualifyingTie)
+        if (showPoints && !finished && round.hasQualifyingTie)
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
@@ -393,30 +503,50 @@ class _Queue extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // "Quando eu entro?" é a pergunta de quem está na beira da quadra. A fila
+    // inteira numa linha só respondia isso por último, no mesmo tamanho do
+    // resto — o PRÓXIMO sai da fila e ganha corpo.
+    final next = round.queue.first;
+    final rest = round.queue.skip(1).map(nameOf).toList();
+
     return Padding(
       padding: const EdgeInsets.only(top: 10),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Text(
-            'FILA',
+            'PRÓXIMO',
             style: AppTypography.soraRegular(
-              fontSize: 14,
-              color: Colors.white38,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: AppColors.brand,
               letterSpacing: 1,
             ),
           ),
           const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              round.queue.map(nameOf).join('   →   '),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.soraRegular(
-                fontSize: 18,
-                color: Colors.white70,
-              ),
+          Text(
+            nameOf(next),
+            style: AppTypography.soraRegular(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
             ),
           ),
+          if (rest.isNotEmpty) ...[
+            const SizedBox(width: 20),
+            Expanded(
+              child: Text(
+                'depois   ${rest.join('   →   ')}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
+                style: AppTypography.soraRegular(
+                  fontSize: 17,
+                  color: Colors.white38,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

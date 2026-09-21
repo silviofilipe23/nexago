@@ -3,6 +3,7 @@ import { formatMedicalTimeoutMmSs, medicalTimeoutRemainingSeconds } from '@nexag
 import { matchClosedSets, matchLiveCurrentSet, matchSetWins } from '../data/live-set-display';
 import type { TournamentMatch } from '../data/matches-repository';
 import {
+  kocFinalTable,
   kocHasQualifyingTie,
   kocHasStarted,
   kocIsExpired,
@@ -82,8 +83,17 @@ import { fireLevelOf } from './telao-streaks';
         @if (kocTie()) {
           <div class="og-tlc-koc-tie">Empate na vaga · bola de ouro</div>
         }
-        @if (round.queue.length > 0) {
-          <div class="og-tlc-koc-queue">Fila: {{ kocQueueLabel() }}</div>
+        @if (kocFinished()) {
+          <!-- "Eu passei?" não se responde com um destaque de cor visto de longe. -->
+          <div class="og-tlc-koc-next"><span class="og-tlc-koc-next-kicker">AVANÇAM</span>{{ kocQualifiedLabel() }}</div>
+        } @else if (kocNextLabel(); as next) {
+          <!-- Quem espera pergunta "quando eu entro?": o PRÓXIMO sai da fila. -->
+          <div class="og-tlc-koc-next">
+            <span class="og-tlc-koc-next-kicker">PRÓXIMO</span>{{ next }}
+            @if (kocAfterLabel(); as after) {
+              <span class="og-tlc-koc-after">depois {{ after }}</span>
+            }
+          </div>
         }
       </div>
     } @else {
@@ -614,12 +624,30 @@ import { fireLevelOf } from './telao-streaks';
       letter-spacing: 0.6px;
       color: #f4c543;
     }
-    .og-tlc-koc-queue {
-      font-size: 14px;
-      opacity: 0.6;
+    .og-tlc-koc-next {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-size: 20px;
+      font-weight: 800;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    .og-tlc-koc-next-kicker {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: #ff6a1a;
+    }
+    .og-tlc-koc-after {
+      flex: 1;
+      text-align: right;
+      font-size: 13px;
+      font-weight: 400;
+      opacity: 0.45;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     @keyframes og-tlc-in {
       from {
@@ -845,6 +873,17 @@ export class TelaoCourtCardComponent {
   protected readonly kocRows = computed(() => {
     const round = this.koc();
     if (!round) return [];
+    // Encerrada, a tabela OFICIAL (a que resolveu o empate), não a ao vivo.
+    if (this.kocFinished()) {
+      return kocFinalTable(round).map((row) => ({
+        teamId: row.teamId,
+        place: row.place,
+        name: this.kocName(row.teamId),
+        points: row.points,
+        qualifies: row.place <= round.qualifiersPerRound,
+        isKing: false,
+      }));
+    }
     const started = kocHasStarted(round);
     const order = started ? kocLiveOrder(round) : round.teamIds;
     return order.map((teamId, i) => ({
@@ -859,12 +898,34 @@ export class TelaoCourtCardComponent {
 
   protected kocTie(): boolean {
     const round = this.koc();
+    if (this.kocFinished()) return false;
     return round != null && kocHasStarted(round) && kocHasQualifyingTie(round);
   }
 
-  protected kocQueueLabel(): string {
+  /** Rodada concluída — do `status` do jogo, a mesma fonte do guard do servidor.
+   *  `kind()` diz o papel do card na grade, não o estado da rodada. */
+  protected kocFinished(): boolean {
+    return this.match()?.status === 'completed';
+  }
+
+  /** Quem entra depois do rally atual. Vazio quando não há fila. */
+  protected kocNextLabel(): string {
+    const next = this.koc()?.queue[0];
+    return next ? this.kocName(next) : '';
+  }
+
+  /** O resto da fila, atrás do próximo. */
+  protected kocAfterLabel(): string {
+    const queue = this.koc()?.queue ?? [];
+    return queue.slice(1).map((id) => this.kocName(id)).join('  →  ');
+  }
+
+  protected kocQualifiedLabel(): string {
     const round = this.koc();
     if (!round) return '';
-    return round.queue.map((id) => this.kocName(id)).join('  →  ');
+    return kocFinalTable(round)
+      .filter((row) => row.place <= round.qualifiersPerRound)
+      .map((row) => this.kocName(row.teamId))
+      .join('  ·  ');
   }
 }

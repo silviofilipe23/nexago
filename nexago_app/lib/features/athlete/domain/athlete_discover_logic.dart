@@ -184,13 +184,6 @@ List<AthleteDiscoverEntry> sortDiscoverEntries({
         if (cmp != 0) return cmp;
         return a.displayName.compareTo(b.displayName);
       });
-    case AthleteDiscoverSort.ranking:
-      sorted.sort((a, b) {
-        final ar = a.rankPosition ?? 999999;
-        final br = b.rankPosition ?? 999999;
-        if (ar != br) return ar.compareTo(br);
-        return b.rankPoints.compareTo(a.rankPoints);
-      });
     case AthleteDiscoverSort.level:
       sorted.sort((a, b) {
         final cmp = b.levelSegments.compareTo(a.levelSegments);
@@ -361,7 +354,6 @@ Color discoverCompatibilityColor(int score) {
 
 AthleteDiscoverEntry buildDiscoverEntry({
   required AthleteProfile profile,
-  AthletePublicRankingSnapshot ranking = const AthletePublicRankingSnapshot(),
   bool isFollowing = false,
   bool isCurrentUser = false,
   int followersCount = 0,
@@ -370,7 +362,6 @@ AthleteDiscoverEntry buildDiscoverEntry({
   return AthleteDiscoverEntry(
     userId: profile.id,
     profile: profile,
-    ranking: ranking,
     isFollowing: isFollowing,
     isCurrentUser: isCurrentUser,
     followersCount: followersCount,

@@ -5,8 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/search/search_keywords.dart';
 import 'package:nexago_app/core/firebase/firebase_providers.dart';
-import '../../ranking/data/ranking_repository.dart';
-import '../../ranking/domain/ranking_models.dart';
 import 'athlete_follow_service.dart';
 import '../../tournaments/domain/compete_hub_logic.dart';
 import '../domain/athlete_discover_logic.dart';
@@ -14,26 +12,20 @@ import '../domain/athlete_discover_search.dart';
 import '../domain/athlete_follow_providers.dart';
 import '../domain/athlete_discover_models.dart';
 import '../domain/athlete_profile.dart';
-import '../domain/athlete_public_profile_models.dart';
 
 class AthleteDiscoverRepository {
   AthleteDiscoverRepository({
     required FirebaseFirestore firestore,
-    required RankingRepository rankingRepository,
     required AthleteFollowService followService,
   })  : _users = firestore.collection('public_profiles'),
-        _rankingRepository = rankingRepository,
         _followService = followService;
 
   final CollectionReference<Map<String, dynamic>> _users;
-  final RankingRepository _rankingRepository;
   final AthleteFollowService _followService;
 
   static const pageSize = 30;
   static const maxDiscoverProfiles = 2000;
   static const _searchFetchLimit = 100;
-
-  final _rankingCache = <String, AthletePublicRankingSnapshot>{};
 
   Query<Map<String, dynamic>> _athleteProfilesPageQuery({required int limit}) {
     return _users
@@ -313,60 +305,24 @@ class AthleteDiscoverRepository {
     }
   }
 
-  Future<AthletePublicRankingSnapshot> rankingFor(String athleteId) async {
-    final cached = _rankingCache[athleteId];
-    if (cached != null) return cached;
-
-    final row = await _rankingRepository.getAthleteRank(athleteId);
-    final snapshot = row == null
-        ? const AthletePublicRankingSnapshot()
-        : AthletePublicRankingSnapshot(
-            rank: row.rank,
-            points: row.totalPoints,
-            tournamentsCount: row.tournamentsCount,
-          );
-    _rankingCache[athleteId] = snapshot;
-    return snapshot;
-  }
-
-  AthletePublicRankingSnapshot _rankingFromGeneralRow(
-    Map<String, AthleteRankingRow> generalByAthleteId,
-    String athleteId,
-  ) {
-    final row = generalByAthleteId[athleteId];
-    if (row == null) return const AthletePublicRankingSnapshot();
-    return AthletePublicRankingSnapshot(
-      rank: row.rank,
-      points: row.totalPoints,
-      tournamentsCount: row.tournamentsCount,
-    );
-  }
-
   Future<List<AthleteDiscoverEntry>> enrichEntries({
     required List<AthleteProfile> profiles,
     required String? currentUserId,
     Set<String> followingIds = const {},
   }) async {
     final profileIds = profiles.map((profile) => profile.id).toList();
-    final generalRows = await _rankingRepository.loadAthleteRankingGeneral();
-    final generalByAthleteId = {
-      for (final row in generalRows) row.athleteId: row,
-    };
     final followerIdsByAthlete =
         await _followService.fetchFollowerIdsForAthletes(profileIds);
     final hasViewer = currentUserId != null && currentUserId.trim().isNotEmpty;
 
     final entries = <AthleteDiscoverEntry>[];
     for (final profile in profiles) {
-      final ranking = _rankingFromGeneralRow(generalByAthleteId, profile.id);
-      _rankingCache[profile.id] = ranking;
       final athleteFollowerIds =
           followerIdsByAthlete[profile.id] ?? const <String>{};
       final isCurrentUser = hasViewer && profile.id == currentUserId;
       entries.add(
         buildDiscoverEntry(
           profile: profile,
-          ranking: ranking,
           isFollowing: followingIds.contains(profile.id),
           isCurrentUser: isCurrentUser,
           followersCount: athleteFollowerIds.length,
@@ -381,8 +337,6 @@ class AthleteDiscoverRepository {
     }
     return entries;
   }
-
-  void clearRankingCache() => _rankingCache.clear();
 
   /// Preview do Compete Hub: mesma cidade → mesmo UF → aleatório (até [previewCount]).
   Future<List<AthleteProfile>> fetchHubAthletesPreview({
@@ -461,7 +415,6 @@ final athleteDiscoverRepositoryProvider = Provider<AthleteDiscoverRepository>(
   (ref) {
     return AthleteDiscoverRepository(
       firestore: ref.watch(firestoreProvider),
-      rankingRepository: ref.watch(rankingRepositoryProvider),
       followService: ref.watch(athleteFollowServiceProvider),
     );
   },

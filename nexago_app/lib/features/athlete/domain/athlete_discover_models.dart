@@ -1,11 +1,9 @@
-import 'package:intl/intl.dart';
-
 import 'athlete_display_name.dart';
 import 'athlete_firestore_codes.dart';
 import 'athlete_profile.dart';
 import 'athlete_public_profile_models.dart';
 
-enum AthleteDiscoverSort { compatibility, ranking, level }
+enum AthleteDiscoverSort { compatibility, level }
 
 enum AthleteDiscoverGenderFilter { all, male, female }
 
@@ -105,7 +103,6 @@ class AthleteDiscoverEntry {
   const AthleteDiscoverEntry({
     required this.userId,
     required this.profile,
-    required this.ranking,
     this.isFollowing = false,
     this.isCurrentUser = false,
     this.followersCount = 0,
@@ -114,7 +111,6 @@ class AthleteDiscoverEntry {
 
   final String userId;
   final AthleteProfile profile;
-  final AthletePublicRankingSnapshot ranking;
   final bool isFollowing;
   final bool isCurrentUser;
   final int followersCount;
@@ -150,9 +146,6 @@ class AthleteDiscoverEntry {
     return '$age anos';
   }
 
-  String get formattedRankPoints =>
-      NumberFormat.decimalPattern('pt_BR').format(rankPoints);
-
   String get formattedFollowersCount => formatSocialCount(followersCount);
 
   String get formattedMutualFollowersCount =>
@@ -181,10 +174,6 @@ class AthleteDiscoverEntry {
   int get levelSegments => resolveAthleteLevelSegments(profile);
 
   String get levelLabel => resolveAthleteLevelLabel(profile);
-
-  int get rankPoints => ranking.points;
-
-  int? get rankPosition => ranking.hasRank ? ranking.rank : null;
 
   bool get supportsOnlineStatus => profile.lastActiveAt != null;
 }

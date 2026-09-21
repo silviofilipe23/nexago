@@ -3,7 +3,6 @@ import 'package:nexago_app/features/athlete/domain/athlete_discover_logic.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_discover_models.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_privacy_preferences.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
-import 'package:nexago_app/features/athlete/domain/athlete_public_profile_models.dart';
 
 AthleteProfile _profile({
   String id = 'a1',
@@ -39,16 +38,8 @@ AthleteProfile _profile({
   );
 }
 
-AthleteDiscoverEntry _entry({
-  AthleteProfile? profile,
-  int? rank,
-  int points = 100,
-}) {
-  final p = profile ?? _profile();
-  return buildDiscoverEntry(
-    profile: p,
-    ranking: AthletePublicRankingSnapshot(rank: rank, points: points),
-  );
+AthleteDiscoverEntry _entry({AthleteProfile? profile}) {
+  return buildDiscoverEntry(profile: profile ?? _profile());
 }
 
 void main() {
@@ -207,18 +198,6 @@ void main() {
   });
 
   group('sortDiscoverEntries', () {
-    test('sorts by ranking position', () {
-      final entries = [
-        _entry(profile: _profile(id: '1'), rank: 5, points: 100),
-        _entry(profile: _profile(id: '2'), rank: 2, points: 200),
-      ];
-      final sorted = sortDiscoverEntries(
-        entries: entries,
-        sort: AthleteDiscoverSort.ranking,
-      );
-      expect(sorted.map((e) => e.userId).toList(), ['2', '1']);
-    });
-
     test('sorts by level segments', () {
       final entries = [
         _entry(

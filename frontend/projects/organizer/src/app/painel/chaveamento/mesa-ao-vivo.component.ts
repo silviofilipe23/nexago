@@ -103,7 +103,7 @@ interface MedicalOptionView {
             <span class="og-mesa-koc-clock">{{ clock }}</span>
           }
         } @else if (kocCourtBadge(); as badge) {
-          <span class="og-mesa-koc-badge">{{ badge }}</span>
+          <span class="og-mesa-koc-badge" [class.done]="status() === 'completed'">{{ badge }}</span>
         }
         <a class="og-ghost-btn" [href]="'/telao/' + id()" target="_blank" rel="noopener">Abrir telão</a>
         <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'jogos']">Voltar</a>
@@ -785,6 +785,10 @@ interface MedicalOptionView {
       text-transform: uppercase;
       white-space: nowrap;
     }
+    .og-mesa-koc-badge.done {
+      border-color: color-mix(in srgb, var(--nx-win) 55%, transparent);
+      color: var(--nx-win);
+    }
     .og-mesa-koc-live {
       display: inline-flex;
       align-items: center;
@@ -1142,7 +1146,8 @@ export class MesaAoVivoComponent {
   protected readonly headerSubtitle = computed(() => {
     const m = this.match();
     if (m && this.isKingOfCourt()) {
-      return kocPhaseLabel(m.matchType, m.matchNumber);
+      const phase = kocPhaseLabel(m.matchType, m.matchNumber);
+      return m.status === 'completed' ? `${phase} · Final` : phase;
     }
     const t = this.ctx.tournament();
     const row = this.cachedRow();

@@ -103,6 +103,21 @@ export function kocPhaseLabel(matchType: string, matchNumber: number): string {
   return matchNumber > 0 ? `Classificatória · Rodada ${matchNumber}` : 'Classificatória';
 }
 
+/** Título do card/fila quando a partida é rodada KOTC — não há confronto A×B,
+ *  então "A definir × A definir" não identifica nada. Prefere o `round` já
+ *  montado no doc mapeado; senão recalcula pela fase. */
+export function kocCardTitle(match: {
+  matchType: string;
+  round: string | null;
+  matchNumber: number;
+  koc?: { roundLabel: number } | null;
+}): string | null {
+  if (!isKingOfCourtMatchType(match.matchType)) return null;
+  if (match.round) return match.round;
+  const n = match.koc?.roundLabel || match.matchNumber;
+  return kocPhaseLabel(match.matchType, n);
+}
+
 /** Troca entre rodadas, em minutos. Espelha `KOC_CHANGEOVER_MIN` do servidor
  *  (`functions/src/match-schedule-allocation.ts`): a duração configurada é o
  *  tempo de JOGO, e o slot de quadra precisa da troca também. O servidor impõe

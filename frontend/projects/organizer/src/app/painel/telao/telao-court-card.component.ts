@@ -3,6 +3,7 @@ import { formatMedicalTimeoutMmSs, medicalTimeoutRemainingSeconds } from '@nexag
 import { matchClosedSets, matchLiveCurrentSet, matchSetWins } from '../data/live-set-display';
 import type { TournamentMatch } from '../data/matches-repository';
 import {
+  kocCardTitle,
   kocFinalTable,
   kocHasQualifyingTie,
   kocHasStarted,
@@ -52,9 +53,12 @@ import { fireLevelOf } from './telao-streaks';
       <div class="og-tlc-free">Quadra livre</div>
     } @else if (koc(); as round) {
       <!-- Rodada King of the Court: não há dois lados nem sets. O que o público
-           na beira da quadra precisa ler, em ordem: quem está no trono, quanto
-           tempo falta, a tabela e quem entra depois. -->
+           na beira da quadra precisa ler, em ordem: qual rodada, quem está no
+           trono, quanto tempo falta, a tabela e quem entra depois. -->
       <div class="og-tlc-koc">
+        @if (kocRoundTitle(); as title) {
+          <div class="og-tlc-koc-round">{{ title }}</div>
+        }
         @if (kocClockLabel(); as clock) {
           <div class="og-tlc-koc-clock" [class.expired]="kocExpired()">{{ clock }}</div>
         }
@@ -183,6 +187,7 @@ import { fireLevelOf } from './telao-streaks';
       display: flex;
       flex-direction: column;
       min-height: 0;
+      height: 100%;
       position: relative;
       background: var(--nx-surface-0);
       border: 1px solid var(--nx-line);
@@ -535,6 +540,13 @@ import { fireLevelOf } from './telao-streaks';
       gap: 10px;
       padding: 4px 0;
     }
+    .og-tlc-koc-round {
+      font-family: var(--nx-font-display);
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--nx-text);
+    }
     .og-tlc-koc-clock {
       font-size: 44px;
       font-weight: 800;
@@ -847,6 +859,12 @@ export class TelaoCourtCardComponent {
   // ── King of the Court ───────────────────────────────────────────────────────
 
   protected readonly koc = computed(() => this.match()?.koc ?? null);
+
+  /** Nome da rodada no card — substitui o "A definir × A definir" do duelo. */
+  protected readonly kocRoundTitle = computed(() => {
+    const m = this.match();
+    return m ? kocCardTitle(m) : null;
+  });
 
   protected kocName(teamId: string): string {
     return this.teamsById().get(teamId)?.short ?? 'Dupla';

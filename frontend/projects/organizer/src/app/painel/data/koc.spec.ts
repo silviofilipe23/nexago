@@ -1,5 +1,6 @@
 import {
   isKingOfCourtMatchType,
+  kocCardTitle,
   kocFinalTable,
   kocHasQualifyingTie,
   kocQualifyingTieGroup,
@@ -66,6 +67,34 @@ describe('kocPhaseLabel', () => {
   it('semifinal e final não levam número', () => {
     expect(kocPhaseLabel('koc_semifinal', 5)).toBe('Semifinal');
     expect(kocPhaseLabel('koc_final', 7)).toBe('Final');
+  });
+});
+
+describe('kocCardTitle', () => {
+  it('usa o round já mapeado quando existe', () => {
+    expect(
+      kocCardTitle({
+        matchType: 'koc_round',
+        round: 'Classificatória · Rodada 2',
+        matchNumber: 2,
+        koc: { roundLabel: 2 },
+      }),
+    ).toBe('Classificatória · Rodada 2');
+  });
+
+  it('recalcula pela fase quando round veio vazio', () => {
+    expect(
+      kocCardTitle({
+        matchType: 'koc_semifinal',
+        round: null,
+        matchNumber: 5,
+        koc: { roundLabel: 1 },
+      }),
+    ).toBe('Semifinal');
+  });
+
+  it('duelo não tem título KOTC', () => {
+    expect(kocCardTitle({ matchType: 'Final', round: 'Final', matchNumber: 1, koc: null })).toBeNull();
   });
 });
 

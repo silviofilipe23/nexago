@@ -11,7 +11,7 @@ import { TelaoFinalModeComponent } from './telao-final-mode.component';
 import { finalShowcaseOf, hasOtherLiveCourts } from './telao-final-mode';
 import { TelaoKocModeComponent } from './telao-koc-mode.component';
 import { kocShowcaseOf } from './telao-koc-mode';
-import { isKingOfCourtMatchType } from '../data/koc';
+import { isKingOfCourtMatchType, kocCardTitle } from '../data/koc';
 import { callOf, courtNowOf, courtPageCount, courtPageOf, ROTATE_INTERVAL_MS, teamShortLabel, upcomingQueue } from './telao-selectors';
 
 /** Rodízio do modo GRANDE FINAL quando outras quadras também estão jogando: a final segura a
@@ -27,8 +27,11 @@ interface TelaoQueueRow {
   time: string;
   day: string | null;
   court: string;
+  /** Confronto clássico; vazio quando a linha é rodada KOTC (`title` sozinho). */
   a: string;
   b: string;
+  /** Nome da rodada KOTC no lugar de "A definir vs A definir". */
+  title: string | null;
   meta: string;
 }
 
@@ -79,7 +82,12 @@ interface TelaoQueueRow {
     </header>
 
     <div class="og-telao-body" [class.no-queue]="!showQueue()">
-      <div class="og-telao-grid" [class.single-row]="courtCards().length <= 2" [ogPulse]="pageIndex()">
+      <div
+        class="og-telao-grid"
+        [class.single-row]="courtCards().length === 2"
+        [class.solo]="courtCards().length === 1"
+        [ogPulse]="pageIndex()"
+      >
         @for (card of courtCards(); track card.court.id) {
           <og-telao-court-card
             [courtName]="card.courtName"
@@ -112,7 +120,11 @@ interface TelaoQueueRow {
                 <span class="og-telao-queue-court">{{ row.day ? row.day + ' · ' : '' }}{{ row.court }}</span>
               </span>
               <span class="og-telao-queue-body">
-                <span class="og-telao-queue-teams">{{ row.a }} <em>vs</em> {{ row.b }}</span>
+                @if (row.title) {
+                  <span class="og-telao-queue-teams">{{ row.title }}</span>
+                } @else {
+                  <span class="og-telao-queue-teams">{{ row.a }} <em>vs</em> {{ row.b }}</span>
+                }
                 <span class="og-telao-queue-meta">{{ row.meta }}{{ first ? ' · apresentar-se à quadra' : '' }}</span>
               </span>
             </div>
@@ -131,7 +143,11 @@ interface TelaoQueueRow {
           @if (call(); as c) {
             <span class="og-telao-bar-pill">Chamada</span>
             <span class="og-telao-bar-text" [ogPulse]="c.id">
-              <strong>{{ c.a }}</strong>&ngsp;<em>vs</em>&ngsp;<strong>{{ c.b }}</strong>&ngsp;— apresentar-se à {{ c.court }} até
+              @if (c.title) {
+                <strong>{{ c.title }}</strong>&ngsp;— apresentar-se à {{ c.court }} até
+              } @else {
+                <strong>{{ c.a }}</strong>&ngsp;<em>vs</em>&ngsp;<strong>{{ c.b }}</strong>&ngsp;— apresentar-se à {{ c.court }} até
+              }
               <span class="og-telao-bar-deadline">{{ c.deadline }}</span>
             </span>
           }
@@ -243,6 +259,16 @@ interface TelaoQueueRow {
     }
     .og-telao-grid.single-row {
       grid-template-rows: 1fr;
+    }
+    /* Uma quadra só: o card estica na área inteira da grade (não fica num
+       canto de 2×2 vazio). */
+    .og-telao-grid.solo {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr;
+    }
+    .og-telao-grid > * {
+      min-height: 0;
+      min-width: 0;
     }
     /* Rotação automática: crossfade da grade ao trocar a página de quadras. */
     .og-telao-grid.og-pulse-run {
@@ -570,7 +596,7 @@ export class TelaoScreenComponent {
         courtName: formatCourtLabel(courtById.get(courtId)?.name ?? courtId),
         kind,
         match,
-        categoryLabel: match ? this.categoryLabelOf(match) : '',
+        categoryLabel: match ? this.categoryLabelOf(match, match.koc != null) : '',
         teamA: match ? (teams.get(match.teamAId) ?? fallbackTeamDisplay(match.team1Label)) : null,
         teamB: match ? (teams.get(match.teamBId) ?? fallbackTeamDisplay(match.team2Label)) : null,
         streakA: streak?.side === 'A' ? streak.count : 0,
@@ -590,14 +616,16 @@ export class TelaoScreenComponent {
     const today = spDayLabel(new Date(this.now()));
     return this.queue().map((m) => {
       const day = spDayLabel(m.scheduledAt!);
+      const title = kocCardTitle(m);
       return {
         id: m.id,
         time: spTimeLabel(m.scheduledAt!),
         day: day === today ? null : day,
         court: formatCourtLabel(m.court),
-        a: teams.get(m.teamAId)?.short ?? teamShortLabel(m.team1Label),
-        b: teams.get(m.teamBId)?.short ?? teamShortLabel(m.team2Label),
-        meta: this.categoryLabelOf(m),
+        a: title ? '' : (teams.get(m.teamAId)?.short ?? teamShortLabel(m.team1Label)),
+        b: title ? '' : (teams.get(m.teamBId)?.short ?? teamShortLabel(m.team2Label)),
+        title,
+        meta: this.categoryLabelOf(m, /* omitRound when title already is the round */ title != null),
       };
     });
   });
@@ -670,10 +698,12 @@ export class TelaoScreenComponent {
     const c = callOf(this.queue());
     if (!c) return null;
     const teams = this.svc.teams();
+    const title = kocCardTitle(c.match);
     return {
       id: c.match.id,
-      a: teams.get(c.match.teamAId)?.short ?? teamShortLabel(c.match.team1Label),
-      b: teams.get(c.match.teamBId)?.short ?? teamShortLabel(c.match.team2Label),
+      a: title ? '' : (teams.get(c.match.teamAId)?.short ?? teamShortLabel(c.match.team1Label)),
+      b: title ? '' : (teams.get(c.match.teamBId)?.short ?? teamShortLabel(c.match.team2Label)),
+      title,
       court: formatCourtLabel(c.match.court) || 'quadra',
       deadline: spTimeLabel(c.deadline),
     };
@@ -731,8 +761,9 @@ export class TelaoScreenComponent {
     });
   }
 
-  private categoryLabelOf(m: TournamentMatch): string {
+  private categoryLabelOf(m: TournamentMatch, omitRound = false): string {
     const category = m.categoryId ? this.categoryNameById().get(m.categoryId) : null;
+    if (omitRound) return category ?? '';
     return [category, m.round].filter(Boolean).join(' · ');
   }
 }

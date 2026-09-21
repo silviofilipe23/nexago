@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import {
   KOC_MAX_TEAMS_PER_ROUND,
@@ -27,10 +27,12 @@ import {
   setKocClock,
   startKocRound,
   undoKocRally,
+  validateMatchResult,
 } from '../data/organizer-ops.service';
 import { formatCourtLabel } from '../data/schedule-format';
 import { shareQrSvgDataUrl } from '../data/share-qr';
 import { fetchProfileDisplays, fetchTeamsByIds } from '../data/teams-repository';
+import { KOC_FINISHED_SHOWCASE_MS } from '../telao/telao-koc-mode';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgIconComponent } from '../ui/icon.component';
 
@@ -74,33 +76,110 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       <div class="og-mk-msg">Elenco definido quando a fase anterior terminar.</div>
     } @else if (finished()) {
       <section class="og-mk-done">
-        <p class="og-mk-lead">
-          Rodada encerrada · {{ rallies() }} rallies
-          @if (crownsKnown()) {
-            <span> · coroas = vezes que assumiu o trono</span>
-          }
-        </p>
-        <div class="og-mk-table">
-          <div class="og-mk-table-head">
-            <span>TABELA FINAL</span>
-            <span class="og-mk-flex"></span>
-            @if (crownsKnown()) {
-              <span>COROAS</span>
-            }
-            <span>PTS</span>
+        @if (champion(); as champ) {
+          <article class="og-mk-champ">
+            <span class="og-mk-champ-badge">Sessão encerrada · Rei da quadra</span>
+            <div class="og-mk-champ-row">
+              <div class="og-mk-champ-team">
+                <span class="og-mk-champ-avatars">
+                  @for (p of faceOf(champ.teamId).players; track $index) {
+                    <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="56" />
+                  } @empty {
+                    <og-avatar initials="?" [size]="56" />
+                  }
+                </span>
+                <div class="og-mk-champ-body">
+                  <strong class="og-mk-champ-name">{{ champ.name }}</strong>
+                  @if (faceOf(champ.teamId).sub; as sub) {
+                    <span class="og-mk-champ-sub">{{ sub }}</span>
+                  }
+                </div>
+              </div>
+              <div class="og-mk-champ-stats">
+                <div class="og-mk-champ-stat">
+                  <strong>{{ champ.points }}</strong>
+                  <span>Pts da campeã</span>
+                </div>
+                <div class="og-mk-champ-stat">
+                  <strong>{{ champ.crowns }}</strong>
+                  <span>Coroas</span>
+                </div>
+                <div class="og-mk-champ-stat">
+                  <strong>{{ rallies() }}</strong>
+                  <span>Rallys na rodada</span>
+                </div>
+                <div class="og-mk-champ-stat">
+                  <strong>{{ durationLabel() }}</strong>
+                  <span>Duração</span>
+                </div>
+              </div>
+            </div>
+          </article>
+        }
+
+        <div class="og-mk-final">
+          <div class="og-mk-final-head">
+            <span>Pos</span>
+            <span>Dupla</span>
+            <span class="num">Coroas</span>
+            <span class="num">Rallys</span>
+            <span class="num">Pts</span>
           </div>
           @for (row of finalRows(); track row.teamId) {
-            <div class="og-mk-row" [class.qualifies]="row.qualifies">
-              <span class="og-mk-place">{{ row.place }}º</span>
-              <span class="og-mk-name">{{ row.name }}</span>
-              @if (crownsKnown()) {
-                <span class="og-mk-crowns">{{ row.crowns }}</span>
-              }
-              <span class="og-mk-pts">{{ row.points }}</span>
+            <div
+              class="og-mk-final-row"
+              [class.king]="row.place === 1"
+              [class.advances]="row.qualifies && row.place > 1"
+            >
+              <span class="og-mk-final-place">{{ row.place }}.</span>
+              <div class="og-mk-final-dupla">
+                <span class="og-mk-final-avatars">
+                  @for (p of faceOf(row.teamId).players; track $index) {
+                    <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="36" />
+                  }
+                </span>
+                <div class="og-mk-final-body">
+                  <span class="og-mk-final-name">{{ row.name }}</span>
+                  @if (faceOf(row.teamId).sub; as sub) {
+                    <span class="og-mk-final-sub">{{ sub }}</span>
+                  }
+                </div>
+                @if (row.place === 1) {
+                  <span class="og-mk-final-tag king">Rei da quadra</span>
+                } @else if (row.qualifies) {
+                  <span class="og-mk-final-tag advances">Avança</span>
+                }
+              </div>
+              <span class="og-mk-final-num">{{ row.crowns }}</span>
+              <span class="og-mk-final-num">{{ row.rallyWins }}</span>
+              <span class="og-mk-final-pts">{{ row.points }}</span>
             </div>
           }
+          <p class="og-mk-final-legend">
+            <span class="og-mk-final-dot" aria-hidden="true"></span>
+            As {{ qualifiers() }} primeira{{ qualifiers() === 1 ? '' : 's' }} avançam para a próxima fase
+          </p>
+          <p class="og-mk-final-rule">
+            Coroas = vezes que a dupla assumiu o trono · empate em pts resolvido por coroas
+          </p>
         </div>
-        <p class="og-mk-done-note">Destacadas: as {{ qualifiers() }} que avançam.</p>
+
+        <footer class="og-mk-done-foot">
+          <span class="og-mk-done-status">{{ doneFootStatus() }}</span>
+          <div class="og-mk-done-actions">
+            <a class="og-mk-done-back" [routerLink]="backLink()">Voltar ao evento</a>
+            <button type="button" class="og-ghost-btn og-mk-done-btn" [disabled]="busy()" (click)="exportTable()">
+              Exportar tabela
+            </button>
+            <button type="button" class="og-ghost-btn og-mk-done-btn solid" [disabled]="busy()" (click)="askCorrectScore()">
+              Corrigir pontuação
+            </button>
+            <button type="button" class="og-btn-primary og-mk-homolog" [disabled]="busy()" (click)="homologate()">
+              Homologar e seguir
+            </button>
+          </div>
+        </footer>
+
         @if (feedback(); as f) {
           <p class="og-mk-feedback" [class.err]="!f.ok">{{ f.message }}</p>
         }
@@ -1140,8 +1219,335 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
     .og-mk-done {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 18px;
       padding: 4px 0 8px;
+    }
+    .og-mk-champ {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 20px 22px;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 106, 26, 0.45);
+      background: linear-gradient(120deg, rgba(255, 106, 26, 0.18), rgba(20, 12, 8, 0.92) 55%);
+      box-shadow: inset 0 0 0 1px rgba(255, 106, 26, 0.08);
+    }
+    .og-mk-champ-badge {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--nx-orange-500);
+    }
+    .og-mk-champ-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .og-mk-champ-team {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+    .og-mk-champ-avatars {
+      display: inline-flex;
+      align-items: center;
+    }
+    .og-mk-champ-avatars og-avatar {
+      border: 2px solid rgba(255, 106, 26, 0.55);
+      border-radius: 50%;
+      position: relative;
+    }
+    .og-mk-champ-avatars og-avatar + og-avatar {
+      margin-left: -14px;
+    }
+    .og-mk-champ-avatars og-avatar:nth-child(1) {
+      z-index: 1;
+    }
+    .og-mk-champ-avatars og-avatar:nth-child(2) {
+      z-index: 2;
+    }
+    .og-mk-champ-body {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+    .og-mk-champ-name {
+      font-family: var(--nx-font-display);
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
+    .og-mk-champ-sub {
+      font-size: 13px;
+      color: var(--nx-text-mute);
+    }
+    .og-mk-champ-stats {
+      display: grid;
+      grid-template-columns: repeat(4, auto);
+      gap: 22px;
+    }
+    .og-mk-champ-stat {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      text-align: right;
+    }
+    .og-mk-champ-stat strong {
+      font-family: var(--nx-font-display);
+      font-size: 34px;
+      font-weight: 800;
+      line-height: 1;
+      color: var(--nx-orange-500);
+      font-variant-numeric: tabular-nums;
+    }
+    .og-mk-champ-stat span {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--nx-text-mute);
+      white-space: nowrap;
+    }
+    @media (max-width: 720px) {
+      .og-mk-champ-stats {
+        grid-template-columns: repeat(2, 1fr);
+        width: 100%;
+      }
+      .og-mk-champ-stat {
+        align-items: flex-start;
+        text-align: left;
+      }
+    }
+
+    .og-mk-final {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .og-mk-final-head,
+    .og-mk-final-row {
+      display: grid;
+      grid-template-columns: 40px minmax(0, 1fr) 72px 72px 64px;
+      gap: 12px;
+      align-items: center;
+    }
+    .og-mk-final-head {
+      padding: 0 16px 6px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+    }
+    .og-mk-final-head .num {
+      text-align: right;
+    }
+    .og-mk-final-row {
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid var(--nx-line);
+      background: var(--nx-surface-0);
+    }
+    .og-mk-final-row.king {
+      border-color: rgba(255, 106, 26, 0.5);
+      background: linear-gradient(90deg, rgba(255, 106, 26, 0.14), transparent 70%);
+    }
+    .og-mk-final-row.advances {
+      border-color: color-mix(in srgb, var(--nx-win) 45%, transparent);
+      background: linear-gradient(90deg, color-mix(in srgb, var(--nx-win) 14%, transparent), transparent 70%);
+    }
+    .og-mk-final-place {
+      font-family: var(--nx-font-mono);
+      font-weight: 800;
+      font-size: 15px;
+      color: var(--nx-text-mute);
+    }
+    .og-mk-final-row.king .og-mk-final-place {
+      color: var(--nx-orange-500);
+    }
+    .og-mk-final-row.advances .og-mk-final-place {
+      color: var(--nx-win);
+    }
+    .og-mk-final-dupla {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+    .og-mk-final-avatars {
+      display: inline-flex;
+      align-items: center;
+      flex: none;
+    }
+    .og-mk-final-avatars og-avatar {
+      border: 2px solid rgba(255, 255, 255, 0.08);
+      border-radius: 50%;
+      position: relative;
+    }
+    .og-mk-final-avatars og-avatar + og-avatar {
+      margin-left: -10px;
+    }
+    .og-mk-final-avatars og-avatar:nth-child(1) {
+      z-index: 1;
+    }
+    .og-mk-final-avatars og-avatar:nth-child(2) {
+      z-index: 2;
+    }
+    .og-mk-final-body {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .og-mk-final-name {
+      font-weight: 700;
+      font-size: 15px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .og-mk-final-sub {
+      font-size: 11px;
+      color: var(--nx-text-dim);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .og-mk-final-tag {
+      flex: none;
+      margin-left: auto;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .og-mk-final-tag.king {
+      color: var(--nx-orange-500);
+      background: rgba(255, 106, 26, 0.16);
+      border: 1px solid rgba(255, 106, 26, 0.4);
+    }
+    .og-mk-final-tag.advances {
+      color: var(--nx-win);
+      background: color-mix(in srgb, var(--nx-win) 16%, transparent);
+      border: 1px solid color-mix(in srgb, var(--nx-win) 40%, transparent);
+    }
+    .og-mk-final-num {
+      text-align: right;
+      font-family: var(--nx-font-mono);
+      font-size: 15px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: var(--nx-text-mute);
+    }
+    .og-mk-final-pts {
+      text-align: right;
+      font-family: var(--nx-font-display);
+      font-size: 24px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+    .og-mk-final-row.king .og-mk-final-pts {
+      color: var(--nx-orange-500);
+    }
+    .og-mk-final-row.advances .og-mk-final-pts {
+      color: var(--nx-win);
+    }
+    .og-mk-final-legend {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 10px 0 0;
+      font-size: 13px;
+      color: var(--nx-text-mute);
+    }
+    .og-mk-final-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      background: var(--nx-win);
+      flex: none;
+    }
+    .og-mk-final-rule {
+      margin: 0;
+      font-size: 12px;
+      color: var(--nx-text-dim);
+    }
+    .og-mk-done-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: nowrap;
+      margin-top: 4px;
+      padding: 16px 0 4px;
+      border-top: 1px solid var(--nx-line);
+    }
+    .og-mk-done-status {
+      flex: 1 1 auto;
+      min-width: 0;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+      line-height: 1.35;
+    }
+    .og-mk-done-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+      flex-wrap: nowrap;
+      margin-left: auto;
+    }
+    .og-mk-done-back {
+      padding: 0 4px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--nx-text);
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .og-mk-done-back:hover {
+      color: var(--nx-orange-500);
+    }
+    .og-mk-done-btn {
+      min-height: 36px;
+      height: 36px;
+      padding-inline: 12px;
+      border-radius: 10px;
+      justify-content: center;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .og-mk-done-btn.solid {
+      font-weight: 700;
+      background: var(--nx-surface-1);
+      border-color: color-mix(in srgb, var(--nx-line) 70%, var(--nx-text-mute));
+    }
+    .og-mk-homolog {
+      min-height: 36px;
+      height: 36px;
+      width: auto;
+      min-width: 0;
+      padding-inline: 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--nx-text-on-orange);
+      box-shadow: 0 8px 20px rgba(255, 106, 26, 0.24);
+      white-space: nowrap;
     }
     .og-mk-lead {
       margin: 0;
@@ -1344,6 +1750,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
 })
 export class MesaKocComponent {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly router = inject(Router);
 
   readonly id = input<string>('');
   readonly matchId = input<string>('');
@@ -1429,15 +1836,32 @@ export class MesaKocComponent {
   protected readonly finalRows = computed(() => {
     const r = this.round();
     if (!r) return [];
+    const wins = new Map<string, number>();
+    for (const line of kocLogLines(r)) {
+      wins.set(line.teamId, (wins.get(line.teamId) ?? 0) + 1);
+    }
     return kocFinalTable(r).map((row) => ({
       teamId: row.teamId,
       place: row.place,
       name: this.faceOf(row.teamId).name,
       points: row.points,
       crowns: row.crowns,
+      rallyWins: wins.get(row.teamId) ?? 0,
       qualifies: row.place <= r.qualifiersPerRound,
     }));
   });
+
+  protected readonly champion = computed(() => this.finalRows().find((r) => r.place === 1) ?? null);
+
+  protected durationLabel(): string {
+    const sec = this.round()?.configuredDurationSec ?? this.round()?.clock?.durationSec ?? 900;
+    return `${Math.max(1, Math.round(sec / 60))}'`;
+  }
+
+  protected doneFootStatus(): string {
+    const sec = Math.round(KOC_FINISHED_SHOWCASE_MS / 1000);
+    return `Telão exibindo os resultados por ${sec}s · resultado ainda não homologado`;
+  }
 
   protected readonly rows = computed(() => {
     const r = this.round();
@@ -1576,6 +2000,41 @@ export class MesaKocComponent {
     if (tid && cid) return ['/painel/eventos', tid, 'categorias', cid, 'jogos'];
     if (tid) return ['/painel/eventos', tid];
     return ['/painel/eventos'];
+  }
+
+  protected exportTable(): void {
+    const rows = this.finalRows();
+    if (rows.length === 0) return;
+    const lines = [
+      'pos,dupla,coroas,rallys,pts',
+      ...rows.map(
+        (r) =>
+          `${r.place},"${r.name.replace(/"/g, '""')}",${r.crowns},${r.rallyWins},${r.points}`,
+      ),
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `koc-rodada-${this.matchId() || 'tabela'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    this.feedback.set({ ok: true, message: 'Tabela exportada.' });
+  }
+
+  protected homologate(): void {
+    void this.run(async () => {
+      await validateMatchResult(this.matchId());
+      await this.router.navigate(this.backLink());
+    }, null);
+  }
+
+  protected askCorrectScore(): void {
+    this.feedback.set({
+      ok: false,
+      message:
+        'Para corrigir a pontuação, a rodada precisa ser reaberta antes. Isso ainda não está disponível nesta tela.',
+    });
   }
 
   protected phaseLabel(): string {

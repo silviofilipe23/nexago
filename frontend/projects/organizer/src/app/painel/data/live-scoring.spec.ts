@@ -1,4 +1,23 @@
-import { applyBestOfChange, applyPoint, canReduceBestOf, needsStartingServe, setPointHint, undoPoint } from '@nexago/live-scoring';
+import {
+  applyBestOfChange,
+  applyPoint,
+  canReduceBestOf,
+  canRequestMedicalTimeout,
+  formatMedicalTimeoutMmSs,
+  hasUsedMedicalTimeout,
+  medicalTimeoutPlayerKey,
+  medicalTimeoutRemainingSeconds,
+  needsServingPlayer,
+  needsStartingServe,
+  servingPlayerSlotOf,
+  servingPlayerSlotsAfterScore,
+  servingPlayerSlotsAfterUndo,
+  setPointHint,
+  swappedServingPlayerSlots,
+  undoPoint,
+  type MedicalTimeout,
+  type ServingPlayerSlots,
+} from '@nexago/live-scoring';
 
 /** Casos espelhados de `match_scoring_logic_test.dart` (app) — a mesa web tem que fechar set,
  *  virar set decisivo e declarar vencedor exatamente como a mesa I1 do Flutter. */
@@ -207,6 +226,101 @@ describe('live-scoring', () => {
     it('cala enquanto a chave não definiu os dois lados — não há teamId pra gravar', () => {
       expect(needsStartingServe({ servingTeamId: '', status: 'scheduled', teamAId: 'time-a', teamBId: '' })).toBeFalse();
       expect(needsStartingServe({ servingTeamId: '', status: 'scheduled', teamAId: '', teamBId: 'time-b' })).toBeFalse();
+    });
+  });
+
+  /** Espelhados em `match_serving_player_logic_test.dart`: o rodízio de saque dentro da dupla
+   *  tem que virar igual nas três mesas. */
+  describe('sacador dentro da dupla', () => {
+    const slots = (a: 0 | 1 | 2, b: 0 | 1 | 2): ServingPlayerSlots => ({ A: a, B: b });
+    const after = (current: ServingPlayerSlots, previous: string, next: string) =>
+      servingPlayerSlotsAfterScore({ slots: current, previousServingTeamId: previous, nextServingTeamId: next, ...ids });
+
+    it('mantém o sacador enquanto a MESMA dupla segue sacando', () => {
+      expect(after(slots(1, 2), 'time-a', 'time-a')).toEqual(slots(1, 2));
+    });
+
+    it('vira pro parceiro quando o saque VOLTA pra dupla', () => {
+      expect(after(slots(1, 1), 'time-a', 'time-b')).toEqual(slots(1, 2));
+      expect(after(slots(1, 2), 'time-b', 'time-a')).toEqual(slots(2, 2));
+    });
+
+    it('não vira a dupla que ainda não sacou neste set — a mesa é que vai perguntar', () => {
+      expect(after(slots(1, 0), 'time-a', 'time-b')).toEqual(slots(1, 0));
+      expect(needsServingPlayer({ servingTeamId: 'time-b', servingPlayerSlot: 0, status: 'in_progress', ...ids })).toBeTrue();
+    });
+
+    it('zera a ordem na virada de set — cada set declara a dele', () => {
+      expect(after(slots(2, 1), 'time-a', '')).toEqual(slots(0, 0));
+    });
+
+    it('a abertura do saque não vira nada: quem declara é o mesário', () => {
+      expect(after(slots(0, 0), '', 'time-a')).toEqual(slots(0, 0));
+      expect(after(slots(1, 0), '', 'time-a')).toEqual(slots(1, 0));
+    });
+
+    it('desfazer não reconstrói a ordem — só zera quando volta pra set fechado', () => {
+      expect(servingPlayerSlotsAfterUndo({ slots: slots(1, 2), nextServingTeamId: 'time-b' })).toEqual(slots(1, 2));
+      expect(servingPlayerSlotsAfterUndo({ slots: slots(1, 2), nextServingTeamId: '' })).toEqual(slots(0, 0));
+    });
+
+    it('a posição exibida sai do lado que está com o saque', () => {
+      expect(servingPlayerSlotOf({ slots: slots(1, 2), servingTeamId: 'time-b', ...ids })).toBe(2);
+      expect(servingPlayerSlotOf({ slots: slots(1, 2), servingTeamId: '', ...ids })).toBe(0);
+      expect(servingPlayerSlotOf({ slots: slots(1, 2), servingTeamId: 'outro-time', ...ids })).toBe(0);
+    });
+
+    it('"Trocar sacador" só mexe no lado que está sacando, e só se ele já declarou', () => {
+      expect(swappedServingPlayerSlots({ slots: slots(1, 2), servingTeamId: 'time-a', ...ids })).toEqual(slots(2, 2));
+      expect(swappedServingPlayerSlots({ slots: slots(0, 2), servingTeamId: 'time-a', ...ids })).toEqual(slots(0, 2));
+      expect(swappedServingPlayerSlots({ slots: slots(1, 2), servingTeamId: '', ...ids })).toEqual(slots(1, 2));
+    });
+
+    it('a pergunta do ATLETA espera a da DUPLA — duas faixas juntas viram ruído', () => {
+      expect(needsServingPlayer({ servingTeamId: '', servingPlayerSlot: 0, status: 'in_progress', ...ids })).toBeFalse();
+    });
+
+    it('cala com o sacador definido, com a partida encerrada e sem os dois lados', () => {
+      expect(needsServingPlayer({ servingTeamId: 'time-a', servingPlayerSlot: 1, status: 'in_progress', ...ids })).toBeFalse();
+      expect(needsServingPlayer({ servingTeamId: 'time-a', servingPlayerSlot: 0, status: 'completed', ...ids })).toBeFalse();
+      expect(needsServingPlayer({ servingTeamId: 'time-a', servingPlayerSlot: 0, status: 'in_progress', teamAId: 'time-a', teamBId: '' })).toBeFalse();
+    });
+  });
+
+  /** Espelhados em `match_medical_timeout_logic_test.dart`. */
+  describe('tempo médico', () => {
+    const at = (startedAt: Date | null, durationSec = 300): Pick<MedicalTimeout, 'startedAt' | 'durationSec'> => ({ startedAt, durationSec });
+
+    it('conta pra trás a partir do carimbo do servidor', () => {
+      const started = new Date('2026-09-21T10:00:00Z');
+      expect(medicalTimeoutRemainingSeconds(at(started), new Date('2026-09-21T10:00:00Z'))).toBe(300);
+      expect(medicalTimeoutRemainingSeconds(at(started), new Date('2026-09-21T10:01:30Z'))).toBe(210);
+      expect(medicalTimeoutRemainingSeconds(at(started), new Date('2026-09-21T10:09:00Z'))).toBe(0);
+    });
+
+    it('sem carimbo mostra o tempo CHEIO — zero pareceria atendimento encerrado', () => {
+      expect(medicalTimeoutRemainingSeconds(at(null), new Date())).toBe(300);
+    });
+
+    it('a cota é por atleta, identificado pela posição na dupla', () => {
+      expect(medicalTimeoutPlayerKey('A', 2)).toBe('A2');
+      expect(hasUsedMedicalTimeout(['A2'], 'A', 2)).toBeTrue();
+      expect(hasUsedMedicalTimeout(['A2'], 'A', 1)).toBeFalse();
+      expect(hasUsedMedicalTimeout(['A2'], 'B', 2)).toBeFalse();
+    });
+
+    it('nega o segundo atendimento do mesmo atleta e qualquer um com outro em andamento', () => {
+      const active: MedicalTimeout = { side: 'A', teamId: 'time-a', playerSlot: 1, playerName: 'Bruno', startedAt: new Date(), durationSec: 300, setIndex: 0 };
+      expect(canRequestMedicalTimeout({ usedKeys: [], active: null, side: 'A', slot: 1 })).toBeTrue();
+      expect(canRequestMedicalTimeout({ usedKeys: ['A1'], active: null, side: 'A', slot: 1 })).toBeFalse();
+      expect(canRequestMedicalTimeout({ usedKeys: [], active, side: 'B', slot: 2 })).toBeFalse();
+      expect(canRequestMedicalTimeout({ usedKeys: [], active: null, side: 'A', slot: 0 })).toBeFalse();
+    });
+
+    it('formata a contagem em mm:ss', () => {
+      expect(formatMedicalTimeoutMmSs(300)).toBe('05:00');
+      expect(formatMedicalTimeoutMmSs(59)).toBe('00:59');
+      expect(formatMedicalTimeoutMmSs(-5)).toBe('00:00');
     });
   });
 });

@@ -12,11 +12,14 @@ import 'package:nexago_app/core/ui/app_snackbar.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../data/match_point_write.dart';
+import '../../domain/match_ops/match_medical_timeout_logic.dart';
 import '../../domain/match_ops/match_ops_providers.dart';
+import '../../domain/match_ops/match_serving_player_logic.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../tournaments/data/tournament_live_matches_sync.dart';
 import '../../../tournaments/domain/tournament_discovery_providers.dart';
 import '../../../tournaments/domain/tournament_match.dart';
+import '../../../tournaments/domain/tournament_match_card_view_model.dart';
 import '../../../tournaments/domain/tournament_match_point_event.dart';
 import '../../../tournaments/domain/tournament_match_set.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
@@ -65,12 +68,19 @@ class _OrganizerMatchLiveTablePageState
   int _timeoutRemainingSeconds = _timeoutDurationSeconds;
   LiveTableTimeoutPhase _timeoutPhase = LiveTableTimeoutPhase.running;
 
+  /// Tempo médico é o contrário do técnico: mora no DOC da partida (quem está sendo atendido,
+  /// desde quando e quem já usou a cota), então aqui só fica o que é de tela — o seletor aberto
+  /// e a marca do atendimento que já tocou o alerta de fim.
+  bool _medicalPickerOpen = false;
+  String? _medicalAlertedKey;
+
   @override
   void initState() {
     super.initState();
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       _maybeTickTechnicalTimeout();
+      _maybeAlertMedicalTimeoutEnd();
       setState(() {});
     });
   }
@@ -93,6 +103,22 @@ class _OrganizerMatchLiveTablePageState
     if (next <= 3) {
       SystemSound.play(SystemSoundType.click);
     }
+  }
+
+  /// O tempo médico não tem contagem local pra tocar bipe a cada segundo (o relógio é derivado
+  /// do carimbo do servidor). O que a mesa precisa é do alerta de FIM — uma vez só por
+  /// atendimento, marcado pelo `startedAt` pra não repetir a cada tique.
+  void _maybeAlertMedicalTimeoutEnd() {
+    final timeout = _currentMatch()?.medicalTimeout;
+    if (timeout == null) {
+      _medicalAlertedKey = null;
+      return;
+    }
+    final key = timeout.startedAt?.toIso8601String() ?? '';
+    if (key.isEmpty || _medicalAlertedKey == key) return;
+    if (!MatchMedicalTimeoutLogic.isEnded(timeout, DateTime.now())) return;
+    _medicalAlertedKey = key;
+    SystemSound.play(SystemSoundType.alert);
   }
 
   @override
@@ -222,6 +248,22 @@ class _OrganizerMatchLiveTablePageState
                       );
                     },
                   ),
+                  if (!match.isCompleted)
+                    ListTile(
+                      leading: const Icon(
+                        Icons.medical_services_outlined,
+                        color: AppColors.live,
+                      ),
+                      title: const Text('Tempo médico'),
+                      subtitle: const Text(
+                        'Atendimento de 5 min — um por atleta',
+                      ),
+                      enabled: match.medicalTimeout == null,
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openMedicalPicker();
+                      },
+                    ),
                   ListTile(
                     leading: const Icon(Icons.schedule_rounded),
                     title: const Text('Histórico'),
@@ -587,7 +629,7 @@ class _OrganizerMatchLiveTablePageState
           .read(tournamentMatchesRepositoryProvider)
           .updateMatchFields(
             matchId: widget.matchId,
-            fields: {'servingTeamId': teamId},
+            fields: servingTeamFields(match, teamId),
           );
     } catch (e) {
       if (mounted) {
@@ -614,7 +656,120 @@ class _OrganizerMatchLiveTablePageState
           .read(tournamentMatchesRepositoryProvider)
           .updateMatchFields(
             matchId: widget.matchId,
-            fields: {'servingTeamId': next},
+            fields: servingTeamFields(match, next),
+          );
+    } catch (e) {
+      if (mounted) {
+        showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  /// Declara qual atleta da dupla no saque vai à linha (posição 1 ou 2 da dupla). Não marca
+  /// ponto nem inicia nada — a partir daí o rodízio resolve sozinho a cada virada de saque.
+  Future<void> _chooseServingPlayer(int slot) async {
+    final match = _currentMatch();
+    if (match == null || _saving || match.isCompleted) return;
+    final side = MatchServingPlayerLogic.sideOfTeam(
+      teamId: match.servingTeamId,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+    );
+    if (side == null) return;
+
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(tournamentMatchesRepositoryProvider)
+          .updateMatchFields(
+            matchId: widget.matchId,
+            fields: servingPlayerFields(match, side, slot),
+          );
+    } catch (e) {
+      if (mounted) {
+        showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  /// Troca o sacador DENTRO da dupla que está com o saque — o conserto de mão pro caso em que
+  /// o rodízio saiu do lugar (um desfazer que caiu numa virada de saque, por exemplo).
+  ///
+  /// Com a dupla ainda sem ordem declarada o toque DECLARA o primeiro atleta em vez de não
+  /// fazer nada: no modo full o selo do saque é o único caminho pra isso (a faixa "Quem saca
+  /// por…?" não cabe lá), e tocar de novo passa pro parceiro.
+  Future<void> _swapServingPlayer() async {
+    final match = _currentMatch();
+    if (match == null || _saving || match.isCompleted) return;
+    final side = MatchServingPlayerLogic.sideOfTeam(
+      teamId: match.servingTeamId,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+    );
+    if (side == null) return;
+    final current = match.servingPlayers.slotForSide(side);
+    await _chooseServingPlayer(current == 1 ? 2 : 1);
+  }
+
+  void _openMedicalPicker() {
+    final match = _currentMatch();
+    if (match == null || match.isCompleted || match.medicalTimeout != null) {
+      return;
+    }
+    setState(() => _medicalPickerOpen = true);
+  }
+
+  void _cancelMedicalPicker() => setState(() => _medicalPickerOpen = false);
+
+  /// Abre o atendimento no doc: a partida PARA (o overlay cobre a mesa em todas as
+  /// superfícies) e a cota daquele atleta some. A escrita passa pela mesma transação do ponto
+  /// porque o chamado também vira evento na timeline — é o que sobra de auditoria depois que o
+  /// atendimento termina e o campo sai do doc.
+  Future<void> _startMedicalTimeout(LiveTableMedicalOption option) async {
+    setState(() {
+      _medicalPickerOpen = false;
+      _saving = true;
+    });
+    try {
+      final written = await ref
+          .read(tournamentMatchesRepositoryProvider)
+          .recordPointTransaction(
+            matchId: widget.matchId,
+            build: (fresh) => buildMedicalTimeoutStartWrite(
+              fresh,
+              side: option.side,
+              playerSlot: option.slot,
+              playerName: option.playerName,
+            ),
+          );
+      if (written == null && mounted) {
+        showAppSnackBar(
+          context,
+          'Não foi possível abrir o tempo médico — o atleta já usou o dele nesta partida.',
+          isError: true,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _endMedicalTimeout() async {
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(tournamentMatchesRepositoryProvider)
+          .recordPointTransaction(
+            matchId: widget.matchId,
+            build: buildMedicalTimeoutEndWrite,
           );
     } catch (e) {
       if (mounted) {
@@ -658,6 +813,127 @@ class _OrganizerMatchLiveTablePageState
     await _undoLastPoint();
   }
 
+  /// Nome do atleta que está sacando — vem da POSIÇÃO gravada no doc (1 ou 2) resolvida na
+  /// dupla que está com o saque. Vazio enquanto a dupla não declarou a ordem dela no set.
+  String _servingPlayerName(
+    TournamentMatch match,
+    LiveTableTeamData teamA,
+    LiveTableTeamData teamB,
+  ) {
+    final side = MatchServingPlayerLogic.sideOfTeam(
+      teamId: match.servingTeamId,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+    );
+    if (side == null) return '';
+    final team = side == 'A' ? teamA : teamB;
+    return team.nameForSlot(match.servingPlayerSlot);
+  }
+
+  /// A dupla que está com o saque — quem a faixa "Quem saca por…?" pergunta.
+  LiveTableTeamData? _servingTeamData(
+    TournamentMatch match,
+    LiveTableTeamData teamA,
+    LiveTableTeamData teamB,
+  ) {
+    final side = MatchServingPlayerLogic.sideOfTeam(
+      teamId: match.servingTeamId,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+    );
+    if (side == null) return null;
+    return side == 'A' ? teamA : teamB;
+  }
+
+  /// Os quatro atletas da partida, com a cota de atendimento de cada um.
+  List<LiveTableMedicalOption> _medicalOptions(
+    TournamentMatch match,
+    LiveTableTeamData teamA,
+    LiveTableTeamData teamB,
+  ) {
+    final options = <LiveTableMedicalOption>[];
+    for (final entry in [('A', teamA), ('B', teamB)]) {
+      for (var slot = 1; slot <= 2; slot++) {
+        options.add(
+          LiveTableMedicalOption(
+            side: entry.$1,
+            slot: slot,
+            playerName: entry.$2.nameForSlot(slot),
+            teamLabel: entry.$2.label,
+            used: MatchMedicalTimeoutLogic.hasUsed(
+              match.medicalTimeoutPlayers,
+              entry.$1,
+              slot,
+            ),
+          ),
+        );
+      }
+    }
+    return options;
+  }
+
+  /// Instantâneo do atendimento em andamento. A contagem é DERIVADA do carimbo do servidor —
+  /// o `_clockTimer` só repinta a tela, não guarda relógio nenhum.
+  LiveTableMedicalTimeoutView? _medicalView(
+    TournamentMatch match,
+    LiveTableTeamData teamA,
+    LiveTableTeamData teamB,
+  ) {
+    final timeout = match.medicalTimeout;
+    if (timeout == null) return null;
+    final team = timeout.side == 'A' ? teamA : teamB;
+    final name = timeout.playerName.isNotEmpty
+        ? timeout.playerName
+        : team.nameForSlot(timeout.playerSlot);
+    final remaining = MatchMedicalTimeoutLogic.remainingSeconds(
+      timeout,
+      DateTime.now(),
+    );
+    return LiveTableMedicalTimeoutView(
+      playerName: name,
+      teamLabel: team.label,
+      remainingSeconds: remaining,
+      totalSeconds: timeout.durationSec,
+      ended: remaining <= 0,
+    );
+  }
+
+  /// O que cobre a mesa por causa do tempo médico: o seletor de quem vai ser atendido ou o
+  /// atendimento em andamento. Nulo quando não há nem um nem outro.
+  ///
+  /// Fica FORA do `matchAsync.when` de propósito: vale nos dois modos da mesa (normal e full),
+  /// e o modo full desenha a própria árvore.
+  Widget? _medicalOverlay(
+    TournamentMatch? match,
+    TournamentMatchCardViewModel? enrichedCard,
+  ) {
+    if (match == null) return null;
+    final teamA = liveTableTeamData(
+      match: match,
+      sideA: true,
+      enrichedTeam: enrichedCard?.teamA,
+    );
+    final teamB = liveTableTeamData(
+      match: match,
+      sideA: false,
+      enrichedTeam: enrichedCard?.teamB,
+    );
+
+    final medical = _medicalView(match, teamA, teamB);
+    if (medical != null) {
+      return LiveTableMedicalTimeoutOverlay(
+        timeout: medical,
+        onEnd: _saving ? null : _endMedicalTimeout,
+      );
+    }
+    if (!_medicalPickerOpen) return null;
+    return LiveTableMedicalTimeoutPicker(
+      options: _medicalOptions(match, teamA, teamB),
+      onPick: _startMedicalTimeout,
+      onCancel: _cancelMedicalPicker,
+    );
+  }
+
   String _elapsedLabel(TournamentMatch match) {
     if (match.matchStartedAt != null) {
       final sec = MatchScoringLogic.elapsedSecondsFromStart(
@@ -692,6 +968,11 @@ class _OrganizerMatchLiveTablePageState
             .valueOrNull
             ?.categories ??
         const [];
+
+    final medicalOverlay = _medicalOverlay(
+      matchAsync.valueOrNull,
+      enrichedCard,
+    );
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -741,7 +1022,26 @@ class _OrganizerMatchLiveTablePageState
                   sideA: false,
                   enrichedTeam: enrichedCard?.teamB,
                 );
-                final actionsEnabled = !_saving && !match.isCompleted;
+                final medical = _medicalView(match, teamA, teamB);
+                final servingPlayerName = _servingPlayerName(
+                  match,
+                  teamA,
+                  teamB,
+                );
+                final servingTeam = _servingTeamData(match, teamA, teamB);
+                final needsServingPlayer =
+                    MatchServingPlayerLogic.needsServingPlayer(
+                      servingTeamId: match.servingTeamId,
+                      servingPlayerSlot: match.servingPlayerSlot,
+                      status: match.status,
+                      teamAId: match.teamAId,
+                      teamBId: match.teamBId,
+                    );
+                // Atendimento em andamento PARA a partida: nada de ponto, desfazer ou troca de
+                // saque enquanto o overlay está no ar — nas três mesas, porque a guarda sai do
+                // doc, não da tela.
+                final actionsEnabled =
+                    !_saving && !match.isCompleted && medical == null;
                 final events = (pointEventsAsync.valueOrNull ?? const [])
                     .whereType<TournamentMatchPointEvent>()
                     .toList();
@@ -776,7 +1076,8 @@ class _OrganizerMatchLiveTablePageState
                   final fullModeEnabled =
                       actionsEnabled &&
                       _timeoutSide == null &&
-                      !_timeoutPickerOpen;
+                      !_timeoutPickerOpen &&
+                      !_medicalPickerOpen;
                   final needsServe = MatchScoringLogic.needsStartingServe(
                     servingTeamId: match.servingTeamId,
                     status: match.status,
@@ -816,6 +1117,8 @@ class _OrganizerMatchLiveTablePageState
                         _removeTimeout(_sidesSwapped ? 'B' : 'A'),
                     onRemoveTimeoutB: () =>
                         _removeTimeout(_sidesSwapped ? 'A' : 'B'),
+                    servingPlayerName: servingPlayerName,
+                    onSwapServingPlayer: _swapServingPlayer,
                     onSwapServe: _swapServe,
                     onSwapSides: _swapSides,
                     onAddTimeout: _openTimeoutTeamPicker,
@@ -873,6 +1176,12 @@ class _OrganizerMatchLiveTablePageState
                           enabled: !_saving,
                           onChoose: _chooseServe,
                         ),
+                      if (needsServingPlayer && servingTeam != null)
+                        LiveTableServingPlayer(
+                          team: servingTeam,
+                          enabled: !_saving && medical == null,
+                          onChoose: _chooseServingPlayer,
+                        ),
                       LiveTableTeamScoreBoard(
                         teamA: teamA,
                         teamB: teamB,
@@ -880,6 +1189,7 @@ class _OrganizerMatchLiveTablePageState
                         scoreB: liveTableCurrentSetScore(match, sideA: false),
                         isServingA: liveTableIsServing(match, sideA: true),
                         isServingB: liveTableIsServing(match, sideA: false),
+                        servingPlayerName: servingPlayerName,
                         seedA: liveTableTeamSeed(match, sideA: true),
                         seedB: liveTableTeamSeed(match, sideA: false),
                         enabled: actionsEnabled,
@@ -906,6 +1216,15 @@ class _OrganizerMatchLiveTablePageState
                         ),
                       LiveTableActionBar(
                         enabled: actionsEnabled,
+                        medicalTimeoutEnabled: _medicalOptions(
+                          match,
+                          teamA,
+                          teamB,
+                        ).any((option) => !option.used),
+                        onMedicalTimeout: _openMedicalPicker,
+                        onSwapServingPlayer: match.servingPlayerSlot == 0
+                            ? null
+                            : _swapServingPlayer,
                         onUndo: _undoLastPoint,
                         onSwapServe: _swapServe,
                         onQuickScore: () => _openQuickScoreSheet(
@@ -960,6 +1279,10 @@ class _OrganizerMatchLiveTablePageState
               },
             ),
           ),
+          // Acima dos dois modos da mesa (normal e full): o atendimento médico para a
+          // partida inteira, então o overlay cobre a tela toda e come o toque — em vez de
+          // cada modo desabilitar os próprios botões.
+          if (medicalOverlay != null) Positioned.fill(child: medicalOverlay),
           if (_saving)
             const Positioned.fill(
               child: ColoredBox(

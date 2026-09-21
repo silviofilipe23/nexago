@@ -56,6 +56,9 @@ function pointUpdate() {
     currentSetIndex: 0,
     status: 'In Progress',
     servingTeamId: 'time-a',
+    // O saque individual (qual ATLETA da dupla saca) anda no MESMO update do ponto.
+    servingPlayerSlot: 1,
+    servingPlayerSlots: { A: 1, B: 2 },
     resultA: '0',
     resultB: '0',
     pointEventSeq: 1,
@@ -141,6 +144,62 @@ test('mesário grava o evento da timeline com o seq seguinte', async () => {
       setIndex: 0,
       scoreA: 15,
       scoreB: 12,
+      ts: serverTimestamp(),
+    }),
+  );
+});
+
+/** Tempo médico: quem para a partida por lesão é a MESA, então abrir e encerrar o atendimento
+ *  (e queimar a cota do atleta) é escrita de mesário, não de gestor. */
+test('mesário abre e encerra o tempo médico', async () => {
+  const db = testEnv.authenticatedContext(MESARIO).firestore();
+  await assertSucceeds(
+    updateDoc(doc(db, MATCH_PATH), {
+      medicalTimeout: {
+        side: 'A',
+        teamId: 'time-a',
+        playerSlot: 2,
+        playerName: 'Lucas',
+        startedAt: serverTimestamp(),
+        durationSec: 300,
+        setIndex: 0,
+      },
+      medicalTimeoutPlayers: ['A2'],
+      pointEventSeq: 2,
+      updatedAt: serverTimestamp(),
+    }),
+  );
+
+  // Encerrar tira o atendimento do doc; a cota do atleta NÃO volta.
+  await assertSucceeds(
+    updateDoc(doc(db, MATCH_PATH), {
+      medicalTimeout: deleteField(),
+      pointEventSeq: 3,
+      updatedAt: serverTimestamp(),
+    }),
+  );
+});
+
+test('quem não é da equipe não abre tempo médico', async () => {
+  const db = testEnv.authenticatedContext(ESTRANHO).firestore();
+  await assertFails(
+    updateDoc(doc(db, MATCH_PATH), { medicalTimeoutPlayers: ['A1'], updatedAt: serverTimestamp() }),
+  );
+});
+
+/** O chamado é o que sobra de auditoria depois que `medicalTimeout` sai do doc — então o tipo
+ *  novo precisa passar na validação de `pointEvents`. */
+test('mesário grava o chamado do tempo médico na timeline', async () => {
+  const db = testEnv.authenticatedContext(MESARIO).firestore();
+  await assertSucceeds(
+    setDoc(doc(db, `${MATCH_PATH}/pointEvents/e-med`), {
+      seq: 4,
+      type: 'medical-timeout',
+      side: 'A',
+      setIndex: 0,
+      scoreA: 15,
+      scoreB: 12,
+      playerSlot: 2,
       ts: serverTimestamp(),
     }),
   );

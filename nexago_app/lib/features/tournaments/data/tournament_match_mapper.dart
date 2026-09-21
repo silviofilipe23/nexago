@@ -2,7 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../domain/tournament_match.dart';
 import '../domain/tournament_match_live_score.dart';
+import '../domain/tournament_match_medical_timeout.dart';
 import '../domain/tournament_match_point_action.dart';
+import '../domain/tournament_match_serving_players.dart';
 import '../domain/tournament_match_set.dart';
 import '../domain/tournament_match_status.dart';
 
@@ -55,6 +57,11 @@ abstract final class TournamentMatchMapper {
       checkInTeamAStatus: _checkInStatus(data['checkIn'], 'teamA'),
       checkInTeamBStatus: _checkInStatus(data['checkIn'], 'teamB'),
       servingTeamId: _str(data['servingTeamId']) ?? '',
+      servingPlayerSlot: _servingPlayerSlot(data['servingPlayerSlot']),
+      servingPlayers: _servingPlayers(data['servingPlayerSlots']),
+      medicalTimeout: _medicalTimeout(data['medicalTimeout']),
+      medicalTimeoutPlayers:
+          medicalTimeoutPlayerKeysFromRaw(data['medicalTimeoutPlayers']),
       liveElapsedSec: _int(data['liveElapsedSec']) ?? 0,
       pointEventSeq: _int(data['pointEventSeq']) ?? 0,
       reportStatus: _reportStatus(data['report']),
@@ -70,6 +77,22 @@ abstract final class TournamentMatchMapper {
       loserAdvanceSlot: _advanceSlot(data['loserAdvance']),
       liveScore: _liveScore(data['liveScore']),
     );
+  }
+
+  /// Posição do sacador; qualquer coisa fora de 1/2 vira "não declarada".
+  static int _servingPlayerSlot(dynamic raw) {
+    final value = _int(raw);
+    return value == 1 || value == 2 ? value! : 0;
+  }
+
+  static MatchServingPlayers _servingPlayers(dynamic raw) {
+    if (raw is! Map) return MatchServingPlayers.none;
+    return MatchServingPlayers.fromMap(Map<String, dynamic>.from(raw));
+  }
+
+  static MatchMedicalTimeout? _medicalTimeout(dynamic raw) {
+    if (raw is! Map) return null;
+    return MatchMedicalTimeout.fromMap(Map<String, dynamic>.from(raw));
   }
 
   static MatchLiveScore? _liveScore(dynamic raw) {

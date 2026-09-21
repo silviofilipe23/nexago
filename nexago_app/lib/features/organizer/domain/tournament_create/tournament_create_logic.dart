@@ -344,6 +344,7 @@ String bracketSystemCardLabel(TournamentBracketSystem system) =>
       TournamentBracketSystem.roundRobin => 'Pontos corridos',
       TournamentBracketSystem.groupsWithRepechage => 'Grupos+rep.',
       TournamentBracketSystem.doubleElimination => 'Dupla elim.',
+      TournamentBracketSystem.kingOfCourt => 'King of Court',
     };
 
 String categoryFormatLabel(TournamentCategoryDraft category) =>

@@ -32,6 +32,8 @@ function m(overrides: Partial<TournamentMatch>): TournamentMatch {
     liveScore: null,
     currentSetIndex: null,
     servingTeamId: '',
+    servingPlayerSlot: 0,
+    medicalTimeout: null,
     matchStartedAt: null,
     matchEndedAt: null,
     ...overrides,

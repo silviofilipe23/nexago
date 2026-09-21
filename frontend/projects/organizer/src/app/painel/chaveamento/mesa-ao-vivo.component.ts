@@ -5,15 +5,23 @@ import type { PillTone } from '../data/mock-data';
 import { initialsOf, truncateName } from '../data/mock-data';
 import {
   applyBestOfChange,
+  buildMedicalTimeoutEndWrite,
+  buildMedicalTimeoutStartWrite,
   buildPointWrite,
   buildUndoWrite,
   canReduceBestOf,
   elapsedSecondsFromStart,
   formatElapsedMmSs,
+  formatMedicalTimeoutMmSs,
+  hasUsedMedicalTimeout,
   lastUndoablePoint,
   liveSetToMap,
+  medicalTimeoutRemainingSeconds,
+  needsServingPlayer,
   needsStartingServe,
   recordPointTransaction,
+  servingPlayerFields,
+  servingTeamFields,
   setPointHint,
   setRulesLabel,
   setsWonOf,
@@ -23,9 +31,13 @@ import {
   type LiveMatch,
   type LivePointEvent,
   type MatchDisplayStatus,
+  type MatchSide,
 } from '@nexago/live-scoring';
 import { isKingOfCourtMatchType } from '../data/koc';
+import { organizerFirestore } from '../data/firestore';
 import { organizerLiveScoringContext } from '../data/live-scoring-context';
+import { fetchProfileNames, fetchTeamsByIds } from '../data/teams-repository';
+import { environment } from '../../../environments/environment';
 import { revertMatchToScheduled, updateLiveMatchScore, validateMatchResult } from '../data/organizer-ops.service';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
@@ -54,6 +66,15 @@ interface FeedRowView {
   label: string;
   score: string;
   undo: boolean;
+}
+
+/** Um atleta no seletor do tempo médico: quem é, de que lado, e se a cota dele já foi usada. */
+interface MedicalOptionView {
+  side: MatchSide;
+  slot: 1 | 2;
+  playerName: string;
+  teamLabel: string;
+  used: boolean;
 }
 
 /** Mesa ao vivo ponto a ponto — mesma função da mesa I1 do app
@@ -129,6 +150,25 @@ interface FeedRowView {
               </div>
             }
 
+            <!-- O andar de baixo do saque: qual ATLETA da dupla vai à linha. Não bloqueia o
+                 ponto — o placar é o que não pode esperar. -->
+            @if (askingServingPlayer(); as asking) {
+              <div class="og-mesa-ask">
+                <span class="og-mesa-ask-lbl">Quem saca por {{ truncate(asking.teamLabel, 20) }}?</span>
+                @for (option of asking.players; track option.slot) {
+                  <button
+                    type="button"
+                    class="og-mesa-askbtn"
+                    [disabled]="saving()"
+                    [attr.aria-label]="'Saque de ' + option.playerName"
+                    (click)="chooseServingPlayer(option.slot)"
+                  >
+                    {{ truncate(option.playerName, 22) }}
+                  </button>
+                }
+              </div>
+            }
+
             <div class="og-mesa-board">
               <div class="og-mesa-side">
                 <button type="button" class="og-mesa-point" [disabled]="!canScore()" [attr.aria-label]="'Ponto para ' + teamALabel()" (click)="point('A')">
@@ -136,7 +176,7 @@ interface FeedRowView {
                     <og-avatar [initials]="initialsOf(teamALabel())" [size]="34" />
                     <span class="og-mesa-name" [title]="teamALabel()">{{ truncate(teamALabel(), 22) }}</span>
                     @if (servingSide() === 'A') {
-                      <span class="og-mesa-serve" title="No saque">SAQUE</span>
+                      <span class="og-mesa-serve" title="No saque">{{ serveBadge() }}</span>
                     }
                   </span>
                   <span class="og-mesa-score">{{ currentSet().a }}</span>
@@ -158,7 +198,7 @@ interface FeedRowView {
                     <og-avatar [initials]="initialsOf(teamBLabel())" [size]="34" />
                     <span class="og-mesa-name" [title]="teamBLabel()">{{ truncate(teamBLabel(), 22) }}</span>
                     @if (servingSide() === 'B') {
-                      <span class="og-mesa-serve" title="No saque">SAQUE</span>
+                      <span class="og-mesa-serve" title="No saque">{{ serveBadge() }}</span>
                     }
                   </span>
                   <span class="og-mesa-score">{{ currentSet().b }}</span>
@@ -212,6 +252,8 @@ interface FeedRowView {
                   Desfazer último ponto
                 </button>
                 <button type="button" class="og-mini-btn" [disabled]="saving()" (click)="swapServe()">Trocar saque</button>
+                <button type="button" class="og-mini-btn" [disabled]="saving() || servingPlayerSlot() === 0" (click)="swapServingPlayer()">Trocar sacador</button>
+                <button type="button" class="og-mini-btn og-mesa-medical" [disabled]="saving() || !canOpenMedical()" (click)="openMedicalPicker()">Tempo médico</button>
                 <button type="button" class="og-mini-btn og-mesa-revert" [disabled]="saving()" (click)="askRevert()">Tirar do ao vivo</button>
                 <div class="og-filter-bar og-mesa-format">
                   @for (option of [1, 3]; track option) {
@@ -244,6 +286,44 @@ interface FeedRowView {
         }
       </div>
     </div>
+
+    <!-- Tempo médico: o atendimento vem do DOC, então o overlay cobre a mesa em TODAS as
+         superfícies ao mesmo tempo e a contagem é a mesma em todas (derivada do carimbo do
+         servidor, sem escrita durante os 5 minutos). -->
+    @if (medical(); as m) {
+      <div class="og-mesa-medical-overlay" role="dialog" aria-live="polite">
+        <div class="og-mesa-medical-box">
+          <span class="og-mesa-medical-kicker">TEMPO MÉDICO · 5 MINUTOS</span>
+          <strong class="og-mesa-medical-name">{{ m.playerName }}</strong>
+          <span class="og-mesa-medical-team">{{ m.teamLabel }}</span>
+          <span class="og-mesa-medical-clock" [class.over]="m.ended">{{ m.clock }}</span>
+          @if (m.ended) {
+            <span class="og-mesa-medical-done">ATENDIMENTO ENCERRADO</span>
+          }
+          <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="saving()" (click)="endMedical()">Encerrar atendimento</button>
+        </div>
+      </div>
+    } @else if (medicalPickerOpen()) {
+      <div class="og-mesa-medical-overlay" role="dialog">
+        <div class="og-mesa-medical-box">
+          <span class="og-mesa-medical-kicker">QUEM VAI SER ATENDIDO?</span>
+          <span class="og-mesa-medical-team">Atendimento de 5 minutos — um por atleta na partida.</span>
+          <div class="og-mesa-medical-list">
+            @for (option of medicalOptions(); track option.side + option.slot) {
+              <button type="button" class="og-mesa-medical-opt" [disabled]="option.used || saving()" (click)="startMedical(option)">
+                <span class="badge">{{ option.side }}</span>
+                <span class="who">
+                  <b>{{ option.playerName }}</b>
+                  <i>{{ truncate(option.teamLabel, 24) }}</i>
+                </span>
+                <span class="state">{{ option.used ? 'já usou' : 'disponível' }}</span>
+              </button>
+            }
+          </div>
+          <button type="button" class="og-mini-btn" (click)="cancelMedicalPicker()">Cancelar</button>
+        </div>
+      </div>
+    }
 
     @if (confirmingRevert()) {
       <og-confirm-dialog
@@ -322,6 +402,126 @@ interface FeedRowView {
     }
     .og-mesa-set[data-state='upcoming'] .val {
       color: var(--nx-text-mute);
+    }
+    .og-mesa-medical {
+      border-color: color-mix(in srgb, var(--nx-live) 40%, transparent);
+      color: var(--nx-live);
+    }
+    .og-mesa-medical-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(0, 0, 0, 0.72);
+      backdrop-filter: blur(10px);
+    }
+    .og-mesa-medical-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      width: min(420px, 100%);
+      padding: 24px 20px;
+      border-radius: var(--nx-r-3);
+      border: 1px solid var(--nx-line);
+      background: var(--nx-surface-1);
+      text-align: center;
+    }
+    .og-mesa-medical-kicker {
+      font-family: var(--nx-font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--nx-live);
+    }
+    .og-mesa-medical-name {
+      font-family: var(--nx-font-ui);
+      font-size: 22px;
+      color: var(--nx-text);
+    }
+    .og-mesa-medical-team {
+      font-family: var(--nx-font-ui);
+      font-size: 12px;
+      color: var(--nx-text-dim);
+    }
+    .og-mesa-medical-clock {
+      font-family: var(--nx-font-mono);
+      font-size: 56px;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--nx-text);
+    }
+    .og-mesa-medical-clock.over {
+      color: var(--nx-live);
+    }
+    .og-mesa-medical-done {
+      font-family: var(--nx-font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--nx-win);
+    }
+    .og-mesa-medical-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+    }
+    .og-mesa-medical-opt {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      /* Alvo de mesário na areia. */
+      min-height: 52px;
+      padding: 8px 12px;
+      border-radius: var(--nx-r-2);
+      border: 1px solid var(--nx-line);
+      background: var(--nx-surface-0);
+      color: var(--nx-text);
+      cursor: pointer;
+      text-align: left;
+    }
+    .og-mesa-medical-opt:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+    .og-mesa-medical-opt .badge {
+      display: grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      background: var(--nx-orange-500);
+      color: #fff;
+      font-family: var(--nx-font-mono);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .og-mesa-medical-opt .who {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      flex: 1;
+    }
+    .og-mesa-medical-opt .who b {
+      font-family: var(--nx-font-ui);
+      font-size: 14px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .og-mesa-medical-opt .who i {
+      font-family: var(--nx-font-mono);
+      font-style: normal;
+      font-size: 10px;
+      color: var(--nx-text-dim);
+    }
+    .og-mesa-medical-opt .state {
+      font-family: var(--nx-font-mono);
+      font-size: 10px;
+      color: var(--nx-text-dim);
     }
     .og-mesa-ask {
       display: flex;
@@ -602,6 +802,14 @@ export class MesaAoVivoComponent {
   protected readonly confirmingRevert = signal(false);
   protected readonly revertError = signal<string | null>(null);
 
+  /** Nomes dos DOIS atletas de cada dupla, na ordem de `player1Id`/`player2Id` — é essa ordem
+   *  que o doc da partida usa pra dizer quem está sacando (ver `serving-player.ts`). O cache de
+   *  rótulos do contexto só traz o nome da dupla inteira, então a mesa hidrata os atletas. */
+  private readonly playersByTeam = signal<ReadonlyMap<string, readonly [string, string]>>(new Map());
+  private readonly hydratedTeams = new Set<string>();
+
+  protected readonly medicalPickerOpen = signal(false);
+
   constructor() {
     // A mesa é dirigida pelo doc em tempo real: troca de matchId refaz as assinaturas.
     effect((onCleanup) => {
@@ -628,6 +836,13 @@ export class MesaAoVivoComponent {
         unsubMatch();
         unsubEvents();
       });
+    });
+
+    // Os nomes dos atletas chegam depois do doc: a mesa abre com "Atleta 1/2" e troca sozinha.
+    effect(() => {
+      const m = this.live();
+      if (!m) return;
+      void this.hydratePlayers([m.teamAId, m.teamBId]);
     });
 
     const timer = setInterval(() => this.now.set(Date.now()), 1000);
@@ -711,6 +926,93 @@ export class MesaAoVivoComponent {
     return side === 'A' ? this.teamALabel() : this.teamBLabel();
   }
 
+  private async hydratePlayers(teamIds: readonly string[]): Promise<void> {
+    const ids = teamIds.filter((id) => id.length > 0 && !this.hydratedTeams.has(id));
+    if (ids.length === 0) return;
+    for (const id of ids) this.hydratedTeams.add(id);
+    const projectId = environment.firebase.projectId;
+    if (!projectId) return;
+    try {
+      const db = organizerFirestore();
+      const teams = await fetchTeamsByIds(db, projectId, ids);
+      const names = await fetchProfileNames(db, [...teams.values()].flatMap((t) => [t.player1Id, t.player2Id]));
+      this.playersByTeam.update((current) => {
+        const next = new Map(current);
+        for (const [teamId, team] of teams) next.set(teamId, [names.get(team.player1Id) ?? '', names.get(team.player2Id) ?? '']);
+        return next;
+      });
+    } catch {
+      // Sem nome a mesa ainda funciona (mostra "Atleta 1/2") — libera pra tentar de novo.
+      for (const id of ids) this.hydratedTeams.delete(id);
+    }
+  }
+
+  /** Nome do atleta pela POSIÇÃO na dupla (1 ou 2). Cai em "Atleta N" enquanto o join não
+   *  chegou ou o perfil não tem nome — o que importa na mesa é a posição, que é o que o doc
+   *  guarda. */
+  protected playerName(side: MatchSide, slot: 1 | 2): string {
+    const m = this.match();
+    const teamId = side === 'A' ? m?.teamAId : m?.teamBId;
+    const pair = teamId ? this.playersByTeam().get(teamId) : undefined;
+    const name = pair?.[slot - 1]?.trim() ?? '';
+    return name || `Atleta ${slot}`;
+  }
+
+  protected readonly servingPlayerSlot = computed(() => this.match()?.servingPlayerSlot ?? 0);
+
+  /** "SAQUE" ou "SAQUE · BRUNO" — primeiro nome só, pra caber no selo do painel. */
+  protected readonly serveBadge = computed(() => {
+    const side = this.servingSide();
+    const slot = this.servingPlayerSlot();
+    if (side == null || (slot !== 1 && slot !== 2)) return 'SAQUE';
+    const first = this.playerName(side, slot).split(/\s+/)[0] ?? '';
+    return first ? `SAQUE · ${first.toUpperCase()}` : 'SAQUE';
+  });
+
+  /** A faixa "Quem saca por…?" — mesma regra (`needsServingPlayer`) das outras duas mesas. */
+  protected readonly askingServingPlayer = computed<{ teamLabel: string; players: { slot: 1 | 2; playerName: string }[] } | null>(() => {
+    const m = this.match();
+    const side = this.servingSide();
+    if (!m || side == null) return null;
+    if (!needsServingPlayer({ servingTeamId: m.servingTeamId, servingPlayerSlot: m.servingPlayerSlot, status: m.status, teamAId: m.teamAId, teamBId: m.teamBId })) return null;
+    return {
+      teamLabel: this.sideLabel(side),
+      players: ([1, 2] as const).map((slot) => ({ slot, playerName: this.playerName(side, slot) })),
+    };
+  });
+
+  /** Os quatro atletas da partida, com a cota de atendimento de cada um. */
+  protected readonly medicalOptions = computed<MedicalOptionView[]>(() => {
+    const m = this.match();
+    if (!m) return [];
+    return (['A', 'B'] as const).flatMap((side) =>
+      ([1, 2] as const).map((slot) => ({
+        side,
+        slot,
+        playerName: this.playerName(side, slot),
+        teamLabel: this.sideLabel(side),
+        used: hasUsedMedicalTimeout(m.medicalTimeoutPlayers, side, slot),
+      })),
+    );
+  });
+
+  protected readonly canOpenMedical = computed(() => this.match()?.medicalTimeout == null && this.medicalOptions().some((o) => !o.used));
+
+  /** O atendimento em andamento — a contagem é DERIVADA de `startedAt`, o `now` de 1 s só
+   *  repinta. */
+  protected readonly medical = computed<{ playerName: string; teamLabel: string; clock: string; ended: boolean } | null>(() => {
+    const m = this.match();
+    const active = m?.medicalTimeout;
+    if (!m || !active) return null;
+    const remaining = medicalTimeoutRemainingSeconds(active, new Date(this.now()));
+    return {
+      playerName: active.playerName || this.playerName(active.side, active.playerSlot),
+      teamLabel: this.sideLabel(active.side),
+      clock: formatMedicalTimeoutMmSs(remaining),
+      ended: remaining <= 0,
+    };
+  });
+
   /** A pergunta de abertura do saque — mesma regra (`needsStartingServe`) da mesa do portal do
    *  atleta e da mesa I1 do app, pra que as três perguntem na mesma janela. */
   protected readonly askingServe = computed(() => {
@@ -719,7 +1021,9 @@ export class MesaAoVivoComponent {
     return needsStartingServe({ servingTeamId: m.servingTeamId, status: m.status, teamAId: m.teamAId, teamBId: m.teamBId });
   });
 
-  protected readonly canScore = computed(() => !this.saving() && this.status() === 'in_progress' && this.teamsReady());
+  /** Atendimento em andamento PARA a partida: nada de ponto ou desfazer enquanto ele roda —
+   *  nas três mesas, porque a guarda sai do doc, não da tela. */
+  protected readonly canScore = computed(() => !this.saving() && this.status() === 'in_progress' && this.teamsReady() && this.match()?.medicalTimeout == null);
 
   /** Último ponto ainda "vivo" (replay de `pointEvents` casando undo com ponto) — alvo do
    *  desfazer. O app usa o último evento `point` cru; o replay evita desfazer duas vezes o
@@ -889,7 +1193,7 @@ export class MesaAoVivoComponent {
     if (!teamId) return;
     this.saving.set(true);
     try {
-      await updateMatchFields(this.scoring, m.id, { servingTeamId: teamId });
+      await updateMatchFields(this.scoring, m.id, servingTeamFields(m, teamId));
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao definir quem começa sacando.' });
     } finally {
@@ -906,9 +1210,78 @@ export class MesaAoVivoComponent {
     if (!next) return;
     this.saving.set(true);
     try {
-      await updateMatchFields(this.scoring, m.id, { servingTeamId: next });
+      await updateMatchFields(this.scoring, m.id, servingTeamFields(m, next));
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao trocar o saque.' });
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  /** Declara qual atleta da dupla no saque vai à linha. Daí em diante o rodízio resolve sozinho
+   *  a cada virada de saque — espelha `_chooseServingPlayer` da mesa do app. */
+  protected async chooseServingPlayer(slot: 1 | 2): Promise<void> {
+    const m = this.match();
+    const side = this.servingSide();
+    if (!m || side == null || this.saving() || m.status === 'completed') return;
+    this.saving.set(true);
+    try {
+      await updateMatchFields(this.scoring, m.id, servingPlayerFields(m, side, slot));
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao definir o sacador.' });
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  /** Troca o sacador DENTRO da dupla no saque — o conserto de mão pro caso em que o rodízio
+   *  saiu do lugar (um desfazer que caiu numa virada de saque, por exemplo). */
+  protected async swapServingPlayer(): Promise<void> {
+    const slot = this.servingPlayerSlot();
+    if (slot !== 1 && slot !== 2) return;
+    await this.chooseServingPlayer(slot === 1 ? 2 : 1);
+  }
+
+  protected openMedicalPicker(): void {
+    if (!this.canOpenMedical()) return;
+    this.medicalPickerOpen.set(true);
+  }
+
+  protected cancelMedicalPicker(): void {
+    this.medicalPickerOpen.set(false);
+  }
+
+  /** Abre o atendimento no doc: a partida PARA em todas as superfícies e a cota daquele atleta
+   *  some. Passa pela transação do ponto porque o chamado também vira evento na timeline — é o
+   *  que sobra de auditoria depois que o atendimento termina e o campo sai do doc. */
+  protected async startMedical(option: MedicalOptionView): Promise<void> {
+    const m = this.match();
+    if (!m || this.saving() || option.used) return;
+    this.medicalPickerOpen.set(false);
+    this.saving.set(true);
+    this.feedback.set(null);
+    try {
+      const written = await recordPointTransaction(this.scoring, {
+        matchId: m.id,
+        build: (fresh) => buildMedicalTimeoutStartWrite(fresh, { side: option.side, playerSlot: option.slot, playerName: option.playerName }),
+      });
+      if (written == null) this.feedback.set({ ok: false, message: 'Não foi possível abrir o tempo médico — o atleta já usou o dele nesta partida.' });
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao abrir o tempo médico.' });
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  /** Encerra o atendimento (com ou sem os 5 minutos cheios). A cota do atleta NÃO volta. */
+  protected async endMedical(): Promise<void> {
+    const m = this.match();
+    if (!m || this.saving()) return;
+    this.saving.set(true);
+    try {
+      await recordPointTransaction(this.scoring, { matchId: m.id, build: buildMedicalTimeoutEndWrite });
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao encerrar o tempo médico.' });
     } finally {
       this.saving.set(false);
     }

@@ -1,6 +1,6 @@
 import { isKingOfCourtMatchType, kocRoundStateFrom, type KocRoundState } from './koc';
 import { collection, getDocs, onSnapshot, query, where, type Unsubscribe } from 'firebase/firestore';
-import { statusOf, type MatchDisplayStatus } from '@nexago/live-scoring';
+import { medicalTimeoutFromRaw, statusOf, type MatchDisplayStatus, type MedicalTimeout } from '@nexago/live-scoring';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from './firestore';
 import { fetchTeamNames } from './teams-repository';
@@ -74,6 +74,13 @@ export interface TournamentMatch {
   liveScore: MatchLiveScore | null;
   currentSetIndex: number | null;
   servingTeamId: string;
+  /** Posição (1 ou 2) do atleta no saque dentro da dupla de `servingTeamId`; 0 = não declarada.
+   *  A posição é a ordem de `player1Id`/`player2Id` do doc de `teams` — é assim que o telão
+   *  resolve QUEM está sacando sem nenhum join novo (ver `serving-player.ts`). */
+  servingPlayerSlot: number;
+  /** Atendimento médico em andamento — o telão mostra quem está sendo atendido e a contagem,
+   *  derivada de `startedAt`. Nulo quando ninguém está sendo atendido. */
+  medicalTimeout: MedicalTimeout | null;
   /** Rodada King of the Court, quando `matchType` é `koc_*`. A rodada não tem
    *  dois lados: `teamAId`/`teamBId` vêm vazios e o elenco/estado vivem aqui.
    *  Ausente em toda partida de duelo — opcional de propósito, para que nenhuma
@@ -211,6 +218,8 @@ interface RawMatch {
   liveScore: MatchLiveScore | null;
   currentSetIndex: number | null;
   servingTeamId: string;
+  servingPlayerSlot: number;
+  medicalTimeout: MedicalTimeout | null;
   koc?: KocRoundState | null;
   matchStartedAt: Date | null;
   matchEndedAt: Date | null;
@@ -256,6 +265,8 @@ function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawMatch {
     liveScore: liveScoreFromRaw(data['liveScore']),
     currentSetIndex: intOf(data['currentSetIndex']),
     servingTeamId: optionalStr(data['servingTeamId']) ?? '',
+    servingPlayerSlot: data['servingPlayerSlot'] === 1 || data['servingPlayerSlot'] === 2 ? data['servingPlayerSlot'] : 0,
+    medicalTimeout: medicalTimeoutFromRaw(data['medicalTimeout']),
     koc: isKingOfCourtMatchType(matchType) ? kocRoundStateFrom(data) : null,
     matchStartedAt: toDate(data['matchStartedAt']),
     matchEndedAt: toDate(data['matchEndedAt']),
@@ -513,6 +524,8 @@ function rawToMatch(r: RawMatch, labelOf: (description: string | null, teamId: s
     liveScore: r.liveScore,
     currentSetIndex: r.currentSetIndex,
     servingTeamId: r.servingTeamId,
+    servingPlayerSlot: r.servingPlayerSlot,
+    medicalTimeout: r.medicalTimeout,
     koc: r.koc,
     matchStartedAt: r.matchStartedAt,
     matchEndedAt: r.matchEndedAt,

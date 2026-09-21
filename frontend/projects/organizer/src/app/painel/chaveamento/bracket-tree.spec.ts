@@ -42,6 +42,8 @@ function match(overrides: Partial<TournamentMatch> & Pick<TournamentMatch, 'id' 
     liveScore: null,
     currentSetIndex: null,
     servingTeamId: '',
+    servingPlayerSlot: 0,
+    medicalTimeout: null,
     matchStartedAt: null,
     matchEndedAt: null,
     ...overrides,

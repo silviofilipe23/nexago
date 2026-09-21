@@ -5,14 +5,22 @@ import { deleteField, serverTimestamp } from 'firebase/firestore';
 import { map } from 'rxjs';
 import {
   applyBestOfChange,
+  buildMedicalTimeoutEndWrite,
+  buildMedicalTimeoutStartWrite,
   buildPointWrite,
   buildUndoWrite,
   canReduceBestOf,
   elapsedSecondsFromStart,
+  formatMedicalTimeoutMmSs,
+  hasUsedMedicalTimeout,
   lastUndoablePoint,
   liveSetToMap,
   matchWinnerSide,
+  medicalTimeoutRemainingSeconds,
+  needsServingPlayer,
   needsStartingServe,
+  servingPlayerFields,
+  servingTeamFields,
   setsWonOf,
   validateScoreSubmission,
   type LiveMatch,
@@ -36,7 +44,7 @@ import {
   type MesaSide,
 } from './mesa-board';
 import { EMPTY_HEADER, MesaLiveGateway, type MesaHeaderInfo } from './mesa-live.gateway';
-import { EMPTY_TEAM_NAMES, teamLabelOf, type MesaTeamNames } from './mesa-team-names';
+import { EMPTY_TEAM_NAMES, playerNameOf, teamLabelOf, type MesaTeamNames } from './mesa-team-names';
 
 const STATUS_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendada', in_progress: 'Ao vivo', completed: 'Encerrada', canceled: 'Cancelada' };
 
@@ -48,6 +56,15 @@ interface FeedRowView {
   label: string;
   score: string;
   undo: boolean;
+}
+
+/** Um atleta no seletor do tempo médico: quem é, de que lado, e se a cota dele já foi usada. */
+interface MedicalOptionView {
+  side: MesaSide;
+  slot: 1 | 2;
+  playerName: string;
+  teamLabel: string;
+  used: boolean;
 }
 
 /** Mesa ao vivo do mesário — placar de quadra, não formulário: a tela inteira são os dois
@@ -66,13 +83,15 @@ interface FeedRowView {
  *  Quem pode: rules (`canScoreTournament` + `scorerCanOnlyEditScoreFields`) e
  *  `assertCanScoreTournament` nos callables — dono, gestor e mesário.
  *
- *  Fora da tela de propósito: sanção, atendimento médico e súmula existem no protótipo mas não
- *  têm nada no backend — botão que só abre explicação é pior que ausência numa mesa. */
+ *  O ATENDIMENTO MÉDICO tem backend desde a configuração de tempo médico: mora no doc da
+ *  partida (quem está sendo atendido e a cota de cada atleta), então as três mesas e o telão
+ *  param juntos. Fora da tela de propósito continuam sanção e súmula, que não têm nada no
+ *  backend — botão que só abre explicação é pior que ausência numa mesa. */
 @Component({
   selector: 'app-mesa-live',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, NxPageLoadingComponent, NxSpinnerComponent],
-  host: { '[class.mesa-present]': 'present()', '[class.mesa-asking]': 'askingServe()' },
+  host: { '[class.mesa-present]': 'present()', '[class.mesa-asking]': 'asking()' },
   template: `
     @if (!loaded()) {
       <div class="mesa-state"><app-nx-page-loading title="Carregando partida…" subtitle="Conectando à mesa ao vivo" /></div>
@@ -138,6 +157,25 @@ interface FeedRowView {
         </div>
       }
 
+      <!-- O andar de baixo do saque: qual ATLETA da dupla vai à linha. Não bloqueia o ponto —
+           o placar é o que não pode esperar. -->
+      @if (askingServingPlayer(); as asking) {
+        <div class="mesa-ask">
+          <span class="mesa-eyebrow">Quem saca por {{ asking.teamLabel }}?</span>
+          @for (option of asking.players; track option.slot) {
+            <button
+              type="button"
+              class="mesa-askbtn"
+              [disabled]="saving()"
+              [attr.aria-label]="'Saque de ' + option.playerName"
+              (click)="chooseServingPlayer(option.slot)"
+            >
+              <span class="mesa-badge">{{ option.slot }}</span>{{ option.playerName }}
+            </button>
+          }
+        </div>
+      }
+
       @for (side of sidesInOrder(); track side) {
         <!-- O −1 é irmão do painel, não filho: botão dentro de botão é HTML inválido, e o toque
              no painel inteiro é o alvo do ponto. -->
@@ -158,7 +196,7 @@ interface FeedRowView {
                 <span class="mesa-flag">{{ f === 'match' ? 'MATCH POINT' : 'SET POINT' }}</span>
               }
               @if (servingSide() === side) {
-                <span class="mesa-chip mesa-chip--acc">SAQUE</span>
+                <span class="mesa-chip mesa-chip--acc">{{ serveBadge() }}</span>
               }
             </span>
             <span class="mesa-num">{{ points(side) }}</span>
@@ -245,6 +283,10 @@ interface FeedRowView {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></svg>
           Tempo
         </button>
+        <button type="button" class="mesa-tool mesa-tool--med" [disabled]="saving() || !canOpenMedical()" (click)="openMedicalPicker()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z" /></svg>
+          Médico
+        </button>
         <button type="button" class="mesa-tool" (click)="openScoreSheet()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 3h9l4 4v14H6z" /><path d="M9 12h7M9 16h5" /></svg>
           Placar
@@ -253,6 +295,38 @@ interface FeedRowView {
 
       @if (feedback(); as fb) {
         <div class="mesa-banner" [class.ok]="fb.ok" role="status" (click)="feedback.set(null)">{{ fb.message }}</div>
+      }
+
+      <!-- Tempo médico: o atendimento vem do DOC, então o overlay cobre a mesa em TODAS as
+           superfícies ao mesmo tempo e a contagem é a mesma em todas. -->
+      @if (medical(); as m) {
+        <div class="mesa-scrim mesa-scrim--med" role="dialog" aria-live="polite">
+          <div class="mesa-med">
+            <span class="mesa-med-kicker">TEMPO MÉDICO · 5 MINUTOS</span>
+            <strong class="mesa-med-name">{{ m.playerName }}</strong>
+            <span class="mesa-med-team">{{ m.teamLabel }}</span>
+            <span class="mesa-med-clock" [class.over]="m.ended">{{ m.clock }}</span>
+            @if (m.ended) {
+              <span class="mesa-med-done">ATENDIMENTO ENCERRADO</span>
+            }
+            <button type="button" class="mesa-btn" [disabled]="saving()" (click)="endMedical()">Encerrar atendimento</button>
+          </div>
+        </div>
+      } @else if (medicalPickerOpen()) {
+        <div class="mesa-scrim mesa-scrim--med" role="dialog" (click)="cancelMedicalPicker()">
+          <div class="mesa-med" (click)="$event.stopPropagation()">
+            <span class="mesa-med-kicker">QUEM VAI SER ATENDIDO?</span>
+            <span class="mesa-med-team">Atendimento de 5 minutos — um por atleta na partida.</span>
+            @for (option of medicalOptions(); track option.side + option.slot) {
+              <button type="button" class="mesa-med-opt" [disabled]="option.used || saving()" (click)="startMedical(option)">
+                <span class="mesa-badge">{{ option.side }}</span>
+                <span class="who"><b>{{ option.playerName }}</b><i>{{ option.teamLabel }}</i></span>
+                <span class="state">{{ option.used ? 'já usou' : 'disponível' }}</span>
+              </button>
+            }
+            <button type="button" class="mesa-btn" (click)="cancelMedicalPicker()">Cancelar</button>
+          </div>
+        </div>
       }
 
       @if (sheetOpen()) {
@@ -842,8 +916,11 @@ interface FeedRowView {
     /* ── ferramentas ── */
     .mesa-tools {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 8px;
+      /* Cinco ferramentas desde o tempo médico. A barra TEM que caber numa linha só: ela é o
+         rodapé de um grid de linhas fixas, e quebrando em duas ela come a altura dos painéis
+         de ponto (o alvo mais repetido do evento). */
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 6px;
       padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
       background: var(--nx-surface-0);
       border-top: 1px solid var(--nx-line);
@@ -859,12 +936,21 @@ interface FeedRowView {
       gap: 6px;
       font-family: var(--nx-font-display);
       font-weight: 600;
-      font-size: 11.5px;
+      font-size: 11px;
       color: var(--nx-text-mute);
       min-width: 0;
+      padding: 0 4px;
       overflow: hidden;
       white-space: nowrap;
       cursor: pointer;
+    }
+    /* Celular estreito: o rótulo sai e fica o ícone — cinco alvos de 44px valem mais que cinco
+       rótulos cortados pela metade. */
+    @media (max-width: 380px) {
+      .mesa-tool {
+        gap: 0;
+        font-size: 0;
+      }
     }
     .mesa-tool:active {
       background: rgba(255, 255, 255, 0.06);
@@ -1012,6 +1098,100 @@ interface FeedRowView {
       display: flex;
       align-items: flex-end;
       padding: 12px;
+    }
+    /* O atendimento médico centraliza (a folha de placar sobe do rodapé) e come o toque: a
+       partida está parada de verdade enquanto ele roda. */
+    .mesa-scrim--med {
+      align-items: center;
+      justify-content: center;
+    }
+    .mesa-med {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      width: min(400px, 100%);
+      max-height: 92cqh;
+      overflow-y: auto;
+      padding: 20px 16px;
+      border-radius: 20px;
+      border: 1px solid var(--nx-line-strong);
+      background: var(--nx-surface-1);
+      text-align: center;
+    }
+    .mesa-med-kicker {
+      font-family: var(--nx-font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--nx-live);
+    }
+    .mesa-med-name {
+      font-size: 20px;
+      color: var(--nx-text);
+    }
+    .mesa-med-team {
+      font-size: 12px;
+      color: var(--nx-text-dim);
+    }
+    .mesa-med-clock {
+      font-family: var(--nx-font-mono);
+      font-size: 54px;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--nx-text);
+    }
+    .mesa-med-clock.over {
+      color: var(--nx-live);
+    }
+    .mesa-med-done {
+      font-family: var(--nx-font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--nx-win);
+    }
+    .mesa-med-opt {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      /* Alvo de mesário na areia. */
+      min-height: 52px;
+      padding: 8px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--nx-line-strong);
+      background: var(--nx-surface-1);
+      color: var(--nx-text);
+      text-align: left;
+    }
+    .mesa-med-opt:disabled {
+      opacity: 0.45;
+    }
+    .mesa-med-opt .who {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;
+    }
+    .mesa-med-opt .who b {
+      font-size: 14px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .mesa-med-opt .who i {
+      font-style: normal;
+      font-size: 10px;
+      color: var(--nx-text-dim);
+    }
+    .mesa-med-opt .state {
+      font-family: var(--nx-font-mono);
+      font-size: 10px;
+      color: var(--nx-text-dim);
+    }
+    .mesa-tool--med {
+      color: var(--nx-live);
     }
     .mesa-sheet {
       width: 100%;
@@ -1222,6 +1402,7 @@ export class MesaLiveComponent {
   protected readonly timeouts = signal<Record<MesaSide, number>>({ A: 0, B: 0 });
   protected readonly bumped = signal<MesaSide | null>(null);
 
+  protected readonly medicalPickerOpen = signal(false);
   protected readonly sheetOpen = signal(false);
   protected readonly quickSets = signal<ScoreSet[]>([]);
   private hydratedQuickFor = '';
@@ -1413,7 +1594,77 @@ export class MesaLiveComponent {
     return needsStartingServe({ servingTeamId: m.servingTeamId, status: m.status, teamAId: m.teamAId, teamBId: m.teamBId });
   });
 
-  protected readonly canScore = computed(() => !this.saving() && this.status() === 'in_progress' && this.teamsReady());
+  /** Nome do atleta pela POSIÇÃO na dupla (1 ou 2) — a ordem que o doc guarda no saque. */
+  protected playerName(side: MesaSide, slot: 1 | 2): string {
+    const m = this.match();
+    if (!m) return `Atleta ${slot}`;
+    return playerNameOf(this.names(), side === 'A' ? m.teamAId : m.teamBId, slot);
+  }
+
+  protected readonly servingPlayerSlot = computed(() => this.match()?.servingPlayerSlot ?? 0);
+
+  /** "SAQUE" ou "SAQUE · BRUNO" — primeiro nome só, pra caber no chip do painel. */
+  protected readonly serveBadge = computed(() => {
+    const side = this.servingSide();
+    const slot = this.servingPlayerSlot();
+    if (side == null || (slot !== 1 && slot !== 2)) return 'SAQUE';
+    const first = this.playerName(side, slot).split(/\s+/)[0] ?? '';
+    return first ? `SAQUE · ${first.toUpperCase()}` : 'SAQUE';
+  });
+
+  /** Alguma faixa de pergunta no ar. A mesa é um grid de linhas FIXAS e a faixa entra como uma
+   *  linha nova (`:host(.mesa-asking)`): as duas perguntas ocupam a mesma linha, e nunca
+   *  aparecem juntas — `needsServingPlayer` espera a pergunta da dupla terminar. */
+  protected readonly asking = computed(() => this.askingServe() || this.askingServingPlayer() != null);
+
+  /** A faixa "Quem saca por…?" — mesma regra (`needsServingPlayer`) das outras duas mesas.
+   *  Some no modo exibição, como a do time: ali a tela está virada pros atletas. */
+  protected readonly askingServingPlayer = computed<{ teamLabel: string; players: { slot: 1 | 2; playerName: string }[] } | null>(() => {
+    const m = this.match();
+    const side = this.servingSide();
+    if (!m || side == null || this.present()) return null;
+    if (!needsServingPlayer({ servingTeamId: m.servingTeamId, servingPlayerSlot: m.servingPlayerSlot, status: m.status, teamAId: m.teamAId, teamBId: m.teamBId })) return null;
+    return {
+      teamLabel: this.label(side),
+      players: ([1, 2] as const).map((slot) => ({ slot, playerName: this.playerName(side, slot) })),
+    };
+  });
+
+  /** Os quatro atletas da partida, com a cota de atendimento de cada um. */
+  protected readonly medicalOptions = computed<MedicalOptionView[]>(() => {
+    const m = this.match();
+    if (!m) return [];
+    return (['A', 'B'] as const).flatMap((side) =>
+      ([1, 2] as const).map((slot) => ({
+        side,
+        slot,
+        playerName: this.playerName(side, slot),
+        teamLabel: this.label(side),
+        used: hasUsedMedicalTimeout(m.medicalTimeoutPlayers, side, slot),
+      })),
+    );
+  });
+
+  protected readonly canOpenMedical = computed(() => this.match()?.medicalTimeout == null && this.medicalOptions().some((o) => !o.used));
+
+  /** O atendimento em andamento — a contagem é DERIVADA de `startedAt`, o `now` de 1 s só
+   *  repinta. */
+  protected readonly medical = computed<{ playerName: string; teamLabel: string; clock: string; ended: boolean } | null>(() => {
+    const m = this.match();
+    const active = m?.medicalTimeout;
+    if (!m || !active) return null;
+    const remaining = medicalTimeoutRemainingSeconds(active, new Date(this.now()));
+    return {
+      playerName: active.playerName || this.playerName(active.side, active.playerSlot),
+      teamLabel: this.label(active.side),
+      clock: formatMedicalTimeoutMmSs(remaining),
+      ended: remaining <= 0,
+    };
+  });
+
+  /** Atendimento em andamento PARA a partida: nada de ponto ou desfazer enquanto ele roda —
+   *  nas três mesas, porque a guarda sai do doc, não da tela. */
+  protected readonly canScore = computed(() => !this.saving() && this.status() === 'in_progress' && this.teamsReady() && this.match()?.medicalTimeout == null);
 
   /** Último ponto ainda "vivo" (replay de `pointEvents` casando undo com ponto). */
   protected readonly lastPoint = computed(() => lastUndoablePoint(this.events()));
@@ -1557,7 +1808,7 @@ export class MesaLiveComponent {
     if (!teamId) return;
     this.saving.set(true);
     try {
-      await this.gateway.updateFields(m.id, { servingTeamId: teamId });
+      await this.gateway.updateFields(m.id, servingTeamFields(m, teamId));
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao definir quem começa sacando.' });
     } finally {
@@ -1573,9 +1824,69 @@ export class MesaLiveComponent {
     if (!next) return;
     this.saving.set(true);
     try {
-      await this.gateway.updateFields(m.id, { servingTeamId: next });
+      await this.gateway.updateFields(m.id, servingTeamFields(m, next));
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao trocar o saque.' });
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  /** Declara qual atleta da dupla no saque vai à linha. Daí em diante o rodízio resolve sozinho
+   *  a cada virada de saque — espelha as outras duas mesas. */
+  protected async chooseServingPlayer(slot: 1 | 2): Promise<void> {
+    const m = this.match();
+    const side = this.servingSide();
+    if (!m || side == null || this.saving() || m.status === 'completed') return;
+    this.saving.set(true);
+    try {
+      await this.gateway.updateFields(m.id, servingPlayerFields(m, side, slot));
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao definir o sacador.' });
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  protected openMedicalPicker(): void {
+    if (!this.canOpenMedical()) return;
+    this.medicalPickerOpen.set(true);
+  }
+
+  protected cancelMedicalPicker(): void {
+    this.medicalPickerOpen.set(false);
+  }
+
+  /** Abre o atendimento no doc: a partida PARA em todas as superfícies e a cota daquele atleta
+   *  some. Passa pela transação do ponto porque o chamado também vira evento na timeline. */
+  protected async startMedical(option: MedicalOptionView): Promise<void> {
+    const m = this.match();
+    if (!m || this.saving() || option.used) return;
+    this.medicalPickerOpen.set(false);
+    this.saving.set(true);
+    this.feedback.set(null);
+    try {
+      const written = await this.gateway.recordPoint({
+        matchId: m.id,
+        build: (fresh) => buildMedicalTimeoutStartWrite(fresh, { side: option.side, playerSlot: option.slot, playerName: option.playerName }),
+      });
+      if (written == null) this.feedback.set({ ok: false, message: 'Não foi possível abrir o tempo médico — o atleta já usou o dele nesta partida.' });
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao abrir o tempo médico.' });
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  /** Encerra o atendimento (com ou sem os 5 minutos cheios). A cota do atleta NÃO volta. */
+  protected async endMedical(): Promise<void> {
+    const m = this.match();
+    if (!m || this.saving()) return;
+    this.saving.set(true);
+    try {
+      await this.gateway.recordPoint({ matchId: m.id, build: buildMedicalTimeoutEndWrite });
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao encerrar o tempo médico.' });
     } finally {
       this.saving.set(false);
     }

@@ -2,6 +2,23 @@ import { collection, deleteField, doc, onSnapshot, orderBy, query, runTransactio
 import { applyPoint, liveSetToMap, undoPoint, type ApplyPointResult, type LiveSet } from './live-scoring';
 import { setsWon } from './match-scoring';
 import { statusOf, type MatchDisplayStatus } from './match-status';
+import {
+  MEDICAL_TIMEOUT_SECONDS,
+  canRequestMedicalTimeout,
+  medicalTimeoutFromRaw,
+  medicalTimeoutPlayerKey,
+  medicalTimeoutPlayerKeysFromRaw,
+  type MedicalTimeout,
+} from './medical-timeout';
+import {
+  servingPlayerSlotOf,
+  servingPlayerSlotsAfterScore,
+  servingPlayerSlotsAfterUndo,
+  servingPlayerSlotsFromRaw,
+  type MatchSide,
+  type ServingPlayerSlot,
+  type ServingPlayerSlots,
+} from './serving-player';
 
 /** Leitura/escrita da MESA AO VIVO — espelha `TournamentMatchesRepository` do app
  *  (`tournament_matches_repository.dart`): a marcação ponto a ponto escreve DIRETO no doc da
@@ -43,6 +60,16 @@ export interface LiveMatch {
   currentSetIndex: number;
   bestOf: 1 | 3;
   servingTeamId: string;
+  /** Posição (1 ou 2) do atleta no saque dentro da dupla de `servingTeamId`; 0 = não declarada.
+   *  Ver `serving-player.ts` — é derivada de [servingPlayerSlots] e vem denormalizada no doc
+   *  pra quem só exibe (telão, cards) não precisar saber o lado. */
+  servingPlayerSlot: ServingPlayerSlot;
+  /** A ordem de saque declarada por cada dupla no set corrente. */
+  servingPlayerSlots: ServingPlayerSlots;
+  /** Atendimento médico em andamento — `null` quando ninguém está sendo atendido. */
+  medicalTimeout: MedicalTimeout | null;
+  /** Atletas que já usaram o tempo médico nesta partida ("A1", "B2"). */
+  medicalTimeoutPlayers: string[];
   matchStartedAt: Date | null;
   winnerId: string | null;
   courtName: string | null;
@@ -112,6 +139,10 @@ export function liveMatchFromDoc(id: string, data: Record<string, unknown>): Liv
     currentSetIndex: intOf(data['currentSetIndex'], Math.max(0, sets.length - 1)),
     bestOf: data['bestOf'] === 1 ? 1 : 3,
     servingTeamId: optionalStr(data['servingTeamId']) ?? '',
+    servingPlayerSlot: data['servingPlayerSlot'] === 1 || data['servingPlayerSlot'] === 2 ? data['servingPlayerSlot'] : 0,
+    servingPlayerSlots: servingPlayerSlotsFromRaw(data['servingPlayerSlots']),
+    medicalTimeout: medicalTimeoutFromRaw(data['medicalTimeout']),
+    medicalTimeoutPlayers: medicalTimeoutPlayerKeysFromRaw(data['medicalTimeoutPlayers']),
     matchStartedAt: toDate(data['matchStartedAt']),
     winnerId: optionalStr(data['winnerId']),
     courtName: optionalStr(data['courtName']),
@@ -185,6 +216,13 @@ export function buildPointWrite(m: LiveMatch, side: 'A' | 'B'): PointWrite | nul
   const result = applyPoint({ sets: m.sets, currentSetIndex: m.currentSetIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf });
   const wins = setsWon(result.sets, m.bestOf);
   const current = result.sets[setIndex] ?? null;
+  const slots = servingPlayerSlotsAfterScore({
+    slots: m.servingPlayerSlots,
+    previousServingTeamId: m.servingTeamId,
+    nextServingTeamId: result.servingTeamId,
+    teamAId: m.teamAId,
+    teamBId: m.teamBId,
+  });
 
   return {
     matchUpdate: {
@@ -192,6 +230,8 @@ export function buildPointWrite(m: LiveMatch, side: 'A' | 'B'): PointWrite | nul
       currentSetIndex: result.currentSetIndex,
       status: result.winnerId != null ? 'Completed' : 'In Progress',
       servingTeamId: result.servingTeamId,
+      servingPlayerSlots: slots,
+      servingPlayerSlot: servingPlayerSlotOf({ slots, servingTeamId: result.servingTeamId, teamAId: m.teamAId, teamBId: m.teamBId }),
       ...(result.winnerId != null ? { winnerId: result.winnerId, matchEndedAt: serverTimestamp() } : {}),
       ...(m.matchStartedAt == null ? { matchStartedAt: serverTimestamp() } : {}),
       resultA: `${wins.a}`,
@@ -209,6 +249,7 @@ export function buildUndoWrite(m: LiveMatch, side: 'A' | 'B', setIndex: number):
   const result = undoPoint({ sets: m.sets, currentSetIndex: setIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf });
   const wins = setsWon(result.sets, m.bestOf);
   const current = result.sets[result.currentSetIndex] ?? null;
+  const slots = servingPlayerSlotsAfterUndo({ slots: m.servingPlayerSlots, nextServingTeamId: result.servingTeamId });
 
   return {
     matchUpdate: {
@@ -216,6 +257,8 @@ export function buildUndoWrite(m: LiveMatch, side: 'A' | 'B', setIndex: number):
       currentSetIndex: result.currentSetIndex,
       status: 'In Progress',
       servingTeamId: result.servingTeamId,
+      servingPlayerSlots: slots,
+      servingPlayerSlot: servingPlayerSlotOf({ slots, servingTeamId: result.servingTeamId, teamAId: m.teamAId, teamBId: m.teamBId }),
       winnerId: deleteField(),
       matchEndedAt: deleteField(),
       resultA: `${wins.a}`,
@@ -224,6 +267,92 @@ export function buildUndoWrite(m: LiveMatch, side: 'A' | 'B', setIndex: number):
     pointEvent: { type: 'undo-point', side, setIndex: result.currentSetIndex, scoreA: current?.a ?? 0, scoreB: current?.b ?? 0 },
     result: { ...result, winnerId: null },
     setIndex: result.currentSetIndex,
+  };
+}
+
+/** Campos de uma troca MANUAL da dupla no saque ("Quem começa sacando?" e "Trocar saque").
+ *  Não mexe na ordem declarada de cada dupla — só reaponta quem está sacando agora, que é o
+ *  atleta que aquela dupla já tinha na vez. */
+export function servingTeamFields(m: LiveMatch, teamId: string): Record<string, unknown> {
+  return {
+    servingTeamId: teamId,
+    servingPlayerSlot: servingPlayerSlotOf({ slots: m.servingPlayerSlots, servingTeamId: teamId, teamAId: m.teamAId, teamBId: m.teamBId }),
+  };
+}
+
+/** Campos de "quem saca pela dupla X" — a faixa que aparece quando `needsServingPlayer`, e
+ *  também o "Trocar sacador" (que manda a outra posição). */
+export function servingPlayerFields(m: LiveMatch, side: MatchSide, slot: 1 | 2): Record<string, unknown> {
+  const slots: ServingPlayerSlots = { ...m.servingPlayerSlots, [side]: slot };
+  return {
+    servingPlayerSlots: slots,
+    servingPlayerSlot: servingPlayerSlotOf({ slots, servingTeamId: m.servingTeamId, teamAId: m.teamAId, teamBId: m.teamBId }),
+  };
+}
+
+/** Abre o tempo médico de um atleta: grava o atendimento em andamento, marca a cota do atleta
+ *  como usada e registra o chamado na timeline (é o que sobra de auditoria depois que o
+ *  atendimento termina e o campo some do doc).
+ *
+ *  `null` quando o atleta já usou o dele, quando outro atendimento está rolando ou quando a
+ *  partida já encerrou — a mesma guarda do ponto, avaliada sobre o doc FRESCO da transação. */
+export function buildMedicalTimeoutStartWrite(m: LiveMatch, params: { side: MatchSide; playerSlot: 1 | 2; playerName: string }): PointWrite | null {
+  if (m.status === 'completed' || m.status === 'canceled') return null;
+  if (!canRequestMedicalTimeout({ usedKeys: m.medicalTimeoutPlayers, active: m.medicalTimeout, side: params.side, slot: params.playerSlot })) return null;
+
+  const setIndex = clampedSetIndex(m);
+  const current = m.sets[setIndex] ?? null;
+  const teamId = params.side === 'A' ? m.teamAId : m.teamBId;
+
+  return {
+    matchUpdate: {
+      medicalTimeout: {
+        side: params.side,
+        teamId,
+        playerSlot: params.playerSlot,
+        playerName: params.playerName,
+        // Carimbo do SERVIDOR: é ele que faz app, mesas web e telão mostrarem a mesma
+        // contagem sem nenhuma escrita durante os 5 minutos (ver `medical-timeout.ts`).
+        startedAt: serverTimestamp(),
+        durationSec: MEDICAL_TIMEOUT_SECONDS,
+        setIndex,
+      },
+      medicalTimeoutPlayers: [...m.medicalTimeoutPlayers, medicalTimeoutPlayerKey(params.side, params.playerSlot)],
+    },
+    pointEvent: {
+      type: 'medical-timeout',
+      side: params.side,
+      setIndex,
+      scoreA: current?.a ?? 0,
+      scoreB: current?.b ?? 0,
+      playerSlot: params.playerSlot,
+    },
+    result: { sets: m.sets, currentSetIndex: m.currentSetIndex, winnerId: null, servingTeamId: m.servingTeamId },
+    setIndex,
+  };
+}
+
+/** Encerra o atendimento (pelo mesário, com ou sem os 5 minutos cheios) — o campo sai do doc e
+ *  a mesa volta a marcar ponto. A cota do atleta NÃO volta: chamado é chamado. */
+export function buildMedicalTimeoutEndWrite(m: LiveMatch): PointWrite | null {
+  const active = m.medicalTimeout;
+  if (!active) return null;
+
+  const setIndex = clampedSetIndex(m);
+  const current = m.sets[setIndex] ?? null;
+
+  return {
+    matchUpdate: { medicalTimeout: deleteField() },
+    pointEvent: {
+      type: 'medical-timeout-end',
+      side: active.side,
+      setIndex,
+      scoreA: current?.a ?? 0,
+      scoreB: current?.b ?? 0,
+      playerSlot: active.playerSlot,
+    },
+    result: { sets: m.sets, currentSetIndex: m.currentSetIndex, winnerId: null, servingTeamId: m.servingTeamId },
+    setIndex,
   };
 }
 

@@ -40,7 +40,7 @@ const ORDINAL = ['1º', '2º', '3º', '4º', '5º'];
           <p class="og-fm-name">{{ row.team?.short ?? '—' }}</p>
           <p class="og-fm-meta">
             @if (serving() === row.side) {
-              <span class="og-fm-serve"><i></i>Saque</span>
+              <span class="og-fm-serve"><i></i>{{ serveLabel() }}</span>
             } @else if (row.team?.sub) {
               <span class="og-fm-players">{{ row.team?.sub }}</span>
             }
@@ -498,6 +498,18 @@ export class TelaoFinalModeComponent {
   protected readonly setLabel = computed(() => {
     const n = this.current()?.setNumber ?? this.closedSets().length;
     return `${ORDINAL[Math.max(0, n - 1)] ?? `${n}º`} set`;
+  });
+
+  /** "Saque" ou "Saque · Bruno" — na final o nome de quem saca cabe, e é o que a plateia
+   *  procura. A partida grava a POSIÇÃO na dupla; o elenco já está carregado pro rótulo. */
+  protected readonly serveLabel = computed(() => {
+    const side = this.serving();
+    const slot = this.match().servingPlayerSlot;
+    if (side == null || (slot !== 1 && slot !== 2)) return 'Saque';
+    const team = side === 'A' ? this.teamA() : this.teamB();
+    const name = team?.playerNames[slot - 1]?.trim() ?? '';
+    const first = name ? (name.split(/\s+/)[0] ?? '') : '';
+    return first ? `Saque · ${first}` : 'Saque';
   });
 
   protected readonly serving = computed<'A' | 'B' | null>(() => {

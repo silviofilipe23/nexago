@@ -17,12 +17,16 @@ export interface TelaoTeamDisplay {
   short: string;
   sub: string | null;
   players: { initials: string; photoUrl: string | null }[];
+  /** Nomes na ORDEM DOS SLOTS da dupla (`player1Id`, `player2Id`) — é por essa posição que a
+   *  partida grava quem está sacando e quem está em atendimento médico, então o telão precisa
+   *  dela indexável, não só na sublinha. Vazio no slot sem perfil resolvido. */
+  playerNames: [string, string];
 }
 
 /** Enquanto `teams`/`public_profiles` não respondem, o card usa a descrição do slot
  *  ("Vencedor Jogo #1") ou "A definir" que veio no doc da partida. */
 export function fallbackTeamDisplay(label: string): TelaoTeamDisplay {
-  return { label, short: teamShortLabel(label), sub: null, players: [] };
+  return { label, short: teamShortLabel(label), sub: null, players: [], playerNames: ['', ''] };
 }
 
 function buildTeamDisplay(team: OrganizerTeamPlayers, profiles: ReadonlyMap<string, ProfileDisplay>): TelaoTeamDisplay | null {
@@ -36,6 +40,7 @@ function buildTeamDisplay(team: OrganizerTeamPlayers, profiles: ReadonlyMap<stri
     short: teamShortLabel(label),
     sub: names.length > 0 ? names.join(' · ') : null,
     players: [p1, p2].filter((p): p is ProfileDisplay => !!p).map((p) => ({ initials: initialsOf(p.name), photoUrl: p.photoUrl })),
+    playerNames: [p1?.name ?? '', p2?.name ?? ''],
   };
 }
 

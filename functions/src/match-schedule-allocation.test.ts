@@ -1,6 +1,12 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import {allocateCourtSlots, compareByMatchNumber} from "./match-schedule-allocation";
+import {
+  KOC_CHANGEOVER_MIN,
+  allocateCourtSlots,
+  compareByMatchNumber,
+  matchDurationMin,
+  matchTeamIds,
+} from "./match-schedule-allocation";
 
 function fakeDoc(id: string, data: Record<string, unknown>): FirebaseFirestore.QueryDocumentSnapshot {
   return {id, data: () => data} as unknown as FirebaseFirestore.QueryDocumentSnapshot;
@@ -99,5 +105,136 @@ describe("allocateCourtSlots", () => {
     });
 
     assert.equal(slots[0].courtId, "court-2");
+  });
+});
+
+/**
+ * Rodada King of the Court na grade.
+ *
+ * A rodada grava `teamAId`/`teamBId` VAZIOS e guarda o elenco em `kocTeamIds`.
+ * Todo ponto do agendador que lê só os dois lados trata a rodada como se não
+ * tivesse ninguém dentro — e aí a mesma dupla cai em dois lugares no mesmo
+ * horário.
+ */
+describe("matchTeamIds", () => {
+  it("colhe o elenco da rodada KOTC, não os dois lados vazios", () => {
+    const ids = matchTeamIds({
+      teamAId: "",
+      teamBId: "",
+      kocTeamIds: ["t1", "t2", "t3", "t4"],
+    } as FirebaseFirestore.DocumentData);
+    assert.deepEqual(ids, ["t1", "t2", "t3", "t4"]);
+  });
+
+  it("segue colhendo os dois lados do duelo", () => {
+    const ids = matchTeamIds({teamAId: "t1", teamBId: "t2"} as FirebaseFirestore.DocumentData);
+    assert.deepEqual(ids, ["t1", "t2"]);
+  });
+
+  it("ignora vazio e não repete id", () => {
+    const ids = matchTeamIds({
+      teamAId: "t1",
+      teamBId: "  ",
+      kocTeamIds: ["t1", "", "t2"],
+    } as FirebaseFirestore.DocumentData);
+    assert.deepEqual(ids, ["t1", "t2"]);
+  });
+});
+
+describe("matchDurationMin", () => {
+  it("usa a duração da rodada, mais a troca", () => {
+    const min = matchDurationMin(
+      {kocConfig: {durationSec: 900}} as FirebaseFirestore.DocumentData,
+      40,
+    );
+    assert.equal(min, 15 + KOC_CHANGEOVER_MIN);
+  });
+
+  it("acompanha a fase mais longa em vez do padrão do dia", () => {
+    const min = matchDurationMin(
+      {kocConfig: {durationSec: 1200}} as FirebaseFirestore.DocumentData,
+      15,
+    );
+    assert.equal(min, 20 + KOC_CHANGEOVER_MIN);
+  });
+
+  it("duelo cai no padrão do dia", () => {
+    assert.equal(matchDurationMin({teamAId: "t1"} as FirebaseFirestore.DocumentData, 40), 40);
+  });
+
+  it("config inválida não zera o slot", () => {
+    for (const durationSec of [0, -60, "abc", null]) {
+      assert.equal(
+        matchDurationMin({kocConfig: {durationSec}} as FirebaseFirestore.DocumentData, 30),
+        30,
+      );
+    }
+  });
+});
+
+describe("allocateCourtSlots · rodadas King of the Court", () => {
+  const dayStart = new Date("2026-10-24T09:00:00-03:00");
+
+  function kocRound(id: string, matchNumber: number, teamIds: string[]) {
+    return fakeDoc(id, {
+      matchNumber,
+      matchType: "koc_round",
+      teamAId: "",
+      teamBId: "",
+      kocTeamIds: teamIds,
+      kocConfig: {durationSec: 900},
+    });
+  }
+
+  it("reserva a quadra pela duração da rodada, não pelo padrão do dia", () => {
+    const slots = allocateCourtSlots({
+      courts: [{id: "c1"}],
+      unscheduled: [kocRound("r1", 1, ["t1", "t2", "t3", "t4"])],
+      courtBusyUntil: {c1: dayStart},
+      teamBusyUntil: {},
+      durationMin: 40,
+      minRestMin: 0,
+      avoidAthleteConflict: true,
+      dayStart,
+    });
+    const minutes = (slots[0]!.end.getTime() - slots[0]!.start.getTime()) / 60000;
+    assert.equal(minutes, 15 + KOC_CHANGEOVER_MIN);
+  });
+
+  it("enfileira as rodadas na mesma quadra, em sequência", () => {
+    // O desenho da etapa é uma quadra só: as rodadas acontecem uma depois da
+    // outra, e o fim de uma é o começo da seguinte.
+    const slots = allocateCourtSlots({
+      courts: [{id: "c1"}],
+      unscheduled: [
+        kocRound("r1", 1, ["t1", "t2", "t3", "t4"]),
+        kocRound("r2", 2, ["t5", "t6", "t7", "t8"]),
+      ],
+      courtBusyUntil: {c1: dayStart},
+      teamBusyUntil: {},
+      durationMin: 40,
+      minRestMin: 30,
+      avoidAthleteConflict: true,
+      dayStart,
+    });
+    assert.equal(slots[1]!.start.getTime(), slots[0]!.end.getTime());
+  });
+
+  it("o elenco da rodada bloqueia a dupla para outro jogo no mesmo horário", () => {
+    // Sem isto a dupla seria marcada num duelo enquanto está na rodada.
+    const teamBusyUntil: Record<string, Date> = {};
+    allocateCourtSlots({
+      courts: [{id: "c1"}],
+      unscheduled: [kocRound("r1", 1, ["t1", "t2", "t3", "t4"])],
+      courtBusyUntil: {c1: dayStart},
+      teamBusyUntil,
+      durationMin: 40,
+      minRestMin: 30,
+      avoidAthleteConflict: true,
+      dayStart,
+    });
+    for (const teamId of ["t1", "t2", "t3", "t4"]) {
+      assert.ok(teamBusyUntil[teamId], `dupla ${teamId} deveria estar ocupada`);
+    }
   });
 });

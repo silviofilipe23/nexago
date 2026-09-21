@@ -133,6 +133,36 @@ test("isMatchAutoSchedulable libera partida com as duas duplas já decididas", (
   );
 });
 
+// A rodada KOTC nasce com os dois lados VAZIOS: pela regra do duelo ela nunca
+// seria agendável, e o auto-agendamento pulava a categoria inteira em silêncio.
+test("isMatchAutoSchedulable libera rodada KOTC com elenco definido", () => {
+  assert.equal(
+    isMatchAutoSchedulable(
+      {
+        teamAId: "",
+        teamBId: "",
+        matchType: "koc_round",
+        kocTeamIds: ["t1", "t2", "t3", "t4"],
+      },
+      true,
+    ),
+    true,
+  );
+});
+
+test("isMatchAutoSchedulable pula rodada KOTC sem elenco", () => {
+  // Fase seguinte antes de a anterior terminar: é o placeholder do formato.
+  for (const kocTeamIds of [[], ["", "  "], undefined]) {
+    assert.equal(
+      isMatchAutoSchedulable(
+        {teamAId: "", teamBId: "", matchType: "koc_semifinal", kocTeamIds},
+        true,
+      ),
+      false,
+    );
+  }
+});
+
 test("compareByMatchNumber ordena pela numeração global, não por round por trilha", () => {
   // Em dupla eliminação, WB, LB, 3º lugar e final reiniciam `round` em 1 cada
   // um na sua própria trilha. Se a auto-programação ordenasse por round antes

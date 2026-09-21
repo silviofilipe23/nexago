@@ -15,6 +15,7 @@ import {
 import {
   MatchStatus,
   isDuelMatch,
+  isKingOfCourtMatch,
   isMatchCanceled,
   isMatchCompleted,
   isMatchInProgress,
@@ -44,6 +45,8 @@ import {
 import {artifactsMatchesPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 import {
   allocateCourtSlots,
+  matchDurationMin,
+  matchTeamIds,
   loadTournamentMatches,
 } from "./match-schedule-allocation";
 import {handleDynamicRescheduleOnMatchUpdate} from "./match-dynamic-reschedule";
@@ -82,6 +85,9 @@ interface RestConflict {
   matchId?: string;
 }
 
+/** Janela assumida quando a partida não tem `scheduleEndTime` gravado. */
+const FALLBACK_SLOT_MIN = 50;
+
 function detectRestConflict(
   target: FirebaseFirestore.DocumentData,
   scheduleStart: Date,
@@ -91,9 +97,10 @@ function detectRestConflict(
   excludeMatchId: string,
 ): RestConflict[] {
   const conflicts: RestConflict[] = [];
-  const teamIds = new Set(
-    [target.teamAId, target.teamBId].filter((id) => typeof id === "string" && id),
-  );
+  // Elenco, não os dois lados: a rodada KOTC os grava vazios, e sem isto ela
+  // nunca acusaria descanso insuficiente — nem para ela, nem para o duelo que
+  // caísse em cima dela.
+  const teamIds = new Set(matchTeamIds(target));
 
   for (const doc of allMatches) {
     if (doc.id === excludeMatchId) continue;
@@ -103,10 +110,12 @@ function detectRestConflict(
     const otherStart = (other.scheduleTime as Timestamp).toDate();
     const otherEnd = other.scheduleEndTime ?
       (other.scheduleEndTime as Timestamp).toDate() :
-      new Date(otherStart.getTime() + 50 * 60 * 1000);
+      new Date(
+        otherStart.getTime() +
+          matchDurationMin(other, FALLBACK_SLOT_MIN) * 60 * 1000,
+      );
 
-    const sharesTeam =
-      teamIds.has(other.teamAId) || teamIds.has(other.teamBId);
+    const sharesTeam = matchTeamIds(other).some((id) => teamIds.has(id));
     if (!sharesTeam) continue;
 
     const gapBefore =
@@ -148,7 +157,9 @@ function detectCourtOverlap(
     const start = (m.scheduleTime as Timestamp).toDate();
     const end = m.scheduleEndTime ?
       (m.scheduleEndTime as Timestamp).toDate() :
-      new Date(start.getTime() + 50 * 60 * 1000);
+      new Date(
+        start.getTime() + matchDurationMin(m, FALLBACK_SLOT_MIN) * 60 * 1000,
+      );
 
     if (scheduleStart < end && scheduleEnd > start) {
       return {
@@ -407,7 +418,7 @@ export const scheduleMatch = onCall({
   const matchId = (request.data?.matchId as string)?.trim();
   const courtId = (request.data?.courtId as string)?.trim();
   const scheduleTime = parseIsoDate(request.data?.scheduleTime);
-  const scheduleEndTime = parseIsoDate(request.data?.scheduleEndTime);
+  const requestedEndTime = parseIsoDate(request.data?.scheduleEndTime);
   const dayKey =
     (request.data?.dayKey as string)?.trim() || dayKeyFromEventDate(scheduleTime);
 
@@ -424,6 +435,20 @@ export const scheduleMatch = onCall({
   const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
   const matchOps = tournamentSnap.data()?.matchOps as Record<string, unknown> | undefined;
   const minRest = (matchOps?.minRestBetweenMatchesMin as number) ?? 45;
+
+  // A rodada KOTC tem duração PRÓPRIA (`kocConfig.durationSec`, que varia por
+  // fase). Os três clientes — portal, app e grade de arrastar — mandam o padrão
+  // do torneio, então a janela vinha errada por todos os caminhos. Impor aqui
+  // blinda os três de uma vez, e o duelo segue com o que o cliente pediu.
+  const requestedMin = Math.max(
+    1,
+    Math.round((requestedEndTime.getTime() - scheduleTime.getTime()) / 60000),
+  );
+  const scheduleEndTime = isKingOfCourtMatch(data.matchType) ?
+    new Date(
+      scheduleTime.getTime() + matchDurationMin(data, requestedMin) * 60 * 1000,
+    ) :
+    requestedEndTime;
 
   const allMatches = await loadTournamentMatches(db, projectId, tournamentId);
   const overlap = detectCourtOverlap(
@@ -607,8 +632,9 @@ export const callMatchToCourt = onCall({
 
   // Notificar atletas (best-effort)
   try {
-    const teamIds = [data.teamAId, data.teamBId].filter(Boolean) as string[];
-    for (const teamId of teamIds) {
+    // Elenco quando é rodada KOTC: sem isto as quatro duplas chamadas para a
+    // quadra não recebem aviso nenhum, porque os dois lados estão vazios.
+    for (const teamId of matchTeamIds(data)) {
       const teamSnap = await db
         .doc(`${artifactsTeamsPath(projectId)}/${teamId}`)
         .get();
@@ -1156,7 +1182,9 @@ export const autoScheduleTournamentDay = onCall({
     const schedStart = (d.scheduleTime as Timestamp).toDate();
     const schedEnd = d.scheduleEndTime ?
       (d.scheduleEndTime as Timestamp).toDate() :
-      new Date(schedStart.getTime() + duration * 60 * 1000);
+      new Date(
+        schedStart.getTime() + matchDurationMin(d, duration) * 60 * 1000,
+      );
 
     const prevCourt = courtBusyUntil[courtId];
     if (!prevCourt || schedEnd > prevCourt) {
@@ -1164,8 +1192,7 @@ export const autoScheduleTournamentDay = onCall({
     }
 
     const teamRestUntil = new Date(schedEnd.getTime() + minRest * 60 * 1000);
-    for (const tid of [d.teamAId, d.teamBId]) {
-      if (typeof tid !== "string" || !tid.trim()) continue;
+    for (const tid of matchTeamIds(d)) {
       const prevTeam = teamBusyUntil[tid];
       if (!prevTeam || teamRestUntil > prevTeam) {
         teamBusyUntil[tid] = teamRestUntil;
@@ -1306,10 +1333,18 @@ export function shouldPropagateMatchAdvance(
  * nunca são afetadas: já nascem com as duas duplas reais.
  */
 export function isMatchAutoSchedulable(
-  data: {teamAId?: unknown; teamBId?: unknown},
+  data: {teamAId?: unknown; teamBId?: unknown; matchType?: unknown; kocTeamIds?: unknown},
   respectBracketDeps: boolean,
 ): boolean {
   if (!respectBracketDeps) return true;
+  // A rodada KOTC nasce com os DOIS LADOS VAZIOS — pela regra do duelo ela
+  // nunca seria agendável, e o auto-agendamento pulava a categoria inteira em
+  // silêncio. O equivalente ao "placeholder de chave" aqui é o ELENCO vazio,
+  // que é exatamente como a fase seguinte nasce até a anterior terminar.
+  if (isKingOfCourtMatch(data.matchType)) {
+    return Array.isArray(data.kocTeamIds) &&
+      data.kocTeamIds.some((id) => typeof id === "string" && id.trim() !== "");
+  }
   const teamA = typeof data.teamAId === "string" ? data.teamAId.trim() : "";
   const teamB = typeof data.teamBId === "string" ? data.teamBId.trim() : "";
   return teamA !== "" && teamB !== "";

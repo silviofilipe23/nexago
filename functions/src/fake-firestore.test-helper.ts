@@ -204,10 +204,30 @@ export class FakeFirestore {
 
   async runTransaction<T>(fn: (tx: unknown) => Promise<T>): Promise<T> {
     const self = this;
+    // `Transaction.get` do Admin SDK aceita DocumentReference OU Query. O que
+    // separa os dois aqui é o `path`: só a ref de documento tem.
+    const isDocRef = (target: unknown): target is {path: string} =>
+      typeof (target as {path?: unknown})?.path === "string";
     const tx = {
-      get: async (ref: {path: string}) => self.snapshotOf(ref.path),
+      get: async (target: unknown) => {
+        if (isDocRef(target)) return self.snapshotOf(target.path);
+        return (target as {get: () => Promise<unknown>}).get();
+      },
       set: (ref: {path: string}, data: DocData, opts?: {merge?: boolean}) => {
         self.write(ref.path, data, opts);
+      },
+      update: (ref: {path: string}, data: DocData) => {
+        // Espelha `ref.update` desta mesma classe e o Admin SDK de verdade:
+        // update em doc ausente é ERRO, não upsert. Um fake permissivo aqui
+        // deixaria passar teste verde sobre código que o Firestore real
+        // recusaria — exatamente o que um dublê de transação existe pra pegar.
+        if (!self.store.has(ref.path)) {
+          throw new Error(`update em doc ausente: ${ref.path}`);
+        }
+        self.write(ref.path, data, {merge: true});
+      },
+      delete: (ref: {path: string}) => {
+        self.store.delete(ref.path);
       },
     };
     return fn(tx);

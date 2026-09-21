@@ -54,9 +54,11 @@ import {
   type CategoryCapacityExpansion,
 } from "./tournament-category-capacity";
 import {
+  buildPairKey,
   loadCategoryRegistrationsTx,
   registrationConflictMessage,
 } from "./tournament-pair-uniqueness";
+import {resolvePairTeamTx} from "./tournament-pair-team";
 import {
   asTournamentCategory,
   cancelPendingPartnerInvitesForRegistrations,
@@ -623,17 +625,31 @@ export const organizerCreateTeamRegistration = onCall({
 
       let teamId = baseTeamId;
       if (baseTeamId) {
-        // Solo legado: a equipe de 1 atleta já existe → preenche o player2.
-        tx.update(teamsRef.doc(baseTeamId), {player2Id: joiningUid});
+        // Solo legado: a equipe de 1 atleta já existe → preenche o player2. O
+        // par só fica completo aqui, então é aqui que a chave nasce.
+        //
+        // Mesma regra da Task 4: a chave sai do player1 do PRÓPRIO doc (já lido
+        // em `existingTeamSnap`), porque é assim que o helper revalida o
+        // candidato. Derivar do dono da inscrição pode gravar uma chave que os
+        // player ids do doc não produzem, e o carimbo vira letra morta.
+        const teamOwnerUid =
+          (existingTeamSnap?.data()?.player1Id as string | undefined)?.trim() ||
+          baseOwnerUid;
+        tx.update(teamsRef.doc(baseTeamId), {
+          player2Id: joiningUid,
+          pairKey: buildPairKey(teamOwnerUid, joiningUid),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
       } else {
-        // Solo novo: a equipe nasce agora, como no aceite do convite.
-        const teamRef = teamsRef.doc();
-        tx.set(teamRef, {
+        // Solo novo: a equipe da dupla é resolvida (reaproveitada ou criada).
+        const resolved = await resolvePairTeamTx(tx, {
+          teamsRef,
+          inscriptionsRef,
+          tournamentId,
           player1Id: baseOwnerUid,
           player2Id: joiningUid,
-          createdAt: FieldValue.serverTimestamp(),
         });
-        teamId = teamRef.id;
+        teamId = resolved.teamId;
         update.teamId = teamId;
       }
 
@@ -677,16 +693,17 @@ export const organizerCreateTeamRegistration = onCall({
       }) :
       null;
 
-    const teamRef = teamsRef.doc();
-    const regRef = inscriptionsRef.doc();
-    tx.set(teamRef, {
+    const resolvedTeam = await resolvePairTeamTx(tx, {
+      teamsRef,
+      inscriptionsRef,
+      tournamentId,
       player1Id: uidA,
       player2Id: uidB,
-      createdAt: FieldValue.serverTimestamp(),
     });
+    const regRef = inscriptionsRef.doc();
 
     const registrationDoc = buildOrganizerRegistrationDoc({
-      teamId: teamRef.id,
+      teamId: resolvedTeam.teamId,
       tournamentId,
       categoryId,
       athleteUids: [uidA, uidB],
@@ -713,7 +730,7 @@ export const organizerCreateTeamRegistration = onCall({
 
     return {
       registrationId: regRef.id,
-      teamId: teamRef.id,
+      teamId: resolvedTeam.teamId,
       merged: false,
       isPaid: payment?.isPaid === true,
       waitlist: registrationDoc.waitlist === true,

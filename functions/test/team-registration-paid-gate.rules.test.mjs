@@ -66,6 +66,20 @@ test('jogador não troca o gênero já carimbado', async () => {
   await assertFails(updateDoc(doc(athleteDb(), PAID_TEAM), {gender: 'Feminino'}));
 });
 
+// `pairKey` entrou na mesma família do portão: é a chave que a inscrição
+// seguinte usa para reencontrar a equipe da dupla, e um cliente que a
+// forjasse apontaria a próxima inscrição de OUTRO par para o doc dele.
+test('jogador não forja o pairKey de outra dupla', async () => {
+  await assertFails(updateDoc(doc(athleteDb(), TEAM), {pairKey: 'outro:par'}));
+});
+
+// Controle positivo do caso acima: prova que a trava nova barra só `pairKey`,
+// não qualquer campo livre — sem isto, um `hasAny` escrito errado que
+// bloqueasse TODO update passaria despercebido.
+test('jogador ainda edita campo livre como número da camisa', async () => {
+  await assertSucceeds(updateDoc(doc(athleteDb(), TEAM), {jerseyNumber: 7}));
+});
+
 // Apagar o portão é tão grave quanto forjá-lo: sumiria da listagem sem motivo,
 // e o `deleteField` não aparece como "mudança de valor", só como chave afetada.
 test('jogador não apaga o carimbo de pagamento', async () => {

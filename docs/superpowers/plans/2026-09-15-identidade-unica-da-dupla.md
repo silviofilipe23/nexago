@@ -80,14 +80,24 @@ admin.initializeApp({projectId});
 const db = admin.firestore();
 const base = `artifacts/${projectId}/public/data`;
 
-/** Cópia de `extractTeamMemberUids` (functions/src/tournament-team-category.ts). */
+/**
+ * Cópia de `extractTeamMemberUids` (functions/src/tournament-team-category.ts).
+ * `memberUids` VENCE: quando ele traz alguém, `player1Id`/`player2Id` nem são
+ * lidos — são espelho legado e podem estar defasados. Unir os dois alargaria o
+ * elenco aceito e esconderia justamente a quebra que este script existe para
+ * achar.
+ */
 function teamMemberUids(team) {
+  if (!team) return [];
   const out = [];
   const push = (raw) => {
     const id = typeof raw === "string" ? raw.trim() : "";
     if (id && !out.includes(id)) out.push(id);
   };
-  if (Array.isArray(team.memberUids)) team.memberUids.forEach(push);
+  if (Array.isArray(team.memberUids)) {
+    for (const raw of team.memberUids) push(raw);
+    if (out.length > 0) return out;
+  }
   push(team.player1Id);
   push(team.player2Id);
   return out;
@@ -154,8 +164,10 @@ node scripts/check-registration-team-integrity.js --project volley-track-dev-459
 ```
 
 Anotar os números da saída (`equipe inexistente` e `elenco divergente`). **Esta é a linha de
-base** — se já houver quebradas hoje, elas são pré-existentes e não são desta entrega; o que não
-pode é o número crescer.
+base.** Em 15/09 os dois projetos estavam em `0`/`0` (`integridade OK`), então o portão da entrega
+é **zero quebradas**, não "não pode crescer". Se uma execução futura encontrar quebrada ANTES da
+migração, ela é pré-existente e vira a linha de base daquele dia — mas registre o caso, porque
+inscrição órfã é sintoma de outro defeito, não ruído.
 
 - [ ] **Step 3: Rodar no prod**
 
@@ -232,6 +244,21 @@ describe("FakeFirestore.runTransaction", () => {
     });
     assert.equal(db.store.has("teams/t2"), false);
   });
+
+  it("tx.update em doc ausente é erro, não upsert", async () => {
+    const db = new FakeFirestore();
+
+    await assert.rejects(
+      db.runTransaction(async (tx) => {
+        const t = tx as {
+          update: (ref: unknown, data: Record<string, unknown>) => void;
+        };
+        t.update(db.doc("teams/nao-existe"), {pairKey: "a:b"});
+      }),
+      /update em doc ausente/,
+    );
+    assert.equal(db.store.has("teams/nao-existe"), false);
+  });
 });
 ```
 
@@ -265,6 +292,13 @@ Em `functions/src/fake-firestore.test-helper.ts`, trocar o corpo de `runTransact
         self.write(ref.path, data, opts);
       },
       update: (ref: {path: string}, data: DocData) => {
+        // Espelha `ref.update` desta mesma classe e o Admin SDK de verdade:
+        // update em doc ausente é ERRO, não upsert. Um fake permissivo aqui
+        // deixaria passar teste verde sobre código que o Firestore real
+        // recusaria — exatamente o que um dublê de transação existe pra pegar.
+        if (!self.store.has(ref.path)) {
+          throw new Error(`update em doc ausente: ${ref.path}`);
+        }
         self.write(ref.path, data, {merge: true});
       },
       delete: (ref: {path: string}) => {
@@ -618,8 +652,12 @@ export function isPairTeamDoc(
 
 /**
  * Duplicado legado: o mais antigo vence. Determinístico (desempate pelo id) para
- * que duas transações concorrentes escolham o MESMO doc — é o que faz o sistema
- * convergir sozinho se um duplicado escapar.
+ * que duas resoluções concorrentes escolham o MESMO doc.
+ *
+ * NÃO é auto-cura: o Firestore não tranca a faixa VAZIA de uma query em
+ * transação, então duas primeiras resoluções simultâneas do mesmo par ainda
+ * criam dois docs. O que esta regra garante é que toda resolução SEGUINTE
+ * concorda; quem repara um racha que já aconteceu é o script de fusão.
  */
 export function pickPairTeamId(candidates: PairTeamCandidate[]): string {
   let best: PairTeamCandidate | null = null;
@@ -666,6 +704,14 @@ export async function resolvePairTeamTx(
     player2Id: string;
   },
 ): Promise<PairTeamResolution> {
+  // Precondição antes de qualquer leitura: `tournamentId` em branco desligaria
+  // silenciosamente a exceção por categoria (nenhuma inscrição casa com "") e o
+  // helper passaria a SEMPRE reaproveitar. A polaridade importa — um doc novo a
+  // mais o script de fusão absorve; duas campanhas na mesma chave, não.
+  if (!trimmed(params.tournamentId)) {
+    throw new Error("resolvePairTeamTx exige tournamentId");
+  }
+
   const player1Id = trimmed(params.player1Id);
   const player2Id = trimmed(params.player2Id);
   const pairKey = buildPairKey(player1Id, player2Id);
@@ -698,7 +744,10 @@ export async function resolvePairTeamTx(
     );
     if (!alreadyInTournament) {
       const ref = params.teamsRef.doc(chosenId);
-      tx.update(ref, {pairKey, updatedAt: FieldValue.serverTimestamp()});
+      // Só `updatedAt`: regravar o `pairKey` seria no-op provável — o candidato
+      // só chegou aqui porque a query por `pairKey` o achou. Quem preenche o
+      // campo em doc legado é o backfill da Task 6, não este caminho.
+      tx.update(ref, {updatedAt: FieldValue.serverTimestamp()});
       return {ref, teamId: chosenId, reused: true};
     }
   }
@@ -778,20 +827,35 @@ grep -n "teamPaidGateUnchanged" firestore.rules
 
 Esperado: nenhuma saída.
 
-- [ ] **Step 4: Validar a sintaxe das rules**
+- [ ] **Step 4: Estender o teste de rules que já existe**
+
+`functions/test/team-registration-paid-gate.rules.test.mjs` é o teste deste exato portão — ele
+prova que o jogador da equipe não consegue carimbar `registrationPaid`/`gender`. `pairKey` entra
+na mesma família e merece o mesmo teste. Acrescentar, no mesmo arquivo e no mesmo estilo dos casos
+existentes:
+
+- jogador da equipe tentando `updateDoc(TEAM, {pairKey: 'outro:par'})` → `assertFails`
+- jogador da equipe tentando `updateDoc(TEAM, {jerseyNumber: 7})` → `assertSucceeds`, provando que
+  a trava nova não fechou a porta para os campos legítimos
+
+O segundo caso importa tanto quanto o primeiro: sem ele, um `hasAny` escrito errado que bloqueasse
+TODO update passaria no teste.
+
+- [ ] **Step 5: Rodar o teste de rules**
+
+A partir da **raiz do repositório** (não de `functions/`):
 
 ```bash
-npx firebase deploy --only firestore:rules --project volley-track-dev-4596c --dry-run
+npx firebase emulators:exec --only firestore "node --test functions/test/team-registration-paid-gate.rules.test.mjs"
 ```
 
-Esperado: compila sem erro. (Se o `--dry-run` não for aceito pela versão do CLI instalada, rodar
-`npx firebase firestore:rules:validate --project volley-track-dev-4596c`; o objetivo é só provar
-que o arquivo compila — o deploy de verdade é a Task 8.)
+Esperado: todos os casos passam, incluindo os que já existiam. Um caso antigo quebrando significa
+que a renomeação da função deixou chamador órfão ou mudou o alcance do portão.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add firestore.rules
+git add firestore.rules functions/test/team-registration-paid-gate.rules.test.mjs
 git commit -m "fix: pairKey é imutável pelo cliente nas rules de teams"
 ```
 
@@ -843,9 +907,18 @@ Passa a ser:
       if (baseTeamId) {
         // Solo legado: já existe equipe de 1 atleta → preenche o player2. O par
         // só fica completo aqui, então é aqui que a chave nasce.
+        //
+        // A chave sai do player1 do PRÓPRIO doc de equipe (já lido em
+        // `existingTeamSnap`), não do dono da inscrição: o helper revalida todo
+        // candidato recomputando `buildPairKey` a partir dos player ids do doc.
+        // Uma chave derivada de outra fonte pode não bater — e aí o carimbo,
+        // cujo único propósito é tornar o par reaproveitável, não serve pra nada.
+        const teamOwnerUid =
+          (existingTeamSnap?.data()?.player1Id as string | undefined)?.trim() ||
+          baseOwnerUid;
         tx.update(teamsRef.doc(baseTeamId), {
           player2Id: joiningUid,
-          pairKey: buildPairKey(baseOwnerUid, joiningUid),
+          pairKey: buildPairKey(teamOwnerUid, joiningUid),
           updatedAt: FieldValue.serverTimestamp(),
         });
       } else {
@@ -973,9 +1046,17 @@ Passa a ser:
       if (baseTeamId) {
         // Solo legado: a equipe de 1 atleta já existe → preenche o player2. O
         // par só fica completo aqui, então é aqui que a chave nasce.
+        //
+        // Mesma regra da Task 4: a chave sai do player1 do PRÓPRIO doc (já lido
+        // em `existingTeamSnap`), porque é assim que o helper revalida o
+        // candidato. Derivar do dono da inscrição pode gravar uma chave que os
+        // player ids do doc não produzem, e o carimbo vira letra morta.
+        const teamOwnerUid =
+          (existingTeamSnap?.data()?.player1Id as string | undefined)?.trim() ||
+          baseOwnerUid;
         tx.update(teamsRef.doc(baseTeamId), {
           player2Id: joiningUid,
-          pairKey: buildPairKey(baseOwnerUid, joiningUid),
+          pairKey: buildPairKey(teamOwnerUid, joiningUid),
           updatedAt: FieldValue.serverTimestamp(),
         });
       } else {
@@ -1052,6 +1133,245 @@ Esperado: tudo verde, sem editar teste existente.
 ```bash
 git add functions/src/organizer-create-registration.ts
 git commit -m "feat: inscrição pelo organizador reaproveita a equipe da dupla"
+```
+
+---
+
+### Task 5b: Prova ponta a ponta na matriz de inscrições
+
+As Tasks 2 a 5 provam o helper isolado e que nada regrediu. **Nenhuma delas prova que a promessa
+da entrega acontece de verdade pelo caminho real.** O repositório já tem o harness certo para
+isso: `functions/test/registration-*.test.mjs` chama as callables de verdade contra o emulador do
+Firestore.
+
+**Files:**
+- Create: `functions/test/registration-identidade-dupla.test.mjs`
+- Modify: `functions/test/registration-harness.mjs` (acrescentar `organizerCreateTeamRegistration`
+  ao mapa `callables`)
+
+**Interfaces:**
+- Consumes: `functions/test/registration-harness.mjs` — `seedTournament`, `duplaCategory`,
+  `teamCategory`, `seedMan`, `formDupla`, `formTeam`, `getTeam`, `getRegistration`, `call`,
+  `callables`, `clearFirestore`, `db`, `TEAMS`. `seedTournament` devolve o `tournamentId` (string);
+  `formDupla` devolve `{inviteId, registrationId, teamId, ...}`.
+- Produces: nada — é o teste de aceitação da entrega.
+
+**As DUAS portas precisam de cobertura.** O caminho do atleta (`acceptTournamentPartnerInvite`) já
+é exercitado pela matriz; o do organizador (`organizerCreateTeamRegistration`) **não é exercitado
+por teste nenhum, em nível nenhum** — a revisão da Task 5 confirmou com grep que a callable não
+aparece em `functions/test/` e não existe unit test para o módulo. É a porta por onde o organizador
+inscreve dupla no balcão, e hoje ela muda de comportamento sem nenhuma rede.
+
+Por isso esta task começa acrescentando a callable ao harness:
+
+```js
+  organizerCreateRegistration: organizerCreateRegistration.organizerCreateTeamRegistration,
+```
+
+seguindo o padrão de import dos outros módulos no topo de `registration-harness.mjs`.
+
+- [ ] **Step 1: Escrever o teste**
+
+Criar `functions/test/registration-identidade-dupla.test.mjs`:
+
+```js
+/**
+ * Identidade única da dupla, provada pelo caminho REAL: callables de verdade
+ * contra o emulador.
+ *
+ * Os testes de unidade provam o helper isolado; a suíte antiga prova que nada
+ * regrediu. Só este arquivo prova a promessa da entrega — que a mesma dupla,
+ * inscrita em dois torneios, é UMA equipe — e a exceção deliberada, que duas
+ * categorias do mesmo torneio continuam sendo duas.
+ *
+ * Rodar (na pasta functions/): npm run test:registrations
+ */
+
+import {beforeEach, describe, test} from 'node:test';
+import assert from 'node:assert/strict';
+
+import {
+  clearFirestore,
+  duplaCategory,
+  formDupla,
+  formTeam,
+  getTeam,
+  seedMan,
+  seedTournament,
+  teamCategory,
+} from './registration-harness.mjs';
+
+beforeEach(clearFirestore);
+
+/** Torneio com uma categoria de dupla masculina. */
+async function torneioDupla(categoryId = 'masc') {
+  return seedTournament({
+    categories: [duplaCategory({id: categoryId, categoryName: 'Dupla Masculina'})],
+  });
+}
+
+describe('identidade única da dupla', () => {
+  test('a mesma dupla em DOIS torneios é uma equipe só', async () => {
+    const t1 = await torneioDupla();
+    const t2 = await torneioDupla();
+    const a = await seedMan({uid: 'atleta-a'});
+    const b = await seedMan({uid: 'atleta-b'});
+
+    const r1 = await formDupla({
+      tournamentId: t1, categoryId: 'masc', inviterUid: a, inviteeUid: b,
+    });
+    const r2 = await formDupla({
+      tournamentId: t2, categoryId: 'masc', inviterUid: a, inviteeUid: b,
+    });
+
+    assert.equal(r2.teamId, r1.teamId);
+  });
+
+  test('papéis invertidos no 2º torneio: mesma equipe, e os player ids NÃO mudam', async () => {
+    const t1 = await torneioDupla();
+    const t2 = await torneioDupla();
+    const a = await seedMan({uid: 'atleta-a'});
+    const b = await seedMan({uid: 'atleta-b'});
+
+    const r1 = await formDupla({
+      tournamentId: t1, categoryId: 'masc', inviterUid: a, inviteeUid: b,
+    });
+    const antes = await getTeam(r1.teamId);
+
+    // Agora quem convida é o outro.
+    const r2 = await formDupla({
+      tournamentId: t2, categoryId: 'masc', inviterUid: b, inviteeUid: a,
+    });
+
+    assert.equal(r2.teamId, r1.teamId);
+    const depois = await getTeam(r1.teamId);
+    assert.equal(depois.player1Id, antes.player1Id);
+    assert.equal(depois.player2Id, antes.player2Id);
+  });
+
+  test('duas categorias do MESMO torneio continuam sendo duas equipes', async () => {
+    const tournamentId = await seedTournament({
+      categories: [
+        duplaCategory({id: 'masc', categoryName: 'Dupla Masculina'}),
+        duplaCategory({id: 'masc-b', categoryName: 'Dupla Masculina B'}),
+      ],
+    });
+    const a = await seedMan({uid: 'atleta-a'});
+    const b = await seedMan({uid: 'atleta-b'});
+
+    const r1 = await formDupla({
+      tournamentId, categoryId: 'masc', inviterUid: a, inviteeUid: b,
+    });
+    const r2 = await formDupla({
+      tournamentId, categoryId: 'masc-b', inviterUid: a, inviteeUid: b,
+    });
+
+    assert.notEqual(r2.teamId, r1.teamId);
+  });
+
+  test('pelo ORGANIZADOR: a mesma dupla em dois torneios é uma equipe só', async () => {
+    const t1 = await torneioDupla();
+    const t2 = await torneioDupla();
+    const a = await seedMan({uid: 'atleta-a'});
+    const b = await seedMan({uid: 'atleta-b'});
+
+    const r1 = await call(callables.organizerCreateRegistration, 'organizador-1', {
+      tournamentId: t1, categoryId: 'masc', athleteUids: [a, b], markAsPaid: true,
+    });
+    const r2 = await call(callables.organizerCreateRegistration, 'organizador-1', {
+      tournamentId: t2, categoryId: 'masc', athleteUids: [a, b], markAsPaid: true,
+    });
+
+    assert.equal(r2.teamId, r1.teamId);
+  });
+
+  test('as DUAS portas chegam na mesma equipe: organizador e convite', async () => {
+    const t1 = await torneioDupla();
+    const t2 = await torneioDupla();
+    const a = await seedMan({uid: 'atleta-a'});
+    const b = await seedMan({uid: 'atleta-b'});
+
+    const peloOrganizador = await call(
+      callables.organizerCreateRegistration, 'organizador-1',
+      {tournamentId: t1, categoryId: 'masc', athleteUids: [a, b], markAsPaid: true},
+    );
+    const peloConvite = await formDupla({
+      tournamentId: t2, categoryId: 'masc', inviterUid: a, inviteeUid: b,
+    });
+
+    assert.equal(peloConvite.teamId, peloOrganizador.teamId);
+  });
+
+  test('pelo ORGANIZADOR: duas categorias do mesmo torneio continuam sendo duas', async () => {
+    const tournamentId = await seedTournament({
+      categories: [
+        duplaCategory({id: 'masc', categoryName: 'Dupla Masculina'}),
+        duplaCategory({id: 'masc-b', categoryName: 'Dupla Masculina B'}),
+      ],
+    });
+    const a = await seedMan({uid: 'atleta-a'});
+    const b = await seedMan({uid: 'atleta-b'});
+
+    const r1 = await call(callables.organizerCreateRegistration, 'organizador-1', {
+      tournamentId, categoryId: 'masc', athleteUids: [a, b], markAsPaid: true,
+    });
+    const r2 = await call(callables.organizerCreateRegistration, 'organizador-1', {
+      tournamentId, categoryId: 'masc-b', athleteUids: [a, b], markAsPaid: true,
+    });
+
+    assert.notEqual(r2.teamId, r1.teamId);
+  });
+
+  test('equipe NOMEADA nunca deduplica: dois torneios, duas equipes', async () => {
+    const t1 = await seedTournament({
+      categories: [teamCategory({id: 'trio', teamSize: 3})],
+    });
+    const t2 = await seedTournament({
+      categories: [teamCategory({id: 'trio', teamSize: 3})],
+    });
+    const a = await seedMan({uid: 'atleta-a'});
+    const b = await seedMan({uid: 'atleta-b'});
+    const c = await seedMan({uid: 'atleta-c'});
+
+    const e1 = await formTeam({
+      tournamentId: t1, categoryId: 'trio', captainUid: a, memberUids: [b, c],
+    });
+    const e2 = await formTeam({
+      tournamentId: t2, categoryId: 'trio', captainUid: a, memberUids: [b, c],
+    });
+
+    assert.notEqual(e2.teamId, e1.teamId);
+  });
+});
+```
+
+Se a assinatura de algum helper do harness não bater com o que está escrito aqui (o retorno de
+`formTeam`, os parâmetros de `teamCategory`), **ajuste a chamada ao harness, nunca a asserção** —
+as quatro asserções são o contrato da entrega.
+
+- [ ] **Step 2: Rodar**
+
+Na pasta `functions/`:
+
+```bash
+npm run test:registrations
+```
+
+Esperado: os 4 testes novos passam e a matriz inteira continua verde. O harness sobe o emulador
+sozinho e roda com `--test-concurrency=1`.
+
+- [ ] **Step 3: Ver o 1º teste falhar sem a fiação (prova de que ele testa algo)**
+
+Reverta temporariamente a chamada do helper em `tournament-partner-invite.ts` para o
+`teamsRef.doc()` de antes, rode só este arquivo, e confirme que o teste "a mesma dupla em DOIS
+torneios" FALHA. Depois desfaça a reversão. Um teste de aceitação que passa com e sem a mudança
+não prova nada — esta é a única forma de saber.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add functions/test/registration-identidade-dupla.test.mjs
+git commit -m "test: a promessa da entrega provada pelas callables reais"
 ```
 
 ---
@@ -1184,9 +1504,17 @@ function isPairTeamDoc(team) {
 node scripts/backfill-team-pair-key.js --project volley-track-dev-4596c
 ```
 
-Esperado: `equipes=218 nomeadas=11 incompletas=0 ja_tinham=0` e `a gravar: 207`. Se `nomeadas`
-vier diferente de 11, parar e investigar antes de aplicar — a contagem é a prova de que o guarda
-de equipe nomeada está certo.
+O dev é banco **vivo** — o app das lojas aponta para ele, então os totais mudam entre uma execução
+e outra. Não confira contra um número decorado; confira a **relação**:
+
+- `nomeadas + incompletas + ja_tinham + a_gravar == equipes`
+- `nomeadas` tem de bater com a quantidade real de equipes de 3+ no projeto (no dev era 11 e no
+  prod 54 em 15/09). Esse é o número que prova que o guarda de equipe nomeada classifica certo —
+  se ele destoar, **pare e investigue** antes de qualquer `--apply`.
+- `incompletas` deve ser 0 nos dois projetos (nenhum doc solo vivo).
+
+Na medição de 15/09: dev `equipes=219 nomeadas=11 incompletas=0 ja_tinham=0`, `a gravar: 208`;
+prod `equipes=59 nomeadas=54 incompletas=0 ja_tinham=0`, `a gravar: 5`.
 
 - [ ] **Step 3: Commit (ainda sem aplicar)**
 
@@ -1430,6 +1758,10 @@ function isPairTeamDoc(team) {
   if (name) return false;
   const size = Number(team.teamSize ?? 0);
   if (Number.isFinite(size) && size >= 3) return false;
+  // `memberUids` é o elenco canônico no resto do código. Um doc histórico com 3+
+  // membros, sem nome e sem `teamSize` passaria pelos dois testes acima e seria
+  // agrupado pelos 2 primeiros players — e fundido com uma dupla de verdade.
+  if (Array.isArray(team.memberUids) && team.memberUids.length >= 3) return false;
   return true;
 }
 
@@ -1474,7 +1806,22 @@ function planGroupMerge({members, tournamentsByTeamId, refCountByTeamId}) {
 
   const seen = new Set();
   for (const member of members) {
-    for (const tournamentId of tournamentsByTeamId[member.id] || []) {
+    // "Sem dado" NÃO é "sem sobreposição". Um lookup que falhou e um doc que
+    // realmente não está em torneio nenhum chegariam aqui idênticos — e fundir
+    // por engano é irreversível, enquanto pular só adia. Quem chama declara o
+    // vazio passando `[]`; a AUSÊNCIA da chave é tratada como falha de dados.
+    if (!Object.prototype.hasOwnProperty.call(tournamentsByTeamId, member.id)) {
+      return {
+        survivorId: "",
+        absorbedIds: [],
+        skipped: true,
+        reason: "dados-incompletos",
+      };
+    }
+    // Set por membro: um doc cujo próprio array repete um torneio (duas
+    // categorias) colidiria consigo mesmo e o grupo sairia como convivência
+    // legítima sem que nada se sobrepusesse entre docs.
+    for (const tournamentId of new Set(tournamentsByTeamId[member.id])) {
       if (seen.has(tournamentId)) {
         return {
           survivorId: "",
@@ -1511,33 +1858,57 @@ function planGroupMerge({members, tournamentsByTeamId, refCountByTeamId}) {
   };
 }
 
-/** Funde docs de `teamRankings`; resultado do mesmo torneio+categoria conta uma vez. */
+/**
+ * Funde docs de `teamRankings`; resultado do mesmo torneio+categoria conta uma vez.
+ *
+ * Os agregados espelham `aggregateRankingResults`
+ * (functions/src/tournament-ranking.ts) DE PROPÓSITO, porque o doc fundido
+ * convive com o que o servidor reescreve no próximo recálculo:
+ *  - `tournamentsCount` é `results.length`, não a contagem de torneios distintos
+ *    (o servidor conta RESULTADOS; um par em duas categorias do mesmo torneio
+ *    vale 2 lá e valeria 1 aqui — divergência que sumiria no primeiro recálculo);
+ *  - `totalPoints` sai DOS baldes de ano, então `sum(pointsByYear) ===
+ *    totalPoints` sempre vale (somar por fora deixa resultado sem ano fora dos
+ *    baldes e dentro do total);
+ *  - cada entrada é clampada e arredondada, como lá.
+ */
 function mergeTeamRankingDocs(survivorDoc, absorbedDocs) {
   const byKey = new Map();
   const docs = [survivorDoc, ...(absorbedDocs || [])].filter(Boolean);
   for (const doc of docs) {
     for (const result of doc.results || []) {
-      const key = `${result.tournamentId}_${result.categoryId}`;
+      const tournamentId = String(result.tournamentId ?? "").trim();
+      const categoryId = String(result.categoryId ?? "").trim();
+      // O servidor descarta resultado sem os dois ids (`parseResults`); aqui
+      // também, senão dois legados incompletos colidiriam numa chave só.
+      if (!tournamentId || !categoryId) continue;
+      // JSON.stringify em vez de concatenar com "_": ("A_B","C") e ("A","B_C")
+      // dariam a mesma chave, e a segunda entrada sumiria em silêncio.
+      const key = JSON.stringify([tournamentId, categoryId]);
       if (!byKey.has(key)) byKey.set(key, result);
     }
   }
 
   const results = [...byKey.values()];
+  const byYear = new Map();
+  for (const result of results) {
+    const year = String(result.year);
+    const list = byYear.get(year) ?? [];
+    list.push(Math.max(0, Math.round(Number(result.points) || 0)));
+    byYear.set(year, list);
+  }
   const pointsByYear = {};
   let totalPoints = 0;
-  const tournaments = new Set();
-  for (const result of results) {
-    const points = Number(result.points) || 0;
-    const year = String(result.year ?? "");
-    totalPoints += points;
-    if (year) pointsByYear[year] = (pointsByYear[year] || 0) + points;
-    tournaments.add(result.tournamentId);
+  for (const [year, points] of byYear) {
+    const yearPoints = points.reduce((sum, value) => sum + value, 0);
+    pointsByYear[year] = yearPoints;
+    totalPoints += yearPoints;
   }
 
   return {
     totalPoints,
     pointsByYear,
-    tournamentsCount: tournaments.size,
+    tournamentsCount: results.length,
     results,
   };
 }
@@ -1689,6 +2060,13 @@ const SIMPLE_COLLECTIONS = [
   // Em que torneios cada equipe está — é o que separa duplicação de convivência
   // legítima (o par em duas categorias do MESMO torneio).
   const tournamentsByTeamId = {};
+  // `planGroupMerge` distingue "está em zero torneios" de "não sei em quais":
+  // o vazio tem de ser DECLARADO. Toda equipe de grupo duplicado entra no mapa
+  // antes da varredura, nem que seja com `[]` — sem isso, a equipe órfã (sem
+  // inscrição nenhuma) sairia como `dados-incompletos` e nunca fundiria.
+  for (const [, members] of duplicated) {
+    for (const member of members) tournamentsByTeamId[member.id] = [];
+  }
   for (const doc of loaded.get(`${base}/inscriptions`).docs) {
     const data = doc.data();
     const teamId = String(data.teamId ?? "").trim();
@@ -1935,8 +2313,8 @@ com `--force` e exigir a linha de sucesso.
 node scripts/check-registration-team-integrity.js --project volley-track-dev-4596c
 ```
 
-Esperado: os **mesmos** números da linha de base da Task 0. Cresceu, parar aqui — o deploy mexeu
-em inscrição existente, o que não devia.
+Esperado: `integridade OK` (zero quebradas), igual à linha de base. Qualquer quebrada aqui
+significa que o deploy mexeu em inscrição existente, o que não devia — parar.
 
 - [ ] **Step 5: Fusão dos duplicados no dev**
 
@@ -1961,9 +2339,9 @@ seguem íntegras — investigar e rodar de novo. Nunca apagar doc de equipe à m
 node scripts/check-registration-team-integrity.js --project volley-track-dev-4596c
 ```
 
-Esperado: os mesmos números da linha de base. Este é o portão da exigência do dono — qualquer
-crescimento em `equipe inexistente` ou `elenco divergente` é regressão, e o de-para salvo pelo
-script diz exatamente qual equipe absorveu qual para desfazer.
+Esperado: `integridade OK` — zero em `equipe inexistente` e zero em `elenco divergente`. Este é o
+portão da exigência do dono: uma única quebrada aqui é regressão, e o de-para salvo pelo script diz
+exatamente qual equipe absorveu qual para desfazer.
 
 - [ ] **Step 7: Conferir que não sobrou duplicado**
 

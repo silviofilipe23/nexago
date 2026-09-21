@@ -194,6 +194,13 @@ class _OrganizerKocTablePageState extends ConsumerState<OrganizerKocTablePage> {
               ),
             ),
             onFinish: () => _finish(round),
+            onGolden: (teamId) => _run(
+              () => _ops.registerGoldenPoint(
+                matchId: widget.matchId,
+                teamId: teamId,
+                expectedSeq: round.rallies + 1,
+              ),
+            ),
           );
         },
       ),
@@ -232,6 +239,7 @@ class _KocTableBody extends StatelessWidget {
     required this.onTogglePause,
     required this.onNudge,
     required this.onFinish,
+    required this.onGolden,
   });
 
   final KocRoundState round;
@@ -243,6 +251,7 @@ class _KocTableBody extends StatelessWidget {
   final VoidCallback onTogglePause;
   final void Function(int deltaSec) onNudge;
   final VoidCallback onFinish;
+  final void Function(String teamId) onGolden;
 
   @override
   Widget build(BuildContext context) {
@@ -277,7 +286,11 @@ class _KocTableBody extends StatelessWidget {
               const SizedBox(height: 16),
               _QueueStrip(round: round, labelFor: labelFor),
               const SizedBox(height: 20),
-              _LiveTable(round: round, labelFor: labelFor),
+              _LiveTable(
+                round: round,
+                labelFor: labelFor,
+                onGolden: busy ? null : onGolden,
+              ),
               const SizedBox(height: 24),
             ],
           ),
@@ -721,10 +734,17 @@ class _QueueStrip extends StatelessWidget {
 }
 
 class _LiveTable extends StatelessWidget {
-  const _LiveTable({required this.round, required this.labelFor});
+  const _LiveTable({
+    required this.round,
+    required this.labelFor,
+    this.onGolden,
+  });
 
   final KocRoundState round;
   final String Function(String teamId) labelFor;
+
+  /// Nulo quando a mesa está ocupada: a bola de ouro some em vez de falhar.
+  final void Function(String teamId)? onGolden;
 
   @override
   Widget build(BuildContext context) {
@@ -774,6 +794,33 @@ class _LiveTable extends StatelessWidget {
               color: AppColors.pending,
             ),
           ),
+          if (onGolden != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'VENCEU A BOLA DE OURO',
+              style: AppTypography.mono(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: AppColors.pending,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 6),
+            // Aponta a DUPLA, não um lado: a bola de ouro é jogada depois do
+            // apito, entre as empatadas, que quase nunca são o rei e o
+            // desafiante do momento.
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final teamId in round.qualifyingTieGroup)
+                  OutlinedButton(
+                    onPressed: () => onGolden!(teamId),
+                    child: Text(labelFor(teamId)),
+                  ),
+              ],
+            ),
+          ],
         ],
       ],
     );

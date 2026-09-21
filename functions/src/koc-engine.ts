@@ -18,7 +18,11 @@
  * fim da fila, o rei fica no trono e NINGUÉM pontua. Não é "rei venceu" — se
  * fosse, o rei somaria um ponto que o regulamento não dá.
  */
-export type KocRallyOutcome = "king" | "challenger" | "serve_fault";
+export type KocRallyOutcome =
+  | "king"
+  | "challenger"
+  | "serve_fault"
+  | "golden_point";
 
 export interface KocRally {
   /** Sequencial 1-based, na ordem de disputa. */
@@ -26,6 +30,9 @@ export interface KocRally {
   /** Nome herdado de quando só havia dois desfechos; os docs já gravados usam
    *  este campo, então ele fica — o que mudou é o conjunto de valores. */
   winner: KocRallyOutcome;
+  /** Só em `golden_point`: a dupla que venceu a bola de ouro. Os outros
+   *  desfechos são do LADO (rei/desafiante), que o replay já conhece. */
+  teamId?: string;
 }
 
 export interface KocState {
@@ -91,16 +98,34 @@ export function kocInitialState(teamIds: readonly string[]): KocState {
  * Desafiante vence → assume o trono SEM pontuar; o rei destronado vai para o fim.
  * Erro de saque do desafiante → ele perde a vez e vai para o fim da fila; o rei
  * fica, e ninguém pontua (o saque errado não é um rally ganho).
- * Nos três casos entra o próximo da fila e ele passa a sacar.
+ * Nesses três entra o próximo da fila e ele passa a sacar.
+ *
+ * Bola de ouro → +1 para a dupla que venceu, e a fila NÃO gira: ela é jogada
+ * depois do apito, entre as empatadas na vaga, que quase nunca são o rei e o
+ * desafiante do momento. Girar a fila aqui mudaria um estado que a rodada já
+ * não usa mais e corromperia a tabela.
  */
 export function kocApplyRally(
   state: KocState,
-  outcome: KocRallyOutcome,
+  rally: Pick<KocRally, "winner" | "teamId">,
 ): KocState {
   const {kingTeamId, challengerTeamId, queue} = state;
+  const outcome = rally.winner;
   const points = {...state.points};
   const crowns = {...state.crowns};
   const crownOrder = [...state.crownOrder];
+
+  if (outcome === "golden_point") {
+    const winner = (rally.teamId ?? "").trim();
+    if (!winner || !(winner in points)) {
+      throw new KocEngineError(
+        "Bola de ouro precisa apontar uma dupla do elenco.",
+        "koc_golden_team_not_in_roster",
+      );
+    }
+    points[winner] = (points[winner] ?? 0) + 1;
+    return {...state, points, rallies: state.rallies + 1};
+  }
 
   let nextKing: string;
   let leaving: string;
@@ -148,7 +173,7 @@ export function kocReplay(
   const ordered = [...rallies].sort((a, b) => a.seq - b.seq);
   let state = kocInitialState(teamIds);
   for (const rally of ordered) {
-    state = kocApplyRally(state, rally.winner);
+    state = kocApplyRally(state, rally);
   }
   return state;
 }

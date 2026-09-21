@@ -26,10 +26,20 @@ Nos três casos entra o próximo da fila, e ele passa a sacar.
 - O rally em andamento no estouro do cronômetro é concluído antes do encerramento.
 - Vence a rodada quem tem mais pontos.
 
-## Desempate (na ordem)
-1. **Bola de ouro** — rally único entre as duplas empatadas (padrão).
-2. Quem foi rei por último entre as empatadas.
-3. Confronto direto (rallies vencidos entre elas).
+## Desempate
+
+Só importa o empate que **atravessa a linha de classificação**: duas duplas empatadas
+em 1º, com duas vagas, passam as duas — não há o que decidir. Todas as duplas na
+pontuação da última vaga entram no empate, e com poucos rallies é comum serem três.
+
+1. **Bola de ouro** — rally único entre as empatadas, jogado na areia depois do apito.
+   A mesa aponta quem venceu (`kocGoldenPoint`), e o ponto vai para a DUPLA, não para
+   um lado: as empatadas quase nunca são o rei e o desafiante do momento.
+2. **Critério automático**, quando a mesa opta por não jogar a bola de ouro:
+   quem foi rei por último entre as empatadas; persistindo, a ordem de semeadura.
+
+O encerramento é **recusado** com empate na vaga em aberto: a mesa joga a bola de ouro
+ou confirma explicitamente o critério automático. A vaga nunca sai calada.
 
 ## Estrutura do torneio
 - Fases: **Classificatória → Semifinal → Final**. Cada fase roda N rodadas em

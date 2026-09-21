@@ -235,8 +235,21 @@ export function kocTiedWith(round: KocRoundState, teamId: string): string[] {
 /** O empate atravessa o corte de classificação — onde a bola de ouro é devida.
  *  Mesma regra de `kocQualifyingTies` no servidor. */
 export function kocHasQualifyingTie(round: KocRoundState): boolean {
+  return kocQualifyingTieGroup(round).length > 0;
+}
+
+/** Duplas que disputam a vaga no empate — as que jogam a bola de ouro.
+ *
+ *  Com poucos rallies (uma rodada de 15 min produz poucos) o empate no corte é
+ *  o caso COMUM, e costuma envolver mais de duas duplas: todas as que estão na
+ *  mesma pontuação da última vaga entram. Espelha `kocQualifyingTies` do
+ *  servidor, que é quem valida a bola de ouro. */
+export function kocQualifyingTieGroup(round: KocRoundState): string[] {
   const order = kocLiveOrder(round);
   const cut = round.qualifiersPerRound;
-  if (cut < 1 || cut >= order.length) return false;
-  return kocPointsOf(round, order[cut - 1]) === kocPointsOf(round, order[cut]);
+  if (cut < 1 || cut >= order.length) return [];
+  const lastIn = kocPointsOf(round, order[cut - 1]);
+  if (lastIn !== kocPointsOf(round, order[cut])) return [];
+  const tied = order.filter((teamId) => kocPointsOf(round, teamId) === lastIn);
+  return tied.length > 1 ? tied : [];
 }

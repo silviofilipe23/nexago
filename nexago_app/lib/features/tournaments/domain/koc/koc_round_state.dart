@@ -161,14 +161,25 @@ class KocRoundState {
     return teamIds.where((id) => id != teamId && pointsOf(id) == mine).toList();
   }
 
-  /// O empate atravessa o corte de classificação — onde a bola de ouro é
-  /// devida. Mesma regra de `kocQualifyingTies` no servidor.
-  bool get hasQualifyingTie {
+  /// Duplas que disputam a vaga no empate — as que jogam a bola de ouro.
+  ///
+  /// Com poucos rallies (uma rodada de 15 min produz poucos) o empate no corte
+  /// é o caso COMUM, e costuma envolver mais de duas duplas: entram todas as
+  /// que estão na pontuação da última vaga. Espelha `kocQualifyingTies` do
+  /// servidor, que é quem valida a bola de ouro.
+  List<String> get qualifyingTieGroup {
     final order = liveOrder;
     final cut = qualifiersPerRound;
-    if (cut < 1 || cut >= order.length) return false;
-    return pointsOf(order[cut - 1]) == pointsOf(order[cut]);
+    if (cut < 1 || cut >= order.length) return const [];
+    final lastIn = pointsOf(order[cut - 1]);
+    if (lastIn != pointsOf(order[cut])) return const [];
+    final tied = order.where((id) => pointsOf(id) == lastIn).toList();
+    return tied.length > 1 ? tied : const [];
   }
+
+  /// O empate atravessa o corte de classificação — onde a bola de ouro é
+  /// devida. Mesma regra de `kocQualifyingTies` no servidor.
+  bool get hasQualifyingTie => qualifyingTieGroup.isNotEmpty;
 }
 
 int _asInt(dynamic value, [int fallback = 0]) {

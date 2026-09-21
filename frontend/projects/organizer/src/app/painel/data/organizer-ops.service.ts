@@ -535,6 +535,16 @@ export function registerKocRally(params: { matchId: string; outcome: KocRallyOut
   });
 }
 
+/** Bola de ouro: aponta a DUPLA que venceu, não um lado. O servidor recusa se
+ *  não houver empate na vaga ou se a dupla não estiver nele. */
+export function registerKocGoldenPoint(params: { matchId: string; teamId: string; expectedSeq?: number }): Promise<{ ok?: boolean; seq?: number; teamId?: string }> {
+  return call('kocGoldenPoint', {
+    matchId: params.matchId.trim(),
+    teamId: params.teamId.trim(),
+    ...(params.expectedSeq != null ? { expectedSeq: params.expectedSeq } : {}),
+  });
+}
+
 export function undoKocRally(matchId: string): Promise<{ ok?: boolean; rallies?: number }> {
   return call('kocUndoRally', { matchId: matchId.trim() });
 }

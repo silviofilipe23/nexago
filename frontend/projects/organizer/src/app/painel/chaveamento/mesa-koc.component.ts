@@ -3,7 +3,7 @@ import { environment } from '../../../environments/environment';
 import {
   KOC_MIN_TEAMS_PER_ROUND,
   kocFinalTable,
-  kocHasQualifyingTie,
+  kocQualifyingTieGroup,
   kocHasStarted,
   kocIsExpired,
   kocLiveOrder,
@@ -17,6 +17,7 @@ import { organizerFirestore } from '../data/firestore';
 import {
   finishKocRound,
   type KocRallyOutcome,
+  registerKocGoldenPoint,
   registerKocRally,
   setKocClock,
   startKocRound,
@@ -165,6 +166,17 @@ import { OgIconComponent } from '../ui/icon.component';
               <p class="og-mk-tie-note">
                 Empate na vaga de classificação — bola de ouro entre as empatadas.
               </p>
+              <!-- A bola de ouro aponta a DUPLA, não um lado: ela é jogada
+                   depois do apito, entre as empatadas, que quase nunca são o
+                   rei e o desafiante do momento. -->
+              <div class="og-mk-golden">
+                <span class="og-mk-golden-kicker">VENCEU A BOLA DE OURO</span>
+                @for (teamId of tieGroup(); track teamId) {
+                  <button type="button" class="og-ghost-btn og-mk-golden-btn" [disabled]="busy()" (click)="golden(teamId)">
+                    {{ nameOf(teamId) }}
+                  </button>
+                }
+              </div>
             }
           </div>
 
@@ -359,6 +371,23 @@ import { OgIconComponent } from '../ui/icon.component';
     .og-mk-done-note {
       margin-top: 12px;
     }
+    .og-mk-golden {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .og-mk-golden-kicker {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: #f4c543;
+    }
+    .og-mk-golden-btn {
+      flex: 1;
+      min-width: 96px;
+    }
     .og-mk-tie-note {
       margin: 10px 0 0;
       font-size: 12px;
@@ -506,9 +535,13 @@ export class MesaKocComponent {
   });
 
   protected tie(): boolean {
-    const r = this.round();
-    return r != null && kocHasQualifyingTie(r);
+    return this.tieGroup().length > 0;
   }
+
+  protected readonly tieGroup = computed(() => {
+    const r = this.round();
+    return r ? kocQualifyingTieGroup(r) : [];
+  });
 
   // ── Ações ──────────────────────────────────────────────────────────────────
 
@@ -522,6 +555,15 @@ export class MesaKocComponent {
     void this.run(
       () => registerKocRally({ matchId: this.matchId(), outcome, expectedSeq: this.rallies() + 1 }),
       null,
+    );
+  }
+
+  /** Bola de ouro. O servidor recusa se não houver empate na vaga ou se a
+   *  dupla não estiver nele — aqui a mesa só aponta quem venceu. */
+  protected golden(teamId: string): void {
+    void this.run(
+      () => registerKocGoldenPoint({ matchId: this.matchId(), teamId, expectedSeq: this.rallies() + 1 }),
+      'Bola de ouro registrada.',
     );
   }
 

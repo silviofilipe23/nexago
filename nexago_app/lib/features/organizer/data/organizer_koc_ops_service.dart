@@ -44,6 +44,20 @@ class OrganizerKocOpsService {
     });
   }
 
+  /// Bola de ouro: aponta a DUPLA que venceu, não um lado. O servidor recusa
+  /// se não houver empate na vaga ou se a dupla não estiver nele.
+  Future<void> registerGoldenPoint({
+    required String matchId,
+    required String teamId,
+    int? expectedSeq,
+  }) async {
+    await _functions.httpsCallable('kocGoldenPoint').call({
+      'matchId': matchId.trim(),
+      'teamId': teamId.trim(),
+      if (expectedSeq != null) 'expectedSeq': expectedSeq,
+    });
+  }
+
   Future<void> undoRally({required String matchId}) async {
     await _functions.httpsCallable('kocUndoRally').call({
       'matchId': matchId.trim(),

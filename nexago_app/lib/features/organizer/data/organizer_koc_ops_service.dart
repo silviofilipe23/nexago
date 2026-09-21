@@ -1,6 +1,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../../core/firebase/functions_region.dart';
+import '../../tournaments/domain/koc/koc_round_state.dart';
 
 /// Mesa da rodada King of the Court.
 ///
@@ -39,12 +40,26 @@ class OrganizerKocOpsService {
   /// com o seq, o servidor recusa em vez de criar um ponto fantasma.
   Future<void> registerRally({
     required String matchId,
-    required bool kingWon,
+    required KocRallyOutcome outcome,
     int? expectedSeq,
   }) async {
     await _functions.httpsCallable('kocRegisterRally').call({
       'matchId': matchId.trim(),
-      'winner': kingWon ? 'king' : 'challenger',
+      'winner': outcome.wire,
+      if (expectedSeq != null) 'expectedSeq': expectedSeq,
+    });
+  }
+
+  /// Bola de ouro: aponta a DUPLA que venceu, não um lado. O servidor recusa
+  /// se não houver empate na vaga ou se a dupla não estiver nele.
+  Future<void> registerGoldenPoint({
+    required String matchId,
+    required String teamId,
+    int? expectedSeq,
+  }) async {
+    await _functions.httpsCallable('kocGoldenPoint').call({
+      'matchId': matchId.trim(),
+      'teamId': teamId.trim(),
       if (expectedSeq != null) 'expectedSeq': expectedSeq,
     });
   }

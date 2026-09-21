@@ -118,6 +118,7 @@ import {
   kocRegisterRally,
   kocUndoRally,
   kocSetClock,
+  kocGoldenPoint,
   kocFinishRound,
 } from "./koc-match-ops";
 import {deleteOwnAccount} from "./account-deletion";
@@ -285,6 +286,7 @@ export {
   kocRegisterRally,
   kocUndoRally,
   kocSetClock,
+  kocGoldenPoint,
   kocFinishRound,
   deleteOwnAccount,
   onTournamentInscriptionWriteSyncCollectedCents,

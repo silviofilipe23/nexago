@@ -174,10 +174,10 @@ class _OrganizerKocTablePageState extends ConsumerState<OrganizerKocTablePage> {
                 labels[teamId] ?? fallback?[teamId] ?? 'Dupla',
             busy: _busy,
             onStart: () => _run(() => _ops.startRound(matchId: widget.matchId)),
-            onRally: (kingWon) => _run(
+            onRally: (outcome) => _run(
               () => _ops.registerRally(
                 matchId: widget.matchId,
-                kingWon: kingWon,
+                outcome: outcome,
                 expectedSeq: round.rallies + 1,
               ),
             ),
@@ -194,6 +194,13 @@ class _OrganizerKocTablePageState extends ConsumerState<OrganizerKocTablePage> {
               ),
             ),
             onFinish: () => _finish(round),
+            onGolden: (teamId) => _run(
+              () => _ops.registerGoldenPoint(
+                matchId: widget.matchId,
+                teamId: teamId,
+                expectedSeq: round.rallies + 1,
+              ),
+            ),
           );
         },
       ),
@@ -232,17 +239,19 @@ class _KocTableBody extends StatelessWidget {
     required this.onTogglePause,
     required this.onNudge,
     required this.onFinish,
+    required this.onGolden,
   });
 
   final KocRoundState round;
   final String Function(String teamId) labelFor;
   final bool busy;
   final VoidCallback onStart;
-  final void Function(bool kingWon) onRally;
+  final void Function(KocRallyOutcome outcome) onRally;
   final VoidCallback onUndo;
   final VoidCallback onTogglePause;
   final void Function(int deltaSec) onNudge;
   final VoidCallback onFinish;
+  final void Function(String teamId) onGolden;
 
   @override
   Widget build(BuildContext context) {
@@ -277,7 +286,11 @@ class _KocTableBody extends StatelessWidget {
               const SizedBox(height: 16),
               _QueueStrip(round: round, labelFor: labelFor),
               const SizedBox(height: 20),
-              _LiveTable(round: round, labelFor: labelFor),
+              _LiveTable(
+                round: round,
+                labelFor: labelFor,
+                onGolden: busy ? null : onGolden,
+              ),
               const SizedBox(height: 24),
             ],
           ),
@@ -532,7 +545,7 @@ class _RallyButtons extends StatelessWidget {
   final KocRoundState round;
   final String Function(String teamId) labelFor;
   final bool busy;
-  final void Function(bool kingWon) onRally;
+  final void Function(KocRallyOutcome outcome) onRally;
 
   @override
   Widget build(BuildContext context) {
@@ -544,7 +557,7 @@ class _RallyButtons extends StatelessWidget {
           subtitle: 'Defendeu o trono · +1 ponto',
           points: round.pointsOf(round.kingTeamId),
           color: AppColors.brand,
-          onTap: busy ? null : () => onRally(true),
+          onTap: busy ? null : () => onRally(KocRallyOutcome.king),
         ),
         const SizedBox(height: 12),
         _RallyButton(
@@ -553,9 +566,60 @@ class _RallyButtons extends StatelessWidget {
           subtitle: 'Destronou · assume o trono, sem ponto',
           points: round.pointsOf(round.challengerTeamId),
           color: context.themeColors.surfaceRaised,
-          onTap: busy ? null : () => onRally(false),
+          onTap: busy ? null : () => onRally(KocRallyOutcome.challenger),
+        ),
+        const SizedBox(height: 10),
+        // Terceiro desfecho, deliberadamente menor: é o menos frequente, e
+        // confundi-lo com "o rei defendeu" daria ao rei um ponto que o
+        // regulamento não dá.
+        _ServeFaultButton(
+          challengerLabel: labelFor(round.challengerTeamId),
+          onTap: busy ? null : () => onRally(KocRallyOutcome.serveFault),
         ),
       ],
+    );
+  }
+}
+
+/// Erro de saque do desafiante: perde a vez, ninguém pontua.
+class _ServeFaultButton extends StatelessWidget {
+  const _ServeFaultButton({required this.challengerLabel, required this.onTap});
+
+  final String challengerLabel;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: onTap == null ? 0.4 : 0.75,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: context.themeColors.onSurfaceMuted.withValues(
+                  alpha: 0.35,
+                ),
+              ),
+            ),
+            child: Text(
+              'Erro de saque de $challengerLabel · perde a vez, sem ponto',
+              textAlign: TextAlign.center,
+              style: AppTypography.soraRegular(
+                fontSize: 13,
+                color: context.themeColors.onSurface,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -670,10 +734,17 @@ class _QueueStrip extends StatelessWidget {
 }
 
 class _LiveTable extends StatelessWidget {
-  const _LiveTable({required this.round, required this.labelFor});
+  const _LiveTable({
+    required this.round,
+    required this.labelFor,
+    this.onGolden,
+  });
 
   final KocRoundState round;
   final String Function(String teamId) labelFor;
+
+  /// Nulo quando a mesa está ocupada: a bola de ouro some em vez de falhar.
+  final void Function(String teamId)? onGolden;
 
   @override
   Widget build(BuildContext context) {
@@ -723,6 +794,33 @@ class _LiveTable extends StatelessWidget {
               color: AppColors.pending,
             ),
           ),
+          if (onGolden != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'VENCEU A BOLA DE OURO',
+              style: AppTypography.mono(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: AppColors.pending,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 6),
+            // Aponta a DUPLA, não um lado: a bola de ouro é jogada depois do
+            // apito, entre as empatadas, que quase nunca são o rei e o
+            // desafiante do momento.
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final teamId in round.qualifyingTieGroup)
+                  OutlinedButton(
+                    onPressed: () => onGolden!(teamId),
+                    child: Text(labelFor(teamId)),
+                  ),
+              ],
+            ),
+          ],
         ],
       ],
     );

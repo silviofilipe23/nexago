@@ -41,10 +41,13 @@ Novo valor `TournamentBracketSystem.kingOfCourt` (raw `king_of_court`), gravado 
   "targetPoints": 0,
   "qualifiersPerRound": 2,
   "phaseCount": 3,
-  "crownScores": false,
-  "tiebreak": "golden_point"
+  "crownScores": false
 }
 ```
+
+`tiebreak` foi removido: a bola de ouro não é uma opção de configuração, é o
+caminho padrão e imposto — `kocFinishRound` recusa encerrar com empate na vaga
+em aberto (`kocGoldenPoint` resolve, ou a mesa confirma o critério automático).
 
 ### 2.2 Rodada — `artifacts/{projectId}/public/data/matches/{matchId}`
 

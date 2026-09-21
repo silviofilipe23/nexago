@@ -5,7 +5,8 @@ import {
   KOC_MAX_TEAMS_PER_ROUND,
   KOC_MIN_TEAMS_PER_ROUND,
   kocFinalTable,
-  kocHasQualifyingTie,
+  kocQualifyingTieGroup,
+  type KocLogLine,
   kocHasStarted,
   kocIsExpired,
   kocLiveOrder,
@@ -20,7 +21,9 @@ import { organizerFirestore } from '../data/firestore';
 import { initialsOf } from '../data/mock-data';
 import {
   finishKocRound,
+  registerKocGoldenPoint,
   registerKocRally,
+  type KocRallyOutcome,
   setKocClock,
   startKocRound,
   undoKocRally,
@@ -45,6 +48,16 @@ interface TeamFace {
  *  Layout alinhado ao protótipo de preparação (confronto de abertura + ordem da
  *  fila + duração/vagas) e à mesa ao vivo (dois alvos grandes). Toda mutação
  *  passa por callable; o relógio vem de `endsAtMs` do servidor. */
+/** O que cada desfecho fez com o placar, na linha do log. Mapa e não ternário:
+ *  com quatro desfechos, um `else` engoliria o erro de saque e a bola de ouro
+ *  como se fossem coroação. */
+const LOG_ACTION: Record<KocLogLine['kind'], string> = {
+  point: '+1 · defendeu o trono',
+  crown: 'coroou — assume o trono',
+  fault: 'errou o saque — perdeu a vez, sem ponto',
+  golden: '+1 · venceu a bola de ouro',
+};
+
 @Component({
   selector: 'og-mesa-koc',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -349,16 +362,34 @@ interface TeamFace {
             </ul>
 
             <div class="og-mk-live-actions">
-              <button type="button" class="og-btn-primary og-mk-rally-king" [disabled]="busy()" (click)="rally(true)">
+              <button type="button" class="og-btn-primary og-mk-rally-king" [disabled]="busy()" (click)="rally('king')">
                 Ponto do trono
               </button>
-              <button type="button" class="og-ghost-btn og-mk-rally-crown" [disabled]="busy()" (click)="rally(false)">
+              <button type="button" class="og-ghost-btn og-mk-rally-crown" [disabled]="busy()" (click)="rally('challenger')">
                 Desafiante venceu · coroa
               </button>
             </div>
 
+            <!-- Terceiro desfecho, menor de propósito: é o menos frequente, e
+                 confundi-lo com "ponto do trono" daria ao rei um ponto que o
+                 regulamento não dá. -->
+            <button type="button" class="og-mk-fault" [disabled]="busy()" (click)="rally('serve_fault')">
+              Erro de saque de {{ faceOf(challengerId()).name }} · perde a vez, sem ponto
+            </button>
+
             @if (tie()) {
               <p class="og-mk-tie-note">Empate na vaga de classificação — bola de ouro entre as empatadas.</p>
+              <!-- A bola de ouro aponta a DUPLA, não um lado: é jogada depois do
+                   apito, entre as empatadas, que quase nunca são o rei e o
+                   desafiante do momento. -->
+              <div class="og-mk-golden">
+                <span class="og-mk-golden-kicker">VENCEU A BOLA DE OURO</span>
+                @for (teamId of tieGroup(); track teamId) {
+                  <button type="button" class="og-ghost-btn og-mk-golden-btn" [disabled]="busy()" (click)="golden(teamId)">
+                    {{ faceOf(teamId).name }}
+                  </button>
+                }
+              </div>
             }
             @if (feedback(); as f) {
               <p class="og-mk-feedback" [class.err]="!f.ok">{{ f.message }}</p>
@@ -1171,6 +1202,40 @@ interface TeamFace {
       font-size: 13px;
       color: var(--nx-text-mute);
     }
+    .og-mk-fault {
+      width: 100%;
+      margin-top: 8px;
+      padding: 10px 12px;
+      border: 1px dashed rgb(255 255 255 / 22%);
+      border-radius: 12px;
+      background: none;
+      color: inherit;
+      opacity: 0.75;
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .og-mk-fault:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+    .og-mk-golden {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .og-mk-golden-kicker {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: #f4c543;
+    }
+    .og-mk-golden-btn {
+      flex: 1;
+      min-width: 96px;
+    }
     .og-mk-tie-note {
       margin: 8px 0 0;
       font-size: 12px;
@@ -1412,7 +1477,7 @@ export class MesaKocComponent {
       key: line.key,
       time: formatLogTime(line.atMs),
       name: this.faceOf(line.teamId).name,
-      action: line.kind === 'crown' ? 'coroou — assume o trono' : '+1 · defendeu o trono',
+      action: LOG_ACTION[line.kind],
     }));
   });
 
@@ -1549,9 +1614,15 @@ export class MesaKocComponent {
   }
 
   protected tie(): boolean {
-    const r = this.round();
-    return r != null && kocHasQualifyingTie(r);
+    return this.tieGroup().length > 0;
   }
+
+  /** Quem joga a bola de ouro: TODAS as duplas na pontuação da última vaga —
+   *  com poucos rallies, empate de três pela mesma vaga é o caso comum. */
+  protected readonly tieGroup = computed(() => {
+    const r = this.round();
+    return r ? kocQualifyingTieGroup(r) : [];
+  });
 
   protected moveOrder(index: number, delta: number): void {
     const next = [...this.draftOrder()];
@@ -1574,10 +1645,19 @@ export class MesaKocComponent {
     this.draftOrder.set(next);
   }
 
-  protected rally(kingWon: boolean): void {
+  protected rally(outcome: KocRallyOutcome): void {
     void this.run(
-      () => registerKocRally({ matchId: this.matchId(), kingWon, expectedSeq: this.rallies() + 1 }),
+      () => registerKocRally({ matchId: this.matchId(), outcome, expectedSeq: this.rallies() + 1 }),
       null,
+    );
+  }
+
+  /** Bola de ouro. O servidor recusa se não houver empate na vaga ou se a
+   *  dupla não estiver nele — aqui a mesa só aponta quem venceu. */
+  protected golden(teamId: string): void {
+    void this.run(
+      () => registerKocGoldenPoint({ matchId: this.matchId(), teamId, expectedSeq: this.rallies() + 1 }),
+      'Bola de ouro registrada.',
     );
   }
 

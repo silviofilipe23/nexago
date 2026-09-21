@@ -32,7 +32,7 @@ import {
   kocStandings,
   type KocClock,
   type KocRally,
-  type KocRallyWinner,
+  type KocRallyOutcome,
   type KocState,
 } from "./koc-engine";
 
@@ -86,18 +86,30 @@ export function parseStoredRallies(raw: unknown): KocRally[] {
     const seq = Number(entry.seq);
     const winner = asString(entry.winner);
     if (!Number.isInteger(seq) || seq < 1) continue;
-    if (winner !== "king" && winner !== "challenger") continue;
-    out.push({seq, winner: winner as KocRallyWinner});
+    if (!isKocRallyOutcome(winner)) continue;
+    const teamId = asString(entry.teamId);
+    out.push(teamId ? {seq, winner, teamId} : {seq, winner});
   }
   return out.sort((a, b) => a.seq - b.seq);
 }
 
-/** Serializa o log preservando `atMs` já gravados; opcionalmente carimba um seq novo. */
+/** Desfecho reconhecido pelo motor. `serve_fault` = erro de saque do
+ *  desafiante: perde a vez, ninguém pontua. `golden_point` aponta uma dupla. */
+function isKocRallyOutcome(value: string): value is KocRallyOutcome {
+  return value === "king" || value === "challenger" ||
+    value === "serve_fault" || value === "golden_point";
+}
+
+/** Serializa o log preservando `atMs` já gravados; opcionalmente carimba um seq novo.
+ *
+ *  `teamId` precisa sobreviver aqui: é o que diz QUEM venceu a bola de ouro, e
+ *  o log é a única verdade do placar. Perdê-lo numa regravação faria o replay
+ *  seguinte recusar a rodada inteira (`koc_golden_team_not_in_roster`). */
 export function serializeKocRallies(
   rallies: readonly KocRally[],
   previousRaw: unknown,
   stampSeq?: number,
-): Array<{seq: number; winner: KocRallyWinner; atMs?: number}> {
+): Array<{seq: number; winner: KocRallyOutcome; teamId?: string; atMs?: number}> {
   const prevAt = new Map<number, number>();
   if (Array.isArray(previousRaw)) {
     for (const item of previousRaw) {
@@ -112,9 +124,12 @@ export function serializeKocRallies(
   }
   return rallies.map((r) => {
     const atMs = stampSeq === r.seq ? Date.now() : prevAt.get(r.seq);
-    return atMs != null
-      ? {seq: r.seq, winner: r.winner, atMs}
-      : {seq: r.seq, winner: r.winner};
+    return {
+      seq: r.seq,
+      winner: r.winner,
+      ...(r.teamId ? {teamId: r.teamId} : {}),
+      ...(atMs != null ? {atMs} : {}),
+    };
   });
 }
 
@@ -376,10 +391,12 @@ export async function kocRegisterRallyCore(
   const clock = requireClock(round);
 
   const winner = asString(input.winner);
-  if (winner !== "king" && winner !== "challenger") {
+  // `golden_point` NÃO entra por aqui: ele aponta uma dupla, não um lado, e só
+  // existe para desempate. Tem callable própria, com a trava do empate.
+  if (winner !== "king" && winner !== "challenger" && winner !== "serve_fault") {
     throw new HttpsError(
       "invalid-argument",
-      "winner deve ser 'king' ou 'challenger'.",
+      "winner deve ser 'king', 'challenger' ou 'serve_fault'.",
     );
   }
 
@@ -396,7 +413,7 @@ export async function kocRegisterRallyCore(
 
   const rallies: KocRally[] = [
     ...round.rallies,
-    {seq: nextSeq, winner: winner as KocRallyWinner},
+    {seq: nextSeq, winner},
   ];
   let state: KocState;
   try {
@@ -413,6 +430,92 @@ export async function kocRegisterRallyCore(
     updatedAt: FieldValue.serverTimestamp(),
   });
   return {ok: true, seq: nextSeq, kingTeamId: state.kingTeamId};
+}
+
+/**
+ * Bola de ouro: o rally único que resolve o empate na vaga de classificação.
+ *
+ * Callable PRÓPRIA, e não um desfecho do `kocRegisterRally`, por dois motivos
+ * que se reforçam:
+ *
+ * 1. Ela aponta uma DUPLA, não um lado. O rally comum é sempre entre o rei e o
+ *    desafiante do momento — e as empatadas na vaga quase nunca são essas duas
+ *    no apito. Registrar a bola de ouro pelo caminho comum daria o ponto a quem
+ *    estivesse no trono.
+ * 2. Ela só existe para desempatar. A trava abaixo recusa quando não há empate
+ *    atravessando o corte, ou quando a dupla apontada não está nele — sem isso
+ *    seria um jeito genérico de dar ponto a qualquer um.
+ *
+ * A fila não gira: a rodada já acabou no relógio, e o que resta é a tabela.
+ */
+export async function kocGoldenPointCore(
+  db: Firestore,
+  uid: string,
+  input: Record<string, unknown>,
+): Promise<{ok: true; seq: number; teamId: string}> {
+  const round = await loadRoundOrThrow(db, uid, asString(input.matchId));
+  requireInProgress(round);
+  const clock = requireClock(round);
+
+  const teamId = asString(input.teamId);
+  if (!teamId) {
+    throw new HttpsError("invalid-argument", "teamId obrigatório");
+  }
+
+  let state: KocState;
+  try {
+    state = kocReplay(round.teamIds, round.rallies);
+  } catch (e) {
+    engineErrorToHttps(e);
+  }
+
+  const ties = kocQualifyingTies(
+    kocStandings(round.teamIds, state),
+    round.qualifiersPerRound,
+  );
+  if (ties.length === 0) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Não há empate decidindo a classificação nesta rodada.",
+      {reason: "koc_no_tie_to_break"},
+    );
+  }
+  if (!ties.some((group) => group.includes(teamId))) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Esta dupla não está no empate que decide a vaga.",
+      {reason: "koc_team_not_tied", ties},
+    );
+  }
+
+  const nextSeq = round.rallies.length + 1;
+  if (input.expectedSeq != null && Number(input.expectedSeq) !== nextSeq) {
+    throw new HttpsError(
+      "aborted",
+      "A rodada avançou desde o último envio. Recarregue a mesa.",
+      {reason: "koc_seq_mismatch", expected: nextSeq},
+    );
+  }
+
+  const rallies: KocRally[] = [
+    ...round.rallies,
+    {seq: nextSeq, winner: "golden_point", teamId},
+  ];
+  let next: KocState;
+  try {
+    next = kocReplay(round.teamIds, rallies);
+  } catch (e) {
+    engineErrorToHttps(e);
+  }
+
+  await round.ref.update({
+    ...kocStateFields(next, clock, rallies, {
+      previousRalliesRaw: round.data.kocRallies,
+      stampSeq: nextSeq,
+    }),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  return {ok: true, seq: nextSeq, teamId};
 }
 
 export async function kocUndoRallyCore(
@@ -622,6 +725,16 @@ export const kocUndoRally = onCall(
   {region: CLIENT_FACING_REGIONS},
   async (request) =>
     kocUndoRallyCore(getFirestore(), requireUid(request.auth?.uid), request.data ?? {}),
+);
+
+export const kocGoldenPoint = onCall(
+  {region: CLIENT_FACING_REGIONS},
+  async (request) =>
+    kocGoldenPointCore(
+      getFirestore(),
+      requireUid(request.auth?.uid),
+      request.data ?? {},
+    ),
 );
 
 export const kocSetClock = onCall(

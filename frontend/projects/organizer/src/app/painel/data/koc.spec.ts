@@ -2,6 +2,7 @@ import {
   isKingOfCourtMatchType,
   kocFinalTable,
   kocHasQualifyingTie,
+  kocQualifyingTieGroup,
   kocHasStarted,
   kocIsExpired,
   kocLiveOrder,
@@ -212,6 +213,32 @@ describe('kocFinalTable', () => {
     );
     expect(kocFinalTable(round).map((r) => r.teamId)).toEqual(['B', 'C', 'A', 'D']);
     expect(kocFinalTable(round).map((r) => r.place)).toEqual([1, 2, 3, 4]);
+  });
+});
+
+/** Quem joga a bola de ouro. Espelha `kocQualifyingTies` do servidor, que é
+ *  quem valida o desempate. */
+describe('kocQualifyingTieGroup', () => {
+  function withPoints(points: Record<string, number>, qualifiers = 2) {
+    return kocRoundStateFrom(
+      doc({
+        kocConfig: { qualifiersPerRound: qualifiers, durationSec: 900 },
+        kocState: { kingTeamId: 'A', challengerTeamId: 'B', queue: ['C', 'D'], points, rallies: 4 },
+      }),
+    );
+  }
+
+  it('devolve todas as empatadas na pontuação da vaga', () => {
+    // Um rally só já produz isto: A abre 1 e as outras três disputam a 2ª vaga.
+    expect(kocQualifyingTieGroup(withPoints({ A: 1, B: 0, C: 0, D: 0 }))).toEqual(['B', 'C', 'D']);
+  });
+
+  it('empate abaixo do corte não é bola de ouro', () => {
+    expect(kocQualifyingTieGroup(withPoints({ A: 2, B: 3, C: 0, D: 0 }))).toEqual([]);
+  });
+
+  it('sem corte a decidir, não há bola de ouro', () => {
+    expect(kocQualifyingTieGroup(withPoints({ A: 0, B: 0, C: 0, D: 0 }, 4))).toEqual([]);
   });
 });
 

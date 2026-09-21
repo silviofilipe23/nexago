@@ -534,11 +534,25 @@ export function startKocRound(params: {
   });
 }
 
+/** Desfecho do rally. `serve_fault` é o erro de saque do desafiante: ele perde
+ *  a vez e ninguém pontua — por isso não dá pra representar como 'king'. */
+export type KocRallyOutcome = 'king' | 'challenger' | 'serve_fault';
+
 /** [expectedSeq] é o número do rally que ESTA mesa acredita estar registrando. */
-export function registerKocRally(params: { matchId: string; kingWon: boolean; expectedSeq?: number }): Promise<{ ok?: boolean; seq?: number; kingTeamId?: string }> {
+export function registerKocRally(params: { matchId: string; outcome: KocRallyOutcome; expectedSeq?: number }): Promise<{ ok?: boolean; seq?: number; kingTeamId?: string }> {
   return call('kocRegisterRally', {
     matchId: params.matchId.trim(),
-    winner: params.kingWon ? 'king' : 'challenger',
+    winner: params.outcome,
+    ...(params.expectedSeq != null ? { expectedSeq: params.expectedSeq } : {}),
+  });
+}
+
+/** Bola de ouro: aponta a DUPLA que venceu, não um lado. O servidor recusa se
+ *  não houver empate na vaga ou se a dupla não estiver nele. */
+export function registerKocGoldenPoint(params: { matchId: string; teamId: string; expectedSeq?: number }): Promise<{ ok?: boolean; seq?: number; teamId?: string }> {
+  return call('kocGoldenPoint', {
+    matchId: params.matchId.trim(),
+    teamId: params.teamId.trim(),
     ...(params.expectedSeq != null ? { expectedSeq: params.expectedSeq } : {}),
   });
 }

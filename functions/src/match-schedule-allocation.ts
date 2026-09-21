@@ -92,6 +92,12 @@ export function allocateCourtSlots(params: {
   minRestMin: number;
   avoidAthleteConflict: boolean;
   dayStart: Date;
+  /**
+   * Piso de início por partida (id → instante). Usado pela cascata para não
+   * puxar ninguém para antes do colchão de aviso; `autoScheduleTournamentDay`
+   * não passa nada e segue alocando a partir do `dayStart`.
+   */
+  minStartById?: Record<string, Date>;
 }): CourtAllocationSlot[] {
   const {
     courts,
@@ -102,6 +108,7 @@ export function allocateCourtSlots(params: {
     minRestMin,
     avoidAthleteConflict,
     dayStart,
+    minStartById,
   } = params;
 
   const slots: CourtAllocationSlot[] = [];
@@ -122,6 +129,12 @@ export function allocateCourtSlots(params: {
           if (busy && busy > start) start = busy;
         }
       }
+
+      // O piso entra ANTES da comparação entre quadras, como o ajuste de
+      // conflito: comparar um candidato já ajustado contra outro cru elege a
+      // quadra errada.
+      const floor = minStartById?.[doc.id];
+      if (floor && floor > start) start = new Date(floor);
 
       return {courtId: court.id, start};
     });

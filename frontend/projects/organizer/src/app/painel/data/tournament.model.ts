@@ -68,7 +68,7 @@ export interface OrganizerMatchOpsConfig {
   dayEnd: string; // "24:00" (exclusivo)
   defaultMatchDurationMin: number;
   minRestBetweenMatchesMin: number;
-  /** Opt-in por torneio (default `false`) — liga `functions/src/match-dynamic-reschedule.ts`:
+  /** Ligado por padrão (só `false` gravado desliga) — `functions/src/match-dynamic-reschedule.ts`:
    *  recalcula o horário das próximas partidas da quadra quando uma termina antes/depois ou
    *  vira W.O. Mesmo campo que o app organizador lê/grava (`TournamentMatchOpsConfig`). */
   dynamicRescheduleEnabled: boolean;

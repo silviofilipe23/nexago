@@ -99,14 +99,14 @@ function categoryFromRaw(raw: unknown): OrganizerTournamentCategory | null {
   };
 }
 
-function matchOpsFromRaw(raw: unknown): OrganizerMatchOpsConfig {
+export function matchOpsFromRaw(raw: unknown): OrganizerMatchOpsConfig {
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   return {
     dayStart: optionalStr(o['dayStart']) ?? '07:00',
     dayEnd: optionalStr(o['dayEnd']) ?? '24:00',
     defaultMatchDurationMin: numberOf(o['defaultMatchDurationMin']) ?? 30,
     minRestBetweenMatchesMin: numberOf(o['minRestBetweenMatchesMin']) ?? 30,
-    dynamicRescheduleEnabled: o['dynamicRescheduleEnabled'] === true,
+    dynamicRescheduleEnabled: o['dynamicRescheduleEnabled'] !== false,
   };
 }
 

@@ -130,7 +130,7 @@ class TournamentMatchOpsConfig {
     this.avoidAthleteConflict = true,
     this.respectBracketDeps = true,
     this.seedOnPrimeCourt = false,
-    this.dynamicRescheduleEnabled = false,
+    this.dynamicRescheduleEnabled = true,
   });
 
   final String activeDayKey;
@@ -164,7 +164,8 @@ class TournamentMatchOpsConfig {
           rules is Map ? rules['respectBracketDeps'] != false : true,
       seedOnPrimeCourt:
           rules is Map ? rules['seedOnPrimeCourt'] == true : false,
-      dynamicRescheduleEnabled: map['dynamicRescheduleEnabled'] == true,
+      // Ligado por padrão: só `false` gravado pelo organizador desliga.
+      dynamicRescheduleEnabled: map['dynamicRescheduleEnabled'] != false,
     );
   }
 

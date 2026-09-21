@@ -42,7 +42,7 @@ import {
   isTerminalListingStatus,
   type CompletionMatch,
 } from "./tournament-completion";
-import {artifactsMatchesPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
+import {artifactsMatchesPath, getFirebaseProjectId} from "./firebase-paths";
 import {
   allocateCourtSlots,
   matchDurationMin,
@@ -50,6 +50,7 @@ import {
   loadTournamentMatches,
 } from "./match-schedule-allocation";
 import {handleDynamicRescheduleOnMatchUpdate} from "./match-dynamic-reschedule";
+import {loadTeamMemberUids} from "./tournament-team-roster";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 export {compareByMatchNumber} from "./match-schedule-allocation";
@@ -570,6 +571,43 @@ export function callToCourtFields(
   return {patch: null, label: "quadra"};
 }
 
+/**
+ * Push "sua partida está prestes a começar" para os atletas das duas equipes.
+ * Best-effort: falha de entrega não derruba a chamada para a quadra.
+ */
+export async function notifyMatchCalledToCourt(
+  db: Firestore,
+  projectId: string,
+  params: {
+    matchId: string;
+    tournamentId: string;
+    teamIds: ReadonlyArray<unknown>;
+    courtId: string;
+    courtLabel: string;
+  },
+): Promise<void> {
+  const {matchId, tournamentId, courtId, courtLabel} = params;
+  try {
+    const teamIds = params.teamIds.filter(Boolean) as string[];
+    for (const teamId of teamIds) {
+      // Elenco COMPLETO (trio/quarteto/quinteto incluídos), não só player1/2 —
+      // mesma fonte usada por `notifyScheduleShifts`.
+      const players = await loadTeamMemberUids(db, projectId, teamId);
+      for (const playerId of players) {
+        await deliverNotificationToUser({
+          userId: playerId,
+          title: "Sua partida está prestes a começar",
+          body: `Sua partida foi chamada. Dirija-se à ${courtLabel}.`,
+          type: "match_call",
+          data: {type: "match_call", matchId, tournamentId, courtId},
+        });
+      }
+    }
+  } catch (e) {
+    logger.warn("callMatchToCourt notify failed", e);
+  }
+}
+
 export const callMatchToCourt = onCall({
   region: CLIENT_FACING_REGIONS,
 }, async (request) => {
@@ -630,30 +668,15 @@ export const callMatchToCourt = onCall({
 
   await syncTournamentLiveMatchesNow(db, projectId, tournamentId);
 
-  // Notificar atletas (best-effort)
-  try {
-    // Elenco quando é rodada KOTC: sem isto as quatro duplas chamadas para a
-    // quadra não recebem aviso nenhum, porque os dois lados estão vazios.
-    for (const teamId of matchTeamIds(data)) {
-      const teamSnap = await db
-        .doc(`${artifactsTeamsPath(projectId)}/${teamId}`)
-        .get();
-      const team = teamSnap.data();
-      if (!team) continue;
-      const players = [team.player1Id, team.player2Id].filter(Boolean) as string[];
-      for (const playerId of players) {
-        await deliverNotificationToUser({
-          userId: playerId,
-          title: "Sua partida está prestes a começar",
-          body: `Sua partida foi chamada. Dirija-se à ${courtLabel}.`,
-          type: "match_call",
-          data: {type: "match_call", matchId, tournamentId, courtId: effectiveCourtId},
-        });
-      }
-    }
-  } catch (e) {
-    logger.warn("callMatchToCourt notify failed", e);
-  }
+  await notifyMatchCalledToCourt(db, projectId, {
+    matchId,
+    tournamentId,
+    // `matchTeamIds` cobre a rodada KOTC: lá os dois lados estão vazios e as
+    // quatro duplas chamadas para a quadra ficariam sem aviso nenhum.
+    teamIds: matchTeamIds(data),
+    courtId: effectiveCourtId,
+    courtLabel,
+  });
 
   return {ok: true};
 });

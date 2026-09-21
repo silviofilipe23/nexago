@@ -742,7 +742,26 @@ void main() {
         TournamentBracketSystem.groupsThenKnockout,
         TournamentBracketSystem.singleElimination,
         TournamentBracketSystem.doubleElimination,
+        // Geração de rodada, mesa e portal entregues (`king_of_court_plan.dart`,
+        // `organizer_category_generate_koc_page.dart`, `organizer-category-ops.ts`).
+        TournamentBracketSystem.kingOfCourt,
       ]);
+    });
+
+    test('todo formato do enum está classificado em exatamente um balde', () {
+      // Formato novo que ninguém classificou some do wizard em silêncio; e um
+      // formato nos dois baldes deixa o "em breve" e o suportado se
+      // contradizerem.
+      expect(
+        {...supportedBracketSystems, ...comingSoonBracketSystems},
+        TournamentBracketSystem.values.toSet(),
+      );
+      expect(
+        supportedBracketSystems.toSet().intersection(
+              comingSoonBracketSystems.toSet(),
+            ),
+        isEmpty,
+      );
     });
 
     test('blocks publish when category uses round robin', () {

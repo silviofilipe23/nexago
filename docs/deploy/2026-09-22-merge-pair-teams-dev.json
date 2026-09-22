@@ -1,0 +1,31 @@
+[
+  {
+    "pairKey": "7Nz1SZUX3ShVSkRotLqzGKdbKNx1:OkKBKQFix1Z35bMdEUpXuMQusyG3",
+    "survivorId": "9UY4MUhA842Rsdru8gR1",
+    "absorbedIds": [
+      "qVPa9NKUJGn7SS1M3AJC"
+    ]
+  },
+  {
+    "pairKey": "kZ2UqF2rBVTB7YQ1aBLyDyyckIo2:sWtIspL6qIYUG58ct6WG3mIbqBj1",
+    "survivorId": "Vet7ZG0MD59sGlN7SODy",
+    "absorbedIds": [
+      "BXmhbZJHmWjJMfqSr71e",
+      "WIYJg90lrHOhNiTlz9ca"
+    ]
+  },
+  {
+    "pairKey": "GXom2E6iBOYUclEWXXuuuIma39P2:bmABqvgxVOgNTWlj5ulVx698UM03",
+    "survivorId": "PIgNNvHtJIpUsTk4ZXvy",
+    "absorbedIds": [
+      "s8sce2pGmnAH558npg22"
+    ]
+  },
+  {
+    "pairKey": "Fo6779v56bSUJp8quWfab0pOPAk2:XJubxIgs1QZaMvdR71CHAy3axMn1",
+    "survivorId": "uV7FEKjyLTlAxmq3jQmD",
+    "absorbedIds": [
+      "etkPp6TNWkseyW6sVQKO"
+    ]
+  }
+]

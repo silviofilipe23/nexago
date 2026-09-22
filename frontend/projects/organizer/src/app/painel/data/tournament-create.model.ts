@@ -455,7 +455,11 @@ export function kocBracketCountForRounds(teamCount: number, teamsPerCourt: numbe
   ) {
     rounds--;
   }
-  return rounds;
+  // Normaliza pelo TAMANHO da chave: é assim que o sorteio ao vivo descreve a
+  // divisão, e nem toda contagem sobrevive à ida e volta (25 duplas em 6 chaves
+  // voltam como 5). Espelha o servidor.
+  const target = Math.ceil(teamCount / rounds);
+  return Math.max(1, Math.ceil(teamCount / target));
 }
 
 /** Menor chave da fase 1 — é ela que limita as rodadas por chave. */

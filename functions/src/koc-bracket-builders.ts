@@ -239,7 +239,13 @@ export function kocBracketCountForRounds(
   ) {
     rounds--;
   }
-  return rounds;
+  // Normaliza pelo TAMANHO da chave, porque é assim que o sorteio ao vivo
+  // descreve a divisão: ele guarda `teamsPerGroup` e reconstrói as caixas com
+  // `ceil(duplas / alvo)`. Nem toda contagem sobrevive a essa ida e volta — 25
+  // duplas em 6 chaves viram alvo 5, e 5 é o que o sorteio devolve, não 6.
+  // Sem normalizar, o sorteio publicava 5 caixas e a geração exigia 6.
+  const target = Math.ceil(teamCount / rounds);
+  return Math.max(1, Math.ceil(teamCount / target));
 }
 
 /**

@@ -305,3 +305,68 @@ describe("kocQualifierDescription", () => {
     );
   });
 });
+
+/**
+ * Elenco vindo do SORTEIO AO VIVO.
+ *
+ * O sorteio distribui as duplas nas rodadas na frente do público; a geração
+ * tem de respeitar aquilo em vez de refazer a serpentina — senão o que a chave
+ * grava não é o que as pessoas viram sortear.
+ */
+describe("buildKingOfCourtRounds · elenco sorteado", () => {
+  const CONFIG = {teamsPerCourt: 4, qualifiersPerRound: 2, roundDurationSec: 900};
+  const SEEDS = Array.from({length: 8}, (_, i) => `t${i + 1}`);
+
+  it("usa as rodadas do sorteio em vez da serpentina", () => {
+    const sorteadas = [["t8", "t3", "t5", "t1"], ["t2", "t7", "t4", "t6"]];
+    const rounds = buildKingOfCourtRounds(SEEDS, CONFIG, {
+      phaseOneRosters: sorteadas,
+    });
+    const fase1 = rounds.filter((r) => r.phase === 1);
+    assert.deepEqual(fase1.map((r) => r.teamIds), sorteadas);
+  });
+
+  it("sem sorteio, continua na serpentina", () => {
+    const fase1 = buildKingOfCourtRounds(SEEDS, CONFIG).filter((r) => r.phase === 1);
+    assert.deepEqual(fase1.map((r) => r.teamIds), kocSnakeDistribute(SEEDS, [4, 4]));
+  });
+
+  it("recusa elenco que não cobre todas as duplas", () => {
+    assert.throws(
+      () =>
+        buildKingOfCourtRounds(SEEDS, CONFIG, {
+          phaseOneRosters: [["t1", "t2", "t3", "t4"], ["t5", "t6", "t7", "t1"]],
+        }),
+      /repetiu uma dupla/,
+    );
+  });
+
+  it("recusa rodada com tamanho errado", () => {
+    assert.throws(
+      () =>
+        buildKingOfCourtRounds(SEEDS, CONFIG, {
+          phaseOneRosters: [["t1", "t2", "t3"], ["t4", "t5", "t6", "t7", "t8"]],
+        }),
+      /pede 4/,
+    );
+  });
+
+  it("recusa número de rodadas diferente do da fase", () => {
+    assert.throws(
+      () =>
+        buildKingOfCourtRounds(SEEDS, CONFIG, {
+          phaseOneRosters: [SEEDS],
+        }),
+      /1 rodadas, mas a fase tem 2/,
+    );
+  });
+
+  it("as fases seguintes seguem nascendo com vagas, não com elenco", () => {
+    const rounds = buildKingOfCourtRounds(SEEDS, CONFIG, {
+      phaseOneRosters: [["t8", "t3", "t5", "t1"], ["t2", "t7", "t4", "t6"]],
+    });
+    const final = rounds.filter((r) => r.phase === 2);
+    assert.deepEqual(final.map((r) => r.teamIds), [[]]);
+    assert.equal(final[0]!.qualifiers.length, 4);
+  });
+});

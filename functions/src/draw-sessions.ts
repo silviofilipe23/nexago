@@ -11,7 +11,12 @@ import {
   artifactsTeamsPath,
   getFirebaseProjectId,
 } from "./firebase-paths";
-import type {DrawFormat} from "./draw-engine";
+import {isBoxedDraw, type DrawFormat} from "./draw-engine";
+import {
+  KOC_DEFAULT_TEAMS_PER_COURT,
+  KOC_MIN_TEAMS_PER_ROUND,
+  kocRoundCount,
+} from "./koc-bracket-builders";
 import {athleteRatingsPath} from "./rating-engine";
 import {buildEntrants, type EntrantHistoryMatch, type EntrantSource} from "./draw-entrants";
 import {byeSeeds, winnersRoundOnePairings} from "./draw-de-placement";
@@ -156,6 +161,8 @@ async function fetchHistories(
 interface CategoryMeta {
   name: string;
   teamsPerGroup: number;
+  /** Duplas por quadra na KOTC — o tamanho da rodada da classificatória. */
+  teamsPerCourt: number;
   qualifiersPerGroup: number;
   bracketFormat: string | null;
 }
@@ -168,6 +175,8 @@ function categoryMetaOf(tournament: Record<string, unknown>, categoryId: string)
   return {
     name: resolveCategoryLabel(tournament, categoryId) || "Categoria",
     teamsPerGroup: num(found?.teamsPerGroup, 4),
+    // Duplas por quadra da KOTC: o tamanho da rodada da classificatória.
+    teamsPerCourt: num(found?.teamsPerCourt, KOC_DEFAULT_TEAMS_PER_COURT),
     qualifiersPerGroup: num(found?.qualifiersPerGroup, 2),
     bracketFormat: str(found?.bracketFormat) || null,
   };
@@ -195,10 +204,14 @@ export const createDrawSession = onCall({
   const category = categoryMetaOf(tournament, categoryId);
 
   const rawFormat = str(request.data?.format) || category.bracketFormat || "groups_knockout";
-  if (rawFormat !== "groups_knockout" && rawFormat !== "double_elimination") {
+  if (
+    rawFormat !== "groups_knockout" &&
+    rawFormat !== "double_elimination" &&
+    rawFormat !== "king_of_court"
+  ) {
     throw new HttpsError(
       "failed-precondition",
-      "O sorteio ao vivo cobre fase de grupos e dupla eliminatória.",
+      "O sorteio ao vivo cobre fase de grupos, dupla eliminatória e King of the Court.",
       {reason: "format_unsupported", format: rawFormat},
     );
   }
@@ -213,6 +226,14 @@ export const createDrawSession = onCall({
       {reason: "not_enough_teams", teamCount: teamIds.length},
     );
   }
+  if (format === "king_of_court" && teamIds.length < KOC_MIN_TEAMS_PER_ROUND) {
+    throw new HttpsError(
+      "failed-precondition",
+      `King of the Court precisa de ao menos ${KOC_MIN_TEAMS_PER_ROUND} duplas ` +
+        "confirmadas para sortear.",
+      {reason: "koc_not_enough_teams", teamCount: teamIds.length},
+    );
+  }
   if (format === "double_elimination" && !BRACKET_DEFINITIONS[teamIds.length]) {
     throw new HttpsError(
       "failed-precondition",
@@ -220,6 +241,15 @@ export const createDrawSession = onCall({
       {reason: "de_unsupported_team_count", teamCount: teamIds.length},
     );
   }
+
+  // Tamanho da caixa do sorteio. Na KOTC a caixa é uma RODADA, e quantas
+  // rodadas existem NÃO é `ceil(duplas / teamsPerCourt)`: `kocRoundCount`
+  // corrige as pontas (uma rodada de 2 não é King of the Court, é um jogo).
+  // Derivar `teamsPerGroup` do número de rodadas é o que faz `groupCapacities`
+  // — usada pelo sorteio inteiro — chegar exatamente nas rodadas do formato.
+  const teamsPerBox = format === "king_of_court" ?
+    Math.ceil(teamIds.length / kocRoundCount(teamIds.length, category.teamsPerCourt)) :
+    category.teamsPerGroup;
 
   const sportCode = tournamentSportToLevelSportCode(tournament.sportId);
   const teams = await fetchByIds(db, artifactsTeamsPath(projectId), teamIds);
@@ -300,7 +330,7 @@ export const createDrawSession = onCall({
       format,
       config: {
         lockedSeedCount,
-        teamsPerGroup: category.teamsPerGroup,
+        teamsPerGroup: teamsPerBox,
       },
       entrants: baseEntrants,
     } as unknown as DrawSessionDoc,
@@ -328,16 +358,16 @@ export const createDrawSession = onCall({
       intervalMs: 6000,
       phrasesEnabled: true,
       lockedSeedCount,
-      teamsPerGroup: category.teamsPerGroup,
+      teamsPerGroup: teamsPerBox,
       qualifiersPerGroup: category.qualifiersPerGroup,
       constraints: {
-        seedsApart: format === "groups_knockout",
-        potsPerGroup: format === "groups_knockout",
+        seedsApart: isBoxedDraw(format),
+        potsPerGroup: isBoxedDraw(format),
         avoidSameCity: false,
         // As cabeças abrem o sorteio com lugar já definido — 1ª do ranking no
         // grupo A, 2ª no B. Na dupla eliminatória isso já era assim por
         // `lockedSeedCount`; aqui a fase de grupos passa a fazer igual.
-        seedsPreassigned: format === "groups_knockout",
+        seedsPreassigned: isBoxedDraw(format),
       },
     },
     pots,
@@ -688,10 +718,14 @@ export const publishDrawSession = onCall({
     categoryId: doc.categoryId,
     format: doc.format,
     seeds,
-    ...(doc.format === "groups_knockout" ?
+    ...(isBoxedDraw(doc.format) ?
       {
+        // Na KOTC cada "grupo" é uma RODADA da classificatória: o elenco sai
+        // daqui em vez da semeadura em serpentina.
         groupsPreview: state.groups.map((g) => ({id: g.groupId, teamIds: g.teamIds})),
-        bracketConfig: {qualifiersPerGroup: doc.config.qualifiersPerGroup},
+        ...(doc.format === "groups_knockout" ?
+          {bracketConfig: {qualifiersPerGroup: doc.config.qualifiersPerGroup}} :
+          {}),
       } :
       {}),
     force: request.data?.force === true,

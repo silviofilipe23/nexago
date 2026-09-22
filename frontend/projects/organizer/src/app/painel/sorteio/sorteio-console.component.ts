@@ -2,7 +2,7 @@ import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { destinationLabelOf, remainingInPot, seedOrderOf, seedRivalPhrase, winRateOf } from '../data/draw-session-selectors';
-import type { DrawSession } from '../data/draw-session.model';
+import { drawFormatLabel, isBoxedDraw, type DrawSession } from '../data/draw-session.model';
 import {
   clearRevealSpotlight,
   drawNextReveal,
@@ -65,7 +65,7 @@ import { SorteioEspelhoComponent } from './sorteio-espelho.component';
           </div>
           <p>
             {{ s.tournamentName }} · {{ s.categoryName }} ·
-            {{ s.format === 'groups_knockout' ? 'grupos' : 'dupla eliminatória' }} · modo
+            {{ formatLabel(s) }} · modo
             {{ modeLabel(s) }}
           </p>
         </div>
@@ -1061,14 +1061,17 @@ export class SorteioConsoleComponent {
     return reveal ? `Revelação ${reveal.index} de ${session.totalReveals}` : 'Aguardando';
   }
 
+  protected formatLabel(session: DrawSession): string {
+    return drawFormatLabel(session.format).toLowerCase();
+  }
+
   protected queueTitle(session: DrawSession): string {
-    return session.format === 'groups_knockout' ? 'Ainda no pote' : 'Não-cabeças no pote';
+    return isBoxedDraw(session.format) ? 'Ainda no pote' : 'Não-cabeças no pote';
   }
 
   protected mirrorTitle(session: DrawSession): string {
-    return session.format === 'groups_knockout' ?
-      'Grupos ao vivo' :
-      'Chave dos vencedores · rodada 1';
+    if (session.format === 'double_elimination') return 'Chave dos vencedores · rodada 1';
+    return session.format === 'king_of_court' ? 'Rodadas ao vivo' : 'Grupos ao vivo';
   }
 
   protected logTitle(session: DrawSession): string {
@@ -1168,6 +1171,7 @@ export class SorteioConsoleComponent {
         session.tournamentId,
         'categorias',
         session.categoryId,
+        // KOTC não tem aba de grupos: a rodada mora na Chave.
         session.format === 'groups_knockout' ? 'grupos' : 'chave',
       ]);
     });

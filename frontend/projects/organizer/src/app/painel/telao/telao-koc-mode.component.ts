@@ -768,7 +768,6 @@ function surnameOf(fullName: string): string {
       text-align: center;
       overflow: hidden;
     }
-    /* Troca de dupla no trono/desafiante. */
     .og-koc-side.og-pulse-run {
       animation: og-koc-side-swap 520ms var(--nx-ease-out);
     }
@@ -794,7 +793,6 @@ function surnameOf(fullName: string): string {
       border-color: rgba(255, 106, 26, 0.45);
       box-shadow: inset 0 0 0 1px rgba(255, 106, 26, 0.12);
     }
-    /* On fire: >3 pontos seguidos no trono — fundo mais quente + anel respirando. */
     .og-koc-side.throne.on-fire {
       --koc-fire: 255, 106, 26;
       --koc-fire-hot: 255, 138, 74;
@@ -979,7 +977,6 @@ function surnameOf(fullName: string): string {
     .og-koc-side-pts.muted strong {
       color: var(--nx-text);
     }
-    /* Ponto marcado: pop no número (ogPulse reinicia a cada mudança). */
     .og-koc-side-pts.og-pulse-run strong {
       animation: og-koc-score-pop 420ms var(--nx-ease-out);
     }
@@ -1473,12 +1470,17 @@ function surnameOf(fullName: string): string {
       .og-koc-side-crown.og-pulse-run,
       .og-koc-side.og-pulse-run,
       .og-koc-table-row.og-pulse-run,
-      .og-koc-queue-card.og-pulse-run {
+      .og-koc-queue-card.og-pulse-run,
+      .og-koc-champ,
+      .og-koc-champ-shine,
+      .og-koc-class-row {
         animation: none;
+      }
+      .og-koc-class-progress-bar {
+        transition: none;
       }
     }
 
-    /* ── Classificação pós-rodada ───────────────────────────── */
     :host.finished {
       gap: clamp(10px, 1.4cqh, 18px);
       padding: clamp(16px, 2.2cqh, 28px) clamp(24px, 2.2cqw, 40px) clamp(12px, 1.6cqh, 20px);
@@ -1524,12 +1526,7 @@ function surnameOf(fullName: string): string {
       position: absolute;
       inset: 0;
       pointer-events: none;
-      background: linear-gradient(
-        105deg,
-        transparent 35%,
-        rgba(255, 255, 255, 0.12) 48%,
-        transparent 62%
-      );
+      background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.12) 48%, transparent 62%);
       transform: translateX(-120%);
       animation: treSweep 1.4s var(--nx-ease-out) 0.55s both;
     }
@@ -1893,18 +1890,7 @@ function surnameOf(fullName: string): string {
       height: 100%;
       background: var(--nx-orange-500);
       box-shadow: 0 0 12px rgba(255, 106, 26, 0.55);
-      /* Acompanha o tick de 1s do relógio — encolhe em passos lineares. */
       transition: width 1s linear;
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .og-koc-champ,
-      .og-koc-champ-shine,
-      .og-koc-class-row {
-        animation: none;
-      }
-      .og-koc-class-progress-bar {
-        transition: none;
-      }
     }
   `,
 })

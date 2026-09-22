@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, injec
 import { isKingOfCourtMatchType } from '../../painel/data/koc';
 import { resolveCourtNames } from '../../painel/data/matches-repository';
 import { OverlayLiveGateway } from './overlay-live.gateway';
+import { OverlayKocBarComponent } from './overlay-koc-bar.component';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
 import { overlayBandOf, overlayCornerOf, overlayViewOf } from './overlay-selectors';
 
@@ -12,15 +13,26 @@ import { overlayBandOf, overlayCornerOf, overlayViewOf } from './overlay-selecto
 @Component({
   selector: 'og-overlay-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OverlayScoreboardComponent],
+  imports: [OverlayScoreboardComponent, OverlayKocBarComponent],
   providers: [OverlayLiveGateway],
   template: `
-    <og-overlay-scoreboard
-      [view]="view()"
-      [band]="band()"
-      [corner]="corner()"
-      [teamLabels]="gateway.teamLabels()"
-    />
+    @if (duelView(); as duel) {
+      <og-overlay-scoreboard
+        [view]="duel"
+        [band]="band()"
+        [corner]="corner()"
+        [teamLabels]="teamLabels()"
+      />
+    }
+    @if (kocView(); as koc) {
+      <og-overlay-koc-bar
+        [view]="koc"
+        [teams]="gateway.teams()"
+        [categoryName]="categoryName()"
+        [courtName]="courtName()"
+        [position]="kocPosition()"
+      />
+    }
   `,
   styles: `
     :host {
@@ -48,22 +60,51 @@ export class OverlayPageComponent {
     return resolveCourtNames([m], this.gateway.tournament()?.courts ?? [])[0] ?? m;
   });
 
-  protected readonly view = computed(() => {
+  /** O estreitamento fica no TS; cada formato tem seu componente, não um ramo do outro. */
+  protected readonly duelView = computed(() => {
+    const v = this.view();
+    return v?.kind === 'duel' ? v : null;
+  });
+  protected readonly kocView = computed(() => {
+    const v = this.view();
+    return v?.kind === 'koc' ? v : null;
+  });
+
+  /** O placar de duelo só precisa do rótulo combinado da dupla. */
+  protected readonly teamLabels = computed(() => {
+    const labels = new Map<string, string>();
+    for (const [teamId, team] of this.gateway.teams()) labels.set(teamId, team.label);
+    return labels;
+  });
+
+  protected readonly categoryName = computed(() => {
+    const m = this.match();
+    const tournament = this.gateway.tournament();
+    return tournament?.categories.find((c) => c.id === m?.categoryId)?.name ?? null;
+  });
+
+  protected readonly courtName = computed(() => this.match()?.court ?? null);
+
+  /** A faixa do KOTC ocupa a largura toda: só aceita subir ou descer. */
+  protected readonly kocPosition = computed<'top' | 'bottom'>(() =>
+    this.pos() === 'top' ? 'top' : 'bottom',
+  );
+
+  private readonly view = computed(() => {
     const m = this.match();
     if (!m) return null;
     // Só a rodada KOTC tem relógio. Ler o tique num duelo faria a tela recalcular a cada
     // segundo sem nada mudar.
     const nowMs = isKingOfCourtMatchType(m.matchType) ? this.tick() : 0;
-    return overlayViewOf(m, nowMs);
+    return overlayViewOf(m, nowMs, this.gateway.totalRounds());
   });
 
   protected readonly band = computed(() => {
     const m = this.match();
     if (!m) return '';
-    const tournament = this.gateway.tournament();
     return overlayBandOf(m, {
-      tournamentName: tournament?.name ?? null,
-      categoryName: tournament?.categories.find((c) => c.id === m.categoryId)?.name ?? null,
+      tournamentName: this.gateway.tournament()?.name ?? null,
+      categoryName: this.categoryName(),
     });
   });
 

@@ -1,4 +1,5 @@
-import { isKingOfCourtMatchType, kocCardTitle, kocPointsOf, kocRemainingLabel } from '../../painel/data/koc';
+import { isKingOfCourtMatchType, kocCardTitle } from '../../painel/data/koc';
+import { kocBarOf, kocRoundTitleOf, type OverlayKocBar } from './overlay-koc-bar';
 import { matchClosedSets, matchLiveCurrentSet, matchSetWins } from '../../painel/data/live-set-display';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
 import { pointAlertOf, type PointAlert } from '../../painel/telao/telao-final-mode';
@@ -28,11 +29,9 @@ export interface OverlayDuelView {
 export interface OverlayKocView {
   kind: 'koc';
   phase: OverlayPhase;
-  king: OverlaySide;
-  challenger: OverlaySide;
-  kingPoints: number;
-  challengerPoints: number;
-  clock: { label: string; paused: boolean } | null;
+  /** "Classificatória · Rodada 3/7" — o total só entra quando foi possível contar. */
+  roundTitle: string;
+  bar: OverlayKocBar;
 }
 
 export type OverlayView = OverlayDuelView | OverlayKocView | null;
@@ -47,7 +46,11 @@ function phaseOf(status: TournamentMatch['status']): OverlayPhase {
   return 'pregame';
 }
 
-export function overlayViewOf(match: TournamentMatch | null, nowMs: number): OverlayView {
+export function overlayViewOf(
+  match: TournamentMatch | null,
+  nowMs: number,
+  totalRounds = 0,
+): OverlayView {
   if (!match) return null;
   if (match.status === 'canceled') return null;
 
@@ -62,13 +65,8 @@ export function overlayViewOf(match: TournamentMatch | null, nowMs: number): Ove
     return {
       kind: 'koc',
       phase: phaseOf(match.status),
-      king: sideOf(round.kingTeamId, '', round.servingTeamId),
-      challenger: sideOf(round.challengerTeamId, '', round.servingTeamId),
-      kingPoints: kocPointsOf(round, round.kingTeamId),
-      challengerPoints: kocPointsOf(round, round.challengerTeamId),
-      clock: round.clock
-        ? { label: kocRemainingLabel(round.clock, nowMs), paused: round.clock.pausedAtMs != null }
-        : null,
+      roundTitle: kocRoundTitleOf(match.matchType, round.roundLabel, match.matchNumber, totalRounds),
+      bar: kocBarOf(round, nowMs, totalRounds),
     };
   }
 

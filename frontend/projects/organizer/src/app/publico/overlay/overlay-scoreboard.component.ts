@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import type { OverlayCorner, OverlaySide, OverlayView } from './overlay-selectors';
+import type { OverlayCorner, OverlayDuelView, OverlaySide } from './overlay-selectors';
 
 /** Placar de transmissão: fundo TRANSPARENTE, desenhado sobre a imagem da câmera no OBS.
  *
@@ -40,27 +40,6 @@ import type { OverlayCorner, OverlaySide, OverlayView } from './overlay-selector
           }
         }
 
-        @if (koc(); as k) {
-          <div class="rows">
-            <div class="row row--lead">
-              <span class="serve" [class.serve--on]="k.king.serving"></span>
-              <span class="crown" aria-hidden="true">&#128081;</span>
-              <span class="name">{{ labelOf(k.king) }}</span>
-              <span class="points">{{ k.kingPoints }}</span>
-            </div>
-            <div class="row">
-              <span class="serve" [class.serve--on]="k.challenger.serving"></span>
-              <span class="crown crown--empty" aria-hidden="true"></span>
-              <span class="name">{{ labelOf(k.challenger) }}</span>
-              <span class="points">{{ k.challengerPoints }}</span>
-            </div>
-          </div>
-          @if (k.clock; as clock) {
-            <div class="clock" [class.clock--paused]="clock.paused">
-              {{ clock.label }}@if (clock.paused) {<span class="clock-tag">PAUSADO</span>}
-            </div>
-          }
-        }
       </div>
     }
   `,
@@ -152,15 +131,6 @@ import type { OverlayCorner, OverlaySide, OverlayView } from './overlay-selector
       box-shadow: 0 0 14px rgba(255, 106, 26, 0.9);
     }
 
-    .crown {
-      flex: none;
-      font-size: 26px;
-      line-height: 1;
-    }
-    .crown--empty {
-      width: 26px;
-      flex: none;
-    }
 
     .name {
       flex: 1;
@@ -212,31 +182,10 @@ import type { OverlayCorner, OverlaySide, OverlayView } from './overlay-selector
       letter-spacing: 0.14em;
     }
 
-    .clock {
-      margin-top: 10px;
-      display: inline-flex;
-      align-items: center;
-      gap: 14px;
-      padding: 8px 22px;
-      border-radius: 999px;
-      background: #0b0b0c;
-      color: #fff;
-      font-size: 34px;
-      font-weight: 800;
-      font-variant-numeric: tabular-nums;
-      letter-spacing: 0.04em;
-    }
-    .clock--paused {
-      color: var(--nx-pending);
-    }
-    .clock-tag {
-      font-size: 18px;
-      letter-spacing: 0.16em;
-    }
   `,
 })
 export class OverlayScoreboardComponent {
-  readonly view = input<OverlayView>(null);
+  readonly view = input<OverlayDuelView | null>(null);
   readonly band = input('');
   readonly corner = input<OverlayCorner>('tl');
   /** Nome de exibição por id de dupla. Vazio enquanto o join não respondeu — o rótulo que
@@ -248,11 +197,6 @@ export class OverlayScoreboardComponent {
     const v = this.view();
     return v?.kind === 'duel' ? v : null;
   });
-  readonly koc = computed(() => {
-    const v = this.view();
-    return v?.kind === 'koc' ? v : null;
-  });
-
   labelOf(side: OverlaySide): string {
     return this.teamLabels().get(side.teamId) ?? side.label;
   }

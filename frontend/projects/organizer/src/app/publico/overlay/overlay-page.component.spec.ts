@@ -2,7 +2,7 @@ import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
 import type { OrganizerTournament } from '../../painel/data/tournament.model';
-import { OverlayLiveGateway } from './overlay-live.gateway';
+import { OverlayLiveGateway, type OverlayTeam } from './overlay-live.gateway';
 import { OverlayPageComponent } from './overlay-page.component';
 
 function match(overrides: Partial<TournamentMatch>): TournamentMatch {
@@ -56,7 +56,8 @@ const TOURNAMENT = {
 class FakeGateway {
   readonly match = signal<TournamentMatch | null>(null);
   readonly tournament = signal<OrganizerTournament | null>(null);
-  readonly teamLabels = signal<ReadonlyMap<string, string>>(new Map<string, string>());
+  readonly teams = signal<ReadonlyMap<string, OverlayTeam>>(new Map<string, OverlayTeam>());
+  readonly totalRounds = signal(0);
   readonly started: string[] = [];
   stopped = 0;
 
@@ -96,10 +97,10 @@ describe('OverlayPageComponent', () => {
   it('pinta o placar do set corrente quando o snapshot chega', async () => {
     const { fixture, fake } = await mount({ matchId: 'm1' });
     fake.match.set(match({}));
-    fake.teamLabels.set(
-      new Map([
-        ['ta', 'Ana / Bia'],
-        ['tb', 'Carla / Dani'],
+    fake.teams.set(
+      new Map<string, OverlayTeam>([
+        ['ta', { label: 'Ana / Bia', players: ['Ana', 'Bia'] }],
+        ['tb', { label: 'Carla / Dani', players: ['Carla', 'Dani'] }],
       ]),
     );
     await fixture.whenStable();
@@ -135,5 +136,54 @@ describe('OverlayPageComponent', () => {
     const { fixture } = await mount({ matchId: 'm1' });
 
     expect((fixture.nativeElement as HTMLElement).querySelector('.overlay')).toBeNull();
+  });
+
+  it('desenha a faixa do KOTC, com rodada numerada, categoria e quadra', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.totalRounds.set(7);
+    fake.tournament.set(TOURNAMENT);
+    fake.teams.set(
+      new Map<string, OverlayTeam>([
+        ['k', { label: 'Ana / Bia', players: ['Ana', 'Bia'] }],
+        ['c', { label: 'Carla / Dani', players: ['Carla', 'Dani'] }],
+        ['q', { label: 'Eva / Fabi', players: ['Eva', 'Fabi'] }],
+      ]),
+    );
+    fake.match.set(
+      match({
+        matchType: 'koc_round',
+        teamAId: '',
+        teamBId: '',
+        sets: [],
+        currentSetIndex: null,
+        koc: {
+          teamIds: ['k', 'c', 'q'],
+          kingTeamId: 'k',
+          challengerTeamId: 'c',
+          queue: ['q'],
+          points: { k: 7, c: 4, q: 2 },
+          rallies: 0,
+          servingTeamId: 'c',
+          clock: { endsAtMs: Date.now() + 836_000, durationSec: 900, pausedAtMs: null },
+          standings: [],
+          qualifiersPerRound: 2,
+          configuredDurationSec: 900,
+          rallySeq: 0,
+          rallyLog: [],
+          roundLabel: 3,
+          qualifierSlots: [],
+        },
+      }),
+    );
+    await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
+    const text = (host.textContent ?? '').replace(/\s+/g, ' ');
+
+    expect(host.querySelector('og-overlay-koc-bar')).not.toBeNull();
+    expect(host.querySelectorAll('.block').length).toBe(3);
+    expect(text).toContain('Classificatória · Rodada 3/7');
+    expect(text).toContain('Feminina B');
+    expect(text).toContain('Quadra 2');
+    expect(text).toContain('Ana');
   });
 });

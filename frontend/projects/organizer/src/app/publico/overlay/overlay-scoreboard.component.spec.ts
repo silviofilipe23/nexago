@@ -1,7 +1,7 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
-import type { OverlayDuelView, OverlayKocView } from './overlay-selectors';
+import type { OverlayDuelView } from './overlay-selectors';
 
 function duel(overrides: Partial<OverlayDuelView> = {}): OverlayDuelView {
   return {
@@ -15,19 +15,6 @@ function duel(overrides: Partial<OverlayDuelView> = {}): OverlayDuelView {
     pointsB: 11,
     alert: null,
     showSets: true,
-    ...overrides,
-  };
-}
-
-function koc(overrides: Partial<OverlayKocView> = {}): OverlayKocView {
-  return {
-    kind: 'koc',
-    phase: 'live',
-    king: { teamId: 'k', label: '', serving: false },
-    challenger: { teamId: 'c', label: '', serving: true },
-    kingPoints: 7,
-    challengerPoints: 4,
-    clock: { label: '2:05', paused: false },
     ...overrides,
   };
 }
@@ -86,20 +73,4 @@ describe('OverlayScoreboardComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('MATCH POINT');
   });
 
-  it('mostra rei, desafiante e relógio na rodada KOTC', async () => {
-    const fixture = await render({
-      view: koc(),
-      teamLabels: new Map([
-        ['k', 'Ana / Bia'],
-        ['c', 'Carla / Dani'],
-      ]),
-    });
-    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-
-    expect(text).toContain('Ana / Bia');
-    expect(text).toContain('Carla / Dani');
-    expect(text).toContain('2:05');
-    expect(text).toContain('7');
-    expect(text).toContain('4');
-  });
 });

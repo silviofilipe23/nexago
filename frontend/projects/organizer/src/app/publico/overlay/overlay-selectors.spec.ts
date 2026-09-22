@@ -197,37 +197,29 @@ describe('overlayViewOf', () => {
     expect(view.alert).toEqual({ side: 'A', kind: 'set' });
   });
 
-  it('rodada KOTC ao vivo mostra rei × desafiante com pontos, saque e relógio', () => {
+  it('rodada KOTC ao vivo vira a faixa com a rodada inteira, do fundo da fila até o rei', () => {
     const view = overlayViewOf(
       kocMatch(
         kocRound({
-          points: { k: 7, c: 4, q: 2 },
-          servingTeamId: 'c',
-          clock: { endsAtMs: NOW + 125_000, durationSec: 600, pausedAtMs: null },
+          teamIds: ['a', 'b', 'c', 'd'],
+          kingTeamId: 'd',
+          challengerTeamId: 'c',
+          queue: ['b', 'a'],
+          points: { a: 1, b: 2, c: 4, d: 7 },
+          clock: { endsAtMs: NOW + 836_000, durationSec: 900, pausedAtMs: null },
         }),
+        { matchNumber: 9 },
       ),
       NOW,
+      7,
     ) as OverlayKocView;
 
     expect(view.kind).toBe('koc');
-    expect(view.king).toEqual({ teamId: 'k', label: '', serving: false });
-    expect(view.challenger).toEqual({ teamId: 'c', label: '', serving: true });
-    expect(view.kingPoints).toBe(7);
-    expect(view.challengerPoints).toBe(4);
-    expect(view.clock).toEqual({ label: '2:05', paused: false });
-  });
-
-  it('congela o relógio do KOTC quando a rodada está pausada', () => {
-    const view = overlayViewOf(
-      kocMatch(
-        kocRound({
-          clock: { endsAtMs: NOW + 125_000, durationSec: 600, pausedAtMs: NOW - 5_000 },
-        }),
-      ),
-      NOW + 60_000,
-    ) as OverlayKocView;
-
-    expect(view.clock).toEqual({ label: '2:10', paused: true });
+    expect(view.roundTitle).toBe('Classificatória · Rodada 1/7');
+    expect(view.bar.blocks.map((b) => b.teamId)).toEqual(['a', 'b', 'c', 'd']);
+    expect(view.bar.blocks.map((b) => b.role)).toEqual(['queue', 'queue', 'challenger', 'king']);
+    expect(view.bar.blocks.map((b) => b.points)).toEqual([1, 2, 4, 7]);
+    expect(view.bar.clock).toEqual({ label: '13:56', paused: false });
   });
 
   it('não pinta a rodada KOTC que ainda não tem rei e desafiante', () => {

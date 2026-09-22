@@ -61,6 +61,15 @@ body {
   min-height: 100%;
 }
 
+/* Overlay de transmissão (`/overlay/:matchId`): o OBS captura o canal alpha do CSS, então a
+   página inteira precisa ser transparente — o fundo do portal viraria um retângulo preto por
+   cima da imagem da câmera. Regra global porque estilo de componente não alcança <body>. */
+html:has(og-overlay-page),
+body:has(og-overlay-page) {
+  background: transparent;
+  overflow: hidden;
+}
+
 body {
   background: var(--nx-bg);
   color: var(--nx-text);

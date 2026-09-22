@@ -50,6 +50,16 @@ export const routes: Routes = [
       import('./publico/sorteio-telao-page.component').then((m) => m.SorteioTelaoPageComponent),
   },
   {
+    // Overlay de placar pra transmissão — PÚBLICO, sem guard nenhum. É o Browser Source que o
+    // OBS carrega, e um Browser Source não tem como fazer login. Lê só coleções com
+    // `read: if true` (matches/teams/public_profiles/tournaments), as mesmas de `/t/:id`.
+    // `?pos=tl|tr|bl|br` escolhe o canto; o padrão é o superior esquerdo.
+    path: 'overlay/:matchId',
+    title: 'Placar ao vivo — NexaGO',
+    loadComponent: () =>
+      import('./publico/overlay/overlay-page.component').then((m) => m.OverlayPageComponent),
+  },
+  {
     // Comprovante público do sorteio: a sequência completa com horários e hashes. É o link
     // que o organizador manda no grupo quando alguém reclama.
     path: 'sorteio/:sessionId/comprovante',

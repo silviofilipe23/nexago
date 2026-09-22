@@ -5,7 +5,7 @@ import {
   kocRoundStateFrom,
   type KocRoundState,
 } from './koc';
-import { collection, getDocs, onSnapshot, query, where, type Unsubscribe } from 'firebase/firestore';
+import { collection, doc, getDocs, onSnapshot, query, where, type Unsubscribe } from 'firebase/firestore';
 import { medicalTimeoutFromRaw, statusOf, type MatchDisplayStatus, type MedicalTimeout } from '@nexago/live-scoring';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from './firestore';
@@ -605,6 +605,34 @@ export function watchMatches(
     (snap) => {
       const rows = snap.docs.map((d) => rawMatchFromDoc(d.id, d.data() as Record<string, unknown>));
       onChange(rows.map((r) => rawToMatch(r, (description) => description ?? 'A definir')));
+    },
+    (err) => onError?.(err),
+  );
+}
+
+/** UMA partida, por id. O overlay de transmissão fica horas no ar seguindo um jogo só — assinar
+ *  a grade inteira do torneio (`watchMatches`) custaria um snapshot a cada ponto de QUALQUER
+ *  quadra. Partida apagada/inexistente devolve `null`, e quem mostra decide o que fazer. */
+export function watchMatch(
+  matchId: string,
+  onChange: (match: TournamentMatch | null) => void,
+  onError?: (error: unknown) => void,
+): Unsubscribe {
+  const db = organizerFirestore();
+  const projectId = environment.firebase.projectId;
+  if (!projectId) {
+    onChange(null);
+    return () => {};
+  }
+  return onSnapshot(
+    doc(db, 'artifacts', projectId, 'public', 'data', 'matches', matchId),
+    (snap) => {
+      if (!snap.exists()) {
+        onChange(null);
+        return;
+      }
+      const raw = rawMatchFromDoc(snap.id, snap.data() as Record<string, unknown>);
+      onChange(rawToMatch(raw, (description) => description ?? 'A definir'));
     },
     (err) => onError?.(err),
   );

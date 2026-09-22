@@ -30,7 +30,9 @@ import {
   SKILL_LEVEL_LABEL,
   SPORT_LABEL,
   SUPPORTED_BRACKET_SYSTEMS,
+  kocMaxRoundsPerBracket,
   kocSchedule,
+  kocSmallestBracket,
   TOURNAMENT_CREATE_STEPS,
   type AgeBand,
   type CategoryDispute,
@@ -292,7 +294,22 @@ function inputToDatetime(v: string): Date | null {
               @if (cat().bracketSystem === 'kingOfCourt') {
                 <div class="og-field-grid" style="margin-top:14px">
                   <og-stepper-static label="Duplas por quadra" [value]="'' + cat().kocTeamsPerCourt" (bump)="bumpCat('kocTeamsPerCourt', $event, kocMinTeams, kocMaxTeams)" />
-                  <og-stepper-static label="Classificam" [value]="'' + cat().kocQualifiersPerRound" (bump)="bumpCat('kocQualifiersPerRound', $event, 1, cat().kocTeamsPerCourt - 1)" />
+                  <!-- Acima de 1, cada rodada da chave classifica UMA dupla: a
+                       vencedora sai e a rodada seguinte roda com as que
+                       sobraram. O teto vem do mínimo do formato. -->
+                  <og-stepper-static label="Rodadas por chave" [value]="'' + cat().kocRoundsPerBracket" (bump)="bumpCat('kocRoundsPerBracket', $event, 1, maxRoundsPerBracket())" />
+                  @if (cat().kocRoundsPerBracket === 1) {
+                    <og-stepper-static label="Classificam" [value]="'' + cat().kocQualifiersPerRound" (bump)="bumpCat('kocQualifiersPerRound', $event, 1, cat().kocTeamsPerCourt - 1)" />
+                  } @else {
+                    <!-- Com mais de uma rodada por chave o número é fixo: cada
+                         rodada entrega uma vaga. Campo só de leitura, sem +/-. -->
+                    <div class="og-field">
+                      <label class="og-field-label">Classificam</label>
+                      <div class="og-stepper">
+                        <div class="og-stepper-value" style="color:var(--nx-text-dim)">1 por rodada</div>
+                      </div>
+                    </div>
+                  }
                 </div>
                 <div style="margin-top:14px">
                   <og-stepper-static label="Duração da rodada" [value]="kocDurationLabel()" (bump)="bumpKocDuration($event)" />
@@ -1039,7 +1056,14 @@ export class CriarTorneioComponent {
     this.patchCat({ spots: Math.min(Math.max(this.cat().spots + delta * step, 2), 64) });
   }
 
-  protected bumpCat(field: 'teamsPerGroup' | 'qualifiersPerGroup' | 'maxRegistrationsPerAthlete' | 'kocTeamsPerCourt' | 'kocQualifiersPerRound', delta: number, min: number, max: number): void {
+  /** Teto de rodadas por chave: cada vencedora sai, e toda rodada precisa do
+   *  mínimo do formato. Uma chave de 4 dá 2; uma de 5, 3. */
+  protected maxRoundsPerBracket(): number {
+    const c = this.cat();
+    return kocMaxRoundsPerBracket(kocSmallestBracket(c.spots, c.kocTeamsPerCourt));
+  }
+
+  protected bumpCat(field: 'teamsPerGroup' | 'qualifiersPerGroup' | 'maxRegistrationsPerAthlete' | 'kocTeamsPerCourt' | 'kocRoundsPerBracket' | 'kocQualifiersPerRound', delta: number, min: number, max: number): void {
     this.patchCat({ [field]: Math.min(Math.max(this.cat()[field] + delta, min), max) } as Partial<TournamentCategoryDraft>);
   }
 
@@ -1056,7 +1080,7 @@ export class CriarTorneioComponent {
    */
   protected readonly kocPlan = computed(() => {
     const c = this.cat();
-    return kocSchedule(c.spots, c.kocTeamsPerCourt, c.kocQualifiersPerRound, c.kocRoundDurationSec);
+    return kocSchedule(c.spots, c.kocTeamsPerCourt, c.kocQualifiersPerRound, c.kocRoundDurationSec, 1, c.kocRoundsPerBracket);
   });
 
   protected kocDurationLabel(): string {

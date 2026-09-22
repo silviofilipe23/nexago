@@ -80,6 +80,7 @@ describe("kocRoundDoc", () => {
       roundEndMode: "time",
       durationSec: 900,
       teamsPerCourt: 4,
+      roundsPerBracket: 1,
       qualifiersPerRound: 2,
       crownScores: false,
     });
@@ -103,6 +104,7 @@ describe("resolveKocConfig", () => {
   it("usa os padrões do formato quando nada foi escolhido", () => {
     assert.deepEqual(resolveKocConfig(undefined, undefined), {
       teamsPerCourt: 4,
+      roundsPerBracket: 1,
       qualifiersPerRound: 2,
       roundDurationSec: 900,
     });
@@ -111,10 +113,10 @@ describe("resolveKocConfig", () => {
   it("lê o que o organizador escolheu no wizard", () => {
     assert.deepEqual(
       resolveKocConfig(
-        {teamsPerCourt: 5, qualifiersPerRound: 1, roundDurationSec: 1200},
+        {teamsPerCourt: 5, roundsPerBracket: 2, qualifiersPerRound: 1, roundDurationSec: 1200},
         undefined,
       ),
-      {teamsPerCourt: 5, qualifiersPerRound: 1, roundDurationSec: 1200},
+      {teamsPerCourt: 5, roundsPerBracket: 2, qualifiersPerRound: 1, roundDurationSec: 1200},
     );
   });
 
@@ -132,6 +134,7 @@ describe("resolveKocConfig", () => {
     );
     assert.deepEqual(resolved, {
       teamsPerCourt: 4,
+      roundsPerBracket: 1,
       qualifiersPerRound: 2,
       roundDurationSec: 900,
     });

@@ -73,6 +73,9 @@ export interface TournamentCategoryDraft {
    *  KOTC, para o roundtrip de edição não perder a escolha de quem troca de
    *  formato e volta — `resolveKocConfig` no backend lê esses nomes. */
   kocTeamsPerCourt: number;
+  /** Rodadas que cada chave joga na classificatória. Acima de 1, cada rodada
+   *  classifica UMA dupla e a vencedora sai — a chave encolhe (4 → 3). */
+  kocRoundsPerBracket: number;
   kocQualifiersPerRound: number;
   kocRoundDurationSec: number;
   bestOf: TournamentBestOf;
@@ -153,6 +156,7 @@ export function emptyCategoryDraft(id: string): TournamentCategoryDraft {
     qualifiersPerGroup: 2,
     kocTeamsPerCourt: KOC_DEFAULT_TEAMS_PER_COURT,
     kocQualifiersPerRound: KOC_DEFAULT_QUALIFIERS_PER_ROUND,
+    kocRoundsPerBracket: 1,
     kocRoundDurationSec: KOC_DEFAULT_ROUND_DURATION_SEC,
     // Padrão do NexaGO: partida de set único (MD3/MD5 são escolha explícita).
     bestOf: 'singleSet',
@@ -429,17 +433,48 @@ export function kocRoundCount(teamCount: number, teamsPerCourt: number): number 
   return rounds;
 }
 
+/** Quantas rodadas a chave aguenta: cada vencedora sai, e toda rodada precisa
+ *  do mínimo do formato. Espelha `kocMaxRoundsPerBracket` do servidor. */
+export function kocMaxRoundsPerBracket(bracketSize: number): number {
+  return Math.max(1, bracketSize - KOC_MIN_TEAMS_PER_ROUND + 1);
+}
+
+/** Menor chave da fase 1 — é ela que limita as rodadas por chave. */
+export function kocSmallestBracket(teamCount: number, teamsPerCourt: number): number {
+  const rounds = kocRoundCount(teamCount, teamsPerCourt);
+  return rounds > 0 ? Math.floor(teamCount / rounds) : 0;
+}
+
 /** Rodadas de cada fase, da classificatória à final. Vazio = config não fecha. */
-export function kocRoundsPerPhase(teamCount: number, teamsPerCourt: number, qualifiersPerRound: number): number[] {
+export function kocRoundsPerPhase(
+  teamCount: number,
+  teamsPerCourt: number,
+  qualifiersPerRound: number,
+  roundsPerBracket = 1,
+): number[] {
   const qualifiers = Math.max(1, Math.floor(qualifiersPerRound));
+  const perBracket = Math.max(1, Math.floor(roundsPerBracket));
   const phases: number[] = [];
   let fieldSize = teamCount;
   while (phases.length < KOC_MAX_PHASES) {
-    const rounds = kocRoundCount(fieldSize, teamsPerCourt);
-    if (rounds === 0) return [];
-    phases.push(rounds);
-    if (rounds === 1) return phases;
-    const next = rounds * qualifiers;
+    const brackets = kocRoundCount(fieldSize, teamsPerCourt);
+    if (brackets === 0) return [];
+    const first = phases.length === 0;
+    // Na fase 1 a chave pode jogar várias rodadas, cada uma classificando uma:
+    // são mais rodadas na quadra E mais classificadas saindo da fase.
+    if (first && perBracket > 1) {
+      if (perBracket > kocMaxRoundsPerBracket(kocSmallestBracket(fieldSize, teamsPerCourt))) {
+        return [];
+      }
+      phases.push(brackets * perBracket);
+      const next = brackets * perBracket;
+      if (next >= fieldSize) return [];
+      fieldSize = next;
+      continue;
+    }
+    phases.push(brackets);
+    if (brackets === 1) return phases;
+    const next = brackets * qualifiers;
     // Fase que não reduz o campo entraria em laço na geração.
     if (next >= fieldSize) return [];
     fieldSize = next;
@@ -456,8 +491,8 @@ export interface KocSchedule {
   valid: boolean;
 }
 
-export function kocSchedule(teamCount: number, teamsPerCourt: number, qualifiersPerRound: number, roundDurationSec: number, courts = 1): KocSchedule {
-  const roundsPerPhase = kocRoundsPerPhase(teamCount, teamsPerCourt, qualifiersPerRound);
+export function kocSchedule(teamCount: number, teamsPerCourt: number, qualifiersPerRound: number, roundDurationSec: number, courts = 1, roundsPerBracket = 1): KocSchedule {
+  const roundsPerPhase = kocRoundsPerPhase(teamCount, teamsPerCourt, qualifiersPerRound, roundsPerBracket);
   if (roundsPerPhase.length === 0) {
     return {roundsPerPhase: [], totalRounds: 0, totalSeconds: 0, totalLabel: '', valid: false};
   }

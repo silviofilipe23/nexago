@@ -233,6 +233,7 @@ function leagueCategoryToMap(category: TournamentCategoryDraft): Record<string, 
     qualifiersPerGroup: category.qualifiersPerGroup,
     // Config do King of the Court — mesmos nomes que `resolveKocConfig` lê.
     teamsPerCourt: category.kocTeamsPerCourt,
+    roundsPerBracket: category.kocRoundsPerBracket,
     qualifiersPerRound: category.kocQualifiersPerRound,
     roundDurationSec: category.kocRoundDurationSec,
     bestOf: category.bestOf,

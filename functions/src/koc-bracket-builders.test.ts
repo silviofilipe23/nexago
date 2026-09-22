@@ -8,6 +8,7 @@ import {
   kocQualifierDescription,
   kocRoundCount,
   kocRoundSizes,
+  kocMaxRoundsPerBracket,
   kocSnakeDistribute,
   type KocConfig,
   type KocRoundDraft,
@@ -368,5 +369,97 @@ describe("buildKingOfCourtRounds · elenco sorteado", () => {
     const final = rounds.filter((r) => r.phase === 2);
     assert.deepEqual(final.map((r) => r.teamIds), [[]]);
     assert.equal(final[0]!.qualifiers.length, 4);
+  });
+});
+
+/**
+ * Chave que joga VÁRIAS rodadas, cada uma classificando uma dupla.
+ *
+ * A vencedora sai e libera a quadra, então a chave encolhe: 4 → 3. É o que
+ * permite classificar N duplas de uma chave sem comparar pontos entre elas.
+ */
+describe("buildKingOfCourtRounds · rodadas por chave", () => {
+  const BASE = {teamsPerCourt: 4, qualifiersPerRound: 2, roundDurationSec: 900};
+  const SEEDS = Array.from({length: 16}, (_, i) => `t${i + 1}`);
+
+  function build(roundsPerBracket: number) {
+    return buildKingOfCourtRounds(SEEDS, {...BASE, roundsPerBracket});
+  }
+
+  it("emite uma rodada por chave por vez: 4 chaves × 2 = 8 na classificatória", () => {
+    const fase1 = build(2).filter((r) => r.phase === 1);
+    assert.equal(fase1.length, 8);
+    assert.deepEqual(
+      fase1.map((r) => r.poolId),
+      ["C1", "C2", "C3", "C4", "C1", "C2", "C3", "C4"],
+    );
+  });
+
+  it("a rodada seguinte da chave é quem NÃO classificou na anterior", () => {
+    const fase1 = build(2).filter((r) => r.phase === 1);
+    const primeira = fase1.find((r) => r.poolId === "C1")!;
+    const segunda = fase1.filter((r) => r.poolId === "C1")[1]!;
+
+    assert.equal(segunda.teamIds.length, 0, "o elenco vem da tabela, não da semeadura");
+    assert.deepEqual(
+      segunda.qualifiers.map((q) => q.place),
+      [2, 3, 4],
+      "a vencedora saiu; ficam os lugares 2 em diante",
+    );
+    assert.ok(
+      segunda.qualifiers.every((q) => q.fromMatchNumber === primeira.matchNumber),
+      "as vagas apontam para a rodada anterior da PRÓPRIA chave",
+    );
+  });
+
+  it("a chave encolhe rodada a rodada", () => {
+    const c1 = build(2).filter((r) => r.phase === 1 && r.poolId === "C1");
+    assert.deepEqual(c1.map((r) => r.size), [4, 3]);
+  });
+
+  it("as duas classificadas da mesma chave caem em semifinais diferentes", () => {
+    const rounds = build(2);
+    const semis = rounds.filter((r) => r.phase === 2);
+    const c1 = rounds.filter((r) => r.phase === 1 && r.poolId === "C1");
+
+    const semiDe = (matchNumber: number) =>
+      semis.findIndex((s) => s.qualifiers.some((q) => q.fromMatchNumber === matchNumber));
+
+    assert.notEqual(semiDe(c1[0]!.matchNumber), semiDe(c1[1]!.matchNumber));
+  });
+
+  it("nenhuma semifinal vira a 'forte': cada uma mistura vencedoras de rodadas diferentes", () => {
+    // Agrupar por ordem de classificação poria todas as que venceram contra a
+    // chave cheia numa semifinal só.
+    const rounds = build(2);
+    const fase1 = rounds.filter((r) => r.phase === 1);
+    const primeiras = new Set(fase1.slice(0, 4).map((r) => r.matchNumber));
+
+    for (const semi of rounds.filter((r) => r.phase === 2)) {
+      const daPrimeira = semi.qualifiers.filter((q) => primeiras.has(q.fromMatchNumber)).length;
+      assert.equal(daPrimeira, 2, "cada semifinal leva 2 de rodada 1 e 2 de rodada 2");
+    }
+  });
+
+  it("a semifinal segue mandando DUAS para a final", () => {
+    const final = build(2).find((r) => r.matchType === "koc_final")!;
+    assert.deepEqual(final.qualifiers.map((q) => q.place).sort(), [1, 1, 2, 2]);
+  });
+
+  it("recusa mais rodadas do que a chave aguenta", () => {
+    // Chave de 4: a 3ª rodada rodaria com 2 duplas, que não é King of the Court.
+    assert.throws(() => build(3), /comporta no máximo 2 rodada/);
+  });
+
+  it("uma rodada por chave é o formato de sempre", () => {
+    assert.deepEqual(build(1), buildKingOfCourtRounds(SEEDS, BASE));
+  });
+});
+
+describe("kocMaxRoundsPerBracket", () => {
+  it("cada rodada tira uma dupla, e o mínimo do formato é o piso", () => {
+    assert.equal(kocMaxRoundsPerBracket(3), 1);
+    assert.equal(kocMaxRoundsPerBracket(4), 2);
+    assert.equal(kocMaxRoundsPerBracket(5), 3);
   });
 });

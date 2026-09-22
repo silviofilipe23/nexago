@@ -31,10 +31,35 @@ export interface KocConfig {
   teamsPerCourt: number;
   /** Quantas duplas de cada rodada passam de fase. */
   qualifiersPerRound: number;
+  /**
+   * Quantas rodadas cada CHAVE joga na classificatória.
+   *
+   * `1` (padrão) é o formato original: a chave joga uma rodada e as
+   * `qualifiersPerRound` melhores por pontos avançam.
+   *
+   * Acima de 1, a chave joga N rodadas e cada uma classifica UMA dupla — a
+   * vencedora sai e libera a quadra, então a rodada seguinte roda com as que
+   * sobraram (4 → 3 → …). Como toda rodada precisa de
+   * `KOC_MIN_TEAMS_PER_ROUND` duplas, uma chave de S comporta no máximo
+   * `S - KOC_MIN_TEAMS_PER_ROUND + 1` rodadas.
+   *
+   * Vale só na fase 1: as seguintes seguem com uma rodada por chave.
+   */
+  roundsPerBracket?: number;
   /** Duração padrão da rodada, em segundos. */
   roundDurationSec: number;
   /** Override por fase (chave = número da fase, 1-based). Fase ausente usa o padrão. */
   phaseDurationsSec?: Record<string, number>;
+}
+
+/**
+ * Quantas rodadas a chave aguenta antes de furar o mínimo do formato.
+ *
+ * A vencedora de cada rodada sai, então a chave encolhe de uma em uma: uma
+ * chave de 4 dá 2 rodadas (4 → 3), uma de 5 dá 3 (5 → 4 → 3).
+ */
+export function kocMaxRoundsPerBracket(bracketSize: number): number {
+  return Math.max(1, bracketSize - KOC_MIN_TEAMS_PER_ROUND + 1);
 }
 
 /** Vaga herdada da fase anterior: a `place`-ésima colocada da rodada `fromMatchNumber`. */
@@ -61,6 +86,84 @@ export interface KocRoundDraft {
   /** Quantas duplas a rodada terá (elenco fechado ou vagas a preencher). */
   size: number;
   durationSec: number;
+  /**
+   * Índice que decide para qual rodada da fase seguinte a classificada vai.
+   *
+   * Normalmente é `roundLabel - 1`. Com várias rodadas por chave ele separa a
+   * CHAVE da ordem de disputa: as N classificadas de uma mesma chave precisam
+   * cair em rodadas diferentes da fase seguinte (ninguém reencontra adversário
+   * antes da hora), mas a ordem em que as rodadas acontecem é outra — todas as
+   * chaves jogam a rodada 1 antes de qualquer uma jogar a rodada 2.
+   */
+  crossoverIndex?: number;
+}
+
+/**
+ * Fase 1 quando a chave joga VÁRIAS rodadas.
+ *
+ * Cada rodada classifica uma dupla, que sai e libera a quadra; a rodada
+ * seguinte da mesma chave roda com as que sobraram. O elenco dela não é
+ * inventado: são os lugares 2 em diante da rodada anterior — a mesma mecânica
+ * de vagas que monta a semifinal, olhando para a própria chave.
+ *
+ * A ordem de disputa é por RODADA, não por chave: todas as chaves jogam a
+ * rodada 1, depois todas jogam a 2. Numa quadra só isso espalha a espera em vez
+ * de esgotar uma chave inteira antes de a seguinte começar.
+ */
+function emitPhaseOneWithBracketRounds(params: {
+  drafts: KocRoundDraft[];
+  sizes: number[];
+  roundsPerBracket: number;
+  matchType: string;
+  durationSec: number;
+  rosters: string[][];
+  nextMatchNumber: () => number;
+}): void {
+  const {drafts, sizes, roundsPerBracket, matchType, durationSec, rosters} = params;
+  const brackets = sizes.length;
+  /** Rodada anterior de cada chave, para as vagas apontarem para ela. */
+  const previousOfBracket: (KocRoundDraft | null)[] = sizes.map(() => null);
+
+  for (let round = 1; round <= roundsPerBracket; round++) {
+    for (let bracket = 0; bracket < brackets; bracket++) {
+      const size = sizes[bracket]! - (round - 1);
+      const previous = previousOfBracket[bracket];
+
+      // Da segunda rodada em diante o elenco são os NÃO classificados da
+      // anterior: lugares 2 em diante, que é exatamente quem ficou na quadra.
+      const qualifiers: KocQualifierSlot[] = [];
+      if (previous) {
+        for (let place = 2; place <= previous.size; place++) {
+          qualifiers.push({
+            fromMatchNumber: previous.matchNumber,
+            fromRoundLabel: previous.roundLabel,
+            place,
+          });
+        }
+      }
+
+      const draft: KocRoundDraft = {
+        phase: 1,
+        matchType,
+        poolId: `C${bracket + 1}`,
+        matchNumber: params.nextMatchNumber(),
+        roundLabel: (round - 1) * brackets + bracket + 1,
+        teamIds: previous ? [] : rosters[bracket]!,
+        qualifiers,
+        size,
+        durationSec,
+        // `bracket + (round - 1)`, não `bracket * N + (round - 1)`: as duas
+        // formas separam as classificadas da mesma chave, mas a multiplicativa
+        // agrupa por ORDEM de classificação — todas as que venceram na rodada 1
+        // (contra a chave cheia) numa semifinal, todas as da rodada 2 na outra.
+        // Isso faria uma semifinal muito mais forte que a outra. A aditiva
+        // alterna, como o cruzamento original faz com os lugares.
+        crossoverIndex: bracket + (round - 1),
+      };
+      drafts.push(draft);
+      previousOfBracket[bracket] = draft;
+    }
+  }
 }
 
 export class KocBracketError extends Error {
@@ -252,14 +355,35 @@ export function buildKingOfCourtRounds(
 
   // Planeja as fases ANTES de emitir, porque o tipo da rodada (final? semi?)
   // depende de quantas fases existem no total.
+  // Rodadas por chave na classificatória. Acima de 1, cada rodada classifica
+  // UMA dupla e a vencedora sai — a chave encolhe rodada a rodada.
+  const roundsPerBracket = Math.max(1, Math.floor(config.roundsPerBracket ?? 1));
+
   const phaseSizes: number[][] = [];
   let fieldSize = teamIds.length;
   while (phaseSizes.length < KOC_MAX_PHASES) {
     const rounds = kocRoundCount(fieldSize, config.teamsPerCourt);
-    phaseSizes.push(kocRoundSizes(fieldSize, rounds));
+    const sizes = kocRoundSizes(fieldSize, rounds);
+    phaseSizes.push(sizes);
     if (rounds === 1) break;
 
-    const nextFieldSize = rounds * qualifiersPerRound;
+    // Só a fase 1 se divide em várias rodadas por chave; as seguintes seguem
+    // com uma rodada por chave e `qualifiersPerRound` classificadas.
+    const isFirst = phaseSizes.length === 1;
+    if (isFirst && roundsPerBracket > 1) {
+      const smallest = Math.min(...sizes);
+      const max = kocMaxRoundsPerBracket(smallest);
+      if (roundsPerBracket > max) {
+        throw new KocBracketError(
+          `Uma chave de ${smallest} duplas comporta no máximo ${max} rodada(s): ` +
+            `cada vencedora sai e toda rodada precisa de ${KOC_MIN_TEAMS_PER_ROUND}. ` +
+            `Foram pedidas ${roundsPerBracket}.`,
+          "koc_rounds_per_bracket_too_high",
+        );
+      }
+    }
+    const perRound = isFirst && roundsPerBracket > 1 ? 1 : qualifiersPerRound;
+    const nextFieldSize = rounds * (isFirst ? roundsPerBracket * perRound : perRound);
     if (nextFieldSize >= fieldSize) {
       throw new KocBracketError(
         `Com ${qualifiersPerRound} classificadas por rodada a fase não reduz o ` +
@@ -281,6 +405,21 @@ export function buildKingOfCourtRounds(
     const durationSec = durationForPhase(phase, config);
     const matchType = matchTypeForPhase(phase, totalPhases);
 
+    if (phaseIndex === 0 && roundsPerBracket > 1) {
+      emitPhaseOneWithBracketRounds({
+        drafts,
+        sizes,
+        roundsPerBracket,
+        matchType,
+        durationSec,
+        rosters: opts?.phaseOneRosters ?
+          assertPhaseOneRosters(opts.phaseOneRosters, teamIds, sizes) :
+          kocSnakeDistribute(teamIds, sizes),
+        nextMatchNumber: () => matchNumber++,
+      });
+      continue;
+    }
+
     // Fase 1 nasce com elenco fechado; as seguintes, com vagas apontando para a
     // tabela da fase anterior.
     const rosters =
@@ -293,10 +432,16 @@ export function buildKingOfCourtRounds(
     const qualifiersByRound: KocQualifierSlot[][] = sizes.map(() => []);
     if (phaseIndex > 0) {
       const previous = drafts.filter((d) => d.phase === phase - 1);
+      // Só a saída da FASE 1 multi-rodada classifica uma por rodada: ali cada
+      // rodada já elegeu a sua. Das fases seguintes saem `qualifiersPerRound`
+      // como sempre — a semifinal manda duas para a final, não uma.
+      const placesFromSource = phaseIndex === 1 && roundsPerBracket > 1 ?
+        1 :
+        qualifiersPerRound;
       for (const source of previous) {
-        for (let place = 1; place <= qualifiersPerRound; place++) {
+        for (let place = 1; place <= placesFromSource; place++) {
           const target = kocNextRoundIndex(
-            source.roundLabel - 1,
+            source.crossoverIndex ?? source.roundLabel - 1,
             place,
             sizes.length,
           );

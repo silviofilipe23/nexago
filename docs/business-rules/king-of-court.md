@@ -46,6 +46,27 @@ ou confirma explicitamente o critério automático. A vaga nunca sai calada.
   paralelo (uma por quadra).
 - Os `qualifiersPerRound` primeiros de cada rodada avançam para a fase seguinte,
   redistribuídos em serpentina pela colocação.
+
+### Rodadas por chave (`roundsPerBracket`)
+
+Por padrão a chave joga **uma** rodada e os `qualifiersPerRound` melhores por pontos
+avançam. Com `roundsPerBracket` acima de 1, a chave joga N rodadas e **cada uma
+classifica uma dupla**:
+
+- A vencedora da rodada classifica e **sai** — libera a quadra.
+- A rodada seguinte da mesma chave roda com **as que sobraram** (4 → 3 → …).
+- Como toda rodada precisa de 3 duplas, uma chave de S comporta no máximo
+  **S − 2** rodadas: uma chave de 4 dá 2, uma de 5 dá 3.
+- Vale só na **classificatória**. As fases seguintes seguem com uma rodada por
+  chave e `qualifiersPerRound` classificadas.
+
+As N classificadas de uma mesma chave caem em rodadas **diferentes** da fase
+seguinte, e cada rodada da fase seguinte mistura vencedoras de rodadas de chave
+diferentes — senão uma semifinal juntaria todas as que venceram contra a chave
+cheia e nasceria muito mais forte que a outra.
+
+**Custo de quadra.** Com 16 duplas em chaves de 4: uma rodada por chave dá 7
+rodadas no total; duas dão 11. O wizard mostra o tempo total antes de publicar.
 - A **rodada final** define o pódio direto pela tabela: 1º, 2º, 3º, 4º.
 
 ## Telão

@@ -190,6 +190,7 @@ export function kocRoundDoc(
       roundEndMode: "time",
       durationSec: draft.durationSec,
       teamsPerCourt: meta.config.teamsPerCourt,
+      roundsPerBracket: meta.config.roundsPerBracket ?? 1,
       qualifiersPerRound: meta.config.qualifiersPerRound,
       crownScores: false,
     },
@@ -226,6 +227,7 @@ export function resolveKocConfig(
 
   return {
     teamsPerCourt: int(pick("teamsPerCourt"), KOC_DEFAULT_TEAMS_PER_COURT),
+    roundsPerBracket: int(pick("roundsPerBracket"), 1),
     qualifiersPerRound: int(pick("qualifiersPerRound"), 2),
     roundDurationSec: int(pick("roundDurationSec"), KOC_DEFAULT_ROUND_DURATION_SEC),
     ...(Object.keys(phaseDurations).length > 0 ?

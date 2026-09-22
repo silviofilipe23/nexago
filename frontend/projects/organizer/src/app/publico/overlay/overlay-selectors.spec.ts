@@ -230,6 +230,17 @@ describe('overlayViewOf', () => {
     expect(view.clock).toEqual({ label: '2:10', paused: true });
   });
 
+  it('não pinta a rodada KOTC que ainda não tem rei e desafiante', () => {
+    // `kocRoundStateFrom` NUNCA devolve null: rodada sem `kocState` no doc vira um estado com
+    // ids vazios. Sem esta regra, a rodada agendada desenharia duas linhas em branco com 0 ponto.
+    const view = overlayViewOf(
+      kocMatch(kocRound({ kingTeamId: '', challengerTeamId: '' }), { status: 'scheduled' }),
+      NOW,
+    );
+
+    expect(view).toBeNull();
+  });
+
   it('não pinta nada numa partida KOTC sem estado de rodada', () => {
     expect(overlayViewOf(kocMatch(kocRound({}), { koc: null }), NOW)).toBeNull();
   });

@@ -55,7 +55,10 @@ export function overlayViewOf(match: TournamentMatch | null, nowMs: number): Ove
   // Sai antes de qualquer leitura de duelo — ver `koc.ts`.
   if (isKingOfCourtMatchType(match.matchType)) {
     const round = match.koc;
-    if (!round) return null;
+    // `kocRoundStateFrom` sempre devolve um objeto — rodada sem `kocState` no doc chega aqui
+    // com ids vazios. Sem rei e desafiante não há duelo pra mostrar, e duas linhas em branco
+    // por cima do vídeo são piores que overlay nenhum.
+    if (!round || round.kingTeamId === '' || round.challengerTeamId === '') return null;
     return {
       kind: 'koc',
       phase: phaseOf(match.status),

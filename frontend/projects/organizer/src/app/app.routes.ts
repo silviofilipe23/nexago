@@ -68,11 +68,14 @@ export const routes: Routes = [
       import('./publico/sorteio-comprovante.component').then((m) => m.SorteioComprovanteComponent),
   },
   {
-    // Fora do shell do painel: fica aberta na TV da arena em tela cheia. Sem organizerGuard
-    // de propósito — staff logado sem a role organizer também pode exibir o telão.
+    // Fora do shell do painel: fica aberta na TV da arena em tela cheia, e PÚBLICA — sem
+    // guard nenhum, como o telão do sorteio. Exigir login era pedir pra digitar senha de
+    // organizador num controle de smart TV minutos antes de a rodada começar, e a senha
+    // acabava indo pro grupo do staff. Não há dado novo exposto: o telão lê `tournaments`,
+    // `matches`, `teams` e `public_profiles`, as quatro com `read: if true` — as mesmas de
+    // `/t/:id` e do overlay do OBS, que já são públicos.
     path: 'telao/:tournamentId',
-    canActivate: [authGuard],
-    title: 'Telão ao vivo — NexaGO Organizador',
+    title: 'Telão ao vivo — NexaGO',
     loadComponent: () => import('./painel/telao/telao-page.component').then((m) => m.TelaoPageComponent),
   },
   {

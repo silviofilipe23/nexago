@@ -74,6 +74,12 @@ A rodada é exibida num telão público: trono, cronômetro, tabela ao vivo e fi
 O telão é **por categoria**, não por rodada — segue sozinho a que está valendo
 (em andamento → próxima a entrar → última concluída).
 
+`/telao/{tournamentId}` abre **sem login**, como o telão do sorteio: o link vai
+pra smart TV da arena, que não tem onde digitar senha de organizador. Ele lê só
+`tournaments`, `matches`, `teams` e `public_profiles` — as quatro já públicas
+(`read: if true`). A **configuração** do telão (quais quadras, quais recursos, a
+chamada) continua dentro do painel, que é guardado.
+
 ## Ranking
 A categoria King of the Court **não pontua**: não soma no ranking global, no
 ranking da liga nem em XP. O pódio da categoria existe e é registrado; o que não

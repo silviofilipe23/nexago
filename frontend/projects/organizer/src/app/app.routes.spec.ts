@@ -28,7 +28,16 @@ describe('app.routes', () => {
     expect(publica?.canActivate ?? []).toEqual([]);
   });
 
-  it('mantém a TV do telão atrás de login', () => {
-    expect((findRoute(routes, ['telao/:tournamentId'])?.canActivate ?? []).length).toBe(1);
+  it('abre a TV do telão sem login — é o link que vai pra smart TV da arena', () => {
+    const tv = findRoute(routes, ['telao/:tournamentId']);
+    expect(tv).not.toBeNull();
+    expect(tv?.canActivate ?? []).toEqual([]);
+  });
+
+  it('mantém a CONFIGURAÇÃO do telão dentro do painel, que é guardado', () => {
+    // O que é público é a exibição. Escolher quadras, ligar "em chamas" e
+    // publicar a chamada continua sendo do organizador.
+    expect(findRoute(routes, ['painel', 'eventos/:id', 'telao'])).not.toBeNull();
+    expect((findRoute(routes, ['painel'])?.canActivate ?? []).length).toBe(2);
   });
 });

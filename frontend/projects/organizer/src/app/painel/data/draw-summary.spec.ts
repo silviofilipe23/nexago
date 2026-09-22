@@ -172,3 +172,25 @@ describe('readinessChecksOf', () => {
     }
   });
 });
+
+/** Na KOTC a caixa do sorteio é uma RODADA da classificatória, não um grupo.
+ *  A trava de segurança falava em grupo e contradizia o console, o espelho e o
+ *  telão, que já dizem "Rodada N" — quem lê a tela via dois nomes pro mesmo
+ *  lugar. */
+describe('readinessChecksOf — King of the Court', () => {
+  it('fala em rodada desigual, nunca em grupo', () => {
+    const s = session(14, { format: 'king_of_court' });
+    const check = readinessChecksOf(s).find((c) => c.id === 'exact');
+    expect(check?.ok).toBe(false);
+    expect(check?.label).toContain('rodadas');
+    expect(check?.label).not.toContain('grupo');
+  });
+
+  it('quando fecha exatamente, comemora a rodada — não a chave', () => {
+    const s = session(16, { format: 'king_of_court' });
+    const check = readinessChecksOf(s).find((c) => c.id === 'exact');
+    expect(check?.ok).toBe(true);
+    expect(check?.label).toContain('rodada');
+    expect(check?.label).not.toContain('grupo');
+  });
+});

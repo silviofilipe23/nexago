@@ -108,6 +108,26 @@ export function combinationsOf(session: DrawSession): number | null {
   return Math.round(total);
 }
 
+/** Rótulo do "fecha exatamente" — a caixa muda de nome com o formato: planta na
+ *  dupla eliminatória, grupo na fase de grupos, RODADA da classificatória na
+ *  King of the Court. Falar em grupo numa sessão KOTC contradizia o console, o
+ *  espelho e o telão, que já dizem "Rodada N". */
+function exactLabelOf(session: DrawSession, summary: DrawFormatSummary): string {
+  if (session.format === 'double_elimination') {
+    return summary.exact ?
+      'A planta fecha exatamente. Nenhum bye necessário.' :
+      `A planta usa ${summary.kind === 'de' ? summary.byes : 0} bye(s).`;
+  }
+  if (session.format === 'king_of_court') {
+    return summary.exact ?
+      'As rodadas fecham exatamente. Nenhuma rodada desigual.' :
+      'As rodadas ficam desiguais.';
+  }
+  return summary.exact ?
+    'A chave fecha exatamente. Nenhum grupo desigual.' :
+    'Os grupos ficam desiguais.';
+}
+
 export interface ReadinessCheck {
   id: 'teams' | 'seeds' | 'exact' | 'schedule';
   label: string;
@@ -145,9 +165,7 @@ export function readinessChecksOf(session: DrawSession): ReadinessCheck[] {
     },
     {
       id: 'exact',
-      label: de ?
-        summary.exact ? 'A planta fecha exatamente. Nenhum bye necessário.' : `A planta usa ${summary.kind === 'de' ? summary.byes : 0} bye(s).`
-        : summary.exact ? 'A chave fecha exatamente. Nenhum grupo desigual.' : 'Os grupos ficam desiguais.',
+      label: exactLabelOf(session, summary),
       ok: summary.exact,
       optional: true,
     },

@@ -8,7 +8,31 @@
 
 export type DrawSessionStatus = 'draft' | 'scheduled' | 'live' | 'published' | 'voided';
 export type DrawConductionMode = 'manual' | 'auto' | 'hybrid';
-export type DrawFormat = 'groups_knockout' | 'double_elimination';
+export type DrawFormat = 'groups_knockout' | 'double_elimination' | 'king_of_court';
+
+/** Sorteio que distribui as duplas em CAIXAS de capacidade fixa.
+ *
+ *  Grupos e King of the Court são a mesma mecânica: cada dupla cai numa caixa
+ *  com vaga. O que muda é o NOME da caixa — na KOTC é uma rodada da
+ *  classificatória, não um grupo. Espelha `isBoxedDraw` do servidor. */
+export function isBoxedDraw(format: DrawFormat): boolean {
+  return format !== 'double_elimination';
+}
+
+/** Nome da caixa para o público. O `groupId` vem como letra (A, B, C…) das
+ *  capacidades do sorteio; na KOTC ele é a ENÉSIMA rodada. */
+export function drawBoxLabel(format: DrawFormat, groupId: string): string {
+  if (format !== 'king_of_court') return `Grupo ${groupId}`;
+  const index = groupId.charCodeAt(0) - 65;
+  return index >= 0 ? `Rodada ${index + 1}` : `Rodada ${groupId}`;
+}
+
+/** Como o formato se chama na tela. */
+export function drawFormatLabel(format: DrawFormat): string {
+  if (format === 'double_elimination') return 'Dupla eliminatória';
+  if (format === 'king_of_court') return 'King of the Court';
+  return 'Fase de grupos + mata-mata';
+}
 
 export type DrawDestination =
   | { type: 'group'; groupId: string }

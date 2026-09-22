@@ -17,6 +17,8 @@
  * separação por público pode entrar depois sem mudar esta interface.
  */
 
+import type {DrawFormat} from "./draw-engine";
+
 export type PhraseContext =
   | "seed"
   | "death_group"
@@ -28,6 +30,9 @@ export type PhraseContext =
   | "de_seed"
   | "de_position"
   | "de_generic"
+  | "koc_seed"
+  | "koc_round"
+  | "koc_generic"
   | "generic";
 
 export interface Phrase {
@@ -38,7 +43,7 @@ export interface Phrase {
 }
 
 export interface PhraseSituation {
-  format: "groups_knockout" | "double_elimination";
+  format: DrawFormat;
   /** 1-based. Em dupla eliminatória não tem peso. */
   potIndex: number;
   totalPots: number;
@@ -192,6 +197,26 @@ export const PHRASE_BANK: Record<PhraseContext, Phrase[]> = {
     {id: "dgen-15", text: "{team} definida. O torneio acabou de ficar mais interessante."},
   ],
 
+  koc_seed: [
+    {id: "koc-seed-1", text: "{team} entra nesta rodada. O trono já está avisado."},
+    {id: "koc-seed-2", text: "Cabeça de chave na rodada. Quem estiver no trono que segure."},
+    {id: "koc-seed-3", text: "{team} chegou. A fila desta rodada ficou mais comprida."},
+    {id: "koc-seed-4", text: "Cabeça de chave nesta rodada. O trono acabou de ficar mais caro."},
+  ],
+  koc_round: [
+    {id: "koc-round-1", text: "{team} nesta rodada. Quinze minutos para provar."},
+    {id: "koc-round-2", text: "{team} entra na disputa. Só quem está no trono pontua."},
+    {id: "koc-round-3", text: "Rodada definida para {team}. Agora é segurar a quadra."},
+    {id: "koc-round-4", text: "{team} nesta rodada. Destronar não dá ponto — defender, sim."},
+    {id: "koc-round-5", text: "Rodada fechando. Quinze minutos, e só quem está no trono pontua."},
+    {id: "koc-round-6", text: "Mais uma na fila. Aqui não existe jogo fácil, existe trono."},
+  ],
+  koc_generic: [
+    {id: "koc-gen-1", text: "{team} está na rodada."},
+    {id: "koc-gen-2", text: "{team} entra. A quadra não devolve favor."},
+    {id: "koc-gen-3", text: "Mais uma para a rodada: {team}."},
+    {id: "koc-gen-4", text: "A rodada ganhou mais uma."},
+  ],
   generic: [
     {id: "gen-1", text: "{team} sorteada! Agora pode começar a corneta."},
     {id: "gen-2", text: "Está definido. Reclamações somente após o primeiro jogo."},
@@ -225,6 +250,16 @@ export function phraseContextsFor(situation: PhraseSituation): PhraseContext[] {
     if (situation.isSeed) contexts.push("de_seed");
     contexts.push("de_position", "de_generic");
     return contexts;
+  }
+
+  // King of the Court sorteia em RODADAS, não em grupos. As frases de grupo
+  // falam "grupo" em quase toda linha — soltá-las aqui poria o telão narrando
+  // um grupo que não existe, na frente do público.
+  if (situation.format === "king_of_court") {
+    const kocContexts: PhraseContext[] = [];
+    if (situation.isSeed) kocContexts.push("koc_seed");
+    kocContexts.push("koc_round", "koc_generic");
+    return kocContexts;
   }
 
   const contexts: PhraseContext[] = [];

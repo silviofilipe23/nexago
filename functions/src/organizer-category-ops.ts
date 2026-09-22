@@ -18,6 +18,7 @@ import {
 import {
   KOC_DEFAULT_ROUND_DURATION_SEC,
   KOC_MIN_TEAMS_PER_ROUND,
+  KOC_DEFAULT_TEAMS_PER_COURT,
   KocBracketError,
   buildKingOfCourtRounds,
   kocQualifierDescription,
@@ -224,7 +225,7 @@ export function resolveKocConfig(
   }
 
   return {
-    teamsPerCourt: int(pick("teamsPerCourt"), 4),
+    teamsPerCourt: int(pick("teamsPerCourt"), KOC_DEFAULT_TEAMS_PER_COURT),
     qualifiersPerRound: int(pick("qualifiersPerRound"), 2),
     roundDurationSec: int(pick("roundDurationSec"), KOC_DEFAULT_ROUND_DURATION_SEC),
     ...(Object.keys(phaseDurations).length > 0 ?
@@ -482,7 +483,15 @@ export async function runGenerateCategoryBracket(
   let kocRounds: KocRoundDraft[] = [];
   if (isKingOfCourt && kocConfig) {
     try {
-      kocRounds = buildKingOfCourtRounds(teamIds, kocConfig);
+      // `groupsPreview` na KOTC é o resultado do SORTEIO AO VIVO: cada "grupo"
+      // é uma rodada da classificatória, já com o elenco que saiu na frente do
+      // público. Sem ele, a semeadura em serpentina decide (fluxo da tela de
+      // gerar chave).
+      kocRounds = buildKingOfCourtRounds(teamIds, kocConfig, {
+        ...(groupsPreview.length > 0 ?
+          {phaseOneRosters: groupsPreview.map((g) => g.teamIds)} :
+          {}),
+      });
     } catch (e) {
       if (e instanceof KocBracketError) {
         throw new HttpsError("failed-precondition", e.message, {reason: e.reason});

@@ -20,7 +20,22 @@ import type {DrawPot} from "./draw-pots";
  * qual dupla sai do pote, e para onde ela vai.
  */
 
-export type DrawFormat = "groups_knockout" | "double_elimination";
+export type DrawFormat =
+  | "groups_knockout"
+  | "double_elimination"
+  | "king_of_court";
+
+/**
+ * Sorteio que distribui as duplas em CAIXAS de capacidade fixa.
+ *
+ * Grupos e King of the Court são a mesma mecânica de sorteio: cada dupla cai
+ * numa caixa com vaga. O que muda é o nome — na KOTC a caixa é uma RODADA da
+ * classificatória, não um grupo. Só a dupla eliminatória é diferente: lá o
+ * destino é uma posição de chave.
+ */
+export function isBoxedDraw(format: DrawFormat): boolean {
+  return format !== "double_elimination";
+}
 
 export type DrawDestination =
   | {type: "group"; groupId: string}

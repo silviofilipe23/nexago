@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import type { DrawGroupView } from '../data/draw-session.model';
+import { drawBoxLabel, type DrawFormat, type DrawGroupView } from '../data/draw-session.model';
 
 /**
  * A grade de grupos entre uma revelação e outra — o estado da chave até aqui.
@@ -16,7 +16,7 @@ import type { DrawGroupView } from '../data/draw-session.model';
       @for (group of groups(); track group.groupId) {
         <section class="og-grupo" [class.hot]="group.groupId === highlightGroupId()">
           <header class="og-grupo-head">
-            <span class="og-grupo-letra">Grupo {{ group.groupId }}</span>
+            <span class="og-grupo-letra">{{ boxLabel(group.groupId) }}</span>
             <span class="og-grupo-conta">{{ group.entrants.length }}/{{ group.capacity }}</span>
           </header>
           <ol class="og-grupo-lista">
@@ -184,8 +184,14 @@ export class SorteioGradeGruposComponent {
   readonly groups = input.required<DrawGroupView[]>();
   /** Grupo que acabou de receber dupla — acende sem precisar de contador. */
   readonly highlightGroupId = input<string | null>(null);
+  /** Formato do sorteio: na KOTC a caixa é uma RODADA, não um grupo. */
+  readonly format = input<DrawFormat>('groups_knockout');
   /** Canvas em pé: menos largura, então menos colunas. */
   readonly portrait = input(false);
+
+  protected boxLabel(groupId: string): string {
+    return drawBoxLabel(this.format(), groupId);
+  }
 
   /** Duas colunas até 4 grupos; três a partir daí, pra não afinar a linha. */
   protected readonly columns = computed(() => {

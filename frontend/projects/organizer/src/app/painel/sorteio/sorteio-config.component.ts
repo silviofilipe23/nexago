@@ -3,7 +3,13 @@ import { Router } from '@angular/router';
 import { getTournament } from '../data/tournaments-repository';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { findDrawSessionForCategory } from '../data/draw-sessions-repository';
-import type { DrawFormat, DrawSession, DrawSessionEntrant } from '../data/draw-session.model';
+import {
+  drawFormatLabel,
+  isBoxedDraw,
+  type DrawFormat,
+  type DrawSession,
+  type DrawSessionEntrant,
+} from '../data/draw-session.model';
 import { combinationsOf, formatSummaryOf, readinessChecksOf } from '../data/draw-summary';
 import {
   currentSeedOrder,
@@ -92,18 +98,28 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
           </p>
 
           <div class="og-sc-formatos">
-            <og-radio-row
-              title="Fase de grupos"
-              desc="Cada dupla é sorteada para um grupo, pote a pote"
-              [selected]="format() === 'groups_knockout'"
-              (click)="format.set('groups_knockout')"
-            />
-            <og-radio-row
-              title="Dupla eliminatória"
-              desc="As cabeças entram travadas; o sorteio distribui as posições"
-              [selected]="format() === 'double_elimination'"
-              (click)="format.set('double_elimination')"
-            />
+            @if (format() === 'king_of_court') {
+              <!-- Não é escolha: a categoria é King of the Court, e sortear
+                   como grupo geraria uma chave que o formato não tem. -->
+              <og-radio-row
+                title="King of the Court"
+                desc="Cada dupla é sorteada para uma rodada da classificatória, pote a pote"
+                [selected]="true"
+              />
+            } @else {
+              <og-radio-row
+                title="Fase de grupos"
+                desc="Cada dupla é sorteada para um grupo, pote a pote"
+                [selected]="format() === 'groups_knockout'"
+                (click)="format.set('groups_knockout')"
+              />
+              <og-radio-row
+                title="Dupla eliminatória"
+                desc="As cabeças entram travadas; o sorteio distribui as posições"
+                [selected]="format() === 'double_elimination'"
+                (click)="format.set('double_elimination')"
+              />
+            }
           </div>
           @if (format() === 'double_elimination') {
             <div class="og-sc-campo">
@@ -214,7 +230,7 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
                   </button>
                 } @else if (editable(s)) {
                   <button type="button" class="og-mini-btn" (click)="editSeeds(s)">
-                    {{ s.format === 'groups_knockout' ? 'Editar potes' : 'Editar cabeças' }}
+                    {{ isBoxed(s) ? 'Editar potes' : 'Editar cabeças' }}
                   </button>
                 }
               </div>
@@ -222,7 +238,7 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
               @if (draftOrder(); as ordem) {
                 <p class="og-sc-ajuda">
                   A ordem define a força: as
-                  {{ s.format === 'groups_knockout' ? headCountOf(s) + ' primeiras viram o pote 1' : draftLocked() + ' primeiras viram as cabeças travadas' }}.
+                  {{ isBoxed(s) ? headCountOf(s) + ' primeiras viram o pote 1' : draftLocked() + ' primeiras viram as cabeças travadas' }}.
                   Arraste as linhas ou use as setas — sobe quem você sabe que é mais forte do que o nível declarado diz.
                 </p>
 
@@ -360,10 +376,10 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
             </og-card>
 
             <og-card kicker="Regras do sorteio" title="Restrições ativas">
-              @if (s.format === 'groups_knockout') {
+              @if (isBoxed(s)) {
                 <og-toggle-row
-                  title="Cabeças em grupos diferentes"
-                  desc="As do pote 1 nunca se cruzam na fase de grupos"
+                  [title]="s.format === 'king_of_court' ? 'Cabeças em rodadas diferentes' : 'Cabeças em grupos diferentes'"
+                  [desc]="s.format === 'king_of_court' ? 'As do pote 1 nunca caem na mesma rodada' : 'As do pote 1 nunca se cruzam na fase de grupos'"
                   [on]="s.config.constraints.seedsApart"
                   (toggled)="setConstraint(s, 'seedsApart', $event)"
                 />
@@ -917,7 +933,7 @@ export class SorteioConfigComponent {
   protected readonly formatTitle = computed(() => {
     const s = this.session();
     if (!s) return '';
-    return s.format === 'groups_knockout' ? 'Fase de grupos + mata-mata' : 'Dupla eliminatória';
+    return drawFormatLabel(s.format);
   });
 
   protected readonly formatStats = computed(() => {
@@ -994,6 +1010,8 @@ export class SorteioConfigComponent {
       this.session.set(session);
       const saved = tournament?.categories.find((c) => c.id === categoryId)?.bracketFormat;
       if (saved === 'double_elimination') this.format.set('double_elimination');
+      // KOTC não é opção do organizador: é o formato da categoria.
+      if (saved === 'king_of_court') this.format.set('king_of_court');
     } catch (e) {
       // Mostra o motivo real junto. Engolir a mensagem do servidor num "não foi
       // possível" genérico é o que transforma uma falha diagnosticável (índice
@@ -1045,12 +1063,16 @@ export class SorteioConfigComponent {
     return min === max ? `${min} pts` : `${min}–${max} pts`;
   }
 
+  protected isBoxed(session: DrawSession): boolean {
+    return isBoxedDraw(session.format);
+  }
+
   protected potsKicker(session: DrawSession): string {
-    return session.format === 'groups_knockout' ? 'Potes' : 'Pote único';
+    return isBoxedDraw(session.format) ? 'Potes' : 'Pote único';
   }
 
   protected potsTitle(session: DrawSession): string {
-    return session.format === 'groups_knockout' ?
+    return isBoxedDraw(session.format) ?
       `${session.pots.length} potes por ranking` :
       'Não-cabeças a sortear';
   }

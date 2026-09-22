@@ -5,7 +5,14 @@ import {
   remainingInPot,
   seedOrderOf,
 } from '../data/draw-session-selectors';
-import type { DrawSession, DrawSessionEntrant } from '../data/draw-session.model';
+import {
+  drawBoxLabel,
+  drawFormatLabel,
+  isBoxedDraw,
+  type DrawFormat,
+  type DrawSession,
+  type DrawSessionEntrant,
+} from '../data/draw-session.model';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import {
   LAND_MS,
@@ -125,10 +132,11 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
             />
           }
           @case ('grid') {
-            @if (s.format === 'groups_knockout') {
+            @if (isBoxed(s.format)) {
               <og-sorteio-grade-grupos
                 [groups]="groups()"
                 [highlightGroupId]="highlightGroupId()"
+                [format]="s.format"
                 [portrait]="portrait()"
               />
             } @else {
@@ -661,6 +669,10 @@ export class SorteioTelaoScreenComponent {
     return this.phase() === 'grid' ? total : Math.max(0, total - 1);
   });
 
+  protected isBoxed(format: DrawFormat): boolean {
+    return isBoxedDraw(format);
+  }
+
   protected readonly groups = computed(() => groupsOf(this.session(), this.visibleCount()));
 
   protected readonly seedOrder = computed(() => seedOrderOf(this.session(), this.visibleCount()));
@@ -687,14 +699,16 @@ export class SorteioTelaoScreenComponent {
   /** Destinos que passam no dado da direita. */
   protected readonly destinationLabels = computed(() => {
     const s = this.session();
-    if (s.format === 'groups_knockout') return groupsOf(s, 0).map((g) => `GRUPO ${g.groupId}`);
+    if (isBoxedDraw(s.format)) {
+      return groupsOf(s, 0).map((g) => drawBoxLabel(s.format, g.groupId).toUpperCase());
+    }
     return this.seedOrder()
       .map((entrant, i) => (entrant ? null : `POSIÇÃO ${i + 1}`))
       .filter((label): label is string => label != null);
   });
 
   protected readonly formatLabel = computed(() =>
-    this.session().format === 'groups_knockout' ? 'fase de grupos' : 'dupla eliminatória',
+    drawFormatLabel(this.session().format).toLowerCase(),
   );
 
   /** Par de avatares da esteira — sempre 2 círculos, como na fila do console. */

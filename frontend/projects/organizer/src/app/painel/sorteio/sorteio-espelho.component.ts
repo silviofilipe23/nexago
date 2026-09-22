@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { groupsOf, seedOrderOf } from '../data/draw-session-selectors';
-import type { DrawSession, DrawSessionEntrant } from '../data/draw-session.model';
+import { drawBoxLabel, type DrawSession, type DrawSessionEntrant } from '../data/draw-session.model';
 import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
 
 /**
@@ -29,7 +29,7 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
               <span class="og-esp-letra" [class.hot]="group.groupId === highlightGroupId()">
                 {{ group.groupId }}
               </span>
-              <span class="og-esp-nome">Grupo {{ group.groupId }}</span>
+              <span class="og-esp-nome">{{ boxLabel(group.groupId) }}</span>
               <span class="og-esp-conta">{{ group.entrants.length }}/{{ group.capacity }}</span>
             </header>
             <div class="og-esp-linhas">
@@ -252,6 +252,10 @@ export class SorteioEspelhoComponent {
   readonly session = input.required<DrawSession>();
   /** Quantas revelações já podem aparecer (o show pode estar à frente da grade). */
   readonly visibleCount = input<number | null>(null);
+
+  protected boxLabel(groupId: string): string {
+    return drawBoxLabel(this.session().format, groupId);
+  }
 
   private readonly shown = computed(() => this.visibleCount() ?? this.session().reveals.length);
 

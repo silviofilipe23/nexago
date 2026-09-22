@@ -14,6 +14,9 @@
 
 /** Limites do formato: menos de 3 não gira a fila, mais de 5 deixa todo mundo esperando. */
 export const KOC_MIN_TEAMS_PER_ROUND = 3;
+
+/** Duplas por quadra quando a categoria não escolheu — o padrão do formato. */
+export const KOC_DEFAULT_TEAMS_PER_COURT = 4;
 export const KOC_MAX_TEAMS_PER_ROUND = 5;
 
 /** Teto de fases — trava de segurança contra config que não reduz o campo. */
@@ -189,9 +192,60 @@ function matchTypeForPhase(phase: number, totalPhases: number): string {
  *
  * `seeds` vem na ordem de semeadura (melhor primeiro), como o resto do gerador.
  */
+/**
+ * Elenco da fase 1 vindo de FORA — o sorteio ao vivo, que já distribuiu as
+ * duplas nas rodadas na frente do público.
+ *
+ * Valida que é uma partição exata do campo: mesmas duplas, sem repetir nem
+ * faltar, e nas capacidades que a fase exige. Um sorteio publicado com o elenco
+ * errado só apareceria na areia, com as duplas já na quadra.
+ */
+function assertPhaseOneRosters(
+  rosters: readonly (readonly string[])[],
+  teamIds: readonly string[],
+  sizes: readonly number[],
+): string[][] {
+  if (rosters.length !== sizes.length) {
+    throw new KocBracketError(
+      `O sorteio trouxe ${rosters.length} rodadas, mas a fase tem ${sizes.length}.`,
+      "koc_draw_round_count_mismatch",
+    );
+  }
+  const seen = new Set<string>();
+  const out: string[][] = [];
+  for (let i = 0; i < rosters.length; i++) {
+    const roster = rosters[i]!.map((id) => id.trim()).filter((id) => id.length > 0);
+    if (roster.length !== sizes[i]!) {
+      throw new KocBracketError(
+        `A rodada ${i + 1} do sorteio tem ${roster.length} duplas; a fase pede ${sizes[i]}.`,
+        "koc_draw_round_size_mismatch",
+      );
+    }
+    for (const id of roster) {
+      if (seen.has(id)) {
+        throw new KocBracketError(
+          "O sorteio repetiu uma dupla em mais de uma rodada.",
+          "koc_draw_duplicate_team",
+        );
+      }
+      seen.add(id);
+    }
+    out.push(roster);
+  }
+  const missing = teamIds.filter((id) => !seen.has(id));
+  if (missing.length > 0 || seen.size !== teamIds.length) {
+    throw new KocBracketError(
+      "O sorteio não cobriu todas as duplas da categoria.",
+      "koc_draw_roster_incomplete",
+    );
+  }
+  return out;
+}
+
 export function buildKingOfCourtRounds(
   seeds: string[],
   config: KocConfig,
+  opts?: {phaseOneRosters?: readonly (readonly string[])[]},
 ): KocRoundDraft[] {
   const teamIds = seeds.map((id) => id.trim()).filter((id) => id.length > 0);
   const qualifiersPerRound = Math.max(1, Math.floor(config.qualifiersPerRound));
@@ -230,7 +284,11 @@ export function buildKingOfCourtRounds(
     // Fase 1 nasce com elenco fechado; as seguintes, com vagas apontando para a
     // tabela da fase anterior.
     const rosters =
-      phaseIndex === 0 ? kocSnakeDistribute(teamIds, sizes) : sizes.map(() => []);
+      phaseIndex === 0 ?
+        (opts?.phaseOneRosters ?
+          assertPhaseOneRosters(opts.phaseOneRosters, teamIds, sizes) :
+          kocSnakeDistribute(teamIds, sizes)) :
+        sizes.map(() => []);
 
     const qualifiersByRound: KocQualifierSlot[][] = sizes.map(() => []);
     if (phaseIndex > 0) {

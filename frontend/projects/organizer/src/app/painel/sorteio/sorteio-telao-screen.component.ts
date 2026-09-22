@@ -654,7 +654,7 @@ export class SorteioTelaoScreenComponent {
 
   protected readonly currentDestination = computed(() => {
     const reveal = this.currentReveal();
-    return reveal ? destinationLabelOf(reveal.destination) : null;
+    return reveal ? destinationLabelOf(reveal.destination, this.session().format) : null;
   });
 
   /**

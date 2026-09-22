@@ -246,11 +246,16 @@ describe('remainingInPot', () => {
 
 describe('destinationLabelOf', () => {
   it('grupo vira "GRUPO C"', () => {
-    expect(destinationLabelOf({ type: 'group', groupId: 'C' })).toBe('GRUPO C');
+    expect(destinationLabelOf({ type: 'group', groupId: 'C' }, 'groups_knockout')).toBe('GRUPO C');
+  });
+
+  it('na King of the Court a caixa é uma RODADA, não um grupo', () => {
+    expect(destinationLabelOf({ type: 'group', groupId: 'A' }, 'king_of_court')).toBe('RODADA 1');
+    expect(destinationLabelOf({ type: 'group', groupId: 'C' }, 'king_of_court')).toBe('RODADA 3');
   });
 
   it('seed vira "POSIÇÃO 12"', () => {
-    expect(destinationLabelOf({ type: 'seed', seed: 12 })).toBe('POSIÇÃO 12');
+    expect(destinationLabelOf({ type: 'seed', seed: 12 }, 'double_elimination')).toBe('POSIÇÃO 12');
   });
 });
 

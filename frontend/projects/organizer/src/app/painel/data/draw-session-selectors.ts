@@ -1,5 +1,7 @@
+import { drawBoxLabel } from './draw-session.model';
 import type {
   DrawDestination,
+  DrawFormat,
   DrawGroupView,
   DrawSession,
   DrawSessionEntrant,
@@ -103,9 +105,18 @@ export function remainingInPot(session: DrawSession): DrawSessionEntrant[] {
     .filter((e): e is DrawSessionEntrant => !!e);
 }
 
-/** Rótulo do destino pra tela: `GRUPO C` ou `POSIÇÃO 12`. */
-export function destinationLabelOf(destination: DrawDestination): string {
-  return destination.type === 'group' ? `GRUPO ${destination.groupId}` : `POSIÇÃO ${destination.seed}`;
+/**
+ * Rótulo do destino pra tela: `GRUPO C`, `RODADA 2` ou `POSIÇÃO 12`.
+ *
+ * O `format` é obrigatório de propósito. O destino sozinho não sabe como a
+ * caixa se chama — na King of the Court ela é uma RODADA — e um default
+ * silencioso aqui é o que faria um sorteio de KOTC anunciar "GRUPO A" no
+ * telão sem nenhum sinal de que estava errado.
+ */
+export function destinationLabelOf(destination: DrawDestination, format: DrawFormat): string {
+  return destination.type === 'group' ?
+    drawBoxLabel(format, destination.groupId).toUpperCase() :
+    `POSIÇÃO ${destination.seed}`;
 }
 
 /**

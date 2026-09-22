@@ -964,8 +964,9 @@ export class SorteioConsoleComponent {
   });
 
   protected readonly currentDestination = computed(() => {
+    const session = this.store.session();
     const reveal = this.current();
-    return reveal ? destinationLabelOf(reveal.destination) : '';
+    return session && reveal ? destinationLabelOf(reveal.destination, session.format) : '';
   });
 
   protected readonly currentStats = computed(() => {
@@ -1033,7 +1034,7 @@ export class SorteioConsoleComponent {
     return [...session.reveals].reverse().map((reveal) => ({
       index: reveal.index,
       label: session.entrants.find((e) => e.teamId === reveal.teamId)?.label ?? reveal.teamId,
-      destination: destinationLabelOf(reveal.destination),
+      destination: destinationLabelOf(reveal.destination, session.format),
       atMillis: reveal.atMillis,
     }));
   });

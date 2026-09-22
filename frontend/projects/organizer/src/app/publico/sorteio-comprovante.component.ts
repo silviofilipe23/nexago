@@ -5,6 +5,7 @@ import {
   preassignedCountOf,
   revealOriginLabelOf,
 } from '../painel/data/draw-session-selectors';
+import { drawFormatLabel, type DrawFormat } from '../painel/data/draw-session.model';
 import { DrawSessionStore } from '../painel/sorteio/draw-session.store';
 
 /**
@@ -32,7 +33,7 @@ import { DrawSessionStore } from '../painel/sorteio/draw-session.store';
           <h1>{{ s.tournamentName }}</h1>
           <p class="og-comp-sub">
             {{ s.categoryName }} ·
-            {{ s.format === 'groups_knockout' ? 'fase de grupos' : 'dupla eliminatória' }} ·
+            {{ formatLabel(s.format) }} ·
             {{ s.entrants.length }} duplas
           </p>
 
@@ -297,13 +298,20 @@ export class SorteioComprovanteComponent {
     effect(() => this.store.sessionId.set(this.sessionId()));
   }
 
+  /** O ternário que estava aqui chamava King of the Court de "dupla
+   *  eliminatória" — o comprovante é público e é a prova que o organizador
+   *  manda no grupo, então o nome do formato tem que sair do formato. */
+  protected formatLabel(format: DrawFormat): string {
+    return drawFormatLabel(format).toLowerCase();
+  }
+
   protected readonly rows = computed(() => {
     const session = this.store.session();
     if (!session) return [];
     return session.reveals.map((reveal) => ({
       index: reveal.index,
       label: session.entrants.find((e) => e.teamId === reveal.teamId)?.label ?? reveal.teamId,
-      destination: destinationLabelOf(reveal.destination),
+      destination: destinationLabelOf(reveal.destination, session.format),
       atMillis: reveal.atMillis,
       hash: reveal.hash,
       relaxed: reveal.relaxed,

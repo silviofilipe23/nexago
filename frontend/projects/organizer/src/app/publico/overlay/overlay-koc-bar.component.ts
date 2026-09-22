@@ -208,6 +208,8 @@ function clockUnderOneMin(label: string): boolean {
       color: #fff;
     }
     .dot {
+      display: inline-block;
+      flex-shrink: 0;
       width: 9px;
       height: 9px;
       border-radius: 50%;
@@ -307,6 +309,8 @@ function clockUnderOneMin(label: string): boolean {
       color: #1a0d03;
     }
     .block--on-fire {
+      /* Só box-shadow — filter disputaria com o flash WAAPI do novo trono. */
+      z-index: 1;
       animation: koc-throne-fire 1.5s ease-in-out infinite;
     }
 
@@ -340,7 +344,7 @@ function clockUnderOneMin(label: string): boolean {
     .points {
       display: inline-block;
       margin-left: auto;
-      font-size: 27px;
+      font-size: 34px;
       font-weight: 800;
       font-variant-numeric: tabular-nums;
       transform-origin: 50% 50%;
@@ -392,29 +396,31 @@ function clockUnderOneMin(label: string): boolean {
         opacity: 1;
       }
       50% {
-        opacity: 0.22;
+        opacity: 0.15;
       }
     }
     @keyframes koc-throne-fire {
       0%,
       100% {
         box-shadow:
-          0 0 0 0 rgba(255, 106, 26, 0.4),
+          0 0 14px 2px rgba(255, 106, 26, 0.55),
           inset 0 0 0 rgba(255, 180, 80, 0);
       }
       50% {
         box-shadow:
-          0 0 28px 4px rgba(255, 106, 26, 0.7),
-          inset 0 0 22px rgba(255, 200, 120, 0.35);
+          0 0 40px 10px rgba(255, 120, 30, 0.95),
+          inset 0 0 28px rgba(255, 220, 140, 0.45);
       }
     }
     @keyframes koc-clock-urgent {
       0%,
       100% {
         opacity: 1;
+        color: var(--nx-live, #ff3b30);
       }
       50% {
-        opacity: 0.32;
+        opacity: 0.28;
+        color: #ff6b63;
       }
     }
 
@@ -443,21 +449,37 @@ export class OverlayKocBarComponent {
   readonly challenger = computed(() => this.blocks().find((b) => b.role === 'challenger') ?? null);
   readonly king = computed(() => this.blocks().find((b) => b.role === 'king') ?? null);
 
+  /**
+   * Só papéis/pontos/ordem — o `view()` inteiro muda a cada tick do cronômetro e re-disparava
+   * o FLIP no meio do translate (getBoundingClientRect com transform = left errado).
+   */
+  private readonly motionKey = computed(() => {
+    const v = this.view();
+    if (!v) return '';
+    const body = this.blocks()
+      .map((b) => `${b.teamId}:${b.role}:${b.points}:${b.nextUp ? 1 : 0}`)
+      .join('|');
+    return `${body}|s:${v.bar.streak ?? ''}`;
+  });
+
   /** Primeiro frame só grava posições — senão todo mundo “entra” no mount. */
   private primed = false;
-  private prevRects = new Map<string, DOMRect>();
+  private lastMotionKey = '';
+  /** left de layout (sem transform) — DOMRect mid-FLIP corrompia o próximo dx. */
+  private prevLeft = new Map<string, number>();
   private prevPts = new Map<string, number>();
   private prevKingId: string | null = null;
 
   constructor() {
     afterRenderEffect(() => {
       const v = this.view();
-      // Dependência explícita dos blocos (troca de lugar / pontos).
-      this.blocks();
+      const key = this.motionKey();
       if (!v) {
         this.resetMotionState();
         return;
       }
+      if (key === this.lastMotionKey) return;
+      this.lastMotionKey = key;
       this.runMotion();
     });
   }
@@ -472,7 +494,8 @@ export class OverlayKocBarComponent {
 
   private resetMotionState(): void {
     this.primed = false;
-    this.prevRects = new Map();
+    this.lastMotionKey = '';
+    this.prevLeft = new Map();
     this.prevPts = new Map();
     this.prevKingId = null;
   }
@@ -481,21 +504,40 @@ export class OverlayKocBarComponent {
     return typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
 
+  /** Só WAAPI (FLIP/enter/bump). `getAnimations()` também devolve CSS — cancelar matava o pulse on-fire. */
+  private cancelMotion(el: HTMLElement): void {
+    for (const a of el.getAnimations()) {
+      if (a instanceof CSSAnimation || a instanceof CSSTransition) continue;
+      a.cancel();
+    }
+    const ptsEl = el.querySelector('.points') as HTMLElement | null;
+    if (!ptsEl) return;
+    for (const a of ptsEl.getAnimations()) {
+      if (a instanceof CSSAnimation || a instanceof CSSTransition) continue;
+      a.cancel();
+    }
+  }
+
   /** FLIP + enter + novo trono + bump de pontos — tudo em WAAPI depois do layout. */
   private runMotion(): void {
     const root = this.host.nativeElement as HTMLElement;
     const nodes = Array.from(root.querySelectorAll('.block[data-team-id]')) as HTMLElement[];
-    const nextRects = new Map<string, DOMRect>();
+    const motionOk = this.primed && !this.prefersReducedMotion();
+
+    // Zera transforms em voo ANTES de medir — senão o Last do FLIP é a posição animada.
+    for (const el of nodes) this.cancelMotion(el);
+    void root.offsetWidth;
+
+    const nextLeft = new Map<string, number>();
     const nextPts = new Map<string, number>();
     let kingId: string | null = null;
     let kingEl: HTMLElement | null = null;
-    const motionOk = this.primed && !this.prefersReducedMotion();
 
     for (const el of nodes) {
       const id = el.dataset['teamId'];
       if (!id) continue;
-      const rect = el.getBoundingClientRect();
-      nextRects.set(id, rect);
+      const left = el.getBoundingClientRect().left;
+      nextLeft.set(id, left);
       const pts = Number(el.dataset['pts'] ?? '0');
       nextPts.set(id, pts);
       if (el.dataset['role'] === 'king') {
@@ -505,9 +547,8 @@ export class OverlayKocBarComponent {
 
       if (!motionOk) continue;
 
-      const prev = this.prevRects.get(id);
-      if (!prev) {
-        el.getAnimations().forEach((a: Animation) => a.cancel());
+      const prev = this.prevLeft.get(id);
+      if (prev === undefined) {
         el.animate(
           [
             { opacity: 0, transform: 'translateY(24px) scale(.94)' },
@@ -516,9 +557,8 @@ export class OverlayKocBarComponent {
           { duration: ENTER_MS, easing: EASE_OUT },
         );
       } else {
-        const dx = prev.left - rect.left;
+        const dx = prev - left;
         if (Math.abs(dx) > 0.5) {
-          el.getAnimations().forEach((a: Animation) => a.cancel());
           el.animate([{ transform: `translateX(${dx}px)` }, { transform: 'translateX(0)' }], {
             duration: FLIP_MS,
             easing: EASE_OUT,
@@ -529,17 +569,14 @@ export class OverlayKocBarComponent {
       const prevPt = this.prevPts.get(id);
       if (prevPt !== undefined && prevPt !== pts) {
         const ptsEl = el.querySelector('.points') as HTMLElement | null;
-        if (ptsEl) {
-          ptsEl.getAnimations().forEach((a: Animation) => a.cancel());
-          ptsEl.animate(
-            [
-              { transform: 'scale(1)' },
-              { transform: 'scale(1.42)', offset: 0.4 },
-              { transform: 'scale(1)' },
-            ],
-            { duration: PTS_BUMP_MS, easing: EASE_ELASTIC },
-          );
-        }
+        ptsEl?.animate(
+          [
+            { transform: 'scale(1)' },
+            { transform: 'scale(1.42)', offset: 0.4 },
+            { transform: 'scale(1)' },
+          ],
+          { duration: PTS_BUMP_MS, easing: EASE_ELASTIC },
+        );
       }
     }
 
@@ -556,7 +593,7 @@ export class OverlayKocBarComponent {
       });
     }
 
-    this.prevRects = nextRects;
+    this.prevLeft = nextLeft;
     this.prevPts = nextPts;
     this.prevKingId = kingId;
     this.primed = true;

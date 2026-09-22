@@ -4,6 +4,7 @@ import {
   KOC_DEFAULT_ROUND_DURATION_SEC,
   KocBracketError,
   buildKingOfCourtRounds,
+  kocBracketCountForRounds,
   kocNextRoundIndex,
   kocQualifierDescription,
   kocRoundCount,
@@ -461,5 +462,68 @@ describe("kocMaxRoundsPerBracket", () => {
     assert.equal(kocMaxRoundsPerBracket(3), 1);
     assert.equal(kocMaxRoundsPerBracket(4), 2);
     assert.equal(kocMaxRoundsPerBracket(5), 3);
+  });
+});
+
+describe("kocBracketCountForRounds", () => {
+  it("14 duplas com 2 rodadas por chave viram 3 chaves, nao 4 com uma de 3", () => {
+    assert.equal(kocRoundCount(14, 4), 4);
+    assert.equal(kocBracketCountForRounds(14, 4, 2), 3);
+    assert.deepEqual(kocRoundSizes(14, kocBracketCountForRounds(14, 4, 2)), [5, 5, 4]);
+  });
+
+  it("com uma rodada por chave nada muda", () => {
+    for (const n of [9, 13, 14, 17, 22]) {
+      assert.equal(kocBracketCountForRounds(n, 4, 1), kocRoundCount(n, 4));
+    }
+  });
+
+  it("nao estoura o teto da rodada: 6 duplas continuam em 2 chaves", () => {
+    // Juntar em 1 chave daria uma rodada de 6, acima do maximo do formato.
+    assert.equal(kocBracketCountForRounds(6, 4, 2), 2);
+  });
+});
+
+describe("buildKingOfCourtRounds · campo que nao e multiplo da quadra", () => {
+  const cfg = (roundsPerBracket: number) => ({
+    teamsPerCourt: 4,
+    roundsPerBracket,
+    qualifiersPerRound: 2,
+    roundDurationSec: 1200,
+  });
+
+  it("14 duplas aceitam 2 rodadas por chave", () => {
+    const teamIds = Array.from({length: 14}, (_, i) => `t${i + 1}`);
+    const rounds = buildKingOfCourtRounds(teamIds, cfg(2));
+    const phaseOne = rounds.filter((r) => r.phase === 1);
+    assert.equal(phaseOne.length, 6); // 3 chaves x 2 rodadas
+    assert.deepEqual(
+      phaseOne.slice(0, 3).map((r) => r.size),
+      [5, 5, 4],
+    );
+    // A 2a rodada de cada chave herda os nao-classificados da 1a, e so deles.
+    for (let i = 0; i < 3; i++) {
+      const second = phaseOne[3 + i]!;
+      const sources = new Set((second.qualifiers ?? []).map((q) => q.fromMatchNumber));
+      assert.deepEqual([...sources], [phaseOne[i]!.matchNumber]);
+    }
+  });
+
+  it("13, 15, 17 e 22 duplas tambem fecham", () => {
+    for (const n of [13, 15, 17, 22]) {
+      const teamIds = Array.from({length: n}, (_, i) => `t${i + 1}`);
+      const rounds = buildKingOfCourtRounds(teamIds, cfg(2));
+      assert.ok(rounds.length > 0, `${n} duplas`);
+      const phaseOne = rounds.filter((r) => r.phase === 1);
+      assert.equal(phaseOne.length % 2, 0, `${n} duplas: fase 1 tem que ser chaves x 2`);
+    }
+  });
+
+  it("6 duplas seguem recusadas: 1 chave de 6 estoura o teto da rodada", () => {
+    const teamIds = Array.from({length: 6}, (_, i) => `t${i + 1}`);
+    assert.throws(
+      () => buildKingOfCourtRounds(teamIds, cfg(2)),
+      (e: KocBracketError) => e.reason === "koc_rounds_per_bracket_too_high",
+    );
   });
 });

@@ -30,9 +30,8 @@ import {
   SKILL_LEVEL_LABEL,
   SPORT_LABEL,
   SUPPORTED_BRACKET_SYSTEMS,
-  kocMaxRoundsPerBracket,
+  kocMaxRoundsForField,
   kocSchedule,
-  kocSmallestBracket,
   TOURNAMENT_CREATE_STEPS,
   type AgeBand,
   type CategoryDispute,
@@ -1058,9 +1057,12 @@ export class CriarTorneioComponent {
 
   /** Teto de rodadas por chave: cada vencedora sai, e toda rodada precisa do
    *  mínimo do formato. Uma chave de 4 dá 2; uma de 5, 3. */
+  /** Teto honesto do stepper: quantas chaves existem depende de quantas rodadas
+   *  se pede, então o limite é o maior R que o campo fecha — não o que a menor
+   *  chave de uma divisão feita sem saber de R comportaria. */
   protected maxRoundsPerBracket(): number {
     const c = this.cat();
-    return kocMaxRoundsPerBracket(kocSmallestBracket(c.spots, c.kocTeamsPerCourt));
+    return kocMaxRoundsForField(c.spots, c.kocTeamsPerCourt);
   }
 
   protected bumpCat(field: 'teamsPerGroup' | 'qualifiersPerGroup' | 'maxRegistrationsPerAthlete' | 'kocTeamsPerCourt' | 'kocRoundsPerBracket' | 'kocQualifiersPerRound', delta: number, min: number, max: number): void {

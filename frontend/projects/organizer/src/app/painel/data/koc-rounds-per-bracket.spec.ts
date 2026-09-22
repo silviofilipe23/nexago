@@ -1,5 +1,8 @@
 import {
+  kocBracketCountForRounds,
+  kocMaxRoundsForField,
   kocMaxRoundsPerBracket,
+  kocRoundCount,
   kocRoundsPerPhase,
   kocSchedule,
   kocSmallestBracket,
@@ -42,5 +45,35 @@ describe('rodadas por chave · conta do wizard', () => {
     expect(duas.totalRounds).toBe(11);
     expect(duas.totalSeconds).toBeGreaterThan(uma.totalSeconds);
     expect(duas.valid).toBeTrue();
+  });
+});
+
+describe('rodadas por chave · campo que não é múltiplo da quadra', () => {
+  it('14 duplas viram 3 chaves quando se pede 2 rodadas', () => {
+    expect(kocRoundCount(14, 4)).toBe(4);
+    expect(kocBracketCountForRounds(14, 4, 2)).toBe(3);
+    expect(kocSmallestBracket(14, 4, 2)).toBe(4);
+  });
+
+  it('o teto do stepper é o maior R que o campo fecha', () => {
+    // 14 duplas fechavam só 1 antes, porque a divisão em 4 chaves deixava uma de 3.
+    expect(kocMaxRoundsForField(14, 4)).toBe(2);
+    expect(kocMaxRoundsForField(16, 4)).toBe(2);
+    // 6 duplas não fecham 2: juntar em 1 chave daria rodada de 6, acima do teto.
+    expect(kocMaxRoundsForField(6, 4)).toBe(1);
+  });
+
+  it('a estimativa de rodadas deixa de zerar em 13, 14, 15', () => {
+    for (const n of [13, 14, 15, 17, 22]) {
+      const phases = kocRoundsPerPhase(n, 4, 2, 2);
+      expect(phases.length).withContext(`${n} duplas`).toBeGreaterThan(0);
+      expect(phases[0] % 2).withContext(`${n} duplas: fase 1 = chaves × 2`).toBe(0);
+    }
+  });
+
+  it('com uma rodada por chave a divisão do campo não muda', () => {
+    for (const n of [9, 13, 14, 17, 22]) {
+      expect(kocBracketCountForRounds(n, 4, 1)).toBe(kocRoundCount(n, 4));
+    }
   });
 });

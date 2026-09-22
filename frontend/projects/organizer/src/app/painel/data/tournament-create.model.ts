@@ -439,10 +439,43 @@ export function kocMaxRoundsPerBracket(bracketSize: number): number {
   return Math.max(1, bracketSize - KOC_MIN_TEAMS_PER_ROUND + 1);
 }
 
+/** Em quantas CHAVES dividir o campo quando cada chave joga `roundsPerBracket`
+ *  rodadas. A vencedora sai a cada rodada, então a chave precisa nascer com
+ *  `KOC_MIN_TEAMS_PER_ROUND + R - 1`; menos chaves, cada uma mais cheia, é o que
+ *  faz 14 duplas caberem em 2 rodadas por chave (3 chaves de 5, 5, 4) em vez de
+ *  4 chaves com uma de 3 que inviabiliza tudo. Espelha o servidor. */
+export function kocBracketCountForRounds(teamCount: number, teamsPerCourt: number, roundsPerBracket: number): number {
+  const needed = KOC_MIN_TEAMS_PER_ROUND + Math.max(1, Math.floor(roundsPerBracket)) - 1;
+  let rounds = kocRoundCount(teamCount, teamsPerCourt);
+  if (rounds === 0) return 0;
+  while (
+    rounds > 1 &&
+    Math.floor(teamCount / rounds) < needed &&
+    Math.ceil(teamCount / (rounds - 1)) <= KOC_MAX_TEAMS_PER_ROUND
+  ) {
+    rounds--;
+  }
+  return rounds;
+}
+
 /** Menor chave da fase 1 — é ela que limita as rodadas por chave. */
-export function kocSmallestBracket(teamCount: number, teamsPerCourt: number): number {
-  const rounds = kocRoundCount(teamCount, teamsPerCourt);
+export function kocSmallestBracket(teamCount: number, teamsPerCourt: number, roundsPerBracket = 1): number {
+  const rounds = kocBracketCountForRounds(teamCount, teamsPerCourt, roundsPerBracket);
   return rounds > 0 ? Math.floor(teamCount / rounds) : 0;
+}
+
+/** Quantas rodadas por chave este campo aceita de verdade.
+ *
+ *  Não dá pra perguntar direto à menor chave: quantas chaves existem DEPENDE de
+ *  quantas rodadas se quer. Então a resposta é o maior R que fecha — é o teto
+ *  honesto pro stepper, e evita oferecer um número que a geração recusa. */
+export function kocMaxRoundsForField(teamCount: number, teamsPerCourt: number): number {
+  let best = 1;
+  for (let r = 2; r <= KOC_MAX_TEAMS_PER_ROUND; r++) {
+    const smallest = kocSmallestBracket(teamCount, teamsPerCourt, r);
+    if (smallest > 0 && kocMaxRoundsPerBracket(smallest) >= r) best = r;
+  }
+  return best;
 }
 
 /** Rodadas de cada fase, da classificatória à final. Vazio = config não fecha. */
@@ -457,13 +490,15 @@ export function kocRoundsPerPhase(
   const phases: number[] = [];
   let fieldSize = teamCount;
   while (phases.length < KOC_MAX_PHASES) {
-    const brackets = kocRoundCount(fieldSize, teamsPerCourt);
-    if (brackets === 0) return [];
     const first = phases.length === 0;
+    const brackets = first && perBracket > 1 ?
+      kocBracketCountForRounds(fieldSize, teamsPerCourt, perBracket) :
+      kocRoundCount(fieldSize, teamsPerCourt);
+    if (brackets === 0) return [];
     // Na fase 1 a chave pode jogar várias rodadas, cada uma classificando uma:
     // são mais rodadas na quadra E mais classificadas saindo da fase.
     if (first && perBracket > 1) {
-      if (perBracket > kocMaxRoundsPerBracket(kocSmallestBracket(fieldSize, teamsPerCourt))) {
+      if (perBracket > kocMaxRoundsPerBracket(kocSmallestBracket(fieldSize, teamsPerCourt, perBracket))) {
         return [];
       }
       phases.push(brackets * perBracket);

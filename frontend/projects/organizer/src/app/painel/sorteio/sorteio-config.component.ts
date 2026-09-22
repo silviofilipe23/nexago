@@ -11,6 +11,7 @@ import {
   type DrawSessionEntrant,
 } from '../data/draw-session.model';
 import { combinationsOf, formatSummaryOf, readinessChecksOf } from '../data/draw-summary';
+import { bracketSystemFromRaw } from '../data/tournament-create.model';
 import {
   currentSeedOrder,
   headCountOf,
@@ -98,9 +99,9 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
           </p>
 
           <div class="og-sc-formatos">
-            @if (format() === 'king_of_court') {
-              <!-- Não é escolha: a categoria é King of the Court, e sortear
-                   como grupo geraria uma chave que o formato não tem. -->
+            @if (kocLocked()) {
+              <!-- Categoria já salva como King of the Court: não é escolha, porque
+                   sortear como grupo geraria uma chave que o formato não tem. -->
               <og-radio-row
                 title="King of the Court"
                 desc="Cada dupla é sorteada para uma rodada da classificatória, pote a pote"
@@ -119,8 +120,22 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
                 [selected]="format() === 'double_elimination'"
                 (click)="format.set('double_elimination')"
               />
+              <og-radio-row
+                title="King of the Court"
+                desc="Cada dupla é sorteada para uma rodada da classificatória, pote a pote"
+                [selected]="format() === 'king_of_court'"
+                (click)="format.set('king_of_court')"
+              />
             }
           </div>
+          @if (kocOverCategory()) {
+            <p class="og-sc-ajuda">
+              A categoria continua no formato salvo nela: o King of the Court vale para esta
+              sessão e chega na chave quando o sorteio for publicado. O tamanho da rodada segue
+              a configuração de King of the Court da categoria (4 duplas, por padrão), e o
+              sorteio precisa de pelo menos 3 duplas confirmadas.
+            </p>
+          }
           @if (format() === 'double_elimination') {
             <div class="og-sc-campo">
               <span class="og-sc-label">Cabeças travadas</span>
@@ -915,10 +930,33 @@ export class SorteioConfigComponent {
   protected readonly dragFrom = signal<number | null>(null);
   protected readonly dragOver = signal<number | null>(null);
 
+  protected readonly category = computed(
+    () => this.tournament()?.categories.find((c) => c.id === this.catId()) ?? null,
+  );
+
+  /** Categoria já salva como King of the Court: o formato não é escolha do
+   *  organizador. Lê pela normalização do painel — `king_of_court`,
+   *  `kingOfCourt` e `kotc` são a mesma categoria, e comparar a string crua
+   *  deixava a trava passar batido conforme quem gravou o doc. */
+  protected readonly kocLocked = computed(
+    () => bracketSystemFromRaw(this.category()?.bracketFormat ?? '') === 'kingOfCourt',
+  );
+
+  /** Formato com que a sessão nasce: a categoria KOTC manda; nas demais, vale a
+   *  escolha do organizador. */
+  protected readonly chosenFormat = computed<DrawFormat>(() =>
+    this.kocLocked() ? 'king_of_court' : this.format(),
+  );
+
+  /** KOTC escolhido para uma categoria de outro formato — o aviso de que a
+   *  categoria não muda só faz sentido aqui. */
+  protected readonly kocOverCategory = computed(
+    () => !this.kocLocked() && this.format() === 'king_of_court',
+  );
+
   protected readonly headerSubtitle = computed(() => {
     const s = this.session();
-    const t = this.tournament();
-    const category = t?.categories.find((c) => c.id === this.catId());
+    const category = this.category();
     const base = 'a chave só vira oficial quando a sessão for publicada';
     if (!category) return base;
     const teams = s ? `${s.entrants.length} duplas · ` : '';
@@ -940,6 +978,16 @@ export class SorteioConfigComponent {
     const summary = this.summary();
     if (!summary) return [];
     if (summary.kind === 'groups') {
+      // Na KOTC a caixa é uma RODADA da classificatória. "Classificam" fica de
+      // fora de propósito: quem passa de fase vem da config do formato, não do
+      // `qualifiersPerGroup` da categoria.
+      if (this.session()?.format === 'king_of_court') {
+        return [
+          { label: 'duplas', value: summary.teams },
+          { label: 'rodadas', value: summary.groups },
+          { label: 'por rodada', value: summary.perGroup },
+        ];
+      }
       return [
         { label: 'duplas', value: summary.teams },
         { label: 'grupos', value: summary.groups },
@@ -959,6 +1007,11 @@ export class SorteioConfigComponent {
     const summary = this.summary();
     if (!summary) return '';
     if (summary.kind === 'groups') {
+      if (this.session()?.format === 'king_of_court') {
+        return summary.exact ?
+          'As rodadas fecham exatamente. Nenhuma rodada desigual.' :
+          'A divisão não fecha: algumas rodadas ficam com uma dupla a menos.';
+      }
       return summary.exact ?
         'A chave fecha exatamente. Nenhum grupo desigual.' :
         'A divisão não fecha: alguns grupos ficam com uma dupla a menos.';
@@ -1010,8 +1063,6 @@ export class SorteioConfigComponent {
       this.session.set(session);
       const saved = tournament?.categories.find((c) => c.id === categoryId)?.bracketFormat;
       if (saved === 'double_elimination') this.format.set('double_elimination');
-      // KOTC não é opção do organizador: é o formato da categoria.
-      if (saved === 'king_of_court') this.format.set('king_of_court');
     } catch (e) {
       // Mostra o motivo real junto. Engolir a mensagem do servidor num "não foi
       // possível" genérico é o que transforma uma falha diagnosticável (índice
@@ -1156,8 +1207,8 @@ export class SorteioConfigComponent {
       await createDrawSession({
         tournamentId: this.id(),
         categoryId: this.catId(),
-        format: this.format(),
-        ...(this.format() === 'double_elimination' ?
+        format: this.chosenFormat(),
+        ...(this.chosenFormat() === 'double_elimination' ?
           { lockedSeedCount: this.lockedSeedCount() } :
           {}),
         ...(this.newScheduledAt() != null ? { scheduledAt: this.newScheduledAt()! } : {}),

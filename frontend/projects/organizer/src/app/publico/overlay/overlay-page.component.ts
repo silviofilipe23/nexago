@@ -12,6 +12,15 @@ import { overlayBandOf, overlayCornerOf, overlayViewOf } from './overlay-selecto
 
 type TelaKoc = 'resultado' | 'classificadas';
 
+const TELAS_KOC: readonly string[] = ['resultado', 'classificadas'];
+
+/** Visualização fixada em `?tela=`. Valor desconhecido volta ao rodízio, em vez de deixar a tela
+ *  vazia — ninguém vai depurar query param no meio de uma transmissão. */
+function telaFixadaEm(raw: string | null): TelaKoc | null {
+  const v = (raw ?? '').trim().toLowerCase();
+  return TELAS_KOC.includes(v) ? (v as TelaKoc) : null;
+}
+
 /** Quanto cada tela fica no ar no rodízio do fim de rodada. */
 const RESULTADO_MS = 20_000;
 const CLASSIFICADAS_MS = 15_000;
@@ -30,6 +39,7 @@ const CLASSIFICADAS_MS = 15_000;
     OverlayKocQualifiedComponent,
   ],
   providers: [OverlayLiveGateway],
+  host: { '(document:keydown)': 'aoTeclar($event)' },
   template: `
     @if (duelView(); as duel) {
       <og-overlay-scoreboard
@@ -58,6 +68,16 @@ const CLASSIFICADAS_MS = 15_000;
         [categoryName]="categoryName()"
       />
     }
+    @if (podeAlternar()) {
+      <!-- Invisível e por cima: no OBS o clique chega pela janela "Interagir" e o cursor não
+           entra na saída, então nada disto aparece no ar. -->
+      <button
+        class="alternar"
+        type="button"
+        aria-label="Alternar visualização"
+        (click)="alternar()"
+      ></button>
+    }
     @if (kocView(); as koc) {
       <og-overlay-koc-bar
         [view]="koc"
@@ -72,16 +92,35 @@ const CLASSIFICADAS_MS = 15_000;
     :host {
       display: block;
     }
+
+    .alternar {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+    }
   `,
 })
 export class OverlayPageComponent {
   /** Params da rota chegam por `withComponentInputBinding` — `input()`, nunca `signal()`. */
   readonly matchId = input('');
+  /** `?tela=resultado|classificadas` — fixa a visualização e desliga o rodízio. */
+  readonly tela = input<string | null>(null);
   readonly pos = input<string | null>(null);
 
   protected readonly gateway = inject(OverlayLiveGateway);
 
   private readonly telaKoc = signal<TelaKoc>('resultado');
+  /** Visualização escolhida no clique/tecla. Assume o controle: quem mexeu manda mais que o
+   *  rodízio e mais que `?tela=`. */
+  private readonly manual = signal<TelaKoc | null>(null);
+  private readonly telaFixa = computed(() => telaFixadaEm(this.tela()));
+  private readonly telaEfetiva = computed<TelaKoc>(
+    () => this.manual() ?? this.telaFixa() ?? this.telaKoc(),
+  );
 
   /** Muda só quando a partida (ou o fato de estar encerrada) muda. */
   private readonly chaveDoRodizio = computed(() => {
@@ -129,11 +168,24 @@ export class OverlayPageComponent {
   });
 
   protected readonly telaDoResultado = computed(() =>
-    this.telaKoc() === 'resultado' ? this.standings() : null,
+    this.telaEfetiva() === 'resultado' ? this.standings() : null,
   );
   protected readonly telaDasClassificadas = computed(() =>
-    this.telaKoc() === 'classificadas' ? this.qualified() : null,
+    this.telaEfetiva() === 'classificadas' ? this.qualified() : null,
   );
+
+  /** Só há o que alternar no fim da rodada, quando existem as duas telas. */
+  protected readonly podeAlternar = computed(() => this.standings() != null);
+
+  protected alternar(): void {
+    this.manual.set(this.telaEfetiva() === 'resultado' ? 'classificadas' : 'resultado');
+  }
+
+  protected aoTeclar(event: KeyboardEvent): void {
+    if (!this.podeAlternar()) return;
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+    this.alternar();
+  }
 
   protected readonly phaseName = computed(() => {
     const m = this.match();
@@ -187,7 +239,8 @@ export class OverlayPageComponent {
     effect((onCleanup) => {
       const chave = this.chaveDoRodizio();
       this.telaKoc.set('resultado');
-      if (!chave) return;
+      // Visualização fixada na URL ou escolhida na mão não reveza.
+      if (!chave || this.telaFixa() || this.manual()) return;
       let timer: ReturnType<typeof setTimeout>;
       const agenda = (tela: TelaKoc) => {
         timer = setTimeout(

@@ -81,6 +81,58 @@ async function mount(inputs: Record<string, unknown>) {
   return { fixture, fake };
 }
 
+function rodadaEncerrada(): TournamentMatch {
+  return match({
+    status: 'completed',
+    matchType: 'koc_round',
+    teamAId: '',
+    teamBId: '',
+    sets: [],
+    currentSetIndex: null,
+    koc: {
+      teamIds: ['k', 'c', 'q'],
+      kingTeamId: 'k',
+      challengerTeamId: 'c',
+      queue: ['q'],
+      points: { k: 8, c: 7, q: 2 },
+      rallies: 0,
+      servingTeamId: '',
+      clock: null,
+      standings: [
+        { teamId: 'k', place: 1, points: 8, crowns: 3 },
+        { teamId: 'c', place: 2, points: 7, crowns: 1 },
+        { teamId: 'q', place: 3, points: 2, crowns: 0 },
+      ],
+      qualifiersPerRound: 2,
+      teamsPerCourt: 4,
+      roundsPerBracket: 1,
+      configuredDurationSec: 900,
+      rallySeq: 0,
+      rallyLog: [],
+      roundLabel: 1,
+      qualifierSlots: [],
+    },
+  });
+}
+
+/** Monta a página já no fim de rodada, que é quando há duas telas pra alternar. */
+async function noFimDaRodada(inputs: Record<string, unknown> = {}) {
+  const montado = await mount({ matchId: 'm1', ...inputs });
+  const encerrada = rodadaEncerrada();
+  montado.fake.tournament.set(TOURNAMENT);
+  montado.fake.categoryMatches.set([encerrada]);
+  montado.fake.match.set(encerrada);
+  await montado.fixture.whenStable();
+  return montado;
+}
+
+function telaAtual(fixture: { nativeElement: unknown }): string {
+  const host = fixture.nativeElement as HTMLElement;
+  if (host.querySelector('og-overlay-koc-standings')) return 'resultado';
+  if (host.querySelector('og-overlay-koc-qualified')) return 'classificadas';
+  return 'nenhuma';
+}
+
 describe('OverlayPageComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -303,5 +355,77 @@ describe('OverlayPageComponent', () => {
     } finally {
       jasmine.clock().uninstall();
     }
+  });
+
+  it('?tela= fixa a visualização e desliga o rodízio', async () => {
+    jasmine.clock().install();
+    try {
+      const { fixture } = await noFimDaRodada({ tela: 'classificadas' });
+      expect(telaAtual(fixture)).toBe('classificadas');
+
+      jasmine.clock().tick(60_000);
+      await fixture.whenStable();
+
+      expect(telaAtual(fixture)).toBe('classificadas');
+    } finally {
+      jasmine.clock().uninstall();
+    }
+  });
+
+  it('?tela= desconhecido é ignorado e o rodízio segue', async () => {
+    jasmine.clock().install();
+    try {
+      const { fixture } = await noFimDaRodada({ tela: 'qualquer-coisa' });
+      expect(telaAtual(fixture)).toBe('resultado');
+
+      jasmine.clock().tick(20_000);
+      await fixture.whenStable();
+
+      expect(telaAtual(fixture)).toBe('classificadas');
+    } finally {
+      jasmine.clock().uninstall();
+    }
+  });
+
+  it('clique alterna a visualização e assume o controle do rodízio', async () => {
+    jasmine.clock().install();
+    try {
+      const { fixture } = await noFimDaRodada();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(telaAtual(fixture)).toBe('resultado');
+
+      host.querySelector<HTMLElement>('.alternar')?.click();
+      await fixture.whenStable();
+      expect(telaAtual(fixture)).toBe('classificadas');
+
+      // Depois do clique o rodízio não volta a mandar sozinho.
+      jasmine.clock().tick(60_000);
+      await fixture.whenStable();
+      expect(telaAtual(fixture)).toBe('classificadas');
+
+      host.querySelector<HTMLElement>('.alternar')?.click();
+      await fixture.whenStable();
+      expect(telaAtual(fixture)).toBe('resultado');
+    } finally {
+      jasmine.clock().uninstall();
+    }
+  });
+
+  it('seta do teclado também alterna', async () => {
+    const { fixture } = await noFimDaRodada();
+    expect(telaAtual(fixture)).toBe('resultado');
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+    await fixture.whenStable();
+
+    expect(telaAtual(fixture)).toBe('classificadas');
+  });
+
+  it('não põe camada clicável quando não há o que alternar', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.match.set(match({}));
+    await fixture.whenStable();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('.alternar')).toBeNull();
   });
 });

@@ -144,7 +144,7 @@ function clockUnderOneMin(label: string): boolean {
       <!-- Bug de emissora: logo translúcida no canto, sem caixa opaca disputando com a câmera. -->
       <div class="mark" [attr.data-pos]="position()" aria-hidden="true">
         <img class="mark-logo" src="/brand/logo.png" alt="" width="72" height="72" />
-        <span class="mark-tag">KOTC</span>
+        <!-- <span class="mark-tag">KOTC</span> -->
       </div>
     }
   `,

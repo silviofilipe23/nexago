@@ -567,15 +567,29 @@ button {
   color: var(--nx-text);
 }
 
-/* Layout partido: conteudo + trilha lateral. 13 telas repetiam `1fr 373px`
-   com variacoes de 320 a 373px. `minmax(0, 1fr)` e proposital: `1fr` sozinho
-   nasce com min-width: auto = min-content do conteudo, e um <select> com opcao
-   longa ganha do 1fr sem dar scroll -- so "aperta". */
+/* Layout partido: conteudo + trilha lateral. 13 telas repetiam o mesmo grid
+   (1fr + trilha de 320 a 373px) -- 11 delas ja tinham sua propria copia de
+   um `@media (max-width: 1180px) { grid-template-columns: 1fr }`, as outras
+   2 nunca empilhavam. A regra compartilhada elimina a duplicacao (o recorte
+   de faixa vive em ar.below(lg), na zona 2 abaixo) e cobre as 2 que faltavam.
+   `minmax(0, 1fr)` e proposital: `1fr` sozinho nasce com min-width: auto =
+   min-content do conteudo, e um <select> com opcao longa ganha do 1fr sem
+   dar scroll -- so "aperta". */
 .ar-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--ar-split-aside, 373px);
   gap: 20px;
   align-items: start;
+}
+
+/* A trilha vem primeiro em `panel-finance-reports`, que nasceu `373px 1fr`.
+   Mantida a ordem original: mudar o lado da tela seria redesenho, e este
+   trabalho e de responsividade. Tem de ficar ANTES do bloco de faixas: as
+   duas regras tem a mesma especificidade, e quem vem depois no arquivo
+   ganha -- se este modificador viesse depois do recorte de ar.below(lg),
+   ele derrotaria o empilhamento em qualquer largura, nao so acima de 1180px. */
+.ar-split-aside-first {
+  grid-template-columns: var(--ar-split-aside, 373px) minmax(0, 1fr);
 }
 
 /* =========================================================================
@@ -590,13 +604,15 @@ button {
    ========================================================================= */
 
 /* ---- 2. LARGURA ---- */
+@include ar.below(lg) {
+  .ar-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @include ar.below(md) {
   :root {
     --ar-pad-page-x: 24px;
-  }
-
-  .ar-split {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 

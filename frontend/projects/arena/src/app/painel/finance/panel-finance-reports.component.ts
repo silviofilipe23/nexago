@@ -88,49 +88,7 @@ function formatBRL(n: number): string {
         </a>
       </ar-page-header>
 
-      <div class="body ar-split">
-        <div class="col-right">
-          <ar-panel-card [kicker]="previewKicker()" title="Prévia">
-            <ar-line-chart [height]="180" [data]="previewData()" [labels]="previewDays" />
-            <div class="legend">
-              @for (opt of previewMetricOptions; track opt.key) {
-                <button type="button" class="ar-chip legend-chip" [class.active]="previewMetric() === opt.key" (click)="previewMetric.set(opt.key)">
-                  <span class="dot"></span>
-                  {{ opt.label }}
-                </button>
-              }
-            </div>
-          </ar-panel-card>
-
-          <ar-panel-card title="Resumo do período">
-            <div class="summary-grid">
-              @for (s of summary; track s.label) {
-                <div class="summary-item">
-                  <div class="summary-label">{{ s.label }}</div>
-                  <div class="summary-value">{{ s.value }}</div>
-                </div>
-              }
-            </div>
-          </ar-panel-card>
-
-          <ar-panel-card [kicker]="recentKicker()" title="Relatórios recentes" class="recent-card">
-            <div class="recent-list">
-              @for (r of recentReports(); track r.id) {
-                <div class="recent-row">
-                  <div class="recent-icon">
-                    <ar-icon name="download" [size]="14" />
-                  </div>
-                  <div class="recent-body">
-                    <div class="recent-label">{{ r.label }}</div>
-                    <div class="recent-date">{{ r.generatedLabel }}</div>
-                  </div>
-                  <ar-pill [tone]="formatTone[r.format]">{{ formatLabel[r.format] }}</ar-pill>
-                </div>
-              }
-            </div>
-          </ar-panel-card>
-        </div>
-
+      <div class="body ar-split ar-split-aside-first">
         <div class="col-left">
           <ar-panel-card title="Período">
             <div class="field-label">Intervalo</div>
@@ -177,6 +135,48 @@ function formatBRL(n: number): string {
               <ar-icon name="download" [size]="14" />
               Gerar relatório
             </button>
+          </ar-panel-card>
+        </div>
+
+        <div class="col-right">
+          <ar-panel-card [kicker]="previewKicker()" title="Prévia">
+            <ar-line-chart [height]="180" [data]="previewData()" [labels]="previewDays" />
+            <div class="legend">
+              @for (opt of previewMetricOptions; track opt.key) {
+                <button type="button" class="ar-chip legend-chip" [class.active]="previewMetric() === opt.key" (click)="previewMetric.set(opt.key)">
+                  <span class="dot"></span>
+                  {{ opt.label }}
+                </button>
+              }
+            </div>
+          </ar-panel-card>
+
+          <ar-panel-card title="Resumo do período">
+            <div class="summary-grid">
+              @for (s of summary; track s.label) {
+                <div class="summary-item">
+                  <div class="summary-label">{{ s.label }}</div>
+                  <div class="summary-value">{{ s.value }}</div>
+                </div>
+              }
+            </div>
+          </ar-panel-card>
+
+          <ar-panel-card [kicker]="recentKicker()" title="Relatórios recentes" class="recent-card">
+            <div class="recent-list">
+              @for (r of recentReports(); track r.id) {
+                <div class="recent-row">
+                  <div class="recent-icon">
+                    <ar-icon name="download" [size]="14" />
+                  </div>
+                  <div class="recent-body">
+                    <div class="recent-label">{{ r.label }}</div>
+                    <div class="recent-date">{{ r.generatedLabel }}</div>
+                  </div>
+                  <ar-pill [tone]="formatTone[r.format]">{{ formatLabel[r.format] }}</ar-pill>
+                </div>
+              }
+            </div>
           </ar-panel-card>
         </div>
       </div>

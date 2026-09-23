@@ -1,6 +1,12 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import {withArenaRole} from "./arena-signup";
+import type {Firestore} from "firebase-admin/firestore";
+import {FakeFirestore} from "./fake-firestore.test-helper";
+import {withArenaRole, splitCityState, ensureManagedArena} from "./arena-signup";
+
+function db(fake: FakeFirestore): Firestore {
+  return fake as unknown as Firestore;
+}
 
 describe("withArenaRole", () => {
   it("adds arena when the user has no roles yet", () => {
@@ -17,5 +23,100 @@ describe("withArenaRole", () => {
 
   it("never drops existing roles", () => {
     assert.deepEqual(withArenaRole(["athlete", "coach"]), ["athlete", "coach", "arena"]);
+  });
+});
+
+describe("splitCityState", () => {
+  it("separa no formato do placeholder do formulário", () => {
+    assert.deepEqual(splitCityState("Florianópolis, SC"), {city: "Florianópolis", state: "SC"});
+  });
+
+  it("aceita barra, hífen e espaço como separador", () => {
+    assert.deepEqual(splitCityState("Goiânia / GO"), {city: "Goiânia", state: "GO"});
+    assert.deepEqual(splitCityState("Goiânia-go"), {city: "Goiânia", state: "GO"});
+    assert.deepEqual(splitCityState("São Paulo SP"), {city: "São Paulo", state: "SP"});
+  });
+
+  it("sem UF, o texto todo é a cidade", () => {
+    assert.deepEqual(splitCityState("Goiânia"), {city: "Goiânia", state: ""});
+  });
+
+  it("não transforma o fim do nome da cidade em UF", () => {
+    assert.deepEqual(splitCityState("Mogi-Mirim"), {city: "Mogi-Mirim", state: ""});
+    assert.deepEqual(splitCityState("Santa Cruz do Sul"), {city: "Santa Cruz do Sul", state: ""});
+  });
+
+  it("campo vazio ou ausente não inventa cidade", () => {
+    assert.deepEqual(splitCityState("  "), {city: "", state: ""});
+    assert.deepEqual(splitCityState(undefined), {city: "", state: ""});
+  });
+});
+
+describe("ensureManagedArena", () => {
+  it("cria a arena com o gestor como managerUserId e os dados do cadastro", async () => {
+    const fake = new FakeFirestore();
+
+    const arenaId = await ensureManagedArena(db(fake), "uid1", {
+      arenaName: "Arena CFC",
+      cityState: "Florianópolis, SC",
+      whatsapp: "(48) 99999-0000",
+    });
+
+    const arena = fake.store.get(`arenas/${arenaId}`);
+    assert.ok(arena);
+    assert.equal(arena["id"], arenaId);
+    assert.equal(arena["name"], "Arena CFC");
+    assert.equal(arena["managerUserId"], "uid1");
+    assert.equal(arena["status"], "active");
+    assert.equal(arena["basePriceReais"], 0);
+    assert.equal(arena["city"], "Florianópolis");
+    assert.equal(arena["state"], "SC");
+    assert.equal(arena["whatsapp"], "(48) 99999-0000");
+  });
+
+  it("nunca nasce com campos de plano nem como pré-cadastro", async () => {
+    const fake = new FakeFirestore();
+
+    const arenaId = await ensureManagedArena(db(fake), "uid1", {arenaName: "Arena CFC"});
+
+    const arena = fake.store.get(`arenas/${arenaId}`) ?? {};
+    for (const frozen of ["planTier", "planStatus", "planActiveUntil", "unclaimed"]) {
+      assert.equal(frozen in arena, false, `${frozen} não pode vir do cadastro`);
+    }
+  });
+
+  it("omite cidade/UF/WhatsApp em vez de gravar string vazia", async () => {
+    const fake = new FakeFirestore();
+
+    const arenaId = await ensureManagedArena(db(fake), "uid1", {
+      arenaName: "Arena CFC",
+      cityState: "  ",
+      whatsapp: "",
+    });
+
+    const arena = fake.store.get(`arenas/${arenaId}`) ?? {};
+    assert.equal("city" in arena, false);
+    assert.equal("state" in arena, false);
+    assert.equal("whatsapp" in arena, false);
+  });
+
+  it("chamada duas vezes devolve a mesma arena (retry não duplica)", async () => {
+    const fake = new FakeFirestore();
+
+    const first = await ensureManagedArena(db(fake), "uid1", {arenaName: "Arena CFC"});
+    const second = await ensureManagedArena(db(fake), "uid1", {arenaName: "Arena CFC"});
+
+    assert.equal(second, first);
+    assert.equal([...fake.store.keys()].filter((k) => k.startsWith("arenas/")).length, 1);
+  });
+
+  it("arena de outro gestor não conta como a do usuário", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc("arenas/outra", {id: "outra", name: "Arena Vizinha", managerUserId: "uid2"});
+
+    const arenaId = await ensureManagedArena(db(fake), "uid1", {arenaName: "Arena CFC"});
+
+    assert.notEqual(arenaId, "outra");
+    assert.equal(fake.store.get(`arenas/${arenaId}`)?.["managerUserId"], "uid1");
   });
 });

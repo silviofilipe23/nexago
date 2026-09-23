@@ -11,10 +11,11 @@ import { StrengthMeterComponent } from './ui/strength-meter.component';
 const CNPJ_PATTERN = /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/;
 
 /**
- * Cadastro self-service de uma nova arena. Só cria a conta no Firebase Auth;
- * CNPJ/cidade/WhatsApp ainda não têm um destino no backend (não existe fluxo
- * de onboarding/verificação de arena hoje), então por enquanto ficam apenas
- * validados no formulário.
+ * Cadastro self-service de uma nova arena: cria a conta no Firebase Auth e, via
+ * `completeArenaSignup`, a role `arena` e o doc `arenas/{arenaId}` já com nome,
+ * cidade/UF e WhatsApp — o gestor cai no painel com a arena dele, não na tela de
+ * "nenhuma arena vinculada". O CNPJ segue só validado aqui: o destino dele é a
+ * config fiscal (`arenas/{id}/fiscal/config`), preenchida na tela Fiscal.
  */
 @Component({
   selector: 'ar-signup',
@@ -197,8 +198,12 @@ export class SignupComponent {
     }
     this.loading.set(true);
     try {
-      const { nome, email, password } = this.form.getRawValue();
-      await this.auth.createArenaAccount(email, password, nome);
+      const { nome, cidade, whatsapp, email, password } = this.form.getRawValue();
+      await this.auth.createArenaAccount(email, password, {
+        name: nome,
+        cityState: cidade,
+        whatsapp,
+      });
       void this.router.navigateByUrl('/painel');
     } catch (err) {
       this.error.set(mapFirebaseAuthError(err));

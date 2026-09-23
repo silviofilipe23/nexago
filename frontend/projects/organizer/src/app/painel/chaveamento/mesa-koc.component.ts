@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { environment } from '../../../environments/environment';
+import { ledPanelHref } from '../../publico/led/led-link';
 import {
   KOC_MAX_TEAMS_PER_ROUND,
   KOC_MIN_TEAMS_PER_ROUND,
@@ -327,6 +328,11 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                     Abrir em nova janela
                   </a>
                   <button type="button" class="og-ghost-btn og-mk-telao-copy" (click)="copyTelaoLink()">Copiar</button>
+                  @if (ledHref(); as href) {
+                    <a class="og-ghost-btn og-mk-led-open" [href]="href" target="_blank" rel="noopener">
+                      Painel de LED
+                    </a>
+                  }
                 </div>
               </div>
             </div>
@@ -974,7 +980,8 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       gap: 8px;
       flex-wrap: wrap;
     }
-    .og-mk-telao-open {
+    .og-mk-telao-open,
+    .og-mk-led-open {
       flex: 1 1 auto;
       justify-content: center;
       min-height: 36px;
@@ -1937,6 +1944,10 @@ export class MesaKocComponent {
       this.confirmStartOpen.set(false);
     }, 'Rodada iniciada.');
   }
+
+  /** Painel de LED da quadra desta rodada. Vazio (botão escondido) enquanto a partida não tem
+   *  quadra: o painel segue a QUADRA, não a partida. */
+  protected readonly ledHref = computed(() => ledPanelHref(this.id(), this.match()?.courtId ?? ''));
 
   protected telaoHref(): string {
     return `/telao/${encodeURIComponent(this.id())}`;

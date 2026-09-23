@@ -42,7 +42,16 @@ export function kocStandingsBoardOf(
   const round = match.koc;
   if (!round) return { rows: [], vagas: 0, destino: null, proxima: null, totalRounds: 0 };
 
-  const vagas = Math.max(1, Math.floor(round.qualifiersPerRound));
+  // A cota REAL não é sempre a configurada. `buildKingOfCourtRounds` no backend: "Só a fase 1
+  // se divide em várias rodadas por chave; as seguintes seguem com uma rodada por chave e
+  // `qualifiersPerRound` classificadas" — e acima de uma rodada por chave a classificatória
+  // classifica UMA dupla por rodada, porque a vencedora sai e a chave encolhe. Anunciar a cota
+  // configurada nesse caso poria "2 vagas" na tela quando só uma passa.
+  const naClassificatoria = phaseRankOf(match.matchType) === 1;
+  const vagas =
+    naClassificatoria && round.roundsPerBracket > 1
+      ? 1
+      : Math.max(1, Math.floor(round.qualifiersPerRound));
   const rows = kocFinalTable(round).map<KocStandingRow>((row) => ({
     place: row.place,
     teamId: row.teamId,

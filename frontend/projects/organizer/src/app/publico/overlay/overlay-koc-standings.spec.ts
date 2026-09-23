@@ -14,6 +14,8 @@ function round(overrides: Partial<KocRoundState> = {}): KocRoundState {
     clock: null,
     standings: [],
     qualifiersPerRound: 2,
+    teamsPerCourt: 4,
+    roundsPerBracket: 1,
     configuredDurationSec: 900,
     rallySeq: 0,
     rallyLog: [],
@@ -71,6 +73,8 @@ describe('kocStandingsBoardOf', () => {
       match({
         koc: round({
           qualifiersPerRound: 2,
+    teamsPerCourt: 4,
+    roundsPerBracket: 1,
           standings: standings(['e', 1, 8], ['d', 2, 7], ['a', 3, 4], ['b', 4, 2], ['c', 5, 1]),
         }),
       }),
@@ -117,6 +121,43 @@ function categoria(): TournamentMatch[] {
     match({ id: 'fi', matchType: 'koc_final', koc: round({ roundLabel: 1 }) }),
   ];
 }
+
+describe('kocStandingsBoardOf — cota real da rodada', () => {
+  // `buildKingOfCourtRounds` (backend): "Acima de 1, cada rodada classifica UMA dupla e a
+  // vencedora sai". Anunciar 2 vagas nesse caso seria informação errada no ar.
+  it('com mais de uma rodada por chave, a classificatória dá UMA vaga', () => {
+    const board = kocStandingsBoardOf(
+      match({
+        koc: round({
+          qualifiersPerRound: 2,
+          roundsPerBracket: 2,
+          standings: standings(['e', 1, 8], ['d', 2, 7], ['a', 3, 4]),
+        }),
+      }),
+      [],
+    );
+
+    expect(board.vagas).toBe(1);
+    expect(board.rows.map((r) => r.status)).toEqual(['king', 'out', 'out']);
+  });
+
+  it('as fases seguintes mantêm a cota configurada', () => {
+    const board = kocStandingsBoardOf(
+      match({
+        matchType: 'koc_semifinal',
+        koc: round({
+          qualifiersPerRound: 2,
+          roundsPerBracket: 2,
+          standings: standings(['e', 1, 8], ['d', 2, 7], ['a', 3, 4]),
+        }),
+      }),
+      [],
+    );
+
+    expect(board.vagas).toBe(2);
+    expect(board.rows.map((r) => r.status)).toEqual(['king', 'qualified', 'out']);
+  });
+});
 
 describe('kocStandingsBoardOf — contexto da fase', () => {
   it('diz para onde vão as vagas e qual é a próxima rodada', () => {

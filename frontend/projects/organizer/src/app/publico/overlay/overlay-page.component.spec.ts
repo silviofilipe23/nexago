@@ -222,6 +222,8 @@ describe('OverlayPageComponent', () => {
           { teamId: 'q', place: 3, points: 2, crowns: 0 },
         ],
         qualifiersPerRound: 2,
+        teamsPerCourt: 4,
+        roundsPerBracket: 1,
         configuredDurationSec: 900,
         rallySeq: 0,
         rallyLog: [],

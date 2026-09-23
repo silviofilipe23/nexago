@@ -35,6 +35,8 @@ export class OverlayLiveGateway {
 
   private readonly hydrated = new Set<string>();
   private countedRounds = false;
+  /** Evita reler a categoria a cada snapshot — só quando a partida desta tela encerra. */
+  private lastMatchStatus: string | null = null;
 
   start(matchId: string): () => void {
     let unsubTournament: (() => void) | null = null;
@@ -46,7 +48,7 @@ export class OverlayLiveGateway {
         this.match.set(m);
         if (!m) return;
         void this.hydrateTeams(m);
-        void this.countRounds(m);
+        void this.ensureCategoryMatches(m);
         if (m.tournamentId && m.tournamentId !== watchedTournamentId) {
           watchedTournamentId = m.tournamentId;
           unsubTournament?.();
@@ -69,14 +71,20 @@ export class OverlayLiveGateway {
   /** Nome POR ATLETA, não só o rótulo combinado: a faixa do KOTC desenha uma linha por atleta.
    *  Mesmo join que o telão faz (`teams` → `public_profiles`). */
   private async hydrateTeams(match: TournamentMatch): Promise<void> {
-    const ids = overlayTeamIdsOf(match).filter((id) => !this.hydrated.has(id));
-    if (ids.length === 0) return;
-    for (const id of ids) this.hydrated.add(id); // marca antes: rajada de snapshots não duplica busca
+    await this.hydrateTeamIds(overlayTeamIdsOf(match));
+  }
+
+  /** Classificadas de rodadas anteriores já saíram da chave atual — sem isto o quadro verde
+   *  só mostra nome na última vaga (as outras linhas ficam sem atletas resolvidos). */
+  private async hydrateTeamIds(ids: readonly string[]): Promise<void> {
+    const missing = ids.filter((id) => id !== '' && !this.hydrated.has(id));
+    if (missing.length === 0) return;
+    for (const id of missing) this.hydrated.add(id); // marca antes: rajada de snapshots não duplica busca
     const projectId = environment.firebase.projectId;
     if (!projectId) return;
     try {
       const db = organizerFirestore();
-      const teams = await fetchTeamsByIds(db, projectId, ids);
+      const teams = await fetchTeamsByIds(db, projectId, missing);
       const playerIds = [...teams.values()]
         .flatMap((t) => [t.player1Id, t.player2Id])
         .filter((id) => id !== '');
@@ -99,15 +107,24 @@ export class OverlayLiveGateway {
       });
     } catch {
       // Falha de rede: segue com o rótulo do doc e tenta de novo no próximo snapshot.
-      for (const id of ids) this.hydrated.delete(id);
+      for (const id of missing) this.hydrated.delete(id);
     }
   }
 
-  /** Quantas rodadas tem a fase — uma leitura só, no primeiro snapshot KOTC. O doc da partida
-   *  não guarda esse total, e um listener a mais numa transmissão de horas não se paga. */
-  private async countRounds(match: TournamentMatch): Promise<void> {
-    if (this.countedRounds || !isKingOfCourtMatchType(match.matchType)) return;
-    this.countedRounds = true;
+  /** Partidas da categoria + nomes de TODAS as classificadas da fase. */
+  private async ensureCategoryMatches(match: TournamentMatch): Promise<void> {
+    if (!isKingOfCourtMatchType(match.matchType)) return;
+
+    const statusMudouParaEncerrada =
+      match.status === 'completed' && this.lastMatchStatus !== 'completed';
+    this.lastMatchStatus = match.status;
+
+    const precisaLer = !this.countedRounds || statusMudouParaEncerrada;
+    if (!precisaLer) {
+      void this.hydrateQualifiedTeams(this.categoryMatches());
+      return;
+    }
+
     try {
       const all = await listMatches(match.tournamentId);
       const daCategoria = all.filter((m) => m.categoryId === match.categoryId);
@@ -116,8 +133,15 @@ export class OverlayLiveGateway {
       this.totalRounds.set(
         daCategoria.filter((m) => normalizeMatchType(m.matchType) === phase).length,
       );
+      this.countedRounds = true;
+      void this.hydrateQualifiedTeams(daCategoria);
     } catch {
       this.countedRounds = false; // tenta de novo no próximo snapshot
     }
+  }
+
+  private hydrateQualifiedTeams(matches: readonly TournamentMatch[]): void {
+    const ids = matches.flatMap((m) => overlayTeamIdsOf(m));
+    void this.hydrateTeamIds(ids);
   }
 }

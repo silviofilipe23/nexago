@@ -1,6 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { groupsOf, seedOrderOf } from '../data/draw-session-selectors';
-import { drawBoxLabel, type DrawSession, type DrawSessionEntrant } from '../data/draw-session.model';
+import {
+  drawBoxLabel,
+  isBoxedDraw,
+  type DrawSession,
+  type DrawSessionEntrant,
+} from '../data/draw-session.model';
 import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
 
 /**
@@ -21,7 +26,11 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [SorteioDuplaRowComponent],
   template: `
-    @if (session().format === 'groups_knockout') {
+    <!-- A grade serve todo sorteio de CAIXA — grupo e rodada de King of the
+         Court são a mesma mecânica. Perguntar por 'groups_knockout' aqui
+         mandava a KOTC pro desenho da dupla eliminatória, que não tem planta
+         nenhuma nessa sessão: o espelho do console ficava vazio. -->
+    @if (isBoxed()) {
       <div class="og-esp-grade" [style.grid-template-columns]="groupColumns()">
         @for (group of groups(); track group.groupId) {
           <section class="og-esp-grupo" [class.hot]="group.groupId === highlightGroupId()">
@@ -252,6 +261,8 @@ export class SorteioEspelhoComponent {
   readonly session = input.required<DrawSession>();
   /** Quantas revelações já podem aparecer (o show pode estar à frente da grade). */
   readonly visibleCount = input<number | null>(null);
+
+  protected readonly isBoxed = computed(() => isBoxedDraw(this.session().format));
 
   protected boxLabel(groupId: string): string {
     return drawBoxLabel(this.session().format, groupId);

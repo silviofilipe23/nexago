@@ -15,7 +15,8 @@ import {isBoxedDraw, type DrawFormat} from "./draw-engine";
 import {
   KOC_DEFAULT_TEAMS_PER_COURT,
   KOC_MIN_TEAMS_PER_ROUND,
-  kocRoundCount,
+  kocBracketCountForRounds,
+  kocMaxRoundsPerBracket,
 } from "./koc-bracket-builders";
 import {athleteRatingsPath} from "./rating-engine";
 import {buildEntrants, type EntrantHistoryMatch, type EntrantSource} from "./draw-entrants";
@@ -163,6 +164,10 @@ interface CategoryMeta {
   teamsPerGroup: number;
   /** Duplas por quadra na KOTC — o tamanho da rodada da classificatória. */
   teamsPerCourt: number;
+  /** Rodadas que cada CHAVE joga na classificatória. Muda quantas chaves o
+   *  campo tem, então o sorteio precisa saber: as caixas que ele sorteia SÃO as
+   *  chaves, e a geração recusa a chave se as contas não baterem. */
+  roundsPerBracket: number;
   qualifiersPerGroup: number;
   bracketFormat: string | null;
 }
@@ -177,6 +182,7 @@ function categoryMetaOf(tournament: Record<string, unknown>, categoryId: string)
     teamsPerGroup: num(found?.teamsPerGroup, 4),
     // Duplas por quadra da KOTC: o tamanho da rodada da classificatória.
     teamsPerCourt: num(found?.teamsPerCourt, KOC_DEFAULT_TEAMS_PER_COURT),
+    roundsPerBracket: Math.max(1, Math.floor(num(found?.roundsPerBracket, 1))),
     qualifiersPerGroup: num(found?.qualifiersPerGroup, 2),
     bracketFormat: str(found?.bracketFormat) || null,
   };
@@ -234,6 +240,32 @@ export const createDrawSession = onCall({
       {reason: "koc_not_enough_teams", teamCount: teamIds.length},
     );
   }
+  // Recusa AQUI, não no publish. O sorteio ao vivo acontece na frente do
+  // público: descobrir que a configuração não fecha depois de revelar as duplas
+  // obrigaria a anular a sessão inteira com todo mundo olhando.
+  if (format === "king_of_court" && category.roundsPerBracket > 1) {
+    const brackets = kocBracketCountForRounds(
+      teamIds.length,
+      category.teamsPerCourt,
+      category.roundsPerBracket,
+    );
+    const smallest = Math.floor(teamIds.length / brackets);
+    const max = kocMaxRoundsPerBracket(smallest);
+    if (category.roundsPerBracket > max) {
+      throw new HttpsError(
+        "failed-precondition",
+        `Com ${teamIds.length} duplas a menor chave fica com ${smallest}, e uma ` +
+          `chave de ${smallest} comporta no máximo ${max} rodada(s) — a categoria ` +
+          `pede ${category.roundsPerBracket}. Ajuste "Rodadas por chave" antes de sortear.`,
+        {
+          reason: "koc_rounds_per_bracket_too_high",
+          teamCount: teamIds.length,
+          smallestBracket: smallest,
+          maxRoundsPerBracket: max,
+        },
+      );
+    }
+  }
   if (format === "double_elimination" && !BRACKET_DEFINITIONS[teamIds.length]) {
     throw new HttpsError(
       "failed-precondition",
@@ -242,13 +274,21 @@ export const createDrawSession = onCall({
     );
   }
 
-  // Tamanho da caixa do sorteio. Na KOTC a caixa é uma RODADA, e quantas
-  // rodadas existem NÃO é `ceil(duplas / teamsPerCourt)`: `kocRoundCount`
-  // corrige as pontas (uma rodada de 2 não é King of the Court, é um jogo).
-  // Derivar `teamsPerGroup` do número de rodadas é o que faz `groupCapacities`
-  // — usada pelo sorteio inteiro — chegar exatamente nas rodadas do formato.
+  // Tamanho da caixa do sorteio. Na KOTC a caixa é uma CHAVE, e quantas chaves
+  // existem NÃO é `ceil(duplas / teamsPerCourt)`: as pontas são corrigidas (uma
+  // rodada de 2 não é King of the Court, é um jogo) E `roundsPerBracket` entra
+  // na conta, porque quem joga 2 rodadas precisa nascer com 4 duplas. Tem que
+  // ser a MESMA divisão de `buildKingOfCourtRounds`: o elenco sorteado vira o
+  // elenco da fase 1, e a geração recusa quando o número de caixas não bate.
   const teamsPerBox = format === "king_of_court" ?
-    Math.ceil(teamIds.length / kocRoundCount(teamIds.length, category.teamsPerCourt)) :
+    Math.ceil(
+      teamIds.length /
+        kocBracketCountForRounds(
+          teamIds.length,
+          category.teamsPerCourt,
+          category.roundsPerBracket,
+        ),
+    ) :
     category.teamsPerGroup;
 
   const sportCode = tournamentSportToLevelSportCode(tournament.sportId);

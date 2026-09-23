@@ -168,6 +168,8 @@ describe('OverlayPageComponent', () => {
           clock: { endsAtMs: Date.now() + 836_000, durationSec: 900, pausedAtMs: null },
           standings: [],
           qualifiersPerRound: 2,
+          teamsPerCourt: 4,
+          roundsPerBracket: 1,
           configuredDurationSec: 900,
           rallySeq: 0,
           rallyLog: [],

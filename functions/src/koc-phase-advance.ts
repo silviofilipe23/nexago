@@ -155,21 +155,26 @@ export async function tryAdvanceKocPhase(
     });
   }
 
-  const current = rounds.filter((r) => r.phase === phase);
-  if (!isKocPhaseComplete(current.map((r) => ({status: r.data.status})))) {
-    return {advanced: 0, phase};
-  }
-
-  const next = rounds.filter((r) => r.phase === phase + 1);
-  if (next.length === 0) return {advanced: 0, phase};
-
-  const standingsByMatchNumber = new Map<number, KocStandingDoc[]>();
-  for (const round of current) {
-    standingsByMatchNumber.set(
+  // Uma rodada fica pronta quando TODAS as rodadas de onde vêm as vagas dela
+  // terminaram — não quando a fase inteira termina.
+  //
+  // A regra antiga (fase completa → monta a próxima) era um caso particular
+  // desta: a semifinal depende de todas as rodadas da fase 1, então só fica
+  // pronta no fim da fase. O que a regra antiga NÃO cobria é a chave que joga
+  // várias rodadas: ali a rodada 2 depende só da rodada 1 da PRÓPRIA chave, e
+  // esperar as outras chaves deixaria a quadra parada à toa.
+  const completedByMatchNumber = new Map<number, KocStandingDoc[]>();
+  for (const round of rounds) {
+    if (!isMatchCompleted(round.data.status)) continue;
+    completedByMatchNumber.set(
       round.matchNumber,
       parseKocStandings(round.data.kocStandings),
     );
   }
+
+  const next = rounds.filter((r) => r.phase >= phase);
+  if (next.length === 0) return {advanced: 0, phase};
+  const standingsByMatchNumber = completedByMatchNumber;
 
   const batch = db.batch();
   let advanced = 0;
@@ -183,6 +188,14 @@ export async function tryAdvanceKocPhase(
 
     const qualifiers = parseKocQualifiers(round.data.kocQualifiers);
     if (qualifiers.length === 0) continue;
+
+    // Fonte ainda em jogo: a rodada não está pronta. Sem esta checagem uma
+    // tabela parcial montaria elenco incompleto e o `missing` abaixo só
+    // registraria o buraco depois de já ter escrito o resto.
+    const sourcesReady = qualifiers.every((slot) =>
+      completedByMatchNumber.has(slot.fromMatchNumber),
+    );
+    if (!sourcesReady) continue;
 
     const {teamIds, missing} = resolveKocRoster(qualifiers, standingsByMatchNumber);
     if (missing.length > 0) {

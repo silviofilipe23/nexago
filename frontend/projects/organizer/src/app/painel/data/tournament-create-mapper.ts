@@ -96,6 +96,7 @@ export function categoryToMap(category: TournamentCategoryDraft, draft: Tourname
     // Config do King of the Court — mesmos nomes que `resolveKocConfig` lê no
     // backend. Gravada sempre, para o roundtrip de edição não perder a escolha.
     teamsPerCourt: category.kocTeamsPerCourt,
+    roundsPerBracket: category.kocRoundsPerBracket,
     qualifiersPerRound: category.kocQualifiersPerRound,
     roundDurationSec: category.kocRoundDurationSec,
     bestOf: category.bestOf,
@@ -344,6 +345,7 @@ export function categoryFromMap(map: Record<string, unknown>): TournamentCategor
     teamsPerGroup: num(map['teamsPerGroup']) ?? 4,
     qualifiersPerGroup: num(map['qualifiersPerGroup']) ?? 2,
     kocTeamsPerCourt: num(map['teamsPerCourt']) ?? KOC_DEFAULT_TEAMS_PER_COURT,
+    kocRoundsPerBracket: num(map['roundsPerBracket']) ?? 1,
     kocQualifiersPerRound: num(map['qualifiersPerRound']) ?? KOC_DEFAULT_QUALIFIERS_PER_ROUND,
     kocRoundDurationSec: num(map['roundDurationSec']) ?? KOC_DEFAULT_ROUND_DURATION_SEC,
     bestOf: parseBestOf(map['bestOf']),

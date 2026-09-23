@@ -16,6 +16,8 @@ function round(overrides: Partial<KocRoundState>): KocRoundState {
     clock: null,
     standings: [],
     qualifiersPerRound: 2,
+    teamsPerCourt: 4,
+    roundsPerBracket: 1,
     configuredDurationSec: 900,
     rallySeq: 0,
     rallyLog: [],

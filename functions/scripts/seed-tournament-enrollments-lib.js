@@ -533,6 +533,9 @@ async function loadSeedAthletesByCategory(db) {
 async function loadEnrollmentState(db, projectId, tournamentId) {
   const enrolledUids = new Set();
   const teamsByCategory = new Map();
+  // Equipes que já têm inscrição NESTE torneio: `resolveSeedPairTeams` não
+  // reusa nenhuma delas, para o par poder entrar numa segunda categoria.
+  const teamIdsInTournament = new Set();
   const snap = await db
     .collection(artifactsInscriptionsPath(projectId))
     .where("tournamentId", "==", tournamentId)
@@ -548,12 +551,15 @@ async function loadEnrollmentState(db, projectId, tournamentId) {
     const p1 = String(data.player1Id ?? "").trim();
     if (p1) enrolledUids.add(p1);
 
+    const teamId = String(data.teamId ?? "").trim();
+    if (teamId) teamIdsInTournament.add(teamId);
+
     if (data.waitlist === true) continue;
     const categoryId = String(data.categoryId ?? "").trim();
     if (!categoryId) continue;
     teamsByCategory.set(categoryId, (teamsByCategory.get(categoryId) ?? 0) + 1);
   }
-  return {enrolledUids, teamsByCategory};
+  return {enrolledUids, teamsByCategory, teamIdsInTournament};
 }
 
 function buildPairPlans(
@@ -592,6 +598,90 @@ function buildPairPlans(
   return plans;
 }
 
+/** Cópia declarada de `buildPairKey` (functions/src/tournament-pair-uniqueness.ts:20). */
+function buildPairKey(uidA, uidB) {
+  const a = String(uidA ?? "").trim();
+  const b = String(uidB ?? "").trim();
+  if (!a || !b || a === b) return "";
+  return [a, b].sort().join(":");
+}
+
+/** Cópia declarada de `pickPairTeamId` (functions/src/tournament-pair-team.ts:63). */
+function pickPairTeamId(candidates) {
+  let best = null;
+  for (const candidate of candidates) {
+    if (!candidate.id) continue;
+    if (
+      best == null ||
+      candidate.createdAtMs < best.createdAtMs ||
+      (candidate.createdAtMs === best.createdAtMs && candidate.id < best.id)
+    ) {
+      best = candidate;
+    }
+  }
+  return best?.id ?? "";
+}
+
+/**
+ * Índice `pairKey -> candidatos` das equipes de dupla que já existem.
+ *
+ * Só enxerga doc COM `pairKey` gravado — é o mesmo limite de
+ * `resolvePairTeamTx`, e por isso `backfill-team-pair-key.js` vem antes de
+ * qualquer coisa que dependa desta leitura.
+ */
+async function loadPairTeamIndex(db, projectId, plans) {
+  const keys = [...new Set(
+    plans.map((p) => buildPairKey(p.player1?.uid, p.player2?.uid)).filter(Boolean),
+  )];
+  const index = new Map();
+  const teamsRef = db.collection(artifactsTeamsPath(projectId));
+  // `in` aceita 30 valores por consulta.
+  for (let i = 0; i < keys.length; i += 30) {
+    const snap = await teamsRef.where("pairKey", "in", keys.slice(i, i + 30)).get();
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      // `pairKey` é índice, não prova: a identidade vale pelos player ids do
+      // próprio doc (mesma revalidação que o servidor faz).
+      const key = buildPairKey(data.player1Id, data.player2Id);
+      if (!key || key !== String(data.pairKey ?? "").trim()) continue;
+      if (!index.has(key)) index.set(key, []);
+      index.get(key).push({
+        id: doc.id,
+        createdAtMs: data.createdAt?.toMillis?.() ?? 0,
+      });
+    }
+  }
+  return index;
+}
+
+/**
+ * Decide, para cada plano, se a dupla reusa a equipe que já tem ou ganha doc
+ * novo — espelho de `resolvePairTeamTx` (functions/src/tournament-pair-team.ts).
+ *
+ * O seed não passa por Cloud Function, então sem isto ele volta a criar uma
+ * identidade nova a cada torneio semeado e a dupla aparece duas vezes no
+ * ranking, com metade da história em cada entrada.
+ *
+ * `teamIdsInTournament` carrega a exceção deliberada: equipe já inscrita NESTE
+ * torneio não é reusada, porque o par pode entrar em duas categorias e os
+ * leitores de campanha assumem "um teamId = uma chave". O Set é mutado ao
+ * longo do laço para que o segundo plano do MESMO par, no mesmo lote, também
+ * caia nessa regra.
+ */
+function resolveSeedPairTeams(plans, pairTeamIndex, teamIdsInTournament) {
+  const taken = new Set(teamIdsInTournament);
+  return plans.map((plan) => {
+    const pairKey = buildPairKey(plan.player1?.uid, plan.player2?.uid);
+    if (!pairKey) return {...plan, pairKey: "", reuseTeamId: null};
+
+    const chosen = pickPairTeamId(
+      (pairTeamIndex.get(pairKey) ?? []).filter((c) => !taken.has(c.id)),
+    );
+    if (chosen) taken.add(chosen);
+    return {...plan, pairKey, reuseTeamId: chosen || null};
+  });
+}
+
 async function applyPaidPlans(db, projectId, tournamentId, tournament, plans) {
   const {FieldValue} = admin.firestore;
   const teamsRef = db.collection(artifactsTeamsPath(projectId));
@@ -611,15 +701,22 @@ async function applyPaidPlans(db, projectId, tournamentId, tournament, plans) {
   for (const plan of plans) {
     const entryFee = resolveCategoryEntryFee(tournament, plan.categoryId);
     const paidAmount = organizerDirectConfirmPaidAmount(entryFee);
-    const teamRef = teamsRef.doc();
+    const teamRef = plan.reuseTeamId ?
+      teamsRef.doc(plan.reuseTeamId) :
+      teamsRef.doc();
     const regRef = inscriptionsRef.doc();
 
-    batch.set(teamRef, {
-      player1Id: plan.player1.uid,
-      player2Id: plan.player2.uid,
-      createdAt: FieldValue.serverTimestamp(),
-    });
-    ops += 1;
+    if (!plan.reuseTeamId) {
+      batch.set(teamRef, {
+        player1Id: plan.player1.uid,
+        player2Id: plan.player2.uid,
+        // Sem a chave, a equipe nascida aqui fica invisível para
+        // `resolvePairTeamTx` e a próxima inscrição da dupla cria OUTRO doc.
+        ...(plan.pairKey ? {pairKey: plan.pairKey} : {}),
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      ops += 1;
+    }
 
     batch.set(regRef, {
       teamId: teamRef.id,
@@ -799,11 +896,8 @@ async function runTournamentEnrollmentSeed({
   }
 
   const athletesByCategory = await loadSeedAthletesByCategory(db);
-  const {enrolledUids, teamsByCategory} = await loadEnrollmentState(
-    db,
-    projectId,
-    tournamentId,
-  );
+  const {enrolledUids, teamsByCategory, teamIdsInTournament} =
+    await loadEnrollmentState(db, projectId, tournamentId);
 
   console.log("\nAtletas seed por categoria:");
   for (const [categoryId, athletes] of athletesByCategory.entries()) {
@@ -843,12 +937,22 @@ async function runTournamentEnrollmentSeed({
     return;
   }
 
+  const resolvedPlans = resolveSeedPairTeams(
+    plans,
+    await loadPairTeamIndex(db, projectId, plans),
+    teamIdsInTournament,
+  );
+  const reused = resolvedPlans.filter((p) => p.reuseTeamId).length;
+  if (reused > 0) {
+    console.log(`Equipes reaproveitadas (dupla que já existe): ${reused}`);
+  }
+
   const pairs = await applyPaidPlans(
     db,
     projectId,
     tournamentId,
     tournament.data,
-    plans,
+    resolvedPlans,
   );
   const stats = await refreshTournamentStats(
     db,
@@ -875,4 +979,7 @@ module.exports = {
   buildTournamentDocToday,
   assertReusableSeedTournament,
   runTournamentEnrollmentSeed,
+  resolveSeedPairTeams,
+  loadPairTeamIndex,
+  applyPaidPlans,
 };

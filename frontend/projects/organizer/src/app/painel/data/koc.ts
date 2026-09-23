@@ -64,6 +64,11 @@ export interface KocRoundState {
   clock: KocClock | null;
   standings: KocStanding[];
   qualifiersPerRound: number;
+  /** Duplas por quadra e rodadas por chave COMO ESTAVAM na geração. Mudar o
+   *  wizard depois não refaz chave publicada — é comparando com a categoria que
+   *  a tela descobre que o que está na areia não é mais o que está configurado. */
+  teamsPerCourt: number;
+  roundsPerBracket: number;
   configuredDurationSec: number;
   /** Nº do último rally gravado — vai em `expectedSeq` no próximo. */
   rallySeq: number;
@@ -236,6 +241,10 @@ export function kocRoundStateFrom(data: Record<string, unknown>): KocRoundState 
     clock: clockOf(data['kocClock']),
     standings: standingsOf(data['kocStandings']),
     qualifiersPerRound: intOf(config['qualifiersPerRound'], 2),
+    // Snapshot da config no momento da geração. Serve pra tela detectar que a
+    // categoria mudou depois — mexer no wizard NÃO refaz chave já publicada.
+    teamsPerCourt: intOf(config['teamsPerCourt'], 4),
+    roundsPerBracket: intOf(config['roundsPerBracket'], 1),
     configuredDurationSec: intOf(config['durationSec'], 900),
     rallySeq: intOf(data['kocRallySeq']),
     rallyLog: rallyLogOf(data['kocRallies']),

@@ -46,12 +46,45 @@ ou confirma explicitamente o critério automático. A vaga nunca sai calada.
   paralelo (uma por quadra).
 - Os `qualifiersPerRound` primeiros de cada rodada avançam para a fase seguinte,
   redistribuídos em serpentina pela colocação.
+
+### Rodadas por chave (`roundsPerBracket`)
+
+Por padrão a chave joga **uma** rodada e os `qualifiersPerRound` melhores por pontos
+avançam. Com `roundsPerBracket` acima de 1, a chave joga N rodadas e **cada uma
+classifica uma dupla**:
+
+- A vencedora da rodada classifica e **sai** — libera a quadra.
+- A rodada seguinte da mesma chave roda com **as que sobraram** (4 → 3 → …).
+- Como toda rodada precisa de 3 duplas, uma chave de S comporta no máximo
+  **S − 2** rodadas: uma chave de 4 dá 2, uma de 5 dá 3.
+- Vale só na **classificatória**. As fases seguintes seguem com uma rodada por
+  chave e `qualifiersPerRound` classificadas.
+
+As N classificadas de uma mesma chave caem em rodadas **diferentes** da fase
+seguinte, e cada rodada da fase seguinte mistura vencedoras de rodadas de chave
+diferentes — senão uma semifinal juntaria todas as que venceram contra a chave
+cheia e nasceria muito mais forte que a outra.
+
+**A divisão do campo muda junto.** Com uma rodada por chave, 14 duplas em
+quadras de 4 viram 4 chaves (4, 4, 3, 3). Pedindo duas rodadas, a chave de 3 não
+comportaria a segunda — então o campo é dividido em **menos chaves, cada uma mais
+cheia**: 3 chaves de 5, 5, 4. Só é recusado quando nem juntando cabe (6, 7 e 11
+duplas: uma chave só passaria do teto de 5 por rodada).
+
+**Custo de quadra.** Com 16 duplas em chaves de 4: uma rodada por chave dá 7
+rodadas no total; duas dão 11. O wizard mostra o tempo total antes de publicar.
 - A **rodada final** define o pódio direto pela tabela: 1º, 2º, 3º, 4º.
 
 ## Telão
 A rodada é exibida num telão público: trono, cronômetro, tabela ao vivo e fila.
 O telão é **por categoria**, não por rodada — segue sozinho a que está valendo
 (em andamento → próxima a entrar → última concluída).
+
+`/telao/{tournamentId}` abre **sem login**, como o telão do sorteio: o link vai
+pra smart TV da arena, que não tem onde digitar senha de organizador. Ele lê só
+`tournaments`, `matches`, `teams` e `public_profiles` — as quatro já públicas
+(`read: if true`). A **configuração** do telão (quais quadras, quais recursos, a
+chamada) continua dentro do painel, que é guardado.
 
 ## Ranking
 A categoria King of the Court **não pontua**: não soma no ranking global, no

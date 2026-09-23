@@ -28,6 +28,12 @@ export interface OrganizerTournamentCategory {
   bracketFormat: string | null;
   teamsPerGroup: number;
   qualifiersPerGroup: number;
+  /** Config da King of the Court gravada na categoria. É o que a geração da
+   *  chave lê — e é comparando com o SNAPSHOT que ficou na rodada gerada que a
+   *  tela sabe dizer se a chave publicada ainda corresponde à configuração. */
+  kocTeamsPerCourt: number;
+  kocRoundsPerBracket: number;
+  kocQualifiersPerRound: number;
   bestOf: string | null; // singleSet | bestOf3 | bestOf5
   /** Uniforme CRU da categoria (`none`/`top_only`/`top`/`full`). A herança das flags da raiz
    *  (categoria sem exigência própria em torneio com `uniformRequired`) fica em `uniforms.ts`,

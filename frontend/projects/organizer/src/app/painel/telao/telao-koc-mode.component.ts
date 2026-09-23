@@ -148,7 +148,7 @@ function surnameOf(fullName: string): string {
           <span class="og-koc-champ-badge">Rei da quadra · Rodada {{ roundLabel() }}</span>
           <div class="og-koc-champ-row">
             <div class="og-koc-champ-team">
-              <span class="og-koc-champ-avatars">
+              <span class="og-koc-stack og-koc-champ-avatars">
                 @for (p of champ.team?.players ?? []; track $index) {
                   <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="110" />
                 } @empty {
@@ -202,7 +202,7 @@ function surnameOf(fullName: string): string {
           >
             <span class="og-koc-class-place">{{ row.place }}º</span>
             <div class="og-koc-class-dupla">
-              <span class="og-koc-class-avatars">
+              <span class="og-koc-stack og-koc-class-avatars">
                 @for (p of row.team?.players ?? []; track $index) {
                   <og-avatar
                     [initials]="p.initials"
@@ -322,7 +322,7 @@ function surnameOf(fullName: string): string {
               <span class="og-koc-side-badge"
                 ><span class="og-koc-side-dot" aria-hidden="true"></span> NO TRONO</span
               >
-              <div class="og-koc-side-avatars">
+              <div class="og-koc-stack og-koc-side-avatars">
                 <span class="og-koc-side-crown" role="img" aria-label="No trono" [ogPulse]="sides.king.points">👑</span>
                 @for (p of sides.king.team?.players ?? []; track $index) {
                   <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="120" />
@@ -372,7 +372,7 @@ function surnameOf(fullName: string): string {
 
             <article class="og-koc-side challenger" [ogPulse]="sides.challenger.teamId">
               <span class="og-koc-side-badge">DESAFIANTE{{ sides.challenger.serving ? ' · SACA' : '' }}</span>
-              <div class="og-koc-side-avatars">
+              <div class="og-koc-stack og-koc-side-avatars">
                 @for (p of sides.challenger.team?.players ?? []; track $index) {
                   <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="120" />
                 }
@@ -442,7 +442,7 @@ function surnameOf(fullName: string): string {
           @for (card of queueCards(); track card.teamId) {
             <article class="og-koc-queue-card" [ogPulse]="card.place + ':' + card.teamId">
               <span class="og-koc-queue-place">{{ card.place }}º</span>
-              <span class="og-koc-queue-avatars">
+              <span class="og-koc-stack og-koc-queue-avatars">
                 @for (p of card.team?.players ?? []; track $index) {
                   <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="52" />
                 }
@@ -768,7 +768,6 @@ function surnameOf(fullName: string): string {
       text-align: center;
       overflow: hidden;
     }
-    /* Troca de dupla no trono/desafiante. */
     .og-koc-side.og-pulse-run {
       animation: og-koc-side-swap 520ms var(--nx-ease-out);
     }
@@ -794,7 +793,6 @@ function surnameOf(fullName: string): string {
       border-color: rgba(255, 106, 26, 0.45);
       box-shadow: inset 0 0 0 1px rgba(255, 106, 26, 0.12);
     }
-    /* On fire: >3 pontos seguidos no trono — fundo mais quente + anel respirando. */
     .og-koc-side.throne.on-fire {
       --koc-fire: 255, 106, 26;
       --koc-fire-hot: 255, 138, 74;
@@ -863,9 +861,24 @@ function surnameOf(fullName: string): string {
     .og-koc-side.challenger .og-koc-side-badge {
       color: var(--nx-win);
     }
-    .og-koc-side-avatars {
+    /* A pilha de avatares (borda, sobreposição, z-index) é a mesma em quatro
+       lugares desta tela — vive em .og-koc-stack. Aqui fica só o que difere. */
+    .og-koc-stack {
       display: inline-flex;
       align-items: center;
+    }
+    .og-koc-stack og-avatar {
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+      position: relative;
+    }
+    .og-koc-stack og-avatar:nth-child(1) {
+      z-index: 1;
+    }
+    .og-koc-stack og-avatar:nth-child(2) {
+      z-index: 2;
+    }
+    .og-koc-side-avatars {
       margin-top: 4px;
       position: relative;
     }
@@ -906,22 +919,11 @@ function surnameOf(fullName: string): string {
         filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.55));
       }
     }
-    .og-koc-side-avatars og-avatar {
-      border: 3px solid rgba(255, 255, 255, 0.1);
-      border-radius: 50%;
-      position: relative;
-    }
     .og-koc-side.throne .og-koc-side-avatars og-avatar {
       border-color: var(--nx-orange-500);
     }
     .og-koc-side-avatars og-avatar + og-avatar {
       margin-left: -36px;
-    }
-    .og-koc-side-avatars og-avatar:nth-child(1) {
-      z-index: 1;
-    }
-    .og-koc-side-avatars og-avatar:nth-child(2) {
-      z-index: 2;
     }
     .og-koc-side-names {
       display: flex;
@@ -979,7 +981,6 @@ function surnameOf(fullName: string): string {
     .og-koc-side-pts.muted strong {
       color: var(--nx-text);
     }
-    /* Ponto marcado: pop no número (ogPulse reinicia a cada mudança). */
     .og-koc-side-pts.og-pulse-run strong {
       animation: og-koc-score-pop 420ms var(--nx-ease-out);
     }
@@ -1306,22 +1307,12 @@ function surnameOf(fullName: string): string {
     }
     .og-koc-queue-avatars {
       flex: none;
-      display: inline-flex;
-      align-items: center;
     }
     .og-koc-queue-avatars og-avatar {
       border: 2px solid var(--nx-surface-1);
-      border-radius: 50%;
-      position: relative;
     }
     .og-koc-queue-avatars og-avatar + og-avatar {
       margin-left: -16px;
-    }
-    .og-koc-queue-avatars og-avatar:nth-child(1) {
-      z-index: 1;
-    }
-    .og-koc-queue-avatars og-avatar:nth-child(2) {
-      z-index: 2;
     }
     .og-koc-queue-body {
       flex: 1;
@@ -1473,12 +1464,17 @@ function surnameOf(fullName: string): string {
       .og-koc-side-crown.og-pulse-run,
       .og-koc-side.og-pulse-run,
       .og-koc-table-row.og-pulse-run,
-      .og-koc-queue-card.og-pulse-run {
+      .og-koc-queue-card.og-pulse-run,
+      .og-koc-champ,
+      .og-koc-champ-shine,
+      .og-koc-class-row {
         animation: none;
+      }
+      .og-koc-class-progress-bar {
+        transition: none;
       }
     }
 
-    /* ── Classificação pós-rodada ───────────────────────────── */
     :host.finished {
       gap: clamp(10px, 1.4cqh, 18px);
       padding: clamp(16px, 2.2cqh, 28px) clamp(24px, 2.2cqw, 40px) clamp(12px, 1.6cqh, 20px);
@@ -1524,12 +1520,7 @@ function surnameOf(fullName: string): string {
       position: absolute;
       inset: 0;
       pointer-events: none;
-      background: linear-gradient(
-        105deg,
-        transparent 35%,
-        rgba(255, 255, 255, 0.12) 48%,
-        transparent 62%
-      );
+      background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.12) 48%, transparent 62%);
       transform: translateX(-120%);
       animation: treSweep 1.4s var(--nx-ease-out) 0.55s both;
     }
@@ -1571,23 +1562,11 @@ function surnameOf(fullName: string): string {
       gap: 16px;
       min-width: 0;
     }
-    .og-koc-champ-avatars {
-      display: inline-flex;
-      align-items: center;
-    }
     .og-koc-champ-avatars og-avatar {
-      border: 3px solid rgba(255, 106, 26, 0.55);
-      border-radius: 50%;
-      position: relative;
+      border-color: rgba(255, 106, 26, 0.55);
     }
     .og-koc-champ-avatars og-avatar + og-avatar {
       margin-left: -28px;
-    }
-    .og-koc-champ-avatars og-avatar:nth-child(1) {
-      z-index: 1;
-    }
-    .og-koc-champ-avatars og-avatar:nth-child(2) {
-      z-index: 2;
     }
     .og-koc-champ-body {
       display: flex;
@@ -1715,14 +1694,7 @@ function surnameOf(fullName: string): string {
       min-width: 0;
     }
     .og-koc-class-avatars {
-      display: inline-flex;
-      align-items: center;
       flex: none;
-    }
-    .og-koc-class-avatars og-avatar {
-      border: 3px solid rgba(255, 255, 255, 0.1);
-      border-radius: 50%;
-      position: relative;
     }
     .og-koc-class-avatars og-avatar + og-avatar {
       margin-left: -18px;
@@ -1732,12 +1704,6 @@ function surnameOf(fullName: string): string {
     }
     .og-koc-class-row.king .og-koc-class-avatars og-avatar + og-avatar {
       margin-left: -24px;
-    }
-    .og-koc-class-avatars og-avatar:nth-child(1) {
-      z-index: 1;
-    }
-    .og-koc-class-avatars og-avatar:nth-child(2) {
-      z-index: 2;
     }
     .og-koc-class-body {
       display: flex;
@@ -1893,18 +1859,7 @@ function surnameOf(fullName: string): string {
       height: 100%;
       background: var(--nx-orange-500);
       box-shadow: 0 0 12px rgba(255, 106, 26, 0.55);
-      /* Acompanha o tick de 1s do relógio — encolhe em passos lineares. */
       transition: width 1s linear;
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .og-koc-champ,
-      .og-koc-champ-shine,
-      .og-koc-class-row {
-        animation: none;
-      }
-      .og-koc-class-progress-bar {
-        transition: none;
-      }
     }
   `,
 })

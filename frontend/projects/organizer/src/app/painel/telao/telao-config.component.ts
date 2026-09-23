@@ -104,8 +104,8 @@ const NARROW_QUERY = '(max-width: 1100px)';
 
           <og-card kicker="TV da arena" title="Exibir na TV">
             <p class="og-telao-cfg-tv">
-              Na TV (ou no computador ligado ao painel), faça login neste portal e abra o link do telão — ele entra em tela cheia e
-              atualiza sozinho a cada ponto lançado.
+              Abra o link na TV (ou no computador ligado a ela) — <strong>sem login</strong>: ele entra em tela cheia e atualiza
+              sozinho a cada ponto lançado. Dá pra mandar pro pessoal que vai ligar a TV.
             </p>
             <button type="button" class="og-ghost-btn og-telao-cfg-tv-btn" (click)="copyLink()">
               {{ copied() ? 'Link copiado ✓' : 'Copiar link do telão' }}

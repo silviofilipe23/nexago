@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
-import { isKingOfCourtMatchType } from '../../painel/data/koc';
+import { isKingOfCourtMatchType, kocColumnLabel } from '../../painel/data/koc';
 import { resolveCourtNames } from '../../painel/data/matches-repository';
 import { OverlayLiveGateway } from './overlay-live.gateway';
 import { OverlayKocBarComponent } from './overlay-koc-bar.component';
+import { kocStandingsBoardOf } from './overlay-koc-standings';
+import { OverlayKocStandingsComponent } from './overlay-koc-standings.component';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
 import { overlayBandOf, overlayCornerOf, overlayViewOf } from './overlay-selectors';
 
@@ -13,7 +15,7 @@ import { overlayBandOf, overlayCornerOf, overlayViewOf } from './overlay-selecto
 @Component({
   selector: 'og-overlay-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OverlayScoreboardComponent, OverlayKocBarComponent],
+  imports: [OverlayScoreboardComponent, OverlayKocBarComponent, OverlayKocStandingsComponent],
   providers: [OverlayLiveGateway],
   template: `
     @if (duelView(); as duel) {
@@ -22,6 +24,16 @@ import { overlayBandOf, overlayCornerOf, overlayViewOf } from './overlay-selecto
         [band]="band()"
         [corner]="corner()"
         [teamLabels]="teamLabels()"
+      />
+    }
+    @if (standings(); as board) {
+      <og-overlay-koc-standings
+        [board]="board"
+        [teams]="gateway.teams()"
+        [categoryName]="categoryName()"
+        [courtName]="courtName()"
+        [phaseName]="phaseName()"
+        [roundLabel]="roundLabel()"
       />
     }
     @if (kocView(); as koc) {
@@ -67,8 +79,24 @@ export class OverlayPageComponent {
   });
   protected readonly kocView = computed(() => {
     const v = this.view();
-    return v?.kind === 'koc' ? v : null;
+    // A rodada encerrada dá lugar à classificação — as duas na tela seriam duas verdades
+    // disputando o mesmo espaço.
+    return v?.kind === 'koc' && !this.standings() ? v : null;
   });
+
+  /** Classificação da rodada KOTC encerrada. */
+  protected readonly standings = computed(() => {
+    const m = this.match();
+    if (!m || !isKingOfCourtMatchType(m.matchType) || m.status !== 'completed') return null;
+    return kocStandingsBoardOf(m, this.gateway.categoryMatches());
+  });
+
+  protected readonly phaseName = computed(() => {
+    const m = this.match();
+    return m ? kocColumnLabel(m.matchType) : null;
+  });
+
+  protected readonly roundLabel = computed(() => this.match()?.koc?.roundLabel ?? 0);
 
   /** O placar de duelo só precisa do rótulo combinado da dupla. */
   protected readonly teamLabels = computed(() => {

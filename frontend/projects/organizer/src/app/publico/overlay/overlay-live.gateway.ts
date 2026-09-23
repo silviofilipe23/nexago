@@ -29,6 +29,9 @@ export class OverlayLiveGateway {
   /** Total de rodadas da fase, pro "Rodada 3/7" do KOTC. Zero = não foi possível contar, e a
    *  faixa simplesmente omite o total. Contado UMA vez, não é listener. */
   readonly totalRounds = signal(0);
+  /** Partidas da MESMA categoria, da leitura única acima — a classificação da rodada precisa
+   *  delas pra saber destino das vagas e próxima rodada. */
+  readonly categoryMatches = signal<readonly TournamentMatch[]>([]);
 
   private readonly hydrated = new Set<string>();
   private countedRounds = false;
@@ -107,11 +110,11 @@ export class OverlayLiveGateway {
     this.countedRounds = true;
     try {
       const all = await listMatches(match.tournamentId);
+      const daCategoria = all.filter((m) => m.categoryId === match.categoryId);
       const phase = normalizeMatchType(match.matchType);
+      this.categoryMatches.set(daCategoria);
       this.totalRounds.set(
-        all.filter(
-          (m) => m.categoryId === match.categoryId && normalizeMatchType(m.matchType) === phase,
-        ).length,
+        daCategoria.filter((m) => normalizeMatchType(m.matchType) === phase).length,
       );
     } catch {
       this.countedRounds = false; // tenta de novo no próximo snapshot

@@ -58,6 +58,7 @@ class FakeGateway {
   readonly tournament = signal<OrganizerTournament | null>(null);
   readonly teams = signal<ReadonlyMap<string, OverlayTeam>>(new Map<string, OverlayTeam>());
   readonly totalRounds = signal(0);
+  readonly categoryMatches = signal<readonly TournamentMatch[]>([]);
   readonly started: string[] = [];
   stopped = 0;
 
@@ -185,5 +186,57 @@ describe('OverlayPageComponent', () => {
     expect(text).toContain('Feminina B');
     expect(text).toContain('Quadra 2');
     expect(text).toContain('Ana');
+  });
+
+  it('rodada KOTC encerrada troca a faixa pela classificação da rodada', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.tournament.set(TOURNAMENT);
+    fake.teams.set(
+      new Map<string, OverlayTeam>([
+        ['k', { label: 'Ana / Bia', players: ['Ana', 'Bia'] }],
+        ['c', { label: 'Carla / Dani', players: ['Carla', 'Dani'] }],
+        ['q', { label: 'Eva / Fabi', players: ['Eva', 'Fabi'] }],
+      ]),
+    );
+    const encerrada = match({
+      status: 'completed',
+      matchType: 'koc_round',
+      teamAId: '',
+      teamBId: '',
+      sets: [],
+      currentSetIndex: null,
+      koc: {
+        teamIds: ['k', 'c', 'q'],
+        kingTeamId: 'k',
+        challengerTeamId: 'c',
+        queue: ['q'],
+        points: { k: 8, c: 7, q: 2 },
+        rallies: 0,
+        servingTeamId: '',
+        clock: null,
+        standings: [
+          { teamId: 'k', place: 1, points: 8, crowns: 3 },
+          { teamId: 'c', place: 2, points: 7, crowns: 1 },
+          { teamId: 'q', place: 3, points: 2, crowns: 0 },
+        ],
+        qualifiersPerRound: 2,
+        configuredDurationSec: 900,
+        rallySeq: 0,
+        rallyLog: [],
+        roundLabel: 3,
+        qualifierSlots: [],
+      },
+    });
+    fake.categoryMatches.set([encerrada]);
+    fake.match.set(encerrada);
+    await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
+    const text = (host.textContent ?? '').replace(/\s+/g, ' ');
+
+    expect(host.querySelector('og-overlay-koc-standings')).not.toBeNull();
+    expect(host.querySelector('og-overlay-koc-bar')).toBeNull();
+    expect(host.querySelectorAll('.row').length).toBe(3);
+    expect(text).toContain('Ana · Bia');
+    expect(text).toContain('Eliminada');
   });
 });

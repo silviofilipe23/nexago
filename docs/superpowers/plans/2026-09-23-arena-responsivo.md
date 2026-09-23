@@ -138,11 +138,13 @@ Repetir o mesmo bloco em `projects.arena.architect.test.options`. Editar **à m�
 
 - [ ] **Step 4: Provar que o mixin resolve**
 
-Acrescentar no topo de `frontend/projects/arena/src/styles.scss`, logo abaixo do `@import` das fontes:
+Acrescentar em `frontend/projects/arena/src/styles.scss` **na linha 4, ACIMA do `@import url(...)` das fontes**:
 
 ```scss
 @use 'breakpoints' as ar;
 ```
+
+A ordem não é estética: Sass exige que `@use` venha antes de qualquer outra regra, e hoje a linha 4 é o `@import url(...)` do Google Fonts. Pôr o `@use` embaixo dele falha o build com `@use rules must be written before any other rules`. Como o partial só tem variáveis e mixins, o `@use` não emite CSS nenhum — o CSS gerado continua começando pelo `@import`, que é o que o CSS exige.
 
 E, temporariamente, no fim do arquivo:
 
@@ -208,33 +210,63 @@ Create `frontend/projects/arena/src/styles.spec.ts`:
  *  depende exclusivamente da ordem no arquivo -- nada no build avisa se alguem
  *  inverter. */
 
-function allMediaRules(): CSSMediaRule[] {
-  const out: CSSMediaRule[] = [];
+/** So a folha GLOBAL interessa. Angular injeta os estilos de cada componente
+ *  como <style> proprio quando o componente e criado, e outros specs da mesma
+ *  rodada deixam os deles no documento -- varrer document.styleSheets inteiro
+ *  compararia a ordem entre folhas diferentes e o teste ficaria flaky conforme
+ *  a ordem de execucao dos specs. A folha global e a unica que declara
+ *  --ar-nav-item-h em :root. */
+function globalSheetRules(): CSSRule[] {
   for (const sheet of Array.from(document.styleSheets)) {
     let rules: CSSRuleList;
     try {
       rules = sheet.cssRules;
     } catch {
-      continue; // folha de outra origem; nao e a nossa
+      continue; // folha de outra origem
     }
-    for (const rule of Array.from(rules)) {
-      if (rule instanceof CSSMediaRule) out.push(rule);
+    const isGlobal = Array.from(rules).some(
+      (rule) =>
+        rule instanceof CSSStyleRule &&
+        rule.selectorText.includes(':root') &&
+        rule.style.getPropertyValue('--ar-nav-item-h').trim() !== '',
+    );
+    if (isGlobal) return Array.from(rules);
+  }
+  throw new Error('folha global do arena nao encontrada — --ar-nav-item-h nao esta em :root');
+}
+
+function allMediaRules(): CSSMediaRule[] {
+  return globalSheetRules().filter((rule): rule is CSSMediaRule => rule instanceof CSSMediaRule);
+}
+
+/** Valor DECLARADO na regra `:root` base, não o cascateado.
+ *
+ *  Ler `getComputedStyle` aqui daria o valor já resolvido para a janela do
+ *  Karma — e o ChromeHeadless abre em 800x600, altura que dispara as duas
+ *  faixas de densidade. `--ar-nav-item-h` viria 30px e o teste do valor base
+ *  falharia por um motivo que não é o que ele quer medir. */
+function baseToken(prop: string): string {
+  for (const rule of globalSheetRules()) {
+    if (rule instanceof CSSStyleRule && rule.selectorText.includes(':root')) {
+      const value = rule.style.getPropertyValue(prop).trim();
+      if (value) return value;
     }
   }
-  return out;
+  return '';
 }
 
 describe('cascata global do painel da arena', () => {
   it('expoe os tokens base em :root', () => {
-    const root = getComputedStyle(document.documentElement);
-    expect(root.getPropertyValue('--ar-nav-item-h').trim()).toBe('34px');
-    expect(root.getPropertyValue('--ar-pad-page-x').trim()).toBe('32px');
-    expect(root.getPropertyValue('--ar-pad-page-y').trim()).toBe('22px');
-    expect(root.getPropertyValue('--ar-tap').trim()).toBe('44px');
-    expect(root.getPropertyValue('--ar-tap-gap').trim()).toBe('8px');
+    expect(baseToken('--ar-nav-item-h')).toBe('34px');
+    expect(baseToken('--ar-pad-page-x')).toBe('32px');
+    expect(baseToken('--ar-pad-page-y')).toBe('22px');
+    expect(baseToken('--ar-tap')).toBe('44px');
+    expect(baseToken('--ar-tap-gap')).toBe('8px');
   });
 
   it('expoe os breakpoints como custom property para o TypeScript ler', () => {
+    // Estes dois nao mudam por faixa, entao o valor cascateado serve -- e e o
+    // que a ViewportService de fato le em producao.
     const root = getComputedStyle(document.documentElement);
     expect(root.getPropertyValue('--ar-bp-md').trim()).toBe('900px');
     expect(root.getPropertyValue('--ar-bp-sm').trim()).toBe('720px');
@@ -945,7 +977,11 @@ Expected: PASS, 7 testes.
 Create `frontend/projects/arena/src/app/painel/ui/viewport.service.ts`:
 
 ```ts
-import { DOCUMENT, Injectable, computed, inject, signal } from '@angular/core';
+// DOCUMENT vem de @angular/common: e a convencao deste repo (organizer e site
+// importam assim). O @angular/core tambem reexporta na v20, mas seguir a casa
+// evita dois padroes para a mesma coisa.
+import { DOCUMENT } from '@angular/common';
+import { Injectable, computed, inject, signal } from '@angular/core';
 
 /** Lê o breakpoint do CSS em vez de repetir o número em TypeScript.
  *  `--ar-bp-md` e `--ar-bp-sm` saem do `_breakpoints.scss` via `styles.scss`;
@@ -1271,15 +1307,44 @@ describe('PanelShellComponent', () => {
     expect(getComputedStyle(nav).overflowY).not.toBe('hidden');
   });
 
-  it('mostra todo grupo do dono e nenhum item fica fora', () => {
-    const fixture = mount({ compact: false, phone: false });
-    const renderizados = Array.from(
-      fixture.nativeElement.querySelectorAll('.nav .nav-item[data-nav-id]'),
-    ).map((el) => (el as HTMLElement).dataset['navId']);
+  /** Grupo recolhido nao renderiza os filhos, entao contar itens direto mediria
+   *  so o grupo aberto. Abrir todos e o unico jeito de provar que nenhum item
+   *  ficou fora do alcance -- que e a regressao que importa. */
+  function expandirTudo(fixture: ComponentFixture<PanelShellComponent>): void {
+    for (const head of Array.from(
+      fixture.nativeElement.querySelectorAll('.nav .nav-group-head'),
+    ) as HTMLButtonElement[]) {
+      if (head.getAttribute('aria-expanded') === 'false') {
+        head.click();
+        fixture.detectChanges();
+      }
+    }
+  }
 
-    expect(renderizados.length).toBe(NAV_ITEMS.length);
+  it('todo item do dono e alcancavel abrindo os grupos', () => {
+    const fixture = mount({ compact: false, phone: false });
+
+    const grupos = fixture.nativeElement.querySelectorAll('.nav .nav-group-head');
+    expect(grupos.length).withContext('esperado 5 grupos para o dono').toBe(5);
+
+    const vistos = new Set<string>();
+    // Cada grupo abre um de cada vez (abrir um fecha o outro), entao recolhe
+    // tudo o que aparecer a cada passada ate cobrir os 21.
+    for (let i = 0; i < grupos.length; i++) {
+      (grupos[i] as HTMLButtonElement).click();
+      fixture.detectChanges();
+      for (const el of Array.from(
+        fixture.nativeElement.querySelectorAll('.nav .nav-item[data-nav-id]'),
+      ) as HTMLElement[]) {
+        const id = el.dataset['navId'];
+        if (id) vistos.add(id);
+      }
+    }
+
     for (const item of NAV_ITEMS) {
-      expect(renderizados).withContext(`'${item.id}' sumiu do menu`).toContain(item.id);
+      expect(Array.from(vistos))
+        .withContext(`'${item.id}' nao e alcancavel por nenhum grupo`)
+        .toContain(item.id);
     }
   });
 
@@ -1310,7 +1375,7 @@ describe('PanelShellComponent', () => {
     expect(gatilho.getAttribute('aria-label')).toBeTruthy();
   });
 
-  it('o gatilho abre o drawer com o menu completo', () => {
+  it('o gatilho abre o drawer com a arvore de navegacao', () => {
     const fixture = mount({ compact: true, phone: false });
     const gatilho = fixture.nativeElement.querySelector(
       '.topbar [data-nav-trigger]',
@@ -1319,8 +1384,12 @@ describe('PanelShellComponent', () => {
     gatilho.click();
     fixture.detectChanges();
 
-    const noDrawer = fixture.nativeElement.querySelectorAll('ar-drawer .nav-item[data-nav-id]');
-    expect(noDrawer.length).toBe(NAV_ITEMS.length);
+    const drawer = fixture.nativeElement.querySelector('ar-drawer');
+    expect(drawer).withContext('drawer nao abriu').toBeTruthy();
+    // Os 5 grupos mais o Inicio solto: e a arvore inteira, mesmo com grupos
+    // recolhidos (que nao renderizam filhos).
+    expect(drawer.querySelectorAll('.nav-group-head').length).toBe(5);
+    expect(drawer.querySelector('.nav-item[data-nav-id="inicio"]')).toBeTruthy();
   });
 
   it('a bottom-nav tem no maximo 5 slots e nenhum vazio', () => {

@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
 import { kocColumnLabel } from '../../painel/data/koc';
 import { TelaoDataService } from '../../painel/telao/telao-data.service';
-import { courtNowOf } from '../../painel/telao/telao-selectors';
 import { finishedAtOf } from '../../painel/telao/telao-finished';
+import { overlayCourtContextOf } from '../overlay/overlay-court';
 import { kocStandingsBoardOf } from '../overlay/overlay-koc-standings';
 import { overlayViewOf } from '../overlay/overlay-selectors';
 import { LedRoundComponent, type LedTeam } from './led-round.component';
@@ -114,12 +114,17 @@ export class LedPageComponent {
   private readonly dados = inject(TelaoDataService);
   private readonly tick = signal(Date.now());
 
-  /** O que está nesta quadra agora — ao vivo, recém-encerrada ou a próxima. */
-  private readonly partida = computed(
-    () =>
-      courtNowOf(this.dados.matches(), this.courtId(), this.tick(), this.dados.finishMemory())
-        .match,
+  /** O que está nesta quadra agora — ao vivo, recém-encerrada ou a próxima — com o contexto de
+   *  fase junto. MESMA função do overlay por quadra: a regra de "qual partida" vive num lugar só. */
+  private readonly contexto = computed(() =>
+    overlayCourtContextOf(
+      this.dados.matches(),
+      this.courtId(),
+      this.tick(),
+      this.dados.finishMemory(),
+    ),
   );
+  private readonly partida = computed(() => this.contexto().match);
 
   private readonly finishedAt = computed(() => {
     const m = this.partida();
@@ -130,12 +135,7 @@ export class LedPageComponent {
     ledTelaOf(this.partida(), this.tick(), this.finishedAt()),
   );
 
-  private readonly totalRounds = computed(() => {
-    const m = this.partida();
-    if (!m) return 0;
-    return this.dados.matches().filter((x) => x.categoryId === m.categoryId && x.matchType === m.matchType)
-      .length;
-  });
+  private readonly totalRounds = computed(() => this.contexto().totalRounds);
 
   /** Só a visão de KOTC interessa aqui: o painel é do formato King of the Court. Uma partida de
    *  duelo na quadra não tem tela neste painel (ver `ledTelaOf`). */
@@ -147,10 +147,7 @@ export class LedPageComponent {
   protected readonly standings = computed(() => {
     const m = this.partida();
     if (!m || m.status !== 'completed') return null;
-    return kocStandingsBoardOf(
-      m,
-      this.dados.matches().filter((x) => x.categoryId === m.categoryId),
-    );
+    return kocStandingsBoardOf(m, this.contexto().categoryMatches);
   });
 
   /** O painel só precisa dos nomes; o `TelaoDataService` já resolve na ordem dos slots. */

@@ -2,7 +2,14 @@ import { Injectable, signal } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from '../../painel/data/firestore';
 import { isKingOfCourtMatchType, normalizeMatchType } from '../../painel/data/koc';
-import { listMatches, watchMatch, type TournamentMatch } from '../../painel/data/matches-repository';
+import {
+  listMatches,
+  watchMatch,
+  watchMatches,
+  type TournamentMatch,
+} from '../../painel/data/matches-repository';
+import { nextFinishMemoryOf, type MatchFinishMemory } from '../../painel/telao/telao-finished';
+import { overlayCourtContextOf } from './overlay-court';
 import { fetchProfileDisplays, fetchTeamsByIds } from '../../painel/data/teams-repository';
 import type { OrganizerTournament } from '../../painel/data/tournament.model';
 import { watchTournament } from '../../painel/data/tournaments-repository';
@@ -35,6 +42,7 @@ export class OverlayLiveGateway {
 
   private readonly hydrated = new Set<string>();
   private countedRounds = false;
+  private finishMemory: ReadonlyMap<string, MatchFinishMemory> = new Map();
 
   start(matchId: string): () => void {
     let unsubTournament: (() => void) | null = null;
@@ -68,6 +76,50 @@ export class OverlayLiveGateway {
 
   /** Nome POR ATLETA, não só o rótulo combinado: a faixa do KOTC desenha uma linha por atleta.
    *  Mesmo join que o telão faz (`teams` → `public_profiles`). */
+  /** Modo QUADRA: segue o que está acontecendo numa quadra em vez de uma partida fixa.
+   *
+   *  É o que permite o overlay emendar a rodada seguinte sozinho, em vez de alguém trocar a URL
+   *  no meio da transmissão. Custa assinar as partidas do torneio — como o telão já faz — em vez
+   *  do doc único do modo partida. A escolha de QUAL partida é do `courtNowOf`, e a memória de
+   *  fim de partida é o que segura a recém-encerrada na tela tempo suficiente pras telas de fim. */
+  startCourt(tournamentId: string, courtId: string): () => void {
+    const unsubTournament = watchTournament(
+      tournamentId,
+      (t) => this.tournament.set(t),
+      () => {},
+    );
+
+    let ultimas: TournamentMatch[] = [];
+    const resolver = () => {
+      const agora = Date.now();
+      this.finishMemory = nextFinishMemoryOf(this.finishMemory, ultimas, agora);
+      const ctx = overlayCourtContextOf(ultimas, courtId, agora, this.finishMemory);
+      this.match.set(ctx.match);
+      this.categoryMatches.set(ctx.categoryMatches);
+      this.totalRounds.set(ctx.totalRounds);
+      if (ctx.match) void this.hydrateTeams(ctx.match);
+    };
+
+    const unsubMatches = watchMatches(
+      tournamentId,
+      (ms) => {
+        ultimas = ms;
+        resolver();
+      },
+      () => {},
+    );
+
+    // O `courtNowOf` depende do relógio (partida recém-encerrada sai de cena sozinha), então a
+    // resolução precisa reavaliar mesmo sem snapshot novo.
+    const relogio = setInterval(resolver, 1000);
+
+    return () => {
+      clearInterval(relogio);
+      unsubMatches();
+      unsubTournament();
+    };
+  }
+
   private async hydrateTeams(match: TournamentMatch): Promise<void> {
     const ids = overlayTeamIdsOf(match).filter((id) => !this.hydrated.has(id));
     if (ids.length === 0) return;

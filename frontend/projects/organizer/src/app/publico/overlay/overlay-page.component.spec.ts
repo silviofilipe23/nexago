@@ -60,10 +60,18 @@ class FakeGateway {
   readonly totalRounds = signal(0);
   readonly categoryMatches = signal<readonly TournamentMatch[]>([]);
   readonly started: string[] = [];
+  readonly startedCourts: string[] = [];
   stopped = 0;
 
   start(matchId: string): () => void {
     this.started.push(matchId);
+    return () => {
+      this.stopped++;
+    };
+  }
+
+  startCourt(tournamentId: string, courtId: string): () => void {
+    this.startedCourts.push(`${tournamentId}/${courtId}`);
     return () => {
       this.stopped++;
     };
@@ -427,5 +435,19 @@ describe('OverlayPageComponent', () => {
     await fixture.whenStable();
 
     expect((fixture.nativeElement as HTMLElement).querySelector('.alternar')).toBeNull();
+  });
+
+  it('em modo quadra, assina a QUADRA e não uma partida fixa', async () => {
+    const { fake } = await mount({ matchId: '', tournamentId: 't1', courtId: 'q2' });
+
+    expect(fake.startedCourts).toEqual(['t1/q2']);
+    expect(fake.started).toEqual([]);
+  });
+
+  it('com partida na rota, segue assinando só aquela partida', async () => {
+    const { fake } = await mount({ matchId: 'm1' });
+
+    expect(fake.started).toEqual(['m1']);
+    expect(fake.startedCourts).toEqual([]);
   });
 });

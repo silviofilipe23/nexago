@@ -107,6 +107,9 @@ const CLASSIFICADAS_MS = 15_000;
 export class OverlayPageComponent {
   /** Params da rota chegam por `withComponentInputBinding` — `input()`, nunca `signal()`. */
   readonly matchId = input('');
+  /** Modo quadra: `/overlay/:tournamentId/quadra/:courtId`. */
+  readonly tournamentId = input('');
+  readonly courtId = input('');
   /** `?tela=resultado|classificadas` — fixa a visualização e desliga o rodízio. */
   readonly tela = input<string | null>(null);
   readonly pos = input<string | null>(null);
@@ -257,6 +260,12 @@ export class OverlayPageComponent {
     });
 
     effect((onCleanup) => {
+      const quadra = this.courtId();
+      const torneio = this.tournamentId();
+      if (quadra && torneio) {
+        onCleanup(this.gateway.startCourt(torneio, quadra));
+        return;
+      }
       const id = this.matchId();
       if (!id) return;
       onCleanup(this.gateway.start(id));

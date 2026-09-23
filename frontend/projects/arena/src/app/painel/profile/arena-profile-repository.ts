@@ -105,25 +105,24 @@ export async function uploadArenaImage(storage: FirebaseStorage, arenaId: string
   return getDownloadURL(fileRef);
 }
 
-export type ArenaContactsInput = Pick<ArenaProfile, 'phone' | 'whatsapp' | 'address' | 'city' | 'state'>;
+export type ArenaContactsInput = Pick<ArenaProfile, 'phone' | 'whatsapp'>;
 
-/** Salva telefone/whatsapp/endereço/cidade/estado (tela Contatos). */
+/** Campos da tela Contatos. Endereço, cidade e UF ficaram de fora de propósito: quem manda
+ *  neles é a tela "Dados cadastrais", e um `address: ''` vindo daqui apagaria o endereço
+ *  estruturado — o `merge` só protege o que a gravação não menciona. */
+export function buildArenaContactsUpdate(input: ArenaContactsInput): Record<string, unknown> {
+  const wa = input.whatsapp.trim();
+  return {
+    phone: input.phone.trim(),
+    whatsapp: wa || deleteField(),
+  };
+}
+
+/** Salva telefone e WhatsApp (tela Contatos). */
 export async function saveArenaContacts(db: Firestore, arenaId: string, input: ArenaContactsInput): Promise<void> {
   const error = validateArenaContacts(input);
   if (error) {
     throw new Error(error);
   }
-
-  const wa = input.whatsapp.trim();
-  await setDoc(
-    doc(db, 'arenas', arenaId),
-    {
-      phone: input.phone.trim(),
-      whatsapp: wa || deleteField(),
-      address: input.address.trim(),
-      city: input.city.trim(),
-      state: input.state.trim().toUpperCase(),
-    },
-    { merge: true },
-  );
+  await setDoc(doc(db, 'arenas', arenaId), buildArenaContactsUpdate(input), { merge: true });
 }

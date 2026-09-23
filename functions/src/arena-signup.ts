@@ -9,6 +9,7 @@ import {
   rolesFromClaims,
 } from "./auth-roles";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {isValidCpfCnpj, normalizeCpfCnpj} from "./asaas-customer";
 
 /**
  * Garante que `arena` está entre os papéis do usuário, preservando os que já
@@ -18,10 +19,13 @@ export function withArenaRole(existingRoles: AppRole[]): AppRole[] {
   return existingRoles.includes("arena") ? existingRoles : [...existingRoles, "arena"];
 }
 
-/** Campos do formulário de cadastro que já nascem no doc da arena. */
+/** Campos do formulário de cadastro que já nascem junto com a arena. */
 export interface ArenaSignupDetails {
   cityState?: string;
   whatsapp?: string;
+  /** CNPJ/CPF do formulário. Vai para `arenas/{id}/registration/data`, nunca para o doc da
+   *  arena: esse é `allow read: if true`. */
+  cpfCnpj?: string;
 }
 
 const CITY_STATE_PUNCT = /^(.+?)\s*[,/-]\s*([A-Za-z]{2})$/;
@@ -88,6 +92,14 @@ export async function ensureManagedArena(
     ...(whatsapp ? {whatsapp} : {}),
     createdAt: FieldValue.serverTimestamp(),
   });
+
+  // Mesma leniência do caminho de pagamento (`asaas-customer`): o DV é conferido no
+  // formulário; aqui só recusamos o que nem tem forma de documento.
+  const cpfCnpj = normalizeCpfCnpj(input.cpfCnpj);
+  if (isValidCpfCnpj(cpfCnpj)) {
+    await ref.collection("registration").doc("data").set({cpfCnpj});
+  }
+
   return ref.id;
 }
 
@@ -152,6 +164,7 @@ export const completeArenaSignup = onCall({
     arenaName,
     cityState: typeof request.data?.cityState === "string" ? request.data.cityState : undefined,
     whatsapp: typeof request.data?.whatsapp === "string" ? request.data.whatsapp : undefined,
+    cpfCnpj: typeof request.data?.cpfCnpj === "string" ? request.data.cpfCnpj : undefined,
   });
 
   logger.info("Arena signup completed", {uid, arenaId});

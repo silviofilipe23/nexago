@@ -67,6 +67,23 @@ export function matchDurationMin(
   return Math.ceil(sec / 60) + KOC_CHANGEOVER_MIN;
 }
 
+/**
+ * De quais rodadas esta depende, por `matchNumber`. Vazio para partidas de
+ * duelo e para a rodada KOTC que já nasce com elenco fechado.
+ */
+export function kocSourceMatchNumbers(
+  data: FirebaseFirestore.DocumentData,
+): number[] {
+  const slots = data.kocQualifiers;
+  if (!Array.isArray(slots)) return [];
+  const out = new Set<number>();
+  for (const slot of slots) {
+    const from = Number((slot as {fromMatchNumber?: unknown})?.fromMatchNumber);
+    if (Number.isFinite(from) && from > 0) out.add(from);
+  }
+  return [...out];
+}
+
 export interface CourtAllocationSlot {
   matchId: string;
   courtId: string;
@@ -98,6 +115,13 @@ export function allocateCourtSlots(params: {
    * não passa nada e segue alocando a partir do `dayStart`.
    */
   minStartById?: Record<string, Date>;
+  /**
+   * Fim das partidas JÁ agendadas, por `matchNumber`. Alimenta a dependência
+   * das rodadas King of the Court quando a rodada de origem não está neste
+   * lote — sem isso a rodada seguinte seria alocada como se a origem não
+   * existisse.
+   */
+  endByMatchNumber?: Record<number, Date>;
 }): CourtAllocationSlot[] {
   const {
     courts,
@@ -111,6 +135,18 @@ export function allocateCourtSlots(params: {
     minStartById,
   } = params;
 
+  /**
+   * Fim de cada rodada por `matchNumber` — o que torna a dependência da KOTC
+   * exigível.
+   *
+   * A rodada que nasce só com `kocQualifiers` NÃO tem `kocTeamIds`: o elenco
+   * dela só existe quando a rodada de origem termina. Como `matchTeamIds`
+   * devolve vazio, não havia conflito de atleta nenhum para empurrá-la, e o
+   * alocador guloso punha a 2ª rodada da chave no MESMO horário da 1ª, em
+   * outra quadra — com as mesmas duplas — e a final junto com as semis.
+   */
+  const endByMatchNumber: Record<number, Date> = {...(params.endByMatchNumber ?? {})};
+
   const slots: CourtAllocationSlot[] = [];
   const sorted = [...unscheduled].sort((a, b) =>
     compareByMatchNumber(a.data(), b.data()),
@@ -118,6 +154,15 @@ export function allocateCourtSlots(params: {
 
   for (const doc of sorted) {
     const data = doc.data();
+
+    // A rodada só pode começar depois que TODAS as suas fontes terminarem. A
+    // duração já inclui o changeover (`matchDurationMin`), então o fim da
+    // origem é o piso.
+    let dependencyFloor: Date | null = null;
+    for (const from of kocSourceMatchNumbers(data)) {
+      const end = endByMatchNumber[from];
+      if (end && (!dependencyFloor || end > dependencyFloor)) dependencyFloor = end;
+    }
 
     const candidates = courts.map((court) => {
       let start = courtBusyUntil[court.id] ?? dayStart;
@@ -133,6 +178,8 @@ export function allocateCourtSlots(params: {
       // O piso entra ANTES da comparação entre quadras, como o ajuste de
       // conflito: comparar um candidato já ajustado contra outro cru elege a
       // quadra errada.
+      if (dependencyFloor && dependencyFloor > start) start = new Date(dependencyFloor);
+
       const floor = minStartById?.[doc.id];
       if (floor && floor > start) start = new Date(floor);
 
@@ -149,6 +196,8 @@ export function allocateCourtSlots(params: {
     );
     slots.push({matchId: doc.id, courtId: chosenCourt, start: chosenStart, end});
     courtBusyUntil[chosenCourt] = end;
+    const number = Number(data.matchNumber);
+    if (Number.isFinite(number)) endByMatchNumber[number] = end;
 
     if (avoidAthleteConflict) {
       const teamRestUntil = new Date(end.getTime() + minRestMin * 60 * 1000);

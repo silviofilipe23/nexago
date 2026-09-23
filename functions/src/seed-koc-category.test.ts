@@ -87,12 +87,15 @@ describe("seed · fluxo completo até as rodadas", () => {
     assert.equal(rounds.filter((r) => r.phase === 1).length, 8);
     assert.equal(rounds.length, 11);
 
-    // A 2ª rodada de cada chave herda os NÃO classificados da 1ª da MESMA
-    // chave — é o que distingue "2 rodadas por chave" de "8 chaves".
+    // As rodadas da MESMA chave saem em sequência, e a 2ª herda os NÃO
+    // classificados da 1ª — é o que distingue "2 rodadas por chave" de
+    // "8 chaves", e é o mesmo grupo seguindo na mesma quadra.
     const phaseOne = rounds.filter((r) => r.phase === 1);
     for (let bracket = 0; bracket < 4; bracket++) {
-      const first = phaseOne[bracket]!;
-      const second = phaseOne[4 + bracket]!;
+      const first = phaseOne[bracket * 2]!;
+      const second = phaseOne[bracket * 2 + 1]!;
+      assert.equal(second.poolId, first.poolId, "as duas rodadas são da mesma chave");
+      assert.equal(second.matchNumber, first.matchNumber + 1, "e saem consecutivas");
       assert.equal(first.size, 4);
       assert.equal(second.size, 3, "a vencedora sai: a chave de 4 vira 3");
       const sources = new Set((second.qualifiers ?? []).map((q) => q.fromMatchNumber));

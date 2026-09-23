@@ -52,7 +52,7 @@ function initialsOfName(name: string): string {
         } @else if (arenaLoading()) {
           <p class="state-text">Carregando perfil…</p>
         } @else if (profile()) {
-          <div class="main-grid">
+          <div class="main-grid ar-split" style="--ar-split-aside: 340px">
             <div class="col-left">
               @if (saveError(); as serr) {
                 <div class="error-banner">{{ serr }}</div>
@@ -259,12 +259,6 @@ function initialsOfName(name: string): string {
       padding: 10px 14px;
       font-size: 12.5px;
       margin-bottom: 4px;
-    }
-
-    .main-grid {
-      display: grid;
-      grid-template-columns: 1fr 340px;
-      gap: 16px;
     }
 
     .col-left,
@@ -572,12 +566,6 @@ function initialsOfName(name: string): string {
       font-family: var(--nx-font-mono);
       font-size: 11px;
       color: var(--nx-text-dim);
-    }
-
-    @media (max-width: 1180px) {
-      .main-grid {
-        grid-template-columns: 1fr;
-      }
     }
   `,
 })

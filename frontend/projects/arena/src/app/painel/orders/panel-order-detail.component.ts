@@ -49,7 +49,7 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
     <ar-panel-shell>
       <ar-page-header [title]="headerTitle()" [subtitle]="headerSubtitle()" />
 
-      <div class="body">
+      <div class="body ar-split">
         @if (loading()) {
           <p class="state-text">Carregando comanda…</p>
         } @else if (loadError(); as err) {
@@ -259,10 +259,6 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
     .body {
       flex: 1;
       padding: 22px 32px 28px;
-      display: grid;
-      grid-template-columns: 1fr 373px;
-      gap: 16px;
-      align-items: start;
       overflow: auto;
     }
 
@@ -704,12 +700,6 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
       justify-content: flex-end;
       gap: 12px;
       flex-wrap: wrap;
-    }
-
-    @media (max-width: 1180px) {
-      .body {
-        grid-template-columns: 1fr;
-      }
     }
   `,
 })

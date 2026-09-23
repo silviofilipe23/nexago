@@ -156,7 +156,7 @@ function formatBRL(n: number): string {
             <ar-kpi-card label="Avaliação média" [value]="reviewMetrics().totalReviews > 0 ? formatRating(reviewMetrics().averageRating) : '—'" [delta]="reviewMetrics().totalReviews > 0 ? reviewMetrics().totalReviews + ' avaliações' : ''" deltaTone="flat" icon="star" />
           </div>
 
-          <div class="main-grid">
+          <div class="main-grid ar-split" style="--ar-split-aside: 372px">
             <div class="col-left">
               <ar-panel-card kicker="Últimos 7 dias" title="Desempenho da operação" class="chart-card">
                 <ar-chart-tabs [tabs]="chartTabs()" [active]="chartTab()" (change)="chartTab.set($any($event))" card-actions />
@@ -290,9 +290,6 @@ function formatBRL(n: number): string {
 
     .main-grid {
       flex: 1;
-      display: grid;
-      grid-template-columns: 1fr 372px;
-      gap: 16px;
       min-height: 0;
     }
 
@@ -497,12 +494,6 @@ function formatBRL(n: number): string {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 10px;
-    }
-
-    @media (max-width: 1180px) {
-      .main-grid {
-        grid-template-columns: 1fr;
-      }
     }
 
     @media (max-width: 720px) {

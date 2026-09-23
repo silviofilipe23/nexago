@@ -35,7 +35,7 @@ function normalizeCode(raw: string): string {
         </button>
       </ar-page-header>
 
-      <div class="body">
+      <div class="body ar-split">
         <div class="col-left">
           @if (errorMessage(); as err) {
             <div class="error-banner">{{ err }}</div>
@@ -111,10 +111,6 @@ function normalizeCode(raw: string): string {
     .body {
       flex: 1;
       padding: 22px 32px 28px;
-      display: grid;
-      grid-template-columns: 1fr 373px;
-      gap: 16px;
-      align-items: start;
       overflow: auto;
     }
 
@@ -255,12 +251,6 @@ function normalizeCode(raw: string): string {
       font-size: 12.5px;
       line-height: 1.55;
       color: var(--nx-text-dim);
-    }
-
-    @media (max-width: 1180px) {
-      .body {
-        grid-template-columns: 1fr;
-      }
     }
 
     @media (max-width: 720px) {

@@ -87,7 +87,7 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
             <div class="tp-notice" role="status">{{ n }}</div>
           }
 
-          <div class="main-grid">
+          <div class="main-grid ar-split" style="--ar-split-aside: 320px">
             <div class="col-left">
               <ar-panel-card class="balance-card">
                 <div class="balance-head">
@@ -241,11 +241,7 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
 
     .main-grid {
       flex: 1;
-      display: grid;
-      grid-template-columns: 1fr 320px;
-      gap: 16px;
       min-height: 0;
-      align-items: start;
     }
 
     .col-left,
@@ -584,12 +580,6 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
       justify-content: flex-end;
       gap: 12px;
       margin-top: 8px;
-    }
-
-    @media (max-width: 1180px) {
-      .main-grid {
-        grid-template-columns: 1fr;
-      }
     }
   `,
 })

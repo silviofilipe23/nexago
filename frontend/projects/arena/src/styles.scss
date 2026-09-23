@@ -567,6 +567,17 @@ button {
   color: var(--nx-text);
 }
 
+/* Layout partido: conteudo + trilha lateral. 13 telas repetiam `1fr 373px`
+   com variacoes de 320 a 373px. `minmax(0, 1fr)` e proposital: `1fr` sozinho
+   nasce com min-width: auto = min-content do conteudo, e um <select> com opcao
+   longa ganha do 1fr sem dar scroll -- so "aperta". */
+.ar-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--ar-split-aside, 373px);
+  gap: 20px;
+  align-items: start;
+}
+
 /* =========================================================================
    ORDEM DO CASCADE — NAO REORDENAR
    @media nao soma especificidade: regras que declaram a mesma propriedade
@@ -582,6 +593,10 @@ button {
 @include ar.below(md) {
   :root {
     --ar-pad-page-x: 24px;
+  }
+
+  .ar-split {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

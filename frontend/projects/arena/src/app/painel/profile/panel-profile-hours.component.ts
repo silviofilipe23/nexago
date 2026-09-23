@@ -46,7 +46,7 @@ const SLOT_LABEL: Record<ArenaSlotDuration, string> = { 30: '30 min', 60: '1 hor
         </button>
       </ar-page-header>
 
-      <div class="body">
+      <div class="body ar-split">
         @if (arenaNotFound()) {
           <p class="state-text">Nenhuma arena vinculada à sua conta ainda.</p>
         } @else if (arenaLoading() || loading()) {
@@ -125,10 +125,6 @@ const SLOT_LABEL: Record<ArenaSlotDuration, string> = { 30: '30 min', 60: '1 hor
     .body {
       flex: 1;
       padding: 22px 32px 28px;
-      display: grid;
-      grid-template-columns: 1fr 373px;
-      gap: 16px;
-      align-items: start;
       overflow: auto;
     }
 
@@ -267,11 +263,6 @@ const SLOT_LABEL: Record<ArenaSlotDuration, string> = { 30: '30 min', 60: '1 hor
       color: var(--nx-text-dim);
     }
 
-    @media (max-width: 1180px) {
-      .body {
-        grid-template-columns: 1fr;
-      }
-    }
   `,
 })
 export class PanelProfileHoursComponent {

@@ -76,7 +76,7 @@ interface PlanFormItem {
             <div class="ok-banner">{{ msg }}</div>
           }
 
-          <div class="layout">
+          <div class="layout ar-split" style="--ar-split-aside: 340px">
           <div class="col-main">
           <ar-panel-card kicker="Onde seu site fica no ar" title="Endereço" pad="lg">
             <span card-actions class="status-pill" [class.live]="status() === 'published'">
@@ -416,13 +416,6 @@ interface PlanFormItem {
       box-sizing: border-box;
     }
 
-    .layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 340px;
-      gap: 28px;
-      align-items: start;
-    }
-
     .col-main {
       display: flex;
       flex-direction: column;
@@ -440,10 +433,6 @@ interface PlanFormItem {
     }
 
     @media (max-width: 1080px) {
-      .layout {
-        grid-template-columns: 1fr;
-      }
-
       .col-side {
         position: static;
       }

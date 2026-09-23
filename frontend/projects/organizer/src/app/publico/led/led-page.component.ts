@@ -3,8 +3,11 @@ import { kocColumnLabel } from '../../painel/data/koc';
 import { TelaoDataService } from '../../painel/telao/telao-data.service';
 import { finishedAtOf } from '../../painel/telao/telao-finished';
 import { overlayCourtContextOf } from '../overlay/overlay-court';
+import { kocRoundTitleOf } from '../overlay/overlay-koc-bar';
+import { kocPreRoundOf } from '../overlay/overlay-koc-preround';
 import { kocStandingsBoardOf } from '../overlay/overlay-koc-standings';
 import { overlayViewOf } from '../overlay/overlay-selectors';
+import { LedPreRoundComponent } from './led-preround.component';
 import { LedRoundComponent, type LedTeam } from './led-round.component';
 import { LedStandingsComponent } from './led-standings.component';
 import { ledIniciaisDe } from './led-iniciais';
@@ -20,9 +23,22 @@ import { ledTelaOf } from './led-telas';
   selector: 'og-led-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [TelaoDataService],
-  imports: [LedRoundComponent, LedStandingsComponent],
+  imports: [LedRoundComponent, LedStandingsComponent, LedPreRoundComponent],
   template: `
     @switch (tela()) {
+      @case ('elenco') {
+        @if (preRound(); as pre) {
+          <div class="cortina">
+            <og-led-preround
+              [preRound]="pre"
+              [teams]="teams()"
+              [categoryName]="categoryName()"
+              [courtName]="courtName()"
+              [roundTitle]="roundTitle()"
+            />
+          </div>
+        }
+      }
       @case ('jogo') {
         @if (view(); as v) {
           <div class="cortina" animate.enter="led-cortina-in" animate.leave="led-cortina-out">
@@ -194,6 +210,25 @@ export class LedPageComponent {
   });
 
   protected readonly roundLabel = computed(() => this.partida()?.koc?.roundLabel ?? 0);
+
+  /** Elenco da rodada que ainda não começou. */
+  protected readonly preRound = computed(() => {
+    const m = this.partida();
+    return m ? kocPreRoundOf(m) : null;
+  });
+
+  /** "Rodada 3/7". NÃO sai de `view()`: antes do apito ela é nula, e o cabeçalho do elenco
+   *  ficaria sem a rodada justamente na tela em que ela importa. */
+  protected readonly roundTitle = computed(() => {
+    const m = this.partida();
+    if (!m) return '';
+    return kocRoundTitleOf(
+      m.matchType,
+      m.koc?.roundLabel ?? 0,
+      m.matchNumber,
+      this.contexto().totalRounds,
+    );
+  });
 
   protected readonly phaseName = computed(() => {
     const m = this.partida();

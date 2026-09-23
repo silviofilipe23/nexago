@@ -177,4 +177,26 @@ describe('LedPageComponent', () => {
     expect(h.textContent).toContain('encerrada');
     expect(h.textContent).toContain('Classificada');
   });
+
+  it('rodada agendada na quadra anuncia o elenco antes do apito', async () => {
+    const { fixture, fake } = await mount();
+    fake.matches.set([
+      match({
+        status: 'scheduled',
+        scheduledAt: new Date(Date.now() + 5 * 60_000),
+        matchStartedAt: null,
+        koc: round({ kingTeamId: '', challengerTeamId: '', clock: null }),
+      }),
+    ]);
+    await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
+    const text = (host.textContent ?? '').replace(/\s+/g, ' ');
+
+    expect(host.querySelector('og-led-preround')).not.toBeNull();
+    expect(host.querySelector('og-led-round')).toBeNull();
+    expect(text).toContain('Próximos em quadra');
+    expect(text).toContain('Van');
+    // O título da rodada NÃO pode sair da visão de jogo: antes do apito ela é nula.
+    expect(text).toContain('Rodada 3');
+  });
 });

@@ -1,7 +1,14 @@
 import { isKingOfCourtMatchType, kocIsExpired } from '../../painel/data/koc';
+import { kocPreRoundOf } from '../overlay/overlay-koc-preround';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
 
-export type LedTela = 'jogo' | 'tempo-esgotado' | 'classificacao' | 'classificadas' | 'aguardando';
+export type LedTela =
+  | 'elenco'
+  | 'jogo'
+  | 'tempo-esgotado'
+  | 'classificacao'
+  | 'classificadas'
+  | 'aguardando';
 
 export const CLASSIFICACAO_MS = 15_000;
 export const CLASSIFICADAS_MS = 15_000;
@@ -24,6 +31,12 @@ export function ledTelaOf(
     if (desde < CLASSIFICACAO_MS) return 'classificacao';
     if (desde < CLASSIFICACAO_MS + CLASSIFICADAS_MS) return 'classificadas';
     return 'aguardando';
+  }
+
+  // Antes do apito não há rei nem desafiante: o que existe é a ordem de entrada. Sem elenco
+  // resolvido (fase cujas vagas ainda dependem da anterior) não há quem anunciar.
+  if (match.status === 'scheduled') {
+    return kocPreRoundOf(match) ? 'elenco' : 'aguardando';
   }
 
   const clock = match.koc.clock;

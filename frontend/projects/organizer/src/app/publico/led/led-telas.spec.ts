@@ -66,6 +66,18 @@ function match(overrides: Partial<TournamentMatch> = {}): TournamentMatch {
 }
 
 describe('ledTelaOf', () => {
+  it('rodada agendada com elenco anuncia quem vai entrar', () => {
+    const agendada = match({ status: 'scheduled', koc: round({ kingTeamId: '', challengerTeamId: '' }) });
+
+    expect(ledTelaOf(agendada, NOW, null)).toBe('elenco');
+  });
+
+  it('rodada agendada sem elenco resolvido não tem o que anunciar', () => {
+    const semElenco = match({ status: 'scheduled', koc: round({ teamIds: [] }) });
+
+    expect(ledTelaOf(semElenco, NOW, null)).toBe('aguardando');
+  });
+
   it('mostra o jogo enquanto o relógio corre', () => {
     expect(ledTelaOf(match(), NOW, null)).toBe('jogo');
   });

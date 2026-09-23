@@ -156,7 +156,7 @@ function formatBRL(n: number): string {
             <ar-kpi-card label="Avaliação média" [value]="reviewMetrics().totalReviews > 0 ? formatRating(reviewMetrics().averageRating) : '—'" [delta]="reviewMetrics().totalReviews > 0 ? reviewMetrics().totalReviews + ' avaliações' : ''" deltaTone="flat" icon="star" />
           </div>
 
-          <div class="main-grid ar-split" style="--ar-split-aside: 372px">
+          <div class="main-grid ar-split ar-split-stretch" style="--ar-split-aside: 372px">
             <div class="col-left">
               <ar-panel-card kicker="Últimos 7 dias" title="Desempenho da operação" class="chart-card">
                 <ar-chart-tabs [tabs]="chartTabs()" [active]="chartTab()" (change)="chartTab.set($any($event))" card-actions />

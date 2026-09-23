@@ -567,11 +567,11 @@ button {
   color: var(--nx-text);
 }
 
-/* Layout partido: conteudo + trilha lateral. 13 telas repetiam o mesmo grid
-   (1fr + trilha de 320 a 373px) -- 11 delas ja tinham sua propria copia de
-   um `@media (max-width: 1180px) { grid-template-columns: 1fr }`, as outras
-   2 nunca empilhavam. A regra compartilhada elimina a duplicacao (o recorte
-   de faixa vive em ar.below(lg), na zona 2 abaixo) e cobre as 2 que faltavam.
+/* Layout partido: conteudo + trilha lateral. As 13 telas ja colapsavam pra
+   uma coluna em tela estreita, cada uma com sua propria copia da regra: 12
+   em `max-width: 1180px`, a panel-site em `1080px`. O ganho aqui e eliminar
+   as 13 copias e unificar o ponto de colapso em 1180px (o recorte vive em
+   ar.below(lg), na zona 2 abaixo) -- a panel-site sobe de 1080 pra 1180.
    `minmax(0, 1fr)` e proposital: `1fr` sozinho nasce com min-width: auto =
    min-content do conteudo, e um <select> com opcao longa ganha do 1fr sem
    dar scroll -- so "aperta". */
@@ -590,6 +590,13 @@ button {
    ele derrotaria o empilhamento em qualquer largura, nao so acima de 1180px. */
 .ar-split-aside-first {
   grid-template-columns: var(--ar-split-aside, 373px) minmax(0, 1fr);
+}
+
+/* Telas de painel cujas colunas precisam esticar ate a altura da linha: e o
+   stretch que da altura limitada as cadeias flex/min-height/overflow dos cards
+   que rolam por dentro. Sem isto a lista cresce com o conteudo em vez de rolar. */
+.ar-split-stretch {
+  align-items: stretch;
 }
 
 /* =========================================================================

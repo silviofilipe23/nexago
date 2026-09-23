@@ -102,7 +102,7 @@ function timeToMinutes(time: string): number {
         </div>
       </ar-page-header>
 
-      <div class="body ar-split" style="--ar-split-aside: 340px">
+      <div class="body ar-split ar-split-stretch" style="--ar-split-aside: 340px">
         @if (arenaNotFound()) {
           <ar-panel-card pad="lg">
             <p class="state-text">Nenhuma arena vinculada à sua conta ainda.</p>

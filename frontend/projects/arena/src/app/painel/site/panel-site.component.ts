@@ -432,7 +432,10 @@ interface PlanFormItem {
       min-width: 0;
     }
 
-    @media (max-width: 1080px) {
+    /* 1180px casa com o ponto em que .ar-split (styles.scss, ar.below(lg))
+       colapsa a grade pra uma coluna -- sem isto a trilha fica sticky por
+       cima do conteudo entre o colapso do grid e este breakpoint. */
+    @media (max-width: 1180px) {
       .col-side {
         position: static;
       }

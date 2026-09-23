@@ -222,6 +222,8 @@ function timeToMinutes(time: string): number {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .header-actions {
       display: flex;
       align-items: center;

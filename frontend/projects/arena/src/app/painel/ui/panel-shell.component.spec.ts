@@ -1,6 +1,6 @@
-import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { Component, provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
@@ -8,12 +8,18 @@ import { NAV_ITEMS } from './panel-nav.model';
 import { PanelShellComponent } from './panel-shell.component';
 import { ViewportService } from './viewport.service';
 
-function mount(opts: { compact: boolean; phone: boolean }): ComponentFixture<PanelShellComponent> {
+/** Destino generico pro roteador de teste: so precisa existir pra alguma rota
+ *  bater e a navegacao terminar em NavigationEnd, nunca e renderizado (nenhum
+ *  teste monta um router-outlet). */
+@Component({ selector: 'test-route-stub', template: '' })
+class RouteStubComponent {}
+
+function configure(opts: { compact: boolean; phone: boolean }): void {
   TestBed.configureTestingModule({
     imports: [PanelShellComponent],
     providers: [
       provideZonelessChangeDetection(),
-      provideRouter([]),
+      provideRouter([{ path: '**', component: RouteStubComponent }]),
       { provide: AuthService, useValue: { user: () => ({ email: 'dono@arena.com' }) } },
       {
         provide: ArenaContextService,
@@ -36,6 +42,26 @@ function mount(opts: { compact: boolean; phone: boolean }): ComponentFixture<Pan
       },
     ],
   });
+}
+
+function mount(opts: { compact: boolean; phone: boolean }): ComponentFixture<PanelShellComponent> {
+  configure(opts);
+  const fixture = TestBed.createComponent(PanelShellComponent);
+  fixture.detectChanges();
+  return fixture;
+}
+
+/** Mesmo setup do `mount`, mas navega ANTES de criar o componente -- assim
+ *  `router.url` ja reflete o destino quando o shell le a rota ativa no
+ *  construtor, sem precisar de router-outlet nem de esperar NavigationEnd
+ *  depois de montado. */
+async function mountAt(
+  path: string,
+  opts: { compact: boolean; phone: boolean },
+): Promise<ComponentFixture<PanelShellComponent>> {
+  configure(opts);
+  const router = TestBed.inject(Router);
+  await router.navigateByUrl(path);
 
   const fixture = TestBed.createComponent(PanelShellComponent);
   fixture.detectChanges();
@@ -56,22 +82,12 @@ describe('PanelShellComponent', () => {
     const nav = fixture.nativeElement.querySelector('.nav') as HTMLElement;
 
     expect(nav).withContext('menu nao renderizou').toBeTruthy();
-    expect(getComputedStyle(nav).overflowY).not.toBe('hidden');
+    // Afirma o contrato positivo, nao so a negacao de um valor especifico:
+    // 'visible' e 'clip' tambem cortariam a lista em silencio e passariam
+    // num `not.toBe('hidden')`, que e exatamente o bug que isto existe pra
+    // pegar.
+    expect(['auto', 'scroll']).toContain(getComputedStyle(nav).overflowY);
   });
-
-  /** Grupo recolhido nao renderiza os filhos, entao contar itens direto mediria
-   *  so o grupo aberto. Abrir todos e o unico jeito de provar que nenhum item
-   *  ficou fora do alcance -- que e a regressao que importa. */
-  function expandirTudo(fixture: ComponentFixture<PanelShellComponent>): void {
-    for (const head of Array.from(
-      fixture.nativeElement.querySelectorAll('.nav .nav-group-head'),
-    ) as HTMLButtonElement[]) {
-      if (head.getAttribute('aria-expanded') === 'false') {
-        head.click();
-        fixture.detectChanges();
-      }
-    }
-  }
 
   it('todo item do dono e alcancavel abrindo os grupos', () => {
     const fixture = mount({ compact: false, phone: false });
@@ -109,6 +125,135 @@ describe('PanelShellComponent', () => {
       expect(head.tagName).toBe('BUTTON');
       expect(head.getAttribute('aria-expanded')).toMatch(/^(true|false)$/);
     }
+  });
+
+  it('fecha o grupo da rota ativa de verdade, sem o fallback reabrir sozinho', async () => {
+    // 'agenda' e do grupo 'operacao', que e o primeiro grupo da lista. Sem
+    // nada guardado ainda, isOpen cai no fallback da rota ativa e comeca
+    // aberto. O bug: toggleGroup gravava `null` ao fechar, e `null` tambem
+    // significa "nada guardado" -- entao isOpen caia de volta no MESMO
+    // fallback e o grupo nunca fechava (o clique virava no-op silencioso).
+    const fixture = await mountAt('/painel/agenda', { compact: false, phone: false });
+    const operacao = fixture.nativeElement.querySelector('.nav .nav-group-head') as HTMLButtonElement;
+
+    expect(operacao.getAttribute('aria-expanded'))
+      .withContext('grupo da rota ativa deveria comecar aberto pelo fallback')
+      .toBe('true');
+
+    operacao.click();
+    fixture.detectChanges();
+
+    expect(operacao.getAttribute('aria-expanded'))
+      .withContext('fechar o grupo da rota ativa nao fechou -- o fallback reabriu sozinho')
+      .toBe('false');
+  });
+
+  it('fechar um grupo nao reabre o grupo da rota ativa sozinho', async () => {
+    // Mesmo cenario do relato: com 'operacao' aberto pelo fallback da rota
+    // ativa, abrir 'vendas' (accordion: so um aberto por vez) e depois fechar
+    // 'vendas' de novo. 'operacao' NAO pode voltar sozinho -- essa era a
+    // segunda metade do bug ("fechar VENDAS grava null e reabre OPERACAO").
+    const fixture = await mountAt('/painel/agenda', { compact: false, phone: false });
+    const cabecalhos = Array.from(
+      fixture.nativeElement.querySelectorAll('.nav .nav-group-head'),
+    ) as HTMLButtonElement[];
+    const operacao = cabecalhos[0]!;
+    const vendas = cabecalhos[1]!;
+
+    expect(operacao.getAttribute('aria-expanded')).toBe('true');
+
+    vendas.click();
+    fixture.detectChanges();
+    expect(vendas.getAttribute('aria-expanded')).toBe('true');
+    expect(operacao.getAttribute('aria-expanded'))
+      .withContext('abrir outro grupo deveria fechar o de operacao (accordion)')
+      .toBe('false');
+
+    vendas.click();
+    fixture.detectChanges();
+
+    expect(vendas.getAttribute('aria-expanded')).toBe('false');
+    expect(operacao.getAttribute('aria-expanded'))
+      .withContext("fechar 'vendas' reabriu 'operacao' sozinho -- o bug original")
+      .toBe('false');
+  });
+
+  it('o grupo aberto sobrevive a uma instancia nova do servico (recarga fria)', () => {
+    const primeira = mount({ compact: false, phone: false });
+    const vendas = Array.from(
+      primeira.nativeElement.querySelectorAll('.nav .nav-group-head'),
+    )[1] as HTMLButtonElement;
+
+    vendas.click();
+    primeira.detectChanges();
+    expect(vendas.getAttribute('aria-expanded')).toBe('true');
+
+    // Simula uma recarga fria: reseta o injetor raiz -- nova instancia de
+    // PanelNavStateService, cache em memoria vazio -- mas o localStorage real
+    // do navegador sobrevive ao reset. Sem o efeito reativo no construtor (em
+    // vez de ler o arenaId uma vez so no inicializador do campo), a escolha
+    // gravada seria perdida aqui.
+    TestBed.resetTestingModule();
+
+    const segunda = mount({ compact: false, phone: false });
+    const vendasNova = Array.from(
+      segunda.nativeElement.querySelectorAll('.nav .nav-group-head'),
+    )[1] as HTMLButtonElement;
+
+    expect(vendasNova.getAttribute('aria-expanded'))
+      .withContext('grupo aberto nao sobreviveu a uma instancia nova do servico')
+      .toBe('true');
+  });
+
+  it('restaura o grupo guardado quando o arenaId so resolve depois da montagem', () => {
+    // No F5 real, ArenaContextService comeca com arenaId() null ate o
+    // Firestore responder. Pre-grava 'vendas' aberto pra essa arena (uma
+    // escolha de sessao anterior) e so DEPOIS resolve o arenaId -- se
+    // storedGroup fosse lido uma vez so no inicializador do campo (em vez de
+    // dentro de um effect), essa leitura tardia nunca aconteceria e a
+    // escolha guardada seria perdida.
+    localStorage.setItem('ar.nav.arena-1', JSON.stringify({ openGroup: 'vendas', scrollTop: 0 }));
+    const arenaId = signal<string | null>(null);
+
+    TestBed.configureTestingModule({
+      imports: [PanelShellComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([{ path: '**', component: RouteStubComponent }]),
+        { provide: AuthService, useValue: { user: () => ({ email: 'dono@arena.com' }) } },
+        {
+          provide: ArenaContextService,
+          useValue: {
+            arenaId,
+            arenaName: () => 'Arena Beach Club',
+            managedArenas: () => [{ id: 'arena-1' }],
+            isOwner: () => true,
+            staffRole: () => null,
+            loading: () => false,
+          },
+        },
+        {
+          provide: ArenaAccessService,
+          useValue: { isOwner: () => true, canRead: () => true, ready: () => true },
+        },
+        { provide: ViewportService, useValue: { isCompact: signal(false), isPhone: signal(false) } },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(PanelShellComponent);
+    fixture.detectChanges();
+
+    const vendas = fixture.nativeElement.querySelectorAll('.nav .nav-group-head')[1] as HTMLButtonElement;
+    expect(vendas.getAttribute('aria-expanded'))
+      .withContext('antes do arenaId resolver, nada foi lido ainda pra essa sessao')
+      .toBe('false');
+
+    arenaId.set('arena-1');
+    fixture.detectChanges();
+
+    expect(vendas.getAttribute('aria-expanded'))
+      .withContext('arenaId resolveu depois da montagem e a escolha guardada nao foi restaurada')
+      .toBe('true');
   });
 
   it('no desktop nao renderiza topbar nem bottom-nav', () => {
@@ -160,8 +305,27 @@ describe('PanelShellComponent', () => {
   it('a bottom-nav reserva a area segura do iPhone', () => {
     const fixture = mount({ compact: true, phone: true });
     const bar = fixture.nativeElement.querySelector('.bottom-nav') as HTMLElement;
-    // Nao da para medir env() no headless; o contrato aqui e que a regra exista.
-    expect(fixture.nativeElement.innerHTML).toBeTruthy();
+
+    expect(bar).withContext('bottom-nav nao renderizou').toBeTruthy();
     expect(getComputedStyle(bar).position).toBe('fixed');
+
+    // Nao da pra medir env() computado no Chrome headless, entao a asserção
+    // de verdade e que a declaracao exista na folha de estilo injetada --
+    // `position: fixed` sozinho passaria mesmo se a linha do padding-bottom
+    // fosse apagada. Recorta so o bloco da regra `.bottom-nav`: o componente
+    // tem OUTRO env(safe-area-inset-bottom) (no `.content` do host `.phone`),
+    // entao procurar a string solta na folha inteira passaria mesmo com a
+    // regra certa apagada.
+    const estilos = Array.from(document.querySelectorAll('style'))
+      .map((el) => el.textContent ?? '')
+      .join('\n');
+    const regraBottomNav = estilos.match(/\.bottom-nav\b[^{]*\{[^}]*\}/);
+
+    expect(regraBottomNav)
+      .withContext('regra .bottom-nav nao encontrada na folha de estilo injetada')
+      .toBeTruthy();
+    expect(regraBottomNav?.[0] ?? '')
+      .withContext('a regra .bottom-nav nao declara env(safe-area-inset-bottom)')
+      .toContain('safe-area-inset-bottom');
   });
 });

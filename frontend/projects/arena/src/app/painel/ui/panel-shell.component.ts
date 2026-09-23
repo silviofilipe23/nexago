@@ -26,7 +26,7 @@ import {
   type ArenaNavGroup,
   type PanelNavItem,
 } from './panel-nav.model';
-import { PanelNavStateService } from './panel-nav-state.service';
+import { PanelNavStateService, type StoredOpenGroup } from './panel-nav-state.service';
 import { ViewportService } from './viewport.service';
 
 function pathOnly(url: string): string {
@@ -141,7 +141,7 @@ function pathOnly(url: string): string {
               (click)="toggleGroup(section.group)"
             >
               <span>{{ section.label }}</span>
-              <ar-icon [name]="isOpen(section.group) ? 'chevron-right' : 'chevron-right'" [size]="12" />
+              <ar-icon name="chevron-right" [size]="12" />
             </button>
             @if (isOpen(section.group)) {
               @for (item of section.items; track item.id) {
@@ -369,6 +369,18 @@ function pathOnly(url: string): string {
     .nav-group-head:hover {
       background: var(--nx-surface-1);
       color: var(--nx-text-mute);
+    }
+
+    /* o icone e o mesmo aberto ou fechado -- PanelIconName nao tem chevron-down
+       -- entao quem indica o estado e a rotacao, nao a troca de nome. Aplica
+       no svg, nao no ar-icon: o custom element fica inline por padrao e
+       transform nao pega em inline nao-substituido. */
+    .nav-group-head[aria-expanded='true'] ar-icon svg {
+      transform: rotate(90deg);
+    }
+
+    .nav-group-head ar-icon svg {
+      transition: transform 140ms var(--nx-ease-out);
     }
 
     .nav-item {
@@ -667,18 +679,23 @@ export class PanelShellComponent implements OnDestroy {
 
   protected readonly activeId = computed(() => findActiveId(this.currentPath()));
 
-  /** Grupo aberto: o da rota atual quando ainda nao ha escolha guardada. */
-  private readonly storedGroup = signal(this.navState.openGroup(this.arenaContext.arenaId()));
+  /** Grupo aberto: o da rota atual quando ainda nao ha escolha guardada.
+   *  `null` = nada guardado (usa o fallback da rota ativa); `'none'` = o
+   *  usuario fechou tudo de proposito e o fallback NAO se aplica mais --
+   *  sem esse terceiro estado, fechar o grupo da rota ativa gravava `null`,
+   *  isOpen caia de volta no fallback, e o grupo reabria sozinho. */
+  private readonly storedGroup = signal<StoredOpenGroup>(null);
 
   protected isOpen(group: ArenaNavGroup): boolean {
     const guardado = this.storedGroup();
+    if (guardado === 'none') return false;
     if (guardado != null) return guardado === group;
     const active = this.activeId();
     return NAV_ITEMS.find((item) => item.id === active)?.group === group;
   }
 
   protected toggleGroup(group: ArenaNavGroup): void {
-    const proximo = this.isOpen(group) ? null : group;
+    const proximo: ArenaNavGroup | 'none' = this.isOpen(group) ? 'none' : group;
     this.storedGroup.set(proximo);
     this.navState.setOpenGroup(this.arenaContext.arenaId(), proximo);
   }
@@ -687,10 +704,16 @@ export class PanelShellComponent implements OnDestroy {
   private lastScrollTop: number | null = null;
   private scrollFlush: ReturnType<typeof setTimeout> | null = null;
 
-  /** Restaura a rolagem quando o menu (re)aparece — na sidebar ou dentro do
-   *  drawer. Sem isto, persistir a rolagem não serviria para nada: o shell
-   *  remonta a cada navegação e o menu voltaria ao topo a cada clique. */
+  /** Restaura o grupo aberto e a rolagem quando o `arenaId` resolve — na carga
+   *  fria ele comeca `null` ate o Firestore responder, entao ler uma vez so no
+   *  inicializador do campo (fora de um efeito) perderia a escolha guardada.
+   *  `toggleGroup` grava direto no signal; este efeito so re-sincroniza quando
+   *  o `arenaId` muda, nunca por causa da propria escrita do toggle. */
   constructor() {
+    effect(() => {
+      this.storedGroup.set(this.navState.openGroup(this.arenaContext.arenaId()));
+    });
+
     effect(() => {
       const el = this.navEl()?.nativeElement;
       if (!el) return;

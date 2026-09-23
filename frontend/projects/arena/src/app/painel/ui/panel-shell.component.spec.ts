@@ -127,6 +127,30 @@ describe('PanelShellComponent', () => {
     }
   });
 
+  it('o chevron do cabecalho gira quando o grupo abre', () => {
+    // O icone e o mesmo (PanelIconName nao tem chevron-down), entao quem
+    // indica aberto/fechado e a rotacao por CSS -- sem este teste, uma regra
+    // de rotacao morta (mirando o lugar errado do DOM) passa batido pelos
+    // outros 12 testes, porque nenhum deles mede o `transform` computado.
+    const fixture = mount({ compact: false, phone: false });
+    const head = fixture.nativeElement.querySelector('.nav .nav-group-head') as HTMLButtonElement;
+    const icone = head.querySelector('ar-icon') as HTMLElement;
+
+    expect(icone).withContext('ar-icon nao encontrado no cabecalho do grupo').toBeTruthy();
+    expect(head.getAttribute('aria-expanded')).toBe('false');
+    expect(getComputedStyle(icone).transform)
+      .withContext('icone deveria comecar sem rotacao, com o grupo fechado')
+      .toBe('none');
+
+    head.click();
+    fixture.detectChanges();
+
+    expect(head.getAttribute('aria-expanded')).toBe('true');
+    expect(getComputedStyle(icone).transform)
+      .withContext('icone nao girou quando o grupo abriu -- regra de rotacao morta ou mirando o lugar errado')
+      .not.toBe('none');
+  });
+
   it('fecha o grupo da rota ativa de verdade, sem o fallback reabrir sozinho', async () => {
     // 'agenda' e do grupo 'operacao', que e o primeiro grupo da lista. Sem
     // nada guardado ainda, isOpen cai no fallback da rota ativa e comeca

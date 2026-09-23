@@ -372,15 +372,21 @@ function pathOnly(url: string): string {
     }
 
     /* o icone e o mesmo aberto ou fechado -- PanelIconName nao tem chevron-down
-       -- entao quem indica o estado e a rotacao, nao a troca de nome. Aplica
-       no svg, nao no ar-icon: o custom element fica inline por padrao e
-       transform nao pega em inline nao-substituido. */
-    .nav-group-head[aria-expanded='true'] ar-icon svg {
-      transform: rotate(90deg);
+       -- entao quem indica o estado e a rotacao, nao a troca de nome. Gira o
+       HOST <ar-icon>, nao o svg de dentro: o svg nasce no template do
+       IconComponent, entao carrega o atributo de escopo do IconComponent, nao
+       o do panel-shell -- um seletor daqui pra dentro do template do filho
+       nunca casa sob encapsulamento emulado. O host, por estar escrito aqui,
+       carrega o atributo certo. display: inline-flex resolve de quebra o
+       display: inline padrao do custom element, que tambem impedia o
+       transform de pegar. */
+    .nav-group-head ar-icon {
+      display: inline-flex;
+      transition: transform 140ms var(--nx-ease-out);
     }
 
-    .nav-group-head ar-icon svg {
-      transition: transform 140ms var(--nx-ease-out);
+    .nav-group-head[aria-expanded='true'] ar-icon {
+      transform: rotate(90deg);
     }
 
     .nav-item {

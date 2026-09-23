@@ -1,83 +1,189 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  OnDestroy,
+  computed,
+  effect,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
+import { DrawerComponent } from './drawer.component';
 import { IconComponent } from './icon.component';
 import { initialsOf } from './initials';
-import { NAV_ITEMS, findActiveId } from './panel-nav.model';
+import {
+  NAV_ITEMS,
+  buildNavSections,
+  findActiveId,
+  type ArenaNavGroup,
+  type PanelNavItem,
+} from './panel-nav.model';
+import { PanelNavStateService } from './panel-nav-state.service';
+import { ViewportService } from './viewport.service';
 
 function pathOnly(url: string): string {
   const i = url.indexOf('?');
   return i >= 0 ? url.slice(0, i) : url;
 }
 
-/** Shell do painel da arena: sidebar fixa (protótipo ArPanelShell/ArSidebar) + conteúdo projetado. */
+/** Shell do painel da arena: sidebar fixa (protótipo ArPanelShell/ArSidebar) + conteúdo projetado.
+ *
+ *  Abaixo do breakpoint compacto a sidebar sai e vira topbar + drawer pela esquerda; no celular
+ *  soma-se a bottom-nav. Quem decide as faixas é a `ViewportService` — não este componente. */
 @Component({
   selector: 'ar-panel-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, IconComponent],
+  imports: [RouterLink, IconComponent, NgTemplateOutlet, DrawerComponent],
+  host: {
+    '[class.compact]': 'viewport.isCompact()',
+    '[class.phone]': 'viewport.isPhone()',
+  },
   template: `
+    @if (viewport.isCompact()) {
+      <header class="topbar">
+        <button
+          type="button"
+          class="nav-trigger"
+          data-nav-trigger
+          aria-label="Abrir menu de navegação"
+          [attr.aria-expanded]="drawerOpen()"
+          (click)="drawerOpen.set(true)"
+        >
+          <ar-icon name="home" [size]="18" [strokeWidth]="2" />
+        </button>
+        <div class="topbar-name">{{ arenaName() }}</div>
+        <a class="topbar-avatar" routerLink="/painel/perfil" title="Ver perfil">{{ userInitials() }}</a>
+      </header>
+    }
+
     <div class="shell">
-      <aside class="sidebar">
-        <div class="brand">
-          <img class="mark" src="/brand/logo.png" alt="" width="32" height="32" />
-          <div class="wordmark">
-            <div class="name">nexa<span>GO</span></div>
-            <div class="tag">Arena</div>
-          </div>
-        </div>
-
-        <a class="switcher" routerLink="/painel/perfil" title="Ver perfil">
-          <div class="switcher-avatar" aria-hidden="true">{{ arenaInitials() }}</div>
-          <div class="switcher-body">
-            <div class="switcher-name">{{ arenaName() }}</div>
-          </div>
-          <ar-icon name="chevron-right" [size]="13" style="color: var(--nx-text-dim)" />
-        </a>
-
-        @if (hasMultipleArenas()) {
-          <a class="switch-arena-link" routerLink="/painel/selecionar-arena">
-            <ar-icon name="repeat" [size]="12" />
-            Trocar arena
-          </a>
-        }
-
-        <nav class="nav">
-          <div class="nav-kicker">Operação</div>
-          @for (item of navItems(); track item.id) {
-            <a class="nav-item" [class.active]="activeId() === item.id" [routerLink]="item.route">
-              <ar-icon [name]="item.icon" [size]="17" [strokeWidth]="1.9" />
-              <span>{{ item.label }}</span>
-              @if (item.badge) {
-                <span class="badge">{{ item.badge }}</span>
-              }
-            </a>
-          }
-        </nav>
-
-        <div class="spacer"></div>
-
-        <div class="nav-item disabled" title="Em breve">
-          <ar-icon name="gear" [size]="17" [strokeWidth]="1.9" />
-          <span>Configurações</span>
-        </div>
-
-        <a class="user-row" routerLink="/painel/perfil" title="Ver perfil">
-          <div class="avatar" aria-hidden="true">{{ userInitials() }}</div>
-          <div class="who">
-            <div class="who-name">{{ displayName() }}</div>
-            <div class="who-role">Gestor</div>
-          </div>
-        </a>
-      </aside>
+      @if (!viewport.isCompact()) {
+        <aside class="sidebar">
+          <ng-container [ngTemplateOutlet]="navTree" />
+        </aside>
+      }
 
       <div class="content">
         <ng-content />
       </div>
     </div>
+
+    @if (viewport.isCompact() && drawerOpen()) {
+      <ar-drawer side="left" ariaLabel="Menu de navegação" (close)="drawerOpen.set(false)">
+        <ng-container [ngTemplateOutlet]="navTree" />
+      </ar-drawer>
+    }
+
+    @if (viewport.isPhone()) {
+      <nav class="bottom-nav" aria-label="Navegação principal">
+        @for (item of bottomItems(); track item.id) {
+          <a
+            class="bottom-slot"
+            data-bottom-slot
+            [class.active]="activeId() === item.id"
+            [routerLink]="item.route"
+            [attr.aria-current]="activeId() === item.id ? 'page' : null"
+          >
+            <ar-icon [name]="item.icon" [size]="19" [strokeWidth]="1.9" />
+            <span>{{ item.label }}</span>
+          </a>
+        }
+        <button type="button" class="bottom-slot" data-bottom-slot (click)="drawerOpen.set(true)">
+          <ar-icon name="gear" [size]="19" [strokeWidth]="1.9" />
+          <span>Mais</span>
+        </button>
+      </nav>
+    }
+
+    <ng-template #navTree>
+      <div class="brand">
+        <img class="mark" src="/brand/logo.png" alt="" width="32" height="32" />
+        <div class="wordmark">
+          <div class="name">nexa<span>GO</span></div>
+          <div class="tag">Arena</div>
+        </div>
+      </div>
+
+      <a class="switcher" routerLink="/painel/perfil" title="Ver perfil">
+        <div class="switcher-avatar" aria-hidden="true">{{ arenaInitials() }}</div>
+        <div class="switcher-body">
+          <div class="switcher-name">{{ arenaName() }}</div>
+        </div>
+        <ar-icon name="chevron-right" [size]="13" style="color: var(--nx-text-dim)" />
+      </a>
+
+      @if (hasMultipleArenas()) {
+        <a class="switch-arena-link" routerLink="/painel/selecionar-arena">
+          <ar-icon name="repeat" [size]="12" />
+          Trocar arena
+        </a>
+      }
+
+      <nav class="nav" #navEl (scroll)="rememberScroll(navEl.scrollTop)">
+        @for (section of sections(); track section.group) {
+          @if (section.group === null) {
+            @for (item of section.items; track item.id) {
+              <ng-container [ngTemplateOutlet]="navLink" [ngTemplateOutletContext]="{ $implicit: item }" />
+            }
+          } @else {
+            <button
+              type="button"
+              class="nav-group-head"
+              [attr.aria-expanded]="isOpen(section.group)"
+              (click)="toggleGroup(section.group)"
+            >
+              <span>{{ section.label }}</span>
+              <ar-icon [name]="isOpen(section.group) ? 'chevron-right' : 'chevron-right'" [size]="12" />
+            </button>
+            @if (isOpen(section.group)) {
+              @for (item of section.items; track item.id) {
+                <ng-container [ngTemplateOutlet]="navLink" [ngTemplateOutletContext]="{ $implicit: item }" />
+              }
+            }
+          }
+        }
+      </nav>
+
+      <div class="spacer"></div>
+
+      <div class="nav-item disabled" title="Em breve">
+        <ar-icon name="gear" [size]="17" [strokeWidth]="1.9" />
+        <span>Configurações</span>
+      </div>
+
+      <a class="user-row" routerLink="/painel/perfil" title="Ver perfil">
+        <div class="avatar" aria-hidden="true">{{ userInitials() }}</div>
+        <div class="who">
+          <div class="who-name">{{ displayName() }}</div>
+          <div class="who-role">Gestor</div>
+        </div>
+      </a>
+    </ng-template>
+
+    <ng-template #navLink let-item>
+      <a
+        class="nav-item"
+        [attr.data-nav-id]="item.id"
+        [class.active]="activeId() === item.id"
+        [attr.aria-current]="activeId() === item.id ? 'page' : null"
+        [routerLink]="item.route"
+        (click)="drawerOpen.set(false)"
+      >
+        <ar-icon [name]="item.icon" [size]="17" [strokeWidth]="1.9" />
+        <span>{{ item.label }}</span>
+        @if (item.badge) {
+          <span class="badge">{{ item.badge }}</span>
+        }
+      </a>
+    </ng-template>
   `,
   styles: `
     :host {
@@ -91,6 +197,15 @@ function pathOnly(url: string): string {
       background: var(--nx-bg);
       color: var(--nx-text);
       overflow: hidden;
+    }
+
+    :host(.compact) .shell {
+      height: calc(100dvh - 56px);
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    :host(.phone) .content {
+      padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
     }
 
     .sidebar {
@@ -220,26 +335,47 @@ function pathOnly(url: string): string {
       gap: 1px;
       margin-top: 14px;
       min-height: 0;
-      overflow: hidden;
+      /* era overflow: hidden -- e por isso que 10 dos 21 itens sumiam sem
+         barra num MacBook Air 13". Com grupos a lista quase nunca rola, mas a
+         invariante e que NUNCA se corte em silencio. */
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
     }
 
-    .nav-kicker {
+    .nav-group-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      width: 100%;
+      height: var(--ar-nav-item-h);
+      flex: none;
+      padding: 0 12px;
+      margin-top: 6px;
+      border: 0;
+      background: none;
+      border-radius: var(--nx-r-2);
+      cursor: pointer;
+      color: var(--nx-text-dim);
       font-family: var(--nx-font-mono);
       font-size: 9px;
       font-weight: 600;
       letter-spacing: 0.18em;
       text-transform: uppercase;
-      color: var(--nx-text-dim);
-      padding: 0 12px;
-      margin-bottom: 6px;
-      flex: none;
+      text-align: left;
+    }
+
+    .nav-group-head:hover {
+      background: var(--nx-surface-1);
+      color: var(--nx-text-mute);
     }
 
     .nav-item {
       display: flex;
       align-items: center;
       gap: 12px;
-      height: 34px;
+      height: var(--ar-nav-item-h);
       flex: none;
       padding: 0 12px;
       border-radius: var(--nx-r-2);
@@ -378,33 +514,147 @@ function pathOnly(url: string): string {
       overflow-y: auto;
     }
 
-    @media (max-width: 900px) {
-      .shell {
-        grid-template-columns: 1fr;
-      }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      height: 56px;
+      padding: 0 12px;
+      background: #070708;
+      border-bottom: 1px solid var(--nx-line);
+    }
 
-      .sidebar {
-        display: none;
+    .nav-trigger {
+      width: var(--ar-tap);
+      height: var(--ar-tap);
+      flex: none;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--nx-line);
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      color: var(--nx-text);
+      cursor: pointer;
+    }
+
+    .topbar-name {
+      flex: 1;
+      min-width: 0;
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--nx-text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .topbar-avatar {
+      width: var(--ar-tap);
+      height: var(--ar-tap);
+      flex: none;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--nx-orange-tint);
+      border: 1px solid rgba(255, 106, 26, 0.35);
+      color: var(--nx-orange-500);
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 11px;
+      text-decoration: none;
+    }
+
+    .bottom-nav {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 30;
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: 1fr;
+      gap: var(--ar-tap-gap);
+      padding: 6px 8px;
+      /* Nenhum env() existia no projeto; sem isto a barra fica embaixo da barra
+         de gestos do iPhone. */
+      padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+      background: #070708;
+      border-top: 1px solid var(--nx-line);
+    }
+
+    .bottom-slot {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      min-height: var(--ar-tap);
+      border: 0;
+      background: none;
+      border-radius: var(--nx-r-2);
+      cursor: pointer;
+      color: var(--nx-text-mute);
+      font-family: var(--nx-font-display);
+      font-weight: 600;
+      font-size: 10px;
+      text-decoration: none;
+    }
+
+    .bottom-slot.active {
+      color: var(--nx-orange-500);
+    }
+
+    @media (pointer: coarse) {
+      .nav {
+        gap: var(--ar-tap-gap);
       }
     }
   `,
 })
-export class PanelShellComponent {
+export class PanelShellComponent implements OnDestroy {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly arenaContext = inject(ArenaContextService);
   private readonly access = inject(ArenaAccessService);
+  private readonly navState = inject(PanelNavStateService);
+  protected readonly viewport = inject(ViewportService);
 
-  /** Menu filtrado pelo que o cargo alcança. A detecção de rota ativa (abaixo) continua
-   *  percorrendo `NAV_ITEMS` completo — não esta lista — senão o realce some quando o
-   *  item correspondente à rota atual está fora do que o cargo pode ver. */
-  protected readonly navItems = computed(() =>
-    NAV_ITEMS.filter((item) => {
-      if (item.area == null) return true;
-      if (item.area === 'owner') return this.access.isOwner();
-      return this.access.canRead(item.area);
-    }),
+  protected readonly drawerOpen = signal(false);
+
+  /** Itens fixos da bottom-nav, na ordem. O slot que o cargo nao alcanca cai
+   *  para o proximo permitido, para nunca sobrar buraco; "Mais" e um botao a
+   *  parte no template e garante que nada fique so-por-URL. */
+  private static readonly BOTTOM_PREFERENCE = [
+    'inicio',
+    'agenda',
+    'reservas',
+    'comandas',
+    'estoque',
+    'financeiro',
+  ];
+
+  private canSee(item: PanelNavItem): boolean {
+    if (item.area == null) return true;
+    if (item.area === 'owner') return this.access.isOwner();
+    return this.access.canRead(item.area);
+  }
+
+  protected readonly sections = computed(() =>
+    buildNavSections(NAV_ITEMS, (item) => this.canSee(item)),
   );
+
+  protected readonly bottomItems = computed(() => {
+    const visiveis = NAV_ITEMS.filter((item) => this.canSee(item));
+    const ordenado = PanelShellComponent.BOTTOM_PREFERENCE.map((id) =>
+      visiveis.find((item) => item.id === id),
+    ).filter((item): item is PanelNavItem => item != null);
+    // 4 + o botao "Mais" do template = 5, o teto recomendado.
+    return ordenado.slice(0, 4);
+  });
 
   private readonly currentPath = toSignal(
     this.router.events.pipe(
@@ -416,6 +666,64 @@ export class PanelShellComponent {
   );
 
   protected readonly activeId = computed(() => findActiveId(this.currentPath()));
+
+  /** Grupo aberto: o da rota atual quando ainda nao ha escolha guardada. */
+  private readonly storedGroup = signal(this.navState.openGroup(this.arenaContext.arenaId()));
+
+  protected isOpen(group: ArenaNavGroup): boolean {
+    const guardado = this.storedGroup();
+    if (guardado != null) return guardado === group;
+    const active = this.activeId();
+    return NAV_ITEMS.find((item) => item.id === active)?.group === group;
+  }
+
+  protected toggleGroup(group: ArenaNavGroup): void {
+    const proximo = this.isOpen(group) ? null : group;
+    this.storedGroup.set(proximo);
+    this.navState.setOpenGroup(this.arenaContext.arenaId(), proximo);
+  }
+
+  private readonly navEl = viewChild<ElementRef<HTMLElement>>('navEl');
+  private lastScrollTop: number | null = null;
+  private scrollFlush: ReturnType<typeof setTimeout> | null = null;
+
+  /** Restaura a rolagem quando o menu (re)aparece — na sidebar ou dentro do
+   *  drawer. Sem isto, persistir a rolagem não serviria para nada: o shell
+   *  remonta a cada navegação e o menu voltaria ao topo a cada clique. */
+  constructor() {
+    effect(() => {
+      const el = this.navEl()?.nativeElement;
+      if (!el) return;
+      const saved = this.navState.scrollTop(this.arenaContext.arenaId());
+      if (saved > 0) el.scrollTop = saved;
+    });
+  }
+
+  /** `(scroll)` dispara a cada quadro. Gravar direto seria uma escrita síncrona
+   *  no `localStorage` dentro do caminho de rolagem — guarda o último valor e
+   *  grava uma vez por janela de 200ms. */
+  protected rememberScroll(value: number): void {
+    this.lastScrollTop = value;
+    if (this.scrollFlush != null) return;
+    this.scrollFlush = setTimeout(() => this.flushScroll(), 200);
+  }
+
+  private flushScroll(): void {
+    if (this.scrollFlush != null) {
+      clearTimeout(this.scrollFlush);
+      this.scrollFlush = null;
+    }
+    if (this.lastScrollTop != null) {
+      this.navState.setScrollTop(this.arenaContext.arenaId(), this.lastScrollTop);
+      this.lastScrollTop = null;
+    }
+  }
+
+  /** O destroy é a cada navegação — é exatamente quando o valor precisa estar
+   *  gravado, então a janela de 200ms pendente é descarregada aqui. */
+  ngOnDestroy(): void {
+    this.flushScroll();
+  }
 
   /** Identidade da pessoa logada (gestor) — NÃO usar `auth.displayName()` aqui: esse campo do
    *  Firebase Auth guarda o nome da ARENA no cadastro self-service (`createArenaAccount`) e o

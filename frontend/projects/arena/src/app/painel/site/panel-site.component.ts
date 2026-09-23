@@ -406,6 +406,8 @@ interface PlanFormItem {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       display: flex;
       flex-direction: column;
@@ -432,10 +434,10 @@ interface PlanFormItem {
       min-width: 0;
     }
 
-    /* 1180px casa com o ponto em que .ar-split (styles.scss, ar.below(lg))
-       colapsa a grade pra uma coluna -- sem isto a trilha fica sticky por
-       cima do conteudo entre o colapso do grid e este breakpoint. */
-    @media (max-width: 1180px) {
+    /* ar.below(lg) casa com o ponto em que .ar-split (styles.scss) colapsa a
+       grade pra uma coluna -- sem isto a trilha fica sticky por cima do
+       conteudo entre o colapso do grid e este breakpoint. */
+    @include ar.below(lg) {
       .col-side {
         position: static;
       }

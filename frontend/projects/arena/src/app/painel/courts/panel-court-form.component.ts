@@ -95,7 +95,7 @@ const STATUS_OPTIONS: ArenaCourtStatus[] = ['active', 'maintenance'];
   styles: `
     .body {
       flex: 1;
-      padding: 22px 32px 28px;
+      padding: var(--ar-pad-page-y) var(--ar-pad-page-x) 28px;
       display: flex;
       justify-content: center;
       overflow: auto;

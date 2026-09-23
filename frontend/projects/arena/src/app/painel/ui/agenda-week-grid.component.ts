@@ -47,6 +47,9 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
   template: `
     <div class="wrap">
       <div class="header">
+        <!-- Canto congelado: sem isto, ao rolar pra o lado o cabeçalho do dia desliza por
+             baixo do espaço vazio e fica visualmente "colado" acima da coluna de horário
+             fixada — como se fosse o cabeçalho dela. -->
         <div class="gutter-spacer"></div>
         @for (day of weekDays(); track day.dateKey) {
           <div class="day-col-header" [class.today]="day.isToday" [class.selected]="day.dateKey === selectedDateKey()" [style.minWidth.px]="dayColumnWidth()">
@@ -63,10 +66,18 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
       </div>
 
       <div class="grid" [style.height.px]="gridHeight()">
-        @for (row of rowMarks(); track row.offset) {
-          @if (row.isHour) {
-            <div class="hour-label" [style.top.px]="row.offset - 6">{{ row.label }}</div>
+        <!-- Coluna de horário fixada: filho de fluxo normal (não 'position: absolute') pra
+             'position: sticky; left: 0' funcionar — os rótulos de hora seguem posicionados
+             por cálculo dentro dela, como antes. -->
+        <div class="time-gutter" [style.height.px]="gridHeight()">
+          @for (row of rowMarks(); track row.offset) {
+            @if (row.isHour) {
+              <div class="hour-label" [style.top.px]="row.offset - 6">{{ row.label }}</div>
+            }
           }
+        </div>
+
+        @for (row of rowMarks(); track row.offset) {
           <div class="hour-line" [class.solid]="row.isHour" [style.top.px]="row.offset"></div>
         }
 
@@ -129,6 +140,12 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
     .gutter-spacer {
       width: 52px;
       flex: none;
+      /* Acompanha '.time-gutter' (abaixo) fixado em 'left' — mesmo raciocínio: fundo opaco
+         pra os cabeçalhos de dia não aparecerem por baixo ao rolar de lado. */
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      background: var(--nx-surface-0);
     }
 
     .day-col-header {
@@ -175,7 +192,19 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
 
     .grid {
       position: relative;
-      padding-left: 52px;
+    }
+
+    /* Coluna de horário fixada: sticky em 'left', fundo opaco e z-index acima de
+       '.hour-line'/'.days'/'.block' (todos z-index automático) pra elas não aparecerem por
+       baixo ao rolar — mas abaixo de '.now-line' (z-index 5) e de '.header' (z-index 6),
+       que já desenhavam por cima. */
+    .time-gutter {
+      position: sticky;
+      left: 0;
+      width: 52px;
+      flex: none;
+      z-index: 2;
+      background: var(--nx-surface-0);
     }
 
     .hour-label {

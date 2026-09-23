@@ -45,6 +45,13 @@ interface RowMark {
 
 const NON_CLICKABLE: ReadonlySet<AgendaBlockStatus> = new Set(['manutencao']);
 
+/** Piso de legibilidade por quadra: abaixo disso o bloco de reserva não cabe título + horário.
+ *  Quadras que não couberem lado a lado empurram a grade pra rolagem horizontal em vez de
+ *  espremer em silêncio (mesmo raciocínio da classe global de tabela larga, aplicado aqui à
+ *  mão porque o layout é de blocos posicionados por cálculo, não uma tabela de
+ *  `grid-template-columns`). */
+const MIN_COURT_COL_PX = 120;
+
 /** Grade de quadras × horário (protótipo ArAgendaGrade), com blocos posicionados por cálculo —
  *  inclui horários disponíveis (clicáveis pra bloquear) além de reservados/bloqueados. */
 @Component({
@@ -52,27 +59,39 @@ const NON_CLICKABLE: ReadonlySet<AgendaBlockStatus> = new Set(['manutencao']);
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="wrap">
-      <div class="court-header">
-        @for (c of courts(); track c.id) {
-          <div class="court-head">
-            <div class="court-name">{{ c.name }}</div>
-            <div class="court-sport">{{ c.sport }}</div>
-          </div>
-        }
-      </div>
-
       <div class="body">
+        <!-- Cabeçalho de quadras entra na MESMA rolagem (vertical e horizontal) da grade —
+             fixo em 'top' pra não sumir ao rolar pra baixo; a coluna de horário abaixo se
+             fixa em 'left'. Cabeçalho fora daqui desalinharia das colunas ao rolar de lado,
+             igual ao cuidado da Task 9 com '.table-head'/'.table-row'. -->
+        <div class="court-header">
+          @for (c of courts(); track c.id) {
+            <div class="court-head" [style.minWidth.px]="minCourtColPx">
+              <div class="court-name">{{ c.name }}</div>
+              <div class="court-sport">{{ c.sport }}</div>
+            </div>
+          }
+        </div>
+
         <div class="grid" [style.height.px]="gridHeight()">
-          @for (row of rowMarks(); track row.offset) {
-            @if (row.isHour) {
-              <div class="hour-label" [style.top.px]="row.offset - 6">{{ row.label }}</div>
+          <!-- Coluna de horário fixada: precisa ser filho de fluxo normal (não 'position:
+               absolute') pra 'position: sticky; left: 0' funcionar — os rótulos de hora
+               continuam posicionados por cálculo dentro dela. -->
+          <div class="time-gutter" [style.height.px]="gridHeight()">
+            @for (row of rowMarks(); track row.offset) {
+              @if (row.isHour) {
+                <div class="hour-label" [style.top.px]="row.offset - 6">{{ row.label }}</div>
+              }
             }
+          </div>
+
+          @for (row of rowMarks(); track row.offset) {
             <div class="hour-line" [class.solid]="row.isHour" [style.top.px]="row.offset"></div>
           }
 
           <div class="columns">
             @for (c of courts(); track c.id) {
-              <div class="column">
+              <div class="column" [style.minWidth.px]="minCourtColPx">
                 @for (b of positionedByCourt()[c.id] ?? []; track b.start) {
                   <div
                     class="block"
@@ -120,7 +139,13 @@ const NON_CLICKABLE: ReadonlySet<AgendaBlockStatus> = new Set(['manutencao']);
       display: flex;
       padding-left: 52px;
       padding-bottom: 10px;
-      flex: none;
+      /* Fixo no topo da rolagem vertical de '.body' — some ao rolar pra baixo seria perder
+         a referência de qual coluna é qual quadra. Fundo opaco: sem isso os blocos passam
+         por baixo transparentes enquanto a grade rola. */
+      position: sticky;
+      top: 0;
+      z-index: 6;
+      background: var(--nx-surface-0);
     }
 
     .court-head {
@@ -144,7 +169,12 @@ const NON_CLICKABLE: ReadonlySet<AgendaBlockStatus> = new Set(['manutencao']);
     .body {
       flex: 1;
       min-height: 0;
-      overflow-y: auto;
+      /* Container rola nos dois eixos — vertical (como já era) e horizontal (novo: quadra
+         nunca mais espreme abaixo de MIN_COURT_COL_PX, o excesso vira scroll). A página em
+         volta nunca rola na horizontal. */
+      overflow: auto;
+      overscroll-behavior-x: contain;
+      -webkit-overflow-scrolling: touch;
       scrollbar-width: none;
     }
 
@@ -154,7 +184,19 @@ const NON_CLICKABLE: ReadonlySet<AgendaBlockStatus> = new Set(['manutencao']);
 
     .grid {
       position: relative;
-      padding-left: 52px;
+    }
+
+    /* Coluna de horário fixada: sticky em 'left', fundo opaco e z-index acima de
+       '.hour-line'/'.columns'/'.block' (todos z-index automático) pra elas não aparecerem
+       por baixo ao rolar — mas abaixo de '.now-line' (z-index 5), que já desenhava por cima
+       do início do rótulo de hora antes desta mudança (mantido igual). */
+    .time-gutter {
+      position: sticky;
+      left: 0;
+      width: 52px;
+      flex: none;
+      z-index: 2;
+      background: var(--nx-surface-0);
     }
 
     .hour-label {
@@ -298,6 +340,8 @@ export class AgendaGridComponent {
    *  de ser clicáveis — só reservados seguem abrindo o detalhe (ação de leitura). */
   readonly readOnly = input(false);
   readonly blockClick = output<string>();
+
+  protected readonly minCourtColPx = MIN_COURT_COL_PX;
 
   private readonly nowMinutes = signal(nowInMinutes());
 

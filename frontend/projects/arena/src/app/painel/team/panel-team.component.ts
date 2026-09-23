@@ -139,45 +139,49 @@ function localPartOf(email: string): string {
           </div>
 
           <ar-panel-card title="Membros da equipe" [kicker]="rows().length + ' pessoas'" class="table-card">
-            <div class="table-head">
-              <span></span>
-              <span>Nome</span>
-              <span>E-mail</span>
-              <span>Cargo</span>
-              <span>Status</span>
-              <span></span>
-            </div>
-            <div class="table-body">
-              @for (row of rows(); track row.key) {
-                <div class="table-row">
-                  <div class="avatar">{{ row.initials }}</div>
-                  <div class="cell-name">{{ row.displayName }}</div>
-                  <div class="cell-email">{{ row.email }}</div>
-                  <div><ar-pill [tone]="roleTone[row.role]">{{ roleLabel[row.role] }}</ar-pill></div>
-                  <div><ar-pill [tone]="statusTone[row.status]">{{ statusLabel[row.status] }}</ar-pill></div>
-                  <div class="cell-action manage-cell">
-                    <button type="button" class="ar-ghost-btn" (click)="toggleMenu(row.key)">Gerenciar</button>
-                    @if (openMenuKey() === row.key) {
-                      <div class="manage-menu">
-                        @if (row.member; as member) {
-                          <div class="menu-section-label">Trocar cargo</div>
-                          @for (r of staffRoles; track r) {
-                            <button type="button" class="menu-item" [class.active]="r === row.role" (click)="changeRole(member, r)">
-                              {{ roleLabel[r] }}
-                            </button>
-                          }
-                          <div class="menu-divider"></div>
-                          <button type="button" class="menu-item danger" (click)="askRemove(member)">Remover membro</button>
-                        } @else if (row.invite; as invite) {
-                          <button type="button" class="menu-item danger" (click)="cancelInvite(invite)">Cancelar convite</button>
+            <div class="ar-table-scroll table-scroll">
+              <div class="ar-table-inner">
+                <div class="table-head">
+                  <span></span>
+                  <span>Nome</span>
+                  <span>E-mail</span>
+                  <span>Cargo</span>
+                  <span>Status</span>
+                  <span></span>
+                </div>
+                <div class="table-body">
+                  @for (row of rows(); track row.key) {
+                    <div class="table-row">
+                      <div class="avatar">{{ row.initials }}</div>
+                      <div class="cell-name">{{ row.displayName }}</div>
+                      <div class="cell-email">{{ row.email }}</div>
+                      <div><ar-pill [tone]="roleTone[row.role]">{{ roleLabel[row.role] }}</ar-pill></div>
+                      <div><ar-pill [tone]="statusTone[row.status]">{{ statusLabel[row.status] }}</ar-pill></div>
+                      <div class="cell-action manage-cell">
+                        <button type="button" class="ar-ghost-btn" (click)="toggleMenu(row.key)">Gerenciar</button>
+                        @if (openMenuKey() === row.key) {
+                          <div class="manage-menu">
+                            @if (row.member; as member) {
+                              <div class="menu-section-label">Trocar cargo</div>
+                              @for (r of staffRoles; track r) {
+                                <button type="button" class="menu-item" [class.active]="r === row.role" (click)="changeRole(member, r)">
+                                  {{ roleLabel[r] }}
+                                </button>
+                              }
+                              <div class="menu-divider"></div>
+                              <button type="button" class="menu-item danger" (click)="askRemove(member)">Remover membro</button>
+                            } @else if (row.invite; as invite) {
+                              <button type="button" class="menu-item danger" (click)="cancelInvite(invite)">Cancelar convite</button>
+                            }
+                          </div>
                         }
                       </div>
-                    }
-                  </div>
+                    </div>
+                  } @empty {
+                    <p class="state-text empty-text">Nenhum membro na equipe ainda.</p>
+                  }
                 </div>
-              } @empty {
-                <p class="state-text empty-text">Nenhum membro na equipe ainda.</p>
-              }
+              </div>
             </div>
           </ar-panel-card>
         }
@@ -416,6 +420,16 @@ function localPartOf(email: string): string {
       overflow: hidden;
     }
 
+    /* 406px travados (46+120+150+90) + duas colunas fr: '.ar-table-scroll' (global, em
+       styles.scss) rola na horizontal; aqui ela também herda a rolagem vertical que antes
+       era só do '.table-body' -- por isso ganha 'flex'/'min-height' pra preencher o card, e
+       '.table-head' vira sticky pra não sumir ao rolar pra baixo junto com as linhas. */
+    .table-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+    }
+
     .table-head,
     .table-row {
       display: grid;
@@ -427,7 +441,10 @@ function localPartOf(email: string): string {
     .table-head {
       padding: 0 0 10px;
       border-bottom: 1px solid var(--nx-line-strong);
-      flex: none;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--nx-surface-0);
     }
 
     .table-head span {
@@ -437,17 +454,6 @@ function localPartOf(email: string): string {
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: var(--nx-text-dim);
-    }
-
-    .table-body {
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
-      scrollbar-width: none;
-    }
-
-    .table-body::-webkit-scrollbar {
-      display: none;
     }
 
     .table-row {

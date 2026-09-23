@@ -20,6 +20,7 @@
 - **Usar `minmax(0, 1fr)`, nunca `1fr` sozinho**, em qualquer `grid-template-columns` tocada. Item de grid nasce com `min-width: auto` = min-content do conteúdo, e um `<select>` com opção longa ganha do `1fr` sem dar scroll — só "aperta".
 - **Não rodar `prettier` nos arquivos tocados.** O `printWidth: 100` da raiz não corresponde ao que está no disco; formatar gera churn que esconde a intenção do diff.
 - **Nada de crase dentro de `template:` / `styles:`.** São template literals — uma crase em comentário fecha a string e o erro sai como `TS1005` numa linha aleatória.
+- **Convenções Angular de `frontend/.claude/CLAUDE.md`, que valem para todo componente tocado:** nada de `@HostBinding` nem `@HostListener` — usar o objeto `host` do decorator; `input()` / `output()` em vez de decorators; `computed()` para estado derivado; `ChangeDetectionStrategy.OnPush`; `inject()` em vez de injeção por construtor; controle de fluxo nativo (`@if`, `@for`); **nada de `ngClass` nem `ngStyle`** — usar binding de `class` e de `style`; `standalone` NÃO deve ser declarado (já é o default).
 - **Toda mensagem de commit termina com:** `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`
 
 ---
@@ -1061,7 +1062,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
-  HostListener,
   OnDestroy,
   effect,
   inject,
@@ -1082,6 +1082,14 @@ const FOCUSABLE =
 @Component({
   selector: 'ar-drawer',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Nada de @HostListener: `frontend/.claude/CLAUDE.md` manda pôr binding de host
+  // aqui. Escape e Tab escutam no proprio host, nao no document -- o painel recebe
+  // foco ao abrir, entao o teclado ja esta dentro quando as teclas chegam.
+  host: {
+    '(keydown.escape)': 'onEscape()',
+    '(keydown.tab)': 'onTab($event)',
+    '(keydown.shift.tab)': 'onTab($event)',
+  },
   template: `
     <div class="scrim" [class.left]="side() === 'left'" (click)="close.emit()">
       <div
@@ -1174,15 +1182,12 @@ export class DrawerComponent implements OnDestroy {
     }
   }
 
-  @HostListener('document:keydown.escape')
   protected onEscape(): void {
     this.close.emit();
   }
 
   /** Prisão de foco: Tab no último volta pro primeiro e Shift+Tab no primeiro
    *  vai pro último, para o teclado não escapar para a página atrás do scrim. */
-  @HostListener('keydown.tab', ['$event'])
-  @HostListener('keydown.shift.tab', ['$event'])
   protected onTab(event: KeyboardEvent): void {
     const focusables = Array.from(
       this.panel().nativeElement.querySelectorAll<HTMLElement>(FOCUSABLE),

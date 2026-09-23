@@ -47,6 +47,22 @@
   --nx-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --nx-d-fast: 140ms;
   --nx-d-base: 240ms;
+
+  /* ---- Faixas, expostas ao TypeScript. A ViewportService le daqui em vez de
+     repetir o numero em TS -- um lugar so. ---- */
+  --ar-bp-md: #{ar.$w-md};
+  --ar-bp-sm: #{ar.$w-sm};
+
+  /* ---- Densidade. Os valores base sao os de hoje, entao o desktop nao muda. ---- */
+  --ar-nav-item-h: 34px;
+  --ar-header-py: 20px;
+  --ar-pad-page-y: 22px;
+  --ar-pad-page-x: 32px;
+  --ar-card-pad: 20px;
+
+  /* ---- Toque. Sempre 44/8; quem decide se valem e a zona 4. ---- */
+  --ar-tap: 44px;
+  --ar-tap-gap: 8px;
 }
 
 *,
@@ -549,4 +565,61 @@ button {
 
 .ar-shortcut span {
   color: var(--nx-text);
+}
+
+/* =========================================================================
+   ORDEM DO CASCADE — NAO REORDENAR
+   @media nao soma especificidade: regras que declaram a mesma propriedade
+   empatam e ganha a ULTIMA declarada. Por isso:
+     1. :root base          (la em cima)
+     2. largura             (maior degrau -> menor)
+     3. altura
+     4. pointer: coarse     (por ultimo, para o dedo ganhar da densidade)
+   `styles.spec.ts` quebra se alguem inverter.
+   ========================================================================= */
+
+/* ---- 2. LARGURA ---- */
+@include ar.below(md) {
+  :root {
+    --ar-pad-page-x: 24px;
+  }
+}
+
+@include ar.below(sm) {
+  :root {
+    --ar-pad-page-x: 16px;
+    --ar-card-pad: 16px;
+  }
+}
+
+/* ---- 3. ALTURA — e aqui que o notebook 13" ganha vertical ---- */
+@include ar.shorter-than(short) {
+  :root {
+    --ar-nav-item-h: 32px;
+    --ar-header-py: 14px;
+    --ar-pad-page-y: 16px;
+  }
+}
+
+@include ar.shorter-than(xshort) {
+  :root {
+    --ar-nav-item-h: 30px;
+    --ar-header-py: 10px;
+    --ar-pad-page-y: 12px;
+  }
+}
+
+/* ---- 4. TOQUE — POR ULTIMO ---- */
+@include ar.touch {
+  :root {
+    --ar-nav-item-h: var(--ar-tap);
+  }
+
+  /* iOS Safari da zoom sozinho ao focar campo com fonte < 16px. Uma regra aqui
+     resolve as ~397 ocorrencias de fonte pequena sem tocar em 397 lugares. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }

@@ -1784,7 +1784,7 @@ E, sob toque, os alvos ganham separação:
 Substituir o corpo de `PanelShellComponent` por:
 
 ```ts
-export class PanelShellComponent {
+export class PanelShellComponent implements OnDestroy {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly arenaContext = inject(ArenaContextService);
@@ -1852,8 +1852,46 @@ export class PanelShellComponent {
     this.navState.setOpenGroup(this.arenaContext.arenaId(), proximo);
   }
 
+  private readonly navEl = viewChild<ElementRef<HTMLElement>>('navEl');
+  private lastScrollTop: number | null = null;
+  private scrollFlush: ReturnType<typeof setTimeout> | null = null;
+
+  /** Restaura a rolagem quando o menu (re)aparece — na sidebar ou dentro do
+   *  drawer. Sem isto, persistir a rolagem não serviria para nada: o shell
+   *  remonta a cada navegação e o menu voltaria ao topo a cada clique. */
+  constructor() {
+    effect(() => {
+      const el = this.navEl()?.nativeElement;
+      if (!el) return;
+      const saved = this.navState.scrollTop(this.arenaContext.arenaId());
+      if (saved > 0) el.scrollTop = saved;
+    });
+  }
+
+  /** `(scroll)` dispara a cada quadro. Gravar direto seria uma escrita síncrona
+   *  no `localStorage` dentro do caminho de rolagem — guarda o último valor e
+   *  grava uma vez por janela de 200ms. */
   protected rememberScroll(value: number): void {
-    this.navState.setScrollTop(this.arenaContext.arenaId(), value);
+    this.lastScrollTop = value;
+    if (this.scrollFlush != null) return;
+    this.scrollFlush = setTimeout(() => this.flushScroll(), 200);
+  }
+
+  private flushScroll(): void {
+    if (this.scrollFlush != null) {
+      clearTimeout(this.scrollFlush);
+      this.scrollFlush = null;
+    }
+    if (this.lastScrollTop != null) {
+      this.navState.setScrollTop(this.arenaContext.arenaId(), this.lastScrollTop);
+      this.lastScrollTop = null;
+    }
+  }
+
+  /** O destroy é a cada navegação — é exatamente quando o valor precisa estar
+   *  gravado, então a janela de 200ms pendente é descarregada aqui. */
+  ngOnDestroy(): void {
+    this.flushScroll();
   }
 
   /** Identidade da pessoa logada (gestor) — NÃO usar `auth.displayName()` aqui: esse campo do
@@ -1874,7 +1912,17 @@ Ajustar os imports do topo do arquivo:
 
 ```ts
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  OnDestroy,
+  computed,
+  effect,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';

@@ -82,16 +82,14 @@ const CLASSIFICADAS_MS = 15_000;
         (click)="alternar()"
       ></button>
     }
-    @if (preRound(); as pre) {
-      <og-overlay-koc-preround
-        [preRound]="pre"
-        [teams]="gateway.teams()"
-        [categoryName]="categoryName()"
-        [courtName]="courtName()"
-        [roundTitle]="preRoundTitle()"
-        [corner]="corner()"
-      />
-    }
+    <!-- Sempre montado: o @if interno + animate.leave precisa do host vivo pra sair com o slide. -->
+    <og-overlay-koc-preround
+      [preRound]="preRound()"
+      [teams]="gateway.teams()"
+      [categoryName]="categoryName()"
+      [courtName]="courtName()"
+      [roundTitle]="preRoundTitle()"
+    />
     @if (kocView(); as koc) {
       <og-overlay-koc-bar
         [view]="koc"

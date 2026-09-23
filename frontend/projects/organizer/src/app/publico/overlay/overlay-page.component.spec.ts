@@ -160,8 +160,8 @@ describe('OverlayPageComponent', () => {
     fake.match.set(match({}));
     fake.teams.set(
       new Map<string, OverlayTeam>([
-        ['ta', { label: 'Ana / Bia', players: ['Ana', 'Bia'] }],
-        ['tb', { label: 'Carla / Dani', players: ['Carla', 'Dani'] }],
+        ['ta', { label: 'Ana / Bia', players: ['Ana', 'Bia'], photos: [null, null] }],
+        ['tb', { label: 'Carla / Dani', players: ['Carla', 'Dani'], photos: [null, null] }],
       ]),
     );
     await fixture.whenStable();
@@ -205,9 +205,9 @@ describe('OverlayPageComponent', () => {
     fake.tournament.set(TOURNAMENT);
     fake.teams.set(
       new Map<string, OverlayTeam>([
-        ['k', { label: 'Ana / Bia', players: ['Ana', 'Bia'] }],
-        ['c', { label: 'Carla / Dani', players: ['Carla', 'Dani'] }],
-        ['q', { label: 'Eva / Fabi', players: ['Eva', 'Fabi'] }],
+        ['k', { label: 'Ana / Bia', players: ['Ana', 'Bia'], photos: [null, null] }],
+        ['c', { label: 'Carla / Dani', players: ['Carla', 'Dani'], photos: [null, null] }],
+        ['q', { label: 'Eva / Fabi', players: ['Eva', 'Fabi'], photos: [null, null] }],
       ]),
     );
     fake.match.set(
@@ -255,9 +255,9 @@ describe('OverlayPageComponent', () => {
     fake.tournament.set(TOURNAMENT);
     fake.teams.set(
       new Map<string, OverlayTeam>([
-        ['k', { label: 'Ana / Bia', players: ['Ana', 'Bia'] }],
-        ['c', { label: 'Carla / Dani', players: ['Carla', 'Dani'] }],
-        ['q', { label: 'Eva / Fabi', players: ['Eva', 'Fabi'] }],
+        ['k', { label: 'Ana / Bia', players: ['Ana', 'Bia'], photos: [null, null] }],
+        ['c', { label: 'Carla / Dani', players: ['Carla', 'Dani'], photos: [null, null] }],
+        ['q', { label: 'Eva / Fabi', players: ['Eva', 'Fabi'], photos: [null, null] }],
       ]),
     );
     const encerrada = match({
@@ -456,9 +456,9 @@ describe('OverlayPageComponent', () => {
     fake.tournament.set(TOURNAMENT);
     fake.teams.set(
       new Map<string, OverlayTeam>([
-        ['t', { label: 'Sor / Ham', players: ['Sor', 'Ham'] }],
-        ['a', { label: 'Hölting Nilsson / Berger', players: ['Hölting Nilsson', 'Berger'] }],
-        ['b', { label: 'Van / Aye', players: ['Van', 'Aye'] }],
+        ['t', { label: 'Sor / Ham', players: ['Sor', 'Ham'], photos: [null, null] }],
+        ['a', { label: 'Hölting Nilsson / Berger', players: ['Hölting Nilsson', 'Berger'], photos: [null, null] }],
+        ['b', { label: 'Van / Aye', players: ['Van', 'Aye'], photos: [null, null] }],
       ]),
     );
     fake.match.set(

@@ -249,6 +249,12 @@ function buildKingOfCourtCategory(maxTeams) {
     teamsPerGroup: 4,
     qualifiersPerGroup: 2,
     teamsPerCourt: 4,
+    // Duas rodadas por chave: cada uma classifica UMA dupla, e a vencedora sai.
+    // O seed existe pra exercitar o produto, e este campo só aparece no formato
+    // da chave — com 1 o seed geraria 7 rodadas, indistinguíveis de uma
+    // categoria sem a configuração. Com 2 são 11 (8 → 2 → 1), que é a forma que
+    // o gerador e o sorteio ao vivo precisam provar que produzem.
+    roundsPerBracket: 2,
     qualifiersPerRound: 2,
     roundDurationSec: 900,
     // A rodada tem cronômetro, não sets — `bestOf` fica no padrão e é ignorado

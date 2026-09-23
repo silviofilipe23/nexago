@@ -182,3 +182,56 @@ describe("seed · torneio reutilizado recebe a config nova", () => {
     assert.deepEqual(categories.find((c) => c.id === "categoria-manual"), extra);
   });
 });
+
+describe("categoria de DUELO gerada como King of the Court", () => {
+  /**
+   * O seletor de formato da tela "Gerar chave" deixa gerar KOTC em qualquer
+   * categoria. Numa categoria de duelo o doc não tem `teamsPerCourt` nem
+   * `roundsPerBracket`, então `resolveKocConfig` caía inteiro no default — e a
+   * chave nascia com 1 rodada por chave sem nada dizer por quê.
+   *
+   * A tela agora manda a config em `bracketConfig`, que `resolveKocConfig`
+   * prefere ao doc. Estes testes travam essa precedência.
+   */
+  const duelCategory = (): Record<string, unknown> => {
+    const found = buildCategories({levels: ["intermediario_2"], genders: ["male"]})
+      .find((c) => c.bracketFormat === "groups_knockout");
+    assert.ok(found, "o seed precisa ter uma categoria de duelo");
+    return found;
+  };
+
+  it("sem `bracketConfig` a categoria de duelo cai no default — 1 rodada por chave", () => {
+    const category = duelCategory();
+    assert.equal(category.roundsPerBracket, undefined);
+    assert.equal(resolveKocConfig(undefined, category).roundsPerBracket, 1);
+  });
+
+  it("`bracketConfig` da tela vence o doc da categoria", () => {
+    const config = resolveKocConfig(
+      {teamsPerCourt: 4, roundsPerBracket: 2, qualifiersPerRound: 2, roundDurationSec: 1200},
+      duelCategory(),
+    );
+    assert.equal(config.teamsPerCourt, 4);
+    assert.equal(config.roundsPerBracket, 2);
+    assert.equal(config.qualifiersPerRound, 2);
+    assert.equal(config.roundDurationSec, 1200);
+  });
+
+  it("com a config da tela, a chave sai com 8 rodadas na classificatória", () => {
+    const config = resolveKocConfig(
+      {teamsPerCourt: 4, roundsPerBracket: 2, qualifiersPerRound: 2, roundDurationSec: 900},
+      duelCategory(),
+    );
+    const rounds = buildKingOfCourtRounds(teamIds(16), config);
+    assert.equal(rounds.filter((r) => r.phase === 1).length, 8);
+    assert.equal(rounds.length, 11);
+  });
+
+  it("uma categoria KOTC de verdade continua valendo quando a tela não manda nada", () => {
+    // `bracketConfig` parcial não pode apagar o que está no doc.
+    const config = resolveKocConfig({roundsPerBracket: 1}, kocCategory());
+    assert.equal(config.roundsPerBracket, 1, "o que a tela manda vence");
+    assert.equal(config.teamsPerCourt, 4, "o que ela não manda vem do doc");
+    assert.equal(config.roundDurationSec, 900);
+  });
+});

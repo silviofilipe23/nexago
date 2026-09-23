@@ -1,15 +1,38 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import {
+  afterRenderEffect,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  input,
+} from '@angular/core';
+import { OgAvatarComponent } from '../../painel/ui/avatar.component';
 import type { OverlayKocBlock } from '../overlay/overlay-koc-bar';
 import type { OverlayKocView } from '../overlay/overlay-selectors';
 import { ledIniciaisDe } from './led-iniciais';
 
+export interface LedPlayer {
+  name: string;
+  initials: string;
+  photoUrl: string | null;
+}
+
 export interface LedTeam {
-  players: [string, string];
+  players: LedPlayer[];
 }
 
 /** Piso da tag de sequência e do anel pulsante, na especificação do dono. */
 const STREAK_TAG = 2;
 const STREAK_RING = 3;
+
+const EASE_OUT = 'cubic-bezier(.22, 1, .36, 1)';
+const EASE_ELASTIC = 'cubic-bezier(.34, 1.56, .64, 1)';
+const PTS_BUMP_MS = 480;
+const PTS_FLASH_MS = 600;
+const REI_MS = 640;
+const DESAFIANTE_MS = 520;
+const FILA_R_MS = 480;
 
 /** Rodada KOTC em painel de LED.
  *
@@ -19,6 +42,7 @@ const STREAK_RING = 3;
 @Component({
   selector: 'og-led-round',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OgAvatarComponent],
   template: `
     @if (view(); as v) {
       <div class="tela">
@@ -53,14 +77,14 @@ const STREAK_RING = 3;
                 }
               </div>
               <div class="nomes">
-                @for (nome of nomesDe(t.teamId); track $index) {
-                  <span>{{ nome }}</span>
+                @for (p of atletasDe(t.teamId); track $index) {
+                  <span>{{ p.name }}</span>
                 }
               </div>
               <div class="rodape">
-                <span class="iniciais">
-                  @for (nome of nomesDe(t.teamId); track $index) {
-                    <span class="inicial">{{ inicial(nome) }}</span>
+                <span class="avatares">
+                  @for (p of atletasDe(t.teamId); track $index) {
+                    <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="128" />
                   }
                 </span>
                 <span class="pontos">{{ t.points }}</span>
@@ -72,14 +96,14 @@ const STREAK_RING = 3;
             <section class="bloco bloco--desafiante">
               <div class="bloco-topo"><span class="papel">Desafiante</span></div>
               <div class="nomes">
-                @for (nome of nomesDe(d.teamId); track $index) {
-                  <span>{{ nome }}</span>
+                @for (p of atletasDe(d.teamId); track $index) {
+                  <span>{{ p.name }}</span>
                 }
               </div>
               <div class="rodape">
-                <span class="iniciais">
-                  @for (nome of nomesDe(d.teamId); track $index) {
-                    <span class="inicial">{{ inicial(nome) }}</span>
+                <span class="avatares">
+                  @for (p of atletasDe(d.teamId); track $index) {
+                    <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="128" />
                   }
                 </span>
                 <span class="pontos">{{ d.points }}</span>
@@ -97,6 +121,11 @@ const STREAK_RING = 3;
                 [class.fila-card--proximo]="f.nextUp"
                 [style.animation-delay.ms]="500 + i * 80"
               >
+                <span class="fila-avatares">
+                  @for (p of atletasDe(f.teamId); track $index) {
+                    <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="64" />
+                  }
+                </span>
                 <span class="fila-nome">{{ nomesDe(f.teamId).join(' · ') }}</span>
                 <span class="fila-pontos">{{ f.points }}</span>
               </div>
@@ -266,7 +295,7 @@ const STREAK_RING = 3;
     .nomes {
       display: grid;
       align-content: center;
-      font-size: 76px;
+      font-size: 92px;
       font-weight: 800;
       line-height: 1.02;
       min-width: 0;
@@ -283,34 +312,32 @@ const STREAK_RING = 3;
       justify-content: space-between;
       gap: 20px;
     }
-    .iniciais {
+    .avatares {
       display: flex;
+      align-items: center;
     }
-    .inicial {
-      display: grid;
-      place-items: center;
-      width: 86px;
-      height: 86px;
-      border-radius: 50%;
+    .avatares og-avatar + og-avatar {
+      margin-left: -24px;
+    }
+    .bloco--trono .avatares og-avatar {
       background: #000;
       color: var(--nx-orange-500, #ff6a1a);
-      font-size: 30px;
-      font-weight: 800;
-      letter-spacing: 0.04em;
+      border: none;
+      box-shadow: 0 0 0 4px var(--nx-orange-500, #ff6a1a);
     }
-    .inicial + .inicial {
-      margin-left: -18px;
-    }
-    .bloco--desafiante .inicial {
+    .bloco--desafiante .avatares og-avatar {
       background: #2e2e32;
       color: #fff;
-      border: 2px solid #46464b;
+      border: 3px solid #46464b;
+      box-shadow: 0 0 0 3px #232326;
     }
     .pontos {
-      font-size: 120px;
+      display: inline-block;
+      font-size: 168px;
       font-weight: 800;
       line-height: 0.85;
       font-variant-numeric: tabular-nums;
+      transform-origin: 100% 50%;
     }
 
     .fila {
@@ -331,7 +358,7 @@ const STREAK_RING = 3;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 18px;
+      gap: 14px;
       flex: 1;
       min-width: 0;
       padding: 16px 22px;
@@ -354,8 +381,29 @@ const STREAK_RING = 3;
       border-color: #fff;
       background: #101013;
     }
+    .fila-avatares {
+      display: flex;
+      align-items: center;
+      flex: none;
+    }
+    .fila-avatares og-avatar + og-avatar {
+      margin-left: -16px;
+    }
+    .fila-avatares og-avatar {
+      background: #0d0d0d;
+      color: #9a9a9e;
+      border: 2px solid #3a3a3e;
+      box-shadow: 0 0 0 2px #1a1a1d;
+    }
+    .fila-card--proximo .fila-avatares og-avatar {
+      box-shadow: 0 0 0 2px #101013;
+      color: #fff;
+      border-color: #5a5a60;
+    }
     .fila-nome {
-      font-size: 28px;
+      flex: 1;
+      min-width: 0;
+      font-size: 34px;
       font-weight: 800;
       white-space: nowrap;
       overflow: hidden;
@@ -382,6 +430,8 @@ const STREAK_RING = 3;
   `,
 })
 export class LedRoundComponent {
+  private readonly host = inject(ElementRef);
+
   readonly view = input<OverlayKocView | null>(null);
   readonly teams = input<ReadonlyMap<string, LedTeam>>(new Map<string, LedTeam>());
   readonly categoryName = input<string | null>(null);
@@ -400,6 +450,20 @@ export class LedRoundComponent {
   private readonly streak = computed(() => this.view()?.bar.streak ?? 0);
   protected readonly mostraSeguidas = computed(() => this.streak() >= STREAK_TAG);
   protected readonly pulsando = computed(() => this.streak() >= STREAK_RING);
+
+  /** Só papéis/pontos — o relógio muda a cada tick e não deve re-disparar P/R. */
+  private readonly motionKey = computed(() => {
+    const v = this.view();
+    if (!v) return '';
+    return this.blocos()
+      .map((b) => `${b.teamId}:${b.role}:${b.points}:${b.nextUp ? 1 : 0}`)
+      .join('|');
+  });
+
+  private primed = false;
+  private lastMotionKey = '';
+  private prevKingId: string | null = null;
+  private prevKingPts: number | null = null;
 
   /** "Classificatória · Rodada 3/7" → 3 e 7, pro topo gigante do painel. */
   private readonly numeros = computed(() => {
@@ -423,11 +487,124 @@ export class LedRoundComponent {
     return min * 60 + seg <= 60;
   });
 
-  protected nomesDe(teamId: string): string[] {
-    return (this.teams().get(teamId)?.players ?? []).filter((n) => n !== '');
+  constructor() {
+    afterRenderEffect(() => {
+      const v = this.view();
+      const key = this.motionKey();
+      if (!v) {
+        this.resetMotion();
+        return;
+      }
+      if (key === this.lastMotionKey) return;
+      this.lastMotionKey = key;
+      this.runMotion();
+    });
   }
 
-  protected inicial(nome: string): string {
-    return ledIniciaisDe(nome);
+  protected atletasDe(teamId: string): LedPlayer[] {
+    const raw = this.teams().get(teamId)?.players ?? [];
+    return raw
+      .filter((p) => p.name.trim() !== '')
+      .map((p) => ({
+        name: p.name,
+        initials: p.initials || ledIniciaisDe(p.name),
+        photoUrl: p.photoUrl,
+      }));
+  }
+
+  protected nomesDe(teamId: string): string[] {
+    return this.atletasDe(teamId).map((p) => p.name);
+  }
+
+  private resetMotion(): void {
+    this.primed = false;
+    this.lastMotionKey = '';
+    this.prevKingId = null;
+    this.prevKingPts = null;
+  }
+
+  private prefersReducedMotion(): boolean {
+    return typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  /** Cancela só WAAPI — o anel CSS `led-anel` e a entrada CSS precisam continuar. */
+  private cancelWaapi(el: HTMLElement): void {
+    for (const a of el.getAnimations()) {
+      if (a instanceof CSSAnimation || a instanceof CSSTransition) continue;
+      a.cancel();
+    }
+  }
+
+  private runMotion(): void {
+    const root = this.host.nativeElement as HTMLElement;
+    const king = this.trono();
+    const kingEl = root.querySelector('.bloco--trono') as HTMLElement | null;
+    const challEl = root.querySelector('.bloco--desafiante') as HTMLElement | null;
+    const ptsEl = kingEl?.querySelector('.pontos') as HTMLElement | null;
+    const filaCards = Array.from(root.querySelectorAll('.fila-card')) as HTMLElement[];
+
+    const kingId = king?.teamId ?? null;
+    const kingPts = king?.points ?? null;
+    const motionOk = this.primed && !this.prefersReducedMotion();
+
+    if (motionOk && kingEl && kingId != null && kingPts != null) {
+      const virouRei = this.prevKingId != null && kingId !== this.prevKingId;
+      const pontuou =
+        !virouRei && this.prevKingId === kingId && this.prevKingPts != null && kingPts !== this.prevKingPts;
+
+      if (pontuou && ptsEl) {
+        // P — salto do placar + flash no bloco laranja.
+        this.cancelWaapi(ptsEl);
+        ptsEl.animate(
+          [
+            { transform: 'scale(1)' },
+            { transform: 'scale(1.25)', offset: 0.4 },
+            { transform: 'scale(1)' },
+          ],
+          { duration: PTS_BUMP_MS, easing: EASE_ELASTIC },
+        );
+        this.cancelWaapi(kingEl);
+        kingEl.animate([{ filter: 'brightness(1.5)' }, { filter: 'brightness(1)' }], {
+          duration: PTS_FLASH_MS,
+          easing: EASE_OUT,
+        });
+      }
+
+      if (virouRei) {
+        // R — novo trono vem da direita (lado do desafiante); desafiante sobe; fila entra da esquerda.
+        this.cancelWaapi(kingEl);
+        kingEl.animate(
+          [
+            { transform: 'translateX(42%)', filter: 'brightness(1.8)', opacity: 0.7 },
+            { transform: 'translateX(0)', filter: 'brightness(1)', opacity: 1 },
+          ],
+          { duration: REI_MS, easing: EASE_OUT },
+        );
+        if (challEl) {
+          this.cancelWaapi(challEl);
+          challEl.animate(
+            [
+              { opacity: 0, transform: 'translateY(60px)' },
+              { opacity: 1, transform: 'translateY(0)' },
+            ],
+            { duration: DESAFIANTE_MS, delay: 200, easing: EASE_OUT, fill: 'both' },
+          );
+        }
+        filaCards.forEach((card, i) => {
+          this.cancelWaapi(card);
+          card.animate(
+            [
+              { opacity: 0, transform: 'translateX(-120px)' },
+              { opacity: 1, transform: 'translateX(0)' },
+            ],
+            { duration: FILA_R_MS, delay: 300 + i * 70, easing: EASE_OUT, fill: 'both' },
+          );
+        });
+      }
+    }
+
+    this.prevKingId = kingId;
+    this.prevKingPts = kingPts;
+    this.primed = true;
   }
 }

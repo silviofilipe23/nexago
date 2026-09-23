@@ -22,11 +22,51 @@ function board(overrides: Partial<KocStandingsBoard> = {}): KocStandingsBoard {
 }
 
 const TEAMS = new Map<string, LedTeam>([
-  ['a', { players: ['Sor', 'Ham'] }],
-  ['b', { players: ['Bro', 'Dau'] }],
-  ['c', { players: ['Batrane', 'Tiisaar'] }],
-  ['d', { players: ['Hölting Nilsson', 'Berger'] }],
-  ['e', { players: ['Van', 'Aye'] }],
+  [
+    'a',
+    {
+      players: [
+        { name: 'Sor', initials: 'SO', photoUrl: null },
+        { name: 'Ham', initials: 'HA', photoUrl: null },
+      ],
+    },
+  ],
+  [
+    'b',
+    {
+      players: [
+        { name: 'Bro', initials: 'BR', photoUrl: null },
+        { name: 'Dau', initials: 'DA', photoUrl: null },
+      ],
+    },
+  ],
+  [
+    'c',
+    {
+      players: [
+        { name: 'Batrane', initials: 'BA', photoUrl: null },
+        { name: 'Tiisaar', initials: 'TI', photoUrl: null },
+      ],
+    },
+  ],
+  [
+    'd',
+    {
+      players: [
+        { name: 'Hölting Nilsson', initials: 'HÖ', photoUrl: null },
+        { name: 'Berger', initials: 'BE', photoUrl: null },
+      ],
+    },
+  ],
+  [
+    'e',
+    {
+      players: [
+        { name: 'Van', initials: 'VA', photoUrl: null },
+        { name: 'Aye', initials: 'AY', photoUrl: null },
+      ],
+    },
+  ],
 ]);
 
 async function render(inputs: Record<string, unknown> = {}) {
@@ -63,13 +103,14 @@ describe('LedStandingsComponent', () => {
     expect(text).toContain('Semifinal');
   });
 
-  it('lista colocação, iniciais, nomes e pontos', async () => {
+  it('lista colocação, avatares, nomes e pontos', async () => {
     const linhas = [...host(await render()).querySelectorAll('.linha')];
 
     expect(linhas.length).toBe(5);
     expect(linhas[0].textContent).toContain('Sor · Ham');
     expect(linhas[0].textContent).toContain('17');
-    expect([...linhas[0].querySelectorAll('.inicial')].map((e) => e.textContent)).toEqual(['SO', 'HA']);
+    expect(linhas[0].querySelectorAll('og-avatar').length).toBe(2);
+    expect([...linhas[0].querySelectorAll('og-avatar')].map((e) => e.textContent?.trim())).toEqual(['SO', 'HA']);
     expect(linhas[4].textContent).toContain('Van · Aye');
   });
 

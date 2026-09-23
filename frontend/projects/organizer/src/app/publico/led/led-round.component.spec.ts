@@ -23,12 +23,21 @@ function view(overrides: Partial<OverlayKocView> = {}): OverlayKocView {
   };
 }
 
+function duo(a: string, b: string, photos: [string | null, string | null] = [null, null]): LedTeam {
+  return {
+    players: [
+      { name: a, initials: a.slice(0, 2).toUpperCase(), photoUrl: photos[0] },
+      { name: b, initials: b.slice(0, 2).toUpperCase(), photoUrl: photos[1] },
+    ],
+  };
+}
+
 const TEAMS = new Map<string, LedTeam>([
-  ['k', { players: ['Van', 'Aye'] }],
-  ['d', { players: ['Bro', 'Dau'] }],
-  ['q1', { players: ['Hölting Nilsson', 'Berger'] }],
-  ['q2', { players: ['Batrane', 'Tiisaar'] }],
-  ['q3', { players: ['Sor', 'Ham'] }],
+  ['k', duo('Van', 'Aye')],
+  ['d', duo('Bro', 'Dau')],
+  ['q1', duo('Hölting Nilsson', 'Berger')],
+  ['q2', duo('Batrane', 'Tiisaar')],
+  ['q3', duo('Sor', 'Ham')],
 ]);
 
 async function render(inputs: Record<string, unknown> = {}) {
@@ -66,7 +75,7 @@ describe('LedRoundComponent', () => {
     expect(text).toContain('02:43');
   });
 
-  it('põe trono e desafiante em blocos próprios, com iniciais e pontos', async () => {
+  it('põe trono e desafiante em blocos próprios, com avatares e pontos', async () => {
     const h = host(await render());
     const trono = h.querySelector('.bloco--trono');
     const desafiante = h.querySelector('.bloco--desafiante');
@@ -74,9 +83,20 @@ describe('LedRoundComponent', () => {
     expect(trono?.textContent).toContain('Van');
     expect(trono?.textContent).toContain('Aye');
     expect(trono?.textContent).toContain('4');
-    expect([...trono!.querySelectorAll('.inicial')].map((e) => e.textContent)).toEqual(['VA', 'AY']);
+    expect(trono!.querySelectorAll('og-avatar').length).toBe(2);
+    expect([...trono!.querySelectorAll('og-avatar')].map((e) => e.textContent?.trim())).toEqual(['VA', 'AY']);
     expect(desafiante?.textContent).toContain('Bro');
     expect(desafiante?.textContent).toContain('14');
+    expect(desafiante!.querySelectorAll('og-avatar').length).toBe(2);
+  });
+
+  it('mostra a foto do atleta no avatar quando o perfil tem URL', async () => {
+    const teams = new Map(TEAMS);
+    teams.set('k', duo('Van', 'Aye', ['https://cdn.example/van.jpg', null]));
+    const trono = host(await render({ teams })).querySelector('.bloco--trono')!;
+
+    expect(trono.querySelector('og-avatar img')?.getAttribute('src')).toBe('https://cdn.example/van.jpg');
+    expect([...trono.querySelectorAll('og-avatar')].map((e) => e.textContent?.trim())).toContain('AY');
   });
 
   it('mostra a fila com o próximo a entrar destacado', async () => {
@@ -84,6 +104,7 @@ describe('LedRoundComponent', () => {
 
     expect(cards.length).toBe(3);
     expect(cards.filter((c) => c.classList.contains('fila-card--proximo')).length).toBe(1);
+    expect(cards[0].querySelectorAll('og-avatar').length).toBe(2);
   });
 
   it('acende a sequência a partir de duas, e o anel a partir de três', async () => {

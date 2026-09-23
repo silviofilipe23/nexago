@@ -88,8 +88,10 @@ export function validateArenaBasicInfo(profile: Pick<ArenaProfile, 'name' | 'onl
   return null;
 }
 
-/** Validação da tela "Contatos" (telefone, whatsapp, endereço). */
-export function validateArenaContacts(contacts: Pick<ArenaProfile, 'phone' | 'whatsapp' | 'city' | 'state'>): string | null {
+/** Validação da tela "Contatos" (telefone e WhatsApp). Endereço, cidade e UF saíram daqui
+ *  para a tela "Dados cadastrais", que os grava estruturados e com coordenada — no Flutter
+ *  isso tudo ainda é um formulário só, e `ArenaProfileEditService` segue validando o conjunto. */
+export function validateArenaContacts(contacts: Pick<ArenaProfile, 'phone' | 'whatsapp'>): string | null {
   const phoneDigits = digitsOnly(contacts.phone);
   if (phoneDigits.length < 10 || phoneDigits.length > 13) {
     return 'Telefone inválido. Use DDD + número (10 a 13 dígitos).';
@@ -97,12 +99,6 @@ export function validateArenaContacts(contacts: Pick<ArenaProfile, 'phone' | 'wh
   const wa = contacts.whatsapp.trim();
   if (wa && !isValidArenaPhoneDigits(wa)) {
     return 'WhatsApp inválido.';
-  }
-  if (!contacts.city.trim()) {
-    return 'Informe a cidade da arena.';
-  }
-  if (!contacts.state.trim()) {
-    return 'Informe o estado da arena.';
   }
   return null;
 }

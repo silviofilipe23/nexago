@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, linkedSignal, signal, untracked } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { IconComponent } from '../ui/icon.component';
@@ -7,13 +8,14 @@ import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { arenaProfileFromDoc, saveArenaContacts } from './arena-profile-repository';
 
-/** Tela Contatos da arena: WhatsApp, telefone e endereço reais em `arenas/{arenaId}`.
+/** Tela Contatos da arena: WhatsApp e telefone em `arenas/{arenaId}`.
  *  Instagram, e-mail, "equipe de contatos" e toggle de visibilidade por canal saíram — não
- *  existe nenhum desses campos no backend (nem Flutter, nem rules), eram só protótipo. */
+ *  existe nenhum desses campos no backend (nem Flutter, nem rules), eram só protótipo.
+ *  O endereço saiu para "Dados cadastrais", que o grava estruturado e com coordenada. */
 @Component({
   selector: 'ar-panel-profile-contacts',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, IconComponent],
+  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, IconComponent, RouterLink],
   template: `
     <ar-panel-shell>
       <ar-page-header title="Contatos da arena" [subtitle]="headerSubtitle()">
@@ -47,19 +49,11 @@ import { arenaProfileFromDoc, saveArenaContacts } from './arena-profile-reposito
           </ar-panel-card>
 
           <ar-panel-card title="Endereço">
-            <div class="field-label">Endereço completo</div>
-            <input type="text" class="input-box address-input" [value]="address()" (input)="address.set($any($event.target).value)" />
-
-            <div class="row-2">
-              <div>
-                <div class="field-label">Cidade</div>
-                <input type="text" class="input-box" [value]="city()" (input)="city.set($any($event.target).value)" />
-              </div>
-              <div>
-                <div class="field-label">Estado (UF)</div>
-                <input type="text" class="input-box" maxlength="2" [value]="state()" (input)="state.set($any($event.target).value)" />
-              </div>
-            </div>
+            <a routerLink="/painel/perfil/cadastro" class="ar-ghost-btn" card-actions>
+              <ar-icon name="edit" [size]="13" />
+              Editar
+            </a>
+            <p class="state-text">O endereço da arena agora fica em Dados cadastrais, junto do CNPJ — lá ele vira CEP, rua e número, e posiciona a arena no mapa do app.</p>
           </ar-panel-card>
         }
       </div>
@@ -117,10 +111,6 @@ import { arenaProfileFromDoc, saveArenaContacts } from './arena-profile-reposito
       border-color: var(--nx-orange-500);
     }
 
-    .address-input {
-      margin-bottom: 18px;
-    }
-
     .row-2 {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -146,15 +136,9 @@ export class PanelProfileContactsComponent {
 
   private readonly phoneSeed = signal('');
   private readonly whatsappSeed = signal('');
-  private readonly addressSeed = signal('');
-  private readonly citySeed = signal('');
-  private readonly stateSeed = signal('');
 
   protected readonly phone = linkedSignal(() => this.phoneSeed());
   protected readonly whatsapp = linkedSignal(() => this.whatsappSeed());
-  protected readonly address = linkedSignal(() => this.addressSeed());
-  protected readonly city = linkedSignal(() => this.citySeed());
-  protected readonly state = linkedSignal(() => this.stateSeed());
 
   constructor() {
     effect(() => {
@@ -166,9 +150,6 @@ export class PanelProfileContactsComponent {
       const profile = data ? arenaProfileFromDoc(data) : null;
       this.phoneSeed.set(profile?.phone ?? '');
       this.whatsappSeed.set(profile?.whatsapp ?? '');
-      this.addressSeed.set(profile?.address ?? '');
-      this.citySeed.set(profile?.city ?? '');
-      this.stateSeed.set(profile?.state ?? '');
     });
   }
 
@@ -182,9 +163,6 @@ export class PanelProfileContactsComponent {
       await saveArenaContacts(arenaFirestore(), arenaId, {
         phone: this.phone(),
         whatsapp: this.whatsapp(),
-        address: this.address(),
-        city: this.city(),
-        state: this.state(),
       });
     } catch (err) {
       this.saveError.set(err instanceof Error ? err.message : 'Não foi possível salvar os contatos.');

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ReactiveFormsModule, NonNullableFormBuilder, Validators } from '@angular/forms';
+import { AbstractControl, ReactiveFormsModule, NonNullableFormBuilder, ValidationErrors, Validators } from '@angular/forms';
+import { cpfCnpjValidationMessage, isValidCpfCnpj } from '@nexago/br-documents';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from './auth.service';
 import { mapFirebaseAuthError } from './firebase-auth-errors';
@@ -8,13 +9,24 @@ import { AuthShellComponent } from './ui/auth-shell.component';
 import { FieldComponent } from './ui/field.component';
 import { StrengthMeterComponent } from './ui/strength-meter.component';
 
-const CNPJ_PATTERN = /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/;
+/** Confere o dígito verificador, não só a máscara: o CNPJ agora é gravado de verdade
+ *  (`arenas/{id}/registration/data`) e é ele que o Asaas usa para cobrar. Aceita o CNPJ
+ *  alfanumérico de 2026 — por isso validador, e não `Validators.pattern`. */
+function documentValidator(control: AbstractControl): ValidationErrors | null {
+  const value = String(control.value ?? '').trim();
+  if (!value) {
+    return null;
+  }
+  return isValidCpfCnpj(value) ? null : { document: true };
+}
 
 /**
- * Cadastro self-service de uma nova arena. Só cria a conta no Firebase Auth;
- * CNPJ/cidade/WhatsApp ainda não têm um destino no backend (não existe fluxo
- * de onboarding/verificação de arena hoje), então por enquanto ficam apenas
- * validados no formulário.
+ * Cadastro self-service de uma nova arena: cria a conta no Firebase Auth e, via
+ * `completeArenaSignup`, a role `arena` e o doc `arenas/{arenaId}` já com nome,
+ * cidade/UF e WhatsApp — o gestor cai no painel com a arena dele, não na tela de
+ * "nenhuma arena vinculada". O CNPJ vai junto e é gravado em
+ * `arenas/{arenaId}/registration/data`, subcoleção de leitura restrita: o doc da arena
+ * é público. O gestor completa razão social e endereço em Dados cadastrais.
  */
 @Component({
   selector: 'ar-signup',
@@ -129,7 +141,7 @@ export class SignupComponent {
 
   protected readonly form = this.fb.group({
     nome: ['', Validators.required],
-    cnpj: ['', [Validators.required, Validators.pattern(CNPJ_PATTERN)]],
+    cnpj: ['', [Validators.required, documentValidator]],
     cidade: ['', Validators.required],
     whatsapp: ['', Validators.required],
     email: ['', [Validators.required, Validators.email]],
@@ -155,8 +167,8 @@ export class SignupComponent {
     if (control.hasError('required')) {
       return 'Informe o CNPJ.';
     }
-    if (control.hasError('pattern')) {
-      return 'CNPJ inválido. Use o formato 00.000.000/0000-00.';
+    if (control.hasError('document')) {
+      return cpfCnpjValidationMessage(control.value) ?? 'CNPJ inválido.';
     }
     return null;
   }
@@ -197,8 +209,13 @@ export class SignupComponent {
     }
     this.loading.set(true);
     try {
-      const { nome, email, password } = this.form.getRawValue();
-      await this.auth.createArenaAccount(email, password, nome);
+      const { nome, cnpj, cidade, whatsapp, email, password } = this.form.getRawValue();
+      await this.auth.createArenaAccount(email, password, {
+        name: nome,
+        cpfCnpj: cnpj,
+        cityState: cidade,
+        whatsapp,
+      });
       void this.router.navigateByUrl('/painel');
     } catch (err) {
       this.error.set(mapFirebaseAuthError(err));

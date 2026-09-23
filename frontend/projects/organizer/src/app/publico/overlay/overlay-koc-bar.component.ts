@@ -141,8 +141,10 @@ function clockUnderOneMin(label: string): boolean {
         </div>
       </div>
 
-      <div class="mark" [attr.data-pos]="position()">
-        <span>NEXA</span><span class="mark-go">GO</span><span class="mark-tag">· KOTC</span>
+      <!-- Bug de emissora: logo translúcida no canto, sem caixa opaca disputando com a câmera. -->
+      <div class="mark" [attr.data-pos]="position()" aria-hidden="true">
+        <img class="mark-logo" src="/brand/logo.png" alt="" width="72" height="72" />
+        <!-- <span class="mark-tag">KOTC</span> -->
       </div>
     }
   `,
@@ -373,21 +375,22 @@ function clockUnderOneMin(label: string): boolean {
     .mark {
       display: flex;
       align-items: center;
-      gap: 7px;
-      padding: 11px 18px;
-      border-radius: 10px;
-      background: #121214;
-      color: #fff;
-      font-size: 17px;
-      font-weight: 800;
-      letter-spacing: 0.1em;
+      gap: 10px;
+      /* Watermark de TV: legível sem tapar a imagem da câmera. */
+      opacity: 0.52;
+      filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.55));
     }
-    .mark-go {
-      color: var(--nx-orange-500, #ff6a1a);
+    .mark-logo {
+      display: block;
+      width: 72px;
+      height: 72px;
+      object-fit: contain;
     }
     .mark-tag {
-      color: #8c8c94;
-      letter-spacing: 0.14em;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0.16em;
     }
 
     @keyframes koc-live-blink {

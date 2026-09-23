@@ -13,6 +13,17 @@ import {
   type AthleteRatingLite,
   type TeamLevelScore,
 } from '../data/team-level-score';
+import {
+  KOC_DEFAULT_QUALIFIERS_PER_ROUND,
+  KOC_DEFAULT_ROUND_DURATION_SEC,
+  KOC_DEFAULT_TEAMS_PER_COURT,
+  KOC_MAX_ROUND_DURATION_SEC,
+  KOC_MAX_TEAMS_PER_ROUND,
+  KOC_MIN_ROUND_DURATION_SEC,
+  KOC_MIN_TEAMS_PER_ROUND as KOC_MIN_PER_COURT,
+  kocMaxRoundsForField,
+  kocSchedule,
+} from '../data/tournament-create.model';
 import { generateCategoryBracket } from '../data/organizer-ops.service';
 import type { OrganizerTournament, OrganizerTournamentCategory } from '../data/tournament.model';
 import { getTournament } from '../data/tournaments-repository';
@@ -154,6 +165,60 @@ function shuffled<T>(items: readonly T[]): T[] {
                 <p class="og-seeds-error">
                   {{ groupCount() * qualifiersPerGroup() }} classificados ({{ groupCount() }} grupos × {{ qualifiersPerGroup() }}) não formam um
                   mata-mata equilibrado — ajuste pra totais como 4, 8 ou 16.
+                </p>
+              }
+            }
+            @if (format() === 'king_of_court') {
+              <!-- Sem estes campos a geração caía nos DEFAULTS do servidor: uma
+                   categoria de duelo gerada como KOTC não tem duplas por quadra
+                   nem rodadas por chave no doc, e a chave nascia com outra forma
+                   sem nada na tela dizer por quê. Vão em bracketConfig, que o
+                   servidor prefere ao doc da categoria. -->
+              <div class="og-field-grid" style="margin-top:14px">
+                <div class="og-seeds-stepper">
+                  <span class="lbl">Duplas por quadra</span>
+                  <div class="ctrl">
+                    <button type="button" (click)="bumpKocTeamsPerCourt(-1)">−</button>
+                    <span>{{ kocTeamsPerCourt() }}</span>
+                    <button type="button" (click)="bumpKocTeamsPerCourt(1)">+</button>
+                  </div>
+                </div>
+                <div class="og-seeds-stepper">
+                  <span class="lbl">Rodadas por chave</span>
+                  <div class="ctrl">
+                    <button type="button" (click)="bumpKocRoundsPerBracket(-1)">−</button>
+                    <span>{{ kocRoundsPerBracket() }}</span>
+                    <button type="button" (click)="bumpKocRoundsPerBracket(1)">+</button>
+                  </div>
+                </div>
+              </div>
+              <div class="og-field-grid" style="margin-top:10px">
+                <div class="og-seeds-stepper">
+                  <span class="lbl">Classificam por rodada</span>
+                  <div class="ctrl">
+                    @if (kocRoundsPerBracket() === 1) {
+                      <button type="button" (click)="bumpKocQualifiers(-1)">−</button>
+                      <span>{{ kocQualifiersPerRound() }}</span>
+                      <button type="button" (click)="bumpKocQualifiers(1)">+</button>
+                    } @else {
+                      <span>1 por rodada</span>
+                    }
+                  </div>
+                </div>
+                <div class="og-seeds-stepper">
+                  <span class="lbl">Duração da rodada</span>
+                  <div class="ctrl">
+                    <button type="button" (click)="bumpKocDuration(-1)">−</button>
+                    <span>{{ kocDurationLabel() }}</span>
+                    <button type="button" (click)="bumpKocDuration(1)">+</button>
+                  </div>
+                </div>
+              </div>
+              @if (kocPlan(); as plan) {
+                <p class="og-seeds-hint">{{ plan }}</p>
+              } @else {
+                <p class="og-seeds-error">
+                  Essa combinação não fecha com {{ eligible().length }} duplas — ajuste as rodadas por chave ou as classificadas.
                 </p>
               }
             }
@@ -513,6 +578,14 @@ export class SeedsComponent {
   protected readonly useSeeds = signal(true);
   protected readonly teamsPerGroup = signal(4);
   protected readonly qualifiersPerGroup = signal(2);
+  /** Config da King of the Court desta geração. Nasce do doc da categoria
+   *  quando ela É KOTC; numa categoria de duelo gerada como KOTC pelo seletor
+   *  acima o doc não tem nada, e é aqui que o organizador decide — antes ia
+   *  para o default do servidor sem aviso. */
+  protected readonly kocTeamsPerCourt = signal(KOC_DEFAULT_TEAMS_PER_COURT);
+  protected readonly kocRoundsPerBracket = signal(1);
+  protected readonly kocQualifiersPerRound = signal(KOC_DEFAULT_QUALIFIERS_PER_ROUND);
+  protected readonly kocRoundDurationSec = signal(KOC_DEFAULT_ROUND_DURATION_SEC);
   protected readonly groups = signal<GroupPreview[]>([]);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   /** Índice da dupla sendo arrastada na lista de seeds — null fora do drag. */
@@ -627,6 +700,9 @@ export class SeedsComponent {
         const per = Math.max(2, cat.teamsPerGroup);
         this.teamsPerGroup.set(per);
         this.qualifiersPerGroup.set(Math.min(Math.max(1, cat.qualifiersPerGroup), per - 1));
+        this.kocTeamsPerCourt.set(cat.kocTeamsPerCourt);
+        this.kocRoundsPerBracket.set(cat.kocRoundsPerBracket);
+        this.kocQualifiersPerRound.set(cat.kocQualifiersPerRound);
       }
       this.redraw();
     } finally {
@@ -638,6 +714,57 @@ export class SeedsComponent {
     this.format.set(f);
     this.feedback.set(null);
     if (f === 'groups_knockout') this.redraw();
+  }
+
+  protected bumpKocTeamsPerCourt(delta: number): void {
+    this.kocTeamsPerCourt.update((v) =>
+      Math.min(Math.max(v + delta, KOC_MIN_PER_COURT), KOC_MAX_TEAMS_PER_ROUND));
+    this.clampKoc();
+  }
+
+  protected bumpKocRoundsPerBracket(delta: number): void {
+    const max = kocMaxRoundsForField(this.eligible().length, this.kocTeamsPerCourt());
+    this.kocRoundsPerBracket.update((v) => Math.min(Math.max(v + delta, 1), max));
+  }
+
+  protected bumpKocQualifiers(delta: number): void {
+    this.kocQualifiersPerRound.update((v) =>
+      Math.min(Math.max(v + delta, 1), Math.max(1, this.kocTeamsPerCourt() - 1)));
+  }
+
+  protected bumpKocDuration(delta: number): void {
+    this.kocRoundDurationSec.update((v) => Math.min(
+      KOC_MAX_ROUND_DURATION_SEC,
+      Math.max(KOC_MIN_ROUND_DURATION_SEC, v + delta * 300),
+    ));
+  }
+
+  /** Reduzir a quadra pode deixar rodadas/classificadas acima do teto. */
+  private clampKoc(): void {
+    const perCourt = this.kocTeamsPerCourt();
+    this.kocQualifiersPerRound.update((q) => Math.min(q, Math.max(1, perCourt - 1)));
+    const max = kocMaxRoundsForField(this.eligible().length, perCourt);
+    this.kocRoundsPerBracket.update((r) => Math.min(r, max));
+  }
+
+  protected kocDurationLabel(): string {
+    return `${Math.round(this.kocRoundDurationSec() / 60)} min`;
+  }
+
+  /** Quantas rodadas a combinação produz — a mesma conta do wizard. Vazio
+   *  quando a config não fecha, e aí o publish é recusado pelo servidor. */
+  protected kocPlan(): string | null {
+    const schedule = kocSchedule(
+      this.eligible().length,
+      this.kocTeamsPerCourt(),
+      this.kocQualifiersPerRound(),
+      this.kocRoundDurationSec(),
+      1,
+      this.kocRoundsPerBracket(),
+    );
+    if (!schedule.valid) return null;
+    return `${this.eligible().length} duplas · ${schedule.totalRounds} rodadas ` +
+      `(${schedule.roundsPerPhase.join(' → ')}) · ${schedule.totalLabel} de quadra.`;
   }
 
   protected bumpTeamsPerGroup(delta: number): void {
@@ -820,6 +947,16 @@ export class SeedsComponent {
         format: this.format(),
         seeds,
         ...(this.format() === 'groups_knockout' ? { groupsPreview: this.groups(), bracketConfig: { qualifiersPerGroup: this.qualifiersPerGroup() } } : {}),
+        // `resolveKocConfig` prefere `bracketConfig` ao doc da categoria: é o
+        // que faz a escolha desta tela valer numa categoria que não é KOTC.
+        ...(this.format() === 'king_of_court' ? {
+          bracketConfig: {
+            teamsPerCourt: this.kocTeamsPerCourt(),
+            roundsPerBracket: this.kocRoundsPerBracket(),
+            qualifiersPerRound: this.kocQualifiersPerRound(),
+            roundDurationSec: this.kocRoundDurationSec(),
+          },
+        } : {}),
         force,
       });
       this.feedback.set({ ok: true, message: `Chave publicada — ${result.matchCount} jogos gerados. Redirecionando…` });

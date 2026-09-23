@@ -130,17 +130,28 @@ export class AuthService {
   }
 
   /** Cria a conta da arena (etapa "Cadastrar arena") e completa o autocadastro via
-   *  Cloud Function, que define a claim/role `arena` e mirra em `users/{uid}` — o
-   *  client nunca escreve role diretamente (firestore.rules recusa). Dados de perfil
-   *  (CNPJ, cidade, WhatsApp) ainda não têm um destino no backend — ficam só no
-   *  formulário por enquanto. */
-  async createArenaAccount(email: string, password: string, arenaName: string): Promise<void> {
-    const trimmedName = arenaName.trim();
+   *  Cloud Function, que define a claim/role `arena`, mirra em `users/{uid}` e cria
+   *  o doc `arenas/{arenaId}` com este usuário como `managerUserId` — o client nunca
+   *  escreve role nem cria a arena diretamente (firestore.rules recusa a role, e a
+   *  arena precisa nascer com o mesmo shape de sempre). Cidade/UF e WhatsApp seguem
+   *  junto porque já viram campos do perfil da arena; o CNPJ vai para
+   *  `arenas/{arenaId}/registration/data`, nunca para o doc público da arena. */
+  async createArenaAccount(
+    email: string,
+    password: string,
+    arena: { name: string; cpfCnpj: string; cityState: string; whatsapp: string },
+  ): Promise<void> {
+    const trimmedName = arena.name.trim();
     const credential = await createUserWithEmailAndPassword(this.auth, email.trim(), password);
     await updateProfile(credential.user, { displayName: trimmedName });
 
     const complete = httpsCallable(this.functions, 'completeArenaSignup');
-    await complete({ arenaName: trimmedName });
+    await complete({
+      arenaName: trimmedName,
+      cpfCnpj: arena.cpfCnpj.trim(),
+      cityState: arena.cityState.trim(),
+      whatsapp: arena.whatsapp.trim(),
+    });
     await credential.user.getIdToken(true);
 
     await this.assertArenaRole(credential.user.uid);

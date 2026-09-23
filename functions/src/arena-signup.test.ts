@@ -120,3 +120,66 @@ describe("ensureManagedArena", () => {
     assert.equal(fake.store.get(`arenas/${arenaId}`)?.["managerUserId"], "uid1");
   });
 });
+
+describe("ensureManagedArena + cadastro", () => {
+  it("guarda o CNPJ do formulário, que antes era só validado e jogado fora", async () => {
+    const fake = new FakeFirestore();
+
+    const arenaId = await ensureManagedArena(db(fake), "uid1", {
+      arenaName: "Arena CFC",
+      cpfCnpj: "11.222.333/0001-81",
+    });
+
+    assert.deepEqual(fake.store.get(`arenas/${arenaId}/registration/data`), {
+      cpfCnpj: "11222333000181",
+    });
+  });
+
+  it("não deixa o CNPJ no doc público da arena, que qualquer um lê", async () => {
+    const fake = new FakeFirestore();
+
+    const arenaId = await ensureManagedArena(db(fake), "uid1", {
+      arenaName: "Arena CFC",
+      cpfCnpj: "11222333000181",
+    });
+
+    const arena = fake.store.get(`arenas/${arenaId}`) ?? {};
+    assert.equal("cpfCnpj" in arena, false);
+    assert.equal("cnpj" in arena, false);
+  });
+
+  it("sem CNPJ no formulário, não cria doc de cadastro vazio", async () => {
+    const fake = new FakeFirestore();
+
+    const arenaId = await ensureManagedArena(db(fake), "uid1", {arenaName: "Arena CFC"});
+
+    assert.equal(fake.store.has(`arenas/${arenaId}/registration/data`), false);
+  });
+
+  it("ignora documento de tamanho impossível em vez de gravar lixo", async () => {
+    const fake = new FakeFirestore();
+
+    const arenaId = await ensureManagedArena(db(fake), "uid1", {
+      arenaName: "Arena CFC",
+      cpfCnpj: "1122233",
+    });
+
+    assert.equal(fake.store.has(`arenas/${arenaId}/registration/data`), false);
+  });
+
+  it("arena que já existe não tem o cadastro sobrescrito pelo retry", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc("arenas/existente", {id: "existente", name: "Arena CFC", managerUserId: "uid1"});
+    fake.seedDoc("arenas/existente/registration/data", {
+      cpfCnpj: "11222333000181",
+      razaoSocial: "Arena CFC Ltda",
+    });
+
+    await ensureManagedArena(db(fake), "uid1", {arenaName: "Arena CFC", cpfCnpj: "52998224725"});
+
+    assert.deepEqual(fake.store.get("arenas/existente/registration/data"), {
+      cpfCnpj: "11222333000181",
+      razaoSocial: "Arena CFC Ltda",
+    });
+  });
+});

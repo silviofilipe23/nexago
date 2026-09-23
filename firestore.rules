@@ -1040,6 +1040,23 @@ service cloud.firestore {
       );
       allow write: if false;
     }
+    // Dados cadastrais da empresa: CNPJ/CPF, razão social, inscrição municipal. Mora em
+    // subcoleção porque `arenas/{arenaId}` é `allow read: if true` — CNPJ ainda vá lá, mas
+    // arena de autônomo cadastra CPF, e razão social de MEI é o nome completo da pessoa.
+    // Escrita só do dono, pela mesma razão que congela `payoutPixKey` para o resto da
+    // equipe: identidade fiscal é do titular, não de quem tem a área 'perfil' liberada.
+    match /arenas/{arenaId}/registration/{docId} {
+      allow read: if request.auth != null && (
+        isArenaOwner(arenaId) ||
+        isAdmin() ||
+        isSuperAdmin()
+      );
+      allow write: if request.auth != null && (
+        isArenaOwner(arenaId) ||
+        isAdmin() ||
+        isSuperAdmin()
+      );
+    }
     match /arenas/{arenaId}/asaas/{docId} {
       allow read: if request.auth != null && (
         get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||

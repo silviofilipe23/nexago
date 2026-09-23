@@ -413,6 +413,7 @@ export {trackArenaContactClick} from "./arena-contact-leads";
 
 export {completeCoachSignup} from "./coach-signup";
 export {completeArenaSignup} from "./arena-signup";
+export {geocodeAddress} from "./geocode-address";
 export {
   inviteArenaStaff,
   acceptArenaStaffInvite,

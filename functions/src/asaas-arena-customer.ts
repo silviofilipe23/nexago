@@ -1,4 +1,4 @@
-import {FieldValue, getFirestore} from "firebase-admin/firestore";
+import {FieldValue, getFirestore, type Firestore} from "firebase-admin/firestore";
 import {getAuth} from "firebase-admin/auth";
 import {
   fetchAsaas,
@@ -17,18 +17,29 @@ function arenaCustomerExternalRef(arenaId: string): string {
 
 /**
  * Resolve o CNPJ/CPF da arena para o cadastro no Asaas:
- * request → doc da arena (`cpfCnpj`/`cnpj`) → doc do gestor.
+ * request → cadastro da arena (`registration/data`) → doc da arena (`cpfCnpj`/`cnpj`,
+ * campos de arena anterior à tela de dados cadastrais) → doc do gestor.
  * Lança `ARENA_CPF_CNPJ_REQUIRED` se não encontrar um documento válido.
  */
 export async function resolveArenaCpfCnpj(
   arenaId: string,
   managerUid: string,
   fromRequest?: string,
+  firestore?: Firestore,
 ): Promise<string> {
   const fromReq = normalizeCpfCnpj(fromRequest);
   if (isValidCpfCnpj(fromReq)) return fromReq;
 
-  const db = getFirestore();
+  const db = firestore ?? getFirestore();
+
+  // Fonte oficial desde a tela de dados cadastrais. Fica em subcoleção de leitura restrita
+  // porque o doc da arena é público (`allow read: if true` em firestore.rules).
+  const registration = (
+    await db.collection("arenas").doc(arenaId).collection("registration").doc("data").get()
+  ).data() ?? {};
+  const fromRegistration = normalizeCpfCnpj(registration.cpfCnpj as string | undefined);
+  if (isValidCpfCnpj(fromRegistration)) return fromRegistration;
+
   const arenaRaw = (await db.collection("arenas").doc(arenaId).get()).data() ?? {};
   const fromArena = normalizeCpfCnpj(
     (arenaRaw.cpfCnpj as string | undefined) ??

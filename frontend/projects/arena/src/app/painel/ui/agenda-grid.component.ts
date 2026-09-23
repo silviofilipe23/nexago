@@ -148,10 +148,18 @@ const MIN_COURT_COL_PX = 120;
          quanto o conteúdo real (soma das quadras) em vez de só a largura do viewport — sem
          isso a caixa fica estreita demais e o fundo opaco "acaba" no meio da rolagem
          horizontal, revelando os blocos por baixo (medido: borda direita ia a -75px em
-         scrollLeft 400 antes deste ajuste). */
+         scrollLeft 400 antes deste ajuste).
+         'z-index: 7', acima de '.time-gutter' (6): os dois só têm 'top'/'left' como offset
+         de sticky, então nenhum escapa da ordem normal de empilhamento — empate de z-index
+         entre irmãos do mesmo contexto resolve por ordem de árvore, e '.time-gutter' (dentro
+         de '.grid', que vem DEPOIS de '.court-header' no DOM) ganharia o empate se os dois
+         ficassem em 6. Sem este degrau a mais, a caixa de altura cheia da gutter (que rola
+         pra cima junto com '.grid') pinta por cima da faixa do cabeçalho sticky assim que
+         scrollTop > 0 — medido com 'elementsFromPoint' no canto (x=20, dentro da faixa do
+         cabeçalho): o topo virava 'hour-label' em vez do cabeçalho. */
       position: sticky;
       top: 0;
-      z-index: 6;
+      z-index: 7;
       background: var(--nx-surface-0);
       width: max-content;
       min-width: 100%;
@@ -224,7 +232,11 @@ const MIN_COURT_COL_PX = 120;
        '.hour-line'/'.columns'/'.block' (todos z-index automático) E acima de '.now-line'
        (z-index 5) — a barra "agora" passa a se mover na horizontal junto com a grade desde
        que existe rolagem, então sem isto ela atravessa por cima do rótulo de hora fixado a
-       partir de qualquer scrollLeft > 0. */
+       partir de qualquer scrollLeft > 0. Fica ABAIXO de '.court-header' (z-index 7): a
+       ordem que o layout precisa é cabeçalho > gutter > now-line, e a caixa de altura cheia
+       da gutter rola por baixo da faixa do cabeçalho sticky ao rolar verticalmente — sem
+       este degrau, ela pintaria por cima e cortaria um 'hour-label' dentro do canto
+       congelado. */
     .time-gutter {
       position: sticky;
       left: 0;
@@ -258,7 +270,12 @@ const MIN_COURT_COL_PX = 120;
 
     /* Irmã real de '.time-gutter' no fluxo do flex (não mais overlay 'position: absolute')
        — é o que dá a '.grid' largura intrínseca de verdade; um overlay absoluto não
-       contribui largura nenhuma pro bloco contentor (ver comentário de '.grid' acima). */
+       contribui largura nenhuma pro bloco contentor (ver comentário de '.grid' acima). A
+       causa do bug era o 'position: absolute', não o valor de 'flex' — 'flex: 1 1 auto' e o
+       atalho 'flex: 1' ('flex-basis: 0%') dão o mesmo resultado aqui (medido: mesmo
+       scrollWidth estreito e mesma largura de coluna larga nos dois), porque o §9.9.1 do
+       spec de Flexbox já leva os fatores de flex em conta no cálculo do tamanho intrínseco
+       do container. */
     .columns {
       flex: 1 1 auto;
       display: flex;

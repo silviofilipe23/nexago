@@ -134,12 +134,21 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
        o bloco contentor da coluna de horário fixada (abaixo) fica estreito demais pro
        'position: sticky' segurar até o fim do curso. Medido: sem isto, '.time-gutter' e
        '.gutter-spacer' ficavam em x=0 só até ~26% do curso e terminavam em -776, numa grade
-       de 1382px de conteúdo rolável dentro de 310px de viewport. */
+       de 1382px de conteúdo rolável dentro de 310px de viewport.
+       'z-index: 7', acima de '.time-gutter' (6): os dois só têm 'top'/'left' como offset de
+       sticky, então nenhum escapa da ordem normal de empilhamento — empate de z-index entre
+       irmãos do mesmo contexto resolve por ordem de árvore, e '.time-gutter' (dentro de
+       '.grid', que vem DEPOIS de '.header' no DOM) ganharia o empate se os dois ficassem em
+       6. Sem este degrau, a caixa de altura cheia da gutter (que rola pra cima junto com
+       '.grid') pinta por cima da faixa do cabeçalho sticky assim que scrollTop > 0 — as duas
+       áreas SE SOBREPÕEM nesse momento, não são "áreas diferentes da tela". Medido com
+       'elementsFromPoint' no canto (x=20, dentro da faixa do cabeçalho, ~45px de altura
+       aqui): o topo virava 'hour-label' em vez do cabeçalho. */
     .header {
       display: flex;
       position: sticky;
       top: 0;
-      z-index: 6;
+      z-index: 7;
       background: var(--nx-surface-0);
       padding-bottom: 10px;
       width: max-content;
@@ -213,8 +222,11 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
        '.hour-line'/'.days'/'.block' (todos z-index automático) E acima de '.now-line'
        (z-index 5) — a barra "agora" se move na horizontal junto com a grade, então sem isto
        ela atravessa por cima do rótulo de hora fixado a partir de qualquer scrollLeft > 0.
-       Abaixo de '.header' (z-index 6), que nunca se sobrepõe à gutter de qualquer forma
-       (áreas diferentes da tela). */
+       Fica ABAIXO de '.header' (z-index 7): a ordem que o layout precisa é cabeçalho >
+       gutter > now-line, e a caixa de altura cheia da gutter rola por baixo da faixa do
+       cabeçalho sticky ao rolar verticalmente — sem este degrau, ela pintaria por cima e
+       cortaria um 'hour-label' dentro do canto congelado (a faixa do cabeçalho aqui é mais
+       alta, ~45px, então o corte varre uma região maior conforme o scroll muda). */
     .time-gutter {
       position: sticky;
       left: 0;
@@ -247,7 +259,9 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
     }
 
     /* Irmã real de '.time-gutter' no fluxo do flex (não mais overlay 'position: absolute') —
-       ver comentário de '.grid' acima. */
+       ver comentário de '.grid' acima. A causa do bug era o 'position: absolute', não o
+       valor de 'flex': 'flex: 1 1 auto' e o atalho 'flex: 1' dão o mesmo resultado aqui
+       (mesmo raciocínio do '.columns' em agenda-grid.component.ts). */
     .days {
       flex: 1 1 auto;
       display: flex;

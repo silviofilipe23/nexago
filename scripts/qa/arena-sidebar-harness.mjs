@@ -195,6 +195,22 @@ const shellCssOut = [
   '* { box-sizing: border-box; }',
   'html, body { margin: 0; }',
   'body { background: var(--nx-bg); color: var(--nx-text); font-family: var(--nx-font-ui); }',
+  '',
+  '/* Desliga toda animacao/transicao (drawer.component.ts anima a entrada',
+  '   do painel via @keyframes -- ar-drawer-in/ar-drawer-in-left, 240ms). So',
+  '   encurtar animation-duration NAO resolve: o relogio da animacao e',
+  '   movido a frame renderizado, nao a tempo de parede, e o motor de',
+  '   preview usado para medir nao entrega frame de forma confiavel (rAF',
+  '   perto de zero enquanto a pagina nao esta em foco/pintando) -- mesmo',
+  '   com 0.01ms de duracao, a animacao fica presa no frame inicial',
+  '   (transform: translateX(-100%), painel inteiro fora da tela) ate um',
+  '   screenshot forcar um paint real. animation:none tira a animacao do',
+  '   jogo de vez -- o elemento so usa o estilo BASE (sem transform nenhum),',
+  '   que ja e o estado final correto, sem depender de nenhum frame. O app',
+  '   real ja neutraliza animacao para prefers-reduced-motion (ver',
+  '   styles.scss); aqui fica incondicional, porque o harness so precisa do',
+  '   estado final da geometria, nunca da transicao visual.',
+  '*, *::before, *::after { animation: none !important; transition: none !important; }',
 ].join('\n');
 
 writeFileSync(path.join(outDir, 'shell.css'), shellCssOut);
@@ -369,15 +385,29 @@ const harnessJs = `
     bottomNavEl.innerHTML = html;
   }
 
+  // O atributo hidden sozinho NAO basta aqui: .topbar/.sidebar/.bottom-nav/
+  // .scrim (CSS real, extraido do shell/drawer) declaram o proprio display
+  // (flex/flex/grid/flex) -- regra de autor, mesma especificidade do UA
+  // stylesheet [hidden]{display:none}, e origem de autor sempre ganha da
+  // origem UA (a ordem no cascade nao decide isso). Resultado: el.hidden =
+  // true nao escondia NADA -- os quatro contineres continuavam ocupando
+  // layout e pintando por cima uns dos outros mesmo "escondidos", inclusive
+  // o drawer aberto permanentemente sobre a topbar. Estilo inline sempre
+  // ganha de regra de classe (curto de !important), entao forca aqui.
+  function setVisible(el, show) {
+    el.hidden = !show;
+    el.style.display = show ? '' : 'none';
+  }
+
   function render() {
     var flags = computeViewportFlags();
     hostEl.classList.toggle('compact', flags.isCompact);
     hostEl.classList.toggle('phone', flags.isPhone);
 
-    topbarEl.hidden = !flags.isCompact;
-    sidebarEl.hidden = flags.isCompact;
-    bottomNavEl.hidden = !flags.isPhone;
-    drawerScrimEl.hidden = !(flags.isCompact && state.drawerOpen);
+    setVisible(topbarEl, flags.isCompact);
+    setVisible(sidebarEl, !flags.isCompact);
+    setVisible(bottomNavEl, flags.isPhone);
+    setVisible(drawerScrimEl, flags.isCompact && state.drawerOpen);
 
     var tree = navTreeHtml();
     if (flags.isCompact) {
@@ -390,6 +420,17 @@ const harnessJs = `
 
     if (flags.isCompact) renderTopbar(); else topbarEl.innerHTML = '';
     if (flags.isPhone) renderBottomNav(); else bottomNavEl.innerHTML = '';
+
+    // Forca reflow sincrono (leitura de offsetHeight sempre invalida o
+    // layout cacheado e recalcula na hora). Sem isto, medido ao vivo que o
+    // motor deste preview deixa o keyframe do drawer.component.ts preso no
+    // frame inicial (transform: translateX(+-100%), painel inteiro fora da
+    // tela) mesmo com animation:none !important no reset do harness --
+    // nem o screenshot manual bastava sozinho em todo caso testado. Ler
+    // offsetHeight (dispara layout de verdade, ao contrario de so chamar
+    // getComputedStyle) resolveu de forma reproduzivel nos testes -- ver
+    // Nota de metodologia no procedimento.
+    void hostEl.offsetHeight;
 
     return flags;
   }
@@ -494,7 +535,17 @@ const harnessJs = `
     }
     var hit = document.elementFromPoint(cx, cy);
     if (!hit) return { reachable: false, reason: 'elementFromPoint nao retornou nada' };
-    if (hit === el || el.contains(hit) || hit.contains(el)) return { reachable: true, reason: null };
+    // De proposito SO hit===el ou el.contains(hit) (o ponto pintou um FILHO
+    // do alvo, ex.: o svg/span por dentro de um nav-item -- ainda e o alvo).
+    // NAO hit.contains(el): isso aceitava qualquer ANCESTRAL estrutural como
+    // prova de alcance, e ancestralidade nao e pintura -- um item recortado
+    // pelo overflow de um antepassado, fora da regiao visivel, devolve
+    // html (ou o proprio ancestral que clipa) no elementFromPoint, e
+    // html.contains(item) e sempre true mesmo com o item invisivel. Cair
+    // para "inalcancavel" nesse caso e o erro seguro: um falso-negativo aqui
+    // vira uma linha extra em obscured pra conferir a mao; um falso-positivo
+    // passaria em silencio, que e o bug que essa funcao existe pra pegar.
+    if (hit === el || el.contains(hit)) return { reachable: true, reason: null };
     return { reachable: false, reason: 'coberto por ' + describe(hit) };
   }
 
@@ -504,6 +555,21 @@ const harnessJs = `
   function measureTouchTargets() {
     var pointerCoarse = matchMedia('(pointer: coarse)').matches;
     var els = Array.prototype.slice.call(document.querySelectorAll(TOUCH_TARGET_SELECTOR));
+    // Guarda no mesmo espirito da extracao de NAV_ITEMS: se o seletor sair de
+    // sincronia com o shell (classe renomeada em panel-shell.component.ts
+    // sem espelhar em TOUCH_TARGET_SELECTOR), esta funcao nao pode devolver
+    // silenciosamente "zero alvos, zero violacoes" -- isso leria como
+    // asserção 4 verde para sempre, medindo nada. Em qualquer estado
+    // renderizado do shell (sidebar OU drawer aberto OU so a topbar/
+    // bottom-nav com o drawer fechado) sempre existe pelo menos um elemento
+    // que casa com o seletor -- zero aqui e sinal de desalinhamento, nao um
+    // estado valido.
+    if (els.length === 0) {
+      throw new Error(
+        'measureTouchTargets: TOUCH_TARGET_SELECTOR nao casou nenhum elemento neste estado ' +
+          '-- o seletor provavelmente saiu de sincronia com panel-shell.component.ts.',
+      );
+    }
     var visible = [];
     var obscured = [];
     for (var i = 0; i < els.length; i++) {
@@ -519,6 +585,10 @@ const harnessJs = `
     }
     var undersized = [];
     for (var j = 0; j < visible.length; j++) {
+      // Tolerancia de 0.25px: arredondamento subpixel do layout engine
+      // (getBoundingClientRect devolve fracoes de pixel; comparar igualdade
+      // exata contra 44/8 flutuaria por ruido de renderizacao, nao por
+      // geometria real).
       if (visible[j].r.height < 44 - 0.25) {
         undersized.push({ target: describe(visible[j].el), height: Math.round(visible[j].r.height * 100) / 100 });
       }
@@ -535,8 +605,9 @@ const harnessJs = `
       }
     }
     return {
-      pointerCoarse: pointerCoarse, targetCount: visible.length, obscured: obscured,
-      undersized: undersized, gapViolations: gapViolations,
+      pointerCoarse: pointerCoarse, targetCount: visible.length,
+      reachableTargets: visible.map(function (v) { return describe(v.el); }),
+      obscured: obscured, undersized: undersized, gapViolations: gapViolations,
     };
   }
 
@@ -561,7 +632,7 @@ const harnessJs = `
   // um. Um item so e "inalcan\\u00e7avel de verdade" se nunca aparecer em
   // NENHUM desses estados.
   function sweepRole(role) {
-    var prevRole = state.role, prevOpen = state.openGroup, prevDrawer = state.drawerOpen, prevActive = state.activeId;
+    var prevRole = state.role, prevOpen = state.openGroup, prevActive = state.activeId;
     state.role = role;
     state.activeId = '__none__';
 
@@ -572,7 +643,20 @@ const harnessJs = `
     for (var i = 0; i < sections.length; i++) if (sections[i].group !== null) groups.push(sections[i].group);
 
     var flags = computeViewportFlags();
-    if (flags.isCompact) state.drawerOpen = true;
+    // Largura compacta precisa do drawer aberto pra medir o .nav -- mas abrir
+    // aqui dispara a animacao de entrada de drawer.component.ts
+    // (ar-drawer-in-left, 240ms), que so assenta (transform: none) depois de
+    // tempo de PAREDE real passar -- medido ao vivo que nem reflow sincrono
+    // (offsetHeight) nem screenshot isolado bastam, so esperar de verdade
+    // (computer wait). Se o chamador ja abriu e esperou por fora
+    // (window.arenaHarness.openDrawer() + wait real antes desta chamada),
+    // reusa sem reabrir -- reabrir de novo destruiria o assentamento que já
+    // aconteceu. So forca abrir aqui se ainda estiver fechado (chamada
+    // avulsa, sem o cuidado externo -- aceita que o primeiro estado pode
+    // medir com o transform preso; isso so contamina elementFromPoint
+    // /alcancabilidade, nunca scrollHeight/clientHeight nem altura/gap de
+    // retangulo, que nao dependem de X).
+    if (flags.isCompact && !state.drawerOpen) { state.drawerOpen = true; render(); }
 
     var seen = {};
     var perGroup = [];
@@ -597,15 +681,41 @@ const harnessJs = `
       perGroup.push({ state: statesToTry[s], nav: navMetrics, touch: measureTouchTargets() });
     }
 
+    // Passada extra com o drawer FECHADO -- o estado padrao real, antes de
+    // qualquer interacao. O loop acima deixa o drawer aberto o tempo todo
+    // (necessario pra medir o .nav), o que esconde .nav-trigger/
+    // .topbar-avatar (cobertos pelo brand do proprio drawer) e .bottom-slot
+    // (por tras do scrim) em TODA celula com isCompact -- as tres classes
+    // nunca eram medidas de verdade sem esta passada. So faz sentido em
+    // largura compacta: em desktop nao existe topbar/drawer/bottom-nav, e o
+    // sidebar ja e coberto pelos estados de grupo acima.
+    if (flags.isCompact) {
+      state.drawerOpen = false;
+      render();
+      perGroup.push({ state: 'drawer-fechado', nav: null, touch: measureTouchTargets() });
+    }
+
     var missing = expected.filter(function (id) { return !seen[id]; });
 
-    state.role = prevRole; state.openGroup = prevOpen; state.drawerOpen = prevDrawer; state.activeId = prevActive;
+    // Restaura cargo/grupo/rota ativa (sem custo de animacao) mas NAO
+    // reabre o drawer -- ele fica fechado (a passada acima ja fechou, e
+    // fechar nunca anima). Reabrir aqui so pra "deixar como estava"
+    // disparia a MESMA animacao sem ninguem esperar ela assentar,
+    // contaminando a proxima leitura (do outro cargo, ou de quem chamar
+    // isto em seguida). Quem for medir o proximo estado reabre por conta
+    // propria com o mesmo cuidado (openDrawer() + espera real).
+    state.role = prevRole; state.openGroup = prevOpen; state.activeId = prevActive;
     render();
 
     return { role: role, expectedCount: expected.length, expected: expected, missing: missing, perGroup: perGroup };
   }
 
-  function fullReport() {
+  // sweptDono/sweptRecepcao: resultados de sweepRole() ja calculados por
+  // fora (ver openDrawer() + espera real no procedimento, pra largura
+  // compacta). Omitidos, chama sweepRole() na hora -- correto e suficiente
+  // pra largura NAO compacta (sem drawer, sem animacao pra assentar) e util
+  // pra uma chamada avulsa que aceita medir com o transform ainda preso.
+  function fullReport(sweptDono, sweptRecepcao) {
     var flags = computeViewportFlags();
     return {
       viewport: { width: window.innerWidth, height: window.innerHeight },
@@ -613,21 +723,29 @@ const harnessJs = `
       pointerCoarse: matchMedia('(pointer: coarse)').matches,
       pageOverflow: measurePageOverflow(),
       inputFontSize: measureInputFontSize(),
-      dono: sweepRole('dono'),
-      recepcao: sweepRole('recepcao'),
+      dono: sweptDono || sweepRole('dono'),
+      recepcao: sweptRecepcao || sweepRole('recepcao'),
     };
   }
 
   // Condensa fullReport() num veredito por assercao -- pensado para chamar
   // uma vez por viewport (resize_window + esta funcao) e montar a tabela do
   // procedimento sem reprocessar o JSON gigante a mao a cada caso.
-  function summarize() {
-    var full = fullReport();
+  function summarize(sweptDono, sweptRecepcao) {
+    var full = fullReport(sweptDono, sweptRecepcao);
     var a1Violations = [];
     var a2Missing = { dono: full.dono.missing, recepcao: full.recepcao.missing };
     var undersized = {};
     var gaps = {};
     var offscreen = {};
+    // Uniao de todo alvo REALMENTE medido (alcancavel, nao obscurecido) em
+    // qualquer estado varrido, os dois cargos -- o numero que denuncia o
+    // buraco de cobertura: se um seletor sair de sincronia e passar a casar
+    // menos coisa (ou nada, o que a guarda de measureTouchTargets() ja pega
+    // primeiro), esta contagem cai, visivel na tabela em vez de escondida
+    // dentro de um "assertion4_touchTargetsOk: true" que na verdade mediu
+    // zero.
+    var measuredTargets = {};
 
     ['dono', 'recepcao'].forEach(function (role) {
       full[role].perGroup.forEach(function (g) {
@@ -636,6 +754,9 @@ const harnessJs = `
             role: role, state: g.state, scrollHeight: g.nav.scrollHeight,
             clientHeight: g.nav.clientHeight, overflowY: g.nav.overflowY,
           });
+        }
+        if (g.touch) {
+          g.touch.reachableTargets.forEach(function (t) { measuredTargets[t] = true; });
         }
         // O alvo de 44px/8px so vale "sob pointer: coarse" (a asserção 4 é
         // explicita nisso). Sem coarse, 30/34px É o tamanho correto (mouse/
@@ -661,6 +782,8 @@ const harnessJs = `
       offscreenList.push({ target: key, reasons: Object.keys(offscreen[key]) });
     }
 
+    var measuredTargetsList = Object.keys(measuredTargets).sort();
+
     return {
       viewport: full.viewport,
       pointerCoarse: full.pointerCoarse,
@@ -674,6 +797,8 @@ const harnessJs = `
       assertion4_undersized: undersized,
       assertion4_gapViolations: gaps,
       assertion4_offscreenChrome: offscreenList,
+      assertion4_targetsMeasuredCount: measuredTargetsList.length,
+      assertion4_targetsMeasured: measuredTargetsList,
       assertion5_inputFontSize: full.inputFontSize.fontSize,
       assertion5_ok: !full.pointerCoarse || parseFloat(full.inputFontSize.fontSize) >= 16,
     };
@@ -694,6 +819,10 @@ const harnessJs = `
       render: render,
       setRole: function (role) { document.getElementById('qaRole').value = role; state.role = role; state.openGroup = null; render(); },
       openGroup: function (g) { state.openGroup = g; render(); },
+      // Abre o drawer sem medir nada -- use com uma espera real (computer
+      // wait) antes de sweepRole()/summary() em largura compacta, pra dar
+      // tempo da animacao de entrada assentar (ver nota em sweepRole()).
+      openDrawer: function () { state.drawerOpen = true; render(); },
       fullReport: fullReport,
       summary: summarize,
       sweepRole: sweepRole,
@@ -718,7 +847,7 @@ const indexHtml = `<!doctype html>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Arena sidebar harness</title>
-<link rel="stylesheet" href="shell.css" />
+<style id="shell-css">__SHELL_CSS__</style>
 <style>
   .qa-panel {
     max-width: 100%;
@@ -770,14 +899,40 @@ const indexHtml = `<!doctype html>
   </div>
 
   <script>window.__ARENA_NAV_DATA__ = __NAV_DATA_JSON__;</script>
-  <script src="harness.js"></script>
+  <script>__HARNESS_JS__</script>
 </body>
 </html>
 `;
 
-const finalHtml = indexHtml
-  .replace('__NAV_DATA_JSON__', navDataJson)
-  .replace('__GENERATED_AT__', navData.generatedAt);
+// shell.css e harness.js.mjs sao escritos como arquivos separados so pra
+// inspecao/diff isolado (pedido no procedimento) -- o index.html NAO os
+// referencia por <link>/<script src>, e sim EMBUTE o conteudo direto via
+// <style>/<script> inline. Motivo: medido ao vivo que o servidor estatico
+// usado por preview_start ("serve") pode devolver conteudo desatualizado
+// pra uma re-escrita recente do MESMO caminho -- confirmado comparando
+// document.styleSheets (parado numa versao antiga, contagem de regra
+// menor) contra um fetch() manual pro mesmo href (contando a versao nova
+// certa). Um query string de cache-busting por geracao NAO resolveu (o
+// sintoma se repetiu identico com a URL trocada); inline elimina a
+// requisicao HTTP separada por completo, e com ela a classe inteira desse
+// problema -- cada `node scripts/qa/arena-sidebar-harness.mjs` seguido de
+// um reload de verdade no navegador sempre reflete o gerado por ultimo.
+// split/join, nao .replace(str, str) -- .replace interpreta sequencias
+// "$&"/"$1"/... na STRING de troca; com CSS/JS de conteudo real (nao
+// controlado por nos) um "$" acidental corromperia a saida em silencio.
+function inject(html, placeholder, value) {
+  return html.split(placeholder).join(value);
+}
+
+const finalHtml = inject(
+  inject(
+    inject(inject(indexHtml, '__NAV_DATA_JSON__', navDataJson), '__GENERATED_AT__', navData.generatedAt),
+    '__SHELL_CSS__',
+    shellCssOut,
+  ),
+  '__HARNESS_JS__',
+  harnessJs,
+);
 
 writeFileSync(path.join(outDir, 'index.html'), finalHtml);
 writeFileSync(path.join(outDir, 'harness.js'), harnessJs);

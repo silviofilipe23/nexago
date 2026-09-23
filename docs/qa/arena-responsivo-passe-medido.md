@@ -36,20 +36,28 @@ node scripts/qa/arena-sidebar-harness.mjs "$TMPDIR/arena-qa"
 ```
 
 Saída em `<dir-de-saída>/`:
-- `index.html` — a página do harness (marcação do shell + painel de QA);
+- `index.html` — a página do harness **auto-contida**: CSS e JS embutidos
+  via `<style>`/`<script>` inline, não `<link>`/`<script src>` (motivo na
+  nota de metodologia, item 8) — é o único arquivo que o navegador
+  realmente carrega;
 - `shell.css` — CSS global compilado + CSS real do shell + CSS real do drawer,
-  concatenados (útil para diff/inspeção isolada);
-- `harness.js` — lógica cliente: `canSee`, `buildNavSections`, `isOpen`,
-  `bottomItems` são portas 1:1 das funções reais de `panel-nav.model.ts` /
-  `panel-shell.component.ts` — mesmo algoritmo, dado extraído do fonte a cada
-  geração (não copiado à mão);
+  concatenados, escrito à parte só para diff/inspeção isolada (o `index.html`
+  não o referencia);
+- `harness.js` — mesmo conteúdo que vai embutido no `index.html`, também
+  escrito à parte para diff/inspeção. Lógica cliente: `canSee`,
+  `buildNavSections`, `isOpen`, `bottomItems` são portas 1:1 das funções
+  reais de `panel-nav.model.ts` / `panel-shell.component.ts` — mesmo
+  algoritmo, dado extraído do fonte a cada geração (não copiado à mão);
 - `nav-data.json` — os `NAV_ITEMS` reais extraídos de `panel-nav.model.ts` +
   as áreas do cargo `recepcao` extraídas de `arena-roles.model.ts`, em JSON.
 
 O gerador falha alto (com mensagem clara) se algum arquivo-fonte não existir,
 se a extração de CSS não achar o marcador `styles: \`...\``, ou se a extração
 de `NAV_ITEMS` não casar nenhum item — para nunca gerar um harness
-silenciosamente desalinhado do componente real.
+silenciosamente desalinhado do componente real. `measureTouchTargets()`
+(dentro do harness) tem a mesma guarda: se `TOUCH_TARGET_SELECTOR` não casar
+nenhum elemento num estado renderizado, lança erro em vez de devolver "zero
+alvos, zero violações" em silêncio (item 5 da nota de metodologia).
 
 ### Fidelidade — o que o harness reproduz e o que não
 
@@ -84,12 +92,16 @@ diretamente (o preview interno precisa do handshake do `preview_start` para
 
 ```
 preview_start({ name: "arena-harness" })
-navigate("http://localhost:4398/<subpasta-do-harness>/")   // barra final obrigatória:
-                                                             // sem ela, "serve" resolve
-                                                             // o index.html mas os <link>/
-                                                             // <script> relativos saem
-                                                             // pedidos na raiz do site
+navigate("http://localhost:4398/<subpasta-do-harness>/")
 ```
+
+Depois de **regenerar** o harness (rodar o script de novo sobre o mesmo
+diretório), **recarregue a página** (`navigate` de novo, não só o resize) —
+o servidor estático usado aqui pode devolver `304 Not Modified` pra uma
+reescrita recente do mesmo caminho, e como CSS/JS agora vão embutidos no
+próprio `index.html` (não mais em arquivos `<link>`/`<script src>`
+separados), um reload comum já basta para pegar a versão nova (ver nota de
+metodologia, item 8).
 
 ## A matriz
 
@@ -101,7 +113,43 @@ navigate("http://localhost:4398/<subpasta-do-harness>/")   // barra final obriga
 Por combinação, o harness varre **todos os estados de grupo alcançáveis**
 para cada cargo (cada grupo aberto sozinho, mais o estado "tudo fechado") —
 não só o estado inicial — porque só um grupo fica aberto por vez e o pior
-caso de altura de conteúdo depende de qual grupo está aberto.
+caso de altura de conteúdo depende de qual grupo está aberto. Em largura
+compacta, varre também um estado extra com o **drawer fechado** — o padrão
+real antes de qualquer interação — pra medir `.nav-trigger`/`.topbar-avatar`/
+`.bottom-slot`, que ficam permanentemente cobertos pelo drawer enquanto ele
+está aberto (ver "Nota de metodologia", item 4).
+
+### Procedimento em largura compacta (< 900px): abrir o drawer exige esperar um screenshot
+
+`drawer.component.ts` anima a entrada do painel (`ar-drawer-in`/
+`ar-drawer-in-left`, 240ms). Medido ao vivo que essa animação **não
+avança** nem com `animation-duration` zerado nem com reflow síncrono
+forçado (`offsetHeight`) — só com tempo de **parede real** passando, e só é
+"lida" pelo motor de layout quando um `screenshot` força um paint de
+verdade (ver item 7 da nota de metodologia). Sem isso, o painel do drawer
+mede com `transform: translateX(±100%)` ainda aplicado — fora da tela —
+corrompendo qualquer alcançabilidade baseada em `elementFromPoint` no mesmo
+instante em que o drawer abre.
+
+Por isso, em qualquer largura compacta, a sequência tem de ser:
+
+```js
+window.arenaHarness.openDrawer();     // 1. abre (dispara a animação)
+// 2. computer{action:"screenshot"} — força o paint que assenta o transform
+window.arenaHarness.sweepRole('dono');       // 3. mede (drawer já assentado)
+window.arenaHarness.openDrawer();            // 4. reabre — sweepRole fecha o
+                                              //    drawer na própria limpeza
+// 5. computer{action:"screenshot"} de novo
+window.arenaHarness.sweepRole('recepcao');   // 6. mede o segundo cargo
+```
+
+`sweepRole()` **não reabre o drawer sozinho ao restaurar estado** de
+propósito — reabrir sem um screenshot no meio contaminaria a leitura
+seguinte com o mesmo problema. `window.arenaHarness.summary(sweepDono,
+sweepRecepcao)` aceita os dois resultados já calculados, pra não precisar
+rodar `sweepRole` de novo dentro da função de resumo. Em largura NÃO
+compacta (sidebar direta, sem drawer/animação) `window.arenaHarness.summary()`
+sem argumentos basta — é o que as 10 combinações 1024/1440 usaram.
 
 ## Asserções (medidas com `getBoundingClientRect()` / `getComputedStyle()`)
 
@@ -124,38 +172,55 @@ não presumido pela largura — ver nota de metodologia. Nas 6 larguras da
 matriz, só 320/375/414 vieram com `pointer: coarse` verdadeiro no preview
 (explicado abaixo).
 
-| Largura × Altura | pointerCoarse | 1. nav não corta mudo | 2. todo item alcançável | 3. sem scroll horizontal | 4. alvos de toque ≥44/8px | 5. input ≥16px |
-|---|---|---|---|---|---|---|
-| 320×633  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 320×665  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 320×760  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 320×820  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 320×945  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 375×633  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 375×665  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 375×760  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 375×820  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 375×945  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 414×633  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 414×665  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 414×760  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 414×820  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 414×945  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 768×633  | **false** | ✅ | ✅ | ✅ | N/A (ver nota) | N/A |
-| 768×665  | false | ✅ | ✅ | ✅ | N/A | N/A |
-| 768×760  | false | ✅ | ✅ | ✅ | N/A | N/A |
-| 768×820  | false | ✅ | ✅ | ✅ | N/A | N/A |
-| 768×945  | false | ✅ | ✅ | ✅ | N/A | N/A |
-| 1024×633 | false | ✅ | ✅ | ✅ | N/A | N/A |
-| 1024×665 | false | ✅ | ✅ | ✅ | N/A | N/A |
-| 1024×760 | false | ✅ | ✅ | ✅ | N/A | N/A |
-| 1024×820 | false | ✅ | ✅ | ✅ | N/A | N/A |
-| 1024×945 | false | ✅ | ✅ | ✅ | N/A | N/A |
-| 1440×633 | false | ✅ | ✅ | ✅ | N/A | N/A |
-| 1440×665 | false | ✅ | ✅ | ✅ | N/A | N/A |
-| 1440×760 | false | ✅ | ✅ | ✅ | N/A | N/A |
-| 1440×820 | false | ✅ | ✅ | ✅ | N/A | N/A |
-| 1440×945 | false | ✅ | ✅ | ✅ | N/A | N/A |
+A coluna "alvos medidos" é `assertion4_targetsMeasuredCount` — a união de
+todo alvo **alcançável de verdade** (não obscurecido, não fora do viewport)
+visto em qualquer estado varrido, os dois cargos. É o número que a guarda
+do item 5 da nota de metodologia protege: se um seletor sair de sincronia
+com o shell, ele cai — visível aqui, não escondido atrás de um
+`assertion4_touchTargetsOk: true` que na verdade mediu zero.
+
+| Largura × Altura | pointerCoarse | alvos medidos | 1. nav não corta mudo | 2. todo item alcançável | 3. sem scroll horizontal | 4. alvos de toque ≥44/8px | 5. input ≥16px |
+|---|---|---|---|---|---|---|---|
+| 320×633  | true  | 35 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 320×665  | true  | 35 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 320×760  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 320×820  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 320×945  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 375×633  | true  | 35 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 375×665  | true  | 35 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 375×760  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 375×820  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 375×945  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 414×633  | true  | 35 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 414×665  | true  | 35 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 414×760  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 414×820  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 414×945  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 768×633  | **false** | 31 | ✅ | ✅ | ✅ | N/A (ver nota) | N/A |
+| 768×665  | false | 31 | ✅ | ✅ | ✅ | N/A | N/A |
+| 768×760  | false | 31 | ✅ | ✅ | ✅ | N/A | N/A |
+| 768×820  | false | 31 | ✅ | ✅ | ✅ | N/A | N/A |
+| 768×945  | false | 31 | ✅ | ✅ | ✅ | N/A | N/A |
+| 1024×633 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
+| 1024×665 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
+| 1024×760 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
+| 1024×820 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
+| 1024×945 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
+| 1440×633 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
+| 1440×665 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
+| 1440×760 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
+| 1440×820 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
+| 1440×945 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
+
+**Antes do conserto do buraco de cobertura (item 4 da nota de metodologia),
+a contagem em 320/375/414 (compacto + toque) era só 7-9** — `.nav-trigger`,
+`.topbar-avatar` e `.bottom-slot` nunca entravam, porque o drawer ficava
+aberto o tempo todo durante a varredura e os três só existem alcançáveis
+com ele fechado. A contagem subir para 35-36 é a prova de que o buraco era
+real; nenhuma asserção ficou vermelha com a cobertura maior — o sistema
+não achou violação nova nos alvos que passaram a ser medidos (achado A já
+cobria os únicos dois que violavam, e ambos já estavam no conjunto medido
+antes).
 
 Asserções 1, 2 e 3: **verde em toda a matriz, para os dois cargos**, em
 **todos** os estados de grupo varridos (não só o inicial). Isto é exatamente
@@ -191,9 +256,11 @@ medido). Mas `.switcher`, `.switch-arena-link` e `.user-row` não usam
 `--ar-nav-item-h` — têm padding fixo (`.switch-arena-link { padding: 0 10px }`,
 `.user-row { padding-top: 10px }`) que nenhuma regra de `ar.touch` cobria.
 `.switcher` (a linha do nome da arena, logo acima) nunca apareceu como
-violação porque sua altura já passa de 44px por outro motivo (avatar de 28px
-+ padding), mas o **gap** entre ele e `.switch-arena-link` logo abaixo era só
-6px. `.user-row` ficava a só 1px do mínimo — o tipo de achado que só aparece
+violação porque sua altura mede **exatamente** 44px (avatar de 28px +
+padding de 7px×2 + borda de 1px×2 = 44 — coincidência de dimensionamento,
+não uma regra de toque cobrindo o seletor), na fronteira, não acima dela —
+mas o **gap** entre ele e `.switch-arena-link` logo abaixo era só 6px.
+`.user-row` ficava a só 1px do mínimo — o tipo de achado que só aparece
 medindo de verdade; deduzir do CSS não teria dado certeza do veredito.
 
 **Conserto** (`panel-shell.component.ts`, dentro do `@media (pointer: coarse)`
@@ -307,11 +374,16 @@ o modelo de layout do `.panel` agora arrisca regressão ali em troca de
 nenhum ganho medido. Registrado aqui como decisão, não como pendência em
 aberto.
 
-## Verificação (build + suíte, pós-conserto do achado A)
+## Verificação (build + suíte)
+
+Rodado depois de cada rodada de conserto — do achado A (mudança em
+`frontend/`) e, nesta rodada, dos buracos do próprio harness (mudança só em
+`scripts/qa/`, que não afeta build/suíte do Angular, mas rodado de novo por
+disciplina):
 
 ```
 $ cd frontend && npx ng build arena --configuration production
-Application bundle generation complete. [5.283 seconds]
+Application bundle generation complete. [5.130 seconds]
 ▲ [WARNING] bundle initial exceeded maximum budget. Budget 500.00 kB was not met by 256.87 kB with a total of 756.87 kB.
 EXIT: 0
 ```
@@ -320,10 +392,10 @@ erro, não relacionado a esta mudança (é CSS de dentro de um componente já ex
 
 ```
 $ npx ng test arena --watch=false --browsers=ChromeHeadless
-Chrome Headless 153.0.0.0 (Mac OS 10.15.7): Executed 182 of 182 SUCCESS (0.494 secs / 0.419 secs)
+Chrome Headless 153.0.0.0 (Mac OS 10.15.7): Executed 182 of 182 SUCCESS (0.368 secs / 0.325 secs)
 TOTAL: 182 SUCCESS
 ```
-182 — mesmo total de antes do conserto, zero `FAILED`.
+182 — mesmo total de antes, zero `FAILED`.
 
 ## Não coberto
 
@@ -348,7 +420,14 @@ Fica de fora, e ainda precisa de olho humano com dado real:
 - Autenticação, dados reais de Firestore, navegação de verdade (roteamento
   real, badges dinâmicos como o `2` de Torneios).
 
-## Nota de metodologia — dois bugs de medição encontrados e corrigidos no próprio harness
+## Nota de metodologia — bugs de medição encontrados e corrigidos no próprio harness
+
+Esta seção é o que torna o harness confiável para quem for reusá-lo daqui a
+seis meses — ela **cresce**, não encolhe. Nenhum dos bugs abaixo mudou um
+veredito já reportado (as asserções 1/2/3/5 continuam verdes na matriz
+inteira depois de cada conserto), mas todos eram caminhos reais para "passa
+em silêncio", que é exatamente o modo de falha que esta camada existe para
+eliminar.
 
 1. **Falso positivo de "elemento perto demais"**: a primeira versão comparava
    pares de elementos por retângulo bruto (`getBoundingClientRect()`), sem
@@ -367,3 +446,104 @@ Fica de fora, e ainda precisa de olho humano com dado real:
    de QA (12px), mascarando se a regra global do app (`input,select,textarea
    {font-size:16px}` sob toque) realmente funciona. Removido; a sonda agora
    mede a regra real do app, não a do próprio harness.
+3. **Falso positivo de ancestralidade estrutural no conserto do item 1**
+   (achado numa revisão): a condição de alcançabilidade aceitava `hit ===
+   el || el.contains(hit) || hit.contains(el)` — o último ramo (o alvo é
+   descendente do elemento pintado ali) trata qualquer ANCESTRAL estrutural
+   como prova de alcance, e ancestralidade não é pintura. Reproduzido: um
+   elemento recortado pelo `overflow` de um ancestral, posicionado fora da
+   região visível desse ancestral (mas com retângulo cru ainda dentro do
+   viewport), devolve `<html>` no `elementFromPoint` — e `html.contains(el)`
+   é sempre `true`, mesmo com o elemento invisível. Medido ao vivo, antes e
+   depois do conserto, no mesmo hit-test real:
+
+   | | `hit` no ponto | `hit` é ancestral do alvo | lógica antiga (`\|\| hit.contains(el)`) | lógica nova (`hit===el \|\| el.contains(hit)`) |
+   |---|---|---|---|---|
+   | Elemento recortado, fora da região visível do ancestral | `HTML` | sim | **alcançável (falso positivo)** | **inalcançável (correto)** |
+
+   Corrigido removendo o ramo `hit.contains(el)` — fica só `hit === el ||
+   el.contains(hit)` (o ponto pintou o próprio alvo, ou um filho dele, ex.:
+   o ícone/texto por dentro de um `nav-item`). Isso não flipou nenhum
+   veredito já reportado só porque o transbordo real do `.nav` é minúsculo
+   (≤4px) — item recortado sempre caía sobre um irmão de verdade, nunca
+   sobre `<html>`. Não era garantia; era sorte da geometria atual. Cair para
+   "inalcançável" no caso ambíguo é o erro seguro aqui: um falso-negativo
+   vira uma linha extra em `obscured` pra conferir à mão; um falso-positivo
+   passaria em silêncio.
+4. **Buraco de cobertura: três classes de alvo de toque nunca eram medidas**
+   (achado numa revisão). `sweepRole()` abria o drawer uma vez no início e
+   nunca fechava durante a varredura de estados de grupo — necessário pra
+   medir o `.nav`, mas isso deixa `.nav-trigger`/`.topbar-avatar` cobertos
+   pelo `brand` do próprio drawer e `.bottom-slot` atrás do `scrim` em
+   **toda** célula compacta. O "15/15, zero violações" relatado antes só
+   cobria as 5 classes que vivem dentro do painel do drawer — os controles
+   da topbar e da bottom-nav nunca tinham sido verificados no estado padrão
+   (drawer fechado). Corrigido acrescentando uma passada extra com o drawer
+   fechado ao fim de cada `sweepRole()` (estado `'drawer-fechado'` na lista
+   `perGroup`), e a limpeza da função **não reabre** o drawer ao restaurar
+   estado — reabrir sem um screenshot no meio recriaria o problema do item 7
+   pra próxima leitura. Efeito medido: a contagem de alvos medidos em
+   320/375/414×toque subiu de 7-9 para 35-36 (tabela de resultados acima) —
+   é a prova de que o buraco era real.
+5. **Sem guarda contra o seletor sair de sincronia, e a contagem de alvos
+   nunca aparecia em lugar nenhum** (achado numa revisão). A extração de
+   `NAV_ITEMS`/CSS já falhava alto se não achasse nada — decisão certa desde
+   o início —, mas `measureTouchTargets()`/`summarize()` nunca afirmavam
+   `targetCount > 0`, e a contagem não aparecia nem no resumo nem na tabela
+   do documento. Se alguém renomear uma classe em
+   `panel-shell.component.ts` sem espelhar em `TOUCH_TARGET_SELECTOR`, a
+   asserção 4 passaria a devolver `true` pra sempre, medindo zero elementos
+   — silenciosamente. Corrigido com uma guarda (`els.length === 0` lança
+   erro, mesmo espírito da guarda de `NAV_ITEMS`) e expondo
+   `assertion4_targetsMeasuredCount`/`assertion4_targetsMeasured` no resumo
+   — agora é a coluna "alvos medidos" da tabela de resultados, visível pra
+   quem ler o documento perceber se a cobertura cair.
+6. **`el.hidden` não escondia nada de verdade** (achado ao tentar verificar
+   o conserto do item 4 — a contagem continuava batendo 0 pros três alvos
+   mesmo com o drawer supostamente fechado). `.topbar`/`.sidebar`/
+   `.bottom-nav`/`.scrim` (CSS real, extraído do shell/drawer) declaram o
+   próprio `display` (`flex`/`flex`/`grid`/`flex`) — regra de origem
+   **autor**, e origem autor sempre ganha da origem **UA** (o
+   `[hidden]{display:none}` embutido do navegador), **independente de
+   especificidade ou ordem no cascade**. Resultado: `el.hidden = true` não
+   escondia nada — os quatro contêineres continuavam ocupando layout e
+   pintando por cima uns dos outros mesmo "escondidos" (inclusive o
+   `.sidebar`, sempre presente no DOM do harness — diferente do app real,
+   que remove o `<aside>` via `@if` — ocupando uma linha fantasma no grid do
+   `.shell` em largura compacta). Corrigido com um `setVisible(el, show)`
+   que força `el.style.display` explicitamente: estilo inline sempre ganha
+   de regra de classe, não importa a origem.
+7. **A animação de entrada do drawer precisa de tempo de parede real pra
+   assentar, e só um `screenshot` de verdade "lê" esse tempo** (achado ao
+   verificar o conserto do item 4 na prática — mesmo com o item 6
+   corrigido, a contagem de alvos dentro do drawer aberto continuava vindo
+   zero). `drawer.component.ts` anima a entrada (`ar-drawer-in-left`,
+   `transform: translateX(-100%) → none`, 240ms). Neste motor de preview, o
+   relógio dessa animação não avança sozinho — nem com `animation-duration:
+   0.01ms !important`, nem com `animation: none !important` no reset do
+   harness, nem com reflow síncrono forçado (`void el.offsetHeight`).
+   **Só esperar tempo real e então tirar um `screenshot`** assenta o
+   `transform` (`getBoundingClientRect().left` medido `-320` → `0` no mesmo
+   elemento, no mesmo estado, só com um screenshot no meio). Não é um bug
+   de código pra corrigir no harness — é uma restrição real do ambiente de
+   preview, documentada como parte do **procedimento** (ver "Procedimento
+   em largura compacta" acima): `openDrawer()` → `screenshot` →
+   `sweepRole()`, sempre nessa ordem, pros dois cargos.
+8. **O servidor estático podia devolver conteúdo desatualizado depois de
+   regenerar o harness** (achado ao verificar o item 7 — um `screenshot`
+   não bastava, e a causa acabou sendo esta, não a animação, numa das
+   tentativas). Comparando `document.styleSheets` (contagem de regra
+   presa numa versão antiga) contra um `fetch()` manual pro mesmo `href`
+   (contando a versão nova certa) no mesmo carregamento de página, ficou
+   claro que o `<link>`/`<script src>` às vezes carregava uma resposta
+   desatualizada do "serve" (o servidor estático usado por
+   `preview_start`) mesmo depois do arquivo em disco já ter sido
+   reescrito — um query string de cache-busting por geração não resolveu
+   (o sintoma se repetiu idêntico com a URL trocada). Não persegui a causa
+   raiz no servidor; eliminei a classe inteira do problema **embutindo**
+   `shell.css`/`harness.js` direto no `index.html` via `<style>`/`<script>`
+   inline, em vez de referenciá-los por `<link>`/`<script src>` — sem
+   requisição HTTP separada pra esses dois arquivos, não tem o que ficar
+   desatualizado. `shell.css`/`harness.js` continuam escritos em disco à
+   parte, só para inspeção/diff isolado (não são mais o que o navegador
+   carrega).

@@ -5,43 +5,9 @@ import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
-import type { ArenaArea } from '../data/arena-roles.model';
-import { IconComponent, type PanelIconName } from './icon.component';
+import { IconComponent } from './icon.component';
 import { initialsOf } from './initials';
-
-interface PanelNavItem {
-  id: string;
-  label: string;
-  icon: PanelIconName;
-  route: string;
-  badge: number | null;
-  /** Área exigida; `null` = visível a todos; `'owner'` = só o dono. */
-  area: ArenaArea | 'owner' | null;
-}
-
-const NAV_ITEMS: PanelNavItem[] = [
-  { id: 'inicio', label: 'Início', icon: 'home', route: '/painel', badge: null, area: null },
-  { id: 'agenda', label: 'Agenda', icon: 'calendar', route: '/painel/agenda', badge: null, area: 'agenda' },
-  { id: 'reservas', label: 'Reservas', icon: 'clock', route: '/painel/reservas', badge: null, area: 'agenda' },
-  { id: 'horarios-fixos', label: 'Horários fixos', icon: 'repeat', route: '/painel/horarios-fixos', badge: null, area: 'agenda' },
-  { id: 'clubinho', label: 'Clubinho', icon: 'users', route: '/painel/clubinho', badge: null, area: 'agenda' },
-  { id: 'financeiro', label: 'Financeiro', icon: 'cash', route: '/painel/financeiro', badge: null, area: 'financeiro' },
-  { id: 'comandas', label: 'Comandas', icon: 'bookmark', route: '/painel/comandas', badge: null, area: 'comandas' },
-  { id: 'estoque', label: 'Estoque', icon: 'box', route: '/painel/estoque', badge: null, area: 'estoque' },
-  { id: 'promocoes', label: 'Promoções', icon: 'tag', route: '/painel/promocoes', badge: null, area: 'promocoes' },
-  { id: 'cupons', label: 'Cupons', icon: 'tag', route: '/painel/cupons', badge: null, area: 'promocoes' },
-  { id: 'horarios-pico', label: 'Horários de pico', icon: 'tag', route: '/painel/horarios-pico', badge: null, area: 'promocoes' },
-  { id: 'links', label: 'Links', icon: 'share', route: '/painel/links', badge: null, area: 'site' },
-  { id: 'meu-site', label: 'Meu site', icon: 'image', route: '/painel/meu-site', badge: null, area: 'site' },
-  { id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios', badge: 2, area: 'torneios' },
-  { id: 'quadras', label: 'Quadras', icon: 'courts', route: '/painel/quadras', badge: null, area: 'quadras' },
-  { id: 'ocupacao', label: 'Ocupação', icon: 'chart-bar', route: '/painel/relatorios/ocupacao', badge: null, area: 'financeiro' },
-  { id: 'avaliacoes', label: 'Avaliações', icon: 'star', route: '/painel/avaliacoes', badge: null, area: 'comunidade' },
-  { id: 'seguidores', label: 'Seguidores', icon: 'users', route: '/painel/seguidores', badge: null, area: 'comunidade' },
-  { id: 'ranking', label: 'Ranking', icon: 'ranking', route: '/painel/ranking', badge: null, area: 'comunidade' },
-  { id: 'equipe', label: 'Equipe', icon: 'team', route: '/painel/equipe', badge: null, area: 'owner' },
-  { id: 'planos', label: 'Planos', icon: 'card', route: '/painel/planos', badge: null, area: 'owner' },
-];
+import { NAV_ITEMS, findActiveId } from './panel-nav.model';
 
 function pathOnly(url: string): string {
   const i = url.indexOf('?');
@@ -449,15 +415,7 @@ export class PanelShellComponent {
     { initialValue: pathOnly(this.router.url) },
   );
 
-  protected readonly activeId = computed(() => {
-    const path = this.currentPath();
-    const exact = NAV_ITEMS.find((item) => item.route === path);
-    if (exact) {
-      return exact.id;
-    }
-    const nested = NAV_ITEMS.find((item) => item.route !== '/painel' && path.startsWith(item.route + '/'));
-    return nested?.id ?? null;
-  });
+  protected readonly activeId = computed(() => findActiveId(this.currentPath()));
 
   /** Identidade da pessoa logada (gestor) — NÃO usar `auth.displayName()` aqui: esse campo do
    *  Firebase Auth guarda o nome da ARENA no cadastro self-service (`createArenaAccount`) e o

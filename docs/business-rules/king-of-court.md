@@ -65,6 +65,12 @@ seguinte, e cada rodada da fase seguinte mistura vencedoras de rodadas de chave
 diferentes — senão uma semifinal juntaria todas as que venceram contra a chave
 cheia e nasceria muito mais forte que a outra.
 
+**A divisão do campo muda junto.** Com uma rodada por chave, 14 duplas em
+quadras de 4 viram 4 chaves (4, 4, 3, 3). Pedindo duas rodadas, a chave de 3 não
+comportaria a segunda — então o campo é dividido em **menos chaves, cada uma mais
+cheia**: 3 chaves de 5, 5, 4. Só é recusado quando nem juntando cabe (6, 7 e 11
+duplas: uma chave só passaria do teto de 5 por rodada).
+
 **Custo de quadra.** Com 16 duplas em chaves de 4: uma rodada por chave dá 7
 rodadas no total; duas dão 11. O wizard mostra o tempo total antes de publicar.
 - A **rodada final** define o pódio direto pela tabela: 1º, 2º, 3º, 4º.

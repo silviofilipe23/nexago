@@ -211,6 +211,44 @@ export function kocRoundCount(teamCount: number, teamsPerCourt: number): number 
 }
 
 /**
+ * Em quantas CHAVES dividir o campo quando cada chave joga `roundsPerBracket`
+ * rodadas.
+ *
+ * A vencedora de cada rodada SAI, então uma chave que joga R rodadas precisa
+ * comecar com `KOC_MIN_TEAMS_PER_ROUND + R - 1` duplas: a última rodada ainda
+ * tem que ser King of the Court, não um jogo. `kocRoundCount` não sabe disso —
+ * ele parte de `teamsPerCourt` e só garante o mínimo da PRIMEIRA rodada.
+ *
+ * Com 14 duplas em quadras de 4 ele devolve 4 chaves (4, 4, 3, 3), e a chave de
+ * 3 não comporta a segunda rodada: a configuração inteira era recusada. Era o
+ * que fazia "2 rodadas por chave" só funcionar em campo múltiplo exato da
+ * quadra — 8, 12, 16 — e falhar em 13, 14, 15. Menos chaves, cada uma mais
+ * cheia (3 chaves de 5, 5, 4), resolve sem sair do teto do formato.
+ */
+export function kocBracketCountForRounds(
+  teamCount: number,
+  teamsPerCourt: number,
+  roundsPerBracket: number,
+): number {
+  const needed = KOC_MIN_TEAMS_PER_ROUND + Math.max(1, Math.floor(roundsPerBracket)) - 1;
+  let rounds = kocRoundCount(teamCount, teamsPerCourt);
+  while (
+    rounds > 1 &&
+    Math.floor(teamCount / rounds) < needed &&
+    Math.ceil(teamCount / (rounds - 1)) <= KOC_MAX_TEAMS_PER_ROUND
+  ) {
+    rounds--;
+  }
+  // Normaliza pelo TAMANHO da chave, porque é assim que o sorteio ao vivo
+  // descreve a divisão: ele guarda `teamsPerGroup` e reconstrói as caixas com
+  // `ceil(duplas / alvo)`. Nem toda contagem sobrevive a essa ida e volta — 25
+  // duplas em 6 chaves viram alvo 5, e 5 é o que o sorteio devolve, não 6.
+  // Sem normalizar, o sorteio publicava 5 caixas e a geração exigia 6.
+  const target = Math.ceil(teamCount / rounds);
+  return Math.max(1, Math.ceil(teamCount / target));
+}
+
+/**
  * Tamanho de cada rodada, distribuindo o resto nas primeiras — 14 duplas em 4
  * rodadas viram 4, 4, 3, 3.
  */
@@ -362,14 +400,18 @@ export function buildKingOfCourtRounds(
   const phaseSizes: number[][] = [];
   let fieldSize = teamIds.length;
   while (phaseSizes.length < KOC_MAX_PHASES) {
-    const rounds = kocRoundCount(fieldSize, config.teamsPerCourt);
+    // Só a fase 1 se divide em várias rodadas por chave; as seguintes seguem
+    // com uma rodada por chave e `qualifiersPerRound` classificadas. A divisão
+    // do campo muda junto: com 2 rodadas por chave nenhuma chave pode nascer
+    // com 3 duplas, senão a segunda rodada não existe.
+    const isFirst = phaseSizes.length === 0;
+    const rounds = isFirst && roundsPerBracket > 1 ?
+      kocBracketCountForRounds(fieldSize, config.teamsPerCourt, roundsPerBracket) :
+      kocRoundCount(fieldSize, config.teamsPerCourt);
     const sizes = kocRoundSizes(fieldSize, rounds);
     phaseSizes.push(sizes);
     if (rounds === 1) break;
 
-    // Só a fase 1 se divide em várias rodadas por chave; as seguintes seguem
-    // com uma rodada por chave e `qualifiersPerRound` classificadas.
-    const isFirst = phaseSizes.length === 1;
     if (isFirst && roundsPerBracket > 1) {
       const smallest = Math.min(...sizes);
       const max = kocMaxRoundsPerBracket(smallest);

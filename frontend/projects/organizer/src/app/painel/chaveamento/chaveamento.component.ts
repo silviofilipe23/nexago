@@ -229,6 +229,28 @@ function setsWonOf(score: string): [number, number] {
         </div>
       </ng-template>
 
+      @if (kocDrift(); as drift) {
+        <!-- Mexer no wizard NÃO refaz chave publicada, e o caminho de gerar
+             some assim que a categoria tem jogos. Sem este aviso o organizador
+             configura, salva, e a chave na areia segue a config antiga sem nada
+             na tela dizer por quê. -->
+        <div class="og-card og-koc-drift" role="status">
+          <og-icon name="alert" [size]="16" />
+          <div>
+            <strong>A chave publicada não segue a configuração atual da categoria.</strong>
+            <p>{{ drift.detail }}</p>
+            <p class="og-koc-drift-hint">
+              Mudar a configuração não refaz chave já gerada. Pra valer na areia, é preciso
+              gerar de novo — o que <strong>apaga</strong> as rodadas atuais e o que já foi lançado nelas.
+            </p>
+          </div>
+          @if (regenLink(); as link) {
+            <a class="og-mini-btn og-mini-btn-primary" [routerLink]="link">
+              <og-icon name="whistle" [size]="14" />Gerar chave de novo
+            </a>
+          }
+        </div>
+      }
       @if (ctx.loadingTournaments() || ctx.loadingMatches()) {
         <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Carregando chave…</div>
       } @else if (knockoutMatches().length === 0) {
@@ -316,6 +338,37 @@ function setsWonOf(score: string): [number, number] {
       -webkit-overflow-scrolling: touch;
     }
     /* Card da rodada KOTC: lista de elenco, não dois lados. */
+    .og-koc-drift {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 14px;
+      border-color: rgb(255 106 26 / 40%);
+      font-family: var(--nx-font-ui);
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--nx-text);
+    }
+    .og-koc-drift og-icon {
+      flex: none;
+      color: var(--nx-orange-500);
+      margin-top: 1px;
+    }
+    .og-koc-drift > div {
+      flex: 1;
+      min-width: 0;
+    }
+    .og-koc-drift p {
+      margin: 4px 0 0;
+      color: var(--nx-text-dim);
+    }
+    .og-koc-drift-hint {
+      font-size: 12.5px;
+    }
+    .og-koc-drift a {
+      flex: none;
+      align-self: center;
+    }
     .og-bracket-koc {
       display: flex;
       flex-direction: column;
@@ -523,6 +576,49 @@ export class ChaveamentoComponent {
     if (!tid || !cid) return null;
     if (this.ctx.matchesFiltered().length > 0) return null;
     return ['/painel/eventos', tid, 'categorias', cid, 'seeds'];
+  });
+
+  /** O mesmo destino, mas oferecido QUANDO a chave já existe e não corresponde
+   *  mais à categoria. É a única porta de volta: `seedsLink` some com a chave
+   *  publicada, e sem esta o organizador fica sem caminho nenhum pra aplicar o
+   *  que acabou de configurar. A confirmação destrutiva já mora lá. */
+  protected readonly regenLink = computed<string[] | null>(() => {
+    const tid = this.ctx.selectedTournamentId();
+    const cid = this.ctx.selectedCategoryId();
+    return tid && cid ? ['/painel/eventos', tid, 'categorias', cid, 'seeds'] : null;
+  });
+
+  /** Diferença entre a config da CATEGORIA e o snapshot que ficou na rodada
+   *  gerada. Só olha o que muda a FORMA da chave — duração é lida da rodada e
+   *  mudar a padrão de propósito não mexe em rodada já gerada. */
+  protected readonly kocDrift = computed<{detail: string} | null>(() => {
+    const catId = this.ctx.selectedCategoryId();
+    if (!catId) return null;
+    const category = (this.ctx.tournament()?.categories ?? []).find((c) => c.id === catId);
+    if (!category) return null;
+    const round = this.ctx.matchesFiltered().find((m) => m.koc != null)?.koc;
+    if (!round) return null;
+
+    const diffs: string[] = [];
+    if (round.roundsPerBracket !== category.kocRoundsPerBracket) {
+      diffs.push(
+        `rodadas por chave: a categoria pede ${category.kocRoundsPerBracket}, ` +
+          `a chave foi gerada com ${round.roundsPerBracket}`,
+      );
+    }
+    if (round.teamsPerCourt !== category.kocTeamsPerCourt) {
+      diffs.push(
+        `duplas por quadra: a categoria pede ${category.kocTeamsPerCourt}, ` +
+          `a chave foi gerada com ${round.teamsPerCourt}`,
+      );
+    }
+    if (round.qualifiersPerRound !== category.kocQualifiersPerRound) {
+      diffs.push(
+        `classificadas por rodada: a categoria pede ${category.kocQualifiersPerRound}, ` +
+          `a chave foi gerada com ${round.qualifiersPerRound}`,
+      );
+    }
+    return diffs.length > 0 ? {detail: `${diffs.join('; ')}.`} : null;
   });
 
   protected readonly headerSubtitle = computed(() => {

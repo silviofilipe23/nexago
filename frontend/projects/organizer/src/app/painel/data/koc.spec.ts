@@ -294,3 +294,25 @@ describe('kocLogLines', () => {
     expect(lines[0]?.atMs).toBe(3_000);
   });
 });
+
+describe('kocRoundStateFrom · snapshot da config', () => {
+  it('guarda duplas por quadra e rodadas por chave como estavam na geração', () => {
+    const round = kocRoundStateFrom({
+      kocTeamIds: ['a', 'b', 'c', 'd'],
+      kocConfig: { teamsPerCourt: 5, roundsPerBracket: 2, qualifiersPerRound: 1, durationSec: 1200 },
+    });
+    expect(round.teamsPerCourt).toBe(5);
+    expect(round.roundsPerBracket).toBe(2);
+  });
+
+  it('chave gerada antes do campo existir lê como 1 — não como indefinido', () => {
+    // É esse default que faz a comparação com a categoria acusar a diferença
+    // em vez de passar batido.
+    const round = kocRoundStateFrom({
+      kocTeamIds: ['a', 'b', 'c'],
+      kocConfig: { teamsPerCourt: 4, qualifiersPerRound: 2, durationSec: 900 },
+    });
+    expect(round.roundsPerBracket).toBe(1);
+    expect(round.teamsPerCourt).toBe(4);
+  });
+});

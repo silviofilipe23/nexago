@@ -97,46 +97,48 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
           </div>
 
           <ar-panel-card [kicker]="s.courtNames.join(', ')" title="Lista" class="table-card">
-            <div class="ar-table-scroll">
-              <div class="ar-table-inner">
-                <div class="table-list">
-                  @for (p of participants(); track p.id; let i = $index) {
-                    <div class="participant-row">
-                      <div class="participant-pos">{{ i + 1 }}</div>
-                      <div class="participant-avatar">
-                        @if (p.athletePhotoUrl) {
-                          <img [src]="p.athletePhotoUrl" alt="" />
+            @if (participants().length === 0) {
+              <p class="state-text empty-text">Ninguém na lista ainda — compartilhe o clubinho com seus atletas.</p>
+            } @else {
+              <div class="ar-table-scroll">
+                <div class="ar-table-inner">
+                  <div class="table-list">
+                    @for (p of participants(); track p.id; let i = $index) {
+                      <div class="participant-row">
+                        <div class="participant-pos">{{ i + 1 }}</div>
+                        <div class="participant-avatar">
+                          @if (p.athletePhotoUrl) {
+                            <img [src]="p.athletePhotoUrl" alt="" />
+                          } @else {
+                            <span>{{ initialsOf(p.athleteName) }}</span>
+                          }
+                        </div>
+                        <div class="participant-name">{{ p.athleteName }}</div>
+                        <div class="participant-amount">{{ formatReais(p.amountReais) }}</div>
+                        @if (p.refundStatus === 'failed') {
+                          <ar-pill tone="red">Estorno falhou</ar-pill>
+                        } @else if (p.status === 'confirmed' && p.paymentMethod === 'onsite') {
+                          <ar-pill tone="yellow">Paga na arena</ar-pill>
                         } @else {
-                          <span>{{ initialsOf(p.athleteName) }}</span>
+                          <ar-pill [tone]="participantTone[p.status]">{{ participantLabel[p.status] }}</ar-pill>
                         }
+                        <div class="participant-remove">
+                          @if (session()?.status === 'scheduled' && (p.status === 'confirmed' || p.status === 'pending_payment')) {
+                            <button
+                              type="button"
+                              class="remove-btn"
+                              title="Remover da lista"
+                              [disabled]="readOnly()"
+                              (click)="askRemove(p)"
+                            >×</button>
+                          }
+                        </div>
                       </div>
-                      <div class="participant-name">{{ p.athleteName }}</div>
-                      <div class="participant-amount">{{ formatReais(p.amountReais) }}</div>
-                      @if (p.refundStatus === 'failed') {
-                        <ar-pill tone="red">Estorno falhou</ar-pill>
-                      } @else if (p.status === 'confirmed' && p.paymentMethod === 'onsite') {
-                        <ar-pill tone="yellow">Paga na arena</ar-pill>
-                      } @else {
-                        <ar-pill [tone]="participantTone[p.status]">{{ participantLabel[p.status] }}</ar-pill>
-                      }
-                      <div class="participant-remove">
-                        @if (session()?.status === 'scheduled' && (p.status === 'confirmed' || p.status === 'pending_payment')) {
-                          <button
-                            type="button"
-                            class="remove-btn"
-                            title="Remover da lista"
-                            [disabled]="readOnly()"
-                            (click)="askRemove(p)"
-                          >×</button>
-                        }
-                      </div>
-                    </div>
-                  } @empty {
-                    <p class="state-text empty-text">Ninguém na lista ainda — compartilhe o clubinho com seus atletas.</p>
-                  }
+                    }
+                  </div>
                 </div>
               </div>
-            </div>
+            }
           </ar-panel-card>
         }
       </div>

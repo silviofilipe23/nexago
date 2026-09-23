@@ -65,6 +65,9 @@ const MIN_COURT_COL_PX = 120;
              fixa em 'left'. Cabeçalho fora daqui desalinharia das colunas ao rolar de lado,
              igual ao cuidado da Task 9 com '.table-head'/'.table-row'. -->
         <div class="court-header">
+          <!-- Canto congelado: sem isto, ao rolar pra o lado o cabeçalho de quadra desliza
+               por baixo do espaço vazio e fica "colado" acima da coluna de horário fixada. -->
+          <div class="gutter-spacer"></div>
           @for (c of courts(); track c.id) {
             <div class="court-head" [style.minWidth.px]="minCourtColPx">
               <div class="court-name">{{ c.name }}</div>
@@ -137,14 +140,33 @@ const MIN_COURT_COL_PX = 120;
 
     .court-header {
       display: flex;
-      padding-left: 52px;
       padding-bottom: 10px;
       /* Fixo no topo da rolagem vertical de '.body' — some ao rolar pra baixo seria perder
          a referência de qual coluna é qual quadra. Fundo opaco: sem isso os blocos passam
-         por baixo transparentes enquanto a grade rola. */
+         por baixo transparentes enquanto a grade rola.
+         'width: max-content' + 'min-width: 100%' é o que faz esta linha ficar tão larga
+         quanto o conteúdo real (soma das quadras) em vez de só a largura do viewport — sem
+         isso a caixa fica estreita demais e o fundo opaco "acaba" no meio da rolagem
+         horizontal, revelando os blocos por baixo (medido: borda direita ia a -75px em
+         scrollLeft 400 antes deste ajuste). */
       position: sticky;
       top: 0;
       z-index: 6;
+      background: var(--nx-surface-0);
+      width: max-content;
+      min-width: 100%;
+    }
+
+    /* Canto congelado, irmão real de largura fixa (não 'padding-left') — só assim dá pra
+       fixar em 'left' igual à coluna de horário abaixo. Sem isto, ao rolar de lado o
+       cabeçalho de quadra desliza por baixo do espaço vazio e fica "colado" acima da coluna
+       de horário fixada, como se fosse o cabeçalho dela. */
+    .gutter-spacer {
+      width: 52px;
+      flex: none;
+      position: sticky;
+      left: 0;
+      z-index: 1;
       background: var(--nx-surface-0);
     }
 
@@ -182,20 +204,33 @@ const MIN_COURT_COL_PX = 120;
       display: none;
     }
 
+    /* 'display: flex' + 'width: max-content' + 'min-width: 100%': a caixa da grade tem que
+       ser tão larga quanto o conteúdo de verdade (gutter + colunas), não só o viewport —
+       senão o bloco contentor da coluna de horário fixada (abaixo) fica estreito demais e o
+       'position: sticky' desgruda dele no meio da rolagem, porque sticky nunca escapa do
+       próprio bloco contentor. Medido: sem isto, a gutter ficava em x=0 só até ~35% do
+       curso e terminava em valores negativos (ex.: -174 no fim, numa grade de 772px de
+       conteúdo rolável dentro de 306px de viewport). Com 'min-width: 100%', telas largas
+       (poucas quadras) continuam preenchendo 100% via 'flex: 1' de '.columns'/'.column' —
+       sem isso é regressão de desktop. */
     .grid {
       position: relative;
+      display: flex;
+      width: max-content;
+      min-width: 100%;
     }
 
     /* Coluna de horário fixada: sticky em 'left', fundo opaco e z-index acima de
-       '.hour-line'/'.columns'/'.block' (todos z-index automático) pra elas não aparecerem
-       por baixo ao rolar — mas abaixo de '.now-line' (z-index 5), que já desenhava por cima
-       do início do rótulo de hora antes desta mudança (mantido igual). */
+       '.hour-line'/'.columns'/'.block' (todos z-index automático) E acima de '.now-line'
+       (z-index 5) — a barra "agora" passa a se mover na horizontal junto com a grade desde
+       que existe rolagem, então sem isto ela atravessa por cima do rótulo de hora fixado a
+       partir de qualquer scrollLeft > 0. */
     .time-gutter {
       position: sticky;
       left: 0;
       width: 52px;
       flex: none;
-      z-index: 2;
+      z-index: 6;
       background: var(--nx-surface-0);
     }
 
@@ -221,12 +256,11 @@ const MIN_COURT_COL_PX = 120;
       border-top-style: solid;
     }
 
+    /* Irmã real de '.time-gutter' no fluxo do flex (não mais overlay 'position: absolute')
+       — é o que dá a '.grid' largura intrínseca de verdade; um overlay absoluto não
+       contribui largura nenhuma pro bloco contentor (ver comentário de '.grid' acima). */
     .columns {
-      position: absolute;
-      top: 0;
-      left: 52px;
-      right: 0;
-      bottom: 0;
+      flex: 1 1 auto;
       display: flex;
     }
 

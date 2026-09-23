@@ -128,6 +128,13 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
       scrollbar-width: thin;
     }
 
+    /* 'width: max-content' + 'min-width: 100%': a linha do cabeçalho tem que ficar tão larga
+       quanto o conteúdo de verdade (soma dos dias), não só o viewport — senão a caixa (e o
+       fundo opaco dela) "acaba" no meio da rolagem horizontal e revela conteúdo por baixo, e
+       o bloco contentor da coluna de horário fixada (abaixo) fica estreito demais pro
+       'position: sticky' segurar até o fim do curso. Medido: sem isto, '.time-gutter' e
+       '.gutter-spacer' ficavam em x=0 só até ~26% do curso e terminavam em -776, numa grade
+       de 1382px de conteúdo rolável dentro de 310px de viewport. */
     .header {
       display: flex;
       position: sticky;
@@ -135,6 +142,8 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
       z-index: 6;
       background: var(--nx-surface-0);
       padding-bottom: 10px;
+      width: max-content;
+      min-width: 100%;
     }
 
     .gutter-spacer {
@@ -190,20 +199,28 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
       text-overflow: ellipsis;
     }
 
+    /* Mesmo raciocínio do '.header' acima: '.grid' vira uma linha flex em fluxo normal, com
+       largura intrínseca real, em vez de depender de '.days' (overlay 'position: absolute'
+       que não contribui largura nenhuma pro bloco contentor). */
     .grid {
       position: relative;
+      display: flex;
+      width: max-content;
+      min-width: 100%;
     }
 
     /* Coluna de horário fixada: sticky em 'left', fundo opaco e z-index acima de
-       '.hour-line'/'.days'/'.block' (todos z-index automático) pra elas não aparecerem por
-       baixo ao rolar — mas abaixo de '.now-line' (z-index 5) e de '.header' (z-index 6),
-       que já desenhavam por cima. */
+       '.hour-line'/'.days'/'.block' (todos z-index automático) E acima de '.now-line'
+       (z-index 5) — a barra "agora" se move na horizontal junto com a grade, então sem isto
+       ela atravessa por cima do rótulo de hora fixado a partir de qualquer scrollLeft > 0.
+       Abaixo de '.header' (z-index 6), que nunca se sobrepõe à gutter de qualquer forma
+       (áreas diferentes da tela). */
     .time-gutter {
       position: sticky;
       left: 0;
       width: 52px;
       flex: none;
-      z-index: 2;
+      z-index: 6;
       background: var(--nx-surface-0);
     }
 
@@ -229,12 +246,10 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
       border-top-style: solid;
     }
 
+    /* Irmã real de '.time-gutter' no fluxo do flex (não mais overlay 'position: absolute') —
+       ver comentário de '.grid' acima. */
     .days {
-      position: absolute;
-      top: 0;
-      left: 52px;
-      right: 0;
-      bottom: 0;
+      flex: 1 1 auto;
       display: flex;
     }
 

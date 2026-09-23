@@ -1,6 +1,7 @@
 /* NexaGO Arena — estilos globais.
    Tokens vindos do design system NexaGO (tokens.css do protótipo), namespace --nx-.
    Classes de fluxo de auth compartilhadas usam o prefixo ar- (paralelo ao bo- do backoffice). */
+@use 'breakpoints' as ar;
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 :root {

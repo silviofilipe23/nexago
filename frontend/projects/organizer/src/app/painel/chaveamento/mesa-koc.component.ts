@@ -7,6 +7,7 @@ import {
   KOC_MIN_TEAMS_PER_ROUND,
   kocFinalTable,
   kocQualifyingTieGroup,
+  kocTiebreakOrder,
   type KocLogLine,
   kocHasStarted,
   kocIsExpired,
@@ -447,13 +448,35 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
             </button>
 
             @if (tie()) {
-              <p class="og-mk-tie-note">Empate na vaga de classificação — bola de ouro entre as empatadas.</p>
+              @if (tieGroup().length === 2) {
+                <p class="og-mk-tie-note">Empate na vaga de classificação — bola de ouro entre as duas.</p>
+              } @else {
+                <!-- "Rally único entre as empatadas" não diz o que fazer com
+                     três: um rally tem dois lados. Elas jogam o próprio
+                     formato, e a ordem de entrada sai do mesmo critério que o
+                     servidor usaria para desempatar sozinho. -->
+                <p class="og-mk-tie-note">
+                  Empate de {{ tieGroup().length }} duplas na vaga — mini-rodada entre elas.
+                  <strong>Quem pontuar primeiro leva a vaga.</strong>
+                </p>
+                <ol class="og-mk-tie-ordem">
+                  @for (entry of tieLineup(); track entry.teamId) {
+                    <li>
+                      <span class="papel">{{ entry.role }}</span>
+                      <span class="dupla">{{ faceOf(entry.teamId).name }}</span>
+                    </li>
+                  }
+                </ol>
+                <p class="og-mk-tie-hint">
+                  Rei venceu, marca o ponto e acabou. Desafiante venceu, assume o trono sem ponto e entra a próxima.
+                </p>
+              }
               <!-- A bola de ouro aponta a DUPLA, não um lado: é jogada depois do
                    apito, entre as empatadas, que quase nunca são o rei e o
                    desafiante do momento. -->
               <div class="og-mk-golden">
-                <span class="og-mk-golden-kicker">VENCEU A BOLA DE OURO</span>
-                @for (teamId of tieGroup(); track teamId) {
+                <span class="og-mk-golden-kicker">{{ tieGroup().length === 2 ? 'VENCEU A BOLA DE OURO' : 'PONTUOU NA MINI-RODADA' }}</span>
+                @for (teamId of tieOrder(); track teamId) {
                   <button type="button" class="og-ghost-btn og-mk-golden-btn" [disabled]="busy()" (click)="golden(teamId)">
                     {{ faceOf(teamId).name }}
                   </button>
@@ -1632,6 +1655,44 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       margin: 8px 0 0;
       font-size: 12px;
       color: var(--nx-pending);
+      line-height: 1.45;
+    }
+    .og-mk-tie-ordem {
+      margin: 8px 0 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .og-mk-tie-ordem li {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      font-size: 12.5px;
+    }
+    .og-mk-tie-ordem .papel {
+      flex: none;
+      min-width: 108px;
+      font-family: var(--nx-font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--nx-text-mute);
+    }
+    .og-mk-tie-ordem .dupla {
+      color: var(--nx-text);
+      font-weight: 600;
+    }
+    .og-mk-tie-ordem li:first-child .papel {
+      color: var(--nx-orange-500);
+    }
+    .og-mk-tie-hint {
+      margin: 8px 0 0;
+      font-size: 11.5px;
+      color: var(--nx-text-dim);
+      line-height: 1.45;
     }
     .og-mk-feedback {
       margin: 8px 0 0;
@@ -2059,6 +2120,22 @@ export class MesaKocComponent {
     return this.tieGroup().length > 0;
   }
 
+  /** As empatadas na ORDEM DE ENTRADA da mini-rodada: a primeira começa no
+   *  trono. Com duas é a mesma lista, e a ordem não muda nada. */
+  protected readonly tieOrder = computed(() => {
+    const r = this.round();
+    return r ? kocTiebreakOrder(r) : [];
+  });
+
+  /** A mesma ordem, com o papel de cada uma escrito. É o que o mesário lê em
+   *  voz alta para as duplas montarem a quadra. */
+  protected readonly tieLineup = computed(() =>
+    this.tieOrder().map((teamId, i) => ({
+      teamId,
+      role: i === 0 ? 'Começa no trono' : i === 1 ? 'Desafia' : `Espera (${i + 1}ª)`,
+    })),
+  );
+
   /** Quem joga a bola de ouro: TODAS as duplas na pontuação da última vaga —
    *  com poucos rallies, empate de três pela mesma vaga é o caso comum. */
   protected readonly tieGroup = computed(() => {
@@ -2122,9 +2199,16 @@ export class MesaKocComponent {
         await finishKocRound({ matchId: this.matchId() });
       } catch (error) {
         if (reasonOf(error) !== 'koc_unresolved_tie') throw error;
+        // A copy nomeia o que a mesa acabou de mostrar: com duas é bola de
+        // ouro, com três ou mais é a mini-rodada. Dizer "bola de ouro" nos dois
+        // casos era o que deixava o empate de três sem instrução.
+        const emDisputa = this.tieGroup().length;
         const ok = confirm(
-          'Há empate em pontos decidindo a classificação.\n\n' +
-            'O regulamento resolve na areia: joguem a bola de ouro e registrem o rally. ' +
+          `Há empate de ${emDisputa} duplas decidindo a classificação.\n\n` +
+            (emDisputa === 2 ?
+              'O regulamento resolve na areia: joguem a bola de ouro e registrem quem venceu. ' :
+              'O regulamento resolve na areia: joguem a mini-rodada entre elas (quem pontuar ' +
+                'primeiro leva a vaga) e registrem quem pontuou. ') +
             'Encerrar agora faz a vaga sair pelo desempate automático (quem foi rei por último).\n\n' +
             'Encerrar assim?',
         );

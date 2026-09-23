@@ -450,4 +450,54 @@ describe('OverlayPageComponent', () => {
     expect(fake.started).toEqual(['m1']);
     expect(fake.startedCourts).toEqual([]);
   });
+
+  it('rodada KOTC ainda não iniciada anuncia quem vai entrar', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.tournament.set(TOURNAMENT);
+    fake.teams.set(
+      new Map<string, OverlayTeam>([
+        ['t', { label: 'Sor / Ham', players: ['Sor', 'Ham'] }],
+        ['a', { label: 'Hölting Nilsson / Berger', players: ['Hölting Nilsson', 'Berger'] }],
+        ['b', { label: 'Van / Aye', players: ['Van', 'Aye'] }],
+      ]),
+    );
+    fake.match.set(
+      match({
+        status: 'scheduled',
+        matchType: 'koc_round',
+        teamAId: '',
+        teamBId: '',
+        sets: [],
+        currentSetIndex: null,
+        koc: {
+          teamIds: ['t', 'a', 'b'],
+          kingTeamId: '',
+          challengerTeamId: '',
+          queue: [],
+          points: {},
+          rallies: 0,
+          servingTeamId: '',
+          clock: null,
+          standings: [],
+          qualifiersPerRound: 1,
+          teamsPerCourt: 4,
+          roundsPerBracket: 2,
+          configuredDurationSec: 900,
+          rallySeq: 0,
+          rallyLog: [],
+          roundLabel: 3,
+          qualifierSlots: [],
+        },
+      }),
+    );
+    await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
+    const text = (host.textContent ?? '').replace(/\s+/g, ' ');
+
+    expect(host.querySelector('og-overlay-koc-preround')).not.toBeNull();
+    expect(host.querySelector('og-overlay-koc-bar')).toBeNull();
+    expect(text).toContain('Próximos');
+    expect(text).toContain('Hölting Nilsson · Berger');
+    expect(text).toContain('Sor · Ham');
+  });
 });

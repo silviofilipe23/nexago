@@ -3,11 +3,14 @@ import { isKingOfCourtMatchType, kocColumnLabel } from '../../painel/data/koc';
 import { resolveCourtNames } from '../../painel/data/matches-repository';
 import { OverlayLiveGateway } from './overlay-live.gateway';
 import { OverlayKocBarComponent } from './overlay-koc-bar.component';
+import { kocPreRoundOf } from './overlay-koc-preround';
+import { OverlayKocPreRoundComponent } from './overlay-koc-preround.component';
 import { kocQualifiedBoardOf } from './overlay-koc-qualified';
 import { OverlayKocQualifiedComponent } from './overlay-koc-qualified.component';
 import { kocStandingsBoardOf } from './overlay-koc-standings';
 import { OverlayKocStandingsComponent } from './overlay-koc-standings.component';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
+import { kocRoundTitleOf } from './overlay-koc-bar';
 import { overlayBandOf, overlayCornerOf, overlayViewOf } from './overlay-selectors';
 
 type TelaKoc = 'resultado' | 'classificadas';
@@ -37,6 +40,7 @@ const CLASSIFICADAS_MS = 15_000;
     OverlayKocBarComponent,
     OverlayKocStandingsComponent,
     OverlayKocQualifiedComponent,
+    OverlayKocPreRoundComponent,
   ],
   providers: [OverlayLiveGateway],
   host: { '(document:keydown)': 'aoTeclar($event)' },
@@ -77,6 +81,16 @@ const CLASSIFICADAS_MS = 15_000;
         aria-label="Alternar visualização"
         (click)="alternar()"
       ></button>
+    }
+    @if (preRound(); as pre) {
+      <og-overlay-koc-preround
+        [preRound]="pre"
+        [teams]="gateway.teams()"
+        [categoryName]="categoryName()"
+        [courtName]="courtName()"
+        [roundTitle]="preRoundTitle()"
+        [corner]="corner()"
+      />
     }
     @if (kocView(); as koc) {
       <og-overlay-koc-bar
@@ -154,6 +168,24 @@ export class OverlayPageComponent {
     // A rodada encerrada dá lugar à classificação — as duas na tela seriam duas verdades
     // disputando o mesmo espaço.
     return v?.kind === 'koc' && !this.standings() ? v : null;
+  });
+
+  /** Elenco da rodada que ainda não começou — antes do apito não há rei nem desafiante, e sem
+   *  isto a tela ficava vazia. */
+  protected readonly preRound = computed(() => {
+    const m = this.match();
+    return m ? kocPreRoundOf(m) : null;
+  });
+
+  protected readonly preRoundTitle = computed(() => {
+    const m = this.match();
+    if (!m) return '';
+    return kocRoundTitleOf(
+      m.matchType,
+      m.koc?.roundLabel ?? 0,
+      m.matchNumber,
+      this.gateway.totalRounds(),
+    );
   });
 
   /** Classificação da rodada KOTC encerrada. */

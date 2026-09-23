@@ -86,34 +86,38 @@ const SESSION_TONE: Record<ClubSessionStatus, PillTone> = {
           </div>
 
           <ar-panel-card [kicker]="sessions().length + ' data(s)'" title="Próximas sessões" class="table-card">
-            <div class="table-head">
-              <span>Data</span>
-              <span>Horário</span>
-              <span>Lista</span>
-              <span>Vagas restantes</span>
-              <span>Status</span>
-              <span></span>
-            </div>
-            <div class="table-list">
-              @for (session of sessions(); track session.id) {
-                <div class="table-row">
-                  <div class="session-date">{{ formatFullDate(session.date) }}</div>
-                  <div class="mono-cell">{{ session.startTime }}–{{ session.endTime }}</div>
-                  <div class="mono-cell">{{ session.confirmedCount }}/{{ session.capacity }} confirmados</div>
-                  <div class="mono-cell">{{ spotsLeft(session) }}</div>
-                  <div><ar-pill [tone]="sessionTone[session.status]">{{ sessionStatusLabel[session.status] }}</ar-pill></div>
-                  <div class="row-actions">
-                    <button type="button" class="ar-mini-btn" (click)="openSession(session.id)">
-                      Lista
-                      <ar-icon name="chevron-right" [size]="13" />
-                    </button>
-                  </div>
+            <div class="ar-table-scroll">
+              <div class="ar-table-inner">
+                <div class="table-head">
+                  <span>Data</span>
+                  <span>Horário</span>
+                  <span>Lista</span>
+                  <span>Vagas restantes</span>
+                  <span>Status</span>
+                  <span></span>
                 </div>
-              } @empty {
-                <p class="state-text empty-text">
-                  Nenhuma sessão futura. {{ c.weekday != null ? 'As sessões da semana são geradas automaticamente.' : 'Crie uma sessão avulsa para abrir a lista.' }}
-                </p>
-              }
+                <div class="table-list">
+                  @for (session of sessions(); track session.id) {
+                    <div class="table-row">
+                      <div class="session-date">{{ formatFullDate(session.date) }}</div>
+                      <div class="mono-cell">{{ session.startTime }}–{{ session.endTime }}</div>
+                      <div class="mono-cell">{{ session.confirmedCount }}/{{ session.capacity }} confirmados</div>
+                      <div class="mono-cell">{{ spotsLeft(session) }}</div>
+                      <div><ar-pill [tone]="sessionTone[session.status]">{{ sessionStatusLabel[session.status] }}</ar-pill></div>
+                      <div class="row-actions">
+                        <button type="button" class="ar-mini-btn" (click)="openSession(session.id)">
+                          Lista
+                          <ar-icon name="chevron-right" [size]="13" />
+                        </button>
+                      </div>
+                    </div>
+                  } @empty {
+                    <p class="state-text empty-text">
+                      Nenhuma sessão futura. {{ c.weekday != null ? 'As sessões da semana são geradas automaticamente.' : 'Crie uma sessão avulsa para abrir a lista.' }}
+                    </p>
+                  }
+                </div>
+              </div>
             </div>
           </ar-panel-card>
         }

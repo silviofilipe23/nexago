@@ -599,6 +599,18 @@ button {
   align-items: stretch;
 }
 
+/* Tabela larga: quem rola e o container, nunca a pagina. Preserva o dado --
+   esconder coluna perde informacao em silencio, que e pior que rolar. */
+.ar-table-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ar-table-scroll > * {
+  min-width: max-content;
+}
+
 /* =========================================================================
    ORDEM DO CASCADE — NAO REORDENAR
    @media nao soma especificidade: regras que declaram a mesma propriedade

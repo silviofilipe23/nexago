@@ -58,40 +58,44 @@ import { fetchAllPeakRules, setPeakRuleActive } from './peak-rules-repository';
           </div>
 
           <ar-panel-card title="Regras" class="table-card">
-            <div class="table-head">
-              <span>Regra</span>
-              <span>Faixa</span>
-              <span>Dias</span>
-              <span>Mínimo</span>
-              <span>Liberação</span>
-              <span>Status</span>
-              <span></span>
-            </div>
-            <div class="table-list">
-              @for (rule of rules(); track rule.id) {
-                <div class="table-row">
-                  <div>
-                    <div class="rule-name">{{ rule.label }}</div>
-                    <div class="rule-scope">{{ peakRuleScopeLabel(rule) }}</div>
-                  </div>
-                  <div class="rule-range">{{ rule.startTime }}-{{ rule.endTime }}</div>
-                  <div class="rule-days">{{ formatWeekdays(rule.weekdays) }}</div>
-                  <div class="rule-min">{{ formatMinDuration(rule.minDurationMinutes) }}</div>
-                  <div class="rule-release">{{ formatRelease(rule.releaseHoursBefore) }}</div>
-                  <div><ar-pill [tone]="rule.active ? 'green' : 'dim'">{{ rule.active ? 'Ativa' : 'Pausada' }}</ar-pill></div>
-                  <div class="rule-actions">
-                    <button type="button" class="ar-mini-btn" (click)="editRule(rule.id)">
-                      <ar-icon name="edit" [size]="13" />
-                      Editar
-                    </button>
-                    <button type="button" class="ar-mini-btn" [disabled]="readOnly()" (click)="toggleActive(rule)">
-                      {{ rule.active ? 'Pausar' : 'Ativar' }}
-                    </button>
-                  </div>
+            <div class="ar-table-scroll">
+              <div class="ar-table-inner">
+                <div class="table-head">
+                  <span>Regra</span>
+                  <span>Faixa</span>
+                  <span>Dias</span>
+                  <span>Mínimo</span>
+                  <span>Liberação</span>
+                  <span>Status</span>
+                  <span></span>
                 </div>
-              } @empty {
-                <p class="state-text empty-text">Nenhuma regra por aqui.</p>
-              }
+                <div class="table-list">
+                  @for (rule of rules(); track rule.id) {
+                    <div class="table-row">
+                      <div>
+                        <div class="rule-name">{{ rule.label }}</div>
+                        <div class="rule-scope">{{ peakRuleScopeLabel(rule) }}</div>
+                      </div>
+                      <div class="rule-range">{{ rule.startTime }}-{{ rule.endTime }}</div>
+                      <div class="rule-days">{{ formatWeekdays(rule.weekdays) }}</div>
+                      <div class="rule-min">{{ formatMinDuration(rule.minDurationMinutes) }}</div>
+                      <div class="rule-release">{{ formatRelease(rule.releaseHoursBefore) }}</div>
+                      <div><ar-pill [tone]="rule.active ? 'green' : 'dim'">{{ rule.active ? 'Ativa' : 'Pausada' }}</ar-pill></div>
+                      <div class="rule-actions">
+                        <button type="button" class="ar-mini-btn" (click)="editRule(rule.id)">
+                          <ar-icon name="edit" [size]="13" />
+                          Editar
+                        </button>
+                        <button type="button" class="ar-mini-btn" [disabled]="readOnly()" (click)="toggleActive(rule)">
+                          {{ rule.active ? 'Pausar' : 'Ativar' }}
+                        </button>
+                      </div>
+                    </div>
+                  } @empty {
+                    <p class="state-text empty-text">Nenhuma regra por aqui.</p>
+                  }
+                </div>
+              </div>
             </div>
           </ar-panel-card>
         }

@@ -155,70 +155,74 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
               @if (retryError(); as rerr) {
                 <div class="error-banner">{{ rerr }}</div>
               }
-              <div class="table-head">
-                <span>Data</span>
-                <span>Origem</span>
-                <span>Tomador</span>
-                <span>Número</span>
-                <span class="right">Valor</span>
-                <span>Status</span>
-                <span>Arquivos</span>
-              </div>
-              <div class="table-list">
-                @for (inv of filteredInvoices(); track inv.id) {
-                  <div class="invoice-block">
-                    <div class="table-row">
-                      <div class="inv-date">{{ formatDate(inv.createdAt) }}</div>
-                      <div class="inv-origin">
-                        {{ originLabel[inv.origin] }}
-                        @if (inv.origin === 'activation_test') {
-                          <span class="test-badge">Teste</span>
+              <div class="ar-table-scroll">
+                <div class="ar-table-inner">
+                  <div class="table-head">
+                    <span>Data</span>
+                    <span>Origem</span>
+                    <span>Tomador</span>
+                    <span>Número</span>
+                    <span class="right">Valor</span>
+                    <span>Status</span>
+                    <span>Arquivos</span>
+                  </div>
+                  <div class="table-list">
+                    @for (inv of filteredInvoices(); track inv.id) {
+                      <div class="invoice-block">
+                        <div class="table-row">
+                          <div class="inv-date">{{ formatDate(inv.createdAt) }}</div>
+                          <div class="inv-origin">
+                            {{ originLabel[inv.origin] }}
+                            @if (inv.origin === 'activation_test') {
+                              <span class="test-badge">Teste</span>
+                            }
+                          </div>
+                          <div class="inv-tomador">
+                            {{ inv.tomadorNome }}
+                            @if (inv.tomadorDocumento) {
+                              <span class="inv-doc">{{ inv.tomadorDocumento }}</span>
+                            }
+                          </div>
+                          <div class="inv-numero">{{ inv.numero ?? '—' }}</div>
+                          <div class="inv-valor right">{{ formatBRL(inv.valorBrutoReais) }}</div>
+                          <div><ar-pill [tone]="statusTone[inv.status]">{{ statusLabel[inv.status] }}</ar-pill></div>
+                          <div class="inv-files">
+                            @if (inv.pdfUrl; as pdf) {
+                              <a [href]="pdf" target="_blank" rel="noopener" class="ar-ghost-btn file-btn">PDF</a>
+                            }
+                            @if (inv.xmlUrl; as xml) {
+                              <a [href]="xml" target="_blank" rel="noopener" class="ar-ghost-btn file-btn">XML</a>
+                            }
+                            @if (inv.status === 'rejected' && isOwner()) {
+                              <button
+                                type="button"
+                                class="ar-ghost-btn file-btn"
+                                [disabled]="retryingInvoiceIds().has(inv.id)"
+                                (click)="retryInvoice(inv.id)"
+                              >
+                                {{ retryingInvoiceIds().has(inv.id) ? 'Reemitindo…' : 'Reemitir' }}
+                              </button>
+                            }
+                          </div>
+                        </div>
+                        @if (invoiceError(inv); as err) {
+                          <div class="error-line">
+                            <ar-icon name="alert-triangle" [size]="13" />
+                            {{ err }}
+                          </div>
                         }
                       </div>
-                      <div class="inv-tomador">
-                        {{ inv.tomadorNome }}
-                        @if (inv.tomadorDocumento) {
-                          <span class="inv-doc">{{ inv.tomadorDocumento }}</span>
-                        }
-                      </div>
-                      <div class="inv-numero">{{ inv.numero ?? '—' }}</div>
-                      <div class="inv-valor right">{{ formatBRL(inv.valorBrutoReais) }}</div>
-                      <div><ar-pill [tone]="statusTone[inv.status]">{{ statusLabel[inv.status] }}</ar-pill></div>
-                      <div class="inv-files">
-                        @if (inv.pdfUrl; as pdf) {
-                          <a [href]="pdf" target="_blank" rel="noopener" class="ar-ghost-btn file-btn">PDF</a>
-                        }
-                        @if (inv.xmlUrl; as xml) {
-                          <a [href]="xml" target="_blank" rel="noopener" class="ar-ghost-btn file-btn">XML</a>
-                        }
-                        @if (inv.status === 'rejected' && isOwner()) {
-                          <button
-                            type="button"
-                            class="ar-ghost-btn file-btn"
-                            [disabled]="retryingInvoiceIds().has(inv.id)"
-                            (click)="retryInvoice(inv.id)"
-                          >
-                            {{ retryingInvoiceIds().has(inv.id) ? 'Reemitindo…' : 'Reemitir' }}
-                          </button>
-                        }
-                      </div>
-                    </div>
-                    @if (invoiceError(inv); as err) {
-                      <div class="error-line">
-                        <ar-icon name="alert-triangle" [size]="13" />
-                        {{ err }}
-                      </div>
+                    } @empty {
+                      <p class="state-text empty-text">{{ emptyInvoicesMessage() }}</p>
+                      @if (invoices().length === 0) {
+                        <a routerLink="/painel/fiscal" class="ar-mini-btn empty-cta">
+                          <ar-icon name="gear" [size]="14" />
+                          Ver configuração fiscal
+                        </a>
+                      }
                     }
                   </div>
-                } @empty {
-                  <p class="state-text empty-text">{{ emptyInvoicesMessage() }}</p>
-                  @if (invoices().length === 0) {
-                    <a routerLink="/painel/fiscal" class="ar-mini-btn empty-cta">
-                      <ar-icon name="gear" [size]="14" />
-                      Ver configuração fiscal
-                    </a>
-                  }
-                }
+                </div>
               </div>
             }
           </ar-panel-card>

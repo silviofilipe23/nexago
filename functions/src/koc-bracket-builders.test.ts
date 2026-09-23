@@ -387,13 +387,27 @@ describe("buildKingOfCourtRounds · rodadas por chave", () => {
     return buildKingOfCourtRounds(SEEDS, {...BASE, roundsPerBracket});
   }
 
-  it("emite uma rodada por chave por vez: 4 chaves × 2 = 8 na classificatória", () => {
+  it("as rodadas da MESMA chave saem em sequência: 4 chaves × 2 = 8", () => {
+    // Na areia é o mesmo grupo na mesma quadra: joga a rodada 1, a vencedora
+    // sai, e quem ficou segue direto para a rodada 2. Emitir todas as primeiras
+    // e depois todas as segundas espalhava a chave pela grade.
     const fase1 = build(2).filter((r) => r.phase === 1);
     assert.equal(fase1.length, 8);
     assert.deepEqual(
       fase1.map((r) => r.poolId),
-      ["C1", "C2", "C3", "C4", "C1", "C2", "C3", "C4"],
+      ["C1", "C1", "C2", "C2", "C3", "C3", "C4", "C4"],
     );
+    // Consecutivas também no número da partida — é o que a grade e o
+    // agendamento leem para pôr uma logo depois da outra.
+    for (const pool of ["C1", "C2", "C3", "C4"]) {
+      const [primeira, segunda] = fase1.filter((r) => r.poolId === pool);
+      assert.equal(segunda!.matchNumber, primeira!.matchNumber + 1, pool);
+    }
+  });
+
+  it("o rótulo da rodada segue a ordem de jogo, sem repetir", () => {
+    const fase1 = build(2).filter((r) => r.phase === 1);
+    assert.deepEqual(fase1.map((r) => r.roundLabel), [1, 2, 3, 4, 5, 6, 7, 8]);
   });
 
   it("a rodada seguinte da chave é quem NÃO classificou na anterior", () => {
@@ -496,16 +510,16 @@ describe("buildKingOfCourtRounds · campo que nao e multiplo da quadra", () => {
     const teamIds = Array.from({length: 14}, (_, i) => `t${i + 1}`);
     const rounds = buildKingOfCourtRounds(teamIds, cfg(2));
     const phaseOne = rounds.filter((r) => r.phase === 1);
-    assert.equal(phaseOne.length, 6); // 3 chaves x 2 rodadas
-    assert.deepEqual(
-      phaseOne.slice(0, 3).map((r) => r.size),
-      [5, 5, 4],
-    );
+    assert.equal(phaseOne.length, 6); // 3 chaves x 2 rodadas, em sequencia
+    // As rodadas de cada chave saem juntas: [C1 r1, C1 r2, C2 r1, C2 r2, ...].
+    assert.deepEqual(phaseOne.map((r) => r.size), [5, 4, 5, 4, 4, 3]);
     // A 2a rodada de cada chave herda os nao-classificados da 1a, e so deles.
     for (let i = 0; i < 3; i++) {
-      const second = phaseOne[3 + i]!;
+      const first = phaseOne[i * 2]!;
+      const second = phaseOne[i * 2 + 1]!;
+      assert.equal(second.poolId, first.poolId);
       const sources = new Set((second.qualifiers ?? []).map((q) => q.fromMatchNumber));
-      assert.deepEqual([...sources], [phaseOne[i]!.matchNumber]);
+      assert.deepEqual([...sources], [first.matchNumber]);
     }
   });
 

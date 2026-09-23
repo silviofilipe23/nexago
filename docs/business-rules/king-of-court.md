@@ -65,6 +65,13 @@ seguinte, e cada rodada da fase seguinte mistura vencedoras de rodadas de chave
 diferentes — senão uma semifinal juntaria todas as que venceram contra a chave
 cheia e nasceria muito mais forte que a outra.
 
+**As rodadas de uma chave saem em sequência.** Na areia é o mesmo grupo na
+mesma quadra: joga a rodada 1, a vencedora sai, e as que ficaram seguem direto
+para a rodada 2. A numeração acompanha (#1 e #2 são a chave C1, #3 e #4 a C2), e
+o auto-agendamento só libera a rodada seguinte depois que a anterior termina —
+a rodada que nasce só com vagas não tem elenco, então sem essa dependência o
+alocador a colocaria no mesmo horário, em outra quadra, com as mesmas duplas.
+
 **A divisão do campo muda junto.** Com uma rodada por chave, 14 duplas em
 quadras de 4 viram 4 chaves (4, 4, 3, 3). Pedindo duas rodadas, a chave de 3 não
 comportaria a segunda — então o campo é dividido em **menos chaves, cada uma mais

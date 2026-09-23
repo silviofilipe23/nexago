@@ -162,8 +162,13 @@ sem argumentos basta — é o que as 10 combinações 1024/1440 usaram.
    painel de QA que envolve o harness).
 4. Sob `pointer: coarse`, todo alvo interativo tem ≥44px de altura e ≥8px de
    separação de qualquer outro alvo.
-5. Nenhum `input`/`select`/`textarea` computa `font-size` < 16px sob
-   `pointer: coarse`.
+
+~~5. Nenhum `input`/`select`/`textarea` computa `font-size` < 16px sob
+`pointer: coarse`.~~ **Removida deste harness — sem sujeito real para medir.**
+Ver "Não coberto" abaixo: o shell (`panel-shell.component.ts` +
+`drawer.component.ts`) não renderiza nenhum `input`/`select`/`textarea` — só
+navegação. Não é possível provar esta regra sem um formulário de verdade, e
+este harness deixa `<ng-content>` (as 38 telas) vazio por design.
 
 ## Resultados medidos
 
@@ -179,38 +184,38 @@ do item 5 da nota de metodologia protege: se um seletor sair de sincronia
 com o shell, ele cai — visível aqui, não escondido atrás de um
 `assertion4_touchTargetsOk: true` que na verdade mediu zero.
 
-| Largura × Altura | pointerCoarse | alvos medidos | 1. nav não corta mudo | 2. todo item alcançável | 3. sem scroll horizontal | 4. alvos de toque ≥44/8px | 5. input ≥16px |
-|---|---|---|---|---|---|---|---|
-| 320×633  | true  | 35 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 320×665  | true  | 35 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 320×760  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 320×820  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 320×945  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 375×633  | true  | 35 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 375×665  | true  | 35 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 375×760  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 375×820  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 375×945  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 414×633  | true  | 35 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 414×665  | true  | 35 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 414×760  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 414×820  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 414×945  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
-| 768×633  | **false** | 31 | ✅ | ✅ | ✅ | N/A (ver nota) | N/A |
-| 768×665  | false | 31 | ✅ | ✅ | ✅ | N/A | N/A |
-| 768×760  | false | 31 | ✅ | ✅ | ✅ | N/A | N/A |
-| 768×820  | false | 31 | ✅ | ✅ | ✅ | N/A | N/A |
-| 768×945  | false | 31 | ✅ | ✅ | ✅ | N/A | N/A |
-| 1024×633 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
-| 1024×665 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
-| 1024×760 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
-| 1024×820 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
-| 1024×945 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
-| 1440×633 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
-| 1440×665 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
-| 1440×760 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
-| 1440×820 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
-| 1440×945 | false | 29 | ✅ | ✅ | ✅ | N/A | N/A |
+| Largura × Altura | pointerCoarse | alvos medidos | 1. nav não corta mudo | 2. todo item alcançável | 3. sem scroll horizontal | 4. alvos de toque ≥44/8px |
+|---|---|---|---|---|---|---|
+| 320×633  | true  | 35 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) |
+| 320×665  | true  | 35 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) |
+| 320×760  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) |
+| 320×820  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) |
+| 320×945  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) |
+| 375×633  | true  | 35 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) |
+| 375×665  | true  | 35 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) |
+| 375×760  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) |
+| 375×820  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) |
+| 375×945  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) |
+| 414×633  | true  | 35 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) |
+| 414×665  | true  | 35 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) |
+| 414×760  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) |
+| 414×820  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) |
+| 414×945  | true  | 36 | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) |
+| 768×633  | **false** | 31 | ✅ | ✅ | ✅ | N/A (ver nota) |
+| 768×665  | false | 31 | ✅ | ✅ | ✅ | N/A |
+| 768×760  | false | 31 | ✅ | ✅ | ✅ | N/A |
+| 768×820  | false | 31 | ✅ | ✅ | ✅ | N/A |
+| 768×945  | false | 31 | ✅ | ✅ | ✅ | N/A |
+| 1024×633 | false | 29 | ✅ | ✅ | ✅ | N/A |
+| 1024×665 | false | 29 | ✅ | ✅ | ✅ | N/A |
+| 1024×760 | false | 29 | ✅ | ✅ | ✅ | N/A |
+| 1024×820 | false | 29 | ✅ | ✅ | ✅ | N/A |
+| 1024×945 | false | 29 | ✅ | ✅ | ✅ | N/A |
+| 1440×633 | false | 29 | ✅ | ✅ | ✅ | N/A |
+| 1440×665 | false | 29 | ✅ | ✅ | ✅ | N/A |
+| 1440×760 | false | 29 | ✅ | ✅ | ✅ | N/A |
+| 1440×820 | false | 29 | ✅ | ✅ | ✅ | N/A |
+| 1440×945 | false | 29 | ✅ | ✅ | ✅ | N/A |
 
 **Antes do conserto do buraco de cobertura (item 4 da nota de metodologia),
 a contagem em 320/375/414 (compacto + toque) era só 7-9** — `.nav-trigger`,
@@ -312,7 +317,7 @@ restaurar o conserto):
 
 Idêntico — o `@media (pointer: coarse)` nunca casa em `pointer: fine`, então
 o código adicionado é inerte ali por construção. As 15 combinações
-768/1024/1440 × 5 alturas continuam `pointerCoarse: false` e A4/A5 seguem
+768/1024/1440 × 5 alturas continuam `pointerCoarse: false` e A4 segue
 N/A nelas (ver nota abaixo), sem nenhuma mudança de comportamento.
 
 **Efeito colateral verificado:** os dois elementos mais altos aumentam a
@@ -334,8 +339,10 @@ não deduzida.
 
 Isto é uma limitação real de ambiente, não do shell: um iPad em modo retrato
 a 768px de largura é `pointer: coarse` na vida real, e o preview não
-reproduz isso. As asserções 4 e 5 em 768/1024/1440 ficam **N/A** — não testado
-aqui, não "passou". A asserção 4 (achado A) é sobre `pointer: coarse`, não
+reproduz isso. A asserção 4 em 768/1024/1440 fica **N/A** — não testada
+aqui, não "passou" (a regra de 16px de campo, que seria a asserção 5, nem
+chegou a existir neste harness — ver "Não coberto"). A asserção 4 (achado A)
+é sobre `pointer: coarse`, não
 sobre largura: como a regra que falta cobrir (`.switcher`/`.switch-arena-link`/
 `.user-row`) não tem nenhuma condição de largura no CSS — só
 `@media (pointer: coarse)` — é razoável esperar que a mesma falta valha em
@@ -366,7 +373,7 @@ comporta diferente nos dois contêineres:
   drawer inteiro — reachable (confirmado pela asserção 2, união de estados),
   só que por um caminho diferente do desktop.
 
-Não é uma asserção vermelha (nenhuma das 5 pede que sidebar e drawer se
+Não é uma asserção vermelha (nenhuma das 4 pede que sidebar e drawer se
 comportem *igual*) — é uma assimetria estrutural real, mas **decisão
 consciente de não consertar agora**: nada é cortado (asserção 1 verde), e o
 `ar-drawer` também é usado pelo painel de detalhe da tela de Ranking — mudar
@@ -419,15 +426,33 @@ Fica de fora, e ainda precisa de olho humano com dado real:
   fazer QA visual (não geométrico) precisa olhar o app de verdade.
 - Autenticação, dados reais de Firestore, navegação de verdade (roteamento
   real, badges dinâmicos como o `2` de Torneios).
+- **A regra de `font-size: 16px` sob `pointer: coarse` em campo real
+  (`input`/`select`/`textarea`).** Não é coberta por este harness — e não
+  pode ser: o shell (`panel-shell.component.ts` + `drawer.component.ts`) é
+  só a moldura de navegação, não renderiza nenhum campo de formulário. Quem
+  tem `.input-box` são as 38 telas de `<ng-content>` (23 componentes, 59
+  `<input>` + 3 `<select>` + 4 `<textarea>`), fora de escopo geométrico deste
+  passe (ver item acima). Uma asserção 5 chegou a existir aqui medindo um
+  `<input>` de sonda solto no painel de QA — nunca um campo do shell de
+  verdade — e por isso só podia dar verde, o que o item 9 da nota de
+  metodologia retrata em detalhe. A regra em si tem conserto e medição
+  manual registrados em `styles.scss` (bloco `ar.touch`) e no relatório da
+  onda de correção do branch (`final-fix-report.md`): `.input-box` de
+  `panel-court-form.component.ts` media 14px sob `pointer: coarse` antes do
+  `!important`, 16px depois — mas essa medição é manual, fora deste harness,
+  e precisa ser repetida por olho humano sempre que um formulário novo
+  entrar no painel.
 
 ## Nota de metodologia — bugs de medição encontrados e corrigidos no próprio harness
 
 Esta seção é o que torna o harness confiável para quem for reusá-lo daqui a
 seis meses — ela **cresce**, não encolhe. Nenhum dos bugs abaixo mudou um
-veredito já reportado (as asserções 1/2/3/5 continuam verdes na matriz
+veredito já reportado (as asserções 1/2/3 continuam verdes na matriz
 inteira depois de cada conserto), mas todos eram caminhos reais para "passa
 em silêncio", que é exatamente o modo de falha que esta camada existe para
-eliminar.
+eliminar. O item 9 é o caso limite disso: não era um veredito errado, era um
+veredito **sem sujeito** — o pior caso de "passa em silêncio" que existe,
+porque nem media a coisa errada, media coisa nenhuma que importasse.
 
 1. **Falso positivo de "elemento perto demais"**: a primeira versão comparava
    pares de elementos por retângulo bruto (`getBoundingClientRect()`), sem
@@ -444,8 +469,13 @@ eliminar.
 2. **Falso negativo por `style="font-size:inherit"` na sonda**: o input de
    teste da asserção 5 tinha um `style` inline que forçava herdar do painel
    de QA (12px), mascarando se a regra global do app (`input,select,textarea
-   {font-size:16px}` sob toque) realmente funciona. Removido; a sonda agora
-   mede a regra real do app, não a do próprio harness.
+   {font-size:16px}` sob toque) realmente funciona. Removido; a sonda passou
+   a medir a regra real do app, não a do próprio harness. **Retratado no item
+   9**: este conserto tratou o sintoma errado. Removi o `style` inline, mas a
+   sonda continuava sendo um `<input>` solto no painel de QA, fora de `#host`
+   — nunca um campo do shell de verdade, porque o shell não tem nenhum. O
+   verde que ela passou a dar depois deste conserto era tão vazio quanto o
+   verde de antes.
 3. **Falso positivo de ancestralidade estrutural no conserto do item 1**
    (achado numa revisão): a condição de alcançabilidade aceitava `hit ===
    el || el.contains(hit) || hit.contains(el)` — o último ramo (o alvo é
@@ -547,3 +577,39 @@ eliminar.
    desatualizado. `shell.css`/`harness.js` continuam escritos em disco à
    parte, só para inspeção/diff isolado (não são mais o que o navegador
    carrega).
+9. **A asserção 5 nunca teve sujeito neste harness — o item 2 consertou o
+   sintoma errado, duas vezes** (achado no review final do branch inteiro,
+   não numa rodada anterior deste doc). A sonda `#qaProbeInput` era, desde o
+   início, um `<input>` avulso dentro do painel de QA (`.qa-panel`), fora de
+   `#host` — o próprio harness a rotulava `'(input de sonda -- nao existe no
+   shell real)'`, um sinal que passou despercebido por todas as rodadas
+   anteriores. O item 2 desta lista corrigiu um `style="font-size:inherit"`
+   que mascarava a leitura, e depois disso a sonda passou a reportar 16px
+   honestamente — mas 16px de **quê**? De um elemento sem a classe
+   `.input-box`, sem o atributo de escopo de nenhum componente Angular real,
+   sem NENHUMA regra concorrente que pudesse derrotar a regra global por
+   especificidade. Não existe cenário em que essa sonda desse vermelho — ela
+   não testava a regra de 16px, testava só que `getComputedStyle` funciona.
+   E o doc (`## Resultados medidos`, coluna "5. input ≥16px") registrou 15
+   ✅ em cima disso, como se fosse a prova de que os 23 blocos `.input-box`
+   do painel (22 declarando `font-size: 14px`) não travavam mais o zoom do
+   Safari. Não provava nada sobre eles.
+   
+   O bug real por trás disso (especificidade de `.input-box[_ngcontent-xxx]`
+   contra o `input` global) só apareceu quando alguém mediu um campo de
+   verdade — fora deste harness, manualmente, num teste isolado com o CSS
+   compilado de `panel-court-form.component.ts` (ver `final-fix-report.md`
+   da onda de correção do branch): **14px** sob `pointer: coarse`, não 16px.
+   O harness nunca teria pego isso, porque nunca mediu nada que pudesse
+   perder essa disputa.
+   
+   **Corrigido removendo a asserção 5 inteira** — `#qaProbeInput` saiu do
+   painel de QA, `measureInputFontSize()` saiu do harness, `assertion5_*`
+   saiu de `summarize()`. Não virou "N/A" na tabela (como a asserção 4 em
+   768/1024/1440, que É testável nessas larguras só não FOI testada no
+   ambiente) — saiu da tabela por completo, porque "N/A" ainda implica que a
+   pergunta faz sentido pro harness perguntar. Não faz: o shell não tem
+   campo, ponto. A regra de 16px agora vive só em "Não coberto", com a
+   instrução explícita de que precisa de olho humano num formulário de
+   verdade — exatamente o tipo de honestidade que este harness existe pra
+   forçar, aplicada a ele mesmo.

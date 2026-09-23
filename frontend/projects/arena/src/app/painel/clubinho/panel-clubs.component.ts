@@ -66,7 +66,7 @@ const STATUS_TONE: Record<ArenaClubStatus, PillTone> = {
           </div>
 
           <ar-panel-card [kicker]="clubs().length + ' no total'" title="Clubinhos" class="table-card">
-            <div class="ar-table-scroll">
+            <div class="ar-table-scroll" tabindex="0" role="region" aria-label="Tabela de clubinhos">
               <div class="ar-table-inner">
                 <div class="table-head">
                   <span>Clubinho</span>

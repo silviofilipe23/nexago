@@ -109,7 +109,7 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
               }
             </div>
 
-            <div class="ar-table-scroll">
+            <div class="ar-table-scroll" tabindex="0" role="region" aria-label="Tabela de estoque">
               <div class="ar-table-inner">
                 <div class="table-head">
                   <span></span>

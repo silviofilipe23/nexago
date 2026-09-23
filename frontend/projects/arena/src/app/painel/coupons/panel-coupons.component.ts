@@ -77,7 +77,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
               }
             </div>
 
-            <div class="ar-table-scroll">
+            <div class="ar-table-scroll" tabindex="0" role="region" aria-label="Tabela de cupons">
               <div class="ar-table-inner">
                 <div class="table-head">
                   <span>Código</span>

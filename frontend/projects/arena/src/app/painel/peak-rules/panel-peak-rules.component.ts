@@ -58,7 +58,7 @@ import { fetchAllPeakRules, setPeakRuleActive } from './peak-rules-repository';
           </div>
 
           <ar-panel-card title="Regras" class="table-card">
-            <div class="ar-table-scroll">
+            <div class="ar-table-scroll" tabindex="0" role="region" aria-label="Tabela de regras de horário de pico">
               <div class="ar-table-inner">
                 <div class="table-head">
                   <span>Regra</span>

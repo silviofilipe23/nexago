@@ -74,7 +74,7 @@ import type { AthleteCandidate } from './athlete-search-filter';
             @if (series().length === 0) {
               <p class="state-text empty-text">Nenhum horário fixo cadastrado ainda.</p>
             } @else {
-              <div class="ar-table-scroll">
+              <div class="ar-table-scroll" tabindex="0" role="region" aria-label="Tabela de horários fixos">
                 <div class="ar-table-inner">
                   <div class="table-head">
                     <span>Mensalista</span>

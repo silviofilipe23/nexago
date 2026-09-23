@@ -34,7 +34,8 @@ export type PanelIconName =
   | 'camera'
   | 'chart-bar'
   | 'pause'
-  | 'play';
+  | 'play'
+  | 'x';
 
 /** Ícones stroke-24 do painel da arena (protótipo Ar\*\/Bo\*\/At\* Ic\*), um componente para evitar repetir SVG. */
 @Component({
@@ -163,6 +164,9 @@ export type PanelIconName =
         }
         @case ('play') {
           <path d="M8 5v14l11-7z" stroke-linejoin="round" />
+        }
+        @case ('x') {
+          <path d="M6 6l12 12M18 6 6 18" />
         }
       }
     </svg>

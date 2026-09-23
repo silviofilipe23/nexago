@@ -86,7 +86,7 @@ const SESSION_TONE: Record<ClubSessionStatus, PillTone> = {
           </div>
 
           <ar-panel-card [kicker]="sessions().length + ' data(s)'" title="Próximas sessões" class="table-card">
-            <div class="ar-table-scroll">
+            <div class="ar-table-scroll" tabindex="0" role="region" aria-label="Tabela de próximas sessões do clubinho">
               <div class="ar-table-inner">
                 <div class="table-head">
                   <span>Data</span>

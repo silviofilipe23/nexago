@@ -666,10 +666,23 @@ button {
   }
 
   /* iOS Safari da zoom sozinho ao focar campo com fonte < 16px. Uma regra aqui
-     resolve as ~397 ocorrencias de fonte pequena sem tocar em 397 lugares. */
+     resolve as ~397 ocorrencias de fonte pequena sem tocar em 397 lugares --
+     MAS so na teoria: sob encapsulamento emulado do Angular, uma regra de
+     componente compila para `.input-box[_ngcontent-xxx]` (especificidade
+     0,2,0) ou `input[_ngcontent-xxx]` (0,1,1), e as duas ganham do seletor
+     de elemento global `input` (0,0,1) *independente* da media query ou da
+     ordem no documento -- @media nao soma especificidade, e especificidade
+     decide antes de ordem. 23 blocos `.input-box` (22 declarando 14px) e o
+     `input` de `auth/ui/field.component.ts` (15px) blindavam o zoom do
+     Safari inteiro. `!important` aqui e a unica forma robusta de vencer sem
+     enumerar (e manter sincronizados) 23+ seletores de componente -- e e
+     justificavel: esta regra e uma trava de acessibilidade de PLATAFORMA
+     (o Safari decide zoom ou nao com base so no valor computado), nao
+     estilo de produto, e fica confinada a este bloco `ar.touch`, nunca solta
+     no arquivo. */
   input,
   select,
   textarea {
-    font-size: 16px;
+    font-size: 16px !important;
   }
 }

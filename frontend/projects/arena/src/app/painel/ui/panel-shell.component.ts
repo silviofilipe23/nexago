@@ -110,6 +110,16 @@ function pathOnly(url: string): string {
           <div class="name">nexa<span>GO</span></div>
           <div class="tag">Arena</div>
         </div>
+        @if (viewport.isCompact()) {
+          <button
+            type="button"
+            class="drawer-close"
+            aria-label="Fechar menu de navegação"
+            (click)="drawerOpen.set(false)"
+          >
+            <ar-icon name="x" [size]="16" [strokeWidth]="2" />
+          </button>
+        }
       </div>
 
       <a class="switcher" routerLink="/painel/perfil" title="Ver perfil">
@@ -260,6 +270,27 @@ function pathOnly(url: string): string {
       letter-spacing: 0.2em;
       text-transform: uppercase;
       color: var(--nx-text-dim);
+    }
+
+    /* So existe dentro do drawer (viewport.isCompact() no template) -- na
+       sidebar fixa do desktop fechar nao faz sentido, ja que ela nunca se
+       fecha. Mesmo tamanho/alvo de toque do .nav-trigger da topbar (44px,
+       var(--ar-tap)) porque os dois resolvem o mesmo problema: entrar e sair
+       do drawer sem depender de Escape (teclado fisico) ou do scrim, que o
+       painel de 100%/420px de largura cobre por completo em qualquer celular
+       (375/390/393/414px nao sobra nada tocavel fora do painel). */
+    .drawer-close {
+      width: var(--ar-tap);
+      height: var(--ar-tap);
+      margin-left: auto;
+      flex: none;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--nx-line);
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      color: var(--nx-text);
+      cursor: pointer;
     }
 
     .switcher {

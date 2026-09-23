@@ -139,7 +139,7 @@ function localPartOf(email: string): string {
           </div>
 
           <ar-panel-card title="Membros da equipe" [kicker]="rows().length + ' pessoas'" class="table-card">
-            <div class="ar-table-scroll table-scroll">
+            <div class="ar-table-scroll table-scroll" tabindex="0" role="region" aria-label="Tabela de membros da equipe">
               <div class="ar-table-inner">
                 <div class="table-head">
                   <span></span>

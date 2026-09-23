@@ -100,7 +100,7 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
             @if (participants().length === 0) {
               <p class="state-text empty-text">Ninguém na lista ainda — compartilhe o clubinho com seus atletas.</p>
             } @else {
-              <div class="ar-table-scroll">
+              <div class="ar-table-scroll" tabindex="0" role="region" aria-label="Tabela de participantes da lista">
                 <div class="ar-table-inner">
                   <div class="table-list">
                     @for (p of participants(); track p.id; let i = $index) {

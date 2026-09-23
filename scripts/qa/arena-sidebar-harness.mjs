@@ -611,11 +611,22 @@ const harnessJs = `
     };
   }
 
-  function measureInputFontSize() {
-    var probe = document.getElementById('qaProbeInput');
-    var size = getComputedStyle(probe).fontSize;
-    return { selector: '#qaProbeInput (input de sonda -- nao existe no shell real)', fontSize: size };
-  }
+  // NAO existe measureInputFontSize()/assercao 5 aqui de proposito. A sonda
+  // que existia antes (#qaProbeInput) media um input pelado que so vivia no
+  // painel de QA, fora de #host -- nunca um campo do shell de verdade, porque
+  // o shell (panel-shell.component.ts + drawer.component.ts) e so a moldura
+  // de navegacao e nao renderiza NENHUM input/select/textarea; quem tem esses
+  // campos sao as 38 telas de ng-content, que este harness deixa vazias por
+  // design (ver 'Fidelidade' no doc). Media a regra global (input, select,
+  // textarea com font-size 16px sob toque) contra um elemento que nunca tinha
+  // a classe .input-box/o encapsulamento de um componente real por perto --
+  // ou seja, nunca podia reproduzir o bug real (a derrota de especificidade
+  // contra .input-box com o atributo de escopo do Angular). A sonda so podia
+  // dar verde, e dava, e o doc registrava esse verde como se fosse a regra de
+  // 16px provada -- nao provava. Ver 'Nao coberto' em
+  // docs/qa/arena-responsivo-passe-medido.md: a regra de 16px precisa de
+  // medicao manual num formulario de verdade (ex.: .input-box de
+  // panel-court-form.component.ts), fora do escopo geometrico deste harness.
 
   function measurePageOverflow() {
     return {
@@ -722,7 +733,6 @@ const harnessJs = `
       flags: flags,
       pointerCoarse: matchMedia('(pointer: coarse)').matches,
       pageOverflow: measurePageOverflow(),
-      inputFontSize: measureInputFontSize(),
       dono: sweptDono || sweepRole('dono'),
       recepcao: sweptRecepcao || sweepRole('recepcao'),
     };
@@ -799,8 +809,13 @@ const harnessJs = `
       assertion4_offscreenChrome: offscreenList,
       assertion4_targetsMeasuredCount: measuredTargetsList.length,
       assertion4_targetsMeasured: measuredTargetsList,
-      assertion5_inputFontSize: full.inputFontSize.fontSize,
-      assertion5_ok: !full.pointerCoarse || parseFloat(full.inputFontSize.fontSize) >= 16,
+      // Sem assertion5_*: nao existe sujeito real pra essa medicao neste
+      // harness (ver nota acima de measurePageOverflow()). Nao incluir a
+      // chave aqui -- em vez de incluir com um valor sempre-verde -- e
+      // deliberado: um consumidor que leia este objeto e trate ausencia de
+      // chave como "nao verificado" fica correto por padrao; um
+      // "assertion5_ok: true" sempre presente e o tipo de coisa que passa em
+      // silencio.
     };
   }
 
@@ -890,7 +905,6 @@ const indexHtml = `<!doctype html>
       <label><input type="checkbox" id="qaMultiArena" checked /> múltiplas arenas (pior caso)</label>
       <button type="button" id="qaOpenDrawer">Abrir drawer</button>
       <button type="button" id="qaCloseAll">Fechar todos os grupos</button>
-      <label>Sonda de fonte: <input type="text" id="qaProbeInput" placeholder="probe" /></label>
     </div>
     <div class="qa-row">
       <button type="button" id="qaRunSweep"><strong>Rodar varredura completa (window.arenaHarness.fullReport)</strong></button>

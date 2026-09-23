@@ -126,21 +126,21 @@ matriz, só 320/375/414 vieram com `pointer: coarse` verdadeiro no preview
 
 | Largura × Altura | pointerCoarse | 1. nav não corta mudo | 2. todo item alcançável | 3. sem scroll horizontal | 4. alvos de toque ≥44/8px | 5. input ≥16px |
 |---|---|---|---|---|---|---|
-| 320×633  | true  | ✅ | ✅ | ✅ | ❌ (ver achado A) | ✅ |
-| 320×665  | true  | ✅ | ✅ | ✅ | ❌ (ver achado A) | ✅ |
-| 320×760  | true  | ✅ | ✅ | ✅ | ❌ (ver achado A) | ✅ |
-| 320×820  | true  | ✅ | ✅ | ✅ | ❌ (ver achado A) | ✅ |
-| 320×945  | true  | ✅ | ✅ | ✅ | ❌ (ver achado A) | ✅ |
-| 375×633  | true  | ✅ | ✅ | ✅ | ❌ (ver achado A) | ✅ |
-| 375×665  | true  | ✅ | ✅ | ✅ | ❌ (ver achado A) | ✅ |
-| 375×760  | true  | ✅ | ✅ | ✅ | ❌ (ver achado A) | ✅ |
-| 375×820  | true  | ✅ | ✅ | ✅ | ❌ (ver achado A) | ✅ |
-| 375×945  | true  | ✅ | ✅ | ✅ | ❌ (ver achado A) | ✅ |
-| 414×633  | true  | ✅ | ✅ | ✅ | ❌ (ver achado A) | ✅ |
-| 414×665  | true  | ✅ | ✅ | ✅ | ❌ (ver achado A) | ✅ |
-| 414×760  | true  | ✅ | ✅ | ✅ | ❌ (ver achado A) | ✅ |
-| 414×820  | true  | ✅ | ✅ | ✅ | ❌ (ver achado A) | ✅ |
-| 414×945  | true  | ✅ | ✅ | ✅ | ❌ (ver achado A) | ✅ |
+| 320×633  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 320×665  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 320×760  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 320×820  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 320×945  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 375×633  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 375×665  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 375×760  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 375×820  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 375×945  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 414×633  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 414×665  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 414×760  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 414×820  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
+| 414×945  | true  | ✅ | ✅ | ✅ | ✅ (corrigido — ver achado A) | ✅ |
 | 768×633  | **false** | ✅ | ✅ | ✅ | N/A (ver nota) | N/A |
 | 768×665  | false | ✅ | ✅ | ✅ | N/A | N/A |
 | 768×760  | false | ✅ | ✅ | ✅ | N/A | N/A |
@@ -168,40 +168,93 @@ cargo `dono`, grupo **Público** aberto (6 itens — o maior grupo) —
 `<aside class="sidebar">` de fato precisa rolar 4px, e `overflow-y: auto`
 cobre isso (`fits: true`). Nas demais combinações a folga foi maior.
 
-## Achado A (assertão 4 vermelha) — três alvos de toque abaixo do mínimo
+## Achado A (assertão 4) — corrigido e re-medido
 
-Reproduzido de forma idêntica em **todas** as 15 combinações com
-`pointer: coarse` verdadeiro (320/375/414 × as 5 alturas), cargos `dono` e
-`recepcao`, com a opção "múltiplas arenas" ligada (caso realista: qualquer
-gestor que administra mais de uma arena vê a linha "Trocar arena" — não é
-cenário só do harness).
+**Estado original (vermelho):** reproduzido de forma idêntica em **todas** as
+15 combinações com `pointer: coarse` verdadeiro (320/375/414 × as 5 alturas),
+cargos `dono` e `recepcao`, com a opção "múltiplas arenas" ligada (caso
+realista: qualquer gestor que administra mais de uma arena vê a linha "Trocar
+arena" — não é cenário só do harness).
 
-Números medidos (`getBoundingClientRect()`/`getComputedStyle()`, sem
-arredondar mais do que o necessário):
+Números medidos antes do conserto (`getBoundingClientRect()`/`getComputedStyle()`):
 
 | Elemento | Métrica | Medido | Mínimo exigido | Onde |
 |---|---|---|---|---|
-| `.switch-arena-link` (link "Trocar arena") | altura | **13px** | 44px | `panel-shell.component.ts`, template `navTree`, classe `.switch-arena-link` |
-| `.switch-arena-link` | gap até `.switcher` (acima) | **6px** | 8px | idem |
-| `.user-row` (link para `/painel/perfil`, roda da sidebar/drawer) | altura | **43px** | 44px | idem, classe `.user-row` |
+| `.switch-arena-link` (link "Trocar arena") | altura | 13px | 44px | `panel-shell.component.ts`, template `navTree`, classe `.switch-arena-link` |
+| `.switch-arena-link` | gap até `.switcher` (acima) | 6px | 8px | idem |
+| `.user-row` (link para `/painel/perfil`, roda da sidebar/drawer) | altura | 43px | 44px | idem, classe `.user-row` |
 
-Causa aparente (inspecionada no CSS, não corrigida — fora de escopo desta
-task): a Task 2 fez `@include ar.touch { --ar-nav-item-h: var(--ar-tap); }`
+Causa: a Task 2 fez `@include ar.touch { --ar-nav-item-h: var(--ar-tap); }`
 sobrescrever a altura de `.nav-item`/`.nav-group-head` sob `pointer: coarse`
 (e esse mecanismo **funciona** — nenhuma violação neles em nenhum caso
 medido). Mas `.switcher`, `.switch-arena-link` e `.user-row` não usam
 `--ar-nav-item-h` — têm padding fixo (`.switch-arena-link { padding: 0 10px }`,
-`.user-row { padding-top: 10px }`) que nunca foi coberto por essa regra nem
-por nenhuma outra sob `ar.touch`. `.switcher` (a linha do nome da arena, logo
-acima) não apareceu como violação porque sua altura já passa de 44px por
-outro motivo (avatar de 28px + padding), mas o **gap** entre ele e
-`.switch-arena-link` right abaixo é só 6px.
+`.user-row { padding-top: 10px }`) que nenhuma regra de `ar.touch` cobria.
+`.switcher` (a linha do nome da arena, logo acima) nunca apareceu como
+violação porque sua altura já passa de 44px por outro motivo (avatar de 28px
++ padding), mas o **gap** entre ele e `.switch-arena-link` logo abaixo era só
+6px. `.user-row` ficava a só 1px do mínimo — o tipo de achado que só aparece
+medindo de verdade; deduzir do CSS não teria dado certeza do veredito.
 
-`.user-row` fica a só 1px do mínimo — o tipo de achado que só aparece
-medindo de verdade; deduzir do CSS não bastaria para ter certeza do veredito.
+**Conserto** (`panel-shell.component.ts`, dentro do `@media (pointer: coarse)`
+já existente — o mesmo bloco onde a Task 7 pôs `.nav { gap: var(--ar-tap-gap) }`):
 
-Por instrução explícita: **não mexi no código do shell**. Isto fica para a
-task de conserto correspondente.
+```css
+@media (pointer: coarse) {
+  .nav {
+    gap: var(--ar-tap-gap);
+  }
+
+  .switch-arena-link {
+    min-height: var(--ar-tap);
+    margin-top: var(--ar-tap-gap);
+  }
+
+  .user-row {
+    min-height: var(--ar-tap);
+  }
+}
+```
+
+`min-height` (não `height`) para não brigar com conteúdo intrínseco se algum
+dia crescer; os dois seletores já tinham `align-items: center`, então o
+conteúdo recentraliza sozinho na caixa mais alta sem precisar de nenhum outro
+ajuste. Nada fora do bloco `pointer: coarse` foi tocado.
+
+**Re-medição — as mesmas 15 combinações, depois do conserto:**
+
+| Elemento | Métrica | Medido (depois) | Mínimo exigido |
+|---|---|---|---|
+| `.switch-arena-link` | altura | **44px** | 44px |
+| `.switch-arena-link` | gap até `.switcher` | **8px** | 8px |
+| `.user-row` | altura | **44px** | 44px |
+
+Idêntico nas 15/15 combinações (320/375/414 × 633/665/760/820/945), ambos os
+cargos. `assertion4_touchTargetsOk` do harness: `true` nas 15 — zero
+`undersized`, zero `gapViolations`.
+
+**Confirmação de que o desktop não mudou um pixel** (medido, não deduzido —
+o arquivo do commit anterior a este conserto foi temporariamente restaurado,
+o harness regenerado a partir dele, e a mesma largura medida antes de
+restaurar o conserto):
+
+| Largura×Altura | pointerCoarse | `.switch-arena-link` altura | `.user-row` altura |
+|---|---|---|---|
+| 1440×760, **antes** do conserto | false | 13px | 43px |
+| 1440×760, **depois** do conserto | false | 13px | 43px |
+
+Idêntico — o `@media (pointer: coarse)` nunca casa em `pointer: fine`, então
+o código adicionado é inerte ali por construção. As 15 combinações
+768/1024/1440 × 5 alturas continuam `pointerCoarse: false` e A4/A5 seguem
+N/A nelas (ver nota abaixo), sem nenhuma mudança de comportamento.
+
+**Efeito colateral verificado:** os dois elementos mais altos aumentam a
+altura total que a sidebar/drawer pedem. Assertão 1 (`nav` não corta mudo) —
+que é sobre o `.nav`, não sobre `.switch-arena-link`/`.user-row` diretamente,
+mas a altura desses dois consome espaço do mesmo pai flex — continua **verde
+nas 30 combinações** depois do conserto (ver tabela principal). O
+`overflow-y: auto` do `.nav` (sidebar) e do `.panel` (drawer, achado B)
+seguram a folga extra sem cortar nada.
 
 ## Nota sobre `pointer: coarse` no preview (768/1024/1440)
 
@@ -223,7 +276,7 @@ qualquer largura com um dispositivo de toque real (ex.: um Surface ou
 all-in-one touch em 1440px), mas isso **não foi medido**, só inspecionado no
 CSS-fonte. Registro a diferença para não confundir inferência com medição.
 
-## Achado B (não é falha de asserção, mas vale registrar) — drawer não isola o scroll do `.nav` como a sidebar
+## Achado B (decisão consciente de não consertar) — drawer não isola o scroll do `.nav` como a sidebar
 
 Em largura compacta (< 900px), a navegação usa `<ar-drawer>` em vez do
 `<aside class="sidebar">`. O `<div class="panel">` do drawer
@@ -247,8 +300,30 @@ comporta diferente nos dois contêineres:
   só que por um caminho diferente do desktop.
 
 Não é uma asserção vermelha (nenhuma das 5 pede que sidebar e drawer se
-comportem *igual*), mas é uma assimetria estrutural real entre os dois
-contêineres que quem for mexer no drawer no futuro devia saber que existe.
+comportem *igual*) — é uma assimetria estrutural real, mas **decisão
+consciente de não consertar agora**: nada é cortado (asserção 1 verde), e o
+`ar-drawer` também é usado pelo painel de detalhe da tela de Ranking — mudar
+o modelo de layout do `.panel` agora arrisca regressão ali em troca de
+nenhum ganho medido. Registrado aqui como decisão, não como pendência em
+aberto.
+
+## Verificação (build + suíte, pós-conserto do achado A)
+
+```
+$ cd frontend && npx ng build arena --configuration production
+Application bundle generation complete. [5.283 seconds]
+▲ [WARNING] bundle initial exceeded maximum budget. Budget 500.00 kB was not met by 256.87 kB with a total of 756.87 kB.
+EXIT: 0
+```
+Mesmo warning pré-existente de orçamento de bundle já visto nas Tasks 9-11 (756.87 kB) — não é
+erro, não relacionado a esta mudança (é CSS de dentro de um componente já existente).
+
+```
+$ npx ng test arena --watch=false --browsers=ChromeHeadless
+Chrome Headless 153.0.0.0 (Mac OS 10.15.7): Executed 182 of 182 SUCCESS (0.494 secs / 0.419 secs)
+TOTAL: 182 SUCCESS
+```
+182 — mesmo total de antes do conserto, zero `FAILED`.
 
 ## Não coberto
 

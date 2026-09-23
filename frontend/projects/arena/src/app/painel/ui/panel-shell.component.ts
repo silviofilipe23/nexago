@@ -630,6 +630,21 @@ function pathOnly(url: string): string {
       .nav {
         gap: var(--ar-tap-gap);
       }
+
+      /* .switch-arena-link e .user-row nao usam --ar-nav-item-h (esse token
+         so cobre .nav-item/.nav-group-head) -- por isso o alvo de toque de
+         44px da Task 2 nunca alcancava os dois. min-height (nao height) para
+         nao brigar com o conteudo intrinseco se algum dia crescer; os dois ja
+         tem align-items: center, entao o conteudo recentraliza sozinho na
+         caixa mais alta. */
+      .switch-arena-link {
+        min-height: var(--ar-tap);
+        margin-top: var(--ar-tap-gap);
+      }
+
+      .user-row {
+        min-height: var(--ar-tap);
+      }
     }
   `,
 })

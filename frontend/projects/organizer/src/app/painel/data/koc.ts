@@ -314,6 +314,70 @@ export function kocHasQualifyingTie(round: KocRoundState): boolean {
   return kocQualifyingTieGroup(round).length > 0;
 }
 
+/**
+ * Ordem em que as duplas foram REI, da primeira à mais recente.
+ *
+ * Espelha `crownOrder` do servidor, que é o primeiro desempate depois dos
+ * pontos. O portal não recebe esse campo — reconstrói do log de rallies, a
+ * mesma fonte da verdade que `kocLogLines` usa.
+ */
+export function kocCrownOrder(round: KocRoundState): string[] {
+  const roster = round.teamIds;
+  if (roster.length < 3) return [];
+
+  let king = roster[0]!;
+  let challenger = roster[1]!;
+  let queue = roster.slice(2);
+  const order: string[] = [king];
+
+  for (const entry of round.rallyLog) {
+    // A bola de ouro não mexe na fila: é jogada depois do apito.
+    if (entry.winner === 'golden_point') continue;
+    if (entry.winner === 'serve_fault') {
+      queue = [...queue, challenger];
+      challenger = queue.shift() ?? '';
+      continue;
+    }
+    if (entry.winner === 'king') {
+      queue = [...queue, challenger];
+      challenger = queue.shift() ?? '';
+      continue;
+    }
+    queue = [...queue, king];
+    king = challenger;
+    order.push(king);
+    challenger = queue.shift() ?? '';
+  }
+  return order;
+}
+
+/**
+ * Ordem de entrada da MINI-RODADA que resolve o empate, da primeira à última.
+ *
+ * Com duas duplas é uma bola de ouro e pronto. Com três ou mais, "rally único
+ * entre as empatadas" não diz o que fazer — um rally tem dois lados. Elas jogam
+ * o próprio formato: a primeira desta lista começa no TRONO, a segunda desafia,
+ * as outras esperam; quem pontuar primeiro leva a vaga.
+ *
+ * Quem começa no trono é a melhor pelo critério automático do servidor — rei
+ * mais recente, depois ordem de entrada. Assim o critério deixa de ser um
+ * desempate silencioso e vira vantagem posicional: quem foi rei por último
+ * precisa de um rally, as outras precisam de dois.
+ */
+export function kocTiebreakOrder(round: KocRoundState): string[] {
+  const tied = kocQualifyingTieGroup(round);
+  if (tied.length === 0) return [];
+  const crowns = kocCrownOrder(round);
+  const lastCrown = new Map<string, number>();
+  crowns.forEach((id, i) => lastCrown.set(id, i));
+  const seed = new Map(round.teamIds.map((id, i) => [id, i]));
+  return [...tied].sort((a, b) => {
+    const byCrown = (lastCrown.get(b) ?? -1) - (lastCrown.get(a) ?? -1);
+    if (byCrown !== 0) return byCrown;
+    return (seed.get(a) ?? 0) - (seed.get(b) ?? 0);
+  });
+}
+
 /** Duplas que disputam a vaga no empate — as que jogam a bola de ouro.
  *
  *  Com poucos rallies (uma rodada de 15 min produz poucos) o empate no corte é

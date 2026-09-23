@@ -33,7 +33,7 @@ const NAV_ITEMS: PanelNavItem[] = [
   { id: 'horarios-pico', label: 'Horários de pico', icon: 'tag', route: '/painel/horarios-pico', badge: null, area: 'promocoes' },
   { id: 'links', label: 'Links', icon: 'share', route: '/painel/links', badge: null, area: 'site' },
   { id: 'meu-site', label: 'Meu site', icon: 'image', route: '/painel/meu-site', badge: null, area: 'site' },
-  { id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios', badge: 2, area: 'torneios' },
+  // { id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios', badge: 2, area: 'torneios' },
   { id: 'quadras', label: 'Quadras', icon: 'courts', route: '/painel/quadras', badge: null, area: 'quadras' },
   { id: 'ocupacao', label: 'Ocupação', icon: 'chart-bar', route: '/painel/relatorios/ocupacao', badge: null, area: 'financeiro' },
   { id: 'avaliacoes', label: 'Avaliações', icon: 'star', route: '/painel/avaliacoes', badge: null, area: 'comunidade' },

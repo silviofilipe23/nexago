@@ -269,6 +269,59 @@ function buildKingOfCourtCategory(maxTeams) {
   };
 }
 
+/**
+ * Campos de CONFIGURAÇÃO da categoria — os que decidem a forma da chave.
+ *
+ * Deliberadamente NÃO inclui vagas (`maxTeams`/`spotsTotal`/`spotsLeft`),
+ * inscrições nem prêmios: num torneio reutilizado essas coisas já refletem o
+ * que foi inscrito, e sobrescrevê-las desalinharia os contadores.
+ */
+const CATEGORY_CONFIG_FIELDS = [
+  "bracketFormat",
+  "teamsPerGroup",
+  "qualifiersPerGroup",
+  "teamsPerCourt",
+  "roundsPerBracket",
+  "qualifiersPerRound",
+  "roundDurationSec",
+  "bestOf",
+  "finalBestOf5",
+];
+
+/**
+ * Atualiza a CONFIG das categorias já gravadas com a do seed atual, casando
+ * por `id`. Categoria que só existe num dos lados fica como está.
+ *
+ * Existe porque as categorias só são gravadas na criação do torneio, e o seed
+ * evolui: quando `roundsPerBracket` entrou na categoria KOTC, todo torneio
+ * seed já criado continuou sem o campo. Quem re-rodava o seed no mesmo
+ * `--tournament-name` via a chave sair com a forma antiga e não tinha como
+ * saber que a config nunca havia chegado no doc.
+ *
+ * @returns {{categories: object[], changes: string[]}} As categorias
+ *   atualizadas e a lista legível do que mudou (vazia = nada a fazer).
+ */
+function refreshCategoryConfig(existingCategories, seedCategories) {
+  const bySeedId = new Map(seedCategories.map((c) => [c.id, c]));
+  const changes = [];
+  const categories = (existingCategories || []).map((current) => {
+    const seed = bySeedId.get(current.id);
+    if (!seed) return current;
+    const next = {...current};
+    for (const field of CATEGORY_CONFIG_FIELDS) {
+      if (!(field in seed)) continue;
+      if (current[field] === seed[field]) continue;
+      changes.push(
+        `${current.id}.${field}: ${JSON.stringify(current[field])} -> ` +
+        `${JSON.stringify(seed[field])}`,
+      );
+      next[field] = seed[field];
+    }
+    return next;
+  });
+  return {categories, changes};
+}
+
 function buildMatchOps(activeDayKey = "") {
   return {
     activeDayKey,
@@ -881,6 +934,24 @@ async function runTournamentEnrollmentSeed({
         " valem as categorias já gravadas nele. Use --tournament-name novo.",
       );
     }
+    // A CONFIG das categorias, porém, precisa acompanhar o seed: é ela que
+    // decide a forma da chave, e um torneio criado antes de um campo existir
+    // ficaria para sempre com a forma antiga, em silêncio.
+    const {categories: refreshed, changes} = refreshCategoryConfig(
+      tournament.data.categories,
+      categories,
+    );
+    if (changes.length > 0) {
+      console.log("  Config de categoria desatualizada — atualizando:");
+      for (const line of changes) console.log(`    ${line}`);
+      if (APPLY) {
+        await db.doc(`tournaments/${tournamentId}`).update({categories: refreshed});
+        tournament = {...tournament, data: {...tournament.data, categories: refreshed}};
+        console.log("  Config atualizada. Gere a chave de novo para a nova forma valer.");
+      } else {
+        console.log("  DRY-RUN: config não gravada.");
+      }
+    }
   } else {
     tournamentId = db.collection("tournaments").doc().id;
     const doc = buildTournamentDoc(categories, TOURNAMENT_NAME);
@@ -973,6 +1044,8 @@ async function runTournamentEnrollmentSeed({
 }
 
 module.exports = {
+  CATEGORY_CONFIG_FIELDS,
+  refreshCategoryConfig,
   LEVELS,
   GENDERS,
   TOTAL_CATEGORIES,

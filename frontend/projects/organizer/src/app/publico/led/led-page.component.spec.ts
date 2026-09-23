@@ -76,7 +76,16 @@ const TOURNAMENT = {
 } as unknown as OrganizerTournament;
 
 function team(a: string, b: string): TelaoTeamDisplay {
-  return { label: `${a} / ${b}`, short: a, sub: null, players: [], playerNames: [a, b] };
+  return {
+    label: `${a} / ${b}`,
+    short: a,
+    sub: null,
+    players: [
+      { initials: a.slice(0, 2).toUpperCase(), photoUrl: null },
+      { initials: b.slice(0, 2).toUpperCase(), photoUrl: null },
+    ],
+    playerNames: [a, b],
+  };
 }
 
 class FakeTelao {

@@ -7,6 +7,7 @@ import { kocStandingsBoardOf } from '../overlay/overlay-koc-standings';
 import { overlayViewOf } from '../overlay/overlay-selectors';
 import { LedRoundComponent, type LedTeam } from './led-round.component';
 import { LedStandingsComponent } from './led-standings.component';
+import { ledIniciaisDe } from './led-iniciais';
 import { ledTelaOf } from './led-telas';
 
 /** Painel de LED da quadra: `/led/:tournamentId/quadra/:courtId`.
@@ -24,7 +25,7 @@ import { ledTelaOf } from './led-telas';
     @switch (tela()) {
       @case ('jogo') {
         @if (view(); as v) {
-          <div class="cortina">
+          <div class="cortina" animate.enter="led-cortina-in" animate.leave="led-cortina-out">
             <og-led-round
               [view]="v"
               [teams]="teams()"
@@ -36,7 +37,7 @@ import { ledTelaOf } from './led-telas';
       }
       @case ('tempo-esgotado') {
         @if (view(); as v) {
-          <div class="cortina">
+          <div class="cortina" animate.enter="led-cortina-in" animate.leave="led-cortina-out">
             <og-led-round
               [view]="v"
               [teams]="teams()"
@@ -52,7 +53,7 @@ import { ledTelaOf } from './led-telas';
              segura a classificação da rodada: informação verdadeira por mais tempo é melhor que
              painel preto no meio do ginásio. -->
         @if (standings(); as board) {
-          <div class="cortina">
+          <div class="cortina" animate.enter="led-cortina-in" animate.leave="led-cortina-out">
             <og-led-standings
               [board]="board"
               [teams]="teams()"
@@ -64,7 +65,7 @@ import { ledTelaOf } from './led-telas';
       }
       @case ('classificacao') {
         @if (standings(); as board) {
-          <div class="cortina">
+          <div class="cortina" animate.enter="led-cortina-in" animate.leave="led-cortina-out">
             <og-led-standings
               [board]="board"
               [teams]="teams()"
@@ -84,12 +85,17 @@ import { ledTelaOf } from './led-telas';
       background: #000;
     }
 
-    /* Cortina da esquerda para a direita. Cada tela é um elemento novo no @switch, então a
-       animação roda sozinha na troca — sem orquestração. */
     .cortina {
       position: absolute;
       inset: 0;
+    }
+
+    /* Cortina da esquerda para a direita na entrada; a tela que sai some em 300ms. */
+    .led-cortina-in {
       animation: led-cortina 500ms cubic-bezier(0.7, 0, 0.3, 1) both;
+    }
+    .led-cortina-out {
+      animation: led-cortina-out 300ms ease-out both;
     }
     @keyframes led-cortina {
       from {
@@ -99,9 +105,18 @@ import { ledTelaOf } from './led-telas';
         clip-path: inset(0 0 0 0);
       }
     }
+    @keyframes led-cortina-out {
+      from {
+        opacity: 1;
+      }
+      to {
+        opacity: 0;
+      }
+    }
 
     @media (prefers-reduced-motion: reduce) {
-      .cortina {
+      .led-cortina-in,
+      .led-cortina-out {
         animation: none;
       }
     }
@@ -150,10 +165,20 @@ export class LedPageComponent {
     return kocStandingsBoardOf(m, this.contexto().categoryMatches);
   });
 
-  /** O painel só precisa dos nomes; o `TelaoDataService` já resolve na ordem dos slots. */
+  /** Nomes + foto de perfil — o painel mostra a cara de quem está em quadra. */
   protected readonly teams = computed<ReadonlyMap<string, LedTeam>>(() => {
     const out = new Map<string, LedTeam>();
-    for (const [teamId, display] of this.dados.teams()) out.set(teamId, { players: display.playerNames });
+    for (const [teamId, display] of this.dados.teams()) {
+      const names = display.playerNames.filter((n) => !!n?.trim());
+      const profiles = display.players;
+      out.set(teamId, {
+        players: names.map((name, i) => ({
+          name,
+          initials: profiles[i]?.initials || ledIniciaisDe(name),
+          photoUrl: profiles[i]?.photoUrl ?? null,
+        })),
+      });
+    }
     return out;
   });
 

@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { OgAvatarComponent } from '../../painel/ui/avatar.component';
 import type { KocStandingRow, KocStandingsBoard } from '../overlay/overlay-koc-standings';
 import { ledIniciaisDe } from './led-iniciais';
-import type { LedTeam } from './led-round.component';
+import type { LedPlayer, LedTeam } from './led-round.component';
 
 /** Tempos da revelação, na especificação do dono. */
 const LINHA_PRIMEIRA_MS = 350;
@@ -15,6 +16,7 @@ const LINHA_INTERVALO_MS = 200;
 @Component({
   selector: 'og-led-standings',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OgAvatarComponent],
   template: `
     @if (board(); as b) {
       <div class="tela">
@@ -33,9 +35,9 @@ const LINHA_INTERVALO_MS = 200;
               [style.animation-delay]="atrasoCss(row, i)"
             >
               <span class="pos">{{ row.place }}</span>
-              <span class="iniciais">
-                @for (nome of nomesDe(row.teamId); track $index) {
-                  <span class="inicial">{{ inicial(nome) }}</span>
+              <span class="avatares">
+                @for (p of atletasDe(row.teamId); track $index) {
+                  <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="78" />
                 }
               </span>
               <span class="nomes">{{ nomesDe(row.teamId).join(' · ') }}</span>
@@ -140,29 +142,25 @@ const LINHA_INTERVALO_MS = 200;
       text-align: center;
       font-variant-numeric: tabular-nums;
     }
-    .iniciais {
+    .avatares {
       display: flex;
+      align-items: center;
     }
-    .inicial {
-      display: grid;
-      place-items: center;
-      width: 78px;
-      height: 78px;
-      border-radius: 50%;
-      background: #0d0d0d;
-      color: #8e8e93;
-      font-size: 26px;
-      font-weight: 800;
-      border: 2px solid #3a3a3e;
-      box-sizing: border-box;
-    }
-    .inicial + .inicial {
+    .avatares og-avatar + og-avatar {
       margin-left: -16px;
     }
-    .linha--classificada .inicial {
+    .avatares og-avatar {
+      background: #0d0d0d;
+      color: #8e8e93;
+      border: 2px solid #3a3a3e;
+      box-shadow: 0 0 0 2px #191919;
+      box-sizing: border-box;
+    }
+    .linha--classificada .avatares og-avatar {
       background: #000;
       color: #fff;
       border-color: #000;
+      box-shadow: 0 0 0 2px #2fd97a;
     }
     .nomes {
       font-size: 60px;
@@ -234,11 +232,18 @@ export class LedStandingsComponent {
     return this.classificada(row) ? `${entrada}, ${this.atrasoDoBrilho()}ms` : entrada;
   }
 
-  protected nomesDe(teamId: string): string[] {
-    return (this.teams().get(teamId)?.players ?? []).filter((n) => n !== '');
+  protected atletasDe(teamId: string): LedPlayer[] {
+    const raw = this.teams().get(teamId)?.players ?? [];
+    return raw
+      .filter((p) => p.name.trim() !== '')
+      .map((p) => ({
+        name: p.name,
+        initials: p.initials || ledIniciaisDe(p.name),
+        photoUrl: p.photoUrl,
+      }));
   }
 
-  protected inicial(nome: string): string {
-    return ledIniciaisDe(nome);
+  protected nomesDe(teamId: string): string[] {
+    return this.atletasDe(teamId).map((p) => p.name);
   }
 }

@@ -26,7 +26,12 @@ export function kocQualifiedBoardOf(
   categoryMatches: readonly TournamentMatch[],
 ): KocQualifiedBoard {
   const fase = normalizeMatchType(match.matchType);
-  const rodadas = categoryMatches
+  // A lista da categoria é lida uma vez no gateway e envelhece: o doc ao vivo manda no status
+  // desta partida, senão a rodada que acabou de encerrar some do quadro.
+  const porId = new Map(categoryMatches.map((m) => [m.id, m]));
+  porId.set(match.id, match);
+
+  const rodadas = [...porId.values()]
     .filter((m) => normalizeMatchType(m.matchType) === fase && m.koc != null)
     .sort((a, b) => (a.koc?.roundLabel ?? 0) - (b.koc?.roundLabel ?? 0));
 
@@ -47,6 +52,6 @@ export function kocQualifiedBoardOf(
     totalRounds: rodadas.length,
     roundsDone: encerradas.length,
     vagasPorRodada,
-    destino: kocDestinoDaFase(match.matchType, categoryMatches),
+    destino: kocDestinoDaFase(match.matchType, [...porId.values()]),
   };
 }

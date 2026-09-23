@@ -143,6 +143,8 @@ describe('PublicCourtCardComponent', () => {
           clock: { endsAtMs: Date.now() + 120_000, durationSec: 900, pausedAtMs: null },
           standings: [],
           qualifiersPerRound: 2,
+          teamsPerCourt: 4,
+          roundsPerBracket: 1,
           configuredDurationSec: 900,
           rallySeq: 12,
           rallyLog: [],

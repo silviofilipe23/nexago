@@ -3,11 +3,38 @@ import type { TournamentMatch } from '../../painel/data/matches-repository';
 
 /** Ordem das fases do KOTC. Classificatória é o piso: qualquer tipo `koc_*` novo entra nela em
  *  vez de virar uma fase desconhecida. */
-function phaseRankOf(matchType: string): number {
+export function phaseRankOf(matchType: string): number {
   const t = normalizeMatchType(matchType);
   if (t === 'koc final') return 3;
   if (t === 'koc semifinal') return 2;
   return 1;
+}
+
+/** Quantas duplas a rodada classifica DE FATO.
+ *
+ *  `buildKingOfCourtRounds` no backend: "Só a fase 1 se divide em várias rodadas por chave; as
+ *  seguintes seguem com uma rodada por chave e `qualifiersPerRound` classificadas" — e acima de
+ *  uma rodada por chave a classificatória classifica UMA dupla por rodada, porque a vencedora sai
+ *  e a chave encolhe. Usar a cota configurada nesses campos poria "2 vagas" onde passa uma. */
+export function kocVagasDaRodada(
+  matchType: string,
+  round: { qualifiersPerRound: number; roundsPerBracket: number },
+): number {
+  if (phaseRankOf(matchType) === 1 && round.roundsPerBracket > 1) return 1;
+  return Math.max(1, Math.floor(round.qualifiersPerRound));
+}
+
+/** Fase seguinte que EXISTE na categoria — prometer "Semifinal" num campo que vai direto pra
+ *  final seria mentir no ar. */
+export function kocDestinoDaFase(
+  matchType: string,
+  categoryMatches: readonly { matchType: string }[],
+): string | null {
+  const rank = phaseRankOf(matchType);
+  const proxima = categoryMatches
+    .filter((m) => phaseRankOf(m.matchType) > rank)
+    .sort((a, b) => phaseRankOf(a.matchType) - phaseRankOf(b.matchType))[0];
+  return proxima ? kocPhaseLabel(proxima.matchType, 0) : null;
 }
 
 export type KocStandingStatus = 'king' | 'qualified' | 'out';
@@ -42,16 +69,13 @@ export function kocStandingsBoardOf(
   const round = match.koc;
   if (!round) return { rows: [], vagas: 0, destino: null, proxima: null, totalRounds: 0 };
 
+  const vagas = kocVagasDaRodada(match.matchType, round);
+
   // A cota REAL não é sempre a configurada. `buildKingOfCourtRounds` no backend: "Só a fase 1
   // se divide em várias rodadas por chave; as seguintes seguem com uma rodada por chave e
   // `qualifiersPerRound` classificadas" — e acima de uma rodada por chave a classificatória
   // classifica UMA dupla por rodada, porque a vencedora sai e a chave encolhe. Anunciar a cota
   // configurada nesse caso poria "2 vagas" na tela quando só uma passa.
-  const naClassificatoria = phaseRankOf(match.matchType) === 1;
-  const vagas =
-    naClassificatoria && round.roundsPerBracket > 1
-      ? 1
-      : Math.max(1, Math.floor(round.qualifiersPerRound));
   const rows = kocFinalTable(round).map<KocStandingRow>((row) => ({
     place: row.place,
     teamId: row.teamId,
@@ -67,17 +91,10 @@ export function kocStandingsBoardOf(
     ? `Rodada ${nextLabel}`
     : null;
 
-  // Destino = a fase seguinte que EXISTE na categoria, não a que o formato permitiria. Prometer
-  // "Semifinal" num campo que vai direto pra final seria mentir no ar.
-  const rank = phaseRankOf(match.matchType);
-  const proximaFase = categoryMatches
-    .filter((m) => phaseRankOf(m.matchType) > rank)
-    .sort((a, b) => phaseRankOf(a.matchType) - phaseRankOf(b.matchType))[0];
-
   return {
     rows,
     vagas,
-    destino: proximaFase ? kocPhaseLabel(proximaFase.matchType, 0) : null,
+    destino: kocDestinoDaFase(match.matchType, categoryMatches),
     proxima,
     totalRounds: samePhase.length,
   };

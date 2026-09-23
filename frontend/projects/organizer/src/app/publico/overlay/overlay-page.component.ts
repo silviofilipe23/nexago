@@ -3,10 +3,18 @@ import { isKingOfCourtMatchType, kocColumnLabel } from '../../painel/data/koc';
 import { resolveCourtNames } from '../../painel/data/matches-repository';
 import { OverlayLiveGateway } from './overlay-live.gateway';
 import { OverlayKocBarComponent } from './overlay-koc-bar.component';
+import { kocQualifiedBoardOf } from './overlay-koc-qualified';
+import { OverlayKocQualifiedComponent } from './overlay-koc-qualified.component';
 import { kocStandingsBoardOf } from './overlay-koc-standings';
 import { OverlayKocStandingsComponent } from './overlay-koc-standings.component';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
 import { overlayBandOf, overlayCornerOf, overlayViewOf } from './overlay-selectors';
+
+type TelaKoc = 'resultado' | 'classificadas';
+
+/** Quanto cada tela fica no ar no rodízio do fim de rodada. */
+const RESULTADO_MS = 20_000;
+const CLASSIFICADAS_MS = 15_000;
 
 /** Rota PÚBLICA `/overlay/:matchId` — o Browser Source do OBS, que não tem sessão.
  *
@@ -15,7 +23,12 @@ import { overlayBandOf, overlayCornerOf, overlayViewOf } from './overlay-selecto
 @Component({
   selector: 'og-overlay-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OverlayScoreboardComponent, OverlayKocBarComponent, OverlayKocStandingsComponent],
+  imports: [
+    OverlayScoreboardComponent,
+    OverlayKocBarComponent,
+    OverlayKocStandingsComponent,
+    OverlayKocQualifiedComponent,
+  ],
   providers: [OverlayLiveGateway],
   template: `
     @if (duelView(); as duel) {
@@ -26,7 +39,7 @@ import { overlayBandOf, overlayCornerOf, overlayViewOf } from './overlay-selecto
         [teamLabels]="teamLabels()"
       />
     }
-    @if (standings(); as board) {
+    @if (telaDoResultado(); as board) {
       <og-overlay-koc-standings
         [board]="board"
         [teams]="gateway.teams()"
@@ -34,6 +47,15 @@ import { overlayBandOf, overlayCornerOf, overlayViewOf } from './overlay-selecto
         [courtName]="courtName()"
         [phaseName]="phaseName()"
         [roundLabel]="roundLabel()"
+      />
+    }
+    @if (telaDasClassificadas(); as board) {
+      <og-overlay-koc-qualified
+        [board]="board"
+        [teams]="gateway.teams()"
+        [tournamentName]="gateway.tournament()?.name ?? null"
+        [phaseName]="phaseName()"
+        [categoryName]="categoryName()"
       />
     }
     @if (kocView(); as koc) {
@@ -58,6 +80,14 @@ export class OverlayPageComponent {
   readonly pos = input<string | null>(null);
 
   protected readonly gateway = inject(OverlayLiveGateway);
+
+  private readonly telaKoc = signal<TelaKoc>('resultado');
+
+  /** Muda só quando a partida (ou o fato de estar encerrada) muda. */
+  private readonly chaveDoRodizio = computed(() => {
+    const m = this.gateway.match();
+    return m && isKingOfCourtMatchType(m.matchType) && m.status === 'completed' ? m.id : '';
+  });
 
   /** Relógio de 1 s, lido SÓ pela rodada KOTC — ver `view`. */
   private readonly tick = signal(Date.now());
@@ -90,6 +120,20 @@ export class OverlayPageComponent {
     if (!m || !isKingOfCourtMatchType(m.matchType) || m.status !== 'completed') return null;
     return kocStandingsBoardOf(m, this.gateway.categoryMatches());
   });
+
+  /** Quadro das classificadas da fase — só existe junto com a classificação da rodada. */
+  private readonly qualified = computed(() => {
+    const m = this.match();
+    if (!m || !this.standings()) return null;
+    return kocQualifiedBoardOf(m, this.gateway.categoryMatches());
+  });
+
+  protected readonly telaDoResultado = computed(() =>
+    this.telaKoc() === 'resultado' ? this.standings() : null,
+  );
+  protected readonly telaDasClassificadas = computed(() =>
+    this.telaKoc() === 'classificadas' ? this.qualified() : null,
+  );
 
   protected readonly phaseName = computed(() => {
     const m = this.match();
@@ -137,6 +181,28 @@ export class OverlayPageComponent {
   });
 
   constructor() {
+    // Rodízio entre as duas telas do fim de rodada. A dependência é uma CHAVE ESTÁVEL (o id da
+    // partida encerrada), não um computed que muda a cada snapshot — senão o timer reinicia pra
+    // sempre e nenhuma tela chega a trocar.
+    effect((onCleanup) => {
+      const chave = this.chaveDoRodizio();
+      this.telaKoc.set('resultado');
+      if (!chave) return;
+      let timer: ReturnType<typeof setTimeout>;
+      const agenda = (tela: TelaKoc) => {
+        timer = setTimeout(
+          () => {
+            const proxima: TelaKoc = tela === 'resultado' ? 'classificadas' : 'resultado';
+            this.telaKoc.set(proxima);
+            agenda(proxima);
+          },
+          tela === 'resultado' ? RESULTADO_MS : CLASSIFICADAS_MS,
+        );
+      };
+      agenda('resultado');
+      onCleanup(() => clearTimeout(timer));
+    });
+
     effect((onCleanup) => {
       const id = this.matchId();
       if (!id) return;

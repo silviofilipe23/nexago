@@ -243,4 +243,65 @@ describe('OverlayPageComponent', () => {
     expect(text).toContain('Ana · Bia');
     expect(text).toContain('Eliminada');
   });
+
+  it('alterna entre o resultado da rodada e as classificadas da fase', async () => {
+    // Relógio falso: o portal roda zoneless e não carrega zone.js nos testes, então `fakeAsync`
+    // não vale aqui — `jasmine.clock` troca o setTimeout de verdade.
+    jasmine.clock().install();
+    try {
+      const { fixture, fake } = await mount({ matchId: 'm1' });
+      fake.tournament.set(TOURNAMENT);
+      const encerrada = match({
+        status: 'completed',
+        matchType: 'koc_round',
+        teamAId: '',
+        teamBId: '',
+        sets: [],
+        currentSetIndex: null,
+        koc: {
+          teamIds: ['k', 'c', 'q'],
+          kingTeamId: 'k',
+          challengerTeamId: 'c',
+          queue: ['q'],
+          points: { k: 8, c: 7, q: 2 },
+          rallies: 0,
+          servingTeamId: '',
+          clock: null,
+          standings: [
+            { teamId: 'k', place: 1, points: 8, crowns: 3 },
+            { teamId: 'c', place: 2, points: 7, crowns: 1 },
+            { teamId: 'q', place: 3, points: 2, crowns: 0 },
+          ],
+          qualifiersPerRound: 2,
+          teamsPerCourt: 4,
+          roundsPerBracket: 1,
+          configuredDurationSec: 900,
+          rallySeq: 0,
+          rallyLog: [],
+          roundLabel: 1,
+          qualifierSlots: [],
+        },
+      });
+      fake.categoryMatches.set([encerrada]);
+      fake.match.set(encerrada);
+      await fixture.whenStable();
+      const host = fixture.nativeElement as HTMLElement;
+
+      expect(host.querySelector('og-overlay-koc-standings')).not.toBeNull();
+      expect(host.querySelector('og-overlay-koc-qualified')).toBeNull();
+
+      jasmine.clock().tick(20_000);
+      await fixture.whenStable();
+
+      expect(host.querySelector('og-overlay-koc-qualified')).not.toBeNull();
+      expect(host.querySelector('og-overlay-koc-standings')).toBeNull();
+
+      jasmine.clock().tick(15_000);
+      await fixture.whenStable();
+
+      expect(host.querySelector('og-overlay-koc-standings')).not.toBeNull();
+    } finally {
+      jasmine.clock().uninstall();
+    }
+  });
 });

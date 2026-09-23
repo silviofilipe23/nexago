@@ -286,22 +286,6 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                 }
               </div>
             </div>
-
-            <div class="og-mk-config-block">
-              <span class="og-mk-panel-title">Duplas que avançam</span>
-              <div class="og-mk-chips og-mk-chips-qualifiers">
-                @for (n of qualifierOptions(); track n) {
-                  <button
-                    type="button"
-                    class="og-mk-chip"
-                    [class.active]="draftQualifiers() === n"
-                    (click)="draftQualifiers.set(n)"
-                  >
-                    {{ n }}
-                  </button>
-                }
-              </div>
-            </div>
           </section>
 
           <section class="og-mk-panel">
@@ -910,11 +894,6 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       border-color: var(--nx-orange-500);
       color: var(--nx-orange-500);
       background: color-mix(in srgb, var(--nx-surface-1) 88%, var(--nx-orange-500));
-    }
-    .og-mk-chips-qualifiers .og-mk-chip {
-      height: 44px;
-      font-size: 16px;
-      font-weight: 800;
     }
     .og-mk-rules {
       margin: 0;
@@ -1825,13 +1804,6 @@ export class MesaKocComponent {
 
   protected readonly kingDraftId = computed(() => this.draftOrder()[0] ?? '');
   protected readonly challengerDraftId = computed(() => this.draftOrder()[1] ?? '');
-
-  protected readonly qualifierOptions = computed(() => {
-    const max = Math.max(1, this.draftOrder().length - 1);
-    const out: number[] = [];
-    for (let n = 1; n <= Math.min(3, max); n++) out.push(n);
-    return out;
-  });
 
   protected readonly finalRows = computed(() => {
     const r = this.round();

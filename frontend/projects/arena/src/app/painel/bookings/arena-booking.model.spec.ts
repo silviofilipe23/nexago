@@ -61,3 +61,51 @@ describe('arenaBookingFromDoc — cupom', () => {
     expect(booking.couponCode).toBeNull();
   });
 });
+
+describe('arenaBookingFromDoc — observação do gestor', () => {
+  it('parseia managerNote da reserva de balcão', () => {
+    const booking = arenaBookingFromDoc(
+      fakeDoc('b4', {
+        arenaId: 'a1',
+        courtId: 'c1',
+        date: '2026-08-10',
+        startTime: '19:00',
+        endTime: '20:00',
+        customerName: 'João Silva',
+        managerNote: 'pagou em dinheiro na recepção',
+      }),
+    );
+
+    expect(booking.managerNote).toBe('pagou em dinheiro na recepção');
+  });
+
+  it('reserva sem observação vira null', () => {
+    const booking = arenaBookingFromDoc(
+      fakeDoc('b5', {
+        arenaId: 'a1',
+        athleteId: 'u1',
+        courtId: 'c1',
+        date: '2026-08-10',
+        startTime: '19:00',
+        endTime: '20:00',
+      }),
+    );
+
+    expect(booking.managerNote).toBeNull();
+  });
+
+  it('observação em branco vira null (mesmo tratamento de optionalTrimmed)', () => {
+    const booking = arenaBookingFromDoc(
+      fakeDoc('b6', {
+        arenaId: 'a1',
+        courtId: 'c1',
+        date: '2026-08-10',
+        startTime: '19:00',
+        endTime: '20:00',
+        managerNote: '   ',
+      }),
+    );
+
+    expect(booking.managerNote).toBeNull();
+  });
+});

@@ -27,6 +27,8 @@ export interface ArenaBooking {
   status: string;
   attendanceStatus: ArenaBookingAttendanceStatus;
   customerName: string | null;
+  /** Observação livre que o gestor escreveu ao criar a reserva de balcão. */
+  managerNote: string | null;
   isRecurring: boolean;
   recurringBookingId: string | null;
   amountReais: number | null;
@@ -80,6 +82,7 @@ export function arenaBookingFromDoc(doc: QueryDocumentSnapshot): ArenaBooking {
     status: typeof d['status'] === 'string' ? d['status'] : 'active',
     attendanceStatus: (typeof d['attendanceStatus'] === 'string' ? d['attendanceStatus'].trim().toLowerCase() : '') || 'pending',
     customerName: optionalTrimmed(d['customerName']),
+    managerNote: optionalTrimmed(d['managerNote']),
     isRecurring: d['isRecurring'] === true || optionalTrimmed(d['recurringBookingId']) != null,
     recurringBookingId: optionalTrimmed(d['recurringBookingId']),
     amountReais: typeof amount === 'number' ? amount : null,

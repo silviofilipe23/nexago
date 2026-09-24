@@ -33,6 +33,7 @@ function makeBooking(overrides: Partial<ArenaBooking> = {}): ArenaBooking {
     status: 'confirmed',
     attendanceStatus: 'pending',
     customerName: null,
+    managerNote: null,
     isRecurring: false,
     recurringBookingId: null,
     amountReais: null,

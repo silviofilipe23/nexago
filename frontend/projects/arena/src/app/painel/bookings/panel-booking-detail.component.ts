@@ -109,6 +109,12 @@ const UNDO_WINDOW_SECONDS = 60;
                 }
               </div>
             </ar-panel-card>
+
+            @if (booking()!.managerNote; as note) {
+              <ar-panel-card title="Observação" class="card-span">
+                <p class="note-text">{{ note }}</p>
+              </ar-panel-card>
+            }
           </div>
         }
       </div>
@@ -219,6 +225,17 @@ const UNDO_WINDOW_SECONDS = 60;
       color: var(--nx-text);
       font-weight: 600;
       text-align: right;
+    }
+
+    /* Texto livre do gestor: alinhado à esquerda e quebrando, ao contrário de
+       .value, que alinha à direita em negrito e serviria mal uma frase. */
+    .note-text {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--nx-text);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
     }
 
     .status-row {

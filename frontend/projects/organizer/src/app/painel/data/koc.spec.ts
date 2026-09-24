@@ -70,6 +70,28 @@ describe('kocPhaseLabel', () => {
   });
 });
 
+describe('rótulo da rodada com baterias', () => {
+  it('sem bateria continua dizendo o que sempre disse', () => {
+    expect(kocPhaseLabel('koc_round', 3)).toBe('Classificatória · Rodada 3');
+    expect(kocPhaseLabel('koc_final', 1)).toBe('Final');
+  });
+
+  it('com bateria, diz a CHAVE e a bateria — "Rodada 9" não responde nada na areia', () => {
+    expect(kocPhaseLabel('koc_round', 9, { poolId: 'C4', batteryLabel: 3 }))
+      .toBe('Classificatória · Chave 4 · Bateria 3');
+  });
+
+  it('chave de uma bateria só não vira "Bateria 1"', () => {
+    expect(kocPhaseLabel('koc_round', 2, { poolId: 'C2', batteryLabel: 1 }))
+      .toBe('Classificatória · Rodada 2');
+  });
+
+  it('a semifinal com baterias também numera', () => {
+    expect(kocPhaseLabel('koc_semifinal', 2, { poolId: 'C1', batteryLabel: 2 }))
+      .toBe('Semifinal · Bateria 2');
+  });
+});
+
 describe('kocCardTitle', () => {
   it('usa o round já mapeado quando existe', () => {
     expect(
@@ -77,7 +99,7 @@ describe('kocCardTitle', () => {
         matchType: 'koc_round',
         round: 'Classificatória · Rodada 2',
         matchNumber: 2,
-        koc: { roundLabel: 2 },
+        koc: { roundLabel: 2, batteryLabel: 1 },
       }),
     ).toBe('Classificatória · Rodada 2');
   });
@@ -88,7 +110,7 @@ describe('kocCardTitle', () => {
         matchType: 'koc_semifinal',
         round: null,
         matchNumber: 5,
-        koc: { roundLabel: 1 },
+        koc: { roundLabel: 1, batteryLabel: 1 },
       }),
     ).toBe('Semifinal');
   });

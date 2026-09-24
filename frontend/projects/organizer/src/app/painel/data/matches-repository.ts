@@ -187,7 +187,10 @@ function roundLabelOf(
   if (koc) {
     // `kocRoundLabel` é o índice DENTRO da fase; `matchNumber` é global e só
     // coincide enquanto a primeira fase é a única classificatória.
-    return kocPhaseLabel(matchType, koc.roundLabel > 0 ? koc.roundLabel : matchNumber);
+    return kocPhaseLabel(matchType, koc.roundLabel > 0 ? koc.roundLabel : matchNumber, {
+      poolId,
+      batteryLabel: koc.batteryLabel,
+    });
   }
   if (poolId) return `Grupo ${poolId}`;
   const t = matchType.trim().toLowerCase();

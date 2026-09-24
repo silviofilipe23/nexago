@@ -108,14 +108,29 @@ export function normalizeMatchType(matchType: string): string {
   return (matchType ?? '').trim().toLowerCase().replace(/_/g, ' ');
 }
 
-/** "Classificatória · Rodada 3" / "Semifinal" / "Final". */
-export function kocPhaseLabel(matchType: string, matchNumber: number): string {
+/** "Classificatória · Chave 4 · Bateria 3" / "Semifinal · Bateria 2" / "Final".
+ *
+ *  A bateria só entra quando existe mais de uma: numa chave de bateria única,
+ *  "Bateria 1" é ruído. E quando entra, a CHAVE vem junto — sem ela, duas
+ *  quadras diferentes mostrariam "Bateria 2" ao mesmo tempo. */
+export function kocPhaseLabel(
+  matchType: string,
+  matchNumber: number,
+  opts?: { poolId?: string; batteryLabel?: number },
+): string {
   const t = normalizeMatchType(matchType);
+  const battery = opts?.batteryLabel ?? 1;
+  const bracket = (opts?.poolId ?? '').replace(/^C/i, '');
   if (t === 'koc final') return 'Final';
+  const phase = t === 'koc semifinal' ? 'Semifinal' : 'Classificatória';
+  if (battery > 1) {
+    // Uma chave só na fase não precisa se identificar: "Semifinal · Bateria 2"
+    // já é único.
+    const prefix = t === 'koc semifinal' ? phase : `${phase} · Chave ${bracket}`;
+    return `${prefix} · Bateria ${battery}`;
+  }
   if (t === 'koc semifinal') return 'Semifinal';
-  // Numa quadra só as classificatórias acontecem em sequência: o número
-  // responde "qual é a minha".
-  return matchNumber > 0 ? `Classificatória · Rodada ${matchNumber}` : 'Classificatória';
+  return matchNumber > 0 ? `${phase} · Rodada ${matchNumber}` : phase;
 }
 
 /** Título do card/fila quando a partida é rodada KOTC — não há confronto A×B,
@@ -125,12 +140,16 @@ export function kocCardTitle(match: {
   matchType: string;
   round: string | null;
   matchNumber: number;
-  koc?: { roundLabel: number } | null;
+  poolId?: string | null;
+  koc?: { roundLabel: number; batteryLabel: number } | null;
 }): string | null {
   if (!isKingOfCourtMatchType(match.matchType)) return null;
   if (match.round) return match.round;
   const n = match.koc?.roundLabel || match.matchNumber;
-  return kocPhaseLabel(match.matchType, n);
+  return kocPhaseLabel(match.matchType, n, {
+    ...(match.poolId ? { poolId: match.poolId } : {}),
+    ...(match.koc?.batteryLabel ? { batteryLabel: match.koc.batteryLabel } : {}),
+  });
 }
 
 /** Troca entre rodadas, em minutos. Espelha `KOC_CHANGEOVER_MIN` do servidor

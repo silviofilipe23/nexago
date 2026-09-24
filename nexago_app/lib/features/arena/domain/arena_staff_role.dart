@@ -6,7 +6,7 @@
 ///  2. `frontend/projects/arena/src/app/painel/data/arena-roles.model.ts` (portal);
 ///  3. `functions/src/arena-staff-roles.ts` (validacao dos callables);
 ///  4. o mapa literal em `firestore.rules` (a autoridade de verdade);
-///  5. `frontend/projects/arena/src/app/auth/arena-access.service.spec.ts`.
+///  5. `frontend/projects/arena/src/app/painel/data/arena-roles.model.spec.ts` (teste).
 ///
 /// Nada automatiza o espelhamento. O que segura a divergencia e o corpo de
 /// casos compartilhado entre os testes das copias — ver

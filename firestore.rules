@@ -579,7 +579,7 @@ service cloud.firestore {
     // 2. `frontend/projects/arena/src/app/painel/data/arena-roles.model.ts` (UI);
     // 3. `functions/src/arena-staff-roles.ts` (validação server-side);
     // 4. `nexago_app/lib/features/arena/domain/arena_staff_role.dart` (app Flutter);
-    // 5. `frontend/projects/arena/src/app/auth/arena-access.service.spec.ts` (spec).
+    // 5. `frontend/projects/arena/src/app/painel/data/arena-roles.model.spec.ts` (spec).
     // Nada aqui verifica automaticamente que os cinco ficam em sincronia — é
     // no olho, na revisão de código. Divergência por design: o frontend tem
     // uma área `torneios` (gestor, somente leitura) que não existe aqui, porque

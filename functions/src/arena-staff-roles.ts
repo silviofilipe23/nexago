@@ -12,7 +12,7 @@
  *  3. o mapa literal (`arenaWriteAreas`/`arenaReadAreas`) em `firestore.rules`
  *     (a autoridade de verdade);
  *  4. `nexago_app/lib/features/arena/domain/arena_staff_role.dart` (app Flutter);
- *  5. `frontend/projects/arena/src/app/auth/arena-access.service.spec.ts` (spec).
+ *  5. `frontend/projects/arena/src/app/painel/data/arena-roles.model.spec.ts` (spec).
  * `torneios` está deliberadamente ausente daqui: é uma área só de leitura do
  * frontend sem nenhum bloco de regra ou callable equivalente — não
  * adicionar.

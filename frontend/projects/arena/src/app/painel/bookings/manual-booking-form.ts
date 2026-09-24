@@ -48,11 +48,21 @@ function spanOf(startTime: string, endTime: string): { start: number; end: numbe
   return { start, end };
 }
 
-/** "120,50" e "120.50" viram 120.5; vazio ou texto viram null. */
+/** "120,50" e "120.50" viram 120.5; vazio ou texto viram null.
+ *  Ponto é separador de milhar quando não há vírgula e o texto termina em grupo(s)
+ *  de 3 dígitos — "1.200" é mil e duzentos, não 1,2 (espelha `panel-recurring.component.ts`).
+ *  Sem essa distinção "120.50" (2 dígitos, decimal de fato) quebraria. */
 export function parseAmountText(raw: string): number | null {
-  const t = raw.trim().replace(',', '.');
-  if (!t) return null;
-  const value = Number(t);
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const hasComma = trimmed.includes(',');
+  const isThousandGrouped = !hasComma && /\.\d{3}(?:\.\d{3})*$/.test(trimmed);
+  const normalized = hasComma
+    ? trimmed.replace(/\./g, '').replace(',', '.')
+    : isThousandGrouped
+      ? trimmed.replace(/\./g, '')
+      : trimmed;
+  const value = Number(normalized);
   return Number.isFinite(value) ? value : null;
 }
 

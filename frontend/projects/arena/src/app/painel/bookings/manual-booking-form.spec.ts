@@ -31,6 +31,12 @@ describe('parseAmountText', () => {
     expect(parseAmountText('   ')).toBeNull();
     expect(parseAmountText('abc')).toBeNull();
   });
+
+  it('trata ponto como separador de milhar quando não há vírgula', () => {
+    expect(parseAmountText('1.200')).toBe(1200);
+    expect(parseAmountText('1.200,00')).toBe(1200);
+    expect(parseAmountText('1.234.567,89')).toBe(1234567.89);
+  });
 });
 
 describe('quoteKeyOf', () => {
@@ -120,5 +126,17 @@ describe('validateManualBookingForm', () => {
       error: 'Não dá pra criar reserva em data passada.',
     });
     expect(validateManualBookingForm(stateOf(), 'arena1', TODAY).ok).toBeTrue();
+  });
+
+  it('aceita virada de meia-noite e preserva os horários no payload', () => {
+    const result = validateManualBookingForm(
+      stateOf({ startTime: '23:00', endTime: '00:00' }),
+      'arena1',
+      TODAY,
+    );
+    expect(result.ok).toBeTrue();
+    if (!result.ok) return;
+    expect(result.payload.startTime).toBe('23:00');
+    expect(result.payload.endTime).toBe('00:00');
   });
 });

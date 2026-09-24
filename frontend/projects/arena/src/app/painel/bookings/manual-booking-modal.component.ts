@@ -298,6 +298,7 @@ export class ManualBookingModalComponent {
   }
 
   protected async submit(): Promise<void> {
+    this.error.set(null);
     const result = validateManualBookingForm(this.formState(), this.arenaId(), dateKeyOf(new Date()));
     if (!result.ok) {
       this.error.set(result.error);
@@ -305,7 +306,6 @@ export class ManualBookingModalComponent {
     }
 
     this.saving.set(true);
-    this.error.set(null);
     try {
       const { bookingId } = await createManualBooking(arenaFunctions(), result.payload);
       // Escape/scrim pode ter destruído o modal enquanto a callable estava em voo —

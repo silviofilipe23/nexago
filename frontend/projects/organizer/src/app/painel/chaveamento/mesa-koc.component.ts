@@ -6,6 +6,7 @@ import {
   KOC_MAX_TEAMS_PER_ROUND,
   KOC_MIN_TEAMS_PER_ROUND,
   kocFinalTable,
+  kocFinishBlockedLabel,
   kocLastTiebreakWinner,
   kocQualifyingSpotsAtStake,
   kocQualifyingTieGroup,
@@ -551,7 +552,20 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
             </div>
           </section>
 
-          <button type="button" class="og-mk-end" [disabled]="busy()" (click)="finish()">Encerrar rodada</button>
+          @if (tie()) {
+            <!-- Com empate aberto o caminho padrão é resolver na areia, e o
+                 botão diz o que falta em vez de deixar clicar para o servidor
+                 recusar. Mas o regulamento PERMITE encerrar pelo critério
+                 automático: só desabilitar deixaria a rodada sem saída quando
+                 a mesa decide não jogar o desempate. A saída fica separada e
+                 escrita. -->
+            <button type="button" class="og-mk-end" disabled>{{ finishBlockedLabel() }}</button>
+            <button type="button" class="og-mk-end-auto" [disabled]="busy()" (click)="finishByCriterion()">
+              Encerrar pelo critério automático
+            </button>
+          } @else {
+            <button type="button" class="og-mk-end" [disabled]="busy()" (click)="finish()">Encerrar rodada</button>
+          }
         </aside>
       </div>
     }
@@ -1241,6 +1255,28 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       background: color-mix(in srgb, var(--nx-live) 24%, transparent);
     }
     .og-mk-end:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .og-mk-end-auto {
+      width: 100%;
+      min-height: 44px;
+      margin-top: 8px;
+      border-radius: 12px;
+      border: 1px solid var(--nx-line);
+      background: transparent;
+      color: var(--nx-text-dim);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: color 140ms ease, border-color 140ms ease;
+    }
+    .og-mk-end-auto:hover:not(:disabled) {
+      color: var(--nx-text);
+      border-color: var(--nx-text-mute);
+    }
+    .og-mk-end-auto:disabled {
       opacity: 0.5;
       cursor: default;
     }
@@ -2262,24 +2298,46 @@ export class MesaKocComponent {
       try {
         await finishKocRound({ matchId: this.matchId() });
       } catch (error) {
+        // O empate é calculado no cliente; entre o render e o clique pode ter
+        // entrado um rally. Se o servidor recusar, cai na MESMA confirmação da
+        // saída explícita em vez de estourar um erro cru na mesa.
         if (reasonOf(error) !== 'koc_unresolved_tie') throw error;
-        // A copy nomeia o que a mesa acabou de mostrar: com duas é bola de
-        // ouro, com três ou mais é a mini-rodada. Dizer "bola de ouro" nos dois
-        // casos era o que deixava o empate de três sem instrução.
-        const emDisputa = this.tieGroup().length;
-        const ok = confirm(
-          `Há empate de ${emDisputa} duplas decidindo a classificação.\n\n` +
-            (emDisputa === 2 ?
-              'O regulamento resolve na areia: joguem a bola de ouro e registrem quem venceu. ' :
-              'O regulamento resolve na areia: joguem a mini-rodada entre elas (quem pontuar ' +
-                'primeiro leva a vaga) e registrem quem pontuou. ') +
-            'Encerrar agora faz a vaga sair pelo desempate automático (quem foi rei por último).\n\n' +
-            'Encerrar assim?',
-        );
-        if (!ok) return;
+        if (!this.confirmTiebreak()) return;
         await finishKocRound({ matchId: this.matchId(), acceptTiebreak: true });
       }
     }, 'Rodada encerrada.');
+  }
+
+  protected readonly finishBlockedLabel = computed(() =>
+    kocFinishBlockedLabel(this.spotsAtStake()));
+
+  /** Encerrar deixando a vaga sair pelo critério automático. É a saída que o
+   *  regulamento prevê para quando a mesa decide não jogar o desempate. */
+  protected finishByCriterion(): void {
+    if (!this.confirmTiebreak()) return;
+    void this.run(
+      () => finishKocRound({ matchId: this.matchId(), acceptTiebreak: true }),
+      'Rodada encerrada pelo critério automático.',
+    );
+  }
+
+  /** A copy nomeia o que a mesa acabou de mostrar: com duas é bola de ouro,
+   *  com três ou mais é a mini-rodada. Dizer "bola de ouro" nos dois casos era
+   *  o que deixava o empate de três sem instrução. */
+  private confirmTiebreak(): boolean {
+    const emDisputa = this.tieGroup().length;
+    const vagas = this.spotsAtStake();
+    return confirm(
+      `Há empate de ${emDisputa} duplas decidindo ` +
+        `${vagas === 1 ? 'uma vaga' : `${vagas} vagas`}.\n\n` +
+        (emDisputa === 2 ?
+          'O regulamento resolve na areia: joguem a bola de ouro e registrem quem venceu. ' :
+          'O regulamento resolve na areia: joguem a mini-rodada entre elas (quem pontuar ' +
+            'primeiro leva a vaga) e registrem quem pontuou. ') +
+        `Encerrar agora faz ${vagas === 1 ? 'a vaga sair' : 'as vagas saírem'} pelo ` +
+        'desempate automático (quem foi rei por último).\n\n' +
+        'Encerrar assim?',
+    );
   }
 
   private seedDraftFrom(match: TournamentMatch | null): void {

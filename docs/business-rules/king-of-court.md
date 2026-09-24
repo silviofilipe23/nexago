@@ -43,6 +43,11 @@ pontuação da última vaga entram no empate, e com poucos rallies é comum sere
 O encerramento é **recusado** com empate na vaga em aberto: a mesa joga o desempate na
 areia ou confirma explicitamente o critério automático. A vaga nunca sai calada.
 
+Na mesa isso aparece antes do clique: com empate aberto o botão de encerrar fica
+**desabilitado**, dizendo o que falta ("resolva as 2 vagas primeiro"), e a saída pelo
+critério automático vira um botão separado e escrito. Só desabilitar deixaria a rodada
+sem saída quando a mesa decide não jogar o desempate — que o regulamento permite.
+
 ### Mini-rodada (três ou mais empatadas)
 
 Não é regra nova: é exatamente o que as duplas acabaram de jogar por 15 minutos.

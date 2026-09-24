@@ -1,5 +1,6 @@
 import {
   kocCrownOrder,
+  kocFinishBlockedLabel,
   kocLastTiebreakWinner,
   kocQualifyingSpotsAtStake,
   kocQualifyingTieGroup,
@@ -173,5 +174,16 @@ describe('kocLastTiebreakWinner · o progresso entre um desempate e o seguinte',
       points: { a: 1 },
     });
     expect(kocLastTiebreakWinner(r)).toBe('a');
+  });
+});
+
+describe('kocFinishBlockedLabel · o botão de encerrar com empate aberto', () => {
+  it('uma vaga fala no singular', () => {
+    expect(kocFinishBlockedLabel(1)).toBe('Encerrar rodada — resolva a vaga primeiro');
+  });
+
+  it('mais de uma diz quantas', () => {
+    expect(kocFinishBlockedLabel(2)).toBe('Encerrar rodada — resolva as 2 vagas primeiro');
+    expect(kocFinishBlockedLabel(3)).toBe('Encerrar rodada — resolva as 3 vagas primeiro');
   });
 });

@@ -371,6 +371,19 @@ export function kocQualifyingSpotsAtStake(round: KocRoundState): number {
 }
 
 /**
+ * O que o botão de encerrar diz enquanto o empate está aberto.
+ *
+ * Com empate na vaga o caminho padrão é resolver na areia — o botão nomeia o
+ * que falta em vez de deixar clicar para o servidor recusar. A saída pelo
+ * critério automático continua existindo, separada e escrita: só desabilitar
+ * deixaria a rodada sem saída quando a mesa decide não jogar o desempate.
+ */
+export function kocFinishBlockedLabel(spotsAtStake: number): string {
+  const vagas = spotsAtStake === 1 ? 'a vaga' : `as ${spotsAtStake} vagas`;
+  return `Encerrar rodada — resolva ${vagas} primeiro`;
+}
+
+/**
  * A última dupla que pontuou num desempate, quando ela JÁ SAIU do empate.
  *
  * É o que deixa a mesa dizer "fulana está classificada, falta 1" em vez de

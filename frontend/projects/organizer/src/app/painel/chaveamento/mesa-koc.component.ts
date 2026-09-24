@@ -434,75 +434,104 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
               }
             </ul>
 
-            <div class="og-mk-live-actions">
-              <button type="button" class="og-btn-primary og-mk-rally-king" [disabled]="busy()" (click)="rally('king')">
-                Ponto do trono
-              </button>
-              <button type="button" class="og-ghost-btn og-mk-rally-crown" [disabled]="busy()" (click)="rally('challenger')">
-                Desafiante venceu · coroa
+            @if (tie()) {
+              <!-- Empate na vaga: card único com título, alerta e botões de quem pontuou.
+                   Cada mini-rodada resolve UMA vaga — o chip e o kicker dizem quantas faltam. -->
+              <section class="og-mk-tie" [attr.data-count]="tieOrder().length">
+                <header class="og-mk-tie-head">
+                  <div class="og-mk-tie-titles">
+                    <span class="og-mk-tie-kicker">EMPATE NA VAGA</span>
+                    <h2 class="og-mk-tie-title">{{ tieTitle() }}</h2>
+                  </div>
+                  <span class="og-mk-tie-chip">
+                    {{ spotsAtStake() }} {{ spotsAtStake() === 1 ? 'VAGA' : 'VAGAS' }} EM DISPUTA
+                  </span>
+                </header>
+
+                <div class="og-mk-tie-alert" [class.og-mk-tie-alert--ok]="lastTiebreakWinner() != null">
+                  @if (lastTiebreakWinner(); as vencedora) {
+                    <p class="og-mk-tie-alert-lead">
+                      <og-icon name="check" [size]="16" />
+                      <span>
+                        <strong>{{ faceOf(vencedora).name }}</strong>
+                        pontuou na {{ ordinalDe(miniRoundNumber() - 1) }} mini-rodada e está classificada.
+                        {{ spotsAtStake() === 1 ? 'Falta 1.' : 'Faltam ' + spotsAtStake() + '.' }}
+                      </span>
+                    </p>
+                  } @else if (tieGroup().length === 2) {
+                    <p class="og-mk-tie-alert-lead">
+                      <og-icon name="alert" [size]="16" />
+                      <span>Bola de ouro entre as duas — quem pontuar leva a vaga.</span>
+                    </p>
+                  } @else if (spotsAtStake() > 1) {
+                    <p class="og-mk-tie-alert-lead">
+                      <og-icon name="alert" [size]="16" />
+                      <span>
+                        Cada mini-rodada decide <em>uma</em> vaga. Faltam <em>{{ spotsAtStake() }}</em>.
+                      </span>
+                    </p>
+                  } @else {
+                    <p class="og-mk-tie-alert-lead">
+                      <og-icon name="alert" [size]="16" />
+                      <span>
+                        Mini-rodada entre as {{ tieGroup().length }} —
+                        <em>quem pontuar primeiro leva a vaga.</em>
+                      </span>
+                    </p>
+                  }
+
+                  @if (tieGroup().length > 2) {
+                    <div class="og-mk-tie-roles">
+                      @for (slot of tieRoleSlots(); track slot.role; let i = $index) {
+                        @if (i > 0) {
+                          <span class="og-mk-tie-sep" aria-hidden="true"></span>
+                        }
+                        <span class="og-mk-tie-role" [class.og-mk-tie-role--throne]="slot.role === 'TRONO'">
+                          <span class="papel">{{ slot.role }}</span>
+                          <span class="dupla">{{ slot.names }}</span>
+                        </span>
+                      }
+                    </div>
+                  }
+                </div>
+
+                <div class="og-mk-golden">
+                  <span class="og-mk-golden-kicker">{{ goldenKicker() }}</span>
+                  <div class="og-mk-golden-grid">
+                    @for (teamId of tieOrder(); track teamId) {
+                      <button
+                        type="button"
+                        class="og-mk-golden-card"
+                        [disabled]="busy()"
+                        (click)="golden(teamId)"
+                      >
+                        <span class="og-mk-golden-ini" aria-hidden="true">{{ duoInitials(teamId) }}</span>
+                        <span class="og-mk-golden-name">{{ faceOf(teamId).name }}</span>
+                        <span class="og-mk-golden-pts">{{ pointsOf(teamId) }} pt</span>
+                      </button>
+                    }
+                  </div>
+                </div>
+              </section>
+            }
+            <div class="og-mk-live-controls">
+              <div class="og-mk-live-actions">
+                <button type="button" class="og-btn-primary og-mk-rally-king" [disabled]="busy()" (click)="rally('king')">
+                  Ponto do trono
+                </button>
+                <button type="button" class="og-ghost-btn og-mk-rally-crown" [disabled]="busy()" (click)="rally('challenger')">
+                  Desafiante venceu · coroa
+                </button>
+              </div>
+
+              <!-- Terceiro desfecho, menor de propósito: é o menos frequente, e
+                   confundi-lo com "ponto do trono" daria ao rei um ponto que o
+                   regulamento não dá. -->
+              <button type="button" class="og-mk-fault" [disabled]="busy()" (click)="rally('serve_fault')">
+                Erro de saque de {{ faceOf(challengerId()).name }} · perde a vez, sem ponto
               </button>
             </div>
 
-            <!-- Terceiro desfecho, menor de propósito: é o menos frequente, e
-                 confundi-lo com "ponto do trono" daria ao rei um ponto que o
-                 regulamento não dá. -->
-            <button type="button" class="og-mk-fault" [disabled]="busy()" (click)="rally('serve_fault')">
-              Erro de saque de {{ faceOf(challengerId()).name }} · perde a vez, sem ponto
-            </button>
-
-            @if (tie()) {
-              <!-- Quantas vagas o empate decide, antes do primeiro toque. Cada
-                   desempate resolve UMA: sem o número, o mesário registra a
-                   primeira e só então descobre que falta outra. -->
-              <div class="og-mk-tie-head">
-                <span class="og-mk-tie-kicker">EMPATE NA VAGA</span>
-                <span class="og-mk-tie-chip">{{ spotsAtStake() }} {{ spotsAtStake() === 1 ? 'VAGA' : 'VAGAS' }} EM DISPUTA</span>
-              </div>
-              @if (lastTiebreakWinner(); as vencedora) {
-                <p class="og-mk-tie-note resolvido">
-                  <strong>{{ faceOf(vencedora).name }}</strong> pontuou no desempate e está classificada.
-                  {{ spotsAtStake() === 1 ? 'Falta 1.' : 'Faltam ' + spotsAtStake() + '.' }}
-                </p>
-              } @else if (spotsAtStake() > 1) {
-                <p class="og-mk-tie-note">
-                  Cada desempate decide <strong>uma</strong> vaga. Faltam <strong>{{ spotsAtStake() }}</strong>.
-                </p>
-              }
-              @if (tieGroup().length === 2) {
-                <p class="og-mk-tie-note">Bola de ouro entre as duas.</p>
-              } @else {
-                <!-- "Rally único entre as empatadas" não diz o que fazer com
-                     três: um rally tem dois lados. Elas jogam o próprio
-                     formato, e a ordem de entrada sai do mesmo critério que o
-                     servidor usaria para desempatar sozinho. -->
-                <p class="og-mk-tie-note">
-                  Mini-rodada entre as {{ tieGroup().length }} —
-                  <strong>quem pontuar primeiro leva a vaga.</strong>
-                </p>
-                <ol class="og-mk-tie-ordem">
-                  @for (entry of tieLineup(); track entry.teamId) {
-                    <li>
-                      <span class="papel">{{ entry.role }}</span>
-                      <span class="dupla">{{ faceOf(entry.teamId).name }}</span>
-                    </li>
-                  }
-                </ol>
-                <p class="og-mk-tie-hint">
-                  Rei venceu, marca o ponto e acabou. Desafiante venceu, assume o trono sem ponto e entra a próxima.
-                </p>
-              }
-              <!-- A bola de ouro aponta a DUPLA, não um lado: é jogada depois do
-                   apito, entre as empatadas, que quase nunca são o rei e o
-                   desafiante do momento. -->
-              <div class="og-mk-golden">
-                <span class="og-mk-golden-kicker">{{ tieGroup().length === 2 ? 'VENCEU A BOLA DE OURO' : 'PONTUOU NA MINI-RODADA' }}</span>
-                @for (teamId of tieOrder(); track teamId) {
-                  <button type="button" class="og-ghost-btn og-mk-golden-btn" [disabled]="busy()" (click)="golden(teamId)">
-                    {{ faceOf(teamId).name }}
-                  </button>
-                }
-              </div>
-            }
             @if (feedback(); as f) {
               <p class="og-mk-feedback" [class.err]="!f.ok">{{ f.message }}</p>
             }
@@ -559,12 +588,16 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                  automático: só desabilitar deixaria a rodada sem saída quando
                  a mesa decide não jogar o desempate. A saída fica separada e
                  escrita. -->
-            <button type="button" class="og-mk-end" disabled>{{ finishBlockedLabel() }}</button>
-            <button type="button" class="og-mk-end-auto" [disabled]="busy()" (click)="finishByCriterion()">
-              Encerrar pelo critério automático
-            </button>
+            <div class="og-mk-live-footer">
+              <button type="button" class="og-mk-end" disabled>{{ finishBlockedLabel() }}</button>
+              <button type="button" class="og-mk-end-auto" [disabled]="busy()" (click)="finishByCriterion()">
+                Encerrar pelo critério automático
+              </button>
+            </div>
           } @else {
-            <button type="button" class="og-mk-end" [disabled]="busy()" (click)="finish()">Encerrar rodada</button>
+            <div class="og-mk-live-footer">
+              <button type="button" class="og-mk-end" [disabled]="busy()" (click)="finish()">Encerrar rodada</button>
+            </div>
           }
         </aside>
       </div>
@@ -1100,11 +1133,6 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       align-items: start;
       padding: 4px 0 8px;
     }
-    @media (max-width: 1023.98px) {
-      .og-mk-live {
-        grid-template-columns: 1fr;
-      }
-    }
     .og-mk-live-main {
       display: flex;
       flex-direction: column;
@@ -1123,6 +1151,15 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       gap: 10px;
       flex-wrap: wrap;
       margin-top: 14px;
+    }
+    .og-mk-live-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    .og-mk-live-controls .og-mk-live-actions {
+      margin-top: 0;
     }
     .og-mk-rally-king {
       flex: 1 1 180px;
@@ -1261,7 +1298,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
     .og-mk-end-auto {
       width: 100%;
       min-height: 44px;
-      margin-top: 8px;
+      margin-top: 0;
       border-radius: 12px;
       border: 1px solid var(--nx-line);
       background: transparent;
@@ -1279,6 +1316,11 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
     .og-mk-end-auto:disabled {
       opacity: 0.5;
       cursor: default;
+    }
+    .og-mk-live-footer {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
     .og-mk-done {
       display: flex;
@@ -1674,7 +1716,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
     }
     .og-mk-fault {
       width: 100%;
-      margin-top: 8px;
+      margin-top: 0;
       padding: 10px 12px;
       border: 1px dashed rgb(255 255 255 / 22%);
       border-radius: 12px;
@@ -1689,31 +1731,31 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       opacity: 0.4;
       cursor: default;
     }
-    .og-mk-golden {
+
+    /* ── Empate na vaga (protótipos: card, alerta, grade de quem pontuou) ─ */
+    .og-mk-tie {
+      margin-top: 14px;
+      padding: 16px;
+      border: 1px solid color-mix(in srgb, var(--nx-pending) 55%, transparent);
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--nx-pending) 6%, var(--nx-surface-0));
       display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 8px;
-      margin-top: 8px;
-    }
-    .og-mk-golden-kicker {
-      font-size: 10px;
-      font-weight: 800;
-      letter-spacing: 1px;
-      color: #f4c543;
-    }
-    .og-mk-golden-btn {
-      flex: 1;
-      min-width: 96px;
+      flex-direction: column;
+      gap: 14px;
     }
     .og-mk-tie-head {
       display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-top: 10px;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .og-mk-tie-titles {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
     }
     .og-mk-tie-kicker {
-      flex-grow: 1;
       font-family: var(--nx-font-mono);
       font-size: 10px;
       font-weight: 700;
@@ -1721,9 +1763,19 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       letter-spacing: 0.14em;
       color: var(--nx-pending);
     }
+    .og-mk-tie-title {
+      margin: 0;
+      font-family: var(--nx-font-display);
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--nx-text);
+      line-height: 1.2;
+    }
     .og-mk-tie-chip {
       flex: none;
-      padding: 5px 10px;
+      align-self: center;
+      padding: 6px 12px;
       border: 1px solid var(--nx-pending);
       border-radius: 999px;
       font-family: var(--nx-font-mono);
@@ -1733,55 +1785,169 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       color: var(--nx-pending);
       white-space: nowrap;
     }
-    .og-mk-tie-note.resolvido {
-      color: var(--nx-text);
-    }
-    .og-mk-tie-note.resolvido strong {
-      color: var(--nx-orange-500);
-    }
-    .og-mk-tie-note {
-      margin: 8px 0 0;
-      font-size: 12px;
-      color: var(--nx-pending);
-      line-height: 1.45;
-    }
-    .og-mk-tie-ordem {
-      margin: 8px 0 0;
-      padding: 0;
-      list-style: none;
+    .og-mk-tie-alert {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border-left: 3px solid var(--nx-pending);
+      background: color-mix(in srgb, var(--nx-pending) 10%, var(--nx-surface-1));
     }
-    .og-mk-tie-ordem li {
+    .og-mk-tie-alert--ok {
+      border-left-color: var(--nx-orange-500);
+      background: color-mix(in srgb, var(--nx-orange-500) 10%, var(--nx-surface-1));
+    }
+    .og-mk-tie-alert-lead {
       display: flex;
-      align-items: baseline;
-      gap: 8px;
-      font-size: 12.5px;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 0;
+      font-size: 13.5px;
+      line-height: 1.45;
+      color: var(--nx-text);
     }
-    .og-mk-tie-ordem .papel {
+    .og-mk-tie-alert-lead og-icon {
       flex: none;
-      min-width: 108px;
+      margin-top: 1px;
+      color: var(--nx-pending);
+    }
+    .og-mk-tie-alert--ok .og-mk-tie-alert-lead og-icon {
+      color: var(--nx-orange-500);
+    }
+    .og-mk-tie-alert-lead em {
+      font-style: normal;
+      font-weight: 800;
+      color: var(--nx-pending);
+    }
+    .og-mk-tie-alert-lead strong {
+      color: var(--nx-orange-500);
+      font-weight: 800;
+    }
+    .og-mk-tie-roles {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 8px 0;
+      padding-top: 10px;
+      border-top: 1px solid color-mix(in srgb, var(--nx-line) 80%, transparent);
+      font-size: 13px;
+    }
+    .og-mk-tie-sep {
+      width: 1px;
+      height: 12px;
+      margin: 0 12px;
+      background: var(--nx-line);
+      align-self: center;
+    }
+    .og-mk-tie-role {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+    .og-mk-tie-role .papel {
       font-family: var(--nx-font-mono);
       font-size: 10.5px;
-      font-weight: 600;
-      text-transform: uppercase;
+      font-weight: 700;
       letter-spacing: 0.1em;
+      text-transform: uppercase;
       color: var(--nx-text-mute);
     }
-    .og-mk-tie-ordem .dupla {
+    .og-mk-tie-role--throne .papel {
+      color: var(--nx-orange-500);
+    }
+    .og-mk-tie-role .dupla {
       color: var(--nx-text);
       font-weight: 600;
     }
-    .og-mk-tie-ordem li:first-child .papel {
-      color: var(--nx-orange-500);
+
+    .og-mk-golden {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
-    .og-mk-tie-hint {
-      margin: 8px 0 0;
-      font-size: 11.5px;
-      color: var(--nx-text-dim);
-      line-height: 1.45;
+    .og-mk-golden-kicker {
+      font-family: var(--nx-font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--nx-text-mute);
     }
+    .og-mk-golden-grid {
+      display: grid;
+      gap: 8px;
+    }
+    /* 2 ou 4 empatadas: grade; 3: lista vertical (lê-se melhor no tablet da mesa). */
+    .og-mk-tie[data-count='2'] .og-mk-golden-grid,
+    .og-mk-tie[data-count='4'] .og-mk-golden-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+    .og-mk-tie[data-count='3'] .og-mk-golden-grid {
+      grid-template-columns: 1fr;
+    }
+    .og-mk-golden-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 52px;
+      padding: 12px 14px;
+      border: 1px solid var(--nx-line);
+      border-radius: 12px;
+      background: var(--nx-surface-1);
+      color: var(--nx-text);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition:
+        border-color 120ms ease,
+        background 120ms ease;
+    }
+    .og-mk-golden-card:hover:not(:disabled) {
+      border-color: color-mix(in srgb, var(--nx-pending) 55%, var(--nx-line));
+      background: color-mix(in srgb, var(--nx-pending) 8%, var(--nx-surface-1));
+    }
+    .og-mk-golden-card:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+    .og-mk-golden-ini {
+      flex: none;
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--nx-surface-0);
+      border: 1px solid var(--nx-line);
+      font-family: var(--nx-font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--nx-text-mute);
+    }
+    .og-mk-golden-name {
+      flex: 1;
+      min-width: 0;
+      font-weight: 800;
+      font-size: 14.5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .og-mk-golden-pts {
+      flex: none;
+      font-family: var(--nx-font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--nx-text-mute);
+    }
+    /* Com 2/4 em grade, o placar some — o mesário só aponta quem pontuou. */
+    .og-mk-tie[data-count='2'] .og-mk-golden-pts,
+    .og-mk-tie[data-count='4'] .og-mk-golden-pts {
+      display: none;
+    }
+
     .og-mk-feedback {
       margin: 8px 0 0;
       font-size: 13px;
@@ -1880,6 +2046,304 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       padding-inline: 18px;
       border-radius: 12px;
       box-shadow: 0 10px 28px rgba(255, 106, 26, 0.28);
+    }
+
+    /* ── Tablet / celular: mesa de pontuação no dia do evento ─────────────
+       Ordem: relógio → confronto/fila → log → encerrar.
+       Controles de ponto ficam sticky no polegar. Desktop (>1024) não muda. */
+    @media (max-width: 1023.98px) {
+      .og-mk-live {
+        display: grid;
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          'clock'
+          'main'
+          'log'
+          'footer';
+        gap: 12px;
+        padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      }
+      .og-mk-live-main {
+        grid-area: main;
+      }
+      /* display:contents sobe relógio/log/encerrar pro grid pai — sem isso o aside
+         empacotaria tudo num bloco só e o relógio ficaria depois da pontuação. */
+      .og-mk-live-side {
+        display: contents;
+        position: static;
+      }
+      .og-mk-live-clock {
+        grid-area: clock;
+        padding: 12px 14px;
+        gap: 4px;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        text-align: left;
+      }
+      .og-mk-live-clock .og-mk-panel-title {
+        width: 100%;
+      }
+      .og-mk-live-time {
+        font-size: 40px;
+      }
+      .og-mk-live-clock-meta {
+        margin-right: auto;
+        margin-left: 12px;
+      }
+      .og-mk-live-clock-actions {
+        width: auto;
+        margin-top: 0;
+        grid-template-columns: auto auto;
+      }
+      .og-mk-live-clock-actions .og-ghost-btn {
+        min-height: 44px;
+        min-width: 88px;
+      }
+      .og-mk-live-log {
+        grid-area: log;
+        min-height: 0;
+        max-height: 180px;
+        overflow: hidden;
+      }
+      .og-mk-log-body {
+        min-height: 0;
+        overflow: auto;
+      }
+      .og-mk-live-footer {
+        grid-area: footer;
+      }
+      .og-mk-end,
+      .og-mk-end-auto {
+        min-height: 48px;
+      }
+
+      .og-mk-open,
+      .og-mk-order,
+      .og-mk-panel {
+        padding: 12px 14px;
+      }
+
+      .og-mk-sides {
+        gap: 10px;
+      }
+      .og-mk-side {
+        padding: 14px 10px;
+        gap: 6px;
+      }
+      .og-mk-side-name {
+        font-size: 15px;
+      }
+      .og-mk-side-pts strong {
+        font-size: 28px;
+      }
+
+      .og-mk-order-list {
+        gap: 6px;
+      }
+      .og-mk-order-row {
+        padding: 8px 10px;
+        gap: 8px;
+        min-height: 48px;
+      }
+
+      /* Controles grudados no polegar — o que o mesário toca a cada ponto. */
+      .og-mk-live-controls {
+        position: sticky;
+        bottom: 0;
+        z-index: 30;
+        margin: 8px -14px -12px;
+        padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+        border-top: 1px solid var(--nx-line);
+        background: color-mix(in srgb, var(--nx-surface-0) 94%, transparent);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+      }
+      /* Empate: só a bola de ouro marca ponto — esconde rally e gruda os cards. */
+      .og-mk-order:has(.og-mk-tie) .og-mk-live-controls {
+        display: none;
+      }
+      .og-mk-order:has(.og-mk-tie) .og-mk-golden {
+        position: sticky;
+        bottom: 0;
+        z-index: 30;
+        margin: 8px -14px -12px;
+        padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+        border-radius: 0;
+        border-top: 1px solid var(--nx-line);
+        background: color-mix(in srgb, var(--nx-surface-0) 94%, transparent);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+      }
+
+      /* Preparação: iniciar fica no polegar. */
+      .og-mk-prep-side {
+        position: static;
+      }
+      .og-mk-start {
+        position: sticky;
+        bottom: 0;
+        z-index: 30;
+        margin: 0 -4px;
+        padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+        border-radius: 18px 18px 0 0;
+        box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.35), 0 10px 28px rgba(255, 106, 26, 0.28);
+      }
+      .og-mk-move {
+        width: 40px;
+        height: 40px;
+      }
+      .og-mk-chip {
+        min-height: 44px;
+        height: 44px;
+      }
+      .og-mk-live-actions {
+        flex-wrap: nowrap;
+        gap: 8px;
+      }
+      .og-mk-rally-king,
+      .og-mk-rally-crown {
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 56px;
+        font-size: 15px;
+        font-weight: 800;
+        border-radius: 14px;
+      }
+      .og-mk-fault {
+        min-height: 44px;
+        font-size: 12.5px;
+      }
+
+      .og-mk-tie {
+        padding: 12px;
+        gap: 12px;
+      }
+      .og-mk-tie-head {
+        flex-wrap: wrap;
+      }
+      .og-mk-tie-chip {
+        align-self: flex-start;
+      }
+      .og-mk-tie-title {
+        font-size: 16px;
+      }
+      .og-mk-tie[data-count='2'] .og-mk-golden-grid,
+      .og-mk-tie[data-count='4'] .og-mk-golden-grid {
+        grid-template-columns: 1fr;
+      }
+      .og-mk-tie[data-count='2'] .og-mk-golden-pts,
+      .og-mk-tie[data-count='4'] .og-mk-golden-pts {
+        display: inline;
+      }
+      .og-mk-golden-card {
+        min-height: 56px;
+        padding: 14px 16px;
+      }
+      .og-mk-golden-name {
+        font-size: 16px;
+      }
+
+      .og-mk-confirm-grid {
+        grid-template-columns: 1fr;
+      }
+      .og-mk-confirm-actions {
+        flex-direction: column-reverse;
+      }
+      .og-mk-confirm-actions .og-ghost-btn,
+      .og-mk-confirm-go {
+        width: 100%;
+        min-height: 48px;
+      }
+    }
+
+    @media (max-width: 639.98px) {
+      .og-mk-live-clock {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+        gap: 6px;
+      }
+      .og-mk-live-clock-meta {
+        margin: 0;
+      }
+      .og-mk-live-clock-actions {
+        width: 100%;
+        grid-template-columns: 1fr 1fr;
+      }
+      .og-mk-live-log {
+        max-height: 130px;
+      }
+      .og-mk-live-time {
+        font-size: 36px;
+      }
+
+      .og-mk-sides {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+      .og-mk-vs {
+        display: none;
+      }
+      .og-mk-side-pts strong {
+        font-size: 32px;
+      }
+
+      .og-mk-order-row {
+        grid-template-columns: 24px auto 1fr auto;
+      }
+      .og-mk-order-role {
+        display: none;
+      }
+
+      .og-mk-rally-king,
+      .og-mk-rally-crown {
+        min-height: 60px;
+        font-size: 14px;
+        letter-spacing: -0.01em;
+      }
+      .og-mk-rally-crown {
+        white-space: normal;
+        line-height: 1.15;
+        padding-block: 10px;
+      }
+
+      .og-mk-live-actions {
+        flex-direction: column;
+      }
+      .og-mk-rally-king,
+      .og-mk-rally-crown {
+        width: 100%;
+        flex: none;
+      }
+
+      .og-mk-open .og-mk-section-rule {
+        display: none;
+      }
+
+      .og-mk-tie-roles {
+        flex-direction: column;
+        gap: 6px;
+      }
+      .og-mk-tie-sep {
+        display: none;
+      }
+    }
+
+    @media (pointer: coarse) {
+      .og-mk-rally-king,
+      .og-mk-rally-crown {
+        min-height: 56px;
+      }
+      .og-mk-golden-card {
+        min-height: 52px;
+      }
+      .og-mk-live-clock-actions .og-ghost-btn,
+      .og-mk-end,
+      .og-mk-end-auto {
+        min-height: 48px;
+      }
     }
   `,
 })
@@ -2227,21 +2691,72 @@ export class MesaKocComponent {
     return r ? kocTiebreakOrder(r) : [];
   });
 
-  /** A mesma ordem, com o papel de cada uma escrito. É o que o mesário lê em
-   *  voz alta para as duplas montarem a quadra. */
-  protected readonly tieLineup = computed(() =>
-    this.tieOrder().map((teamId, i) => ({
-      teamId,
-      role: i === 0 ? 'Começa no trono' : i === 1 ? 'Desafia' : `Espera (${i + 1}ª)`,
-    })),
-  );
-
   /** Quem joga a bola de ouro: TODAS as duplas na pontuação da última vaga —
    *  com poucos rallies, empate de três pela mesma vaga é o caso comum. */
   protected readonly tieGroup = computed(() => {
     const r = this.round();
     return r ? kocQualifyingTieGroup(r) : [];
   });
+
+  /** Pontuação do empate — todas as empatadas têm o mesmo placar. */
+  protected readonly tiePoints = computed(() => {
+    const id = this.tieOrder()[0];
+    return id ? this.pointsOf(id) : 0;
+  });
+
+  /** Mini-rodada atual (1-based): cada bola de ouro já registrada é uma resolvida. */
+  protected readonly miniRoundNumber = computed(() => {
+    const r = this.round();
+    if (!r) return 1;
+    return r.rallyLog.filter((e) => e.winner === 'golden_point').length + 1;
+  });
+
+  /** Papéis da mini-rodada no alerta: trono, desafia, e quem espera (agrupado). */
+  protected readonly tieRoleSlots = computed(() => {
+    const order = this.tieOrder();
+    if (order.length < 3) return [];
+    const waiting = order.slice(2);
+    return [
+      { role: 'TRONO', names: this.faceOf(order[0]!).name },
+      { role: 'DESAFIA', names: this.faceOf(order[1]!).name },
+      {
+        role: waiting.length > 1 ? 'ESPERAM' : 'ESPERA',
+        names: waiting.map((id) => this.faceOf(id).name).join(', '),
+      },
+    ];
+  });
+
+  protected tieTitle(): string {
+    const n = this.tieGroup().length;
+    const pts = this.tiePoints();
+    const ptsLabel = pts === 1 ? '1 ponto' : `${pts} pontos`;
+    return `${n} duplas empatadas em ${ptsLabel}`;
+  }
+
+  protected goldenKicker(): string {
+    if (this.tieGroup().length === 2) return 'VENCEU A BOLA DE OURO';
+    const n = this.miniRoundNumber();
+    if (this.spotsAtStake() === 1 && n === 1) return 'PONTUOU NA MINI-RODADA';
+    return `PONTUOU NA ${this.ordinalDe(n).toUpperCase()} MINI-RODADA`;
+  }
+
+  protected ordinalDe(n: number): string {
+    if (n === 1) return '1ª';
+    if (n === 2) return '2ª';
+    if (n === 3) return '3ª';
+    return `${n}ª`;
+  }
+
+  /** Iniciais da dupla pro disco do card — uma letra de cada atleta. */
+  protected duoInitials(teamId: string): string {
+    const players = this.faceOf(teamId).players;
+    if (players.length >= 2) {
+      const a = players[0]!.initials.trim().charAt(0);
+      const b = players[1]!.initials.trim().charAt(0);
+      if (a && b) return (a + b).toUpperCase();
+    }
+    return initialsOf(this.faceOf(teamId).name).slice(0, 2).toUpperCase() || '?';
+  }
 
   protected moveOrder(index: number, delta: number): void {
     const next = [...this.draftOrder()];

@@ -220,13 +220,24 @@ function shuffled<T>(items: readonly T[]): T[] {
 
                       <label class="og-koc-plan-field">
                         <span class="lbl">Chaves</span>
-                        <select
-                          [value]="phase.bracketSizes.length"
-                          (change)="editKocPhase($index, { bracketCount: +$any($event.target).value })">
-                          @for (n of kocBracketOptions($index); track n) {
-                            <option [value]="n" [selected]="n === phase.bracketSizes.length">{{ n }}</option>
-                          }
-                        </select>
+                        @if (kocPhasePasses($index) === null) {
+                          <!-- A final é UMA quadra por definição — nada de seletor aqui.
+                               kocBracketOptions não sabe que este índice é o último
+                               (só olha tamanho de campo e teto), então ele ofereceria
+                               "2 chaves" pra um campo de 6 com teto 6: dois pódios
+                               desconectados. assertPlan no servidor recusa isso desde
+                               o fix round 1 da Task 7, mas a tela nem deveria oferecer. -->
+                          <span class="og-koc-plan-final-value">{{ phase.bracketSizes.length }}</span>
+                        } @else {
+                          <!-- Só [selected] no option — [value] no select junto de
+                               opções geradas por @for não seleciona de forma
+                               confiável (armadilha documentada dos portais Angular). -->
+                          <select (change)="editKocPhase($index, { bracketCount: +$any($event.target).value })">
+                            @for (n of kocBracketOptions($index); track n) {
+                              <option [selected]="n === phase.bracketSizes.length">{{ n }}</option>
+                            }
+                          </select>
+                        }
                         <small>{{ phase.bracketSizes.join(', ') }}</small>
                       </label>
 
@@ -582,6 +593,15 @@ function shuffled<T>(items: readonly T[]): T[] {
       font-size: 13px;
       padding: 0 8px;
     }
+    .og-koc-plan-final-value {
+      height: 30px;
+      display: flex;
+      align-items: center;
+      font-family: var(--nx-font-mono);
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--nx-text);
+    }
     .og-koc-plan-field small {
       display: block;
       margin-top: 4px;
@@ -803,6 +823,13 @@ export class SeedsComponent {
     effect(() => {
       const teams = this.eligible().length;
       if (this.format() !== 'king_of_court') return;
+      // `publish()` já tira o próprio retrato do plano antes de gravar (não
+      // depende deste efeito ficar quieto pra ser consistente) — mas trocar o
+      // plano debaixo do organizador NO MEIO do publish, mesmo que o valor
+      // enviado já esteja congelado, é confuso por si só. Segura aqui; ao
+      // voltar (`publishing` cai pra `false` no `finally`), o efeito roda de
+      // novo e recupera qualquer contagem que tenha mudado enquanto esperava.
+      if (this.publishing()) return;
       if (teams === this.kocPlanFor()) return;
       untracked(() => this.reproposeKocPlan());
     });
@@ -1113,13 +1140,27 @@ export class SeedsComponent {
       // servidor e o "sorteio 100% aleatório" prometido no toggle não existia.
       const ordered = this.eligible().map((t) => t.teamId!);
       const seeds = this.useSeeds() ? ordered : shuffled(ordered);
-      if (this.format() === 'king_of_court') {
+      // Snapshot único: `kocPhases()`/`kocMaxTeamsPerRound()` são sinais ao
+      // vivo, e o `await` do save abaixo dá tempo pro efeito de reproposta
+      // (inscrições mudando em tempo real) trocá-los no meio do caminho. Ler
+      // de novo pro payload da geração arriscaria gravar um plano na
+      // categoria e gerar a chave com outro — a mesma falha que o contrato do
+      // dispatch pede pra evitar, só que por uma porta diferente (dois reads
+      // em vez de um save que falha).
+      const kocPlan = this.format() === 'king_of_court'
+        ? {
+            phases: this.kocPhases(),
+            maxTeamsPerRound: this.kocMaxTeamsPerRound(),
+            roundDurationSec: this.kocRoundDurationSec(),
+          }
+        : null;
+      if (kocPlan) {
         // Grava ANTES de gerar: o sorteio ao vivo lê o plano do doc da
         // categoria, e quem sorteia depois precisa achar o mesmo formato. Se
         // isto lançar (categoria desconhecida — Task 6), o catch abaixo pega,
         // mostra no feedback e a geração nem roda: publicar a chave sem o
         // plano gravado deixaria o sorteio ao vivo futuro sem formato.
-        await saveKocPhasePlan(tid, cat.id, this.kocPhases(), this.kocMaxTeamsPerRound());
+        await saveKocPhasePlan(tid, cat.id, kocPlan.phases, kocPlan.maxTeamsPerRound);
       }
       const result = await generateCategoryBracket({
         tournamentId: tid,
@@ -1129,13 +1170,8 @@ export class SeedsComponent {
         ...(this.format() === 'groups_knockout' ? { groupsPreview: this.groups(), bracketConfig: { qualifiersPerGroup: this.qualifiersPerGroup() } } : {}),
         // `resolveKocConfig` prefere `bracketConfig` ao doc da categoria: é o
         // que faz a escolha desta tela valer numa categoria que não é KOTC.
-        ...(this.format() === 'king_of_court' ? {
-          bracketConfig: {
-            phases: this.kocPhases(),
-            maxTeamsPerRound: this.kocMaxTeamsPerRound(),
-            roundDurationSec: this.kocRoundDurationSec(),
-          },
-        } : {}),
+        // Mesmo snapshot gravado acima — nunca um segundo read dos sinais.
+        ...(kocPlan ? { bracketConfig: kocPlan } : {}),
         force,
       });
       this.feedback.set({ ok: true, message: `Chave publicada — ${result.matchCount} jogos gerados. Redirecionando…` });

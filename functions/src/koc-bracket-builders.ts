@@ -812,13 +812,17 @@ function assertPlan(
     const roundsPerBracket = Math.max(1, Math.floor(spec.roundsPerBracket));
     if (isLast) {
       // A ÚLTIMA fase do plano é a final por definição — a tabela dela é o
-      // pódio. Uma fase final com `qualifiersPerRound` ou `roundsPerBracket`
-      // fora de 0/1 emitiria baterias com vagas que nunca seriam consumidas
-      // (não há fase seguinte para recebê-las).
-      if (q !== 0 || roundsPerBracket !== 1) {
+      // pódio, e o pódio é UM só. Uma fase final com `qualifiersPerRound` ou
+      // `roundsPerBracket` fora de 0/1 emitiria baterias com vagas que nunca
+      // seriam consumidas (não há fase seguinte para recebê-las); mais de UMA
+      // chave emitiria dois pódios desconectados — dois campeões pra uma
+      // categoria só. (Achado do fix round 1 da Task 7: `kocBracketCountOptions`
+      // oferece 2 chaves pra um campo de 6 com teto 6, e nada aqui barrava.)
+      if (q !== 0 || roundsPerBracket !== 1 || sizes.length !== 1) {
         throw new KocBracketError(
-          `A fase ${i + 1} é a última do plano — toda final tem qualifiersPerRound ` +
-            `0 e roundsPerBracket 1 (esta tem ${q} e ${roundsPerBracket}).`,
+          `A fase ${i + 1} é a última do plano — toda final tem uma chave só, ` +
+            `qualifiersPerRound 0 e roundsPerBracket 1 (esta tem ${sizes.length} ` +
+            `chaves, ${q} e ${roundsPerBracket}).`,
           "koc_last_phase_not_final",
         );
       }

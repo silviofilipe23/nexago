@@ -895,6 +895,28 @@ describe("kocResolvePlan", () => {
     });
   });
 
+  /**
+   * Fix round 1 da Task 7 (portal): a tela oferece `kocBracketCountOptions`
+   * pra QUALQUER fase, inclusive a última, sem saber que é a final — com 6
+   * duplas e teto 6 (plano de UMA fase só, que É a final), a opção "2 chaves"
+   * existe (`ceil(6/2)=3` cabe, `floor(6/2)=3` não fura o piso) e o organizador
+   * pode escolhê-la num clique. `assertPlan` é a defesa de verdade: aceitava
+   * essa fase antes deste fix, porque só olhava `qualifiersPerRound`/
+   * `roundsPerBracket`, nunca quantas chaves a última fase tinha.
+   */
+  it("recusa última fase com mais de uma chave (dois pódios pra uma final só)", () => {
+    const config: KocConfig = {
+      ...baseConfig,
+      maxTeamsPerRound: 6,
+      phases: [{bracketSizes: [3, 3], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900}],
+    };
+    assert.throws(() => kocResolvePlan(6, config), (e: unknown) => {
+      assert.ok(e instanceof KocBracketError);
+      assert.equal(e.reason, "koc_last_phase_not_final");
+      return true;
+    });
+  });
+
   it("recusa plano com mais fases do que o formato aceita", () => {
     // `7`, não `KOC_MAX_PHASES + 1`: a constante é module-private (mesma
     // convenção já usada no teste de `kocProposePlan` acima).

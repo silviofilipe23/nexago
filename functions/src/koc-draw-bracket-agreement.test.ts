@@ -2,10 +2,12 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {
   buildKingOfCourtRounds,
+  KOC_MIN_TEAMS_PER_ROUND,
   kocBracketCountForRounds,
   kocMaxRoundsPerBracket,
   kocProposePlan,
   kocResolvePlan,
+  kocRoundSizes,
   type KocConfig,
   type KocPhaseSpec,
 } from "./koc-bracket-builders";
@@ -177,5 +179,127 @@ describe("createDrawSession recusa fase 1 cujo número de chaves não sobrevive 
         );
       }
     }
+  });
+});
+
+/**
+ * Fix round 1 (achado do revisor): a checagem por CONTAGEM acima
+ * (`roundTrips`) é necessária mas não suficiente. Ela só bastava para o
+ * caminho LEGADO porque `kocLegacyPlan` sempre monta `bracketSizes` com
+ * `kocRoundSizes` — a mesma fórmula que `groupCapacities` usa —, então
+ * contagem batendo implica forma batendo. Plano EXPLÍCITO
+ * (`category.kocPhases`) não tem essa garantia: `parseKocPhases` só valida
+ * que cada tamanho é um inteiro positivo, e `assertPlan` só valida soma e
+ * contagem da fase 1, nunca a distribuição exata. Um plano como
+ * `[6,6,4,3]` para 19 duplas tem a contagem certa (`ceil(19/6) = 4`) mas
+ * `groupCapacities(19, 6)` monta `[5,5,5,4]` — o sorteio revelaria 4 caixas
+ * com elenco diferente do que a fase 1 pede, e a geração só descobriria no
+ * publish. `createDrawSession` por isso compara ARRAY a ARRAY, não só o
+ * tamanho; este bloco é o que prova que a checagem forte é necessária e que
+ * ela cobre plano explícito, não só o derivado.
+ */
+describe("createDrawSession recusa fase 1 cuja FORMA não bate, mesmo quando a contagem bate " +
+  "(plano explícito)", () => {
+  /** A checagem forte que `draw-sessions.ts` passa a usar: array a array. */
+  function shapeMatches(teamCount: number, phase1: readonly number[]): boolean {
+    const target = Math.max(...phase1);
+    const drawn = groupCapacities(teamCount, target).map((g) => g.capacity);
+    return drawn.length === phase1.length && drawn.every((cap, i) => cap === phase1[i]);
+  }
+
+  /** Só a contagem — a checagem antiga, fraca de propósito para o contraste. */
+  function countRoundTrips(teamCount: number, phase1: readonly number[]): boolean {
+    const target = Math.max(...phase1);
+    return Math.ceil(teamCount / target) === phase1.length;
+  }
+
+  /**
+   * Desloca 1 dupla do último bloco pro primeiro: mesma soma, mesma
+   * contagem, forma diferente. É a mesma construção do contraexemplo do
+   * revisor (`[6,6,4,3]` a partir do canônico `[5,5,5,4]` com 19 duplas).
+   * `null` quando o deslocamento sairia da faixa válida (cada chave entre
+   * `KOC_MIN_TEAMS_PER_ROUND` e o teto 6 usado neste teste).
+   */
+  function lopsidedVariant(canonical: readonly number[]): number[] | null {
+    if (canonical.length < 2) return null;
+    const variant = [...canonical];
+    variant[0] = variant[0]! + 1;
+    variant[variant.length - 1] = variant[variant.length - 1]! - 1;
+    if (variant[variant.length - 1]! < KOC_MIN_TEAMS_PER_ROUND) return null;
+    if (variant[0]! > 6) return null;
+    return variant;
+  }
+
+  /** Plano de 2 fases válido para QUALQUER `phase1`: a fase 2 é a final,
+   * do tamanho exato de vagas que a fase 1 libera. */
+  function planFor(phase1: number[]): KocPhaseSpec[] {
+    return [
+      {bracketSizes: phase1, roundsPerBracket: 1, qualifiersPerRound: 1, durationSec: 900},
+      {bracketSizes: [phase1.length], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+    ];
+  }
+
+  it("19 duplas, plano explícito [6,6,4,3]: a contagem bate (ceil(19/6)=4) mas a forma não — " +
+    "groupCapacities monta [5,5,5,4]", () => {
+    const phase1 = [6, 6, 4, 3];
+    assert.equal(countRoundTrips(19, phase1), true, "a checagem fraca deixaria passar");
+    assert.deepEqual(groupCapacities(19, 6).map((g) => g.capacity), [5, 5, 5, 4]);
+    assert.equal(shapeMatches(19, phase1), false, "a checagem forte tem que recusar");
+
+    // `assertPlan` aceita este plano — soma (19), contagem da fase 1 (a
+    // checagem fraca) e regras de fase final todas batem. É exatamente por
+    // isso que a checagem de FORMA precisa morar em `draw-sessions.ts`, não
+    // só dentro de `assertPlan`.
+    const config: KocConfig = {
+      teamsPerCourt: 4, qualifiersPerRound: 2, roundDurationSec: 900,
+      maxTeamsPerRound: 6, phases: planFor(phase1),
+    };
+    const plan = kocResolvePlan(19, config);
+    assert.deepEqual(plan[0]!.bracketSizes, phase1);
+  });
+
+  it("7 a 30 duplas, plano explícito: variante deslocada com a MESMA contagem — a checagem " +
+    "forte recusa mesmo quando a fraca deixaria passar", () => {
+    let demonstrated = 0;
+    for (let n = 7; n <= 30; n++) {
+      for (let k = 2; k <= 8; k++) {
+        const canonical = kocRoundSizes(n, k);
+        if (Math.min(...canonical) < KOC_MIN_TEAMS_PER_ROUND || Math.max(...canonical) > 6) {
+          continue; // fora da faixa que este teste usa (teto 6, piso do formato)
+        }
+        if (!countRoundTrips(n, canonical)) continue; // fase 1 nem chegaria a existir
+        const variant = lopsidedVariant(canonical);
+        if (!variant || !countRoundTrips(n, variant)) continue; // não é o caso que queremos provar
+
+        // O plano canônico é aceito e a forma bate — controle positivo.
+        const canonicalConfig: KocConfig = {
+          teamsPerCourt: 4, qualifiersPerRound: 2, roundDurationSec: 900,
+          maxTeamsPerRound: 6, phases: planFor(canonical),
+        };
+        const canonicalPlan = kocResolvePlan(n, canonicalConfig);
+        assert.deepEqual(canonicalPlan[0]!.bracketSizes, canonical, `${n} duplas, k=${k} (canônico)`);
+        assert.equal(shapeMatches(n, canonicalPlan[0]!.bracketSizes), true, `${n} duplas, k=${k} (canônico)`);
+
+        // A variante deslocada tem a MESMA contagem (a checagem fraca deixaria
+        // passar) mas a forma difere — a checagem forte tem que recusar.
+        const variantConfig: KocConfig = {
+          teamsPerCourt: 4, qualifiersPerRound: 2, roundDurationSec: 900,
+          maxTeamsPerRound: 6, phases: planFor(variant),
+        };
+        const variantPlan = kocResolvePlan(n, variantConfig); // assertPlan aceita — só a contagem importa lá
+        assert.equal(
+          countRoundTrips(n, variantPlan[0]!.bracketSizes),
+          true,
+          `${n} duplas, k=${k} (variante): a checagem fraca precisa deixar passar pra provar o ponto`,
+        );
+        assert.equal(
+          shapeMatches(n, variantPlan[0]!.bracketSizes),
+          false,
+          `${n} duplas, k=${k} (variante): a checagem forte tem que recusar`,
+        );
+        demonstrated++;
+      }
+    }
+    assert.ok(demonstrated >= 5, `sweep vazio ou fraco demais — só ${demonstrated} casos demonstrados`);
   });
 });

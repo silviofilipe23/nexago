@@ -21,6 +21,7 @@ import {
   KocBracketError,
   type KocPhaseSpec,
 } from "./koc-bracket-builders";
+import {groupCapacities} from "./draw-plan";
 import {athleteRatingsPath} from "./rating-engine";
 import {buildEntrants, type EntrantHistoryMatch, type EntrantSource} from "./draw-entrants";
 import {byeSeeds, winnersRoundOnePairings} from "./draw-de-placement";
@@ -270,30 +271,35 @@ export const createDrawSession = onCall({
       throw e;
     }
     // O sorteio guarda só o ALVO da caixa (`teamsPerBox`, mais abaixo) e
-    // reconstrói o número de caixas com `groupCapacities`, que é
-    // `ceil(duplas / alvo)`. Plano EXPLÍCITO já passa por essa mesma checagem
-    // em `assertPlan`; plano DERIVADO (categoria sem plano próprio, regras
-    // antigas) não passa por lá — e é exatamente aí que mora o bug: com
-    // "Duplas por quadra" 3 e 19 duplas o plano fecha em 6 chaves
-    // `[4,3,3,3,3,3]`, mas `ceil(19/4)` é 5. Sem esta checagem o sorteio
-    // revelaria 5 caixas e o publish exigiria 6, com as duplas já na tela.
+    // reconstrói as caixas com `groupCapacities` — a MESMA função que monta o
+    // elenco revelado. Comparar só a CONTAGEM de caixas não basta: um plano
+    // EXPLÍCITO pode ter a contagem certa e a FORMA errada. `[6,6,4,3]` para 19
+    // duplas tem `ceil(19/6) = 4` caixas — a contagem bate — mas
+    // `groupCapacities(19, 6)` monta `[5,5,5,4]`, forma que não bate. Nem
+    // `assertPlan` (plano explícito) nem `kocLegacyPlan` (plano derivado)
+    // garantem essa forma canônica; só a geração exige forma exata, e só
+    // descobre no publish, com as duplas já reveladas. Por isso a comparação é
+    // elemento a elemento, não só o tamanho do array.
     const kocTarget = Math.max(...kocPlan[0]!.bracketSizes);
-    const kocBoxCount = Math.ceil(teamIds.length / kocTarget);
-    if (kocBoxCount !== kocPlan[0]!.bracketSizes.length) {
+    const kocPlanSizes = kocPlan[0]!.bracketSizes;
+    const kocDrawnBoxes = groupCapacities(teamIds.length, kocTarget).map((g) => g.capacity);
+    const kocShapeMatches = kocDrawnBoxes.length === kocPlanSizes.length &&
+      kocDrawnBoxes.every((capacity, i) => capacity === kocPlanSizes[i]);
+    if (!kocShapeMatches) {
       const hint = category.kocPhases ?
-        "o número de chaves da fase 1 no plano" :
+        "as chaves da fase 1 no plano" :
         '"Duplas por quadra"';
       throw new HttpsError(
         "failed-precondition",
-        `A fase 1 do plano tem ${kocPlan[0]!.bracketSizes.length} chave(s), mas ` +
-          `com chaves de até ${kocTarget} duplas o sorteio monta ${kocBoxCount} ` +
-          `caixa(s) para ${teamIds.length} duplas — os números não batem. Ajuste ` +
-          `${hint} antes de sortear.`,
+        `A fase 1 do plano pede as chaves [${kocPlanSizes.join(", ")}], mas com ` +
+          `caixas de até ${kocTarget} duplas o sorteio monta ` +
+          `[${kocDrawnBoxes.join(", ")}] para ${teamIds.length} duplas — as formas ` +
+          `não batem. Ajuste ${hint} antes de sortear.`,
         {
           reason: "koc_bracket_count_not_roundtrippable",
           teamCount: teamIds.length,
-          planBracketCount: kocPlan[0]!.bracketSizes.length,
-          drawBoxCount: kocBoxCount,
+          planBracketSizes: kocPlanSizes,
+          drawBracketSizes: kocDrawnBoxes,
         },
       );
     }

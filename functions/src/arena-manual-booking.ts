@@ -4,10 +4,10 @@ import * as logger from "firebase-functions/logger";
 import {
   isValidDateKey,
   toMinutes,
-  calendarHoursSpanning,
   fmtHourEnd,
   fmtHourStart,
   hasBlockedSlotOverlap,
+  lockRefsForOccurrence,
 } from "./arena-recurring-booking";
 import {
   calculateBookingTotal,
@@ -136,12 +136,7 @@ export function validateManualBookingInput(
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
-const ARENA_SLOT_LOCKS = "arenaSlotLocks";
 const ARENA_TIMEZONE_OFFSET = "-03:00";
-
-function safeIdPart(s: string): string {
-  return s.replace(/\//g, "_");
-}
 
 interface ArenaCourtContext {
   arenaData: Record<string, unknown>;
@@ -262,22 +257,10 @@ export const createArenaManualBooking = onCall({
     );
   }
 
-  const startMin = toMinutes(parsed.startTime);
-  let endMin = toMinutes(parsed.endTime);
-  if (endMin === 0 && startMin > 0) endMin = 24 * 60;
-  const hours = calendarHoursSpanning(startMin, endMin);
-  if (hours.length === 0) {
+  const lockRefs = lockRefsForOccurrence(db, parsed, parsed.dateKey);
+  if (lockRefs.length === 0) {
     throw new HttpsError("failed-precondition", "Não foi possível calcular os horários.");
   }
-
-  const safeArena = safeIdPart(parsed.arenaId);
-  const safeCourt = safeIdPart(parsed.courtId);
-  const lockRefs = hours.map((h) => ({
-    hour: h,
-    ref: db
-      .collection(ARENA_SLOT_LOCKS)
-      .doc(`${safeArena}_${safeCourt}_${parsed.dateKey}_h${h.toString().padStart(2, "0")}`),
-  }));
 
   const bookingRef = db.collection(ARENA_BOOKINGS).doc();
   const slotRef = db.collection(ARENA_SLOTS).doc();

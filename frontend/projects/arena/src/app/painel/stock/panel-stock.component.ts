@@ -109,34 +109,38 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
               }
             </div>
 
-            <div class="table-head">
-              <span></span>
-              <span>Produto</span>
-              <span>Categoria</span>
-              <span>Preço</span>
-              <span>Estoque</span>
-              <span>Nível</span>
-              <span></span>
-            </div>
-            <div class="table-list">
-              @for (p of filteredProducts(); track p.id) {
-                <div class="table-row">
-                  <div class="thumb" aria-hidden="true">{{ p.emoji }}</div>
-                  <div class="product-name">{{ p.name }}</div>
-                  <div class="product-category">{{ categoryLabel[p.category] }}</div>
-                  <div class="product-price">{{ formatBRL(p.priceCents) }}</div>
-                  <div class="product-stock" [class]="'tone-' + statusOf(p)">{{ p.stockQuantity }} <span class="unit">un</span></div>
-                  <div><ar-pill [tone]="statusTone[statusOf(p)]">{{ statusLabel[statusOf(p)] }}</ar-pill></div>
-                  <div class="product-actions">
-                    <button type="button" class="ar-mini-btn" [disabled]="readOnly()" (click)="editProduct(p.id)">
-                      <ar-icon name="edit" [size]="13" />
-                      Editar
-                    </button>
-                  </div>
+            <div class="ar-table-scroll" tabindex="0" role="region" aria-label="Tabela de estoque">
+              <div class="ar-table-inner">
+                <div class="table-head">
+                  <span></span>
+                  <span>Produto</span>
+                  <span>Categoria</span>
+                  <span>Preço</span>
+                  <span>Estoque</span>
+                  <span>Nível</span>
+                  <span></span>
                 </div>
-              } @empty {
-                <p class="state-text empty-text">Nenhum produto cadastrado ainda.</p>
-              }
+                <div class="table-list">
+                  @for (p of filteredProducts(); track p.id) {
+                    <div class="table-row">
+                      <div class="thumb" aria-hidden="true">{{ p.emoji }}</div>
+                      <div class="product-name">{{ p.name }}</div>
+                      <div class="product-category">{{ categoryLabel[p.category] }}</div>
+                      <div class="product-price">{{ formatBRL(p.priceCents) }}</div>
+                      <div class="product-stock" [class]="'tone-' + statusOf(p)">{{ p.stockQuantity }} <span class="unit">un</span></div>
+                      <div><ar-pill [tone]="statusTone[statusOf(p)]">{{ statusLabel[statusOf(p)] }}</ar-pill></div>
+                      <div class="product-actions">
+                        <button type="button" class="ar-mini-btn" [disabled]="readOnly()" (click)="editProduct(p.id)">
+                          <ar-icon name="edit" [size]="13" />
+                          Editar
+                        </button>
+                      </div>
+                    </div>
+                  } @empty {
+                    <p class="state-text empty-text">Nenhum produto cadastrado ainda.</p>
+                  }
+                </div>
+              </div>
             </div>
           </ar-panel-card>
         }

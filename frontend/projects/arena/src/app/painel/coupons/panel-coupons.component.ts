@@ -77,34 +77,38 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
               }
             </div>
 
-            <div class="table-head">
-              <span>Código</span>
-              <span>Desconto</span>
-              <span>Validade</span>
-              <span>Usos</span>
-              <span>Status</span>
-              <span></span>
-            </div>
-            <div class="table-list">
-              @for (row of filteredCoupons(); track row.coupon.id) {
-                <div class="table-row">
-                  <div class="coupon-code">{{ row.coupon.code }}</div>
-                  <div class="coupon-discount">{{ formatCouponDiscount(row.coupon) }}</div>
-                  <div class="coupon-validity">{{ formatCouponValidity(row.coupon) }}</div>
-                  <div class="coupon-usage">{{ formatCouponUsage(row.coupon) }}</div>
-                  <div><ar-pill [tone]="statusTone[row.status]">{{ statusLabel[row.status] }}</ar-pill></div>
-                  <div class="coupon-actions">
-                    @if (row.coupon.active) {
-                      <button type="button" class="ar-mini-btn" (click)="askDeactivate(row.coupon)">
-                        <ar-icon name="alert-triangle" [size]="13" />
-                        Desativar
-                      </button>
-                    }
-                  </div>
+            <div class="ar-table-scroll" tabindex="0" role="region" aria-label="Tabela de cupons">
+              <div class="ar-table-inner">
+                <div class="table-head">
+                  <span>Código</span>
+                  <span>Desconto</span>
+                  <span>Validade</span>
+                  <span>Usos</span>
+                  <span>Status</span>
+                  <span></span>
                 </div>
-              } @empty {
-                <p class="state-text empty-text">Nenhum cupom criado ainda.</p>
-              }
+                <div class="table-list">
+                  @for (row of filteredCoupons(); track row.coupon.id) {
+                    <div class="table-row">
+                      <div class="coupon-code">{{ row.coupon.code }}</div>
+                      <div class="coupon-discount">{{ formatCouponDiscount(row.coupon) }}</div>
+                      <div class="coupon-validity">{{ formatCouponValidity(row.coupon) }}</div>
+                      <div class="coupon-usage">{{ formatCouponUsage(row.coupon) }}</div>
+                      <div><ar-pill [tone]="statusTone[row.status]">{{ statusLabel[row.status] }}</ar-pill></div>
+                      <div class="coupon-actions">
+                        @if (row.coupon.active) {
+                          <button type="button" class="ar-mini-btn" (click)="askDeactivate(row.coupon)">
+                            <ar-icon name="alert-triangle" [size]="13" />
+                            Desativar
+                          </button>
+                        }
+                      </div>
+                    </div>
+                  } @empty {
+                    <p class="state-text empty-text">Nenhum cupom criado ainda.</p>
+                  }
+                </div>
+              </div>
             </div>
           </ar-panel-card>
         }

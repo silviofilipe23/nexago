@@ -33,7 +33,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       background: var(--nx-surface-0);
       border: 1px solid var(--nx-line);
       border-radius: var(--nx-r-4);
-      padding: 20px;
+      padding: var(--ar-card-pad);
       display: flex;
       flex-direction: column;
       min-width: 0;
@@ -42,11 +42,11 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
     }
 
     .card.pad-sm {
-      padding: 16px;
+      padding: calc(var(--ar-card-pad) - 4px);
     }
 
     .card.pad-lg {
-      padding: 24px;
+      padding: calc(var(--ar-card-pad) + 4px);
     }
 
     .card.accent {

@@ -51,7 +51,7 @@ const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', lo
         }
       </ar-page-header>
 
-      <div class="body">
+      <div class="body ar-split">
         @if (loading()) {
           <p class="state-text">Carregando produto…</p>
         } @else if (loadError(); as err) {
@@ -196,10 +196,6 @@ const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', lo
     .body {
       flex: 1;
       padding: 22px 32px 28px;
-      display: grid;
-      grid-template-columns: 1fr 373px;
-      gap: 16px;
-      align-items: start;
       overflow: auto;
     }
 
@@ -505,12 +501,6 @@ const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', lo
 
     .danger-btn:hover {
       background: #ff564c;
-    }
-
-    @media (max-width: 1180px) {
-      .body {
-        grid-template-columns: 1fr;
-      }
     }
 
     @media (max-width: 720px) {

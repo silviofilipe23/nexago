@@ -8,10 +8,11 @@ function pre(overrides: Partial<KocPreRound> = {}): KocPreRound {
   return {
     tronoTeamId: 't',
     rows: [
-      { posicao: 1, teamId: 'a', papel: 'desafia' },
-      { posicao: 2, teamId: 'b', papel: 'sequencia' },
-      { posicao: 3, teamId: 'c', papel: 'aguardando' },
-      { posicao: 4, teamId: 'd', papel: 'aguardando' },
+      { posicao: 1, teamId: 't', papel: 'trono' },
+      { posicao: 2, teamId: 'a', papel: 'desafia' },
+      { posicao: 3, teamId: 'b', papel: 'sequencia' },
+      { posicao: 4, teamId: 'c', papel: 'aguardando' },
+      { posicao: 5, teamId: 'd', papel: 'aguardando' },
     ],
     ...overrides,
   };
@@ -121,8 +122,9 @@ describe('LedPreRoundComponent', () => {
       await render({
         preRound: pre({
           rows: [
-            { posicao: 1, teamId: 'a', papel: 'desafia' },
-            { posicao: 2, teamId: 'b', papel: 'sequencia' },
+            { posicao: 1, teamId: 't', papel: 'trono' },
+            { posicao: 2, teamId: 'a', papel: 'desafia' },
+            { posicao: 3, teamId: 'b', papel: 'sequencia' },
           ],
         }),
       }),

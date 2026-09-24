@@ -66,41 +66,45 @@ const STATUS_TONE: Record<ArenaClubStatus, PillTone> = {
           </div>
 
           <ar-panel-card [kicker]="clubs().length + ' no total'" title="Clubinhos" class="table-card">
-            <div class="table-head">
-              <span>Clubinho</span>
-              <span>Recorrência</span>
-              <span>Quadras</span>
-              <span>Vagas</span>
-              <span>Valor</span>
-              <span>Status</span>
-              <span></span>
-            </div>
-            <div class="table-list">
-              @for (club of clubs(); track club.id) {
-                <div class="table-row">
-                  <div>
-                    <div class="club-name">{{ club.name }}</div>
-                    @if (club.description) {
-                      <div class="club-desc">{{ club.description }}</div>
-                    }
-                  </div>
-                  <div class="mono-cell">{{ scheduleLabel(club) }}</div>
-                  <div class="mono-cell">{{ club.courtNames.length }} quadra{{ club.courtNames.length === 1 ? '' : 's' }}</div>
-                  <div class="mono-cell">{{ club.capacity }}</div>
-                  <div class="club-price">{{ formatReais(club.priceReais) }}</div>
-                  <div><ar-pill [tone]="statusTone[club.status]">{{ statusLabel[club.status] }}</ar-pill></div>
-                  <div class="row-actions">
-                    <button type="button" class="ar-mini-btn" (click)="openClub(club.id)">
-                      Abrir
-                      <ar-icon name="chevron-right" [size]="13" />
-                    </button>
-                  </div>
+            <div class="ar-table-scroll" tabindex="0" role="region" aria-label="Tabela de clubinhos">
+              <div class="ar-table-inner">
+                <div class="table-head">
+                  <span>Clubinho</span>
+                  <span>Recorrência</span>
+                  <span>Quadras</span>
+                  <span>Vagas</span>
+                  <span>Valor</span>
+                  <span>Status</span>
+                  <span></span>
                 </div>
-              } @empty {
-                <p class="state-text empty-text">
-                  Nenhum clubinho ainda. Crie o primeiro e compartilhe a lista com seus atletas.
-                </p>
-              }
+                <div class="table-list">
+                  @for (club of clubs(); track club.id) {
+                    <div class="table-row">
+                      <div>
+                        <div class="club-name">{{ club.name }}</div>
+                        @if (club.description) {
+                          <div class="club-desc">{{ club.description }}</div>
+                        }
+                      </div>
+                      <div class="mono-cell">{{ scheduleLabel(club) }}</div>
+                      <div class="mono-cell">{{ club.courtNames.length }} quadra{{ club.courtNames.length === 1 ? '' : 's' }}</div>
+                      <div class="mono-cell">{{ club.capacity }}</div>
+                      <div class="club-price">{{ formatReais(club.priceReais) }}</div>
+                      <div><ar-pill [tone]="statusTone[club.status]">{{ statusLabel[club.status] }}</ar-pill></div>
+                      <div class="row-actions">
+                        <button type="button" class="ar-mini-btn" (click)="openClub(club.id)">
+                          Abrir
+                          <ar-icon name="chevron-right" [size]="13" />
+                        </button>
+                      </div>
+                    </div>
+                  } @empty {
+                    <p class="state-text empty-text">
+                      Nenhum clubinho ainda. Crie o primeiro e compartilhe a lista com seus atletas.
+                    </p>
+                  }
+                </div>
+              </div>
             </div>
           </ar-panel-card>
         }

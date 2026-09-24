@@ -35,16 +35,30 @@ export function assertSeatAvailable(seats: number, used: number): void {
   }
 }
 
-/** Convite pendente, não vencido e do e-mail de quem está reivindicando. */
-export function inviteIsClaimable(
+/**
+ * Por que o convite não pode ser reivindicado — e não só *se* não pode.
+ *
+ * Os motivos pedem saídas diferentes de quem está na tela: `email-mismatch`
+ * se resolve trocando de conta (o convite continua de pé), `settled`/`expired`
+ * só com um convite novo. Colapsar os três numa recusa só foi o que fez a
+ * tela dizer "este convite não é mais válido" para um convite perfeitamente
+ * válido, aberto pelo dono logado no próprio navegador do painel.
+ *
+ * A ordem é deliberada: status e prazo vêm antes do e-mail, senão quem abre o
+ * PRÓPRIO convite já cancelado leria "e-mail errado" — e o e-mail está certo.
+ */
+export type InviteClaimState = "ok" | "settled" | "expired" | "email-mismatch";
+
+export function inviteClaimState(
   invite: {status?: unknown; emailLower?: unknown; expiresAt?: {toMillis(): number}},
   emailLower: string,
   nowMs: number,
-): boolean {
-  if (invite.status !== "pending") return false;
-  if (invite.emailLower !== emailLower || emailLower === "") return false;
+): InviteClaimState {
+  if (invite.status !== "pending") return "settled";
   const expiresAt = invite.expiresAt?.toMillis?.();
-  return expiresAt == null || expiresAt > nowMs;
+  if (expiresAt != null && expiresAt <= nowMs) return "expired";
+  if (emailLower === "" || invite.emailLower !== emailLower) return "email-mismatch";
+  return "ok";
 }
 
 /** Concede a role `arena` de forma SÍNCRONA. Não pode ficar só no trigger de
@@ -317,10 +331,29 @@ export const acceptArenaStaffInvite = onCall({
   if (!snap.exists) throw new HttpsError("not-found", "Convite não encontrado.");
 
   const invite = snap.data() ?? {};
-  if (!inviteIsClaimable(invite, email, Date.now())) {
+  // Cada recusa com seu próprio código: a tela usa `permission-denied` para
+  // oferecer a troca de conta (o convite segue de pé) e `failed-precondition`
+  // para pedir um convite novo. A mensagem do e-mail diferente nomeia a conta
+  // CONECTADA, nunca a convidada — quem chegou aqui pode não ser o convidado.
+  const claimState = inviteClaimState(invite, email, Date.now());
+  if (claimState === "email-mismatch") {
+    throw new HttpsError(
+      "permission-denied",
+      `Este convite foi enviado para outro e-mail. Você está conectado como ${
+        email || "uma conta sem e-mail"
+      } — saia desta conta e entre com o e-mail que recebeu o convite.`,
+    );
+  }
+  if (claimState === "expired") {
     throw new HttpsError(
       "failed-precondition",
-      "Este convite não é mais válido ou foi enviado para outro e-mail.",
+      "Este convite venceu. Peça um convite novo à arena.",
+    );
+  }
+  if (claimState === "settled") {
+    throw new HttpsError(
+      "failed-precondition",
+      "Este convite foi cancelado ou já foi usado. Peça um convite novo à arena.",
     );
   }
 

@@ -18,6 +18,8 @@ import { overlayTeamIdsOf } from './overlay-selectors';
 export interface OverlayTeam {
   label: string;
   players: [string, string];
+  /** Alinhado aos slots de `players` — null cai nas iniciais. */
+  photos: [string | null, string | null];
 }
 
 /** Costura entre a tela do overlay e o Firestore.
@@ -154,10 +156,15 @@ export class OverlayLiveGateway {
             profiles.get(team.player1Id)?.name ?? '',
             profiles.get(team.player2Id)?.name ?? '',
           ];
+          const photos: [string | null, string | null] = [
+            profiles.get(team.player1Id)?.photoUrl ?? null,
+            profiles.get(team.player2Id)?.photoUrl ?? null,
+          ];
           const named = players.filter((n) => n !== '');
           next.set(teamId, {
             label: team.teamName ?? (named.length > 0 ? named.join(' / ') : ''),
             players,
+            photos,
           });
         }
         return next;

@@ -109,15 +109,30 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
               @for (c of filteredComandas(); track c.id) {
                 <div class="table-row" (click)="openOrder(c.id)">
                   <div class="order-cell">
-                    <div class="order-icon">
-                      <ar-icon name="bookmark" [size]="16" />
+                    <span class="col-label">Comanda</span>
+                    <div class="order-cell-main">
+                      <div class="order-icon">
+                        <ar-icon name="bookmark" [size]="16" />
+                      </div>
+                      <div class="order-code">{{ formatComandaNumber(c.displayNumber) }}{{ c.locationLabel ? ' · ' + c.locationLabel : '' }}</div>
                     </div>
-                    <div class="order-code">{{ formatComandaNumber(c.displayNumber) }}{{ c.locationLabel ? ' · ' + c.locationLabel : '' }}</div>
                   </div>
-                  <div class="order-client">{{ c.customerName }}</div>
-                  <div class="order-items">{{ c.itemsCount }}</div>
-                  <div class="order-total right">{{ formatBRL(c.totalCents) }}</div>
-                  <div><ar-pill [tone]="statusTone[c.status]">{{ statusLabel[c.status] }}</ar-pill></div>
+                  <div class="order-client">
+                    <span class="col-label">Cliente</span>
+                    {{ c.customerName }}
+                  </div>
+                  <div class="order-items">
+                    <span class="col-label">Itens</span>
+                    {{ c.itemsCount }}
+                  </div>
+                  <div class="order-total right">
+                    <span class="col-label">Total</span>
+                    {{ formatBRL(c.totalCents) }}
+                  </div>
+                  <div>
+                    <span class="col-label">Status</span>
+                    <ar-pill [tone]="statusTone[c.status]">{{ statusLabel[c.status] }}</ar-pill>
+                  </div>
                 </div>
               } @empty {
                 <p class="state-text empty-text">Nenhuma comanda por aqui.</p>
@@ -156,6 +171,8 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -256,6 +273,10 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
       padding: 0 0 8px;
       border-bottom: 1px solid var(--nx-line-strong);
       flex: none;
+
+      @include ar.below(sm) {
+        display: none;
+      }
     }
 
     .table-head span {
@@ -278,6 +299,27 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
       cursor: pointer;
       border-radius: var(--nx-r-2);
       transition: background 140ms var(--nx-ease-out);
+
+      @include ar.below(sm) {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 4px;
+        padding: 12px var(--ar-pad-page-x);
+      }
+    }
+
+    /* No celular a linha vira bloco e o cabecalho de coluna perde a funcao --
+       cada celula passa a carregar o proprio rotulo. */
+    .col-label {
+      display: none;
+
+      @include ar.below(sm) {
+        display: block;
+        font-family: var(--nx-font-mono);
+        font-size: 9px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--nx-text-dim);
+      }
     }
 
     .table-row:hover {
@@ -289,6 +331,20 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
     }
 
     .order-cell {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+
+      @include ar.below(sm) {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+    }
+
+    /* Icone + codigo da comanda seguem lado a lado mesmo com o rotulo empilhado em cima. */
+    .order-cell-main {
       display: flex;
       align-items: center;
       gap: 12px;

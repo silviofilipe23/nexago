@@ -64,18 +64,25 @@ function match(overrides: Partial<TournamentMatch> = {}): TournamentMatch {
 }
 
 describe('kocPreRoundOf', () => {
-  it('usa a ordem de entrada: o primeiro começa no trono, o segundo desafia', () => {
+  it('lista todas as duplas da rodada, do trono ao fim da fila', () => {
     const pre = kocPreRoundOf(match())!;
 
     expect(pre.tronoTeamId).toBe('trono');
-    expect(pre.rows.map((r) => r.teamId)).toEqual(['desafia', 'seq', 'esperaA', 'esperaB']);
-    expect(pre.rows.map((r) => r.posicao)).toEqual([1, 2, 3, 4]);
+    expect(pre.rows.map((r) => r.teamId)).toEqual([
+      'trono',
+      'desafia',
+      'seq',
+      'esperaA',
+      'esperaB',
+    ]);
+    expect(pre.rows.map((r) => r.posicao)).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it('rotula quem entra agora, quem vem na sequência e quem aguarda', () => {
+  it('rotula quem começa no trono, quem desafia, a sequência e quem aguarda', () => {
     const pre = kocPreRoundOf(match())!;
 
     expect(pre.rows.map((r) => r.papel)).toEqual([
+      'trono',
       'desafia',
       'sequencia',
       'aguardando',
@@ -87,7 +94,7 @@ describe('kocPreRoundOf', () => {
     const pre = kocPreRoundOf(match({ koc: round({ teamIds: ['a', 'b', 'c'] }) }))!;
 
     expect(pre.tronoTeamId).toBe('a');
-    expect(pre.rows.map((r) => r.papel)).toEqual(['desafia', 'sequencia']);
+    expect(pre.rows.map((r) => r.papel)).toEqual(['trono', 'desafia', 'sequencia']);
   });
 
   it('rodada já começada não é assunto desta tela', () => {

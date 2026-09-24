@@ -82,35 +82,39 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
               }
             </div>
 
-            <div class="table-head">
-              <span>Promoção</span>
-              <span>Desconto</span>
-              <span>Dias</span>
-              <span>Horário</span>
-              <span>Status</span>
-              <span></span>
-            </div>
-            <div class="table-list">
-              @for (row of filteredPromotions(); track row.promo.id) {
-                <div class="table-row">
-                  <div>
-                    <div class="promo-name">{{ row.promo.label }}</div>
-                    <div class="promo-scope">{{ scopeLabel(row.promo) }}</div>
-                  </div>
-                  <div class="promo-discount">{{ formatDiscount(row.promo) }}</div>
-                  <div class="promo-days">{{ formatWeekdays(row.promo.weekdays) }}</div>
-                  <div class="promo-time">{{ row.promo.startTime }}-{{ row.promo.endTime }}</div>
-                  <div><ar-pill [tone]="statusTone[row.status]">{{ statusLabel[row.status] }}</ar-pill></div>
-                  <div class="promo-actions">
-                    <button type="button" class="ar-mini-btn" (click)="editPromotion(row.promo.id)">
-                      <ar-icon name="edit" [size]="13" />
-                      Editar
-                    </button>
-                  </div>
+            <div class="ar-table-scroll" tabindex="0" role="region" aria-label="Tabela de promoções">
+              <div class="ar-table-inner">
+                <div class="table-head">
+                  <span>Promoção</span>
+                  <span>Desconto</span>
+                  <span>Dias</span>
+                  <span>Horário</span>
+                  <span>Status</span>
+                  <span></span>
                 </div>
-              } @empty {
-                <p class="state-text empty-text">Nenhuma promoção por aqui.</p>
-              }
+                <div class="table-list">
+                  @for (row of filteredPromotions(); track row.promo.id) {
+                    <div class="table-row">
+                      <div>
+                        <div class="promo-name">{{ row.promo.label }}</div>
+                        <div class="promo-scope">{{ scopeLabel(row.promo) }}</div>
+                      </div>
+                      <div class="promo-discount">{{ formatDiscount(row.promo) }}</div>
+                      <div class="promo-days">{{ formatWeekdays(row.promo.weekdays) }}</div>
+                      <div class="promo-time">{{ row.promo.startTime }}-{{ row.promo.endTime }}</div>
+                      <div><ar-pill [tone]="statusTone[row.status]">{{ statusLabel[row.status] }}</ar-pill></div>
+                      <div class="promo-actions">
+                        <button type="button" class="ar-mini-btn" (click)="editPromotion(row.promo.id)">
+                          <ar-icon name="edit" [size]="13" />
+                          Editar
+                        </button>
+                      </div>
+                    </div>
+                  } @empty {
+                    <p class="state-text empty-text">Nenhuma promoção por aqui.</p>
+                  }
+                </div>
+              </div>
             </div>
           </ar-panel-card>
         }

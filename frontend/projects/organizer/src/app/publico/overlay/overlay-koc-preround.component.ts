@@ -1,15 +1,40 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import {
+  afterRenderEffect,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  input,
+} from '@angular/core';
+import { OgAvatarComponent } from '../../painel/ui/avatar.component';
 import { OverlayMarkComponent } from './overlay-mark.component';
 import { ledIniciaisDe } from '../led/led-iniciais';
 import type { OverlayKocTeam } from './overlay-koc-bar.component';
 import type { KocPreRound, PreRoundRow } from './overlay-koc-preround';
-import type { OverlayCorner } from './overlay-selectors';
+
+const EASE_OUT = 'cubic-bezier(.22, 1, .36, 1)';
+const ROW_FIRST_DELAY_MS = 240;
+const ROW_STAGGER_MS = 110;
+const FLIP_MS = 540;
+const ENTER_MS = 440;
+const ENTER_DELAY_MS = 180;
+const FLASH_MS = 700;
+const FLASH_DELAY_MS = 200;
+const AVATAR_SIZE = 38;
 
 const PAPEL: Record<PreRoundRow['papel'], string> = {
+  trono: 'Começa no trono',
   desafia: 'Entra agora · Desafia o trono',
   sequencia: 'Na sequência',
   aguardando: 'Aguardando',
 };
+
+interface PreRoundAthlete {
+  name: string;
+  initials: string;
+  photoUrl: string | null;
+}
 
 /** Elenco da rodada KOTC que ainda não começou.
  *
@@ -19,10 +44,10 @@ const PAPEL: Record<PreRoundRow['papel'], string> = {
 @Component({
   selector: 'og-overlay-koc-preround',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OverlayMarkComponent],
+  imports: [OgAvatarComponent, OverlayMarkComponent],
   template: `
     @if (preRound(); as pre) {
-      <div class="card" [attr.data-pos]="corner()">
+      <div class="card" animate.enter="pre-card-in" animate.leave="pre-card-out">
         <header class="head">
           <div class="eyebrow">
             @if (courtName()) {
@@ -37,12 +62,18 @@ const PAPEL: Record<PreRoundRow['papel'], string> = {
         </header>
 
         <div class="linhas">
-          @for (row of pre.rows; track row.teamId) {
-            <div class="linha" [class.linha--agora]="row.papel === 'desafia'">
+          @for (row of pre.rows; track row.teamId; let i = $index) {
+            <div
+              class="linha"
+              [class.linha--agora]="row.papel === 'trono'"
+              [class.linha--prox]="row.papel === 'desafia'"
+              [attr.data-team-id]="row.teamId"
+              [style.animation-delay.ms]="atrasoDaLinha(i)"
+            >
               <span class="pos">{{ row.posicao }}</span>
-              <span class="iniciais">
-                @for (nome of nomesDe(row.teamId); track $index) {
-                  <span class="inicial">{{ inicial(nome) }}</span>
+              <span class="avatares">
+                @for (p of atletasDe(row.teamId); track $index) {
+                  <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="avatarSize" />
                 }
               </span>
               <span class="quem">
@@ -57,20 +88,22 @@ const PAPEL: Record<PreRoundRow['papel'], string> = {
           No trono: <strong>{{ nomesDe(pre.tronoTeamId).join(' · ') }}</strong>
         </footer>
       </div>
-      <og-overlay-mark [corner]="marcaCorner()" />
+      <!-- O card é centralizado nesta tela, então a marca no canto inferior direito não disputa
+           espaço com ele — sem desvio pro topo, ao contrário do placar de duelo. -->
+      <og-overlay-mark />
     }
   `,
   styles: `
     :host {
       position: fixed;
       inset: 0;
-      display: block;
+      display: grid;
+      place-items: center;
       pointer-events: none;
       font-family: var(--nx-font, system-ui, sans-serif);
     }
 
     .card {
-      position: absolute;
       width: 470px;
       max-width: calc(100% - 96px);
       border-radius: 14px;
@@ -78,23 +111,33 @@ const PAPEL: Record<PreRoundRow['papel'], string> = {
       /* Opaco: é leitura por cima da câmera. */
       background: #0b0b0c;
       box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
-      --gap: 48px;
     }
-    .card[data-pos='tl'] {
-      top: var(--gap);
-      left: var(--gap);
+
+    .pre-card-in {
+      animation: preCardIn 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
     }
-    .card[data-pos='tr'] {
-      top: var(--gap);
-      right: var(--gap);
+    .pre-card-out {
+      animation: preCardOut 380ms cubic-bezier(0.4, 0, 1, 1) both;
     }
-    .card[data-pos='bl'] {
-      bottom: var(--gap);
-      left: var(--gap);
+    @keyframes preCardIn {
+      from {
+        opacity: 0;
+        transform: translateY(40px) scale(0.97);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
     }
-    .card[data-pos='br'] {
-      bottom: var(--gap);
-      right: var(--gap);
+    @keyframes preCardOut {
+      from {
+        opacity: 1;
+        transform: none;
+      }
+      to {
+        opacity: 0;
+        transform: translateY(30px) scale(0.98);
+      }
     }
 
     .head {
@@ -139,10 +182,25 @@ const PAPEL: Record<PreRoundRow['papel'], string> = {
       border: 1px solid transparent;
       border-radius: 10px;
       background: #17171a;
+      animation: preRowIn 440ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    @keyframes preRowIn {
+      from {
+        opacity: 0;
+        transform: translateX(32px);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
     }
     .linha--agora {
+      padding: 14px 12px;
       border-color: var(--nx-orange-500, #ff6a1a);
       background: linear-gradient(100deg, #4a2409 0%, #1e1512 100%);
+    }
+    .linha--prox .papel {
+      color: #fff;
     }
 
     .pos {
@@ -156,26 +214,20 @@ const PAPEL: Record<PreRoundRow['papel'], string> = {
       color: #fff;
     }
 
-    .iniciais {
+    .avatares {
       display: flex;
+      align-items: center;
     }
-    .inicial {
-      display: grid;
-      place-items: center;
-      width: 38px;
-      height: 38px;
-      border-radius: 50%;
-      box-sizing: border-box;
+    .avatares og-avatar {
       background: #0b0b0c;
       border: 2px solid #3a3a40;
       color: #cfc7cf;
-      font-size: 13px;
-      font-weight: 800;
+      box-sizing: border-box;
     }
-    .inicial + .inicial {
+    .avatares og-avatar + og-avatar {
       margin-left: -10px;
     }
-    .linha--agora .inicial {
+    .linha--agora .avatares og-avatar {
       border-color: var(--nx-orange-500, #ff6a1a);
       color: var(--nx-orange-500, #ff6a1a);
     }
@@ -195,6 +247,7 @@ const PAPEL: Record<PreRoundRow['papel'], string> = {
     }
     .linha--agora .nomes {
       color: #fff;
+      font-size: 22px;
     }
     .papel {
       font-size: 11px;
@@ -219,33 +272,158 @@ const PAPEL: Record<PreRoundRow['papel'], string> = {
     .trono strong {
       color: #efeaef;
     }
+
+    @media (prefers-reduced-motion: reduce) {
+      .pre-card-in,
+      .pre-card-out,
+      .linha {
+        animation: none;
+      }
+    }
   `,
 })
 export class OverlayKocPreRoundComponent {
+  private readonly host = inject(ElementRef);
+
   readonly preRound = input<KocPreRound | null>(null);
   readonly teams = input<ReadonlyMap<string, OverlayKocTeam>>(new Map<string, OverlayKocTeam>());
   readonly categoryName = input<string | null>(null);
   readonly courtName = input<string | null>(null);
   readonly roundTitle = input('');
-  readonly corner = input<OverlayCorner>('tr');
 
+  protected readonly avatarSize = AVATAR_SIZE;
   protected readonly vazio = computed(() => this.preRound() == null);
 
-  protected nomesDe(teamId: string): string[] {
-    return (this.teams().get(teamId)?.players ?? []).filter((n) => n !== '');
+  /** Ordem da fila + trono — só isto dispara FLIP; o rodapé troca o nome na hora, sem animação. */
+  private readonly motionKey = computed(() => {
+    const pre = this.preRound();
+    if (!pre) return '';
+    return `${pre.tronoTeamId}>${pre.rows.map((r) => r.teamId).join('|')}`;
+  });
+
+  private primed = false;
+  private lastMotionKey = '';
+  private prevTop = new Map<string, number>();
+  private prevFirstId: string | null = null;
+
+  constructor() {
+    afterRenderEffect(() => {
+      const key = this.motionKey();
+      if (!key) {
+        this.resetMotionState();
+        return;
+      }
+      if (key === this.lastMotionKey) return;
+      this.lastMotionKey = key;
+      this.runMotion();
+    });
   }
 
-  protected inicial(nome: string): string {
-    return ledIniciaisDe(nome);
+  protected atrasoDaLinha(index: number): number {
+    return ROW_FIRST_DELAY_MS + index * ROW_STAGGER_MS;
+  }
+
+  protected nomesDe(teamId: string): string[] {
+    return this.atletasDe(teamId).map((p) => p.name);
+  }
+
+  protected atletasDe(teamId: string): PreRoundAthlete[] {
+    const team = this.teams().get(teamId);
+    if (!team) return [];
+    return team.players
+      .map((name, i) => ({
+        name,
+        initials: ledIniciaisDe(name),
+        photoUrl: team.photos?.[i] ?? null,
+      }))
+      .filter((p) => p.name !== '');
   }
 
   protected papelDe(row: PreRoundRow): string {
     return PAPEL[row.papel];
   }
 
-  /** A marca vive no canto direito; sobe pro topo quando o próprio conteúdo ocupa o inferior
-   *  direito, senão uma taparia a outra. */
-  protected readonly marcaCorner = computed<'tr' | 'br'>(() =>
-    this.corner() === 'br' ? 'tr' : 'br',
-  );
+  private resetMotionState(): void {
+    this.primed = false;
+    this.lastMotionKey = '';
+    this.prevTop = new Map();
+    this.prevFirstId = null;
+  }
+
+  private prefersReducedMotion(): boolean {
+    return typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  /** Só WAAPI — cancelar CSS mataria o stagger de entrada do card. */
+  private cancelWaapi(el: HTMLElement): void {
+    for (const a of el.getAnimations()) {
+      if (a instanceof CSSAnimation || a instanceof CSSTransition) continue;
+      a.cancel();
+    }
+  }
+
+  private cancelAll(el: HTMLElement): void {
+    for (const a of el.getAnimations()) a.cancel();
+  }
+
+  private runMotion(): void {
+    const root = this.host.nativeElement as HTMLElement;
+    const nodes = Array.from(root.querySelectorAll('.linha[data-team-id]')) as HTMLElement[];
+    const motionOk = this.primed && !this.prefersReducedMotion();
+
+    for (const el of nodes) this.cancelWaapi(el);
+    void root.offsetWidth;
+
+    const nextTop = new Map<string, number>();
+    let firstId: string | null = null;
+    let firstEl: HTMLElement | null = null;
+
+    for (const el of nodes) {
+      const id = el.dataset['teamId'];
+      if (!id) continue;
+      const top = el.getBoundingClientRect().top;
+      nextTop.set(id, top);
+      if (firstId === null) {
+        firstId = id;
+        firstEl = el;
+      }
+
+      if (!motionOk) continue;
+
+      const prev = this.prevTop.get(id);
+      if (prev === undefined) {
+        // Quem perdeu o trono entra no fim da fila — sobe enquanto aparece.
+        // Cancela o preRowIn do CSS: a entrada pós-FLIP é vertical, não o stagger lateral.
+        this.cancelAll(el);
+        el.animate(
+          [
+            { opacity: 0, transform: 'translateY(24px)' },
+            { opacity: 1, transform: 'translateY(0)' },
+          ],
+          { duration: ENTER_MS, delay: ENTER_DELAY_MS, easing: EASE_OUT, fill: 'both' },
+        );
+      } else {
+        const dy = prev - top;
+        if (Math.abs(dy) > 0.5) {
+          el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'translateY(0)' }], {
+            duration: FLIP_MS,
+            easing: EASE_OUT,
+          });
+        }
+      }
+    }
+
+    if (motionOk && firstEl && firstId && firstId !== this.prevFirstId) {
+      firstEl.animate([{ filter: 'brightness(1.9)' }, { filter: 'brightness(1)' }], {
+        duration: FLASH_MS,
+        delay: FLASH_DELAY_MS,
+        easing: EASE_OUT,
+        fill: 'both',
+      });
+    }
+
+    this.prevTop = nextTop;
+    this.prevFirstId = firstId;
+    this.primed = true;
+  }
 }

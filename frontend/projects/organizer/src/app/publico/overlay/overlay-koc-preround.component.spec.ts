@@ -8,10 +8,11 @@ function pre(overrides: Partial<KocPreRound> = {}): KocPreRound {
   return {
     tronoTeamId: 't',
     rows: [
-      { posicao: 1, teamId: 'a', papel: 'desafia' },
-      { posicao: 2, teamId: 'b', papel: 'sequencia' },
-      { posicao: 3, teamId: 'c', papel: 'aguardando' },
-      { posicao: 4, teamId: 'd', papel: 'aguardando' },
+      { posicao: 1, teamId: 't', papel: 'trono' },
+      { posicao: 2, teamId: 'a', papel: 'desafia' },
+      { posicao: 3, teamId: 'b', papel: 'sequencia' },
+      { posicao: 4, teamId: 'c', papel: 'aguardando' },
+      { posicao: 5, teamId: 'd', papel: 'aguardando' },
     ],
     ...overrides,
   };
@@ -74,29 +75,59 @@ describe('OverlayKocPreRoundComponent', () => {
     expect(text).toContain('Próximos');
   });
 
-  it('lista a ordem de entrada com iniciais e nomes', async () => {
-    const linhas = [...host(await render()).querySelectorAll('.linha')];
+  it('lista a ordem de entrada com avatares e nomes', async () => {
+    const h = host(
+      await render({
+        teams: new Map<string, OverlayKocTeam>([
+          ['t', { players: ['Sor', 'Ham'], photos: [null, null] }],
+          [
+            'a',
+            {
+              players: ['Hölting Nilsson', 'Berger'],
+              photos: ['https://cdn.example/hn.jpg', null],
+            },
+          ],
+          ['b', { players: ['Batrane', 'Tiisaar'] }],
+          ['c', { players: ['Van', 'Aye'] }],
+          ['d', { players: ['Bro', 'Dau'] }],
+        ]),
+      }),
+    );
+    const linhas = [...h.querySelectorAll('.linha')];
 
-    expect(linhas.length).toBe(4);
-    expect(linhas[0].textContent).toContain('Hölting Nilsson · Berger');
-    expect([...linhas[0].querySelectorAll('.inicial')].map((e) => e.textContent)).toEqual(['HN', 'BE']);
-    expect(linhas[3].textContent).toContain('Bro · Dau');
+    expect(linhas.length).toBe(5);
+    expect(linhas[0].textContent).toContain('Sor · Ham');
+    expect(linhas[1].textContent).toContain('Hölting Nilsson · Berger');
+    const avatars = [...linhas[1].querySelectorAll('og-avatar')];
+    expect(avatars.length).toBe(2);
+    expect(avatars[0].querySelector('img')?.getAttribute('src')).toBe('https://cdn.example/hn.jpg');
+    expect(avatars[1].textContent?.trim()).toBe('BE');
+    expect(linhas[4].textContent).toContain('Bro · Dau');
   });
 
   it('diz o papel de cada uma na entrada', async () => {
     const text = (host(await render()).textContent ?? '').replace(/\s+/g, ' ');
 
+    expect(text).toContain('Começa no trono');
     expect(text).toContain('Entra agora');
     expect(text).toContain('Desafia o trono');
     expect(text).toContain('Na sequência');
     expect(text).toContain('Aguardando');
   });
 
-  it('destaca só quem entra agora', async () => {
+  it('destaca quem começa no trono; os demais ficam abaixo', async () => {
     const linhas = [...host(await render()).querySelectorAll('.linha')];
 
     expect(linhas[0].classList.contains('linha--agora')).toBeTrue();
+    expect(linhas[0].textContent).toContain('Começa no trono');
     expect(linhas.slice(1).every((l) => !l.classList.contains('linha--agora'))).toBeTrue();
+  });
+
+  it('marca o desafiante como próximo, com status em destaque', async () => {
+    const linhas = [...host(await render()).querySelectorAll('.linha')];
+
+    expect(linhas[1].classList.contains('linha--prox')).toBeTrue();
+    expect(linhas.filter((l, i) => i !== 1).every((l) => !l.classList.contains('linha--prox'))).toBeTrue();
   });
 
   it('anuncia quem começa no trono', async () => {

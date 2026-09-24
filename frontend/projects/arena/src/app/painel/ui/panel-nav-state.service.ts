@@ -1,8 +1,15 @@
 import { Injectable } from '@angular/core';
 import { ARENA_NAV_GROUPS, type ArenaNavGroup } from './panel-nav.model';
 
+/** `null` = nada guardado ainda (o usuário nunca escolheu); `'none'` = o
+ *  usuário fechou tudo de propósito; nome de grupo = esse grupo aberto.
+ *  Precisa dos três porque `null` fazendo dupla função ("nunca escolheu" E
+ *  "fechou tudo") era o bug: fechar o grupo da rota ativa gravava `null`, o
+ *  shell caía de novo no fallback de rota ativa e o grupo reabria sozinho. */
+export type StoredOpenGroup = ArenaNavGroup | 'none' | null;
+
 interface StoredNavState {
-  openGroup: ArenaNavGroup | null;
+  openGroup: StoredOpenGroup;
   scrollTop: number;
 }
 
@@ -10,6 +17,10 @@ const EMPTY: StoredNavState = { openGroup: null, scrollTop: 0 };
 
 function isGroup(value: unknown): value is ArenaNavGroup {
   return typeof value === 'string' && (ARENA_NAV_GROUPS as readonly string[]).includes(value);
+}
+
+function isStoredOpenGroup(value: unknown): value is ArenaNavGroup | 'none' {
+  return value === 'none' || isGroup(value);
 }
 
 /** Grupo aberto e rolagem do menu, por arena.
@@ -24,11 +35,11 @@ function isGroup(value: unknown): value is ArenaNavGroup {
 export class PanelNavStateService {
   private readonly cache = new Map<string, StoredNavState>();
 
-  openGroup(arenaId: string | null): ArenaNavGroup | null {
+  openGroup(arenaId: string | null): StoredOpenGroup {
     return this.read(arenaId).openGroup;
   }
 
-  setOpenGroup(arenaId: string | null, group: ArenaNavGroup | null): void {
+  setOpenGroup(arenaId: string | null, group: StoredOpenGroup): void {
     this.write(arenaId, { ...this.read(arenaId), openGroup: group });
   }
 
@@ -55,7 +66,7 @@ export class PanelNavStateService {
       if (raw) {
         const value = JSON.parse(raw) as Partial<StoredNavState>;
         parsed = {
-          openGroup: isGroup(value.openGroup) ? value.openGroup : null,
+          openGroup: isStoredOpenGroup(value.openGroup) ? value.openGroup : null,
           scrollTop: typeof value.scrollTop === 'number' ? value.scrollTop : 0,
         };
       }

@@ -74,64 +74,68 @@ import type { AthleteCandidate } from './athlete-search-filter';
             @if (series().length === 0) {
               <p class="state-text empty-text">Nenhum horário fixo cadastrado ainda.</p>
             } @else {
-              <div class="table-head">
-                <span>Mensalista</span>
-                <span>Dia / horário</span>
-                <span>Quadra</span>
-                <span>Pagamento</span>
-                <span class="right">Valor</span>
-                <span></span>
-              </div>
-              <div class="table-list">
-                @for (s of series(); track s.id) {
-                  <div class="table-row">
-                    <div class="cell-client">
-                      {{ customerLabel(s) }}
-                      @if (s.status === 'paused') {
-                        <div class="paused-hint">
-                          <ar-status-dot tone="yellow" [size]="6" />
-                          Pausado{{ s.pausedAt ? ' desde ' + (s.pausedAt | date: 'dd/MM') : '' }}
-                        </div>
-                      } @else {
-                        <div class="active-hint">
-                          <ar-status-dot tone="green" [size]="6" />
-                          Ativo
-                        </div>
-                      }
-                    </div>
-                    <div class="cell-slot">{{ weekdayLabel[s.weekday] }} · {{ s.startTime }}–{{ s.endTime }}</div>
-                    <div class="cell-court">{{ s.courtName }}</div>
-                    <div class="cell-payment">
-                      <ar-pill [tone]="s.paymentType === 'monthly' ? 'orange' : 'dim'">
-                        {{ s.paymentType === 'monthly' ? 'Mensal' : 'Por ocorrência' }}
-                      </ar-pill>
-                    </div>
-                    <div class="cell-amount right">
-                      @if (s.paymentType === 'monthly') {
-                        <div class="amount-primary">{{ formatBRL(estimateMonthlyReais(s.amountReais)) }}/mês</div>
-                        <div class="amount-secondary">{{ formatBRL(s.amountReais) }}/ocorrência</div>
-                      } @else {
-                        <div class="amount-primary">{{ formatBRL(s.amountReais) }}/ocorrência</div>
-                        <div class="amount-secondary">≈ {{ formatBRL(estimateMonthlyReais(s.amountReais)) }}/mês</div>
-                      }
-                    </div>
-                    <div class="cell-actions">
-                      <button type="button" class="icon-action" [attr.aria-label]="'Editar'" [disabled]="readOnly()" (click)="openEdit(s)">
-                        <ar-icon name="edit" [size]="15" />
-                      </button>
-                      @if (s.status === 'active') {
-                        <button type="button" class="icon-action" [attr.aria-label]="'Pausar'" [disabled]="readOnly()" (click)="openPause(s)">
-                          <ar-icon name="pause" [size]="15" />
-                        </button>
-                      } @else {
-                        <button type="button" class="icon-action" [attr.aria-label]="'Retomar'" [disabled]="resuming() === s.id || readOnly()" (click)="resume(s)">
-                          <ar-icon name="play" [size]="15" />
-                        </button>
-                      }
-                      <button type="button" class="ar-ghost-btn danger-link" [disabled]="readOnly()" (click)="openCancel(s)">Encerrar</button>
-                    </div>
+              <div class="ar-table-scroll" tabindex="0" role="region" aria-label="Tabela de horários fixos">
+                <div class="ar-table-inner">
+                  <div class="table-head">
+                    <span>Mensalista</span>
+                    <span>Dia / horário</span>
+                    <span>Quadra</span>
+                    <span>Pagamento</span>
+                    <span class="right">Valor</span>
+                    <span></span>
                   </div>
-                }
+                  <div class="table-list">
+                    @for (s of series(); track s.id) {
+                      <div class="table-row">
+                        <div class="cell-client">
+                          {{ customerLabel(s) }}
+                          @if (s.status === 'paused') {
+                            <div class="paused-hint">
+                              <ar-status-dot tone="yellow" [size]="6" />
+                              Pausado{{ s.pausedAt ? ' desde ' + (s.pausedAt | date: 'dd/MM') : '' }}
+                            </div>
+                          } @else {
+                            <div class="active-hint">
+                              <ar-status-dot tone="green" [size]="6" />
+                              Ativo
+                            </div>
+                          }
+                        </div>
+                        <div class="cell-slot">{{ weekdayLabel[s.weekday] }} · {{ s.startTime }}–{{ s.endTime }}</div>
+                        <div class="cell-court">{{ s.courtName }}</div>
+                        <div class="cell-payment">
+                          <ar-pill [tone]="s.paymentType === 'monthly' ? 'orange' : 'dim'">
+                            {{ s.paymentType === 'monthly' ? 'Mensal' : 'Por ocorrência' }}
+                          </ar-pill>
+                        </div>
+                        <div class="cell-amount right">
+                          @if (s.paymentType === 'monthly') {
+                            <div class="amount-primary">{{ formatBRL(estimateMonthlyReais(s.amountReais)) }}/mês</div>
+                            <div class="amount-secondary">{{ formatBRL(s.amountReais) }}/ocorrência</div>
+                          } @else {
+                            <div class="amount-primary">{{ formatBRL(s.amountReais) }}/ocorrência</div>
+                            <div class="amount-secondary">≈ {{ formatBRL(estimateMonthlyReais(s.amountReais)) }}/mês</div>
+                          }
+                        </div>
+                        <div class="cell-actions">
+                          <button type="button" class="icon-action" [attr.aria-label]="'Editar'" [disabled]="readOnly()" (click)="openEdit(s)">
+                            <ar-icon name="edit" [size]="15" />
+                          </button>
+                          @if (s.status === 'active') {
+                            <button type="button" class="icon-action" [attr.aria-label]="'Pausar'" [disabled]="readOnly()" (click)="openPause(s)">
+                              <ar-icon name="pause" [size]="15" />
+                            </button>
+                          } @else {
+                            <button type="button" class="icon-action" [attr.aria-label]="'Retomar'" [disabled]="resuming() === s.id || readOnly()" (click)="resume(s)">
+                              <ar-icon name="play" [size]="15" />
+                            </button>
+                          }
+                          <button type="button" class="ar-ghost-btn danger-link" [disabled]="readOnly()" (click)="openCancel(s)">Encerrar</button>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
               </div>
             }
           </ar-panel-card>
@@ -256,7 +260,7 @@ import type { AthleteCandidate } from './athlete-search-filter';
   styles: `
     .body {
       flex: 1;
-      padding: 22px 32px 28px;
+      padding: var(--ar-pad-page-y) var(--ar-pad-page-x) 28px;
       display: flex;
       flex-direction: column;
       gap: 16px;

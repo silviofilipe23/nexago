@@ -102,11 +102,26 @@ function tomorrowKey(): string {
               <div class="table-list">
                 @for (b of visibleBookings(); track b.id) {
                   <div class="table-row" [class.row-canceled]="!bookingIsActive(b)" (click)="open(b.id)">
-                    <div class="cell-client">{{ customerLabel(b) }}</div>
-                    <div class="cell-slot">{{ b.courtName }} · {{ b.startTime }}–{{ b.endTime }}</div>
-                    <div class="cell-amount right">{{ formatBRL(b.amountReais) }}</div>
-                    <div><ar-pill [tone]="attendanceTone[b.attendanceStatus] ?? 'dim'">{{ attendanceLabel(b.attendanceStatus) }}</ar-pill></div>
-                    <div class="cell-status" [class.status-canceled]="!bookingIsActive(b)">{{ statusLabel(b.status) }}</div>
+                    <div class="cell-client">
+                      <span class="col-label">Cliente</span>
+                      {{ customerLabel(b) }}
+                    </div>
+                    <div class="cell-slot">
+                      <span class="col-label">Quadra / horário</span>
+                      {{ b.courtName }} · {{ b.startTime }}–{{ b.endTime }}
+                    </div>
+                    <div class="cell-amount right">
+                      <span class="col-label">Valor</span>
+                      {{ formatBRL(b.amountReais) }}
+                    </div>
+                    <div>
+                      <span class="col-label">Check-in</span>
+                      <ar-pill [tone]="attendanceTone[b.attendanceStatus] ?? 'dim'">{{ attendanceLabel(b.attendanceStatus) }}</ar-pill>
+                    </div>
+                    <div class="cell-status" [class.status-canceled]="!bookingIsActive(b)">
+                      <span class="col-label">Status</span>
+                      {{ statusLabel(b.status) }}
+                    </div>
                   </div>
                 }
               </div>
@@ -119,11 +134,26 @@ function tomorrowKey(): string {
                 <div class="table-list section-list">
                   @for (b of section.bookings; track b.id) {
                     <div class="table-row" [class.row-canceled]="!bookingIsActive(b)" (click)="open(b.id)">
-                      <div class="cell-client">{{ customerLabel(b) }}</div>
-                      <div class="cell-slot">{{ b.courtName }} · {{ b.startTime }}–{{ b.endTime }}</div>
-                      <div class="cell-amount right">{{ formatBRL(b.amountReais) }}</div>
-                      <div><ar-pill [tone]="attendanceTone[b.attendanceStatus] ?? 'dim'">{{ attendanceLabel(b.attendanceStatus) }}</ar-pill></div>
-                      <div class="cell-status" [class.status-canceled]="!bookingIsActive(b)">{{ statusLabel(b.status) }}</div>
+                      <div class="cell-client">
+                        <span class="col-label">Cliente</span>
+                        {{ customerLabel(b) }}
+                      </div>
+                      <div class="cell-slot">
+                        <span class="col-label">Quadra / horário</span>
+                        {{ b.courtName }} · {{ b.startTime }}–{{ b.endTime }}
+                      </div>
+                      <div class="cell-amount right">
+                        <span class="col-label">Valor</span>
+                        {{ formatBRL(b.amountReais) }}
+                      </div>
+                      <div>
+                        <span class="col-label">Check-in</span>
+                        <ar-pill [tone]="attendanceTone[b.attendanceStatus] ?? 'dim'">{{ attendanceLabel(b.attendanceStatus) }}</ar-pill>
+                      </div>
+                      <div class="cell-status" [class.status-canceled]="!bookingIsActive(b)">
+                        <span class="col-label">Status</span>
+                        {{ statusLabel(b.status) }}
+                      </div>
                     </div>
                   }
                 </div>
@@ -135,6 +165,8 @@ function tomorrowKey(): string {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -210,6 +242,10 @@ function tomorrowKey(): string {
       padding: 0 0 8px;
       border-bottom: 1px solid var(--nx-line-strong);
       flex: none;
+
+      @include ar.below(sm) {
+        display: none;
+      }
     }
 
     .table-head span {
@@ -232,6 +268,27 @@ function tomorrowKey(): string {
       cursor: pointer;
       border-radius: var(--nx-r-2);
       transition: background 140ms var(--nx-ease-out);
+
+      @include ar.below(sm) {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 4px;
+        padding: 12px var(--ar-pad-page-x);
+      }
+    }
+
+    /* No celular a linha vira bloco e o cabecalho de coluna perde a funcao --
+       cada celula passa a carregar o proprio rotulo. */
+    .col-label {
+      display: none;
+
+      @include ar.below(sm) {
+        display: block;
+        font-family: var(--nx-font-mono);
+        font-size: 9px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--nx-text-dim);
+      }
     }
 
     .table-row:hover {

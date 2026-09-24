@@ -102,7 +102,7 @@ function timeToMinutes(time: string): number {
         </div>
       </ar-page-header>
 
-      <div class="body">
+      <div class="body ar-split ar-split-stretch" style="--ar-split-aside: 340px">
         @if (arenaNotFound()) {
           <ar-panel-card pad="lg">
             <p class="state-text">Nenhuma arena vinculada à sua conta ainda.</p>
@@ -222,6 +222,8 @@ function timeToMinutes(time: string): number {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .header-actions {
       display: flex;
       align-items: center;
@@ -244,9 +246,6 @@ function timeToMinutes(time: string): number {
     .body {
       flex: 1;
       padding: 22px 32px 28px;
-      display: grid;
-      grid-template-columns: 1fr 340px;
-      gap: 16px;
       min-height: 0;
     }
 
@@ -412,12 +411,6 @@ function timeToMinutes(time: string): number {
     .confirm-btn {
       height: 44px;
       padding: 0 20px;
-    }
-
-    @media (max-width: 1180px) {
-      .body {
-        grid-template-columns: 1fr;
-      }
     }
   `,
 })

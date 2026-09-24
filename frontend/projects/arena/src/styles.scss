@@ -1,6 +1,7 @@
 /* NexaGO Arena — estilos globais.
    Tokens vindos do design system NexaGO (tokens.css do protótipo), namespace --nx-.
    Classes de fluxo de auth compartilhadas usam o prefixo ar- (paralelo ao bo- do backoffice). */
+@use 'breakpoints' as ar;
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 :root {
@@ -46,6 +47,22 @@
   --nx-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --nx-d-fast: 140ms;
   --nx-d-base: 240ms;
+
+  /* ---- Faixas, expostas ao TypeScript. A ViewportService le daqui em vez de
+     repetir o numero em TS -- um lugar so. ---- */
+  --ar-bp-md: #{ar.$w-md};
+  --ar-bp-sm: #{ar.$w-sm};
+
+  /* ---- Densidade. Os valores base sao os de hoje, entao o desktop nao muda. ---- */
+  --ar-nav-item-h: 34px;
+  --ar-header-py: 20px;
+  --ar-pad-page-y: 22px;
+  --ar-pad-page-x: 32px;
+  --ar-card-pad: 20px;
+
+  /* ---- Toque. Sempre 44/8; quem decide se valem e a zona 4. ---- */
+  --ar-tap: 44px;
+  --ar-tap-gap: 8px;
 }
 
 *,
@@ -548,4 +565,124 @@ button {
 
 .ar-shortcut span {
   color: var(--nx-text);
+}
+
+/* Layout partido: conteudo + trilha lateral. As 13 telas ja colapsavam pra
+   uma coluna em tela estreita, cada uma com sua propria copia da regra: 12
+   em `max-width: 1180px`, a panel-site em `1080px`. O ganho aqui e eliminar
+   as 13 copias e unificar o ponto de colapso em 1180px (o recorte vive em
+   ar.below(lg), na zona 2 abaixo) -- a panel-site sobe de 1080 pra 1180.
+   `minmax(0, 1fr)` e proposital: `1fr` sozinho nasce com min-width: auto =
+   min-content do conteudo, e um <select> com opcao longa ganha do 1fr sem
+   dar scroll -- so "aperta". */
+.ar-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--ar-split-aside, 373px);
+  gap: 20px;
+  align-items: start;
+}
+
+/* A trilha vem primeiro em `panel-finance-reports`, que nasceu `373px 1fr`.
+   Mantida a ordem original: mudar o lado da tela seria redesenho, e este
+   trabalho e de responsividade. Tem de ficar ANTES do bloco de faixas: as
+   duas regras tem a mesma especificidade, e quem vem depois no arquivo
+   ganha -- se este modificador viesse depois do recorte de ar.below(lg),
+   ele derrotaria o empilhamento em qualquer largura, nao so acima de 1180px. */
+.ar-split-aside-first {
+  grid-template-columns: var(--ar-split-aside, 373px) minmax(0, 1fr);
+}
+
+/* Telas de painel cujas colunas precisam esticar ate a altura da linha: e o
+   stretch que da altura limitada as cadeias flex/min-height/overflow dos cards
+   que rolam por dentro. Sem isto a lista cresce com o conteudo em vez de rolar. */
+.ar-split-stretch {
+  align-items: stretch;
+}
+
+/* Tabela larga: quem rola e o container, nunca a pagina. Preserva o dado --
+   esconder coluna perde informacao em silencio, que e pior que rolar. */
+.ar-table-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ar-table-scroll > * {
+  min-width: max-content;
+}
+
+/* =========================================================================
+   ORDEM DO CASCADE — NAO REORDENAR
+   @media nao soma especificidade: regras que declaram a mesma propriedade
+   empatam e ganha a ULTIMA declarada. Por isso:
+     1. :root base          (la em cima)
+     2. largura             (maior degrau -> menor)
+     3. altura
+     4. pointer: coarse     (por ultimo, para o dedo ganhar da densidade)
+   `styles.spec.ts` quebra se alguem inverter.
+   ========================================================================= */
+
+/* ---- 2. LARGURA ---- */
+@include ar.below(lg) {
+  .ar-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@include ar.below(md) {
+  :root {
+    --ar-pad-page-x: 24px;
+  }
+}
+
+@include ar.below(sm) {
+  :root {
+    --ar-pad-page-x: 16px;
+    --ar-card-pad: 16px;
+  }
+}
+
+/* ---- 3. ALTURA — e aqui que o notebook 13" ganha vertical ---- */
+@include ar.shorter-than(short) {
+  :root {
+    --ar-nav-item-h: 32px;
+    --ar-header-py: 14px;
+    --ar-pad-page-y: 16px;
+  }
+}
+
+@include ar.shorter-than(xshort) {
+  :root {
+    --ar-nav-item-h: 30px;
+    --ar-header-py: 10px;
+    --ar-pad-page-y: 12px;
+  }
+}
+
+/* ---- 4. TOQUE — POR ULTIMO ---- */
+@include ar.touch {
+  :root {
+    --ar-nav-item-h: var(--ar-tap);
+  }
+
+  /* iOS Safari da zoom sozinho ao focar campo com fonte < 16px. Uma regra aqui
+     resolve as ~397 ocorrencias de fonte pequena sem tocar em 397 lugares --
+     MAS so na teoria: sob encapsulamento emulado do Angular, uma regra de
+     componente compila para `.input-box[_ngcontent-xxx]` (especificidade
+     0,2,0) ou `input[_ngcontent-xxx]` (0,1,1), e as duas ganham do seletor
+     de elemento global `input` (0,0,1) *independente* da media query ou da
+     ordem no documento -- @media nao soma especificidade, e especificidade
+     decide antes de ordem. 23 blocos `.input-box` (22 declarando 14px) e o
+     `input` de `auth/ui/field.component.ts` (15px) blindavam o zoom do
+     Safari inteiro. `!important` aqui e a unica forma robusta de vencer sem
+     enumerar (e manter sincronizados) 23+ seletores de componente -- e e
+     justificavel: esta regra e uma trava de acessibilidade de PLATAFORMA
+     (o Safari decide zoom ou nao com base so no valor computado), nao
+     estilo de produto, e fica confinada a este bloco `ar.touch`, nunca solta
+     no arquivo. */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }

@@ -1,0 +1,44 @@
+// Escadas de faixa do painel da arena. Fonte unica — nenhum outro arquivo
+// declara px de breakpoint.
+//
+// Largura: absorve o que ja existia no projeto (1180 aparece 25x, 720 14x,
+// 900 3x). Altura: nova; nenhum portal do frontend tinha @media por altura,
+// e e por altura que o notebook 13" quebra.
+@use 'sass:map';
+
+$w-lg: 1180px;
+$w-md: 900px;
+$w-sm: 720px;
+$w-xs: 480px;
+
+$h-short: 820px;
+$h-xshort: 680px;
+
+$-widths: (lg: $w-lg, md: $w-md, sm: $w-sm, xs: $w-xs);
+$-heights: (short: $h-short, xshort: $h-xshort);
+
+@mixin below($name) {
+  $v: map.get($-widths, $name);
+  @if $v == null {
+    @error "ar.below: faixa de largura desconhecida '#{$name}'. Use lg, md, sm ou xs.";
+  }
+  @media (max-width: $v) {
+    @content;
+  }
+}
+
+@mixin shorter-than($name) {
+  $v: map.get($-heights, $name);
+  @if $v == null {
+    @error "ar.shorter-than: faixa de altura desconhecida '#{$name}'. Use short ou xshort.";
+  }
+  @media (max-height: $v) {
+    @content;
+  }
+}
+
+@mixin touch {
+  @media (pointer: coarse) {
+    @content;
+  }
+}

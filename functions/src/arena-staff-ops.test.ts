@@ -3,7 +3,7 @@ import {test} from "node:test";
 import {
   assertSeatAvailable,
   countPendingInvitesExcluding,
-  inviteIsClaimable,
+  inviteClaimState,
 } from "./arena-staff-ops";
 
 const NOW = Date.UTC(2026, 6, 31);
@@ -25,34 +25,43 @@ test("assertSeatAvailable barra plano sem assentos", () => {
 
 test("convite valido e reivindicavel pelo email certo", () => {
   const invite = {status: "pending", emailLower: "a@b.com", expiresAt: AMANHA};
-  assert.equal(inviteIsClaimable(invite, "a@b.com", NOW), true);
+  assert.equal(inviteClaimState(invite, "a@b.com", NOW), "ok");
 });
 
 test("convite de outro email nao e reivindicavel", () => {
   const invite = {status: "pending", emailLower: "a@b.com", expiresAt: AMANHA};
-  assert.equal(inviteIsClaimable(invite, "z@b.com", NOW), false);
+  assert.equal(inviteClaimState(invite, "z@b.com", NOW), "email-mismatch");
 });
 
 test("convite expirado nao e reivindicavel", () => {
   const invite = {status: "pending", emailLower: "a@b.com", expiresAt: ONTEM};
-  assert.equal(inviteIsClaimable(invite, "a@b.com", NOW), false);
+  assert.equal(inviteClaimState(invite, "a@b.com", NOW), "expired");
 });
 
 test("convite ja aceito ou revogado nao e reivindicavel", () => {
   for (const status of ["accepted", "revoked", "expired"]) {
     const invite = {status, emailLower: "a@b.com", expiresAt: AMANHA};
-    assert.equal(inviteIsClaimable(invite, "a@b.com", NOW), false);
+    assert.equal(inviteClaimState(invite, "a@b.com", NOW), "settled");
   }
 });
 
 test("convite sem expiresAt e tratado como valido", () => {
   const invite = {status: "pending", emailLower: "a@b.com"};
-  assert.equal(inviteIsClaimable(invite, "a@b.com", NOW), true);
+  assert.equal(inviteClaimState(invite, "a@b.com", NOW), "ok");
 });
 
 test("convite nao e reivindicavel por sessao sem e-mail", () => {
   const invite = {status: "pending", emailLower: "", expiresAt: AMANHA};
-  assert.equal(inviteIsClaimable(invite, "", NOW), false);
+  assert.equal(inviteClaimState(invite, "", NOW), "email-mismatch");
+});
+
+// Ordem importa: quem abre o proprio convite ja cancelado tem de ler
+// "cancelado", nao "e-mail errado" — o e-mail dele esta certo.
+test("inviteClaimState poe status e prazo na frente do e-mail", () => {
+  const cancelado = {status: "revoked", emailLower: "a@b.com", expiresAt: AMANHA};
+  assert.equal(inviteClaimState(cancelado, "a@b.com", NOW), "settled");
+  const vencido = {status: "pending", emailLower: "a@b.com", expiresAt: ONTEM};
+  assert.equal(inviteClaimState(vencido, "a@b.com", NOW), "expired");
 });
 
 test("countPendingInvitesExcluding conta tudo quando nao ha exclusao", () => {

@@ -17,9 +17,18 @@ type Mode = 'entrar' | 'criar';
  * sem forms pra mostrar, só a mensagem do servidor e a saída pra trocar de
  * conta. `already-member` é o caso especial em que o aceite falha porque a
  * pessoa JÁ faz parte da equipe: nem repetir nem trocar de conta resolvem —
- * a saída certa é simplesmente entrar no painel. */
+ * a saída certa é simplesmente entrar no painel. `wrong-account` é o inverso:
+ * o convite está de pé, errada é a sessão — repetir só repete o erro, então
+ * a única saída oferecida é sair da conta. */
 type Phase =
-  'loading' | 'invalid' | 'form' | 'accepting' | 'blocked' | 'already-member' | 'success';
+  | 'loading'
+  | 'invalid'
+  | 'form'
+  | 'accepting'
+  | 'blocked'
+  | 'already-member'
+  | 'wrong-account'
+  | 'success';
 
 /** Mensagem mostrada quando o aceite falha logo após criar a conta NESTA
  *  mesma tentativa (`createStaffAccount` → `acceptStaffInvite`). Nesse caso a
@@ -121,6 +130,32 @@ const ACCOUNT_CREATED_MISMATCH_MESSAGE =
             <p>Você já faz parte da equipe desta arena.</p>
             <button class="ar-btn-primary" type="button" (click)="goToPanel()">
               Ir para o painel
+            </button>
+          </div>
+        }
+        @case ('wrong-account') {
+          <div class="center-state">
+            @if (error(); as err) {
+              <div class="ar-alert" role="alert">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.2"
+                  stroke-linecap="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 8v4M12 16h.01" />
+                </svg>
+                {{ err }}
+              </div>
+            }
+            <p>O convite continua valendo — só precisa ser aberto com o e-mail que o recebeu.</p>
+            <button class="ar-btn-primary" type="button" (click)="useAnotherAccount()">
+              Sair e usar outra conta
             </button>
           </div>
         }
@@ -472,16 +507,26 @@ export class AcceptInviteComponent {
       this.phase.set('success');
       void this.router.navigateByUrl('/painel');
     } catch (err) {
+      const code = getErrorCode(err);
       // "already-exists" = a pessoa já está na equipe: nem "tentar de novo"
       // nem "trocar de conta" resolvem, então ganha uma saída própria (ver
       // Finding 1 da revisão) em vez de cair no `blocked` genérico.
-      if (getErrorCode(err) === 'functions/already-exists') {
+      if (code === 'functions/already-exists') {
         this.phase.set('already-member');
         return;
       }
       this.error.set(
         this.justCreatedAccount() ? ACCOUNT_CREATED_MISMATCH_MESSAGE : mapFirebaseAuthError(err),
       );
+      // "permission-denied" = o e-mail da sessão não é o do convite. O convite
+      // segue de pé, então "Tentar novamente" só repetiria o mesmo erro: a
+      // tela some com ele e deixa só a saída que resolve (trocar de conta).
+      // É o caminho de quem abre o link já logado com outra conta — o dono da
+      // arena no navegador do painel, tipicamente.
+      if (code === 'functions/permission-denied') {
+        this.phase.set('wrong-account');
+        return;
+      }
       this.phase.set(this.auth.isAuthenticated() ? 'blocked' : 'form');
     }
   }

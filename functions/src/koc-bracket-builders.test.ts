@@ -561,29 +561,71 @@ describe("kocProposePlan", () => {
     assert.deepEqual(plan[1]!.bracketSizes, [4]);
   });
 
-  it("3 a 24 duplas: toda fase reduz o campo e a última é chave única de uma bateria", () => {
-    for (let n = 3; n <= 24; n++) {
-      const plan = kocProposePlan(n, 6, flat);
-      let field = n;
-      for (let i = 0; i < plan.length; i++) {
-        const spec = plan[i]!;
-        const sum = spec.bracketSizes.reduce((a, b) => a + b, 0);
-        assert.equal(sum, field, `${n} duplas: fase ${i + 1} soma ${sum}, campo é ${field}`);
-        for (const size of spec.bracketSizes) {
-          assert.ok(size >= 3 && size <= 6, `${n} duplas: chave de ${size} fora da faixa`);
-          const last = size - (spec.roundsPerBracket - 1) * Math.max(1, spec.qualifiersPerRound);
-          assert.ok(last >= 3, `${n} duplas: última bateria ficaria com ${last}`);
+  it("72 duplas com teto 6 fecham em 6 fases, a última numa chave de 6", () => {
+    // Achado do round de revisão: o planejador é guloso e não conhecia o
+    // orçamento de KOC_MAX_PHASES — em 72 duplas ele devolvia uma última fase
+    // com mais de uma chave e `qualifiersPerRound` maior que 0, violando a
+    // regra de que a final é sempre uma chave só com `qualifiersPerRound: 0`.
+    const plan = kocProposePlan(72, 6, flat);
+    assert.equal(plan.length, 6, "72 duplas: plano deveria fechar em 6 fases");
+    const final = plan[plan.length - 1]!;
+    assert.deepEqual(final.bracketSizes, [6]);
+    assert.equal(final.roundsPerBracket, 1);
+    assert.equal(final.qualifiersPerRound, 0);
+  });
+
+  it("4 duplas com teto 3 não têm chave que caiba entre o piso e o teto", () => {
+    // 4 duplas em quadras de no máximo 3: uma chave só estoura o teto, duas
+    // chaves dão 2+2 — abaixo do piso. Não existe divisão válida.
+    assert.throws(() => kocProposePlan(4, 3, flat), (e: unknown) => {
+      assert.ok(e instanceof KocBracketError);
+      assert.equal(e.reason, "koc_field_not_splittable");
+      return true;
+    });
+  });
+
+  it("3 a 200 duplas, teto 3 a 6: todo plano fecha nas regras do formato ou recusa por nome", () => {
+    // Orçamento de fases do módulo (`KOC_MAX_PHASES`, module-private — não
+    // exportado, então repetido aqui como literal documentado).
+    const MAX_PHASES = 6;
+    for (const max of [3, 4, 5, 6]) {
+      for (let n = 3; n <= 200; n++) {
+        let plan: KocPhaseSpec[];
+        try {
+          plan = kocProposePlan(n, max, flat);
+        } catch (e) {
+          if (!(e instanceof KocBracketError)) throw e;
+          assert.ok(
+            e.reason === "koc_field_not_splittable" || e.reason === "koc_plan_exceeds_max_phases",
+            `${n} duplas, teto ${max}: motivo inesperado ${e.reason}`,
+          );
+          continue;
         }
-        const isLast = i === plan.length - 1;
-        if (isLast) {
-          assert.equal(spec.bracketSizes.length, 1, `${n} duplas: final com mais de uma quadra`);
-          assert.equal(spec.roundsPerBracket, 1);
-          assert.equal(spec.qualifiersPerRound, 0);
-        } else {
-          assert.ok(spec.qualifiersPerRound >= 1, `${n} duplas: fase ${i + 1} não classifica ninguém`);
-          const next = spec.bracketSizes.length * spec.roundsPerBracket * spec.qualifiersPerRound;
-          assert.ok(next < field, `${n} duplas: fase ${i + 1} não reduz (${field} → ${next})`);
-          field = next;
+        assert.ok(
+          plan.length <= MAX_PHASES,
+          `${n} duplas, teto ${max}: plano com ${plan.length} fases, acima do orçamento`,
+        );
+        let field = n;
+        for (let i = 0; i < plan.length; i++) {
+          const spec = plan[i]!;
+          const sum = spec.bracketSizes.reduce((a, b) => a + b, 0);
+          assert.equal(sum, field, `${n} duplas, teto ${max}: fase ${i + 1} soma ${sum}, campo é ${field}`);
+          for (const size of spec.bracketSizes) {
+            assert.ok(size >= 3 && size <= max, `${n} duplas, teto ${max}: chave de ${size} fora da faixa`);
+            const last = size - (spec.roundsPerBracket - 1) * Math.max(1, spec.qualifiersPerRound);
+            assert.ok(last >= 3, `${n} duplas, teto ${max}: última bateria ficaria com ${last}`);
+          }
+          const isLast = i === plan.length - 1;
+          if (isLast) {
+            assert.equal(spec.bracketSizes.length, 1, `${n} duplas, teto ${max}: final com mais de uma quadra`);
+            assert.equal(spec.roundsPerBracket, 1);
+            assert.equal(spec.qualifiersPerRound, 0);
+          } else {
+            assert.ok(spec.qualifiersPerRound >= 1, `${n} duplas, teto ${max}: fase ${i + 1} não classifica ninguém`);
+            const next = spec.bracketSizes.length * spec.roundsPerBracket * spec.qualifiersPerRound;
+            assert.ok(next < field, `${n} duplas, teto ${max}: fase ${i + 1} não reduz (${field} → ${next})`);
+            field = next;
+          }
         }
       }
     }

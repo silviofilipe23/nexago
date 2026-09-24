@@ -149,7 +149,7 @@ describe('AcceptInviteComponent', () => {
   it('aceite rejeitado deixa a tela com uma mensagem — nunca em branco ou preso num spinner', async () => {
     const auth = authStub();
     const serverError = Object.assign(
-      new Error('Este convite não é mais válido ou foi enviado para outro e-mail.'),
+      new Error('Este convite foi cancelado ou já foi usado. Peça um convite novo à arena.'),
       { code: 'functions/failed-precondition' },
     );
     auth.acceptStaffInvite.and.rejectWith(serverError);
@@ -164,7 +164,7 @@ describe('AcceptInviteComponent', () => {
     const alert = root.querySelector('.ar-alert');
     expect(alert).not.toBeNull();
     expect(alert!.textContent).toContain(
-      'Este convite não é mais válido ou foi enviado para outro e-mail.',
+      'Este convite foi cancelado ou já foi usado. Peça um convite novo à arena.',
     );
     expect(root.querySelector('.ar-spinner')).toBeNull();
   });
@@ -234,8 +234,8 @@ describe('AcceptInviteComponent', () => {
   it('conta criada nesta tentativa + aceite falho: mensagem explica que a conta existe e aponta o e-mail do convite', async () => {
     const auth = authStub();
     const mismatchError = Object.assign(
-      new Error('Este convite não é mais válido ou foi enviado para outro e-mail.'),
-      { code: 'functions/failed-precondition' },
+      new Error('Este convite foi enviado para outro e-mail. Você está conectado como maria@example.com.'),
+      { code: 'functions/permission-denied' },
     );
     auth.acceptStaffInvite.and.rejectWith(mismatchError);
     auth.authReady.set(true);
@@ -267,8 +267,45 @@ describe('AcceptInviteComponent', () => {
     const alert = harness.routeNativeElement!.querySelector('.ar-alert');
     expect(alert).not.toBeNull();
     expect(alert!.textContent).toContain('Sua conta foi criada com sucesso');
-    expect(alert!.textContent).not.toContain(
-      'Este convite não é mais válido ou foi enviado para outro e-mail.',
+    expect(alert!.textContent).not.toContain('Este convite foi enviado para outro e-mail.');
+  });
+
+  // O caso real que motivou isto (convite da Vegeton, 23/09): o dono da arena
+  // abriu o link do convite no mesmo navegador do painel. A tela aceitava
+  // sozinha com a sessão que estivesse aberta e devolvia "convite não é mais
+  // válido" — o convite estava válido; errada era a conta. "Tentar novamente"
+  // aqui só repete o mesmo erro; a saída é sair da conta.
+  it('sessão de outro e-mail: tela nomeia a conta conectada e oferece sair — nunca "Tentar novamente"', async () => {
+    const auth = authStub();
+    const wrongAccount = Object.assign(
+      new Error(
+        'Este convite foi enviado para outro e-mail. Você está conectado como ' +
+          'arena@example.com — saia desta conta e entre com o e-mail que recebeu o convite.',
+      ),
+      { code: 'functions/permission-denied' },
     );
+    auth.acceptStaffInvite.and.rejectWith(wrongAccount);
+    auth.authReady.set(true);
+    auth.isAuthenticated.set(true); // já logado -> effect dispara o aceite sozinho
+    const harness = await setup(auth);
+    await settle(harness);
+
+    const root = harness.routeNativeElement!;
+    expect(root.textContent).toContain('Você está conectado como arena@example.com');
+    expect(root.textContent).not.toContain('Tentar novamente');
+    expect(root.querySelector('.ar-spinner')).toBeNull();
+
+    const sairButton = Array.from(root.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Sair e usar outra conta'),
+    );
+    expect(sairButton).toBeDefined();
+
+    (sairButton as HTMLButtonElement).click();
+    await settle(harness);
+
+    expect(auth.signOutUser).toHaveBeenCalled();
+    // De volta à escolha entrar/criar conta, com o convite ainda de pé.
+    expect(harness.routeNativeElement!.querySelector('.mode-tabs')).not.toBeNull();
+    expect(auth.acceptStaffInvite).toHaveBeenCalledTimes(1);
   });
 });

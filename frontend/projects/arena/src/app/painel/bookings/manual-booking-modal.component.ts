@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, output, signal } from '@angular/core';
 import { arenaFunctions } from '../data/functions';
 import { AthleteSearchFieldComponent } from '../recurring/athlete-search-field.component';
 import type { AthleteCandidate } from '../recurring/athlete-search-filter';
@@ -218,6 +218,11 @@ export class ManualBookingModalComponent {
   private amountTouched = false;
   private lastQuoteKey: string | null = null;
 
+  /** Escape/clique no scrim destroem o modal com o `createManualBooking` ainda em voo
+   *  (`ModalComponent` fecha sem consultar `saving()`) — sem essa trava, `created.emit`
+   *  roda num output já destruído e estoura como rejeição não tratada. */
+  private destroyed = false;
+
   private readonly formState = computed<ManualBookingFormState>(() => ({
     courtId: this.courtIdValue(),
     dateKey: this.dateValue(),
@@ -230,6 +235,10 @@ export class ManualBookingModalComponent {
   }));
 
   constructor() {
+    inject(DestroyRef).onDestroy(() => {
+      this.destroyed = true;
+    });
+
     // Pré-preenchimento vindo da grade (ou só a data, quando abre pelo header).
     effect(() => {
       this.courtIdValue.set(this.courtId() ?? '');
@@ -242,11 +251,11 @@ export class ManualBookingModalComponent {
       const key = quoteKeyOf(this.formState());
       if (!key || key === this.lastQuoteKey || this.amountTouched) return;
       this.lastQuoteKey = key;
-      void this.runQuote();
+      void this.runQuote(key);
     });
   }
 
-  private async runQuote(): Promise<void> {
+  private async runQuote(key: string): Promise<void> {
     const state = this.formState();
     this.quoting.set(true);
     try {
@@ -257,14 +266,19 @@ export class ManualBookingModalComponent {
         startTime: state.startTime,
         endTime: state.endTime,
       });
-      // Corrida: se o gestor digitou enquanto a cotação vinha, o que ele digitou manda.
-      if (!this.amountTouched) {
+      // Corrida: só aplica se essa ainda for a cotação mais recente (chave corrente)
+      // e o gestor não tiver digitado enquanto ela vinha.
+      if (!this.amountTouched && key === this.lastQuoteKey) {
         this.amountText.set(quote.amountReais.toFixed(2).replace('.', ','));
       }
     } catch {
       // Cotação é sugestão: falhar não trava a criação, o gestor digita o valor.
     } finally {
-      this.quoting.set(false);
+      // Uma cotação superada não pode apagar "Calculando…" de uma cotação mais nova
+      // que ainda está em voo.
+      if (key === this.lastQuoteKey) {
+        this.quoting.set(false);
+      }
     }
   }
 
@@ -294,11 +308,17 @@ export class ManualBookingModalComponent {
     this.error.set(null);
     try {
       const { bookingId } = await createManualBooking(arenaFunctions(), result.payload);
+      // Escape/scrim pode ter destruído o modal enquanto a callable estava em voo —
+      // emitir num output já destruído estoura como rejeição não tratada.
+      if (this.destroyed) return;
       this.created.emit(bookingId);
     } catch (err) {
+      if (this.destroyed) return;
       this.error.set(err instanceof Error ? err.message : 'Não foi possível criar a reserva.');
     } finally {
-      this.saving.set(false);
+      if (!this.destroyed) {
+        this.saving.set(false);
+      }
     }
   }
 }

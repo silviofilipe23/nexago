@@ -193,9 +193,23 @@ export function kocApplyPhaseEdit(
   const field = current.bracketSizes.reduce((a, b) => a + b, 0);
   const max = kocClampMaxPerRound(maxPerRound);
 
-  const bracketCount = patch.bracketCount ?? current.bracketSizes.length;
+  // Cru do chamador pode ser fracionário ou <= 0 — sem sanear, o `length` do
+  // `Array.from` em `kocBracketSizes` divergiria da aritmética de base/resto
+  // e devolveria chaves que nem somam o campo certo. Mesmo tratamento que
+  // todo outro número que entra de fora neste módulo (`kocClampMaxPerRound`,
+  // `parseKocPhases`).
+  const bracketCount = Math.max(1, Math.floor(patch.bracketCount ?? current.bracketSizes.length));
   const bracketSizes = kocBracketSizes(field, bracketCount);
   const smallest = Math.min(...bracketSizes);
+  const largest = Math.max(...bracketSizes);
+  // Mesma checagem que `proposeTail` já faz para o rabo: um `bracketCount`
+  // fora da faixa certa fura o piso (alto demais) ou o teto (baixo demais)
+  // NA PRÓPRIA fase editada — não só no que vem depois dela. A geração
+  // recusaria rio abaixo (`koc_battery_too_small`/`koc_bracket_over_max`),
+  // mas uma função pura exportada para as Tasks 6/8/10 não deveria depender
+  // de quem chama recusar depois: `[]` aqui é a mesma convenção de "sem
+  // plano válido" que o resto do módulo já usa.
+  if (smallest < KOC_MIN_TEAMS_PER_ROUND || largest > max) return [];
   const durationSec = patch.durationSec ?? current.durationSec;
 
   let qualifiersPerRound = Math.max(1, patch.qualifiersPerRound ?? Math.max(1, current.qualifiersPerRound));

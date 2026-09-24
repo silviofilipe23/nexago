@@ -2,8 +2,10 @@ import {
   kocApplyPhaseEdit,
   kocBracketCountOptions,
   kocPhaseFieldSizes,
+  kocPlansMatch,
   kocPlanTotals,
   kocProposePhasePlan,
+  parseKocPhases,
 } from './koc-phase-plan';
 
 /** Espelho do `kocProposePlan` do servidor: a tabela mostra o plano que a
@@ -124,14 +126,47 @@ describe('plano de fases · edição em cascata', () => {
   });
 
   it('cascata que não fecha em nenhuma chave válida devolve plano vazio', () => {
-    // 6 duplas com teto 4 propõem [[3,3],1,2] → [[4],1,0]. Pedir 1 chave só
-    // com 5 classificadas manda 5 duplas para a fase seguinte — e 5 não cabe
-    // em NENHUMA chave entre o piso 3 e o teto 4 (1 chave estoura o teto, 2
-    // chaves furam o piso numa delas). Mesma convenção do proposer: sem
-    // plano válido, devolve `[]` em vez de uma fase editada sem continuação.
-    const plan = kocProposePhasePlan(6, 4, 900);
-    const edited = kocApplyPhaseEdit(plan, 0, {bracketCount: 1, roundsPerBracket: 1, qualifiersPerRound: 5}, 4);
+    // 15 duplas com teto 4 propõem [[4,4,4,3],1,2] → [[4,4],2,1] → [[4],1,0].
+    // Pedir 5 chaves na fase 1 é uma edição LEGÍTIMA nela mesma — [3,3,3,3,3]
+    // respeita piso e teto — mas manda só 5 duplas (5 chaves × 1 bateria × 1
+    // classificada) para a fase seguinte, e 5 não cabe em NENHUMA chave entre
+    // o piso 3 e o teto 4 (1 chave estoura o teto, 2 chaves furam o piso numa
+    // delas). A fase editada em si é válida; é o RABO que não fecha. Mesma
+    // convenção do proposer: sem plano válido, devolve `[]` em vez de uma
+    // fase editada sem continuação.
+    const plan = kocProposePhasePlan(15, 4, 900);
+    const edited = kocApplyPhaseEdit(plan, 0, {bracketCount: 5, roundsPerBracket: 1, qualifiersPerRound: 1}, 4);
     expect(edited).toEqual([]);
+  });
+});
+
+describe('plano de fases · limites da própria fase editada', () => {
+  it('bracketCount alto demais fura o piso da fase editada', () => {
+    // 10 duplas em 5 chaves dariam [2,2,2,2,2] — toda chave abaixo do piso 3.
+    // A geração recusaria rio abaixo (`koc_battery_too_small`), mas a função
+    // não deveria fabricar em silêncio uma fase que a própria edição já sabe
+    // ser ilegal.
+    const plan = kocProposePhasePlan(10, 6, 900);
+    expect(kocApplyPhaseEdit(plan, 0, {bracketCount: 5}, 6)).toEqual([]);
+  });
+
+  it('bracketCount baixo demais fura o teto da fase editada', () => {
+    // 20 duplas numa chave só estourariam o teto 6 (`koc_bracket_over_max`
+    // rio abaixo).
+    const plan = kocProposePhasePlan(20, 6, 900);
+    expect(kocApplyPhaseEdit(plan, 0, {bracketCount: 1}, 6)).toEqual([]);
+  });
+
+  it('toda contagem que o sorteio aceita continua aceita na edição', () => {
+    // O guard novo não pode recusar uma edição legítima: para qualquer campo,
+    // toda contagem que `kocBracketCountOptions` oferece tem que produzir
+    // chaves dentro de [piso, teto] — e por isso passar pelo guard.
+    for (let n = 3; n <= 30; n++) {
+      const plan = kocProposePhasePlan(n, 6, 900);
+      for (const bracketCount of kocBracketCountOptions(n, 6)) {
+        expect(kocApplyPhaseEdit(plan, 0, {bracketCount}, 6).length).toBeGreaterThan(0);
+      }
+    }
   });
 });
 
@@ -146,5 +181,107 @@ describe('plano de fases · total', () => {
     const two = kocPlanTotals(plan, 2);
     expect(two.rounds).toBe(one.rounds);
     expect(two.seconds).toBeLessThan(one.seconds);
+  });
+});
+
+/** Espelha `parseKocPhases` do servidor: sujeira em UMA fase derruba o plano
+ *  INTEIRO — sem plano o servidor cai nas regras antigas, que funcionam; com
+ *  plano meio lido, a tela prometeria um formato que a chave não tem. */
+describe('plano de fases · parse do Firestore', () => {
+  const validRaw = [
+    {bracketSizes: [5, 5], roundsPerBracket: 3, qualifiersPerRound: 1, durationSec: 900},
+    {bracketSizes: [6], roundsPerBracket: 4, qualifiersPerRound: 1, durationSec: 900},
+    {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+  ];
+
+  it('plano bem formado passa e bate com o que a proposta produziria', () => {
+    expect(parseKocPhases(validRaw)).toEqual(kocProposePhasePlan(10, 6, 900));
+  });
+
+  it('valor que não é array → null', () => {
+    expect(parseKocPhases({})).toBeNull();
+    expect(parseKocPhases('não é plano')).toBeNull();
+    expect(parseKocPhases(null)).toBeNull();
+    expect(parseKocPhases(undefined)).toBeNull();
+  });
+
+  it('array vazio → null', () => {
+    expect(parseKocPhases([])).toBeNull();
+  });
+
+  it('item que não é objeto → null', () => {
+    expect(parseKocPhases([...validRaw, 'não é fase'])).toBeNull();
+    expect(parseKocPhases([null])).toBeNull();
+  });
+
+  it('bracketSizes ausente ou vazio → null', () => {
+    expect(parseKocPhases([{roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900}])).toBeNull();
+    expect(parseKocPhases([{...validRaw[0], bracketSizes: []}])).toBeNull();
+  });
+
+  it('bracketSizes com valor não positivo → null', () => {
+    expect(parseKocPhases([{...validRaw[0], bracketSizes: [5, 0]}])).toBeNull();
+    expect(parseKocPhases([{...validRaw[0], bracketSizes: [5, -1]}])).toBeNull();
+  });
+
+  it('roundsPerBracket inválido → null', () => {
+    expect(parseKocPhases([{...validRaw[0], roundsPerBracket: 0}])).toBeNull();
+    expect(parseKocPhases([{...validRaw[0], roundsPerBracket: NaN}])).toBeNull();
+  });
+
+  it('qualifiersPerRound negativo → null, mas 0 (final) passa', () => {
+    expect(parseKocPhases([{...validRaw[0], qualifiersPerRound: -1}])).toBeNull();
+    expect(parseKocPhases([validRaw[2]])).not.toBeNull(); // final legítima: qualifiersPerRound 0
+  });
+
+  it('durationSec inválido → null', () => {
+    expect(parseKocPhases([{...validRaw[0], durationSec: 0}])).toBeNull();
+    expect(parseKocPhases([{...validRaw[0], durationSec: -900}])).toBeNull();
+  });
+
+  it('sujeira em uma única fase derruba o plano inteiro, não só ela', () => {
+    const dirty = [validRaw[0], {...validRaw[1], roundsPerBracket: 0}, validRaw[2]];
+    expect(parseKocPhases(dirty)).toBeNull();
+  });
+});
+
+/** Duração não refaz a CHAVE, só o relógio — por isso fica de fora da
+ *  comparação (ver `kocPlansMatch`). Tudo o mais que muda o formato do
+ *  torneio entra. */
+describe('plano de fases · comparação de identidade', () => {
+  const plan = kocProposePhasePlan(10, 6, 900);
+
+  it('plano igual a si mesmo bate', () => {
+    expect(kocPlansMatch(plan, kocProposePhasePlan(10, 6, 900))).toBe(true);
+  });
+
+  it('duração diferente ainda bate', () => {
+    const withOtherDuration = plan.map((p) => ({...p, durationSec: 1200}));
+    expect(kocPlansMatch(plan, withOtherDuration)).toBe(true);
+  });
+
+  it('número de fases diferente não bate', () => {
+    expect(kocPlansMatch(plan, plan.slice(0, 2))).toBe(false);
+  });
+
+  it('roundsPerBracket diferente não bate', () => {
+    const changed = plan.map((p, i) => (i === 0 ? {...p, roundsPerBracket: p.roundsPerBracket + 1} : p));
+    expect(kocPlansMatch(plan, changed)).toBe(false);
+  });
+
+  it('qualifiersPerRound diferente não bate', () => {
+    const changed = plan.map((p, i) => (i === 0 ? {...p, qualifiersPerRound: p.qualifiersPerRound + 1} : p));
+    expect(kocPlansMatch(plan, changed)).toBe(false);
+  });
+
+  it('quantidade de chaves diferente na mesma fase não bate', () => {
+    const changed = plan.map((p, i) => (i === 0 ? {...p, bracketSizes: [...p.bracketSizes, 1]} : p));
+    expect(kocPlansMatch(plan, changed)).toBe(false);
+  });
+
+  it('tamanho de uma chave diferente não bate', () => {
+    const changed = plan.map((p, i) =>
+      i === 0 ? {...p, bracketSizes: [p.bracketSizes[0] + 1, p.bracketSizes[1] - 1]} : p);
+    expect(kocPlansMatch(plan, changed)).toBe(false);
   });
 });

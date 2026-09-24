@@ -12,6 +12,7 @@ import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/layout/nexa_page_header.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
+import '../domain/arena_access_providers.dart';
 import '../domain/arena_booking_canceled_args.dart';
 import '../domain/arena_bookings_grouping.dart';
 import '../domain/arena_booking_labels.dart';
@@ -21,6 +22,7 @@ import '../domain/arena_manager_booking.dart';
 import '../domain/arena_route_guard.dart';
 import '../domain/arena_schedule_providers.dart';
 import '../domain/arena_slot_detail_providers.dart';
+import '../domain/arena_staff_role.dart';
 import 'widgets/arena_async_state.dart';
 import 'widgets/arena_booking_cancel_sheet.dart';
 import 'widgets/arena_booking_detail_athletes.dart';
@@ -55,6 +57,10 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
 
     final liveAsync = ref.watch(arenaBookingDetailMapProvider(id));
     final arenaId = ref.watch(managedArenaIdProvider).valueOrNull ?? '';
+    // Manutenção lê a agenda mas não escreve — cancelar, bloquear/desbloquear
+    // atleta e check-in gravam, então ficam desabilitados (ou somem) para
+    // quem só lê.
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
 
     if (liveAsync.hasError && initialBooking == null) {
       return _pageShell(
@@ -168,12 +174,14 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
           ),
           SizedBox(height: 14),
           ArenaBookingDetailTimeline(events: timelineEvents),
-          SizedBox(height: 14),
-          ArenaBookingDetailCheckin(
-            bookingId: id,
-            athleteId: athleteId,
-            bookingData: data,
-          ),
+          if (canWrite) ...[
+            SizedBox(height: 14),
+            ArenaBookingDetailCheckin(
+              bookingId: id,
+              athleteId: athleteId,
+              bookingData: data,
+            ),
+          ],
           SizedBox(height: 14),
           ArenaBookingDetailHistory(
             historyAsync: historyAsync,
@@ -190,7 +198,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
             onContact: athleteId.isEmpty
                 ? null
                 : () => _contactAthlete(context, ref, athleteId),
-            onBlock: athleteId.isEmpty || historyArenaId.isEmpty
+            onBlock: !canWrite || athleteId.isEmpty || historyArenaId.isEmpty
                 ? null
                 : () => _confirmBlockAthlete(
                       context,
@@ -198,7 +206,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
                       arenaId: historyArenaId,
                       athleteId: athleteId,
                     ),
-            onUnblock: athleteId.isEmpty || historyArenaId.isEmpty
+            onUnblock: !canWrite || athleteId.isEmpty || historyArenaId.isEmpty
                 ? null
                 : () => _confirmUnblockAthlete(
                       context,
@@ -207,7 +215,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
                       athleteId: athleteId,
                     ),
             blockInfo: blockAsync.valueOrNull,
-            onCancel: canCancel && arenaId.isNotEmpty
+            onCancel: canWrite && canCancel && arenaId.isNotEmpty
                 ? () => _confirmCancel(
                       context,
                       ref,

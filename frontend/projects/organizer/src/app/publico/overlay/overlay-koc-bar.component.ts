@@ -157,13 +157,20 @@ function clockUnderOneMin(label: string): boolean {
       font-family: var(--nx-font, system-ui, sans-serif);
     }
 
+    .wrap {
+      position: absolute;
+      /* Margem de segurança de transmissão. */
+      --gap: 48px;
+    }
     .wrap,
     .wrap[data-pos='bottom'] {
+      top: auto;
       bottom: var(--gap);
       left: var(--gap);
     }
     .wrap[data-pos='top'] {
       top: var(--gap);
+      bottom: auto;
       left: var(--gap);
     }
 

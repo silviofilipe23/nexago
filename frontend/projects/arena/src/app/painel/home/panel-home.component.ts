@@ -248,6 +248,8 @@ function formatBRL(n: number): string {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .header-actions {
       display: flex;
       align-items: center;
@@ -266,6 +268,19 @@ function formatBRL(n: number): string {
       font-weight: 700;
       font-size: 13px;
       color: var(--nx-orange-500);
+    }
+
+    /* Topbar do shell já traz nome + avatar; ⌘K não existe no touch. */
+    @include ar.below(md) {
+      .header-actions {
+        width: 100%;
+        justify-content: flex-end;
+      }
+
+      .ar-search-box,
+      .avatar {
+        display: none;
+      }
     }
 
     .body {
@@ -496,7 +511,7 @@ function formatBRL(n: number): string {
       gap: 10px;
     }
 
-    @media (max-width: 720px) {
+    @include ar.below(sm) {
       .kpi-row {
         flex-wrap: wrap;
       }

@@ -17,7 +17,19 @@ export const KOC_MIN_TEAMS_PER_ROUND = 3;
 
 /** Duplas por quadra quando a categoria não escolheu — o padrão do formato. */
 export const KOC_DEFAULT_TEAMS_PER_COURT = 4;
-export const KOC_MAX_TEAMS_PER_ROUND = 5;
+
+/**
+ * Teto duro do formato. Subiu de 5 para 6 quando a semifinal passou a poder
+ * rodar várias baterias: com 6 na chave são 4 baterias, e é isso que separa
+ * uma semi de verdade de uma final antecipada.
+ */
+export const KOC_MAX_TEAMS_PER_ROUND = 6;
+
+/**
+ * Teto de quem não escolheu. Categoria antiga não tem `maxTeamsPerRound`, e
+ * herdar 6 mudaria a chave de torneio já publicado sem ninguém pedir.
+ */
+export const KOC_LEGACY_MAX_TEAMS_PER_ROUND = 5;
 
 /** Teto de fases — trava de segurança contra config que não reduz o campo. */
 const KOC_MAX_PHASES = 6;
@@ -53,13 +65,33 @@ export interface KocConfig {
 }
 
 /**
- * Quantas rodadas a chave aguenta antes de furar o mínimo do formato.
+ * Uma fase do torneio, como o organizador a vê na tabela.
  *
- * A vencedora de cada rodada sai, então a chave encolhe de uma em uma: uma
- * chave de 4 dá 2 rodadas (4 → 3), uma de 5 dá 3 (5 → 4 → 3).
+ * `bracketSizes` é o tamanho de cada chave na PRIMEIRA bateria; as seguintes
+ * encolhem em `qualifiersPerRound` a cada bateria, porque quem classifica sai
+ * e libera a quadra.
  */
-export function kocMaxRoundsPerBracket(bracketSize: number): number {
-  return Math.max(1, bracketSize - KOC_MIN_TEAMS_PER_ROUND + 1);
+export interface KocPhaseSpec {
+  bracketSizes: number[];
+  roundsPerBracket: number;
+  /** 0 só na fase final: ali ninguém classifica, a tabela é o pódio. */
+  qualifiersPerRound: number;
+  durationSec: number;
+}
+
+/**
+ * Quantas baterias a chave aguenta antes de furar o mínimo do formato.
+ *
+ * Cada bateria tira `qualifiersPerRound` duplas, então a chave encolhe em
+ * degraus desse tamanho: de 5 tirando 1 dá 3 baterias (5 → 4 → 3); de 7
+ * tirando 2 dá 3 (7 → 5 → 3).
+ */
+export function kocMaxRoundsPerBracket(
+  bracketSize: number,
+  qualifiersPerRound = 1,
+): number {
+  const q = Math.max(1, Math.floor(qualifiersPerRound));
+  return Math.max(1, Math.floor((bracketSize - KOC_MIN_TEAMS_PER_ROUND) / q) + 1);
 }
 
 /** Vaga herdada da fase anterior: a `place`-ésima colocada da rodada `fromMatchNumber`. */
@@ -242,7 +274,11 @@ export function kocBracketCountForRounds(
   while (
     rounds > 1 &&
     Math.floor(teamCount / rounds) < needed &&
-    Math.ceil(teamCount / (rounds - 1)) <= KOC_MAX_TEAMS_PER_ROUND
+    // Teto de sempre (5), não o novo: esta função só serve o caminho antigo de
+    // "várias rodadas por chave" em `buildKingOfCourtRounds`, que este pacote
+    // de mudanças não toca. Usar o teto novo juntaria 6 duplas numa chave só
+    // (antes eram 2 chaves de 3) e mudaria uma configuração que já funcionava.
+    Math.ceil(teamCount / (rounds - 1)) <= KOC_LEGACY_MAX_TEAMS_PER_ROUND
   ) {
     rounds--;
   }
@@ -388,6 +424,97 @@ function assertPhaseOneRosters(
     );
   }
   return out;
+}
+
+/** Teto da categoria, saneado. Ausente ou inválido cai no teto de sempre. */
+export function kocClampMaxPerRound(value: unknown): number {
+  const n = Math.floor(Number(value));
+  if (!Number.isFinite(n) || n <= 0) return KOC_LEGACY_MAX_TEAMS_PER_ROUND;
+  return Math.min(KOC_MAX_TEAMS_PER_ROUND, Math.max(KOC_MIN_TEAMS_PER_ROUND, n));
+}
+
+/**
+ * Proposta "máximo de jogo" a partir de um campo de `field` duplas, para as
+ * fases que NÃO são a primeira.
+ *
+ * Separada de `kocProposePlan` porque a fase 1 tem uma regra a mais (campo que
+ * cabe numa quadra é rodada única) e a cascata da tabela editável repropõe só o
+ * rabo do plano, nunca a primeira fase.
+ */
+export function kocProposeTail(
+  field: number,
+  maxPerRound: number,
+  durationFor: (phase: number) => number,
+  startPhase: number,
+): KocPhaseSpec[] {
+  const max = kocClampMaxPerRound(maxPerRound);
+  const phases: KocPhaseSpec[] = [];
+  let remaining = field;
+  while (startPhase + phases.length <= KOC_MAX_PHASES) {
+    const phaseNumber = startPhase + phases.length;
+    const durationSec = durationFor(phaseNumber);
+    const brackets = kocRoundCount(remaining, max);
+    const bracketSizes = kocRoundSizes(remaining, brackets);
+    const smallest = Math.min(...bracketSizes);
+
+    let rounds = kocMaxRoundsPerBracket(smallest, 1);
+    let qualifiers = 1;
+    if (rounds === 1) {
+      // Chave que não aguenta uma segunda bateria volta ao formato clássico:
+      // passa quem está no topo da tabela. Com 1 só, 2 chaves mandariam 2
+      // duplas para a fase seguinte — abaixo do piso, e o plano morreria.
+      qualifiers = Math.max(
+        1,
+        Math.min(smallest - 1, Math.floor((remaining - 1) / brackets)),
+      );
+    }
+
+    const next = brackets * rounds * qualifiers;
+    if (next < KOC_MIN_TEAMS_PER_ROUND) {
+      // Só acontece com UMA chave: com duas ou mais, o ramo acima garante
+      // `qualifiers >= 2` e o campo seguinte nunca desce de 4. Esta fase é a
+      // final, e a tabela dela é o pódio.
+      phases.push({bracketSizes, roundsPerBracket: 1, qualifiersPerRound: 0, durationSec});
+      return phases;
+    }
+    phases.push({bracketSizes, roundsPerBracket: rounds, qualifiersPerRound: qualifiers, durationSec});
+    remaining = next;
+  }
+  return phases;
+}
+
+/**
+ * O plano que a tela propõe quando o organizador não mexeu em nada.
+ *
+ * Critério: MÁXIMO DE JOGO — chave o mais cheia que o teto permite, e baterias
+ * no máximo que a menor chave aguenta. É o que faz 10 duplas caírem em
+ * 2 chaves de 5 com 3 baterias, semi de 6 com 4 e final de 4 sem nenhum caso
+ * especial.
+ */
+export function kocProposePlan(
+  teamCount: number,
+  maxPerRound: number,
+  durationFor: (phase: number) => number,
+): KocPhaseSpec[] {
+  if (teamCount < KOC_MIN_TEAMS_PER_ROUND) {
+    throw new KocBracketError(
+      `King of the Court precisa de pelo menos ${KOC_MIN_TEAMS_PER_ROUND} duplas ` +
+        `na rodada — há ${teamCount}.`,
+      "koc_field_too_small",
+    );
+  }
+  const max = kocClampMaxPerRound(maxPerRound);
+  // Campo inteiro numa quadra só: o torneio É a rodada. Inventar fase aqui
+  // eliminaria 2 duplas para jogar a final com as 3 que sobraram.
+  if (teamCount <= max) {
+    return [{
+      bracketSizes: [teamCount],
+      roundsPerBracket: 1,
+      qualifiersPerRound: 0,
+      durationSec: durationFor(1),
+    }];
+  }
+  return kocProposeTail(teamCount, max, durationFor, 1);
 }
 
 export function buildKingOfCourtRounds(

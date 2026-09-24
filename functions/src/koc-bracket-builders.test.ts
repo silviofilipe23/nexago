@@ -2,16 +2,20 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {
   KOC_DEFAULT_ROUND_DURATION_SEC,
+  KOC_LEGACY_MAX_TEAMS_PER_ROUND,
   KocBracketError,
   buildKingOfCourtRounds,
   kocBracketCountForRounds,
+  kocClampMaxPerRound,
   kocNextRoundIndex,
+  kocProposePlan,
   kocQualifierDescription,
   kocRoundCount,
   kocRoundSizes,
   kocMaxRoundsPerBracket,
   kocSnakeDistribute,
   type KocConfig,
+  type KocPhaseSpec,
   type KocRoundDraft,
 } from "./koc-bracket-builders";
 
@@ -495,6 +499,102 @@ describe("kocBracketCountForRounds", () => {
   it("nao estoura o teto da rodada: 6 duplas continuam em 2 chaves", () => {
     // Juntar em 1 chave daria uma rodada de 6, acima do maximo do formato.
     assert.equal(kocBracketCountForRounds(6, 4, 2), 2);
+  });
+});
+
+/** Duração fixa: o planejador não decide duração, só a carrega. */
+const flat = (): number => 900;
+
+describe("kocMaxRoundsPerBracket com mais de uma classificada", () => {
+  it("com 1 por bateria é o de sempre: a chave encolhe de uma em uma", () => {
+    assert.equal(kocMaxRoundsPerBracket(3), 1);
+    assert.equal(kocMaxRoundsPerBracket(4), 2);
+    assert.equal(kocMaxRoundsPerBracket(5), 3);
+    assert.equal(kocMaxRoundsPerBracket(6), 4);
+  });
+
+  it("com 2 por bateria a chave encolhe de duas em duas", () => {
+    assert.equal(kocMaxRoundsPerBracket(6, 2), 2); // 6 → 4, e 4 ainda é rodada
+    assert.equal(kocMaxRoundsPerBracket(7, 2), 3); // 7 → 5 → 3
+    assert.equal(kocMaxRoundsPerBracket(4, 2), 1); // 4 → 2 não é rodada
+  });
+});
+
+describe("kocClampMaxPerRound", () => {
+  it("ausente ou inválido vale o teto de sempre, não o novo", () => {
+    assert.equal(kocClampMaxPerRound(undefined), KOC_LEGACY_MAX_TEAMS_PER_ROUND);
+    assert.equal(kocClampMaxPerRound("x"), KOC_LEGACY_MAX_TEAMS_PER_ROUND);
+  });
+
+  it("prende na faixa do formato", () => {
+    assert.equal(kocClampMaxPerRound(2), 3);
+    assert.equal(kocClampMaxPerRound(9), 6);
+    assert.equal(kocClampMaxPerRound(6), 6);
+  });
+});
+
+describe("kocProposePlan", () => {
+  it("10 duplas com teto 6: o formato que o dono pediu", () => {
+    const plan = kocProposePlan(10, 6, flat);
+    assert.deepEqual(plan, [
+      {bracketSizes: [5, 5], roundsPerBracket: 3, qualifiersPerRound: 1, durationSec: 900},
+      {bracketSizes: [6], roundsPerBracket: 4, qualifiersPerRound: 1, durationSec: 900},
+      {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+    ] satisfies KocPhaseSpec[]);
+  });
+
+  it("campo que cabe numa quadra é uma rodada só — não se inventa fase", () => {
+    for (const n of [3, 4, 5, 6]) {
+      const plan = kocProposePlan(n, 6, flat);
+      assert.deepEqual(plan, [
+        {bracketSizes: [n], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+      ]);
+    }
+  });
+
+  it("chave que só aguenta uma bateria classifica mais de uma, ou o campo morre", () => {
+    // 7 duplas: 2 chaves de [4,3]; a de 3 não comporta segunda bateria, então a
+    // fase volta ao formato clássico e passam 2 de cada.
+    const plan = kocProposePlan(7, 6, flat);
+    assert.equal(plan[0]!.roundsPerBracket, 1);
+    assert.equal(plan[0]!.qualifiersPerRound, 2);
+    assert.deepEqual(plan[1]!.bracketSizes, [4]);
+  });
+
+  it("3 a 24 duplas: toda fase reduz o campo e a última é chave única de uma bateria", () => {
+    for (let n = 3; n <= 24; n++) {
+      const plan = kocProposePlan(n, 6, flat);
+      let field = n;
+      for (let i = 0; i < plan.length; i++) {
+        const spec = plan[i]!;
+        const sum = spec.bracketSizes.reduce((a, b) => a + b, 0);
+        assert.equal(sum, field, `${n} duplas: fase ${i + 1} soma ${sum}, campo é ${field}`);
+        for (const size of spec.bracketSizes) {
+          assert.ok(size >= 3 && size <= 6, `${n} duplas: chave de ${size} fora da faixa`);
+          const last = size - (spec.roundsPerBracket - 1) * Math.max(1, spec.qualifiersPerRound);
+          assert.ok(last >= 3, `${n} duplas: última bateria ficaria com ${last}`);
+        }
+        const isLast = i === plan.length - 1;
+        if (isLast) {
+          assert.equal(spec.bracketSizes.length, 1, `${n} duplas: final com mais de uma quadra`);
+          assert.equal(spec.roundsPerBracket, 1);
+          assert.equal(spec.qualifiersPerRound, 0);
+        } else {
+          assert.ok(spec.qualifiersPerRound >= 1, `${n} duplas: fase ${i + 1} não classifica ninguém`);
+          const next = spec.bracketSizes.length * spec.roundsPerBracket * spec.qualifiersPerRound;
+          assert.ok(next < field, `${n} duplas: fase ${i + 1} não reduz (${field} → ${next})`);
+          field = next;
+        }
+      }
+    }
+  });
+
+  it("recusa campo menor que o mínimo do formato", () => {
+    assert.throws(() => kocProposePlan(2, 6, flat), (e: unknown) => {
+      assert.ok(e instanceof KocBracketError);
+      assert.equal(e.reason, "koc_field_too_small");
+      return true;
+    });
   });
 });
 

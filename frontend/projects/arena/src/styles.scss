@@ -48,19 +48,19 @@
   --nx-d-fast: 140ms;
   --nx-d-base: 240ms;
 
-  /* ---- Faixas, expostas ao TypeScript. A ViewportService le daqui em vez de
-     repetir o numero em TS -- um lugar so. ---- */
+  /* ---- Faixas, expostas ao TypeScript. A ViewportService lê daqui em vez de
+     repetir o número em TS -- um lugar só. ---- */
   --ar-bp-md: #{ar.$w-md};
   --ar-bp-sm: #{ar.$w-sm};
 
-  /* ---- Densidade. Os valores base sao os de hoje, entao o desktop nao muda. ---- */
+  /* ---- Densidade. Os valores base são os de hoje, então o desktop não muda. ---- */
   --ar-nav-item-h: 34px;
   --ar-header-py: 20px;
   --ar-pad-page-y: 22px;
   --ar-pad-page-x: 32px;
   --ar-card-pad: 20px;
 
-  /* ---- Toque. Sempre 44/8; quem decide se valem e a zona 4. ---- */
+  /* ---- Toque. Sempre 44/8; quem decide se valem é a zona 4. ---- */
   --ar-tap: 44px;
   --ar-tap-gap: 8px;
 }
@@ -567,14 +567,14 @@ button {
   color: var(--nx-text);
 }
 
-/* Layout partido: conteudo + trilha lateral. As 13 telas ja colapsavam pra
-   uma coluna em tela estreita, cada uma com sua propria copia da regra: 12
-   em `max-width: 1180px`, a panel-site em `1080px`. O ganho aqui e eliminar
-   as 13 copias e unificar o ponto de colapso em 1180px (o recorte vive em
+/* Layout partido: conteúdo + trilha lateral. As 13 telas já colapsavam pra
+   uma coluna em tela estreita, cada uma com sua própria cópia da regra: 12
+   em `max-width: 1180px`, a panel-site em `1080px`. O ganho aqui é eliminar
+   as 13 cópias e unificar o ponto de colapso em 1180px (o recorte vive em
    ar.below(lg), na zona 2 abaixo) -- a panel-site sobe de 1080 pra 1180.
-   `minmax(0, 1fr)` e proposital: `1fr` sozinho nasce com min-width: auto =
-   min-content do conteudo, e um <select> com opcao longa ganha do 1fr sem
-   dar scroll -- so "aperta". */
+   `minmax(0, 1fr)` é proposital: `1fr` sozinho nasce com min-width: auto =
+   min-content do conteúdo, e um <select> com opção longa ganha do 1fr sem
+   dar scroll -- só "aperta". */
 .ar-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--ar-split-aside, 373px);
@@ -584,23 +584,23 @@ button {
 
 /* A trilha vem primeiro em `panel-finance-reports`, que nasceu `373px 1fr`.
    Mantida a ordem original: mudar o lado da tela seria redesenho, e este
-   trabalho e de responsividade. Tem de ficar ANTES do bloco de faixas: as
-   duas regras tem a mesma especificidade, e quem vem depois no arquivo
+   trabalho é de responsividade. Tem de ficar ANTES do bloco de faixas: as
+   duas regras têm a mesma especificidade, e quem vem depois no arquivo
    ganha -- se este modificador viesse depois do recorte de ar.below(lg),
-   ele derrotaria o empilhamento em qualquer largura, nao so acima de 1180px. */
+   ele derrotaria o empilhamento em qualquer largura, não só acima de 1180px. */
 .ar-split-aside-first {
   grid-template-columns: var(--ar-split-aside, 373px) minmax(0, 1fr);
 }
 
-/* Telas de painel cujas colunas precisam esticar ate a altura da linha: e o
-   stretch que da altura limitada as cadeias flex/min-height/overflow dos cards
-   que rolam por dentro. Sem isto a lista cresce com o conteudo em vez de rolar. */
+/* Telas de painel cujas colunas precisam esticar até a altura da linha: é o
+   stretch que dá altura limitada às cadeias flex/min-height/overflow dos cards
+   que rolam por dentro. Sem isto a lista cresce com o conteúdo em vez de rolar. */
 .ar-split-stretch {
   align-items: stretch;
 }
 
-/* Tabela larga: quem rola e o container, nunca a pagina. Preserva o dado --
-   esconder coluna perde informacao em silencio, que e pior que rolar. */
+/* Tabela larga: quem rola é o container, nunca a página. Preserva o dado --
+   esconder coluna perde informação em silêncio, que é pior que rolar. */
 .ar-table-scroll {
   overflow-x: auto;
   overscroll-behavior-x: contain;
@@ -612,14 +612,14 @@ button {
 }
 
 /* =========================================================================
-   ORDEM DO CASCADE — NAO REORDENAR
-   @media nao soma especificidade: regras que declaram a mesma propriedade
-   empatam e ganha a ULTIMA declarada. Por isso:
-     1. :root base          (la em cima)
+   ORDEM DO CASCADE — NÃO REORDENAR
+   @media não soma especificidade: regras que declaram a mesma propriedade
+   empatam e ganha a ÚLTIMA declarada. Por isso:
+     1. :root base          (lá em cima)
      2. largura             (maior degrau -> menor)
      3. altura
-     4. pointer: coarse     (por ultimo, para o dedo ganhar da densidade)
-   `styles.spec.ts` quebra se alguem inverter.
+     4. pointer: coarse     (por último, para o dedo ganhar da densidade)
+   `styles.spec.ts` quebra se alguém inverter.
    ========================================================================= */
 
 /* ---- 2. LARGURA ---- */
@@ -642,7 +642,7 @@ button {
   }
 }
 
-/* ---- 3. ALTURA — e aqui que o notebook 13" ganha vertical ---- */
+/* ---- 3. ALTURA — é aqui que o notebook 13" ganha vertical ---- */
 @include ar.shorter-than(short) {
   :root {
     --ar-nav-item-h: 32px;
@@ -659,25 +659,25 @@ button {
   }
 }
 
-/* ---- 4. TOQUE — POR ULTIMO ---- */
+/* ---- 4. TOQUE — POR ÚLTIMO ---- */
 @include ar.touch {
   :root {
     --ar-nav-item-h: var(--ar-tap);
   }
 
-  /* iOS Safari da zoom sozinho ao focar campo com fonte < 16px. Uma regra aqui
-     resolve as ~397 ocorrencias de fonte pequena sem tocar em 397 lugares --
-     MAS so na teoria: sob encapsulamento emulado do Angular, uma regra de
+  /* iOS Safari dá zoom sozinho ao focar campo com fonte < 16px. Uma regra aqui
+     resolve as ~397 ocorrências de fonte pequena sem tocar em 397 lugares --
+     MAS só na teoria: sob encapsulamento emulado do Angular, uma regra de
      componente compila para `.input-box[_ngcontent-xxx]` (especificidade
      0,2,0) ou `input[_ngcontent-xxx]` (0,1,1), e as duas ganham do seletor
      de elemento global `input` (0,0,1) *independente* da media query ou da
-     ordem no documento -- @media nao soma especificidade, e especificidade
+     ordem no documento -- @media não soma especificidade, e especificidade
      decide antes de ordem. 23 blocos `.input-box` (22 declarando 14px) e o
      `input` de `auth/ui/field.component.ts` (15px) blindavam o zoom do
-     Safari inteiro. `!important` aqui e a unica forma robusta de vencer sem
-     enumerar (e manter sincronizados) 23+ seletores de componente -- e e
-     justificavel: esta regra e uma trava de acessibilidade de PLATAFORMA
-     (o Safari decide zoom ou nao com base so no valor computado), nao
+     Safari inteiro. `!important` aqui é a única forma robusta de vencer sem
+     enumerar (e manter sincronizados) 23+ seletores de componente -- e é
+     justificável: esta regra é uma trava de acessibilidade de PLATAFORMA
+     (o Safari decide zoom ou não com base só no valor computado), não
      estilo de produto, e fica confinada a este bloco `ar.touch`, nunca solta
      no arquivo. */
   input,

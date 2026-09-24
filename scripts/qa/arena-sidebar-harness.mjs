@@ -1,31 +1,31 @@
 #!/usr/bin/env node
-// Gera um harness estatico (HTML + CSS) que espelha a marcacao e o CSS REAIS
+// Gera um harness estático (HTML + CSS) que espelha a marcação e o CSS REAIS
 // do shell do painel da arena (`panel-shell.component.ts` + `drawer.component.ts`
 // + o CSS global compilado), para medir geometria de verdade no navegador --
-// sem subir o Angular nem fazer login (o arena nao tem rota de QA).
+// sem subir o Angular nem fazer login (o arena não tem rota de QA).
 //
 // Uso:
 //   npx ng build arena --configuration development   # gera dist/arena/browser/styles.css
-//   node scripts/qa/arena-sidebar-harness.mjs <dir-de-saida>
+//   node scripts/qa/arena-sidebar-harness.mjs <dir-de-saída>
 //
 // O que o harness reproduz, com fidelidade ao componente real:
-//   - o CSS do shell e do drawer, extraidos do `styles:` de cada componente
-//     (nao reescritos a mao -- o script LE o arquivo fonte a cada geracao);
-//   - o CSS global compilado (`dist/arena/browser/styles.css`), que e onde
+//   - o CSS do shell e do drawer, extraídos do `styles:` de cada componente
+//     (não reescritos à mão -- o script LÊ o arquivo fonte a cada geração);
+//   - o CSS global compilado (`dist/arena/browser/styles.css`), que é onde
 //     moram os tokens de densidade (--ar-nav-item-h) e a escada de
 //     largura/altura/toque (`_breakpoints.scss` via `styles.scss`);
-//   - a arvore de navegacao REAL: Inicio solto + 5 cabecalhos de grupo, com
-//     um grupo aberto por vez (nunca 21 itens chapados) -- extraida de
-//     `panel-nav.model.ts`, nao copiada a mao;
-//   - a matriz de acesso do cargo `recepcao`, extraida de `arena-roles.model.ts`
+//   - a árvore de navegação REAL: Início solto + 5 cabeçalhos de grupo, com
+//     um grupo aberto por vez (nunca 21 itens chapados) -- extraída de
+//     `panel-nav.model.ts`, não copiada à mão;
+//   - a matriz de acesso do cargo `recepcao`, extraída de `arena-roles.model.ts`
 //     (o cargo `dono` mapeia para `isOwner()`, que enxerga tudo).
 //
-// O que o harness NAO tenta reproduzir (fora de escopo desta task -- ver
-// "Nao coberto" em docs/qa/arena-responsivo-passe-medido.md):
-//   - autenticacao, dados reais de Firestore, roteamento de verdade;
-//   - o conteudo de `<ng-content>` (as 38 telas do painel);
-//   - os icones reais (SVGs viram caixas do mesmo tamanho -- a geometria nao
-//     depende do path do icone, so da caixa).
+// O que o harness NÃO tenta reproduzir (fora de escopo desta task -- ver
+// "Não coberto" em docs/qa/arena-responsivo-passe-medido.md):
+//   - autenticação, dados reais de Firestore, roteamento de verdade;
+//   - o conteúdo de `<ng-content>` (as 38 telas do painel);
+//   - os ícones reais (SVGs viram caixas do mesmo tamanho -- a geometria não
+//     depende do path do ícone, só da caixa).
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -33,12 +33,12 @@ import path from 'node:path';
 
 const outDir = process.argv[2];
 if (!outDir) {
-  console.error('uso: node scripts/qa/arena-sidebar-harness.mjs <dir-de-saida>');
+  console.error('uso: node scripts/qa/arena-sidebar-harness.mjs <dir-de-saída>');
   process.exit(1);
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// scripts/qa/arena-sidebar-harness.mjs -> raiz do worktree e dois niveis acima.
+// scripts/qa/arena-sidebar-harness.mjs -> raiz do worktree é dois níveis acima.
 const repoRoot = path.resolve(__dirname, '../..');
 
 const arenaSrc = path.join(repoRoot, 'frontend/projects/arena/src');
@@ -55,31 +55,31 @@ for (const [label, p] of [
   ['arena-roles.model.ts', rolesModelPath],
 ]) {
   if (!existsSync(p)) {
-    console.error(`arquivo fonte nao encontrado (${label}): ${p}`);
+    console.error(`arquivo fonte não encontrado (${label}): ${p}`);
     process.exit(1);
   }
 }
 
 if (!existsSync(globalCssPath)) {
   console.error(
-    `CSS global compilado nao encontrado: ${globalCssPath}\n` +
+    `CSS global compilado não encontrado: ${globalCssPath}\n` +
       'Rode primeiro: npx ng build arena --configuration development (a partir de frontend/)',
   );
   process.exit(1);
 }
 
 // ---------------------------------------------------------------------------
-// Extracao de CSS: `styles: \`...\`` dentro do decorator @Component. As duas
-// fontes nao tem backtick dentro do CSS, entao o marcador de fechamento
-// "`,\n})" e seguro e unico.
+// Extração de CSS: `styles: \`...\`` dentro do decorator @Component. As duas
+// fontes não têm backtick dentro do CSS, então o marcador de fechamento
+// "`,\n})" é seguro e único.
 // ---------------------------------------------------------------------------
 function extractComponentStyles(source, label) {
   const startMarker = 'styles: `';
   const startIdx = source.indexOf(startMarker);
-  if (startIdx === -1) throw new Error(`"styles:" nao encontrado em ${label}`);
+  if (startIdx === -1) throw new Error(`"styles:" não encontrado em ${label}`);
   const cssStart = startIdx + startMarker.length;
   const endIdx = source.indexOf('`,\n})', cssStart);
-  if (endIdx === -1) throw new Error(`fechamento do styles nao encontrado em ${label}`);
+  if (endIdx === -1) throw new Error(`fechamento do styles não encontrado em ${label}`);
   return source.slice(cssStart, endIdx);
 }
 
@@ -92,9 +92,9 @@ const globalCss = readFileSync(globalCssPath, 'utf8');
 const shellCssRaw = extractComponentStyles(shellSource, 'panel-shell.component.ts');
 const drawerCssRaw = extractComponentStyles(drawerSource, 'drawer.component.ts');
 
-// `:host` nao existe em HTML puro. Troca textual para um seletor de id no
-// elemento raiz do harness -- so muda o SELETOR, nunca o valor de nenhuma
-// declaracao. `:host(.compact)` -> `#host.compact`; `:host` solto -> `#host`.
+// `:host` não existe em HTML puro. Troca textual para um seletor de id no
+// elemento raiz do harness -- só muda o SELETOR, nunca o valor de nenhuma
+// declaração. `:host(.compact)` -> `#host.compact`; `:host` solto -> `#host`.
 function hostToId(css) {
   return css.replace(/:host\(([^)]*)\)/g, '#host$1').replace(/:host\b/g, '#host');
 }
@@ -103,7 +103,7 @@ const shellCss = hostToId(shellCssRaw);
 const drawerCss = hostToId(drawerCssRaw);
 
 // ---------------------------------------------------------------------------
-// Extracao de dados: NAV_ITEMS real de panel-nav.model.ts (nao copiado a mao).
+// Extração de dados: NAV_ITEMS real de panel-nav.model.ts (não copiado à mão).
 // ---------------------------------------------------------------------------
 function extractNavItems(source) {
   const itemRe =
@@ -137,7 +137,7 @@ function extractGroupLabels(source) {
 
 function extractGroupOrder(source) {
   const m = source.match(/ARENA_NAV_GROUPS\s*=\s*\[([^\]]*)\]/);
-  if (!m) throw new Error('ARENA_NAV_GROUPS nao encontrado em panel-nav.model.ts');
+  if (!m) throw new Error('ARENA_NAV_GROUPS não encontrado em panel-nav.model.ts');
   return m[1]
     .split(',')
     .map((s) => s.trim().replace(/^'|'$/g, ''))
@@ -149,21 +149,21 @@ const groupLabel = extractGroupLabels(navModelSource);
 const groupOrder = extractGroupOrder(navModelSource);
 
 if (navItems.length === 0) {
-  throw new Error('nenhum item extraido de NAV_ITEMS -- a regex de extracao ficou desalinhada com panel-nav.model.ts');
+  throw new Error('nenhum item extraído de NAV_ITEMS -- a regex de extração ficou desalinhada com panel-nav.model.ts');
 }
 
 // ---------------------------------------------------------------------------
-// Extracao da matriz de acesso do cargo `recepcao` (arena-roles.model.ts).
-// `dono` (gestor/isOwner) enxerga tudo -- nao precisa de matriz.
+// Extração da matriz de acesso do cargo `recepcao` (arena-roles.model.ts).
+// `dono` (gestor/isOwner) enxerga tudo -- não precisa de matriz.
 // ---------------------------------------------------------------------------
 function extractAreasForRole(source, constName, role) {
   const blockStart = source.indexOf(constName);
-  if (blockStart === -1) throw new Error(`${constName} nao encontrado em arena-roles.model.ts`);
+  if (blockStart === -1) throw new Error(`${constName} não encontrado em arena-roles.model.ts`);
   const blockEnd = source.indexOf('};', blockStart);
   const block = source.slice(blockStart, blockEnd);
   const re = new RegExp(role + ':\\s*\\[([^\\]]*)\\]');
   const m = block.match(re);
-  if (!m) throw new Error(`cargo '${role}' nao encontrado em ${constName}`);
+  if (!m) throw new Error(`cargo '${role}' não encontrado em ${constName}`);
   return m[1]
     .split(',')
     .map((s) => s.trim().replace(/^'|'$/g, ''))
@@ -184,39 +184,39 @@ const shellCssOut = [
   '/* Gerado por: npx ng build arena --configuration development */',
   globalCss,
   '',
-  '/* ===== CSS real de panel-shell.component.ts (styles:), extraido ===== */',
+  '/* ===== CSS real de panel-shell.component.ts (styles:), extraído ===== */',
   '/* :host -> #host (troca textual de seletor, nenhum valor mudou) */',
   shellCss,
   '',
-  '/* ===== CSS real de drawer.component.ts (styles:), extraido ===== */',
+  '/* ===== CSS real de drawer.component.ts (styles:), extraído ===== */',
   drawerCss,
   '',
-  '/* ===== Reset minimo do harness (nao existe em nenhum componente real) ===== */',
+  '/* ===== Reset mínimo do harness (não existe em nenhum componente real) ===== */',
   '* { box-sizing: border-box; }',
   'html, body { margin: 0; }',
   'body { background: var(--nx-bg); color: var(--nx-text); font-family: var(--nx-font-ui); }',
   '',
-  '/* Desliga toda animacao/transicao (drawer.component.ts anima a entrada',
-  '   do painel via @keyframes -- ar-drawer-in/ar-drawer-in-left, 240ms). So',
-  '   encurtar animation-duration NAO resolve: o relogio da animacao e',
-  '   movido a frame renderizado, nao a tempo de parede, e o motor de',
-  '   preview usado para medir nao entrega frame de forma confiavel (rAF',
-  '   perto de zero enquanto a pagina nao esta em foco/pintando) -- mesmo',
-  '   com 0.01ms de duracao, a animacao fica presa no frame inicial',
-  '   (transform: translateX(-100%), painel inteiro fora da tela) ate um',
-  '   screenshot forcar um paint real. animation:none tira a animacao do',
-  '   jogo de vez -- o elemento so usa o estilo BASE (sem transform nenhum),',
-  '   que ja e o estado final correto, sem depender de nenhum frame. O app',
-  '   real ja neutraliza animacao para prefers-reduced-motion (ver',
-  '   styles.scss); aqui fica incondicional, porque o harness so precisa do',
-  '   estado final da geometria, nunca da transicao visual.',
+  '/* Desliga toda animação/transição (drawer.component.ts anima a entrada',
+  '   do painel via @keyframes -- ar-drawer-in/ar-drawer-in-left, 240ms). Só',
+  '   encurtar animation-duration NÃO resolve: o relógio da animação é',
+  '   movido a frame renderizado, não a tempo de parede, e o motor de',
+  '   preview usado para medir não entrega frame de forma confiável (rAF',
+  '   perto de zero enquanto a página não está em foco/pintando) -- mesmo',
+  '   com 0.01ms de duração, a animação fica presa no frame inicial',
+  '   (transform: translateX(-100%), painel inteiro fora da tela) até um',
+  '   screenshot forçar um paint real. animation:none tira a animação do',
+  '   jogo de vez -- o elemento só usa o estilo BASE (sem transform nenhum),',
+  '   que já é o estado final correto, sem depender de nenhum frame. O app',
+  '   real já neutraliza animação para prefers-reduced-motion (ver',
+  '   styles.scss); aqui fica incondicional, porque o harness só precisa do',
+  '   estado final da geometria, nunca da transição visual.',
   '*, *::before, *::after { animation: none !important; transition: none !important; }',
 ].join('\n');
 
 writeFileSync(path.join(outDir, 'shell.css'), shellCssOut);
 
 // ---------------------------------------------------------------------------
-// Dados de navegacao injetados no HTML (JSON real, extraido na hora).
+// Dados de navegação injetados no HTML (JSON real, extraído na hora).
 // ---------------------------------------------------------------------------
 const navData = {
   generatedAt: new Date().toISOString(),
@@ -229,9 +229,9 @@ const navData = {
 const navDataJson = JSON.stringify(navData, null, 2);
 
 // ---------------------------------------------------------------------------
-// harness.js: logica cliente. String concatenation (sem template literals)
-// de proposito -- este arquivo inteiro vive dentro de um template literal do
-// gerador, e nao pode conter backtick.
+// harness.js: lógica cliente. String concatenation (sem template literals)
+// de propósito -- este arquivo inteiro vive dentro de um template literal do
+// gerador, e não pode conter backtick.
 // ---------------------------------------------------------------------------
 const harnessJs = `
 (function () {
@@ -255,7 +255,7 @@ const harnessJs = `
   }
 
   // Porta 1:1 de buildNavSections() em panel-nav.model.ts: agrupa
-  // preservando a ordem de NAV_ITEMS e descarta secao vazia para o cargo.
+  // preservando a ordem de NAV_ITEMS e descarta seção vazia para o cargo.
   function buildNavSections(items, canSeeFn) {
     var sections = [];
     var byGroup = {};
@@ -291,7 +291,7 @@ const harnessJs = `
   }
 
   // Porta 1:1 de isOpen() em panel-shell.component.ts (3 estados: fallback
-  // pela rota ativa / 'none' fechado de proposito / grupo explicito).
+  // pela rota ativa / 'none' fechado de propósito / grupo explícito).
   function isOpen(group) {
     if (state.openGroup === 'none') return false;
     if (state.openGroup !== null) return state.openGroup === group;
@@ -306,8 +306,8 @@ const harnessJs = `
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  // Icone-placeholder: caixa do mesmo tamanho do <ar-icon [size]>. A
-  // geometria depende so da caixa, nunca do path do SVG.
+  // Ícone-placeholder: caixa do mesmo tamanho do <ar-icon [size]>. A
+  // geometria depende só da caixa, nunca do path do SVG.
   function iconSvg(size) {
     return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" aria-hidden="true">' +
       '<rect x="2" y="2" width="20" height="20" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"></rect></svg>';
@@ -385,15 +385,15 @@ const harnessJs = `
     bottomNavEl.innerHTML = html;
   }
 
-  // O atributo hidden sozinho NAO basta aqui: .topbar/.sidebar/.bottom-nav/
-  // .scrim (CSS real, extraido do shell/drawer) declaram o proprio display
+  // O atributo hidden sozinho NÃO basta aqui: .topbar/.sidebar/.bottom-nav/
+  // .scrim (CSS real, extraído do shell/drawer) declaram o próprio display
   // (flex/flex/grid/flex) -- regra de autor, mesma especificidade do UA
   // stylesheet [hidden]{display:none}, e origem de autor sempre ganha da
-  // origem UA (a ordem no cascade nao decide isso). Resultado: el.hidden =
-  // true nao escondia NADA -- os quatro contineres continuavam ocupando
+  // origem UA (a ordem no cascade não decide isso). Resultado: el.hidden =
+  // true não escondia NADA -- os quatro contêineres continuavam ocupando
   // layout e pintando por cima uns dos outros mesmo "escondidos", inclusive
   // o drawer aberto permanentemente sobre a topbar. Estilo inline sempre
-  // ganha de regra de classe (curto de !important), entao forca aqui.
+  // ganha de regra de classe (curto de !important), então força aqui.
   function setVisible(el, show) {
     el.hidden = !show;
     el.style.display = show ? '' : 'none';
@@ -421,14 +421,14 @@ const harnessJs = `
     if (flags.isCompact) renderTopbar(); else topbarEl.innerHTML = '';
     if (flags.isPhone) renderBottomNav(); else bottomNavEl.innerHTML = '';
 
-    // Forca reflow sincrono (leitura de offsetHeight sempre invalida o
+    // Força reflow síncrono (leitura de offsetHeight sempre invalida o
     // layout cacheado e recalcula na hora). Sem isto, medido ao vivo que o
     // motor deste preview deixa o keyframe do drawer.component.ts preso no
     // frame inicial (transform: translateX(+-100%), painel inteiro fora da
     // tela) mesmo com animation:none !important no reset do harness --
     // nem o screenshot manual bastava sozinho em todo caso testado. Ler
-    // offsetHeight (dispara layout de verdade, ao contrario de so chamar
-    // getComputedStyle) resolveu de forma reproduzivel nos testes -- ver
+    // offsetHeight (dispara layout de verdade, ao contrário de só chamar
+    // getComputedStyle) resolveu de forma reproduzível nos testes -- ver
     // Nota de metodologia no procedimento.
     void hostEl.offsetHeight;
 
@@ -495,12 +495,12 @@ const harnessJs = `
   }
 
   // ---------------------------------------------------------------------
-  // Medicao. Tudo em pixels reais (getBoundingClientRect / getComputedStyle),
+  // Medição. Tudo em pixels reais (getBoundingClientRect / getComputedStyle),
   // nunca deduzido a partir do CSS-fonte.
   // ---------------------------------------------------------------------
   function describe(el) {
-    // getAttribute('class'), nao .className -- em elemento SVG .className e
-    // um SVGAnimatedString, nao uma string (quebraria o .split abaixo).
+    // getAttribute('class'), não .className -- em elemento SVG .className é
+    // um SVGAnimatedString, não uma string (quebraria o .split abaixo).
     var withId = el.closest('[data-nav-id]');
     if (withId) return (withId.getAttribute('class') || '').split(' ')[0] + '#' + withId.getAttribute('data-nav-id');
     var withGroup = el.closest('[data-group]');
@@ -518,33 +518,33 @@ const harnessJs = `
     return Math.max(dx, dy);
   }
 
-  // Um elemento so conta como alvo de toque de verdade se o ponto central da
-  // sua propria caixa e o que o navegador realmente pintaria ali -- exclui
-  // dois falsos positivos que a 1a rodada de medicao pegou ao vivo:
-  //   1. item de nav rolado para fora da area visivel do .nav (overflow:
+  // Um elemento só conta como alvo de toque de verdade se o ponto central da
+  // sua própria caixa é o que o navegador realmente pintaria ali -- exclui
+  // dois falsos positivos que a 1a rodada de medição pegou ao vivo:
+  //   1. item de nav rolado para fora da área visível do .nav (overflow:
   //      auto recorta visualmente, mas getBoundingClientRect ainda devolve
-  //      a geometria "crua", como se estivesse visivel);
-  //   2. bottom-nav por tras do scrim do drawer (aberto por cima, z-index
-  //      1000 vs 30) -- os dois existem no DOM ao mesmo tempo, mas so um e
-  //      alcancavel.
+  //      a geometria "crua", como se estivesse visível);
+  //   2. bottom-nav por trás do scrim do drawer (aberto por cima, z-index
+  //      1000 vs 30) -- os dois existem no DOM ao mesmo tempo, mas só um é
+  //      alcançável.
   // Precisa do preview servido por HTTP de verdade (preview_start) com um
-  // screenshot tirado antes -- ver nota no cabecalho do gerador.
+  // screenshot tirado antes -- ver nota no cabeçalho do gerador.
   function reachability(el, cx, cy) {
     if (cx < 0 || cy < 0 || cx > window.innerWidth || cy > window.innerHeight) {
       return { reachable: false, reason: 'fora do viewport (clipado por um ancestral com overflow, provavelmente)' };
     }
     var hit = document.elementFromPoint(cx, cy);
-    if (!hit) return { reachable: false, reason: 'elementFromPoint nao retornou nada' };
-    // De proposito SO hit===el ou el.contains(hit) (o ponto pintou um FILHO
-    // do alvo, ex.: o svg/span por dentro de um nav-item -- ainda e o alvo).
-    // NAO hit.contains(el): isso aceitava qualquer ANCESTRAL estrutural como
-    // prova de alcance, e ancestralidade nao e pintura -- um item recortado
-    // pelo overflow de um antepassado, fora da regiao visivel, devolve
-    // html (ou o proprio ancestral que clipa) no elementFromPoint, e
-    // html.contains(item) e sempre true mesmo com o item invisivel. Cair
-    // para "inalcancavel" nesse caso e o erro seguro: um falso-negativo aqui
-    // vira uma linha extra em obscured pra conferir a mao; um falso-positivo
-    // passaria em silencio, que e o bug que essa funcao existe pra pegar.
+    if (!hit) return { reachable: false, reason: 'elementFromPoint não retornou nada' };
+    // De propósito SÓ hit===el ou el.contains(hit) (o ponto pintou um FILHO
+    // do alvo, ex.: o svg/span por dentro de um nav-item -- ainda é o alvo).
+    // NÃO hit.contains(el): isso aceitava qualquer ANCESTRAL estrutural como
+    // prova de alcance, e ancestralidade não é pintura -- um item recortado
+    // pelo overflow de um antepassado, fora da região visível, devolve
+    // html (ou o próprio ancestral que clipa) no elementFromPoint, e
+    // html.contains(item) é sempre true mesmo com o item invisível. Cair
+    // para "inalcançável" nesse caso é o erro seguro: um falso-negativo aqui
+    // vira uma linha extra em obscured pra conferir à mão; um falso-positivo
+    // passaria em silêncio, que é o bug que essa função existe pra pegar.
     if (hit === el || el.contains(hit)) return { reachable: true, reason: null };
     return { reachable: false, reason: 'coberto por ' + describe(hit) };
   }
@@ -555,18 +555,18 @@ const harnessJs = `
   function measureTouchTargets() {
     var pointerCoarse = matchMedia('(pointer: coarse)').matches;
     var els = Array.prototype.slice.call(document.querySelectorAll(TOUCH_TARGET_SELECTOR));
-    // Guarda no mesmo espirito da extracao de NAV_ITEMS: se o seletor sair de
+    // Guarda no mesmo espírito da extração de NAV_ITEMS: se o seletor sair de
     // sincronia com o shell (classe renomeada em panel-shell.component.ts
-    // sem espelhar em TOUCH_TARGET_SELECTOR), esta funcao nao pode devolver
-    // silenciosamente "zero alvos, zero violacoes" -- isso leria como
+    // sem espelhar em TOUCH_TARGET_SELECTOR), esta função não pode devolver
+    // silenciosamente "zero alvos, zero violações" -- isso leria como
     // asserção 4 verde para sempre, medindo nada. Em qualquer estado
-    // renderizado do shell (sidebar OU drawer aberto OU so a topbar/
+    // renderizado do shell (sidebar OU drawer aberto OU só a topbar/
     // bottom-nav com o drawer fechado) sempre existe pelo menos um elemento
-    // que casa com o seletor -- zero aqui e sinal de desalinhamento, nao um
-    // estado valido.
+    // que casa com o seletor -- zero aqui é sinal de desalinhamento, não um
+    // estado válido.
     if (els.length === 0) {
       throw new Error(
-        'measureTouchTargets: TOUCH_TARGET_SELECTOR nao casou nenhum elemento neste estado ' +
+        'measureTouchTargets: TOUCH_TARGET_SELECTOR não casou nenhum elemento neste estado ' +
           '-- o seletor provavelmente saiu de sincronia com panel-shell.component.ts.',
       );
     }
@@ -585,9 +585,9 @@ const harnessJs = `
     }
     var undersized = [];
     for (var j = 0; j < visible.length; j++) {
-      // Tolerancia de 0.25px: arredondamento subpixel do layout engine
-      // (getBoundingClientRect devolve fracoes de pixel; comparar igualdade
-      // exata contra 44/8 flutuaria por ruido de renderizacao, nao por
+      // Tolerância de 0.25px: arredondamento subpixel do layout engine
+      // (getBoundingClientRect devolve frações de pixel; comparar igualdade
+      // exata contra 44/8 flutuaria por ruído de renderização, não por
       // geometria real).
       if (visible[j].r.height < 44 - 0.25) {
         undersized.push({ target: describe(visible[j].el), height: Math.round(visible[j].r.height * 100) / 100 });
@@ -611,22 +611,22 @@ const harnessJs = `
     };
   }
 
-  // NAO existe measureInputFontSize()/assercao 5 aqui de proposito. A sonda
-  // que existia antes (#qaProbeInput) media um input pelado que so vivia no
+  // NÃO existe measureInputFontSize()/asserção 5 aqui de propósito. A sonda
+  // que existia antes (#qaProbeInput) media um input pelado que só vivia no
   // painel de QA, fora de #host -- nunca um campo do shell de verdade, porque
-  // o shell (panel-shell.component.ts + drawer.component.ts) e so a moldura
-  // de navegacao e nao renderiza NENHUM input/select/textarea; quem tem esses
-  // campos sao as 38 telas de ng-content, que este harness deixa vazias por
+  // o shell (panel-shell.component.ts + drawer.component.ts) é só a moldura
+  // de navegação e não renderiza NENHUM input/select/textarea; quem tem esses
+  // campos são as 38 telas de ng-content, que este harness deixa vazias por
   // design (ver 'Fidelidade' no doc). Media a regra global (input, select,
   // textarea com font-size 16px sob toque) contra um elemento que nunca tinha
   // a classe .input-box/o encapsulamento de um componente real por perto --
   // ou seja, nunca podia reproduzir o bug real (a derrota de especificidade
-  // contra .input-box com o atributo de escopo do Angular). A sonda so podia
+  // contra .input-box com o atributo de escopo do Angular). A sonda só podia
   // dar verde, e dava, e o doc registrava esse verde como se fosse a regra de
-  // 16px provada -- nao provava. Ver 'Nao coberto' em
+  // 16px provada -- não provava. Ver 'Não coberto' em
   // docs/qa/arena-responsivo-passe-medido.md: a regra de 16px precisa de
-  // medicao manual num formulario de verdade (ex.: .input-box de
-  // panel-court-form.component.ts), fora do escopo geometrico deste harness.
+  // medição manual num formulário de verdade (ex.: .input-box de
+  // panel-court-form.component.ts), fora do escopo geométrico deste harness.
 
   function measurePageOverflow() {
     return {
@@ -638,9 +638,9 @@ const harnessJs = `
     };
   }
 
-  // Varre, para um cargo, TODOS os estados de grupo alcan\\u00e7aveis (cada
+  // Varre, para um cargo, TODOS os estados de grupo alcançáveis (cada
   // grupo aberto sozinho, mais o estado "tudo fechado") e mede o nav em cada
-  // um. Um item so e "inalcan\\u00e7avel de verdade" se nunca aparecer em
+  // um. Um item só é "inalcançável de verdade" se nunca aparecer em
   // NENHUM desses estados.
   function sweepRole(role) {
     var prevRole = state.role, prevOpen = state.openGroup, prevActive = state.activeId;
@@ -655,18 +655,18 @@ const harnessJs = `
 
     var flags = computeViewportFlags();
     // Largura compacta precisa do drawer aberto pra medir o .nav -- mas abrir
-    // aqui dispara a animacao de entrada de drawer.component.ts
-    // (ar-drawer-in-left, 240ms), que so assenta (transform: none) depois de
-    // tempo de PAREDE real passar -- medido ao vivo que nem reflow sincrono
-    // (offsetHeight) nem screenshot isolado bastam, so esperar de verdade
-    // (computer wait). Se o chamador ja abriu e esperou por fora
+    // aqui dispara a animação de entrada de drawer.component.ts
+    // (ar-drawer-in-left, 240ms), que só assenta (transform: none) depois de
+    // tempo de PAREDE real passar -- medido ao vivo que nem reflow síncrono
+    // (offsetHeight) nem screenshot isolado bastam, só esperar de verdade
+    // (computer wait). Se o chamador já abriu e esperou por fora
     // (window.arenaHarness.openDrawer() + wait real antes desta chamada),
     // reusa sem reabrir -- reabrir de novo destruiria o assentamento que já
-    // aconteceu. So forca abrir aqui se ainda estiver fechado (chamada
+    // aconteceu. Só força abrir aqui se ainda estiver fechado (chamada
     // avulsa, sem o cuidado externo -- aceita que o primeiro estado pode
-    // medir com o transform preso; isso so contamina elementFromPoint
-    // /alcancabilidade, nunca scrollHeight/clientHeight nem altura/gap de
-    // retangulo, que nao dependem de X).
+    // medir com o transform preso; isso só contamina elementFromPoint
+    // /alcançabilidade, nunca scrollHeight/clientHeight nem altura/gap de
+    // retângulo, que não dependem de X).
     if (flags.isCompact && !state.drawerOpen) { state.drawerOpen = true; render(); }
 
     var seen = {};
@@ -692,14 +692,14 @@ const harnessJs = `
       perGroup.push({ state: statesToTry[s], nav: navMetrics, touch: measureTouchTargets() });
     }
 
-    // Passada extra com o drawer FECHADO -- o estado padrao real, antes de
-    // qualquer interacao. O loop acima deixa o drawer aberto o tempo todo
-    // (necessario pra medir o .nav), o que esconde .nav-trigger/
-    // .topbar-avatar (cobertos pelo brand do proprio drawer) e .bottom-slot
-    // (por tras do scrim) em TODA celula com isCompact -- as tres classes
-    // nunca eram medidas de verdade sem esta passada. So faz sentido em
-    // largura compacta: em desktop nao existe topbar/drawer/bottom-nav, e o
-    // sidebar ja e coberto pelos estados de grupo acima.
+    // Passada extra com o drawer FECHADO -- o estado padrão real, antes de
+    // qualquer interação. O loop acima deixa o drawer aberto o tempo todo
+    // (necessário pra medir o .nav), o que esconde .nav-trigger/
+    // .topbar-avatar (cobertos pelo brand do próprio drawer) e .bottom-slot
+    // (por trás do scrim) em TODA célula com isCompact -- as três classes
+    // nunca eram medidas de verdade sem esta passada. Só faz sentido em
+    // largura compacta: em desktop não existe topbar/drawer/bottom-nav, e o
+    // sidebar já é coberto pelos estados de grupo acima.
     if (flags.isCompact) {
       state.drawerOpen = false;
       render();
@@ -708,23 +708,23 @@ const harnessJs = `
 
     var missing = expected.filter(function (id) { return !seen[id]; });
 
-    // Restaura cargo/grupo/rota ativa (sem custo de animacao) mas NAO
-    // reabre o drawer -- ele fica fechado (a passada acima ja fechou, e
-    // fechar nunca anima). Reabrir aqui so pra "deixar como estava"
-    // disparia a MESMA animacao sem ninguem esperar ela assentar,
-    // contaminando a proxima leitura (do outro cargo, ou de quem chamar
-    // isto em seguida). Quem for medir o proximo estado reabre por conta
-    // propria com o mesmo cuidado (openDrawer() + espera real).
+    // Restaura cargo/grupo/rota ativa (sem custo de animação) mas NÃO
+    // reabre o drawer -- ele fica fechado (a passada acima já fechou, e
+    // fechar nunca anima). Reabrir aqui só pra "deixar como estava"
+    // disparia a MESMA animação sem ninguém esperar ela assentar,
+    // contaminando a próxima leitura (do outro cargo, ou de quem chamar
+    // isto em seguida). Quem for medir o próximo estado reabre por conta
+    // própria com o mesmo cuidado (openDrawer() + espera real).
     state.role = prevRole; state.openGroup = prevOpen; state.activeId = prevActive;
     render();
 
     return { role: role, expectedCount: expected.length, expected: expected, missing: missing, perGroup: perGroup };
   }
 
-  // sweptDono/sweptRecepcao: resultados de sweepRole() ja calculados por
+  // sweptDono/sweptRecepcao: resultados de sweepRole() já calculados por
   // fora (ver openDrawer() + espera real no procedimento, pra largura
   // compacta). Omitidos, chama sweepRole() na hora -- correto e suficiente
-  // pra largura NAO compacta (sem drawer, sem animacao pra assentar) e util
+  // pra largura NÃO compacta (sem drawer, sem animação pra assentar) e útil
   // pra uma chamada avulsa que aceita medir com o transform ainda preso.
   function fullReport(sweptDono, sweptRecepcao) {
     var flags = computeViewportFlags();
@@ -738,9 +738,9 @@ const harnessJs = `
     };
   }
 
-  // Condensa fullReport() num veredito por assercao -- pensado para chamar
-  // uma vez por viewport (resize_window + esta funcao) e montar a tabela do
-  // procedimento sem reprocessar o JSON gigante a mao a cada caso.
+  // Condensa fullReport() num veredito por asserção -- pensado para chamar
+  // uma vez por viewport (resize_window + esta função) e montar a tabela do
+  // procedimento sem reprocessar o JSON gigante à mão a cada caso.
   function summarize(sweptDono, sweptRecepcao) {
     var full = fullReport(sweptDono, sweptRecepcao);
     var a1Violations = [];
@@ -748,11 +748,11 @@ const harnessJs = `
     var undersized = {};
     var gaps = {};
     var offscreen = {};
-    // Uniao de todo alvo REALMENTE medido (alcancavel, nao obscurecido) em
-    // qualquer estado varrido, os dois cargos -- o numero que denuncia o
+    // União de todo alvo REALMENTE medido (alcançável, não obscurecido) em
+    // qualquer estado varrido, os dois cargos -- o número que denuncia o
     // buraco de cobertura: se um seletor sair de sincronia e passar a casar
-    // menos coisa (ou nada, o que a guarda de measureTouchTargets() ja pega
-    // primeiro), esta contagem cai, visivel na tabela em vez de escondida
+    // menos coisa (ou nada, o que a guarda de measureTouchTargets() já pega
+    // primeiro), esta contagem cai, visível na tabela em vez de escondida
     // dentro de um "assertion4_touchTargetsOk: true" que na verdade mediu
     // zero.
     var measuredTargets = {};
@@ -768,8 +768,8 @@ const harnessJs = `
         if (g.touch) {
           g.touch.reachableTargets.forEach(function (t) { measuredTargets[t] = true; });
         }
-        // O alvo de 44px/8px so vale "sob pointer: coarse" (a asserção 4 é
-        // explicita nisso). Sem coarse, 30/34px É o tamanho correto (mouse/
+        // O alvo de 44px/8px só vale "sob pointer: coarse" (a asserção 4 é
+        // explícita nisso). Sem coarse, 30/34px É o tamanho correto (mouse/
         // trackpad) -- reportar isso como violação seria falso positivo.
         if (g.touch && full.pointerCoarse) {
           g.touch.undersized.forEach(function (u) {
@@ -809,13 +809,13 @@ const harnessJs = `
       assertion4_offscreenChrome: offscreenList,
       assertion4_targetsMeasuredCount: measuredTargetsList.length,
       assertion4_targetsMeasured: measuredTargetsList,
-      // Sem assertion5_*: nao existe sujeito real pra essa medicao neste
-      // harness (ver nota acima de measurePageOverflow()). Nao incluir a
-      // chave aqui -- em vez de incluir com um valor sempre-verde -- e
-      // deliberado: um consumidor que leia este objeto e trate ausencia de
-      // chave como "nao verificado" fica correto por padrao; um
-      // "assertion5_ok: true" sempre presente e o tipo de coisa que passa em
-      // silencio.
+      // Sem assertion5_*: não existe sujeito real pra essa medição neste
+      // harness (ver nota acima de measurePageOverflow()). Não incluir a
+      // chave aqui -- em vez de incluir com um valor sempre-verde -- é
+      // deliberado: um consumidor que leia este objeto e trate ausência de
+      // chave como "não verificado" fica correto por padrão; um
+      // "assertion5_ok: true" sempre presente é o tipo de coisa que passa em
+      // silêncio.
     };
   }
 
@@ -836,7 +836,7 @@ const harnessJs = `
       openGroup: function (g) { state.openGroup = g; render(); },
       // Abre o drawer sem medir nada -- use com uma espera real (computer
       // wait) antes de sweepRole()/summary() em largura compacta, pra dar
-      // tempo da animacao de entrada assentar (ver nota em sweepRole()).
+      // tempo da animação de entrada assentar (ver nota em sweepRole()).
       openDrawer: function () { state.drawerOpen = true; render(); },
       fullReport: fullReport,
       summary: summarize,
@@ -852,9 +852,9 @@ const harnessJs = `
 `;
 
 // ---------------------------------------------------------------------------
-// index.html: esqueleto que espelha a marcacao real do shell (topbar / shell
+// index.html: esqueleto que espelha a marcação real do shell (topbar / shell
 // grid / aside.sidebar / drawer / bottom-nav), mais um painel de QA (fora do
-// #host, nao entra em nenhuma medicao de geometria do shell).
+// #host, não entra em nenhuma medição de geometria do shell).
 // ---------------------------------------------------------------------------
 const indexHtml = `<!doctype html>
 <html lang="pt-BR">
@@ -918,22 +918,22 @@ const indexHtml = `<!doctype html>
 </html>
 `;
 
-// shell.css e harness.js.mjs sao escritos como arquivos separados so pra
-// inspecao/diff isolado (pedido no procedimento) -- o index.html NAO os
-// referencia por <link>/<script src>, e sim EMBUTE o conteudo direto via
-// <style>/<script> inline. Motivo: medido ao vivo que o servidor estatico
-// usado por preview_start ("serve") pode devolver conteudo desatualizado
+// shell.css e harness.js.mjs são escritos como arquivos separados só pra
+// inspeção/diff isolado (pedido no procedimento) -- o index.html NÃO os
+// referência por <link>/<script src>, e sim EMBUTE o conteúdo direto via
+// <style>/<script> inline. Motivo: medido ao vivo que o servidor estático
+// usado por preview_start ("serve") pode devolver conteúdo desatualizado
 // pra uma re-escrita recente do MESMO caminho -- confirmado comparando
-// document.styleSheets (parado numa versao antiga, contagem de regra
-// menor) contra um fetch() manual pro mesmo href (contando a versao nova
-// certa). Um query string de cache-busting por geracao NAO resolveu (o
-// sintoma se repetiu identico com a URL trocada); inline elimina a
-// requisicao HTTP separada por completo, e com ela a classe inteira desse
+// document.styleSheets (parado numa versão antiga, contagem de regra
+// menor) contra um fetch() manual pro mesmo href (contando a versão nova
+// certa). Um query string de cache-busting por geração NÃO resolveu (o
+// sintoma se repetiu idêntico com a URL trocada); inline elimina a
+// requisição HTTP separada por completo, e com ela a classe inteira desse
 // problema -- cada `node scripts/qa/arena-sidebar-harness.mjs` seguido de
-// um reload de verdade no navegador sempre reflete o gerado por ultimo.
-// split/join, nao .replace(str, str) -- .replace interpreta sequencias
-// "$&"/"$1"/... na STRING de troca; com CSS/JS de conteudo real (nao
-// controlado por nos) um "$" acidental corromperia a saida em silencio.
+// um reload de verdade no navegador sempre reflete o gerado por último.
+// split/join, não .replace(str, str) -- .replace interpreta sequências
+// "$&"/"$1"/... na STRING de troca; com CSS/JS de conteúdo real (não
+// controlado por nós) um "$" acidental corromperia a saída em silêncio.
 function inject(html, placeholder, value) {
   return html.split(placeholder).join(value);
 }
@@ -953,6 +953,6 @@ writeFileSync(path.join(outDir, 'harness.js'), harnessJs);
 writeFileSync(path.join(outDir, 'nav-data.json'), navDataJson);
 
 console.log('harness gerado em', outDir);
-console.log(`  itens extraidos de NAV_ITEMS: ${navItems.length}`);
+console.log(`  itens extraídos de NAV_ITEMS: ${navItems.length}`);
 console.log(`  grupos: ${groupOrder.join(', ')}`);
-console.log(`  areas de 'recepcao': ${recepcaoAreas.join(', ')}`);
+console.log(`  áreas de 'recepcao': ${recepcaoAreas.join(', ')}`);

@@ -13,7 +13,7 @@ describe('PanelNavStateService', () => {
 
   afterEach(() => localStorage.clear());
 
-  it('comeca sem grupo aberto', () => {
+  it('começa sem grupo aberto', () => {
     expect(service.openGroup('arena-1')).toBeNull();
   });
 
@@ -29,7 +29,7 @@ describe('PanelNavStateService', () => {
     expect(service.openGroup('arena-2')).toBe('conta');
   });
 
-  it('sobrevive a uma instancia nova (o shell remonta a cada navegacao)', () => {
+  it('sobrevive a uma instância nova (o shell remonta a cada navegação)', () => {
     service.setOpenGroup('arena-1', 'publico');
     service.setScrollTop('arena-1', 120);
 
@@ -41,12 +41,12 @@ describe('PanelNavStateService', () => {
     expect(outra.scrollTop('arena-1')).toBe(120);
   });
 
-  it('ignora grupo invalido que sobrou de uma versao anterior', () => {
+  it('ignora grupo inválido que sobrou de uma versão anterior', () => {
     localStorage.setItem('ar.nav.arena-1', JSON.stringify({ openGroup: 'marketing', scrollTop: 0 }));
     expect(service.openGroup('arena-1')).toBeNull();
   });
 
-  it('nao quebra quando o localStorage lanca (aba anonima, storage bloqueado)', () => {
+  it('não quebra quando o localStorage lança (aba anônima, storage bloqueado)', () => {
     const original = Storage.prototype.setItem;
     Storage.prototype.setItem = () => {
       throw new DOMException('QuotaExceededError');

@@ -23,8 +23,8 @@ const FOCUSABLE =
   selector: 'ar-drawer',
   changeDetection: ChangeDetectionStrategy.OnPush,
   // Nada de @HostListener: `frontend/.claude/CLAUDE.md` manda pôr binding de host
-  // aqui. Escape e Tab escutam no proprio host, nao no document -- o painel recebe
-  // foco ao abrir, entao o teclado ja esta dentro quando as teclas chegam.
+  // aqui. Escape e Tab escutam no próprio host, não no document -- o painel recebe
+  // foco ao abrir, então o teclado já está dentro quando as teclas chegam.
   host: {
     '(keydown.escape)': 'onEscape()',
     '(keydown.tab)': 'onTab($event)',

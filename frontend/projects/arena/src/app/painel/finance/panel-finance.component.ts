@@ -394,8 +394,8 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
       border-bottom: none;
     }
 
-    /* Sem cabecalho de coluna nesta lista (o icone ja indica entrada/saida) --
-       no celular cada celula de texto passa a carregar o proprio rotulo. */
+    /* Sem cabeçalho de coluna nesta lista (o ícone já indica entrada/saída) --
+       no celular cada célula de texto passa a carregar o próprio rótulo. */
     .col-label {
       display: none;
 

@@ -2676,6 +2676,7 @@ EOF
 
 **Files:**
 - Modify: `frontend/projects/organizer/src/app/painel/data/koc.ts` (`kocPhaseLabel`, `kocCardTitle`)
+- Modify: `frontend/projects/organizer/src/app/painel/data/matches-repository.ts:182-190`
 - Test: `frontend/projects/organizer/src/app/painel/data/koc.spec.ts`
 
 **Interfaces:**
@@ -2761,6 +2762,15 @@ E em `kocCardTitle`, passe o que o doc já tem:
 
 Acrescente `poolId?: string | null` e `batteryLabel: number` às formas aceitas pelo parâmetro de `kocCardTitle`.
 
+E, o mais importante: `matches-repository.ts:190`. É ELE que produz o rótulo que o painel e o telão mostram — `kocCardTitle` prefere `match.round`, que é a saída desta função, então mexer só em `kocCardTitle` deixaria o rótulo novo sem consumidor. O `koc` que ele recebe já é um `KocRoundState`, então `batteryLabel` chega de graça pela Task 8:
+
+```ts
+    return kocPhaseLabel(matchType, koc.roundLabel > 0 ? koc.roundLabel : matchNumber, {
+      poolId,
+      batteryLabel: koc.batteryLabel,
+    });
+```
+
 - [ ] **Step 4: Rodar e confirmar que passam**
 
 ```bash
@@ -2772,7 +2782,7 @@ Esperado: PASS e build limpo. Chamadores de `kocPhaseLabel` com dois argumentos 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add frontend/projects/organizer/src/app/painel/data/koc.ts frontend/projects/organizer/src/app/painel/data/koc.spec.ts
+git add frontend/projects/organizer/src/app/painel/data/koc.ts frontend/projects/organizer/src/app/painel/data/koc.spec.ts frontend/projects/organizer/src/app/painel/data/matches-repository.ts
 git commit -m "$(cat <<'EOF'
 feat(koc): rótulo diz chave e bateria em vez do número global
 

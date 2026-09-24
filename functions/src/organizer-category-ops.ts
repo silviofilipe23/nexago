@@ -289,8 +289,20 @@ export function resolveKocConfig(
     }
   }
 
-  const phases = parseKocPhases(pick("phases"));
-  const maxTeamsPerRound = kocClampMaxPerRound(pick("maxTeamsPerRound"));
+  // O doc da categoria tolera as duas grafias: o portal grava com o prefixo
+  // `koc` (`kocPhases`/`kocMaxTeamsPerRound`) porque `phases`/`maxTeamsPerRound`
+  // sem prefixo são genéricos demais num doc que também modela ligas com
+  // etapas. `bracketConfig` (payload da própria geração) continua só na
+  // forma sem prefixo — é o que a tela de geração manda — e continua
+  // ganhando de qualquer grafia gravada na categoria.
+  const phases = parseKocPhases(
+    bracketConfig?.["phases"] ?? categoryMeta?.["kocPhases"] ?? categoryMeta?.["phases"],
+  );
+  const maxTeamsPerRound = kocClampMaxPerRound(
+    bracketConfig?.["maxTeamsPerRound"] ??
+      categoryMeta?.["kocMaxTeamsPerRound"] ??
+      categoryMeta?.["maxTeamsPerRound"],
+  );
 
   return {
     teamsPerCourt: int(pick("teamsPerCourt"), KOC_DEFAULT_TEAMS_PER_COURT),

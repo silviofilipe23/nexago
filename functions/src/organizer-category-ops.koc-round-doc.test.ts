@@ -234,6 +234,42 @@ describe("resolveKocConfig com plano", () => {
     const cfg = resolveKocConfig({phases: [{bracketSizes: "x"}]}, undefined);
     assert.equal(cfg.phases, undefined);
   });
+
+  // Fix round 1/5 na Task 6: o portal (`tournaments-repository.ts`) grava o plano
+  // no doc da categoria como `kocPhases`/`kocMaxTeamsPerRound` (prefixado — o
+  // mesmo doc também modela ligas com etapas, e `phases`/`maxTeamsPerRound` sem
+  // prefixo seriam genéricos demais ali). Sem este caso, toda geração que cai no
+  // doc da categoria em vez do `bracketConfig` — o app da loja e o publish do
+  // Sorteio Ao Vivo, nenhum dos dois manda `phases` — ficava cega para o plano
+  // que o organizador acabou de aprovar na tela e gerava com as regras antigas,
+  // sem erro nenhum.
+  const planFromCategory = [
+    {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+  ];
+
+  it("lê kocPhases/kocMaxTeamsPerRound do doc da categoria — a forma que o portal grava", () => {
+    const cfg = resolveKocConfig(undefined, {kocPhases: planFromCategory, kocMaxTeamsPerRound: 6});
+    assert.deepEqual(cfg.phases, planFromCategory);
+    assert.equal(cfg.maxTeamsPerRound, 6);
+  });
+
+  it("também lê a forma sem prefixo — mesma tolerância que o Sorteio Ao Vivo já tinha", () => {
+    const cfg = resolveKocConfig(undefined, {phases: planFromCategory, maxTeamsPerRound: 6});
+    assert.deepEqual(cfg.phases, planFromCategory);
+    assert.equal(cfg.maxTeamsPerRound, 6);
+  });
+
+  it("bracketConfig ganha das duas grafias do doc da categoria, não só da sem prefixo", () => {
+    const fromScreen = [
+      {bracketSizes: [3], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+    ];
+    const cfg = resolveKocConfig(
+      {phases: fromScreen, maxTeamsPerRound: 3},
+      {kocPhases: planFromCategory, kocMaxTeamsPerRound: 6},
+    );
+    assert.deepEqual(cfg.phases, fromScreen);
+    assert.equal(cfg.maxTeamsPerRound, 3);
+  });
 });
 
 describe("kocRoundDoc · plano congelado não diverge do que gerou as rodadas (achado da Task 3)", () => {

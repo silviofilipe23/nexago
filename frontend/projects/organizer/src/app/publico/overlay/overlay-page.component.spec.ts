@@ -500,4 +500,47 @@ describe('OverlayPageComponent', () => {
     expect(text).toContain('Hölting Nilsson · Berger');
     expect(text).toContain('Sor · Ham');
   });
+
+  it('final encerrada vira a tela de campeões, à frente da classificação', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.tournament.set(TOURNAMENT);
+    fake.teams.set(
+      new Map<string, OverlayTeam>([
+        ['ta', { label: 'Ana / Bia', players: ['Ana', 'Bia'], photos: [null, null] }],
+        ['tb', { label: 'Carla / Dani', players: ['Carla', 'Dani'], photos: [null, null] }],
+      ]),
+    );
+    fake.match.set(
+      match({
+        status: 'completed',
+        matchType: 'Final',
+        winnerSide: 1,
+        sets: [
+          { a: 21, b: 18 },
+          { a: 19, b: 21 },
+          { a: 15, b: 12 },
+        ],
+      }),
+    );
+    await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
+    const text = (host.textContent ?? '').replace(/\s+/g, ' ');
+
+    expect(host.querySelector('og-overlay-final')).not.toBeNull();
+    expect(host.querySelector('og-overlay-scoreboard')).toBeNull();
+    expect(text).toContain('CAMPEÕES');
+    expect(text).toContain('Ana');
+    expect(text).toContain('Copa VH');
+    expect(text).toContain('Carla & Dani');
+  });
+
+  it('final sem vencedor declarado não coroa ninguém e segue no placar', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.match.set(match({ status: 'completed', matchType: 'Final', winnerSide: null }));
+    await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('og-overlay-final')).toBeNull();
+    expect(host.querySelector('og-overlay-scoreboard')).not.toBeNull();
+  });
 });

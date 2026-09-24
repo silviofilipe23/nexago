@@ -35,6 +35,12 @@ class ArenaDashboardReputationSection extends ConsumerWidget {
     // `comunidade`) viam o botão habilitado e levavam exceção ao tocar.
     final canWriteComunidade =
         ref.watch(arenaCanWriteProvider(ArenaArea.comunidade));
+    // Defeito B (revisão final): "VER TODAS" navega para `/arena/reviews`,
+    // área `comunidade` — mas não foi gateado junto do botão de responder.
+    // `manutencao` não lê `comunidade` e cai num beco sem saída no guard de
+    // rota.
+    final canReadComunidade =
+        ref.watch(arenaCanReadProvider(ArenaArea.comunidade));
     final theme = Theme.of(context);
 
     final averageRating = reviewsAsync.maybeWhen(
@@ -102,23 +108,24 @@ class ArenaDashboardReputationSection extends ConsumerWidget {
                   ),
                 ],
                 const Spacer(),
-                TextButton(
-                  onPressed: () =>
-                      context.pushNamed(AppRouteNames.arenaManagerReviews),
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppColors.brand,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: Text(
-                    'VER TODAS',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.4,
+                if (canReadComunidade)
+                  TextButton(
+                    onPressed: () =>
+                        context.pushNamed(AppRouteNames.arenaManagerReviews),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.brand,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      'VER TODAS',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.4,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
             const SizedBox(height: 10),

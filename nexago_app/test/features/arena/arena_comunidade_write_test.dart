@@ -136,6 +136,23 @@ void main() {
     expect(responder.onPressed, isNotNull);
   });
 
+  // Finding 4 (revisão final RBAC equipe/arena): "VER TODAS" navega para
+  // `/arena/reviews`, área `comunidade` — mas não estava gateado junto do
+  // botão de responder (linha acima). `manutencao` não lê `comunidade` em
+  // nenhum lugar da matriz e caía num beco sem saída no guard de rota;
+  // `recepcao` lê `comunidade` (read-only) e deve continuar vendo o botão.
+
+  testWidgets('manutencao nao ve "VER TODAS" no Painel', (tester) async {
+    await pumpReputation(tester, overridesForRole(ArenaStaffRole.manutencao));
+    expect(find.text('VER TODAS'), findsNothing);
+  });
+
+  testWidgets('recepcao ve "VER TODAS" no Painel (le comunidade)',
+      (tester) async {
+    await pumpReputation(tester, overridesForRole(ArenaStaffRole.recepcao));
+    expect(find.text('VER TODAS'), findsOneWidget);
+  });
+
   // --- /arena/reviews (arena_reviews_management_page.dart) ---
 
   Future<void> pumpReviewsManagement(

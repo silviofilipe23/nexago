@@ -15,12 +15,14 @@ import {
   ARENA_PRODUCT_STOCK_STATUS_LABEL,
   buildProductSummary,
   formatCentsBRL,
+  formatMarginPercent,
+  productMarginRatio,
   productStockStatus,
   type ArenaProduct,
   type ArenaProductCategory,
   type ArenaProductStockStatus,
 } from './product.model';
-import { fetchProducts, registerStockMovement } from './products-repository';
+import { fetchProductsWithCosts, registerStockMovement } from './products-repository';
 import { StockAdjustDialogComponent, type StockAdjustResult } from './stock-adjust-dialog.component';
 
 type CategoryFilter = 'todos' | ArenaProductCategory;
@@ -99,6 +101,11 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
             <ar-panel-card pad="sm" class="summary-card">
               <div class="summary-label tone-dim">Valor em estoque</div>
               <div class="summary-value">{{ formatBRL(summary().inventoryValueCents) }}</div>
+              @if (hasAnyCost()) {
+                <div class="summary-sub">
+                  custo {{ formatBRL(summary().inventoryCostCents) }} · lucro {{ formatBRL(summary().potentialProfitCents) }}
+                </div>
+              }
             </ar-panel-card>
           </div>
 
@@ -116,6 +123,7 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
                   <span>Produto</span>
                   <span>Categoria</span>
                   <span>Preço</span>
+                  <span>Margem</span>
                   <span>Estoque</span>
                   <span>Nível</span>
                   <span></span>
@@ -127,6 +135,7 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
                       <div class="product-name">{{ p.name }}</div>
                       <div class="product-category">{{ categoryLabel[p.category] }}</div>
                       <div class="product-price">{{ formatBRL(p.priceCents) }}</div>
+                      <div class="product-margin" [class.negative]="marginIsNegative(p)">{{ marginOf(p) }}</div>
                       <div class="product-stock" [class]="'tone-' + statusOf(p)">{{ p.stockQuantity }} <span class="unit">un</span></div>
                       <div><ar-pill [tone]="statusTone[statusOf(p)]">{{ statusLabel[statusOf(p)] }}</ar-pill></div>
                       <div class="product-actions">
@@ -250,6 +259,12 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
       color: var(--nx-live);
     }
 
+    .summary-sub {
+      margin-top: 6px;
+      font-size: 11.5px;
+      color: var(--nx-text-mute);
+    }
+
     .table-card {
       flex: 1;
       min-height: 0;
@@ -258,7 +273,7 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
     .table-head,
     .table-row {
       display: grid;
-      grid-template-columns: 40px 1.8fr 120px 100px 110px 130px 100px;
+      grid-template-columns: 40px 1.8fr 120px 100px 90px 110px 130px 100px;
       gap: 14px;
       align-items: center;
     }
@@ -314,6 +329,17 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
     .product-price {
       font-size: 13px;
       color: var(--nx-text-mute);
+    }
+
+    .product-margin {
+      font-family: var(--nx-font-mono);
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--nx-text);
+    }
+
+    .product-margin.negative {
+      color: var(--nx-live);
     }
 
     .product-stock {
@@ -384,6 +410,8 @@ export class PanelStockComponent {
 
   protected readonly listKicker = computed(() => `${this.filteredProducts().length} de ${this.products().length}`);
   protected readonly summary = computed(() => buildProductSummary(this.products()));
+  protected readonly hasAnyCost = computed(() => this.products().some((p) => p.costCents != null));
+
   protected readonly showPaywall = computed(() => this.planReadOnly() && this.products().length === 0);
 
   protected readonly headerSubtitle = computed(
@@ -407,7 +435,7 @@ export class PanelStockComponent {
     this.loading.set(true);
     this.errorMessage.set(null);
     try {
-      this.products.set(await fetchProducts(arenaFirestore(), arenaId));
+      this.products.set(await fetchProductsWithCosts(arenaFirestore(), arenaId));
     } catch {
       this.errorMessage.set('Não foi possível carregar o estoque. Tente novamente.');
     } finally {
@@ -443,5 +471,13 @@ export class PanelStockComponent {
     } catch (err) {
       this.notice.set(err instanceof Error ? err.message : 'Não foi possível registrar a movimentação.');
     }
+  }
+
+  protected marginOf(product: ArenaProduct): string {
+    return formatMarginPercent(productMarginRatio(product.costCents, product.priceCents));
+  }
+
+  protected marginIsNegative(product: ArenaProduct): boolean {
+    return (productMarginRatio(product.costCents, product.priceCents) ?? 0) < 0;
   }
 }

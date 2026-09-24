@@ -1,8 +1,6 @@
 import {
   Timestamp,
-  addDoc,
   collection,
-  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -11,10 +9,11 @@ import {
   query,
   runTransaction,
   serverTimestamp,
-  setDoc,
   updateDoc,
   where,
+  writeBatch,
   type Firestore,
+  type WriteBatch,
 } from 'firebase/firestore';
 import {
   signedDeltaForMovementType,
@@ -32,6 +31,51 @@ function productsCol(db: Firestore, arenaId: string) {
 
 function movementsCol(db: Firestore, arenaId: string) {
   return collection(db, 'arenas', arenaId, 'stockMovements');
+}
+
+/** Custo mora fora do produto: o catálogo é legível por qualquer usuário logado
+ *  (é o cardápio do "Peça na quadra") e custo/margem são dado de gestão. Esta
+ *  coleção só é legível por quem tem acesso a `estoque` na arena. Id do doc =
+ *  id do produto, então casa sem query. */
+function costsCol(db: Firestore, arenaId: string) {
+  return collection(db, 'arenas', arenaId, 'productCosts');
+}
+
+function costDocRef(db: Firestore, arenaId: string, productId: string) {
+  return doc(db, 'arenas', arenaId, 'productCosts', productId);
+}
+
+/** `undefined` = sem custo informado (doc ausente ou valor imprestável). Zero é
+ *  custo informado e passa. */
+export function costCentsFromDoc(data: Record<string, unknown> | undefined): number | undefined {
+  const raw = data?.['costCents'];
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw < 0) return undefined;
+  return Math.round(raw);
+}
+
+export function mergeProductCosts(
+  products: readonly ArenaProduct[],
+  costsByProductId: ReadonlyMap<string, number>,
+): ArenaProduct[] {
+  return products.map((product) => {
+    const costCents = costsByProductId.get(product.id);
+    return costCents == null ? product : { ...product, costCents };
+  });
+}
+
+function applyCostWrite(
+  batch: WriteBatch,
+  db: Firestore,
+  arenaId: string,
+  productId: string,
+  costCents: number | null,
+): void {
+  const ref = costDocRef(db, arenaId, productId);
+  if (costCents == null) {
+    batch.delete(ref);
+    return;
+  }
+  batch.set(ref, { costCents: Math.max(0, Math.round(costCents)), updatedAt: serverTimestamp() });
 }
 
 function toDate(value: unknown): Date | undefined {
@@ -81,11 +125,45 @@ export async function fetchProduct(db: Firestore, arenaId: string, productId: st
   return productFromDoc(snap.id, snap.data());
 }
 
+export async function fetchProductCosts(db: Firestore, arenaId: string): Promise<Map<string, number>> {
+  const snap = await getDocs(query(costsCol(db, arenaId), limit(200)));
+  const costs = new Map<string, number>();
+  for (const d of snap.docs) {
+    const costCents = costCentsFromDoc(d.data());
+    if (costCents != null) costs.set(d.id, costCents);
+  }
+  return costs;
+}
+
+/** Listagem do Estoque: produtos + custos em paralelo. `fetchProducts` segue sem
+ *  custo porque a tela de comandas também usa e não tem por que ler custo. */
+export async function fetchProductsWithCosts(db: Firestore, arenaId: string): Promise<ArenaProduct[]> {
+  const [products, costs] = await Promise.all([fetchProducts(db, arenaId), fetchProductCosts(db, arenaId)]);
+  return mergeProductCosts(products, costs);
+}
+
+export async function fetchProductWithCost(
+  db: Firestore,
+  arenaId: string,
+  productId: string,
+): Promise<ArenaProduct | null> {
+  const [product, costSnap] = await Promise.all([
+    fetchProduct(db, arenaId, productId),
+    getDoc(costDocRef(db, arenaId, productId)),
+  ]);
+  if (!product) return null;
+  const costCents = costSnap.exists() ? costCentsFromDoc(costSnap.data()) : undefined;
+  return costCents == null ? product : { ...product, costCents };
+}
+
 export interface ProductInput {
   name: string;
   category: ArenaProductCategory;
   active: boolean;
   priceCents: number;
+  /** `null` = sem custo informado; apaga o doc de custo. Explícito de propósito:
+   *  quem grava o produto sempre decide o que acontece com o custo. */
+  costCents: number | null;
   stockQuantity: number;
   minStockQuantity: number;
   description?: string;
@@ -110,7 +188,11 @@ function productPayload(input: ProductInput): Record<string, unknown> {
 }
 
 export async function createProduct(db: Firestore, arenaId: string, input: ProductInput): Promise<string> {
-  const ref = await addDoc(productsCol(db, arenaId), { ...productPayload(input), createdAt: serverTimestamp() });
+  const ref = doc(productsCol(db, arenaId));
+  const batch = writeBatch(db);
+  batch.set(ref, { ...productPayload(input), createdAt: serverTimestamp() });
+  applyCostWrite(batch, db, arenaId, ref.id, input.costCents);
+  await batch.commit();
   return ref.id;
 }
 
@@ -120,7 +202,10 @@ export async function updateProduct(
   productId: string,
   input: ProductInput,
 ): Promise<void> {
-  await updateDoc(doc(db, 'arenas', arenaId, 'products', productId), productPayload(input));
+  const batch = writeBatch(db);
+  batch.update(doc(db, 'arenas', arenaId, 'products', productId), productPayload(input));
+  applyCostWrite(batch, db, arenaId, productId, input.costCents);
+  await batch.commit();
 }
 
 /** Desativa produto (preferível a excluir quando já tem histórico de movimentações). */
@@ -132,16 +217,22 @@ export async function deactivateProduct(db: Firestore, arenaId: string, productI
 }
 
 export async function deleteProduct(db: Firestore, arenaId: string, productId: string): Promise<void> {
-  await deleteDoc(doc(db, 'arenas', arenaId, 'products', productId));
+  const batch = writeBatch(db);
+  batch.delete(doc(db, 'arenas', arenaId, 'products', productId));
+  batch.delete(costDocRef(db, arenaId, productId));
+  await batch.commit();
 }
 
 /** Recria produto excluído (desfazer exclusão), preservando createdAt original quando disponível. */
 export async function restoreProduct(db: Firestore, arenaId: string, product: ArenaProduct): Promise<void> {
   const payload: Record<string, unknown> = {
-    ...productPayload(product),
+    ...productPayload({ ...product, costCents: product.costCents ?? null }),
     createdAt: product.createdAt ? Timestamp.fromDate(product.createdAt) : serverTimestamp(),
   };
-  await setDoc(doc(db, 'arenas', arenaId, 'products', product.id), payload);
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'arenas', arenaId, 'products', product.id), payload);
+  applyCostWrite(batch, db, arenaId, product.id, product.costCents ?? null);
+  await batch.commit();
 }
 
 export class InsufficientStockError extends Error {}

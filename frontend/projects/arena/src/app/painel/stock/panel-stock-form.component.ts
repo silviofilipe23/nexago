@@ -7,7 +7,17 @@ import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
-import { ARENA_PRODUCT_CATEGORIES, ARENA_PRODUCT_CATEGORY_LABEL, parseBRLInputToCents, type ArenaProductCategory } from './product.model';
+import {
+  ARENA_PRODUCT_CATEGORIES,
+  ARENA_PRODUCT_CATEGORY_LABEL,
+  formatCentsBRL,
+  formatMarginPercent,
+  parseBRLInputToCents,
+  parseOptionalBRLInputToCents,
+  productMarginRatio,
+  productUnitProfitCents,
+  type ArenaProductCategory,
+} from './product.model';
 import { createProduct } from './products-repository';
 
 /** Tela Novo produto do painel: cadastro de item de estoque em `arenas/{arenaId}/products`.
@@ -70,12 +80,30 @@ import { createProduct } from './products-repository';
           <ar-panel-card title="Preço e estoque">
             <div class="row-2">
               <div>
+                <div class="field-label">Preço de custo (opcional)</div>
+                <div class="price-box">
+                  <span>R$</span>
+                  <input
+                    type="text"
+                    inputmode="decimal"
+                    placeholder="0,00"
+                    [value]="costValue()"
+                    (input)="costValue.set($any($event.target).value)"
+                  />
+                </div>
+              </div>
+              <div>
                 <div class="field-label">Preço de venda</div>
                 <div class="price-box">
                   <span>R$</span>
                   <input type="text" inputmode="decimal" [value]="priceValue()" (input)="priceValue.set($any($event.target).value)" />
                 </div>
               </div>
+            </div>
+
+            <div class="margin-hint" [class.negative]="marginIsNegative()">{{ marginHint() }}</div>
+
+            <div class="row-2 row-gap">
               <div>
                 <div class="field-label">Quantidade inicial</div>
                 <input
@@ -86,9 +114,6 @@ import { createProduct } from './products-repository';
                   (input)="initialStock.set($any($event.target).valueAsNumber || 0)"
                 />
               </div>
-            </div>
-
-            <div class="row-2 row-gap">
               <div>
                 <div class="field-label">Estoque mínimo (alerta)</div>
                 <input
@@ -168,6 +193,16 @@ import { createProduct } from './products-repository';
       gap: 16px;
     }
 
+    .margin-hint {
+      margin-top: 10px;
+      font-size: 12.5px;
+      color: var(--nx-text-mute);
+    }
+
+    .margin-hint.negative {
+      color: var(--nx-live);
+    }
+
     .price-box {
       height: 46px;
       border-radius: var(--nx-r-2);
@@ -225,6 +260,8 @@ export class PanelStockFormComponent {
   protected readonly category = signal<ArenaProductCategory>('bebidas');
   protected readonly emoji = signal('');
   protected readonly priceValue = signal('0,00');
+  /** Vazio de propósito: custo em branco = não informado, diferente de R$ 0,00. */
+  protected readonly costValue = signal('');
   protected readonly initialStock = signal(0);
   protected readonly minStock = signal(0);
 
@@ -232,6 +269,20 @@ export class PanelStockFormComponent {
   protected readonly errorMessage = signal<string | null>(null);
 
   protected readonly canSave = computed(() => this.name().trim().length > 0 && !this.saving());
+
+  private readonly costCents = computed(() => parseOptionalBRLInputToCents(this.costValue()));
+  private readonly marginRatio = computed(() =>
+    productMarginRatio(this.costCents() ?? undefined, parseBRLInputToCents(this.priceValue())),
+  );
+
+  protected readonly marginIsNegative = computed(() => (this.marginRatio() ?? 0) < 0);
+
+  protected readonly marginHint = computed(() => {
+    const ratio = this.marginRatio();
+    if (ratio === null) return 'Informe o custo para ver a margem de lucro.';
+    const profit = productUnitProfitCents(this.costCents() ?? undefined, parseBRLInputToCents(this.priceValue())) ?? 0;
+    return `Margem de ${formatMarginPercent(ratio)} · ${formatCentsBRL(profit)} por unidade vendida`;
+  });
 
   protected async save(): Promise<void> {
     if (!this.canSave() || this.readOnly()) {
@@ -250,6 +301,7 @@ export class PanelStockFormComponent {
         category: this.category(),
         active: true,
         priceCents: parseBRLInputToCents(this.priceValue()),
+        costCents: this.costCents(),
         stockQuantity: Math.max(0, Math.round(this.initialStock())),
         minStockQuantity: Math.max(0, Math.round(this.minStock())),
         emoji: this.emoji().trim() || undefined,

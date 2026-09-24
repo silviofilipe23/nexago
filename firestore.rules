@@ -681,6 +681,15 @@ service cloud.firestore {
         (!('emoji' in data) || data.emoji == null || (data.emoji is string && data.emoji.size() <= 8)) &&
         (!('imageUrl' in data) || data.imageUrl == null || (data.imageUrl is string && data.imageUrl.size() <= 2048));
     }
+    // Contrato fechado de propósito (`hasOnly`): só o painel escreve aqui e o
+    // doc existe para um campo só. Qualquer chave a mais é bug de cliente.
+    function isValidArenaProductCostData(data) {
+      return data.keys().hasOnly(['costCents', 'updatedAt']) &&
+        isFirestoreInt(data.costCents) &&
+        firestoreIntValue(data.costCents) >= 0 &&
+        firestoreIntValue(data.costCents) <= 100000000 &&
+        isCreateTimestamp(data.updatedAt);
+    }
     function isValidArenaStockMovementType(movementType) {
       return movementType in ['purchase', 'adjustment', 'loss', 'sale'];
     }
@@ -1309,6 +1318,21 @@ service cloud.firestore {
           request.resource.data.createdAt == resource.data.createdAt
         )
       );
+      allow delete: if canManageArenaProducts(arenaId);
+    }
+    match /arenas/{arenaId}/productCosts/{productId} {
+      // Preço de custo (e portanto a margem) é dado de gestão, não cardápio.
+      // Por isso NÃO mora no doc do produto: `products` é legível por qualquer
+      // usuário logado (é o "Peça na quadra"), e aqui só entra quem tem acesso
+      // à área `estoque` da arena. Id do doc = id do produto.
+      allow read: if request.auth != null && (arenaCanRead(arenaId, 'estoque') || isSuperAdmin());
+      // Escrever custo segue o mesmo gate de editar produto: cargo com escrita
+      // em `estoque` e arena com titularidade paga.
+      allow create, update: if canManageArenaProducts(arenaId) &&
+        (isSuperAdmin() || arenaEntitled(arenaId, ['pro', 'parceiro', 'elite'])) &&
+        isValidArenaProductCostData(request.resource.data);
+      // Apagar acompanha o delete do produto e o "custo não informado" (campo
+      // esvaziado no painel) — mesmo gate do delete de produto.
       allow delete: if canManageArenaProducts(arenaId);
     }
     match /arenas/{arenaId}/sales/{saleId} {

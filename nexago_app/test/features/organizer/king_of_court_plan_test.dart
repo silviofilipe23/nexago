@@ -159,4 +159,45 @@ void main() {
       );
     });
   });
+
+  group('plano de fases', () {
+    test('lê um plano bem formado', () {
+      final phases = kingOfCourtPhasesFrom([
+        {
+          'bracketSizes': [5, 5],
+          'roundsPerBracket': 3,
+          'qualifiersPerRound': 1,
+          'durationSec': 900,
+        },
+      ]);
+      expect(phases, isNotNull);
+      expect(phases!.first.bracketSizes, [5, 5]);
+      expect(phases.first.roundsPerBracket, 3);
+    });
+
+    test('descarta o plano inteiro no menor sinal de sujeira', () {
+      // Sem plano o servidor cai nas regras antigas, que funcionam; com plano
+      // meio lido a tela mostraria um formato que não é o da chave.
+      expect(kingOfCourtPhasesFrom([{'bracketSizes': 'x'}]), isNull);
+      expect(kingOfCourtPhasesFrom(const []), isNull);
+      expect(kingOfCourtPhasesFrom(null), isNull);
+    });
+
+    test('a categoria com plano expõe as fases e o teto', () {
+      final config = kingOfCourtConfigFromCategory({
+        'kocMaxTeamsPerRound': 6,
+        'kocPhases': [
+          {'bracketSizes': [6], 'roundsPerBracket': 4, 'qualifiersPerRound': 1, 'durationSec': 900},
+        ],
+      });
+      expect(config.maxTeamsPerRound, 6);
+      expect(config.phases?.length, 1);
+    });
+
+    test('categoria antiga vale o teto de sempre', () {
+      final config = kingOfCourtConfigFromCategory({'teamsPerCourt': 4});
+      expect(config.maxTeamsPerRound, 5);
+      expect(config.phases, isNull);
+    });
+  });
 }

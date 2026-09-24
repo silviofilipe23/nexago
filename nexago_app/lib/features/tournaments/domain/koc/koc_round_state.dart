@@ -95,6 +95,7 @@ class KocRoundState {
     required this.qualifiersPerRound,
     required this.configuredDurationSec,
     this.isFinished = false,
+    this.batteryLabel = 1,
   });
 
   /// Elenco da rodada, na ordem de semeadura.
@@ -120,6 +121,10 @@ class KocRoundState {
   /// para recusar rally. A mesa troca para leitura em vez de manter botões que
   /// só renderiam erro.
   final bool isFinished;
+
+  /// Posição da bateria dentro da chave. Rodada publicada antes desta entrega
+  /// não tem o campo gravado: vale 1.
+  final int batteryLabel;
 
   bool get hasStarted => clock != null;
 
@@ -263,5 +268,6 @@ KocRoundState kocRoundStateFromMap(Map<String, dynamic> data) {
     isFinished: TournamentMatchStatus.isCompleted(
       data['status'] is String ? data['status'] as String : '',
     ),
+    batteryLabel: _asInt(data['kocBatteryLabel'], 1),
   );
 }

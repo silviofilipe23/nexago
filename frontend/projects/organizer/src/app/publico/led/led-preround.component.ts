@@ -6,6 +6,7 @@ import type { LedPlayer, LedTeam } from './led-round.component';
 
 /** Rótulos do painel: mais explícitos que os do overlay, porque aqui quem lê é quem vai jogar. */
 const PAPEL: Record<PreRoundRow['papel'], string> = {
+  trono: 'No trono',
   desafia: 'Desafiante · Em quadra',
   sequencia: 'Próxima a desafiar',
   aguardando: 'Aguardando',
@@ -46,7 +47,7 @@ const PAPEL: Record<PreRoundRow['papel'], string> = {
         </section>
 
         <div class="fila">
-          @for (row of pre.rows; track row.teamId) {
+          @for (row of fila(); track row.teamId) {
             <article class="card" [class.card--emquadra]="row.papel === 'desafia'">
               <div class="card-topo">
                 <span class="iniciais">
@@ -54,7 +55,7 @@ const PAPEL: Record<PreRoundRow['papel'], string> = {
                     <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="62" />
                   }
                 </span>
-                <span class="ordem">{{ ordemDe(row) }}</span>
+                <span class="ordem">{{ row.posicao }}</span>
               </div>
               <div class="card-corpo">
                 <span class="papel">{{ papelDe(row) }}</span>
@@ -248,10 +249,10 @@ export class LedPreRoundComponent {
     [this.categoryName(), this.courtName(), this.roundTitle()].filter((p) => !!p).join(' · '),
   );
 
-  /** O trono é o 1 da ordem de entrada, então a fila começa no 2. */
-  protected ordemDe(row: PreRoundRow): number {
-    return row.posicao + 1;
-  }
+  /** O trono já tem seção própria no topo — a grade só lista quem vem depois. */
+  protected readonly fila = computed(() =>
+    (this.preRound()?.rows ?? []).filter((r) => r.papel !== 'trono'),
+  );
 
   protected papelDe(row: PreRoundRow): string {
     return PAPEL[row.papel];

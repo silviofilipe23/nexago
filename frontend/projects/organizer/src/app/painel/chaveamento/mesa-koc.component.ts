@@ -2145,8 +2145,8 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       .og-mk-quadra-back {
         display: inline-grid;
         place-items: center;
-        width: 40px;
-        height: 40px;
+        width: 44px;
+        height: 44px;
         border-radius: 12px;
         border: 1px solid var(--nx-line);
         background: var(--nx-surface-1);
@@ -2246,7 +2246,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       .og-mk-log-toggle {
         display: inline-flex;
         margin-left: auto;
-        min-height: 36px;
+        min-height: 44px;
         padding-inline: 12px;
         font-size: 12px;
       }
@@ -2363,35 +2363,51 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         cursor: pointer;
       }
 
-      /* ── Empate: a bola de ouro toma a tela ───────────────────── */
-      .og-mk-live .og-mk-order:has(.og-mk-tie) .og-mk-live-controls {
-        display: none;
-      }
+      /* ── Empate: entra ACIMA dos botoes, sem tomar o lugar deles ──
+         O cronometro nao encerra a rodada: aos 00:00 a mesa ainda conclui o rally em
+         andamento antes de encerrar (e a propria nota do relogio que diz isso). Por
+         isso o confronto FICA e os botoes de ponto FICAM presos no rodape — o card de
+         empate mora na faixa da fila, que rola, logo acima deles.
+         O card NAO estica nem encolhe: com min-height:0 ele afundava abaixo do
+         proprio conteudo no telefone e o alerta vazava por cima da fila. */
       .og-mk-live .og-mk-tie {
         flex: none;
         margin-top: 10px;
       }
-      .og-mk-live:has(.og-mk-tie) {
-        grid-template-rows: auto 0 minmax(0, 1fr);
-      }
-      .og-mk-live:has(.og-mk-tie) .og-mk-open {
-        display: none;
-      }
+      /* O "Encerrar rodada" bloqueado e uma frase inteira ("resolva a vaga primeiro")
+         e nao cabe nos 136px do canto; o proprio card de empate ja explica o bloqueio
+         por extenso. Fica o criterio automatico, que e a saida acionavel. */
       .og-mk-live:has(.og-mk-tie) .og-mk-end {
         display: none;
       }
-      /* Com o confronto fora, a fila volta a listar TODAS as duplas: no empate a
-         classificacao inteira e que importa — e ela que produziu o empate. */
-      .og-mk-live:has(.og-mk-tie) .og-mk-order-row.throne,
-      .og-mk-live:has(.og-mk-tie) .og-mk-order-row.challenger {
-        display: grid;
-      }
-      /* O card de empate NAO estica nem encolhe: com min-height:0 ele afundava abaixo
-         do proprio conteudo no telefone e o alerta vazava por cima da fila. Quem cede
-         altura e a lista, que rola. Os cards da bola de ouro crescem so ate onde a
-         tela permite — sao o alvo de toque da mesa durante o desempate. */
       .og-mk-live:has(.og-mk-tie) .og-mk-golden-card {
         min-height: clamp(56px, 9vh, 96px);
+      }
+      /* Com o card de empate dentro, a faixa da fila (minmax(0, auto)) consome toda a
+         altura e a faixa 1fr do confronto vai a ZERO — o confronto sumia da tela. No
+         empate quem estica e a fila, e o confronto fica na altura natural. */
+      .og-mk-live:has(.og-mk-tie) {
+        grid-template-rows: auto minmax(0, auto) minmax(0, 1fr);
+      }
+      /* E na altura natural ele entra compacto: depois do apito o que falta e lancar
+         o ultimo rally, entao basta saber QUEM esta no trono — o placar de 124px nao
+         e mais o que se le de longe. */
+      .og-mk-live:has(.og-mk-tie) .og-mk-side-pts strong {
+        font-size: clamp(26px, 4vh, 44px);
+      }
+      .og-mk-live:has(.og-mk-tie) .og-mk-side-avatars,
+      .og-mk-live:has(.og-mk-tie) .og-mk-open > .og-mk-section-head,
+      .og-mk-live:has(.og-mk-tie) .og-mk-side-sub {
+        display: none;
+      }
+      /* Tempo esgotado: a nota diz o que fazer agora ("conclua o rally em andamento"),
+         e ela vale mais que a duracao e a quadra — que sao o mesmo dado a rodada toda. */
+      .og-mk-live-clock.expired .og-mk-live-clock-meta {
+        display: none;
+      }
+      .og-mk-live-clock.expired .og-mk-clock-note {
+        white-space: normal;
+        line-height: 1.2;
       }
 
       /* ── Densidade comum às três telas ────────────────────────── */
@@ -2579,6 +2595,29 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       }
       .og-mk-tie-sep {
         display: none;
+      }
+
+      /* Depois do apito o telefone tem de segurar, na mesma tela: relogio, confronto,
+         card de empate E os dois botoes de ponto (o ultimo rally ainda vai ser
+         lancado). Sao ~60px que nao existem — saem do espacamento, nao do conteudo:
+         nenhum bloco e escondido aqui. */
+      .og-mk-live:has(.og-mk-tie) .og-mk-side {
+        padding: 8px 6px;
+        gap: 2px;
+      }
+      .og-mk-live:has(.og-mk-tie) .og-mk-tie {
+        padding: 10px;
+        gap: 8px;
+      }
+      .og-mk-live:has(.og-mk-tie) .og-mk-tie-title {
+        font-size: 14px;
+      }
+      .og-mk-live:has(.og-mk-tie) .og-mk-golden {
+        gap: 6px;
+      }
+      .og-mk-live:has(.og-mk-tie) .og-mk-golden-card {
+        min-height: 52px;
+        padding: 10px 12px;
       }
 
       /* Tabela final: as colunas de numero encolhem e os avatares saem — o que
@@ -2976,8 +3015,18 @@ export class MesaKocComponent {
     return this.round()?.clock?.pausedAtMs != null;
   }
 
+  /** Empate na vaga so existe DEPOIS do apito.
+   *
+   *  `kocQualifyingTieGroup` decide por PONTOS e nao conhece relogio: numa rodada de
+   *  5 duplas em 0x0 o grupo empatado existe desde o primeiro segundo, e sem este
+   *  gate o card de empate nascia junto com a rodada e roubava a tela de quem estava
+   *  lancando ponto. Empate no meio da rodada nao quer dizer nada — o proximo rally
+   *  desfaz. O desempate se joga na areia depois que o tempo acaba.
+   *
+   *  Vale notar que `expired()` volta a ser falso se a mesa der "+1 min": a rodada
+   *  seguiu, e o card sai da tela junto. */
   protected tie(): boolean {
-    return this.tieGroup().length > 0;
+    return this.expired() && this.tieGroup().length > 0;
   }
 
   /** Quantas vagas o empate decide — o que o chip mostra. */

@@ -168,6 +168,20 @@ describe('plano de fases · limites da própria fase editada', () => {
       }
     }
   });
+
+  it('bracketCount degenerado devolve plano vazio em vez de lançar', () => {
+    // `0`/negativo não é chave nenhuma; `NaN` não é número; `Infinity` é o
+    // caso que IMPORTA aqui — sem checar antes, `Array.from({length:
+    // Infinity})` dentro de `kocBracketSizes` lança `RangeError`, e uma
+    // função pura exportada para as Tasks 6/8/10 não pode explodir num
+    // input degenerado: uma tela que repassar um valor assim (bug do lado
+    // dela) veria uma exceção não tratada em vez de "não dá para montar".
+    const plan = kocProposePhasePlan(10, 6, 900);
+    for (const bracketCount of [0, -1, NaN, Infinity, -Infinity]) {
+      expect(() => kocApplyPhaseEdit(plan, 0, {bracketCount}, 6)).not.toThrow();
+      expect(kocApplyPhaseEdit(plan, 0, {bracketCount}, 6)).toEqual([]);
+    }
+  });
 });
 
 describe('plano de fases · total', () => {

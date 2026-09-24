@@ -193,12 +193,18 @@ export function kocApplyPhaseEdit(
   const field = current.bracketSizes.reduce((a, b) => a + b, 0);
   const max = kocClampMaxPerRound(maxPerRound);
 
-  // Cru do chamador pode ser fracionário ou <= 0 — sem sanear, o `length` do
-  // `Array.from` em `kocBracketSizes` divergiria da aritmética de base/resto
-  // e devolveria chaves que nem somam o campo certo. Mesmo tratamento que
-  // todo outro número que entra de fora neste módulo (`kocClampMaxPerRound`,
-  // `parseKocPhases`).
-  const bracketCount = Math.max(1, Math.floor(patch.bracketCount ?? current.bracketSizes.length));
+  // Cru do chamador pode ser fracionário, <= 0 ou não-finito (`Infinity`,
+  // `NaN`) — e as três formas de sujeira precisam ser barradas ANTES de
+  // `kocBracketSizes`: `Array.from({length: Infinity})` lança `RangeError`
+  // direto (não vira `[]`), e um `NaN` que escapasse tomaria o caminho mais
+  // longo ainda, avançando por comparações que dão sempre falso (`NaN < 3`
+  // é `false`) até o teto de fases estourar — funciona por acidente do
+  // orçamento, não porque algo o pegou de propósito. `Number.isInteger` fecha
+  // as duas: é `false` para todo valor não-finito e para fracionário não
+  // arredondado, então a checagem sozinha já cobre `Infinity`/`-Infinity`/
+  // `NaN` sem precisar de um `Number.isFinite` à parte.
+  const bracketCount = Math.floor(patch.bracketCount ?? current.bracketSizes.length);
+  if (!Number.isInteger(bracketCount) || bracketCount <= 0) return [];
   const bracketSizes = kocBracketSizes(field, bracketCount);
   const smallest = Math.min(...bracketSizes);
   const largest = Math.max(...bracketSizes);

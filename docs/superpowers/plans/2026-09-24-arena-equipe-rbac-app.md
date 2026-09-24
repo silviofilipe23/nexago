@@ -39,7 +39,7 @@
 - `lib/features/arena/presentation/arena_dashboard_page.dart:30+` e `widgets/arena_dashboard_quick_actions.dart` — cards de dinheiro e atalhos.
 - `lib/features/arena/presentation/arena_slot_detail_page.dart:450-490`, `arena_bookings_page.dart:125,180`, `arena_recurring_list_page.dart:103`, `arena_booking_details_page.dart`, `comandas/arena_comandas_page.dart:105`, `products/arena_products_list_page.dart:119,122`, `arena_payments_page.dart`, `arena_profile_page.dart` — ações de escrita.
 - `lib/features/auth/domain/role_selection_providers.dart:25-33` — rodapé do card de papel.
-- Comentários "ESPELHO MANUAL … três lugares" em `frontend/projects/arena/src/app/painel/data/arena-roles.model.ts`, `functions/src/arena-staff-roles.ts`, `firestore.rules`, `frontend/projects/arena/src/app/auth/arena-access.service.spec.ts`.
+- Comentários "ESPELHO MANUAL … três lugares" em `frontend/projects/arena/src/app/painel/data/arena-roles.model.ts`, `functions/src/arena-staff-roles.ts`, `firestore.rules`, `frontend/projects/arena/src/app/painel/data/arena-roles.model.spec.ts`.
 
 **Deletar:**
 - `lib/features/arena/domain/arena_manager_user.dart` — `ArenaManagerUser`/`arenaIds` nunca foram usados.
@@ -51,7 +51,7 @@
 **Files:**
 - Create: `nexago_app/lib/features/arena/domain/arena_staff_role.dart`
 - Test: `nexago_app/test/features/arena/domain/arena_staff_role_test.dart`
-- Modify (só comentário): `frontend/projects/arena/src/app/painel/data/arena-roles.model.ts:3`, `functions/src/arena-staff-roles.ts`, `firestore.rules`, `frontend/projects/arena/src/app/auth/arena-access.service.spec.ts`
+- Modify (só comentário): `frontend/projects/arena/src/app/painel/data/arena-roles.model.ts:3`, `functions/src/arena-staff-roles.ts`, `firestore.rules`, `frontend/projects/arena/src/app/painel/data/arena-roles.model.spec.ts`
 
 **Interfaces:**
 - Produces: `enum ArenaStaffRole { gestor, recepcao, financeiro, manutencao }`; `enum ArenaArea { agenda, comandas, estoque, financeiro, promocoes, site, quadras, perfil, torneios, comunidade }`; `ArenaStaffRole? arenaStaffRoleFromValue(String? value)`; `bool arenaRoleCanRead(ArenaStaffRole role, ArenaArea area)`; `bool arenaRoleCanWrite(ArenaStaffRole role, ArenaArea area)`; `String arenaStaffRoleLabel(ArenaStaffRole role)`.
@@ -164,7 +164,7 @@ Esperado: FAIL — `Target of URI doesn't exist: '.../arena_staff_role.dart'`.
 ///  2. `frontend/projects/arena/src/app/painel/data/arena-roles.model.ts` (portal);
 ///  3. `functions/src/arena-staff-roles.ts` (validacao dos callables);
 ///  4. o mapa literal em `firestore.rules` (a autoridade de verdade);
-///  5. `frontend/projects/arena/src/app/auth/arena-access.service.spec.ts`.
+///  5. `frontend/projects/arena/src/app/painel/data/arena-roles.model.spec.ts` (teste).
 ///
 /// Nada automatiza o espelhamento. O que segura a divergencia e o corpo de
 /// casos compartilhado entre os testes das copias — ver
@@ -271,7 +271,7 @@ Em `arena-roles.model.ts` a lista passa a ser:
  *   2. `functions/src/arena-staff-roles.ts` (validação server-side dos callables);
  *   3. o mapa literal em `firestore.rules` (a autoridade de verdade);
  *   4. `nexago_app/lib/features/arena/domain/arena_staff_role.dart` (app Flutter);
- *   5. este spec: `arena-access.service.spec.ts`.
+ *   5. `arena-roles.model.spec.ts` (a matriz restada à mão no teste).
  *  `functions/test/arena-staff-rbac.rules.test.mjs` quebra se 2 e 3 divergirem; o teste
  *  `arena_staff_role_test.dart` cobre a cópia Dart. */
 ```
@@ -279,7 +279,7 @@ Em `arena-roles.model.ts` a lista passa a ser:
 - [ ] **Step 6: Commit**
 
 ```bash
-cd <worktree> && git add nexago_app/lib/features/arena/domain/arena_staff_role.dart nexago_app/test/features/arena/domain/arena_staff_role_test.dart frontend/projects/arena/src/app/painel/data/arena-roles.model.ts frontend/projects/arena/src/app/auth/arena-access.service.spec.ts functions/src/arena-staff-roles.ts firestore.rules && git commit -m "feat(arena-app): matriz cargo x area em Dart"
+cd <worktree> && git add nexago_app/lib/features/arena/domain/arena_staff_role.dart nexago_app/test/features/arena/domain/arena_staff_role_test.dart frontend/projects/arena/src/app/painel/data/arena-roles.model.ts functions/src/arena-staff-roles.ts firestore.rules && git commit -m "feat(arena-app): matriz cargo x area em Dart"
 ```
 
 ---

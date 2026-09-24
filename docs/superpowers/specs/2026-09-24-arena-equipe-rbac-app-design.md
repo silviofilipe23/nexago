@@ -60,7 +60,7 @@ Enum dos 4 cargos, enum das 10 áreas (`agenda`, `comandas`, `estoque`, `finance
 
 Este arquivo é o **5º espelho manual** da matriz. Os comentários "ESPELHO MANUAL — esta matriz existe
 em três lugares" em `arena-roles.model.ts`, `functions/src/arena-staff-roles.ts`, `firestore.rules` e
-`arena-access.service.spec.ts` passam a citar cinco e a nomear este arquivo. Nada automatiza o
+`arena-roles.model.spec.ts` passam a citar cinco e a nomear este arquivo. Nada automatiza o
 espelhamento; o que segura a divergência é o corpo de casos de teste compartilhado (ver Testes).
 
 ### `domain/arena_access_providers.dart` — fonte única de acesso

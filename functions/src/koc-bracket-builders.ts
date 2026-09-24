@@ -236,21 +236,12 @@ function emitPhase(params: {
     const firsts = emitted.filter((d) => d.batteryLabel === 1);
     for (const source of previousPhase) {
       for (let place = 1; place <= params.previousQualifiersPerRound; place++) {
-        let target = kocNextRoundIndex(
+        const natural = kocNextRoundIndex(
           source.crossoverIndex ?? source.roundLabel - 1,
           place,
           firsts.length,
         );
-        // `kocRoundSizes` dá a vaga extra sempre à(s) PRIMEIRA(S) chave(s); o
-        // módulo acima não sabe disso e, quando o campo não divide igual entre
-        // as chaves da fase seguinte (ex.: 10 vagas em 3 chaves de 4/3/3), pode
-        // apontar mais vagas para uma chave do que ela tem lugar e deixar outra
-        // faltando. Anda para a próxima chave com lugar livre em vez de
-        // estourar a que o módulo indicou — com chaves do mesmo tamanho isso
-        // nunca dispara, porque o módulo já fecha certo.
-        for (let tries = 0; tries < firsts.length && firsts[target]!.qualifiers.length >= firsts[target]!.size; tries++) {
-          target = (target + 1) % firsts.length;
-        }
+        const target = findAvailableTarget(firsts, natural, source.matchNumber);
         firsts[target]!.qualifiers.push({
           fromMatchNumber: source.matchNumber,
           fromRoundLabel: source.roundLabel,
@@ -259,6 +250,51 @@ function emitPhase(params: {
       }
     }
   }
+}
+
+/**
+ * A partir do alvo que o módulo (`kocNextRoundIndex`) indicou, acha a próxima
+ * chave da fase seguinte com lugar livre — sem repetir a chave de ORIGEM.
+ *
+ * Duas peneiras, não uma. `kocRoundSizes` dá a vaga extra sempre à(s)
+ * PRIMEIRA(S) chave(s) da fase seguinte; o módulo não sabe disso e, quando o
+ * campo não divide igual entre essas chaves (ex.: 10 vagas em 3 chaves de
+ * 4/3/3), pode apontar vagas demais para uma e faltar para outra — corrigido
+ * pela 1ª peneira (capacidade). Mas capacidade sozinha não basta: se a próxima
+ * chave com lugar livre já tiver uma vaga da MESMA chave de origem, as duas
+ * classificadas que acabaram de se enfrentar reencontrariam na chave seguinte
+ * — o que a regra do formato proíbe. Por isso a 1ª busca exige as duas coisas.
+ *
+ * Só aceita repetir a origem (2ª busca, só capacidade) quando NENHUMA chave
+ * sobra sem repetir — o pigeonhole genuíno de a origem mandar mais vagas do
+ * que a fase seguinte tem chaves (a final, com uma chave só, é o caso extremo:
+ * ali repetir é inevitável e não é bug). Com chaves do mesmo tamanho a 1ª
+ * busca sempre acha na primeira tentativa — o módulo já fecha certo.
+ */
+function findAvailableTarget(
+  firsts: readonly KocRoundDraft[],
+  natural: number,
+  fromMatchNumber: number,
+): number {
+  const hasRoom = (i: number) => firsts[i]!.qualifiers.length < firsts[i]!.size;
+  const hasSameSource = (i: number) =>
+    firsts[i]!.qualifiers.some((q) => q.fromMatchNumber === fromMatchNumber);
+
+  let target = natural;
+  for (let tries = 0; tries < firsts.length; tries++) {
+    if (hasRoom(target) && !hasSameSource(target)) return target;
+    target = (target + 1) % firsts.length;
+  }
+  target = natural;
+  for (let tries = 0; tries < firsts.length; tries++) {
+    if (hasRoom(target)) return target;
+    target = (target + 1) % firsts.length;
+  }
+  // Nenhuma chave com lugar livre: o plano não fecha (soma de vagas maior que
+  // a capacidade da fase seguinte). Devolve o alvo natural — a rede de
+  // segurança em `buildKingOfCourtRounds` recusa o descompasso logo em
+  // seguida, com uma mensagem que aponta a rodada, não este laço.
+  return natural;
 }
 
 export class KocBracketError extends Error {
@@ -716,11 +752,24 @@ export function kocLegacyPlan(teamCount: number, config: KocConfig): KocPhaseSpe
  * Valida um plano vindo de fora (tela ou Firestore) contra o campo real.
  *
  * Plano inválido descoberto na areia é chave torta com as duplas na quadra —
- * então tudo que não fecha vira `KocBracketError` nomeado aqui.
+ * então tudo que não fecha vira `KocBracketError` nomeado aqui. `maxTeamsPerRound`
+ * é o teto EFETIVO da categoria (já saneado por `kocClampMaxPerRound` em
+ * `kocResolvePlan`) — validar contra o teto duro do formato deixaria passar um
+ * plano com chave de 6 para uma categoria cujo teto é 3.
  */
-function assertPlan(phases: readonly KocPhaseSpec[], teamCount: number): KocPhaseSpec[] {
+function assertPlan(
+  phases: readonly KocPhaseSpec[],
+  teamCount: number,
+  maxTeamsPerRound: number,
+): KocPhaseSpec[] {
   if (phases.length === 0) {
     throw new KocBracketError("O plano de fases está vazio.", "koc_plan_empty");
+  }
+  if (phases.length > KOC_MAX_PHASES) {
+    throw new KocBracketError(
+      `O plano tem ${phases.length} fases; o formato aceita no máximo ${KOC_MAX_PHASES}.`,
+      "koc_plan_exceeds_max_phases",
+    );
   }
   const out: KocPhaseSpec[] = [];
   let field = teamCount;
@@ -735,10 +784,10 @@ function assertPlan(phases: readonly KocPhaseSpec[], teamCount: number): KocPhas
       );
     }
     for (const size of sizes) {
-      if (size > KOC_MAX_TEAMS_PER_ROUND) {
+      if (size > maxTeamsPerRound) {
         throw new KocBracketError(
-          `A fase ${i + 1} tem chave de ${size} duplas; o teto do formato é ` +
-            `${KOC_MAX_TEAMS_PER_ROUND}.`,
+          `A fase ${i + 1} tem chave de ${size} duplas; o teto desta categoria é ` +
+            `${maxTeamsPerRound}.`,
           "koc_bracket_over_max",
         );
       }
@@ -760,7 +809,20 @@ function assertPlan(phases: readonly KocPhaseSpec[], teamCount: number): KocPhas
     }
     const isLast = i === phases.length - 1;
     const q = Math.floor(spec.qualifiersPerRound);
-    if (!isLast && q < 1) {
+    const roundsPerBracket = Math.max(1, Math.floor(spec.roundsPerBracket));
+    if (isLast) {
+      // A ÚLTIMA fase do plano é a final por definição — a tabela dela é o
+      // pódio. Uma fase final com `qualifiersPerRound` ou `roundsPerBracket`
+      // fora de 0/1 emitiria baterias com vagas que nunca seriam consumidas
+      // (não há fase seguinte para recebê-las).
+      if (q !== 0 || roundsPerBracket !== 1) {
+        throw new KocBracketError(
+          `A fase ${i + 1} é a última do plano — toda final tem qualifiersPerRound ` +
+            `0 e roundsPerBracket 1 (esta tem ${q} e ${roundsPerBracket}).`,
+          "koc_last_phase_not_final",
+        );
+      }
+    } else if (q < 1) {
       throw new KocBracketError(
         `A fase ${i + 1} não classifica ninguém e não é a final.`,
         "koc_phase_does_not_reduce",
@@ -768,7 +830,7 @@ function assertPlan(phases: readonly KocPhaseSpec[], teamCount: number): KocPhas
     }
     out.push({
       bracketSizes: sizes,
-      roundsPerBracket: Math.max(1, Math.floor(spec.roundsPerBracket)),
+      roundsPerBracket,
       qualifiersPerRound: Math.max(0, q),
       durationSec: Math.min(
         KOC_MAX_ROUND_DURATION_SEC,
@@ -776,7 +838,7 @@ function assertPlan(phases: readonly KocPhaseSpec[], teamCount: number): KocPhas
       ),
     });
     if (isLast) break;
-    const next = sizes.length * Math.max(1, Math.floor(spec.roundsPerBracket)) * q;
+    const next = sizes.length * roundsPerBracket * q;
     if (next >= field) {
       throw new KocBracketError(
         `A fase ${i + 1} não reduz o campo (${field} duplas viram ${next}).`,
@@ -798,7 +860,7 @@ export function kocResolvePlan(teamCount: number, config: KocConfig): KocPhaseSp
     );
   }
   return config.phases?.length ?
-    assertPlan(config.phases, teamCount) :
+    assertPlan(config.phases, teamCount, kocClampMaxPerRound(config.maxTeamsPerRound)) :
     kocLegacyPlan(teamCount, config);
 }
 

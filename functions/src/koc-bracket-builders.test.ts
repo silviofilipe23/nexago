@@ -736,6 +736,94 @@ describe("buildKingOfCourtRounds · legado com fase do meio que não divide igua
   });
 });
 
+/**
+ * Achado no round 1 de revisão desta task: a correção acima ("anda para a
+ * próxima chave com lugar livre") olhava só CAPACIDADE, nunca a IDENTIDADE de
+ * quem já caiu ali — então podia mandar duas classificadas da MESMA chave de
+ * origem para a MESMA chave da fase seguinte, que é exatamente o reencontro
+ * que a serpentina existe para evitar. Reproduzido com
+ * `{teamsPerCourt: 5, qualifiersPerRound: 3}` em n=66: a rodada #19 (fase 2,
+ * C5) recebia o 2º E o 3º lugar da MESMA rodada #12.
+ *
+ * `findAvailableTarget` agora peneira por capacidade E por origem repetida,
+ * com fallback para repetir a origem só quando nenhuma chave sobra sem
+ * repetir — o pigeonhole genuíno de uma chave mandar mais classificadas do que
+ * a fase seguinte tem chaves (a ÚLTIMA fase do plano, a final, é o caso
+ * extremo disso: tudo converge ali, então fica de fora do teste).
+ */
+function assertNoAvoidableRematch(drafts: readonly KocRoundDraft[], label: string): void {
+  const totalPhases = Math.max(...drafts.map((d) => d.phase));
+  const poolsByPhase = new Map<number, Set<string>>();
+  const phaseOfMatchNumber = new Map<number, number>();
+  for (const d of drafts) {
+    if (!poolsByPhase.has(d.phase)) poolsByPhase.set(d.phase, new Set());
+    poolsByPhase.get(d.phase)!.add(d.poolId);
+    phaseOfMatchNumber.set(d.matchNumber, d.phase);
+  }
+  // fromMatchNumber -> fase de destino e a lista de rodadas (matchNumber) para
+  // onde cada uma das suas vagas foi. Só vagas que CRUZAM fase contam: dentro
+  // da MESMA fase, a bateria 2 em diante de uma chave sempre herda da bateria
+  // anterior da MESMA chave — não é reencontro, é o mesmo grupo continuando.
+  const bySource = new Map<number, {phase: number; targets: number[]}>();
+  for (const d of drafts) {
+    for (const q of d.qualifiers) {
+      const sourcePhase = phaseOfMatchNumber.get(q.fromMatchNumber)!;
+      if (sourcePhase === d.phase) continue; // bateria seguinte da própria chave.
+      let entry = bySource.get(q.fromMatchNumber);
+      if (!entry) {
+        entry = {phase: d.phase, targets: []};
+        bySource.set(q.fromMatchNumber, entry);
+      }
+      entry.targets.push(d.matchNumber);
+    }
+  }
+  for (const [source, {phase, targets}] of bySource) {
+    if (phase === totalPhases) continue; // a final: reencontro é estrutural.
+    const brackets = poolsByPhase.get(phase)!.size;
+    const distinctTargets = new Set(targets).size;
+    if (distinctTargets === targets.length) continue; // sem repetição — ok.
+    assert.ok(
+      targets.length > brackets,
+      `${label}: a chave da rodada #${source} mandou ${targets.length} classificadas ` +
+        `para ${brackets} chave(s) da fase seguinte e repetiu uma delas sem ser ` +
+        `pigeonhole (destinos: ${targets.join(",")})`,
+    );
+  }
+}
+
+describe("buildKingOfCourtRounds · cruzamento não repete a chave de origem (achado do round 1)", () => {
+  it("teamsPerCourt: 5, qualifiersPerRound: 3, 60 a 120 duplas: sem reencontro evitável", () => {
+    for (let n = 60; n <= 120; n++) {
+      let drafts;
+      try {
+        drafts = buildKingOfCourtRounds(
+          seeds(n), {teamsPerCourt: 5, qualifiersPerRound: 3, roundDurationSec: 900},
+        );
+      } catch {
+        continue; // campo que o planejador legado legitimamente recusa — não é o que testamos aqui.
+      }
+      assertNoAvoidableRematch(drafts, `${n} duplas`);
+    }
+  });
+
+  it("caminho do plano explícito (kocProposePlan): sem reencontro evitável", () => {
+    for (const max of [3, 4, 5, 6]) {
+      for (let n = 3; n <= 150; n++) {
+        let phases: KocPhaseSpec[];
+        try {
+          phases = kocProposePlan(n, max, () => 900);
+        } catch {
+          continue; // campo sem divisão válida para este teto — não é o que testamos aqui.
+        }
+        const drafts = buildKingOfCourtRounds(
+          seeds(n), {...baseConfig, maxTeamsPerRound: max, phases},
+        );
+        assertNoAvoidableRematch(drafts, `teto ${max}, ${n} duplas`);
+      }
+    }
+  });
+});
+
 describe("kocResolvePlan", () => {
   it("sem `phases`, é exatamente o que kocLegacyPlan devolve", () => {
     assert.deepEqual(kocResolvePlan(16, baseConfig), kocLegacyPlan(16, baseConfig));
@@ -761,6 +849,77 @@ describe("kocResolvePlan", () => {
     }), (e: unknown) => {
       assert.ok(e instanceof KocBracketError);
       assert.equal(e.reason, "koc_field_too_small");
+      return true;
+    });
+  });
+
+  /**
+   * Achados do round 1 de revisão: `assertPlan` dizia na sua própria doc que
+   * era a defesa contra plano vindo de fora, mas deixava passar 3 planos que
+   * não deveriam existir. Os três testes abaixo cobrem cada rejeição nova.
+   */
+  it("recusa última fase que não é realmente final (qualifiersPerRound fora de 0)", () => {
+    // 12 duplas: fase 1 (3 chaves de 4, classifica 2 cada = 6) → fase 2
+    // (2 chaves de 3, some 6) — mas a fase 2 é a ÚLTIMA e classifica 1 em vez
+    // de fechar em qualifiersPerRound 0.
+    const config: KocConfig = {
+      ...baseConfig,
+      phases: [
+        {bracketSizes: [4, 4, 4], roundsPerBracket: 1, qualifiersPerRound: 2, durationSec: 900},
+        {bracketSizes: [3, 3], roundsPerBracket: 1, qualifiersPerRound: 1, durationSec: 900},
+      ],
+    };
+    assert.throws(() => kocResolvePlan(12, config), (e: unknown) => {
+      assert.ok(e instanceof KocBracketError);
+      assert.equal(e.reason, "koc_last_phase_not_final");
+      return true;
+    });
+  });
+
+  it("recusa última fase que não é realmente final (roundsPerBracket fora de 1)", () => {
+    const config: KocConfig = {
+      ...baseConfig,
+      // `maxTeamsPerRound: 6` para isolar o que este teste verifica: sem ele o
+      // teto efetivo é o legado (5) e a chave de 6 da última fase seria
+      // recusada antes, por `koc_bracket_over_max`.
+      maxTeamsPerRound: 6,
+      phases: [
+        {bracketSizes: [4, 4, 4], roundsPerBracket: 1, qualifiersPerRound: 2, durationSec: 900},
+        {bracketSizes: [6], roundsPerBracket: 2, qualifiersPerRound: 0, durationSec: 900},
+      ],
+    };
+    assert.throws(() => kocResolvePlan(12, config), (e: unknown) => {
+      assert.ok(e instanceof KocBracketError);
+      assert.equal(e.reason, "koc_last_phase_not_final");
+      return true;
+    });
+  });
+
+  it("recusa plano com mais fases do que o formato aceita", () => {
+    // `7`, não `KOC_MAX_PHASES + 1`: a constante é module-private (mesma
+    // convenção já usada no teste de `kocProposePlan` acima).
+    const phases: KocPhaseSpec[] = Array.from({length: 7}, () => (
+      {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900}
+    ));
+    assert.throws(() => kocResolvePlan(4, {...baseConfig, phases}), (e: unknown) => {
+      assert.ok(e instanceof KocBracketError);
+      assert.equal(e.reason, "koc_plan_exceeds_max_phases");
+      return true;
+    });
+  });
+
+  it("recusa chave acima do teto DA CATEGORIA, mesmo dentro do teto do formato", () => {
+    // Teto do formato é 6; esta categoria escolheu 3. Uma chave de 4 está
+    // dentro do primeiro e fora do segundo — tem que ser recusada.
+    const config: KocConfig = {
+      ...baseConfig,
+      maxTeamsPerRound: 3,
+      phases: [{bracketSizes: [4, 4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900}],
+    };
+    assert.throws(() => kocResolvePlan(8, config), (e: unknown) => {
+      assert.ok(e instanceof KocBracketError);
+      assert.equal(e.reason, "koc_bracket_over_max");
+      assert.ok(/teto desta categoria é 3/.test(e.message));
       return true;
     });
   });
@@ -870,6 +1029,10 @@ describe("buildKingOfCourtRounds com plano explícito", () => {
   it("recusa bateria que ficaria abaixo do mínimo", () => {
     const config: KocConfig = {
       ...baseConfig,
+      // `maxTeamsPerRound: 6` para isolar o que este teste verifica (a bateria
+      // que encolhe demais): sem ele o teto efetivo cai para o legado (5), e a
+      // chave de 6 da fase 2 seria recusada antes, por `koc_bracket_over_max`.
+      maxTeamsPerRound: 6,
       phases: [
         {bracketSizes: [4, 4], roundsPerBracket: 3, qualifiersPerRound: 1, durationSec: 900},
         {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},

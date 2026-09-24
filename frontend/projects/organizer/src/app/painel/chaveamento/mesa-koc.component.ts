@@ -408,6 +408,11 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
           <section class="og-mk-order">
             <header class="og-mk-section-head">
               <span class="og-mk-section-title">Ordem da fila</span>
+              <!-- No modo quadra o log sai do fluxo vertical e vira gaveta: e consulta,
+                   nao operacao, e a faixa fixa dele custava a altura que faltava. -->
+              <button type="button" class="og-ghost-btn og-mk-log-toggle" (click)="logOpen.set(true)">
+                Log · {{ logRows().length }}
+              </button>
             </header>
             <ul class="og-mk-order-list">
               @for (row of liveQueueRows(); track row.teamId) {
@@ -540,14 +545,25 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
 
         <aside class="og-mk-live-side">
           <section class="og-mk-panel og-mk-live-clock" [class.expired]="expired()">
+            <!-- Saida do modo quadra: em tablet/celular a mesa cobre a topbar e o
+                 cabecalho da pagina, entao o caminho de volta tem de morar aqui
+                 dentro. No desktop o cabecalho continua na tela e este some. -->
+            <a class="og-mk-quadra-back" [routerLink]="backLink()" aria-label="Sair da mesa">
+              <og-icon name="back" [size]="18" />
+            </a>
             <span class="og-mk-panel-title">Tempo restante</span>
-            <span class="og-mk-live-time">{{ clockLabel() }}</span>
-            <span class="og-mk-live-clock-meta">{{ clockMeta() }}</span>
-            @if (expired()) {
-              <span class="og-mk-clock-note">Conclua o rally em andamento e encerre.</span>
-            } @else if (paused()) {
-              <span class="og-mk-clock-note">Pausado</span>
-            }
+            <!-- display:contents no desktop: os filhos seguem sendo itens diretos da
+                 coluna flex do painel, como antes. No modo quadra o grupo vira a
+                 coluna de leitura do relogio, ao lado dos botoes. -->
+            <div class="og-mk-clock-read">
+              <span class="og-mk-live-time">{{ clockLabel() }}</span>
+              <span class="og-mk-live-clock-meta">{{ clockMeta() }}</span>
+              @if (expired()) {
+                <span class="og-mk-clock-note">Conclua o rally em andamento e encerre.</span>
+              } @else if (paused()) {
+                <span class="og-mk-clock-note">Pausado</span>
+              }
+            </div>
             <div class="og-mk-live-clock-actions">
               <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="togglePause()">
                 {{ paused() ? 'Retomar' : 'Pausar' }}
@@ -556,8 +572,19 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
             </div>
           </section>
 
-          <section class="og-mk-panel og-mk-live-log">
+          @if (logOpen()) {
+            <button
+              type="button"
+              class="og-mk-log-scrim"
+              aria-label="Fechar log"
+              (click)="logOpen.set(false)"
+            ></button>
+          }
+          <section class="og-mk-panel og-mk-live-log" [class.open]="logOpen()">
             <span class="og-mk-panel-title">Log da rodada</span>
+            <button type="button" class="og-mk-log-close" aria-label="Fechar log" (click)="logOpen.set(false)">
+              <og-icon name="close" [size]="16" />
+            </button>
             <div class="og-mk-log-body">
               @if (logRows().length === 0) {
                 <p class="og-mk-log-empty">Nada registrado ainda.</p>
@@ -751,7 +778,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       font-weight: 800;
       letter-spacing: 0.1em;
       text-transform: uppercase;
-      color: var(--nx-brand);
+      color: var(--nx-orange-500);
     }
     .og-mk-side-badge.muted {
       color: var(--nx-text-mute);
@@ -912,7 +939,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       white-space: nowrap;
     }
     .og-mk-order-role[data-role='trono'] {
-      color: var(--nx-brand);
+      color: var(--nx-orange-500);
     }
     .og-mk-order-role[data-role='desafia'] {
       color: var(--nx-win);
@@ -1012,7 +1039,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       width: 7px;
       height: 7px;
       border-radius: 50%;
-      background: var(--nx-brand);
+      background: var(--nx-orange-500);
     }
     .og-mk-rules strong {
       display: block;
@@ -1181,6 +1208,17 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
     }
     .og-mk-live-clock .og-mk-panel-title {
       margin-bottom: 0;
+    }
+    /* Peças do modo quadra: no desktop nao existem. O grupo de leitura fica em
+       display:contents para o relogio seguir sendo a mesma coluna flex de sempre. */
+    .og-mk-clock-read {
+      display: contents;
+    }
+    .og-mk-quadra-back,
+    .og-mk-log-toggle,
+    .og-mk-log-close,
+    .og-mk-log-scrim {
+      display: none;
     }
     .og-mk-live-time {
       font-family: var(--nx-font-mono);
@@ -1684,7 +1722,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       color: var(--nx-text-mute);
     }
     .og-mk-row.qualifies .og-mk-place {
-      color: var(--nx-brand);
+      color: var(--nx-orange-500);
       font-weight: 800;
     }
     .og-mk-name {
@@ -1889,6 +1927,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
     .og-mk-golden-card {
       display: flex;
       align-items: center;
+      min-width: 0;
       gap: 12px;
       min-height: 52px;
       padding: 12px 14px;
@@ -2048,98 +2087,182 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       box-shadow: 0 10px 28px rgba(255, 106, 26, 0.28);
     }
 
-    /* ── Tablet / celular: mesa de pontuação no dia do evento ─────────────
-       Ordem: relógio → confronto/fila → log → encerrar.
-       Controles de ponto ficam sticky no polegar. Desktop (>1024) não muda. */
+    /* ── Modo quadra: tablet e celular na areia ───────────────────────────
+       Na quadra a mesa vira aplicação de tela cheia e NÃO rola: quem marca ponto
+       a cada rally não pode caçar o botão dentro de um scroll. O bloco ao vivo
+       sai do fluxo do painel e cobre topbar + cabeçalho da página — uns 115px de
+       altura que voltam pro placar. Saída pelo ← da barra de comando.
+
+       Quatro faixas, de cima pra baixo:
+         comando (relógio + encerrar) · confronto · fila (a única que rola) · ações.
+
+       Encerrar fica em cima DE PROPÓSITO, longe do polegar que marca ponto.
+       Desktop (>1024px) não muda: lá o aside volta a ser coluna. */
     @media (max-width: 1023.98px) {
       .og-mk-live {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        background: var(--nx-bg);
         display: grid;
-        grid-template-columns: 1fr;
+        /* Áreas NOMEADAS, não posições: o bloco de empate entra e sai do DOM e
+           linha posicional de grid se desloca junto quando um filho some. */
+        align-items: stretch;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 136px);
         grid-template-areas:
-          'clock'
-          'main'
-          'log'
-          'footer';
-        gap: 12px;
-        padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+          'clock end'
+          'duel duel'
+          'queue queue';
+        /* A sobra de altura vai pro CONFRONTO, nao pro rodape: o placar e o que se
+           le de longe, em pe, com sol na tela. A fila cede (minmax 0) e rola. */
+        grid-template-rows: auto minmax(0, 1fr) minmax(0, auto);
+        gap: 10px;
+        padding: calc(8px + env(safe-area-inset-top, 0px)) 12px
+          calc(8px + env(safe-area-inset-bottom, 0px));
+        overflow: hidden;
       }
-      .og-mk-live-main {
-        grid-area: main;
-      }
-      /* display:contents sobe relógio/log/encerrar pro grid pai — sem isso o aside
-         empacotaria tudo num bloco só e o relógio ficaria depois da pontuação. */
+      /* display:contents sobe confronto/fila/relógio/log/encerrar pro grid da mesa —
+         sem isso o aside empacotaria os três últimos num bloco só, embaixo de tudo. */
+      .og-mk-live-main,
       .og-mk-live-side {
         display: contents;
-        position: static;
       }
+
+      /* ── Barra de comando ─────────────────────────────────────── */
       .og-mk-live-clock {
         grid-area: clock;
-        padding: 12px 14px;
-        gap: 4px;
-        flex-direction: row;
-        flex-wrap: wrap;
-        justify-content: space-between;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
         align-items: center;
+        gap: 10px;
+        padding: 6px 10px;
         text-align: left;
       }
+      /* O relógio se explica sozinho; o rótulo custava uma linha inteira. */
       .og-mk-live-clock .og-mk-panel-title {
-        width: 100%;
+        display: none;
+      }
+      .og-mk-quadra-back {
+        display: inline-grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        border: 1px solid var(--nx-line);
+        background: var(--nx-surface-1);
+        color: var(--nx-text-mute);
+      }
+      .og-mk-clock-read {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1px;
+        min-width: 0;
       }
       .og-mk-live-time {
-        font-size: 40px;
+        font-size: 30px;
       }
-      .og-mk-live-clock-meta {
-        margin-right: auto;
-        margin-left: 12px;
+      .og-mk-live-clock-meta,
+      .og-mk-clock-note {
+        max-width: 100%;
+        margin: 0;
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .og-mk-live-clock-actions {
         width: auto;
         margin-top: 0;
         grid-template-columns: auto auto;
+        gap: 6px;
       }
       .og-mk-live-clock-actions .og-ghost-btn {
         min-height: 44px;
-        min-width: 88px;
-      }
-      .og-mk-live-log {
-        grid-area: log;
-        min-height: 0;
-        max-height: 180px;
-        overflow: hidden;
-      }
-      .og-mk-log-body {
-        min-height: 0;
-        overflow: auto;
+        min-width: 0;
+        padding-inline: 12px;
+        font-size: 12px;
       }
       .og-mk-live-footer {
-        grid-area: footer;
+        grid-area: end;
+        align-self: center;
       }
-      .og-mk-end,
+      .og-mk-end {
+        width: 100%;
+        min-height: 44px;
+        padding: 6px 12px;
+        font-size: 13px;
+        line-height: 1.15;
+        white-space: normal;
+      }
       .og-mk-end-auto {
-        min-height: 48px;
+        min-height: 40px;
+        padding: 6px 10px;
+        font-size: 11px;
+        line-height: 1.15;
       }
 
-      .og-mk-open,
-      .og-mk-order,
-      .og-mk-panel {
-        padding: 12px 14px;
+      /* ── Confronto ────────────────────────────────────────────── */
+      .og-mk-live .og-mk-open {
+        grid-area: duel;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .og-mk-live .og-mk-sides {
+        flex: 1;
+        min-height: 0;
+      }
+      .og-mk-live .og-mk-side-name {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      /* O placar acompanha a altura que sobrou: no iPad em pé ele é enorme, no
+         telefone encolhe sem empurrar os botões pra fora da tela. */
+      .og-mk-live .og-mk-side-pts strong {
+        font-size: clamp(38px, 10vh, 124px);
+      }
+      .og-mk-live .og-mk-side-name {
+        font-size: clamp(15px, 2.2vh, 26px);
+      }
+      .og-mk-live .og-mk-side {
+        justify-content: center;
       }
 
-      .og-mk-sides {
-        gap: 10px;
+      /* ── Fila ─────────────────────────────────────────────────── */
+      .og-mk-live .og-mk-order {
+        grid-area: queue;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
       }
-      .og-mk-side {
-        padding: 14px 10px;
-        gap: 6px;
+      .og-mk-live .og-mk-order > .og-mk-section-head {
+        flex: none;
+        margin-bottom: 8px;
       }
-      .og-mk-side-name {
-        font-size: 15px;
+      .og-mk-log-toggle {
+        display: inline-flex;
+        margin-left: auto;
+        min-height: 36px;
+        padding-inline: 12px;
+        font-size: 12px;
       }
-      .og-mk-side-pts strong {
-        font-size: 28px;
+      /* Trono e desafiante já estão no confronto, em corpo grande. Repeti-los aqui
+         gastava ~96px de altura pra mostrar duas vezes a mesma dupla. Só isto vale
+         duas linhas de fila. Na PREPARAÇÃO a lista continua inteira — lá ela é o
+         que se arrasta pra definir a ordem. */
+      .og-mk-live .og-mk-order-row.throne,
+      .og-mk-live .og-mk-order-row.challenger {
+        display: none;
       }
-
-      .og-mk-order-list {
+      /* A fila é a única faixa que rola, e é a que cede altura quando aperta. */
+      .og-mk-live .og-mk-order-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
         gap: 6px;
       }
       .og-mk-order-row {
@@ -2148,74 +2271,149 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         min-height: 48px;
       }
 
-      /* Controles grudados no polegar — o que o mesário toca a cada ponto. */
-      .og-mk-live-controls {
-        position: sticky;
-        bottom: 0;
-        z-index: 30;
-        margin: 8px -14px -12px;
-        padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
-        border-top: 1px solid var(--nx-line);
-        background: color-mix(in srgb, var(--nx-surface-0) 94%, transparent);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-      }
-      /* Empate: só a bola de ouro marca ponto — esconde rally e gruda os cards. */
-      .og-mk-order:has(.og-mk-tie) .og-mk-live-controls {
-        display: none;
-      }
-      .og-mk-order:has(.og-mk-tie) .og-mk-golden {
-        position: sticky;
-        bottom: 0;
-        z-index: 30;
-        margin: 8px -14px -12px;
-        padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
-        border-radius: 0;
-        border-top: 1px solid var(--nx-line);
-        background: color-mix(in srgb, var(--nx-surface-0) 94%, transparent);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-      }
-
-      /* Preparação: iniciar fica no polegar. */
-      .og-mk-prep-side {
-        position: static;
-      }
-      .og-mk-start {
-        position: sticky;
-        bottom: 0;
-        z-index: 30;
-        margin: 0 -4px;
-        padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-        border-radius: 18px 18px 0 0;
-        box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.35), 0 10px 28px rgba(255, 106, 26, 0.28);
-      }
-      .og-mk-move {
-        width: 40px;
-        height: 40px;
-      }
-      .og-mk-chip {
-        min-height: 44px;
-        height: 44px;
+      /* ── Ações: sempre no rodapé da faixa da fila, sem sticky ───── */
+      .og-mk-live .og-mk-live-controls {
+        flex: none;
+        margin-top: 10px;
       }
       .og-mk-live-actions {
         flex-wrap: nowrap;
         gap: 8px;
+        margin-top: 0;
       }
       .og-mk-rally-king,
       .og-mk-rally-crown {
         flex: 1 1 0;
         min-width: 0;
-        min-height: 56px;
+        min-height: clamp(58px, 8.5vh, 88px);
         font-size: 15px;
         font-weight: 800;
+        line-height: 1.15;
+        white-space: normal;
         border-radius: 14px;
+      }
+      .og-mk-rally-crown {
+        border-color: color-mix(in srgb, var(--nx-orange-500) 45%, transparent);
+        background: color-mix(in srgb, var(--nx-orange-500) 12%, var(--nx-surface-1));
+        color: var(--nx-text);
       }
       .og-mk-fault {
         min-height: 44px;
         font-size: 12.5px;
       }
 
+      /* ── Log: gaveta ──────────────────────────────────────────── */
+      .og-mk-live-log {
+        display: none;
+      }
+      .og-mk-live-log.open {
+        display: flex;
+        position: fixed;
+        z-index: 46;
+        left: 12px;
+        right: 12px;
+        bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+        flex-direction: column;
+        min-height: 0;
+        max-height: 60dvh;
+        border-radius: 16px;
+        box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.55);
+      }
+      .og-mk-live-log.open .og-mk-log-body {
+        min-height: 0;
+        overflow: hidden;
+      }
+      .og-mk-live-log.open .og-mk-log-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
+        overflow-y: auto;
+      }
+      .og-mk-live-log.open .og-mk-log-undo {
+        flex: none;
+        min-height: 44px;
+        align-self: stretch;
+        justify-content: center;
+      }
+      /* Espaco pro X nao montar em cima do titulo. */
+      .og-mk-live-log.open .og-mk-panel-title {
+        padding-right: 48px;
+      }
+      .og-mk-log-scrim {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 45;
+        border: 0;
+        padding: 0;
+        background: rgba(0, 0, 0, 0.55);
+      }
+      .og-mk-log-close {
+        display: inline-grid;
+        place-items: center;
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        border: 1px solid var(--nx-line);
+        background: var(--nx-surface-1);
+        color: var(--nx-text-mute);
+        cursor: pointer;
+      }
+
+      /* ── Empate: a bola de ouro toma a tela ───────────────────── */
+      .og-mk-live .og-mk-order:has(.og-mk-tie) .og-mk-live-controls {
+        display: none;
+      }
+      .og-mk-live .og-mk-tie {
+        flex: none;
+        margin-top: 10px;
+      }
+      .og-mk-live:has(.og-mk-tie) {
+        grid-template-rows: auto 0 minmax(0, 1fr);
+      }
+      .og-mk-live:has(.og-mk-tie) .og-mk-open {
+        display: none;
+      }
+      .og-mk-live:has(.og-mk-tie) .og-mk-end {
+        display: none;
+      }
+      /* Com o confronto fora, a fila volta a listar TODAS as duplas: no empate a
+         classificacao inteira e que importa — e ela que produziu o empate. */
+      .og-mk-live:has(.og-mk-tie) .og-mk-order-row.throne,
+      .og-mk-live:has(.og-mk-tie) .og-mk-order-row.challenger {
+        display: grid;
+      }
+      /* O card de empate NAO estica nem encolhe: com min-height:0 ele afundava abaixo
+         do proprio conteudo no telefone e o alerta vazava por cima da fila. Quem cede
+         altura e a lista, que rola. Os cards da bola de ouro crescem so ate onde a
+         tela permite — sao o alvo de toque da mesa durante o desempate. */
+      .og-mk-live:has(.og-mk-tie) .og-mk-golden-card {
+        min-height: clamp(56px, 9vh, 96px);
+      }
+
+      /* ── Densidade comum às três telas ────────────────────────── */
+      .og-mk-open,
+      .og-mk-order,
+      .og-mk-panel {
+        padding: 12px 14px;
+      }
+      .og-mk-sides {
+        gap: 10px;
+      }
+      .og-mk-side {
+        padding: 12px 10px;
+        gap: 6px;
+        min-width: 0;
+      }
+      .og-mk-side-name {
+        font-size: 15px;
+      }
+      .og-mk-order-list {
+        gap: 6px;
+      }
       .og-mk-tie {
         padding: 12px;
         gap: 12px;
@@ -2245,6 +2443,38 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         font-size: 16px;
       }
 
+      /* ── Preparação: iniciar fica no polegar ──────────────────── */
+      .og-mk-prep-side {
+        position: static;
+      }
+      .og-mk-start {
+        position: sticky;
+        bottom: 0;
+        z-index: 30;
+        margin: 0 -4px;
+        padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+        border-radius: 18px 18px 0 0;
+        box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.35), 0 10px 28px rgba(255, 106, 26, 0.28);
+      }
+      .og-mk-move {
+        width: 40px;
+        height: 40px;
+      }
+      .og-mk-chip {
+        min-height: 44px;
+        height: 44px;
+      }
+
+      .og-mk-done-foot {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+      }
+      .og-mk-done-actions {
+        flex-wrap: wrap;
+        margin-left: 0;
+      }
+
       .og-mk-confirm-grid {
         grid-template-columns: 1fr;
       }
@@ -2259,39 +2489,73 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
     }
 
     @media (max-width: 639.98px) {
-      .og-mk-live-clock {
-        flex-direction: column;
-        align-items: stretch;
-        text-align: center;
-        gap: 6px;
+      .og-mk-live {
+        gap: 8px;
+        padding-inline: 8px;
       }
-      .og-mk-live-clock-meta {
-        margin: 0;
+      .og-mk-live-clock {
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-areas:
+          'back read'
+          'acts acts';
+        gap: 6px 8px;
+        padding: 6px 8px;
+      }
+      .og-mk-quadra-back {
+        grid-area: back;
+      }
+      .og-mk-clock-read {
+        grid-area: read;
       }
       .og-mk-live-clock-actions {
+        grid-area: acts;
         width: 100%;
         grid-template-columns: 1fr 1fr;
       }
-      .og-mk-live-log {
-        max-height: 130px;
-      }
       .og-mk-live-time {
-        font-size: 36px;
+        font-size: 26px;
+      }
+      .og-mk-live-clock-actions .og-ghost-btn {
+        padding-inline: 9px;
+        font-size: 11px;
+      }
+      .og-mk-end {
+        padding-inline: 10px;
+        font-size: 12px;
       }
 
-      .og-mk-sides {
-        grid-template-columns: 1fr;
-        gap: 8px;
-      }
-      .og-mk-vs {
+      /* O confronto CONTINUA lado a lado no telefone. Empilhar as duas duplas era
+         o que estourava a altura e obrigava a rolar pra achar o botão de ponto. */
+      .og-mk-live .og-mk-open > .og-mk-section-head {
         display: none;
       }
-      .og-mk-side-pts strong {
-        font-size: 32px;
+      .og-mk-live .og-mk-side-avatars {
+        display: none;
+      }
+      .og-mk-live .og-mk-side-sub {
+        display: none;
+      }
+      .og-mk-live .og-mk-side {
+        padding: 10px 8px;
+      }
+      .og-mk-live .og-mk-side-name {
+        font-size: 13px;
+      }
+      .og-mk-live .og-mk-side-badge {
+        font-size: 10px;
+        letter-spacing: 0.06em;
+      }
+      .og-mk-vs {
+        font-size: 11px;
       }
 
-      .og-mk-order-row {
-        grid-template-columns: 24px auto 1fr auto;
+      /* Sem o papel, a linha da fila fica: nº · avatares · dupla · pts. As colunas
+         precisam ser redeclaradas — esconder um filho desloca as trilhas de grid. */
+      .og-mk-live .og-mk-order-row {
+        grid-template-columns: 22px auto minmax(0, 1fr) auto;
+      }
+      .og-mk-prep .og-mk-order-row {
+        grid-template-columns: 24px auto minmax(0, 1fr) auto;
       }
       .og-mk-order-role {
         display: none;
@@ -2299,35 +2563,75 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
 
       .og-mk-rally-king,
       .og-mk-rally-crown {
-        min-height: 60px;
-        font-size: 14px;
+        font-size: 13.5px;
         letter-spacing: -0.01em;
       }
-      .og-mk-rally-crown {
-        white-space: normal;
-        line-height: 1.15;
-        padding-block: 10px;
-      }
-
-      .og-mk-live-actions {
-        flex-direction: column;
-      }
-      .og-mk-rally-king,
-      .og-mk-rally-crown {
-        width: 100%;
-        flex: none;
+      .og-mk-fault {
+        font-size: 11.5px;
       }
 
       .og-mk-open .og-mk-section-rule {
         display: none;
       }
-
       .og-mk-tie-roles {
         flex-direction: column;
         gap: 6px;
       }
       .og-mk-tie-sep {
         display: none;
+      }
+
+      /* Tabela final: as colunas de numero encolhem e os avatares saem — o que
+         precisa de largura e o nome da dupla. O selo desce pra baixo do nome em vez
+         de disputar a mesma linha com ele. */
+      .og-mk-final-head,
+      .og-mk-final-row {
+        grid-template-columns: 22px minmax(0, 1fr) 42px 42px 42px;
+        gap: 8px;
+      }
+      .og-mk-final-head {
+        padding: 0 12px 6px;
+        font-size: 9px;
+        letter-spacing: 0.06em;
+      }
+      .og-mk-final-row {
+        padding: 12px;
+      }
+      .og-mk-final-avatars {
+        display: none;
+      }
+      .og-mk-final-dupla {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+      }
+      .og-mk-final-name {
+        font-size: 14px;
+      }
+      .og-mk-champ-name {
+        font-size: 21px;
+      }
+
+      /* Homologar e a acao que fecha a rodada: linha inteira, longe das outras. */
+      .og-mk-done-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        width: 100%;
+      }
+      .og-mk-done-back,
+      .og-mk-homolog {
+        grid-column: 1 / -1;
+      }
+      .og-mk-done-back {
+        display: grid;
+        place-items: center;
+        min-height: 44px;
+      }
+      .og-mk-done-btn,
+      .og-mk-homolog {
+        justify-content: center;
+        min-height: 44px;
       }
     }
 
@@ -2372,6 +2676,9 @@ export class MesaKocComponent {
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   protected readonly telaoQr = signal<string | null>(null);
   protected readonly confirmStartOpen = signal(false);
+  /** Gaveta do log — so existe no modo quadra (tablet/celular); no desktop o log e
+   *  um painel fixo da coluna lateral e este sinal nao tem efeito nenhum. */
+  protected readonly logOpen = signal(false);
 
   constructor() {
     effect((onCleanup) => {
@@ -2543,6 +2850,7 @@ export class MesaKocComponent {
 
   protected onDocEscape(): void {
     if (this.confirmStartOpen()) this.cancelStart();
+    else if (this.logOpen()) this.logOpen.set(false);
   }
 
   protected confirmStart(): void {

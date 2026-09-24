@@ -12,7 +12,9 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../athlete/domain/favorites_providers.dart';
+import '../domain/arena_access_providers.dart';
 import '../domain/arena_providers.dart';
+import '../domain/arena_staff_role.dart';
 import '../domain/products/arena_product_logic.dart';
 import '../domain/products/arena_product_providers.dart';
 import '../domain/arena_shell_providers.dart';
@@ -79,6 +81,14 @@ class _SettingsBody extends ConsumerWidget {
     final productSummary = ref.watch(managedArenaProductSummaryProvider);
     final productsSubtitle = formatProductSummarySubtitle(productSummary);
 
+    final canWriteAgenda = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
+    final canReadQuadras = ref.watch(arenaCanReadProvider(ArenaArea.quadras));
+    final canReadEstoque = ref.watch(arenaCanReadProvider(ArenaArea.estoque));
+    final canReadFinanceiro =
+        ref.watch(arenaCanReadProvider(ArenaArea.financeiro));
+    final canReadPerfil = ref.watch(arenaCanReadProvider(ArenaArea.perfil));
+    final isOwner = ref.watch(arenaAccessProvider).valueOrNull?.isOwner ?? false;
+
     final profileSubtitle = arena != null
         ? '${arena.locationLabel} • ${formatFollowersCount(followers)}'
         : 'Carregando perfil...';
@@ -106,6 +116,102 @@ class _SettingsBody extends ConsumerWidget {
             MediaQuery.paddingOf(context).top -
             ArenaDashboardTokens.shellScrollBottomPadding(context) -
             88;
+
+        // O divisor e por tile (`showDivider`), entao filtrar muda quem e o
+        // ultimo. Montar builders e resolver `isLast` depois do filtro.
+        final arenaTiles = <Widget Function(bool isLast)>[
+          if (canReadPerfil)
+            (isLast) => ArenaSettingsTile(
+                  leading: ArenaSettingsArenaLogo(logoUrl: arena?.logoUrl),
+                  title: arena?.name ?? 'Arena',
+                  subtitle: profileSubtitle,
+                  icon: Icons.stadium_rounded,
+                  onTap: arena == null
+                      ? null
+                      : () => context.pushNamed(AppRouteNames.arenaProfile),
+                  trailingBadge: const ArenaSettingsProfileBadge(),
+                  showDivider: !isLast,
+                ),
+          if (canWriteAgenda)
+            (isLast) => ArenaSettingsTile(
+                  icon: Icons.calendar_month_outlined,
+                  title: 'Disponibilidade na agenda',
+                  subtitle: availabilitySubtitle,
+                  onTap: () => context
+                      .pushNamed(AppRouteNames.arenaAvailabilitySettings),
+                  showDivider: !isLast,
+                ),
+          if (canReadQuadras)
+            (isLast) => ArenaSettingsTile(
+                  icon: Icons.grid_view_rounded,
+                  title: 'Quadras',
+                  subtitle: courtsSubtitle,
+                  onTap: () => context.pushNamed(AppRouteNames.arenaCourts),
+                  showDivider: !isLast,
+                ),
+          if (canReadEstoque)
+            (isLast) => ArenaSettingsTile(
+                  icon: Icons.inventory_2_outlined,
+                  title: 'Produtos e estoque',
+                  subtitle: productsSubtitle,
+                  variant: ArenaSettingsIconVariant.neutral,
+                  onTap: () => context.pushNamed(AppRouteNames.arenaProducts),
+                  trailingBadge: productSummary.alertCount > 0
+                      ? _ProductsAlertBadge(count: productSummary.alertCount)
+                      : null,
+                  showDivider: !isLast,
+                ),
+          if (canReadFinanceiro)
+            (isLast) => ArenaSettingsTile(
+                  icon: Icons.insights_rounded,
+                  title: 'Relatórios',
+                  subtitle: 'Ocupação, jogadores únicos e no-show',
+                  variant: ArenaSettingsIconVariant.neutral,
+                  onTap: () =>
+                      context.pushNamed(AppRouteNames.arenaOccupancyReport),
+                  showDivider: !isLast,
+                ),
+        ];
+
+        final preferenciasTiles = <Widget Function(bool isLast)>[
+          (isLast) => ArenaSettingsTile(
+                icon: Icons.notifications_outlined,
+                title: 'Notificações',
+                subtitle: 'Push, e-mail, WhatsApp',
+                variant: ArenaSettingsIconVariant.neutral,
+                onTap: () =>
+                    showAppSnackBar(context, 'Notificações em breve.'),
+                showDivider: !isLast,
+              ),
+          if (isOwner)
+            (isLast) => ArenaSettingsTile(
+                  icon: Icons.workspace_premium_outlined,
+                  title: 'Plano',
+                  subtitle: 'Assinatura e benefícios da arena',
+                  variant: ArenaSettingsIconVariant.neutral,
+                  onTap: () => context.pushNamed(AppRouteNames.arenaPlan),
+                  showDivider: !isLast,
+                ),
+          if (canReadFinanceiro)
+            (isLast) => ArenaSettingsTile(
+                  icon: Icons.account_balance_wallet_outlined,
+                  title: 'Pagamentos',
+                  subtitle: paymentsSubtitle,
+                  variant: ArenaSettingsIconVariant.neutral,
+                  onTap: () => context.pushNamed(AppRouteNames.arenaPayments),
+                  showDivider: !isLast,
+                ),
+          if (isOwner)
+            (isLast) => ArenaSettingsTile(
+                  icon: Icons.person_add_outlined,
+                  title: 'Equipe',
+                  subtitle: '1 owner • convidar staff',
+                  variant: ArenaSettingsIconVariant.neutral,
+                  onTap: () => showAppSnackBar(context, 'Equipe em breve.'),
+                  showDivider: !isLast,
+                ),
+        ];
+
         return NexaPageHeader(
           topGap: 12,
           padding: const EdgeInsets.symmetric(
@@ -141,110 +247,30 @@ class _SettingsBody extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           SizedBox(height: 28),
-                          ArenaSettingsGroup(
-                            sectionLabel: 'ARENA',
-                            children: [
-                              ArenaSettingsTile(
-                                leading: ArenaSettingsArenaLogo(
-                                  logoUrl: arena?.logoUrl,
-                                ),
-                                title: arena?.name ?? 'Arena',
-                                subtitle: profileSubtitle,
-                                icon: Icons.stadium_rounded,
-                                onTap: arena == null
-                                    ? null
-                                    : () => context.pushNamed(
-                                          AppRouteNames.arenaProfile,
-                                        ),
-                                trailingBadge: const ArenaSettingsProfileBadge(),
-                                showDivider: true,
-                              ),
-                              ArenaSettingsTile(
-                                icon: Icons.calendar_month_outlined,
-                                title: 'Disponibilidade na agenda',
-                                subtitle: availabilitySubtitle,
-                                onTap: () => context.pushNamed(
-                                  AppRouteNames.arenaAvailabilitySettings,
-                                ),
-                              ),
-                              ArenaSettingsTile(
-                                icon: Icons.grid_view_rounded,
-                                title: 'Quadras',
-                                subtitle: courtsSubtitle,
-                                onTap: () =>
-                                    context.pushNamed(AppRouteNames.arenaCourts),
-                                showDivider: true,
-                              ),
-                              ArenaSettingsTile(
-                                icon: Icons.inventory_2_outlined,
-                                title: 'Produtos e estoque',
-                                subtitle: productsSubtitle,
-                                variant: ArenaSettingsIconVariant.neutral,
-                                onTap: () => context
-                                    .pushNamed(AppRouteNames.arenaProducts),
-                                trailingBadge: productSummary.alertCount > 0
-                                    ? _ProductsAlertBadge(
-                                        count: productSummary.alertCount)
-                                    : null,
-                                showDivider: true,
-                              ),
-                              ArenaSettingsTile(
-                                icon: Icons.insights_rounded,
-                                title: 'Relatórios',
-                                subtitle:
-                                    'Ocupação, jogadores únicos e no-show',
-                                variant: ArenaSettingsIconVariant.neutral,
-                                onTap: () => context.pushNamed(
-                                  AppRouteNames.arenaOccupancyReport,
-                                ),
-                                showDivider: false,
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 24),
-                          ArenaSettingsGroup(
-                            sectionLabel: 'PREFERÊNCIAS',
-                            children: [
-                              ArenaSettingsTile(
-                                icon: Icons.notifications_outlined,
-                                title: 'Notificações',
-                                subtitle: 'Push, e-mail, WhatsApp',
-                                variant: ArenaSettingsIconVariant.neutral,
-                                onTap: () => showAppSnackBar(
-                                  context,
-                                  'Notificações em breve.',
-                                ),
-                              ),
-                              ArenaSettingsTile(
-                                icon: Icons.workspace_premium_outlined,
-                                title: 'Plano',
-                                subtitle: 'Assinatura e benefícios da arena',
-                                variant: ArenaSettingsIconVariant.neutral,
-                                onTap: () =>
-                                    context.pushNamed(AppRouteNames.arenaPlan),
-                              ),
-                              ArenaSettingsTile(
-                                icon: Icons.account_balance_wallet_outlined,
-                                title: 'Pagamentos',
-                                subtitle: paymentsSubtitle,
-                                variant: ArenaSettingsIconVariant.neutral,
-                                onTap: () => context
-                                    .pushNamed(AppRouteNames.arenaPayments),
-                              ),
-                              ArenaSettingsTile(
-                                icon: Icons.person_add_outlined,
-                                title: 'Equipe',
-                                subtitle: '1 owner • convidar staff',
-                                variant: ArenaSettingsIconVariant.neutral,
-                                onTap: () => showAppSnackBar(
-                                  context,
-                                  'Equipe em breve.',
-                                ),
-                                showDivider: false,
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 24),
+                          if (arenaTiles.isNotEmpty) ...[
+                            ArenaSettingsGroup(
+                              sectionLabel: 'ARENA',
+                              children: [
+                                for (var i = 0; i < arenaTiles.length; i++)
+                                  arenaTiles[i](i == arenaTiles.length - 1),
+                              ],
+                            ),
+                            SizedBox(height: 24),
+                          ],
+                          if (preferenciasTiles.isNotEmpty) ...[
+                            ArenaSettingsGroup(
+                              sectionLabel: 'PREFERÊNCIAS',
+                              children: [
+                                for (var i = 0;
+                                    i < preferenciasTiles.length;
+                                    i++)
+                                  preferenciasTiles[i](
+                                    i == preferenciasTiles.length - 1,
+                                  ),
+                              ],
+                            ),
+                            SizedBox(height: 24),
+                          ],
                           if (canSwitchRole)
                             ArenaSettingsGroup(
                               sectionLabel: 'ACESSO',
@@ -252,7 +278,8 @@ class _SettingsBody extends ConsumerWidget {
                                 ArenaSettingsTile(
                                   icon: Icons.swap_horiz_rounded,
                                   title: 'Trocar papel',
-                                  subtitle: 'Entrar como atleta ou organizador',
+                                  subtitle:
+                                      'Entrar como atleta ou organizador',
                                   variant: ArenaSettingsIconVariant.orange,
                                   onTap: () =>
                                       navigateToRoleSelection(context, ref),

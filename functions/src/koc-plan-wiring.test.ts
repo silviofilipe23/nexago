@@ -8,6 +8,7 @@ import {
   kocResolvePlan,
   kocSnakeDistribute,
   type KocConfig,
+  type KocRoundDraft,
 } from "./koc-bracket-builders";
 import {kocRoundDoc, resolveKocConfig} from "./organizer-category-ops";
 
@@ -54,6 +55,24 @@ function generateViaRealWiring(
   return {config, plan, drafts, docs};
 }
 
+/**
+ * Compara os drafts ignorando a ORDEM do elenco dentro de cada rodada — o
+ * único jeito de os três caminhos legitimamente divergirem é o sorteio ao
+ * vivo impor uma ordem de elenco diferente da serpentina interna (mesmas
+ * duplas, mesma chave, ordem de assento diferente). Tudo o mais — fase,
+ * poolId, matchNumber, roundLabel, batteryLabel, tamanho, qualifiers,
+ * crossoverIndex — tem que bater byte a byte, porque nada disso depende do
+ * CONTEÚDO do elenco, só do FORMATO do plano.
+ */
+function withoutRosterOrder(drafts: readonly KocRoundDraft[]) {
+  return drafts.map((d) => ({...d, teamIds: [...d.teamIds].sort()}));
+}
+
+/** Mesma normalização, para os docs já gravados (`kocTeamIds`). */
+function withoutDocRosterOrder(docs: readonly Record<string, any>[]) {
+  return docs.map((d) => ({...d, kocTeamIds: [...(d.kocTeamIds ?? [])].sort()}));
+}
+
 describe("fiação: os três caminhos que geram chave concordam", () => {
   // Campo com folga suficiente para produzir 4 fases (classificatória, duas
   // rodadas intermediárias e final) — é onde a divergência entre caminhos
@@ -63,10 +82,17 @@ describe("fiação: os três caminhos que geram chave concordam", () => {
   const maxTeamsPerRound = 6;
   const roundDurationSec = 900;
   const plan = kocProposePlan(teamCount, maxTeamsPerRound, () => roundDurationSec);
-  // O que a semeadura em serpentina interna produziria — usado como o elenco
-  // "sorteado" no caminho do sorteio ao vivo, para que os três caminhos sejam
-  // comparáveis rodada a rodada, e não só na FORMA do plano.
-  const phaseOneRosters = kocSnakeDistribute(teamIds, plan[0]!.bracketSizes);
+  // NÃO pode ser a mesma partição que `buildKingOfCourtRounds` monta sozinho
+  // quando `phaseOneRosters` não é passado (a serpentina abaixo) — se fosse,
+  // a equivalência não discriminaria entre "o sorteio foi de fato usado" e
+  // "o sorteio foi ignorado e caiu na serpentina interna" (um bug que
+  // derrubasse o branch `opts.phaseOneRosters` passaria despercebido).
+  // Mesma partição por chave — `assertPhaseOneRosters` continua aceitando —
+  // mas ordem invertida dentro de cada chave: diferente da serpentina em
+  // toda chave com 3+ duplas (o piso do formato), então a diferença é
+  // garantida, não incidental.
+  const snakeRosters = kocSnakeDistribute(teamIds, plan[0]!.bracketSizes);
+  const phaseOneRosters = snakeRosters.map((roster) => [...roster].reverse());
 
   // Caminho 1: tela de gerar chave do portal (seeds.component.ts) — manda o
   // plano dentro do próprio `bracketConfig`.
@@ -100,15 +126,37 @@ describe("fiação: os três caminhos que geram chave concordam", () => {
     assert.deepEqual(draw.plan, plan);
   });
 
-  it("geram exatamente as mesmas rodadas (elenco, tamanho, classificação)", () => {
-    assert.deepEqual(portal.drafts, app.drafts);
-    assert.deepEqual(app.drafts, draw.drafts);
+  it(
+    "concordam na FORMA das rodadas (fase, chave, bateria, tamanho, classificação) " +
+      "— o sorteio pode diferir só na ORDEM do elenco dentro da chave",
+    () => {
+      assert.deepEqual(withoutRosterOrder(portal.drafts), withoutRosterOrder(app.drafts));
+      assert.deepEqual(withoutRosterOrder(app.drafts), withoutRosterOrder(draw.drafts));
+    },
+  );
+
+  it("gravam o mesmo doc de rodada nos três caminhos, a menos da ordem do elenco sorteado", () => {
+    assert.deepEqual(withoutDocRosterOrder(portal.docs), withoutDocRosterOrder(app.docs));
+    assert.deepEqual(withoutDocRosterOrder(app.docs), withoutDocRosterOrder(draw.docs));
   });
 
-  it("gravam o mesmo doc de rodada nos três caminhos", () => {
-    assert.deepEqual(portal.docs, app.docs);
-    assert.deepEqual(app.docs, draw.docs);
-  });
+  it(
+    "o elenco da fase 1 do sorteio é exatamente o que foi sorteado — não a " +
+      "serpentina interna",
+    () => {
+      const drawPhaseOne = draw.drafts
+        .filter((d) => d.phase === 1 && d.batteryLabel === 1)
+        .map((d) => d.teamIds);
+      // `opts.phaseOneRosters` tem que chegar intacto ao draft — é o que prova
+      // que o sorteio ao vivo de fato impõe o elenco, em vez de a chave nascer
+      // com uma ordem qualquer que por acaso serve.
+      assert.deepEqual(drawPhaseOne, phaseOneRosters);
+      // E tem que ser DIFERENTE do que a serpentina interna teria produzido —
+      // senão um bug que ignorasse `opts.phaseOneRosters` e caísse no
+      // fallback (`kocSnakeDistribute`) passaria despercebido por esta suite.
+      assert.notDeepEqual(drawPhaseOne, snakeRosters);
+    },
+  );
 
   it("o plano congelado em kocConfig é o mesmo que gerou as rodadas, nos três caminhos", () => {
     for (const {docs} of [portal, app, draw]) {

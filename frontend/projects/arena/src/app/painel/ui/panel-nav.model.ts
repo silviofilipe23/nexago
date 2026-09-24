@@ -47,7 +47,9 @@ export const NAV_ITEMS: readonly PanelNavItem[] = [
   { id: 'avaliacoes', label: 'Avaliações', icon: 'star', route: '/painel/avaliacoes', badge: null, area: 'comunidade', group: 'publico' },
   { id: 'seguidores', label: 'Seguidores', icon: 'users', route: '/painel/seguidores', badge: null, area: 'comunidade', group: 'publico' },
   { id: 'ranking', label: 'Ranking', icon: 'ranking', route: '/painel/ranking', badge: null, area: 'comunidade', group: 'publico' },
-  { id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios', badge: 2, area: 'torneios', group: 'publico' },
+  // Torneios está fora do menu por decisão tomada na main (commit 2f58f80f), preservada aqui
+  // ao trazer a main para este branch. Reativar é descomentar esta linha.
+  // { id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios', badge: 2, area: 'torneios', group: 'publico' },
 
   { id: 'equipe', label: 'Equipe', icon: 'team', route: '/painel/equipe', badge: null, area: 'owner', group: 'conta' },
   { id: 'planos', label: 'Planos', icon: 'card', route: '/painel/planos', badge: null, area: 'owner', group: 'conta' },

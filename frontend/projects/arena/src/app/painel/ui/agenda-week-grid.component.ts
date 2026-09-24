@@ -47,6 +47,9 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
   template: `
     <div class="wrap">
       <div class="header">
+        <!-- Canto congelado: sem isto, ao rolar pra o lado o cabeçalho do dia desliza por
+             baixo do espaço vazio e fica visualmente "colado" acima da coluna de horário
+             fixada — como se fosse o cabeçalho dela. -->
         <div class="gutter-spacer"></div>
         @for (day of weekDays(); track day.dateKey) {
           <div class="day-col-header" [class.today]="day.isToday" [class.selected]="day.dateKey === selectedDateKey()" [style.minWidth.px]="dayColumnWidth()">
@@ -63,10 +66,18 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
       </div>
 
       <div class="grid" [style.height.px]="gridHeight()">
-        @for (row of rowMarks(); track row.offset) {
-          @if (row.isHour) {
-            <div class="hour-label" [style.top.px]="row.offset - 6">{{ row.label }}</div>
+        <!-- Coluna de horário fixada: filho de fluxo normal (não 'position: absolute') pra
+             'position: sticky; left: 0' funcionar — os rótulos de hora seguem posicionados
+             por cálculo dentro dela, como antes. -->
+        <div class="time-gutter" [style.height.px]="gridHeight()">
+          @for (row of rowMarks(); track row.offset) {
+            @if (row.isHour) {
+              <div class="hour-label" [style.top.px]="row.offset - 6">{{ row.label }}</div>
+            }
           }
+        </div>
+
+        @for (row of rowMarks(); track row.offset) {
           <div class="hour-line" [class.solid]="row.isHour" [style.top.px]="row.offset"></div>
         }
 
@@ -117,18 +128,42 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
       scrollbar-width: thin;
     }
 
+    /* 'width: max-content' + 'min-width: 100%': a linha do cabeçalho tem que ficar tão larga
+       quanto o conteúdo de verdade (soma dos dias), não só o viewport — senão a caixa (e o
+       fundo opaco dela) "acaba" no meio da rolagem horizontal e revela conteúdo por baixo, e
+       o bloco contentor da coluna de horário fixada (abaixo) fica estreito demais pro
+       'position: sticky' segurar até o fim do curso. Medido: sem isto, '.time-gutter' e
+       '.gutter-spacer' ficavam em x=0 só até ~26% do curso e terminavam em -776, numa grade
+       de 1382px de conteúdo rolável dentro de 310px de viewport.
+       'z-index: 7', acima de '.time-gutter' (6): os dois só têm 'top'/'left' como offset de
+       sticky, então nenhum escapa da ordem normal de empilhamento — empate de z-index entre
+       irmãos do mesmo contexto resolve por ordem de árvore, e '.time-gutter' (dentro de
+       '.grid', que vem DEPOIS de '.header' no DOM) ganharia o empate se os dois ficassem em
+       6. Sem este degrau, a caixa de altura cheia da gutter (que rola pra cima junto com
+       '.grid') pinta por cima da faixa do cabeçalho sticky assim que scrollTop > 0 — as duas
+       áreas SE SOBREPÕEM nesse momento, não são "áreas diferentes da tela". Medido com
+       'elementsFromPoint' no canto (x=20, dentro da faixa do cabeçalho, ~45px de altura
+       aqui): o topo virava 'hour-label' em vez do cabeçalho. */
     .header {
       display: flex;
       position: sticky;
       top: 0;
-      z-index: 6;
+      z-index: 7;
       background: var(--nx-surface-0);
       padding-bottom: 10px;
+      width: max-content;
+      min-width: 100%;
     }
 
     .gutter-spacer {
       width: 52px;
       flex: none;
+      /* Acompanha '.time-gutter' (abaixo) fixado em 'left' — mesmo raciocínio: fundo opaco
+         pra os cabeçalhos de dia não aparecerem por baixo ao rolar de lado. */
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      background: var(--nx-surface-0);
     }
 
     .day-col-header {
@@ -173,9 +208,32 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
       text-overflow: ellipsis;
     }
 
+    /* Mesmo raciocínio do '.header' acima: '.grid' vira uma linha flex em fluxo normal, com
+       largura intrínseca real, em vez de depender de '.days' (overlay 'position: absolute'
+       que não contribui largura nenhuma pro bloco contentor). */
     .grid {
       position: relative;
-      padding-left: 52px;
+      display: flex;
+      width: max-content;
+      min-width: 100%;
+    }
+
+    /* Coluna de horário fixada: sticky em 'left', fundo opaco e z-index acima de
+       '.hour-line'/'.days'/'.block' (todos z-index automático) E acima de '.now-line'
+       (z-index 5) — a barra "agora" se move na horizontal junto com a grade, então sem isto
+       ela atravessa por cima do rótulo de hora fixado a partir de qualquer scrollLeft > 0.
+       Fica ABAIXO de '.header' (z-index 7): a ordem que o layout precisa é cabeçalho >
+       gutter > now-line, e a caixa de altura cheia da gutter rola por baixo da faixa do
+       cabeçalho sticky ao rolar verticalmente — sem este degrau, ela pintaria por cima e
+       cortaria um 'hour-label' dentro do canto congelado (a faixa do cabeçalho aqui é mais
+       alta, ~45px, então o corte varre uma região maior conforme o scroll muda). */
+    .time-gutter {
+      position: sticky;
+      left: 0;
+      width: 52px;
+      flex: none;
+      z-index: 6;
+      background: var(--nx-surface-0);
     }
 
     .hour-label {
@@ -200,12 +258,12 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
       border-top-style: solid;
     }
 
+    /* Irmã real de '.time-gutter' no fluxo do flex (não mais overlay 'position: absolute') —
+       ver comentário de '.grid' acima. A causa do bug era o 'position: absolute', não o
+       valor de 'flex': 'flex: 1 1 auto' e o atalho 'flex: 1' dão o mesmo resultado aqui
+       (mesmo raciocínio do '.columns' em agenda-grid.component.ts). */
     .days {
-      position: absolute;
-      top: 0;
-      left: 52px;
-      right: 0;
-      bottom: 0;
+      flex: 1 1 auto;
       display: flex;
     }
 

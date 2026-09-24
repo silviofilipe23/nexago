@@ -87,7 +87,7 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
             <div class="tp-notice" role="status">{{ n }}</div>
           }
 
-          <div class="main-grid">
+          <div class="main-grid ar-split" style="--ar-split-aside: 320px">
             <div class="col-left">
               <ar-panel-card class="balance-card">
                 <div class="balance-head">
@@ -135,14 +135,24 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
                         }
                       </div>
                       <div class="tx-label">
+                        <span class="col-label">Movimentação</span>
                         {{ tx.title }}
                         @if (tx.note; as note) {
                           <span class="tx-note">{{ note }}</span>
                         }
                       </div>
-                      <div class="tx-date">{{ formatFinancialMovementTimestamp(tx.at) }}</div>
-                      <ar-pill [tone]="tx.isFailed ? 'red' : tx.isPositive ? 'green' : 'dim'">{{ tx.statusLabel }}</ar-pill>
-                      <div class="tx-amount right" [class.in]="tx.isPositive">{{ tx.isPositive ? '+' : '−' }}{{ formatBRL(tx.amountReais) }}</div>
+                      <div class="tx-date">
+                        <span class="col-label">Data</span>
+                        {{ formatFinancialMovementTimestamp(tx.at) }}
+                      </div>
+                      <div class="tx-status">
+                        <span class="col-label">Status</span>
+                        <ar-pill [tone]="tx.isFailed ? 'red' : tx.isPositive ? 'green' : 'dim'">{{ tx.statusLabel }}</ar-pill>
+                      </div>
+                      <div class="tx-amount right" [class.in]="tx.isPositive">
+                        <span class="col-label">Valor</span>
+                        {{ tx.isPositive ? '+' : '−' }}{{ formatBRL(tx.amountReais) }}
+                      </div>
                     </div>
                   } @empty {
                     <p class="state-text">Nenhuma movimentação neste filtro.</p>
@@ -216,6 +226,8 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -241,11 +253,7 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
 
     .main-grid {
       flex: 1;
-      display: grid;
-      grid-template-columns: 1fr 320px;
-      gap: 16px;
       min-height: 0;
-      align-items: start;
     }
 
     .col-left,
@@ -374,10 +382,31 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
       align-items: center;
       padding: 11px 0;
       border-bottom: 1px solid var(--nx-line);
+
+      @include ar.below(sm) {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 4px;
+        padding: 12px var(--ar-pad-page-x);
+      }
     }
 
     .tx-row:last-child {
       border-bottom: none;
+    }
+
+    /* Sem cabecalho de coluna nesta lista (o icone ja indica entrada/saida) --
+       no celular cada celula de texto passa a carregar o proprio rotulo. */
+    .col-label {
+      display: none;
+
+      @include ar.below(sm) {
+        display: block;
+        font-family: var(--nx-font-mono);
+        font-size: 9px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--nx-text-dim);
+      }
     }
 
     .tx-icon {
@@ -584,12 +613,6 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
       justify-content: flex-end;
       gap: 12px;
       margin-top: 8px;
-    }
-
-    @media (max-width: 1180px) {
-      .main-grid {
-        grid-template-columns: 1fr;
-      }
     }
   `,
 })

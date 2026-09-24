@@ -88,7 +88,7 @@ function formatBRL(n: number): string {
         </a>
       </ar-page-header>
 
-      <div class="body">
+      <div class="body ar-split ar-split-aside-first">
         <div class="col-left">
           <ar-panel-card title="Período">
             <div class="field-label">Intervalo</div>
@@ -202,10 +202,6 @@ function formatBRL(n: number): string {
     .body {
       flex: 1;
       padding: 22px 32px 28px;
-      display: grid;
-      grid-template-columns: 373px 1fr;
-      gap: 16px;
-      align-items: start;
     }
 
     .col-left,
@@ -333,12 +329,6 @@ function formatBRL(n: number): string {
       font-size: 11px;
       color: var(--nx-text-dim);
       margin-top: 2px;
-    }
-
-    @media (max-width: 1180px) {
-      .body {
-        grid-template-columns: 1fr;
-      }
     }
 
     @media (max-width: 720px) {

@@ -85,7 +85,7 @@ interface PlanCardAction {
             <p class="state-text">Carregando plano…</p>
           </ar-panel-card>
         } @else {
-          <div class="top-row">
+          <div class="ar-split">
             <ar-panel-card kicker="Assinatura" title="Plano atual" class="sub-card">
               <div class="plan-badge" card-actions>{{ planName() }}{{ billingCycleSuffix() }}</div>
 
@@ -293,13 +293,6 @@ interface PlanCardAction {
       font-size: 13.5px;
       color: var(--nx-text-mute);
       margin: 0;
-    }
-
-    .top-row {
-      display: grid;
-      grid-template-columns: 1fr 373px;
-      gap: 16px;
-      align-items: start;
     }
 
     .plan-badge {
@@ -636,7 +629,6 @@ interface PlanCardAction {
     }
 
     @media (max-width: 1180px) {
-      .top-row,
       .plans-row {
         grid-template-columns: 1fr;
         flex-direction: column;

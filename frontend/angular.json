@@ -109,6 +109,9 @@
             "browser": "projects/arena/src/main.ts",
             "tsConfig": "projects/arena/tsconfig.app.json",
             "inlineStyleLanguage": "scss",
+            "stylePreprocessorOptions": {
+              "includePaths": ["projects/arena/src/styles"]
+            },
             "assets": [
               {
                 "glob": "**/*",
@@ -163,6 +166,9 @@
           "options": {
             "tsConfig": "projects/arena/tsconfig.spec.json",
             "inlineStyleLanguage": "scss",
+            "stylePreprocessorOptions": {
+              "includePaths": ["projects/arena/src/styles"]
+            },
             "assets": [
               {
                 "glob": "**/*",

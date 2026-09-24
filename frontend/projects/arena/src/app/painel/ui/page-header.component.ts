@@ -21,9 +21,10 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       display: flex;
       align-items: center;
       gap: 16px;
-      padding: 20px 32px;
+      padding: var(--ar-header-py) var(--ar-pad-page-x);
       border-bottom: 1px solid var(--nx-line);
       flex: none;
+      flex-wrap: wrap;
     }
 
     .titles {
@@ -31,6 +32,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       flex-direction: column;
       gap: 3px;
       min-width: 0;
+      flex: 1;
     }
 
     h1 {
@@ -40,7 +42,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       letter-spacing: -0.02em;
       color: var(--nx-text);
       margin: 0;
-      white-space: nowrap;
+      overflow-wrap: anywhere;
     }
 
     .subtitle {
@@ -50,7 +52,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       letter-spacing: 0.14em;
       text-transform: uppercase;
       color: var(--nx-text-dim);
-      white-space: nowrap;
+      overflow-wrap: anywhere;
     }
 
     .spacer {

@@ -36,7 +36,7 @@ function parseNumber(raw: string): number {
         </button>
       </ar-page-header>
 
-      <div class="body">
+      <div class="body ar-split">
         @if (loading()) {
           <p class="state-text">Carregando…</p>
         } @else {
@@ -161,10 +161,6 @@ function parseNumber(raw: string): number {
     .body {
       flex: 1;
       padding: 22px 32px 28px;
-      display: grid;
-      grid-template-columns: 1fr 373px;
-      gap: 16px;
-      align-items: start;
       overflow: auto;
     }
 
@@ -373,12 +369,6 @@ function parseNumber(raw: string): number {
 
     .danger-btn:hover:not(:disabled) {
       background: #ff564c;
-    }
-
-    @media (max-width: 1180px) {
-      .body {
-        grid-template-columns: 1fr;
-      }
     }
 
     @media (max-width: 720px) {

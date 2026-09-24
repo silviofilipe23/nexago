@@ -76,7 +76,7 @@ interface PlanFormItem {
             <div class="ok-banner">{{ msg }}</div>
           }
 
-          <div class="layout">
+          <div class="layout ar-split" style="--ar-split-aside: 340px">
           <div class="col-main">
           <ar-panel-card kicker="Onde seu site fica no ar" title="Endereço" pad="lg">
             <span card-actions class="status-pill" [class.live]="status() === 'published'">
@@ -406,6 +406,8 @@ interface PlanFormItem {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       display: flex;
       flex-direction: column;
@@ -414,13 +416,6 @@ interface PlanFormItem {
       /* Gutter da tela: o shell não dá padding — mesmo ritmo do Perfil/Início. */
       padding: 22px 32px 28px;
       box-sizing: border-box;
-    }
-
-    .layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 340px;
-      gap: 28px;
-      align-items: start;
     }
 
     .col-main {
@@ -439,11 +434,10 @@ interface PlanFormItem {
       min-width: 0;
     }
 
-    @media (max-width: 1080px) {
-      .layout {
-        grid-template-columns: 1fr;
-      }
-
+    /* ar.below(lg) casa com o ponto em que .ar-split (styles.scss) colapsa a
+       grade pra uma coluna -- sem isto a trilha fica sticky por cima do
+       conteudo entre o colapso do grid e este breakpoint. */
+    @include ar.below(lg) {
       .col-side {
         position: static;
       }

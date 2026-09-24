@@ -46,7 +46,7 @@ import { PanelShellComponent } from '../ui/panel-shell.component';
       font-size: 13.5px;
       color: var(--nx-text-mute);
       margin: 0;
-      padding: 22px 32px;
+      padding: var(--ar-pad-page-y) var(--ar-pad-page-x);
     }
   `,
 })

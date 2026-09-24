@@ -200,4 +200,96 @@ void main() {
       expect(config.phases, isNull);
     });
   });
+
+  group('kingOfCourtScheduleFromPhases', () {
+    // Mesmo plano de `parseKocPhases`/`kocProposePhasePlan(10, 6, 900)` no
+    // portal (`koc-phase-plan.spec.ts`) — usado aqui para que os dois lados
+    // sejam checados contra o MESMO plano real, não contra números soltos.
+    const plan10 = [
+      KingOfCourtPhase(
+        bracketSizes: [5, 5],
+        roundsPerBracket: 3,
+        qualifiersPerRound: 1,
+        durationSec: 900,
+      ),
+      KingOfCourtPhase(
+        bracketSizes: [6],
+        roundsPerBracket: 4,
+        qualifiersPerRound: 1,
+        durationSec: 900,
+      ),
+      KingOfCourtPhase(
+        bracketSizes: [4],
+        roundsPerBracket: 1,
+        qualifiersPerRound: 0,
+        durationSec: 900,
+      ),
+    ];
+
+    // Mesmo plano de `kocProposePhasePlan(8, 6, 900)`.
+    const plan8 = [
+      KingOfCourtPhase(
+        bracketSizes: [4, 4],
+        roundsPerBracket: 2,
+        qualifiersPerRound: 1,
+        durationSec: 900,
+      ),
+      KingOfCourtPhase(
+        bracketSizes: [4],
+        roundsPerBracket: 1,
+        qualifiersPerRound: 0,
+        durationSec: 900,
+      ),
+    ];
+
+    test('10 duplas em 3 fases: 11 rodadas e 3h55 — bate com o portal', () {
+      // Antes da correção, a conta cobrava troca depois de TODA rodada (em
+      // vez de só entre elas) e nunca somava o intervalo entre fases: essas
+      // mesmas 11 rodadas davam 3h40, 15 min a menos que o portal.
+      final schedule = kingOfCourtScheduleFromPhases(plan10);
+      expect(schedule.totalRounds, 11);
+      expect(schedule.totalDuration, const Duration(seconds: 14100));
+      expect(schedule.totalLabel, '3h55');
+    });
+
+    test('8 duplas em 2 fases: 5 rodadas e 1h45 — bate com o portal', () {
+      // Mesma conta velha dava 1h40 (5 min a menos) para este plano.
+      final schedule = kingOfCourtScheduleFromPhases(plan8);
+      expect(schedule.totalRounds, 5);
+      expect(schedule.totalDuration, const Duration(seconds: 6300));
+      expect(schedule.totalLabel, '1h45');
+    });
+
+    test('fases com durações diferentes somam cada uma pela própria duração', () {
+      // A final costuma durar mais que a classificatória — um plano real
+      // pode ter [900, 900, 1200]. Um único número não descreveria isso; a
+      // soma tem que usar a duração de CADA fase, não uma só para todas.
+      final planDuracoesDiferentes = [
+        plan10[0],
+        plan10[1],
+        const KingOfCourtPhase(
+          bracketSizes: [4],
+          roundsPerBracket: 1,
+          qualifiersPerRound: 0,
+          durationSec: 1200,
+        ),
+      ];
+      final schedule = kingOfCourtScheduleFromPhases(planDuracoesDiferentes);
+      expect(schedule.totalRounds, 11);
+      expect(schedule.totalDuration, const Duration(seconds: 14400));
+      expect(schedule.totalLabel, '4h');
+    });
+
+    test('mais quadras encurtam o relógio, não o número de rodadas', () {
+      // Baterias de uma chave são sequenciais na mesma quadra — é o número de
+      // CHAVES rodando em paralelo que muda, não quantas baterias existem.
+      final oneCourt = kingOfCourtScheduleFromPhases(plan10, courts: 1);
+      final twoCourts = kingOfCourtScheduleFromPhases(plan10, courts: 2);
+      expect(twoCourts.roundsPerPhase, oneCourt.roundsPerPhase);
+      expect(twoCourts.totalRounds, oneCourt.totalRounds);
+      expect(twoCourts.totalDuration, const Duration(seconds: 10500));
+      expect(twoCourts.totalLabel, '2h55');
+      expect(twoCourts.totalDuration, lessThan(oneCourt.totalDuration));
+    });
+  });
 }

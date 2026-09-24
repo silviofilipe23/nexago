@@ -212,6 +212,36 @@ List<KingOfCourtPhase>? kingOfCourtPhasesFrom(dynamic raw) {
   return out;
 }
 
+/// Estimativa do dia a partir do PLANO da categoria — mesma conta que
+/// `kocPlanTotals` faz no portal (`koc-phase-plan.ts`), pareada campo a campo,
+/// para as duas telas nunca mostrarem tempos diferentes para o mesmo plano.
+///
+/// [courts] é quantas CHAVES rodam em paralelo, não quantas baterias: as
+/// baterias de uma chave são sequenciais na mesma quadra — o paralelismo vem
+/// de ter mais de uma chave jogando ao mesmo tempo em quadras diferentes.
+KingOfCourtSchedule kingOfCourtScheduleFromPhases(
+  List<KingOfCourtPhase> phases, {
+  int courts = 1,
+}) {
+  final parallel = courts < 1 ? 1 : courts;
+  final roundsPerPhase = <int>[];
+  var seconds = 0;
+  for (var i = 0; i < phases.length; i++) {
+    final phase = phases[i];
+    final waves =
+        (phase.bracketSizes.length / parallel).ceil() * phase.roundsPerBracket;
+    roundsPerPhase.add(phase.roundCount);
+    seconds +=
+        waves * phase.durationSec + (waves > 0 ? waves - 1 : 0) * kocChangeoverSec;
+    if (i < phases.length - 1) seconds += kocPhaseBreakSec;
+  }
+  return KingOfCourtSchedule(
+    roundsPerPhase: roundsPerPhase,
+    totalDuration: Duration(seconds: seconds),
+    courts: parallel,
+  );
+}
+
 /// Teto de quem não escolheu — o de antes do plano de fases.
 const int kocLegacyMaxTeamsPerRound = 5;
 

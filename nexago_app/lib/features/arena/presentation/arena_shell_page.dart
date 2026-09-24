@@ -6,8 +6,10 @@ import '../../../core/layout/nexa_bottom_nav_bar.dart';
 import '../../../core/layout/shell_tab_bar_collapse.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../domain/arena_route_guard.dart';
+import '../domain/arena_selection_providers.dart';
 import '../domain/arena_shell_providers.dart';
 import '../domain/arena_tab.dart';
+import 'widgets/arena_selection_gate.dart';
 
 /// Shell com navegação inferior escura (gestor da arena).
 class ArenaShellPage extends ConsumerWidget {
@@ -63,6 +65,10 @@ class ArenaShellPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(needsArenaSelectionProvider)) {
+      return const ArenaSelectionGate();
+    }
+
     final currentIndex = navigationShell.currentIndex.clamp(
       0,
       _tabs.length - 1,

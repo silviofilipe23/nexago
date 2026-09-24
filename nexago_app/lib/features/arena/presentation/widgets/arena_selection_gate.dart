@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../../../arenas/domain/arena_list_item.dart';
+import '../../domain/arena_access_providers.dart';
 import '../../domain/arena_selection_providers.dart';
-
-export '../../domain/arena_selection_providers.dart';
 
 /// Bloqueia o painel até o gestor escolher uma arena quando há mais de uma.
 class ArenaSelectionGate extends ConsumerWidget {
@@ -16,7 +14,7 @@ class ArenaSelectionGate extends ConsumerWidget {
     final need = ref.watch(needsArenaSelectionProvider);
     if (!need) return const SizedBox.shrink();
 
-    final briefAsync = ref.watch(managedArenasBriefProvider);
+    final briefAsync = ref.watch(arenaMembershipsProvider);
     final theme = Theme.of(context);
 
     return Material(
@@ -83,7 +81,7 @@ class _ArenaList extends StatelessWidget {
     required this.onPick,
   });
 
-  final List<ArenaListItem> arenas;
+  final List<ArenaMembership> arenas;
   final ValueChanged<String> onPick;
 
   @override
@@ -108,7 +106,7 @@ class _ArenaList extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
-            onTap: () => onPick(a.id),
+            onTap: () => onPick(a.arenaId),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
               child: Row(

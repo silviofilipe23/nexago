@@ -198,6 +198,35 @@ function categoryMetaOf(tournament: Record<string, unknown>, categoryId: string)
   };
 }
 
+/**
+ * O sorteio reproduz exatamente as chaves da fase 1?
+ *
+ * `groupCapacities(teamCount, target)` é a MESMA função — com os MESMOS
+ * argumentos — que `rebuildEngineState` chama depois, quando o `teamsPerBox`
+ * gravado na sessão vira `doc.config.teamsPerGroup` e monta o elenco que o
+ * publish valida. Comparar só a CONTAGEM de caixas não basta: um plano
+ * EXPLÍCITO pode ter a contagem certa e a FORMA errada. `[6,6,4,3]` para 19
+ * duplas tem `ceil(19/6) = 4` caixas — a contagem bate — mas
+ * `groupCapacities(19, 6)` monta `[5,5,5,4]`, forma que não bate. Nem
+ * `assertPlan` (plano explícito) nem `kocLegacyPlan` (plano derivado)
+ * garantem essa forma canônica; só a geração exige forma exata, e só
+ * descobre no publish, com as duplas já reveladas.
+ *
+ * Exportada para o teste apontar para o código que roda de verdade. Espelho
+ * local no teste provaria a matemática e não a implementação: trocar isto de
+ * volta por uma comparação de contagem passaria despercebido.
+ */
+export function kocDrawReproducesPhaseOne(
+  teamCount: number,
+  bracketSizes: readonly number[],
+): {matches: boolean; drawnBoxes: number[]; target: number} {
+  const target = Math.max(...bracketSizes);
+  const drawnBoxes = groupCapacities(teamCount, target).map((g) => g.capacity);
+  const matches = drawnBoxes.length === bracketSizes.length &&
+    drawnBoxes.every((capacity, i) => capacity === bracketSizes[i]);
+  return {matches, drawnBoxes, target};
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // createDrawSession
 // ─────────────────────────────────────────────────────────────────────────────
@@ -270,36 +299,23 @@ export const createDrawSession = onCall({
       }
       throw e;
     }
-    // O sorteio guarda só o ALVO da caixa (`teamsPerBox`, mais abaixo) e
-    // reconstrói as caixas com `groupCapacities` — a MESMA função que monta o
-    // elenco revelado. Comparar só a CONTAGEM de caixas não basta: um plano
-    // EXPLÍCITO pode ter a contagem certa e a FORMA errada. `[6,6,4,3]` para 19
-    // duplas tem `ceil(19/6) = 4` caixas — a contagem bate — mas
-    // `groupCapacities(19, 6)` monta `[5,5,5,4]`, forma que não bate. Nem
-    // `assertPlan` (plano explícito) nem `kocLegacyPlan` (plano derivado)
-    // garantem essa forma canônica; só a geração exige forma exata, e só
-    // descobre no publish, com as duplas já reveladas. Por isso a comparação é
-    // elemento a elemento, não só o tamanho do array.
-    const kocTarget = Math.max(...kocPlan[0]!.bracketSizes);
     const kocPlanSizes = kocPlan[0]!.bracketSizes;
-    const kocDrawnBoxes = groupCapacities(teamIds.length, kocTarget).map((g) => g.capacity);
-    const kocShapeMatches = kocDrawnBoxes.length === kocPlanSizes.length &&
-      kocDrawnBoxes.every((capacity, i) => capacity === kocPlanSizes[i]);
-    if (!kocShapeMatches) {
+    const {matches, drawnBoxes, target} = kocDrawReproducesPhaseOne(teamIds.length, kocPlanSizes);
+    if (!matches) {
       const hint = category.kocPhases ?
         "as chaves da fase 1 no plano" :
         '"Duplas por quadra"';
       throw new HttpsError(
         "failed-precondition",
         `A fase 1 do plano pede as chaves [${kocPlanSizes.join(", ")}], mas com ` +
-          `caixas de até ${kocTarget} duplas o sorteio monta ` +
-          `[${kocDrawnBoxes.join(", ")}] para ${teamIds.length} duplas — as formas ` +
-          `não batem. Ajuste ${hint} antes de sortear.`,
+          `caixas de até ${target} duplas o sorteio monta [${drawnBoxes.join(", ")}] ` +
+          `para ${teamIds.length} duplas — as formas não batem. Ajuste ${hint} ` +
+          "antes de sortear.",
         {
           reason: "koc_bracket_count_not_roundtrippable",
           teamCount: teamIds.length,
           planBracketSizes: kocPlanSizes,
-          drawBracketSizes: kocDrawnBoxes,
+          drawBracketSizes: drawnBoxes,
         },
       );
     }

@@ -12,6 +12,7 @@ import {
   type KocPhaseSpec,
 } from "./koc-bracket-builders";
 import {groupCapacities} from "./draw-plan";
+import {kocDrawReproducesPhaseOne} from "./draw-sessions";
 
 /**
  * O sorteio ao vivo e a geração da chave TÊM que dividir o campo igual.
@@ -197,16 +198,18 @@ describe("createDrawSession recusa fase 1 cujo número de chaves não sobrevive 
  * publish. `createDrawSession` por isso compara ARRAY a ARRAY, não só o
  * tamanho; este bloco é o que prova que a checagem forte é necessária e que
  * ela cobre plano explícito, não só o derivado.
+ *
+ * Fix round 2 (achado do revisor): a checagem forte aqui chamava um espelho
+ * local (`shapeMatches`) com a mesma fórmula do código de produção — provava
+ * a MATEMÁTICA, não a IMPLEMENTAÇÃO. Se alguém revertesse
+ * `kocDrawReproducesPhaseOne` em `draw-sessions.ts` pra uma comparação de
+ * contagem, o espelho local continuaria certo e todo teste passaria mesmo
+ * assim. Agora este bloco importa `kocDrawReproducesPhaseOne` de
+ * `draw-sessions.ts` — a função exportada que `createDrawSession` de fato
+ * chama — e não tem mais espelho da checagem forte.
  */
 describe("createDrawSession recusa fase 1 cuja FORMA não bate, mesmo quando a contagem bate " +
   "(plano explícito)", () => {
-  /** A checagem forte que `draw-sessions.ts` passa a usar: array a array. */
-  function shapeMatches(teamCount: number, phase1: readonly number[]): boolean {
-    const target = Math.max(...phase1);
-    const drawn = groupCapacities(teamCount, target).map((g) => g.capacity);
-    return drawn.length === phase1.length && drawn.every((cap, i) => cap === phase1[i]);
-  }
-
   /** Só a contagem — a checagem antiga, fraca de propósito para o contraste. */
   function countRoundTrips(teamCount: number, phase1: readonly number[]): boolean {
     const target = Math.max(...phase1);
@@ -243,8 +246,10 @@ describe("createDrawSession recusa fase 1 cuja FORMA não bate, mesmo quando a c
     "groupCapacities monta [5,5,5,4]", () => {
     const phase1 = [6, 6, 4, 3];
     assert.equal(countRoundTrips(19, phase1), true, "a checagem fraca deixaria passar");
-    assert.deepEqual(groupCapacities(19, 6).map((g) => g.capacity), [5, 5, 5, 4]);
-    assert.equal(shapeMatches(19, phase1), false, "a checagem forte tem que recusar");
+    const {matches, drawnBoxes, target} = kocDrawReproducesPhaseOne(19, phase1);
+    assert.equal(target, 6);
+    assert.deepEqual(drawnBoxes, [5, 5, 5, 4]);
+    assert.equal(matches, false, "a checagem forte (código de produção) tem que recusar");
 
     // `assertPlan` aceita este plano — soma (19), contagem da fase 1 (a
     // checagem fraca) e regras de fase final todas batem. É exatamente por
@@ -278,7 +283,11 @@ describe("createDrawSession recusa fase 1 cuja FORMA não bate, mesmo quando a c
         };
         const canonicalPlan = kocResolvePlan(n, canonicalConfig);
         assert.deepEqual(canonicalPlan[0]!.bracketSizes, canonical, `${n} duplas, k=${k} (canônico)`);
-        assert.equal(shapeMatches(n, canonicalPlan[0]!.bracketSizes), true, `${n} duplas, k=${k} (canônico)`);
+        assert.equal(
+          kocDrawReproducesPhaseOne(n, canonicalPlan[0]!.bracketSizes).matches,
+          true,
+          `${n} duplas, k=${k} (canônico)`,
+        );
 
         // A variante deslocada tem a MESMA contagem (a checagem fraca deixaria
         // passar) mas a forma difere — a checagem forte tem que recusar.
@@ -293,9 +302,9 @@ describe("createDrawSession recusa fase 1 cuja FORMA não bate, mesmo quando a c
           `${n} duplas, k=${k} (variante): a checagem fraca precisa deixar passar pra provar o ponto`,
         );
         assert.equal(
-          shapeMatches(n, variantPlan[0]!.bracketSizes),
+          kocDrawReproducesPhaseOne(n, variantPlan[0]!.bracketSizes).matches,
           false,
-          `${n} duplas, k=${k} (variante): a checagem forte tem que recusar`,
+          `${n} duplas, k=${k} (variante): a checagem forte (código de produção) tem que recusar`,
         );
         demonstrated++;
       }

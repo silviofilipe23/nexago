@@ -44,6 +44,40 @@ void main() {
     return firestore.lastSetData!;
   }
 
+  // Ronda 2 (ruling da coordenação): a validação de chave PIX
+  // (`onlinePaymentEnabled && trimmedPixKey.length < 5`) rodava incondicional
+  // a `isOwner` — mesmo o payload já omitindo os 3 campos congelados para
+  // não-dono. Numa arena legada sem PIX configurado (`onlinePaymentEnabled:
+  // true` por default do doc, `payoutPixKey` vazio), o `gestor` recebia
+  // `ArenaProfileEditException` ao tentar salvar QUALQUER campo do perfil —
+  // e não tinha como corrigir, porque o card de chave PIX é escondido pra
+  // ele. Mesmo sintoma do bug original, só que na camada de validação do
+  // formulário em vez das rules do Firestore.
+  Future<Map<String, dynamic>?> attemptSaveOnlinePaymentNoPixKey({
+    required bool isOwner,
+  }) async {
+    final firestore = _CapturingFirestore();
+    final service = ArenaProfileEditService(firestore);
+
+    await service.saveProfile(
+      arenaId: 'a1',
+      isOwner: isOwner,
+      name: 'Arena Vegeton',
+      description: 'Quadras de areia',
+      phone: '62999998888',
+      address: 'Rua das Quadras, 100',
+      city: 'Goiânia',
+      state: 'GO',
+      courtTypes: const ['Beach Tennis'],
+      onlinePaymentEnabled: true,
+      onsitePaymentEnabled: false,
+      // payoutPixKey fica no default '' — arena legada sem PIX configurado,
+      // exatamente a população que o achado original descreve.
+    );
+
+    return firestore.lastSetData;
+  }
+
   test(
     'nao-dono (gestor): payload nao contem os campos congelados pela rule',
     () async {
@@ -68,6 +102,32 @@ void main() {
     expect(data.containsKey('payoutPixKey'), isTrue);
     expect(data.containsKey('payoutPixKeyType'), isTrue);
   });
+
+  test(
+    'nao-dono (gestor), pagamento online sem chave PIX: nao lanca e payload '
+    'continua sem os 3 campos congelados',
+    () async {
+      final data = await attemptSaveOnlinePaymentNoPixKey(isOwner: false);
+
+      expect(data, isNotNull);
+      expect(data!.containsKey('paymentReceiver'), isFalse);
+      expect(data.containsKey('payoutPixKey'), isFalse);
+      expect(data.containsKey('payoutPixKeyType'), isFalse);
+      // O resto do perfil continua indo.
+      expect(data['name'], 'Arena Vegeton');
+    },
+  );
+
+  test(
+    'dono, pagamento online sem chave PIX: continua lancando '
+    '(a validacao protege o campo dele, nao do gestor)',
+    () async {
+      await expectLater(
+        attemptSaveOnlinePaymentNoPixKey(isOwner: true),
+        throwsA(isA<ArenaProfileEditException>()),
+      );
+    },
+  );
 }
 
 /// Fake mínimo de [FirebaseFirestore]: só o suficiente para capturar o mapa

@@ -101,12 +101,22 @@ class ArenaProfileEditService {
     }
     final trimmedPixKey = payoutPixKey.trim();
     final trimmedPixType = payoutPixKeyType.trim().toUpperCase();
-    if (onlinePaymentEnabled && trimmedPixKey.length < 5) {
+    // Ronda 2 (ruling da coordenação): estas duas validações protegem
+    // `payoutPixKey`/`payoutPixKeyType` — os mesmos campos que, para
+    // não-dono, nem entram no payload (bloco `if (isOwner)` abaixo). Sem o
+    // `isOwner &&`, uma arena legada sem PIX configurado (onde
+    // `onlinePaymentEnabled` já vem `true` por default e `payoutPixKey`
+    // vazio) barrava o `gestor` de salvar QUALQUER campo do perfil — e ele
+    // não tinha como corrigir, porque o card de chave PIX é escondido pra
+    // ele. Validar um campo que o save não toca não protege nada e só
+    // bloqueia; a validação é do dono, então só corre para o dono.
+    if (isOwner && onlinePaymentEnabled && trimmedPixKey.length < 5) {
       throw ArenaProfileEditException(
         'Informe a chave PIX da arena para receber repasses.',
       );
     }
-    if (onlinePaymentEnabled &&
+    if (isOwner &&
+        onlinePaymentEnabled &&
         trimmedPixKey.isNotEmpty &&
         trimmedPixType.isEmpty) {
       throw ArenaProfileEditException(

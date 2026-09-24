@@ -116,6 +116,45 @@ void main() {
         );
       }
     });
+
+    test('membro sem a area cai no Painel da arena', () {
+      expect(
+        redirectForActiveRole(
+          path: AppRoutes.arenaPayments,
+          activeRole: AppMobileRole.arena,
+          availableRoles: const [AppMobileRole.arena],
+          needsRoleSelection: false,
+          arenaAreaAllowed: false,
+        ),
+        AppRoutes.arenaDashboard,
+      );
+    });
+
+    test('membro com a area segue', () {
+      expect(
+        redirectForActiveRole(
+          path: AppRoutes.arenaPayments,
+          activeRole: AppMobileRole.arena,
+          availableRoles: const [AppMobileRole.arena],
+          needsRoleSelection: false,
+          arenaAreaAllowed: true,
+        ),
+        isNull,
+      );
+    });
+
+    test('o Painel nunca redireciona para si mesmo', () {
+      expect(
+        redirectForActiveRole(
+          path: AppRoutes.arenaDashboard,
+          activeRole: AppMobileRole.arena,
+          availableRoles: const [AppMobileRole.arena],
+          needsRoleSelection: false,
+          arenaAreaAllowed: false,
+        ),
+        isNull,
+      );
+    });
   });
 
   group('isOrganizerStaffOperablePath', () {

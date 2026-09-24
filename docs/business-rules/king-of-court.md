@@ -1,7 +1,7 @@
 # King of the Court (KOTC)
 
 ## Conceito
-Rodada disputada por **3 a 5 duplas na mesma quadra ao mesmo tempo**. Um lado é o
+Rodada disputada por **3 a 6 duplas na mesma quadra ao mesmo tempo**. Um lado é o
 **trono** (rei); o outro é o lado do **desafiante**. Só existe um rally por vez, e
 **só o rei pontua**.
 
@@ -72,18 +72,21 @@ outras três empatadas em zero.
 - Os `qualifiersPerRound` primeiros de cada rodada avançam para a fase seguinte,
   redistribuídos em serpentina pela colocação.
 
-### Rodadas por chave (`roundsPerBracket`)
+### Baterias por chave
 
 Por padrão a chave joga **uma** rodada e os `qualifiersPerRound` melhores por pontos
-avançam. Com `roundsPerBracket` acima de 1, a chave joga N rodadas e **cada uma
+avançam. Com mais de uma bateria, a chave joga N rodadas e **cada uma
 classifica uma dupla**:
 
 - A vencedora da rodada classifica e **sai** — libera a quadra.
 - A rodada seguinte da mesma chave roda com **as que sobraram** (4 → 3 → …).
 - Como toda rodada precisa de 3 duplas, uma chave de S comporta no máximo
   **S − 2** rodadas: uma chave de 4 dá 2, uma de 5 dá 3.
-- Vale só na **classificatória**. As fases seguintes seguem com uma rodada por
-  chave e `qualifiersPerRound` classificadas.
+
+Vale em **qualquer fase**. Cada fase declara as suas baterias no plano
+(`phases[].roundsPerBracket`), então uma semifinal de 6 duplas pode rodar 4
+baterias e mandar 4 para a final. A final é sempre uma bateria: a tabela dela
+é o pódio.
 
 As N classificadas de uma mesma chave caem em rodadas **diferentes** da fase
 seguinte, e cada rodada da fase seguinte mistura vencedoras de rodadas de chave
@@ -124,6 +127,8 @@ ranking da liga nem em XP. O pódio da categoria existe e é registrado; o que n
 existe é pontuação. Categorias de duelo do mesmo torneio seguem pontuando.
 
 ## Restrições
-- Elenco da rodada: mínimo 3, máximo 5 duplas.
+- Elenco da rodada: mínimo 3, máximo 6 duplas. O teto é **por categoria**
+  (`maxTeamsPerRound`, 3 a 6); categoria que não escolheu vale 5, o teto antigo.
+  Acima de 5 a fila fica longa — é escolha do organizador, não padrão.
 - Publicada a chave, o elenco congela (mesma trava de substituição dos outros formatos).
 - Toda mutação de placar passa por callable (mesário/staff autorizado); o cliente só lê.

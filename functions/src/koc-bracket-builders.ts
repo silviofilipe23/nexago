@@ -1,7 +1,7 @@
 /**
  * Gerador de chave do King of the Court.
  *
- * A unidade aqui NÃO é uma partida de dois lados e sim uma RODADA: 3 a 5 duplas
+ * A unidade aqui NÃO é uma partida de dois lados e sim uma RODADA: 3 a 6 duplas
  * na mesma quadra, com uma tabela de pontos (`docs/business-rules/king-of-court.md`).
  * Por isso este módulo mora fora de `category-bracket-builders.ts`, que fala em
  * `teamAId`/`teamBId`, e devolve o seu próprio tipo.
@@ -12,7 +12,7 @@
  * o pódio — não existe "jogo da final".
  */
 
-/** Limites do formato: menos de 3 não gira a fila, mais de 5 deixa todo mundo esperando. */
+/** Limites do formato: menos de 3 não gira a fila, mais de 6 deixa todo mundo esperando. */
 export const KOC_MIN_TEAMS_PER_ROUND = 3;
 
 /** Duplas por quadra quando a categoria não escolheu — o padrão do formato. */
@@ -39,12 +39,17 @@ export const KOC_MIN_ROUND_DURATION_SEC = 300;
 export const KOC_MAX_ROUND_DURATION_SEC = 2400;
 
 export interface KocConfig {
-  /** Duplas por quadra na geração (3 a 5). */
+  /**
+   * Duplas por quadra na geração — piso 3, teto duro 6 (`KOC_MAX_TEAMS_PER_ROUND`).
+   * Categoria que não escolheu um teto próprio (`maxTeamsPerRound`) fica no
+   * teto antigo, 5.
+   */
   teamsPerCourt: number;
   /** Quantas duplas de cada rodada passam de fase. */
   qualifiersPerRound: number;
   /**
-   * Quantas rodadas cada CHAVE joga na classificatória.
+   * Quantas rodadas cada CHAVE joga na classificatória, quando o plano é
+   * DERIVADO (sem `phases`) por `kocLegacyPlan`.
    *
    * `1` (padrão) é o formato original: a chave joga uma rodada e as
    * `qualifiersPerRound` melhores por pontos avançam.
@@ -55,13 +60,25 @@ export interface KocConfig {
    * `KOC_MIN_TEAMS_PER_ROUND` duplas, uma chave de S comporta no máximo
    * `S - KOC_MIN_TEAMS_PER_ROUND + 1` rodadas.
    *
-   * Vale só na fase 1: as seguintes seguem com uma rodada por chave.
+   * Vale só na fase 1 do plano derivado — as seguintes seguem com uma rodada
+   * por chave. Isso é uma limitação do CAMPO `roundsPerBracket`, não do
+   * formato: um `phases` explícito pode dar várias baterias a QUALQUER fase
+   * (é o próprio ponto desta entrega — uma semifinal de 6 duplas com 4
+   * baterias). `roundsPerBracket` só continua existindo porque é o que
+   * `kocLegacyPlan` precisa para reproduzir bit a bit a chave de antes.
    */
   roundsPerBracket?: number;
   /** Duração padrão da rodada, em segundos. */
   roundDurationSec: number;
   /** Override por fase (chave = número da fase, 1-based). Fase ausente usa o padrão. */
   phaseDurationsSec?: Record<string, number>;
+  /**
+   * Plano explícito de fases. Quando existe, MANDA: o gerador não planeja nada,
+   * só emite. Ausente, o plano é derivado dos campos acima por `kocLegacyPlan`.
+   */
+  phases?: KocPhaseSpec[];
+  /** Teto de duplas numa bateria nesta categoria. Ausente ⇒ o teto de sempre. */
+  maxTeamsPerRound?: number;
 }
 
 /**
@@ -112,6 +129,12 @@ export interface KocRoundDraft {
   matchNumber: number;
   /** Posição da rodada dentro da fase (1-based). */
   roundLabel: number;
+  /**
+   * Posição da bateria DENTRO da chave (1, 2, 3…). `roundLabel` é a posição na
+   * fase e, com 20 duplas, diz "Rodada 9" — número que não responde nada pra
+   * quem está na areia. Com os dois o telão diz "Chave 4 · Bateria 3".
+   */
+  batteryLabel: number;
   /** Elenco fechado — só na fase 1; nas seguintes as vagas vêm de [qualifiers]. */
   teamIds: string[];
   qualifiers: KocQualifierSlot[];
@@ -131,48 +154,52 @@ export interface KocRoundDraft {
 }
 
 /**
- * Fase 1 quando a chave joga VÁRIAS rodadas.
+ * Emite as rodadas de UMA fase.
  *
- * Cada rodada classifica uma dupla, que sai e libera a quadra; a rodada
- * seguinte da mesma chave roda com as que sobraram. O elenco dela não é
- * inventado: são os lugares 2 em diante da rodada anterior — a mesma mecânica
- * de vagas que monta a semifinal, olhando para a própria chave.
+ * Vale para qualquer fase — era exclusiva da classificatória e virou geral
+ * quando a semifinal passou a poder rodar várias baterias.
  *
- * A ordem de disputa é por RODADA, não por chave: todas as chaves jogam a
- * rodada 1, depois todas jogam a 2. Numa quadra só isso espalha a espera em vez
- * de esgotar uma chave inteira antes de a seguinte começar.
+ * CHAVE por fora, bateria por dentro: as baterias de uma mesma chave saem em
+ * sequência, porque na areia é o mesmo grupo na mesma quadra. Emitir por
+ * bateria espalharia a chave pela grade e mandaria as duplas saírem da quadra
+ * para voltar depois.
  */
-function emitPhaseOneWithBracketRounds(params: {
+function emitPhase(params: {
   drafts: KocRoundDraft[];
-  sizes: number[];
-  roundsPerBracket: number;
+  phase: number;
+  spec: KocPhaseSpec;
   matchType: string;
-  durationSec: number;
-  rosters: string[][];
+  /** Elenco fechado por chave — só na fase 1. Nulo nas seguintes. */
+  rosters: string[][] | null;
+  /** Rodadas da fase anterior, de onde vêm as vagas da bateria 1. */
+  previousPhase: readonly KocRoundDraft[];
+  /** Quantas classificadas cada rodada da fase anterior manda para cá. */
+  previousQualifiersPerRound: number;
   nextMatchNumber: () => number;
 }): void {
-  const {drafts, sizes, roundsPerBracket, matchType, durationSec, rosters} = params;
-  const brackets = sizes.length;
-  /** Rodada anterior de cada chave, para as vagas apontarem para ela. */
-  const previousOfBracket: (KocRoundDraft | null)[] = sizes.map(() => null);
-  /** Posição na fase, na ordem em que as rodadas são emitidas. */
+  const {drafts, phase, spec, matchType, rosters, previousPhase} = params;
+  const q = Math.max(1, Math.floor(spec.qualifiersPerRound));
+  const rounds = Math.max(1, Math.floor(spec.roundsPerBracket));
+  const emitted: KocRoundDraft[] = [];
   let label = 0;
 
-  // CHAVE por fora, rodada por dentro: as rodadas de uma mesma chave saem em
-  // SEQUÊNCIA. Na areia é o mesmo grupo na mesma quadra — joga a rodada 1, a
-  // vencedora sai, e as que sobraram seguem direto para a rodada 2. Emitir por
-  // rodada (todas as primeiras, depois todas as segundas) espalhava a chave
-  // pela grade e mandava as duplas saírem da quadra para voltar depois.
-  for (let bracket = 0; bracket < brackets; bracket++) {
-    for (let round = 1; round <= roundsPerBracket; round++) {
-      const size = sizes[bracket]! - (round - 1);
-      const previous = previousOfBracket[bracket];
+  for (let bracket = 0; bracket < spec.bracketSizes.length; bracket++) {
+    let previous: KocRoundDraft | null = null;
+    for (let battery = 1; battery <= rounds; battery++) {
+      const size = spec.bracketSizes[bracket]! - (battery - 1) * q;
+      if (size < KOC_MIN_TEAMS_PER_ROUND) {
+        throw new KocBracketError(
+          `A chave ${bracket + 1} da fase ${phase} ficaria com ${size} duplas na ` +
+            `bateria ${battery}: toda bateria precisa de ${KOC_MIN_TEAMS_PER_ROUND}.`,
+          "koc_battery_too_small",
+        );
+      }
 
-      // Da segunda rodada em diante o elenco são os NÃO classificados da
-      // anterior: lugares 2 em diante, que é exatamente quem ficou na quadra.
+      // Da segunda bateria em diante o elenco são os NÃO classificados da
+      // anterior: os lugares depois das que saíram, que é quem ficou na quadra.
       const qualifiers: KocQualifierSlot[] = [];
       if (previous) {
-        for (let place = 2; place <= previous.size; place++) {
+        for (let place = q + 1; place <= previous.size; place++) {
           qualifiers.push({
             fromMatchNumber: previous.matchNumber,
             fromRoundLabel: previous.roundLabel,
@@ -182,25 +209,54 @@ function emitPhaseOneWithBracketRounds(params: {
       }
 
       const draft: KocRoundDraft = {
-        phase: 1,
+        phase,
         matchType,
         poolId: `C${bracket + 1}`,
         matchNumber: params.nextMatchNumber(),
         roundLabel: ++label,
-        teamIds: previous ? [] : rosters[bracket]!,
+        batteryLabel: battery,
+        teamIds: !previous && rosters ? rosters[bracket]! : [],
         qualifiers,
         size,
-        durationSec,
-        // `bracket + (round - 1)`, não `bracket * N + (round - 1)`: as duas
-        // formas separam as classificadas da mesma chave, mas a multiplicativa
-        // agrupa por ORDEM de classificação — todas as que venceram na rodada 1
-        // (contra a chave cheia) numa semifinal, todas as da rodada 2 na outra.
-        // Isso faria uma semifinal muito mais forte que a outra. A aditiva
-        // alterna, como o cruzamento original faz com os lugares.
-        crossoverIndex: bracket + (round - 1),
+        durationSec: spec.durationSec,
+        // `chave + (bateria − 1)`, não `chave × N + (bateria − 1)`: as duas
+        // separam as classificadas da mesma chave, mas a multiplicativa agrupa
+        // por ORDEM de classificação — todas as que venceram contra a chave
+        // cheia numa semi só, que nasceria muito mais forte que a outra.
+        crossoverIndex: bracket + (battery - 1),
       };
+      emitted.push(draft);
       drafts.push(draft);
-      previousOfBracket[bracket] = draft;
+      previous = draft;
+    }
+  }
+
+  // A bateria 1 de cada chave recebe do cruzamento da fase anterior.
+  if (previousPhase.length > 0) {
+    const firsts = emitted.filter((d) => d.batteryLabel === 1);
+    for (const source of previousPhase) {
+      for (let place = 1; place <= params.previousQualifiersPerRound; place++) {
+        let target = kocNextRoundIndex(
+          source.crossoverIndex ?? source.roundLabel - 1,
+          place,
+          firsts.length,
+        );
+        // `kocRoundSizes` dá a vaga extra sempre à(s) PRIMEIRA(S) chave(s); o
+        // módulo acima não sabe disso e, quando o campo não divide igual entre
+        // as chaves da fase seguinte (ex.: 10 vagas em 3 chaves de 4/3/3), pode
+        // apontar mais vagas para uma chave do que ela tem lugar e deixar outra
+        // faltando. Anda para a próxima chave com lugar livre em vez de
+        // estourar a que o módulo indicou — com chaves do mesmo tamanho isso
+        // nunca dispara, porque o módulo já fecha certo.
+        for (let tries = 0; tries < firsts.length && firsts[target]!.qualifiers.length >= firsts[target]!.size; tries++) {
+          target = (target + 1) % firsts.length;
+        }
+        firsts[target]!.qualifiers.push({
+          fromMatchNumber: source.matchNumber,
+          fromRoundLabel: source.roundLabel,
+          place,
+        });
+      }
     }
   }
 }
@@ -593,37 +649,36 @@ export function kocProposePlan(
   return kocProposeTail(teamCount, max, durationFor, 1);
 }
 
-export function buildKingOfCourtRounds(
-  seeds: string[],
-  config: KocConfig,
-  opts?: {phaseOneRosters?: readonly (readonly string[])[]},
-): KocRoundDraft[] {
-  const teamIds = seeds.map((id) => id.trim()).filter((id) => id.length > 0);
+/**
+ * O plano que as regras de HOJE produzem, para config sem `phases`.
+ *
+ * Não é o mesmo critério de `kocProposePlan`: aqui manda o que o organizador
+ * escolheu (`teamsPerCourt`, `roundsPerBracket`, `qualifiersPerRound`), e o
+ * resultado tem que ser bit a bit o de antes desta entrega. É o que mantém
+ * chave de torneio existente igual.
+ */
+export function kocLegacyPlan(teamCount: number, config: KocConfig): KocPhaseSpec[] {
   const qualifiersPerRound = Math.max(1, Math.floor(config.qualifiersPerRound));
-
-  // Planeja as fases ANTES de emitir, porque o tipo da rodada (final? semi?)
-  // depende de quantas fases existem no total.
-  // Rodadas por chave na classificatória. Acima de 1, cada rodada classifica
-  // UMA dupla e a vencedora sai — a chave encolhe rodada a rodada.
   const roundsPerBracket = Math.max(1, Math.floor(config.roundsPerBracket ?? 1));
+  const phases: KocPhaseSpec[] = [];
+  let fieldSize = teamCount;
 
-  const phaseSizes: number[][] = [];
-  let fieldSize = teamIds.length;
-  while (phaseSizes.length < KOC_MAX_PHASES) {
-    // Só a fase 1 se divide em várias rodadas por chave; as seguintes seguem
-    // com uma rodada por chave e `qualifiersPerRound` classificadas. A divisão
-    // do campo muda junto: com 2 rodadas por chave nenhuma chave pode nascer
-    // com 3 duplas, senão a segunda rodada não existe.
-    const isFirst = phaseSizes.length === 0;
-    const rounds = isFirst && roundsPerBracket > 1 ?
+  while (phases.length < KOC_MAX_PHASES) {
+    const isFirst = phases.length === 0;
+    const phaseNumber = phases.length + 1;
+    const durationSec = durationForPhase(phaseNumber, config);
+    const brackets = isFirst && roundsPerBracket > 1 ?
       kocBracketCountForRounds(fieldSize, config.teamsPerCourt, roundsPerBracket) :
       kocRoundCount(fieldSize, config.teamsPerCourt);
-    const sizes = kocRoundSizes(fieldSize, rounds);
-    phaseSizes.push(sizes);
-    if (rounds === 1) break;
+    const bracketSizes = kocRoundSizes(fieldSize, brackets);
+
+    if (brackets === 1) {
+      phases.push({bracketSizes, roundsPerBracket: 1, qualifiersPerRound: 0, durationSec});
+      return phases;
+    }
 
     if (isFirst && roundsPerBracket > 1) {
-      const smallest = Math.min(...sizes);
+      const smallest = Math.min(...bracketSizes);
       const max = kocMaxRoundsPerBracket(smallest);
       if (roundsPerBracket > max) {
         throw new KocBracketError(
@@ -634,90 +689,160 @@ export function buildKingOfCourtRounds(
         );
       }
     }
+
+    const phaseRounds = isFirst ? roundsPerBracket : 1;
     const perRound = isFirst && roundsPerBracket > 1 ? 1 : qualifiersPerRound;
-    const nextFieldSize = rounds * (isFirst ? roundsPerBracket * perRound : perRound);
+    const nextFieldSize = brackets * phaseRounds * perRound;
     if (nextFieldSize >= fieldSize) {
       throw new KocBracketError(
         `Com ${qualifiersPerRound} classificadas por rodada a fase não reduz o ` +
-          `campo (${fieldSize} duplas em ${rounds} rodadas). Reduza o número de ` +
+          `campo (${fieldSize} duplas em ${brackets} rodadas). Reduza o número de ` +
           "classificadas.",
         "koc_phase_does_not_reduce",
       );
     }
+    phases.push({
+      bracketSizes,
+      roundsPerBracket: phaseRounds,
+      qualifiersPerRound: perRound,
+      durationSec,
+    });
     fieldSize = nextFieldSize;
   }
+  return phases;
+}
 
-  const totalPhases = phaseSizes.length;
+/**
+ * Valida um plano vindo de fora (tela ou Firestore) contra o campo real.
+ *
+ * Plano inválido descoberto na areia é chave torta com as duplas na quadra —
+ * então tudo que não fecha vira `KocBracketError` nomeado aqui.
+ */
+function assertPlan(phases: readonly KocPhaseSpec[], teamCount: number): KocPhaseSpec[] {
+  if (phases.length === 0) {
+    throw new KocBracketError("O plano de fases está vazio.", "koc_plan_empty");
+  }
+  const out: KocPhaseSpec[] = [];
+  let field = teamCount;
+  for (let i = 0; i < phases.length; i++) {
+    const spec = phases[i]!;
+    const sizes = spec.bracketSizes.map((n) => Math.floor(n));
+    const sum = sizes.reduce((a, b) => a + b, 0);
+    if (sum !== field) {
+      throw new KocBracketError(
+        `A fase ${i + 1} do plano soma ${sum} duplas, mas o campo dela tem ${field}.`,
+        "koc_phase_size_mismatch",
+      );
+    }
+    for (const size of sizes) {
+      if (size > KOC_MAX_TEAMS_PER_ROUND) {
+        throw new KocBracketError(
+          `A fase ${i + 1} tem chave de ${size} duplas; o teto do formato é ` +
+            `${KOC_MAX_TEAMS_PER_ROUND}.`,
+          "koc_bracket_over_max",
+        );
+      }
+    }
+    if (i === 0) {
+      // O sorteio ao vivo guarda o ALVO da caixa, não quantas caixas existem, e
+      // reconstrói com `ceil(duplas / alvo)`. Contagem que não sobrevive a essa
+      // ida e volta (25 duplas em 6 chaves voltam como 5) faria o sorteio
+      // publicar um número de caixas e a geração exigir outro — descoberto
+      // depois de as duplas já terem sido reveladas.
+      const target = Math.max(...sizes);
+      if (Math.ceil(field / target) !== sizes.length) {
+        throw new KocBracketError(
+          `A fase 1 pede ${sizes.length} chaves, mas com chaves de até ${target} ` +
+            `duplas o sorteio monta ${Math.ceil(field / target)}.`,
+          "koc_bracket_count_not_roundtrippable",
+        );
+      }
+    }
+    const isLast = i === phases.length - 1;
+    const q = Math.floor(spec.qualifiersPerRound);
+    if (!isLast && q < 1) {
+      throw new KocBracketError(
+        `A fase ${i + 1} não classifica ninguém e não é a final.`,
+        "koc_phase_does_not_reduce",
+      );
+    }
+    out.push({
+      bracketSizes: sizes,
+      roundsPerBracket: Math.max(1, Math.floor(spec.roundsPerBracket)),
+      qualifiersPerRound: Math.max(0, q),
+      durationSec: Math.min(
+        KOC_MAX_ROUND_DURATION_SEC,
+        Math.max(KOC_MIN_ROUND_DURATION_SEC, Math.round(spec.durationSec)),
+      ),
+    });
+    if (isLast) break;
+    const next = sizes.length * Math.max(1, Math.floor(spec.roundsPerBracket)) * q;
+    if (next >= field) {
+      throw new KocBracketError(
+        `A fase ${i + 1} não reduz o campo (${field} duplas viram ${next}).`,
+        "koc_phase_does_not_reduce",
+      );
+    }
+    field = next;
+  }
+  return out;
+}
+
+/** O plano que vale: o explícito quando existe, o derivado quando não. */
+export function kocResolvePlan(teamCount: number, config: KocConfig): KocPhaseSpec[] {
+  if (teamCount < KOC_MIN_TEAMS_PER_ROUND) {
+    throw new KocBracketError(
+      `King of the Court precisa de pelo menos ${KOC_MIN_TEAMS_PER_ROUND} duplas ` +
+        `na rodada — há ${teamCount}.`,
+      "koc_field_too_small",
+    );
+  }
+  return config.phases?.length ?
+    assertPlan(config.phases, teamCount) :
+    kocLegacyPlan(teamCount, config);
+}
+
+export function buildKingOfCourtRounds(
+  seeds: string[],
+  config: KocConfig,
+  opts?: {phaseOneRosters?: readonly (readonly string[])[]},
+): KocRoundDraft[] {
+  const teamIds = seeds.map((id) => id.trim()).filter((id) => id.length > 0);
+  const phases = kocResolvePlan(teamIds.length, config);
+  const totalPhases = phases.length;
   const drafts: KocRoundDraft[] = [];
   let matchNumber = 1;
 
-  for (let phaseIndex = 0; phaseIndex < totalPhases; phaseIndex++) {
-    const phase = phaseIndex + 1;
-    const sizes = phaseSizes[phaseIndex]!;
-    const durationSec = durationForPhase(phase, config);
-    const matchType = matchTypeForPhase(phase, totalPhases);
-
-    if (phaseIndex === 0 && roundsPerBracket > 1) {
-      emitPhaseOneWithBracketRounds({
-        drafts,
-        sizes,
-        roundsPerBracket,
-        matchType,
-        durationSec,
-        rosters: opts?.phaseOneRosters ?
-          assertPhaseOneRosters(opts.phaseOneRosters, teamIds, sizes) :
-          kocSnakeDistribute(teamIds, sizes),
-        nextMatchNumber: () => matchNumber++,
-      });
-      continue;
-    }
-
-    // Fase 1 nasce com elenco fechado; as seguintes, com vagas apontando para a
-    // tabela da fase anterior.
-    const rosters =
-      phaseIndex === 0 ?
+  for (let i = 0; i < totalPhases; i++) {
+    const spec = phases[i]!;
+    const phase = i + 1;
+    emitPhase({
+      drafts,
+      phase,
+      spec,
+      matchType: matchTypeForPhase(phase, totalPhases),
+      rosters: i === 0 ?
         (opts?.phaseOneRosters ?
-          assertPhaseOneRosters(opts.phaseOneRosters, teamIds, sizes) :
-          kocSnakeDistribute(teamIds, sizes)) :
-        sizes.map(() => []);
+          assertPhaseOneRosters(opts.phaseOneRosters, teamIds, spec.bracketSizes) :
+          kocSnakeDistribute(teamIds, spec.bracketSizes)) :
+        null,
+      previousPhase: i === 0 ? [] : drafts.filter((d) => d.phase === phase - 1),
+      previousQualifiersPerRound: i === 0 ?
+        0 :
+        Math.max(1, phases[i - 1]!.qualifiersPerRound),
+      nextMatchNumber: () => matchNumber++,
+    });
+  }
 
-    const qualifiersByRound: KocQualifierSlot[][] = sizes.map(() => []);
-    if (phaseIndex > 0) {
-      const previous = drafts.filter((d) => d.phase === phase - 1);
-      // Só a saída da FASE 1 multi-rodada classifica uma por rodada: ali cada
-      // rodada já elegeu a sua. Das fases seguintes saem `qualifiersPerRound`
-      // como sempre — a semifinal manda duas para a final, não uma.
-      const placesFromSource = phaseIndex === 1 && roundsPerBracket > 1 ?
-        1 :
-        qualifiersPerRound;
-      for (const source of previous) {
-        for (let place = 1; place <= placesFromSource; place++) {
-          const target = kocNextRoundIndex(
-            source.crossoverIndex ?? source.roundLabel - 1,
-            place,
-            sizes.length,
-          );
-          qualifiersByRound[target]!.push({
-            fromMatchNumber: source.matchNumber,
-            fromRoundLabel: source.roundLabel,
-            place,
-          });
-        }
-      }
-    }
-
-    for (let i = 0; i < sizes.length; i++) {
-      drafts.push({
-        phase,
-        matchType,
-        poolId: `C${i + 1}`,
-        matchNumber: matchNumber++,
-        roundLabel: i + 1,
-        teamIds: rosters[i]!,
-        qualifiers: qualifiersByRound[i]!,
-        size: sizes[i]!,
-        durationSec,
-      });
+  // Rede de segurança: uma rodada com vaga a mais ou a menos só apareceria na
+  // areia, com o elenco já chamado para a quadra.
+  for (const draft of drafts) {
+    if (draft.teamIds.length + draft.qualifiers.length !== draft.size) {
+      throw new KocBracketError(
+        `A rodada #${draft.matchNumber} (fase ${draft.phase}, ${draft.poolId}) pede ` +
+          `${draft.size} duplas e recebeu ${draft.teamIds.length + draft.qualifiers.length}.`,
+        "koc_round_roster_mismatch",
+      );
     }
   }
 

@@ -5,6 +5,8 @@ import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../../athlete/domain/favorites_providers.dart';
+import '../../domain/arena_access_providers.dart';
+import '../../domain/arena_staff_role.dart';
 import 'arena_dashboard_tokens.dart';
 import 'arena_promotions_sheet.dart';
 
@@ -63,7 +65,7 @@ class ArenaDashboardFollowersCard extends StatelessWidget {
   }
 }
 
-class _FollowersBody extends StatelessWidget {
+class _FollowersBody extends ConsumerWidget {
   const _FollowersBody({
     required this.insights,
     this.arenaId,
@@ -77,8 +79,14 @@ class _FollowersBody extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    // Achado da revisão final (RBAC equipe/arena): este botão abre
+    // `ArenaPromotionsSheet`, que cria/pausa/exclui promoção — escrita de
+    // `promocoes` (`firestore.rules:1109-1116`). O card mora no Painel, rota
+    // sem área que todo cargo alcança, e `recepcao`/`manutencao` não escrevem
+    // `promocoes`.
+    final canPromocoes = ref.watch(arenaCanWriteProvider(ArenaArea.promocoes));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -97,7 +105,8 @@ class _FollowersBody extends StatelessWidget {
             SizedBox(width: 12),
             if (insights.qualityBookedPercent > 0)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: AppColors.win.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(8),
@@ -125,30 +134,33 @@ class _FollowersBody extends StatelessWidget {
         SizedBox(height: 18),
         Row(
           children: [
-            Expanded(
-              child: FilledButton(
-                onPressed: arenaId == null || arenaId!.isEmpty
-                    ? () => _comingSoon(context, 'Promoções')
-                    : () => ArenaPromotionsSheet.show(
-                          context,
-                          arenaId: arenaId!,
-                        ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.brand,
-                  foregroundColor: AppColors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+            if (canPromocoes) ...[
+              Expanded(
+                child: FilledButton(
+                  onPressed: arenaId == null || arenaId!.isEmpty
+                      ? () => _comingSoon(context, 'Promoções')
+                      : () => ArenaPromotionsSheet.show(
+                            context,
+                            arenaId: arenaId!,
+                          ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: AppColors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: Text('Promoções'),
                 ),
-                child: Text('Promoções'),
               ),
-            ),
-            SizedBox(width: 10),
+              SizedBox(width: 10),
+            ],
             Expanded(
               child: OutlinedButton(
                 onPressed: () => _comingSoon(context, 'Criar torneio'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: context.themeColors.onSurface,
                   side: BorderSide(
-                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.4),
+                    color: context.themeColors.onSurfaceMuted
+                        .withValues(alpha: 0.4),
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),

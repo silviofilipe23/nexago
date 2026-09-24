@@ -12,8 +12,10 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../arenas/domain/arena_club_session.dart';
 import '../data/arena_club_service.dart';
+import '../domain/arena_access_providers.dart';
 import '../domain/arena_club.dart';
 import '../domain/arena_club_admin_providers.dart';
+import '../domain/arena_staff_role.dart';
 import 'widgets/arena_async_state.dart';
 import 'widgets/arena_dashboard_tokens.dart';
 
@@ -35,6 +37,11 @@ class _ArenaClubDetailsPageState extends ConsumerState<ArenaClubDetailsPage> {
   @override
   Widget build(BuildContext context) {
     final clubAsync = ref.watch(arenaClubProvider(widget.clubId));
+    // Manutenção lê a agenda mas não escreve — editar, criar sessão avulsa,
+    // pausar/reativar e arquivar gravam. Mesmo idioma já usado nesta tela pra
+    // ação indisponível: esconder (callback nulo vira placeholder do mesmo
+    // tamanho no header; collection-if no corpo), não desabilitar.
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -47,7 +54,7 @@ class _ArenaClubDetailsPageState extends ConsumerState<ArenaClubDetailsPage> {
                   'GESTOR · CLUBINHO',
               title: clubAsync.valueOrNull?.name ?? 'Clubinho',
               onBack: () => context.pop(),
-              onEdit: clubAsync.valueOrNull == null
+              onEdit: !canWrite || clubAsync.valueOrNull == null
                   ? null
                   : () => context.pushNamed(
                         AppRouteNames.arenaClubEdit,
@@ -64,7 +71,7 @@ class _ArenaClubDetailsPageState extends ConsumerState<ArenaClubDetailsPage> {
                       icon: Icons.groups_outlined,
                     );
                   }
-                  return _buildBody(context, club);
+                  return _buildBody(context, club, canWrite: canWrite);
                 },
                 loading: () =>
                     const ArenaLoadingState(label: 'Carregando...'),
@@ -77,7 +84,7 @@ class _ArenaClubDetailsPageState extends ConsumerState<ArenaClubDetailsPage> {
     );
   }
 
-  Widget _buildBody(BuildContext context, ArenaClub club) {
+  Widget _buildBody(BuildContext context, ArenaClub club, {required bool canWrite}) {
     final theme = Theme.of(context);
     final sessionsAsync = ref.watch(arenaClubSessionsProvider(club.id));
 
@@ -128,7 +135,7 @@ class _ArenaClubDetailsPageState extends ConsumerState<ArenaClubDetailsPage> {
           error: (e, _) => ArenaErrorState(message: '$e'),
         ),
         const SizedBox(height: 20),
-        if (!club.isArchived) ...[
+        if (canWrite && !club.isArchived) ...[
           OutlinedButton.icon(
             onPressed: _busy ? null : () => _createSingleSession(club),
             style: OutlinedButton.styleFrom(

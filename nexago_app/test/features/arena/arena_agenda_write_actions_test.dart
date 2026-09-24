@@ -24,10 +24,14 @@ import 'package:nexago_app/features/arena/domain/arena_slot_detail_providers.dar
 import 'package:nexago_app/features/arena/domain/arena_staff_role.dart';
 import 'package:nexago_app/features/arena/presentation/arena_booking_details_page.dart';
 import 'package:nexago_app/features/arena/presentation/arena_bookings_page.dart';
+import 'package:nexago_app/features/arena/presentation/arena_club_details_page.dart';
+import 'package:nexago_app/features/arena/presentation/arena_club_form_page.dart';
 import 'package:nexago_app/features/arena/presentation/arena_clubs_page.dart';
+import 'package:nexago_app/features/arena/presentation/arena_recurring_details_page.dart';
 import 'package:nexago_app/features/arena/presentation/arena_recurring_list_page.dart';
 import 'package:nexago_app/features/arena/presentation/arena_slot_detail_page.dart';
 import 'package:nexago_app/features/arena/presentation/widgets/arena_booking_detail_actions.dart';
+import 'package:nexago_app/features/arenas/domain/slots_providers.dart';
 import 'package:nexago_app/features/arenas/domain/arena_slot.dart';
 import 'package:nexago_app/features/arenas/domain/arena_slot_block_reason.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
@@ -384,5 +388,177 @@ void main() {
     );
     expect(actions.onCancel, isNotNull);
     expect(actions.onBlock, isNotNull);
+  });
+
+  // --- Fechamento (ruling do coordenador) ---
+  // A varredura achou 3 telas fora dos anchors originais do brief que também
+  // gravam agenda: detalhe/formulário de clubinho e detalhe de horário fixo.
+  // O route guard da Task 6 libera as 3 rotas por LEITURA de `agenda`
+  // (`/arena/clubs/**` e `/arena/bookings/recurring/**`), então manutenção
+  // alcança as 3 mesmo sem os atalhos já escondidos — sem gate próprio, ela
+  // encontraria lá o botão que grava.
+
+  // --- arena_recurring_details_page.dart: "Encerrar horário fixo" ---
+  // Idioma já usado na tela: esconder via collection-if (igual ao resto do
+  // arquivo), não desabilitar.
+
+  final activeSeries = ArenaRecurringBooking(
+    id: 'series1',
+    arenaId: 'a1',
+    arenaName: 'Vegeton',
+    courtId: 'c1',
+    courtName: 'Quadra 1',
+    weekday: 4,
+    startTime: '18:00',
+    endTime: '19:00',
+    amountReais: 80,
+    status: 'active',
+    startDate: '2026-01-01',
+    skippedDates: const [],
+  );
+
+  Future<void> pumpRecurringDetails(
+    WidgetTester tester,
+    List<Override> overrides,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...overrides,
+          arenaRecurringSeriesProvider('series1').overrideWith(
+            (ref) => Stream.value(activeSeries),
+          ),
+          arenaRecurringOccurrencesProvider('series1').overrideWith(
+            (ref) => Stream.value(const <ArenaManagerBooking>[]),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: const ArenaRecurringDetailsPage(seriesId: 'series1'),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+
+  testWidgets('manutencao nao ve Encerrar horario fixo', (tester) async {
+    await pumpRecurringDetails(
+      tester,
+      overridesForRole(ArenaStaffRole.manutencao),
+    );
+    expect(find.text('Encerrar horário fixo'), findsNothing);
+  });
+
+  testWidgets('recepcao ve Encerrar horario fixo', (tester) async {
+    await pumpRecurringDetails(
+      tester,
+      overridesForRole(ArenaStaffRole.recepcao),
+    );
+    expect(find.text('Encerrar horário fixo'), findsOneWidget);
+  });
+
+  // --- arena_club_details_page.dart: "Criar sessão avulsa" e editar ---
+  // Idioma já usado na tela: esconder (callback nulo → placeholder do mesmo
+  // tamanho no header; collection-if no corpo), não desabilitar.
+
+  const activeClub = ArenaClub(
+    id: 'club1',
+    arenaId: 'a1',
+    arenaName: 'Vegeton',
+    name: 'Clubinho de sexta',
+    startTime: '18:00',
+    endTime: '21:00',
+    courtIds: ['c1'],
+    courtNames: ['Quadra 1'],
+    capacity: 16,
+    priceReais: 20,
+    cancelWindowHours: 24,
+    allowOnsitePayment: true,
+    status: 'active',
+    startDate: '2026-01-01',
+    skippedDates: [],
+  );
+
+  Future<void> pumpClubDetails(
+    WidgetTester tester,
+    List<Override> overrides,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...overrides,
+          arenaClubProvider('club1').overrideWith(
+            (ref) => Stream.value(activeClub),
+          ),
+          arenaClubSessionsProvider('club1').overrideWith(
+            (ref) => Stream.value(const []),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: const ArenaClubDetailsPage(clubId: 'club1'),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+
+  testWidgets('manutencao nao ve acoes de escrita do clubinho', (tester) async {
+    await pumpClubDetails(tester, overridesForRole(ArenaStaffRole.manutencao));
+    expect(find.text('Criar sessão avulsa'), findsNothing);
+    expect(find.byIcon(Icons.edit_outlined), findsNothing);
+  });
+
+  testWidgets('recepcao ve acoes de escrita do clubinho', (tester) async {
+    await pumpClubDetails(tester, overridesForRole(ArenaStaffRole.recepcao));
+    expect(find.text('Criar sessão avulsa'), findsOneWidget);
+    expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
+  });
+
+  // --- arena_club_form_page.dart: tela inteira ---
+  // Sem idioma local de "ação indisponível" pra mimetizar (a única ação é o
+  // botão final de salvar) — seguimos o idioma que a PRÓPRIA tela já usa pra
+  // bloqueio total: trocar o corpo por `ArenaEmptyState` (mesmo padrão do
+  // caso "Arena não encontrada" já existente ali).
+
+  Future<void> pumpClubForm(
+    WidgetTester tester,
+    List<Override> overrides,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...overrides,
+          courtsStreamProvider('a1').overrideWith((ref) => Stream.value(const [])),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: const ArenaClubFormPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+
+  testWidgets('manutencao nao alcanca o formulario de clubinho', (tester) async {
+    await pumpClubForm(tester, overridesForRole(ArenaStaffRole.manutencao));
+    expect(find.text('Sem permissão'), findsOneWidget);
+    expect(find.text('Criar clubinho'), findsNothing);
+  });
+
+  testWidgets('recepcao alcanca o formulario de clubinho', (tester) async {
+    await pumpClubForm(tester, overridesForRole(ArenaStaffRole.recepcao));
+    expect(find.text('Sem permissão'), findsNothing);
+    // O botão "Criar clubinho" fica no fim de um formulário longo, fora do
+    // viewport inicial do ListView — mesma armadilha do "Desbloquear" no
+    // slot detail (o Sliver só constrói o que cai no viewport + cache
+    // extent, mesmo com uma lista fixa de children).
+    await tester.drag(find.byType(ListView), const Offset(0, -2000));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Criar clubinho'), findsOneWidget);
   });
 }

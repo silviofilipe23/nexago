@@ -10,9 +10,11 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../data/recurring_booking_service.dart';
+import '../domain/arena_access_providers.dart';
 import '../domain/arena_manager_booking.dart';
 import '../domain/arena_recurring_booking.dart';
 import '../domain/arena_recurring_providers.dart';
+import '../domain/arena_staff_role.dart';
 import 'widgets/arena_async_state.dart';
 import 'widgets/arena_dashboard_tokens.dart';
 
@@ -155,6 +157,10 @@ class _SeriesDetails extends ConsumerWidget {
     final theme = Theme.of(context);
     final occurrencesAsync =
         ref.watch(arenaRecurringOccurrencesProvider(series.id));
+    // Manutenção lê a agenda mas não escreve — cancelar uma ocorrência ou
+    // encerrar a série gravam. Mesmo idioma já usado nesta tela pra ação
+    // indisponível: esconder (collection-if), não desabilitar.
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
@@ -234,7 +240,7 @@ class _SeriesDetails extends ConsumerWidget {
                     padding: const EdgeInsets.only(bottom: 10),
                     child: _OccurrenceTile(
                       occurrence: occurrence,
-                      canCancel: series.isActive,
+                      canCancel: canWrite && series.isActive,
                     ),
                   ),
               ],
@@ -246,7 +252,7 @@ class _SeriesDetails extends ConsumerWidget {
           ),
           error: (e, _) => ArenaErrorState(message: '$e'),
         ),
-        if (!series.isCanceled) ...[
+        if (canWrite && !series.isCanceled) ...[
           SizedBox(height: 24),
           OutlinedButton.icon(
             onPressed: () => _confirmCancelSeries(context, ref),

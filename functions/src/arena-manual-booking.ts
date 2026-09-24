@@ -1,5 +1,23 @@
-import {HttpsError} from "firebase-functions/v2/https";
-import {isValidDateKey, toMinutes} from "./arena-recurring-booking";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {getFirestore, FieldValue, Timestamp, type Firestore} from "firebase-admin/firestore";
+import * as logger from "firebase-functions/logger";
+import {
+  isValidDateKey,
+  toMinutes,
+  calendarHoursSpanning,
+  fmtHourEnd,
+  fmtHourStart,
+  hasBlockedSlotOverlap,
+} from "./arena-recurring-booking";
+import {
+  calculateBookingTotal,
+  parsePromotionsFromDocs,
+  readArenaFallbackPrice,
+} from "./arena-pricing";
+import {assertArenaAreaAccess} from "./arena-area-access";
+import {deliverNotificationToUser} from "./notification-delivery";
+import {dayKeyFromEventDate} from "./event-timezone";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /** Reserva avulsa criada pelo gestor no balcão (sem app do atleta no meio).
  *  Mesma forma de documento do horário fixo — ver
@@ -115,3 +133,255 @@ export function validateManualBookingInput(
     note: trimmedOrNull(input.note),
   };
 }
+
+const ARENA_BOOKINGS = "arenaBookings";
+const ARENA_SLOTS = "arenaSlots";
+const ARENA_SLOT_LOCKS = "arenaSlotLocks";
+const ARENA_TIMEZONE_OFFSET = "-03:00";
+
+function safeIdPart(s: string): string {
+  return s.replace(/\//g, "_");
+}
+
+interface ArenaCourtContext {
+  arenaData: Record<string, unknown>;
+  courtData: Record<string, unknown>;
+  arenaName: string;
+  courtName: string;
+}
+
+/** Acesso de escrita em `agenda` + arena e quadra numa leitura só — as duas
+ *  callables precisam exatamente disso, e `calculateBookingTotal` precisa do
+ *  `courtData` cru. */
+async function requireArenaCourtContext(
+  db: Firestore,
+  arenaId: string,
+  courtId: string,
+  uid: string,
+): Promise<ArenaCourtContext> {
+  await assertArenaAreaAccess(db, arenaId, uid, "agenda", "write");
+
+  const [arenaSnap, courtSnap] = await Promise.all([
+    db.collection("arenas").doc(arenaId).get(),
+    db.collection("arenas").doc(arenaId).collection("courts").doc(courtId).get(),
+  ]);
+  if (!arenaSnap.exists) {
+    throw new HttpsError("not-found", "Arena não encontrada.");
+  }
+  if (!courtSnap.exists) {
+    throw new HttpsError("not-found", "Quadra não encontrada.");
+  }
+
+  const arenaData = arenaSnap.data() as Record<string, unknown>;
+  const courtData = courtSnap.data() as Record<string, unknown>;
+  const arenaName = typeof arenaData["name"] === "string" ?
+    (arenaData["name"] as string).trim() || "Arena" :
+    "Arena";
+  const courtName = typeof courtData["name"] === "string" ?
+    (courtData["name"] as string).trim() || "Quadra" :
+    "Quadra";
+
+  return {arenaData, courtData, arenaName, courtName};
+}
+
+/** Preço sugerido: quadra + promoções ativas. Sem cupom (é do atleta) e sem
+ *  regra de pico (não bloqueia o gestor). Quadra sem preço devolve 0 sem erro —
+ *  o gestor digita. */
+export const quoteArenaManualBooking = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  }
+
+  const db = getFirestore();
+  const input = (request.data ?? {}) as ManualBookingInput;
+  // Cotação não precisa de cliente nem de valor: injeta o mínimo pra reusar a
+  // mesma normalização de quadra/data/horário da criação.
+  const parsed = validateManualBookingInput(
+    {...input, customerName: "cotação", amountReais: 0},
+    dayKeyFromEventDate(new Date()),
+  );
+
+  const ctx = await requireArenaCourtContext(db, parsed.arenaId, parsed.courtId, uid);
+  const promoSnap = await db
+    .collection("arenas").doc(parsed.arenaId)
+    .collection("promotions")
+    .where("active", "==", true)
+    .get();
+
+  const total = calculateBookingTotal({
+    arenaId: parsed.arenaId,
+    courtId: parsed.courtId,
+    dateKey: parsed.dateKey,
+    startTime: parsed.startTime,
+    endTime: parsed.endTime,
+    courtData: ctx.courtData,
+    arenaFallback: readArenaFallbackPrice(ctx.arenaData),
+    promotions: parsePromotionsFromDocs(promoSnap.docs),
+  });
+
+  return {amountReais: total.amountReais, lineItems: total.lineItems};
+});
+
+/** Cria a reserva de balcão: `arenaBookings` + `arenaSlots` + `arenaSlotLocks`
+ *  numa transação, mesma forma do horário fixo. */
+export const createArenaManualBooking = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  }
+
+  const db = getFirestore();
+  const parsed = validateManualBookingInput(
+    (request.data ?? {}) as ManualBookingInput,
+    dayKeyFromEventDate(new Date()),
+  );
+  const ctx = await requireArenaCourtContext(db, parsed.arenaId, parsed.courtId, uid);
+
+  if (parsed.athleteId) {
+    const userSnap = await db.collection("users").doc(parsed.athleteId).get();
+    if (!userSnap.exists) {
+      throw new HttpsError("not-found", "Atleta vinculado não encontrado.");
+    }
+  }
+
+  const blocked = await hasBlockedSlotOverlap(db, {
+    arenaId: parsed.arenaId,
+    courtId: parsed.courtId,
+    startTime: parsed.startTime,
+    endTime: parsed.endTime,
+  }, parsed.dateKey);
+  if (blocked) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Esse horário está bloqueado; desbloqueie antes de reservar.",
+    );
+  }
+
+  const startMin = toMinutes(parsed.startTime);
+  let endMin = toMinutes(parsed.endTime);
+  if (endMin === 0 && startMin > 0) endMin = 24 * 60;
+  const hours = calendarHoursSpanning(startMin, endMin);
+  if (hours.length === 0) {
+    throw new HttpsError("failed-precondition", "Não foi possível calcular os horários.");
+  }
+
+  const safeArena = safeIdPart(parsed.arenaId);
+  const safeCourt = safeIdPart(parsed.courtId);
+  const lockRefs = hours.map((h) => ({
+    hour: h,
+    ref: db
+      .collection(ARENA_SLOT_LOCKS)
+      .doc(`${safeArena}_${safeCourt}_${parsed.dateKey}_h${h.toString().padStart(2, "0")}`),
+  }));
+
+  const bookingRef = db.collection(ARENA_BOOKINGS).doc();
+  const slotRef = db.collection(ARENA_SLOTS).doc();
+  const startAt = new Date(
+    `${parsed.dateKey}T${parsed.startTime}:00${ARENA_TIMEZONE_OFFSET}`,
+  );
+  const confirmationDeadline = new Date(startAt.getTime() - 2 * 60 * 60 * 1000);
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      for (const lock of lockRefs) {
+        const snap = await transaction.get(lock.ref);
+        if (snap.exists) {
+          throw new HttpsError("already-exists", "Esse horário já está reservado.");
+        }
+      }
+
+      transaction.set(bookingRef, {
+        athleteId: parsed.athleteId,
+        arenaId: parsed.arenaId,
+        arenaName: ctx.arenaName,
+        courtId: parsed.courtId,
+        courtName: ctx.courtName,
+        customerName: parsed.customerName,
+        date: parsed.dateKey,
+        startTime: parsed.startTime,
+        endTime: parsed.endTime,
+        amountReais: parsed.amountReais,
+        amountToPayNowReais: 0,
+        amountPaidOnlineReais: 0,
+        amountDueOnsiteReais: parsed.amountReais,
+        paymentChannel: "onsite",
+        paymentReceiver: null,
+        paymentFraction: null,
+        paymentStatus: "none",
+        status: "active",
+        attendanceConfirmed: false,
+        attendanceStatus: "pending",
+        confirmationDeadline: Timestamp.fromDate(confirmationDeadline),
+        paymentExpiresAt: null,
+        source: "manual",
+        isRecurring: false,
+        createdByRole: "arena_manager",
+        createdBy: uid,
+        ...(parsed.note ? {managerNote: parsed.note} : {}),
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
+      transaction.set(slotRef, {
+        arenaId: parsed.arenaId,
+        courtId: parsed.courtId,
+        // String YYYY-MM-DD — alinhado a arenaBookings (evita deslocamento UTC no app).
+        date: parsed.dateKey,
+        dateKey: parsed.dateKey,
+        startTime: parsed.startTime,
+        endTime: parsed.endTime,
+        status: "booked",
+        bookingAthleteId: parsed.athleteId,
+        bookingId: bookingRef.id,
+        priceReais: parsed.amountReais,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
+      for (const lock of lockRefs) {
+        transaction.set(lock.ref, {
+          arenaId: parsed.arenaId,
+          courtId: parsed.courtId,
+          date: parsed.dateKey,
+          startTime: fmtHourStart(lock.hour),
+          endTime: fmtHourEnd(lock.hour),
+          bookingId: bookingRef.id,
+          bookingAthleteId: parsed.athleteId,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      }
+    });
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    logger.error("createArenaManualBooking: transação falhou", e);
+    throw new HttpsError("internal", "Não foi possível criar a reserva.");
+  }
+
+  // Push é acessório: reserva já criada não pode cair por falha de notificação.
+  if (parsed.athleteId) {
+    try {
+      await deliverNotificationToUser({
+        userId: parsed.athleteId,
+        title: "Reserva confirmada 🎾",
+        body: `${parsed.startTime} - ${parsed.endTime} · ${ctx.courtName} · ${ctx.arenaName}`,
+        type: "manual_booking_created",
+        data: {bookingId: bookingRef.id, arenaId: parsed.arenaId},
+        requireInteraction: false,
+      });
+    } catch (e) {
+      logger.warn("createArenaManualBooking: notificação ao atleta falhou", e);
+    }
+  }
+
+  logger.info("createArenaManualBooking: reserva criada", {
+    bookingId: bookingRef.id,
+    arenaId: parsed.arenaId,
+    courtId: parsed.courtId,
+    dateKey: parsed.dateKey,
+  });
+
+  return {bookingId: bookingRef.id};
+});

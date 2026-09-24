@@ -158,26 +158,38 @@ describe('plano de fases · limites da própria fase editada', () => {
   });
 
   it('toda contagem que o sorteio aceita continua aceita na edição', () => {
-    // O guard novo não pode recusar uma edição legítima: para qualquer campo,
-    // toda contagem que `kocBracketCountOptions` oferece tem que produzir
-    // chaves dentro de [piso, teto] — e por isso passar pelo guard.
-    for (let n = 3; n <= 30; n++) {
-      const plan = kocProposePhasePlan(n, 6, 900);
-      for (const bracketCount of kocBracketCountOptions(n, 6)) {
-        expect(kocApplyPhaseEdit(plan, 0, {bracketCount}, 6).length).toBeGreaterThan(0);
+    // O guard novo (piso via maxBrackets + teto via largest > max) não pode
+    // recusar uma edição legítima: para todo teto do formato e campo até
+    // 120 duplas, toda contagem que `kocBracketCountOptions` oferece tem que
+    // seguir aceita. 788 combinações (n, teto, contagem) nesta varredura —
+    // conferido também fora do spec, num mirror Node do algoritmo, contra o
+    // mesmo total.
+    let checked = 0;
+    for (const max of [3, 4, 5, 6]) {
+      for (let n = 3; n <= 120; n++) {
+        const plan = kocProposePhasePlan(n, max, 900);
+        if (plan.length === 0) continue;
+        for (const bracketCount of kocBracketCountOptions(n, max)) {
+          checked++;
+          expect(kocApplyPhaseEdit(plan, 0, {bracketCount}, max).length).toBeGreaterThan(0);
+        }
       }
     }
+    expect(checked).toBe(788);
   });
 
   it('bracketCount degenerado devolve plano vazio em vez de lançar', () => {
-    // `0`/negativo não é chave nenhuma; `NaN` não é número; `Infinity` é o
-    // caso que IMPORTA aqui — sem checar antes, `Array.from({length:
-    // Infinity})` dentro de `kocBracketSizes` lança `RangeError`, e uma
-    // função pura exportada para as Tasks 6/8/10 não pode explodir num
-    // input degenerado: uma tela que repassar um valor assim (bug do lado
-    // dela) veria uma exceção não tratada em vez de "não dá para montar".
+    // `0`/negativo não é chave nenhuma; `NaN` não é número; `Infinity` e
+    // `1e9` são os casos que IMPORTAM aqui — sem barrar pelo TAMANHO DO
+    // CAMPO antes de `kocBracketSizes`, `Array.from({length: N})` aloca N
+    // posições na hora: `Infinity` lança `RangeError`, e `1e9` (um inteiro
+    // positivo "válido" que só falharia depois, na checagem de piso) trava
+    // o processo por exaustão de memória — pior que uma exceção. Uma
+    // função pura exportada para as Tasks 6/8/10 não pode nem lançar nem
+    // travar num input degenerado: uma tela que repassar um valor assim
+    // (bug do lado dela) precisa ver "não dá para montar", não um crash.
     const plan = kocProposePhasePlan(10, 6, 900);
-    for (const bracketCount of [0, -1, NaN, Infinity, -Infinity]) {
+    for (const bracketCount of [0, -1, NaN, Infinity, -Infinity, 1e9]) {
       expect(() => kocApplyPhaseEdit(plan, 0, {bracketCount}, 6)).not.toThrow();
       expect(kocApplyPhaseEdit(plan, 0, {bracketCount}, 6)).toEqual([]);
     }

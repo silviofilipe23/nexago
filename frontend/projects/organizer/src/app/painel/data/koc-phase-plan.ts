@@ -193,29 +193,37 @@ export function kocApplyPhaseEdit(
   const field = current.bracketSizes.reduce((a, b) => a + b, 0);
   const max = kocClampMaxPerRound(maxPerRound);
 
-  // Cru do chamador pode ser fracionário, <= 0 ou não-finito (`Infinity`,
-  // `NaN`) — e as três formas de sujeira precisam ser barradas ANTES de
-  // `kocBracketSizes`: `Array.from({length: Infinity})` lança `RangeError`
-  // direto (não vira `[]`), e um `NaN` que escapasse tomaria o caminho mais
-  // longo ainda, avançando por comparações que dão sempre falso (`NaN < 3`
-  // é `false`) até o teto de fases estourar — funciona por acidente do
-  // orçamento, não porque algo o pegou de propósito. `Number.isInteger` fecha
-  // as duas: é `false` para todo valor não-finito e para fracionário não
-  // arredondado, então a checagem sozinha já cobre `Infinity`/`-Infinity`/
-  // `NaN` sem precisar de um `Number.isFinite` à parte.
+  // Cru do chamador pode ser fracionário, <= 0, não-finito (`Infinity`,
+  // `NaN`) ou grande demais para o campo — e as quatro formas de sujeira
+  // precisam ser barradas ANTES de `kocBracketSizes`: validar só DEPOIS de
+  // montar o array é tarde demais, porque o próprio `Array.from({length:
+  // bracketCount})` já aloca `bracketCount` posições — um `1e9` trava o
+  // processo antes de qualquer checagem rodar, mesmo sendo um inteiro
+  // positivo legítimo que só falharia mais adiante. `floor(field / piso)` é
+  // o maior número de chaves que o campo comporta sem furar o piso em
+  // alguma (pombos-e-casas: mais chaves que isso e a média já fica abaixo
+  // de 3) — um limite que não depende de construir nada para calcular.
+  //
+  // `Number.isInteger` sozinho fecha `Infinity`/`-Infinity`/`NaN` (é `false`
+  // para todo valor não-finito), sem precisar de um `Number.isFinite` à
+  // parte. Fracionário é arredondado para baixo ANTES da checagem — `2.5`
+  // vira `2` e passa — mesmo tratamento que todo outro número externo do
+  // módulo (`kocClampMaxPerRound`, `parseKocPhases`).
   const bracketCount = Math.floor(patch.bracketCount ?? current.bracketSizes.length);
-  if (!Number.isInteger(bracketCount) || bracketCount <= 0) return [];
+  const maxBrackets = Math.floor(field / KOC_MIN_TEAMS_PER_ROUND);
+  if (!Number.isInteger(bracketCount) || bracketCount < 1 || bracketCount > maxBrackets) return [];
   const bracketSizes = kocBracketSizes(field, bracketCount);
   const smallest = Math.min(...bracketSizes);
   const largest = Math.max(...bracketSizes);
-  // Mesma checagem que `proposeTail` já faz para o rabo: um `bracketCount`
-  // fora da faixa certa fura o piso (alto demais) ou o teto (baixo demais)
-  // NA PRÓPRIA fase editada — não só no que vem depois dela. A geração
-  // recusaria rio abaixo (`koc_battery_too_small`/`koc_bracket_over_max`),
-  // mas uma função pura exportada para as Tasks 6/8/10 não deveria depender
-  // de quem chama recusar depois: `[]` aqui é a mesma convenção de "sem
-  // plano válido" que o resto do módulo já usa.
-  if (smallest < KOC_MIN_TEAMS_PER_ROUND || largest > max) return [];
+  // `maxBrackets` acima só garante o PISO (chave demais fura o piso em
+  // alguma); esta checagem cobre o TETO (chave de menos estoura o teto em
+  // alguma) — mesma que `proposeTail` já faz para o rabo, agora também na
+  // própria fase editada. A geração recusaria rio abaixo
+  // (`koc_bracket_over_max`), mas uma função pura exportada para as
+  // Tasks 6/8/10 não deveria depender de quem chama recusar depois: `[]`
+  // aqui é a mesma convenção de "sem plano válido" que o resto do módulo
+  // já usa.
+  if (largest > max) return [];
   const durationSec = patch.durationSec ?? current.durationSec;
 
   let qualifiersPerRound = Math.max(1, patch.qualifiersPerRound ?? Math.max(1, current.qualifiersPerRound));

@@ -406,6 +406,12 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
           </section>
 
           <section class="og-mk-order">
+            <!-- Regiao rolavel do modo quadra (display:contents no desktop, entao la
+                 nada muda): cabecalho + fila + card de empate rolam JUNTOS, e os
+                 botoes de ponto ficam fora dela, presos no rodape. E o que segura
+                 qualquer tamanho de empate — com 3 duplas empatadas o card cresce
+                 ~142px e sem isso empurrava os botoes pra fora da tela. -->
+            <div class="og-mk-queue-scroll">
             <header class="og-mk-section-head">
               <span class="og-mk-section-title">Ordem da fila</span>
               <!-- No modo quadra o log sai do fluxo vertical e vira gaveta: e consulta,
@@ -519,6 +525,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                 </div>
               </section>
             }
+            </div>
             <div class="og-mk-live-controls">
               <div class="og-mk-live-actions">
                 <button type="button" class="og-btn-primary og-mk-rally-king" [disabled]="busy()" (click)="rally('king')">
@@ -1211,7 +1218,8 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
     }
     /* Peças do modo quadra: no desktop nao existem. O grupo de leitura fica em
        display:contents para o relogio seguir sendo a mesma coluna flex de sempre. */
-    .og-mk-clock-read {
+    .og-mk-clock-read,
+    .og-mk-queue-scroll {
       display: contents;
     }
     .og-mk-quadra-back,
@@ -2258,11 +2266,19 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       .og-mk-live .og-mk-order-row.challenger {
         display: none;
       }
-      /* A fila é a única faixa que rola, e é a que cede altura quando aperta. */
-      .og-mk-live .og-mk-order-list {
+      /* Quem rola é a REGIÃO (cabeçalho + fila + empate), não só a lista: assim o card
+         de empate, que muda de tamanho com o número de empatadas, nunca empurra os
+         botões de ponto pra fora — eles vivem FORA dela, presos no rodapé. Com 3
+         duplas empatadas o card cresce ~142px; sem isto, os três botões saíam da tela. */
+      .og-mk-live .og-mk-queue-scroll {
+        display: flex;
+        flex-direction: column;
         flex: 1 1 auto;
         min-height: 0;
         overflow-y: auto;
+      }
+      .og-mk-live .og-mk-order-list {
+        flex: 0 0 auto;
         gap: 6px;
       }
       .og-mk-order-row {
@@ -2598,26 +2614,71 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       }
 
       /* Depois do apito o telefone tem de segurar, na mesma tela: relogio, confronto,
-         card de empate E os dois botoes de ponto (o ultimo rally ainda vai ser
-         lancado). Sao ~60px que nao existem — saem do espacamento, nao do conteudo:
-         nenhum bloco e escondido aqui. */
+         DUAS linhas de fila, card de empate E os dois botoes de ponto (o ultimo rally
+         ainda vai ser lancado). O piso de duas linhas e declarado, nao torcido:
+         o resto se aperta em volta dele. */
+      /* Duas linhas exatas: piso E teto na mesma medida. So o piso deixava a lista
+         segurar as tres linhas naturais e empurrar a bola de ouro pra fora da dobra
+         no caso comum (duas empatadas); so deixar encolher fazia as linhas vazarem
+         por cima do card, porque lista encolhida sem overflow nao clipa. A 3a linha
+         em diante rola dentro da propria lista. */
+      .og-mk-live:has(.og-mk-tie) .og-mk-order-list {
+        min-height: calc(2 * 40px + 6px);
+        max-height: calc(2 * 40px + 6px);
+        overflow-y: auto;
+      }
+      /* Nas duas linhas que sobram, a categoria/nivel da dupla nao ajuda a decidir
+         nada no desempate — quem decide e o nome e os pontos. */
+      .og-mk-live:has(.og-mk-tie) .og-mk-order-row {
+        min-height: 40px;
+        padding: 4px 10px;
+      }
+      .og-mk-live:has(.og-mk-tie) .og-mk-order-sub {
+        display: none;
+      }
+
+      /* Os ~86px das duas linhas saem do espacamento e da redundancia, nao de bloco
+         com informacao: o kicker "EMPATE NA VAGA" repete o titulo logo abaixo, e o
+         chip "N VAGA(S) EM DISPUTA" repete o alerta — que diz o numero de vagas em
+         TODOS os ramos em que ele importa. */
+      .og-mk-live:has(.og-mk-tie) .og-mk-tie-kicker,
+      .og-mk-live:has(.og-mk-tie) .og-mk-tie-chip {
+        display: none;
+      }
       .og-mk-live:has(.og-mk-tie) .og-mk-side {
-        padding: 8px 6px;
-        gap: 2px;
+        padding: 6px;
+        gap: 0;
+      }
+      .og-mk-live:has(.og-mk-tie) .og-mk-side-pts strong {
+        font-size: clamp(22px, 3.2vh, 34px);
+      }
+      /* Os ultimos ~17px que faziam o caso COMUM (duas empatadas) precisar de um
+         empurrao de rolagem pra mostrar a segunda bola de ouro. */
+      .og-mk-live:has(.og-mk-tie) {
+        gap: 6px;
+      }
+      .og-mk-live:has(.og-mk-tie) .og-mk-order {
+        padding-block: 10px;
       }
       .og-mk-live:has(.og-mk-tie) .og-mk-tie {
-        padding: 10px;
-        gap: 8px;
+        padding: 8px;
+        gap: 6px;
+      }
+      .og-mk-live:has(.og-mk-tie) .og-mk-golden-card {
+        padding-block: 6px;
       }
       .og-mk-live:has(.og-mk-tie) .og-mk-tie-title {
         font-size: 14px;
+      }
+      .og-mk-live:has(.og-mk-tie) .og-mk-tie-alert {
+        padding: 8px 10px;
       }
       .og-mk-live:has(.og-mk-tie) .og-mk-golden {
         gap: 6px;
       }
       .og-mk-live:has(.og-mk-tie) .og-mk-golden-card {
-        min-height: 52px;
-        padding: 10px 12px;
+        min-height: 48px;
+        padding: 8px 12px;
       }
 
       /* Tabela final: as colunas de numero encolhem e os avatares saem — o que

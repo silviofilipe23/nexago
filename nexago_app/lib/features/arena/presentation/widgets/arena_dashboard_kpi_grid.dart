@@ -5,7 +5,12 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/arena_dashboard_period_metrics.dart';
 import 'arena_dashboard_tokens.dart';
 
-/// Quatro KPIs em grade 2×2 (dark NexaGO).
+/// KPIs em grade 2×N (dark NexaGO).
+///
+/// Normalmente são 4 (Faturamento, Ocupação, Reservas, Pico), mas quem não lê
+/// a área financeira não recebe o item de Faturamento (ver
+/// `ArenaDashboardPage`) — a grade precisa acomodar 3 itens também, sem sobrar
+/// espaço vazio nem estourar índice.
 class ArenaDashboardKpiGrid extends StatelessWidget {
   const ArenaDashboardKpiGrid({
     super.key,
@@ -16,33 +21,29 @@ class ArenaDashboardKpiGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    assert(items.length == 4);
     final theme = Theme.of(context);
+    final rows = <Widget>[];
+    for (var i = 0; i < items.length; i += 2) {
+      if (i > 0) rows.add(const SizedBox(height: 12));
+      final hasSecond = i + 1 < items.length;
+      rows.add(
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: _KpiTile(item: items[i], theme: theme)),
+              if (hasSecond) ...[
+                const SizedBox(width: 12),
+                Expanded(child: _KpiTile(item: items[i + 1], theme: theme)),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
     return Column(
       mainAxisSize: MainAxisSize.min,
-      children: [
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: _KpiTile(item: items[0], theme: theme)),
-              const SizedBox(width: 12),
-              Expanded(child: _KpiTile(item: items[1], theme: theme)),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: _KpiTile(item: items[2], theme: theme)),
-              const SizedBox(width: 12),
-              Expanded(child: _KpiTile(item: items[3], theme: theme)),
-            ],
-          ),
-        ),
-      ],
+      children: rows,
     );
   }
 }

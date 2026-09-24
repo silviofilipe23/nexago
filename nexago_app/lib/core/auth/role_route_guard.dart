@@ -43,6 +43,7 @@ String? redirectForActiveRole({
   required List<AppMobileRole> availableRoles,
   required bool needsRoleSelection,
   bool canOperateStaffTournaments = false,
+  bool arenaAreaAllowed = true,
 }) {
   if (needsRoleSelection) {
     if (!isRoleSelectionPath(path) &&
@@ -67,6 +68,17 @@ String? redirectForActiveRole({
 
   if (isArenaManagerPanelPath(path) && activeRole != AppMobileRole.arena) {
     return activeRole.homeRoute;
+  }
+
+  // Membro de equipe no painel: o cargo nao alcanca a area desta rota. Volta
+  // ao Painel, que nao tem area — nao ao login, porque a pessoa TEM painel.
+  // Fail-closed de proposito: erro ao resolver o acesso tambem cai aqui, e o
+  // pior caso e abrir na tela inicial.
+  if (isArenaManagerPanelPath(path) &&
+      activeRole == AppMobileRole.arena &&
+      !arenaAreaAllowed &&
+      path != AppRoutes.arenaDashboard) {
+    return AppRoutes.arenaDashboard;
   }
 
   if (isOrganizerExperiencePath(path) &&

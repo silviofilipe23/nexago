@@ -16,7 +16,7 @@ class ArenaProductCard extends StatelessWidget {
   });
 
   final ArenaProduct product;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

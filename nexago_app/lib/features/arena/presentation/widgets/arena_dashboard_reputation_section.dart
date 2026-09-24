@@ -11,7 +11,9 @@ import '../../../../core/ui/success_page.dart';
 import '../../../athlete/domain/arena_review.dart';
 import '../../../arenas/domain/arena_detail_logic.dart';
 import '../../data/review_reply_service.dart';
+import '../../domain/arena_access_providers.dart';
 import '../../domain/arena_providers.dart';
+import '../../domain/arena_staff_role.dart';
 import '../../domain/review_reply_providers.dart';
 import 'arena_dashboard_tokens.dart';
 import 'reply_review_dialog.dart';
@@ -27,6 +29,18 @@ class ArenaDashboardReputationSection extends ConsumerWidget {
     final arenaId = ref.watch(managedArenaIdProvider).valueOrNull ?? '';
     final managerId = ref.watch(authProvider).valueOrNull?.uid ?? '';
     final replyService = ref.watch(reviewReplyServiceProvider);
+    // Defeito A (Task 12, ruling do controlador): responder avaliação é
+    // escrita de `comunidade`, mas o Painel é rota SEM área — todo cargo
+    // chega aqui. Sem este gate, recepção e financeiro (que só LEEM
+    // `comunidade`) viam o botão habilitado e levavam exceção ao tocar.
+    final canWriteComunidade =
+        ref.watch(arenaCanWriteProvider(ArenaArea.comunidade));
+    // Defeito B (revisão final): "VER TODAS" navega para `/arena/reviews`,
+    // área `comunidade` — mas não foi gateado junto do botão de responder.
+    // `manutencao` não lê `comunidade` e cai num beco sem saída no guard de
+    // rota.
+    final canReadComunidade =
+        ref.watch(arenaCanReadProvider(ArenaArea.comunidade));
     final theme = Theme.of(context);
 
     final averageRating = reviewsAsync.maybeWhen(
@@ -94,23 +108,24 @@ class ArenaDashboardReputationSection extends ConsumerWidget {
                   ),
                 ],
                 const Spacer(),
-                TextButton(
-                  onPressed: () =>
-                      context.pushNamed(AppRouteNames.arenaManagerReviews),
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppColors.brand,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: Text(
-                    'VER TODAS',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.4,
+                if (canReadComunidade)
+                  TextButton(
+                    onPressed: () =>
+                        context.pushNamed(AppRouteNames.arenaManagerReviews),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.brand,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      'VER TODAS',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.4,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
             const SizedBox(height: 10),
@@ -143,6 +158,7 @@ class ArenaDashboardReputationSection extends ConsumerWidget {
                       arenaId: arenaId,
                       managerId: managerId,
                       replyService: replyService,
+                      canWrite: canWriteComunidade,
                     );
                   }).toList(growable: false),
                 );
@@ -235,11 +251,10 @@ class _ReputationSummary extends StatelessWidget {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(4),
                           child: LinearProgressIndicator(
-                            value: (metrics.repliedPercent / 100)
-                                .clamp(0.0, 1.0),
+                            value:
+                                (metrics.repliedPercent / 100).clamp(0.0, 1.0),
                             minHeight: 6,
-                            backgroundColor:
-                                context.themeColors.surfaceRaised,
+                            backgroundColor: context.themeColors.surfaceRaised,
                             color: AppColors.brand,
                           ),
                         ),
@@ -306,17 +321,19 @@ class _PendingReviewTile extends StatelessWidget {
     required this.arenaId,
     required this.managerId,
     required this.replyService,
+    required this.canWrite,
   });
 
   final ArenaReview review;
   final String arenaId;
   final String managerId;
   final ReviewReplyService replyService;
+  final bool canWrite;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final canReply = arenaId.isNotEmpty && managerId.isNotEmpty;
+    final canReply = arenaId.isNotEmpty && managerId.isNotEmpty && canWrite;
     final age = formatRelativeReviewAge(review.createdAt, DateTime.now());
     final comment = (review.comment ?? '').trim();
 
@@ -437,9 +454,8 @@ class _PendingReviewTile extends StatelessWidget {
       context,
       originalComment: review.comment ?? '',
       rating: review.rating,
-      initialValue: quick
-          ? 'Obrigado pelo feedback! Estamos sempre melhorando.'
-          : null,
+      initialValue:
+          quick ? 'Obrigado pelo feedback! Estamos sempre melhorando.' : null,
     );
     if (text == null) return;
     try {

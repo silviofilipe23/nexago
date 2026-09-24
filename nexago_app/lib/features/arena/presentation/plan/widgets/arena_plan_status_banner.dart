@@ -6,6 +6,7 @@ import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
+import '../../../domain/arena_access_providers.dart';
 import '../../../domain/arena_plan.dart';
 import '../../../domain/arena_plan_providers.dart';
 
@@ -16,9 +17,21 @@ class ArenaPlanStatusBanner extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final status =
-        ref.watch(managedArenaPlanStatusProvider).valueOrNull ??
-            ArenaPlanStatus.none;
+    // Achado da revisão final (RBAC equipe/arena): o card inteiro navega
+    // para `/arena/settings/plan`, rota que `isArenaOwnerOnlyPath` bloqueia —
+    // membro tocava e o guard devolvia ao Painel sem explicação. Status de
+    // cobrança da assinatura é assunto do titular (mesmo motivo pelo qual
+    // Ajustes já esconde "Plano" de quem não é dono); escondemos o banner
+    // inteiro em vez de só desarmar o `onTap`, para não deixar um aviso sem
+    // ação — coerente com o menu.
+    final isOwner =
+        ref.watch(arenaAccessProvider).valueOrNull?.isOwner ?? false;
+    if (!isOwner) {
+      return const SizedBox.shrink();
+    }
+
+    final status = ref.watch(managedArenaPlanStatusProvider).valueOrNull ??
+        ArenaPlanStatus.none;
 
     if (!status.isOverdue && !status.isCanceling) {
       return const SizedBox.shrink();
@@ -81,17 +94,17 @@ class ArenaPlanStatusBanner extends ConsumerWidget {
                       Text(
                         content.title,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: context.themeColors.onSurface,
-                        ),
+                              fontWeight: FontWeight.w800,
+                              color: context.themeColors.onSurface,
+                            ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         content.message,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: context.themeColors.onSurfaceMuted,
-                          height: 1.35,
-                        ),
+                              color: context.themeColors.onSurfaceMuted,
+                              height: 1.35,
+                            ),
                       ),
                     ],
                   ),

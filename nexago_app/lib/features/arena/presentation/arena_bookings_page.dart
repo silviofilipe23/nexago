@@ -7,11 +7,13 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/fade_slide_in.dart';
+import '../domain/arena_access_providers.dart';
 import '../domain/arena_club_admin_providers.dart';
 import '../domain/arena_recurring_providers.dart';
 import '../domain/arena_bookings_grouping.dart';
 import '../domain/arena_providers.dart';
 import '../domain/arena_shell_providers.dart';
+import '../domain/arena_staff_role.dart';
 import 'widgets/arena_async_state.dart';
 import 'widgets/arena_booking_card.dart';
 import 'widgets/arena_bookings_header.dart';
@@ -57,6 +59,9 @@ class _BookingsScrollBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(bookingViewModeProvider);
     final insight = ref.watch(arenaBookingsTodayInsightProvider);
+    // Manutenção lê a agenda mas não escreve — os dois atalhos abaixo levam a
+    // telas de criação (horário fixo, clubinho), então somem para quem só lê.
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
 
     return NexaPageHeader(
       topGap: 8,
@@ -86,10 +91,12 @@ class _BookingsScrollBody extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const ArenaBookingsModeChips(),
-                  const SizedBox(height: 10),
-                  const _RecurringEntryRow(),
-                  const SizedBox(height: 8),
-                  const _ClubsEntryRow(),
+                  if (canWrite) ...[
+                    const SizedBox(height: 10),
+                    const _RecurringEntryRow(),
+                    const SizedBox(height: 8),
+                    const _ClubsEntryRow(),
+                  ],
                   const SizedBox(height: 12),
                 ],
               ),

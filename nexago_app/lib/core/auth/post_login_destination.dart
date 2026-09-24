@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/arena/domain/arena_access_providers.dart';
+import '../../features/arena/domain/arena_route_guard.dart';
 import '../../features/athlete/domain/athlete_profile.dart';
 import '../../features/athlete/domain/athlete_profile_providers.dart';
 import '../deep_link/deep_link_navigation.dart';
@@ -142,12 +144,20 @@ Future<String?> resolveAuthenticatedRedirect({
     canOperateStaffTournaments = await hasActiveTournamentStaffAccess(ref);
   }
 
+  // Area do painel da arena: so consulta quando a rota exige, como ja e feito
+  // com o staff de torneio logo acima.
+  var arenaAreaAllowed = true;
+  if (activeRole == AppMobileRole.arena && isArenaManagerPanelPath(path)) {
+    arenaAreaAllowed = await hasArenaAreaAccess(ref, path);
+  }
+
   final guardRedirect = redirectForActiveRole(
     path: path,
     activeRole: activeRole,
     availableRoles: availableRoles,
     needsRoleSelection: needsSelection,
     canOperateStaffTournaments: canOperateStaffTournaments,
+    arenaAreaAllowed: arenaAreaAllowed,
   );
   if (guardRedirect != null) {
     return guardRedirect;
@@ -185,3 +195,15 @@ final resolvePostLoginDestinationProvider =
     Provider<Future<String> Function()>((ref) {
   return () => resolvePostLoginDestination(ref);
 });
+
+/// A rota do painel da arena e alcancavel pelo vinculo atual? Aguarda a
+/// primeira emissao das duas fontes — decidir com o espelho ainda vazio
+/// mandaria o dono para o Painel no primeiro frame de um deep link.
+Future<bool> hasArenaAreaAccess(Ref ref, String path) async {
+  final area = arenaAreaForPath(path);
+  final ownerOnly = isArenaOwnerOnlyPath(path);
+  if (area == null && !ownerOnly) return true;
+  final access = await resolveArenaAccess(ref);
+  if (ownerOnly) return access.isOwner;
+  return access.canRead(area!);
+}

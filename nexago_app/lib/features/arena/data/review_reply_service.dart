@@ -37,12 +37,10 @@ class ReviewReplyService {
       if (data['reply'] is Map<String, dynamic>) {
         throw Exception('Esta avaliação já possui resposta.');
       }
-      final arenaRef = _firestore.collection('arenas').doc(aid);
-      final arenaSnap = await tx.get(arenaRef);
-      final manager = (arenaSnap.data()?['managerUserId'] as String?)?.trim() ?? '';
-      if (manager != managerId) {
-        throw Exception('Apenas o gestor da arena pode responder.');
-      }
+      // Autorização é fronteira das rules (`arenaCanWrite(arenaId,
+      // 'comunidade')` em `firestore.rules:1971`), não deste serviço — uma
+      // checagem de identidade contra `managerUserId` aqui recusaria o
+      // próprio `gestor`, o cargo que deveria responder.
       tx.update(reviewRef, {
         'reply': {
           'message': msg,
@@ -84,12 +82,9 @@ class ReviewReplyService {
       if (existingReply is! Map<String, dynamic>) {
         throw Exception('Esta avaliação ainda não possui resposta.');
       }
-      final arenaRef = _firestore.collection('arenas').doc(aid);
-      final arenaSnap = await tx.get(arenaRef);
-      final manager = (arenaSnap.data()?['managerUserId'] as String?)?.trim() ?? '';
-      if (manager != managerId) {
-        throw Exception('Apenas o gestor da arena pode editar resposta.');
-      }
+      // Autorização é fronteira das rules (`arenaCanWrite(arenaId,
+      // 'comunidade')` em `firestore.rules:1971`), não deste serviço — ver
+      // o mesmo comentário em `replyToReview`.
       tx.update(reviewRef, {
         'reply.message': msg,
         'reply.updatedAt': FieldValue.serverTimestamp(),

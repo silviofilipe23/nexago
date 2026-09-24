@@ -8,10 +8,12 @@ import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../core/ui/fade_slide_in.dart';
+import '../domain/arena_access_providers.dart';
 import '../domain/arena_plan.dart';
 import '../domain/arena_recurring_booking.dart';
 import '../domain/arena_recurring_providers.dart';
 import '../domain/arena_schedule_providers.dart';
+import '../domain/arena_staff_role.dart';
 import 'plan/widgets/arena_plan_gate.dart';
 import 'widgets/arena_async_state.dart';
 import 'widgets/arena_dashboard_tokens.dart';
@@ -26,6 +28,10 @@ class ArenaRecurringListPage extends ConsumerWidget {
     final canAdd = ref.watch(managedArenaCanAddRecurringBookingProvider);
     final maxSeries = ref.watch(managedArenaMaxRecurringBookingsProvider);
     final arenaName = ref.watch(managedArenaDetailProvider).valueOrNull?.name;
+    // Quem só lê a agenda pode chegar aqui direto (rota liberada por leitura,
+    // Task 6) mesmo sem o atalho da listagem de reservas — o botão "Novo"
+    // grava, então some pra quem não escreve.
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -36,12 +42,14 @@ class ArenaRecurringListPage extends ConsumerWidget {
             _RecurringListHeader(
               arenaName: arenaName,
               onBack: () => context.pop(),
-              onAdd: () => _onAdd(
-                context,
-                ref,
-                canAdd: canAdd,
-                max: maxSeries,
-              ),
+              onAdd: canWrite
+                  ? () => _onAdd(
+                        context,
+                        ref,
+                        canAdd: canAdd,
+                        max: maxSeries,
+                      )
+                  : null,
             ),
             Expanded(
               child: seriesAsync.when(
@@ -113,7 +121,10 @@ class _RecurringListHeader extends StatelessWidget {
 
   final String? arenaName;
   final VoidCallback onBack;
-  final VoidCallback onAdd;
+
+  /// `null` esconde o botão "Novo" — quem só lê a agenda não grava horário
+  /// fixo.
+  final VoidCallback? onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -159,40 +170,42 @@ class _RecurringListHeader extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          Material(
-            color: AppColors.brand,
-            borderRadius: BorderRadius.circular(12),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: onAdd,
+          if (onAdd != null) ...[
+            const SizedBox(width: 8),
+            Material(
+              color: AppColors.brand,
               borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: SizedBox(
-                  height: 44,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.add_rounded,
-                        color: AppColors.black,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Novo',
-                        style: theme.textTheme.labelLarge?.copyWith(
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: onAdd,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: SizedBox(
+                    height: 44,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.add_rounded,
                           color: AppColors.black,
-                          fontWeight: FontWeight.w800,
+                          size: 20,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 4),
+                        Text(
+                          'Novo',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: AppColors.black,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

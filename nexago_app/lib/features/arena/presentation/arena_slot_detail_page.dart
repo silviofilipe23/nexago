@@ -13,6 +13,7 @@ import '../../../core/ui/fade_slide_in.dart';
 import '../../arenas/domain/arena_slot.dart';
 import '../../arenas/domain/arena_slot_block_reason.dart';
 import '../data/slot_service.dart';
+import '../domain/arena_access_providers.dart';
 import '../domain/arena_booking_labels.dart';
 import '../domain/arena_bookings_providers.dart';
 import '../domain/arena_recurring_form_args.dart';
@@ -20,6 +21,7 @@ import '../domain/arena_slot_detail_args.dart';
 import '../domain/arena_slot_detail_providers.dart';
 import '../domain/arena_schedule_providers.dart';
 import '../domain/arena_slot_weekday_history.dart';
+import '../domain/arena_staff_role.dart';
 import 'widgets/arena_async_state.dart';
 import 'widgets/arena_dashboard_tokens.dart';
 import 'widgets/arena_schedule_block_sheet.dart';
@@ -431,6 +433,9 @@ class _QuickActionsGrid extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    // Manutenção lê a agenda mas não escreve — as 4 ações abaixo gravam
+    // (reserva, bloqueio, preço, horário fixo), então somem para quem só lê.
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -451,51 +456,56 @@ class _QuickActionsGrid extends ConsumerWidget {
           crossAxisSpacing: 10,
           childAspectRatio: 1.55,
           children: [
-            _ActionCard(
-              icon: Icons.person_add_outlined,
-              title: 'Criar reserva',
-              subtitle: 'walk-in ou nome',
-              onTap: () => showAppSnackBar(context, 'Criar reserva em breve.'),
-            ),
-            _ActionCard(
-              icon: Icons.block_outlined,
-              title: 'Bloquear',
-              subtitle: 'manutenção, evento',
-              enabled: slot.isAvailable,
-              onTap: () async {
-                final ok = await ArenaScheduleBlockSheet.show(
-                  context,
-                  slot: slot,
-                  courtName: courtName,
-                );
-                if (ok && context.mounted) {
-                  showAppSnackBar(context, 'Horário bloqueado.');
-                  context.pop();
-                }
-              },
-            ),
-            _ActionCard(
-              icon: Icons.local_offer_outlined,
-              title: 'Ajustar preço',
-              subtitle: 'promo flash',
-              onTap: () => showAppSnackBar(context, 'Ajustar preço em breve.'),
-            ),
-            _ActionCard(
-              icon: Icons.repeat_rounded,
-              title: 'Horário fixo',
-              subtitle: 'todo ${DateFormat('EEEE', 'pt_BR').format(slot.date)}',
-              enabled: slot.isAvailable,
-              onTap: () => context.pushNamed(
-                AppRouteNames.arenaRecurringNew,
-                extra: ArenaRecurringFormArgs(
-                  courtId: slot.courtId,
-                  weekday: slot.date.weekday,
-                  startTime: slot.startTime,
-                  endTime: slot.endTime,
-                  priceReais: slot.priceReais,
+            if (canWrite) ...[
+              _ActionCard(
+                icon: Icons.person_add_outlined,
+                title: 'Criar reserva',
+                subtitle: 'walk-in ou nome',
+                onTap: () =>
+                    showAppSnackBar(context, 'Criar reserva em breve.'),
+              ),
+              _ActionCard(
+                icon: Icons.block_outlined,
+                title: 'Bloquear',
+                subtitle: 'manutenção, evento',
+                enabled: slot.isAvailable,
+                onTap: () async {
+                  final ok = await ArenaScheduleBlockSheet.show(
+                    context,
+                    slot: slot,
+                    courtName: courtName,
+                  );
+                  if (ok && context.mounted) {
+                    showAppSnackBar(context, 'Horário bloqueado.');
+                    context.pop();
+                  }
+                },
+              ),
+              _ActionCard(
+                icon: Icons.local_offer_outlined,
+                title: 'Ajustar preço',
+                subtitle: 'promo flash',
+                onTap: () =>
+                    showAppSnackBar(context, 'Ajustar preço em breve.'),
+              ),
+              _ActionCard(
+                icon: Icons.repeat_rounded,
+                title: 'Horário fixo',
+                subtitle:
+                    'todo ${DateFormat('EEEE', 'pt_BR').format(slot.date)}',
+                enabled: slot.isAvailable,
+                onTap: () => context.pushNamed(
+                  AppRouteNames.arenaRecurringNew,
+                  extra: ArenaRecurringFormArgs(
+                    courtId: slot.courtId,
+                    weekday: slot.date.weekday,
+                    startTime: slot.startTime,
+                    endTime: slot.endTime,
+                    priceReais: slot.priceReais,
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ],
@@ -715,6 +725,8 @@ class _BlockedDetailsState extends ConsumerState<_BlockedDetails> {
     final theme = Theme.of(context);
     final reason = widget.slot.blockReason?.displayLabel;
     final note = widget.slot.blockNote?.trim();
+    // Mesmo gate das ações rápidas: desbloquear grava na agenda.
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
 
     return DecoratedBox(
       decoration: ArenaDashboardTokens.cardDecoration(context),
@@ -729,30 +741,32 @@ class _BlockedDetailsState extends ConsumerState<_BlockedDetails> {
               SizedBox(height: 12),
               _LabeledRow(label: 'Nota', value: note),
             ],
-            SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: _busy || widget.slot.isVirtual
-                  ? null
-                  : () => _unblock(context),
-              icon: _busy
-                  ? SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(Icons.lock_open_outlined),
-              label: Text('Desbloquear'),
-            ),
-            if (widget.slot.isVirtual)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(
-                  'Este horário ainda não está salvo no Firestore.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: context.themeColors.onSurfaceMuted,
+            if (canWrite) ...[
+              SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: _busy || widget.slot.isVirtual
+                    ? null
+                    : () => _unblock(context),
+                icon: _busy
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(Icons.lock_open_outlined),
+                label: Text('Desbloquear'),
+              ),
+              if (widget.slot.isVirtual)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(
+                    'Este horário ainda não está salvo no Firestore.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: context.themeColors.onSurfaceMuted,
+                    ),
                   ),
                 ),
-              ),
+            ],
           ],
         ),
       ),

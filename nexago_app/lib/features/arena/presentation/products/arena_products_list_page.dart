@@ -7,9 +7,11 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/fade_slide_in.dart';
 
+import '../../domain/arena_access_providers.dart';
 import '../../domain/arena_plan.dart';
 import '../../domain/arena_plan_providers.dart';
 import '../../domain/arena_providers.dart';
+import '../../domain/arena_staff_role.dart';
 import '../../domain/products/arena_product_providers.dart';
 import '../plan/widgets/arena_plan_gate.dart';
 import '../widgets/arena_async_state.dart';
@@ -75,6 +77,7 @@ class _ProductsBody extends ConsumerWidget {
     final filtered = ref.watch(arenaProductsFilteredProvider(arenaId));
     final summary = ref.watch(arenaProductSummaryProvider(arenaId));
     final selectedCategory = ref.watch(arenaProductsCategoryFilterProvider);
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.estoque));
 
     void guarded(VoidCallback action) {
       if (!entitled) {
@@ -115,12 +118,20 @@ class _ProductsBody extends ConsumerWidget {
                           context.goNamed(AppRouteNames.arenaSettings);
                         }
                       },
-                      onStock: () => guarded(
-                        () => context.pushNamed(AppRouteNames.arenaProductStock),
-                      ),
-                      onAdd: () => guarded(
-                        () => context.pushNamed(AppRouteNames.arenaProductNew),
-                      ),
+                      onStock: !canWrite
+                          ? null
+                          : () => guarded(
+                                () => context.pushNamed(
+                                  AppRouteNames.arenaProductStock,
+                                ),
+                              ),
+                      onAdd: !canWrite
+                          ? null
+                          : () => guarded(
+                                () => context.pushNamed(
+                                  AppRouteNames.arenaProductNew,
+                                ),
+                              ),
                     ),
                     const SizedBox(height: 20),
                     if (!entitled) ...[
@@ -139,12 +150,11 @@ class _ProductsBody extends ConsumerWidget {
                             selected: selectedCategory,
                             onSelected: (category) {
                               ref
-                                      .read(
-                                        arenaProductsCategoryFilterProvider
-                                            .notifier,
-                                      )
-                                      .state =
-                                  category;
+                                  .read(
+                                    arenaProductsCategoryFilterProvider
+                                        .notifier,
+                                  )
+                                  .state = category;
                             },
                           ),
                         ),
@@ -181,12 +191,16 @@ class _ProductsBody extends ConsumerWidget {
                     final product = filtered[index];
                     return ArenaProductCard(
                       product: product,
-                      onTap: () => guarded(
-                        () => context.pushNamed(
-                          AppRouteNames.arenaProductEdit,
-                          pathParameters: {'productId': product.id},
-                        ),
-                      ),
+                      // Editar é a única "visão" de um produto (sem tela de
+                      // leitura separada) — quem só lê estoque não abre.
+                      onTap: !canWrite
+                          ? null
+                          : () => guarded(
+                                () => context.pushNamed(
+                                  AppRouteNames.arenaProductEdit,
+                                  pathParameters: {'productId': product.id},
+                                ),
+                              ),
                     );
                   },
                 ),
@@ -210,8 +224,8 @@ class _ProductsHeader extends StatelessWidget {
 
   final String? arenaName;
   final VoidCallback onBack;
-  final VoidCallback onStock;
-  final VoidCallback onAdd;
+  final VoidCallback? onStock;
+  final VoidCallback? onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -270,40 +284,45 @@ class _ProductsHeader extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(width: 8),
-        Material(
-          color: context.themeColors.surfaceRaised,
-          borderRadius: BorderRadius.circular(12),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onStock,
+        if (onStock != null) ...[
+          const SizedBox(width: 8),
+          Material(
+            color: context.themeColors.surfaceRaised,
             borderRadius: BorderRadius.circular(12),
-            child: SizedBox(
-              width: 44,
-              height: 44,
-              child: Icon(
-                Icons.inventory_2_outlined,
-                color: context.themeColors.onSurface,
-                size: 22,
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onStock,
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: Icon(
+                  Icons.inventory_2_outlined,
+                  color: context.themeColors.onSurface,
+                  size: 22,
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        Material(
-          color: AppColors.brand,
-          borderRadius: BorderRadius.circular(12),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onAdd,
+        ],
+        if (onAdd != null) ...[
+          const SizedBox(width: 8),
+          Material(
+            color: AppColors.brand,
             borderRadius: BorderRadius.circular(12),
-            child: const SizedBox(
-              width: 44,
-              height: 44,
-              child: Icon(Icons.add_rounded, color: AppColors.black, size: 26),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onAdd,
+              borderRadius: BorderRadius.circular(12),
+              child: const SizedBox(
+                width: 44,
+                height: 44,
+                child:
+                    Icon(Icons.add_rounded, color: AppColors.black, size: 26),
+              ),
             ),
           ),
-        ),
+        ],
       ],
     );
   }

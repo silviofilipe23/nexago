@@ -7,7 +7,9 @@ import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
+import '../domain/arena_access_providers.dart';
 import '../domain/arena_providers.dart';
+import '../domain/arena_staff_role.dart';
 import 'widgets/arena_async_state.dart';
 import 'widgets/arena_dashboard_tokens.dart';
 
@@ -20,38 +22,55 @@ class ArenaAvailabilitySettingsPage extends ConsumerWidget {
     final config = ref.watch(arenaModuleConfigProvider);
     final managed = ref.watch(managedArenaIdProvider);
     final template = ref.watch(arenaSettingsTemplateProvider);
+    // Manutenção lê a agenda mas não escreve — esta tela inteira só serve
+    // pra gravar (gerar horários). O menu de Ajustes (Task 8) já esconde a
+    // entrada pra quem não escreve agenda, mas a rota
+    // `/arena/settings/availability` é liberada por LEITURA (Task 6) e não
+    // exige `extra` — alcançável direto. Sem idioma local por-ação pra
+    // mimetizar (só há "Salvar alterações"); seguimos o idioma que a própria
+    // página já usa pra bloqueio estrutural (`ArenaEmptyState`, caso "Arena
+    // não encontrada" abaixo).
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
       body: SafeArea(
         child: FadeSlideIn(
-          child: managed.when(
-            skipLoadingOnReload: true,
-            data: (arenaId) {
-              if (arenaId == null || arenaId.isEmpty) {
-                return ArenaEmptyState(
-                  title: 'Arena não encontrada',
+          child: !canWrite
+              ? const ArenaEmptyState(
+                  title: 'Sem permissão',
                   message:
-                      'Nenhuma arena vinculada ao seu usuário como gestor de ${config.title}.',
-                  icon: Icons.storefront_outlined,
-                );
-              }
-              return template.when(
-                skipLoadingOnReload: true,
-                data: (initial) => _ArenaAvailabilityForm(
-                  key: ValueKey<String>(arenaId),
-                  arenaId: arenaId,
-                  initialState: initial,
+                      'Seu cargo não pode alterar a disponibilidade da agenda.',
+                  icon: Icons.lock_outline_rounded,
+                )
+              : managed.when(
+                  skipLoadingOnReload: true,
+                  data: (arenaId) {
+                    if (arenaId == null || arenaId.isEmpty) {
+                      return ArenaEmptyState(
+                        title: 'Arena não encontrada',
+                        message: 'Nenhuma arena vinculada ao seu usuário '
+                            'como gestor de ${config.title}.',
+                        icon: Icons.storefront_outlined,
+                      );
+                    }
+                    return template.when(
+                      skipLoadingOnReload: true,
+                      data: (initial) => _ArenaAvailabilityForm(
+                        key: ValueKey<String>(arenaId),
+                        arenaId: arenaId,
+                        initialState: initial,
+                      ),
+                      loading: () => const ArenaLoadingState(
+                        label: 'Carregando configurações...',
+                      ),
+                      error: (e, _) => ArenaErrorState(message: '$e'),
+                    );
+                  },
+                  loading: () =>
+                      const ArenaLoadingState(label: 'Carregando arena...'),
+                  error: (e, _) => ArenaErrorState(message: '$e'),
                 ),
-                loading: () => const ArenaLoadingState(
-                  label: 'Carregando configurações...',
-                ),
-                error: (e, _) => ArenaErrorState(message: '$e'),
-              );
-            },
-            loading: () => const ArenaLoadingState(label: 'Carregando arena...'),
-            error: (e, _) => ArenaErrorState(message: '$e'),
-          ),
         ),
       ),
     );

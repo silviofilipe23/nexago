@@ -8,6 +8,8 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
+import '../../domain/arena_access_providers.dart';
+import '../../domain/arena_staff_role.dart';
 import '../../domain/comandas/arena_comanda.dart';
 import '../../domain/comandas/arena_comanda_closed_args.dart';
 import '../../domain/comandas/arena_comanda_logic.dart';
@@ -29,7 +31,8 @@ class ArenaComandaPaymentPage extends ConsumerStatefulWidget {
       _ArenaComandaPaymentPageState();
 }
 
-class _ArenaComandaPaymentPageState extends ConsumerState<ArenaComandaPaymentPage> {
+class _ArenaComandaPaymentPageState
+    extends ConsumerState<ArenaComandaPaymentPage> {
   ArenaComandaPaymentMethod _method = ArenaComandaPaymentMethod.pix;
   bool _submitting = false;
 
@@ -74,24 +77,22 @@ class _ArenaComandaPaymentPageState extends ConsumerState<ArenaComandaPaymentPag
 
     final payerNameInput = await showDialog<String>(
       context: context,
-      builder: (context) =>
-          _PayerNameDialog(initialName: comanda.customerName),
+      builder: (context) => _PayerNameDialog(initialName: comanda.customerName),
     );
 
     if (payerNameInput == null || !mounted) return;
 
     setState(() => _submitting = true);
     try {
-      final result = await ref
-          .read(arenaComandasRepositoryProvider)
-          .registerPayment(
-            comandaId: comanda.id,
-            method: _method,
-            amountCents: amountCents,
-            payerName: payerNameInput.isEmpty
-                ? comanda.customerName
-                : payerNameInput,
-          );
+      final result =
+          await ref.read(arenaComandasRepositoryProvider).registerPayment(
+                comandaId: comanda.id,
+                method: _method,
+                amountCents: amountCents,
+                payerName: payerNameInput.isEmpty
+                    ? comanda.customerName
+                    : payerNameInput,
+              );
 
       if (!mounted) return;
 
@@ -118,9 +119,11 @@ class _ArenaComandaPaymentPageState extends ConsumerState<ArenaComandaPaymentPag
 
   @override
   Widget build(BuildContext context) {
-    final comandaAsync = ref.watch(arenaComandaStreamProvider(widget.comandaId));
+    final comandaAsync =
+        ref.watch(arenaComandaStreamProvider(widget.comandaId));
     final paymentsAsync =
         ref.watch(arenaComandaPaymentsStreamProvider(widget.comandaId));
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.comandas));
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -131,6 +134,13 @@ class _ArenaComandaPaymentPageState extends ConsumerState<ArenaComandaPaymentPag
               return const ArenaEmptyState(
                 title: 'Comanda não encontrada',
                 message: 'Este registro pode ter sido removido.',
+                icon: Icons.receipt_long_outlined,
+              );
+            }
+            if (!canWrite) {
+              return const ArenaEmptyState(
+                title: 'Sem permissão',
+                message: 'Seu cargo não pode registrar pagamentos.',
                 icon: Icons.receipt_long_outlined,
               );
             }
@@ -160,10 +170,11 @@ class _ArenaComandaPaymentPageState extends ConsumerState<ArenaComandaPaymentPag
                       const SizedBox(height: 6),
                       Text(
                         'Pagamento',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: context.themeColors.onSurface,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: context.themeColors.onSurface,
+                                ),
                       ),
                     ],
                   ),
@@ -377,8 +388,7 @@ class _PayerNameDialogState extends State<_PayerNameDialog> {
           child: const Text('Cancelar'),
         ),
         FilledButton(
-          onPressed: () =>
-              Navigator.pop(context, _controller.text.trim()),
+          onPressed: () => Navigator.pop(context, _controller.text.trim()),
           child: const Text('Confirmar'),
         ),
       ],
@@ -410,7 +420,8 @@ class _PaymentHistoryTile extends StatelessWidget {
               color: AppColors.win.withValues(alpha: 0.16),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.check_rounded, color: AppColors.win, size: 20),
+            child:
+                const Icon(Icons.check_rounded, color: AppColors.win, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -483,7 +494,8 @@ class _MethodTile extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color: selected ? AppColors.brand : context.themeColors.onSurface,
+                color:
+                    selected ? AppColors.brand : context.themeColors.onSurface,
               ),
               const SizedBox(height: 6),
               Text(

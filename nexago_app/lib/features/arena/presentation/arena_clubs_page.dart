@@ -8,11 +8,13 @@ import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../core/ui/fade_slide_in.dart';
+import '../domain/arena_access_providers.dart';
 import '../domain/arena_club.dart';
 import '../domain/arena_club_admin_providers.dart';
 import '../domain/arena_plan.dart';
 import '../domain/arena_plan_providers.dart';
 import '../domain/arena_schedule_providers.dart';
+import '../domain/arena_staff_role.dart';
 import 'plan/widgets/arena_plan_gate.dart';
 import 'widgets/arena_async_state.dart';
 import 'widgets/arena_dashboard_tokens.dart';
@@ -28,6 +30,12 @@ class ArenaClubsPage extends ConsumerWidget {
         .watch(managedArenaCapabilitiesProvider)
         .contains(ArenaCapability.clubinho);
     final arenaName = ref.watch(managedArenaDetailProvider).valueOrNull?.name;
+    // Achado da varredura: esta tela não está nos anchors do brief, mas só é
+    // alcançável pelo atalho de `arena_bookings_page.dart` (já gated) ou por
+    // navegação direta à rota `/arena/clubs` — liberada por LEITURA de agenda
+    // (Task 6). Sem este gate, quem só lê chegaria aqui e ainda encontraria
+    // o botão que cria clubinho.
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -38,7 +46,7 @@ class ArenaClubsPage extends ConsumerWidget {
             _ClubsHeader(
               arenaName: arenaName,
               onBack: () => context.pop(),
-              onAdd: () => _onAdd(context, entitled: entitled),
+              onAdd: canWrite ? () => _onAdd(context, entitled: entitled) : null,
             ),
             Expanded(
               child: clubsAsync.when(
@@ -117,7 +125,9 @@ class _ClubsHeader extends StatelessWidget {
 
   final String? arenaName;
   final VoidCallback onBack;
-  final VoidCallback onAdd;
+
+  /// `null` esconde o botão "Novo" — quem só lê a agenda não cria clubinho.
+  final VoidCallback? onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -175,40 +185,42 @@ class _ClubsHeader extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          Material(
-            color: AppColors.brand,
-            borderRadius: BorderRadius.circular(12),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: onAdd,
+          if (onAdd != null) ...[
+            const SizedBox(width: 8),
+            Material(
+              color: AppColors.brand,
               borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: SizedBox(
-                  height: 44,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.add_rounded,
-                        color: AppColors.black,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Novo',
-                        style: theme.textTheme.labelLarge?.copyWith(
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: onAdd,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: SizedBox(
+                    height: 44,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.add_rounded,
                           color: AppColors.black,
-                          fontWeight: FontWeight.w800,
+                          size: 20,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 4),
+                        Text(
+                          'Novo',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: AppColors.black,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

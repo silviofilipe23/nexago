@@ -1,42 +1,56 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
+import '../../domain/arena_access_providers.dart';
+import '../../domain/arena_staff_role.dart';
+
 /// Ações rápidas operacionais no topo do Painel — o gestor age sem caçar a aba
 /// certa (abrir comanda, bloquear horário, ver as reservas de hoje).
-class ArenaDashboardQuickActions extends StatelessWidget {
+///
+/// Cada atalho só aparece pra quem tem a permissão correspondente: some quem
+/// não pode escrever (ou, no caso das reservas, nem ler) na área — a linha
+/// inteira some quando nenhum atalho sobra.
+class ArenaDashboardQuickActions extends ConsumerWidget {
   const ArenaDashboardQuickActions({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final canComandas = ref.watch(arenaCanWriteProvider(ArenaArea.comandas));
+    final canAgenda = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
+    final canSeeBookings = ref.watch(arenaCanReadProvider(ArenaArea.agenda));
+
+    final actions = <Widget>[
+      if (canComandas)
+        _QuickAction(
+          icon: Icons.receipt_long_rounded,
+          label: 'Abrir\ncomanda',
+          accent: true,
+          onTap: () => context.pushNamed(AppRouteNames.arenaComandaNewType),
+        ),
+      if (canAgenda)
+        _QuickAction(
+          icon: Icons.event_busy_rounded,
+          label: 'Bloquear\nhorário',
+          onTap: () => context.go(AppRoutes.arenaSchedule),
+        ),
+      if (canSeeBookings)
+        _QuickAction(
+          icon: Icons.today_rounded,
+          label: 'Reservas\nde hoje',
+          onTap: () => context.go(AppRoutes.arenaBookings),
+        ),
+    ];
+    if (actions.isEmpty) return const SizedBox.shrink();
     return Row(
       children: [
-        Expanded(
-          child: _QuickAction(
-            icon: Icons.receipt_long_rounded,
-            label: 'Abrir\ncomanda',
-            accent: true,
-            onTap: () => context.pushNamed(AppRouteNames.arenaComandaNewType),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _QuickAction(
-            icon: Icons.event_busy_rounded,
-            label: 'Bloquear\nhorário',
-            onTap: () => context.go(AppRoutes.arenaSchedule),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _QuickAction(
-            icon: Icons.today_rounded,
-            label: 'Reservas\nde hoje',
-            onTap: () => context.go(AppRoutes.arenaBookings),
-          ),
-        ),
+        for (var i = 0; i < actions.length; i++) ...[
+          if (i > 0) const SizedBox(width: 10),
+          Expanded(child: actions[i]),
+        ],
       ],
     );
   }

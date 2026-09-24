@@ -9,9 +9,11 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../arenas/domain/arena_court.dart';
 import '../../arenas/domain/slots_providers.dart';
 import '../data/arena_club_service.dart';
+import '../domain/arena_access_providers.dart';
 import '../domain/arena_club.dart';
 import '../domain/arena_club_admin_providers.dart';
 import '../domain/arena_schedule_providers.dart';
+import '../domain/arena_staff_role.dart';
 import 'widgets/arena_async_state.dart';
 
 /// Criar/editar clubinho. Escrita via callable `upsertArenaClub`; a edição só
@@ -88,6 +90,13 @@ class _ArenaClubFormPageState extends ConsumerState<ArenaClubFormPage> {
   @override
   Widget build(BuildContext context) {
     final managed = ref.watch(managedArenaIdProvider);
+    // Manutenção lê a agenda mas não escreve — esta tela inteira só serve
+    // pra gravar (criar ou salvar clubinho), sem visão "só leitura". Ao
+    // contrário das outras telas do escopo, não há aqui um idioma local de
+    // "ação indisponível" pra mimetizar por ação — a página já troca o corpo
+    // inteiro por `ArenaEmptyState` quando não pode prosseguir (caso "Arena
+    // não encontrada" abaixo); seguimos o mesmo idioma pra este bloqueio.
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
 
     if (_isEdit) {
       final clubAsync = ref.watch(arenaClubProvider(widget.clubId!));
@@ -106,22 +115,30 @@ class _ArenaClubFormPageState extends ConsumerState<ArenaClubFormPage> {
               onBack: () => context.pop(),
             ),
             Expanded(
-              child: managed.when(
-                data: (arenaId) {
-                  if (arenaId == null || arenaId.isEmpty) {
-                    return const ArenaEmptyState(
-                      title: 'Arena não encontrada',
+              child: !canWrite
+                  ? const ArenaEmptyState(
+                      title: 'Sem permissão',
                       message:
-                          'Nenhuma arena vinculada ao seu usuário como gestor.',
-                      icon: Icons.store_mall_directory_outlined,
-                    );
-                  }
-                  return _buildForm(context, arenaId);
-                },
-                loading: () =>
-                    const ArenaLoadingState(label: 'Carregando arena...'),
-                error: (e, _) => ArenaErrorState(message: '$e'),
-              ),
+                          'Seu cargo não pode criar nem editar clubinho.',
+                      icon: Icons.lock_outline_rounded,
+                    )
+                  : managed.when(
+                      data: (arenaId) {
+                        if (arenaId == null || arenaId.isEmpty) {
+                          return const ArenaEmptyState(
+                            title: 'Arena não encontrada',
+                            message: 'Nenhuma arena vinculada ao seu usuário '
+                                'como gestor.',
+                            icon: Icons.store_mall_directory_outlined,
+                          );
+                        }
+                        return _buildForm(context, arenaId);
+                      },
+                      loading: () => const ArenaLoadingState(
+                        label: 'Carregando arena...',
+                      ),
+                      error: (e, _) => ArenaErrorState(message: '$e'),
+                    ),
             ),
           ],
         ),

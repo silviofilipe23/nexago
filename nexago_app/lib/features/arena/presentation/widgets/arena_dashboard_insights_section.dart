@@ -10,14 +10,23 @@ class ArenaDashboardInsightsSection extends StatelessWidget {
   const ArenaDashboardInsightsSection({
     super.key,
     required this.summary,
+    required this.includeMoney,
   });
 
   final ArenaDashboardSummary summary;
 
+  /// Mesmo `seesMoney` (`arenaCanReadProvider(ArenaArea.financeiro)`) que já
+  /// gateia o KPI de Faturamento e o gráfico de receita no Painel — a linha
+  /// "Melhor dia" declara uma soma em R$ e não pode escapar desse gate.
+  final bool includeMoney;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final lines = ArenaDashboardInsights.lines(summary);
+    final lines = ArenaDashboardInsights.lines(
+      summary,
+      includeMoney: includeMoney,
+    );
     if (lines.isEmpty) {
       return const SizedBox.shrink();
     }

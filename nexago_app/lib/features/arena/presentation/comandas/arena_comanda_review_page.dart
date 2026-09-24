@@ -6,11 +6,14 @@ import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
+import '../../domain/arena_access_providers.dart';
 import '../../domain/arena_bookings_grouping.dart';
 import '../../domain/arena_schedule_providers.dart';
+import '../../domain/arena_staff_role.dart';
 import '../../domain/comandas/arena_comanda_created_args.dart';
 import '../../domain/comandas/arena_comanda_logic.dart';
 import '../../domain/comandas/arena_comanda_providers.dart';
+import '../widgets/arena_async_state.dart';
 import '../widgets/arena_dashboard_tokens.dart';
 import 'widgets/arena_comanda_stepper.dart';
 import 'widgets/arena_comanda_wizard_scaffold.dart';
@@ -66,6 +69,28 @@ class _ArenaComandaReviewPageState
     final booking = draft.linkedBooking;
     final rentalCents = booking != null ? rentalCentsFromBooking(booking) : 0;
     final location = comandaReviewLocationLabel(draft);
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.comandas));
+
+    // Único ponto de escrita do wizard de nova comanda (`createComanda`) — as
+    // etapas anteriores só manipulam o rascunho em memória. A rota não exige
+    // `extra`, então é alcançável direto mesmo com o atalho "Nova" já escondido
+    // na listagem. Sem idioma local de "ação indisponível" pra mimetizar (a
+    // única ação é o botão final "Abrir comanda"); seguimos o mesmo padrão de
+    // bloqueio de tela inteira usado em formulários equivalentes da Task 10
+    // (`arena_club_form_page.dart`, `arena_recurring_form_page.dart`).
+    if (!canWrite) {
+      return const ArenaComandaWizardScaffold(
+        stepLabel: 'NOVA COMANDA · PASSO 3 DE 3',
+        title: 'Revisar e abrir',
+        currentStep: 2,
+        body: ArenaEmptyState(
+          title: 'Sem permissão',
+          message: 'Seu cargo não pode abrir comandas.',
+          icon: Icons.receipt_long_outlined,
+        ),
+        footer: SizedBox.shrink(),
+      );
+    }
 
     return ArenaComandaWizardScaffold(
       stepLabel: 'NOVA COMANDA · PASSO 3 DE 3',
@@ -105,7 +130,9 @@ class _ArenaComandaReviewPageState
                             draft.linkWithoutBooking
                                 ? '${draft.customerName} · individual'
                                 : '$location · ${comandaTypeLabel(draft.type).toLowerCase()}',
-                            style: Theme.of(context).textTheme.titleMedium
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
                                 ?.copyWith(
                                   fontWeight: FontWeight.w800,
                                   color: context.themeColors.onSurface,
@@ -117,10 +144,10 @@ class _ArenaComandaReviewPageState
                               formatComandaNumber(0),
                               'nova comanda',
                             ),
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: context.themeColors.onSurfaceMuted,
-                                ),
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: context.themeColors.onSurfaceMuted,
+                                    ),
                           ),
                         ],
                       ),
@@ -191,17 +218,17 @@ class _ArenaComandaReviewPageState
                     child: Text(
                       'Abre já com a locação',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: context.themeColors.onSurfaceMuted,
-                        fontWeight: FontWeight.w600,
-                      ),
+                            color: context.themeColors.onSurfaceMuted,
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
                   ),
                   Text(
                     formatComandaReais(rentalCents),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: context.themeColors.onSurface,
-                    ),
+                          fontWeight: FontWeight.w800,
+                          color: context.themeColors.onSurface,
+                        ),
                   ),
                 ],
               ),
@@ -260,8 +287,8 @@ class _ReviewRow extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: context.themeColors.onSurfaceMuted,
-              ),
+                    color: context.themeColors.onSurfaceMuted,
+                  ),
             ),
           ),
           Expanded(
@@ -269,9 +296,9 @@ class _ReviewRow extends StatelessWidget {
               value,
               textAlign: TextAlign.end,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: valueColor ?? context.themeColors.onSurface,
-              ),
+                    fontWeight: FontWeight.w700,
+                    color: valueColor ?? context.themeColors.onSurface,
+                  ),
             ),
           ),
         ],

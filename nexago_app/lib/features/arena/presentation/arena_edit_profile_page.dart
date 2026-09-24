@@ -19,6 +19,7 @@ import '../../arenas/domain/arena_amenities.dart';
 import '../../arenas/domain/arena_list_item.dart';
 import '../../arenas/domain/arena_search_metadata.dart';
 import '../data/arena_profile_edit_service.dart';
+import '../domain/arena_access_providers.dart';
 import '../domain/arena_providers.dart';
 import '../domain/payout_pix_key_type.dart';
 import 'widgets/arena_async_state.dart';
@@ -258,9 +259,9 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
           title: Text(
             title,
             style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: context.themeColors.onSurface,
-            ),
+                  fontWeight: FontWeight.w800,
+                  color: context.themeColors.onSurface,
+                ),
           ),
           content: TextField(
             controller: ctrl,
@@ -318,9 +319,8 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
   }
 
   Future<void> _useCurrentLocation() async {
-    final snap = await ref
-        .read(userLocationServiceProvider)
-        .tryCurrentPosition();
+    final snap =
+        await ref.read(userLocationServiceProvider).tryCurrentPosition();
     if (!mounted) return;
     if (snap == null || !snap.hasCoordinates) {
       showAppSnackBar(
@@ -382,11 +382,11 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
 
     setState(() => _saving = true);
     var leftForSuccessRoute = false;
+    final isOwner = ref.read(arenaAccessProvider).valueOrNull?.isOwner ?? false;
     try {
-      await ref
-          .read(arenaProfileEditServiceProvider)
-          .saveProfile(
+      await ref.read(arenaProfileEditServiceProvider).saveProfile(
             arenaId: widget.initial.id,
+            isOwner: isOwner,
             name: _name.text,
             description: _description.text,
             phone: _phone.text,
@@ -406,9 +406,7 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
             payoutPixKey: _payoutPixKey.text,
             payoutPixKeyType: _payoutPixKeyType.asaasValue,
           );
-      await ref
-          .read(arenaSearchMetadataServiceProvider)
-          .syncFromCourts(
+      await ref.read(arenaSearchMetadataServiceProvider).syncFromCourts(
             arenaId: widget.initial.id,
             profileSports: _sports,
             surfaces: _surfaces,
@@ -434,6 +432,13 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final arenaName = widget.initial.name.trim();
+    // Achado da varredura (Task 12): payoutPixKey/payoutPixKeyType são os
+    // mesmos campos que `firestore.rules:996` congela para não-donos. Quem
+    // chega aqui pode ser `gestor` (escreve `perfil`), mas editar a chave
+    // aqui derrubaria o salvamento inteiro do perfil contra as rules — só o
+    // dono deve ver o card.
+    final isOwner =
+        ref.watch(arenaAccessProvider).valueOrNull?.isOwner ?? false;
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -484,8 +489,8 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                           _name.text.trim().isNotEmpty
                               ? _name.text.trim()
                               : arenaName.isNotEmpty
-                              ? arenaName
-                              : 'Arena',
+                                  ? arenaName
+                                  : 'Arena',
                           style: theme.textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.w800,
                             color: context.themeColors.onSurface,
@@ -873,7 +878,7 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                         ],
                       ),
                     ),
-                    if (_onlinePayment) ...[
+                    if (_onlinePayment && isOwner) ...[
                       const SizedBox(height: 12),
                       _EditFormGroup(
                         child: Column(

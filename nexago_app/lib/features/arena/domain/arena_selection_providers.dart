@@ -1,29 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/auth/auth_providers.dart';
-import '../../arenas/domain/arena_list_item.dart';
-import '../../arenas/domain/arenas_providers.dart';
-
-final managedArenasBriefProvider =
-    StreamProvider.autoDispose<List<ArenaListItem>>((ref) {
-  final uid = ref.watch(authProvider).valueOrNull?.uid;
-  if (uid == null || uid.isEmpty) {
-    return Stream<List<ArenaListItem>>.value(const []);
-  }
-  return ref
-      .watch(firestoreProvider)
-      .collection('arenas')
-      .where('managerUserId', isEqualTo: uid)
-      .limit(30)
-      .snapshots()
-      .map((snap) {
-    final list = snap.docs
-        .map(ArenaListItem.fromFirestore)
-        .toList(growable: false)
-      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-    return list;
-  });
-});
+import 'arena_access_providers.dart';
 
 final currentArenaIdProvider =
     StateNotifierProvider<CurrentArenaIdController, String?>(
@@ -39,9 +16,12 @@ class CurrentArenaIdController extends StateNotifier<String?> {
   }
 }
 
-final needsArenaSelectionProvider = Provider.autoDispose<bool>((ref) {
-  final arenas = ref.watch(managedArenasBriefProvider).valueOrNull ?? const [];
+/// Bloqueia o painel ate escolher, quando o usuario alcanca mais de uma arena
+/// (dono de uma e equipe de outra, por exemplo).
+final needsArenaSelectionProvider = Provider<bool>((ref) {
+  final arenas = ref.watch(arenaMembershipsProvider).valueOrNull ?? const [];
   if (arenas.length <= 1) return false;
   final selected = ref.watch(currentArenaIdProvider);
-  return selected == null || selected.trim().isEmpty;
+  if (selected == null || selected.trim().isEmpty) return true;
+  return !arenas.any((m) => m.arenaId == selected.trim());
 });

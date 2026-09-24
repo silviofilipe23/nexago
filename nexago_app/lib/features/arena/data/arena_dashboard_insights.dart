@@ -20,7 +20,15 @@ class ArenaDashboardInsightLine {
 abstract final class ArenaDashboardInsights {
   ArenaDashboardInsights._();
 
-  static List<ArenaDashboardInsightLine> lines(ArenaDashboardSummary s) {
+  /// [includeMoney] controla só a linha "Melhor dia", a única que declara um
+  /// valor de faturamento (`Soma R$ ...`) — quem não lê a área `financeiro`
+  /// não pode recebê-la. As outras duas linhas não expõem número de dinheiro
+  /// nenhum (mesmo a de "Ótimo desempenho", cuja condição deriva de receita,
+  /// mas cujo texto só descreve movimentação) e continuam para todos.
+  static List<ArenaDashboardInsightLine> lines(
+    ArenaDashboardSummary s, {
+    required bool includeMoney,
+  }) {
     final out = <ArenaDashboardInsightLine>[];
 
     if (s.todaySlotsTotal > 0 && s.occupancyRatePercent < 40) {
@@ -45,7 +53,8 @@ abstract final class ArenaDashboardInsights {
       );
     }
 
-    if (s.bestWeekdayLabel != null &&
+    if (includeMoney &&
+        s.bestWeekdayLabel != null &&
         s.bestWeekdayLabel!.isNotEmpty &&
         s.bestWeekdayRevenue > 0) {
       out.add(

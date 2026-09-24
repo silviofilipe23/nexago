@@ -8,6 +8,8 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
+import '../../domain/arena_access_providers.dart';
+import '../../domain/arena_staff_role.dart';
 import '../../domain/comandas/arena_comanda.dart';
 import '../../domain/comandas/arena_comanda_item.dart';
 import '../../domain/comandas/arena_comanda_logic.dart';
@@ -141,8 +143,10 @@ class _ArenaComandaQuickAddPageState
 
   @override
   Widget build(BuildContext context) {
-    final comandaAsync = ref.watch(arenaComandaStreamProvider(widget.comandaId));
+    final comandaAsync =
+        ref.watch(arenaComandaStreamProvider(widget.comandaId));
     final draft = ref.watch(arenaComandaQuickAddDraftProvider);
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.comandas));
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -153,6 +157,13 @@ class _ArenaComandaQuickAddPageState
               return const ArenaEmptyState(
                 title: 'Comanda não encontrada',
                 message: 'Este registro pode ter sido removido.',
+                icon: Icons.receipt_long_outlined,
+              );
+            }
+            if (!canWrite) {
+              return const ArenaEmptyState(
+                title: 'Sem permissão',
+                message: 'Seu cargo não pode lançar itens na comanda.',
                 icon: Icons.receipt_long_outlined,
               );
             }
@@ -500,8 +511,7 @@ class _DraftPanel extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: AppColors.brand.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(999),

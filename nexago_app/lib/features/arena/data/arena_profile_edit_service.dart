@@ -40,6 +40,7 @@ class ArenaProfileEditService {
 
   Future<void> saveProfile({
     required String arenaId,
+    required bool isOwner,
     required String name,
     required String description,
     required String phone,
@@ -92,17 +93,32 @@ class ArenaProfileEditService {
       );
     }
     if (latitude != null &&
-        (latitude < -90 || latitude > 90 || longitude! < -180 || longitude > 180)) {
+        (latitude < -90 ||
+            latitude > 90 ||
+            longitude! < -180 ||
+            longitude > 180)) {
       throw ArenaProfileEditException('Coordenadas geográficas inválidas.');
     }
     final trimmedPixKey = payoutPixKey.trim();
     final trimmedPixType = payoutPixKeyType.trim().toUpperCase();
-    if (onlinePaymentEnabled && trimmedPixKey.length < 5) {
+    // Ronda 2 (ruling da coordenação): estas duas validações protegem
+    // `payoutPixKey`/`payoutPixKeyType` — os mesmos campos que, para
+    // não-dono, nem entram no payload (bloco `if (isOwner)` abaixo). Sem o
+    // `isOwner &&`, uma arena legada sem PIX configurado (onde
+    // `onlinePaymentEnabled` já vem `true` por default e `payoutPixKey`
+    // vazio) barrava o `gestor` de salvar QUALQUER campo do perfil — e ele
+    // não tinha como corrigir, porque o card de chave PIX é escondido pra
+    // ele. Validar um campo que o save não toca não protege nada e só
+    // bloqueia; a validação é do dono, então só corre para o dono.
+    if (isOwner && onlinePaymentEnabled && trimmedPixKey.length < 5) {
       throw ArenaProfileEditException(
         'Informe a chave PIX da arena para receber repasses.',
       );
     }
-    if (onlinePaymentEnabled && trimmedPixKey.isNotEmpty && trimmedPixType.isEmpty) {
+    if (isOwner &&
+        onlinePaymentEnabled &&
+        trimmedPixKey.isNotEmpty &&
+        trimmedPixType.isEmpty) {
       throw ArenaProfileEditException(
         'Selecione o tipo da chave PIX (CPF, telefone, e-mail, etc.).',
       );
@@ -144,10 +160,23 @@ class ArenaProfileEditService {
         'amenities': amenities.toFirestoreMap(),
         'onlinePaymentEnabled': onlinePaymentEnabled,
         'onsitePaymentEnabled': onsitePaymentEnabled,
-        'paymentReceiver': ArenaPaymentReceiver.platform.firestoreValue,
-        'payoutPixKey': trimmedPixKey.isEmpty ? FieldValue.delete() : trimmedPixKey,
-        'payoutPixKeyType':
-            trimmedPixType.isEmpty ? FieldValue.delete() : trimmedPixType,
+        // `paymentReceiver`/`payoutPixKey`/`payoutPixKeyType` são os campos
+        // que `firestore.rules:996-1002` congela para não-donos, exigindo
+        // igualdade campo a campo com o valor já armazenado. Reenviá-los
+        // incondicionalmente para um não-dono (ex.: `gestor`, que escreve
+        // `perfil`) derruba o `set(merge: true)` inteiro assim que o valor
+        // divergir do salvo — o que acontece na prática porque
+        // `paymentReceiver` nunca é escrito em lugar nenhum do repositório
+        // (fica `null`) e `PayoutPixKeyType.initial()` nunca devolve vazio
+        // (cai em `inferFromKey`, que responde `email` até para chave vazia).
+        // Só o dono pode alterar esses campos, então só o dono os reenvia.
+        if (isOwner) ...<String, dynamic>{
+          'paymentReceiver': ArenaPaymentReceiver.platform.firestoreValue,
+          'payoutPixKey':
+              trimmedPixKey.isEmpty ? FieldValue.delete() : trimmedPixKey,
+          'payoutPixKeyType':
+              trimmedPixType.isEmpty ? FieldValue.delete() : trimmedPixType,
+        },
       },
       SetOptions(merge: true),
     );

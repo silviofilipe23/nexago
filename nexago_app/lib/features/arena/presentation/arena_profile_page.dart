@@ -8,7 +8,9 @@ import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../athlete/domain/favorites_providers.dart';
 import '../../arenas/domain/arena_list_item.dart';
+import '../domain/arena_access_providers.dart';
 import '../domain/arena_schedule_providers.dart';
+import '../domain/arena_staff_role.dart';
 import 'widgets/arena_dashboard_tokens.dart';
 
 class ArenaProfilePage extends ConsumerWidget {
@@ -58,17 +60,23 @@ class ArenaProfilePage extends ConsumerWidget {
   }
 }
 
-class _ArenaProfileBody extends StatelessWidget {
+class _ArenaProfileBody extends ConsumerWidget {
   const _ArenaProfileBody({required this.arena});
 
   final ArenaListItem arena;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     const headerH = 200.0;
     const logoSize = 88.0;
     const logoOverlap = 36.0;
+
+    // Segunda camada: quem chega aqui já leu `perfil` (o guard de rota barrou
+    // os outros antes) e, nesta área, ler e escrever são a mesma coisa — só
+    // `gestor` (e o dono) têm `perfil`. Mesmo assim o botão depende do
+    // provider, não da suposição de que o guard já filtrou tudo.
+    final canEditProfile = ref.watch(arenaCanWriteProvider(ArenaArea.perfil));
 
     final description = arena.description?.trim().isNotEmpty == true
         ? arena.description!.trim()
@@ -91,8 +99,10 @@ class _ArenaProfileBody extends StatelessWidget {
                   height: headerH,
                   child: _CoverHeader(
                     coverUrl: arena.coverUrl,
-                    onEditCover: () =>
-                        context.pushNamed(AppRouteNames.arenaProfileEdit),
+                    onEditCover: canEditProfile
+                        ? () =>
+                            context.pushNamed(AppRouteNames.arenaProfileEdit)
+                        : null,
                   ),
                 ),
                 Positioned(
@@ -176,35 +186,37 @@ class _ArenaProfileBody extends StatelessWidget {
                     ],
                   ),
                 ),
-                SizedBox(height: 28),
-                SizedBox(
-                  height: 52,
-                  child: FilledButton.icon(
-                    onPressed: () =>
-                        context.pushNamed(AppRouteNames.arenaProfileEdit),
-                    icon: Icon(
-                      Icons.edit_outlined,
-                      color: AppColors.black,
-                      size: 20,
-                    ),
-                    label: Text(
-                      'Editar perfil',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
+                if (canEditProfile) ...[
+                  SizedBox(height: 28),
+                  SizedBox(
+                    height: 52,
+                    child: FilledButton.icon(
+                      onPressed: () =>
+                          context.pushNamed(AppRouteNames.arenaProfileEdit),
+                      icon: Icon(
+                        Icons.edit_outlined,
                         color: AppColors.black,
+                        size: 20,
                       ),
-                    ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.brand,
-                      foregroundColor: AppColors.black,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                      label: Text(
+                        'Editar perfil',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.black,
+                        ),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.brand,
+                        foregroundColor: AppColors.black,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -243,7 +255,7 @@ class _CoverHeader extends StatelessWidget {
   });
 
   final String? coverUrl;
-  final VoidCallback onEditCover;
+  final VoidCallback? onEditCover;
 
   @override
   Widget build(BuildContext context) {
@@ -277,7 +289,7 @@ class _CoverHeader extends StatelessWidget {
                   ),
                 ),
                 Spacer(),
-                _EditCoverButton(onTap: onEditCover),
+                if (onEditCover != null) _EditCoverButton(onTap: onEditCover!),
               ],
             ),
           ),
@@ -557,7 +569,8 @@ class _FollowerAvatar extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(color: context.themeColors.surfaceRaised, width: 2.5),
+          border:
+              Border.all(color: context.themeColors.surfaceRaised, width: 2.5),
         ),
         child: ClipOval(
           child: SizedBox.expand(
@@ -566,7 +579,8 @@ class _FollowerAvatar extends StatelessWidget {
                     imageUrl: follower.avatarUrl!,
                     fit: BoxFit.cover,
                     placeholder: (_, __) => const _AvatarSkeleton(),
-                    errorWidget: (_, __, ___) => _initials(context, follower.name),
+                    errorWidget: (_, __, ___) =>
+                        _initials(context, follower.name),
                   )
                 : _initials(context, follower.name),
           ),
@@ -576,8 +590,7 @@ class _FollowerAvatar extends StatelessWidget {
   }
 
   Widget _initials(BuildContext context, String name) {
-    final letter =
-        name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '?';
+    final letter = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '?';
     return ColoredBox(
       color: AppColors.brand.withValues(alpha: 0.25),
       child: Center(
@@ -630,7 +643,8 @@ class _ProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(context,
+      decoration: ArenaDashboardTokens.cardDecoration(
+        context,
         color: context.themeColors.surfaceRaised,
       ),
       child: Padding(
@@ -713,10 +727,7 @@ String _arenaMonogram(String name) {
   final words =
       name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
   if (words.length >= 2) {
-    return words
-        .take(3)
-        .map((w) => w[0].toUpperCase())
-        .join();
+    return words.take(3).map((w) => w[0].toUpperCase()).join();
   }
   final t = name.trim();
   if (t.isEmpty) return '?';

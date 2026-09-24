@@ -7,8 +7,10 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
+import '../../domain/arena_access_providers.dart';
 import '../../domain/arena_plan.dart';
 import '../../domain/arena_plan_providers.dart';
+import '../../domain/arena_staff_role.dart';
 import '../../domain/comandas/arena_comanda.dart';
 import '../../domain/comandas/arena_comanda_closed_args.dart';
 import '../../domain/comandas/arena_comanda_logic.dart';
@@ -30,6 +32,7 @@ class ArenaComandaDetailPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final comandaAsync = ref.watch(arenaComandaStreamProvider(comandaId));
     final itemsAsync = ref.watch(arenaComandaItemsStreamProvider(comandaId));
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.comandas));
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -108,7 +111,8 @@ class ArenaComandaDetailPage extends ConsumerWidget {
                       children: [
                         ArenaComandaSummaryCard(comanda: comanda),
                         const SizedBox(height: 16),
-                        ArenaComandaItemsSection(comanda: comanda, items: items),
+                        ArenaComandaItemsSection(
+                            comanda: comanda, items: items),
                       ],
                     ),
                   ),
@@ -129,22 +133,24 @@ class ArenaComandaDetailPage extends ConsumerWidget {
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: () {
-                            final entitled = ref
-                                .read(managedArenaCapabilitiesProvider)
-                                .contains(ArenaCapability.pdvComandas);
-                            if (!entitled) {
-                              showArenaPlanUpsellSheet(
-                                context,
-                                capability: ArenaCapability.pdvComandas,
-                              );
-                              return;
-                            }
-                            context.pushNamed(
-                              AppRouteNames.arenaComandaQuickAdd,
-                              pathParameters: {'comandaId': comandaId},
-                            );
-                          },
+                          onPressed: !canWrite
+                              ? null
+                              : () {
+                                  final entitled = ref
+                                      .read(managedArenaCapabilitiesProvider)
+                                      .contains(ArenaCapability.pdvComandas);
+                                  if (!entitled) {
+                                    showArenaPlanUpsellSheet(
+                                      context,
+                                      capability: ArenaCapability.pdvComandas,
+                                    );
+                                    return;
+                                  }
+                                  context.pushNamed(
+                                    AppRouteNames.arenaComandaQuickAdd,
+                                    pathParameters: {'comandaId': comandaId},
+                                  );
+                                },
                           style: OutlinedButton.styleFrom(
                             foregroundColor: context.themeColors.onSurface,
                             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -165,21 +171,25 @@ class ArenaComandaDetailPage extends ConsumerWidget {
                       const SizedBox(width: 12),
                       Expanded(
                         child: FilledButton(
-                          onPressed: canClose
-                              ? () {
-                                  context.pushNamed(
-                                    AppRouteNames.arenaComandaPayment,
-                                    pathParameters: {'comandaId': comandaId},
-                                  );
-                                }
-                              : canCloseEmpty
-                                  ? () => _closeEmptyComanda(
-                                        context,
-                                        ref,
-                                        comandaId: comandaId,
-                                        comanda: comanda,
-                                      )
-                                  : null,
+                          onPressed: !canWrite
+                              ? null
+                              : canClose
+                                  ? () {
+                                      context.pushNamed(
+                                        AppRouteNames.arenaComandaPayment,
+                                        pathParameters: {
+                                          'comandaId': comandaId,
+                                        },
+                                      );
+                                    }
+                                  : canCloseEmpty
+                                      ? () => _closeEmptyComanda(
+                                            context,
+                                            ref,
+                                            comandaId: comandaId,
+                                            comanda: comanda,
+                                          )
+                                      : null,
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.brand,
                             foregroundColor: AppColors.black,

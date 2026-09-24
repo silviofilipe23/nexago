@@ -9,7 +9,9 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 import 'package:nexago_app/core/ui/fade_slide_in.dart';
 
+import '../../domain/arena_access_providers.dart';
 import '../../domain/arena_providers.dart';
+import '../../domain/arena_staff_role.dart';
 import '../../../../core/router/routes.dart';
 import '../../domain/products/arena_product.dart';
 import '../../domain/products/arena_product_logic.dart';
@@ -36,6 +38,7 @@ class _ArenaRestockPageState extends ConsumerState<ArenaRestockPage> {
   @override
   Widget build(BuildContext context) {
     final managed = ref.watch(managedArenaIdProvider);
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.estoque));
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -47,6 +50,18 @@ class _ArenaRestockPageState extends ConsumerState<ArenaRestockPage> {
                 return const ArenaEmptyState(
                   title: 'Arena não encontrada',
                   message: 'Nenhuma arena vinculada.',
+                  icon: Icons.inventory_2_outlined,
+                );
+              }
+              // Tela só existe para gravar (registrar movimentação de
+              // estoque) — reachable direto por rota
+              // (`/arena/products/:id/restock`) mesmo com o botão "Repor" já
+              // escondido na listagem/alertas. Mesmo idioma de bloqueio de
+              // tela inteira já usado nesta tela para "Arena não encontrada".
+              if (!canWrite) {
+                return const ArenaEmptyState(
+                  title: 'Sem permissão',
+                  message: 'Seu cargo não pode repor estoque.',
                   icon: Icons.inventory_2_outlined,
                 );
               }
@@ -173,7 +188,7 @@ class _ArenaRestockPageState extends ConsumerState<ArenaRestockPage> {
                                           icon: Icons.remove_rounded,
                                           onTap: _quantity > 1
                                               ? () =>
-                                                    setState(() => _quantity--)
+                                                  setState(() => _quantity--)
                                               : null,
                                         ),
                                         Padding(
@@ -220,23 +235,20 @@ class _ArenaRestockPageState extends ConsumerState<ArenaRestockPage> {
                                   return Container(
                                     decoration:
                                         ArenaDashboardTokens.cardDecoration(
-                                          context,
-                                        ),
+                                      context,
+                                    ),
                                     clipBehavior: Clip.antiAlias,
                                     child: Column(
                                       children: [
-                                        for (
-                                          var i = 0;
-                                          i < movements.length;
-                                          i++
-                                        ) ...[
+                                        for (var i = 0;
+                                            i < movements.length;
+                                            i++) ...[
                                           _MovementTile(movement: movements[i]),
                                           if (i < movements.length - 1)
                                             Divider(
                                               height: 1,
                                               color: context
-                                                  .themeColors
-                                                  .onSurfaceMuted
+                                                  .themeColors.onSurfaceMuted
                                                   .withValues(alpha: 0.12),
                                             ),
                                         ],
@@ -345,9 +357,7 @@ class _ArenaRestockPageState extends ConsumerState<ArenaRestockPage> {
       delta: delta,
     );
     try {
-      await ref
-          .read(arenaProductsRepositoryProvider)
-          .registerStockMovement(
+      await ref.read(arenaProductsRepositoryProvider).registerStockMovement(
             arenaId: arenaId,
             productId: widget.productId,
             type: _type,
@@ -393,17 +403,17 @@ class _RestockActionColors {
   static _RestockActionColors of(RestockActionAccent accent) {
     return switch (accent) {
       RestockActionAccent.inbound => const _RestockActionColors(
-        background: AppColors.win,
-        foreground: AppColors.black,
-      ),
+          background: AppColors.win,
+          foreground: AppColors.black,
+        ),
       RestockActionAccent.adjustment => const _RestockActionColors(
-        background: AppColors.brand,
-        foreground: AppColors.black,
-      ),
+          background: AppColors.brand,
+          foreground: AppColors.black,
+        ),
       RestockActionAccent.outbound => const _RestockActionColors(
-        background: AppColors.live,
-        foreground: AppColors.white,
-      ),
+          background: AppColors.live,
+          foreground: AppColors.white,
+        ),
     };
   }
 }
@@ -675,8 +685,8 @@ class _StepButton extends StatelessWidget {
             color: accent
                 ? AppColors.black
                 : onTap == null
-                ? context.themeColors.onSurfaceMuted
-                : context.themeColors.onSurface,
+                    ? context.themeColors.onSurfaceMuted
+                    : context.themeColors.onSurface,
           ),
         ),
       ),

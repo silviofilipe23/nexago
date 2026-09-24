@@ -15,7 +15,9 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../arenas/domain/arena_club_session.dart';
 import '../data/arena_club_service.dart';
+import '../domain/arena_access_providers.dart';
 import '../domain/arena_club_admin_providers.dart';
+import '../domain/arena_staff_role.dart';
 import 'widgets/arena_async_state.dart';
 
 /// Sessão do clubinho (gestor): participantes ao vivo com status,
@@ -79,6 +81,11 @@ class _ArenaClubSessionPageState extends ConsumerState<ArenaClubSessionPage> {
 
   Widget _buildBody(BuildContext context, ArenaClubSession session) {
     final theme = Theme.of(context);
+    // Manutenção lê a agenda mas não escreve — adicionar/remover participante
+    // e cancelar a sessão gravam. Mesmo idioma já usado nesta tela pra ação
+    // indisponível: esconder (collection-if / callback nulo que já esconde o
+    // botão em `_ParticipantRow`), não desabilitar.
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
     final participantsAsync =
         ref.watch(arenaClubSessionParticipantsProvider(widget.sessionId));
     final participants =
@@ -206,7 +213,7 @@ class _ArenaClubSessionPageState extends ConsumerState<ArenaClubSessionPage> {
                 ),
               ),
             ),
-            if (session.isScheduled)
+            if (canWrite && session.isScheduled)
               TextButton.icon(
                 onPressed: () => _openAddSheet(participants),
                 style: TextButton.styleFrom(
@@ -246,7 +253,8 @@ class _ArenaClubSessionPageState extends ConsumerState<ArenaClubSessionPage> {
                     padding: const EdgeInsets.only(bottom: 8),
                     child: _ParticipantRow(
                       participant: p,
-                      onRemove: session.isScheduled &&
+                      onRemove: canWrite &&
+                              session.isScheduled &&
                               p.isActive &&
                               !_removing.contains(p.athleteId)
                           ? () => _confirmRemove(p)
@@ -262,7 +270,7 @@ class _ArenaClubSessionPageState extends ConsumerState<ArenaClubSessionPage> {
           ),
           error: (e, _) => ArenaErrorState(message: '$e'),
         ),
-        if (!session.isCanceled) ...[
+        if (canWrite && !session.isCanceled) ...[
           const SizedBox(height: 24),
           OutlinedButton.icon(
             onPressed: _cancelling

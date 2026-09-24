@@ -3,6 +3,8 @@ import { isKingOfCourtMatchType, kocColumnLabel } from '../../painel/data/koc';
 import { resolveCourtNames } from '../../painel/data/matches-repository';
 import { OverlayLiveGateway } from './overlay-live.gateway';
 import { OverlayKocBarComponent } from './overlay-koc-bar.component';
+import { finalResultOf } from './overlay-final';
+import { OverlayFinalComponent, type FinalCampeoes } from './overlay-final.component';
 import { kocPreRoundOf } from './overlay-koc-preround';
 import { OverlayKocPreRoundComponent } from './overlay-koc-preround.component';
 import { kocQualifiedBoardOf } from './overlay-koc-qualified';
@@ -41,10 +43,19 @@ const CLASSIFICADAS_MS = 15_000;
     OverlayKocStandingsComponent,
     OverlayKocQualifiedComponent,
     OverlayKocPreRoundComponent,
+    OverlayFinalComponent,
   ],
   providers: [OverlayLiveGateway],
   host: { '(document:keydown)': 'aoTeclar($event)' },
   template: `
+    @if (campeoes(); as c) {
+      <og-overlay-final
+        [resultado]="c"
+        [torneio]="gateway.tournament()?.name ?? ''"
+        [categoria]="categoryName()"
+        [quadra]="courtName()"
+      />
+    }
     @if (duelView(); as duel) {
       <og-overlay-scoreboard
         [view]="duel"
@@ -159,7 +170,7 @@ export class OverlayPageComponent {
   /** O estreitamento fica no TS; cada formato tem seu componente, não um ramo do outro. */
   protected readonly duelView = computed(() => {
     const v = this.view();
-    return v?.kind === 'duel' ? v : null;
+    return v?.kind === 'duel' && !this.campeoes() ? v : null;
   });
   protected readonly kocView = computed(() => {
     const v = this.view();
@@ -186,10 +197,24 @@ export class OverlayPageComponent {
     );
   });
 
+  /** Campeões da categoria. Tem precedência sobre a classificação da rodada: a final KOTC também
+   *  é uma rodada encerrada, e as duas telas juntas seriam duas verdades no mesmo espaço. */
+  protected readonly campeoes = computed<FinalCampeoes | null>(() => {
+    const m = this.match();
+    const r = m ? finalResultOf(m) : null;
+    if (!r) return null;
+    const nomes = (teamId: string): [string, string] => {
+      const t = this.gateway.teams().get(teamId);
+      return t ? t.players : ['', ''];
+    };
+    return { campeao: nomes(r.campeaoTeamId), vice: nomes(r.viceTeamId), placar: r.placar };
+  });
+
   /** Classificação da rodada KOTC encerrada. */
   protected readonly standings = computed(() => {
     const m = this.match();
     if (!m || !isKingOfCourtMatchType(m.matchType) || m.status !== 'completed') return null;
+    if (this.campeoes()) return null;
     return kocStandingsBoardOf(m, this.gateway.categoryMatches());
   });
 

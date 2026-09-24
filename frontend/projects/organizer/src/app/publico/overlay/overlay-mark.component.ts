@@ -11,6 +11,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   host: {
     'aria-hidden': 'true',
     '[attr.data-pos]': 'corner()',
+    '[attr.data-flow]': 'flow() ? "true" : null',
   },
   template: `<img src="/brand/logo.png" alt="" width="72" height="72" />`,
   styles: `
@@ -31,6 +32,11 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       right: var(--gap);
       top: var(--gap);
     }
+    /* Modo de fluxo: entra no layout do cabeçalho em vez de flutuar. Vem DEPOIS das regras de
+       canto de propósito: escrito antes, o position fixed delas continuaria valendo. */
+    :host([data-flow='true']) {
+      position: static;
+    }
 
     img {
       display: block;
@@ -43,4 +49,6 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 export class OverlayMarkComponent {
   /** Sobe pro topo quando o conteúdo da tela ocupa o canto inferior direito. */
   readonly corner = input<'tr' | 'br'>('br');
+  /** Para telas cujos cantos direitos já têm dono — nelas a marca senta no cabeçalho. */
+  readonly flow = input(false);
 }

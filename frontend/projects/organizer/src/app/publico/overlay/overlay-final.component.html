@@ -1,0 +1,121 @@
+@if (resultado(); as r) {
+  <svg width="0" height="0" style="position: absolute">
+    <defs>
+      <linearGradient id="gG" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#FFF4C4"></stop>
+        <stop offset=".35" stop-color="#F5CC5C"></stop>
+        <stop offset=".65" stop-color="#C08618"></stop>
+        <stop offset="1" stop-color="#8A5A0C"></stop>
+      </linearGradient>
+      <linearGradient id="gS" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#FFFFFF"></stop>
+        <stop offset=".5" stop-color="#C3C9D4"></stop>
+        <stop offset="1" stop-color="#7C8494"></stop>
+      </linearGradient>
+      <symbol id="crown" viewBox="0 0 200 150">
+        <path d="M14 118 L22 44 L64 86 L100 18 L136 86 L178 44 L186 118 Z" fill="currentColor"></path>
+        <rect x="12" y="116" width="176" height="22" rx="4" fill="currentColor"></rect>
+        <circle cx="22" cy="40" r="9" fill="currentColor"></circle>
+        <circle cx="100" cy="14" r="11" fill="currentColor"></circle>
+        <circle cx="178" cy="40" r="9" fill="currentColor"></circle>
+      </symbol>
+    </defs>
+  </svg>
+
+  <div id="root">
+    <div id="fit">
+      <div id="stage">
+        <div class="dim"></div>
+        <div class="rays"></div>
+        <div class="rays b"></div>
+        <div class="halo"></div>
+        <div class="frame"></div>
+        <div class="flash"></div>
+
+        <div class="kick">
+          <span class="ln"></span>
+          <span>Grande Final · <b>{{ torneio() }}</b></span>
+          <span class="ln r"></span>
+        </div>
+
+        <div class="crown">
+          <div class="bob">
+            <svg viewBox="0 0 200 150">
+              <use href="#crown" fill="url(#gG)"></use>
+              <path
+                d="M14 118 L22 44 L64 86 L100 18 L136 86 L178 44 L186 118 Z"
+                fill="none"
+                stroke="#FFF3C4"
+                stroke-width="2"
+                opacity=".7"
+              ></path>
+              <rect x="12" y="116" width="176" height="22" rx="4" fill="none" stroke="#5a3a06" stroke-width="2"></rect>
+              <circle cx="60" cy="127" r="6" fill="#E0452F"></circle>
+              <circle cx="100" cy="127" r="7" fill="#2F7BE0"></circle>
+              <circle cx="140" cy="127" r="6" fill="#E0452F"></circle>
+            </svg>
+          </div>
+          <span class="spark" style="left: 6%; top: 18%; animation-delay: 0.1s"></span>
+          <span class="spark" style="left: 96%; top: 28%; animation-delay: 0.7s"></span>
+          <span class="spark" style="left: 50%; top: -8%; animation-delay: 1.2s"></span>
+          <span class="spark" style="left: -8%; top: 70%; animation-delay: 1.5s"></span>
+          <span class="spark" style="left: 106%; top: 80%; animation-delay: 0.4s"></span>
+        </div>
+
+        <div class="title">
+          <div class="mini" data-lado="esq">
+            <svg viewBox="0 0 200 150"><use href="#crown" fill="url(#gG)"></use></svg>
+          </div>
+          <div class="gold">
+            @for (letra of letras(); track $index) {
+              <span [style.animation-delay.s]="$index * 0.06">{{ letra }}</span>
+            }
+          </div>
+          <div class="mini" data-lado="dir">
+            <svg viewBox="0 0 200 150"><use href="#crown" fill="url(#gG)"></use></svg>
+          </div>
+        </div>
+
+        <div class="names">
+          <span class="p">{{ r.campeao[0] }}</span>
+          <span class="p amp">&amp;</span>
+          <span class="p">{{ r.campeao[1] }}</span>
+        </div>
+
+        <div class="cat">{{ contexto() }}</div>
+
+        <div class="score">
+          <div class="sc-main">
+            <span class="n">{{ principal().campeao }}</span>
+            <span class="x">×</span>
+            <span class="n">{{ principal().vice }}</span>
+            <span class="l">{{ principal().unidade }}</span>
+          </div>
+          <div class="sets">
+            @for (celula of celulas(); track $index) {
+              <div class="set">
+                <span class="k">{{ celula.rotulo }}</span>
+                <span class="v">
+                  @if (celula.venceuCampeao) {
+                    <em>{{ celula.campeao }}</em><i>–</i>{{ celula.vice }}
+                  } @else {
+                    {{ celula.campeao }}<i>–</i><em style="color: #fff">{{ celula.vice }}</em>
+                  }
+                </span>
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="vice">
+          <svg viewBox="0 0 200 150"><use href="#crown" fill="url(#gS)"></use></svg>
+          <span class="k">Vice-campeões</span>
+          <span class="sep"></span>
+          <span class="d">{{ r.vice[0] }} &amp; {{ r.vice[1] }}</span>
+        </div>
+
+        <canvas class="cv" width="1920" height="1080"></canvas>
+      </div>
+    </div>
+  </div>
+}

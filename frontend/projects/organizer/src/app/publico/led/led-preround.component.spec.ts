@@ -66,6 +66,14 @@ describe('LedPreRoundComponent', () => {
     expect((h.textContent ?? '').trim()).toBe('');
   });
 
+  it('leva a marca da nexaGO, sem flutuar por cima do conteúdo', async () => {
+    const marca = host(await render()).querySelector('og-overlay-mark');
+
+    expect(marca).not.toBeNull();
+    // No LED os cantos direitos têm dono (relógio, fila), então ela entra no cabeçalho.
+    expect(marca?.getAttribute('data-flow')).toBe('true');
+  });
+
   it('mostra título e o contexto da rodada', async () => {
     const text = (host(await render()).textContent ?? '').replace(/\s+/g, ' ');
 
@@ -87,6 +95,13 @@ describe('LedPreRoundComponent', () => {
       'VA',
       'AY',
     ]);
+  });
+
+  it('não repete no card quem já está no bloco do trono', async () => {
+    const cards = [...host(await render()).querySelectorAll('.card')];
+
+    expect(cards.length).toBe(4);
+    expect(cards.some((c) => (c.textContent ?? '').includes('Van'))).toBeFalse();
   });
 
   it('numera a fila a partir de 2, seguindo a ordem de entrada', async () => {

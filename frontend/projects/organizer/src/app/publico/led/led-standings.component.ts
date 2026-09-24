@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { OverlayMarkComponent } from '../overlay/overlay-mark.component';
 import { OgAvatarComponent } from '../../painel/ui/avatar.component';
 import type { KocStandingRow, KocStandingsBoard } from '../overlay/overlay-koc-standings';
 import { ledIniciaisDe } from './led-iniciais';
@@ -16,15 +17,18 @@ const LINHA_INTERVALO_MS = 200;
 @Component({
   selector: 'og-led-standings',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgAvatarComponent],
+  imports: [OgAvatarComponent, OverlayMarkComponent],
   template: `
     @if (board(); as b) {
       <div class="tela">
         <header class="topo">
+          <div class="topo-textos">
           <h1 class="titulo">
             Rodada <span class="num">{{ roundLabel() }}</span> encerrada
           </h1>
           <div class="contexto">{{ contexto() }}</div>
+          </div>
+          <og-overlay-mark [flow]="true" />
         </header>
 
         <div class="linhas">
@@ -68,6 +72,16 @@ const LINHA_INTERVALO_MS = 200;
       height: 100%;
       padding: 40px 48px 44px;
       box-sizing: border-box;
+    }
+
+    .topo {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 32px;
+    }
+    .topo-textos {
+      min-width: 0;
     }
 
     .titulo {

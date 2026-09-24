@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { OverlayMarkComponent } from '../overlay/overlay-mark.component';
 import type { KocPreRound, PreRoundRow } from '../overlay/overlay-koc-preround';
 import { OgAvatarComponent } from '../../painel/ui/avatar.component';
 import { ledIniciaisDe } from './led-iniciais';
@@ -20,13 +21,16 @@ const PAPEL: Record<PreRoundRow['papel'], string> = {
 @Component({
   selector: 'og-led-preround',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgAvatarComponent],
+  imports: [OgAvatarComponent, OverlayMarkComponent],
   template: `
     @if (preRound(); as pre) {
       <div class="tela">
         <header class="topo">
+          <div class="topo-textos">
           <h1 class="titulo">Próximos em quadra</h1>
           <div class="contexto">{{ contexto() }}</div>
+          </div>
+          <og-overlay-mark [flow]="true" />
         </header>
 
         <section class="trono">
@@ -92,6 +96,13 @@ const PAPEL: Record<PreRoundRow['papel'], string> = {
 
     .topo {
       flex: none;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 32px;
+    }
+    .topo-textos {
+      min-width: 0;
     }
     .titulo {
       margin: 0;

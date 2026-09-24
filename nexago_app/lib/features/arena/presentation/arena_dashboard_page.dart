@@ -5,9 +5,11 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/layout/nexa_page_header.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../athlete/domain/favorites_providers.dart';
+import '../domain/arena_access_providers.dart';
 import '../domain/arena_dashboard_providers.dart';
 import '../domain/arena_schedule_providers.dart';
 import '../domain/arena_shell_providers.dart';
+import '../domain/arena_staff_role.dart';
 import 'arena_dashboard_formatters.dart';
 import 'plan/widgets/arena_plan_status_banner.dart';
 import 'widgets/arena_dashboard_followers_card.dart';
@@ -27,6 +29,7 @@ class ArenaDashboardPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final summaryAsync = ref.watch(arenaDashboardSummaryProvider);
     final metricsAsync = ref.watch(arenaDashboardPeriodMetricsProvider);
+    final seesMoney = ref.watch(arenaCanReadProvider(ArenaArea.financeiro));
     final arenaId = ref.watch(managedArenaIdProvider).valueOrNull;
     final followersInsightsAsync = arenaId == null || arenaId.isEmpty
         ? const AsyncValue<ArenaFollowersInsights>.data(
@@ -99,14 +102,15 @@ class ArenaDashboardPage extends ConsumerWidget {
                                       offsetY: 14,
                                       child: ArenaDashboardKpiGrid(
                                         items: [
-                                          ArenaDashboardKpiItem(
-                                            label: 'Faturamento',
-                                            value: formatDashboardCurrency(
-                                              metrics.revenue,
+                                          if (seesMoney)
+                                            ArenaDashboardKpiItem(
+                                              label: 'Faturamento',
+                                              value: formatDashboardCurrency(
+                                                metrics.revenue,
+                                              ),
+                                              icon: Icons.payments_rounded,
+                                              badge: metrics.revenueBadge,
                                             ),
-                                            icon: Icons.payments_rounded,
-                                            badge: metrics.revenueBadge,
-                                          ),
                                           ArenaDashboardKpiItem(
                                             label: 'Ocupação',
                                             value:
@@ -135,18 +139,20 @@ class ArenaDashboardPage extends ConsumerWidget {
                                         ],
                                       ),
                                     ),
-                                    const SizedBox(height: 26),
-                                    FadeSlideIn(
-                                      duration: const Duration(
-                                        milliseconds: 540,
+                                    if (seesMoney) ...[
+                                      const SizedBox(height: 26),
+                                      FadeSlideIn(
+                                        duration: const Duration(
+                                          milliseconds: 540,
+                                        ),
+                                        offsetY: 14,
+                                        child: ArenaDashboardRevenueChartCard(
+                                          values: summary.revenueLast7Days,
+                                          labels: summary.chartDayLabels,
+                                          metrics: metrics,
+                                        ),
                                       ),
-                                      offsetY: 14,
-                                      child: ArenaDashboardRevenueChartCard(
-                                        values: summary.revenueLast7Days,
-                                        labels: summary.chartDayLabels,
-                                        metrics: metrics,
-                                      ),
-                                    ),
+                                    ],
                                     SizedBox(
                                       height: ArenaDashboardTokens.sectionGap,
                                     ),

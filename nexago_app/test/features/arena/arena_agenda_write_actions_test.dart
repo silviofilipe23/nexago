@@ -18,19 +18,29 @@ import 'package:nexago_app/features/arena/domain/arena_plan.dart';
 import 'package:nexago_app/features/arena/domain/arena_plan_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_recurring_booking.dart';
 import 'package:nexago_app/features/arena/domain/arena_recurring_providers.dart';
+import 'package:nexago_app/features/arena/domain/arena_schedule_models.dart';
 import 'package:nexago_app/features/arena/domain/arena_schedule_providers.dart';
+import 'package:nexago_app/features/arena/domain/arena_settings_providers.dart';
+import 'package:nexago_app/features/arena/domain/arena_settings_schedule.dart';
 import 'package:nexago_app/features/arena/domain/arena_slot_detail_args.dart';
 import 'package:nexago_app/features/arena/domain/arena_slot_detail_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_staff_role.dart';
+import 'package:nexago_app/features/arena/presentation/arena_availability_settings_page.dart';
 import 'package:nexago_app/features/arena/presentation/arena_booking_details_page.dart';
 import 'package:nexago_app/features/arena/presentation/arena_bookings_page.dart';
 import 'package:nexago_app/features/arena/presentation/arena_club_details_page.dart';
 import 'package:nexago_app/features/arena/presentation/arena_club_form_page.dart';
+import 'package:nexago_app/features/arena/presentation/arena_club_session_page.dart';
 import 'package:nexago_app/features/arena/presentation/arena_clubs_page.dart';
 import 'package:nexago_app/features/arena/presentation/arena_recurring_details_page.dart';
+import 'package:nexago_app/features/arena/presentation/arena_recurring_form_page.dart';
 import 'package:nexago_app/features/arena/presentation/arena_recurring_list_page.dart';
+import 'package:nexago_app/features/arena/presentation/arena_schedule_page.dart';
 import 'package:nexago_app/features/arena/presentation/arena_slot_detail_page.dart';
 import 'package:nexago_app/features/arena/presentation/widgets/arena_booking_detail_actions.dart';
+import 'package:nexago_app/features/arena/presentation/widgets/arena_schedule_block_sheet.dart';
+import 'package:nexago_app/features/arena/presentation/widgets/arena_schedule_court_row.dart';
+import 'package:nexago_app/features/arenas/domain/arena_club_session.dart';
 import 'package:nexago_app/features/arenas/domain/slots_providers.dart';
 import 'package:nexago_app/features/arenas/domain/arena_slot.dart';
 import 'package:nexago_app/features/arenas/domain/arena_slot_block_reason.dart';
@@ -560,5 +570,232 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('Criar clubinho'), findsOneWidget);
+  });
+
+  // --- Fix round 2 (ruling do coordenador) ---
+  // "Cada rodada descobre mais um ponto de escrita no mesmo canto do app" —
+  // varredura completa da área `agenda` inteira (mapa rota→área da Task 5/6):
+  // `/arena/schedule`, `/arena/bookings/**`, `/arena/clubs/**` e
+  // `/arena/settings/availability`. Ver a tabela completa no relatório.
+
+  // --- arena_schedule_page.dart: long-press pra bloquear (achado que a
+  // leitura de texto não pega — grep por "Service." não vê `.show()` de
+  // sheet, só a leitura de build() achou) ---
+  // Sem diferença visual entre papéis (o gesto não renderiza nada); testamos
+  // o comportamento: o long-press abre ou não abre o sheet de bloqueio.
+
+  Future<void> pumpSchedule(
+    WidgetTester tester,
+    List<Override> overrides,
+  ) async {
+    final row = ArenaScheduleCourtRow(
+      slot: ArenaSlot.virtual(
+        arenaId: 'a1',
+        courtId: 'c1',
+        date: DateTime(2026, 9, 24),
+        startTime: '08:00',
+        endTime: '09:00',
+      ),
+      courtName: 'Quadra 1',
+    );
+    final group = ArenaScheduleHourGroup(
+      hour: 8,
+      timeRange: '08:00 – 09:00',
+      courtCount: 1,
+      reservedCount: 0,
+      rows: [row],
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...overrides,
+          arenaScheduleGroupedSlotsProvider.overrideWith(
+            (ref) => AsyncValue.data([group]),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: const ArenaSchedulePage(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+
+  testWidgets('manutencao: long-press na agenda nao abre bloquear',
+      (tester) async {
+    await pumpSchedule(tester, overridesForRole(ArenaStaffRole.manutencao));
+    await tester.longPress(find.byType(ArenaScheduleCourtTile));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byType(ArenaScheduleBlockSheet), findsNothing);
+  });
+
+  testWidgets('recepcao: long-press na agenda abre bloquear', (tester) async {
+    await pumpSchedule(tester, overridesForRole(ArenaStaffRole.recepcao));
+    await tester.longPress(find.byType(ArenaScheduleCourtTile));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byType(ArenaScheduleBlockSheet), findsOneWidget);
+  });
+
+  // --- arena_recurring_form_page.dart: tela inteira (achado: rota
+  // `/arena/bookings/recurring/new` aceita `extra` nulo, então é alcançável
+  // direto sem passar pelos atalhos já escondidos) ---
+
+  Future<void> pumpRecurringForm(
+    WidgetTester tester,
+    List<Override> overrides,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...overrides,
+          courtsStreamProvider('a1').overrideWith((ref) => Stream.value(const [])),
+          managedArenaCanAddRecurringBookingProvider.overrideWith((ref) => true),
+          managedArenaMaxRecurringBookingsProvider.overrideWith((ref) => null),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: const ArenaRecurringFormPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+
+  testWidgets('manutencao nao alcanca o formulario de horario fixo',
+      (tester) async {
+    await pumpRecurringForm(
+      tester,
+      overridesForRole(ArenaStaffRole.manutencao),
+    );
+    expect(find.text('Sem permissão'), findsOneWidget);
+    expect(find.text('Criar horário fixo'), findsNothing);
+  });
+
+  testWidgets('recepcao alcanca o formulario de horario fixo', (tester) async {
+    await pumpRecurringForm(tester, overridesForRole(ArenaStaffRole.recepcao));
+    expect(find.text('Sem permissão'), findsNothing);
+    await tester.drag(find.byType(ListView), const Offset(0, -2000));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Criar horário fixo'), findsOneWidget);
+  });
+
+  // --- arena_availability_settings_page.dart: tela inteira (achado: o menu
+  // de Ajustes já esconde a entrada — Task 8 — mas a rota
+  // `/arena/settings/availability` é liberada por leitura e não exige
+  // `extra`, alcançável direto) ---
+
+  Future<void> pumpAvailabilitySettings(
+    WidgetTester tester,
+    List<Override> overrides,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...overrides,
+          arenaSettingsTemplateProvider.overrideWith(
+            (ref) async => ArenaSettingsScheduleState.initial(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: const ArenaAvailabilitySettingsPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+
+  testWidgets('manutencao nao alcanca disponibilidade da agenda',
+      (tester) async {
+    await pumpAvailabilitySettings(
+      tester,
+      overridesForRole(ArenaStaffRole.manutencao),
+    );
+    expect(find.text('Sem permissão'), findsOneWidget);
+  });
+
+  testWidgets('recepcao alcanca disponibilidade da agenda', (tester) async {
+    await pumpAvailabilitySettings(
+      tester,
+      overridesForRole(ArenaStaffRole.recepcao),
+    );
+    expect(find.text('Sem permissão'), findsNothing);
+    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -2000));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Salvar alterações'), findsOneWidget);
+  });
+
+  // --- arena_club_session_page.dart: adicionar/remover participante e
+  // cancelar sessão (o alvo explícito desta rodada) ---
+
+  final scheduledSession = ArenaClubSession(
+    id: 'session1',
+    clubId: 'club1',
+    arenaId: 'a1',
+    arenaName: 'Vegeton',
+    clubName: 'Clubinho de sexta',
+    date: '2026-10-02',
+    startTime: '18:00',
+    endTime: '21:00',
+    courtIds: const ['c1'],
+    courtNames: const ['Quadra 1'],
+    capacity: 16,
+    priceReais: 20,
+    cancelWindowHours: 24,
+    allowOnsitePayment: true,
+    confirmedCount: 0,
+    pendingCount: 0,
+    status: 'scheduled',
+    source: 'manual',
+  );
+
+  Future<void> pumpClubSession(
+    WidgetTester tester,
+    List<Override> overrides,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...overrides,
+          arenaClubSessionDocProvider('session1').overrideWith(
+            (ref) => Stream.value(scheduledSession),
+          ),
+          arenaClubSessionParticipantsProvider('session1').overrideWith(
+            (ref) => Stream.value(const []),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: const ArenaClubSessionPage(sessionId: 'session1'),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+
+  testWidgets('manutencao nao ve acoes de escrita da sessao de clubinho',
+      (tester) async {
+    await pumpClubSession(
+      tester,
+      overridesForRole(ArenaStaffRole.manutencao),
+    );
+    expect(find.text('Adicionar'), findsNothing);
+    expect(find.text('Cancelar sessão'), findsNothing);
+  });
+
+  testWidgets('recepcao ve acoes de escrita da sessao de clubinho',
+      (tester) async {
+    await pumpClubSession(tester, overridesForRole(ArenaStaffRole.recepcao));
+    expect(find.text('Adicionar'), findsOneWidget);
+    expect(find.text('Cancelar sessão'), findsOneWidget);
   });
 }

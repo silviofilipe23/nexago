@@ -6,10 +6,12 @@ import '../../../core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
+import '../domain/arena_access_providers.dart';
 import '../domain/arena_providers.dart';
 import '../domain/arena_schedule_models.dart';
 import '../domain/arena_shell_providers.dart';
 import '../domain/arena_slot_detail_args.dart';
+import '../domain/arena_staff_role.dart';
 import 'widgets/arena_async_state.dart';
 import 'widgets/arena_dashboard_tokens.dart';
 import 'widgets/arena_schedule_block_sheet.dart';
@@ -194,6 +196,11 @@ class ArenaSchedulePage extends ConsumerWidget {
     required String arenaId,
     required ArenaScheduleCourtRow row,
   }) async {
+    // Manutenção lê a agenda mas não escreve — bloquear grava. Mesmo idioma
+    // já usado aqui pra gesto indisponível: early-return silencioso (igual
+    // ao `!row.slot.isAvailable` logo abaixo), não desabilitar o long-press.
+    final canWrite = ref.read(arenaCanWriteProvider(ArenaArea.agenda));
+    if (!canWrite) return;
     if (!row.slot.isAvailable) return;
     final ok = await ArenaScheduleBlockSheet.show(
       context,

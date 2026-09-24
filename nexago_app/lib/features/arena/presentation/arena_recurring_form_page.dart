@@ -11,11 +11,13 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../arenas/domain/arena_court.dart';
 import '../../arenas/domain/slots_providers.dart';
 import '../data/recurring_booking_service.dart';
+import '../domain/arena_access_providers.dart';
 import '../domain/arena_plan.dart';
 import '../domain/arena_recurring_created_args.dart';
 import '../domain/arena_recurring_form_args.dart';
 import '../domain/arena_recurring_providers.dart';
 import '../domain/arena_schedule_providers.dart';
+import '../domain/arena_staff_role.dart';
 import 'plan/widgets/arena_plan_gate.dart';
 import 'widgets/arena_async_state.dart';
 
@@ -88,6 +90,15 @@ class _ArenaRecurringFormPageState
   @override
   Widget build(BuildContext context) {
     final managed = ref.watch(managedArenaIdProvider);
+    // Manutenção lê a agenda mas não escreve — esta tela inteira só serve
+    // pra gravar (criar horário fixo), sem visão "só leitura". Rota
+    // `/arena/bookings/recurring/new` é liberada por LEITURA de agenda
+    // (Task 6) e não exige `extra` — alcançável direto mesmo com os dois
+    // atalhos que levam aqui já escondidos (slot detail e lista). Sem idioma
+    // local por-ação pra mimetizar (só há um botão, "Criar horário fixo");
+    // seguimos o idioma que a própria página já usa pra bloqueio estrutural
+    // (`ArenaEmptyState` no lugar do formulário, caso "Arena não encontrada").
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
     final arenaId = managed.valueOrNull;
     final courts = arenaId != null
         ? ref.watch(courtsStreamProvider(arenaId)).valueOrNull ??
@@ -110,22 +121,30 @@ class _ArenaRecurringFormPageState
               onBack: () => context.pop(),
             ),
             Expanded(
-              child: managed.when(
-                data: (arenaId) {
-                  if (arenaId == null || arenaId.isEmpty) {
-                    return const ArenaEmptyState(
-                      title: 'Arena não encontrada',
+              child: !canWrite
+                  ? const ArenaEmptyState(
+                      title: 'Sem permissão',
                       message:
-                          'Nenhuma arena vinculada ao seu usuário como gestor.',
-                      icon: Icons.store_mall_directory_outlined,
-                    );
-                  }
-                  return _buildForm(context, arenaId);
-                },
-                loading: () =>
-                    const ArenaLoadingState(label: 'Carregando arena...'),
-                error: (e, _) => ArenaErrorState(message: '$e'),
-              ),
+                          'Seu cargo não pode criar horário fixo.',
+                      icon: Icons.lock_outline_rounded,
+                    )
+                  : managed.when(
+                      data: (arenaId) {
+                        if (arenaId == null || arenaId.isEmpty) {
+                          return const ArenaEmptyState(
+                            title: 'Arena não encontrada',
+                            message: 'Nenhuma arena vinculada ao seu usuário '
+                                'como gestor.',
+                            icon: Icons.store_mall_directory_outlined,
+                          );
+                        }
+                        return _buildForm(context, arenaId);
+                      },
+                      loading: () => const ArenaLoadingState(
+                        label: 'Carregando arena...',
+                      ),
+                      error: (e, _) => ArenaErrorState(message: '$e'),
+                    ),
             ),
           ],
         ),

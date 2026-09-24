@@ -2016,10 +2016,16 @@ export class TelaoKocModeComponent {
     const m = this.match();
     const round = m.koc;
     const labelNum = round?.roundLabel || m.matchNumber;
-    const phase = kocPhaseLabel(m.matchType, labelNum).toUpperCase();
+    const battery = round?.batteryLabel ?? 1;
+    const phase = kocPhaseLabel(m.matchType, labelNum, {
+      poolId: round?.poolId,
+      batteryLabel: battery,
+    }).toUpperCase();
     const total = this.roundTotal();
+    // Com bateria, "CHAVE 4 · BATERIA 3" já diz sozinho onde a rodada está — "DE
+    // total" responderia a mesma pergunta de novo, só que mais comprido.
     const withTotal =
-      total > 1 && labelNum > 0 && !phase.includes('SEMIFINAL') && !phase.includes('FINAL')
+      battery <= 1 && total > 1 && labelNum > 0 && !phase.includes('SEMIFINAL') && !phase.includes('FINAL')
         ? `${phase} DE ${total}`
         : phase;
     const loc = this.locationLine().trim();

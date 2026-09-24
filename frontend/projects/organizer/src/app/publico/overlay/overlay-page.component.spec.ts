@@ -514,6 +514,60 @@ describe('OverlayPageComponent', () => {
     expect(text).toContain('Próximos');
     expect(text).toContain('Hölting Nilsson · Berger');
     expect(text).toContain('Sor · Ham');
+    // Sem bateria, o overlay continua numerando pela rodada — como sempre foi.
+    expect(text).toContain('Rodada 3');
+  });
+
+  it('com mais de uma bateria, o overlay do OBS diz a chave em vez da rodada global', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.tournament.set(TOURNAMENT);
+    fake.teams.set(
+      new Map<string, OverlayTeam>([
+        ['t', { label: 'Sor / Ham', players: ['Sor', 'Ham'], photos: [null, null] }],
+        ['a', { label: 'Hölting Nilsson / Berger', players: ['Hölting Nilsson', 'Berger'], photos: [null, null] }],
+        ['b', { label: 'Van / Aye', players: ['Van', 'Aye'], photos: [null, null] }],
+      ]),
+    );
+    fake.match.set(
+      match({
+        status: 'scheduled',
+        matchType: 'koc_round',
+        teamAId: '',
+        teamBId: '',
+        sets: [],
+        currentSetIndex: null,
+        koc: {
+          teamIds: ['t', 'a', 'b'],
+          kingTeamId: '',
+          challengerTeamId: '',
+          queue: [],
+          points: {},
+          rallies: 0,
+          servingTeamId: '',
+          clock: null,
+          standings: [],
+          qualifiersPerRound: 1,
+          teamsPerCourt: 4,
+          roundsPerBracket: 2,
+          configuredDurationSec: 900,
+          rallySeq: 0,
+          rallyLog: [],
+          roundLabel: 9,
+          qualifierSlots: [],
+          batteryLabel: 3,
+          poolId: 'C4',
+          phases: null,
+          maxTeamsPerRound: 5,
+        },
+      }),
+    );
+    await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
+    const text = (host.textContent ?? '').replace(/\s+/g, ' ');
+
+    expect(text).toContain('Chave 4');
+    expect(text).toContain('Bateria 3');
+    expect(text).not.toContain('Rodada 9');
   });
 
   it('final encerrada vira a tela de campeões, à frente da classificação', async () => {

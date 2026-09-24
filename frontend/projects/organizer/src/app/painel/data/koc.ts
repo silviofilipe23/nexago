@@ -77,6 +77,12 @@ export interface KocRoundState {
   configuredDurationSec: number;
   /** Posição da bateria dentro da chave. Rodada antiga não tem: vale 1. */
   batteryLabel: number;
+  /** Quadra lógica da chave ("C1", "C2"…) — de onde `kocPhaseLabel` tira o
+   *  número da CHAVE quando há mais de uma bateria. Opcional só pra não forçar
+   *  todo fixture de teste que já existia (telão, overlay, LED) a ganhar o
+   *  campo; nas rodadas lidas daqui vem sempre preenchido junto com
+   *  `batteryLabel` — os dois nascem do mesmo draft no backend. */
+  poolId?: string;
   /** Plano congelado na geração; nulo em chave publicada antes desta entrega. */
   phases: KocPhaseSpec[] | null;
   maxTeamsPerRound: number;
@@ -276,6 +282,7 @@ export function kocRoundStateFrom(data: Record<string, unknown>): KocRoundState 
     roundsPerBracket: intOf(config['roundsPerBracket'], 1),
     configuredDurationSec: intOf(config['durationSec'], 900),
     batteryLabel: intOf(data['kocBatteryLabel'], 1),
+    poolId: strOf(data['poolId']),
     phases: parseKocPhases(config['phases']),
     maxTeamsPerRound: kocClampMaxPerRound(intOf(config['maxTeamsPerRound'], 0)),
     rallySeq: intOf(data['kocRallySeq']),

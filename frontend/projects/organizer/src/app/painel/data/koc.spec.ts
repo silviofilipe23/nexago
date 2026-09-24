@@ -345,6 +345,7 @@ describe('KocRoundState · plano congelado na rodada', () => {
       kocState: { teamIds: ['a', 'b', 'c'] },
       kocRoundLabel: 7,
       kocBatteryLabel: 3,
+      poolId: 'C4',
       kocConfig: {
         durationSec: 900,
         teamsPerCourt: 6,
@@ -359,6 +360,7 @@ describe('KocRoundState · plano congelado na rodada', () => {
       },
     });
     expect(state.batteryLabel).toBe(3);
+    expect(state.poolId).toBe('C4');
     expect(state.phases?.length).toBe(3);
     expect(state.maxTeamsPerRound).toBe(6);
   });

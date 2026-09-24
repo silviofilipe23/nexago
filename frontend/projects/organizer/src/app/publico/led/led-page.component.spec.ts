@@ -202,4 +202,30 @@ describe('LedPageComponent', () => {
     // O título da rodada NÃO pode sair da visão de jogo: antes do apito ela é nula.
     expect(text).toContain('Rodada 3');
   });
+
+  it('com mais de uma bateria, o painel de LED diz a chave — não só "Rodada 9"', async () => {
+    const { fixture, fake } = await mount();
+    fake.matches.set([
+      match({
+        status: 'scheduled',
+        scheduledAt: new Date(Date.now() + 5 * 60_000),
+        matchStartedAt: null,
+        koc: round({
+          kingTeamId: '',
+          challengerTeamId: '',
+          clock: null,
+          roundLabel: 9,
+          batteryLabel: 3,
+          poolId: 'C4',
+        }),
+      }),
+    ]);
+    await fixture.whenStable();
+    const text = (host(fixture).textContent ?? '').replace(/\s+/g, ' ');
+
+    expect(text).toContain('Chave 4');
+    expect(text).toContain('Bateria 3');
+    // A rodada global some de vista: a chave + a bateria já dizem tudo.
+    expect(text).not.toContain('Rodada 9');
+  });
 });

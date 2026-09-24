@@ -83,6 +83,20 @@ describe('LedRoundComponent', () => {
     expect(text).toContain('02:43');
   });
 
+  it('com mais de uma bateria, o topo gigante conta a BATERIA e a chave migra pro contexto', async () => {
+    const text = (
+      host(await render({ view: view({ roundTitle: 'Classificatória · Chave 4 · Bateria 3' }) })).textContent ?? ''
+    ).replace(/\s+/g, ' ');
+
+    expect(text).toContain('Bateria');
+    expect(text).toContain('3');
+    expect(text).toContain('Chave 4');
+    // "3/" seria a mesma barra pendurada do bug de antes — não existe mais rodada global aqui.
+    expect(text).not.toMatch(/3\s*\//);
+    expect(text).toContain('Masculino B');
+    expect(text).toContain('Quadra 2');
+  });
+
   it('põe trono e desafiante em blocos próprios, com avatares e pontos', async () => {
     const h = host(await render());
     const trono = h.querySelector('.bloco--trono');

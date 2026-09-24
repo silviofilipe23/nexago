@@ -140,4 +140,14 @@ describe('kocRoundTitleOf', () => {
     expect(kocRoundTitleOf('koc_final', 0, 4, 7)).toBe('Final');
     expect(kocRoundTitleOf('koc_semifinal', 0, 4, 7)).toBe('Semifinal');
   });
+
+  it('sem bateria, o "/total" continua exatamente como sempre foi', () => {
+    expect(kocRoundTitleOf('koc_round', 3, 9, 7, { poolId: 'C4', batteryLabel: 1 }))
+      .toBe('Classificatória · Rodada 3/7');
+  });
+
+  it('com bateria, mostra a chave e larga o "/total" — os dois responderiam a mesma pergunta', () => {
+    expect(kocRoundTitleOf('koc_round', 3, 9, 7, { poolId: 'C4', batteryLabel: 3 }))
+      .toBe('Classificatória · Chave 4 · Bateria 3');
+  });
 });

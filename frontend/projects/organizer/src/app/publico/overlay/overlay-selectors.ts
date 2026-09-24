@@ -29,7 +29,9 @@ export interface OverlayDuelView {
 export interface OverlayKocView {
   kind: 'koc';
   phase: OverlayPhase;
-  /** "Classificatória · Rodada 3/7" — o total só entra quando foi possível contar. */
+  /** "Classificatória · Rodada 3/7" — o total só entra quando foi possível contar; com mais de
+   *  uma bateria na chave vira "Classificatória · Chave 4 · Bateria 3" e o total some (a chave e
+   *  a bateria já localizam a rodada sozinhas). Ver `kocRoundTitleOf`. */
   roundTitle: string;
   bar: OverlayKocBar;
 }
@@ -65,7 +67,10 @@ export function overlayViewOf(
     return {
       kind: 'koc',
       phase: phaseOf(match.status),
-      roundTitle: kocRoundTitleOf(match.matchType, round.roundLabel, match.matchNumber, totalRounds),
+      roundTitle: kocRoundTitleOf(match.matchType, round.roundLabel, match.matchNumber, totalRounds, {
+        poolId: round.poolId,
+        batteryLabel: round.batteryLabel,
+      }),
       bar: kocBarOf(round, nowMs, totalRounds),
     };
   }

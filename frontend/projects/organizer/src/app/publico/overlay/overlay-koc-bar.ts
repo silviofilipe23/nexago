@@ -77,11 +77,17 @@ export function kocRoundTitleOf(
   roundLabel: number,
   matchNumber: number,
   totalRounds: number,
+  opts?: { poolId?: string; batteryLabel?: number },
 ): string {
   // `roundLabel` é a rodada DENTRO da fase; `matchNumber` é global e diria "Rodada 9" num campo
   // com duas classificatórias. Ver `koc.ts`.
-  const base = kocPhaseLabel(matchType, roundLabel || matchNumber);
+  const base = kocPhaseLabel(matchType, roundLabel || matchNumber, opts);
   const phase = normalizeMatchType(matchType);
-  if (totalRounds <= 0 || phase === 'koc final' || phase === 'koc semifinal') return base;
+  const battery = opts?.batteryLabel ?? 1;
+  // Com bateria, "Chave 4 · Bateria 3" já localiza a rodada sozinho — "/total"
+  // responderia a mesma pergunta de novo, só que mais comprido.
+  if (battery > 1 || totalRounds <= 0 || phase === 'koc final' || phase === 'koc semifinal') {
+    return base;
+  }
   return `${base}/${totalRounds}`;
 }

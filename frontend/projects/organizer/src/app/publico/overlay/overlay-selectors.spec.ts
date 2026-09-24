@@ -227,6 +227,27 @@ describe('overlayViewOf', () => {
     expect(view.bar.clock).toEqual({ label: '13:56', paused: false });
   });
 
+  it('com mais de uma bateria, a faixa do OBS diz a chave em vez do número global', () => {
+    const view = overlayViewOf(
+      kocMatch(
+        kocRound({
+          teamIds: ['a', 'b', 'c', 'd'],
+          kingTeamId: 'd',
+          challengerTeamId: 'c',
+          queue: ['b', 'a'],
+          roundLabel: 9,
+          batteryLabel: 3,
+          poolId: 'C4',
+        }),
+        { matchNumber: 9 },
+      ),
+      NOW,
+      7,
+    ) as OverlayKocView;
+
+    expect(view.roundTitle).toBe('Classificatória · Chave 4 · Bateria 3');
+  });
+
   it('não pinta a rodada KOTC que ainda não tem rei e desafiante', () => {
     // `kocRoundStateFrom` NUNCA devolve null: rodada sem `kocState` no doc vira um estado com
     // ids vazios. Sem esta regra, a rodada agendada desenharia duas linhas em branco com 0 ponto.

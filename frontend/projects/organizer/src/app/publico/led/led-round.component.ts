@@ -50,8 +50,8 @@ const FILA_R_MS = 480;
         <header class="topo">
           <div class="topo-textos">
             <h1 class="rodada">
-              Rodada <span class="rodada-num">{{ rodada() }}</span
-              ><span class="rodada-total">/{{ total() }}</span>
+              {{ rodadaLabel() }} <span class="rodada-num">{{ rodada() }}</span
+              >@if (total()) {<span class="rodada-total">/{{ total() }}</span>}
             </h1>
             <div class="contexto">{{ contexto() }}</div>
           </div>
@@ -474,18 +474,34 @@ export class LedRoundComponent {
   private prevKingId: string | null = null;
   private prevKingPts: number | null = null;
 
-  /** "Classificatória · Rodada 3/7" → 3 e 7, pro topo gigante do painel. */
+  /** "Classificatória · Rodada 3/7" → 3 e 7, pro topo gigante do painel.
+   *
+   *  Com mais de uma bateria o título vem sem "/total" ("Classificatória · Chave
+   *  4 · Bateria 3") — o número que muda a cada troca de dupla dentro da chave
+   *  passa a ser a BATERIA, e o topo conta ela; a chave (fixa durante a rodada,
+   *  como categoria e quadra) migra pra linha de contexto, ver `chaveLabel`. */
   private readonly numeros = computed(() => {
-    const m = /(\d+)\s*\/\s*(\d+)/.exec(this.view()?.roundTitle ?? '');
-    if (m) return { rodada: m[1], total: m[2] };
-    const so = /(\d+)/.exec(this.view()?.roundTitle ?? '');
-    return { rodada: so ? so[1] : '', total: '' };
+    const title = this.view()?.roundTitle ?? '';
+    const bateria = /Bateria\s+(\d+)/i.exec(title);
+    if (bateria) return { label: 'Bateria', num: bateria[1], total: '' };
+    const m = /(\d+)\s*\/\s*(\d+)/.exec(title);
+    if (m) return { label: 'Rodada', num: m[1], total: m[2] };
+    const so = /(\d+)/.exec(title);
+    return { label: 'Rodada', num: so ? so[1] : '', total: '' };
   });
-  protected readonly rodada = computed(() => this.numeros().rodada);
+  protected readonly rodadaLabel = computed(() => this.numeros().label);
+  protected readonly rodada = computed(() => this.numeros().num);
   protected readonly total = computed(() => this.numeros().total);
 
+  /** "Chave 4" — só quando o título tem bateria; numa chave de bateria única a
+   *  chave não identifica nada sozinha e o rótulo já não tem essa palavra. */
+  protected readonly chaveLabel = computed(() => {
+    const m = /Chave\s+(\d+)/i.exec(this.view()?.roundTitle ?? '');
+    return m ? `Chave ${m[1]}` : '';
+  });
+
   protected readonly contexto = computed(() =>
-    [this.categoryName(), this.courtName()].filter((p) => !!p).join(' · '),
+    [this.chaveLabel(), this.categoryName(), this.courtName()].filter((p) => !!p).join(' · '),
   );
 
   /** Um minuto ou menos. O rótulo vem pronto do servidor ("2:05"), então a conta é no texto. */

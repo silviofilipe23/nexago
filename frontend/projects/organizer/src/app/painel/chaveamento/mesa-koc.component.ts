@@ -2105,8 +2105,16 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
          comando (relógio + encerrar) · confronto · fila (a única que rola) · ações.
 
        Encerrar fica em cima DE PROPÓSITO, longe do polegar que marca ponto.
-       Desktop (>1024px) não muda: lá o aside volta a ser coluna. */
-    @media (max-width: 1023.98px) {
+
+       A régua é o DEDO, não a largura. O resto do portal corta tablet em 1024px
+       (é onde a sidebar vira gaveta), mas por essa régua o iPad Pro 13" em pé
+       (1032px) e todo iPad deitado (1180–1366px) cairiam no layout de desktop —
+       e os três são a mesma coisa na areia: um tablet na mão do mesário. O
+       A largura fica na união para que uma janela estreita de desktop (e o
+       harness de QA, que só emula toque abaixo de 768px) continue valendo.
+
+       Mouse acima de 1024px não muda: lá o aside volta a ser coluna. */
+    @media (max-width: 1023.98px), (pointer: coarse) {
       .og-mk-live {
         position: fixed;
         inset: 0;

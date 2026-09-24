@@ -31,6 +31,7 @@ const KOC_MAP = {
   roundsPerBracket: 2,
   qualifiersPerRound: 2,
   roundDurationSec: 900,
+  maxTeamsPerRound: 6,
 };
 
 describe('config KOTC · ida e volta pelo wizard', () => {
@@ -41,6 +42,7 @@ describe('config KOTC · ida e volta pelo wizard', () => {
     expect(draft.kocRoundsPerBracket).toBe(2);
     expect(draft.kocQualifiersPerRound).toBe(2);
     expect(draft.kocRoundDurationSec).toBe(900);
+    expect(draft.kocMaxTeamsPerRound).toBe(6);
   });
 
   it('grava de volta com os MESMOS nomes que `resolveKocConfig` lê', () => {
@@ -50,6 +52,14 @@ describe('config KOTC · ida e volta pelo wizard', () => {
     expect(map['roundsPerBracket']).toBe(2);
     expect(map['qualifiersPerRound']).toBe(2);
     expect(map['roundDurationSec']).toBe(900);
+    expect(map['maxTeamsPerRound']).toBe(6);
+  });
+
+  it('torneio antigo, sem `maxTeamsPerRound`, é lido como o teto de quem não escolheu — não como indefinido', () => {
+    const draft = categoryFromMap({ ...KOC_MAP, maxTeamsPerRound: undefined })!;
+    expect(draft.kocMaxTeamsPerRound).toBe(5);
+    const map = categoryToMap(draft, emptyTournamentDraft());
+    expect(map['maxTeamsPerRound']).toBe(5);
   });
 
   it('abrir e salvar sem mexer em nada não muda a config', () => {

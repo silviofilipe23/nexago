@@ -10,9 +10,14 @@
  *  vive em `kocTeamIds`. Quem lê os dois lados precisa sair antes por
  *  [isKingOfCourtMatchType]. */
 
-/** Piso e teto do formato. */
+import { kocClampMaxPerRound, parseKocPhases, type KocPhaseSpec } from './koc-phase-plan';
+
+/** Piso e teto do formato. Teto aqui espelha o TETO DURO
+ *  (`KOC_MAX_TEAMS_PER_ROUND_HARD` em `koc-phase-plan.ts`) — uma rodada em
+ *  andamento pode ter sido gerada com até 6 duplas, e a mesa não pode recusar
+ *  iniciar uma rodada válida por um teto desatualizado. */
 export const KOC_MIN_TEAMS_PER_ROUND = 3;
-export const KOC_MAX_TEAMS_PER_ROUND = 5;
+export const KOC_MAX_TEAMS_PER_ROUND = 6;
 
 export interface KocClock {
   /** Derivado NO SERVIDOR. O cliente nunca recalcula prazo. */
@@ -70,6 +75,11 @@ export interface KocRoundState {
   teamsPerCourt: number;
   roundsPerBracket: number;
   configuredDurationSec: number;
+  /** Posição da bateria dentro da chave. Rodada antiga não tem: vale 1. */
+  batteryLabel: number;
+  /** Plano congelado na geração; nulo em chave publicada antes desta entrega. */
+  phases: KocPhaseSpec[] | null;
+  maxTeamsPerRound: number;
   /** Nº do último rally gravado — vai em `expectedSeq` no próximo. */
   rallySeq: number;
   /** Log bruto de rallies (`kocRallies`) — base do histórico da mesa. */
@@ -246,6 +256,9 @@ export function kocRoundStateFrom(data: Record<string, unknown>): KocRoundState 
     teamsPerCourt: intOf(config['teamsPerCourt'], 4),
     roundsPerBracket: intOf(config['roundsPerBracket'], 1),
     configuredDurationSec: intOf(config['durationSec'], 900),
+    batteryLabel: intOf(data['kocBatteryLabel'], 1),
+    phases: parseKocPhases(config['phases']),
+    maxTeamsPerRound: kocClampMaxPerRound(intOf(config['maxTeamsPerRound'], 0)),
     rallySeq: intOf(data['kocRallySeq']),
     rallyLog: rallyLogOf(data['kocRallies']),
     roundLabel: intOf(data['kocRoundLabel']),

@@ -12,6 +12,7 @@ import {
 } from '../../data/organizer-settings.model';
 import { loadTournamentDraft, publishTournamentDraft } from '../../data/tournament-create-mapper';
 import { formatCentsInputValue, parseBRLInputToCents } from '../../data/tournament-collected';
+import { KOC_MAX_TEAMS_PER_ROUND_HARD, kocPlanTotals, kocProposePhasePlan } from '../../data/koc-phase-plan';
 import {
   AGE_BAND_LABEL,
   BEST_OF_LABEL,
@@ -23,15 +24,12 @@ import {
   DISPUTE_OPTIONS,
   GENDER_LABEL,
   KOC_MAX_ROUND_DURATION_SEC,
-  KOC_MAX_TEAMS_PER_ROUND,
   KOC_MIN_ROUND_DURATION_SEC,
   KOC_MIN_TEAMS_PER_ROUND,
   KOC_SHALLOW_ROUND_DURATION_SEC,
   SKILL_LEVEL_LABEL,
   SPORT_LABEL,
   SUPPORTED_BRACKET_SYSTEMS,
-  kocMaxRoundsForField,
-  kocSchedule,
   TOURNAMENT_CREATE_STEPS,
   type AgeBand,
   type CategoryDispute,
@@ -292,23 +290,10 @@ function inputToDatetime(v: string): Date | null {
               }
               @if (cat().bracketSystem === 'kingOfCourt') {
                 <div class="og-field-grid" style="margin-top:14px">
-                  <og-stepper-static label="Duplas por quadra" [value]="'' + cat().kocTeamsPerCourt" (bump)="bumpCat('kocTeamsPerCourt', $event, kocMinTeams, kocMaxTeams)" />
-                  <!-- Acima de 1, cada rodada da chave classifica UMA dupla: a
-                       vencedora sai e a rodada seguinte roda com as que
-                       sobraram. O teto vem do mínimo do formato. -->
-                  <og-stepper-static label="Rodadas por chave" [value]="'' + cat().kocRoundsPerBracket" (bump)="bumpCat('kocRoundsPerBracket', $event, 1, maxRoundsPerBracket())" />
-                  @if (cat().kocRoundsPerBracket === 1) {
-                    <og-stepper-static label="Classificam" [value]="'' + cat().kocQualifiersPerRound" (bump)="bumpCat('kocQualifiersPerRound', $event, 1, cat().kocTeamsPerCourt - 1)" />
-                  } @else {
-                    <!-- Com mais de uma rodada por chave o número é fixo: cada
-                         rodada entrega uma vaga. Campo só de leitura, sem +/-. -->
-                    <div class="og-field">
-                      <label class="og-field-label">Classificam</label>
-                      <div class="og-stepper">
-                        <div class="og-stepper-value" style="color:var(--nx-text-dim)">1 por rodada</div>
-                      </div>
-                    </div>
-                  }
+                  <og-stepper-static label="Máximo por bateria" [value]="'' + cat().kocMaxTeamsPerRound" (bump)="bumpCat('kocMaxTeamsPerRound', $event, kocMinTeams, kocMaxTeams)" />
+                  <!-- Baterias e classificadas saíram daqui: quem decide é a
+                       tela de gerar chave, que conhece as inscritas de
+                       verdade. O wizard só conhece as VAGAS. -->
                 </div>
                 <div style="margin-top:14px">
                   <og-stepper-static label="Duração da rodada" [value]="kocDurationLabel()" (bump)="bumpKocDuration($event)" />
@@ -1055,34 +1040,25 @@ export class CriarTorneioComponent {
     this.patchCat({ spots: Math.min(Math.max(this.cat().spots + delta * step, 2), 64) });
   }
 
-  /** Teto de rodadas por chave: cada vencedora sai, e toda rodada precisa do
-   *  mínimo do formato. Uma chave de 4 dá 2; uma de 5, 3. */
-  /** Teto honesto do stepper: quantas chaves existem depende de quantas rodadas
-   *  se pede, então o limite é o maior R que o campo fecha — não o que a menor
-   *  chave de uma divisão feita sem saber de R comportaria. */
-  protected maxRoundsPerBracket(): number {
-    const c = this.cat();
-    return kocMaxRoundsForField(c.spots, c.kocTeamsPerCourt);
-  }
-
-  protected bumpCat(field: 'teamsPerGroup' | 'qualifiersPerGroup' | 'maxRegistrationsPerAthlete' | 'kocTeamsPerCourt' | 'kocRoundsPerBracket' | 'kocQualifiersPerRound', delta: number, min: number, max: number): void {
+  protected bumpCat(field: 'teamsPerGroup' | 'qualifiersPerGroup' | 'maxRegistrationsPerAthlete' | 'kocMaxTeamsPerRound', delta: number, min: number, max: number): void {
     this.patchCat({ [field]: Math.min(Math.max(this.cat()[field] + delta, min), max) } as Partial<TournamentCategoryDraft>);
   }
 
   // ── King of the Court ──────────────────────────────────────────────────────
 
   protected readonly kocMinTeams = KOC_MIN_TEAMS_PER_ROUND;
-  protected readonly kocMaxTeams = KOC_MAX_TEAMS_PER_ROUND;
+  protected readonly kocMaxTeams = KOC_MAX_TEAMS_PER_ROUND_HARD;
   protected readonly kocShallowSec = KOC_SHALLOW_ROUND_DURATION_SEC;
 
   /**
-   * Plano da categoria com a CAPACIDADE (`spots`), que é o que existe no
-   * wizard — as duplas pagas só existem no dia da geração da chave, e lá a tela
-   * de publicação refaz a mesma conta com o elenco real.
+   * Plano estimado pela CAPACIDADE (`spots`), que é o que existe no wizard —
+   * as duplas pagas só existem no dia da geração da chave, e lá a tela de
+   * publicação (`kocProposePhasePlan` com o elenco real) refaz a conta e pode
+   * chegar num plano diferente deste.
    */
   protected readonly kocPlan = computed(() => {
     const c = this.cat();
-    return kocSchedule(c.spots, c.kocTeamsPerCourt, c.kocQualifiersPerRound, c.kocRoundDurationSec, 1, c.kocRoundsPerBracket);
+    return kocProposePhasePlan(c.spots, c.kocMaxTeamsPerRound, c.kocRoundDurationSec);
   });
 
   protected kocDurationLabel(): string {
@@ -1099,7 +1075,9 @@ export class CriarTorneioComponent {
 
   protected kocPlanTitle(): string {
     const plan = this.kocPlan();
-    return plan.valid ? `${plan.totalLabel} de quadra` : 'Configuração não fecha';
+    if (plan.length === 0) return 'Configuração não fecha';
+    const totals = kocPlanTotals(plan, 1);
+    return `${totals.label} de quadra`;
   }
 
   protected kocPlanDesc(): string {
@@ -1108,11 +1086,11 @@ export class CriarTorneioComponent {
     if (c.spots < KOC_MIN_TEAMS_PER_ROUND) {
       return `King of the Court precisa de pelo menos ${KOC_MIN_TEAMS_PER_ROUND} duplas.`;
     }
-    if (!plan.valid) {
-      return `Com ${c.spots} duplas, esse número de classificadas não reduz o campo entre as fases. Reduza "Classificam".`;
+    if (plan.length === 0) {
+      return `Com ${c.spots} duplas, não dá para montar uma chave dentro do teto de ${c.kocMaxTeamsPerRound} por bateria. Aumente "Máximo por bateria".`;
     }
-    const phases = plan.roundsPerPhase.map((r) => (r === 1 ? '1 rodada' : `${r} rodadas`)).join(' → ');
-    return `${c.spots} duplas · ${plan.totalRounds} rodadas de ${Math.round(c.kocRoundDurationSec / 60)} min em uma quadra (${phases}), já com trocas e intervalos.`;
+    const totals = kocPlanTotals(plan, 1);
+    return `${c.spots} duplas · ${totals.rounds} rodadas em 1 quadra (estimativa pelas vagas) — a tela de gerar chave decide o plano final pelas inscritas de verdade.`;
   }
 
   protected bumpCourts(delta: number): void {

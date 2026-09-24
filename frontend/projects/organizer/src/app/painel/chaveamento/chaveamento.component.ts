@@ -41,6 +41,7 @@ import {
   stepBracketZoom,
   wheelBracketZoom,
 } from './chaveamento-zoom';
+import { kocDriftDetail } from './koc-drift';
 
 const STATUS_TONE: Record<MatchDisplayStatus, PillTone> = {
   scheduled: 'orange',
@@ -590,7 +591,8 @@ export class ChaveamentoComponent {
 
   /** Diferença entre a config da CATEGORIA e o snapshot que ficou na rodada
    *  gerada. Só olha o que muda a FORMA da chave — duração é lida da rodada e
-   *  mudar a padrão de propósito não mexe em rodada já gerada. */
+   *  mudar a padrão de propósito não mexe em rodada já gerada. A comparação em
+   *  si é `kocDriftDetail` (função pura, testada em `koc-drift.spec.ts`). */
   protected readonly kocDrift = computed<{detail: string} | null>(() => {
     const catId = this.ctx.selectedCategoryId();
     if (!catId) return null;
@@ -598,27 +600,8 @@ export class ChaveamentoComponent {
     if (!category) return null;
     const round = this.ctx.matchesFiltered().find((m) => m.koc != null)?.koc;
     if (!round) return null;
-
-    const diffs: string[] = [];
-    if (round.roundsPerBracket !== category.kocRoundsPerBracket) {
-      diffs.push(
-        `rodadas por chave: a categoria pede ${category.kocRoundsPerBracket}, ` +
-          `a chave foi gerada com ${round.roundsPerBracket}`,
-      );
-    }
-    if (round.teamsPerCourt !== category.kocTeamsPerCourt) {
-      diffs.push(
-        `duplas por quadra: a categoria pede ${category.kocTeamsPerCourt}, ` +
-          `a chave foi gerada com ${round.teamsPerCourt}`,
-      );
-    }
-    if (round.qualifiersPerRound !== category.kocQualifiersPerRound) {
-      diffs.push(
-        `classificadas por rodada: a categoria pede ${category.kocQualifiersPerRound}, ` +
-          `a chave foi gerada com ${round.qualifiersPerRound}`,
-      );
-    }
-    return diffs.length > 0 ? {detail: `${diffs.join('; ')}.`} : null;
+    const detail = kocDriftDetail(round, category);
+    return detail ? {detail} : null;
   });
 
   protected readonly headerSubtitle = computed(() => {

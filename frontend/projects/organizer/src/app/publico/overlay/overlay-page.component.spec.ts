@@ -119,6 +119,9 @@ function rodadaEncerrada(): TournamentMatch {
       rallyLog: [],
       roundLabel: 1,
       qualifierSlots: [],
+      batteryLabel: 1,
+      phases: null,
+      maxTeamsPerRound: 5,
     },
   });
 }
@@ -235,6 +238,9 @@ describe('OverlayPageComponent', () => {
           rallyLog: [],
           roundLabel: 3,
           qualifierSlots: [],
+          batteryLabel: 1,
+          phases: null,
+          maxTeamsPerRound: 5,
         },
       }),
     );
@@ -289,6 +295,9 @@ describe('OverlayPageComponent', () => {
         rallyLog: [],
         roundLabel: 3,
         qualifierSlots: [],
+        batteryLabel: 1,
+        phases: null,
+        maxTeamsPerRound: 5,
       },
     });
     fake.categoryMatches.set([encerrada]);
@@ -340,6 +349,9 @@ describe('OverlayPageComponent', () => {
           rallyLog: [],
           roundLabel: 1,
           qualifierSlots: [],
+          batteryLabel: 1,
+          phases: null,
+          maxTeamsPerRound: 5,
         },
       });
       fake.categoryMatches.set([encerrada]);
@@ -487,6 +499,9 @@ describe('OverlayPageComponent', () => {
           rallyLog: [],
           roundLabel: 3,
           qualifierSlots: [],
+          batteryLabel: 1,
+          phases: null,
+          maxTeamsPerRound: 5,
         },
       }),
     );

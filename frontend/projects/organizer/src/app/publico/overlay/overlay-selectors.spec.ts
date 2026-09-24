@@ -67,6 +67,9 @@ function kocRound(overrides: Partial<KocRoundState>): KocRoundState {
     rallyLog: [],
     roundLabel: 1,
     qualifierSlots: [],
+    batteryLabel: 1,
+    phases: null,
+    maxTeamsPerRound: 5,
     ...overrides,
   };
 }

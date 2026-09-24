@@ -316,3 +316,38 @@ describe('kocRoundStateFrom · snapshot da config', () => {
     expect(round.teamsPerCourt).toBe(4);
   });
 });
+
+describe('KocRoundState · plano congelado na rodada', () => {
+  it('lê a bateria e o plano gravados na geração', () => {
+    const state = kocRoundStateFrom({
+      kocState: { teamIds: ['a', 'b', 'c'] },
+      kocRoundLabel: 7,
+      kocBatteryLabel: 3,
+      kocConfig: {
+        durationSec: 900,
+        teamsPerCourt: 6,
+        roundsPerBracket: 4,
+        qualifiersPerRound: 1,
+        maxTeamsPerRound: 6,
+        phases: [
+          { bracketSizes: [5, 5], roundsPerBracket: 3, qualifiersPerRound: 1, durationSec: 900 },
+          { bracketSizes: [6], roundsPerBracket: 4, qualifiersPerRound: 1, durationSec: 900 },
+          { bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900 },
+        ],
+      },
+    });
+    expect(state.batteryLabel).toBe(3);
+    expect(state.phases?.length).toBe(3);
+    expect(state.maxTeamsPerRound).toBe(6);
+  });
+
+  it('rodada antiga sem plano continua legível', () => {
+    const state = kocRoundStateFrom({
+      kocState: { teamIds: ['a', 'b', 'c'] },
+      kocConfig: { durationSec: 900, teamsPerCourt: 4, roundsPerBracket: 1, qualifiersPerRound: 2 },
+    });
+    expect(state.phases).toBeNull();
+    expect(state.batteryLabel).toBe(1);
+    expect(state.maxTeamsPerRound).toBe(5);
+  });
+});

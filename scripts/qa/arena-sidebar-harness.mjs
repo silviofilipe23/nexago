@@ -106,11 +106,20 @@ const drawerCss = hostToId(drawerCssRaw);
 // Extração de dados: NAV_ITEMS real de panel-nav.model.ts (não copiado à mão).
 // ---------------------------------------------------------------------------
 function extractNavItems(source) {
+  // Linhas comentadas fora primeiro: um item desativado com `//` continua casando
+  // com a regex abaixo, e o harness passaria a medir um item que nunca renderiza
+  // -- a asserção 2 procuraria no DOM um id que não existe. Aconteceu de verdade
+  // com 'torneios', desativado na main enquanto este arquivo dizia extrair 21.
+  const active = source
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('//'))
+    .join('\n');
+
   const itemRe =
     /\{\s*id:\s*'([^']+)',\s*label:\s*'([^']+)',\s*icon:\s*'([^']+)',\s*route:\s*'([^']+)',\s*badge:\s*(null|\d+),\s*area:\s*(null|'[^']*'),\s*group:\s*(null|'[^']*')\s*\}/g;
   const items = [];
   let m;
-  while ((m = itemRe.exec(source)) !== null) {
+  while ((m = itemRe.exec(active)) !== null) {
     items.push({
       id: m[1],
       label: m[2],

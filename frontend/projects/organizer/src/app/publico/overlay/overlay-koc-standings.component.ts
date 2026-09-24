@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import { OverlayMarkComponent } from './overlay-mark.component';
 import type { OverlayKocTeam } from './overlay-koc-bar.component';
 import type { KocStandingRow, KocStandingsBoard } from './overlay-koc-standings';
 
@@ -16,6 +17,7 @@ const ROW_DURATION_MS = 440;
 @Component({
   selector: 'og-overlay-koc-standings',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OverlayMarkComponent],
   template: `
     @if (visible() && board(); as b) {
       <div class="card" [class.card--out]="saindo()">
@@ -71,6 +73,7 @@ const ROW_DURATION_MS = 440;
           }
         </footer>
       </div>
+      <og-overlay-mark />
     }
   `,
   styles: `

@@ -59,6 +59,12 @@ describe('OverlayKocBarComponent', () => {
     expect((host.textContent ?? '').trim()).toBe('');
   });
 
+  it('leva a marca da nexaGO no canto', async () => {
+    const fixture = await render({ view: view(), teams: TEAMS });
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('og-overlay-mark')).not.toBeNull();
+  });
+
   it('mostra a rodada inteira, da fila ao trono, com os dois atletas de cada dupla', async () => {
     const fixture = await render({
       view: view(),

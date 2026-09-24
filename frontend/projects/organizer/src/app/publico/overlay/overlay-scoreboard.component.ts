@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { OverlayMarkComponent } from './overlay-mark.component';
 import type { OverlayCorner, OverlayDuelView, OverlaySide } from './overlay-selectors';
 
 /** Placar de transmissão: fundo TRANSPARENTE, desenhado sobre a imagem da câmera no OBS.
@@ -9,6 +10,7 @@ import type { OverlayCorner, OverlayDuelView, OverlaySide } from './overlay-sele
 @Component({
   selector: 'og-overlay-scoreboard',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OverlayMarkComponent],
   template: `
     @if (view(); as v) {
       <div class="overlay" [attr.data-pos]="corner()">
@@ -41,6 +43,7 @@ import type { OverlayCorner, OverlayDuelView, OverlaySide } from './overlay-sele
         }
 
       </div>
+      <og-overlay-mark [corner]="marcaCorner()" />
     }
   `,
   styles: `
@@ -200,4 +203,10 @@ export class OverlayScoreboardComponent {
   labelOf(side: OverlaySide): string {
     return this.teamLabels().get(side.teamId) ?? side.label;
   }
+
+  /** A marca vive no canto direito; sobe pro topo quando o próprio conteúdo ocupa o inferior
+   *  direito, senão uma taparia a outra. */
+  protected readonly marcaCorner = computed<'tr' | 'br'>(() =>
+    this.corner() === 'br' ? 'tr' : 'br',
+  );
 }

@@ -8,6 +8,7 @@ import {
   input,
 } from '@angular/core';
 import type { OverlayKocBlock } from './overlay-koc-bar';
+import { OverlayMarkComponent } from './overlay-mark.component';
 import type { OverlayKocView } from './overlay-selectors';
 
 export interface OverlayKocTeam {
@@ -38,6 +39,7 @@ function clockUnderOneMin(label: string): boolean {
 @Component({
   selector: 'og-overlay-koc-bar',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OverlayMarkComponent],
   template: `
     @if (view(); as v) {
       <div class="wrap" [attr.data-pos]="position()">
@@ -141,11 +143,7 @@ function clockUnderOneMin(label: string): boolean {
         </div>
       </div>
 
-      <!-- Bug de emissora: logo translúcida no canto, sem caixa opaca disputando com a câmera. -->
-      <div class="mark" [attr.data-pos]="position()" aria-hidden="true">
-        <img class="mark-logo" src="/brand/logo.png" alt="" width="72" height="72" />
-        <!-- <span class="mark-tag">KOTC</span> -->
-      </div>
+      <og-overlay-mark [corner]="position() === 'top' ? 'tr' : 'br'" />
     }
   `,
   styles: `
@@ -158,11 +156,6 @@ function clockUnderOneMin(label: string): boolean {
     }
 
     .wrap,
-    .mark {
-      position: absolute;
-      /* Margem de segurança de transmissão. */
-      --gap: 48px;
-    }
     .wrap[data-pos='bottom'] {
       bottom: var(--gap);
       left: var(--gap);
@@ -170,14 +163,6 @@ function clockUnderOneMin(label: string): boolean {
     .wrap[data-pos='top'] {
       top: var(--gap);
       left: var(--gap);
-    }
-    .mark[data-pos='bottom'] {
-      bottom: var(--gap);
-      right: var(--gap);
-    }
-    .mark[data-pos='top'] {
-      top: var(--gap);
-      right: var(--gap);
     }
 
     .status {
@@ -372,26 +357,6 @@ function clockUnderOneMin(label: string): boolean {
       animation: koc-clock-urgent 1s ease-in-out infinite;
     }
 
-    .mark {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      /* Watermark de TV: legível sem tapar a imagem da câmera. */
-      opacity: 0.52;
-      filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.55));
-    }
-    .mark-logo {
-      display: block;
-      width: 72px;
-      height: 72px;
-      object-fit: contain;
-    }
-    .mark-tag {
-      color: #fff;
-      font-size: 15px;
-      font-weight: 800;
-      letter-spacing: 0.16em;
-    }
 
     @keyframes koc-live-blink {
       0%,

@@ -65,6 +65,12 @@ describe('OverlayKocStandingsComponent', () => {
     expect((host.textContent ?? '').trim()).toBe('');
   });
 
+  it('leva a marca da nexaGO no canto', async () => {
+    const fixture = await render();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('og-overlay-mark')).not.toBeNull();
+  });
+
   it('mostra cabeçalho, colocação, dupla e pontos', async () => {
     const fixture = await render();
     const text = ((fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');

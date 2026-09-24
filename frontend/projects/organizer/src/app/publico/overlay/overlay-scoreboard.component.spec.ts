@@ -43,6 +43,12 @@ describe('OverlayScoreboardComponent', () => {
     expect((host.textContent ?? '').trim()).toBe('');
   });
 
+  it('leva a marca da nexaGO no canto', async () => {
+    const fixture = await render({ view: duel() });
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('og-overlay-mark')).not.toBeNull();
+  });
+
   it('mostra nomes resolvidos, sets e pontos do duelo ao vivo', async () => {
     const fixture = await render({
       view: duel(),

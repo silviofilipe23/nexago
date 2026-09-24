@@ -59,6 +59,12 @@ describe('OverlayKocPreRoundComponent', () => {
     expect((h.textContent ?? '').trim()).toBe('');
   });
 
+  it('leva a marca da nexaGO no canto', async () => {
+    const fixture = await render();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('og-overlay-mark')).not.toBeNull();
+  });
+
   it('identifica quadra, categoria e rodada', async () => {
     const text = (host(await render()).textContent ?? '').replace(/\s+/g, ' ');
 

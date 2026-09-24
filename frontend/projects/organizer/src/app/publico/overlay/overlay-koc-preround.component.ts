@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { OverlayMarkComponent } from './overlay-mark.component';
 import { ledIniciaisDe } from '../led/led-iniciais';
 import type { OverlayKocTeam } from './overlay-koc-bar.component';
 import type { KocPreRound, PreRoundRow } from './overlay-koc-preround';
@@ -18,6 +19,7 @@ const PAPEL: Record<PreRoundRow['papel'], string> = {
 @Component({
   selector: 'og-overlay-koc-preround',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OverlayMarkComponent],
   template: `
     @if (preRound(); as pre) {
       <div class="card" [attr.data-pos]="corner()">
@@ -55,6 +57,7 @@ const PAPEL: Record<PreRoundRow['papel'], string> = {
           No trono: <strong>{{ nomesDe(pre.tronoTeamId).join(' · ') }}</strong>
         </footer>
       </div>
+      <og-overlay-mark [corner]="marcaCorner()" />
     }
   `,
   styles: `
@@ -239,4 +242,10 @@ export class OverlayKocPreRoundComponent {
   protected papelDe(row: PreRoundRow): string {
     return PAPEL[row.papel];
   }
+
+  /** A marca vive no canto direito; sobe pro topo quando o próprio conteúdo ocupa o inferior
+   *  direito, senão uma taparia a outra. */
+  protected readonly marcaCorner = computed<'tr' | 'br'>(() =>
+    this.corner() === 'br' ? 'tr' : 'br',
+  );
 }

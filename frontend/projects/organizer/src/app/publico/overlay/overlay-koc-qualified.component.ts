@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
+import { OverlayMarkComponent } from './overlay-mark.component';
 import type { OverlayKocTeam } from './overlay-koc-bar.component';
 import type { KocQualifiedBoard, KocQualifiedEntry } from './overlay-koc-qualified';
 
@@ -17,6 +18,7 @@ const NOVA_MS = 12_000;
 @Component({
   selector: 'og-overlay-koc-qualified',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OverlayMarkComponent],
   template: `
     @if (visible() && board(); as b) {
       <div class="card" [class.card--out]="saindo()">
@@ -73,6 +75,7 @@ const NOVA_MS = 12_000;
           }
         </footer>
       </div>
+      <og-overlay-mark />
     }
   `,
   styles: `

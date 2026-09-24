@@ -8,7 +8,9 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/fade_slide_in.dart';
 
+import '../../domain/arena_access_providers.dart';
 import '../../domain/arena_providers.dart';
+import '../../domain/arena_staff_role.dart';
 import '../../domain/products/arena_product.dart';
 import '../../domain/products/arena_product_logic.dart';
 import '../../domain/products/arena_product_providers.dart';
@@ -70,6 +72,7 @@ class _StockBody extends ConsumerWidget {
     final summary = ref.watch(arenaProductSummaryProvider(arenaId));
     final alerts = ref.watch(arenaStockAlertsProvider(arenaId));
     final turnoverAsync = ref.watch(arenaStockTurnover7dProvider(arenaId));
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.estoque));
 
     return CustomScrollView(
       slivers: [
@@ -129,7 +132,9 @@ class _StockBody extends ConsumerWidget {
               separatorBuilder: (_, __) => const SizedBox(height: 10),
               itemBuilder: (context, index) => _AlertRow(
                 product: alerts.out[index],
-                onRestock: () => _openRestock(context, alerts.out[index].id),
+                onRestock: !canWrite
+                    ? null
+                    : () => _openRestock(context, alerts.out[index].id),
               ),
             ),
           ),
@@ -160,7 +165,9 @@ class _StockBody extends ConsumerWidget {
               separatorBuilder: (_, __) => const SizedBox(height: 10),
               itemBuilder: (context, index) => _AlertRow(
                 product: alerts.low[index],
-                onRestock: () => _openRestock(context, alerts.low[index].id),
+                onRestock: !canWrite
+                    ? null
+                    : () => _openRestock(context, alerts.low[index].id),
               ),
             ),
           ),
@@ -434,7 +441,7 @@ class _AlertRow extends StatelessWidget {
   });
 
   final ArenaProduct product;
-  final VoidCallback onRestock;
+  final VoidCallback? onRestock;
 
   @override
   Widget build(BuildContext context) {
@@ -504,51 +511,53 @@ class _AlertRow extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            if (isOut)
-              FilledButton(
-                onPressed: onRestock,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.brand,
-                  foregroundColor: AppColors.black,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 12,
-                  ),
-                  minimumSize: const Size(0, 44),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text(
-                  'Repor',
-                  style: TextStyle(fontWeight: FontWeight.w800),
-                ),
-              )
-            else
-              OutlinedButton(
-                onPressed: onRestock,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: context.themeColors.onSurface,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 12,
-                  ),
-                  minimumSize: const Size(0, 44),
-                  side: BorderSide(
-                    color: context.themeColors.onSurfaceMuted.withValues(
-                      alpha: 0.35,
+            if (onRestock != null) ...[
+              const SizedBox(width: 8),
+              if (isOut)
+                FilledButton(
+                  onPressed: onRestock,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: AppColors.black,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 12,
+                    ),
+                    minimumSize: const Size(0, 44),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                  child: const Text(
+                    'Repor',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                )
+              else
+                OutlinedButton(
+                  onPressed: onRestock,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: context.themeColors.onSurface,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 12,
+                    ),
+                    minimumSize: const Size(0, 44),
+                    side: BorderSide(
+                      color: context.themeColors.onSurfaceMuted.withValues(
+                        alpha: 0.35,
+                      ),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Repor',
+                    style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
-                child: const Text(
-                  'Repor',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
+            ],
           ],
         ),
       ),

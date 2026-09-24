@@ -9,10 +9,12 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 import 'package:nexago_app/core/ui/fade_slide_in.dart';
 
+import '../../domain/arena_access_providers.dart';
 import '../../domain/arena_plan.dart';
 import '../../domain/arena_plan_providers.dart';
 import '../../domain/arena_schedule_providers.dart';
 import '../../domain/arena_shell_providers.dart';
+import '../../domain/arena_staff_role.dart';
 import '../../domain/comandas/arena_comanda_providers.dart';
 import '../plan/widgets/arena_plan_gate.dart';
 import '../widgets/arena_async_state.dart';
@@ -77,6 +79,7 @@ class _ComandasBody extends ConsumerWidget {
     final comandasAsync = ref.watch(arenaComandasStreamProvider(arenaId));
     final filtered = ref.watch(arenaComandasFilteredProvider(arenaId));
     final kpis = ref.watch(arenaComandasKpisProvider(arenaId));
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.comandas));
 
     return comandasAsync.when(
       data: (allComandas) {
@@ -93,25 +96,26 @@ class _ComandasBody extends ConsumerWidget {
           ),
           header: _ComandasHeader(
             arenaName: arenaName,
-            onNewComanda: () {
-              if (!entitled) {
-                showArenaPlanUpsellSheet(
-                  context,
-                  capability: ArenaCapability.pdvComandas,
-                );
-                return;
-              }
-              ref.read(arenaComandaDraftProvider.notifier).reset();
-              context.pushNamed(AppRouteNames.arenaComandaNewType);
-            },
+            onNewComanda: !canWrite
+                ? null
+                : () {
+                    if (!entitled) {
+                      showArenaPlanUpsellSheet(
+                        context,
+                        capability: ArenaCapability.pdvComandas,
+                      );
+                      return;
+                    }
+                    ref.read(arenaComandaDraftProvider.notifier).reset();
+                    context.pushNamed(AppRouteNames.arenaComandaNewType);
+                  },
             onSearch: () {
               showAppSnackBar(context, 'Busca em breve.');
             },
           ),
           child: CustomScrollView(
-            controller: ref
-                .watch(arenaShellScrollRegistryProvider)
-                .controllerFor(2),
+            controller:
+                ref.watch(arenaShellScrollRegistryProvider).controllerFor(2),
             key: const PageStorageKey<String>('arena-comandas-scroll'),
             slivers: [
               if (!entitled)
@@ -205,7 +209,7 @@ class _ComandasHeader extends StatelessWidget {
   });
 
   final String? arenaName;
-  final VoidCallback onNewComanda;
+  final VoidCallback? onNewComanda;
   final VoidCallback onSearch;
 
   @override
@@ -245,40 +249,42 @@ class _ComandasHeader extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(width: 8),
-        Material(
-          color: AppColors.brand,
-          borderRadius: BorderRadius.circular(12),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onNewComanda,
+        if (onNewComanda != null) ...[
+          const SizedBox(width: 8),
+          Material(
+            color: AppColors.brand,
             borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: SizedBox(
-                height: 44,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.add_rounded,
-                      color: AppColors.black,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Nova',
-                      style: theme.textTheme.labelLarge?.copyWith(
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onNewComanda,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: SizedBox(
+                  height: 44,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.add_rounded,
                         color: AppColors.black,
-                        fontWeight: FontWeight.w800,
+                        size: 20,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 4),
+                      Text(
+                        'Nova',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: AppColors.black,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
+        ],
         const SizedBox(width: 8),
         Material(
           color: context.themeColors.surfaceRaised,

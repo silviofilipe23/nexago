@@ -12,7 +12,9 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 import 'package:nexago_app/core/ui/fade_slide_in.dart';
 
+import '../../domain/arena_access_providers.dart';
 import '../../domain/arena_providers.dart';
+import '../../domain/arena_staff_role.dart';
 import '../../domain/products/arena_product.dart';
 import '../../domain/products/arena_product_category.dart';
 import '../../domain/products/arena_product_providers.dart';
@@ -183,14 +185,17 @@ class _ArenaProductFormPageState extends ConsumerState<ArenaProductFormPage> {
     }
   }
 
-  Future<void> _confirmDeleteProduct(String arenaId, ArenaProduct product) async {
+  Future<void> _confirmDeleteProduct(
+      String arenaId, ArenaProduct product) async {
     final action = await ArenaProductDeleteSheet.show(
       context,
       arenaId: arenaId,
       product: product,
     );
 
-    if (!mounted || action == null || action == ArenaProductDeleteSheetResult.cancel) {
+    if (!mounted ||
+        action == null ||
+        action == ArenaProductDeleteSheetResult.cancel) {
       return;
     }
 
@@ -228,6 +233,7 @@ class _ArenaProductFormPageState extends ConsumerState<ArenaProductFormPage> {
   Widget build(BuildContext context) {
     final managed = ref.watch(managedArenaIdProvider);
     final arenaId = managed.valueOrNull;
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.estoque));
 
     if (widget.isEditing && arenaId != null) {
       ref.listen(
@@ -248,6 +254,19 @@ class _ArenaProductFormPageState extends ConsumerState<ArenaProductFormPage> {
                 return const ArenaEmptyState(
                   title: 'Arena não encontrada',
                   message: 'Nenhuma arena vinculada.',
+                  icon: Icons.inventory_2_outlined,
+                );
+              }
+              // Tela só existe para gravar (criar/editar produto, e o botão
+              // de excluir vive dentro dela) — reachable direto por rota
+              // (`/arena/products/new` e `/arena/products/:id/edit`) mesmo
+              // com o atalho da listagem já escondido. Bloqueio de tela
+              // inteira, mesmo idioma que a própria tela já usa para "Arena
+              // não encontrada"/"Produto não encontrado".
+              if (!canWrite) {
+                return const ArenaEmptyState(
+                  title: 'Sem permissão',
+                  message: 'Seu cargo não pode criar nem editar produtos.',
                   icon: Icons.inventory_2_outlined,
                 );
               }
@@ -431,11 +450,11 @@ class _ArenaProductFormPageState extends ConsumerState<ArenaProductFormPage> {
   }
 
   TextStyle _textFieldStyle(BuildContext context) => TextStyle(
-    color: context.themeColors.onSurface,
-    fontSize: 16,
-    fontWeight: FontWeight.w500,
-    height: 1.2,
-  );
+        color: context.themeColors.onSurface,
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+        height: 1.2,
+      );
 
   InputDecoration _inputDecoration(
     BuildContext context, {

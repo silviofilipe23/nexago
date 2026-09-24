@@ -5,6 +5,8 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
+import '../../../domain/arena_access_providers.dart';
+import '../../../domain/arena_staff_role.dart';
 import '../../../domain/comandas/arena_comanda.dart';
 import '../../../domain/comandas/arena_comanda_item.dart';
 import '../../../domain/comandas/arena_comanda_logic.dart';
@@ -29,9 +31,6 @@ class ArenaComandaItemsSection extends ConsumerStatefulWidget {
 class _ArenaComandaItemsSectionState
     extends ConsumerState<ArenaComandaItemsSection> {
   final _reversingIds = <String>{};
-
-  bool get _canReverseAny =>
-      widget.items.any((item) => canReverseComandaItem(widget.comanda, item));
 
   Future<bool> _confirmReverse(ArenaComandaItem item) async {
     final blockReason = comandaItemReverseBlockReason(widget.comanda, item);
@@ -97,6 +96,9 @@ class _ArenaComandaItemsSectionState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final launchCount = widget.items.length;
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.comandas));
+    final canReverseAny = canWrite &&
+        widget.items.any((item) => canReverseComandaItem(widget.comanda, item));
 
     return Container(
       decoration: ArenaDashboardTokens.cardDecoration(context),
@@ -143,12 +145,13 @@ class _ArenaComandaItemsSectionState
               (item) => _ComandaItemTile(
                 item: item,
                 showDivider: item != widget.items.last,
-                canReverse: canReverseComandaItem(widget.comanda, item),
+                canReverse:
+                    canWrite && canReverseComandaItem(widget.comanda, item),
                 isReversing: _reversingIds.contains(item.id),
                 onConfirmReverse: () => _confirmReverse(item),
               ),
             ),
-          if (widget.items.isNotEmpty && _canReverseAny)
+          if (widget.items.isNotEmpty && canReverseAny)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
               child: Text(

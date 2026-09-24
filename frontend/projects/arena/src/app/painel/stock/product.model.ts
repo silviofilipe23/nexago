@@ -23,6 +23,10 @@ export interface ArenaProduct {
   category: ArenaProductCategory;
   active: boolean;
   priceCents: number;
+  /** Preço de custo por unidade. Mora em `arenas/{arenaId}/productCosts/{productId}`,
+   *  fora do doc do produto — o catálogo é legível por qualquer usuário logado.
+   *  `undefined` = custo não informado (não é zero). */
+  costCents?: number;
   stockQuantity: number;
   minStockQuantity: number;
   description?: string;
@@ -76,6 +80,10 @@ export interface ArenaProductSummary {
   lowCount: number;
   outCount: number;
   inventoryValueCents: number;
+  /** Custo imobilizado: só soma produtos com custo informado. */
+  inventoryCostCents: number;
+  /** Lucro se todo o estoque com custo informado for vendido a preço cheio. */
+  potentialProfitCents: number;
 }
 
 export function buildProductSummary(products: readonly ArenaProduct[]): ArenaProductSummary {
@@ -83,17 +91,41 @@ export function buildProductSummary(products: readonly ArenaProduct[]): ArenaPro
   let lowCount = 0;
   let outCount = 0;
   let inventoryValueCents = 0;
+  let inventoryCostCents = 0;
+  let potentialProfitCents = 0;
 
   for (const product of products) {
     if (!product.active) continue;
     activeCount++;
     inventoryValueCents += product.priceCents * product.stockQuantity;
+    if (product.costCents != null) {
+      inventoryCostCents += product.costCents * product.stockQuantity;
+      potentialProfitCents += (product.priceCents - product.costCents) * product.stockQuantity;
+    }
     const status = productStockStatus(product);
     if (status === 'out') outCount++;
     else if (status === 'low') lowCount++;
   }
 
-  return { activeCount, lowCount, outCount, inventoryValueCents };
+  return { activeCount, lowCount, outCount, inventoryValueCents, inventoryCostCents, potentialProfitCents };
+}
+
+/** Margem sobre a venda: (venda − custo) ÷ venda. `null` quando o custo não foi
+ *  informado ou não há preço de venda — nesses casos a tela mostra "—", não 0%. */
+export function productMarginRatio(costCents: number | undefined, priceCents: number): number | null {
+  if (costCents == null || priceCents <= 0) return null;
+  return (priceCents - costCents) / priceCents;
+}
+
+/** Lucro por unidade vendida; negativo quando o custo passa do preço de venda. */
+export function productUnitProfitCents(costCents: number | undefined, priceCents: number): number | null {
+  if (costCents == null) return null;
+  return priceCents - costCents;
+}
+
+export function formatMarginPercent(ratio: number | null): string {
+  if (ratio == null) return '—';
+  return `${Math.round(ratio * 100)}%`;
 }
 
 /** purchase=+qty · loss/sale=-qty · adjustment=delta cru (pode zerar/reverter). */
@@ -137,6 +169,11 @@ export function parseBRLInputToCents(value: string): number {
   const n = Number(cleaned);
   if (!Number.isFinite(n) || n < 0) return 0;
   return Math.round(n * 100);
+}
+
+/** Campo opcional de dinheiro: vazio = não informado (`null`), "0,00" = zero informado. */
+export function parseOptionalBRLInputToCents(value: string): number | null {
+  return value.trim() === '' ? null : parseBRLInputToCents(value);
 }
 
 export function formatCentsInputValue(cents: number): string {

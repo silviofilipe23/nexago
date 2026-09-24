@@ -16,10 +16,14 @@ import {
   ARENA_PRODUCT_STOCK_STATUS_LABEL,
   formatCentsBRL,
   formatCentsInputValue,
+  formatMarginPercent,
   formatMovementDate,
   formatSignedQuantityDelta,
   movementHistoryTitle,
   parseBRLInputToCents,
+  parseOptionalBRLInputToCents,
+  productMarginRatio,
+  productUnitProfitCents,
   productStockBarFillRatio,
   productStockStatus,
   type ArenaProduct,
@@ -27,14 +31,22 @@ import {
   type ArenaProductStockStatus,
   type ArenaStockMovement,
 } from './product.model';
-import { deactivateProduct, deleteProduct, fetchMovements, fetchProduct, registerStockMovement, updateProduct } from './products-repository';
+import {
+  deactivateProduct,
+  deleteProduct,
+  fetchMovements,
+  fetchProductWithCost,
+  registerStockMovement,
+  updateProduct,
+} from './products-repository';
 import { StockAdjustDialogComponent, type StockAdjustResult } from './stock-adjust-dialog.component';
 
 const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', low: 'yellow', out: 'red' };
 
 /** Tela Detalhe do produto: edição real, histórico de movimentações e desativar/excluir,
  *  conectada a `arenas/{arenaId}/products/{id}` e `arenas/{arenaId}/stockMovements`.
- *  Sem custo/margem (não existe no schema) e sem o fluxo de "desfazer exclusão" com timer do
+ *  O custo vem de `arenas/{arenaId}/productCosts/{id}` (coleção separada porque o catálogo
+ *  é legível por qualquer usuário logado). Sem o fluxo de "desfazer exclusão" com timer do
  *  app Flutter — aqui desativar/excluir é direto, com confirmação. */
 @Component({
   selector: 'ar-panel-stock-detail',
@@ -88,12 +100,31 @@ const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', lo
 
               <div class="row-2 row-gap">
                 <div>
+                  <div class="field-label">Preço de custo (opcional)</div>
+                  <div class="price-box">
+                    <span>R$</span>
+                    <input
+                      type="text"
+                      inputmode="decimal"
+                      placeholder="0,00"
+                      [value]="costValue()"
+                      (input)="costValue.set($any($event.target).value)"
+                      [disabled]="readOnly()"
+                    />
+                  </div>
+                </div>
+                <div>
                   <div class="field-label">Preço de venda</div>
                   <div class="price-box">
                     <span>R$</span>
                     <input type="text" inputmode="decimal" [value]="priceValue()" (input)="priceValue.set($any($event.target).value)" [disabled]="readOnly()" />
                   </div>
                 </div>
+              </div>
+
+              <div class="margin-hint" [class.negative]="marginIsNegative()">{{ marginHint() }}</div>
+
+              <div class="row-2 row-gap">
                 <div>
                   <div class="field-label">Estoque mínimo</div>
                   <input
@@ -145,6 +176,18 @@ const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', lo
                 <span>Valor de venda total</span>
                 <span class="value">{{ formatBRL(p.priceCents * p.stockQuantity) }}</span>
               </div>
+              @if (hasCost()) {
+                <div class="imobilizado-row">
+                  <span>Custo imobilizado</span>
+                  <span class="value">{{ formatBRL(inventoryCostCents()) }}</span>
+                </div>
+                <div class="imobilizado-row">
+                  <span>Lucro potencial</span>
+                  <span class="value" [class.negative]="marginIsNegative()">{{ formatBRL(inventoryProfitCents()) }}</span>
+                </div>
+              } @else {
+                <p class="cost-hint">Informe o preço de custo para ver custo imobilizado e lucro potencial.</p>
+              }
             </ar-panel-card>
 
             <button type="button" class="ar-mini-btn adjust-btn" [disabled]="readOnly()" (click)="showAdjust.set(true)">
@@ -439,6 +482,26 @@ const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', lo
       color: var(--nx-text);
     }
 
+    .imobilizado-row .value.negative {
+      color: var(--nx-live);
+    }
+
+    .cost-hint {
+      margin: 6px 0 0;
+      font-size: 12.5px;
+      color: var(--nx-text-mute);
+    }
+
+    .margin-hint {
+      margin-top: 12px;
+      font-size: 12.5px;
+      color: var(--nx-text-mute);
+    }
+
+    .margin-hint.negative {
+      color: var(--nx-live);
+    }
+
     .adjust-btn {
       width: 100%;
       justify-content: center;
@@ -549,6 +612,11 @@ export class PanelStockDetailComponent {
   protected readonly category = linkedSignal<ArenaProductCategory>(() => this.product()?.category ?? 'bebidas');
   protected readonly emoji = linkedSignal(() => this.product()?.emoji ?? '');
   protected readonly priceValue = linkedSignal(() => formatCentsInputValue(this.product()?.priceCents ?? 0));
+  /** Vazio = custo não informado (diferente de R$ 0,00). */
+  protected readonly costValue = linkedSignal(() => {
+    const costCents = this.product()?.costCents;
+    return costCents == null ? '' : formatCentsInputValue(costCents);
+  });
   protected readonly minStock = linkedSignal(() => this.product()?.minStockQuantity ?? 0);
 
   protected readonly movementsKicker = computed(() => `${this.movements().length} lançamentos recentes`);
@@ -559,6 +627,27 @@ export class PanelStockDetailComponent {
   protected readonly stockPercent = computed(() => {
     const p = this.product();
     return p ? Math.round(productStockBarFillRatio(p) * 100) : 0;
+  });
+
+  private readonly costCents = computed(() => parseOptionalBRLInputToCents(this.costValue()));
+  private readonly marginRatio = computed(() =>
+    productMarginRatio(this.costCents() ?? undefined, parseBRLInputToCents(this.priceValue())),
+  );
+
+  protected readonly hasCost = computed(() => this.costCents() !== null);
+  protected readonly marginIsNegative = computed(() => (this.marginRatio() ?? 0) < 0);
+
+  protected readonly marginHint = computed(() => {
+    const ratio = this.marginRatio();
+    if (ratio === null) return 'Informe o custo para ver a margem de lucro.';
+    const profit = productUnitProfitCents(this.costCents() ?? undefined, parseBRLInputToCents(this.priceValue())) ?? 0;
+    return `Margem de ${formatMarginPercent(ratio)} · ${formatCentsBRL(profit)} por unidade vendida`;
+  });
+
+  protected readonly inventoryCostCents = computed(() => (this.costCents() ?? 0) * (this.product()?.stockQuantity ?? 0));
+  protected readonly inventoryProfitCents = computed(() => {
+    const profit = productUnitProfitCents(this.costCents() ?? undefined, parseBRLInputToCents(this.priceValue()));
+    return (profit ?? 0) * (this.product()?.stockQuantity ?? 0);
   });
 
   constructor() {
@@ -575,7 +664,7 @@ export class PanelStockDetailComponent {
     this.loadError.set(null);
     try {
       const [product, movements] = await Promise.all([
-        fetchProduct(arenaFirestore(), arenaId, productId),
+        fetchProductWithCost(arenaFirestore(), arenaId, productId),
         fetchMovements(arenaFirestore(), arenaId, productId),
       ]);
       this.product.set(product);
@@ -605,6 +694,7 @@ export class PanelStockDetailComponent {
         category: this.category(),
         active: p.active,
         priceCents: parseBRLInputToCents(this.priceValue()),
+        costCents: this.costCents(),
         stockQuantity: p.stockQuantity,
         minStockQuantity: Math.max(0, Math.round(this.minStock())),
         emoji: this.emoji().trim() || undefined,

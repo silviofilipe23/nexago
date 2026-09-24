@@ -408,6 +408,20 @@ export function kocCategoriesWithPlan(
 }
 
 /**
+ * Existe categoria com esse id no array `categories`?
+ *
+ * Extraída para o teste alcançar a MESMA checagem que `saveKocPhasePlan` usa para decidir entre
+ * gravar e recusar — sem precisar de Firestore. Mesma convenção de leitura de `id` que
+ * `kocCategoriesWithPlan` usa (nunca o fallback para `categoryId` que a LEITURA tem em
+ * `categoryFromRaw`; escrita sempre grava `id`, ver `tournament-create-mapper.ts`).
+ */
+export function kocCategoryExists(categories: readonly unknown[], categoryId: string): boolean {
+  return categories.some(
+    (c) => c != null && typeof c === 'object' && String((c as Record<string, unknown>)['id'] ?? '') === categoryId,
+  );
+}
+
+/**
  * Grava o plano de fases KOTC na categoria.
  *
  * Precisa estar no doc da categoria — e não só no payload da geração — porque o SORTEIO AO VIVO
@@ -418,6 +432,12 @@ export function kocCategoriesWithPlan(
  * editando categorias DIFERENTES ao mesmo tempo é rotina neste produto — sem transação, a
  * segunda escrita levaria o array que já estava em memória antes da primeira e apagaria a
  * categoria inteira que a primeira acabou de gravar, não só os campos de KOTC dela.
+ *
+ * `categoryId` que não existe no torneio RECUSA em vez de voltar quieta (fix round 2/5): um write
+ * que não escreve e não avisa é a mesma forma de bug que `resolveKocConfig` teve — a geração
+ * ainda funcionaria com o plano do payload em memória, nada pareceria errado no ato, e só o
+ * SORTEIO AO VIVO de um dia futuro cairia nas regras antigas por a categoria nunca ter recebido
+ * o plano.
  */
 export async function saveKocPhasePlan(
   tournamentId: string,
@@ -431,10 +451,9 @@ export async function saveKocPhasePlan(
     const snap = await tx.get(ref);
     const raw = snap.data() ?? {};
     const categories = Array.isArray(raw['categories']) ? (raw['categories'] as unknown[]) : [];
-    const exists = categories.some(
-      (c) => c != null && typeof c === 'object' && String((c as Record<string, unknown>)['id'] ?? '') === categoryId,
-    );
-    if (!exists) return;
+    if (!kocCategoryExists(categories, categoryId)) {
+      throw new Error(`Categoria "${categoryId}" não encontrada no torneio "${tournamentId}".`);
+    }
     tx.update(ref, { categories: kocCategoriesWithPlan(categories, categoryId, plan, maxTeamsPerRound) });
   });
 }

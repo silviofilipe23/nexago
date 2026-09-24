@@ -1,5 +1,5 @@
 import type { KocPhaseSpec } from './koc-phase-plan';
-import { kocCategoriesWithPlan } from './tournaments-repository';
+import { kocCategoriesWithPlan, kocCategoryExists } from './tournaments-repository';
 
 /**
  * `kocCategoriesWithPlan` é a cirurgia pura por trás de `saveKocPhasePlan`
@@ -59,5 +59,29 @@ describe('kocCategoriesWithPlan · cirurgia no array categories', () => {
     const savedPhases = result[0]!['kocPhases'] as KocPhaseSpec[];
     expect(savedPhases[0]!.bracketSizes).toEqual(PLAN[0]!.bracketSizes);
     expect(savedPhases[0]!.bracketSizes).not.toBe(PLAN[0]!.bracketSizes);
+  });
+});
+
+/**
+ * `kocCategoryExists` é a checagem real que `saveKocPhasePlan` usa (fix round 2/5) para decidir
+ * entre gravar e RECUSAR — `categoryId` desconhecido agora rejeita a promise em vez de voltar
+ * quieto (era o mesmo formato de bug que `resolveKocConfig`, no servidor, teve: um write que não
+ * escreve e não avisa vira uma regressão invisível que só aparece dias depois, numa tela
+ * diferente). `saveKocPhasePlan` em si continua fora de alcance do Karma (é transação de
+ * Firestore — este arquivo já explica por quê no topo), mas a decisão de recusar é esta função
+ * pura, e é ela que o teste alcança.
+ */
+describe('kocCategoryExists · a checagem que saveKocPhasePlan usa para recusar', () => {
+  it('categoria existe', () => {
+    expect(kocCategoryExists([{ id: 'cat-a' }, { id: 'cat-b' }], 'cat-b')).toBe(true);
+  });
+
+  it('categoryId desconhecido não existe — é o que faz saveKocPhasePlan rejeitar', () => {
+    expect(kocCategoryExists([{ id: 'cat-a' }, { id: 'cat-b' }], 'cat-z')).toBe(false);
+  });
+
+  it('array vazio ou só com lixo também não existe', () => {
+    expect(kocCategoryExists([], 'cat-a')).toBe(false);
+    expect(kocCategoryExists([null, 'lixo', 42], 'cat-a')).toBe(false);
   });
 });

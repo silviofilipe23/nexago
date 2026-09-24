@@ -235,3 +235,31 @@ describe("resolveKocConfig com plano", () => {
     assert.equal(cfg.phases, undefined);
   });
 });
+
+describe("kocRoundDoc · plano congelado não diverge do que gerou as rodadas (achado da Task 3)", () => {
+  it("uma resolução só alimenta o gerador (por opts.plan) E o doc — nunca duas", () => {
+    // Mesmo wiring de `runGenerateCategoryBracket`: config legada (sem
+    // `phases`), `teamsPerCourt: 3`, 19 duplas — a config exata do achado.
+    // Resolve UMA vez e entrega o MESMO plano ao gerador, por `opts.plan`
+    // (nunca por `config.phases` — reinjetar ali faria `buildKingOfCourtRounds`
+    // julgar de novo, via `assertPlan`, um plano que já é de confiança), e ao
+    // doc da rodada.
+    const config = resolveKocConfig({teamsPerCourt: 3, qualifiersPerRound: 2}, undefined);
+    const plan = kocResolvePlan(19, config);
+    const drafts = buildKingOfCourtRounds(
+      Array.from({length: 19}, (_, i) => `t${i + 1}`),
+      config,
+      {plan},
+    );
+    assert.ok(drafts.length > 0);
+    for (const draft of drafts) {
+      const doc = kocRoundDoc(draft, {
+        tournamentId: "T", categoryId: "C", config, plan,
+      }) as Record<string, any>;
+      // Mesmo array em TODA rodada — é o congelamento de uma resolução só. Um
+      // futuro refactor que volte a resolver duas vezes quebraria esta
+      // igualdade de referência antes de quebrar qualquer teste de valor.
+      assert.equal(doc.kocConfig.phases, plan);
+    }
+  });
+});

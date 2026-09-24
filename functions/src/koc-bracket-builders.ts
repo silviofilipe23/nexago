@@ -867,10 +867,20 @@ export function kocResolvePlan(teamCount: number, config: KocConfig): KocPhaseSp
 export function buildKingOfCourtRounds(
   seeds: string[],
   config: KocConfig,
-  opts?: {phaseOneRosters?: readonly (readonly string[])[]},
+  opts?: {
+    phaseOneRosters?: readonly (readonly string[])[];
+    /**
+     * Plano JÁ resolvido por `kocResolvePlan`. Entra por aqui em vez de por
+     * `config.phases` porque plano derivado internamente não deve passar de
+     * novo por `assertPlan`: a checagem de round-trip existe para plano vindo
+     * de FORA, e aplicá-la ao que o `kocLegacyPlan` acabou de produzir recusa
+     * config legada que sempre funcionou (`teamsPerCourt: 3` com 19 duplas).
+     */
+    plan?: KocPhaseSpec[];
+  },
 ): KocRoundDraft[] {
   const teamIds = seeds.map((id) => id.trim()).filter((id) => id.length > 0);
-  const phases = kocResolvePlan(teamIds.length, config);
+  const phases = opts?.plan ?? kocResolvePlan(teamIds.length, config);
   const totalPhases = phases.length;
   const drafts: KocRoundDraft[] = [];
   let matchNumber = 1;

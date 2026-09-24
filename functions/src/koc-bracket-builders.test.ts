@@ -1058,6 +1058,52 @@ describe("buildKingOfCourtRounds com plano explícito", () => {
   });
 });
 
+/**
+ * Achado durante a Task 3 (`organizer-category-ops.ts`): resolver o plano e
+ * devolvê-lo por `config.phases` faz `kocResolvePlan` julgar DE NOVO, via
+ * `assertPlan`, um plano que `kocLegacyPlan` só teria emitido direto. A
+ * checagem de round-trip existe para plano vindo de FORA (tela ou doc de
+ * categoria já publicado) — aplicá-la ao que o próprio `kocLegacyPlan` acabou
+ * de produzir recusava config legada que sempre funcionou
+ * (`teamsPerCourt: 3` com 19 duplas: fase 1 sai `[4,3,3,3,3,3]`, 6 chaves, mas
+ * o sorteio reconstruiria só 5 a partir do alvo 4).
+ *
+ * `opts.plan` é a porta que evita a segunda resolução: entra sem passar de
+ * novo por `assertPlan`.
+ */
+describe("buildKingOfCourtRounds · plano resolvido entra por opts.plan, não por config.phases", () => {
+  it("teamsPerCourt: 3 com 19 duplas — a config exata do achado da Task 3", () => {
+    const config: KocConfig = {teamsPerCourt: 3, qualifiersPerRound: 2, roundDurationSec: 900};
+    const direct = buildKingOfCourtRounds(seeds(19), config);
+    const plan = kocResolvePlan(19, config);
+    const wired = buildKingOfCourtRounds(seeds(19), config, {plan});
+    assert.deepEqual(wired, direct);
+  });
+
+  it("nunca recusa onde o caminho direto aceita — teamsPerCourt 3/4/5, 3 a 60 duplas", () => {
+    for (const teamsPerCourt of [3, 4, 5]) {
+      for (let n = 3; n <= 60; n++) {
+        const config: KocConfig = {teamsPerCourt, qualifiersPerRound: 2, roundDurationSec: 900};
+        let direct: KocRoundDraft[];
+        try {
+          direct = buildKingOfCourtRounds(seeds(n), config);
+        } catch {
+          // Config que o próprio plano legado recusa (campo não reduz, etc.)
+          // não é o que este teste cobre — o achado é só sobre o round-trip.
+          continue;
+        }
+        const plan = kocResolvePlan(n, config);
+        const wired = buildKingOfCourtRounds(seeds(n), config, {plan});
+        assert.deepEqual(
+          wired,
+          direct,
+          `teamsPerCourt=${teamsPerCourt}, n=${n}: opts.plan divergiu do caminho direto`,
+        );
+      }
+    }
+  });
+});
+
 describe("retrocompat: config sem plano gera o que sempre gerou", () => {
   it("o plano derivado e o explícito produzem a MESMA chave", () => {
     for (const [n, cfg] of [

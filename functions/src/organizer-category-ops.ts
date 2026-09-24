@@ -563,10 +563,18 @@ export async function runGenerateCategoryBracket(
       // é uma rodada da classificatória, já com o elenco que saiu na frente do
       // público. Sem ele, a semeadura em serpentina decide (fluxo da tela de
       // gerar chave).
-      kocRounds = buildKingOfCourtRounds(teamIds, {...kocConfig, phases: kocPlan}, {
+      //
+      // O plano entra por `opts.plan`, não por `{...kocConfig, phases: kocPlan}`:
+      // plano derivado internamente (config legada, sem `phases`) não pode
+      // passar de novo por `assertPlan` dentro de `buildKingOfCourtRounds` —
+      // a checagem de round-trip existe para plano vindo de FORA, e aplicá-la
+      // ao que acabou de sair do `kocLegacyPlan` recusava config legada que
+      // sempre funcionou (`teamsPerCourt: 3` com 19 duplas).
+      kocRounds = buildKingOfCourtRounds(teamIds, kocConfig, {
         ...(groupsPreview.length > 0 ?
           {phaseOneRosters: groupsPreview.map((g) => g.teamIds)} :
           {}),
+        plan: kocPlan,
       });
     } catch (e) {
       if (e instanceof KocBracketError) {

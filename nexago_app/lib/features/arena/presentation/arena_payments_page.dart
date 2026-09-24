@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../data/arena_wallet_repository.dart';
+import '../domain/arena_access_providers.dart';
 import '../domain/arena_financial_logic.dart';
 import '../domain/arena_providers.dart';
 import '../domain/arena_schedule_providers.dart';
@@ -98,7 +99,8 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
 
   void _withdrawAll(double availableReais) {
     if (availableReais <= 0) return;
-    _amountController.text = availableReais.toStringAsFixed(2).replaceAll('.', ',');
+    _amountController.text =
+        availableReais.toStringAsFixed(2).replaceAll('.', ',');
     setState(() {});
   }
 
@@ -151,14 +153,13 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
 
     setState(() => _submitting = true);
     try {
-      final result = await ref
-          .read(arenaWalletRepositoryProvider)
-          .requestWithdrawal(
-            arenaId: arenaId,
-            amountReais: amount,
-            pixKey: pixKey,
-            pixKeyType: _pixKeyType.asaasValue,
-          );
+      final result =
+          await ref.read(arenaWalletRepositoryProvider).requestWithdrawal(
+                arenaId: arenaId,
+                amountReais: amount,
+                pixKey: pixKey,
+                pixKeyType: _pixKeyType.asaasValue,
+              );
       if (!mounted) return;
       _amountController.clear();
       final snackMessage = _withdrawalResultMessage(result);
@@ -197,13 +198,13 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
   static const double _shellBottomNavHeight = 100;
 
   double _scrollBottomPadding(BuildContext context) {
-    return _shellBottomNavHeight +
-        MediaQuery.paddingOf(context).bottom +
-        24;
+    return _shellBottomNavHeight + MediaQuery.paddingOf(context).bottom + 24;
   }
 
   @override
   Widget build(BuildContext context) {
+    final isOwner =
+        ref.watch(arenaAccessProvider).valueOrNull?.isOwner ?? false;
     final arenaId = ref.watch(managedArenaIdProvider).valueOrNull;
     final arena = ref.watch(managedArenaDetailProvider).valueOrNull;
     final walletAsync = ref.watch(managedArenaWalletProvider);
@@ -254,10 +255,8 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
         withdrawalsAsync.isLoading;
     final viewportHeight = MediaQuery.sizeOf(context).height;
     final topInset = MediaQuery.paddingOf(context).top;
-    final minContentHeight = viewportHeight -
-        topInset -
-        _scrollBottomPadding(context) -
-        72;
+    final minContentHeight =
+        viewportHeight - topInset - _scrollBottomPadding(context) - 72;
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -300,7 +299,8 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
                           sliver: SliverToBoxAdapter(
                             child: ConstrainedBox(
                               constraints: BoxConstraints(
-                                minHeight: minContentHeight.clamp(0, double.infinity),
+                                minHeight:
+                                    minContentHeight.clamp(0, double.infinity),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -314,7 +314,8 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
                                         ),
                                       ),
                                     ),
-                                    error: (e, _) => AppInlineErrorView(error: e),
+                                    error: (e, _) =>
+                                        AppInlineErrorView(error: e),
                                     data: (wallet) => ArenaFinancialBalanceCard(
                                       wallet: wallet,
                                       period: _period,
@@ -323,29 +324,31 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
                                           setState(() => _period = p),
                                     ),
                                   ),
-                                  const SizedBox(height: 24),
-                                  ArenaFinancialWithdrawSection(
-                                    amountController: _amountController,
-                                    pixKey: _pixKey,
-                                    amountError: amountError,
-                                    canSubmit: canSubmit,
-                                    submitting: _submitting,
-                                    onWithdrawAll: () =>
-                                        _withdrawAll(availableReais),
-                                    onEditPix: _editPixKey,
-                                    onSubmit: () => _requestWithdrawal(
-                                      arenaId,
-                                      availableReais,
+                                  if (isOwner) ...[
+                                    const SizedBox(height: 24),
+                                    ArenaFinancialWithdrawSection(
+                                      amountController: _amountController,
+                                      pixKey: _pixKey,
+                                      amountError: amountError,
+                                      canSubmit: canSubmit,
+                                      submitting: _submitting,
+                                      onWithdrawAll: () =>
+                                          _withdrawAll(availableReais),
+                                      onEditPix: _editPixKey,
+                                      onSubmit: () => _requestWithdrawal(
+                                        arenaId,
+                                        availableReais,
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                   const SizedBox(height: 28),
                                   if (ledgerAsync.hasError ||
                                       withdrawalsAsync.hasError)
                                     Text(
                                       'Erro ao carregar histórico.',
                                       style: TextStyle(
-                                        color: context
-                                            .themeColors.onSurfaceMuted,
+                                        color:
+                                            context.themeColors.onSurfaceMuted,
                                       ),
                                     )
                                   else

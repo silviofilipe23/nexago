@@ -50,6 +50,23 @@ export const routes: Routes = [
       import('./publico/sorteio-telao-page.component').then((m) => m.SorteioTelaoPageComponent),
   },
   {
+    // Painel de LED da quadra — PÚBLICO, sem guard, como o overlay e o sorteio. Segue a QUADRA
+    // (não uma partida fixa) pra emendar a rodada seguinte sozinho. Tela opaca: painel de LED
+    // não compõe sobre câmera.
+    path: 'led/:tournamentId/quadra/:courtId',
+    title: 'Painel da quadra — NexaGO',
+    loadComponent: () => import('./publico/led/led-page.component').then((m) => m.LedPageComponent),
+  },
+  {
+    // Overlay por QUADRA: segue o que está na quadra e emenda a rodada seguinte sozinho, em vez
+    // de alguém trocar o id da partida na URL no meio da transmissão. A rota por partida abaixo
+    // continua valendo pra quem já configurou.
+    path: 'overlay/:tournamentId/quadra/:courtId',
+    title: 'Placar ao vivo — NexaGO',
+    loadComponent: () =>
+      import('./publico/overlay/overlay-page.component').then((m) => m.OverlayPageComponent),
+  },
+  {
     // Overlay de placar pra transmissão — PÚBLICO, sem guard nenhum. É o Browser Source que o
     // OBS carrega, e um Browser Source não tem como fazer login. Lê só coleções com
     // `read: if true` (matches/teams/public_profiles/tournaments), as mesmas de `/t/:id`.

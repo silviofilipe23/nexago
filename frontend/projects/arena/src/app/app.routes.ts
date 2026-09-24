@@ -354,6 +354,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'painel/perfil/cadastro',
+    title: 'Dados cadastrais — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('perfil')],
+    loadComponent: () =>
+      import('./painel/registration/panel-registration.component').then(
+        (m) => m.PanelRegistrationComponent,
+      ),
+  },
+  {
     path: 'painel/perfil/contatos',
     title: 'Contatos da arena — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('perfil')],

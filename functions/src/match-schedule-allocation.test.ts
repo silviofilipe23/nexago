@@ -238,3 +238,135 @@ describe("allocateCourtSlots · rodadas King of the Court", () => {
     }
   });
 });
+
+describe("allocateCourtSlots · dependência entre rodadas KOTC", () => {
+  const dayStart = new Date("2026-10-24T09:00:00-03:00");
+
+  /** Rodada com elenco fechado (a 1ª da chave). */
+  function firstRound(id: string, matchNumber: number, teamIds: string[]) {
+    return fakeDoc(id, {
+      matchNumber,
+      matchType: "koc_round",
+      teamAId: "",
+      teamBId: "",
+      kocTeamIds: teamIds,
+      kocConfig: {durationSec: 900},
+    });
+  }
+
+  /** Rodada que herda de outra: SEM elenco, só com as vagas. */
+  function derivedRound(
+    id: string,
+    matchNumber: number,
+    from: number[],
+    matchType = "koc_round",
+  ) {
+    return fakeDoc(id, {
+      matchNumber,
+      matchType,
+      teamAId: "",
+      teamBId: "",
+      kocTeamIds: [],
+      kocQualifiers: from.map((fromMatchNumber) => ({fromMatchNumber, place: 2})),
+      kocConfig: {durationSec: 900},
+    });
+  }
+
+  it("a 2ª rodada da chave começa depois que a 1ª termina", () => {
+    // Com 4 quadras livres o alocador guloso punha as duas às 09:00 em quadras
+    // diferentes: a 2ª não tem `kocTeamIds`, então não havia conflito de
+    // atleta para empurrá-la — e são as MESMAS duplas.
+    const slots = allocateCourtSlots({
+      courts: [{id: "c1"}, {id: "c2"}, {id: "c3"}, {id: "c4"}],
+      unscheduled: [
+        firstRound("r1", 1, ["t1", "t2", "t3", "t4"]),
+        derivedRound("r2", 2, [1]),
+      ],
+      courtBusyUntil: {c1: dayStart, c2: dayStart, c3: dayStart, c4: dayStart},
+      teamBusyUntil: {},
+      durationMin: 30,
+      minRestMin: 30,
+      avoidAthleteConflict: true,
+      dayStart,
+    });
+    assert.ok(
+      slots[1]!.start >= slots[0]!.end,
+      `2ª rodada em ${slots[1]!.start.toISOString()}, 1ª termina ${slots[0]!.end.toISOString()}`,
+    );
+  });
+
+  it("a chave fica na MESMA quadra: o grupo não sai da areia entre as rodadas", () => {
+    const slots = allocateCourtSlots({
+      courts: [{id: "c1"}, {id: "c2"}, {id: "c3"}, {id: "c4"}],
+      unscheduled: [
+        firstRound("r1", 1, ["t1", "t2", "t3", "t4"]),
+        derivedRound("r2", 2, [1]),
+        firstRound("r3", 3, ["t5", "t6", "t7", "t8"]),
+        derivedRound("r4", 4, [3]),
+      ],
+      courtBusyUntil: {c1: dayStart, c2: dayStart, c3: dayStart, c4: dayStart},
+      teamBusyUntil: {},
+      durationMin: 30,
+      minRestMin: 30,
+      avoidAthleteConflict: true,
+      dayStart,
+    });
+    assert.equal(slots[1]!.courtId, slots[0]!.courtId, "chave 1");
+    assert.equal(slots[3]!.courtId, slots[2]!.courtId, "chave 2");
+    assert.notEqual(slots[2]!.courtId, slots[0]!.courtId, "chaves diferentes em paralelo");
+  });
+
+  it("espera TODAS as fontes, não só a primeira", () => {
+    // A final depende das duas semis; antes era alocada junto com elas.
+    const slots = allocateCourtSlots({
+      courts: [{id: "c1"}, {id: "c2"}, {id: "c3"}],
+      unscheduled: [
+        firstRound("s1", 1, ["t1", "t2", "t3", "t4"]),
+        firstRound("s2", 2, ["t5", "t6", "t7", "t8"]),
+        derivedRound("f", 3, [1, 2], "koc_final"),
+      ],
+      courtBusyUntil: {c1: dayStart, c2: dayStart, c3: dayStart},
+      teamBusyUntil: {},
+      durationMin: 30,
+      minRestMin: 30,
+      avoidAthleteConflict: true,
+      dayStart,
+    });
+    const [semi1, semi2, grandFinal] = slots;
+    assert.ok(grandFinal!.start >= semi1!.end, "final depois da semi 1");
+    assert.ok(grandFinal!.start >= semi2!.end, "final depois da semi 2");
+  });
+
+  it("fonte já agendada fora deste lote também segura a rodada", () => {
+    const sourceEnd = new Date(dayStart.getTime() + 60 * 60 * 1000);
+    const slots = allocateCourtSlots({
+      courts: [{id: "c1"}],
+      unscheduled: [derivedRound("r2", 2, [1])],
+      courtBusyUntil: {c1: dayStart},
+      teamBusyUntil: {},
+      durationMin: 30,
+      minRestMin: 30,
+      avoidAthleteConflict: true,
+      dayStart,
+      endByMatchNumber: {1: sourceEnd},
+    });
+    assert.equal(slots[0]!.start.getTime(), sourceEnd.getTime());
+  });
+
+  it("partida de duelo não ganha dependência nenhuma", () => {
+    const slots = allocateCourtSlots({
+      courts: [{id: "c1"}, {id: "c2"}],
+      unscheduled: [
+        fakeDoc("d1", {matchNumber: 1, teamAId: "t1", teamBId: "t2"}),
+        fakeDoc("d2", {matchNumber: 2, teamAId: "t3", teamBId: "t4"}),
+      ],
+      courtBusyUntil: {c1: dayStart, c2: dayStart},
+      teamBusyUntil: {},
+      durationMin: 30,
+      minRestMin: 30,
+      avoidAthleteConflict: true,
+      dayStart,
+    });
+    assert.equal(slots[0]!.start.getTime(), slots[1]!.start.getTime(), "seguem em paralelo");
+  });
+});

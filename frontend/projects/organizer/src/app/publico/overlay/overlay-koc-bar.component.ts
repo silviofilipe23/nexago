@@ -12,6 +12,8 @@ import type { OverlayKocView } from './overlay-selectors';
 
 export interface OverlayKocTeam {
   players: [string, string];
+  /** Alinhado aos slots de `players` — null cai nas iniciais do `og-avatar`. */
+  photos?: [string | null, string | null];
 }
 
 const EASE_OUT = 'cubic-bezier(.22, 1, .36, 1)';

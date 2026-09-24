@@ -16,6 +16,9 @@
     "paths": {
       "@nexago/firebase-config": ["shared/firebase/firebase.config.ts"],
       "@nexago/arena-discovery": ["shared/arena-discovery/index.ts"],
+      "@nexago/br-documents": [
+        "shared/br-documents/index.ts"
+      ],
       "@nexago/br-locations": ["shared/br-locations/index.ts"],
       "@nexago/leagues": ["shared/leagues/index.ts"],
       "@nexago/levels": ["shared/levels/index.ts"],

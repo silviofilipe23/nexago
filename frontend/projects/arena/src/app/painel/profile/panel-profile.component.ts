@@ -211,6 +211,18 @@ function initialsOfName(name: string): string {
                 }
               </ar-panel-card>
 
+              <ar-panel-card title="Dados cadastrais">
+                <a routerLink="/painel/perfil/cadastro" class="ar-ghost-btn" card-actions>
+                  <ar-icon name="edit" [size]="13" />
+                  Editar
+                </a>
+                @if (profile()!.address) {
+                  <p class="text">{{ profile()!.address }}</p>
+                } @else {
+                  <p class="text">Endereço e CNPJ ainda não cadastrados — sem endereço a arena não aparece no mapa do app.</p>
+                }
+              </ar-panel-card>
+
               <ar-panel-card title="Contato">
                 <a routerLink="/painel/perfil/contatos" class="ar-ghost-btn" card-actions>
                   <ar-icon name="edit" [size]="13" />

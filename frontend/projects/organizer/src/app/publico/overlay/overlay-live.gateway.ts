@@ -2,7 +2,14 @@ import { Injectable, signal } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from '../../painel/data/firestore';
 import { isKingOfCourtMatchType, normalizeMatchType } from '../../painel/data/koc';
-import { listMatches, watchMatch, type TournamentMatch } from '../../painel/data/matches-repository';
+import {
+  listMatches,
+  watchMatch,
+  watchMatches,
+  type TournamentMatch,
+} from '../../painel/data/matches-repository';
+import { nextFinishMemoryOf, type MatchFinishMemory } from '../../painel/telao/telao-finished';
+import { overlayCourtContextOf } from './overlay-court';
 import { fetchProfileDisplays, fetchTeamsByIds } from '../../painel/data/teams-repository';
 import type { OrganizerTournament } from '../../painel/data/tournament.model';
 import { watchTournament } from '../../painel/data/tournaments-repository';
@@ -11,6 +18,8 @@ import { overlayTeamIdsOf } from './overlay-selectors';
 export interface OverlayTeam {
   label: string;
   players: [string, string];
+  /** Alinhado aos slots de `players` — null cai nas iniciais. */
+  photos: [string | null, string | null];
 }
 
 /** Costura entre a tela do overlay e o Firestore.
@@ -35,6 +44,9 @@ export class OverlayLiveGateway {
 
   private readonly hydrated = new Set<string>();
   private countedRounds = false;
+  private finishMemory: ReadonlyMap<string, MatchFinishMemory> = new Map();
+  /** Evita reler a categoria a cada snapshot — só quando a partida desta tela encerra. */
+  private lastMatchStatus: string | null = null;
 
   start(matchId: string): () => void {
     let unsubTournament: (() => void) | null = null;
@@ -46,7 +58,7 @@ export class OverlayLiveGateway {
         this.match.set(m);
         if (!m) return;
         void this.hydrateTeams(m);
-        void this.countRounds(m);
+        void this.ensureCategoryMatches(m);
         if (m.tournamentId && m.tournamentId !== watchedTournamentId) {
           watchedTournamentId = m.tournamentId;
           unsubTournament?.();
@@ -68,15 +80,70 @@ export class OverlayLiveGateway {
 
   /** Nome POR ATLETA, não só o rótulo combinado: a faixa do KOTC desenha uma linha por atleta.
    *  Mesmo join que o telão faz (`teams` → `public_profiles`). */
+  /** Modo QUADRA: segue o que está acontecendo numa quadra em vez de uma partida fixa.
+   *
+   *  É o que permite o overlay emendar a rodada seguinte sozinho, em vez de alguém trocar a URL
+   *  no meio da transmissão. Custa assinar as partidas do torneio — como o telão já faz — em vez
+   *  do doc único do modo partida. A escolha de QUAL partida é do `courtNowOf`, e a memória de
+   *  fim de partida é o que segura a recém-encerrada na tela tempo suficiente pras telas de fim. */
+  startCourt(tournamentId: string, courtId: string): () => void {
+    const unsubTournament = watchTournament(
+      tournamentId,
+      (t) => this.tournament.set(t),
+      () => {},
+    );
+
+    let ultimas: TournamentMatch[] = [];
+    const resolver = () => {
+      const agora = Date.now();
+      this.finishMemory = nextFinishMemoryOf(this.finishMemory, ultimas, agora);
+      const ctx = overlayCourtContextOf(ultimas, courtId, agora, this.finishMemory);
+      this.match.set(ctx.match);
+      this.categoryMatches.set(ctx.categoryMatches);
+      this.totalRounds.set(ctx.totalRounds);
+      if (!ctx.match) return;
+      void this.hydrateTeams(ctx.match);
+      // Mesma razão do modo partida: sem resolver as classificadas de rodadas ANTERIORES, o
+      // quadro verde fica com nome só na última vaga. `hydrateTeamIds` já ignora id conhecido,
+      // então chamar a cada resolução não custa leitura.
+      this.hydrateQualifiedTeams(ctx.categoryMatches);
+    };
+
+    const unsubMatches = watchMatches(
+      tournamentId,
+      (ms) => {
+        ultimas = ms;
+        resolver();
+      },
+      () => {},
+    );
+
+    // O `courtNowOf` depende do relógio (partida recém-encerrada sai de cena sozinha), então a
+    // resolução precisa reavaliar mesmo sem snapshot novo.
+    const relogio = setInterval(resolver, 1000);
+
+    return () => {
+      clearInterval(relogio);
+      unsubMatches();
+      unsubTournament();
+    };
+  }
+
   private async hydrateTeams(match: TournamentMatch): Promise<void> {
-    const ids = overlayTeamIdsOf(match).filter((id) => !this.hydrated.has(id));
-    if (ids.length === 0) return;
-    for (const id of ids) this.hydrated.add(id); // marca antes: rajada de snapshots não duplica busca
+    await this.hydrateTeamIds(overlayTeamIdsOf(match));
+  }
+
+  /** Classificadas de rodadas anteriores já saíram da chave atual — sem isto o quadro verde
+   *  só mostra nome na última vaga (as outras linhas ficam sem atletas resolvidos). */
+  private async hydrateTeamIds(ids: readonly string[]): Promise<void> {
+    const missing = ids.filter((id) => id !== '' && !this.hydrated.has(id));
+    if (missing.length === 0) return;
+    for (const id of missing) this.hydrated.add(id); // marca antes: rajada de snapshots não duplica busca
     const projectId = environment.firebase.projectId;
     if (!projectId) return;
     try {
       const db = organizerFirestore();
-      const teams = await fetchTeamsByIds(db, projectId, ids);
+      const teams = await fetchTeamsByIds(db, projectId, missing);
       const playerIds = [...teams.values()]
         .flatMap((t) => [t.player1Id, t.player2Id])
         .filter((id) => id !== '');
@@ -89,25 +156,39 @@ export class OverlayLiveGateway {
             profiles.get(team.player1Id)?.name ?? '',
             profiles.get(team.player2Id)?.name ?? '',
           ];
+          const photos: [string | null, string | null] = [
+            profiles.get(team.player1Id)?.photoUrl ?? null,
+            profiles.get(team.player2Id)?.photoUrl ?? null,
+          ];
           const named = players.filter((n) => n !== '');
           next.set(teamId, {
             label: team.teamName ?? (named.length > 0 ? named.join(' / ') : ''),
             players,
+            photos,
           });
         }
         return next;
       });
     } catch {
       // Falha de rede: segue com o rótulo do doc e tenta de novo no próximo snapshot.
-      for (const id of ids) this.hydrated.delete(id);
+      for (const id of missing) this.hydrated.delete(id);
     }
   }
 
-  /** Quantas rodadas tem a fase — uma leitura só, no primeiro snapshot KOTC. O doc da partida
-   *  não guarda esse total, e um listener a mais numa transmissão de horas não se paga. */
-  private async countRounds(match: TournamentMatch): Promise<void> {
-    if (this.countedRounds || !isKingOfCourtMatchType(match.matchType)) return;
-    this.countedRounds = true;
+  /** Partidas da categoria + nomes de TODAS as classificadas da fase. */
+  private async ensureCategoryMatches(match: TournamentMatch): Promise<void> {
+    if (!isKingOfCourtMatchType(match.matchType)) return;
+
+    const statusMudouParaEncerrada =
+      match.status === 'completed' && this.lastMatchStatus !== 'completed';
+    this.lastMatchStatus = match.status;
+
+    const precisaLer = !this.countedRounds || statusMudouParaEncerrada;
+    if (!precisaLer) {
+      void this.hydrateQualifiedTeams(this.categoryMatches());
+      return;
+    }
+
     try {
       const all = await listMatches(match.tournamentId);
       const daCategoria = all.filter((m) => m.categoryId === match.categoryId);
@@ -116,8 +197,15 @@ export class OverlayLiveGateway {
       this.totalRounds.set(
         daCategoria.filter((m) => normalizeMatchType(m.matchType) === phase).length,
       );
+      this.countedRounds = true;
+      void this.hydrateQualifiedTeams(daCategoria);
     } catch {
       this.countedRounds = false; // tenta de novo no próximo snapshot
     }
+  }
+
+  private hydrateQualifiedTeams(matches: readonly TournamentMatch[]): void {
+    const ids = matches.flatMap((m) => overlayTeamIdsOf(m));
+    void this.hydrateTeamIds(ids);
   }
 }

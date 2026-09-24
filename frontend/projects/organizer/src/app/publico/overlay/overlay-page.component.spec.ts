@@ -60,10 +60,18 @@ class FakeGateway {
   readonly totalRounds = signal(0);
   readonly categoryMatches = signal<readonly TournamentMatch[]>([]);
   readonly started: string[] = [];
+  readonly startedCourts: string[] = [];
   stopped = 0;
 
   start(matchId: string): () => void {
     this.started.push(matchId);
+    return () => {
+      this.stopped++;
+    };
+  }
+
+  startCourt(tournamentId: string, courtId: string): () => void {
+    this.startedCourts.push(`${tournamentId}/${courtId}`);
     return () => {
       this.stopped++;
     };
@@ -79,6 +87,58 @@ async function mount(inputs: Record<string, unknown>) {
   for (const [key, value] of Object.entries(inputs)) fixture.componentRef.setInput(key, value);
   await fixture.whenStable();
   return { fixture, fake };
+}
+
+function rodadaEncerrada(): TournamentMatch {
+  return match({
+    status: 'completed',
+    matchType: 'koc_round',
+    teamAId: '',
+    teamBId: '',
+    sets: [],
+    currentSetIndex: null,
+    koc: {
+      teamIds: ['k', 'c', 'q'],
+      kingTeamId: 'k',
+      challengerTeamId: 'c',
+      queue: ['q'],
+      points: { k: 8, c: 7, q: 2 },
+      rallies: 0,
+      servingTeamId: '',
+      clock: null,
+      standings: [
+        { teamId: 'k', place: 1, points: 8, crowns: 3 },
+        { teamId: 'c', place: 2, points: 7, crowns: 1 },
+        { teamId: 'q', place: 3, points: 2, crowns: 0 },
+      ],
+      qualifiersPerRound: 2,
+      teamsPerCourt: 4,
+      roundsPerBracket: 1,
+      configuredDurationSec: 900,
+      rallySeq: 0,
+      rallyLog: [],
+      roundLabel: 1,
+      qualifierSlots: [],
+    },
+  });
+}
+
+/** Monta a página já no fim de rodada, que é quando há duas telas pra alternar. */
+async function noFimDaRodada(inputs: Record<string, unknown> = {}) {
+  const montado = await mount({ matchId: 'm1', ...inputs });
+  const encerrada = rodadaEncerrada();
+  montado.fake.tournament.set(TOURNAMENT);
+  montado.fake.categoryMatches.set([encerrada]);
+  montado.fake.match.set(encerrada);
+  await montado.fixture.whenStable();
+  return montado;
+}
+
+function telaAtual(fixture: { nativeElement: unknown }): string {
+  const host = fixture.nativeElement as HTMLElement;
+  if (host.querySelector('og-overlay-koc-standings')) return 'resultado';
+  if (host.querySelector('og-overlay-koc-qualified')) return 'classificadas';
+  return 'nenhuma';
 }
 
 describe('OverlayPageComponent', () => {
@@ -100,8 +160,8 @@ describe('OverlayPageComponent', () => {
     fake.match.set(match({}));
     fake.teams.set(
       new Map<string, OverlayTeam>([
-        ['ta', { label: 'Ana / Bia', players: ['Ana', 'Bia'] }],
-        ['tb', { label: 'Carla / Dani', players: ['Carla', 'Dani'] }],
+        ['ta', { label: 'Ana / Bia', players: ['Ana', 'Bia'], photos: [null, null] }],
+        ['tb', { label: 'Carla / Dani', players: ['Carla', 'Dani'], photos: [null, null] }],
       ]),
     );
     await fixture.whenStable();
@@ -145,9 +205,9 @@ describe('OverlayPageComponent', () => {
     fake.tournament.set(TOURNAMENT);
     fake.teams.set(
       new Map<string, OverlayTeam>([
-        ['k', { label: 'Ana / Bia', players: ['Ana', 'Bia'] }],
-        ['c', { label: 'Carla / Dani', players: ['Carla', 'Dani'] }],
-        ['q', { label: 'Eva / Fabi', players: ['Eva', 'Fabi'] }],
+        ['k', { label: 'Ana / Bia', players: ['Ana', 'Bia'], photos: [null, null] }],
+        ['c', { label: 'Carla / Dani', players: ['Carla', 'Dani'], photos: [null, null] }],
+        ['q', { label: 'Eva / Fabi', players: ['Eva', 'Fabi'], photos: [null, null] }],
       ]),
     );
     fake.match.set(
@@ -195,9 +255,9 @@ describe('OverlayPageComponent', () => {
     fake.tournament.set(TOURNAMENT);
     fake.teams.set(
       new Map<string, OverlayTeam>([
-        ['k', { label: 'Ana / Bia', players: ['Ana', 'Bia'] }],
-        ['c', { label: 'Carla / Dani', players: ['Carla', 'Dani'] }],
-        ['q', { label: 'Eva / Fabi', players: ['Eva', 'Fabi'] }],
+        ['k', { label: 'Ana / Bia', players: ['Ana', 'Bia'], photos: [null, null] }],
+        ['c', { label: 'Carla / Dani', players: ['Carla', 'Dani'], photos: [null, null] }],
+        ['q', { label: 'Eva / Fabi', players: ['Eva', 'Fabi'], photos: [null, null] }],
       ]),
     );
     const encerrada = match({
@@ -303,5 +363,141 @@ describe('OverlayPageComponent', () => {
     } finally {
       jasmine.clock().uninstall();
     }
+  });
+
+  it('?tela= fixa a visualização e desliga o rodízio', async () => {
+    jasmine.clock().install();
+    try {
+      const { fixture } = await noFimDaRodada({ tela: 'classificadas' });
+      expect(telaAtual(fixture)).toBe('classificadas');
+
+      jasmine.clock().tick(60_000);
+      await fixture.whenStable();
+
+      expect(telaAtual(fixture)).toBe('classificadas');
+    } finally {
+      jasmine.clock().uninstall();
+    }
+  });
+
+  it('?tela= desconhecido é ignorado e o rodízio segue', async () => {
+    jasmine.clock().install();
+    try {
+      const { fixture } = await noFimDaRodada({ tela: 'qualquer-coisa' });
+      expect(telaAtual(fixture)).toBe('resultado');
+
+      jasmine.clock().tick(20_000);
+      await fixture.whenStable();
+
+      expect(telaAtual(fixture)).toBe('classificadas');
+    } finally {
+      jasmine.clock().uninstall();
+    }
+  });
+
+  it('clique alterna a visualização e assume o controle do rodízio', async () => {
+    jasmine.clock().install();
+    try {
+      const { fixture } = await noFimDaRodada();
+      const host = fixture.nativeElement as HTMLElement;
+      expect(telaAtual(fixture)).toBe('resultado');
+
+      host.querySelector<HTMLElement>('.alternar')?.click();
+      await fixture.whenStable();
+      expect(telaAtual(fixture)).toBe('classificadas');
+
+      // Depois do clique o rodízio não volta a mandar sozinho.
+      jasmine.clock().tick(60_000);
+      await fixture.whenStable();
+      expect(telaAtual(fixture)).toBe('classificadas');
+
+      host.querySelector<HTMLElement>('.alternar')?.click();
+      await fixture.whenStable();
+      expect(telaAtual(fixture)).toBe('resultado');
+    } finally {
+      jasmine.clock().uninstall();
+    }
+  });
+
+  it('seta do teclado também alterna', async () => {
+    const { fixture } = await noFimDaRodada();
+    expect(telaAtual(fixture)).toBe('resultado');
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+    await fixture.whenStable();
+
+    expect(telaAtual(fixture)).toBe('classificadas');
+  });
+
+  it('não põe camada clicável quando não há o que alternar', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.match.set(match({}));
+    await fixture.whenStable();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('.alternar')).toBeNull();
+  });
+
+  it('em modo quadra, assina a QUADRA e não uma partida fixa', async () => {
+    const { fake } = await mount({ matchId: '', tournamentId: 't1', courtId: 'q2' });
+
+    expect(fake.startedCourts).toEqual(['t1/q2']);
+    expect(fake.started).toEqual([]);
+  });
+
+  it('com partida na rota, segue assinando só aquela partida', async () => {
+    const { fake } = await mount({ matchId: 'm1' });
+
+    expect(fake.started).toEqual(['m1']);
+    expect(fake.startedCourts).toEqual([]);
+  });
+
+  it('rodada KOTC ainda não iniciada anuncia quem vai entrar', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.tournament.set(TOURNAMENT);
+    fake.teams.set(
+      new Map<string, OverlayTeam>([
+        ['t', { label: 'Sor / Ham', players: ['Sor', 'Ham'], photos: [null, null] }],
+        ['a', { label: 'Hölting Nilsson / Berger', players: ['Hölting Nilsson', 'Berger'], photos: [null, null] }],
+        ['b', { label: 'Van / Aye', players: ['Van', 'Aye'], photos: [null, null] }],
+      ]),
+    );
+    fake.match.set(
+      match({
+        status: 'scheduled',
+        matchType: 'koc_round',
+        teamAId: '',
+        teamBId: '',
+        sets: [],
+        currentSetIndex: null,
+        koc: {
+          teamIds: ['t', 'a', 'b'],
+          kingTeamId: '',
+          challengerTeamId: '',
+          queue: [],
+          points: {},
+          rallies: 0,
+          servingTeamId: '',
+          clock: null,
+          standings: [],
+          qualifiersPerRound: 1,
+          teamsPerCourt: 4,
+          roundsPerBracket: 2,
+          configuredDurationSec: 900,
+          rallySeq: 0,
+          rallyLog: [],
+          roundLabel: 3,
+          qualifierSlots: [],
+        },
+      }),
+    );
+    await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
+    const text = (host.textContent ?? '').replace(/\s+/g, ' ');
+
+    expect(host.querySelector('og-overlay-koc-preround')).not.toBeNull();
+    expect(host.querySelector('og-overlay-koc-bar')).toBeNull();
+    expect(text).toContain('Próximos');
+    expect(text).toContain('Hölting Nilsson · Berger');
+    expect(text).toContain('Sor · Ham');
   });
 });

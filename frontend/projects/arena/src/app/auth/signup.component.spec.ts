@@ -56,7 +56,39 @@ function setInputValue(input: HTMLInputElement, value: string): void {
 }
 
 describe('SignupComponent', () => {
-  it('leva nome, cidade/UF e WhatsApp do formulário pro createArenaAccount', async () => {
+  it('leva nome, CNPJ, cidade/UF e WhatsApp do formulário pro createArenaAccount', async () => {
+    const auth = authStub();
+    const harness = await setup(auth);
+    await settle(harness);
+
+    const root = harness.routeDebugElement!;
+    const byPlaceholder = (placeholder: string): HTMLInputElement =>
+      root.query(By.css(`input[placeholder="${placeholder}"]`)).nativeElement;
+
+    setInputValue(byPlaceholder('Arena CFC'), 'Arena CFC');
+    setInputValue(byPlaceholder('00.000.000/0000-00'), '11.222.333/0001-81');
+    setInputValue(byPlaceholder('Florianópolis, SC'), 'Goiânia, GO');
+    setInputValue(byPlaceholder('(48) 99999-0000'), '(62) 98888-0000');
+    setInputValue(byPlaceholder('contato@suaarena.com.br'), 'contato@arenacfc.com.br');
+    setInputValue(byPlaceholder('••••••••'), 'senha1234');
+    await settle(harness);
+
+    root.query(By.css('form')).triggerEventHandler('ngSubmit', null);
+    await settle(harness);
+
+    expect(auth.createArenaAccount).toHaveBeenCalledWith(
+      'contato@arenacfc.com.br',
+      'senha1234',
+      {
+        name: 'Arena CFC',
+        cpfCnpj: '11.222.333/0001-81',
+        cityState: 'Goiânia, GO',
+        whatsapp: '(62) 98888-0000',
+      },
+    );
+  });
+
+  it('recusa CNPJ que passa na máscara mas não fecha o dígito verificador', async () => {
     const auth = authStub();
     const harness = await setup(auth);
     await settle(harness);
@@ -76,11 +108,7 @@ describe('SignupComponent', () => {
     root.query(By.css('form')).triggerEventHandler('ngSubmit', null);
     await settle(harness);
 
-    expect(auth.createArenaAccount).toHaveBeenCalledWith(
-      'contato@arenacfc.com.br',
-      'senha1234',
-      { name: 'Arena CFC', cityState: 'Goiânia, GO', whatsapp: '(62) 98888-0000' },
-    );
+    expect(auth.createArenaAccount).not.toHaveBeenCalled();
   });
 
   it('formulário inválido não cria conta nenhuma', async () => {

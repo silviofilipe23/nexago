@@ -134,12 +134,12 @@ export class AuthService {
    *  o doc `arenas/{arenaId}` com este usuário como `managerUserId` — o client nunca
    *  escreve role nem cria a arena diretamente (firestore.rules recusa a role, e a
    *  arena precisa nascer com o mesmo shape de sempre). Cidade/UF e WhatsApp seguem
-   *  junto porque já viram campos do perfil da arena; o CNPJ continua só validado no
-   *  formulário (o destino dele é a config fiscal, tela à parte). */
+   *  junto porque já viram campos do perfil da arena; o CNPJ vai para
+   *  `arenas/{arenaId}/registration/data`, nunca para o doc público da arena. */
   async createArenaAccount(
     email: string,
     password: string,
-    arena: { name: string; cityState: string; whatsapp: string },
+    arena: { name: string; cpfCnpj: string; cityState: string; whatsapp: string },
   ): Promise<void> {
     const trimmedName = arena.name.trim();
     const credential = await createUserWithEmailAndPassword(this.auth, email.trim(), password);
@@ -148,6 +148,7 @@ export class AuthService {
     const complete = httpsCallable(this.functions, 'completeArenaSignup');
     await complete({
       arenaName: trimmedName,
+      cpfCnpj: arena.cpfCnpj.trim(),
       cityState: arena.cityState.trim(),
       whatsapp: arena.whatsapp.trim(),
     });

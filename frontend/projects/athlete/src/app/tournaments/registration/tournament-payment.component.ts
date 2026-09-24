@@ -7,7 +7,7 @@ import { interval } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
-import { cpfCnpjValidationMessage, formatCpfCnpjDisplay, isValidCpfCnpj, normalizeCpfCnpj } from '../../data/cpf-cnpj';
+import { cpfCnpjValidationMessage, formatCpfCnpjDisplay, isValidCpfCnpj, normalizeCpfCnpj } from '@nexago/br-documents';
 import { canRegeneratePix } from './registration-hold';
 import { athleteFunctions } from '../../data/functions';
 import { buildPixBrCode, isLikelyValidPixKey } from '../../data/pix-brcode';

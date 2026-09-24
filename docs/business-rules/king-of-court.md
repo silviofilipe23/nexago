@@ -32,14 +32,39 @@ Só importa o empate que **atravessa a linha de classificação**: duas duplas e
 em 1º, com duas vagas, passam as duas — não há o que decidir. Todas as duplas na
 pontuação da última vaga entram no empate, e com poucos rallies é comum serem três.
 
-1. **Bola de ouro** — rally único entre as empatadas, jogado na areia depois do apito.
-   A mesa aponta quem venceu (`kocGoldenPoint`), e o ponto vai para a DUPLA, não para
-   um lado: as empatadas quase nunca são o rei e o desafiante do momento.
-2. **Critério automático**, quando a mesa opta por não jogar a bola de ouro:
-   quem foi rei por último entre as empatadas; persistindo, a ordem de semeadura.
+1. **Duas empatadas — bola de ouro.** Rally único entre elas, jogado na areia depois
+   do apito. A mesa aponta quem venceu (`kocGoldenPoint`), e o ponto vai para a DUPLA,
+   não para um lado: as empatadas quase nunca são o rei e o desafiante do momento.
+2. **Três ou mais — mini-rodada.** "Rally único" não resolve: um rally tem dois lados.
+   As empatadas jogam o PRÓPRIO formato, e a primeira que pontuar leva a vaga.
+3. **Critério automático**, quando a mesa opta por não jogar nada: quem foi rei por
+   último entre as empatadas; persistindo, a ordem de semeadura.
 
-O encerramento é **recusado** com empate na vaga em aberto: a mesa joga a bola de ouro
-ou confirma explicitamente o critério automático. A vaga nunca sai calada.
+O encerramento é **recusado** com empate na vaga em aberto: a mesa joga o desempate na
+areia ou confirma explicitamente o critério automático. A vaga nunca sai calada.
+
+### Mini-rodada (três ou mais empatadas)
+
+Não é regra nova: é exatamente o que as duplas acabaram de jogar por 15 minutos.
+
+1. Entra no trono a melhor pelo **critério automático** (quem foi rei por último;
+   persistindo, a ordem de semeadura). A segunda desafia; as demais esperam na fila.
+2. **Rei venceu** → marca o ponto, leva a vaga, acabou.
+3. **Desafiante venceu** → assume o trono **sem ponto** e entra a próxima da fila.
+
+Dura de 2 a 4 rallies. A mesa mostra a ordem de entrada e registra UM toque: a dupla
+que pontuou. Os rallies intermediários (desafiante que coroa sem pontuar) não vão para
+o log — o que decide a vaga é o ponto.
+
+O critério automático deixa de ser um desempate silencioso e vira **vantagem
+posicional**: quem foi rei por último precisa de um rally para levar a vaga; as outras
+precisam de dois. Premia sem decidir sozinho.
+
+Quando o empate cobre mais de uma vaga, cada mini-rodada resolve **uma**: o empate é
+recalculado a cada registro, e o encerramento segue recusado até zerar.
+
+Um empate de três não é caso raro — **um único rally** num elenco de 4 já deixa as
+outras três empatadas em zero.
 
 ## Estrutura do torneio
 - Fases: **Classificatória → Semifinal → Final**. Cada fase roda N rodadas em
@@ -64,6 +89,13 @@ As N classificadas de uma mesma chave caem em rodadas **diferentes** da fase
 seguinte, e cada rodada da fase seguinte mistura vencedoras de rodadas de chave
 diferentes — senão uma semifinal juntaria todas as que venceram contra a chave
 cheia e nasceria muito mais forte que a outra.
+
+**As rodadas de uma chave saem em sequência.** Na areia é o mesmo grupo na
+mesma quadra: joga a rodada 1, a vencedora sai, e as que ficaram seguem direto
+para a rodada 2. A numeração acompanha (#1 e #2 são a chave C1, #3 e #4 a C2), e
+o auto-agendamento só libera a rodada seguinte depois que a anterior termina —
+a rodada que nasce só com vagas não tem elenco, então sem essa dependência o
+alocador a colocaria no mesmo horário, em outra quadra, com as mesmas duplas.
 
 **A divisão do campo muda junto.** Com uma rodada por chave, 14 duplas em
 quadras de 4 viram 4 chaves (4, 4, 3, 3). Pedindo duas rodadas, a chave de 3 não

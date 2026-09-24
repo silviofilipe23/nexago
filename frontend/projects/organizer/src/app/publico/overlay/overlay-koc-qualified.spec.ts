@@ -144,4 +144,23 @@ describe('kocQualifiedBoardOf', () => {
 
     expect(board.destino).toBe('Semifinal');
   });
+
+  it('prefere o doc ao vivo quando a lista da categoria ainda tem a rodada aberta', () => {
+    const rodadas = fase({ roundsPerBracket: 2 });
+    // Lista velha: rodada 4 ainda "in_progress", mas o match ao vivo já encerrou.
+    const listaVelha = rodadas.map((m) =>
+      m.id === 'r4' ? { ...m, status: 'in_progress' as const } : m,
+    );
+    const aoVivo = rodadas[3];
+
+    const board = kocQualifiedBoardOf(aoVivo, listaVelha);
+
+    expect(board.entries.map((e) => e.teamId)).toEqual([
+      'vencedora1',
+      'vencedora2',
+      'vencedora3',
+      'vencedora4',
+    ]);
+    expect(board.roundsDone).toBe(4);
+  });
 });

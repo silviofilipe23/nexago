@@ -123,9 +123,16 @@ function emitPhaseOneWithBracketRounds(params: {
   const brackets = sizes.length;
   /** Rodada anterior de cada chave, para as vagas apontarem para ela. */
   const previousOfBracket: (KocRoundDraft | null)[] = sizes.map(() => null);
+  /** Posição na fase, na ordem em que as rodadas são emitidas. */
+  let label = 0;
 
-  for (let round = 1; round <= roundsPerBracket; round++) {
-    for (let bracket = 0; bracket < brackets; bracket++) {
+  // CHAVE por fora, rodada por dentro: as rodadas de uma mesma chave saem em
+  // SEQUÊNCIA. Na areia é o mesmo grupo na mesma quadra — joga a rodada 1, a
+  // vencedora sai, e as que sobraram seguem direto para a rodada 2. Emitir por
+  // rodada (todas as primeiras, depois todas as segundas) espalhava a chave
+  // pela grade e mandava as duplas saírem da quadra para voltar depois.
+  for (let bracket = 0; bracket < brackets; bracket++) {
+    for (let round = 1; round <= roundsPerBracket; round++) {
       const size = sizes[bracket]! - (round - 1);
       const previous = previousOfBracket[bracket];
 
@@ -147,7 +154,7 @@ function emitPhaseOneWithBracketRounds(params: {
         matchType,
         poolId: `C${bracket + 1}`,
         matchNumber: params.nextMatchNumber(),
-        roundLabel: (round - 1) * brackets + bracket + 1,
+        roundLabel: ++label,
         teamIds: previous ? [] : rosters[bracket]!,
         qualifiers,
         size,

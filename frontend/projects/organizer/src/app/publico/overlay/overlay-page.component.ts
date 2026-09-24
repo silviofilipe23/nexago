@@ -3,14 +3,26 @@ import { isKingOfCourtMatchType, kocColumnLabel } from '../../painel/data/koc';
 import { resolveCourtNames } from '../../painel/data/matches-repository';
 import { OverlayLiveGateway } from './overlay-live.gateway';
 import { OverlayKocBarComponent } from './overlay-koc-bar.component';
+import { kocPreRoundOf } from './overlay-koc-preround';
+import { OverlayKocPreRoundComponent } from './overlay-koc-preround.component';
 import { kocQualifiedBoardOf } from './overlay-koc-qualified';
 import { OverlayKocQualifiedComponent } from './overlay-koc-qualified.component';
 import { kocStandingsBoardOf } from './overlay-koc-standings';
 import { OverlayKocStandingsComponent } from './overlay-koc-standings.component';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
+import { kocRoundTitleOf } from './overlay-koc-bar';
 import { overlayBandOf, overlayCornerOf, overlayViewOf } from './overlay-selectors';
 
 type TelaKoc = 'resultado' | 'classificadas';
+
+const TELAS_KOC: readonly string[] = ['resultado', 'classificadas'];
+
+/** Visualização fixada em `?tela=`. Valor desconhecido volta ao rodízio, em vez de deixar a tela
+ *  vazia — ninguém vai depurar query param no meio de uma transmissão. */
+function telaFixadaEm(raw: string | null): TelaKoc | null {
+  const v = (raw ?? '').trim().toLowerCase();
+  return TELAS_KOC.includes(v) ? (v as TelaKoc) : null;
+}
 
 /** Quanto cada tela fica no ar no rodízio do fim de rodada. */
 const RESULTADO_MS = 20_000;
@@ -28,8 +40,10 @@ const CLASSIFICADAS_MS = 15_000;
     OverlayKocBarComponent,
     OverlayKocStandingsComponent,
     OverlayKocQualifiedComponent,
+    OverlayKocPreRoundComponent,
   ],
   providers: [OverlayLiveGateway],
+  host: { '(document:keydown)': 'aoTeclar($event)' },
   template: `
     @if (duelView(); as duel) {
       <og-overlay-scoreboard
@@ -58,6 +72,24 @@ const CLASSIFICADAS_MS = 15_000;
         [categoryName]="categoryName()"
       />
     }
+    @if (podeAlternar()) {
+      <!-- Invisível e por cima: no OBS o clique chega pela janela "Interagir" e o cursor não
+           entra na saída, então nada disto aparece no ar. -->
+      <button
+        class="alternar"
+        type="button"
+        aria-label="Alternar visualização"
+        (click)="alternar()"
+      ></button>
+    }
+    <!-- Sempre montado: o @if interno + animate.leave precisa do host vivo pra sair com o slide. -->
+    <og-overlay-koc-preround
+      [preRound]="preRound()"
+      [teams]="gateway.teams()"
+      [categoryName]="categoryName()"
+      [courtName]="courtName()"
+      [roundTitle]="preRoundTitle()"
+    />
     @if (kocView(); as koc) {
       <og-overlay-koc-bar
         [view]="koc"
@@ -72,16 +104,38 @@ const CLASSIFICADAS_MS = 15_000;
     :host {
       display: block;
     }
+
+    .alternar {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+    }
   `,
 })
 export class OverlayPageComponent {
   /** Params da rota chegam por `withComponentInputBinding` — `input()`, nunca `signal()`. */
   readonly matchId = input('');
+  /** Modo quadra: `/overlay/:tournamentId/quadra/:courtId`. */
+  readonly tournamentId = input('');
+  readonly courtId = input('');
+  /** `?tela=resultado|classificadas` — fixa a visualização e desliga o rodízio. */
+  readonly tela = input<string | null>(null);
   readonly pos = input<string | null>(null);
 
   protected readonly gateway = inject(OverlayLiveGateway);
 
   private readonly telaKoc = signal<TelaKoc>('resultado');
+  /** Visualização escolhida no clique/tecla. Assume o controle: quem mexeu manda mais que o
+   *  rodízio e mais que `?tela=`. */
+  private readonly manual = signal<TelaKoc | null>(null);
+  private readonly telaFixa = computed(() => telaFixadaEm(this.tela()));
+  private readonly telaEfetiva = computed<TelaKoc>(
+    () => this.manual() ?? this.telaFixa() ?? this.telaKoc(),
+  );
 
   /** Muda só quando a partida (ou o fato de estar encerrada) muda. */
   private readonly chaveDoRodizio = computed(() => {
@@ -114,6 +168,24 @@ export class OverlayPageComponent {
     return v?.kind === 'koc' && !this.standings() ? v : null;
   });
 
+  /** Elenco da rodada que ainda não começou — antes do apito não há rei nem desafiante, e sem
+   *  isto a tela ficava vazia. */
+  protected readonly preRound = computed(() => {
+    const m = this.match();
+    return m ? kocPreRoundOf(m) : null;
+  });
+
+  protected readonly preRoundTitle = computed(() => {
+    const m = this.match();
+    if (!m) return '';
+    return kocRoundTitleOf(
+      m.matchType,
+      m.koc?.roundLabel ?? 0,
+      m.matchNumber,
+      this.gateway.totalRounds(),
+    );
+  });
+
   /** Classificação da rodada KOTC encerrada. */
   protected readonly standings = computed(() => {
     const m = this.match();
@@ -129,11 +201,24 @@ export class OverlayPageComponent {
   });
 
   protected readonly telaDoResultado = computed(() =>
-    this.telaKoc() === 'resultado' ? this.standings() : null,
+    this.telaEfetiva() === 'resultado' ? this.standings() : null,
   );
   protected readonly telaDasClassificadas = computed(() =>
-    this.telaKoc() === 'classificadas' ? this.qualified() : null,
+    this.telaEfetiva() === 'classificadas' ? this.qualified() : null,
   );
+
+  /** Só há o que alternar no fim da rodada, quando existem as duas telas. */
+  protected readonly podeAlternar = computed(() => this.standings() != null);
+
+  protected alternar(): void {
+    this.manual.set(this.telaEfetiva() === 'resultado' ? 'classificadas' : 'resultado');
+  }
+
+  protected aoTeclar(event: KeyboardEvent): void {
+    if (!this.podeAlternar()) return;
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+    this.alternar();
+  }
 
   protected readonly phaseName = computed(() => {
     const m = this.match();
@@ -187,7 +272,8 @@ export class OverlayPageComponent {
     effect((onCleanup) => {
       const chave = this.chaveDoRodizio();
       this.telaKoc.set('resultado');
-      if (!chave) return;
+      // Visualização fixada na URL ou escolhida na mão não reveza.
+      if (!chave || this.telaFixa() || this.manual()) return;
       let timer: ReturnType<typeof setTimeout>;
       const agenda = (tela: TelaKoc) => {
         timer = setTimeout(
@@ -204,6 +290,12 @@ export class OverlayPageComponent {
     });
 
     effect((onCleanup) => {
+      const quadra = this.courtId();
+      const torneio = this.tournamentId();
+      if (quadra && torneio) {
+        onCleanup(this.gateway.startCourt(torneio, quadra));
+        return;
+      }
       const id = this.matchId();
       if (!id) return;
       onCleanup(this.gateway.start(id));

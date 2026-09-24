@@ -1,10 +1,13 @@
 /** Matriz de acesso por cargo da equipe da arena.
  *
- *  ESPELHO MANUAL — esta matriz existe em três lugares e os três precisam andar juntos:
+ *  ESPELHO MANUAL — esta matriz existe em cinco lugares e os cinco precisam andar juntos:
  *   1. este arquivo (UI: menu, guards, telas);
  *   2. `functions/src/arena-staff-roles.ts` (validação server-side dos callables);
- *   3. o mapa literal em `firestore.rules` (a autoridade de verdade).
- *  `functions/test/arena-staff-rbac.rules.test.mjs` quebra se 1 e 3 divergirem. */
+ *   3. o mapa literal em `firestore.rules` (a autoridade de verdade);
+ *   4. `nexago_app/lib/features/arena/domain/arena_staff_role.dart` (app Flutter);
+ *   5. este spec: `arena-access.service.spec.ts`.
+ *  `functions/test/arena-staff-rbac.rules.test.mjs` quebra se 2 e 3 divergirem; o teste
+ *  `arena_staff_role_test.dart` cobre a cópia Dart. */
 
 export const ARENA_STAFF_ROLES = ['gestor', 'recepcao', 'financeiro', 'manutencao'] as const;
 export type ArenaStaffRole = (typeof ARENA_STAFF_ROLES)[number];

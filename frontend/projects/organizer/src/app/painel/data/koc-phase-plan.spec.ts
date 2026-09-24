@@ -311,3 +311,20 @@ describe('plano de fases · comparação de identidade', () => {
     expect(kocPlansMatch(plan, changed)).toBe(false);
   });
 });
+
+describe('plano de fases · o que a tela mostra em cada linha', () => {
+  it('a coluna "Passam" é o campo da fase seguinte, e a final não passa ninguém', () => {
+    const plan = kocProposePhasePlan(10, 6, 900);
+    const fields = kocPhaseFieldSizes(plan);
+    const passam = plan.map((p, i) =>
+      i === plan.length - 1 ? null : p.bracketSizes.length * p.roundsPerBracket * p.qualifiersPerRound,
+    );
+    expect(passam).toEqual([6, 4, null]);
+    expect(fields.slice(1)).toEqual(passam.slice(0, -1) as number[]);
+  });
+
+  it('a proposta se refaz quando a contagem de inscritas muda', () => {
+    expect(kocPhaseFieldSizes(kocProposePhasePlan(10, 6, 900))).toEqual([10, 6, 4]);
+    expect(kocPhaseFieldSizes(kocProposePhasePlan(12, 6, 900))).toEqual([12, 8, 4]);
+  });
+});

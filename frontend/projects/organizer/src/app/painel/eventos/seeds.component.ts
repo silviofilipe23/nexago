@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Router } from '@angular/router';
 import { tournamentSportToLevelSportCode } from '@nexago/levels';
 import { initialsOf, truncateName } from '../data/mock-data';
@@ -14,19 +14,23 @@ import {
   type TeamLevelScore,
 } from '../data/team-level-score';
 import {
-  KOC_DEFAULT_QUALIFIERS_PER_ROUND,
   KOC_DEFAULT_ROUND_DURATION_SEC,
-  KOC_DEFAULT_TEAMS_PER_COURT,
   KOC_MAX_ROUND_DURATION_SEC,
-  KOC_MAX_TEAMS_PER_ROUND,
   KOC_MIN_ROUND_DURATION_SEC,
-  KOC_MIN_TEAMS_PER_ROUND as KOC_MIN_PER_COURT,
-  kocMaxRoundsForField,
-  kocSchedule,
 } from '../data/tournament-create.model';
+import {
+  KOC_LEGACY_MAX_TEAMS_PER_ROUND,
+  kocApplyPhaseEdit,
+  kocBracketCountOptions,
+  kocClampMaxPerRound,
+  kocPlanTotals,
+  kocProposePhasePlan,
+  type KocPhasePatch,
+  type KocPhaseSpec,
+} from '../data/koc-phase-plan';
 import { generateCategoryBracket } from '../data/organizer-ops.service';
 import type { OrganizerTournament, OrganizerTournamentCategory } from '../data/tournament.model';
-import { getTournament } from '../data/tournaments-repository';
+import { getTournament, saveKocPhasePlan } from '../data/tournaments-repository';
 import { ChaveamentoContextService } from '../chaveamento/chaveamento-context.service';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
@@ -169,44 +173,21 @@ function shuffled<T>(items: readonly T[]): T[] {
               }
             }
             @if (format() === 'king_of_court') {
-              <!-- Sem estes campos a geração caía nos DEFAULTS do servidor: uma
-                   categoria de duelo gerada como KOTC não tem duplas por quadra
-                   nem rodadas por chave no doc, e a chave nascia com outra forma
-                   sem nada na tela dizer por quê. Vão em bracketConfig, que o
-                   servidor prefere ao doc da categoria. -->
+              <!-- O plano é a config: o que esta tabela mostra é o que vai em
+                   bracketConfig e o que fica gravado na categoria (o sorteio ao
+                   vivo lê de lá). Os três números soltos de antes viraram as
+                   colunas, uma linha por fase. -->
               <div class="og-field-grid" style="margin-top:14px">
                 <div class="og-seeds-stepper">
-                  <span class="lbl">Duplas por quadra</span>
+                  <span class="lbl">Máximo por bateria</span>
                   <div class="ctrl">
-                    <button type="button" (click)="bumpKocTeamsPerCourt(-1)">−</button>
-                    <span>{{ kocTeamsPerCourt() }}</span>
-                    <button type="button" (click)="bumpKocTeamsPerCourt(1)">+</button>
+                    <button type="button" (click)="bumpKocMaxPerRound(-1)">−</button>
+                    <span>{{ kocMaxTeamsPerRound() }}</span>
+                    <button type="button" (click)="bumpKocMaxPerRound(1)">+</button>
                   </div>
                 </div>
                 <div class="og-seeds-stepper">
-                  <span class="lbl">Rodadas por chave</span>
-                  <div class="ctrl">
-                    <button type="button" (click)="bumpKocRoundsPerBracket(-1)">−</button>
-                    <span>{{ kocRoundsPerBracket() }}</span>
-                    <button type="button" (click)="bumpKocRoundsPerBracket(1)">+</button>
-                  </div>
-                </div>
-              </div>
-              <div class="og-field-grid" style="margin-top:10px">
-                <div class="og-seeds-stepper">
-                  <span class="lbl">Classificam por rodada</span>
-                  <div class="ctrl">
-                    @if (kocRoundsPerBracket() === 1) {
-                      <button type="button" (click)="bumpKocQualifiers(-1)">−</button>
-                      <span>{{ kocQualifiersPerRound() }}</span>
-                      <button type="button" (click)="bumpKocQualifiers(1)">+</button>
-                    } @else {
-                      <span>1 por rodada</span>
-                    }
-                  </div>
-                </div>
-                <div class="og-seeds-stepper">
-                  <span class="lbl">Duração da rodada</span>
+                  <span class="lbl">Duração padrão</span>
                   <div class="ctrl">
                     <button type="button" (click)="bumpKocDuration(-1)">−</button>
                     <span>{{ kocDurationLabel() }}</span>
@@ -214,11 +195,89 @@ function shuffled<T>(items: readonly T[]): T[] {
                   </div>
                 </div>
               </div>
-              @if (kocPlan(); as plan) {
-                <p class="og-seeds-hint">{{ plan }}</p>
-              } @else {
+
+              @if (kocPlanChanged()) {
+                <p class="og-seeds-hint">
+                  As inscritas mudaram para {{ eligible().length }} — a proposta foi refeita.
+                </p>
+              }
+
+              @if (kocPhases().length === 0) {
                 <p class="og-seeds-error">
-                  Essa combinação não fecha com {{ eligible().length }} duplas — ajuste as rodadas por chave ou as classificadas.
+                  Com {{ eligible().length }} duplas não dá para montar uma rodada de
+                  King of the Court.
+                </p>
+                <p class="og-seeds-hint">
+                  <button type="button" class="og-koc-plan-redo" (click)="reproposeKocPlan()">
+                    Refazer proposta
+                  </button>
+                </p>
+              } @else {
+                <div class="og-koc-plan" style="margin-top:14px">
+                  @for (phase of kocPhases(); track $index) {
+                    <div class="og-koc-plan-row">
+                      <span class="og-koc-plan-phase">{{ kocPhaseTitle($index) }}</span>
+
+                      <label class="og-koc-plan-field">
+                        <span class="lbl">Chaves</span>
+                        <select
+                          [value]="phase.bracketSizes.length"
+                          (change)="editKocPhase($index, { bracketCount: +$any($event.target).value })">
+                          @for (n of kocBracketOptions($index); track n) {
+                            <option [value]="n" [selected]="n === phase.bracketSizes.length">{{ n }}</option>
+                          }
+                        </select>
+                        <small>{{ phase.bracketSizes.join(', ') }}</small>
+                      </label>
+
+                      <div class="og-seeds-stepper">
+                        <span class="lbl">Baterias</span>
+                        <div class="ctrl">
+                          <button type="button"
+                            (click)="editKocPhase($index, { roundsPerBracket: phase.roundsPerBracket - 1 })">−</button>
+                          <span>{{ phase.roundsPerBracket }}</span>
+                          <button type="button"
+                            (click)="editKocPhase($index, { roundsPerBracket: phase.roundsPerBracket + 1 })">+</button>
+                        </div>
+                      </div>
+
+                      <div class="og-seeds-stepper">
+                        <span class="lbl">Classificam</span>
+                        <div class="ctrl">
+                          @if (kocPhasePasses($index) === null) {
+                            <span>pódio</span>
+                          } @else {
+                            <button type="button"
+                              (click)="editKocPhase($index, { qualifiersPerRound: phase.qualifiersPerRound - 1 })">−</button>
+                            <span>{{ phase.qualifiersPerRound }}</span>
+                            <button type="button"
+                              (click)="editKocPhase($index, { qualifiersPerRound: phase.qualifiersPerRound + 1 })">+</button>
+                          }
+                        </div>
+                      </div>
+
+                      <div class="og-seeds-stepper">
+                        <span class="lbl">Duração</span>
+                        <div class="ctrl">
+                          <button type="button" (click)="bumpKocPhaseDuration($index, -1)">−</button>
+                          <span>{{ kocPhaseDurationLabel($index) }}</span>
+                          <button type="button" (click)="bumpKocPhaseDuration($index, 1)">+</button>
+                        </div>
+                      </div>
+
+                      <span class="og-koc-plan-passes">
+                        @if (kocPhasePasses($index); as passes) { Passam {{ passes }} }
+                        @else { Pódio }
+                      </span>
+                    </div>
+                  }
+                </div>
+
+                <p class="og-seeds-hint">
+                  {{ kocTotals().rounds }} rodadas · {{ kocTotals().label }} em 1 quadra
+                  <button type="button" class="og-koc-plan-redo" (click)="reproposeKocPlan()">
+                    Refazer proposta
+                  </button>
                 </p>
               }
             }
@@ -477,6 +536,70 @@ function shuffled<T>(items: readonly T[]): T[] {
       color: var(--nx-live);
       margin: 10px 0 0;
     }
+    .og-seeds-hint {
+      font-family: var(--nx-font-ui);
+      font-size: 12.5px;
+      color: var(--nx-text-dim);
+      margin: 10px 0 0;
+    }
+    .og-koc-plan-row {
+      display: grid;
+      grid-template-columns: 1.2fr repeat(4, 1fr) 0.8fr;
+      gap: 10px;
+      align-items: end;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--nx-line);
+    }
+    // Grid explícito, não flex: a tabela precisa das colunas ALINHADAS entre as
+    // linhas, e flex alinha cada linha por conta própria.
+    @media (max-width: 720px) {
+      .og-koc-plan-row { grid-template-columns: 1fr 1fr; }
+    }
+    .og-koc-plan-phase { font-weight: 600; }
+    .og-koc-plan-passes { font-variant-numeric: tabular-nums; opacity: .8; }
+    .og-koc-plan-field {
+      display: flex;
+      flex-direction: column;
+    }
+    .og-koc-plan-field .lbl {
+      display: block;
+      font-family: var(--nx-font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+      margin-bottom: 8px;
+    }
+    .og-koc-plan-field select {
+      height: 30px;
+      border-radius: 8px;
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line-strong);
+      color: var(--nx-text);
+      font-family: var(--nx-font-mono);
+      font-weight: 700;
+      font-size: 13px;
+      padding: 0 8px;
+    }
+    .og-koc-plan-field small {
+      display: block;
+      margin-top: 4px;
+      font-family: var(--nx-font-ui);
+      font-size: 10.5px;
+      color: var(--nx-text-mute);
+    }
+    .og-koc-plan-redo {
+      margin-left: 6px;
+      padding: 0;
+      border: none;
+      background: none;
+      font-family: var(--nx-font-ui);
+      font-weight: 600;
+      font-size: 12.5px;
+      color: var(--nx-orange-500);
+      cursor: pointer;
+    }
     .og-seeds-stepper .lbl {
       display: block;
       font-family: var(--nx-font-mono);
@@ -578,14 +701,13 @@ export class SeedsComponent {
   protected readonly useSeeds = signal(true);
   protected readonly teamsPerGroup = signal(4);
   protected readonly qualifiersPerGroup = signal(2);
-  /** Config da King of the Court desta geração. Nasce do doc da categoria
-   *  quando ela É KOTC; numa categoria de duelo gerada como KOTC pelo seletor
-   *  acima o doc não tem nada, e é aqui que o organizador decide — antes ia
-   *  para o default do servidor sem aviso. */
-  protected readonly kocTeamsPerCourt = signal(KOC_DEFAULT_TEAMS_PER_COURT);
-  protected readonly kocRoundsPerBracket = signal(1);
-  protected readonly kocQualifiersPerRound = signal(KOC_DEFAULT_QUALIFIERS_PER_ROUND);
+  protected readonly kocMaxTeamsPerRound = signal(KOC_LEGACY_MAX_TEAMS_PER_ROUND);
   protected readonly kocRoundDurationSec = signal(KOC_DEFAULT_ROUND_DURATION_SEC);
+  /** Plano em edição. Reproposto sempre que a contagem de inscritas muda. */
+  protected readonly kocPhases = signal<KocPhaseSpec[]>([]);
+  /** Contagem de inscritas para a qual o plano atual foi montado. Signal, não
+   *  campo: é lido por um computed, e campo simples não dispara recálculo. */
+  private readonly kocPlanFor = signal(0);
   protected readonly groups = signal<GroupPreview[]>([]);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   /** Índice da dupla sendo arrastada na lista de seeds — null fora do drag. */
@@ -654,8 +776,10 @@ export class SeedsComponent {
   protected readonly canPublish = computed(() => {
     if (this.eligible().length < MIN_TEAMS_FOR_BRACKET) return false;
     // KOTC tem piso próprio e não usa grupos nem plantas de dupla eliminação:
-    // sai antes das duas checagens abaixo.
-    if (this.format() === 'king_of_court') return this.eligible().length >= KOC_MIN_TEAMS;
+    // sai antes das duas checagens abaixo. Plano vazio ("não dá para montar",
+    // proposta ou edição) não pode publicar — geraria com um formato que a
+    // tela nem mostra.
+    if (this.format() === 'king_of_court') return this.eligible().length >= KOC_MIN_TEAMS && this.kocPhases().length > 0;
     if (this.format() === 'double_elimination') return this.deCountOk();
     if (this.format() === 'groups_knockout') return this.knockoutBalanced() && this.groups().length > 0;
     return true;
@@ -671,6 +795,16 @@ export class SeedsComponent {
       }
       this.loading.set(true);
       void this.load(tid, cid);
+    });
+
+    // As inscrições continuam mexendo enquanto a tela está aberta. Um plano
+    // montado para 10 duplas não fecha com 12, e a geração recusaria com todo
+    // mundo já na quadra — então a proposta acompanha a contagem sozinha.
+    effect(() => {
+      const teams = this.eligible().length;
+      if (this.format() !== 'king_of_court') return;
+      if (teams === this.kocPlanFor()) return;
+      untracked(() => this.reproposeKocPlan());
     });
   }
 
@@ -700,9 +834,11 @@ export class SeedsComponent {
         const per = Math.max(2, cat.teamsPerGroup);
         this.teamsPerGroup.set(per);
         this.qualifiersPerGroup.set(Math.min(Math.max(1, cat.qualifiersPerGroup), per - 1));
-        this.kocTeamsPerCourt.set(cat.kocTeamsPerCourt);
-        this.kocRoundsPerBracket.set(cat.kocRoundsPerBracket);
-        this.kocQualifiersPerRound.set(cat.kocQualifiersPerRound);
+        this.kocMaxTeamsPerRound.set(kocClampMaxPerRound(cat.kocMaxTeamsPerRound));
+        this.kocRoundDurationSec.set(cat.kocRoundDurationSec || KOC_DEFAULT_ROUND_DURATION_SEC);
+        // Plano salvo só vale para a contagem com que foi montado; a tela
+        // sempre repropõe e o organizador reconhece o que mudou.
+        this.reproposeKocPlan();
       }
       this.redraw();
     } finally {
@@ -716,20 +852,25 @@ export class SeedsComponent {
     if (f === 'groups_knockout') this.redraw();
   }
 
-  protected bumpKocTeamsPerCourt(delta: number): void {
-    this.kocTeamsPerCourt.update((v) =>
-      Math.min(Math.max(v + delta, KOC_MIN_PER_COURT), KOC_MAX_TEAMS_PER_ROUND));
-    this.clampKoc();
+  /** Repropõe do zero com a contagem atual. É o botão "Refazer proposta" e
+   *  também o que roda sozinho quando as inscritas mudam. */
+  protected reproposeKocPlan(): void {
+    const teams = this.eligible().length;
+    const previous = this.kocPlanFor();
+    this.kocPlanFor.set(teams);
+    this.kocPlanChanged.set(previous > 0 && previous !== teams);
+    this.kocPhases.set(
+      kocProposePhasePlan(teams, this.kocMaxTeamsPerRound(), this.kocRoundDurationSec()),
+    );
   }
 
-  protected bumpKocRoundsPerBracket(delta: number): void {
-    const max = kocMaxRoundsForField(this.eligible().length, this.kocTeamsPerCourt());
-    this.kocRoundsPerBracket.update((v) => Math.min(Math.max(v + delta, 1), max));
-  }
+  /** Ligado quando a reproposta aconteceu porque a CONTAGEM mudou — não quando
+   *  o organizador clicou em "Refazer proposta" nem na primeira montagem. */
+  protected readonly kocPlanChanged = signal(false);
 
-  protected bumpKocQualifiers(delta: number): void {
-    this.kocQualifiersPerRound.update((v) =>
-      Math.min(Math.max(v + delta, 1), Math.max(1, this.kocTeamsPerCourt() - 1)));
+  protected bumpKocMaxPerRound(delta: number): void {
+    this.kocMaxTeamsPerRound.update((v) => kocClampMaxPerRound(v + delta));
+    this.reproposeKocPlan();
   }
 
   protected bumpKocDuration(delta: number): void {
@@ -737,34 +878,65 @@ export class SeedsComponent {
       KOC_MAX_ROUND_DURATION_SEC,
       Math.max(KOC_MIN_ROUND_DURATION_SEC, v + delta * 300),
     ));
+    this.reproposeKocPlan();
   }
 
-  /** Reduzir a quadra pode deixar rodadas/classificadas acima do teto. */
-  private clampKoc(): void {
-    const perCourt = this.kocTeamsPerCourt();
-    this.kocQualifiersPerRound.update((q) => Math.min(q, Math.max(1, perCourt - 1)));
-    const max = kocMaxRoundsForField(this.eligible().length, perCourt);
-    this.kocRoundsPerBracket.update((r) => Math.min(r, max));
+  protected kocBracketOptions(index: number): number[] {
+    const phase = this.kocPhases()[index];
+    if (!phase) return [];
+    const field = phase.bracketSizes.reduce((a, b) => a + b, 0);
+    return kocBracketCountOptions(field, this.kocMaxTeamsPerRound());
   }
+
+  /** Aplica a edição de uma fase. `kocApplyPhaseEdit` pode devolver `[]` quando
+   *  a cascata não fecha (ex.: 5 duplas com teto 4) — mesma convenção de "não
+   *  dá para montar" da proposta, tratada pelo mesmo bloco do template. */
+  protected editKocPhase(index: number, patch: KocPhasePatch): void {
+    this.kocPhases.update((plan) =>
+      kocApplyPhaseEdit(plan, index, patch, this.kocMaxTeamsPerRound()),
+    );
+  }
+
+  /** `kocApplyPhaseEdit` não clampa `durationSec` (só quem chama sabe o
+   *  intervalo aceitável — o mesmo motivo por que `bumpKocDuration` clampa o
+   *  padrão global). Sem isso o botão "−" desceria a bateria a zero e depois
+   *  ao negativo, e `parseKocPhases` derruba o plano INTEIRO quando salvo. */
+  protected bumpKocPhaseDuration(index: number, delta: number): void {
+    const phase = this.kocPhases()[index];
+    if (!phase) return;
+    const durationSec = Math.min(
+      KOC_MAX_ROUND_DURATION_SEC,
+      Math.max(KOC_MIN_ROUND_DURATION_SEC, phase.durationSec + delta * 300),
+    );
+    this.editKocPhase(index, { durationSec });
+  }
+
+  /** Quantas duplas a fase seguinte recebe. `null` na final. */
+  protected kocPhasePasses(index: number): number | null {
+    const plan = this.kocPhases();
+    const phase = plan[index];
+    if (!phase || index === plan.length - 1) return null;
+    return phase.bracketSizes.length * phase.roundsPerBracket * phase.qualifiersPerRound;
+  }
+
+  protected kocPhaseTitle(index: number): string {
+    const total = this.kocPhases().length;
+    if (index === total - 1) return 'Final';
+    if (total >= 3 && index === total - 2) return 'Semifinal';
+    return 'Classificatória';
+  }
+
+  protected readonly kocTotals = computed(() =>
+    kocPlanTotals(this.kocPhases(), 1),
+  );
 
   protected kocDurationLabel(): string {
     return `${Math.round(this.kocRoundDurationSec() / 60)} min`;
   }
 
-  /** Quantas rodadas a combinação produz — a mesma conta do wizard. Vazio
-   *  quando a config não fecha, e aí o publish é recusado pelo servidor. */
-  protected kocPlan(): string | null {
-    const schedule = kocSchedule(
-      this.eligible().length,
-      this.kocTeamsPerCourt(),
-      this.kocQualifiersPerRound(),
-      this.kocRoundDurationSec(),
-      1,
-      this.kocRoundsPerBracket(),
-    );
-    if (!schedule.valid) return null;
-    return `${this.eligible().length} duplas · ${schedule.totalRounds} rodadas ` +
-      `(${schedule.roundsPerPhase.join(' → ')}) · ${schedule.totalLabel} de quadra.`;
+  protected kocPhaseDurationLabel(index: number): string {
+    const phase = this.kocPhases()[index];
+    return phase ? `${Math.round(phase.durationSec / 60)} min` : '—';
   }
 
   protected bumpTeamsPerGroup(delta: number): void {
@@ -941,6 +1113,14 @@ export class SeedsComponent {
       // servidor e o "sorteio 100% aleatório" prometido no toggle não existia.
       const ordered = this.eligible().map((t) => t.teamId!);
       const seeds = this.useSeeds() ? ordered : shuffled(ordered);
+      if (this.format() === 'king_of_court') {
+        // Grava ANTES de gerar: o sorteio ao vivo lê o plano do doc da
+        // categoria, e quem sorteia depois precisa achar o mesmo formato. Se
+        // isto lançar (categoria desconhecida — Task 6), o catch abaixo pega,
+        // mostra no feedback e a geração nem roda: publicar a chave sem o
+        // plano gravado deixaria o sorteio ao vivo futuro sem formato.
+        await saveKocPhasePlan(tid, cat.id, this.kocPhases(), this.kocMaxTeamsPerRound());
+      }
       const result = await generateCategoryBracket({
         tournamentId: tid,
         categoryId: cat.id,
@@ -951,9 +1131,8 @@ export class SeedsComponent {
         // que faz a escolha desta tela valer numa categoria que não é KOTC.
         ...(this.format() === 'king_of_court' ? {
           bracketConfig: {
-            teamsPerCourt: this.kocTeamsPerCourt(),
-            roundsPerBracket: this.kocRoundsPerBracket(),
-            qualifiersPerRound: this.kocQualifiersPerRound(),
+            phases: this.kocPhases(),
+            maxTeamsPerRound: this.kocMaxTeamsPerRound(),
             roundDurationSec: this.kocRoundDurationSec(),
           },
         } : {}),

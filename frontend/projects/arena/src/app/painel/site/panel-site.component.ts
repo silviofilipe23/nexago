@@ -436,7 +436,7 @@ interface PlanFormItem {
 
     /* ar.below(lg) casa com o ponto em que .ar-split (styles.scss) colapsa a
        grade pra uma coluna -- sem isto a trilha fica sticky por cima do
-       conteudo entre o colapso do grid e este breakpoint. */
+       conteúdo entre o colapso do grid e este breakpoint. */
     @include ar.below(lg) {
       .col-side {
         position: static;

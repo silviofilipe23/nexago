@@ -272,13 +272,13 @@ function pathOnly(url: string): string {
       color: var(--nx-text-dim);
     }
 
-    /* So existe dentro do drawer (viewport.isCompact() no template) -- na
-       sidebar fixa do desktop fechar nao faz sentido, ja que ela nunca se
+    /* Só existe dentro do drawer (viewport.isCompact() no template) -- na
+       sidebar fixa do desktop fechar não faz sentido, já que ela nunca se
        fecha. Mesmo tamanho/alvo de toque do .nav-trigger da topbar (44px,
        var(--ar-tap)) porque os dois resolvem o mesmo problema: entrar e sair
-       do drawer sem depender de Escape (teclado fisico) ou do scrim, que o
+       do drawer sem depender de Escape (teclado físico) ou do scrim, que o
        painel de 100%/420px de largura cobre por completo em qualquer celular
-       (375/390/393/414px nao sobra nada tocavel fora do painel). */
+       (375/390/393/414px não sobra nada tocável fora do painel). */
     .drawer-close {
       width: var(--ar-tap);
       height: var(--ar-tap);
@@ -366,9 +366,9 @@ function pathOnly(url: string): string {
       gap: 1px;
       margin-top: 14px;
       min-height: 0;
-      /* era overflow: hidden -- e por isso que 10 dos 21 itens sumiam sem
+      /* era overflow: hidden -- é por isso que 10 dos 21 itens sumiam sem
          barra num MacBook Air 13". Com grupos a lista quase nunca rola, mas a
-         invariante e que NUNCA se corte em silencio. */
+         invariante é que NUNCA se corte em silêncio. */
       overflow-y: auto;
       overscroll-behavior: contain;
       scrollbar-width: thin;
@@ -402,14 +402,14 @@ function pathOnly(url: string): string {
       color: var(--nx-text-mute);
     }
 
-    /* o icone e o mesmo aberto ou fechado -- PanelIconName nao tem chevron-down
-       -- entao quem indica o estado e a rotacao, nao a troca de nome. Gira o
-       HOST <ar-icon>, nao o svg de dentro: o svg nasce no template do
-       IconComponent, entao carrega o atributo de escopo do IconComponent, nao
+    /* o ícone é o mesmo aberto ou fechado -- PanelIconName não tem chevron-down
+       -- então quem indica o estado é a rotação, não a troca de nome. Gira o
+       HOST <ar-icon>, não o svg de dentro: o svg nasce no template do
+       IconComponent, então carrega o atributo de escopo do IconComponent, não
        o do panel-shell -- um seletor daqui pra dentro do template do filho
        nunca casa sob encapsulamento emulado. O host, por estar escrito aqui,
        carrega o atributo certo. display: inline-flex resolve de quebra o
-       display: inline padrao do custom element, que tambem impedia o
+       display: inline padrão do custom element, que também impedia o
        transform de pegar. */
     .nav-group-head ar-icon {
       display: inline-flex;
@@ -662,11 +662,11 @@ function pathOnly(url: string): string {
         gap: var(--ar-tap-gap);
       }
 
-      /* .switch-arena-link e .user-row nao usam --ar-nav-item-h (esse token
-         so cobre .nav-item/.nav-group-head) -- por isso o alvo de toque de
-         44px da Task 2 nunca alcancava os dois. min-height (nao height) para
-         nao brigar com o conteudo intrinseco se algum dia crescer; os dois ja
-         tem align-items: center, entao o conteudo recentraliza sozinho na
+      /* .switch-arena-link e .user-row não usam --ar-nav-item-h (esse token
+         só cobre .nav-item/.nav-group-head) -- por isso o alvo de toque de
+         44px da Task 2 nunca alcançava os dois. min-height (não height) para
+         não brigar com o conteúdo intrínseco se algum dia crescer; os dois já
+         tem align-items: center, então o conteúdo recentraliza sozinho na
          caixa mais alta. */
       .switch-arena-link {
         min-height: var(--ar-tap);
@@ -689,9 +689,9 @@ export class PanelShellComponent implements OnDestroy {
 
   protected readonly drawerOpen = signal(false);
 
-  /** Itens fixos da bottom-nav, na ordem. O slot que o cargo nao alcanca cai
-   *  para o proximo permitido, para nunca sobrar buraco; "Mais" e um botao a
-   *  parte no template e garante que nada fique so-por-URL. */
+  /** Itens fixos da bottom-nav, na ordem. O slot que o cargo não alcança cai
+   *  para o próximo permitido, para nunca sobrar buraco; "Mais" é um botão à
+   *  parte no template e garante que nada fique só-por-URL. */
   private static readonly BOTTOM_PREFERENCE = [
     'inicio',
     'agenda',
@@ -716,7 +716,7 @@ export class PanelShellComponent implements OnDestroy {
     const ordenado = PanelShellComponent.BOTTOM_PREFERENCE.map((id) =>
       visiveis.find((item) => item.id === id),
     ).filter((item): item is PanelNavItem => item != null);
-    // 4 + o botao "Mais" do template = 5, o teto recomendado.
+    // 4 + o botão "Mais" do template = 5, o teto recomendado.
     return ordenado.slice(0, 4);
   });
 
@@ -731,11 +731,11 @@ export class PanelShellComponent implements OnDestroy {
 
   protected readonly activeId = computed(() => findActiveId(this.currentPath()));
 
-  /** Grupo aberto: o da rota atual quando ainda nao ha escolha guardada.
+  /** Grupo aberto: o da rota atual quando ainda não há escolha guardada.
    *  `null` = nada guardado (usa o fallback da rota ativa); `'none'` = o
-   *  usuario fechou tudo de proposito e o fallback NAO se aplica mais --
+   *  usuário fechou tudo de propósito e o fallback NÃO se aplica mais --
    *  sem esse terceiro estado, fechar o grupo da rota ativa gravava `null`,
-   *  isOpen caia de volta no fallback, e o grupo reabria sozinho. */
+   *  isOpen caía de volta no fallback, e o grupo reabria sozinho. */
   private readonly storedGroup = signal<StoredOpenGroup>(null);
 
   protected isOpen(group: ArenaNavGroup): boolean {
@@ -757,10 +757,10 @@ export class PanelShellComponent implements OnDestroy {
   private scrollFlush: ReturnType<typeof setTimeout> | null = null;
 
   /** Restaura o grupo aberto e a rolagem quando o `arenaId` resolve — na carga
-   *  fria ele comeca `null` ate o Firestore responder, entao ler uma vez so no
+   *  fria ele começa `null` até o Firestore responder, então ler uma vez só no
    *  inicializador do campo (fora de um efeito) perderia a escolha guardada.
-   *  `toggleGroup` grava direto no signal; este efeito so re-sincroniza quando
-   *  o `arenaId` muda, nunca por causa da propria escrita do toggle. */
+   *  `toggleGroup` grava direto no signal; este efeito só re-sincroniza quando
+   *  o `arenaId` muda, nunca por causa da própria escrita do toggle. */
   constructor() {
     effect(() => {
       this.storedGroup.set(this.navState.openGroup(this.arenaContext.arenaId()));

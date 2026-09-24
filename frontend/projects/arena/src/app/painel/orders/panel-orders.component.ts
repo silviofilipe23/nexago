@@ -307,8 +307,8 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
       }
     }
 
-    /* No celular a linha vira bloco e o cabecalho de coluna perde a funcao --
-       cada celula passa a carregar o proprio rotulo. */
+    /* No celular a linha vira bloco e o cabeçalho de coluna perde a função --
+       cada célula passa a carregar o próprio rótulo. */
     .col-label {
       display: none;
 
@@ -343,7 +343,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
       }
     }
 
-    /* Icone + codigo da comanda seguem lado a lado mesmo com o rotulo empilhado em cima. */
+    /* Ícone + código da comanda seguem lado a lado mesmo com o rótulo empilhado em cima. */
     .order-cell-main {
       display: flex;
       align-items: center;

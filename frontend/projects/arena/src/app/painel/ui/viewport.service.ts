@@ -1,6 +1,6 @@
-// DOCUMENT vem de @angular/common: e a convencao deste repo (organizer e site
-// importam assim). O @angular/core tambem reexporta na v20, mas seguir a casa
-// evita dois padroes para a mesma coisa.
+// DOCUMENT vem de @angular/common: é a convenção deste repo (organizer e site
+// importam assim). O @angular/core também reexporta na v20, mas seguir a casa
+// evita dois padrões para a mesma coisa.
 import { DOCUMENT } from '@angular/common';
 import { Injectable, computed, inject, signal } from '@angular/core';
 

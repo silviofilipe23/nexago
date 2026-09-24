@@ -382,9 +382,11 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
 
     setState(() => _saving = true);
     var leftForSuccessRoute = false;
+    final isOwner = ref.read(arenaAccessProvider).valueOrNull?.isOwner ?? false;
     try {
       await ref.read(arenaProfileEditServiceProvider).saveProfile(
             arenaId: widget.initial.id,
+            isOwner: isOwner,
             name: _name.text,
             description: _description.text,
             phone: _phone.text,

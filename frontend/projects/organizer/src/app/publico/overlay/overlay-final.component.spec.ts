@@ -75,25 +75,25 @@ describe('OverlayFinalComponent', () => {
     expect((letras[3] as HTMLElement).style.animationDelay).toBe('0.18s');
   });
 
-  it('no duelo, o placar é em sets e cada set vira uma célula', async () => {
+  it('não mostra placar — só o pódio', async () => {
     const fixture = await render();
+    const host = fixture.nativeElement as HTMLElement;
     const t = texto(fixture);
 
-    // O espaço entre os números vem do CSS, não do texto (preserveWhitespaces desligado).
-    expect(t).toContain('2×1sets');
-    expect((fixture.nativeElement as HTMLElement).querySelectorAll('.set').length).toBe(3);
-    expect(t).toContain('Set 2');
-    expect(t).toContain('21');
+    expect(host.querySelector('.score')).toBeNull();
+    expect(t).not.toContain('sets');
+    expect(t).not.toContain('2×1');
+    expect(t).not.toContain('Set 1');
   });
 
-  it('no KOTC, o lugar dos sets é de pontos e coroas', async () => {
-    const fixture = await render({ resultado: KOTC });
-    const t = texto(fixture);
+  it('no KOTC também omite pontos e coroas do placar', async () => {
+    const t = texto(await render({ resultado: KOTC }));
 
-    expect(t).toContain('24×20pontos');
-    expect(t).toContain('Coroas');
-    expect(t).not.toContain('Set 1');
-    expect((fixture.nativeElement as HTMLElement).querySelectorAll('.set').length).toBe(1);
+    expect(t).toContain('Van');
+    expect(t).toContain('Aye');
+    expect(t).not.toContain('pontos');
+    expect(t).not.toContain('Coroas');
+    expect(t).not.toContain('24×20');
   });
 
   it('ao sair da tela, o confete não continua rodando', async () => {

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
-import { isKingOfCourtMatchType, kocColumnLabel } from '../../painel/data/koc';
+import { isKingOfCourtMatchType, kocColumnLabel, normalizeMatchType } from '../../painel/data/koc';
 import { resolveCourtNames } from '../../painel/data/matches-repository';
+import { finalKindOf } from '../../painel/telao/telao-final-mode';
 import { OverlayLiveGateway } from './overlay-live.gateway';
 import { OverlayKocBarComponent } from './overlay-koc-bar.component';
 import { finalResultOf } from './overlay-final';
@@ -114,6 +115,12 @@ const CLASSIFICADAS_MS = 15_000;
   styles: `
     :host {
       display: block;
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      overflow: hidden;
     }
 
     .alternar {
@@ -167,21 +174,30 @@ export class OverlayPageComponent {
     return resolveCourtNames([m], this.gateway.tournament()?.courts ?? [])[0] ?? m;
   });
 
+  /** Final (duelo ou KOTC) já encerrada nesta tela — o placar some; o que fica é o pódio. */
+  private readonly finalEncerrada = computed(() => {
+    const m = this.match();
+    if (!m || m.status !== 'completed') return false;
+    if (normalizeMatchType(m.matchType) === 'koc final') return true;
+    return finalKindOf(m.matchType) === 'final';
+  });
+
   /** O estreitamento fica no TS; cada formato tem seu componente, não um ramo do outro. */
   protected readonly duelView = computed(() => {
     const v = this.view();
-    return v?.kind === 'duel' && !this.campeoes() ? v : null;
+    return v?.kind === 'duel' && !this.finalEncerrada() ? v : null;
   });
   protected readonly kocView = computed(() => {
     const v = this.view();
     // A rodada encerrada dá lugar à classificação — as duas na tela seriam duas verdades
-    // disputando o mesmo espaço.
-    return v?.kind === 'koc' && !this.standings() ? v : null;
+    // disputando o mesmo espaço. Final encerrada também: só o pódio.
+    return v?.kind === 'koc' && !this.standings() && !this.finalEncerrada() ? v : null;
   });
 
   /** Elenco da rodada que ainda não começou — antes do apito não há rei nem desafiante, e sem
    *  isto a tela ficava vazia. */
   protected readonly preRound = computed(() => {
+    if (this.finalEncerrada()) return null;
     const m = this.match();
     return m ? kocPreRoundOf(m) : null;
   });

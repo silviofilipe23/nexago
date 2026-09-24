@@ -534,13 +534,13 @@ describe('OverlayPageComponent', () => {
     expect(text).toContain('Carla & Dani');
   });
 
-  it('final sem vencedor declarado não coroa ninguém e segue no placar', async () => {
+  it('final sem vencedor declarado não coroa ninguém e também não mostra placar', async () => {
     const { fixture, fake } = await mount({ matchId: 'm1' });
     fake.match.set(match({ status: 'completed', matchType: 'Final', winnerSide: null }));
     await fixture.whenStable();
     const host = fixture.nativeElement as HTMLElement;
 
     expect(host.querySelector('og-overlay-final')).toBeNull();
-    expect(host.querySelector('og-overlay-scoreboard')).not.toBeNull();
+    expect(host.querySelector('og-overlay-scoreboard')).toBeNull();
   });
 });

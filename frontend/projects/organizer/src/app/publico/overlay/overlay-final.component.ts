@@ -61,37 +61,6 @@ export class OverlayFinalComponent {
       .join(' · '),
   );
 
-  /** O número grande: sets no duelo, pontos no KOTC. */
-  protected readonly principal = computed(() => {
-    const p = this.resultado()?.placar;
-    if (!p) return { campeao: 0, vice: 0, unidade: '' };
-    return p.tipo === 'sets'
-      ? { campeao: p.vencidosCampeao, vice: p.vencidosVice, unidade: 'sets' }
-      : { campeao: p.pontosCampeao, vice: p.pontosVice, unidade: 'pontos' };
-  });
-
-  /** As células menores: cada set no duelo; as coroas no KOTC, que não tem set. */
-  protected readonly celulas = computed(() => {
-    const p = this.resultado()?.placar;
-    if (!p) return [];
-    if (p.tipo === 'sets') {
-      return p.sets.map((s, i) => ({
-        rotulo: `Set ${i + 1}`,
-        campeao: s.campeao,
-        vice: s.vice,
-        venceuCampeao: s.campeao > s.vice,
-      }));
-    }
-    return [
-      {
-        rotulo: 'Coroas',
-        campeao: p.coroasCampeao,
-        vice: p.coroasVice,
-        venceuCampeao: p.coroasCampeao >= p.coroasVice,
-      },
-    ];
-  });
-
   private particulas: Confete[] = [];
   private chuva = false;
   private raf = 0;
@@ -213,27 +182,12 @@ export class OverlayFinalComponent {
 
     this.anima('.cat', [{ opacity: 0 }, { opacity: 1 }], { duration: 600, delay: 3000 });
     this.anima(
-      '.score',
-      [
-        { opacity: 0, transform: 'translate(-50%,24px) scaleX(.6)' },
-        { opacity: 1, transform: 'translate(-50%,0)' },
-      ],
-      { duration: 700, delay: 3200 },
-    );
-    this.cada('.score .set', (i) => ({
-      quadros: [
-        { opacity: 0, transform: 'translateY(12px)' },
-        { opacity: 1, transform: 'none' },
-      ],
-      opcoes: { duration: 450, delay: 3600 + i * 150 },
-    }));
-    this.anima(
       '.vice',
       [
         { opacity: 0, transform: 'translate(-50%,20px)' },
         { opacity: 1, transform: 'translate(-50%,0)' },
       ],
-      { duration: 600, delay: 4200 },
+      { duration: 600, delay: 3400 },
     );
 
     this.depois(() => {
@@ -244,7 +198,7 @@ export class OverlayFinalComponent {
       this.semear(360, 560, -Math.PI / 2.4, 18, 70, 1);
       this.semear(1560, 560, -Math.PI / 1.7, 18, 70, 1);
       this.rodar();
-    }, 4600);
+    }, 4000);
   }
 
   private cada(

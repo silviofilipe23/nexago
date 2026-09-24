@@ -71,6 +71,71 @@ describe('overlayCourtContextOf', () => {
     expect(ctx.totalRounds).toBe(0);
   });
 
+  it('final encerrada nesta quadra fica no ar mesmo sem memória de fim', () => {
+    const final = match({
+      id: 'fi',
+      status: 'completed',
+      courtId: 'q2',
+      matchType: 'Final',
+      winnerSide: 1,
+      teamAId: 'ta',
+      teamBId: 'tb',
+      matchEndedAt: new Date(NOW - 3_600_000),
+      sets: [
+        { a: 21, b: 18 },
+        { a: 21, b: 15 },
+      ],
+    });
+    const proxima = match({
+      id: 'exibicao',
+      status: 'scheduled',
+      courtId: 'q2',
+      matchType: 'WB',
+      scheduledAt: new Date(NOW + 60_000),
+    });
+
+    const ctx = overlayCourtContextOf([final, proxima], 'q2', NOW, SEM_MEMORIA);
+
+    expect(ctx.match?.id).toBe('fi');
+    expect(ctx.categoryMatches.map((m) => m.id)).toEqual(['fi', 'exibicao']);
+  });
+
+  it('final KOTC encerrada também fica pinada na quadra', () => {
+    const final = match({
+      id: 'koc-fi',
+      status: 'completed',
+      courtId: 'q2',
+      matchType: 'koc_final',
+      matchEndedAt: new Date(NOW - 600_000),
+      koc: {
+        teamIds: ['a', 'b', 'c', 'd'],
+        kingTeamId: 'a',
+        challengerTeamId: 'b',
+        queue: ['c', 'd'],
+        points: { a: 12, b: 10, c: 8, d: 6 },
+        rallies: 0,
+        servingTeamId: 'b',
+        clock: null,
+        standings: [
+          { teamId: 'a', place: 1, points: 12, crowns: 3 },
+          { teamId: 'b', place: 2, points: 10, crowns: 2 },
+          { teamId: 'c', place: 3, points: 8, crowns: 1 },
+          { teamId: 'd', place: 4, points: 6, crowns: 0 },
+        ],
+        qualifiersPerRound: 2,
+        teamsPerCourt: 4,
+        roundsPerBracket: 1,
+        configuredDurationSec: 900,
+        rallySeq: 0,
+        rallyLog: [],
+        roundLabel: 1,
+        qualifierSlots: [],
+      },
+    });
+
+    expect(overlayCourtContextOf([final], 'q2', NOW, SEM_MEMORIA).match?.id).toBe('koc-fi');
+  });
+
   it('entrega a categoria e o total da fase da partida escolhida', () => {
     const aoVivo = match({
       id: 'certa',

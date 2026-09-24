@@ -25,7 +25,6 @@
   <div id="root">
     <div id="fit">
       <div id="stage">
-        <div class="dim"></div>
         <div class="rays"></div>
         <div class="rays b"></div>
         <div class="halo"></div>
@@ -83,29 +82,6 @@
         </div>
 
         <div class="cat">{{ contexto() }}</div>
-
-        <div class="score">
-          <div class="sc-main">
-            <span class="n">{{ principal().campeao }}</span>
-            <span class="x">×</span>
-            <span class="n">{{ principal().vice }}</span>
-            <span class="l">{{ principal().unidade }}</span>
-          </div>
-          <div class="sets">
-            @for (celula of celulas(); track $index) {
-              <div class="set">
-                <span class="k">{{ celula.rotulo }}</span>
-                <span class="v">
-                  @if (celula.venceuCampeao) {
-                    <em>{{ celula.campeao }}</em><i>–</i>{{ celula.vice }}
-                  } @else {
-                    {{ celula.campeao }}<i>–</i><em style="color: #fff">{{ celula.vice }}</em>
-                  }
-                </span>
-              </div>
-            }
-          </div>
-        </div>
 
         <div class="vice">
           <svg viewBox="0 0 200 150"><use href="#crown" fill="url(#gS)"></use></svg>

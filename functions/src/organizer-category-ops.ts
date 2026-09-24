@@ -19,10 +19,14 @@ import {
   KOC_DEFAULT_ROUND_DURATION_SEC,
   KOC_MIN_TEAMS_PER_ROUND,
   KOC_DEFAULT_TEAMS_PER_COURT,
+  KOC_LEGACY_MAX_TEAMS_PER_ROUND,
   KocBracketError,
   buildKingOfCourtRounds,
+  kocClampMaxPerRound,
   kocQualifierDescription,
+  kocResolvePlan,
   type KocConfig,
+  type KocPhaseSpec,
   type KocRoundDraft,
 } from "./koc-bracket-builders";
 import {
@@ -148,6 +152,41 @@ export function bracketMatchDoc(
 }
 
 /**
+ * Plano vindo do Firestore ou do payload, saneado.
+ *
+ * Devolve `undefined` no menor sinal de sujeira: sem plano o gerador cai nas
+ * regras antigas, que funcionam. Com plano meio lido, ele geraria uma chave que
+ * ninguém pediu.
+ */
+export function parseKocPhases(raw: unknown): KocPhaseSpec[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const out: KocPhaseSpec[] = [];
+  for (const item of raw) {
+    if (item == null || typeof item !== "object") return undefined;
+    const row = item as Record<string, unknown>;
+    const sizes = Array.isArray(row.bracketSizes) ?
+      row.bracketSizes.map((n) => Math.floor(Number(n))) :
+      null;
+    if (!sizes || sizes.length === 0 || sizes.some((n) => !Number.isFinite(n) || n < 1)) {
+      return undefined;
+    }
+    const rounds = Math.floor(Number(row.roundsPerBracket));
+    const qualifiers = Math.floor(Number(row.qualifiersPerRound));
+    const duration = Math.round(Number(row.durationSec));
+    if (!Number.isFinite(rounds) || rounds < 1) return undefined;
+    if (!Number.isFinite(qualifiers) || qualifiers < 0) return undefined;
+    if (!Number.isFinite(duration) || duration <= 0) return undefined;
+    out.push({
+      bracketSizes: sizes,
+      roundsPerBracket: rounds,
+      qualifiersPerRound: qualifiers,
+      durationSec: duration,
+    });
+  }
+  return out;
+}
+
+/**
  * Documento da RODADA King of the Court.
  *
  * Mora na mesma coleção `matches` das partidas de duelo — é o que lhe dá agenda,
@@ -159,7 +198,12 @@ export function bracketMatchDoc(
  */
 export function kocRoundDoc(
   draft: KocRoundDraft,
-  meta: {tournamentId: string; categoryId: string; config: KocConfig},
+  meta: {
+    tournamentId: string;
+    categoryId: string;
+    config: KocConfig;
+    plan: KocPhaseSpec[];
+  },
 ): Record<string, unknown> {
   const qualifiers = draft.qualifiers.map((slot) => ({
     fromMatchNumber: slot.fromMatchNumber,
@@ -167,6 +211,20 @@ export function kocRoundDoc(
     place: slot.place,
     description: kocQualifierDescription(slot),
   }));
+  const spec = meta.plan[draft.phase - 1];
+  // Números DESTA fase na forma velha. O app da loja, o overlay e o LED leem
+  // `teamsPerCourt`/`roundsPerBracket`/`qualifiersPerRound` e não conhecem
+  // `phases`; sem isto eles mostrariam a config da categoria, que na fase 2 já
+  // não é a que está na quadra.
+  const legacyTeamsPerCourt = spec ?
+    Math.max(...spec.bracketSizes) :
+    meta.config.teamsPerCourt;
+  const legacyRounds = spec?.roundsPerBracket ?? meta.config.roundsPerBracket ?? 1;
+  // Na final ninguém classifica (`0`), mas 0 faria a tabela sumir na tela
+  // antiga: ali o número honesto é o elenco inteiro, que é o pódio.
+  const legacyQualifiers = spec ?
+    (spec.qualifiersPerRound > 0 ? spec.qualifiersPerRound : draft.size) :
+    meta.config.qualifiersPerRound;
   return {
     tournamentId: meta.tournamentId,
     categoryId: meta.categoryId,
@@ -182,6 +240,7 @@ export function kocRoundDoc(
     isGroupMatch: false,
     matchNumber: draft.matchNumber,
     kocRoundLabel: draft.roundLabel,
+    kocBatteryLabel: draft.batteryLabel,
     kocTeamIds: draft.teamIds,
     kocSize: draft.size,
     // Snapshot: o relógio da rodada lê DAQUI, nunca da categoria. Mexer na
@@ -189,9 +248,14 @@ export function kocRoundDoc(
     kocConfig: {
       roundEndMode: "time",
       durationSec: draft.durationSec,
-      teamsPerCourt: meta.config.teamsPerCourt,
-      roundsPerBracket: meta.config.roundsPerBracket ?? 1,
-      qualifiersPerRound: meta.config.qualifiersPerRound,
+      // Forma nova: o plano inteiro, congelado. Mexer no plano da categoria
+      // depois não altera chave já publicada.
+      phases: meta.plan,
+      maxTeamsPerRound: meta.config.maxTeamsPerRound ?? KOC_LEGACY_MAX_TEAMS_PER_ROUND,
+      // Forma velha, para quem ainda não conhece `phases`.
+      teamsPerCourt: legacyTeamsPerCourt,
+      roundsPerBracket: legacyRounds,
+      qualifiersPerRound: legacyQualifiers,
       crownScores: false,
     },
     ...(qualifiers.length > 0 ? {kocQualifiers: qualifiers} : {}),
@@ -225,11 +289,16 @@ export function resolveKocConfig(
     }
   }
 
+  const phases = parseKocPhases(pick("phases"));
+  const maxTeamsPerRound = kocClampMaxPerRound(pick("maxTeamsPerRound"));
+
   return {
     teamsPerCourt: int(pick("teamsPerCourt"), KOC_DEFAULT_TEAMS_PER_COURT),
     roundsPerBracket: int(pick("roundsPerBracket"), 1),
     qualifiersPerRound: int(pick("qualifiersPerRound"), 2),
     roundDurationSec: int(pick("roundDurationSec"), KOC_DEFAULT_ROUND_DURATION_SEC),
+    maxTeamsPerRound,
+    ...(phases ? {phases} : {}),
     ...(Object.keys(phaseDurations).length > 0 ?
       {phaseDurationsSec: phaseDurations} :
       {}),
@@ -483,13 +552,18 @@ export async function runGenerateCategoryBracket(
     resolveKocConfig(bracketConfig, categoryMeta as Record<string, unknown> | undefined) :
     null;
   let kocRounds: KocRoundDraft[] = [];
+  let kocPlan: KocPhaseSpec[] = [];
   if (isKingOfCourt && kocConfig) {
     try {
+      // Resolve UMA vez: o gerador e o doc da rodada têm que congelar o mesmo
+      // plano. Resolver duas vezes deixaria a chave e o snapshot divergirem
+      // quando a config mudasse no meio.
+      kocPlan = kocResolvePlan(teamIds.length, kocConfig);
       // `groupsPreview` na KOTC é o resultado do SORTEIO AO VIVO: cada "grupo"
       // é uma rodada da classificatória, já com o elenco que saiu na frente do
       // público. Sem ele, a semeadura em serpentina decide (fluxo da tela de
       // gerar chave).
-      kocRounds = buildKingOfCourtRounds(teamIds, kocConfig, {
+      kocRounds = buildKingOfCourtRounds(teamIds, {...kocConfig, phases: kocPlan}, {
         ...(groupsPreview.length > 0 ?
           {phaseOneRosters: groupsPreview.map((g) => g.teamIds)} :
           {}),
@@ -520,7 +594,7 @@ export async function runGenerateCategoryBracket(
   const newMatchDocs: Array<Record<string, unknown>> =
     isKingOfCourt && kocConfig ?
       kocRounds.map((draft) =>
-        kocRoundDoc(draft, {tournamentId, categoryId, config: kocConfig}),
+        kocRoundDoc(draft, {tournamentId, categoryId, config: kocConfig, plan: kocPlan}),
       ) :
       matchDrafts.map((draft) =>
         bracketMatchDoc(draft, {tournamentId, categoryId, bestOf}),

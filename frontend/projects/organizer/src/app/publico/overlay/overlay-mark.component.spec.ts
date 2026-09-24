@@ -43,4 +43,21 @@ describe('OverlayMarkComponent', () => {
     expect((fixture.nativeElement as HTMLElement).getAttribute('aria-hidden')).toBe('true');
     expect(img.getAttribute('alt')).toBe('');
   });
+
+  it('no modo de fluxo, deixa de flutuar e entra no layout de quem a hospeda', async () => {
+    // Nas telas de LED os dois cantos direitos são ocupados (relógio em cima, fila embaixo):
+    // presa no canto, a marca cairia por cima do cronômetro.
+    const fixture = await render({ flow: true });
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.getAttribute('data-flow')).toBe('true');
+    expect(getComputedStyle(host).position).toBe('static');
+  });
+
+  it('por padrão continua flutuando no canto', async () => {
+    const host = (await render()).nativeElement as HTMLElement;
+
+    expect(host.getAttribute('data-flow')).toBeNull();
+    expect(getComputedStyle(host).position).toBe('fixed');
+  });
 });

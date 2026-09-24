@@ -8,6 +8,7 @@ import {
   input,
 } from '@angular/core';
 import { OgAvatarComponent } from '../../painel/ui/avatar.component';
+import { OverlayMarkComponent } from '../overlay/overlay-mark.component';
 import type { OverlayKocBlock } from '../overlay/overlay-koc-bar';
 import type { OverlayKocView } from '../overlay/overlay-selectors';
 import { ledIniciaisDe } from './led-iniciais';
@@ -42,12 +43,12 @@ const FILA_R_MS = 480;
 @Component({
   selector: 'og-led-round',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgAvatarComponent],
+  imports: [OgAvatarComponent, OverlayMarkComponent],
   template: `
     @if (view(); as v) {
       <div class="tela">
         <header class="topo">
-          <div>
+          <div class="topo-textos">
             <h1 class="rodada">
               Rodada <span class="rodada-num">{{ rodada() }}</span
               ><span class="rodada-total">/{{ total() }}</span>
@@ -58,6 +59,7 @@ const FILA_R_MS = 480;
           @if (v.bar.clock; as clock) {
             <div class="relogio" [class.relogio--urgente]="urgente()">{{ clock.label }}</div>
           }
+          <og-overlay-mark [flow]="true" />
         </header>
 
         @if (esgotado()) {
@@ -159,6 +161,13 @@ const FILA_R_MS = 480;
     .topo {
       flex: none;
       display: flex;
+      gap: 32px;
+    }
+    /* Ocupa a sobra pra que relógio e marca fiquem JUNTOS na direita — sem isto o
+       space-between joga o relógio pro meio da tela. */
+    .topo-textos {
+      flex: 1;
+      min-width: 0;
       align-items: flex-start;
       justify-content: space-between;
       gap: 24px;

@@ -64,6 +64,14 @@ describe('LedRoundComponent', () => {
     expect(host(await render({ view: null })).querySelector('.tela')).toBeNull();
   });
 
+  it('leva a marca da nexaGO, sem flutuar por cima do conteúdo', async () => {
+    const marca = host(await render()).querySelector('og-overlay-mark');
+
+    expect(marca).not.toBeNull();
+    // No LED os cantos direitos têm dono (relógio, fila), então ela entra no cabeçalho.
+    expect(marca?.getAttribute('data-flow')).toBe('true');
+  });
+
   it('mostra rodada, categoria, quadra e relógio', async () => {
     const text = (host(await render()).textContent ?? '').replace(/\s+/g, ' ');
 

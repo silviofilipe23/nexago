@@ -63,6 +63,12 @@ precisam de dois. Premia sem decidir sozinho.
 Quando o empate cobre mais de uma vaga, cada mini-rodada resolve **uma**: o empate é
 recalculado a cada registro, e o encerramento segue recusado até zerar.
 
+A mesa mostra **quantas vagas o empate decide** antes do primeiro toque — não é o
+tamanho do grupo empatado, e sim `qualifiersPerRound` menos as classificadas já
+definidas acima dele. Quatro duplas em zero com duas classificando disputam DUAS vagas;
+resolvida a primeira, as três restantes disputam UMA. Entre um desempate e o seguinte a
+mesa nomeia quem já se classificou, para o mesário saber que o toque anterior valeu.
+
 Um empate de três não é caso raro — **um único rally** num elenco de 4 já deixa as
 outras três empatadas em zero.
 

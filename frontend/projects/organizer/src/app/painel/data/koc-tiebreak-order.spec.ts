@@ -1,4 +1,10 @@
-import { kocCrownOrder, kocQualifyingTieGroup, kocTiebreakOrder } from './koc';
+import {
+  kocCrownOrder,
+  kocLastTiebreakWinner,
+  kocQualifyingSpotsAtStake,
+  kocQualifyingTieGroup,
+  kocTiebreakOrder,
+} from './koc';
 import type { KocRallyEntry, KocRoundState } from './koc';
 
 /**
@@ -108,5 +114,64 @@ describe('kocTiebreakOrder · a mini-rodada', () => {
     const r = round({ points: { a: 3, b: 1, c: 1, d: 0 } });
     expect(kocQualifyingTieGroup(r)).toEqual(['b', 'c']);
     expect(kocTiebreakOrder(r).length).toBe(2);
+  });
+});
+
+describe('kocQualifyingSpotsAtStake · quantas vagas o empate decide', () => {
+  it('rodada sem ponto nenhum: 4 duplas disputam as DUAS vagas', () => {
+    // O estado do board "3 · Mini-rodada por 2 vagas".
+    const r = round();
+    expect(kocQualifyingTieGroup(r).length).toBe(4);
+    expect(kocQualifyingSpotsAtStake(r)).toBe(2);
+  });
+
+  it('com uma já definida acima, sobra UMA vaga para as três', () => {
+    const r = round({ rallyLog: [rally(1, 'king')], points: { a: 1 } });
+    expect(kocQualifyingTieGroup(r)).toEqual(['b', 'c', 'd']);
+    expect(kocQualifyingSpotsAtStake(r)).toBe(1);
+  });
+
+  it('não é o tamanho do grupo: três empatadas podem disputar uma vaga só', () => {
+    const r = round({ rallyLog: [rally(1, 'king')], points: { a: 1 } });
+    expect(kocQualifyingTieGroup(r).length).toBe(3);
+    expect(kocQualifyingSpotsAtStake(r)).toBe(1);
+  });
+
+  it('sem empate na vaga, não há vaga em disputa', () => {
+    expect(kocQualifyingSpotsAtStake(round({ points: { a: 3, b: 2, c: 1 } }))).toBe(0);
+  });
+});
+
+describe('kocLastTiebreakWinner · o progresso entre um desempate e o seguinte', () => {
+  it('sem desempate registrado, não há vencedora anterior', () => {
+    expect(kocLastTiebreakWinner(round())).toBeNull();
+  });
+
+  it('quem pontuou no desempate e saiu do empate é anunciada', () => {
+    // 4 em zero disputando 2 vagas; `a` vence o 1º desempate e sobe para 1.
+    const r = round({
+      rallyLog: [rally(1, 'golden_point', 'a')],
+      points: { a: 1 },
+    });
+    expect(kocLastTiebreakWinner(r)).toBe('a');
+    expect(kocQualifyingTieGroup(r)).toEqual(['b', 'c', 'd']);
+    expect(kocQualifyingSpotsAtStake(r)).toBe(1);
+  });
+
+  it('se a vencedora continua no empate, não anuncia — nada foi resolvido', () => {
+    // Defesa contra anunciar "está classificada" para quem ainda disputa.
+    const r = round({
+      rallyLog: [rally(1, 'golden_point', 'a')],
+      points: { a: 1, b: 1, c: 1, d: 1 },
+    });
+    expect(kocLastTiebreakWinner(r)).toBeNull();
+  });
+
+  it('rally normal depois do desempate não apaga o anúncio', () => {
+    const r = round({
+      rallyLog: [rally(1, 'golden_point', 'a'), rally(2, 'king')],
+      points: { a: 1 },
+    });
+    expect(kocLastTiebreakWinner(r)).toBe('a');
   });
 });

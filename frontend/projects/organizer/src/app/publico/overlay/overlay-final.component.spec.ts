@@ -6,6 +6,7 @@ import { OverlayFinalComponent } from './overlay-final.component';
 const DUELO: FinalCampeoes = {
   campeao: ['Hölting Nilsson', 'Berger'],
   vice: ['Batrane', 'Tiisaar'],
+  fotos: [null, null],
   placar: {
     tipo: 'sets',
     vencidosCampeao: 2,
@@ -21,6 +22,7 @@ const DUELO: FinalCampeoes = {
 const KOTC: FinalCampeoes = {
   campeao: ['Van', 'Aye'],
   vice: ['Bro', 'Dau'],
+  fotos: ['https://cdn.example/van.jpg', null],
   placar: { tipo: 'pontos', pontosCampeao: 24, pontosVice: 20, coroasCampeao: 5, coroasVice: 3 },
 };
 
@@ -84,6 +86,18 @@ describe('OverlayFinalComponent', () => {
     expect(t).not.toContain('sets');
     expect(t).not.toContain('2×1');
     expect(t).not.toContain('Set 1');
+  });
+
+  it('coloca avatar com anel e coroa ao lado de cada campeão', async () => {
+    const host = (await render({ resultado: KOTC })).nativeElement as HTMLElement;
+    const champs = [...host.querySelectorAll('.champ')];
+    const crowns = [...host.querySelectorAll('.champ-crown')];
+    const avatars = [...host.querySelectorAll('og-avatar')];
+
+    expect(champs.length).toBe(2);
+    expect(crowns.length).toBe(2);
+    expect(avatars.length).toBe(2);
+    expect(crowns[0]?.textContent).toContain('👑');
   });
 
   it('no KOTC também omite pontos e coroas do placar', async () => {

@@ -8,12 +8,22 @@ import {
   inject,
   input,
 } from '@angular/core';
+import { OgAvatarComponent } from '../../painel/ui/avatar.component';
+import { ledIniciaisDe } from '../led/led-iniciais';
 import type { FinalPlacar } from './overlay-final';
 
 export interface FinalCampeoes {
   campeao: [string, string];
   vice: [string, string];
+  /** Foto de cada campeão — null cai nas iniciais. */
+  fotos: [string | null, string | null];
   placar: FinalPlacar;
+}
+
+interface ChampSlot {
+  name: string;
+  initials: string;
+  photoUrl: string | null;
 }
 
 interface Confete {
@@ -42,6 +52,7 @@ const EASE = 'cubic-bezier(.22,1,.36,1)';
 @Component({
   selector: 'og-overlay-final',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OgAvatarComponent],
   templateUrl: './overlay-final.component.html',
   styleUrl: './overlay-final.component.css',
 })
@@ -60,6 +71,16 @@ export class OverlayFinalComponent {
       .filter((p) => !!p)
       .join(' · '),
   );
+
+  protected readonly campeaoSlots = computed<ChampSlot[]>(() => {
+    const r = this.resultado();
+    if (!r) return [];
+    return r.campeao.map((name, i) => ({
+      name,
+      initials: ledIniciaisDe(name) || '?',
+      photoUrl: r.fotos[i] ?? null,
+    }));
+  });
 
   private particulas: Confete[] = [];
   private chuva = false;
@@ -95,6 +116,10 @@ export class OverlayFinalComponent {
 
   private el<T extends Element>(seletor: string): T | null {
     return (this.host.nativeElement as HTMLElement).querySelector<T>(seletor);
+  }
+
+  private elAll<T extends Element>(seletor: string): T[] {
+    return [...(this.host.nativeElement as HTMLElement).querySelectorAll<T>(seletor)];
   }
 
   private anima(seletor: string, quadros: Keyframe[], opcoes: KeyframeAnimationOptions): void {
@@ -172,13 +197,26 @@ export class OverlayFinalComponent {
       );
     }
 
-    this.cada('.names .p', (i) => ({
+    // 2,5s: cada campeão sobe crescendo com quique; a 👑 cai em 3,0s e 3,26s.
+    this.cada('.champ', (i) => ({
       quadros: [
-        { opacity: 0, transform: 'translateY(30px)' },
+        { opacity: 0, transform: 'translateY(48px) scale(.35)' },
+        { opacity: 1, transform: 'translateY(-10px) scale(1.08)', offset: 0.68 },
+        { opacity: 1, transform: 'translateY(4px) scale(.97)', offset: 0.86 },
         { opacity: 1, transform: 'none' },
       ],
-      opcoes: { duration: 700, delay: 2500 + i * 140 },
+      opcoes: { duration: 720, delay: 2500 + i * 260 },
     }));
+    this.anima(
+      '.amp',
+      [
+        { opacity: 0, transform: 'scale(.6)' },
+        { opacity: 1, transform: 'none' },
+      ],
+      { duration: 500, delay: 2680 },
+    );
+    this.coroaNoAvatar(0, 3000);
+    this.coroaNoAvatar(1, 3260);
 
     this.anima('.cat', [{ opacity: 0 }, { opacity: 1 }], { duration: 600, delay: 3000 });
     this.anima(
@@ -187,7 +225,7 @@ export class OverlayFinalComponent {
         { opacity: 0, transform: 'translate(-50%,20px)' },
         { opacity: 1, transform: 'translate(-50%,0)' },
       ],
-      { duration: 600, delay: 3400 },
+      { duration: 600, delay: 4200 },
     );
 
     this.depois(() => {
@@ -198,14 +236,76 @@ export class OverlayFinalComponent {
       this.semear(360, 560, -Math.PI / 2.4, 18, 70, 1);
       this.semear(1560, 560, -Math.PI / 1.7, 18, 70, 1);
       this.rodar();
-    }, 4000);
+    }, 4600);
+  }
+
+  /** 👑 cai girando, quica, amassa o avatar e solta um jato de confete; depois balança em loop. */
+  private coroaNoAvatar(i: number, delayMs: number): void {
+    const crown = this.elAll<HTMLElement>('.champ-crown')[i];
+    const face = this.elAll<HTMLElement>('.champ-face')[i];
+    if (!crown || !face) return;
+
+    this.animacoes.push(
+      crown.animate(
+        [
+          { opacity: 0, transform: 'translate(-50%, -200px) rotate(-48deg) scale(1.45)' },
+          { opacity: 1, transform: 'translate(-50%, 10px) rotate(14deg) scale(.9)', offset: 0.72 },
+          { opacity: 1, transform: 'translate(-50%, -6px) rotate(-8deg) scale(1.06)', offset: 0.86 },
+          { opacity: 1, transform: 'translate(-50%, 0) rotate(0deg) scale(1)' },
+        ],
+        { duration: 700, delay: delayMs, fill: 'both', easing: 'cubic-bezier(.5,0,.4,1)' },
+      ),
+    );
+
+    this.depois(() => {
+      this.animacoes.push(
+        face.animate(
+          [
+            { transform: 'scale(1, 1)' },
+            { transform: 'scale(1.1, .78)', offset: 0.32 },
+            { transform: 'scale(.96, 1.08)', offset: 0.62 },
+            { transform: 'scale(1, 1)' },
+          ],
+          { duration: 380, easing: 'cubic-bezier(.5,0,.4,1)' },
+        ),
+      );
+      this.jatoDoAvatar(i);
+    }, delayMs + 500);
+
+    this.depois(() => {
+      this.animacoes.push(
+        crown.animate(
+          [
+            { transform: 'translate(-50%, 0) rotate(-11deg)' },
+            { transform: 'translate(-50%, -2px) rotate(13deg)' },
+            { transform: 'translate(-50%, 0) rotate(-11deg)' },
+          ],
+          { duration: 2400, iterations: Infinity, easing: 'ease-in-out' },
+        ),
+      );
+    }, delayMs + 720);
+  }
+
+  /** Jato de confete a partir do topo do avatar — coordenadas no canvas 1920×1080. */
+  private jatoDoAvatar(i: number): void {
+    const face = this.elAll<HTMLElement>('.champ-face')[i];
+    const fit = this.el<HTMLElement>('#fit');
+    if (!face || !fit) return;
+    const fr = face.getBoundingClientRect();
+    const fitR = fit.getBoundingClientRect();
+    if (fitR.width <= 0) return;
+    const s = fitR.width / 1920;
+    const x = (fr.left + fr.width / 2 - fitR.left) / s;
+    const y = (fr.top - fitR.top) / s;
+    this.semear(x, y, -Math.PI / 2, 16, 42, 1.35);
+    this.rodar();
   }
 
   private cada(
     seletor: string,
     fn: (i: number) => { quadros: Keyframe[]; opcoes: KeyframeAnimationOptions },
   ): void {
-    const alvos = [...(this.host.nativeElement as HTMLElement).querySelectorAll(seletor)];
+    const alvos = this.elAll(seletor);
     alvos.forEach((alvo, i) => {
       const { quadros, opcoes } = fn(i);
       this.animacoes.push(alvo.animate(quadros, { fill: 'both', easing: EASE, ...opcoes }));

@@ -219,11 +219,21 @@ export class OverlayPageComponent {
     const m = this.match();
     const r = m ? finalResultOf(m) : null;
     if (!r) return null;
-    const nomes = (teamId: string): [string, string] => {
+    const face = (teamId: string) => {
       const t = this.gateway.teams().get(teamId);
-      return t ? t.players : ['', ''];
+      return {
+        players: (t?.players ?? ['', '']) as [string, string],
+        fotos: (t?.photos ?? [null, null]) as [string | null, string | null],
+      };
     };
-    return { campeao: nomes(r.campeaoTeamId), vice: nomes(r.viceTeamId), placar: r.placar };
+    const campeao = face(r.campeaoTeamId);
+    const vice = face(r.viceTeamId);
+    return {
+      campeao: campeao.players,
+      vice: vice.players,
+      fotos: campeao.fotos,
+      placar: r.placar,
+    };
   });
 
   /** Classificação da rodada KOTC encerrada. */

@@ -76,9 +76,20 @@
         </div>
 
         <div class="names">
-          <span class="p">{{ r.campeao[0] }}</span>
-          <span class="p amp">&amp;</span>
-          <span class="p">{{ r.campeao[1] }}</span>
+          @for (slot of campeaoSlots(); track $index; let i = $index) {
+            @if (i === 1) {
+              <span class="amp">&amp;</span>
+            }
+            <div class="champ" [attr.data-i]="i">
+              <div class="champ-face">
+                <span class="champ-crown" aria-hidden="true">👑</span>
+                <div class="champ-ring">
+                  <og-avatar [initials]="slot.initials" [photoUrl]="slot.photoUrl" [size]="144" />
+                </div>
+              </div>
+              <span class="champ-name">{{ slot.name }}</span>
+            </div>
+          }
         </div>
 
         <div class="cat">{{ contexto() }}</div>

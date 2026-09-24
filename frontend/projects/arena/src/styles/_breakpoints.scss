@@ -1,9 +1,9 @@
-// Escadas de faixa do painel da arena. Fonte unica — nenhum outro arquivo
+// Escadas de faixa do painel da arena. Fonte única — nenhum outro arquivo
 // declara px de breakpoint.
 //
-// Largura: absorve o que ja existia no projeto (1180 aparece 25x, 720 14x,
+// Largura: absorve o que já existia no projeto (1180 aparece 25x, 720 14x,
 // 900 3x). Altura: nova; nenhum portal do frontend tinha @media por altura,
-// e e por altura que o notebook 13" quebra.
+// e é por altura que o notebook 13" quebra.
 @use 'sass:map';
 
 $w-lg: 1180px;

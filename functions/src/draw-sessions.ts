@@ -13,10 +13,13 @@ import {
 } from "./firebase-paths";
 import {isBoxedDraw, type DrawFormat} from "./draw-engine";
 import {
+  KOC_DEFAULT_ROUND_DURATION_SEC,
   KOC_DEFAULT_TEAMS_PER_COURT,
   KOC_MIN_TEAMS_PER_ROUND,
-  kocBracketCountForRounds,
-  kocMaxRoundsPerBracket,
+  kocClampMaxPerRound,
+  kocResolvePlan,
+  KocBracketError,
+  type KocPhaseSpec,
 } from "./koc-bracket-builders";
 import {athleteRatingsPath} from "./rating-engine";
 import {buildEntrants, type EntrantHistoryMatch, type EntrantSource} from "./draw-entrants";
@@ -31,7 +34,7 @@ import {
   type DrawSessionConfig,
   type DrawSessionDoc,
 } from "./draw-session-model";
-import {runGenerateCategoryBracket} from "./organizer-category-ops";
+import {parseKocPhases, runGenerateCategoryBracket} from "./organizer-category-ops";
 import {assertCanManageTournament} from "./tournament-acl";
 import {findCategory, resolveCategoryLabel} from "./tournament-registration-guards";
 import {registrationAthleteUids} from "./tournament-registration-pix-helpers";
@@ -170,6 +173,10 @@ interface CategoryMeta {
   roundsPerBracket: number;
   qualifiersPerGroup: number;
   bracketFormat: string | null;
+  /** Plano explícito de fases da categoria; ausente ⇒ regras antigas. */
+  kocPhases: KocPhaseSpec[] | undefined;
+  /** Teto de duplas numa bateria nesta categoria. */
+  kocMaxTeamsPerRound: number;
 }
 
 function categoryMetaOf(tournament: Record<string, unknown>, categoryId: string): CategoryMeta {
@@ -185,6 +192,8 @@ function categoryMetaOf(tournament: Record<string, unknown>, categoryId: string)
     roundsPerBracket: Math.max(1, Math.floor(num(found?.roundsPerBracket, 1))),
     qualifiersPerGroup: num(found?.qualifiersPerGroup, 2),
     bracketFormat: str(found?.bracketFormat) || null,
+    kocPhases: parseKocPhases(found?.kocPhases ?? found?.phases),
+    kocMaxTeamsPerRound: kocClampMaxPerRound(found?.kocMaxTeamsPerRound ?? found?.maxTeamsPerRound),
   };
 }
 
@@ -243,25 +252,48 @@ export const createDrawSession = onCall({
   // Recusa AQUI, não no publish. O sorteio ao vivo acontece na frente do
   // público: descobrir que a configuração não fecha depois de revelar as duplas
   // obrigaria a anular a sessão inteira com todo mundo olhando.
-  if (format === "king_of_court" && category.roundsPerBracket > 1) {
-    const brackets = kocBracketCountForRounds(
-      teamIds.length,
-      category.teamsPerCourt,
-      category.roundsPerBracket,
-    );
-    const smallest = Math.floor(teamIds.length / brackets);
-    const max = kocMaxRoundsPerBracket(smallest);
-    if (category.roundsPerBracket > max) {
+  let kocPlan: KocPhaseSpec[] = [];
+  if (format === "king_of_court") {
+    try {
+      kocPlan = kocResolvePlan(teamIds.length, {
+        teamsPerCourt: category.teamsPerCourt,
+        qualifiersPerRound: category.qualifiersPerGroup,
+        roundsPerBracket: category.roundsPerBracket,
+        roundDurationSec: KOC_DEFAULT_ROUND_DURATION_SEC,
+        maxTeamsPerRound: category.kocMaxTeamsPerRound,
+        ...(category.kocPhases ? {phases: category.kocPhases} : {}),
+      });
+    } catch (e) {
+      if (e instanceof KocBracketError) {
+        throw new HttpsError("failed-precondition", e.message, {reason: e.reason});
+      }
+      throw e;
+    }
+    // O sorteio guarda só o ALVO da caixa (`teamsPerBox`, mais abaixo) e
+    // reconstrói o número de caixas com `groupCapacities`, que é
+    // `ceil(duplas / alvo)`. Plano EXPLÍCITO já passa por essa mesma checagem
+    // em `assertPlan`; plano DERIVADO (categoria sem plano próprio, regras
+    // antigas) não passa por lá — e é exatamente aí que mora o bug: com
+    // "Duplas por quadra" 3 e 19 duplas o plano fecha em 6 chaves
+    // `[4,3,3,3,3,3]`, mas `ceil(19/4)` é 5. Sem esta checagem o sorteio
+    // revelaria 5 caixas e o publish exigiria 6, com as duplas já na tela.
+    const kocTarget = Math.max(...kocPlan[0]!.bracketSizes);
+    const kocBoxCount = Math.ceil(teamIds.length / kocTarget);
+    if (kocBoxCount !== kocPlan[0]!.bracketSizes.length) {
+      const hint = category.kocPhases ?
+        "o número de chaves da fase 1 no plano" :
+        '"Duplas por quadra"';
       throw new HttpsError(
         "failed-precondition",
-        `Com ${teamIds.length} duplas a menor chave fica com ${smallest}, e uma ` +
-          `chave de ${smallest} comporta no máximo ${max} rodada(s) — a categoria ` +
-          `pede ${category.roundsPerBracket}. Ajuste "Rodadas por chave" antes de sortear.`,
+        `A fase 1 do plano tem ${kocPlan[0]!.bracketSizes.length} chave(s), mas ` +
+          `com chaves de até ${kocTarget} duplas o sorteio monta ${kocBoxCount} ` +
+          `caixa(s) para ${teamIds.length} duplas — os números não batem. Ajuste ` +
+          `${hint} antes de sortear.`,
         {
-          reason: "koc_rounds_per_bracket_too_high",
+          reason: "koc_bracket_count_not_roundtrippable",
           teamCount: teamIds.length,
-          smallestBracket: smallest,
-          maxRoundsPerBracket: max,
+          planBracketCount: kocPlan[0]!.bracketSizes.length,
+          drawBoxCount: kocBoxCount,
         },
       );
     }
@@ -274,21 +306,13 @@ export const createDrawSession = onCall({
     );
   }
 
-  // Tamanho da caixa do sorteio. Na KOTC a caixa é uma CHAVE, e quantas chaves
-  // existem NÃO é `ceil(duplas / teamsPerCourt)`: as pontas são corrigidas (uma
-  // rodada de 2 não é King of the Court, é um jogo) E `roundsPerBracket` entra
-  // na conta, porque quem joga 2 rodadas precisa nascer com 4 duplas. Tem que
-  // ser a MESMA divisão de `buildKingOfCourtRounds`: o elenco sorteado vira o
+  // Tamanho da caixa do sorteio. Na KOTC a caixa é uma CHAVE, e quem decide o
+  // tamanho é o PLANO — não uma conta refeita aqui. O elenco sorteado vira o
   // elenco da fase 1, e a geração recusa quando o número de caixas não bate.
+  // `groupCapacities` reconstrói por `ceil(duplas / alvo)`, que é a mesma
+  // distribuição de `kocRoundSizes`: o maior tamanho do plano é o alvo.
   const teamsPerBox = format === "king_of_court" ?
-    Math.ceil(
-      teamIds.length /
-        kocBracketCountForRounds(
-          teamIds.length,
-          category.teamsPerCourt,
-          category.roundsPerBracket,
-        ),
-    ) :
+    Math.max(...kocPlan[0]!.bracketSizes) :
     category.teamsPerGroup;
 
   const sportCode = tournamentSportToLevelSportCode(tournament.sportId);

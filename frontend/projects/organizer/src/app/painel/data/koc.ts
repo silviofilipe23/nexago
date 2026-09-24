@@ -352,6 +352,43 @@ export function kocCrownOrder(round: KocRoundState): string[] {
 }
 
 /**
+ * Quantas VAGAS o empate decide.
+ *
+ * Não é o tamanho do grupo empatado: é quantas vagas sobraram depois das que já
+ * estão definidas acima dele. Quatro duplas em zero com duas classificando
+ * disputam DUAS vagas; se uma já pontuou, as três restantes disputam UMA.
+ *
+ * A mesa precisa disso antes do primeiro toque: cada mini-rodada resolve uma
+ * vaga só, e sem o número o mesário registra a primeira e só então descobre que
+ * falta outra.
+ */
+export function kocQualifyingSpotsAtStake(round: KocRoundState): number {
+  const tied = kocQualifyingTieGroup(round);
+  if (tied.length === 0) return 0;
+  const tiedPoints = kocPointsOf(round, tied[0]!);
+  const acima = round.teamIds.filter((id) => kocPointsOf(round, id) > tiedPoints).length;
+  return Math.max(0, round.qualifiersPerRound - acima);
+}
+
+/**
+ * A última dupla que pontuou num desempate, quando ela JÁ SAIU do empate.
+ *
+ * É o que deixa a mesa dizer "fulana está classificada, falta 1" em vez de
+ * repetir a mesma frase de antes — o mesário precisa saber que o toque anterior
+ * valeu.
+ */
+export function kocLastTiebreakWinner(round: KocRoundState): string | null {
+  const emDisputa = new Set(kocQualifyingTieGroup(round));
+  for (let i = round.rallyLog.length - 1; i >= 0; i--) {
+    const entry = round.rallyLog[i]!;
+    if (entry.winner !== 'golden_point') continue;
+    const teamId = entry.teamId.trim();
+    return teamId && !emDisputa.has(teamId) ? teamId : null;
+  }
+  return null;
+}
+
+/**
  * Ordem de entrada da MINI-RODADA que resolve o empate, da primeira à última.
  *
  * Com duas duplas é uma bola de ouro e pronto. Com três ou mais, "rally único

@@ -6,6 +6,8 @@ import {
   KOC_MAX_TEAMS_PER_ROUND,
   KOC_MIN_TEAMS_PER_ROUND,
   kocFinalTable,
+  kocLastTiebreakWinner,
+  kocQualifyingSpotsAtStake,
   kocQualifyingTieGroup,
   kocTiebreakOrder,
   type KocLogLine,
@@ -448,16 +450,33 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
             </button>
 
             @if (tie()) {
+              <!-- Quantas vagas o empate decide, antes do primeiro toque. Cada
+                   desempate resolve UMA: sem o número, o mesário registra a
+                   primeira e só então descobre que falta outra. -->
+              <div class="og-mk-tie-head">
+                <span class="og-mk-tie-kicker">EMPATE NA VAGA</span>
+                <span class="og-mk-tie-chip">{{ spotsAtStake() }} {{ spotsAtStake() === 1 ? 'VAGA' : 'VAGAS' }} EM DISPUTA</span>
+              </div>
+              @if (lastTiebreakWinner(); as vencedora) {
+                <p class="og-mk-tie-note resolvido">
+                  <strong>{{ faceOf(vencedora).name }}</strong> pontuou no desempate e está classificada.
+                  {{ spotsAtStake() === 1 ? 'Falta 1.' : 'Faltam ' + spotsAtStake() + '.' }}
+                </p>
+              } @else if (spotsAtStake() > 1) {
+                <p class="og-mk-tie-note">
+                  Cada desempate decide <strong>uma</strong> vaga. Faltam <strong>{{ spotsAtStake() }}</strong>.
+                </p>
+              }
               @if (tieGroup().length === 2) {
-                <p class="og-mk-tie-note">Empate na vaga de classificação — bola de ouro entre as duas.</p>
+                <p class="og-mk-tie-note">Bola de ouro entre as duas.</p>
               } @else {
                 <!-- "Rally único entre as empatadas" não diz o que fazer com
                      três: um rally tem dois lados. Elas jogam o próprio
                      formato, e a ordem de entrada sai do mesmo critério que o
                      servidor usaria para desempatar sozinho. -->
                 <p class="og-mk-tie-note">
-                  Empate de {{ tieGroup().length }} duplas na vaga — mini-rodada entre elas.
-                  <strong>Quem pontuar primeiro leva a vaga.</strong>
+                  Mini-rodada entre as {{ tieGroup().length }} —
+                  <strong>quem pontuar primeiro leva a vaga.</strong>
                 </p>
                 <ol class="og-mk-tie-ordem">
                   @for (entry of tieLineup(); track entry.teamId) {
@@ -1651,6 +1670,39 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       flex: 1;
       min-width: 96px;
     }
+    .og-mk-tie-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .og-mk-tie-kicker {
+      flex-grow: 1;
+      font-family: var(--nx-font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--nx-pending);
+    }
+    .og-mk-tie-chip {
+      flex: none;
+      padding: 5px 10px;
+      border: 1px solid var(--nx-pending);
+      border-radius: 999px;
+      font-family: var(--nx-font-mono);
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--nx-pending);
+      white-space: nowrap;
+    }
+    .og-mk-tie-note.resolvido {
+      color: var(--nx-text);
+    }
+    .og-mk-tie-note.resolvido strong {
+      color: var(--nx-orange-500);
+    }
     .og-mk-tie-note {
       margin: 8px 0 0;
       font-size: 12px;
@@ -2119,6 +2171,18 @@ export class MesaKocComponent {
   protected tie(): boolean {
     return this.tieGroup().length > 0;
   }
+
+  /** Quantas vagas o empate decide — o que o chip mostra. */
+  protected readonly spotsAtStake = computed(() => {
+    const r = this.round();
+    return r ? kocQualifyingSpotsAtStake(r) : 0;
+  });
+
+  /** A dupla que pontuou no desempate anterior e já saiu do empate. */
+  protected readonly lastTiebreakWinner = computed(() => {
+    const r = this.round();
+    return r ? kocLastTiebreakWinner(r) : null;
+  });
 
   /** As empatadas na ORDEM DE ENTRADA da mini-rodada: a primeira começa no
    *  trono. Com duas é a mesma lista, e a ordem não muda nada. */

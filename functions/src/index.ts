@@ -5,6 +5,10 @@ import {initializeApp} from "firebase-admin/app";
 import {recalculateArenaReviewAggregates} from "./arena-review-aggregates";
 import {quoteArenaBooking, createArenaBooking} from "./arena-booking-create";
 import {
+  quoteArenaManualBooking,
+  createArenaManualBooking,
+} from "./arena-manual-booking";
+import {
   cancelPendingArenaBookingPayment,
   createArenaBookingPixPayment,
   expirePendingArenaBookingPayments,
@@ -197,6 +201,8 @@ export {
 export {
   quoteArenaBooking,
   createArenaBooking,
+  quoteArenaManualBooking,
+  createArenaManualBooking,
   cancelPendingArenaBookingPayment,
   createArenaBookingPixPayment,
   expirePendingArenaBookingPayments,

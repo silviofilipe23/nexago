@@ -7,6 +7,7 @@ import { fetchCourtsList } from '../courts/courts-repository';
 import type { ArenaCourt } from '../courts/court.model';
 import { bookingIsActive, dateKeyOf, type ArenaBooking } from '../bookings/arena-booking.model';
 import { resolveAthleteLabel, watchBookingsForArena } from '../bookings/bookings-repository';
+import { ManualBookingModalComponent } from '../bookings/manual-booking-modal.component';
 import { applyBookingsOverlay, applyScheduleFilters, scheduleDayStats, type ArenaScheduleStatusFilter } from './arena-schedule-grouping';
 import { ARENA_SLOT_BLOCK_REASON_LABEL, ARENA_SLOT_BLOCK_REASONS, type ArenaSlot, type ArenaSlotBlockReason } from './arena-slot.model';
 import { blockSlot, blockVirtualSlot, fetchCourtsRaw, unblockSlot, watchArenaDaySlots, watchArenaWeekSlots } from './schedule-repository';
@@ -64,9 +65,9 @@ function timeToMinutes(time: string): number {
  *  dia — disponíveis (clicáveis pra bloquear), reservados (`arenaBookings`) e bloqueados
  *  (`arenaSlots`) — espelhando `ArenaSchedulePage`/`VirtualSlotGenerator` (Flutter).
  *  Toggle "Dia"/"Semana" troca a grade de verdade (grid de 1 dia × quadras ou de 7 dias ×
- *  quadras), e o calendário no header seleciona qualquer data. Sem "Nova reserva": o Flutter
- *  também não tem criação de reserva pelo gestor em lugar nenhum (reserva é sempre iniciada
- *  pelo atleta na busca). */
+ *  quadras), e o calendário no header seleciona qualquer data. "Nova reserva" cria reserva de balcão
+ *  (`createArenaManualBooking`) — caminho que só existe aqui na web; no Flutter a reserva
+ *  segue sempre iniciada pelo atleta na busca. */
 @Component({
   selector: 'ar-panel-agenda',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -81,6 +82,7 @@ function timeToMinutes(time: string): number {
     AgendaGridComponent,
     AgendaWeekGridComponent,
     DatePickerComponent,
+    ManualBookingModalComponent,
   ],
   template: `
     <ar-panel-shell>
@@ -95,7 +97,13 @@ function timeToMinutes(time: string): number {
             <ar-icon name="chevron-right" [size]="14" />
           </button>
           <ar-chart-tabs [tabs]="views" [active]="view()" (change)="view.set($any($event))" />
-          <button type="button" class="ar-mini-btn ar-mini-btn-primary" disabled title="Em breve">
+          <button
+            type="button"
+            class="ar-mini-btn ar-mini-btn-primary"
+            [disabled]="readOnly()"
+            [title]="readOnly() ? 'Seu cargo não permite criar reservas' : 'Criar reserva de balcão'"
+            (click)="openManualBooking(null, null, null)"
+          >
             <ar-icon name="plus" [size]="14" />
             Nova reserva
           </button>
@@ -165,6 +173,30 @@ function timeToMinutes(time: string): number {
           </ar-panel-card>
         }
       </div>
+
+      @if (slotActionTarget(); as target) {
+        <ar-modal (close)="slotActionTarget.set(null)">
+          <h2 class="confirm-title">{{ target.startTime }}–{{ target.endTime }}</h2>
+          <p class="confirm-body">{{ courtName(target.courtId) }} · horário livre. O que você quer fazer?</p>
+          <div class="confirm-actions">
+            <button type="button" class="ar-ghost-btn" (click)="chooseBlockFromSheet()">Bloquear horário</button>
+            <button type="button" class="ar-mini-btn ar-mini-btn-primary" (click)="chooseReserveFromSheet()">Reservar horário</button>
+          </div>
+        </ar-modal>
+      }
+
+      @if (manualBookingOpen()) {
+        <ar-manual-booking-modal
+          [arenaId]="arenaContext.arenaId() ?? ''"
+          [courts]="courts()"
+          [dateKey]="manualDateKey()"
+          [courtId]="manualCourtId()"
+          [startTime]="manualStartTime()"
+          [endTime]="manualEndTime()"
+          (close)="manualBookingOpen.set(false)"
+          (created)="manualBookingOpen.set(false)"
+        />
+      }
 
       @if (blockTarget(); as target) {
         <ar-modal (close)="blockTarget.set(null)">
@@ -416,7 +448,7 @@ function timeToMinutes(time: string): number {
 })
 export class PanelAgendaComponent {
   private readonly router = inject(Router);
-  private readonly arenaContext = inject(ArenaContextService);
+  protected readonly arenaContext = inject(ArenaContextService);
   private readonly access = inject(ArenaAccessService);
 
   /** Cargo com leitura mas sem escrita em `agenda` (manutenção): bloquear/desbloquear
@@ -456,6 +488,13 @@ export class PanelAgendaComponent {
   protected readonly unblockTarget = signal<ArenaSlot | null>(null);
   protected readonly unblocking = signal(false);
   protected readonly unblockError = signal<string | null>(null);
+
+  protected readonly slotActionTarget = signal<ArenaSlot | null>(null);
+  protected readonly manualBookingOpen = signal(false);
+  protected readonly manualCourtId = signal<string | null>(null);
+  protected readonly manualStartTime = signal<string | null>(null);
+  protected readonly manualEndTime = signal<string | null>(null);
+  protected readonly manualDateKey = signal('');
 
   private unsubscribeBookings: (() => void) | null = null;
   private unsubscribeSlots: (() => void) | null = null;
@@ -705,16 +744,42 @@ export class PanelAgendaComponent {
     // quando readOnly, mas o handler segue sendo a fonte de verdade do que de fato muta.
     if (this.readOnly()) return;
     if (slot.status === 'available') {
-      this.blockError.set(null);
-      this.blockReason.set('manutencao');
-      this.blockNote.set('');
-      this.blockTarget.set(slot);
+      this.slotActionTarget.set(slot);
       return;
     }
     if (slot.status === 'blocked') {
       this.unblockError.set(null);
       this.unblockTarget.set(slot);
     }
+  }
+
+  protected openManualBooking(courtId: string | null, startTime: string | null, endTime: string | null): void {
+    this.manualCourtId.set(courtId);
+    this.manualStartTime.set(startTime);
+    this.manualEndTime.set(endTime);
+    this.manualDateKey.set(this.selectedDateKey());
+    this.manualBookingOpen.set(true);
+  }
+
+  protected chooseReserveFromSheet(): void {
+    const slot = this.slotActionTarget();
+    if (!slot) return;
+    this.slotActionTarget.set(null);
+    this.manualDateKey.set(slot.dateKey);
+    this.manualCourtId.set(slot.courtId);
+    this.manualStartTime.set(slot.startTime);
+    this.manualEndTime.set(slot.endTime);
+    this.manualBookingOpen.set(true);
+  }
+
+  protected chooseBlockFromSheet(): void {
+    const slot = this.slotActionTarget();
+    if (!slot) return;
+    this.slotActionTarget.set(null);
+    this.blockError.set(null);
+    this.blockReason.set('manutencao');
+    this.blockNote.set('');
+    this.blockTarget.set(slot);
   }
 
   protected async confirmBlock(): Promise<void> {

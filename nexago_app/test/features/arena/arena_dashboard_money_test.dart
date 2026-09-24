@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arena/data/review_reply_service.dart';
 import 'package:nexago_app/features/arena/domain/arena_access_providers.dart';
@@ -43,9 +44,13 @@ class _FakeFirestore implements FirebaseFirestore {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-/// Resumo fixo sem nenhum insight automático (zera os gatilhos de
-/// `ArenaDashboardInsights.lines`) — assim a seção de Insights fica vazia e
-/// não precisa de `initializeDateFormatting('pt_BR')`.
+/// Resumo fixo. `bestWeekdayLabel`/`bestWeekdayRevenue` são propositalmente
+/// não-zero (fix round 1 da Task 9): um valor zerado escondia o vazamento de
+/// dinheiro pela linha "Melhor dia" de `ArenaDashboardInsights.lines()` — a
+/// única das três linhas de insight que declara uma soma em R$. Os outros
+/// gatilhos (baixa ocupação, ótimo desempenho) continuam zerados porque as
+/// mensagens deles não expõem valor nenhum e não fazem parte do que este
+/// arquivo testa.
 final _summary = ArenaDashboardSummary(
   bookingsToday: 0,
   availableSlots: 0,
@@ -57,8 +62,8 @@ final _summary = ArenaDashboardSummary(
   revenueLast7Days: <double>[0, 0, 0, 0, 0, 0, 0],
   chartDayLabels: ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'],
   todaySlotsTotal: 0,
-  bestWeekdayLabel: null,
-  bestWeekdayRevenue: 0,
+  bestWeekdayLabel: 'Sábado',
+  bestWeekdayRevenue: 400,
 );
 
 const _metrics = ArenaDashboardPeriodMetrics(
@@ -76,6 +81,10 @@ const _metrics = ArenaDashboardPeriodMetrics(
 );
 
 void main() {
+  setUpAll(() async {
+    await initializeDateFormatting('pt_BR');
+  });
+
   Future<void> pumpDashboard(
     WidgetTester tester,
     List<Override> overrides,

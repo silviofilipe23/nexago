@@ -163,6 +163,7 @@ class ArenaDashboardPage extends ConsumerWidget {
                                       offsetY: 14,
                                       child: ArenaDashboardInsightsSection(
                                         summary: summary,
+                                        includeMoney: seesMoney,
                                       ),
                                     ),
                                     SizedBox(

@@ -4,8 +4,8 @@ import '../../arenas/domain/arena_list_item.dart';
 import '../../arenas/domain/arena_slot.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../arenas/domain/slots_providers.dart';
-import '../../../core/auth/auth_providers.dart';
 import '../data/slot_service.dart';
+import 'arena_access_providers.dart';
 import 'arena_bookings_providers.dart';
 import 'arena_date_utils.dart';
 import 'arena_schedule_grouping.dart';
@@ -105,19 +105,14 @@ final arenaScheduleGroupedSlotsProvider =
   );
 });
 
-/// Primeira arena em que o usuário é `managerUserId` (ajustar se houver várias).
-final managedArenaIdProvider = StreamProvider<String?>((ref) {
-  final uid = ref.watch(authProvider).valueOrNull?.uid;
-  if (uid == null) {
-    return Stream<String?>.value(null);
-  }
-  final fs = ref.watch(firestoreProvider);
-  return fs
-      .collection('arenas')
-      .where('managerUserId', isEqualTo: uid)
-      .limit(1)
-      .snapshots()
-      .map((s) => s.docs.isEmpty ? null : s.docs.first.id);
+/// Arena ativa do painel. Deriva de [arenaAccessProvider], que une dono e
+/// equipe — antes era `arenas.where(managerUserId == uid).limit(1)`, query que
+/// nunca casava com membro de equipe.
+///
+/// Continua entregando `AsyncValue<String?>`: os ~35 pontos de uso leem
+/// `.valueOrNull` e `.when`, entao nada muda para eles.
+final managedArenaIdProvider = Provider<AsyncValue<String?>>((ref) {
+  return ref.watch(arenaAccessProvider).whenData((access) => access.arenaId);
 });
 
 /// Documento completo da arena gerida (logo, capa, contato, etc.).

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/firebase/firebase_providers.dart';
+import 'arena_selection_providers.dart';
 import 'arena_staff_role.dart';
 
 /// Vinculo do usuario logado com uma arena — como dono (`managerUserId`) ou
@@ -122,3 +123,65 @@ final arenaMembershipsProvider =
     staff: staff.valueOrNull ?? const [],
   ));
 });
+
+/// O que o usuario logado pode na arena ATIVA.
+class ArenaAccess {
+  const ArenaAccess._(this.membership);
+
+  factory ArenaAccess.of(ArenaMembership membership) =>
+      ArenaAccess._(membership);
+
+  /// Sem vinculo: nega tudo. Tambem e o valor usado enquanto o espelho nao
+  /// emitiu, para nenhuma tela decidir acesso com resposta pela metade.
+  static const ArenaAccess none = ArenaAccess._(null);
+
+  final ArenaMembership? membership;
+
+  String? get arenaId => membership?.arenaId;
+  String get arenaName => membership?.name ?? '';
+  bool get isOwner => membership?.isOwner ?? false;
+  ArenaStaffRole? get role => membership?.role;
+
+  bool canRead(ArenaArea area) => membership?.canRead(area) ?? false;
+  bool canWrite(ArenaArea area) => membership?.canWrite(area) ?? false;
+}
+
+/// Acesso na arena ativa: a selecionada quando ha mais de uma, senao a unica.
+final arenaAccessProvider = Provider<AsyncValue<ArenaAccess>>((ref) {
+  final selected = ref.watch(currentArenaIdProvider)?.trim();
+  return ref.watch(arenaMembershipsProvider).whenData((list) {
+    if (list.isEmpty) return ArenaAccess.none;
+    if (selected != null && selected.isNotEmpty) {
+      for (final m in list) {
+        if (m.arenaId == selected) return ArenaAccess.of(m);
+      }
+    }
+    return ArenaAccess.of(list.first);
+  });
+});
+
+/// Atalhos para a UI. Enquanto o acesso nao resolveu, respondem `false` — e o
+/// que impede o faturamento de piscar na tela de quem nao pode ve-lo no cold
+/// start (mesma armadilha ja documentada em
+/// `organizerSeesTournamentMoneyProvider`).
+final arenaCanReadProvider = Provider.family<bool, ArenaArea>((ref, area) {
+  return ref.watch(arenaAccessProvider).valueOrNull?.canRead(area) ?? false;
+});
+
+final arenaCanWriteProvider = Provider.family<bool, ArenaArea>((ref, area) {
+  return ref.watch(arenaAccessProvider).valueOrNull?.canWrite(area) ?? false;
+});
+
+/// Aguarda a primeira emissao das duas fontes e devolve o acesso resolvido.
+/// Usado pelo guard de rota, que precisa de resposta antes de deixar navegar.
+/// Mesmo formato de `hasActiveTournamentStaffAccess`.
+Future<ArenaAccess> resolveArenaAccess(Ref ref) async {
+  try {
+    await ref.read(ownedArenaMembershipsProvider.future);
+    await ref.read(staffArenaMembershipsProvider.future);
+  } catch (_) {
+    // Uma fonte que falha nao pode travar a outra; o combinador ja trata
+    // erro como lista vazia.
+  }
+  return ref.read(arenaAccessProvider).valueOrNull ?? ArenaAccess.none;
+}

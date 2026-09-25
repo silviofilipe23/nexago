@@ -2,6 +2,7 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {
   buildKingOfCourtRounds,
+  KocBracketError,
   KOC_MIN_TEAMS_PER_ROUND,
   kocBracketCountForRounds,
   kocMaxRoundsPerBracket,
@@ -12,7 +13,8 @@ import {
   type KocPhaseSpec,
 } from "./koc-bracket-builders";
 import {groupCapacities} from "./draw-plan";
-import {kocDrawReproducesPhaseOne} from "./draw-sessions";
+import {categoryMetaOf, kocDrawConfigOf, kocDrawReproducesPhaseOne} from "./draw-sessions";
+import {resolveKocConfig} from "./organizer-category-ops";
 
 /**
  * O sorteio ao vivo e a geração da chave TÊM que dividir o campo igual.
@@ -310,5 +312,91 @@ describe("createDrawSession recusa fase 1 cuja FORMA não bate, mesmo quando a c
       }
     }
     assert.ok(demonstrated >= 5, `sweep vazio ou fraco demais — só ${demonstrated} casos demonstrados`);
+  });
+});
+
+/**
+ * Fix round 3 (achado do revisor da branch): concordância de FORMA não bastava
+ * — faltava concordância de CONFIG. Todo bloco acima monta o `KocConfig` à mão
+ * e prova a matemática das duas divisões; nenhum passava pela MONTAGEM da
+ * config a partir do doc da categoria, que é onde o bug de verdade estava: o
+ * sorteio lia `qualifiersPerGroup` (campo do formato de GRUPOS, que toda
+ * categoria herda com o padrão 2) e a geração lia `qualifiersPerRound`.
+ *
+ * O efeito era o pior possível: uma categoria KOTC com 3 classificadas por
+ * rodada passava na validação da criação da sessão (avaliada com 2), as duplas
+ * eram reveladas no telão, e só o publish — com o público olhando — recusava
+ * com `koc_phase_does_not_reduce`. Este bloco percorre as duas montagens a
+ * partir do MESMO doc de categoria; reverter o campo no sorteio derruba a
+ * varredura.
+ */
+describe("sorteio e geração montam a MESMA config a partir do doc da categoria", () => {
+  /** Categoria como o wizard grava: `qualifiersPerGroup` existe sempre (padrão
+   * do formato de grupos) mesmo numa categoria KOTC que nunca o escolheu. */
+  function rawCategory(over: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      id: "cat",
+      categoryName: "Masculino B",
+      bracketFormat: "king_of_court",
+      teamsPerGroup: 4,
+      qualifiersPerGroup: 2,
+      teamsPerCourt: 4,
+      qualifiersPerRound: 2,
+      roundsPerBracket: 1,
+      maxTeamsPerRound: 6,
+      ...over,
+    };
+  }
+
+  /** O plano que cada lado resolve, ou o `reason` da recusa — comparar os dois
+   * como texto pega tanto "planos diferentes" quanto "um aceita e o outro
+   * recusa", que é a forma que a discordância assumia na areia. */
+  function outcome(teamCount: number, config: KocConfig): string {
+    try {
+      return JSON.stringify(kocResolvePlan(teamCount, config));
+    } catch (e) {
+      return e instanceof KocBracketError ? `recusa:${e.reason}` : `erro:${String(e)}`;
+    }
+  }
+
+  it("o caso concreto: 12 duplas, 3 classificadas por rodada, padrão 2 herdado do grupo", () => {
+    const category = rawCategory({qualifiersPerRound: 3});
+    const drawConfig = kocDrawConfigOf(categoryMetaOf({categories: [category]}, "cat"));
+
+    assert.equal(drawConfig.qualifiersPerRound, 3);
+    assert.equal(
+      outcome(12, drawConfig),
+      outcome(12, resolveKocConfig(undefined, category)),
+      "o sorteio tem que aceitar/recusar exatamente o que a geração vai fazer",
+    );
+  });
+
+  it("varredura: nenhuma categoria em que o sorteio e a geração discordem", () => {
+    for (const qualifiersPerRound of [1, 2, 3]) {
+      for (const teamsPerCourt of [3, 4, 5, 6]) {
+        for (const maxTeamsPerRound of [5, 6]) {
+          for (let n = 3; n <= 40; n++) {
+            const category = rawCategory({qualifiersPerRound, teamsPerCourt, maxTeamsPerRound});
+            const draw = kocDrawConfigOf(categoryMetaOf({categories: [category]}, "cat"));
+            const generation = resolveKocConfig(undefined, category);
+            assert.equal(
+              outcome(n, draw),
+              outcome(n, generation),
+              `${n} duplas, teamsPerCourt ${teamsPerCourt}, ` +
+                `qualifiersPerRound ${qualifiersPerRound}, teto ${maxTeamsPerRound}`,
+            );
+          }
+        }
+      }
+    }
+  });
+
+  it("plano explícito da categoria chega igual nos dois lados", () => {
+    const plan = kocProposePlan(14, 6, () => 900);
+    const category = rawCategory({kocPhases: plan, kocMaxTeamsPerRound: 6});
+    const draw = kocDrawConfigOf(categoryMetaOf({categories: [category]}, "cat"));
+
+    assert.deepEqual(draw.phases, plan);
+    assert.equal(outcome(14, draw), outcome(14, resolveKocConfig(undefined, category)));
   });
 });

@@ -10,7 +10,7 @@ import {
   type KocConfig,
   type KocRoundDraft,
 } from "./koc-bracket-builders";
-import {kocRoundDoc, resolveKocConfig} from "./organizer-category-ops";
+import {buildKocCategoryDocs, resolveKocConfig} from "./organizer-category-ops";
 
 /**
  * Função pura testada sozinha não pega config que nunca chega na chamada — as
@@ -23,13 +23,15 @@ import {kocRoundDoc, resolveKocConfig} from "./organizer-category-ops";
  *   `bracketConfig`/categoria → `resolveKocConfig` → `kocResolvePlan` →
  *   `buildKingOfCourtRounds` (plano por `opts.plan`) → `kocRoundDoc`.
  *
- * `generateViaRealWiring` espelha exatamente a sequência de
- * `runGenerateCategoryBracket` (organizer-category-ops.ts): resolve a config,
- * resolve o plano UMA VEZ, gera as rodadas passando esse plano por
- * `opts.plan` — nunca por `config.phases`, que é o que causou a regressão —
- * e grava cada doc com o MESMO plano. Não chama a callable (precisaria de
- * Firestore/auth): a fiação testável é exatamente esta composição de funções
- * puras, na ordem e na forma que a produção usa.
+ * E percorre CHAMANDO a produção: `buildKocCategoryDocs` é a mesma função que
+ * `runGenerateCategoryBracket` chama — não uma sequência reescrita aqui.
+ * Espelhar a sequência era o furo: reverter a fiação na produção deixava este
+ * arquivo inteiro verde, porque ele nunca passava pela montagem da config nem
+ * pela ordem das chamadas, que é exatamente onde os dois bugs moravam.
+ *
+ * `generateViaRealWiring` só traduz o vocabulário do teste (elenco da fase 1
+ * como lista de listas) para o da produção (`groupsPreview`, que é como o
+ * sorteio ao vivo entrega as chaves já reveladas).
  */
 function generateViaRealWiring(
   teamIds: string[],
@@ -37,22 +39,18 @@ function generateViaRealWiring(
   categoryMeta: Record<string, unknown> | undefined,
   phaseOneRosters?: readonly (readonly string[])[],
 ) {
-  const config = resolveKocConfig(bracketConfig, categoryMeta);
-  const plan = kocResolvePlan(teamIds.length, config);
-  const drafts = buildKingOfCourtRounds(teamIds, config, {
-    plan,
-    ...(phaseOneRosters ? {phaseOneRosters} : {}),
+  const {config, plan, drafts, docs} = buildKocCategoryDocs({
+    teamIds,
+    bracketConfig,
+    categoryMeta,
+    groupsPreview: (phaseOneRosters ?? []).map((roster, i) => ({
+      id: `C${i + 1}`,
+      teamIds: [...roster],
+    })),
+    tournamentId: "T",
+    categoryId: "C",
   });
-  const docs = drafts.map(
-    (d) =>
-      kocRoundDoc(d, {
-        tournamentId: "T",
-        categoryId: "C",
-        config,
-        plan,
-      }) as Record<string, any>,
-  );
-  return {config, plan, drafts, docs};
+  return {config, plan, drafts, docs: docs as Array<Record<string, any>>};
 }
 
 /**
@@ -359,6 +357,20 @@ describe("fiação: opts.plan bypassa a revalidação; reinjetar por config.phas
 
   it("a fiação real (plano por opts.plan) gera a chave normalmente", () => {
     assert.doesNotThrow(() => buildKingOfCourtRounds(teamIds, config, {plan}));
+  });
+
+  it("e a PRODUÇÃO gera essa mesma config legada sem recusar", () => {
+    // Direto pela função que a callable chama: é o que pina a escolha de
+    // `opts.plan` na produção. Provar só com `buildKingOfCourtRounds` deixava
+    // a produção livre para voltar a reinjetar por `config.phases` — a
+    // regressão que já aconteceu — com toda a suite verde.
+    assert.doesNotThrow(() =>
+      generateViaRealWiring(
+        teamIds,
+        {teamsPerCourt: 3, qualifiersPerRound: 2, roundDurationSec: 900},
+        undefined,
+      ),
+    );
   });
 
   it("reinjetar o MESMO plano por config.phases é recusado — a regressão que já aconteceu", () => {

@@ -317,6 +317,72 @@ export function resolveKocConfig(
   };
 }
 
+/** Tudo o que a geração de uma categoria KOTC produz, na ordem em que produz. */
+export interface KocCategoryDocs {
+  /** Config EFETIVA da geração — o que a mesa, o app e o telão vão ler. */
+  config: KocConfig;
+  /** Plano resolvido UMA vez: o gerador e o doc da rodada congelam este mesmo. */
+  plan: KocPhaseSpec[];
+  drafts: KocRoundDraft[];
+  /** Docs de `matches`, prontos para o batch. */
+  docs: Array<Record<string, unknown>>;
+}
+
+/**
+ * A coreografia inteira da geração KOTC: config → plano → rodadas → docs.
+ *
+ * Extraída da callable para que o TESTE chame a produção em vez de espelhá-la.
+ * Espelho não protege nada aqui: as duas regressões desta branch (o plano indo
+ * por `config.phases` em vez de `opts.plan`; o sorteio validando com
+ * `qualifiersPerGroup`) moram justamente na MONTAGEM da config e na ORDEM das
+ * chamadas — nenhuma função pura testada sozinha as alcança, e um teste que
+ * reescreve a sequência passa exatamente igual com a produção quebrada.
+ *
+ * Puro de propósito: nada de Firestore, nada de `HttpsError`. O erro do gerador
+ * sai como `KocBracketError`; traduzir para `failed-precondition` é trabalho da
+ * casca da callable, que é quem sabe que está numa requisição.
+ */
+export function buildKocCategoryDocs(input: {
+  teamIds: string[];
+  bracketConfig: Record<string, unknown> | undefined;
+  categoryMeta: Record<string, unknown> | undefined;
+  /**
+   * Na KOTC o "grupo" do preview é o SORTEIO AO VIVO: cada grupo é uma chave da
+   * fase 1, com o elenco que já saiu na frente do público. Vazio ⇒ a semeadura
+   * em serpentina decide (fluxo da tela de gerar chave).
+   */
+  groupsPreview: ReadonlyArray<{id: string; teamIds: string[]}>;
+  tournamentId: string;
+  categoryId: string;
+}): KocCategoryDocs {
+  const config = resolveKocConfig(input.bracketConfig, input.categoryMeta);
+  // Resolve UMA vez: o gerador e o doc da rodada têm que congelar o mesmo
+  // plano. Resolver duas vezes deixaria a chave e o snapshot divergirem quando
+  // a config mudasse no meio.
+  const plan = kocResolvePlan(input.teamIds.length, config);
+  // O plano entra por `opts.plan`, não por `{...config, phases: plan}`: plano
+  // derivado internamente (config legada, sem `phases`) não pode passar de novo
+  // por `assertPlan` dentro de `buildKingOfCourtRounds` — a checagem de
+  // round-trip existe para plano vindo de FORA, e aplicá-la ao que acabou de
+  // sair do `kocLegacyPlan` recusava config legada que sempre funcionou
+  // (`teamsPerCourt: 3` com 19 duplas).
+  const drafts = buildKingOfCourtRounds(input.teamIds, config, {
+    ...(input.groupsPreview.length > 0 ?
+      {phaseOneRosters: input.groupsPreview.map((g) => g.teamIds)} :
+      {}),
+    plan,
+  });
+  const docs = drafts.map((draft) =>
+    kocRoundDoc(draft, {
+      tournamentId: input.tournamentId,
+      categoryId: input.categoryId,
+      config,
+      plan,
+    }),
+  );
+  return {config, plan, drafts, docs};
+}
+
 /** Payload da geração de chave, igual ao que a callable recebe. */
 export interface GenerateBracketInput {
   tournamentId?: string;
@@ -558,39 +624,29 @@ export async function runGenerateCategoryBracket(
   }
 
   // King of the Court não passa pelos builders de duelo: a rodada não tem dois
-  // lados. O gerador devolve rodadas, e o erro dele (campo pequeno, fase que não
-  // reduz) vira `failed-precondition` para o wizard mostrar antes do dia.
-  const kocConfig = isKingOfCourt ?
-    resolveKocConfig(bracketConfig, categoryMeta as Record<string, unknown> | undefined) :
-    null;
-  let kocRounds: KocRoundDraft[] = [];
-  let kocPlan: KocPhaseSpec[] = [];
-  if (isKingOfCourt && kocConfig) {
+  // lados. A coreografia inteira mora em `buildKocCategoryDocs` — aqui fica só
+  // a casca: traduzir o erro do gerador (campo pequeno, fase que não reduz) em
+  // `failed-precondition`, para o wizard mostrar antes do dia.
+  let koc: KocCategoryDocs | null = null;
+  if (isKingOfCourt) {
     try {
-      // Resolve UMA vez: o gerador e o doc da rodada têm que congelar o mesmo
-      // plano. Resolver duas vezes deixaria a chave e o snapshot divergirem
-      // quando a config mudasse no meio.
-      kocPlan = kocResolvePlan(teamIds.length, kocConfig);
-      // `groupsPreview` na KOTC é o resultado do SORTEIO AO VIVO: cada "grupo"
-      // é uma rodada da classificatória, já com o elenco que saiu na frente do
-      // público. Sem ele, a semeadura em serpentina decide (fluxo da tela de
-      // gerar chave).
-      //
-      // O plano entra por `opts.plan`, não por `{...kocConfig, phases: kocPlan}`:
-      // plano derivado internamente (config legada, sem `phases`) não pode
-      // passar de novo por `assertPlan` dentro de `buildKingOfCourtRounds` —
-      // a checagem de round-trip existe para plano vindo de FORA, e aplicá-la
-      // ao que acabou de sair do `kocLegacyPlan` recusava config legada que
-      // sempre funcionou (`teamsPerCourt: 3` com 19 duplas).
-      kocRounds = buildKingOfCourtRounds(teamIds, kocConfig, {
-        ...(groupsPreview.length > 0 ?
-          {phaseOneRosters: groupsPreview.map((g) => g.teamIds)} :
-          {}),
-        plan: kocPlan,
+      koc = buildKocCategoryDocs({
+        teamIds,
+        bracketConfig,
+        categoryMeta: categoryMeta as Record<string, unknown> | undefined,
+        groupsPreview,
+        tournamentId,
+        categoryId,
       });
     } catch (e) {
       if (e instanceof KocBracketError) {
-        throw new HttpsError("failed-precondition", e.message, {reason: e.reason});
+        // `details` leva os números que a mensagem cita em forma de campo — a
+        // tela não precisa lê-los do texto em português.
+        throw new HttpsError(
+          "failed-precondition",
+          e.message,
+          {reason: e.reason, ...e.details},
+        );
       }
       throw e;
     }
@@ -612,10 +668,8 @@ export async function runGenerateCategoryBracket(
   }
 
   const newMatchDocs: Array<Record<string, unknown>> =
-    isKingOfCourt && kocConfig ?
-      kocRounds.map((draft) =>
-        kocRoundDoc(draft, {tournamentId, categoryId, config: kocConfig, plan: kocPlan}),
-      ) :
+    koc ?
+      koc.docs :
       matchDrafts.map((draft) =>
         bracketMatchDoc(draft, {tournamentId, categoryId, bestOf}),
       );
@@ -640,10 +694,10 @@ export async function runGenerateCategoryBracket(
           seeds: teamIds,
           bracketConfig: {
             ...(bracketConfig ?? {}),
-            ...(isKingOfCourt && kocConfig ?
+            ...(koc ?
               // Config EFETIVA da geração, não o que o cliente mandou: é o que
               // a mesa e o app leem para explicar a rodada.
-              {...kocConfig, phaseCount: kocRounds[kocRounds.length - 1]?.phase ?? 1} :
+              {...koc.config, phaseCount: koc.drafts[koc.drafts.length - 1]?.phase ?? 1} :
               {qualifiersPerGroup}),
           },
           // Rodada KOTC não tem grupo: o elenco vive em `kocTeamIds`, na rodada.

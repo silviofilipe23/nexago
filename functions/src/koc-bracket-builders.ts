@@ -298,7 +298,17 @@ function findAvailableTarget(
 }
 
 export class KocBracketError extends Error {
-  constructor(message: string, readonly reason: string) {
+  /**
+   * `details` vira campo do `HttpsError` que a callable devolve, ao lado do
+   * `reason`. Existe para o erro poder carregar os NÚMEROS que a mensagem já
+   * cita (a menor chave, o teto de baterias) numa forma que a tela consiga
+   * ler sem regex sobre o texto em português.
+   */
+  constructor(
+    message: string,
+    readonly reason: string,
+    readonly details: Record<string, unknown> = {},
+  ) {
     super(message);
     this.name = "KocBracketError";
   }
@@ -722,6 +732,7 @@ export function kocLegacyPlan(teamCount: number, config: KocConfig): KocPhaseSpe
             `cada vencedora sai e toda rodada precisa de ${KOC_MIN_TEAMS_PER_ROUND}. ` +
             `Foram pedidas ${roundsPerBracket}.`,
           "koc_rounds_per_bracket_too_high",
+          {teamCount, smallestBracket: smallest, maxRoundsPerBracket: max},
         );
       }
     }

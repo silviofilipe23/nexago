@@ -19,6 +19,7 @@ import {
   kocClampMaxPerRound,
   kocResolvePlan,
   KocBracketError,
+  type KocConfig,
   type KocPhaseSpec,
 } from "./koc-bracket-builders";
 import {groupCapacities} from "./draw-plan";
@@ -163,7 +164,7 @@ async function fetchHistories(
   return out;
 }
 
-interface CategoryMeta {
+export interface CategoryMeta {
   name: string;
   teamsPerGroup: number;
   /** Duplas por quadra na KOTC — o tamanho da rodada da classificatória. */
@@ -172,7 +173,14 @@ interface CategoryMeta {
    *  campo tem, então o sorteio precisa saber: as caixas que ele sorteia SÃO as
    *  chaves, e a geração recusa a chave se as contas não baterem. */
   roundsPerBracket: number;
+  /** Classificadas por GRUPO — campo do formato de grupos, que usa a mesma
+   *  struct. Nada a ver com a KOTC. */
   qualifiersPerGroup: number;
+  /** Classificadas por RODADA na KOTC. Campo separado de propósito: uma
+   *  categoria KOTC herda o `qualifiersPerGroup` padrão (2) sem nunca tê-lo
+   *  escolhido, e validar o plano por ele aceitava aqui uma configuração que
+   *  a geração recusava depois — com as duplas já reveladas no telão. */
+  qualifiersPerRound: number;
   bracketFormat: string | null;
   /** Plano explícito de fases da categoria; ausente ⇒ regras antigas. */
   kocPhases: KocPhaseSpec[] | undefined;
@@ -180,7 +188,10 @@ interface CategoryMeta {
   kocMaxTeamsPerRound: number;
 }
 
-function categoryMetaOf(tournament: Record<string, unknown>, categoryId: string): CategoryMeta {
+export function categoryMetaOf(
+  tournament: Record<string, unknown>,
+  categoryId: string,
+): CategoryMeta {
   // Mesma resolução de rótulo do resto do produto — `categoryName`/`label`, não só `name`.
   const found = findCategory(tournament, categoryId);
   const num = (value: unknown, fallback: number): number =>
@@ -192,9 +203,33 @@ function categoryMetaOf(tournament: Record<string, unknown>, categoryId: string)
     teamsPerCourt: num(found?.teamsPerCourt, KOC_DEFAULT_TEAMS_PER_COURT),
     roundsPerBracket: Math.max(1, Math.floor(num(found?.roundsPerBracket, 1))),
     qualifiersPerGroup: num(found?.qualifiersPerGroup, 2),
+    // Mesmo default e mesmo campo que `resolveKocConfig` (a leitura da geração)
+    // usa: é o que faz o sorteio validar o plano que a geração vai montar.
+    qualifiersPerRound: num(found?.qualifiersPerRound, 2),
     bracketFormat: str(found?.bracketFormat) || null,
     kocPhases: parseKocPhases(found?.kocPhases ?? found?.phases),
     kocMaxTeamsPerRound: kocClampMaxPerRound(found?.kocMaxTeamsPerRound ?? found?.maxTeamsPerRound),
+  };
+}
+
+/**
+ * A config KOTC que o SORTEIO valida, montada a partir da categoria.
+ *
+ * Exportada — e usada pela callable — para que o teste percorra a montagem
+ * REAL. Era aqui que morava o bug que 234 linhas de teste de concordância
+ * entre sorteio e geração não pegaram: todas montavam o `KocConfig` à mão, e
+ * o sorteio lia `qualifiersPerGroup` (campo do formato de GRUPOS, herdado com
+ * o padrão 2 por qualquer categoria) onde a geração lê `qualifiersPerRound`.
+ * A sessão era aceita, as duplas iam pro telão, e o publish recusava.
+ */
+export function kocDrawConfigOf(category: CategoryMeta): KocConfig {
+  return {
+    teamsPerCourt: category.teamsPerCourt,
+    qualifiersPerRound: category.qualifiersPerRound,
+    roundsPerBracket: category.roundsPerBracket,
+    roundDurationSec: KOC_DEFAULT_ROUND_DURATION_SEC,
+    maxTeamsPerRound: category.kocMaxTeamsPerRound,
+    ...(category.kocPhases ? {phases: category.kocPhases} : {}),
   };
 }
 
@@ -285,17 +320,16 @@ export const createDrawSession = onCall({
   let kocPlan: KocPhaseSpec[] = [];
   if (format === "king_of_court") {
     try {
-      kocPlan = kocResolvePlan(teamIds.length, {
-        teamsPerCourt: category.teamsPerCourt,
-        qualifiersPerRound: category.qualifiersPerGroup,
-        roundsPerBracket: category.roundsPerBracket,
-        roundDurationSec: KOC_DEFAULT_ROUND_DURATION_SEC,
-        maxTeamsPerRound: category.kocMaxTeamsPerRound,
-        ...(category.kocPhases ? {phases: category.kocPhases} : {}),
-      });
+      kocPlan = kocResolvePlan(teamIds.length, kocDrawConfigOf(category));
     } catch (e) {
       if (e instanceof KocBracketError) {
-        throw new HttpsError("failed-precondition", e.message, {reason: e.reason});
+        // `details` leva os números que a mensagem cita (menor chave, teto de
+        // baterias) em forma de campo — a tela não precisa lê-los do texto.
+        throw new HttpsError(
+          "failed-precondition",
+          e.message,
+          {reason: e.reason, ...e.details},
+        );
       }
       throw e;
     }

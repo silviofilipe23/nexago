@@ -1,7 +1,7 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type { OverlayKocView } from '../overlay/overlay-selectors';
-import { LedRoundComponent, type LedTeam } from './led-round.component';
+import { LedRoundComponent, type LedRoundInfo, type LedTeam } from './led-round.component';
 
 function view(overrides: Partial<OverlayKocView> = {}): OverlayKocView {
   return {
@@ -19,6 +19,18 @@ function view(overrides: Partial<OverlayKocView> = {}): OverlayKocView {
       streak: null,
       clock: { label: '02:43', paused: false },
     },
+    ...overrides,
+  };
+}
+
+function info(overrides: Partial<LedRoundInfo> = {}): LedRoundInfo {
+  return {
+    matchType: 'koc_round',
+    roundLabel: 3,
+    batteryLabel: 1,
+    poolId: 'C1',
+    totalRounds: 7,
+    bracketsInPhase: 3,
     ...overrides,
   };
 }
@@ -42,7 +54,14 @@ const TEAMS = new Map<string, LedTeam>([
 
 async function render(inputs: Record<string, unknown> = {}) {
   const fixture = TestBed.createComponent(LedRoundComponent);
-  const all = { view: view(), teams: TEAMS, categoryName: 'Masculino B', courtName: 'Quadra 2', ...inputs };
+  const all = {
+    view: view(),
+    info: info(),
+    teams: TEAMS,
+    categoryName: 'Masculino B',
+    courtName: 'Quadra 2',
+    ...inputs,
+  };
   for (const [key, value] of Object.entries(all)) fixture.componentRef.setInput(key, value);
   await fixture.whenStable();
   return fixture;
@@ -85,7 +104,8 @@ describe('LedRoundComponent', () => {
 
   it('com mais de uma bateria, o topo gigante conta a BATERIA e a chave migra pro contexto', async () => {
     const text = (
-      host(await render({ view: view({ roundTitle: 'Classificatória · Chave 4 · Bateria 3' }) })).textContent ?? ''
+      host(await render({ info: info({ poolId: 'C4', batteryLabel: 3, bracketsInPhase: 4 }) }))
+        .textContent ?? ''
     ).replace(/\s+/g, ' ');
 
     expect(text).toContain('Bateria');
@@ -95,6 +115,40 @@ describe('LedRoundComponent', () => {
     expect(text).not.toMatch(/3\s*\//);
     expect(text).toContain('Masculino B');
     expect(text).toContain('Quadra 2');
+  });
+
+  it('numa fase de chave única, a bateria manda no topo e a chave não entra no contexto', async () => {
+    // Semi de 6 duplas com 4 baterias (o caso de 10 duplas com teto 6): só
+    // existe uma quadra, "Chave 1" não distingue nada.
+    const text = (
+      host(
+        await render({
+          info: info({ matchType: 'koc_semifinal', poolId: 'C1', batteryLabel: 2, bracketsInPhase: 1 }),
+        }),
+      ).textContent ?? ''
+    ).replace(/\s+/g, ' ');
+
+    expect(text).toContain('Bateria');
+    expect(text).not.toContain('Chave');
+  });
+
+  it('a final não inventa "Rodada" nem um número — o nome da fase É o título', async () => {
+    // O cabeçalho saía do título já renderizado ("Final") por regex: sem
+    // dígito nenhum, o painel escrevia "Rodada" e um número vazio.
+    const h = host(await render({ info: info({ matchType: 'koc_final', roundLabel: 0, poolId: 'C1', bracketsInPhase: 1 }) }));
+    const topo = (h.querySelector('.rodada')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+
+    expect(topo).toBe('Final');
+    expect(topo).not.toContain('Rodada');
+  });
+
+  it('a semifinal de bateria única mostra "Semifinal" no topo', async () => {
+    const h = host(
+      await render({ info: info({ matchType: 'koc_semifinal', roundLabel: 0, bracketsInPhase: 1 }) }),
+    );
+    const topo = (h.querySelector('.rodada')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+
+    expect(topo).toBe('Semifinal');
   });
 
   it('põe trono e desafiante em blocos próprios, com avatares e pontos', async () => {

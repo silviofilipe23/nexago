@@ -77,7 +77,7 @@ export function kocRoundTitleOf(
   roundLabel: number,
   matchNumber: number,
   totalRounds: number,
-  opts?: { poolId?: string; batteryLabel?: number },
+  opts?: { poolId?: string; batteryLabel?: number; bracketsInPhase?: number },
 ): string {
   // `roundLabel` é a rodada DENTRO da fase; `matchNumber` é global e diria "Rodada 9" num campo
   // com duas classificatórias. Ver `koc.ts`.

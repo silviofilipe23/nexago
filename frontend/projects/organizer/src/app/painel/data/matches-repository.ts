@@ -190,6 +190,7 @@ function roundLabelOf(
     return kocPhaseLabel(matchType, koc.roundLabel > 0 ? koc.roundLabel : matchNumber, {
       poolId,
       batteryLabel: koc.batteryLabel,
+      bracketsInPhase: koc.bracketsInPhase,
     });
   }
   if (poolId) return `Grupo ${poolId}`;

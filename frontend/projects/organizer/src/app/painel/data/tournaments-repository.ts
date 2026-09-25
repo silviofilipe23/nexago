@@ -77,7 +77,10 @@ function statusFromRaw(raw: string): OrganizerTournamentStatus {
   return 'inscricoes'; // 'open', 'draft' ou desconhecido
 }
 
-function categoryFromRaw(raw: unknown): OrganizerTournamentCategory | null {
+/** Exportada para teste: é aqui que o que o WIZARD gravou vira a categoria que
+ *  a tela de gerar chave lê. Um campo que o wizard grava e esta função não lê
+ *  não dá erro em lugar nenhum — a chave só nasce com outra forma. */
+export function categoryFromRaw(raw: unknown): OrganizerTournamentCategory | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
   const id = optionalStr(o['id']) ?? optionalStr(o['categoryId']);
@@ -96,7 +99,15 @@ function categoryFromRaw(raw: unknown): OrganizerTournamentCategory | null {
     kocRoundsPerBracket: numberOf(o['roundsPerBracket']) ?? 1,
     kocQualifiersPerRound: numberOf(o['qualifiersPerRound']) ?? 2,
     kocPhases: parseKocPhases(o['kocPhases']),
-    kocMaxTeamsPerRound: kocClampMaxPerRound(numberOf(o['kocMaxTeamsPerRound'])),
+    // Duas grafias, como os dois leitores do backend (`resolveKocConfig` e
+    // `categoryMetaOf`): o WIZARD grava `maxTeamsPerRound` sem prefixo
+    // (`tournament-create-mapper.ts`, `league-create.model.ts`) e só
+    // `saveKocPhasePlan` grava a forma com prefixo. Ler só a prefixada jogava
+    // fora o teto escolhido no wizard — a tela de gerar chave caía no 5 padrão
+    // e propunha duas semis de 3 onde o organizador pediu uma de 6.
+    kocMaxTeamsPerRound: kocClampMaxPerRound(
+      numberOf(o['kocMaxTeamsPerRound']) ?? numberOf(o['maxTeamsPerRound']),
+    ),
     kocRoundDurationSec: numberOf(o['roundDurationSec']) ?? 900,
     bestOf: optionalStr(o['bestOf']),
     uniformType: optionalStr(o['uniformType']),

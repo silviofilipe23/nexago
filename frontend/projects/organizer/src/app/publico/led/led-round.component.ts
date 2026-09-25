@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { OgAvatarComponent } from '../../painel/ui/avatar.component';
 import { OverlayMarkComponent } from '../overlay/overlay-mark.component';
+import { kocBracketTag, normalizeMatchType } from '../../painel/data/koc';
 import type { OverlayKocBlock } from '../overlay/overlay-koc-bar';
 import type { OverlayKocView } from '../overlay/overlay-selectors';
 import { ledIniciaisDe } from './led-iniciais';
@@ -21,6 +22,28 @@ export interface LedPlayer {
 
 export interface LedTeam {
   players: LedPlayer[];
+}
+
+/** O que o topo do painel precisa saber da rodada, em CAMPOS.
+ *
+ *  O painel lia isso do título já renderizado, com três expressões regulares
+ *  sobre o texto em português — acoplamento invisível pro compilador, que já
+ *  quebrou uma vez nesta entrega: o dia em que o rótulo deixou de dizer "Chave"
+ *  na semifinal, a linha de contexto do painel simplesmente ficou vazia, sem
+ *  erro em lugar nenhum. Com os campos, mudar o formato do rótulo não mexe no
+ *  painel, e mudar a forma da rodada quebra a compilação. */
+export interface LedRoundInfo {
+  matchType: string;
+  /** Índice da rodada DENTRO da fase (1, 2, 3…); 0 quando não se sabe. */
+  roundLabel: number;
+  /** Posição da bateria dentro da chave; 1 numa chave de bateria única. */
+  batteryLabel: number;
+  /** Quadra lógica da chave ("C1", "C2"…). */
+  poolId: string;
+  /** Rodadas da fase, pro "/total"; 0 quando não foi possível contar. */
+  totalRounds: number;
+  /** Chaves da fase — 0 = desconhecido. Ver `kocBracketTag`. */
+  bracketsInPhase: number;
 }
 
 /** Piso da tag de sequência e do anel pulsante, na especificação do dono. */
@@ -442,6 +465,8 @@ export class LedRoundComponent {
   private readonly host = inject(ElementRef);
 
   readonly view = input<OverlayKocView | null>(null);
+  /** A rodada em campos, pro cabeçalho. Ausente ⇒ cabeçalho sem números. */
+  readonly info = input<LedRoundInfo | null>(null);
   readonly teams = input<ReadonlyMap<string, LedTeam>>(new Map<string, LedTeam>());
   readonly categoryName = input<string | null>(null);
   readonly courtName = input<string | null>(null);
@@ -474,30 +499,39 @@ export class LedRoundComponent {
   private prevKingId: string | null = null;
   private prevKingPts: number | null = null;
 
-  /** "Classificatória · Rodada 3/7" → 3 e 7, pro topo gigante do painel.
+  /** O número gigante do topo: o que muda de uma tela pra outra na mesma quadra.
    *
-   *  Com mais de uma bateria o título vem sem "/total" ("Classificatória · Chave
-   *  4 · Bateria 3") — o número que muda a cada troca de dupla dentro da chave
-   *  passa a ser a BATERIA, e o topo conta ela; a chave (fixa durante a rodada,
-   *  como categoria e quadra) migra pra linha de contexto, ver `chaveLabel`. */
+   *  Com mais de uma bateria na chave, quem muda a cada troca de elenco é a
+   *  BATERIA — o topo conta ela, e a chave (fixa durante a rodada, como
+   *  categoria e quadra) migra pra linha de contexto. Na final e na semifinal
+   *  de bateria única não há número nenhum: o nome da fase já é o título. */
   private readonly numeros = computed(() => {
-    const title = this.view()?.roundTitle ?? '';
-    const bateria = /Bateria\s+(\d+)/i.exec(title);
-    if (bateria) return { label: 'Bateria', num: bateria[1], total: '' };
-    const m = /(\d+)\s*\/\s*(\d+)/.exec(title);
-    if (m) return { label: 'Rodada', num: m[1], total: m[2] };
-    const so = /(\d+)/.exec(title);
-    return { label: 'Rodada', num: so ? so[1] : '', total: '' };
+    const info = this.info();
+    if (!info) return { label: '', num: '', total: '' };
+    const tipo = normalizeMatchType(info.matchType);
+    if (info.batteryLabel > 1) {
+      return { label: 'Bateria', num: String(info.batteryLabel), total: '' };
+    }
+    if (tipo === 'koc final') return { label: 'Final', num: '', total: '' };
+    if (tipo === 'koc semifinal') return { label: 'Semifinal', num: '', total: '' };
+    if (info.roundLabel <= 0) return { label: 'Rodada', num: '', total: '' };
+    return {
+      label: 'Rodada',
+      num: String(info.roundLabel),
+      total: info.totalRounds > 1 ? String(info.totalRounds) : '',
+    };
   });
   protected readonly rodadaLabel = computed(() => this.numeros().label);
   protected readonly rodada = computed(() => this.numeros().num);
   protected readonly total = computed(() => this.numeros().total);
 
-  /** "Chave 4" — só quando o título tem bateria; numa chave de bateria única a
-   *  chave não identifica nada sozinha e o rótulo já não tem essa palavra. */
+  /** "Chave 4" — só com mais de uma bateria (numa chave de bateria única a
+   *  chave não distingue nada) e só quando a FASE tem mais de uma chave, que é
+   *  a regra única de `kocBracketTag`. */
   protected readonly chaveLabel = computed(() => {
-    const m = /Chave\s+(\d+)/i.exec(this.view()?.roundTitle ?? '');
-    return m ? `Chave ${m[1]}` : '';
+    const info = this.info();
+    if (!info || info.batteryLabel <= 1) return '';
+    return kocBracketTag(info.poolId, info.bracketsInPhase);
   });
 
   protected readonly contexto = computed(() =>

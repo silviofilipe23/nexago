@@ -288,9 +288,15 @@ describe('overlayBandOf', () => {
     expect(band).toBe('Copa VH · Feminina B · Semifinal · Quadra 2');
   });
 
-  it('usa o título da rodada KOTC, numerada por roundLabel e não pelo matchNumber global', () => {
+  it('usa o título da rodada KOTC já mapeado — numerado por roundLabel, não pelo matchNumber global', () => {
+    // `roundLabelOf` (matches-repository) é quem monta este texto, e monta para
+    // TODA rodada KOTC: a faixa só o repassa.
     const band = overlayBandOf(
-      kocMatch(kocRound({ roundLabel: 3 }), { round: null, matchNumber: 9, court: 'Quadra 1' }),
+      kocMatch(kocRound({ roundLabel: 3 }), {
+        round: 'Classificatória · Rodada 3',
+        matchNumber: 9,
+        court: 'Quadra 1',
+      }),
       { tournamentName: 'Copa VH', categoryName: null },
     );
 

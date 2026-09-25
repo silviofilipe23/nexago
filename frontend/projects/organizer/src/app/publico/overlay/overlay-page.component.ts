@@ -194,7 +194,11 @@ export class OverlayPageComponent {
       m.koc?.roundLabel ?? 0,
       m.matchNumber,
       this.gateway.totalRounds(),
-      { poolId: m.koc?.poolId, batteryLabel: m.koc?.batteryLabel },
+      {
+        poolId: m.koc?.poolId,
+        batteryLabel: m.koc?.batteryLabel,
+        bracketsInPhase: m.koc?.bracketsInPhase,
+      },
     );
   });
 

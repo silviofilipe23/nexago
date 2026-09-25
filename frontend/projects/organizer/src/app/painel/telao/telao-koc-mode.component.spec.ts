@@ -131,12 +131,29 @@ describe('TelaoKocModeComponent · phaseLine', () => {
     expect(phaseLineText(fixture)).toBe('CLASSIFICATÓRIA · CHAVE 4 · BATERIA 3');
   });
 
-  it('semifinal com bateria não leva chave — uma fase com uma chave só já é única', async () => {
+  it('semifinal de chave única não leva chave — só existe uma quadra', async () => {
     const fixture = await mount(
-      { matchType: 'koc_semifinal', koc: round({ roundLabel: 2, batteryLabel: 2, poolId: 'C1' }) },
+      {
+        matchType: 'koc_semifinal',
+        koc: round({ roundLabel: 2, batteryLabel: 2, poolId: 'C1', bracketsInPhase: 1 }),
+      },
       0,
     );
 
     expect(phaseLineText(fixture)).toBe('SEMIFINAL · BATERIA 2');
+  });
+
+  it('semifinal de DUAS chaves leva a chave — senão os dois telões dizem a mesma coisa', async () => {
+    // 12 duplas com teto 6: a semi tem duas chaves com duas baterias, jogadas
+    // ao mesmo tempo em quadras diferentes.
+    const fixture = await mount(
+      {
+        matchType: 'koc_semifinal',
+        koc: round({ roundLabel: 2, batteryLabel: 2, poolId: 'C2', bracketsInPhase: 2 }),
+      },
+      0,
+    );
+
+    expect(phaseLineText(fixture)).toBe('SEMIFINAL · CHAVE 2 · BATERIA 2');
   });
 });

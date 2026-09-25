@@ -107,16 +107,28 @@ describe('kocDriftDetail · chave antiga, sem plano', () => {
     expect(detail).toBe('rodadas por chave: a categoria pede 1, a chave foi gerada com 2.');
   });
 
-  it('chave publicada tem plano mas a categoria não guarda mais um — avisa em vez de ficar quieto', () => {
-    // Não existe hoje um caminho de UI que zere `kocPhases` da categoria
-    // depois de publicado com plano — mas silêncio aqui seria o pior caso: os
-    // dois lados podem ter divergido de qualquer jeito, e "sem aviso" lê como
-    // "está tudo igual". Fica pelos três números também não daria: eles não
-    // descrevem o plano que a categoria já não guarda mais.
+  it('chave com plano e categoria sem — o caso do app e do Sorteio ao Vivo — fica quieto', () => {
+    // `kocPhases` na categoria só existe quando a chave foi gerada PELO PORTAL
+    // (`saveKocPhasePlan`). O app e o publish do sorteio congelam o plano na
+    // rodada sem gravá-lo na categoria, e o sorteio acontece ANTES da chave
+    // existir — ou seja, este é o caminho comum, não a anomalia. Avisar aqui
+    // acendia o banner para sempre numa chave que bate perfeitamente.
     const detail = kocDriftDetail(
       round({ phases: [PHASE_A], roundsPerBracket: 99, teamsPerCourt: 99, qualifiersPerRound: 99 }),
       category({ kocPhases: null }),
     );
-    expect(detail).toBe('plano de fases: a categoria não guarda mais um plano — a chave foi gerada com um.');
+    expect(detail).toBeNull();
+  });
+
+  it('e não troca o falso positivo por outro: os três números da rodada são os da FASE', () => {
+    // 6 duplas em quadras de 4 fecham em duas chaves de 3: a rodada congela
+    // `teamsPerCourt: 3` sem ninguém ter mexido na categoria. Comparar esses
+    // números com os da categoria acenderia o banner em campo nenhum.
+    const fase1: KocPhaseSpec = { bracketSizes: [3, 3], roundsPerBracket: 1, qualifiersPerRound: 1, durationSec: 900 };
+    const detail = kocDriftDetail(
+      round({ phases: [fase1, PHASE_B], roundsPerBracket: 1, teamsPerCourt: 3, qualifiersPerRound: 1 }),
+      category({ kocPhases: null, kocRoundsPerBracket: 1, kocTeamsPerCourt: 4, kocQualifiersPerRound: 2 }),
+    );
+    expect(detail).toBeNull();
   });
 });

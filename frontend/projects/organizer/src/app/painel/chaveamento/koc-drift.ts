@@ -22,13 +22,20 @@ export function kocDriftDetail(
     if (!kocPlansMatch(published, configured)) {
       diffs.push(kocPlanDriftDetail(published, configured));
     }
-  } else if (published && !configured) {
-    // A categoria não guarda mais um plano (por exemplo, alguém desfez a
-    // config depois de publicar). Fica quieto aqui seria pior do que avisar:
-    // não dá pra comparar plano com "nenhum plano", mas o organizador precisa
-    // saber que a categoria não descreve mais o que está gerado na areia.
-    diffs.push('plano de fases: a categoria não guarda mais um plano — a chave foi gerada com um');
-  } else if (!published) {
+  } else if (published) {
+    // Chave com plano e categoria sem: o caso NORMAL, não uma anomalia.
+    // `kocPhases` só é gravado pela tela de gerar chave do portal; o app e o
+    // publish do Sorteio ao Vivo geram a partir dos três números e congelam na
+    // rodada o plano DERIVADO, sem nunca escrevê-lo na categoria. Avisar aqui
+    // punha o banner permanentemente numa chave que bate perfeitamente — e um
+    // aviso que está sempre aceso deixa de ser aviso.
+    //
+    // Cair nos três números também não serve: os da rodada são os da FASE
+    // (`kocRoundDoc` congela o teto de chave que a distribuição calculou), não
+    // os da categoria — 6 duplas em quadras de 4 congelam `teamsPerCourt: 3`
+    // sem ninguém ter mexido em nada. A comparação honesta exigiria derivar de
+    // novo o plano legado, que é regra do backend e não mora neste portal.
+  } else {
     if (round.roundsPerBracket !== category.kocRoundsPerBracket) {
       diffs.push(
         `rodadas por chave: a categoria pede ${category.kocRoundsPerBracket}, ` +

@@ -2020,6 +2020,7 @@ export class TelaoKocModeComponent {
     const phase = kocPhaseLabel(m.matchType, labelNum, {
       poolId: round?.poolId,
       batteryLabel: battery,
+      bracketsInPhase: round?.bracketsInPhase,
     }).toUpperCase();
     const total = this.roundTotal();
     // Com bateria, "CHAVE 4 · BATERIA 3" já diz sozinho onde a rodada está — "DE

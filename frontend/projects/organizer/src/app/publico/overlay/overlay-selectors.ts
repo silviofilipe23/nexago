@@ -1,4 +1,4 @@
-import { isKingOfCourtMatchType, kocCardTitle } from '../../painel/data/koc';
+import { isKingOfCourtMatchType } from '../../painel/data/koc';
 import { kocBarOf, kocRoundTitleOf, type OverlayKocBar } from './overlay-koc-bar';
 import { matchClosedSets, matchLiveCurrentSet, matchSetWins } from '../../painel/data/live-set-display';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
@@ -70,6 +70,7 @@ export function overlayViewOf(
       roundTitle: kocRoundTitleOf(match.matchType, round.roundLabel, match.matchNumber, totalRounds, {
         poolId: round.poolId,
         batteryLabel: round.batteryLabel,
+        bracketsInPhase: round.bracketsInPhase,
       }),
       bar: kocBarOf(round, nowMs, totalRounds),
     };
@@ -110,8 +111,10 @@ export function overlayBandOf(
   match: TournamentMatch,
   names: { tournamentName: string | null; categoryName: string | null },
 ): string {
-  const phase = kocCardTitle(match) ?? match.round;
-  return [names.tournamentName, names.categoryName, phase, match.court]
+  // `round` já vem rotulado por `roundLabelOf` (matches-repository) — inclusive
+  // na rodada KOTC, onde ele diz a fase, a chave e a bateria. Passar por
+  // `kocCardTitle` aqui era redundante: ela devolve esse mesmo `round`.
+  return [names.tournamentName, names.categoryName, match.round, match.court]
     .map((part) => part?.trim() ?? '')
     .filter((part) => part !== '')
     .join(' · ');

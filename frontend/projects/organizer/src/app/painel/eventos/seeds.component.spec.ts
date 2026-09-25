@@ -321,3 +321,103 @@ describe('SeedsComponent — rótulo da fase vem da regra compartilhada', () => 
     expect([0, 1].map((i) => internals.kocPhaseTitle(i))).toEqual(['Classificatória', 'Final']);
   });
 });
+
+/** Estado extra do plano de KOTC. Separado de `Internals` porque só este bloco
+ *  precisa trocar o formato e o teto na mão. */
+interface KocInternals extends Internals {
+  format: WritableSignal<'king_of_court'>;
+  kocMaxTeamsPerRound: WritableSignal<number>;
+}
+
+/**
+ * Campo que cabe numa chave só: a tela precisa OFERECER a final.
+ *
+ * Quando oferecer é regra pura, com teste em `koc-phase-plan.spec.ts`. O que só
+ * este bloco pega é a FIAÇÃO: a linha da final é a única da tabela onde "Chaves"
+ * e "Classificam" viram texto fixo, então a régua nova precisa chegar lá dentro
+ * — um teste de função pura seguiria verde com a tela sem botão nenhum.
+ */
+describe('SeedsComponent — a final de 6 duplas pode ser partida', () => {
+  function finalOf(field: number): KocPhaseSpec {
+    return {bracketSizes: [field], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900};
+  }
+
+  async function mountKoc(field: number): Promise<{
+    internals: KocInternals;
+    el: HTMLElement;
+    settle: () => Promise<void>;
+  }> {
+    await TestBed.configureTestingModule({
+      imports: [SeedsComponent],
+      providers: [provideZonelessChangeDetection(), provideRouter([])],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(SeedsComponent);
+    fixture.componentRef.setInput('catId', 'femB');
+    await fixture.whenStable();
+    const internals = fixture.componentInstance as unknown as KocInternals;
+    internals.tournament.set(tournament());
+    internals.loading.set(false);
+    internals.format.set('king_of_court');
+    internals.kocMaxTeamsPerRound.set(6);
+    internals.kocPhases.set([finalOf(field)]);
+    await fixture.whenStable();
+    return {
+      internals,
+      el: fixture.nativeElement as HTMLElement,
+      settle: async () => { await fixture.whenStable(); },
+    };
+  }
+
+  /** A célula "Classificam" da linha `row` da tabela de fases. */
+  function qualifiersCell(el: HTMLElement, row: number): HTMLElement {
+    const line = el.querySelectorAll('.og-koc-plan-row')[row];
+    const cell = Array.from(line?.querySelectorAll('.og-seeds-stepper') ?? [])
+      .find((c) => c.querySelector('.lbl')?.textContent?.trim() === 'Classificam');
+    return cell as HTMLElement;
+  }
+
+  function buttonsOf(cell: HTMLElement): HTMLButtonElement[] {
+    return Array.from(cell.querySelectorAll('button'));
+  }
+
+  it('campo de 6: a linha da final ganha os botões de Classificam, com o − travado no pódio', async () => {
+    const {el} = await mountKoc(6);
+    const buttons = buttonsOf(qualifiersCell(el, 0));
+    expect(buttons.length).toBe(2);
+    expect(buttons[0]!.disabled).toBeTrue();
+    expect(qualifiersCell(el, 0).textContent).toContain('pódio');
+  });
+
+  it('campo de 5: nada muda — a final segue sendo o torneio inteiro', async () => {
+    const {el} = await mountKoc(5);
+    expect(buttonsOf(qualifiersCell(el, 0)).length).toBe(0);
+    expect(qualifiersCell(el, 0).textContent).toContain('pódio');
+  });
+
+  it('o + na final de 6 faz nascer a final de 4 embaixo', async () => {
+    const {el, internals, settle} = await mountKoc(6);
+    buttonsOf(qualifiersCell(el, 0))[1]!.click();
+    await settle();
+
+    expect(internals.kocPhases()).toEqual([
+      {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 4, durationSec: 900},
+      {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+    ]);
+    expect(el.querySelectorAll('.og-koc-plan-row').length).toBe(2);
+    expect(internals.kocPhaseTitle(1)).toBe('Final');
+  });
+
+  it('descer as classificadas abaixo do piso desfaz a final e volta à rodada única', async () => {
+    const {el, internals, settle} = await mountKoc(6);
+    buttonsOf(qualifiersCell(el, 0))[1]!.click();
+    await settle();
+
+    // 4 → 3 → 2: no 2 a cascata colapsa, porque a final ficaria abaixo do piso.
+    for (const _ of [1, 2]) {
+      buttonsOf(qualifiersCell(el, 0))[0]!.click();
+      await settle();
+    }
+    expect(internals.kocPhases()).toEqual([finalOf(6)]);
+    expect(el.querySelectorAll('.og-koc-plan-row').length).toBe(1);
+  });
+});

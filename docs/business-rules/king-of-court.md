@@ -122,7 +122,7 @@ rodadas no total; duas dão 11. O wizard mostra o tempo total antes de publicar.
 - A **rodada final** define o pódio direto pela tabela: 1º, 2º, 3º, 4º.
 
 **Campo que cabe numa chave só ignora as baterias.** Quando o campo inteiro
-forma uma chave — na prática 3, 4 ou 5 duplas —, o torneio É a rodada final, e
+forma uma chave — na prática 3 a 6 duplas —, o torneio É a rodada final, e
 ela vale **uma bateria**, mesmo que a categoria peça 2 ou 3 rodadas por chave.
 
 Isto mudou com o plano de fases (setembro/2026) e é uma mudança declarada, não
@@ -132,6 +132,22 @@ pódios na mesma categoria, incoerente com a regra do próprio formato de que a
 final é uma bateria e a tabela dela é o pódio. Hoje sai uma rodada de 5. É o
 único desvio de forma que a mudança de gerador produziu; nenhuma configuração
 com 6 duplas ou mais gera chave diferente da de antes.
+
+**Mas um campo de 6 pode abrir uma final.** A rodada única é a PROPOSTA, não uma
+trava. Na tabela de fases, a linha da final de 6 duplas tem o "Classificam"
+habilitado: o primeiro clique manda **4** para uma final de 4, e dali o
+organizador ainda pode partir a classificatória em 2 chaves de 3 (duas semis em
+quadras paralelas). Descer as classificadas abaixo do piso desfaz a final e volta
+à rodada única.
+
+Só o campo de **6** recebe a oferta. Com 3, 4 ou 5 o torneio segue sendo a
+rodada: partir um campo de 5 eliminaria UMA dupla para a final ser jogada pelas
+outras quatro — não é fase, é formalidade. O 6 é o caso novo (só existe porque o
+teto subiu de 5 para 6), e nele a rodada única deixa o torneio sem decisão
+nenhuma: seis duplas, uma fila e um cronômetro.
+
+As duas fases se chamam **Classificatória** e **Final** — "Semifinal" continua
+valendo só para plano de 3 fases ou mais.
 
 ## Telão
 A rodada é exibida num telão público: trono, cronômetro, tabela ao vivo e fila.

@@ -151,7 +151,7 @@ describe('plano de fases · edição em cascata', () => {
 describe('plano de fases · limites da própria fase editada', () => {
   it('bracketCount alto demais fura o piso da fase editada', () => {
     // 10 duplas em 5 chaves dariam [2,2,2,2,2] — toda chave abaixo do piso 3.
-    // A geração recusaria rio abaixo (`koc_battery_too_small`), mas a função
+    // A geração recusaria rio abaixo (`koc_bracket_under_min`), mas a função
     // não deveria fabricar em silêncio uma fase que a própria edição já sabe
     // ser ilegal.
     const plan = kocProposePhasePlan(10, 6, 900);

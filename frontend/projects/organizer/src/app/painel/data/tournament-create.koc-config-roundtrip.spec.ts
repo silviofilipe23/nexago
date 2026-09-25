@@ -1,3 +1,4 @@
+import { categoryFromRaw } from './tournaments-repository';
 import { emptyCategoryDraft, emptyTournamentDraft } from './tournament-create.model';
 import {
   categoryFromMap,
@@ -31,6 +32,7 @@ const KOC_MAP = {
   roundsPerBracket: 2,
   qualifiersPerRound: 2,
   roundDurationSec: 900,
+  maxTeamsPerRound: 6,
 };
 
 describe('config KOTC · ida e volta pelo wizard', () => {
@@ -41,6 +43,7 @@ describe('config KOTC · ida e volta pelo wizard', () => {
     expect(draft.kocRoundsPerBracket).toBe(2);
     expect(draft.kocQualifiersPerRound).toBe(2);
     expect(draft.kocRoundDurationSec).toBe(900);
+    expect(draft.kocMaxTeamsPerRound).toBe(6);
   });
 
   it('grava de volta com os MESMOS nomes que `resolveKocConfig` lê', () => {
@@ -50,6 +53,14 @@ describe('config KOTC · ida e volta pelo wizard', () => {
     expect(map['roundsPerBracket']).toBe(2);
     expect(map['qualifiersPerRound']).toBe(2);
     expect(map['roundDurationSec']).toBe(900);
+    expect(map['maxTeamsPerRound']).toBe(6);
+  });
+
+  it('torneio antigo, sem `maxTeamsPerRound`, é lido como o teto de quem não escolheu — não como indefinido', () => {
+    const draft = categoryFromMap({ ...KOC_MAP, maxTeamsPerRound: undefined })!;
+    expect(draft.kocMaxTeamsPerRound).toBe(5);
+    const map = categoryToMap(draft, emptyTournamentDraft());
+    expect(map['maxTeamsPerRound']).toBe(5);
   });
 
   it('abrir e salvar sem mexer em nada não muda a config', () => {
@@ -122,6 +133,37 @@ describe('config KOTC · ida e volta pelo wizard', () => {
     const draft = { ...emptyCategoryDraft('cat-1'), kocRoundsPerBracket: 2 };
     const map = categoryToMap(draft, emptyTournamentDraft());
     expect(map['roundsPerBracket']).toBe(2);
+  });
+
+  it('o teto do wizard chega na categoria que a tela de gerar chave lê', () => {
+    // O elo que faltava: o wizard grava `maxTeamsPerRound` SEM prefixo (só
+    // `saveKocPhasePlan` grava `kocMaxTeamsPerRound`), e o painel lia apenas a
+    // forma com prefixo. "Máximo por bateria = 6" virava 5 na proposta de
+    // plano — com 10 duplas, duas semis de 3 no lugar da semi de 6 com 4
+    // baterias, e nada na tela dizendo por quê.
+    const map = categoryToMap(categoryFromMap(KOC_MAP)!, emptyTournamentDraft());
+    expect(map['maxTeamsPerRound']).toBe(6);
+    expect(categoryFromRaw(map)!.kocMaxTeamsPerRound).toBe(6);
+  });
+
+  it('o wizard relê o teto que a tela de gerar chave gravou, em vez de rebaixá-lo pra 5', () => {
+    // `saveKocPhasePlan` grava `kocMaxTeamsPerRound`. Lendo só a grafia sem
+    // prefixo, o wizard mostrava 5 e — como a gravação reescreve o array
+    // inteiro — devolvia 5 ao doc na primeira edição de qualquer outro campo.
+    const draft = categoryFromMap({ ...KOC_MAP, maxTeamsPerRound: undefined, kocMaxTeamsPerRound: 6 })!;
+    expect(draft.kocMaxTeamsPerRound).toBe(6);
+    expect(categoryToMap(draft, emptyTournamentDraft())['maxTeamsPerRound']).toBe(6);
+  });
+
+  it('o teto gravado por `saveKocPhasePlan` (com prefixo) ganha do que o wizard gravou', () => {
+    // Salvar o plano na tela de gerar chave é a escolha mais recente.
+    const map = { ...KOC_MAP, maxTeamsPerRound: 6, kocMaxTeamsPerRound: 4 };
+    expect(categoryFromRaw(map)!.kocMaxTeamsPerRound).toBe(4);
+  });
+
+  it('categoria sem teto nenhum cai no teto de quem não escolheu', () => {
+    const map = { ...KOC_MAP, maxTeamsPerRound: undefined };
+    expect(categoryFromRaw(map)!.kocMaxTeamsPerRound).toBe(5);
   });
 
   it('torneio antigo, sem o campo, é lido como 1 — não como indefinido', () => {

@@ -2,16 +2,22 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {
   KOC_DEFAULT_ROUND_DURATION_SEC,
+  KOC_LEGACY_MAX_TEAMS_PER_ROUND,
   KocBracketError,
   buildKingOfCourtRounds,
   kocBracketCountForRounds,
+  kocClampMaxPerRound,
+  kocLegacyPlan,
   kocNextRoundIndex,
+  kocProposePlan,
   kocQualifierDescription,
+  kocResolvePlan,
   kocRoundCount,
   kocRoundSizes,
   kocMaxRoundsPerBracket,
   kocSnakeDistribute,
   type KocConfig,
+  type KocPhaseSpec,
   type KocRoundDraft,
 } from "./koc-bracket-builders";
 
@@ -498,6 +504,144 @@ describe("kocBracketCountForRounds", () => {
   });
 });
 
+/** Duração fixa: o planejador não decide duração, só a carrega. */
+const flat = (): number => 900;
+
+describe("kocMaxRoundsPerBracket com mais de uma classificada", () => {
+  it("com 1 por bateria é o de sempre: a chave encolhe de uma em uma", () => {
+    assert.equal(kocMaxRoundsPerBracket(3), 1);
+    assert.equal(kocMaxRoundsPerBracket(4), 2);
+    assert.equal(kocMaxRoundsPerBracket(5), 3);
+    assert.equal(kocMaxRoundsPerBracket(6), 4);
+  });
+
+  it("com 2 por bateria a chave encolhe de duas em duas", () => {
+    assert.equal(kocMaxRoundsPerBracket(6, 2), 2); // 6 → 4, e 4 ainda é rodada
+    assert.equal(kocMaxRoundsPerBracket(7, 2), 3); // 7 → 5 → 3
+    assert.equal(kocMaxRoundsPerBracket(4, 2), 1); // 4 → 2 não é rodada
+  });
+});
+
+describe("kocClampMaxPerRound", () => {
+  it("ausente ou inválido vale o teto de sempre, não o novo", () => {
+    assert.equal(kocClampMaxPerRound(undefined), KOC_LEGACY_MAX_TEAMS_PER_ROUND);
+    assert.equal(kocClampMaxPerRound("x"), KOC_LEGACY_MAX_TEAMS_PER_ROUND);
+  });
+
+  it("prende na faixa do formato", () => {
+    assert.equal(kocClampMaxPerRound(2), 3);
+    assert.equal(kocClampMaxPerRound(9), 6);
+    assert.equal(kocClampMaxPerRound(6), 6);
+  });
+});
+
+describe("kocProposePlan", () => {
+  it("10 duplas com teto 6: o formato que o dono pediu", () => {
+    const plan = kocProposePlan(10, 6, flat);
+    assert.deepEqual(plan, [
+      {bracketSizes: [5, 5], roundsPerBracket: 3, qualifiersPerRound: 1, durationSec: 900},
+      {bracketSizes: [6], roundsPerBracket: 4, qualifiersPerRound: 1, durationSec: 900},
+      {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+    ] satisfies KocPhaseSpec[]);
+  });
+
+  it("campo que cabe numa quadra é uma rodada só — não se inventa fase", () => {
+    for (const n of [3, 4, 5, 6]) {
+      const plan = kocProposePlan(n, 6, flat);
+      assert.deepEqual(plan, [
+        {bracketSizes: [n], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+      ]);
+    }
+  });
+
+  it("chave que só aguenta uma bateria classifica mais de uma, ou o campo morre", () => {
+    // 7 duplas: 2 chaves de [4,3]; a de 3 não comporta segunda bateria, então a
+    // fase volta ao formato clássico e passam 2 de cada.
+    const plan = kocProposePlan(7, 6, flat);
+    assert.equal(plan[0]!.roundsPerBracket, 1);
+    assert.equal(plan[0]!.qualifiersPerRound, 2);
+    assert.deepEqual(plan[1]!.bracketSizes, [4]);
+  });
+
+  it("72 duplas com teto 6 fecham em 6 fases, a última numa chave de 6", () => {
+    // Achado do round de revisão: o planejador é guloso e não conhecia o
+    // orçamento de KOC_MAX_PHASES — em 72 duplas ele devolvia uma última fase
+    // com mais de uma chave e `qualifiersPerRound` maior que 0, violando a
+    // regra de que a final é sempre uma chave só com `qualifiersPerRound: 0`.
+    const plan = kocProposePlan(72, 6, flat);
+    assert.equal(plan.length, 6, "72 duplas: plano deveria fechar em 6 fases");
+    const final = plan[plan.length - 1]!;
+    assert.deepEqual(final.bracketSizes, [6]);
+    assert.equal(final.roundsPerBracket, 1);
+    assert.equal(final.qualifiersPerRound, 0);
+  });
+
+  it("4 duplas com teto 3 não têm chave que caiba entre o piso e o teto", () => {
+    // 4 duplas em quadras de no máximo 3: uma chave só estoura o teto, duas
+    // chaves dão 2+2 — abaixo do piso. Não existe divisão válida.
+    assert.throws(() => kocProposePlan(4, 3, flat), (e: unknown) => {
+      assert.ok(e instanceof KocBracketError);
+      assert.equal(e.reason, "koc_field_not_splittable");
+      return true;
+    });
+  });
+
+  it("3 a 200 duplas, teto 3 a 6: todo plano fecha nas regras do formato ou recusa por nome", () => {
+    // Orçamento de fases do módulo (`KOC_MAX_PHASES`, module-private — não
+    // exportado, então repetido aqui como literal documentado).
+    const MAX_PHASES = 6;
+    for (const max of [3, 4, 5, 6]) {
+      for (let n = 3; n <= 200; n++) {
+        let plan: KocPhaseSpec[];
+        try {
+          plan = kocProposePlan(n, max, flat);
+        } catch (e) {
+          if (!(e instanceof KocBracketError)) throw e;
+          assert.ok(
+            e.reason === "koc_field_not_splittable" || e.reason === "koc_plan_exceeds_max_phases",
+            `${n} duplas, teto ${max}: motivo inesperado ${e.reason}`,
+          );
+          continue;
+        }
+        assert.ok(
+          plan.length <= MAX_PHASES,
+          `${n} duplas, teto ${max}: plano com ${plan.length} fases, acima do orçamento`,
+        );
+        let field = n;
+        for (let i = 0; i < plan.length; i++) {
+          const spec = plan[i]!;
+          const sum = spec.bracketSizes.reduce((a, b) => a + b, 0);
+          assert.equal(sum, field, `${n} duplas, teto ${max}: fase ${i + 1} soma ${sum}, campo é ${field}`);
+          for (const size of spec.bracketSizes) {
+            assert.ok(size >= 3 && size <= max, `${n} duplas, teto ${max}: chave de ${size} fora da faixa`);
+            const last = size - (spec.roundsPerBracket - 1) * Math.max(1, spec.qualifiersPerRound);
+            assert.ok(last >= 3, `${n} duplas, teto ${max}: última bateria ficaria com ${last}`);
+          }
+          const isLast = i === plan.length - 1;
+          if (isLast) {
+            assert.equal(spec.bracketSizes.length, 1, `${n} duplas, teto ${max}: final com mais de uma quadra`);
+            assert.equal(spec.roundsPerBracket, 1);
+            assert.equal(spec.qualifiersPerRound, 0);
+          } else {
+            assert.ok(spec.qualifiersPerRound >= 1, `${n} duplas, teto ${max}: fase ${i + 1} não classifica ninguém`);
+            const next = spec.bracketSizes.length * spec.roundsPerBracket * spec.qualifiersPerRound;
+            assert.ok(next < field, `${n} duplas, teto ${max}: fase ${i + 1} não reduz (${field} → ${next})`);
+            field = next;
+          }
+        }
+      }
+    }
+  });
+
+  it("recusa campo menor que o mínimo do formato", () => {
+    assert.throws(() => kocProposePlan(2, 6, flat), (e: unknown) => {
+      assert.ok(e instanceof KocBracketError);
+      assert.equal(e.reason, "koc_field_too_small");
+      return true;
+    });
+  });
+});
+
 describe("buildKingOfCourtRounds · campo que nao e multiplo da quadra", () => {
   const cfg = (roundsPerBracket: number) => ({
     teamsPerCourt: 4,
@@ -539,5 +683,658 @@ describe("buildKingOfCourtRounds · campo que nao e multiplo da quadra", () => {
       () => buildKingOfCourtRounds(teamIds, cfg(2)),
       (e: KocBracketError) => e.reason === "koc_rounds_per_bracket_too_high",
     );
+  });
+});
+
+describe("kocLegacyPlan preserva o comportamento de hoje", () => {
+  it("16 duplas em quadras de 4, 2 classificadas: 4 chaves → 2 → final", () => {
+    const plan = kocLegacyPlan(16, {...baseConfig});
+    assert.deepEqual(plan.map((p) => p.bracketSizes), [[4, 4, 4, 4], [4, 4], [4]]);
+    assert.deepEqual(plan.map((p) => p.roundsPerBracket), [1, 1, 1]);
+    assert.deepEqual(plan.map((p) => p.qualifiersPerRound), [2, 2, 0]);
+  });
+
+  it("14 duplas com 2 rodadas por chave: 3 chaves mais cheias", () => {
+    const plan = kocLegacyPlan(14, {...baseConfig, roundsPerBracket: 2});
+    assert.deepEqual(plan[0]!.bracketSizes, [5, 5, 4]);
+    assert.equal(plan[0]!.roundsPerBracket, 2);
+    assert.equal(plan[0]!.qualifiersPerRound, 1);
+  });
+
+  it("recusa a chave que não comporta as rodadas pedidas", () => {
+    assert.throws(
+      () => kocLegacyPlan(6, {...baseConfig, roundsPerBracket: 3}),
+      (e: unknown) => e instanceof KocBracketError,
+    );
+  });
+});
+
+/**
+ * Achado durante esta task: com campo que não divide igual entre as chaves de
+ * uma fase do MEIO (ex.: 17 duplas — fase 2 nasce em chaves de 4, 3 e 3), o
+ * cruzamento por módulo (`kocNextRoundIndex`) podia mandar vagas a mais para
+ * uma chave e a menos para outra, porque ele não sabe que `kocRoundSizes` dá a
+ * vaga extra sempre à(s) PRIMEIRA(S) chave(s). Antes desta task isso nunca
+ * estourava um teste porque nada verificava o elenco de fases além da 1ª — a
+ * chave saía torta em silêncio. `emitPhase` ganhou uma rede de segurança que
+ * teria acusado (`koc_round_roster_mismatch`); este teste cobre o campo que
+ * antes quebrava (17 e 19) e uma faixa ao redor, para não voltar a quebrar.
+ */
+describe("buildKingOfCourtRounds · legado com fase do meio que não divide igual", () => {
+  it("3 a 40 duplas: toda rodada nasce com exatamente as vagas que pede", () => {
+    for (let n = 3; n <= 40; n++) {
+      const drafts = buildKingOfCourtRounds(seeds(n), baseConfig);
+      for (const d of drafts) {
+        assert.equal(
+          d.teamIds.length + d.qualifiers.length,
+          d.size,
+          `${n} duplas: fase ${d.phase} ${d.poolId} #${d.matchNumber} pede ${d.size} ` +
+            `e tem ${d.teamIds.length} + ${d.qualifiers.length}`,
+        );
+      }
+    }
+  });
+});
+
+/**
+ * Achado no round 1 de revisão desta task: a correção acima ("anda para a
+ * próxima chave com lugar livre") olhava só CAPACIDADE, nunca a IDENTIDADE de
+ * quem já caiu ali — então podia mandar duas classificadas da MESMA chave de
+ * origem para a MESMA chave da fase seguinte, que é exatamente o reencontro
+ * que a serpentina existe para evitar. Reproduzido com
+ * `{teamsPerCourt: 5, qualifiersPerRound: 3}` em n=66: a rodada #19 (fase 2,
+ * C5) recebia o 2º E o 3º lugar da MESMA rodada #12.
+ *
+ * `findAvailableTarget` agora peneira por capacidade E por origem repetida,
+ * com fallback para repetir a origem só quando nenhuma chave sobra sem
+ * repetir — o pigeonhole genuíno de uma chave mandar mais classificadas do que
+ * a fase seguinte tem chaves (a ÚLTIMA fase do plano, a final, é o caso
+ * extremo disso: tudo converge ali, então fica de fora do teste).
+ */
+function assertNoAvoidableRematch(drafts: readonly KocRoundDraft[], label: string): void {
+  const totalPhases = Math.max(...drafts.map((d) => d.phase));
+  const poolsByPhase = new Map<number, Set<string>>();
+  const phaseOfMatchNumber = new Map<number, number>();
+  for (const d of drafts) {
+    if (!poolsByPhase.has(d.phase)) poolsByPhase.set(d.phase, new Set());
+    poolsByPhase.get(d.phase)!.add(d.poolId);
+    phaseOfMatchNumber.set(d.matchNumber, d.phase);
+  }
+  // fromMatchNumber -> fase de destino e a lista de rodadas (matchNumber) para
+  // onde cada uma das suas vagas foi. Só vagas que CRUZAM fase contam: dentro
+  // da MESMA fase, a bateria 2 em diante de uma chave sempre herda da bateria
+  // anterior da MESMA chave — não é reencontro, é o mesmo grupo continuando.
+  const bySource = new Map<number, {phase: number; targets: number[]}>();
+  for (const d of drafts) {
+    for (const q of d.qualifiers) {
+      const sourcePhase = phaseOfMatchNumber.get(q.fromMatchNumber)!;
+      if (sourcePhase === d.phase) continue; // bateria seguinte da própria chave.
+      let entry = bySource.get(q.fromMatchNumber);
+      if (!entry) {
+        entry = {phase: d.phase, targets: []};
+        bySource.set(q.fromMatchNumber, entry);
+      }
+      entry.targets.push(d.matchNumber);
+    }
+  }
+  for (const [source, {phase, targets}] of bySource) {
+    if (phase === totalPhases) continue; // a final: reencontro é estrutural.
+    const brackets = poolsByPhase.get(phase)!.size;
+    const distinctTargets = new Set(targets).size;
+    if (distinctTargets === targets.length) continue; // sem repetição — ok.
+    assert.ok(
+      targets.length > brackets,
+      `${label}: a chave da rodada #${source} mandou ${targets.length} classificadas ` +
+        `para ${brackets} chave(s) da fase seguinte e repetiu uma delas sem ser ` +
+        `pigeonhole (destinos: ${targets.join(",")})`,
+    );
+  }
+}
+
+describe("buildKingOfCourtRounds · cruzamento não repete a chave de origem (achado do round 1)", () => {
+  it("teamsPerCourt: 5, qualifiersPerRound: 3, 60 a 120 duplas: sem reencontro evitável", () => {
+    for (let n = 60; n <= 120; n++) {
+      let drafts;
+      try {
+        drafts = buildKingOfCourtRounds(
+          seeds(n), {teamsPerCourt: 5, qualifiersPerRound: 3, roundDurationSec: 900},
+        );
+      } catch {
+        continue; // campo que o planejador legado legitimamente recusa — não é o que testamos aqui.
+      }
+      assertNoAvoidableRematch(drafts, `${n} duplas`);
+    }
+  });
+
+  it("caminho do plano explícito (kocProposePlan): sem reencontro evitável", () => {
+    for (const max of [3, 4, 5, 6]) {
+      for (let n = 3; n <= 150; n++) {
+        let phases: KocPhaseSpec[];
+        try {
+          phases = kocProposePlan(n, max, () => 900);
+        } catch {
+          continue; // campo sem divisão válida para este teto — não é o que testamos aqui.
+        }
+        const drafts = buildKingOfCourtRounds(
+          seeds(n), {...baseConfig, maxTeamsPerRound: max, phases},
+        );
+        assertNoAvoidableRematch(drafts, `teto ${max}, ${n} duplas`);
+      }
+    }
+  });
+});
+
+describe("kocResolvePlan", () => {
+  it("sem `phases`, é exatamente o que kocLegacyPlan devolve", () => {
+    assert.deepEqual(kocResolvePlan(16, baseConfig), kocLegacyPlan(16, baseConfig));
+  });
+
+  it("com `phases`, valida e normaliza o plano explícito em vez de derivar", () => {
+    const explicit: KocPhaseSpec[] = [
+      {bracketSizes: [5, 5], roundsPerBracket: 1.9, qualifiersPerRound: 2.9, durationSec: 900},
+      {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+    ];
+    const resolved = kocResolvePlan(10, {...baseConfig, phases: explicit});
+    // `assertPlan` trunca frações — o plano que vale é o saneado, não o cru.
+    assert.deepEqual(resolved, [
+      {bracketSizes: [5, 5], roundsPerBracket: 1, qualifiersPerRound: 2, durationSec: 900},
+      {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+    ]);
+  });
+
+  it("recusa campo abaixo do piso do formato mesmo com plano explícito", () => {
+    assert.throws(() => kocResolvePlan(2, {
+      ...baseConfig,
+      phases: [{bracketSizes: [2], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900}],
+    }), (e: unknown) => {
+      assert.ok(e instanceof KocBracketError);
+      assert.equal(e.reason, "koc_field_too_small");
+      return true;
+    });
+  });
+
+  /**
+   * Achados do round 1 de revisão: `assertPlan` dizia na sua própria doc que
+   * era a defesa contra plano vindo de fora, mas deixava passar 3 planos que
+   * não deveriam existir. Os três testes abaixo cobrem cada rejeição nova.
+   */
+  it("recusa última fase que não é realmente final (qualifiersPerRound fora de 0)", () => {
+    // 12 duplas: fase 1 (3 chaves de 4, classifica 2 cada = 6) → fase 2
+    // (2 chaves de 3, some 6) — mas a fase 2 é a ÚLTIMA e classifica 1 em vez
+    // de fechar em qualifiersPerRound 0.
+    const config: KocConfig = {
+      ...baseConfig,
+      phases: [
+        {bracketSizes: [4, 4, 4], roundsPerBracket: 1, qualifiersPerRound: 2, durationSec: 900},
+        {bracketSizes: [3, 3], roundsPerBracket: 1, qualifiersPerRound: 1, durationSec: 900},
+      ],
+    };
+    assert.throws(() => kocResolvePlan(12, config), (e: unknown) => {
+      assert.ok(e instanceof KocBracketError);
+      assert.equal(e.reason, "koc_last_phase_not_final");
+      return true;
+    });
+  });
+
+  it("recusa última fase que não é realmente final (roundsPerBracket fora de 1)", () => {
+    const config: KocConfig = {
+      ...baseConfig,
+      // `maxTeamsPerRound: 6` para isolar o que este teste verifica: sem ele o
+      // teto efetivo é o legado (5) e a chave de 6 da última fase seria
+      // recusada antes, por `koc_bracket_over_max`.
+      maxTeamsPerRound: 6,
+      phases: [
+        {bracketSizes: [4, 4, 4], roundsPerBracket: 1, qualifiersPerRound: 2, durationSec: 900},
+        {bracketSizes: [6], roundsPerBracket: 2, qualifiersPerRound: 0, durationSec: 900},
+      ],
+    };
+    assert.throws(() => kocResolvePlan(12, config), (e: unknown) => {
+      assert.ok(e instanceof KocBracketError);
+      assert.equal(e.reason, "koc_last_phase_not_final");
+      return true;
+    });
+  });
+
+  /**
+   * Fix round 1 da Task 7 (portal): a tela oferece `kocBracketCountOptions`
+   * pra QUALQUER fase, inclusive a última, sem saber que é a final — com 6
+   * duplas e teto 6 (plano de UMA fase só, que É a final), a opção "2 chaves"
+   * existe (`ceil(6/2)=3` cabe, `floor(6/2)=3` não fura o piso) e o organizador
+   * pode escolhê-la num clique. `assertPlan` é a defesa de verdade: aceitava
+   * essa fase antes deste fix, porque só olhava `qualifiersPerRound`/
+   * `roundsPerBracket`, nunca quantas chaves a última fase tinha.
+   */
+  it("recusa última fase com mais de uma chave (dois pódios pra uma final só)", () => {
+    const config: KocConfig = {
+      ...baseConfig,
+      maxTeamsPerRound: 6,
+      phases: [{bracketSizes: [3, 3], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900}],
+    };
+    assert.throws(() => kocResolvePlan(6, config), (e: unknown) => {
+      assert.ok(e instanceof KocBracketError);
+      assert.equal(e.reason, "koc_last_phase_not_final");
+      return true;
+    });
+  });
+
+  it("recusa plano com mais fases do que o formato aceita", () => {
+    // `7`, não `KOC_MAX_PHASES + 1`: a constante é module-private (mesma
+    // convenção já usada no teste de `kocProposePlan` acima).
+    const phases: KocPhaseSpec[] = Array.from({length: 7}, () => (
+      {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900}
+    ));
+    assert.throws(() => kocResolvePlan(4, {...baseConfig, phases}), (e: unknown) => {
+      assert.ok(e instanceof KocBracketError);
+      assert.equal(e.reason, "koc_plan_exceeds_max_phases");
+      return true;
+    });
+  });
+
+  it("recusa chave acima do teto DA CATEGORIA, mesmo dentro do teto do formato", () => {
+    // Teto do formato é 6; esta categoria escolheu 3. Uma chave de 4 está
+    // dentro do primeiro e fora do segundo — tem que ser recusada.
+    const config: KocConfig = {
+      ...baseConfig,
+      maxTeamsPerRound: 3,
+      phases: [{bracketSizes: [4, 4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900}],
+    };
+    assert.throws(() => kocResolvePlan(8, config), (e: unknown) => {
+      assert.ok(e instanceof KocBracketError);
+      assert.equal(e.reason, "koc_bracket_over_max");
+      assert.ok(/teto desta categoria é 3/.test(e.message));
+      return true;
+    });
+  });
+});
+
+describe("buildKingOfCourtRounds com plano explícito", () => {
+  /** O invariante que pega semi nascendo com vaga a mais ou a menos. */
+  function assertRostersAreComplete(drafts: KocRoundDraft[], label: string): void {
+    for (const d of drafts) {
+      assert.equal(
+        d.teamIds.length + d.qualifiers.length,
+        d.size,
+        `${label}: fase ${d.phase} ${d.poolId} #${d.matchNumber} pede ${d.size} ` +
+          `e tem ${d.teamIds.length} + ${d.qualifiers.length}`,
+      );
+    }
+  }
+
+  it("10 duplas: semi de 6 com 4 baterias e final de 4", () => {
+    const config: KocConfig = {
+      ...baseConfig,
+      maxTeamsPerRound: 6,
+      phases: kocProposePlan(10, 6, () => 900),
+    };
+    const drafts = buildKingOfCourtRounds(seeds(10), config);
+    assert.deepEqual(
+      drafts.map((d) => [d.phase, d.poolId, d.size, d.batteryLabel]),
+      [
+        [1, "C1", 5, 1], [1, "C1", 4, 2], [1, "C1", 3, 3],
+        [1, "C2", 5, 1], [1, "C2", 4, 2], [1, "C2", 3, 3],
+        [2, "C1", 6, 1], [2, "C1", 5, 2], [2, "C1", 4, 3], [2, "C1", 3, 4],
+        [3, "C1", 4, 1],
+      ],
+    );
+    // `.at(-1)` pede lib ES2022; o projeto compila em es2017 — índice direto
+    // tem o mesmo efeito.
+    assert.equal(drafts[drafts.length - 1]!.matchType, "koc_final");
+    assert.equal(drafts[6]!.matchType, "koc_semifinal");
+    assertRostersAreComplete(drafts, "10 duplas");
+  });
+
+  it("a bateria 2 em diante herda quem FICOU na quadra", () => {
+    const config: KocConfig = {
+      ...baseConfig, maxTeamsPerRound: 6, phases: kocProposePlan(10, 6, () => 900),
+    };
+    const drafts = buildKingOfCourtRounds(seeds(10), config);
+    // Bateria 2 da chave 1: lugares 2 a 5 da bateria 1, que é o elenco menos a
+    // classificada.
+    assert.deepEqual(
+      drafts[1]!.qualifiers.map((q) => q.place),
+      [2, 3, 4, 5],
+    );
+    assert.ok(drafts[1]!.qualifiers.every((q) => q.fromMatchNumber === drafts[0]!.matchNumber));
+  });
+
+  it("3 a 24 duplas: nenhuma rodada nasce com vaga sobrando ou faltando", () => {
+    for (let n = 3; n <= 24; n++) {
+      const config: KocConfig = {
+        ...baseConfig, maxTeamsPerRound: 6, phases: kocProposePlan(n, 6, () => 900),
+      };
+      assertRostersAreComplete(buildKingOfCourtRounds(seeds(n), config), `${n} duplas`);
+    }
+  });
+
+  it("as classificadas de uma chave caem em rodadas DIFERENTES da fase seguinte", () => {
+    // 20 duplas: 4 chaves de 5 com 3 baterias cada mandam 12 para 2 semis de 6.
+    // Se as 3 de uma chave caíssem na mesma semi, quem acabou de se enfrentar
+    // reencontraria antes da hora.
+    const config: KocConfig = {
+      ...baseConfig, maxTeamsPerRound: 6, phases: kocProposePlan(20, 6, () => 900),
+    };
+    const drafts = buildKingOfCourtRounds(seeds(20), config);
+    const semiFirsts = drafts.filter((d) => d.phase === 2 && d.batteryLabel === 1);
+    assert.equal(semiFirsts.length, 2);
+    for (const pool of ["C1", "C2", "C3", "C4"]) {
+      const sources = new Set(
+        drafts.filter((d) => d.phase === 1 && d.poolId === pool).map((d) => d.matchNumber),
+      );
+      assert.equal(sources.size, 3, `${pool} deveria ter 3 baterias`);
+      const perSemi = semiFirsts.map(
+        (semi) => semi.qualifiers.filter((q) => sources.has(q.fromMatchNumber)).length,
+      );
+      assert.ok(
+        perSemi.every((n) => n < 3),
+        `as 3 classificadas de ${pool} caíram todas na mesma semifinal (${perSemi.join("/")})`,
+      );
+    }
+  });
+
+  it("recusa contagem de chaves que o sorteio não reproduz", () => {
+    const config: KocConfig = {
+      ...baseConfig,
+      phases: [
+        // 25 duplas em 6 chaves: o sorteio devolveria 5 caixas de alvo 5.
+        {bracketSizes: [5, 5, 5, 4, 3, 3], roundsPerBracket: 1, qualifiersPerRound: 2, durationSec: 900},
+        {bracketSizes: [6, 6], roundsPerBracket: 1, qualifiersPerRound: 1, durationSec: 900},
+        {bracketSizes: [2], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+      ],
+    };
+    assert.throws(() => buildKingOfCourtRounds(seeds(25), config), (e: unknown) => {
+      assert.ok(e instanceof KocBracketError);
+      assert.equal(e.reason, "koc_bracket_count_not_roundtrippable");
+      return true;
+    });
+  });
+
+  it("recusa bateria que ficaria abaixo do mínimo", () => {
+    const config: KocConfig = {
+      ...baseConfig,
+      // `maxTeamsPerRound: 6` para isolar o que este teste verifica (a bateria
+      // que encolhe demais): sem ele o teto efetivo cai para o legado (5), e a
+      // chave de 6 da fase 2 seria recusada antes, por `koc_bracket_over_max`.
+      maxTeamsPerRound: 6,
+      phases: [
+        {bracketSizes: [4, 4], roundsPerBracket: 3, qualifiersPerRound: 1, durationSec: 900},
+        {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+      ],
+    };
+    assert.throws(() => buildKingOfCourtRounds(seeds(8), config), (e: unknown) => {
+      assert.ok(e instanceof KocBracketError);
+      assert.equal(e.reason, "koc_battery_too_small");
+      return true;
+    });
+  });
+
+  it("recusa plano cuja fase 1 não cobre o campo", () => {
+    const config: KocConfig = {
+      ...baseConfig,
+      phases: [{bracketSizes: [4, 4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900}],
+    };
+    assert.throws(() => buildKingOfCourtRounds(seeds(10), config), (e: unknown) => {
+      assert.ok(e instanceof KocBracketError);
+      assert.equal(e.reason, "koc_phase_size_mismatch");
+      return true;
+    });
+  });
+});
+
+/**
+ * Achado durante a Task 3 (`organizer-category-ops.ts`): resolver o plano e
+ * devolvê-lo por `config.phases` faz `kocResolvePlan` julgar DE NOVO, via
+ * `assertPlan`, um plano que `kocLegacyPlan` só teria emitido direto. A
+ * checagem de round-trip existe para plano vindo de FORA (tela ou doc de
+ * categoria já publicado) — aplicá-la ao que o próprio `kocLegacyPlan` acabou
+ * de produzir recusava config legada que sempre funcionou
+ * (`teamsPerCourt: 3` com 19 duplas: fase 1 sai `[4,3,3,3,3,3]`, 6 chaves, mas
+ * o sorteio reconstruiria só 5 a partir do alvo 4).
+ *
+ * `opts.plan` é a porta que evita a segunda resolução: entra sem passar de
+ * novo por `assertPlan`.
+ */
+describe("buildKingOfCourtRounds · plano resolvido entra por opts.plan, não por config.phases", () => {
+  it("teamsPerCourt: 3 com 19 duplas — a config exata do achado da Task 3", () => {
+    const config: KocConfig = {teamsPerCourt: 3, qualifiersPerRound: 2, roundDurationSec: 900};
+    const direct = buildKingOfCourtRounds(seeds(19), config);
+    const plan = kocResolvePlan(19, config);
+    const wired = buildKingOfCourtRounds(seeds(19), config, {plan});
+    assert.deepEqual(wired, direct);
+  });
+
+  it("nunca recusa onde o caminho direto aceita — teamsPerCourt 3/4/5, 3 a 60 duplas", () => {
+    for (const teamsPerCourt of [3, 4, 5]) {
+      for (let n = 3; n <= 60; n++) {
+        const config: KocConfig = {teamsPerCourt, qualifiersPerRound: 2, roundDurationSec: 900};
+        let direct: KocRoundDraft[];
+        try {
+          direct = buildKingOfCourtRounds(seeds(n), config);
+        } catch {
+          // Config que o próprio plano legado recusa (campo não reduz, etc.)
+          // não é o que este teste cobre — o achado é só sobre o round-trip.
+          continue;
+        }
+        const plan = kocResolvePlan(n, config);
+        const wired = buildKingOfCourtRounds(seeds(n), config, {plan});
+        assert.deepEqual(
+          wired,
+          direct,
+          `teamsPerCourt=${teamsPerCourt}, n=${n}: opts.plan divergiu do caminho direto`,
+        );
+      }
+    }
+  });
+});
+
+describe("retrocompat: config sem plano gera o que sempre gerou", () => {
+  it("o plano derivado e o explícito produzem a MESMA chave", () => {
+    for (const [n, cfg] of [
+      [16, baseConfig],
+      [14, {...baseConfig, roundsPerBracket: 2}],
+      [12, {...baseConfig, teamsPerCourt: 5, qualifiersPerRound: 2}],
+      [10, {...baseConfig, teamsPerCourt: 5, roundsPerBracket: 3}],
+    ] as Array<[number, KocConfig]>) {
+      const derived = buildKingOfCourtRounds(seeds(n), cfg);
+      const explicit = buildKingOfCourtRounds(seeds(n), {
+        ...cfg, phases: kocLegacyPlan(n, cfg),
+      });
+      assert.deepEqual(explicit, derived, `${n} duplas`);
+    }
+  });
+});
+
+/**
+ * Prova de retrocompat de verdade — a comparação acima é quase uma tautologia
+ * depois da reescrita: os dois lados passam pelo MESMO `kocResolvePlan`, então
+ * ela só garante que `kocLegacyPlan` e o caminho "sem `phases`" concordam
+ * ENTRE SI, não que o gerador NOVO ainda produz o que o gerador ANTIGO
+ * produzia.
+ *
+ * Estas fixtures são a saída EXATA de `buildKingOfCourtRounds` no commit
+ * `40b4ec37` (fim da Task 1, antes de qualquer mudança de produção desta
+ * task), capturada rodando esses 4 casos contra o código de então. Ver
+ * `.superpowers/sdd/2026-09-24-koc-plano-dinamico-de-fases/task-2-report.md`
+ * para como foram extraídas.
+ *
+ * Tupla por rodada: [phase, matchType, poolId, matchNumber, roundLabel,
+ * teamIds, qualifiers, size, durationSec, batteryLabel].
+ *
+ * Duas decisões deliberadas sobre os dois campos que mudam de forma com a
+ * reescrita:
+ * - `batteryLabel` é campo NOVO desta task. Incluído aqui com o valor que o
+ *   emissor de então já IMPLICAVA (posição da rodada dentro da própria
+ *   chave — 1, 2, 3…), que é a mesma numeração que `emitPhaseOneWithBracketRounds`
+ *   já usava para nomear as rodadas de uma chave em sequência.
+ * - `crossoverIndex` fica DE FORA da tupla, ou seja, não é comparado. No
+ *   emissor antigo ele só existia (como propriedade do objeto) nas fases com
+ *   várias rodadas por chave; nas fases de rodada única o campo nem era
+ *   atribuído. O novo `emitPhase` passou a atribuí-lo sempre, para toda fase.
+ *   O valor, quando o campo existia, sempre coincidia com o fallback
+ *   `source.crossoverIndex ?? source.roundLabel - 1` que o próprio código usa
+ *   para ler esse índice — então presença/ausência do campo é ruído de
+ *   implementação (a forma do objeto), não comportamento observável, e por
+ *   isso não faz parte do que este teste verifica.
+ */
+describe("retrocompat: fixtures congeladas em 40b4ec37 (antes da reescrita)", () => {
+  type FrozenTuple = readonly [
+    number, string, string, number, number, string[],
+    {fromMatchNumber: number; fromRoundLabel: number; place: number}[],
+    number, number, number,
+  ];
+
+  function toTuple(d: KocRoundDraft): FrozenTuple {
+    return [
+      d.phase, d.matchType, d.poolId, d.matchNumber, d.roundLabel,
+      d.teamIds, d.qualifiers, d.size, d.durationSec, d.batteryLabel,
+    ];
+  }
+
+  it("16 duplas, config padrão", () => {
+    const drafts = buildKingOfCourtRounds(seeds(16), baseConfig);
+    const frozen: FrozenTuple[] = [
+      [1, "koc_round", "C1", 1, 1, ["s1", "s8", "s9", "s16"], [], 4, 900, 1],
+      [1, "koc_round", "C2", 2, 2, ["s2", "s7", "s10", "s15"], [], 4, 900, 1],
+      [1, "koc_round", "C3", 3, 3, ["s3", "s6", "s11", "s14"], [], 4, 900, 1],
+      [1, "koc_round", "C4", 4, 4, ["s4", "s5", "s12", "s13"], [], 4, 900, 1],
+      [2, "koc_semifinal", "C1", 5, 1, [], [
+        {fromMatchNumber: 1, fromRoundLabel: 1, place: 1},
+        {fromMatchNumber: 2, fromRoundLabel: 2, place: 2},
+        {fromMatchNumber: 3, fromRoundLabel: 3, place: 1},
+        {fromMatchNumber: 4, fromRoundLabel: 4, place: 2},
+      ], 4, 900, 1],
+      [2, "koc_semifinal", "C2", 6, 2, [], [
+        {fromMatchNumber: 1, fromRoundLabel: 1, place: 2},
+        {fromMatchNumber: 2, fromRoundLabel: 2, place: 1},
+        {fromMatchNumber: 3, fromRoundLabel: 3, place: 2},
+        {fromMatchNumber: 4, fromRoundLabel: 4, place: 1},
+      ], 4, 900, 1],
+      [3, "koc_final", "C1", 7, 1, [], [
+        {fromMatchNumber: 5, fromRoundLabel: 1, place: 1},
+        {fromMatchNumber: 5, fromRoundLabel: 1, place: 2},
+        {fromMatchNumber: 6, fromRoundLabel: 2, place: 1},
+        {fromMatchNumber: 6, fromRoundLabel: 2, place: 2},
+      ], 4, 900, 1],
+    ];
+    assert.deepEqual(drafts.map(toTuple), frozen);
+  });
+
+  it("14 duplas, roundsPerBracket: 2", () => {
+    const drafts = buildKingOfCourtRounds(seeds(14), {...baseConfig, roundsPerBracket: 2});
+    const frozen: FrozenTuple[] = [
+      [1, "koc_round", "C1", 1, 1, ["s1", "s6", "s7", "s12", "s13"], [], 5, 900, 1],
+      [1, "koc_round", "C1", 2, 2, [], [
+        {fromMatchNumber: 1, fromRoundLabel: 1, place: 2},
+        {fromMatchNumber: 1, fromRoundLabel: 1, place: 3},
+        {fromMatchNumber: 1, fromRoundLabel: 1, place: 4},
+        {fromMatchNumber: 1, fromRoundLabel: 1, place: 5},
+      ], 4, 900, 2],
+      [1, "koc_round", "C2", 3, 3, ["s2", "s5", "s8", "s11", "s14"], [], 5, 900, 1],
+      [1, "koc_round", "C2", 4, 4, [], [
+        {fromMatchNumber: 3, fromRoundLabel: 3, place: 2},
+        {fromMatchNumber: 3, fromRoundLabel: 3, place: 3},
+        {fromMatchNumber: 3, fromRoundLabel: 3, place: 4},
+        {fromMatchNumber: 3, fromRoundLabel: 3, place: 5},
+      ], 4, 900, 2],
+      [1, "koc_round", "C3", 5, 5, ["s3", "s4", "s9", "s10"], [], 4, 900, 1],
+      [1, "koc_round", "C3", 6, 6, [], [
+        {fromMatchNumber: 5, fromRoundLabel: 5, place: 2},
+        {fromMatchNumber: 5, fromRoundLabel: 5, place: 3},
+        {fromMatchNumber: 5, fromRoundLabel: 5, place: 4},
+      ], 3, 900, 2],
+      [2, "koc_semifinal", "C1", 7, 1, [], [
+        {fromMatchNumber: 1, fromRoundLabel: 1, place: 1},
+        {fromMatchNumber: 4, fromRoundLabel: 4, place: 1},
+        {fromMatchNumber: 5, fromRoundLabel: 5, place: 1},
+      ], 3, 900, 1],
+      [2, "koc_semifinal", "C2", 8, 2, [], [
+        {fromMatchNumber: 2, fromRoundLabel: 2, place: 1},
+        {fromMatchNumber: 3, fromRoundLabel: 3, place: 1},
+        {fromMatchNumber: 6, fromRoundLabel: 6, place: 1},
+      ], 3, 900, 1],
+      [3, "koc_final", "C1", 9, 1, [], [
+        {fromMatchNumber: 7, fromRoundLabel: 1, place: 1},
+        {fromMatchNumber: 7, fromRoundLabel: 1, place: 2},
+        {fromMatchNumber: 8, fromRoundLabel: 2, place: 1},
+        {fromMatchNumber: 8, fromRoundLabel: 2, place: 2},
+      ], 4, 900, 1],
+    ];
+    assert.deepEqual(drafts.map(toTuple), frozen);
+  });
+
+  it("12 duplas, teamsPerCourt: 5", () => {
+    const drafts = buildKingOfCourtRounds(
+      seeds(12), {...baseConfig, teamsPerCourt: 5, qualifiersPerRound: 2},
+    );
+    const frozen: FrozenTuple[] = [
+      [1, "koc_round", "C1", 1, 1, ["s1", "s6", "s7", "s12"], [], 4, 900, 1],
+      [1, "koc_round", "C2", 2, 2, ["s2", "s5", "s8", "s11"], [], 4, 900, 1],
+      [1, "koc_round", "C3", 3, 3, ["s3", "s4", "s9", "s10"], [], 4, 900, 1],
+      [2, "koc_semifinal", "C1", 4, 1, [], [
+        {fromMatchNumber: 1, fromRoundLabel: 1, place: 1},
+        {fromMatchNumber: 2, fromRoundLabel: 2, place: 2},
+        {fromMatchNumber: 3, fromRoundLabel: 3, place: 1},
+      ], 3, 900, 1],
+      [2, "koc_semifinal", "C2", 5, 2, [], [
+        {fromMatchNumber: 1, fromRoundLabel: 1, place: 2},
+        {fromMatchNumber: 2, fromRoundLabel: 2, place: 1},
+        {fromMatchNumber: 3, fromRoundLabel: 3, place: 2},
+      ], 3, 900, 1],
+      [3, "koc_final", "C1", 6, 1, [], [
+        {fromMatchNumber: 4, fromRoundLabel: 1, place: 1},
+        {fromMatchNumber: 4, fromRoundLabel: 1, place: 2},
+        {fromMatchNumber: 5, fromRoundLabel: 2, place: 1},
+        {fromMatchNumber: 5, fromRoundLabel: 2, place: 2},
+      ], 4, 900, 1],
+    ];
+    assert.deepEqual(drafts.map(toTuple), frozen);
+  });
+
+  it("10 duplas, teamsPerCourt: 5 e roundsPerBracket: 3", () => {
+    const drafts = buildKingOfCourtRounds(
+      seeds(10), {...baseConfig, teamsPerCourt: 5, roundsPerBracket: 3},
+    );
+    const frozen: FrozenTuple[] = [
+      [1, "koc_round", "C1", 1, 1, ["s1", "s4", "s5", "s8", "s9"], [], 5, 900, 1],
+      [1, "koc_round", "C1", 2, 2, [], [
+        {fromMatchNumber: 1, fromRoundLabel: 1, place: 2},
+        {fromMatchNumber: 1, fromRoundLabel: 1, place: 3},
+        {fromMatchNumber: 1, fromRoundLabel: 1, place: 4},
+        {fromMatchNumber: 1, fromRoundLabel: 1, place: 5},
+      ], 4, 900, 2],
+      [1, "koc_round", "C1", 3, 3, [], [
+        {fromMatchNumber: 2, fromRoundLabel: 2, place: 2},
+        {fromMatchNumber: 2, fromRoundLabel: 2, place: 3},
+        {fromMatchNumber: 2, fromRoundLabel: 2, place: 4},
+      ], 3, 900, 3],
+      [1, "koc_round", "C2", 4, 4, ["s2", "s3", "s6", "s7", "s10"], [], 5, 900, 1],
+      [1, "koc_round", "C2", 5, 5, [], [
+        {fromMatchNumber: 4, fromRoundLabel: 4, place: 2},
+        {fromMatchNumber: 4, fromRoundLabel: 4, place: 3},
+        {fromMatchNumber: 4, fromRoundLabel: 4, place: 4},
+        {fromMatchNumber: 4, fromRoundLabel: 4, place: 5},
+      ], 4, 900, 2],
+      [1, "koc_round", "C2", 6, 6, [], [
+        {fromMatchNumber: 5, fromRoundLabel: 5, place: 2},
+        {fromMatchNumber: 5, fromRoundLabel: 5, place: 3},
+        {fromMatchNumber: 5, fromRoundLabel: 5, place: 4},
+      ], 3, 900, 3],
+      [2, "koc_semifinal", "C1", 7, 1, [], [
+        {fromMatchNumber: 1, fromRoundLabel: 1, place: 1},
+        {fromMatchNumber: 3, fromRoundLabel: 3, place: 1},
+        {fromMatchNumber: 5, fromRoundLabel: 5, place: 1},
+      ], 3, 900, 1],
+      [2, "koc_semifinal", "C2", 8, 2, [], [
+        {fromMatchNumber: 2, fromRoundLabel: 2, place: 1},
+        {fromMatchNumber: 4, fromRoundLabel: 4, place: 1},
+        {fromMatchNumber: 6, fromRoundLabel: 6, place: 1},
+      ], 3, 900, 1],
+      [3, "koc_final", "C1", 9, 1, [], [
+        {fromMatchNumber: 7, fromRoundLabel: 1, place: 1},
+        {fromMatchNumber: 7, fromRoundLabel: 1, place: 2},
+        {fromMatchNumber: 8, fromRoundLabel: 2, place: 1},
+        {fromMatchNumber: 8, fromRoundLabel: 2, place: 2},
+      ], 4, 900, 1],
+    ];
+    assert.deepEqual(drafts.map(toTuple), frozen);
   });
 });

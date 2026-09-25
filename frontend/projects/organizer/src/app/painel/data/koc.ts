@@ -10,9 +10,14 @@
  *  vive em `kocTeamIds`. Quem lê os dois lados precisa sair antes por
  *  [isKingOfCourtMatchType]. */
 
-/** Piso e teto do formato. */
+import { kocClampMaxPerRound, parseKocPhases, type KocPhaseSpec } from './koc-phase-plan';
+
+/** Piso e teto do formato. Teto aqui espelha o TETO DURO
+ *  (`KOC_MAX_TEAMS_PER_ROUND_HARD` em `koc-phase-plan.ts`) — uma rodada em
+ *  andamento pode ter sido gerada com até 6 duplas, e a mesa não pode recusar
+ *  iniciar uma rodada válida por um teto desatualizado. */
 export const KOC_MIN_TEAMS_PER_ROUND = 3;
-export const KOC_MAX_TEAMS_PER_ROUND = 5;
+export const KOC_MAX_TEAMS_PER_ROUND = 6;
 
 export interface KocClock {
   /** Derivado NO SERVIDOR. O cliente nunca recalcula prazo. */
@@ -70,6 +75,27 @@ export interface KocRoundState {
   teamsPerCourt: number;
   roundsPerBracket: number;
   configuredDurationSec: number;
+  /** Posição da bateria dentro da chave. Rodada antiga não tem: vale 1. */
+  batteryLabel: number;
+  /** Quadra lógica da chave ("C1", "C2"…) — de onde `kocPhaseLabel` tira o
+   *  número da CHAVE quando há mais de uma bateria. Opcional só pra não forçar
+   *  todo fixture de teste que já existia (telão, overlay, LED) a ganhar o
+   *  campo; nas rodadas lidas daqui vem sempre preenchido junto com
+   *  `batteryLabel` — os dois nascem do mesmo draft no backend. */
+  poolId?: string;
+  /** Quantas CHAVES a fase desta rodada tem, pelo plano congelado. `0` quando
+   *  não dá pra saber (chave publicada antes do plano). É o que decide se
+   *  "Chave N" identifica alguma coisa: com duas chaves na mesma fase, as duas
+   *  quadras jogam a mesma bateria ao mesmo tempo e o rótulo sem a chave sai
+   *  idêntico nas duas.
+   *
+   *  Opcional pelo mesmo motivo de `poolId` logo acima: os fixtures de telão,
+   *  overlay e LED que já existiam não precisam ganhar o campo. Nas rodadas
+   *  lidas de `matches` ele vem sempre preenchido. */
+  bracketsInPhase?: number;
+  /** Plano congelado na geração; nulo em chave publicada antes desta entrega. */
+  phases: KocPhaseSpec[] | null;
+  maxTeamsPerRound: number;
   /** Nº do último rally gravado — vai em `expectedSeq` no próximo. */
   rallySeq: number;
   /** Log bruto de rallies (`kocRallies`) — base do histórico da mesa. */
@@ -98,29 +124,88 @@ export function normalizeMatchType(matchType: string): string {
   return (matchType ?? '').trim().toLowerCase().replace(/_/g, ' ');
 }
 
-/** "Classificatória · Rodada 3" / "Semifinal" / "Final". */
-export function kocPhaseLabel(matchType: string, matchNumber: number): string {
+/** "Chave 4" a partir do `poolId` ("C4"), ou `''` quando a chave não identifica
+ *  nada: sem `poolId`, ou numa fase de chave ÚNICA, onde só existe uma quadra e
+ *  o rótulo vira ruído.
+ *
+ *  `bracketsInPhase` 0 = desconhecido (rodada publicada antes do plano) — aí a
+ *  chave entra, que é o que a chave antiga sempre mostrou. */
+export function kocBracketTag(poolId: string | undefined, bracketsInPhase = 0): string {
+  const n = (poolId ?? '').replace(/^C/i, '').trim();
+  if (!n || bracketsInPhase === 1) return '';
+  return `Chave ${n}`;
+}
+
+/** "Classificatória · Chave 4 · Bateria 3" / "Semifinal · Bateria 2" / "Final".
+ *
+ *  A bateria só entra quando existe mais de uma: numa chave de bateria única,
+ *  "Bateria 1" é ruído. E quando entra, a CHAVE vem junto — sem ela, duas
+ *  quadras diferentes mostrariam "Bateria 2" ao mesmo tempo. Quem decide é o
+ *  número de chaves da FASE (`bracketsInPhase`), não o tipo da partida: a
+ *  semifinal tem duas chaves a partir de 12 duplas com teto 6, e tratá-la como
+ *  fase de chave única fazia C1 e C2 exibirem a MESMA string no telão, no
+ *  overlay e nos dois painéis de LED. */
+export function kocPhaseLabel(
+  matchType: string,
+  matchNumber: number,
+  opts?: { poolId?: string; batteryLabel?: number; bracketsInPhase?: number },
+): string {
   const t = normalizeMatchType(matchType);
+  const battery = opts?.batteryLabel ?? 1;
   if (t === 'koc final') return 'Final';
+  const phase = t === 'koc semifinal' ? 'Semifinal' : 'Classificatória';
+  if (battery > 1) {
+    const bracket = kocBracketTag(opts?.poolId, opts?.bracketsInPhase);
+    return bracket ? `${phase} · ${bracket} · Bateria ${battery}` : `${phase} · Bateria ${battery}`;
+  }
   if (t === 'koc semifinal') return 'Semifinal';
-  // Numa quadra só as classificatórias acontecem em sequência: o número
-  // responde "qual é a minha".
-  return matchNumber > 0 ? `Classificatória · Rodada ${matchNumber}` : 'Classificatória';
+  return matchNumber > 0 ? `${phase} · Rodada ${matchNumber}` : phase;
+}
+
+/** O que uma tela precisa da rodada para rotulá-la. Subconjunto de
+ *  [KocRoundState], para o chamador poder passar a rodada inteira. */
+export type KocRoundLabelSource = Pick<
+  KocRoundState,
+  'roundLabel' | 'batteryLabel' | 'poolId' | 'bracketsInPhase'
+>;
+
+/** Rótulo da rodada a partir da PARTIDA e da rodada dela — a forma que as telas
+ *  que têm as duas em mãos devem usar.
+ *
+ *  `kocPhaseLabel` recebe campos soltos, e cada tela que os monta à mão é uma
+ *  chance de montar diferente: foi assim que a mesa ficou dizendo
+ *  "Classificatória · Rodada 9" para a rodada que o telão ao lado chamava de
+ *  "Chave 4 · Bateria 3" — e o mesário que casa as duas telas erradas abre a
+ *  bateria errada, num formato em que o lançamento É o registro.
+ *
+ *  Também é onde mora a escolha do NÚMERO: `roundLabel` é o índice dentro da
+ *  fase, e `matchNumber` (global) só serve de reserva para rodada antiga, que
+ *  não tem o outro.
+ *
+ *  Pura de propósito: as duas mesas não têm spec — nascem com listener do
+ *  Firestore no construtor e recebem a partida só por ele, sem costura para o
+ *  teste injetar uma. Mesmo motivo de `koc-drift.ts` e `chaveamento-zoom.ts`. */
+export function kocMatchPhaseLabel(
+  match: { matchType: string; matchNumber: number; poolId?: string | null },
+  koc: KocRoundLabelSource | null | undefined,
+): string {
+  return kocPhaseLabel(match.matchType, koc?.roundLabel || match.matchNumber, {
+    poolId: koc?.poolId ?? match.poolId ?? undefined,
+    batteryLabel: koc?.batteryLabel,
+    bracketsInPhase: koc?.bracketsInPhase,
+  });
 }
 
 /** Título do card/fila quando a partida é rodada KOTC — não há confronto A×B,
- *  então "A definir × A definir" não identifica nada. Prefere o `round` já
- *  montado no doc mapeado; senão recalcula pela fase. */
-export function kocCardTitle(match: {
-  matchType: string;
-  round: string | null;
-  matchNumber: number;
-  koc?: { roundLabel: number } | null;
-}): string | null {
+ *  então "A definir × A definir" não identifica nada.
+ *
+ *  É só o `round` já montado: `roundLabelOf` (matches-repository) chama
+ *  `kocPhaseLabel` para TODA rodada KOTC, com a chave e a bateria em mãos, e
+ *  nunca devolve vazio. O recálculo que existia aqui era um segundo lugar onde
+ *  o rótulo podia divergir do primeiro, sem nenhum chamador que o alcançasse. */
+export function kocCardTitle(match: { matchType: string; round: string | null }): string | null {
   if (!isKingOfCourtMatchType(match.matchType)) return null;
-  if (match.round) return match.round;
-  const n = match.koc?.roundLabel || match.matchNumber;
-  return kocPhaseLabel(match.matchType, n);
+  return match.round;
 }
 
 /** Troca entre rodadas, em minutos. Espelha `KOC_CHANGEOVER_MIN` do servidor
@@ -222,6 +307,20 @@ function rallyLogOf(value: unknown): KocRallyEntry[] {
   return out.sort((a, b) => a.seq - b.seq);
 }
 
+/** Quantas chaves a fase DESTA rodada tem, pelo plano congelado no doc.
+ *
+ *  `kocPhase` é o índice da fase (1-based) e `round` guarda o mesmo número —
+ *  o gerador grava os dois. Sem plano (chave anterior a esta entrega) devolve
+ *  0: desconhecido, e quem rotula mantém o comportamento antigo. */
+function bracketsInPhaseOf(
+  phases: KocPhaseSpec[] | null,
+  data: Record<string, unknown>,
+): number {
+  if (!phases) return 0;
+  const phase = intOf(data['kocPhase'], intOf(data['round'], 0));
+  return phases[phase - 1]?.bracketSizes.length ?? 0;
+}
+
 /** Lê a rodada do doc de `matches`.
  *
  *  Tolerante por escolha: campo ausente ou corrompido vira vazio em vez de
@@ -230,6 +329,7 @@ function rallyLogOf(value: unknown): KocRallyEntry[] {
 export function kocRoundStateFrom(data: Record<string, unknown>): KocRoundState {
   const state = (data['kocState'] ?? {}) as Record<string, unknown>;
   const config = (data['kocConfig'] ?? {}) as Record<string, unknown>;
+  const phases = parseKocPhases(config['phases']);
   return {
     teamIds: teamIdsOf(data['kocTeamIds']),
     kingTeamId: strOf(state['kingTeamId']),
@@ -246,6 +346,11 @@ export function kocRoundStateFrom(data: Record<string, unknown>): KocRoundState 
     teamsPerCourt: intOf(config['teamsPerCourt'], 4),
     roundsPerBracket: intOf(config['roundsPerBracket'], 1),
     configuredDurationSec: intOf(config['durationSec'], 900),
+    batteryLabel: intOf(data['kocBatteryLabel'], 1),
+    poolId: strOf(data['poolId']),
+    bracketsInPhase: bracketsInPhaseOf(phases, data),
+    phases,
+    maxTeamsPerRound: kocClampMaxPerRound(intOf(config['maxTeamsPerRound'], 0)),
     rallySeq: intOf(data['kocRallySeq']),
     rallyLog: rallyLogOf(data['kocRallies']),
     roundLabel: intOf(data['kocRoundLabel']),

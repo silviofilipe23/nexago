@@ -3,6 +3,8 @@
  *  string dos "enums" são os `name` dos enums Dart — é o que vai pro Firestore, então não
  *  renomear. */
 
+import { KOC_LEGACY_MAX_TEAMS_PER_ROUND } from './koc-phase-plan';
+
 export type TournamentSport = 'beachVolleyball' | 'indoorVolleyball' | 'footvolley';
 export type TournamentBracketSystem = 'groupsThenKnockout' | 'singleElimination' | 'roundRobin' | 'groupsWithRepechage' | 'doubleElimination' | 'kingOfCourt';
 export type TournamentBestOf = 'singleSet' | 'bestOf3' | 'bestOf5';
@@ -74,10 +76,19 @@ export interface TournamentCategoryDraft {
    *  formato e volta — `resolveKocConfig` no backend lê esses nomes. */
   kocTeamsPerCourt: number;
   /** Rodadas que cada chave joga na classificatória. Acima de 1, cada rodada
-   *  classifica UMA dupla e a vencedora sai — a chave encolhe (4 → 3). */
+   *  classifica UMA dupla e a vencedora sai — a chave encolhe (4 → 3). Some da
+   *  TELA (Task 8): quem decide agora é a tela de gerar chave, que conhece as
+   *  inscritas de verdade — o campo sobrevive só pra ler rascunho/torneio
+   *  antigo, e é o que o servidor usa quando a categoria não tem plano. */
   kocRoundsPerBracket: number;
+  /** Idem: some da tela pelo mesmo motivo. */
   kocQualifiersPerRound: number;
   kocRoundDurationSec: number;
+  /** Teto de duplas por bateria — é isto, e não mais `kocTeamsPerCourt`, que o
+   *  wizard mostra ("Máximo por bateria"): o piso/teto explícito que alimenta
+   *  `kocProposePhasePlan` na estimativa por vagas e vira `kocMaxTeamsPerRound`
+   *  na categoria. */
+  kocMaxTeamsPerRound: number;
   bestOf: TournamentBestOf;
   finalBestOf5: boolean;
   maxRegistrationsPerAthlete: number;
@@ -158,6 +169,7 @@ export function emptyCategoryDraft(id: string): TournamentCategoryDraft {
     kocQualifiersPerRound: KOC_DEFAULT_QUALIFIERS_PER_ROUND,
     kocRoundsPerBracket: 1,
     kocRoundDurationSec: KOC_DEFAULT_ROUND_DURATION_SEC,
+    kocMaxTeamsPerRound: KOC_LEGACY_MAX_TEAMS_PER_ROUND,
     // Padrão do NexaGO: partida de set único (MD3/MD5 são escolha explícita).
     bestOf: 'singleSet',
     finalBestOf5: false,
@@ -404,12 +416,18 @@ export const CATEGORY_LEVEL_PRESETS: readonly CategoryLevelPreset[] = [
 
 // ── King of the Court ─────────────────────────────────────────────────────────
 // Porta de `king_of_court_plan.dart`, que por sua vez espelha
-// `functions/src/koc-bracket-builders.ts` — a FONTE DA VERDADE é o backend. Aqui
-// a conta serve para o wizard responder, antes de publicar, a pergunta que o
-// organizador realmente tem: *cabe na minha reserva de quadra?*
+// `functions/src/koc-bracket-builders.ts` — a FONTE DA VERDADE é o backend.
+//
+// A estimativa por VAGAS que o wizard mostra (antes de publicar, quando as
+// inscritas de verdade ainda não existem) é `kocProposePhasePlan` +
+// `kocPlanTotals`, de `./koc-phase-plan` — o mesmo algoritmo de plano de fases
+// que a tela de gerar chave usa com o elenco real. As funções que faziam essa
+// conta pela regra antiga (`kocSchedule`, `kocRoundsPerPhase` e as auxiliares
+// de rodadas-por-chave) saíram daqui na Task 8, junto com o par de steppers do
+// wizard que só elas alimentavam — sem consumidor, ficaram só como código morto
+// atrás de `koc-rounds-per-bracket.spec.ts` (removido junto).
 
 export const KOC_MIN_TEAMS_PER_ROUND = 3;
-export const KOC_MAX_TEAMS_PER_ROUND = 5;
 export const KOC_DEFAULT_TEAMS_PER_COURT = 4;
 export const KOC_DEFAULT_QUALIFIERS_PER_ROUND = 2;
 export const KOC_DEFAULT_ROUND_DURATION_SEC = 900;
@@ -417,143 +435,6 @@ export const KOC_MIN_ROUND_DURATION_SEC = 300;
 export const KOC_MAX_ROUND_DURATION_SEC = 2400;
 /** Abaixo disso a rodada fica rasa para uma classificatória (~12 rallies por dupla). */
 export const KOC_SHALLOW_ROUND_DURATION_SEC = 600;
-const KOC_CHANGEOVER_SEC = 300;
-/** Descanso mínimo de quem se classifica na última rodada e entra na primeira semi. */
-const KOC_PHASE_BREAK_SEC = 900;
-const KOC_MAX_PHASES = 6;
-
-/** Em quantas rodadas dividir `teamCount` duplas; 0 = não fecha uma rodada. */
-export function kocRoundCount(teamCount: number, teamsPerCourt: number): number {
-  if (teamCount < KOC_MIN_TEAMS_PER_ROUND) return 0;
-  const perCourt = Math.min(KOC_MAX_TEAMS_PER_ROUND, Math.max(KOC_MIN_TEAMS_PER_ROUND, Math.floor(teamsPerCourt)));
-  let rounds = Math.max(1, Math.ceil(teamCount / perCourt));
-  // Rodada de 2 não é King of the Court: junta em vez de deixar malformada.
-  while (rounds > 1 && Math.floor(teamCount / rounds) < KOC_MIN_TEAMS_PER_ROUND) rounds--;
-  while (Math.ceil(teamCount / rounds) > KOC_MAX_TEAMS_PER_ROUND) rounds++;
-  return rounds;
-}
-
-/** Quantas rodadas a chave aguenta: cada vencedora sai, e toda rodada precisa
- *  do mínimo do formato. Espelha `kocMaxRoundsPerBracket` do servidor. */
-export function kocMaxRoundsPerBracket(bracketSize: number): number {
-  return Math.max(1, bracketSize - KOC_MIN_TEAMS_PER_ROUND + 1);
-}
-
-/** Em quantas CHAVES dividir o campo quando cada chave joga `roundsPerBracket`
- *  rodadas. A vencedora sai a cada rodada, então a chave precisa nascer com
- *  `KOC_MIN_TEAMS_PER_ROUND + R - 1`; menos chaves, cada uma mais cheia, é o que
- *  faz 14 duplas caberem em 2 rodadas por chave (3 chaves de 5, 5, 4) em vez de
- *  4 chaves com uma de 3 que inviabiliza tudo. Espelha o servidor. */
-export function kocBracketCountForRounds(teamCount: number, teamsPerCourt: number, roundsPerBracket: number): number {
-  const needed = KOC_MIN_TEAMS_PER_ROUND + Math.max(1, Math.floor(roundsPerBracket)) - 1;
-  let rounds = kocRoundCount(teamCount, teamsPerCourt);
-  if (rounds === 0) return 0;
-  while (
-    rounds > 1 &&
-    Math.floor(teamCount / rounds) < needed &&
-    Math.ceil(teamCount / (rounds - 1)) <= KOC_MAX_TEAMS_PER_ROUND
-  ) {
-    rounds--;
-  }
-  // Normaliza pelo TAMANHO da chave: é assim que o sorteio ao vivo descreve a
-  // divisão, e nem toda contagem sobrevive à ida e volta (25 duplas em 6 chaves
-  // voltam como 5). Espelha o servidor.
-  const target = Math.ceil(teamCount / rounds);
-  return Math.max(1, Math.ceil(teamCount / target));
-}
-
-/** Menor chave da fase 1 — é ela que limita as rodadas por chave. */
-export function kocSmallestBracket(teamCount: number, teamsPerCourt: number, roundsPerBracket = 1): number {
-  const rounds = kocBracketCountForRounds(teamCount, teamsPerCourt, roundsPerBracket);
-  return rounds > 0 ? Math.floor(teamCount / rounds) : 0;
-}
-
-/** Quantas rodadas por chave este campo aceita de verdade.
- *
- *  Não dá pra perguntar direto à menor chave: quantas chaves existem DEPENDE de
- *  quantas rodadas se quer. Então a resposta é o maior R que fecha — é o teto
- *  honesto pro stepper, e evita oferecer um número que a geração recusa. */
-export function kocMaxRoundsForField(teamCount: number, teamsPerCourt: number): number {
-  let best = 1;
-  for (let r = 2; r <= KOC_MAX_TEAMS_PER_ROUND; r++) {
-    const smallest = kocSmallestBracket(teamCount, teamsPerCourt, r);
-    if (smallest > 0 && kocMaxRoundsPerBracket(smallest) >= r) best = r;
-  }
-  return best;
-}
-
-/** Rodadas de cada fase, da classificatória à final. Vazio = config não fecha. */
-export function kocRoundsPerPhase(
-  teamCount: number,
-  teamsPerCourt: number,
-  qualifiersPerRound: number,
-  roundsPerBracket = 1,
-): number[] {
-  const qualifiers = Math.max(1, Math.floor(qualifiersPerRound));
-  const perBracket = Math.max(1, Math.floor(roundsPerBracket));
-  const phases: number[] = [];
-  let fieldSize = teamCount;
-  while (phases.length < KOC_MAX_PHASES) {
-    const first = phases.length === 0;
-    const brackets = first && perBracket > 1 ?
-      kocBracketCountForRounds(fieldSize, teamsPerCourt, perBracket) :
-      kocRoundCount(fieldSize, teamsPerCourt);
-    if (brackets === 0) return [];
-    // Na fase 1 a chave pode jogar várias rodadas, cada uma classificando uma:
-    // são mais rodadas na quadra E mais classificadas saindo da fase.
-    if (first && perBracket > 1) {
-      if (perBracket > kocMaxRoundsPerBracket(kocSmallestBracket(fieldSize, teamsPerCourt, perBracket))) {
-        return [];
-      }
-      phases.push(brackets * perBracket);
-      const next = brackets * perBracket;
-      if (next >= fieldSize) return [];
-      fieldSize = next;
-      continue;
-    }
-    phases.push(brackets);
-    if (brackets === 1) return phases;
-    const next = brackets * qualifiers;
-    // Fase que não reduz o campo entraria em laço na geração.
-    if (next >= fieldSize) return [];
-    fieldSize = next;
-  }
-  return [];
-}
-
-export interface KocSchedule {
-  roundsPerPhase: number[];
-  totalRounds: number;
-  totalSeconds: number;
-  /** "2h35" / "45min" — o número que responde se cabe na reserva da quadra. */
-  totalLabel: string;
-  valid: boolean;
-}
-
-export function kocSchedule(teamCount: number, teamsPerCourt: number, qualifiersPerRound: number, roundDurationSec: number, courts = 1, roundsPerBracket = 1): KocSchedule {
-  const roundsPerPhase = kocRoundsPerPhase(teamCount, teamsPerCourt, qualifiersPerRound, roundsPerBracket);
-  if (roundsPerPhase.length === 0) {
-    return {roundsPerPhase: [], totalRounds: 0, totalSeconds: 0, totalLabel: '', valid: false};
-  }
-  const parallel = Math.max(1, courts);
-  const duration = Math.min(KOC_MAX_ROUND_DURATION_SEC, Math.max(KOC_MIN_ROUND_DURATION_SEC, Math.round(roundDurationSec)));
-  let seconds = 0;
-  for (let i = 0; i < roundsPerPhase.length; i++) {
-    const waves = Math.ceil(roundsPerPhase[i] / parallel);
-    seconds += waves * duration + (waves - 1) * KOC_CHANGEOVER_SEC;
-    if (i < roundsPerPhase.length - 1) seconds += KOC_PHASE_BREAK_SEC;
-  }
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const totalLabel = hours === 0 ? `${minutes}min` : minutes === 0 ? `${hours}h` : `${hours}h${String(minutes).padStart(2, '0')}`;
-  return {
-    roundsPerPhase,
-    totalRounds: roundsPerPhase.reduce((a, b) => a + b, 0),
-    totalSeconds: seconds,
-    totalLabel,
-    valid: true,
-  };
-}
 
 export const BRACKET_FORMAT_FIRESTORE: Record<TournamentBracketSystem, string> = {
   groupsThenKnockout: 'groups_knockout',

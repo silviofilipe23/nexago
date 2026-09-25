@@ -8,7 +8,7 @@ import { kocPreRoundOf } from '../overlay/overlay-koc-preround';
 import { kocStandingsBoardOf } from '../overlay/overlay-koc-standings';
 import { overlayViewOf } from '../overlay/overlay-selectors';
 import { LedPreRoundComponent } from './led-preround.component';
-import { LedRoundComponent, type LedTeam } from './led-round.component';
+import { LedRoundComponent, type LedRoundInfo, type LedTeam } from './led-round.component';
 import { LedStandingsComponent } from './led-standings.component';
 import { ledIniciaisDe } from './led-iniciais';
 import { ledTelaOf } from './led-telas';
@@ -44,6 +44,7 @@ import { ledTelaOf } from './led-telas';
           <div class="cortina" animate.enter="led-cortina-in" animate.leave="led-cortina-out">
             <og-led-round
               [view]="v"
+              [info]="roundInfo()"
               [teams]="teams()"
               [categoryName]="categoryName()"
               [courtName]="courtName()"
@@ -56,6 +57,7 @@ import { ledTelaOf } from './led-telas';
           <div class="cortina" animate.enter="led-cortina-in" animate.leave="led-cortina-out">
             <og-led-round
               [view]="v"
+              [info]="roundInfo()"
               [teams]="teams()"
               [categoryName]="categoryName()"
               [courtName]="courtName()"
@@ -227,7 +229,28 @@ export class LedPageComponent {
       m.koc?.roundLabel ?? 0,
       m.matchNumber,
       this.contexto().totalRounds,
+      {
+        poolId: m.koc?.poolId,
+        batteryLabel: m.koc?.batteryLabel,
+        bracketsInPhase: m.koc?.bracketsInPhase,
+      },
     );
+  });
+
+  /** A rodada em CAMPOS pro cabeçalho do painel. O painel já teve que extrair
+   *  chave, bateria e total do título com expressão regular — e ficou mudo no
+   *  dia em que o rótulo mudou de forma. Aqui tudo isso já existe pronto. */
+  protected readonly roundInfo = computed<LedRoundInfo | null>(() => {
+    const m = this.partida();
+    if (!m) return null;
+    return {
+      matchType: m.matchType,
+      roundLabel: m.koc?.roundLabel ?? 0,
+      batteryLabel: m.koc?.batteryLabel ?? 1,
+      poolId: m.koc?.poolId ?? '',
+      totalRounds: this.contexto().totalRounds,
+      bracketsInPhase: m.koc?.bracketsInPhase ?? 0,
+    };
   });
 
   protected readonly phaseName = computed(() => {

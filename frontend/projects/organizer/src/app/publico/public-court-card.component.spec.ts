@@ -150,6 +150,9 @@ describe('PublicCourtCardComponent', () => {
           rallyLog: [],
           roundLabel: 3,
           qualifierSlots: [],
+          batteryLabel: 1,
+          phases: null,
+          maxTeamsPerRound: 5,
         },
       }),
     );

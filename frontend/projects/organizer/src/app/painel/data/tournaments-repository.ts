@@ -8,6 +8,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   startAfter,
   startAt,
   updateDoc,
@@ -18,6 +19,7 @@ import {
 } from 'firebase/firestore';
 import { organizerFirestore } from './firestore';
 import { collectedFromDoc } from './tournament-collected';
+import { kocClampMaxPerRound, parseKocPhases, type KocPhaseSpec } from './koc-phase-plan';
 import { roleFromStaffMirror } from './tournament-role';
 import type { TournamentPaymentMode } from './tournament-create.model';
 import type { OrganizerMatchOpsConfig, OrganizerTournament, OrganizerTournamentCategory, OrganizerTournamentStatus, TelaoConfig, TournamentRole } from './tournament.model';
@@ -75,7 +77,10 @@ function statusFromRaw(raw: string): OrganizerTournamentStatus {
   return 'inscricoes'; // 'open', 'draft' ou desconhecido
 }
 
-function categoryFromRaw(raw: unknown): OrganizerTournamentCategory | null {
+/** Exportada para teste: é aqui que o que o WIZARD gravou vira a categoria que
+ *  a tela de gerar chave lê. Um campo que o wizard grava e esta função não lê
+ *  não dá erro em lugar nenhum — a chave só nasce com outra forma. */
+export function categoryFromRaw(raw: unknown): OrganizerTournamentCategory | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
   const id = optionalStr(o['id']) ?? optionalStr(o['categoryId']);
@@ -93,6 +98,17 @@ function categoryFromRaw(raw: unknown): OrganizerTournamentCategory | null {
     kocTeamsPerCourt: numberOf(o['teamsPerCourt']) ?? 4,
     kocRoundsPerBracket: numberOf(o['roundsPerBracket']) ?? 1,
     kocQualifiersPerRound: numberOf(o['qualifiersPerRound']) ?? 2,
+    kocPhases: parseKocPhases(o['kocPhases']),
+    // Duas grafias, como os dois leitores do backend (`resolveKocConfig` e
+    // `categoryMetaOf`): o WIZARD grava `maxTeamsPerRound` sem prefixo
+    // (`tournament-create-mapper.ts`, `league-create.model.ts`) e só
+    // `saveKocPhasePlan` grava a forma com prefixo. Ler só a prefixada jogava
+    // fora o teto escolhido no wizard — a tela de gerar chave caía no 5 padrão
+    // e propunha duas semis de 3 onde o organizador pediu uma de 6.
+    kocMaxTeamsPerRound: kocClampMaxPerRound(
+      numberOf(o['kocMaxTeamsPerRound']) ?? numberOf(o['maxTeamsPerRound']),
+    ),
+    kocRoundDurationSec: numberOf(o['roundDurationSec']) ?? 900,
     bestOf: optionalStr(o['bestOf']),
     uniformType: optionalStr(o['uniformType']),
     uniformNumberOnShirt: o['uniformNumberOnShirt'] === true,
@@ -374,4 +390,81 @@ export async function listOrganizerNames(uids: readonly string[]): Promise<Map<s
  *  exibição, não regra de negócio. */
 export function saveTelaoConfig(tournamentId: string, config: TelaoConfig): Promise<void> {
   return updateDoc(doc(organizerFirestore(), 'tournaments', tournamentId), { bigScreen: { ...config, courtIds: [...config.courtIds] } });
+}
+
+/**
+ * Devolve o array `categories` com o plano de fases KOTC aplicado na categoria indicada.
+ *
+ * Puro de propósito — `saveKocPhasePlan` é a única chamadora, dentro de uma transação, mas a
+ * cirurgia em si não precisa do Firestore para ser testada. Categoria alheia ao alvo volta pela
+ * mesma referência (nada a clonar); `categoryId` que não bate com ninguém devolve o array como
+ * veio, sem gravar nada.
+ */
+export function kocCategoriesWithPlan(
+  categories: readonly unknown[],
+  categoryId: string,
+  plan: KocPhaseSpec[],
+  maxTeamsPerRound: number,
+): unknown[] {
+  return categories.map((c) => {
+    if (c == null || typeof c !== 'object') return c;
+    const row = c as Record<string, unknown>;
+    if (String(row['id'] ?? '') !== categoryId) return row;
+    return {
+      ...row,
+      kocPhases: plan.map((p) => ({ ...p, bracketSizes: [...p.bracketSizes] })),
+      kocMaxTeamsPerRound: maxTeamsPerRound,
+    };
+  });
+}
+
+/**
+ * Existe categoria com esse id no array `categories`?
+ *
+ * Extraída para o teste alcançar a MESMA checagem que `saveKocPhasePlan` usa para decidir entre
+ * gravar e recusar — sem precisar de Firestore. Mesma convenção de leitura de `id` que
+ * `kocCategoriesWithPlan` usa (nunca o fallback para `categoryId` que a LEITURA tem em
+ * `categoryFromRaw`; escrita sempre grava `id`, ver `tournament-create-mapper.ts`).
+ */
+export function kocCategoryExists(categories: readonly unknown[], categoryId: string): boolean {
+  return categories.some(
+    (c) => c != null && typeof c === 'object' && String((c as Record<string, unknown>)['id'] ?? '') === categoryId,
+  );
+}
+
+/**
+ * Grava o plano de fases KOTC na categoria.
+ *
+ * Precisa estar no doc da categoria — e não só no payload da geração — porque o SORTEIO AO VIVO
+ * lê de lá e acontece antes da chave existir.
+ *
+ * Transação, não leitura-e-escrita solta: o Firestore não sabe atualizar um elemento do array
+ * `categories` por id, então a gravação reescreve o array inteiro. Duas pessoas da equipe
+ * editando categorias DIFERENTES ao mesmo tempo é rotina neste produto — sem transação, a
+ * segunda escrita levaria o array que já estava em memória antes da primeira e apagaria a
+ * categoria inteira que a primeira acabou de gravar, não só os campos de KOTC dela.
+ *
+ * `categoryId` que não existe no torneio RECUSA em vez de voltar quieta (fix round 2/5): um write
+ * que não escreve e não avisa é a mesma forma de bug que `resolveKocConfig` teve — a geração
+ * ainda funcionaria com o plano do payload em memória, nada pareceria errado no ato, e só o
+ * SORTEIO AO VIVO de um dia futuro cairia nas regras antigas por a categoria nunca ter recebido
+ * o plano.
+ */
+export async function saveKocPhasePlan(
+  tournamentId: string,
+  categoryId: string,
+  plan: KocPhaseSpec[],
+  maxTeamsPerRound: number,
+): Promise<void> {
+  const db = organizerFirestore();
+  const ref = doc(db, 'tournaments', tournamentId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const raw = snap.data() ?? {};
+    const categories = Array.isArray(raw['categories']) ? (raw['categories'] as unknown[]) : [];
+    if (!kocCategoryExists(categories, categoryId)) {
+      throw new Error(`Categoria "${categoryId}" não encontrada no torneio "${tournamentId}".`);
+    }
+    tx.update(ref, { categories: kocCategoriesWithPlan(categories, categoryId, plan, maxTeamsPerRound) });
+  });
 }

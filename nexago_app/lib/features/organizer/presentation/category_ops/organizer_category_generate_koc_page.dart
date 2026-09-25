@@ -186,12 +186,20 @@ class _OrganizerCategoryGenerateKocPageState
                   filterSeedTeamIdsToEligible(seeds, eligible),
                 )
               : eligible;
-          final schedule = kingOfCourtSchedule(
-            teamCount: ordered.length,
-            teamsPerCourt: _config.teamsPerCourt,
-            qualifiersPerRound: _config.qualifiersPerRound,
-            roundDurationSec: _config.roundDurationSec,
-          );
+          final phases = _config.phases;
+          // Categoria com plano: quem manda é ele, e mexer nos steppers daqui
+          // não mudaria a chave — o servidor lê o plano do doc. Mostrar em modo
+          // leitura é o que impede a tela de prometer outro formato. A conta é
+          // a mesma de `kingOfCourtScheduleFromPhases` — 1 quadra, como a tela
+          // já fazia — para bater com o total que o portal mostrou ao propor.
+          final schedule = phases == null
+              ? kingOfCourtSchedule(
+                  teamCount: ordered.length,
+                  teamsPerCourt: _config.teamsPerCourt,
+                  qualifiersPerRound: _config.qualifiersPerRound,
+                  roundDurationSec: _config.roundDurationSec,
+                )
+              : kingOfCourtScheduleFromPhases(phases, courts: 1);
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
@@ -200,6 +208,7 @@ class _OrganizerCategoryGenerateKocPageState
                 teamCount: ordered.length,
                 config: _config,
                 loading: !_configLoaded,
+                readOnly: phases != null,
               ),
               const SizedBox(height: 20),
               OrganizerBracketSeedPreview(teams: ordered),
@@ -237,12 +246,17 @@ class _KocPlanCard extends StatelessWidget {
     required this.teamCount,
     required this.config,
     required this.loading,
+    this.readOnly = false,
   });
 
   final KingOfCourtSchedule schedule;
   final int teamCount;
   final KingOfCourtConfig config;
   final bool loading;
+
+  /// A categoria já tem um plano de fases salvo pelo portal: esta tela só
+  /// exibe o que vai sair na chave, sem oferecer controle nenhum sobre ele.
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -290,6 +304,17 @@ class _KocPlanCard extends StatelessWidget {
               color: colors.onSurfaceMuted,
             ),
           ),
+          if (readOnly) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Formato definido no portal do organizador',
+              style: AppTypography.soraRegular(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: accent,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -305,12 +330,21 @@ class _KocPlanCard extends StatelessWidget {
           'classificadas por rodada não reduzem o campo entre as fases. '
           'Ajuste a configuração da categoria.';
     }
-    final phases = schedule.roundsPerPhase
+    final phaseLabels = schedule.roundsPerPhase
         .map((rounds) => rounds == 1 ? '1 rodada' : '$rounds rodadas')
         .join(' → ');
+    if (config.phases != null) {
+      // Com plano, cada fase pode durar um tempo diferente (a final costuma
+      // ser mais longa) — citar UM número de minutos mentiria para o resto
+      // do plano. O total de quadra já soma cada fase pelo que ela realmente
+      // dura, que é a pergunta que o organizador tem — a isolada, não.
+      return '$teamCount duplas · ${schedule.totalRounds} rodadas em uma '
+          'quadra ($phaseLabels), já com trocas e intervalos. '
+          'A tabela da última rodada define o pódio.';
+    }
     final minutes = config.roundDurationSec ~/ 60;
     return '$teamCount duplas · ${schedule.totalRounds} rodadas de '
-        '$minutes min em uma quadra ($phases), já com trocas e intervalos. '
+        '$minutes min em uma quadra ($phaseLabels), já com trocas e intervalos. '
         'A tabela da última rodada define o pódio.';
   }
 }

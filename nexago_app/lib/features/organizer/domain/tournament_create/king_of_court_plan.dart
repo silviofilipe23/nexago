@@ -159,6 +159,96 @@ KingOfCourtSchedule kingOfCourtSchedule({
   );
 }
 
+/// Uma fase do plano, como o servidor a congelou na rodada.
+///
+/// O app não PLANEJA nada: quem propõe e edita é o portal. Aqui só se lê, para
+/// a tela de gerar chave não prometer um formato diferente do que vai sair.
+class KingOfCourtPhase {
+  const KingOfCourtPhase({
+    required this.bracketSizes,
+    required this.roundsPerBracket,
+    required this.qualifiersPerRound,
+    required this.durationSec,
+  });
+
+  final List<int> bracketSizes;
+  final int roundsPerBracket;
+
+  /// 0 só na final: ali ninguém classifica, a tabela é o pódio.
+  final int qualifiersPerRound;
+  final int durationSec;
+
+  int get fieldSize => bracketSizes.fold(0, (a, b) => a + b);
+  int get roundCount => bracketSizes.length * roundsPerBracket;
+}
+
+/// Lê o plano gravado no Firestore. Sujeira derruba o plano INTEIRO: sem ele o
+/// app mostra o formato antigo, que é honesto; com ele meio lido, mentiria.
+List<KingOfCourtPhase>? kingOfCourtPhasesFrom(dynamic raw) {
+  if (raw is! List || raw.isEmpty) return null;
+  final out = <KingOfCourtPhase>[];
+  for (final item in raw) {
+    if (item is! Map) return null;
+    final sizesRaw = item['bracketSizes'];
+    if (sizesRaw is! List || sizesRaw.isEmpty) return null;
+    final sizes = <int>[];
+    for (final n in sizesRaw) {
+      if (n is! num || n < 1) return null;
+      sizes.add(n.toInt());
+    }
+    final rounds = item['roundsPerBracket'];
+    final qualifiers = item['qualifiersPerRound'];
+    final duration = item['durationSec'];
+    if (rounds is! num || rounds < 1) return null;
+    if (qualifiers is! num || qualifiers < 0) return null;
+    if (duration is! num || duration <= 0) return null;
+    out.add(KingOfCourtPhase(
+      bracketSizes: sizes,
+      roundsPerBracket: rounds.toInt(),
+      qualifiersPerRound: qualifiers.toInt(),
+      durationSec: duration.toInt(),
+    ));
+  }
+  return out;
+}
+
+/// Estimativa do dia a partir do PLANO da categoria — mesma conta que
+/// `kocPlanTotals` faz no portal (`koc-phase-plan.ts`), pareada campo a campo,
+/// para as duas telas nunca mostrarem tempos diferentes para o mesmo plano.
+///
+/// [courts] é quantas CHAVES rodam em paralelo, não quantas baterias: as
+/// baterias de uma chave são sequenciais na mesma quadra — o paralelismo vem
+/// de ter mais de uma chave jogando ao mesmo tempo em quadras diferentes.
+KingOfCourtSchedule kingOfCourtScheduleFromPhases(
+  List<KingOfCourtPhase> phases, {
+  int courts = 1,
+}) {
+  final parallel = courts < 1 ? 1 : courts;
+  final roundsPerPhase = <int>[];
+  var seconds = 0;
+  for (var i = 0; i < phases.length; i++) {
+    final phase = phases[i];
+    final waves =
+        (phase.bracketSizes.length / parallel).ceil() * phase.roundsPerBracket;
+    roundsPerPhase.add(phase.roundCount);
+    seconds +=
+        waves * phase.durationSec + (waves > 0 ? waves - 1 : 0) * kocChangeoverSec;
+    if (i < phases.length - 1) seconds += kocPhaseBreakSec;
+  }
+  return KingOfCourtSchedule(
+    roundsPerPhase: roundsPerPhase,
+    totalDuration: Duration(seconds: seconds),
+    courts: parallel,
+  );
+}
+
+/// Teto de quem não escolheu — o de antes do plano de fases.
+const int kocLegacyMaxTeamsPerRound = 5;
+
+/// Teto duro do formato, mesmo com plano: acima disso a rodada deixa de ser
+/// King of the Court.
+const int kocHardMaxTeamsPerRound = 6;
+
 /// Config KOTC da categoria, como o wizard gravou.
 ///
 /// Os nomes são os mesmos que `resolveKocConfig` lê no backend — é o que faz a
@@ -168,11 +258,19 @@ class KingOfCourtConfig {
     this.teamsPerCourt = kocDefaultTeamsPerCourt,
     this.qualifiersPerRound = kocDefaultQualifiersPerRound,
     this.roundDurationSec = kocDefaultRoundDurationSec,
+    this.maxTeamsPerRound = kocLegacyMaxTeamsPerRound,
+    this.phases,
   });
 
   final int teamsPerCourt;
   final int qualifiersPerRound;
   final int roundDurationSec;
+  final int maxTeamsPerRound;
+
+  /// Plano explícito da categoria. Não vai no `bracketConfig`: o servidor lê o
+  /// plano do doc da categoria, e mandar daqui sobrescreveria o que o portal
+  /// salvou com a tabela.
+  final List<KingOfCourtPhase>? phases;
 
   Map<String, dynamic> toBracketConfig() => {
     'teamsPerCourt': teamsPerCourt,
@@ -194,5 +292,13 @@ KingOfCourtConfig kingOfCourtConfigFromCategory(Map<String, dynamic>? category) 
     teamsPerCourt: read('teamsPerCourt', kocDefaultTeamsPerCourt),
     qualifiersPerRound: read('qualifiersPerRound', kocDefaultQualifiersPerRound),
     roundDurationSec: read('roundDurationSec', kocDefaultRoundDurationSec),
+    maxTeamsPerRound: () {
+      final raw = category?['kocMaxTeamsPerRound'] ?? category?['maxTeamsPerRound'];
+      if (raw is! num || raw <= 0) return kocLegacyMaxTeamsPerRound;
+      return raw.toInt().clamp(kocMinTeamsPerRound, kocHardMaxTeamsPerRound);
+    }(),
+    phases: kingOfCourtPhasesFrom(
+      category?['kocPhases'] ?? category?['phases'],
+    ),
   );
 }

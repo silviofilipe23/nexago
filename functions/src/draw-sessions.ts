@@ -13,11 +13,16 @@ import {
 } from "./firebase-paths";
 import {isBoxedDraw, type DrawFormat} from "./draw-engine";
 import {
+  KOC_DEFAULT_ROUND_DURATION_SEC,
   KOC_DEFAULT_TEAMS_PER_COURT,
   KOC_MIN_TEAMS_PER_ROUND,
-  kocBracketCountForRounds,
-  kocMaxRoundsPerBracket,
+  kocClampMaxPerRound,
+  kocResolvePlan,
+  KocBracketError,
+  type KocConfig,
+  type KocPhaseSpec,
 } from "./koc-bracket-builders";
+import {groupCapacities} from "./draw-plan";
 import {athleteRatingsPath} from "./rating-engine";
 import {buildEntrants, type EntrantHistoryMatch, type EntrantSource} from "./draw-entrants";
 import {byeSeeds, winnersRoundOnePairings} from "./draw-de-placement";
@@ -31,7 +36,7 @@ import {
   type DrawSessionConfig,
   type DrawSessionDoc,
 } from "./draw-session-model";
-import {runGenerateCategoryBracket} from "./organizer-category-ops";
+import {parseKocPhases, runGenerateCategoryBracket} from "./organizer-category-ops";
 import {assertCanManageTournament} from "./tournament-acl";
 import {findCategory, resolveCategoryLabel} from "./tournament-registration-guards";
 import {registrationAthleteUids} from "./tournament-registration-pix-helpers";
@@ -159,7 +164,7 @@ async function fetchHistories(
   return out;
 }
 
-interface CategoryMeta {
+export interface CategoryMeta {
   name: string;
   teamsPerGroup: number;
   /** Duplas por quadra na KOTC — o tamanho da rodada da classificatória. */
@@ -168,11 +173,25 @@ interface CategoryMeta {
    *  campo tem, então o sorteio precisa saber: as caixas que ele sorteia SÃO as
    *  chaves, e a geração recusa a chave se as contas não baterem. */
   roundsPerBracket: number;
+  /** Classificadas por GRUPO — campo do formato de grupos, que usa a mesma
+   *  struct. Nada a ver com a KOTC. */
   qualifiersPerGroup: number;
+  /** Classificadas por RODADA na KOTC. Campo separado de propósito: uma
+   *  categoria KOTC herda o `qualifiersPerGroup` padrão (2) sem nunca tê-lo
+   *  escolhido, e validar o plano por ele aceitava aqui uma configuração que
+   *  a geração recusava depois — com as duplas já reveladas no telão. */
+  qualifiersPerRound: number;
   bracketFormat: string | null;
+  /** Plano explícito de fases da categoria; ausente ⇒ regras antigas. */
+  kocPhases: KocPhaseSpec[] | undefined;
+  /** Teto de duplas numa bateria nesta categoria. */
+  kocMaxTeamsPerRound: number;
 }
 
-function categoryMetaOf(tournament: Record<string, unknown>, categoryId: string): CategoryMeta {
+export function categoryMetaOf(
+  tournament: Record<string, unknown>,
+  categoryId: string,
+): CategoryMeta {
   // Mesma resolução de rótulo do resto do produto — `categoryName`/`label`, não só `name`.
   const found = findCategory(tournament, categoryId);
   const num = (value: unknown, fallback: number): number =>
@@ -184,8 +203,71 @@ function categoryMetaOf(tournament: Record<string, unknown>, categoryId: string)
     teamsPerCourt: num(found?.teamsPerCourt, KOC_DEFAULT_TEAMS_PER_COURT),
     roundsPerBracket: Math.max(1, Math.floor(num(found?.roundsPerBracket, 1))),
     qualifiersPerGroup: num(found?.qualifiersPerGroup, 2),
+    // Mesmo default e mesmo campo que `resolveKocConfig` (a leitura da geração)
+    // usa: é o que faz o sorteio validar o plano que a geração vai montar.
+    qualifiersPerRound: num(found?.qualifiersPerRound, 2),
     bracketFormat: str(found?.bracketFormat) || null,
+    kocPhases: parseKocPhases(found?.kocPhases ?? found?.phases),
+    kocMaxTeamsPerRound: kocClampMaxPerRound(found?.kocMaxTeamsPerRound ?? found?.maxTeamsPerRound),
   };
+}
+
+/**
+ * A config KOTC que o SORTEIO valida, montada a partir da categoria.
+ *
+ * Exportada — e usada pela callable — para que o teste percorra a montagem
+ * REAL. Era aqui que morava o bug que 234 linhas de teste de concordância
+ * entre sorteio e geração não pegaram: todas montavam o `KocConfig` à mão, e
+ * o sorteio lia `qualifiersPerGroup` (campo do formato de GRUPOS, herdado com
+ * o padrão 2 por qualquer categoria) onde a geração lê `qualifiersPerRound`.
+ * A sessão era aceita, as duplas iam pro telão, e o publish recusava.
+ *
+ * DURAÇÃO fica de fora de propósito, e é o limite do que o teste prova: aqui a
+ * duração é sempre o padrão do formato, e `phaseDurationsSec` da categoria nem
+ * é lido — a geração (`resolveKocConfig`) lê os dois. É inerte hoje porque o
+ * sorteio só usa `bracketSizes` da fase 1, e a varredura de concordância com a
+ * geração nunca define `roundDurationSec`, então ela prova "mesma FORMA de
+ * plano", não igualdade de config. Quem for usar duração no sorteio tem que
+ * trazer os dois campos para cá antes.
+ */
+export function kocDrawConfigOf(category: CategoryMeta): KocConfig {
+  return {
+    teamsPerCourt: category.teamsPerCourt,
+    qualifiersPerRound: category.qualifiersPerRound,
+    roundsPerBracket: category.roundsPerBracket,
+    roundDurationSec: KOC_DEFAULT_ROUND_DURATION_SEC,
+    maxTeamsPerRound: category.kocMaxTeamsPerRound,
+    ...(category.kocPhases ? {phases: category.kocPhases} : {}),
+  };
+}
+
+/**
+ * O sorteio reproduz exatamente as chaves da fase 1?
+ *
+ * `groupCapacities(teamCount, target)` é a MESMA função — com os MESMOS
+ * argumentos — que `rebuildEngineState` chama depois, quando o `teamsPerBox`
+ * gravado na sessão vira `doc.config.teamsPerGroup` e monta o elenco que o
+ * publish valida. Comparar só a CONTAGEM de caixas não basta: um plano
+ * EXPLÍCITO pode ter a contagem certa e a FORMA errada. `[6,6,4,3]` para 19
+ * duplas tem `ceil(19/6) = 4` caixas — a contagem bate — mas
+ * `groupCapacities(19, 6)` monta `[5,5,5,4]`, forma que não bate. Nem
+ * `assertPlan` (plano explícito) nem `kocLegacyPlan` (plano derivado)
+ * garantem essa forma canônica; só a geração exige forma exata, e só
+ * descobre no publish, com as duplas já reveladas.
+ *
+ * Exportada para o teste apontar para o código que roda de verdade. Espelho
+ * local no teste provaria a matemática e não a implementação: trocar isto de
+ * volta por uma comparação de contagem passaria despercebido.
+ */
+export function kocDrawReproducesPhaseOne(
+  teamCount: number,
+  bracketSizes: readonly number[],
+): {matches: boolean; drawnBoxes: number[]; target: number} {
+  const target = Math.max(...bracketSizes);
+  const drawnBoxes = groupCapacities(teamCount, target).map((g) => g.capacity);
+  const matches = drawnBoxes.length === bracketSizes.length &&
+    drawnBoxes.every((capacity, i) => capacity === bracketSizes[i]);
+  return {matches, drawnBoxes, target};
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -243,25 +325,39 @@ export const createDrawSession = onCall({
   // Recusa AQUI, não no publish. O sorteio ao vivo acontece na frente do
   // público: descobrir que a configuração não fecha depois de revelar as duplas
   // obrigaria a anular a sessão inteira com todo mundo olhando.
-  if (format === "king_of_court" && category.roundsPerBracket > 1) {
-    const brackets = kocBracketCountForRounds(
-      teamIds.length,
-      category.teamsPerCourt,
-      category.roundsPerBracket,
-    );
-    const smallest = Math.floor(teamIds.length / brackets);
-    const max = kocMaxRoundsPerBracket(smallest);
-    if (category.roundsPerBracket > max) {
+  let kocPlan: KocPhaseSpec[] = [];
+  if (format === "king_of_court") {
+    try {
+      kocPlan = kocResolvePlan(teamIds.length, kocDrawConfigOf(category));
+    } catch (e) {
+      if (e instanceof KocBracketError) {
+        // `details` leva os números que a mensagem cita (menor chave, teto de
+        // baterias) em forma de campo — a tela não precisa lê-los do texto.
+        throw new HttpsError(
+          "failed-precondition",
+          e.message,
+          {reason: e.reason, ...e.details},
+        );
+      }
+      throw e;
+    }
+    const kocPlanSizes = kocPlan[0]!.bracketSizes;
+    const {matches, drawnBoxes, target} = kocDrawReproducesPhaseOne(teamIds.length, kocPlanSizes);
+    if (!matches) {
+      const hint = category.kocPhases ?
+        "as chaves da fase 1 no plano" :
+        '"Duplas por quadra"';
       throw new HttpsError(
         "failed-precondition",
-        `Com ${teamIds.length} duplas a menor chave fica com ${smallest}, e uma ` +
-          `chave de ${smallest} comporta no máximo ${max} rodada(s) — a categoria ` +
-          `pede ${category.roundsPerBracket}. Ajuste "Rodadas por chave" antes de sortear.`,
+        `A fase 1 do plano pede as chaves [${kocPlanSizes.join(", ")}], mas com ` +
+          `caixas de até ${target} duplas o sorteio monta [${drawnBoxes.join(", ")}] ` +
+          `para ${teamIds.length} duplas — as formas não batem. Ajuste ${hint} ` +
+          "antes de sortear.",
         {
-          reason: "koc_rounds_per_bracket_too_high",
+          reason: "koc_bracket_count_not_roundtrippable",
           teamCount: teamIds.length,
-          smallestBracket: smallest,
-          maxRoundsPerBracket: max,
+          planBracketSizes: kocPlanSizes,
+          drawBracketSizes: drawnBoxes,
         },
       );
     }
@@ -274,21 +370,13 @@ export const createDrawSession = onCall({
     );
   }
 
-  // Tamanho da caixa do sorteio. Na KOTC a caixa é uma CHAVE, e quantas chaves
-  // existem NÃO é `ceil(duplas / teamsPerCourt)`: as pontas são corrigidas (uma
-  // rodada de 2 não é King of the Court, é um jogo) E `roundsPerBracket` entra
-  // na conta, porque quem joga 2 rodadas precisa nascer com 4 duplas. Tem que
-  // ser a MESMA divisão de `buildKingOfCourtRounds`: o elenco sorteado vira o
+  // Tamanho da caixa do sorteio. Na KOTC a caixa é uma CHAVE, e quem decide o
+  // tamanho é o PLANO — não uma conta refeita aqui. O elenco sorteado vira o
   // elenco da fase 1, e a geração recusa quando o número de caixas não bate.
+  // `groupCapacities` reconstrói por `ceil(duplas / alvo)`, que é a mesma
+  // distribuição de `kocRoundSizes`: o maior tamanho do plano é o alvo.
   const teamsPerBox = format === "king_of_court" ?
-    Math.ceil(
-      teamIds.length /
-        kocBracketCountForRounds(
-          teamIds.length,
-          category.teamsPerCourt,
-          category.roundsPerBracket,
-        ),
-    ) :
+    Math.max(...kocPlan[0]!.bracketSizes) :
     category.teamsPerGroup;
 
   const sportCode = tournamentSportToLevelSportCode(tournament.sportId);

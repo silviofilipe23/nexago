@@ -1,4 +1,4 @@
-import { isKingOfCourtMatchType, kocCardTitle } from '../../painel/data/koc';
+import { isKingOfCourtMatchType } from '../../painel/data/koc';
 import { kocBarOf, kocRoundTitleOf, type OverlayKocBar } from './overlay-koc-bar';
 import { matchClosedSets, matchLiveCurrentSet, matchSetWins } from '../../painel/data/live-set-display';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
@@ -29,7 +29,9 @@ export interface OverlayDuelView {
 export interface OverlayKocView {
   kind: 'koc';
   phase: OverlayPhase;
-  /** "Classificatória · Rodada 3/7" — o total só entra quando foi possível contar. */
+  /** "Classificatória · Rodada 3/7" — o total só entra quando foi possível contar; com mais de
+   *  uma bateria na chave vira "Classificatória · Chave 4 · Bateria 3" e o total some (a chave e
+   *  a bateria já localizam a rodada sozinhas). Ver `kocRoundTitleOf`. */
   roundTitle: string;
   bar: OverlayKocBar;
 }
@@ -65,7 +67,11 @@ export function overlayViewOf(
     return {
       kind: 'koc',
       phase: phaseOf(match.status),
-      roundTitle: kocRoundTitleOf(match.matchType, round.roundLabel, match.matchNumber, totalRounds),
+      roundTitle: kocRoundTitleOf(match.matchType, round.roundLabel, match.matchNumber, totalRounds, {
+        poolId: round.poolId,
+        batteryLabel: round.batteryLabel,
+        bracketsInPhase: round.bracketsInPhase,
+      }),
       bar: kocBarOf(round, nowMs, totalRounds),
     };
   }
@@ -105,8 +111,10 @@ export function overlayBandOf(
   match: TournamentMatch,
   names: { tournamentName: string | null; categoryName: string | null },
 ): string {
-  const phase = kocCardTitle(match) ?? match.round;
-  return [names.tournamentName, names.categoryName, phase, match.court]
+  // `round` já vem rotulado por `roundLabelOf` (matches-repository) — inclusive
+  // na rodada KOTC, onde ele diz a fase, a chave e a bateria. Passar por
+  // `kocCardTitle` aqui era redundante: ela devolve esse mesmo `round`.
+  return [names.tournamentName, names.categoryName, match.round, match.court]
     .map((part) => part?.trim() ?? '')
     .filter((part) => part !== '')
     .join(' · ');

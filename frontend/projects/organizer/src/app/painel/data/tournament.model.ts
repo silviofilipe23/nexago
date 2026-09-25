@@ -4,6 +4,7 @@
 
 import type { TournamentPaymentMode, TournamentVisibility } from './tournament-create.model';
 import type { TournamentCollected } from './tournament-collected';
+import type { KocPhaseSpec } from './koc-phase-plan';
 
 export type OrganizerTournamentStatus = 'inscricoes' | 'andamento' | 'concluido' | 'cancelado';
 
@@ -34,6 +35,12 @@ export interface OrganizerTournamentCategory {
   kocTeamsPerCourt: number;
   kocRoundsPerBracket: number;
   kocQualifiersPerRound: number;
+  /** Plano explícito de fases; nulo ⇒ o servidor deriva pelas regras antigas. */
+  kocPhases: KocPhaseSpec[] | null;
+  kocMaxTeamsPerRound: number;
+  /** Duração padrão da bateria. A tela de gerar chave semeia a proposta com
+   *  ela; hoje o campo existe no Firestore e ninguém o lia de volta. */
+  kocRoundDurationSec: number;
   bestOf: string | null; // singleSet | bestOf3 | bestOf5
   /** Uniforme CRU da categoria (`none`/`top_only`/`top`/`full`). A herança das flags da raiz
    *  (categoria sem exigência própria em torneio com `uniformRequired`) fica em `uniforms.ts`,

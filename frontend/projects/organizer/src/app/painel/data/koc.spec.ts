@@ -1,6 +1,7 @@
 import {
   isKingOfCourtMatchType,
   kocCardTitle,
+  kocMatchPhaseLabel,
   kocFinalTable,
   kocHasQualifyingTie,
   kocQualifyingTieGroup,
@@ -70,31 +71,129 @@ describe('kocPhaseLabel', () => {
   });
 });
 
-describe('kocCardTitle', () => {
-  it('usa o round já mapeado quando existe', () => {
-    expect(
-      kocCardTitle({
-        matchType: 'koc_round',
-        round: 'Classificatória · Rodada 2',
-        matchNumber: 2,
-        koc: { roundLabel: 2 },
-      }),
-    ).toBe('Classificatória · Rodada 2');
+describe('rótulo da rodada com baterias', () => {
+  it('sem bateria continua dizendo o que sempre disse', () => {
+    expect(kocPhaseLabel('koc_round', 3)).toBe('Classificatória · Rodada 3');
+    expect(kocPhaseLabel('koc_final', 1)).toBe('Final');
   });
 
-  it('recalcula pela fase quando round veio vazio', () => {
+  it('com bateria, diz a CHAVE e a bateria — "Rodada 9" não responde nada na areia', () => {
+    expect(kocPhaseLabel('koc_round', 9, { poolId: 'C4', batteryLabel: 3 }))
+      .toBe('Classificatória · Chave 4 · Bateria 3');
+  });
+
+  it('chave de uma bateria só não vira "Bateria 1"', () => {
+    expect(kocPhaseLabel('koc_round', 2, { poolId: 'C2', batteryLabel: 1 }))
+      .toBe('Classificatória · Rodada 2');
+  });
+
+  it('a semifinal de chave única não repete a chave — "Bateria 2" já é único', () => {
+    expect(kocPhaseLabel('koc_semifinal', 2, { poolId: 'C1', batteryLabel: 2, bracketsInPhase: 1 }))
+      .toBe('Semifinal · Bateria 2');
+  });
+
+  it('a semifinal de DUAS chaves diz a chave — senão as duas quadras exibem a mesma coisa', () => {
+    // 12 duplas com teto 6 caem numa semi de duas chaves de 4 com duas
+    // baterias: C1 e C2 jogam a bateria 2 ao mesmo tempo, em quadras
+    // diferentes, e o telão, o overlay e os dois painéis de LED mostravam
+    // "SEMIFINAL · BATERIA 2" nos dois.
+    expect(kocPhaseLabel('koc_semifinal', 2, { poolId: 'C1', batteryLabel: 2, bracketsInPhase: 2 }))
+      .toBe('Semifinal · Chave 1 · Bateria 2');
+    expect(kocPhaseLabel('koc_semifinal', 2, { poolId: 'C2', batteryLabel: 2, bracketsInPhase: 2 }))
+      .toBe('Semifinal · Chave 2 · Bateria 2');
+  });
+
+  it('classificatória de chave única também não exibe "Chave 1"', () => {
+    expect(kocPhaseLabel('koc_round', 2, { poolId: 'C1', batteryLabel: 2, bracketsInPhase: 1 }))
+      .toBe('Classificatória · Bateria 2');
+  });
+
+  it('sem saber quantas chaves a fase tem (chave antiga), mantém o que sempre mostrou', () => {
+    expect(kocPhaseLabel('koc_round', 9, { poolId: 'C4', batteryLabel: 3 }))
+      .toBe('Classificatória · Chave 4 · Bateria 3');
+  });
+});
+
+describe('kocMatchPhaseLabel · o rótulo das duas mesas', () => {
+  /** A rodada como a mesa a recebe: campos que importam pro rótulo. */
+  function koc(overrides: Record<string, unknown> = {}) {
+    return { roundLabel: 2, batteryLabel: 3, poolId: 'C4', bracketsInPhase: 4, ...overrides } as Parameters<
+      typeof kocMatchPhaseLabel
+    >[1];
+  }
+
+  it('mesa da rodada (og-mesa-koc): `TournamentMatch` + `m.koc` — a chave vem da RODADA', () => {
+    // `TournamentMatch` não tem `poolId` (só a rodada tem). É o que
+    // `phaseLabel()` passa, e o telão da mesma quadra diz esta string.
+    const detail = kocMatchPhaseLabel({ matchType: 'koc_round', matchNumber: 9 }, koc());
+
+    expect(detail).toBe('Classificatória · Chave 4 · Bateria 3');
+  });
+
+  it('cabeçalho da mesa ao vivo: `LiveMatch` (com poolId, matchNumber GLOBAL) + a rodada da linha', () => {
+    // O que `headerSubtitle()` passa. Tem que dar a MESMA string da mesa
+    // acima: as duas telas ficam abertas ao mesmo tempo, uma dentro da outra.
+    const detail = kocMatchPhaseLabel({ matchType: 'koc_round', matchNumber: 9, poolId: 'C4' }, koc());
+
+    expect(detail).toBe('Classificatória · Chave 4 · Bateria 3');
+  });
+
+  it('prefere `roundLabel` (índice na fase) ao `matchNumber` global', () => {
+    const detail = kocMatchPhaseLabel(
+      { matchType: 'koc_round', matchNumber: 9, poolId: 'C2' },
+      koc({ roundLabel: 2, batteryLabel: 1, bracketsInPhase: 4 }),
+    );
+
+    expect(detail).toBe('Classificatória · Rodada 2');
+  });
+
+  it('sem a rodada em mãos (linha ainda não carregou), cai no número global e não inventa chave', () => {
+    const detail = kocMatchPhaseLabel({ matchType: 'koc_round', matchNumber: 9, poolId: 'C4' }, null);
+
+    expect(detail).toBe('Classificatória · Rodada 9');
+  });
+
+  it('semifinal de duas chaves também se identifica na mesa', () => {
+    const detail = kocMatchPhaseLabel(
+      { matchType: 'koc_semifinal', matchNumber: 13, poolId: 'C2' },
+      koc({ roundLabel: 2, batteryLabel: 2, poolId: 'C2', bracketsInPhase: 2 }),
+    );
+
+    expect(detail).toBe('Semifinal · Chave 2 · Bateria 2');
+  });
+});
+
+describe('kocRoundStateFrom · chaves da fase', () => {
+  const plan = [
+    { bracketSizes: [4, 4, 4], roundsPerBracket: 2, qualifiersPerRound: 1, durationSec: 900 },
+    { bracketSizes: [3, 3], roundsPerBracket: 2, qualifiersPerRound: 1, durationSec: 900 },
+    { bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900 },
+  ];
+
+  it('conta as chaves da fase DESTA rodada, não as da primeira', () => {
+    expect(kocRoundStateFrom(doc({ kocPhase: 1, kocConfig: { phases: plan } })).bracketsInPhase).toBe(3);
+    expect(kocRoundStateFrom(doc({ kocPhase: 2, kocConfig: { phases: plan } })).bracketsInPhase).toBe(2);
+    expect(kocRoundStateFrom(doc({ kocPhase: 3, kocConfig: { phases: plan } })).bracketsInPhase).toBe(1);
+  });
+
+  it('cai no `round` quando o doc não tem `kocPhase` — o gerador grava os dois', () => {
+    expect(kocRoundStateFrom(doc({ round: 2, kocConfig: { phases: plan } })).bracketsInPhase).toBe(2);
+  });
+
+  it('chave publicada antes do plano fica em 0 — desconhecido, não "uma chave só"', () => {
+    expect(kocRoundStateFrom(doc({ kocPhase: 1 })).bracketsInPhase).toBe(0);
+  });
+});
+
+describe('kocCardTitle', () => {
+  it('usa o round já mapeado — que `roundLabelOf` sempre monta pra rodada KOTC', () => {
     expect(
-      kocCardTitle({
-        matchType: 'koc_semifinal',
-        round: null,
-        matchNumber: 5,
-        koc: { roundLabel: 1 },
-      }),
-    ).toBe('Semifinal');
+      kocCardTitle({ matchType: 'koc_round', round: 'Classificatória · Chave 2 · Bateria 3' }),
+    ).toBe('Classificatória · Chave 2 · Bateria 3');
   });
 
   it('duelo não tem título KOTC', () => {
-    expect(kocCardTitle({ matchType: 'Final', round: 'Final', matchNumber: 1, koc: null })).toBeNull();
+    expect(kocCardTitle({ matchType: 'Final', round: 'Final' })).toBeNull();
   });
 });
 
@@ -314,5 +413,42 @@ describe('kocRoundStateFrom · snapshot da config', () => {
     });
     expect(round.roundsPerBracket).toBe(1);
     expect(round.teamsPerCourt).toBe(4);
+  });
+});
+
+describe('KocRoundState · plano congelado na rodada', () => {
+  it('lê a bateria e o plano gravados na geração', () => {
+    const state = kocRoundStateFrom({
+      kocState: { teamIds: ['a', 'b', 'c'] },
+      kocRoundLabel: 7,
+      kocBatteryLabel: 3,
+      poolId: 'C4',
+      kocConfig: {
+        durationSec: 900,
+        teamsPerCourt: 6,
+        roundsPerBracket: 4,
+        qualifiersPerRound: 1,
+        maxTeamsPerRound: 6,
+        phases: [
+          { bracketSizes: [5, 5], roundsPerBracket: 3, qualifiersPerRound: 1, durationSec: 900 },
+          { bracketSizes: [6], roundsPerBracket: 4, qualifiersPerRound: 1, durationSec: 900 },
+          { bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900 },
+        ],
+      },
+    });
+    expect(state.batteryLabel).toBe(3);
+    expect(state.poolId).toBe('C4');
+    expect(state.phases?.length).toBe(3);
+    expect(state.maxTeamsPerRound).toBe(6);
+  });
+
+  it('rodada antiga sem plano continua legível', () => {
+    const state = kocRoundStateFrom({
+      kocState: { teamIds: ['a', 'b', 'c'] },
+      kocConfig: { durationSec: 900, teamsPerCourt: 4, roundsPerBracket: 1, qualifiersPerRound: 2 },
+    });
+    expect(state.phases).toBeNull();
+    expect(state.batteryLabel).toBe(1);
+    expect(state.maxTeamsPerRound).toBe(5);
   });
 });

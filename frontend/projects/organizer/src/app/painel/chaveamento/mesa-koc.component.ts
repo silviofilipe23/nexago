@@ -16,7 +16,7 @@ import {
   kocIsExpired,
   kocLiveOrder,
   kocLogLines,
-  kocPhaseLabel,
+  kocMatchPhaseLabel,
   kocPointsOf,
   kocRemainingLabel,
   type KocRoundState,
@@ -2941,11 +2941,13 @@ export class MesaKocComponent {
     });
   }
 
+  /** Mesmo rótulo do telão da quadra — chave e bateria incluídas. Sem elas o
+   *  tablet dizia "Rodada 2" para a rodada que o telão ao lado chama de
+   *  "Chave 4 · Bateria 3", e casar as duas telas é o que decide qual bateria
+   *  o mesário abre. */
   protected phaseLabel(): string {
     const m = this.match();
-    const round = m?.koc;
-    const n = round?.roundLabel || m?.matchNumber || 0;
-    return m ? kocPhaseLabel(m.matchType, n) : 'Rodada';
+    return m ? kocMatchPhaseLabel(m, m.koc) : 'Rodada';
   }
 
   protected pointsOf(teamId: string): number {

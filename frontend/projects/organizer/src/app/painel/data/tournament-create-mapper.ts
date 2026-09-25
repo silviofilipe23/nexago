@@ -3,6 +3,7 @@ import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { organizerFirestore } from './firestore';
 import { organizerStorage } from './storage';
 import { generateKeywords } from './search-keywords';
+import { KOC_LEGACY_MAX_TEAMS_PER_ROUND } from './koc-phase-plan';
 import {
   BRACKET_FORMAT_FIRESTORE,
   DISPUTE_TEAM_SIZE,
@@ -99,6 +100,7 @@ export function categoryToMap(category: TournamentCategoryDraft, draft: Tourname
     roundsPerBracket: category.kocRoundsPerBracket,
     qualifiersPerRound: category.kocQualifiersPerRound,
     roundDurationSec: category.kocRoundDurationSec,
+    maxTeamsPerRound: category.kocMaxTeamsPerRound,
     bestOf: category.bestOf,
     finalBestOf5: category.finalBestOf5,
     maxRegistrationsPerAthlete: category.maxRegistrationsPerAthlete,
@@ -348,6 +350,13 @@ export function categoryFromMap(map: Record<string, unknown>): TournamentCategor
     kocRoundsPerBracket: num(map['roundsPerBracket']) ?? 1,
     kocQualifiersPerRound: num(map['qualifiersPerRound']) ?? KOC_DEFAULT_QUALIFIERS_PER_ROUND,
     kocRoundDurationSec: num(map['roundDurationSec']) ?? KOC_DEFAULT_ROUND_DURATION_SEC,
+    // As duas grafias, como o repositório do painel e os dois leitores do
+    // backend: o wizard grava `maxTeamsPerRound` e `saveKocPhasePlan` (tela de
+    // gerar chave) grava `kocMaxTeamsPerRound`. Lendo só a sem prefixo, um teto
+    // subido na tela de gerar chave voltava como 5 aqui — e a próxima edição de
+    // qualquer outro campo da categoria regravava 5 por cima da escolha.
+    kocMaxTeamsPerRound:
+      num(map['kocMaxTeamsPerRound']) ?? num(map['maxTeamsPerRound']) ?? KOC_LEGACY_MAX_TEAMS_PER_ROUND,
     bestOf: parseBestOf(map['bestOf']),
     finalBestOf5: map['finalBestOf5'] === true,
     maxRegistrationsPerAthlete: num(map['maxRegistrationsPerAthlete']) ?? 2,

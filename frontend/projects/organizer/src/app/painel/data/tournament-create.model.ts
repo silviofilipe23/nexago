@@ -3,7 +3,7 @@
  *  string dos "enums" são os `name` dos enums Dart — é o que vai pro Firestore, então não
  *  renomear. */
 
-import { KOC_LEGACY_MAX_TEAMS_PER_ROUND } from './koc-phase-plan';
+import { KOC_LEGACY_MAX_TEAMS_PER_ROUND, type KocPhaseSpec } from './koc-phase-plan';
 
 export type TournamentSport = 'beachVolleyball' | 'indoorVolleyball' | 'footvolley';
 export type TournamentBracketSystem = 'groupsThenKnockout' | 'singleElimination' | 'roundRobin' | 'groupsWithRepechage' | 'doubleElimination' | 'kingOfCourt';
@@ -89,6 +89,13 @@ export interface TournamentCategoryDraft {
    *  `kocProposePhasePlan` na estimativa por vagas e vira `kocMaxTeamsPerRound`
    *  na categoria. */
   kocMaxTeamsPerRound: number;
+  /** Plano de fases da categoria, quando existe. O wizard não o EDITA — quem
+   *  edita é a tela de gerar chave, que conhece as inscritas — mas precisa
+   *  carregá-lo: a gravação reescreve o array `categories` inteiro a partir do
+   *  draft, então um campo ausente aqui é um campo apagado do doc. E o plano
+   *  vive no doc justamente porque o Sorteio ao Vivo o lê antes de a chave
+   *  existir; perdê-lo faz o sorteio seguinte cair nas regras antigas. */
+  kocPhases: KocPhaseSpec[] | null;
   bestOf: TournamentBestOf;
   finalBestOf5: boolean;
   maxRegistrationsPerAthlete: number;
@@ -170,6 +177,7 @@ export function emptyCategoryDraft(id: string): TournamentCategoryDraft {
     kocRoundsPerBracket: 1,
     kocRoundDurationSec: KOC_DEFAULT_ROUND_DURATION_SEC,
     kocMaxTeamsPerRound: KOC_LEGACY_MAX_TEAMS_PER_ROUND,
+    kocPhases: null,
     // Padrão do NexaGO: partida de set único (MD3/MD5 são escolha explícita).
     bestOf: 'singleSet',
     finalBestOf5: false,

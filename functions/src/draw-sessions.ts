@@ -258,6 +258,15 @@ export function kocDrawConfigOf(category: CategoryMeta): KocConfig {
  * Exportada para o teste apontar para o código que roda de verdade. Espelho
  * local no teste provaria a matemática e não a implementação: trocar isto de
  * volta por uma comparação de contagem passaria despercebido.
+ *
+ * Relação com a checagem de `assertPlan` (`koc-bracket-builders.ts`), que é
+ * parecida mas NÃO é a mesma: lá se compara só a CONTAGEM de chaves, aqui a
+ * FORMA inteira. As duas continuam separadas de propósito — esta é definida
+ * por `groupCapacities`, e trazê-la para o gerador significaria ou espelhar
+ * `groupCapacities` (o que um round de revisão anterior removeu) ou fazer o
+ * gerador, que é módulo folha, importar o módulo de sorteio. Vale como
+ * camada: esta é estritamente mais forte, e `koc-draw-bracket-agreement.test.ts`
+ * pina que a fraca nunca recusa um plano que esta aceitaria.
  */
 export function kocDrawReproducesPhaseOne(
   teamCount: number,

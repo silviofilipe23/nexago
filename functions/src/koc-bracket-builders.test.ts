@@ -1422,3 +1422,102 @@ describe("findAvailableTarget · as três peneiras, direto", () => {
     assert.equal(findAvailableTarget(firsts, 1, 7), 1);
   });
 });
+
+/**
+ * O PISO dentro de `assertPlan`.
+ *
+ * `assertPlan` é a defesa contra plano que não veio dos produtores de
+ * confiança (tela, proposer, `kocLegacyPlan`) — e cobria o teto da chave, a
+ * soma da fase, a ida e volta e as regras da final, mas não o piso. Uma chave
+ * que já NASCE abaixo de 3 só era barrada lá na frente, por `emitPhase`, com
+ * `koc_battery_too_small` — a mensagem de uma chave que ENCOLHEU demais ao
+ * longo das baterias, que aponta para o lugar errado.
+ *
+ * Mudança de comportamento consciente: plano com chave abaixo do piso passa a
+ * ser recusado por `kocResolvePlan` (antes só por `buildKingOfCourtRounds`) e
+ * com `reason` `koc_bracket_under_min` no lugar de `koc_battery_too_small`.
+ * Nenhum cliente lê esses `reason` — só testes.
+ */
+describe("assertPlan · o piso de 3 por chave", () => {
+  const base: KocConfig = {
+    teamsPerCourt: 4,
+    qualifiersPerRound: 2,
+    roundDurationSec: 900,
+    maxTeamsPerRound: 6,
+  };
+
+  it("chave abaixo do piso na fase 1 é recusada pelo próprio assertPlan", () => {
+    assert.throws(
+      () => kocResolvePlan(7, {
+        ...base,
+        phases: [
+          {bracketSizes: [5, 2], roundsPerBracket: 1, qualifiersPerRound: 1, durationSec: 900},
+          {bracketSizes: [2], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+        ],
+      }),
+      (e: unknown) => e instanceof KocBracketError && e.reason === "koc_bracket_under_min",
+    );
+  });
+
+  it("a FINAL abaixo do piso também é recusada — o pódio não pode ser de 2 duplas", () => {
+    assert.throws(
+      () => kocResolvePlan(6, {
+        ...base,
+        phases: [
+          {bracketSizes: [3, 3], roundsPerBracket: 1, qualifiersPerRound: 1, durationSec: 900},
+          {bracketSizes: [2], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+        ],
+      }),
+      (e: unknown) => e instanceof KocBracketError && e.reason === "koc_bracket_under_min",
+    );
+  });
+
+  it("recusa ANTES de gerar, não no meio da emissão", () => {
+    // O ponto da mudança: `kocResolvePlan` sozinho já barra. Antes só
+    // `buildKingOfCourtRounds` barrava, e quem valida o plano sem gerar (o
+    // `createDrawSession`, que recusa na criação da sessão para não descobrir
+    // na frente do público) não via nada.
+    const phases: KocPhaseSpec[] = [
+      {bracketSizes: [4, 2], roundsPerBracket: 1, qualifiersPerRound: 1, durationSec: 900},
+      {bracketSizes: [3], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+    ];
+    assert.throws(() => kocResolvePlan(6, {...base, phases}), KocBracketError);
+    assert.throws(() => buildKingOfCourtRounds(seeds(6), {...base, phases}), KocBracketError);
+  });
+
+  it("bateria que ENCOLHE abaixo do piso continua sendo koc_battery_too_small", () => {
+    // O piso novo é sobre a chave que NASCE pequena; a chave que encolhe ao
+    // longo das baterias continua com o erro — e a mensagem — de sempre.
+    const config: KocConfig = {
+      ...base,
+      phases: [
+        {bracketSizes: [4, 4], roundsPerBracket: 3, qualifiersPerRound: 1, durationSec: 900},
+        {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+      ],
+    };
+    assert.doesNotThrow(() => kocResolvePlan(8, config), "o plano em si respeita o piso");
+    assert.throws(
+      () => buildKingOfCourtRounds(seeds(8), config),
+      (e: unknown) => e instanceof KocBracketError && e.reason === "koc_battery_too_small",
+    );
+  });
+
+  it("todo plano dos produtores de confiança continua passando no piso", () => {
+    // Contraste: se o piso estivesse rígido demais (comparando com o tamanho
+    // da última bateria, por exemplo), esta varredura cairia.
+    for (let n = 3; n <= 40; n++) {
+      for (const teto of [3, 4, 5, 6]) {
+        let proposto: KocPhaseSpec[];
+        try {
+          proposto = kocProposePlan(n, teto, () => 900);
+        } catch {
+          continue; // campo que não fecha com esse teto — outro assunto
+        }
+        assert.doesNotThrow(
+          () => kocResolvePlan(n, {...base, maxTeamsPerRound: teto, phases: proposto}),
+          `${n} duplas, teto ${teto}`,
+        );
+      }
+    }
+  });
+});

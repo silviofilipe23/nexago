@@ -1,6 +1,6 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import {kocRoundDoc, resolveKocConfig} from "./organizer-category-ops";
+import {kocLegacyRoundFields, kocRoundDoc, resolveKocConfig} from "./organizer-category-ops";
 import {
   KOC_DEFAULT_ROUND_DURATION_SEC,
   KOC_LEGACY_MAX_TEAMS_PER_ROUND,
@@ -406,5 +406,89 @@ describe("resolveKocConfig · precedência de maxTeamsPerRound", () => {
     // não o teto legado, que é o que sairia se o elo tivesse sido ignorado.
     assert.equal(resolveKocConfig({maxTeamsPerRound: 9}, undefined).maxTeamsPerRound, 6);
     assert.equal(resolveKocConfig({maxTeamsPerRound: 1}, undefined).maxTeamsPerRound, 3);
+  });
+});
+
+/**
+ * A tradução "fase do plano → três números da forma velha", agora sozinha.
+ *
+ * Era um trecho inline no meio de `kocRoundDoc`, coberto só pelo `deepEqual`
+ * do doc inteiro — teste que falha por qualquer motivo e não diz qual regra
+ * quebrou. A regra cara aqui é a última: na final, `qualifiersPerRound` do
+ * plano é 0 de propósito, e gravar esse 0 apaga a tabela do pódio no app que
+ * já está na loja.
+ */
+describe("kocLegacyRoundFields", () => {
+  const config: KocConfig = {
+    teamsPerCourt: 4,
+    roundsPerBracket: 1,
+    qualifiersPerRound: 2,
+    roundDurationSec: 900,
+  };
+
+  it("a chave mais CHEIA da fase é o `teamsPerCourt` da forma velha", () => {
+    // Fase com chaves desiguais: a média (4) e a menor (3) também seriam
+    // números plausíveis — o contrato é o maior.
+    const fields = kocLegacyRoundFields(
+      {size: 5},
+      {bracketSizes: [5, 4, 4], roundsPerBracket: 2, qualifiersPerRound: 1, durationSec: 900},
+      config,
+    );
+    assert.equal(fields.teamsPerCourt, 5);
+    assert.equal(fields.roundsPerBracket, 2);
+    assert.equal(fields.qualifiersPerRound, 1);
+  });
+
+  it("os números são os DESTA fase, não os da categoria", () => {
+    const fields = kocLegacyRoundFields(
+      {size: 6},
+      {bracketSizes: [6], roundsPerBracket: 4, qualifiersPerRound: 1, durationSec: 900},
+      config,
+    );
+    assert.notEqual(fields.teamsPerCourt, config.teamsPerCourt);
+    assert.notEqual(fields.roundsPerBracket, config.roundsPerBracket);
+    assert.notEqual(fields.qualifiersPerRound, config.qualifiersPerRound);
+  });
+
+  it("na FINAL grava o tamanho da própria rodada, nunca 0 — 0 apaga o pódio no app da loja", () => {
+    const fields = kocLegacyRoundFields(
+      {size: 4},
+      {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+      config,
+    );
+    assert.equal(fields.qualifiersPerRound, 4);
+    assert.notEqual(fields.qualifiersPerRound, 0);
+  });
+
+  it("sem fase no plano volta para a config da categoria — o comportamento de antes do plano", () => {
+    const fields = kocLegacyRoundFields({size: 4}, undefined, config);
+    assert.deepEqual(fields, {teamsPerCourt: 4, roundsPerBracket: 1, qualifiersPerRound: 2});
+  });
+
+  it("sem fase e sem `roundsPerBracket` na categoria, a forma velha ainda diz 1", () => {
+    const semRounds: KocConfig = {teamsPerCourt: 4, qualifiersPerRound: 2, roundDurationSec: 900};
+    assert.equal(kocLegacyRoundFields({size: 4}, undefined, semRounds).roundsPerBracket, 1);
+  });
+
+  it("é a MESMA tradução que o doc da rodada grava — não uma segunda cópia", () => {
+    // Pino contra a extração se soltar do doc: se `kocRoundDoc` voltasse a
+    // calcular os três números por conta própria, esta igualdade é o que
+    // acusaria, não os testes de valor acima.
+    const plan = kocProposePlan(10, 6, () => 900);
+    const cfg = resolveKocConfig({phases: plan, maxTeamsPerRound: 6}, undefined);
+    const drafts = buildKingOfCourtRounds(
+      Array.from({length: 10}, (_, i) => `t${i + 1}`),
+      cfg,
+      {plan},
+    );
+    for (const draft of drafts) {
+      const doc = kocRoundDoc(draft, {
+        tournamentId: "T", categoryId: "C", config: cfg, plan,
+      }) as Record<string, any>;
+      const fields = kocLegacyRoundFields(draft, plan[draft.phase - 1], cfg);
+      assert.equal(doc.kocConfig.teamsPerCourt, fields.teamsPerCourt);
+      assert.equal(doc.kocConfig.roundsPerBracket, fields.roundsPerBracket);
+      assert.equal(doc.kocConfig.qualifiersPerRound, fields.qualifiersPerRound);
+    }
   });
 });

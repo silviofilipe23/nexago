@@ -194,6 +194,78 @@ export function buildGroupsKnockoutMatches(
   return [...groupMatches, ...knockoutMatches];
 }
 
+/** Identificador do grupo único do "todos contra todos". */
+const ROUND_ROBIN_POOL_ID = "A";
+
+/**
+ * "Todos contra todos": uma tabela só, com todo o elenco, e em cima dela a
+ * final (1º × 2º) e a disputa de 3º (3º × 4º).
+ *
+ * Estruturalmente é o `groups_knockout` degenerado — UM grupo, dois
+ * classificados — e é de propósito: os jogos da tabela nascem `isGroupMatch`
+ * no pool "A", então `computePoolStandings` monta a classificação e
+ * `fillQualifierSlots` preenche os quatro nomes sozinho quando o último jogo da
+ * tabela termina. O pódio também sai de graça: `Final` premia 1º/2º e
+ * `Third Place` premia 3º/4º em `league-ranking`.
+ *
+ * O que NÃO é reaproveitado é `crossoverFirstRoundPairings`: com um grupo só o
+ * cruzamento não tem o que cruzar, e a final é a única partida da chave.
+ */
+export function buildRoundRobinMatches(teamIds: string[]): MatchDraft[] {
+  const teams = teamIds.map((id) => id.trim()).filter((id) => id.length > 0);
+  const matches: MatchDraft[] = [];
+  let matchNumber = 1;
+  for (const [a, b] of roundRobinRounds(teams).flat()) {
+    matches.push({
+      round: 0,
+      matchType: "group",
+      poolId: ROUND_ROBIN_POOL_ID,
+      teamAId: a,
+      teamBId: b,
+      isGroupMatch: true,
+      matchNumber: matchNumber++,
+    });
+  }
+
+  const teamA: QualifierSlot = {poolId: ROUND_ROBIN_POOL_ID, place: 1};
+  const teamB: QualifierSlot = {poolId: ROUND_ROBIN_POOL_ID, place: 2};
+  matches.push({
+    round: 1,
+    matchType: "Final",
+    poolId: "",
+    teamAId: "",
+    teamBId: "",
+    isGroupMatch: false,
+    matchNumber: matchNumber++,
+    teamAQualifier: teamA,
+    teamBQualifier: teamB,
+    teamADescription: qualifierSlotDescription(teamA),
+    teamBDescription: qualifierSlotDescription(teamB),
+  });
+
+  // Disputa de 3º só existe quando a tabela tem 4º colocado: com 3 duplas a
+  // vaga `{A,4}` nunca seria preenchida e a partida ficaria pendurada.
+  if (teams.length >= 4) {
+    const thirdA: QualifierSlot = {poolId: ROUND_ROBIN_POOL_ID, place: 3};
+    const thirdB: QualifierSlot = {poolId: ROUND_ROBIN_POOL_ID, place: 4};
+    matches.push({
+      round: 1,
+      matchType: "Third Place",
+      poolId: "",
+      teamAId: "",
+      teamBId: "",
+      isGroupMatch: false,
+      matchNumber: matchNumber++,
+      teamAQualifier: thirdA,
+      teamBQualifier: thirdB,
+      teamADescription: qualifierSlotDescription(thirdA),
+      teamBDescription: qualifierSlotDescription(thirdB),
+    });
+  }
+
+  return matches;
+}
+
 /** Chave eliminatória simples (sem fase de grupos). */
 export function buildSingleEliminationMatches(teamIds: string[]): MatchDraft[] {
   return buildSingleEliminationKnockoutMatches(teamIds, 1);

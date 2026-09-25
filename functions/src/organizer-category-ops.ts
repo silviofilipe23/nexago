@@ -11,6 +11,7 @@ import {matchBestOfFromCategory} from "./match-scoring";
 import {
   buildDoubleEliminationMatches,
   buildGroupsKnockoutMatches,
+  buildRoundRobinMatches,
   buildSingleEliminationMatches,
   isBalancedQualifierTotal,
   type MatchDraft,
@@ -435,6 +436,62 @@ export function buildKocCategoryDocs(input: {
   return {config, plan, drafts, docs};
 }
 
+/** Formatos que a geração de chave sabe montar. Exportado porque é a própria
+ *  fiação: o teste lê o MESMO conjunto que a callable consulta. */
+export const SUPPORTED_BRACKET_FORMATS: ReadonlySet<string> = new Set([
+  "groups_knockout",
+  "single_elimination",
+  "double_elimination",
+  "king_of_court",
+  "round_robin",
+]);
+
+/** Piso de duplas por formato. KOTC tem um piso MAIOR, checado logo depois com
+ *  mensagem própria; aqui ele fica no piso geral pra não duplicar o texto. */
+export function minimumTeamsForFormat(format: string): number {
+  // Com 2 duplas "todos contra todos" é um jogo só, e a final repetiria o mesmo
+  // confronto — não é tabela, é uma final disfarçada.
+  return format === "round_robin" ? 3 : 2;
+}
+
+/**
+ * Grupos EFETIVOS da geração. Fonte dos jogos de grupo, da classificação e do
+ * que fica gravado em `groupsPreview` na categoria.
+ *
+ * No "todos contra todos" não existe sorteio de grupos: a tabela é uma só, com
+ * todo o elenco. Uma prévia que o cliente mande é ignorada de propósito — se
+ * fosse respeitada, um `groupsPreview` velho (de quando a categoria era grupos
+ * + mata-mata) partiria a tabela em dois e as vagas da final apontariam pro
+ * grupo errado.
+ */
+export function resolveBracketGroups(
+  format: string,
+  teamIds: string[],
+  groupsPreview: Array<{id: string; teamIds: string[]}>,
+): Array<{id: string; teamIds: string[]}> {
+  if (format === "round_robin") return [{id: "A", teamIds}];
+  if (groupsPreview.length > 0) return groupsPreview;
+  return [
+    {id: "A", teamIds: teamIds.slice(0, Math.ceil(teamIds.length / 2))},
+    {id: "B", teamIds: teamIds.slice(Math.ceil(teamIds.length / 2))},
+  ];
+}
+
+/** Dispatch dos builders de duelo por formato (KOTC não passa por aqui: a
+ *  rodada não tem dois lados e mora em `buildKocCategoryDocs`). */
+export function buildBracketMatchDrafts(input: {
+  format: string;
+  teamIds: string[];
+  groups: Array<{id: string; teamIds: string[]}>;
+  qualifiersPerGroup: number;
+}): MatchDraft[] {
+  const {format, teamIds, groups, qualifiersPerGroup} = input;
+  if (format === "round_robin") return buildRoundRobinMatches(teamIds);
+  if (format === "double_elimination") return buildDoubleEliminationMatches(teamIds);
+  if (format === "single_elimination") return buildSingleEliminationMatches(teamIds);
+  return buildGroupsKnockoutMatches(teamIds, groups, qualifiersPerGroup);
+}
+
 /** Payload da geração de chave, igual ao que a callable recebe. */
 export interface GenerateBracketInput {
   tournamentId?: string;
@@ -468,13 +525,7 @@ export async function runGenerateCategoryBracket(
 
   const isKingOfCourt = format === "king_of_court";
 
-  const supportedBracketFormats = new Set([
-    "groups_knockout",
-    "single_elimination",
-    "double_elimination",
-    "king_of_court",
-  ]);
-  if (!supportedBracketFormats.has(format)) {
+  if (!SUPPORTED_BRACKET_FORMATS.has(format)) {
     throw new HttpsError(
       "failed-precondition",
       `Formato "${format}" ainda não é suportado para geração de chave.`,
@@ -545,10 +596,11 @@ export async function runGenerateCategoryBracket(
     teamIds.push(...paidTeamIds);
   }
 
-  if (teamIds.length < 2) {
+  const minTeams = minimumTeamsForFormat(format);
+  if (teamIds.length < minTeams) {
     throw new HttpsError(
       "failed-precondition",
-      "É necessário ao menos 2 equipes pagas para publicar a chave.",
+      `É necessário ao menos ${minTeams} equipes pagas para publicar a chave.`,
     );
   }
 
@@ -610,13 +662,7 @@ export async function runGenerateCategoryBracket(
     }
   }
 
-  const resolvedGroups =
-    groupsPreview.length > 0
-      ? groupsPreview
-      : [
-          {id: "A", teamIds: teamIds.slice(0, Math.ceil(teamIds.length / 2))},
-          {id: "B", teamIds: teamIds.slice(Math.ceil(teamIds.length / 2))},
-        ];
+  const resolvedGroups = resolveBracketGroups(format, teamIds, groupsPreview);
 
   // Grupos + mata-mata: o nº total de classificados precisa formar um chaveamento
   // limpo (2, 4, 8, 16… classificados). Senão o mata-mata fica com partidas vazias
@@ -706,11 +752,12 @@ export async function runGenerateCategoryBracket(
 
   const matchDrafts = isKingOfCourt ?
     [] :
-    format === "double_elimination" ?
-      buildDoubleEliminationMatches(teamIds) :
-      format === "single_elimination" ?
-        buildSingleEliminationMatches(teamIds) :
-        buildGroupsKnockoutMatches(teamIds, resolvedGroups, qualifiersPerGroup);
+    buildBracketMatchDrafts({
+      format,
+      teamIds,
+      groups: resolvedGroups,
+      qualifiersPerGroup,
+    });
 
   const batch = db.batch();
   const matchesCol = db.collection(artifactsMatchesPath(projectId));

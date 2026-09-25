@@ -6,7 +6,7 @@ import { EMPTY_TOURNAMENT_COLLECTED } from '../data/tournament-collected';
 import { kocPhaseLabelAt, type KocPhaseSpec } from '../data/koc-phase-plan';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { PersonPhotoService } from '../ui/person-photo.service';
-import { SeedsComponent } from './seeds.component';
+import { SeedsComponent, bracketFormatFromSaved } from './seeds.component';
 
 function participant(over: Partial<InscriptionParticipant> = {}): InscriptionParticipant {
   return {
@@ -319,5 +319,154 @@ describe('SeedsComponent — rótulo da fase vem da regra compartilhada', () => 
   it('duas fases: a primeira NÃO vira Semifinal', async () => {
     const internals = await mountWithPlan(2);
     expect([0, 1].map((i) => internals.kocPhaseTitle(i))).toEqual(['Classificatória', 'Final']);
+  });
+});
+
+/**
+ * "Todos contra todos" já era rótulo do wizard e `TournamentBracketSystem` válido,
+ * mas a tela de gerar chave só oferecia 4 formatos e o servidor recusava
+ * `round_robin`. Aqui fica a ponta da tela: o chip, o resumo do tamanho do dia
+ * (que é a informação que decide o formato) e o piso de 3 duplas.
+ */
+describe('SeedsComponent — todos contra todos', () => {
+  let fixture: ComponentFixture<SeedsComponent>;
+
+  async function mount(teamCount: number): Promise<HTMLElement> {
+    await TestBed.configureTestingModule({
+      imports: [SeedsComponent],
+      providers: [provideZonelessChangeDetection(), provideRouter([])],
+    }).compileComponents();
+    fixture = TestBed.createComponent(SeedsComponent);
+    fixture.componentRef.setInput('catId', 'femB');
+    await fixture.whenStable();
+    const internals = fixture.componentInstance as unknown as Internals;
+    internals.tournament.set(tournament());
+    internals.eligible.set(
+      Array.from({ length: teamCount }, (_, i) =>
+        inscription({ id: `i${i + 1}`, teamId: `team-${i + 1}`, teamName: `Dupla ${i + 1}` }),
+      ),
+    );
+    internals.loading.set(false);
+    internals.redraw();
+    await fixture.whenStable();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  function chips(el: HTMLElement): HTMLButtonElement[] {
+    return Array.from(el.querySelectorAll('.og-filter-bar .og-chip'));
+  }
+
+  async function pickRoundRobin(el: HTMLElement): Promise<void> {
+    chips(el).find((c) => c.textContent?.trim() === 'Todos contra todos')!.click();
+    await fixture.whenStable();
+  }
+
+  it('oferece "Todos contra todos" entre os formatos', async () => {
+    const el = await mount(6);
+
+    expect(chips(el).map((c) => c.textContent?.trim())).toContain('Todos contra todos');
+  });
+
+  it('resume o tamanho do dia: jogos da tabela, final e disputa de 3º', async () => {
+    const el = await mount(6);
+
+    await pickRoundRobin(el);
+
+    // C(6,2) = 15. É o número que decide se o formato cabe no dia — sem ele o
+    // organizador só descobre o tamanho da tabela depois de publicar a chave.
+    const summary = el.querySelector('.og-seeds-rr-summary')!.textContent!;
+    expect(summary).toContain('15 jogos');
+    expect(summary).toContain('final');
+    expect(summary).toContain('disputa de 3º');
+  });
+
+  it('não promete disputa de 3º quando a tabela tem só 3 duplas', async () => {
+    const el = await mount(3);
+
+    await pickRoundRobin(el);
+
+    const summary = el.querySelector('.og-seeds-rr-summary')!.textContent!;
+    expect(summary).toContain('3 jogos');
+    expect(summary).not.toContain('disputa de 3º');
+  });
+
+  it('avisa quando a tabela fica longa demais pro dia', async () => {
+    const el = await mount(10);
+
+    await pickRoundRobin(el);
+
+    // C(10,2) = 45 jogos numa categoria só: cabe no código, não cabe no dia.
+    expect(el.querySelector('.og-seeds-rr-warning')!.textContent).toContain('45 jogos');
+  });
+
+  it('não pede configuração de grupo: a tabela é uma só', async () => {
+    const el = await mount(6);
+
+    await pickRoundRobin(el);
+
+    expect(el.querySelectorAll('.og-seeds-stepper').length).toBe(0);
+  });
+
+  function publishButton(el: HTMLElement): HTMLButtonElement {
+    return Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.includes('Publicar chave'))!;
+  }
+
+  it('não deixa publicar uma tabela de 2 duplas', async () => {
+    const el = await mount(2);
+
+    await pickRoundRobin(el);
+
+    // Com 2 duplas a "tabela" é um jogo só e a final repetiria o mesmo
+    // confronto. O servidor recusa; a tela não deve nem deixar tentar.
+    expect(publishButton(el).disabled).toBe(true);
+  });
+
+  it('explica por que não dá pra publicar com 2 duplas', async () => {
+    const el = await mount(2);
+
+    await pickRoundRobin(el);
+
+    // Botão desabilitado sem texto nenhum é a pior versão: o organizador fica
+    // clicando sem entender. A mensagem tem de citar o piso.
+    expect(el.querySelector('.og-seeds-error')?.textContent).toContain('3 duplas');
+    expect(el.querySelector('.og-seeds-rr-summary')).toBeNull();
+  });
+
+  it('libera a publicação a partir de 3 duplas', async () => {
+    const el = await mount(3);
+
+    await pickRoundRobin(el);
+
+    expect(publishButton(el).disabled).toBe(false);
+  });
+
+  it('não fala de grupo no critério de semeadura — aqui não há grupo', async () => {
+    const el = await mount(6);
+
+    await pickRoundRobin(el);
+
+    // O texto padrão explica "cabeças distribuídas 1 por grupo, snake": é a
+    // regra de grupos + mata-mata. Numa tabela única não há grupo nenhum, e a
+    // ordem de seeds só decide a SEQUÊNCIA dos jogos.
+    const criterio = el.querySelector('og-toggle-row')!.textContent!;
+    expect(criterio).not.toContain('por grupo');
+    expect(criterio).toContain('sequência dos jogos');
+  });
+
+  it('mantém a explicação de grupos quando o formato é grupos + mata-mata', async () => {
+    const el = await mount(6);
+
+    expect(el.querySelector('og-toggle-row')!.textContent).toContain('por grupo');
+  });
+
+  it('reabre a categoria já salva como todos contra todos', () => {
+    expect(bracketFormatFromSaved('round_robin')).toBe('round_robin');
+  });
+
+  it('continua reabrindo os formatos antigos, e ignora o que não conhece', () => {
+    expect(bracketFormatFromSaved('single_elimination')).toBe('single_elimination');
+    expect(bracketFormatFromSaved('king_of_court')).toBe('king_of_court');
+    expect(bracketFormatFromSaved('formato_que_nao_existe')).toBeNull();
+    expect(bracketFormatFromSaved(null)).toBeNull();
   });
 });

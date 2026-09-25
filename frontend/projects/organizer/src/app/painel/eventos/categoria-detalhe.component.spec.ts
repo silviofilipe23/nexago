@@ -1,7 +1,7 @@
 import { provideZonelessChangeDetection, type WritableSignal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { CategoriaDetalheComponent } from './categoria-detalhe.component';
+import { CategoriaDetalheComponent, categoryFormatLabel } from './categoria-detalhe.component';
 import { EMPTY_INSCRIPTION_UNIFORM, type InscriptionParticipant, type TournamentInscription } from '../data/inscriptions-repository';
 import { EMPTY_TOURNAMENT_COLLECTED } from '../data/tournament-collected';
 import type { OrganizerTournament } from '../data/tournament.model';
@@ -238,5 +238,32 @@ describe('CategoriaDetalheComponent — promover nível', () => {
 
     expect(el.querySelector('.og-categoria-promote-item')).toBeNull();
     expect(el.querySelector('.og-categoria-empty-actions')?.textContent).toContain('Nenhuma ação');
+  });
+});
+
+describe('categoryFormatLabel', () => {
+  it('chama o formato pelo nome que o organizador escolheu no wizard', () => {
+    // O wizard oferece "Todos contra todos"; a categoria mostrava
+    // "Pontos corridos" — dois nomes pro mesmo formato, na mesma jornada.
+    expect(categoryFormatLabel('round_robin')).toBe('Todos contra todos');
+  });
+
+  it('não deixa formato conhecido vazar como chave crua', () => {
+    // `king_of_court` caía no fallback `map[raw] ?? raw` e a tela mostrava
+    // literalmente "king_of_court".
+    expect(categoryFormatLabel('king_of_court')).toBe('King of the Court');
+  });
+
+  it('mantém os rótulos curtos dos demais formatos', () => {
+    expect(categoryFormatLabel('groups_knockout')).toBe('Grupos + SE');
+    expect(categoryFormatLabel('single_elimination')).toBe('Chave simples');
+    expect(categoryFormatLabel(null)).toBe('Grupos + SE');
+  });
+
+  it('não inventa formato: o desconhecido aparece cru, não como o padrão', () => {
+    // Categoria sem formato é grupos + mata-mata (o padrão da geração). Um
+    // formato que a tela não conhece é outra coisa — chamá-lo de "Grupos + SE"
+    // esconderia a divergência em vez de denunciá-la.
+    expect(categoryFormatLabel('formato_novo_do_backend')).toBe('formato_novo_do_backend');
   });
 });

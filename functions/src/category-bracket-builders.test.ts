@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildDoubleEliminationMatches,
   buildGroupsKnockoutMatches,
+  buildRoundRobinMatches,
   buildSingleEliminationMatches,
   crossoverFirstRoundPairings,
   isBalancedQualifierTotal,
@@ -926,5 +927,79 @@ describe("group standings", () => {
 
     const incomplete = isPoolRoundRobinComplete("A", ["t1", "t2"], []);
     assert.equal(incomplete, false);
+  });
+});
+
+describe("buildRoundRobinMatches", () => {
+  it("põe todo mundo contra todo mundo uma vez só", () => {
+    const teams = ["t1", "t2", "t3", "t4", "t5", "t6"];
+
+    const group = buildRoundRobinMatches(teams).filter((m) => m.isGroupMatch);
+
+    // C(6,2) = 15 confrontos, cada par exatamente uma vez, num grupo só.
+    assert.equal(group.length, 15);
+    const pairs = group.map((m) => [m.teamAId, m.teamBId].sort().join("|"));
+    assert.equal(new Set(pairs).size, 15);
+    assert.deepEqual(new Set(group.map((m) => m.poolId)), new Set(["A"]));
+  });
+
+  it("fecha com uma final entre o 1º e o 2º da tabela", () => {
+    const matches = buildRoundRobinMatches(["t1", "t2", "t3", "t4", "t5", "t6"]);
+
+    const finals = matches.filter((m) => m.matchType === "Final");
+    assert.equal(finals.length, 1);
+    const final = finals[0]!;
+    assert.equal(final.round, 1);
+    assert.equal(final.isGroupMatch, false);
+    // Os nomes só aparecem quando a tabela fecha: a chave nasce com as VAGAS.
+    assert.equal(final.teamAId, "");
+    assert.equal(final.teamBId, "");
+    assert.deepEqual(final.teamAQualifier, {poolId: "A", place: 1});
+    assert.deepEqual(final.teamBQualifier, {poolId: "A", place: 2});
+    assert.equal(final.teamADescription, "1º Grupo A");
+    assert.equal(final.teamBDescription, "2º Grupo A");
+    // Numeração global continua a tabela: 15 jogos → final é a #16.
+    assert.equal(final.matchNumber, 16);
+  });
+
+  it("abre disputa de 3º entre o 3º e o 4º da tabela", () => {
+    const matches = buildRoundRobinMatches(["t1", "t2", "t3", "t4", "t5", "t6"]);
+
+    const third = matches.filter((m) => m.matchType === "Third Place");
+    assert.equal(third.length, 1);
+    assert.equal(third[0]!.round, 1);
+    assert.deepEqual(third[0]!.teamAQualifier, {poolId: "A", place: 3});
+    assert.deepEqual(third[0]!.teamBQualifier, {poolId: "A", place: 4});
+    assert.equal(third[0]!.teamADescription, "3º Grupo A");
+    assert.equal(third[0]!.teamBDescription, "4º Grupo A");
+    assert.equal(third[0]!.matchNumber, 17);
+  });
+
+  it("não abre disputa de 3º quando a tabela tem só 3 duplas", () => {
+    const matches = buildRoundRobinMatches(["t1", "t2", "t3"]);
+
+    // Sem 4º colocado, a vaga `{A,4}` nunca seria preenchida — a partida
+    // ficaria pendurada para sempre esperando um time que não existe.
+    assert.equal(matches.filter((m) => m.matchType === "Third Place").length, 0);
+    assert.equal(matches.filter((m) => m.matchType === "Final").length, 1);
+    assert.equal(matches.filter((m) => m.isGroupMatch).length, 3);
+  });
+
+  it("espalha o descanso: a cada rodada da tabela ninguém joga duas vezes", () => {
+    const teams = ["t1", "t2", "t3", "t4", "t5", "t6"];
+
+    const group = buildRoundRobinMatches(teams)
+      .filter((m) => m.isGroupMatch)
+      .sort((a, b) => a.matchNumber - b.matchNumber);
+
+    // O circle method entrega rodada a rodada: com 6 duplas, cada bloco de 3
+    // jogos consecutivos é uma rodada inteira com as 6 duplas em quadra. Um
+    // laço duplo ingênuo ("t1 × todo mundo, depois t2 × todo mundo") passaria
+    // nos testes de cobertura de confrontos e reprovaria aqui.
+    for (let start = 0; start < group.length; start += 3) {
+      const round = group.slice(start, start + 3);
+      const playing = round.flatMap((m) => [m.teamAId, m.teamBId]);
+      assert.equal(new Set(playing).size, 6, `rodada a partir do jogo ${start + 1}`);
+    }
   });
 });

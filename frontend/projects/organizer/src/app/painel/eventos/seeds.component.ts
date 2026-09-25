@@ -42,14 +42,35 @@ import { OgToggleRowComponent } from '../ui/toggle-row.component';
 import { NxProcessingOverlayComponent } from '../../shared/loading/nx-processing-overlay.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 
-type BracketFormat = 'groups_knockout' | 'single_elimination' | 'double_elimination' | 'king_of_court';
+export type BracketFormat = 'groups_knockout' | 'single_elimination' | 'double_elimination' | 'king_of_court' | 'round_robin';
 
 const FORMAT_LABEL: Record<BracketFormat, string> = {
   groups_knockout: 'Grupos + mata-mata',
   single_elimination: 'Eliminatória simples',
   double_elimination: 'Dupla eliminatória',
   king_of_court: 'King of the Court',
+  round_robin: 'Todos contra todos',
 };
+
+/**
+ * Formato salvo na categoria → formato da tela. Deriva de `FORMAT_LABEL` de
+ * propósito: a lista literal que existia aqui precisava ser lembrada a cada
+ * formato novo, e um formato ausente dela reabria a categoria como
+ * "grupos + mata-mata" em silêncio — com os steppers de grupo por cima.
+ */
+export function bracketFormatFromSaved(raw: string | null | undefined): BracketFormat | null {
+  const key = (raw ?? '').trim();
+  return key in FORMAT_LABEL ? (key as BracketFormat) : null;
+}
+
+/** Piso do "todos contra todos": com 2 duplas a final repetiria o único jogo da tabela. */
+const RR_MIN_TEAMS = 3;
+
+/** Só há 3º lugar a disputar quando a tabela tem 4º colocado. */
+const RR_MIN_TEAMS_FOR_THIRD_PLACE = 4;
+
+/** Acima de 8 duplas (C(8,2) = 28) a tabela passa a não caber num dia de quadra. */
+const RR_LONG_TABLE_MATCHES = 28;
 
 /** Piso do King of the Court: com 2 duplas não há fila nem trono. */
 const KOC_MIN_TEAMS = 3;
@@ -170,6 +191,22 @@ function shuffled<T>(items: readonly T[]): T[] {
                 <p class="og-seeds-error">
                   {{ groupCount() * qualifiersPerGroup() }} classificados ({{ groupCount() }} grupos × {{ qualifiersPerGroup() }}) não formam um
                   mata-mata equilibrado — ajuste pra totais como 4, 8 ou 16.
+                </p>
+              }
+            }
+            @if (format() === 'round_robin') {
+              @if (eligible().length < rrMinTeams) {
+                <p class="og-seeds-error">
+                  Todos contra todos precisa de ao menos {{ rrMinTeams }} duplas — com 2 a tabela é um jogo só e a final
+                  repetiria o mesmo confronto.
+                </p>
+              } @else {
+                <p class="og-seeds-hint og-seeds-rr-summary">{{ rrSummary() }}</p>
+              }
+              @if (rrTableTooLong()) {
+                <p class="og-seeds-error og-seeds-rr-warning">
+                  São {{ rrMatchCount() }} jogos só nesta categoria — com poucas quadras a tabela não fecha no dia.
+                  Grupos + mata-mata chega no mesmo campeão com bem menos jogos.
                 </p>
               }
             }
@@ -298,7 +335,7 @@ function shuffled<T>(items: readonly T[]): T[] {
           <og-card kicker="Semeadura" title="Critério">
             <og-toggle-row
               title="Respeitar ordem de seeds"
-              desc="Cabeças distribuídas primeiro (1 por grupo, snake). Desligue pra sorteio 100% aleatório."
+              [desc]="seedCriteriaDesc()"
               [on]="useSeeds()"
               (toggled)="useSeeds.set($event)"
             />
@@ -707,10 +744,11 @@ export class SeedsComponent {
   private readonly ctx = inject(ChaveamentoContextService);
 
   protected readonly truncate = truncateName;
-  protected readonly formats: BracketFormat[] = ['groups_knockout', 'single_elimination', 'double_elimination', 'king_of_court'];
+  protected readonly formats: BracketFormat[] = ['groups_knockout', 'single_elimination', 'double_elimination', 'king_of_court', 'round_robin'];
   protected readonly formatLabel = FORMAT_LABEL;
   protected readonly deCounts = describeTeamCounts(DE_TEAM_COUNTS);
   protected readonly minTeams = MIN_TEAMS_FOR_BRACKET;
+  protected readonly rrMinTeams = RR_MIN_TEAMS;
 
   protected readonly loading = signal(true);
   protected readonly publishing = signal(false);
@@ -792,6 +830,29 @@ export class SeedsComponent {
     return total >= 2 && (total & (total - 1)) === 0;
   });
 
+  /** Tamanho da tabela: C(n,2). É o número que decide se o formato cabe no dia. */
+  protected readonly rrMatchCount = computed(() => {
+    const n = this.eligible().length;
+    return n < 2 ? 0 : (n * (n - 1)) / 2;
+  });
+
+  protected readonly rrSummary = computed(() => {
+    const n = this.eligible().length;
+    const base = `${n} duplas · ${this.rrMatchCount()} jogos na tabela, mais a final (1º × 2º)`;
+    // Sem 4º colocado não há o que disputar — o builder também não cria a partida.
+    return n >= RR_MIN_TEAMS_FOR_THIRD_PLACE ? `${base} e a disputa de 3º (3º × 4º).` : `${base}.`;
+  });
+
+  protected readonly rrTableTooLong = computed(() => this.rrMatchCount() > RR_LONG_TABLE_MATCHES);
+
+  /** No "todos contra todos" não existe grupo pra distribuir cabeça: a ordem de
+   *  seeds só alimenta o rodízio, que decide a SEQUÊNCIA dos jogos. */
+  protected readonly seedCriteriaDesc = computed(() =>
+    this.format() === 'round_robin'
+      ? 'Todo mundo joga contra todo mundo — a ordem só define a sequência dos jogos. Desligue pra sorteio 100% aleatório.'
+      : 'Cabeças distribuídas primeiro (1 por grupo, snake). Desligue pra sorteio 100% aleatório.',
+  );
+
   protected readonly deCountOk = computed(() => DE_TEAM_COUNTS.includes(this.eligible().length));
 
   protected readonly canPublish = computed(() => {
@@ -802,6 +863,7 @@ export class SeedsComponent {
     // tela nem mostra.
     if (this.format() === 'king_of_court') return this.eligible().length >= KOC_MIN_TEAMS && this.kocPhases().length > 0;
     if (this.format() === 'double_elimination') return this.deCountOk();
+    if (this.format() === 'round_robin') return this.eligible().length >= RR_MIN_TEAMS;
     if (this.format() === 'groups_knockout') return this.knockoutBalanced() && this.groups().length > 0;
     return true;
   });
@@ -849,15 +911,8 @@ export class SeedsComponent {
         ),
       );
       const cat = tournament?.categories.find((c) => c.id === cid) ?? null;
-      const savedFormat = cat?.bracketFormat;
-      if (
-        savedFormat === 'single_elimination' ||
-        savedFormat === 'double_elimination' ||
-        savedFormat === 'groups_knockout' ||
-        savedFormat === 'king_of_court'
-      ) {
-        this.format.set(savedFormat);
-      }
+      const savedFormat = bracketFormatFromSaved(cat?.bracketFormat);
+      if (savedFormat) this.format.set(savedFormat);
       if (cat) {
         const per = Math.max(2, cat.teamsPerGroup);
         this.teamsPerGroup.set(per);

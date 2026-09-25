@@ -28,6 +28,31 @@ interface PromotableAthlete extends AthleteLevelTarget {
 
 const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
 
+/**
+ * Rótulo curto do formato salvo na categoria. Fora da classe pra ser testável:
+ * o mapa embutido num `computed` protegido só era alcançável montando a tela.
+ *
+ * "Todos contra todos" é o nome que o wizard usa — a categoria dizia
+ * "Pontos corridos" pelo mesmo formato. E `king_of_court` não estava no mapa:
+ * caía no fallback e a tela mostrava a chave crua.
+ */
+export function categoryFormatLabel(raw: string | null | undefined): string {
+  const map: Record<string, string> = {
+    groups_knockout: 'Grupos + SE',
+    single_elimination: 'Chave simples',
+    double_elimination: 'Dupla elim.',
+    round_robin: 'Todos contra todos',
+    groups_repechage: 'Grupos + rep.',
+    king_of_court: 'King of the Court',
+  };
+  const key = (raw ?? '').trim();
+  // Categoria sem formato é o padrão da geração (grupos + mata-mata). Formato
+  // desconhecido aparece cru de propósito: denuncia a divergência com o backend
+  // em vez de se disfarçar de padrão.
+  if (!key) return 'Grupos + SE';
+  return map[key] ?? key;
+}
+
 /** Duplas da categoria — porta de entrada do nível 3 da cascata: roster com status de
  *  pagamento e KPIs. Chave, grupos, jogos e agendamento (as antigas abas) viraram itens
  *  da sidebar contextual da categoria. */
@@ -445,18 +470,7 @@ export class CategoriaDetalheComponent {
   });
 
   /** Rótulo do formato salvo na categoria (`bracketFormat`) — mesmo vocabulário curto do app. */
-  protected readonly formatLabel = computed(() => {
-    const raw = this.category()?.bracketFormat;
-    if (!raw) return 'Grupos + SE';
-    const map: Record<string, string> = {
-      groups_knockout: 'Grupos + SE',
-      single_elimination: 'Chave simples',
-      double_elimination: 'Dupla elim.',
-      round_robin: 'Pontos corridos',
-      groups_repechage: 'Grupos + rep.',
-    };
-    return map[raw] ?? raw;
-  });
+  protected readonly formatLabel = computed(() => categoryFormatLabel(this.category()?.bracketFormat));
 
   /** "Duplas" ou "Equipes" (trio+) — segue o `teamSize` da categoria. */
   protected readonly unitLabel = computed(() => (this.category()?.teamSize != null ? 'Equipes' : 'Duplas'));

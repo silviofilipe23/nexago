@@ -167,6 +167,7 @@ function clockUnderOneMin(label: string): boolean {
 
       <og-overlay-mark
         [corner]="position() === 'top' ? 'tr' : 'br'"
+        [caption]="markCaption()"
       />
     }
   `,
@@ -652,15 +653,20 @@ export class OverlayKocBarComponent {
     return /\bfeminin[oa]\b/.test(n) || /(^|[\s·\-_/])fem($|[\s·\-_/])/.test(n);
   });
 
-  /** Feminino vira QUEEN OF THE COURT; demais categorias mantêm o nome. */
+  /** Feminino vira QUEEN OF THE COURT na Grande final. Fora dela a faixa mantém o nome da
+   *  categoria: o telão é por categoria, e é por essa linha que quem assiste sabe qual está no
+   *  ar — o honorífico sozinho não distingue uma Feminina A de uma Feminina B. */
   protected readonly categoryStatusLabel = computed(() => {
-    if (this.isFemaleCategory()) return 'QUEEN OF THE COURT';
+    if (this.isFinal() && this.isFemaleCategory()) return 'QUEEN OF THE COURT';
     return this.categoryName();
   });
 
-  protected readonly markCaption = computed(() =>
-    this.isFemaleCategory() ? 'NEXAGO · QOTC · Final' : 'NEXAGO · KOTC · Final',
-  );
+  /** Carimbo de marca da Grande final. Fora dela a marca fica só com a logo: legenda fixa
+   *  em toda rodada vira ruído na imagem da câmera. */
+  protected readonly markCaption = computed(() => {
+    if (!this.isFinal()) return null;
+    return this.isFemaleCategory() ? 'NEXAGO · QOTC · Final' : 'NEXAGO · KOTC · Final';
+  });
 
   /**
    * Só papéis/pontos/ordem — o `view()` inteiro muda a cada tick do cronômetro e re-disparava

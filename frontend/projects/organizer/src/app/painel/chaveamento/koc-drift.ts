@@ -1,5 +1,5 @@
-import { kocPlansMatch, type KocPhaseSpec } from '../data/koc-phase-plan';
-import type { KocRoundState } from '../data/koc';
+import { kocPhaseLabelAt, kocPlansMatch, type KocPhaseSpec } from '../data/koc-phase-plan';
+import type { KocConfigSource, KocRoundState } from '../data/koc';
 import type { OrganizerTournamentCategory } from '../data/tournament.model';
 
 /** Diferença entre a config da CATEGORIA e o snapshot que ficou na rodada
@@ -12,16 +12,33 @@ import type { OrganizerTournamentCategory } from '../data/tournament.model';
  *  números soltos nem descreviam. Chave antiga (sem `phases`) cai na
  *  comparação dos três números, que é tudo que ela guarda. */
 export function kocDriftDetail(
-  round: Pick<KocRoundState, 'phases' | 'roundsPerBracket' | 'teamsPerCourt' | 'qualifiersPerRound'>,
+  round: Pick<KocRoundState, 'phases' | 'configSource' | 'roundsPerBracket' | 'teamsPerCourt' | 'qualifiersPerRound'>,
   category: Pick<OrganizerTournamentCategory, 'kocPhases' | 'kocRoundsPerBracket' | 'kocTeamsPerCourt' | 'kocQualifiersPerRound'>,
 ): string | null {
   const diffs: string[] = [];
   const published = round.phases;
   const configured = category.kocPhases;
+  const source = round.configSource;
+
   if (published && configured) {
+    // Os dois lados têm plano: compara plano com plano. Não precisa da origem
+    // — é o caso que já funcionava.
     if (!kocPlansMatch(published, configured)) {
       diffs.push(kocPlanDriftDetail(published, configured));
     }
+  } else if (source?.hasPlan) {
+    // A chave nasceu de um plano montado na tela e a categoria não guarda mais
+    // nenhum. Sem a origem isto era indistinguível do caso normal abaixo.
+    diffs.push(
+      'plano de fases: a categoria não guarda mais um plano — a chave foi gerada com um',
+    );
+  } else if (source) {
+    // Plano DERIVADO dos três números — o caminho do app e do publish do
+    // sorteio, que nunca gravam plano na categoria. Compara contra a ORIGEM,
+    // nunca contra os campos legados da rodada: aqueles são os desta fase e
+    // acusariam mudança onde ninguém mexeu (6 duplas em quadras de 4 congelam
+    // `teamsPerCourt: 3`).
+    diffs.push(...kocNumbersDrift(source, category));
   } else if (published) {
     // Chave com plano e categoria sem: o caso NORMAL, não uma anomalia.
     // `kocPhases` só é gravado pela tela de gerar chave do portal; o app e o
@@ -36,26 +53,38 @@ export function kocDriftDetail(
     // sem ninguém ter mexido em nada. A comparação honesta exigiria derivar de
     // novo o plano legado, que é regra do backend e não mora neste portal.
   } else {
-    if (round.roundsPerBracket !== category.kocRoundsPerBracket) {
-      diffs.push(
-        `rodadas por chave: a categoria pede ${category.kocRoundsPerBracket}, ` +
-          `a chave foi gerada com ${round.roundsPerBracket}`,
-      );
-    }
-    if (round.teamsPerCourt !== category.kocTeamsPerCourt) {
-      diffs.push(
-        `duplas por quadra: a categoria pede ${category.kocTeamsPerCourt}, ` +
-          `a chave foi gerada com ${round.teamsPerCourt}`,
-      );
-    }
-    if (round.qualifiersPerRound !== category.kocQualifiersPerRound) {
-      diffs.push(
-        `classificadas por rodada: a categoria pede ${category.kocQualifiersPerRound}, ` +
-          `a chave foi gerada com ${round.qualifiersPerRound}`,
-      );
-    }
+    // Chave anterior a esta entrega: ali os três números da rodada SÃO os da
+    // categoria, então compará-los é honesto.
+    diffs.push(...kocNumbersDrift(round, category));
   }
   return diffs.length > 0 ? `${diffs.join('; ')}.` : null;
+}
+
+/** Os três números, venham da origem carimbada ou de uma chave antiga. */
+function kocNumbersDrift(
+  from: Pick<KocConfigSource, 'teamsPerCourt' | 'roundsPerBracket' | 'qualifiersPerRound'>,
+  category: Pick<OrganizerTournamentCategory, 'kocRoundsPerBracket' | 'kocTeamsPerCourt' | 'kocQualifiersPerRound'>,
+): string[] {
+  const diffs: string[] = [];
+  if (from.roundsPerBracket !== category.kocRoundsPerBracket) {
+    diffs.push(
+      `rodadas por chave: a categoria pede ${category.kocRoundsPerBracket}, ` +
+        `a chave foi gerada com ${from.roundsPerBracket}`,
+    );
+  }
+  if (from.teamsPerCourt !== category.kocTeamsPerCourt) {
+    diffs.push(
+      `duplas por quadra: a categoria pede ${category.kocTeamsPerCourt}, ` +
+        `a chave foi gerada com ${from.teamsPerCourt}`,
+    );
+  }
+  if (from.qualifiersPerRound !== category.kocQualifiersPerRound) {
+    diffs.push(
+      `classificadas por rodada: a categoria pede ${category.kocQualifiersPerRound}, ` +
+        `a chave foi gerada com ${from.qualifiersPerRound}`,
+    );
+  }
+  return diffs;
 }
 
 /** Mensagem para quando os dois planos existem mas `kocPlansMatch` diz que não
@@ -111,14 +140,4 @@ function kocPhaseFieldDiff(published: KocPhaseSpec, configured: KocPhaseSpec): s
     );
   }
   return null;
-}
-
-/** "Classificatória" / "Semifinal" / "Final" pela POSIÇÃO da fase — mesma
- *  regra de `kocPhaseTitle` em `seeds.component.ts` (a tela de gerar chave),
- *  duplicada aqui porque aquele componente carrega Angular/Firebase que este
- *  módulo puro não deveria puxar. */
-function kocPhaseLabelAt(index: number, total: number): string {
-  if (index === total - 1) return 'Final';
-  if (total >= 3 && index === total - 2) return 'Semifinal';
-  return 'Classificatória';
 }

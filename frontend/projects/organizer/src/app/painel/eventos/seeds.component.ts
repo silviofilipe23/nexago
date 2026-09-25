@@ -23,6 +23,7 @@ import {
   kocApplyPhaseEdit,
   kocBracketCountOptions,
   kocClampMaxPerRound,
+  kocPhaseLabelAt,
   kocPlanTotals,
   kocProposePhasePlan,
   type KocPhasePatch,
@@ -946,11 +947,11 @@ export class SeedsComponent {
     return phase.bracketSizes.length * phase.roundsPerBracket * phase.qualifiersPerRound;
   }
 
+  /** A mesma regra que o aviso de divergência do chaveamento usa — os dois
+   *  chamam `kocPhaseLabelAt` para um "Semifinal" renomeado aqui não ficar
+   *  calado lá. */
   protected kocPhaseTitle(index: number): string {
-    const total = this.kocPhases().length;
-    if (index === total - 1) return 'Final';
-    if (total >= 3 && index === total - 2) return 'Semifinal';
-    return 'Classificatória';
+    return kocPhaseLabelAt(index, this.kocPhases().length);
   }
 
   protected readonly kocTotals = computed(() =>

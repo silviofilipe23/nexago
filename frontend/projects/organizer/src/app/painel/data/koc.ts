@@ -58,6 +58,17 @@ export interface KocLogLine {
   kind: 'point' | 'crown' | 'fault' | 'golden';
 }
 
+/** Snapshot da config da categoria no momento da geração. É contra ela que a
+ *  divergência compara — comparar contra os números da FASE acusaria mudança
+ *  onde não houve. */
+export interface KocConfigSource {
+  teamsPerCourt: number;
+  roundsPerBracket: number;
+  qualifiersPerRound: number;
+  /** O plano veio da tabela da tela de gerar chave, não dos três números. */
+  hasPlan: boolean;
+}
+
 export interface KocRoundState {
   teamIds: string[];
   kingTeamId: string;
@@ -96,6 +107,16 @@ export interface KocRoundState {
   /** Plano congelado na geração; nulo em chave publicada antes desta entrega. */
   phases: KocPhaseSpec[] | null;
   maxTeamsPerRound: number;
+  /** A config da CATEGORIA como estava na geração — de onde o plano saiu.
+   *  Não confundir com os três campos acima, que são os desta FASE: 6 duplas
+   *  em quadras de 4 congelam `teamsPerCourt: 3` sem ninguém ter mexido em
+   *  nada. Ausente em chave publicada antes de a origem existir.
+   *
+   *  Opcional pelo mesmo motivo que `koc` é opcional em `matches-repository`:
+   *  é um campo que só o KOTC com plano conhece, e obrigá-lo faria catorze
+   *  fixtures de telão, LED e overlay declararem um `null` que não lhes diz
+   *  respeito. O parser devolve `null` explícito; quem lê trata os dois. */
+  configSource?: KocConfigSource | null;
   /** Nº do último rally gravado — vai em `expectedSeq` no próximo. */
   rallySeq: number;
   /** Log bruto de rallies (`kocRallies`) — base do histórico da mesa. */
@@ -326,6 +347,22 @@ function bracketsInPhaseOf(
  *  Tolerante por escolha: campo ausente ou corrompido vira vazio em vez de
  *  exceção. Mesa e telão não podem ficar sem tela por um campo torto — o
  *  servidor é quem valida antes de gravar. */
+function configSourceOf(value: unknown): KocConfigSource | null {
+  if (value == null || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  const teamsPerCourt = intOf(raw['teamsPerCourt'], 0);
+  const qualifiersPerRound = intOf(raw['qualifiersPerRound'], 0);
+  // Origem incompleta vira ausente: melhor o silêncio de uma chave antiga do
+  // que uma comparação contra números pela metade.
+  if (teamsPerCourt < 1 || qualifiersPerRound < 1) return null;
+  return {
+    teamsPerCourt,
+    roundsPerBracket: Math.max(1, intOf(raw['roundsPerBracket'], 1)),
+    qualifiersPerRound,
+    hasPlan: raw['hasPlan'] === true,
+  };
+}
+
 export function kocRoundStateFrom(data: Record<string, unknown>): KocRoundState {
   const state = (data['kocState'] ?? {}) as Record<string, unknown>;
   const config = (data['kocConfig'] ?? {}) as Record<string, unknown>;
@@ -351,6 +388,7 @@ export function kocRoundStateFrom(data: Record<string, unknown>): KocRoundState 
     bracketsInPhase: bracketsInPhaseOf(phases, data),
     phases,
     maxTeamsPerRound: kocClampMaxPerRound(intOf(config['maxTeamsPerRound'], 0)),
+    configSource: configSourceOf(config['source']),
     rallySeq: intOf(data['kocRallySeq']),
     rallyLog: rallyLogOf(data['kocRallies']),
     roundLabel: intOf(data['kocRoundLabel']),

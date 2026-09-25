@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { EMPTY_INSCRIPTION_UNIFORM, type InscriptionParticipant, type TournamentInscription } from '../data/inscriptions-repository';
 import { EMPTY_TOURNAMENT_COLLECTED } from '../data/tournament-collected';
+import { kocPhaseLabelAt, type KocPhaseSpec } from '../data/koc-phase-plan';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { PersonPhotoService } from '../ui/person-photo.service';
 import { SeedsComponent } from './seeds.component';
@@ -112,7 +113,9 @@ interface Internals {
   useSeeds: WritableSignal<boolean>;
   dragFrom: WritableSignal<number | null>;
   dragOver: WritableSignal<number | null>;
+  kocPhases: WritableSignal<KocPhaseSpec[]>;
   redraw(): void;
+  kocPhaseTitle(index: number): string;
   onDrop(targetIndex: number, event: DragEvent): void;
   onDragStart(index: number, event: DragEvent): void;
   onDragEnd(): void;
@@ -272,5 +275,48 @@ describe('SeedsComponent — drag and drop da ordem de seeds', () => {
     internals.dragFrom.set(0);
     internals.onDrop(2, new DragEvent('drop', { bubbles: true, cancelable: true }));
     expect(internals.eligible().map((t) => t.teamId)).toEqual(['team-1', 'team-2', 'team-3']);
+  });
+});
+
+/** O rótulo da fase é UMA regra, em `koc-phase-plan.ts`, chamada tanto por esta
+ *  tela quanto pelo aviso de divergência do chaveamento (`koc-drift.ts`). Eram
+ *  duas cópias que concordavam por acaso; este bloco é o que impede a tela de
+ *  voltar a ter a sua. */
+describe('SeedsComponent — rótulo da fase vem da regra compartilhada', () => {
+  function phase(bracketCount: number): KocPhaseSpec {
+    return {
+      bracketSizes: Array.from({length: bracketCount}, () => 4),
+      roundsPerBracket: 1,
+      qualifiersPerRound: 1,
+      durationSec: 900,
+    };
+  }
+
+  async function mountWithPlan(phaseCount: number): Promise<Internals> {
+    await TestBed.configureTestingModule({
+      imports: [SeedsComponent],
+      providers: [provideZonelessChangeDetection(), provideRouter([])],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(SeedsComponent);
+    fixture.componentRef.setInput('catId', 'femB');
+    await fixture.whenStable();
+    const internals = fixture.componentInstance as unknown as Internals;
+    internals.tournament.set(tournament());
+    internals.loading.set(false);
+    internals.kocPhases.set(Array.from({length: phaseCount}, (_, i) => phase(i + 1)));
+    await fixture.whenStable();
+    return internals;
+  }
+
+  it('três fases: Classificatória, Semifinal, Final — exatamente o que a regra diz', async () => {
+    const internals = await mountWithPlan(3);
+    const titles = [0, 1, 2].map((i) => internals.kocPhaseTitle(i));
+    expect(titles).toEqual(['Classificatória', 'Semifinal', 'Final']);
+    expect(titles).toEqual([0, 1, 2].map((i) => kocPhaseLabelAt(i, 3)));
+  });
+
+  it('duas fases: a primeira NÃO vira Semifinal', async () => {
+    const internals = await mountWithPlan(2);
+    expect([0, 1].map((i) => internals.kocPhaseTitle(i))).toEqual(['Classificatória', 'Final']);
   });
 });

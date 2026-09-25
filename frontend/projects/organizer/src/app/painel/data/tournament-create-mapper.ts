@@ -3,7 +3,7 @@ import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { organizerFirestore } from './firestore';
 import { organizerStorage } from './storage';
 import { generateKeywords } from './search-keywords';
-import { KOC_LEGACY_MAX_TEAMS_PER_ROUND } from './koc-phase-plan';
+import { KOC_LEGACY_MAX_TEAMS_PER_ROUND, parseKocPhases } from './koc-phase-plan';
 import {
   BRACKET_FORMAT_FIRESTORE,
   DISPUTE_TEAM_SIZE,
@@ -101,6 +101,10 @@ export function categoryToMap(category: TournamentCategoryDraft, draft: Tourname
     qualifiersPerRound: category.kocQualifiersPerRound,
     roundDurationSec: category.kocRoundDurationSec,
     maxTeamsPerRound: category.kocMaxTeamsPerRound,
+    // Repassado sem ser editado aqui: o wizard reescreve o array `categories`
+    // inteiro, então não gravar é apagar. O plano é do Sorteio ao Vivo, que o
+    // lê antes de a chave existir.
+    kocPhases: category.kocPhases,
     bestOf: category.bestOf,
     finalBestOf5: category.finalBestOf5,
     maxRegistrationsPerAthlete: category.maxRegistrationsPerAthlete,
@@ -357,6 +361,7 @@ export function categoryFromMap(map: Record<string, unknown>): TournamentCategor
     // qualquer outro campo da categoria regravava 5 por cima da escolha.
     kocMaxTeamsPerRound:
       num(map['kocMaxTeamsPerRound']) ?? num(map['maxTeamsPerRound']) ?? KOC_LEGACY_MAX_TEAMS_PER_ROUND,
+    kocPhases: parseKocPhases(map['kocPhases']),
     bestOf: parseBestOf(map['bestOf']),
     finalBestOf5: map['finalBestOf5'] === true,
     maxRegistrationsPerAthlete: num(map['maxRegistrationsPerAthlete']) ?? 2,

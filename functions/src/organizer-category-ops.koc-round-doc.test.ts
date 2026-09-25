@@ -1,10 +1,11 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import {kocRoundDoc, resolveKocConfig} from "./organizer-category-ops";
+import {kocLegacyRoundFields, kocRoundDoc, resolveKocConfig} from "./organizer-category-ops";
 import {
   KOC_DEFAULT_ROUND_DURATION_SEC,
   KOC_LEGACY_MAX_TEAMS_PER_ROUND,
   buildKingOfCourtRounds,
+  kocProposePlan,
   kocResolvePlan,
   type KocConfig,
   type KocRoundDraft,
@@ -91,6 +92,15 @@ describe("kocRoundDoc", () => {
       teamsPerCourt: 4,
       roundsPerBracket: 1,
       qualifiersPerRound: 2,
+      // A config da CATEGORIA na geração — aqui igual à da fase porque o campo
+      // divide certo em quadras de 4; em 6 duplas elas divergem, e é por isso
+      // que a origem existe separada.
+      source: {
+        teamsPerCourt: 4,
+        roundsPerBracket: 1,
+        qualifiersPerRound: 2,
+        hasPlan: false,
+      },
       crownScores: false,
     });
   });
@@ -296,6 +306,189 @@ describe("kocRoundDoc · plano congelado não diverge do que gerou as rodadas (a
       // futuro refactor que volte a resolver duas vezes quebraria esta
       // igualdade de referência antes de quebrar qualquer teste de valor.
       assert.equal(doc.kocConfig.phases, plan);
+    }
+  });
+});
+
+describe("kocRoundDoc congela a ORIGEM da config, não só o plano", () => {
+  const teams = (n: number): string[] =>
+    Array.from({length: n}, (_, i) => `t${i + 1}`);
+
+  /**
+   * A rodada já guardava o plano resolvido; faltava a config de que ele saiu.
+   * Sem ela o portal não distingue "plano que o organizador montou" de "plano
+   * derivado dos três números", e os campos legados da rodada são os da FASE
+   * (6 duplas em quadras de 4 congelam `teamsPerCourt: 3`), então compará-los
+   * com a categoria acusa divergência onde ninguém mexeu em nada.
+   */
+  it("plano montado na tela: `hasPlan` verdadeiro e os números da categoria", () => {
+    const plan = kocProposePlan(10, 6, () => 900);
+    const config = resolveKocConfig(
+      {phases: plan, maxTeamsPerRound: 6, roundDurationSec: 900},
+      {teamsPerCourt: 4, roundsPerBracket: 1, qualifiersPerRound: 2},
+    );
+    const drafts = buildKingOfCourtRounds(teams(10), config, {plan});
+    const doc = kocRoundDoc(drafts[0]!, {
+      tournamentId: "T", categoryId: "C", config, plan,
+    }) as Record<string, any>;
+
+    assert.equal(doc.kocConfig.source.hasPlan, true);
+    assert.equal(doc.kocConfig.source.teamsPerCourt, 4);
+    assert.equal(doc.kocConfig.source.roundsPerBracket, 1);
+    assert.equal(doc.kocConfig.source.qualifiersPerRound, 2);
+  });
+
+  it("plano derivado: `hasPlan` falso, e a origem NÃO são os números da fase", () => {
+    // 6 duplas em quadras de 4: a fase 1 vira duas chaves de 3, então o campo
+    // legado da rodada congela `teamsPerCourt: 3`. A origem tem que dizer 4.
+    const config = resolveKocConfig(undefined, {
+      teamsPerCourt: 4, roundsPerBracket: 1, qualifiersPerRound: 2,
+    });
+    const plan = kocResolvePlan(6, config);
+    const drafts = buildKingOfCourtRounds(teams(6), config, {plan});
+    const doc = kocRoundDoc(drafts[0]!, {
+      tournamentId: "T", categoryId: "C", config, plan,
+    }) as Record<string, any>;
+
+    assert.equal(doc.kocConfig.source.hasPlan, false);
+    assert.equal(doc.kocConfig.source.teamsPerCourt, 4);
+    assert.notEqual(doc.kocConfig.source.teamsPerCourt, doc.kocConfig.teamsPerCourt);
+  });
+});
+
+/**
+ * Precedência do teto: `bracketConfig` → `kocMaxTeamsPerRound` →
+ * `maxTeamsPerRound`, nessa ordem.
+ *
+ * Só `phases` tinha teste de precedência, e esta família de campos já rendeu
+ * dois defeitos nesta branch, em direções opostas: o portal gravando a grafia
+ * prefixada enquanto o servidor lia só a sem prefixo (o plano da categoria
+ * ficava invisível para o app e para o publish do sorteio), e depois o payload
+ * perdendo para a categoria. Cada elo abaixo é testado sozinho: tirar um da
+ * cadeia `??` deixa exatamente um `it` vermelho.
+ */
+describe("resolveKocConfig · precedência de maxTeamsPerRound", () => {
+  it("o payload da geração ganha das DUAS grafias do doc da categoria", () => {
+    const cfg = resolveKocConfig(
+      {maxTeamsPerRound: 3},
+      {kocMaxTeamsPerRound: 6, maxTeamsPerRound: 5},
+    );
+    assert.equal(cfg.maxTeamsPerRound, 3);
+  });
+
+  it("sem payload, a grafia prefixada (a que o portal grava) ganha da sem prefixo", () => {
+    const cfg = resolveKocConfig(undefined, {kocMaxTeamsPerRound: 6, maxTeamsPerRound: 4});
+    assert.equal(cfg.maxTeamsPerRound, 6);
+  });
+
+  it("a grafia sem prefixo ainda é lida quando é a única que existe", () => {
+    assert.equal(resolveKocConfig(undefined, {maxTeamsPerRound: 4}).maxTeamsPerRound, 4);
+  });
+
+  it("payload ausente do OBJETO (não nulo) continua caindo para a categoria", () => {
+    // `??` só pula `null`/`undefined`: um `bracketConfig` que existe mas não
+    // traz o campo tem que deixar a categoria mandar — é o caso do app da loja
+    // e do publish do sorteio, que mandam `bracketConfig` sem teto nenhum.
+    const cfg = resolveKocConfig({teamsPerCourt: 4}, {kocMaxTeamsPerRound: 6});
+    assert.equal(cfg.maxTeamsPerRound, 6);
+  });
+
+  it("nada em lugar nenhum cai no teto de sempre, não no teto novo", () => {
+    assert.equal(
+      resolveKocConfig(undefined, undefined).maxTeamsPerRound,
+      KOC_LEGACY_MAX_TEAMS_PER_ROUND,
+    );
+  });
+
+  it("teto fora da faixa do formato é saneado, não propagado", () => {
+    // `kocClampMaxPerRound` já é testado sozinho; aqui prova-se que a
+    // precedência entrega o valor ESCOLHIDO para ele — 9 vira o teto duro 6,
+    // não o teto legado, que é o que sairia se o elo tivesse sido ignorado.
+    assert.equal(resolveKocConfig({maxTeamsPerRound: 9}, undefined).maxTeamsPerRound, 6);
+    assert.equal(resolveKocConfig({maxTeamsPerRound: 1}, undefined).maxTeamsPerRound, 3);
+  });
+});
+
+/**
+ * A tradução "fase do plano → três números da forma velha", agora sozinha.
+ *
+ * Era um trecho inline no meio de `kocRoundDoc`, coberto só pelo `deepEqual`
+ * do doc inteiro — teste que falha por qualquer motivo e não diz qual regra
+ * quebrou. A regra cara aqui é a última: na final, `qualifiersPerRound` do
+ * plano é 0 de propósito, e gravar esse 0 apaga a tabela do pódio no app que
+ * já está na loja.
+ */
+describe("kocLegacyRoundFields", () => {
+  const config: KocConfig = {
+    teamsPerCourt: 4,
+    roundsPerBracket: 1,
+    qualifiersPerRound: 2,
+    roundDurationSec: 900,
+  };
+
+  it("a chave mais CHEIA da fase é o `teamsPerCourt` da forma velha", () => {
+    // Fase com chaves desiguais: a média (4) e a menor (3) também seriam
+    // números plausíveis — o contrato é o maior.
+    const fields = kocLegacyRoundFields(
+      {size: 5},
+      {bracketSizes: [5, 4, 4], roundsPerBracket: 2, qualifiersPerRound: 1, durationSec: 900},
+      config,
+    );
+    assert.equal(fields.teamsPerCourt, 5);
+    assert.equal(fields.roundsPerBracket, 2);
+    assert.equal(fields.qualifiersPerRound, 1);
+  });
+
+  it("os números são os DESTA fase, não os da categoria", () => {
+    const fields = kocLegacyRoundFields(
+      {size: 6},
+      {bracketSizes: [6], roundsPerBracket: 4, qualifiersPerRound: 1, durationSec: 900},
+      config,
+    );
+    assert.notEqual(fields.teamsPerCourt, config.teamsPerCourt);
+    assert.notEqual(fields.roundsPerBracket, config.roundsPerBracket);
+    assert.notEqual(fields.qualifiersPerRound, config.qualifiersPerRound);
+  });
+
+  it("na FINAL grava o tamanho da própria rodada, nunca 0 — 0 apaga o pódio no app da loja", () => {
+    const fields = kocLegacyRoundFields(
+      {size: 4},
+      {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+      config,
+    );
+    assert.equal(fields.qualifiersPerRound, 4);
+    assert.notEqual(fields.qualifiersPerRound, 0);
+  });
+
+  it("sem fase no plano volta para a config da categoria — o comportamento de antes do plano", () => {
+    const fields = kocLegacyRoundFields({size: 4}, undefined, config);
+    assert.deepEqual(fields, {teamsPerCourt: 4, roundsPerBracket: 1, qualifiersPerRound: 2});
+  });
+
+  it("sem fase e sem `roundsPerBracket` na categoria, a forma velha ainda diz 1", () => {
+    const semRounds: KocConfig = {teamsPerCourt: 4, qualifiersPerRound: 2, roundDurationSec: 900};
+    assert.equal(kocLegacyRoundFields({size: 4}, undefined, semRounds).roundsPerBracket, 1);
+  });
+
+  it("é a MESMA tradução que o doc da rodada grava — não uma segunda cópia", () => {
+    // Pino contra a extração se soltar do doc: se `kocRoundDoc` voltasse a
+    // calcular os três números por conta própria, esta igualdade é o que
+    // acusaria, não os testes de valor acima.
+    const plan = kocProposePlan(10, 6, () => 900);
+    const cfg = resolveKocConfig({phases: plan, maxTeamsPerRound: 6}, undefined);
+    const drafts = buildKingOfCourtRounds(
+      Array.from({length: 10}, (_, i) => `t${i + 1}`),
+      cfg,
+      {plan},
+    );
+    for (const draft of drafts) {
+      const doc = kocRoundDoc(draft, {
+        tournamentId: "T", categoryId: "C", config: cfg, plan,
+      }) as Record<string, any>;
+      const fields = kocLegacyRoundFields(draft, plan[draft.phase - 1], cfg);
+      assert.equal(doc.kocConfig.teamsPerCourt, fields.teamsPerCourt);
+      assert.equal(doc.kocConfig.roundsPerBracket, fields.roundsPerBracket);
+      assert.equal(doc.kocConfig.qualifiersPerRound, fields.qualifiersPerRound);
     }
   });
 });

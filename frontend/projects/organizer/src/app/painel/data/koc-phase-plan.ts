@@ -136,6 +136,28 @@ export function kocProposePhasePlan(teamCount: number, maxPerRound: number, dura
   return proposeTail(teamCount, max, durationSec, 1);
 }
 
+/**
+ * "Classificatória" / "Semifinal" / "Final" pela POSIÇÃO da fase.
+ *
+ * A última é sempre a Final — a tabela dela é o pódio. A penúltima só é
+ * Semifinal quando há 3 fases ou mais: num campo pequeno, de duas fases, a
+ * primeira é a classificatória, não uma semi.
+ *
+ * Mora aqui, no módulo folha, porque tem DOIS leitores que precisam dizer a
+ * mesma coisa: a tabela da tela de gerar chave (`seeds.component.ts`) e o
+ * aviso de divergência do chaveamento (`koc-drift.ts`, módulo puro que não
+ * pode puxar Angular/Firebase). Eram duas cópias que concordavam por acaso, e
+ * um "Semifinal" renomeado numa delas passaria calado na outra.
+ *
+ * Espelha `matchTypeForPhase` do servidor (`koc-bracket-builders.ts`), que faz
+ * a mesma escolha com os nomes de `matchType`.
+ */
+export function kocPhaseLabelAt(index: number, total: number): string {
+  if (index === total - 1) return 'Final';
+  if (total >= 3 && index === total - 2) return 'Semifinal';
+  return 'Classificatória';
+}
+
 /** Quantas duplas entram em cada fase. A coluna "Passam" é esta lista deslocada. */
 export function kocPhaseFieldSizes(plan: KocPhaseSpec[]): number[] {
   return plan.map((p) => p.bracketSizes.reduce((a, b) => a + b, 0));

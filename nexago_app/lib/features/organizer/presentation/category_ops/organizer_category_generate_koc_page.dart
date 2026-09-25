@@ -320,31 +320,57 @@ class _KocPlanCard extends StatelessWidget {
     );
   }
 
-  String _body() {
-    if (teamCount < kocMinTeamsPerRound) {
-      return 'King of the Court precisa de pelo menos $kocMinTeamsPerRound '
-          'duplas pagas. Há $teamCount.';
-    }
-    if (!schedule.isValid) {
-      return 'Com $teamCount duplas, ${config.qualifiersPerRound} '
-          'classificadas por rodada não reduzem o campo entre as fases. '
-          'Ajuste a configuração da categoria.';
-    }
-    final phaseLabels = schedule.roundsPerPhase
-        .map((rounds) => rounds == 1 ? '1 rodada' : '$rounds rodadas')
-        .join(' → ');
-    if (config.phases != null) {
-      // Com plano, cada fase pode durar um tempo diferente (a final costuma
-      // ser mais longa) — citar UM número de minutos mentiria para o resto
-      // do plano. O total de quadra já soma cada fase pelo que ela realmente
-      // dura, que é a pergunta que o organizador tem — a isolada, não.
-      return '$teamCount duplas · ${schedule.totalRounds} rodadas em uma '
-          'quadra ($phaseLabels), já com trocas e intervalos. '
-          'A tabela da última rodada define o pódio.';
-    }
-    final minutes = config.roundDurationSec ~/ 60;
-    return '$teamCount duplas · ${schedule.totalRounds} rodadas de '
-        '$minutes min em uma quadra ($phaseLabels), já com trocas e intervalos. '
-        'A tabela da última rodada define o pódio.';
+  String _body() =>
+      kocGeneratePlanBody(teamCount: teamCount, schedule: schedule, config: config);
+}
+
+/// O texto do card de prévia, separado do widget só para ter teste.
+///
+/// Função de topo em vez de método privado porque a regra que ela carrega — o
+/// que a tela promete ao organizador antes de ele apertar "Publicar" — é
+/// exatamente o tipo de coisa que já divergiu da chave publicada nesta feature.
+@visibleForTesting
+String kocGeneratePlanBody({
+  required int teamCount,
+  required KingOfCourtSchedule schedule,
+  required KingOfCourtConfig config,
+}) {
+  if (teamCount < kocMinTeamsPerRound) {
+    return 'King of the Court precisa de pelo menos $kocMinTeamsPerRound '
+        'duplas pagas. Há $teamCount.';
   }
+  if (!schedule.isValid) {
+    return 'Com $teamCount duplas, ${config.qualifiersPerRound} '
+        'classificadas por rodada não reduzem o campo entre as fases. '
+        'Ajuste a configuração da categoria.';
+  }
+  final phaseLabels = schedule.roundsPerPhase
+      .map((rounds) => rounds == 1 ? '1 rodada' : '$rounds rodadas')
+      .join(' → ');
+  final phases = config.phases;
+  if (phases != null) {
+    // Com plano, cada fase pode durar um tempo diferente — a final costuma ser
+    // mais longa. Um número só mentiria para o resto do plano; por isso as
+    // durações saem ALINHADAS com as rodadas por fase, na mesma ordem e com a
+    // mesma seta, para o organizador ler as duas listas em paralelo. Quando
+    // todas as fases duram o mesmo, repetir o número três vezes só polui: aí
+    // vale o número único, encaixado na frase como no caminho sem plano.
+    final minutesPerPhase = phases.map((p) => (p.durationSec / 60).round()).toList();
+    final uniform = minutesPerPhase.every((m) => m == minutesPerPhase.first);
+    if (uniform) {
+      // A duração vem do PLANO, não de `config.roundDurationSec`: a categoria
+      // pode ter um padrão diferente do que o plano congelou.
+      return '$teamCount duplas · ${schedule.totalRounds} rodadas de '
+          '${minutesPerPhase.first} min em uma quadra ($phaseLabels), já com '
+          'trocas e intervalos. A tabela da última rodada define o pódio.';
+    }
+    final durationLabels = minutesPerPhase.map((m) => '${m}min').join(' → ');
+    return '$teamCount duplas · ${schedule.totalRounds} rodadas em uma quadra '
+        '($phaseLabels), já com trocas e intervalos. Duração por fase: '
+        '$durationLabels. A tabela da última rodada define o pódio.';
+  }
+  final minutes = config.roundDurationSec ~/ 60;
+  return '$teamCount duplas · ${schedule.totalRounds} rodadas de '
+      '$minutes min em uma quadra ($phaseLabels), já com trocas e intervalos. '
+      'A tabela da última rodada define o pódio.';
 }

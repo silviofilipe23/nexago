@@ -5,6 +5,7 @@ import {
   KOC_LEGACY_MAX_TEAMS_PER_ROUND,
   KocBracketError,
   buildKingOfCourtRounds,
+  findAvailableTarget,
   kocBracketCountForRounds,
   kocClampMaxPerRound,
   kocLegacyPlan,
@@ -1336,5 +1337,187 @@ describe("retrocompat: fixtures congeladas em 40b4ec37 (antes da reescrita)", ()
       ], 4, 900, 1],
     ];
     assert.deepEqual(drafts.map(toTuple), frozen);
+  });
+});
+
+/**
+ * `findAvailableTarget` decide em QUAL chave da fase seguinte a classificada
+ * cai, a partir do alvo que o módulo (`kocNextRoundIndex`) apontou.
+ *
+ * A cobertura que existia era indireta — varreduras de geração, onde as chaves
+ * da fase seguinte quase sempre têm o mesmo tamanho e a 1ª peneira acerta de
+ * primeira. Os outros dois desfechos (andar até achar; aceitar repetir a
+ * origem no pigeonhole) nunca eram exercitados de propósito, então uma das
+ * duas peneiras podia sumir sem nenhum teste ficar vermelho.
+ */
+describe("findAvailableTarget · as três peneiras, direto", () => {
+  /** Rodada mínima: só o que a função lê (tamanho e vagas já atribuídas). */
+  function bucket(size: number, fromMatchNumbers: number[]): KocRoundDraft {
+    return {
+      phase: 2,
+      matchType: "koc_final",
+      poolId: "C1",
+      matchNumber: 100,
+      roundLabel: 1,
+      batteryLabel: 1,
+      teamIds: [],
+      qualifiers: fromMatchNumbers.map((fromMatchNumber) => ({
+        fromMatchNumber,
+        fromRoundLabel: 1,
+        place: 1,
+      })),
+      size,
+      durationSec: 900,
+    };
+  }
+
+  it("acha de cara: o alvo natural tem lugar e não veio da mesma chave", () => {
+    const firsts = [bucket(4, []), bucket(4, [])];
+    // Se a 1ª peneira não existisse e a busca começasse a andar, viria 1.
+    assert.equal(findAvailableTarget(firsts, 0, 7), 0);
+  });
+
+  it("anda quando o alvo natural está CHEIO", () => {
+    const firsts = [bucket(1, [5]), bucket(4, [])];
+    assert.equal(findAvailableTarget(firsts, 0, 7), 1);
+  });
+
+  it("anda quando o alvo natural já tem vaga da MESMA chave de origem", () => {
+    // Capacidade sobrando nos dois; o que desempata é a origem. Sem o
+    // `!hasSameSource` da 1ª peneira a resposta seria 0 — e as duas duplas que
+    // acabaram de se enfrentar se reencontrariam na fase seguinte.
+    const firsts = [bucket(4, [7]), bucket(4, [])];
+    assert.equal(findAvailableTarget(firsts, 0, 7), 1);
+  });
+
+  it("dá a volta na lista antes de desistir da 1ª peneira", () => {
+    // Natural = 2 (a última): a chave sem a origem 7 é a de índice 0, só
+    // alcançável dando a volta.
+    const firsts = [bucket(4, []), bucket(4, [7]), bucket(4, [7])];
+    assert.equal(findAvailableTarget(firsts, 2, 7), 0);
+  });
+
+  it(
+    "pigeonhole: nenhuma chave sobra sem repetir a origem — a 2ª peneira " +
+      "aceita repetir, e ainda assim respeita a capacidade",
+    () => {
+      // Natural = 1, que está CHEIA. A única com lugar (índice 0) já tem uma
+      // vaga da origem 7, então a 1ª peneira falha nas duas. A 2ª anda a
+      // partir do natural, pula a cheia e devolve 0.
+      const firsts = [bucket(3, [7]), bucket(1, [7])];
+      assert.equal(findAvailableTarget(firsts, 1, 7), 0);
+    },
+  );
+
+  it("a final é o pigeonhole extremo: uma chave só, repetir é inevitável", () => {
+    const firsts = [bucket(4, [7])];
+    assert.equal(findAvailableTarget(firsts, 0, 7), 0);
+  });
+
+  it("nenhuma chave com lugar: devolve o alvo natural e deixa a rede de segurança falar", () => {
+    // O plano não fecha; `buildKingOfCourtRounds` recusa logo depois, com uma
+    // mensagem que aponta a rodada. Aqui só se prova que a função não trava
+    // nem inventa um índice fora da lista.
+    const firsts = [bucket(1, [5]), bucket(1, [6]), bucket(1, [7])];
+    assert.equal(findAvailableTarget(firsts, 1, 7), 1);
+  });
+});
+
+/**
+ * O PISO dentro de `assertPlan`.
+ *
+ * `assertPlan` é a defesa contra plano que não veio dos produtores de
+ * confiança (tela, proposer, `kocLegacyPlan`) — e cobria o teto da chave, a
+ * soma da fase, a ida e volta e as regras da final, mas não o piso. Uma chave
+ * que já NASCE abaixo de 3 só era barrada lá na frente, por `emitPhase`, com
+ * `koc_battery_too_small` — a mensagem de uma chave que ENCOLHEU demais ao
+ * longo das baterias, que aponta para o lugar errado.
+ *
+ * Mudança de comportamento consciente: plano com chave abaixo do piso passa a
+ * ser recusado por `kocResolvePlan` (antes só por `buildKingOfCourtRounds`) e
+ * com `reason` `koc_bracket_under_min` no lugar de `koc_battery_too_small`.
+ * Nenhum cliente lê esses `reason` — só testes.
+ */
+describe("assertPlan · o piso de 3 por chave", () => {
+  const base: KocConfig = {
+    teamsPerCourt: 4,
+    qualifiersPerRound: 2,
+    roundDurationSec: 900,
+    maxTeamsPerRound: 6,
+  };
+
+  it("chave abaixo do piso na fase 1 é recusada pelo próprio assertPlan", () => {
+    assert.throws(
+      () => kocResolvePlan(7, {
+        ...base,
+        phases: [
+          {bracketSizes: [5, 2], roundsPerBracket: 1, qualifiersPerRound: 1, durationSec: 900},
+          {bracketSizes: [2], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+        ],
+      }),
+      (e: unknown) => e instanceof KocBracketError && e.reason === "koc_bracket_under_min",
+    );
+  });
+
+  it("a FINAL abaixo do piso também é recusada — o pódio não pode ser de 2 duplas", () => {
+    assert.throws(
+      () => kocResolvePlan(6, {
+        ...base,
+        phases: [
+          {bracketSizes: [3, 3], roundsPerBracket: 1, qualifiersPerRound: 1, durationSec: 900},
+          {bracketSizes: [2], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+        ],
+      }),
+      (e: unknown) => e instanceof KocBracketError && e.reason === "koc_bracket_under_min",
+    );
+  });
+
+  it("recusa ANTES de gerar, não no meio da emissão", () => {
+    // O ponto da mudança: `kocResolvePlan` sozinho já barra. Antes só
+    // `buildKingOfCourtRounds` barrava, e quem valida o plano sem gerar (o
+    // `createDrawSession`, que recusa na criação da sessão para não descobrir
+    // na frente do público) não via nada.
+    const phases: KocPhaseSpec[] = [
+      {bracketSizes: [4, 2], roundsPerBracket: 1, qualifiersPerRound: 1, durationSec: 900},
+      {bracketSizes: [3], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+    ];
+    assert.throws(() => kocResolvePlan(6, {...base, phases}), KocBracketError);
+    assert.throws(() => buildKingOfCourtRounds(seeds(6), {...base, phases}), KocBracketError);
+  });
+
+  it("bateria que ENCOLHE abaixo do piso continua sendo koc_battery_too_small", () => {
+    // O piso novo é sobre a chave que NASCE pequena; a chave que encolhe ao
+    // longo das baterias continua com o erro — e a mensagem — de sempre.
+    const config: KocConfig = {
+      ...base,
+      phases: [
+        {bracketSizes: [4, 4], roundsPerBracket: 3, qualifiersPerRound: 1, durationSec: 900},
+        {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+      ],
+    };
+    assert.doesNotThrow(() => kocResolvePlan(8, config), "o plano em si respeita o piso");
+    assert.throws(
+      () => buildKingOfCourtRounds(seeds(8), config),
+      (e: unknown) => e instanceof KocBracketError && e.reason === "koc_battery_too_small",
+    );
+  });
+
+  it("todo plano dos produtores de confiança continua passando no piso", () => {
+    // Contraste: se o piso estivesse rígido demais (comparando com o tamanho
+    // da última bateria, por exemplo), esta varredura cairia.
+    for (let n = 3; n <= 40; n++) {
+      for (const teto of [3, 4, 5, 6]) {
+        let proposto: KocPhaseSpec[];
+        try {
+          proposto = kocProposePlan(n, teto, () => 900);
+        } catch {
+          continue; // campo que não fecha com esse teto — outro assunto
+        }
+        assert.doesNotThrow(
+          () => kocResolvePlan(n, {...base, maxTeamsPerRound: teto, phases: proposto}),
+          `${n} duplas, teto ${teto}`,
+        );
+      }
+    }
   });
 });

@@ -186,6 +186,52 @@ export function parseKocPhases(raw: unknown): KocPhaseSpec[] | undefined {
   return out;
 }
 
+/** Os três números da forma VELHA, como a rodada os carimba. */
+export interface KocLegacyRoundFields {
+  teamsPerCourt: number;
+  roundsPerBracket: number;
+  qualifiersPerRound: number;
+}
+
+/**
+ * Traduz UMA fase do plano para os três números que o mundo antigo lê.
+ *
+ * O app da loja, o overlay e o painel de LED leem
+ * `teamsPerCourt`/`roundsPerBracket`/`qualifiersPerRound` e não conhecem
+ * `phases`. Sem esta tradução eles mostrariam a config da CATEGORIA, que a
+ * partir da fase 2 já não é a que está na quadra.
+ *
+ * `spec` ausente (rodada de um plano mais curto que o doc, ou doc antigo) volta
+ * para a config da categoria: é o melhor palpite que existe, e era o
+ * comportamento de antes do plano.
+ *
+ * Extraída de `kocRoundDoc` — era um trecho inline no meio da montagem do doc,
+ * sem teste próprio, e carrega a regra mais fácil de perder da tradução: na
+ * FINAL, `qualifiersPerRound` do plano é 0 de propósito (ninguém classifica, a
+ * tabela é o pódio), mas gravar 0 aqui APAGA a tabela no app que já está na
+ * loja. O número honesto ali é o elenco inteiro da rodada.
+ */
+export function kocLegacyRoundFields(
+  draft: Pick<KocRoundDraft, "size">,
+  spec: KocPhaseSpec | undefined,
+  config: KocConfig,
+): KocLegacyRoundFields {
+  if (!spec) {
+    return {
+      teamsPerCourt: config.teamsPerCourt,
+      roundsPerBracket: config.roundsPerBracket ?? 1,
+      qualifiersPerRound: config.qualifiersPerRound,
+    };
+  }
+  return {
+    // A chave mais cheia da fase: é o que "duplas por quadra" significa para
+    // quem lê a forma velha.
+    teamsPerCourt: Math.max(...spec.bracketSizes),
+    roundsPerBracket: spec.roundsPerBracket,
+    qualifiersPerRound: spec.qualifiersPerRound > 0 ? spec.qualifiersPerRound : draft.size,
+  };
+}
+
 /**
  * Documento da RODADA King of the Court.
  *
@@ -211,20 +257,8 @@ export function kocRoundDoc(
     place: slot.place,
     description: kocQualifierDescription(slot),
   }));
-  const spec = meta.plan[draft.phase - 1];
-  // Números DESTA fase na forma velha. O app da loja, o overlay e o LED leem
-  // `teamsPerCourt`/`roundsPerBracket`/`qualifiersPerRound` e não conhecem
-  // `phases`; sem isto eles mostrariam a config da categoria, que na fase 2 já
-  // não é a que está na quadra.
-  const legacyTeamsPerCourt = spec ?
-    Math.max(...spec.bracketSizes) :
-    meta.config.teamsPerCourt;
-  const legacyRounds = spec?.roundsPerBracket ?? meta.config.roundsPerBracket ?? 1;
-  // Na final ninguém classifica (`0`), mas 0 faria a tabela sumir na tela
-  // antiga: ali o número honesto é o elenco inteiro, que é o pódio.
-  const legacyQualifiers = spec ?
-    (spec.qualifiersPerRound > 0 ? spec.qualifiersPerRound : draft.size) :
-    meta.config.qualifiersPerRound;
+  // Números DESTA fase na forma velha — ver `kocLegacyRoundFields`.
+  const legacy = kocLegacyRoundFields(draft, meta.plan[draft.phase - 1], meta.config);
   return {
     tournamentId: meta.tournamentId,
     categoryId: meta.categoryId,
@@ -253,9 +287,27 @@ export function kocRoundDoc(
       phases: meta.plan,
       maxTeamsPerRound: meta.config.maxTeamsPerRound ?? KOC_LEGACY_MAX_TEAMS_PER_ROUND,
       // Forma velha, para quem ainda não conhece `phases`.
-      teamsPerCourt: legacyTeamsPerCourt,
-      roundsPerBracket: legacyRounds,
-      qualifiersPerRound: legacyQualifiers,
+      teamsPerCourt: legacy.teamsPerCourt,
+      roundsPerBracket: legacy.roundsPerBracket,
+      qualifiersPerRound: legacy.qualifiersPerRound,
+      // A config da CATEGORIA como estava na geração — de onde o plano saiu.
+      // Não confundir com os três campos acima, que são os desta FASE e mudam
+      // de rodada para rodada: 6 duplas em quadras de 4 congelam
+      // `teamsPerCourt: 3` sem ninguém ter mexido em nada.
+      //
+      // É o que faltava para o portal detectar que o organizador mexeu na
+      // config depois de publicar. Com o plano sozinho ele só conseguia
+      // comparar quando a categoria TAMBÉM guardava um — e quem gera pelo app
+      // ou pelo publish do sorteio nunca grava plano na categoria, então
+      // aquela comparação ficava calada justamente nos dois caminhos mais
+      // comuns. Re-derivar a regra do backend aqui no cliente seria o
+      // espelhamento que já nos custou um bug.
+      source: {
+        teamsPerCourt: meta.config.teamsPerCourt,
+        roundsPerBracket: meta.config.roundsPerBracket ?? 1,
+        qualifiersPerRound: meta.config.qualifiersPerRound,
+        hasPlan: (meta.config.phases?.length ?? 0) > 0,
+      },
       crownScores: false,
     },
     ...(qualifiers.length > 0 ? {kocQualifiers: qualifiers} : {}),

@@ -270,8 +270,13 @@ function emitPhase(params: {
  * que a fase seguinte tem chaves (a final, com uma chave só, é o caso extremo:
  * ali repetir é inevitável e não é bug). Com chaves do mesmo tamanho a 1ª
  * busca sempre acha na primeira tentativa — o módulo já fecha certo.
+ *
+ * Exportada só para o teste: os três desfechos (acha de cara, acha andando,
+ * pigeonhole) só apareciam indiretamente, através de varreduras de geração
+ * onde as chaves têm todas o mesmo tamanho — ou seja, onde a 1ª busca sempre
+ * acerta de primeira e as outras duas nunca rodam.
  */
-function findAvailableTarget(
+export function findAvailableTarget(
   firsts: readonly KocRoundDraft[],
   natural: number,
   fromMatchNumber: number,
@@ -802,6 +807,20 @@ function assertPlan(
           "koc_bracket_over_max",
         );
       }
+      // O piso, do mesmo jeito que o teto. Antes só `emitPhase` barrava — e
+      // barrava como `koc_battery_too_small`, a mensagem de uma chave que
+      // ENCOLHEU demais ao longo das baterias. Uma chave que já nasce abaixo
+      // de 3 é outro defeito: o plano está errado na origem, não na 3ª
+      // bateria. Esta é a função que defende o gerador de plano que não veio
+      // dos produtores de confiança; deixar o piso para depois era deixar um
+      // buraco exatamente no lado que ela existe para cobrir.
+      if (size < KOC_MIN_TEAMS_PER_ROUND) {
+        throw new KocBracketError(
+          `A fase ${i + 1} tem chave de ${size} duplas; toda bateria precisa de ` +
+            `${KOC_MIN_TEAMS_PER_ROUND}.`,
+          "koc_bracket_under_min",
+        );
+      }
     }
     if (i === 0) {
       // O sorteio ao vivo guarda o ALVO da caixa, não quantas caixas existem, e
@@ -809,6 +828,19 @@ function assertPlan(
       // ida e volta (25 duplas em 6 chaves voltam como 5) faria o sorteio
       // publicar um número de caixas e a geração exigir outro — descoberto
       // depois de as duplas já terem sido reveladas.
+      //
+      // Esta é a metade FRACA da regra, de propósito: só a CONTAGEM. A metade
+      // forte — a FORMA exata das caixas — mora em `kocDrawReproducesPhaseOne`
+      // (`draw-sessions.ts`) e é a que recusa `[6,6,4,3]` para 19 duplas, cuja
+      // contagem bate mas cuja distribuição não. As duas não foram unificadas
+      // porque a forte é DEFINIDA por `groupCapacities`, o divisor do próprio
+      // motor do sorteio: reimplementá-la aqui recriaria o espelho que um
+      // round de revisão anterior removeu de propósito (espelho prova a
+      // matemática, não a implementação), e importar `draw-plan.ts` faria
+      // este módulo — folha, sem import nenhum, usado pelo app, pelo portal e
+      // pelo próprio sorteio — depender do módulo de sorteio. A relação é de
+      // camada, não de duplicação: forte ⇒ fraca, e o teste
+      // `koc-draw-bracket-agreement.test.ts` pina isso.
       const target = Math.max(...sizes);
       if (Math.ceil(field / target) !== sizes.length) {
         throw new KocBracketError(

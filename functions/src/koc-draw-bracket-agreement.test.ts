@@ -236,11 +236,24 @@ describe("createDrawSession recusa fase 1 cuja FORMA não bate, mesmo quando a c
   }
 
   /** Plano de 2 fases válido para QUALQUER `phase1`: a fase 2 é a final,
-   * do tamanho exato de vagas que a fase 1 libera. */
+   * do tamanho exato de vagas que a fase 1 libera.
+   *
+   * As classificadas por chave saem da conta, não de uma constante: com 2
+   * chaves na fase 1, uma classificada cada daria uma FINAL DE 2 — abaixo do
+   * piso do formato, plano que `assertPlan` agora recusa direto (antes só
+   * `emitPhase` barrava, e este bloco nunca chega a emitir). O que se quer
+   * provar aqui é a ida e volta da fase 1, então a final tem que ser
+   * legítima. */
   function planFor(phase1: number[]): KocPhaseSpec[] {
+    const qualifiersPerRound = Math.max(1, Math.ceil(KOC_MIN_TEAMS_PER_ROUND / phase1.length));
     return [
-      {bracketSizes: phase1, roundsPerBracket: 1, qualifiersPerRound: 1, durationSec: 900},
-      {bracketSizes: [phase1.length], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+      {bracketSizes: phase1, roundsPerBracket: 1, qualifiersPerRound, durationSec: 900},
+      {
+        bracketSizes: [phase1.length * qualifiersPerRound],
+        roundsPerBracket: 1,
+        qualifiersPerRound: 0,
+        durationSec: 900,
+      },
     ];
   }
 
@@ -398,5 +411,80 @@ describe("sorteio e geração montam a MESMA config a partir do doc da categoria
 
     assert.deepEqual(draw.phases, plan);
     assert.equal(outcome(14, draw), outcome(14, resolveKocConfig(undefined, category)));
+  });
+});
+
+/**
+ * A relação entre as DUAS checagens de ida e volta — a decisão do follow-up
+ * item 5, escrita como teste em vez de só como comentário.
+ *
+ * `assertPlan` (`koc-bracket-builders.ts`) compara a CONTAGEM de chaves da
+ * fase 1; `kocDrawReproducesPhaseOne` (`draw-sessions.ts`) compara a FORMA
+ * inteira, chamando `groupCapacities`, o divisor do próprio motor do sorteio.
+ * Elas não foram unificadas: trazer a forte para o gerador exigiria espelhar
+ * `groupCapacities` (o espelho que o round 2 removeu) ou fazer o módulo folha
+ * importar o módulo de sorteio.
+ *
+ * O que substitui a unificação é esta invariante: a fraca é ESTRITAMENTE mais
+ * fraca. Um plano que o sorteio reproduz nunca pode ser recusado pelo gerador
+ * por `koc_bracket_count_not_roundtrippable`. Se alguém mexer em qualquer uma
+ * das duas e as pontas se cruzarem — o gerador recusando o que o sorteio
+ * aceita, que é a falha silenciosa cara — a varredura abaixo fica vermelha.
+ */
+describe("as duas checagens de ida e volta são CAMADAS: forte ⇒ fraca", () => {
+  /** A fase 1 passa pela checagem fraca (a de `assertPlan`)? */
+  function weakAccepts(teamCount: number, phase1: readonly number[]): boolean {
+    // Classificadas suficientes para a final ficar no piso do formato — senão
+    // a recusa viria do piso e o caso sairia da varredura sem provar nada.
+    const q = Math.max(1, Math.ceil(KOC_MIN_TEAMS_PER_ROUND / phase1.length));
+    const config: KocConfig = {
+      teamsPerCourt: 4,
+      qualifiersPerRound: 2,
+      roundDurationSec: 900,
+      maxTeamsPerRound: 6,
+      phases: [
+        {bracketSizes: [...phase1], roundsPerBracket: 1, qualifiersPerRound: q, durationSec: 900},
+        {bracketSizes: [phase1.length * q], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+      ],
+    };
+    try {
+      kocResolvePlan(teamCount, config);
+      return true;
+    } catch (e) {
+      if (e instanceof KocBracketError && e.reason === "koc_bracket_count_not_roundtrippable") {
+        return false;
+      }
+      // Qualquer outra recusa é de outra regra (piso, teto, campo que não
+      // reduz) e não diz nada sobre a ida e volta — o caso sai da varredura.
+      return true;
+    }
+  }
+
+  it("3 a 40 duplas, toda divisão em até 8 chaves: o sorteio aceitar implica o gerador aceitar", () => {
+    let strongAccepted = 0;
+    for (let n = 3; n <= 40; n++) {
+      for (let k = 1; k <= 8; k++) {
+        const sizes = kocRoundSizes(n, k);
+        if (Math.min(...sizes) < KOC_MIN_TEAMS_PER_ROUND || Math.max(...sizes) > 6) continue;
+        if (!kocDrawReproducesPhaseOne(n, sizes).matches) continue;
+        strongAccepted++;
+        assert.equal(
+          weakAccepts(n, sizes),
+          true,
+          `${n} duplas em ${k} chaves ${JSON.stringify(sizes)}: o sorteio reproduz, ` +
+            "mas o gerador recusaria por ida e volta — as camadas se cruzaram",
+        );
+      }
+    }
+    assert.ok(strongAccepted >= 50, `varredura fraca demais — só ${strongAccepted} casos`);
+  });
+
+  it("e a recíproca é FALSA: existe plano que a fraca aceita e a forte recusa", () => {
+    // É o que justifica as duas existirem. `[6,6,4,3]` para 19 duplas tem
+    // `ceil(19/6) = 4` chaves — a contagem bate — mas `groupCapacities(19, 6)`
+    // monta `[5,5,5,4]`. Se este `it` ficar verde nos dois lados, alguém
+    // igualou as checagens e o comentário das duas ficou mentindo.
+    assert.equal(weakAccepts(19, [6, 6, 4, 3]), true);
+    assert.equal(kocDrawReproducesPhaseOne(19, [6, 6, 4, 3]).matches, false);
   });
 });

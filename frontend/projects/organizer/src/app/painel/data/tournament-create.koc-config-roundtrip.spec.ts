@@ -172,4 +172,49 @@ describe('config KOTC · ida e volta pelo wizard', () => {
     const map = categoryToMap(draft, emptyTournamentDraft());
     expect(map['roundsPerBracket']).toBe(1);
   });
+
+  it('o PLANO de fases sobrevive a uma edição do wizard', () => {
+    // O campo que faltava nesta mesma regra. `saveKocPhasePlan` grava
+    // `kocPhases` na categoria porque o Sorteio ao Vivo lê o formato de lá,
+    // ANTES de a chave existir. O wizard reescreve o array `categories`
+    // inteiro a partir do draft; sem o plano no draft, qualquer edição —
+    // mudar uma data, uma taxa — apagava o plano e o sorteio seguinte caía
+    // nas regras antigas, sem nada na tela dizendo por quê.
+    const plano = [
+      { bracketSizes: [5, 5], roundsPerBracket: 3, qualifiersPerRound: 1, durationSec: 900 },
+      { bracketSizes: [6], roundsPerBracket: 4, qualifiersPerRound: 1, durationSec: 900 },
+      { bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900 },
+    ];
+    const { draft } = tournamentDraftFromFirestore(
+      { name: 'Seed test', startAt: START_AT, endAt: START_AT, categories: [{ ...KOC_MAP, kocPhases: plano }] },
+      'torneio-1',
+    );
+    expect(draft.categories[0].kocPhases).toEqual(plano);
+
+    // Edita OUTRA coisa, como o organizador faria.
+    const edited = { ...draft, categories: [{ ...draft.categories[0]!, spots: 20 }] };
+    const data = tournamentDraftToFirestore({
+      draft: edited,
+      managerId: 'mgr-1',
+      publish: true,
+      isUpdate: true,
+      existingListingStatus: 'open',
+    });
+    const saved = (data['categories'] as Array<Record<string, unknown>>)[0]!;
+    expect(saved['kocPhases']).toEqual(plano);
+    expect(categoryFromRaw(saved)!.kocPhases).toEqual(plano);
+  });
+
+  it('categoria sem plano continua sem — o wizard não inventa um', () => {
+    const draft = categoryFromMap(KOC_MAP)!;
+    expect(draft.kocPhases).toBeNull();
+    expect(categoryFromRaw(categoryToMap(draft, emptyTournamentDraft()))!.kocPhases).toBeNull();
+  });
+
+  it('plano sujo no doc não vira plano parcial no draft', () => {
+    // Mesma regra de `parseKocPhases` em toda superfície: sujeira derruba o
+    // plano inteiro, e o servidor cai nas regras antigas, que funcionam.
+    const draft = categoryFromMap({ ...KOC_MAP, kocPhases: [{ bracketSizes: 'x' }] })!;
+    expect(draft.kocPhases).toBeNull();
+  });
 });

@@ -60,4 +60,18 @@ describe('OverlayMarkComponent', () => {
     expect(host.getAttribute('data-flow')).toBeNull();
     expect(getComputedStyle(host).position).toBe('fixed');
   });
+
+  it('carimba o rótulo da Grande final sob a logo', async () => {
+    const host = (await render({ caption: 'NEXAGO · KOTC · Final' })).nativeElement as HTMLElement;
+
+    expect(host.querySelector('.caption')?.textContent?.trim()).toBe('NEXAGO · KOTC · Final');
+  });
+
+  it('sem rótulo, a marca é só a logo', async () => {
+    // As demais telas do overlay usam a marca sem legenda: um rótulo vazando pra elas seria
+    // texto fixo em cima da câmera a rodada inteira.
+    const host = (await render()).nativeElement as HTMLElement;
+
+    expect(host.querySelector('.caption')).toBeNull();
+  });
 });

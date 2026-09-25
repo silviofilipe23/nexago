@@ -13,11 +13,19 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
     '[attr.data-pos]': 'corner()',
     '[attr.data-flow]': 'flow() ? "true" : null',
   },
-  template: `<img src="/brand/logo.png" alt="" width="72" height="72" />`,
+  template: `
+    <img src="/brand/logo.png" alt="" width="72" height="72" />
+    @if (caption(); as text) {
+      <span class="caption">{{ text }}</span>
+    }
+  `,
   styles: `
     :host {
       position: fixed;
-      display: block;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
       pointer-events: none;
       /* Mesma margem de segurança de transmissão das demais telas. */
       --gap: 48px;
@@ -44,6 +52,14 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       height: 72px;
       object-fit: contain;
     }
+
+    .caption {
+      color: #fff;
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      white-space: nowrap;
+    }
   `,
 })
 export class OverlayMarkComponent {
@@ -51,4 +67,8 @@ export class OverlayMarkComponent {
   readonly corner = input<'tr' | 'br'>('br');
   /** Para telas cujos cantos direitos já têm dono — nelas a marca senta no cabeçalho. */
   readonly flow = input(false);
+
+  /** Rodapé de marca sob a logo. Vazio na maioria das telas: a marca de transmissão identifica
+   *  sem legenda, e só a Grande final pede o carimbo do título. */
+  readonly caption = input<string | null>(null);
 }

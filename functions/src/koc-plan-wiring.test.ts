@@ -382,3 +382,123 @@ describe("fiação: opts.plan bypassa a revalidação; reinjetar por config.phas
     );
   });
 });
+
+/**
+ * Fiação do override de duração por fase:
+ *   categoria/`bracketConfig` → `resolveKocConfig` → `durationForPhase` →
+ *   `durationSec` da fase no plano → `kocConfig.durationSec` do doc da rodada.
+ *
+ * A chave do mapa é o NÚMERO DA FASE como string, 1-based nas duas pontas. Um
+ * descompasso 0-based/1-based entre quem grava e quem lê passaria por todo
+ * teste que existe hoje: nenhum deles olha em QUAL fase o override caiu — só
+ * que ele foi saneado (`resolveKocConfig`) ou que alguma rodada mudou de
+ * duração. Com o override numa fase do MEIO, um deslocamento de uma casa
+ * derruba este bloco em qualquer direção.
+ *
+ * Só o plano DERIVADO consulta `phaseDurationsSec`: plano explícito já traz a
+ * duração de cada fase dentro de si (`assertPlan` usa `spec.durationSec`).
+ * Por isso a config aqui é legada, sem `phases` — é a única em que o caminho
+ * existe.
+ */
+describe("fiação: phaseDurationsSec cai na fase certa, e só nela", () => {
+  const teamIds = Array.from({length: 16}, (_, i) => `t${i + 1}`);
+  const OVERRIDE_PHASE = 2;
+  const OVERRIDE_SEC = 1500;
+  const DEFAULT_SEC = 900;
+
+  const {plan, docs} = generateViaRealWiring(
+    teamIds,
+    {
+      teamsPerCourt: 4,
+      qualifiersPerRound: 2,
+      roundDurationSec: DEFAULT_SEC,
+      phaseDurationsSec: {[String(OVERRIDE_PHASE)]: OVERRIDE_SEC},
+    },
+    undefined,
+  );
+
+  it("o campo fecha em 3 fases — a override cai numa fase do MEIO, não numa ponta", () => {
+    // Pré-condição do teste: numa ponta, um deslocamento de uma casa cairia
+    // fora do plano e sumiria sem quebrar nada.
+    assert.equal(plan.length, 3);
+    assert.ok(OVERRIDE_PHASE > 1 && OVERRIDE_PHASE < plan.length);
+  });
+
+  it("o plano resolvido só muda a duração da fase com override", () => {
+    assert.deepEqual(plan.map((p) => p.durationSec), [DEFAULT_SEC, OVERRIDE_SEC, DEFAULT_SEC]);
+  });
+
+  it("toda rodada da fase 2 é gravada com a duração da override", () => {
+    const fase2 = docs.filter((d) => d.kocPhase === OVERRIDE_PHASE);
+    assert.ok(fase2.length > 0, "a fase 2 precisa ter rodadas para o teste valer");
+    for (const doc of fase2) {
+      assert.equal(doc.kocConfig.durationSec, OVERRIDE_SEC);
+    }
+  });
+
+  it("nenhuma rodada das OUTRAS fases herda a override", () => {
+    const outras = docs.filter((d) => d.kocPhase !== OVERRIDE_PHASE);
+    assert.ok(outras.length > 0);
+    for (const doc of outras) {
+      assert.equal(
+        doc.kocConfig.durationSec,
+        DEFAULT_SEC,
+        `fase ${doc.kocPhase} não deveria durar ${doc.kocConfig.durationSec}s`,
+      );
+    }
+  });
+
+  it("a chave do mapa é 1-based: a fase 1 é \"1\", não \"0\"", () => {
+    // O contraste direto. Uma override em "0" não pertence a fase nenhuma e
+    // tem que ser ignorada — se o leitor fosse 0-based ela viraria a fase 1.
+    const zeroBased = generateViaRealWiring(
+      teamIds,
+      {
+        teamsPerCourt: 4,
+        qualifiersPerRound: 2,
+        roundDurationSec: DEFAULT_SEC,
+        phaseDurationsSec: {"0": OVERRIDE_SEC},
+      },
+      undefined,
+    );
+    for (const doc of zeroBased.docs) {
+      assert.equal(doc.kocConfig.durationSec, DEFAULT_SEC);
+    }
+
+    const oneBased = generateViaRealWiring(
+      teamIds,
+      {
+        teamsPerCourt: 4,
+        qualifiersPerRound: 2,
+        roundDurationSec: DEFAULT_SEC,
+        phaseDurationsSec: {"1": OVERRIDE_SEC},
+      },
+      undefined,
+    );
+    for (const doc of oneBased.docs.filter((d) => d.kocPhase === 1)) {
+      assert.equal(doc.kocConfig.durationSec, OVERRIDE_SEC);
+    }
+  });
+
+  it("a override também chega quando mora no doc da CATEGORIA, não no payload", () => {
+    // O app da loja e o publish do sorteio não mandam `phaseDurationsSec`; se
+    // o `pick()` deixasse de olhar a categoria, os dois perderiam o override
+    // sem nenhum erro.
+    const {docs: fromCategory} = generateViaRealWiring(
+      teamIds,
+      undefined,
+      {
+        teamsPerCourt: 4,
+        qualifiersPerRound: 2,
+        roundDurationSec: DEFAULT_SEC,
+        phaseDurationsSec: {[String(OVERRIDE_PHASE)]: OVERRIDE_SEC},
+      },
+    );
+    for (const doc of fromCategory) {
+      assert.equal(
+        doc.kocConfig.durationSec,
+        doc.kocPhase === OVERRIDE_PHASE ? OVERRIDE_SEC : DEFAULT_SEC,
+      );
+    }
+  });
+});

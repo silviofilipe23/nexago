@@ -5,6 +5,7 @@ import {
   KOC_LEGACY_MAX_TEAMS_PER_ROUND,
   KocBracketError,
   buildKingOfCourtRounds,
+  findAvailableTarget,
   kocBracketCountForRounds,
   kocClampMaxPerRound,
   kocLegacyPlan,
@@ -1336,5 +1337,88 @@ describe("retrocompat: fixtures congeladas em 40b4ec37 (antes da reescrita)", ()
       ], 4, 900, 1],
     ];
     assert.deepEqual(drafts.map(toTuple), frozen);
+  });
+});
+
+/**
+ * `findAvailableTarget` decide em QUAL chave da fase seguinte a classificada
+ * cai, a partir do alvo que o módulo (`kocNextRoundIndex`) apontou.
+ *
+ * A cobertura que existia era indireta — varreduras de geração, onde as chaves
+ * da fase seguinte quase sempre têm o mesmo tamanho e a 1ª peneira acerta de
+ * primeira. Os outros dois desfechos (andar até achar; aceitar repetir a
+ * origem no pigeonhole) nunca eram exercitados de propósito, então uma das
+ * duas peneiras podia sumir sem nenhum teste ficar vermelho.
+ */
+describe("findAvailableTarget · as três peneiras, direto", () => {
+  /** Rodada mínima: só o que a função lê (tamanho e vagas já atribuídas). */
+  function bucket(size: number, fromMatchNumbers: number[]): KocRoundDraft {
+    return {
+      phase: 2,
+      matchType: "koc_final",
+      poolId: "C1",
+      matchNumber: 100,
+      roundLabel: 1,
+      batteryLabel: 1,
+      teamIds: [],
+      qualifiers: fromMatchNumbers.map((fromMatchNumber) => ({
+        fromMatchNumber,
+        fromRoundLabel: 1,
+        place: 1,
+      })),
+      size,
+      durationSec: 900,
+    };
+  }
+
+  it("acha de cara: o alvo natural tem lugar e não veio da mesma chave", () => {
+    const firsts = [bucket(4, []), bucket(4, [])];
+    // Se a 1ª peneira não existisse e a busca começasse a andar, viria 1.
+    assert.equal(findAvailableTarget(firsts, 0, 7), 0);
+  });
+
+  it("anda quando o alvo natural está CHEIO", () => {
+    const firsts = [bucket(1, [5]), bucket(4, [])];
+    assert.equal(findAvailableTarget(firsts, 0, 7), 1);
+  });
+
+  it("anda quando o alvo natural já tem vaga da MESMA chave de origem", () => {
+    // Capacidade sobrando nos dois; o que desempata é a origem. Sem o
+    // `!hasSameSource` da 1ª peneira a resposta seria 0 — e as duas duplas que
+    // acabaram de se enfrentar se reencontrariam na fase seguinte.
+    const firsts = [bucket(4, [7]), bucket(4, [])];
+    assert.equal(findAvailableTarget(firsts, 0, 7), 1);
+  });
+
+  it("dá a volta na lista antes de desistir da 1ª peneira", () => {
+    // Natural = 2 (a última): a chave sem a origem 7 é a de índice 0, só
+    // alcançável dando a volta.
+    const firsts = [bucket(4, []), bucket(4, [7]), bucket(4, [7])];
+    assert.equal(findAvailableTarget(firsts, 2, 7), 0);
+  });
+
+  it(
+    "pigeonhole: nenhuma chave sobra sem repetir a origem — a 2ª peneira " +
+      "aceita repetir, e ainda assim respeita a capacidade",
+    () => {
+      // Natural = 1, que está CHEIA. A única com lugar (índice 0) já tem uma
+      // vaga da origem 7, então a 1ª peneira falha nas duas. A 2ª anda a
+      // partir do natural, pula a cheia e devolve 0.
+      const firsts = [bucket(3, [7]), bucket(1, [7])];
+      assert.equal(findAvailableTarget(firsts, 1, 7), 0);
+    },
+  );
+
+  it("a final é o pigeonhole extremo: uma chave só, repetir é inevitável", () => {
+    const firsts = [bucket(4, [7])];
+    assert.equal(findAvailableTarget(firsts, 0, 7), 0);
+  });
+
+  it("nenhuma chave com lugar: devolve o alvo natural e deixa a rede de segurança falar", () => {
+    // O plano não fecha; `buildKingOfCourtRounds` recusa logo depois, com uma
+    // mensagem que aponta a rodada. Aqui só se prova que a função não trava
+    // nem inventa um índice fora da lista.
+    const firsts = [bucket(1, [5]), bucket(1, [6]), bucket(1, [7])];
+    assert.equal(findAvailableTarget(firsts, 1, 7), 1);
   });
 });

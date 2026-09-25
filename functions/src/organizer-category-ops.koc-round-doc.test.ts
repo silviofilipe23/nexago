@@ -355,3 +355,56 @@ describe("kocRoundDoc congela a ORIGEM da config, não só o plano", () => {
     assert.notEqual(doc.kocConfig.source.teamsPerCourt, doc.kocConfig.teamsPerCourt);
   });
 });
+
+/**
+ * Precedência do teto: `bracketConfig` → `kocMaxTeamsPerRound` →
+ * `maxTeamsPerRound`, nessa ordem.
+ *
+ * Só `phases` tinha teste de precedência, e esta família de campos já rendeu
+ * dois defeitos nesta branch, em direções opostas: o portal gravando a grafia
+ * prefixada enquanto o servidor lia só a sem prefixo (o plano da categoria
+ * ficava invisível para o app e para o publish do sorteio), e depois o payload
+ * perdendo para a categoria. Cada elo abaixo é testado sozinho: tirar um da
+ * cadeia `??` deixa exatamente um `it` vermelho.
+ */
+describe("resolveKocConfig · precedência de maxTeamsPerRound", () => {
+  it("o payload da geração ganha das DUAS grafias do doc da categoria", () => {
+    const cfg = resolveKocConfig(
+      {maxTeamsPerRound: 3},
+      {kocMaxTeamsPerRound: 6, maxTeamsPerRound: 5},
+    );
+    assert.equal(cfg.maxTeamsPerRound, 3);
+  });
+
+  it("sem payload, a grafia prefixada (a que o portal grava) ganha da sem prefixo", () => {
+    const cfg = resolveKocConfig(undefined, {kocMaxTeamsPerRound: 6, maxTeamsPerRound: 4});
+    assert.equal(cfg.maxTeamsPerRound, 6);
+  });
+
+  it("a grafia sem prefixo ainda é lida quando é a única que existe", () => {
+    assert.equal(resolveKocConfig(undefined, {maxTeamsPerRound: 4}).maxTeamsPerRound, 4);
+  });
+
+  it("payload ausente do OBJETO (não nulo) continua caindo para a categoria", () => {
+    // `??` só pula `null`/`undefined`: um `bracketConfig` que existe mas não
+    // traz o campo tem que deixar a categoria mandar — é o caso do app da loja
+    // e do publish do sorteio, que mandam `bracketConfig` sem teto nenhum.
+    const cfg = resolveKocConfig({teamsPerCourt: 4}, {kocMaxTeamsPerRound: 6});
+    assert.equal(cfg.maxTeamsPerRound, 6);
+  });
+
+  it("nada em lugar nenhum cai no teto de sempre, não no teto novo", () => {
+    assert.equal(
+      resolveKocConfig(undefined, undefined).maxTeamsPerRound,
+      KOC_LEGACY_MAX_TEAMS_PER_ROUND,
+    );
+  });
+
+  it("teto fora da faixa do formato é saneado, não propagado", () => {
+    // `kocClampMaxPerRound` já é testado sozinho; aqui prova-se que a
+    // precedência entrega o valor ESCOLHIDO para ele — 9 vira o teto duro 6,
+    // não o teto legado, que é o que sairia se o elo tivesse sido ignorado.
+    assert.equal(resolveKocConfig({maxTeamsPerRound: 9}, undefined).maxTeamsPerRound, 6);
+    assert.equal(resolveKocConfig({maxTeamsPerRound: 1}, undefined).maxTeamsPerRound, 3);
+  });
+});

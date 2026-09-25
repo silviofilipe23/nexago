@@ -270,8 +270,13 @@ function emitPhase(params: {
  * que a fase seguinte tem chaves (a final, com uma chave só, é o caso extremo:
  * ali repetir é inevitável e não é bug). Com chaves do mesmo tamanho a 1ª
  * busca sempre acha na primeira tentativa — o módulo já fecha certo.
+ *
+ * Exportada só para o teste: os três desfechos (acha de cara, acha andando,
+ * pigeonhole) só apareciam indiretamente, através de varreduras de geração
+ * onde as chaves têm todas o mesmo tamanho — ou seja, onde a 1ª busca sempre
+ * acerta de primeira e as outras duas nunca rodam.
  */
-function findAvailableTarget(
+export function findAvailableTarget(
   firsts: readonly KocRoundDraft[],
   natural: number,
   fromMatchNumber: number,

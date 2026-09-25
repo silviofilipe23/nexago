@@ -24,9 +24,11 @@ import {
   kocBracketCountOptions,
   kocCanSplitFinal,
   kocClampMaxPerRound,
+  kocMaxRoundsPerBracketFor,
   kocPhaseLabelAt,
   kocPlanTotals,
   kocProposePhasePlan,
+  kocSplitFinalMinRounds,
   kocSplitFinalQualifiers,
   type KocPhasePatch,
   type KocPhaseSpec,
@@ -284,11 +286,9 @@ function shuffled<T>(items: readonly T[]): T[] {
                       <div class="og-seeds-stepper">
                         <span class="lbl">Baterias</span>
                         <div class="ctrl">
-                          <button type="button"
-                            (click)="editKocPhase($index, { roundsPerBracket: phase.roundsPerBracket - 1 })">−</button>
+                          <button type="button" (click)="bumpKocPhaseRounds($index, -1)">−</button>
                           <span>{{ phase.roundsPerBracket }}</span>
-                          <button type="button"
-                            (click)="editKocPhase($index, { roundsPerBracket: phase.roundsPerBracket + 1 })">+</button>
+                          <button type="button" (click)="bumpKocPhaseRounds($index, 1)">+</button>
                         </div>
                       </div>
 
@@ -297,10 +297,9 @@ function shuffled<T>(items: readonly T[]): T[] {
                         <div class="ctrl">
                           <!-- A final mostra "pódio" e nada mais — SALVO quando o
                                campo dela ainda comporta uma final embaixo (regra em
-                               kocCanSplitFinal). É a única porta para um campo de 6
-                               virar classificatória + final: sendo a última fase, a
-                               linha não tem seletor de chaves, e o stepper de
-                               baterias volta sozinho para 1. -->
+                               kocCanSplitFinal). Campo de 6: dá pra partir via
+                               Classificam OU via Baterias (os dois saltam o colapso
+                               de next < 3 que fazia o botão parecer quebrado). -->
                           @if (kocPhasePasses($index) === null && !kocFinalIsSplittable($index)) {
                             <span>pódio</span>
                           } @else {
@@ -1045,6 +1044,29 @@ export class SeedsComponent {
       ? kocSplitFinalQualifiers(this.kocPhaseField(index))
       : phase.qualifiersPerRound + delta;
     this.editKocPhase(index, { qualifiersPerRound });
+  }
+
+  /**
+   * Um degrau no "Baterias" da fase.
+   *
+   * Na final de um campo de 6 o primeiro + também colapsava: forçar 1
+   * classificada com 2 baterias manda só 2 duplas adiante (abaixo do piso) e
+   * a cascata volta pra rodada única. O salto usa `kocSplitFinalMinRounds`
+   * (3 no campo de 6) — daí o + sobe até o teto (4).
+   */
+  protected bumpKocPhaseRounds(index: number, delta: number): void {
+    const phase = this.kocPhases()[index];
+    if (!phase) return;
+    const field = this.kocPhaseField(index);
+    if (phase.qualifiersPerRound === 0 && delta > 0 && this.kocFinalIsSplittable(index)) {
+      const roundsPerBracket = Math.min(
+        kocMaxRoundsPerBracketFor(field, 1),
+        Math.max(kocSplitFinalMinRounds(field), phase.roundsPerBracket + delta),
+      );
+      this.editKocPhase(index, { roundsPerBracket, qualifiersPerRound: 1 });
+      return;
+    }
+    this.editKocPhase(index, { roundsPerBracket: phase.roundsPerBracket + delta });
   }
 
   /** Quantas duplas a fase seguinte recebe. `null` na final. */

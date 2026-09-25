@@ -297,6 +297,22 @@ export function kocSplitFinalQualifiers(field: number): number {
   return Math.max(KOC_MIN_TEAMS_PER_ROUND, field - 2);
 }
 
+/**
+ * Onde cai o primeiro clique de "Baterias" numa final ainda não partida.
+ *
+ * Com `qualifiersPerRound` 0 a cascata força 1 classificada e, com 2 baterias,
+ * `next = 2` — abaixo do piso — e `kocApplyPhaseEdit` colapsa de volta pra
+ * rodada única. O botão parecia quebrado. O salto precisa entregar pelo menos
+ * 3 duplas adiante (o piso), sem passar do teto da chave.
+ *
+ * Num campo de 6 isso é 3 (e o teto é 4). Em campos menores `kocCanSplitFinal`
+ * já desliga o caminho — esta função não é chamada neles.
+ */
+export function kocSplitFinalMinRounds(field: number): number {
+  const max = kocMaxRoundsPerBracketFor(field, 1);
+  return Math.min(max, KOC_MIN_TEAMS_PER_ROUND);
+}
+
 export interface KocPlanTotals {
   rounds: number;
   seconds: number;

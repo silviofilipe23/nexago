@@ -14,6 +14,7 @@ import {
   kocPlansMatch,
   kocPlanTotals,
   kocProposePhasePlan,
+  kocSplitFinalMinRounds,
   kocSplitFinalQualifiers,
   parseKocPhases,
 } from './koc-phase-plan';
@@ -591,5 +592,30 @@ describe('plano de fases · partir a final de um campo que cabe numa chave', () 
   it('descer as classificadas abaixo do piso desfaz a final e volta à rodada única', () => {
     const split = kocApplyPhaseEdit(plan6(), 0, {qualifiersPerRound: 4}, 6);
     expect(kocApplyPhaseEdit(split, 0, {qualifiersPerRound: 2}, 6)).toEqual(plan6());
+  });
+
+  it('o primeiro clique de baterias salta para o mínimo que não colapsa', () => {
+    expect(kocSplitFinalMinRounds(6)).toBe(3);
+  });
+
+  it('baterias 3 com 1 classificada faz nascer a final de 3 embaixo', () => {
+    const split = kocApplyPhaseEdit(
+      plan6(),
+      0,
+      {roundsPerBracket: kocSplitFinalMinRounds(6), qualifiersPerRound: 1},
+      6,
+    );
+    expect(split).toEqual([
+      {bracketSizes: [6], roundsPerBracket: 3, qualifiersPerRound: 1, durationSec: 900},
+      {bracketSizes: [3], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+    ]);
+  });
+
+  it('baterias 4 com 1 classificada é o máximo do campo de 6', () => {
+    const split = kocApplyPhaseEdit(plan6(), 0, {roundsPerBracket: 4, qualifiersPerRound: 1}, 6);
+    expect(split).toEqual([
+      {bracketSizes: [6], roundsPerBracket: 4, qualifiersPerRound: 1, durationSec: 900},
+      {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+    ]);
   });
 });

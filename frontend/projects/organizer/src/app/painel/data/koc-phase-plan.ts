@@ -267,6 +267,36 @@ export function kocApplyPhaseEdit(
   return [...head, {bracketSizes, roundsPerBracket, qualifiersPerRound, durationSec}, ...tail];
 }
 
+/**
+ * Campo que cabe numa chave só pode abrir uma final embaixo dele?
+ *
+ * 3, 4 e 5 duplas continuam rodada única: é a regra do formato — o torneio É a
+ * rodada final, e a tabela dela é o pódio — e partir um campo de 5 eliminaria
+ * UMA dupla para a final ser jogada pelas outras quatro, o que não é fase, é
+ * formalidade. O campo de 6 é o caso novo: ele só existe porque o teto subiu de
+ * 5 para 6, e nele a rodada única deixa o torneio sem decisão nenhuma — seis
+ * duplas, uma fila e um cronômetro.
+ *
+ * A ÚLTIMA fase do plano sempre tem campo menor ou igual ao teto da categoria,
+ * que por sua vez não passa de 6 — então na prática esta régua só liga no 6.
+ */
+export function kocCanSplitFinal(field: number): boolean {
+  return field > KOC_LEGACY_MAX_TEAMS_PER_ROUND;
+}
+
+/**
+ * Onde cai o primeiro clique de "Classificam" numa final ainda não partida.
+ *
+ * Não é o piso do formato: num campo de 6, classificar 3 corta metade do campo
+ * de uma vez. `field - 2` é o corte mais suave que ainda decide alguma coisa, e
+ * num campo de 6 dá a final de 4 — a que o organizador quer. O `max` com o piso
+ * existe porque `kocApplyPhaseEdit` colapsa de volta para rodada única com menos
+ * de 3 classificadas: devolver 2 faria o clique não fazer nada.
+ */
+export function kocSplitFinalQualifiers(field: number): number {
+  return Math.max(KOC_MIN_TEAMS_PER_ROUND, field - 2);
+}
+
 export interface KocPlanTotals {
   rounds: number;
   seconds: number;

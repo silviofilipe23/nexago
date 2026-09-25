@@ -22,10 +22,12 @@ import {
   KOC_LEGACY_MAX_TEAMS_PER_ROUND,
   kocApplyPhaseEdit,
   kocBracketCountOptions,
+  kocCanSplitFinal,
   kocClampMaxPerRound,
   kocPhaseLabelAt,
   kocPlanTotals,
   kocProposePhasePlan,
+  kocSplitFinalQualifiers,
   type KocPhasePatch,
   type KocPhaseSpec,
 } from '../data/koc-phase-plan';
@@ -256,14 +258,20 @@ function shuffled<T>(items: readonly T[]): T[] {
                       <div class="og-seeds-stepper">
                         <span class="lbl">Classificam</span>
                         <div class="ctrl">
-                          @if (kocPhasePasses($index) === null) {
+                          <!-- A final mostra "pódio" e nada mais — SALVO quando o
+                               campo dela ainda comporta uma final embaixo (regra em
+                               kocCanSplitFinal). É a única porta para um campo de 6
+                               virar classificatória + final: sendo a última fase, a
+                               linha não tem seletor de chaves, e o stepper de
+                               baterias volta sozinho para 1. -->
+                          @if (kocPhasePasses($index) === null && !kocFinalIsSplittable($index)) {
                             <span>pódio</span>
                           } @else {
+                            <button type="button" [disabled]="phase.qualifiersPerRound === 0"
+                              (click)="bumpKocPhaseQualifiers($index, -1)">−</button>
+                            <span>{{ phase.qualifiersPerRound || 'pódio' }}</span>
                             <button type="button"
-                              (click)="editKocPhase($index, { qualifiersPerRound: phase.qualifiersPerRound - 1 })">−</button>
-                            <span>{{ phase.qualifiersPerRound }}</span>
-                            <button type="button"
-                              (click)="editKocPhase($index, { qualifiersPerRound: phase.qualifiersPerRound + 1 })">+</button>
+                              (click)="bumpKocPhaseQualifiers($index, 1)">+</button>
                           }
                         </div>
                       </div>
@@ -646,6 +654,14 @@ function shuffled<T>(items: readonly T[]): T[] {
       font-size: 15px;
       cursor: pointer;
     }
+    /* O − do "Classificam" fica travado enquanto a fase é a final (ninguém
+       classifica, não há o que descer). Sem esta regra ele ficaria idêntico ao
+       botão vivo — clicável aos olhos, inerte no clique. Mesma opacidade do
+       .og-mini-btn:disabled do portal. */
+    .og-seeds-stepper .ctrl button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
     .og-seeds-stepper .ctrl span {
       font-family: var(--nx-font-mono);
       font-weight: 700;
@@ -909,11 +925,17 @@ export class SeedsComponent {
     this.reproposeKocPlan();
   }
 
-  protected kocBracketOptions(index: number): number[] {
+  /** Quantas duplas ENTRAM nesta fase. `0` quando o índice não existe — os
+   *  chamadores tratam isso como "não dá para oferecer nada aqui". */
+  private kocPhaseField(index: number): number {
     const phase = this.kocPhases()[index];
-    if (!phase) return [];
-    const field = phase.bracketSizes.reduce((a, b) => a + b, 0);
-    return kocBracketCountOptions(field, this.kocMaxTeamsPerRound());
+    if (!phase) return 0;
+    return phase.bracketSizes.reduce((a, b) => a + b, 0);
+  }
+
+  protected kocBracketOptions(index: number): number[] {
+    if (!this.kocPhases()[index]) return [];
+    return kocBracketCountOptions(this.kocPhaseField(index), this.kocMaxTeamsPerRound());
   }
 
   /** Aplica a edição de uma fase. `kocApplyPhaseEdit` pode devolver `[]` quando
@@ -937,6 +959,37 @@ export class SeedsComponent {
       Math.max(KOC_MIN_ROUND_DURATION_SEC, phase.durationSec + delta * 300),
     );
     this.editKocPhase(index, { durationSec });
+  }
+
+  /**
+   * A última fase ainda comporta uma final embaixo dela?
+   *
+   * Só a última chega aqui com `qualifiersPerRound` 0 — as outras já classificam
+   * alguém e nunca passam por esta pergunta. Quando dá, a linha da final ganha o
+   * stepper de "Classificam" com `pódio` no zero, e é por ele que um campo de 6
+   * se parte em classificatória + final.
+   */
+  protected kocFinalIsSplittable(index: number): boolean {
+    const plan = this.kocPhases();
+    if (!plan[index] || index !== plan.length - 1) return false;
+    return kocCanSplitFinal(this.kocPhaseField(index));
+  }
+
+  /**
+   * Um degrau no "Classificam" da fase.
+   *
+   * Saindo do zero (a final, que não classifica ninguém) o primeiro clique NÃO
+   * é +1: uma classificada só deixaria a fase seguinte abaixo do piso, e a
+   * cascata de `kocApplyPhaseEdit` colapsaria na hora de volta para rodada
+   * única — o botão pareceria quebrado. Vai direto para `kocSplitFinalQualifiers`.
+   */
+  protected bumpKocPhaseQualifiers(index: number, delta: number): void {
+    const phase = this.kocPhases()[index];
+    if (!phase) return;
+    const qualifiersPerRound = phase.qualifiersPerRound === 0 && delta > 0
+      ? kocSplitFinalQualifiers(this.kocPhaseField(index))
+      : phase.qualifiersPerRound + delta;
+    this.editKocPhase(index, { qualifiersPerRound });
   }
 
   /** Quantas duplas a fase seguinte recebe. `null` na final. */

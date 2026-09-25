@@ -1,7 +1,15 @@
 import {
+  KOC_LEGACY_MAX_TEAMS_PER_ROUND,
+  KOC_MAX_TEAMS_PER_ROUND_HARD,
+  KOC_MIN_TEAMS_PER_ROUND,
   kocApplyPhaseEdit,
+  kocBracketCount,
   kocBracketCountOptions,
+  kocBracketSizes,
+  kocClampMaxPerRound,
+  kocMaxRoundsPerBracketFor,
   kocPhaseFieldSizes,
+  kocPhaseLabelAt,
   kocPlansMatch,
   kocPlanTotals,
   kocProposePhasePlan,
@@ -326,5 +334,215 @@ describe('plano de fases · o que a tela mostra em cada linha', () => {
   it('a proposta se refaz quando a contagem de inscritas muda', () => {
     expect(kocPhaseFieldSizes(kocProposePhasePlan(10, 6, 900))).toEqual([10, 6, 4]);
     expect(kocPhaseFieldSizes(kocProposePhasePlan(12, 6, 900))).toEqual([12, 8, 4]);
+  });
+});
+
+/**
+ * Os quatro espelhos, testados sozinhos.
+ *
+ * `kocClampMaxPerRound`, `kocMaxRoundsPerBracketFor`, `kocBracketCount` e
+ * `kocBracketSizes` só eram exercitados através de `kocProposePhasePlan` —
+ * onde o proposer nunca lhes passa os valores de borda. Eles são exportados
+ * para OUTROS módulos usarem, então o contrato de borda é público e precisa
+ * estar escrito.
+ */
+describe('plano de fases · espelhos do servidor, isolados', () => {
+  describe('kocClampMaxPerRound', () => {
+    it('ausente ou inválido cai no teto de QUEM NÃO ESCOLHEU, não no teto duro', () => {
+      // A distinção importa: herdar 6 mudaria a chave de torneio já publicado
+      // por uma categoria antiga que nunca escolheu teto nenhum.
+      for (const value of [null, undefined, NaN, Infinity, -Infinity, 0, -1, -7]) {
+        expect(kocClampMaxPerRound(value)).toBe(KOC_LEGACY_MAX_TEAMS_PER_ROUND);
+      }
+      expect(kocClampMaxPerRound(null)).toBe(5);
+      expect(kocClampMaxPerRound(-1)).toBe(5);
+    });
+
+    it('acima do teto duro desce para 6', () => {
+      expect(kocClampMaxPerRound(9)).toBe(KOC_MAX_TEAMS_PER_ROUND_HARD);
+      expect(kocClampMaxPerRound(9)).toBe(6);
+      expect(kocClampMaxPerRound(100)).toBe(6);
+    });
+
+    it('abaixo do piso sobe para 3 — mas 0 e negativo são "não escolheu", não "escolheu pouco"', () => {
+      expect(kocClampMaxPerRound(1)).toBe(KOC_MIN_TEAMS_PER_ROUND);
+      expect(kocClampMaxPerRound(2)).toBe(3);
+      // O contraste: 0 não é "escolheu 0", é ausência — e ausência é 5.
+      expect(kocClampMaxPerRound(0)).toBe(5);
+    });
+
+    it('dentro da faixa atravessa, e fracionário é truncado para baixo', () => {
+      for (const n of [3, 4, 5, 6]) expect(kocClampMaxPerRound(n)).toBe(n);
+      expect(kocClampMaxPerRound(4.9)).toBe(4);
+    });
+  });
+
+  describe('kocMaxRoundsPerBracketFor', () => {
+    it('cada bateria tira as classificadas, então a chave encolhe em degraus', () => {
+      // 5 tirando 1: 5 → 4 → 3, três baterias. 7 tirando 2: 7 → 5 → 3, três.
+      expect(kocMaxRoundsPerBracketFor(5, 1)).toBe(3);
+      expect(kocMaxRoundsPerBracketFor(7, 2)).toBe(3);
+      expect(kocMaxRoundsPerBracketFor(6, 1)).toBe(4);
+    });
+
+    it('chave do tamanho do piso só aguenta uma bateria', () => {
+      expect(kocMaxRoundsPerBracketFor(3, 1)).toBe(1);
+      expect(kocMaxRoundsPerBracketFor(4, 2)).toBe(1);
+    });
+
+    it('nunca devolve menos de 1, nem para chave abaixo do piso', () => {
+      // Chave de 2 é ilegal e quem chama recusa antes; aqui só não se pode
+      // devolver 0 ou negativo, que viraria um laço de zero baterias.
+      for (const size of [0, 1, 2]) expect(kocMaxRoundsPerBracketFor(size, 1)).toBe(1);
+    });
+
+    it('classificadas degeneradas são saneadas para 1, o padrão do formato', () => {
+      expect(kocMaxRoundsPerBracketFor(5, 0)).toBe(kocMaxRoundsPerBracketFor(5, 1));
+      expect(kocMaxRoundsPerBracketFor(5, -3)).toBe(3);
+      expect(kocMaxRoundsPerBracketFor(5)).toBe(3);
+    });
+  });
+
+  describe('kocBracketCount', () => {
+    it('campo abaixo do piso não fecha chave nenhuma', () => {
+      for (const n of [0, 1, 2]) expect(kocBracketCount(n, 6)).toBe(0);
+    });
+
+    it('divide pelo teto quando o campo fecha redondo', () => {
+      expect(kocBracketCount(12, 4)).toBe(3);
+      expect(kocBracketCount(20, 5)).toBe(4);
+    });
+
+    it('o TETO é garantido: nenhuma chave passa do máximo, em campo nenhum', () => {
+      expect(kocBracketCount(13, 6)).toBe(3);
+      for (let n = 3; n <= 120; n++) {
+        for (const max of [3, 4, 5, 6]) {
+          const sizes = kocBracketSizes(n, kocBracketCount(n, max));
+          expect(Math.max(...sizes)).toBeLessThanOrEqual(max);
+        }
+      }
+    });
+
+    it('o PISO não é garantido — quem recusa é quem chama', () => {
+      // Contrato real, e não o que o nome sugere: 5 duplas com teto 4 dão 2
+      // chaves, [3, 2], e a de 2 não é King of the Court. As duas correções
+      // do algoritmo (descer quando a chave fica pequena, subir quando
+      // estoura o teto) se anulam sempre que o piso e o teto vêm do MESMO
+      // número — que é o caso aqui, porque esta função só recebe um. Quem
+      // rejeita é `proposeTail`, comparando `smallest` com o piso, e é por
+      // isso que 5 duplas com teto 4 não têm plano nenhum.
+      expect(kocBracketCount(5, 4)).toEqual(2);
+      expect(kocBracketSizes(5, kocBracketCount(5, 4))).toEqual([3, 2]);
+      expect(kocProposePhasePlan(5, 4, 900)).toEqual([]);
+    });
+
+    it('o teto passa por kocClampMaxPerRound — teto sujo vira o de quem não escolheu', () => {
+      expect(kocBracketCount(10, NaN)).toBe(kocBracketCount(10, 5));
+      expect(kocBracketCount(10, 99)).toBe(kocBracketCount(10, 6));
+    });
+  });
+
+  describe('kocBracketSizes', () => {
+    it('o resto vai nas PRIMEIRAS chaves — é a ordem que o sorteio reconstrói', () => {
+      expect(kocBracketSizes(14, 4)).toEqual([4, 4, 3, 3]);
+      expect(kocBracketSizes(19, 4)).toEqual([5, 5, 5, 4]);
+    });
+
+    it('divisão exata dá chaves iguais', () => {
+      expect(kocBracketSizes(12, 3)).toEqual([4, 4, 4]);
+      expect(kocBracketSizes(6, 1)).toEqual([6]);
+    });
+
+    it('a soma é sempre o campo e os tamanhos nunca diferem em mais de 1', () => {
+      for (let n = 3; n <= 120; n++) {
+        for (let k = 1; k <= 8 && k <= n; k++) {
+          const sizes = kocBracketSizes(n, k);
+          expect(sizes.length).toBe(k);
+          expect(sizes.reduce((a, b) => a + b, 0)).toBe(n);
+          expect(Math.max(...sizes) - Math.min(...sizes)).toBeLessThanOrEqual(1);
+        }
+      }
+    });
+  });
+});
+
+/**
+ * O rótulo da fase, agora com um dono só.
+ *
+ * Eram duas cópias — a tabela da tela de gerar chave e o aviso de divergência
+ * do chaveamento — que concordavam por acaso. Um "Semifinal" renomeado numa
+ * delas ficaria calado na outra.
+ */
+describe('plano de fases · rótulo da fase', () => {
+  it('a última fase é sempre a Final', () => {
+    expect(kocPhaseLabelAt(0, 1)).toBe('Final');
+    expect(kocPhaseLabelAt(1, 2)).toBe('Final');
+    expect(kocPhaseLabelAt(3, 4)).toBe('Final');
+  });
+
+  it('a penúltima só é Semifinal a partir de 3 fases', () => {
+    expect(kocPhaseLabelAt(1, 3)).toBe('Semifinal');
+    expect(kocPhaseLabelAt(2, 4)).toBe('Semifinal');
+    // Com duas fases a primeira é a classificatória, não uma semi: num campo
+    // de 8 duplas ninguém chama a primeira rodada de semifinal.
+    expect(kocPhaseLabelAt(0, 2)).toBe('Classificatória');
+  });
+
+  it('tudo antes disso é Classificatória', () => {
+    expect(kocPhaseLabelAt(0, 3)).toBe('Classificatória');
+    expect(kocPhaseLabelAt(0, 4)).toBe('Classificatória');
+    expect(kocPhaseLabelAt(1, 4)).toBe('Classificatória');
+  });
+
+  it('rotula o plano proposto de ponta a ponta', () => {
+    const plan = kocProposePhasePlan(20, 6, 900);
+    expect(plan.map((_, i) => kocPhaseLabelAt(i, plan.length)))
+      .toEqual(['Classificatória', 'Classificatória', 'Semifinal', 'Final']);
+  });
+});
+
+/**
+ * O lado `!Number.isFinite` dos guardas do parse.
+ *
+ * O bloco de parse acima cobre o lado "fora de faixa" (`< bound`) de cada
+ * guarda; `NaN` e `Infinity` são outra história — `NaN < 1` é FALSO, então
+ * sem o `Number.isFinite` um `NaN` atravessaria como se fosse tamanho de
+ * chave válido, e um `Infinity` viraria uma fase de infinitas duplas. Os dois
+ * chegam do Firestore como número.
+ */
+describe('plano de fases · parse do Firestore, valores não finitos', () => {
+  const validRaw = {
+    bracketSizes: [5, 5], roundsPerBracket: 3, qualifiersPerRound: 1, durationSec: 900,
+  };
+
+  it('chave NaN ou Infinity derruba o plano inteiro', () => {
+    for (const sizes of [[5, NaN], [5, Infinity], [-Infinity], ['x'], [null], [{}]]) {
+      expect(parseKocPhases([{...validRaw, bracketSizes: sizes}])).toBeNull();
+    }
+  });
+
+  it('roundsPerBracket Infinity derruba o plano inteiro', () => {
+    for (const rounds of [Infinity, -Infinity, NaN, 'x', null, undefined, {}]) {
+      expect(parseKocPhases([{...validRaw, roundsPerBracket: rounds}])).toBeNull();
+    }
+  });
+
+  it('qualifiersPerRound NaN ou Infinity derruba o plano inteiro', () => {
+    for (const q of [NaN, Infinity, -Infinity, 'x', undefined, {}]) {
+      expect(parseKocPhases([{...validRaw, qualifiersPerRound: q}])).toBeNull();
+    }
+  });
+
+  it('durationSec NaN ou Infinity derruba o plano inteiro', () => {
+    for (const d of [NaN, Infinity, -Infinity, 'x', null, undefined, {}]) {
+      expect(parseKocPhases([{...validRaw, durationSec: d}])).toBeNull();
+    }
+  });
+
+  it('nunca devolve plano parcial: uma fase não finita leva as boas junto', () => {
+    const final = {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900};
+    expect(parseKocPhases([validRaw, {...validRaw, durationSec: Infinity}, final])).toBeNull();
+    // Contraste: sem a fase suja, as mesmas duas atravessam.
+    expect(parseKocPhases([validRaw, final])?.length).toBe(2);
   });
 });

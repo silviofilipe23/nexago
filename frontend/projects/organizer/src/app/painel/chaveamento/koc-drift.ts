@@ -1,4 +1,4 @@
-import { kocPlansMatch, type KocPhaseSpec } from '../data/koc-phase-plan';
+import { kocPhaseLabelAt, kocPlansMatch, type KocPhaseSpec } from '../data/koc-phase-plan';
 import type { KocConfigSource, KocRoundState } from '../data/koc';
 import type { OrganizerTournamentCategory } from '../data/tournament.model';
 
@@ -140,14 +140,4 @@ function kocPhaseFieldDiff(published: KocPhaseSpec, configured: KocPhaseSpec): s
     );
   }
   return null;
-}
-
-/** "Classificatória" / "Semifinal" / "Final" pela POSIÇÃO da fase — mesma
- *  regra de `kocPhaseTitle` em `seeds.component.ts` (a tela de gerar chave),
- *  duplicada aqui porque aquele componente carrega Angular/Firebase que este
- *  módulo puro não deveria puxar. */
-function kocPhaseLabelAt(index: number, total: number): string {
-  if (index === total - 1) return 'Final';
-  if (total >= 3 && index === total - 2) return 'Semifinal';
-  return 'Classificatória';
 }

@@ -452,3 +452,29 @@ describe('KocRoundState · plano congelado na rodada', () => {
     expect(state.maxTeamsPerRound).toBe(5);
   });
 });
+
+describe('KocRoundState · origem da config congelada', () => {
+  it('lê a origem que a geração carimbou', () => {
+    const state = kocRoundStateFrom({
+      kocState: { teamIds: ['a', 'b', 'c'] },
+      kocConfig: {
+        durationSec: 900,
+        teamsPerCourt: 3,
+        roundsPerBracket: 1,
+        qualifiersPerRound: 2,
+        source: { teamsPerCourt: 4, roundsPerBracket: 1, qualifiersPerRound: 2, hasPlan: false },
+      },
+    });
+    expect(state.configSource).toEqual({
+      teamsPerCourt: 4, roundsPerBracket: 1, qualifiersPerRound: 2, hasPlan: false,
+    });
+  });
+
+  it('chave publicada antes da origem existir devolve null — não um palpite', () => {
+    const state = kocRoundStateFrom({
+      kocState: { teamIds: ['a', 'b', 'c'] },
+      kocConfig: { durationSec: 900, teamsPerCourt: 4, roundsPerBracket: 1, qualifiersPerRound: 2 },
+    });
+    expect(state.configSource).toBeNull();
+  });
+});

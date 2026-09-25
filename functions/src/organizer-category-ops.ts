@@ -256,6 +256,24 @@ export function kocRoundDoc(
       teamsPerCourt: legacyTeamsPerCourt,
       roundsPerBracket: legacyRounds,
       qualifiersPerRound: legacyQualifiers,
+      // A config da CATEGORIA como estava na geração — de onde o plano saiu.
+      // Não confundir com os três campos acima, que são os desta FASE e mudam
+      // de rodada para rodada: 6 duplas em quadras de 4 congelam
+      // `teamsPerCourt: 3` sem ninguém ter mexido em nada.
+      //
+      // É o que faltava para o portal detectar que o organizador mexeu na
+      // config depois de publicar. Com o plano sozinho ele só conseguia
+      // comparar quando a categoria TAMBÉM guardava um — e quem gera pelo app
+      // ou pelo publish do sorteio nunca grava plano na categoria, então
+      // aquela comparação ficava calada justamente nos dois caminhos mais
+      // comuns. Re-derivar a regra do backend aqui no cliente seria o
+      // espelhamento que já nos custou um bug.
+      source: {
+        teamsPerCourt: meta.config.teamsPerCourt,
+        roundsPerBracket: meta.config.roundsPerBracket ?? 1,
+        qualifiersPerRound: meta.config.qualifiersPerRound,
+        hasPlan: (meta.config.phases?.length ?? 0) > 0,
+      },
       crownScores: false,
     },
     ...(qualifiers.length > 0 ? {kocQualifiers: qualifiers} : {}),

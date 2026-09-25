@@ -5,6 +5,7 @@ import {
   KOC_DEFAULT_ROUND_DURATION_SEC,
   KOC_LEGACY_MAX_TEAMS_PER_ROUND,
   buildKingOfCourtRounds,
+  kocProposePlan,
   kocResolvePlan,
   type KocConfig,
   type KocRoundDraft,
@@ -91,6 +92,15 @@ describe("kocRoundDoc", () => {
       teamsPerCourt: 4,
       roundsPerBracket: 1,
       qualifiersPerRound: 2,
+      // A config da CATEGORIA na geração — aqui igual à da fase porque o campo
+      // divide certo em quadras de 4; em 6 duplas elas divergem, e é por isso
+      // que a origem existe separada.
+      source: {
+        teamsPerCourt: 4,
+        roundsPerBracket: 1,
+        qualifiersPerRound: 2,
+        hasPlan: false,
+      },
       crownScores: false,
     });
   });
@@ -297,5 +307,51 @@ describe("kocRoundDoc · plano congelado não diverge do que gerou as rodadas (a
       // igualdade de referência antes de quebrar qualquer teste de valor.
       assert.equal(doc.kocConfig.phases, plan);
     }
+  });
+});
+
+describe("kocRoundDoc congela a ORIGEM da config, não só o plano", () => {
+  const teams = (n: number): string[] =>
+    Array.from({length: n}, (_, i) => `t${i + 1}`);
+
+  /**
+   * A rodada já guardava o plano resolvido; faltava a config de que ele saiu.
+   * Sem ela o portal não distingue "plano que o organizador montou" de "plano
+   * derivado dos três números", e os campos legados da rodada são os da FASE
+   * (6 duplas em quadras de 4 congelam `teamsPerCourt: 3`), então compará-los
+   * com a categoria acusa divergência onde ninguém mexeu em nada.
+   */
+  it("plano montado na tela: `hasPlan` verdadeiro e os números da categoria", () => {
+    const plan = kocProposePlan(10, 6, () => 900);
+    const config = resolveKocConfig(
+      {phases: plan, maxTeamsPerRound: 6, roundDurationSec: 900},
+      {teamsPerCourt: 4, roundsPerBracket: 1, qualifiersPerRound: 2},
+    );
+    const drafts = buildKingOfCourtRounds(teams(10), config, {plan});
+    const doc = kocRoundDoc(drafts[0]!, {
+      tournamentId: "T", categoryId: "C", config, plan,
+    }) as Record<string, any>;
+
+    assert.equal(doc.kocConfig.source.hasPlan, true);
+    assert.equal(doc.kocConfig.source.teamsPerCourt, 4);
+    assert.equal(doc.kocConfig.source.roundsPerBracket, 1);
+    assert.equal(doc.kocConfig.source.qualifiersPerRound, 2);
+  });
+
+  it("plano derivado: `hasPlan` falso, e a origem NÃO são os números da fase", () => {
+    // 6 duplas em quadras de 4: a fase 1 vira duas chaves de 3, então o campo
+    // legado da rodada congela `teamsPerCourt: 3`. A origem tem que dizer 4.
+    const config = resolveKocConfig(undefined, {
+      teamsPerCourt: 4, roundsPerBracket: 1, qualifiersPerRound: 2,
+    });
+    const plan = kocResolvePlan(6, config);
+    const drafts = buildKingOfCourtRounds(teams(6), config, {plan});
+    const doc = kocRoundDoc(drafts[0]!, {
+      tournamentId: "T", categoryId: "C", config, plan,
+    }) as Record<string, any>;
+
+    assert.equal(doc.kocConfig.source.hasPlan, false);
+    assert.equal(doc.kocConfig.source.teamsPerCourt, 4);
+    assert.notEqual(doc.kocConfig.source.teamsPerCourt, doc.kocConfig.teamsPerCourt);
   });
 });

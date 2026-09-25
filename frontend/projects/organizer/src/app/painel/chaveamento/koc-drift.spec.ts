@@ -132,3 +132,54 @@ describe('kocDriftDetail · chave antiga, sem plano', () => {
     expect(detail).toBeNull();
   });
 });
+
+describe('divergência com a origem congelada', () => {
+  const SOURCE = { teamsPerCourt: 4, roundsPerBracket: 1, qualifiersPerRound: 2, hasPlan: false };
+  const PLANO = [
+    { bracketSizes: [4, 4], roundsPerBracket: 1, qualifiersPerRound: 2, durationSec: 900 },
+    { bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900 },
+  ];
+  /** A rodada: os três campos legados são os da FASE, a origem é a da categoria. */
+  const round = (over: Record<string, unknown> = {}) => ({
+    phases: PLANO, teamsPerCourt: 3, roundsPerBracket: 1, qualifiersPerRound: 2,
+    configSource: SOURCE, ...over,
+  }) as never;
+  const cat = (over: Record<string, unknown> = {}) => ({
+    kocPhases: null, kocTeamsPerCourt: 4, kocRoundsPerBracket: 1, kocQualifiersPerRound: 2,
+    ...over,
+  }) as never;
+
+  it('plano derivado e categoria intocada: nada a avisar', () => {
+    // O falso positivo que nos obrigou a silenciar: `teamsPerCourt` da rodada
+    // é 3 (a fase dividiu assim) contra 4 da categoria. Comparar contra a
+    // ORIGEM, e não contra a fase, resolve.
+    expect(kocDriftDetail(round(), cat())).toBeNull();
+  });
+
+  it('plano derivado e o organizador mexeu em duplas por quadra: avisa', () => {
+    // O caso que o silêncio escondia. Quem gera pelo app ou pelo publish do
+    // sorteio nunca grava plano na categoria, então era exatamente aqui que a
+    // comparação ficava calada.
+    const out = kocDriftDetail(round(), cat({ kocTeamsPerCourt: 5 }));
+    expect(out).toContain('duplas por quadra');
+    expect(out).toContain('5');
+  });
+
+  it('plano montado na tela e depois apagado da categoria: avisa', () => {
+    const out = kocDriftDetail(round({ configSource: { ...SOURCE, hasPlan: true } }), cat());
+    expect(out).toContain('não guarda mais um plano');
+  });
+
+  it('plano montado dos dois lados segue comparando plano com plano', () => {
+    const outro = [{ ...PLANO[0], roundsPerBracket: 2 }, PLANO[1]];
+    const out = kocDriftDetail(
+      round({ configSource: { ...SOURCE, hasPlan: true } }),
+      cat({ kocPhases: outro }),
+    );
+    expect(out).toContain('baterias');
+  });
+
+  it('chave sem origem congelada continua em silêncio, não em palpite', () => {
+    expect(kocDriftDetail(round({ configSource: null }), cat({ kocTeamsPerCourt: 5 }))).toBeNull();
+  });
+});

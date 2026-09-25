@@ -146,6 +146,15 @@ describe('config KOTC · ida e volta pelo wizard', () => {
     expect(categoryFromRaw(map)!.kocMaxTeamsPerRound).toBe(6);
   });
 
+  it('o wizard relê o teto que a tela de gerar chave gravou, em vez de rebaixá-lo pra 5', () => {
+    // `saveKocPhasePlan` grava `kocMaxTeamsPerRound`. Lendo só a grafia sem
+    // prefixo, o wizard mostrava 5 e — como a gravação reescreve o array
+    // inteiro — devolvia 5 ao doc na primeira edição de qualquer outro campo.
+    const draft = categoryFromMap({ ...KOC_MAP, maxTeamsPerRound: undefined, kocMaxTeamsPerRound: 6 })!;
+    expect(draft.kocMaxTeamsPerRound).toBe(6);
+    expect(categoryToMap(draft, emptyTournamentDraft())['maxTeamsPerRound']).toBe(6);
+  });
+
   it('o teto gravado por `saveKocPhasePlan` (com prefixo) ganha do que o wizard gravou', () => {
     // Salvar o plano na tela de gerar chave é a escolha mais recente.
     const map = { ...KOC_MAP, maxTeamsPerRound: 6, kocMaxTeamsPerRound: 4 };

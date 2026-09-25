@@ -221,6 +221,14 @@ export function categoryMetaOf(
  * o sorteio lia `qualifiersPerGroup` (campo do formato de GRUPOS, herdado com
  * o padrão 2 por qualquer categoria) onde a geração lê `qualifiersPerRound`.
  * A sessão era aceita, as duplas iam pro telão, e o publish recusava.
+ *
+ * DURAÇÃO fica de fora de propósito, e é o limite do que o teste prova: aqui a
+ * duração é sempre o padrão do formato, e `phaseDurationsSec` da categoria nem
+ * é lido — a geração (`resolveKocConfig`) lê os dois. É inerte hoje porque o
+ * sorteio só usa `bracketSizes` da fase 1, e a varredura de concordância com a
+ * geração nunca define `roundDurationSec`, então ela prova "mesma FORMA de
+ * plano", não igualdade de config. Quem for usar duração no sorteio tem que
+ * trazer os dois campos para cá antes.
  */
 export function kocDrawConfigOf(category: CategoryMeta): KocConfig {
   return {

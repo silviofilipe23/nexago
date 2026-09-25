@@ -229,7 +229,11 @@ export class LedPageComponent {
       m.koc?.roundLabel ?? 0,
       m.matchNumber,
       this.contexto().totalRounds,
-      { poolId: m.koc?.poolId, batteryLabel: m.koc?.batteryLabel },
+      {
+        poolId: m.koc?.poolId,
+        batteryLabel: m.koc?.batteryLabel,
+        bracketsInPhase: m.koc?.bracketsInPhase,
+      },
     );
   });
 

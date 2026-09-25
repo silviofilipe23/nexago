@@ -228,4 +228,34 @@ describe('LedPageComponent', () => {
     // A rodada global some de vista: a chave + a bateria já dizem tudo.
     expect(text).not.toContain('Rodada 9');
   });
+
+  it('fase de chave única: a tela de elenco diz só a bateria, igual ao resto do painel', async () => {
+    // Semi de 6 duplas com 4 baterias (10 duplas, teto 6): uma quadra só, e
+    // "Chave 1" não distingue nada. Esta tela era a última que não recebia
+    // `bracketsInPhase` — ela dizia "Chave 1" enquanto o cabeçalho da rodada no
+    // MESMO painel, e o telão ao lado, diziam só "Bateria 2".
+    const { fixture, fake } = await mount();
+    fake.matches.set([
+      match({
+        matchType: 'koc_semifinal',
+        status: 'scheduled',
+        scheduledAt: new Date(Date.now() + 5 * 60_000),
+        matchStartedAt: null,
+        koc: round({
+          kingTeamId: '',
+          challengerTeamId: '',
+          clock: null,
+          roundLabel: 2,
+          batteryLabel: 2,
+          poolId: 'C1',
+          bracketsInPhase: 1,
+        }),
+      }),
+    ]);
+    await fixture.whenStable();
+    const text = (host(fixture).textContent ?? '').replace(/\s+/g, ' ');
+
+    expect(text).toContain('Bateria 2');
+    expect(text).not.toContain('Chave');
+  });
 });

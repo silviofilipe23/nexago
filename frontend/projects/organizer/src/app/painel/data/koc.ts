@@ -278,8 +278,10 @@ function rallyLogOf(value: unknown): KocRallyEntry[] {
  *  `kocPhase` é o índice da fase (1-based) e `round` guarda o mesmo número —
  *  o gerador grava os dois. Sem plano (chave anterior a esta entrega) devolve
  *  0: desconhecido, e quem rotula mantém o comportamento antigo. */
-function bracketsInPhaseOf(rawPhases: unknown, data: Record<string, unknown>): number {
-  const phases = parseKocPhases(rawPhases);
+function bracketsInPhaseOf(
+  phases: KocPhaseSpec[] | null,
+  data: Record<string, unknown>,
+): number {
   if (!phases) return 0;
   const phase = intOf(data['kocPhase'], intOf(data['round'], 0));
   return phases[phase - 1]?.bracketSizes.length ?? 0;
@@ -293,6 +295,7 @@ function bracketsInPhaseOf(rawPhases: unknown, data: Record<string, unknown>): n
 export function kocRoundStateFrom(data: Record<string, unknown>): KocRoundState {
   const state = (data['kocState'] ?? {}) as Record<string, unknown>;
   const config = (data['kocConfig'] ?? {}) as Record<string, unknown>;
+  const phases = parseKocPhases(config['phases']);
   return {
     teamIds: teamIdsOf(data['kocTeamIds']),
     kingTeamId: strOf(state['kingTeamId']),
@@ -311,8 +314,8 @@ export function kocRoundStateFrom(data: Record<string, unknown>): KocRoundState 
     configuredDurationSec: intOf(config['durationSec'], 900),
     batteryLabel: intOf(data['kocBatteryLabel'], 1),
     poolId: strOf(data['poolId']),
-    bracketsInPhase: bracketsInPhaseOf(config['phases'], data),
-    phases: parseKocPhases(config['phases']),
+    bracketsInPhase: bracketsInPhaseOf(phases, data),
+    phases,
     maxTeamsPerRound: kocClampMaxPerRound(intOf(config['maxTeamsPerRound'], 0)),
     rallySeq: intOf(data['kocRallySeq']),
     rallyLog: rallyLogOf(data['kocRallies']),

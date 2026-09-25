@@ -6,6 +6,7 @@ import {
   kocBracketCount,
   kocBracketCountOptions,
   kocBracketSizes,
+  kocCanSplitFinal,
   kocClampMaxPerRound,
   kocMaxRoundsPerBracketFor,
   kocPhaseFieldSizes,
@@ -13,6 +14,7 @@ import {
   kocPlansMatch,
   kocPlanTotals,
   kocProposePhasePlan,
+  kocSplitFinalQualifiers,
   parseKocPhases,
 } from './koc-phase-plan';
 
@@ -544,5 +546,50 @@ describe('plano de fases · parse do Firestore, valores não finitos', () => {
     expect(parseKocPhases([validRaw, {...validRaw, durationSec: Infinity}, final])).toBeNull();
     // Contraste: sem a fase suja, as mesmas duas atravessam.
     expect(parseKocPhases([validRaw, final])?.length).toBe(2);
+  });
+});
+
+/**
+ * Partir a última fase em classificatória + final.
+ *
+ * Campo que cabe numa chave só é rodada única — o torneio É a final, e a tabela
+ * dela é o pódio. Com 6 duplas isso deixava o organizador sem decisão nenhuma:
+ * uma rodada de 15 min, fila de seis, e acabou. Este bloco é a régua de QUANDO a
+ * tela pode oferecer a final separada, e de onde o primeiro clique cai.
+ */
+describe('plano de fases · partir a final de um campo que cabe numa chave', () => {
+  const plan6 = () => kocProposePhasePlan(6, 6, 900);
+
+  it('só o campo de 6 pode ser partido — 3, 4 e 5 seguem rodada única', () => {
+    expect(kocCanSplitFinal(6)).toBeTrue();
+    expect(kocCanSplitFinal(5)).toBeFalse();
+    expect(kocCanSplitFinal(4)).toBeFalse();
+    expect(kocCanSplitFinal(3)).toBeFalse();
+  });
+
+  it('o primeiro clique classifica 4 — a final natural de um campo de 6', () => {
+    expect(kocSplitFinalQualifiers(6)).toBe(4);
+  });
+
+  it('a proposta de 6 duplas continua sendo uma rodada só até alguém mandar partir', () => {
+    expect(plan6()).toEqual([
+      {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+    ]);
+  });
+
+  /** A cascata que a tela usa já existe; este é o contrato entre a régua nova e
+   *  ela. Sem este teste, mudar `kocApplyPhaseEdit` quebraria a tela em silêncio. */
+  it('classificar 4 de 6 faz nascer a final de 4 embaixo', () => {
+    const split = kocApplyPhaseEdit(plan6(), 0, {qualifiersPerRound: kocSplitFinalQualifiers(6)}, 6);
+    expect(split).toEqual([
+      {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 4, durationSec: 900},
+      {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+    ]);
+    expect(kocPhaseLabelAt(1, split.length)).toBe('Final');
+  });
+
+  it('descer as classificadas abaixo do piso desfaz a final e volta à rodada única', () => {
+    const split = kocApplyPhaseEdit(plan6(), 0, {qualifiersPerRound: 4}, 6);
+    expect(kocApplyPhaseEdit(split, 0, {qualifiersPerRound: 2}, 6)).toEqual(plan6());
   });
 });

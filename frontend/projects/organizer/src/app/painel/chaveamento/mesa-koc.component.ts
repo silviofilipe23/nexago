@@ -358,7 +358,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       <div class="og-mk-live">
         <div class="og-mk-live-main">
           <section class="og-mk-open">
-            <header class="og-mk-section-head">
+            <header class="og-mk-section-head og-mk-section-head--desktop">
               <span class="og-mk-section-title">Confronto de abertura</span>
               <span class="og-mk-section-rule">Só o trono pontua · coroação não vale ponto</span>
             </header>
@@ -384,9 +384,9 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                   <span>PTS</span>
                 </p>
               </article>
-              <span class="og-mk-vs">vs</span>
+              <span class="og-mk-vs og-mk-vs--desktop">vs</span>
               <article class="og-mk-side challenger">
-                <span class="og-mk-side-badge muted">Desafiante · saca</span>
+                <span class="og-mk-side-badge muted">Desafia · saca</span>
                 <div class="og-mk-side-avatars">
                   @for (p of faceOf(challengerId()).players; track $index) {
                     <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="72" />
@@ -408,7 +408,8 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
 
           <section class="og-mk-order">
             <header class="og-mk-section-head">
-              <span class="og-mk-section-title">Ordem da fila</span>
+              <span class="og-mk-section-title">Próximos na fila</span>
+              <span class="og-mk-section-count">{{ upcomingQueueRows().length }}</span>
               <!-- No modo quadra o log sai do fluxo vertical e vira gaveta: e consulta,
                    nao operacao, e a faixa fixa dele custava a altura que faltava. -->
               <button type="button" class="og-ghost-btn og-mk-log-toggle" (click)="logOpen.set(true)">
@@ -416,13 +417,9 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
               </button>
             </header>
             <ul class="og-mk-order-list">
-              @for (row of liveQueueRows(); track row.teamId) {
-                <li
-                  class="og-mk-order-row"
-                  [class.throne]="row.role === 'trono'"
-                  [class.challenger]="row.role === 'desafia'"
-                >
-                  <span class="og-mk-order-n" [class.lead]="row.place === 1">{{ row.place }}</span>
+              @for (row of upcomingQueueRows(); track row.teamId) {
+                <li class="og-mk-order-row">
+                  <span class="og-mk-order-n">{{ row.place }}º</span>
                   <span class="og-mk-order-avatars">
                     @for (p of faceOf(row.teamId).players; track $index) {
                       <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="36" />
@@ -435,14 +432,37 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                     }
                   </span>
                   <span class="og-mk-order-pts">{{ row.points }}</span>
-                  <span class="og-mk-order-role" [attr.data-role]="row.role">{{ row.roleLabel }}</span>
                 </li>
+              } @empty {
+                <li class="og-mk-order-empty">Ninguém na fila</li>
               }
             </ul>
 
+            @if (lastLogRow(); as last) {
+              <div class="og-mk-last-hit">
+                <header class="og-mk-section-head">
+                  <span class="og-mk-section-title">Último lançamento</span>
+                  <button type="button" class="og-ghost-btn og-mk-log-toggle" (click)="logOpen.set(true)">
+                    Log · {{ logRows().length }}
+                  </button>
+                </header>
+                <p class="og-mk-last-hit-line">
+                  <span class="og-mk-log-time">{{ last.time }}</span>
+                  <span class="og-mk-log-text"
+                    ><strong>{{ last.name }}</strong> {{ last.action }}</span
+                  >
+                </p>
+                <button type="button" class="og-ghost-btn og-mk-log-undo" [disabled]="busy()" (click)="undo()">
+                  <og-icon name="back" [size]="14" />
+                  Desfazer último
+                </button>
+              </div>
+            }
+
             @if (tie()) {
               <!-- Empate na vaga: card único com título, alerta e botões de quem pontuou.
-                   Cada mini-rodada resolve UMA vaga — o chip e o kicker dizem quantas faltam. -->
+                   Cada mini-rodada resolve UMA vaga — o chip e o kicker dizem quantas faltam.
+                   Só aparece com o cronômetro zerado. -->
               <section class="og-mk-tie" [attr.data-count]="tieOrder().length">
                 <header class="og-mk-tie-head">
                   <div class="og-mk-tie-titles">
@@ -483,8 +503,8 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                         Mini-rodada entre as {{ tieGroup().length }} —
                         <em>quem pontuar primeiro leva a vaga.</em>
                       </span>
-              </p>
-            }
+                    </p>
+                  }
 
                   @if (tieGroup().length > 2) {
                     <div class="og-mk-tie-roles">
@@ -498,8 +518,8 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                         </span>
                       }
                     </div>
-            }
-          </div>
+                  }
+                </div>
 
                 <div class="og-mk-golden">
                   <span class="og-mk-golden-kicker">{{ goldenKicker() }}</span>
@@ -514,34 +534,37 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                         <span class="og-mk-golden-ini" aria-hidden="true">{{ duoInitials(teamId) }}</span>
                         <span class="og-mk-golden-name">{{ faceOf(teamId).name }}</span>
                         <span class="og-mk-golden-pts">{{ pointsOf(teamId) }} pt</span>
-            </button>
+                      </button>
                     }
-          </div>
+                  </div>
                 </div>
               </section>
             }
-            <div class="og-mk-live-controls">
-              <div class="og-mk-live-actions">
-                <button type="button" class="og-btn-primary og-mk-rally-king" [disabled]="busy()" (click)="rally('king')">
-                  Ponto do trono
-                </button>
-                <button type="button" class="og-ghost-btn og-mk-rally-crown" [disabled]="busy()" (click)="rally('challenger')">
-                  Desafiante venceu · coroa
-                </button>
-              </div>
+          </section>
 
-              <!-- Terceiro desfecho, menor de propósito: é o menos frequente, e
-                   confundi-lo com "ponto do trono" daria ao rei um ponto que o
-                   regulamento não dá. -->
-              <button type="button" class="og-mk-fault" [disabled]="busy()" (click)="rally('serve_fault')">
-                Erro de saque de {{ faceOf(challengerId()).name }} · perde a vez, sem ponto
+          <div class="og-mk-live-controls">
+            <div class="og-mk-live-actions">
+              <button type="button" class="og-btn-primary og-mk-rally-king" [disabled]="busy()" (click)="rally('king')">
+                <span class="og-mk-rally-label">Ponto do trono</span>
+                <span class="og-mk-rally-meta">{{ faceOf(kingId()).name }} +1</span>
+              </button>
+              <button type="button" class="og-ghost-btn og-mk-rally-crown" [disabled]="busy()" (click)="rally('challenger')">
+                <span class="og-mk-rally-label">Desafiante venceu</span>
+                <span class="og-mk-rally-meta">{{ faceOf(challengerId()).name }} assume</span>
               </button>
             </div>
 
-        @if (feedback(); as f) {
-          <p class="og-mk-feedback" [class.err]="!f.ok">{{ f.message }}</p>
-        }
-          </section>
+            <!-- Terceiro desfecho, menor de propósito: é o menos frequente, e
+                 confundi-lo com "ponto do trono" daria ao rei um ponto que o
+                 regulamento não dá. -->
+            <button type="button" class="og-mk-fault" [disabled]="busy()" (click)="rally('serve_fault')">
+              Erro de saque · {{ faceOf(challengerId()).name }} perde a vez, sem ponto
+            </button>
+          </div>
+
+          @if (feedback(); as f) {
+            <p class="og-mk-feedback" [class.err]="!f.ok">{{ f.message }}</p>
+          }
         </div>
 
         <aside class="og-mk-live-side">
@@ -1199,6 +1222,19 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       flex: 1 1 200px;
       min-height: 48px;
       justify-content: center;
+    }
+    .og-mk-rally-label {
+      font-family: var(--nx-font-display);
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+    .og-mk-rally-meta {
+      display: none;
+    }
+    .og-mk-section-count,
+    .og-mk-last-hit,
+    .og-mk-order-empty {
+      display: none;
     }
     .og-mk-live-clock {
       display: flex;
@@ -2089,14 +2125,14 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
     }
 
     /* ── Modo quadra: tablet e celular na areia ───────────────────────────
-       Na quadra a mesa vira aplicação de tela cheia e NÃO rola: quem marca ponto
-       a cada rally não pode caçar o botão dentro de um scroll. O bloco ao vivo
-       sai do fluxo do painel e cobre topbar + cabeçalho da página — uns 115px de
-       altura que voltam pro placar. Saída pelo ← da barra de comando.
+       Na quadra a mesa vira aplicação de tela cheia. O bloco ao vivo sai do
+       fluxo do painel e cobre topbar + cabeçalho — uns 115px voltam ao placar.
+       Saída pelo ← da barra de comando.
 
-       Quatro faixas, de cima pra baixo:
-         comando (relógio + encerrar) · confronto · fila (a única que rola) · ações.
+       Faixas, de cima pra baixo:
+         comando · confronto (cresce) · fila+último (rola) · ações (fixas).
 
+       Desempate (bola de ouro) só entra quando o cronômetro zera.
        Encerrar fica em cima DE PROPÓSITO, longe do polegar que marca ponto.
        Desktop (>1024px) não muda: lá o aside volta a ser coluna. */
     @media (max-width: 1023.98px) {
@@ -2106,27 +2142,28 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         z-index: 40;
         background: var(--nx-bg);
         display: grid;
-        /* Áreas NOMEADAS, não posições: o bloco de empate entra e sai do DOM e
-           linha posicional de grid se desloca junto quando um filho some. */
         align-items: stretch;
         grid-template-columns: minmax(0, 1fr) minmax(0, 136px);
         grid-template-areas:
           'clock end'
           'duel duel'
-          'queue queue';
-        /* A sobra de altura vai pro CONFRONTO, nao pro rodape: o placar e o que se
-           le de longe, em pe, com sol na tela. A fila cede (minmax 0) e rola. */
-        grid-template-rows: auto minmax(0, 1fr) minmax(0, auto);
-        gap: 10px;
+          'queue queue'
+          'actions actions';
+        /* Confronto leva a sobra; fila cede e rola; ações ficam coladas embaixo. */
+        grid-template-rows: auto minmax(0, 1fr) minmax(0, auto) auto;
+        gap: 8px;
         padding: calc(8px + env(safe-area-inset-top, 0px)) 12px
           calc(8px + env(safe-area-inset-bottom, 0px));
         overflow: hidden;
       }
-      /* display:contents sobe confronto/fila/relógio/log/encerrar pro grid da mesa —
-         sem isso o aside empacotaria os três últimos num bloco só, embaixo de tudo. */
       .og-mk-live-main,
       .og-mk-live-side {
         display: contents;
+      }
+      .og-mk-live .og-mk-feedback {
+        grid-area: actions;
+        order: 2;
+        margin: 0;
       }
 
       /* ── Barra de comando ─────────────────────────────────────── */
@@ -2139,7 +2176,6 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         padding: 6px 10px;
         text-align: left;
       }
-      /* O relógio se explica sozinho; o rótulo custava uma linha inteira. */
       .og-mk-live-clock .og-mk-panel-title {
         display: none;
       }
@@ -2210,10 +2246,16 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         display: flex;
         flex-direction: column;
         min-height: 0;
+        padding: 10px 12px;
+      }
+      .og-mk-section-head--desktop,
+      .og-mk-vs--desktop {
+        display: none;
       }
       .og-mk-live .og-mk-sides {
         flex: 1;
         min-height: 0;
+        gap: 8px;
       }
       .og-mk-live .og-mk-side-name {
         display: -webkit-box;
@@ -2221,28 +2263,56 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         -webkit-box-orient: vertical;
         overflow: hidden;
       }
-      /* O placar acompanha a altura que sobrou: no iPad em pé ele é enorme, no
-         telefone encolhe sem empurrar os botões pra fora da tela. */
       .og-mk-live .og-mk-side-pts strong {
-        font-size: clamp(38px, 10vh, 124px);
+        font-size: clamp(42px, 11vh, 120px);
       }
       .og-mk-live .og-mk-side-name {
         font-size: clamp(15px, 2.2vh, 26px);
       }
       .og-mk-live .og-mk-side {
         justify-content: center;
+        padding: 12px 10px;
       }
 
-      /* ── Fila ─────────────────────────────────────────────────── */
+      /* ── Fila + último lançamento ─────────────────────────────── */
       .og-mk-live .og-mk-order {
         grid-area: queue;
-        display: flex;
-        flex-direction: column;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
         min-height: 0;
+        max-height: min(42vh, 360px);
+        overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        scrollbar-color: color-mix(in srgb, var(--nx-text-mute) 55%, transparent) transparent;
+        padding: 10px 12px;
+      }
+      .og-mk-live .og-mk-order::-webkit-scrollbar {
+        width: 8px;
+      }
+      .og-mk-live .og-mk-order::-webkit-scrollbar-thumb {
+        background: color-mix(in srgb, var(--nx-text-mute) 50%, transparent);
+        border-radius: 999px;
       }
       .og-mk-live .og-mk-order > .og-mk-section-head {
         flex: none;
-        margin-bottom: 8px;
+        margin-bottom: 0;
+      }
+      .og-mk-section-count {
+        display: inline-grid;
+        place-items: center;
+        min-width: 22px;
+        height: 22px;
+        margin-left: 8px;
+        padding: 0 6px;
+        border-radius: 999px;
+        background: var(--nx-surface-2, #1a1a1c);
+        color: var(--nx-text-mute);
+        font-family: var(--nx-font-mono);
+        font-size: 11px;
+        font-weight: 700;
       }
       .og-mk-log-toggle {
         display: inline-flex;
@@ -2251,31 +2321,61 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         padding-inline: 12px;
         font-size: 12px;
       }
-      /* Trono e desafiante já estão no confronto, em corpo grande. Repeti-los aqui
-         gastava ~96px de altura pra mostrar duas vezes a mesma dupla. Só isto vale
-         duas linhas de fila. Na PREPARAÇÃO a lista continua inteira — lá ela é o
-         que se arrasta pra definir a ordem. */
-      .og-mk-live .og-mk-order-row.throne,
-      .og-mk-live .og-mk-order-row.challenger {
+      /* Na fila do modo ao vivo o toggle do head da fila some — o do último
+         lançamento já cobre o log. */
+      .og-mk-live .og-mk-order > .og-mk-section-head .og-mk-log-toggle {
         display: none;
       }
-      /* A fila é a única faixa que rola, e é a que cede altura quando aperta. */
       .og-mk-live .og-mk-order-list {
-        flex: 1 1 auto;
+        flex: none;
         min-height: 0;
-        overflow-y: auto;
         gap: 6px;
+        overflow: visible;
       }
       .og-mk-order-row {
         padding: 8px 10px;
         gap: 8px;
         min-height: 48px;
+        grid-template-columns: 36px auto 1fr auto;
+      }
+      .og-mk-order-empty {
+        padding: 12px;
+        list-style: none;
+        color: var(--nx-text-mute);
+        font-size: 13px;
+        text-align: center;
+      }
+      .og-mk-last-hit {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--nx-line);
+        background: var(--nx-surface-1);
+      }
+      .og-mk-last-hit-line {
+        display: grid;
+        grid-template-columns: 44px minmax(0, 1fr);
+        gap: 10px;
+        align-items: baseline;
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.35;
+      }
+      .og-mk-last-hit .og-mk-log-undo {
+        align-self: stretch;
+        justify-content: center;
+        min-height: 40px;
       }
 
-      /* ── Ações: sempre no rodapé da faixa da fila, sem sticky ───── */
+      /* ── Ações fixas no rodapé ─────────────────────────────────── */
       .og-mk-live .og-mk-live-controls {
+        grid-area: actions;
         flex: none;
-        margin-top: 10px;
+        margin: 0;
+        padding: 8px 4px 0;
+        background: linear-gradient(180deg, transparent, var(--nx-bg) 28%);
       }
       .og-mk-live-actions {
         flex-wrap: nowrap;
@@ -2286,12 +2386,33 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       .og-mk-rally-crown {
         flex: 1 1 0;
         min-width: 0;
-        min-height: clamp(58px, 8.5vh, 88px);
+        min-height: clamp(64px, 9vh, 92px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
         font-size: 15px;
         font-weight: 800;
         line-height: 1.15;
         white-space: normal;
         border-radius: 14px;
+      }
+      .og-mk-rally-label {
+        font-family: var(--nx-font-display);
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+      }
+      .og-mk-rally-meta {
+        font-family: var(--nx-font-ui);
+        font-size: 11px;
+        font-weight: 600;
+        opacity: 0.85;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       .og-mk-rally-crown {
         border-color: color-mix(in srgb, var(--nx-orange-500) 45%, transparent);
@@ -2299,8 +2420,8 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         color: var(--nx-text);
       }
       .og-mk-fault {
-        min-height: 44px;
-        font-size: 12.5px;
+        min-height: 40px;
+        font-size: 12px;
       }
 
       /* ── Log: gaveta ──────────────────────────────────────────── */
@@ -2364,8 +2485,8 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         cursor: pointer;
       }
 
-      /* ── Empate: a bola de ouro toma a tela ───────────────────── */
-      .og-mk-live .og-mk-order:has(.og-mk-tie) .og-mk-live-controls {
+      /* ── Empate: a bola de ouro toma a tela (só com tempo zerado) ─ */
+      .og-mk-live:has(.og-mk-tie) .og-mk-live-controls {
         display: none;
       }
       .og-mk-live .og-mk-tie {
@@ -2373,7 +2494,11 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         margin-top: 10px;
       }
       .og-mk-live:has(.og-mk-tie) {
-        grid-template-rows: auto 0 minmax(0, 1fr);
+        grid-template-areas:
+          'clock end'
+          'queue queue'
+          'actions actions';
+        grid-template-rows: auto minmax(0, 1fr) auto;
       }
       .og-mk-live:has(.og-mk-tie) .og-mk-open {
         display: none;
@@ -2381,11 +2506,11 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       .og-mk-live:has(.og-mk-tie) .og-mk-end {
         display: none;
       }
-      /* Com o confronto fora, a fila volta a listar TODAS as duplas: no empate a
-         classificacao inteira e que importa — e ela que produziu o empate. */
-      .og-mk-live:has(.og-mk-tie) .og-mk-order-row.throne,
-      .og-mk-live:has(.og-mk-tie) .og-mk-order-row.challenger {
-        display: grid;
+      .og-mk-live:has(.og-mk-tie) .og-mk-last-hit {
+        display: none;
+      }
+      .og-mk-live:has(.og-mk-tie) .og-mk-order {
+        max-height: none;
       }
       /* O card de empate NAO estica nem encolhe: com min-height:0 ele afundava abaixo
          do proprio conteudo no telefone e o alerta vazava por cima da fila. Quem cede
@@ -2395,25 +2520,56 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         min-height: clamp(56px, 9vh, 96px);
       }
 
-      /* ── Densidade comum às três telas ────────────────────────── */
-      .og-mk-open,
-      .og-mk-order,
-      .og-mk-panel {
-        padding: 12px 14px;
+      /* Tablet retrato: fila e último lançamento lado a lado. */
+      @media (min-width: 700px) {
+        .og-mk-live .og-mk-order {
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          grid-template-rows: auto minmax(0, 1fr);
+          max-height: min(38vh, 420px);
+          align-items: start;
+        }
+        .og-mk-live .og-mk-order > .og-mk-section-head {
+          grid-column: 1;
+          grid-row: 1;
+        }
+        .og-mk-live .og-mk-order-list {
+          grid-column: 1;
+          grid-row: 2;
+        }
+        .og-mk-live .og-mk-last-hit {
+          grid-column: 2;
+          grid-row: 1 / span 2;
+          align-self: stretch;
+          height: 100%;
+          max-height: 100%;
+          overflow: hidden;
+        }
+        .og-mk-live:has(.og-mk-tie) .og-mk-order {
+          grid-template-columns: minmax(0, 1fr);
+        }
       }
+
+      /* ── Densidade comum às três telas ────────────────────────── */
       .og-mk-sides {
         gap: 10px;
       }
       .og-mk-side {
-        padding: 12px 10px;
         gap: 6px;
         min-width: 0;
       }
-      .og-mk-side-name {
-        font-size: 15px;
-      }
       .og-mk-order-list {
         gap: 6px;
+      }
+      .og-mk-section-count,
+      .og-mk-last-hit,
+      .og-mk-order-empty {
+        display: flex;
+      }
+      .og-mk-order-empty {
+        display: block;
+      }
+      .og-mk-rally-meta {
+        display: block;
       }
       .og-mk-tie {
         padding: 12px;
@@ -2777,22 +2933,15 @@ export class MesaKocComponent {
     }));
   });
 
-  protected readonly liveQueueRows = computed(() => {
+  /** Só quem está na fila — trono e desafiante já estão no confronto. */
+  protected readonly upcomingQueueRows = computed(() => {
     const r = this.round();
-    if (!r?.kingTeamId || !r.challengerTeamId) return [];
-    const ids = [r.kingTeamId, r.challengerTeamId, ...r.queue];
-    return ids.map((teamId, i) => {
-      const role: 'trono' | 'desafia' | 'fila' = i === 0 ? 'trono' : i === 1 ? 'desafia' : 'fila';
-      const roleLabel =
-        role === 'trono' ? 'TRONO' : role === 'desafia' ? 'DESAFIA' : `${i - 1}º NA FILA`;
-      return {
-        teamId,
-        place: i + 1,
-        points: kocPointsOf(r, teamId),
-        role,
-        roleLabel,
-      };
-    });
+    if (!r) return [];
+    return r.queue.map((teamId, i) => ({
+      teamId,
+      place: i + 1,
+      points: kocPointsOf(r, teamId),
+    }));
   });
 
   protected readonly logRows = computed(() => {
@@ -2805,6 +2954,9 @@ export class MesaKocComponent {
       action: LOG_ACTION[line.kind],
     }));
   });
+
+  /** Último lance — card compacto no modo quadra (o log completo continua na gaveta). */
+  protected readonly lastLogRow = computed(() => this.logRows()[0] ?? null);
 
   protected faceOf(teamId: string): TeamFace {
     return this.faces().get(teamId) ?? { name: 'Dupla', sub: null, players: [] };
@@ -2981,8 +3133,11 @@ export class MesaKocComponent {
     return this.round()?.clock?.pausedAtMs != null;
   }
 
+  /** Empate na vaga só importa DEPOIS do apito — durante a rodada o placar
+   *  ainda muda a cada rally. A bola de ouro / mini-rodada só entra quando o
+   *  cronômetro zera. */
   protected tie(): boolean {
-    return this.tieGroup().length > 0;
+    return this.expired() && this.tieGroup().length > 0;
   }
 
   /** Quantas vagas o empate decide — o que o chip mostra. */

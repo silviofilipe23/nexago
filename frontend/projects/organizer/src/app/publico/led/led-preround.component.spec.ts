@@ -7,12 +7,14 @@ import { LedPreRoundComponent } from './led-preround.component';
 function pre(overrides: Partial<KocPreRound> = {}): KocPreRound {
   return {
     tronoTeamId: 't',
+    isFinal: false,
+    teamCount: 5,
     rows: [
-      { posicao: 1, teamId: 't', papel: 'trono' },
-      { posicao: 2, teamId: 'a', papel: 'desafia' },
-      { posicao: 3, teamId: 'b', papel: 'sequencia' },
-      { posicao: 4, teamId: 'c', papel: 'aguardando' },
-      { posicao: 5, teamId: 'd', papel: 'aguardando' },
+      { posicao: 1, teamId: 't', papel: 'trono', points: 0 },
+      { posicao: 2, teamId: 'a', papel: 'desafia', points: 0 },
+      { posicao: 3, teamId: 'b', papel: 'sequencia', points: 0 },
+      { posicao: 4, teamId: 'c', papel: 'aguardando', points: 0 },
+      { posicao: 5, teamId: 'd', papel: 'aguardando', points: 0 },
     ],
     ...overrides,
   };
@@ -136,10 +138,11 @@ describe('LedPreRoundComponent', () => {
     const h = host(
       await render({
         preRound: pre({
+          teamCount: 3,
           rows: [
-            { posicao: 1, teamId: 't', papel: 'trono' },
-            { posicao: 2, teamId: 'a', papel: 'desafia' },
-            { posicao: 3, teamId: 'b', papel: 'sequencia' },
+            { posicao: 1, teamId: 't', papel: 'trono', points: 0 },
+            { posicao: 2, teamId: 'a', papel: 'desafia', points: 0 },
+            { posicao: 3, teamId: 'b', papel: 'sequencia', points: 0 },
           ],
         }),
       }),

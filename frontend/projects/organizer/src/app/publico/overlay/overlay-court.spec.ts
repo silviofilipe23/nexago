@@ -129,6 +129,9 @@ describe('overlayCourtContextOf', () => {
         rallySeq: 0,
         rallyLog: [],
         roundLabel: 1,
+        batteryLabel: 1,
+        phases: null,
+        maxTeamsPerRound: 0,
         qualifierSlots: [],
       },
     });

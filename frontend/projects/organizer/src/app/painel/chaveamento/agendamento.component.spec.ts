@@ -29,6 +29,7 @@ function tournamentFixture(overrides: Partial<OrganizerTournament> = {}): Organi
       {
         id: 'femB',
         name: 'Feminino B',
+        gender: 'female',
         maxTeams: null,
         entryFee: 0,
         teamSize: null,

@@ -94,6 +94,42 @@ describe('OverlayKocBarComponent', () => {
     expect(text).toContain('NA FILA');
   });
 
+  it('no modo Grande final troca o status e o rótulo do trono', async () => {
+    const fixture = await render({
+      view: view(),
+      teams: TEAMS,
+      categoryName: 'Masculino B',
+      courtName: 'Quadra 2',
+      isFinal: true,
+    });
+    const host = fixture.nativeElement as HTMLElement;
+    const text = (host.textContent ?? '').replace(/\s+/g, ' ');
+
+    expect(host.querySelector('.wrap--final')).not.toBeNull();
+    expect(host.querySelector('.status-badge')?.textContent).toContain('Grande final');
+    expect(text).toContain('Valendo o título');
+    expect(text).toContain('Masculino B');
+    expect(text).toContain('No trono · final');
+    expect(text).not.toContain('Classificatória · Rodada 3/7');
+    expect(text).toContain('NEXAGO · KOTC · Final');
+    expect(host.querySelector('.bar--final')).not.toBeNull();
+  });
+
+  it('categoria feminina vira QUEEN OF THE COURT no status', async () => {
+    const fixture = await render({
+      view: view(),
+      teams: TEAMS,
+      categoryName: 'Feminino A',
+      categoryGender: 'female',
+      isFinal: true,
+    });
+    const text = ((fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+
+    expect(text).toContain('QUEEN OF THE COURT');
+    expect(text).not.toContain('Feminino A');
+    expect(text).toContain('NEXAGO · QOTC · Final');
+  });
+
   it('anuncia a sequência de defesas do rei', async () => {
     const fixture = await render({
       view: view({ bar: { ...view().bar, streak: 4 } }),

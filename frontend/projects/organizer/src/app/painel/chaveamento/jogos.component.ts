@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { KocRoundState } from '../data/koc';
 import { compactTeamLabel, type PillTone } from '../data/mock-data';
@@ -16,8 +16,8 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
 /** Lista de partidas — dados reais de `listMatches` (Task O6): horário, confronto, placar,
  *  quadra e status REAL do doc (incluindo "Ao vivo" quando a mesa está rodando). Cada linha
  *  leva pra mesa ao vivo (`ao-vivo/:matchId` — iniciar/marcar ponto a ponto) e pro placar
- *  completo (`placar/:matchId`). O status só atualiza no reload (a lista segue one-shot;
- *  tempo real é da mesa e do portal do atleta).
+ *  completo (`placar/:matchId`). Enquanto a tela está aberta, `watchMatchesLive` mantém
+ *  status/placar em sincronia — encerrar numa mesa atualiza esta lista na hora.
  *
  *  No TABLET (card entre ~520px e ~980px, que é todo iPad em retrato e também o de paisagem
  *  com a sidebar fixa) a partida cabe em UMA linha: nome de cada atleta em dois nomes
@@ -122,6 +122,9 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
                     } @else {
                       <a class="og-mini-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'ao-vivo', j.match.id]">Abrir mesa</a>
                     }
+                    @if (overlayCourtHref(j.match); as href) {
+                      <a class="og-ghost-btn" [href]="href" target="_blank" rel="noopener" title="Overlay da quadra (OBS)">Overlay</a>
+                    }
                   </span>
                 } @else if (canOpenScore(j.match)) {
                   <span class="og-jogos-actions">
@@ -133,10 +136,16 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
                     <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'placar', j.match.id]"
                       ><span class="only-wide">{{ j.status === 'scheduled' ? 'Lançar placar' : 'Placar' }}</span><span class="only-tight">Placar</span></a
                     >
+                    @if (overlayCourtHref(j.match); as href) {
+                      <a class="og-ghost-btn" [href]="href" target="_blank" rel="noopener" title="Overlay da quadra (OBS)">Overlay</a>
+                    }
                   </span>
                 } @else {
                   <span class="og-jogos-actions">
                     <span class="og-ghost-btn" style="opacity:0.45;pointer-events:none" title="Aguardando as duas equipes">Aguardando</span>
+                    @if (overlayCourtHref(j.match); as href) {
+                      <a class="og-ghost-btn" [href]="href" target="_blank" rel="noopener" title="Overlay da quadra (OBS)">Overlay</a>
+                    }
                   </span>
                 }
               </div>
@@ -161,7 +170,7 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
       grid-template-columns: var(--jogos-cols);
       gap: 14px;
       align-items: center;
-      --jogos-cols: 40px 76px minmax(0, 1fr) 158px 88px 100px 190px;
+      --jogos-cols: 40px 76px minmax(0, 1fr) 158px 88px 100px 240px;
     }
 
     .col-score {
@@ -236,7 +245,7 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
        pediu de volta — ela custa ~56px do confronto e por isso vem no rótulo curto. */
     @container (max-width: 980px) {
       .og-jogos-grid {
-        --jogos-cols: 52px minmax(0, 1fr) 136px 44px 140px;
+        --jogos-cols: 52px minmax(0, 1fr) 136px 44px 180px;
         gap: 6px;
       }
 
@@ -295,7 +304,7 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
        inclusive, que até aqui aguenta coluna própria. */
     @container (max-width: 620px) {
       .og-jogos-grid {
-        --jogos-cols: 54px minmax(0, 1fr) 136px 148px;
+        --jogos-cols: 54px minmax(0, 1fr) 136px 180px;
       }
 
       .col-court {
@@ -443,6 +452,17 @@ export class JogosComponent {
   protected readonly jogoLabel = JOGO_LABEL;
   protected readonly compact = compactTeamLabel;
 
+  constructor() {
+    // Lista ao vivo enquanto a tela está aberta: encerrar na mesa (esta ou outra)
+    // atualiza status/placar aqui sem esperar reload manual.
+    effect((onCleanup) => {
+      const tid = this.id() || this.ctx.selectedTournamentId();
+      if (!tid) return;
+      void this.ctx.reloadMatches();
+      onCleanup(this.ctx.watchMatchesLive(tid));
+    });
+  }
+
   /** "4 duplas" / "Elenco a definir" — o que identifica uma rodada KOTC na
    *  lista, já que ela não tem confronto. Elenco vazio é o estado legítimo da
    *  fase seguinte, montada só quando a anterior termina. */
@@ -457,6 +477,15 @@ export class JogosComponent {
    *  sumia: a linha caía direto no "Aguardando". */
   protected canOpenScore(m: TournamentMatch): boolean {
     return m.teamAId.length > 0 && m.teamBId.length > 0;
+  }
+
+  /** Browser Source do OBS por QUADRA — a partida naquele court muda sozinha.
+   *  Sem courtId o link mentiria (painel vazio); esconde o botão. */
+  protected overlayCourtHref(m: TournamentMatch): string {
+    const tid = this.id().trim();
+    const courtId = (m.courtId ?? '').trim();
+    if (!tid || !courtId) return '';
+    return `/overlay/${encodeURIComponent(tid)}/quadra/${encodeURIComponent(courtId)}`;
   }
 
   protected readonly headerSubtitle = computed(() => {

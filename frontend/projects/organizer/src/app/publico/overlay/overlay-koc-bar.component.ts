@@ -44,21 +44,38 @@ function clockUnderOneMin(label: string): boolean {
   imports: [OverlayMarkComponent],
   template: `
     @if (view(); as v) {
-      <div class="wrap" [attr.data-pos]="position()">
-        <div class="status">
+      <div class="wrap" [class.wrap--final]="isFinal()" [attr.data-pos]="position()">
+        @if (isFinal()) {
+          <span class="final-flash" aria-hidden="true"></span>
+        }
+
+        <div class="status" [class.status--final]="isFinal()">
           @if (v.phase === 'live') {
             <span class="status-live"><i class="dot"></i>AO VIVO</span>
           }
-          @if (categoryName()) {
-            <span class="status-seg status-seg--strong">{{ categoryName() }}</span>
-          }
-          <span class="status-seg">{{ v.roundTitle }}</span>
-          @if (courtName()) {
-            <span class="status-seg">{{ courtName() }}</span>
+          @if (isFinal()) {
+            <span class="status-badge"
+              ><span class="status-badge-shine" aria-hidden="true"></span>Grande final</span
+            >
+            <span class="status-seg status-seg--title">Valendo o título</span>
+            @if (categoryStatusLabel(); as cat) {
+              <span class="status-seg">{{ cat }}</span>
+            }
+            @if (courtName()) {
+              <span class="status-seg">{{ courtName() }}</span>
+            }
+          } @else {
+            @if (categoryStatusLabel(); as cat) {
+              <span class="status-seg status-seg--strong">{{ cat }}</span>
+            }
+            <span class="status-seg">{{ v.roundTitle }}</span>
+            @if (courtName()) {
+              <span class="status-seg">{{ courtName() }}</span>
+            }
           }
         </div>
 
-        <div class="bar">
+        <div class="bar" [class.bar--final]="isFinal()">
           @if (queue().length > 0) {
             <section class="group" data-group="queue">
               <div class="label">NA FILA</div>
@@ -105,7 +122,7 @@ function clockUnderOneMin(label: string): boolean {
           @if (king(); as k) {
             <section class="group" data-group="king">
               <div class="label">
-                NO TRONO
+                {{ isFinal() ? 'No trono · final' : 'NO TRONO' }}
                 @if (v.bar.streak; as streak) {
                   <span class="streak">{{ streak }} SEGUIDAS</span>
                 }
@@ -118,6 +135,9 @@ function clockUnderOneMin(label: string): boolean {
                   [attr.data-pts]="k.points"
                   [class.block--on-fire]="v.bar.streak != null"
                 >
+                  @if (isFinal()) {
+                    <span class="king-shine" aria-hidden="true"></span>
+                  }
                   <div class="players">
                     <span>{{ playersOf(k.teamId)[0] }}</span>
                     <span>{{ playersOf(k.teamId)[1] }}</span>
@@ -145,7 +165,9 @@ function clockUnderOneMin(label: string): boolean {
         </div>
       </div>
 
-      <og-overlay-mark [corner]="position() === 'top' ? 'tr' : 'br'" />
+      <og-overlay-mark
+        [corner]="position() === 'top' ? 'tr' : 'br'"
+      />
     }
   `,
   styles: `
@@ -161,6 +183,9 @@ function clockUnderOneMin(label: string): boolean {
       position: absolute;
       /* Margem de segurança de transmissão. */
       --gap: 48px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
     }
     .wrap,
     .wrap[data-pos='bottom'] {
@@ -181,7 +206,7 @@ function clockUnderOneMin(label: string): boolean {
       border-radius: 8px;
       overflow: hidden;
       background: #121214;
-      font-size: 15px;
+      font-size: 12px;
       font-weight: 700;
       letter-spacing: 0.14em;
       text-transform: uppercase;
@@ -191,7 +216,7 @@ function clockUnderOneMin(label: string): boolean {
       display: flex;
       align-items: center;
       gap: 9px;
-      padding: 9px 16px;
+      padding: 7px 12px;
       color: #8c8c94;
     }
     .status-live {
@@ -214,10 +239,14 @@ function clockUnderOneMin(label: string): boolean {
     }
 
     /* SEM overflow:hidden — ele recortava o selo de sequência, que flutua acima da tarja.
-       O arredondamento vai nas pontas, uma regra por canto. */
+       O arredondamento vai nas pontas, uma regra por canto.
+       inline-flex: se fosse block flex, a barra esticava na largura do status (mais largo) e a
+       borda de luz rodava num retângulo maior que o placar — “fora do card”. */
     .bar {
-      display: flex;
+      display: inline-flex;
       align-items: stretch;
+      width: max-content;
+      max-width: 100%;
     }
     .group:first-of-type .label {
       border-top-left-radius: 10px;
@@ -243,6 +272,7 @@ function clockUnderOneMin(label: string): boolean {
       padding: 7px 16px;
       background: #121214;
       color: #8c8c94;
+      font-family: var(--nx-font-mono, 'JetBrains Mono', ui-monospace, monospace);
       font-size: 13px;
       font-weight: 700;
       letter-spacing: 0.18em;
@@ -255,11 +285,16 @@ function clockUnderOneMin(label: string): boolean {
       background: #1d1108;
     }
     [data-group='king'] .label {
-      background: var(--nx-orange-500, #ff6a1a);
+      background: #e5560e;
       color: #1a0d03;
       /* Alinhado à esquerda porque o selo de sequência ocupa a direita da tarja — centralizado,
          "NO TRONO" ficava POR BAIXO do selo. */
       text-align: left;
+    }
+    /* Acima do anel de luz do placar final (::before z-index 4) — senão a borda corta o selo. */
+    [data-group='king'] {
+      position: relative;
+      z-index: 5;
     }
 
     /* Selo de sequência: flutua sobre a tarja do trono, como um adesivo. */
@@ -267,12 +302,15 @@ function clockUnderOneMin(label: string): boolean {
       position: absolute;
       top: -13px;
       right: 10px;
+      z-index: 6;
       padding: 5px 12px;
       border-radius: 999px;
       background: #0b0b0c;
       color: #fff;
       font-size: 12px;
       letter-spacing: 0.14em;
+      /* Contorno escuro: a luz do anel passa por trás sem cortar o texto. */
+      box-shadow: 0 0 0 3px #0b0b0c;
     }
 
     .row {
@@ -301,7 +339,7 @@ function clockUnderOneMin(label: string): boolean {
       color: #fff;
     }
     .block[data-role='king'] {
-      background: var(--nx-orange-500, #ff6a1a);
+      background: #e5560e;
       color: #1a0d03;
     }
     .block--on-fire {
@@ -312,8 +350,11 @@ function clockUnderOneMin(label: string): boolean {
 
     .players {
       display: grid;
+      font-family: var(--nx-font-display, 'Sora', system-ui, sans-serif);
+      font-size: 29px;
       font-weight: 800;
       line-height: 1.12;
+      letter-spacing: -0.01em;
       text-transform: uppercase;
       white-space: nowrap;
     }
@@ -321,26 +362,25 @@ function clockUnderOneMin(label: string): boolean {
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    /* Escada de tamanho: quem está em quadra é o que a narração usa. */
+    /* Fila um degrau abaixo — o foco visual fica em quem está em quadra. */
     [data-role='queue'] .players {
-      font-size: 20px;
+      font-size: 26px;
       /* Nome de exibição do nexaGO é mais longo que o sobrenome de transmissão ("Bernardo 213",
          não "BRO") — a 150px a fila inteira aparecia reticenciada. */
       max-width: 200px;
     }
     [data-role='challenger'] .players {
-      font-size: 25px;
       max-width: 260px;
     }
     [data-role='king'] .players {
-      font-size: 28px;
       max-width: 320px;
     }
 
     .points {
       display: inline-block;
       margin-left: auto;
-      font-size: 34px;
+      font-family: var(--nx-font-mono, 'JetBrains Mono', ui-monospace, monospace);
+      font-size: 44px;
       font-weight: 800;
       font-variant-numeric: tabular-nums;
       transform-origin: 50% 50%;
@@ -366,6 +406,177 @@ function clockUnderOneMin(label: string): boolean {
       animation: koc-clock-urgent 1s ease-in-out infinite;
     }
 
+    /* ── Grande final ───────────────────────────────────────── */
+    @property --koc-border-a {
+      syntax: '<angle>';
+      inherits: false;
+      initial-value: 0deg;
+    }
+
+    .wrap--final .status {
+      /* status e barra têm larguras próprias — o wrap não força os dois no mesmo retângulo */
+      margin-bottom: 10px;
+    }
+
+    .final-flash {
+      position: absolute;
+      left: -40px;
+      bottom: -40px;
+      width: 280px;
+      height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse at center, rgba(255, 106, 26, 0.55), transparent 68%);
+      pointer-events: none;
+      z-index: -1;
+      animation: koc-final-flash 1.1s ease-out both;
+    }
+    @keyframes koc-final-flash {
+      0% {
+        opacity: 0;
+        transform: scale(0.85);
+      }
+      28% {
+        opacity: 1;
+        transform: scale(1.05);
+      }
+      100% {
+        opacity: 0;
+        transform: scale(1.15);
+      }
+    }
+
+    .status--final {
+      border: 1.5px solid var(--nx-orange-500, #ff6a1a);
+      background: #0d0a08;
+    }
+    .status-badge {
+      position: relative;
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      padding: 7px 12px;
+      background: var(--nx-orange-500, #ff6a1a);
+      color: #1a0d03;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      animation: koc-badge-settle 600ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+    }
+    .status-badge-shine {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        115deg,
+        transparent 30%,
+        rgba(255, 255, 255, 0.35) 48%,
+        rgba(255, 255, 255, 0.55) 50%,
+        rgba(255, 255, 255, 0.3) 52%,
+        transparent 70%
+      );
+      background-size: 220% 100%;
+      animation: koc-head-shine 2.8s ease-in-out 1.4s infinite;
+      pointer-events: none;
+    }
+    @keyframes koc-badge-settle {
+      from {
+        opacity: 0;
+        filter: blur(8px);
+        transform: scale(1.22);
+      }
+      to {
+        opacity: 1;
+        filter: none;
+        transform: none;
+      }
+    }
+    @keyframes koc-head-shine {
+      0% {
+        background-position: 120% 0;
+      }
+      100% {
+        background-position: -120% 0;
+      }
+    }
+    .status-seg--title {
+      color: #fff;
+      border-left-color: rgba(255, 106, 26, 0.35);
+    }
+
+    .bar--final {
+      position: relative;
+      border-radius: 10px;
+      /* Halo colado na borda — box-shadow não estica o layout nem vaza como o radial antigo. */
+      box-shadow: 0 0 18px rgba(255, 106, 26, 0.45);
+    }
+    /* Anel de 2px NO contorno do placar (inset 0): inset negativo + barra esticada fazia a
+       luz circular fora do card. */
+    .bar--final::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      padding: 2px;
+      border-radius: inherit;
+      box-sizing: border-box;
+      pointer-events: none;
+      z-index: 4;
+      background: conic-gradient(
+        from var(--koc-border-a),
+        transparent 0 70%,
+        #ff8a4a 82%,
+        #fff 86%,
+        #ff6a1a 90%,
+        transparent 100%
+      );
+      -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      mask-composite: exclude;
+      animation: koc-border-spin 3.2s linear infinite;
+    }
+    @keyframes koc-border-spin {
+      to {
+        --koc-border-a: 360deg;
+      }
+    }
+
+    .wrap--final [data-group='queue'] .label,
+    .wrap--final [data-group='challenger'] .label {
+      color: var(--nx-orange-500, #ff6a1a);
+    }
+    .wrap--final [data-group='king'] .label {
+      text-transform: uppercase;
+    }
+
+    .block[data-role='king'] {
+      position: relative;
+      overflow: hidden;
+    }
+    .king-shine {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        115deg,
+        transparent 28%,
+        rgba(255, 255, 255, 0.22) 46%,
+        rgba(255, 255, 255, 0.4) 50%,
+        rgba(255, 255, 255, 0.18) 54%,
+        transparent 72%
+      );
+      background-size: 220% 100%;
+      animation: koc-head-shine 2.8s ease-in-out 1s infinite;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .block[data-role='king'] .players,
+    .block[data-role='king'] .points {
+      position: relative;
+      z-index: 2;
+    }
 
     @keyframes koc-live-blink {
       0%,
@@ -404,7 +615,12 @@ function clockUnderOneMin(label: string): boolean {
     @media (prefers-reduced-motion: reduce) {
       .dot,
       .block--on-fire,
-      .clock--urgent {
+      .clock--urgent,
+      .final-flash,
+      .status-badge,
+      .status-badge-shine,
+      .bar--final::before,
+      .king-shine {
         animation: none;
       }
     }
@@ -416,15 +632,35 @@ export class OverlayKocBarComponent {
   readonly view = input<OverlayKocView | null>(null);
   readonly teams = input<ReadonlyMap<string, OverlayKocTeam>>(new Map<string, OverlayKocTeam>());
   readonly categoryName = input<string | null>(null);
+  /** Gênero da categoria (`female` → QUEEN OF THE COURT no status). */
+  readonly categoryGender = input<'male' | 'female' | 'mixed' | null>(null);
   readonly courtName = input<string | null>(null);
   /** A faixa ocupa a largura toda: só sobe ou desce, não vai pros cantos como o duelo. */
   readonly position = input<'top' | 'bottom'>('bottom');
+  /** Visual Grande final — partida final e/ou preferência compartilhada do painel. */
+  readonly isFinal = input(false);
 
   private readonly blocks = computed<OverlayKocBlock[]>(() => this.view()?.bar.blocks ?? []);
 
   readonly queue = computed(() => this.blocks().filter((b) => b.role === 'queue'));
   readonly challenger = computed(() => this.blocks().find((b) => b.role === 'challenger') ?? null);
   readonly king = computed(() => this.blocks().find((b) => b.role === 'king') ?? null);
+
+  protected readonly isFemaleCategory = computed(() => {
+    if (this.categoryGender() === 'female') return true;
+    const n = (this.categoryName() ?? '').trim().toLowerCase();
+    return /\bfeminin[oa]\b/.test(n) || /(^|[\s·\-_/])fem($|[\s·\-_/])/.test(n);
+  });
+
+  /** Feminino vira QUEEN OF THE COURT; demais categorias mantêm o nome. */
+  protected readonly categoryStatusLabel = computed(() => {
+    if (this.isFemaleCategory()) return 'QUEEN OF THE COURT';
+    return this.categoryName();
+  });
+
+  protected readonly markCaption = computed(() =>
+    this.isFemaleCategory() ? 'NEXAGO · QOTC · Final' : 'NEXAGO · KOTC · Final',
+  );
 
   /**
    * Só papéis/pontos/ordem — o `view()` inteiro muda a cada tick do cronômetro e re-disparava
@@ -436,12 +672,13 @@ export class OverlayKocBarComponent {
     const body = this.blocks()
       .map((b) => `${b.teamId}:${b.role}:${b.points}:${b.nextUp ? 1 : 0}`)
       .join('|');
-    return `${body}|s:${v.bar.streak ?? ''}`;
+    return `${body}|s:${v.bar.streak ?? ''}|f:${this.isFinal() ? 1 : 0}`;
   });
 
   /** Primeiro frame só grava posições — senão todo mundo “entra” no mount. */
   private primed = false;
   private lastMotionKey = '';
+  private lastFinal = false;
   /** left de layout (sem transform) — DOMRect mid-FLIP corrompia o próximo dx. */
   private prevLeft = new Map<string, number>();
   private prevPts = new Map<string, number>();
@@ -451,13 +688,16 @@ export class OverlayKocBarComponent {
     afterRenderEffect(() => {
       const v = this.view();
       const key = this.motionKey();
+      const final = this.isFinal();
       if (!v) {
         this.resetMotionState();
         return;
       }
       if (key === this.lastMotionKey) return;
+      const enteringFinal = final && !this.lastFinal;
       this.lastMotionKey = key;
-      this.runMotion();
+      this.lastFinal = final;
+      this.runMotion(enteringFinal);
     });
   }
 
@@ -472,6 +712,7 @@ export class OverlayKocBarComponent {
   private resetMotionState(): void {
     this.primed = false;
     this.lastMotionKey = '';
+    this.lastFinal = false;
     this.prevLeft = new Map();
     this.prevPts = new Map();
     this.prevKingId = null;
@@ -496,10 +737,12 @@ export class OverlayKocBarComponent {
   }
 
   /** FLIP + enter + novo trono + bump de pontos — tudo em WAAPI depois do layout. */
-  private runMotion(): void {
+  private runMotion(enteringFinal = false): void {
     const root = this.host.nativeElement as HTMLElement;
     const nodes = Array.from(root.querySelectorAll('.block[data-team-id]')) as HTMLElement[];
-    const motionOk = this.primed && !this.prefersReducedMotion();
+    const groups = Array.from(root.querySelectorAll('.group')) as HTMLElement[];
+    const motionOk = this.primed && !this.prefersReducedMotion() && !enteringFinal;
+    const finalEnter = enteringFinal && !this.prefersReducedMotion();
 
     // Zera transforms em voo ANTES de medir — senão o Last do FLIP é a posição animada.
     for (const el of nodes) this.cancelMotion(el);
@@ -509,6 +752,31 @@ export class OverlayKocBarComponent {
     const nextPts = new Map<string, number>();
     let kingId: string | null = null;
     let kingEl: HTMLElement | null = null;
+
+    if (finalEnter) {
+      // Entrada da final: blocos sobem por grupo (fila → desafiante → trono → tempo), 80ms entre.
+      const FINAL_ENTER_MS = 420;
+      const FINAL_STAGGER_MS = 80;
+      const FINAL_FIRST_DELAY_MS = 250;
+      groups.forEach((group, i) => {
+        for (const a of group.getAnimations()) {
+          if (a instanceof CSSAnimation || a instanceof CSSTransition) continue;
+          a.cancel();
+        }
+        group.animate(
+          [
+            { opacity: 0, transform: 'translateY(28px)' },
+            { opacity: 1, transform: 'translateY(0)' },
+          ],
+          {
+            duration: FINAL_ENTER_MS,
+            delay: FINAL_FIRST_DELAY_MS + i * FINAL_STAGGER_MS,
+            easing: EASE_OUT,
+            fill: 'both',
+          },
+        );
+      });
+    }
 
     for (const el of nodes) {
       const id = el.dataset['teamId'];
@@ -567,6 +835,16 @@ export class OverlayKocBarComponent {
         duration: THRONE_JUMP_MS,
         easing: EASE_ELASTIC,
         composite: 'add',
+      });
+    }
+
+    if (finalEnter && kingEl) {
+      const afterLast = 250 + Math.max(0, groups.length - 1) * 80 + 420;
+      kingEl.animate([{ filter: 'brightness(2.1)' }, { filter: 'brightness(1)' }], {
+        duration: 800,
+        delay: afterLast,
+        easing: EASE_OUT,
+        fill: 'both',
       });
     }
 

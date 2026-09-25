@@ -24,6 +24,7 @@ function category(over: Partial<OrganizerTournamentCategory> = {}): OrganizerTou
   return {
     id: 'c1',
     name: 'Feminina B',
+    gender: 'female',
     maxTeams: null,
     entryFee: 120,
     teamSize: null,

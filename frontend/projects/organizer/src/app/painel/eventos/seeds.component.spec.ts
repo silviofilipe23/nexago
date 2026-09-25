@@ -69,6 +69,7 @@ function tournament(): OrganizerTournament {
       {
         id: 'femB',
         name: 'Feminino B',
+        gender: 'female',
         maxTeams: null,
         entryFee: 0,
         teamSize: null,

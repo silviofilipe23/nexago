@@ -27,7 +27,7 @@ function kocTournament(): OrganizerTournament {
     location: null,
     categories: [
       {
-        id: 'intermediario_2-masc', name: 'Intermediário 2 Masculino', maxTeams: 16, entryFee: 0,
+        id: 'intermediario_2-masc', name: 'Intermediário 2 Masculino', gender: 'male', maxTeams: 16, entryFee: 0,
         teamSize: null, bracketFormat: 'king_of_court', teamsPerGroup: 4, qualifiersPerGroup: 2,
         kocTeamsPerCourt: 4, kocRoundsPerBracket: 1, kocQualifiersPerRound: 2,
         kocPhases: null, kocMaxTeamsPerRound: 5, kocRoundDurationSec: 900,

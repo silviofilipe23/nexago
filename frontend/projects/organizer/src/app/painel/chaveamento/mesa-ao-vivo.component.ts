@@ -33,11 +33,12 @@ import {
   type MatchDisplayStatus,
   type MatchSide,
 } from '@nexago/live-scoring';
-import { isKingOfCourtMatchType, kocIsExpired, kocMatchPhaseLabel, kocRemainingLabel } from '../data/koc';
+import { isKingOfCourtMatchType, kocIsExpired, kocMatchPhaseLabel, kocRemainingLabel, normalizeMatchType } from '../data/koc';
 import { organizerFirestore } from '../data/firestore';
 import { organizerLiveScoringContext } from '../data/live-scoring-context';
 import { formatCourtLabel } from '../data/schedule-format';
 import { fetchProfileNames, fetchTeamsByIds } from '../data/teams-repository';
+import { turnOnOverlayFinal } from '../../publico/overlay/overlay-final-sync';
 import { environment } from '../../../environments/environment';
 import { revertMatchToScheduled, updateLiveMatchScore, validateMatchResult } from '../data/organizer-ops.service';
 import { OgAvatarComponent } from '../ui/avatar.component';
@@ -106,9 +107,25 @@ interface MedicalOptionView {
           <span class="og-mesa-koc-badge" [class.done]="status() === 'completed'">{{ badge }}</span>
         }
         <a class="og-ghost-btn" [href]="'/telao/' + id()" target="_blank" rel="noopener">Abrir telão</a>
+        @if (overlayHref(); as href) {
+          <a class="og-ghost-btn" [href]="href" target="_blank" rel="noopener" title="Browser Source do OBS">Abrir overlay</a>
+        }
+        @if (isKocFinal()) {
+          <button
+            type="button"
+            class="og-mini-btn og-mini-btn-primary"
+            title="Liga o visual Grande final em todos os overlays abertos deste torneio"
+            (click)="ligarModoFinal()"
+          >
+            Final
+          </button>
+        }
         <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'jogos']">Voltar</a>
       } @else {
         <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'jogos']">Voltar</a>
+        @if (overlayHref(); as href) {
+          <a class="og-ghost-btn" [href]="href" target="_blank" rel="noopener" title="Browser Source do OBS">Abrir overlay</a>
+        }
         <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'placar', matchId()]">Placar completo</a>
       }
     </og-page-header>
@@ -892,6 +909,32 @@ export class MesaAoVivoComponent {
     this.now(); // tick a cada 1s
     return kocIsExpired(clock, this.now()) ? 'TEMPO!' : kocRemainingLabel(clock, this.now());
   });
+
+  /** Browser Source do OBS. Em KOTC com quadra, segue a quadra (a rodada muda sozinha);
+   *  no duelo (e sem quadra) aponta pra partida. */
+  protected readonly overlayHref = computed(() => {
+    const mid = this.matchId().trim();
+    if (!mid) return '';
+    if (this.isKingOfCourt()) {
+      const tid = this.id().trim();
+      const courtId = (this.cachedRow()?.courtId ?? '').trim();
+      if (tid && courtId) {
+        return `/overlay/${encodeURIComponent(tid)}/quadra/${encodeURIComponent(courtId)}`;
+      }
+    }
+    return `/overlay/${encodeURIComponent(mid)}`;
+  });
+
+  protected readonly isKocFinal = computed(
+    () => normalizeMatchType(this.match()?.matchType ?? '') === 'koc final',
+  );
+
+  /** Liga o visual Grande final em todos os overlays abertos deste torneio. */
+  protected ligarModoFinal(): void {
+    const tid = this.id().trim();
+    if (!tid) return;
+    turnOnOverlayFinal(tid);
+  }
 
   private readonly live = signal<LiveMatch | null>(null);
   protected readonly liveLoaded = signal(false);

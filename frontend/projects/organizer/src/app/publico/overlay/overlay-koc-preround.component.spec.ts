@@ -7,12 +7,14 @@ import { OverlayKocPreRoundComponent } from './overlay-koc-preround.component';
 function pre(overrides: Partial<KocPreRound> = {}): KocPreRound {
   return {
     tronoTeamId: 't',
+    isFinal: false,
+    teamCount: 5,
     rows: [
-      { posicao: 1, teamId: 't', papel: 'trono' },
-      { posicao: 2, teamId: 'a', papel: 'desafia' },
-      { posicao: 3, teamId: 'b', papel: 'sequencia' },
-      { posicao: 4, teamId: 'c', papel: 'aguardando' },
-      { posicao: 5, teamId: 'd', papel: 'aguardando' },
+      { posicao: 1, teamId: 't', papel: 'trono', points: 0 },
+      { posicao: 2, teamId: 'a', papel: 'desafia', points: 0 },
+      { posicao: 3, teamId: 'b', papel: 'sequencia', points: 0 },
+      { posicao: 4, teamId: 'c', papel: 'aguardando', points: 0 },
+      { posicao: 5, teamId: 'd', papel: 'aguardando', points: 0 },
     ],
     ...overrides,
   };
@@ -135,5 +137,35 @@ describe('OverlayKocPreRoundComponent', () => {
 
     expect(trono?.textContent).toContain('Sor · Ham');
     expect(trono?.textContent?.toLowerCase()).toContain('trono');
+  });
+
+  it('na Grande final lista todas as duplas e o rodapé do título', async () => {
+    const h = host(
+      await render({
+        preRound: pre({
+          isFinal: true,
+          teamCount: 4,
+          rows: [
+            { posicao: 1, teamId: 't', papel: 'trono', points: 7 },
+            { posicao: 2, teamId: 'a', papel: 'desafia', points: 4 },
+            { posicao: 3, teamId: 'b', papel: 'sequencia', points: 2 },
+            { posicao: 4, teamId: 'c', papel: 'aguardando', points: 1 },
+          ],
+        }),
+      }),
+    );
+    const text = (h.textContent ?? '').replace(/\s+/g, ' ');
+
+    expect(text).toContain('Grande final');
+    expect(text).toContain('Próximos em quadra');
+    expect(text).toContain('4 duplas finalistas');
+    expect(text).toContain('Valendo o título');
+    expect(text).toContain('só o trono pontua');
+    expect(h.querySelector('.card--final')).not.toBeNull();
+    const linhas = [...h.querySelectorAll('.linha')];
+    expect(linhas.length).toBe(4);
+    expect(linhas[0].textContent).toContain('No trono');
+    expect(linhas[0].querySelector('.pts')).toBeNull();
+    expect(h.querySelector('.trono')).toBeNull();
   });
 });

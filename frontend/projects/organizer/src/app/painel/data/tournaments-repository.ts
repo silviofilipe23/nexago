@@ -52,6 +52,14 @@ function optionalStr(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
+function categoryGenderFromRaw(raw: unknown): 'male' | 'female' | 'mixed' | null {
+  const v = optionalStr(raw)?.toLowerCase() ?? '';
+  if (v === 'female' || v === 'fem' || v === 'feminino') return 'female';
+  if (v === 'mixed' || v === 'misto') return 'mixed';
+  if (v === 'male' || v === 'masc' || v === 'masculino') return 'male';
+  return null;
+}
+
 function numberOf(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
@@ -89,6 +97,7 @@ export function categoryFromRaw(raw: unknown): OrganizerTournamentCategory | nul
   return {
     id,
     name: optionalStr(o['categoryName']) ?? optionalStr(o['name']) ?? id,
+    gender: categoryGenderFromRaw(o['genderType'] ?? o['gender']),
     maxTeams: numberOf(o['maxTeams']) ?? numberOf(o['spotsTotal']),
     entryFee: numberOf(o['entryFee']) ?? 0,
     teamSize: teamSizeRaw != null && teamSizeRaw >= 3 && teamSizeRaw <= 5 ? teamSizeRaw : null,

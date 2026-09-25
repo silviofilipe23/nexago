@@ -71,6 +71,8 @@ describe('kocPreRoundOf', () => {
     const pre = kocPreRoundOf(match())!;
 
     expect(pre.tronoTeamId).toBe('trono');
+    expect(pre.isFinal).toBeFalse();
+    expect(pre.teamCount).toBe(5);
     expect(pre.rows.map((r) => r.teamId)).toEqual([
       'trono',
       'desafia',
@@ -113,5 +115,40 @@ describe('kocPreRoundOf', () => {
 
   it('partida de duelo não tem elenco de rodada', () => {
     expect(kocPreRoundOf(match({ matchType: 'knockout', koc: null }))).toBeNull();
+  });
+
+  it('a final agendada já nasce com o visual de Grande final e todas as duplas', () => {
+    const pre = kocPreRoundOf(
+      match({
+        matchType: 'koc_final',
+        koc: round({
+          teamIds: ['a', 'b', 'c', 'd'],
+          points: { a: 0, b: 0, c: 0, d: 0 },
+          roundLabel: 1,
+        }),
+      }),
+    )!;
+
+    expect(pre.isFinal).toBeTrue();
+    expect(pre.teamCount).toBe(4);
+    expect(pre.rows.map((r) => r.teamId)).toEqual(['a', 'b', 'c', 'd']);
+    expect(pre.rows.every((r) => r.points === 0)).toBeTrue();
+  });
+
+  it('a final ao vivo também some — o card é só pré-apito', () => {
+    expect(
+      kocPreRoundOf(
+        match({
+          status: 'in_progress',
+          matchType: 'koc_final',
+          koc: round({
+            teamIds: ['a', 'b', 'c', 'd'],
+            kingTeamId: 'c',
+            challengerTeamId: 'a',
+            queue: ['d', 'b'],
+          }),
+        }),
+      ),
+    ).toBeNull();
   });
 });

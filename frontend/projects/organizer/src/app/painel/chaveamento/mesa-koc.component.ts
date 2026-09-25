@@ -40,6 +40,7 @@ import { fetchProfileDisplays, fetchTeamsByIds } from '../data/teams-repository'
 import { KOC_FINISHED_SHOWCASE_MS } from '../telao/telao-koc-mode';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgIconComponent } from '../ui/icon.component';
+import { ChaveamentoContextService } from './chaveamento-context.service';
 
 /** Opções de duração do protótipo (min). Servidor aceita 5–40. */
 const DURATION_OPTIONS_MIN = [10, 12, 15, 20] as const;
@@ -129,8 +130,8 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
             <span class="num">Coroas</span>
             <span class="num">Rallys</span>
             <span class="num">Pts</span>
-          </div>
-          @for (row of finalRows(); track row.teamId) {
+            </div>
+            @for (row of finalRows(); track row.teamId) {
             <div
               class="og-mk-final-row"
               [class.king]="row.place === 1"
@@ -148,13 +149,13 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                   @if (faceOf(row.teamId).sub; as sub) {
                     <span class="og-mk-final-sub">{{ sub }}</span>
                   }
-                </div>
+              </div>
                 @if (row.place === 1) {
                   <span class="og-mk-final-tag king">Rei da quadra</span>
                 } @else if (row.qualifies) {
                   <span class="og-mk-final-tag advances">Avança</span>
-                }
-              </div>
+            }
+          </div>
               <span class="og-mk-final-num">{{ row.crowns }}</span>
               <span class="og-mk-final-num">{{ row.rallyWins }}</span>
               <span class="og-mk-final-pts">{{ row.points }}</span>
@@ -175,7 +176,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
             <a class="og-mk-done-back" [routerLink]="backLink()">Voltar ao evento</a>
             <button type="button" class="og-ghost-btn og-mk-done-btn" [disabled]="busy()" (click)="exportTable()">
               Exportar tabela
-            </button>
+          </button>
             <button type="button" class="og-ghost-btn og-mk-done-btn solid" [disabled]="busy()" (click)="askCorrectScore()">
               Corrigir pontuação
             </button>
@@ -246,7 +247,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                     @for (p of faceOf(teamId).players; track $index) {
                       <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="36" />
                     }
-                  </span>
+            </span>
                   <span class="og-mk-order-body">
                     <span class="og-mk-order-name">{{ faceOf(teamId).name }}</span>
                     @if (faceOf(teamId).sub; as sub) {
@@ -257,7 +258,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                   <span class="og-mk-order-moves">
                     <button type="button" class="og-mk-move" [disabled]="busy() || i === 0" (click)="moveOrder(i, -1)" aria-label="Subir">
                       <og-icon name="chevronUp" [size]="14" />
-                    </button>
+          </button>
                     <button
                       type="button"
                       class="og-mk-move"
@@ -267,7 +268,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                     >
                       <og-icon name="chevronDown" [size]="14" />
                     </button>
-                  </span>
+            </span>
                 </li>
               }
             </ul>
@@ -287,7 +288,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                     (click)="draftDurationMin.set(min)"
                   >
                     {{ min }} min
-                  </button>
+          </button>
                 }
               </div>
             </div>
@@ -352,7 +353,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
             <p class="og-mk-feedback" [class.err]="!f.ok">{{ f.message }}</p>
           }
         </aside>
-      </div>
+            </div>
     } @else {
       <div class="og-mk-live">
         <div class="og-mk-live-main">
@@ -373,7 +374,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                   } @empty {
                     <og-avatar initials="?" [size]="72" />
                   }
-                </div>
+              </div>
                 <p class="og-mk-side-name">{{ faceOf(kingId()).name }}</p>
                 @if (faceOf(kingId()).sub; as sub) {
                   <p class="og-mk-side-sub">{{ sub }}</p>
@@ -482,8 +483,8 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                         Mini-rodada entre as {{ tieGroup().length }} —
                         <em>quem pontuar primeiro leva a vaga.</em>
                       </span>
-                    </p>
-                  }
+              </p>
+            }
 
                   @if (tieGroup().length > 2) {
                     <div class="og-mk-tie-roles">
@@ -497,8 +498,8 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                         </span>
                       }
                     </div>
-                  }
-                </div>
+            }
+          </div>
 
                 <div class="og-mk-golden">
                   <span class="og-mk-golden-kicker">{{ goldenKicker() }}</span>
@@ -513,9 +514,9 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                         <span class="og-mk-golden-ini" aria-hidden="true">{{ duoInitials(teamId) }}</span>
                         <span class="og-mk-golden-name">{{ faceOf(teamId).name }}</span>
                         <span class="og-mk-golden-pts">{{ pointsOf(teamId) }} pt</span>
-                      </button>
+            </button>
                     }
-                  </div>
+          </div>
                 </div>
               </section>
             }
@@ -537,9 +538,9 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
               </button>
             </div>
 
-            @if (feedback(); as f) {
-              <p class="og-mk-feedback" [class.err]="!f.ok">{{ f.message }}</p>
-            }
+        @if (feedback(); as f) {
+          <p class="og-mk-feedback" [class.err]="!f.ok">{{ f.message }}</p>
+        }
           </section>
         </div>
 
@@ -2654,6 +2655,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
 export class MesaKocComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
+  private readonly ctx = inject(ChaveamentoContextService);
 
   readonly id = input<string>('');
   readonly matchId = input<string>('');
@@ -2929,6 +2931,7 @@ export class MesaKocComponent {
   protected homologate(): void {
     void this.run(async () => {
       await validateMatchResult(this.matchId());
+      await this.ctx.reloadMatches();
       await this.router.navigate(this.backLink());
     }, null);
   }
@@ -3130,6 +3133,9 @@ export class MesaKocComponent {
         if (!this.confirmTiebreak()) return;
         await finishKocRound({ matchId: this.matchId(), acceptTiebreak: true });
       }
+      // Lista de Jogos lê o cache do contexto — sem isto o selo "Encerrado" só
+      // aparecia depois de um reload manual.
+      await this.ctx.reloadMatches();
     }, 'Rodada encerrada.');
   }
 
@@ -3140,10 +3146,10 @@ export class MesaKocComponent {
    *  regulamento prevê para quando a mesa decide não jogar o desempate. */
   protected finishByCriterion(): void {
     if (!this.confirmTiebreak()) return;
-    void this.run(
-      () => finishKocRound({ matchId: this.matchId(), acceptTiebreak: true }),
-      'Rodada encerrada pelo critério automático.',
-    );
+    void this.run(async () => {
+      await finishKocRound({ matchId: this.matchId(), acceptTiebreak: true });
+      await this.ctx.reloadMatches();
+    }, 'Rodada encerrada pelo critério automático.');
   }
 
   /** A copy nomeia o que a mesa acabou de mostrar: com duas é bola de ouro,

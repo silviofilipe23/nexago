@@ -6,6 +6,12 @@ import { OverlayLiveGateway } from './overlay-live.gateway';
 import { OverlayKocBarComponent } from './overlay-koc-bar.component';
 import { finalResultOf } from './overlay-final';
 import { OverlayFinalComponent, type FinalCampeoes } from './overlay-final.component';
+import {
+  OVERLAY_FINAL_CHANNEL,
+  overlayFinalModeOf,
+  readOverlayFinalPref,
+  type OverlayFinalMsg,
+} from './overlay-final-sync';
 import { kocPreRoundOf } from './overlay-koc-preround';
 import { OverlayKocPreRoundComponent } from './overlay-koc-preround.component';
 import { kocQualifiedBoardOf } from './overlay-koc-qualified';
@@ -107,8 +113,10 @@ const CLASSIFICADAS_MS = 15_000;
         [view]="koc"
         [teams]="gateway.teams()"
         [categoryName]="categoryName()"
+        [categoryGender]="categoryGender()"
         [courtName]="courtName()"
         [position]="kocPosition()"
+        [isFinal]="kocBarFinal()"
       />
     }
   `,
@@ -296,11 +304,29 @@ export class OverlayPageComponent {
     return tournament?.categories.find((c) => c.id === m?.categoryId)?.name ?? null;
   });
 
+  protected readonly categoryGender = computed(() => {
+    const m = this.match();
+    const tournament = this.gateway.tournament();
+    return tournament?.categories.find((c) => c.id === m?.categoryId)?.gender ?? null;
+  });
+
   protected readonly courtName = computed(() => this.match()?.court ?? null);
 
   /** A faixa do KOTC ocupa a largura toda: só aceita subir ou descer. */
   protected readonly kocPosition = computed<'top' | 'bottom'>(() =>
     this.pos() === 'top' ? 'top' : 'bottom',
+  );
+
+  /** Preferência do painel / outro overlay (`null` = seguir o matchType). */
+  private readonly finalPref = signal<boolean | null>(null);
+
+  private readonly matchIsKocFinal = computed(
+    () => normalizeMatchType(this.match()?.matchType ?? '') === 'koc final',
+  );
+
+  /** Barra em visual Grande final — partida final e/ou preferência compartilhada. */
+  protected readonly kocBarFinal = computed(() =>
+    overlayFinalModeOf(this.matchIsKocFinal(), this.finalPref()),
   );
 
   private readonly view = computed(() => {
@@ -355,6 +381,20 @@ export class OverlayPageComponent {
       const id = this.matchId();
       if (!id) return;
       onCleanup(this.gateway.start(id));
+    });
+
+    // Modo final compartilhado: painel e overlays da mesma origem leem o mesmo storage e
+    // escutam o BroadcastChannel — ligar num liga nos outros.
+    effect((onCleanup) => {
+      const tid = (this.match()?.tournamentId || this.tournamentId() || '').trim();
+      this.finalPref.set(tid ? readOverlayFinalPref(tid) : null);
+      if (!tid || typeof BroadcastChannel === 'undefined') return;
+      const ch = new BroadcastChannel(OVERLAY_FINAL_CHANNEL);
+      ch.onmessage = (ev: MessageEvent<OverlayFinalMsg>) => {
+        if (ev.data?.tournamentId !== tid) return;
+        this.finalPref.set(ev.data.on);
+      };
+      onCleanup(() => ch.close());
     });
 
     const handle = setInterval(() => this.tick.set(Date.now()), 1000);

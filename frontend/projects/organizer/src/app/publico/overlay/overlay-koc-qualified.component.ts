@@ -1,4 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
+import { OgAvatarComponent } from '../../painel/ui/avatar.component';
+import { ledIniciaisDe } from '../led/led-iniciais';
 import { OverlayMarkComponent } from './overlay-mark.component';
 import type { OverlayKocTeam } from './overlay-koc-bar.component';
 import type { KocQualifiedBoard, KocQualifiedEntry } from './overlay-koc-qualified';
@@ -10,6 +12,13 @@ const SEG_FIRST_DELAY_MS = 200;
 const SEG_STAGGER_MS = 60;
 /** Quanto tempo a dupla recém-classificada fica marcada como nova. */
 const NOVA_MS = 12_000;
+const AVATAR_SIZE = 44;
+
+interface QualifiedAthlete {
+  name: string;
+  initials: string;
+  photoUrl: string | null;
+}
 
 /** Quem já garantiu vaga na fase classificatória.
  *
@@ -18,7 +27,7 @@ const NOVA_MS = 12_000;
 @Component({
   selector: 'og-overlay-koc-qualified',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OverlayMarkComponent],
+  imports: [OgAvatarComponent, OverlayMarkComponent],
   template: `
     @if (visible() && board(); as b) {
       <div class="card" [class.card--out]="saindo()">
@@ -59,6 +68,11 @@ const NOVA_MS = 12_000;
               [class.row--nova]="ehNova(entry)"
               [style.animation-delay.ms]="atrasoDaLinha(i)"
             >
+              <span class="avatares">
+                @for (p of atletasDe(entry.teamId); track $index) {
+                  <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="avatarSize" />
+                }
+              </span>
               <span class="names">{{ nomesDe(entry.teamId) }}</span>
               @if (ehNova(entry)) {
                 <span class="nova">Nova</span>
@@ -251,6 +265,25 @@ const NOVA_MS = 12_000;
       }
     }
 
+    .avatares {
+      display: flex;
+      align-items: center;
+      flex: none;
+    }
+    .avatares og-avatar {
+      background: #0f1412;
+      border: 2px solid rgba(47, 217, 122, 0.35);
+      color: #8a938d;
+      box-sizing: border-box;
+    }
+    .avatares og-avatar + og-avatar {
+      margin-left: -12px;
+    }
+    .row--nova .avatares og-avatar {
+      border-color: #2fd97a;
+      color: #2fd97a;
+    }
+
     .names {
       flex: 1;
       min-width: 0;
@@ -315,6 +348,7 @@ export class OverlayKocQualifiedComponent {
   readonly phaseName = input<string | null>(null);
   readonly categoryName = input<string | null>(null);
 
+  protected readonly avatarSize = AVATAR_SIZE;
   protected readonly visible = signal(true);
   protected readonly saindo = signal(false);
 
@@ -369,7 +403,21 @@ export class OverlayKocQualifiedComponent {
   }
 
   protected nomesDe(teamId: string): string {
-    return (this.teams().get(teamId)?.players ?? []).filter((n) => n !== '').join(' · ');
+    return this.atletasDe(teamId)
+      .map((p) => p.name)
+      .join(' · ');
+  }
+
+  protected atletasDe(teamId: string): QualifiedAthlete[] {
+    const team = this.teams().get(teamId);
+    if (!team) return [];
+    return team.players
+      .map((name, i) => ({
+        name,
+        initials: ledIniciaisDe(name),
+        photoUrl: team.photos?.[i] ?? null,
+      }))
+      .filter((p) => p.name !== '');
   }
 
   mostrar(): void {

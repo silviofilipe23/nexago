@@ -1,6 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { AuthService } from '../../auth/auth.service';
-import { listMatches, resolveCourtNames, type TournamentMatch } from '../data/matches-repository';
+import { listMatches, resolveCourtNames, watchMatches, type TournamentMatch } from '../data/matches-repository';
 import type { OrganizerTournament, OrganizerTournamentCategory } from '../data/tournament.model';
 import { getTournament, listMyTournaments } from '../data/tournaments-repository';
 import { tournamentReach } from './tournament-reach';
@@ -166,6 +166,41 @@ export class ChaveamentoContextService {
     if (id) await this.loadMatches(id);
   }
 
+  /** Assina a grade do torneio enquanto a tela de Jogos (ou quem chamar) estiver montada.
+   *
+   *  Snapshot a cada escrita de QUALQUER partida — só use com a lista aberta. Preserva os
+   *  rótulos do join de `listMatches`; se o slot ganhou/perdeu equipe (avanço de chave),
+   *  recarrega com join. Assim "Encerrado" e o placar aparecem na hora, sem esperar reload. */
+  watchMatchesLive(tournamentId: string): () => void {
+    return watchMatches(
+      tournamentId,
+      (live) => {
+        if (this.selectedTournamentId() != null && this.selectedTournamentId() !== tournamentId) {
+          return;
+        }
+        const prev = this.matchesLoaded();
+        const byId = new Map(prev.map((m) => [m.id, m]));
+        const needsRelabel =
+          prev.length === 0 ||
+          live.some((m) => {
+            const old = byId.get(m.id);
+            return !old || old.teamAId !== m.teamAId || old.teamBId !== m.teamBId;
+          });
+        if (needsRelabel) {
+          void this.loadMatches(tournamentId, { quiet: true });
+          return;
+        }
+        this.matchesLoaded.set(
+          live.map((m) => {
+            const old = byId.get(m.id)!;
+            return { ...m, team1Label: old.team1Label, team2Label: old.team2Label };
+          }),
+        );
+      },
+      (err) => console.warn('Chaveamento: falha no watch de partidas', err),
+    );
+  }
+
   /** Recarrega a lista de torneios (após criar/editar/cancelar torneio ou liga),
    *  preservando a seleção atual quando o torneio ainda existe. */
   async reloadTournaments(): Promise<void> {
@@ -191,15 +226,15 @@ export class ChaveamentoContextService {
     }
   }
 
-  private async loadMatches(tournamentId: string): Promise<void> {
+  private async loadMatches(tournamentId: string, opts?: { quiet?: boolean }): Promise<void> {
     const uid = this.loadedUid;
-    this.loadingMatches.set(true);
+    if (!opts?.quiet) this.loadingMatches.set(true);
     try {
       const matches = await listMatches(tournamentId);
       if (uid !== this.loadedUid) return;
       this.matchesLoaded.set(matches);
     } finally {
-      this.loadingMatches.set(false);
+      if (!opts?.quiet) this.loadingMatches.set(false);
     }
   }
 }

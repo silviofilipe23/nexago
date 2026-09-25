@@ -19,6 +19,8 @@ export type TournamentRole = 'owner' | 'manager' | 'eventAdmin';
 export interface OrganizerTournamentCategory {
   id: string; // categoryId usado em inscriptions/matches
   name: string;
+  /** `male` | `female` | `mixed` do Firestore; null em docs legados sem o campo. */
+  gender: 'male' | 'female' | 'mixed' | null;
   maxTeams: number | null;
   /** Taxa de inscrição em reais; `0` = categoria gratuita. */
   entryFee: number;

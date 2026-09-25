@@ -21,7 +21,7 @@ function board(overrides: Partial<KocQualifiedBoard> = {}): KocQualifiedBoard {
 }
 
 const TEAMS = new Map<string, OverlayKocTeam>([
-  ['e', { players: ['Hölting Nilsson', 'Berger'] }],
+  ['e', { players: ['Hölting Nilsson', 'Berger'], photos: ['https://cdn.example/hn.jpg', null] }],
   ['d', { players: ['Batrane', 'Tiisaar'] }],
   ['a', { players: ['Van', 'Aye'] }],
   ['b', { players: ['Bro', 'Dau'] }],
@@ -86,6 +86,16 @@ describe('OverlayKocQualifiedComponent', () => {
     expect(linhas[0].textContent).toContain('Hölting Nilsson · Berger');
     expect(linhas[0].textContent?.replace(/\s+/g, ' ')).toContain('1º · Rodada 1');
     expect(linhas[3].textContent).toContain('Bro · Dau');
+  });
+
+  it('mostra avatares com foto ou iniciais de cada atleta', async () => {
+    const fixture = await render();
+    const primeira = host(fixture).querySelectorAll('.row')[0];
+    const avatars = [...primeira.querySelectorAll('og-avatar')];
+
+    expect(avatars.length).toBe(2);
+    expect(avatars[0].querySelector('img')?.getAttribute('src')).toBe('https://cdn.example/hn.jpg');
+    expect(avatars[1].textContent?.trim()).toBe('BE');
   });
 
   it('mostra o progresso da fase e quantas rodadas faltam', async () => {

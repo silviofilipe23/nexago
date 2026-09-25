@@ -67,7 +67,7 @@ export function revokeSpotPassLink(linkId: string): Promise<void> {
 export interface GenerateBracketParams {
   tournamentId: string;
   categoryId: string;
-  format: 'groups_knockout' | 'single_elimination' | 'double_elimination' | 'king_of_court';
+  format: 'groups_knockout' | 'single_elimination' | 'double_elimination' | 'king_of_court' | 'round_robin';
   seeds?: string[];
   groupsPreview?: Array<{ id: string; teamIds: string[] }>;
   bracketConfig?: Record<string, unknown>;

@@ -260,6 +260,25 @@ comparar: plano da rodada × plano da categoria.
    daquela rodada**. O app da loja, o overlay e o LED continuam lendo o que sempre leram enquanto o
    build não sobe.
 
+#### Desvio declarado: campo de uma chave só ignora `roundsPerBracket`
+
+A camada 1 tem **uma** exceção, deliberada. `kocLegacyPlan` força
+`roundsPerBracket: 1` quando o campo inteiro forma uma chave (`brackets === 1`); o gerador antigo
+não forçava, e emitia `roundsPerBracket` rodadas encolhendo a chave.
+
+- **Quem muda:** campo que cabe numa chave só — 3, 4 ou 5 duplas — com "rodadas por chave" 2 ou
+  mais. Nenhuma configuração com 6 duplas ou mais produz chave diferente.
+- **O caso concreto:** 5 duplas, `teamsPerCourt: 4`, `roundsPerBracket: 3`. Antes: três rodadas de
+  5, 4 e 3 duplas, **as três tipadas `koc_final`**. Agora: uma rodada de 5.
+- **Medido:** varrendo `3 ≤ n ≤ 40` × `teamsPerCourt` 3–6 × `roundsPerBracket` 1–4 ×
+  `qualifiersPerRound` 1–3 (1824 configurações), 108 divergem — todas dessa mesma classe. Fora
+  dela, a forma da chave (fases, tamanhos e tipos das rodadas) é bit a bit a de antes.
+- **Por que o novo está certo:** três rodadas tipadas `koc_final` são três pódios na mesma
+  categoria, o que contradiz a regra do formato — a final é uma bateria e a tabela dela é o pódio.
+  A saída antiga também descia a rodada abaixo do piso de 3 duplas (a terceira rodada tinha 3, a
+  quarta teria 2). Mudar o código para reproduzi-la seria preservar um bug.
+- Registrado também em `docs/business-rules/king-of-court.md`, em "Baterias por chave".
+
 ### Sorteio ao vivo
 
 `teamsPerBox` (`functions/src/draw-sessions.ts:283`) deixa de recalcular e passa a ser
@@ -281,9 +300,9 @@ Formato · 10 duplas inscritas                        [ Refazer proposta ]
   FASE              CHAVES      BATERIAS   CLASSIFICAM   DURAÇÃO    PASSAM
   Classificatória   [2 ▾] 5,5   [− 3 +]    [− 1 +]       15 min       6
   Semifinal         [1 ▾] 6     [− 4 +]    [− 1 +]       15 min       4
-  Final             [1]   4        1         —           20 min     pódio
+  Final             [1]   4        1         —           15 min     pódio
 
-  11 rodadas · 3h40 em 1 quadra · 1h55 em 2 quadras
+  11 rodadas · 3h55 em 1 quadra · 2h55 em 2 quadras
 ```
 
 Comportamento:

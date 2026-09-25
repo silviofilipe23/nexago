@@ -110,6 +110,18 @@ duplas: uma chave só passaria do teto de 5 por rodada).
 rodadas no total; duas dão 11. O wizard mostra o tempo total antes de publicar.
 - A **rodada final** define o pódio direto pela tabela: 1º, 2º, 3º, 4º.
 
+**Campo que cabe numa chave só ignora as baterias.** Quando o campo inteiro
+forma uma chave — na prática 3, 4 ou 5 duplas —, o torneio É a rodada final, e
+ela vale **uma bateria**, mesmo que a categoria peça 2 ou 3 rodadas por chave.
+
+Isto mudou com o plano de fases (setembro/2026) e é uma mudança declarada, não
+um acidente: com 5 duplas, quadras de 4 e 3 rodadas por chave, o gerador antigo
+emitia **três rodadas** de 5, 4 e 3 duplas, as três tipadas como final — três
+pódios na mesma categoria, incoerente com a regra do próprio formato de que a
+final é uma bateria e a tabela dela é o pódio. Hoje sai uma rodada de 5. É o
+único desvio de forma que a mudança de gerador produziu; nenhuma configuração
+com 6 duplas ou mais gera chave diferente da de antes.
+
 ## Telão
 A rodada é exibida num telão público: trono, cronômetro, tabela ao vivo e fila.
 O telão é **por categoria**, não por rodada — segue sozinho a que está valendo

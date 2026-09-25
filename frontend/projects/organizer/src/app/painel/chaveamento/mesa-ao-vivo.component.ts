@@ -33,7 +33,7 @@ import {
   type MatchDisplayStatus,
   type MatchSide,
 } from '@nexago/live-scoring';
-import { isKingOfCourtMatchType, kocIsExpired, kocPhaseLabel, kocRemainingLabel } from '../data/koc';
+import { isKingOfCourtMatchType, kocIsExpired, kocMatchPhaseLabel, kocRemainingLabel } from '../data/koc';
 import { organizerFirestore } from '../data/firestore';
 import { organizerLiveScoringContext } from '../data/live-scoring-context';
 import { formatCourtLabel } from '../data/schedule-format';
@@ -1146,7 +1146,11 @@ export class MesaAoVivoComponent {
   protected readonly headerSubtitle = computed(() => {
     const m = this.match();
     if (m && this.isKingOfCourt()) {
-      const phase = kocPhaseLabel(m.matchType, m.matchNumber);
+      // A rodada (bateria, chave, plano) vive na linha do repositório, não no
+      // doc ao vivo — a mesma de onde sai o relógio do cabeçalho. Sem ela o
+      // cabeçalho dizia "Rodada 9" (número GLOBAL) enquanto o telão da quadra
+      // dizia "Chave 4 · Bateria 3": duas telas lado a lado sem como casar.
+      const phase = kocMatchPhaseLabel(m, this.cachedRow()?.koc);
       return m.status === 'completed' ? `${phase} · Final` : phase;
     }
     const t = this.ctx.tournament();

@@ -271,8 +271,10 @@ não forçava, e emitia `roundsPerBracket` rodadas encolhendo a chave.
 - **O caso concreto:** 5 duplas, `teamsPerCourt: 4`, `roundsPerBracket: 3`. Antes: três rodadas de
   5, 4 e 3 duplas, **as três tipadas `koc_final`**. Agora: uma rodada de 5.
 - **Medido:** varrendo `3 ≤ n ≤ 40` × `teamsPerCourt` 3–6 × `roundsPerBracket` 1–4 ×
-  `qualifiersPerRound` 1–3 (1824 configurações), 108 divergem — todas dessa mesma classe. Fora
-  dela, a forma da chave (fases, tamanhos e tipos das rodadas) é bit a bit a de antes.
+  `qualifiersPerRound` 1–3 (1824 configurações) contra o gerador do merge-base, 108 divergem —
+  todas com **n ∈ {3, 4, 5}** e `roundsPerBracket` ≥ 2. O 3 entra na lista: ali o gerador antigo
+  chegava a emitir uma rodada de **uma** dupla. Fora dessa classe, a forma da chave (fases,
+  tamanhos e tipos das rodadas) é bit a bit a de antes.
 - **Por que o novo está certo:** três rodadas tipadas `koc_final` são três pódios na mesma
   categoria, o que contradiz a regra do formato — a final é uma bateria e a tabela dela é o pódio.
   A saída antiga também descia a rodada abaixo do piso de 3 duplas (a terceira rodada tinha 3, a

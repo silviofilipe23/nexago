@@ -162,6 +162,40 @@ export function kocPhaseLabel(
   return matchNumber > 0 ? `${phase} · Rodada ${matchNumber}` : phase;
 }
 
+/** O que uma tela precisa da rodada para rotulá-la. Subconjunto de
+ *  [KocRoundState], para o chamador poder passar a rodada inteira. */
+export type KocRoundLabelSource = Pick<
+  KocRoundState,
+  'roundLabel' | 'batteryLabel' | 'poolId' | 'bracketsInPhase'
+>;
+
+/** Rótulo da rodada a partir da PARTIDA e da rodada dela — a forma que as telas
+ *  que têm as duas em mãos devem usar.
+ *
+ *  `kocPhaseLabel` recebe campos soltos, e cada tela que os monta à mão é uma
+ *  chance de montar diferente: foi assim que a mesa ficou dizendo
+ *  "Classificatória · Rodada 9" para a rodada que o telão ao lado chamava de
+ *  "Chave 4 · Bateria 3" — e o mesário que casa as duas telas erradas abre a
+ *  bateria errada, num formato em que o lançamento É o registro.
+ *
+ *  Também é onde mora a escolha do NÚMERO: `roundLabel` é o índice dentro da
+ *  fase, e `matchNumber` (global) só serve de reserva para rodada antiga, que
+ *  não tem o outro.
+ *
+ *  Pura de propósito: as duas mesas não têm spec — nascem com listener do
+ *  Firestore no construtor e recebem a partida só por ele, sem costura para o
+ *  teste injetar uma. Mesmo motivo de `koc-drift.ts` e `chaveamento-zoom.ts`. */
+export function kocMatchPhaseLabel(
+  match: { matchType: string; matchNumber: number; poolId?: string | null },
+  koc: KocRoundLabelSource | null | undefined,
+): string {
+  return kocPhaseLabel(match.matchType, koc?.roundLabel || match.matchNumber, {
+    poolId: koc?.poolId ?? match.poolId ?? undefined,
+    batteryLabel: koc?.batteryLabel,
+    bracketsInPhase: koc?.bracketsInPhase,
+  });
+}
+
 /** Título do card/fila quando a partida é rodada KOTC — não há confronto A×B,
  *  então "A definir × A definir" não identifica nada.
  *

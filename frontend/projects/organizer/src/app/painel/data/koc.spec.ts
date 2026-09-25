@@ -1,6 +1,7 @@
 import {
   isKingOfCourtMatchType,
   kocCardTitle,
+  kocMatchPhaseLabel,
   kocFinalTable,
   kocHasQualifyingTie,
   kocQualifyingTieGroup,
@@ -110,6 +111,55 @@ describe('rótulo da rodada com baterias', () => {
   it('sem saber quantas chaves a fase tem (chave antiga), mantém o que sempre mostrou', () => {
     expect(kocPhaseLabel('koc_round', 9, { poolId: 'C4', batteryLabel: 3 }))
       .toBe('Classificatória · Chave 4 · Bateria 3');
+  });
+});
+
+describe('kocMatchPhaseLabel · o rótulo das duas mesas', () => {
+  /** A rodada como a mesa a recebe: campos que importam pro rótulo. */
+  function koc(overrides: Record<string, unknown> = {}) {
+    return { roundLabel: 2, batteryLabel: 3, poolId: 'C4', bracketsInPhase: 4, ...overrides } as Parameters<
+      typeof kocMatchPhaseLabel
+    >[1];
+  }
+
+  it('mesa da rodada (og-mesa-koc): `TournamentMatch` + `m.koc` — a chave vem da RODADA', () => {
+    // `TournamentMatch` não tem `poolId` (só a rodada tem). É o que
+    // `phaseLabel()` passa, e o telão da mesma quadra diz esta string.
+    const detail = kocMatchPhaseLabel({ matchType: 'koc_round', matchNumber: 9 }, koc());
+
+    expect(detail).toBe('Classificatória · Chave 4 · Bateria 3');
+  });
+
+  it('cabeçalho da mesa ao vivo: `LiveMatch` (com poolId, matchNumber GLOBAL) + a rodada da linha', () => {
+    // O que `headerSubtitle()` passa. Tem que dar a MESMA string da mesa
+    // acima: as duas telas ficam abertas ao mesmo tempo, uma dentro da outra.
+    const detail = kocMatchPhaseLabel({ matchType: 'koc_round', matchNumber: 9, poolId: 'C4' }, koc());
+
+    expect(detail).toBe('Classificatória · Chave 4 · Bateria 3');
+  });
+
+  it('prefere `roundLabel` (índice na fase) ao `matchNumber` global', () => {
+    const detail = kocMatchPhaseLabel(
+      { matchType: 'koc_round', matchNumber: 9, poolId: 'C2' },
+      koc({ roundLabel: 2, batteryLabel: 1, bracketsInPhase: 4 }),
+    );
+
+    expect(detail).toBe('Classificatória · Rodada 2');
+  });
+
+  it('sem a rodada em mãos (linha ainda não carregou), cai no número global e não inventa chave', () => {
+    const detail = kocMatchPhaseLabel({ matchType: 'koc_round', matchNumber: 9, poolId: 'C4' }, null);
+
+    expect(detail).toBe('Classificatória · Rodada 9');
+  });
+
+  it('semifinal de duas chaves também se identifica na mesa', () => {
+    const detail = kocMatchPhaseLabel(
+      { matchType: 'koc_semifinal', matchNumber: 13, poolId: 'C2' },
+      koc({ roundLabel: 2, batteryLabel: 2, poolId: 'C2', bracketsInPhase: 2 }),
+    );
+
+    expect(detail).toBe('Semifinal · Chave 2 · Bateria 2');
   });
 });
 

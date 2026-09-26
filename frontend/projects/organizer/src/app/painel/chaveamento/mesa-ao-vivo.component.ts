@@ -285,8 +285,8 @@ interface MedicalOptionView {
                   }
                   Desfazer último ponto
                 </button>
-                <button type="button" class="og-mini-btn" [disabled]="saving()" (click)="swapServe()">Trocar saque</button>
-                <button type="button" class="og-mini-btn" [disabled]="saving() || servingPlayerSlot() === 0" (click)="swapServingPlayer()">Trocar sacador</button>
+                <button type="button" class="og-mini-btn" [disabled]="saving()" (click)="swapServe()">Saque dupla</button>
+                <button type="button" class="og-mini-btn" [disabled]="saving() || servingPlayerSlot() === 0" (click)="swapServingPlayer()">Saque atleta</button>
                 <button type="button" class="og-mini-btn og-mesa-medical" [disabled]="saving() || !canOpenMedical()" (click)="openMedicalPicker()">Tempo médico</button>
                 <button type="button" class="og-mini-btn og-mesa-revert" [disabled]="saving()" (click)="askRevert()">Tirar do ao vivo</button>
                 <div class="og-filter-bar og-mesa-format">

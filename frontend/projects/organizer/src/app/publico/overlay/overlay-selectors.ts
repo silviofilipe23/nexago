@@ -3,6 +3,7 @@ import { kocBarOf, kocRoundTitleOf, type OverlayKocBar } from './overlay-koc-bar
 import { matchClosedSets, matchLiveCurrentSet, matchSetWins } from '../../painel/data/live-set-display';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
 import { pointAlertOf, type PointAlert } from '../../painel/telao/telao-final-mode';
+import { targetPointsForSet } from '@nexago/live-scoring';
 
 export type OverlayPhase = 'pregame' | 'live' | 'final';
 
@@ -10,6 +11,15 @@ export interface OverlaySide {
   teamId: string;
   label: string;
   serving: boolean;
+}
+
+/** Coluna de set no placar (fechado ou em andamento com traço). */
+export interface OverlayDuelSetColumn {
+  index: number;
+  label: string;
+  a: number | null;
+  b: number | null;
+  active: boolean;
 }
 
 export interface OverlayDuelView {
@@ -24,6 +34,18 @@ export interface OverlayDuelView {
   alert: PointAlert | null;
   /** Partida de set único nunca sai de 0-0 em sets — a coluna só ocuparia espaço no ar. */
   showSets: boolean;
+  /** Quem lidera o set corrente (`null` = empate / sem pontos). */
+  pointsLead: 'A' | 'B' | null;
+  /** Set em curso (1-based) pra faixa "SET 2 · ATÉ 21". */
+  currentSetNumber: number;
+  targetPoints: number;
+  setColumns: OverlayDuelSetColumn[];
+  /** Fase/rodada já rotulada (`Semifinal`, …). */
+  roundLabel: string | null;
+  /** Vencedor quando `phase === 'final'`. */
+  winnerSide: 'A' | 'B' | null;
+  /** Posição na dupla no saque (1 ou 2). Zero = ainda não declarado. */
+  servingPlayerSlot: 0 | 1 | 2;
 }
 
 export interface OverlayKocView {
@@ -46,6 +68,49 @@ function phaseOf(status: TournamentMatch['status']): OverlayPhase {
   if (status === 'in_progress') return 'live';
   if (status === 'completed') return 'final';
   return 'pregame';
+}
+
+function pointsLeadOf(a: number | null, b: number | null): 'A' | 'B' | null {
+  if (a == null || b == null) return null;
+  if (a > b) return 'A';
+  if (b > a) return 'B';
+  return null;
+}
+
+function winnerSideOf(match: TournamentMatch, setsA: number, setsB: number): 'A' | 'B' | null {
+  if (match.status !== 'completed') return null;
+  if (match.winnerSide === 1) return 'A';
+  if (match.winnerSide === 2) return 'B';
+  if (setsA > setsB) return 'A';
+  if (setsB > setsA) return 'B';
+  return null;
+}
+
+function setColumnsOf(
+  match: TournamentMatch,
+  closed: Array<{ a: number; b: number }>,
+  live: { setNumber: number; a: number; b: number } | null,
+): OverlayDuelSetColumn[] {
+  if (match.bestOf <= 1) return [];
+  const cols: OverlayDuelSetColumn[] = closed.map((s, i) => ({
+    index: i,
+    label: `SET ${i + 1}`,
+    a: s.a,
+    b: s.b,
+    active: false,
+  }));
+  if (live) {
+    cols.push({
+      index: live.setNumber - 1,
+      label: `SET ${live.setNumber}`,
+      a: null,
+      b: null,
+      active: true,
+    });
+  } else if (cols.length > 0 && match.status === 'completed') {
+    cols[cols.length - 1]!.active = true;
+  }
+  return cols;
 }
 
 export function overlayViewOf(
@@ -81,7 +146,12 @@ export function overlayViewOf(
   // partida de set único a coluna de sets nem aparece, e sem isto o overlay ficaria só com
   // traços no lugar do resultado.
   const closed = matchClosedSets(match);
-  const points = matchLiveCurrentSet(match) ?? (match.status === 'completed' ? closed.at(-1) ?? null : null);
+  const live = matchLiveCurrentSet(match);
+  const points = live ?? (match.status === 'completed' ? closed.at(-1) ?? null : null);
+  const pointsA = points?.a ?? null;
+  const pointsB = points?.b ?? null;
+  const currentSetNumber = live?.setNumber ?? Math.max(1, closed.length);
+  const targetPoints = targetPointsForSet(Math.max(0, currentSetNumber - 1), match.bestOf);
   return {
     kind: 'duel',
     phase: phaseOf(match.status),
@@ -89,10 +159,18 @@ export function overlayViewOf(
     b: sideOf(match.teamBId, match.team2Label, match.servingTeamId),
     setsA,
     setsB,
-    pointsA: points?.a ?? null,
-    pointsB: points?.b ?? null,
+    pointsA,
+    pointsB,
     alert: pointAlertOf(match),
     showSets: match.bestOf > 1,
+    pointsLead: pointsLeadOf(pointsA, pointsB),
+    currentSetNumber,
+    targetPoints,
+    setColumns: setColumnsOf(match, closed, live),
+    roundLabel: match.round?.trim() || null,
+    winnerSide: winnerSideOf(match, setsA, setsB),
+    servingPlayerSlot:
+      match.servingPlayerSlot === 1 || match.servingPlayerSlot === 2 ? match.servingPlayerSlot : 0,
   };
 }
 

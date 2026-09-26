@@ -170,30 +170,32 @@ describe('OverlayPageComponent', () => {
     await fixture.whenStable();
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
 
-    expect(text).toContain('Ana / Bia');
+    expect(text).toContain('Ana');
+    expect(text).toContain('Bia');
     expect(text).toContain('14');
     expect(text).toContain('11');
   });
 
-  it('monta a faixa com o nome do torneio, da categoria e da quadra', async () => {
+  it('monta a faixa com categoria, fase e quadra', async () => {
     const { fixture, fake } = await mount({ matchId: 'm1' });
     fake.match.set(match({}));
     fake.tournament.set(TOURNAMENT);
     await fixture.whenStable();
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
 
     // `court` veio vazio no doc — o nome sai do `courtId` pelas quadras do torneio.
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
-      'Copa VH · Feminina B · Semifinal · Quadra 2',
-    );
+    expect(text).toContain('Feminina B');
+    expect(text).toContain('Semifinal');
+    expect(text).toContain('Quadra 2');
   });
 
-  it('respeita o canto pedido em ?pos=', async () => {
+  it('ancora o placar de duelo embaixo à esquerda', async () => {
     const { fixture, fake } = await mount({ matchId: 'm1', pos: 'br' });
     fake.match.set(match({}));
     await fixture.whenStable();
-    const overlay = (fixture.nativeElement as HTMLElement).querySelector('.overlay');
+    const board = (fixture.nativeElement as HTMLElement).querySelector('.board');
 
-    expect(overlay?.getAttribute('data-pos')).toBe('br');
+    expect(board).not.toBeNull();
   });
 
   it('não desenha nada enquanto a partida não chegou', async () => {

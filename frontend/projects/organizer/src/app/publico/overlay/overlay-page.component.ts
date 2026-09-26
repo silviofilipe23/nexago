@@ -20,7 +20,22 @@ import { kocStandingsBoardOf } from './overlay-koc-standings';
 import { OverlayKocStandingsComponent } from './overlay-koc-standings.component';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
 import { kocRoundTitleOf } from './overlay-koc-bar';
-import { overlayBandOf, overlayCornerOf, overlayViewOf } from './overlay-selectors';
+import { overlayCornerOf, overlayViewOf } from './overlay-selectors';
+import { OverlayDoacaoComponent } from './overlay-doacao.component';
+import {
+  doacaoCycleShowNow,
+  doacaoCycleStart,
+  doacaoCycleStop,
+  doacaoCycleTick,
+  type DoacaoCycleState,
+} from './overlay-doacao-cycle';
+import {
+  bindOverlayDoacaoControls,
+  getOverlaySettings,
+  installNxOverlay,
+  subscribeOverlaySettings,
+  type OverlayDoacaoConfig,
+} from './overlay-nx';
 
 type TelaKoc = 'resultado' | 'classificadas';
 
@@ -51,6 +66,7 @@ const CLASSIFICADAS_MS = 15_000;
     OverlayKocQualifiedComponent,
     OverlayKocPreRoundComponent,
     OverlayFinalComponent,
+    OverlayDoacaoComponent,
   ],
   providers: [OverlayLiveGateway],
   host: { '(document:keydown)': 'aoTeclar($event)' },
@@ -66,9 +82,10 @@ const CLASSIFICADAS_MS = 15_000;
     @if (duelView(); as duel) {
       <og-overlay-scoreboard
         [view]="duel"
-        [band]="band()"
-        [corner]="corner()"
-        [teamLabels]="teamLabels()"
+        [teams]="gateway.teams()"
+        [categoryName]="categoryName()"
+        [courtName]="courtName()"
+        [isFinal]="duelFinalMode()"
       />
     }
     @if (telaDoResultado(); as board) {
@@ -119,6 +136,14 @@ const CLASSIFICADAS_MS = 15_000;
         [isFinal]="kocBarFinal()"
       />
     }
+
+    <og-overlay-doacao [config]="doacaoConfig()" [show]="doacaoShow()" />
+
+    <!-- Atalhos invisíveis pro modo Interagir do OBS (canto superior direito). -->
+    <div class="doacao-hot">
+      <button type="button" class="doacao-hot-btn" aria-label="Mostrar doação" (click)="mostrarDoacao()"></button>
+      <button type="button" class="doacao-hot-btn" aria-label="Desligar doação" (click)="desligarDoacao()"></button>
+    </div>
   `,
   styles: `
     :host {
@@ -137,6 +162,24 @@ const CLASSIFICADAS_MS = 15_000;
       z-index: 10;
       padding: 0;
       border: 0;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .doacao-hot {
+      position: fixed;
+      top: 8px;
+      right: 8px;
+      z-index: 30;
+      display: flex;
+      gap: 4px;
+    }
+    .doacao-hot-btn {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 0;
+      border-radius: 8px;
       background: transparent;
       cursor: pointer;
     }
@@ -279,9 +322,62 @@ export class OverlayPageComponent {
   }
 
   protected aoTeclar(event: KeyboardEvent): void {
+    const key = event.key.toLowerCase();
+    if (key === 'd' && !event.metaKey && !event.ctrlKey) {
+      event.preventDefault();
+      this.mostrarDoacao();
+      return;
+    }
+    if (key === 'o' && !event.metaKey && !event.ctrlKey) {
+      event.preventDefault();
+      this.desligarDoacao();
+      return;
+    }
     if (!this.podeAlternar()) return;
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
     this.alternar();
+  }
+
+  /** Config viva — `NXOverlay.set({ doacao: { ... } })` atualiza no ar. */
+  protected readonly doacaoConfig = signal<OverlayDoacaoConfig>(getOverlaySettings().doacao);
+  private readonly doacaoCycle = signal<DoacaoCycleState>(doacaoCycleStop());
+  protected readonly doacaoShow = computed(() => this.doacaoCycle().show);
+  private doacaoTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private doacaoInput() {
+    const cfg = this.doacaoConfig();
+    return {
+      enabled: cfg.enabled,
+      hasPix: cfg.pixKey.trim().length > 0,
+      atrasoSeg: cfg.atrasoSeg,
+      visivelSeg: cfg.visivelSeg,
+      intervaloSeg: cfg.intervaloSeg,
+    };
+  }
+
+  private clearDoacaoTimer(): void {
+    if (this.doacaoTimer != null) {
+      clearTimeout(this.doacaoTimer);
+      this.doacaoTimer = null;
+    }
+  }
+
+  /** Grava o estado e agenda a próxima transição do ciclo. */
+  private runDoacao(state: DoacaoCycleState): void {
+    this.clearDoacaoTimer();
+    this.doacaoCycle.set(state);
+    if (state.waitMs == null) return;
+    this.doacaoTimer = setTimeout(() => {
+      this.runDoacao(doacaoCycleTick(this.doacaoCycle(), this.doacaoInput()));
+    }, state.waitMs);
+  }
+
+  protected mostrarDoacao(): void {
+    this.runDoacao(doacaoCycleShowNow(this.doacaoInput()));
+  }
+
+  protected desligarDoacao(): void {
+    this.runDoacao(doacaoCycleStop());
   }
 
   protected readonly phaseName = computed(() => {
@@ -290,13 +386,6 @@ export class OverlayPageComponent {
   });
 
   protected readonly roundLabel = computed(() => this.match()?.koc?.roundLabel ?? 0);
-
-  /** O placar de duelo só precisa do rótulo combinado da dupla. */
-  protected readonly teamLabels = computed(() => {
-    const labels = new Map<string, string>();
-    for (const [teamId, team] of this.gateway.teams()) labels.set(teamId, team.label);
-    return labels;
-  });
 
   protected readonly categoryName = computed(() => {
     const m = this.match();
@@ -329,6 +418,13 @@ export class OverlayPageComponent {
     overlayFinalModeOf(this.matchIsKocFinal(), this.finalPref()),
   );
 
+  /** Mesmo modo no placar de duelo (selo + borda de luz). */
+  protected readonly duelFinalMode = computed(() => {
+    const m = this.match();
+    const isFinal = m ? finalKindOf(m.matchType) === 'final' : false;
+    return overlayFinalModeOf(isFinal, this.finalPref());
+  });
+
   private readonly view = computed(() => {
     const m = this.match();
     if (!m) return null;
@@ -338,16 +434,9 @@ export class OverlayPageComponent {
     return overlayViewOf(m, nowMs, this.gateway.totalRounds());
   });
 
-  protected readonly band = computed(() => {
-    const m = this.match();
-    if (!m) return '';
-    return overlayBandOf(m, {
-      tournamentName: this.gateway.tournament()?.name ?? null,
-      categoryName: this.categoryName(),
-    });
-  });
-
   constructor() {
+    installNxOverlay();
+
     // Rodízio entre as duas telas do fim de rodada. A dependência é uma CHAVE ESTÁVEL (o id da
     // partida encerrada), não um computed que muda a cada snapshot — senão o timer reinicia pra
     // sempre e nenhuma tela chega a trocar.
@@ -395,6 +484,24 @@ export class OverlayPageComponent {
         this.finalPref.set(ev.data.on);
       };
       onCleanup(() => ch.close());
+    });
+
+    // Doação PIX: config + ciclo 3 s → 20 s on → 90 s off.
+    effect((onCleanup) => {
+      onCleanup(
+        subscribeOverlaySettings((s) => {
+          this.doacaoConfig.set(s.doacao);
+          this.runDoacao(doacaoCycleStart(this.doacaoInput()));
+        }),
+      );
+      onCleanup(
+        bindOverlayDoacaoControls({
+          show: () => this.mostrarDoacao(),
+          hide: () => this.desligarDoacao(),
+        }),
+      );
+      this.runDoacao(doacaoCycleStart(this.doacaoInput()));
+      onCleanup(() => this.clearDoacaoTimer());
     });
 
     const handle = setInterval(() => this.tick.set(Date.now()), 1000);

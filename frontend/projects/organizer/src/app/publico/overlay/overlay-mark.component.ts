@@ -27,18 +27,16 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       align-items: center;
       gap: 8px;
       pointer-events: none;
-      /* Mesma margem de segurança de transmissão das demais telas. */
-      --gap: 48px;
       opacity: 0.52;
       filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.55));
     }
     :host([data-pos='br']) {
-      right: var(--gap);
-      bottom: var(--gap);
+      right: 80px;
+      bottom: 74px;
     }
     :host([data-pos='tr']) {
-      right: var(--gap);
-      top: var(--gap);
+      right: 80px;
+      top: 74px;
     }
     /* Modo de fluxo: entra no layout do cabeçalho em vez de flutuar. Vem DEPOIS das regras de
        canto de propósito: escrito antes, o position fixed delas continuaria valendo. */

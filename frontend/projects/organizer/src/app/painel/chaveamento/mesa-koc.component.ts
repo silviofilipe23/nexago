@@ -2286,18 +2286,9 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
         scrollbar-width: thin;
-        scrollbar-color: color-mix(in srgb, var(--nx-text-mute) 55%, transparent) transparent;
         padding: 10px 12px;
       }
-      .og-mk-live .og-mk-order::-webkit-scrollbar {
-        width: 8px;
-      }
-      .og-mk-live .og-mk-order::-webkit-scrollbar-thumb {
-        background: color-mix(in srgb, var(--nx-text-mute) 50%, transparent);
-        border-radius: 999px;
-      }
       .og-mk-live .og-mk-order > .og-mk-section-head {
-        flex: none;
         margin-bottom: 0;
       }
       .og-mk-section-count {
@@ -2321,13 +2312,10 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         padding-inline: 12px;
         font-size: 12px;
       }
-      /* Na fila do modo ao vivo o toggle do head da fila some — o do último
-         lançamento já cobre o log. */
       .og-mk-live .og-mk-order > .og-mk-section-head .og-mk-log-toggle {
         display: none;
       }
       .og-mk-live .og-mk-order-list {
-        flex: none;
         min-height: 0;
         gap: 6px;
         overflow: visible;
@@ -2512,10 +2500,6 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       .og-mk-live:has(.og-mk-tie) .og-mk-order {
         max-height: none;
       }
-      /* O card de empate NAO estica nem encolhe: com min-height:0 ele afundava abaixo
-         do proprio conteudo no telefone e o alerta vazava por cima da fila. Quem cede
-         altura e a lista, que rola. Os cards da bola de ouro crescem so ate onde a
-         tela permite — sao o alvo de toque da mesa durante o desempate. */
       .og-mk-live:has(.og-mk-tie) .og-mk-golden-card {
         min-height: clamp(56px, 9vh, 96px);
       }
@@ -2549,7 +2533,6 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         }
       }
 
-      /* ── Densidade comum às três telas ────────────────────────── */
       .og-mk-sides {
         gap: 10px;
       }
@@ -2561,9 +2544,11 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         gap: 6px;
       }
       .og-mk-section-count,
-      .og-mk-last-hit,
-      .og-mk-order-empty {
+      .og-mk-last-hit {
         display: flex;
+      }
+      .og-mk-section-count {
+        display: inline-grid;
       }
       .og-mk-order-empty {
         display: block;

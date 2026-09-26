@@ -15,13 +15,23 @@
 /** Limites do formato: menos de 3 não gira a fila, mais de 6 deixa todo mundo esperando. */
 export const KOC_MIN_TEAMS_PER_ROUND = 3;
 
+/**
+ * Piso da ÚLTIMA bateria de uma chave: rei vs desafiante. A abertura da
+ * chave (e o campo da fase) continua no piso de 3 — sem fila não gira — mas
+ * depois de classificar quem saiu a chave pode encerrar no face a face.
+ */
+export const KOC_MIN_TEAMS_PER_BATTERY = 2;
+
+/** Teto duro de baterias por chave — mesmo com chave de 6. */
+export const KOC_MAX_ROUNDS_PER_BRACKET = 5;
+
 /** Duplas por quadra quando a categoria não escolheu — o padrão do formato. */
 export const KOC_DEFAULT_TEAMS_PER_COURT = 4;
 
 /**
  * Teto duro do formato. Subiu de 5 para 6 quando a semifinal passou a poder
- * rodar várias baterias: com 6 na chave são 4 baterias, e é isso que separa
- * uma semi de verdade de uma final antecipada.
+ * rodar várias baterias: com 6 na chave são até 5 baterias (última rei vs
+ * desafiante), e é isso que separa uma semi de verdade de uma final antecipada.
  */
 export const KOC_MAX_TEAMS_PER_ROUND = 6;
 
@@ -56,14 +66,13 @@ export interface KocConfig {
    *
    * Acima de 1, a chave joga N rodadas e cada uma classifica UMA dupla — a
    * vencedora sai e libera a quadra, então a rodada seguinte roda com as que
-   * sobraram (4 → 3 → …). Como toda rodada precisa de
-   * `KOC_MIN_TEAMS_PER_ROUND` duplas, uma chave de S comporta no máximo
-   * `S - KOC_MIN_TEAMS_PER_ROUND + 1` rodadas.
+   * sobraram (4 → 3 → …). A última bateria pode ser rei vs desafiante (2);
+   * uma chave de S comporta no máximo `min(5, S - 1)` rodadas.
    *
    * Vale só na fase 1 do plano derivado — as seguintes seguem com uma rodada
    * por chave. Isso é uma limitação do CAMPO `roundsPerBracket`, não do
    * formato: um `phases` explícito pode dar várias baterias a QUALQUER fase
-   * (é o próprio ponto desta entrega — uma semifinal de 6 duplas com 4
+   * (é o próprio ponto desta entrega — uma semifinal de 6 duplas com até 5
    * baterias). `roundsPerBracket` só continua existindo porque é o que
    * `kocLegacyPlan` precisa para reproduzir bit a bit a chave de antes.
    */
@@ -100,15 +109,32 @@ export interface KocPhaseSpec {
  * Quantas baterias a chave aguenta antes de furar o mínimo do formato.
  *
  * Cada bateria tira `qualifiersPerRound` duplas, então a chave encolhe em
- * degraus desse tamanho: de 5 tirando 1 dá 3 baterias (5 → 4 → 3); de 7
- * tirando 2 dá 3 (7 → 5 → 3).
+ * degraus desse tamanho. A última pode ser rei vs desafiante (2): de 6
+ * tirando 1 dá 5 baterias (6 → 5 → 4 → 3 → 2). Teto duro em
+ * `KOC_MAX_ROUNDS_PER_BRACKET`.
  */
 export function kocMaxRoundsPerBracket(
   bracketSize: number,
   qualifiersPerRound = 1,
 ): number {
   const q = Math.max(1, Math.floor(qualifiersPerRound));
-  return Math.max(1, Math.floor((bracketSize - KOC_MIN_TEAMS_PER_ROUND) / q) + 1);
+  const bySize = Math.max(
+    1,
+    Math.floor((bracketSize - KOC_MIN_TEAMS_PER_BATTERY) / q) + 1,
+  );
+  return Math.min(KOC_MAX_ROUNDS_PER_BRACKET, bySize);
+}
+
+/**
+ * Máximo de baterias da proposta automática — ainda encerra no piso de 3
+ * (King of the Court com fila). A edição manual sobe até
+ * `kocMaxRoundsPerBracket` (última bateria rei vs desafiante).
+ */
+function kocProposeRoundsPerBracket(bracketSize: number): number {
+  return Math.max(
+    1,
+    Math.floor((bracketSize - KOC_MIN_TEAMS_PER_ROUND) / 1) + 1,
+  );
 }
 
 /** Vaga herdada da fase anterior: a `place`-ésima colocada da rodada `fromMatchNumber`. */
@@ -187,10 +213,10 @@ function emitPhase(params: {
     let previous: KocRoundDraft | null = null;
     for (let battery = 1; battery <= rounds; battery++) {
       const size = spec.bracketSizes[bracket]! - (battery - 1) * q;
-      if (size < KOC_MIN_TEAMS_PER_ROUND) {
+      if (size < KOC_MIN_TEAMS_PER_BATTERY) {
         throw new KocBracketError(
           `A chave ${bracket + 1} da fase ${phase} ficaria com ${size} duplas na ` +
-            `bateria ${battery}: toda bateria precisa de ${KOC_MIN_TEAMS_PER_ROUND}.`,
+            `bateria ${battery}: toda bateria precisa de ${KOC_MIN_TEAMS_PER_BATTERY}.`,
           "koc_battery_too_small",
         );
       }
@@ -373,8 +399,10 @@ export function kocRoundCount(
  * rodadas.
  *
  * A vencedora de cada rodada SAI, então uma chave que joga R rodadas precisa
- * comecar com `KOC_MIN_TEAMS_PER_ROUND + R - 1` duplas: a última rodada ainda
- * tem que ser King of the Court, não um jogo. `kocRoundCount` não sabe disso —
+ * comecar com `KOC_MIN_TEAMS_PER_ROUND + R - 1` duplas no caminho LEGADO: a
+ * proposta automática e o `kocLegacyPlan` ainda encerram no piso de 3. A
+ * edição manual do plano pode ir até rei vs desafiante (2) via
+ * `kocMaxRoundsPerBracket`. `kocRoundCount` não sabe disso —
  * ele parte de `teamsPerCourt` e só garante o mínimo da PRIMEIRA rodada.
  *
  * Com 14 duplas em quadras de 4 ele devolve 4 chaves (4, 4, 3, 3), e a chave de
@@ -600,7 +628,7 @@ export function kocProposeTail(
       );
     }
 
-    let rounds = kocMaxRoundsPerBracket(smallest, 1);
+    let rounds = kocProposeRoundsPerBracket(smallest);
     let qualifiers = 1;
     if (rounds === 1) {
       // Chave que não aguenta uma segunda bateria volta ao formato clássico:
@@ -612,6 +640,20 @@ export function kocProposeTail(
       );
     }
     let next = brackets * rounds * qualifiers;
+
+    // Campo de 5 que cabe numa chave: o guloso faria 3 baterias → final de 3.
+    // Com orçamento sobrando, o funil suave (passa 4 → pódio) elimina só 1 e
+    // casa com o 6→5→4 que a proposta do campo de 6 já entrega.
+    if (brackets === 1 && remaining === 5 && left >= 2) {
+      phases.push({
+        bracketSizes,
+        roundsPerBracket: 1,
+        qualifiersPerRound: 4,
+        durationSec,
+      });
+      remaining = 4;
+      continue;
+    }
 
     // Campo já cabe numa quadra só: esta fase é a final quando ninguém
     // sobraria para uma próxima (o campo morreria) OU quando o orçamento de
@@ -687,9 +729,32 @@ export function kocProposePlan(
     );
   }
   const max = kocClampMaxPerRound(maxPerRound);
-  // Campo inteiro numa quadra só: o torneio É a rodada. Inventar fase aqui
-  // eliminaria 2 duplas para jogar a final com as 3 que sobraram.
+  // Campo inteiro numa quadra só: 3/4/5 são rodada única (o torneio É a
+  // final). O campo de 6 numa chave só não decide nada — propõe o funil
+  // suave 6→5→4→final (elimina 1 por fase até o pódio de 4).
   if (teamCount <= max) {
+    if (teamCount === KOC_MAX_TEAMS_PER_ROUND) {
+      return [
+        {
+          bracketSizes: [6],
+          roundsPerBracket: 1,
+          qualifiersPerRound: 5,
+          durationSec: durationFor(1),
+        },
+        {
+          bracketSizes: [5],
+          roundsPerBracket: 1,
+          qualifiersPerRound: 4,
+          durationSec: durationFor(2),
+        },
+        {
+          bracketSizes: [4],
+          roundsPerBracket: 1,
+          qualifiersPerRound: 0,
+          durationSec: durationFor(3),
+        },
+      ];
+    }
     return [{
       bracketSizes: [teamCount],
       roundsPerBracket: 1,

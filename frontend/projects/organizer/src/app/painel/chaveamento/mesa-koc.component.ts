@@ -438,7 +438,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
               }
             </ul>
 
-            @if (lastLogRow(); as last) {
+            <!-- @if (lastLogRow(); as last) {
               <div class="og-mk-last-hit">
                 <header class="og-mk-section-head">
                   <span class="og-mk-section-title">Último lançamento</span>
@@ -457,7 +457,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                   Desfazer último
                 </button>
               </div>
-            }
+            } -->
 
             @if (tie()) {
               <!-- Empate na vaga: card único com título, alerta e botões de quem pontuou.
@@ -2693,8 +2693,82 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         font-size: 10px;
         letter-spacing: 0.06em;
       }
+      /* Os dois lados do confronto encolhem igual — libera altura pro botão de ponto.
+         Antes só o trono tinha esse corte e o desafiante ficava desproporcionalmente
+         maior no celular. */
+      .og-mk-side.throne {
+        gap: 4px;
+        padding: 8px 6px;
+      }
+      .og-mk-live .og-mk-side {
+        padding: 6px 6px;
+      }
+      .og-mk-live .og-mk-side-pts {
+        margin-top: 0;
+      }
+      .og-mk-live .og-mk-side-pts strong {
+        font-size: clamp(28px, 7vh, 44px);
+      }
+      .og-mk-live .og-mk-side-name {
+        font-size: 12px;
+      }
+      .og-mk-live .og-mk-side-badge {
+        font-size: 9px;
+        letter-spacing: 0.05em;
+        gap: 5px;
+      }
+      .og-mk-live .og-mk-side.throne .og-mk-side-dot {
+        width: 5px;
+        height: 5px;
+      }
       .og-mk-vs {
         font-size: 11px;
+      }
+
+      /* Confronto de abertura (prep): cards cabem na 1ª tela ao lado da fila. */
+      .og-mk-prep .og-mk-sides {
+        gap: 6px;
+      }
+      .og-mk-prep .og-mk-side {
+        gap: 4px;
+        padding: 10px 8px;
+        border-radius: 12px;
+      }
+      .og-mk-prep .og-mk-side-badge {
+        font-size: 9px;
+        letter-spacing: 0.05em;
+        gap: 4px;
+      }
+      .og-mk-prep .og-mk-side-avatars {
+        margin-top: 0;
+      }
+      .og-mk-prep .og-mk-side-avatars og-avatar {
+        /* size=64 no template — no celular sobra altura demais pro card. */
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 13.6px !important;
+      }
+      .og-mk-prep .og-mk-side-avatars og-avatar + og-avatar {
+        margin-left: -12px;
+      }
+      .og-mk-prep .og-mk-side-name {
+        font-size: 14px;
+        letter-spacing: -0.01em;
+      }
+      .og-mk-prep .og-mk-side-sub {
+        font-size: 11px;
+      }
+      .og-mk-prep .og-mk-vs {
+        font-size: 11px;
+      }
+      .og-mk-prep .og-mk-section-head {
+        margin-bottom: 8px;
+      }
+      .og-mk-prep .og-mk-section-title {
+        font-size: 12px;
+      }
+      .og-mk-prep .og-mk-open .og-mk-section-rule {
+        display: none;
       }
 
       /* Rodada de 6 duplas (KOC_MAX_TEAMS_PER_ROUND) deixa até 4 na fila — uma a mais

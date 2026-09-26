@@ -250,6 +250,25 @@ interface MedicalOptionView {
                 <og-pill tone="yellow">{{ h }}</og-pill>
               }
             </div>
+
+            @if (status() === 'in_progress') {
+              <!-- No celular/tablet o placar + botões de ponto ocupam a 1ª tela;
+                   sem esta faixa o "voltar ponto" ficava na carta de ações abaixo
+                   da dobra. Sticky no polegar, igual à mesa KOTC. -->
+              <div class="og-mesa-undo-bar">
+                <button
+                  type="button"
+                  class="og-mini-btn og-mesa-undo"
+                  [disabled]="saving() || lastPoint() === null"
+                  (click)="undoLast()"
+                >
+                  @if (busyKey() === 'undo') {
+                    <app-nx-spinner [size]="12" />
+                  }
+                  Voltar ponto
+                </button>
+              </div>
+            }
           </og-card>
 
           @if (status() === 'scheduled') {
@@ -279,12 +298,8 @@ interface MedicalOptionView {
           @if (status() === 'in_progress') {
             <og-card kicker="Mesa" title="Ações">
               <div class="og-mesa-actions">
-                <button type="button" class="og-mini-btn" [disabled]="saving() || lastPoint() === null" (click)="undoLast()">
-                  @if (busyKey() === 'undo') {
-                    <app-nx-spinner [size]="12" />
-                  }
-                  Desfazer último ponto
-                </button>
+                <!-- "Voltar ponto" mora na faixa sticky do placar — aqui só as
+                     ações secundárias, pra não competir com o alvo do toque. -->
                 <button type="button" class="og-mini-btn" [disabled]="saving()" (click)="swapServe()">Saque dupla</button>
                 <button type="button" class="og-mini-btn" [disabled]="saving() || servingPlayerSlot() === 0" (click)="swapServingPlayer()">Saque atleta</button>
                 <button type="button" class="og-mini-btn og-mesa-medical" [disabled]="saving() || !canOpenMedical()" (click)="openMedicalPicker()">Tempo médico</button>
@@ -680,6 +695,17 @@ interface MedicalOptionView {
       opacity: 0.4;
       pointer-events: none;
     }
+    .og-mesa-undo-bar {
+      display: flex;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--nx-line);
+    }
+    .og-mesa-undo {
+      flex: 1;
+      justify-content: center;
+      min-height: 44px;
+    }
     .og-mesa-center {
       display: flex;
       flex-direction: column;
@@ -872,6 +898,31 @@ interface MedicalOptionView {
         min-height: 132px;
         justify-content: center;
         padding: 20px 12px;
+      }
+      .og-mesa-minus {
+        min-width: 72px;
+        min-height: 44px;
+      }
+    }
+
+    /* Celular e tablet (inclui iPad deitado, que passa de 1024px): a faixa de
+       voltar ponto gruda no polegar enquanto o mesário marca — sem isto o
+       botão some abaixo da dobra do placar. */
+    @media (max-width: 1023.98px), (pointer: coarse) {
+      .og-mesa-undo-bar {
+        position: sticky;
+        bottom: 0;
+        z-index: 20;
+        margin: 12px -20px -20px;
+        padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px));
+        border-top: 1px solid var(--nx-line);
+        background: color-mix(in srgb, var(--nx-surface-0) 94%, transparent);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+      }
+      .og-mesa-undo {
+        min-height: 48px;
+        font-weight: 700;
       }
     }
   `,

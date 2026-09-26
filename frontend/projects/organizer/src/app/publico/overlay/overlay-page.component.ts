@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, signal } from '@angular/core';
 import { isKingOfCourtMatchType, kocColumnLabel, normalizeMatchType } from '../../painel/data/koc';
 import { resolveCourtNames } from '../../painel/data/matches-repository';
 import { finalKindOf } from '../../painel/telao/telao-final-mode';
@@ -20,7 +20,7 @@ import { kocStandingsBoardOf } from './overlay-koc-standings';
 import { OverlayKocStandingsComponent } from './overlay-koc-standings.component';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
 import { kocRoundTitleOf } from './overlay-koc-bar';
-import { overlayCornerOf, overlayViewOf } from './overlay-selectors';
+import { overlayViewOf } from './overlay-selectors';
 import { OverlayDoacaoComponent } from './overlay-doacao.component';
 import {
   doacaoCycleShowNow,
@@ -69,9 +69,13 @@ const CLASSIFICADAS_MS = 15_000;
     OverlayDoacaoComponent,
   ],
   providers: [OverlayLiveGateway],
-  host: { '(document:keydown)': 'aoTeclar($event)' },
+  host: {
+    '(document:keydown)': 'aoTeclar($event)',
+    '[class.preview]': 'previewChrome()',
+  },
   template: `
     @if (campeoes(); as c) {
+      <!-- Fora do .fit: o componente já tem canvas próprio 1920×1080. -->
       <og-overlay-final
         [resultado]="c"
         [torneio]="gateway.tournament()?.name ?? ''"
@@ -79,70 +83,74 @@ const CLASSIFICADAS_MS = 15_000;
         [quadra]="courtName()"
       />
     }
-    @if (duelView(); as duel) {
-      <og-overlay-scoreboard
-        [view]="duel"
-        [teams]="gateway.teams()"
-        [categoryName]="categoryName()"
-        [courtName]="courtName()"
-        [isFinal]="duelFinalMode()"
-      />
-    }
-    @if (telaDoResultado(); as board) {
-      <og-overlay-koc-standings
-        [board]="board"
-        [teams]="gateway.teams()"
-        [categoryName]="categoryName()"
-        [courtName]="courtName()"
-        [phaseName]="phaseName()"
-        [roundLabel]="roundLabel()"
-      />
-    }
-    @if (telaDasClassificadas(); as board) {
-      <og-overlay-koc-qualified
-        [board]="board"
-        [teams]="gateway.teams()"
-        [tournamentName]="gateway.tournament()?.name ?? null"
-        [phaseName]="phaseName()"
-        [categoryName]="categoryName()"
-      />
-    }
-    @if (podeAlternar()) {
-      <!-- Invisível e por cima: no OBS o clique chega pela janela "Interagir" e o cursor não
-           entra na saída, então nada disto aparece no ar. -->
-      <button
-        class="alternar"
-        type="button"
-        aria-label="Alternar visualização"
-        (click)="alternar()"
-      ></button>
-    }
-    <!-- Sempre montado: o @if interno + animate.leave precisa do host vivo pra sair com o slide. -->
-    <og-overlay-koc-preround
-      [preRound]="preRound()"
-      [teams]="gateway.teams()"
-      [categoryName]="categoryName()"
-      [courtName]="courtName()"
-      [roundTitle]="preRoundTitle()"
-    />
-    @if (kocView(); as koc) {
-      <og-overlay-koc-bar
-        [view]="koc"
-        [teams]="gateway.teams()"
-        [categoryName]="categoryName()"
-        [categoryGender]="categoryGender()"
-        [courtName]="courtName()"
-        [position]="kocPosition()"
-        [isFinal]="kocBarFinal()"
-      />
-    }
+    <div class="stage">
+      <div class="fit">
+        @if (duelView(); as duel) {
+          <og-overlay-scoreboard
+            [view]="duel"
+            [teams]="gateway.teams()"
+            [categoryName]="categoryName()"
+            [courtName]="courtName()"
+            [isFinal]="duelFinalMode()"
+          />
+        }
+        @if (telaDoResultado(); as board) {
+          <og-overlay-koc-standings
+            [board]="board"
+            [teams]="gateway.teams()"
+            [categoryName]="categoryName()"
+            [courtName]="courtName()"
+            [phaseName]="phaseName()"
+            [roundLabel]="roundLabel()"
+          />
+        }
+        @if (telaDasClassificadas(); as board) {
+          <og-overlay-koc-qualified
+            [board]="board"
+            [teams]="gateway.teams()"
+            [tournamentName]="gateway.tournament()?.name ?? null"
+            [phaseName]="phaseName()"
+            [categoryName]="categoryName()"
+          />
+        }
+        @if (podeAlternar()) {
+          <!-- Invisível e por cima: no OBS o clique chega pela janela "Interagir" e o cursor não
+               entra na saída, então nada disto aparece no ar. -->
+          <button
+            class="alternar"
+            type="button"
+            aria-label="Alternar visualização"
+            (click)="alternar()"
+          ></button>
+        }
+        <!-- Sempre montado: o @if interno + animate.leave precisa do host vivo pra sair com o slide. -->
+        <og-overlay-koc-preround
+          [preRound]="preRound()"
+          [teams]="gateway.teams()"
+          [categoryName]="categoryName()"
+          [courtName]="courtName()"
+          [roundTitle]="preRoundTitle()"
+        />
+        @if (kocView(); as koc) {
+          <og-overlay-koc-bar
+            [view]="koc"
+            [teams]="gateway.teams()"
+            [categoryName]="categoryName()"
+            [categoryGender]="categoryGender()"
+            [courtName]="courtName()"
+            [position]="kocPosition()"
+            [isFinal]="kocBarFinal()"
+          />
+        }
 
-    <og-overlay-doacao [config]="doacaoConfig()" [show]="doacaoShow()" />
+        <og-overlay-doacao [config]="doacaoConfig()" [show]="doacaoShow()" />
 
-    <!-- Atalhos invisíveis pro modo Interagir do OBS (canto superior direito). -->
-    <div class="doacao-hot">
-      <button type="button" class="doacao-hot-btn" aria-label="Mostrar doação" (click)="mostrarDoacao()"></button>
-      <button type="button" class="doacao-hot-btn" aria-label="Desligar doação" (click)="desligarDoacao()"></button>
+        <!-- Atalhos invisíveis pro modo Interagir do OBS (canto superior direito). -->
+        <div class="doacao-hot">
+          <button type="button" class="doacao-hot-btn" aria-label="Mostrar doação" (click)="mostrarDoacao()"></button>
+          <button type="button" class="doacao-hot-btn" aria-label="Desligar doação" (click)="desligarDoacao()"></button>
+        </div>
+      </div>
     </div>
   `,
   styles: `
@@ -155,9 +163,32 @@ const CLASSIFICADAS_MS = 15_000;
       background: transparent;
       overflow: hidden;
     }
+    :host.preview {
+      background:
+        radial-gradient(1200px 700px at 20% 80%, rgba(255, 106, 26, 0.12), transparent 60%),
+        radial-gradient(900px 600px at 80% 20%, rgba(80, 90, 140, 0.28), transparent 55%),
+        #1a1b22;
+    }
+
+    .stage {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: transparent;
+    }
+    .fit {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 1920px;
+      height: 1080px;
+      transform-origin: 0 0;
+      overflow: hidden;
+      background: transparent;
+    }
 
     .alternar {
-      position: fixed;
+      position: absolute;
       inset: 0;
       z-index: 10;
       padding: 0;
@@ -167,7 +198,7 @@ const CLASSIFICADAS_MS = 15_000;
     }
 
     .doacao-hot {
-      position: fixed;
+      position: absolute;
       top: 8px;
       right: 8px;
       z-index: 30;
@@ -194,8 +225,18 @@ export class OverlayPageComponent {
   /** `?tela=resultado|classificadas` — fixa a visualização e desliga o rodízio. */
   readonly tela = input<string | null>(null);
   readonly pos = input<string | null>(null);
+  /** `?clean` — força fundo transparente (OBS). Sem isto e sem `?preview`, também transparente. */
+  readonly clean = input<string | null>(null);
+  /** `?preview` — fundo de teste pra depurar no browser (ignorado se `?clean` estiver na URL). */
+  readonly preview = input<string | null>(null);
 
   protected readonly gateway = inject(OverlayLiveGateway);
+  private readonly host = inject(ElementRef<HTMLElement>);
+
+  /** Fundo de preview só com `?preview` e sem `?clean` — o default fica transparente pro OBS. */
+  protected readonly previewChrome = computed(
+    () => this.preview() != null && this.clean() == null,
+  );
 
   private readonly telaKoc = signal<TelaKoc>('resultado');
   /** Visualização escolhida no clique/tecla. Assume o controle: quem mexeu manda mais que o
@@ -214,8 +255,6 @@ export class OverlayPageComponent {
 
   /** Relógio de 1 s, lido SÓ pela rodada KOTC — ver `view`. */
   private readonly tick = signal(Date.now());
-
-  protected readonly corner = computed(() => overlayCornerOf(this.pos()));
 
   /** Jogo agendado pelo auto-agendamento antigo só gravou `courtId`; o nome da quadra sai das
    *  quadras do torneio. */
@@ -436,6 +475,23 @@ export class OverlayPageComponent {
 
   constructor() {
     installNxOverlay();
+    const destroyRef = inject(DestroyRef);
+
+    // Canvas lógico 1920×1080: no OBS a fonte já é Full HD (escala 1); no browser
+    // encolhe pra caber na janela sem cortar o placar.
+    afterNextRender(() => {
+      const root = this.host.nativeElement;
+      const fit = root.querySelector('.fit') as HTMLElement | null;
+      if (!fit) return;
+      const aplicar = () => {
+        const s = Math.min(root.clientWidth / 1920, root.clientHeight / 1080);
+        fit.style.transform = `scale(${s}) translate(-50%, -50%)`;
+      };
+      aplicar();
+      const obs = new ResizeObserver(aplicar);
+      obs.observe(root);
+      destroyRef.onDestroy(() => obs.disconnect());
+    });
 
     // Rodízio entre as duas telas do fim de rodada. A dependência é uma CHAVE ESTÁVEL (o id da
     // partida encerrada), não um computed que muda a cada snapshot — senão o timer reinicia pra

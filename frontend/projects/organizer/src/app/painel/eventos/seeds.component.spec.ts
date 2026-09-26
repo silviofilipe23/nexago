@@ -388,23 +388,25 @@ describe('SeedsComponent — a final de 6 duplas pode ser partida', () => {
     expect(qualifiersCell(el, 0).textContent).toContain('pódio');
   });
 
-  it('campo de 5: nada muda — a final segue sendo o torneio inteiro', async () => {
-    const {el} = await mountKoc(5);
+  it('campo de 4: nada muda — a final segue sendo o torneio inteiro', async () => {
+    const {el} = await mountKoc(4);
     expect(buttonsOf(qualifiersCell(el, 0)).length).toBe(0);
     expect(qualifiersCell(el, 0).textContent).toContain('pódio');
   });
 
-  it('o + na final de 6 faz nascer a final de 4 embaixo', async () => {
+  it('o + na final de 6 faz nascer o funil 6→5→4→final', async () => {
     const {el, internals, settle} = await mountKoc(6);
     buttonsOf(qualifiersCell(el, 0))[1]!.click();
     await settle();
 
     expect(internals.kocPhases()).toEqual([
-      {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 4, durationSec: 900},
+      {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 5, durationSec: 900},
+      {bracketSizes: [5], roundsPerBracket: 1, qualifiersPerRound: 4, durationSec: 900},
       {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
     ]);
-    expect(el.querySelectorAll('.og-koc-plan-row').length).toBe(2);
-    expect(internals.kocPhaseTitle(1)).toBe('Final');
+    expect(el.querySelectorAll('.og-koc-plan-row').length).toBe(3);
+    expect(internals.kocPhaseTitle(2)).toBe('Final');
+    expect(internals.kocPhaseTitle(1)).toBe('Semifinal');
   });
 
   it('descer as classificadas abaixo do piso desfaz a final e volta à rodada única', async () => {
@@ -412,8 +414,8 @@ describe('SeedsComponent — a final de 6 duplas pode ser partida', () => {
     buttonsOf(qualifiersCell(el, 0))[1]!.click();
     await settle();
 
-    // 4 → 3 → 2: no 2 a cascata colapsa, porque a final ficaria abaixo do piso.
-    for (const _ of [1, 2]) {
+    // 5 → 4 → 3 → 2: no 2 a cascata colapsa, porque a final ficaria abaixo do piso.
+    for (const _ of [1, 2, 3]) {
       buttonsOf(qualifiersCell(el, 0))[0]!.click();
       await settle();
     }

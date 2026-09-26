@@ -16,6 +16,13 @@ export const KOC_MAX_TEAMS_PER_ROUND_HARD = 6;
 export const KOC_LEGACY_MAX_TEAMS_PER_ROUND = 5;
 /** Menos de 3 não gira a fila. Mesma constante de `koc.ts`, sem o import. */
 export const KOC_MIN_TEAMS_PER_ROUND = 3;
+/**
+ * Piso da última bateria: rei vs desafiante. Espelha
+ * `KOC_MIN_TEAMS_PER_BATTERY` do servidor.
+ */
+export const KOC_MIN_TEAMS_PER_BATTERY = 2;
+/** Teto duro de baterias por chave. Espelha o servidor. */
+export const KOC_MAX_ROUNDS_PER_BRACKET = 5;
 
 /** Teto de fases — trava de segurança contra plano que não fecha. */
 const KOC_MAX_PHASES = 6;
@@ -41,7 +48,16 @@ export function kocClampMaxPerRound(value: number | null | undefined): number {
 /** Espelha `kocMaxRoundsPerBracket` do servidor. */
 export function kocMaxRoundsPerBracketFor(bracketSize: number, qualifiersPerRound = 1): number {
   const q = Math.max(1, Math.floor(qualifiersPerRound));
-  return Math.max(1, Math.floor((bracketSize - KOC_MIN_TEAMS_PER_ROUND) / q) + 1);
+  const bySize = Math.max(
+    1,
+    Math.floor((bracketSize - KOC_MIN_TEAMS_PER_BATTERY) / q) + 1,
+  );
+  return Math.min(KOC_MAX_ROUNDS_PER_BRACKET, bySize);
+}
+
+/** Máximo de baterias da proposta automática — encerra no piso de 3. */
+function kocProposeRoundsPerBracket(bracketSize: number): number {
+  return Math.max(1, Math.floor((bracketSize - KOC_MIN_TEAMS_PER_ROUND) / 1) + 1);
 }
 
 /** Espelha `kocRoundCount` do servidor: corrige as duas pontas. `0` = não fecha. */
@@ -90,7 +106,7 @@ function proposeTail(field: number, maxPerRound: number, durationSec: number, st
     // Campo sem nenhuma divisão entre piso e teto: não existe plano.
     if (smallest < KOC_MIN_TEAMS_PER_ROUND || largest > max) return [];
 
-    let rounds = kocMaxRoundsPerBracketFor(smallest, 1);
+    let rounds = kocProposeRoundsPerBracket(smallest);
     let qualifiers = 1;
     if (rounds === 1) {
       // Chave que não aguenta uma segunda bateria volta ao clássico: passa
@@ -99,6 +115,15 @@ function proposeTail(field: number, maxPerRound: number, durationSec: number, st
       qualifiers = Math.max(1, Math.min(smallest - 1, Math.floor((remaining - 1) / brackets)));
     }
     let next = brackets * rounds * qualifiers;
+
+    // Campo de 5 que cabe numa chave: o guloso faria 3 baterias → final de 3.
+    // Com orçamento sobrando, o funil suave (passa 4 → pódio) elimina só 1 e
+    // casa com o 6→5→4 que a proposta do campo de 6 já entrega.
+    if (brackets === 1 && remaining === 5 && left >= 2) {
+      phases.push({bracketSizes, roundsPerBracket: 1, qualifiersPerRound: 4, durationSec});
+      remaining = 4;
+      continue;
+    }
 
     // Campo já cabe numa quadra só: esta fase é a final quando ninguém
     // sobraria para uma próxima OU quando o orçamento de fases acaba aqui.
@@ -126,11 +151,29 @@ function proposeTail(field: number, maxPerRound: number, durationSec: number, st
   }
 }
 
+/**
+ * Funil suave do campo de 6: elimina 1 por fase até o pódio de 4.
+ * Rodada única de 6 não decide nada (mesma fila, mesmo cronômetro).
+ */
+function kocGentleSixPlan(durationSec: number): KocPhaseSpec[] {
+  return [
+    {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 5, durationSec},
+    {bracketSizes: [5], roundsPerBracket: 1, qualifiersPerRound: 4, durationSec},
+    {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec},
+  ];
+}
+
 /** Espelha `kocProposePlan` do servidor: máximo de jogo. */
 export function kocProposePhasePlan(teamCount: number, maxPerRound: number, durationSec: number): KocPhaseSpec[] {
   if (teamCount < KOC_MIN_TEAMS_PER_ROUND) return [];
   const max = kocClampMaxPerRound(maxPerRound);
   if (teamCount <= max) {
+    // Campo de 6 numa chave só: propor o funil 6→5→4→final em vez da
+    // rodada única sem decisão. 3/4/5 continuam final direta (o torneio É
+    // a rodada; a tabela é o pódio).
+    if (teamCount === KOC_MAX_TEAMS_PER_ROUND_HARD) {
+      return kocGentleSixPlan(durationSec);
+    }
     return [{bracketSizes: [teamCount], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec}];
   }
   return proposeTail(teamCount, max, durationSec, 1);
@@ -270,31 +313,25 @@ export function kocApplyPhaseEdit(
 /**
  * Campo que cabe numa chave só pode abrir uma final embaixo dele?
  *
- * 3, 4 e 5 duplas continuam rodada única: é a regra do formato — o torneio É a
- * rodada final, e a tabela dela é o pódio — e partir um campo de 5 eliminaria
- * UMA dupla para a final ser jogada pelas outras quatro, o que não é fase, é
- * formalidade. O campo de 6 é o caso novo: ele só existe porque o teto subiu de
- * 5 para 6, e nele a rodada única deixa o torneio sem decisão nenhuma — seis
- * duplas, uma fila e um cronômetro.
- *
- * A ÚLTIMA fase do plano sempre tem campo menor ou igual ao teto da categoria,
- * que por sua vez não passa de 6 — então na prática esta régua só liga no 6.
+ * 3 e 4 continuam rodada única: o torneio É a rodada final e a tabela é o
+ * pódio. 5 e 6 podem partir — o funil elimina 1 por fase (6→5→4 ou 5→4)
+ * até o pódio de 4. Sem isso a proposta 6→5→4 não teria como ajustar a
+ * fase do meio pela tela.
  */
 export function kocCanSplitFinal(field: number): boolean {
-  return field > KOC_LEGACY_MAX_TEAMS_PER_ROUND;
+  return field >= KOC_LEGACY_MAX_TEAMS_PER_ROUND;
 }
 
 /**
  * Onde cai o primeiro clique de "Classificam" numa final ainda não partida.
  *
- * Não é o piso do formato: num campo de 6, classificar 3 corta metade do campo
- * de uma vez. `field - 2` é o corte mais suave que ainda decide alguma coisa, e
- * num campo de 6 dá a final de 4 — a que o organizador quer. O `max` com o piso
- * existe porque `kocApplyPhaseEdit` colapsa de volta para rodada única com menos
- * de 3 classificadas: devolver 2 faria o clique não fazer nada.
+ * `field - 1` é o corte mais suave: elimina uma e deixa o rabo propor o
+ * funil (6→5→4→final, ou 5→4→final). O `max` com o piso existe porque
+ * `kocApplyPhaseEdit` colapsa de volta para rodada única com menos de 3
+ * classificadas: devolver 2 faria o clique não fazer nada.
  */
 export function kocSplitFinalQualifiers(field: number): number {
-  return Math.max(KOC_MIN_TEAMS_PER_ROUND, field - 2);
+  return Math.max(KOC_MIN_TEAMS_PER_ROUND, field - 1);
 }
 
 /**
@@ -305,7 +342,7 @@ export function kocSplitFinalQualifiers(field: number): number {
  * rodada única. O botão parecia quebrado. O salto precisa entregar pelo menos
  * 3 duplas adiante (o piso), sem passar do teto da chave.
  *
- * Num campo de 6 isso é 3 (e o teto é 4). Em campos menores `kocCanSplitFinal`
+ * Num campo de 6 isso é 3 (e o teto é 5). Em campos menores `kocCanSplitFinal`
  * já desliga o caminho — esta função não é chamada neles.
  */
 export function kocSplitFinalMinRounds(field: number): number {

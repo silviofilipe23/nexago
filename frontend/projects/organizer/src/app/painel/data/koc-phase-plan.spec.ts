@@ -30,10 +30,20 @@ describe('plano de fases · proposta', () => {
     ]);
   });
 
-  it('campo que cabe numa quadra é uma rodada só', () => {
+  it('campo de 6 propõe o funil suave 6→5→4→final', () => {
     expect(kocProposePhasePlan(6, 6, 900)).toEqual([
-      {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+      {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 5, durationSec: 900},
+      {bracketSizes: [5], roundsPerBracket: 1, qualifiersPerRound: 4, durationSec: 900},
+      {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
     ]);
+  });
+
+  it('campo de 3–5 que cabe numa quadra continua rodada única', () => {
+    for (const n of [3, 4, 5]) {
+      expect(kocProposePhasePlan(n, 6, 900)).toEqual([
+        {bracketSizes: [n], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+      ]);
+    }
   });
 
   it('o campo de cada fase é o que a anterior classifica', () => {
@@ -50,14 +60,14 @@ describe('plano de fases · proposta', () => {
  * `durationSec: 900`.
  *
  * Se o espelho divergir de qualquer uma destas, o ESPELHO está errado — não
- * ajuste a fixture. n=6 é final de bateria única; n=7 exercita o ramo
+ * ajuste a fixture. n=6 é o funil suave 6→5→4→final; n=7 exercita o ramo
  * "rounds === 1 → sobe qualifiers"; n=14/20/25 exercitam o orçamento de fases
  * (`left`) perto do teto de `KOC_MAX_PHASES`.
  */
 describe('plano de fases · paridade com o servidor', () => {
   const FIXTURES: Array<[number, number, Array<[number[], number, number]>]> = [
     [10, 6, [[[5, 5], 3, 1], [[6], 4, 1], [[4], 1, 0]]],
-    [6, 6, [[[6], 1, 0]]],
+    [6, 6, [[[6], 1, 5], [[5], 1, 4], [[4], 1, 0]]],
     [7, 6, [[[4, 3], 1, 2], [[4], 1, 0]]],
     [14, 6, [[[5, 5, 4], 2, 1], [[6], 4, 1], [[4], 1, 0]]],
     [20, 6, [[[5, 5, 5, 5], 3, 1], [[6, 6], 4, 1], [[4, 4], 2, 1], [[4], 1, 0]]],
@@ -381,28 +391,30 @@ describe('plano de fases · espelhos do servidor, isolados', () => {
   });
 
   describe('kocMaxRoundsPerBracketFor', () => {
-    it('cada bateria tira as classificadas, então a chave encolhe em degraus', () => {
-      // 5 tirando 1: 5 → 4 → 3, três baterias. 7 tirando 2: 7 → 5 → 3, três.
-      expect(kocMaxRoundsPerBracketFor(5, 1)).toBe(3);
+    it('cada bateria tira as classificadas; a última pode ser rei vs desafiante', () => {
+      // 5 tirando 1: 5 → 4 → 3 → 2, quatro baterias. 7 tirando 2: 7 → 5 → 3, três.
+      // 6 tirando 1: teto duro de 5.
+      expect(kocMaxRoundsPerBracketFor(5, 1)).toBe(4);
       expect(kocMaxRoundsPerBracketFor(7, 2)).toBe(3);
-      expect(kocMaxRoundsPerBracketFor(6, 1)).toBe(4);
+      expect(kocMaxRoundsPerBracketFor(6, 1)).toBe(5);
     });
 
-    it('chave do tamanho do piso só aguenta uma bateria', () => {
-      expect(kocMaxRoundsPerBracketFor(3, 1)).toBe(1);
-      expect(kocMaxRoundsPerBracketFor(4, 2)).toBe(1);
+    it('chave de 3 aguenta duas baterias (3 → 2)', () => {
+      expect(kocMaxRoundsPerBracketFor(3, 1)).toBe(2);
+      expect(kocMaxRoundsPerBracketFor(4, 2)).toBe(2);
     });
 
     it('nunca devolve menos de 1, nem para chave abaixo do piso', () => {
-      // Chave de 2 é ilegal e quem chama recusa antes; aqui só não se pode
+      // Chave de 1 é ilegal e quem chama recusa antes; aqui só não se pode
       // devolver 0 ou negativo, que viraria um laço de zero baterias.
-      for (const size of [0, 1, 2]) expect(kocMaxRoundsPerBracketFor(size, 1)).toBe(1);
+      for (const size of [0, 1]) expect(kocMaxRoundsPerBracketFor(size, 1)).toBe(1);
+      expect(kocMaxRoundsPerBracketFor(2, 1)).toBe(1);
     });
 
     it('classificadas degeneradas são saneadas para 1, o padrão do formato', () => {
       expect(kocMaxRoundsPerBracketFor(5, 0)).toBe(kocMaxRoundsPerBracketFor(5, 1));
-      expect(kocMaxRoundsPerBracketFor(5, -3)).toBe(3);
-      expect(kocMaxRoundsPerBracketFor(5)).toBe(3);
+      expect(kocMaxRoundsPerBracketFor(5, -3)).toBe(4);
+      expect(kocMaxRoundsPerBracketFor(5)).toBe(4);
     });
   });
 
@@ -553,45 +565,55 @@ describe('plano de fases · parse do Firestore, valores não finitos', () => {
 /**
  * Partir a última fase em classificatória + final.
  *
- * Campo que cabe numa chave só é rodada única — o torneio É a final, e a tabela
- * dela é o pódio. Com 6 duplas isso deixava o organizador sem decisão nenhuma:
- * uma rodada de 15 min, fila de seis, e acabou. Este bloco é a régua de QUANDO a
- * tela pode oferecer a final separada, e de onde o primeiro clique cai.
+ * Campo de 3/4 é rodada única. Campo de 6 (e edição de um campo de 5) usa o
+ * funil suave: elimina 1 por fase até o pódio de 4. `singleFinal6` é o estado
+ * colapsado — a proposta automática de 6 já nasce partida.
  */
 describe('plano de fases · partir a final de um campo que cabe numa chave', () => {
-  const plan6 = () => kocProposePhasePlan(6, 6, 900);
+  const singleFinal6 = (): ReturnType<typeof kocProposePhasePlan> => [
+    {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+  ];
 
-  it('só o campo de 6 pode ser partido — 3, 4 e 5 seguem rodada única', () => {
+  it('5 e 6 podem ser partidos — 3 e 4 seguem rodada única', () => {
     expect(kocCanSplitFinal(6)).toBeTrue();
-    expect(kocCanSplitFinal(5)).toBeFalse();
+    expect(kocCanSplitFinal(5)).toBeTrue();
     expect(kocCanSplitFinal(4)).toBeFalse();
     expect(kocCanSplitFinal(3)).toBeFalse();
   });
 
-  it('o primeiro clique classifica 4 — a final natural de um campo de 6', () => {
-    expect(kocSplitFinalQualifiers(6)).toBe(4);
+  it('o primeiro clique classifica 5 — o corte mais suave do campo de 6', () => {
+    expect(kocSplitFinalQualifiers(6)).toBe(5);
   });
 
-  it('a proposta de 6 duplas continua sendo uma rodada só até alguém mandar partir', () => {
-    expect(plan6()).toEqual([
-      {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+  it('a proposta de 6 duplas já nasce no funil 6→5→4→final', () => {
+    expect(kocProposePhasePlan(6, 6, 900)).toEqual([
+      {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 5, durationSec: 900},
+      {bracketSizes: [5], roundsPerBracket: 1, qualifiersPerRound: 4, durationSec: 900},
+      {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
     ]);
   });
 
   /** A cascata que a tela usa já existe; este é o contrato entre a régua nova e
    *  ela. Sem este teste, mudar `kocApplyPhaseEdit` quebraria a tela em silêncio. */
-  it('classificar 4 de 6 faz nascer a final de 4 embaixo', () => {
-    const split = kocApplyPhaseEdit(plan6(), 0, {qualifiersPerRound: kocSplitFinalQualifiers(6)}, 6);
+  it('classificar 5 de 6 faz nascer semi de 5 e final de 4', () => {
+    const split = kocApplyPhaseEdit(
+      singleFinal6(),
+      0,
+      {qualifiersPerRound: kocSplitFinalQualifiers(6)},
+      6,
+    );
     expect(split).toEqual([
-      {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 4, durationSec: 900},
+      {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 5, durationSec: 900},
+      {bracketSizes: [5], roundsPerBracket: 1, qualifiersPerRound: 4, durationSec: 900},
       {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
     ]);
-    expect(kocPhaseLabelAt(1, split.length)).toBe('Final');
+    expect(kocPhaseLabelAt(2, split.length)).toBe('Final');
+    expect(kocPhaseLabelAt(1, split.length)).toBe('Semifinal');
   });
 
   it('descer as classificadas abaixo do piso desfaz a final e volta à rodada única', () => {
-    const split = kocApplyPhaseEdit(plan6(), 0, {qualifiersPerRound: 4}, 6);
-    expect(kocApplyPhaseEdit(split, 0, {qualifiersPerRound: 2}, 6)).toEqual(plan6());
+    const split = kocApplyPhaseEdit(singleFinal6(), 0, {qualifiersPerRound: 5}, 6);
+    expect(kocApplyPhaseEdit(split, 0, {qualifiersPerRound: 2}, 6)).toEqual(singleFinal6());
   });
 
   it('o primeiro clique de baterias salta para o mínimo que não colapsa', () => {
@@ -600,7 +622,7 @@ describe('plano de fases · partir a final de um campo que cabe numa chave', () 
 
   it('baterias 3 com 1 classificada faz nascer a final de 3 embaixo', () => {
     const split = kocApplyPhaseEdit(
-      plan6(),
+      singleFinal6(),
       0,
       {roundsPerBracket: kocSplitFinalMinRounds(6), qualifiersPerRound: 1},
       6,
@@ -611,10 +633,11 @@ describe('plano de fases · partir a final de um campo que cabe numa chave', () 
     ]);
   });
 
-  it('baterias 4 com 1 classificada é o máximo do campo de 6', () => {
-    const split = kocApplyPhaseEdit(plan6(), 0, {roundsPerBracket: 4, qualifiersPerRound: 1}, 6);
+  it('baterias 5 com 1 classificada é o máximo do campo de 6', () => {
+    const split = kocApplyPhaseEdit(singleFinal6(), 0, {roundsPerBracket: 5, qualifiersPerRound: 1}, 6);
     expect(split).toEqual([
-      {bracketSizes: [6], roundsPerBracket: 4, qualifiersPerRound: 1, durationSec: 900},
+      {bracketSizes: [6], roundsPerBracket: 5, qualifiersPerRound: 1, durationSec: 900},
+      {bracketSizes: [5], roundsPerBracket: 1, qualifiersPerRound: 4, durationSec: 900},
       {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
     ]);
   });

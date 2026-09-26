@@ -1090,10 +1090,12 @@ export class CriarTorneioComponent {
       return `Com ${c.spots} duplas, não dá para montar uma chave dentro do teto de ${c.kocMaxTeamsPerRound} por bateria. Aumente "Máximo por bateria".`;
     }
     const totals = kocPlanTotals(plan, 1);
-    const batteriesHint = c.spots >= 6
-      ? ' Com 6 duplas na chave, a tela de gerar chave deixa subir até 4 baterias.'
-      : '';
-    return `${c.spots} duplas · ${totals.rounds} rodadas em 1 quadra (estimativa pelas vagas) — a tela de gerar chave decide o plano final (baterias e classificadas) pelas inscritas de verdade.${batteriesHint}`;
+    const sixFunnelHint = c.spots === 6 && c.kocMaxTeamsPerRound >= 6
+      ? ' Com 6 vagas e teto 6, a proposta é 6→5→4→final (elimina 1 por fase).'
+      : c.spots >= 6
+        ? ' Com 6 duplas na chave, a tela de gerar chave deixa subir até 5 baterias.'
+        : '';
+    return `${c.spots} duplas · ${totals.rounds} rodadas em 1 quadra (estimativa pelas vagas) — a tela de gerar chave decide o plano final (baterias e classificadas) pelas inscritas de verdade.${sixFunnelHint}`;
   }
 
   protected bumpCourts(delta: number): void {

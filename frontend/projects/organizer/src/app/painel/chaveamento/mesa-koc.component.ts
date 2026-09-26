@@ -438,7 +438,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
               }
             </ul>
 
-            @if (lastLogRow(); as last) {
+            <!-- @if (lastLogRow(); as last) {
               <div class="og-mk-last-hit">
                 <header class="og-mk-section-head">
                   <span class="og-mk-section-title">Último lançamento</span>
@@ -457,7 +457,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                   Desfazer último
                 </button>
               </div>
-            }
+            } -->
 
             @if (tie()) {
               <!-- Empate na vaga: card único com título, alerta e botões de quem pontuou.
@@ -2264,14 +2264,20 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         overflow: hidden;
       }
       .og-mk-live .og-mk-side-pts strong {
-        font-size: clamp(42px, 11vh, 120px);
+        font-size: clamp(32px, 7vh, 84px);
       }
       .og-mk-live .og-mk-side-name {
-        font-size: clamp(15px, 2.2vh, 26px);
+        font-size: clamp(14px, 1.8vh, 20px);
       }
       .og-mk-live .og-mk-side {
         justify-content: center;
-        padding: 12px 10px;
+        padding: 8px 8px;
+      }
+      /* Avatar de 72px (template) sobra no card comprimido de tablet/celular. */
+      .og-mk-live .og-mk-side-avatars og-avatar {
+        width: 44px !important;
+        height: 44px !important;
+        font-size: 15px !important;
       }
 
       /* ── Fila + último lançamento ─────────────────────────────── */
@@ -2687,8 +2693,92 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         font-size: 10px;
         letter-spacing: 0.06em;
       }
+      /* Os dois lados do confronto encolhem igual — libera altura pro botão de ponto.
+         Antes só o trono tinha esse corte e o desafiante ficava desproporcionalmente
+         maior no celular. */
+      .og-mk-side.throne {
+        gap: 4px;
+        padding: 8px 6px;
+      }
+      .og-mk-live .og-mk-side {
+        padding: 6px 6px;
+      }
+      .og-mk-live .og-mk-side-pts {
+        margin-top: 0;
+      }
+      .og-mk-live .og-mk-side-pts strong {
+        font-size: clamp(28px, 7vh, 44px);
+      }
+      .og-mk-live .og-mk-side-name {
+        font-size: 12px;
+      }
+      .og-mk-live .og-mk-side-badge {
+        font-size: 9px;
+        letter-spacing: 0.05em;
+        gap: 5px;
+      }
+      .og-mk-live .og-mk-side.throne .og-mk-side-dot {
+        width: 5px;
+        height: 5px;
+      }
       .og-mk-vs {
         font-size: 11px;
+      }
+
+      /* Confronto de abertura (prep): cards cabem na 1ª tela ao lado da fila. */
+      .og-mk-prep .og-mk-sides {
+        gap: 6px;
+      }
+      .og-mk-prep .og-mk-side {
+        gap: 4px;
+        padding: 10px 8px;
+        border-radius: 12px;
+      }
+      .og-mk-prep .og-mk-side-badge {
+        font-size: 9px;
+        letter-spacing: 0.05em;
+        gap: 4px;
+      }
+      .og-mk-prep .og-mk-side-avatars {
+        margin-top: 0;
+      }
+      .og-mk-prep .og-mk-side-avatars og-avatar {
+        /* size=64 no template — no celular sobra altura demais pro card. */
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 13.6px !important;
+      }
+      .og-mk-prep .og-mk-side-avatars og-avatar + og-avatar {
+        margin-left: -12px;
+      }
+      .og-mk-prep .og-mk-side-name {
+        font-size: 14px;
+        letter-spacing: -0.01em;
+      }
+      .og-mk-prep .og-mk-side-sub {
+        font-size: 11px;
+      }
+      .og-mk-prep .og-mk-vs {
+        font-size: 11px;
+      }
+      .og-mk-prep .og-mk-section-head {
+        margin-bottom: 8px;
+      }
+      .og-mk-prep .og-mk-section-title {
+        font-size: 12px;
+      }
+      .og-mk-prep .og-mk-open .og-mk-section-rule {
+        display: none;
+      }
+
+      /* Rodada de 6 duplas (KOC_MAX_TEAMS_PER_ROUND) deixa até 4 na fila — uma a mais
+         do que o teto de 42vh/360px foi calibrado pra caber (3 linhas). No celular,
+         com o rodapé de ações já no osso, a 4ª linha empurra "Erro de saque" pra fora
+         da tela fixa (og-mk-live tem overflow:hidden). Aperta o teto aqui pra 3 linhas
+         cheias + amostra da 4ª: quem excede rola DENTRO da fila, sem empurrar nada.
+         Não mexe no empate (max-height:none já é dele, ver bloco de 1023.98px). */
+      .og-mk-live:not(:has(.og-mk-tie)) .og-mk-order {
+        max-height: min(26vh, 190px);
       }
 
       /* Sem o papel, a linha da fila fica: nº · avatares · dupla · pts. As colunas

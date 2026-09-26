@@ -26,10 +26,18 @@ export function ledTelaOf(
   if (!match || !isKingOfCourtMatchType(match.matchType) || !match.koc) return 'aguardando';
 
   if (match.status === 'completed') {
-    if (finishedAtMs == null) return 'classificacao';
-    const desde = nowMs - finishedAtMs;
-    if (desde < CLASSIFICACAO_MS) return 'classificacao';
-    if (desde < CLASSIFICACAO_MS + CLASSIFICADAS_MS) return 'classificadas';
+    if (finishedAtMs != null) {
+      const desde = nowMs - finishedAtMs;
+      if (desde < CLASSIFICACAO_MS) return 'classificacao';
+      if (desde < CLASSIFICACAO_MS + CLASSIFICADAS_MS) return 'classificadas';
+      return 'aguardando';
+    }
+    // Sem transição observada pela TV (painel aberto/recarregado bem depois do fim): só é
+    // "novidade" perto do `matchEndedAt` do documento. Categoria encerrada há muito tempo não
+    // deve reaparecer no painel — diferente do overlay do OBS, que mantém o pódio no ar de
+    // propósito.
+    const endedAt = match.matchEndedAt?.getTime() ?? null;
+    if (endedAt != null && nowMs - endedAt < CLASSIFICACAO_MS + CLASSIFICADAS_MS) return 'classificacao';
     return 'aguardando';
   }
 

@@ -297,7 +297,7 @@ function shuffled<T>(items: readonly T[]): T[] {
                         <div class="ctrl">
                           <!-- A final mostra "pódio" e nada mais — SALVO quando o
                                campo dela ainda comporta uma final embaixo (regra em
-                               kocCanSplitFinal). Campo de 6: dá pra partir via
+                               kocCanSplitFinal). Campo de 5/6: dá pra partir via
                                Classificam OU via Baterias (os dois saltam o colapso
                                de next < 3 que fazia o botão parecer quebrado). -->
                           @if (kocPhasePasses($index) === null && !kocFinalIsSplittable($index)) {
@@ -1052,7 +1052,7 @@ export class SeedsComponent {
    * Na final de um campo de 6 o primeiro + também colapsava: forçar 1
    * classificada com 2 baterias manda só 2 duplas adiante (abaixo do piso) e
    * a cascata volta pra rodada única. O salto usa `kocSplitFinalMinRounds`
-   * (3 no campo de 6) — daí o + sobe até o teto (4).
+   * (3 no campo de 6) — daí o + sobe até o teto (5).
    */
   protected bumpKocPhaseRounds(index: number, delta: number): void {
     const phase = this.kocPhases()[index];

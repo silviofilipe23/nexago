@@ -469,8 +469,8 @@ describe("buildKingOfCourtRounds · rodadas por chave", () => {
   });
 
   it("recusa mais rodadas do que a chave aguenta", () => {
-    // Chave de 4: a 3ª rodada rodaria com 2 duplas, que não é King of the Court.
-    assert.throws(() => build(3), /comporta no máximo 2 rodada/);
+    // Chave de 4: a 4ª rodada rodaria com 1 dupla — abaixo do piso rei vs desafiante.
+    assert.throws(() => build(4), /comporta no máximo 3 rodada/);
   });
 
   it("uma rodada por chave é o formato de sempre", () => {
@@ -479,10 +479,10 @@ describe("buildKingOfCourtRounds · rodadas por chave", () => {
 });
 
 describe("kocMaxRoundsPerBracket", () => {
-  it("cada rodada tira uma dupla, e o mínimo do formato é o piso", () => {
-    assert.equal(kocMaxRoundsPerBracket(3), 1);
-    assert.equal(kocMaxRoundsPerBracket(4), 2);
-    assert.equal(kocMaxRoundsPerBracket(5), 3);
+  it("cada rodada tira uma dupla; a última pode ser rei vs desafiante", () => {
+    assert.equal(kocMaxRoundsPerBracket(3), 2);
+    assert.equal(kocMaxRoundsPerBracket(4), 3);
+    assert.equal(kocMaxRoundsPerBracket(5), 4);
   });
 });
 
@@ -509,17 +509,17 @@ describe("kocBracketCountForRounds", () => {
 const flat = (): number => 900;
 
 describe("kocMaxRoundsPerBracket com mais de uma classificada", () => {
-  it("com 1 por bateria é o de sempre: a chave encolhe de uma em uma", () => {
-    assert.equal(kocMaxRoundsPerBracket(3), 1);
-    assert.equal(kocMaxRoundsPerBracket(4), 2);
-    assert.equal(kocMaxRoundsPerBracket(5), 3);
-    assert.equal(kocMaxRoundsPerBracket(6), 4);
+  it("com 1 por bateria: chave de 6 aguenta 5 (teto duro)", () => {
+    assert.equal(kocMaxRoundsPerBracket(3), 2);
+    assert.equal(kocMaxRoundsPerBracket(4), 3);
+    assert.equal(kocMaxRoundsPerBracket(5), 4);
+    assert.equal(kocMaxRoundsPerBracket(6), 5);
   });
 
   it("com 2 por bateria a chave encolhe de duas em duas", () => {
-    assert.equal(kocMaxRoundsPerBracket(6, 2), 2); // 6 → 4, e 4 ainda é rodada
+    assert.equal(kocMaxRoundsPerBracket(6, 2), 3); // 6 → 4 → 2
     assert.equal(kocMaxRoundsPerBracket(7, 2), 3); // 7 → 5 → 3
-    assert.equal(kocMaxRoundsPerBracket(4, 2), 1); // 4 → 2 não é rodada
+    assert.equal(kocMaxRoundsPerBracket(4, 2), 2); // 4 → 2
   });
 });
 
@@ -546,13 +546,22 @@ describe("kocProposePlan", () => {
     ] satisfies KocPhaseSpec[]);
   });
 
-  it("campo que cabe numa quadra é uma rodada só — não se inventa fase", () => {
-    for (const n of [3, 4, 5, 6]) {
+  it("campo de 3–5 que cabe numa quadra é uma rodada só — não se inventa fase", () => {
+    for (const n of [3, 4, 5]) {
       const plan = kocProposePlan(n, 6, flat);
       assert.deepEqual(plan, [
         {bracketSizes: [n], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
       ]);
     }
+  });
+
+  it("campo de 6 propõe o funil suave 6→5→4→final", () => {
+    const plan = kocProposePlan(6, 6, flat);
+    assert.deepEqual(plan, [
+      {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 5, durationSec: 900},
+      {bracketSizes: [5], roundsPerBracket: 1, qualifiersPerRound: 4, durationSec: 900},
+      {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+    ] satisfies KocPhaseSpec[]);
   });
 
   it("chave que só aguenta uma bateria classifica mais de uma, ou o campo morre", () => {
@@ -678,10 +687,10 @@ describe("buildKingOfCourtRounds · campo que nao e multiplo da quadra", () => {
     }
   });
 
-  it("6 duplas seguem recusadas: 1 chave de 6 estoura o teto da rodada", () => {
+  it("6 duplas com 3 rodadas por chave seguem recusadas: chave de 3 só aguenta 2", () => {
     const teamIds = Array.from({length: 6}, (_, i) => `t${i + 1}`);
     assert.throws(
-      () => buildKingOfCourtRounds(teamIds, cfg(2)),
+      () => buildKingOfCourtRounds(teamIds, cfg(3)),
       (e: KocBracketError) => e.reason === "koc_rounds_per_bracket_too_high",
     );
   });
@@ -1050,18 +1059,17 @@ describe("buildKingOfCourtRounds com plano explícito", () => {
   });
 
   it("recusa bateria que ficaria abaixo do mínimo", () => {
-    const config: KocConfig = {
+    // Chave de 4 com 4 baterias: 4 → 3 → 2 → 1 fura o piso de 2. Campo 10
+    // para a fase reduzir (next=8) e o assertPlan aceitar a abertura.
+    assert.throws(() => buildKingOfCourtRounds(seeds(10), {
       ...baseConfig,
-      // `maxTeamsPerRound: 6` para isolar o que este teste verifica (a bateria
-      // que encolhe demais): sem ele o teto efetivo cai para o legado (5), e a
-      // chave de 6 da fase 2 seria recusada antes, por `koc_bracket_over_max`.
       maxTeamsPerRound: 6,
       phases: [
-        {bracketSizes: [4, 4], roundsPerBracket: 3, qualifiersPerRound: 1, durationSec: 900},
-        {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+        {bracketSizes: [6, 4], roundsPerBracket: 4, qualifiersPerRound: 1, durationSec: 900},
+        {bracketSizes: [4, 4], roundsPerBracket: 1, qualifiersPerRound: 2, durationSec: 900},
+        {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
       ],
-    };
-    assert.throws(() => buildKingOfCourtRounds(seeds(8), config), (e: unknown) => {
+    }), (e: unknown) => {
       assert.ok(e instanceof KocBracketError);
       assert.equal(e.reason, "koc_battery_too_small");
       return true;
@@ -1488,16 +1496,19 @@ describe("assertPlan · o piso de 3 por chave", () => {
   it("bateria que ENCOLHE abaixo do piso continua sendo koc_battery_too_small", () => {
     // O piso novo é sobre a chave que NASCE pequena; a chave que encolhe ao
     // longo das baterias continua com o erro — e a mensagem — de sempre.
+    // Chave de 4 com 4 baterias: 4 → 3 → 2 → 1 fura o piso de 2.
     const config: KocConfig = {
       ...base,
+      maxTeamsPerRound: 6,
       phases: [
-        {bracketSizes: [4, 4], roundsPerBracket: 3, qualifiersPerRound: 1, durationSec: 900},
-        {bracketSizes: [6], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
+        {bracketSizes: [6, 4], roundsPerBracket: 4, qualifiersPerRound: 1, durationSec: 900},
+        {bracketSizes: [4, 4], roundsPerBracket: 1, qualifiersPerRound: 2, durationSec: 900},
+        {bracketSizes: [4], roundsPerBracket: 1, qualifiersPerRound: 0, durationSec: 900},
       ],
     };
-    assert.doesNotThrow(() => kocResolvePlan(8, config), "o plano em si respeita o piso");
+    assert.doesNotThrow(() => kocResolvePlan(10, config), "o plano em si respeita o piso de abertura");
     assert.throws(
-      () => buildKingOfCourtRounds(seeds(8), config),
+      () => buildKingOfCourtRounds(seeds(10), config),
       (e: unknown) => e instanceof KocBracketError && e.reason === "koc_battery_too_small",
     );
   });

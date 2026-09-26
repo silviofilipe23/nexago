@@ -117,6 +117,22 @@ describe('ledTelaOf', () => {
     expect(ledTelaOf(encerrada, depois, fim)).toBe('aguardando');
   });
 
+  it('categoria finalizada há muito tempo, sem transição observada, não reaparece no painel', () => {
+    const encerradaAntiga = match({
+      status: 'completed',
+      matchEndedAt: new Date(NOW - 3 * 3_600_000),
+    });
+
+    expect(ledTelaOf(encerradaAntiga, NOW, null)).toBe('aguardando');
+  });
+
+  it('categoria finalizada há pouco, sem transição observada (TV recarregou), ainda mostra a classificação', () => {
+    const fim = NOW;
+    const encerradaRecente = match({ status: 'completed', matchEndedAt: new Date(fim) });
+
+    expect(ledTelaOf(encerradaRecente, fim + 1_000, null)).toBe('classificacao');
+  });
+
   it('sem partida na quadra, aguarda', () => {
     expect(ledTelaOf(null, NOW, null)).toBe('aguardando');
   });

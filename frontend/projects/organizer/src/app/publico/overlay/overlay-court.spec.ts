@@ -164,6 +164,120 @@ describe('overlayCourtContextOf', () => {
     expect(ctx.totalRounds).toBe(3);
   });
 
+  it('quadra reaproveitada por outra categoria não trava na final antiga se tem jogo ao vivo', () => {
+    const finalCat1 = match({
+      id: 'final-cat1',
+      status: 'completed',
+      courtId: 'q2',
+      categoryId: 'cat1',
+      matchType: 'Final',
+      winnerSide: 1,
+      teamAId: 'ta',
+      teamBId: 'tb',
+      matchEndedAt: new Date(NOW - 3 * 3_600_000),
+      sets: [
+        { a: 21, b: 18 },
+        { a: 21, b: 15 },
+      ],
+    });
+    const aoVivoCat2 = match({
+      id: 'live-cat2',
+      status: 'in_progress',
+      courtId: 'q2',
+      categoryId: 'cat2',
+      matchStartedAt: new Date(NOW),
+    });
+
+    const ctx = overlayCourtContextOf([finalCat1, aoVivoCat2], 'q2', NOW, SEM_MEMORIA);
+
+    expect(ctx.match?.id).toBe('live-cat2');
+  });
+
+  it('quadra reaproveitada por outra categoria não trava na final antiga com jogo agendado (ainda não ao vivo)', () => {
+    const finalCat1 = match({
+      id: 'final-cat1',
+      status: 'completed',
+      courtId: 'q2',
+      categoryId: 'cat1',
+      matchType: 'Final',
+      winnerSide: 1,
+      teamAId: 'ta',
+      teamBId: 'tb',
+      matchEndedAt: new Date(NOW - 3 * 3_600_000),
+      sets: [
+        { a: 21, b: 18 },
+        { a: 21, b: 15 },
+      ],
+    });
+    const agendadaCat2 = match({
+      id: 'next-cat2',
+      status: 'scheduled',
+      courtId: 'q2',
+      categoryId: 'cat2',
+      scheduledAt: new Date(NOW + 60_000),
+    });
+
+    const ctx = overlayCourtContextOf([finalCat1, agendadaCat2], 'q2', NOW, SEM_MEMORIA);
+
+    expect(ctx.match?.id).toBe('next-cat2');
+  });
+
+  it('quadra reaproveitada por outra categoria SEM scheduledAt (KOTC real) também não trava na final antiga', () => {
+    // Reprodução do bug real: KOTC não grava `scheduledAt` (agenda dinâmica por courtId), e o
+    // próximo jogo da categoria nova ainda nem começou. Nem `courtNowOf` (que só acha "próxima"
+    // via scheduledAt) nem uma checagem baseada em `atual.match` bastam aqui.
+    const finalFeminina = match({
+      id: 'final-feminina',
+      status: 'completed',
+      courtId: 'q1',
+      categoryId: 'cat-fem',
+      matchType: 'koc_final',
+      matchEndedAt: new Date(NOW - 3 * 3_600_000),
+      koc: {
+        teamIds: ['a', 'b'],
+        kingTeamId: 'a',
+        challengerTeamId: 'b',
+        queue: [],
+        points: { a: 12, b: 10 },
+        rallies: 0,
+        servingTeamId: 'b',
+        clock: null,
+        standings: [
+          { teamId: 'a', place: 1, points: 12, crowns: 3 },
+          { teamId: 'b', place: 2, points: 10, crowns: 2 },
+        ],
+        qualifiersPerRound: 1,
+        teamsPerCourt: 4,
+        roundsPerBracket: 1,
+        configuredDurationSec: 900,
+        rallySeq: 0,
+        rallyLog: [],
+        roundLabel: 1,
+        batteryLabel: 1,
+        phases: null,
+        maxTeamsPerRound: 0,
+        qualifierSlots: [],
+      },
+    });
+    const proximaMasculinaSemAgenda = match({
+      id: 'proxima-masculina',
+      status: 'scheduled',
+      courtId: 'q1',
+      categoryId: 'cat-masc',
+      matchType: 'koc_semifinal',
+      scheduledAt: null,
+    });
+
+    const ctx = overlayCourtContextOf(
+      [finalFeminina, proximaMasculinaSemAgenda],
+      'q1',
+      NOW,
+      SEM_MEMORIA,
+    );
+
+    expect(ctx.match?.id).not.toBe('final-feminina');
+  });
+
   it('segura a recém-encerrada enquanto a memória de fim a mantém', () => {
     const encerrada = match({ id: 'fim', status: 'completed', courtId: 'q2' });
     const memoria = new Map<string, MatchFinishMemory>([

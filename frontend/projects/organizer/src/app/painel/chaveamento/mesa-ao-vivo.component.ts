@@ -631,7 +631,9 @@ interface MedicalOptionView {
     .og-mesa-team {
       display: flex;
       align-items: center;
+      justify-content: center;
       gap: 8px;
+      width: 100%;
       min-width: 0;
     }
     .og-mesa-name {

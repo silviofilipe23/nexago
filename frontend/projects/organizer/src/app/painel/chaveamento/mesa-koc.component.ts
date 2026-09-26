@@ -2264,14 +2264,20 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         overflow: hidden;
       }
       .og-mk-live .og-mk-side-pts strong {
-        font-size: clamp(42px, 11vh, 120px);
+        font-size: clamp(32px, 7vh, 84px);
       }
       .og-mk-live .og-mk-side-name {
-        font-size: clamp(15px, 2.2vh, 26px);
+        font-size: clamp(14px, 1.8vh, 20px);
       }
       .og-mk-live .og-mk-side {
         justify-content: center;
-        padding: 12px 10px;
+        padding: 8px 8px;
+      }
+      /* Avatar de 72px (template) sobra no card comprimido de tablet/celular. */
+      .og-mk-live .og-mk-side-avatars og-avatar {
+        width: 44px !important;
+        height: 44px !important;
+        font-size: 15px !important;
       }
 
       /* ── Fila + último lançamento ─────────────────────────────── */
@@ -2689,6 +2695,16 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       }
       .og-mk-vs {
         font-size: 11px;
+      }
+
+      /* Rodada de 6 duplas (KOC_MAX_TEAMS_PER_ROUND) deixa até 4 na fila — uma a mais
+         do que o teto de 42vh/360px foi calibrado pra caber (3 linhas). No celular,
+         com o rodapé de ações já no osso, a 4ª linha empurra "Erro de saque" pra fora
+         da tela fixa (og-mk-live tem overflow:hidden). Aperta o teto aqui pra 3 linhas
+         cheias + amostra da 4ª: quem excede rola DENTRO da fila, sem empurrar nada.
+         Não mexe no empate (max-height:none já é dele, ver bloco de 1023.98px). */
+      .og-mk-live:not(:has(.og-mk-tie)) .og-mk-order {
+        max-height: min(26vh, 190px);
       }
 
       /* Sem o papel, a linha da fila fica: nº · avatares · dupla · pts. As colunas

@@ -1937,6 +1937,10 @@ button {
 
 .og-wizard-col {
   flex: 1;
+  /* Sem isto, o mesmo estouro do `.og-page-header`: um filho com conteúdo largo (ex.: a
+     mesa ao vivo) trava o encolhimento e, como o pai usa `justify-content: center`, o
+     excesso vaza IGUAL pros dois lados — sem barra de rolagem visível pra alcançar. */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 20px;

@@ -365,6 +365,21 @@ describe("kocQualifyingTies", () => {
     const standings = kocStandings(ROSTER, kocInitialState(ROSTER));
     assert.deepEqual(kocQualifyingTies(standings, 4), []);
   });
+
+  it("corte conta só entre ativas — removida no topo não esconde o empate real", () => {
+    // A está removida mas ficou congelada em 1º com a maior pontuação. Entre
+    // as ATIVAS (D, B, C), o corte de 2 vagas cai exatamente no empate B×C —
+    // contando o corte pela posição BRUTA (com A ocupando a 1ª vaga), o
+    // empate ficaria entre D(2º) e B(3º), que nem estão empatados, e a bola
+    // de ouro que era devida passaria em branco.
+    const standings = [
+      {teamId: "A", place: 1, points: 10, crowns: 1, tiedOnPointsWith: [], removed: true},
+      {teamId: "D", place: 2, points: 5, crowns: 1, tiedOnPointsWith: [], removed: false},
+      {teamId: "B", place: 3, points: 3, crowns: 0, tiedOnPointsWith: ["C"], removed: false},
+      {teamId: "C", place: 4, points: 3, crowns: 0, tiedOnPointsWith: ["B"], removed: false},
+    ];
+    assert.deepEqual(kocQualifyingTies(standings, 2), [["B", "C"]]);
+  });
 });
 
 /**
@@ -448,6 +463,11 @@ describe("kocApplyRally · remoção por lesão", () => {
     assert.deepEqual(state.queue, ["D"]);
     assert.equal(state.servingTeamId, "C");
     assert.deepEqual(state.removedTeamIds, ["B"]);
+    // `rallies` (rallies JOGADOS) precisa avançar como qualquer outro
+    // desfecho do log — igual a `golden_point` — senão o `expectedSeq` que
+    // os clientes calculam a partir dele diverge do tamanho real do log e
+    // toda rodada trava em `koc_seq_mismatch` depois de uma remoção.
+    assert.equal(state.rallies, 1);
   });
 
   it("quando o rei se machuca, a desafiante assume o trono sem crédito de coroa extra", () => {

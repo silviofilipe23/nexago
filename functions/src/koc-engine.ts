@@ -186,6 +186,12 @@ export function kocApplyRally(
       crownOrder,
       servingTeamId: challengerAfterRemoval,
       removedTeamIds,
+      // Não foi um rally jogado, mas AVANÇA no log de qualquer forma — como
+      // `golden_point`. Os clientes (mesa web, app) calculam `expectedSeq` a
+      // partir de "rallies jogados" (`kocState.rallies + 1`), então se este
+      // contador não seguisse o tamanho do log toda remoção deixaria a
+      // rodada travada com `koc_seq_mismatch` no rally seguinte.
+      rallies: state.rallies + 1,
     };
   }
 
@@ -384,18 +390,22 @@ export function kocQualifyingTies(
   standings: readonly KocStanding[],
   qualifiersPerRound: number,
 ): string[][] {
+  // O corte conta só entre as ATIVAS — igual a `resolveKocRoster`
+  // (`koc-phase-advance.ts`): uma equipe removida ocupando uma posição acima
+  // do corte não pode escondê-lo nem "gastar" uma vaga que não é dela.
+  const active = standings.filter((s) => !s.removed);
   const cut = Math.max(1, Math.floor(qualifiersPerRound));
-  if (cut >= standings.length) return [];
+  if (cut >= active.length) return [];
 
   // O empate só importa se atravessa o corte: empate por 1º entre dois que já
   // passam não muda quem classifica.
-  const lastIn = standings[cut - 1];
-  const firstOut = standings[cut];
+  const lastIn = active[cut - 1];
+  const firstOut = active[cut];
   if (!lastIn || !firstOut) return [];
   if (lastIn.points !== firstOut.points) return [];
 
-  const tied = standings
-    .filter((s) => s.points === lastIn.points && !s.removed)
+  const tied = active
+    .filter((s) => s.points === lastIn.points)
     .map((s) => s.teamId);
   return tied.length > 1 ? [tied] : [];
 }

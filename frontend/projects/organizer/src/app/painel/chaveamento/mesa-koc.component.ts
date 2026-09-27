@@ -669,7 +669,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
     @if (removeTeamTarget(); as target) {
       <og-confirm-dialog
         title="Remover por lesão"
-        [message]="target.name + ' sai da rodada agora. A próxima dupla da fila assume o lugar na hora, e os pontos já conquistados continuam valendo no ranking final. Não dá pra desfazer pela mesa.'"
+        [message]="target.name + ' sai da rodada agora. A próxima dupla da fila assume o lugar na hora, e os pontos já conquistados continuam valendo no ranking final. Errou? \'Desfazer último\' reverte, se for logo depois.'"
         confirmLabel="Remover"
         [destructive]="true"
         [busy]="busy()"
@@ -3350,7 +3350,10 @@ export class MesaKocComponent {
 
   protected rally(outcome: KocRallyOutcome): void {
     void this.run(
-      () => registerKocRally({ matchId: this.matchId(), outcome, expectedSeq: this.rallies() + 1 }),
+      // `rallySeq` é o tamanho bruto do log (o que o servidor compara), não
+      // "rallies jogados" — depois de uma remoção os dois divergem, e usar
+      // `rallies() + 1` travaria a rodada com `koc_seq_mismatch`.
+      () => registerKocRally({ matchId: this.matchId(), outcome, expectedSeq: (this.round()?.rallySeq ?? 0) + 1 }),
       null,
     );
   }
@@ -3359,7 +3362,7 @@ export class MesaKocComponent {
    *  dupla não estiver nele — aqui a mesa só aponta quem venceu. */
   protected golden(teamId: string): void {
     void this.run(
-      () => registerKocGoldenPoint({ matchId: this.matchId(), teamId, expectedSeq: this.rallies() + 1 }),
+      () => registerKocGoldenPoint({ matchId: this.matchId(), teamId, expectedSeq: (this.round()?.rallySeq ?? 0) + 1 }),
       'Bola de ouro registrada.',
     );
   }

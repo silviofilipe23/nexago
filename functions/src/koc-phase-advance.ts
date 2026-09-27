@@ -24,6 +24,9 @@ export interface KocQualifierSlotDoc {
 export interface KocStandingDoc {
   teamId: string;
   place: number;
+  /** Fora da rodada por lesão — nunca ocupa vaga de classificação, mesmo que
+   *  a colocação bruta dissesse que sim. */
+  removed?: boolean;
 }
 
 export function parseKocQualifiers(raw: unknown): KocQualifierSlotDoc[] {
@@ -57,7 +60,11 @@ export function parseKocStandings(raw: unknown): KocStandingDoc[] {
     const teamId = typeof entry.teamId === "string" ? entry.teamId.trim() : "";
     const place = Number(entry.place);
     if (!teamId || !Number.isInteger(place) || place < 1) continue;
-    out.push({teamId, place});
+    out.push({
+      teamId,
+      place,
+      ...(entry.removed === true ? {removed: true} : {}),
+    });
   }
   return out;
 }
@@ -89,7 +96,12 @@ export function resolveKocRoster(
   const missing: KocQualifierSlotDoc[] = [];
   for (const slot of ordered) {
     const standings = standingsByMatchNumber.get(slot.fromMatchNumber);
-    const found = standings?.find((s) => s.place === slot.place);
+    // Equipe removida (lesão) nunca ocupa vaga de classificação: a posição
+    // pedida conta só entre as ATIVAS, e quem vem depois é promovido no lugar.
+    const active = standings ?
+      [...standings].filter((s) => !s.removed).sort((a, b) => a.place - b.place) :
+      undefined;
+    const found = active?.[slot.place - 1];
     if (!found || teamIds.includes(found.teamId)) {
       missing.push(slot);
       continue;

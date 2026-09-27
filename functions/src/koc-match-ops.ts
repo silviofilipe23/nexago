@@ -755,6 +755,7 @@ export async function kocFinishRoundCore(
       place: s.place,
       points: s.points,
       crowns: s.crowns,
+      ...(s.removed ? {removed: true} : {}),
     })),
     // `winnerId` é o 1º da TABELA, não o vencedor de um duelo. A blindagem da
     // fase 0 é o que impede isso de virar avanço de chave ou rating.

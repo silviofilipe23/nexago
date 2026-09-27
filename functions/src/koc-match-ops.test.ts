@@ -519,6 +519,29 @@ describe("kocFinishRoundCore", () => {
       "koc_round_completed",
     );
   });
+
+  it("grava removed:true na equipe machucada, sem tirar do ranking final", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake);
+    // CLEAN_ROUND dá corte limpo pro qualifiersPerRound=2 (A=2º com 2pts, D=1º
+    // com 1pt avançam; B e C ficam empatadas em 0, mas ABAIXO do corte — por
+    // isso remover B depois não cria empate na vaga, e o encerramento não
+    // precisa de acceptTiebreak).
+    await play(fake, CLEAN_ROUND); // A=2, D=1 (rei), B=0, C=0 — B na fila, não jogando
+    await kocRemoveTeamCore(db(fake), OWNER, {
+      matchId: "r1",
+      teamId: "B",
+      description: "Machucou depois do último rally, antes de encerrar.",
+    });
+
+    const result = await kocFinishRoundCore(db(fake), OWNER, {matchId: "r1"});
+    // O valor de retorno da callable não leva `removed` (mapeamento próprio,
+    // linha ~690) — só confere que B continua na tabela. `removed` é
+    // conferido no doc PERSISTIDO, que é o que a mesa/telão de fato leem.
+    assert.ok(result.standings.some((s) => s.teamId === "B"), "B continua aparecendo na tabela final");
+    const persisted = (round(fake).kocStandings as DocData[]).find((s) => s.teamId === "B")!;
+    assert.equal(persisted.removed, true);
+  });
 });
 
 describe("kocRemoveTeamCore", () => {

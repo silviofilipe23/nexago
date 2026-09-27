@@ -48,6 +48,7 @@ function kocTournament(): OrganizerTournament {
     uniformRequired: false,
     uniformNumberOnShirt: false,
     uniformNameOnShirt: false,
+    sponsors: [],
     myRole: 'owner',
   };
 }

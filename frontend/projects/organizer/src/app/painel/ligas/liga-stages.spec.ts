@@ -32,6 +32,7 @@ describe('liga-stages', () => {
       uniformRequired: false,
       uniformNumberOnShirt: false,
       uniformNameOnShirt: false,
+      sponsors: [],
       myRole: null,
       ...over,
     };

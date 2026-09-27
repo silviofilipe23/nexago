@@ -97,6 +97,7 @@ function tournament(over: Partial<OrganizerTournament> = {}): OrganizerTournamen
     uniformRequired: false,
     uniformNumberOnShirt: false,
     uniformNameOnShirt: false,
+    sponsors: [],
     myRole: null,
     ...over,
   };

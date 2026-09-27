@@ -17,12 +17,22 @@ import {
   type QueryDocumentSnapshot,
   type Unsubscribe,
 } from 'firebase/firestore';
+import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { organizerFirestore } from './firestore';
+import { organizerStorage } from './storage';
 import { collectedFromDoc } from './tournament-collected';
 import { kocClampMaxPerRound, parseKocPhases, type KocPhaseSpec } from './koc-phase-plan';
 import { roleFromStaffMirror } from './tournament-role';
 import type { TournamentPaymentMode } from './tournament-create.model';
-import type { OrganizerMatchOpsConfig, OrganizerTournament, OrganizerTournamentCategory, OrganizerTournamentStatus, TelaoConfig, TournamentRole } from './tournament.model';
+import type {
+  OrganizerMatchOpsConfig,
+  OrganizerTournament,
+  OrganizerTournamentCategory,
+  OrganizerTournamentSponsor,
+  OrganizerTournamentStatus,
+  TelaoConfig,
+  TournamentRole,
+} from './tournament.model';
 
 /** `tournaments/{id}` (top-level, leitura pública, espelha `TournamentDocumentMapper`/
  *  `tournament_create_mapper.dart` + `league_stage_tournament_factory.dart`) filtrado por
@@ -158,6 +168,18 @@ export function courtsFromRaw(raw: unknown, courtsCount: number | null): { id: s
   return Array.from({ length: count }, (_, i) => ({ id: `Q${i + 1}`, name: `Quadra ${i + 1}`, order: i + 1 }));
 }
 
+/** Exportada para teste, mesmo espírito de `categoryFromRaw`: item sem `id`/`name`/`logoUrl`
+ *  não é um patrocinador válido e some da lista em vez de quebrar a leitura do torneio inteiro. */
+export function sponsorFromRaw(raw: unknown): OrganizerTournamentSponsor | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const id = optionalStr(o['id']);
+  const name = optionalStr(o['name']);
+  const logoUrl = optionalStr(o['logoUrl']);
+  if (!id || !name || !logoUrl) return null;
+  return { id, name, logoUrl };
+}
+
 export function telaoConfigFromRaw(raw: unknown): TelaoConfig | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
@@ -223,6 +245,9 @@ function tournamentFromDoc(id: string, data: Record<string, unknown>, myRole: To
     uniformRequired: data['uniformRequired'] === true,
     uniformNumberOnShirt: data['uniformNumberOnShirt'] === true,
     uniformNameOnShirt: data['uniformNameOnShirt'] === true,
+    sponsors: Array.isArray(data['sponsors'])
+      ? data['sponsors'].map(sponsorFromRaw).filter((s): s is OrganizerTournamentSponsor => s != null)
+      : [],
     myRole,
   };
 }
@@ -476,4 +501,66 @@ export async function saveKocPhasePlan(
     }
     tx.update(ref, { categories: kocCategoriesWithPlan(categories, categoryId, plan, maxTeamsPerRound) });
   });
+}
+
+const MAX_SPONSOR_LOGO_BYTES = 4 * 1024 * 1024;
+
+/** Mesmo limite/validação do logo da organização (`organizer-settings-repository.ts`). */
+export function validateSponsorLogoFile(file: File): string | null {
+  if (!file.type.startsWith('image/')) return 'Escolha um arquivo de imagem.';
+  if (file.size > MAX_SPONSOR_LOGO_BYTES) return 'Imagem muito grande (máximo 4 MB).';
+  return null;
+}
+
+/** Storage `tournaments/{id}/sponsors/{sponsorId}.jpg` — mesmo esquema da capa
+ *  (`uploadTournamentCover`, em `tournament-create-mapper.ts`), coberto pela mesma regra genérica
+ *  de `tournaments/{tournamentId}/**` (já previa "logos de patrocinadores" no comentário). */
+export async function uploadTournamentSponsorLogo(tournamentId: string, sponsorId: string, file: Blob): Promise<string> {
+  const storage = organizerStorage();
+  const logoRef = ref(storage, `tournaments/${tournamentId}/sponsors/${sponsorId}.jpg`);
+  await uploadBytes(logoRef, file, { contentType: file.type || 'image/jpeg' });
+  return getDownloadURL(logoRef);
+}
+
+/** Array `sponsors` sem o item de determinado id — exportada para o teste alcançar a mesma
+ *  filtragem que `removeTournamentSponsor` usa, sem precisar de Firestore. */
+export function sponsorsWithout(sponsors: readonly unknown[], sponsorId: string): unknown[] {
+  return sponsors.filter((s) => !(s != null && typeof s === 'object' && (s as Record<string, unknown>)['id'] === sponsorId));
+}
+
+/** Sobe o logo e grava `{id, name, logoUrl}` no array `sponsors` — transação, mesma razão de
+ *  `saveKocPhasePlan`: o Firestore não atualiza um elemento do array por id, então dois
+ *  organizadores adicionando patrocinador ao mesmo tempo reescreveriam o array por cima um do
+ *  outro sem ela. */
+export async function addTournamentSponsor(tournamentId: string, name: string, logoFile: Blob): Promise<OrganizerTournamentSponsor> {
+  const id = `sponsor-${Date.now()}`;
+  const logoUrl = await uploadTournamentSponsorLogo(tournamentId, id, logoFile);
+  const sponsor: OrganizerTournamentSponsor = { id, name: name.trim(), logoUrl };
+  const db = organizerFirestore();
+  const docRef = doc(db, 'tournaments', tournamentId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(docRef);
+    const raw = snap.data() ?? {};
+    const sponsors = Array.isArray(raw['sponsors']) ? (raw['sponsors'] as unknown[]) : [];
+    tx.update(docRef, { sponsors: [...sponsors, sponsor] });
+  });
+  return sponsor;
+}
+
+/** Remove do array `sponsors` e apaga o arquivo no Storage — a remoção do registro vale mesmo se
+ *  o arquivo já não existir (upload que falhou antes, por exemplo). */
+export async function removeTournamentSponsor(tournamentId: string, sponsorId: string): Promise<void> {
+  const db = organizerFirestore();
+  const docRef = doc(db, 'tournaments', tournamentId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(docRef);
+    const raw = snap.data() ?? {};
+    const sponsors = Array.isArray(raw['sponsors']) ? (raw['sponsors'] as unknown[]) : [];
+    tx.update(docRef, { sponsors: sponsorsWithout(sponsors, sponsorId) });
+  });
+  try {
+    await deleteObject(ref(organizerStorage(), `tournaments/${tournamentId}/sponsors/${sponsorId}.jpg`));
+  } catch {
+    // Arquivo pode já não existir — não impede a remoção do registro.
+  }
 }

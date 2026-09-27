@@ -35,6 +35,7 @@ function tournament(id: string, myRole: TournamentRole | null): OrganizerTournam
     uniformRequired: false,
     uniformNumberOnShirt: false,
     uniformNameOnShirt: false,
+    sponsors: [],
     myRole,
   };
 }

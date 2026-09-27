@@ -342,6 +342,22 @@ describe('kocFinalTable', () => {
     expect(kocFinalTable(round).map((r) => r.teamId)).toEqual(['B', 'C', 'A', 'D']);
     expect(kocFinalTable(round).map((r) => r.place)).toEqual([1, 2, 3, 4]);
   });
+
+  it('sem standings gravadas, marca removed:true na equipe já removida por lesão', () => {
+    // Rodada ainda EM ANDAMENTO (nenhum `kocStandings` gravado): antes desta
+    // correção o fallback sempre respondia `removed: false`, então uma
+    // equipe já fora da rotação continuava aparecendo como se estivesse
+    // ativa/classificando na tabela ao vivo.
+    const round = kocRoundStateFrom(
+      doc({
+        kocState: { points: { A: 10, B: 2, C: 2, D: 5 }, rallies: 1 },
+        kocRallies: [{ seq: 1, winner: 'team_removed', teamId: 'A', atMs: T0 }],
+      }),
+    );
+    const table = kocFinalTable(round);
+    expect(table.find((r) => r.teamId === 'A')?.removed).toBe(true);
+    expect(table.find((r) => r.teamId === 'D')?.removed).toBe(false);
+  });
 });
 
 /** Quem joga a bola de ouro. Espelha `kocQualifyingTies` do servidor, que é
@@ -367,6 +383,29 @@ describe('kocQualifyingTieGroup', () => {
 
   it('sem corte a decidir, não há bola de ouro', () => {
     expect(kocQualifyingTieGroup(withPoints({ A: 0, B: 0, C: 0, D: 0 }, 4))).toEqual([]);
+  });
+
+  it('corte conta só entre ativas — removida congelada no topo não esconde o empate real', () => {
+    // A está removida mas ficou congelada em 1º com a maior pontuação. Entre
+    // as ATIVAS (D, B, C), o corte de 2 vagas cai exatamente no empate B×C —
+    // contando o corte pela posição BRUTA (com A ocupando a 1ª vaga), o
+    // empate cairia entre D(2º) e B(3º), que nem estão empatados, e a bola
+    // de ouro devida passaria em branco — e pior, ofereceria A (removida) no
+    // seletor de bola de ouro, que o servidor recusaria de qualquer forma.
+    const round = kocRoundStateFrom(
+      doc({
+        kocConfig: { qualifiersPerRound: 2, durationSec: 900 },
+        kocState: {
+          kingTeamId: 'D',
+          challengerTeamId: 'B',
+          queue: ['C'],
+          points: { A: 10, B: 2, C: 2, D: 5 },
+          rallies: 1,
+        },
+        kocRallies: [{ seq: 1, winner: 'team_removed', teamId: 'A', atMs: T0 }],
+      }),
+    );
+    expect(kocQualifyingTieGroup(round)).toEqual(['B', 'C']);
   });
 });
 

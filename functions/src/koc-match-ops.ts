@@ -564,8 +564,13 @@ export async function kocUndoRallyCore(
  * (`docstring` no topo do arquivo), um patch fora dele seria apagado no
  * próximo rally ou undo.
  *
- * Funciona mesmo antes do apito (sem `kocClock`): uma lesão no aquecimento não
- * deveria esperar o cronômetro começar para ser registrada.
+ * Exige a rodada já iniciada (`kocClock`): sem isso, `kocStartRoundCore`
+ * depois se recusaria com `koc_round_already_started` (o log já teria uma
+ * entrada), `restart: true` apagaria a remoção calada deixando o doc de
+ * auditoria órfão, e o desfazer (que também exige relógio) não teria como
+ * reverter. A mesa web só mostra os botões de remoção depois do apito, então
+ * essa trava não fecha nenhum caminho hoje usado — só o acesso direto à
+ * callable.
  */
 export async function kocRemoveTeamCore(
   db: Firestore,
@@ -574,6 +579,7 @@ export async function kocRemoveTeamCore(
 ): Promise<{ok: true; kingTeamId: string; challengerTeamId: string}> {
   const round = await loadRoundOrThrow(db, uid, asString(input.matchId));
   requireInProgress(round);
+  requireClock(round);
 
   const teamId = asString(input.teamId);
   if (!teamId || !round.teamIds.includes(teamId)) {
@@ -748,7 +754,11 @@ export async function kocFinishRoundCore(
     );
   }
 
-  const winnerId = standings[0]?.teamId ?? "";
+  // Uma equipe removida (lesão) nunca pode virar campeã: ela parou de
+  // competir, mesmo com pontos/coroas congelados no topo da tabela. O guard
+  // de mínimo de 2 duplas ativas do motor torna "ninguém ativo" impraticável,
+  // mas o `?? ""` fica como defesa mesmo assim.
+  const winnerId = standings.find((s) => !s.removed)?.teamId ?? "";
   await round.ref.update({
     kocStandings: standings.map((s) => ({
       teamId: s.teamId,

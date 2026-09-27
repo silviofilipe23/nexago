@@ -542,6 +542,27 @@ describe("kocFinishRoundCore", () => {
     const persisted = (round(fake).kocStandings as DocData[]).find((s) => s.teamId === "B")!;
     assert.equal(persisted.removed, true);
   });
+
+  it("nunca dá o troféu a uma equipe removida — pula pra próxima ATIVA", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake);
+    // CLEAN_ROUND: A=2 (1º), D=1 (2º), B=0, C=0. A, que seria standings[0],
+    // se machuca depois do último rally — o troféu não pode ir pra ela.
+    await play(fake, CLEAN_ROUND);
+    await kocRemoveTeamCore(db(fake), OWNER, {
+      matchId: "r1",
+      teamId: "A",
+      description: "Machucou depois do último rally, antes de encerrar.",
+    });
+
+    const result = await kocFinishRoundCore(db(fake), OWNER, {
+      matchId: "r1",
+      acceptTiebreak: true,
+    });
+
+    assert.equal(result.standings[0]!.teamId, "A");
+    assert.equal(round(fake).winnerId, "D", "D é a próxima ATIVA na tabela — não A, removida");
+  });
 });
 
 describe("kocRemoveTeamCore", () => {
@@ -614,18 +635,26 @@ describe("kocRemoveTeamCore", () => {
     );
   });
 
-  it("funciona numa rodada ainda não iniciada (sem relógio)", async () => {
+  it("recusa remover de rodada ainda não iniciada (sem relógio)", async () => {
+    // Antes exigia só `requireInProgress`, o que abria uma armadilha:
+    // `kocStartRoundCore` depois se recusaria com `koc_round_already_started`
+    // (o log já teria a remoção), `restart: true` apagaria a remoção calada
+    // deixando o doc de auditoria órfão, e o desfazer (que exige relógio)
+    // não teria como reverter. A mesa web nunca expõe esse caminho — os
+    // botões só aparecem depois do apito — então a trava não fecha nada que
+    // já era alcançável por ali.
     const fake = new FakeFirestore();
     seedRound(fake);
 
-    const result = await kocRemoveTeamCore(db(fake), OWNER, {
-      matchId: "r1",
-      teamId: "B",
-      description: "Machucou no aquecimento, antes do apito.",
-    });
-
-    assert.equal(result.kingTeamId, "A");
-    assert.equal(result.challengerTeamId, "C");
+    await assertHttpsError(
+      kocRemoveTeamCore(db(fake), OWNER, {
+        matchId: "r1",
+        teamId: "B",
+        description: "Machucou no aquecimento, antes do apito.",
+      }),
+      "failed-precondition",
+      "koc_round_not_started",
+    );
   });
 
   it("grava auditoria em tournamentKocTeamRemovals", async () => {
@@ -668,6 +697,34 @@ describe("kocRemoveTeamCore", () => {
     assert.equal(state(fake).challengerTeamId, "C");
     assert.deepEqual(state(fake).queue, ["D", "B"]);
     assert.deepEqual(state(fake).removedTeamIds, []);
+  });
+
+  it("não trava a rodada em koc_seq_mismatch depois de uma remoção (rallies jogados vs. log)", async () => {
+    // Reproduz exatamente o que a mesa (web e app) ANTES desta correção
+    // mandava como expectedSeq: "rallies jogados" (kocState.rallies + 1).
+    // Antes da correção do motor, `team_removed` não incrementava
+    // `state.rallies`, então depois de 1 rally + 1 remoção o servidor
+    // esperava seq 3 (log com 2 entradas) mas o cliente mandava seq 2
+    // (1 rally jogado + 1) — toda rodada travava aqui.
+    const fake = new FakeFirestore();
+    seedRound(fake);
+    await play(fake, ["king"]); // 1 rally jogado, state.rallies = 1
+
+    await kocRemoveTeamCore(db(fake), OWNER, {
+      matchId: "r1",
+      teamId: "D", // só na fila — não toca em rei/desafiante
+      description: "Machucou torcendo o tornozelo na lateral da quadra.",
+    });
+
+    const buggyExpectedSeq = (state(fake).rallies as number) + 1;
+    await kocRegisterRallyCore(db(fake), OWNER, {
+      matchId: "r1",
+      winner: "king",
+      expectedSeq: buggyExpectedSeq,
+    });
+
+    // Não lançou koc_seq_mismatch — a rodada seguiu.
+    assert.equal((state(fake).points as DocData).A, 2);
   });
 });
 

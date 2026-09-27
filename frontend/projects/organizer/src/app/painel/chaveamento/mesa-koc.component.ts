@@ -18,6 +18,7 @@ import {
   kocLogLines,
   kocMatchPhaseLabel,
   kocPointsOf,
+  kocQualifies,
   kocRemainingLabel,
   type KocRoundState,
 } from '../data/koc';
@@ -64,6 +65,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
   crown: 'coroou — assume o trono',
   fault: 'errou o saque — perdeu a vez, sem ponto',
   golden: '+1 · venceu a bola de ouro',
+  removed: 'saiu da rodada — removida por lesão',
 };
 
 @Component({
@@ -2979,7 +2981,7 @@ export class MesaKocComponent {
       points: row.points,
       crowns: row.crowns,
       rallyWins: wins.get(row.teamId) ?? 0,
-      qualifies: row.place <= r.qualifiersPerRound,
+      qualifies: kocQualifies(r, row.teamId),
     }));
   });
 
@@ -3003,7 +3005,7 @@ export class MesaKocComponent {
       place: i + 1,
       name: this.faceOf(teamId).name,
       points: kocPointsOf(r, teamId),
-      qualifies: i < r.qualifiersPerRound,
+      qualifies: kocQualifies(r, teamId),
       tied: r.teamIds.some((id) => id !== teamId && kocPointsOf(r, id) === kocPointsOf(r, teamId)),
     }));
   });

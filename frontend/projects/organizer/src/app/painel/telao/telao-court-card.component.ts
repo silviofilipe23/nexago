@@ -10,6 +10,7 @@ import {
   kocIsExpired,
   kocLiveOrder,
   kocPointsOf,
+  kocQualifies,
   kocRemainingLabel,
 } from '../data/koc';
 import { initialsOf } from '../data/mock-data';
@@ -898,7 +899,7 @@ export class TelaoCourtCardComponent {
         place: row.place,
         name: this.kocName(row.teamId),
         points: row.points,
-        qualifies: row.place <= round.qualifiersPerRound,
+        qualifies: kocQualifies(round, row.teamId),
         isKing: false,
       }));
     }
@@ -909,7 +910,7 @@ export class TelaoCourtCardComponent {
       place: i + 1,
       name: this.kocName(teamId),
       points: started ? kocPointsOf(round, teamId) : null,
-      qualifies: started && i < round.qualifiersPerRound,
+      qualifies: started && kocQualifies(round, teamId),
       isKing: round.kingTeamId === teamId,
     }));
   });
@@ -942,7 +943,7 @@ export class TelaoCourtCardComponent {
     const round = this.koc();
     if (!round) return '';
     return kocFinalTable(round)
-      .filter((row) => row.place <= round.qualifiersPerRound)
+      .filter((row) => kocQualifies(round, row.teamId))
       .map((row) => this.kocName(row.teamId))
       .join('  ·  ');
   }

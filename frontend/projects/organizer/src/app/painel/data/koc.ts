@@ -471,6 +471,23 @@ export function kocFinalTable(round: KocRoundState): KocStanding[] {
   }));
 }
 
+/**
+ * "Essa equipe classifica?" — a MESMA pergunta que mesa e telão fazem sobre
+ * cada linha da tabela, num lugar só.
+ *
+ * Não é `place <= qualifiersPerRound`: uma equipe removida congelada acima do
+ * corte ocupa uma colocação bruta sem ocupar vaga real — ela nunca classifica,
+ * e as ativas abaixo dela sobem uma posição. Espelha o filtro `!s.removed` de
+ * `kocQualifyingTies` no servidor (`koc-engine.ts`).
+ */
+export function kocQualifies(round: KocRoundState, teamId: string): boolean {
+  const cut = round.qualifiersPerRound;
+  if (cut < 1) return false;
+  const active = kocFinalTable(round).filter((row) => !row.removed);
+  const rank = active.findIndex((row) => row.teamId === teamId);
+  return rank >= 0 && rank < cut;
+}
+
 /** Duplas empatadas em pontos com [teamId]. */
 export function kocTiedWith(round: KocRoundState, teamId: string): string[] {
   const mine = kocPointsOf(round, teamId);

@@ -8,6 +8,7 @@ import {
   kocLiveOrder,
   kocPhaseLabel,
   kocPointsOf,
+  kocQualifies,
   kocRemainingLabel,
   type KocRoundState,
 } from '../data/koc';
@@ -1960,7 +1961,7 @@ export class TelaoKocModeComponent {
         surnames: this.surnamesOf(team, this.nameOf(row.teamId)),
         points: row.points,
         crowns: row.crowns,
-        qualifies: cut > 0 && row.place <= cut,
+        qualifies: cut > 0 && kocQualifies(round, row.teamId),
         team,
       };
     });
@@ -2077,7 +2078,7 @@ export class TelaoKocModeComponent {
       name: this.nameOf(row.teamId),
       points: row.points,
       role: this.roleOf(round, row.teamId),
-      qualifies: cut > 0 && row.place <= cut,
+      qualifies: cut > 0 && kocQualifies(round, row.teamId),
     }));
   });
 
@@ -2107,7 +2108,7 @@ export class TelaoKocModeComponent {
     };
     if (this.finished()) {
       return kocFinalTable(round)
-        .filter((r) => r.place <= round.qualifiersPerRound)
+        .filter((r) => kocQualifies(round, r.teamId))
         .map((r) => toCard(r.teamId, r.place, r.points));
     }
     return round.queue.map((teamId, i) => toCard(teamId, i + 1, kocPointsOf(round, teamId)));

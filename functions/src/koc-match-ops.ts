@@ -15,6 +15,7 @@ import {
   isMatchCompleted,
 } from "./match-status";
 import {syncTournamentLiveMatchesNow} from "./tournament-live-matches";
+import {parseRemovalDescription} from "./organizer-removal-description";
 import {
   KOC_MAX_ROUND_DURATION_SEC,
   KOC_MIN_ROUND_DURATION_SEC,
@@ -97,7 +98,8 @@ export function parseStoredRallies(raw: unknown): KocRally[] {
  *  desafiante: perde a vez, ninguém pontua. `golden_point` aponta uma dupla. */
 function isKocRallyOutcome(value: string): value is KocRallyOutcome {
   return value === "king" || value === "challenger" ||
-    value === "serve_fault" || value === "golden_point";
+    value === "serve_fault" || value === "golden_point" ||
+    value === "team_removed";
 }
 
 /** Serializa o log preservando `atMs` já gravados; opcionalmente carimba um seq novo.
@@ -172,6 +174,7 @@ export function kocStateFields(
       rallies: state.rallies,
       crownOrder: state.crownOrder,
       servingTeamId: state.servingTeamId,
+      removedTeamIds: state.removedTeamIds,
     },
     kocClock: {
       startedAtMs: clock.startedAtMs,
@@ -554,6 +557,85 @@ export async function kocUndoRallyCore(
   return {ok: true, rallies: rallies.length};
 }
 
+/**
+ * Remove uma dupla machucada da rodada, a qualquer momento — mesmo com ela no
+ * trono ou desafiando. Vira um evento NO LOG (`team_removed`), não um ajuste
+ * avulso: como toda mutação do KOTC é reproduzida do log
+ * (`docstring` no topo do arquivo), um patch fora dele seria apagado no
+ * próximo rally ou undo.
+ *
+ * Funciona mesmo antes do apito (sem `kocClock`): uma lesão no aquecimento não
+ * deveria esperar o cronômetro começar para ser registrada.
+ */
+export async function kocRemoveTeamCore(
+  db: Firestore,
+  uid: string,
+  input: Record<string, unknown>,
+): Promise<{ok: true; kingTeamId: string; challengerTeamId: string}> {
+  const round = await loadRoundOrThrow(db, uid, asString(input.matchId));
+  requireInProgress(round);
+
+  const teamId = asString(input.teamId);
+  if (!teamId || !round.teamIds.includes(teamId)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "teamId precisa ser uma dupla do elenco desta rodada.",
+    );
+  }
+
+  const description = parseRemovalDescription(input.description);
+  if (!description.ok) {
+    throw new HttpsError("invalid-argument", description.message);
+  }
+
+  const nextSeq = round.rallies.length + 1;
+  const rallies: KocRally[] = [
+    ...round.rallies,
+    {seq: nextSeq, winner: "team_removed", teamId},
+  ];
+  let state: KocState;
+  try {
+    state = kocReplay(round.teamIds, rallies);
+  } catch (e) {
+    engineErrorToHttps(e);
+  }
+
+  await round.ref.update({
+    kocState: {
+      kingTeamId: state.kingTeamId,
+      challengerTeamId: state.challengerTeamId,
+      queue: state.queue,
+      points: state.points,
+      crowns: state.crowns,
+      rallies: state.rallies,
+      crownOrder: state.crownOrder,
+      servingTeamId: state.servingTeamId,
+      removedTeamIds: state.removedTeamIds,
+    },
+    kocRallies: serializeKocRallies(rallies, round.data.kocRallies, nextSeq),
+    kocRallySeq: rallies.length,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  // Coleção nova, não `tournamentRegistrationCancellations`: ali a inscrição é
+  // DELETADA. Aqui a equipe continua inscrita, só sai da rotação da rodada.
+  await db.collection("tournamentKocTeamRemovals").doc().set({
+    tournamentId: asString(round.data.tournamentId),
+    categoryId: asString(round.data.categoryId),
+    matchId: round.ref.id,
+    teamId,
+    description: description.value,
+    removedBy: uid,
+    removedAt: FieldValue.serverTimestamp(),
+  });
+
+  return {
+    ok: true,
+    kingTeamId: state.kingTeamId,
+    challengerTeamId: state.challengerTeamId,
+  };
+}
+
 // ─── Relógio ────────────────────────────────────────────────────────────────
 
 export async function kocSetClockCore(
@@ -747,6 +829,16 @@ export const kocFinishRound = onCall(
   {region: CLIENT_FACING_REGIONS},
   async (request) =>
     kocFinishRoundCore(
+      getFirestore(),
+      requireUid(request.auth?.uid),
+      request.data ?? {},
+    ),
+);
+
+export const kocRemoveTeam = onCall(
+  {region: CLIENT_FACING_REGIONS},
+  async (request) =>
+    kocRemoveTeamCore(
       getFirestore(),
       requireUid(request.auth?.uid),
       request.data ?? {},

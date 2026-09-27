@@ -6,6 +6,7 @@ import {FakeFirestore, type DocData} from "./fake-firestore.test-helper";
 import {
   kocFinishRoundCore,
   kocRegisterRallyCore,
+  kocRemoveTeamCore,
   kocSetClockCore,
   kocStartRoundCore,
   kocUndoRallyCore,
@@ -517,6 +518,133 @@ describe("kocFinishRoundCore", () => {
       "failed-precondition",
       "koc_round_completed",
     );
+  });
+});
+
+describe("kocRemoveTeamCore", () => {
+  it("promove a próxima da fila quando a desafiante é removida no meio da rodada", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake);
+    // Depois de 1 rally "king": A=rei(1pt), C=desafia (B foi pro fim da fila),
+    // fila=[D,B]. É a DESAFIANTE ATUAL (C) que se machuca aqui — não B.
+    await play(fake, ["king"]);
+
+    const result = await kocRemoveTeamCore(db(fake), OWNER, {
+      matchId: "r1",
+      teamId: "C",
+      description: "Torceu o tornozelo no 2º rally.",
+    });
+
+    assert.equal(result.kingTeamId, "A");
+    assert.equal(result.challengerTeamId, "D");
+    assert.deepEqual(state(fake).queue, ["B"]);
+    assert.deepEqual(state(fake).removedTeamIds, ["C"]);
+    assert.equal((state(fake).points as DocData).A, 1);
+  });
+
+  it("recusa sem motivo (mínimo 10 caracteres)", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake);
+    await play(fake, ["king"]);
+
+    await assert.rejects(
+      kocRemoveTeamCore(db(fake), OWNER, {matchId: "r1", teamId: "B", description: "curto"}),
+      (err: {code?: string}) => {
+        assert.equal(err.code, "invalid-argument");
+        return true;
+      },
+    );
+  });
+
+  it("recusa equipe que não está no elenco desta rodada", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake);
+    await play(fake, ["king"]);
+
+    await assert.rejects(
+      kocRemoveTeamCore(db(fake), OWNER, {
+        matchId: "r1",
+        teamId: "Z",
+        description: "Não faz parte do elenco.",
+      }),
+      (err: {code?: string}) => {
+        assert.equal(err.code, "invalid-argument");
+        return true;
+      },
+    );
+  });
+
+  it("recusa remover de rodada já encerrada", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake);
+    await play(fake, CLEAN_ROUND);
+    await kocFinishRoundCore(db(fake), OWNER, {matchId: "r1"});
+
+    await assertHttpsError(
+      kocRemoveTeamCore(db(fake), OWNER, {
+        matchId: "r1",
+        teamId: "B",
+        description: "Rodada já acabou, tentativa tardia.",
+      }),
+      "failed-precondition",
+      "koc_round_completed",
+    );
+  });
+
+  it("funciona numa rodada ainda não iniciada (sem relógio)", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake);
+
+    const result = await kocRemoveTeamCore(db(fake), OWNER, {
+      matchId: "r1",
+      teamId: "B",
+      description: "Machucou no aquecimento, antes do apito.",
+    });
+
+    assert.equal(result.kingTeamId, "A");
+    assert.equal(result.challengerTeamId, "C");
+  });
+
+  it("grava auditoria em tournamentKocTeamRemovals", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake);
+    await play(fake, ["king"]);
+
+    await kocRemoveTeamCore(db(fake), OWNER, {
+      matchId: "r1",
+      teamId: "B",
+      description: "Torceu o tornozelo no 2º rally.",
+    });
+
+    const audits = [...fake.store.entries()].filter(([path]) =>
+      path.startsWith("tournamentKocTeamRemovals/"),
+    );
+    assert.equal(audits.length, 1);
+    const [, audit] = audits[0]!;
+    assert.equal(audit.teamId, "B");
+    assert.equal(audit.tournamentId, "t1");
+    assert.equal(audit.categoryId, "cat-1");
+    assert.equal(audit.removedBy, OWNER);
+    assert.equal(audit.description, "Torceu o tornozelo no 2º rally.");
+  });
+
+  it("desfazer com kocUndoRallyCore devolve a equipe removida à fila", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake);
+    // A=rei(1pt), C=desafia, fila=[D,B]. B (só na fila) se machuca.
+    await play(fake, ["king"]);
+    await kocRemoveTeamCore(db(fake), OWNER, {
+      matchId: "r1",
+      teamId: "B",
+      description: "Torceu o tornozelo no 2º rally.",
+    });
+    assert.deepEqual(state(fake).queue, ["D"]);
+
+    await kocUndoRallyCore(db(fake), OWNER, {matchId: "r1"});
+
+    assert.equal(state(fake).challengerTeamId, "C");
+    assert.deepEqual(state(fake).queue, ["D", "B"]);
+    assert.deepEqual(state(fake).removedTeamIds, []);
   });
 });
 

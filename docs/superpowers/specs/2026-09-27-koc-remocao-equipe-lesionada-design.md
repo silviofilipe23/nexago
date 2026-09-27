@@ -103,31 +103,34 @@ própria trava de negócio. A remoção por lesão segue exatamente esse padrão
    removedAt: serverTimestamp()}`. Coleção nova (não reaproveita
    `tournamentRegistrationCancellations`) porque ali a inscrição é
    **deletada**; aqui a equipe continua inscrita, só sai da rotação.
-6. `arrayUnion(teamId)` no campo `kocRemovedTeamIds` da categoria — lista
-   que qualquer fase futura ainda não resolvida vai consultar.
 
-**`kocUndoRallyCore`** (mesmo arquivo): ao desfazer, se o rally removido do
-final do log for `winner === "team_removed"`, também aplica
-`arrayRemove(teamId)` em `kocRemovedTeamIds` da categoria — senão desfazer a
-remoção no motor não desfaz o efeito colateral sobre fases futuras.
+**`kocFinishRoundCore`** (mesmo arquivo, L654-676): ao gravar `kocStandings`
+no doc da rodada concluída, cada entrada de uma equipe presente em
+`state.removedTeamIds` ganha `removed: true`. Nenhuma outra mudança — a
+equipe continua aparecendo no `place`/`points`/`crowns` finais, então o
+ranking da rodada não perde ninguém.
 
-**`functions/src/koc-phase-advance.ts`**: na seleção de quem qualifica para
-a próxima rodada (a partir de `kocStandings`, ~L131-217), filtra qualquer
-`teamId` presente em `kocRemovedTeamIds` da categoria antes de escrever
-`kocTeamIds` no próximo round doc — mesmo que essa equipe estivesse
-classificada pela pontuação.
+**`functions/src/koc-phase-advance.ts`**: `KocStandingDoc` ganha
+`removed?: boolean`; `parseKocStandings` passa a ler esse campo.
+`resolveKocRoster` (L79-100) para de casar `slot.place` contra o `place`
+bruto gravado e passa a casar contra a posição da equipe **entre as ativas**
+(`standings.filter((s) => !s.removed)`, na mesma ordem): quem ficaria em 2º
+mas está `removed` nunca ocupa a vaga de "2º lugar avança" — a 3ª colocada
+(ativa) é promovida para ela automaticamente. Isso vale em QUALQUER fase,
+não só na atual: como o `removed` viaja dentro do `kocStandings` já
+persistido de cada rodada concluída, uma equipe machucada nunca mais é
+escolhida como classificada, em nenhuma fase seguinte — sem precisar de
+nenhuma lista separada na categoria ou no torneio.
 
 ### 3. Alcance sobre fases futuras
 
-Fases além da atual só existem como *placeholders* de qualificação
-(`kocQualifiers`) até a fase anterior terminar — não há roster concreto para
-editar. O único ponto de controle é `kocRemovedTeamIds` na categoria (item
-2.6), consultado no momento em que o avanço de fase resolve `kocTeamIds`
-(item 2, `koc-phase-advance.ts`). Não há patch retroativo em rounds já
-resolvidos além do atual: se a equipe já havia sido escrita num
-`kocTeamIds` futuro antes de se machucar, a exclusão vale a partir da
-resolução SEGUINTE a essa (edge case raro, tratado como aceitável — a
-equipe não volta a qualificar de novo dali em diante).
+Coberto integralmente pelo mecanismo do item 2: como a marca `removed` mora
+na TABELA de cada rodada concluída (não numa lista solta), toda fase futura
+que dependa dessa tabela — direta ou indiretamente, por quantas fases forem
+— já nasce sem a equipe machucada. Não há patch retroativo em nenhum doc:
+cada fase resolve seu próprio elenco lendo as tabelas de onde ela depende,
+e essas tabelas já vêm corretas desde que a rodada correspondente foi
+encerrada.
 
 ### 4. UI (painel do organizador)
 
@@ -154,14 +157,17 @@ Seguindo o padrão já usado no diretório (`koc-engine.test.ts`,
 - Motor: `kocApplyRally` com `team_removed` — remoção da Desafiante, do Rei,
   de alguém só na fila; trava de "menos de 2 duplas restantes"; pontos/coroas
   congelados; `removedTeamIds` acumulando; bola de ouro não convoca equipe
-  removida.
+  removida (`kocQualifyingTies`).
 - `koc-match-ops`: `kocRemoveTeamCore` — motivo obrigatório/curto/longo
   rejeitado; equipe fora do elenco rejeitada; rodada concluída/cancelada
-  rejeitada; escrita final de `kocState`/`kocRallies`; `arrayUnion` na
-  categoria; `kocUndoRallyCore` desfazendo remoção e revertendo
-  `kocRemovedTeamIds`.
-- `koc-phase-advance`: equipe em `kocRemovedTeamIds` nunca é escrita como
-  qualificada na próxima fase, mesmo estando na frente pela classificação.
+  rejeitada; escrita final de `kocState`/`kocRallies`; `kocUndoRallyCore`
+  desfazendo uma remoção igual a qualquer outro rally (replay já cobre,
+  sem código extra). `kocFinishRoundCore` marcando `removed: true` na
+  entrada certa de `kocStandings`.
+- `koc-phase-advance`: `resolveKocRoster` promove a próxima equipe ativa
+  quando a colocação pedida por um `qualifier` pertence a uma equipe
+  `removed`; equipe removida numa fase nunca reaparece como classificada em
+  nenhuma fase seguinte que dependa dessa tabela.
 
 ## Fora de escopo
 

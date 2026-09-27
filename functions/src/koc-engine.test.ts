@@ -436,3 +436,87 @@ describe("kocApplyRally · bola de ouro", () => {
     );
   });
 });
+
+describe("kocApplyRally · remoção por lesão", () => {
+  it("tira a desafiante da fila e promove a próxima", () => {
+    // A=rei, B=desafia, fila=[C,D]. B se machuca.
+    const state = kocReplay(ROSTER, [
+      {seq: 1, winner: "team_removed", teamId: "B"},
+    ]);
+    assert.equal(state.kingTeamId, "A");
+    assert.equal(state.challengerTeamId, "C");
+    assert.deepEqual(state.queue, ["D"]);
+    assert.equal(state.servingTeamId, "C");
+    assert.deepEqual(state.removedTeamIds, ["B"]);
+  });
+
+  it("quando o rei se machuca, a desafiante assume o trono sem crédito de coroa extra", () => {
+    // A=rei, B=desafia, fila=[C,D]. A se machuca.
+    const state = kocReplay(ROSTER, [
+      {seq: 1, winner: "team_removed", teamId: "A"},
+    ]);
+    assert.equal(state.kingTeamId, "B");
+    assert.equal(state.challengerTeamId, "C");
+    assert.deepEqual(state.queue, ["D"]);
+    // B assumiu por lesão do rei, não por vencer um rally — sem crown extra.
+    assert.deepEqual(state.crowns, {A: 1, B: 0, C: 0, D: 0});
+  });
+
+  it("congela pontos e coroas já conquistados pela equipe removida", () => {
+    const state = kocReplay(ROSTER, [
+      ...log(["king", "king"]), // A marca 2
+      {seq: 3, winner: "team_removed", teamId: "A"},
+    ]);
+    assert.equal(state.points.A, 2);
+    assert.equal(state.crowns.A, 1);
+  });
+
+  it("remover alguém só da fila não muda trono nem desafiante", () => {
+    const state = kocReplay(ROSTER, [
+      {seq: 1, winner: "team_removed", teamId: "D"},
+    ]);
+    assert.equal(state.kingTeamId, "A");
+    assert.equal(state.challengerTeamId, "B");
+    assert.deepEqual(state.queue, ["C"]);
+    assert.deepEqual(state.removedTeamIds, ["D"]);
+  });
+
+  it("recusa remover quando sobrariam menos de 2 duplas ativas", () => {
+    const trio = ["A", "B", "C"];
+    assert.throws(
+      () =>
+        kocReplay(trio, [
+          {seq: 1, winner: "team_removed", teamId: "A"},
+          {seq: 2, winner: "team_removed", teamId: "B"},
+        ]),
+      (e: unknown) => e instanceof KocEngineError && e.reason === "koc_round_too_small_after_removal",
+    );
+  });
+
+  it("recusa remover a mesma equipe duas vezes", () => {
+    assert.throws(
+      () =>
+        kocReplay(ROSTER, [
+          {seq: 1, winner: "team_removed", teamId: "D"},
+          {seq: 2, winner: "team_removed", teamId: "D"},
+        ]),
+      (e: unknown) => e instanceof KocEngineError && e.reason === "koc_team_already_removed",
+    );
+  });
+});
+
+describe("kocQualifyingTies · equipe removida", () => {
+  it("não convoca equipe removida para a bola de ouro", () => {
+    // Depois de 1 rally "king": A=rei(1pt), C=desafia, fila=[D,B]. B (só na
+    // fila, 0pts) se machuca — sem tocar em quem está jogando.
+    const state = kocReplay(ROSTER, [
+      ...log(["king"]),
+      {seq: 2, winner: "team_removed", teamId: "B"},
+    ]);
+    // A abre com 1pt (não entra no corte). B, C e D empatam em 0 — mas B está
+    // removida, então só C e D brigam pela 2ª vaga.
+    const standings = kocStandings(ROSTER, state);
+    const ties = kocQualifyingTies(standings, 2);
+    assert.deepEqual(ties, [["C", "D"]]);
+  });
+});

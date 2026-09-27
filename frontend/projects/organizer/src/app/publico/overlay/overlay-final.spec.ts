@@ -148,9 +148,9 @@ describe('finalResultOf — final de KOTC', () => {
       kocFinal(
         round({
           standings: [
-            { teamId: 'a', place: 1, points: 24, crowns: 5 },
-            { teamId: 'b', place: 2, points: 20, crowns: 3 },
-            { teamId: 'c', place: 3, points: 11, crowns: 1 },
+            { teamId: 'a', place: 1, points: 24, crowns: 5, removed: false },
+            { teamId: 'b', place: 2, points: 20, crowns: 3, removed: false },
+            { teamId: 'c', place: 3, points: 11, crowns: 1, removed: false },
           ],
         }),
       ),
@@ -172,7 +172,7 @@ describe('finalResultOf — final de KOTC', () => {
   });
 
   it('rodada classificatória não é final', () => {
-    const r = round({ standings: [{ teamId: 'a', place: 1, points: 9, crowns: 2 }] });
+    const r = round({ standings: [{ teamId: 'a', place: 1, points: 9, crowns: 2, removed: false }] });
 
     expect(finalResultOf(match({ matchType: 'koc_round', teamAId: '', teamBId: '', koc: r }))).toBeNull();
   });

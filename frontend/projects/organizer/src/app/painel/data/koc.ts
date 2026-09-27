@@ -32,6 +32,7 @@ export interface KocStanding {
   place: number;
   points: number;
   crowns: number;
+  removed: boolean;
 }
 
 /** Entrada do log de rallies gravado em `kocRallies`. */
@@ -40,7 +41,7 @@ export interface KocRallyEntry {
   /** Espelha `KocRallyOutcome` do servidor. Descartar um desfecho aqui não o
    *  "ignora": o log é reproduzido em sequência, então pular uma entrada
    *  desalinha o trono de todas as seguintes. */
-  winner: 'king' | 'challenger' | 'serve_fault' | 'golden_point';
+  winner: 'king' | 'challenger' | 'serve_fault' | 'golden_point' | 'team_removed';
   /** Só em `golden_point`: a dupla que venceu a bola de ouro. */
   teamId: string;
   /** Epoch ms quando o rally foi registrado (opcional em docs antigos). */
@@ -54,8 +55,9 @@ export interface KocLogLine {
   atMs: number | null;
   teamId: string;
   /** `point` = rei defendeu; `crown` = desafiante coroou; `fault` = erro de
-   *  saque do desafiante (perdeu a vez, sem ponto); `golden` = bola de ouro. */
-  kind: 'point' | 'crown' | 'fault' | 'golden';
+   *  saque do desafiante (perdeu a vez, sem ponto); `golden` = bola de ouro;
+   *  `removed` = equipe saiu da rodada por lesão. */
+  kind: 'point' | 'crown' | 'fault' | 'golden' | 'removed';
 }
 
 /** Snapshot da config da categoria no momento da geração. É contra ela que a
@@ -298,14 +300,21 @@ function standingsOf(value: unknown): KocStanding[] {
     const teamId = strOf(raw['teamId']);
     const place = intOf(raw['place'], 0);
     if (!teamId || place < 1) continue;
-    out.push({ teamId, place, points: intOf(raw['points']), crowns: intOf(raw['crowns']) });
+    out.push({
+      teamId,
+      place,
+      points: intOf(raw['points']),
+      crowns: intOf(raw['crowns']),
+      removed: raw['removed'] === true,
+    });
   }
   return out.sort((a, b) => a.place - b.place);
 }
 
 function isRallyOutcome(value: string): value is KocRallyEntry['winner'] {
   return value === 'king' || value === 'challenger' ||
-    value === 'serve_fault' || value === 'golden_point';
+    value === 'serve_fault' || value === 'golden_point' ||
+    value === 'team_removed';
 }
 
 function rallyLogOf(value: unknown): KocRallyEntry[] {
@@ -442,6 +451,7 @@ export function kocFinalTable(round: KocRoundState): KocStanding[] {
     place: i + 1,
     points: kocPointsOf(round, teamId),
     crowns: 0,
+    removed: false,
   }));
 }
 
@@ -609,6 +619,18 @@ export function kocLogLines(round: KocRoundState): KocLogLine[] {
     // uma dupla e não mexe na fila. Girar aqui desalinharia o trono do resto.
     if (entry.winner === 'golden_point') {
       lines.push({...base, teamId: entry.teamId, kind: 'golden'});
+      continue;
+    }
+    if (entry.winner === 'team_removed') {
+      const removedId = entry.teamId;
+      lines.push({...base, teamId: removedId, kind: 'removed'});
+      queue = queue.filter((id) => id !== removedId);
+      if (removedId === challenger) {
+        challenger = queue.shift() ?? '';
+      } else if (removedId === king) {
+        king = challenger;
+        challenger = queue.shift() ?? '';
+      }
       continue;
     }
     if (entry.winner === 'serve_fault') {

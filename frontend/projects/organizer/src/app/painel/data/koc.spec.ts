@@ -394,6 +394,40 @@ describe('kocLogLines', () => {
   });
 });
 
+describe('kocRoundStateFrom · remoção por lesão', () => {
+  it('lê removed:true nas standings persistidas', () => {
+    const round = kocRoundStateFrom(
+      doc({
+        kocStandings: [
+          { teamId: 'A', place: 1, points: 3, crowns: 1 },
+          { teamId: 'B', place: 2, points: 1, crowns: 0, removed: true },
+        ],
+      }),
+    );
+    expect(round.standings.find((s) => s.teamId === 'B')?.removed).toBe(true);
+    expect(round.standings.find((s) => s.teamId === 'A')?.removed).toBe(false);
+  });
+});
+
+describe('kocLogLines · remoção por lesão', () => {
+  it('gera uma linha "removed" e reflete a promoção da fila nas linhas seguintes', () => {
+    const round = kocRoundStateFrom(
+      doc({
+        kocRallies: [
+          { seq: 1, winner: 'team_removed', teamId: 'B', atMs: T0 },
+          { seq: 2, winner: 'king', atMs: T0 + 1000 },
+        ],
+        kocRallySeq: 2,
+      }),
+    );
+    const lines = kocLogLines(round);
+    // reverse(): mais recente primeiro.
+    expect(lines[1]).toEqual(jasmine.objectContaining({ teamId: 'B', kind: 'removed' }));
+    // Depois de B saída, C assume o desafio; o rally seguinte é do rei A contra C.
+    expect(lines[0]).toEqual(jasmine.objectContaining({ teamId: 'A', kind: 'point' }));
+  });
+});
+
 describe('kocRoundStateFrom · snapshot da config', () => {
   it('guarda duplas por quadra e rodadas por chave como estavam na geração', () => {
     const round = kocRoundStateFrom({

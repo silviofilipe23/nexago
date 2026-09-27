@@ -67,7 +67,7 @@ function match(overrides: Partial<TournamentMatch> = {}): TournamentMatch {
 }
 
 function standings(...rows: [string, number][]): KocStanding[] {
-  return rows.map(([teamId, place]) => ({ teamId, place, points: 10 - place, crowns: 0 }));
+  return rows.map(([teamId, place]) => ({ teamId, place, points: 10 - place, crowns: 0, removed: false }));
 }
 
 /** Fase com 7 rodadas: 4 encerradas, 3 por vir. */

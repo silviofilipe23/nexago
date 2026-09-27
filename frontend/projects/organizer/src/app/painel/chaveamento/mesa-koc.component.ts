@@ -57,13 +57,14 @@ interface TeamFace {
  *  fila + duração/vagas) e à mesa ao vivo (dois alvos grandes). Toda mutação
  *  passa por callable; o relógio vem de `endsAtMs` do servidor. */
 /** O que cada desfecho fez com o placar, na linha do log. Mapa e não ternário:
- *  com quatro desfechos, um `else` engoliria o erro de saque e a bola de ouro
+ *  com cinco desfechos, um `else` engoliria o erro de saque e a bola de ouro
  *  como se fossem coroação. */
 const LOG_ACTION: Record<KocLogLine['kind'], string> = {
   point: '+1 · defendeu o trono',
   crown: 'coroou — assume o trono',
   fault: 'errou o saque — perdeu a vez, sem ponto',
   golden: '+1 · venceu a bola de ouro',
+  removed: 'removida por lesão',
 };
 
 @Component({

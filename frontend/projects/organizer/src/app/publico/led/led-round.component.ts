@@ -110,7 +110,7 @@ const FILA_R_MS = 480;
               <div class="rodape">
                 <span class="avatares">
                   @for (p of atletasDe(t.teamId); track $index) {
-                    <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="128" />
+                    <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="150" />
                   }
                 </span>
                 <span class="pontos">{{ t.points }}</span>
@@ -129,7 +129,7 @@ const FILA_R_MS = 480;
               <div class="rodape">
                 <span class="avatares">
                   @for (p of atletasDe(d.teamId); track $index) {
-                    <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="128" />
+                    <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="150" />
                   }
                 </span>
                 <span class="pontos">{{ d.points }}</span>
@@ -332,7 +332,7 @@ const FILA_R_MS = 480;
     .nomes {
       display: grid;
       align-content: center;
-      font-size: 92px;
+      font-size: 200px;
       font-weight: 800;
       line-height: 1.02;
       min-width: 0;
@@ -370,7 +370,7 @@ const FILA_R_MS = 480;
     }
     .pontos {
       display: inline-block;
-      font-size: 168px;
+      font-size: 400px;
       font-weight: 800;
       line-height: 0.85;
       font-variant-numeric: tabular-nums;
@@ -447,7 +447,7 @@ const FILA_R_MS = 480;
       /* Um atleta por linha, como nos blocos: em 60px "BRU · DAU" numa linha só não cabe
          no card de 1/3 da tela. */
       display: grid;
-      font-size: 60px;
+      font-size: 100px;
       font-weight: 800;
       line-height: 1;
     }

@@ -143,7 +143,7 @@ describe('LedPageComponent', () => {
     const h = host(fixture);
 
     expect(h.querySelector('og-led-round')).not.toBeNull();
-    expect(h.textContent).toContain('Van');
+    expect(h.textContent).toContain('VAN');
     expect(h.textContent).toContain('Masculino B');
   });
 

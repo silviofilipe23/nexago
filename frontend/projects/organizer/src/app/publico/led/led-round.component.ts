@@ -13,6 +13,7 @@ import { kocBracketTag, normalizeMatchType } from '../../painel/data/koc';
 import type { OverlayKocBlock } from '../overlay/overlay-koc-bar';
 import type { OverlayKocView } from '../overlay/overlay-selectors';
 import { ledIniciaisDe } from './led-iniciais';
+import { ledNomeCurto } from './led-proximos';
 
 export interface LedPlayer {
   name: string;
@@ -103,7 +104,7 @@ const FILA_R_MS = 480;
               </div>
               <div class="nomes">
                 @for (p of atletasDe(t.teamId); track $index) {
-                  <span>{{ p.name }}</span>
+                  <span [attr.title]="p.name">{{ curto(p.name) }}</span>
                 }
               </div>
               <div class="rodape">
@@ -122,7 +123,7 @@ const FILA_R_MS = 480;
               <div class="bloco-topo"><span class="papel">Desafiante</span></div>
               <div class="nomes">
                 @for (p of atletasDe(d.teamId); track $index) {
-                  <span>{{ p.name }}</span>
+                  <span [attr.title]="p.name">{{ curto(p.name) }}</span>
                 }
               </div>
               <div class="rodape">
@@ -151,7 +152,7 @@ const FILA_R_MS = 480;
                     <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="64" />
                   }
                 </span>
-                <span class="fila-nome">{{ nomesDe(f.teamId).join(' · ') }}</span>
+                <span class="fila-nome" [attr.title]="nomesDe(f.teamId).join(' · ')">{{ nomesCurtosDe(f.teamId) }}</span>
                 <span class="fila-pontos">{{ f.points }}</span>
               </div>
             }
@@ -573,6 +574,13 @@ export class LedRoundComponent {
 
   protected nomesDe(teamId: string): string[] {
     return this.atletasDe(teamId).map((p) => p.name);
+  }
+
+  /** Atleta pelas 3 primeiras letras em maiúsculas — mesma regra da tela de próximos. */
+  protected readonly curto = ledNomeCurto;
+
+  protected nomesCurtosDe(teamId: string): string {
+    return this.nomesDe(teamId).map(ledNomeCurto).join(' · ');
   }
 
   private resetMotion(): void {

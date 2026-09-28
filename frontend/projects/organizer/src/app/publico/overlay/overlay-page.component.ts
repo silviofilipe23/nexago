@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { isKingOfCourtMatchType, kocColumnLabel, normalizeMatchType } from '../../painel/data/koc';
 import { resolveCourtNames } from '../../painel/data/matches-repository';
 import { finalKindOf } from '../../painel/telao/telao-final-mode';
@@ -22,6 +22,14 @@ import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
 import { kocRoundTitleOf } from './overlay-koc-bar';
 import { overlayViewOf } from './overlay-selectors';
 import { OverlayDoacaoComponent } from './overlay-doacao.component';
+import { OverlayPatroComponent } from './overlay-patro.component';
+import {
+  patroCycleShowNow,
+  patroCycleStart,
+  patroCycleStop,
+  patroCycleTick,
+  type PatroCycleState,
+} from './overlay-patro-cycle';
 import {
   doacaoCycleShowNow,
   doacaoCycleStart,
@@ -31,10 +39,14 @@ import {
 } from './overlay-doacao-cycle';
 import {
   bindOverlayDoacaoControls,
+  bindOverlayPatroControls,
   getOverlaySettings,
   installNxOverlay,
   subscribeOverlaySettings,
+  togglePatroCard,
   type OverlayDoacaoConfig,
+  type OverlayPatroConfig,
+  type OverlayPatroItem,
 } from './overlay-nx';
 
 type TelaKoc = 'resultado' | 'classificadas';
@@ -67,6 +79,7 @@ const CLASSIFICADAS_MS = 15_000;
     OverlayKocPreRoundComponent,
     OverlayFinalComponent,
     OverlayDoacaoComponent,
+    OverlayPatroComponent,
   ],
   providers: [OverlayLiveGateway],
   host: {
@@ -144,11 +157,14 @@ const CLASSIFICADAS_MS = 15_000;
         }
 
         <og-overlay-doacao [config]="doacaoConfig()" [show]="doacaoShow()" />
+        <og-overlay-patro [itens]="patroItens()" [show]="patroShow()" [visivelSeg]="patroConfig().card.visivelSeg" />
 
         <!-- Atalhos invisíveis pro modo Interagir do OBS (canto superior direito). -->
         <div class="doacao-hot">
           <button type="button" class="doacao-hot-btn" aria-label="Mostrar doação" (click)="mostrarDoacao()"></button>
           <button type="button" class="doacao-hot-btn" aria-label="Desligar doação" (click)="desligarDoacao()"></button>
+          <button type="button" class="doacao-hot-btn" aria-label="Patrocinadores agora" (click)="mostrarPatro()"></button>
+          <button type="button" class="doacao-hot-btn" aria-label="Ligar ou desligar patrocinadores" (click)="alternarPatro()"></button>
         </div>
       </div>
     </div>
@@ -372,6 +388,17 @@ export class OverlayPageComponent {
       this.desligarDoacao();
       return;
     }
+    // P = "patroc. agora"; L = liga/desliga o ciclo dos patrocinadores.
+    if (key === 'p' && !event.metaKey && !event.ctrlKey) {
+      event.preventDefault();
+      this.mostrarPatro();
+      return;
+    }
+    if (key === 'l' && !event.metaKey && !event.ctrlKey) {
+      event.preventDefault();
+      this.alternarPatro();
+      return;
+    }
     if (!this.podeAlternar()) return;
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
     this.alternar();
@@ -417,6 +444,58 @@ export class OverlayPageComponent {
 
   protected desligarDoacao(): void {
     this.runDoacao(doacaoCycleStop());
+  }
+
+  /** Config viva — `NXOverlay.set({ patro: { ... } })` atualiza no ar. */
+  protected readonly patroConfig = signal<OverlayPatroConfig>(getOverlaySettings().patro);
+
+  /** A lista do `NXOverlay` manda quando existe; senão, os patrocinadores do torneio. */
+  protected readonly patroItens = computed<OverlayPatroItem[]>(() => {
+    const override = this.patroConfig().lista;
+    if (override.length > 0) return override;
+    return (this.gateway.tournament()?.sponsors ?? []).map((s) => ({ nome: s.name, logo: s.logoUrl }));
+  });
+
+  /** Momentos em que o card NÃO entra: pausa (relógio KOTC parado, tempo médico), telas de
+   *  resultado/pódio no ar, e a doação no canto — um card de cada vez. */
+  private readonly patroOcupado = computed(() => {
+    const m = this.match();
+    const pausado = m?.status === 'in_progress' && (m.koc?.clock?.pausedAtMs != null || m.medicalTimeout != null);
+    return pausado || this.campeoes() != null || this.standings() != null || this.doacaoShow();
+  });
+
+  private readonly patroCycle = signal<PatroCycleState>(patroCycleStop());
+  protected readonly patroShow = computed(() => this.patroCycle().show);
+  private patroTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private patroInput() {
+    const card = this.patroConfig().card;
+    return {
+      enabled: card.enabled,
+      count: this.patroItens().length,
+      intervaloSeg: card.intervaloSeg,
+      visivelSeg: card.visivelSeg,
+      ocupado: this.patroOcupado(),
+    };
+  }
+
+  private runPatro(state: PatroCycleState): void {
+    if (this.patroTimer != null) clearTimeout(this.patroTimer);
+    this.patroTimer = null;
+    this.patroCycle.set(state);
+    if (state.waitMs == null) return;
+    this.patroTimer = setTimeout(() => {
+      this.runPatro(patroCycleTick(this.patroCycle(), this.patroInput()));
+    }, state.waitMs);
+  }
+
+  protected mostrarPatro(): void {
+    this.runPatro(patroCycleShowNow(this.patroInput()));
+  }
+
+  protected alternarPatro(): void {
+    // Passa pelo NXOverlay pra config e console ficarem na mesma verdade; o listener religa o ciclo.
+    togglePatroCard();
   }
 
   protected readonly phaseName = computed(() => {
@@ -546,6 +625,9 @@ export class OverlayPageComponent {
     effect((onCleanup) => {
       onCleanup(
         subscribeOverlaySettings((s) => {
+          // Só a mudança da PRÓPRIA config reinicia o ciclo — ligar/desligar os
+          // patrocinadores não pode trazer a doação de volta em 3 s.
+          if (JSON.stringify(s.doacao) === JSON.stringify(this.doacaoConfig())) return;
           this.doacaoConfig.set(s.doacao);
           this.runDoacao(doacaoCycleStart(this.doacaoInput()));
         }),
@@ -558,6 +640,32 @@ export class OverlayPageComponent {
       );
       this.runDoacao(doacaoCycleStart(this.doacaoInput()));
       onCleanup(() => this.clearDoacaoTimer());
+    });
+
+    // Patrocinadores: a cada intervaloSeg, visivelSeg no ar; ocupado → tenta de novo em 30 s.
+    // Config e "patroc. agora" numa assinatura só, sem dependência reativa.
+    effect((onCleanup) => {
+      onCleanup(
+        subscribeOverlaySettings((s) => {
+          if (JSON.stringify(s.patro) === JSON.stringify(this.patroConfig())) return;
+          this.patroConfig.set(s.patro);
+          this.runPatro(patroCycleStart(this.patroInput()));
+        }),
+      );
+      onCleanup(bindOverlayPatroControls(() => this.mostrarPatro()));
+      onCleanup(() => {
+        if (this.patroTimer != null) clearTimeout(this.patroTimer);
+      });
+    });
+    // A lista chega depois do overlay abrir (snapshot do torneio): quando passa a ter (ou deixa
+    // de ter) patrocinador, o ciclo (re)começa — mas nunca derruba um card que está no ar.
+    const temPatro = computed(() => this.patroItens().length > 0);
+    effect(() => {
+      temPatro();
+      untracked(() => {
+        if (this.patroCycle().phase === 'visible' && temPatro()) return;
+        this.runPatro(patroCycleStart(this.patroInput()));
+      });
     });
 
     const handle = setInterval(() => this.tick.set(Date.now()), 1000);

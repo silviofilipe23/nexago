@@ -25,8 +25,28 @@ export interface OverlayDoacaoConfig {
   apoio: string;
 }
 
+/** Um patrocinador como o overlay mostra: `logo` vazio vira espaço reservado com o nome. */
+export interface OverlayPatroItem {
+  nome: string;
+  logo: string;
+}
+
+export interface OverlayPatroConfig {
+  /** Sobrescreve a lista do torneio. Vazia = patrocinadores cadastrados no torneio. */
+  lista: OverlayPatroItem[];
+  card: {
+    /** Ciclo ligado ("patroc. on/off"). Desligado, só aparece com "patroc. agora". */
+    enabled: boolean;
+    /** Segundos entre aparições (e antes da 1ª). */
+    intervaloSeg: number;
+    /** Segundos no ar — divididos entre os logos. */
+    visivelSeg: number;
+  };
+}
+
 export interface OverlayNxSettings {
   doacao: OverlayDoacaoConfig;
+  patro: OverlayPatroConfig;
 }
 
 export const DEFAULT_OVERLAY_DOACAO: OverlayDoacaoConfig = {
@@ -45,8 +65,14 @@ export const DEFAULT_OVERLAY_DOACAO: OverlayDoacaoConfig = {
   apoio: 'Aponte a câmera e doe qualquer valor para manter o projeto vivo.',
 };
 
+export const DEFAULT_OVERLAY_PATRO: OverlayPatroConfig = {
+  lista: [],
+  card: { enabled: true, intervaloSeg: 300, visivelSeg: 15 },
+};
+
 export const DEFAULT_OVERLAY_SETTINGS: OverlayNxSettings = {
   doacao: { ...DEFAULT_OVERLAY_DOACAO },
+  patro: structuredClone(DEFAULT_OVERLAY_PATRO),
 };
 
 type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] };
@@ -57,6 +83,7 @@ let settings: OverlayNxSettings = structuredClone(DEFAULT_OVERLAY_SETTINGS);
 const listeners = new Set<Listener>();
 let showHandler: (() => void) | null = null;
 let hideHandler: (() => void) | null = null;
+let patroShowHandler: (() => void) | null = null;
 
 function notify(): void {
   const snap = snapshot();
@@ -66,6 +93,7 @@ function notify(): void {
 export function snapshot(): OverlayNxSettings {
   return {
     doacao: { ...settings.doacao },
+    patro: { lista: settings.patro.lista.map((i) => ({ ...i })), card: { ...settings.patro.card } },
   };
 }
 
@@ -75,8 +103,19 @@ export function getOverlaySettings(): OverlayNxSettings {
 
 export function setOverlaySettings(partial: DeepPartial<OverlayNxSettings>): OverlayNxSettings {
   if (partial.doacao) {
+    settings = { ...settings, doacao: { ...settings.doacao, ...partial.doacao } };
+  }
+  if (partial.patro) {
+    const lista = partial.patro.lista;
     settings = {
-      doacao: { ...settings.doacao, ...partial.doacao },
+      ...settings,
+      patro: {
+        // Lista é trocada inteira, não mesclada item a item.
+        lista: Array.isArray(lista)
+          ? lista.map((i) => ({ nome: String(i?.nome ?? ''), logo: String(i?.logo ?? '') }))
+          : settings.patro.lista,
+        card: { ...settings.patro.card, ...partial.patro.card },
+      },
     };
   }
   notify();
@@ -101,6 +140,14 @@ export function bindOverlayDoacaoControls(handlers: {
   };
 }
 
+/** Ligado pelo overlay-page: "patroc. agora". */
+export function bindOverlayPatroControls(show: () => void): () => void {
+  patroShowHandler = show;
+  return () => {
+    if (patroShowHandler === show) patroShowHandler = null;
+  };
+}
+
 export interface NxOverlayApi {
   get(): OverlayNxSettings;
   set(partial: DeepPartial<OverlayNxSettings>): OverlayNxSettings;
@@ -108,6 +155,10 @@ export interface NxOverlayApi {
   showDoacao(): void;
   /** Esconde o card e para o ciclo até `showDoacao` ou `set({doacao:{enabled:true}})`. */
   hideDoacao(): void;
+  /** "patroc. agora": mostra o card de patrocinadores na hora. */
+  showPatro(): void;
+  /** "patroc. on/off": liga ou desliga o ciclo automático. Devolve o estado novo. */
+  togglePatro(): boolean;
 }
 
 declare global {
@@ -123,11 +174,19 @@ export function installNxOverlay(): NxOverlayApi {
     set: setOverlaySettings,
     showDoacao: () => showHandler?.(),
     hideDoacao: () => hideHandler?.(),
+    showPatro: () => patroShowHandler?.(),
+    togglePatro: () => togglePatroCard(),
   };
   if (typeof window !== 'undefined') {
     window.NXOverlay = api;
   }
   return api;
+}
+
+export function togglePatroCard(): boolean {
+  const enabled = !settings.patro.card.enabled;
+  setOverlaySettings({ patro: { card: { enabled } } });
+  return enabled;
 }
 
 /** Só pra teste: volta ao default e limpa listeners. */
@@ -136,4 +195,5 @@ export function resetOverlaySettingsForTests(): void {
   listeners.clear();
   showHandler = null;
   hideHandler = null;
+  patroShowHandler = null;
 }

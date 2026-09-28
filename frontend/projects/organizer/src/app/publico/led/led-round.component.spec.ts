@@ -186,7 +186,8 @@ describe('LedRoundComponent', () => {
     expect(cards[0].querySelectorAll('og-avatar').length).toBe(2);
     // Fila também abreviada, com o nome inteiro no title.
     const nomes = cards.map((c) => c.querySelector('.fila-nome')!);
-    expect(nomes.map((n) => n.textContent?.trim())).toContain('HÖL · BER');
+    // Um atleta por linha, abreviado.
+    expect(nomes.map((n) => [...n.querySelectorAll('span')].map((x) => x.textContent?.trim()))).toContain(['HÖL', 'BER']);
     expect(nomes.map((n) => n.getAttribute('title'))).toContain('Hölting Nilsson · Berger');
   });
 

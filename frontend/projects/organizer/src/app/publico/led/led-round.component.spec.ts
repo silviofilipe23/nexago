@@ -156,12 +156,15 @@ describe('LedRoundComponent', () => {
     const trono = h.querySelector('.bloco--trono');
     const desafiante = h.querySelector('.bloco--desafiante');
 
-    expect(trono?.textContent).toContain('Van');
-    expect(trono?.textContent).toContain('Aye');
+    // Atleta pelas 3 primeiras letras em maiúsculas; o nome inteiro fica no title.
+    expect(trono?.textContent).toContain('VAN');
+    expect(trono?.textContent).toContain('AYE');
+    expect(trono?.textContent).not.toContain('Van');
+    expect(trono?.querySelector('.nomes span')?.getAttribute('title')).toBe('Van');
     expect(trono?.textContent).toContain('4');
     expect(trono!.querySelectorAll('og-avatar').length).toBe(2);
     expect([...trono!.querySelectorAll('og-avatar')].map((e) => e.textContent?.trim())).toEqual(['VA', 'AY']);
-    expect(desafiante?.textContent).toContain('Bro');
+    expect(desafiante?.textContent).toContain('BRO');
     expect(desafiante?.textContent).toContain('14');
     expect(desafiante!.querySelectorAll('og-avatar').length).toBe(2);
   });
@@ -181,6 +184,10 @@ describe('LedRoundComponent', () => {
     expect(cards.length).toBe(3);
     expect(cards.filter((c) => c.classList.contains('fila-card--proximo')).length).toBe(1);
     expect(cards[0].querySelectorAll('og-avatar').length).toBe(2);
+    // Fila também abreviada, com o nome inteiro no title.
+    const nomes = cards.map((c) => c.querySelector('.fila-nome')!);
+    expect(nomes.map((n) => n.textContent?.trim())).toContain('HÖL · BER');
+    expect(nomes.map((n) => n.getAttribute('title'))).toContain('Hölting Nilsson · Berger');
   });
 
   it('acende a sequência a partir de duas, e o anel a partir de três', async () => {
@@ -208,6 +215,6 @@ describe('LedRoundComponent', () => {
     expect(h.textContent).toContain('Tempo esgotado');
     expect(h.textContent).not.toContain('Classificada');
     // O placar continua na tela, congelado.
-    expect(h.querySelector('.bloco--trono')?.textContent).toContain('Van');
+    expect(h.querySelector('.bloco--trono')?.textContent).toContain('VAN');
   });
 });

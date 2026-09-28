@@ -238,7 +238,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
           <section class="og-mk-order">
             <header class="og-mk-section-head">
               <span class="og-mk-section-title">Ordem da fila</span>
-              <span class="og-mk-section-hint">Arraste ↑↓ para reordenar</span>
+              <span class="og-mk-section-hint">Use ↑↓ para reordenar</span>
               <button type="button" class="og-ghost-btn og-mk-shuffle" [disabled]="busy()" (click)="shuffleOrder()">
                 Sortear ordem
               </button>
@@ -451,27 +451,6 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
               }
             </ul>
 
-            <!-- @if (lastLogRow(); as last) {
-              <div class="og-mk-last-hit">
-                <header class="og-mk-section-head">
-                  <span class="og-mk-section-title">Último lançamento</span>
-                  <button type="button" class="og-ghost-btn og-mk-log-toggle" (click)="logOpen.set(true)">
-                    Log · {{ logRows().length }}
-                  </button>
-                </header>
-                <p class="og-mk-last-hit-line">
-                  <span class="og-mk-log-time">{{ last.time }}</span>
-                  <span class="og-mk-log-text"
-                    ><strong>{{ last.name }}</strong> {{ last.action }}</span
-                  >
-                </p>
-                <button type="button" class="og-ghost-btn og-mk-log-undo" [disabled]="busy()" (click)="undo()">
-                  <og-icon name="back" [size]="14" />
-                  Desfazer último
-                </button>
-              </div>
-            } -->
-
             @if (tie()) {
               <!-- Empate na vaga: card único com título, alerta e botões de quem pontuou.
                    Cada mini-rodada resolve UMA vaga — o chip e o kicker dizem quantas faltam.
@@ -556,13 +535,47 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
           </section>
 
           <div class="og-mk-live-controls">
+            <!-- Modo quadra: o log é gaveta e o botão dele saiu da fila pra caber a altura,
+                 então a correção mora AQUI, colada nos botões de ponto — um toque, sem abrir
+                 nada. No desktop o log com "Desfazer último" já está na coluna ao lado. -->
+            @if (lastLogRow(); as last) {
+              <div class="og-mk-undo-strip" role="status" aria-live="polite">
+                <span class="og-mk-undo-text">
+                  <span class="og-mk-undo-kicker">Último lance · {{ last.time }}</span>
+                  <span class="og-mk-undo-line"><strong>{{ last.name }}</strong> {{ last.action }}</span>
+                </span>
+                <button type="button" class="og-ghost-btn og-mk-undo-log" (click)="logOpen.set(true)">Log · {{ logRows().length }}</button>
+                <button
+                  type="button"
+                  class="og-ghost-btn og-mk-undo-btn"
+                  [class.og-mk-pending]="pending() === 'undo'"
+                  [disabled]="busy()"
+                  (click)="undo()"
+                >
+                  <og-icon name="back" [size]="15" />
+                  {{ pending() === 'undo' ? 'Desfazendo…' : 'Desfazer' }}
+                </button>
+              </div>
+            }
             <div class="og-mk-live-actions">
-              <button type="button" class="og-btn-primary og-mk-rally-king" [disabled]="busy()" (click)="rally('king')">
-                <span class="og-mk-rally-label">Ponto do trono</span>
+              <button
+                type="button"
+                class="og-btn-primary og-mk-rally-king"
+                [class.og-mk-pending]="pending() === 'king'"
+                [disabled]="busy()"
+                (click)="rally('king')"
+              >
+                <span class="og-mk-rally-label">{{ pending() === 'king' ? 'Registrando…' : 'Ponto do trono' }}</span>
                 <span class="og-mk-rally-meta">{{ faceOf(kingId()).name }} +1</span>
               </button>
-              <button type="button" class="og-ghost-btn og-mk-rally-crown" [disabled]="busy()" (click)="rally('challenger')">
-                <span class="og-mk-rally-label">Desafiante venceu</span>
+              <button
+                type="button"
+                class="og-ghost-btn og-mk-rally-crown"
+                [class.og-mk-pending]="pending() === 'challenger'"
+                [disabled]="busy()"
+                (click)="rally('challenger')"
+              >
+                <span class="og-mk-rally-label">{{ pending() === 'challenger' ? 'Registrando…' : 'Desafiante venceu' }}</span>
                 <span class="og-mk-rally-meta">{{ faceOf(challengerId()).name }} assume</span>
               </button>
             </div>
@@ -570,8 +583,18 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
             <!-- Terceiro desfecho, menor de propósito: é o menos frequente, e
                  confundi-lo com "ponto do trono" daria ao rei um ponto que o
                  regulamento não dá. -->
-            <button type="button" class="og-mk-fault" [disabled]="busy()" (click)="rally('serve_fault')">
-              Erro de saque · {{ faceOf(challengerId()).name }} perde a vez, sem ponto
+            <button
+              type="button"
+              class="og-mk-fault"
+              [class.og-mk-pending]="pending() === 'serve_fault'"
+              [disabled]="busy()"
+              (click)="rally('serve_fault')"
+            >
+              @if (pending() === 'serve_fault') {
+                Registrando…
+              } @else {
+                Erro de saque · {{ faceOf(challengerId()).name }} perde a vez, sem ponto
+              }
             </button>
           </div>
 
@@ -1258,9 +1281,14 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       display: none;
     }
     .og-mk-section-count,
-    .og-mk-last-hit,
-    .og-mk-order-empty {
+    .og-mk-order-empty,
+    .og-mk-undo-strip {
       display: none;
+    }
+    /* O botão tocado segue aceso enquanto os outros apagam: é ele que está em voo. */
+    .og-mk-pending:disabled {
+      opacity: 1;
+      cursor: progress;
     }
     .og-mk-live-clock {
       display: flex;
@@ -2160,8 +2188,10 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
 
        Desempate (bola de ouro) só entra quando o cronômetro zera.
        Encerrar fica em cima DE PROPÓSITO, longe do polegar que marca ponto.
-       Desktop (>1024px) não muda: lá o aside volta a ser coluna. */
-    @media (max-width: 1023.98px) {
+       Desktop (>1024px, com mouse) não muda: lá o aside volta a ser coluna.
+       A régua também é o DEDO: iPad deitado e iPad Pro em pé passam de 1024px e
+       caíam no layout de mesa de escritório, na quadra. */
+    @media (max-width: 1023.98px), (pointer: coarse) {
       .og-mk-live {
         position: fixed;
         inset: 0;
@@ -2365,30 +2395,6 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         font-size: 13px;
         text-align: center;
       }
-      .og-mk-last-hit {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        padding: 10px 12px;
-        border-radius: 12px;
-        border: 1px solid var(--nx-line);
-        background: var(--nx-surface-1);
-      }
-      .og-mk-last-hit-line {
-        display: grid;
-        grid-template-columns: 44px minmax(0, 1fr);
-        gap: 10px;
-        align-items: baseline;
-        margin: 0;
-        font-size: 13px;
-        line-height: 1.35;
-      }
-      .og-mk-last-hit .og-mk-log-undo {
-        align-self: stretch;
-        justify-content: center;
-        min-height: 40px;
-      }
-
       /* ── Ações fixas no rodapé ─────────────────────────────────── */
       .og-mk-live .og-mk-live-controls {
         grid-area: actions;
@@ -2440,8 +2446,52 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         color: var(--nx-text);
       }
       .og-mk-fault {
-        min-height: 40px;
+        min-height: 44px;
         font-size: 12px;
+      }
+      .og-mk-undo-strip {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 48px;
+        margin-bottom: 8px;
+        padding: 2px 2px 2px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--nx-line);
+        background: var(--nx-surface-1);
+      }
+      .og-mk-undo-text {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-width: 0;
+      }
+      .og-mk-undo-kicker {
+        font-family: var(--nx-font-mono);
+        font-size: 9.5px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--nx-text-dim);
+      }
+      .og-mk-undo-line {
+        font-size: 12.5px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .og-mk-undo-log,
+      .og-mk-undo-btn {
+        flex: none;
+        min-height: 44px;
+        padding-inline: 10px;
+        font-size: 12.5px;
+      }
+      .og-mk-undo-btn {
+        gap: 6px;
+        border: 1px solid var(--nx-line-strong);
+        background: var(--nx-surface-2);
+        color: var(--nx-text);
+        font-weight: 700;
       }
 
       /* ── Log: gaveta ──────────────────────────────────────────── */
@@ -2506,7 +2556,10 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       }
 
       /* ── Empate: a bola de ouro toma a tela (só com tempo zerado) ─ */
-      .og-mk-live:has(.og-mk-tie) .og-mk-live-controls {
+      /* No empate saem os botões de rally; a faixa de desfazer FICA — uma bola de ouro
+         lançada na dupla errada tem de poder voltar sem sair do desempate. */
+      .og-mk-live:has(.og-mk-tie) .og-mk-live-actions,
+      .og-mk-live:has(.og-mk-tie) .og-mk-fault {
         display: none;
       }
       .og-mk-live .og-mk-tie {
@@ -2526,9 +2579,6 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       .og-mk-live:has(.og-mk-tie) .og-mk-end {
         display: none;
       }
-      .og-mk-live:has(.og-mk-tie) .og-mk-last-hit {
-        display: none;
-      }
       .og-mk-live:has(.og-mk-tie) .og-mk-order {
         max-height: none;
       }
@@ -2536,32 +2586,12 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         min-height: clamp(56px, 9vh, 96px);
       }
 
-      /* Tablet retrato: fila e último lançamento lado a lado. */
+      /* Tablet retrato: a fila tinha 2 colunas (fila | último lançamento). O último
+         lance agora mora colado nos botões de ponto, então a fila volta a ter a largura
+         inteira em vez de meia tela vazia. */
       @media (min-width: 700px) {
         .og-mk-live .og-mk-order {
-          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-          grid-template-rows: auto minmax(0, 1fr);
           max-height: min(38vh, 420px);
-          align-items: start;
-        }
-        .og-mk-live .og-mk-order > .og-mk-section-head {
-          grid-column: 1;
-          grid-row: 1;
-        }
-        .og-mk-live .og-mk-order-list {
-          grid-column: 1;
-          grid-row: 2;
-        }
-        .og-mk-live .og-mk-last-hit {
-          grid-column: 2;
-          grid-row: 1 / span 2;
-          align-self: stretch;
-          height: 100%;
-          max-height: 100%;
-          overflow: hidden;
-        }
-        .og-mk-live:has(.og-mk-tie) .og-mk-order {
-          grid-template-columns: minmax(0, 1fr);
         }
       }
 
@@ -2574,10 +2604,6 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       }
       .og-mk-order-list {
         gap: 6px;
-      }
-      .og-mk-section-count,
-      .og-mk-last-hit {
-        display: flex;
       }
       .og-mk-section-count {
         display: inline-grid;
@@ -2631,8 +2657,8 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.35), 0 10px 28px rgba(255, 106, 26, 0.28);
       }
       .og-mk-move {
-        width: 40px;
-        height: 40px;
+        width: 44px;
+        height: 44px;
       }
       .og-mk-chip {
         min-height: 44px;
@@ -2938,6 +2964,8 @@ export class MesaKocComponent {
   /** Gaveta do log — so existe no modo quadra (tablet/celular); no desktop o log e
    *  um painel fixo da coluna lateral e este sinal nao tem efeito nenhum. */
   protected readonly logOpen = signal(false);
+  /** Botão cujo toque está em voo — só ele troca o rótulo por "Registrando…". */
+  protected readonly pending = signal<KocRallyOutcome | 'undo' | null>(null);
   protected readonly removeTeamTarget = signal<{ teamId: string; name: string } | null>(null);
 
   constructor() {
@@ -3350,6 +3378,8 @@ export class MesaKocComponent {
   }
 
   protected rally(outcome: KocRallyOutcome): void {
+    if (this.busy()) return;
+    this.markPending(outcome);
     void this.run(
       // `rallySeq` é o tamanho bruto do log (o que o servidor compara), não
       // "rallies jogados" — depois de uma remoção os dois divergem, e usar
@@ -3369,7 +3399,17 @@ export class MesaKocComponent {
   }
 
   protected undo(): void {
+    if (this.busy()) return;
+    this.markPending('undo');
     void this.run(() => undoKocRally(this.matchId()), 'Rally desfeito.');
+  }
+
+  /** Qual botão está esperando o servidor. O `busy` trava TODOS (a callable compara
+   *  `expectedSeq`, então dois toques em paralelo não podem sair); sem isto nada dizia
+   *  qual toque pegou e o mesário tocava de novo. Vibração curta onde existe (Android). */
+  private markPending(key: KocRallyOutcome | 'undo'): void {
+    this.pending.set(key);
+    navigator.vibrate?.(12);
   }
 
   /** Abre o diálogo de confirmação — o motivo é obrigatório, igual à remoção
@@ -3495,6 +3535,7 @@ export class MesaKocComponent {
       this.feedback.set({ ok: false, message: messageOf(error) });
     } finally {
       this.busy.set(false);
+      this.pending.set(null);
     }
   }
 

@@ -1,6 +1,6 @@
 import type { KocRoundState } from '../../painel/data/koc';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
-import { ledTelaOf, CLASSIFICACAO_MS, CLASSIFICADAS_MS } from './led-telas';
+import { ledTelaOf, CLASSIFICACAO_MS, CLASSIFICADAS_MS, PROXIMOS_MS } from './led-telas';
 
 const NOW = Date.UTC(2026, 8, 23, 18, 0, 0);
 
@@ -139,5 +139,12 @@ describe('ledTelaOf', () => {
 
   it('partida que não é KOTC não tem tela neste painel', () => {
     expect(ledTelaOf(match({ matchType: 'knockout', koc: null }), NOW, null)).toBe('aguardando');
+  });
+
+  it('logo depois do apito mostra "Próximos em quadra" por 12 s e volta ao jogo', () => {
+    const recem = match({ matchStartedAt: new Date(NOW - 3_000) });
+    expect(ledTelaOf(recem, NOW, null)).toBe('proximos');
+    const depois = match({ matchStartedAt: new Date(NOW - PROXIMOS_MS) });
+    expect(ledTelaOf(depois, NOW, null)).toBe('jogo');
   });
 });

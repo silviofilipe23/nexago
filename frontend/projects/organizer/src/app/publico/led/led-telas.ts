@@ -4,6 +4,7 @@ import type { TournamentMatch } from '../../painel/data/matches-repository';
 
 export type LedTela =
   | 'elenco'
+  | 'proximos'
   | 'jogo'
   | 'tempo-esgotado'
   | 'classificacao'
@@ -12,6 +13,8 @@ export type LedTela =
 
 export const CLASSIFICACAO_MS = 15_000;
 export const CLASSIFICADAS_MS = 15_000;
+/** "Próximos em quadra" logo depois do apito: a nova rodada começa anunciando quem entra. */
+export const PROXIMOS_MS = 12_000;
 
 /** Qual tela o painel mostra agora.
  *
@@ -46,6 +49,10 @@ export function ledTelaOf(
   if (match.status === 'scheduled') {
     return kocPreRoundOf(match) ? 'elenco' : 'aguardando';
   }
+
+  // Rodada que acabou de começar: 12 s de "Próximos em quadra" antes do jogo.
+  const startedAt = match.matchStartedAt?.getTime() ?? null;
+  if (startedAt != null && nowMs >= startedAt && nowMs - startedAt < PROXIMOS_MS) return 'proximos';
 
   const clock = match.koc.clock;
   // Pausada congela o cronômetro, então não "esgota" enquanto a mesa segura o jogo.

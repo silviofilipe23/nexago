@@ -4,14 +4,14 @@ import { TelaoDataService } from '../../painel/telao/telao-data.service';
 import { finishedAtOf } from '../../painel/telao/telao-finished';
 import { overlayCourtContextOf } from '../overlay/overlay-court';
 import { kocRoundTitleOf } from '../overlay/overlay-koc-bar';
-import { kocPreRoundOf } from '../overlay/overlay-koc-preround';
 import { kocStandingsBoardOf } from '../overlay/overlay-koc-standings';
 import { overlayViewOf } from '../overlay/overlay-selectors';
-import { LedPreRoundComponent } from './led-preround.component';
+import { LedProximosComponent } from './led-proximos.component';
+import { ledProximosOf } from './led-proximos';
 import { LedRoundComponent, type LedRoundInfo, type LedTeam } from './led-round.component';
 import { LedStandingsComponent } from './led-standings.component';
 import { ledIniciaisDe } from './led-iniciais';
-import { ledTelaOf } from './led-telas';
+import { PROXIMOS_MS, ledTelaOf, type LedTela } from './led-telas';
 
 /** Painel de LED da quadra: `/led/:tournamentId/quadra/:courtId`.
  *
@@ -23,18 +23,36 @@ import { ledTelaOf } from './led-telas';
   selector: 'og-led-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [TelaoDataService],
-  imports: [LedRoundComponent, LedStandingsComponent, LedPreRoundComponent],
+  imports: [LedRoundComponent, LedStandingsComponent, LedProximosComponent],
+  host: {
+    '(document:keydown)': 'aoTeclar($event)',
+  },
   template: `
     @switch (tela()) {
       @case ('elenco') {
-        @if (preRound(); as pre) {
-          <div class="cortina">
-            <og-led-preround
-              [preRound]="pre"
+        @if (proximos(); as px) {
+          <div class="cortina" animate.enter="led-cortina-in" animate.leave="led-cortina-out">
+            <og-led-proximos
+              [proximos]="px"
               [teams]="teams()"
               [categoryName]="categoryName()"
               [courtName]="courtName()"
               [roundTitle]="roundTitle()"
+              [rodada]="rodadaDoInicio()"
+            />
+          </div>
+        }
+      }
+      @case ('proximos') {
+        @if (proximos(); as px) {
+          <div class="cortina" animate.enter="led-cortina-in" animate.leave="led-cortina-out">
+            <og-led-proximos
+              [proximos]="px"
+              [teams]="teams()"
+              [categoryName]="categoryName()"
+              [courtName]="courtName()"
+              [roundTitle]="roundTitle()"
+              [rodada]="rodadaDoInicio()"
             />
           </div>
         }
@@ -94,6 +112,9 @@ import { ledTelaOf } from './led-telas';
         }
       }
     }
+
+    <!-- "6 próximos" sem teclado (TV com mouse): canto superior esquerdo, invisível. -->
+    <button type="button" class="hot" aria-label="Mostrar próximos em quadra" (click)="mostrarProximos()"></button>
   `,
   styles: `
     :host {
@@ -101,6 +122,19 @@ import { ledTelaOf } from './led-telas';
       inset: 0;
       display: block;
       background: #000;
+    }
+
+    .hot {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 5;
+      width: 48px;
+      height: 48px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
     }
 
     .cortina {
@@ -164,9 +198,31 @@ export class LedPageComponent {
     return m ? finishedAtOf(this.dados.finishMemory(), m.id) : null;
   });
 
-  protected readonly tela = computed(() =>
-    ledTelaOf(this.partida(), this.tick(), this.finishedAt()),
-  );
+  /** Até quando o "6 próximos" manual segura a tela (epoch ms). */
+  private readonly proximosManualAte = signal(0);
+
+  protected readonly proximos = computed(() => ledProximosOf(this.partida()));
+
+  protected readonly tela = computed<LedTela>(() => {
+    const auto = ledTelaOf(this.partida(), this.tick(), this.finishedAt());
+    // Manual só onde há quem anunciar; antes do apito a tela de elenco já é esta.
+    if (this.tick() < this.proximosManualAte() && this.proximos() && auto !== 'elenco') return 'proximos';
+    return auto;
+  });
+
+  /** Tecla 6 ou o botão invisível: 12 s de "Próximos em quadra" e volta ao automático. */
+  protected mostrarProximos(): void {
+    const now = Date.now();
+    this.proximosManualAte.set(now + PROXIMOS_MS);
+    this.tick.set(now);
+  }
+
+  protected aoTeclar(event: KeyboardEvent): void {
+    if (event.key === '6' && !event.metaKey && !event.ctrlKey) {
+      event.preventDefault();
+      this.mostrarProximos();
+    }
+  }
 
   private readonly totalRounds = computed(() => this.contexto().totalRounds);
 
@@ -213,10 +269,13 @@ export class LedPageComponent {
 
   protected readonly roundLabel = computed(() => this.partida()?.koc?.roundLabel ?? 0);
 
-  /** Elenco da rodada que ainda não começou. */
-  protected readonly preRound = computed(() => {
-    const m = this.partida();
-    return m ? kocPreRoundOf(m) : null;
+  /** Selo "INÍCIO DA …" da tela de próximos. Com bateria, "Rodada 9" não diz nada — o painel
+   *  inteiro localiza a rodada por chave e bateria. */
+  protected readonly rodadaDoInicio = computed(() => {
+    const koc = this.partida()?.koc;
+    if (!koc) return '';
+    if ((koc.batteryLabel ?? 1) > 1) return `Bateria ${koc.batteryLabel}`;
+    return koc.roundLabel > 0 ? `Rodada ${koc.roundLabel}` : '';
   });
 
   /** "Rodada 3/7". NÃO sai de `view()`: antes do apito ela é nula, e o cabeçalho do elenco

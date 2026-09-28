@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, signal } from '@angular/core';
 import { kocColumnLabel } from '../../painel/data/koc';
 import { TelaoDataService } from '../../painel/telao/telao-data.service';
 import { finishedAtOf } from '../../painel/telao/telao-finished';
@@ -28,6 +28,16 @@ import { PROXIMOS_MS, ledTelaOf, type LedTela } from './led-telas';
     '(document:keydown)': 'aoTeclar($event)',
   },
   template: `
+    <!-- Tela lógica de no mínimo 1920×1080, na PROPORÇÃO da TV, reduzida por escala. As telas
+         foram desenhadas em px pra 1920×1080; numa TV 4:3 (1024×768) a tela lógica vira
+         1920×1440 — sem faixa preta, e a altura a mais vai pras áreas flexíveis. O transform
+         também faz o position: fixed das telas se referir a esta caixa, não à janela. -->
+    <div
+      class="palco"
+      [style.width.px]="palco().w"
+      [style.height.px]="palco().h"
+      [style.transform]="'scale(' + palco().s + ')'"
+    >
     @switch (tela()) {
       @case ('elenco') {
         @if (proximos(); as px) {
@@ -112,6 +122,7 @@ import { PROXIMOS_MS, ledTelaOf, type LedTela } from './led-telas';
         }
       }
     }
+    </div>
 
     <!-- "6 próximos" sem teclado (TV com mouse): canto superior esquerdo, invisível. -->
     <button type="button" class="hot" aria-label="Mostrar próximos em quadra" (click)="mostrarProximos()"></button>
@@ -135,6 +146,14 @@ import { PROXIMOS_MS, ledTelaOf, type LedTela } from './led-telas';
       border: 0;
       background: transparent;
       cursor: pointer;
+    }
+
+    .palco {
+      position: absolute;
+      top: 0;
+      left: 0;
+      overflow: hidden;
+      transform-origin: 0 0;
     }
 
     .cortina {
@@ -179,6 +198,19 @@ export class LedPageComponent {
   readonly courtId = input('');
 
   private readonly dados = inject(TelaoDataService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly destroyRef = inject(DestroyRef);
+
+  /** Tamanho da janela — a TV do ginásio, que não é sempre Full HD. */
+  private readonly janela = signal({ w: 1920, h: 1080 });
+
+  /** Tela lógica: a escala é a do lado mais apertado em relação a 1920×1080, e o outro lado
+   *  cresce pra preencher a proporção da TV. 1920×1080 → escala 1, nada muda. */
+  protected readonly palco = computed(() => {
+    const { w, h } = this.janela();
+    const s = Math.min(w / 1920, h / 1080) || 1;
+    return { s, w: w / s, h: h / s };
+  });
   private readonly tick = signal(Date.now());
 
   /** O que está nesta quadra agora — ao vivo, recém-encerrada ou a próxima — com o contexto de
@@ -320,7 +352,16 @@ export class LedPageComponent {
   constructor() {
     effect(() => this.dados.tournamentId.set(this.tournamentId() || null));
 
+    afterNextRender(() => {
+      const el = this.host.nativeElement;
+      const medir = () => this.janela.set({ w: el.clientWidth || 1920, h: el.clientHeight || 1080 });
+      medir();
+      const obs = new ResizeObserver(medir);
+      obs.observe(el);
+      this.destroyRef.onDestroy(() => obs.disconnect());
+    });
+
     const handle = setInterval(() => this.tick.set(Date.now()), 1000);
-    inject(DestroyRef).onDestroy(() => clearInterval(handle));
+    this.destroyRef.onDestroy(() => clearInterval(handle));
   }
 }

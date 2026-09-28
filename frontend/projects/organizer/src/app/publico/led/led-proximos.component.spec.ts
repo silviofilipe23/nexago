@@ -108,8 +108,11 @@ describe('LedProximosComponent', () => {
     const tr = host(await render()).querySelector('.pxh.tr')!;
 
     expect(texto(tr)).toContain('Entra no trono');
-    expect(texto(tr)).toContain('Van');
-    expect(texto(tr)).toContain('Aye');
+    // Nome do atleta abreviado: 3 primeiras letras em maiúsculas; o nome inteiro fica no title.
+    expect(texto(tr)).toContain('VAN');
+    expect(texto(tr)).toContain('AYE');
+    expect(texto(tr)).not.toContain('Van');
+    expect(tr.querySelector('.nomes--tr span')?.getAttribute('title')).toBe('Van');
     expect(texto(tr.querySelector('.numero--tr')).trim()).toBe('1');
     expect([...tr.querySelectorAll('og-avatar')].map((e) => e.textContent?.trim())).toEqual(['VA', 'AY']);
   });
@@ -118,7 +121,9 @@ describe('LedProximosComponent', () => {
     const cards = [...host(await render()).querySelectorAll('.pxc')];
 
     expect(cards.map((c) => texto(c.querySelector('.numero')).trim())).toEqual(['2', '3', '4', '5']);
-    expect(cards.some((c) => texto(c).includes('Van'))).toBeFalse();
+    expect(cards.some((c) => texto(c).includes('VAN'))).toBeFalse();
+    expect(texto(cards[2]!)).toContain('HÖL');
+    expect(texto(cards[2]!)).toContain('BER');
     expect(texto(cards[0]!)).toContain('Desafia o trono');
     expect(texto(cards[1]!)).toContain('Na fila');
   });

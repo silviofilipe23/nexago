@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, input, signal, un
 import { OgAvatarComponent } from '../../painel/ui/avatar.component';
 import { LedFitTextDirective } from './led-fit-text.directive';
 import { ledIniciaisDe } from './led-iniciais';
-import type { LedProximos } from './led-proximos';
+import { ledNomeCurto, type LedProximos } from './led-proximos';
 import type { LedPlayer, LedTeam } from './led-round.component';
 
 /** Tela "Próximos em quadra" do painel de LED (1920×1080).
@@ -45,7 +45,7 @@ import type { LedPlayer, LedTeam } from './led-round.component';
                 <span class="rotulo rotulo--tr">{{ px.trono.rotulo }}</span>
                 <div class="nomes nomes--tr">
                   @for (p of atletasDe(px.trono.teamId); track $index) {
-                    <span [ledFitText]="p.name">{{ p.name }}</span>
+                    <span [ledFitText]="p.curto" [attr.title]="p.name">{{ p.curto }}</span>
                   }
                 </div>
               </div>
@@ -67,7 +67,7 @@ import type { LedPlayer, LedTeam } from './led-round.component';
                     <span class="rotulo" [ledFitText]="row.rotulo">{{ row.rotulo }}</span>
                     <div class="nomes">
                       @for (p of atletasDe(row.teamId); track $index) {
-                        <span [ledFitText]="p.name">{{ p.name }}</span>
+                        <span [ledFitText]="p.curto" [attr.title]="p.name">{{ p.curto }}</span>
                       }
                     </div>
                   </div>
@@ -386,10 +386,10 @@ export class LedProximosComponent {
     });
   }
 
-  /** Descarta slot vazio e completa a inicial quando o servidor não mandou. */
-  protected atletasDe(teamId: string): LedPlayer[] {
+  /** Descarta slot vazio, completa a inicial quando o servidor não mandou e abrevia o nome. */
+  protected atletasDe(teamId: string): (LedPlayer & { curto: string })[] {
     return (this.teams().get(teamId)?.players ?? [])
       .filter((p) => p.name.trim() !== '')
-      .map((p) => ({ ...p, initials: p.initials || ledIniciaisDe(p.name) }));
+      .map((p) => ({ ...p, initials: p.initials || ledIniciaisDe(p.name), curto: ledNomeCurto(p.name) }));
   }
 }

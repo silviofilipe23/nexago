@@ -583,3 +583,15 @@ export function finishKocRound(params: { matchId: string; acceptTiebreak?: boole
     ...(params.acceptTiebreak ? { acceptTiebreak: true } : {}),
   });
 }
+
+/** Remove uma dupla machucada da rodada, a qualquer momento — mesmo no trono
+ *  ou desafiando. A próxima da fila assume o lugar na hora; pontos e coroas já
+ *  conquistados pela dupla removida continuam no ranking final. Motivo é
+ *  obrigatório e fica registrado em auditoria. */
+export function removeKocTeam(params: { matchId: string; teamId: string; description: string }): Promise<{ ok?: boolean; kingTeamId?: string; challengerTeamId?: string }> {
+  return call('kocRemoveTeam', {
+    matchId: params.matchId.trim(),
+    teamId: params.teamId.trim(),
+    description: params.description.trim(),
+  });
+}

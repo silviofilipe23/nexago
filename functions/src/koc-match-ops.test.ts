@@ -6,6 +6,7 @@ import {FakeFirestore, type DocData} from "./fake-firestore.test-helper";
 import {
   kocFinishRoundCore,
   kocRegisterRallyCore,
+  kocRemoveTeamCore,
   kocSetClockCore,
   kocStartRoundCore,
   kocUndoRallyCore,
@@ -517,6 +518,213 @@ describe("kocFinishRoundCore", () => {
       "failed-precondition",
       "koc_round_completed",
     );
+  });
+
+  it("grava removed:true na equipe machucada, sem tirar do ranking final", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake);
+    // CLEAN_ROUND dá corte limpo pro qualifiersPerRound=2 (A=2º com 2pts, D=1º
+    // com 1pt avançam; B e C ficam empatadas em 0, mas ABAIXO do corte — por
+    // isso remover B depois não cria empate na vaga, e o encerramento não
+    // precisa de acceptTiebreak).
+    await play(fake, CLEAN_ROUND); // A=2, D=1 (rei), B=0, C=0 — B na fila, não jogando
+    await kocRemoveTeamCore(db(fake), OWNER, {
+      matchId: "r1",
+      teamId: "B",
+      description: "Machucou depois do último rally, antes de encerrar.",
+    });
+
+    const result = await kocFinishRoundCore(db(fake), OWNER, {matchId: "r1"});
+    // O valor de retorno da callable não leva `removed` (mapeamento próprio,
+    // linha ~690) — só confere que B continua na tabela. `removed` é
+    // conferido no doc PERSISTIDO, que é o que a mesa/telão de fato leem.
+    assert.ok(result.standings.some((s) => s.teamId === "B"), "B continua aparecendo na tabela final");
+    const persisted = (round(fake).kocStandings as DocData[]).find((s) => s.teamId === "B")!;
+    assert.equal(persisted.removed, true);
+  });
+
+  it("nunca dá o troféu a uma equipe removida — pula pra próxima ATIVA", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake);
+    // CLEAN_ROUND: A=2 (1º), D=1 (2º), B=0, C=0. A, que seria standings[0],
+    // se machuca depois do último rally — o troféu não pode ir pra ela.
+    await play(fake, CLEAN_ROUND);
+    await kocRemoveTeamCore(db(fake), OWNER, {
+      matchId: "r1",
+      teamId: "A",
+      description: "Machucou depois do último rally, antes de encerrar.",
+    });
+
+    const result = await kocFinishRoundCore(db(fake), OWNER, {
+      matchId: "r1",
+      acceptTiebreak: true,
+    });
+
+    assert.equal(result.standings[0]!.teamId, "A");
+    assert.equal(round(fake).winnerId, "D", "D é a próxima ATIVA na tabela — não A, removida");
+  });
+});
+
+describe("kocRemoveTeamCore", () => {
+  it("promove a próxima da fila quando a desafiante é removida no meio da rodada", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake);
+    // Depois de 1 rally "king": A=rei(1pt), C=desafia (B foi pro fim da fila),
+    // fila=[D,B]. É a DESAFIANTE ATUAL (C) que se machuca aqui — não B.
+    await play(fake, ["king"]);
+
+    const result = await kocRemoveTeamCore(db(fake), OWNER, {
+      matchId: "r1",
+      teamId: "C",
+      description: "Torceu o tornozelo no 2º rally.",
+    });
+
+    assert.equal(result.kingTeamId, "A");
+    assert.equal(result.challengerTeamId, "D");
+    assert.deepEqual(state(fake).queue, ["B"]);
+    assert.deepEqual(state(fake).removedTeamIds, ["C"]);
+    assert.equal((state(fake).points as DocData).A, 1);
+  });
+
+  it("recusa sem motivo (mínimo 10 caracteres)", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake);
+    await play(fake, ["king"]);
+
+    await assert.rejects(
+      kocRemoveTeamCore(db(fake), OWNER, {matchId: "r1", teamId: "B", description: "curto"}),
+      (err: {code?: string}) => {
+        assert.equal(err.code, "invalid-argument");
+        return true;
+      },
+    );
+  });
+
+  it("recusa equipe que não está no elenco desta rodada", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake);
+    await play(fake, ["king"]);
+
+    await assert.rejects(
+      kocRemoveTeamCore(db(fake), OWNER, {
+        matchId: "r1",
+        teamId: "Z",
+        description: "Não faz parte do elenco.",
+      }),
+      (err: {code?: string}) => {
+        assert.equal(err.code, "invalid-argument");
+        return true;
+      },
+    );
+  });
+
+  it("recusa remover de rodada já encerrada", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake);
+    await play(fake, CLEAN_ROUND);
+    await kocFinishRoundCore(db(fake), OWNER, {matchId: "r1"});
+
+    await assertHttpsError(
+      kocRemoveTeamCore(db(fake), OWNER, {
+        matchId: "r1",
+        teamId: "B",
+        description: "Rodada já acabou, tentativa tardia.",
+      }),
+      "failed-precondition",
+      "koc_round_completed",
+    );
+  });
+
+  it("recusa remover de rodada ainda não iniciada (sem relógio)", async () => {
+    // Antes exigia só `requireInProgress`, o que abria uma armadilha:
+    // `kocStartRoundCore` depois se recusaria com `koc_round_already_started`
+    // (o log já teria a remoção), `restart: true` apagaria a remoção calada
+    // deixando o doc de auditoria órfão, e o desfazer (que exige relógio)
+    // não teria como reverter. A mesa web nunca expõe esse caminho — os
+    // botões só aparecem depois do apito — então a trava não fecha nada que
+    // já era alcançável por ali.
+    const fake = new FakeFirestore();
+    seedRound(fake);
+
+    await assertHttpsError(
+      kocRemoveTeamCore(db(fake), OWNER, {
+        matchId: "r1",
+        teamId: "B",
+        description: "Machucou no aquecimento, antes do apito.",
+      }),
+      "failed-precondition",
+      "koc_round_not_started",
+    );
+  });
+
+  it("grava auditoria em tournamentKocTeamRemovals", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake);
+    await play(fake, ["king"]);
+
+    await kocRemoveTeamCore(db(fake), OWNER, {
+      matchId: "r1",
+      teamId: "B",
+      description: "Torceu o tornozelo no 2º rally.",
+    });
+
+    const audits = [...fake.store.entries()].filter(([path]) =>
+      path.startsWith("tournamentKocTeamRemovals/"),
+    );
+    assert.equal(audits.length, 1);
+    const [, audit] = audits[0]!;
+    assert.equal(audit.teamId, "B");
+    assert.equal(audit.tournamentId, "t1");
+    assert.equal(audit.categoryId, "cat-1");
+    assert.equal(audit.removedBy, OWNER);
+    assert.equal(audit.description, "Torceu o tornozelo no 2º rally.");
+  });
+
+  it("desfazer com kocUndoRallyCore devolve a equipe removida à fila", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake);
+    // A=rei(1pt), C=desafia, fila=[D,B]. B (só na fila) se machuca.
+    await play(fake, ["king"]);
+    await kocRemoveTeamCore(db(fake), OWNER, {
+      matchId: "r1",
+      teamId: "B",
+      description: "Torceu o tornozelo no 2º rally.",
+    });
+    assert.deepEqual(state(fake).queue, ["D"]);
+
+    await kocUndoRallyCore(db(fake), OWNER, {matchId: "r1"});
+
+    assert.equal(state(fake).challengerTeamId, "C");
+    assert.deepEqual(state(fake).queue, ["D", "B"]);
+    assert.deepEqual(state(fake).removedTeamIds, []);
+  });
+
+  it("não trava a rodada em koc_seq_mismatch depois de uma remoção (rallies jogados vs. log)", async () => {
+    // Reproduz exatamente o que a mesa (web e app) ANTES desta correção
+    // mandava como expectedSeq: "rallies jogados" (kocState.rallies + 1).
+    // Antes da correção do motor, `team_removed` não incrementava
+    // `state.rallies`, então depois de 1 rally + 1 remoção o servidor
+    // esperava seq 3 (log com 2 entradas) mas o cliente mandava seq 2
+    // (1 rally jogado + 1) — toda rodada travava aqui.
+    const fake = new FakeFirestore();
+    seedRound(fake);
+    await play(fake, ["king"]); // 1 rally jogado, state.rallies = 1
+
+    await kocRemoveTeamCore(db(fake), OWNER, {
+      matchId: "r1",
+      teamId: "D", // só na fila — não toca em rei/desafiante
+      description: "Machucou torcendo o tornozelo na lateral da quadra.",
+    });
+
+    const buggyExpectedSeq = (state(fake).rallies as number) + 1;
+    await kocRegisterRallyCore(db(fake), OWNER, {
+      matchId: "r1",
+      winner: "king",
+      expectedSeq: buggyExpectedSeq,
+    });
+
+    // Não lançou koc_seq_mismatch — a rodada seguiu.
+    assert.equal((state(fake).points as DocData).A, 2);
   });
 });
 

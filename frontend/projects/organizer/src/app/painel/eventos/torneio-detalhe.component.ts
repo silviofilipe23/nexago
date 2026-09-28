@@ -6,10 +6,12 @@ import { listInscriptions, type TournamentInscription } from '../data/inscriptio
 import { listMatches } from '../data/matches-repository';
 import { cancelTournament, closeTournamentRegistrations } from '../data/organizer-ops.service';
 import { isPaidRegistrationsRejection } from '../data/tournament-cancel-escalation';
-import type { OrganizerTournament, OrganizerTournamentStatus } from '../data/tournament.model';
+import type { OrganizerTournament, OrganizerTournamentSponsor, OrganizerTournamentStatus } from '../data/tournament.model';
 import { EMPTY_TOURNAMENT_COLLECTED, formatCentsShort } from '../data/tournament-collected';
-import { getTournament } from '../data/tournaments-repository';
+import { addTournamentSponsor, getTournament, removeTournamentSponsor, validateSponsorLogoFile } from '../data/tournaments-repository';
+import { OgCardComponent } from '../ui/card.component';
 import { OgConfirmDialogComponent } from '../ui/confirm-dialog.component';
+import { OgFormFieldComponent } from '../ui/form-field.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
@@ -69,7 +71,17 @@ interface CategoriaRow {
 @Component({
   selector: 'og-torneio-detalhe',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, OgPageHeaderComponent, OgIconComponent, OgPillComponent, NxSpinnerComponent, OgCompartilharTorneioDialogComponent, OgConfirmDialogComponent],
+  imports: [
+    RouterLink,
+    OgPageHeaderComponent,
+    OgIconComponent,
+    OgPillComponent,
+    NxSpinnerComponent,
+    OgCompartilharTorneioDialogComponent,
+    OgConfirmDialogComponent,
+    OgCardComponent,
+    OgFormFieldComponent,
+  ],
   template: `
     <og-page-header [title]="tournament()?.name ?? 'Torneio'" [subtitle]="headerSubtitle()">
       @if (tournament(); as t) {
@@ -194,8 +206,82 @@ interface CategoriaRow {
             <p class="og-empty">Nenhuma categoria cadastrada ainda</p>
           }
         </div>
+
+        <og-card title="Patrocinadores" kicker="MARKETING">
+          @if (!addingSponsor()) {
+            <button card-action type="button" class="og-ghost-btn" (click)="startAddSponsor()">
+              <og-icon name="plus" [size]="13" />Adicionar patrocinador
+            </button>
+          }
+
+          @if (addingSponsor()) {
+            <div class="og-sponsor-add">
+              <div class="og-sponsor-add-logo">
+                @if (sponsorLogoPreview(); as preview) {
+                  <img [src]="preview" alt="" />
+                } @else {
+                  <span class="og-sponsor-add-logo-empty">Logo</span>
+                }
+              </div>
+              <div class="og-sponsor-add-fields">
+                <og-form-field label="Nome do patrocinador">
+                  <input
+                    class="og-input-el"
+                    type="text"
+                    [value]="sponsorName()"
+                    (input)="onSponsorNameInput($event)"
+                    placeholder="Nome da empresa"
+                  />
+                </og-form-field>
+                <button type="button" class="og-ghost-btn" [disabled]="sponsorSaving()" (click)="sponsorLogoInput.click()">
+                  {{ sponsorLogoFile() ? 'Trocar logo' : 'Escolher logo' }}
+                </button>
+                <input #sponsorLogoInput type="file" accept="image/*" hidden (change)="onSponsorLogoPicked($event)" />
+              </div>
+              @if (sponsorError(); as e) {
+                <p class="og-sponsor-error">{{ e }}</p>
+              }
+              <div class="og-sponsor-add-actions">
+                <button type="button" class="og-ghost-btn" [disabled]="sponsorSaving()" (click)="cancelAddSponsor()">Cancelar</button>
+                <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="!canSaveSponsor()" (click)="submitSponsor()">
+                  @if (sponsorSaving()) {
+                    <app-nx-spinner [size]="12" tone="dark" />
+                  }
+                  {{ sponsorSaving() ? 'Salvando…' : 'Adicionar' }}
+                </button>
+              </div>
+            </div>
+          }
+
+          <div class="og-sponsor-grid">
+            @for (s of sponsors(); track s.id) {
+              <div class="og-sponsor-chip">
+                <img class="og-sponsor-logo" [src]="s.logoUrl" [alt]="s.name" />
+                <span class="og-sponsor-name">{{ s.name }}</span>
+                <button type="button" class="og-mini-btn og-mini-btn-danger" (click)="askRemoveSponsor(s)">Remover</button>
+              </div>
+            } @empty {
+              @if (!addingSponsor()) {
+                <p class="og-empty">Nenhum patrocinador cadastrado ainda.</p>
+              }
+            }
+          </div>
+        </og-card>
       }
     </div>
+
+    @if (sponsorPendingRemoval(); as s) {
+      <og-confirm-dialog
+        title="Remover patrocinador?"
+        [message]="'&quot;' + s.name + '&quot; sai da lista do torneio.'"
+        confirmLabel="Remover"
+        [destructive]="true"
+        [busy]="sponsorRemoving()"
+        [error]="sponsorRemoveError()"
+        (confirmed)="confirmRemoveSponsor(s)"
+        (cancelled)="sponsorPendingRemoval.set(null)"
+      />
+    }
 
     @if (pending(); as action) {
       <og-confirm-dialog
@@ -468,6 +554,86 @@ interface CategoriaRow {
       color: var(--nx-live);
     }
 
+    .og-sponsor-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .og-sponsor-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px 6px 6px;
+      border: 1px solid var(--nx-line);
+      border-radius: var(--nx-r-3);
+      background: var(--nx-surface-1);
+    }
+    .og-sponsor-logo {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--nx-r-2);
+      object-fit: cover;
+      flex: none;
+    }
+    .og-sponsor-name {
+      font-family: var(--nx-font-ui);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--nx-text);
+    }
+    .og-sponsor-add {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 14px;
+      padding-bottom: 16px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid var(--nx-line);
+    }
+    .og-sponsor-add-logo {
+      width: 56px;
+      height: 56px;
+      flex: none;
+      border-radius: var(--nx-r-3);
+      border: 1px solid var(--nx-line);
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background: var(--nx-surface-1);
+    }
+    .og-sponsor-add-logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .og-sponsor-add-logo-empty {
+      font-family: var(--nx-font-ui);
+      font-size: 11px;
+      color: var(--nx-text-dim);
+    }
+    .og-sponsor-add-fields {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      flex: 1;
+      min-width: 200px;
+    }
+    .og-sponsor-error {
+      flex-basis: 100%;
+      font-family: var(--nx-font-ui);
+      font-size: 12.5px;
+      color: var(--nx-live);
+      margin: 0;
+    }
+    .og-sponsor-add-actions {
+      flex-basis: 100%;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
     /* Tablet largo (sidebar ainda aberta): KPIs em 2×2 pra não esmagar rótulos. */
     @media (max-width: 1100px) {
       .og-torneio-kpi {
@@ -544,6 +710,24 @@ export class TorneioDetalheComponent {
   protected readonly categoriesWithMatches = signal<ReadonlySet<string>>(new Set<string>());
   /** Capa falhou ao carregar — o banner some (a página funciona igual sem ele). */
   protected readonly coverFailed = signal(false);
+
+  /** Formulário de "Adicionar patrocinador" — upload só acontece ao confirmar (`submitSponsor`),
+   *  não ao escolher o arquivo, pra cancelar não deixar logo órfão no Storage. */
+  protected readonly addingSponsor = signal(false);
+  protected readonly sponsorName = signal('');
+  protected readonly sponsorLogoFile = signal<File | null>(null);
+  protected readonly sponsorLogoPreview = signal<string | null>(null);
+  protected readonly sponsorSaving = signal(false);
+  protected readonly sponsorError = signal<string | null>(null);
+  /** Patrocinador aguardando confirmação de remoção; `null` = diálogo fechado. */
+  protected readonly sponsorPendingRemoval = signal<OrganizerTournamentSponsor | null>(null);
+  protected readonly sponsorRemoving = signal(false);
+  protected readonly sponsorRemoveError = signal<string | null>(null);
+
+  protected readonly canSaveSponsor = computed(
+    () => !this.sponsorSaving() && this.sponsorName().trim().length > 0 && this.sponsorLogoFile() != null,
+  );
+  protected readonly sponsors = computed(() => this.tournament()?.sponsors ?? []);
 
   /** Capa enviada, senão a arte do esporte; `null` = torneio sem hero. */
   protected readonly cover = computed(() => {
@@ -733,5 +917,77 @@ export class TorneioDetalheComponent {
     if (!start) return 'data a definir';
     if (!end || end.getTime() === start.getTime()) return SHORT_DATE.format(start);
     return `${SHORT_DATE.format(start)} – ${SHORT_DATE.format(end)}`;
+  }
+
+  protected startAddSponsor(): void {
+    this.sponsorName.set('');
+    this.sponsorLogoFile.set(null);
+    this.sponsorLogoPreview.set(null);
+    this.sponsorError.set(null);
+    this.addingSponsor.set(true);
+  }
+
+  protected cancelAddSponsor(): void {
+    if (this.sponsorSaving()) return;
+    this.addingSponsor.set(false);
+  }
+
+  protected onSponsorNameInput(event: Event): void {
+    this.sponsorName.set((event.target as HTMLInputElement).value);
+  }
+
+  protected onSponsorLogoPicked(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    const invalid = validateSponsorLogoFile(file);
+    if (invalid) {
+      this.sponsorError.set(invalid);
+      return;
+    }
+    this.sponsorError.set(null);
+    this.sponsorLogoFile.set(file);
+    this.sponsorLogoPreview.set(URL.createObjectURL(file));
+  }
+
+  protected async submitSponsor(): Promise<void> {
+    const t = this.tournament();
+    const file = this.sponsorLogoFile();
+    const name = this.sponsorName().trim();
+    if (!t || !file || !name || this.sponsorSaving()) return;
+    this.sponsorSaving.set(true);
+    this.sponsorError.set(null);
+    try {
+      const sponsor = await addTournamentSponsor(t.id, name, file);
+      this.tournament.update((cur) => (cur ? { ...cur, sponsors: [...cur.sponsors, sponsor] } : cur));
+      this.addingSponsor.set(false);
+    } catch (e) {
+      this.sponsorError.set((e as Error).message || 'Falha ao adicionar patrocinador.');
+    } finally {
+      this.sponsorSaving.set(false);
+    }
+  }
+
+  protected askRemoveSponsor(sponsor: OrganizerTournamentSponsor): void {
+    if (this.sponsorRemoving()) return;
+    this.sponsorRemoveError.set(null);
+    this.sponsorPendingRemoval.set(sponsor);
+  }
+
+  protected async confirmRemoveSponsor(sponsor: OrganizerTournamentSponsor): Promise<void> {
+    const t = this.tournament();
+    if (!t) return;
+    this.sponsorRemoving.set(true);
+    this.sponsorRemoveError.set(null);
+    try {
+      await removeTournamentSponsor(t.id, sponsor.id);
+      this.tournament.update((cur) => (cur ? { ...cur, sponsors: cur.sponsors.filter((s) => s.id !== sponsor.id) } : cur));
+      this.sponsorPendingRemoval.set(null);
+    } catch (e) {
+      this.sponsorRemoveError.set((e as Error).message || 'Falha ao remover patrocinador.');
+    } finally {
+      this.sponsorRemoving.set(false);
+    }
   }
 }

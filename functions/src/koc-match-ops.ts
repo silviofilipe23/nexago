@@ -15,6 +15,7 @@ import {
   isMatchCompleted,
 } from "./match-status";
 import {syncTournamentLiveMatchesNow} from "./tournament-live-matches";
+import {parseRemovalDescription} from "./organizer-removal-description";
 import {
   KOC_MAX_ROUND_DURATION_SEC,
   KOC_MIN_ROUND_DURATION_SEC,
@@ -97,7 +98,8 @@ export function parseStoredRallies(raw: unknown): KocRally[] {
  *  desafiante: perde a vez, ninguém pontua. `golden_point` aponta uma dupla. */
 function isKocRallyOutcome(value: string): value is KocRallyOutcome {
   return value === "king" || value === "challenger" ||
-    value === "serve_fault" || value === "golden_point";
+    value === "serve_fault" || value === "golden_point" ||
+    value === "team_removed";
 }
 
 /** Serializa o log preservando `atMs` já gravados; opcionalmente carimba um seq novo.
@@ -172,6 +174,7 @@ export function kocStateFields(
       rallies: state.rallies,
       crownOrder: state.crownOrder,
       servingTeamId: state.servingTeamId,
+      removedTeamIds: state.removedTeamIds,
     },
     kocClock: {
       startedAtMs: clock.startedAtMs,
@@ -554,6 +557,91 @@ export async function kocUndoRallyCore(
   return {ok: true, rallies: rallies.length};
 }
 
+/**
+ * Remove uma dupla machucada da rodada, a qualquer momento — mesmo com ela no
+ * trono ou desafiando. Vira um evento NO LOG (`team_removed`), não um ajuste
+ * avulso: como toda mutação do KOTC é reproduzida do log
+ * (`docstring` no topo do arquivo), um patch fora dele seria apagado no
+ * próximo rally ou undo.
+ *
+ * Exige a rodada já iniciada (`kocClock`): sem isso, `kocStartRoundCore`
+ * depois se recusaria com `koc_round_already_started` (o log já teria uma
+ * entrada), `restart: true` apagaria a remoção calada deixando o doc de
+ * auditoria órfão, e o desfazer (que também exige relógio) não teria como
+ * reverter. A mesa web só mostra os botões de remoção depois do apito, então
+ * essa trava não fecha nenhum caminho hoje usado — só o acesso direto à
+ * callable.
+ */
+export async function kocRemoveTeamCore(
+  db: Firestore,
+  uid: string,
+  input: Record<string, unknown>,
+): Promise<{ok: true; kingTeamId: string; challengerTeamId: string}> {
+  const round = await loadRoundOrThrow(db, uid, asString(input.matchId));
+  requireInProgress(round);
+  requireClock(round);
+
+  const teamId = asString(input.teamId);
+  if (!teamId || !round.teamIds.includes(teamId)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "teamId precisa ser uma dupla do elenco desta rodada.",
+    );
+  }
+
+  const description = parseRemovalDescription(input.description);
+  if (!description.ok) {
+    throw new HttpsError("invalid-argument", description.message);
+  }
+
+  const nextSeq = round.rallies.length + 1;
+  const rallies: KocRally[] = [
+    ...round.rallies,
+    {seq: nextSeq, winner: "team_removed", teamId},
+  ];
+  let state: KocState;
+  try {
+    state = kocReplay(round.teamIds, rallies);
+  } catch (e) {
+    engineErrorToHttps(e);
+  }
+
+  await round.ref.update({
+    kocState: {
+      kingTeamId: state.kingTeamId,
+      challengerTeamId: state.challengerTeamId,
+      queue: state.queue,
+      points: state.points,
+      crowns: state.crowns,
+      rallies: state.rallies,
+      crownOrder: state.crownOrder,
+      servingTeamId: state.servingTeamId,
+      removedTeamIds: state.removedTeamIds,
+    },
+    kocRallies: serializeKocRallies(rallies, round.data.kocRallies, nextSeq),
+    kocRallySeq: rallies.length,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  // Coleção nova, não `tournamentRegistrationCancellations`: ali a inscrição é
+  // DELETADA. Aqui a equipe continua inscrita, só sai da rotação da rodada.
+  await db.collection("tournamentKocTeamRemovals").doc().set({
+    tournamentId: asString(round.data.tournamentId),
+    categoryId: asString(round.data.categoryId),
+    matchId: round.ref.id,
+    teamId,
+    description: description.value,
+    removedBy: uid,
+    removedAt: FieldValue.serverTimestamp(),
+  });
+
+  return {
+    ok: true,
+    kingTeamId: state.kingTeamId,
+    challengerTeamId: state.challengerTeamId,
+  };
+}
+
 // ─── Relógio ────────────────────────────────────────────────────────────────
 
 export async function kocSetClockCore(
@@ -666,13 +754,18 @@ export async function kocFinishRoundCore(
     );
   }
 
-  const winnerId = standings[0]?.teamId ?? "";
+  // Uma equipe removida (lesão) nunca pode virar campeã: ela parou de
+  // competir, mesmo com pontos/coroas congelados no topo da tabela. O guard
+  // de mínimo de 2 duplas ativas do motor torna "ninguém ativo" impraticável,
+  // mas o `?? ""` fica como defesa mesmo assim.
+  const winnerId = standings.find((s) => !s.removed)?.teamId ?? "";
   await round.ref.update({
     kocStandings: standings.map((s) => ({
       teamId: s.teamId,
       place: s.place,
       points: s.points,
       crowns: s.crowns,
+      ...(s.removed ? {removed: true} : {}),
     })),
     // `winnerId` é o 1º da TABELA, não o vencedor de um duelo. A blindagem da
     // fase 0 é o que impede isso de virar avanço de chave ou rating.
@@ -747,6 +840,16 @@ export const kocFinishRound = onCall(
   {region: CLIENT_FACING_REGIONS},
   async (request) =>
     kocFinishRoundCore(
+      getFirestore(),
+      requireUid(request.auth?.uid),
+      request.data ?? {},
+    ),
+);
+
+export const kocRemoveTeam = onCall(
+  {region: CLIENT_FACING_REGIONS},
+  async (request) =>
+    kocRemoveTeamCore(
       getFirestore(),
       requireUid(request.auth?.uid),
       request.data ?? {},

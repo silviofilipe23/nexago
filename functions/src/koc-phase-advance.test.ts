@@ -305,3 +305,31 @@ describe("parsers", () => {
     );
   });
 });
+
+describe("resolveKocRoster · equipe removida", () => {
+  it("promove a próxima ativa quando a colocação pedida pertence a uma equipe removida", () => {
+    const tables = new Map<number, KocStandingDoc[]>([
+      [1, [
+        {teamId: "a1", place: 1},
+        {teamId: "a2", place: 2, removed: true},
+        {teamId: "a3", place: 3},
+        {teamId: "a4", place: 4},
+      ]],
+    ]);
+    // Pede o 2º lugar da chave 1 — mas quem ficou em 2º está removida.
+    const {teamIds, missing} = resolveKocRoster([slot(1, 2)], tables);
+    assert.deepEqual(teamIds, ["a3"]);
+    assert.equal(missing.length, 0);
+  });
+
+  it("equipe removida nunca aparece como classificada, mesmo pedindo o 1º lugar", () => {
+    const tables = new Map<number, KocStandingDoc[]>([
+      [1, [
+        {teamId: "a1", place: 1, removed: true},
+        {teamId: "a2", place: 2},
+      ]],
+    ]);
+    const {teamIds} = resolveKocRoster([slot(1, 1)], tables);
+    assert.deepEqual(teamIds, ["a2"]);
+  });
+});

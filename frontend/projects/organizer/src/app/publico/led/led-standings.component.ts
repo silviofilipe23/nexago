@@ -108,6 +108,14 @@ const LINHA_INTERVALO_MS = 200;
       gap: 16px;
       min-height: 0;
     }
+    /* TV 4:3 (1024×768): o palco lógico ganha altura (1920×1440) e as linhas de altura
+       natural deixavam meia tela vazia embaixo. Aí elas dividem a altura; em 16:9 nada muda. */
+    @media (max-aspect-ratio: 3/2) {
+      .linhas {
+        grid-auto-rows: minmax(0, 1fr);
+        align-content: stretch;
+      }
+    }
 
     .linha {
       display: grid;

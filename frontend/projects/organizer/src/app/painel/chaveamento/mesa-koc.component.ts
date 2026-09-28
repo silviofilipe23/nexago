@@ -534,12 +534,43 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
             }
           </section>
 
+          <!-- Alternativa A (celular): o card inteiro é o botão — o trono toca pra pontuar, o
+               desafiante toca pra assumir. No tablet e no desktop seguem os botões de rally. -->
+          <div class="og-mk-tap">
+            <button
+              type="button"
+              class="og-mk-tap-btn og-mk-tap-btn--trono"
+              [class.og-mk-pending]="pending() === 'king'"
+              [disabled]="busy() || paused()"
+              [attr.aria-label]="'Ponto do trono: ' + faceOf(kingId()).name + ' +1'"
+              (click)="rally('king')"
+            >
+              <span class="og-mk-tap-papel">No trono</span>
+              <span class="og-mk-tap-nome">{{ faceOf(kingId()).name }}</span>
+              <span class="og-mk-tap-dica">{{ pending() === 'king' ? 'Registrando…' : 'Toque = ponto do trono' }}</span>
+              <span class="og-mk-tap-pts">{{ pointsOf(kingId()) }}</span>
+            </button>
+            <button
+              type="button"
+              class="og-mk-tap-btn og-mk-tap-btn--desafia"
+              [class.og-mk-pending]="pending() === 'challenger'"
+              [disabled]="busy() || paused()"
+              [attr.aria-label]="'Desafiante venceu: ' + faceOf(challengerId()).name + ' assume o trono'"
+              (click)="rally('challenger')"
+            >
+              <span class="og-mk-tap-papel">Desafiante · saca</span>
+              <span class="og-mk-tap-nome">{{ faceOf(challengerId()).name }}</span>
+              <span class="og-mk-tap-dica">{{ pending() === 'challenger' ? 'Registrando…' : 'Toque = venceu, assume o trono' }}</span>
+              <span class="og-mk-tap-pts">{{ pointsOf(challengerId()) }}</span>
+            </button>
+          </div>
+
           <div class="og-mk-live-controls">
             <!-- Modo quadra: o log é gaveta e o botão dele saiu da fila pra caber a altura,
                  então a correção mora AQUI, colada nos botões de ponto — um toque, sem abrir
                  nada. No desktop o log com "Desfazer último" já está na coluna ao lado. -->
             @if (lastLogRow(); as last) {
-              <div class="og-mk-undo-strip" role="status" aria-live="polite">
+              <div class="og-mk-undo-strip" [class.og-mk-undo-strip--quente]="quente()" role="status" aria-live="polite">
                 <span class="og-mk-undo-text">
                   <span class="og-mk-undo-kicker">Último lance · {{ last.time }}</span>
                   <span class="og-mk-undo-line"><strong>{{ last.name }}</strong> {{ last.action }}</span>
@@ -587,7 +618,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
               type="button"
               class="og-mk-fault"
               [class.og-mk-pending]="pending() === 'serve_fault'"
-              [disabled]="busy()"
+              [disabled]="busy() || paused()"
               (click)="rally('serve_fault')"
             >
               @if (pending() === 'serve_fault') {
@@ -625,10 +656,21 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
               }
             </div>
             <div class="og-mk-live-clock-actions">
-              <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="togglePause()">
-                {{ paused() ? 'Retomar' : 'Pausar' }}
+              <button
+                type="button"
+                class="og-ghost-btn og-mk-pause"
+                [attr.aria-label]="paused() ? 'Retomar' : 'Pausar'"
+                [disabled]="busy()"
+                (click)="togglePause()"
+              >
+                <og-icon [name]="paused() ? 'play' : 'pause'" [size]="22" />
+                <span class="og-mk-pause-lbl">{{ paused() ? 'Retomar' : 'Pausar' }}</span>
               </button>
-              <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="nudge(60)">+1 min</button>
+              <button type="button" class="og-ghost-btn og-mk-nudge" [disabled]="busy()" (click)="nudge(60)">+1 min</button>
+              <!-- Celular: +1 min, lesão, log e encerrar moram no menu. -->
+              <button type="button" class="og-ghost-btn og-mk-more" aria-label="Mais ações da mesa" (click)="menuOpen.set(true)">
+                <og-icon name="more" [size]="22" />
+              </button>
             </div>
           </section>
 
@@ -687,6 +729,32 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
             </div>
           }
         </aside>
+
+        @if (menuOpen()) {
+          <button type="button" class="og-mk-menu-scrim" aria-label="Fechar menu" (click)="menuOpen.set(false)"></button>
+          <div class="og-mk-menu" role="dialog" aria-modal="true" aria-label="Ações da mesa">
+            <button type="button" class="og-mk-menu-btn" [disabled]="busy()" (click)="nudge(60); menuOpen.set(false)">+1 minuto no relógio</button>
+            <button type="button" class="og-mk-menu-btn" (click)="menuOpen.set(false); logOpen.set(true)">Log da rodada · {{ logRows().length }}</button>
+            <span class="og-mk-menu-titulo">Remover por lesão</span>
+            @for (teamId of emQuadra(); track teamId) {
+              <button type="button" class="og-mk-menu-btn" [disabled]="busy()" (click)="menuOpen.set(false); askRemoveTeam(teamId)">
+                Lesão · {{ faceOf(teamId).name }}
+              </button>
+            }
+            <span class="og-mk-menu-titulo">Rodada</span>
+            @if (tie()) {
+              <button type="button" class="og-mk-menu-btn" disabled>{{ finishBlockedLabel() }}</button>
+              <button type="button" class="og-mk-menu-btn og-mk-menu-btn--risco" [disabled]="busy()" (click)="menuOpen.set(false); finishByCriterion()">
+                Encerrar pelo critério automático
+              </button>
+            } @else {
+              <button type="button" class="og-mk-menu-btn og-mk-menu-btn--risco" [disabled]="busy()" (click)="menuOpen.set(false); finish()">
+                Encerrar rodada
+              </button>
+            }
+            <button type="button" class="og-mk-menu-btn og-mk-menu-fechar" (click)="menuOpen.set(false)">Fechar</button>
+          </div>
+        }
       </div>
     }
 
@@ -1283,8 +1351,61 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
     .og-mk-section-count,
     .og-mk-order-empty,
     .og-mk-undo-strip,
-    .og-mk-rm-short {
+    .og-mk-rm-short,
+    .og-mk-tap,
+    .og-mk-more,
+    .og-mk-pause og-icon {
       display: none;
+    }
+    /* Menu ⋯ (só o celular abre): folha que sobe de baixo, botões de 60px. */
+    .og-mk-menu-scrim {
+      position: fixed;
+      inset: 0;
+      z-index: 45;
+      border: 0;
+      background: rgba(0, 0, 0, 0.55);
+    }
+    .og-mk-menu {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 46;
+      display: grid;
+      gap: 8px;
+      max-height: 85dvh;
+      overflow-y: auto;
+      padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+      border-radius: 20px 20px 0 0;
+      background: var(--nx-surface-1);
+    }
+    .og-mk-menu-btn {
+      min-height: 60px;
+      padding: 0 18px;
+      border-radius: 14px;
+      border: 1px solid var(--nx-line-strong);
+      background: var(--nx-surface-2);
+      color: var(--nx-text);
+      font: 600 16px var(--nx-font-display);
+      text-align: left;
+    }
+    .og-mk-menu-btn:disabled {
+      opacity: 0.45;
+    }
+    .og-mk-menu-btn--risco {
+      color: var(--nx-live);
+      border-color: rgba(255, 59, 48, 0.45);
+    }
+    .og-mk-menu-fechar {
+      text-align: center;
+      background: none;
+    }
+    .og-mk-menu-titulo {
+      margin-top: 8px;
+      font: 700 11px var(--nx-font-mono);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
     }
     /* O botão tocado segue aceso enquanto os outros apagam: é ele que está em voo. */
     .og-mk-pending:disabled {
@@ -2743,41 +2864,196 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         gap: 8px;
         padding-inline: 8px;
       }
+
+      /* ── Alternativa A (rodada ao vivo no celular), de cima pra baixo: cabeçalho de uma
+         linha, último lance, trono e desafiante como botões (53/47), erro de saque e a fila
+         em etiquetas. Encerrar, +1 min, lesão e o log moram no menu ⋯. */
+      .og-mk-live:not(:has(.og-mk-tie)) {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas: 'clock' 'last' 'tap' 'fault' 'queue';
+        grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+      }
+      .og-mk-live:has(.og-mk-tie) {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas: 'clock' 'queue' 'last';
+        grid-template-rows: auto minmax(0, 1fr) auto;
+      }
+      .og-mk-live .og-mk-open,
+      .og-mk-live .og-mk-live-actions,
+      .og-mk-live .og-mk-live-footer,
+      .og-mk-live:not(:has(.og-mk-tie)) .og-mk-order > .og-mk-section-head,
+      .og-mk-undo-log,
+      .og-mk-nudge,
+      .og-mk-pause-lbl,
+      .og-mk-live-clock .og-mk-panel-title,
+      .og-mk-live .og-mk-order-avatars,
+      .og-mk-live .og-mk-order-sub,
+      .og-mk-live .og-mk-order-pts,
+      .og-mk-live .og-mk-remove-btn-sm {
+        display: none;
+      }
+      .og-mk-live .og-mk-live-controls {
+        display: contents;
+      }
+
       .og-mk-live-clock {
-        grid-template-columns: auto minmax(0, 1fr);
-        grid-template-areas:
-          'back read'
-          'acts acts';
-        gap: 6px 8px;
-        padding: 6px 8px;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-areas: 'back read acts';
+        gap: 8px;
+        padding: 6px;
       }
       .og-mk-quadra-back {
         grid-area: back;
+        width: 56px;
+        height: 56px;
       }
       .og-mk-clock-read {
         grid-area: read;
       }
+      .og-mk-live-time {
+        font-size: 34px;
+      }
       .og-mk-live-clock-actions {
         grid-area: acts;
-        width: 100%;
-        grid-template-columns: 1fr 1fr;
-      }
-      .og-mk-live-time {
-        font-size: 26px;
+        display: flex;
+        gap: 8px;
       }
       .og-mk-live-clock-actions .og-ghost-btn {
-        padding-inline: 9px;
-        font-size: 11px;
+        width: 56px;
+        height: 56px;
+        min-height: 56px;
+        padding: 0;
+        justify-content: center;
       }
-      .og-mk-end {
-        padding-inline: 10px;
-        font-size: 12px;
+      .og-mk-pause og-icon,
+      .og-mk-more {
+        display: inline-flex;
       }
 
-      /* O confronto compacto (bloco do modo quadra) já vale aqui; só o ponto do trono encolhe. */
-      .og-mk-live .og-mk-side.throne .og-mk-side-dot {
-        width: 5px;
-        height: 5px;
+      /* Último lance: laranja por 5 s depois de cada toque. */
+      .og-mk-undo-strip {
+        grid-area: last;
+        min-height: 68px;
+        margin: 0;
+      }
+      .og-mk-undo-btn {
+        min-height: 52px;
+      }
+      .og-mk-undo-strip--quente {
+        border-color: transparent;
+        background: var(--nx-orange-500);
+        color: #0a0a0a;
+      }
+      .og-mk-undo-strip--quente .og-mk-undo-kicker {
+        color: inherit;
+      }
+
+      .og-mk-tap {
+        grid-area: tap;
+        display: grid;
+        grid-template-rows: 53fr 47fr;
+        gap: 8px;
+        min-height: 0;
+      }
+      .og-mk-live:has(.og-mk-tie) .og-mk-tap {
+        display: none;
+      }
+      .og-mk-tap-btn {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas: 'papel pts' 'nome pts' 'dica pts';
+        align-content: center;
+        column-gap: 12px;
+        min-height: 0;
+        padding: 12px 18px;
+        border-radius: 18px;
+        text-align: left;
+        cursor: pointer;
+      }
+      .og-mk-tap-btn--trono {
+        border: 0;
+        background: var(--nx-orange-500);
+        color: #0a0a0a;
+      }
+      .og-mk-tap-btn--desafia {
+        border: 2px solid var(--nx-line-strong);
+        background: var(--nx-surface-1);
+        color: var(--nx-text);
+      }
+      /* Pausada: apagados e sem resposta (o disabled vem da pausa). */
+      .og-mk-tap-btn:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      .og-mk-tap-papel {
+        grid-area: papel;
+        font: 800 12px var(--nx-font-mono);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .og-mk-tap-nome {
+        grid-area: nome;
+        margin: 4px 0;
+        font: 800 26px/1.15 var(--nx-font-display);
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .og-mk-tap-dica {
+        grid-area: dica;
+        font-size: 12px;
+        opacity: 0.7;
+      }
+      .og-mk-tap-pts {
+        grid-area: pts;
+        align-self: center;
+        font: 800 84px/0.9 var(--nx-font-display);
+        font-variant-numeric: tabular-nums;
+      }
+      .og-mk-tap-btn--desafia .og-mk-tap-pts {
+        color: var(--nx-text-dim);
+      }
+
+      .og-mk-live .og-mk-fault {
+        grid-area: fault;
+        min-height: 64px;
+        font-size: 13px;
+      }
+
+      /* Fila em etiquetas que rolam pro lado; a borda direita some aos poucos. */
+      .og-mk-live:not(:has(.og-mk-tie)) .og-mk-order {
+        padding: 0;
+        border: 0;
+        background: none;
+        overflow: visible;
+      }
+      .og-mk-live:not(:has(.og-mk-tie)) .og-mk-order-list {
+        display: flex;
+        flex-direction: row;
+        gap: 8px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        -webkit-mask-image: linear-gradient(90deg, #000 82%, transparent);
+        mask-image: linear-gradient(90deg, #000 82%, transparent);
+      }
+      .og-mk-live .og-mk-order-row {
+        display: flex;
+        flex: none;
+        align-items: center;
+        gap: 6px;
+        min-height: 44px;
+        padding: 0 14px;
+        border-radius: 999px;
+      }
+
+      /* Aviso de erro vira toast acima da fila, sem roubar faixa da grade. */
+      .og-mk-live .og-mk-feedback {
+        position: fixed;
+        left: 12px;
+        right: 12px;
+        bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+        z-index: 44;
       }
 
       /* Confronto de abertura (prep): cards cabem na 1ª tela ao lado da fila. */
@@ -2831,11 +3107,6 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
 
       /* Sem o papel, a linha da fila fica: nº · avatares · dupla · pts. As colunas
          precisam ser redeclaradas — esconder um filho desloca as trilhas de grid. */
-      /* 5 itens desde o botão de lesão: com 4 trilhas ele quebrava pra uma 2ª linha e
-         cada dupla da fila ocupava ~100px. */
-      .og-mk-live .og-mk-order-row {
-        grid-template-columns: 22px auto minmax(0, 1fr) auto auto;
-      }
       .og-mk-prep .og-mk-order-row {
         grid-template-columns: 24px auto minmax(0, 1fr) auto;
       }
@@ -2843,18 +3114,6 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         display: none;
       }
 
-      .og-mk-rally-king,
-      .og-mk-rally-crown {
-        font-size: 13.5px;
-        letter-spacing: -0.01em;
-      }
-      .og-mk-fault {
-        font-size: 11.5px;
-      }
-
-      .og-mk-open .og-mk-section-rule {
-        display: none;
-      }
       .og-mk-tie-roles {
         flex-direction: column;
         gap: 6px;
@@ -2958,6 +3217,11 @@ export class MesaKocComponent {
   /** Gaveta do log — so existe no modo quadra (tablet/celular); no desktop o log e
    *  um painel fixo da coluna lateral e este sinal nao tem efeito nenhum. */
   protected readonly logOpen = signal(false);
+  /** Menu ⋯ do celular (Alternativa A): +1 min, lesão, log e encerrar. */
+  protected readonly menuOpen = signal(false);
+  /** Até quando a faixa do último lance fica laranja depois de um toque (epoch ms). */
+  private readonly quenteAte = signal(0);
+  protected readonly quente = computed(() => this.nowMs() < this.quenteAte());
   /** Botão cujo toque está em voo — só ele troca o rótulo por "Registrando…". */
   protected readonly pending = signal<KocRallyOutcome | 'undo' | null>(null);
   protected readonly removeTeamTarget = signal<{ teamId: string; name: string } | null>(null);
@@ -3058,6 +3322,11 @@ export class MesaKocComponent {
   });
 
   /** Só quem está na fila — trono e desafiante já estão no confronto. */
+  /** Todas as duplas ativas da rodada, trono primeiro — as opções de "Lesão" do menu ⋯. */
+  protected readonly emQuadra = computed(() =>
+    [this.kingId(), this.challengerId(), ...this.upcomingQueueRows().map((r) => r.teamId)].filter((id) => !!id),
+  );
+
   protected readonly upcomingQueueRows = computed(() => {
     const r = this.round();
     if (!r) return [];
@@ -3127,7 +3396,8 @@ export class MesaKocComponent {
   }
 
   protected onDocEscape(): void {
-    if (this.confirmStartOpen()) this.cancelStart();
+    if (this.menuOpen()) this.menuOpen.set(false);
+    else if (this.confirmStartOpen()) this.cancelStart();
     else if (this.logOpen()) this.logOpen.set(false);
   }
 
@@ -3403,6 +3673,9 @@ export class MesaKocComponent {
    *  qual toque pegou e o mesário tocava de novo. Vibração curta onde existe (Android). */
   private markPending(key: KocRallyOutcome | 'undo'): void {
     this.pending.set(key);
+    const now = Date.now();
+    this.nowMs.set(now);
+    this.quenteAte.set(now + 5000);
     navigator.vibrate?.(12);
   }
 

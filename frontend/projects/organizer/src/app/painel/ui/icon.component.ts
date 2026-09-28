@@ -37,7 +37,9 @@ export type OgIconName =
   | 'menu'
   | 'grip'
   | 'pin'
-  | 'more';
+  | 'more'
+  | 'pause'
+  | 'play';
 
 /** Ícones de contorno do design system NexaGO — mesmo traçado do protótipo (stroke 24, 1.8–2.2px). */
 @Component({
@@ -157,6 +159,12 @@ export type OgIconName =
         }
         @case ('pin') {
           <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z" /><circle cx="12" cy="10" r="3" />
+        }
+        @case ('pause') {
+          <path d="M8 5v14M16 5v14" />
+        }
+        @case ('play') {
+          <path d="M7 4.5v15l12-7.5z" />
         }
         @case ('more') {
           <circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none" />

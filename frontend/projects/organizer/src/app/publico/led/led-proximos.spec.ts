@@ -101,17 +101,25 @@ describe('ledProximosOf', () => {
             { seq: 1, winner: 'challenger', teamId: '', atMs: NOW },
             { seq: 2, winner: 'king', teamId: '', atMs: NOW },
             { seq: 3, winner: 'king', teamId: '', atMs: NOW },
+            { seq: 4, winner: 'king', teamId: '', atMs: NOW },
           ],
         }),
       }),
     )!;
     expect(px.inicio).toBeFalse();
-    expect(px.trono).toEqual(jasmine.objectContaining({ teamId: 'c', numero: 5, rotulo: 'No trono · 2 seguidas' }));
+    expect(px.trono).toEqual(jasmine.objectContaining({ teamId: 'c', numero: 5, rotulo: 'No trono · Em chamas' }));
     expect(px.fila.map((r) => [r.teamId, r.posicao, r.rotulo])).toEqual([
       ['d', 2, 'Desafiante · Em quadra'],
       ['a', 3, 'Próxima a desafiar'],
       ['b', 4, 'Aguardando'],
     ]);
+  });
+
+  it('abaixo de 3 defesas seguidas o trono não leva tag', () => {
+    const px = ledProximosOf(
+      match({ koc: round({ rallyLog: [{ seq: 1, winner: 'king', teamId: '', atMs: NOW }, { seq: 2, winner: 'king', teamId: '', atMs: NOW }] }) }),
+    )!;
+    expect(px.trono.rotulo).toBe('No trono');
   });
 
   it('rei que acabou de coroar não tem sequência', () => {

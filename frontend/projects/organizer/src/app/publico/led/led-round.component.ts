@@ -3,9 +3,12 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   ElementRef,
   inject,
   input,
+  signal,
+  untracked,
 } from '@angular/core';
 import { OgAvatarComponent } from '../../painel/ui/avatar.component';
 import { OverlayMarkComponent } from '../overlay/overlay-mark.component';
@@ -14,6 +17,8 @@ import type { OverlayKocBlock } from '../overlay/overlay-koc-bar';
 import type { OverlayKocView } from '../overlay/overlay-selectors';
 import { ledIniciaisDe } from './led-iniciais';
 import { ledNomeCurto } from './led-proximos';
+import { ledSequenciaTier } from './led-sequencia';
+import { LedFitTextDirective } from './led-fit-text.directive';
 
 export interface LedPlayer {
   name: string;
@@ -48,8 +53,6 @@ export interface LedRoundInfo {
 }
 
 /** Piso da tag de sequência e do anel pulsante, na especificação do dono. */
-const STREAK_TAG = 2;
-const STREAK_RING = 3;
 
 const EASE_OUT = 'cubic-bezier(.22, 1, .36, 1)';
 const EASE_ELASTIC = 'cubic-bezier(.34, 1.56, .64, 1)';
@@ -67,10 +70,15 @@ const FILA_R_MS = 480;
 @Component({
   selector: 'og-led-round',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgAvatarComponent, OverlayMarkComponent],
+  imports: [OgAvatarComponent, OverlayMarkComponent, LedFitTextDirective],
   template: `
     @if (view(); as v) {
       <div class="tela">
+        @for (k of [flashes()]; track k) {
+          @if (k > 0) {
+            <div class="flash" aria-hidden="true"></div>
+          }
+        }
         <header class="topo">
           <div class="topo-textos">
             <h1 class="rodada">
@@ -92,14 +100,28 @@ const FILA_R_MS = 480;
 
         <div class="blocos">
           @if (trono(); as t) {
-            <section
-              class="bloco bloco--trono"
-              [class.bloco--pulsando]="pulsando()"
-            >
+            <section class="bloco bloco--trono" [attr.data-nivel]="tier()?.nivel ?? 0">
+              <!-- Onda laranja a cada SUBIDA de nível (remonta pelo contador). -->
+              @for (k of [subidas()]; track k) {
+                @if (k > 0) {
+                  <span class="onda" aria-hidden="true"></span>
+                }
+              }
               <div class="bloco-topo">
                 <span class="papel">Trono</span>
-                @if (mostraSeguidas()) {
-                  <span class="seguidas">{{ v.bar.streak }} seguidas</span>
+                @if (tier(); as tg) {
+                  <!-- Remonta a cada nível: o badge entra com impacto e as barrinhas acendem uma a uma. -->
+                  @for (k of [tg.nivel]; track k) {
+                    <span class="tag" [attr.data-nivel]="tg.nivel">
+                      <span class="tag-nome">{{ tg.nome }}</span>
+                      <span class="tag-barras" aria-hidden="true">
+                        @for (i of barras; track i) {
+                          <i [class.on]="i < tg.nivel" [style.--i]="i"></i>
+                        }
+                      </span>
+                      <span class="tag-conta">×{{ tg.count }}</span>
+                    </span>
+                  }
                 }
               </div>
               <div class="nomes">
@@ -154,7 +176,7 @@ const FILA_R_MS = 480;
                 </span> -->
                 <span class="fila-nome" [attr.title]="nomesDe(f.teamId).join(' · ')">
                   @for (p of atletasDe(f.teamId); track $index) {
-                    <span>{{ curto(p.name) }}</span>
+                    <span [ledFitText]="curto(p.name)">{{ curto(p.name) }}</span>
                   }
                 </span>
                 <span class="fila-pontos">{{ f.points }}</span>
@@ -259,12 +281,17 @@ const FILA_R_MS = 480;
       min-height: 0;
     }
 
+    /* O bloco é contêiner de TAMANHO: nomes e pontos se medem pela altura dele (cqh), com os
+       px de antes como teto. Com tamanho fixo o conteúdo passava de 861px e o bloco invadia a
+       fila — os pontos sumiam atrás dos cards. Agora quem cede é a letra, não a fila. */
     .bloco {
+      container-type: size;
       display: grid;
-      grid-template-rows: auto 1fr auto;
+      grid-template-rows: auto minmax(0, 1fr) auto;
       padding: 28px 32px 30px;
       border-radius: 22px;
       min-width: 0;
+      min-height: 0;
       animation: led-sobe 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
     }
     @keyframes led-sobe {
@@ -287,19 +314,60 @@ const FILA_R_MS = 480;
       color: #fff;
       animation-delay: 370ms;
     }
-    /* 3+ defesas seguidas: anel pulsando, visível do fundo do ginásio. */
-    .bloco--pulsando {
+    /* Halo do trono: cresce a cada nível de sequência, visível do fundo do ginásio. */
+    .bloco--trono {
+      position: relative;
+    }
+    .bloco--trono[data-nivel='1'] { --halo: 10px; }
+    .bloco--trono[data-nivel='2'] { --halo: 16px; }
+    .bloco--trono[data-nivel='3'] { --halo: 22px; }
+    .bloco--trono[data-nivel='4'] { --halo: 30px; }
+    .bloco--trono[data-nivel='5'] { --halo: 40px; }
+    .bloco--trono:not([data-nivel='0']) {
       animation:
         led-sobe 480ms cubic-bezier(0.22, 1, 0.36, 1) 250ms both,
-        led-anel 1.4s ease-in-out 1s infinite;
+        led-halo 1.4s ease-in-out 1s infinite;
     }
-    @keyframes led-anel {
+    @keyframes led-halo {
       0%,
       100% {
-        box-shadow: 0 0 0 0 rgba(255, 106, 26, 0);
+        box-shadow: 0 0 calc(var(--halo) * 0.6) calc(var(--halo) * 0.2) rgba(255, 106, 26, 0.35);
       }
       50% {
-        box-shadow: 0 0 0 14px rgba(255, 106, 26, 0.45);
+        box-shadow: 0 0 calc(var(--halo) * 1.6) var(--halo) rgba(255, 106, 26, 0.55);
+      }
+    }
+    /* Subiu de nível: onda laranja sai do bloco. */
+    .onda {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      animation: led-onda 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    @keyframes led-onda {
+      from {
+        box-shadow: 0 0 0 0 rgba(255, 106, 26, 0.85);
+      }
+      to {
+        box-shadow: 0 0 0 90px rgba(255, 106, 26, 0);
+      }
+    }
+    /* Níveis 4 e 5: a tela inteira dá um flash. */
+    .flash {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      pointer-events: none;
+      background: radial-gradient(circle at 30% 45%, rgba(255, 170, 110, 0.85), rgba(255, 106, 26, 0.35) 60%, transparent);
+      animation: led-flash 0.7s ease-out both;
+    }
+    @keyframes led-flash {
+      from {
+        opacity: 1;
+      }
+      to {
+        opacity: 0;
       }
     }
 
@@ -316,23 +384,95 @@ const FILA_R_MS = 480;
       text-transform: uppercase;
       opacity: 0.72;
     }
-    .seguidas {
-      padding: 7px 16px;
+    /* ── Tag de sequência ── preto com texto laranja; IMPARÁVEL com texto branco; MODO DEUS e
+       LENDA DA AREIA com o badge branco (e a lenda com um brilho laranja passando em loop). */
+    .tag {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 20px;
       border-radius: 999px;
-      background: rgba(0, 0, 0, 0.28);
-      font-size: 22px;
+      overflow: hidden;
+      background: #000;
+      color: var(--nx-orange-500, #ff6a1a);
+      font-size: 30px;
       font-weight: 800;
       letter-spacing: 0.08em;
       text-transform: uppercase;
+      white-space: nowrap;
+      animation: led-impacto 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
     }
-    .bloco--desafiante .seguidas {
-      background: rgba(255, 255, 255, 0.16);
+    @keyframes led-impacto {
+      0% {
+        opacity: 0;
+        transform: scale(1.7);
+      }
+      60% {
+        opacity: 1;
+        transform: scale(0.92);
+      }
+      100% {
+        transform: scale(1);
+      }
+    }
+    .tag[data-nivel='3'] {
+      color: #fff;
+    }
+    .tag[data-nivel='4'],
+    .tag[data-nivel='5'] {
+      background: #fff;
+      color: #000;
+    }
+    .tag[data-nivel='5']::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(100deg, transparent 30%, rgba(255, 106, 26, 0.55) 50%, transparent 70%);
+      transform: translateX(-120%);
+      animation: led-lenda 1.8s ease-in-out 0.6s infinite;
+    }
+    @keyframes led-lenda {
+      to {
+        transform: translateX(120%);
+      }
+    }
+    .tag-barras {
+      display: inline-flex;
+      gap: 5px;
+    }
+    .tag-barras i {
+      width: 8px;
+      height: 24px;
+      border-radius: 2px;
+      background: currentColor;
+      opacity: 0.22;
+    }
+    .tag[data-nivel='4'] .tag-barras i,
+    .tag[data-nivel='5'] .tag-barras i {
+      background: var(--nx-orange-500, #ff6a1a);
+    }
+    /* As barrinhas acendem uma a uma depois do impacto. */
+    .tag-barras i.on {
+      animation: led-barra 0.25s ease-out both;
+      animation-delay: calc(300ms + var(--i, 0) * 90ms);
+    }
+    @keyframes led-barra {
+      from {
+        opacity: 0.22;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    .tag-conta {
+      font-variant-numeric: tabular-nums;
     }
 
     .nomes {
       display: grid;
       align-content: center;
-      font-size: 200px;
+      font-size: min(200px, 21cqh);
       font-weight: 800;
       line-height: 1.02;
       min-width: 0;
@@ -370,7 +510,7 @@ const FILA_R_MS = 480;
     }
     .pontos {
       display: inline-block;
-      font-size: 400px;
+      font-size: min(400px, 40cqh);
       font-weight: 800;
       line-height: 0.85;
       font-variant-numeric: tabular-nums;
@@ -398,11 +538,11 @@ const FILA_R_MS = 480;
       gap: 18px;
       flex: 1;
       min-width: 0;
-      /* Fila lida do fundo do ginásio: card alto e letra grande. Os blocos de cima estão em
-         flex: 1 e cedem sozinhos a altura que a fila ganhou. */
-      min-height: 150px;
+      /* Card compacto pra fila não passar da margem de baixo nem encostar na assinatura; os
+         blocos de cima (flex: 1) cedem a altura. */
+      min-height: 128px;
       box-sizing: border-box;
-      padding: 22px 28px;
+      padding: 14px 24px;
       border: 3px solid transparent;
       border-radius: 18px;
       background: #1a1a1d;
@@ -444,10 +584,9 @@ const FILA_R_MS = 480;
     .fila-nome {
       flex: 1;
       min-width: 0;
-      /* Um atleta por linha, como nos blocos: em 60px "BRU · DAU" numa linha só não cabe
-         no card de 1/3 da tela. */
+      /* Um atleta por linha, como nos blocos. */
       display: grid;
-      font-size: 100px;
+      font-size: 44px;
       font-weight: 800;
       line-height: 1;
     }
@@ -469,7 +608,12 @@ const FILA_R_MS = 480;
 
     @media (prefers-reduced-motion: reduce) {
       .bloco,
-      .bloco--pulsando,
+      .bloco--trono:not([data-nivel='0']),
+      .onda,
+      .flash,
+      .tag,
+      .tag::after,
+      .tag-barras i.on,
       .fila-card,
       .relogio--urgente {
         animation: none;
@@ -501,9 +645,13 @@ export class LedRoundComponent {
     [...this.blocos().filter((b) => b.role === 'queue')].reverse(),
   );
 
-  private readonly streak = computed(() => this.view()?.bar.streak ?? 0);
-  protected readonly mostraSeguidas = computed(() => this.streak() >= STREAK_TAG);
-  protected readonly pulsando = computed(() => this.streak() >= STREAK_RING);
+  /** Tag de sequência do trono (EM CHAMAS…LENDA DA AREIA); `null` abaixo de 3 defesas. */
+  protected readonly tier = computed(() => ledSequenciaTier(this.view()?.bar.streak));
+  protected readonly barras = [0, 1, 2, 3, 4];
+  /** Contadores que remontam a onda (toda subida) e o flash (subida pros níveis 4 e 5). A
+   *  primeira leitura não conta: abrir o painel no meio de uma sequência não é "subir". */
+  protected readonly subidas = signal(0);
+  protected readonly flashes = signal(0);
 
   /** Só papéis/pontos — o relógio muda a cada tick e não deve re-disparar P/R. */
   private readonly motionKey = computed(() => {
@@ -567,6 +715,25 @@ export class LedRoundComponent {
   });
 
   constructor() {
+    // Só SUBIDA de nível dispara onda/flash. Cair do trono (ou nova rodada) zera o nível e a
+    // tag some sozinha; a volta a subir conta de novo a partir dali.
+    let nivelAnterior: number | null = null;
+    effect(() => {
+      // Sem rodada na tela não há "antes": a primeira leitura com dados só registra o nível.
+      if (!this.view()) {
+        nivelAnterior = null;
+        return;
+      }
+      const nivel = this.tier()?.nivel ?? 0;
+      untracked(() => {
+        if (nivelAnterior != null && nivel > nivelAnterior && nivel > 0) {
+          this.subidas.update((n) => n + 1);
+          if (nivel >= 4) this.flashes.update((n) => n + 1);
+        }
+      });
+      nivelAnterior = nivel;
+    });
+
     afterRenderEffect(() => {
       const v = this.view();
       const key = this.motionKey();

@@ -1,6 +1,7 @@
 import { isKingOfCourtMatchType, kocPointsOf } from '../../painel/data/koc';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
 import { kocPreRoundOf } from '../overlay/overlay-koc-preround';
+import { ledSequenciaTier } from './led-sequencia';
 
 export type LedProximosPapel = 'trono' | 'desafia' | 'sequencia' | 'aguardando';
 
@@ -59,8 +60,11 @@ function rotuloDe(papel: LedProximosPapel, inicio: boolean, seguidas: number): s
     return 'Na fila';
   }
   switch (papel) {
-    case 'trono':
-      return seguidas > 0 ? `No trono · ${seguidas} seguida${seguidas === 1 ? '' : 's'}` : 'No trono';
+    case 'trono': {
+      // A tag de sequência (EM CHAMAS…LENDA DA AREIA), a mesma do bloco do trono na tela de jogo.
+      const tag = ledSequenciaTier(seguidas);
+      return tag ? `No trono · ${tag.nome}` : 'No trono';
+    }
     case 'desafia':
       return 'Desafiante · Em quadra';
     case 'sequencia':

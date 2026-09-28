@@ -35,7 +35,9 @@ export type OgIconName =
   | 'whatsapp'
   | 'copy'
   | 'menu'
-  | 'grip';
+  | 'grip'
+  | 'pin'
+  | 'more';
 
 /** Ícones de contorno do design system NexaGO — mesmo traçado do protótipo (stroke 24, 1.8–2.2px). */
 @Component({
@@ -152,6 +154,14 @@ export type OgIconName =
         }
         @case ('menu') {
           <path d="M4 7h16M4 12h16M4 17h16" />
+        }
+        @case ('pin') {
+          <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z" /><circle cx="12" cy="10" r="3" />
+        }
+        @case ('more') {
+          <circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none" />
+          <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+          <circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none" />
         }
         @case ('grip') {
           <circle cx="9" cy="6" r="1.2" fill="currentColor" stroke="none" />

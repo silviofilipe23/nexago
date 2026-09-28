@@ -378,7 +378,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                   } @empty {
                     <og-avatar initials="?" [size]="72" />
                   }
-              </div>
+                </div>
                 <p class="og-mk-side-name">{{ faceOf(kingId()).name }}</p>
                 @if (faceOf(kingId()).sub; as sub) {
                   <p class="og-mk-side-sub">{{ sub }}</p>
@@ -670,7 +670,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
     @if (removeTeamTarget(); as target) {
       <og-confirm-dialog
         title="Remover por lesão"
-        [message]="target.name + ' sai da rodada agora. A próxima dupla da fila assume o lugar na hora, e os pontos já conquistados continuam valendo no ranking final. Errou? \'Desfazer último\' reverte, se for logo depois.'"
+        [message]="target.name + ' sai da rodada agora. A próxima dupla da fila assume o lugar na hora, e os pontos já conquistados continuam valendo no ranking final. Errou? “Desfazer último” reverte, se for logo depois.'"
         confirmLabel="Remover"
         [destructive]="true"
         [busy]="busy()"

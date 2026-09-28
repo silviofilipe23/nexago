@@ -160,9 +160,9 @@ describe('LedPageComponent', () => {
       status: 'completed',
       koc: round({
         standings: [
-          { teamId: 'k', place: 1, points: 17, crowns: 3 },
-          { teamId: 'c', place: 2, points: 14, crowns: 0 },
-          { teamId: 'q', place: 3, points: 4, crowns: 0 },
+          { teamId: 'k', place: 1, points: 17, crowns: 3, removed: false },
+          { teamId: 'c', place: 2, points: 14, crowns: 0, removed: false },
+          { teamId: 'q', place: 3, points: 4, crowns: 0, removed: false },
         ],
       }),
     });

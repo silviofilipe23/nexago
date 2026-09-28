@@ -29,6 +29,7 @@ import {
   registerKocGoldenPoint,
   registerKocRally,
   type KocRallyOutcome,
+  removeKocTeam,
   setKocClock,
   startKocRound,
   undoKocRally,
@@ -38,6 +39,7 @@ import { formatCourtLabel } from '../data/schedule-format';
 import { shareQrSvgDataUrl } from '../data/share-qr';
 import { fetchProfileDisplays, fetchTeamsByIds } from '../data/teams-repository';
 import { KOC_FINISHED_SHOWCASE_MS } from '../telao/telao-koc-mode';
+import { ConfirmPrompt, OgConfirmDialogComponent } from '../ui/confirm-dialog.component';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { ChaveamentoContextService } from './chaveamento-context.service';
@@ -57,19 +59,20 @@ interface TeamFace {
  *  fila + duração/vagas) e à mesa ao vivo (dois alvos grandes). Toda mutação
  *  passa por callable; o relógio vem de `endsAtMs` do servidor. */
 /** O que cada desfecho fez com o placar, na linha do log. Mapa e não ternário:
- *  com quatro desfechos, um `else` engoliria o erro de saque e a bola de ouro
+ *  com cinco desfechos, um `else` engoliria o erro de saque e a bola de ouro
  *  como se fossem coroação. */
 const LOG_ACTION: Record<KocLogLine['kind'], string> = {
   point: '+1 · defendeu o trono',
   crown: 'coroou — assume o trono',
   fault: 'errou o saque — perdeu a vez, sem ponto',
   golden: '+1 · venceu a bola de ouro',
+  removed: 'removida por lesão',
 };
 
 @Component({
   selector: 'og-mesa-koc',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, OgAvatarComponent, OgIconComponent],
+  imports: [RouterLink, OgAvatarComponent, OgIconComponent, OgConfirmDialogComponent],
   host: {
     '(document:keydown.escape)': 'onDocEscape()',
   },
@@ -383,6 +386,9 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                   <strong>{{ pointsOf(kingId()) }}</strong>
                   <span>PTS</span>
                 </p>
+                <button type="button" class="og-ghost-btn og-mk-remove-btn" [disabled]="busy()" (click)="askRemoveTeam(kingId())">
+                  Remover por lesão
+                </button>
               </article>
               <span class="og-mk-vs og-mk-vs--desktop">vs</span>
               <article class="og-mk-side challenger">
@@ -402,6 +408,9 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                   <strong>{{ pointsOf(challengerId()) }}</strong>
                   <span>PTS</span>
                 </p>
+                <button type="button" class="og-ghost-btn og-mk-remove-btn" [disabled]="busy()" (click)="askRemoveTeam(challengerId())">
+                  Remover por lesão
+                </button>
               </article>
             </div>
           </section>
@@ -432,6 +441,9 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                     }
                   </span>
                   <span class="og-mk-order-pts">{{ row.points }}</span>
+                  <button type="button" class="og-ghost-btn og-mk-remove-btn-sm" [disabled]="busy()" (click)="askRemoveTeam(row.teamId)">
+                    Lesão
+                  </button>
                 </li>
               } @empty {
                 <li class="og-mk-order-empty">Ninguém na fila</li>
@@ -652,6 +664,19 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
           }
         </aside>
       </div>
+    }
+
+    @if (removeTeamTarget(); as target) {
+      <og-confirm-dialog
+        title="Remover por lesão"
+        [message]="target.name + ' sai da rodada agora. A próxima dupla da fila assume o lugar na hora, e os pontos já conquistados continuam valendo no ranking final. Errou? \'Desfazer último\' reverte, se for logo depois.'"
+        confirmLabel="Remover"
+        [destructive]="true"
+        [busy]="busy()"
+        [prompt]="removeTeamPrompt"
+        (confirmed)="confirmRemoveTeam($event)"
+        (cancelled)="cancelRemoveTeam()"
+      />
     }
 
     @if (confirmStartOpen()) {
@@ -2912,6 +2937,7 @@ export class MesaKocComponent {
   /** Gaveta do log — so existe no modo quadra (tablet/celular); no desktop o log e
    *  um painel fixo da coluna lateral e este sinal nao tem efeito nenhum. */
   protected readonly logOpen = signal(false);
+  protected readonly removeTeamTarget = signal<{ teamId: string; name: string } | null>(null);
 
   constructor() {
     effect((onCleanup) => {
@@ -3324,7 +3350,10 @@ export class MesaKocComponent {
 
   protected rally(outcome: KocRallyOutcome): void {
     void this.run(
-      () => registerKocRally({ matchId: this.matchId(), outcome, expectedSeq: this.rallies() + 1 }),
+      // `rallySeq` é o tamanho bruto do log (o que o servidor compara), não
+      // "rallies jogados" — depois de uma remoção os dois divergem, e usar
+      // `rallies() + 1` travaria a rodada com `koc_seq_mismatch`.
+      () => registerKocRally({ matchId: this.matchId(), outcome, expectedSeq: (this.round()?.rallySeq ?? 0) + 1 }),
       null,
     );
   }
@@ -3333,7 +3362,7 @@ export class MesaKocComponent {
    *  dupla não estiver nele — aqui a mesa só aponta quem venceu. */
   protected golden(teamId: string): void {
     void this.run(
-      () => registerKocGoldenPoint({ matchId: this.matchId(), teamId, expectedSeq: this.rallies() + 1 }),
+      () => registerKocGoldenPoint({ matchId: this.matchId(), teamId, expectedSeq: (this.round()?.rallySeq ?? 0) + 1 }),
       'Bola de ouro registrada.',
     );
   }
@@ -3341,6 +3370,34 @@ export class MesaKocComponent {
   protected undo(): void {
     void this.run(() => undoKocRally(this.matchId()), 'Rally desfeito.');
   }
+
+  /** Abre o diálogo de confirmação — o motivo é obrigatório, igual à remoção
+   *  de inscrição em `inscricoes.component.ts`. */
+  protected askRemoveTeam(teamId: string): void {
+    if (this.busy()) return;
+    this.removeTeamTarget.set({ teamId, name: this.faceOf(teamId).name });
+  }
+
+  protected cancelRemoveTeam(): void {
+    this.removeTeamTarget.set(null);
+  }
+
+  protected confirmRemoveTeam(description: string): void {
+    const target = this.removeTeamTarget();
+    if (!target) return;
+    void this.run(
+      () => removeKocTeam({ matchId: this.matchId(), teamId: target.teamId, description }),
+      `${target.name} removida da rodada por lesão.`,
+    );
+    this.removeTeamTarget.set(null);
+  }
+
+  protected readonly removeTeamPrompt: ConfirmPrompt = {
+    label: 'Motivo da remoção',
+    placeholder: 'Ex.: torceu o tornozelo no 3º rally',
+    minLength: 10,
+    helper: 'Mínimo de 10 caracteres. Fica registrado na auditoria da rodada.',
+  };
 
   protected togglePause(): void {
     const action = this.paused() ? 'resume' : 'pause';

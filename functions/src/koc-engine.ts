@@ -22,7 +22,8 @@ export type KocRallyOutcome =
   | "king"
   | "challenger"
   | "serve_fault"
-  | "golden_point";
+  | "golden_point"
+  | "team_removed";
 
 export interface KocRally {
   /** Sequencial 1-based, na ordem de disputa. */
@@ -30,8 +31,9 @@ export interface KocRally {
   /** Nome herdado de quando só havia dois desfechos; os docs já gravados usam
    *  este campo, então ele fica — o que mudou é o conjunto de valores. */
   winner: KocRallyOutcome;
-  /** Só em `golden_point`: a dupla que venceu a bola de ouro. Os outros
-   *  desfechos são do LADO (rei/desafiante), que o replay já conhece. */
+  /** Em `golden_point`, a dupla que venceu a bola de ouro. Em `team_removed`, a
+   *  dupla que saiu da rodada (lesão). Os outros desfechos são do LADO
+   *  (rei/desafiante), que o replay já conhece. */
   teamId?: string;
 }
 
@@ -52,6 +54,9 @@ export interface KocState {
   crownOrder: string[];
   /** Quem saca — sempre o desafiante que entra. */
   servingTeamId: string;
+  /** Duplas fora da rodada por remoção (lesão). Ficam de fora da fila para
+   *  sempre, mas `points`/`crowns` continuam intactos para o ranking final. */
+  removedTeamIds: string[];
 }
 
 export class KocEngineError extends Error {
@@ -63,6 +68,10 @@ export class KocEngineError extends Error {
 
 /** Mínimo para a fila girar: rei, desafiante e alguém esperando. */
 export const KOC_MIN_ROSTER = 3;
+
+/** Depois de remover uma dupla, a rodada precisa de pelo menos rei + desafiante
+ *  para continuar — sem isso não há como girar a fila. */
+export const KOC_MIN_ACTIVE_TEAMS = 2;
 
 /**
  * Estado no apito inicial: o primeiro do elenco no trono, o segundo desafiando,
@@ -88,6 +97,7 @@ export function kocInitialState(teamIds: readonly string[]): KocState {
     rallies: 0,
     crownOrder: [king!],
     servingTeamId: challenger!,
+    removedTeamIds: [],
   };
 }
 
@@ -127,6 +137,64 @@ export function kocApplyRally(
     return {...state, points, rallies: state.rallies + 1};
   }
 
+  if (outcome === "team_removed") {
+    const removed = (rally.teamId ?? "").trim();
+    if (!removed || !(removed in points)) {
+      throw new KocEngineError(
+        "Remoção precisa apontar uma dupla do elenco desta rodada.",
+        "koc_removed_team_not_in_roster",
+      );
+    }
+    if (state.removedTeamIds.includes(removed)) {
+      throw new KocEngineError(
+        "Esta dupla já foi removida da rodada.",
+        "koc_team_already_removed",
+      );
+    }
+    const rosterSize = Object.keys(points).length;
+    const activeAfter = rosterSize - state.removedTeamIds.length - 1;
+    if (activeAfter < KOC_MIN_ACTIVE_TEAMS) {
+      throw new KocEngineError(
+        "Não é possível remover: restariam menos de 2 duplas na rodada. " +
+          "Encerre a rodada em vez de remover.",
+        "koc_round_too_small_after_removal",
+      );
+    }
+
+    const removedTeamIds = [...state.removedTeamIds, removed];
+    const nextQueueAfterRemoval = queue.filter((id) => id !== removed);
+    let kingAfterRemoval = kingTeamId;
+    let challengerAfterRemoval = challengerTeamId;
+
+    if (removed === challengerTeamId) {
+      // Só a desafiante sai — o próximo da fila assume o desafio.
+      challengerAfterRemoval = nextQueueAfterRemoval.shift() ?? "";
+    } else if (removed === kingTeamId) {
+      // O trono fica vago por lesão, não por derrota: a desafiante assume sem
+      // crédito de coroa (não venceu rally nenhum), e a fila empurra a vaga
+      // de desafiante normalmente.
+      kingAfterRemoval = challengerTeamId;
+      crownOrder.push(challengerTeamId);
+      challengerAfterRemoval = nextQueueAfterRemoval.shift() ?? "";
+    }
+
+    return {
+      ...state,
+      kingTeamId: kingAfterRemoval,
+      challengerTeamId: challengerAfterRemoval,
+      queue: nextQueueAfterRemoval,
+      crownOrder,
+      servingTeamId: challengerAfterRemoval,
+      removedTeamIds,
+      // Não foi um rally jogado, mas AVANÇA no log de qualquer forma — como
+      // `golden_point`. Os clientes (mesa web, app) calculam `expectedSeq` a
+      // partir de "rallies jogados" (`kocState.rallies + 1`), então se este
+      // contador não seguisse o tamanho do log toda remoção deixaria a
+      // rodada travada com `koc_seq_mismatch` no rally seguinte.
+      rallies: state.rallies + 1,
+    };
+  }
+
   let nextKing: string;
   let leaving: string;
   if (outcome === "serve_fault") {
@@ -157,6 +225,7 @@ export function kocApplyRally(
     rallies: state.rallies + 1,
     crownOrder,
     servingTeamId: nextChallenger,
+    removedTeamIds: state.removedTeamIds,
   };
 }
 
@@ -262,6 +331,7 @@ export interface KocStanding {
   crowns: number;
   /** Pontos das duplas empatadas com esta — vazio quando não há empate. */
   tiedOnPointsWith: string[];
+  removed: boolean;
 }
 
 /**
@@ -311,6 +381,7 @@ export function kocStandings(
     tiedOnPointsWith: (byPoints.get(pointsOf(teamId)) ?? []).filter(
       (id) => id !== teamId,
     ),
+    removed: state.removedTeamIds.includes(teamId),
   }));
 }
 
@@ -319,17 +390,21 @@ export function kocQualifyingTies(
   standings: readonly KocStanding[],
   qualifiersPerRound: number,
 ): string[][] {
+  // O corte conta só entre as ATIVAS — igual a `resolveKocRoster`
+  // (`koc-phase-advance.ts`): uma equipe removida ocupando uma posição acima
+  // do corte não pode escondê-lo nem "gastar" uma vaga que não é dela.
+  const active = standings.filter((s) => !s.removed);
   const cut = Math.max(1, Math.floor(qualifiersPerRound));
-  if (cut >= standings.length) return [];
+  if (cut >= active.length) return [];
 
   // O empate só importa se atravessa o corte: empate por 1º entre dois que já
   // passam não muda quem classifica.
-  const lastIn = standings[cut - 1];
-  const firstOut = standings[cut];
+  const lastIn = active[cut - 1];
+  const firstOut = active[cut];
   if (!lastIn || !firstOut) return [];
   if (lastIn.points !== firstOut.points) return [];
 
-  const tied = standings
+  const tied = active
     .filter((s) => s.points === lastIn.points)
     .map((s) => s.teamId);
   return tied.length > 1 ? [tied] : [];

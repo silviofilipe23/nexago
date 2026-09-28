@@ -32,6 +32,7 @@ export interface KocStanding {
   place: number;
   points: number;
   crowns: number;
+  removed: boolean;
 }
 
 /** Entrada do log de rallies gravado em `kocRallies`. */
@@ -40,7 +41,7 @@ export interface KocRallyEntry {
   /** Espelha `KocRallyOutcome` do servidor. Descartar um desfecho aqui não o
    *  "ignora": o log é reproduzido em sequência, então pular uma entrada
    *  desalinha o trono de todas as seguintes. */
-  winner: 'king' | 'challenger' | 'serve_fault' | 'golden_point';
+  winner: 'king' | 'challenger' | 'serve_fault' | 'golden_point' | 'team_removed';
   /** Só em `golden_point`: a dupla que venceu a bola de ouro. */
   teamId: string;
   /** Epoch ms quando o rally foi registrado (opcional em docs antigos). */
@@ -54,8 +55,9 @@ export interface KocLogLine {
   atMs: number | null;
   teamId: string;
   /** `point` = rei defendeu; `crown` = desafiante coroou; `fault` = erro de
-   *  saque do desafiante (perdeu a vez, sem ponto); `golden` = bola de ouro. */
-  kind: 'point' | 'crown' | 'fault' | 'golden';
+   *  saque do desafiante (perdeu a vez, sem ponto); `golden` = bola de ouro;
+   *  `removed` = equipe saiu da rodada por lesão. */
+  kind: 'point' | 'crown' | 'fault' | 'golden' | 'removed';
 }
 
 /** Snapshot da config da categoria no momento da geração. É contra ela que a
@@ -298,14 +300,21 @@ function standingsOf(value: unknown): KocStanding[] {
     const teamId = strOf(raw['teamId']);
     const place = intOf(raw['place'], 0);
     if (!teamId || place < 1) continue;
-    out.push({ teamId, place, points: intOf(raw['points']), crowns: intOf(raw['crowns']) });
+    out.push({
+      teamId,
+      place,
+      points: intOf(raw['points']),
+      crowns: intOf(raw['crowns']),
+      removed: raw['removed'] === true,
+    });
   }
   return out.sort((a, b) => a.place - b.place);
 }
 
 function isRallyOutcome(value: string): value is KocRallyEntry['winner'] {
   return value === 'king' || value === 'challenger' ||
-    value === 'serve_fault' || value === 'golden_point';
+    value === 'serve_fault' || value === 'golden_point' ||
+    value === 'team_removed';
 }
 
 function rallyLogOf(value: unknown): KocRallyEntry[] {
@@ -430,6 +439,21 @@ export function kocLiveOrder(round: KocRoundState): string[] {
   });
 }
 
+/**
+ * Duplas removidas por lesão, ATÉ AGORA na rodada — reconstruído do log de
+ * rallies (`round.rallyLog`), a mesma fonte que `kocLogLines`/`kocCrownOrder`
+ * já reproduzem. Não existe campo `removedTeamIds` no `KocRoundState`: uma
+ * remoção só aparece como evento `team_removed` no log (desfazer = o evento
+ * sai do log num replay, igual a qualquer outro rally).
+ */
+export function kocRemovedTeamIds(round: KocRoundState): Set<string> {
+  const removed = new Set<string>();
+  for (const entry of round.rallyLog) {
+    if (entry.winner === 'team_removed' && entry.teamId) removed.add(entry.teamId);
+  }
+  return removed;
+}
+
 /** Tabela final da rodada encerrada.
  *
  *  `kocStandings` só é gravado no encerramento; uma rodada encerrada por um
@@ -437,11 +461,13 @@ export function kocLiveOrder(round: KocRoundState): string[] {
  *  `KocRoundState.finalTable` do app — as duas mesas mostram a MESMA tabela. */
 export function kocFinalTable(round: KocRoundState): KocStanding[] {
   if (round.standings.length > 0) return round.standings;
+  const removed = kocRemovedTeamIds(round);
   return kocLiveOrder(round).map((teamId, i) => ({
     teamId,
     place: i + 1,
     points: kocPointsOf(round, teamId),
     crowns: 0,
+    removed: removed.has(teamId),
   }));
 }
 
@@ -509,7 +535,13 @@ export function kocQualifyingSpotsAtStake(round: KocRoundState): number {
   const tied = kocQualifyingTieGroup(round);
   if (tied.length === 0) return 0;
   const tiedPoints = kocPointsOf(round, tied[0]!);
-  const acima = round.teamIds.filter((id) => kocPointsOf(round, id) > tiedPoints).length;
+  // Só conta quem está ATIVA e acima: uma removida congelada com pontuação
+  // maior não ocupa vaga real — contá-la aqui subtrairia uma vaga que ainda
+  // está em jogo entre as empatadas.
+  const removed = kocRemovedTeamIds(round);
+  const acima = round.teamIds.filter(
+    (id) => !removed.has(id) && kocPointsOf(round, id) > tiedPoints,
+  ).length;
   return Math.max(0, round.qualifiersPerRound - acima);
 }
 
@@ -578,7 +610,12 @@ export function kocTiebreakOrder(round: KocRoundState): string[] {
  *  mesma pontuação da última vaga entram. Espelha `kocQualifyingTies` do
  *  servidor, que é quem valida a bola de ouro. */
 export function kocQualifyingTieGroup(round: KocRoundState): string[] {
-  const order = kocLiveOrder(round);
+  // O corte conta só entre as ATIVAS — mesma correção de `kocQualifyingTies`
+  // no servidor (`koc-engine.ts`): uma equipe removida congelada acima do
+  // corte não pode escondê-lo, e não pode ser convocada para a bola de ouro
+  // que o servidor recusaria (ela não está mais no elenco elegível).
+  const removed = kocRemovedTeamIds(round);
+  const order = kocLiveOrder(round).filter((teamId) => !removed.has(teamId));
   const cut = round.qualifiersPerRound;
   if (cut < 1 || cut >= order.length) return [];
   const lastIn = kocPointsOf(round, order[cut - 1]);
@@ -609,6 +646,18 @@ export function kocLogLines(round: KocRoundState): KocLogLine[] {
     // uma dupla e não mexe na fila. Girar aqui desalinharia o trono do resto.
     if (entry.winner === 'golden_point') {
       lines.push({...base, teamId: entry.teamId, kind: 'golden'});
+      continue;
+    }
+    if (entry.winner === 'team_removed') {
+      const removedId = entry.teamId;
+      lines.push({...base, teamId: removedId, kind: 'removed'});
+      queue = queue.filter((id) => id !== removedId);
+      if (removedId === challenger) {
+        challenger = queue.shift() ?? '';
+      } else if (removedId === king) {
+        king = challenger;
+        challenger = queue.shift() ?? '';
+      }
       continue;
     }
     if (entry.winner === 'serve_fault') {

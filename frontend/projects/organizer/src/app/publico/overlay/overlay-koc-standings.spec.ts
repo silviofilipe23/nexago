@@ -67,7 +67,7 @@ function match(overrides: Partial<TournamentMatch> = {}): TournamentMatch {
 }
 
 function standings(...rows: [string, number, number][]): KocStanding[] {
-  return rows.map(([teamId, place, points]) => ({ teamId, place, points, crowns: 0 }));
+  return rows.map(([teamId, place, points]) => ({ teamId, place, points, crowns: 0, removed: false }));
 }
 
 describe('kocStandingsBoardOf', () => {

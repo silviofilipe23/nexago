@@ -64,7 +64,8 @@ function match(overrides: Partial<TournamentMatch> = {}): TournamentMatch {
     servingTeamId: '',
     servingPlayerSlot: 0,
     medicalTimeout: null,
-    matchStartedAt: new Date(),
+    // Rodada em andamento há 5 min — logo depois do apito o painel mostra "Próximos em quadra".
+    matchStartedAt: new Date(Date.now() - 5 * 60_000),
     matchEndedAt: null,
     koc: round(),
     ...overrides,
@@ -195,9 +196,9 @@ describe('LedPageComponent', () => {
     const host = fixture.nativeElement as HTMLElement;
     const text = (host.textContent ?? '').replace(/\s+/g, ' ');
 
-    expect(host.querySelector('og-led-preround')).not.toBeNull();
+    expect(host.querySelector('og-led-proximos')).not.toBeNull();
     expect(host.querySelector('og-led-round')).toBeNull();
-    expect(text).toContain('Próximos em quadra');
+    expect(text).toContain('Entrada na quadra');
     expect(text).toContain('Van');
     // O título da rodada NÃO pode sair da visão de jogo: antes do apito ela é nula.
     expect(text).toContain('Rodada 3');

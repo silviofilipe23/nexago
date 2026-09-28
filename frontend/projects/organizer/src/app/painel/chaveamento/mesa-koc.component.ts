@@ -388,7 +388,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                   <span>PTS</span>
                 </p>
                 <button type="button" class="og-ghost-btn og-mk-remove-btn" [disabled]="busy()" (click)="askRemoveTeam(kingId())">
-                  Remover por lesão
+                  <span class="og-mk-rm-long">Remover por lesão</span><span class="og-mk-rm-short">Lesão</span>
                 </button>
               </article>
               <span class="og-mk-vs og-mk-vs--desktop">vs</span>
@@ -410,7 +410,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
                   <span>PTS</span>
                 </p>
                 <button type="button" class="og-ghost-btn og-mk-remove-btn" [disabled]="busy()" (click)="askRemoveTeam(challengerId())">
-                  Remover por lesão
+                  <span class="og-mk-rm-long">Remover por lesão</span><span class="og-mk-rm-short">Lesão</span>
                 </button>
               </article>
             </div>
@@ -1282,7 +1282,8 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
     }
     .og-mk-section-count,
     .og-mk-order-empty,
-    .og-mk-undo-strip {
+    .og-mk-undo-strip,
+    .og-mk-rm-short {
       display: none;
     }
     /* O botão tocado segue aceso enquanto os outros apagam: é ele que está em voo. */
@@ -2205,8 +2206,8 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
           'duel duel'
           'queue queue'
           'actions actions';
-        /* Confronto leva a sobra; fila cede e rola; ações ficam coladas embaixo. */
-        grid-template-rows: auto minmax(0, 1fr) minmax(0, auto) auto;
+        /* Confronto é uma faixa compacta; a fila leva a sobra e rola; ações coladas embaixo. */
+        grid-template-rows: auto auto minmax(0, 1fr) auto;
         gap: 8px;
         padding: calc(8px + env(safe-area-inset-top, 0px)) 12px
           calc(8px + env(safe-area-inset-bottom, 0px));
@@ -2302,38 +2303,86 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         display: flex;
         flex-direction: column;
         min-height: 0;
-        padding: 10px 12px;
+        padding: 6px;
       }
       .og-mk-section-head--desktop,
       .og-mk-vs--desktop {
         display: none;
       }
+      /* Confronto compacto (~68px): selo + Lesão em cima, nome e pontos embaixo. O placar
+         grande tomava ~320px da tela; quem opera precisa é dos botões de ponto, que ficam
+         com a altura. O LED e o telão continuam sendo o placar de longe. */
       .og-mk-live .og-mk-sides {
-        flex: 1;
-        min-height: 0;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         gap: 8px;
       }
+      .og-mk-live .og-mk-side {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+          'badge rm'
+          'name pts';
+        align-items: center;
+        gap: 2px 6px;
+        min-height: 68px;
+        padding: 6px 4px 6px 10px;
+        text-align: left;
+      }
+      .og-mk-live .og-mk-side-avatars,
+      .og-mk-live .og-mk-side-sub,
+      .og-mk-live .og-mk-side-pts span {
+        display: none;
+      }
+      .og-mk-live .og-mk-side-badge {
+        grid-area: badge;
+        gap: 5px;
+        font-size: 9px;
+        letter-spacing: 0.05em;
+        white-space: nowrap;
+      }
       .og-mk-live .og-mk-side-name {
+        grid-area: name;
+        font-size: 13px;
+        line-height: 1.2;
         display: -webkit-box;
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
       }
+      .og-mk-live .og-mk-side-pts {
+        grid-area: pts;
+        margin: 0;
+        padding-right: 6px;
+      }
       .og-mk-live .og-mk-side-pts strong {
-        font-size: clamp(32px, 7vh, 84px);
+        font-size: clamp(28px, 4vh, 40px);
       }
-      .og-mk-live .og-mk-side-name {
-        font-size: clamp(14px, 1.8vh, 20px);
+      /* Remover por lesão vira link: abre a confirmação com motivo obrigatório, então um
+         toque sem querer não remove ninguém — e não precisa de um botão do tamanho do card. */
+      .og-mk-live .og-mk-remove-btn {
+        grid-area: rm;
+        height: 28px;
+        min-height: 0;
+        padding: 0 6px;
+        border: none;
+        background: none;
+        font-size: 11px;
+        text-decoration: underline;
       }
-      .og-mk-live .og-mk-side {
-        justify-content: center;
-        padding: 8px 8px;
+      .og-mk-live .og-mk-rm-long {
+        display: none;
       }
-      /* Avatar de 72px (template) sobra no card comprimido de tablet/celular. */
-      .og-mk-live .og-mk-side-avatars og-avatar {
-        width: 44px !important;
-        height: 44px !important;
-        font-size: 15px !important;
+      .og-mk-live .og-mk-rm-short {
+        display: inline;
+      }
+      .og-mk-live .og-mk-remove-btn-sm {
+        height: 36px;
+        min-height: 0;
+        padding: 0 6px;
+        border: none;
+        background: none;
+        font-size: 11px;
+        text-decoration: underline;
       }
 
       /* ── Fila + último lançamento ─────────────────────────────── */
@@ -2343,7 +2392,11 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         grid-template-columns: minmax(0, 1fr);
         gap: 8px;
         min-height: 0;
-        max-height: min(42vh, 360px);
+        /* A faixa da fila agora é alta: sem isto a grade espalhava a sobra entre o título e
+           as linhas. E as linhas no tamanho do conteúdo: com min-height 0 nos filhos elas
+           encolhiam e o card de empate subia por cima da lista — a região rola por dentro. */
+        align-content: start;
+        grid-auto-rows: max-content;
         overflow-x: hidden;
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
@@ -2386,7 +2439,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         padding: 8px 10px;
         gap: 8px;
         min-height: 48px;
-        grid-template-columns: 36px auto 1fr auto;
+        grid-template-columns: 36px auto minmax(0, 1fr) auto auto;
       }
       .og-mk-order-empty {
         padding: 12px;
@@ -2412,7 +2465,7 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       .og-mk-rally-crown {
         flex: 1 1 0;
         min-width: 0;
-        min-height: clamp(64px, 9vh, 92px);
+        min-height: clamp(88px, 13vh, 128px);
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -2582,17 +2635,14 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       .og-mk-live:has(.og-mk-tie) .og-mk-order {
         max-height: none;
       }
+      /* Com o tempo zerado a ordem da fila não decide mais nada: o desempate fica com a
+         faixa inteira e as bolas de ouro sobem pra perto do polegar. */
+      .og-mk-live:has(.og-mk-tie) .og-mk-order > .og-mk-section-head,
+      .og-mk-live:has(.og-mk-tie) .og-mk-order-list {
+        display: none;
+      }
       .og-mk-live:has(.og-mk-tie) .og-mk-golden-card {
         min-height: clamp(56px, 9vh, 96px);
-      }
-
-      /* Tablet retrato: a fila tinha 2 colunas (fila | último lançamento). O último
-         lance agora mora colado nos botões de ponto, então a fila volta a ter a largura
-         inteira em vez de meia tela vazia. */
-      @media (min-width: 700px) {
-        .og-mk-live .og-mk-order {
-          max-height: min(38vh, 420px);
-        }
       }
 
       .og-mk-sides {
@@ -2724,57 +2774,10 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         font-size: 12px;
       }
 
-      /* O confronto CONTINUA lado a lado no telefone. Empilhar as duas duplas era
-         o que estourava a altura e obrigava a rolar pra achar o botão de ponto. */
-      .og-mk-live .og-mk-open > .og-mk-section-head {
-        display: none;
-      }
-      .og-mk-live .og-mk-side-avatars {
-        display: none;
-      }
-      .og-mk-live .og-mk-side-sub {
-        display: none;
-      }
-      .og-mk-live .og-mk-side {
-        padding: 10px 8px;
-      }
-      .og-mk-live .og-mk-side-name {
-        font-size: 13px;
-      }
-      .og-mk-live .og-mk-side-badge {
-        font-size: 10px;
-        letter-spacing: 0.06em;
-      }
-      /* Os dois lados do confronto encolhem igual — libera altura pro botão de ponto.
-         Antes só o trono tinha esse corte e o desafiante ficava desproporcionalmente
-         maior no celular. */
-      .og-mk-side.throne {
-        gap: 4px;
-        padding: 8px 6px;
-      }
-      .og-mk-live .og-mk-side {
-        padding: 6px 6px;
-      }
-      .og-mk-live .og-mk-side-pts {
-        margin-top: 0;
-      }
-      .og-mk-live .og-mk-side-pts strong {
-        font-size: clamp(28px, 7vh, 44px);
-      }
-      .og-mk-live .og-mk-side-name {
-        font-size: 12px;
-      }
-      .og-mk-live .og-mk-side-badge {
-        font-size: 9px;
-        letter-spacing: 0.05em;
-        gap: 5px;
-      }
+      /* O confronto compacto (bloco do modo quadra) já vale aqui; só o ponto do trono encolhe. */
       .og-mk-live .og-mk-side.throne .og-mk-side-dot {
         width: 5px;
         height: 5px;
-      }
-      .og-mk-vs {
-        font-size: 11px;
       }
 
       /* Confronto de abertura (prep): cards cabem na 1ª tela ao lado da fila. */
@@ -2823,20 +2826,15 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
         display: none;
       }
 
-      /* Rodada de 6 duplas (KOC_MAX_TEAMS_PER_ROUND) deixa até 4 na fila — uma a mais
-         do que o teto de 42vh/360px foi calibrado pra caber (3 linhas). No celular,
-         com o rodapé de ações já no osso, a 4ª linha empurra "Erro de saque" pra fora
-         da tela fixa (og-mk-live tem overflow:hidden). Aperta o teto aqui pra 3 linhas
-         cheias + amostra da 4ª: quem excede rola DENTRO da fila, sem empurrar nada.
-         Não mexe no empate (max-height:none já é dele, ver bloco de 1023.98px). */
-      .og-mk-live:not(:has(.og-mk-tie)) .og-mk-order {
-        max-height: min(26vh, 190px);
-      }
+      /* A fila mora na faixa minmax(0, 1fr) do modo quadra: quem excede a altura que
+         sobra rola DENTRO dela e nunca empurra "Erro de saque" pra fora da tela fixa. */
 
       /* Sem o papel, a linha da fila fica: nº · avatares · dupla · pts. As colunas
          precisam ser redeclaradas — esconder um filho desloca as trilhas de grid. */
+      /* 5 itens desde o botão de lesão: com 4 trilhas ele quebrava pra uma 2ª linha e
+         cada dupla da fila ocupava ~100px. */
       .og-mk-live .og-mk-order-row {
-        grid-template-columns: 22px auto minmax(0, 1fr) auto;
+        grid-template-columns: 22px auto minmax(0, 1fr) auto auto;
       }
       .og-mk-prep .og-mk-order-row {
         grid-template-columns: 24px auto minmax(0, 1fr) auto;
@@ -2920,10 +2918,6 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
     }
 
     @media (pointer: coarse) {
-      .og-mk-rally-king,
-      .og-mk-rally-crown {
-        min-height: 56px;
-      }
       .og-mk-golden-card {
         min-height: 52px;
       }

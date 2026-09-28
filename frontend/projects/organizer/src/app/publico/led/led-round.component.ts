@@ -152,7 +152,11 @@ const FILA_R_MS = 480;
                     <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="64" />
                   }
                 </span>
-                <span class="fila-nome" [attr.title]="nomesDe(f.teamId).join(' · ')">{{ nomesCurtosDe(f.teamId) }}</span>
+                <span class="fila-nome" [attr.title]="nomesDe(f.teamId).join(' · ')">
+                  @for (p of atletasDe(f.teamId); track $index) {
+                    <span>{{ curto(p.name) }}</span>
+                  }
+                </span>
                 <span class="fila-pontos">{{ f.points }}</span>
               </div>
             }
@@ -382,7 +386,7 @@ const FILA_R_MS = 480;
     }
     .fila-titulo {
       color: #9a9a9e;
-      font-size: 26px;
+      font-size: 52px;
       font-weight: 800;
       letter-spacing: 0.16em;
       text-transform: uppercase;
@@ -391,12 +395,16 @@ const FILA_R_MS = 480;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 14px;
+      gap: 18px;
       flex: 1;
       min-width: 0;
-      padding: 16px 22px;
-      border: 2px solid transparent;
-      border-radius: 14px;
+      /* Fila lida do fundo do ginásio: card alto e letra grande. Os blocos de cima estão em
+         flex: 1 e cedem sozinhos a altura que a fila ganhou. */
+      min-height: 150px;
+      box-sizing: border-box;
+      padding: 22px 28px;
+      border: 3px solid transparent;
+      border-radius: 18px;
       background: #1a1a1d;
       animation: led-fila 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
     }
@@ -436,15 +444,22 @@ const FILA_R_MS = 480;
     .fila-nome {
       flex: 1;
       min-width: 0;
-      font-size: 34px;
+      /* Um atleta por linha, como nos blocos: em 60px "BRU · DAU" numa linha só não cabe
+         no card de 1/3 da tela. */
+      display: grid;
+      font-size: 60px;
       font-weight: 800;
+      line-height: 1;
+    }
+    .fila-nome span {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .fila-pontos {
       color: #9a9a9e;
-      font-size: 30px;
+      font-size: 84px;
+      line-height: 1;
       font-weight: 800;
       font-variant-numeric: tabular-nums;
     }
@@ -579,9 +594,7 @@ export class LedRoundComponent {
   /** Atleta pelas 3 primeiras letras em maiúsculas — mesma regra da tela de próximos. */
   protected readonly curto = ledNomeCurto;
 
-  protected nomesCurtosDe(teamId: string): string {
-    return this.nomesDe(teamId).map(ledNomeCurto).join(' · ');
-  }
+
 
   private resetMotion(): void {
     this.primed = false;

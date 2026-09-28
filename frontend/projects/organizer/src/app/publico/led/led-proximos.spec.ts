@@ -1,6 +1,6 @@
 import type { KocRoundState } from '../../painel/data/koc';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
-import { ledProximosOf, ledSeguidasDe } from './led-proximos';
+import { ledNomeCurto, ledProximosOf, ledSeguidasDe } from './led-proximos';
 
 const NOW = Date.UTC(2026, 8, 23, 18, 0, 0);
 
@@ -133,5 +133,19 @@ describe('ledSeguidasDe', () => {
     expect(ledSeguidasDe([w('king'), w('serve_fault'), w('king')])).toBe(2);
     expect(ledSeguidasDe([w('king'), w('challenger'), w('king')])).toBe(1);
     expect(ledSeguidasDe([w('golden_point')])).toBe(0);
+  });
+});
+
+describe('ledNomeCurto', () => {
+  it('3 primeiras letras em maiúsculas, com acento contado como uma letra', () => {
+    expect(ledNomeCurto('Vanessa')).toBe('VAN');
+    expect(ledNomeCurto('  Hölting Nilsson ')).toBe('HÖL');
+    expect(ledNomeCurto('Íris')).toBe('ÍRI');
+  });
+
+  it('nome curto ou com espaço nas 3 primeiras fica sem espaço sobrando', () => {
+    expect(ledNomeCurto('Bo')).toBe('BO');
+    expect(ledNomeCurto('Jo Ana')).toBe('JO');
+    expect(ledNomeCurto('')).toBe('');
   });
 });

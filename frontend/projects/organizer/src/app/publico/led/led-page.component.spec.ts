@@ -199,7 +199,7 @@ describe('LedPageComponent', () => {
     expect(host.querySelector('og-led-proximos')).not.toBeNull();
     expect(host.querySelector('og-led-round')).toBeNull();
     expect(text).toContain('Entrada na quadra');
-    expect(text).toContain('Van');
+    expect(text).toContain('VAN');
     // O título da rodada NÃO pode sair da visão de jogo: antes do apito ela é nula.
     expect(text).toContain('Rodada 3');
   });

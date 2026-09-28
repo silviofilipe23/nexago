@@ -24,6 +24,13 @@ export interface LedProximos {
   fila: LedProximosRow[];
 }
 
+/** Nome do atleta no painel: as 3 primeiras letras em maiúsculas ("Vanessa" → "VAN").
+ *  Lido do fundo do ginásio, três letras grandes identificam mais rápido que o nome inteiro
+ *  encolhido. `Array.from` conta "Ö" como uma letra, não como dois pedaços de UTF-16. */
+export function ledNomeCurto(name: string): string {
+  return Array.from(name.trim()).slice(0, 3).join('').trim().toLocaleUpperCase('pt-BR');
+}
+
 function papelDe(index: number): LedProximosPapel {
   if (index === 0) return 'trono';
   if (index === 1) return 'desafia';

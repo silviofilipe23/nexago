@@ -122,11 +122,11 @@ interface MedicalOptionView {
         }
         <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'jogos']">Voltar</a>
       } @else {
-        <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'jogos']">Voltar</a>
+        <a class="og-ghost-btn og-mesa-hdr-act" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'jogos']">Voltar</a>
         @if (overlayHref(); as href) {
-          <a class="og-ghost-btn" [href]="href" target="_blank" rel="noopener" title="Browser Source do OBS">Abrir overlay</a>
+          <a class="og-ghost-btn og-mesa-hdr-act" [href]="href" target="_blank" rel="noopener" title="Browser Source do OBS">Abrir overlay</a>
         }
-        <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'placar', matchId()]">Placar completo</a>
+        <a class="og-ghost-btn og-mesa-hdr-act" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'placar', matchId()]">Placar completo</a>
       }
     </og-page-header>
 
@@ -146,7 +146,7 @@ interface MedicalOptionView {
             <p class="og-mesa-empty">A mesa só abre quando os dois lados da partida estiverem definidos na chave.</p>
           </og-card>
         } @else {
-          <og-card pad="lg">
+          <og-card class="og-mesa-scorecard">
             <div class="og-mesa-top">
               <div class="og-mesa-status">
                 @if (status() === 'in_progress') {
@@ -209,6 +209,9 @@ interface MedicalOptionView {
                   <span class="og-mesa-team">
                     <og-avatar [initials]="initialsOf(teamALabel())" [size]="34" />
                     <span class="og-mesa-name" [title]="teamALabel()">{{ truncate(teamALabel(), 22) }}</span>
+                    <!-- Telefone: o botão tem ~150px e o nome cortado em 22 letras virava "Ana S…"
+                         justo onde o mesário confirma o lado. Lá vai o nome inteiro, em até 2 linhas. -->
+                    <span class="og-mesa-name-full">{{ teamALabel() }}</span>
                     @if (servingSide() === 'A') {
                       <span class="og-mesa-serve" title="No saque">{{ serveBadge() }}</span>
                     }
@@ -218,7 +221,15 @@ interface MedicalOptionView {
                     <span class="og-mesa-plus">+1 ponto</span>
                   }
                 </button>
-                <button type="button" class="og-ghost-btn og-mesa-minus" [disabled]="!canUndoSide('A')" (click)="undoSide('A')">−1</button>
+                <button
+                  type="button"
+                  class="og-ghost-btn og-mesa-minus"
+                  [attr.aria-label]="'Tirar ponto de ' + teamALabel()"
+                  [disabled]="!canUndoSide('A')"
+                  (click)="undoSide('A')"
+                >
+                  −1
+                </button>
               </div>
 
               <div class="og-mesa-center">
@@ -231,6 +242,9 @@ interface MedicalOptionView {
                   <span class="og-mesa-team">
                     <og-avatar [initials]="initialsOf(teamBLabel())" [size]="34" />
                     <span class="og-mesa-name" [title]="teamBLabel()">{{ truncate(teamBLabel(), 22) }}</span>
+                    <!-- Telefone: o botão tem ~150px e o nome cortado em 22 letras virava "Ana S…"
+                         justo onde o mesário confirma o lado. Lá vai o nome inteiro, em até 2 linhas. -->
+                    <span class="og-mesa-name-full">{{ teamBLabel() }}</span>
                     @if (servingSide() === 'B') {
                       <span class="og-mesa-serve" title="No saque">{{ serveBadge() }}</span>
                     }
@@ -240,7 +254,15 @@ interface MedicalOptionView {
                     <span class="og-mesa-plus">+1 ponto</span>
                   }
                 </button>
-                <button type="button" class="og-ghost-btn og-mesa-minus" [disabled]="!canUndoSide('B')" (click)="undoSide('B')">−1</button>
+                <button
+                  type="button"
+                  class="og-ghost-btn og-mesa-minus"
+                  [attr.aria-label]="'Tirar ponto de ' + teamBLabel()"
+                  [disabled]="!canUndoSide('B')"
+                  (click)="undoSide('B')"
+                >
+                  −1
+                </button>
               </div>
             </div>
 
@@ -272,7 +294,7 @@ interface MedicalOptionView {
           </og-card>
 
           @if (status() === 'scheduled') {
-            <og-card kicker="Início" title="Partida ainda não iniciada">
+            <og-card kicker="Início" title="Partida ainda não iniciada" class="og-mesa-start-card">
               <p class="og-mesa-hint">Ao iniciar, a partida fica <strong>ao vivo</strong> no portal e no app dos atletas, com o placar acompanhando ponto a ponto.</p>
               <button type="button" class="og-mini-btn og-mini-btn-primary og-mesa-start" [disabled]="saving()" (click)="start()">
                 @if (busyKey() === 'start') {
@@ -319,8 +341,17 @@ interface MedicalOptionView {
             <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
           }
 
+          <!-- Telefone: os atalhos do cabeçalho (que ali some) descem pro pé da mesa. "Voltar"
+               não vem junto — a seta da barra superior já faz isso. -->
+          <div class="og-mesa-links">
+            <a class="og-mesa-link" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'placar', matchId()]">Placar completo</a>
+            @if (overlayHref(); as href) {
+              <a class="og-mesa-link" [href]="href" target="_blank" rel="noopener">Abrir overlay</a>
+            }
+          </div>
+
           @if (feed().length > 0) {
-            <og-card kicker="Ponto a ponto" title="Últimos lances" pad="sm">
+            <og-card kicker="Ponto a ponto" title="Últimos lances" pad="sm" class="og-mesa-feed-card">
               <ul class="og-mesa-feed">
                 @for (row of feed(); track row.key) {
                   <li [class.undo]="row.undo">
@@ -923,6 +954,173 @@ interface MedicalOptionView {
       .og-mesa-undo {
         min-height: 48px;
         font-weight: 700;
+      }
+    }
+
+    .og-mesa-name-full,
+    .og-mesa-links {
+      display: none;
+    }
+
+    /* ── Telefone (mesa de duelo; a KOTC tem o modo quadra dela) ──
+       O placar ganha largura (card com 14px de respiro em vez de 20), o botão de ponto
+       mostra o nome inteiro, a partida agendada põe "Iniciar" antes do placar, e as ações
+       viram grade com o destrutivo separado no fim. Os atalhos do cabeçalho descem pro pé. */
+    @media (max-width: 640px) {
+      .og-mesa-hdr-act {
+        display: none;
+      }
+      .og-mesa-scorecard {
+        padding: 14px;
+      }
+      .og-mesa-undo-bar {
+        margin: 12px -14px -14px;
+        padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+        border-radius: 0 0 var(--nx-r-4) var(--nx-r-4);
+      }
+      .og-mesa-meta {
+        font-size: 12.5px;
+      }
+      .og-mesa-strip {
+        margin-top: 12px;
+      }
+      .og-mesa-set {
+        flex: 1;
+        flex-direction: row;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 6px 10px;
+      }
+      .og-mesa-board {
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .og-mesa-center {
+        min-width: 40px;
+        padding-bottom: 52px;
+      }
+      .og-mesa-sets {
+        font-size: 20px;
+      }
+      .og-mesa-sets em {
+        font-size: 13px;
+        margin: 0 2px;
+      }
+      /* flex:1 — o lado com o selo de saque não pode ficar mais alto que o outro, senão
+         os "−1" desalinham. */
+      .og-mesa-point {
+        flex: 1;
+        min-height: 168px;
+        padding: 14px 8px;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .og-mesa-team {
+        flex-direction: column;
+        gap: 6px;
+      }
+      .og-mesa-team og-avatar,
+      .og-mesa-name {
+        display: none;
+      }
+      .og-mesa-name-full {
+        display: block;
+        font-family: var(--nx-font-display);
+        font-weight: 700;
+        font-size: 13.5px;
+        line-height: 1.25;
+        color: var(--nx-text);
+        text-align: center;
+        overflow-wrap: anywhere;
+      }
+      .og-mesa-score {
+        font-size: 56px;
+      }
+      .og-mesa-minus {
+        align-self: stretch;
+        min-height: 44px;
+        border: 1px solid var(--nx-line-strong);
+        background: var(--nx-surface-1);
+        color: var(--nx-text);
+        font-size: 15px;
+      }
+      .og-mesa-ask {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .og-mesa-ask-lbl {
+        grid-column: 1 / -1;
+      }
+      .og-mesa-askbtn {
+        min-height: 48px;
+        padding: 0 8px;
+      }
+      .og-mesa-start-card {
+        order: -1;
+        border-color: rgba(255, 106, 26, 0.3);
+        background: var(--nx-orange-tint);
+      }
+      .og-mesa-start {
+        width: 100%;
+        min-height: 52px;
+        justify-content: center;
+        font-size: 16px;
+      }
+      .og-mesa-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .og-mesa-actions > .og-mini-btn {
+        min-height: 48px;
+        justify-content: center;
+        font-size: 14px;
+      }
+      .og-mesa-medical {
+        grid-column: 1 / -1;
+      }
+      .og-mesa-format {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px;
+        margin-left: 0;
+        padding: 3px;
+        border-radius: 12px;
+        border: 1px solid var(--nx-line);
+        background: var(--nx-bg);
+      }
+      .og-mesa-format .og-chip {
+        height: 42px;
+        border: none;
+        border-radius: 9px;
+        font-size: 14px;
+      }
+      /* O destrutivo desce pro fim da grade, sozinho na linha. */
+      .og-mesa-actions > .og-mesa-revert {
+        order: 10;
+        grid-column: 1 / -1;
+        margin-top: 6px;
+        background: color-mix(in srgb, var(--nx-live) 6%, transparent);
+      }
+      .og-mesa-links {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(0, 1fr);
+        gap: 8px;
+      }
+      .og-mesa-link {
+        min-height: 48px;
+        display: grid;
+        place-items: center;
+        border-radius: 12px;
+        border: 1px solid var(--nx-line-strong);
+        color: var(--nx-text);
+        text-decoration: none;
+        font-family: var(--nx-font-display);
+        font-weight: 600;
+        font-size: 14px;
       }
     }
   `,

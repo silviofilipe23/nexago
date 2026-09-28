@@ -145,8 +145,8 @@ function shuffled<T>(items: readonly T[]): T[] {
   imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgAvatarComponent, OgToggleRowComponent, NxProcessingOverlayComponent, NxSpinnerComponent, OgConfirmDialogComponent],
   template: `
     <og-page-header title="Gerar chave" [subtitle]="headerSubtitle()">
-      <button type="button" class="og-ghost-btn" (click)="cancel()">Cancelar</button>
-      <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="publishing() || !canPublish()" (click)="publish()">
+      <button type="button" class="og-ghost-btn og-seeds-hdr-act" (click)="cancel()">Cancelar</button>
+      <button type="button" class="og-mini-btn og-mini-btn-primary og-seeds-hdr-act" [disabled]="publishing() || !canPublish()" (click)="publish()">
         @if (publishing()) {
           <app-nx-spinner [size]="14" tone="dark" />
         } @else {
@@ -164,9 +164,11 @@ function shuffled<T>(items: readonly T[]): T[] {
           <og-card><p class="og-seeds-empty">Categoria não encontrada.</p></og-card>
         } @else {
           <og-card kicker="Formato" title="Sistema de disputa">
-            <div class="og-filter-bar">
+            <div class="og-filter-bar og-seeds-formats" role="group" aria-label="Sistema de disputa">
               @for (f of formats; track f) {
-                <button type="button" class="og-chip" [class.active]="format() === f" (click)="setFormat(f)">{{ formatLabel[f] }}</button>
+                <button type="button" class="og-chip" [class.active]="format() === f" [attr.aria-pressed]="format() === f" (click)="setFormat(f)">
+                  {{ formatLabel[f] }}
+                </button>
               }
             </div>
             @if (format() === 'double_elimination' && !deCountOk()) {
@@ -177,17 +179,17 @@ function shuffled<T>(items: readonly T[]): T[] {
                 <div class="og-seeds-stepper">
                   <span class="lbl">Duplas por grupo</span>
                   <div class="ctrl">
-                    <button type="button" (click)="bumpTeamsPerGroup(-1)">−</button>
+                    <button type="button" (click)="bumpTeamsPerGroup(-1)" aria-label="Menos duplas por grupo">−</button>
                     <span>{{ teamsPerGroup() }}</span>
-                    <button type="button" (click)="bumpTeamsPerGroup(1)">+</button>
+                    <button type="button" (click)="bumpTeamsPerGroup(1)" aria-label="Mais duplas por grupo">+</button>
                   </div>
                 </div>
                 <div class="og-seeds-stepper">
                   <span class="lbl">Classificam por grupo</span>
                   <div class="ctrl">
-                    <button type="button" (click)="bumpQualifiers(-1)">−</button>
+                    <button type="button" (click)="bumpQualifiers(-1)" aria-label="Menos classificados por grupo">−</button>
                     <span>{{ qualifiersPerGroup() }}</span>
-                    <button type="button" (click)="bumpQualifiers(1)">+</button>
+                    <button type="button" (click)="bumpQualifiers(1)" aria-label="Mais classificados por grupo">+</button>
                   </div>
                 </div>
               </div>
@@ -352,12 +354,14 @@ function shuffled<T>(items: readonly T[]): T[] {
             <button
               card-action
               type="button"
-              class="og-mini-btn"
+              class="og-mini-btn og-seeds-sort-btn"
+              aria-label="Ordenar por nível"
               [disabled]="!canSortByLevel()"
               [title]="sortByLevelHint()"
               (click)="sortByLevel()"
             >
-              <og-icon name="trophy" [size]="14" />Ordenar por nível
+              <og-icon name="trophy" [size]="14" /><span class="og-seeds-sort-long">Ordenar por nível</span
+              ><span class="og-seeds-sort-short">Por nível</span>
             </button>
             @if (eligible().length < minTeams) {
               <p class="og-seeds-empty">É necessário ao menos {{ minTeams }} duplas pagas (e completas) pra gerar a chave.</p>
@@ -403,14 +407,30 @@ function shuffled<T>(items: readonly T[]): T[] {
                       />
                     }
                   </span>
-                  <span style="flex:1;min-width:0">
+                  <span class="og-seed-info">
                     <div class="og-seed-name" [title]="t.teamName">{{ truncate(t.teamName, 32) }}</div>
                     <div class="og-seed-levels">{{ levelsOf(t) }}</div>
                   </span>
                   <span class="og-seed-score" [title]="scoreHint(t)">{{ scoreLabel(t) }}</span>
                   @if (useSeeds()) {
-                    <button type="button" class="og-ghost-btn" [disabled]="i === 0" (click)="move(i, -1)">↑</button>
-                    <button type="button" class="og-ghost-btn" [disabled]="last" (click)="move(i, 1)">↓</button>
+                    <button
+                      type="button"
+                      class="og-ghost-btn og-seed-move up"
+                      [attr.aria-label]="'Subir ' + t.teamName"
+                      [disabled]="i === 0"
+                      (click)="move(i, -1)"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      class="og-ghost-btn og-seed-move down"
+                      [attr.aria-label]="'Descer ' + t.teamName"
+                      [disabled]="last"
+                      (click)="move(i, 1)"
+                    >
+                      ↓
+                    </button>
                   }
                 </div>
               }
@@ -458,6 +478,26 @@ function shuffled<T>(items: readonly T[]): T[] {
         }
       </div>
     </div>
+
+    <!-- Só no telefone (o CSS acende): irmão do .og-wizard-body, que é quem rola — então fica
+         preso embaixo sem position:fixed. Leva o "Publicar chave" do cabeçalho pra perto do
+         polegar e diz POR QUE ele está travado, o que o botão desabilitado sozinho não diz. -->
+    @if (!loading() && category()) {
+      <div class="og-seeds-bar">
+        <p class="og-seeds-bar-summary" [class.blocked]="!canPublish()" aria-live="polite">{{ publishSummary() }}</p>
+        <div class="og-seeds-bar-actions">
+          <button type="button" class="og-seeds-bar-btn" (click)="cancel()">Cancelar</button>
+          <button type="button" class="og-seeds-bar-btn primary" [disabled]="publishing() || !canPublish()" (click)="publish()">
+            @if (publishing()) {
+              <app-nx-spinner [size]="16" tone="dark" />
+            } @else {
+              <og-icon name="bracket" [size]="18" />
+            }
+            {{ publishing() ? 'Publicando…' : 'Publicar chave' }}
+          </button>
+        </div>
+      </div>
+    }
     @if (publishing()) {
       <app-nx-processing-overlay title="Sorteando a chave…" description="Distribuindo as cabeças de chave e sorteando as demais duplas nos grupos." />
     }
@@ -749,6 +789,214 @@ function shuffled<T>(items: readonly T[]): T[] {
     .og-seeds-group-team:last-child {
       border-bottom: none;
     }
+    .og-seed-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .og-seeds-bar,
+    .og-seeds-sort-short {
+      display: none;
+    }
+
+    /* ── Telefone ──
+       Publicar vai pra uma barra presa embaixo; a linha da dupla vira grade (posição ·
+       fotos · nome/nota · ↑ ↓) pra o nome não ser espremido pelas setas de 44px; a alça de
+       arrastar some porque drag do HTML5 não dispara no toque — as setas fazem o trabalho. */
+    @media (max-width: 640px) {
+      :host {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .og-seeds-hdr-act,
+      .og-seed-handle {
+        display: none;
+      }
+      .og-seeds-formats {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .og-seeds-formats .og-chip {
+        height: 44px;
+        padding: 0 10px;
+        border-radius: 12px;
+        text-align: center;
+        line-height: 1.2;
+      }
+      .og-field-grid {
+        gap: 12px;
+      }
+      .og-seeds-stepper .ctrl {
+        gap: 4px;
+      }
+      .og-seeds-stepper .ctrl button {
+        width: 44px;
+        height: 44px;
+        flex: none;
+        font-size: 18px;
+      }
+      .og-seeds-stepper .ctrl span {
+        flex: 1;
+        min-width: 0;
+        font-size: 14px;
+      }
+      .og-koc-plan-field select {
+        height: 44px;
+      }
+      .og-koc-plan-phase {
+        grid-column: 1 / -1;
+        font-family: var(--nx-font-display);
+        font-size: 15px;
+        color: var(--nx-text);
+      }
+      .og-koc-plan-passes {
+        align-self: center;
+      }
+      .og-koc-plan-redo {
+        min-height: 44px;
+        padding: 0 4px;
+      }
+      .og-seed-row {
+        display: grid;
+        grid-template-columns: 28px auto minmax(0, 1fr) 44px 44px;
+        grid-template-areas:
+          'pos av info up down'
+          'pos av score up down';
+        column-gap: 10px;
+        row-gap: 4px;
+        padding: 8px 6px 8px 10px;
+      }
+      .og-seed-list:not(.reorderable) .og-seed-row {
+        grid-template-columns: 28px auto minmax(0, 1fr);
+        grid-template-areas:
+          'pos av info'
+          'pos av score';
+      }
+      .og-seed-pos {
+        grid-area: pos;
+      }
+      .og-seed-avatars {
+        grid-area: av;
+      }
+      .og-seed-info {
+        grid-area: info;
+      }
+      .og-seed-score {
+        grid-area: score;
+        justify-self: start;
+        padding: 1px 7px;
+        font-size: 11px;
+      }
+      .og-seed-move {
+        width: 44px;
+        padding: 0;
+        justify-content: center;
+        border: 1px solid var(--nx-line-strong);
+        background: var(--nx-surface-1);
+        color: var(--nx-text);
+        font-size: 17px;
+      }
+      .og-seed-move.up {
+        grid-area: up;
+      }
+      .og-seed-move.down {
+        grid-area: down;
+      }
+      .og-seed-name {
+        font-size: 14px;
+        line-height: 1.3;
+      }
+      /* O og-avatar grava o tamanho em style inline (input size=36); só !important
+         reduz sem passar um tamanho por breakpoint pelo template. */
+      .og-seed-avatars:not(.sm) .og-avatar {
+        width: 28px !important;
+        height: 28px !important;
+        font-size: 10px !important;
+      }
+      .og-seed-avatars:not(.sm) .og-avatar + .og-avatar {
+        margin-left: -6px;
+      }
+      .og-seed-move:disabled {
+        opacity: 0.35;
+      }
+      .og-seeds-sort-btn {
+        white-space: nowrap;
+      }
+      .og-seeds-sort-long {
+        display: none;
+      }
+      .og-seeds-sort-short {
+        display: inline;
+      }
+      .og-seeds-groups {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .og-seeds-group {
+        padding: 10px 12px;
+        min-width: 0;
+      }
+      /* Duas colunas estreitas: as fotos já estão na lista de semeadura acima — aqui o
+         espaço vai todo pro nome, que quebra em vez de virar "Ana Souza …". */
+      .og-seed-avatars.sm {
+        display: none;
+      }
+      .og-seeds-group-team-name {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        line-height: 1.3;
+      }
+      .og-seeds-bar {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        flex: none;
+        padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
+        background: var(--nx-surface-0);
+        border-top: 1px solid var(--nx-line-strong);
+      }
+      .og-seeds-bar-summary {
+        margin: 0;
+        font-family: var(--nx-font-ui);
+        font-size: 12.5px;
+        line-height: 1.4;
+        color: var(--nx-text-mute);
+      }
+      .og-seeds-bar-summary.blocked {
+        color: var(--nx-live);
+      }
+      .og-seeds-bar-actions {
+        display: flex;
+        gap: 8px;
+      }
+      .og-seeds-bar-btn {
+        height: 48px;
+        padding: 0 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-radius: 12px;
+        border: 1px solid var(--nx-line-strong);
+        background: var(--nx-surface-1);
+        color: var(--nx-text);
+        font-family: var(--nx-font-display);
+        font-weight: 600;
+        font-size: 15px;
+        cursor: pointer;
+      }
+      .og-seeds-bar-btn.primary {
+        flex: 1;
+        border: none;
+        background: var(--nx-orange-500);
+        color: var(--nx-text-on-orange);
+        font-weight: 700;
+      }
+      .og-seeds-bar-btn:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+    }
   `,
 })
 export class SeedsComponent {
@@ -881,6 +1129,28 @@ export class SeedsComponent {
     if (this.format() === 'round_robin') return this.eligible().length >= RR_MIN_TEAMS;
     if (this.format() === 'groups_knockout') return this.knockoutBalanced() && this.groups().length > 0;
     return true;
+  });
+
+  /** Linha da barra de publicar no telefone: o resumo do que vai ser gerado, ou o motivo
+   *  do bloqueio — as mesmas regras de `canPublish`, na mesma ordem. */
+  protected readonly publishSummary = computed(() => {
+    const n = this.eligible().length;
+    const format = this.format();
+    if (n < MIN_TEAMS_FOR_BRACKET) return `É necessário ao menos ${MIN_TEAMS_FOR_BRACKET} duplas pagas (e completas).`;
+    if (format === 'king_of_court') {
+      if (n < KOC_MIN_TEAMS) return `King of the Court precisa de ao menos ${KOC_MIN_TEAMS} duplas.`;
+      if (this.kocPhases().length === 0) return `Com ${n} duplas não dá para montar o King of the Court.`;
+    }
+    if (format === 'double_elimination' && !this.deCountOk()) return `Dupla eliminação aceita ${this.deCounts} duplas (há ${n}).`;
+    if (format === 'round_robin' && n < RR_MIN_TEAMS) return `Todos contra todos precisa de ao menos ${RR_MIN_TEAMS} duplas.`;
+    if (format === 'groups_knockout') {
+      if (!this.knockoutBalanced()) {
+        return `${this.groupCount() * this.qualifiersPerGroup()} classificados não formam um mata-mata equilibrado.`;
+      }
+      if (this.groups().length === 0) return 'Monte a prévia dos grupos antes de publicar.';
+      return `${n} duplas · ${FORMAT_LABEL[format]} · ${this.groupCount()} grupos`;
+    }
+    return `${n} duplas · ${FORMAT_LABEL[format]}`;
   });
 
   constructor() {

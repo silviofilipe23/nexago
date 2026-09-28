@@ -26,7 +26,7 @@ function inicio(overrides: Partial<LedProximos> = {}): LedProximos {
 function durante(): LedProximos {
   return {
     inicio: false,
-    trono: { ...row('t', 1, 'trono', 'No trono · 3 seguidas'), numero: 7 },
+    trono: { ...row('t', 1, 'trono', 'No trono · Em chamas'), numero: 7 },
     fila: [
       row('a', 2, 'desafia', 'Desafiante · Em quadra'),
       row('b', 3, 'sequencia', 'Próxima a desafiar'),
@@ -100,7 +100,7 @@ describe('LedProximosComponent', () => {
 
     expect(texto(h.querySelector('.titulo'))).toContain('Próximos em quadra');
     expect(h.querySelector('.inicio')).toBeNull();
-    expect(texto(h.querySelector('.pxh.tr .rotulo'))).toContain('No trono · 3 seguidas');
+    expect(texto(h.querySelector('.pxh.tr .rotulo'))).toContain('No trono · Em chamas');
     expect(texto(h.querySelector('.numero--tr')).trim()).toBe('7');
   });
 

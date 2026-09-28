@@ -192,13 +192,44 @@ describe('LedRoundComponent', () => {
     expect(nomes.map((n) => n.getAttribute('title'))).toContain('Hölting Nilsson · Berger');
   });
 
-  it('acende a sequência a partir de duas, e o anel a partir de três', async () => {
+  it('tag de sequência só a partir de 3 defesas, com nível, nome e contagem', async () => {
     const duas = host(await render({ view: view({ bar: { ...view().bar, streak: 2 } }) }));
-    expect(duas.textContent).toContain('2 seguidas');
-    expect(duas.querySelector('.bloco--trono')?.classList.contains('bloco--pulsando')).toBeFalse();
+    expect(duas.querySelector('.tag')).toBeNull();
+    expect(duas.querySelector('.bloco--trono')?.getAttribute('data-nivel')).toBe('0');
 
     const tres = host(await render({ view: view({ bar: { ...view().bar, streak: 3 } }) }));
-    expect(tres.querySelector('.bloco--trono')?.classList.contains('bloco--pulsando')).toBeTrue();
+    const tag = tres.querySelector('.bloco--trono .tag')!;
+    expect(tag.textContent).toContain('Em chamas');
+    expect(tag.textContent).toContain('×3');
+    expect(tag.querySelectorAll('.tag-barras i.on').length).toBe(1);
+    expect(tres.querySelector('.bloco--trono')?.getAttribute('data-nivel')).toBe('1');
+
+    const deus = host(await render({ view: view({ bar: { ...view().bar, streak: 9 } }) }));
+    expect(deus.querySelector('.tag')?.getAttribute('data-nivel')).toBe('4');
+    expect(deus.querySelector('.tag')?.textContent).toContain('Modo deus');
+  });
+
+  it('subir de nível solta a onda; subir pros níveis 4 e 5 também o flash — abrir já no nível, não', async () => {
+    const fixture = await render({ view: view({ bar: { ...view().bar, streak: 3 } }) });
+    const h = host(fixture);
+    expect(h.querySelector('.onda')).toBeNull();
+    expect(h.querySelector('.flash')).toBeNull();
+
+    fixture.componentRef.setInput('view', view({ bar: { ...view().bar, streak: 5 } }));
+    await fixture.whenStable();
+    expect(h.querySelector('.onda')).not.toBeNull();
+    expect(h.querySelector('.flash')).toBeNull();
+
+    fixture.componentRef.setInput('view', view({ bar: { ...view().bar, streak: 9 } }));
+    await fixture.whenStable();
+    expect(h.querySelector('.flash')).not.toBeNull();
+  });
+
+  it('o trono caiu: a tag some', async () => {
+    const fixture = await render({ view: view({ bar: { ...view().bar, streak: 7 } }) });
+    fixture.componentRef.setInput('view', view({ bar: { ...view().bar, streak: null } }));
+    await fixture.whenStable();
+    expect(host(fixture).querySelector('.tag')).toBeNull();
   });
 
   it('deixa o relógio vermelho no último minuto', async () => {

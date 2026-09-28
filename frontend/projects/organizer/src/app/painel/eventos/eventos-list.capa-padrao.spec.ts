@@ -52,6 +52,7 @@ function torneio(over: Partial<OrganizerTournament> = {}): OrganizerTournament {
     myRole: null,
     uniformNumberOnShirt: false,
     uniformNameOnShirt: false,
+    sponsors: [],
     ...over,
   };
 }

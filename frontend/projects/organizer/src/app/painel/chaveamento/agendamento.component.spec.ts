@@ -63,6 +63,7 @@ function tournamentFixture(overrides: Partial<OrganizerTournament> = {}): Organi
     uniformRequired: false,
     uniformNumberOnShirt: false,
     uniformNameOnShirt: false,
+    sponsors: [],
     myRole: null,
     ...overrides,
   };

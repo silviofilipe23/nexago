@@ -60,6 +60,15 @@ export interface OrganizerTournamentCourt {
   order: number;
 }
 
+/** Patrocinador do torneio — cadastro simples (nome + logo), gerenciado direto na tela de
+ *  detalhe (`torneio-detalhe.component.ts`), fora do wizard de criar/editar. Ainda sem exibição
+ *  pro atleta (app/portal/mini-site): hoje só o painel do organizador lê e grava. */
+export interface OrganizerTournamentSponsor {
+  id: string;
+  name: string;
+  logoUrl: string;
+}
+
 /** Config do telão ao vivo (`tournaments/{id}.bigScreen`) — escrita só pelo painel do
  *  organizador; a TV escuta o doc e reage ao vivo. Ausente = defaults de
  *  `effectiveTelaoConfig` (todas as quadras, tudo ligado). */
@@ -130,6 +139,7 @@ export interface OrganizerTournament {
   uniformRequired: boolean;
   uniformNumberOnShirt: boolean;
   uniformNameOnShirt: boolean;
+  sponsors: OrganizerTournamentSponsor[];
   /** Papel de quem está logado NESTE torneio — `'owner'` quando `managerId` é o
    *  próprio uid, senão vem do espelho de staff. Só `listMyTournaments` sabe
    *  calcular isso hoje (é quem recebe o uid). As outras fontes de

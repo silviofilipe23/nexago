@@ -87,6 +87,7 @@ function tournament(): OrganizerTournament {
     uniformRequired: false,
     uniformNumberOnShirt: false,
     uniformNameOnShirt: false,
+    sponsors: [],
     myRole: null,
   };
 }

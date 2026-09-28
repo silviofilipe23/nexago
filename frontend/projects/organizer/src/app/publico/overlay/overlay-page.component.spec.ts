@@ -4,6 +4,7 @@ import type { TournamentMatch } from '../../painel/data/matches-repository';
 import type { OrganizerTournament } from '../../painel/data/tournament.model';
 import { OverlayLiveGateway, type OverlayTeam } from './overlay-live.gateway';
 import { OverlayPageComponent } from './overlay-page.component';
+import { getOverlaySettings, installNxOverlay, resetOverlaySettingsForTests } from './overlay-nx';
 
 function match(overrides: Partial<TournamentMatch>): TournamentMatch {
   return {
@@ -613,5 +614,73 @@ describe('OverlayPageComponent', () => {
 
     expect(host.querySelector('og-overlay-final')).toBeNull();
     expect(host.querySelector('og-overlay-scoreboard')).toBeNull();
+  });
+});
+
+/** Patrocinadores: a lista vem do torneio (cadastro no detalhe do torneio) e o card só
+ *  existe se houver patrocinador. A regra do "quando" tem teste próprio
+ *  (overlay-patro-cycle.spec); aqui é a FIAÇÃO — torneio → card na tela. */
+describe('OverlayPageComponent — patrocinadores', () => {
+  const comPatro = {
+    ...TOURNAMENT,
+    sponsors: [
+      { id: 's1', name: 'Loja Areia', logoUrl: '' },
+      { id: 's2', name: 'Açaí da Praia', logoUrl: '' },
+    ],
+  } as unknown as OrganizerTournament;
+
+  function card(el: HTMLElement): HTMLElement | null {
+    return el.querySelector('og-overlay-patro .card');
+  }
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [OverlayPageComponent],
+      providers: [provideZonelessChangeDetection()],
+    }).compileComponents();
+  });
+
+  afterEach(() => resetOverlaySettingsForTests());
+
+  it('"patroc. agora" mostra o card com o 1º patrocinador do torneio', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.tournament.set(comPatro);
+    fake.match.set(match({}));
+    await fixture.whenStable();
+    window.NXOverlay!.showPatro();
+    await fixture.whenStable();
+
+    const el = card(fixture.nativeElement as HTMLElement);
+    expect(el).not.toBeNull();
+    expect(el!.textContent).toContain('Loja Areia');
+    expect(el!.textContent).toContain('Oferecimento');
+  });
+
+  it('sem patrocinador cadastrado o card não aparece nem forçado', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.tournament.set(TOURNAMENT);
+    fake.match.set(match({}));
+    await fixture.whenStable();
+    window.NXOverlay!.showPatro();
+    await fixture.whenStable();
+
+    expect(card(fixture.nativeElement as HTMLElement)).toBeNull();
+  });
+
+  it('a lista do NXOverlay sobrescreve a do torneio', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.tournament.set(comPatro);
+    fake.match.set(match({}));
+    window.NXOverlay!.set({ patro: { lista: [{ nome: 'Marca da Transmissão', logo: '' }] } });
+    window.NXOverlay!.showPatro();
+    await fixture.whenStable();
+
+    expect(card(fixture.nativeElement as HTMLElement)!.textContent).toContain('Marca da Transmissão');
+  });
+
+  it('"patroc. on/off" alterna o ciclo automático', () => {
+    expect(window.NXOverlay?.togglePatro() ?? installNxOverlay().togglePatro()).toBeFalse();
+    expect(getOverlaySettings().patro.card.enabled).toBeFalse();
+    expect(installNxOverlay().togglePatro()).toBeTrue();
   });
 });

@@ -147,11 +147,11 @@ const FILA_R_MS = 480;
                 [class.fila-card--proximo]="f.nextUp"
                 [style.animation-delay.ms]="500 + i * 80"
               >
-                <span class="fila-avatares">
+                <!-- <span class="fila-avatares">
                   @for (p of atletasDe(f.teamId); track $index) {
                     <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="64" />
                   }
-                </span>
+                </span> -->
                 <span class="fila-nome" [attr.title]="nomesDe(f.teamId).join(' · ')">
                   @for (p of atletasDe(f.teamId); track $index) {
                     <span>{{ curto(p.name) }}</span>
@@ -495,7 +495,11 @@ export class LedRoundComponent {
   protected readonly desafiante = computed(
     () => this.blocos().find((b) => b.role === 'challenger') ?? null,
   );
-  protected readonly fila = computed(() => this.blocos().filter((b) => b.role === 'queue'));
+  /** Invertida vs a faixa do overlay: lá o próximo cola no desafiante (direita); aqui cola no
+   *  rótulo "Fila" (esquerda). Os blocos vêm fundo→frente; no LED lemos frente→fundo. */
+  protected readonly fila = computed(() =>
+    [...this.blocos().filter((b) => b.role === 'queue')].reverse(),
+  );
 
   private readonly streak = computed(() => this.view()?.bar.streak ?? 0);
   protected readonly mostraSeguidas = computed(() => this.streak() >= STREAK_TAG);

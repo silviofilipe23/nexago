@@ -182,8 +182,9 @@ describe('LedRoundComponent', () => {
     const cards = [...host(await render()).querySelectorAll('.fila-card')];
 
     expect(cards.length).toBe(3);
+    // Próximo cola no rótulo "Fila" (esquerda) — ordem invertida vs a faixa do overlay.
+    expect(cards[0].classList.contains('fila-card--proximo')).toBeTrue();
     expect(cards.filter((c) => c.classList.contains('fila-card--proximo')).length).toBe(1);
-    expect(cards[0].querySelectorAll('og-avatar').length).toBe(2);
     // Fila também abreviada, com o nome inteiro no title.
     const nomes = cards.map((c) => c.querySelector('.fila-nome')!);
     // Um atleta por linha, abreviado.

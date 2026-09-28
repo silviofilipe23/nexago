@@ -1,4 +1,16 @@
-import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  Injector,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { tournamentCoverOrDefault } from '@nexago/tournament-covers';
 import { environment } from '../../../environments/environment';
@@ -8,11 +20,12 @@ import { cancelTournament, closeTournamentRegistrations } from '../data/organize
 import { isPaidRegistrationsRejection } from '../data/tournament-cancel-escalation';
 import type { OrganizerTournament, OrganizerTournamentSponsor, OrganizerTournamentStatus } from '../data/tournament.model';
 import { EMPTY_TOURNAMENT_COLLECTED, formatCentsShort } from '../data/tournament-collected';
+import { tournamentUsesUniform } from '../data/uniforms';
 import { addTournamentSponsor, getTournament, removeTournamentSponsor, validateSponsorLogoFile } from '../data/tournaments-repository';
 import { OgCardComponent } from '../ui/card.component';
 import { OgConfirmDialogComponent } from '../ui/confirm-dialog.component';
 import { OgFormFieldComponent } from '../ui/form-field.component';
-import { OgIconComponent } from '../ui/icon.component';
+import { OgIconComponent, type OgIconName } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
@@ -49,6 +62,14 @@ const CONFIRM_COPY: Record<PendingAction, { title: string; message: string; conf
   },
 };
 
+/** Atalhos do torneio no telefone — os mesmos itens da sidebar contextual (nível torneio). */
+interface ToolLink {
+  label: string;
+  icon: OgIconName;
+  path: string;
+  badge: number | null;
+}
+
 const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
 
 interface CategoriaRow {
@@ -71,6 +92,7 @@ interface CategoriaRow {
 @Component({
   selector: 'og-torneio-detalhe',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '(document:keydown.escape)': 'closeActions()' },
   imports: [
     RouterLink,
     OgPageHeaderComponent,
@@ -86,12 +108,12 @@ interface CategoriaRow {
     <og-page-header [title]="tournament()?.name ?? 'Torneio'" [subtitle]="headerSubtitle()">
       @if (tournament(); as t) {
         @if (canShare()) {
-          <button type="button" class="og-mini-btn og-mini-btn-primary" (click)="shareOpen.set(true)">
+          <button type="button" class="og-mini-btn og-mini-btn-primary og-torneio-hdr-act" (click)="shareOpen.set(true)">
             <og-icon name="share" [size]="14" />Compartilhar
           </button>
         }
         @if (t.status === 'inscricoes') {
-          <button type="button" class="og-ghost-btn" [disabled]="acting()" (click)="ask('close')">
+          <button type="button" class="og-ghost-btn og-torneio-hdr-act" [disabled]="acting()" (click)="ask('close')">
             @if (actingKind() === 'close') {
               <app-nx-spinner [size]="12" />
             }
@@ -99,14 +121,16 @@ interface CategoriaRow {
           </button>
         }
         @if (t.status !== 'cancelado' && t.status !== 'concluido') {
-          <button type="button" class="og-ghost-btn og-torneio-danger" [disabled]="acting()" (click)="ask('cancel')">
+          <button type="button" class="og-ghost-btn og-torneio-danger og-torneio-hdr-act" [disabled]="acting()" (click)="ask('cancel')">
             @if (actingKind() === 'cancel') {
               <app-nx-spinner [size]="12" />
             }
             {{ actingKind() === 'cancel' ? 'Cancelando…' : 'Cancelar torneio' }}
           </button>
         }
-        <a class="og-mini-btn" routerLink="/painel/novo-torneio" [queryParams]="{ editar: t.id }"><og-icon name="edit" [size]="14" />Editar torneio</a>
+        <a class="og-mini-btn og-torneio-hdr-act" routerLink="/painel/novo-torneio" [queryParams]="{ editar: t.id }"
+          ><og-icon name="edit" [size]="14" />Editar torneio</a
+        >
       }
     </og-page-header>
 
@@ -123,18 +147,63 @@ interface CategoriaRow {
             </div>
           }
         }
+        <!-- Só no telefone (o CSS acende): o subtítulo do cabeçalho some abaixo de 1024px e as
+             ações do cabeçalho abaixo de 640px — status, data, local e ações voltam aqui, com
+             alvos de 48px. Encerrar/cancelar ficam na folha "Mais ações". -->
+        @if (tournament(); as t) {
+          <div class="og-torneio-m">
+            <span class="og-torneio-m-status" [attr.data-status]="t.status">{{ statusLabel() }}</span>
+            <div class="og-torneio-m-meta">
+              <span><og-icon name="calendar" [size]="16" />{{ shareDateLabel() ?? 'Data a definir' }}</span>
+              <span><og-icon name="pin" [size]="16" />{{ sharePlace() ?? 'Local a definir' }}</span>
+            </div>
+            <div class="og-torneio-m-actions">
+              @if (canShare()) {
+                <button type="button" class="og-torneio-m-btn primary" (click)="shareOpen.set(true)">
+                  <og-icon name="share" [size]="18" />Compartilhar
+                </button>
+              }
+              <a class="og-torneio-m-btn" routerLink="/painel/novo-torneio" [queryParams]="{ editar: t.id }">
+                <og-icon name="edit" [size]="17" />Editar
+              </a>
+              @if (hasSheetActions()) {
+                <button
+                  #actionsTrigger
+                  type="button"
+                  class="og-torneio-m-btn icon"
+                  aria-label="Mais ações do torneio"
+                  aria-haspopup="dialog"
+                  [disabled]="acting()"
+                  (click)="openActions()"
+                >
+                  <og-icon name="more" [size]="20" />
+                </button>
+              }
+            </div>
+            @if (collected().toVerifyCents > 0) {
+              <a class="og-torneio-m-alert" [routerLink]="['/painel/eventos', id(), 'inscricoes']">
+                <og-icon name="alert" [size]="18" />
+                <span>
+                  <strong>{{ money(collected().toVerifyCents) }} a conferir</strong>
+                  <small>Pagamentos diretos esperando sua confirmação</small>
+                </span>
+                <og-icon name="chevron" [size]="16" />
+              </a>
+            }
+          </div>
+        }
         @if (feedback(); as fb) {
           <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
         }
         <div class="og-kpi-row og-torneio-kpis" [class.over-hero]="cover() && !coverFailed()">
-          <div class="og-card og-card-pad-sm og-torneio-kpi">
+          <a class="og-card og-card-pad-sm og-torneio-kpi og-torneio-kpi-link" [routerLink]="['/painel/eventos', id(), 'inscricoes']">
             <div class="og-kpi-label">Inscritos</div>
             <div class="og-kpi-value sm">{{ inscritosCount() }}</div>
-          </div>
-          <div class="og-card og-card-pad-sm og-torneio-kpi">
+          </a>
+          <a class="og-card og-card-pad-sm og-torneio-kpi og-torneio-kpi-link" [routerLink]="['/painel/eventos', id(), 'inscricoes']">
             <div class="og-kpi-label">Pendentes</div>
             <div class="og-kpi-value sm og-torneio-kpi-pend">{{ pendentesCount() }}</div>
-          </div>
+          </a>
           <div class="og-card og-card-pad-sm og-torneio-kpi">
             <div class="og-kpi-label">Categorias</div>
             <div class="og-kpi-value sm">{{ categoriasCount() }}</div>
@@ -148,6 +217,23 @@ interface CategoriaRow {
           </div>
         </div>
 
+        <!-- Só no telefone: a sidebar contextual vira gaveta, e as ferramentas do torneio
+             ficavam a dois toques. Aqui ficam na tela, com o número de pendentes. -->
+        <nav class="og-torneio-tools" aria-label="Gerenciar torneio">
+          <h2 class="og-torneio-m-title">Gerenciar torneio</h2>
+          <div class="og-torneio-tools-grid">
+            @for (tool of tools(); track tool.path) {
+              <a class="og-torneio-tool" [routerLink]="['/painel/eventos', id(), tool.path]">
+                <og-icon [name]="tool.icon" [size]="22" [strokeWidth]="1.9" />
+                <span>{{ tool.label }}</span>
+                @if (tool.badge) {
+                  <span class="og-torneio-tool-badge" [attr.aria-label]="tool.badge + ' pendentes'">{{ tool.badge }}</span>
+                }
+              </a>
+            }
+          </div>
+        </nav>
+
         <div class="og-torneio-cats-head">
           <div>
             <div class="og-torneio-cats-kicker">CATEGORIAS · passo 2</div>
@@ -155,7 +241,7 @@ interface CategoriaRow {
           </div>
           <div class="og-page-header-spacer"></div>
           <!-- mock (fase 2): adicionar categoria depois do torneio criado ainda não existe no app -->
-          <button type="button" class="og-ghost-btn"><og-icon name="plus" [size]="13" />Adicionar categoria</button>
+          <button type="button" class="og-ghost-btn og-torneio-cats-add"><og-icon name="plus" [size]="13" />Adicionar categoria</button>
         </div>
 
         <div class="og-torneio-cats-grid">
@@ -164,8 +250,8 @@ interface CategoriaRow {
               <a class="og-torneio-cat-body" [routerLink]="['/painel/eventos', id(), 'categorias', c.id]">
                 <div class="og-torneio-cat-top">
                   <div class="og-torneio-cat-name">{{ c.name }}</div>
-                  <og-pill [tone]="c.total == null ? 'dim' : c.full ? 'green' : 'orange'">
-                    {{ c.total == null ? 'Sem limite' : c.full ? 'Lotado' : 'Abertas' }}
+                  <og-pill [tone]="c.hasMatches || c.total == null ? 'dim' : c.full ? 'green' : 'orange'">
+                    {{ c.hasMatches ? 'Chave gerada' : c.total == null ? 'Sem limite' : c.full ? 'Lotado' : 'Abertas' }}
                   </og-pill>
                 </div>
                 @if (c.total != null) {
@@ -186,9 +272,10 @@ interface CategoriaRow {
                   @if (c.pend > 0) {
                     <span class="pend">{{ c.pend }} pend.</span>
                   }
+                  <og-icon class="og-torneio-cat-chev" name="chevron" [size]="16" />
                 </div>
               </a>
-              <div class="og-torneio-cat-cta">
+              <div class="og-torneio-cat-cta" [class.link-only]="!c.full || c.hasMatches">
                 <a class="og-torneio-cat-cta-link" [routerLink]="['/painel/eventos', id(), 'categorias', c.id]">
                   Gerenciar categoria
                   <og-icon name="chevron" [size]="13" />
@@ -209,13 +296,21 @@ interface CategoriaRow {
 
         <og-card title="Patrocinadores" kicker="MARKETING">
           @if (!addingSponsor()) {
-            <button card-action type="button" class="og-ghost-btn" (click)="startAddSponsor()">
-              <og-icon name="plus" [size]="13" />Adicionar patrocinador
+            <button
+              card-action
+              type="button"
+              class="og-ghost-btn og-sponsor-add-btn"
+              aria-label="Adicionar patrocinador"
+              (click)="startAddSponsor()"
+            >
+              <og-icon name="plus" [size]="13" />Adicionar<span class="og-sponsor-add-btn-long">&nbsp;patrocinador</span>
             </button>
           }
 
           @if (addingSponsor()) {
-            <div class="og-sponsor-add">
+            <button type="button" class="og-sponsor-scrim" aria-label="Fechar" (click)="cancelAddSponsor()"></button>
+            <div class="og-sponsor-add" role="group" aria-label="Novo patrocinador">
+              <div class="og-sponsor-add-title">Novo patrocinador</div>
               <div class="og-sponsor-add-logo">
                 @if (sponsorLogoPreview(); as preview) {
                   <img [src]="preview" alt="" />
@@ -294,6 +389,40 @@ interface CategoriaRow {
         (confirmed)="confirmPending(action)"
         (cancelled)="dismissPending()"
       />
+    }
+
+    @if (actionsOpen()) {
+      @if (tournament(); as t) {
+        <div class="og-torneio-sheet-backdrop" (click)="closeActions()">
+          <div class="og-torneio-sheet" role="dialog" aria-modal="true" aria-labelledby="og-torneio-sheet-title" (click)="$event.stopPropagation()">
+            <div class="og-torneio-sheet-head">
+              <h2 id="og-torneio-sheet-title">Ações do torneio</h2>
+              <button #sheetClose type="button" class="og-torneio-sheet-close" aria-label="Fechar" (click)="closeActions()">
+                <og-icon name="close" [size]="20" />
+              </button>
+            </div>
+            @if (t.status === 'inscricoes') {
+              <button type="button" class="og-torneio-sheet-item" (click)="askFromSheet('close')">
+                <span class="og-torneio-sheet-ico pend"><og-icon name="clock" [size]="19" /></span>
+                <span>
+                  <strong>Encerrar inscrições</strong>
+                  <small>Fecha todas as categorias. Quem já entrou continua.</small>
+                </span>
+              </button>
+            }
+            @if (t.status !== 'cancelado' && t.status !== 'concluido') {
+              <div class="og-torneio-sheet-kicker">Zona de risco</div>
+              <button type="button" class="og-torneio-sheet-item danger" (click)="askFromSheet('cancel')">
+                <span class="og-torneio-sheet-ico"><og-icon name="close" [size]="19" /></span>
+                <span>
+                  <strong>Cancelar torneio</strong>
+                  <small>Atletas são avisados e o torneio sai do catálogo</small>
+                </span>
+              </button>
+            }
+          </div>
+        </div>
+      }
     }
 
     @if (shareOpen()) {
@@ -654,44 +783,423 @@ interface CategoriaRow {
       }
     }
 
-    /* Telefone: hero mais baixo, KPIs empilhados, grade de categorias em 1 coluna,
-       CTA "Gerar chave" em linha própria. */
+    /* ── Peças só do telefone (acesas no @media abaixo) ── */
+    .og-torneio-m,
+    .og-torneio-tools,
+    .og-torneio-cat-chev,
+    .og-sponsor-scrim,
+    .og-sponsor-add-title {
+      display: none;
+    }
+    .og-torneio-kpi-link {
+      display: block;
+      color: inherit;
+      text-decoration: none;
+      transition: border-color 140ms var(--nx-ease-out);
+    }
+    .og-torneio-kpi-link:hover {
+      border-color: var(--nx-line-strong);
+    }
+
+    /* Folha "Mais ações" — só o botão ⋯ do telefone abre. */
+    .og-torneio-sheet-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      display: flex;
+      align-items: flex-end;
+      background: rgba(7, 7, 8, 0.66);
+    }
+    .og-torneio-sheet {
+      width: 100%;
+      padding: 8px 16px calc(24px + env(safe-area-inset-bottom));
+      background: var(--nx-surface-1);
+      border-top: 1px solid var(--nx-line-strong);
+      border-radius: 22px 22px 0 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .og-torneio-sheet-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .og-torneio-sheet-head h2 {
+      margin: 0;
+      font-family: var(--nx-font-display);
+      font-size: 18px;
+      color: var(--nx-text);
+    }
+    .og-torneio-sheet-close {
+      width: 44px;
+      height: 44px;
+      margin-right: -10px;
+      display: grid;
+      place-items: center;
+      background: none;
+      border: none;
+      color: var(--nx-text-mute);
+      cursor: pointer;
+    }
+    .og-torneio-sheet-item {
+      min-height: 64px;
+      padding: 8px 0;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: none;
+      border: none;
+      border-bottom: 1px solid var(--nx-line);
+      color: var(--nx-text);
+      text-align: left;
+      cursor: pointer;
+    }
+    .og-torneio-sheet-item > span:last-child,
+    .og-torneio-m-alert > span {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .og-torneio-sheet-item strong,
+    .og-torneio-m-alert strong {
+      font-family: var(--nx-font-display);
+      font-weight: 600;
+      font-size: 15px;
+    }
+    .og-torneio-sheet-item small,
+    .og-torneio-m-alert small {
+      font-family: var(--nx-font-ui);
+      font-size: 12.5px;
+      color: var(--nx-text-mute);
+    }
+    .og-torneio-sheet-ico {
+      width: 40px;
+      height: 40px;
+      flex: none;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      background: var(--nx-surface-2);
+    }
+    .og-torneio-sheet-ico.pend {
+      color: var(--nx-pending);
+    }
+    .og-torneio-sheet-kicker {
+      margin: 20px 0 8px;
+      font-family: var(--nx-font-mono);
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+    }
+    .og-torneio-sheet-item.danger {
+      padding: 8px 14px;
+      border: 1px solid rgba(255, 59, 48, 0.28);
+      border-radius: var(--nx-r-3);
+      background: rgba(255, 59, 48, 0.08);
+      color: #ff6b61;
+    }
+    .og-torneio-sheet-item.danger .og-torneio-sheet-ico {
+      background: rgba(255, 59, 48, 0.14);
+    }
+
+    /* Telefone: o cabeçalho perde as ações (voltam no bloco .og-torneio-m, com 48px),
+       KPIs em 2×2, ferramentas do torneio na tela, categoria = um alvo só. */
     @media (max-width: 640px) {
+      .og-torneio-hdr-act,
+      .og-torneio-cats-add,
+      .og-torneio-cat-cta-link {
+        display: none;
+      }
       .og-torneio-hero {
         height: 160px;
-        margin: -16px -20px -52px;
+        margin: -16px -20px -64px;
+      }
+      .og-torneio-m {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .og-torneio-m-status {
+        align-self: flex-start;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 26px;
+        padding: 0 10px;
+        border-radius: var(--nx-r-pill);
+        background: var(--nx-surface-2);
+        color: var(--nx-text-mute);
+        font-family: var(--nx-font-display);
+        font-weight: 600;
+        font-size: 12px;
+      }
+      .og-torneio-m-status::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+      .og-torneio-m-status[data-status='inscricoes'] {
+        background: rgba(43, 209, 126, 0.14);
+        color: var(--nx-win);
+      }
+      .og-torneio-m-status[data-status='andamento'] {
+        background: var(--nx-orange-tint);
+        color: var(--nx-orange-400);
+      }
+      .og-torneio-m-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-family: var(--nx-font-ui);
+        font-size: 14px;
+        color: var(--nx-text);
+      }
+      .og-torneio-m-meta > span {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      .og-torneio-m-meta og-icon {
+        flex: none;
+        color: var(--nx-orange-400);
+      }
+      .og-torneio-m-actions {
+        display: flex;
+        gap: 8px;
+      }
+      .og-torneio-m-btn {
+        height: 48px;
+        padding: 0 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-radius: 12px;
+        border: 1px solid var(--nx-line-strong);
+        background: var(--nx-surface-1);
+        color: var(--nx-text);
+        font-family: var(--nx-font-display);
+        font-weight: 600;
+        font-size: 14px;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .og-torneio-m-btn.primary {
+        flex: 1;
+        border: none;
+        background: var(--nx-orange-500);
+        color: var(--nx-text-on-orange);
+        font-weight: 700;
+        font-size: 15px;
+      }
+      .og-torneio-m-btn.icon {
+        width: 48px;
+        padding: 0;
+        flex: none;
+      }
+      /* Sem Compartilhar (concluído/cancelado), Editar ocupa a linha. */
+      .og-torneio-m-btn:first-child {
+        flex: 1;
+      }
+      .og-torneio-m-alert {
+        min-height: 56px;
+        padding: 10px 12px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-radius: var(--nx-r-3);
+        background: rgba(244, 197, 67, 0.1);
+        border: 1px solid rgba(244, 197, 67, 0.28);
+        color: var(--nx-text);
+        text-decoration: none;
+      }
+      .og-torneio-m-alert > og-icon:first-child {
+        flex: none;
+        color: var(--nx-pending);
+      }
+      .og-torneio-m-alert > span {
+        flex: 1;
+      }
+      .og-torneio-m-alert > og-icon:last-child {
+        flex: none;
+        color: var(--nx-text-dim);
+      }
+      .og-torneio-kpis {
+        gap: 10px;
       }
       .og-torneio-kpi {
-        flex: 1 1 100%;
+        flex: 1 1 calc(50% - 5px);
         min-width: 0;
       }
       .og-torneio-kpi-split {
         white-space: normal;
       }
+      .og-torneio-tools {
+        display: block;
+        flex: none;
+      }
+      .og-torneio-m-title {
+        margin: 6px 0 12px;
+        font-family: var(--nx-font-display);
+        font-weight: 700;
+        font-size: 17px;
+        color: var(--nx-text);
+      }
+      .og-torneio-tools-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .og-torneio-tool {
+        position: relative;
+        min-height: 84px;
+        padding: 12px 6px 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-radius: var(--nx-r-3);
+        background: var(--nx-surface-0);
+        border: 1px solid var(--nx-line);
+        color: var(--nx-text);
+        text-decoration: none;
+        font-family: var(--nx-font-display);
+        font-weight: 600;
+        font-size: 12.5px;
+        text-align: center;
+      }
+      .og-torneio-tool > og-icon {
+        color: var(--nx-orange-400);
+      }
+      .og-torneio-tool-badge {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 6px;
+        border-radius: var(--nx-r-pill);
+        background: var(--nx-pending);
+        color: var(--nx-text-on-orange);
+        font-family: var(--nx-font-mono);
+        font-size: 11px;
+        font-weight: 700;
+        display: grid;
+        place-items: center;
+      }
       .og-torneio-cats-head {
         align-items: flex-start;
       }
-      .og-torneio-cats-head > .og-page-header-spacer {
-        display: none;
-      }
-      .og-torneio-cats-head > .og-ghost-btn {
-        width: 100%;
-        justify-content: center;
-      }
       .og-torneio-cats-grid {
         grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      .og-torneio-cat-chev {
+        display: block;
+        margin-left: auto;
+        color: var(--nx-text-dim);
+      }
+      .og-torneio-cat-cta {
+        padding: 0 12px 12px;
+        border-top: none;
+      }
+      .og-torneio-cat-cta.link-only {
+        display: none;
       }
       .og-torneio-cat-cta > .og-page-header-spacer {
         display: none;
       }
       .og-torneio-cat-cta > .og-mini-btn {
         width: 100%;
+        height: 44px;
+        justify-content: center;
+        font-size: 14px;
+      }
+      .og-sponsor-add-btn {
+        height: 44px;
+        margin-left: auto;
+      }
+      .og-sponsor-add-btn-long {
+        display: none;
+      }
+      .og-sponsor-chip {
+        flex: 1 1 100%;
+      }
+      .og-sponsor-name {
+        flex: 1;
+        min-width: 0;
+      }
+      .og-sponsor-chip .og-mini-btn,
+      .og-sponsor-add-actions > button {
+        height: 44px;
+      }
+      /* O formulário de patrocinador vira folha presa na base da tela. */
+      .og-sponsor-scrim {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 60;
+        border: none;
+        background: rgba(7, 7, 8, 0.66);
+      }
+      .og-sponsor-add {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 61;
+        max-height: 85vh;
+        overflow-y: auto;
+        margin: 0;
+        padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
+        background: var(--nx-surface-1);
+        border-top: 1px solid var(--nx-line-strong);
+        border-bottom: none;
+        border-radius: 22px 22px 0 0;
+      }
+      .og-sponsor-add-title {
+        display: block;
+        flex-basis: 100%;
+        font-family: var(--nx-font-display);
+        font-weight: 700;
+        font-size: 18px;
+        color: var(--nx-text);
+      }
+      .og-sponsor-add-fields {
+        min-width: 0;
+      }
+      .og-sponsor-add-fields og-form-field,
+      .og-sponsor-add-fields > button {
+        display: flex;
+        width: 100%;
+      }
+      .og-sponsor-add-fields > button {
+        height: 44px;
+        justify-content: center;
+      }
+      .og-sponsor-add .og-input-el {
+        height: 48px;
+        font-size: 16px;
+      }
+      .og-sponsor-add-actions > button {
+        flex: 1;
         justify-content: center;
       }
     }
   `,
 })
 export class TorneioDetalheComponent {
+  private readonly injector = inject(Injector);
   readonly id = input<string>('');
 
   protected readonly loading = signal(true);
@@ -735,6 +1243,36 @@ export class TorneioDetalheComponent {
     return t ? tournamentCoverOrDefault(t.coverUrl, t.sportId) : null;
   });
   protected readonly shareOpen = signal(false);
+
+  /** Folha "Mais ações" do telefone — encerrar inscrições e cancelar, longe do Compartilhar. */
+  protected readonly actionsOpen = signal(false);
+  private readonly actionsTrigger = viewChild<ElementRef<HTMLButtonElement>>('actionsTrigger');
+  private readonly sheetClose = viewChild<ElementRef<HTMLButtonElement>>('sheetClose');
+
+  /** Mesma regra dos botões do cabeçalho: há o que encerrar/cancelar enquanto o torneio vive. */
+  protected readonly hasSheetActions = computed(() => {
+    const status = this.tournament()?.status;
+    return status === 'inscricoes' || status === 'andamento';
+  });
+
+  protected readonly statusLabel = computed(() => {
+    const t = this.tournament();
+    return t ? STATUS_LABEL[t.status] : '';
+  });
+
+  protected readonly tools = computed<ToolLink[]>(() => {
+    const pend = this.pendentesCount();
+    return [
+      { label: 'Inscrições', icon: 'users', path: 'inscricoes', badge: pend > 0 ? pend : null },
+      ...(tournamentUsesUniform(this.tournament())
+        ? [{ label: 'Uniformes', icon: 'shirt' as OgIconName, path: 'uniformes', badge: null }]
+        : []),
+      { label: 'Agendamento', icon: 'calendar', path: 'agendamento', badge: null },
+      { label: 'Telão', icon: 'tv', path: 'telao', badge: null },
+      { label: 'Comunicação', icon: 'mail', path: 'comunicacao', badge: null },
+      { label: 'Equipe', icon: 'team', path: 'equipe', badge: null },
+    ];
+  });
 
   protected readonly shareBases = {
     siteBaseUrl: environment.publicSiteUrl,
@@ -817,6 +1355,7 @@ export class TorneioDetalheComponent {
       this.categoriesWithMatches.set(new Set<string>());
       this.coverFailed.set(false);
       this.shareOpen.set(false);
+      this.actionsOpen.set(false);
       if (!tid) {
         this.loading.set(false);
         return;
@@ -841,6 +1380,23 @@ export class TorneioDetalheComponent {
     if (this.acting()) return;
     this.actionError.set(null);
     this.pending.set(action);
+  }
+
+  protected openActions(): void {
+    this.actionsOpen.set(true);
+    afterNextRender(() => this.sheetClose()?.nativeElement.focus(), { injector: this.injector });
+  }
+
+  protected closeActions(): void {
+    if (!this.actionsOpen()) return;
+    this.actionsOpen.set(false);
+    afterNextRender(() => this.actionsTrigger()?.nativeElement.focus(), { injector: this.injector });
+  }
+
+  /** A folha fecha antes do diálogo de confirmação abrir — nunca dois modais empilhados. */
+  protected askFromSheet(action: 'close' | 'cancel'): void {
+    this.actionsOpen.set(false);
+    this.ask(action);
   }
 
   protected dismissPending(): void {

@@ -4,6 +4,7 @@ import {
   kocMatchPhaseLabel,
   kocFinalTable,
   kocHasQualifyingTie,
+  kocQualifies,
   kocQualifyingTieGroup,
   kocHasStarted,
   kocIsExpired,
@@ -357,6 +358,66 @@ describe('kocFinalTable', () => {
     const table = kocFinalTable(round);
     expect(table.find((r) => r.teamId === 'A')?.removed).toBe(true);
     expect(table.find((r) => r.teamId === 'D')?.removed).toBe(false);
+  });
+});
+
+/** "Essa equipe classifica" — a MESMA pergunta que mesa e telão fazem sobre
+ *  cada linha da tabela. Espelha o filtro `!s.removed` de `kocQualifyingTies`
+ *  no servidor (`koc-engine.ts`): uma equipe removida congelada acima do
+ *  corte não pode aparecer com o badge "classifica" até a rodada terminar. */
+describe('kocQualifies', () => {
+  it('classifica quem está dentro do corte', () => {
+    const round = kocRoundStateFrom(
+      doc({
+        kocConfig: { qualifiersPerRound: 2, durationSec: 900 },
+        kocState: { points: { A: 10, B: 5, C: 2, D: 0 }, rallies: 3 },
+      }),
+    );
+    expect(kocQualifies(round, 'A')).toBe(true);
+    expect(kocQualifies(round, 'B')).toBe(true);
+    expect(kocQualifies(round, 'C')).toBe(false);
+    expect(kocQualifies(round, 'D')).toBe(false);
+  });
+
+  it('equipe removida nunca classifica, mesmo congelada acima do corte', () => {
+    // A está removida mas ficou congelada em 1º com a maior pontuação — sem
+    // filtrar `removed`, `place <= qualifiersPerRound` diria que ela
+    // classifica até a tabela final (já corrigida) ser exibida.
+    const round = kocRoundStateFrom(
+      doc({
+        kocConfig: { qualifiersPerRound: 2, durationSec: 900 },
+        kocState: { points: { A: 10, B: 2, C: 2, D: 5 }, rallies: 1 },
+        kocRallies: [{ seq: 1, winner: 'team_removed', teamId: 'A', atMs: T0 }],
+      }),
+    );
+    expect(kocQualifies(round, 'A')).toBe(false);
+  });
+
+  it('remover uma equipe promove as ativas abaixo dela para dentro do corte', () => {
+    // Mesmo cenário acima: com A fora da disputa, a vaga que sobrou é de D —
+    // 2º entre as ATIVAS (D, B/C empatadas), não 3º entre a ordem bruta.
+    const round = kocRoundStateFrom(
+      doc({
+        kocConfig: { qualifiersPerRound: 2, durationSec: 900 },
+        kocState: { points: { A: 10, B: 2, C: 2, D: 5 }, rallies: 1 },
+        kocRallies: [{ seq: 1, winner: 'team_removed', teamId: 'A', atMs: T0 }],
+      }),
+    );
+    expect(kocQualifies(round, 'D')).toBe(true);
+  });
+
+  it('lê a tabela final persistida, não recalcula por conta própria', () => {
+    const round = kocRoundStateFrom(
+      doc({
+        kocConfig: { qualifiersPerRound: 1, durationSec: 900 },
+        kocStandings: [
+          { teamId: 'A', place: 1, points: 3, crowns: 1 },
+          { teamId: 'B', place: 2, points: 1, crowns: 0, removed: true },
+        ],
+      }),
+    );
+    expect(kocQualifies(round, 'A')).toBe(true);
+    expect(kocQualifies(round, 'B')).toBe(false);
   });
 });
 

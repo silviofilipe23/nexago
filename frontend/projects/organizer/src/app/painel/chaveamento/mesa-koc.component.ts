@@ -18,6 +18,7 @@ import {
   kocLogLines,
   kocMatchPhaseLabel,
   kocPointsOf,
+  kocQualifies,
   kocRemainingLabel,
   type KocRoundState,
 } from '../data/koc';
@@ -3005,7 +3006,7 @@ export class MesaKocComponent {
       points: row.points,
       crowns: row.crowns,
       rallyWins: wins.get(row.teamId) ?? 0,
-      qualifies: row.place <= r.qualifiersPerRound,
+      qualifies: kocQualifies(r, row.teamId),
     }));
   });
 
@@ -3029,7 +3030,7 @@ export class MesaKocComponent {
       place: i + 1,
       name: this.faceOf(teamId).name,
       points: kocPointsOf(r, teamId),
-      qualifies: i < r.qualifiersPerRound,
+      qualifies: kocQualifies(r, teamId),
       tied: r.teamIds.some((id) => id !== teamId && kocPointsOf(r, id) === kocPointsOf(r, teamId)),
     }));
   });

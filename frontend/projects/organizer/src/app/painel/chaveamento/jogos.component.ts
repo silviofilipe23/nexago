@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { KocRoundState } from '../data/koc';
 import { compactTeamLabel, type PillTone } from '../data/mock-data';
@@ -12,6 +12,15 @@ import { ChaveamentoContextService } from './chaveamento-context.service';
 
 const JOGO_TONE: Record<MatchDisplayStatus, PillTone> = { scheduled: 'orange', in_progress: 'red', completed: 'dim', canceled: 'dim' };
 const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', in_progress: 'Ao vivo', completed: 'Encerrado', canceled: 'Cancelado' };
+
+/** Filtro por situação. Cancelado não tem aba própria: raro, e aparece em "Todos". */
+type JogoFilter = 'all' | 'in_progress' | 'scheduled' | 'completed';
+const FILTERS: { id: JogoFilter; label: string; empty: string }[] = [
+  { id: 'all', label: 'Todos', empty: 'Nenhum jogo nesta categoria' },
+  { id: 'in_progress', label: 'Ao vivo', empty: 'Nenhum jogo ao vivo agora' },
+  { id: 'scheduled', label: 'Agendados', empty: 'Nenhum jogo agendado' },
+  { id: 'completed', label: 'Encerrados', empty: 'Nenhum jogo encerrado ainda' },
+];
 
 /** Lista de partidas — dados reais de `listMatches` (Task O6): horário, confronto, placar,
  *  quadra e status REAL do doc (incluindo "Ao vivo" quando a mesa está rodando). Cada linha
@@ -47,6 +56,13 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
       } @else if (ctx.tournaments().length > 0 && ctx.matches().length === 0) {
         <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Chaves ainda não geradas</div>
       } @else {
+        <div class="og-filter-bar og-jogos-filter" role="group" aria-label="Filtrar por situação">
+          @for (f of filters; track f.id) {
+            <button type="button" class="og-chip" [class.active]="filter() === f.id" [attr.aria-pressed]="filter() === f.id" (click)="filter.set(f.id)">
+              {{ f.label }}<span class="og-jogos-filter-count">{{ filterCounts()[f.id] }}</span>
+            </button>
+          }
+        </div>
         <og-card pad="0" flex="1" class="og-jogos-card">
           <div class="og-table-head og-jogos-grid">
             <span class="col-num">Nº</span>
@@ -58,8 +74,8 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
             <span></span>
           </div>
           <div class="og-table-body">
-            @for (j of jogos(); track j.match.id) {
-              <div class="og-row og-jogos-grid">
+            @for (j of visibleJogos(); track j.match.id) {
+              <div class="og-row og-jogos-grid" [class.live]="j.status === 'in_progress'">
                 <span class="og-jogos-number col-num">#{{ j.match.matchNumber }}</span>
                 <span class="og-jogos-when">
                   <span class="og-jogos-time">{{ j.time }}</span>
@@ -90,7 +106,7 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
                 </span>
                 <span class="og-jogos-score col-score">
                   @if (j.status === 'in_progress') {
-                    <span class="og-dot og-dot-red og-dot-pulse only-tight"></span>
+                    <span class="og-dot og-dot-red og-dot-pulse only-tight score-dot"></span>
                   }
                   <span class="only-wide">{{ j.score }}</span>
                   @if (j.match.score) {
@@ -98,10 +114,13 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
                   } @else {
                     <!-- Sem placar, a coluna diz POR QUE não tem: é o selo de status, que na
                          faixa do tablet não cabe em coluna própria. -->
-                    <span class="only-tight"><og-pill [tone]="jogoTone[j.status]">{{ jogoLabel[j.status] }}</og-pill></span>
+                    <span class="only-tight score-pill"><og-pill [tone]="jogoTone[j.status]">{{ jogoLabel[j.status] }}</og-pill></span>
                   }
                 </span>
-                <span class="og-jogos-quadra col-court" [title]="j.court"><span class="only-wide">{{ j.match.court ?? '—' }}</span><span class="only-tight">{{ j.courtShort }}</span></span>
+                <span class="og-jogos-quadra col-court" [title]="j.court"
+                  ><span class="only-wide">{{ j.match.court ?? '—' }}</span><span class="only-tight">{{ j.courtShort }}</span
+                  ><span class="court-phone">{{ j.court }}</span></span
+                >
                 <span class="og-jogos-status col-status">
                   @if (j.status === 'in_progress') {
                     <span class="og-dot og-dot-red og-dot-pulse"></span>
@@ -123,7 +142,9 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
                       <a class="og-mini-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'ao-vivo', j.match.id]">Abrir mesa</a>
                     }
                     @if (overlayCourtHref(j.match); as href) {
-                      <a class="og-ghost-btn" [href]="href" target="_blank" rel="noopener" title="Overlay da quadra (OBS)">Overlay</a>
+                      <a class="og-ghost-btn og-jogos-overlay" [href]="href" target="_blank" rel="noopener" title="Overlay da quadra (OBS)" aria-label="Overlay da quadra (OBS)"
+                        ><og-icon name="tv" [size]="18" /><span class="ov-label">Overlay</span></a
+                      >
                     }
                   </span>
                 } @else if (canOpenScore(j.match)) {
@@ -137,20 +158,24 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
                       ><span class="only-wide">{{ j.status === 'scheduled' ? 'Lançar placar' : 'Placar' }}</span><span class="only-tight">Placar</span></a
                     >
                     @if (overlayCourtHref(j.match); as href) {
-                      <a class="og-ghost-btn" [href]="href" target="_blank" rel="noopener" title="Overlay da quadra (OBS)">Overlay</a>
+                      <a class="og-ghost-btn og-jogos-overlay" [href]="href" target="_blank" rel="noopener" title="Overlay da quadra (OBS)" aria-label="Overlay da quadra (OBS)"
+                        ><og-icon name="tv" [size]="18" /><span class="ov-label">Overlay</span></a
+                      >
                     }
                   </span>
                 } @else {
                   <span class="og-jogos-actions">
                     <span class="og-ghost-btn" style="opacity:0.45;pointer-events:none" title="Aguardando as duas equipes">Aguardando</span>
                     @if (overlayCourtHref(j.match); as href) {
-                      <a class="og-ghost-btn" [href]="href" target="_blank" rel="noopener" title="Overlay da quadra (OBS)">Overlay</a>
+                      <a class="og-ghost-btn og-jogos-overlay" [href]="href" target="_blank" rel="noopener" title="Overlay da quadra (OBS)" aria-label="Overlay da quadra (OBS)"
+                        ><og-icon name="tv" [size]="18" /><span class="ov-label">Overlay</span></a
+                      >
                     }
                   </span>
                 }
               </div>
             } @empty {
-              <p class="og-empty">Nenhum jogo nesta categoria</p>
+              <p class="og-empty">{{ emptyLabel() }}</p>
             }
           </div>
         </og-card>
@@ -441,6 +466,170 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
         transform: translateX(100%);
       }
     }
+
+    /* ── Telefone: cada partida vira um cartão ──
+       Topo: horário · dia · quadra e o selo de status (com o ponto pulsando quando ao vivo).
+       Meio: as duplas uma embaixo da outra — cada nome ganha a largura inteira em vez de
+       dividir a linha com o outro lado — e o placar grande à direita. Embaixo, as ações:
+       a principal ocupa a linha, Placar ao lado e o Overlay vira ícone. Vem DEPOIS das
+       faixas acima de propósito: desfaz o que elas esconderam (status, quadra). */
+    @container (max-width: 520px) {
+      .og-table-head {
+        display: none;
+      }
+      .og-table-body {
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .og-jogos-grid {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-areas:
+          'when court status'
+          'match match score'
+          'actions actions actions';
+        column-gap: 8px;
+        row-gap: 10px;
+      }
+      .og-row.og-jogos-grid {
+        padding: 12px 14px;
+        border: 1px solid var(--nx-line);
+        border-radius: var(--nx-r-3);
+        background: var(--nx-surface-0);
+      }
+      .og-row.og-jogos-grid.live {
+        border-color: rgba(255, 59, 48, 0.4);
+      }
+      .og-jogos-when {
+        grid-area: when;
+        flex-direction: row;
+        align-items: baseline;
+        gap: 8px;
+      }
+      .og-jogos-day {
+        font-size: 11px;
+      }
+      .og-jogos-quadra.col-court {
+        display: block;
+        grid-area: court;
+        font-family: var(--nx-font-mono);
+      }
+      .og-jogos-quadra::before {
+        content: '· ';
+      }
+      .og-jogos-quadra .only-wide,
+      .og-jogos-quadra .only-tight {
+        display: none;
+      }
+      .og-jogos-quadra .court-phone {
+        display: inline;
+      }
+      .og-jogos-status.col-status {
+        display: flex;
+        grid-area: status;
+        justify-self: end;
+      }
+      .og-jogos-match {
+        grid-area: match;
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .og-jogos-teams {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+      }
+      .og-jogos-vs {
+        display: none;
+      }
+      .og-jogos-team {
+        font-size: 14.5px;
+      }
+      .og-jogos-meta {
+        margin-top: 4px;
+        font-size: 12px;
+      }
+      .og-jogos-meta .m-court,
+      .og-jogos-meta .m-score,
+      .og-jogos-meta .m-status {
+        display: none;
+      }
+      .og-jogos-score.col-score {
+        display: block;
+        grid-area: score;
+        align-self: center;
+        font-size: 15px;
+      }
+      .og-jogos-score .score-dot,
+      .og-jogos-score .score-pill {
+        display: none;
+      }
+      .og-jogos-actions {
+        grid-area: actions;
+        justify-content: stretch;
+      }
+      .og-jogos-actions > .og-mini-btn {
+        flex: 1;
+        justify-content: center;
+        font-size: 14px;
+      }
+      .og-jogos-actions > .og-ghost-btn {
+        min-height: 44px;
+        justify-content: center;
+        border: 1px solid var(--nx-line-strong);
+        color: var(--nx-text);
+        font-size: 14px;
+      }
+      /* Sem ação principal (encerrado, KOTC "Ver tabela"), o botão de texto ocupa a linha. */
+      .og-jogos-actions > .og-ghost-btn:first-child:not(.og-jogos-overlay) {
+        flex: 1;
+      }
+      .og-jogos-overlay {
+        width: 44px;
+        padding: 0;
+        flex: none;
+      }
+      .og-jogos-actions .og-jogos-overlay og-icon {
+        display: inline-flex;
+      }
+      .og-jogos-actions .og-jogos-overlay .ov-label {
+        display: none;
+      }
+    }
+
+    .og-jogos-overlay og-icon,
+    .court-phone {
+      display: none;
+    }
+    .og-jogos-filter {
+      flex: none;
+    }
+    .og-jogos-filter-count {
+      margin-left: 6px;
+      font-family: var(--nx-font-mono);
+      font-size: 11.5px;
+      opacity: 0.75;
+    }
+    /* Telefone: o card vira só o trilho dos cartões (a moldura dupla sobraria), e os chips
+       de filtro rolam de lado em vez de quebrar em duas linhas. */
+    @media (max-width: 520px) {
+      .og-jogos-card {
+        background: transparent;
+        border: none;
+        border-radius: 0;
+      }
+      .og-jogos-filter {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+        margin: 0 -16px;
+        padding: 0 16px;
+      }
+      .og-jogos-filter .og-chip {
+        flex: none;
+      }
+    }
   `,
 })
 export class JogosComponent {
@@ -451,6 +640,8 @@ export class JogosComponent {
   protected readonly jogoTone = JOGO_TONE;
   protected readonly jogoLabel = JOGO_LABEL;
   protected readonly compact = compactTeamLabel;
+  protected readonly filters = FILTERS;
+  protected readonly filter = signal<JogoFilter>('all');
 
   constructor() {
     // Lista ao vivo enquanto a tela está aberta: encerrar na mesa (esta ou outra)
@@ -494,6 +685,22 @@ export class JogosComponent {
     const cat = this.ctx.categoryName();
     return cat ? `${t.name} · categoria ${cat}` : `${t.name} · todas as categorias`;
   });
+
+  protected readonly filterCounts = computed<Record<JogoFilter, number>>(() => {
+    const counts: Record<JogoFilter, number> = { all: 0, in_progress: 0, scheduled: 0, completed: 0 };
+    for (const j of this.jogos()) {
+      counts.all++;
+      if (j.status !== 'canceled') counts[j.status]++;
+    }
+    return counts;
+  });
+
+  protected readonly visibleJogos = computed(() => {
+    const f = this.filter();
+    return f === 'all' ? this.jogos() : this.jogos().filter((j) => j.status === f);
+  });
+
+  protected readonly emptyLabel = computed(() => FILTERS.find((f) => f.id === this.filter())!.empty);
 
   protected readonly jogos = computed(() => {
     const t = this.ctx.tournament();

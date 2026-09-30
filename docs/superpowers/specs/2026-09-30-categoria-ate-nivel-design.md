@@ -120,6 +120,10 @@ então um atleta promovido depois da inscrição pode puxar a média para cima.
 
 - `measureFieldStrength` recebe `maxWeight` e repassa para
   `fieldStrengthFromTeamRanks`. O carimbo gravado já sai com o peso clampado.
+- Entra `measureCategoryFieldStrength`: recebe o doc da categoria, deriva o
+  preset e devolve `null` quando o peso não é medido. A publicação da chave
+  passa a chamar só ela, o que tira a decisão "mede ou não" da fiação e a põe
+  numa função testável.
 - `presetKey` do carimbo passa a ser `"ate"` nessas categorias. Continua sendo
   só metadado de auditoria.
 
@@ -144,15 +148,23 @@ própria da tabela. Sem espelho, uma reexecução aplicaria peso 1.0 às
 categorias "até X" e sobrescreveria os pontos certos.
 
 - `lib/ranking-recompute.js`:
-  - `presetWeightForCategory`: com `minRank === 0` e sem linha exata, devolve
-    `{weight: 0.125, presetKey: "ate", maxWeight: weightFromRank(maxRank), inferred: false}`;
-  - `weightFromRank` e `fieldStrengthFromTeamRanks` recebem o teto (espelho do
-    §2.2);
-  - Livre ganha `maxWeight: 1`.
-- `recompute-ranking-weights.js`: as três checagens `presetKey === "livre"`
-  (resolução do peso, passada de carimbo e relatório) passam a valer para
-  `"livre"` e `"ate"`, com o clamp e a medição usando o `maxWeight` da
-  categoria. `measureLivreFieldStrength` vira `measureFieldStrengthForCategory`.
+  - `presetWeightForCategory` passa a devolver também `measured` e `maxWeight`.
+    Com `minRank === 0` e sem linha exata, devolve
+    `{weight: 0.125, presetKey: "ate", inferred: false, measured: true, maxWeight: weightFromRank(maxRank)}`;
+  - `weightFromRank` e `fieldStrengthFromTeamRanks` recebem o teto, e entra
+    `clampMeasuredWeight` (espelho do §2.2);
+  - Livre ganha `measured: true, maxWeight: 1`.
+- `recompute-ranking-weights.js`: duas checagens `presetKey === "livre"` passam
+  a ser `measured`: a resolução do peso (carimbo → medição → declarado, com
+  clamp e medição usando o `maxWeight` da categoria) e o relatório. A função
+  `measureLivreFieldStrength` vira `measureCategoryFieldStrength`.
+- A passada retroativa `criarParticipacaoFaltanteDoLivre` **continua só no
+  Livre**. Ela existe para recriar a participação que a antiga exceção do Livre
+  nunca gravou, e uma categoria "até X" nunca passou por essa exceção.
+- `rederive-knockout-placements.js` não muda. Ele grava os pontos com
+  `peso.weight` (o declarado, 0.125), exatamente como já faz com o Livre. Quem
+  aplica o peso medido é o `recompute-ranking-weights.js`, que roda depois
+  dele na ordem obrigatória.
 
 ## 3. Painel web (`frontend/projects/organizer`)
 

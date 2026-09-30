@@ -65,7 +65,7 @@ export const ORGANIZADORES: DocAudience = {
             },
           ],
           rules: [
-            'Inscrições não podem fechar depois do início do torneio (nem antes da abertura).',
+            'Inscrições podem fechar no próprio dia do torneio, até o horário do 1º jogo (ou até o fim do dia, sem 1º jogo definido) — nunca antes da abertura.',
             'Com premiação em dinheiro ligada, toda categoria precisa de valores definidos para publicar.',
             'As "Regras padrão de evento" das Configurações preenchem torneios novos — sem alterar os já criados.',
             'Categorias com menos de 10 duplas pagas não pontuam no ranking nexaGO (viram desafio).',

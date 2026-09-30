@@ -579,7 +579,25 @@ String? registrationWindowError(TournamentCreateDraft draft) {
     return 'O fechamento das inscrições não pode ser antes da abertura.';
   }
   final start = draft.startAt;
-  if (start != null && closes.isAfter(start)) {
+  if (start == null) return null;
+  // `startAt` é só data (meia-noite): comparar com ele recusava fechar em
+  // qualquer hora do próprio dia. O limite é o 1º jogo quando ele cai no dia
+  // do início; senão, o fim desse dia.
+  final first = draft.firstMatchAt;
+  if (first != null &&
+      first.year == start.year &&
+      first.month == start.month &&
+      first.day == start.day) {
+    if (closes.isAfter(first)) {
+      final hh = first.hour.toString().padLeft(2, '0');
+      final mm = first.minute.toString().padLeft(2, '0');
+      return 'As inscrições não podem fechar depois do 1º jogo ($hh:$mm).';
+    }
+    return null;
+  }
+  final endOfStartDay =
+      DateTime(start.year, start.month, start.day, 23, 59, 59, 999);
+  if (closes.isAfter(endOfStartDay)) {
     return 'As inscrições não podem fechar depois do início do torneio.';
   }
   return null;

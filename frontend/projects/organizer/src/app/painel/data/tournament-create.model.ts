@@ -594,8 +594,26 @@ export function registrationWindowError(draft: TournamentCreateDraft): string | 
   const closes = draft.registrationClosesAt;
   if (!opens || !closes) return null;
   if (closes < opens) return 'O fechamento das inscrições não pode ser antes da abertura.';
-  if (draft.startAt && closes > draft.startAt) return 'As inscrições não podem fechar depois do início do torneio.';
+  const start = draft.startAt;
+  if (!start) return null;
+  // `startAt` é só data (meia-noite): comparar com ele recusava fechar em qualquer hora do próprio
+  // dia. O limite é o 1º jogo quando ele cai no dia do início; senão, o fim desse dia.
+  const first = draft.firstMatchAt;
+  if (first && sameCalendarDay(first, start)) {
+    if (closes > first) return `As inscrições não podem fechar depois do 1º jogo (${hhmm(first)}).`;
+    return null;
+  }
+  const endOfStartDay = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 23, 59, 59, 999);
+  if (closes > endOfStartDay) return 'As inscrições não podem fechar depois do início do torneio.';
   return null;
+}
+
+function sameCalendarDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function hhmm(d: Date): string {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 export type TournamentCreateStep = 'identity' | 'location' | 'categories' | 'registration' | 'rules' | 'review';

@@ -1068,7 +1068,11 @@ export class CriarTorneioComponent {
 
   protected setCatUpToLevel(label: string): void {
     const level = SKILL_LEVEL_LADDER.find((l) => SKILL_LEVEL_LABEL[l] === label);
-    if (level) this.patchCat({ minSkillLevel: 'iniciante1', skillLevel: level });
+    if (!level) return;
+    // Fixa o modo: numa categoria reaberta ele vinha só da faixa, e Iniciante 2/Open
+    // (faixas dos presets Iniciante/Livre) fariam a escada sumir no meio da edição.
+    this.levelUpToChoice.set(true);
+    this.patchCat({ minSkillLevel: 'iniciante1', skillLevel: level });
   }
 
   protected setCatBestOf(label: string): void {

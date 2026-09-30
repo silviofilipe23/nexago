@@ -107,6 +107,15 @@ describe('CriarTorneioComponent · faixa "até um nível"', () => {
     expect(text()).not.toContain('Faixa personalizada');
   });
 
+  it('reaberta, escolher Open na escada não faz o chip pular para Livre', async () => {
+    const saved = { ...emptyCategoryDraft('c1'), minSkillLevel: 'iniciante1' as const, skillLevel: 'avancado1' as const };
+    await openBuilder([saved], 'c1');
+
+    await tap('Até o nível', 'Open');
+    expect(activeChip('Faixa de nível')).toBe('Até um nível');
+    expect(activeChip('Até o nível')).toBe('Open');
+  });
+
   it('o modo "até" de uma categoria não vaza para a próxima', async () => {
     await openBuilder([], null);
     await tap('Faixa de nível', 'Até um nível');

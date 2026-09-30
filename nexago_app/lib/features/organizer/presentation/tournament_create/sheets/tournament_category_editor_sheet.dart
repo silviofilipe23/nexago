@@ -252,12 +252,16 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
                     options: categoryLevelLadder,
                     selected: _category.skillLevel,
                     labelBuilder: skillLevelLabel,
-                    onSelected: (level) => setState(
-                      () => _category = _category.copyWith(
+                    onSelected: (level) => setState(() {
+                      // Fixa o modo: numa categoria reaberta ele vinha só da
+                      // faixa, e Iniciante 2/Open (faixas dos presets
+                      // Iniciante/Livre) fariam a escada sumir na edição.
+                      _levelUpToChoice = true;
+                      _category = _category.copyWith(
                         skillLevel: level,
                         minLevel: 'Iniciante 1',
-                      ),
-                    ),
+                      );
+                    }),
                   ),
                   const SizedBox(height: 6),
                   Text(

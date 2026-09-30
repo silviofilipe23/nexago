@@ -139,6 +139,28 @@ void main() {
     await tearDownSheet(tester);
   });
 
+  testWidgets('reaberta, Iniciante 2 na escada não faz o chip pular para Iniciante',
+      (tester) async {
+    await pumpSheet(
+      tester,
+      existing: const TournamentCategoryDraft(
+        id: 'c1',
+        minLevel: 'Iniciante 1',
+        skillLevel: TournamentSkillLevel.avancado1,
+      ),
+    );
+    await tapVisible(tester, chip(upTo, 'Iniciante 2'));
+    expect(find.byKey(const Key(upTo)), findsOneWidget);
+    expect(
+      find.text(
+        'Libera de Iniciante 1 até Iniciante 2. Quem está acima não se '
+        'inscreve. Mesma regra do preset Iniciante.',
+      ),
+      findsOneWidget,
+    );
+    await tearDownSheet(tester);
+  });
+
   testWidgets('no celular o teto marcado aparece sem rolar a escada', (
     tester,
   ) async {

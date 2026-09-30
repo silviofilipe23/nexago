@@ -50,6 +50,7 @@ describe('liga-stages', () => {
 
     it('deriva o estado do torneio da etapa', () => {
       expect(ligaEtapaStatusOf(tournament({ id: 't', status: 'inscricoes' }))).toBe('inscricoes');
+      expect(ligaEtapaStatusOf(tournament({ id: 't', status: 'encerradas' }))).toBe('encerradas');
       expect(ligaEtapaStatusOf(tournament({ id: 't', status: 'andamento' }))).toBe('andamento');
       expect(ligaEtapaStatusOf(tournament({ id: 't', status: 'concluido' }))).toBe('concluida');
       expect(ligaEtapaStatusOf(tournament({ id: 't', status: 'cancelado' }))).toBe('cancelada');

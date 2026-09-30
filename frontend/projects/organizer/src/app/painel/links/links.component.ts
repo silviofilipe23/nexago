@@ -73,12 +73,13 @@ export class LinksComponent {
   protected readonly suggestions = computed<LinkSuggestion[]>(() => {
     const base = this.publicBaseUrl;
     return this.tournaments()
-      .filter((t) => t.status === 'inscricoes' || t.status === 'andamento')
+      .filter((t) => t.status === 'inscricoes' || t.status === 'encerradas' || t.status === 'andamento')
       .slice(0, 4)
       .map((t) => ({
         label: t.name,
         title: t.name,
-        subtitle: t.status === 'andamento' ? 'Acontecendo agora' : 'Inscrições abertas',
+        subtitle:
+          t.status === 'andamento' ? 'Acontecendo agora' : t.status === 'encerradas' ? 'Inscrições encerradas' : 'Inscrições abertas',
         url: `${base}/torneios/${t.id}`,
         icon: t.status === 'andamento' ? 'trophy' : 'ticket',
       }));

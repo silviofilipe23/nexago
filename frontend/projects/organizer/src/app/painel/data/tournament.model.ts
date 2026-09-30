@@ -6,7 +6,8 @@ import type { TournamentPaymentMode, TournamentVisibility } from './tournament-c
 import type { TournamentCollected } from './tournament-collected';
 import type { KocPhaseSpec } from './koc-phase-plan';
 
-export type OrganizerTournamentStatus = 'inscricoes' | 'andamento' | 'concluido' | 'cancelado';
+/** `encerradas`: inscrições fechadas (`closed`) e o evento ainda não começou — ver `statusFromRaw`. */
+export type OrganizerTournamentStatus = 'inscricoes' | 'encerradas' | 'andamento' | 'concluido' | 'cancelado';
 
 /** O papel de quem está logado num torneio, do ponto de vista deste portal.
  *

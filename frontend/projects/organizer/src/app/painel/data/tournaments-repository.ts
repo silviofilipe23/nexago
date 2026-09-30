@@ -86,13 +86,22 @@ function sportLabelOf(raw: unknown): string {
 }
 
 /** Colapsa `listingStatus`/`status` (draft/open/closed/completed/cancelled, + variantes
- *  legadas em português — ver `tournament-completion.ts`) pros 4 estados do painel. */
-function statusFromRaw(raw: string): OrganizerTournamentStatus {
+ *  legadas em português — ver `tournament-completion.ts`) pros estados do painel.
+ *
+ *  `closed` só diz que as inscrições fecharam (botão Encerrar inscrições) — pode ser dias antes do
+ *  evento, e continua assim quando o torneio é adiado. Só vira "Em andamento" a partir do dia do
+ *  início; sem `startAt` fica como antes. Exportada para teste. */
+export function statusFromRaw(raw: string, startAt: Date | null, now: Date = new Date()): OrganizerTournamentStatus {
   const v = raw.toLowerCase().trim();
   if (v.includes('cancel')) return 'cancelado';
   if (v.includes('complet') || v.includes('conclu')) return 'concluido';
-  if (v === 'closed' || v.includes('andamento') || v.includes('progress') || v === 'live') return 'andamento';
+  if (v === 'closed') return startAt && startOfDay(startAt) > startOfDay(now) ? 'encerradas' : 'andamento';
+  if (v.includes('andamento') || v.includes('progress') || v === 'live') return 'andamento';
   return 'inscricoes'; // 'open', 'draft' ou desconhecido
+}
+
+function startOfDay(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
 /** Exportada para teste: é aqui que o que o WIZARD gravou vira a categoria que
@@ -219,7 +228,7 @@ function tournamentFromDoc(id: string, data: Record<string, unknown>, myRole: To
     sportLabel: sportLabelOf(data['sport']),
     sportId: optionalStr(data['sport']),
     coverUrl: coverUrlOf(data),
-    status: statusFromRaw(statusRaw),
+    status: statusFromRaw(statusRaw, toDate(data['startAt'])),
     // Estrito de propósito: o site só publica `visibility === 'publicListing'`, então doc antigo
     // SEM o campo não tem página pública (404). Tratar a ausência como `linkOnly` é o que faz o
     // link compartilhado apontar pra um lugar que existe. O wizard, esse sim, assume público

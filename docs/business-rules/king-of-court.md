@@ -165,6 +165,21 @@ A categoria King of the Court **não pontua**: não soma no ranking global, no
 ranking da liga nem em XP. O pódio da categoria existe e é registrado; o que não
 existe é pontuação. Categorias de duelo do mesmo torneio seguem pontuando.
 
+### Exceção manual (só ranking global)
+Quando o dono decide que um torneio KOTC específico conta, a pontuação é gravada à
+mão por `functions/scripts/award-koc-tournament-ranking.js`. A regra acima continua
+valendo para todos os outros. O script aplica a fórmula do motor (peso × grade ×
+fator de chave) e decide a colocação assim:
+- 1º a 4º saem da tabela da rodada final (`kocStandings`); 5º de uma final de 5 = quartas.
+- Quem cai numa fase intermediária leva o degrau da faixa que a fase implica
+  (planta de 12: quem para na semifinal é 5º–8º = quartas).
+- Quem cai na 1ª fase leva participação, como na fase de grupos.
+
+Torneios pontuados assim:
+- **30/09/2026**: `SiDr6BiPlrKCW0JX5IPj` (Queen & King of the Court, 26/09). Masculino
+  e Feminino. O Feminino, com 6 duplas pagas, entrou por exceção ao mínimo de 10
+  (`--ignore-min-teams`).
+
 ## Restrições
 - Elenco da rodada: mínimo 3, máximo 6 duplas. O teto é **por categoria**
   (`maxTeamsPerRound`, 3 a 6); categoria que não escolheu vale 5, o teto antigo.

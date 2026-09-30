@@ -281,7 +281,12 @@ async function upsertGlobalRankingDoc(
   return true;
 }
 
-async function awardGlobalPlacement(
+/**
+ * Grava UMA colocação no ranking global (resultado por categoria + docs de
+ * dupla e atletas). Exportada para `scripts/award-koc-tournament-ranking.js`,
+ * que premia um KOTC por exceção pelo mesmo caminho de escrita do motor.
+ */
+export async function awardGlobalPlacement(
   db: Firestore,
   projectId: string,
   params: {

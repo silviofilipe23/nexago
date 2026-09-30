@@ -6,6 +6,7 @@ import {tournamentSportToLevelSportCode} from "./category-level-eligibility";
 import {
   fieldStrengthDocId,
   fieldStrengthPath,
+  measureCategoryFieldStrength,
   measureFieldStrength,
   paidTeamsWithParticipants,
 } from "./category-field-strength-store";
@@ -58,5 +59,59 @@ describe("carimbo na geração da chave", () => {
       fieldStrengthPath(PROJECT),
       `artifacts/${PROJECT}/public/data/tournamentCategoryFieldStrength`,
     );
+  });
+});
+
+describe("carimbo da faixa \"até X\" na geração da chave (spec 2026-09-30)", () => {
+  function seedRanks(db: FakeFirestore, ranks: Record<string, number>): void {
+    for (const [uid, rank] of Object.entries(ranks)) {
+      db.seedDoc(`artifacts/${PROJECT}/public/data/athleteRatings/${uid}_VOLEI_PRAIA`, {
+        levelRank: rank,
+      });
+    }
+  }
+
+  const docs = [
+    {data: () => ({teamId: "tA", isPaid: true, participantUids: ["a1", "a2"]})},
+    {data: () => ({teamId: "tB", isPaid: true, participantUids: ["b1", "b2"]})},
+  ];
+
+  function measure(db: FakeFirestore, category: Record<string, unknown>) {
+    return measureCategoryFieldStrength(db as never, PROJECT, {
+      tournamentId: "T1",
+      categoryId: "C1",
+      category,
+      sportCode: tournamentSportToLevelSportCode("beachVolleyball"),
+      teams: paidTeamsWithParticipants(docs),
+      source: "bracket",
+    });
+  }
+
+  it("até Intermediário 2 é medida e o carimbo respeita o teto 0.25", async () => {
+    const db = new FakeFirestore();
+    // Atletas promovidos depois da inscrição: o campo mede Open (6), mas a
+    // categoria só vai até Intermediário 2 — o teto segura o peso.
+    seedRanks(db, {a1: 6, a2: 6, b1: 6, b2: 5});
+    const stamp = await measure(db, {level: "Intermediário 2", minLevel: "Iniciante 1"});
+    assert.ok(stamp);
+    assert.equal(stamp.presetKey, "ate");
+    assert.equal(stamp.fieldRank, 6);
+    assert.equal(stamp.weight, 0.25);
+  });
+
+  it("Livre segue medido com teto 1", async () => {
+    const db = new FakeFirestore();
+    seedRanks(db, {a1: 6, b1: 6});
+    const stamp = await measure(db, {level: "Open", minLevel: "Iniciante 1"});
+    assert.ok(stamp);
+    assert.equal(stamp.presetKey, "livre");
+    assert.equal(stamp.weight, 1);
+  });
+
+  it("faixa fechada não mede (peso declarado, sem carimbo)", async () => {
+    const db = new FakeFirestore();
+    seedRanks(db, {a1: 6, b1: 6});
+    const stamp = await measure(db, {level: "Intermediário 2", minLevel: "Intermediário 1"});
+    assert.equal(stamp, null);
   });
 });

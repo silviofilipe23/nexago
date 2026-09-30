@@ -2,6 +2,7 @@ import {FieldValue, type Firestore} from "firebase-admin/firestore";
 import {artifactsInscriptionsPath, artifactsPublicDataBase} from "./firebase-paths";
 import {athleteRatingDocId, athleteRatingsPath} from "./rating-engine";
 import {inscriptionAthleteUids} from "./tournament-level-lock";
+import {categoryPreset} from "./category-presets";
 import {
   fieldStrengthFromTeamRanks,
   teamLevelRank,
@@ -111,6 +112,8 @@ export async function measureFieldStrength(
     tournamentId: string;
     categoryId: string;
     presetKey: string;
+    /** Teto do peso medido (1 no Livre; família de X no "até X"). */
+    maxWeight?: number;
     sportCode: string | null;
     teams: Map<string, string[]>;
     source: FieldStrengthSource;
@@ -127,7 +130,7 @@ export async function measureFieldStrength(
   const teamRanks = [...params.teams.values()].map((uids) =>
     teamLevelRank(uids.map((uid) => ranks.get(uid) ?? null)),
   );
-  const strength = fieldStrengthFromTeamRanks(teamRanks);
+  const strength = fieldStrengthFromTeamRanks(teamRanks, params.maxWeight);
   if (!strength) return null;
 
   return {
@@ -138,6 +141,37 @@ export async function measureFieldStrength(
     totalPaidTeams: params.teams.size,
     source: params.source,
   };
+}
+
+/**
+ * Mede a força do campo de uma categoria de peso MEDIDO — Livre ou "até X"
+ * (spec 2026-09-30) — com o teto do preset. `null` para faixa fechada/legada
+ * (peso declarado, nada a carimbar) ou campo imensurável. A publicação da chave
+ * chama só isto: a decisão "mede ou não" mora aqui, não na fiação.
+ */
+export async function measureCategoryFieldStrength(
+  db: Firestore,
+  projectId: string,
+  params: {
+    tournamentId: string;
+    categoryId: string;
+    category: Record<string, unknown> | null | undefined;
+    sportCode: string | null;
+    teams: Map<string, string[]>;
+    source: FieldStrengthSource;
+  },
+): Promise<FieldStrengthStamp | null> {
+  const preset = categoryPreset(params.category);
+  if (!preset?.measured) return null;
+  return measureFieldStrength(db, projectId, {
+    tournamentId: params.tournamentId,
+    categoryId: params.categoryId,
+    presetKey: preset.key,
+    maxWeight: preset.maxWeight,
+    sportCode: params.sportCode,
+    teams: params.teams,
+    source: params.source,
+  });
 }
 
 /**

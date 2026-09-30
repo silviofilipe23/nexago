@@ -17,6 +17,7 @@ import { TorneiosDemoComponent } from './ui/torneios-demo.component';
 const FILTERS = [
   'Todos',
   'Inscrições',
+  'Inscrições encerradas',
   'Em andamento',
   'Concluídos',
   'Cancelados',
@@ -29,6 +30,7 @@ type LoadState = 'loading' | 'ok' | 'error';
 
 const STATUS_LABEL: Record<TournamentStatus, string> = {
   inscricoes: 'Inscrições',
+  encerradas: 'Inscrições encerradas',
   andamento: 'Em andamento',
   concluido: 'Concluído',
   cancelado: 'Cancelado',
@@ -36,6 +38,7 @@ const STATUS_LABEL: Record<TournamentStatus, string> = {
 
 const STATUS_TONE: Record<TournamentStatus, PillTone> = {
   inscricoes: 'yellow',
+  encerradas: 'dim',
   andamento: 'orange',
   concluido: 'green',
   cancelado: 'red',
@@ -416,6 +419,8 @@ export class PanelTorneiosComponent {
     switch (this.activeFilter()) {
       case 'Inscrições':
         return rows.filter((t) => t.status === 'inscricoes');
+      case 'Inscrições encerradas':
+        return rows.filter((t) => t.status === 'encerradas');
       case 'Em andamento':
         return rows.filter((t) => t.status === 'andamento');
       case 'Concluídos':

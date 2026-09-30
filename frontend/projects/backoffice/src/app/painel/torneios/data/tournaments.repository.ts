@@ -14,7 +14,8 @@ import {
 } from 'firebase/firestore';
 import { backofficeDb } from '../../data/firebase';
 
-export type TournamentStatus = 'inscricoes' | 'andamento' | 'concluido' | 'cancelado';
+/** `encerradas`: inscrições fechadas (`closed`) e o evento ainda não começou — ver `statusFrom`. */
+export type TournamentStatus = 'inscricoes' | 'encerradas' | 'andamento' | 'concluido' | 'cancelado';
 
 export interface TournamentRow {
   id: string;
@@ -60,8 +61,12 @@ function toDate(value: unknown): Date | null {
   return value instanceof Date ? value : null;
 }
 
-/** Mesma normalização do portal do organizador (`statusFromRaw`). */
-function statusFrom(raw: string): TournamentStatus {
+/** Mesma normalização do portal do organizador (`statusFromRaw`).
+ *
+ *  `closed` só diz que as inscrições fecharam — pode ser dias antes do evento, e continua assim
+ *  quando o torneio é adiado. Só vira "Em andamento" a partir do dia do início; sem `startAt` fica
+ *  como antes. Exportada para teste. */
+export function statusFrom(raw: string, startAt: Date | null, now: Date = new Date()): TournamentStatus {
   const v = raw.toLowerCase().trim();
   if (v.includes('cancel')) {
     return 'cancelado';
@@ -69,10 +74,17 @@ function statusFrom(raw: string): TournamentStatus {
   if (v.includes('complet') || v.includes('conclu')) {
     return 'concluido';
   }
-  if (v === 'closed' || v.includes('andamento') || v.includes('progress') || v === 'live') {
+  if (v === 'closed') {
+    return startAt && startOfDay(startAt) > startOfDay(now) ? 'encerradas' : 'andamento';
+  }
+  if (v.includes('andamento') || v.includes('progress') || v === 'live') {
     return 'andamento';
   }
   return 'inscricoes';
+}
+
+function startOfDay(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
 function sportLabel(raw: string | null): string | null {
@@ -84,6 +96,7 @@ function sportLabel(raw: string | null): string | null {
 
 function toRow(doc: QueryDocumentSnapshot<DocumentData>): TournamentRow {
   const data = doc.data();
+  const startAt = toDate(data['startAt']);
   const categories = Array.isArray(data['categories']) ? data['categories'] : [];
   const capacityFromCategories = categories.reduce((sum: number, raw: unknown) => {
     const c = (raw ?? {}) as Record<string, unknown>;
@@ -94,9 +107,9 @@ function toRow(doc: QueryDocumentSnapshot<DocumentData>): TournamentRow {
     id: doc.id,
     name: str(data['name']) ?? `Torneio ${doc.id}`,
     sport: sportLabel(str(data['sport'])),
-    status: statusFrom(str(data['listingStatus']) ?? str(data['status']) ?? ''),
+    status: statusFrom(str(data['listingStatus']) ?? str(data['status']) ?? '', startAt),
     visibility: str(data['visibility']),
-    startAt: toDate(data['startAt']),
+    startAt,
     place: str(data['city']) ?? str(data['location']),
     categoriesCount: categories.length,
     capacity: num(data['capacity']) ?? (capacityFromCategories > 0 ? capacityFromCategories : null),

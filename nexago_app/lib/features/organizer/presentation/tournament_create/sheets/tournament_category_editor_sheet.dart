@@ -228,9 +228,10 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
                 const SizedBox(height: 16),
                 const OrganizerSectionLabel('FAIXA DE NÍVEL'),
                 const SizedBox(height: 8),
+                // Quebra linha em vez de rolar: com 7 chips o "Até um nível"
+                // (e o Livre, o preset padrão) nasciam fora da tela do celular.
                 OrganizerChipSelector<String?>(
                   key: const Key('category-level-preset-selector'),
-                  horizontalScroll: true,
                   options: [
                     for (final preset in categoryLevelPresets) preset.label,
                     categoryLevelUpToChipLabel,

@@ -183,6 +183,22 @@ void main() {
     await tearDownSheet(tester);
   });
 
+  testWidgets('no celular o chip "Até um nível" aparece sem rolar os presets', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await pumpSheet(tester);
+    final upToChip = chip(presets, 'Até um nível');
+    expect(upToChip, findsOneWidget);
+    // 7º chip da linha: com rolagem horizontal ele nascia fora dos 390pt e a
+    // opção nova só era achada arrastando a linha para o lado.
+    expect(tester.getRect(upToChip).right, lessThanOrEqualTo(390));
+    expect(tester.getRect(chip(presets, 'Livre')).right, lessThanOrEqualTo(390));
+    await tearDownSheet(tester);
+  });
+
   testWidgets('teto legado vira Open ao ativar "Até um nível"', (tester) async {
     await pumpSheet(
       tester,

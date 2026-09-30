@@ -482,6 +482,46 @@ void main() {
       );
       expect(registrationWindowError(d), contains('antes da abertura'));
     });
+
+    // "Início" é só data (meia-noite); o fechamento é data + hora.
+    test('allows closing at 14h on the start day without a first match time', () {
+      final d = TournamentCreateDraft(
+        startAt: DateTime(2026, 10, 10),
+        registrationOpensAt: DateTime(2026, 10, 1, 8),
+        registrationClosesAt: DateTime(2026, 10, 10, 14),
+      );
+      expect(registrationWindowError(d), isNull);
+    });
+
+    test('allows closing at 14h when the first match is at 18h', () {
+      final d = TournamentCreateDraft(
+        startAt: DateTime(2026, 10, 10),
+        firstMatchAt: DateTime(2026, 10, 10, 18),
+        registrationOpensAt: DateTime(2026, 10, 1, 8),
+        registrationClosesAt: DateTime(2026, 10, 10, 14),
+      );
+      expect(registrationWindowError(d), isNull);
+    });
+
+    test('flags closing after the first match', () {
+      final d = TournamentCreateDraft(
+        startAt: DateTime(2026, 10, 10),
+        firstMatchAt: DateTime(2026, 10, 10, 18),
+        registrationOpensAt: DateTime(2026, 10, 1, 8),
+        registrationClosesAt: DateTime(2026, 10, 10, 19),
+      );
+      expect(registrationWindowError(d), contains('1º jogo (18:00)'));
+    });
+
+    test('ignores a stale first match from another day', () {
+      final d = TournamentCreateDraft(
+        startAt: DateTime(2026, 10, 10),
+        firstMatchAt: DateTime(2026, 10, 3, 18),
+        registrationOpensAt: DateTime(2026, 10, 1, 8),
+        registrationClosesAt: DateTime(2026, 10, 10, 14),
+      );
+      expect(registrationWindowError(d), isNull);
+    });
   });
 
   group('formatShortDateTime', () {

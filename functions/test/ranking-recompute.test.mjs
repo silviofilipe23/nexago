@@ -30,6 +30,7 @@ const {
   tournamentSportToLevelSportCode,
   extractTeamMemberUids,
   fieldStrengthDocId,
+  measuredWeightReportLine,
 } = require('../scripts/lib/ranking-recompute.js');
 
 describe('basePointsForFinalPlace', () => {
@@ -384,5 +385,44 @@ describe('extractTeamMemberUids (paridade com tournament-team-category.ts)', () 
 describe('fieldStrengthDocId (paridade com category-field-strength-store.ts)', () => {
   test('id é tournamentId_categoryId', () => {
     assert.equal(fieldStrengthDocId('T1', 'C1'), 'T1_C1');
+  });
+});
+
+describe('measuredWeightReportLine (relatório do recompute, spec 2026-09-30)', () => {
+  test('rotula pelo preset medido — "até X" não aparece como "livre"', () => {
+    const line = measuredWeightReportLine(
+      { presetKey: 'ate', measuredWeightSource: 'stamp', fieldRank: 2.5, measuredTeams: 8, paidTeams: 10 },
+      false,
+    );
+    assert.equal(line, '      medido (ate): fonte=carimbo já gravado · degrauCampo=2.50 · duplasMedidas=8/10');
+    assert.doesNotMatch(line, /livre/);
+  });
+
+  test('Livre medido agora mostra se carimba nesta passada', () => {
+    const ctx = {
+      presetKey: 'livre', measuredWeightSource: 'measured', measuredStampEligible: true,
+      fieldRank: 4.2, measuredTeams: 10, paidTeams: 10,
+    };
+    assert.equal(
+      measuredWeightReportLine(ctx, true),
+      '      medido (livre): fonte=medido agora — CARIMBADO · degrauCampo=4.20 · duplasMedidas=10/10',
+    );
+    assert.match(measuredWeightReportLine(ctx, false), /medido agora — SERIA CARIMBADO/);
+    assert.match(
+      measuredWeightReportLine({ ...ctx, measuredStampLimitado: true }, true),
+      /NÃO carimbado \(--limit atingido, fica para a próxima\)/,
+    );
+    assert.match(
+      measuredWeightReportLine({ ...ctx, measuredStampEligible: false }, true),
+      /\(cobertura insuficiente para carimbar\)/,
+    );
+  });
+
+  test('campo imensurável cai no peso declarado, sem degrau', () => {
+    const line = measuredWeightReportLine(
+      { presetKey: 'ate', measuredWeightSource: 'declared', fieldRank: null, measuredTeams: 0, paidTeams: 6 },
+      false,
+    );
+    assert.equal(line, '      medido (ate): fonte=imensurável — peso declarado do preset · duplasMedidas=0/6');
   });
 });

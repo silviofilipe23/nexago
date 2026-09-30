@@ -386,6 +386,31 @@ function fieldStrengthDocId(tournamentId, categoryId) {
   return `${tournamentId}_${categoryId}`;
 }
 
+/**
+ * Linha do relatório de uma categoria de peso MEDIDO — Livre ou "até X" (spec
+ * 2026-09-30): de onde veio o peso e quanto do campo foi medido. O rótulo leva o
+ * preset para o dry-run de PROD não confundir "até X" com Livre. `apply` diz se
+ * esta passada grava (carimbo feito × carimbo que seria feito).
+ */
+function measuredWeightReportLine(ctx, apply) {
+  const carimboStatus = ctx.measuredStampLimitado
+    ? " — NÃO carimbado (--limit atingido, fica para a próxima)"
+    : ctx.measuredStampEligible
+      ? (apply ? " — CARIMBADO" : " — SERIA CARIMBADO")
+      : " (cobertura insuficiente para carimbar)";
+  const source =
+    ctx.measuredWeightSource === "stamp"
+      ? "carimbo já gravado"
+      : ctx.measuredWeightSource === "measured"
+        ? `medido agora${carimboStatus}`
+        : "imensurável — peso declarado do preset";
+  return (
+    `      medido (${ctx.presetKey}): fonte=${source}` +
+    (ctx.fieldRank != null ? ` · degrauCampo=${ctx.fieldRank.toFixed(2)}` : "") +
+    ` · duplasMedidas=${ctx.measuredTeams}/${ctx.paidTeams}`
+  );
+}
+
 module.exports = {
   DEFAULT_GLOBAL_POINTS,
   CATEGORY_PRESETS,
@@ -408,4 +433,5 @@ module.exports = {
   tournamentSportToLevelSportCode,
   extractTeamMemberUids,
   fieldStrengthDocId,
+  measuredWeightReportLine,
 };

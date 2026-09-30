@@ -122,6 +122,7 @@ const {
   tournamentSportToLevelSportCode,
   extractTeamMemberUids,
   fieldStrengthDocId,
+  measuredWeightReportLine,
 } = require("./lib/ranking-recompute");
 
 function argValue(flag) {
@@ -244,23 +245,23 @@ async function resolveContext(tournamentId, categoryId) {
   let weight = peso.weight;
   let fieldRank = null;
   let measuredTeams = 0;
-  let livreWeightSource = null; // "stamp" | "measured" | "declared" — só para o relatório
-  let livreStampEligible = false; // cobertura suficiente para carimbar nesta passada
-  let livreStampLimitado = false; // cobertura suficiente, mas --limit já esgotado
+  let measuredWeightSource = null; // "stamp" | "measured" | "declared" — só para o relatório
+  let measuredStampEligible = false; // cobertura suficiente para carimbar nesta passada
+  let measuredStampLimitado = false; // cobertura suficiente, mas --limit já esgotado
   if (peso.measured) {
     const stamp = await readFieldStrengthStamp(tournamentId, categoryId);
     if (stamp) {
       weight = clampMeasuredWeight(stamp.weight, peso.maxWeight);
       fieldRank = stamp.fieldRank;
       measuredTeams = stamp.measuredTeams;
-      livreWeightSource = "stamp";
+      measuredWeightSource = "stamp";
     } else {
       const strength = await measureCategoryFieldStrength(tournament, paidTeamsMap, peso.maxWeight);
       if (strength) {
         weight = strength.weight;
         fieldRank = strength.fieldRank;
         measuredTeams = strength.measuredTeams;
-        livreWeightSource = "measured";
+        measuredWeightSource = "measured";
 
         const stampCandidate = {
           presetKey: peso.presetKey,
@@ -274,9 +275,9 @@ async function resolveContext(tournamentId, categoryId) {
           // corte vale em dry-run (só para o relatório) e com `--yes` (para a
           // escrita de verdade), então as duas passagens contam igual.
           if (LIMIT > 0 && stampAttempts >= LIMIT) {
-            livreStampLimitado = true;
+            measuredStampLimitado = true;
           } else {
-            livreStampEligible = true;
+            measuredStampEligible = true;
             stampAttempts++;
             if (APPLY) {
               try {
@@ -295,7 +296,7 @@ async function resolveContext(tournamentId, categoryId) {
           }
         }
       } else {
-        livreWeightSource = "declared";
+        measuredWeightSource = "declared";
       }
     }
   }
@@ -309,9 +310,9 @@ async function resolveContext(tournamentId, categoryId) {
     measured: peso.measured,
     fieldRank,
     measuredTeams,
-    livreWeightSource,
-    livreStampEligible,
-    livreStampLimitado,
+    measuredWeightSource,
+    measuredStampEligible,
+    measuredStampLimitado,
     rankingWeight,
     paidTeams,
     bracketFactor,
@@ -1004,24 +1005,7 @@ function imprimirContextos() {
         ` · rankingWeight=${ctx.rankingWeight} · pagas=${ctx.paidTeams} → fatorChave=${ctx.bracketFactor}` +
         ` · multiplicador=${(ctx.weight * ctx.rankingWeight * ctx.bracketFactor).toFixed(4)}`,
     );
-    if (ctx.measured) {
-      const carimboStatus = ctx.livreStampLimitado
-        ? " — NÃO carimbado (--limit atingido, fica para a próxima)"
-        : ctx.livreStampEligible
-          ? (APPLY ? " — CARIMBADO" : " — SERIA CARIMBADO")
-          : " (cobertura insuficiente para carimbar)";
-      const source =
-        ctx.livreWeightSource === "stamp"
-          ? "carimbo já gravado"
-          : ctx.livreWeightSource === "measured"
-            ? `medido agora${carimboStatus}`
-            : "imensurável — peso declarado do preset";
-      console.log(
-        `      livre: fonte=${source}` +
-          (ctx.fieldRank != null ? ` · degrauCampo=${ctx.fieldRank.toFixed(2)}` : "") +
-          ` · duplasMedidas=${ctx.measuredTeams}/${ctx.paidTeams}`,
-      );
-    }
+    if (ctx.measured) console.log(measuredWeightReportLine(ctx, APPLY));
   }
 }
 

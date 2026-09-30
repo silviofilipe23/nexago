@@ -692,12 +692,13 @@ export async function tryAwardLeagueStagePointsForMatch(
   }
 
   if (isNonGroupCompletedMatch(match)) {
-    // O ranking de LIGA mantém o Livre sem participação de propósito: a spec
+    // O ranking de LIGA mantém o Livre — e o "até X", que libera os níveis
+    // abaixo como ele (spec 2026-09-30) — sem participação de propósito: a spec
     // 2026-09-10 mudou só o ranking GERAL, onde o peso agora é medido. Aqui o
     // peso segue vindo da faixa declarada, então a trava anti-farm continua
     // sendo a única defesa. Não "corrigir" para casar com o motor geral.
     const preset = categoryPreset(findCategory(tournament as never, categoryId));
-    if (preset?.key !== "livre") {
+    if (!preset?.measured) {
       teamsUpdated += await tryAwardGroupsPlacements(db, projectId, baseParams);
     }
   }

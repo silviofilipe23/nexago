@@ -493,12 +493,15 @@ describe("escada por fase alcançada — tabela e colocação persistida", () =>
 
 describe("peso do Livre pela força real do campo", () => {
   /** `seededDb` não grava `categories` nem `participantUids`; este helper completa. */
-  function livreDb(teamRanks: number[]): FakeFirestore {
+  function livreDb(
+    teamRanks: number[],
+    category: Record<string, unknown> = {level: "Open", minLevel: "Iniciante 1"},
+  ): FakeFirestore {
     const db = new FakeFirestore();
     db.seedDoc("tournaments/T1", {
       sport: "beachVolleyball",
       rankingEnabled: true,
-      categories: [{id: "C1", level: "Open", minLevel: "Iniciante 1"}],
+      categories: [{id: "C1", ...category}],
     });
     db.seedDoc(`artifacts/${PROJECT}/public/data/teams/tA`, {player1Id: "a1", player2Id: "a2"});
     db.seedDoc(`artifacts/${PROJECT}/public/data/teams/tB`, {player1Id: "b1", player2Id: "b2"});
@@ -621,5 +624,53 @@ describe("peso do Livre pela força real do campo", () => {
     assert.ok(participante, "dupla paga fora do mata-mata deveria pontuar");
     assert.equal(participante.finalPlace, 0);
     assert.equal(participante.pointsEarned, 50);
+  });
+
+  const ATE_INTERMEDIARIO_2 = {level: "Intermediário 2", minLevel: "Iniciante 1"};
+  const STAMP_PATH = `artifacts/${PROJECT}/public/data/tournamentCategoryFieldStrength/T1_C1`;
+
+  it("até Intermediário 2 com campo forte fica no teto 0.25 (campeão 250)", async () => {
+    // Campo acima do teto só acontece com atleta promovido depois da inscrição
+    // (levelRank só sobe) — exatamente o caso que o teto existe para segurar.
+    const db = livreDb(JHON_JHON_RANKS, ATE_INTERMEDIARIO_2);
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    const champion = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`);
+    assert.equal(champion?.pointsEarned, 250);
+    const stamp = db.store.get(STAMP_PATH);
+    assert.equal(stamp?.presetKey, "ate");
+    assert.equal(stamp?.weight, 0.25);
+  });
+
+  it("até Intermediário 2 com campo de iniciantes paga 0.125 (campeão 125)", async () => {
+    const db = livreDb([0, 1, 1, 0, 0, 1, 0, 0, 1, 0], ATE_INTERMEDIARIO_2);
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    const champion = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`);
+    assert.equal(champion?.pointsEarned, 125);
+  });
+
+  it("carimbo acima do teto numa faixa até X é clampado na leitura", async () => {
+    const db = livreDb(JHON_JHON_RANKS, ATE_INTERMEDIARIO_2);
+    db.seedDoc(STAMP_PATH, {
+      tournamentId: "T1", categoryId: "C1", presetKey: "ate",
+      fieldRank: 6, weight: 1, measuredTeams: 10, totalPaidTeams: 10, source: "bracket",
+    });
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    const champion = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`);
+    assert.equal(champion?.pointsEarned, 250);
+  });
+
+  it("campo imensurável numa faixa até X cai no peso declarado 0.125 e não carimba", async () => {
+    const db = livreDb(JHON_JHON_RANKS, ATE_INTERMEDIARIO_2);
+    for (const key of [...db.store.keys()]) {
+      if (key.includes("/athleteRatings/")) db.store.delete(key);
+    }
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    const champion = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`);
+    assert.equal(champion?.pointsEarned, 125);
+    assert.equal(db.store.has(STAMP_PATH), false);
   });
 });

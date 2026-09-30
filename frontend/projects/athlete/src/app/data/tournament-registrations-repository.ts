@@ -11,7 +11,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
-import type { RosterRow } from '../tournaments/enrolled-teams';
+import { isConfirmedInscription, type RosterRow } from '../tournaments/enrolled-teams';
 import { fetchTeamsByIds } from './teams-repository';
 
 const INVITES_COLLECTION = 'tournamentRegistrationInvites';
@@ -201,6 +201,19 @@ function myRegistrationsQuery(db: Firestore, projectId: string, uid: string) {
 export async function fetchMyRegistrations(db: Firestore, projectId: string, uid: string): Promise<AthleteTournamentRegistration[]> {
   const snap = await getDocs(myRegistrationsQuery(db, projectId, uid));
   return snap.docs.map((d) => registrationFromDoc(d.id, d.data() as Record<string, unknown>));
+}
+
+/** Inscrições CONFIRMADAS de uma equipe (aba Torneios do perfil da equipe) — mesma régua do
+ *  roster público (`isConfirmedInscription`): reserva solo, fila de espera e parceiro pendente
+ *  não contam como "participou". `allow list` exige login; a rota do perfil já passa pelo
+ *  `authGuard`. */
+export async function fetchConfirmedRegistrationsForTeam(db: Firestore, projectId: string, teamId: string): Promise<AthleteTournamentRegistration[]> {
+  const id = teamId.trim();
+  if (!id) return [];
+  const snap = await getDocs(query(collection(db, 'artifacts', projectId, 'public', 'data', 'inscriptions'), where('teamId', '==', id)));
+  return snap.docs
+    .filter((d) => isConfirmedInscription(d.data() as Record<string, unknown>))
+    .map((d) => registrationFromDoc(d.id, d.data() as Record<string, unknown>));
 }
 
 /** Roster público do torneio: TODAS as inscrições dele, com o doc de equipe de cada uma.

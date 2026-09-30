@@ -617,6 +617,108 @@ button.tp-avatar--zoom {
   color: var(--nx-text-dim);
 }
 
+// ── Abas do histórico (mesmo desenho de `.hs-tabs` do Histórico) ──
+.tp-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-3);
+  width: fit-content;
+  max-width: 100%;
+}
+
+.tp-tab {
+  height: 32px;
+  padding: 0 16px;
+  border-radius: var(--nx-r-2);
+  background: transparent;
+  border: none;
+  color: var(--nx-text-dim);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all var(--nx-d-fast);
+
+  &:hover {
+    color: var(--nx-text-mute);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 1px;
+  }
+}
+
+.tp-tab--active {
+  background: var(--nx-surface-2);
+  color: var(--nx-text);
+}
+
+.tp-tab-count {
+  font-family: var(--nx-font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--nx-text-dim);
+}
+
+// ── Torneios ─────────────────────────────────────────────────
+.tp-tournament-row {
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--nx-r-2);
+
+  &:hover .tp-match-opponent {
+    color: var(--nx-orange-500);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 2px;
+  }
+}
+
+.tp-tournament-badge {
+  height: 22px;
+  padding: 0 9px;
+  border-radius: var(--nx-r-pill);
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line-strong);
+  color: var(--nx-text-mute);
+
+  &[data-status='title'] {
+    background: var(--nx-orange-tint);
+    border-color: rgba(255, 106, 26, 0.32);
+    color: var(--nx-orange-500);
+  }
+
+  &[data-status='live'] {
+    background: rgba(255, 59, 48, 0.12);
+    border-color: rgba(255, 59, 48, 0.32);
+    color: var(--nx-live);
+  }
+
+  &[data-status='upcoming'] {
+    background: rgba(43, 209, 126, 0.12);
+    border-color: rgba(43, 209, 126, 0.32);
+    color: var(--nx-win);
+  }
+}
+
 // ── Availability ─────────────────────────────────────────────
 .tp-availability-row {
   display: flex;

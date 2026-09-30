@@ -24,6 +24,23 @@ export interface TeamMatchResult {
   dateLabel: string;
 }
 
+/** `title` vence os outros: a equipe ganhou a final. */
+export type TeamTournamentStatus = 'title' | 'live' | 'upcoming' | 'ended';
+
+export interface TeamTournamentRow {
+  /** id do torneio — também a rota `/torneios/:id`. */
+  id: string;
+  name: string;
+  /** "Masculino B · Goiânia · 12 set 2026" — partes ausentes somem. */
+  contextLabel: string;
+  date: Date | null;
+  status: TeamTournamentStatus;
+  /** "Campeã" / "Ao vivo" / "Inscrita" / "3V · 1D" / "Encerrado". */
+  badge: string;
+  /** Campanha ao lado do selo quando o selo não é ela ("4V · 0D" sob "Campeã"). */
+  recordLabel: string | null;
+}
+
 export interface TeamPublicProfile {
   id: string;
   teamName: string;
@@ -39,4 +56,5 @@ export interface TeamPublicProfile {
   members: readonly TeamMemberRef[];
   titles: readonly TeamTitle[];
   matches: readonly TeamMatchResult[];
+  tournaments: readonly TeamTournamentRow[];
 }

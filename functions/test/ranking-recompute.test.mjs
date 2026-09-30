@@ -23,6 +23,7 @@ const {
   aggregateRankingResults,
   teamLevelRank,
   weightFromRank,
+  clampMeasuredWeight,
   fieldStrengthFromTeamRanks,
   inscriptionAthleteUids,
   shouldStampFieldStrength,
@@ -153,6 +154,38 @@ describe('presetWeightForCategory — categoria LEGADA (sem piso, inferência pe
   });
 });
 
+describe('presetWeightForCategory — faixa "até X" (paridade com category-presets.ts, spec 2026-09-30)', () => {
+  test('piso Iniciante 1 fora da tabela é medido, com teto na família do teto', () => {
+    const casos = [
+      ['Iniciante 1', 0.125],
+      ['Intermediário 1', 0.25],
+      ['Intermediário 2', 0.25],
+      ['Avançado 1', 0.5],
+      ['Avançado 2', 0.5],
+    ];
+    for (const [teto, maxWeight] of casos) {
+      const got = presetWeightForCategory({ minLevel: 'Iniciante 1', level: teto });
+      assert.equal(got.presetKey, 'ate', teto);
+      assert.equal(got.weight, 0.125);
+      assert.equal(got.measured, true);
+      assert.equal(got.maxWeight, maxWeight);
+      assert.equal(got.inferred, false);
+    }
+  });
+
+  test('Livre segue medido com teto 1; fechados e legados não são medidos', () => {
+    const livre = presetWeightForCategory({ minLevel: 'Iniciante 1', level: 'Open' });
+    assert.equal(livre.measured, true);
+    assert.equal(livre.maxWeight, 1);
+    const inter = presetWeightForCategory({ minLevel: 'Intermediário 1', level: 'Intermediário 2' });
+    assert.equal(inter.measured, false);
+    const legado = presetWeightForCategory({ level: 'Open' });
+    assert.equal(legado.measured, false);
+    const foraDaTabela = presetWeightForCategory({ minLevel: 'Intermediário 1', level: 'Avançado 2' });
+    assert.equal(foraDaTabela.measured, false);
+  });
+});
+
 describe('sanitizeRankingWeight (paridade com o motor)', () => {
   test('ausente, zero, negativo e não-numérico caem em 1', () => {
     for (const raw of [undefined, null, 0, -3, NaN, 'abc', {}]) {
@@ -262,6 +295,13 @@ describe('paridade da força do campo (cópia de src/category-field-strength.ts)
   test('campo imensurável devolve null', () => {
     assert.equal(fieldStrengthFromTeamRanks([null, null]), null);
     assert.equal(fieldStrengthFromTeamRanks([]), null);
+  });
+
+  test('teto do peso medido (faixa "até X")', () => {
+    assert.equal(weightFromRank(6, 0.25), 0.25);
+    assert.equal(clampMeasuredWeight(1, 0.25), 0.25);
+    assert.equal(clampMeasuredWeight(0.01, 0.25), 0.125);
+    assert.equal(fieldStrengthFromTeamRanks([6, 6, 3], 0.25).weight, 0.25);
   });
 
   test('shouldStampFieldStrength: maioria exata carimba', () => {

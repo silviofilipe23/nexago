@@ -111,14 +111,14 @@ function levelRank(raw) {
   return null;
 }
 
-/** Cópia de `CATEGORY_PRESETS` (faixa fechada + peso no ranking geral). */
+/** Cópia de `CATEGORY_PRESETS` (faixa fechada + peso no ranking geral + medição). */
 const CATEGORY_PRESETS = [
-  {key: "iniciante", minRank: 0, maxRank: 1, weight: 0.125},
-  {key: "intermediario", minRank: 2, maxRank: 3, weight: 0.25},
-  {key: "avancado", minRank: 4, maxRank: 5, weight: 0.5},
-  {key: "open", minRank: 4, maxRank: 6, weight: 1},
-  {key: "elite", minRank: 6, maxRank: 6, weight: 1.2},
-  {key: "livre", minRank: 0, maxRank: 6, weight: 0.125},
+  {key: "iniciante", minRank: 0, maxRank: 1, weight: 0.125, measured: false, maxWeight: 0.125},
+  {key: "intermediario", minRank: 2, maxRank: 3, weight: 0.25, measured: false, maxWeight: 0.25},
+  {key: "avancado", minRank: 4, maxRank: 5, weight: 0.5, measured: false, maxWeight: 0.5},
+  {key: "open", minRank: 4, maxRank: 6, weight: 1, measured: false, maxWeight: 1},
+  {key: "elite", minRank: 6, maxRank: 6, weight: 1.2, measured: false, maxWeight: 1.2},
+  {key: "livre", minRank: 0, maxRank: 6, weight: 0.125, measured: true, maxWeight: 1},
 ];
 
 /** Cópia de `LEGACY_CATEGORY_WEIGHT`: categoria sem preset reconhecido. */
@@ -151,7 +151,7 @@ function presetByKey(key) {
  * @param {Record<string, unknown>|null|undefined} category doc da categoria
  *   dentro de `tournaments/{id}.categories[]` (`level` = teto, `minLevel` =
  *   piso; ambos guardam LABEL, não código).
- * @returns {{weight: number, presetKey: string|null, inferred: boolean}|null}
+ * @returns {{weight: number, presetKey: string|null, inferred: boolean, measured: boolean, maxWeight: number}|null}
  *   `null` quando não dá para decidir (categoria ausente ou teto
  *   irreconhecível) — o chamador deve deixar a entrada intocada e reportar.
  */
@@ -166,15 +166,45 @@ function presetWeightForCategory(category) {
     const preset = CATEGORY_PRESETS.find(
       (p) => p.minRank === minRank && p.maxRank === maxRank,
     );
-    return preset
-      ? {weight: preset.weight, presetKey: preset.key, inferred: false}
-      : {weight: LEGACY_CATEGORY_WEIGHT, presetKey: null, inferred: false};
+    if (preset) {
+      return {
+        weight: preset.weight,
+        presetKey: preset.key,
+        inferred: false,
+        measured: preset.measured,
+        maxWeight: preset.maxWeight,
+      };
+    }
+    // Faixa "até X" (spec 2026-09-30) — cópia de `upToPreset` em
+    // functions/src/category-presets.ts: medida como o Livre, teto na família de X.
+    if (minRank === 0) {
+      return {
+        weight: LIVRE_MIN_WEIGHT,
+        presetKey: "ate",
+        inferred: false,
+        measured: true,
+        maxWeight: weightFromRank(maxRank),
+      };
+    }
+    return {
+      weight: LEGACY_CATEGORY_WEIGHT,
+      presetKey: null,
+      inferred: false,
+      measured: false,
+      maxWeight: LEGACY_CATEGORY_WEIGHT,
+    };
   }
 
   // Categoria legada (regra só-teto) ou piso irreconhecível: infere pelo teto.
   const preset = presetByKey(INFERRED_PRESET_BY_TOP_RANK[maxRank]);
   if (!preset) return null;
-  return {weight: preset.weight, presetKey: preset.key, inferred: true};
+  return {
+    weight: preset.weight,
+    presetKey: preset.key,
+    inferred: true,
+    measured: preset.measured,
+    maxWeight: preset.maxWeight,
+  };
 }
 
 /** Mesmo saneamento do motor para `tournaments/{id}.rankingWeight`. */
@@ -243,16 +273,21 @@ function teamLevelRank(memberRanks) {
   return best;
 }
 
+/** Cópia de `clampMeasuredWeight`: piso fixo, teto do preset (1 no Livre). */
+function clampMeasuredWeight(weight, maxWeight = LIVRE_MAX_WEIGHT) {
+  return Math.min(maxWeight, Math.max(LIVRE_MIN_WEIGHT, weight));
+}
+
 /** Degrau médio → peso, ancorado na escada de presets fechados (Math.round). */
-function weightFromRank(rank) {
+function weightFromRank(rank, maxWeight = LIVRE_MAX_WEIGHT) {
   if (!Number.isFinite(rank)) return LIVRE_MIN_WEIGHT;
   const step = Math.round(rank);
   const weight = step <= 1 ? 0.125 : step <= 3 ? 0.25 : step <= 5 ? 0.5 : 1;
-  return Math.min(LIVRE_MAX_WEIGHT, Math.max(LIVRE_MIN_WEIGHT, weight));
+  return clampMeasuredWeight(weight, maxWeight);
 }
 
 /** Média dos degraus das duplas mensuráveis; null quando nenhuma é. */
-function fieldStrengthFromTeamRanks(teamRanks) {
+function fieldStrengthFromTeamRanks(teamRanks, maxWeight = LIVRE_MAX_WEIGHT) {
   const known = teamRanks.filter(
     (rank) => typeof rank === "number" && Number.isFinite(rank),
   );
@@ -260,7 +295,7 @@ function fieldStrengthFromTeamRanks(teamRanks) {
   const fieldRank = known.reduce((sum, rank) => sum + rank, 0) / known.length;
   return {
     fieldRank,
-    weight: weightFromRank(fieldRank),
+    weight: weightFromRank(fieldRank, maxWeight),
     measuredTeams: known.length,
   };
 }
@@ -366,6 +401,7 @@ module.exports = {
   LIVRE_MAX_WEIGHT,
   teamLevelRank,
   weightFromRank,
+  clampMeasuredWeight,
   fieldStrengthFromTeamRanks,
   inscriptionAthleteUids,
   shouldStampFieldStrength,

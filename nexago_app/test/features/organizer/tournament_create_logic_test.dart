@@ -129,6 +129,112 @@ void main() {
     });
   });
 
+  group('categoryLevelUpToCeiling — faixa "até X" (spec 2026-09-30)', () {
+    TournamentCategoryDraft upTo(TournamentSkillLevel max) =>
+        TournamentCategoryDraft(
+          id: 'c1',
+          minLevel: 'Iniciante 1',
+          skillLevel: max,
+        );
+
+    test('reconhece piso Iniciante 1 com teto fora dos presets', () {
+      for (final max in const [
+        TournamentSkillLevel.iniciante1,
+        TournamentSkillLevel.intermediario1,
+        TournamentSkillLevel.intermediario2,
+        TournamentSkillLevel.avancado1,
+        TournamentSkillLevel.avancado2,
+      ]) {
+        expect(categoryLevelUpToCeiling(upTo(max)), max, reason: max.name);
+      }
+    });
+
+    test('Iniciante 1–Iniciante 2 e Iniciante 1–Open são presets, não "até"',
+        () {
+      expect(
+        categoryLevelUpToCeiling(upTo(TournamentSkillLevel.iniciante2)),
+        isNull,
+      );
+      expect(
+        categoryLevelUpToCeiling(upTo(TournamentSkillLevel.open)),
+        isNull,
+      );
+    });
+
+    test('outro piso, piso vazio e teto legado não são "até"', () {
+      expect(
+        categoryLevelUpToCeiling(
+          const TournamentCategoryDraft(
+            id: 'c1',
+            minLevel: 'Intermediário 1',
+            skillLevel: TournamentSkillLevel.avancado2,
+          ),
+        ),
+        isNull,
+      );
+      expect(
+        categoryLevelUpToCeiling(
+          const TournamentCategoryDraft(
+            id: 'c1',
+            skillLevel: TournamentSkillLevel.intermediario2,
+          ),
+        ),
+        isNull,
+      );
+      expect(
+        categoryLevelUpToCeiling(upTo(TournamentSkillLevel.beginner)),
+        isNull,
+      );
+    });
+
+    test('nome e tags dizem "até" o teto', () {
+      final category = upTo(TournamentSkillLevel.intermediario2);
+      expect(suggestCategoryName(category), 'Masculino até Intermediário 2');
+      expect(categoryTags(category), contains('até Intermediário 2'));
+    });
+
+    test('activeCategoryLevelPreset não muda (o editor de liga depende dela)',
+        () {
+      expect(
+        activeCategoryLevelPreset(upTo(TournamentSkillLevel.intermediario2)),
+        isNull,
+      );
+    });
+
+    test('a escada é a de 7 níveis, em ordem', () {
+      expect(categoryLevelLadder, const [
+        TournamentSkillLevel.iniciante1,
+        TournamentSkillLevel.iniciante2,
+        TournamentSkillLevel.intermediario1,
+        TournamentSkillLevel.intermediario2,
+        TournamentSkillLevel.avancado1,
+        TournamentSkillLevel.avancado2,
+        TournamentSkillLevel.open,
+      ]);
+    });
+
+    test('dica explica o que a escolha libera (mesmo texto do portal)', () {
+      expect(
+        categoryLevelUpToHint(TournamentSkillLevel.iniciante1),
+        'Só atletas Iniciante 1. Quem está acima não se inscreve.',
+      );
+      expect(
+        categoryLevelUpToHint(TournamentSkillLevel.iniciante2),
+        'Libera de Iniciante 1 até Iniciante 2. Quem está acima não se '
+        'inscreve. Mesma regra do preset Iniciante.',
+      );
+      expect(
+        categoryLevelUpToHint(TournamentSkillLevel.intermediario2),
+        'Libera de Iniciante 1 até Intermediário 2. Quem está acima não se '
+        'inscreve.',
+      );
+      expect(
+        categoryLevelUpToHint(TournamentSkillLevel.open),
+        'Libera todos os níveis (mesma regra do Livre).',
+      );
+    });
+  });
+
   group('emptyCategoryDraft', () {
     test('categoria nova nasce num preset real (Livre), nunca em faixa legada', () {
       final draft = emptyCategoryDraft('c1');

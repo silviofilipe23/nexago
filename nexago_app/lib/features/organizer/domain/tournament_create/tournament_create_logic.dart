@@ -205,19 +205,22 @@ String skillLevelLabel(TournamentSkillLevel level) => switch (level) {
   TournamentSkillLevel.avancado2 => 'Avançado 2',
 };
 
-/// Escada única de 7 níveis para categorias novas de TODOS os esportes.
+/// Escada única de 7 níveis (ordem crescente) para categorias novas de TODOS
+/// os esportes — também é a linha "ATÉ O NÍVEL" do editor (spec 2026-09-30).
 /// Categorias antigas com `Iniciante`/`Intermediário` continuam válidas
 /// (ranks unificados no backend); o editor apenas deixa de oferecê-las.
+const categoryLevelLadder = <TournamentSkillLevel>[
+  TournamentSkillLevel.iniciante1,
+  TournamentSkillLevel.iniciante2,
+  TournamentSkillLevel.intermediario1,
+  TournamentSkillLevel.intermediario2,
+  TournamentSkillLevel.avancado1,
+  TournamentSkillLevel.avancado2,
+  TournamentSkillLevel.open,
+];
+
 List<TournamentSkillLevel> skillLevelOptionsForSport(TournamentSport sport) =>
-    const [
-      TournamentSkillLevel.iniciante1,
-      TournamentSkillLevel.iniciante2,
-      TournamentSkillLevel.intermediario1,
-      TournamentSkillLevel.intermediario2,
-      TournamentSkillLevel.avancado1,
-      TournamentSkillLevel.avancado2,
-      TournamentSkillLevel.open,
-    ];
+    categoryLevelLadder;
 
 /// Presets de faixa de nível (paridade com CATEGORY_LEVEL_PRESETS do portal
 /// e CATEGORY_PRESETS das functions — spec emendada 18/08). O teto usa o
@@ -280,6 +283,33 @@ String? activeCategoryLevelPreset(TournamentCategoryDraft draft) {
   return null;
 }
 
+/// Chip que abre a escolha de teto "até um nível" (spec 2026-09-30).
+const categoryLevelUpToChipLabel = 'Até um nível';
+
+/// Teto X de uma faixa "até X": piso Iniciante 1 e teto na escada de 7, fora
+/// dos presets. Iniciante 1–Iniciante 2 e Iniciante 1–Open devolvem null — são
+/// os presets Iniciante e Livre, mesma regra. Paridade com `categoryUpToLevel`
+/// do portal; o backend deriva o peso da mesma faixa (`presetFromRange`).
+TournamentSkillLevel? categoryLevelUpToCeiling(TournamentCategoryDraft draft) {
+  if (draft.minLevel != 'Iniciante 1') return null;
+  if (!categoryLevelLadder.contains(draft.skillLevel)) return null;
+  if (activeCategoryLevelPreset(draft) != null) return null;
+  return draft.skillLevel;
+}
+
+/// Dica sob a linha "ATÉ O NÍVEL" — mesmo texto do portal (`upToLevelHint`).
+String categoryLevelUpToHint(TournamentSkillLevel ceiling) => switch (ceiling) {
+  TournamentSkillLevel.iniciante1 =>
+    'Só atletas Iniciante 1. Quem está acima não se inscreve.',
+  TournamentSkillLevel.open => 'Libera todos os níveis (mesma regra do Livre).',
+  TournamentSkillLevel.iniciante2 =>
+    'Libera de Iniciante 1 até Iniciante 2. Quem está acima não se inscreve. '
+        'Mesma regra do preset Iniciante.',
+  _ =>
+    'Libera de Iniciante 1 até ${skillLevelLabel(ceiling)}. '
+        'Quem está acima não se inscreve.',
+};
+
 /// Categoria nova (id novo, nenhum campo preenchido ainda) — nasce SEMPRE no
 /// preset "Livre" (Iniciante 1–Open), nunca em faixa legada (`minLevel: ''`).
 /// Mesmo fix do portal web (commit b230a30d): um chip precisa nascer ativo.
@@ -309,8 +339,11 @@ String spotsUnitLabel(TournamentCategoryDispute dispute, int spots) {
 /// duas só sobrava "Masculino". Livre é o preset padrão (piso rank 0) e
 /// fica deliberadamente sem ruído, igual hoje. Faixa legada (sem preset —
 /// `minLevel` vazio ou combinação antiga) preserva o comportamento de
-/// sempre: só o teto, quando não é Open.
+/// sempre: só o teto, quando não é Open. Faixa "até X" (spec 2026-09-30) vira
+/// `até <nível>`: sem o "até" ficaria igual a uma categoria só daquele nível.
 String? _categoryLevelNamePart(TournamentCategoryDraft category) {
+  final upTo = categoryLevelUpToCeiling(category);
+  if (upTo != null) return 'até ${skillLevelLabel(upTo)}';
   final preset = activeCategoryLevelPreset(category);
   if (preset != null) {
     return preset == 'Livre' ? null : preset;

@@ -109,28 +109,79 @@
           <div class="tp-card">
             <div class="tp-match-card-head">
               <div>
-                <span class="tp-card-kicker">Partidas recentes</span>
-                <h2 class="tp-card-title">Histórico de partidas</h2>
+                <span class="tp-card-kicker">Por onde a equipe passou</span>
+                <h2 class="tp-card-title">Histórico</h2>
               </div>
             </div>
-            @if (t.matches.length === 0) {
-              <p class="tp-empty-inline">Sem partidas registradas ainda.</p>
-            } @else {
-              <div class="tp-match-list">
-                @for (m of t.matches; track m.id) {
-                  <div class="tp-match-row">
-                    <span class="tp-match-result" [attr.data-result]="m.result" [attr.aria-label]="m.result === 'V' ? 'Vitória' : 'Derrota'">{{ m.result }}</span>
-                    <div class="tp-match-info">
-                      <p class="tp-match-opponent">vs {{ m.opponent }}</p>
-                      <p class="tp-match-context">{{ m.contextLabel }}</p>
-                    </div>
-                    <div class="tp-match-meta">
-                      <span class="tp-match-score">{{ m.score }}</span>
-                      <span class="tp-match-date">{{ m.dateLabel }}</span>
-                    </div>
-                  </div>
+            <div class="tp-tabs" role="tablist" aria-label="Partidas ou torneios da equipe">
+              <button
+                type="button"
+                role="tab"
+                class="tp-tab"
+                [class.tp-tab--active]="historyTab() === 'partidas'"
+                [attr.aria-selected]="historyTab() === 'partidas'"
+                (click)="setHistoryTab('partidas')"
+              >
+                Partidas
+              </button>
+              <button
+                type="button"
+                role="tab"
+                class="tp-tab"
+                [class.tp-tab--active]="historyTab() === 'torneios'"
+                [attr.aria-selected]="historyTab() === 'torneios'"
+                (click)="setHistoryTab('torneios')"
+              >
+                Torneios
+                @if (t.tournaments.length > 0) {
+                  <span class="tp-tab-count">{{ t.tournaments.length }}</span>
                 }
-              </div>
+              </button>
+            </div>
+
+            @if (historyTab() === 'partidas') {
+              @if (t.matches.length === 0) {
+                <p class="tp-empty-inline">Sem partidas registradas ainda.</p>
+              } @else {
+                <div class="tp-match-list" role="tabpanel" aria-label="Partidas recentes">
+                  @for (m of t.matches; track m.id) {
+                    <div class="tp-match-row">
+                      <span class="tp-match-result" [attr.data-result]="m.result" [attr.aria-label]="m.result === 'V' ? 'Vitória' : 'Derrota'">{{ m.result }}</span>
+                      <div class="tp-match-info">
+                        <p class="tp-match-opponent">vs {{ m.opponent }}</p>
+                        <p class="tp-match-context">{{ m.contextLabel }}</p>
+                      </div>
+                      <div class="tp-match-meta">
+                        <span class="tp-match-score">{{ m.score }}</span>
+                        <span class="tp-match-date">{{ m.dateLabel }}</span>
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+            } @else {
+              @if (t.tournaments.length === 0) {
+                <p class="tp-empty-inline">A equipe ainda não participou de nenhum torneio.</p>
+              } @else {
+                <div class="tp-match-list" role="tabpanel" aria-label="Torneios da equipe">
+                  @for (tr of t.tournaments; track tr.id) {
+                    <a class="tp-match-row tp-tournament-row" [routerLink]="['/torneios', tr.id]">
+                      <div class="tp-match-info">
+                        <p class="tp-match-opponent">{{ tr.name }}</p>
+                        @if (tr.contextLabel) {
+                          <p class="tp-match-context">{{ tr.contextLabel }}</p>
+                        }
+                      </div>
+                      <div class="tp-match-meta">
+                        <span class="tp-tournament-badge" [attr.data-status]="tr.status">{{ tr.badge }}</span>
+                        @if (tr.recordLabel) {
+                          <span class="tp-match-date">{{ tr.recordLabel }}</span>
+                        }
+                      </div>
+                    </a>
+                  }
+                </div>
+              }
             }
           </div>
         </div>

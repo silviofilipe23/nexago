@@ -16,16 +16,20 @@ import {
   currentWinStreak,
   fetchMatchesForTeam,
   fetchTeam,
+  fetchTeamsByIds,
   formatTeamTogetherLabel,
   matchIsCompleted,
-  roundShortLabel,
   teamIsLookingForPartner,
   titleTournamentIds,
-  type ArenaMatch,
   type ArenaTeam,
 } from '../data/teams-repository';
-import { fetchTournamentNamesByIds } from '../data/tournaments-repository';
+import { fetchConfirmedRegistrationsForTeam } from '../data/tournament-registrations-repository';
+import { fetchTournamentSummariesByIds } from '../data/tournaments-repository';
+import { duoNameOf } from '../profile/public-profile-activity';
 import type { TeamMatchResult, TeamMemberRef, TeamPublicProfile, TeamTitle } from './team-profile.models';
+import { buildTeamMatchResult, buildTeamTournamentRows } from './team-profile-history';
+
+type HistoryTab = 'partidas' | 'torneios';
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;
@@ -85,6 +89,7 @@ export class TeamPublicProfileComponent {
   protected readonly teamId = computed(() => this.route.snapshot.paramMap.get('teamId') ?? '');
   protected readonly loading = signal(true);
   protected readonly team = signal<TeamPublicProfile | null>(null);
+  protected readonly historyTab = signal<HistoryTab>('partidas');
   /** `null` = lightbox fechado. Objeto (e não índice) pra `@if` aceitar o 0. */
   protected readonly viewerIndex = signal<{ value: number } | null>(null);
 
@@ -132,10 +137,12 @@ export class TeamPublicProfileComponent {
         return;
       }
 
-      const [profiles, matches, generalRanking] = await Promise.all([
+      const [profiles, matches, generalRanking, registrations] = await Promise.all([
         fetchPublicProfilesByIds(db, [team.player1Id, team.player2Id]),
         fetchMatchesForTeam(db, projectId, teamId),
         fetchTeamRankingGeneral(db, projectId),
+        // Sem as inscrições a aba Torneios ainda mostra os torneios onde a equipe jogou.
+        fetchConfirmedRegistrationsForTeam(db, projectId, teamId).catch(() => []),
       ]);
       const rankIndex = generalRanking.findIndex((r) => r.id === teamId);
       const ranking = rankIndex >= 0 ? generalRanking[rankIndex] : null;
@@ -143,13 +150,27 @@ export class TeamPublicProfileComponent {
       const completed = matches.filter(matchIsCompleted);
       const wins = completed.filter((m) => m.winnerId === teamId).length;
       const titleIds = titleTournamentIds(matches, teamId);
-      const tournamentNames = await fetchTournamentNamesByIds(db, [...titleIds, ...completed.slice(0, 8).map((m) => m.tournamentId)]);
+      const recent = completed.slice(0, 8);
+
+      // O adversário é resolvido pelo id: o `teamXDescription` da partida é o apelido da VAGA na
+      // chave ("Vencedor Jogo #5", "1º Grupo A"), não quem jogou. Falha aqui só tira os nomes.
+      const opponentIds = recent.map((m) => (m.teamAId === teamId ? m.teamBId : m.teamAId));
+      const [tournaments, opponentTeams] = await Promise.all([
+        fetchTournamentSummariesByIds(db, [...matches.map((m) => m.tournamentId), ...registrations.map((r) => r.tournamentId)]),
+        fetchTeamsByIds(db, projectId, opponentIds).catch(() => new Map<string, ArenaTeam>()),
+      ]);
+      const opponentProfiles = await fetchPublicProfilesByIds(
+        db,
+        [...opponentTeams.values()].flatMap((t) => [t.player1Id, t.player2Id]),
+      ).catch(() => new Map<string, AthletePublicProfile>());
+      const tournamentNames = new Map([...tournaments].map(([id, t]) => [id, t.name]));
+      const opponentName = (id: string, fallback: string | null) => duoNameOf(id, opponentTeams, opponentProfiles, fallback);
 
       const p1 = profiles.get(team.player1Id);
       const p2 = profiles.get(team.player2Id);
 
       const titles: TeamTitle[] = titleIds.map((id) => ({ id, name: tournamentNames.get(id) ?? 'Torneio' }));
-      const recentMatches: TeamMatchResult[] = completed.slice(0, 8).map((m) => this.matchResult(m, teamId, tournamentNames));
+      const recentMatches: TeamMatchResult[] = recent.map((m) => buildTeamMatchResult(m, teamId, tournamentNames, opponentName));
 
       this.team.set({
         id: team.id,
@@ -166,6 +187,7 @@ export class TeamPublicProfileComponent {
         members: [memberRef(p1, team.player1Id), memberRef(p2, team.player2Id)],
         titles,
         matches: recentMatches,
+        tournaments: buildTeamTournamentRows({ teamId, registrations, matches, tournaments }),
       });
     } catch {
       this.team.set(null);
@@ -174,19 +196,8 @@ export class TeamPublicProfileComponent {
     }
   }
 
-  private matchResult(match: ArenaMatch, teamId: string, tournamentNames: Map<string, string>): TeamMatchResult {
-    const won = match.winnerId === teamId;
-    const isTeamA = match.teamAId === teamId;
-    const opponent = (isTeamA ? match.teamBDescription : match.teamADescription) ?? 'Adversário';
-    const score = match.resultA && match.resultB ? `${match.resultA} / ${match.resultB}` : '—';
-    return {
-      id: match.id,
-      result: won ? 'V' : 'D',
-      opponent,
-      contextLabel: `${tournamentNames.get(match.tournamentId) ?? 'Torneio'} · ${roundShortLabel(match.matchType)}`,
-      score,
-      dateLabel: match.matchEndedAt ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(match.matchEndedAt) : '—',
-    };
+  protected setHistoryTab(tab: HistoryTab): void {
+    this.historyTab.set(tab);
   }
 
   protected openMemberPhoto(memberIndex: number): void {

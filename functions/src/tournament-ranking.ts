@@ -25,11 +25,15 @@ import {
   readFieldStrengthStamp,
   shouldStampFieldStrength,
 } from "./category-field-strength-store";
-import {LIVRE_MIN_WEIGHT, LIVRE_MAX_WEIGHT} from "./category-field-strength";
+import {clampMeasuredWeight} from "./category-field-strength";
 import {parseMatchPlayedAt} from "./tournament-match-gamification";
 import {shouldProcessRatingUpdate as shouldAwardForMatch} from "./rating-engine";
 import {artifactsPublicDataBase} from "./firebase-paths";
-import {categoryPreset, LEGACY_CATEGORY_WEIGHT} from "./category-presets";
+import {
+  categoryPreset,
+  LEGACY_CATEGORY_WEIGHT,
+  type CategoryPreset,
+} from "./category-presets";
 import {findCategory} from "./tournament-registration-guards";
 
 /**
@@ -358,20 +362,21 @@ function isNonGroupCompletedMatch(match: Record<string, unknown>): boolean {
 }
 
 /**
- * Peso de uma categoria Livre. Ordem: carimbo gravado (o normal, feito na
- * publicação da chave) → medição na hora + carimbo `lazy` (chave publicada antes
- * do deploy) → peso declarado (campo imensurável, e aí NÃO carimba, para que uma
- * medição futura ainda possa acontecer).
+ * Peso de uma categoria de peso MEDIDO — Livre ou "até X" (spec 2026-09-30).
+ * Ordem: carimbo gravado (o normal, feito na publicação da chave) → medição na
+ * hora + carimbo `lazy` (chave publicada antes do deploy) → peso declarado
+ * (campo imensurável, e aí NÃO carimba, para que uma medição futura ainda possa
+ * acontecer). O teto é o do preset: 1 no Livre, a família de X no "até X".
  */
-async function resolveLivreWeight(
+async function resolveMeasuredWeight(
   db: Firestore,
   projectId: string,
   params: {
     tournamentId: string;
     categoryId: string;
+    preset: CategoryPreset;
     sportCode: string | null;
     paidTeams: Map<string, string[]>;
-    declaredWeight: number;
   },
 ): Promise<number> {
   const stamped = await readFieldStrengthStamp(
@@ -383,18 +388,19 @@ async function resolveLivreWeight(
   // Piso/teto de novo na leitura: o backfill (tasks futuras) escreve estes
   // docs, e um bug lá não pode escapar sem clamp e amplificar a premiação.
   if (stamped) {
-    return Math.min(LIVRE_MAX_WEIGHT, Math.max(LIVRE_MIN_WEIGHT, stamped.weight));
+    return clampMeasuredWeight(stamped.weight, params.preset.maxWeight);
   }
 
   const measured = await measureFieldStrength(db, projectId, {
     tournamentId: params.tournamentId,
     categoryId: params.categoryId,
-    presetKey: "livre",
+    presetKey: params.preset.key,
+    maxWeight: params.preset.maxWeight,
     sportCode: params.sportCode,
     teams: params.paidTeams,
     source: "lazy",
   });
-  if (!measured) return params.declaredWeight;
+  if (!measured) return params.preset.weight;
 
   // Só carimba com cobertura suficiente (`shouldStampFieldStrength`): uma
   // medição de minoria enviesa para cima e congelaria o erro para sempre. Sem
@@ -506,17 +512,18 @@ export async function tryAwardGlobalRankingForMatch(
     return {awarded: false, teamsUpdated: 0};
   }
 
-  // Peso do preset. O Livre é a exceção: a faixa declarada (0–6) dá 0.125 pelo
-  // PISO, o que pune um campo forte, então o peso vem da força REAL medida —
-  // carimbada na publicação da chave, ou medida aqui e carimbada se faltar.
+  // Peso do preset. Livre e "até X" são a exceção: a faixa declarada dá 0.125
+  // pelo PISO, o que pune um campo forte, então o peso vem da força REAL medida
+  // (com teto no preset) — carimbada na publicação da chave, ou medida aqui e
+  // carimbada se faltar.
   let presetWeight = preset?.weight ?? LEGACY_CATEGORY_WEIGHT;
-  if (preset?.key === "livre") {
-    presetWeight = await resolveLivreWeight(db, projectId, {
+  if (preset?.measured) {
+    presetWeight = await resolveMeasuredWeight(db, projectId, {
       tournamentId,
       categoryId,
+      preset,
       sportCode: tournamentSportToLevelSportCode(tournament.sport),
       paidTeams,
-      declaredWeight: preset.weight,
     });
   }
 

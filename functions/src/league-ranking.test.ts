@@ -429,6 +429,21 @@ describe("tryAwardLeagueStagePointsForMatch — bucket groups por preset", () =>
     assert.equal(result.teamsUpdated, 2);
   });
 
+  it("faixa até X também não concede groups (libera os níveis abaixo, como o Livre)", async () => {
+    const fake = leagueSeededDb({level: "Intermediário 2", minLevel: "Iniciante 1"});
+    const result = await tryAwardLeagueStagePointsForMatch(
+      fake as never,
+      PROJECT,
+      finalMatch(),
+    );
+
+    assert.equal(
+      fake.store.get(`artifacts/${PROJECT}/public/data/leagueTeamRankings/L1_C1_tC`),
+      undefined,
+    );
+    assert.equal(result.teamsUpdated, 2);
+  });
+
   it("Intermediário (controle) segue concedendo groups", async () => {
     const fake = leagueSeededDb({level: "Intermediário 2", minLevel: "Intermediário 1"});
     const result = await tryAwardLeagueStagePointsForMatch(

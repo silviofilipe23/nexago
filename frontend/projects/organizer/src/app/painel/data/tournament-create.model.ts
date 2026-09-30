@@ -396,11 +396,16 @@ export const SKILL_LEVEL_LABEL: Record<SkillLevel, string> = {
   avancado2: 'Avançado 2',
 };
 
-/** Escada única de 7 níveis para categorias novas de TODOS os esportes.
+/** Escada única de 7 níveis (ordem crescente) para categorias novas de TODOS os
+ *  esportes — também é a linha "Até o nível" do editor (spec 2026-09-30).
  *  Os membros legados de `SkillLevel` (`beginner`/`intermediate`) seguem no
  *  tipo só pra reabrir categorias antigas — o editor não os oferece mais. */
+export const SKILL_LEVEL_LADDER: readonly SkillLevel[] = [
+  'iniciante1', 'iniciante2', 'intermediario1', 'intermediario2', 'avancado1', 'avancado2', 'open',
+];
+
 export function skillLevelOptionsForSport(sport: TournamentSport): SkillLevel[] {
-  return ['iniciante1', 'iniciante2', 'intermediario1', 'intermediario2', 'avancado1', 'avancado2', 'open'];
+  return [...SKILL_LEVEL_LADDER];
 }
 
 export interface CategoryLevelPreset {
@@ -421,6 +426,31 @@ export const CATEGORY_LEVEL_PRESETS: readonly CategoryLevelPreset[] = [
   { label: 'Elite', min: 'open', max: 'open' },
   { label: 'Livre', min: 'iniciante1', max: 'open' },
 ];
+
+/** Chip que abre a escolha de teto "até um nível" (spec 2026-09-30). */
+export const LEVEL_UP_TO_CHIP_LABEL = 'Até um nível';
+
+/** Teto X de uma faixa "até X": piso Iniciante 1 e teto na escada de 7, fora dos
+ *  presets. 0–1 e 0–6 devolvem `null` — são os presets Iniciante e Livre, mesma
+ *  regra. O backend deriva o peso da mesma faixa (`presetFromRange` → "ate"). */
+export function categoryUpToLevel(
+  category: Pick<TournamentCategoryDraft, 'minSkillLevel' | 'skillLevel'>,
+): SkillLevel | null {
+  if (category.minSkillLevel !== 'iniciante1') return null;
+  if (!SKILL_LEVEL_LADDER.includes(category.skillLevel)) return null;
+  const isPreset = CATEGORY_LEVEL_PRESETS.some(
+    (p) => p.min === category.minSkillLevel && p.max === category.skillLevel,
+  );
+  return isPreset ? null : category.skillLevel;
+}
+
+/** Dica sob a linha "Até o nível" — mesmo texto do app (`categoryLevelUpToHint`). */
+export function upToLevelHint(level: SkillLevel): string {
+  if (level === 'iniciante1') return 'Só atletas Iniciante 1. Quem está acima não se inscreve.';
+  if (level === 'open') return 'Libera todos os níveis (mesma regra do Livre).';
+  const base = `Libera de Iniciante 1 até ${SKILL_LEVEL_LABEL[level]}. Quem está acima não se inscreve.`;
+  return level === 'iniciante2' ? `${base} Mesma regra do preset Iniciante.` : base;
+}
 
 // ── King of the Court ─────────────────────────────────────────────────────────
 // Porta de `king_of_court_plan.dart`, que por sua vez espelha
@@ -491,7 +521,11 @@ export function suggestCategoryName(category: TournamentCategoryDraft): string {
     parts.push(GENDER_LABEL[category.gender]);
   }
   if (category.ageBand !== 'open') parts.push(AGE_BAND_LABEL[category.ageBand]);
-  if (category.minSkillLevel != null && category.minSkillLevel === category.skillLevel) {
+  const upTo = categoryUpToLevel(category);
+  if (upTo) {
+    // Faixa "até X": sem o "até" o nome ficaria igual ao de uma categoria só daquele nível.
+    parts.push(`até ${SKILL_LEVEL_LABEL[upTo]}`);
+  } else if (category.minSkillLevel != null && category.minSkillLevel === category.skillLevel) {
     // Faixa de um único degrau (preset "Elite": min = max) — rótulo simples, sem "mín.".
     parts.push(SKILL_LEVEL_LABEL[category.skillLevel]);
   } else {
@@ -510,7 +544,11 @@ export function categoryTags(category: TournamentCategoryDraft): string[] {
     : (genderCompositionShort(category) ?? GENDER_SHORT[category.gender]);
   const tags = [genderTag, DISPUTE_LABEL[category.dispute]];
   if (category.ageBand !== 'open') tags.push(AGE_BAND_LABEL[category.ageBand]);
-  if (category.minSkillLevel != null && category.minSkillLevel === category.skillLevel) {
+  const upTo = categoryUpToLevel(category);
+  if (upTo) {
+    // Faixa "até X": sem o "até" a tag ficaria igual à de uma categoria só daquele nível.
+    tags.push(`até ${SKILL_LEVEL_LABEL[upTo]}`);
+  } else if (category.minSkillLevel != null && category.minSkillLevel === category.skillLevel) {
     // Faixa de um único degrau (preset "Elite": min = max) — rótulo simples, sem "mín.".
     tags.push(SKILL_LEVEL_LABEL[category.skillLevel]);
   } else {

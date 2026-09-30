@@ -91,7 +91,7 @@
  * de `athleteRatings.levelRank`. Continua sendo função pura do dado vivo, então
  * o script segue convergindo em duas passadas.
  *
- * A ordem de resolução do peso do Livre é IDÊNTICA à de `resolveLivreWeight`
+ * A ordem de resolução do peso do Livre é IDÊNTICA à de `resolveMeasuredWeight`
  * (functions/src/tournament-ranking.ts), para que backfill e motor nunca
  * discordem sobre o mesmo histórico:
  *   1. Carimbo já gravado em `tournamentCategoryFieldStrength` → usa o peso
@@ -118,8 +118,7 @@ const {
   fieldStrengthFromTeamRanks,
   inscriptionAthleteUids,
   shouldStampFieldStrength,
-  LIVRE_MIN_WEIGHT,
-  LIVRE_MAX_WEIGHT,
+  clampMeasuredWeight,
   tournamentSportToLevelSportCode,
   extractTeamMemberUids,
   fieldStrengthDocId,
@@ -236,7 +235,9 @@ async function resolveContext(tournamentId, categoryId) {
   // forte (spec 2026-09-10). Aqui ele é substituído pela força REAL medida.
   // Campo imensurável mantém o peso declarado — não vira zero.
   //
-  // Ordem IDÊNTICA a `resolveLivreWeight` (functions/src/tournament-ranking.ts):
+  // Vale para o Livre e para a faixa "até X" (spec 2026-09-30), com o teto do preset.
+  //
+  // Ordem IDÊNTICA a `resolveMeasuredWeight` (functions/src/tournament-ranking.ts):
   // 1) carimbo já gravado; 2) mede agora (e carimba se a cobertura permitir);
   // 3) peso declarado do preset. Sem o passo 1 o backfill sobrescreveria um
   // carimbo feito na publicação da chave e as duas fontes discordariam.
@@ -246,15 +247,15 @@ async function resolveContext(tournamentId, categoryId) {
   let livreWeightSource = null; // "stamp" | "measured" | "declared" — só para o relatório
   let livreStampEligible = false; // cobertura suficiente para carimbar nesta passada
   let livreStampLimitado = false; // cobertura suficiente, mas --limit já esgotado
-  if (peso.presetKey === "livre") {
+  if (peso.measured) {
     const stamp = await readFieldStrengthStamp(tournamentId, categoryId);
     if (stamp) {
-      weight = Math.min(LIVRE_MAX_WEIGHT, Math.max(LIVRE_MIN_WEIGHT, stamp.weight));
+      weight = clampMeasuredWeight(stamp.weight, peso.maxWeight);
       fieldRank = stamp.fieldRank;
       measuredTeams = stamp.measuredTeams;
       livreWeightSource = "stamp";
     } else {
-      const strength = await measureLivreFieldStrength(tournament, paidTeamsMap);
+      const strength = await measureCategoryFieldStrength(tournament, paidTeamsMap, peso.maxWeight);
       if (strength) {
         weight = strength.weight;
         fieldRank = strength.fieldRank;
@@ -262,7 +263,7 @@ async function resolveContext(tournamentId, categoryId) {
         livreWeightSource = "measured";
 
         const stampCandidate = {
-          presetKey: "livre",
+          presetKey: peso.presetKey,
           fieldRank: strength.fieldRank,
           weight: strength.weight,
           measuredTeams: strength.measuredTeams,
@@ -283,7 +284,7 @@ async function resolveContext(tournamentId, categoryId) {
                 stampsGravados++;
               } catch (e) {
                 // A escrita do carimbo é só metadado — se falhar, o recálculo não
-                // pode parar por isso (mesma postura de `resolveLivreWeight` em
+                // pode parar por isso (mesma postura de `resolveMeasuredWeight` em
                 // `functions/src/tournament-ranking.ts`): segue com o peso medido.
                 avisar(
                   `${tournamentId}/${categoryId}: falha ao carimbar força do campo — ` +
@@ -305,6 +306,7 @@ async function resolveContext(tournamentId, categoryId) {
     weight,
     presetKey: peso.presetKey,
     inferred: peso.inferred,
+    measured: peso.measured,
     fieldRank,
     measuredTeams,
     livreWeightSource,
@@ -397,8 +399,8 @@ async function loadAthleteLevelRanks(uids, sportCode) {
   return ranks;
 }
 
-/** Força do campo de uma categoria Livre; null quando não dá para medir. */
-async function measureLivreFieldStrength(tournament, paidTeams) {
+/** Força do campo de uma categoria medida (Livre ou "até X"); null quando não dá para medir. */
+async function measureCategoryFieldStrength(tournament, paidTeams, maxWeight) {
   const sportCode = tournamentSportToLevelSportCode(tournament.sport);
   if (!sportCode || paidTeams.size === 0) return null;
 
@@ -409,7 +411,7 @@ async function measureLivreFieldStrength(tournament, paidTeams) {
   const teamRanks = [...paidTeams.values()].map((uids) =>
     teamLevelRank(uids.map((uid) => (ranks.has(uid) ? ranks.get(uid) : null))),
   );
-  return fieldStrengthFromTeamRanks(teamRanks);
+  return fieldStrengthFromTeamRanks(teamRanks, maxWeight);
 }
 
 /**
@@ -443,7 +445,7 @@ async function readFieldStrengthStamp(tournamentId, categoryId) {
  *
  * Payload em paridade com `fieldStrengthStampPayload`
  * (`functions/src/category-field-strength-store.ts:155-159`); o local
- * equivalente da escrita no motor é `resolveLivreWeight`
+ * equivalente da escrita no motor é `resolveMeasuredWeight`
  * (`functions/src/tournament-ranking.ts`).
  */
 async function stampFieldStrength(tournamentId, categoryId, stamp) {
@@ -705,6 +707,8 @@ async function criarParticipacaoFaltanteDoLivre(apply) {
     if (limitAtingido) break;
     const [tournamentId, categoryId] = chave.split("|");
     const ctx = await contextFor(tournamentId, categoryId);
+    // Só o Livre: a passada recria a participação que a ANTIGA exceção do Livre
+    // nunca gravou. A faixa "até X" (spec 2026-09-30) nasceu depois dela.
     if (!ctx.ok || ctx.presetKey !== "livre") continue;
 
     const paidTeams = await loadPaidTeams(tournamentId, categoryId);
@@ -1000,7 +1004,7 @@ function imprimirContextos() {
         ` · rankingWeight=${ctx.rankingWeight} · pagas=${ctx.paidTeams} → fatorChave=${ctx.bracketFactor}` +
         ` · multiplicador=${(ctx.weight * ctx.rankingWeight * ctx.bracketFactor).toFixed(4)}`,
     );
-    if (ctx.presetKey === "livre") {
+    if (ctx.measured) {
       const carimboStatus = ctx.livreStampLimitado
         ? " — NÃO carimbado (--limit atingido, fica para a próxima)"
         : ctx.livreStampEligible

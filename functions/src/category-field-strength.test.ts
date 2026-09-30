@@ -1,6 +1,7 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {
+  clampMeasuredWeight,
   fieldStrengthFromTeamRanks,
   LIVRE_MAX_WEIGHT,
   LIVRE_MIN_WEIGHT,
@@ -73,5 +74,26 @@ describe("fieldStrengthFromTeamRanks", () => {
   it("campo imensurável devolve null (não vira peso zero)", () => {
     assert.equal(fieldStrengthFromTeamRanks([null, null]), null);
     assert.equal(fieldStrengthFromTeamRanks([]), null);
+  });
+});
+
+describe("teto do peso medido (faixa \"até X\", spec 2026-09-30)", () => {
+  it("weightFromRank respeita o teto do preset", () => {
+    assert.equal(weightFromRank(6, 0.25), 0.25);
+    assert.equal(weightFromRank(4, 0.5), 0.5);
+    assert.equal(weightFromRank(0, 0.25), 0.125);
+  });
+
+  it("clampMeasuredWeight usa piso fixo e o teto do preset", () => {
+    assert.equal(clampMeasuredWeight(1, 0.25), 0.25);
+    assert.equal(clampMeasuredWeight(0.01, 0.25), LIVRE_MIN_WEIGHT);
+    assert.equal(clampMeasuredWeight(5), LIVRE_MAX_WEIGHT);
+  });
+
+  it("fieldStrengthFromTeamRanks repassa o teto sem mexer no fieldRank", () => {
+    const strength = fieldStrengthFromTeamRanks([6, 6, 3], 0.25);
+    assert.ok(strength);
+    assert.equal(strength.fieldRank, 5);
+    assert.equal(strength.weight, 0.25);
   });
 });

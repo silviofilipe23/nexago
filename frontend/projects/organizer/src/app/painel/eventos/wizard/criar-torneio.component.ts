@@ -21,6 +21,8 @@ import {
   BRACKET_SYSTEM_SHORT_LABEL,
   CATEGORY_LEVEL_PRESETS,
   DISPUTE_LABEL,
+  LEVEL_UP_TO_CHIP_LABEL,
+  SKILL_LEVEL_LADDER,
   DISPUTE_OPTIONS,
   GENDER_LABEL,
   KOC_MAX_ROUND_DURATION_SEC,
@@ -44,6 +46,7 @@ import {
   categoryTags,
   categoryTeamSize,
   categoryUnitLabel,
+  categoryUpToLevel,
   categoryUnitSingular,
   defaultCategoryPrizes,
   emptyCategoryDraft,
@@ -58,6 +61,7 @@ import {
   totalSpots,
   REGISTRATION_HOLD_OPTIONS,
   registrationHoldLabel,
+  upToLevelHint,
 } from '../../data/tournament-create.model';
 import { OgCardComponent } from '../../ui/card.component';
 import { OgCategoryCardComponent } from '../../ui/category-card.component';
@@ -230,12 +234,20 @@ function inputToDatetime(v: string): Date | null {
               </div>
               <div style="margin-top:16px">
                 <og-form-field label="Faixa de nível">
-                  <og-select-chips [options]="levelPresetOptions" [active]="activeLevelPreset() ?? ''" (changed)="setCatLevelPreset($event)" />
+                  <og-select-chips [options]="levelChipOptions" [active]="levelChipActive()" (changed)="setCatLevelPreset($event)" />
                 </og-form-field>
+                @if (levelUpToActive()) {
+                  <div style="margin-top:12px">
+                    <og-form-field label="Até o nível">
+                      <og-select-chips [options]="upToLevelOptions" [active]="skillLabel[cat().skillLevel]" (changed)="setCatUpToLevel($event)" />
+                    </og-form-field>
+                    <p class="og-wizard-hint">{{ upToLevelHint(cat().skillLevel) }}</p>
+                  </div>
+                }
                 @if (cat().minSkillLevel != null && cat().minSkillLevel !== 'iniciante1') {
                   <p class="og-wizard-hint">Piso de nível: atletas sem nível declarado não conseguem se inscrever nesta categoria.</p>
                 }
-                @if (activeLevelPreset() === null) {
+                @if (activeLevelPreset() === null && !levelUpToActive()) {
                   <p class="og-wizard-hint">Faixa personalizada (legado): {{ levelRangeLabel() }} — escolha um preset para alterar.</p>
                 }
               </div>
@@ -809,7 +821,22 @@ export class CriarTorneioComponent {
     return Math.round(cents / categoryTeamSize(c));
   });
 
-  protected readonly levelPresetOptions = CATEGORY_LEVEL_PRESETS.map((p) => p.label);
+  protected readonly levelChipOptions = [...CATEGORY_LEVEL_PRESETS.map((p) => p.label), LEVEL_UP_TO_CHIP_LABEL];
+  protected readonly upToLevelOptions = SKILL_LEVEL_LADDER.map((level) => SKILL_LEVEL_LABEL[level]);
+  protected readonly upToLevelHint = upToLevelHint;
+
+  /** "Até um nível" escolhido nesta edição; `null` = deriva da faixa gravada. Sem isso,
+   *  escolher Iniciante 2 ou Open na escada faria o chip pular para Iniciante/Livre no
+   *  meio da edição — as faixas 0–1 e 0–6 são esses presets. */
+  private readonly levelUpToChoice = signal<boolean | null>(null);
+
+  protected readonly levelUpToActive = computed(
+    () => this.levelUpToChoice() ?? categoryUpToLevel(this.cat()) !== null,
+  );
+
+  protected readonly levelChipActive = computed(() =>
+    this.levelUpToActive() ? LEVEL_UP_TO_CHIP_LABEL : (this.activeLevelPreset() ?? ''),
+  );
 
   /** Preset cujo (min,max) casa com o draft; `null` = faixa legada (sem preset — nenhum chip
    *  ativo, mostra a faixa gravada em texto). */
@@ -1025,8 +1052,27 @@ export class CriarTorneioComponent {
   }
 
   protected setCatLevelPreset(label: string): void {
+    if (label === LEVEL_UP_TO_CHIP_LABEL) {
+      // Mantém o teto atual; teto legado (fora da escada de 7) vira Open.
+      const current = this.cat().skillLevel;
+      const max = SKILL_LEVEL_LADDER.includes(current) ? current : 'open';
+      this.levelUpToChoice.set(true);
+      this.patchCat({ minSkillLevel: 'iniciante1', skillLevel: max });
+      return;
+    }
     const preset = CATEGORY_LEVEL_PRESETS.find((p) => p.label === label);
-    if (preset) this.patchCat({ minSkillLevel: preset.min, skillLevel: preset.max });
+    if (!preset) return;
+    this.levelUpToChoice.set(false);
+    this.patchCat({ minSkillLevel: preset.min, skillLevel: preset.max });
+  }
+
+  protected setCatUpToLevel(label: string): void {
+    const level = SKILL_LEVEL_LADDER.find((l) => SKILL_LEVEL_LABEL[l] === label);
+    if (!level) return;
+    // Fixa o modo: numa categoria reaberta ele vinha só da faixa, e Iniciante 2/Open
+    // (faixas dos presets Iniciante/Livre) fariam a escada sumir no meio da edição.
+    this.levelUpToChoice.set(true);
+    this.patchCat({ minSkillLevel: 'iniciante1', skillLevel: level });
   }
 
   protected setCatBestOf(label: string): void {
@@ -1142,6 +1188,8 @@ export class CriarTorneioComponent {
 
   // ── Categorias ──
   protected openCategoriaBuilder(id: string | null): void {
+    // Cada categoria reabre pelo que está gravado — o modo "até" da anterior não vaza.
+    this.levelUpToChoice.set(null);
     const existing = id ? this.draft().categories.find((c) => c.id === id) : null;
     // Categoria existente abre como está; só a NOVA nasce com as regras padrão do organizador.
     this.cat.set(

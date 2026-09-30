@@ -37,6 +37,36 @@ class _CategoryEditorSheet extends ConsumerStatefulWidget {
 
 class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
   late TournamentCategoryDraft _category;
+
+  /// "Até um nível" escolhido nesta edição; null = deriva da faixa gravada.
+  /// Sem isso, escolher Iniciante 2 ou Open na escada faria o chip pular para
+  /// Iniciante/Livre no meio da edição (0–1 e 0–6 são esses presets).
+  bool? _levelUpToChoice;
+
+  bool get _levelUpToActive =>
+      _levelUpToChoice ?? categoryLevelUpToCeiling(_category) != null;
+
+  void _selectLevelChip(String? label) {
+    if (label == categoryLevelUpToChipLabel) {
+      // Mantém o teto atual; teto legado (fora da escada de 7) vira Open.
+      final max = categoryLevelLadder.contains(_category.skillLevel)
+          ? _category.skillLevel
+          : TournamentSkillLevel.open;
+      setState(() {
+        _levelUpToChoice = true;
+        _category = _category.copyWith(skillLevel: max, minLevel: 'Iniciante 1');
+      });
+      return;
+    }
+    final preset = categoryLevelPresets.firstWhere((p) => p.label == label);
+    setState(() {
+      _levelUpToChoice = false;
+      _category = _category.copyWith(
+        skillLevel: preset.maxSkillLevel,
+        minLevel: preset.minLevel,
+      );
+    });
+  }
   late final TextEditingController _nameController;
   late final TextEditingController _priceController;
   late final TextEditingController _ageMinController;
@@ -198,26 +228,52 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
                 const SizedBox(height: 16),
                 const OrganizerSectionLabel('FAIXA DE NÍVEL'),
                 const SizedBox(height: 8),
+                // Quebra linha em vez de rolar: com 7 chips o "Até um nível"
+                // (e o Livre, o preset padrão) nasciam fora da tela do celular.
                 OrganizerChipSelector<String?>(
-                  horizontalScroll: true,
+                  key: const Key('category-level-preset-selector'),
                   options: [
                     for (final preset in categoryLevelPresets) preset.label,
+                    categoryLevelUpToChipLabel,
                   ],
-                  selected: activeCategoryLevelPreset(_category),
+                  selected: _levelUpToActive
+                      ? categoryLevelUpToChipLabel
+                      : activeCategoryLevelPreset(_category),
                   labelBuilder: (label) => label ?? '',
-                  onSelected: (label) {
-                    final preset = categoryLevelPresets.firstWhere(
-                      (p) => p.label == label,
-                    );
-                    setState(
-                      () => _category = _category.copyWith(
-                        skillLevel: preset.maxSkillLevel,
-                        minLevel: preset.minLevel,
-                      ),
-                    );
-                  },
+                  onSelected: _selectLevelChip,
                 ),
-                if (activeCategoryLevelPreset(_category) == null) ...[
+                if (_levelUpToActive) ...[
+                  const SizedBox(height: 12),
+                  const OrganizerSectionLabel('ATÉ O NÍVEL'),
+                  const SizedBox(height: 8),
+                  // Quebra linha em vez de rolar: com 7 degraus numa linha só o
+                  // nível marcado ficava fora da tela do celular ao reabrir.
+                  OrganizerChipSelector<TournamentSkillLevel>(
+                    key: const Key('category-level-up-to-selector'),
+                    options: categoryLevelLadder,
+                    selected: _category.skillLevel,
+                    labelBuilder: skillLevelLabel,
+                    onSelected: (level) => setState(() {
+                      // Fixa o modo: numa categoria reaberta ele vinha só da
+                      // faixa, e Iniciante 2/Open (faixas dos presets
+                      // Iniciante/Livre) fariam a escada sumir na edição.
+                      _levelUpToChoice = true;
+                      _category = _category.copyWith(
+                        skillLevel: level,
+                        minLevel: 'Iniciante 1',
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    categoryLevelUpToHint(_category.skillLevel),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: context.themeColors.onSurfaceMuted,
+                    ),
+                  ),
+                ],
+                if (activeCategoryLevelPreset(_category) == null &&
+                    !_levelUpToActive) ...[
                   const SizedBox(height: 6),
                   Text(
                     'Faixa personalizada (legado) — escolha um preset para '

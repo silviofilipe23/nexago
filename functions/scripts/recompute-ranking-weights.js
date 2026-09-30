@@ -91,7 +91,7 @@
  * de `athleteRatings.levelRank`. Continua sendo função pura do dado vivo, então
  * o script segue convergindo em duas passadas.
  *
- * A ordem de resolução do peso do Livre é IDÊNTICA à de `resolveLivreWeight`
+ * A ordem de resolução do peso do Livre é IDÊNTICA à de `resolveMeasuredWeight`
  * (functions/src/tournament-ranking.ts), para que backfill e motor nunca
  * discordem sobre o mesmo histórico:
  *   1. Carimbo já gravado em `tournamentCategoryFieldStrength` → usa o peso
@@ -284,7 +284,7 @@ async function resolveContext(tournamentId, categoryId) {
                 stampsGravados++;
               } catch (e) {
                 // A escrita do carimbo é só metadado — se falhar, o recálculo não
-                // pode parar por isso (mesma postura de `resolveLivreWeight` em
+                // pode parar por isso (mesma postura de `resolveMeasuredWeight` em
                 // `functions/src/tournament-ranking.ts`): segue com o peso medido.
                 avisar(
                   `${tournamentId}/${categoryId}: falha ao carimbar força do campo — ` +
@@ -445,7 +445,7 @@ async function readFieldStrengthStamp(tournamentId, categoryId) {
  *
  * Payload em paridade com `fieldStrengthStampPayload`
  * (`functions/src/category-field-strength-store.ts:155-159`); o local
- * equivalente da escrita no motor é `resolveLivreWeight`
+ * equivalente da escrita no motor é `resolveMeasuredWeight`
  * (`functions/src/tournament-ranking.ts`).
  */
 async function stampFieldStrength(tournamentId, categoryId, stamp) {

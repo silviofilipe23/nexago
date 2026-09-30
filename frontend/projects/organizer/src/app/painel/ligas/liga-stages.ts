@@ -9,11 +9,12 @@ import type { OrganizerTournament } from '../data/tournament.model';
  *  `tournamentIds`. Etapa sem torneio é etapa só planejada: existe no plano da temporada mas
  *  ainda não foi publicada, e o organizador precisa passar pelo wizard de etapa. */
 
-export type LigaEtapaStatus = 'planejada' | 'inscricoes' | 'andamento' | 'concluida' | 'cancelada';
+export type LigaEtapaStatus = 'planejada' | 'inscricoes' | 'encerradas' | 'andamento' | 'concluida' | 'cancelada';
 
 export const LIGA_ETAPA_STATUS_LABEL: Record<LigaEtapaStatus, string> = {
   planejada: 'A definir',
   inscricoes: 'Inscrições abertas',
+  encerradas: 'Inscrições encerradas',
   andamento: 'Em andamento',
   concluida: 'Concluída',
   cancelada: 'Cancelada',
@@ -22,6 +23,7 @@ export const LIGA_ETAPA_STATUS_LABEL: Record<LigaEtapaStatus, string> = {
 export const LIGA_ETAPA_STATUS_TONE: Record<LigaEtapaStatus, PillTone> = {
   planejada: 'dim',
   inscricoes: 'orange',
+  encerradas: 'yellow',
   andamento: 'green',
   concluida: 'dim',
   cancelada: 'red',
@@ -52,6 +54,8 @@ export function ligaEtapaStatusOf(tournament: OrganizerTournament | undefined | 
       return 'cancelada';
     case 'concluido':
       return 'concluida';
+    case 'encerradas':
+      return 'encerradas';
     case 'andamento':
       return 'andamento';
     default:

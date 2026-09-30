@@ -20,7 +20,7 @@ type Bucket = 'ativos' | 'encerrados';
 type Tone = 'orange' | 'green' | 'yellow' | 'red' | 'dim';
 
 /** Torneios com um destes status contam como evento ativo (mesmo critério do Início). */
-const ACTIVE_TOURNAMENT_STATUSES: readonly OrganizerTournamentStatus[] = ['inscricoes', 'andamento'];
+const ACTIVE_TOURNAMENT_STATUSES: readonly OrganizerTournamentStatus[] = ['inscricoes', 'encerradas', 'andamento'];
 /** Teto de torneios consultados em paralelo pra contar inscritos na listagem — evita N+1 sem limite. */
 const MAX_INSCRITOS_FETCH = 20;
 
@@ -28,6 +28,7 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
 
 const STATUS_LABEL: Record<OrganizerTournamentStatus, string> = {
   inscricoes: 'Inscrições abertas',
+  encerradas: 'Inscrições encerradas',
   andamento: 'Em andamento',
   concluido: 'Concluído',
   cancelado: 'Cancelado',
@@ -35,6 +36,7 @@ const STATUS_LABEL: Record<OrganizerTournamentStatus, string> = {
 
 const STATUS_TONE: Record<OrganizerTournamentStatus, Tone> = {
   inscricoes: 'orange',
+  encerradas: 'yellow',
   andamento: 'green',
   concluido: 'dim',
   cancelado: 'red',

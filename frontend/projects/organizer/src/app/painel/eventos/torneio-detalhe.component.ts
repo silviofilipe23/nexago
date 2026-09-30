@@ -33,6 +33,7 @@ import { OgCompartilharTorneioDialogComponent } from './compartilhar-torneio-dia
 
 const STATUS_LABEL: Record<OrganizerTournamentStatus, string> = {
   inscricoes: 'Inscrições abertas',
+  encerradas: 'Inscrições encerradas',
   andamento: 'Em andamento',
   concluido: 'Concluído',
   cancelado: 'Cancelado',
@@ -1252,7 +1253,7 @@ export class TorneioDetalheComponent {
   /** Mesma regra dos botões do cabeçalho: há o que encerrar/cancelar enquanto o torneio vive. */
   protected readonly hasSheetActions = computed(() => {
     const status = this.tournament()?.status;
-    return status === 'inscricoes' || status === 'andamento';
+    return status === 'inscricoes' || status === 'encerradas' || status === 'andamento';
   });
 
   protected readonly statusLabel = computed(() => {
@@ -1283,7 +1284,7 @@ export class TorneioDetalheComponent {
    *  em concluído/cancelado o link só levaria o atleta a uma porta fechada. */
   protected readonly canShare = computed(() => {
     const status = this.tournament()?.status;
-    return status === 'inscricoes' || status === 'andamento';
+    return status === 'inscricoes' || status === 'encerradas' || status === 'andamento';
   });
 
   protected readonly sharePlace = computed(() => {

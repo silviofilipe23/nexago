@@ -23,7 +23,7 @@ interface UpcomingMatchRow {
 }
 
 /** Torneios com um destes status contam como "evento ativo" no card do topo. */
-const ACTIVE_STATUSES: readonly OrganizerTournamentStatus[] = ['inscricoes', 'andamento'];
+const ACTIVE_STATUSES: readonly OrganizerTournamentStatus[] = ['inscricoes', 'encerradas', 'andamento'];
 /** Teto de torneios ativos consultados em paralelo pra somar inscritos e buscar jogos — evita explodir em N+1. */
 const MAX_ACTIVE_FOR_INSCRITOS = 10;
 /** Quantos torneios ativos aparecem na lista "Meus eventos" — sempre um subconjunto do teto acima. */
@@ -48,13 +48,15 @@ function matchTimeLabel(scheduledAt: Date, now: Date): string {
 
 const STATUS_LABEL: Record<OrganizerTournamentStatus, string> = {
   inscricoes: 'Inscrições abertas',
+  encerradas: 'Inscrições encerradas',
   andamento: 'Em andamento',
   concluido: 'Concluído',
   cancelado: 'Cancelado',
 };
 
-const STATUS_TONE: Record<OrganizerTournamentStatus, 'orange' | 'green' | 'dim' | 'red'> = {
+const STATUS_TONE: Record<OrganizerTournamentStatus, 'orange' | 'yellow' | 'green' | 'dim' | 'red'> = {
   inscricoes: 'orange',
+  encerradas: 'yellow',
   andamento: 'green',
   concluido: 'dim',
   cancelado: 'red',

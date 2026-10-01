@@ -18,6 +18,7 @@ import type {AsaasPaymentDetails} from "./asaas-booking-payment";
 import {
   finalizeArenaBookingIfAllSharesResolved,
   parseArenaBookingShareExternalReference,
+  supersededPaymentIdsOf,
 } from "./arena-booking-split";
 import {resolveAthleteCpfCnpj, resolveAthletePayerName} from "./asaas-customer";
 import {
@@ -117,42 +118,48 @@ export async function processArenaBookingAsaasNotification(
   const booking = bookingSnap.data()!;
 
   // Reserva dividida: o pagamento passou para as fatias (`arenaBookingShare:`) e a
-  // cobrança da reserva inteira foi substituída. Dois casos levam aqui — reserva já
-  // dividida (`hasSplitShares`), ou divisão em andamento com esta cobrança já marcada
-  // como substituída (`supersededAsaasPaymentIds`, gravado antes do cancelamento na
-  // Asaas — cobre a corrida entre esse cancelamento e este webhook chegando primeiro).
-  // Pago: confirmar e creditar seria cobrança em dobro, então só marca para estorno.
-  // Negativo (vencida/removida): não cancela a reserva que as fatias estão pagando, e
-  // NÃO grava "processado", para um RECEIVED tardio da mesma cobrança ainda cair aqui
-  // como estorno.
-  const supersededIds = Array.isArray(booking.supersededAsaasPaymentIds) ?
-    (booking.supersededAsaasPaymentIds as unknown[]).filter((v): v is string => typeof v === "string") :
-    [];
-  if (booking.hasSplitShares === true || supersededIds.includes(paymentId)) {
-    if (ASAAS_PAID_STATUSES.has(status)) {
-      const paidValue = roundMoney(Number(payment.value) || 0);
-      logger.error(
-        `Asaas arena booking ${bookingId}: pagamento ${paymentId} da cobrança ` +
-        "substituída pela divisão — estorno necessário",
-        {paidValue},
-      );
-      await processedRef.set({
-        kind: "arenaBooking",
-        bookingId,
-        outcome: "stale_charge_after_split",
-        refundRequired: true,
-        paidValue,
-        asaasPaymentStatus: status,
-        processedAt: FieldValue.serverTimestamp(),
-      });
-      return;
-    }
+  // cobrança da reserva inteira foi substituída. Três casos:
+  // 1. Divisão concluída (`hasSplitShares`) + evento pago: confirmar e creditar seria
+  //    cobrança em dobro, então só marca para estorno (`stale_charge_after_split`).
+  // 2. Divisão concluída OU em andamento (cobrança já em `supersededAsaasPaymentIds`,
+  //    gravado antes do cancelamento na Asaas — cobre a corrida entre esse cancelamento
+  //    e este webhook chegando primeiro) + evento negativo (vencida/removida): não
+  //    cancela a reserva que as fatias estão pagando (ou que a divisão ainda pode
+  //    desfazer), e NÃO grava "processado", para um RECEIVED tardio da mesma cobrança
+  //    ainda cair no caso 1 como estorno.
+  // 3. Divisão em andamento + evento pago: a cobrança original não pode ter sido
+  //    cancelada (Asaas recusa cancelar PIX já pago), então Task 1 vai fazer rollback
+  //    da divisão (fatias canceladas, reserva volta a depender só desta cobrança) — o
+  //    pagamento segue o fluxo normal de confirmação abaixo, em vez de cair aqui.
+  const splitDone = booking.hasSplitShares === true;
+  const splitInProgress = !splitDone && supersededPaymentIdsOf(booking).includes(paymentId);
+  const paid = ASAAS_PAID_STATUSES.has(status);
+  if (splitDone && paid) {
+    const paidValue = roundMoney(Number(payment.value) || 0);
+    logger.error(
+      `Asaas arena booking ${bookingId}: pagamento ${paymentId} da cobrança ` +
+      "substituída pela divisão — estorno necessário",
+      {paymentId, bookingId, paidValue},
+    );
+    await processedRef.set({
+      kind: "arenaBooking",
+      bookingId,
+      outcome: "stale_charge_after_split",
+      refundRequired: true,
+      paidValue,
+      asaasPaymentStatus: status,
+      processedAt: FieldValue.serverTimestamp(),
+    });
+    return;
+  }
+  if ((splitDone || splitInProgress) && !paid) {
     logger.info(
       `Asaas arena booking ${bookingId}: evento ${status} da cobrança ${paymentId} ` +
       "substituída pela divisão — ignorado",
     );
     return;
   }
+  // splitInProgress && paid: segue para o fluxo normal de confirmação abaixo.
 
   if (ASAAS_PAID_STATUSES.has(status)) {
     const amount = Number(payment.value) || 0;

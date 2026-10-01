@@ -136,6 +136,22 @@ describe("processArenaBookingAsaasNotification — reserva dividida", () => {
     );
 
     assert.equal(fake.store.get(BOOKING_PATH)!.status, "cancelled");
+    assert.equal(fake.store.get(PROCESSED_PATH)!.outcome, "rejected");
+  });
+
+  it("pagamento da original durante a divisão segue a confirmação normal", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake, {supersededAsaasPaymentIds: ["orig1"]});
+
+    await processArenaBookingAsaasNotification(
+      db, "orig1", bookingPayment("RECEIVED"), processedRefOf(db),
+    );
+
+    const booking = fake.store.get(BOOKING_PATH)!;
+    assert.equal(booking.status, "confirmed");
+    assert.equal(booking.paymentStatus, "paid");
+    assert.equal(fake.store.get(PROCESSED_PATH)!.outcome, "approved");
+    assert.equal(fake.store.has("arenaWallets/arena1"), true);
   });
 });
 

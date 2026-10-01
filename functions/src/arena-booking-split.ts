@@ -76,6 +76,14 @@ export function parseArenaBookingShareExternalReference(
   return {bookingId, shareId};
 }
 
+/** Ids das cobranças da reserva inteira já substituídas pela divisão (só strings). */
+export function supersededPaymentIdsOf(booking: Record<string, unknown>): string[] {
+  return Array.isArray(booking.supersededAsaasPaymentIds) ?
+    (booking.supersededAsaasPaymentIds as unknown[])
+      .filter((v): v is string => typeof v === "string") :
+    [];
+}
+
 /** Só o dono da reserva pode dividir, e só enquanto o PIX da reserva estiver pendente. */
 export function assertBookingOwnerForSplit(
   callerUid: string,
@@ -367,10 +375,7 @@ export async function splitArenaBookingPaymentCore(
     );
   }
 
-  const previousSuperseded = Array.isArray(booking.supersededAsaasPaymentIds) ?
-    (booking.supersededAsaasPaymentIds as unknown[])
-      .filter((v): v is string => typeof v === "string") :
-    [];
+  const previousSuperseded = supersededPaymentIdsOf(booking);
 
   if (originalStillOpen) {
     // Marca a original como substituída ANTES de cancelar: o cancelamento

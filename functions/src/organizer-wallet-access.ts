@@ -22,16 +22,22 @@ import {HttpsError} from "firebase-functions/v2/https";
 import {getAuth} from "firebase-admin/auth";
 import type {Firestore} from "firebase-admin/firestore";
 import {isSuperAdminClaim} from "./auth-roles";
-import {staffRoleGrantsOrganizerAccess} from "./tournament-staff-sync";
 
 /** Teto de torneios lidos do espelho — protege o `getAll` de um staff enorme. */
 const MAX_STAFF_TOURNAMENTS = 200;
 
-/** Mesma regra do espelho `users/{uid}/tournamentStaff/{tid}`: mesário fora,
- *  papel ausente conta como gestor, `status` ausente conta como ativo. */
+/**
+ * Só GESTOR ativo alcança a carteira do dono. O administrador (`eventAdmin`)
+ * opera o evento inteiro mas não vê o caixa nem saca — decisão do dono em
+ * 16/09/2026, mesma regra de `isActiveWithdrawalStaffMirror`. Não serve
+ * `staffRoleGrantsOrganizerAccess`: ela responde "pode logar no portal", e o
+ * administrador pode. Papel ausente conta como gestor, mesmo default de
+ * `buildStaffMirrorData`; `status` ausente conta como ativo.
+ */
 export function isActiveStaffManagerMirror(data: Record<string, unknown>): boolean {
   const status = (data["status"] as string | undefined) ?? "active";
-  return status === "active" && staffRoleGrantsOrganizerAccess(data["role"]);
+  const role = (data["role"] as string | undefined) ?? "manager";
+  return status === "active" && role === "manager";
 }
 
 /**

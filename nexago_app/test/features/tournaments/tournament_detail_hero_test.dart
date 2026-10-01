@@ -86,4 +86,30 @@ void main() {
 
     expect(find.text('INSCRIÇÃO'), findsNothing);
   });
+
+  testWidgets('selo de avaliação aparece junto dos chips quando há números públicos',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: TournamentDetailHero(
+              tournament: buildTournament(TournamentListingStatus.completed),
+              stats: stats,
+              topInset: 0,
+              toolbar: const SizedBox.shrink(),
+              reviewBadge: '★ 4,6 · 23 avaliações',
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('★ 4,6 · 23 avaliações'), findsOneWidget);
+  });
+
+  testWidgets('sem selo não aparece nenhuma estrela no herói', (tester) async {
+    await pumpHero(tester, TournamentListingStatus.completed);
+    expect(find.textContaining('★'), findsNothing);
+  });
 }

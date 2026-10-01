@@ -14,11 +14,15 @@ class TournamentDetailTournamentInfoSection extends StatelessWidget {
     required this.tournament,
     required this.organizerName,
     required this.stats,
+    this.organizerReputation,
   });
 
   final TournamentDetail tournament;
   final String organizerName;
   final TournamentDetailStats stats;
+
+  /// "★ 4,7 (86 avaliações em 5 torneios)" (spec §5) — `null` abaixo de 3 avaliações.
+  final String? organizerReputation;
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +73,9 @@ class TournamentDetailTournamentInfoSection extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'Organizador',
+                        organizerReputation == null
+                            ? 'Organizador'
+                            : 'Organizador · $organizerReputation',
                         style: AppTypography.soraRegular(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,

@@ -1904,6 +1904,13 @@ service cloud.firestore {
       allow create, update, delete: if request.auth != null && isTournamentOwner(tournamentId);
     }
 
+    // Convite para avaliar o torneio — criado pelo job diário. É a única prova de
+    // "posso avaliar e até quando"; o cliente nunca grava (senão forjaria o convite).
+    match /users/{userId}/tournamentReviewInvites/{tournamentId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+
     // Espelho de `arenas/{arenaId}/staff/{uid}` — é por ele que o portal
     // descobre de quais arenas o usuário é equipe (a query por managerUserId
     // nunca o traria). Mantido pela Cloud Function de sync.
@@ -2059,6 +2066,30 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Avaliação do torneio pelos atletas (spec 2026-10-01). Toda escrita é da CF.
+    // Privada: o autor e o admin leem. Doc inexistente nega a leitura — o cliente só
+    // lê depois que o convite diz `submitted`.
+    match /tournamentReviews/{reviewId} {
+      allow read: if request.auth != null && (
+        resource.data.uid == request.auth.uid ||
+        isAdmin() ||
+        isSuperAdmin()
+      );
+      allow write: if false;
+    }
+
+    // Resumo por torneio e reputação do organizador: públicos (o site lê sem login).
+    // Fora do doc do torneio de propósito: o organizador grava em `tournaments/{id}`.
+    match /tournamentReviewSummaries/{tournamentId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /organizerReputation/{organizerId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // O perfil do atleta é armazenado diretamente em users/{userId}
     // As regras acima já cobrem isso - usuários podem ler/escrever seus próprios dados
     //
@@ -2163,6 +2194,21 @@ service cloud.firestore {
         // Histórico de sendCategoryCommunication — só quem gerencia o
         // torneio lê; escrita só via Admin SDK (Cloud Function).
         allow read: if canManageTournament(tournamentId);
+        allow write: if false;
+      }
+
+      // Avaliação do torneio — cópia ANÔNIMA (sem uid, data, categoria), gravada pela
+      // CF `onTournamentReviewWritten`. Quem gerencia só lê com 3+ avaliações: com
+      // menos, o organizador adivinha quem escreveu. Quem garante o limite é esta
+      // regra, não a tela. Admin lê sempre (suporte).
+      match /anonymousReviews/{anonId} {
+        allow read: if request.auth != null && (
+          isAdmin() ||
+          isSuperAdmin() ||
+          (canManageTournament(tournamentId) &&
+            exists(/databases/$(database)/documents/tournamentReviewSummaries/$(tournamentId)) &&
+            get(/databases/$(database)/documents/tournamentReviewSummaries/$(tournamentId)).data.count >= 3)
+        );
         allow write: if false;
       }
     }
@@ -2433,22 +2479,6 @@ service cloud.firestore {
         isAdmin() ||
         resource.data.managerId == request.auth.uid
       );
-    }
-
-    // Avaliações de categoria (feedback dos atletas)
-    // Caminho: /artifacts/{appId}/public/data/category_feedbacks
-    match /artifacts/{appId}/public/data/category_feedbacks/{feedbackId} {
-      // Leitura: documento público (isPrivate == false) qualquer um; documento privado só o autor ou o gestor do torneio
-      allow read: if resource == null || (
-        resource.data.isPrivate == false ||
-        (request.auth != null && request.auth.uid == resource.data.userId) ||
-        (request.auth != null && isAdmin() && exists(/databases/$(database)/documents/tournaments/$(resource.data.tournamentId)) && get(/databases/$(database)/documents/tournaments/$(resource.data.tournamentId)).data.managerId == request.auth.uid)
-      );
-      // Criar: apenas usuário autenticado como autor (userId)
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      // Atualizar: apenas o autor do feedback
-      allow update: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow delete: if false;
     }
 
     // Depoimentos (marketing) - leitura pública; escrita apenas super admin

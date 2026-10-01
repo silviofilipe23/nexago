@@ -3,10 +3,7 @@
 //
 // Payload vem de deliverNotificationToUser (functions/src/notification-delivery.ts) via
 // web-push (VAPID), no formato:
-// { notification: { title, body }, data: { ...campos, type, url, webUrl? }, requireInteraction }
-//
-// O mesmo `data` vai pro app (FCM): `url` é a rota do APP e `webUrl` a do portal. Notificação
-// sem `webUrl` (as do atleta, ou gravadas antes) segue no `url`.
+// { notification: { title, body }, data: { ...campos, type, url }, requireInteraction }
 
 self.addEventListener('push', (event) => {
   if (!event.data) return;
@@ -29,7 +26,9 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = event.notification.data?.webUrl ?? event.notification.data?.url;
+  // `webUrl` é a rota do portal quando o mesmo push também vai pro app (que usa `url`).
+  const data = event.notification.data ?? {};
+  const url = data.webUrl || data.url;
   const target = url ? new URL(url, self.location.origin).href : self.location.origin;
 
   event.waitUntil(

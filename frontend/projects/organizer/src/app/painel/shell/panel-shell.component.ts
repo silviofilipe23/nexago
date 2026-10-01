@@ -429,6 +429,7 @@ export class PanelShellComponent {
         { label: 'Telão', icon: 'tv', link: `${base}/telao` },
         { label: 'Comunicação', icon: 'mail', link: `${base}/comunicacao` },
         { label: 'Equipe', icon: 'team', link: `${base}/equipe` },
+        { label: 'Avaliações', icon: 'star', link: `${base}/avaliacoes` },
       ];
     }
     if (level === 'liga') {

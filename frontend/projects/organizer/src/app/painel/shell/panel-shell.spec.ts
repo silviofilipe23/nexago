@@ -1,4 +1,4 @@
-import { Component, provideZonelessChangeDetection, signal } from '@angular/core';
+import { Component, provideZonelessChangeDetection, signal, type WritableSignal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
@@ -192,5 +192,24 @@ describe('PanelShellComponent — item Financeiro no menu', () => {
 
   it('alcance desconhecido (carregando ou falhou) mostra o item — falha aberto', async () => {
     expect(await navLabels(reachStub(null))).toContain('Financeiro');
+  });
+});
+
+describe('PanelShellComponent — avaliações no menu', () => {
+  function labels(fixture: ComponentFixture<PanelShellComponent>): string[] {
+    const host = fixture.nativeElement as HTMLElement;
+    return [...host.querySelectorAll('.og-sidebar .og-nav-item-label')].map((el) => el.textContent!.trim());
+  }
+
+  it('nível torneio tem Avaliações', async () => {
+    const { fixture } = await mountShell(false, reachStub([]));
+    const ctx = TestBed.inject(PanelContextService) as unknown as {
+      level: WritableSignal<string>;
+      tournamentBase: WritableSignal<string | null>;
+    };
+    ctx.tournamentBase.set('/painel/eventos/t1');
+    ctx.level.set('torneio');
+    await fixture.whenStable();
+    expect(labels(fixture)).toContain('Avaliações');
   });
 });

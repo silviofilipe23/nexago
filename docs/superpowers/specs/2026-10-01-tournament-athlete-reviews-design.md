@@ -153,7 +153,9 @@ Quem garante o limite de 3 é a rule. A tela não precisa "lembrar" de esconder.
 | Campo | Tipo | Nota |
 |---|---|---|
 | `tournamentId`, `organizerId` | string | |
-| `status` | `'open' \| 'closed'` | |
+| `tournamentName`, `tournamentStartAt` | string, Timestamp \| null | denormalizados para a tabela de reputação e o backoffice |
+| `status` | `'open' \| 'closed'` | torneio sem elegíveis já nasce `closed` |
+| `invitesComplete` | boolean | `false` enquanto o job cria os convites; o job do dia seguinte retoma se ficou `false` |
 | `eligibleCount` | int | atletas convidados |
 | `count` | int | avaliações recebidas (ao vivo) |
 | `average` | number \| null | **null enquanto `count < 3`** |
@@ -195,7 +197,9 @@ paridade dessas cópias.
 ### Flag
 
 `appConfig/tournamentReviews { enabled: boolean }` segue o padrão de
-`functions/src/friendly-match-config.ts`. Com a flag desligada, o job não faz nada.
+`functions/src/friendly-match-config.ts`. Com a flag desligada, o job não faz nada. Doc
+ausente = desligado, então a flag não precisa de seed. Liga e desliga com
+`functions/scripts/set-tournament-reviews-flag.js`.
 
 ### Índices
 
@@ -472,7 +476,7 @@ Selo de "estreante" seria injusto com quem organizou antes da feature existir.
   torneios com menos de 3.
 
 **Fiação** (teste de função pura não pega fiação):
-- **Handler da callable no emulador:**
+- **Handler da callable** (função "core" sobre o `FakeFirestore`, padrão do repo):
   - Sem convite dá `permission-denied`.
   - Prazo vencido dá `failed-precondition`.
   - A edição preserva `anonId` e `createdAt`.
@@ -504,7 +508,7 @@ Cada fase vira um PR.
 1. **Backend:**
    - Rules, índices e functions.
    - Remoção de `category_feedbacks`.
-   - Seed de `appConfig/tournamentReviews { enabled: false }`.
+   - Script da flag (doc ausente = desligado).
    - `webUrl` no `push-sw.js` do organizador.
    - Sobe **com a flag desligada.**
 2. **Atleta:** app e portal respondem (Home, detalhe, campanha, formulário, inbox, roteamento

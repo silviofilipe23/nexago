@@ -99,6 +99,8 @@ type View = 'loading' | 'failed' | 'notFound' | 'empty' | 'collecting' | 'full';
               </div>
               @if (reviewsFailed()) {
                 <p class="og-rv-empty">Não foi possível carregar os comentários.</p>
+              } @else if (reviewsLoading()) {
+                <p class="og-rv-empty">Carregando comentários…</p>
               } @else {
                 @for (r of comments(); track r.id) {
                   <article class="og-rv-comment">
@@ -286,6 +288,8 @@ export class AvaliacoesTorneioComponent {
   protected readonly summary = signal<TournamentReviewSummary | null>(null);
   protected readonly reviews = signal<AnonymousReview[]>([]);
   protected readonly reviewsFailed = signal(false);
+  /** Até o primeiro snapshot, lista vazia não quer dizer "ninguém comentou". */
+  protected readonly reviewsLoading = signal(false);
   protected readonly filter = signal<CommentFilter>('all');
 
   /** A rule só libera os comentários com 3+ avaliações; abaixo disso nem se pede. */
@@ -332,6 +336,7 @@ export class AvaliacoesTorneioComponent {
   protected readonly aspects = computed(() => aspectRows(this.summary()?.aspects ?? null));
   protected readonly comments = computed(() => commentCards(this.reviews(), this.filter()));
   protected readonly commentsTitle = computed(() => {
+    if (this.reviewsLoading()) return '';
     const n = commentCards(this.reviews(), 'all').length;
     return n === 1 ? '1 comentário' : `${n} comentários`;
   });
@@ -388,18 +393,24 @@ export class AvaliacoesTorneioComponent {
     effect((onCleanup) => {
       const tid = this.id();
       if (!tid || !this.canReadComments()) return;
+      this.reviewsLoading.set(true);
       const stop = watchAnonymousReviews(
         tid,
         (list) => {
           this.reviews.set(list);
           this.reviewsFailed.set(false);
+          this.reviewsLoading.set(false);
         },
-        () => this.reviewsFailed.set(true),
+        () => {
+          this.reviewsFailed.set(true);
+          this.reviewsLoading.set(false);
+        },
       );
       onCleanup(() => {
         stop();
         this.reviews.set([]);
         this.reviewsFailed.set(false);
+        this.reviewsLoading.set(false);
       });
     });
   }

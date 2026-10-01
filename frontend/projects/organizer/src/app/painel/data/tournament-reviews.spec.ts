@@ -267,6 +267,11 @@ describe('tournament-reviews (organizador)', () => {
     ]);
   });
 
+  it('reputationRows: torneio sem atletas aptos não vira "0 de 0"', () => {
+    const [row] = reputationRows([summary({ count: 0, eligibleCount: 0, average: null, distribution: null, aspects: null, status: 'closed' })]);
+    expect(row.response).toBe('—');
+  });
+
   it('KPI: média com estrela ou —', () => {
     expect(reviewKpiLabel(summary())).toBe('4,6 ★');
     expect(reviewKpiLabel(summary({ count: 2, average: null }))).toBe('—');

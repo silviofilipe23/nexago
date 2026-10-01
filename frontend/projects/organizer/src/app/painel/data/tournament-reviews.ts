@@ -308,7 +308,8 @@ export function reputationRows(summaries: readonly TournamentReviewSummary[]): R
         date: date ? FULL_DATE.format(date) : '—',
         average: hasPublicNumbers(s) ? formatRating(s.average) : '—',
         reviews: String(s.count),
-        response: `${s.count} de ${s.eligibleCount}`,
+        // Resumo sem atletas aptos nasce fechado com 0 de 0 — isso não é taxa de resposta.
+        response: s.eligibleCount === 0 ? '—' : `${s.count} de ${s.eligibleCount}`,
         weakest: weakestAspectLabel(s.aspects) ?? '—',
       };
     });

@@ -19,6 +19,7 @@ interface Internals {
   summary: WritableSignal<TournamentReviewSummary | null>;
   reviews: WritableSignal<AnonymousReview[]>;
   reviewsFailed: WritableSignal<boolean>;
+  reviewsLoading: WritableSignal<boolean>;
 }
 
 const NOW = new Date('2026-10-06T15:00:00Z');
@@ -54,6 +55,7 @@ describe('AvaliacoesTorneioComponent', () => {
     summary?: TournamentReviewSummary | null;
     reviews?: AnonymousReview[];
     reviewsFailed?: boolean;
+    reviewsLoading?: boolean;
   }): Promise<HTMLElement> {
     TestBed.overrideComponent(OgPageHeaderComponent, { remove: { imports: [OgBellComponent] }, add: { imports: [OgBellStub] } });
     await TestBed.configureTestingModule({
@@ -69,6 +71,7 @@ describe('AvaliacoesTorneioComponent', () => {
     internals.summary.set(seed.summary ?? null);
     internals.reviews.set(seed.reviews ?? []);
     internals.reviewsFailed.set(seed.reviewsFailed ?? false);
+    internals.reviewsLoading.set(seed.reviewsLoading ?? false);
     await fixture.whenStable();
     return fixture.nativeElement as HTMLElement;
   }
@@ -144,6 +147,14 @@ describe('AvaliacoesTorneioComponent', () => {
     low.click();
     await fixture.whenStable();
     expect(textOf(host)).toContain('Nenhum comentário com 1 ou 2 estrelas.');
+  });
+
+  it('comentários ainda carregando não dizem que ninguém comentou', async () => {
+    const host = await mount({ tournament: COPA, summary: summary(), reviewsLoading: true });
+    const text = textOf(host);
+    expect(text).toContain('Carregando comentários…');
+    expect(text).not.toContain('Nenhum atleta escreveu comentário.');
+    expect(text).not.toContain('0 comentários');
   });
 
   it('falha nos comentários não derruba os números', async () => {

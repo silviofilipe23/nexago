@@ -54,4 +54,21 @@ describe('herói do torneio — avaliação e organizador', () => {
     expect(text).not.toContain('★');
     expect(text).not.toContain('Organizado por');
   });
+
+  // Achado da revisão final: o herói tem altura fixa e o texto preso na base, então cada linha
+  // nova cresce para cima. Num telefone baixo (herói na altura mínima de 26rem), título longo +
+  // selo + linha do organizador empurravam os chips por cima do link "Todos os torneios".
+  it('texto do herói não invade o link "Todos os torneios" num telefone baixo', async () => {
+    const f = TestBed.createComponent(TournamentHero);
+    const host = f.nativeElement as HTMLElement;
+    host.style.width = '375px';
+    f.componentRef.setInput('t', { ...torneio(), name: 'Copa Aurora de Beach Tennis — Etapa Goiânia Open de Verão' });
+    f.componentRef.setInput('reviewBadge', '★ 4,6 · 23 avaliações');
+    f.componentRef.setInput('organizerLine', 'Organizado por Arena Garden Eventos Esportivos de Goiânia · ★ 4,7 (86 avaliações em 5 torneios)');
+    f.detectChanges();
+    await f.whenStable();
+    const link = host.querySelector('a[href="/torneios"]')!.getBoundingClientRect();
+    const chips = host.querySelector('app-status-badge')!.parentElement!.getBoundingClientRect();
+    expect(chips.top).toBeGreaterThanOrEqual(link.bottom);
+  });
 });

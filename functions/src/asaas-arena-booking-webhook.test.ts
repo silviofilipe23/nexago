@@ -96,6 +96,24 @@ describe("processArenaBookingAsaasNotification — reserva dividida", () => {
     });
   }
 
+  it("GET da Asaas pra cobrança removida (status anterior + deleted:true) não cancela nem processa", async () => {
+    const {fake, db} = makeDb();
+    seedSplitBooking(fake);
+
+    // O GET da Asaas pra cobrança removida não devolve status "DELETED" — ele
+    // devolve o último status conhecido (aqui "OVERDUE") mais `deleted: true`.
+    await processArenaBookingAsaasNotification(
+      db, "orig1",
+      {status: "OVERDUE", deleted: true, value: 100, externalReference: `${ARENA_BOOKING_PAYMENT_REF_PREFIX}b1`},
+      processedRefOf(db),
+    );
+
+    const booking = fake.store.get(BOOKING_PATH)!;
+    assert.equal(booking.status, "confirmed");
+    assert.equal(booking.paymentStatus, "split_pending");
+    assert.equal(fake.store.has(PROCESSED_PATH), false);
+  });
+
   it("RECEIVED tardio depois de OVERDUE ainda cai como estorno", async () => {
     const {fake, db} = makeDb();
     seedSplitBooking(fake);

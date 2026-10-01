@@ -30,9 +30,9 @@ import { OgPillComponent } from '../ui/pill.component';
  *  `eventAdmin` tem de ser diferente do `manager` — senão os dois chips ficam iguais e o dono
  *  não distingue o que atribuiu. Ordem espelha `TOURNAMENT_STAFF_ROLES` em
  *  `functions/src/tournament-staff-sync.ts`. */
-export const ROLE_TONE: Record<TournamentStaffRole, 'orange' | 'yellow' | 'green'> = { manager: 'orange', eventAdmin: 'yellow', scorer: 'green' };
-export const ROLE_TAB: Record<TournamentStaffRole, string> = { manager: 'gestor', eventAdmin: 'administrador', scorer: 'mesário' };
-export const ROLE_REF: { role: TournamentStaffRole }[] = [{ role: 'manager' }, { role: 'eventAdmin' }, { role: 'scorer' }];
+export const ROLE_TONE: Record<TournamentStaffRole, 'orange' | 'yellow' | 'green'> = { manager: 'orange', eventAdmin: 'yellow', scorer: 'green', media: 'green' };
+export const ROLE_TAB: Record<TournamentStaffRole, string> = { manager: 'gestor', eventAdmin: 'administrador', scorer: 'mesário', media: 'mídia' };
+export const ROLE_REF: { role: TournamentStaffRole }[] = [{ role: 'manager' }, { role: 'eventAdmin' }, { role: 'scorer' }, { role: 'media' }];
 const SEARCH_DEBOUNCE_MS = 350;
 const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
 
@@ -100,6 +100,10 @@ export function staffCandidateExclusions(params: {
           <div class="og-kpi-label">Mesários</div>
           <div class="og-kpi-value sm">{{ countOf('scorer') }}</div>
         </og-card>
+        <og-card pad="sm" flex="1">
+          <div class="og-kpi-label">Mídia</div>
+          <div class="og-kpi-value sm">{{ countOf('media') }}</div>
+        </og-card>
       </div>
 
       @if (feedback(); as fb) {
@@ -156,9 +160,10 @@ export function staffCandidateExclusions(params: {
                 <button type="button" class="og-chip" [class.active]="pickedRole() === 'manager'" (click)="pickedRole.set('manager')">Gestor</button>
                 <button type="button" class="og-chip" [class.active]="pickedRole() === 'eventAdmin'" (click)="pickedRole.set('eventAdmin')">Administrador</button>
                 <button type="button" class="og-chip" [class.active]="pickedRole() === 'scorer'" (click)="pickedRole.set('scorer')">Mesário</button>
+                <button type="button" class="og-chip" [class.active]="pickedRole() === 'media'" (click)="pickedRole.set('media')">Mídia</button>
               </div>
               <p class="og-equipe-role-hint">
-                O administrador organiza o evento inteiro, mas não vê o caixa nem saca — quem mexe em dinheiro é o dono e os gestores.
+                O administrador organiza o evento inteiro, mas não vê o caixa nem saca — quem mexe em dinheiro é o dono e os gestores. A mídia só opera a transmissão.
               </p>
               <div class="og-equipe-role-pick-actions">
                 <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="toggleAdd()">Cancelar</button>
@@ -217,6 +222,7 @@ export function staffCandidateExclusions(params: {
                           <button type="button" class="og-chip" [class.active]="m.role === 'manager'" [disabled]="busy()" (click)="changeRole(m, 'manager')">Gestor</button>
                           <button type="button" class="og-chip" [class.active]="m.role === 'eventAdmin'" [disabled]="busy()" (click)="changeRole(m, 'eventAdmin')">Administrador</button>
                           <button type="button" class="og-chip" [class.active]="m.role === 'scorer'" [disabled]="busy()" (click)="changeRole(m, 'scorer')">Mesário</button>
+                          <button type="button" class="og-chip" [class.active]="m.role === 'media'" [disabled]="busy()" (click)="changeRole(m, 'media')">Mídia</button>
                           <button type="button" class="og-ghost-btn danger" [disabled]="busy()" (click)="remove(m)">
                             @if (busyKey() === 'remove:' + m.uid) {
                               <app-nx-spinner [size]="12" />
@@ -538,7 +544,7 @@ export class EquipeComponent {
 
   readonly id = input<string>('');
 
-  protected readonly tabs = ['todos', 'gestor', 'administrador', 'mesário'];
+  protected readonly tabs = ['todos', 'gestor', 'administrador', 'mesário', 'mídia'];
   protected readonly tab = signal<string>('todos');
   protected readonly roleTone = ROLE_TONE;
   protected readonly roleLabel = TOURNAMENT_STAFF_ROLE_LABEL;

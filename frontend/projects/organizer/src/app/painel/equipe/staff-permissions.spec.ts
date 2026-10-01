@@ -61,10 +61,14 @@ describe('staffCandidateExclusions', () => {
 
 /** O papel `eventAdmin` (administrador) já existe no servidor — rules e callable — mas a
  *  tela só oferecia gestor e mesário. Espelha `TOURNAMENT_STAFF_ROLES` de
- *  `functions/src/tournament-staff-sync.ts`, que também lista `['manager', 'eventAdmin', 'scorer']`. */
+ *  `functions/src/tournament-staff-sync.ts`, que lista `['manager', 'eventAdmin', 'scorer', 'media']`. */
 describe('papel eventAdmin na tela de Equipe', () => {
   it('o papel novo é oferecido na adição', () => {
-    expect(ROLE_REF.map((r) => r.role)).toEqual(['manager', 'eventAdmin', 'scorer']);
+    expect(ROLE_REF.map((r) => r.role)).toEqual(['manager', 'eventAdmin', 'scorer', 'media']);
+  });
+
+  it('mídia tem rótulo de aba próprio', () => {
+    expect(ROLE_TAB['media']).toBe('mídia');
   });
 
   it('cada papel tem rótulo e tom próprios', () => {

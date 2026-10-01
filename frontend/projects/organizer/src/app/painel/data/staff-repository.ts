@@ -2,19 +2,20 @@ import { collection, deleteDoc, doc, getDocs, serverTimestamp, setDoc } from 'fi
 import { searchAthletes, type AthleteSearchResult } from './athlete-search-repository';
 import { organizerFirestore } from './firestore';
 
-/** `tournaments/{id}/staff/{uid}` — equipe do torneio (gestor/administrador/mesário). Espelha
+/** `tournaments/{id}/staff/{uid}` — equipe do torneio (gestor/administrador/mesário/mídia). Espelha
  *  `tournament_staff_repository.dart` (Flutter): os campos de exibição (`displayName`,
  *  `nickname`, `photoUrl`) são gravados no próprio doc no momento da adição, então listar não
  *  precisa de join com `public_profiles`. As rules só deixam o dono do torneio criar/atualizar/
- *  remover, `role` só aceita 'manager'|'eventAdmin'|'scorer' e `status` só 'active' na escrita —
+ *  remover, `role` só aceita 'manager'|'eventAdmin'|'scorer'|'media' e `status` só 'active' na escrita —
  *  sem convite/aceite, o acesso é imediato. */
 
-export type TournamentStaffRole = 'manager' | 'eventAdmin' | 'scorer';
+export type TournamentStaffRole = 'manager' | 'eventAdmin' | 'scorer' | 'media';
 
 export const TOURNAMENT_STAFF_ROLE_LABEL: Record<TournamentStaffRole, string> = {
   manager: 'Gestor',
   eventAdmin: 'Administrador',
   scorer: 'Mesário',
+  media: 'Mídia',
 };
 
 /** Mesmo texto de `TournamentStaffRole.description` (Flutter) — paridade entre plataformas.
@@ -24,6 +25,7 @@ export const TOURNAMENT_STAFF_ROLE_DESCRIPTION: Record<TournamentStaffRole, stri
   manager: 'Opera inscrições, chaves, agenda e placar.',
   eventAdmin: 'Organiza o torneio inteiro, mas não vê o caixa nem saca.',
   scorer: 'Lança placar das partidas.',
+  media: 'Opera a transmissão (overlays do OBS).',
 };
 
 export interface TournamentStaffMember {
@@ -55,12 +57,13 @@ function toDate(v: unknown): Date | null {
 /** Papel do doc de equipe. Única guarda contra o papel ser reinterpretado na carga: sem a
  *  linha do `eventAdmin`, um "Administrador" voltava como "Gestor" a cada recarga da aba —
  *  e a tela "funcionava" até alguém dar refresh. Papel desconhecido (ou ausente) cai em
- *  `manager` porque as rules só aceitam os três valores na escrita, e o gestor é o papel
+ *  `manager` porque as rules só aceitam os quatro valores na escrita, e o gestor é o papel
  *  que a equipe sempre teve. Não confundir com `roleFromStaffMirror`, que é estrita no
  *  papel desconhecido: lá a resposta decide alcance de dinheiro, aqui é rótulo de tela. */
 export function roleFromRaw(raw: unknown): TournamentStaffRole {
   if (raw === 'scorer') return 'scorer';
   if (raw === 'eventAdmin') return 'eventAdmin';
+  if (raw === 'media') return 'media';
   return 'manager';
 }
 

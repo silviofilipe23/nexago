@@ -12,6 +12,7 @@ export function roleFromStaffMirror(data: Record<string, unknown>): TournamentRo
   if (status !== 'active') return null;
   const role = (data['role'] as string | undefined) ?? 'manager';
   if (role === 'eventAdmin') return 'eventAdmin';
+  if (role === 'media') return 'media';
   if (role !== 'manager') return null;
   return 'manager';
 }

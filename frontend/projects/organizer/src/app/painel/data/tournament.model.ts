@@ -14,8 +14,9 @@ export type OrganizerTournamentStatus = 'inscricoes' | 'encerradas' | 'andamento
  *  `scorer` (mesário) não aparece aqui: sem a role `organizer` ele não loga no
  *  portal. O papel `eventAdmin` ("administrador", criado em 16/09/2026) opera o
  *  evento inteiro mas não alcança dinheiro — é essa distinção que o portal não
- *  tinha e que o guard do Financeiro precisa. */
-export type TournamentRole = 'owner' | 'manager' | 'eventAdmin';
+ *  tinha e que o guard do Financeiro precisa. `media` (Mídia, 01/10/2026) entra no portal
+ *  só para a tela Transmissão — ver `media-access.ts`. */
+export type TournamentRole = 'owner' | 'manager' | 'eventAdmin' | 'media';
 
 export interface OrganizerTournamentCategory {
   id: string; // categoryId usado em inscriptions/matches

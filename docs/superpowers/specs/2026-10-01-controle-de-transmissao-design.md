@@ -235,7 +235,7 @@ chave existir a lista fica vazia — aceitável, porque a transmissão acontece 
 
 **Escrita:** cada clique grava na hora (`setDoc(merge)` com `updatedAt`/`updatedBy`). A tela
 escuta o próprio doc, então dois operadores veem o mesmo estado. Falha de escrita: a chave
-volta e aparece mensagem na linha, sem diálogo.
+volta sozinha (o listener devolve o valor real) e um aviso aparece no topo da tela, sem diálogo.
 
 ## A5. Registro de gráficos (a extensibilidade)
 

@@ -148,7 +148,7 @@ function initialsOfName(name: string): string {
       <div class="og-nav-spacer"></div>
 
       <div class="og-nav">
-        @if (ctx.level() === 'torneio') {
+        @if (ctx.level() === 'torneio' && podeEditarTorneio()) {
           <a class="og-nav-item" routerLink="/painel/novo-torneio" [queryParams]="{ editar: ctx.tournamentId() }">
             <og-icon name="edit" [size]="17" [strokeWidth]="1.9" />
             <span class="og-nav-item-label">Editar torneio</span>
@@ -374,6 +374,9 @@ export class PanelShellComponent {
     if (pushPermissionStatus() !== 'default') return;
     await subscribeToPush(organizerFirestore(), uid);
   }
+
+  /** Mídia só opera a transmissão: nada de "Editar torneio" no menu dela. */
+  protected readonly podeEditarTorneio = computed(() => tournamentMenuFor(this.ctx.myRole()) === 'completo');
 
   protected readonly nav = computed<OgNavEntry[]>(() => {
     const level = this.ctx.level();

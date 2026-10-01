@@ -50,6 +50,7 @@ function ctxStub() {
     league: signal(null),
     category: signal(null),
     tournamentId: signal(null),
+    myRole: signal<TournamentRole | null>(null),
     leagueBase: signal(null),
     tournamentBase: signal(null),
     categoryBase: signal(null),
@@ -211,6 +212,23 @@ describe('PanelShellComponent — avaliações no menu', () => {
     ctx.level.set('torneio');
     await fixture.whenStable();
     expect(labels(fixture)).toContain('Avaliações');
+  });
+
+  it('mídia no torneio vê só a Transmissão — nem "Editar torneio"', async () => {
+    const { fixture } = await mountShell(false, reachStub([]));
+    const ctx = TestBed.inject(PanelContextService) as unknown as {
+      level: WritableSignal<string>;
+      tournamentBase: WritableSignal<string | null>;
+      myRole: WritableSignal<TournamentRole | null>;
+    };
+    ctx.tournamentBase.set('/painel/eventos/t1');
+    ctx.myRole.set('media');
+    ctx.level.set('torneio');
+    await fixture.whenStable();
+    const visiveis = labels(fixture);
+    expect(visiveis).toContain('Transmissão');
+    expect(visiveis).not.toContain('Editar torneio');
+    expect(visiveis).not.toContain('Inscrições');
   });
 
   it('nível global tem Reputação', async () => {

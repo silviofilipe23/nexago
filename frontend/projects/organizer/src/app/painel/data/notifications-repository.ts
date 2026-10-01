@@ -25,12 +25,21 @@ export interface OrganizerNotification {
   dismissed: boolean;
   /** Paridade com o app (`isUnread = !read && !dismissed`). */
   unread: boolean;
-  /** Deep link opcional (`data.url`), ex: `/painel/eventos/{id}/inscricoes?registrationId=...`. */
+  /** Deep link opcional no portal, ex: `/painel/eventos/{id}/inscricoes?registrationId=...`
+   *  (ver `notificationPortalUrl`). */
   url: string | null;
 }
 
 function str(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+/** Destino da notificação no portal.
+ *
+ *  O mesmo `data` vai pro app (FCM + inbox): `data.url` é a rota do APP e `data.webUrl` a do
+ *  portal. Notificação sem `webUrl` (gravada antes, ou do atleta) segue no `data.url`. */
+export function notificationPortalUrl(notifData: Record<string, unknown> | undefined): string | null {
+  return str(notifData?.['webUrl']) ?? str(notifData?.['url']);
 }
 
 function toDate(value: unknown): Date | null {
@@ -57,7 +66,7 @@ function fromDoc(snap: QueryDocumentSnapshot<DocumentData>): OrganizerNotificati
     read,
     dismissed,
     unread: !read && !dismissed,
-    url: str(notifData?.['url']),
+    url: notificationPortalUrl(notifData),
   };
 }
 

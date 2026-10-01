@@ -28,6 +28,7 @@ import {
   markTournamentPartnerInviteInboxResponse,
 } from "./notification-delivery";
 import {tournamentManagerUids} from "./tournament-acl";
+import {organizerTournamentNotificationLinks} from "./organizer-notification-links";
 import {
   findCategory,
   loadTournamentData,
@@ -861,7 +862,7 @@ async function notifySubstitutionCompleted(
           data: {
             tournamentId: result.tournamentId,
             registrationId: result.registrationId,
-            url: `/painel/eventos/${result.tournamentId}/inscricoes?registrationId=${result.registrationId}`,
+            ...organizerTournamentNotificationLinks(result.tournamentId, result.registrationId),
           },
         }).catch(() => undefined),
       ),

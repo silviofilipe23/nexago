@@ -421,12 +421,13 @@ AthleteNotificationPresentation notificationPresentation(
         iconBackground: AppColors.win.withValues(alpha: 0.12),
       );
     default:
-      final url = data['url'] ?? '';
+      // Mesma tradução do push: avisos do organizador (que o staff recebe aqui) traziam o
+      // `url` do portal (`/painel/...`), rota que não existe no app.
       return AthleteNotificationPresentation(
         icon: Icons.notifications_outlined,
         iconColor: AppColors.onSurfaceMuted,
         iconBackground: AppColors.surfaceRaised,
-        routePath: url.startsWith('/') ? url : null,
+        routePath: appRouteForNotificationUrl(data['url']),
       );
   }
 }

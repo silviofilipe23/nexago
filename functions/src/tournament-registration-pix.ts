@@ -57,6 +57,7 @@ import {
   WEB_PUSH_SUBJECT,
 } from "./notification-delivery";
 import {tournamentManagerUids} from "./tournament-acl";
+import {organizerTournamentNotificationLinks} from "./organizer-notification-links";
 import {artifactsInscriptionsPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 
@@ -685,7 +686,7 @@ async function notifyRegistrationFullyConfirmed({
  *  O modo `directWithOrganizer` não tem webhook — ninguém verifica se o dinheiro caiu. Sem este
  *  aviso a declaração morre no doc, que é o que acontecia antes: o portal marcava a inscrição
  *  como paga e o organizador nunca soubera que precisava conferir. */
-async function notifyOrganizersPaymentDeclared({
+export async function notifyOrganizersPaymentDeclared({
   db,
   registrationId,
   tournamentId,
@@ -721,7 +722,7 @@ async function notifyOrganizersPaymentDeclared({
           tournamentId,
           registrationId,
           categoryId,
-          url: `/painel/eventos/${tournamentId}/inscricoes`,
+          ...organizerTournamentNotificationLinks(tournamentId),
         },
       }),
     ),

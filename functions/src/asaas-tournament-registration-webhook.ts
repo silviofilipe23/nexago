@@ -36,6 +36,7 @@ import {
 import {deliverNotificationToUser} from "./notification-delivery";
 import {registrationHoldClearedFields} from "./tournament-registration-hold-ops";
 import {tournamentManagerUids} from "./tournament-acl";
+import {organizerTournamentNotificationLinks} from "./organizer-notification-links";
 import {creditTournamentWalletFromRegistration} from "./tournament-wallet";
 import {computePlatformFeeReais, resolveOrganizerTournamentFeePercent} from "./platform-fees";
 import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
@@ -372,7 +373,7 @@ export async function processTournamentRegistrationAsaasNotification(
                 tournamentId,
                 registrationId,
                 categoryId,
-                url: `/painel/eventos/${tournamentId}/inscricoes?registrationId=${registrationId}`,
+                ...organizerTournamentNotificationLinks(tournamentId, registrationId),
               },
             }).catch(() => undefined),
           ),

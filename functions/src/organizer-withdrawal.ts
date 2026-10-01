@@ -46,6 +46,7 @@ import {asaasArenaSecrets} from "./asaas-client";
 import {callerIsOrganizer, callerIsSuperAdmin} from "./auth-roles";
 import {maskDelegatePayoutPixKey} from "./organizer-wallet-access";
 import {deliverNotificationToUser} from "./notification-delivery";
+import {ORGANIZER_WALLET_NOTIFICATION_LINKS} from "./organizer-notification-links";
 import {ARENA_WITHDRAWAL_AUTO_MAX_REAIS} from "./arena-booking-payment-constants";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {
@@ -413,7 +414,7 @@ async function notifyOwnerOfDelegatedWithdrawal(
         `${params.tournamentName || "um torneio seu"} para a chave PIX ` +
         `${maskDelegatePayoutPixKey(params.pixKey)}.`,
       type: "organizer_withdrawal_requested",
-      data: {url: "/painel/financeiro"},
+      data: {...ORGANIZER_WALLET_NOTIFICATION_LINKS},
     });
   } catch (err) {
     logger.warn("notifyOwnerOfDelegatedWithdrawal falhou", err);

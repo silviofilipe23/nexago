@@ -184,7 +184,9 @@ export const notifyArenaBookingCreated = onCall({
   const notificationType = "arena_booking_created";
   const data: Record<string, string> = {
     type: notificationType,
-    url: "/arena/calendar",
+    // Agenda do gestor no app. `/arena/calendar` não existe em lugar nenhum: no app casava com
+    // `/arena/:arenaId` (arena de id "calendar") e o guard de papel jogava no dashboard.
+    url: "/arena/schedule",
     athleteId,
     arenaName,
     date: typeof booking?.date === "string" ? booking.date : "",
@@ -400,7 +402,9 @@ export const sendMatchReminders = onRequest({
           tournamentId: String(match.tournamentId),
           categoryId: String(match.categoryId),
           hoursBefore: '1',
-          url: `/admin/tournament/${match.tournamentId}/match/${matchId}/result/${encodeURIComponent(match.categoryId)}`,
+          // Mesmo destino do item no inbox do app. O `/admin/tournament/...` era do admin web
+          // antigo, que não existe mais — no app o toque abria uma rota inexistente.
+          url: `/athlete/history/match/${matchId}`,
         };
 
         const deliveryResults = await Promise.allSettled(

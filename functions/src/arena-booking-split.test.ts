@@ -7,10 +7,12 @@ import {
   buildArenaBookingShareExternalReference,
   expireArenaBookingPaymentShareIfDue,
   finalizeArenaBookingIfAllSharesResolved,
+  normalizeOriginalChargeStatus,
   parseArenaBookingShareExternalReference,
   splitArenaBookingPaymentCore,
   validateSplitShares,
   type CreateShareChargeFn,
+  type OriginalChargeOps,
 } from "./arena-booking-split";
 import {ARENA_BOOKING_PAYMENT_REF_PREFIX} from "./arena-booking-payment-constants";
 
@@ -61,6 +63,46 @@ function stubCreateCharge(): CreateShareChargeFn {
       qrCode: `qr-${athleteId}`,
       qrCodeBase64: `b64-${athleteId}`,
     };
+  };
+}
+
+function stubOriginalCharge(opts: {
+  status?: string;
+  statusError?: Error;
+  cancelError?: Error;
+} = {}): {
+  ops: OriginalChargeOps;
+  calls: {getStatus: string[]; cancelOrThrow: string[]; cancelIfOpen: string[]};
+} {
+  const calls = {
+    getStatus: [] as string[],
+    cancelOrThrow: [] as string[],
+    cancelIfOpen: [] as string[],
+  };
+  const ops: OriginalChargeOps = {
+    getStatus: async (paymentId) => {
+      calls.getStatus.push(paymentId);
+      if (opts.statusError) throw opts.statusError;
+      return opts.status ?? "PENDING";
+    },
+    cancelOrThrow: async (paymentId) => {
+      calls.cancelOrThrow.push(paymentId);
+      if (opts.cancelError) throw opts.cancelError;
+    },
+    cancelIfOpen: async (paymentId) => {
+      calls.cancelIfOpen.push(paymentId);
+    },
+  };
+  return {ops, calls};
+}
+
+/** Cria a 1ª cobrança e falha na 2ª — simula o Asaas caindo no meio da divisão. */
+function createChargeFailingOnSecond(): CreateShareChargeFn {
+  let counter = 0;
+  return async ({athleteId}) => {
+    counter += 1;
+    if (counter === 2) throw new Error("asaas fora do ar");
+    return {paymentId: `pay-${athleteId}-${counter}`, qrCode: "qr", qrCodeBase64: "b64"};
   };
 }
 
@@ -139,6 +181,7 @@ describe("splitArenaBookingPaymentCore", () => {
         ],
       },
       stubCreateCharge(),
+      stubOriginalCharge().ops,
       now,
     );
 
@@ -175,6 +218,7 @@ describe("splitArenaBookingPaymentCore", () => {
         "Dono",
         {bookingId: "b1", shares: [{athleteId: "a", amountReais: 40}, {athleteId: "b", amountReais: 40}]},
         stubCreateCharge(),
+        stubOriginalCharge().ops,
         now,
       ),
       "failed-precondition",
@@ -196,6 +240,7 @@ describe("splitArenaBookingPaymentCore", () => {
         "Intruso",
         {bookingId: "b1", shares: [{athleteId: "a", amountReais: 100}]},
         stubCreateCharge(),
+        stubOriginalCharge().ops,
         now,
       ),
       "permission-denied",
@@ -213,6 +258,7 @@ describe("splitArenaBookingPaymentCore", () => {
         "Dono",
         {bookingId: "b1", shares: [{athleteId: "a", amountReais: 100}]},
         stubCreateCharge(),
+        stubOriginalCharge().ops,
         now,
       ),
       "failed-precondition",
@@ -235,10 +281,167 @@ describe("splitArenaBookingPaymentCore", () => {
         "Dono",
         {bookingId: "b1", shares: [{athleteId: "a", amountReais: 100}]},
         stubCreateCharge(),
+        stubOriginalCharge().ops,
         now,
       ),
       "failed-precondition",
     );
+  });
+
+  it("não consulta o Asaas quando a reserva não tem cobrança da reserva inteira", async () => {
+    const fake = new FakeFirestore();
+    seedPendingPixBooking(fake, "b1");
+    const original = stubOriginalCharge();
+
+    await splitArenaBookingPaymentCore(
+      db(fake), "owner1", "Dono",
+      {bookingId: "b1", shares: [{athleteId: "a", amountReais: 40}, {athleteId: "b", amountReais: 60}]},
+      stubCreateCharge(), original.ops, now,
+    );
+
+    assert.deepEqual(original.calls.getStatus, []);
+    assert.deepEqual(original.calls.cancelOrThrow, []);
+    const booking = fake.store.get("arenaBookings/b1")!;
+    assert.equal(booking.supersededAsaasPaymentIds, undefined);
+  });
+
+  it("cancela a cobrança original aberta depois das fatias e tira ela da reserva", async () => {
+    const fake = new FakeFirestore();
+    seedPendingPixBooking(fake, "b1", {asaasPaymentId: "orig1", pixCopyPaste: "qr-orig"});
+    const original = stubOriginalCharge({status: "PENDING"});
+
+    const result = await splitArenaBookingPaymentCore(
+      db(fake), "owner1", "Dono",
+      {bookingId: "b1", shares: [{athleteId: "a", amountReais: 40}, {athleteId: "b", amountReais: 60}]},
+      stubCreateCharge(), original.ops, now,
+    );
+
+    assert.equal(result.shareIds.length, 2);
+    assert.deepEqual(original.calls.getStatus, ["orig1"]);
+    assert.deepEqual(original.calls.cancelOrThrow, ["orig1"]);
+    const booking = fake.store.get("arenaBookings/b1")!;
+    assert.equal(booking.asaasPaymentId, null);
+    assert.equal(booking.pixCopyPaste, null);
+    assert.deepEqual(booking.supersededAsaasPaymentIds, ["orig1"]);
+    assert.equal(booking.paymentStatus, "split_pending");
+  });
+
+  it("recusa dividir quando o PIX da reserva inteira já foi pago", async () => {
+    const fake = new FakeFirestore();
+    seedPendingPixBooking(fake, "b1", {asaasPaymentId: "orig1"});
+    const original = stubOriginalCharge({status: "RECEIVED"});
+    let chargesCreated = 0;
+    const countingCharge: CreateShareChargeFn = async (p) => {
+      chargesCreated += 1;
+      return stubCreateCharge()(p);
+    };
+
+    await assertHttpsError(
+      splitArenaBookingPaymentCore(
+        db(fake), "owner1", "Dono",
+        {bookingId: "b1", shares: [{athleteId: "a", amountReais: 100}]},
+        countingCharge, original.ops, now,
+      ),
+      "failed-precondition",
+    );
+
+    assert.equal(chargesCreated, 0);
+    assert.deepEqual(original.calls.cancelOrThrow, []);
+    const sharesSnap = await fake.collection("arenaBookings/b1/paymentShares").get();
+    assert.equal(sharesSnap.docs.length, 0);
+    const booking = fake.store.get("arenaBookings/b1")!;
+    assert.equal(booking.status, "pending_payment");
+    assert.equal(booking.asaasPaymentId, "orig1");
+  });
+
+  it("cobrança original já removida no Asaas não bloqueia a divisão", async () => {
+    const fake = new FakeFirestore();
+    seedPendingPixBooking(fake, "b1", {asaasPaymentId: "orig1"});
+    const original = stubOriginalCharge({status: "DELETED"});
+
+    await splitArenaBookingPaymentCore(
+      db(fake), "owner1", "Dono",
+      {bookingId: "b1", shares: [{athleteId: "a", amountReais: 100}]},
+      stubCreateCharge(), original.ops, now,
+    );
+
+    assert.deepEqual(original.calls.cancelOrThrow, []);
+    const booking = fake.store.get("arenaBookings/b1")!;
+    assert.equal(booking.asaasPaymentId, null);
+    assert.deepEqual(booking.supersededAsaasPaymentIds, ["orig1"]);
+  });
+
+  it("falha ao consultar a cobrança original recusa com unavailable e não cria fatias", async () => {
+    const fake = new FakeFirestore();
+    seedPendingPixBooking(fake, "b1", {asaasPaymentId: "orig1"});
+    const original = stubOriginalCharge({statusError: new Error("timeout")});
+
+    await assertHttpsError(
+      splitArenaBookingPaymentCore(
+        db(fake), "owner1", "Dono",
+        {bookingId: "b1", shares: [{athleteId: "a", amountReais: 100}]},
+        stubCreateCharge(), original.ops, now,
+      ),
+      "unavailable",
+    );
+
+    const sharesSnap = await fake.collection("arenaBookings/b1/paymentShares").get();
+    assert.equal(sharesSnap.docs.length, 0);
+  });
+
+  it("falha ao cancelar a original desfaz as fatias (Asaas e docs) e deixa a reserva intacta", async () => {
+    const fake = new FakeFirestore();
+    seedPendingPixBooking(fake, "b1", {asaasPaymentId: "orig1"});
+    const original = stubOriginalCharge({status: "PENDING", cancelError: new Error("asaas 500")});
+
+    await assertHttpsError(
+      splitArenaBookingPaymentCore(
+        db(fake), "owner1", "Dono",
+        {bookingId: "b1", shares: [{athleteId: "a", amountReais: 40}, {athleteId: "b", amountReais: 60}]},
+        stubCreateCharge(), original.ops, now,
+      ),
+      "unavailable",
+    );
+
+    assert.deepEqual(original.calls.cancelIfOpen.sort(), ["pay-a-1", "pay-b-2"]);
+    const sharesSnap = await fake.collection("arenaBookings/b1/paymentShares").get();
+    assert.equal(sharesSnap.docs.length, 0);
+    const booking = fake.store.get("arenaBookings/b1")!;
+    assert.equal(booking.status, "pending_payment");
+    assert.equal(booking.asaasPaymentId, "orig1");
+    assert.equal(booking.hasSplitShares, undefined);
+  });
+
+  it("falha na 2ª fatia cancela no Asaas a cobrança da 1ª e não toca na original", async () => {
+    const fake = new FakeFirestore();
+    seedPendingPixBooking(fake, "b1", {asaasPaymentId: "orig1"});
+    const original = stubOriginalCharge({status: "PENDING"});
+
+    await assertHttpsError(
+      splitArenaBookingPaymentCore(
+        db(fake), "owner1", "Dono",
+        {bookingId: "b1", shares: [{athleteId: "a", amountReais: 40}, {athleteId: "b", amountReais: 60}]},
+        createChargeFailingOnSecond(), original.ops, now,
+      ),
+      "internal",
+    );
+
+    assert.deepEqual(original.calls.cancelIfOpen, ["pay-a-1"]);
+    assert.deepEqual(original.calls.cancelOrThrow, []);
+    const sharesSnap = await fake.collection("arenaBookings/b1/paymentShares").get();
+    assert.equal(sharesSnap.docs.length, 0);
+    assert.equal(fake.store.get("arenaBookings/b1")!.asaasPaymentId, "orig1");
+  });
+});
+
+describe("normalizeOriginalChargeStatus", () => {
+  it("devolve DELETED para cobrança removida, mesmo com status antigo", () => {
+    assert.equal(normalizeOriginalChargeStatus({status: "PENDING", deleted: true}), "DELETED");
+  });
+
+  it("devolve o status em maiúsculas quando a cobrança existe", () => {
+    assert.equal(normalizeOriginalChargeStatus({status: "received"}), "RECEIVED");
+    assert.equal(normalizeOriginalChargeStatus({}), "");
   });
 });
 

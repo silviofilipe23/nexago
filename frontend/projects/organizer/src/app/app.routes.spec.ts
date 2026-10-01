@@ -14,6 +14,13 @@ function findRoute(list: readonly Route[], segments: readonly string[]): Route |
 }
 
 describe('app.routes', () => {
+  it('serve a transmissão pública sem guard, no modo que segue o painel', () => {
+    const rota = findRoute(routes, ['transmissao/:tournamentId']);
+    expect(rota).not.toBeNull();
+    expect(rota?.canActivate ?? []).toEqual([]);
+    expect(rota?.data?.['transmissao']).toBeTrue();
+  });
+
   it('serve o telão como aba do torneio', () => {
     expect(findRoute(routes, ['painel', 'eventos/:id', 'telao'])).not.toBeNull();
   });

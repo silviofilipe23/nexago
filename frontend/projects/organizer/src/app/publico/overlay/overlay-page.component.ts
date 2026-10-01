@@ -6,12 +6,6 @@ import { OverlayLiveGateway } from './overlay-live.gateway';
 import { OverlayKocBarComponent } from './overlay-koc-bar.component';
 import { finalResultOf } from './overlay-final';
 import { OverlayFinalComponent, type FinalCampeoes } from './overlay-final.component';
-import {
-  OVERLAY_FINAL_CHANNEL,
-  overlayFinalModeOf,
-  readOverlayFinalPref,
-  type OverlayFinalMsg,
-} from './overlay-final-sync';
 import { kocPreRoundOf } from './overlay-koc-preround';
 import { OverlayKocPreRoundComponent } from './overlay-koc-preround.component';
 import { kocQualifiedBoardOf } from './overlay-koc-qualified';
@@ -19,6 +13,18 @@ import { OverlayKocQualifiedComponent } from './overlay-koc-qualified.component'
 import { kocStandingsBoardOf } from './overlay-koc-standings';
 import { OverlayKocStandingsComponent } from './overlay-koc-standings.component';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
+import { DEFAULT_BROADCAST_CONTROL, finalPrefOf, type BroadcastControl } from '../../painel/data/broadcast-control';
+import {
+  interviewVisibleAt,
+  nextCommandStep,
+  nextInterviewAir,
+  overlayFinalModeOf,
+  overlayLayersOf,
+  panelRoundEndScreen,
+  type CommandMemory,
+  type InterviewAir,
+} from './overlay-broadcast';
+import { OverlayInterviewComponent } from './overlay-interview.component';
 import { kocRoundTitleOf } from './overlay-koc-bar';
 import { overlayViewOf } from './overlay-selectors';
 import { OverlayDoacaoComponent } from './overlay-doacao.component';
@@ -80,6 +86,7 @@ const CLASSIFICADAS_MS = 15_000;
     OverlayFinalComponent,
     OverlayDoacaoComponent,
     OverlayPatroComponent,
+    OverlayInterviewComponent,
   ],
   providers: [OverlayLiveGateway],
   host: {
@@ -156,8 +163,10 @@ const CLASSIFICADAS_MS = 15_000;
           />
         }
 
-        <og-overlay-doacao [config]="doacaoConfig()" [show]="doacaoShow()" />
+        <og-overlay-doacao [config]="doacaoConfig()" [show]="doacaoShow() && !interviewOnAir()" />
         <og-overlay-patro [itens]="patroItens()" [show]="patroShow()" [visivelSeg]="patroConfig().card.visivelSeg" />
+        <!-- Sempre montada: o animate.leave da tarja precisa do host vivo. -->
+        <og-overlay-interview [data]="interviewNoAr()" />
 
         <!-- Atalhos invisíveis pro modo Interagir do OBS (canto superior direito). -->
         <div class="doacao-hot">
@@ -245,6 +254,9 @@ export class OverlayPageComponent {
   readonly clean = input<string | null>(null);
   /** `?preview` — fundo de teste pra depurar no browser (ignorado se `?clean` estiver na URL). */
   readonly preview = input<string | null>(null);
+  /** Rota `/transmissao/:tournamentId` (`data: { transmissao: true }`): segue a quadra
+   *  escolhida no painel em vez de uma quadra fixa na URL. */
+  readonly transmissao = input(false);
 
   protected readonly gateway = inject(OverlayLiveGateway);
   private readonly host = inject(ElementRef<HTMLElement>);
@@ -259,8 +271,57 @@ export class OverlayPageComponent {
    *  rodízio e mais que `?tela=`. */
   private readonly manual = signal<TelaKoc | null>(null);
   private readonly telaFixa = computed(() => telaFixadaEm(this.tela()));
+
+  /** Controle do painel; antes do 1º snapshot, o default (= comportamento de antes). */
+  private readonly controle = computed<BroadcastControl>(() => this.gateway.control() ?? DEFAULT_BROADCAST_CONTROL);
+  /** String, não o controle inteiro: o effect que zera o clique local só re-roda quando a
+   *  ESCOLHA muda, não a cada chave do painel. */
+  private readonly escolhaDoPainel = computed(() => this.controle().kocRoundEndScreen);
+  private readonly telaDoPainel = computed<TelaKoc | null>(() => panelRoundEndScreen(this.escolhaDoPainel()));
+  /** Clique local (janela Interagir) > painel > `?tela=` > rodízio. */
   private readonly telaEfetiva = computed<TelaKoc>(
-    () => this.manual() ?? this.telaFixa() ?? this.telaKoc(),
+    () => this.manual() ?? this.telaDoPainel() ?? this.telaFixa() ?? this.telaKoc(),
+  );
+
+  /** Torneio do controle: o da rota (quadra/transmissão) ou o da partida (modo partida). */
+  private readonly torneioDoControle = computed(
+    () => (this.tournamentId() || this.gateway.match()?.tournamentId || '').trim(),
+  );
+  /** Quadra efetiva. String: o effect que assina a quadra só re-roda quando ela MUDA. */
+  private readonly quadraEfetiva = computed(
+    () => this.courtId() || (this.transmissao() ? (this.controle().courtId ?? '') : ''),
+  );
+
+  private readonly doacaoNoPainel = computed(() => this.controle().graphics.donation);
+  private readonly patroNoPainel = computed(() => this.controle().graphics.sponsors);
+
+  /** Tarja recebida; a duração conta do recebimento (ver `nextInterviewAir`). */
+  private readonly interviewAir = signal<InterviewAir | null>(null);
+  /** Carimbos do último snapshot; `null` = linha de base ainda não registrada. */
+  private commandMemory: CommandMemory | null = null;
+  protected readonly interviewOnAir = computed(() => {
+    const air = this.interviewAir();
+    if (!air) return false;
+    // Só tarja temporizada lê o relógio — "até tirar" não recalcula a cada segundo.
+    return air.data.durationSec == null || interviewVisibleAt(air, this.tick());
+  });
+  protected readonly interviewNoAr = computed(() =>
+    this.interviewOnAir() ? (this.interviewAir()?.data ?? null) : null,
+  );
+
+  /** O que vai ao ar: regra automática de cada tela E chave do painel; tarja toma a tela. */
+  private readonly layers = computed(() =>
+    overlayLayersOf(
+      this.controle(),
+      {
+        duel: this.duelViewAuto() != null,
+        kocBar: this.kocViewAuto() != null,
+        kocPreRound: this.preRoundAuto() != null,
+        roundEnd: this.standings() != null,
+        champions: this.campeoesAuto() != null,
+      },
+      this.interviewOnAir(),
+    ),
   );
 
   /** Muda só quando a partida (ou o fato de estar encerrada) muda. */
@@ -289,24 +350,27 @@ export class OverlayPageComponent {
   });
 
   /** O estreitamento fica no TS; cada formato tem seu componente, não um ramo do outro. */
-  protected readonly duelView = computed(() => {
+  private readonly duelViewAuto = computed(() => {
     const v = this.view();
     return v?.kind === 'duel' && !this.finalEncerrada() ? v : null;
   });
-  protected readonly kocView = computed(() => {
+  private readonly kocViewAuto = computed(() => {
     const v = this.view();
     // A rodada encerrada dá lugar à classificação — as duas na tela seriam duas verdades
     // disputando o mesmo espaço. Final encerrada também: só o pódio.
     return v?.kind === 'koc' && !this.standings() && !this.finalEncerrada() ? v : null;
   });
+  protected readonly duelView = computed(() => (this.layers().duel ? this.duelViewAuto() : null));
+  protected readonly kocView = computed(() => (this.layers().kocBar ? this.kocViewAuto() : null));
 
   /** Elenco da rodada que ainda não começou — antes do apito não há rei nem desafiante, e sem
    *  isto a tela ficava vazia. */
-  protected readonly preRound = computed(() => {
+  private readonly preRoundAuto = computed(() => {
     if (this.finalEncerrada()) return null;
     const m = this.match();
     return m ? kocPreRoundOf(m) : null;
   });
+  protected readonly preRound = computed(() => (this.layers().kocPreRound ? this.preRoundAuto() : null));
 
   protected readonly preRoundTitle = computed(() => {
     const m = this.match();
@@ -326,7 +390,7 @@ export class OverlayPageComponent {
 
   /** Campeões da categoria. Tem precedência sobre a classificação da rodada: a final KOTC também
    *  é uma rodada encerrada, e as duas telas juntas seriam duas verdades no mesmo espaço. */
-  protected readonly campeoes = computed<FinalCampeoes | null>(() => {
+  private readonly campeoesAuto = computed<FinalCampeoes | null>(() => {
     const m = this.match();
     const r = m ? finalResultOf(m) : null;
     if (!r) return null;
@@ -346,12 +410,13 @@ export class OverlayPageComponent {
       placar: r.placar,
     };
   });
+  protected readonly campeoes = computed(() => (this.layers().champions ? this.campeoesAuto() : null));
 
   /** Classificação da rodada KOTC encerrada. */
   protected readonly standings = computed(() => {
     const m = this.match();
     if (!m || !isKingOfCourtMatchType(m.matchType) || m.status !== 'completed') return null;
-    if (this.campeoes()) return null;
+    if (this.campeoesAuto()) return null;
     return kocStandingsBoardOf(m, this.gateway.categoryMatches());
   });
 
@@ -363,14 +428,14 @@ export class OverlayPageComponent {
   });
 
   protected readonly telaDoResultado = computed(() =>
-    this.telaEfetiva() === 'resultado' ? this.standings() : null,
+    this.layers().roundEnd && this.telaEfetiva() === 'resultado' ? this.standings() : null,
   );
   protected readonly telaDasClassificadas = computed(() =>
-    this.telaEfetiva() === 'classificadas' ? this.qualified() : null,
+    this.layers().roundEnd && this.telaEfetiva() === 'classificadas' ? this.qualified() : null,
   );
 
-  /** Só há o que alternar no fim da rodada, quando existem as duas telas. */
-  protected readonly podeAlternar = computed(() => this.standings() != null);
+  /** Só há o que alternar no fim da rodada, quando as duas telas estão no ar. */
+  protected readonly podeAlternar = computed(() => this.layers().roundEnd && this.standings() != null);
 
   protected alternar(): void {
     this.manual.set(this.telaEfetiva() === 'resultado' ? 'classificadas' : 'resultado');
@@ -413,7 +478,9 @@ export class OverlayPageComponent {
   private doacaoInput() {
     const cfg = this.doacaoConfig();
     return {
-      enabled: cfg.enabled,
+      // `untracked`: este método roda dentro de effects; ler o controle rastreado faria cada
+      // clique no painel reiniciar o ciclo. A chave tem effect próprio (construtor).
+      enabled: cfg.enabled && untracked(() => this.doacaoNoPainel()),
       hasPix: cfg.pixKey.trim().length > 0,
       atrasoSeg: cfg.atrasoSeg,
       visivelSeg: cfg.visivelSeg,
@@ -461,7 +528,8 @@ export class OverlayPageComponent {
   private readonly patroOcupado = computed(() => {
     const m = this.match();
     const pausado = m?.status === 'in_progress' && (m.koc?.clock?.pausedAtMs != null || m.medicalTimeout != null);
-    return pausado || this.campeoes() != null || this.standings() != null || this.doacaoShow();
+    const fimDeRodada = this.layers().roundEnd && this.standings() != null;
+    return pausado || this.campeoes() != null || fimDeRodada || this.doacaoShow() || this.interviewOnAir();
   });
 
   private readonly patroCycle = signal<PatroCycleState>(patroCycleStop());
@@ -471,7 +539,7 @@ export class OverlayPageComponent {
   private patroInput() {
     const card = this.patroConfig().card;
     return {
-      enabled: card.enabled,
+      enabled: card.enabled && untracked(() => this.patroNoPainel()),
       count: this.patroItens().length,
       intervaloSeg: card.intervaloSeg,
       visivelSeg: card.visivelSeg,
@@ -524,8 +592,8 @@ export class OverlayPageComponent {
     this.pos() === 'top' ? 'top' : 'bottom',
   );
 
-  /** Preferência do painel / outro overlay (`null` = seguir o matchType). */
-  private readonly finalPref = signal<boolean | null>(null);
+  /** Grande final do painel (`null` = seguir o matchType). */
+  private readonly finalPref = computed(() => finalPrefOf(this.controle().finalMode));
 
   private readonly matchIsKocFinal = computed(
     () => normalizeMatchType(this.match()?.matchType ?? '') === 'koc final',
@@ -579,7 +647,7 @@ export class OverlayPageComponent {
       const chave = this.chaveDoRodizio();
       this.telaKoc.set('resultado');
       // Visualização fixada na URL ou escolhida na mão não reveza.
-      if (!chave || this.telaFixa() || this.manual()) return;
+      if (!chave || this.telaFixa() || this.manual() || this.telaDoPainel()) return;
       let timer: ReturnType<typeof setTimeout>;
       const agenda = (tela: TelaKoc) => {
         timer = setTimeout(
@@ -596,10 +664,14 @@ export class OverlayPageComponent {
     });
 
     effect((onCleanup) => {
-      const quadra = this.courtId();
+      const quadra = this.quadraEfetiva();
       const torneio = this.tournamentId();
       if (quadra && torneio) {
         onCleanup(this.gateway.startCourt(torneio, quadra));
+        return;
+      }
+      if (this.transmissao() && torneio) {
+        onCleanup(this.gateway.startTournament(torneio));
         return;
       }
       const id = this.matchId();
@@ -607,18 +679,41 @@ export class OverlayPageComponent {
       onCleanup(this.gateway.start(id));
     });
 
-    // Modo final compartilhado: painel e overlays da mesma origem leem o mesmo storage e
-    // escutam o BroadcastChannel — ligar num liga nos outros.
     effect((onCleanup) => {
-      const tid = (this.match()?.tournamentId || this.tournamentId() || '').trim();
-      this.finalPref.set(tid ? readOverlayFinalPref(tid) : null);
-      if (!tid || typeof BroadcastChannel === 'undefined') return;
-      const ch = new BroadcastChannel(OVERLAY_FINAL_CHANNEL);
-      ch.onmessage = (ev: MessageEvent<OverlayFinalMsg>) => {
-        if (ev.data?.tournamentId !== tid) return;
-        this.finalPref.set(ev.data.on);
-      };
-      onCleanup(() => ch.close());
+      const torneio = this.torneioDoControle();
+      if (!torneio) return;
+      onCleanup(this.gateway.watchControl(torneio));
+    });
+
+    // Comandos do painel: o 1º snapshot é a LINHA DE BASE (recarregar o OBS não repete um
+    // "mostrar agora" antigo nem reabre tarja temporizada); daí pra frente, carimbo novo = ação.
+    effect(() => {
+      const c = this.gateway.control();
+      if (!c) return;
+      untracked(() => {
+        const isBaseline = this.commandMemory === null;
+        const step = nextCommandStep(this.commandMemory, c);
+        this.commandMemory = step.memory;
+        this.interviewAir.set(nextInterviewAir(this.interviewAir(), c.interview, isBaseline, Date.now()));
+        if (step.donationNow) this.mostrarDoacao();
+        if (step.sponsorsNow) this.mostrarPatro();
+      });
+    });
+
+    // Escolha nova no painel volta a mandar sobre o clique local da janela Interagir.
+    effect(() => {
+      this.escolhaDoPainel();
+      untracked(() => this.manual.set(null));
+    });
+
+    // Chaves de doação/patrocínio: desligar para o ciclo; religar recomeça do início.
+    effect(() => {
+      const ligada = this.doacaoNoPainel();
+      untracked(() => this.runDoacao(ligada ? doacaoCycleStart(this.doacaoInput()) : doacaoCycleStop()));
+    });
+    effect(() => {
+      const ligado = this.patroNoPainel();
+      untracked(() => this.runPatro(ligado ? patroCycleStart(this.patroInput()) : patroCycleStop()));
     });
 
     // Doação PIX: config + ciclo 3 s → 20 s on → 90 s off.

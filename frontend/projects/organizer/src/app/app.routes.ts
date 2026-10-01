@@ -77,6 +77,17 @@ export const routes: Routes = [
       import('./publico/overlay/overlay-page.component').then((m) => m.OverlayPageComponent),
   },
   {
+    // Transmissão do torneio — PÚBLICA, sem guard (Browser Source do OBS). Segue a quadra
+    // escolhida na tela "Transmissão" do painel (`tournaments/{id}/broadcast/control`): trocar
+    // de quadra no meio da live não exige mexer no OBS. Mesmo componente do overlay, então o
+    // fundo transparente (`body:has(og-overlay-page)`) vale aqui também.
+    path: 'transmissao/:tournamentId',
+    title: 'Transmissão ao vivo — NexaGO',
+    data: { transmissao: true },
+    loadComponent: () =>
+      import('./publico/overlay/overlay-page.component').then((m) => m.OverlayPageComponent),
+  },
+  {
     // Comprovante público do sorteio: a sequência completa com horários e hashes. É o link
     // que o organizador manda no grupo quando alguém reclama.
     path: 'sorteio/:sessionId/comprovante',

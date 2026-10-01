@@ -1,5 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { environment } from '../../../environments/environment';
+import type { BroadcastControl } from '../../painel/data/broadcast-control';
+import { watchBroadcastControl } from '../../painel/data/broadcast-control-repository';
 import { organizerFirestore } from '../../painel/data/firestore';
 import { isKingOfCourtMatchType, normalizeMatchType } from '../../painel/data/koc';
 import {
@@ -41,6 +43,9 @@ export class OverlayLiveGateway {
   /** Partidas da MESMA categoria, da leitura única acima — a classificação da rodada precisa
    *  delas pra saber destino das vagas e próxima rodada. */
   readonly categoryMatches = signal<readonly TournamentMatch[]>([]);
+  /** Controle do painel (`broadcast/control`). `null` = 1º snapshot ainda não chegou: a página
+   *  usa o default, e a linha de base dos comandos espera por ele. */
+  readonly control = signal<BroadcastControl | null>(null);
 
   private readonly hydrated = new Set<string>();
   private countedRounds = false;
@@ -78,6 +83,18 @@ export class OverlayLiveGateway {
     };
   }
 
+  /** Escuta o controle do torneio. Erro de rede não limpa: o último controle conhecido continua
+   *  valendo (mesma regra do placar). */
+  watchControl(tournamentId: string): () => void {
+    return watchBroadcastControl(tournamentId, (c) => this.control.set(c), () => {});
+  }
+
+  /** `/transmissao` sem quadra escolhida: só o torneio (patrocinadores), nenhuma partida. */
+  startTournament(tournamentId: string): () => void {
+    this.match.set(null);
+    return watchTournament(tournamentId, (t) => this.tournament.set(t), () => {});
+  }
+
   /** Nome POR ATLETA, não só o rótulo combinado: a faixa do KOTC desenha uma linha por atleta.
    *  Mesmo join que o telão faz (`teams` → `public_profiles`). */
   /** Modo QUADRA: segue o que está acontecendo numa quadra em vez de uma partida fixa.
@@ -87,6 +104,11 @@ export class OverlayLiveGateway {
    *  do doc único do modo partida. A escolha de QUAL partida é do `courtNowOf`, e a memória de
    *  fim de partida é o que segura a recém-encerrada na tela tempo suficiente pras telas de fim. */
   startCourt(tournamentId: string, courtId: string): () => void {
+    // Trocar de quadra na `/transmissao` não pode deixar a partida da quadra anterior no ar até
+    // o 1º snapshot da nova.
+    this.match.set(null);
+    this.categoryMatches.set([]);
+    this.totalRounds.set(0);
     const unsubTournament = watchTournament(
       tournamentId,
       (t) => this.tournament.set(t),

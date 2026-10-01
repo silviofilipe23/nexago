@@ -2,6 +2,7 @@ import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
 import type { OrganizerTournament } from '../../painel/data/tournament.model';
+import { DEFAULT_BROADCAST_CONTROL, type BroadcastControl, type BroadcastInterview } from '../../painel/data/broadcast-control';
 import { OverlayLiveGateway, type OverlayTeam } from './overlay-live.gateway';
 import { OverlayPageComponent } from './overlay-page.component';
 import { getOverlaySettings, installNxOverlay, resetOverlaySettingsForTests } from './overlay-nx';
@@ -63,6 +64,21 @@ class FakeGateway {
   readonly started: string[] = [];
   readonly startedCourts: string[] = [];
   stopped = 0;
+  readonly control = signal<BroadcastControl | null>(null);
+  readonly controlWatched: string[] = [];
+  readonly startedTournaments: string[] = [];
+
+  watchControl(tournamentId: string): () => void {
+    this.controlWatched.push(tournamentId);
+    return () => {};
+  }
+
+  startTournament(tournamentId: string): () => void {
+    this.startedTournaments.push(tournamentId);
+    return () => {
+      this.stopped++;
+    };
+  }
 
   start(matchId: string): () => void {
     this.started.push(matchId);
@@ -126,6 +142,24 @@ function rodadaEncerrada(): TournamentMatch {
     },
   });
 }
+
+function controle(over: Partial<BroadcastControl> = {}): BroadcastControl {
+  return {
+    ...DEFAULT_BROADCAST_CONTROL,
+    graphics: { ...DEFAULT_BROADCAST_CONTROL.graphics },
+    commands: { ...DEFAULT_BROADCAST_CONTROL.commands },
+    ...over,
+  };
+}
+
+const TARJA: BroadcastInterview = {
+  name: 'Ana Souza',
+  photoUrl: null,
+  partnerName: 'Bia Lima',
+  categoryName: 'Feminina B',
+  durationSec: null,
+  shownAt: 1_000,
+};
 
 /** Monta a página já no fim de rodada, que é quando há duas telas pra alternar. */
 async function noFimDaRodada(inputs: Record<string, unknown> = {}) {
@@ -682,5 +716,248 @@ describe('OverlayPageComponent — patrocinadores', () => {
     expect(window.NXOverlay?.togglePatro() ?? installNxOverlay().togglePatro()).toBeFalse();
     expect(getOverlaySettings().patro.card.enabled).toBeFalse();
     expect(installNxOverlay().togglePatro()).toBeTrue();
+  });
+});
+
+describe('OverlayPageComponent — controle do painel', () => {
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [OverlayPageComponent],
+      providers: [provideZonelessChangeDetection()],
+    }).compileComponents();
+  });
+
+  afterEach(() => resetOverlaySettingsForTests());
+
+  it('assina o controle do torneio da partida', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.match.set(match({}));
+    await fixture.whenStable();
+
+    expect(fake.controlWatched).toEqual(['t1']);
+  });
+
+  it('placar desligado no painel sai do ar', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.match.set(match({}));
+    fake.control.set(controle({ graphics: { ...DEFAULT_BROADCAST_CONTROL.graphics, scoreboard: false } }));
+    await fixture.whenStable();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('og-overlay-scoreboard')).toBeNull();
+  });
+
+  it('tarja no ar toma a tela: o placar sai e a tarja entra', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.match.set(match({}));
+    fake.control.set(controle());
+    await fixture.whenStable();
+    fake.control.set(controle({ interview: TARJA }));
+    await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('og-overlay-scoreboard')).toBeNull();
+    expect(host.querySelector('og-overlay-interview .nome')?.textContent).toContain('Ana Souza');
+  });
+
+  it('"Tirar do ar" devolve o placar', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.match.set(match({}));
+    fake.control.set(controle());
+    await fixture.whenStable();
+    fake.control.set(controle({ interview: TARJA }));
+    await fixture.whenStable();
+    fake.control.set(controle({ interview: null }));
+    await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('og-overlay-scoreboard')).not.toBeNull();
+  });
+
+  it('tarja temporizada sai sozinha depois da duração', async () => {
+    jasmine.clock().install();
+    jasmine.clock().mockDate(new Date(2026, 9, 1, 12, 0, 0));
+    try {
+      const { fixture, fake } = await mount({ matchId: 'm1' });
+      fake.control.set(controle());
+      await fixture.whenStable();
+      fake.control.set(controle({ interview: { ...TARJA, durationSec: 20 } }));
+      await fixture.whenStable();
+      const host = fixture.nativeElement as HTMLElement;
+
+      expect(host.querySelector('og-overlay-interview .tarja')).not.toBeNull();
+
+      jasmine.clock().tick(18_000);
+      await fixture.whenStable();
+      expect(host.querySelector('og-overlay-interview .tarja')).not.toBeNull();
+
+      jasmine.clock().tick(3_000);
+      await fixture.whenStable();
+      // `animate.leave` mantém o nó no DOM durante a saída (animação CSS de verdade, fora do
+      // relógio falso), já com a classe de saída — o que importa é não estar mais "entrando".
+      expect(host.querySelector('og-overlay-interview .tarja:not(.tarja-out)')).toBeNull();
+    } finally {
+      jasmine.clock().uninstall();
+    }
+  });
+
+  it('recarregar o OBS no meio de tarja temporizada não a reexibe — nem no snapshot seguinte', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.match.set(match({}));
+    fake.control.set(controle({ interview: { ...TARJA, durationSec: 20 } }));
+    await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('og-overlay-interview .nome')).toBeNull();
+
+    fake.control.set(
+      controle({
+        interview: { ...TARJA, durationSec: 20 },
+        graphics: { ...DEFAULT_BROADCAST_CONTROL.graphics, champions: false },
+      }),
+    );
+    await fixture.whenStable();
+
+    expect(host.querySelector('og-overlay-interview .nome')).toBeNull();
+    expect(host.querySelector('og-overlay-scoreboard')).not.toBeNull();
+  });
+
+  it('tarja "até tirar" já no 1º snapshot continua no ar', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.control.set(controle({ interview: TARJA }));
+    await fixture.whenStable();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('og-overlay-interview .nome')).not.toBeNull();
+  });
+
+  it('"Mostrar agora" da doação dispara no carimbo novo, não no da linha de base', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.control.set(controle({ commands: { donationNowAt: 500, sponsorsNowAt: 0 } }));
+    await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('og-overlay-doacao .card')).toBeNull();
+
+    fake.control.set(controle({ commands: { donationNowAt: 900, sponsorsNowAt: 0 } }));
+    await fixture.whenStable();
+
+    expect(host.querySelector('og-overlay-doacao .card')).not.toBeNull();
+  });
+
+  it('mexer em outra chave não derruba o card da doação que está no ar', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.control.set(controle());
+    await fixture.whenStable();
+    fake.control.set(controle({ commands: { donationNowAt: 900, sponsorsNowAt: 0 } }));
+    await fixture.whenStable();
+    fake.control.set(
+      controle({
+        commands: { donationNowAt: 900, sponsorsNowAt: 0 },
+        graphics: { ...DEFAULT_BROADCAST_CONTROL.graphics, scoreboard: false },
+      }),
+    );
+    await fixture.whenStable();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('og-overlay-doacao .card')).not.toBeNull();
+  });
+
+  it('doação desligada no painel não entra no ciclo automático', async () => {
+    jasmine.clock().install();
+    try {
+      const { fixture, fake } = await mount({ matchId: 'm1' });
+      fake.control.set(controle({ graphics: { ...DEFAULT_BROADCAST_CONTROL.graphics, donation: false } }));
+      await fixture.whenStable();
+      jasmine.clock().tick(4_000);
+      await fixture.whenStable();
+
+      expect((fixture.nativeElement as HTMLElement).querySelector('og-overlay-doacao .card')).toBeNull();
+    } finally {
+      jasmine.clock().uninstall();
+    }
+  });
+
+  it('fim de rodada fixado no painel mostra as classificadas e não reveza', async () => {
+    jasmine.clock().install();
+    try {
+      const { fixture, fake } = await mount({ matchId: 'm1' });
+      fake.tournament.set(TOURNAMENT);
+      const encerrada = rodadaEncerrada();
+      fake.categoryMatches.set([encerrada]);
+      fake.match.set(encerrada);
+      fake.control.set(controle({ kocRoundEndScreen: 'classificadas' }));
+      await fixture.whenStable();
+      const host = fixture.nativeElement as HTMLElement;
+
+      expect(host.querySelector('og-overlay-koc-qualified')).not.toBeNull();
+
+      jasmine.clock().tick(40_000);
+      await fixture.whenStable();
+
+      expect(host.querySelector('og-overlay-koc-qualified')).not.toBeNull();
+      expect(host.querySelector('og-overlay-koc-standings')).toBeNull();
+    } finally {
+      jasmine.clock().uninstall();
+    }
+  });
+
+  it('Grande final ligada no painel acende o visual final no duelo', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.match.set(match({}));
+    fake.control.set(controle({ finalMode: 'on' }));
+    await fixture.whenStable();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('.status--final-mode')).not.toBeNull();
+  });
+});
+
+describe('OverlayPageComponent — /transmissao', () => {
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [OverlayPageComponent],
+      providers: [provideZonelessChangeDetection()],
+    }).compileComponents();
+  });
+
+  afterEach(() => resetOverlaySettingsForTests());
+
+  it('sem quadra escolhida, assina só o torneio e o controle', async () => {
+    const { fake } = await mount({ tournamentId: 't1', transmissao: true });
+
+    expect(fake.startedTournaments).toEqual(['t1']);
+    expect(fake.startedCourts).toEqual([]);
+    expect(fake.controlWatched).toEqual(['t1']);
+  });
+
+  it('segue a quadra escolhida no painel e troca quando ela muda', async () => {
+    const { fixture, fake } = await mount({ tournamentId: 't1', transmissao: true });
+    fake.control.set(controle({ courtId: 'q1' }));
+    await fixture.whenStable();
+
+    expect(fake.startedCourts).toEqual(['t1/q1']);
+
+    fake.control.set(controle({ courtId: 'q2' }));
+    await fixture.whenStable();
+
+    expect(fake.startedCourts).toEqual(['t1/q1', 't1/q2']);
+    expect(fake.stopped).toBeGreaterThanOrEqual(2);
+  });
+
+  it('mexer em outra chave não reassina a quadra', async () => {
+    const { fixture, fake } = await mount({ tournamentId: 't1', transmissao: true });
+    fake.control.set(controle({ courtId: 'q1' }));
+    await fixture.whenStable();
+    fake.control.set(
+      controle({ courtId: 'q1', graphics: { ...DEFAULT_BROADCAST_CONTROL.graphics, scoreboard: false } }),
+    );
+    await fixture.whenStable();
+
+    expect(fake.startedCourts).toEqual(['t1/q1']);
+  });
+
+  it('quadra fixa na URL ganha da escolha do painel', async () => {
+    const { fixture, fake } = await mount({ tournamentId: 't1', courtId: 'q9' });
+    fake.control.set(controle({ courtId: 'q1' }));
+    await fixture.whenStable();
+
+    expect(fake.startedCourts).toEqual(['t1/q9']);
   });
 });

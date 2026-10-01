@@ -130,6 +130,11 @@ import { OgPageHeaderComponent } from '../ui/page-header.component';
       font-family: var(--nx-font-mono);
       font-size: 12px;
       color: var(--nx-text-mute);
+      white-space: nowrap;
+    }
+    /* "4,7 ★" não pode quebrar a estrela pra linha de baixo no card estreito do telefone. */
+    .og-rep-kpis .og-kpi-value {
+      white-space: nowrap;
     }
     /* Uma grade só, pro cabeçalho e as linhas alinharem (ver memória organizer-list-fake-table-grid). */
     .og-rep-table {
@@ -179,6 +184,11 @@ import { OgPageHeaderComponent } from '../ui/page-header.component';
     .og-rep-avg {
       font-family: var(--nx-font-mono);
       font-weight: 700;
+    }
+    @container (max-width: 520px) {
+      .og-rep-kpis .og-kpi-value {
+        font-size: 22px;
+      }
     }
     @container (max-width: 720px) {
       .og-rep-table {

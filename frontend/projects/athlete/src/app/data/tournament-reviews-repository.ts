@@ -3,7 +3,12 @@ import { httpsCallable, type Functions } from 'firebase/functions';
 import {
   inviteFromData,
   myReviewFromData,
+  organizerNameFromData,
+  organizerReputationFromData,
+  publicSummaryFromData,
   type MyTournamentReview,
+  type OrganizerReputation,
+  type PublicReviewSummary,
   type TournamentReviewAspects,
   type TournamentReviewInvite,
 } from './tournament-reviews';
@@ -98,5 +103,43 @@ export async function submitTournamentReview(functions: Functions, input: Submit
   } catch (err) {
     const code = typeof (err as { code?: unknown })?.code === 'string' ? (err as { code: string }).code : null;
     throw new TournamentReviewError(tournamentReviewErrorMessage(err), code);
+  }
+}
+
+/** Resumo público do torneio, ao vivo — `null` até o job abrir a janela de avaliação. */
+export function watchPublicReviewSummary(
+  db: Firestore,
+  tournamentId: string,
+  onChange: (summary: PublicReviewSummary | null) => void,
+  onError?: () => void,
+): Unsubscribe {
+  return onSnapshot(
+    doc(db, 'tournamentReviewSummaries', tournamentId),
+    (snap) => onChange(snap.exists() ? publicSummaryFromData(snap.data()) : null),
+    () => onError?.(),
+  );
+}
+
+/** Reputação pública do organizador, ao vivo. */
+export function watchOrganizerReputation(
+  db: Firestore,
+  organizerId: string,
+  onChange: (reputation: OrganizerReputation | null) => void,
+  onError?: () => void,
+): Unsubscribe {
+  return onSnapshot(
+    doc(db, 'organizerReputation', organizerId),
+    (snap) => onChange(snap.exists() ? organizerReputationFromData(snap.data()) : null),
+    () => onError?.(),
+  );
+}
+
+/** Nome do organizador em `public_profiles` (leitura pública). Falha vira `null`: sem linha. */
+export async function fetchOrganizerName(db: Firestore, organizerId: string): Promise<string | null> {
+  try {
+    const snap = await getDoc(doc(db, 'public_profiles', organizerId));
+    return snap.exists() ? organizerNameFromData(snap.data()) : null;
+  } catch {
+    return null;
   }
 }

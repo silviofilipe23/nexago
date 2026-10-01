@@ -30,13 +30,22 @@ void main() {
       );
     });
 
-    test('fechamento das avaliações (organizador) continua na url, nesta fase', () {
+    test('fechamento das avaliações (organizador) abre a tela de avaliações', () {
       expect(
         resolveNotificationRoute({
           'type': 'tournament_review_closed',
           'tournamentId': 't1',
           'url': '/organizer/tournaments/t1',
+          'webUrl': '/painel/eventos/t1/avaliacoes',
         }),
+        '/organizer/tournaments/t1/reviews',
+      );
+    });
+
+    test('fechamento sem tournamentId cai na url do payload', () {
+      expect(
+        resolveNotificationRoute(
+            {'type': 'tournament_review_closed', 'url': '/organizer/tournaments/t1'}),
         '/organizer/tournaments/t1',
       );
     });

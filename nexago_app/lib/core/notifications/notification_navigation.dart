@@ -151,6 +151,16 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
     }
   }
 
+  // Fechamento das avaliações (organizador): o `url` leva ao torneio no app ANTIGO, que não tem
+  // a tela. Este build abre as avaliações direto — por isso o tipo vem antes da url.
+  if (type == 'tournament_review_closed') {
+    final closedTournamentId = (data['tournamentId'] as String?)?.trim() ?? '';
+    if (closedTournamentId.isNotEmpty) {
+      return AppRoutes.organizerTournamentReviews
+          .replaceAll(':tournamentId', closedTournamentId);
+    }
+  }
+
   final url = appRouteForNotificationUrl(data['url'] as String?);
   if (url != null) return url;
 

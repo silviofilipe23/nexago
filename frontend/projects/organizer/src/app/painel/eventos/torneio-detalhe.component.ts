@@ -20,6 +20,8 @@ import { cancelTournament, closeTournamentRegistrations } from '../data/organize
 import { isPaidRegistrationsRejection } from '../data/tournament-cancel-escalation';
 import type { OrganizerTournament, OrganizerTournamentSponsor, OrganizerTournamentStatus } from '../data/tournament.model';
 import { EMPTY_TOURNAMENT_COLLECTED, formatCentsShort } from '../data/tournament-collected';
+import { reviewKpiLabel, type TournamentReviewSummary } from '../data/tournament-reviews';
+import { watchTournamentReviewSummary } from '../data/tournament-reviews-repository';
 import { tournamentUsesUniform } from '../data/uniforms';
 import { addTournamentSponsor, getTournament, removeTournamentSponsor, validateSponsorLogoFile } from '../data/tournaments-repository';
 import { OgCardComponent } from '../ui/card.component';
@@ -216,6 +218,10 @@ interface CategoriaRow {
               <div class="og-torneio-kpi-split">{{ split }}</div>
             }
           </div>
+          <a class="og-card og-card-pad-sm og-torneio-kpi og-torneio-kpi-link" [routerLink]="['/painel/eventos', id(), 'avaliacoes']">
+            <div class="og-kpi-label">Avaliação</div>
+            <div class="og-kpi-value sm">{{ reviewKpi() }}</div>
+          </a>
         </div>
 
         <!-- Só no telefone: a sidebar contextual vira gaveta, e as ferramentas do torneio
@@ -1220,6 +1226,10 @@ export class TorneioDetalheComponent {
   /** Capa falhou ao carregar — o banner some (a página funciona igual sem ele). */
   protected readonly coverFailed = signal(false);
 
+  /** Resumo das avaliações dos atletas, ao vivo — `null` até a janela abrir. */
+  protected readonly reviewSummary = signal<TournamentReviewSummary | null>(null);
+  protected readonly reviewKpi = computed(() => reviewKpiLabel(this.reviewSummary()));
+
   /** Formulário de "Adicionar patrocinador" — upload só acontece ao confirmar (`submitSponsor`),
    *  não ao escolher o arquivo, pra cancelar não deixar logo órfão no Storage. */
   protected readonly addingSponsor = signal(false);
@@ -1272,6 +1282,7 @@ export class TorneioDetalheComponent {
       { label: 'Telão', icon: 'tv', path: 'telao', badge: null },
       { label: 'Comunicação', icon: 'mail', path: 'comunicacao', badge: null },
       { label: 'Equipe', icon: 'team', path: 'equipe', badge: null },
+      { label: 'Avaliações', icon: 'star', path: 'avaliacoes', badge: null },
     ];
   });
 
@@ -1363,6 +1374,20 @@ export class TorneioDetalheComponent {
       }
       this.loading.set(true);
       void this.load(tid);
+    });
+
+    effect((onCleanup) => {
+      const tid = this.id();
+      if (!tid) return;
+      const stop = watchTournamentReviewSummary(
+        tid,
+        (s) => this.reviewSummary.set(s),
+        () => this.reviewSummary.set(null),
+      );
+      onCleanup(() => {
+        stop();
+        this.reviewSummary.set(null);
+      });
     });
   }
 

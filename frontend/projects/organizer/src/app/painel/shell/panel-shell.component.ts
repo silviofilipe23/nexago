@@ -429,6 +429,7 @@ export class PanelShellComponent {
         { label: 'Telão', icon: 'tv', link: `${base}/telao` },
         { label: 'Comunicação', icon: 'mail', link: `${base}/comunicacao` },
         { label: 'Equipe', icon: 'team', link: `${base}/equipe` },
+        { label: 'Avaliações', icon: 'star', link: `${base}/avaliacoes` },
       ];
     }
     if (level === 'liga') {
@@ -457,6 +458,7 @@ export class PanelShellComponent {
       ...(showsFinanceiroMenuItem(this.financeiroReach.status(), this.financeiroReach.tournaments())
         ? [{ label: 'Financeiro', icon: 'cash' as OgIconName, link: '/painel/financeiro' }]
         : []),
+      { label: 'Reputação', icon: 'star', link: '/painel/reputacao' },
       { label: 'Links', icon: 'share', link: '/painel/links' },
     ];
   });

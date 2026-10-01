@@ -98,6 +98,13 @@ router-outlet + * {
   color: var(--nx-text-dim);
 }
 
+.tsh-organizer {
+  margin: var(--nx-s-2) 0 0;
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  color: var(--nx-text-mute);
+}
+
 .tsh-action {
   display: inline-flex;
   align-items: center;

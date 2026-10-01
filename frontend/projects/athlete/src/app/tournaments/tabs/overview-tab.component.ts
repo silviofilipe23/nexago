@@ -16,6 +16,8 @@ import { leagueContextLabel, resolveLeagueContext } from '../tournament-league.h
 import type { DiscoveryLeague } from '../tournament-discovery.models';
 import { TournamentLiveStore } from '../tournament-live.store';
 import { TournamentReviewCtaComponent } from '../review/tournament-review-cta.component';
+import { reviewBadgeLabel } from '../../data/tournament-reviews';
+import { TournamentReviewAspectsComponent } from '../review/tournament-review-aspects.component';
 
 function hashHue(id: string): number {
   let hash = 0;
@@ -45,7 +47,7 @@ export type CategoryCtaKind = 'register' | 'waitlist' | 'disabled' | 'view-regis
  *  ou etapas fictícias — o Flutter também não tem nada disso no detalhe. */
 @Component({
   selector: 'app-overview-tab',
-  imports: [RouterLink, TournamentReviewCtaComponent],
+  imports: [RouterLink, TournamentReviewCtaComponent, TournamentReviewAspectsComponent],
   templateUrl: './overview-tab.component.html',
   styleUrl: './overview-tab.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -54,6 +56,8 @@ export class OverviewTabComponent {
   protected readonly store = inject(TournamentLiveStore);
 
   protected readonly tournament = this.store.tournament;
+  /** Selo "★ 4,6 · 23 avaliações" no herói (spec §5) — `null` abaixo de 3 avaliações. */
+  protected readonly reviewBadge = computed(() => reviewBadgeLabel(this.store.reviewSummary()));
   protected readonly coverFailed = signal(false);
   private readonly leagues = signal<DiscoveryLeague[]>([]);
 

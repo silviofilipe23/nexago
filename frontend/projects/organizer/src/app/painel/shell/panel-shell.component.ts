@@ -28,6 +28,7 @@ import { OgPersonPhotoComponent } from '../ui/person-photo.component';
 import { FinanceiroReachService } from './financeiro-reach.service';
 import { OgBellComponent } from './og-bell.component';
 import { PanelContextService } from './panel-context.service';
+import { tournamentMenuFor } from '../data/media-access';
 
 /** Só pergunta uma vez por navegador — negou ou aceitou, não insiste de novo a cada login. */
 const PUSH_PROMPT_KEY = 'nexago-organizer-push-prompted';
@@ -417,6 +418,10 @@ export class PanelShellComponent {
     }
     if (level === 'torneio') {
       const base = this.ctx.tournamentBase()!;
+      // Mídia só opera a transmissão — o guard já desvia as outras rotas; o menu não as oferece.
+      if (tournamentMenuFor(this.ctx.myRole()) === 'transmissao') {
+        return [{ label: 'Transmissão', icon: 'broadcast', link: `${base}/transmissao` }];
+      }
       return [
         { label: 'Visão geral', icon: 'grid', link: base },
         { label: 'Inscrições', icon: 'users', link: `${base}/inscricoes` },

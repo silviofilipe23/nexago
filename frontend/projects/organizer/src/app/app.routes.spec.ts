@@ -14,6 +14,11 @@ function findRoute(list: readonly Route[], segments: readonly string[]): Route |
 }
 
 describe('app.routes', () => {
+  it('rotas do torneio passam pelo guard da mídia', () => {
+    const torneio = findRoute(routes, ['painel', 'eventos/:id']);
+    expect(torneio?.canActivateChild?.length ?? 0).toBeGreaterThan(0);
+  });
+
   it('serve a tela Transmissão como aba do torneio', () => {
     expect(findRoute(routes, ['painel', 'eventos/:id', 'transmissao'])).not.toBeNull();
   });

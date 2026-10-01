@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './auth/auth.guard';
 import { organizerGuard } from './auth/organizer.guard';
+import { mediaTournamentGuard } from './painel/shell/media-tournament.guard';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'entrar' },
@@ -221,6 +222,9 @@ export const routes: Routes = [
       // ── Nível 2 · Torneio selecionado ────────────────────────
       {
         path: 'eventos/:id',
+        // Mídia (papel de equipe) só alcança a Transmissão — qualquer outra rota do torneio,
+        // inclusive digitada à mão, volta pra ela.
+        canActivateChild: [mediaTournamentGuard],
         children: [
           {
             path: '',

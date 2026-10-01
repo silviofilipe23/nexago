@@ -26,6 +26,12 @@ before(async () => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'tournaments', TORNEIO), { managerId: DONO, name: 'Copa Mídia', listingStatus: 'open' });
     await setDoc(doc(db, 'tournaments', TORNEIO, 'staff', MIDIA), { role: 'media', status: 'active' });
+    await setDoc(doc(db, 'tournamentWallets', TORNEIO), { availableCents: 1000 });
+    await setDoc(doc(db, 'artifacts', APP, 'public', 'data', 'inscriptions', 'i1'), {
+      tournamentId: TORNEIO,
+      teamId: 'time-x',
+      status: 'confirmed',
+    });
     await setDoc(doc(db, 'artifacts', APP, 'public', 'data', 'matches', 'm1'), {
       tournamentId: TORNEIO,
       status: 'scheduled',
@@ -74,5 +80,15 @@ test('mídia NÃO mexe na equipe', async () => {
 test('mídia NÃO lança placar', async () => {
   await assertFails(
     updateDoc(doc(as(MIDIA), 'artifacts', APP, 'public', 'data', 'matches', 'm1'), { status: 'in_progress' }),
+  );
+});
+
+test('mídia NÃO lê o caixa do torneio', async () => {
+  await assertFails(getDoc(doc(as(MIDIA), 'tournamentWallets', TORNEIO)));
+});
+
+test('mídia NÃO altera inscrição', async () => {
+  await assertFails(
+    updateDoc(doc(as(MIDIA), 'artifacts', APP, 'public', 'data', 'inscriptions', 'i1'), { status: 'cancelled' }),
   );
 });

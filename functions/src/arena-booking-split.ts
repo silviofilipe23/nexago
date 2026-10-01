@@ -396,11 +396,13 @@ export async function splitArenaBookingPaymentCore(
       );
 
       // A falha pode ter sido um timeout DEPOIS de o Asaas já ter apagado a
-      // cobrança — reconfere o status antes de desfazer tudo, pra não fazer
-      // rollback de uma divisão que na verdade já está correta.
+      // cobrança (ou de tê-la recebido) — reconfere o status antes de desfazer
+      // tudo, pra não fazer rollback de uma divisão que na verdade já está
+      // correta, e pra dar uma mensagem melhor se a original foi paga.
       let stillOpenAfterFailure = true;
+      let statusAfterFailure: string | null = null;
       try {
-        const statusAfterFailure = await originalCharge.getStatus(originalPaymentId);
+        statusAfterFailure = await originalCharge.getStatus(originalPaymentId);
         stillOpenAfterFailure = statusAfterFailure !== ORIGINAL_CHARGE_GONE_STATUS;
       } catch (statusErr) {
         logger.error(
@@ -416,6 +418,14 @@ export async function splitArenaBookingPaymentCore(
           supersededAsaasPaymentIds: previousSuperseded,
           updatedAt: FieldValue.serverTimestamp(),
         }, {merge: true});
+
+        if (statusAfterFailure && ORIGINAL_CHARGE_PAID_STATUSES.has(statusAfterFailure)) {
+          throw new HttpsError(
+            "failed-precondition",
+            "O PIX desta reserva já foi pago. Não é possível dividir o pagamento.",
+          );
+        }
+
         throw new HttpsError(
           "unavailable",
           "Não foi possível cancelar o PIX anterior desta reserva. Tente novamente.",
@@ -429,18 +439,43 @@ export async function splitArenaBookingPaymentCore(
     }
   }
 
-  await bookingRef.set({
-    hasSplitShares: true,
-    splitShareCount: shares.length,
-    status: "confirmed",
-    paymentStatus: "split_pending",
-    ...(originalPaymentId ? {
-      asaasPaymentId: null,
-      pixCopyPaste: null,
-      supersededAsaasPaymentIds: [...previousSuperseded, originalPaymentId],
-    } : {}),
-    updatedAt: FieldValue.serverTimestamp(),
-  }, {merge: true});
+  // Releitura final dentro de uma transação: o cron de expiração
+  // (expirePendingArenaBookingPayments) ou o próprio atleta
+  // (cancelPendingArenaBookingPayment) podem cancelar a reserva — status vira
+  // "cancelled", slots e locks são liberados — enquanto esperávamos as idas e
+  // vindas com o Asaas acima. Sem essa checagem este write ressuscitaria a
+  // reserva como "confirmed" sem quadra reservada, e ainda chamaria os amigos
+  // pra pagar uma fatia que não existe mais.
+  const stillPendingPayment = await db.runTransaction<boolean>(async (tx) => {
+    const freshSnap = await tx.get(bookingRef);
+    if (!freshSnap.exists) return false;
+    const freshBooking = freshSnap.data() as Record<string, unknown>;
+    if ((freshBooking.status as string | undefined)?.toLowerCase() !== "pending_payment") {
+      return false;
+    }
+
+    tx.set(bookingRef, {
+      hasSplitShares: true,
+      splitShareCount: shares.length,
+      status: "confirmed",
+      paymentStatus: "split_pending",
+      ...(originalPaymentId ? {
+        asaasPaymentId: null,
+        pixCopyPaste: null,
+        supersededAsaasPaymentIds: [...previousSuperseded, originalPaymentId],
+      } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    return true;
+  });
+
+  if (!stillPendingPayment) {
+    await rollbackShares();
+    throw new HttpsError(
+      "failed-precondition",
+      "Esta reserva não está mais aguardando pagamento.",
+    );
+  }
 
   return {bookingId, shareIds, notifications};
 }

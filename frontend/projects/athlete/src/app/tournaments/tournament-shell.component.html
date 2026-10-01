@@ -45,6 +45,15 @@
       </div>
 
       <router-outlet />
+
+      @if (reviewDialogInvite(); as reviewInvite) {
+        <app-tournament-review-dialog
+          [invite]="reviewInvite"
+          [existing]="store.myReview()"
+          (submitted)="onReviewSubmitted($event)"
+          (dismissed)="closeReview()"
+        />
+      }
     </div>
   } @else {
     <div class="tsh-empty">

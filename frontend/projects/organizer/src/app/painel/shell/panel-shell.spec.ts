@@ -212,4 +212,9 @@ describe('PanelShellComponent — avaliações no menu', () => {
     await fixture.whenStable();
     expect(labels(fixture)).toContain('Avaliações');
   });
+
+  it('nível global tem Reputação', async () => {
+    const { fixture } = await mountShell(false, reachStub([]));
+    expect(labels(fixture)).toContain('Reputação');
+  });
 });

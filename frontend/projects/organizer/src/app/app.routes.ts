@@ -124,6 +124,11 @@ export const routes: Routes = [
         loadComponent: () => import('./painel/financeiro/financeiro.component').then((m) => m.FinanceiroComponent),
       },
       {
+        path: 'reputacao',
+        title: 'Reputação — NexaGO Organizador',
+        loadComponent: () => import('./painel/reputacao/reputacao.component').then((m) => m.ReputacaoComponent),
+      },
+      {
         path: 'notificacoes',
         title: 'Notificações — NexaGO Organizador',
         loadComponent: () =>

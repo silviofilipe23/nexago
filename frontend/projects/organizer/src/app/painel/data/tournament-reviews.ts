@@ -282,3 +282,34 @@ export function reviewAspectChips(r: AnonymousReview): string[] {
 export function reviewKpiLabel(s: TournamentReviewSummary | null): string {
   return s && hasPublicNumbers(s) ? `${formatRating(s.average)} ★` : '—';
 }
+
+const FULL_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Sao_Paulo' });
+
+export interface ReputationRow {
+  tournamentId: string;
+  name: string;
+  date: string;
+  average: string;
+  reviews: string;
+  response: string;
+  weakest: string;
+}
+
+/** Tabela "Por torneio" da Reputação: do mais recente para o mais antigo. */
+export function reputationRows(summaries: readonly TournamentReviewSummary[]): ReputationRow[] {
+  const when = (s: TournamentReviewSummary) => s.tournamentStartAt ?? s.opensAt;
+  return [...summaries]
+    .sort((a, b) => (when(b)?.getTime() ?? 0) - (when(a)?.getTime() ?? 0))
+    .map((s) => {
+      const date = when(s);
+      return {
+        tournamentId: s.tournamentId,
+        name: s.tournamentName || 'Torneio sem nome',
+        date: date ? FULL_DATE.format(date) : '—',
+        average: hasPublicNumbers(s) ? formatRating(s.average) : '—',
+        reviews: String(s.count),
+        response: `${s.count} de ${s.eligibleCount}`,
+        weakest: weakestAspectLabel(s.aspects) ?? '—',
+      };
+    });
+}

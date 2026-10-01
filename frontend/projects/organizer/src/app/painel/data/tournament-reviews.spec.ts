@@ -10,6 +10,7 @@ import {
   hasPublicNumbers,
   isReviewWindowOpen,
   reputationFromData,
+  reputationRows,
   responseRateLabel,
   reviewAspectChips,
   reviewKpiLabel,
@@ -239,6 +240,31 @@ describe('tournament-reviews (organizador)', () => {
     expect(starsText(4)).toBe('★★★★☆');
     const r: AnonymousReview = { id: 'a', overall: 4, aspects: { schedule: 2, organization: 5 }, comment: 'x', shuffleKey: 0 };
     expect(reviewAspectChips(r)).toEqual(['Organização geral 5★', 'Cumprimento dos horários 2★']);
+  });
+
+  it('reputationRows: mais recente primeiro, — abaixo de 3, aspecto mais fraco', () => {
+    const rows = reputationRows([
+      summary({
+        tournamentId: 't1',
+        tournamentName: 'Copa Agosto',
+        tournamentStartAt: new Date('2026-08-02T12:00:00Z'),
+        aspects: { organization: { count: 20, average: 4.8 }, schedule: { count: 18, average: 3.4 } },
+      }),
+      summary({
+        tournamentId: 't2',
+        tournamentName: 'Etapa Setembro',
+        tournamentStartAt: new Date('2026-09-20T12:00:00Z'),
+        count: 2,
+        eligibleCount: 30,
+        average: null,
+        distribution: null,
+        aspects: null,
+      }),
+    ]);
+    expect(rows).toEqual([
+      { tournamentId: 't2', name: 'Etapa Setembro', date: '20/09/2026', average: '—', reviews: '2', response: '2 de 30', weakest: '—' },
+      { tournamentId: 't1', name: 'Copa Agosto', date: '02/08/2026', average: '4,6', reviews: '23', response: '23 de 42', weakest: 'Cumprimento dos horários' },
+    ]);
   });
 
   it('KPI: média com estrela ou —', () => {

@@ -458,6 +458,7 @@ export class PanelShellComponent {
       ...(showsFinanceiroMenuItem(this.financeiroReach.status(), this.financeiroReach.tournaments())
         ? [{ label: 'Financeiro', icon: 'cash' as OgIconName, link: '/painel/financeiro' }]
         : []),
+      { label: 'Reputação', icon: 'star', link: '/painel/reputacao' },
       { label: 'Links', icon: 'share', link: '/painel/links' },
     ];
   });

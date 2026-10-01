@@ -79,4 +79,24 @@ void main() {
       expect(AnonymousTournamentReview.fromMap('a1', null), isNull);
     });
   });
+
+  group('OrganizerReputation.fromMap', () {
+    test('lê a reputação gravada pelo servidor', () {
+      final r = OrganizerReputation.fromMap({
+        'organizerId': 'o1',
+        'reviewsCount': 86,
+        'tournamentsRated': 5,
+        'average': 4.71,
+      })!;
+      expect(r.reviewsCount, 86);
+      expect(r.tournamentsRated, 5);
+      expect(r.average, 4.71);
+    });
+
+    test('abaixo de 3 a média vem nula; doc ausente vira null', () {
+      final r = OrganizerReputation.fromMap({'reviewsCount': 2, 'tournamentsRated': 1, 'average': null})!;
+      expect(r.average, isNull);
+      expect(OrganizerReputation.fromMap(null), isNull);
+    });
+  });
 }

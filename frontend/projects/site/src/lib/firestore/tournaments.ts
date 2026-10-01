@@ -135,6 +135,7 @@ export async function getTournamentById(id: string): Promise<TournamentDetail | 
       defaultEntryFeeCents: typeof d['defaultEntryFeeCents'] === 'number' ? d['defaultEntryFeeCents'] : null,
       cashPrizesEnabled: Boolean(d['cashPrizesEnabled']),
       categories,
+      managerId: typeof d['managerId'] === 'string' && d['managerId'].trim() ? d['managerId'].trim() : null,
     };
   } catch (err) {
     console.error('[tournaments] getTournamentById failed:', err);

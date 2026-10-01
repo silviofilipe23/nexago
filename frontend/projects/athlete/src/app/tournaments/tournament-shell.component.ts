@@ -10,7 +10,7 @@ import { tournamentListingStatus } from '../data/tournaments-repository';
 import { endOfDay, eventDayOf, startOfDay } from './tournament-days';
 import { type TournamentTabId } from './tournament-live.selectors';
 import { TournamentLiveStore } from './tournament-live.store';
-import { TOURNAMENT_REVIEW_XP, reviewDialogInviteOf } from '../data/tournament-reviews';
+import { TOURNAMENT_REVIEW_XP, organizerLine, reviewDialogInviteOf } from '../data/tournament-reviews';
 import { TournamentReviewDialogComponent } from './review/tournament-review-dialog.component';
 
 function titleCase(input: string): string {
@@ -102,6 +102,10 @@ export class TournamentShellComponent {
     if (place) parts.push(place);
     return parts.join(' · ');
   });
+
+  /** "Organizado por {nome}", com a nota do organizador quando ele tem 3+ avaliações (spec §5).
+   *  Fica na casca porque vale para qualquer torneio e qualquer aba. */
+  protected readonly organizerText = computed(() => organizerLine(this.store.organizerName(), this.store.organizerReputation()));
 
   protected readonly isEnded = computed(() => {
     const t = this.store.tournament();

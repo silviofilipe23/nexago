@@ -19,3 +19,11 @@ final tournamentAnonymousReviewsProvider = StreamProvider.autoDispose
     .family<List<AnonymousTournamentReview>, String>((ref, tournamentId) {
   return ref.watch(organizerTournamentReviewsRepositoryProvider).watchAnonymousReviews(tournamentId);
 });
+
+/// Público: o detalhe do torneio (atleta) mostra a nota do organizador na linha dele.
+final organizerReputationProvider =
+    StreamProvider.autoDispose.family<OrganizerReputation?, String>((ref, organizerId) {
+  return ref
+      .watch(organizerTournamentReviewsRepositoryProvider)
+      .watchOrganizerReputation(organizerId);
+});

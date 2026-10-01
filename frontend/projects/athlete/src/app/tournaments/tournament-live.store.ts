@@ -10,7 +10,15 @@ import { fetchTournamentAnnouncements, type TournamentAnnouncement } from '../da
 import { watchMyRegistrations, type AthleteTournamentRegistration } from '../data/tournament-registrations-repository';
 import { fetchCategoryEnrolledCounts, fetchTournament, type TournamentCategoryOffer, type TournamentSummary } from '../data/tournaments-repository';
 import { fetchMyTournamentReview, watchTournamentReviewInvite } from '../data/tournament-reviews-repository';
-import { shouldLoadMyReview, type MyReviewStatus, type MyTournamentReview, type TournamentReviewInvite } from '../data/tournament-reviews';
+import { PublicTournamentReviewsSource } from '../data/public-tournament-reviews.source';
+import {
+  shouldLoadMyReview,
+  type MyReviewStatus,
+  type MyTournamentReview,
+  type OrganizerReputation,
+  type PublicReviewSummary,
+  type TournamentReviewInvite,
+} from '../data/tournament-reviews';
 import {
   duoAvatarsOf,
   duoInitialsOf,
@@ -54,6 +62,7 @@ const TICK_IDLE_MS = 60_000;
 export class TournamentLiveStore {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly publicReviews = inject(PublicTournamentReviewsSource);
   private readonly db = createFirestore();
   private readonly projectId = environment.firebase.projectId ?? '';
 
@@ -76,6 +85,14 @@ export class TournamentLiveStore {
   readonly myReview = signal<MyTournamentReview | null>(null);
   /** Estado da leitura de `myReview`: o diálogo só monta o formulário de edição em `ready`. */
   readonly myReviewStatus = signal<MyReviewStatus>('idle');
+  /** Resumo público da avaliação (`tournamentReviewSummaries/{id}`), ao vivo — selo e seção. */
+  readonly reviewSummary = signal<PublicReviewSummary | null>(null);
+  /** Reputação pública do organizador do torneio, ao vivo. */
+  readonly organizerReputation = signal<OrganizerReputation | null>(null);
+  /** Nome do organizador (`public_profiles/{managerId}`) — `null` esconde a linha. */
+  readonly organizerName = signal<string | null>(null);
+  /** Computed para o efeito do organizador não reabrir a cada `tournament.set` do mesmo dono. */
+  private readonly managerId = computed(() => this.tournament()?.managerId ?? null);
 
   /** Exposto para as abas que precisam de uma consulta pontual fora do escopo do store
    *  (a Visão geral carrega ligas só para a linha de contexto). */
@@ -246,6 +263,33 @@ export class TournamentLiveStore {
         this.myReview.set(null);
         this.myReviewStatus.set('idle');
       }
+    });
+
+    // Avaliação pública (spec §5): resumo do torneio ao vivo. O doc é público — não depende de
+    // login. Zera na troca de torneio para o selo do anterior não aparecer aqui.
+    effect((onCleanup) => {
+      const tournamentId = this.tournamentId();
+      this.reviewSummary.set(null);
+      if (!tournamentId) return;
+      onCleanup(this.publicReviews.watchSummary(tournamentId, (summary) => this.reviewSummary.set(summary)));
+    });
+
+    // Organizador do torneio: nome (uma leitura) e reputação (ao vivo). O nome que chegar depois
+    // de trocar de organizador é descartado.
+    effect((onCleanup) => {
+      const organizerId = this.managerId();
+      this.organizerReputation.set(null);
+      this.organizerName.set(null);
+      if (!organizerId) return;
+      let active = true;
+      const stop = this.publicReviews.watchReputation(organizerId, (reputation) => this.organizerReputation.set(reputation));
+      void this.publicReviews.fetchOrganizerName(organizerId).then((name) => {
+        if (active) this.organizerName.set(name);
+      });
+      onCleanup(() => {
+        active = false;
+        stop();
+      });
     });
   }
 

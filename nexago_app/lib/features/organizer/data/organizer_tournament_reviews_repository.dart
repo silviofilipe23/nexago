@@ -34,4 +34,15 @@ class OrganizerTournamentReviewsRepository {
                 if (AnonymousTournamentReview.fromMap(doc.id, doc.data()) case final review?) review,
             ]);
   }
+
+  /// Reputação pública do organizador — `null` até a primeira avaliação de um torneio dele.
+  Stream<OrganizerReputation?> watchOrganizerReputation(String organizerId) {
+    final id = organizerId.trim();
+    if (id.isEmpty) return Stream.value(null);
+    return _firestore
+        .collection('organizerReputation')
+        .doc(id)
+        .snapshots()
+        .map((snap) => OrganizerReputation.fromMap(snap.data()));
+  }
 }

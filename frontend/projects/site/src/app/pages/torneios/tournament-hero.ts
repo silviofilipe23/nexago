@@ -31,7 +31,10 @@ gsap.registerPlugin(ScrollTrigger);
   selector: 'app-tournament-hero',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, StatusBadge],
-  host: { class: 'relative block w-full overflow-hidden h-[clamp(26rem,62vh,36rem)]' },
+  // Altura MÍNIMA, não fixa: o link e o texto ficam no fluxo e o herói cresce quando o conteúdo
+  // não cabe (título longo, selo da avaliação, linha do organizador). Com altura fixa e o texto
+  // preso na base, cada linha a mais subia por cima do "Todos os torneios" em telefone baixo.
+  host: { class: 'relative flex w-full flex-col overflow-hidden min-h-[clamp(26rem,62vh,36rem)]' },
   template: `
     <div #imageLayer class="absolute inset-0 scale-[1.08] will-change-transform">
       @if (cover(); as cover) {
@@ -49,7 +52,7 @@ gsap.registerPlugin(ScrollTrigger);
     <div aria-hidden="true" class="absolute inset-0 bg-gradient-to-t from-bg via-bg/55 to-bg/10"></div>
     <div aria-hidden="true" class="absolute inset-0 bg-gradient-to-b from-bg/70 via-transparent to-transparent"></div>
 
-    <div class="absolute inset-x-0 top-0">
+    <div class="relative w-full">
       <div class="mx-auto max-w-4xl px-5 pt-24 sm:px-6 sm:pt-28">
         <a
           routerLink="/torneios"
@@ -63,13 +66,16 @@ gsap.registerPlugin(ScrollTrigger);
       </div>
     </div>
 
-    <div #overlay class="absolute inset-x-0 bottom-0 will-change-transform">
-      <div class="mx-auto max-w-4xl px-5 pb-8 sm:px-6 sm:pb-10">
+    <div #overlay class="relative mt-auto w-full will-change-transform">
+      <div class="mx-auto max-w-4xl px-5 pb-8 pt-6 sm:px-6 sm:pb-10">
         <div class="flex flex-wrap items-center gap-3">
           <span class="font-mono text-xs font-600 uppercase tracking-wider text-text-dim">{{ sportLabel(t().sport) }}</span>
           <app-status-badge [status]="t().listingStatus" />
           @if (t().leagueStageName; as stageName) {
             <span class="text-xs text-text-mute">· {{ stageName }}</span>
+          }
+          @if (reviewBadge(); as badge) {
+            <span class="inline-flex items-center gap-1.5 rounded-pill border border-pending/30 bg-pending/10 px-2.5 py-1 text-xs font-600 text-pending">{{ badge }}</span>
           }
         </div>
 
@@ -103,6 +109,14 @@ gsap.registerPlugin(ScrollTrigger);
             </svg>
             {{ t().enrolledCount }} inscritos
           </span>
+          @if (organizerLine(); as line) {
+            <span class="flex items-center gap-2">
+              <svg class="size-4 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+              </svg>
+              {{ line }}
+            </span>
+          }
         </div>
       </div>
     </div>
@@ -110,6 +124,10 @@ gsap.registerPlugin(ScrollTrigger);
 })
 export class TournamentHero {
   readonly t = input.required<TournamentDetail>();
+  /** Selo "★ 4,6 · 23 avaliações" (spec §5) — `null` abaixo de 3 avaliações ou sem leitura. */
+  readonly reviewBadge = input<string | null>(null);
+  /** "Organizado por {nome}", com a nota do organizador quando ele tem 3+ avaliações. */
+  readonly organizerLine = input<string | null>(null);
 
   protected readonly sportLabel = sportLabel;
   protected readonly formatDate = formatDate;

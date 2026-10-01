@@ -367,7 +367,21 @@ export async function splitArenaBookingPaymentCore(
     );
   }
 
+  const previousSuperseded = Array.isArray(booking.supersededAsaasPaymentIds) ?
+    (booking.supersededAsaasPaymentIds as unknown[])
+      .filter((v): v is string => typeof v === "string") :
+    [];
+
   if (originalStillOpen) {
+    // Marca a original como substituída ANTES de cancelar: o cancelamento
+    // dispara um webhook do Asaas, e se ele chegar antes do write final deste
+    // callable (mais abaixo), o guard do webhook (Task 2) precisa achar o
+    // paymentId aqui pra não cancelar a reserva por engano.
+    await bookingRef.set({
+      supersededAsaasPaymentIds: [...previousSuperseded, originalPaymentId],
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+
     try {
       await originalCharge.cancelOrThrow(originalPaymentId);
     } catch (e) {
@@ -375,18 +389,40 @@ export async function splitArenaBookingPaymentCore(
         `splitArenaBookingPayment: falha ao cancelar a cobrança original ${originalPaymentId}`,
         e,
       );
-      await rollbackShares();
-      throw new HttpsError(
-        "unavailable",
-        "Não foi possível cancelar o PIX anterior desta reserva. Tente novamente.",
+
+      // A falha pode ter sido um timeout DEPOIS de o Asaas já ter apagado a
+      // cobrança — reconfere o status antes de desfazer tudo, pra não fazer
+      // rollback de uma divisão que na verdade já está correta.
+      let stillOpenAfterFailure = true;
+      try {
+        const statusAfterFailure = await originalCharge.getStatus(originalPaymentId);
+        stillOpenAfterFailure = statusAfterFailure !== ORIGINAL_CHARGE_GONE_STATUS;
+      } catch (statusErr) {
+        logger.error(
+          `splitArenaBookingPayment: falha ao reconferir status da original ` +
+          `${originalPaymentId} após erro no cancelamento`,
+          statusErr,
+        );
+      }
+
+      if (stillOpenAfterFailure) {
+        await rollbackShares();
+        await bookingRef.set({
+          supersededAsaasPaymentIds: previousSuperseded,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, {merge: true});
+        throw new HttpsError(
+          "unavailable",
+          "Não foi possível cancelar o PIX anterior desta reserva. Tente novamente.",
+        );
+      }
+
+      logger.info(
+        `splitArenaBookingPayment: cancelamento da original ${originalPaymentId} falhou mas ` +
+        "ela já estava apagada no Asaas; seguindo com a divisão",
       );
     }
   }
-
-  const previousSuperseded = Array.isArray(booking.supersededAsaasPaymentIds) ?
-    (booking.supersededAsaasPaymentIds as unknown[])
-      .filter((v): v is string => typeof v === "string") :
-    [];
 
   await bookingRef.set({
     hasSplitShares: true,
@@ -582,7 +618,7 @@ export const splitArenaBookingPayment = onCall({
       try {
         return normalizeOriginalChargeStatus(await getAsaasPayment(paymentId));
       } catch (e) {
-        if (e instanceof AsaasApiError && e.httpStatus === 404) return "DELETED";
+        if (e instanceof AsaasApiError && e.httpStatus === 404) return ORIGINAL_CHARGE_GONE_STATUS;
         throw e;
       }
     },

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/notifications/notification_navigation.dart';
+import '../../../core/router/routes.dart';
 
 import '../../../core/theme/app_colors.dart';
 import 'athlete_inbox_notification.dart';
@@ -419,6 +420,29 @@ AthleteNotificationPresentation notificationPresentation(
         icon: Icons.leaderboard_outlined,
         iconColor: AppColors.win,
         iconBackground: AppColors.win.withValues(alpha: 0.12),
+      );
+    case 'tournament_review_request':
+    case 'tournament_review_reminder':
+      final reviewTournamentId = data['tournamentId'] ?? '';
+      final reviewUrl = data['url'] ?? '';
+      final reviewRoutePath = reviewTournamentId.isNotEmpty
+          ? AppRoutes.tournamentReview.replaceAll(':tournamentId', reviewTournamentId)
+          : reviewUrl.startsWith('/')
+              ? reviewUrl
+              : null;
+      return AthleteNotificationPresentation(
+        icon: Icons.star_rounded,
+        iconColor: AppColors.brand,
+        iconBackground: AppColors.brand.withValues(alpha: 0.15),
+        actions: reviewRoutePath == null
+            ? const []
+            : const [
+                AthleteNotificationAction(
+                  label: 'Avaliar',
+                  kind: AthleteNotificationActionKind.primary,
+                ),
+              ],
+        routePath: reviewRoutePath,
       );
     default:
       final url = data['url'] ?? '';

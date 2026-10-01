@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -30,7 +32,9 @@ void main() {
     WidgetTester tester, {
     required TournamentReviewInvite? invite,
     MyTournamentReview? existing,
+    Future<MyTournamentReview?> Function()? existingFuture,
     required _FakeReviewService service,
+    bool settle = true,
   }) async {
     final router = GoRouter(
       initialLocation: '/torneios/t1/avaliar',
@@ -55,12 +59,18 @@ void main() {
     await tester.pumpWidget(ProviderScope(
       overrides: [
         tournamentReviewInviteProvider('t1').overrideWith((ref) => Stream.value(invite)),
-        myTournamentReviewProvider('t1').overrideWith((ref) async => existing),
+        myTournamentReviewProvider('t1').overrideWith(
+            (ref) => existingFuture != null ? existingFuture() : Future.value(existing)),
         tournamentReviewServiceProvider.overrideWithValue(service),
       ],
       child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
     ));
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+      await tester.pump();
+    }
   }
 
   Future<void> tapKey(WidgetTester tester, String key) async {
@@ -128,6 +138,46 @@ void main() {
     expect(service.submits.single.overall, 3);
     expect(service.submits.single.aspects, {TournamentReviewAspect.venue: 2});
     expect(find.text('Avaliação atualizada.'), findsOneWidget);
+  });
+
+  testWidgets('edição: enquanto a avaliação salva carrega, não há formulário para salvar por cima', (tester) async {
+    await pumpPage(
+      tester,
+      invite: invite(status: TournamentReviewInviteStatus.submitted),
+      existingFuture: () => Completer<MyTournamentReview?>().future,
+      service: _FakeReviewService(),
+      settle: false,
+    );
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byKey(const ValueKey('review-submit')), findsNothing);
+  });
+
+  testWidgets('edição: se a avaliação salva não carrega, avisa e oferece tentar de novo', (tester) async {
+    await pumpPage(
+      tester,
+      invite: invite(status: TournamentReviewInviteStatus.submitted),
+      existingFuture: () => Future<MyTournamentReview?>.error(Exception('rede')),
+      service: _FakeReviewService(),
+    );
+    expect(find.text('Não foi possível carregar sua avaliação.'), findsOneWidget);
+    expect(find.text('Tentar novamente'), findsOneWidget);
+    expect(find.byKey(const ValueKey('review-submit')), findsNothing);
+  });
+
+  testWidgets('edição: tirar um aspecto pré-preenchido some do envio', (tester) async {
+    final service = _FakeReviewService()..created = false;
+    await pumpPage(
+      tester,
+      invite: invite(status: TournamentReviewInviteStatus.submitted),
+      existing: const MyTournamentReview(
+        overall: 4,
+        aspects: {TournamentReviewAspect.venue: 2, TournamentReviewAspect.schedule: 5},
+      ),
+      service: service,
+    );
+    await tapKey(tester, 'venue-2');
+    await tapKey(tester, 'review-submit');
+    expect(service.submits.single.aspects, {TournamentReviewAspect.schedule: 5});
   });
 
   testWidgets('convite vencido (ainda pending) mostra encerrada e nenhum formulário', (tester) async {

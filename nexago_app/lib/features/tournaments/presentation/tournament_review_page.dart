@@ -36,7 +36,8 @@ class _TournamentReviewPageState extends ConsumerState<TournamentReviewPage> {
   @override
   void initState() {
     super.initState();
-    // Edição: pré-preenche UMA vez com a avaliação salva, sem atropelar o que o atleta já mexeu.
+    // Edição: pré-preenche UMA vez com a avaliação salva. Não atropela o atleta porque, em modo
+    // edição, o formulário só aparece depois disto (ver `_content`).
     ref.listenManual<AsyncValue<MyTournamentReview?>>(
       myTournamentReviewProvider(widget.tournamentId),
       (_, next) {
@@ -97,6 +98,35 @@ class _TournamentReviewPageState extends ConsumerState<TournamentReviewPage> {
     final theme = Theme.of(context);
     final muted = context.themeColors.onSurfaceMuted;
     final isEdit = state == TournamentReviewCtaState.submitted;
+    // Edição: o formulário só aparece com a avaliação salva já carregada. Antes disso ele viria
+    // vazio, e salvar por cima apagaria aspectos e comentário (o servidor grava sem merge).
+    if (isEdit && !_prefilled) {
+      final mine = ref.watch(myTournamentReviewProvider(widget.tournamentId));
+      if (mine.hasError || (mine.hasValue && mine.value == null)) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Não foi possível carregar sua avaliação.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyLarge,
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: () => ref.invalidate(
+                      myTournamentReviewProvider(widget.tournamentId)),
+                  child: const Text('Tentar novamente'),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+      return const Center(child: CircularProgressIndicator());
+    }
     final eyebrow = theme.textTheme.labelSmall?.copyWith(
       color: muted,
       fontWeight: FontWeight.w800,

@@ -47,6 +47,17 @@ class MyTournamentStaffEntry {
   }
 }
 
+/// Entradas que dão operação de torneio NO APP: ativas e não-mídia. A mídia
+/// (01/10/2026) opera só a tela Transmissão do portal web; aqui ela não tem
+/// rota nenhuma — e por isso também não aparece em "Torneios que eu opero".
+List<MyTournamentStaffEntry> operableStaffEntries(
+  Iterable<MyTournamentStaffEntry> entries,
+) {
+  return entries
+      .where((e) => e.isActive && e.role != TournamentStaffRole.media)
+      .toList();
+}
+
 /// Torneios em que o usuário logado é staff ativo. Mantido vivo (sem
 /// autoDispose): o guard de rotas lê este provider a cada navegação para
 /// liberar `/organizer/tournaments/...` a atletas que operam torneios.
@@ -58,10 +69,9 @@ final myTournamentStaffEntriesProvider =
       .collection('users/${user.uid}/tournamentStaff')
       .snapshots()
       .map((snap) {
-    final entries = snap.docs
-        .map(MyTournamentStaffEntry.fromFirestore)
-        .where((entry) => entry.isActive)
-        .toList();
+    final entries = operableStaffEntries(
+      snap.docs.map(MyTournamentStaffEntry.fromFirestore),
+    );
     entries.sort((a, b) {
       final aDate = a.startAt;
       final bDate = b.startAt;

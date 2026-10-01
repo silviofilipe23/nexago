@@ -243,6 +243,11 @@ export const routes: Routes = [
             loadComponent: () => import('./painel/equipe/equipe.component').then((m) => m.EquipeComponent),
           },
           {
+            path: 'avaliacoes',
+            title: 'Avaliações — NexaGO Organizador',
+            loadComponent: () => import('./painel/avaliacoes/avaliacoes-torneio.component').then((m) => m.AvaliacoesTorneioComponent),
+          },
+          {
             path: 'nova-etapa',
             title: 'Nova etapa — NexaGO Organizador',
             loadComponent: () => import('./painel/eventos/wizard/criar-etapa.component').then((m) => m.CriarEtapaComponent),

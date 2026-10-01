@@ -18,6 +18,10 @@ describe('app.routes', () => {
     expect(findRoute(routes, ['painel', 'eventos/:id', 'telao'])).not.toBeNull();
   });
 
+  it('serve as avaliações como aba do torneio', () => {
+    expect(findRoute(routes, ['painel', 'eventos/:id', 'avaliacoes'])).not.toBeNull();
+  });
+
   it('manda o link antigo do telão global pra lista de eventos', () => {
     expect(findRoute(routes, ['painel', 'telao'])?.redirectTo).toBe('eventos');
   });

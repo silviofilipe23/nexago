@@ -71,6 +71,9 @@ gsap.registerPlugin(ScrollTrigger);
           @if (t().leagueStageName; as stageName) {
             <span class="text-xs text-text-mute">· {{ stageName }}</span>
           }
+          @if (reviewBadge(); as badge) {
+            <span class="inline-flex items-center gap-1.5 rounded-pill border border-pending/30 bg-pending/10 px-2.5 py-1 text-xs font-600 text-pending">{{ badge }}</span>
+          }
         </div>
 
         <h1 class="mt-4 font-display text-[clamp(2rem,6vw,3.25rem)] font-800 leading-tight tracking-tight text-fg">
@@ -103,6 +106,14 @@ gsap.registerPlugin(ScrollTrigger);
             </svg>
             {{ t().enrolledCount }} inscritos
           </span>
+          @if (organizerLine(); as line) {
+            <span class="flex items-center gap-2">
+              <svg class="size-4 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+              </svg>
+              {{ line }}
+            </span>
+          }
         </div>
       </div>
     </div>
@@ -110,6 +121,10 @@ gsap.registerPlugin(ScrollTrigger);
 })
 export class TournamentHero {
   readonly t = input.required<TournamentDetail>();
+  /** Selo "★ 4,6 · 23 avaliações" (spec §5) — `null` abaixo de 3 avaliações ou sem leitura. */
+  readonly reviewBadge = input<string | null>(null);
+  /** "Organizado por {nome}", com a nota do organizador quando ele tem 3+ avaliações. */
+  readonly organizerLine = input<string | null>(null);
 
   protected readonly sportLabel = sportLabel;
   protected readonly formatDate = formatDate;

@@ -51,3 +51,18 @@ describe('TournamentLiveStore — reconhecimento da chamada de quadra', () => {
     expect(store.acknowledgedCall).toBe('m2');
   });
 });
+
+describe('TournamentLiveStore — avaliação do torneio', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('sem usuário não há convite nem avaliação própria', () => {
+    TestBed.configureTestingModule({
+      providers: [provideZonelessChangeDetection(), TournamentLiveStore, { provide: AuthService, useValue: { user: signal(null) } }],
+    });
+    const store = TestBed.inject(TournamentLiveStore);
+    store.tournamentId.set('t1');
+    TestBed.tick();
+    expect(store.reviewInvite()).toBeNull();
+    expect(store.myReview()).toBeNull();
+  });
+});

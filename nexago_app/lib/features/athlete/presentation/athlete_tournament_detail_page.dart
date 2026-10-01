@@ -11,6 +11,7 @@ import '../domain/match_history/athlete_tournament_detail_providers.dart';
 import 'widgets/tournament_detail/tournament_detail_campaign_section.dart';
 import 'widgets/tournament_detail/tournament_detail_info_cards.dart';
 import 'widgets/tournament_detail/tournament_detail_summary_card.dart';
+import '../../tournaments/presentation/widgets/tournament_review/tournament_review_cta.dart';
 
 /// Detalhes do torneio na visão do atleta — campanha e jogos (protótipo 10).
 class AthleteTournamentDetailPage extends ConsumerWidget {
@@ -116,6 +117,7 @@ class _DetailBody extends StatelessWidget {
       children: [
         TournamentDetailSummaryCard(detail: detail),
         SizedBox(height: 12),
+        TournamentReviewCta(tournamentId: detail.tournamentId),
         TournamentDetailInfoCards(detail: detail),
         SizedBox(height: 24),
         TournamentDetailCampaignSection(

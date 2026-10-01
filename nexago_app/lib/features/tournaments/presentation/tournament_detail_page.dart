@@ -31,6 +31,7 @@ import 'widgets/tournament_detail/tournament_detail_bottom_bar.dart';
 import 'widgets/tournament_detail/tournament_detail_explore_section.dart';
 import 'widgets/tournament_detail/tournament_detail_hero.dart';
 import 'widgets/tournament_detail/tournament_detail_tournament_info_section.dart';
+import 'widgets/tournament_review/tournament_review_cta.dart';
 
 void _handleTournamentDetailBack(BuildContext context) {
   if (context.canPop()) {
@@ -412,6 +413,12 @@ class _TournamentDetailContentState
                     AppRouteNames.tournamentPredictions,
                     pathParameters: {'tournamentId': widget.tournament.id},
                   ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: TournamentReviewCta(
+                  tournamentId: widget.tournament.id,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
                 ),
               ),
               SliverToBoxAdapter(

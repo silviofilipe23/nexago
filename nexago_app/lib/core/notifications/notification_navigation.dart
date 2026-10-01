@@ -142,6 +142,15 @@ String? appRouteForNotificationUrl(String? raw) {
 String? resolveNotificationRoute(Map<String, dynamic> data) {
   final type = (data['type'] as String?)?.toLowerCase().trim() ?? '';
 
+  // Avaliação do torneio: o payload leva `url: /torneios/{id}` para o app ANTIGO, que não tem o
+  // formulário. Este build abre a avaliação direto — por isso o tipo vem antes da url.
+  if (type == 'tournament_review_request' || type == 'tournament_review_reminder') {
+    final reviewTournamentId = (data['tournamentId'] as String?)?.trim() ?? '';
+    if (reviewTournamentId.isNotEmpty) {
+      return AppRoutes.tournamentReview.replaceAll(':tournamentId', reviewTournamentId);
+    }
+  }
+
   final url = appRouteForNotificationUrl(data['url'] as String?);
   if (url != null) return url;
 

@@ -3,6 +3,44 @@ import 'package:nexago_app/core/notifications/notification_navigation.dart';
 
 void main() {
   group('resolveNotificationRoute', () {
+    test('pedido de avaliação abre o formulário, mesmo com a url do app antigo', () {
+      expect(
+        resolveNotificationRoute({
+          'type': 'tournament_review_request',
+          'tournamentId': 't1',
+          'url': '/torneios/t1',
+        }),
+        '/torneios/t1/avaliar',
+      );
+      expect(
+        resolveNotificationRoute({
+          'type': 'tournament_review_reminder',
+          'tournamentId': 't1',
+          'url': '/torneios/t1',
+        }),
+        '/torneios/t1/avaliar',
+      );
+    });
+
+    test('avaliação sem tournamentId cai na url do payload', () {
+      expect(
+        resolveNotificationRoute(
+            {'type': 'tournament_review_request', 'url': '/torneios/t1'}),
+        '/torneios/t1',
+      );
+    });
+
+    test('fechamento das avaliações (organizador) continua na url, nesta fase', () {
+      expect(
+        resolveNotificationRoute({
+          'type': 'tournament_review_closed',
+          'tournamentId': 't1',
+          'url': '/organizer/tournaments/t1',
+        }),
+        '/organizer/tournaments/t1',
+      );
+    });
+
     test('tournament_partner_invite_accepted prefers url field', () {
       final route = resolveNotificationRoute({
         'type': 'tournament_partner_invite_accepted',

@@ -82,6 +82,13 @@ describe('TournamentReviewDialogComponent', () => {
     expect(el.querySelector('.trv-btn-primary')!.textContent).toContain('Salvar alterações');
   });
 
+  it('em tela baixa o diálogo rola, sem esmagar o campo de comentário', () => {
+    const { el } = setup();
+    const textarea = el.querySelector('.trv-comment') as HTMLTextAreaElement;
+    // rows=3 dá ~66px de conteúdo; o flex encolhia o campo para ~26px num celular.
+    expect(textarea.getBoundingClientRect().height).toBeGreaterThanOrEqual(textarea.scrollHeight);
+  });
+
   it('erro do servidor fica no diálogo e nada é emitido', async () => {
     submitter.submit.and.rejectWith(new TournamentReviewError('A avaliação deste torneio foi encerrada.'));
     const { fixture, el, click } = setup();

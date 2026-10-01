@@ -5,6 +5,9 @@
   background: var(--nx-surface-0); border: 1px solid var(--nx-line); border-radius: var(--nx-r-5);
   padding: 22px; display: flex; flex-direction: column; gap: 10px;
   @media (max-width: 640px) { padding: 18px 16px; }
+  // Coluna flex com altura máxima: sem isto o navegador encolhe os filhos (o comentário virava
+  // uma linha de 26px no celular) em vez de deixar o diálogo rolar.
+  > * { flex-shrink: 0; }
 }
 .trv-eyebrow-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .trv-eyebrow { font-family: var(--nx-font-mono); font-size: 12px; font-weight: 700; letter-spacing: 0.04em; color: var(--nx-orange-500); }

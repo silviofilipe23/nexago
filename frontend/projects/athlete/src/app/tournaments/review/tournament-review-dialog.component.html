@@ -13,84 +13,103 @@
     {{ isEdit() ? 'Dá pra editar até ' + closesLabel() : 'Sua nota ajuda o organizador a melhorar o próximo evento.' }}
   </p>
 
-  <p class="trv-section-label">NOTA GERAL</p>
-  <div class="trv-stars" role="radiogroup" aria-label="Nota geral do torneio">
-    @for (star of stars; track star) {
-      <button
-        #starBtn
-        type="button"
-        class="trv-star"
-        [class.trv-star--filled]="(overall() ?? 0) >= star"
-        role="radio"
-        [attr.data-overall]="star"
-        [attr.aria-checked]="overall() === star"
-        [attr.aria-label]="star + ' de 5'"
-        [attr.tabindex]="(overall() ?? 1) === star ? 0 : -1"
-        [disabled]="sending()"
-        (click)="setOverall(star)"
-        (keydown)="onStarKeydown($event, star)"
-      >
-        <svg width="26" height="26" viewBox="0 0 24 24" [attr.fill]="(overall() ?? 0) >= star ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2Z" />
-        </svg>
-      </button>
-    }
-  </div>
-  @if (ratingText(); as label) {
-    <p class="trv-rating-label">{{ label }}</p>
-  }
-
-  <p class="trv-section-label">QUER DETALHAR? OPCIONAL</p>
-  <div class="trv-aspects">
-    @for (aspect of aspectList; track aspect.key) {
-      <div class="trv-aspect-row">
-        <span class="trv-aspect-label">{{ aspect.label }}</span>
-        <div class="trv-aspect-stars" role="group" [attr.aria-label]="aspect.label">
-          @for (star of stars; track star) {
-            <button
-              type="button"
-              class="trv-mini-star"
-              [class.trv-mini-star--filled]="aspectValue(aspect.key) >= star"
-              [attr.data-aspect]="aspect.key"
-              [attr.data-star]="star"
-              [attr.aria-pressed]="aspectValue(aspect.key) === star"
-              [attr.aria-label]="aspect.label + ': ' + star + ' de 5'"
-              [disabled]="sending()"
-              (click)="setAspect(aspect.key, star)"
-            >★</button>
-          }
-        </div>
+  @switch (bodyState()) {
+    @case ('loading') {
+      <div class="trv-loading" role="status">
+        <app-nx-spinner [size]="24" />
+        <span>Carregando sua avaliação…</span>
+      </div>
+      <div class="trv-actions">
+        <button type="button" class="trv-btn-ghost" (click)="dismiss()">Agora não</button>
       </div>
     }
-  </div>
-
-  <p class="trv-section-label">COMENTÁRIO · OPCIONAL</p>
-  <textarea
-    class="trv-comment"
-    rows="3"
-    [attr.maxlength]="commentMax"
-    placeholder="O que o organizador deveria manter ou mudar?"
-    aria-label="Comentário para o organizador"
-    [value]="comment()"
-    [disabled]="sending()"
-    (input)="onCommentInput($any($event.target).value)"
-  ></textarea>
-  <div class="trv-comment-foot">
-    <span class="trv-warning">O organizador lê sem o seu nome. Evite se identificar no texto.</span>
-    <span class="trv-counter">{{ commentLength() }}/{{ commentMax }}</span>
-  </div>
-
-  @if (error(); as message) {
-    <app-nx-inline-message class="trv-error" heading="Não foi possível enviar sua avaliação" [body]="message" actionLabel="Tentar novamente" (action)="submit()" />
-  }
-
-  <div class="trv-actions">
-    <button type="button" class="trv-btn-ghost" [disabled]="sending()" (click)="dismiss()">Agora não</button>
-    <button type="button" class="trv-btn-primary" [disabled]="!canSubmit()" (click)="submit()">
-      @if (sending()) {
-        <app-nx-spinner [size]="16" tone="dark" />
+    @case ('error') {
+      <app-nx-inline-message class="trv-error" heading="Não foi possível carregar sua avaliação" body="Sem ela, salvar agora apagaria o que você já tinha escrito." actionLabel="Tentar novamente" (action)="retryLoad()" />
+      <div class="trv-actions">
+        <button type="button" class="trv-btn-ghost" (click)="dismiss()">Agora não</button>
+      </div>
+    }
+    @default {
+      <p class="trv-section-label">NOTA GERAL</p>
+      <div class="trv-stars" role="radiogroup" aria-label="Nota geral do torneio">
+        @for (star of stars; track star) {
+          <button
+            #starBtn
+            type="button"
+            class="trv-star"
+            [class.trv-star--filled]="(overall() ?? 0) >= star"
+            role="radio"
+            [attr.data-overall]="star"
+            [attr.aria-checked]="overall() === star"
+            [attr.aria-label]="star + ' de 5'"
+            [attr.tabindex]="(overall() ?? 1) === star ? 0 : -1"
+            [disabled]="sending()"
+            (click)="setOverall(star)"
+            (keydown)="onStarKeydown($event, star)"
+          >
+            <svg width="26" height="26" viewBox="0 0 24 24" [attr.fill]="(overall() ?? 0) >= star ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2Z" />
+            </svg>
+          </button>
+        }
+      </div>
+      @if (ratingText(); as label) {
+        <p class="trv-rating-label">{{ label }}</p>
       }
-      {{ submitLabel() }}
-    </button>
-  </div>
+
+      <p class="trv-section-label">QUER DETALHAR? OPCIONAL</p>
+      <div class="trv-aspects">
+        @for (aspect of aspectList; track aspect.key) {
+          <div class="trv-aspect-row">
+            <span class="trv-aspect-label">{{ aspect.label }}</span>
+            <div class="trv-aspect-stars" role="group" [attr.aria-label]="aspect.label">
+              @for (star of stars; track star) {
+                <button
+                  type="button"
+                  class="trv-mini-star"
+                  [class.trv-mini-star--filled]="aspectValue(aspect.key) >= star"
+                  [attr.data-aspect]="aspect.key"
+                  [attr.data-star]="star"
+                  [attr.aria-pressed]="aspectValue(aspect.key) === star"
+                  [attr.aria-label]="aspect.label + ': ' + star + ' de 5'"
+                  [disabled]="sending()"
+                  (click)="setAspect(aspect.key, star)"
+                >★</button>
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      <p class="trv-section-label">COMENTÁRIO · OPCIONAL</p>
+      <textarea
+        class="trv-comment"
+        rows="3"
+        [attr.maxlength]="commentMax"
+        placeholder="O que o organizador deveria manter ou mudar?"
+        aria-label="Comentário para o organizador"
+        [value]="comment()"
+        [disabled]="sending()"
+        (input)="onCommentInput($any($event.target).value)"
+      ></textarea>
+      <div class="trv-comment-foot">
+        <span class="trv-warning">O organizador lê sem o seu nome. Evite se identificar no texto.</span>
+        <span class="trv-counter">{{ commentLength() }}/{{ commentMax }}</span>
+      </div>
+
+      @if (error(); as message) {
+        <app-nx-inline-message class="trv-error" heading="Não foi possível enviar sua avaliação" [body]="message" actionLabel="Tentar novamente" (action)="submit()" />
+      }
+
+      <div class="trv-actions">
+        <button type="button" class="trv-btn-ghost" [disabled]="sending()" (click)="dismiss()">Agora não</button>
+        <button type="button" class="trv-btn-primary" [disabled]="!canSubmit()" (click)="submit()">
+          @if (sending()) {
+            <app-nx-spinner [size]="16" tone="dark" />
+          }
+          {{ submitLabel() }}
+        </button>
+      </div>
+    }
+  }
 </div>

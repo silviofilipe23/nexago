@@ -115,7 +115,7 @@ export class TournamentShellComponent {
   /** O diálogo de avaliação abre por `?avaliar=1` (card do painel, botão das abas, link
    *  `torneios/:id/avaliar`, inbox) e só com convite aberto. */
   protected readonly reviewDialogInvite = computed(() =>
-    reviewDialogInviteOf(this.reviewRequested(), this.store.reviewInvite(), this.store.now()),
+    reviewDialogInviteOf(this.reviewRequested(), this.store.reviewInvite(), this.store.now(), this.id()),
   );
 
   protected onReviewSubmitted(result: { created: boolean }): void {

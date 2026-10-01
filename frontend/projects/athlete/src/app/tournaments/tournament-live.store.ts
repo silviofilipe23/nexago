@@ -1,4 +1,4 @@
-import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore, type Unsubscribe } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
@@ -10,7 +10,7 @@ import { fetchTournamentAnnouncements, type TournamentAnnouncement } from '../da
 import { watchMyRegistrations, type AthleteTournamentRegistration } from '../data/tournament-registrations-repository';
 import { fetchCategoryEnrolledCounts, fetchTournament, type TournamentCategoryOffer, type TournamentSummary } from '../data/tournaments-repository';
 import { fetchMyTournamentReview, watchTournamentReviewInvite } from '../data/tournament-reviews-repository';
-import type { MyTournamentReview, TournamentReviewInvite } from '../data/tournament-reviews';
+import { shouldLoadMyReview, type MyReviewStatus, type MyTournamentReview, type TournamentReviewInvite } from '../data/tournament-reviews';
 import {
   duoAvatarsOf,
   duoInitialsOf,
@@ -74,6 +74,8 @@ export class TournamentLiveStore {
   readonly reviewInvite = signal<TournamentReviewInvite | null>(null);
   /** A avaliação do próprio atleta — só é lida depois de o convite dizer `submitted`. */
   readonly myReview = signal<MyTournamentReview | null>(null);
+  /** Estado da leitura de `myReview`: o diálogo só monta o formulário de edição em `ready`. */
+  readonly myReviewStatus = signal<MyReviewStatus>('idle');
 
   /** Exposto para as abas que precisam de uma consulta pontual fora do escopo do store
    *  (a Visão geral carrega ligas só para a linha de contexto). */
@@ -221,10 +223,10 @@ export class TournamentLiveStore {
       const tournamentId = this.tournamentId();
       const uid = this.auth.user()?.uid;
       const db = this.db;
-      if (!db || !uid || !tournamentId) {
-        this.reviewInvite.set(null);
-        return;
-      }
+      // O store vive entre torneios (é provido na rota): o convite do anterior não pode valer
+      // aqui nem por um instante.
+      this.reviewInvite.set(null);
+      if (!db || !uid || !tournamentId) return;
       onCleanup(
         watchTournamentReviewInvite(
           db,
@@ -237,8 +239,13 @@ export class TournamentLiveStore {
     });
 
     effect(() => {
-      if (this.reviewInvite()?.status === 'submitted') void this.reloadMyReview();
-      else this.myReview.set(null);
+      if (shouldLoadMyReview(this.reviewInvite(), this.tournamentId())) {
+        // `untracked`: a leitura em si não deve virar dependência deste effect.
+        untracked(() => void this.reloadMyReview());
+      } else {
+        this.myReview.set(null);
+        this.myReviewStatus.set('idle');
+      }
     });
   }
 
@@ -248,14 +255,21 @@ export class TournamentLiveStore {
     const tournamentId = this.tournamentId();
     const uid = this.auth.user()?.uid;
     const db = this.db;
-    if (!db || !uid || !tournamentId) {
+    if (!db || !uid || !tournamentId || !shouldLoadMyReview(this.reviewInvite(), tournamentId)) {
       this.myReview.set(null);
+      this.myReviewStatus.set('idle');
       return;
     }
+    this.myReviewStatus.set('loading');
     try {
-      this.myReview.set(await fetchMyTournamentReview(db, uid, tournamentId));
+      const review = await fetchMyTournamentReview(db, uid, tournamentId);
+      // Resposta atrasada de outro torneio não cai neste.
+      if (this.tournamentId() !== tournamentId) return;
+      this.myReview.set(review);
+      this.myReviewStatus.set(review ? 'ready' : 'error');
     } catch {
-      // A avaliação própria é enriquecimento ("Você avaliou ★ N"): falha mantém o último estado.
+      if (this.tournamentId() !== tournamentId) return;
+      this.myReviewStatus.set('error');
     }
   }
 

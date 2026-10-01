@@ -59,3 +59,7 @@
   border-radius: var(--nx-r-2); cursor: pointer;
   &:disabled { cursor: default; opacity: 0.6; }
 }
+.trv-loading {
+  display: flex; align-items: center; justify-content: center; gap: 10px; padding: 24px 0;
+  font-size: 14px; color: var(--nx-text-mute);
+}

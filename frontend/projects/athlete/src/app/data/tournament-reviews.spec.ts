@@ -9,6 +9,7 @@ import {
   reviewDialogInviteOf,
   reviewQuestion,
   reviewRatingLabel,
+  shouldLoadMyReview,
   type TournamentReviewInvite,
 } from './tournament-reviews';
 
@@ -54,11 +55,19 @@ describe('tournament-reviews (regras puras)', () => {
     expect(list.map((i) => i.tournamentId)).toEqual(['soon', 'late']);
   });
 
-  it('reviewDialogInviteOf: só abre com ?avaliar=1 e convite aberto', () => {
-    expect(reviewDialogInviteOf(false, invite(), NOW)).toBeNull();
-    expect(reviewDialogInviteOf(true, null, NOW)).toBeNull();
-    expect(reviewDialogInviteOf(true, invite({ closesAt: NOW }), NOW)).toBeNull();
-    expect(reviewDialogInviteOf(true, invite(), NOW)?.tournamentId).toBe('t1');
+  it('reviewDialogInviteOf: só abre com ?avaliar=1, convite aberto e do torneio da rota', () => {
+    expect(reviewDialogInviteOf(false, invite(), NOW, 't1')).toBeNull();
+    expect(reviewDialogInviteOf(true, null, NOW, 't1')).toBeNull();
+    expect(reviewDialogInviteOf(true, invite({ closesAt: NOW }), NOW, 't1')).toBeNull();
+    expect(reviewDialogInviteOf(true, invite(), NOW, 't2')).toBeNull();
+    expect(reviewDialogInviteOf(true, invite(), NOW, 't1')?.tournamentId).toBe('t1');
+  });
+
+  it('shouldLoadMyReview: só com convite submitted DESTE torneio (a rule nega doc inexistente)', () => {
+    expect(shouldLoadMyReview(invite({ status: 'submitted' }), 't1')).toBeTrue();
+    expect(shouldLoadMyReview(invite({ status: 'submitted' }), 't2')).toBeFalse();
+    expect(shouldLoadMyReview(invite(), 't1')).toBeFalse();
+    expect(shouldLoadMyReview(null, 't1')).toBeFalse();
   });
 
   it('reviewQuestion: o artigo concorda com "torneio"', () => {

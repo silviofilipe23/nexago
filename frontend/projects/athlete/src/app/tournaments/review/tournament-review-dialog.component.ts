@@ -21,6 +21,7 @@ import {
   reviewDayMonth,
   reviewQuestion,
   reviewRatingLabel,
+  type MyReviewStatus,
   type MyTournamentReview,
   type TournamentReviewAspectKey,
   type TournamentReviewAspects,
@@ -53,8 +54,13 @@ export class TournamentReviewDialogComponent {
   readonly invite = input.required<TournamentReviewInvite>();
   /** Avaliação já enviada (edição) — pré-preenche o formulário. */
   readonly existing = input<MyTournamentReview | null>(null);
+  /** Estado da leitura de `existing`. Na edição o formulário só monta em `ready`: antes disso ele
+   *  viria vazio, e salvar por cima apagaria aspectos e comentário (o servidor grava sem merge). */
+  readonly existingStatus = input<MyReviewStatus>('ready');
   readonly submitted = output<{ created: boolean }>();
   readonly dismissed = output<void>();
+  /** A leitura da avaliação salva falhou e o atleta pediu para tentar de novo. */
+  readonly retryExisting = output<void>();
 
   protected readonly stars: readonly number[] = [1, 2, 3, 4, 5];
   protected readonly aspectList = TOURNAMENT_REVIEW_ASPECTS;
@@ -77,6 +83,13 @@ export class TournamentReviewDialogComponent {
   }
 
   protected readonly isEdit = computed(() => this.invite().status === 'submitted');
+  /** O que o corpo mostra: o formulário, ou (só na edição) a espera/falha da avaliação salva. */
+  protected readonly bodyState = computed<'form' | 'loading' | 'error'>(() => {
+    if (!this.isEdit()) return 'form';
+    const status = this.existingStatus();
+    if (status === 'ready') return 'form';
+    return status === 'error' ? 'error' : 'loading';
+  });
   protected readonly question = computed(() => reviewQuestion(this.invite().tournamentName));
   protected readonly closesLabel = computed(() => reviewDayMonth(this.invite().closesAt));
   protected readonly ratingText = computed(() => reviewRatingLabel(this.overall()));
@@ -124,6 +137,10 @@ export class TournamentReviewDialogComponent {
   protected dismiss(): void {
     if (this.sending()) return;
     this.dismissed.emit();
+  }
+
+  protected retryLoad(): void {
+    this.retryExisting.emit();
   }
 
   protected onTabKey(event: Event, backward: boolean): void {

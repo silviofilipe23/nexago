@@ -104,14 +104,25 @@ export function openPendingReviews(invites: readonly TournamentReviewInvite[], n
     .sort((a, b) => a.closesAt.getTime() - b.closesAt.getTime());
 }
 
-/** O diálogo abre só com `?avaliar=1` E convite aberto — link velho não abre formulário morto. */
+/** O diálogo abre só com `?avaliar=1`, convite aberto E do torneio da rota — link velho não abre
+ *  formulário morto, e um convite que sobrou do torneio anterior não abre no atual. */
 export function reviewDialogInviteOf(
   requested: boolean,
   invite: TournamentReviewInvite | null,
   now: Date,
+  tournamentId: string,
 ): TournamentReviewInvite | null {
-  return requested && invite && isReviewOpen(invite, now) ? invite : null;
+  return requested && invite && invite.tournamentId === tournamentId && isReviewOpen(invite, now) ? invite : null;
 }
+
+/** Leitura da avaliação própria: só com convite `submitted` DESTE torneio — a rule nega a
+ *  leitura de doc inexistente, e um convite que sobrou do torneio anterior não vale aqui. */
+export function shouldLoadMyReview(invite: TournamentReviewInvite | null, tournamentId: string): boolean {
+  return invite?.status === 'submitted' && invite.tournamentId === tournamentId;
+}
+
+/** Estado da leitura da avaliação própria — o diálogo só monta o formulário de edição em `ready`. */
+export type MyReviewStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 /** Mesma regra do push (`functions/src/tournament-review-notifications.ts`). */
 export function reviewLabel(name: string): string {

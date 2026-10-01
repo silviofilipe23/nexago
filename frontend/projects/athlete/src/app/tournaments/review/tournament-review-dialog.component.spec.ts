@@ -16,13 +16,18 @@ const INVITE: TournamentReviewInvite = {
 describe('TournamentReviewDialogComponent', () => {
   let submitter: jasmine.SpyObj<TournamentReviewSubmitter>;
 
-  function setup(invite: TournamentReviewInvite = INVITE, existing: MyTournamentReview | null = null) {
+  function setup(
+    invite: TournamentReviewInvite = INVITE,
+    existing: MyTournamentReview | null = null,
+    existingStatus: 'idle' | 'loading' | 'ready' | 'error' = 'ready',
+  ) {
     TestBed.configureTestingModule({
       providers: [provideZonelessChangeDetection(), { provide: TournamentReviewSubmitter, useValue: submitter }],
     });
     const fixture = TestBed.createComponent(TournamentReviewDialogComponent);
     fixture.componentRef.setInput('invite', invite);
     fixture.componentRef.setInput('existing', existing);
+    fixture.componentRef.setInput('existingStatus', existingStatus);
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
     const click = (selector: string) => {
@@ -80,6 +85,31 @@ describe('TournamentReviewDialogComponent', () => {
     expect(el.querySelector('button[data-aspect="venue"][data-star="2"]')!.getAttribute('aria-pressed')).toBe('true');
     expect((el.querySelector('.trv-comment') as HTMLTextAreaElement).value).toBe('Bom torneio');
     expect(el.querySelector('.trv-btn-primary')!.textContent).toContain('Salvar alterações');
+  });
+
+  it('edição: enquanto a avaliação salva carrega, não há formulário para salvar por cima', () => {
+    const { el } = setup({ ...INVITE, status: 'submitted' }, null, 'loading');
+    expect(el.textContent).toContain('Carregando sua avaliação');
+    expect(el.querySelector('.trv-btn-primary')).toBeNull();
+  });
+
+  it('edição: se a avaliação salva não carrega, avisa e pede nova leitura', () => {
+    const { fixture, el, click } = setup({ ...INVITE, status: 'submitted' }, null, 'error');
+    let retried = 0;
+    fixture.componentInstance.retryExisting.subscribe(() => retried++);
+    expect(el.textContent).toContain('Não foi possível carregar sua avaliação');
+    expect(el.querySelector('.trv-btn-primary')).toBeNull();
+    click('app-nx-inline-message button');
+    expect(retried).toBe(1);
+  });
+
+  it('edição: tirar um aspecto pré-preenchido some do envio', async () => {
+    submitter.submit.and.resolveTo({ created: false });
+    const { fixture, click } = setup({ ...INVITE, status: 'submitted' }, { overall: 4, aspects: { venue: 2, schedule: 5 }, comment: null });
+    click('button[data-aspect="venue"][data-star="2"]');
+    click('.trv-btn-primary');
+    await fixture.whenStable();
+    expect(submitter.submit.calls.mostRecent().args[0].aspects).toEqual({ schedule: 5 });
   });
 
   it('em tela baixa o diálogo rola, sem esmagar o campo de comentário', () => {

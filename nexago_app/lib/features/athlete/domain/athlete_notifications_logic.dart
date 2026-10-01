@@ -444,6 +444,27 @@ AthleteNotificationPresentation notificationPresentation(
               ],
         routePath: reviewRoutePath,
       );
+    case 'tournament_review_closed':
+      // Mesmo destino do push: a tela de avaliações do organizador; sem id, a url do payload.
+      final closedTournamentId = data['tournamentId'] ?? '';
+      final closedRoutePath = closedTournamentId.isNotEmpty
+          ? AppRoutes.organizerTournamentReviews
+              .replaceAll(':tournamentId', closedTournamentId)
+          : appRouteForNotificationUrl(data['url']);
+      return AthleteNotificationPresentation(
+        icon: Icons.star_rounded,
+        iconColor: AppColors.brand,
+        iconBackground: AppColors.brand.withValues(alpha: 0.15),
+        actions: closedRoutePath == null
+            ? const []
+            : const [
+                AthleteNotificationAction(
+                  label: 'Ver avaliações',
+                  kind: AthleteNotificationActionKind.primary,
+                ),
+              ],
+        routePath: closedRoutePath,
+      );
     default:
       // Mesma tradução do push: avisos do organizador (que o staff recebe aqui) traziam o
       // `url` do portal (`/painel/...`), rota que não existe no app.

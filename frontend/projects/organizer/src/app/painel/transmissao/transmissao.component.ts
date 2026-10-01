@@ -145,7 +145,13 @@ const WIDE_QUERY = '(min-width: 1100px)';
                     <div class="og-toggle-row-desc">{{ item.descricao }}</div>
                   </div>
                   @if (item.controle === 'chave+agora') {
-                    <button type="button" class="og-mini-btn og-tx-agora" [disabled]="!svc.control().graphics[item.id]" (click)="showNow(item.id)">
+                    <button
+                      type="button"
+                      class="og-mini-btn og-tx-agora"
+                      [disabled]="!svc.control().graphics[item.id] || onAir() != null"
+                      [attr.title]="onAir() ? 'A tarja está no ar — tire a tarja pra mostrar' : null"
+                      (click)="showNow(item.id)"
+                    >
                       Mostrar agora
                     </button>
                   }

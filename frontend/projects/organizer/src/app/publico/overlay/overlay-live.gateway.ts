@@ -46,6 +46,10 @@ export class OverlayLiveGateway {
   /** Controle do painel (`broadcast/control`). `null` = 1º snapshot ainda não chegou: a página
    *  usa o default, e a linha de base dos comandos espera por ele. */
   readonly control = signal<BroadcastControl | null>(null);
+  /** O controle já respondeu (snapshot OU erro). Antes disso a página não põe nada controlável
+   *  no ar — senão um gráfico desligado no painel entra e sai no reload do OBS. Erro também
+   *  libera: rules antigas (sem `broadcast`) = comportamento de antes. */
+  readonly controlReady = signal(false);
 
   private readonly hydrated = new Set<string>();
   private countedRounds = false;
@@ -86,7 +90,14 @@ export class OverlayLiveGateway {
   /** Escuta o controle do torneio. Erro de rede não limpa: o último controle conhecido continua
    *  valendo (mesma regra do placar). */
   watchControl(tournamentId: string): () => void {
-    return watchBroadcastControl(tournamentId, (c) => this.control.set(c), () => {});
+    return watchBroadcastControl(
+      tournamentId,
+      (c) => {
+        this.control.set(c);
+        this.controlReady.set(true);
+      },
+      () => this.controlReady.set(true),
+    );
   }
 
   /** `/transmissao` sem quadra escolhida: só o torneio (patrocinadores), nenhuma partida. */

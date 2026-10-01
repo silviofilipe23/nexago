@@ -157,6 +157,19 @@ describe('TransmissaoComponent', () => {
     expect(typeof fake.saved[0]?.commands?.sponsorsNowAt).toBe('number');
   });
 
+  it('"Mostrar agora" fica desabilitado com a tarja no ar — a tarja toma a tela', async () => {
+    const fake = new FakeData();
+    fake.control.set({
+      ...DEFAULT_BROADCAST_CONTROL,
+      interview: { name: 'Ana Souza', photoUrl: null, partnerName: null, categoryName: null, durationSec: null, shownAt: Date.now() },
+    });
+    const { el } = await mount(fake);
+    const agora = [...el.querySelectorAll('.og-tx-agora')] as HTMLButtonElement[];
+
+    expect(agora.length).toBe(2);
+    expect(agora.every((b) => b.disabled)).toBeTrue();
+  });
+
   it('Grande final grava o modo escolhido', async () => {
     const { el, fake } = await mount();
     botao(el, 'Ligado').click();

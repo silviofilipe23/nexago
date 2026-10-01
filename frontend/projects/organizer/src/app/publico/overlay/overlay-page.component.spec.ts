@@ -64,6 +64,9 @@ class FakeGateway {
   readonly startedCourts: string[] = [];
   stopped = 0;
   readonly control = signal<BroadcastControl | null>(null);
+  /** O dublê nasce com o controle já resolvido (doc ausente/erro = comportamento de antes); o
+   *  teste do reload desliga isto pra imitar o gateway real antes do 1º snapshot. */
+  readonly controlReady = signal(true);
   readonly controlWatched: string[] = [];
   readonly startedTournaments: string[] = [];
 
@@ -861,6 +864,36 @@ describe('OverlayPageComponent — controle do painel', () => {
     } finally {
       jasmine.clock().uninstall();
     }
+  });
+
+  it('recarregar o OBS com o placar desligado não faz o placar piscar: nada entra antes do controle', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.controlReady.set(false);
+    fake.match.set(match({}));
+    await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('og-overlay-scoreboard')).toBeNull();
+
+    fake.control.set(controle({ graphics: { ...DEFAULT_BROADCAST_CONTROL.graphics, scoreboard: false } }));
+    fake.controlReady.set(true);
+    await fixture.whenStable();
+
+    expect(host.querySelector('og-overlay-scoreboard')).toBeNull();
+  });
+
+  it('"Mostrar agora" do patrocínio não entra por cima da tarja', async () => {
+    const { fixture, fake } = await mount({ matchId: 'm1' });
+    fake.tournament.set({
+      ...TOURNAMENT,
+      sponsors: [{ id: 's1', name: 'Loja Areia', logoUrl: '' }],
+    } as unknown as OrganizerTournament);
+    fake.control.set(controle());
+    await fixture.whenStable();
+    fake.control.set(controle({ interview: TARJA, commands: { donationNowAt: 0, sponsorsNowAt: 900 } }));
+    await fixture.whenStable();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('og-overlay-patro .card')).toBeNull();
   });
 
   it('Grande final ligada no painel acende o visual final no duelo', async () => {

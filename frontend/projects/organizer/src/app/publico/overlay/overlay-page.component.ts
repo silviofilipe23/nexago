@@ -148,8 +148,8 @@ const CLASSIFICADAS_MS = 15_000;
           />
         }
 
-        <og-overlay-doacao [config]="doacaoConfig" [show]="doacaoShow() && !interviewOnAir()" />
-        <og-overlay-patro [itens]="patroItens()" [show]="patroShow()" [visivelSeg]="patroConfig.card.visivelSeg" />
+        <og-overlay-doacao [config]="doacaoConfig" [show]="cardsNoAr() && doacaoShow()" />
+        <og-overlay-patro [itens]="patroItens()" [show]="cardsNoAr() && patroShow()" [visivelSeg]="patroConfig.card.visivelSeg" />
         <!-- Sempre montada: o animate.leave da tarja precisa do host vivo. -->
         <og-overlay-interview [data]="interviewNoAr()" />
       </div>
@@ -255,9 +255,17 @@ export class OverlayPageComponent {
     this.interviewOnAir() ? (this.interviewAir()?.data ?? null) : null,
   );
 
-  /** O que vai ao ar: regra automática de cada tela E chave do painel; tarja toma a tela. */
-  private readonly layers = computed(() =>
-    overlayLayersOf(
+  /** Doação e patrocínio só entram com o controle já resolvido e sem tarja — a tarja toma a
+   *  tela, inclusive para um "Mostrar agora". */
+  protected readonly cardsNoAr = computed(() => this.gateway.controlReady() && !this.interviewOnAir());
+
+  /** O que vai ao ar: regra automática de cada tela E chave do painel; tarja toma a tela.
+   *  Antes do controle responder, nada controlável entra (ver `controlReady`). */
+  private readonly layers = computed(() => {
+    if (!this.gateway.controlReady()) {
+      return { duel: false, kocBar: false, kocPreRound: false, roundEnd: false, champions: false, interview: false };
+    }
+    return overlayLayersOf(
       this.controle(),
       {
         duel: this.duelViewAuto() != null,
@@ -267,8 +275,8 @@ export class OverlayPageComponent {
         champions: this.campeoesAuto() != null,
       },
       this.interviewOnAir(),
-    ),
-  );
+    );
+  });
 
   /** Muda só quando a partida (ou o fato de estar encerrada) muda. */
   private readonly chaveDoRodizio = computed(() => {

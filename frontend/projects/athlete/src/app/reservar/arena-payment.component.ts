@@ -39,6 +39,7 @@ import {
   type SplitShareInput,
 } from '../data/arena-booking-split-repository';
 import { searchAthleteDirectory, type AthletePublicProfile } from '../data/public-profiles-repository';
+import { pixBookingCreateOptions } from './pix-booking-create-options';
 import {
   NxBlockingDialogComponent,
   NxFieldErrorComponent,
@@ -443,6 +444,14 @@ export class ArenaPaymentComponent {
     this.cpf.set(onlyDigits(value).slice(0, 11));
   }
 
+  private pixBookingOptions() {
+    return pixBookingCreateOptions({
+      totalPriceReais: this.totalPrice(),
+      pixFraction: this.pixFraction(),
+      couponCode: this.appliedCouponCode(),
+    });
+  }
+
   /** Cria (ou retoma) a reserva `pending_payment` e gera o QR PIX. */
   protected async generatePix(): Promise<void> {
     if (this.processing() || this.pixPayment()) return;
@@ -466,12 +475,7 @@ export class ArenaPaymentComponent {
       const bookingId =
         resumable?.id ??
         (
-          await createArenaBooking(athleteFunctions(), args, {
-            clientAmountReais: this.totalPrice(),
-            paymentMode: 'pix',
-            paymentFraction: this.pixFraction(),
-            couponCode: this.appliedCouponCode() ?? undefined,
-          })
+          await createArenaBooking(athleteFunctions(), args, this.pixBookingOptions())
         ).bookingId;
 
       const pix = await createBookingPixPayment(athleteFunctions(), {
@@ -668,11 +672,7 @@ export class ArenaPaymentComponent {
       const bookingId =
         resumable?.id ??
         (
-          await createArenaBooking(athleteFunctions(), args, {
-            clientAmountReais: this.totalPrice(),
-            paymentMode: 'pix',
-            paymentFraction: this.pixFraction(),
-          })
+          await createArenaBooking(athleteFunctions(), args, this.pixBookingOptions())
         ).bookingId;
 
       const participants = this.splitParticipants();

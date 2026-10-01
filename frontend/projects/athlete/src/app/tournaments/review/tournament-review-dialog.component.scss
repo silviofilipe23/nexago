@@ -1,0 +1,58 @@
+:host { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px; }
+.trv-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.72); backdrop-filter: blur(8px); }
+.trv-dialog {
+  position: relative; width: min(480px, 100%); max-height: calc(100dvh - 32px); overflow: auto;
+  background: var(--nx-surface-0); border: 1px solid var(--nx-line); border-radius: var(--nx-r-5);
+  padding: 22px; display: flex; flex-direction: column; gap: 10px;
+  @media (max-width: 640px) { padding: 18px 16px; }
+}
+.trv-eyebrow-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.trv-eyebrow { font-family: var(--nx-font-mono); font-size: 12px; font-weight: 700; letter-spacing: 0.04em; color: var(--nx-orange-500); }
+.trv-xp-badge {
+  font-family: var(--nx-font-mono); font-size: 10px; font-weight: 700; color: var(--nx-orange-500);
+  background: var(--nx-surface-1); border: 1px solid rgba(255, 106, 26, 0.4); border-radius: var(--nx-r-1); padding: 4px 8px;
+}
+.trv-title { margin: 4px 0 0; font-family: var(--nx-font-display); font-size: 22px; font-weight: 900; line-height: 1.2; letter-spacing: -0.01em; color: var(--nx-text); }
+.trv-subtitle { margin: 0; font-family: var(--nx-font-mono); font-size: 12px; color: var(--nx-text-mute); }
+.trv-section-label { margin: 8px 0 0; font-family: var(--nx-font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.06em; color: var(--nx-text-mute); }
+.trv-stars { display: flex; justify-content: center; gap: 6px; }
+.trv-star {
+  width: 48px; height: 48px; display: grid; place-items: center; background: var(--nx-surface-1); border: 1px solid transparent;
+  border-radius: var(--nx-r-2); color: var(--nx-text-mute); cursor: pointer; transition: color var(--nx-d-fast), border-color var(--nx-d-fast);
+  &:disabled { cursor: default; }
+}
+.trv-star--filled { color: var(--nx-orange-500); border-color: rgba(255, 106, 26, 0.55); }
+.trv-rating-label { margin: 0; text-align: center; font-size: 15px; font-weight: 800; color: var(--nx-win); }
+.trv-aspects { display: flex; flex-direction: column; gap: 6px; }
+.trv-aspect-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.trv-aspect-label { font-size: 14px; color: var(--nx-text); }
+.trv-aspect-stars { display: flex; gap: 2px; }
+.trv-mini-star {
+  width: 32px; height: 32px; display: grid; place-items: center; font-size: 18px; line-height: 1;
+  background: transparent; border: none; border-radius: var(--nx-r-1); color: var(--nx-text-mute); cursor: pointer;
+  &:disabled { cursor: default; }
+  @media (max-width: 640px) { width: 40px; height: 40px; }
+}
+.trv-mini-star--filled { color: var(--nx-orange-500); }
+.trv-comment {
+  width: 100%; resize: vertical; padding: 12px; font: inherit; font-size: 14px; color: var(--nx-text);
+  background: var(--nx-surface-1); border: 1px solid var(--nx-line); border-radius: var(--nx-r-3);
+  &::placeholder { color: var(--nx-text-mute); }
+  &:focus-visible { outline: none; border-color: rgba(255, 106, 26, 0.6); }
+}
+.trv-comment-foot { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.trv-warning { font-size: 12px; color: var(--nx-text-mute); }
+.trv-counter { flex: none; font-family: var(--nx-font-mono); font-size: 11px; color: var(--nx-text-mute); }
+.trv-error { display: flex; margin: 4px 0 2px; }
+.trv-actions { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.trv-btn-ghost {
+  flex: none; padding: 12px 14px; font-size: 14px; font-weight: 700; background: transparent; border: none;
+  border-radius: var(--nx-r-2); color: var(--nx-text-mute); cursor: pointer;
+  &:disabled { cursor: default; opacity: 0.6; }
+}
+.trv-btn-primary {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 14px;
+  font-size: 14px; font-weight: 900; color: #0a0a0a; background: var(--nx-orange-500); border: none;
+  border-radius: var(--nx-r-2); cursor: pointer;
+  &:disabled { cursor: default; opacity: 0.6; }
+}

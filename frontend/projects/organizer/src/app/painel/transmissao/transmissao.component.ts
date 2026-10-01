@@ -382,7 +382,7 @@ export class TransmissaoComponent {
 
   protected readonly groups = computed(() => {
     const t = this.svc.tournament();
-    return t ? broadcastGroupsFor(t) : [];
+    return t ? broadcastGroupsFor(t, this.svc.matches()) : [];
   });
 
   /** Jogo do auto-agendamento antigo só gravou `courtId` — o nome sai das quadras do torneio. */

@@ -15,8 +15,12 @@ import {
  * do organizador lê `webUrl` (push-sw.js e inbox).
  */
 
+/** O artigo concorda com a palavra "torneio", não com o nome: "o Liga nexaGO" e "o Copa VH"
+ *  saíam em todo push. Nome que já começa com "Torneio" vai como está. */
 function label(tournamentName: string): string {
-  return tournamentName.trim() || "torneio";
+  const name = tournamentName.trim();
+  if (!name) return "torneio";
+  return /^torneio\b/i.test(name) ? name : `torneio ${name}`;
 }
 
 function formatDayMonth(ms: number): string {
@@ -66,9 +70,14 @@ export function reviewClosedNotification(p: {
   count: number;
   average: number | null;
 }): DeliverNotificationInput {
-  const body = p.count >= MIN_PUBLIC_REVIEWS && p.average != null ?
-    `${formatAverage(p.average)} ★ com ${p.count} avaliações.` :
-    `Recebeu ${p.count} ${p.count === 1 ? "avaliação" : "avaliações"}, poucas para exibir.`;
+  let body: string;
+  if (p.count >= MIN_PUBLIC_REVIEWS && p.average != null) {
+    body = `${formatAverage(p.average)} ★ com ${p.count} avaliações.`;
+  } else if (p.count === 0) {
+    body = "Nenhum atleta avaliou o torneio.";
+  } else {
+    body = `Recebeu ${p.count} ${p.count === 1 ? "avaliação" : "avaliações"}, poucas para exibir.`;
+  }
   return {
     userId: p.uid,
     title: `Avaliações do ${label(p.tournamentName)} encerradas`,

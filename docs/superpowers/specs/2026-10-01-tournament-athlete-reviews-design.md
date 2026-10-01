@@ -319,9 +319,11 @@ de `data` são strings.
 
 | Tipo | Para | Título / corpo | `data` |
 |---|---|---|---|
-| `tournament_review_request` | atleta | "Como foi o {torneio}?" / "Avalie em 10 segundos e ganhe 10 XP." | `tournamentId`, `url: /torneios/{id}` |
-| `tournament_review_reminder` | atleta (pendente) | "Ainda dá tempo de avaliar o {torneio}" / "A avaliação fecha em {dd/mm}." | `tournamentId`, `url: /torneios/{id}` |
-| `tournament_review_closed` | `managerId` + `tournamentManagerUids` | "Avaliações do {torneio} encerradas" / "{média} ★ com {n} avaliações." Com `count < 3`: "Recebeu {n} avaliações, poucas para exibir." | `tournamentId`, `url: /organizer/tournaments/{id}`, `webUrl: /painel/eventos/{id}/avaliacoes` |
+| `tournament_review_request` | atleta | "Como foi o torneio {nome}?" / "Avalie em 10 segundos e ganhe 10 XP." | `tournamentId`, `url: /torneios/{id}` |
+| `tournament_review_reminder` | atleta (pendente) | "Ainda dá tempo de avaliar o torneio {nome}" / "A avaliação fecha em {dd/mm}." | `tournamentId`, `url: /torneios/{id}` |
+| `tournament_review_closed` | `managerId` + `tournamentManagerUids` | "Avaliações do torneio {nome} encerradas" / "{média} ★ com {n} avaliações." Com `count` 1–2: "Recebeu {n} avaliação(ões), poucas para exibir."; com 0: "Nenhum atleta avaliou o torneio." | `tournamentId`, `url: /organizer/tournaments/{id}`, `webUrl: /painel/eventos/{id}/avaliacoes` |
+
+**Concordância:** o artigo vai para a palavra "torneio", não para o nome ("o Liga nexaGO", "o Copa VH" saíam errados). Nome que já começa com "Torneio" vai como está.
 
 **Compatibilidade com builds antigos:**
 

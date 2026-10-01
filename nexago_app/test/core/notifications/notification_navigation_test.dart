@@ -221,4 +221,91 @@ void main() {
       );
     });
   });
+
+  // `deliverNotificationToUser` manda o MESMO payload ao app e ao portal do organizador. O
+  // `url` dessas notificações era rota do PORTAL (`/painel/...`) e o app navegava pra ele como
+  // estava: rota inexistente, tela de erro do GoRouter no celular do organizador.
+  group('url de portal no payload', () {
+    // O payload EXATO de `notifyOrganizersPaymentDeclared` antes da correção — é o que está
+    // gravado no inbox e o que functions ainda não redeployadas mandam.
+    test('tournament_payment_declared antigo abre o torneio no app', () {
+      final route = resolveNotificationRoute({
+        'type': 'tournament_payment_declared',
+        'tournamentId': 't1',
+        'registrationId': 'r1',
+        'categoryId': 'cat-1',
+        'url': '/painel/eventos/t1/inscricoes',
+        'requireInteraction': 'true',
+      });
+      expect(route, '/organizer/tournaments/t1');
+    });
+
+    test('payload novo: segue o `url` do app e nunca o `webUrl`', () {
+      final route = resolveNotificationRoute({
+        'type': 'tournament_payment_declared',
+        'tournamentId': 't1',
+        'url': '/organizer/tournaments/t1',
+        'webUrl': '/painel/eventos/t1/inscricoes',
+      });
+      expect(route, '/organizer/tournaments/t1');
+    });
+
+    for (final type in [
+      'tournament_registration_created',
+      'tournament_payment_confirmed',
+      'tournament_cancellation_requested',
+      'tournament_substitution_completed',
+    ]) {
+      test('$type com inscrição em foco também abre o torneio', () {
+        final route = resolveNotificationRoute({
+          'type': type,
+          'tournamentId': 't1',
+          'registrationId': 'r1',
+          'url': '/painel/eventos/t1/inscricoes?registrationId=r1',
+        });
+        expect(route, '/organizer/tournaments/t1');
+      });
+    }
+
+    test('saque pedido pela equipe abre a carteira do organizador', () {
+      final route = resolveNotificationRoute({
+        'type': 'organizer_withdrawal_requested',
+        'url': '/painel/financeiro',
+      });
+      expect(route, '/organizer/wallet');
+    });
+
+    test('rota de portal sem equivalente no app não vira destino', () {
+      expect(
+        resolveNotificationRoute({'type': 'x', 'url': '/painel/config'}),
+        isNull,
+      );
+    });
+
+    // `tournament_substitution_completed` chega TAMBÉM aos atletas da equipe, sem `url`. A
+    // tradução é pelo caminho, não pelo tipo: o atleta não pode cair na rota do organizador.
+    test('substituição concluída sem url (atleta) não vai pra rota do organizador',
+        () {
+      final route = resolveNotificationRoute({
+        'type': 'tournament_substitution_completed',
+        'tournamentId': 't1',
+        'categoryId': 'cat-1',
+        'registrationId': 'r1',
+      });
+      expect(route, isNot(startsWith('/organizer')));
+    });
+
+    // Lembrete de partida mandava `/admin/tournament/...` (admin web antigo, que não existe
+    // mais). Sem o url, o tipo leva ao mesmo lugar do item no inbox.
+    test('match_reminder com url do admin antigo abre a partida', () {
+      final route = resolveNotificationRoute({
+        'type': 'match_reminder',
+        'matchId': 'm1',
+        'tournamentId': 't1',
+        'categoryId': 'cat-1',
+        'url': '/admin/tournament/t1/match/m1/result/cat-1',
+      });
+      expect(route, '/athlete/history/match/m1');
+    });
+  });
 }

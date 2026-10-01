@@ -27,6 +27,7 @@ import {
   WEB_PUSH_SUBJECT,
 } from "./notification-delivery";
 import {tournamentManagerUids} from "./tournament-acl";
+import {organizerTournamentNotificationLinks} from "./organizer-notification-links";
 import {
   prepareSpotPassClaim,
   readSpotPassClaimTx,
@@ -1441,7 +1442,7 @@ async function notifyOrganizersRegistrationCompleted({
           tournamentId,
           registrationId,
           categoryId,
-          url: `/painel/eventos/${tournamentId}/inscricoes?registrationId=${registrationId}`,
+          ...organizerTournamentNotificationLinks(tournamentId, registrationId),
         },
       }).catch(() => undefined),
     ),

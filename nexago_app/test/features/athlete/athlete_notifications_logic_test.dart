@@ -371,4 +371,42 @@ void main() {
       expect(notificationPresentation(inbox(data)).routePath, isNull);
     });
   });
+
+  // O inbox é a outra porta da mesma notificação: o staff de torneio (atleta) recebe os avisos
+  // do organizador nele. O `url` de portal (`/painel/...`) abria rota inexistente aqui também.
+  group('url de portal no inbox', () {
+    AthleteInboxNotification inbox(String type, Map<String, String> data) =>
+        AthleteInboxNotification(
+          id: 'x',
+          title: 'Pagamento a conferir',
+          body: 'Body',
+          type: type,
+          data: data,
+          read: false,
+          dismissed: false,
+          createdAt: DateTime(2026, 10, 1),
+        );
+
+    test('tournament_payment_declared antigo: lista e push abrem o torneio', () {
+      final data = {
+        'tournamentId': 't1',
+        'registrationId': 'r1',
+        'categoryId': 'cat-1',
+        'url': '/painel/eventos/t1/inscricoes',
+      };
+      final list = notificationPresentation(
+        inbox('tournament_payment_declared', data),
+      ).routePath;
+      expect(list, '/organizer/tournaments/t1');
+      expect(
+        resolveNotificationRoute({...data, 'type': 'tournament_payment_declared'}),
+        list,
+      );
+    });
+
+    test('rota de portal sem equivalente no app fica sem destino', () {
+      final data = {'url': '/painel/config'};
+      expect(notificationPresentation(inbox('x', data)).routePath, isNull);
+    });
+  });
 }

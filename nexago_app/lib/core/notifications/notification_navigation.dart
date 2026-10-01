@@ -108,6 +108,37 @@ String? spotPassNotificationRoute({
   return '/torneios/$id/inscricao$query';
 }
 
+/// Rota do app para o `url` do payload — `null` quando falta ou não tem equivalente no app.
+///
+/// `deliverNotificationToUser` manda o MESMO payload ao app e ao portal do organizador. As
+/// notificações de quem opera o torneio levavam o `url` do PORTAL (`/painel/...`) e o app
+/// navegava pra ele como estava: rota inexistente, tela de erro do GoRouter. O backend agora
+/// manda a rota do app em `url` (e a do portal em `webUrl`); a tradução aqui cobre o que já
+/// está gravado no inbox e functions ainda não redeployadas.
+///
+/// `/admin/...` é do admin web antigo e não tem equivalente: `null`, e quem decide é o tipo.
+String? appRouteForNotificationUrl(String? raw) {
+  final url = raw?.trim() ?? '';
+  if (!url.startsWith('/')) return null;
+  final path = url.split('?').first.split('#').first;
+  final segments = path.split('/').where((s) => s.isNotEmpty).toList();
+  final root = segments.isEmpty ? '' : segments.first;
+
+  if (root == 'painel') {
+    // `/painel/eventos/{id}/...` — inscrições, pagamentos, cancelamentos do torneio.
+    if (segments.length >= 3 && segments[1] == 'eventos') {
+      return AppRoutes.organizerTournamentDetail
+          .replaceAll(':tournamentId', segments[2]);
+    }
+    if (segments.length == 2 && segments[1] == 'financeiro') {
+      return AppRoutes.organizerWallet;
+    }
+    return null;
+  }
+  if (root == 'admin') return null;
+  return url;
+}
+
 String? resolveNotificationRoute(Map<String, dynamic> data) {
   final type = (data['type'] as String?)?.toLowerCase().trim() ?? '';
 
@@ -120,9 +151,14 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
     }
   }
 
-  final url = (data['url'] as String?)?.trim();
-  if (url != null && url.startsWith('/')) {
-    return url;
+  final url = appRouteForNotificationUrl(data['url'] as String?);
+  if (url != null) return url;
+
+  // Lembrete de partida: mesmo destino do item no inbox. O `url` antigo apontava pro admin web.
+  if (type == 'match_reminder') {
+    final matchId = (data['matchId'] as String?)?.trim() ?? '';
+    if (matchId.isEmpty) return AppRoutes.athleteMatchHistory;
+    return AppRoutes.athleteMatchDetail.replaceAll(':matchId', matchId);
   }
 
   // Sem `url` no payload, este tipo não tinha caso próprio e o toque no push não resolvia nada
@@ -172,8 +208,6 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   }
 
   if (type == 'tournament_partner_invite_accepted') {
-    final url = (data['url'] as String?)?.trim();
-    if (url != null && url.startsWith('/')) return url;
     final tournamentId = (data['tournamentId'] as String?)?.trim() ?? '';
     final registrationId = (data['registrationId'] as String?)?.trim() ?? '';
     final categoryId = (data['categoryId'] as String?)?.trim() ?? '';
@@ -213,8 +247,6 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
       type == 'tournament_cancelled' ||
       type == 'tournament_communication' ||
       type == 'tournament_registration_cancelled') {
-    final bracketUrl = (data['url'] as String?)?.trim();
-    if (bracketUrl != null && bracketUrl.startsWith('/')) return bracketUrl;
     final tournamentId = (data['tournamentId'] as String?)?.trim() ?? '';
     if (tournamentId.isNotEmpty) {
       return AppRoutes.tournamentDetail.replaceAll(

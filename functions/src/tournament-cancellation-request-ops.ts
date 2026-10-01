@@ -2,6 +2,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {assertCanManageTournament, tournamentManagerUids} from "./tournament-acl";
+import {organizerTournamentNotificationLinks} from "./organizer-notification-links";
 import {
   deliverNotificationToUser,
   WEB_PUSH_PUBLIC_KEY,
@@ -159,7 +160,7 @@ export const requestRegistrationCancellation = onCall({
           data: {
             tournamentId,
             registrationId,
-            url: `/painel/eventos/${tournamentId}/inscricoes`,
+            ...organizerTournamentNotificationLinks(tournamentId),
           },
         }).catch(() => undefined),
       ),

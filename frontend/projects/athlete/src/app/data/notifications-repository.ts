@@ -25,6 +25,8 @@ export interface AthleteNotification {
   dismissed: boolean;
   /** Paridade com o app (`isUnread = !read && !dismissed`). */
   unread: boolean;
+  /** `data.tournamentId` do payload — o inbox usa para abrir a avaliação do torneio. */
+  tournamentId: string | null;
 }
 
 function str(value: unknown): string | null {
@@ -45,6 +47,7 @@ function fromDoc(snap: QueryDocumentSnapshot<DocumentData>): AthleteNotification
   const data = snap.data();
   const read = data['read'] === true;
   const dismissed = data['dismissed'] === true;
+  const notifData = data['data'] as Record<string, unknown> | undefined;
   return {
     id: snap.id,
     title: str(data['title']) ?? 'Atualização da conta',
@@ -54,6 +57,7 @@ function fromDoc(snap: QueryDocumentSnapshot<DocumentData>): AthleteNotification
     read,
     dismissed,
     unread: !read && !dismissed,
+    tournamentId: str(notifData?.['tournamentId']),
   };
 }
 

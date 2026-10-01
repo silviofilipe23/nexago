@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
@@ -12,6 +13,7 @@ import {
   watchNotifications,
   type AthleteNotification,
 } from '../data/notifications-repository';
+import { notificationTarget } from './notification-target';
 
 function titleCase(input: string): string {
   return input
@@ -101,7 +103,7 @@ function toneOf(type: string | null): NotifTone {
                 class="nt-item"
                 role="listitem"
                 [class.nt-item--unread]="n.unread"
-                (click)="markRead(n)"
+                (click)="open(n)"
               >
                 <span class="nt-item-dot" [class]="'nt-item-dot tone-' + toneOf(n.type)" aria-hidden="true"></span>
                 <span class="nt-item-body">
@@ -296,6 +298,7 @@ function toneOf(type: string | null): NotifTone {
 export class AthleteNotificationsComponent {
   private readonly auth = inject(AuthService);
   private readonly firestore = createFirestore();
+  private readonly router = inject(Router);
 
   protected readonly loading = signal(true);
   protected readonly error = signal(false);
@@ -349,6 +352,12 @@ export class AthleteNotificationsComponent {
     void markNotificationRead(this.firestore, user.uid, n.id).catch(() => {
       // onSnapshot re-sincroniza o estado real; falha pontual não precisa de banner.
     });
+  }
+
+  protected open(n: AthleteNotification): void {
+    this.markRead(n);
+    const target = notificationTarget(n);
+    if (target) void this.router.navigate(target.commands, { queryParams: target.queryParams });
   }
 
   protected async markAll(): Promise<void> {

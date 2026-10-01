@@ -177,18 +177,21 @@ Função pura `overlayLayersOf(control, auto)`, em que `auto` é o que a página
   pausa (`patroOcupado`).
 - Chave `donation`/`sponsors` desligada para o ciclo (`doacaoCycleStop` / ciclo do patro
   desligado). Carimbo novo em `commands` = "mostrar agora".
-- **Precedência da tela de fim de rodada:** clique local (janela Interagir do OBS) > escolha
-  do painel > `?tela=` > rodízio. Uma mudança no painel depois do clique local volta a mandar.
+- **Precedência da tela de fim de rodada:** escolha do painel > `?tela=` > rodízio.
 - **`finalMode`** substitui o `localStorage` + `BroadcastChannel`: `auto` segue o matchType,
   `on`/`off` forçam. `overlay-final-sync.ts` sai; o botão "Grande final" da mesa
   (`turnOnOverlayFinal`) passa a gravar `finalMode: 'on'` no doc de controle. A preferência
   antiga em `localStorage` é ignorada.
 
-### Continua igual
+### Sai da tela do ar (pedido do dono, 01/10/2026, durante a execução)
 
-Atalhos D/O/P/L/setas e o console `NXOverlay` seguem como ajuste local de quem está no OBS.
-**Chave PIX e tempos da doação continuam só no console** — pôr no painel quem recebe dinheiro
-é outra conversa.
+"As funções não devem ficar na tela de overlay; a configuração fica no portal do gestor." O overlay
+passa a **só exibir**: saem os atalhos de teclado (D/O/P/L/setas), os botões invisíveis do canto, a
+camada clicável que alternava as telas do fim de rodada e o console `window.NXOverlay`. Precedência
+do fim de rodada: painel > `?tela=` > rodízio. Doação e patrocínio usam os valores fixos de
+`overlay-nx.ts` (chave PIX nexaGO, tempos padrão) e a lista de patrocinadores cadastrada no torneio.
+Ficam os parâmetros de URL (`?tela=`, `?pos=`, `?preview`, `?clean`): são configuração da fonte no
+OBS, não controle na tela. Ajustar chave PIX e tempos pelo painel fica para depois.
 
 ### Tarja de entrevista
 

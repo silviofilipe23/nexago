@@ -44,12 +44,8 @@ import {
   type DoacaoCycleState,
 } from './overlay-doacao-cycle';
 import {
-  bindOverlayDoacaoControls,
-  bindOverlayPatroControls,
-  getOverlaySettings,
-  installNxOverlay,
-  subscribeOverlaySettings,
-  togglePatroCard,
+  DEFAULT_OVERLAY_DOACAO,
+  DEFAULT_OVERLAY_PATRO,
   type OverlayDoacaoConfig,
   type OverlayPatroConfig,
   type OverlayPatroItem,
@@ -90,7 +86,6 @@ const CLASSIFICADAS_MS = 15_000;
   ],
   providers: [OverlayLiveGateway],
   host: {
-    '(document:keydown)': 'aoTeclar($event)',
     '[class.preview]': 'previewChrome()',
   },
   template: `
@@ -133,16 +128,6 @@ const CLASSIFICADAS_MS = 15_000;
             [categoryName]="categoryName()"
           />
         }
-        @if (podeAlternar()) {
-          <!-- Invisível e por cima: no OBS o clique chega pela janela "Interagir" e o cursor não
-               entra na saída, então nada disto aparece no ar. -->
-          <button
-            class="alternar"
-            type="button"
-            aria-label="Alternar visualização"
-            (click)="alternar()"
-          ></button>
-        }
         <!-- Sempre montado: o @if interno + animate.leave precisa do host vivo pra sair com o slide. -->
         <og-overlay-koc-preround
           [preRound]="preRound()"
@@ -163,18 +148,10 @@ const CLASSIFICADAS_MS = 15_000;
           />
         }
 
-        <og-overlay-doacao [config]="doacaoConfig()" [show]="doacaoShow() && !interviewOnAir()" />
-        <og-overlay-patro [itens]="patroItens()" [show]="patroShow()" [visivelSeg]="patroConfig().card.visivelSeg" />
+        <og-overlay-doacao [config]="doacaoConfig" [show]="doacaoShow() && !interviewOnAir()" />
+        <og-overlay-patro [itens]="patroItens()" [show]="patroShow()" [visivelSeg]="patroConfig.card.visivelSeg" />
         <!-- Sempre montada: o animate.leave da tarja precisa do host vivo. -->
         <og-overlay-interview [data]="interviewNoAr()" />
-
-        <!-- Atalhos invisíveis pro modo Interagir do OBS (canto superior direito). -->
-        <div class="doacao-hot">
-          <button type="button" class="doacao-hot-btn" aria-label="Mostrar doação" (click)="mostrarDoacao()"></button>
-          <button type="button" class="doacao-hot-btn" aria-label="Desligar doação" (click)="desligarDoacao()"></button>
-          <button type="button" class="doacao-hot-btn" aria-label="Patrocinadores agora" (click)="mostrarPatro()"></button>
-          <button type="button" class="doacao-hot-btn" aria-label="Ligar ou desligar patrocinadores" (click)="alternarPatro()"></button>
-        </div>
       </div>
     </div>
   `,
@@ -211,34 +188,6 @@ const CLASSIFICADAS_MS = 15_000;
       overflow: hidden;
       background: transparent;
     }
-
-    .alternar {
-      position: absolute;
-      inset: 0;
-      z-index: 10;
-      padding: 0;
-      border: 0;
-      background: transparent;
-      cursor: pointer;
-    }
-
-    .doacao-hot {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      z-index: 30;
-      display: flex;
-      gap: 4px;
-    }
-    .doacao-hot-btn {
-      width: 28px;
-      height: 28px;
-      padding: 0;
-      border: 0;
-      border-radius: 8px;
-      background: transparent;
-      cursor: pointer;
-    }
   `,
 })
 export class OverlayPageComponent {
@@ -267,20 +216,17 @@ export class OverlayPageComponent {
   );
 
   private readonly telaKoc = signal<TelaKoc>('resultado');
-  /** Visualização escolhida no clique/tecla. Assume o controle: quem mexeu manda mais que o
-   *  rodízio e mais que `?tela=`. */
-  private readonly manual = signal<TelaKoc | null>(null);
   private readonly telaFixa = computed(() => telaFixadaEm(this.tela()));
 
   /** Controle do painel; antes do 1º snapshot, o default (= comportamento de antes). */
   private readonly controle = computed<BroadcastControl>(() => this.gateway.control() ?? DEFAULT_BROADCAST_CONTROL);
-  /** String, não o controle inteiro: o effect que zera o clique local só re-roda quando a
-   *  ESCOLHA muda, não a cada chave do painel. */
+  /** String, não o controle inteiro: o rodízio só reavalia quando a ESCOLHA muda, não a cada
+   *  chave do painel. */
   private readonly escolhaDoPainel = computed(() => this.controle().kocRoundEndScreen);
   private readonly telaDoPainel = computed<TelaKoc | null>(() => panelRoundEndScreen(this.escolhaDoPainel()));
-  /** Clique local (janela Interagir) > painel > `?tela=` > rodízio. */
+  /** Painel > `?tela=` > rodízio. Nada se escolhe NA tela do ar — ela só exibe. */
   private readonly telaEfetiva = computed<TelaKoc>(
-    () => this.manual() ?? this.telaDoPainel() ?? this.telaFixa() ?? this.telaKoc(),
+    () => this.telaDoPainel() ?? this.telaFixa() ?? this.telaKoc(),
   );
 
   /** Torneio do controle: o da rota (quadra/transmissão) ou o da partida (modo partida). */
@@ -434,49 +380,15 @@ export class OverlayPageComponent {
     this.layers().roundEnd && this.telaEfetiva() === 'classificadas' ? this.qualified() : null,
   );
 
-  /** Só há o que alternar no fim da rodada, quando as duas telas estão no ar. */
-  protected readonly podeAlternar = computed(() => this.layers().roundEnd && this.standings() != null);
-
-  protected alternar(): void {
-    this.manual.set(this.telaEfetiva() === 'resultado' ? 'classificadas' : 'resultado');
-  }
-
-  protected aoTeclar(event: KeyboardEvent): void {
-    const key = event.key.toLowerCase();
-    if (key === 'd' && !event.metaKey && !event.ctrlKey) {
-      event.preventDefault();
-      this.mostrarDoacao();
-      return;
-    }
-    if (key === 'o' && !event.metaKey && !event.ctrlKey) {
-      event.preventDefault();
-      this.desligarDoacao();
-      return;
-    }
-    // P = "patroc. agora"; L = liga/desliga o ciclo dos patrocinadores.
-    if (key === 'p' && !event.metaKey && !event.ctrlKey) {
-      event.preventDefault();
-      this.mostrarPatro();
-      return;
-    }
-    if (key === 'l' && !event.metaKey && !event.ctrlKey) {
-      event.preventDefault();
-      this.alternarPatro();
-      return;
-    }
-    if (!this.podeAlternar()) return;
-    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
-    this.alternar();
-  }
-
-  /** Config viva — `NXOverlay.set({ doacao: { ... } })` atualiza no ar. */
-  protected readonly doacaoConfig = signal<OverlayDoacaoConfig>(getOverlaySettings().doacao);
+  /** Config fixa da doação (chave PIX nexaGO, tempos padrão). Nada se ajusta NA tela do ar: o que
+   *  liga, desliga e mostra agora vem do painel (`broadcast/control`). */
+  protected readonly doacaoConfig: OverlayDoacaoConfig = DEFAULT_OVERLAY_DOACAO;
   private readonly doacaoCycle = signal<DoacaoCycleState>(doacaoCycleStop());
   protected readonly doacaoShow = computed(() => this.doacaoCycle().show);
   private doacaoTimer: ReturnType<typeof setTimeout> | null = null;
 
   private doacaoInput() {
-    const cfg = this.doacaoConfig();
+    const cfg = this.doacaoConfig;
     return {
       // `untracked`: este método roda dentro de effects; ler o controle rastreado faria cada
       // clique no painel reiniciar o ciclo. A chave tem effect próprio (construtor).
@@ -509,19 +421,13 @@ export class OverlayPageComponent {
     this.runDoacao(doacaoCycleShowNow(this.doacaoInput()));
   }
 
-  protected desligarDoacao(): void {
-    this.runDoacao(doacaoCycleStop());
-  }
+  /** Tempos fixos do card de patrocinadores; ligar/desligar e "mostrar agora" vêm do painel. */
+  protected readonly patroConfig: OverlayPatroConfig = DEFAULT_OVERLAY_PATRO;
 
-  /** Config viva — `NXOverlay.set({ patro: { ... } })` atualiza no ar. */
-  protected readonly patroConfig = signal<OverlayPatroConfig>(getOverlaySettings().patro);
-
-  /** A lista do `NXOverlay` manda quando existe; senão, os patrocinadores do torneio. */
-  protected readonly patroItens = computed<OverlayPatroItem[]>(() => {
-    const override = this.patroConfig().lista;
-    if (override.length > 0) return override;
-    return (this.gateway.tournament()?.sponsors ?? []).map((s) => ({ nome: s.name, logo: s.logoUrl }));
-  });
+  /** Os patrocinadores cadastrados no torneio. */
+  protected readonly patroItens = computed<OverlayPatroItem[]>(() =>
+    (this.gateway.tournament()?.sponsors ?? []).map((s) => ({ nome: s.name, logo: s.logoUrl })),
+  );
 
   /** Momentos em que o card NÃO entra: pausa (relógio KOTC parado, tempo médico), telas de
    *  resultado/pódio no ar, e a doação no canto — um card de cada vez. */
@@ -537,7 +443,7 @@ export class OverlayPageComponent {
   private patroTimer: ReturnType<typeof setTimeout> | null = null;
 
   private patroInput() {
-    const card = this.patroConfig().card;
+    const card = this.patroConfig.card;
     return {
       enabled: card.enabled && untracked(() => this.patroNoPainel()),
       count: this.patroItens().length,
@@ -559,11 +465,6 @@ export class OverlayPageComponent {
 
   protected mostrarPatro(): void {
     this.runPatro(patroCycleShowNow(this.patroInput()));
-  }
-
-  protected alternarPatro(): void {
-    // Passa pelo NXOverlay pra config e console ficarem na mesma verdade; o listener religa o ciclo.
-    togglePatroCard();
   }
 
   protected readonly phaseName = computed(() => {
@@ -621,7 +522,6 @@ export class OverlayPageComponent {
   });
 
   constructor() {
-    installNxOverlay();
     const destroyRef = inject(DestroyRef);
 
     // Canvas lógico 1920×1080: no OBS a fonte já é Full HD (escala 1); no browser
@@ -647,7 +547,7 @@ export class OverlayPageComponent {
       const chave = this.chaveDoRodizio();
       this.telaKoc.set('resultado');
       // Visualização fixada na URL ou escolhida na mão não reveza.
-      if (!chave || this.telaFixa() || this.manual() || this.telaDoPainel()) return;
+      if (!chave || this.telaFixa() || this.telaDoPainel()) return;
       let timer: ReturnType<typeof setTimeout>;
       const agenda = (tela: TelaKoc) => {
         timer = setTimeout(
@@ -700,12 +600,6 @@ export class OverlayPageComponent {
       });
     });
 
-    // Escolha nova no painel volta a mandar sobre o clique local da janela Interagir.
-    effect(() => {
-      this.escolhaDoPainel();
-      untracked(() => this.manual.set(null));
-    });
-
     // Chaves de doação/patrocínio: desligar para o ciclo; religar recomeça do início.
     effect(() => {
       const ligada = this.doacaoNoPainel();
@@ -716,41 +610,11 @@ export class OverlayPageComponent {
       untracked(() => this.runPatro(ligado ? patroCycleStart(this.patroInput()) : patroCycleStop()));
     });
 
-    // Doação PIX: config + ciclo 3 s → 20 s on → 90 s off.
-    effect((onCleanup) => {
-      onCleanup(
-        subscribeOverlaySettings((s) => {
-          // Só a mudança da PRÓPRIA config reinicia o ciclo — ligar/desligar os
-          // patrocinadores não pode trazer a doação de volta em 3 s.
-          if (JSON.stringify(s.doacao) === JSON.stringify(this.doacaoConfig())) return;
-          this.doacaoConfig.set(s.doacao);
-          this.runDoacao(doacaoCycleStart(this.doacaoInput()));
-        }),
-      );
-      onCleanup(
-        bindOverlayDoacaoControls({
-          show: () => this.mostrarDoacao(),
-          hide: () => this.desligarDoacao(),
-        }),
-      );
-      this.runDoacao(doacaoCycleStart(this.doacaoInput()));
-      onCleanup(() => this.clearDoacaoTimer());
-    });
-
-    // Patrocinadores: a cada intervaloSeg, visivelSeg no ar; ocupado → tenta de novo em 30 s.
-    // Config e "patroc. agora" numa assinatura só, sem dependência reativa.
-    effect((onCleanup) => {
-      onCleanup(
-        subscribeOverlaySettings((s) => {
-          if (JSON.stringify(s.patro) === JSON.stringify(this.patroConfig())) return;
-          this.patroConfig.set(s.patro);
-          this.runPatro(patroCycleStart(this.patroInput()));
-        }),
-      );
-      onCleanup(bindOverlayPatroControls(() => this.mostrarPatro()));
-      onCleanup(() => {
-        if (this.patroTimer != null) clearTimeout(this.patroTimer);
-      });
+    // Os ciclos (doação 3 s → 20 s no ar → 90 s fora; patrocinadores a cada intervalo) começam
+    // pelos effects das chaves acima; aqui só os timers morrem com a tela.
+    destroyRef.onDestroy(() => {
+      this.clearDoacaoTimer();
+      if (this.patroTimer != null) clearTimeout(this.patroTimer);
     });
     // A lista chega depois do overlay abrir (snapshot do torneio): quando passa a ter (ou deixa
     // de ter) patrocinador, o ciclo (re)começa — mas nunca derruba um card que está no ar.

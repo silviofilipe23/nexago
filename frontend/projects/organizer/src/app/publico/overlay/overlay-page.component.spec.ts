@@ -5,7 +5,6 @@ import type { OrganizerTournament } from '../../painel/data/tournament.model';
 import { DEFAULT_BROADCAST_CONTROL, type BroadcastControl, type BroadcastInterview } from '../../painel/data/broadcast-control';
 import { OverlayLiveGateway, type OverlayTeam } from './overlay-live.gateway';
 import { OverlayPageComponent } from './overlay-page.component';
-import { getOverlaySettings, installNxOverlay, resetOverlaySettingsForTests } from './overlay-nx';
 
 function match(overrides: Partial<TournamentMatch>): TournamentMatch {
   return {
@@ -444,46 +443,30 @@ describe('OverlayPageComponent', () => {
     }
   });
 
-  it('clique alterna a visualização e assume o controle do rodízio', async () => {
-    jasmine.clock().install();
-    try {
-      const { fixture } = await noFimDaRodada();
-      const host = fixture.nativeElement as HTMLElement;
-      expect(telaAtual(fixture)).toBe('resultado');
-
-      host.querySelector<HTMLElement>('.alternar')?.click();
-      await fixture.whenStable();
-      expect(telaAtual(fixture)).toBe('classificadas');
-
-      // Depois do clique o rodízio não volta a mandar sozinho.
-      jasmine.clock().tick(60_000);
-      await fixture.whenStable();
-      expect(telaAtual(fixture)).toBe('classificadas');
-
-      host.querySelector<HTMLElement>('.alternar')?.click();
-      await fixture.whenStable();
-      expect(telaAtual(fixture)).toBe('resultado');
-    } finally {
-      jasmine.clock().uninstall();
-    }
-  });
-
-  it('seta do teclado também alterna', async () => {
+  it('a tela do ar não tem controle nenhum, nem no fim de rodada', async () => {
     const { fixture } = await noFimDaRodada();
-    expect(telaAtual(fixture)).toBe('resultado');
 
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
-    await fixture.whenStable();
-
-    expect(telaAtual(fixture)).toBe('classificadas');
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('button').length).toBe(0);
   });
 
-  it('não põe camada clicável quando não há o que alternar', async () => {
-    const { fixture, fake } = await mount({ matchId: 'm1' });
-    fake.match.set(match({}));
+  it('teclado não muda nada na tela do ar — quem manda é o painel', async () => {
+    const { fixture } = await noFimDaRodada();
+    for (const key of ['ArrowRight', 'd', 'p', 'l', 'o']) {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key }));
+    }
     await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
 
-    expect((fixture.nativeElement as HTMLElement).querySelector('.alternar')).toBeNull();
+    expect(telaAtual(fixture)).toBe('resultado');
+    expect(host.querySelector('og-overlay-doacao .card')).toBeNull();
+    expect(host.querySelector('og-overlay-patro .card')).toBeNull();
+  });
+
+  it('não instala console de controle (window.NXOverlay)', async () => {
+    delete (window as { NXOverlay?: unknown }).NXOverlay;
+    await mount({ matchId: 'm1' });
+
+    expect('NXOverlay' in window).toBeFalse();
   });
 
   it('em modo quadra, assina a QUADRA e não uma partida fixa', async () => {
@@ -674,14 +657,13 @@ describe('OverlayPageComponent — patrocinadores', () => {
     }).compileComponents();
   });
 
-  afterEach(() => resetOverlaySettingsForTests());
-
-  it('"patroc. agora" mostra o card com o 1º patrocinador do torneio', async () => {
+  it('"Mostrar agora" do painel mostra o card com o 1º patrocinador do torneio', async () => {
     const { fixture, fake } = await mount({ matchId: 'm1' });
     fake.tournament.set(comPatro);
     fake.match.set(match({}));
+    fake.control.set(controle());
     await fixture.whenStable();
-    window.NXOverlay!.showPatro();
+    fake.control.set(controle({ commands: { donationNowAt: 0, sponsorsNowAt: 900 } }));
     await fixture.whenStable();
 
     const el = card(fixture.nativeElement as HTMLElement);
@@ -694,28 +676,12 @@ describe('OverlayPageComponent — patrocinadores', () => {
     const { fixture, fake } = await mount({ matchId: 'm1' });
     fake.tournament.set(TOURNAMENT);
     fake.match.set(match({}));
+    fake.control.set(controle());
     await fixture.whenStable();
-    window.NXOverlay!.showPatro();
+    fake.control.set(controle({ commands: { donationNowAt: 0, sponsorsNowAt: 900 } }));
     await fixture.whenStable();
 
     expect(card(fixture.nativeElement as HTMLElement)).toBeNull();
-  });
-
-  it('a lista do NXOverlay sobrescreve a do torneio', async () => {
-    const { fixture, fake } = await mount({ matchId: 'm1' });
-    fake.tournament.set(comPatro);
-    fake.match.set(match({}));
-    window.NXOverlay!.set({ patro: { lista: [{ nome: 'Marca da Transmissão', logo: '' }] } });
-    window.NXOverlay!.showPatro();
-    await fixture.whenStable();
-
-    expect(card(fixture.nativeElement as HTMLElement)!.textContent).toContain('Marca da Transmissão');
-  });
-
-  it('"patroc. on/off" alterna o ciclo automático', () => {
-    expect(window.NXOverlay?.togglePatro() ?? installNxOverlay().togglePatro()).toBeFalse();
-    expect(getOverlaySettings().patro.card.enabled).toBeFalse();
-    expect(installNxOverlay().togglePatro()).toBeTrue();
   });
 });
 
@@ -726,8 +692,6 @@ describe('OverlayPageComponent — controle do painel', () => {
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
   });
-
-  afterEach(() => resetOverlaySettingsForTests());
 
   it('assina o controle do torneio da partida', async () => {
     const { fixture, fake } = await mount({ matchId: 'm1' });
@@ -916,8 +880,6 @@ describe('OverlayPageComponent — /transmissao', () => {
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
   });
-
-  afterEach(() => resetOverlaySettingsForTests());
 
   it('sem quadra escolhida, assina só o torneio e o controle', async () => {
     const { fake } = await mount({ tournamentId: 't1', transmissao: true });

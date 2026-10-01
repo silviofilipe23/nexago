@@ -56,7 +56,7 @@ export function doacaoCycleTick(state: DoacaoCycleState, input: DoacaoCycleInput
   }
 }
 
-/** Força o card na hora (botão doação / `NXOverlay.showDoacao`). */
+/** Força o card na hora ("Mostrar agora" da doação, na tela Transmissão do painel). */
 export function doacaoCycleShowNow(input: DoacaoCycleInput): DoacaoCycleState {
   if (!input.hasPix) {
     return { phase: 'off', waitMs: null, show: false };
@@ -64,7 +64,7 @@ export function doacaoCycleShowNow(input: DoacaoCycleInput): DoacaoCycleState {
   return { phase: 'visible', waitMs: sec(input.visivelSeg), show: true };
 }
 
-/** Tira o card e para o ciclo (botão desligar / `NXOverlay.hideDoacao`). */
+/** Tira o card e para o ciclo (chave da doação desligada no painel). */
 export function doacaoCycleStop(): DoacaoCycleState {
   return { phase: 'off', waitMs: null, show: false };
 }

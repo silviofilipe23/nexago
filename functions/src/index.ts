@@ -409,6 +409,13 @@ export {
   revealFriendlyMatchReviews,
 } from "./friendly-match-review";
 
+// Avaliação do torneio pelos atletas (spec 2026-10-01). O job sobe com a flag
+// `appConfig/tournamentReviews.enabled` desligada — ver scripts/set-tournament-reviews-flag.js.
+export {submitTournamentReview} from "./tournament-review-submit";
+export {onTournamentReviewWritten} from "./tournament-review-derived";
+export {onTournamentReviewCreatedAwardXp} from "./tournament-review-gamification";
+export {tournamentReviewDailySweep} from "./tournament-review-sweep";
+
 export {
   onGamificationSummaryWrittenSyncSandRank,
   backfillSandRanks,

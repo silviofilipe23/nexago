@@ -9,6 +9,8 @@ import { fetchTeamsByIds, type ArenaTeam } from '../data/teams-repository';
 import { fetchTournamentAnnouncements, type TournamentAnnouncement } from '../data/tournament-announcements-repository';
 import { watchMyRegistrations, type AthleteTournamentRegistration } from '../data/tournament-registrations-repository';
 import { fetchCategoryEnrolledCounts, fetchTournament, type TournamentCategoryOffer, type TournamentSummary } from '../data/tournaments-repository';
+import { fetchMyTournamentReview, watchTournamentReviewInvite } from '../data/tournament-reviews-repository';
+import type { MyTournamentReview, TournamentReviewInvite } from '../data/tournament-reviews';
 import {
   duoAvatarsOf,
   duoInitialsOf,
@@ -68,6 +70,10 @@ export class TournamentLiveStore {
   readonly myRegistrations = signal<readonly AthleteTournamentRegistration[]>([]);
   readonly enrolledByCategory = signal<ReadonlyMap<string, number>>(new Map());
   readonly isLiveConnected = signal(false);
+  /** Convite do atleta para avaliar ESTE torneio (`users/{uid}/tournamentReviewInvites/{id}`). */
+  readonly reviewInvite = signal<TournamentReviewInvite | null>(null);
+  /** A avaliação do próprio atleta — só é lida depois de o convite dizer `submitted`. */
+  readonly myReview = signal<MyTournamentReview | null>(null);
 
   /** Exposto para as abas que precisam de uma consulta pontual fora do escopo do store
    *  (a Visão geral carrega ligas só para a linha de contexto). */
@@ -208,6 +214,49 @@ export class TournamentLiveStore {
         ),
       );
     });
+
+    // Convite de avaliação ao vivo: quando o atleta envia, o servidor vira o convite para
+    // `submitted` e o botão das abas troca de "Avaliar" para "Você avaliou" sem refresh.
+    effect((onCleanup) => {
+      const tournamentId = this.tournamentId();
+      const uid = this.auth.user()?.uid;
+      const db = this.db;
+      if (!db || !uid || !tournamentId) {
+        this.reviewInvite.set(null);
+        return;
+      }
+      onCleanup(
+        watchTournamentReviewInvite(
+          db,
+          uid,
+          tournamentId,
+          (invite) => this.reviewInvite.set(invite),
+          () => this.reviewInvite.set(null),
+        ),
+      );
+    });
+
+    effect(() => {
+      if (this.reviewInvite()?.status === 'submitted') void this.reloadMyReview();
+      else this.myReview.set(null);
+    });
+  }
+
+  /** Relê a avaliação própria — também chamado pela casca depois de uma edição, quando o
+   *  convite não muda (continua `submitted`) e o effect não dispararia sozinho. */
+  async reloadMyReview(): Promise<void> {
+    const tournamentId = this.tournamentId();
+    const uid = this.auth.user()?.uid;
+    const db = this.db;
+    if (!db || !uid || !tournamentId) {
+      this.myReview.set(null);
+      return;
+    }
+    try {
+      this.myReview.set(await fetchMyTournamentReview(db, uid, tournamentId));
+    } catch {
+      // A avaliação própria é enriquecimento ("Você avaliou ★ N"): falha mantém o último estado.
+    }
   }
 
   /** Carrega tudo que as abas precisam. Idempotente por id: chamar de novo com o mesmo torneio

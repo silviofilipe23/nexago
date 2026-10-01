@@ -48,6 +48,9 @@ export interface TournamentDetail extends TournamentSummary {
   defaultEntryFeeCents: number | null;
   cashPrizesEnabled: boolean;
   categories: TournamentCategory[];
+  /** Dono do torneio: chave da reputação (`organizerReputation/{managerId}`) e do nome em
+   *  `public_profiles`. `null` em torneio legado sem dono gravado. */
+  managerId: string | null;
 }
 
 export interface LeagueStage {

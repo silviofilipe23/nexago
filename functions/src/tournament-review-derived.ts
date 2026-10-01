@@ -7,6 +7,7 @@ import {
   ORGANIZER_REPUTATION_COLLECTION,
   TOURNAMENT_REVIEW_SUMMARIES_COLLECTION,
   TOURNAMENT_REVIEWS_COLLECTION,
+  tournamentReviewDocId,
 } from "./tournament-review-constants";
 
 type DocData = Record<string, unknown>;
@@ -18,6 +19,10 @@ function str(value: unknown): string {
 /**
  * Cópia que o organizador lê: sem uid, sem data, sem categoria. `shuffleKey` nasce uma vez e a
  * tela ordena por ele, então a ordem de chegada não fica guardada.
+ *
+ * Espelha o doc privado como ele está AGORA, não o `after` do evento: trigger não tem ordem
+ * garantida, e um trigger atrasado da 1ª gravação não pode devolver ao organizador o texto que
+ * o atleta já tirou na edição (nem recriar a cópia de uma avaliação apagada).
  */
 async function syncAnonymousCopy(
   db: Firestore,
@@ -25,23 +30,31 @@ async function syncAnonymousCopy(
   after: DocData | null,
   randomKey: () => number,
 ): Promise<void> {
-  const tournamentId = str((after ?? before)?.tournamentId);
-  if (!tournamentId) return;
-  if (!after) {
-    const anonId = str(before?.anonId);
-    if (anonId) await db.doc(anonymousReviewPath(tournamentId, anonId)).delete();
-    return;
-  }
-  const anonId = str(after.anonId);
-  if (!anonId) return;
-  const ref = db.doc(anonymousReviewPath(tournamentId, anonId));
-  const existing = await ref.get();
-  const previousKey = existing.exists ? existing.data()?.shuffleKey : undefined;
-  await ref.set({
-    overall: after.overall,
-    aspects: after.aspects ?? {},
-    comment: after.comment ?? null,
-    shuffleKey: typeof previousKey === "number" ? previousKey : randomKey(),
+  const event = after ?? before;
+  const tournamentId = str(event?.tournamentId);
+  const uid = str(event?.uid);
+  if (!tournamentId || !uid) return;
+  const eventAnonId = str(after?.anonId) || str(before?.anonId);
+  const reviewRef = db.collection(TOURNAMENT_REVIEWS_COLLECTION).doc(tournamentReviewDocId(tournamentId, uid));
+
+  await db.runTransaction(async (tx) => {
+    const reviewSnap = await tx.get(reviewRef);
+    const current = reviewSnap.exists ? reviewSnap.data() as DocData : null;
+    const anonId = str(current?.anonId) || eventAnonId;
+    if (!anonId) return;
+    const copyRef = db.doc(anonymousReviewPath(tournamentId, anonId));
+    const copySnap = await tx.get(copyRef);
+    if (!current) {
+      if (copySnap.exists) tx.delete(copyRef);
+      return;
+    }
+    const previousKey = copySnap.exists ? copySnap.data()?.shuffleKey : undefined;
+    tx.set(copyRef, {
+      overall: current.overall,
+      aspects: current.aspects ?? {},
+      comment: current.comment ?? null,
+      shuffleKey: typeof previousKey === "number" ? previousKey : randomKey(),
+    });
   });
 }
 

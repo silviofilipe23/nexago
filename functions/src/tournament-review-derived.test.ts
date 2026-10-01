@@ -50,7 +50,7 @@ function setup(withSummaryFor: string[] = ["t1"]) {
     else fake.store.delete(path);
     await syncTournamentReviewDerivedDocs(db, before, after, NOW, () => key);
   }
-  return {fake, write};
+  return {fake, db, write};
 }
 
 describe("syncTournamentReviewDerivedDocs", () => {
@@ -126,6 +126,23 @@ describe("syncTournamentReviewDerivedDocs", () => {
     assert.equal(reputation.reviewsCount, 3);
     assert.equal(reputation.tournamentsRated, 2);
     assert.equal(reputation.average, 4);
+  });
+
+  it("trigger atrasado espelha o estado atual, não o `after` velho do evento", async () => {
+    // Trigger não tem ordem garantida: a 1ª gravação (que identificava o atleta) pode ser
+    // processada DEPOIS da edição que tirou essa parte. O organizador nunca pode ler a v1.
+    const {fake, db} = setup();
+    const v1 = review("u1", "t1", 2, {comment: "Eu e minha parceira da dupla 3 esperamos 4h"});
+    const v2 = review("u1", "t1", 2, {comment: "Atrasou muito"});
+    fake.seedDoc("tournamentReviews/t1_u1", v2);
+    await syncTournamentReviewDerivedDocs(db, null, v1, NOW, () => 0.5);
+    assert.equal(fake.store.get("tournaments/t1/anonymousReviews/anon-u1-t1")!.comment, "Atrasou muito");
+  });
+
+  it("trigger atrasado de avaliação já apagada não recria a cópia anônima", async () => {
+    const {fake, db} = setup();
+    await syncTournamentReviewDerivedDocs(db, null, review("u1", "t1", 2, {comment: "Atrasou"}), NOW, () => 0.5);
+    assert.equal(fake.store.has("tournaments/t1/anonymousReviews/anon-u1-t1"), false);
   });
 
   it("sem resumo do torneio: não inventa um, mas a cópia e a reputação saem", async () => {

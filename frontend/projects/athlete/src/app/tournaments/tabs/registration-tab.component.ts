@@ -36,6 +36,7 @@ import { campaignShareDataOf, type CampaignShareData } from '../campaign/campaig
 import { CampaignShareDialogComponent } from '../campaign/campaign-share-dialog.component';
 import { RegistrationShareDialogComponent } from '../registration/registration-share-dialog.component';
 import { TournamentLiveStore } from '../tournament-live.store';
+import { TournamentReviewCtaComponent } from '../review/tournament-review-cta.component';
 import { registrationRosterView } from './registration-roster-cta';
 import {
   firstNameOf,
@@ -172,6 +173,7 @@ export const REFUND_PENDING_NOTICE =
     RegistrationShareDialogComponent,
     CampaignShareDialogComponent,
     SubstitutionDialogComponent,
+    TournamentReviewCtaComponent,
   ],
   templateUrl: './registration-tab.component.html',
   styleUrl: './registration-tab.component.scss',

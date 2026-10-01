@@ -93,6 +93,7 @@
       }
 
       <div class="tdv-col tdv-col--side">
+        <app-tournament-review-cta [invite]="store.reviewInvite()" [myOverall]="store.myReview()?.overall ?? null" [now]="store.now()" />
         <div class="tdv-card tdv-prize-card">
           <span class="tdv-card-kicker">Prêmio total em disputa</span>
           <strong class="tdv-prize-amount">{{ totalPrizeLabel() ?? '—' }}</strong>

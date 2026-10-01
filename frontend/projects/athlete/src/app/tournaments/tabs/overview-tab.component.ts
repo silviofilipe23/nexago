@@ -15,6 +15,7 @@ import {
 import { leagueContextLabel, resolveLeagueContext } from '../tournament-league.helpers';
 import type { DiscoveryLeague } from '../tournament-discovery.models';
 import { TournamentLiveStore } from '../tournament-live.store';
+import { TournamentReviewCtaComponent } from '../review/tournament-review-cta.component';
 
 function hashHue(id: string): number {
   let hash = 0;
@@ -44,7 +45,7 @@ export type CategoryCtaKind = 'register' | 'waitlist' | 'disabled' | 'view-regis
  *  ou etapas fictícias — o Flutter também não tem nada disso no detalhe. */
 @Component({
   selector: 'app-overview-tab',
-  imports: [RouterLink],
+  imports: [RouterLink, TournamentReviewCtaComponent],
   templateUrl: './overview-tab.component.html',
   styleUrl: './overview-tab.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -1280,6 +1280,7 @@ export class TorneioDetalheComponent {
         : []),
       { label: 'Agendamento', icon: 'calendar', path: 'agendamento', badge: null },
       { label: 'Telão', icon: 'tv', path: 'telao', badge: null },
+      { label: 'Transmissão', icon: 'broadcast', path: 'transmissao', badge: null },
       { label: 'Comunicação', icon: 'mail', path: 'comunicacao', badge: null },
       { label: 'Equipe', icon: 'team', path: 'equipe', badge: null },
       { label: 'Avaliações', icon: 'star', path: 'avaliacoes', badge: null },

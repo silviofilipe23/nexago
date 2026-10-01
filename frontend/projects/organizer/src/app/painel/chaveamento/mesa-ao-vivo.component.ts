@@ -38,7 +38,8 @@ import { organizerFirestore } from '../data/firestore';
 import { organizerLiveScoringContext } from '../data/live-scoring-context';
 import { formatCourtLabel } from '../data/schedule-format';
 import { fetchProfileNames, fetchTeamsByIds } from '../data/teams-repository';
-import { turnOnOverlayFinal } from '../../publico/overlay/overlay-final-sync';
+import { AuthService } from '../../auth/auth.service';
+import { saveBroadcastControl } from '../data/broadcast-control-repository';
 import { environment } from '../../../environments/environment';
 import { revertMatchToScheduled, updateLiveMatchScore, validateMatchResult } from '../data/organizer-ops.service';
 import { OgAvatarComponent } from '../ui/avatar.component';
@@ -114,7 +115,7 @@ interface MedicalOptionView {
           <button
             type="button"
             class="og-mini-btn og-mini-btn-primary"
-            title="Liga o visual Grande final em todos os overlays abertos deste torneio"
+            title="Liga o visual Grande final na transmissão do torneio (tela Transmissão)"
             (click)="ligarModoFinal()"
           >
             Final
@@ -1127,6 +1128,7 @@ interface MedicalOptionView {
 })
 export class MesaAoVivoComponent {
   protected readonly ctx = inject(ChaveamentoContextService);
+  private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly scoring = organizerLiveScoringContext();
   protected readonly initialsOf = initialsOf;
@@ -1181,10 +1183,13 @@ export class MesaAoVivoComponent {
   );
 
   /** Liga o visual Grande final em todos os overlays abertos deste torneio. */
+  /** Liga o visual Grande final no controle da transmissão — chega no OBS, que tem navegador
+   *  próprio (o localStorage + BroadcastChannel de antes só alcançava abas deste navegador). */
   protected ligarModoFinal(): void {
     const tid = this.id().trim();
-    if (!tid) return;
-    turnOnOverlayFinal(tid);
+    const uid = this.auth.user()?.uid;
+    if (!tid || !uid) return;
+    void saveBroadcastControl(tid, { finalMode: 'on' }, uid);
   }
 
   private readonly live = signal<LiveMatch | null>(null);

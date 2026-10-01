@@ -8,6 +8,8 @@ import 'package:nexago_app/core/ui/explore_card.dart';
 import '../../../domain/match_ops/match_ops_providers.dart';
 import '../../../domain/tournament_ops/tournament_ops_logic.dart';
 import '../../../domain/tournament_ops/tournament_ops_models.dart';
+import '../../../domain/tournament_reviews/organizer_tournament_review_logic.dart';
+import '../../../domain/tournament_reviews/organizer_tournament_review_providers.dart';
 import '../../../domain/tournament_staff/tournament_staff_providers.dart';
 import '../../../domain/tournament_uniforms/tournament_uniforms_providers.dart';
 import '../organizer_tournament_navigation.dart';
@@ -140,6 +142,20 @@ class OrganizerTournamentExploreSection extends ConsumerWidget {
                 totalAthletes: uniformsSubtitle?.totalAthletes ?? 0,
               ),
               onTap: () => pushOrganizerTournamentUniforms(
+                GoRouter.of(context),
+                tournamentId: tournamentId,
+              ),
+            ),
+          // Avaliações dos atletas (anônimas): todo mundo que gerencia, menos o mesário — a rule
+          // dos comentários também deixa o mesário de fora.
+          if (!matchesOnly)
+            ExploreCard(
+              icon: Icons.star_outline_rounded,
+              title: 'Avaliações',
+              subtitle: organizerReviewsCardSubtitle(
+                ref.watch(tournamentReviewSummaryProvider(tournamentId)).valueOrNull,
+              ),
+              onTap: () => pushOrganizerTournamentReviews(
                 GoRouter.of(context),
                 tournamentId: tournamentId,
               ),

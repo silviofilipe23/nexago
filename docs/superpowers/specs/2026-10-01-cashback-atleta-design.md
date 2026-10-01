@@ -357,35 +357,65 @@ da v1: exigiria habilitar o evento no painel do Asaas.
    sobrescreve o `split_pending` e credita o valor cheio na arena; as cotas pagas
    creditam de novo. **Cobrança e crédito em dobro.**
 
+5. **Pior que a cobrança em dobro:** a cobrança original vence no dia
+   (`dueDate = paymentExpiresAt`). No dia seguinte o Asaas manda `PAYMENT_OVERDUE`, o
+   webhook da reserva cai no ramo negativo e `releaseArenaBookingHold` **cancela a
+   reserva dividida**, apagando `arenaSlots` e locks, enquanto os amigos pagam as cotas.
+   Vale para toda divisão feita com mais de um dia de antecedência sobre uma reserva
+   que já tinha PIX gerado.
+
 Defeito menor no mesmo fluxo: quando a divisão cria a reserva do zero, `submitSplit`
-não repassa o `couponCode`, e o cupom se perde.
+não repassa o `couponCode`. A reserva nasce sem desconto e a soma das fatias
+(calculada sobre o total com desconto) não bate — a divisão é recusada.
+
+Caminho real até o defeito no portal: as abas "Dividir com amigos" só aparecem sem QR
+na tela, então o atleta precisa gerar o PIX, recarregar ou voltar em até 5 minutos e
+então dividir — `findResumablePixBooking` acha a reserva com a cobrança viva.
 
 **Correção:**
 
-- `splitArenaBookingPaymentCore`, antes de criar qualquer cota, se a reserva tem
-  `asaasPaymentId`:
-  - consulta `getAsaasPayment`: pago/confirmado → recusa com "O PIX desta reserva já
-    foi pago" (`failed-precondition`), nenhuma cota criada;
-  - aberto → `deleteAsaasPaymentOrThrow` (a variante que propaga a falha; a
-    `deleteAsaasPaymentIfOpen` engole o erro). Falha → divisão recusada, nada gravado.
-- Consulta e cancelamento entram **injetados**, como o `createCharge` já é, para
-  testar sem Asaas. A callable já declara os segredos do Asaas
-  (`splitPaymentSecrets`).
-- Na escrita final da reserva: remove `asaasPaymentId` e `pixCopyPaste`, grava
-  `supersededAsaasPaymentIds` (arrayUnion) e — quando o cashback existir — libera a
+- `splitArenaBookingPaymentCore`, se a reserva tem `asaasPaymentId`:
+  - **antes das cotas**, consulta o status: pago/confirmado → recusa com "O PIX desta
+    reserva já foi pago" (`failed-precondition`), nenhuma cota criada; cobrança já
+    removida no Asaas (`deleted` ou 404) não bloqueia;
+  - **depois de criar as cotas**, cancela a original com a variante que propaga a
+    falha (`deleteAsaasPaymentOrThrow`; a `deleteAsaasPaymentIfOpen` engole o erro).
+    Falha → desfaz as cotas (cancela as cobranças delas no Asaas e apaga os docs) e
+    recusa com `unavailable`. Cancelar por último garante que a reserva fica sempre em
+    um de dois estados coerentes: original viva e sem cotas, ou cotas vivas e original
+    morta.
+- O rollback de falha na criação de cotas passa a **cancelar no Asaas** as cobranças
+  das cotas já criadas (hoje só apaga os docs e deixa as cobranças vivas).
+- Consulta e cancelamentos entram **injetados** (`OriginalChargeOps`), como o
+  `createCharge` já é. A callable já declara os segredos do Asaas (`splitPaymentSecrets`).
+- Na escrita final da reserva: `asaasPaymentId: null`, `pixCopyPaste: null` e
+  `supersededAsaasPaymentIds` com o id cancelado (lista montada a partir do doc lido,
+  sem `arrayUnion`). Quando o cashback existir (fase 1), a mesma escrita libera a
   reserva de saldo daquela cobrança.
-- `processArenaBookingAsaasNotification`, defesa em profundidade para a corrida (pago
-  entre a consulta e o cancelamento): se `hasSplitShares` e `paymentId` diferente do
-  `asaasPaymentId` atual → não marca `paid`, não credita, grava
-  `outcome: "stale_charge_after_split"`, `refundRequired: true`, `paidValue`, e
-  `logger.error` — mesmo tratamento do `duplicate_payer` da inscrição.
-- Portal: `submitSplit` repassa `couponCode`; depois da divisão, a tela descarta o QR
-  antigo e o contador.
+- `processArenaBookingAsaasNotification`: **qualquer** evento da cobrança da reserva
+  inteira numa reserva com `hasSplitShares` vem de uma cobrança substituída (o
+  pagamento passou para as cotas, que têm prefixo próprio). Então:
+  - pago → não confirma, não credita; grava `outcome: "stale_charge_after_split"`,
+    `refundRequired: true`, `paidValue` e `logger.error` — mesmo tratamento do
+    `duplicate_payer` da inscrição;
+  - negativo (vencida, removida, estornada) → **não cancela a reserva** e **não grava
+    "processado"**, para um `RECEIVED` tardio da mesma cobrança ainda cair no ramo de
+    estorno.
+  Isso protege também as divisões antigas, feitas antes da correção, que ainda têm a
+  original viva.
+- Portal: "Gerar PIX" e "Dividir com amigos" passam a montar as opções de
+  `createArenaBooking` pela mesma função pura (`pixBookingCreateOptions`), que leva o
+  cupom. Não precisa descartar QR na tela: as abas de divisão só aparecem sem QR.
+- Script só de leitura `functions/scripts/audit-split-superseded-charges.js` para
+  saber se alguém já pagou em dobro ou teve a reserva dividida cancelada.
 
-**Testes** (`FakeFirestore`, com consulta e cancelamento injetados): cobrança aberta é
-cancelada e sai da reserva; cobrança paga recusa a divisão sem cotas; falha no
-cancelamento recusa sem gravar nada; webhook de cobrança substituída não credita e
-marca `refundRequired`; cupom preservado na divisão (spec do portal).
+**Testes** (`FakeFirestore`, com consulta e cancelamentos injetados): cobrança aberta é
+cancelada depois das cotas e sai da reserva; cobrança paga recusa sem cotas; cobrança
+já removida não bloqueia; falha no cancelamento desfaz as cotas e não grava nada; falha
+na 2ª cota cancela a cobrança da 1ª; webhook: pago em reserva dividida não credita e
+marca estorno, vencida/removida não cancela a reserva nem grava processado, e reserva
+sem divisão continua confirmando e cancelando como hoje; cupom nas opções de criação
+(spec do portal); classificação do script.
 
 ## 4. Telas, implantação e testes
 

@@ -7,6 +7,56 @@ import {syncTournamentReviewDerivedDocs} from "./tournament-review-derived";
 
 const NOW = Date.UTC(2026, 9, 6, 15, 0, 0);
 
+type DocData = Record<string, unknown>;
+type Query = {get: () => Promise<unknown>; [method: string]: unknown};
+
+/**
+ * Corrida de dois triggers do mesmo organizador: uma consulta FORA de transação enxerga o
+ * banco como estava antes do commit da outra avaliação (`staleStore`). Dentro da transação a
+ * leitura é consistente com a escrita — é o que o lock/retry da transação garante no
+ * Firestore de verdade.
+ */
+class StaleOutsideTransaction extends FakeFirestore {
+  staleStore: Map<string, DocData> | null = null;
+  private inTransaction = false;
+
+  override async runTransaction<T>(fn: (tx: unknown) => Promise<T>): Promise<T> {
+    this.inTransaction = true;
+    try {
+      return await super.runTransaction(fn);
+    } finally {
+      this.inTransaction = false;
+    }
+  }
+
+  override collection(path: string): ReturnType<FakeFirestore["collection"]> {
+    const base = super.collection(path);
+    return {...base, ...this.staleAware(base as unknown as Query)} as unknown as ReturnType<FakeFirestore["collection"]>;
+  }
+
+  private staleAware(query: Query): Query {
+    const self = this;
+    const chain = (method: string) => (...args: unknown[]) =>
+      self.staleAware((query[method] as (...a: unknown[]) => Query)(...args));
+    return {
+      where: chain("where"),
+      orderBy: chain("orderBy"),
+      limit: chain("limit"),
+      startAfter: chain("startAfter"),
+      get: async () => {
+        if (self.inTransaction || !self.staleStore) return query.get();
+        const real = self.store;
+        self.store = self.staleStore;
+        try {
+          return await query.get();
+        } finally {
+          self.store = real;
+        }
+      },
+    };
+  }
+}
+
 function review(uid: string, tournamentId: string, overall: number, extra: Record<string, unknown> = {}) {
   return {
     tournamentId,
@@ -143,6 +193,22 @@ describe("syncTournamentReviewDerivedDocs", () => {
     const {fake, db} = setup();
     await syncTournamentReviewDerivedDocs(db, null, review("u1", "t1", 2, {comment: "Atrasou"}), NOW, () => 0.5);
     assert.equal(fake.store.has("tournaments/t1/anonymousReviews/anon-u1-t1"), false);
+  });
+
+  it("reputação não perde avaliação quando dois triggers do mesmo organizador correm juntos", async () => {
+    const fake = new StaleOutsideTransaction();
+    const db = fake as unknown as Firestore;
+    fake.seedDoc("tournamentReviewSummaries/t1", {tournamentId: "t1", organizerId: "org", status: "open", count: 0});
+    const first = review("u1", "t1", 5);
+    fake.seedDoc("tournamentReviews/t1_u1", first);
+    // O trigger de u1 consulta antes do commit de u2; u2 já está no banco quando ele grava.
+    fake.staleStore = new Map(fake.store);
+    fake.seedDoc("tournamentReviews/t1_u2", review("u2", "t1", 4));
+
+    await syncTournamentReviewDerivedDocs(db, null, first, NOW, () => 0.5);
+
+    assert.equal(fake.store.get("organizerReputation/org")!.reviewsCount, 2);
+    assert.equal(fake.store.get("tournamentReviewSummaries/t1")!.count, 2);
   });
 
   it("sem resumo do torneio: não inventa um, mas a cópia e a reputação saem", async () => {

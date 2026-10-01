@@ -92,24 +92,30 @@ export async function recomputeTournamentReviewSummary(
 
 /** Reputação do organizador: todas as avaliações de todos os torneios dele, inclusive dos que
  *  fecharam com menos de 3. Recalcula do zero; troque por acumulador se algum organizador
- *  passar de ~10 mil avaliações. */
+ *  passar de ~10 mil avaliações. Leitura e escrita na mesma transação: na rajada depois do push
+ *  das 10h, dois triggers do mesmo organizador correm juntos, e o que consultou antes do commit
+ *  do outro gravaria por cima um número sem aquela avaliação. */
 export async function recomputeOrganizerReputation(
   db: Firestore,
   organizerId: string,
   nowMs: number,
 ): Promise<void> {
-  const snap = await db.collection(TOURNAMENT_REVIEWS_COLLECTION).where("organizerId", "==", organizerId).get();
-  const reviews = snap.docs.map((d) => d.data());
-  const aggregate = computeReviewAggregate(reviews);
-  const tournaments = new Set(reviews.map((r) => str(r.tournamentId)).filter((id) => id.length > 0));
-  await db.collection(ORGANIZER_REPUTATION_COLLECTION).doc(organizerId).set({
-    organizerId,
-    reviewsCount: aggregate.count,
-    tournamentsRated: tournaments.size,
-    average: aggregate.average,
-    distribution: aggregate.distribution,
-    aspects: aggregate.aspects,
-    updatedAt: Timestamp.fromMillis(nowMs),
+  const reputationRef = db.collection(ORGANIZER_REPUTATION_COLLECTION).doc(organizerId);
+  const reviewsQuery = db.collection(TOURNAMENT_REVIEWS_COLLECTION).where("organizerId", "==", organizerId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(reviewsQuery);
+    const reviews = snap.docs.map((d) => d.data());
+    const aggregate = computeReviewAggregate(reviews);
+    const tournaments = new Set(reviews.map((r) => str(r.tournamentId)).filter((id) => id.length > 0));
+    tx.set(reputationRef, {
+      organizerId,
+      reviewsCount: aggregate.count,
+      tournamentsRated: tournaments.size,
+      average: aggregate.average,
+      distribution: aggregate.distribution,
+      aspects: aggregate.aspects,
+      updatedAt: Timestamp.fromMillis(nowMs),
+    });
   });
 }
 

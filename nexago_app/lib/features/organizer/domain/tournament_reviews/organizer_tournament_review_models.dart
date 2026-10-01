@@ -102,6 +102,29 @@ class AnonymousTournamentReview {
   }
 }
 
+/// `organizerReputation/{organizerId}` — público. Soma todos os torneios do organizador, inclusive
+/// os que ficaram com menos de 3. `average` vem nulo enquanto `reviewsCount < 3`.
+class OrganizerReputation {
+  const OrganizerReputation({
+    required this.reviewsCount,
+    required this.tournamentsRated,
+    this.average,
+  });
+
+  final int reviewsCount;
+  final int tournamentsRated;
+  final double? average;
+
+  static OrganizerReputation? fromMap(Map<String, dynamic>? data) {
+    if (data == null) return null;
+    return OrganizerReputation(
+      reviewsCount: _countOf(data['reviewsCount']),
+      tournamentsRated: _countOf(data['tournamentsRated']),
+      average: _numOf(data['average']),
+    );
+  }
+}
+
 DateTime? _dateOf(Object? value) {
   if (value is Timestamp) return value.toDate();
   if (value is DateTime) return value;

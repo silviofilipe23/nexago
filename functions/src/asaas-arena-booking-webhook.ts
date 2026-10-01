@@ -116,6 +116,44 @@ export async function processArenaBookingAsaasNotification(
 
   const booking = bookingSnap.data()!;
 
+  // Reserva dividida: o pagamento passou para as fatias (`arenaBookingShare:`) e a
+  // cobrança da reserva inteira foi substituída. Dois casos levam aqui — reserva já
+  // dividida (`hasSplitShares`), ou divisão em andamento com esta cobrança já marcada
+  // como substituída (`supersededAsaasPaymentIds`, gravado antes do cancelamento na
+  // Asaas — cobre a corrida entre esse cancelamento e este webhook chegando primeiro).
+  // Pago: confirmar e creditar seria cobrança em dobro, então só marca para estorno.
+  // Negativo (vencida/removida): não cancela a reserva que as fatias estão pagando, e
+  // NÃO grava "processado", para um RECEIVED tardio da mesma cobrança ainda cair aqui
+  // como estorno.
+  const supersededIds = Array.isArray(booking.supersededAsaasPaymentIds) ?
+    (booking.supersededAsaasPaymentIds as unknown[]).filter((v): v is string => typeof v === "string") :
+    [];
+  if (booking.hasSplitShares === true || supersededIds.includes(paymentId)) {
+    if (ASAAS_PAID_STATUSES.has(status)) {
+      const paidValue = roundMoney(Number(payment.value) || 0);
+      logger.error(
+        `Asaas arena booking ${bookingId}: pagamento ${paymentId} da cobrança ` +
+        "substituída pela divisão — estorno necessário",
+        {paidValue},
+      );
+      await processedRef.set({
+        kind: "arenaBooking",
+        bookingId,
+        outcome: "stale_charge_after_split",
+        refundRequired: true,
+        paidValue,
+        asaasPaymentStatus: status,
+        processedAt: FieldValue.serverTimestamp(),
+      });
+      return;
+    }
+    logger.info(
+      `Asaas arena booking ${bookingId}: evento ${status} da cobrança ${paymentId} ` +
+      "substituída pela divisão — ignorado",
+    );
+    return;
+  }
+
   if (ASAAS_PAID_STATUSES.has(status)) {
     const amount = Number(payment.value) || 0;
     if (amount <= 0) {

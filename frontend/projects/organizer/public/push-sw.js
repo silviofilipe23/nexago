@@ -26,7 +26,9 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = event.notification.data?.url;
+  // `webUrl` é a rota do portal quando o mesmo push também vai pro app (que usa `url`).
+  const data = event.notification.data ?? {};
+  const url = data.webUrl || data.url;
   const target = url ? new URL(url, self.location.origin).href : self.location.origin;
 
   event.waitUntil(

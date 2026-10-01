@@ -3,9 +3,9 @@ import {Timestamp} from "firebase-admin/firestore";
 /**
  * Firestore fake em memória para testes de unidade — implementa apenas o que
  * os módulos de rating/ranking usam: doc get/set (merge profundo), collection
- * add/doc, queries `where` (igualdade e array-contains) + `orderBy` +
- * `startAfter`/`limit`, `getAll` em lote, `batch()` (aplicado no commit) e
- * transações sequenciais.
+ * add/doc, queries `where` (igualdade, array-contains e intervalos `<`, `<=`,
+ * `>`, `>=`) + `orderBy` + `startAfter`/`limit`, `collectionGroup`, `getAll` em
+ * lote, `batch()` (aplicado no commit) e transações sequenciais.
  *
  * O sufixo `.test-helper.ts` fica fora do glob `lib/**​/*.test.js` do harness.
  */
@@ -37,6 +37,23 @@ function orderValue(raw: unknown): number | string {
   if (raw instanceof Timestamp) return raw.toMillis();
   if (typeof raw === "number") return raw;
   return String(raw ?? "");
+}
+
+/** `where` do fake: igualdade, `array-contains` e intervalos. Intervalo só compara valores do
+ *  mesmo tipo (Timestamp vira millis), como o Firestore — campo ausente ou de outro tipo não casa. */
+function matchesWhere(actual: unknown, op: string, value: unknown): boolean {
+  if (op === "array-contains") return Array.isArray(actual) && actual.includes(value);
+  if (op === "<" || op === "<=" || op === ">" || op === ">=") {
+    if (actual == null) return false;
+    const a = orderValue(actual);
+    const b = orderValue(value);
+    if (typeof a !== typeof b) return false;
+    if (op === "<") return a < b;
+    if (op === "<=") return a <= b;
+    if (op === ">") return a > b;
+    return a >= b;
+  }
+  return actual === value;
 }
 
 export interface FakeDocSnapshot {
@@ -123,34 +140,42 @@ export class FakeFirestore {
 
   collection(path: string) {
     const self = this;
+    return {
+      doc: (id?: string) => self.makeRef(`${path}/${id ?? self.nextAutoId()}`),
+      add: async (data: DocData) => {
+        const id = self.nextAutoId();
+        self.write(`${path}/${id}`, data);
+        return self.makeRef(`${path}/${id}`);
+      },
+      ...self.makeQuery((parentPath) => parentPath === path),
+    };
+  }
+
+  /** `collectionGroup` do Admin SDK: toda coleção com esse id, em qualquer profundidade. */
+  collectionGroup(collectionId: string) {
+    return this.makeQuery((parentPath) => parentPath.split("/").pop() === collectionId);
+  }
+
+  private makeQuery(inScope: (parentPath: string) => boolean) {
+    const self = this;
     interface QuerySpec {
       filters: Array<(doc: DocData) => boolean>;
       orderField?: string;
       startAfterValue?: unknown;
       limitCount?: number;
     }
-    const makeQuery = (spec: QuerySpec) => ({
+    const build = (spec: QuerySpec) => ({
       where: (field: string, op: string, value: unknown) =>
-        makeQuery({
+        build({
           ...spec,
-          filters: [
-            ...spec.filters,
-            (doc: DocData) =>
-              op === "array-contains"
-                ? Array.isArray(doc[field]) &&
-                  (doc[field] as unknown[]).includes(value)
-                : doc[field] === value,
-          ],
+          filters: [...spec.filters, (doc: DocData) => matchesWhere(doc[field], op, value)],
         }),
-      orderBy: (field: string) => makeQuery({...spec, orderField: field}),
-      startAfter: (value: unknown) => makeQuery({...spec, startAfterValue: value}),
-      limit: (count: number) => makeQuery({...spec, limitCount: count}),
+      orderBy: (field: string) => build({...spec, orderField: field}),
+      startAfter: (value: unknown) => build({...spec, startAfterValue: value}),
+      limit: (count: number) => build({...spec, limitCount: count}),
       get: async () => {
         let entries = [...self.store.entries()]
-          .filter(([docPath]) => {
-            const parent = docPath.slice(0, docPath.lastIndexOf("/"));
-            return parent === path;
-          })
+          .filter(([docPath]) => inScope(docPath.slice(0, docPath.lastIndexOf("/"))))
           .filter(([, data]) => spec.filters.every((fn) => fn(data)));
         if (spec.orderField) {
           const field = spec.orderField;
@@ -172,15 +197,7 @@ export class FakeFirestore {
         };
       },
     });
-    return {
-      doc: (id?: string) => self.makeRef(`${path}/${id ?? self.nextAutoId()}`),
-      add: async (data: DocData) => {
-        const id = self.nextAutoId();
-        self.write(`${path}/${id}`, data);
-        return self.makeRef(`${path}/${id}`);
-      },
-      ...makeQuery({filters: []}),
-    };
+    return build({filters: []});
   }
 
   batch() {

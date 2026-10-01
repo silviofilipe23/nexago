@@ -12,3 +12,9 @@ describe('roleFromRaw', () => {
     expect(roleFromRaw('viewer')).toBe('manager');
   });
 });
+
+describe('roleFromRaw — mídia', () => {
+  it('mídia recarregada continua mídia, não volta como gestor', () => {
+    expect(roleFromRaw('media')).toBe('media');
+  });
+});

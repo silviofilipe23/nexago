@@ -37,6 +37,20 @@ describe('roleFromStaffMirror', () => {
   });
 });
 
+describe('roleFromStaffMirror — mídia', () => {
+  it('mídia é media — entra no portal só pra Transmissão', () => {
+    expect(roleFromStaffMirror({ role: 'media', status: 'active' })).toBe('media');
+  });
+
+  it('mídia inativa não tem papel', () => {
+    expect(roleFromStaffMirror({ role: 'media', status: 'removed' })).toBeNull();
+  });
+
+  it('mídia não alcança dinheiro', () => {
+    expect(roleReachesMoney('media')).toBeFalse();
+  });
+});
+
 describe('roleReachesMoney', () => {
   it('dono e gestor alcançam o caixa', () => {
     expect(roleReachesMoney('owner')).toBe(true);

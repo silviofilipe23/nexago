@@ -57,6 +57,13 @@ export class PanelContextService {
     return m ? decodeURIComponent(m[1]!) : null;
   });
 
+  /** Papel de quem está logado no torneio do contexto (`listMyTournaments`). `null` enquanto a
+   *  lista carrega ou para torneio fora dela (super admin). */
+  readonly myRole = computed(() => {
+    const id = this.tournamentId();
+    return id ? (this.chav.tournaments().find((t) => t.id === id)?.myRole ?? null) : null;
+  });
+
   readonly categoryId = computed<string | null>(() => {
     const m = this.path().match(/^\/painel\/eventos\/[^/]+\/categorias\/([^/]+)/);
     return m ? decodeURIComponent(m[1]!) : null;

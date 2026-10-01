@@ -74,6 +74,27 @@ describe("papel eventAdmin", () => {
   });
 });
 
+describe("papel media", () => {
+  it("tem rótulo próprio", () => {
+    assert.equal(staffRoleLabel("media"), "mídia");
+  });
+
+  it("entra na lista de papéis aceitos", () => {
+    assert.ok(TOURNAMENT_STAFF_ROLES.includes("media"));
+  });
+
+  it("ganha acesso ao portal do organizador — é lá que mora a tela Transmissão", () => {
+    assert.equal(staffRoleGrantsOrganizerAccess("media"), true);
+  });
+
+  it("a notificação de adição usa o rótulo novo", () => {
+    assert.equal(
+      buildStaffAddedNotificationBody("media", "Copa Teste"),
+      "Você agora é mídia de Copa Teste",
+    );
+  });
+});
+
 describe("buildStaffMirrorData", () => {
   it("copies role/status from staff and name/dates from tournament", () => {
     const mirror = buildStaffMirrorData(

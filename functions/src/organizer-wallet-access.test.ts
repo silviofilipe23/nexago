@@ -85,6 +85,27 @@ describe("listAccessibleOrganizerIds", () => {
   });
 });
 
+describe("papel media e a carteira", () => {
+  it("mídia não enxerga carteira nenhuma — loga no portal só pra Transmissão", async () => {
+    const db = fakeWith([
+      [`users/${STAFF}/tournamentStaff/t1`, {role: "media", status: "active"}],
+      ["tournaments/t1", {managerId: OWNER}],
+    ]);
+    assert.deepEqual(await listAccessibleOrganizerIds(db, STAFF), [STAFF]);
+  });
+
+  it("mídia é barrada", async () => {
+    const db = fakeWith([
+      [`users/${STAFF}/tournamentStaff/t1`, {role: "media", status: "active"}],
+      ["tournaments/t1", {managerId: OWNER}],
+    ]);
+    await assert.rejects(
+      () => assertCanAccessOrganizerWallet(db, STAFF, OWNER),
+      (err: unknown) => (err as {code?: string}).code === "permission-denied",
+    );
+  });
+});
+
 describe("assertCanAccessOrganizerWallet", () => {
   it("a própria carteira passa sem ler nada", async () => {
     await assertCanAccessOrganizerWallet(fakeWith([]), OWNER, OWNER);

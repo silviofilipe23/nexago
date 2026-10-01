@@ -89,6 +89,10 @@ abstract final class AppRoutes {
   static const String organizerTournamentAnnounce =
       '/organizer/tournaments/:tournamentId/announce';
 
+  /// Avaliações dos atletas sobre o torneio (anônimas).
+  static const String organizerTournamentReviews =
+      '/organizer/tournaments/:tournamentId/reviews';
+
   /// Shell da categoria (E1).
   static const String organizerCategoryShell =
       '/organizer/tournaments/:tournamentId/categories/:categoryId';
@@ -594,6 +598,7 @@ abstract final class AppRouteNames {
   static const String organizerTournamentStaff = 'organizerTournamentStaff';
   static const String organizerTournamentAnnounce =
       'organizerTournamentAnnounce';
+  static const String organizerTournamentReviews = 'organizerTournamentReviews';
   static const String organizerCategoryShell = 'organizerCategoryShell';
   static const String organizerCategorySeeding = 'organizerCategorySeeding';
   static const String organizerCategoryGenerateBracket =

@@ -49,6 +49,7 @@ import '../../features/organizer/presentation/category_ops/organizer_tournament_
 import '../../features/organizer/presentation/category_ops/organizer_tournament_financial_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_tournament_operations_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_tournament_staff_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_tournament_reviews_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_shell_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_teams_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_payments_page.dart';
@@ -747,6 +748,17 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                   final tournamentId =
                       state.pathParameters['tournamentId']?.trim() ?? '';
                   return OrganizerTournamentAnnouncePage(
+                    tournamentId: tournamentId,
+                  );
+                },
+              ),
+              GoRoute(
+                path: 'reviews',
+                name: AppRouteNames.organizerTournamentReviews,
+                builder: (context, state) {
+                  final tournamentId =
+                      state.pathParameters['tournamentId']?.trim() ?? '';
+                  return OrganizerTournamentReviewsPage(
                     tournamentId: tournamentId,
                   );
                 },

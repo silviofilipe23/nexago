@@ -2190,6 +2190,24 @@ service cloud.firestore {
           (isTournamentOwner(tournamentId) || isSuperAdmin());
       }
 
+      // Controle da transmissão (tela "Transmissão" do painel → overlay do OBS). Leitura
+      // PÚBLICA: o Browser Source do OBS não tem login, e nada aqui é sensível (nome e foto da
+      // tarja já são públicos em `public_profiles`). Escrita direta do painel, sem callable —
+      // preferência de exibição, como o `bigScreen`. Um doc só por torneio: `control`.
+      // NÃO mora no doc do torneio: cada escrita ali dispara `community-feed` e
+      // `search-keywords-sync` e chega a todo mundo que escuta o torneio.
+      match /broadcast/{docId} {
+        allow read: if true;
+        allow create, update: if docId == 'control' &&
+          canManageTournament(tournamentId) &&
+          request.resource.data.keys().hasOnly([
+            'courtId', 'graphics', 'kocRoundEndScreen', 'finalMode',
+            'interview', 'commands', 'updatedAt', 'updatedBy'
+          ]) &&
+          request.resource.data.updatedBy == request.auth.uid;
+        allow delete: if false;
+      }
+
       match /categoryCommunications/{commId} {
         // Histórico de sendCategoryCommunication — só quem gerencia o
         // torneio lê; escrita só via Admin SDK (Cloud Function).

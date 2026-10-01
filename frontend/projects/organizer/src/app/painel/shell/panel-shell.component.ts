@@ -427,6 +427,7 @@ export class PanelShellComponent {
           : []),
         { label: 'Agendamento', icon: 'calendar', link: `${base}/agendamento` },
         { label: 'Telão', icon: 'tv', link: `${base}/telao` },
+        { label: 'Transmissão', icon: 'broadcast', link: `${base}/transmissao` },
         { label: 'Comunicação', icon: 'mail', link: `${base}/comunicacao` },
         { label: 'Equipe', icon: 'team', link: `${base}/equipe` },
       ];

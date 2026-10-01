@@ -244,6 +244,11 @@ export const routes: Routes = [
             loadComponent: () => import('./painel/telao/telao-config.component').then((m) => m.TelaoConfigComponent),
           },
           {
+            path: 'transmissao',
+            title: 'Transmissão — NexaGO Organizador',
+            loadComponent: () => import('./painel/transmissao/transmissao.component').then((m) => m.TransmissaoComponent),
+          },
+          {
             path: 'comunicacao',
             title: 'Comunicação — NexaGO Organizador',
             loadComponent: () => import('./painel/comunicacao/comunicacao.component').then((m) => m.ComunicacaoComponent),

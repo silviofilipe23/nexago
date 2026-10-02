@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type {DocumentReference, Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {processTournamentRegistrationAsaasNotification} from "./asaas-tournament-registration-webhook";
-import {Timestamp} from "firebase-admin/firestore";
+import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import {attachHoldPayment, captureHold, holdCashback} from "./athlete-wallet";
 import {reverseCashbackForPayment} from "./cashback-reversal";
 
@@ -669,5 +669,53 @@ describe("asaas-tournament-registration-webhook: cashback", () => {
     const refunds = [...fake.store.entries()]
       .filter(([path, data]) => path.startsWith("athleteWallets/uidA/ledger/") && data.type === "refund");
     assert.equal(refunds.length, 1);
+  });
+});
+
+describe("asaas-tournament-registration-webhook: inscrição criada pelo organizador", () => {
+  it("integral pago pelo segundo atleta fecha a dupla inteira", async () => {
+    // Formato do caso de 02/10 (YwhsssrGGynKHhzH2uYb): o organizador inscreveu a dupla, o doc não
+    // tem `player1Id` nem `sharePaidUids`, e quem pagou o integral foi o SEGUNDO atleta. Este é o
+    // processador que a varredura de PIX vencido chama quando o webhook se perde.
+    const {fake, db} = makeDb();
+    fake.seedDoc(REG_PATH, {
+      tournamentId: "t1",
+      categoryId: CATEGORY,
+      participantUids: ["uidA", "uidB"],
+      createdVia: "organizer",
+      organizerRegisteredByUid: "org1",
+      paidAmount: 0,
+      isPaid: false,
+    });
+    fake.seedDoc(PENDING_B, {
+      status: "pending",
+      amountType: "full",
+      asaasPaymentId: "pay1",
+      payerUid: "uidB",
+    });
+    const {deps} = makeDeps();
+
+    await processTournamentRegistrationAsaasNotification(
+      db,
+      "pay1",
+      {
+        status: "RECEIVED",
+        value: ENTRY_FEE,
+        externalReference: `tournamentRegistration:${REG_ID}:uidB`,
+      },
+      processedRefOf(db),
+      deps,
+    );
+
+    const reg = fake.store.get(REG_PATH)!;
+    assert.equal(reg["isPaid"], true);
+    assert.equal(reg["paidAmount"], ENTRY_FEE);
+    // O fake guarda o sentinela do `arrayUnion` sem aplicá-lo: compara o sentinela — os DOIS
+    // atletas entram, não só quem pagou.
+    assert.ok(
+      FieldValue.arrayUnion("uidA", "uidB").isEqual(reg["sharePaidUids"] as FieldValue),
+    );
+    assert.equal(fake.store.get(PENDING_B)!["status"], "paid");
+    assert.equal(fake.store.get(PROCESSED_PATH)!["outcome"], "approved");
   });
 });

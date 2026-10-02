@@ -26,4 +26,12 @@ describe('chromeHiddenForUrl', () => {
   it('usa a moldura do painel em /cashback', () => {
     expect(chromeHiddenForUrl('/cashback')).toBe(true);
   });
+
+  // Mesmo furo do /cashback: fora da lista, o perfil e a lista de organizadores ganhavam o
+  // padding do container (sidebar deslocada, faixa vazia no topo, rolagem dupla).
+  it('usa a moldura do painel na lista e no perfil de organizadores', () => {
+    expect(chromeHiddenForUrl('/organizadores')).toBe(true);
+    expect(chromeHiddenForUrl('/organizadores/x')).toBe(true);
+    expect(chromeHiddenForUrl('/organizadores/x?aba=eventos')).toBe(true);
+  });
 });

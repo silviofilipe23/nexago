@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { tournamentSportToLevelSportCode } from '@nexago/levels';
 import { interviewLineOf, interviewOnAirAt, type BroadcastInterview, type InterviewKind } from '../data/broadcast-control';
 import {
@@ -463,6 +463,12 @@ export class TransmissaoEntrevistaComponent {
   constructor() {
     const timer = setInterval(() => this.now.set(Date.now()), 1000);
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
+    // Fila já escalada (painel recarregado no meio do evento) vai ao ar sem ninguém escolher
+    // atleta de novo — o ranking tem de estar carregando desde já, senão o card sai sem ele.
+    const temFila = computed(() => this.svc.queue().items.length > 0);
+    effect(() => {
+      if (temFila()) this.svc.ensureRanking();
+    });
   }
 
   /** Escolher alguém é o sinal de que vem entrevista: é aí que o ranking geral começa a carregar. */

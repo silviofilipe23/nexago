@@ -81,6 +81,13 @@ describe('TransmissaoEntrevistaComponent', () => {
       expect(fake.rankingRequests).toBe(1);
     });
 
+    it('fila já escalada (painel recarregado) também carrega o ranking — "Pôr no ar" não pode sair sem ele', async () => {
+      const fake = new FakeTransmissaoData();
+      fake.queue.set(FILA);
+      await mount(fake);
+      expect(fake.rankingRequests).toBe(1);
+    });
+
     it('a dupla inteira entra na fila com o nome da dupla, e a escolha some', async () => {
       const { el, fake, stable } = await mount();
       botao(el, 'Ana Souza').click();

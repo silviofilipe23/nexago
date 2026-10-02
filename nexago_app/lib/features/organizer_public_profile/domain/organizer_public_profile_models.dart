@@ -78,6 +78,7 @@ class OrganizerPublicProfile {
     this.city,
     this.state,
     this.whatsapp,
+    this.isOrganizer = false,
     this.verified = false,
     this.listed = false,
     this.followersCount = 0,
@@ -96,12 +97,21 @@ class OrganizerPublicProfile {
 
   /// Dígitos com DDI 55 — só existe quando o organizador ligou o botão público.
   final String? whatsapp;
+
+  /// Tem o papel organizer e a identidade foi projetada. O doc pode existir SEM identidade: o
+  /// gatilho de números cria `{uid, stats, listed: false}` para qualquer `managerId`, e o
+  /// contador de seguidores cria `{followersCount}` por merge. Só com `true` o perfil é exibível
+  /// (e `name` é o nome da marca, não o fallback).
+  final bool isOrganizer;
   final bool verified;
 
   /// Entra na lista "Organizadores".
   final bool listed;
   final int followersCount;
   final OrganizerPublicStats stats;
+
+  /// Perfil que pode ser mostrado ao atleta (ver [isOrganizer]).
+  bool get isDisplayable => isOrganizer;
 
   static OrganizerPublicProfile? fromMap(
       String id, Map<String, dynamic>? data) {
@@ -118,6 +128,7 @@ class OrganizerPublicProfile {
       city: _nullableText(data['city']),
       state: state.isEmpty ? null : state,
       whatsapp: _nullableText(data['whatsapp']),
+      isOrganizer: data['isOrganizer'] == true,
       verified: data['verified'] == true,
       listed: data['listed'] == true,
       followersCount: _countOf(data['followersCount']),

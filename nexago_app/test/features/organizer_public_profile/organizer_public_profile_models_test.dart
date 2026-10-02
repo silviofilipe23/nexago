@@ -49,6 +49,8 @@ void main() {
       expect(profile.city, 'Goiânia');
       expect(profile.state, 'GO');
       expect(profile.whatsapp, '5562999990000');
+      expect(profile.isOrganizer, isTrue);
+      expect(profile.isDisplayable, isTrue);
       expect(profile.verified, isTrue);
       expect(profile.listed, isTrue);
       expect(profile.followersCount, 2100);
@@ -88,6 +90,22 @@ void main() {
       expect(profile.stats.organizerSince, isNull);
       expect(profile.stats.sports, isEmpty);
       expect(profile.stats.venues, isEmpty);
+    });
+
+    test('doc só com números (sem identidade) não é exibível', () {
+      // O gatilho de números cria `{uid, stats, listed: false}` para qualquer managerId, e o
+      // contador de seguidores cria `{followersCount}` por merge — sem `isOrganizer`.
+      final statsOnly = OrganizerPublicProfile.fromMap('org3', {
+        'uid': 'org3',
+        'listed': false,
+        'stats': {'listedEvents': 2, 'eventsCompleted': 1},
+      })!;
+      final followersOnly = OrganizerPublicProfile.fromMap('org4', {
+        'followersCount': 1,
+      })!;
+      expect(statsOnly.isOrganizer, isFalse);
+      expect(statsOnly.isDisplayable, isFalse);
+      expect(followersOnly.isDisplayable, isFalse);
     });
   });
 

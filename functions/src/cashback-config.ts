@@ -6,6 +6,7 @@
  * visível e é preservado.
  */
 import type {Firestore} from "firebase-admin/firestore";
+import {toCents} from "./cashback-rules";
 
 export type CashbackConfig = {
   enabled: boolean;
@@ -38,7 +39,7 @@ export function parseCashbackConfig(raw?: Record<string, unknown>): CashbackConf
     enabled: raw.enabled === true,
     ratePercent: numberInRange(raw.ratePercent, 0, 20, d.ratePercent),
     maxShareOfFee: numberInRange(raw.maxShareOfFee, 0, 1, d.maxShareOfFee),
-    minCashCents: Math.round(numberInRange(raw.minCashReais, 0, 1000, d.minCashCents / 100) * 100),
+    minCashCents: toCents(numberInRange(raw.minCashReais, 0, 1000, d.minCashCents / 100)),
     expiryMonths: Math.round(numberInRange(raw.expiryMonths, 1, 60, d.expiryMonths)),
     expiryWarningDays: Math.round(numberInRange(raw.expiryWarningDays, 0, 90, d.expiryWarningDays)),
   };

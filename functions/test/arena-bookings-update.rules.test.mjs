@@ -1,7 +1,9 @@
 // Update de `arenaBookings` por papel: o dono da reserva só cancela / confirma
-// presença / faz check-in; a equipe da arena só cancela, desfaz e faz check-in;
-// o convidado só entra na participação. Valores, pagamento, ids do Asaas,
-// arena, atleta e data/horário ficam com as Cloud Functions.
+// presença / faz check-in (nas janelas do app, agora checadas no servidor); a
+// equipe da arena só cancela, desfaz e faz check-in; convite de reserva
+// (`bookingInvites` + participação na reserva) não tem mais escrita de cliente.
+// Valores, pagamento, ids do Asaas, arena, atleta e data/horário ficam com as
+// Cloud Functions.
 // Rodar: firebase emulators:exec --only firestore --project nexago-rules-test \
 //   "node --test functions/test/arena-bookings-update.rules.test.mjs"
 import fs from 'node:fs';
@@ -257,24 +259,96 @@ test('reenviar campo congelado com o MESMO valor não derruba o save', async () 
   );
 });
 
-test('dono confirma presença (payload do BookingService.confirmAttendance)', async () => {
-  await seedBooking(confirmed);
-  await assertSucceeds(
-    updateDoc(bookingAs(ATLETA), {
-      attendanceConfirmed: true,
-      attendanceStatus: 'confirmed',
-      attendanceConfirmedAt: serverTimestamp(),
-    }),
-  );
+// ---- Janelas de presença (antes só o app checava) --------------------------
+
+/**
+ * `date`/`startTime`/`endTime` de uma reserva que começa daqui a
+ * `startInMinutes` (negativo = já começou), no fuso de São Paulo — o mesmo
+ * formato que createArenaBooking grava.
+ */
+function scheduleFromNow(startInMinutes, durationMinutes = 60) {
+  const SP_OFFSET_MS = 3 * 60 * 60 * 1000;
+  const startSp = new Date(Date.now() + startInMinutes * 60_000 - SP_OFFSET_MS);
+  const endSp = new Date(startSp.getTime() + durationMinutes * 60_000);
+  return {
+    date: startSp.toISOString().slice(0, 10),
+    startTime: startSp.toISOString().slice(11, 16),
+    endTime: endSp.toISOString().slice(11, 16),
+  };
+}
+
+/** Payload de `BookingService.confirmAttendance`. */
+const ownerConfirm = () => ({
+  attendanceConfirmed: true,
+  attendanceStatus: 'confirmed',
+  attendanceConfirmedAt: serverTimestamp(),
 });
 
-test('dono faz check-in (payload do BookingService.checkIn)', async () => {
-  await seedBooking({ ...confirmed, attendanceStatus: 'confirmed', attendanceConfirmed: true });
+/** Payload de `BookingService.checkIn` (atleta). */
+const ownerCheckIn = () => ({
+  attendanceStatus: 'checked_in',
+  checkedInAt: serverTimestamp(),
+  locationVerified: true,
+});
+
+test('dono confirma presença dentro das 2h antes do jogo', async () => {
+  await seedBooking({ ...confirmed, ...scheduleFromNow(60) });
+  await assertSucceeds(updateDoc(bookingAs(ATLETA), ownerConfirm()));
+});
+
+test('dono NÃO confirma presença dias antes, nem horas depois do jogo', async () => {
+  await seedBooking({ ...confirmed, ...scheduleFromNow(4 * 60) });
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), ownerConfirm()));
+  // Só o booleano, sem o status: mesma janela.
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), { attendanceConfirmed: true }));
+  await seedBooking({ ...confirmed, ...scheduleFromNow(-3 * 60) });
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), ownerConfirm()));
+});
+
+test('dono faz check-in perto do início', async () => {
+  await seedBooking({
+    ...confirmed,
+    ...scheduleFromNow(10),
+    attendanceStatus: 'confirmed',
+    attendanceConfirmed: true,
+  });
+  await assertSucceeds(updateDoc(bookingAs(ATLETA), ownerCheckIn()));
+});
+
+test('check-in conta o FIM da reserva (folga depois do horário)', async () => {
+  // Reserva de 1h que começou há 2h30: acabou há 1h30, ainda na folga.
+  await seedBooking({ ...confirmed, ...scheduleFromNow(-150, 60) });
+  await assertSucceeds(updateDoc(bookingAs(ATLETA), ownerCheckIn()));
+});
+
+test('dono NÃO faz check-in horas antes nem muito depois do fim', async () => {
+  await seedBooking({ ...confirmed, ...scheduleFromNow(3 * 60) });
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), ownerCheckIn()));
+  await seedBooking({ ...confirmed, ...scheduleFromNow(-220, 60) });
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), ownerCheckIn()));
+});
+
+test('reserva legada sem date "YYYY-MM-DD" não ganha presença pelo cliente', async () => {
+  await seedBooking({ ...confirmed, date: Timestamp.now(), startTime: '18:00' });
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), ownerConfirm()));
+});
+
+test('dono NÃO apaga o no-show marcado pelo servidor', async () => {
+  // Começou há 40 min (no-show sai aos 30): check-in ainda estaria na janela.
+  const noShow = { ...confirmed, ...scheduleFromNow(-40), attendanceStatus: 'no_show' };
+  await seedBooking(noShow);
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), ownerCheckIn()));
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), ownerCancel()));
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), { attendanceConfirmed: true }));
+});
+
+test('equipe segue fazendo check-in fora da janela (balcão)', async () => {
+  await seedBooking({ ...confirmed, ...scheduleFromNow(-5 * 60) });
   await assertSucceeds(
-    updateDoc(bookingAs(ATLETA), {
+    updateDoc(bookingAs(RECEPCAO), {
       attendanceStatus: 'checked_in',
       checkedInAt: serverTimestamp(),
-      locationVerified: true,
+      locationVerified: false,
     }),
   );
 });
@@ -394,40 +468,59 @@ test('financeiro (sem agenda) e gestor de outra arena NÃO cancelam', async () =
   await assertDeniedByRule(updateDoc(bookingAs(GESTOR_OUTRA), staffCancel('confirmed', 'pending')));
 });
 
-// ---- Convidado aceitando convite ---------------------------------------------
+// ---- Convite de reserva: escrita de cliente fechada ----------------------------
 
-test('convidado entra na participação (payload do acceptInvite, set merge)', async () => {
-  await seedBooking(confirmed);
-  await assertSucceeds(
-    setDoc(
-      bookingAs(CONVIDADO),
-      {
-        confirmedParticipants: increment(1),
-        guestAthleteId: CONVIDADO,
-        guestAthleteName: 'Convidado',
-      },
-      { merge: true },
-    ),
-  );
-  const data = await stored();
-  assert(data.confirmedParticipants === 1 && data.guestAthleteId === CONVIDADO);
+/** Payload de `BookingInviteService.acceptInvite` na reserva (set merge). */
+const guestAccept = (uid) => ({
+  confirmedParticipants: increment(1),
+  guestAthleteId: uid,
+  guestAthleteName: 'Convidado',
 });
 
-test('segundo convidado só incrementa quando o par já é de outro', async () => {
-  await seedBooking({ ...confirmed, confirmedParticipants: 2, guestAthleteId: CONVIDADO });
-  await assertSucceeds(
-    setDoc(bookingAs(OUTRO_ATLETA), { confirmedParticipants: increment(1) }, { merge: true }),
+test('ninguém mais se pendura como convidado na reserva alheia', async () => {
+  await seedBooking(confirmed);
+  await assertDeniedByRule(
+    setDoc(bookingAs(CONVIDADO), guestAccept(CONVIDADO), { merge: true }),
   );
+  await assertDeniedByRule(
+    setDoc(bookingAs(CONVIDADO), { confirmedParticipants: increment(1) }, { merge: true }),
+  );
+  await assertDeniedByRule(updateDoc(bookingAs(CONVIDADO), { confirmedParticipants: 9 }));
+  await assertDeniedByRule(updateDoc(bookingAs(CONVIDADO), { status: 'canceled' }));
+  // Nem o dono escreve participação direto.
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), { confirmedParticipants: 4 }));
 });
 
-test('convidado NÃO infla participantes, NÃO aponta o par pra outro, NÃO toca status', async () => {
+test('bookingInvites: ninguém cria (nem o dono da reserva) nem aceita pelo cliente', async () => {
   await seedBooking(confirmed);
-  const ref = bookingAs(CONVIDADO);
-  await assertDeniedByRule(updateDoc(ref, { confirmedParticipants: 9 }));
-  await assertDeniedByRule(updateDoc(ref, { guestAthleteId: OUTRO_ATLETA }));
-  await assertDeniedByRule(updateDoc(ref, { guestAthleteName: 'Outro nome' }));
-  await assertDeniedByRule(updateDoc(ref, { status: 'canceled' }));
-  await assertDeniedByRule(updateDoc(ref, { amountReais: 1 }));
+  const invite = {
+    bookingId: BOOKING,
+    invitedByUid: ATLETA,
+    invitedByName: 'Atleta',
+    status: 'pending',
+    expiresAt: Timestamp.fromMillis(Date.now() + 48 * 60 * 60 * 1000),
+  };
+  // Dono da reserva, terceiro forjando convite de reserva alheia, e convite com
+  // `inviteeUid` (o push de onBookingInviteCreatedNotifyInvitee).
+  await assertDeniedByRule(setDoc(doc(dbOf(ATLETA), 'bookingInvites', 'c1'), invite));
+  await assertDeniedByRule(
+    setDoc(doc(dbOf(OUTRO_ATLETA), 'bookingInvites', 'c2'), {
+      ...invite,
+      invitedByUid: OUTRO_ATLETA,
+      inviteeUid: CONVIDADO,
+    }),
+  );
+
+  // Convite legado (criado por build antiga): aceitar — o que dava +20 XP ao
+  // convidante — também é negado.
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'bookingInvites', 'legado'), invite);
+  });
+  const legado = doc(dbOf(CONVIDADO), 'bookingInvites', 'legado');
+  await assertSucceeds(getDoc(legado));
+  await assertDeniedByRule(
+    updateDoc(legado, { status: 'accepted', acceptedByUid: CONVIDADO, acceptedAt: serverTimestamp() }),
+  );
 });
 
 // ---- Admin da plataforma e preço do servidor ----------------------------------

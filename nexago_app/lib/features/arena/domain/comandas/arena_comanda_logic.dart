@@ -343,10 +343,6 @@ String formatPaymentHistoryLabel(ArenaComandaPayment payment) {
   return '${paymentMethodLabel(payment.method)} · ${payment.payerName}';
 }
 
-int computeCashbackCents(int totalCents) {
-  return (totalCents * 0.03).round();
-}
-
 String customerInitials(String name) {
   final parts = name.trim().split(RegExp(r'\s+'));
   if (parts.isEmpty || parts.first.isEmpty) return '?';

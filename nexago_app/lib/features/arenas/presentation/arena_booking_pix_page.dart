@@ -15,6 +15,9 @@ import '../../../core/ui/feedback/feedback_page.dart';
 import '../../../core/ui/feedback/show_feedback_page.dart';
 import '../../../core/validation/cpf_cnpj.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
+import '../../cashback/application/cashback_providers.dart';
+import '../../cashback/domain/cashback_rules.dart';
+import '../../cashback/presentation/widgets/checkout_cashback_toggle.dart';
 import '../data/payment_service.dart';
 import '../domain/arena_booking_pix_amounts.dart';
 import '../domain/arena_booking_pix_args.dart';
@@ -56,18 +59,39 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
   bool _paymentFailed = false;
   bool _cancelling = false;
   bool _saveCpf = true;
+
+  /// "Usar meu cashback" — começa desligado: o atleta escolhe gastar.
+  bool _useCashback = false;
   double _paymentFraction = 1.0;
   Timer? _expiryTimer;
 
   static final _dateFmt = DateFormat('d MMM yyyy', 'pt_BR');
 
-  double get _totalReais => widget.args.confirmArgs.amountReais;
+  /// Total da reserva pro cashback (sinal + saldo na arena): o que o
+  /// servidor calculou, com cupom/promoção já aplicados — não o preço de
+  /// lista do `confirmArgs` (que não sabe de desconto nenhum).
+  /// `booking_service.dart` pode devolver os dois zerados; aí cai no preço
+  /// de lista.
+  double get _totalReais {
+    final serverTotal =
+        widget.args.amountToPayNowReais + widget.args.amountDueOnsiteReais;
+    return serverTotal > 0 ? serverTotal : widget.args.confirmArgs.amountReais;
+  }
 
   double get _payNowReais =>
       ArenaBookingPixAmounts.payNowReais(_totalReais, _paymentFraction);
 
   double get _dueOnsiteReais =>
       ArenaBookingPixAmounts.dueOnsiteReais(_totalReais, _paymentFraction);
+
+  /// Prévia do cashback sobre o valor a pagar AGORA — com sinal de 50% é a
+  /// metade: o servidor reserva o saldo sobre `amountToPayNow`.
+  CashbackCheckoutQuote _cashbackQuote(CashbackCheckoutContext? checkout) =>
+      quoteCheckoutCashback(
+        priceCents: reaisToCents(_payNowReais),
+        checkout: checkout,
+        useCashback: _useCashback,
+      );
 
   @override
   void initState() {
@@ -139,12 +163,18 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
     });
     try {
       await _saveCpfToProfileIfNeeded();
+      // Só pede o saldo com o switch ligado e algo a usar; o servidor
+      // recalcula e devolve o valor aplicado de verdade.
+      final useCashback = _cashbackQuote(
+        ref.read(cashbackCheckoutContextProvider),
+      ).sendUseCashback;
       final pix = await ref
           .read(paymentServiceProvider)
           .createArenaBookingPixPayment(
             bookingId: widget.args.bookingId,
             cpfCnpj: _cpfDigits,
             paymentFraction: _paymentFraction,
+            useCashback: useCashback,
           );
       if (!mounted) return;
       setState(() {
@@ -250,6 +280,8 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
     final amountLabel = due > 0.02
         ? 'PIX: ${formatBRL(paid)} · Restante no local: ${formatBRL(due)}'
         : 'Total pago: ${formatBRL(paid)}';
+    // Id do pagamento = id do lote de cashback: a confirmação ouve o lote.
+    final paymentId = _pix?.paymentId ?? '';
 
     final uri = Uri(
       path: AppRoutes.arenaBookingSuccess.replaceAll(
@@ -265,6 +297,7 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
         'bookingId': widget.args.bookingId,
         'arenaName': confirm.arenaName,
         'courtName': confirm.courtName,
+        if (paymentId.isNotEmpty) 'paymentId': paymentId,
       },
     );
     context.go(
@@ -285,6 +318,7 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
         paymentLabel: due > 0.02
             ? 'O restante você paga na arena no dia do jogo.'
             : null,
+        paymentId: paymentId.isEmpty ? null : paymentId,
       ),
     );
   }
@@ -309,6 +343,8 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
 
     final expiresAt = _pix?.expiresAt ?? widget.args.paymentExpiresAt;
     final showQr = _pix != null && !_loadingPix;
+    final cashbackCtx = ref.watch(cashbackCheckoutContextProvider);
+    final cashbackQuote = _cashbackQuote(cashbackCtx);
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -326,7 +362,7 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
                         if (!showQr) ...[
                           BookingPixMethodCard(
                             amountLabel: BookingPixMethodCard.formatAmount(
-                              _payNowReais,
+                              cashbackQuote.chargePreviewCents / 100,
                             ),
                           ),
                           SizedBox(height: 20),
@@ -340,6 +376,20 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
                             },
                           ),
                           SizedBox(height: 20),
+                          if (cashbackCtx != null &&
+                              cashbackQuote.mode !=
+                                  CashbackToggleMode.hidden) ...[
+                            CheckoutCashbackToggle(
+                              priceCents: cashbackQuote.priceCents,
+                              availableCents: cashbackCtx.availableCents,
+                              config: cashbackCtx.config,
+                              value: _useCashback,
+                              enabled: !_loadingPix,
+                              onChanged: (v) =>
+                                  setState(() => _useCashback = v),
+                            ),
+                            const SizedBox(height: 20),
+                          ],
                           BookingPixCpfField(
                             controller: _cpfController,
                             errorText: _cpfHint,
@@ -361,10 +411,18 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
                           if (expiresAt != null) ...[
                             BookingPixExpiryCard(
                               expiresAt: expiresAt,
-                              amountReais:
-                                  _pix?.amountToPayNowReais ?? _payNowReais,
+                              // O QR cobra `chargedReais` (preço − saldo).
+                              amountReais: _pix?.chargedReais ?? _payNowReais,
                             ),
                             SizedBox(height: 20),
+                          ],
+                          if (_pix!.cashbackAppliedReais > 0) ...[
+                            CheckoutCashbackAppliedNote(
+                              appliedCents: reaisToCents(
+                                _pix!.cashbackAppliedReais,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
                           ],
                           BookingPixQrCard(
                             base64: _pix!.qrCodeBase64,

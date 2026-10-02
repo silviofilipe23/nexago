@@ -39,6 +39,10 @@ import {
 import { resolveDirectPaymentState, type DirectPaymentState } from './direct-payment-state';
 import { RegistrationHoldNoticeComponent } from './registration-hold-notice.component';
 import { shouldShowRegistrationHoldCountdown, registrationHoldCountdownView } from './registration-hold';
+import { appliedPreviewCents } from '../../data/cashback-preview';
+import { CashbackService } from '../../data/cashback.service';
+import { CheckoutCashbackToggleComponent } from '../../cashback/checkout-cashback-toggle.component';
+import { CashbackEarnedNoteComponent } from '../../cashback/cashback-earned-note.component';
 
 export type PaymentAmountType = 'share' | 'full';
 
@@ -104,6 +108,8 @@ const PAID_REVEAL_MS = 2000;
     NxFieldErrorComponent,
     NxBlockingDialogComponent,
     RegistrationHoldNoticeComponent,
+    CheckoutCashbackToggleComponent,
+    CashbackEarnedNoteComponent,
   ],
   templateUrl: './tournament-payment.component.html',
   styleUrl: './tournament-payment.component.scss',
@@ -116,6 +122,7 @@ export class TournamentPaymentComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
   private readonly toasts = inject(NxToastService);
+  protected readonly cashback = inject(CashbackService);
 
   protected readonly accountLabel = computed(() => {
     const liveUser = this.auth.user();
@@ -152,6 +159,9 @@ export class TournamentPaymentComponent {
   protected readonly pixResult = signal<PixPaymentResult | null>(null);
   /** Cobrança de cartão viva — o pagamento em si acontece no checkout do Asaas. */
   protected readonly cardResult = signal<CardPaymentResult | null>(null);
+  /** Id da última cobrança gerada (PIX ou cartão) — é o id do lote de cashback. Sobrevive ao
+   *  `clearPixState()` do pagamento confirmado para a nota do cartão de sucesso achar o lote. */
+  protected readonly lastChargePaymentId = signal<string | null>(null);
   protected readonly method = signal<PaymentMethod>('pix');
   protected readonly methods = computed(() => resolvePaymentMethods(this.listing()?.paymentMode));
   /** Uma cobrança viva por vez, seja qual for o meio. */
@@ -273,6 +283,45 @@ export class TournamentPaymentComponent {
       hasLivePartnerInvite: this.hasLivePartnerInvite(),
     }),
   );
+
+  /** "Usar meu cashback" — desligado por padrão (o atleta escolhe gastar); vale para PIX e cartão. */
+  protected readonly useCashback = signal(false);
+
+  /** Só há o que descontar com a cobrança pelo app ainda por fazer: inscrição paga, parcela paga
+   *  e pagamento direto com o organizador nunca mostram desconto no resumo. */
+  private readonly appChargeOpen = computed(() => {
+    const reg = this.registration();
+    return (
+      reg != null &&
+      !reg.isPaid &&
+      !this.mySharePaid() &&
+      this.methods().length > 0 &&
+      this.totalPriceReais() > 0
+    );
+  });
+
+  /** Cashback desta cobrança: depois de gerada, o que o servidor aplicou; antes, a prévia. É também
+   *  o número que decide se a callable recebe `useCashback: true`. */
+  protected readonly cashbackAppliedReais = computed(() => {
+    const live = this.pixResult() ?? this.cardResult();
+    if (live) return live.cashbackAppliedReais;
+    if (!this.appChargeOpen()) return 0;
+    return (
+      appliedPreviewCents({
+        use: this.useCashback(),
+        priceReais: this.amountDueReais(),
+        availableCents: this.cashback.availableCents(),
+        config: this.cashback.config(),
+      }) / 100
+    );
+  });
+
+  /** O que a cobrança vale: `chargedReais` do servidor, ou a parcela menos a prévia. */
+  protected readonly chargeDueReais = computed(() => {
+    const live = this.pixResult() ?? this.cardResult();
+    if (live) return live.chargedReais || this.amountDueReais();
+    return Math.round((this.amountDueReais() - this.cashbackAppliedReais()) * 100) / 100;
+  });
 
   constructor() {
     interval(1000)
@@ -471,7 +520,12 @@ export class TournamentPaymentComponent {
     this.paidRedirectArmed = true;
     const tournamentId = this.tournamentId();
     this.paidRedirectTimer = setTimeout(() => {
-      void this.router.navigate(['/torneios', tournamentId, 'minha-inscricao'], { replaceUrl: true });
+      // O lote de cashback nasce logo depois do webhook — sem o id no state, a aba "Minha
+      // inscrição" não tem como achar o lote e a nota de "+R$ X pendente" nunca aparece lá.
+      void this.router.navigate(['/torneios', tournamentId, 'minha-inscricao'], {
+        replaceUrl: true,
+        state: { cashbackPaymentId: this.lastChargePaymentId() },
+      });
     }, PAID_REVEAL_MS);
   }
 
@@ -505,8 +559,14 @@ export class TournamentPaymentComponent {
     }
     this.processing.set(true);
     try {
-      const result = await createRegistrationPixPayment(athleteFunctions(), reg.id, this.amountType(), this.cpfCnpj());
+      const result = await createRegistrationPixPayment(athleteFunctions(), {
+        registrationId: reg.id,
+        amountType: this.amountType(),
+        cpfCnpj: this.cpfCnpj(),
+        useCashback: this.cashbackAppliedReais() > 0,
+      });
       this.pixResult.set(result);
+      this.lastChargePaymentId.set(result.paymentId);
       this.pixQrSrc.set(await resolvePixQrSrc(result));
       this.pixExpired.set(false);
       this.documentError.set(null);
@@ -542,11 +602,17 @@ export class TournamentPaymentComponent {
     }
     this.processing.set(true);
     try {
-      const result = await createRegistrationCardPayment(athleteFunctions(), reg.id, this.amountType(), this.cpfCnpj());
+      const result = await createRegistrationCardPayment(athleteFunctions(), {
+        registrationId: reg.id,
+        amountType: this.amountType(),
+        cpfCnpj: this.cpfCnpj(),
+        useCashback: this.cashbackAppliedReais() > 0,
+      });
       // Uma cobrança viva por vez: duas seriam duas chances de pagar a mesma cota.
       this.pixResult.set(null);
       this.pixQrSrc.set(null);
       this.cardResult.set(result);
+      this.lastChargePaymentId.set(result.paymentId);
       this.pixExpired.set(false);
       this.documentError.set(null);
       this.schedulePixExpiry(result.expiresAt);

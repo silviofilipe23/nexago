@@ -9,6 +9,7 @@ import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
+import '../../cashback/presentation/widgets/cashback_earned_note.dart';
 import '../domain/arena_booking_labels.dart';
 import '../domain/arena_booking_success_actions.dart';
 import '../domain/arena_booking_success_args.dart';
@@ -113,6 +114,9 @@ class BookingSuccessPage extends ConsumerWidget {
                       locationLabel: locationLabel,
                       qrPayload: bookingId,
                     ),
+                    // Só PIX pago pelo app tem lote de cashback para ouvir.
+                    if (resolved.paymentId != null)
+                      CashbackEarnedNote(paymentId: resolved.paymentId!),
                     SizedBox(height: 20),
                     BookingSuccessActionGrid(
                       onShare: () => _shareBooking(context, resolved),
@@ -225,6 +229,12 @@ class BookingSuccessPage extends ConsumerWidget {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
+  /// `paymentId` da query (rota restaurada / deep link); vazio = nenhum.
+  static String? _paymentIdFrom(Map<String, String> query) {
+    final id = query['paymentId']?.trim() ?? '';
+    return id.isEmpty ? null : id;
+  }
+
   static BookingSuccessArgs? _resolveArgs({
     required BookingSuccessArgs? extra,
     required Map<String, String> query,
@@ -272,6 +282,7 @@ class BookingSuccessPage extends ConsumerWidget {
           : const [],
       amountReais: amount,
       paymentApproved: paymentApproved,
+      paymentId: _paymentIdFrom(query),
     );
   }
 
@@ -312,6 +323,7 @@ class BookingSuccessPage extends ConsumerWidget {
       amountLabel: extra.amountLabel,
       paymentLabel: extra.paymentLabel,
       headline: extra.headline,
+      paymentId: extra.paymentId ?? _paymentIdFrom(query),
     );
   }
 }

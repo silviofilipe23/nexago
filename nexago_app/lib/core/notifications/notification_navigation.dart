@@ -164,6 +164,10 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   final url = appRouteForNotificationUrl(data['url'] as String?);
   if (url != null) return url;
 
+  // Cashback liberado / vencendo: o backend manda `url: '/cashback'`; sem ele
+  // (item antigo do inbox), o tipo ainda leva a Meu cashback.
+  if (type.startsWith('cashback_')) return AppRoutes.athleteCashback;
+
   // Lembrete de partida: mesmo destino do item no inbox. O `url` antigo apontava pro admin web.
   if (type == 'match_reminder') {
     final matchId = (data['matchId'] as String?)?.trim() ?? '';

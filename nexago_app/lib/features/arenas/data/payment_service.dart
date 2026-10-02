@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/firebase/functions_region.dart';
 
-/// Resposta da callable `createArenaBookingPixPayment`.
+/// Resposta das callables de PIX da reserva e da inscrição.
 class ArenaBookingPixPaymentResult {
   const ArenaBookingPixPaymentResult({
     required this.paymentId,
@@ -11,13 +11,23 @@ class ArenaBookingPixPaymentResult {
     required this.qrCodeBase64,
     required this.expiresAt,
     required this.amountToPayNowReais,
-  });
+    this.cashbackAppliedReais = 0,
+    double? chargedReais,
+  }) : chargedReais = chargedReais ?? amountToPayNowReais;
 
   final String paymentId;
   final String qrCode;
   final String qrCodeBase64;
   final DateTime expiresAt;
+
+  /// PREÇO desta cobrança — com cashback aplicado continua o preço cheio.
   final double amountToPayNowReais;
+
+  /// Parte paga com o saldo de cashback (0 sem saldo).
+  final double cashbackAppliedReais;
+
+  /// O que o QR cobra no PIX: o valor a mostrar depois da resposta.
+  final double chargedReais;
 }
 
 /// Resposta da callable [createArenaBookingMercadoPagoPayment].
@@ -62,10 +72,14 @@ class PaymentService {
   static const Duration arenaBookingPixExpiryFallback = Duration(minutes: 5);
 
   /// Gera cobrança PIX in-app (QR + copia e cola).
+  ///
+  /// `useCashback` só vai no payload quando o atleta ligou o toggle: sem ele a
+  /// callable segue o comportamento de sempre (cliente antigo também).
   Future<ArenaBookingPixPaymentResult> createArenaBookingPixPayment({
     required String bookingId,
     String? cpfCnpj,
     double? paymentFraction,
+    bool useCashback = false,
   }) async {
     if (bookingId.isEmpty) {
       throw PaymentException('Reserva inválida.');
@@ -83,35 +97,14 @@ class PaymentService {
       if (paymentFraction == 0.5 || paymentFraction == 1.0) {
         payload['paymentFraction'] = paymentFraction;
       }
+      if (useCashback) {
+        payload['useCashback'] = true;
+      }
       final raw = await callable.call(payload);
-      final data = raw.data;
-      if (data is! Map) {
-        throw PaymentException('Resposta inválida do servidor.');
-      }
-      final map = Map<String, dynamic>.from(data);
-      final paymentId = map['paymentId'] as String?;
-      final qrCode = map['qrCode'] as String?;
-      final qrCodeBase64 = map['qrCodeBase64'] as String?;
-      final expiresAtRaw = map['expiresAt'] as String?;
-      final amount = (map['amountToPayNowReais'] as num?)?.toDouble();
-      if (paymentId == null ||
-          paymentId.isEmpty ||
-          qrCode == null ||
-          qrCode.isEmpty ||
-          amount == null ||
-          amount <= 0) {
-        throw PaymentException('Resposta inválida do servidor de pagamento.');
-      }
-      final expiresAt = expiresAtRaw != null
-          ? DateTime.tryParse(expiresAtRaw) ??
-                DateTime.now().add(arenaBookingPixExpiryFallback)
-          : DateTime.now().add(arenaBookingPixExpiryFallback);
-      return ArenaBookingPixPaymentResult(
-        paymentId: paymentId,
-        qrCode: qrCode,
-        qrCodeBase64: qrCodeBase64 ?? '',
-        expiresAt: expiresAt,
-        amountToPayNowReais: amount,
+      return _parsePixResponse(
+        raw.data,
+        priceKey: 'amountToPayNowReais',
+        expiryFallback: arenaBookingPixExpiryFallback,
       );
     } on FirebaseFunctionsException catch (e) {
       throw PaymentException(_mapFunctionsMessage(e));
@@ -126,6 +119,7 @@ class PaymentService {
     required String registrationId,
     String? cpfCnpj,
     String amountType = 'share',
+    bool useCashback = false,
   }) async {
     if (registrationId.isEmpty) {
       throw PaymentException('Inscrição inválida.');
@@ -143,35 +137,14 @@ class PaymentService {
       if (cpf.length == 11 || cpf.length == 14) {
         payload['cpfCnpj'] = cpf;
       }
+      if (useCashback) {
+        payload['useCashback'] = true;
+      }
       final raw = await callable.call(payload);
-      final data = raw.data;
-      if (data is! Map) {
-        throw PaymentException('Resposta inválida do servidor.');
-      }
-      final map = Map<String, dynamic>.from(data);
-      final paymentId = map['paymentId'] as String?;
-      final qrCode = map['qrCode'] as String?;
-      final qrCodeBase64 = map['qrCodeBase64'] as String?;
-      final expiresAtRaw = map['expiresAt'] as String?;
-      final amount = (map['amountReais'] as num?)?.toDouble();
-      if (paymentId == null ||
-          paymentId.isEmpty ||
-          qrCode == null ||
-          qrCode.isEmpty ||
-          amount == null ||
-          amount <= 0) {
-        throw PaymentException('Resposta inválida do servidor de pagamento.');
-      }
-      final expiresAt = expiresAtRaw != null
-          ? DateTime.tryParse(expiresAtRaw) ??
-                DateTime.now().add(tournamentRegistrationPixExpiryFallback)
-          : DateTime.now().add(tournamentRegistrationPixExpiryFallback);
-      return ArenaBookingPixPaymentResult(
-        paymentId: paymentId,
-        qrCode: qrCode,
-        qrCodeBase64: qrCodeBase64 ?? '',
-        expiresAt: expiresAt,
-        amountToPayNowReais: amount,
+      return _parsePixResponse(
+        raw.data,
+        priceKey: 'amountReais',
+        expiryFallback: tournamentRegistrationPixExpiryFallback,
       );
     } on FirebaseFunctionsException catch (e) {
       throw PaymentException(_mapFunctionsMessage(e));
@@ -179,6 +152,49 @@ class PaymentService {
       if (e is PaymentException) rethrow;
       throw PaymentException('Não foi possível gerar o PIX: $e');
     }
+  }
+
+  /// Lê a resposta das callables de PIX (reserva e inscrição).
+  ///
+  /// [priceKey] é o PREÇO (`amountToPayNowReais` na reserva, `amountReais` na
+  /// inscrição) e continua o preço mesmo com saldo aplicado. O QR vale
+  /// `chargedReais`; sem o campo (functions antigas) vale o preço.
+  static ArenaBookingPixPaymentResult _parsePixResponse(
+    Object? data, {
+    required String priceKey,
+    required Duration expiryFallback,
+  }) {
+    if (data is! Map) {
+      throw PaymentException('Resposta inválida do servidor.');
+    }
+    final map = Map<String, dynamic>.from(data);
+    final paymentId = map['paymentId'] as String?;
+    final qrCode = map['qrCode'] as String?;
+    final qrCodeBase64 = map['qrCodeBase64'] as String?;
+    final expiresAtRaw = map['expiresAt'] as String?;
+    final amount = (map[priceKey] as num?)?.toDouble();
+    if (paymentId == null ||
+        paymentId.isEmpty ||
+        qrCode == null ||
+        qrCode.isEmpty ||
+        amount == null ||
+        amount <= 0) {
+      throw PaymentException('Resposta inválida do servidor de pagamento.');
+    }
+    final expiresAt = expiresAtRaw != null
+        ? DateTime.tryParse(expiresAtRaw) ?? DateTime.now().add(expiryFallback)
+        : DateTime.now().add(expiryFallback);
+    final applied = (map['cashbackAppliedReais'] as num?)?.toDouble() ?? 0;
+    final charged = (map['chargedReais'] as num?)?.toDouble();
+    return ArenaBookingPixPaymentResult(
+      paymentId: paymentId,
+      qrCode: qrCode,
+      qrCodeBase64: qrCodeBase64 ?? '',
+      expiresAt: expiresAt,
+      amountToPayNowReais: amount,
+      cashbackAppliedReais: applied > 0 ? applied : 0,
+      chargedReais: charged != null && charged > 0 ? charged : amount,
+    );
   }
 
   /// Confirma inscrição gratuita (taxa zero) sem PIX.

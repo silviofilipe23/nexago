@@ -40,11 +40,21 @@ import {
 import {
   createAsaasPixCharge,
   deleteAsaasPaymentIfOpen,
+  deleteAsaasPaymentOrThrow,
 } from "./asaas-booking-payment";
 import {callerIsOrganizer, callerIsSuperAdmin} from "./auth-roles";
 import {ARENA_BOOKING_PAYMENT_EXPIRY_MINUTES} from "./arena-booking-constants";
 import {resolveAndSyncArenaBookingChargeAmounts} from "./arena-booking-pricing";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {
+  cashbackIdempotencyKey,
+  cashbackResponseFields,
+  releaseCashbackHoldQuietly,
+  releaseHoldsOfDeadCharge,
+  reserveCashbackForCharge,
+} from "./cashback-checkout";
+import {bookingCashbackLabel} from "./cashback-intent";
+import {attachHoldPayment} from "./athlete-wallet";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_WITHDRAWALS = "arenaWithdrawals";
@@ -57,6 +67,8 @@ type PixPaymentResponse = {
   qrCodeBase64: string;
   expiresAt: string;
   amountToPayNowReais: number;
+  cashbackAppliedReais?: number;
+  chargedReais?: number;
 };
 
 export const createArenaBookingPixPayment = onCall({
@@ -73,6 +85,7 @@ export const createArenaBookingPixPayment = onCall({
     cpf?: string;
     cpfCnpj?: string;
     paymentFraction?: number;
+    useCashback?: boolean;
   };
   const bookingId = typeof data.bookingId === "string" ? data.bookingId.trim() : "";
   const cpfFromRequest =
@@ -138,10 +151,26 @@ export const createArenaBookingPixPayment = onCall({
     // fallback
   }
 
+  // PIX gerado de novo: a cobrança antiga é apagada (falha segue tolerada,
+  // como sempre foi) e o saldo que ELA reservou volta — só se o Asaas
+  // confirmou a remoção, e achado pelo que o servidor gravou na reserva de
+  // saldo, nunca pelo `cashbackHoldId` desta reserva (gravável pelo dono e
+  // pela arena). Sem prova, a varredura de 5 min confere e devolve.
   const existingAsaasId = (booking.asaasPaymentId as string | undefined)?.trim();
+  let deletedAsaasId: string | null = null;
   if (existingAsaasId) {
-    await deleteAsaasPaymentIfOpen(existingAsaasId);
+    try {
+      await deleteAsaasPaymentOrThrow(existingAsaasId);
+      deletedAsaasId = existingAsaasId;
+    } catch (e) {
+      logger.warn("createArenaBookingPixPayment: cobrança anterior não foi apagada", {
+        bookingId,
+        asaasPaymentId: existingAsaasId,
+        error: String(e),
+      });
+    }
   }
+  await releaseHoldsOfDeadCharge(db, callerUid, bookingRef.path, deletedAsaasId, Date.now());
 
   let cpfCnpj: string;
   try {
@@ -196,17 +225,29 @@ export const createArenaBookingPixPayment = onCall({
     ? booking.paymentExpiresAt.toDate()
     : new Date(Date.now() + ARENA_BOOKING_PAYMENT_EXPIRY_MINUTES * 60 * 1000);
 
+  const cashback = await reserveCashbackForCharge(db, {
+    uid: callerUid,
+    useCashback: data.useCashback,
+    priceReais: amountToPayNow,
+    sourceType: "booking",
+    sourceId: bookingId,
+    trackingPath: bookingRef.path,
+    label: bookingCashbackLabel(arenaName, dateStr),
+    nowMs: Date.now(),
+  });
+
   let charge;
   try {
     charge = await createAsaasPixCharge({
       customerId,
-      valueReais: roundMoney(amountToPayNow),
+      valueReais: cashback.chargeReais,
       dueDate: expiresAtDate,
       description,
       externalReference: `${ARENA_BOOKING_PAYMENT_REF_PREFIX}${bookingId}`,
-      idempotencyKey: `arena-booking-pix-${bookingId}`,
+      idempotencyKey: cashbackIdempotencyKey(`arena-booking-pix-${bookingId}`, cashback.holdId),
     });
   } catch (e) {
+    await releaseCashbackHoldQuietly(db, callerUid, cashback.holdId, Date.now());
     if (e instanceof AsaasApiError) {
       logger.error("createArenaBookingPixPayment Asaas failed:", e.httpStatus, e.body);
       const hint = e.message.toLowerCase();
@@ -233,12 +274,18 @@ export const createArenaBookingPixPayment = onCall({
     throw new HttpsError("internal", "Não foi possível gerar o PIX. Tente novamente.");
   }
 
+  if (cashback.holdId) {
+    await attachHoldPayment(db, callerUid, cashback.holdId, charge.paymentId);
+  }
+
   await bookingRef.update({
     asaasPaymentId: charge.paymentId,
     paymentProvider: "asaas",
     paymentStatus: "pending",
     paymentReceiver: FieldValue.delete(),
     pixCopyPaste: charge.qrCode,
+    cashbackAppliedCents: cashback.appliedCents,
+    cashbackHoldId: cashback.holdId,
     updatedAt: FieldValue.serverTimestamp(),
   });
 
@@ -248,6 +295,7 @@ export const createArenaBookingPixPayment = onCall({
     qrCodeBase64: charge.qrCodeBase64,
     expiresAt: expiresAtDate.toISOString(),
     amountToPayNowReais: amountToPayNow,
+    ...cashbackResponseFields(cashback),
   };
 });
 

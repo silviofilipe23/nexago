@@ -22,7 +22,6 @@ class ArenaComandaClosedPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final comanda = args.comanda;
-    final cashback = computeCashbackCents(comanda.totalCents);
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -120,29 +119,6 @@ class ArenaComandaClosedPage extends StatelessWidget {
                                 ],
                               ),
                             ),
-                          ),
-                          Divider(
-                            color: context.themeColors.onSurfaceMuted
-                                .withValues(alpha: 0.12),
-                          ),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  'Cashback (3%)',
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: context.themeColors.onSurfaceMuted,
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                formatComandaReais(cashback),
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.brand,
-                                ),
-                              ),
-                            ],
                           ),
                         ],
                       ),

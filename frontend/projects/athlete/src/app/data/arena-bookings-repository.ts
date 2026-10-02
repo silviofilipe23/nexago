@@ -15,6 +15,7 @@ import {
   type Timestamp,
 } from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
+import { readCashbackCharge } from './cashback-preview';
 
 /** Reserva de quadra do atleta — espelha o `BookingService`/`PaymentService` do Flutter.
  *  A criação é 100% server-side (`createArenaBooking` valida preço, bloqueio e conflito de
@@ -80,7 +81,12 @@ export interface ArenaBookingPixPayment {
   qrCodeBase64: string;
   /** ISO. */
   expiresAt: string;
+  /** PREÇO de agora (com cupom e fração) — o cashback não muda este campo. */
   amountToPayNowReais: number;
+  /** Parte paga com cashback (0 sem saldo). */
+  cashbackAppliedReais: number;
+  /** O que o QR vale de fato; o preço quando o backend é antigo. */
+  chargedReais: number;
 }
 
 export interface ArenaBookingDoc {
@@ -114,6 +120,12 @@ export interface ArenaBookingDoc {
   createdAt: Date | null;
   couponCode: string | null;
   couponDiscountReais: number;
+  /** Cobrança PIX da reserva inteira — também o id do lote de cashback (`lots/{asaasPaymentId}`).
+   *  `null` no local e depois da divisão. */
+  asaasPaymentId: string | null;
+  /** Parte paga com cashback, gravada pelo webhook no pagamento (0 sem saldo). Não usar
+   *  `cashbackAppliedCents`: a divisão devolve a reserva de saldo sem zerar esse campo. */
+  cashbackAppliedReais: number;
 }
 
 export class ArenaBookingError extends Error {
@@ -266,27 +278,56 @@ export async function notifyArenaBookingCreated(functions: Functions, bookingId:
   }
 }
 
+export interface BookingPixPaymentParams {
+  bookingId: string;
+  cpfCnpj?: string;
+  paymentFraction?: number;
+  /** Só `true` quando o atleta ligou "Usar meu cashback" e há saldo usável. */
+  useCashback?: boolean;
+}
+
+/** Corpo de `createArenaBookingPixPayment`. Sem `useCashback` o backend cobra como antes. */
+export function bookingPixPaymentPayload(params: BookingPixPaymentParams): Record<string, unknown> {
+  const payload: Record<string, unknown> = { bookingId: params.bookingId };
+  const cpf = params.cpfCnpj?.replace(/\D/g, '') ?? '';
+  if (cpf.length === 11 || cpf.length === 14) payload['cpfCnpj'] = cpf;
+  if (params.paymentFraction === 0.5 || params.paymentFraction === 1) {
+    payload['paymentFraction'] = params.paymentFraction;
+  }
+  if (params.useCashback === true) payload['useCashback'] = true;
+  return payload;
+}
+
+/** Valida e normaliza a resposta — `chargedReais` cai no preço quando o backend é antigo. */
+export function bookingPixPaymentFromResponse(data: unknown): ArenaBookingPixPayment {
+  const raw = (data ?? {}) as Record<string, unknown>;
+  const paymentId = raw['paymentId'];
+  const qrCode = raw['qrCode'];
+  const amountToPayNowReais = Number(raw['amountToPayNowReais']);
+  if (typeof paymentId !== 'string' || !paymentId || typeof qrCode !== 'string' || !qrCode || !Number.isFinite(amountToPayNowReais)) {
+    throw new ArenaBookingError('Resposta inválida do servidor de pagamento.');
+  }
+  return {
+    paymentId,
+    qrCode,
+    qrCodeBase64: typeof raw['qrCodeBase64'] === 'string' ? raw['qrCodeBase64'] : '',
+    expiresAt: typeof raw['expiresAt'] === 'string' ? raw['expiresAt'] : '',
+    amountToPayNowReais,
+    ...readCashbackCharge(raw, amountToPayNowReais),
+  };
+}
+
 /** Gera a cobrança PIX (Asaas) da reserva `pending_payment` — QR + copia-e-cola. */
 export async function createBookingPixPayment(
   functions: Functions,
-  params: { bookingId: string; cpfCnpj?: string; paymentFraction?: number },
+  params: BookingPixPaymentParams,
 ): Promise<ArenaBookingPixPayment> {
   try {
-    const payload: Record<string, unknown> = { bookingId: params.bookingId };
-    const cpf = params.cpfCnpj?.replace(/\D/g, '') ?? '';
-    if (cpf.length === 11 || cpf.length === 14) payload['cpfCnpj'] = cpf;
-    if (params.paymentFraction === 0.5 || params.paymentFraction === 1) {
-      payload['paymentFraction'] = params.paymentFraction;
-    }
-    const result = await httpsCallable<Record<string, unknown>, ArenaBookingPixPayment>(
+    const result = await httpsCallable<Record<string, unknown>, unknown>(
       functions,
       'createArenaBookingPixPayment',
-    )(payload);
-    const data = result.data;
-    if (!data?.paymentId || !data.qrCode || !Number.isFinite(Number(data.amountToPayNowReais))) {
-      throw new ArenaBookingError('Resposta inválida do servidor de pagamento.');
-    }
-    return data;
+    )(bookingPixPaymentPayload(params));
+    return bookingPixPaymentFromResponse(result.data);
   } catch (err) {
     if (err instanceof ArenaBookingError) throw err;
     throw mapCallableError(err);
@@ -391,6 +432,8 @@ export function bookingFromSnapshot(snap: DocumentSnapshot<DocumentData>): Arena
     createdAt: toDateOrNull(data['createdAt']),
     couponCode: optionalStr(data['couponCode']),
     couponDiscountReais: Number(data['couponDiscountReais']) || 0,
+    asaasPaymentId: optionalStr(data['asaasPaymentId']),
+    cashbackAppliedReais: Math.max(0, Number(data['cashbackAppliedReais']) || 0),
   };
 }
 

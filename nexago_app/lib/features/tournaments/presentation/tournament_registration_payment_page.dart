@@ -104,6 +104,16 @@ class _TournamentRegistrationPaymentPageState
     required TournamentCategoryOffer category,
   }) {
     if (!mounted) return;
+    // O PIX (empilhado por cima) marca o id como tratado de forma síncrona
+    // antes do próprio `goNamed` dele (`navigateToTournamentRegistrationSuccess`).
+    // Se ele já venceu a corrida, não navega de novo por baixo — isso
+    // substituiria a navegação do PIX (que carrega o `paymentId`) por esta,
+    // que não tem como saber o `paymentId` do pagamento.
+    final handledNotifier = ref.read(
+      tournamentRegistrationSuccessHandledIdsProvider.notifier,
+    );
+    if (handledNotifier.isHandled(widget.registrationId)) return;
+    handledNotifier.markHandled(widget.registrationId);
     context.pushReplacementNamed(
       AppRouteNames.tournamentRegistrationSuccess,
       pathParameters: <String, String>{'tournamentId': widget.tournamentId},

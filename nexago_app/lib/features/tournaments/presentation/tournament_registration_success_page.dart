@@ -30,6 +30,7 @@ import '../domain/tournament_registration_providers.dart';
 import '../domain/tournament_registration_receipt.dart';
 import '../domain/tournament_registration_share_phrases.dart';
 import '../domain/tournament_registration_success_args.dart';
+import '../../cashback/presentation/widgets/cashback_earned_note.dart';
 import 'widgets/registration_wizard/registration_wizard_scaffold.dart';
 import 'widgets/tournament_registration/tournament_registration_share_card.dart';
 
@@ -275,6 +276,10 @@ class _TournamentRegistrationSuccessViewState
                   footerLabel: widget.footerLabel,
                 ),
               ),
+        // Só quando esta tela veio de um PIX pago agora: card reaberto
+        // depois não tem pagamento para anunciar.
+        if (args.paymentId != null)
+          CashbackEarnedNote(paymentId: args.paymentId!),
       ],
     );
   }

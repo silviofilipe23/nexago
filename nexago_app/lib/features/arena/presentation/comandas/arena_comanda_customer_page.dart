@@ -174,28 +174,6 @@ class _ArenaComandaCustomerPageState
               hint: '000.000.000-00',
             ),
           ),
-          // const SizedBox(height: 20),
-          // SwitchListTile(
-          //   contentPadding: EdgeInsets.zero,
-          //   title: Text(
-          //     'Comprovante e cashback',
-          //     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-          //           fontWeight: FontWeight.w700,
-          //           color: context.themeColors.onSurface,
-          //         ),
-          //   ),
-          //   subtitle: Text(
-          //     'Enviar no WhatsApp ao fechar a conta',
-          //     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          //           color: context.themeColors.onSurfaceMuted,
-          //         ),
-          //   ),
-          //   value: draft.sendReceiptWhatsapp,
-          //   activeTrackColor: AppColors.brand,
-          //   onChanged: ref
-          //       .read(arenaComandaDraftProvider.notifier)
-          //       .setSendReceiptWhatsapp,
-          // ),
           const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -208,7 +186,7 @@ class _ArenaComandaCustomerPageState
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Só o nome é obrigatório. WhatsApp e CPF são usados para comprovante, cashback NexaGO e nota fiscal.',
+                  'Só o nome é obrigatório. WhatsApp e CPF são usados para comprovante e nota fiscal.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: context.themeColors.onSurfaceMuted,
                     height: 1.4,

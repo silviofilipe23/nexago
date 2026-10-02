@@ -13,6 +13,7 @@ import {
 import { httpsCallable, type Functions } from 'firebase/functions';
 import { isConfirmedInscription, type RosterRow } from '../tournaments/enrolled-teams';
 import { fetchTeamsByIds } from './teams-repository';
+import { withCashbackCharge, type CashbackChargeFields } from './cashback-preview';
 
 const INVITES_COLLECTION = 'tournamentRegistrationInvites';
 
@@ -667,17 +668,43 @@ export interface PixPaymentResult {
   qrCode: string;
   qrCodeBase64: string;
   expiresAt: string;
+  /** PREÇO da parcela/integral — o cashback não muda este campo. */
   amountReais: number;
+  /** Parte paga com cashback (0 sem saldo). */
+  cashbackAppliedReais: number;
+  /** O que o Pix vale de fato; `amountReais` quando o backend é antigo. */
+  chargedReais: number;
 }
 
-export async function createRegistrationPixPayment(functions: Functions, registrationId: string, amountType: 'share' | 'full', cpfCnpj: string): Promise<PixPaymentResult> {
+/** Cobrança da inscrição (PIX ou cartão). Objeto em vez de posicional: `useCashback` é opcional
+ *  e só vai quando o atleta ligou o toggle e há saldo usável. */
+export interface RegistrationChargeOptions {
+  registrationId: string;
+  amountType: 'share' | 'full';
+  cpfCnpj: string;
+  useCashback?: boolean;
+}
+
+/** Corpo das duas callables — sem `useCashback`, exatamente o corpo de antes. */
+export function registrationChargePayload(opts: RegistrationChargeOptions): Record<string, unknown> {
+  return {
+    registrationId: opts.registrationId,
+    amountType: opts.amountType,
+    cpfCnpj: opts.cpfCnpj,
+    ...(opts.useCashback === true ? { useCashback: true } : {}),
+  };
+}
+
+export async function createRegistrationPixPayment(
+  functions: Functions,
+  opts: RegistrationChargeOptions,
+): Promise<PixPaymentResult> {
   try {
-    const result = await httpsCallable<Record<string, unknown>, PixPaymentResult>(functions, 'createTournamentRegistrationPixPayment')({
-      registrationId,
-      amountType,
-      cpfCnpj,
-    });
-    return result.data;
+    const result = await httpsCallable<Record<string, unknown>, Omit<PixPaymentResult, keyof CashbackChargeFields>>(
+      functions,
+      'createTournamentRegistrationPixPayment',
+    )(registrationChargePayload(opts));
+    return withCashbackCharge(result.data);
   } catch (err) {
     throw mapCallableError(err);
   }
@@ -690,17 +717,24 @@ export interface CardPaymentResult {
   paymentId: string;
   invoiceUrl: string;
   expiresAt: string;
+  /** PREÇO da parcela/integral — o cashback não muda este campo. */
   amountReais: number;
+  /** Parte paga com cashback (0 sem saldo). */
+  cashbackAppliedReais: number;
+  /** O que o checkout cobra de fato; `amountReais` quando o backend é antigo. */
+  chargedReais: number;
 }
 
-export async function createRegistrationCardPayment(functions: Functions, registrationId: string, amountType: 'share' | 'full', cpfCnpj: string): Promise<CardPaymentResult> {
+export async function createRegistrationCardPayment(
+  functions: Functions,
+  opts: RegistrationChargeOptions,
+): Promise<CardPaymentResult> {
   try {
-    const result = await httpsCallable<Record<string, unknown>, CardPaymentResult>(functions, 'createTournamentRegistrationCardPayment')({
-      registrationId,
-      amountType,
-      cpfCnpj,
-    });
-    return result.data;
+    const result = await httpsCallable<Record<string, unknown>, Omit<CardPaymentResult, keyof CashbackChargeFields>>(
+      functions,
+      'createTournamentRegistrationCardPayment',
+    )(registrationChargePayload(opts));
+    return withCashbackCharge(result.data);
   } catch (err) {
     throw mapCallableError(err);
   }

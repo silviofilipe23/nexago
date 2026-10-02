@@ -34,6 +34,7 @@ import {
 } from "./asaas-booking-payment";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {releaseHoldsOfDeadCharge} from "./cashback-checkout";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const PAYMENT_SHARES = "paymentShares";
@@ -485,6 +486,12 @@ export async function splitArenaBookingPaymentCore(
       "Esta reserva não está mais aguardando pagamento.",
     );
   }
+
+  // As cotas não aceitam saldo: o que o PIX da reserva inteira tinha reservado
+  // volta. Chegando aqui a cobrança original está provada morta (cancelada
+  // agora, ou já apagada); a reserva de saldo é achada pelo que o servidor
+  // gravou nela, nunca pelo `cashbackHoldId` desta reserva (gravável pelo dono).
+  await releaseHoldsOfDeadCharge(db, callerUid, bookingRef.path, originalPaymentId, nowMs);
 
   return {bookingId, shareIds, notifications};
 }

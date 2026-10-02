@@ -272,13 +272,6 @@ void main() {
     });
   });
 
-  group('computeCashbackCents', () {
-    test('returns 3 percent rounded', () {
-      expect(computeCashbackCents(10000), 300);
-      expect(computeCashbackCents(14500), 435);
-    });
-  });
-
   group('quick add category filter', () {
     test('maps chips to product categories', () {
       expect(

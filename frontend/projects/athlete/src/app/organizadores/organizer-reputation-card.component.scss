@@ -3,6 +3,8 @@
 :host {
   display: block;
   min-width: 0;
+  // Na coluna lateral (~300px) nota e barras lado a lado zeravam a largura das barras.
+  container-type: inline-size;
 }
 
 .rc {
@@ -34,8 +36,17 @@
   align-items: center;
   gap: var(--nx-s-5);
 
-  @media (max-width: 380px) {
+  // Card estreito: nota em cima (em linha), barras embaixo na largura toda.
+  @container (max-width: 400px) {
     grid-template-columns: minmax(0, 1fr);
+    gap: var(--nx-s-4);
+
+    .rc-score {
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      column-gap: var(--nx-s-3);
+    }
   }
 }
 
@@ -80,7 +91,7 @@
 
   li {
     display: grid;
-    grid-template-columns: 88px minmax(0, 1fr) 28px;
+    grid-template-columns: 88px minmax(48px, 1fr) 28px;
     align-items: center;
     gap: var(--nx-s-3);
   }

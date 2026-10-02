@@ -68,7 +68,7 @@
           <div class="ov-venues">
             <p class="ov-kicker">Onde acontece</p>
             <ul>
-              @for (v of venues(); track v.name) {
+              @for (v of venues(); track (v.arenaId ?? v.name) + ':' + $index) {
                 <li>
                   <span class="ov-venue-icon" aria-hidden="true">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="17" height="12" rx="2" /><path d="M12 6v12M3.5 12h17" /></svg>

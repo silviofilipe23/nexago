@@ -38,6 +38,8 @@ export class OrganizerDirectoryComponent {
   private readonly organizers = signal<readonly OrganizerPublicProfile[]>([]);
   private readonly reputations = signal<ReadonlyMap<string, OrganizerReputationDetail>>(new Map());
   protected readonly query = signal('');
+  /** Logos que falharam ao carregar: o card cai nas iniciais. */
+  protected readonly failedLogos = signal<ReadonlySet<string>>(new Set());
 
   protected readonly accountLabel = computed(() => {
     const user = this.auth.user();
@@ -73,6 +75,10 @@ export class OrganizerDirectoryComponent {
       this.errorDetail.set(typeof message === 'string' ? message.replace(/^Firebase:\s*/i, '') : null);
       this.status.set('error');
     }
+  }
+
+  protected onLogoError(organizerId: string): void {
+    this.failedLogos.update((ids) => new Set([...ids, organizerId]));
   }
 
   protected onSearch(event: Event): void {

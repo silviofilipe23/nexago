@@ -41,8 +41,8 @@
               <li>
                 <a class="od-card" [routerLink]="c.link">
                   <span class="od-logo">
-                    @if (c.logoUrl) {
-                      <img [src]="c.logoUrl" alt="" loading="lazy" decoding="async" />
+                    @if (c.logoUrl && !failedLogos().has(c.id)) {
+                      <img [src]="c.logoUrl" alt="" loading="lazy" decoding="async" (error)="onLogoError(c.id)" />
                     } @else {
                       <span aria-hidden="true">{{ c.initials }}</span>
                     }

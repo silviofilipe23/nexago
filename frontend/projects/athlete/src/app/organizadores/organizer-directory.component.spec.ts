@@ -12,7 +12,15 @@ import { OrganizerDirectoryComponent } from './organizer-directory.component';
 
 const LIST = [
   organizerPublicProfileFromDoc('a', { name: 'Circuito Areia Sul', isOrganizer: true, city: 'Florianópolis', state: 'SC', followersCount: 900, stats: { openEvents: 0 } }),
-  organizerPublicProfileFromDoc('b', { name: 'Liga Amadora Goiânia', isOrganizer: true, city: 'Goiânia', state: 'GO', followersCount: 10, stats: { openEvents: 2 } }),
+  organizerPublicProfileFromDoc('b', {
+    name: 'Liga Amadora Goiânia',
+    isOrganizer: true,
+    city: 'Goiânia',
+    state: 'GO',
+    logoUrl: 'https://exemplo.invalid/logo.png',
+    followersCount: 10,
+    stats: { openEvents: 2 },
+  }),
 ];
 
 describe('Lista "Organizadores" e card no Competir', () => {
@@ -73,6 +81,17 @@ describe('Lista "Organizadores" e card no Competir', () => {
     input.dispatchEvent(new Event('input'));
     fixture.detectChanges();
     expect([...host.querySelectorAll('.od-name-text')].map((e) => e.textContent?.trim())).toEqual(['Circuito Areia Sul']);
+  });
+
+  it('logo que não carrega cai nas iniciais', async () => {
+    fixture = TestBed.createComponent(OrganizerDirectoryComponent);
+    const host = await render();
+    const img = host.querySelector<HTMLImageElement>('.od-logo img')!;
+    expect(img).not.toBeNull();
+    img.dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+    expect(host.querySelector('.od-logo img')).toBeNull();
+    expect(host.querySelector('.od-logo')?.textContent?.trim()).toBe('LAG');
   });
 
   it('o hub Competir tem o card Organizadores', async () => {

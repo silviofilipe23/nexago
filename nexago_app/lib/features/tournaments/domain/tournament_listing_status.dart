@@ -217,6 +217,7 @@ TournamentListingStatus resolveListingStatus({
   String? listingStatusRaw,
   DateTime? startAt,
   DateTime? endAt,
+  DateTime? registrationClosesAt,
   int spotsLeft = 0,
   int liveMatchesNow = 0,
   DateTime? now,
@@ -246,8 +247,13 @@ TournamentListingStatus resolveListingStatus({
 
   final onEventDay = startAt != null &&
       isTournamentEventDay(startAt: startAt, endAt: endAt, now: clock);
+  // Inscrição que fecha no próprio dia (ex.: até 16h, jogos às 18h): até lá
+  // o torneio segue aberto — promovê-lo a `live` sumia com o botão de inscrição.
+  final registrationStillOpen =
+      registrationClosesAt != null && registrationClosesAt.isAfter(clock);
 
   if (onEventDay &&
+      !registrationStillOpen &&
       (fromRaw == TournamentListingStatus.open ||
           fromRaw == TournamentListingStatus.almostFull)) {
     return TournamentListingStatus.live;

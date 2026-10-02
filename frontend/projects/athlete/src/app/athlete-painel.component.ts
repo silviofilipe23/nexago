@@ -29,6 +29,8 @@ import { fetchMyAthleteProfile } from './data/my-athlete-profile-repository';
 import { staffRoleLabel } from './data/tournament-staff-repository';
 import { StaffTournamentsService } from './data/staff-tournaments.service';
 import { PartnerInvitesService } from './data/partner-invites.service';
+import { PendingTournamentReviewsService } from './data/pending-tournament-reviews.service';
+import { reviewCardItems } from './data/tournament-reviews';
 import { fetchAthleteRankingPosition } from './data/rankings-repository';
 import { fetchMatchesForTeam, fetchTeamsForAthlete, matchIsCompleted, type ArenaMatch } from './data/teams-repository';
 import {
@@ -441,6 +443,7 @@ export class AthletePainelComponent {
    *  até a Agenda ou a inscrição específica pra descobrir que foi convidado. Vêm do store ao
    *  vivo: quem convida é o outro atleta, e o card tem de acender sem recarregar a página. */
   private readonly partnerInvites = inject(PartnerInvitesService);
+  private readonly tournamentReviews = inject(PendingTournamentReviewsService);
   /** Foto enviada no onboarding — prioridade sobre o `photoURL` do Firebase Auth. */
   private readonly profilePhotoUrlState = signal<string | null>(null);
   protected readonly respondingInviteId = signal<string | null>(null);
@@ -689,6 +692,9 @@ export class AthletePainelComponent {
     })),
   );
   protected readonly inProgressRegistrations = computed(() => this.inProgressRegistrationsState());
+  /** "Avalie seus torneios" — um por torneio jogado com a janela de avaliação aberta. */
+  protected readonly pendingReviewCards = computed(() => reviewCardItems(this.tournamentReviews.pending(), new Date()));
+
   protected readonly pendingInvites = computed<PendingInviteItem[]>(() =>
     this.partnerInvites.pending().map(({ invite, tournament }) => ({
       id: invite.id,

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_document_mapper.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_listing_status.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_payment_mode.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_logic.dart';
 
@@ -340,6 +341,26 @@ void main() {
 
     expect(d.registrationOpensAt, opensAt);
     expect(d.toDiscovery().registrationOpensAt, opensAt);
+  });
+
+  // Formato real de torneio de um dia: início/fim só data (meia-noite) e
+  // inscrição fechando à tarde do mesmo dia.
+  test('no dia do evento, inscrição ainda aberta mantém o torneio inscrevível',
+      () {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final d = TournamentDocumentMapper.detailFromMap('t-hoje', {
+      'name': 'Desafio do Dia',
+      'dateLabel': 'hoje',
+      'listingStatus': 'open',
+      'startAt': Timestamp.fromDate(today),
+      'endAt': Timestamp.fromDate(today),
+      'registrationClosesAt': Timestamp.fromDate(
+        now.add(const Duration(hours: 1)),
+      ),
+    });
+
+    expect(canRegisterForTournament(d.status), isTrue);
   });
 
   test('detailFromMap sem registrationOpensAt fica nulo', () {

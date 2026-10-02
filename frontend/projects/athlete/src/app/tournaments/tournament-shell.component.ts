@@ -10,6 +10,8 @@ import { tournamentListingStatus } from '../data/tournaments-repository';
 import { endOfDay, eventDayOf, startOfDay } from './tournament-days';
 import { type TournamentTabId } from './tournament-live.selectors';
 import { TournamentLiveStore } from './tournament-live.store';
+import { TOURNAMENT_REVIEW_XP, organizerLine, reviewDialogInviteOf } from '../data/tournament-reviews';
+import { TournamentReviewDialogComponent } from './review/tournament-review-dialog.component';
 
 function titleCase(input: string): string {
   return input
@@ -40,7 +42,7 @@ const HEADER_DATE = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: 'n
  *  de partida, que é irmã e não filha desta casca, compartilha a mesma instância. */
 @Component({
   selector: 'app-tournament-shell',
-  imports: [RouterLink, RouterOutlet, AtPanelShellComponent, NxPageLoadingComponent],
+  imports: [RouterLink, RouterOutlet, AtPanelShellComponent, NxPageLoadingComponent, TournamentReviewDialogComponent],
   templateUrl: './tournament-shell.component.html',
   styleUrl: './tournament-shell.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -101,10 +103,40 @@ export class TournamentShellComponent {
     return parts.join(' · ');
   });
 
+  /** "Organizado por {nome}", com a nota do organizador quando ele tem 3+ avaliações (spec §5).
+   *  Fica na casca porque vale para qualquer torneio e qualquer aba. */
+  protected readonly organizerText = computed(() => organizerLine(this.store.organizerName(), this.store.organizerReputation()));
+
   protected readonly isEnded = computed(() => {
     const t = this.store.tournament();
     return t ? tournamentListingStatus(t, this.store.now()) === 'ended' : false;
   });
+
+  private readonly reviewRequested = toSignal(this.route.queryParamMap.pipe(map((q) => q.get('avaliar') === '1')), {
+    initialValue: false,
+  });
+
+  /** O diálogo de avaliação abre por `?avaliar=1` (card do painel, botão das abas, link
+   *  `torneios/:id/avaliar`, inbox) e só com convite aberto. */
+  protected readonly reviewDialogInvite = computed(() =>
+    reviewDialogInviteOf(this.reviewRequested(), this.store.reviewInvite(), this.store.now(), this.id()),
+  );
+
+  protected onReviewSubmitted(result: { created: boolean }): void {
+    if (result.created) this.toast.success(`Obrigado! +${TOURNAMENT_REVIEW_XP} XP`, 'Sua avaliação foi enviada sem o seu nome.');
+    else this.toast.success('Avaliação atualizada.');
+    void this.store.reloadMyReview();
+    this.closeReview();
+  }
+
+  /** Tira só o `avaliar` da URL atual, mantendo a aba e as outras queries. */
+  protected closeReview(): void {
+    const tree = this.router.parseUrl(this.router.url);
+    const queryParams = { ...tree.queryParams };
+    delete queryParams['avaliar'];
+    tree.queryParams = queryParams;
+    void this.router.navigateByUrl(tree, { replaceUrl: true });
+  }
 
   constructor() {
     effect(() => {

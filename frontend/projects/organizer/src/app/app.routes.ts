@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './auth/auth.guard';
 import { organizerGuard } from './auth/organizer.guard';
+import { mediaTournamentGuard } from './painel/shell/media-tournament.guard';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'entrar' },
@@ -77,6 +78,17 @@ export const routes: Routes = [
       import('./publico/overlay/overlay-page.component').then((m) => m.OverlayPageComponent),
   },
   {
+    // Transmissão do torneio — PÚBLICA, sem guard (Browser Source do OBS). Segue a quadra
+    // escolhida na tela "Transmissão" do painel (`tournaments/{id}/broadcast/control`): trocar
+    // de quadra no meio da live não exige mexer no OBS. Mesmo componente do overlay, então o
+    // fundo transparente (`body:has(og-overlay-page)`) vale aqui também.
+    path: 'transmissao/:tournamentId',
+    title: 'Transmissão ao vivo — NexaGO',
+    data: { transmissao: true },
+    loadComponent: () =>
+      import('./publico/overlay/overlay-page.component').then((m) => m.OverlayPageComponent),
+  },
+  {
     // Comprovante público do sorteio: a sequência completa com horários e hashes. É o link
     // que o organizador manda no grupo quando alguém reclama.
     path: 'sorteio/:sessionId/comprovante',
@@ -122,6 +134,11 @@ export const routes: Routes = [
         // rules e a callable de saque, que recusam o administrador com id forjado.
         title: 'Financeiro — NexaGO Organizador',
         loadComponent: () => import('./painel/financeiro/financeiro.component').then((m) => m.FinanceiroComponent),
+      },
+      {
+        path: 'reputacao',
+        title: 'Reputação — NexaGO Organizador',
+        loadComponent: () => import('./painel/reputacao/reputacao.component').then((m) => m.ReputacaoComponent),
       },
       {
         path: 'notificacoes',
@@ -205,6 +222,9 @@ export const routes: Routes = [
       // ── Nível 2 · Torneio selecionado ────────────────────────
       {
         path: 'eventos/:id',
+        // Mídia (papel de equipe) só alcança a Transmissão — qualquer outra rota do torneio,
+        // inclusive digitada à mão, volta pra ela.
+        canActivateChild: [mediaTournamentGuard],
         children: [
           {
             path: '',
@@ -233,6 +253,11 @@ export const routes: Routes = [
             loadComponent: () => import('./painel/telao/telao-config.component').then((m) => m.TelaoConfigComponent),
           },
           {
+            path: 'transmissao',
+            title: 'Transmissão — NexaGO Organizador',
+            loadComponent: () => import('./painel/transmissao/transmissao.component').then((m) => m.TransmissaoComponent),
+          },
+          {
             path: 'comunicacao',
             title: 'Comunicação — NexaGO Organizador',
             loadComponent: () => import('./painel/comunicacao/comunicacao.component').then((m) => m.ComunicacaoComponent),
@@ -241,6 +266,11 @@ export const routes: Routes = [
             path: 'equipe',
             title: 'Equipe — NexaGO Organizador',
             loadComponent: () => import('./painel/equipe/equipe.component').then((m) => m.EquipeComponent),
+          },
+          {
+            path: 'avaliacoes',
+            title: 'Avaliações — NexaGO Organizador',
+            loadComponent: () => import('./painel/avaliacoes/avaliacoes-torneio.component').then((m) => m.AvaliacoesTorneioComponent),
           },
           {
             path: 'nova-etapa',

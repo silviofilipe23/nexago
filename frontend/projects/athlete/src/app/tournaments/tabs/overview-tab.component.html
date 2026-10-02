@@ -12,6 +12,9 @@
         <div class="tdv-hero-badges">
           <span class="tdv-hero-status" [attr.data-tone]="heroStatus().tone">{{ heroStatus().label }}</span>
           <span class="tdv-hero-tag">Torneio · {{ t.format }}</span>
+          @if (reviewBadge(); as badge) {
+            <span class="tdv-hero-tag">{{ badge }}</span>
+          }
         </div>
       </div>
       <h1 class="tdv-hero-title">{{ t.name }}</h1>
@@ -93,6 +96,8 @@
       }
 
       <div class="tdv-col tdv-col--side">
+        <app-tournament-review-cta [invite]="store.reviewInvite()" [myOverall]="store.myReview()?.overall ?? null" [now]="store.now()" />
+        <app-tournament-review-aspects [summary]="store.reviewSummary()" />
         <div class="tdv-card tdv-prize-card">
           <span class="tdv-card-kicker">Prêmio total em disputa</span>
           <strong class="tdv-prize-amount">{{ totalPrizeLabel() ?? '—' }}</strong>

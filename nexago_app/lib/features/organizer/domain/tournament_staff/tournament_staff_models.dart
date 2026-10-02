@@ -11,7 +11,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 enum TournamentStaffRole {
   manager('manager', 'Gestor'),
   eventAdmin('eventAdmin', 'Administrador'),
-  scorer('scorer', 'Mesário');
+  scorer('scorer', 'Mesário'),
+  media('media', 'Mídia');
 
   const TournamentStaffRole(this.value, this.label);
 
@@ -21,7 +22,9 @@ enum TournamentStaffRole {
   /// Papel a partir do valor gravado no Firestore. Papel ausente ou
   /// desconhecido conta como gestor — mesmo default de `buildStaffMirrorData`
   /// no backend. Divergir daqui criaria tela que mostra uma coisa e servidor
-  /// que decide outra.
+  /// que decide outra. Builds anteriores ao papel `media` (01/10/2026) caem
+  /// aqui e mostram a mídia como gestora; rules e callables recusam as
+  /// escritas dela.
   static TournamentStaffRole fromValue(String? value) {
     for (final role in TournamentStaffRole.values) {
       if (role.value == value) return role;
@@ -31,6 +34,8 @@ enum TournamentStaffRole {
 
   String get description => switch (this) {
         TournamentStaffRole.scorer => 'Lança placar das partidas',
+        TournamentStaffRole.media =>
+          'Opera a transmissão (overlays do OBS) no portal web',
         TournamentStaffRole.eventAdmin =>
           'Opera inscrições, chaves, agenda e placar — sem acesso ao caixa',
         TournamentStaffRole.manager =>

@@ -2,16 +2,11 @@ import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRe
 import { isKingOfCourtMatchType, kocColumnLabel, normalizeMatchType } from '../../painel/data/koc';
 import { resolveCourtNames } from '../../painel/data/matches-repository';
 import { finalKindOf } from '../../painel/telao/telao-final-mode';
+import { KOC_CLASSIFICADAS_MS, KOC_RESULTADO_MS } from './overlay-court';
 import { OverlayLiveGateway } from './overlay-live.gateway';
 import { OverlayKocBarComponent } from './overlay-koc-bar.component';
 import { finalResultOf } from './overlay-final';
 import { OverlayFinalComponent, type FinalCampeoes } from './overlay-final.component';
-import {
-  OVERLAY_FINAL_CHANNEL,
-  overlayFinalModeOf,
-  readOverlayFinalPref,
-  type OverlayFinalMsg,
-} from './overlay-final-sync';
 import { kocPreRoundOf } from './overlay-koc-preround';
 import { OverlayKocPreRoundComponent } from './overlay-koc-preround.component';
 import { kocQualifiedBoardOf } from './overlay-koc-qualified';
@@ -19,6 +14,18 @@ import { OverlayKocQualifiedComponent } from './overlay-koc-qualified.component'
 import { kocStandingsBoardOf } from './overlay-koc-standings';
 import { OverlayKocStandingsComponent } from './overlay-koc-standings.component';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
+import { DEFAULT_BROADCAST_CONTROL, finalPrefOf, type BroadcastControl } from '../../painel/data/broadcast-control';
+import {
+  interviewVisibleAt,
+  nextCommandStep,
+  nextInterviewAir,
+  overlayFinalModeOf,
+  overlayLayersOf,
+  panelRoundEndScreen,
+  type CommandMemory,
+  type InterviewAir,
+} from './overlay-broadcast';
+import { OverlayInterviewComponent } from './overlay-interview.component';
 import { kocRoundTitleOf } from './overlay-koc-bar';
 import { overlayViewOf } from './overlay-selectors';
 import { OverlayDoacaoComponent } from './overlay-doacao.component';
@@ -38,12 +45,8 @@ import {
   type DoacaoCycleState,
 } from './overlay-doacao-cycle';
 import {
-  bindOverlayDoacaoControls,
-  bindOverlayPatroControls,
-  getOverlaySettings,
-  installNxOverlay,
-  subscribeOverlaySettings,
-  togglePatroCard,
+  DEFAULT_OVERLAY_DOACAO,
+  DEFAULT_OVERLAY_PATRO,
   type OverlayDoacaoConfig,
   type OverlayPatroConfig,
   type OverlayPatroItem,
@@ -59,10 +62,6 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
   const v = (raw ?? '').trim().toLowerCase();
   return TELAS_KOC.includes(v) ? (v as TelaKoc) : null;
 }
-
-/** Quanto cada tela fica no ar no rodízio do fim de rodada. */
-const RESULTADO_MS = 20_000;
-const CLASSIFICADAS_MS = 15_000;
 
 /** Rota PÚBLICA `/overlay/:matchId` — o Browser Source do OBS, que não tem sessão.
  *
@@ -80,10 +79,10 @@ const CLASSIFICADAS_MS = 15_000;
     OverlayFinalComponent,
     OverlayDoacaoComponent,
     OverlayPatroComponent,
+    OverlayInterviewComponent,
   ],
   providers: [OverlayLiveGateway],
   host: {
-    '(document:keydown)': 'aoTeclar($event)',
     '[class.preview]': 'previewChrome()',
   },
   template: `
@@ -126,16 +125,6 @@ const CLASSIFICADAS_MS = 15_000;
             [categoryName]="categoryName()"
           />
         }
-        @if (podeAlternar()) {
-          <!-- Invisível e por cima: no OBS o clique chega pela janela "Interagir" e o cursor não
-               entra na saída, então nada disto aparece no ar. -->
-          <button
-            class="alternar"
-            type="button"
-            aria-label="Alternar visualização"
-            (click)="alternar()"
-          ></button>
-        }
         <!-- Sempre montado: o @if interno + animate.leave precisa do host vivo pra sair com o slide. -->
         <og-overlay-koc-preround
           [preRound]="preRound()"
@@ -156,16 +145,10 @@ const CLASSIFICADAS_MS = 15_000;
           />
         }
 
-        <og-overlay-doacao [config]="doacaoConfig()" [show]="doacaoShow()" />
-        <og-overlay-patro [itens]="patroItens()" [show]="patroShow()" [visivelSeg]="patroConfig().card.visivelSeg" />
-
-        <!-- Atalhos invisíveis pro modo Interagir do OBS (canto superior direito). -->
-        <div class="doacao-hot">
-          <button type="button" class="doacao-hot-btn" aria-label="Mostrar doação" (click)="mostrarDoacao()"></button>
-          <button type="button" class="doacao-hot-btn" aria-label="Desligar doação" (click)="desligarDoacao()"></button>
-          <button type="button" class="doacao-hot-btn" aria-label="Patrocinadores agora" (click)="mostrarPatro()"></button>
-          <button type="button" class="doacao-hot-btn" aria-label="Ligar ou desligar patrocinadores" (click)="alternarPatro()"></button>
-        </div>
+        <og-overlay-doacao [config]="doacaoConfig" [show]="cardsNoAr() && doacaoShow()" />
+        <og-overlay-patro [itens]="patroItens()" [show]="cardsNoAr() && patroShow()" [visivelSeg]="patroConfig.card.visivelSeg" />
+        <!-- Sempre montada: o animate.leave da tarja precisa do host vivo. -->
+        <og-overlay-interview [data]="interviewNoAr()" />
       </div>
     </div>
   `,
@@ -202,34 +185,6 @@ const CLASSIFICADAS_MS = 15_000;
       overflow: hidden;
       background: transparent;
     }
-
-    .alternar {
-      position: absolute;
-      inset: 0;
-      z-index: 10;
-      padding: 0;
-      border: 0;
-      background: transparent;
-      cursor: pointer;
-    }
-
-    .doacao-hot {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      z-index: 30;
-      display: flex;
-      gap: 4px;
-    }
-    .doacao-hot-btn {
-      width: 28px;
-      height: 28px;
-      padding: 0;
-      border: 0;
-      border-radius: 8px;
-      background: transparent;
-      cursor: pointer;
-    }
   `,
 })
 export class OverlayPageComponent {
@@ -245,6 +200,9 @@ export class OverlayPageComponent {
   readonly clean = input<string | null>(null);
   /** `?preview` — fundo de teste pra depurar no browser (ignorado se `?clean` estiver na URL). */
   readonly preview = input<string | null>(null);
+  /** Rota `/transmissao/:tournamentId` (`data: { transmissao: true }`): segue a quadra
+   *  escolhida no painel em vez de uma quadra fixa na URL. */
+  readonly transmissao = input(false);
 
   protected readonly gateway = inject(OverlayLiveGateway);
   private readonly host = inject(ElementRef<HTMLElement>);
@@ -255,13 +213,67 @@ export class OverlayPageComponent {
   );
 
   private readonly telaKoc = signal<TelaKoc>('resultado');
-  /** Visualização escolhida no clique/tecla. Assume o controle: quem mexeu manda mais que o
-   *  rodízio e mais que `?tela=`. */
-  private readonly manual = signal<TelaKoc | null>(null);
   private readonly telaFixa = computed(() => telaFixadaEm(this.tela()));
+
+  /** Controle do painel; antes do 1º snapshot, o default (= comportamento de antes). */
+  private readonly controle = computed<BroadcastControl>(() => this.gateway.control() ?? DEFAULT_BROADCAST_CONTROL);
+  /** String, não o controle inteiro: o rodízio só reavalia quando a ESCOLHA muda, não a cada
+   *  chave do painel. */
+  private readonly escolhaDoPainel = computed(() => this.controle().kocRoundEndScreen);
+  private readonly telaDoPainel = computed<TelaKoc | null>(() => panelRoundEndScreen(this.escolhaDoPainel()));
+  /** Painel > `?tela=` > rodízio. Nada se escolhe NA tela do ar — ela só exibe. */
   private readonly telaEfetiva = computed<TelaKoc>(
-    () => this.manual() ?? this.telaFixa() ?? this.telaKoc(),
+    () => this.telaDoPainel() ?? this.telaFixa() ?? this.telaKoc(),
   );
+
+  /** Torneio do controle: o da rota (quadra/transmissão) ou o da partida (modo partida). */
+  private readonly torneioDoControle = computed(
+    () => (this.tournamentId() || this.gateway.match()?.tournamentId || '').trim(),
+  );
+  /** Quadra efetiva. String: o effect que assina a quadra só re-roda quando ela MUDA. */
+  private readonly quadraEfetiva = computed(
+    () => this.courtId() || (this.transmissao() ? (this.controle().courtId ?? '') : ''),
+  );
+
+  private readonly doacaoNoPainel = computed(() => this.controle().graphics.donation);
+  private readonly patroNoPainel = computed(() => this.controle().graphics.sponsors);
+
+  /** Tarja recebida; a duração conta do recebimento (ver `nextInterviewAir`). */
+  private readonly interviewAir = signal<InterviewAir | null>(null);
+  /** Carimbos do último snapshot; `null` = linha de base ainda não registrada. */
+  private commandMemory: CommandMemory | null = null;
+  protected readonly interviewOnAir = computed(() => {
+    const air = this.interviewAir();
+    if (!air) return false;
+    // Só tarja temporizada lê o relógio — "até tirar" não recalcula a cada segundo.
+    return air.data.durationSec == null || interviewVisibleAt(air, this.tick());
+  });
+  protected readonly interviewNoAr = computed(() =>
+    this.interviewOnAir() ? (this.interviewAir()?.data ?? null) : null,
+  );
+
+  /** Doação e patrocínio só entram com o controle já resolvido e sem tarja — a tarja toma a
+   *  tela, inclusive para um "Mostrar agora". */
+  protected readonly cardsNoAr = computed(() => this.gateway.controlReady() && !this.interviewOnAir());
+
+  /** O que vai ao ar: regra automática de cada tela E chave do painel; tarja toma a tela.
+   *  Antes do controle responder, nada controlável entra (ver `controlReady`). */
+  private readonly layers = computed(() => {
+    if (!this.gateway.controlReady()) {
+      return { duel: false, kocBar: false, kocPreRound: false, roundEnd: false, champions: false, interview: false };
+    }
+    return overlayLayersOf(
+      this.controle(),
+      {
+        duel: this.duelViewAuto() != null,
+        kocBar: this.kocViewAuto() != null,
+        kocPreRound: this.preRoundAuto() != null,
+        roundEnd: this.standings() != null,
+        champions: this.campeoesAuto() != null,
+      },
+      this.interviewOnAir(),
+    );
+  });
 
   /** Muda só quando a partida (ou o fato de estar encerrada) muda. */
   private readonly chaveDoRodizio = computed(() => {
@@ -289,24 +301,27 @@ export class OverlayPageComponent {
   });
 
   /** O estreitamento fica no TS; cada formato tem seu componente, não um ramo do outro. */
-  protected readonly duelView = computed(() => {
+  private readonly duelViewAuto = computed(() => {
     const v = this.view();
     return v?.kind === 'duel' && !this.finalEncerrada() ? v : null;
   });
-  protected readonly kocView = computed(() => {
+  private readonly kocViewAuto = computed(() => {
     const v = this.view();
     // A rodada encerrada dá lugar à classificação — as duas na tela seriam duas verdades
     // disputando o mesmo espaço. Final encerrada também: só o pódio.
     return v?.kind === 'koc' && !this.standings() && !this.finalEncerrada() ? v : null;
   });
+  protected readonly duelView = computed(() => (this.layers().duel ? this.duelViewAuto() : null));
+  protected readonly kocView = computed(() => (this.layers().kocBar ? this.kocViewAuto() : null));
 
   /** Elenco da rodada que ainda não começou — antes do apito não há rei nem desafiante, e sem
    *  isto a tela ficava vazia. */
-  protected readonly preRound = computed(() => {
+  private readonly preRoundAuto = computed(() => {
     if (this.finalEncerrada()) return null;
     const m = this.match();
     return m ? kocPreRoundOf(m) : null;
   });
+  protected readonly preRound = computed(() => (this.layers().kocPreRound ? this.preRoundAuto() : null));
 
   protected readonly preRoundTitle = computed(() => {
     const m = this.match();
@@ -326,7 +341,7 @@ export class OverlayPageComponent {
 
   /** Campeões da categoria. Tem precedência sobre a classificação da rodada: a final KOTC também
    *  é uma rodada encerrada, e as duas telas juntas seriam duas verdades no mesmo espaço. */
-  protected readonly campeoes = computed<FinalCampeoes | null>(() => {
+  private readonly campeoesAuto = computed<FinalCampeoes | null>(() => {
     const m = this.match();
     const r = m ? finalResultOf(m) : null;
     if (!r) return null;
@@ -346,12 +361,13 @@ export class OverlayPageComponent {
       placar: r.placar,
     };
   });
+  protected readonly campeoes = computed(() => (this.layers().champions ? this.campeoesAuto() : null));
 
   /** Classificação da rodada KOTC encerrada. */
   protected readonly standings = computed(() => {
     const m = this.match();
     if (!m || !isKingOfCourtMatchType(m.matchType) || m.status !== 'completed') return null;
-    if (this.campeoes()) return null;
+    if (this.campeoesAuto()) return null;
     return kocStandingsBoardOf(m, this.gateway.categoryMatches());
   });
 
@@ -363,57 +379,25 @@ export class OverlayPageComponent {
   });
 
   protected readonly telaDoResultado = computed(() =>
-    this.telaEfetiva() === 'resultado' ? this.standings() : null,
+    this.layers().roundEnd && this.telaEfetiva() === 'resultado' ? this.standings() : null,
   );
   protected readonly telaDasClassificadas = computed(() =>
-    this.telaEfetiva() === 'classificadas' ? this.qualified() : null,
+    this.layers().roundEnd && this.telaEfetiva() === 'classificadas' ? this.qualified() : null,
   );
 
-  /** Só há o que alternar no fim da rodada, quando existem as duas telas. */
-  protected readonly podeAlternar = computed(() => this.standings() != null);
-
-  protected alternar(): void {
-    this.manual.set(this.telaEfetiva() === 'resultado' ? 'classificadas' : 'resultado');
-  }
-
-  protected aoTeclar(event: KeyboardEvent): void {
-    const key = event.key.toLowerCase();
-    if (key === 'd' && !event.metaKey && !event.ctrlKey) {
-      event.preventDefault();
-      this.mostrarDoacao();
-      return;
-    }
-    if (key === 'o' && !event.metaKey && !event.ctrlKey) {
-      event.preventDefault();
-      this.desligarDoacao();
-      return;
-    }
-    // P = "patroc. agora"; L = liga/desliga o ciclo dos patrocinadores.
-    if (key === 'p' && !event.metaKey && !event.ctrlKey) {
-      event.preventDefault();
-      this.mostrarPatro();
-      return;
-    }
-    if (key === 'l' && !event.metaKey && !event.ctrlKey) {
-      event.preventDefault();
-      this.alternarPatro();
-      return;
-    }
-    if (!this.podeAlternar()) return;
-    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
-    this.alternar();
-  }
-
-  /** Config viva — `NXOverlay.set({ doacao: { ... } })` atualiza no ar. */
-  protected readonly doacaoConfig = signal<OverlayDoacaoConfig>(getOverlaySettings().doacao);
+  /** Config fixa da doação (chave PIX nexaGO, tempos padrão). Nada se ajusta NA tela do ar: o que
+   *  liga, desliga e mostra agora vem do painel (`broadcast/control`). */
+  protected readonly doacaoConfig: OverlayDoacaoConfig = DEFAULT_OVERLAY_DOACAO;
   private readonly doacaoCycle = signal<DoacaoCycleState>(doacaoCycleStop());
   protected readonly doacaoShow = computed(() => this.doacaoCycle().show);
   private doacaoTimer: ReturnType<typeof setTimeout> | null = null;
 
   private doacaoInput() {
-    const cfg = this.doacaoConfig();
+    const cfg = this.doacaoConfig;
     return {
-      enabled: cfg.enabled,
+      // `untracked`: este método roda dentro de effects; ler o controle rastreado faria cada
+      // clique no painel reiniciar o ciclo. A chave tem effect próprio (construtor).
+      enabled: cfg.enabled && untracked(() => this.doacaoNoPainel()),
       hasPix: cfg.pixKey.trim().length > 0,
       atrasoSeg: cfg.atrasoSeg,
       visivelSeg: cfg.visivelSeg,
@@ -442,26 +426,21 @@ export class OverlayPageComponent {
     this.runDoacao(doacaoCycleShowNow(this.doacaoInput()));
   }
 
-  protected desligarDoacao(): void {
-    this.runDoacao(doacaoCycleStop());
-  }
+  /** Tempos fixos do card de patrocinadores; ligar/desligar e "mostrar agora" vêm do painel. */
+  protected readonly patroConfig: OverlayPatroConfig = DEFAULT_OVERLAY_PATRO;
 
-  /** Config viva — `NXOverlay.set({ patro: { ... } })` atualiza no ar. */
-  protected readonly patroConfig = signal<OverlayPatroConfig>(getOverlaySettings().patro);
-
-  /** A lista do `NXOverlay` manda quando existe; senão, os patrocinadores do torneio. */
-  protected readonly patroItens = computed<OverlayPatroItem[]>(() => {
-    const override = this.patroConfig().lista;
-    if (override.length > 0) return override;
-    return (this.gateway.tournament()?.sponsors ?? []).map((s) => ({ nome: s.name, logo: s.logoUrl }));
-  });
+  /** Os patrocinadores cadastrados no torneio. */
+  protected readonly patroItens = computed<OverlayPatroItem[]>(() =>
+    (this.gateway.tournament()?.sponsors ?? []).map((s) => ({ nome: s.name, logo: s.logoUrl })),
+  );
 
   /** Momentos em que o card NÃO entra: pausa (relógio KOTC parado, tempo médico), telas de
    *  resultado/pódio no ar, e a doação no canto — um card de cada vez. */
   private readonly patroOcupado = computed(() => {
     const m = this.match();
     const pausado = m?.status === 'in_progress' && (m.koc?.clock?.pausedAtMs != null || m.medicalTimeout != null);
-    return pausado || this.campeoes() != null || this.standings() != null || this.doacaoShow();
+    const fimDeRodada = this.layers().roundEnd && this.standings() != null;
+    return pausado || this.campeoes() != null || fimDeRodada || this.doacaoShow() || this.interviewOnAir();
   });
 
   private readonly patroCycle = signal<PatroCycleState>(patroCycleStop());
@@ -469,9 +448,9 @@ export class OverlayPageComponent {
   private patroTimer: ReturnType<typeof setTimeout> | null = null;
 
   private patroInput() {
-    const card = this.patroConfig().card;
+    const card = this.patroConfig.card;
     return {
-      enabled: card.enabled,
+      enabled: card.enabled && untracked(() => this.patroNoPainel()),
       count: this.patroItens().length,
       intervaloSeg: card.intervaloSeg,
       visivelSeg: card.visivelSeg,
@@ -491,11 +470,6 @@ export class OverlayPageComponent {
 
   protected mostrarPatro(): void {
     this.runPatro(patroCycleShowNow(this.patroInput()));
-  }
-
-  protected alternarPatro(): void {
-    // Passa pelo NXOverlay pra config e console ficarem na mesma verdade; o listener religa o ciclo.
-    togglePatroCard();
   }
 
   protected readonly phaseName = computed(() => {
@@ -524,8 +498,8 @@ export class OverlayPageComponent {
     this.pos() === 'top' ? 'top' : 'bottom',
   );
 
-  /** Preferência do painel / outro overlay (`null` = seguir o matchType). */
-  private readonly finalPref = signal<boolean | null>(null);
+  /** Grande final do painel (`null` = seguir o matchType). */
+  private readonly finalPref = computed(() => finalPrefOf(this.controle().finalMode));
 
   private readonly matchIsKocFinal = computed(
     () => normalizeMatchType(this.match()?.matchType ?? '') === 'koc final',
@@ -553,7 +527,6 @@ export class OverlayPageComponent {
   });
 
   constructor() {
-    installNxOverlay();
     const destroyRef = inject(DestroyRef);
 
     // Canvas lógico 1920×1080: no OBS a fonte já é Full HD (escala 1); no browser
@@ -577,18 +550,23 @@ export class OverlayPageComponent {
     // sempre e nenhuma tela chega a trocar.
     effect((onCleanup) => {
       const chave = this.chaveDoRodizio();
+      // Seguindo a quadra, o ciclo roda UMA vez: depois das classificadas a quadra passa pra
+      // próxima rodada ("Próximos em quadra" — ver `KOC_FIM_DE_RODADA_MS`), e voltar ao resultado
+      // piscaria a tabela antes da troca. Na partida fixa da URL não há próxima, então reveza.
+      const umaVez = this.quadraEfetiva() !== '';
       this.telaKoc.set('resultado');
       // Visualização fixada na URL ou escolhida na mão não reveza.
-      if (!chave || this.telaFixa() || this.manual()) return;
+      if (!chave || this.telaFixa() || this.telaDoPainel()) return;
       let timer: ReturnType<typeof setTimeout>;
       const agenda = (tela: TelaKoc) => {
+        if (umaVez && tela === 'classificadas') return;
         timer = setTimeout(
           () => {
             const proxima: TelaKoc = tela === 'resultado' ? 'classificadas' : 'resultado';
             this.telaKoc.set(proxima);
             agenda(proxima);
           },
-          tela === 'resultado' ? RESULTADO_MS : CLASSIFICADAS_MS,
+          tela === 'resultado' ? KOC_RESULTADO_MS : KOC_CLASSIFICADAS_MS,
         );
       };
       agenda('resultado');
@@ -596,10 +574,14 @@ export class OverlayPageComponent {
     });
 
     effect((onCleanup) => {
-      const quadra = this.courtId();
+      const quadra = this.quadraEfetiva();
       const torneio = this.tournamentId();
       if (quadra && torneio) {
         onCleanup(this.gateway.startCourt(torneio, quadra));
+        return;
+      }
+      if (this.transmissao() && torneio) {
+        onCleanup(this.gateway.startTournament(torneio));
         return;
       }
       const id = this.matchId();
@@ -607,55 +589,42 @@ export class OverlayPageComponent {
       onCleanup(this.gateway.start(id));
     });
 
-    // Modo final compartilhado: painel e overlays da mesma origem leem o mesmo storage e
-    // escutam o BroadcastChannel — ligar num liga nos outros.
     effect((onCleanup) => {
-      const tid = (this.match()?.tournamentId || this.tournamentId() || '').trim();
-      this.finalPref.set(tid ? readOverlayFinalPref(tid) : null);
-      if (!tid || typeof BroadcastChannel === 'undefined') return;
-      const ch = new BroadcastChannel(OVERLAY_FINAL_CHANNEL);
-      ch.onmessage = (ev: MessageEvent<OverlayFinalMsg>) => {
-        if (ev.data?.tournamentId !== tid) return;
-        this.finalPref.set(ev.data.on);
-      };
-      onCleanup(() => ch.close());
+      const torneio = this.torneioDoControle();
+      if (!torneio) return;
+      onCleanup(this.gateway.watchControl(torneio));
     });
 
-    // Doação PIX: config + ciclo 3 s → 20 s on → 90 s off.
-    effect((onCleanup) => {
-      onCleanup(
-        subscribeOverlaySettings((s) => {
-          // Só a mudança da PRÓPRIA config reinicia o ciclo — ligar/desligar os
-          // patrocinadores não pode trazer a doação de volta em 3 s.
-          if (JSON.stringify(s.doacao) === JSON.stringify(this.doacaoConfig())) return;
-          this.doacaoConfig.set(s.doacao);
-          this.runDoacao(doacaoCycleStart(this.doacaoInput()));
-        }),
-      );
-      onCleanup(
-        bindOverlayDoacaoControls({
-          show: () => this.mostrarDoacao(),
-          hide: () => this.desligarDoacao(),
-        }),
-      );
-      this.runDoacao(doacaoCycleStart(this.doacaoInput()));
-      onCleanup(() => this.clearDoacaoTimer());
-    });
-
-    // Patrocinadores: a cada intervaloSeg, visivelSeg no ar; ocupado → tenta de novo em 30 s.
-    // Config e "patroc. agora" numa assinatura só, sem dependência reativa.
-    effect((onCleanup) => {
-      onCleanup(
-        subscribeOverlaySettings((s) => {
-          if (JSON.stringify(s.patro) === JSON.stringify(this.patroConfig())) return;
-          this.patroConfig.set(s.patro);
-          this.runPatro(patroCycleStart(this.patroInput()));
-        }),
-      );
-      onCleanup(bindOverlayPatroControls(() => this.mostrarPatro()));
-      onCleanup(() => {
-        if (this.patroTimer != null) clearTimeout(this.patroTimer);
+    // Comandos do painel: o 1º snapshot é a LINHA DE BASE (recarregar o OBS não repete um
+    // "mostrar agora" antigo nem reabre tarja temporizada); daí pra frente, carimbo novo = ação.
+    effect(() => {
+      const c = this.gateway.control();
+      if (!c) return;
+      untracked(() => {
+        const isBaseline = this.commandMemory === null;
+        const step = nextCommandStep(this.commandMemory, c);
+        this.commandMemory = step.memory;
+        this.interviewAir.set(nextInterviewAir(this.interviewAir(), c.interview, isBaseline, Date.now()));
+        if (step.donationNow) this.mostrarDoacao();
+        if (step.sponsorsNow) this.mostrarPatro();
       });
+    });
+
+    // Chaves de doação/patrocínio: desligar para o ciclo; religar recomeça do início.
+    effect(() => {
+      const ligada = this.doacaoNoPainel();
+      untracked(() => this.runDoacao(ligada ? doacaoCycleStart(this.doacaoInput()) : doacaoCycleStop()));
+    });
+    effect(() => {
+      const ligado = this.patroNoPainel();
+      untracked(() => this.runPatro(ligado ? patroCycleStart(this.patroInput()) : patroCycleStop()));
+    });
+
+    // Os ciclos (doação 3 s → 20 s no ar → 90 s fora; patrocinadores a cada intervalo) começam
+    // pelos effects das chaves acima; aqui só os timers morrem com a tela.
+    destroyRef.onDestroy(() => {
+      this.clearDoacaoTimer();
+      if (this.patroTimer != null) clearTimeout(this.patroTimer);
     });
     // A lista chega depois do overlay abrir (snapshot do torneio): quando passa a ter (ou deixa
     // de ter) patrocinador, o ciclo (re)começa — mas nunca derruba um card que está no ar.

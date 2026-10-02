@@ -224,6 +224,25 @@
     }
 
       <div class="at-col">
+        @if (pendingReviewCards().length > 0) {
+          <div class="at-card at-card--accent">
+            <div class="at-card-head">
+              <div class="at-card-title">Avalie seus torneios</div>
+            </div>
+            <div class="at-invite-list">
+              @for (review of pendingReviewCards(); track review.tournamentId) {
+                <div class="at-invite-row">
+                  <div class="at-invite-info">
+                    <strong>{{ review.question }}</strong> Leva 10 segundos · fecha em {{ review.closesLabel }} · +10 XP
+                  </div>
+                  <div class="at-invite-actions">
+                    <a class="at-mini-btn at-mini-btn--primary" [routerLink]="['/torneios', review.tournamentId, 'minha-inscricao']" [queryParams]="{ avaliar: 1 }">Avaliar</a>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        }
         @if (pendingInvites().length > 0) {
           <div class="at-card at-card--accent">
             <div class="at-card-head">

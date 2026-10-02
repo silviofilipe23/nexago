@@ -65,6 +65,20 @@ export const routes: Routes = [
       import('./painel/torneios/panel-torneios.component').then((m) => m.PanelTorneiosComponent),
   },
   {
+    path: 'painel/avaliacoes',
+    title: 'Avaliações de torneios — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/avaliacoes/panel-avaliacoes.component').then((m) => m.PanelAvaliacoesComponent),
+  },
+  {
+    path: 'painel/avaliacoes/:id',
+    title: 'Avaliações do torneio — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/avaliacoes/avaliacao-torneio.component').then((m) => m.AvaliacaoTorneioComponent),
+  },
+  {
     path: 'painel/organizadores',
     title: 'Organizadores — NexaGO Backoffice',
     canActivate: [authGuard],

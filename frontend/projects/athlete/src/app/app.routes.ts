@@ -4,6 +4,7 @@ import { onboardingGuard } from './auth/onboarding.guard';
 import { staffGuard } from './auth/staff.guard';
 import { TournamentLiveStore } from './tournaments/tournament-live.store';
 import { RegistrationWizardStore } from './tournaments/registration/wizard/registration-wizard.store';
+import { reviewRedirect } from './tournaments/review/review-redirect';
 
 /** As abas "Partidas & tabela" e "Chaves" viraram sub-visões da categoria. O link antigo já
  *  carregava a categoria em `?categoria=`, então o redirect entrega a MESMA vista; sem o
@@ -390,6 +391,13 @@ export const routes: Routes = [
         path: 'hoje',
         pathMatch: 'full',
         redirectTo: ({ params }) => `/torneios/${params['id']}/focus/agora`,
+      },
+      {
+        // Link da avaliação (spec 2026-10-01). Irmã de `hoje` pelo mesmo motivo documentado
+        // acima: aqui o `id` chega na função; dentro da casca de abas chegaria `undefined`.
+        path: 'avaliar',
+        pathMatch: 'full',
+        redirectTo: reviewRedirect,
       },
       {
         path: '',

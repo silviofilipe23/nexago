@@ -9,7 +9,9 @@ import { fetchTournamentSummariesByIds, tournamentIsFinishedOrCancelled, type To
  *  Mesmo contrato do `myTournamentStaffEntriesProvider` (Flutter): só entradas `active`,
  *  ordenadas por `startAt` desc (sem data vai pro fim). */
 
-export type TournamentStaffRole = 'manager' | 'scorer';
+/** `media` (Mídia, 01/10/2026) opera só a tela Transmissão do portal do organizador — aqui não
+ *  tem o que fazer, e a Mesa não a lista (`mesaStaffTournaments`). */
+export type TournamentStaffRole = 'manager' | 'scorer' | 'media';
 
 export interface MyStaffTournament {
   tournamentId: string;
@@ -20,11 +22,13 @@ export interface MyStaffTournament {
   endAt: Date | null;
 }
 
-const ROLE_LABEL: Record<TournamentStaffRole, string> = { manager: 'Gestor', scorer: 'Mesário' };
+const ROLE_LABEL: Record<TournamentStaffRole, string> = { manager: 'Gestor', scorer: 'Mesário', media: 'Mídia' };
 
 /** Papel desconhecido/ausente cai em gestor — mesmo default de `buildStaffMirrorData`. */
 export function staffRoleOf(raw: unknown): TournamentStaffRole {
-  return raw === 'scorer' ? 'scorer' : 'manager';
+  if (raw === 'scorer') return 'scorer';
+  if (raw === 'media') return 'media';
+  return 'manager';
 }
 
 export function staffRoleLabel(role: TournamentStaffRole): string {
@@ -57,8 +61,14 @@ export function sortStaffTournaments(entries: readonly MyStaffTournament[]): MyS
   });
 }
 
+/** O que a Mesa opera: entradas ativas e que lançam placar. A mídia fica de fora — as rules e
+ *  as callables recusam cada ponto dela, e listar o torneio como "Gestor" era mentira na tela. */
+export function mesaStaffTournaments(entries: readonly MyStaffTournament[]): MyStaffTournament[] {
+  return entries.filter((e) => e.status === 'active' && e.role !== 'media');
+}
+
 function activeSorted(docs: Array<{ id: string; data: Record<string, unknown> }>): MyStaffTournament[] {
-  return sortStaffTournaments(docs.map((d) => staffTournamentFromDoc(d.id, d.data)).filter((e) => e.status === 'active'));
+  return sortStaffTournaments(mesaStaffTournaments(docs.map((d) => staffTournamentFromDoc(d.id, d.data))));
 }
 
 export async function fetchMyStaffTournaments(db: Firestore, uid: string): Promise<MyStaffTournament[]> {

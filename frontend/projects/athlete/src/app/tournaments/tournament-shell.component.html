@@ -20,6 +20,9 @@
         <div class="tsh-head-main">
           <h1 class="tsh-title">{{ heroTitle() }}</h1>
           <p class="tsh-meta">{{ heroMeta() }}</p>
+          @if (organizerText(); as organizer) {
+            <p class="tsh-organizer">{{ organizer }}</p>
+          }
         </div>
       </header>
 
@@ -45,6 +48,17 @@
       </div>
 
       <router-outlet />
+
+      @if (reviewDialogInvite(); as reviewInvite) {
+        <app-tournament-review-dialog
+          [invite]="reviewInvite"
+          [existing]="store.myReview()"
+          [existingStatus]="store.myReviewStatus()"
+          (retryExisting)="store.reloadMyReview()"
+          (submitted)="onReviewSubmitted($event)"
+          (dismissed)="closeReview()"
+        />
+      }
     </div>
   } @else {
     <div class="tsh-empty">

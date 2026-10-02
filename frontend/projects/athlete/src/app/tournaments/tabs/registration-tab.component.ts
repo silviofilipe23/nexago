@@ -39,6 +39,7 @@ import { CampaignShareDialogComponent } from '../campaign/campaign-share-dialog.
 import { RegistrationShareDialogComponent } from '../registration/registration-share-dialog.component';
 import { CashbackEarnedNoteComponent } from '../../cashback/cashback-earned-note.component';
 import { TournamentLiveStore } from '../tournament-live.store';
+import { TournamentReviewCtaComponent } from '../review/tournament-review-cta.component';
 import { registrationRosterView } from './registration-roster-cta';
 import {
   firstNameOf,
@@ -176,6 +177,7 @@ export const REFUND_PENDING_NOTICE =
     CampaignShareDialogComponent,
     SubstitutionDialogComponent,
     CashbackEarnedNoteComponent,
+    TournamentReviewCtaComponent,
   ],
   templateUrl: './registration-tab.component.html',
   styleUrl: './registration-tab.component.scss',

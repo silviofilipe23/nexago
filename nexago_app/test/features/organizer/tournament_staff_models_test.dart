@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/features/organizer/domain/tournament_staff/my_tournament_staff_providers.dart';
 import 'package:nexago_app/features/organizer/domain/tournament_staff/tournament_staff_models.dart';
 
 void main() {
@@ -91,6 +92,48 @@ void main() {
       );
       expect(active.isActive, isTrue);
       expect(inactive.isActive, isFalse);
+    });
+  });
+
+  group('papel mídia', () {
+    test('reconhece mídia em vez de cair em gestor', () {
+      expect(TournamentStaffRole.fromValue('media'), TournamentStaffRole.media);
+      expect(TournamentStaffRole.media.label, 'Mídia');
+      expect(TournamentStaffRole.media.value, 'media');
+      expect(TournamentStaffRole.media.description, contains('transmissão'));
+    });
+
+    test('mídia não vê dinheiro', () {
+      expect(
+        tournamentStaffSeesMoney(
+          isOwner: false,
+          roleLoaded: true,
+          role: TournamentStaffRole.media,
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('operableStaffEntries', () {
+    MyTournamentStaffEntry entry(
+      TournamentStaffRole role, {
+      String status = 'active',
+    }) =>
+        MyTournamentStaffEntry(
+          tournamentId: 't-${role.value}',
+          role: role,
+          status: status,
+          tournamentName: 'Copa',
+        );
+
+    test('mídia não opera nada no app — a transmissão é só no portal', () {
+      final out = operableStaffEntries([
+        entry(TournamentStaffRole.manager),
+        entry(TournamentStaffRole.media),
+        entry(TournamentStaffRole.scorer, status: 'removed'),
+      ]);
+      expect(out.map((e) => e.role), [TournamentStaffRole.manager]);
     });
   });
 }

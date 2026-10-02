@@ -92,6 +92,60 @@ void main() {
   group('notificationPresentation', () {
     // Aviso da aba Comunicação do organizador: caía no default (sino cinza,
     // sem rota), então tocar na notificação não levava a lugar nenhum.
+    test('tournament_review_request abre a avaliação com ação Avaliar', () {
+      final n = AthleteInboxNotification(
+        id: 'r1',
+        title: 'Como foi o torneio Copa?',
+        body: 'Avalie em 10 segundos e ganhe 10 XP.',
+        type: 'tournament_review_request',
+        data: const {'tournamentId': 't1', 'url': '/torneios/t1'},
+        read: false,
+        dismissed: false,
+        createdAt: now,
+      );
+      final p = notificationPresentation(n);
+      expect(p.routePath, '/torneios/t1/avaliar');
+      expect(p.icon, Icons.star_rounded);
+      expect(p.actions.single.label, 'Avaliar');
+    });
+
+    test('tournament_review_closed: lista e push abrem as avaliações do organizador', () {
+      final data = {
+        'tournamentId': 't1',
+        'url': '/organizer/tournaments/t1',
+        'webUrl': '/painel/eventos/t1/avaliacoes',
+      };
+      final n = AthleteInboxNotification(
+        id: 'c1',
+        title: 'Avaliações do torneio Copa encerradas',
+        body: '4,6 ★ com 23 avaliações.',
+        type: 'tournament_review_closed',
+        data: data,
+        read: false,
+        dismissed: false,
+        createdAt: now,
+      );
+      final p = notificationPresentation(n);
+      expect(p.routePath, '/organizer/tournaments/t1/reviews');
+      expect(p.icon, Icons.star_rounded);
+      expect(p.actions.single.label, 'Ver avaliações');
+      expect(resolveNotificationRoute({...data, 'type': 'tournament_review_closed'}), p.routePath);
+    });
+
+    test('tournament_review_closed sem tournamentId: lista cai na url', () {
+      final n = AthleteInboxNotification(
+        id: 'c2',
+        title: 'Avaliações encerradas',
+        body: 'Body',
+        type: 'tournament_review_closed',
+        data: const {'url': '/organizer/tournaments/t1'},
+        read: false,
+        dismissed: false,
+        createdAt: now,
+      );
+      expect(notificationPresentation(n).routePath, '/organizer/tournaments/t1');
+    });
+
     test('tournament_communication routes to the tournament', () {
       final n = AthleteInboxNotification(
         id: 'x',

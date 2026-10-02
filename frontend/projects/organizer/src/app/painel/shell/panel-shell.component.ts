@@ -28,6 +28,7 @@ import { OgPersonPhotoComponent } from '../ui/person-photo.component';
 import { FinanceiroReachService } from './financeiro-reach.service';
 import { OgBellComponent } from './og-bell.component';
 import { PanelContextService } from './panel-context.service';
+import { tournamentMenuFor } from '../data/media-access';
 
 /** Só pergunta uma vez por navegador — negou ou aceitou, não insiste de novo a cada login. */
 const PUSH_PROMPT_KEY = 'nexago-organizer-push-prompted';
@@ -147,7 +148,7 @@ function initialsOfName(name: string): string {
       <div class="og-nav-spacer"></div>
 
       <div class="og-nav">
-        @if (ctx.level() === 'torneio') {
+        @if (ctx.level() === 'torneio' && podeEditarTorneio()) {
           <a class="og-nav-item" routerLink="/painel/novo-torneio" [queryParams]="{ editar: ctx.tournamentId() }">
             <og-icon name="edit" [size]="17" [strokeWidth]="1.9" />
             <span class="og-nav-item-label">Editar torneio</span>
@@ -374,6 +375,9 @@ export class PanelShellComponent {
     await subscribeToPush(organizerFirestore(), uid);
   }
 
+  /** Mídia só opera a transmissão: nada de "Editar torneio" no menu dela. */
+  protected readonly podeEditarTorneio = computed(() => tournamentMenuFor(this.ctx.myRole()) === 'completo');
+
   protected readonly nav = computed<OgNavEntry[]>(() => {
     const level = this.ctx.level();
     if (level === 'categoria') {
@@ -417,6 +421,10 @@ export class PanelShellComponent {
     }
     if (level === 'torneio') {
       const base = this.ctx.tournamentBase()!;
+      // Mídia só opera a transmissão — o guard já desvia as outras rotas; o menu não as oferece.
+      if (tournamentMenuFor(this.ctx.myRole()) === 'transmissao') {
+        return [{ label: 'Transmissão', icon: 'broadcast', link: `${base}/transmissao` }];
+      }
       return [
         { label: 'Visão geral', icon: 'grid', link: base },
         { label: 'Inscrições', icon: 'users', link: `${base}/inscricoes` },
@@ -427,8 +435,10 @@ export class PanelShellComponent {
           : []),
         { label: 'Agendamento', icon: 'calendar', link: `${base}/agendamento` },
         { label: 'Telão', icon: 'tv', link: `${base}/telao` },
+        { label: 'Transmissão', icon: 'broadcast', link: `${base}/transmissao` },
         { label: 'Comunicação', icon: 'mail', link: `${base}/comunicacao` },
         { label: 'Equipe', icon: 'team', link: `${base}/equipe` },
+        { label: 'Avaliações', icon: 'star', link: `${base}/avaliacoes` },
       ];
     }
     if (level === 'liga') {
@@ -457,6 +467,7 @@ export class PanelShellComponent {
       ...(showsFinanceiroMenuItem(this.financeiroReach.status(), this.financeiroReach.tournaments())
         ? [{ label: 'Financeiro', icon: 'cash' as OgIconName, link: '/painel/financeiro' }]
         : []),
+      { label: 'Reputação', icon: 'star', link: '/painel/reputacao' },
       { label: 'Links', icon: 'share', link: '/painel/links' },
     ];
   });

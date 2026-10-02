@@ -31,6 +31,10 @@ import 'widgets/tournament_detail/tournament_detail_bottom_bar.dart';
 import 'widgets/tournament_detail/tournament_detail_explore_section.dart';
 import 'widgets/tournament_detail/tournament_detail_hero.dart';
 import 'widgets/tournament_detail/tournament_detail_tournament_info_section.dart';
+import 'widgets/tournament_review/tournament_review_cta.dart';
+import '../../organizer/domain/tournament_reviews/organizer_tournament_review_providers.dart';
+import '../domain/tournament_review_public_logic.dart';
+import 'widgets/tournament_review/tournament_public_reviews_section.dart';
 
 void _handleTournamentDetailBack(BuildContext context) {
   if (context.canPop()) {
@@ -230,6 +234,15 @@ class _TournamentDetailContentState
             .valueOrNull ??
         const <String, String>{};
 
+    // Avaliação pública (spec §5): selo no herói e nota do organizador na linha dele.
+    final reviewSummary = ref
+        .watch(tournamentReviewSummaryProvider(widget.tournament.id))
+        .valueOrNull;
+    final managerId = widget.tournament.managerId?.trim() ?? '';
+    final organizerReputation = managerId.isEmpty
+        ? null
+        : ref.watch(organizerReputationProvider(managerId)).valueOrNull;
+
     // Abertura agendada: a tela se acerta sozinha na hora marcada — quem está
     // parado aqui esperando as 10:00 vê a barra de inscrição aparecer.
     return RebuildAt(
@@ -240,6 +253,8 @@ class _TournamentDetailContentState
         cards: cards,
         matches: matches,
         athleteTeamIds: athleteTeamIdsForHighlight(teamIdsByCategory),
+        reviewBadge: tournamentReviewBadgeLabel(reviewSummary),
+        organizerReputation: organizerReputationLabel(organizerReputation),
       ),
     );
   }
@@ -250,6 +265,8 @@ class _TournamentDetailContentState
     required List<TournamentMatchCardViewModel> cards,
     required List<TournamentMatch> matches,
     required Set<String> athleteTeamIds,
+    required String? reviewBadge,
+    required String? organizerReputation,
   }) {
     // `registrationOpensAt` futuro: o servidor recusa inscrição mesmo com o
     // torneio `open`, então a barra de inscrição também espera a abertura.
@@ -375,6 +392,7 @@ class _TournamentDetailContentState
                   stats: widget.stats,
                   topInset: 0,
                   toolbar: const SizedBox.shrink(),
+                  reviewBadge: reviewBadge,
                 ),
               ),
               SliverToBoxAdapter(
@@ -415,10 +433,22 @@ class _TournamentDetailContentState
                 ),
               ),
               SliverToBoxAdapter(
+                child: TournamentReviewCta(
+                  tournamentId: widget.tournament.id,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: TournamentPublicReviewsSection(
+                  tournamentId: widget.tournament.id,
+                ),
+              ),
+              SliverToBoxAdapter(
                 child: TournamentDetailTournamentInfoSection(
                   tournament: widget.tournament,
                   organizerName: widget.organizerName,
                   stats: widget.stats,
+                  organizerReputation: organizerReputation,
                 ),
               ),
               const SliverPadding(padding: EdgeInsets.only(bottom: 50)),

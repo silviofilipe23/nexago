@@ -34,7 +34,8 @@ export type PanelIconName =
   | 'swap'
   | 'archive'
   | 'ban'
-  | 'trash';
+  | 'trash'
+  | 'star';
 
 /** Ícones stroke-24 do painel (mesmo conjunto do protótipo BoIc*), um componente para evitar repetir SVG. */
 @Component({
@@ -62,6 +63,9 @@ export type PanelIconName =
         @case ('trophy') {
           <path d="M8 21h8M12 17v4" /><path d="M7 4h10v6a5 5 0 0 1-10 0V4z" />
           <path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4" />
+        }
+        @case ('star') {
+          <path d="M12 3.5l2.6 5.3 5.9.9-4.25 4.15 1 5.85L12 16.95 6.75 19.7l1-5.85L3.5 9.7l5.9-.9z" />
         }
         @case ('users') {
           <circle cx="9" cy="8" r="3.5" /><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" />

@@ -14,8 +14,32 @@ function findRoute(list: readonly Route[], segments: readonly string[]): Route |
 }
 
 describe('app.routes', () => {
+  it('rotas do torneio passam pelo guard da mídia', () => {
+    const torneio = findRoute(routes, ['painel', 'eventos/:id']);
+    expect(torneio?.canActivateChild?.length ?? 0).toBeGreaterThan(0);
+  });
+
+  it('serve a tela Transmissão como aba do torneio', () => {
+    expect(findRoute(routes, ['painel', 'eventos/:id', 'transmissao'])).not.toBeNull();
+  });
+
+  it('serve a transmissão pública sem guard, no modo que segue o painel', () => {
+    const rota = findRoute(routes, ['transmissao/:tournamentId']);
+    expect(rota).not.toBeNull();
+    expect(rota?.canActivate ?? []).toEqual([]);
+    expect(rota?.data?.['transmissao']).toBeTrue();
+  });
+
   it('serve o telão como aba do torneio', () => {
     expect(findRoute(routes, ['painel', 'eventos/:id', 'telao'])).not.toBeNull();
+  });
+
+  it('serve as avaliações como aba do torneio', () => {
+    expect(findRoute(routes, ['painel', 'eventos/:id', 'avaliacoes'])).not.toBeNull();
+  });
+
+  it('serve a reputação no nível global do painel', () => {
+    expect(findRoute(routes, ['painel', 'reputacao'])).not.toBeNull();
   });
 
   it('manda o link antigo do telão global pra lista de eventos', () => {

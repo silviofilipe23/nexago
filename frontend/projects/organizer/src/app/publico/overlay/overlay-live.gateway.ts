@@ -1,5 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { environment } from '../../../environments/environment';
+import type { BroadcastControl } from '../../painel/data/broadcast-control';
+import { watchBroadcastControl } from '../../painel/data/broadcast-control-repository';
 import { organizerFirestore } from '../../painel/data/firestore';
 import { isKingOfCourtMatchType, normalizeMatchType } from '../../painel/data/koc';
 import {
@@ -9,7 +11,7 @@ import {
   type TournamentMatch,
 } from '../../painel/data/matches-repository';
 import { nextFinishMemoryOf, type MatchFinishMemory } from '../../painel/telao/telao-finished';
-import { overlayCourtContextOf } from './overlay-court';
+import { OVERLAY_COURT_FOLLOW, overlayCourtContextOf } from './overlay-court';
 import { fetchProfileDisplays, fetchTeamsByIds } from '../../painel/data/teams-repository';
 import type { OrganizerTournament } from '../../painel/data/tournament.model';
 import { watchTournament } from '../../painel/data/tournaments-repository';
@@ -41,6 +43,13 @@ export class OverlayLiveGateway {
   /** Partidas da MESMA categoria, da leitura única acima — a classificação da rodada precisa
    *  delas pra saber destino das vagas e próxima rodada. */
   readonly categoryMatches = signal<readonly TournamentMatch[]>([]);
+  /** Controle do painel (`broadcast/control`). `null` = 1º snapshot ainda não chegou: a página
+   *  usa o default, e a linha de base dos comandos espera por ele. */
+  readonly control = signal<BroadcastControl | null>(null);
+  /** O controle já respondeu (snapshot OU erro). Antes disso a página não põe nada controlável
+   *  no ar — senão um gráfico desligado no painel entra e sai no reload do OBS. Erro também
+   *  libera: rules antigas (sem `broadcast`) = comportamento de antes. */
+  readonly controlReady = signal(false);
 
   private readonly hydrated = new Set<string>();
   private countedRounds = false;
@@ -78,15 +87,40 @@ export class OverlayLiveGateway {
     };
   }
 
+  /** Escuta o controle do torneio. Erro de rede não limpa: o último controle conhecido continua
+   *  valendo (mesma regra do placar). */
+  watchControl(tournamentId: string): () => void {
+    return watchBroadcastControl(
+      tournamentId,
+      (c) => {
+        this.control.set(c);
+        this.controlReady.set(true);
+      },
+      () => this.controlReady.set(true),
+    );
+  }
+
+  /** `/transmissao` sem quadra escolhida: só o torneio (patrocinadores), nenhuma partida. */
+  startTournament(tournamentId: string): () => void {
+    this.match.set(null);
+    return watchTournament(tournamentId, (t) => this.tournament.set(t), () => {});
+  }
+
   /** Nome POR ATLETA, não só o rótulo combinado: a faixa do KOTC desenha uma linha por atleta.
    *  Mesmo join que o telão faz (`teams` → `public_profiles`). */
   /** Modo QUADRA: segue o que está acontecendo numa quadra em vez de uma partida fixa.
    *
    *  É o que permite o overlay emendar a rodada seguinte sozinho, em vez de alguém trocar a URL
    *  no meio da transmissão. Custa assinar as partidas do torneio — como o telão já faz — em vez
-   *  do doc único do modo partida. A escolha de QUAL partida é do `courtNowOf`, e a memória de
-   *  fim de partida é o que segura a recém-encerrada na tela tempo suficiente pras telas de fim. */
+   *  do doc único do modo partida. A escolha de QUAL partida é do `overlayCourtContextOf`, e a
+   *  memória de fim de partida é o que segura a recém-encerrada na tela tempo suficiente pras
+   *  telas de fim — no KOTC, depois delas entra a próxima rodada ("Próximos em quadra"). */
   startCourt(tournamentId: string, courtId: string): () => void {
+    // Trocar de quadra na `/transmissao` não pode deixar a partida da quadra anterior no ar até
+    // o 1º snapshot da nova.
+    this.match.set(null);
+    this.categoryMatches.set([]);
+    this.totalRounds.set(0);
     const unsubTournament = watchTournament(
       tournamentId,
       (t) => this.tournament.set(t),
@@ -97,7 +131,9 @@ export class OverlayLiveGateway {
     const resolver = () => {
       const agora = Date.now();
       this.finishMemory = nextFinishMemoryOf(this.finishMemory, ultimas, agora);
-      const ctx = overlayCourtContextOf(ultimas, courtId, agora, this.finishMemory);
+      // A rodada KOTC encerrada fica o ciclo inteiro (resultado + classificadas) antes de a
+      // quadra passar pra próxima rodada.
+      const ctx = overlayCourtContextOf(ultimas, courtId, agora, this.finishMemory, OVERLAY_COURT_FOLLOW);
       this.match.set(ctx.match);
       this.categoryMatches.set(ctx.categoryMatches);
       this.totalRounds.set(ctx.totalRounds);

@@ -1,6 +1,7 @@
 import type { TournamentSummary } from './tournaments-repository';
 import {
   filterOngoingStaffTournaments,
+  mesaStaffTournaments,
   sortStaffTournaments,
   staffRoleForTournament,
   staffRoleLabel,
@@ -28,6 +29,22 @@ describe('tournament-staff-repository', () => {
     it('rotula em pt-BR', () => {
       expect(staffRoleLabel('scorer')).toBe('Mesário');
       expect(staffRoleLabel('manager')).toBe('Gestor');
+    });
+  });
+
+  describe('papel mídia', () => {
+    it('mídia é reconhecida, não vira gestor', () => {
+      expect(staffRoleOf('media')).toBe('media');
+      expect(staffRoleLabel('media')).toBe('Mídia');
+    });
+
+    it('a Mesa não lista torneio de mídia nem entrada inativa — mídia não lança placar', () => {
+      const entries = [
+        { tournamentId: 't1', role: 'manager', status: 'active' },
+        { tournamentId: 't2', role: 'media', status: 'active' },
+        { tournamentId: 't3', role: 'scorer', status: 'removed' },
+      ] as MyStaffTournament[];
+      expect(mesaStaffTournaments(entries).map((e) => e.tournamentId)).toEqual(['t1']);
     });
   });
 

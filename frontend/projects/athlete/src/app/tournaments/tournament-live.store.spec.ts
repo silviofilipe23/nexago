@@ -2,6 +2,9 @@ import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { AuthService } from '../auth/auth.service';
 import { TournamentLiveStore } from './tournament-live.store';
+import type { TournamentSummary } from '../data/tournaments-repository';
+import { PublicTournamentReviewsSource } from '../data/public-tournament-reviews.source';
+import type { OrganizerReputation, PublicReviewSummary } from '../data/tournament-reviews';
 
 /**
  * Fixação do bug do round 1 de review da seção Agora: o reconhecimento da chamada de quadra
@@ -49,5 +52,123 @@ describe('TournamentLiveStore — reconhecimento da chamada de quadra', () => {
     store.acknowledgeCall('m1');
     store.acknowledgeCall('m2');
     expect(store.acknowledgedCall).toBe('m2');
+  });
+});
+
+describe('TournamentLiveStore — avaliação do torneio', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('sem usuário não há convite nem avaliação própria', () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        TournamentLiveStore,
+        { provide: AuthService, useValue: { user: signal(null) } },
+        { provide: PublicTournamentReviewsSource, useValue: { watchSummary: () => () => undefined, watchReputation: () => () => undefined, fetchOrganizerName: () => Promise.resolve(null) } },
+      ],
+    });
+    const store = TestBed.inject(TournamentLiveStore);
+    store.tournamentId.set('t1');
+    TestBed.tick();
+    expect(store.reviewInvite()).toBeNull();
+    expect(store.myReview()).toBeNull();
+  });
+});
+
+describe('TournamentLiveStore — avaliação pública', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  function torneio(id: string, managerId: string | null): TournamentSummary {
+    return { id, name: 'Etapa', managerId, categories: [], startAt: null, endAt: null } as unknown as TournamentSummary;
+  }
+
+  /** Fonte falsa: guarda os callbacks para o teste emitir e registra cada `stop`. */
+  function fakeSource() {
+    const summaries = new Map<string, (s: PublicReviewSummary | null) => void>();
+    const reputations = new Map<string, (r: OrganizerReputation | null) => void>();
+    const stopped: string[] = [];
+    const names = new Map<string, Promise<string | null>>();
+    const value = {
+      watchSummary: (id: string, cb: (s: PublicReviewSummary | null) => void) => {
+        summaries.set(id, cb);
+        return () => stopped.push(`summary:${id}`);
+      },
+      watchReputation: (id: string, cb: (r: OrganizerReputation | null) => void) => {
+        reputations.set(id, cb);
+        return () => stopped.push(`reputation:${id}`);
+      },
+      fetchOrganizerName: (id: string) => names.get(id) ?? Promise.resolve(null),
+    };
+    return { summaries, reputations, stopped, names, value };
+  }
+
+  function setup(source: ReturnType<typeof fakeSource>): TournamentLiveStore {
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        TournamentLiveStore,
+        { provide: AuthService, useValue: { user: signal(null) } },
+        { provide: PublicTournamentReviewsSource, useValue: source.value },
+      ],
+    });
+    return TestBed.inject(TournamentLiveStore);
+  }
+
+  const flush = () => new Promise<void>((resolve) => setTimeout(resolve));
+
+  it('ouve o resumo do torneio e zera ao trocar de torneio', () => {
+    const source = fakeSource();
+    const store = setup(source);
+    store.tournamentId.set('t1');
+    TestBed.tick();
+    source.summaries.get('t1')!({ count: 23, average: 4.62, aspects: {} });
+    expect(store.reviewSummary()?.count).toBe(23);
+
+    store.tournamentId.set('t2');
+    TestBed.tick();
+    expect(store.reviewSummary()).toBeNull();
+    expect(source.stopped).toContain('summary:t1');
+  });
+
+  it('lê nome e reputação do organizador; outro organizador não herda os do anterior', async () => {
+    const source = fakeSource();
+    source.names.set('o1', Promise.resolve('Ana Organiza'));
+    const store = setup(source);
+    store.tournament.set(torneio('t1', 'o1'));
+    TestBed.tick();
+    await flush();
+    source.reputations.get('o1')!({ reviewsCount: 86, tournamentsRated: 5, average: 4.71 });
+    expect(store.organizerName()).toBe('Ana Organiza');
+    expect(store.organizerReputation()?.reviewsCount).toBe(86);
+
+    store.tournament.set(torneio('t2', 'o2'));
+    TestBed.tick();
+    expect(store.organizerName()).toBeNull();
+    expect(store.organizerReputation()).toBeNull();
+    expect(source.stopped).toContain('reputation:o1');
+  });
+
+  it('nome que chega depois da troca de organizador é descartado', async () => {
+    const source = fakeSource();
+    let resolveLate!: (name: string | null) => void;
+    source.names.set('o1', new Promise((resolve) => (resolveLate = resolve)));
+    const store = setup(source);
+    store.tournament.set(torneio('t1', 'o1'));
+    TestBed.tick();
+    store.tournament.set(torneio('t2', 'o2'));
+    TestBed.tick();
+    resolveLate('Ana Organiza');
+    await flush();
+    expect(store.organizerName()).toBeNull();
+  });
+
+  it('mesmo organizador em outra leitura do torneio não reabre o listener', () => {
+    const source = fakeSource();
+    const store = setup(source);
+    store.tournament.set(torneio('t1', 'o1'));
+    TestBed.tick();
+    store.tournament.set({ ...torneio('t1', 'o1'), name: 'Etapa renomeada' } as TournamentSummary);
+    TestBed.tick();
+    expect(source.stopped).not.toContain('reputation:o1');
   });
 });

@@ -20,10 +20,12 @@ import '../../tournaments/data/my_tournament_registrations_repository.dart';
 import '../../tournaments/data/tournament_partner_invite_service.dart';
 import '../../tournaments/domain/registration_progress_logic.dart';
 import '../../tournaments/domain/tournament_partner_invite_providers.dart';
+import '../../tournaments/domain/tournament_review_providers.dart';
 import '../../tournaments/domain/tournament_registration_navigation.dart';
 import '../../tournaments/presentation/widgets/my_tournaments_home_section.dart';
 import '../../tournaments/presentation/widgets/pending_tournament_invitee_invites_section.dart';
 import '../../tournaments/presentation/widgets/pending_tournament_inviter_invites_section.dart';
+import '../../tournaments/presentation/widgets/pending_tournament_reviews_section.dart';
 import '../domain/athlete_booking_helpers.dart';
 import '../domain/athlete_display_name.dart';
 import '../domain/athlete_home_dashboard_logic.dart';
@@ -189,6 +191,26 @@ class AthleteHomePage extends ConsumerWidget {
                               AppSpacing.sectionGap,
                             ),
                             child: PendingTournamentInviteeInvitesSection(),
+                          );
+                        },
+                      ),
+                      // Torneios esperando avaliação — perto dos convites recebidos: é a
+                      // outra coisa que só o atleta pode responder.
+                      Consumer(
+                        builder: (context, ref, _) {
+                          final hasPendingReviews =
+                              (ref.watch(pendingTournamentReviewsProvider).valueOrNull ??
+                                      const [])
+                                  .isNotEmpty;
+                          if (!hasPendingReviews) return const SizedBox.shrink();
+                          return const Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              AppSpacing.screenH,
+                              0,
+                              AppSpacing.screenH,
+                              AppSpacing.sectionGap,
+                            ),
+                            child: PendingTournamentReviewsSection(),
                           );
                         },
                       ),

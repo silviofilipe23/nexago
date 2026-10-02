@@ -49,6 +49,7 @@ import '../../features/organizer/presentation/category_ops/organizer_tournament_
 import '../../features/organizer/presentation/category_ops/organizer_tournament_financial_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_tournament_operations_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_tournament_staff_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_tournament_reviews_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_shell_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_teams_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_payments_page.dart';
@@ -181,6 +182,7 @@ import '../../features/tournaments/presentation/focus/focus_shell_page.dart';
 import '../../features/tournaments/presentation/tournament_bracket_page.dart';
 import '../../features/tournaments/presentation/tournament_groups_page.dart';
 import '../../features/tournaments/presentation/tournament_podium_page.dart';
+import '../../features/tournaments/presentation/tournament_review_page.dart';
 import '../../features/tournaments/presentation/tournament_enrolled_athletes_page.dart';
 import '../../features/tournaments/presentation/tournament_prizes_page.dart';
 import '../../features/tournaments/presentation/tournament_predictions_page.dart';
@@ -752,6 +754,17 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 },
               ),
               GoRoute(
+                path: 'reviews',
+                name: AppRouteNames.organizerTournamentReviews,
+                builder: (context, state) {
+                  final tournamentId =
+                      state.pathParameters['tournamentId']?.trim() ?? '';
+                  return OrganizerTournamentReviewsPage(
+                    tournamentId: tournamentId,
+                  );
+                },
+              ),
+              GoRoute(
                 path: 'categories/:categoryId',
                 name: AppRouteNames.organizerCategoryShell,
                 builder: (context, state) {
@@ -1268,6 +1281,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) {
               final id = state.pathParameters['tournamentId']?.trim() ?? '';
               return TournamentPodiumPage(tournamentId: id);
+            },
+          ),
+          GoRoute(
+            path: 'avaliar',
+            name: AppRouteNames.tournamentReview,
+            builder: (context, state) {
+              final id = state.pathParameters['tournamentId']?.trim() ?? '';
+              return TournamentReviewPage(tournamentId: id);
             },
           ),
           GoRoute(

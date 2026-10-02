@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  computed,
   effect,
   inject,
   input,
@@ -14,6 +15,9 @@ import { RevealDirective } from '../../shared/reveal.directive';
 import { ButtonDirective } from '../../shared/ui/button.directive';
 import { SpotlightCard } from '../../shared/ui/spotlight-card';
 import { FollowButtonComponent } from './follow-button';
+import { TournamentReviewAspects } from './tournament-review-aspects';
+import { getOrganizerName, getOrganizerReputation, getPublicReviewSummary } from '../../../lib/firestore/tournament-reviews';
+import { organizerLine, reviewBadgeLabel, type OrganizerReputation, type PublicReviewSummary } from '../../../lib/tournament-reviews';
 import { liveUrlFor } from '../../../lib/tournament-live-link';
 import { getTournamentById } from '../../../lib/firestore/tournaments';
 import { sportLabel, genderLabel, formatCents } from '../../../lib/format';
@@ -70,13 +74,14 @@ const CTA_COPY: Record<TournamentListingStatus, { title: string; description: st
     ButtonDirective,
     SpotlightCard,
     FollowButtonComponent,
+    TournamentReviewAspects,
   ],
   template: `
     <main class="pb-24">
       @if (loading()) {
         <div class="h-[clamp(26rem,62vh,36rem)] animate-pulse bg-surface-1"></div>
       } @else if (tournament(); as t) {
-        <app-tournament-hero [t]="t" />
+        <app-tournament-hero [t]="t" [reviewBadge]="reviewBadge()" [organizerLine]="organizerText()" />
 
         <div class="mx-auto max-w-4xl px-5 sm:px-6">
           <div nxReveal class="flex justify-end pt-8">
@@ -92,6 +97,8 @@ const CTA_COPY: Record<TournamentListingStatus, { title: string; description: st
               </p>
             </div>
           }
+
+          <app-tournament-review-aspects [summary]="reviewSummary()" />
 
           @if (t.categories.length > 0) {
             <section class="mt-12">
@@ -216,6 +223,12 @@ export class TorneioDetailPage {
 
   protected readonly tournament = signal<TournamentDetail | null>(null);
   protected readonly loading = signal(true);
+  /** Avaliação pública (spec §5). Uma leitura por visita — o firestore-lite não tem listener. */
+  protected readonly reviewSummary = signal<PublicReviewSummary | null>(null);
+  protected readonly organizerReputation = signal<OrganizerReputation | null>(null);
+  protected readonly organizerName = signal<string | null>(null);
+  protected readonly reviewBadge = computed(() => reviewBadgeLabel(this.reviewSummary()));
+  protected readonly organizerText = computed(() => organizerLine(this.organizerName(), this.organizerReputation()));
 
   protected readonly sportLabel = sportLabel;
   protected readonly genderLabel = genderLabel;
@@ -238,6 +251,9 @@ export class TorneioDetailPage {
       const id = this.id();
       this.loading.set(true);
       this.tournament.set(null);
+      this.reviewSummary.set(null);
+      this.organizerReputation.set(null);
+      this.organizerName.set(null);
 
       let cancelled = false;
       onCleanup(() => {
@@ -252,6 +268,19 @@ export class TorneioDetailPage {
         if (t) {
           this.titleService.setTitle(`${t.name} · nexaGO`);
           this.appendJsonLd(t);
+          // Leituras extras não seguram a página: chegam depois e só acrescentam o selo, a
+          // seção e a linha do organizador. `cancelled` descarta o que chegar após trocar de torneio.
+          void getPublicReviewSummary(t.id).then((summary) => {
+            if (!cancelled) this.reviewSummary.set(summary);
+          });
+          const managerId = t.managerId;
+          if (managerId) {
+            void Promise.all([getOrganizerName(managerId), getOrganizerReputation(managerId)]).then(([name, reputation]) => {
+              if (cancelled) return;
+              this.organizerName.set(name);
+              this.organizerReputation.set(reputation);
+            });
+          }
         } else {
           this.titleService.setTitle('Torneio não encontrado · nexaGO');
         }

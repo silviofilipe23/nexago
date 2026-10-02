@@ -20,12 +20,16 @@ class TournamentDetailHero extends StatelessWidget {
     required this.stats,
     required this.topInset,
     required this.toolbar,
+    this.reviewBadge,
   });
 
   final TournamentDetail tournament;
   final TournamentDetailStats stats;
   final double topInset;
   final Widget toolbar;
+
+  /// Selo "★ 4,6 · 23 avaliações" (spec §5) — `null` abaixo de 3 avaliações.
+  final String? reviewBadge;
 
   static const _horizontalMargin = 20.0;
   static const _coverContentHeight = 248.0;
@@ -112,6 +116,15 @@ class TournamentDetailHero extends StatelessWidget {
                                     color: hasCover
                                         ? Colors.white.withValues(alpha: 0.92)
                                         : context.themeColors.onSurfaceMuted,
+                                    background: hasCover
+                                        ? Colors.black.withValues(alpha: 0.42)
+                                        : null,
+                                    showDot: false,
+                                  ),
+                                if (reviewBadge != null)
+                                  NexaStatusChip(
+                                    label: reviewBadge!,
+                                    color: AppColors.brand,
                                     background: hasCover
                                         ? Colors.black.withValues(alpha: 0.42)
                                         : null,

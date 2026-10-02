@@ -12,7 +12,7 @@ import {
 } from "./auth-roles";
 import {deliverNotificationToUser} from "./notification-delivery";
 
-export const TOURNAMENT_STAFF_ROLES = ["manager", "eventAdmin", "scorer"] as const;
+export const TOURNAMENT_STAFF_ROLES = ["manager", "eventAdmin", "scorer", "media"] as const;
 export type TournamentStaffRole = (typeof TOURNAMENT_STAFF_ROLES)[number];
 
 /** Rótulo pt-BR do papel de staff. Papel ausente/desconhecido cai em gestor,
@@ -20,6 +20,7 @@ export type TournamentStaffRole = (typeof TOURNAMENT_STAFF_ROLES)[number];
 export function staffRoleLabel(role: string): string {
   if (role === "scorer") return "mesário";
   if (role === "eventAdmin") return "administrador";
+  if (role === "media") return "mídia";
   return "gestor";
 }
 
@@ -34,9 +35,12 @@ export function buildStaffAddedNotificationBody(
   return `Você agora é ${staffRoleLabel(role)} de ${name}`;
 }
 
-/** Gestor (manager) ganha acesso ao portal do organizador; mesário não.
- *  Papel ausente/desconhecido cai em gestor, mesmo default de
- *  `buildStaffMirrorData` e `staffRoleLabel`. */
+/** Quem LOGA no portal do organizador: todo papel menos o mesário. A mídia
+ *  entra de propósito (opera a tela Transmissão), não por cair no default.
+ *  ATENÇÃO: isto é "pode logar", não "alcança dinheiro" — carteira e caixa
+ *  têm regra própria e mais estreita (`isActiveStaffManagerMirror`,
+ *  `isActiveWithdrawalStaffMirror`). Papel ausente/desconhecido cai em
+ *  gestor, mesmo default de `buildStaffMirrorData` e `staffRoleLabel`. */
 export function staffRoleGrantsOrganizerAccess(role: unknown): boolean {
   return role !== "scorer";
 }

@@ -82,6 +82,49 @@ void main() {
     );
   });
 
+  // Inscrição até 16h num torneio que começa às 18h: de manhã ainda é
+  // "aberto" — senão o app some com o botão de inscrição no dia do evento.
+  test('resolveListingStatus keeps Open on event day while registration is open',
+      () {
+    expect(
+      resolveListingStatus(
+        listingStatusRaw: 'open',
+        startAt: DateTime(2026, 10, 2),
+        endAt: DateTime(2026, 10, 2),
+        registrationClosesAt: DateTime(2026, 10, 2, 16),
+        now: DateTime(2026, 10, 2, 9, 30),
+      ),
+      TournamentListingStatus.open,
+    );
+  });
+
+  test('resolveListingStatus promotes Open to live once registration closes',
+      () {
+    expect(
+      resolveListingStatus(
+        listingStatusRaw: 'open',
+        startAt: DateTime(2026, 10, 2),
+        endAt: DateTime(2026, 10, 2),
+        registrationClosesAt: DateTime(2026, 10, 2, 16),
+        now: DateTime(2026, 10, 2, 16, 1),
+      ),
+      TournamentListingStatus.live,
+    );
+  });
+
+  test('resolveListingStatus keeps live with a match on court', () {
+    expect(
+      resolveListingStatus(
+        listingStatusRaw: 'open',
+        startAt: DateTime(2026, 10, 2),
+        registrationClosesAt: DateTime(2026, 10, 2, 16),
+        liveMatchesNow: 1,
+        now: DateTime(2026, 10, 2, 9, 30),
+      ),
+      TournamentListingStatus.live,
+    );
+  });
+
   test('resolveListingStatus keeps Open when not event day', () {
     expect(
       resolveListingStatus(

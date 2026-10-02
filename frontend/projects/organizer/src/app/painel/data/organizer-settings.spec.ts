@@ -75,6 +75,23 @@ describe('organizer-settings', () => {
       expect(parseOrganizerSettings({ organizerPayments: { pixKeyType: 'cpf' } }).payments.pixKeyType).toBe('CPF');
     });
 
+    it('lê o perfil público do mesmo mapa organizerProfile', () => {
+      const s = parseOrganizerSettings({
+        organizerProfile: { orgName: 'Liga', bio: 'Areia todo fim de semana', coverUrl: 'https://x/c.jpg', publicWhatsapp: true },
+      });
+      expect(s.publicProfile).toEqual({ bio: 'Areia todo fim de semana', coverUrl: 'https://x/c.jpg', publicWhatsapp: true });
+      expect(parseOrganizerSettings(undefined).publicProfile).toEqual({ bio: '', coverUrl: null, publicWhatsapp: false });
+    });
+
+    it('o perfil que o card "Perfil" grava (setDoc merge) nunca carrega bio, capa nem o switch do WhatsApp', () => {
+      // Se carregasse, a cópia aberta no card "Perfil" sobrescreveria o que o card
+      // "Perfil público" acabou de salvar.
+      const s = parseOrganizerSettings({
+        organizerProfile: { orgName: 'Liga', bio: 'Bio', coverUrl: 'https://x/c.jpg', publicWhatsapp: true },
+      });
+      expect(Object.keys(s.profile).sort()).toEqual(['city', 'contactEmail', 'contactPhone', 'logoUrl', 'orgName', 'state']);
+    });
+
     it('preserva regulamento com espaços e quebras de linha', () => {
       const notes = '  Regra 1\n\nRegra 2  ';
       expect(parseOrganizerSettings({ organizerDefaults: { regulationNotes: notes } }).defaults.regulationNotes).toBe(notes);

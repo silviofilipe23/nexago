@@ -6,10 +6,8 @@ import '../../../../core/theme/app_typography.dart';
 import '../../domain/organizer_event.dart';
 import '../../domain/organizer_public_profile_logic.dart';
 import '../../domain/organizer_public_profile_models.dart';
+import 'organizer_champion_names.dart';
 import 'organizer_event_tiles.dart';
-
-/// Quantos itens a Visão geral mostra antes de mandar para a aba completa.
-const int kOrganizerOverviewPreviewCount = 3;
 
 const String kOrganizerNoReputationText = 'Ainda sem avaliações suficientes';
 
@@ -34,7 +32,7 @@ class OrganizerOverviewTab extends StatelessWidget {
   final DateTime now;
   final List<OrganizerEvent> upcoming;
   final List<OrganizerEvent> completed;
-  final Map<String, String> championNames;
+  final OrganizerChampionNames championNames;
   final OrganizerReputationView? reputation;
 
   /// Sem próximos eventos, o aviso convida a seguir (não no próprio perfil).
@@ -169,7 +167,7 @@ class OrganizerEventsTab extends StatelessWidget {
   final DateTime now;
   final List<OrganizerEvent> upcoming;
   final List<OrganizerEvent> completed;
-  final Map<String, String> championNames;
+  final OrganizerChampionNames championNames;
   final OrganizerOpenEvent onOpenEvent;
 
   @override
@@ -228,7 +226,7 @@ class OrganizerResultsTab extends StatelessWidget {
   });
 
   final List<OrganizerEvent> completed;
-  final Map<String, String> championNames;
+  final OrganizerChampionNames championNames;
   final OrganizerOpenEvent onOpenEvent;
 
   @override
@@ -258,7 +256,7 @@ class OrganizerResultsTab extends StatelessWidget {
                   ),
                   child: _ResultCardBody(
                     event: event,
-                    rows: organizerEventChampionRows(event, championNames),
+                    championNames: championNames,
                   ),
                 ),
               ),
@@ -272,14 +270,25 @@ class OrganizerResultsTab extends StatelessWidget {
 }
 
 class _ResultCardBody extends StatelessWidget {
-  const _ResultCardBody({required this.event, required this.rows});
+  const _ResultCardBody({required this.event, required this.championNames});
 
   final OrganizerEvent event;
-  final List<({String category, String team})> rows;
+  final OrganizerChampionNames championNames;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    final rows = organizerEventChampionRows(event, championNames.names);
+    // Carregando não é "sem campeão": o aviso só sai quando não há mesmo o que mostrar.
+    final note = event.champions.isEmpty
+        ? 'Campeões ainda não registrados.'
+        : championNames.loading
+        ? 'Carregando campeões…'
+        : championNames.failed
+        ? 'Não foi possível carregar os campeões.'
+        : rows.isEmpty
+        ? 'Campeões ainda não registrados.'
+        : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -301,9 +310,9 @@ class _ResultCardBody extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        if (rows.isEmpty)
+        if (note != null)
           Text(
-            'Campeões ainda não registrados.',
+            note,
             style: AppTypography.soraRegular(
               fontSize: 12,
               fontWeight: FontWeight.w500,

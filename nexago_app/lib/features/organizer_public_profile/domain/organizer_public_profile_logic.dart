@@ -14,6 +14,9 @@ import 'organizer_public_profile_models.dart';
 /// `docs/superpowers/specs/2026-10-02-organizer-public-profile-design.md`, seção "O que o
 /// atleta vê". Tudo puro: nada aqui lê relógio ou Firestore.
 
+/// Quantos itens a Visão geral mostra antes de mandar para a aba completa.
+const int kOrganizerOverviewPreviewCount = 3;
+
 // ── Formatação ───────────────────────────────────────────────────────────────
 
 /// "38", "1.240", "12,4 mil", "1,2 mi". Trunca (nunca arredonda pra cima): "9,9 mil" nunca vira
@@ -465,11 +468,41 @@ List<({String category, String team})> organizerEventChampionRows(
   ];
 }
 
-/// Ids de equipe campeã dos eventos — chave da busca de nomes.
-Set<String> organizerChampionTeamIds(List<OrganizerEvent> events) => {
-  for (final event in events)
-    for (final champion in event.champions) champion.teamId,
-};
+/// Quanto dos campeões uma tela precisa.
+enum OrganizerChampionScope {
+  /// Histórico da Visão geral: o campeão da primeira categoria dos 3 eventos mostrados.
+  overview,
+
+  /// Aba Eventos: o campeão da primeira categoria de cada realizado.
+  firstPerEvent,
+
+  /// Aba Resultados: todos os campeões de todos os realizados.
+  all,
+}
+
+/// Ids das duplas campeãs que a tela precisa, ordenados, sem repetição e unidos por vírgula —
+/// a chave (`String`, estável) da busca de nomes. [realized] já vem na ordem de exibição.
+/// Busca só o que aparece: a Visão geral não paga pelos campeões de anos de histórico.
+String organizerChampionTeamIdsKey(
+  List<OrganizerEvent> realized,
+  OrganizerChampionScope scope,
+) {
+  final events = scope == OrganizerChampionScope.overview
+      ? realized.take(kOrganizerOverviewPreviewCount)
+      : realized;
+  final ids = <String>{
+    for (final event in events)
+      if (scope == OrganizerChampionScope.all)
+        for (final champion in event.champions) champion.teamId
+      else if (event.champions.isNotEmpty)
+        event.champions.first.teamId,
+  }.toList()..sort();
+  return ids.join(',');
+}
+
+/// Ids de uma chave de [organizerChampionTeamIdsKey].
+Set<String> organizerChampionTeamIdsFromKey(String key) =>
+    key.split(',').where((id) => id.isNotEmpty).toSet();
 
 // ── Reputação ────────────────────────────────────────────────────────────────
 

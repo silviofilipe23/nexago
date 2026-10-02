@@ -37,12 +37,16 @@ class TournamentTeamsRepository {
 
     final teams = <String, TournamentTeam>{};
     const chunkSize = 10;
+    // Lotes em paralelo: em série, cada lote esperava o anterior (latência somada).
+    final batches = <Future<List<DocumentSnapshot<Map<String, dynamic>>>>>[];
     for (var i = 0; i < ids.length; i += chunkSize) {
       final chunk = ids.sublist(
         i,
         i + chunkSize > ids.length ? ids.length : i + chunkSize,
       );
-      final snaps = await Future.wait(chunk.map((id) => _teams.doc(id).get()));
+      batches.add(Future.wait(chunk.map((id) => _teams.doc(id).get())));
+    }
+    for (final snaps in await Future.wait(batches)) {
       for (final snap in snaps) {
         if (!snap.exists) continue;
         final team = _fromSnapshot(snap);

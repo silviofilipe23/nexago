@@ -648,8 +648,58 @@ void main() {
         (category: 'Feminino B', team: 'Reis / Moura'),
       ]);
       expect(organizerEventChampionLine(event, const {}), isNull);
-      expect(organizerChampionTeamIds([event]), {'sem-nome', 'team-f'});
     });
+
+    test(
+      'chave dos campeões: só o que a aba mostra, ordenada e sem repetição',
+      () {
+        OrganizerEvent done(String id, List<String> teams) => _event(
+          OrganizerEventListing.completed,
+          id: id,
+          start: DateTime(2026, 1, 1),
+          champions: [
+            for (var i = 0; i < teams.length; i++)
+              OrganizerEventChampion(
+                categoryId: 'c$i',
+                categoryName: 'Cat $i',
+                teamId: teams[i],
+              ),
+          ],
+        );
+        final realized = [
+          done('a', ['t-z', 't-a2']),
+          done('b', ['t-b']),
+          done('c', []),
+          done('d', ['t-z']),
+          done('e', ['t-e']),
+        ];
+        // Visão geral: primeira categoria dos 3 primeiros (o 'c' não tem campeão).
+        expect(
+          organizerChampionTeamIdsKey(
+            realized,
+            OrganizerChampionScope.overview,
+          ),
+          't-b,t-z',
+        );
+        expect(
+          organizerChampionTeamIdsKey(
+            realized,
+            OrganizerChampionScope.firstPerEvent,
+          ),
+          't-b,t-e,t-z',
+        );
+        expect(
+          organizerChampionTeamIdsKey(realized, OrganizerChampionScope.all),
+          't-a2,t-b,t-e,t-z',
+        );
+        expect(
+          organizerChampionTeamIdsKey(const [], OrganizerChampionScope.all),
+          '',
+        );
+        expect(organizerChampionTeamIdsFromKey('t-b,t-z'), {'t-b', 't-z'});
+        expect(organizerChampionTeamIdsFromKey(''), isEmpty);
+      },
+    );
   });
 
   group('reputação', () {

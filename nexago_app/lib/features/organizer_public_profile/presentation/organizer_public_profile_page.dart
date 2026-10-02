@@ -19,6 +19,7 @@ import '../domain/organizer_event.dart';
 import '../domain/organizer_public_profile_logic.dart';
 import '../domain/organizer_public_profile_models.dart';
 import '../domain/organizer_public_profile_providers.dart';
+import 'widgets/organizer_champion_names.dart';
 import 'widgets/organizer_clock.dart';
 import 'widgets/organizer_profile_header_parts.dart';
 import 'widgets/organizer_profile_hero.dart';
@@ -203,9 +204,6 @@ class _OrganizerPublicProfilePageState
         .valueOrNull;
     final eventsAsync = ref.watch(organizerEventsProvider(_organizerId));
     final events = eventsAsync.valueOrNull ?? const <OrganizerEvent>[];
-    final championNames =
-        ref.watch(organizerChampionNamesProvider(_organizerId)).valueOrNull ??
-        const <String, String>{};
     final followedAsync = isSelf
         ? const AsyncValue<bool>.data(false)
         : ref.watch(organizerIsFollowedProvider(_organizerId));
@@ -235,39 +233,53 @@ class _OrganizerPublicProfilePageState
         final upcoming = organizerUpcomingEvents(events, now);
         final realized = organizerRealizedEvents(events, now);
 
-        final tabContent = switch (_tab) {
-          OrganizerProfileTab.overview => OrganizerOverviewTab(
-            profile: profile,
-            now: now,
-            upcoming: upcoming,
-            completed: realized,
-            championNames: championNames,
-            reputation: reputationView,
-            inviteToFollow: !isSelf,
-            onOpenEvent: _openEvent,
-            onSeeEvents: () =>
-                setState(() => _tab = OrganizerProfileTab.events),
-            onSeeReviews: () =>
-                setState(() => _tab = OrganizerProfileTab.reviews),
-          ),
-          OrganizerProfileTab.events => OrganizerEventsTab(
-            now: now,
-            upcoming: upcoming,
-            completed: realized,
-            championNames: championNames,
-            onOpenEvent: _openEvent,
-          ),
-          OrganizerProfileTab.results => OrganizerResultsTab(
-            completed: realized,
-            championNames: championNames,
-            onOpenEvent: _openEvent,
-          ),
-          OrganizerProfileTab.reviews => _ReviewsTabLoader(
-            organizerId: _organizerId,
-            reputation: reputationView,
-            events: events,
-          ),
-        };
+        // Só os campeões que a aba mostra: a Visão geral busca 3, a aba Eventos o da
+        // primeira categoria de cada realizado, e Resultados todos.
+        final championKey = organizerChampionTeamIdsKey(
+          realized,
+          switch (_tab) {
+            OrganizerProfileTab.events => OrganizerChampionScope.firstPerEvent,
+            OrganizerProfileTab.results => OrganizerChampionScope.all,
+            _ => OrganizerChampionScope.overview,
+          },
+        );
+
+        final tabContent = OrganizerChampionNamesScope(
+          teamIdsKey: _tab == OrganizerProfileTab.reviews ? '' : championKey,
+          builder: (context, championNames) => switch (_tab) {
+            OrganizerProfileTab.overview => OrganizerOverviewTab(
+              profile: profile,
+              now: now,
+              upcoming: upcoming,
+              completed: realized,
+              championNames: championNames,
+              reputation: reputationView,
+              inviteToFollow: !isSelf,
+              onOpenEvent: _openEvent,
+              onSeeEvents: () =>
+                  setState(() => _tab = OrganizerProfileTab.events),
+              onSeeReviews: () =>
+                  setState(() => _tab = OrganizerProfileTab.reviews),
+            ),
+            OrganizerProfileTab.events => OrganizerEventsTab(
+              now: now,
+              upcoming: upcoming,
+              completed: realized,
+              championNames: championNames,
+              onOpenEvent: _openEvent,
+            ),
+            OrganizerProfileTab.results => OrganizerResultsTab(
+              completed: realized,
+              championNames: championNames,
+              onOpenEvent: _openEvent,
+            ),
+            OrganizerProfileTab.reviews => _ReviewsTabLoader(
+              organizerId: _organizerId,
+              reputation: reputationView,
+              events: events,
+            ),
+          },
+        );
 
         return CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(

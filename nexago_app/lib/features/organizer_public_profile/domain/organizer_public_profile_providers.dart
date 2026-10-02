@@ -49,38 +49,17 @@ final organizerIsFollowedProvider = StreamProvider.autoDispose
           .watchIsFollowing(organizerId: organizerId, followerId: uid);
     });
 
-/// Ids das duplas campeãs dos eventos realizados, ordenados e unidos por vírgula. A `String`
-/// só muda quando o conjunto muda: placar e `categoryOps` regravam o torneio o tempo todo, e
-/// sem esta chave cada regravação refaria a busca dos nomes.
-final organizerChampionTeamIdsKeyProvider = Provider.autoDispose
-    .family<String, String>((ref, organizerId) {
-      final events =
-          ref.watch(organizerEventsProvider(organizerId)).valueOrNull ??
-          const <OrganizerEvent>[];
-      final ids = organizerChampionTeamIds(
-        organizerRealizedEvents(events, DateTime.now()),
-      ).toList()..sort();
-      return ids.join(',');
-    });
-
-/// teamId → "Lima / Prado" para a chave de [organizerChampionTeamIdsKeyProvider].
+/// teamId → "Lima / Prado" para uma chave de `organizerChampionTeamIdsKey`. A chave é
+/// `String` e só muda quando o conjunto de campeões muda: placar e `categoryOps` regravam o
+/// torneio o tempo todo sem refazer esta busca.
 final championTeamNamesByKeyProvider = FutureProvider.autoDispose
     .family<Map<String, String>, String>((ref, teamIdsKey) async {
-      final teamIds = teamIdsKey
-          .split(',')
-          .where((id) => id.isNotEmpty)
-          .toSet();
+      cacheFor(ref, const Duration(minutes: 10));
+      final teamIds = organizerChampionTeamIdsFromKey(teamIdsKey);
       if (teamIds.isEmpty) return const {};
       return ref
           .read(tournamentMatchEnrichmentServiceProvider)
           .resolveTeamDisplayNames(teamIds);
-    });
-
-/// Nomes das duplas campeãs dos eventos realizados do organizador.
-final organizerChampionNamesProvider = FutureProvider.autoDispose
-    .family<Map<String, String>, String>((ref, organizerId) {
-      final key = ref.watch(organizerChampionTeamIdsKeyProvider(organizerId));
-      return ref.watch(championTeamNamesByKeyProvider(key).future);
     });
 
 /// Lista "Organizadores", já na ordem da spec (abertas > seguidores > nome).

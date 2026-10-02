@@ -10,6 +10,7 @@ import '../../../tournaments/domain/tournament_discovery_labels.dart';
 import '../../domain/organizer_event.dart';
 import '../../domain/organizer_public_profile_logic.dart';
 import '../../domain/organizer_public_profile_providers.dart';
+import 'organizer_champion_names.dart';
 
 /// Card de evento próximo: selo, tipo, nome, data, local, barra de vagas (contagem real de
 /// `inscriptions`), preço e CTA. Tocar em qualquer parte leva ao evento.
@@ -261,7 +262,7 @@ class OrganizerCompletedEventRow extends ConsumerWidget {
   });
 
   final OrganizerEvent event;
-  final Map<String, String> championNames;
+  final OrganizerChampionNames championNames;
   final VoidCallback onOpen;
 
   /// Mostra o número de inscrições (uma leitura `count()` por linha). Fica só no histórico
@@ -283,7 +284,11 @@ class OrganizerCompletedEventRow extends ConsumerWidget {
         entries = tournamentEnrolledEntriesLabel(count, detail.format);
       }
     }
-    final champion = organizerEventChampionLine(event, championNames);
+    final champion =
+        organizerEventChampionLine(event, championNames.names) ??
+        (championNames.loading && event.champions.isNotEmpty
+            ? 'Carregando campeões…'
+            : null);
     final sport = detail.sport.trim();
 
     return InkWell(

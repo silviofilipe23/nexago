@@ -49,7 +49,7 @@ OrganizerPublicProfile _profile({String? whatsapp, bool isOrganizer = true}) {
   })!;
 }
 
-List<OrganizerEvent> _events() {
+List<OrganizerEvent> _events({String? champion}) {
   final next = DateTime.now().add(const Duration(days: 20));
   return [
     organizerEventFromMap('ev-open', {
@@ -72,6 +72,13 @@ List<OrganizerEvent> _events() {
       'listingStatus': 'completed',
       'sport': 'beachVolleyball',
       'startAt': Timestamp.fromDate(DateTime(2026, 5, 2, 8)),
+      'categories': [
+        {'id': 'c1', 'categoryName': 'Masculino B'},
+      ],
+      if (champion != null)
+        'categoryOps': {
+          'c1': {'championTeamId': champion},
+        },
     })!,
   ];
 }
@@ -120,6 +127,8 @@ Future<void> _pump(
   Stream<bool>? isFollowed,
   _FakeRepository? repository,
   double width = 430,
+  String? champion,
+  Future<Map<String, String>> Function()? championNames,
 }) async {
   _tallScreen(tester, width: width);
   await tester.pumpWidget(
@@ -131,13 +140,14 @@ Future<void> _pump(
         organizerPublicProfileProvider(_orgId).overrideWith((ref) => profile),
         organizerEventsProvider(
           _orgId,
-        ).overrideWith((ref) => Stream.value(_events())),
+        ).overrideWith((ref) => Stream.value(_events(champion: champion))),
         organizerReputationProvider(
           _orgId,
         ).overrideWith((ref) => Stream.value(reputation)),
-        organizerChampionNamesProvider(
-          _orgId,
-        ).overrideWith((ref) async => const <String, String>{}),
+        championTeamNamesByKeyProvider.overrideWith(
+          (ref, key) =>
+              championNames?.call() ?? Future.value(const <String, String>{}),
+        ),
         organizerReviewSummariesProvider(_orgId).overrideWith(
           (ref) => Stream.value(const <TournamentReviewSummary>[]),
         ),
@@ -379,5 +389,32 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Torneio de Abertura'), findsOneWidget);
     expect(find.text('Campeões ainda não registrados.'), findsOneWidget);
+  });
+
+  testWidgets('campeões carregando não viram "ainda não registrados"', (
+    tester,
+  ) async {
+    final pending = Completer<Map<String, String>>();
+    await _pump(
+      tester,
+      profile: Stream.value(_profile()),
+      champion: 'team-1',
+      championNames: () => pending.future,
+    );
+    await tester.pumpAndSettle();
+    // Histórico da Visão geral: placeholder de carregamento na linha do campeão.
+    expect(find.textContaining('Carregando campeões'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Resultados'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Resultados'));
+    await tester.pumpAndSettle();
+    expect(find.text('Carregando campeões…'), findsOneWidget);
+    expect(find.text('Campeões ainda não registrados.'), findsNothing);
+
+    pending.complete(const {'team-1': 'Lima / Prado'});
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Lima / Prado'), findsOneWidget);
+    expect(find.text('Carregando campeões…'), findsNothing);
   });
 }

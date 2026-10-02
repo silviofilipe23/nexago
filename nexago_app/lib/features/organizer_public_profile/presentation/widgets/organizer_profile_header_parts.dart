@@ -63,8 +63,11 @@ class _Stat extends StatelessWidget {
             ),
             if (stat.isRating) ...[
               const SizedBox(width: 3),
-              const Icon(Icons.star_rounded,
-                  size: 16, color: AppColors.pending),
+              const Icon(
+                Icons.star_rounded,
+                size: 16,
+                color: AppColors.pending,
+              ),
             ],
           ],
         ),
@@ -108,8 +111,9 @@ class OrganizerProfileActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final shape =
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(12));
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    );
     final outlinedStyle = OutlinedButton.styleFrom(
       foregroundColor: colors.onSurface,
       side: BorderSide(color: colors.onSurfaceMuted.withValues(alpha: 0.3)),
@@ -125,25 +129,25 @@ class OrganizerProfileActions extends StatelessWidget {
     final follow = !showFollow
         ? null
         : isFollowing
-            ? OutlinedButton.icon(
-                key: const ValueKey('organizer-follow-button'),
-                onPressed: followBusy ? null : onFollow,
-                style: outlinedStyle,
-                icon: const Icon(Icons.check_rounded, size: 18),
-                label: Text('Seguindo', style: labelStyle),
-              )
-            : FilledButton.icon(
-                key: const ValueKey('organizer-follow-button'),
-                onPressed: followBusy ? null : onFollow,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.brand,
-                  foregroundColor: AppColors.black,
-                  shape: shape,
-                  minimumSize: const Size(0, 44),
-                ),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: Text('Seguir', style: labelStyle),
-              );
+        ? OutlinedButton.icon(
+            key: const ValueKey('organizer-follow-button'),
+            onPressed: followBusy ? null : onFollow,
+            style: outlinedStyle,
+            icon: const Icon(Icons.check_rounded, size: 18),
+            label: Text('Seguindo', style: labelStyle),
+          )
+        : FilledButton.icon(
+            key: const ValueKey('organizer-follow-button'),
+            onPressed: followBusy ? null : onFollow,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.brand,
+              foregroundColor: AppColors.black,
+              shape: shape,
+              minimumSize: const Size(0, 44),
+            ),
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: Text('Seguir', style: labelStyle),
+          );
 
     final message = onMessage == null
         ? null
@@ -254,12 +258,12 @@ class OrganizerProfileTabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     String label(OrganizerProfileTab tab) => switch (tab) {
-          OrganizerProfileTab.overview => 'Visão geral',
-          OrganizerProfileTab.events =>
-            eventsCount > 0 ? 'Eventos $eventsCount' : 'Eventos',
-          OrganizerProfileTab.results => 'Resultados',
-          OrganizerProfileTab.reviews => 'Avaliações',
-        };
+      OrganizerProfileTab.overview => 'Visão geral',
+      OrganizerProfileTab.events =>
+        eventsCount > 0 ? 'Eventos $eventsCount' : 'Eventos',
+      OrganizerProfileTab.results => 'Resultados',
+      OrganizerProfileTab.reviews => 'Avaliações',
+    };
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,

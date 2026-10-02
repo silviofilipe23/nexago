@@ -114,7 +114,9 @@ class OrganizerPublicProfile {
   bool get isDisplayable => isOrganizer;
 
   static OrganizerPublicProfile? fromMap(
-      String id, Map<String, dynamic>? data) {
+    String id,
+    Map<String, dynamic>? data,
+  ) {
     if (data == null) return null;
     final uid = _textOf(data['uid']);
     final name = _textOf(data['name']);

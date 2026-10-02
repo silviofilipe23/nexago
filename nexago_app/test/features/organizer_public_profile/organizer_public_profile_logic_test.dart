@@ -97,18 +97,20 @@ OrganizerPublicProfile _profile({
 
 void main() {
   group('formatação', () {
-    test('formatOrganizerCount agrupa milhar e abrevia sem arredondar pra cima',
-        () {
-      expect(formatOrganizerCount(0), '0');
-      expect(formatOrganizerCount(38), '38');
-      expect(formatOrganizerCount(1240), '1.240');
-      expect(formatOrganizerCount(9999), '9.999');
-      expect(formatOrganizerCount(12450), '12,4 mil');
-      expect(formatOrganizerCount(20000), '20 mil');
-      expect(formatOrganizerCount(999999), '999 mil');
-      expect(formatOrganizerCount(1250000), '1,2 mi');
-      expect(formatOrganizerCount(-3), '0');
-    });
+    test(
+      'formatOrganizerCount agrupa milhar e abrevia sem arredondar pra cima',
+      () {
+        expect(formatOrganizerCount(0), '0');
+        expect(formatOrganizerCount(38), '38');
+        expect(formatOrganizerCount(1240), '1.240');
+        expect(formatOrganizerCount(9999), '9.999');
+        expect(formatOrganizerCount(12450), '12,4 mil');
+        expect(formatOrganizerCount(20000), '20 mil');
+        expect(formatOrganizerCount(999999), '999 mil');
+        expect(formatOrganizerCount(1250000), '1,2 mi');
+        expect(formatOrganizerCount(-3), '0');
+      },
+    );
 
     test('organizerLocationLine junta cidade e UF', () {
       expect(organizerLocationLine('Goiânia', 'go'), 'Goiânia · GO');
@@ -167,14 +169,10 @@ void main() {
           average: 4.8,
         ),
       );
-      expect([
-        for (final s in stats) s.label
-      ], [
-        'Eventos realizados',
-        'Atletas',
-        'Nota média',
-        'Seguidores',
-      ]);
+      expect(
+        [for (final s in stats) s.label],
+        ['Eventos realizados', 'Atletas', 'Nota média', 'Seguidores'],
+      );
       expect([for (final s in stats) s.value], ['38', '1.240', '4,8', '2.100']);
       expect(stats[2].isRating, isTrue);
     });
@@ -193,13 +191,10 @@ void main() {
         _profile(completed: 1, athletes: 1, followers: 1),
         null,
       );
-      expect([
-        for (final s in stats) s.label
-      ], [
-        'Evento realizado',
-        'Atleta',
-        'Seguidor',
-      ]);
+      expect(
+        [for (final s in stats) s.label],
+        ['Evento realizado', 'Atleta', 'Seguidor'],
+      );
     });
   });
 
@@ -276,13 +271,12 @@ void main() {
       OrganizerEvent e, {
       int enrolled = 0,
       int capacity = 32,
-    }) =>
-        organizerEventBadge(
-          e,
-          enrolled: enrolled,
-          capacity: capacity,
-          now: now,
-        );
+    }) => organizerEventBadge(
+      e,
+      enrolled: enrolled,
+      capacity: capacity,
+      now: now,
+    );
 
     test('aberto com folga → Inscrições abertas (CTA Inscrever)', () {
       final b = badge(
@@ -480,7 +474,9 @@ void main() {
       );
       final names = {'team-f': 'Reis / Moura'};
       expect(
-          organizerEventChampionLine(event, names), 'Campeões: Reis / Moura');
+        organizerEventChampionLine(event, names),
+        'Campeões: Reis / Moura',
+      );
       expect(organizerEventChampionRows(event, names), [
         (category: 'Feminino B', team: 'Reis / Moura'),
       ]);
@@ -525,13 +521,10 @@ void main() {
       )!;
       expect(view.averageText, '4,6');
       expect(view.countLabel, '10 avaliações');
-      expect([
-        for (final a in view.aspects) a.label
-      ], [
-        'Organização',
-        'Pontualidade',
-        'Premiação',
-      ]);
+      expect(
+        [for (final a in view.aspects) a.label],
+        ['Organização', 'Pontualidade', 'Premiação'],
+      );
       expect(view.aspects.last.valueText, '5,0');
       expect(view.aspects.last.fraction, 1.0);
       expect([for (final d in view.distribution) d.stars], [5, 4, 3, 2, 1]);
@@ -542,7 +535,8 @@ void main() {
     test('rótulos curtos dos 5 aspectos', () {
       expect(
         [
-          for (final a in TournamentReviewAspect.values) organizerAspectLabel(a)
+          for (final a in TournamentReviewAspect.values)
+            organizerAspectLabel(a),
         ],
         ['Organização', 'Pontualidade', 'Arbitragem', 'Estrutura', 'Premiação'],
       );
@@ -554,14 +548,13 @@ void main() {
         String status = 'closed',
         int count = 5,
         double? average = 4.5,
-      }) =>
-          TournamentReviewSummary.fromMap(id, {
-            'tournamentId': id,
-            'tournamentName': 'Evento $id',
-            'status': status,
-            'count': count,
-            'average': average,
-          })!;
+      }) => TournamentReviewSummary.fromMap(id, {
+        'tournamentId': id,
+        'tournamentName': 'Evento $id',
+        'status': status,
+        'count': count,
+        'average': average,
+      })!;
       final events = {
         'a': _event(
           OrganizerEventListing.completed,

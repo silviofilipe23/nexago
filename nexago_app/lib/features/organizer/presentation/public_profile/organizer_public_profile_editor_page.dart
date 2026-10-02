@@ -58,13 +58,13 @@ class _OrganizerPublicProfileEditorPageState
   }
 
   OrganizerProfileForm get _form => OrganizerProfileForm(
-        orgName: _nameController.text,
-        bio: _bioController.text,
-        city: _city,
-        state: _state,
-        contactPhone: _phoneController.text,
-        publicWhatsapp: _publicWhatsapp,
-      );
+    orgName: _nameController.text,
+    bio: _bioController.text,
+    city: _city,
+    state: _state,
+    contactPhone: _phoneController.text,
+    publicWhatsapp: _publicWhatsapp,
+  );
 
   /// Preenche a tela com o doc uma vez só: atualizações posteriores do stream (inclusive a do
   /// próprio save) não atropelam o que o organizador está digitando.
@@ -165,8 +165,9 @@ class _OrganizerPublicProfileEditorPageState
     try {
       final logo = _newLogo;
       final coverBytes = _newCover;
-      final logoUrl =
-          logo == null ? null : await repository.uploadLogo(uid, logo);
+      final logoUrl = logo == null
+          ? null
+          : await repository.uploadLogo(uid, logo);
       final coverUrl = coverBytes == null
           ? null
           : await repository.uploadCover(uid, coverBytes);
@@ -294,8 +295,9 @@ class _OrganizerPublicProfileEditorPageState
         ? validateOrganizerProfileForm(form)
         : const <OrganizerProfileField, String>{};
     final whatsappEnabled = organizerWhatsappSwitchEnabled(form);
-    final previewName =
-        form.orgName.trim().isEmpty ? source.displayName : form.orgName.trim();
+    final previewName = form.orgName.trim().isEmpty
+        ? source.displayName
+        : form.orgName.trim();
     final hasCover =
         _newCover != null || (source.coverUrl != null && !_removeCover);
     final newLogo = _newLogo;
@@ -329,15 +331,16 @@ class _OrganizerPublicProfileEditorPageState
               cover: newCover != null
                   ? MemoryImage(newCover)
                   : (_removeCover
-                      ? null
-                      : organizerNetworkImage(source.coverUrl)),
+                        ? null
+                        : organizerNetworkImage(source.coverUrl)),
             ),
           ),
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
-              onPressed: () => context
-                  .pushNamed(AppRouteNames.organizerPublicProfilePreview),
+              onPressed: () => context.pushNamed(
+                AppRouteNames.organizerPublicProfilePreview,
+              ),
               style: TextButton.styleFrom(foregroundColor: AppColors.brand),
               icon: const Icon(Icons.open_in_new_rounded, size: 18),
               label: const Text('Ver meu perfil'),

@@ -74,11 +74,11 @@ Future<void> _tapSave(WidgetTester tester) async {
 }
 
 FilledButton _saveButton(WidgetTester tester) => tester.widget<FilledButton>(
-      find.ancestor(
-        of: find.text('Salvar perfil'),
-        matching: find.byType(FilledButton),
-      ),
-    );
+  find.ancestor(
+    of: find.text('Salvar perfil'),
+    matching: find.byType(FilledButton),
+  ),
+);
 
 const _complete = OrganizerProfileSource(
   orgName: 'Liga Amadora Goiânia',

@@ -76,12 +76,13 @@ class OrganizerOverviewTab extends StatelessWidget {
             OrganizerEmptyNote(
               text: inviteToFollow
                   ? 'Nenhum evento com data marcada agora. Siga para saber quando '
-                      'abrir a próxima inscrição.'
+                        'abrir a próxima inscrição.'
                   : 'Nenhum evento com data marcada agora.',
             )
           else
-            for (final event
-                in upcoming.take(kOrganizerOverviewPreviewCount)) ...[
+            for (final event in upcoming.take(
+              kOrganizerOverviewPreviewCount,
+            )) ...[
               OrganizerUpcomingEventCard(
                 event: event,
                 onOpen: () => onOpenEvent(event),
@@ -104,10 +105,11 @@ class OrganizerOverviewTab extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Column(
                 children: [
-                  for (var i = 0;
-                      i < completed.length &&
-                          i < kOrganizerOverviewPreviewCount;
-                      i++) ...[
+                  for (
+                    var i = 0;
+                    i < completed.length && i < kOrganizerOverviewPreviewCount;
+                    i++
+                  ) ...[
                     if (i > 0) const _Divider(),
                     OrganizerCompletedEventRow(
                       event: completed[i],
@@ -630,8 +632,8 @@ class OrganizerStars extends StatelessWidget {
             average >= i - 0.25
                 ? Icons.star_rounded
                 : average >= i - 0.75
-                    ? Icons.star_half_rounded
-                    : Icons.star_outline_rounded,
+                ? Icons.star_half_rounded
+                : Icons.star_outline_rounded,
             size: size,
             color: average >= i - 0.75 ? AppColors.pending : muted,
           ),
@@ -780,8 +782,9 @@ class OrganizerSectionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
-        border:
-            Border.all(color: colors.onSurfaceMuted.withValues(alpha: 0.14)),
+        border: Border.all(
+          color: colors.onSurfaceMuted.withValues(alpha: 0.14),
+        ),
       ),
       child: child,
     );

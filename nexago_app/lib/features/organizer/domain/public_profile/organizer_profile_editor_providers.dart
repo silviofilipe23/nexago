@@ -8,11 +8,11 @@ import 'organizer_profile_editor_logic.dart';
 
 final organizerPublicProfileEditorRepositoryProvider =
     Provider<OrganizerPublicProfileEditorRepository>((ref) {
-  return OrganizerPublicProfileEditorRepository(
-    firestore: ref.watch(firestoreProvider),
-    storage: () => FirebaseStorage.instance,
-  );
-});
+      return OrganizerPublicProfileEditorRepository(
+        firestore: ref.watch(firestoreProvider),
+        storage: () => FirebaseStorage.instance,
+      );
+    });
 
 /// Uid do organizador logado ('' sem sessão).
 final organizerEditorUidProvider = Provider.autoDispose<String>((ref) {
@@ -22,8 +22,8 @@ final organizerEditorUidProvider = Provider.autoDispose<String>((ref) {
 /// `users/{uid}.organizerProfile` do organizador logado, ao vivo.
 final organizerProfileSourceProvider =
     StreamProvider.autoDispose<OrganizerProfileSource>((ref) {
-  final uid = ref.watch(organizerEditorUidProvider);
-  return ref
-      .watch(organizerPublicProfileEditorRepositoryProvider)
-      .watchSource(uid);
-});
+      final uid = ref.watch(organizerEditorUidProvider);
+      return ref
+          .watch(organizerPublicProfileEditorRepositoryProvider)
+          .watchSource(uid);
+    });

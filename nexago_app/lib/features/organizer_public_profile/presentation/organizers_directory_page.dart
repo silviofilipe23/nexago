@@ -197,7 +197,8 @@ class _OrganizersDirectoryPageState
                 return AppEmptyView(
                   icon: Icons.search_off_rounded,
                   title: 'Nenhum organizador encontrado',
-                  subtitle: 'Nada com "${query.trim()}". Tente outro nome ou '
+                  subtitle:
+                      'Nada com "${query.trim()}". Tente outro nome ou '
                       'cidade.',
                 );
               }
@@ -241,8 +242,9 @@ class OrganizerDirectoryCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.themeColors;
-    final reputation =
-        ref.watch(organizerReputationProvider(organizer.uid)).valueOrNull;
+    final reputation = ref
+        .watch(organizerReputationProvider(organizer.uid))
+        .valueOrNull;
     final location = organizerLocationLine(organizer.city, organizer.state);
     final open = organizerOpenEventsLabel(organizer.stats.openEvents);
     final logo = organizerNetworkImage(organizer.logoUrl);

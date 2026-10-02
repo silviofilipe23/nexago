@@ -48,47 +48,51 @@ void main() {
     await initializeDateFormatting('pt_BR');
   });
 
-  test('regravar o torneio sem mudar os campeões não refaz a busca de nomes',
-      () async {
-    final events = StreamController<List<OrganizerEvent>>();
-    final enrichment = _CountingEnrichment();
-    final container = ProviderContainer(
-      overrides: [
-        organizerEventsProvider('org').overrideWith((ref) => events.stream),
-        tournamentMatchEnrichmentServiceProvider.overrideWithValue(enrichment),
-      ],
-    );
-    addTearDown(container.dispose);
-    addTearDown(events.close);
-    final sub = container.listen(
-      organizerChampionNamesProvider('org'),
-      (previous, next) {},
-    );
-    addTearDown(sub.close);
+  test(
+    'regravar o torneio sem mudar os campeões não refaz a busca de nomes',
+    () async {
+      final events = StreamController<List<OrganizerEvent>>();
+      final enrichment = _CountingEnrichment();
+      final container = ProviderContainer(
+        overrides: [
+          organizerEventsProvider('org').overrideWith((ref) => events.stream),
+          tournamentMatchEnrichmentServiceProvider.overrideWithValue(
+            enrichment,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      addTearDown(events.close);
+      final sub = container.listen(
+        organizerChampionNamesProvider('org'),
+        (previous, next) {},
+      );
+      addTearDown(sub.close);
 
-    events.add([_completed('t1', champion: 'team-a')]);
-    await container.pump();
-    await Future<void>.delayed(Duration.zero);
-    expect(
-      await container.read(organizerChampionNamesProvider('org').future),
-      {'team-a': 'Dupla team-a'},
-    );
+      events.add([_completed('t1', champion: 'team-a')]);
+      await container.pump();
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        await container.read(organizerChampionNamesProvider('org').future),
+        {'team-a': 'Dupla team-a'},
+      );
 
-    events.add([_completed('t1', champion: 'team-a', score: 3)]);
-    await container.pump();
-    await Future<void>.delayed(Duration.zero);
-    expect(enrichment.calls, hasLength(1));
+      events.add([_completed('t1', champion: 'team-a', score: 3)]);
+      await container.pump();
+      await Future<void>.delayed(Duration.zero);
+      expect(enrichment.calls, hasLength(1));
 
-    events.add([
-      _completed('t1', champion: 'team-a'),
-      _completed('t2', champion: 'team-b'),
-    ]);
-    await container.pump();
-    await Future<void>.delayed(Duration.zero);
-    expect(
-      await container.read(organizerChampionNamesProvider('org').future),
-      {'team-a': 'Dupla team-a', 'team-b': 'Dupla team-b'},
-    );
-    expect(enrichment.calls, hasLength(2));
-  });
+      events.add([
+        _completed('t1', champion: 'team-a'),
+        _completed('t2', champion: 'team-b'),
+      ]);
+      await container.pump();
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        await container.read(organizerChampionNamesProvider('org').future),
+        {'team-a': 'Dupla team-a', 'team-b': 'Dupla team-b'},
+      );
+      expect(enrichment.calls, hasLength(2));
+    },
+  );
 }

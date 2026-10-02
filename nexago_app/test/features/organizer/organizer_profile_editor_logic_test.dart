@@ -50,7 +50,9 @@ void main() {
       expect(source.publicWhatsapp, isFalse);
       expect(source.displayName, 'Ana');
       expect(
-          OrganizerProfileSource.fromUserDoc(null).displayName, 'Organizador');
+        OrganizerProfileSource.fromUserDoc(null).displayName,
+        'Organizador',
+      );
     });
   });
 
@@ -62,14 +64,12 @@ void main() {
     });
 
     test('nome entre 2 e 60', () {
-      expect(
-        validateOrganizerProfileForm(valid.copyWith(orgName: ' A ')),
-        {OrganizerProfileField.orgName: 'Use pelo menos 2 caracteres.'},
-      );
-      expect(
-        validateOrganizerProfileForm(valid.copyWith(orgName: 'x' * 61)),
-        {OrganizerProfileField.orgName: 'Use até 60 caracteres.'},
-      );
+      expect(validateOrganizerProfileForm(valid.copyWith(orgName: ' A ')), {
+        OrganizerProfileField.orgName: 'Use pelo menos 2 caracteres.',
+      });
+      expect(validateOrganizerProfileForm(valid.copyWith(orgName: 'x' * 61)), {
+        OrganizerProfileField.orgName: 'Use até 60 caracteres.',
+      });
       expect(
         validateOrganizerProfileForm(valid.copyWith(orgName: 'x' * 60)),
         isEmpty,
@@ -81,17 +81,20 @@ void main() {
         validateOrganizerProfileForm(valid.copyWith(bio: 'b' * 281)).keys,
         [OrganizerProfileField.bio],
       );
-      expect(validateOrganizerProfileForm(valid.copyWith(bio: 'b' * 280)),
-          isEmpty);
+      expect(
+        validateOrganizerProfileForm(valid.copyWith(bio: 'b' * 280)),
+        isEmpty,
+      );
     });
 
     test('UF da lista fixa; vazia é permitida', () {
+      expect(validateOrganizerProfileForm(valid.copyWith(state: 'XX')).keys, [
+        OrganizerProfileField.state,
+      ]);
       expect(
-        validateOrganizerProfileForm(valid.copyWith(state: 'XX')).keys,
-        [OrganizerProfileField.state],
+        validateOrganizerProfileForm(valid.copyWith(state: 'sp')),
+        isEmpty,
       );
-      expect(
-          validateOrganizerProfileForm(valid.copyWith(state: 'sp')), isEmpty);
       expect(validateOrganizerProfileForm(valid.copyWith(state: '')), isEmpty);
     });
 
@@ -106,8 +109,10 @@ void main() {
         ),
         isEmpty,
       );
-      expect(validateOrganizerProfileForm(valid.copyWith(contactPhone: '')),
-          isEmpty);
+      expect(
+        validateOrganizerProfileForm(valid.copyWith(contactPhone: '')),
+        isEmpty,
+      );
     });
   });
 

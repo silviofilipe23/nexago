@@ -23,10 +23,7 @@ import 'package:nexago_app/features/tournaments/data/tournament_inscriptions_rep
 const _orgId = 'org-1';
 const _athleteId = 'atleta-1';
 
-OrganizerPublicProfile _profile({
-  String? whatsapp,
-  bool isOrganizer = true,
-}) {
+OrganizerPublicProfile _profile({String? whatsapp, bool isOrganizer = true}) {
   return OrganizerPublicProfile.fromMap(_orgId, {
     'uid': _orgId,
     'name': 'Liga Amadora Goiânia',
@@ -66,7 +63,7 @@ List<OrganizerEvent> _events() {
           'id': 'c1',
           'categoryName': 'Masculino B',
           'entryFee': 140,
-          'maxTeams': 32
+          'maxTeams': 32,
         },
       ],
     })!,
@@ -97,15 +94,13 @@ class _FakeRepository implements OrganizerPublicProfileRepository {
   Future<void> follow({
     required String organizerId,
     required String followerId,
-  }) =>
-      _write('follow:$organizerId:$followerId');
+  }) => _write('follow:$organizerId:$followerId');
 
   @override
   Future<void> unfollow({
     required String organizerId,
     required String followerId,
-  }) =>
-      _write('unfollow:$organizerId:$followerId');
+  }) => _write('unfollow:$organizerId:$followerId');
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -134,27 +129,27 @@ Future<void> _pump(
           (ref) => Stream<User?>.value(MockUser(uid: viewerUid)),
         ),
         organizerPublicProfileProvider(_orgId).overrideWith((ref) => profile),
-        organizerEventsProvider(_orgId).overrideWith(
-          (ref) => Stream.value(_events()),
-        ),
-        organizerReputationProvider(_orgId).overrideWith(
-          (ref) => Stream.value(reputation),
-        ),
-        organizerChampionNamesProvider(_orgId).overrideWith(
-          (ref) async => const <String, String>{},
-        ),
+        organizerEventsProvider(
+          _orgId,
+        ).overrideWith((ref) => Stream.value(_events())),
+        organizerReputationProvider(
+          _orgId,
+        ).overrideWith((ref) => Stream.value(reputation)),
+        organizerChampionNamesProvider(
+          _orgId,
+        ).overrideWith((ref) async => const <String, String>{}),
         organizerReviewSummariesProvider(_orgId).overrideWith(
           (ref) => Stream.value(const <TournamentReviewSummary>[]),
         ),
-        organizerIsFollowedProvider(_orgId).overrideWith(
-          (ref) => isFollowed ?? Stream.value(false),
-        ),
-        tournamentCategoryEnrollmentCountsProvider('ev-open').overrideWith(
-          (ref) => Stream.value(const {'c1': 10}),
-        ),
-        tournamentCategoryEnrollmentCountsProvider('ev-done').overrideWith(
-          (ref) => Stream.value(const <String, int>{}),
-        ),
+        organizerIsFollowedProvider(
+          _orgId,
+        ).overrideWith((ref) => isFollowed ?? Stream.value(false)),
+        tournamentCategoryEnrollmentCountsProvider(
+          'ev-open',
+        ).overrideWith((ref) => Stream.value(const {'c1': 10})),
+        tournamentCategoryEnrollmentCountsProvider(
+          'ev-done',
+        ).overrideWith((ref) => Stream.value(const <String, int>{})),
         if (repository != null)
           organizerPublicProfileRepositoryProvider.overrideWithValue(
             repository,
@@ -194,16 +189,16 @@ void main() {
     expect(find.text('Ver organizadores'), findsOneWidget);
   });
 
-  testWidgets('doc só com números (sem isOrganizer) também é "não encontrado"',
-      (
-    tester,
-  ) async {
-    await _pump(tester, profile: Stream.value(_profile(isOrganizer: false)));
-    await tester.pumpAndSettle();
+  testWidgets(
+    'doc só com números (sem isOrganizer) também é "não encontrado"',
+    (tester) async {
+      await _pump(tester, profile: Stream.value(_profile(isOrganizer: false)));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Organizador não encontrado'), findsOneWidget);
-    expect(find.text('Liga Amadora Goiânia'), findsNothing);
-  });
+      expect(find.text('Organizador não encontrado'), findsOneWidget);
+      expect(find.text('Liga Amadora Goiânia'), findsNothing);
+    },
+  );
 
   testWidgets('sem reputação: sem nota no cabeçalho e o aviso no card', (
     tester,
@@ -220,10 +215,7 @@ void main() {
 
     expect(find.text('Liga Amadora Goiânia'), findsOneWidget);
     expect(find.byIcon(Icons.verified_rounded), findsOneWidget);
-    expect(
-      find.textContaining('Goiânia · GO'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Goiânia · GO'), findsOneWidget);
     expect(find.textContaining('Organizador desde 2021'), findsOneWidget);
     expect(find.text('EVENTOS REALIZADOS'), findsOneWidget);
     expect(find.text('38'), findsOneWidget);
@@ -246,25 +238,25 @@ void main() {
   });
 
   testWidgets(
-      'com reputação pública: nota no cabeçalho; WhatsApp vira Mensagem', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      profile: Stream.value(_profile(whatsapp: '5562999990000')),
-      reputation: const OrganizerReputation(
-        reviewsCount: 312,
-        tournamentsRated: 9,
-        average: 4.8,
-      ),
-    );
-    await tester.pumpAndSettle();
+    'com reputação pública: nota no cabeçalho; WhatsApp vira Mensagem',
+    (tester) async {
+      await _pump(
+        tester,
+        profile: Stream.value(_profile(whatsapp: '5562999990000')),
+        reputation: const OrganizerReputation(
+          reviewsCount: 312,
+          tournamentsRated: 9,
+          average: 4.8,
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('NOTA MÉDIA'), findsOneWidget);
-    expect(find.text('4,8'), findsWidgets);
-    expect(find.text('Ainda sem avaliações suficientes'), findsNothing);
-    expect(find.text('Mensagem'), findsOneWidget);
-  });
+      expect(find.text('NOTA MÉDIA'), findsOneWidget);
+      expect(find.text('4,8'), findsWidgets);
+      expect(find.text('Ainda sem avaliações suficientes'), findsNothing);
+      expect(find.text('Mensagem'), findsOneWidget);
+    },
+  );
 
   testWidgets('tela estreita (320) com todas as ações cabe sem overflow', (
     tester,
@@ -287,11 +279,7 @@ void main() {
   });
 
   testWidgets('próprio perfil: Seguir some, Compartilhar fica', (tester) async {
-    await _pump(
-      tester,
-      profile: Stream.value(_profile()),
-      viewerUid: _orgId,
-    );
+    await _pump(tester, profile: Stream.value(_profile()), viewerUid: _orgId);
     await tester.pumpAndSettle();
 
     expect(find.text('Seguir'), findsNothing);

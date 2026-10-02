@@ -40,11 +40,12 @@ class OrganizerEvent {
 OrganizerEventListing? organizerEventListingOf(Map<String, dynamic> data) {
   final listing = data['listingStatus'];
   final status = data['status'];
-  final raw = (listing is String && listing.trim().isNotEmpty
-          ? listing
-          : (status is String ? status : ''))
-      .trim()
-      .toLowerCase();
+  final raw =
+      (listing is String && listing.trim().isNotEmpty
+              ? listing
+              : (status is String ? status : ''))
+          .trim()
+          .toLowerCase();
   final parsed = switch (raw) {
     'open' => OrganizerEventListing.open,
     'closed' => OrganizerEventListing.closed,

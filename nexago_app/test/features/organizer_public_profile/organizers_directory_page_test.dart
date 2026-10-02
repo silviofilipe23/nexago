@@ -85,8 +85,9 @@ void main() {
     ),
   ];
 
-  testWidgets('lista os organizadores com números, selo e inscrições abertas',
-      (tester) async {
+  testWidgets('lista os organizadores com números, selo e inscrições abertas', (
+    tester,
+  ) async {
     await _pump(tester, Stream.value(organizers));
 
     expect(find.text('Organizadores'), findsOneWidget);

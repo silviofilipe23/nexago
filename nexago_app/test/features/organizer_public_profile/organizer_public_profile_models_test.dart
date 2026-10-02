@@ -33,7 +33,7 @@ void main() {
               'name': 'Arena ErreJota',
               'arenaId': 'a1',
               'city': 'Goiânia',
-              'count': 12
+              'count': 12,
             },
             {'name': '', 'count': 3},
             'lixo',
@@ -129,7 +129,7 @@ void main() {
         reputation.aspects!.keys,
         unorderedEquals([
           TournamentReviewAspect.organization,
-          TournamentReviewAspect.prizes
+          TournamentReviewAspect.prizes,
         ]),
       );
       expect(reputation.aspects![TournamentReviewAspect.prizes]!.average, 5.0);

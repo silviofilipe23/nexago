@@ -124,8 +124,9 @@ class _OrganizerPublicProfilePageState
         await repository.unfollow(organizerId: _organizerId, followerId: uid);
       }
       if (!mounted) return;
-      final confirmed =
-          ref.read(organizerIsFollowedProvider(_organizerId)).valueOrNull;
+      final confirmed = ref
+          .read(organizerIsFollowedProvider(_organizerId))
+          .valueOrNull;
       setState(() {
         _followBusy = false;
         // O stream pode ter confirmado antes do fim da escrita: aí ele volta a mandar.
@@ -149,8 +150,9 @@ class _OrganizerPublicProfilePageState
 
   @override
   Widget build(BuildContext context) {
-    final profileAsync =
-        ref.watch(organizerPublicProfileProvider(_organizerId));
+    final profileAsync = ref.watch(
+      organizerPublicProfileProvider(_organizerId),
+    );
     final topInset = MediaQuery.paddingOf(context).top;
 
     final body = profileAsync.when(
@@ -195,13 +197,14 @@ class _OrganizerPublicProfilePageState
   Widget _buildProfile(BuildContext context, OrganizerPublicProfile profile) {
     final uid = ref.watch(authProvider).valueOrNull?.uid.trim() ?? '';
     final isSelf = widget.ownerPreview || uid == profile.uid;
-    final reputation =
-        ref.watch(organizerReputationProvider(_organizerId)).valueOrNull;
+    final reputation = ref
+        .watch(organizerReputationProvider(_organizerId))
+        .valueOrNull;
     final eventsAsync = ref.watch(organizerEventsProvider(_organizerId));
     final events = eventsAsync.valueOrNull ?? const <OrganizerEvent>[];
     final championNames =
         ref.watch(organizerChampionNamesProvider(_organizerId)).valueOrNull ??
-            const <String, String>{};
+        const <String, String>{};
     final followedAsync = isSelf
         ? const AsyncValue<bool>.data(false)
         : ref.watch(organizerIsFollowedProvider(_organizerId));
@@ -227,33 +230,32 @@ class _OrganizerPublicProfilePageState
 
     final tabContent = switch (_tab) {
       OrganizerProfileTab.overview => OrganizerOverviewTab(
-          profile: profile,
-          upcoming: upcoming,
-          completed: completed,
-          championNames: championNames,
-          reputation: reputationView,
-          inviteToFollow: !isSelf,
-          onOpenEvent: _openEvent,
-          onSeeEvents: () => setState(() => _tab = OrganizerProfileTab.events),
-          onSeeReviews: () =>
-              setState(() => _tab = OrganizerProfileTab.reviews),
-        ),
+        profile: profile,
+        upcoming: upcoming,
+        completed: completed,
+        championNames: championNames,
+        reputation: reputationView,
+        inviteToFollow: !isSelf,
+        onOpenEvent: _openEvent,
+        onSeeEvents: () => setState(() => _tab = OrganizerProfileTab.events),
+        onSeeReviews: () => setState(() => _tab = OrganizerProfileTab.reviews),
+      ),
       OrganizerProfileTab.events => OrganizerEventsTab(
-          upcoming: upcoming,
-          completed: completed,
-          championNames: championNames,
-          onOpenEvent: _openEvent,
-        ),
+        upcoming: upcoming,
+        completed: completed,
+        championNames: championNames,
+        onOpenEvent: _openEvent,
+      ),
       OrganizerProfileTab.results => OrganizerResultsTab(
-          completed: completed,
-          championNames: championNames,
-          onOpenEvent: _openEvent,
-        ),
+        completed: completed,
+        championNames: championNames,
+        onOpenEvent: _openEvent,
+      ),
       OrganizerProfileTab.reviews => _ReviewsTabLoader(
-          organizerId: _organizerId,
-          reputation: reputationView,
-          events: events,
-        ),
+        organizerId: _organizerId,
+        reputation: reputationView,
+        events: events,
+      ),
     };
 
     return CustomScrollView(
@@ -325,9 +327,9 @@ class _ReviewsTabLoader extends ConsumerWidget {
     final summaries = reputation == null
         ? const <TournamentReviewSummary>[]
         : ref
-                .watch(organizerReviewSummariesProvider(organizerId))
-                .valueOrNull ??
-            const <TournamentReviewSummary>[];
+                  .watch(organizerReviewSummariesProvider(organizerId))
+                  .valueOrNull ??
+              const <TournamentReviewSummary>[];
     return OrganizerReviewsTab(
       reputation: reputation,
       eventRows: organizerEventReviewRows(summaries, {

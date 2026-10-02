@@ -18,8 +18,8 @@ class OrganizerPublicProfileEditorRepository {
   OrganizerPublicProfileEditorRepository({
     required FirebaseFirestore firestore,
     required FirebaseStorage Function() storage,
-  })  : _firestore = firestore,
-        _storage = storage;
+  }) : _firestore = firestore,
+       _storage = storage;
 
   final FirebaseFirestore _firestore;
 

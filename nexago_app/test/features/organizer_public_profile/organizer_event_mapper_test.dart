@@ -11,10 +11,14 @@ void main() {
 
   group('organizerEventListingOf (espelho do backend)', () {
     test('open, closed e completed são listados', () {
-      expect(organizerEventListingOf({'listingStatus': 'open'}),
-          OrganizerEventListing.open);
-      expect(organizerEventListingOf({'listingStatus': 'closed'}),
-          OrganizerEventListing.closed);
+      expect(
+        organizerEventListingOf({'listingStatus': 'open'}),
+        OrganizerEventListing.open,
+      );
+      expect(
+        organizerEventListingOf({'listingStatus': 'closed'}),
+        OrganizerEventListing.closed,
+      );
       expect(
         organizerEventListingOf({'listingStatus': 'Completed'}),
         OrganizerEventListing.completed,
@@ -22,8 +26,10 @@ void main() {
     });
 
     test('cai em `status` quando `listingStatus` falta', () {
-      expect(organizerEventListingOf({'status': 'open'}),
-          OrganizerEventListing.open);
+      expect(
+        organizerEventListingOf({'status': 'open'}),
+        OrganizerEventListing.open,
+      );
     });
 
     test('rascunho, cancelado e estados fora da lista não entram', () {
@@ -35,13 +41,17 @@ void main() {
 
     test('"por link" some; doc sem visibility conta como público', () {
       expect(
-        organizerEventListingOf(
-            {'listingStatus': 'open', 'visibility': 'linkOnly'}),
+        organizerEventListingOf({
+          'listingStatus': 'open',
+          'visibility': 'linkOnly',
+        }),
         isNull,
       );
       expect(
-        organizerEventListingOf(
-            {'listingStatus': 'open', 'visibility': 'publicListing'}),
+        organizerEventListingOf({
+          'listingStatus': 'open',
+          'visibility': 'publicListing',
+        }),
         OrganizerEventListing.open,
       );
       expect(isOrganizerListedEventDoc({'listingStatus': 'completed'}), isTrue);
@@ -52,31 +62,30 @@ void main() {
     Map<String, dynamic> doc({
       String listing = 'completed',
       Object? categoryOps,
-    }) =>
+    }) => {
+      'name': 'Copa Verão',
+      'managerId': 'org1',
+      'listingStatus': listing,
+      'sport': 'beachVolleyball',
+      'locationName': 'Arena ErreJota',
+      'startAt': Timestamp.fromDate(DateTime(2026, 5, 2, 8)),
+      'endAt': Timestamp.fromDate(DateTime(2026, 5, 3, 18)),
+      'categories': [
         {
-          'name': 'Copa Verão',
-          'managerId': 'org1',
-          'listingStatus': listing,
-          'sport': 'beachVolleyball',
-          'locationName': 'Arena ErreJota',
-          'startAt': Timestamp.fromDate(DateTime(2026, 5, 2, 8)),
-          'endAt': Timestamp.fromDate(DateTime(2026, 5, 3, 18)),
-          'categories': [
-            {
-              'id': 'c-masc',
-              'categoryName': 'Masculino B',
-              'entryFee': 140,
-              'maxTeams': 16
-            },
-            {
-              'id': 'c-fem',
-              'categoryName': 'Feminino B',
-              'entryFee': 120,
-              'maxTeams': 16
-            },
-          ],
-          if (categoryOps != null) 'categoryOps': categoryOps,
-        };
+          'id': 'c-masc',
+          'categoryName': 'Masculino B',
+          'entryFee': 140,
+          'maxTeams': 16,
+        },
+        {
+          'id': 'c-fem',
+          'categoryName': 'Feminino B',
+          'entryFee': 120,
+          'maxTeams': 16,
+        },
+      ],
+      if (categoryOps != null) 'categoryOps': categoryOps,
+    };
 
     test('não listado devolve null', () {
       expect(organizerEventFromMap('t1', doc(listing: 'draft')), isNull);
@@ -101,8 +110,10 @@ void main() {
       expect(event.detail.name, 'Copa Verão');
       expect(event.detail.location, 'Arena ErreJota');
       expect(event.detail.priceValue, 120);
-      expect([for (final c in event.champions) c.teamId],
-          ['team-m', 'team-f', 'team-x']);
+      expect(
+        [for (final c in event.champions) c.teamId],
+        ['team-m', 'team-f', 'team-x'],
+      );
       expect(event.champions.first.categoryName, 'Masculino B');
       expect(event.champions.last.categoryName, '');
     });

@@ -61,11 +61,9 @@ const _initialsStopWords = {'de', 'da', 'do', 'das', 'dos', 'e', '&'};
 
 /// "Liga Amadora Goiânia" → "LAG"; "Arena Sul" → "AS"; "Fulano" → "FU". Conectores ficam de fora.
 String organizerInitials(String name) {
-  final words = sanitizeUtf16(name)
-      .trim()
-      .split(RegExp(r'\s+'))
-      .where((w) => w.isNotEmpty)
-      .toList();
+  final words = sanitizeUtf16(
+    name,
+  ).trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
   if (words.isEmpty) return '?';
   final significant = words
       .where((w) => !_initialsStopWords.contains(w.toLowerCase()))
@@ -281,14 +279,17 @@ const _shortMonths = [
 
 /// "14 fev 2026", "02–03 mai 2026", "30 abr – 02 mai 2026". Sem [withYear], o ano some.
 /// Meses escritos à mão (o `MMM` do intl põe ponto). Datas na parede do evento (SP).
-String organizerEventDateLabel(TournamentDetail detail,
-    {bool withYear = true}) {
+String organizerEventDateLabel(
+  TournamentDetail detail, {
+  bool withYear = true,
+}) {
   final start = toNexagoEventLocal(detail.startDate);
   final end = toNexagoEventLocal(detail.endDate ?? detail.startDate);
   String day(DateTime d) => d.day.toString().padLeft(2, '0');
   String month(DateTime d) => _shortMonths[d.month - 1];
   final year = withYear ? ' ${end.year}' : '';
-  final sameDay = start.year == end.year &&
+  final sameDay =
+      start.year == end.year &&
       start.month == end.month &&
       start.day == end.day;
   if (sameDay || end.isBefore(start)) {
@@ -336,20 +337,20 @@ List<({String category, String team})> organizerEventChampionRows(
 
 /// Ids de equipe campeã dos eventos — chave da busca de nomes.
 Set<String> organizerChampionTeamIds(List<OrganizerEvent> events) => {
-      for (final event in events)
-        for (final champion in event.champions) champion.teamId,
-    };
+  for (final event in events)
+    for (final champion in event.champions) champion.teamId,
+};
 
 // ── Reputação ────────────────────────────────────────────────────────────────
 
 /// Rótulo curto do aspecto no perfil do organizador (decisão do dono).
 String organizerAspectLabel(TournamentReviewAspect aspect) => switch (aspect) {
-      TournamentReviewAspect.organization => 'Organização',
-      TournamentReviewAspect.schedule => 'Pontualidade',
-      TournamentReviewAspect.refereeing => 'Arbitragem',
-      TournamentReviewAspect.venue => 'Estrutura',
-      TournamentReviewAspect.prizes => 'Premiação',
-    };
+  TournamentReviewAspect.organization => 'Organização',
+  TournamentReviewAspect.schedule => 'Pontualidade',
+  TournamentReviewAspect.refereeing => 'Arbitragem',
+  TournamentReviewAspect.venue => 'Estrutura',
+  TournamentReviewAspect.prizes => 'Premiação',
+};
 
 class OrganizerAspectRow {
   const OrganizerAspectRow({required this.label, required this.average});
@@ -451,33 +452,35 @@ List<OrganizerEventReviewRow> organizerEventReviewRows(
   List<TournamentReviewSummary> summaries,
   Map<String, OrganizerEvent> eventsById,
 ) {
-  final rows = <({OrganizerEventReviewRow row, DateTime? startAt})>[
-    for (final summary in summaries)
-      if (!summary.isOpen && tournamentReviewHasPublicNumbers(summary))
-        (
-          row: OrganizerEventReviewRow(
-            tournamentId: summary.tournamentId,
-            name: summary.tournamentName.isNotEmpty
-                ? summary.tournamentName
-                : (eventsById[summary.tournamentId]?.detail.name ?? 'Evento'),
-            average: summary.average!,
-            count: summary.count,
-            dateLabel: eventsById[summary.tournamentId] == null
-                ? null
-                : organizerEventDateLabel(
-                    eventsById[summary.tournamentId]!.detail,
-                  ),
-          ),
-          startAt: eventsById[summary.tournamentId]?.detail.startDate,
-        ),
-  ]..sort((a, b) {
-      final sa = a.startAt;
-      final sb = b.startAt;
-      if (sa != null && sb != null) return sb.compareTo(sa);
-      if (sa != null) return -1;
-      if (sb != null) return 1;
-      return a.row.name.compareTo(b.row.name);
-    });
+  final rows =
+      <({OrganizerEventReviewRow row, DateTime? startAt})>[
+        for (final summary in summaries)
+          if (!summary.isOpen && tournamentReviewHasPublicNumbers(summary))
+            (
+              row: OrganizerEventReviewRow(
+                tournamentId: summary.tournamentId,
+                name: summary.tournamentName.isNotEmpty
+                    ? summary.tournamentName
+                    : (eventsById[summary.tournamentId]?.detail.name ??
+                          'Evento'),
+                average: summary.average!,
+                count: summary.count,
+                dateLabel: eventsById[summary.tournamentId] == null
+                    ? null
+                    : organizerEventDateLabel(
+                        eventsById[summary.tournamentId]!.detail,
+                      ),
+              ),
+              startAt: eventsById[summary.tournamentId]?.detail.startDate,
+            ),
+      ]..sort((a, b) {
+        final sa = a.startAt;
+        final sb = b.startAt;
+        if (sa != null && sb != null) return sb.compareTo(sa);
+        if (sa != null) return -1;
+        if (sb != null) return 1;
+        return a.row.name.compareTo(b.row.name);
+      });
   return [for (final r in rows) r.row];
 }
 

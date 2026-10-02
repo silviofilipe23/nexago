@@ -44,15 +44,19 @@ class OrganizerPublicProfileRepository {
   Stream<OrganizerPublicProfile?> watchProfile(String organizerId) {
     final id = organizerId.trim();
     if (id.isEmpty) return Stream.value(null);
-    return _profiles.doc(id).snapshots().map(
-          (snap) => OrganizerPublicProfile.fromMap(snap.id, snap.data()),
-        );
+    return _profiles
+        .doc(id)
+        .snapshots()
+        .map((snap) => OrganizerPublicProfile.fromMap(snap.id, snap.data()));
   }
 
   /// Lista "Organizadores": só `listed == true` (o servidor já exige `isOrganizer`). A ordem e
   /// a busca ficam no cliente.
   Stream<List<OrganizerPublicProfile>> watchListedProfiles() {
-    return _profiles.where('listed', isEqualTo: true).snapshots().map(
+    return _profiles
+        .where('listed', isEqualTo: true)
+        .snapshots()
+        .map(
           (snap) => [
             for (final doc in snap.docs)
               if (OrganizerPublicProfile.fromMap(doc.id, doc.data())
@@ -109,9 +113,10 @@ class OrganizerPublicProfileRepository {
     if (organizer.isEmpty || follower.isEmpty || organizer == follower) {
       return Stream.value(false);
     }
-    return _followerDoc(organizer, follower)
-        .snapshots()
-        .map((snap) => snap.exists);
+    return _followerDoc(
+      organizer,
+      follower,
+    ).snapshots().map((snap) => snap.exists);
   }
 
   /// `set` SEM merge num doc que ainda não existe: regravar um doc existente seria `update`, que

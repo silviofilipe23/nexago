@@ -22,6 +22,7 @@ import {
   supersededPaymentIdsOf,
 } from "./arena-booking-split";
 import {resolveAthleteCpfCnpj, resolveAthletePayerName} from "./asaas-customer";
+import {CANCELED_BOOKING_STATUSES, normalizeBookingStatus} from "./slot-vacancy-alerts";
 import {
   requestInvoiceForPaidBooking,
   shouldAttemptFiscalInvoice,
@@ -161,6 +162,32 @@ export async function processArenaBookingAsaasNotification(
     return;
   }
   // splitInProgress && paid: segue para o fluxo normal de confirmação abaixo.
+
+  // Pago depois do cancelamento: cancelar `pending_payment` com escrita direta (app
+  // antigo do atleta, gestor da arena) deixa o PIX aberto na Asaas, e o trigger de
+  // slot já liberou locks e horário.
+  // Confirmar aqui daria uma reserva paga sem quadra segura (risco de reserva em
+  // dobro), então só marca para estorno — mesmo padrão do `stale_charge_after_split`.
+  const bookingStatus = normalizeBookingStatus(booking.status);
+  if (paid && CANCELED_BOOKING_STATUSES.has(bookingStatus)) {
+    const paidValue = roundMoney(Number(payment.value) || 0);
+    logger.error(
+      `Asaas arena booking ${bookingId}: pagamento ${paymentId} chegou com a reserva ` +
+      "já cancelada — estorno necessário",
+      {paymentId, bookingId, paidValue, bookingStatus},
+    );
+    await processedRef.set({
+      kind: "arenaBooking",
+      bookingId,
+      outcome: "paid_after_cancel",
+      refundRequired: true,
+      paidValue,
+      bookingStatus,
+      asaasPaymentStatus: status,
+      processedAt: FieldValue.serverTimestamp(),
+    });
+    return;
+  }
 
   if (ASAAS_PAID_STATUSES.has(status)) {
     const amount = Number(payment.value) || 0;

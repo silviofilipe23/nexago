@@ -5,8 +5,12 @@ import {
   type OrganizerReputationDetail,
 } from '../data/organizer-public-profiles';
 import {
-  completedOrganizerEvents,
+  EVENT_END_GRACE_MS,
   eventDateLabel,
+  eventEndMs,
+  isLiveOrganizerEvent,
+  isRealizedOrganizerEvent,
+  isUpcomingOrganizerEvent,
   formatCompactCount,
   formatCount,
   formatPrice,
@@ -19,6 +23,7 @@ import {
   organizerResultVm,
   organizerReviewsVm,
   organizerTabFromParam,
+  realizedOrganizerEvents,
   tournamentSportLabel,
   upcomingOrganizerEvents,
 } from './organizer-profile.vm';
@@ -143,7 +148,7 @@ describe('organizerHeaderVm', () => {
   });
 
   it('quatro números com a nota, local, desde, esportes e WhatsApp', () => {
-    const vm = organizerHeaderVm(profile, reputation(), 2140);
+    const vm = organizerHeaderVm(profile, reputation(), 2140, NOW);
     expect(vm.stats).toEqual([
       { value: '38', label: 'Eventos realizados', star: false },
       { value: '1.240', label: 'Atletas', star: false },
@@ -159,18 +164,59 @@ describe('organizerHeaderVm', () => {
   });
 
   it('sem nota pública (menos de 3 avaliações) a nota some', () => {
-    const vm = organizerHeaderVm(profile, reputation({ reviewsCount: 2, average: null }), 0);
+    const vm = organizerHeaderVm(profile, reputation({ reviewsCount: 2, average: null }), 0, NOW);
     expect(vm.stats.map((s) => s.label)).toEqual(['Eventos realizados', 'Atletas', 'Seguidores']);
-    expect(organizerHeaderVm(profile, null, 0).stats.length).toBe(3);
+    expect(organizerHeaderVm(profile, null, 0, NOW).stats.length).toBe(3);
+  });
+
+  it('"Organizador desde" some quando o ano ainda não chegou', () => {
+    const future = organizerPublicProfileFromDoc('o', { name: 'Nexa', isOrganizer: true, stats: { organizerSince: day('2027-02-01') } });
+    expect(organizerHeaderVm(future, null, 0, NOW).sinceLabel).toBeNull();
+    const thisYear = organizerPublicProfileFromDoc('o', { name: 'Nexa', isOrganizer: true, stats: { organizerSince: day('2026-12-20') } });
+    expect(organizerHeaderVm(thisYear, null, 0, NOW).sinceLabel).toBe('Organizador desde 2026');
   });
 
   it('singular e campos ausentes', () => {
     const bare = organizerPublicProfileFromDoc('o', { name: 'Nexa', isOrganizer: true, stats: { eventsCompleted: 1, athletes: 1 } });
-    const vm = organizerHeaderVm(bare, null, 1);
+    const vm = organizerHeaderVm(bare, null, 1, NOW);
     expect(vm.stats.map((s) => s.label)).toEqual(['Evento realizado', 'Atleta', 'Seguidor']);
     expect(vm.locationLabel).toBeNull();
     expect(vm.sinceLabel).toBeNull();
     expect(vm.whatsappUrl).toBeNull();
+  });
+});
+
+describe('definições compartilhadas (app, portal e backend)', () => {
+  it('fim do evento: endAt, senão startAt; nulo sem os dois', () => {
+    expect(eventEndMs({ startAt: new Date(1000), endAt: new Date(5000) })).toBe(5000);
+    expect(eventEndMs({ startAt: new Date(1000), endAt: null })).toBe(1000);
+    expect(eventEndMs({ startAt: null, endAt: null })).toBeNull();
+    expect(EVENT_END_GRACE_MS).toBe(12 * 60 * 60 * 1000);
+  });
+
+  it('realizado: completed, ou 12h depois do fim — mesmo sem completed gravado', () => {
+    expect(isRealizedOrganizerEvent(event('a', { listingStatus: 'completed', startAt: day('2099-01-01') }), NOW)).toBeTrue();
+    // NOW = 2026-10-02T15:00Z: fim às 03:00Z + 12h = 15:00Z, exatamente agora.
+    expect(isRealizedOrganizerEvent(event('b', { endAt: ts('2026-10-02T03:00:00Z') }), NOW)).toBeTrue();
+    expect(isRealizedOrganizerEvent(event('c', { endAt: ts('2026-10-02T03:00:01Z') }), NOW)).toBeFalse();
+    expect(isRealizedOrganizerEvent(event('d', { listingStatus: 'closed', startAt: day('2026-09-01'), endAt: null }), NOW)).toBeTrue();
+    expect(isRealizedOrganizerEvent(event('e', { startAt: null, endAt: null }), NOW)).toBeFalse();
+  });
+
+  it('próximo é o listado que não foi realizado', () => {
+    expect(isUpcomingOrganizerEvent(event('a'), NOW)).toBeTrue();
+    expect(isUpcomingOrganizerEvent(event('b', { listingStatus: 'completed' }), NOW)).toBeFalse();
+    expect(isUpcomingOrganizerEvent(event('c', { endAt: ts('2026-09-30T03:00:00Z') }), NOW)).toBeFalse();
+  });
+
+  it('ao vivo: partida rolando, ou começou e a inscrição não está mais aberta', () => {
+    const today = { startAt: ts('2026-10-02T03:00:00Z'), endAt: ts('2026-10-03T03:00:00Z') };
+    expect(isLiveOrganizerEvent(event('a', { liveMatchesNow: 1 }), NOW)).toBeTrue();
+    expect(isLiveOrganizerEvent(event('b', { ...today, listingStatus: 'closed' }), NOW)).toBeTrue();
+    // Dia do evento com inscrição ainda aberta e sem partida: segue o selo da inscrição.
+    expect(isLiveOrganizerEvent(event('c', { ...today, listingStatus: 'open' }), NOW)).toBeFalse();
+    expect(isLiveOrganizerEvent(event('d', { listingStatus: 'closed', startAt: day('2026-10-10') }), NOW)).toBeFalse();
+    expect(isLiveOrganizerEvent(event('e', { listingStatus: 'completed', startAt: day('2026-10-01') }), NOW)).toBeFalse();
   });
 });
 
@@ -187,13 +233,14 @@ describe('próximos e realizados', () => {
     expect(upcomingOrganizerEvents(list, NOW).map((e) => e.summary.id)).toEqual(['soon', 'closed', 'late', 'nodate']);
   });
 
-  it('realizados: do mais recente ao mais antigo', () => {
+  it('realizados: completed e os que acabaram sem completed, do mais recente ao mais antigo', () => {
     const list = [
       event('a', { listingStatus: 'completed', startAt: day('2026-05-02') }),
       event('b', { listingStatus: 'completed', startAt: day('2026-08-10') }),
       event('c', { listingStatus: 'open' }),
+      event('d', { listingStatus: 'closed', startAt: day('2026-09-12'), endAt: day('2026-09-13') }),
     ];
-    expect(completedOrganizerEvents(list).map((e) => e.summary.id)).toEqual(['b', 'a']);
+    expect(realizedOrganizerEvents(list, NOW).map((e) => e.summary.id)).toEqual(['d', 'b', 'a']);
   });
 
   it('legenda "N com inscrição aberta" conta só o que aceita inscrição agora', () => {
@@ -238,6 +285,28 @@ describe('organizerEventCardVm', () => {
     expect(vm.cta).toEqual({ label: 'Acompanhar', primary: false, link: ['/torneios', 't1'] });
   });
 
+  it('no dia do evento com inscrição aberta e sem partida, não é "Ao vivo"', () => {
+    const today = event('t1', { startAt: ts('2026-10-02T03:00:00Z'), endAt: ts('2026-10-03T03:00:00Z') });
+    expect(organizerEventCardVm(today, 10, NOW).badge.label).toBe('Inscrições abertas');
+    const closedToday = event('t2', { listingStatus: 'closed', startAt: ts('2026-10-02T03:00:00Z'), endAt: ts('2026-10-03T03:00:00Z') });
+    expect(organizerEventCardVm(closedToday, 10, NOW).badge.label).toBe('Ao vivo');
+  });
+
+  it('lotado sem fila de espera: "Vagas esgotadas" e "Ver evento"; nunca mostra mais que o total', () => {
+    const full = event('t1', { waitlistEnabled: false });
+    const vm = organizerEventCardVm(full, 34, NOW);
+    expect(vm.badge).toEqual({ label: 'Vagas esgotadas', tone: 'full' });
+    expect(vm.cta).toEqual({ label: 'Ver evento', primary: false, link: ['/torneios', 't1'] });
+    expect(vm.spots).toEqual({ label: '32/32', pct: 100, known: true });
+    expect(organizerEventCardVm(full, 32, NOW).badge.label).toBe('Vagas esgotadas');
+  });
+
+  it('lotado com fila de espera: ainda dá para entrar na fila', () => {
+    const vm = organizerEventCardVm(event('t1'), 32, NOW);
+    expect(vm.badge.label).toBe('Últimas vagas');
+    expect(vm.cta.label).toBe('Inscrever');
+  });
+
   it('inscrição encerrada (status closed ou prazo vencido)', () => {
     expect(organizerEventCardVm(event('t1', { listingStatus: 'closed' }), 10, NOW).badge.label).toBe('Inscrições encerradas');
     const expired = event('t2', { registrationClosesAt: ts('2026-10-01T12:00:00Z') });
@@ -268,6 +337,14 @@ describe('organizerEventCardVm', () => {
     expect(organizerEventCardVm(team, 0, NOW).price).toEqual({ prefix: '', label: 'R$ 300', unit: 'por equipe' });
     const free = event('t3', { categories: [{ id: 'c1', maxTeams: 8, entryFee: 0 }] });
     expect(organizerEventCardVm(free, 0, NOW).price).toEqual({ prefix: '', label: 'Grátis', unit: '' });
+    const mixed = event('t4', {
+      categories: [
+        { id: 'c1', maxTeams: 8, entryFee: 0 },
+        { id: 'c2', maxTeams: 8, entryFee: 140 },
+      ],
+    });
+    // Nunca "a partir de Grátis".
+    expect(organizerEventCardVm(mixed, 0, NOW).price).toEqual({ prefix: '', label: 'Grátis', unit: 'em algumas categorias' });
   });
 
   it('sem categorias: sem vagas e sem preço', () => {
@@ -339,13 +416,19 @@ describe('reputação e avaliações', () => {
     expect(organizerReputationVm(reputation({ tournamentsRated: 1 }))!.tournamentsLabel).toBe('em 1 evento');
   });
 
-  it('aba Avaliações: distribuição de 5 a 1 e a nota dos eventos fechados com 3+', () => {
-    const vm = organizerReviewsVm(reputation({ distribution: { 1: 0, 2: 0, 3: 1, 4: 1, 5: 2 } }), [
-      { tournamentId: 'a', tournamentName: 'Copa A', tournamentStartAt: day('2026-05-02').toDate(), status: 'closed', count: 12, average: 4.62 },
-      { tournamentId: 'b', tournamentName: 'Copa B', tournamentStartAt: day('2026-08-10').toDate(), status: 'closed', count: 3, average: 4 },
-      { tournamentId: 'c', tournamentName: 'Copa C', tournamentStartAt: day('2026-09-10').toDate(), status: 'open', count: 8, average: 4.9 },
-      { tournamentId: 'd', tournamentName: 'Copa D', tournamentStartAt: day('2026-09-12').toDate(), status: 'closed', count: 2, average: null },
-    ]);
+  it('aba Avaliações: distribuição de 5 a 1 e a nota dos eventos listados fechados com 3+', () => {
+    const vm = organizerReviewsVm(
+      reputation({ distribution: { 1: 0, 2: 0, 3: 1, 4: 1, 5: 2 } }),
+      [
+        { tournamentId: 'a', tournamentName: 'Copa A', tournamentStartAt: day('2026-05-02').toDate(), status: 'closed', count: 12, average: 4.62 },
+        { tournamentId: 'b', tournamentName: 'Copa B', tournamentStartAt: day('2026-08-10').toDate(), status: 'closed', count: 3, average: 4 },
+        { tournamentId: 'c', tournamentName: 'Copa C', tournamentStartAt: day('2026-09-10').toDate(), status: 'open', count: 8, average: 4.9 },
+        { tournamentId: 'd', tournamentName: 'Copa D', tournamentStartAt: day('2026-09-12').toDate(), status: 'closed', count: 2, average: null },
+        // Torneio "por link" (fora dos eventos listados): não aparece, mesmo fechado com 3+.
+        { tournamentId: 'link', tournamentName: 'Copa Secreta', tournamentStartAt: day('2026-09-20').toDate(), status: 'closed', count: 9, average: 4.4 },
+      ],
+      new Set(['a', 'b', 'c', 'd']),
+    );
     expect(vm.distribution).toEqual([
       { stars: 5, count: 2, pct: 50 },
       { stars: 4, count: 1, pct: 25 },
@@ -360,7 +443,7 @@ describe('reputação e avaliações', () => {
   });
 
   it('sem nota pública a distribuição não aparece', () => {
-    const vm = organizerReviewsVm(reputation({ reviewsCount: 2, average: null, distribution: null }), []);
+    const vm = organizerReviewsVm(reputation({ reviewsCount: 2, average: null, distribution: null }), [], new Set());
     expect(vm.summary).toBeNull();
     expect(vm.distribution).toEqual([]);
   });

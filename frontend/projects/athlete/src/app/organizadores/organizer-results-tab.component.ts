@@ -46,7 +46,7 @@ export class OrganizerResultsTabComponent {
 
   protected readonly results = computed(() => {
     const names = this.store.teamNames();
-    return this.store.completed().map((e) => organizerResultVm(e, names));
+    return this.store.realized().map((e) => organizerResultVm(e, names));
   });
 
   constructor() {

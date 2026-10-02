@@ -38,8 +38,8 @@
           <p class="ov-kicker">Histórico</p>
           <h2 class="ov-title" id="ov-history">Eventos realizados</h2>
         </div>
-        @if (completedCount() > 0) {
-          <a class="ov-link" [routerLink]="[]" [queryParams]="{ aba: 'resultados' }">Ver os {{ completedCount() }}</a>
+        @if (realizedCount() > 0) {
+          <a class="ov-link" [routerLink]="[]" [queryParams]="{ aba: 'resultados' }">Ver os {{ realizedCount() }}</a>
         }
       </div>
       @if (history().length > 0) {

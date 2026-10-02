@@ -17,6 +17,8 @@ const STAR_SLOTS = [1, 2, 3, 4, 5] as const;
 export class OrganizerReviewsTabComponent {
   private readonly store = inject(OrganizerProfileStore);
 
-  protected readonly vm = computed(() => organizerReviewsVm(this.store.reputation(), this.store.reviewSummaries()));
+  protected readonly vm = computed(() =>
+    organizerReviewsVm(this.store.reputation(), this.store.reviewSummaries(), new Set(this.store.events().map((e) => e.summary.id))),
+  );
   protected readonly stars = STAR_SLOTS;
 }

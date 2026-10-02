@@ -9,7 +9,7 @@ import {
   type OrganizerReviewSummaryRow,
 } from '../data/organizer-public-profiles';
 import { NxToastService } from '../shared/feedback';
-import { completedOrganizerEvents, upcomingOrganizerEvents } from './organizer-profile.vm';
+import { realizedOrganizerEvents, upcomingOrganizerEvents } from './organizer-profile.vm';
 
 export type OrganizerProfileStatus = 'loading' | 'ready' | 'not-found' | 'error';
 
@@ -65,7 +65,7 @@ export class OrganizerProfileStore {
   readonly canFollow = computed(() => this.status() === 'ready' && this.viewerUid() != null && !this.isSelf());
 
   readonly upcoming = computed(() => upcomingOrganizerEvents(this.events(), this.now()));
-  readonly completed = computed(() => completedOrganizerEvents(this.events()));
+  readonly realized = computed(() => realizedOrganizerEvents(this.events(), this.now()));
 
   constructor() {
     // A sessão costuma chegar depois da primeira carga: sem reagir a ela, quem já segue veria "Seguir".
@@ -120,7 +120,7 @@ export class OrganizerProfileStore {
       this.reviewSummaries.set(summaries);
       this.now.set(new Date());
       this.status.set('ready');
-      const recent = this.completed().slice(0, HISTORY_PREVIEW);
+      const recent = this.realized().slice(0, HISTORY_PREVIEW);
       void this.ensureDetails([...this.upcoming(), ...recent].map((e) => e.summary.id));
     } catch (err) {
       if (token !== this.loadToken) return;
@@ -135,7 +135,7 @@ export class OrganizerProfileStore {
 
   /** Abas Eventos e Resultados: completa os detalhes de todos os eventos. */
   ensureAllDetails(): Promise<void> {
-    return this.ensureDetails([...this.upcoming(), ...this.completed()].map((e) => e.summary.id));
+    return this.ensureDetails([...this.upcoming(), ...this.realized()].map((e) => e.summary.id));
   }
 
   /** Inscritos e nomes dos campeões dos eventos pedidos — cada evento é lido uma vez só. */

@@ -48,7 +48,7 @@ export class OrganizerEventsTabComponent {
   protected readonly rows = computed(() => {
     const enrolled = this.store.enrolled();
     const names = this.store.teamNames();
-    return this.store.completed().map((e) => organizerHistoryRowVm(e, enrolled.get(e.summary.id) ?? null, names));
+    return this.store.realized().map((e) => organizerHistoryRowVm(e, enrolled.get(e.summary.id) ?? null, names));
   });
 
   constructor() {

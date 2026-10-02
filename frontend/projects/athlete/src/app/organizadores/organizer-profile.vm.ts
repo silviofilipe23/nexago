@@ -14,7 +14,7 @@ import {
 } from '../data/organizer-public-profiles';
 import { sportLabelForCode } from '../data/sport-catalog';
 import type { TournamentReviewAspectKey } from '../data/tournament-reviews';
-import { tournamentListingStatus, type TournamentSummary } from '../data/tournaments-repository';
+import type { TournamentSummary } from '../data/tournaments-repository';
 import { discoveryFillPercent, discoverySpotsOf } from '../tournaments/tournament-discovery.spots';
 
 // ── Números ──────────────────────────────────────────────────────────────────
@@ -131,6 +131,14 @@ export interface OrganizerHeaderVm {
   readonly whatsappUrl: string | null;
 }
 
+/** "Organizador desde AAAA" — some se o ano ainda não chegou (evento futuro contado como o
+ *  primeiro; o servidor também deixa de contá-los). */
+function sinceLabel(since: Date | null, now: Date): string | null {
+  if (!since) return null;
+  const year = spDay(since).y;
+  return year > spDay(now).y ? null : `Organizador desde ${year}`;
+}
+
 /** Nota pública: só com `average` publicado pelo servidor (3+ avaliações). */
 export function hasPublicRating(r: OrganizerReputationDetail | null): r is OrganizerReputationDetail & { average: number } {
   return r != null && r.average != null && r.reviewsCount >= MIN_PUBLIC_REVIEWS;
@@ -140,6 +148,7 @@ export function organizerHeaderVm(
   profile: OrganizerPublicProfile,
   reputation: OrganizerReputationDetail | null,
   followersCount: number,
+  now: Date,
 ): OrganizerHeaderVm {
   const { eventsCompleted, athletes, organizerSince } = profile.stats;
   const stats: OrganizerStatVm[] = [
@@ -158,7 +167,7 @@ export function organizerHeaderVm(
     coverUrl: profile.coverUrl,
     verified: profile.verified,
     locationLabel: location || null,
-    sinceLabel: organizerSince ? `Organizador desde ${spDay(organizerSince).y}` : null,
+    sinceLabel: sinceLabel(organizerSince, now),
     stats,
     sports,
     bio: profile.bio,
@@ -179,16 +188,47 @@ function byStart(direction: 1 | -1) {
   };
 }
 
-/** Próximos: inscrição aberta ou encerrada, que ainda não terminaram — do mais perto ao mais longe. */
-export function upcomingOrganizerEvents(events: readonly OrganizerEvent[], now: Date): OrganizerEvent[] {
-  return events
-    .filter((e) => e.listingStatus !== 'completed' && tournamentListingStatus(e.summary, now) !== 'ended')
-    .sort(byStart(1));
+/**
+ * Definições compartilhadas com o app e com o backend (mesma regra nos três).
+ *
+ * `completed` só é gravado quando todas as finais de categoria terminam pelo sistema: um evento
+ * que acabou sem isso não podia sumir de "Próximos" e de "Realizados" ao mesmo tempo. Por isso
+ * "realizado" também vale para o evento cujo fim (`endAt`, ou `startAt`) já passou há 12h.
+ * Um `OrganizerEvent` só existe para evento listado (`organizerEventFromDoc`).
+ */
+export const EVENT_END_GRACE_MS = 12 * 60 * 60 * 1000;
+
+/** Fim do evento em ms: `endAt`, senão `startAt`; `null` sem nenhum dos dois. */
+export function eventEndMs(s: Pick<TournamentSummary, 'startAt' | 'endAt'>): number | null {
+  return (s.endAt ?? s.startAt)?.getTime() ?? null;
 }
 
-/** Realizados (`completed`), do mais recente ao mais antigo. */
-export function completedOrganizerEvents(events: readonly OrganizerEvent[]): OrganizerEvent[] {
-  return events.filter((e) => e.listingStatus === 'completed').sort(byStart(-1));
+export function isRealizedOrganizerEvent(e: OrganizerEvent, now: Date): boolean {
+  if (e.listingStatus === 'completed') return true;
+  const end = eventEndMs(e.summary);
+  return end != null && end + EVENT_END_GRACE_MS <= now.getTime();
+}
+
+export function isUpcomingOrganizerEvent(e: OrganizerEvent, now: Date): boolean {
+  return !isRealizedOrganizerEvent(e, now);
+}
+
+/** Ao vivo: há partida rolando, ou o evento já começou, não terminou e a inscrição não está mais
+ *  aberta. No dia do evento com inscrição `open` e sem partida, o selo segue o da inscrição. */
+export function isLiveOrganizerEvent(e: OrganizerEvent, now: Date): boolean {
+  const { liveMatchesNow, startAt } = e.summary;
+  if (liveMatchesNow > 0) return true;
+  return startAt != null && startAt.getTime() <= now.getTime() && !isRealizedOrganizerEvent(e, now) && e.listingStatus !== 'open';
+}
+
+/** Próximos, do mais perto ao mais longe. */
+export function upcomingOrganizerEvents(events: readonly OrganizerEvent[], now: Date): OrganizerEvent[] {
+  return events.filter((e) => isUpcomingOrganizerEvent(e, now)).sort(byStart(1));
+}
+
+/** Realizados, do mais recente ao mais antigo (histórico, Resultados e "Ver os N"). */
+export function realizedOrganizerEvents(events: readonly OrganizerEvent[], now: Date): OrganizerEvent[] {
+  return events.filter((e) => isRealizedOrganizerEvent(e, now)).sort(byStart(-1));
 }
 
 /** Aceita inscrição agora: status `open`, já passou de `registrationOpensAt` e o prazo não venceu. */
@@ -205,7 +245,7 @@ export function openRegistrationCaption(upcoming: readonly OrganizerEvent[], now
   return n === 0 ? null : `${n} com inscrição aberta`;
 }
 
-export type OrganizerEventBadgeTone = 'live' | 'soon' | 'closed' | 'last' | 'open';
+export type OrganizerEventBadgeTone = 'live' | 'soon' | 'closed' | 'full' | 'last' | 'open';
 
 export interface OrganizerEventCardVm {
   readonly id: string;
@@ -219,9 +259,9 @@ export interface OrganizerEventCardVm {
   readonly venue: string | null;
   /** `known: false` = contagem de inscrições ainda não chegou: só a capacidade aparece. */
   readonly spots: { readonly label: string; readonly pct: number; readonly known: boolean } | null;
-  /** "a partir de" (valores variam) · "R$ 140" · "por dupla". */
+  /** "a partir de" (valores variam) · "R$ 140" · "por dupla"; "Grátis" · "em algumas categorias". */
   readonly price: { readonly prefix: string; readonly label: string; readonly unit: string } | null;
-  readonly cta: { readonly label: 'Inscrever' | 'Acompanhar'; readonly primary: boolean; readonly link: readonly string[] };
+  readonly cta: { readonly label: 'Inscrever' | 'Acompanhar' | 'Ver evento'; readonly primary: boolean; readonly link: readonly string[] };
   readonly coverUrl: string | null;
 }
 
@@ -241,19 +281,27 @@ function eventPrice(s: TournamentSummary): OrganizerEventCardVm['price'] {
   if (s.categories.length === 0) return null;
   const cheapest = s.categories.reduce((min, c) => (c.entryFee < min.entryFee ? c : min));
   const varies = s.categories.some((c) => c.entryFee !== cheapest.entryFee);
+  // Grátis e pago no mesmo evento: "a partir de Grátis" não se lê — o grátis vem com a ressalva.
+  if (cheapest.entryFee <= 0) return { prefix: '', label: 'Grátis', unit: varies ? 'em algumas categorias' : '' };
   const unit = s.format === 'Individual' ? 'atleta' : cheapest.teamSize != null ? 'equipe' : 'dupla';
-  const prefix = varies ? 'a partir de' : '';
-  if (cheapest.entryFee <= 0) return { prefix, label: 'Grátis', unit: '' };
-  return { prefix, label: formatPrice(cheapest.entryFee), unit: `por ${unit}` };
+  return { prefix: varies ? 'a partir de' : '', label: formatPrice(cheapest.entryFee), unit: `por ${unit}` };
 }
 
-function eventBadge(e: OrganizerEvent, fillPct: number | null, now: Date): OrganizerEventCardVm['badge'] {
+function eventBadge(
+  e: OrganizerEvent,
+  spots: { filled: number; total: number } | null,
+  now: Date,
+): OrganizerEventCardVm['badge'] {
   const s = e.summary;
-  if (tournamentListingStatus(s, now) === 'live') return { label: 'Ao vivo', tone: 'live' };
+  if (isLiveOrganizerEvent(e, now)) return { label: 'Ao vivo', tone: 'live' };
   if (e.listingStatus === 'closed') return { label: 'Inscrições encerradas', tone: 'closed' };
   if (s.registrationOpensAt && s.registrationOpensAt.getTime() > now.getTime()) return { label: 'Em breve', tone: 'soon' };
   if (s.registrationClosesAt && s.registrationClosesAt.getTime() <= now.getTime()) return { label: 'Inscrições encerradas', tone: 'closed' };
-  if (fillPct != null && fillPct >= 80) return { label: 'Últimas vagas', tone: 'last' };
+  if (spots && spots.total > 0) {
+    // Lotado sem fila de espera não aceita mais ninguém; com fila, ainda dá para entrar nela.
+    if (spots.filled >= spots.total && !s.waitlistEnabled) return { label: 'Vagas esgotadas', tone: 'full' };
+    if (discoveryFillPercent(spots) >= 80) return { label: 'Últimas vagas', tone: 'last' };
+  }
   return { label: 'Inscrições abertas', tone: 'open' };
 }
 
@@ -263,15 +311,14 @@ export function organizerEventCardVm(e: OrganizerEvent, enrolled: number | null,
   const s = e.summary;
   const total = discoverySpotsOf(s, 0).total;
   let spots: OrganizerEventCardVm['spots'] = null;
-  let fillPct: number | null = null;
-  if (total > 0 && enrolled == null) {
+  const filled = total > 0 && enrolled != null ? discoverySpotsOf(s, enrolled) : null;
+  if (total > 0 && !filled) {
     spots = { label: `${total} vagas`, pct: 0, known: false };
-  } else if (total > 0 && enrolled != null) {
-    const filled = discoverySpotsOf(s, enrolled);
-    fillPct = discoveryFillPercent(filled);
-    spots = { label: `${filled.filled}/${filled.total}`, pct: fillPct, known: true };
+  } else if (filled) {
+    // A fila de espera conta em `inscriptions`: "18/16" não se mostra.
+    spots = { label: `${Math.min(filled.filled, filled.total)}/${filled.total}`, pct: discoveryFillPercent(filled), known: true };
   }
-  const badge = eventBadge(e, fillPct, now);
+  const badge = eventBadge(e, filled, now);
   const canRegister = badge.tone === 'open' || badge.tone === 'last';
   const link = ['/torneios', s.id];
   return {
@@ -287,7 +334,7 @@ export function organizerEventCardVm(e: OrganizerEvent, enrolled: number | null,
     price: eventPrice(s),
     cta: canRegister
       ? { label: 'Inscrever', primary: true, link: ['/torneios', s.id, 'inscricao'] }
-      : { label: 'Acompanhar', primary: false, link },
+      : { label: badge.tone === 'full' ? 'Ver evento' : 'Acompanhar', primary: false, link },
     coverUrl: tournamentCoverOrDefault(s.coverUrl, s.sport),
   };
 }
@@ -410,11 +457,12 @@ export interface OrganizerReviewsVm {
   readonly events: readonly OrganizerReviewEventVm[];
 }
 
-/** Aba Avaliações: nota geral, distribuição, aspectos e a nota de cada evento cuja janela fechou
- *  com 3+ avaliações. Sem texto de comentário (decisão do dono). */
+/** Aba Avaliações: nota geral, distribuição, aspectos e a nota de cada evento listado cuja janela
+ *  fechou com 3+ avaliações. Sem texto de comentário (decisão do dono). */
 export function organizerReviewsVm(
   reputation: OrganizerReputationDetail | null,
   summaries: readonly OrganizerReviewSummaryRow[],
+  listedEventIds: ReadonlySet<string>,
 ): OrganizerReviewsVm {
   const summary = organizerReputationVm(reputation);
   const d = summary ? reputation?.distribution : null;
@@ -423,6 +471,8 @@ export function organizerReviewsVm(
     ? ([5, 4, 3, 2, 1] as const).map((stars) => ({ stars, count: d[stars], pct: total > 0 ? Math.round((d[stars] / total) * 100) : 0 }))
     : [];
   const events = summaries
+    // Só eventos listados: o resumo de um torneio "por link" não pode expor o evento aqui.
+    .filter((s) => listedEventIds.has(s.tournamentId))
     .filter((s): s is OrganizerReviewSummaryRow & { average: number } => s.status === 'closed' && s.count >= MIN_PUBLIC_REVIEWS && s.average != null)
     .sort((a, b) => (b.tournamentStartAt?.getTime() ?? 0) - (a.tournamentStartAt?.getTime() ?? 0))
     .map((s) => ({

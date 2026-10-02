@@ -41,12 +41,12 @@ export class OrganizerOverviewTabComponent {
     const enrolled = this.store.enrolled();
     const names = this.store.teamNames();
     return this.store
-      .completed()
+      .realized()
       .slice(0, HISTORY_PREVIEW)
       .map((e) => organizerHistoryRowVm(e, enrolled.get(e.summary.id) ?? null, names));
   });
 
-  protected readonly completedCount = computed(() => this.store.completed().length);
+  protected readonly realizedCount = computed(() => this.store.realized().length);
   protected readonly bio = computed(() => this.store.profile()?.bio ?? null);
   protected readonly venues = computed(() => this.store.profile()?.stats.venues ?? []);
   protected readonly name = computed(() => this.store.profile()?.name ?? 'o organizador');

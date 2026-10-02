@@ -75,11 +75,11 @@ export class OrganizerProfileComponent {
 
   protected readonly header = computed(() => {
     const profile = this.store.profile();
-    return profile ? organizerHeaderVm(profile, this.store.reputation(), this.store.followersCount()) : null;
+    return profile ? organizerHeaderVm(profile, this.store.reputation(), this.store.followersCount(), this.store.now()) : null;
   });
 
   protected readonly tabs = computed(() => {
-    const events = this.store.upcoming().length + this.store.completed().length;
+    const events = this.store.upcoming().length + this.store.realized().length;
     return ORGANIZER_TABS.map((t) => ({ ...t, count: t.id === 'eventos' ? events : null }));
   });
 

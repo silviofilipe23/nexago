@@ -190,7 +190,9 @@ export function formatShortDate(d: Date): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-/** Sinal de menos tipográfico (U+2212) — escrito por escape, nunca digitado. */
+/** Sinal de menos tipográfico (U+2212) — o caractere literal colado aqui, uma vez só. Em
+ *  qualquer outro arquivo, usar esta constante (ou `&minus;` no template) — nunca digitar o
+ *  caractere à mão. */
 export const MINUS_SIGN = '−';
 
 export type CashbackLedgerTone = 'pending' | 'win' | 'brand' | 'muted';

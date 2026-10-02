@@ -27,6 +27,9 @@ import '../../arenas/presentation/widgets/booking_pix/booking_pix_waiting_card.d
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../athlete/domain/tournament_access_providers.dart';
 import '../../athlete/presentation/widgets/tournament_access_banner.dart';
+import '../../cashback/application/cashback_providers.dart';
+import '../../cashback/domain/cashback_rules.dart';
+import '../../cashback/presentation/widgets/checkout_cashback_toggle.dart';
 import '../data/tournament_registration_service.dart';
 import '../domain/registration_shell_logic.dart';
 import '../domain/tournament_registration_navigation.dart';
@@ -57,9 +60,21 @@ class _TournamentRegistrationPixPageState
   bool _paymentFailed = false;
   bool _cancelling = false;
   bool _saveCpf = true;
+
+  /// "Usar meu cashback" — começa desligado: o atleta escolhe gastar.
+  bool _useCashback = false;
   Timer? _expiryTimer;
 
   double get _shareReais => widget.args.shareAmountReais;
+
+  /// Prévia do cashback sobre o valor desta cobrança (parcela ou integral,
+  /// o mesmo `chargeAmount` que a callable cobra).
+  CashbackCheckoutQuote _cashbackQuote(CashbackCheckoutContext? checkout) =>
+      quoteCheckoutCashback(
+        priceCents: reaisToCents(_shareReais),
+        checkout: checkout,
+        useCashback: _useCashback,
+      );
 
   @override
   void initState() {
@@ -163,12 +178,18 @@ class _TournamentRegistrationPixPageState
     });
     try {
       await _saveCpfToProfileIfNeeded();
+      // Só pede o saldo com o switch ligado e algo a usar; o servidor
+      // recalcula e devolve o valor aplicado de verdade.
+      final useCashback = _cashbackQuote(
+        ref.read(cashbackCheckoutContextProvider),
+      ).sendUseCashback;
       final pix = await ref
           .read(paymentServiceProvider)
           .createTournamentRegistrationPixPayment(
             registrationId: widget.args.registrationId,
             cpfCnpj: _cpfDigits,
             amountType: widget.args.amountType,
+            useCashback: useCashback,
           );
       if (!mounted) return;
       setState(() {
@@ -352,6 +373,8 @@ class _TournamentRegistrationPixPageState
       pixExpiresAt: pixExpiresAt,
     );
     final showQr = _pix != null && !_loadingPix;
+    final cashbackCtx = ref.watch(cashbackCheckoutContextProvider);
+    final cashbackQuote = _cashbackQuote(cashbackCtx);
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -383,7 +406,7 @@ class _TournamentRegistrationPixPageState
                         if (!showQr) ...[
                           BookingPixMethodCard(
                             amountLabel: BookingPixMethodCard.formatAmount(
-                              _shareReais,
+                              cashbackQuote.chargePreviewCents / 100,
                             ),
                           ),
                           SizedBox(height: 12),
@@ -397,6 +420,20 @@ class _TournamentRegistrationPixPageState
                                 ),
                           ),
                           SizedBox(height: 20),
+                          if (cashbackCtx != null &&
+                              cashbackQuote.mode !=
+                                  CashbackToggleMode.hidden) ...[
+                            CheckoutCashbackToggle(
+                              priceCents: cashbackQuote.priceCents,
+                              availableCents: cashbackCtx.availableCents,
+                              config: cashbackCtx.config,
+                              value: _useCashback,
+                              enabled: !_loadingPix,
+                              onChanged: (v) =>
+                                  setState(() => _useCashback = v),
+                            ),
+                            const SizedBox(height: 20),
+                          ],
                           BookingPixCpfField(
                             controller: _cpfController,
                             errorText: _cpfHint,
@@ -418,10 +455,18 @@ class _TournamentRegistrationPixPageState
                           if (displayExpiresAt != null) ...[
                             BookingPixExpiryCard(
                               expiresAt: displayExpiresAt,
-                              amountReais:
-                                  _pix?.amountToPayNowReais ?? _shareReais,
+                              // O QR cobra `chargedReais` (preço − saldo).
+                              amountReais: _pix?.chargedReais ?? _shareReais,
                             ),
                             const SizedBox(height: 20),
+                          ],
+                          if (_pix!.cashbackAppliedReais > 0) ...[
+                            CheckoutCashbackAppliedNote(
+                              appliedCents: reaisToCents(
+                                _pix!.cashbackAppliedReais,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
                           ],
                           BookingPixQrCard(
                             base64: _pix!.qrCodeBase64,

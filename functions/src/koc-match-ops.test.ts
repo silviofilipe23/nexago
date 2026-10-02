@@ -7,6 +7,7 @@ import {
   kocFinishRoundCore,
   kocRegisterRallyCore,
   kocRemoveTeamCore,
+  kocSetRoundOnDeckCore,
   kocSetClockCore,
   kocStartRoundCore,
   kocUndoRallyCore,
@@ -758,5 +759,173 @@ describe("parsers de campo gravado", () => {
     const clock = parseStoredClock({startedAtMs: T0, durationSec: 900});
     assert.equal(clock!.pausedAtMs, null);
     assert.equal(clock!.pausedAccumSec, 0);
+  });
+});
+
+describe("kocSetRoundOnDeckCore", () => {
+  /** Outra rodada no mesmo torneio — pra provar que a marca é UMA por quadra. */
+  function seedOther(fake: FakeFirestore, id: string, data: DocData): void {
+    fake.seedDoc(`${matchesPath}/${id}`, {
+      tournamentId: "t1",
+      categoryId: "cat-1",
+      matchType: "koc_round",
+      status: "Scheduled",
+      kocTeamIds: ROSTER,
+      ...data,
+    });
+  }
+
+  it("marca a rodada como a próxima da quadra", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake, {courtId: "q1", queueStatus: "waiting"});
+
+    const result = await kocSetRoundOnDeckCore(db(fake), OWNER, {matchId: "r1"});
+
+    assert.deepEqual(result, {ok: true, onDeck: true, cleared: 0});
+    assert.equal(round(fake).queueStatus, "on_deck");
+    assert.equal(round(fake).status, "Scheduled");
+  });
+
+  it("uma por quadra: a marcada antes na MESMA quadra volta pra fila", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake, {courtId: "q1"});
+    seedOther(fake, "antiga", {courtId: "q1", queueStatus: "on_deck"});
+    seedOther(fake, "outra-quadra", {courtId: "q2", queueStatus: "on_deck"});
+    seedOther(fake, "outro-torneio", {tournamentId: "t9", courtId: "q1", queueStatus: "on_deck"});
+
+    const result = await kocSetRoundOnDeckCore(db(fake), OWNER, {matchId: "r1"});
+
+    assert.equal(result.cleared, 1);
+    assert.equal(fake.store.get(`${matchesPath}/antiga`)!.queueStatus, "waiting");
+    assert.equal(fake.store.get(`${matchesPath}/outra-quadra`)!.queueStatus, "on_deck");
+    assert.equal(fake.store.get(`${matchesPath}/outro-torneio`)!.queueStatus, "on_deck");
+    assert.equal(round(fake).queueStatus, "on_deck");
+  });
+
+  it("grava a ordem que a mesa montou — é ela que o telão anuncia", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake, {courtId: "q1"});
+
+    await kocSetRoundOnDeckCore(db(fake), OWNER, {matchId: "r1", teamIds: ["C", "A", "D", "B"]});
+
+    assert.deepEqual(round(fake).kocTeamIds, ["C", "A", "D", "B"]);
+  });
+
+  it("sem ordem, mantém a do elenco", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake, {courtId: "q1"});
+
+    await kocSetRoundOnDeckCore(db(fake), OWNER, {matchId: "r1"});
+
+    assert.deepEqual(round(fake).kocTeamIds, ROSTER);
+  });
+
+  it("recusa ordem com dupla de fora da rodada, sem marcar nada", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake, {courtId: "q1", queueStatus: "waiting"});
+
+    await assertHttpsError(
+      kocSetRoundOnDeckCore(db(fake), OWNER, {matchId: "r1", teamIds: ["A", "B", "C", "X"]}),
+      "invalid-argument",
+      "koc_roster_mismatch",
+    );
+    assert.equal(round(fake).queueStatus, "waiting");
+  });
+
+  it("marcar de novo a mesma rodada não conta ela como limpa", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake, {courtId: "q1", queueStatus: "on_deck"});
+
+    const result = await kocSetRoundOnDeckCore(db(fake), OWNER, {matchId: "r1"});
+
+    assert.equal(result.cleared, 0);
+    assert.equal(round(fake).queueStatus, "on_deck");
+  });
+
+  it("recusa rodada que já começou", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake, {courtId: "q1"});
+    await kocStartRoundCore(db(fake), OWNER, {matchId: "r1"}, T0);
+
+    await assertHttpsError(
+      kocSetRoundOnDeckCore(db(fake), OWNER, {matchId: "r1"}),
+      "failed-precondition",
+      "koc_round_already_started",
+    );
+  });
+
+  it("recusa rodada sem quadra — não há onde anunciar", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake);
+
+    await assertHttpsError(
+      kocSetRoundOnDeckCore(db(fake), OWNER, {matchId: "r1"}),
+      "failed-precondition",
+      "koc_round_without_court",
+    );
+  });
+
+  it("recusa rodada sem elenco — não há quem anunciar", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake, {courtId: "q1"}, {teamIds: []});
+
+    await assertHttpsError(
+      kocSetRoundOnDeckCore(db(fake), OWNER, {matchId: "r1"}),
+      "failed-precondition",
+      "koc_roster_pending",
+    );
+  });
+
+  it("desmarcar devolve pra fila", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake, {courtId: "q1", queueStatus: "on_deck"});
+
+    const result = await kocSetRoundOnDeckCore(db(fake), OWNER, {matchId: "r1", onDeck: false});
+
+    assert.deepEqual(result, {ok: true, onDeck: false, cleared: 0});
+    assert.equal(round(fake).queueStatus, "waiting");
+  });
+
+  it("desmarcar não reescreve um estado de fila que não é a marca da mesa", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake, {courtId: "q1", queueStatus: "on_court"});
+
+    await kocSetRoundOnDeckCore(db(fake), OWNER, {matchId: "r1", onDeck: false});
+
+    assert.equal(round(fake).queueStatus, "on_court");
+  });
+
+  it("mesário (staff scorer) pode marcar; quem não é da equipe, não", async () => {
+    mockAuthUser({});
+    const fake = new FakeFirestore();
+    seedRound(fake, {courtId: "q1"});
+    fake.seedDoc("tournaments/t1/staff/mesario", {role: "scorer", status: "active"});
+
+    await kocSetRoundOnDeckCore(db(fake), "mesario", {matchId: "r1"});
+    assert.equal(round(fake).queueStatus, "on_deck");
+
+    await assertHttpsError(
+      kocSetRoundOnDeckCore(db(fake), "estranho", {matchId: "r1", onDeck: false}),
+      "permission-denied",
+    );
+  });
+
+  it("iniciar a rodada tira a marca de próxima", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake, {courtId: "q1"});
+    await kocSetRoundOnDeckCore(db(fake), OWNER, {matchId: "r1"});
+
+    await kocStartRoundCore(db(fake), OWNER, {matchId: "r1"}, T0);
+
+    assert.equal(round(fake).queueStatus, "waiting");
+  });
+
+  it("iniciar rodada que não foi marcada não mexe no estado de fila", async () => {
+    const fake = new FakeFirestore();
+    seedRound(fake, {courtId: "q1", queueStatus: "on_court"});
+
+    await kocStartRoundCore(db(fake), OWNER, {matchId: "r1"}, T0);
+
+    assert.equal(round(fake).queueStatus, "on_court");
   });
 });

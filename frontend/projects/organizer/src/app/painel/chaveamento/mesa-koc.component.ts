@@ -32,6 +32,7 @@ import {
   type KocRallyOutcome,
   removeKocTeam,
   setKocClock,
+  setKocRoundOnDeck,
   startKocRound,
   undoKocRally,
   validateMatchResult,
@@ -346,6 +347,35 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
               </div>
             </div>
           </section>
+
+          @if (nextCourt(); as court) {
+            <section class="og-mk-panel og-mk-next" [class.on]="onDeck()">
+              <span class="og-mk-panel-title">Próxima da quadra</span>
+              @if (onDeck()) {
+                <p class="og-mk-next-note">
+                  <strong>Anunciada.</strong> A transmissão e o painel de LED da {{ court }} mostram esta rodada em
+                  "Próximos em quadra" até o apito.
+                </p>
+                <div class="og-mk-next-acts">
+                  @if (orderChanged()) {
+                    <button type="button" class="og-ghost-btn" [disabled]="busy() || !canStart()" (click)="markOnDeck()">
+                      Atualizar ordem
+                    </button>
+                  }
+                  <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="unmarkOnDeck()">Desmarcar</button>
+                </div>
+              } @else {
+                <p class="og-mk-next-note">
+                  Anuncia esta rodada em "Próximos em quadra" na transmissão e no painel de LED da {{ court }}.
+                </p>
+                <div class="og-mk-next-acts">
+                  <button type="button" class="og-ghost-btn og-mk-next-go" [disabled]="busy() || !canStart()" (click)="markOnDeck()">
+                    É a próxima
+                  </button>
+                </div>
+              }
+            </section>
+          }
 
           <button type="button" class="og-btn-primary og-mk-start" [disabled]="busy() || !canStart()" (click)="askStart()">
             <span class="og-mk-start-label">Iniciar rodada</span>
@@ -1281,6 +1311,33 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
       text-transform: uppercase;
       color: inherit;
       opacity: 0.92;
+    }
+    .og-mk-next.on {
+      border-color: var(--nx-orange-500);
+    }
+    .og-mk-next-note {
+      margin: 0 0 10px;
+      font-size: 13px;
+      line-height: 1.4;
+      color: var(--nx-text-mute);
+    }
+    .og-mk-next-note strong {
+      color: var(--nx-orange-500);
+    }
+    .og-mk-next-acts {
+      display: flex;
+      gap: 8px;
+    }
+    .og-mk-next-acts .og-ghost-btn {
+      flex: 1 1 0;
+      justify-content: center;
+      height: 44px;
+      border: 1px solid var(--nx-line);
+      color: var(--nx-text);
+    }
+    .og-mk-next-acts .og-mk-next-go {
+      border-color: var(--nx-orange-500);
+      color: var(--nx-orange-500);
     }
     .og-mk-cancel {
       display: block;
@@ -3414,6 +3471,45 @@ export class MesaKocComponent {
     }, 'Rodada iniciada.');
   }
 
+  /** Rodada marcada como a próxima da quadra (`on_deck`) — o servidor tira a marca no apito. */
+  protected readonly onDeck = computed(() => this.match()?.onDeck === true);
+
+  /** Quadra onde a marca vale. Vazio esconde o bloco: sem quadra não há onde anunciar. */
+  protected readonly nextCourt = computed(() => {
+    const m = this.match();
+    if (!m?.courtId) return '';
+    return formatCourtLabel(m.court ?? '') || 'quadra';
+  });
+
+  /** A mesa reordenou a fila depois de anunciar — o telão ainda mostra a ordem antiga. */
+  protected readonly orderChanged = computed(() => {
+    const server = this.roster();
+    const draft = this.draftOrder();
+    return draft.length === server.length && draft.some((id, i) => id !== server[i]);
+  });
+
+  /** Anuncia esta rodada como a próxima, já com a ordem da preparação. */
+  protected markOnDeck(): void {
+    if (!this.canStart() || this.busy()) return;
+    void this.run(
+      () =>
+        setKocRoundOnDeck({ matchId: this.matchId(), onDeck: true, teamIds: this.draftOrder() }).catch((e) => {
+          throw onDeckError(e);
+        }),
+      'Rodada anunciada como a próxima da quadra.',
+    );
+  }
+
+  protected unmarkOnDeck(): void {
+    void this.run(
+      () =>
+        setKocRoundOnDeck({ matchId: this.matchId(), onDeck: false }).catch((e) => {
+          throw onDeckError(e);
+        }),
+      null,
+    );
+  }
+
   /** Painel de LED da quadra desta rodada. Vazio (botão escondido) enquanto a partida não tem
    *  quadra: o painel segue a QUADRA, não a partida. */
   protected readonly ledHref = computed(() => ledPanelHref(this.id(), this.match()?.courtId ?? ''));
@@ -3844,6 +3940,14 @@ export class MesaKocComponent {
 function reasonOf(error: unknown): string {
   const details = (error as { details?: { reason?: unknown } } | null)?.details;
   return typeof details?.reason === 'string' ? details.reason : '';
+}
+
+/** Callable ainda não publicada (deploy pendente) chega como `functions/not-found`, com a mensagem
+ *  crua do SDK — nada que o mesário entenda. */
+function onDeckError(error: unknown): unknown {
+  return (error as { code?: unknown } | null)?.code === 'functions/not-found'
+    ? new Error('Marcar a próxima ainda não está disponível no servidor.')
+    : error;
 }
 
 function messageOf(error: unknown): string {

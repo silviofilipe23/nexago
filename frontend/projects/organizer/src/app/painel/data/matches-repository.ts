@@ -92,6 +92,9 @@ export interface TournamentMatch {
    *  Ausente em toda partida de duelo — opcional de propósito, para que nenhuma
    *  fixture de duelo precise conhecer o formato. Ver `koc.ts`. */
   koc?: KocRoundState | null;
+  /** Marcada pela mesa como a PRÓXIMA da quadra (`queueStatus: 'on_deck'`, callable
+   *  `kocSetRoundOnDeck`). Opcional pelo mesmo motivo de `koc`. */
+  onDeck?: boolean;
   matchStartedAt: Date | null;
   /** Fim real da partida (mesa/lançamento gravam ao completar) — o telão usa pra celebrar
    *  partidas recém-encerradas mesmo quando a TV recarregou no ponto do jogo. */
@@ -254,6 +257,7 @@ export interface RawMatch {
   servingPlayerSlot: number;
   medicalTimeout: MedicalTimeout | null;
   koc?: KocRoundState | null;
+  onDeck?: boolean;
   matchStartedAt: Date | null;
   matchEndedAt: Date | null;
 }
@@ -304,6 +308,7 @@ export function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawM
     servingPlayerSlot: data['servingPlayerSlot'] === 1 || data['servingPlayerSlot'] === 2 ? data['servingPlayerSlot'] : 0,
     medicalTimeout: medicalTimeoutFromRaw(data['medicalTimeout']),
     koc,
+    onDeck: data['queueStatus'] === 'on_deck',
     matchStartedAt: toDate(data['matchStartedAt']),
     matchEndedAt: toDate(data['matchEndedAt']),
   };
@@ -568,6 +573,7 @@ function rawToMatch(r: RawMatch, labelOf: (description: string | null, teamId: s
     servingPlayerSlot: r.servingPlayerSlot,
     medicalTimeout: r.medicalTimeout,
     koc: r.koc,
+    onDeck: r.onDeck,
     matchStartedAt: r.matchStartedAt,
     matchEndedAt: r.matchEndedAt,
   };

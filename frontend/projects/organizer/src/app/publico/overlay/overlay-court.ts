@@ -101,18 +101,24 @@ export const OVERLAY_COURT_FOLLOW: CourtFollowOptions = {
   proximaEmOutraQuadra: true,
 };
 
-/** Rodada da categoria com elenco pronto, na ordem da agenda (sem horário vai pro fim) e, no
- *  empate, do nº do jogo. */
+/** Rodada com elenco pronto: a marcada pela mesa como próxima primeiro, depois a ordem da agenda
+ *  (sem horário vai pro fim) e, no empate, o nº do jogo. */
 function primeiraComElenco(candidatas: readonly TournamentMatch[]): TournamentMatch | null {
   return (
     candidatas
       .filter((m) => kocPreRoundOf(m) != null)
       .sort(
         (a, b) =>
+          Number(b.onDeck === true) - Number(a.onDeck === true) ||
           (a.scheduledAt?.getTime() ?? Infinity) - (b.scheduledAt?.getTime() ?? Infinity) ||
           a.matchNumber - b.matchNumber,
       )[0] ?? null
   );
+}
+
+/** Rodada que a mesa marcou como a próxima DESTA quadra ("Marcar como próxima", `on_deck`). */
+function rodadaMarcadaNaQuadra(matches: readonly TournamentMatch[], courtId: string): TournamentMatch | null {
+  return primeiraComElenco(matches.filter((m) => m.courtId === courtId && m.onDeck === true));
 }
 
 /** Próxima rodada da categoria KOTC que acabou de jogar nesta quadra — nesta quadra primeiro e,
@@ -140,7 +146,8 @@ function proximaRodadaKoc(
 
 /** Ao vivo → recém-encerrada → (rodada KOTC no fim de rodada) → próxima.
  *
- *  Na "próxima", a rodada seguinte da categoria KOTC em andamento vence a agendada do
+ *  A rodada que a mesa marcou como próxima desta quadra vence qualquer adivinhação — é a palavra
+ *  de quem está na areia. Sem marca, a rodada seguinte da categoria KOTC em andamento vence a agendada do
  *  `courtNowOf` quando as duas são da mesma categoria (a agendada pode ser uma rodada lá na
  *  frente, sem elenco, porque as do meio ficaram fora da tolerância de horário ou noutra quadra).
  *  De categorias diferentes, rodada de OUTRA quadra não fura a fila desta; nesta quadra, manda a
@@ -157,6 +164,9 @@ function partidaDaQuadra(
 
   const fimDeRodada = rodadaKocNoFimDeRodada(matches, courtId, nowMs, finishMemory, opts.segurarRodadaKocMs);
   if (fimDeRodada) return fimDeRodada;
+
+  const marcada = rodadaMarcadaNaQuadra(matches, courtId);
+  if (marcada) return marcada;
 
   const agendada = agora.match;
   const seguinte = proximaRodadaKoc(matches, courtId, opts.proximaEmOutraQuadra);

@@ -5,6 +5,8 @@
  * Só o portal do atleta lê isto, e só as telas de `/organizadores` importam este módulo: nada
  * daqui pode entrar no `TournamentLiveStore`, que mora na carga inicial (orçamento de 1 MB).
  */
+import type { AthletePublicProfile } from './public-profiles-repository';
+import { teamMemberIds, type ArenaTeam } from './teams-repository';
 import { isPubliclyListedTournamentDoc, tournamentSummaryFromDoc, type TournamentSummary } from './tournaments-repository';
 import {
   TOURNAMENT_REVIEW_ASPECTS,
@@ -151,6 +153,13 @@ export function organizerPublicProfileFromDoc(id: string, data: Data): Organizer
   };
 }
 
+/** O doc pode existir sem identidade: o gatilho de números cria `{uid, stats, listed: false}`
+ *  para qualquer `managerId`, e o contador de seguidores cria `{followersCount}` por merge. Só
+ *  `isOrganizer === true` (que garante o `name`) vira página; o resto é "não encontrado". */
+export function organizerProfileIsPublic(profile: OrganizerPublicProfile | null): profile is OrganizerPublicProfile {
+  return profile != null && profile.isOrganizer;
+}
+
 const ASPECT_KEYS: readonly string[] = TOURNAMENT_REVIEW_ASPECTS.map((a) => a.key);
 
 export function organizerReputationDetailFromData(data: Data | undefined): OrganizerReputationDetail | null {
@@ -207,6 +216,19 @@ export function organizerEventFromDoc(id: string, data: Data): OrganizerEvent | 
   const status = (text(data['listingStatus']) || text(data['status'])).toLowerCase() as OrganizerEventStatus;
   if (!LISTED_STATUSES.includes(status) || !isPubliclyListedTournamentDoc(data)) return null;
   return { summary: tournamentSummaryFromDoc(id, data), listingStatus: status, champions: championsFromDoc(data) };
+}
+
+/** Nome da equipe campeã: o nome dado à equipe, ou os primeiros nomes do elenco ("Ana / Bia",
+ *  mesma forma de `duoNameOf`; trio vira "Ana / Bia / Cris"). `null` sem nenhum dos dois. */
+export function teamDisplayName(
+  team: Pick<ArenaTeam, 'teamName' | 'player1Id' | 'player2Id' | 'memberUids'>,
+  profiles: ReadonlyMap<string, Pick<AthletePublicProfile, 'displayName'>>,
+): string | null {
+  if (team.teamName) return team.teamName;
+  const names = teamMemberIds(team)
+    .map((uid) => profiles.get(uid)?.displayName?.trim().split(/\s+/)[0] ?? '')
+    .filter((name) => name.length > 0);
+  return names.length > 0 ? names.join(' / ') : null;
 }
 
 /** Doc de seguidor: id = meu uid, e exatamente as chaves que a rule aceita (o `followedAt`

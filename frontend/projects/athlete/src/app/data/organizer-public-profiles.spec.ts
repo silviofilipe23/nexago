@@ -2,9 +2,11 @@ import {
   championsFromDoc,
   organizerEventFromDoc,
   organizerFollowWrite,
+  organizerProfileIsPublic,
   organizerPublicProfileFromDoc,
   organizerReputationDetailFromData,
   organizerReviewSummaryFromDoc,
+  teamDisplayName,
 } from './organizer-public-profiles';
 
 /** Timestamp do SDK só precisa de `toDate()` aqui. */
@@ -88,6 +90,16 @@ describe('organizerPublicProfileFromDoc', () => {
   it('local sem nome fica de fora', () => {
     const p = organizerPublicProfileFromDoc('o', { stats: { venues: [{ name: ' ', count: 3 }, { name: 'Arena', count: 'x' }] } });
     expect(p.stats.venues).toEqual([{ name: 'Arena', arenaId: null, city: null, count: 0 }]);
+  });
+});
+
+describe('organizerProfileIsPublic', () => {
+  it('só com isOrganizer: doc criado só pelos números ou pelo contador de seguidores não é perfil', () => {
+    expect(organizerProfileIsPublic(organizerPublicProfileFromDoc('o', { name: 'Liga', isOrganizer: true }))).toBeTrue();
+    expect(organizerProfileIsPublic(organizerPublicProfileFromDoc('o', { uid: 'o', stats: { listedEvents: 2 }, listed: false }))).toBeFalse();
+    expect(organizerProfileIsPublic(organizerPublicProfileFromDoc('o', { followersCount: 3 }))).toBeFalse();
+    expect(organizerProfileIsPublic(organizerPublicProfileFromDoc('o', { name: 'Liga', isOrganizer: false }))).toBeFalse();
+    expect(organizerProfileIsPublic(null)).toBeFalse();
   });
 });
 
@@ -218,6 +230,28 @@ describe('championsFromDoc', () => {
 
   it('sem categoryOps: nenhum campeão', () => {
     expect(championsFromDoc({ categories: [{ id: 'c1' }] })).toEqual([]);
+  });
+});
+
+describe('teamDisplayName', () => {
+  const profiles = new Map([
+    ['u1', { displayName: 'Ana Lima' }],
+    ['u2', { displayName: 'Bia Prado' }],
+    ['u3', { displayName: 'Cris' }],
+  ]);
+  const team = { teamName: null, player1Id: 'u1', player2Id: 'u2', memberUids: [] as string[] };
+
+  it('dupla: primeiros nomes', () => {
+    expect(teamDisplayName(team, profiles)).toBe('Ana / Bia');
+  });
+
+  it('equipe nomeada vence; trio usa o elenco', () => {
+    expect(teamDisplayName({ ...team, teamName: 'Os Brabos' }, profiles)).toBe('Os Brabos');
+    expect(teamDisplayName({ ...team, memberUids: ['u1', 'u2', 'u3'] }, profiles)).toBe('Ana / Bia / Cris');
+  });
+
+  it('sem perfis legíveis: null (nada de "Atleta / Atleta")', () => {
+    expect(teamDisplayName(team, new Map())).toBeNull();
   });
 });
 

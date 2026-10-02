@@ -231,7 +231,7 @@ class _OrganizerPublicProfilePageState
     final whatsapp = organizerWhatsappUri(profile.whatsapp);
 
     // A página se acerta sozinha no próximo instante que muda alguma decisão (abertura ou
-    // fechamento de inscrição, início, fim + 12 h): o card troca de selo e o evento passa de
+    // fechamento de inscrição, início, fim + 36 h): o card troca de selo e o evento passa de
     // "Próximos" para o histórico sem ninguém puxar a tela.
     return OrganizerClock(
       nextChangeAt: (now) => organizerEventsNextChangeAt(events, now),

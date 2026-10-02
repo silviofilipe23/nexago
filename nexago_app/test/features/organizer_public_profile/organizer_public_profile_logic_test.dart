@@ -226,7 +226,7 @@ void main() {
       expect(organizerEventIsUpcoming(e, now), isFalse);
     });
 
-    test('sem completed, vira realizado 12 h depois do fim', () {
+    test('sem completed, vira realizado 36 h depois do fim', () {
       final end = DateTime(2026, 8, 10, 0);
       final e = _event(
         OrganizerEventListing.closed,
@@ -234,21 +234,49 @@ void main() {
         end: end,
       );
       expect(
-        organizerEventIsRealized(e, end.add(const Duration(hours: 11))),
+        organizerEventIsRealized(e, end.add(const Duration(hours: 35))),
         isFalse,
       );
       expect(
-        organizerEventIsRealized(e, end.add(const Duration(hours: 12))),
+        organizerEventIsRealized(e, end.add(const Duration(hours: 36))),
         isTrue,
       );
     });
 
+    test(
+      'último dia hoje (endAt é DATA): não realizado ao meio-dia; no dia seguinte, sim',
+      () {
+        // App grava meia-noite UTC (data civil); painel web, meia-noite local (03:00 UTC).
+        for (final endAt in [
+          DateTime.utc(2026, 8, 10),
+          DateTime.utc(2026, 8, 10, 3),
+        ]) {
+          final e = _event(
+            OrganizerEventListing.closed,
+            start: DateTime.utc(2026, 8, 9),
+            end: endAt,
+          );
+          // 12:00 em Brasília = 15:00 UTC.
+          expect(
+            organizerEventIsRealized(e, DateTime.utc(2026, 8, 10, 15)),
+            isFalse,
+            reason: 'último dia, ao meio-dia: ainda acontecendo ($endAt)',
+          );
+          expect(
+            organizerEventIsRealized(e, DateTime.utc(2026, 8, 11, 15)),
+            isTrue,
+            reason: 'dia seguinte, ao meio-dia ($endAt)',
+          );
+        }
+      },
+    );
+
     test('sem endAt, o fim é o startAt', () {
       final e = _event(
         OrganizerEventListing.open,
-        start: DateTime(2026, 8, 9, 23, 59),
+        start: DateTime(2026, 8, 8, 23, 59),
       );
-      expect(organizerEventEnd(e), DateTime(2026, 8, 9, 23, 59));
+      expect(organizerEventEnd(e), DateTime(2026, 8, 8, 23, 59));
       expect(organizerEventIsRealized(e, now), isTrue);
     });
 
@@ -344,8 +372,8 @@ void main() {
           organizerEventIsLive(
             _event(
               OrganizerEventListing.closed,
-              start: DateTime(2026, 8, 8),
-              end: DateTime(2026, 8, 9),
+              start: DateTime(2026, 8, 7),
+              end: DateTime(2026, 8, 8),
             ),
             now,
           ),
@@ -367,11 +395,12 @@ void main() {
         organizerEventNextChangeAt(e, DateTime(2026, 8, 19)),
         DateTime(2026, 8, 20, 8),
       );
+      // Fim + 36 h: o próximo instante é quando vira realizado.
       expect(
         organizerEventNextChangeAt(e, DateTime(2026, 8, 21, 12)),
-        DateTime(2026, 8, 22, 6),
+        DateTime(2026, 8, 23, 6),
       );
-      expect(organizerEventNextChangeAt(e, DateTime(2026, 8, 23)), isNull);
+      expect(organizerEventNextChangeAt(e, DateTime(2026, 8, 24)), isNull);
       final other = _event(
         OrganizerEventListing.open,
         start: DateTime(2026, 8, 15),

@@ -16,7 +16,7 @@ import 'organizer_champion_names.dart';
 /// `inscriptions`), preço e CTA. Tocar em qualquer parte leva ao evento.
 ///
 /// [now] vem do relógio da página, que se reconstrói sozinho no próximo instante que muda
-/// alguma decisão (abertura, fechamento, início, fim + 12 h).
+/// alguma decisão (abertura, fechamento, início, fim + 36 h).
 class OrganizerUpcomingEventCard extends ConsumerWidget {
   const OrganizerUpcomingEventCard({
     super.key,

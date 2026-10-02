@@ -157,15 +157,19 @@ List<OrganizerHeaderStat> organizerHeaderStats(
 
 /// Folga depois do fim do evento antes de ele contar como realizado: o organizador fecha as
 /// chaves no sistema só às vezes, e `completed` só é gravado quando TODAS as finais terminam
-/// nele — sem a folga, evento encerrado ficaria para sempre em "Próximos". Mesma régua do
-/// backend e do portal.
-const Duration kOrganizerEventEndGrace = Duration(hours: 12);
+/// nele — sem a folga, evento encerrado ficaria para sempre em "Próximos".
+///
+/// 36 h, não 12: os wizards gravam `endAt`/`startAt` como DATA, não como hora de término —
+/// meia-noite local no painel web, meia-noite UTC (data civil) no app. Com 12 h o evento virava
+/// "realizado" ao meio-dia do último dia, ainda acontecendo; com 36 h vira na manhã seguinte nas
+/// duas convenções. Mesma régua do backend (`EVENT_END_GRACE_MS`) e do portal.
+const Duration kOrganizerEventEndGrace = Duration(hours: 36);
 
 /// Fim do evento: `endAt`, ou `startAt` quando falta o fim. `null` sem nenhum dos dois.
 DateTime? organizerEventEnd(OrganizerEvent event) =>
     event.endAt ?? event.startAt;
 
-/// Realizado: `completed`, ou 12 h depois do fim. Todo [OrganizerEvent] já é listado.
+/// Realizado: `completed`, ou 36 h depois do fim. Todo [OrganizerEvent] já é listado.
 bool organizerEventIsRealized(OrganizerEvent event, DateTime now) {
   if (event.listing == OrganizerEventListing.completed) return true;
   final end = organizerEventEnd(event);
@@ -225,7 +229,7 @@ int _compareNullableDates(DateTime? a, DateTime? b) {
 }
 
 /// Próximo instante em que alguma decisão do card muda: abertura e fechamento da inscrição,
-/// início, e fim + 12 h (vira realizado). `null` quando nada mais muda com o relógio.
+/// início, e fim + 36 h (vira realizado). `null` quando nada mais muda com o relógio.
 DateTime? organizerEventNextChangeAt(OrganizerEvent event, DateTime now) {
   final end = organizerEventEnd(event);
   DateTime? next;

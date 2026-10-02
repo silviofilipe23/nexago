@@ -137,6 +137,23 @@ describe('ClubSessionPaymentComponent — cashback', () => {
     expect(text(host(fixture).querySelector('.cp-amount-row .cp-amount'))).toBe('R$ 17,60');
   });
 
+  // Minor 6 do review final: a linha some depois de gerado o PIX porque o template troca de
+  // card inteiro — reserva e inscrição mostram a linha num resumo que persiste; o clubinho não
+  // tinha resumo nenhum na tela do QR.
+  it('PIX gerado também mostra a linha do cashback aplicado', () => {
+    const { fixture, internals } = create(fakeCashbackService({ wallet: { availableCents: 1240 } }));
+    internals.pix.set(pixPayment({ cashbackAppliedReais: 12.4, chargedReais: 17.6 }));
+    fixture.detectChanges();
+    expect(text(host(fixture).querySelector('.cp-cashback-discount'))).toBe('−R$ 12,40');
+  });
+
+  it('PIX gerado sem cashback aplicado: sem a linha', () => {
+    const { fixture, internals } = create(fakeCashbackService({ wallet: { availableCents: 1240 } }));
+    internals.pix.set(pixPayment({ cashbackAppliedReais: 0, chargedReais: 30 }));
+    fixture.detectChanges();
+    expect(host(fixture).querySelector('.cp-cashback-summary')).toBeNull();
+  });
+
   it('recurso desligado: nada de cashback', () => {
     const { fixture, internals } = create(
       fakeCashbackService({ config: { enabled: false }, wallet: { availableCents: 1240 } }),

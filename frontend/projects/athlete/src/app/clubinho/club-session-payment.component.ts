@@ -97,6 +97,12 @@ function onlyDigits(v: string): string {
                 }
               </div>
 
+              @if (cashbackAppliedReais() > 0) {
+                <div class="cp-cashback-summary">
+                  <span>Cashback <strong class="cp-cashback-discount">&minus;{{ formatBRL(cashbackAppliedReais()) }}</strong></span>
+                </div>
+              }
+
               @if (!pixExpired()) {
                 @if (p.qrCodeBase64) {
                   <img class="cp-qr" [src]="'data:image/png;base64,' + p.qrCodeBase64" alt="QR Code PIX" />

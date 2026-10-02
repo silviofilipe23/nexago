@@ -13,6 +13,7 @@ import {
 } from "./cashback-hold-sweeper";
 import type {AsaasPaymentDetails} from "./asaas-booking-payment";
 import {processArenaBookingAsaasNotification} from "./asaas-arena-booking-webhook";
+import {reverseCashbackForPayment} from "./cashback-reversal";
 
 const NOW = Date.UTC(2026, 9, 1, 13, 0, 0);
 const MIN = 60 * 1000;
@@ -420,35 +421,80 @@ describe("runCashbackHoldSweep — confere o Asaas antes de devolver (C2)", () =
     assert.equal(fake.store.get(`${W}/holds/${holdId}`)!.status, "released");
   });
 
-  it("captura pela varredura e depois o webhook do mesmo pagamento: o saldo é debitado uma vez só", async () => {
-    const {fake, db} = makeDb();
-    seedLot(fake, 1000);
+  function redeemsOf(fake: FakeFirestore): Array<Record<string, unknown>> {
+    return [...fake.store.entries()]
+      .filter(([path, data]) => path.startsWith(`${W}/ledger/`) && data.type === "redeem")
+      .map(([, data]) => data);
+  }
+
+  function seedBooking(fake: FakeFirestore, fields: Record<string, unknown>): void {
     fake.seedDoc("arenas/arena1", {name: "Arena X"});
     fake.seedDoc("arenaBookings/b1", {
       athleteId: UID, arenaId: "arena1", paymentChannel: "pix",
-      // Escrita direta do cliente cancelou a reserva com o PIX vivo; o atleta pagou.
-      status: "cancelled", paymentStatus: "pending",
       amountReais: 100, amountToPayNowReais: 100, amountDueOnsiteReais: 0, paymentFraction: 1,
-      asaasPaymentId: "payA",
+      ...fields,
     });
+  }
+
+  const payAWebhook = (db: Firestore) => processArenaBookingAsaasNotification(
+    db, "payA",
+    {status: "RECEIVED", value: 97, externalReference: "arenaBooking:b1"},
+    db.doc(`${PROCESSED}/payA`) as DocumentReference,
+  );
+
+  it("captura pela varredura e depois o webhook do mesmo pagamento: o saldo é debitado uma vez só", async () => {
+    const {fake, db} = makeDb();
+    seedLot(fake, 1000);
+    // A reserva de saldo foi ligada à payA, mas a gravação da cobrança na
+    // reserva falhou logo depois (arena-booking-pix): o registro não aponta
+    // pra payA, a varredura vai ao Asaas e o Asaas diz pago.
+    seedBooking(fake, {status: "pending_payment", paymentStatus: "pending", asaasPaymentId: null});
     const holdId = await seedHoldOn(db, "arenaBookings/b1", "booking", "payA");
     const {asaas} = stubAsaas({payA: {status: "RECEIVED"}});
 
     await runCashbackHoldSweep(db, "p", NOW, asaas);
     assert.equal(fake.store.get(`${W}/holds/${holdId}`)!.status, "captured");
 
-    await processArenaBookingAsaasNotification(
-      db, "payA",
-      {status: "RECEIVED", value: 97, externalReference: "arenaBooking:b1"},
-      db.doc(`${PROCESSED}/payA`) as DocumentReference,
-    );
+    await payAWebhook(db);
 
     assert.equal(fake.store.get(`${W}/holds/${holdId}`)!.status, "captured");
     assert.equal(fake.store.get(`${W}/lots/l1`)!.remainingCents, 700);
-    const redeems = [...fake.store.entries()]
-      .filter(([path, data]) => path.startsWith(`${W}/ledger/`) && data.type === "redeem");
-    assert.equal(redeems.length, 1);
-    assert.equal(redeems[0][1].amountCents, 300);
-    assert.equal(fake.store.get("arenaBookings/b1")!.amountPaidOnlineReais, 100);
+    assert.equal(redeemsOf(fake).length, 1);
+    assert.equal(redeemsOf(fake)[0].amountCents, 300);
+    const booking = fake.store.get("arenaBookings/b1")!;
+    assert.equal(booking.status, "confirmed");
+    assert.equal(booking.amountPaidOnlineReais, 100);
+  });
+
+  it("reserva cancelada com o PIX vivo e paga: o webhook não confirma, e o estorno devolve o saldo capturado", async () => {
+    const {fake, db} = makeDb();
+    seedLot(fake, 1000);
+    // Escrita direta do cliente cancelou a reserva com o PIX vivo; o atleta pagou.
+    seedBooking(fake, {status: "cancelled", paymentStatus: "pending", asaasPaymentId: "payA"});
+    const holdId = await seedHoldOn(db, "arenaBookings/b1", "booking", "payA");
+    const {asaas} = stubAsaas({payA: {status: "RECEIVED"}});
+
+    await runCashbackHoldSweep(db, "p", NOW, asaas);
+    await payAWebhook(db);
+
+    // Horário já liberado: não confirma, marca pra estorno e não debita de novo.
+    const processed = fake.store.get(`${PROCESSED}/payA`)!;
+    assert.equal(processed.outcome, "paid_after_cancel");
+    assert.equal(processed.refundRequired, true);
+    const booking = fake.store.get("arenaBookings/b1")!;
+    assert.equal(booking.status, "cancelled");
+    assert.equal(booking.amountPaidOnlineReais, undefined);
+    assert.equal(fake.store.get(`${W}/holds/${holdId}`)!.status, "captured");
+    assert.equal(fake.store.get(`${W}/lots/l1`)!.remainingCents, 700);
+    assert.equal(redeemsOf(fake).length, 1);
+
+    // PAYMENT_REFUNDED do estorno pedido: o saldo volta ao lote de origem.
+    await reverseCashbackForPayment(
+      db, db.doc(`${PROCESSED}/payA`) as DocumentReference, "payA", NOW,
+      {externalReference: "arenaBooking:b1"},
+    );
+
+    assert.equal(fake.store.get(`${W}/holds/${holdId}`)!.status, "refunded");
+    assert.equal(fake.store.get(`${W}/lots/l1`)!.remainingCents, 1000);
   });
 });

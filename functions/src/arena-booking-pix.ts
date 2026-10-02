@@ -40,6 +40,7 @@ import {
 import {
   createAsaasPixCharge,
   deleteAsaasPaymentIfOpen,
+  deleteAsaasPaymentOrThrow,
 } from "./asaas-booking-payment";
 import {callerIsOrganizer, callerIsSuperAdmin} from "./auth-roles";
 import {ARENA_BOOKING_PAYMENT_EXPIRY_MINUTES} from "./arena-booking-constants";
@@ -48,9 +49,10 @@ import {
   cashbackIdempotencyKey,
   cashbackResponseFields,
   releaseCashbackHoldQuietly,
+  releaseHoldsOfDeadCharge,
   reserveCashbackForCharge,
 } from "./cashback-checkout";
-import {bookingCashbackLabel, readCashbackApplied} from "./cashback-intent";
+import {bookingCashbackLabel} from "./cashback-intent";
 import {attachHoldPayment} from "./athlete-wallet";
 
 const ARENA_BOOKINGS = "arenaBookings";
@@ -159,13 +161,26 @@ export const createArenaBookingPixPayment = onCall({
     // fallback
   }
 
+  // PIX gerado de novo: a cobrança antiga é apagada (falha segue tolerada,
+  // como sempre foi) e o saldo que ELA reservou volta — só se o Asaas
+  // confirmou a remoção, e achado pelo que o servidor gravou na reserva de
+  // saldo, nunca pelo `cashbackHoldId` desta reserva (gravável pelo dono e
+  // pela arena). Sem prova, a varredura de 5 min confere e devolve.
   const existingAsaasId = (booking.asaasPaymentId as string | undefined)?.trim();
+  let deletedAsaasId: string | null = null;
   if (existingAsaasId) {
-    await deleteAsaasPaymentIfOpen(existingAsaasId);
+    try {
+      await deleteAsaasPaymentOrThrow(existingAsaasId);
+      deletedAsaasId = existingAsaasId;
+    } catch (e) {
+      logger.warn("createArenaBookingPixPayment: cobrança anterior não foi apagada", {
+        bookingId,
+        asaasPaymentId: existingAsaasId,
+        error: String(e),
+      });
+    }
   }
-
-  // PIX gerado de novo: o saldo reservado pela cobrança antiga volta primeiro.
-  await releaseCashbackHoldQuietly(db, callerUid, readCashbackApplied(booking).holdId, Date.now());
+  await releaseHoldsOfDeadCharge(db, callerUid, bookingRef.path, deletedAsaasId, Date.now());
 
   let cpfCnpj: string;
   try {

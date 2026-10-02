@@ -15,7 +15,7 @@ import {
   type OriginalChargeOps,
 } from "./arena-booking-split";
 import {ARENA_BOOKING_PAYMENT_REF_PREFIX} from "./arena-booking-payment-constants";
-import {holdCashback} from "./athlete-wallet";
+import {attachHoldPayment, holdCashback} from "./athlete-wallet";
 
 const HOUR_MS = 60 * 60 * 1000;
 const now = Date.UTC(2026, 6, 25, 12, 0, 0);
@@ -687,6 +687,7 @@ describe("splitArenaBookingPaymentCore", () => {
       uid: "owner1", maxCents: 1500, sourceType: "booking", sourceId: "b1",
       trackingPath: "arenaBookings/b1", label: "Reserva", nowMs: now,
     });
+    await attachHoldPayment(db(fake), "owner1", holdId!, "orig1");
     seedPendingPixBooking(fake, "b1", {
       asaasPaymentId: "orig1", cashbackAppliedCents: 1500, cashbackHoldId: holdId,
     });
@@ -699,6 +700,37 @@ describe("splitArenaBookingPaymentCore", () => {
 
     assert.equal(fake.store.get(`athleteWallets/owner1/holds/${holdId}`)!.status, "released");
     assert.equal(fake.store.get("athleteWallets/owner1/lots/old")!.remainingCents, 2000);
+  });
+
+  it("cashbackHoldId forjado na reserva: a divisão não devolve a reserva de saldo de outra cobrança", async () => {
+    // A reserva de quadra é gravável pelo atleta dono: o id da reserva de
+    // saldo nunca vem dela. Devolver a reserva de outra cobrança ainda viva
+    // deixaria o atleta pagar aquela cobrança com desconto e gastar o saldo de novo.
+    const fake = new FakeFirestore();
+    fake.seedDoc("athleteWallets/owner1/lots/old", {
+      uid: "owner1", sourceType: "booking", sourceId: "b0", tournamentId: null, arenaId: "a1",
+      label: "Reserva", earnedCents: 2000, remainingCents: 2000, status: "available",
+      eventAt: Timestamp.fromMillis(now - 1000), releasedAt: Timestamp.fromMillis(now - 1000),
+      expiresAt: Timestamp.fromMillis(now + 90 * 86_400_000), expiryWarnedAt: null,
+      createdAt: Timestamp.fromMillis(now - 1000),
+    });
+    const {holdId: otherHoldId} = await holdCashback(db(fake), {
+      uid: "owner1", maxCents: 1500, sourceType: "booking", sourceId: "b2",
+      trackingPath: "arenaBookings/b2", label: "Reserva", nowMs: now,
+    });
+    await attachHoldPayment(db(fake), "owner1", otherHoldId!, "payB2");
+    seedPendingPixBooking(fake, "b1", {
+      asaasPaymentId: "orig1", cashbackAppliedCents: 1500, cashbackHoldId: otherHoldId,
+    });
+
+    await splitArenaBookingPaymentCore(
+      db(fake), "owner1", "Dono",
+      {bookingId: "b1", shares: [{athleteId: "a", amountReais: 40}, {athleteId: "b", amountReais: 60}]},
+      stubCreateCharge(), stubOriginalCharge({status: "PENDING"}).ops, now,
+    );
+
+    assert.equal(fake.store.get(`athleteWallets/owner1/holds/${otherHoldId}`)!.status, "open");
+    assert.equal(fake.store.get("athleteWallets/owner1/lots/old")!.remainingCents, 500);
   });
 });
 

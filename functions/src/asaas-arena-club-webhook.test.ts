@@ -269,6 +269,7 @@ describe("processArenaClubSessionAsaasNotification — cashback", () => {
       uid: "uid1", maxCents: 1000, sourceType: "club", sourceId: "club_c1_2026-07-24",
       trackingPath: PARTICIPANT_PATH, label: "Clubinho", nowMs: NOW_MS,
     });
+    await attachHoldPayment(db, "uid1", holdId!, "pay1");
     seedParticipant(fake, {cashbackAppliedCents: 1000, cashbackHoldId: holdId});
 
     await processArenaClubSessionAsaasNotification(
@@ -346,6 +347,7 @@ describe("processArenaClubSessionAsaasNotification — cashback", () => {
       uid: "uid1", maxCents: 1000, sourceType: "club", sourceId: "club_c1_2026-07-24",
       trackingPath: PARTICIPANT_PATH, label: "Clubinho", nowMs: NOW_MS,
     });
+    await attachHoldPayment(db, "uid1", holdId!, "pay1");
     seedParticipant(fake, {
       status: "expired", cashbackAppliedCents: 1000, cashbackHoldId: holdId,
     });

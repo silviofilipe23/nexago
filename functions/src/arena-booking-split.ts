@@ -30,8 +30,7 @@ import {
 } from "./asaas-booking-payment";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
-import {releaseCashbackHoldQuietly} from "./cashback-checkout";
-import {readCashbackApplied} from "./cashback-intent";
+import {releaseHoldsOfDeadCharge} from "./cashback-checkout";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const PAYMENT_SHARES = "paymentShares";
@@ -479,13 +478,11 @@ export async function splitArenaBookingPaymentCore(
     );
   }
 
-  // As cotas não aceitam saldo: o que o PIX da reserva inteira tinha reservado volta.
-  await releaseCashbackHoldQuietly(
-    db,
-    callerUid,
-    readCashbackApplied(booking).holdId,
-    nowMs,
-  );
+  // As cotas não aceitam saldo: o que o PIX da reserva inteira tinha reservado
+  // volta. Chegando aqui a cobrança original está provada morta (cancelada
+  // agora, ou já apagada); a reserva de saldo é achada pelo que o servidor
+  // gravou nela, nunca pelo `cashbackHoldId` desta reserva (gravável pelo dono).
+  await releaseHoldsOfDeadCharge(db, callerUid, bookingRef.path, originalPaymentId, nowMs);
 
   return {bookingId, shareIds, notifications};
 }

@@ -94,10 +94,17 @@ export function readCashbackApplied(
 }
 
 /**
- * Quanto saldo ESTE pagamento usou. O registro da cobrança (pixPending,
- * reserva, participante) é reescrito quando o atleta gera uma cobrança nova:
- * só vale se for da mesma cobrança. Senão, a reserva é achada pelo id do
- * pagamento (gravado por `attachHoldPayment`); sem reserva, nada foi usado.
+ * Quanto saldo ESTE pagamento usou — sempre pela reserva de saldo que o
+ * servidor ligou ao pagamento (`asaasPaymentId`, gravado por
+ * `attachHoldPayment`); sem reserva, nada foi usado.
+ *
+ * O registro da cobrança (pixPending, reserva, participante) NUNCA decide: a
+ * reserva de quadra é gravável pelo atleta dono e pela equipe da arena, e um
+ * `cashbackAppliedCents` forjado faria a arena receber como pago um saldo que
+ * nunca existiu; um `cashbackHoldId` forjado faria a captura e o estorno
+ * mexerem na reserva de outra cobrança. O registro só serve para logar
+ * divergência. O uid continua vindo do chamador (forjá-lo só desvia o ganho
+ * do próprio pagamento).
  */
 export async function resolveCashbackForPayment(
   db: Firestore,
@@ -105,22 +112,36 @@ export async function resolveCashbackForPayment(
   paymentId: string,
   tracking: Record<string, unknown> | undefined,
 ): Promise<{appliedCents: number; holdId: string | null}> {
-  if (typeof tracking?.asaasPaymentId === "string" && tracking.asaasPaymentId.trim() === paymentId) {
-    return readCashbackApplied(tracking);
+  let resolved: {appliedCents: number; holdId: string | null} = {appliedCents: 0, holdId: null};
+  if (uid) {
+    const snap = await athleteWalletRef(db, uid)
+      .collection("holds")
+      .where("asaasPaymentId", "==", paymentId)
+      .limit(1)
+      .get();
+    if (!snap.empty) {
+      const doc = snap.docs[0];
+      const data = doc.data() ?? {};
+      resolved = {
+        appliedCents: Math.max(0, Math.round(Number(data.amountCents)) || 0),
+        holdId: doc.id,
+      };
+    }
   }
-  if (!uid) return {appliedCents: 0, holdId: null};
-  const snap = await athleteWalletRef(db, uid)
-    .collection("holds")
-    .where("asaasPaymentId", "==", paymentId)
-    .limit(1)
-    .get();
-  if (snap.empty) return {appliedCents: 0, holdId: null};
-  const doc = snap.docs[0];
-  const data = doc.data() ?? {};
-  return {
-    appliedCents: Math.max(0, Math.round(Number(data.amountCents)) || 0),
-    holdId: doc.id,
-  };
+  if (typeof tracking?.asaasPaymentId === "string" && tracking.asaasPaymentId.trim() === paymentId) {
+    const claimed = readCashbackApplied(tracking);
+    if (claimed.appliedCents !== resolved.appliedCents || claimed.holdId !== resolved.holdId) {
+      logger.warn("cashback: registro da cobrança diverge da reserva de saldo — vale a reserva", {
+        paymentId,
+        uid,
+        claimedAppliedCents: claimed.appliedCents,
+        claimedHoldId: claimed.holdId,
+        appliedCents: resolved.appliedCents,
+        holdId: resolved.holdId,
+      });
+    }
+  }
+  return resolved;
 }
 
 export function registrationCashbackLabel(tournamentName: string): string {

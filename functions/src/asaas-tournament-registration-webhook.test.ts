@@ -352,6 +352,7 @@ describe("asaas-tournament-registration-webhook: cashback", () => {
       uid: "uidA", maxCents: 1000, sourceType: "registration", sourceId: REG_ID,
       trackingPath: PENDING_A, label: "Inscrição · Copa Teste", nowMs: NOW_MS,
     });
+    await attachHoldPayment(db, "uidA", holdId!, "pay1");
     fake.seedDoc(PENDING_A, {
       status: "pending", amountType: "share", asaasPaymentId: "pay1", payerUid: "uidA",
       cashbackAppliedCents: 1000, cashbackHoldId: holdId,
@@ -427,6 +428,7 @@ describe("asaas-tournament-registration-webhook: cashback", () => {
       uid: "uidA", maxCents: 1000, sourceType: "registration", sourceId: REG_ID,
       trackingPath: PENDING_A, label: "Inscrição · Copa Teste", nowMs: NOW_MS,
     });
+    await attachHoldPayment(db, "uidA", holdId!, "pay1");
     fake.seedDoc(PENDING_A, {
       status: "pending", amountType: "share", asaasPaymentId: "pay1", payerUid: "uidA",
       cashbackAppliedCents: 1000, cashbackHoldId: holdId,
@@ -532,6 +534,7 @@ describe("asaas-tournament-registration-webhook: cashback", () => {
       uid: "uidA", maxCents: 1000, sourceType: "registration", sourceId: REG_ID,
       trackingPath: PENDING_A, label: "Inscrição · Copa Teste", nowMs: NOW_MS,
     });
+    await attachHoldPayment(db, "uidA", holdId!, "pay1");
     fake.seedDoc(PENDING_A, {
       status: "pending", amountType: "share", asaasPaymentId: "pay1", payerUid: "uidA",
       cashbackAppliedCents: 1000, cashbackHoldId: holdId,

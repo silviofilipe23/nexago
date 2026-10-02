@@ -8,7 +8,8 @@ import {
   processArenaBookingShareAsaasNotification,
 } from "./asaas-arena-booking-webhook";
 import {ARENA_BOOKING_PAYMENT_REF_PREFIX} from "./arena-booking-payment-constants";
-import {attachHoldPayment, holdCashback} from "./athlete-wallet";
+import {attachHoldPayment, captureHold, holdCashback} from "./athlete-wallet";
+import {reverseCashbackForPayment} from "./cashback-reversal";
 
 const BOOKING_PATH = "arenaBookings/b1";
 const PROCESSED_PATH = "artifacts/p/public/data/asaas_processed_payments/orig1";
@@ -234,6 +235,7 @@ describe("processArenaBookingAsaasNotification — cashback", () => {
       uid: "owner1", maxCents: 2000, sourceType: "booking", sourceId: "b1",
       trackingPath: BOOKING_PATH, label: "Reserva", nowMs: NOW_MS,
     });
+    await attachHoldPayment(db, "owner1", holdId!, "orig1");
     fake.seedDoc(BOOKING_PATH, {
       ...fake.store.get(BOOKING_PATH)!, cashbackAppliedCents: 2000, cashbackHoldId: holdId,
     });
@@ -353,5 +355,68 @@ describe("processArenaBookingAsaasNotification — cashback", () => {
     assert.equal(booking.cashbackAppliedReais, 10);
     assert.equal(fake.store.get(`athleteWallets/owner1/holds/${holdOldId}`)!.status, "captured");
     assert.equal(fake.store.get(`athleteWallets/owner1/holds/${holdNewId}`)!.status, "open");
+  });
+
+  // C1: a reserva de quadra é gravável pelo atleta dono e pela equipe da
+  // arena — saldo aplicado e reserva NUNCA vêm dela, só da reserva do servidor.
+  it("cashbackAppliedCents forjado sem reserva de saldo: arena recebe só o que o Asaas recebeu", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake, {amountReais: 120, amountToPayNowReais: 120, cashbackAppliedCents: 11500});
+
+    await processArenaBookingAsaasNotification(
+      db, "orig1", bookingPayment("RECEIVED", 5), processedRefOf(db),
+    );
+
+    const booking = fake.store.get(BOOKING_PATH)!;
+    assert.equal(booking.amountPaidOnlineReais, 5);
+    assert.equal(booking.amountDueOnsiteReais, 115);
+    assert.equal(booking.paymentStatus, "partial");
+    assert.equal(booking.cashbackAppliedReais, 0);
+    const credit = arenaLedger(fake).find((e) => e.type === "credit")!;
+    assert.equal(credit.grossReais, 5);
+    assert.equal(credit.cashbackAppliedReais ?? 0, 0);
+  });
+
+  it("cashbackHoldId forjado apontando pra reserva aberta de outra cobrança: não a captura", async () => {
+    const {fake, db} = makeDb();
+    seedSpendableLot(fake, 3000);
+    const {holdId: otherHoldId} = await holdCashback(db, {
+      uid: "owner1", maxCents: 2000, sourceType: "booking", sourceId: "b2",
+      trackingPath: "arenaBookings/b2", label: "Reserva", nowMs: NOW_MS,
+    });
+    await attachHoldPayment(db, "owner1", otherHoldId!, "payOther");
+    seedPendingBooking(fake, {cashbackAppliedCents: 2000, cashbackHoldId: otherHoldId});
+
+    await processArenaBookingAsaasNotification(
+      db, "orig1", bookingPayment("RECEIVED", 100), processedRefOf(db),
+    );
+
+    assert.equal(fake.store.get(`athleteWallets/owner1/holds/${otherHoldId}`)!.status, "open");
+    assert.equal(fake.store.get(BOOKING_PATH)!.cashbackAppliedReais, 0);
+    const intent = fake.store.get(PROCESSED_PATH)!.cashback as {holdId?: unknown} | undefined;
+    assert.equal(intent?.holdId ?? null, null);
+  });
+
+  it("cashbackHoldId forjado apontando pra reserva já capturada: o estorno deste pagamento não a devolve", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("appConfig/cashback", {enabled: true});
+    seedSpendableLot(fake, 3000);
+    const {holdId: otherHoldId} = await holdCashback(db, {
+      uid: "owner1", maxCents: 2000, sourceType: "booking", sourceId: "b2",
+      trackingPath: "arenaBookings/b2", label: "Reserva", nowMs: NOW_MS,
+    });
+    await attachHoldPayment(db, "owner1", otherHoldId!, "payOther");
+    await captureHold(db, "owner1", otherHoldId!, NOW_MS);
+    seedPendingBooking(fake, {cashbackAppliedCents: 2000, cashbackHoldId: otherHoldId});
+
+    await processArenaBookingAsaasNotification(
+      db, "orig1", bookingPayment("RECEIVED", 100), processedRefOf(db),
+    );
+    // PAYMENT_REFUNDED deste pagamento (o roteador chama o estorno).
+    await reverseCashbackForPayment(db, processedRefOf(db), "orig1", NOW_MS);
+
+    assert.equal(fake.store.get(`athleteWallets/owner1/holds/${otherHoldId}`)!.status, "captured");
+    assert.equal(fake.store.get("athleteWallets/owner1/lots/old")!.remainingCents, 1000);
+    assert.equal(fake.store.get("athleteWallets/owner1/lots/orig1")!.status, "cancelled");
   });
 });

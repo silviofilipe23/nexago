@@ -17,6 +17,7 @@ import {
   cashbackIdempotencyKey,
   cashbackResponseFields,
   releaseCashbackHoldQuietly,
+  releaseHoldsOfDeadCharge,
   reserveCashbackForCharge,
 } from "./cashback-checkout";
 
@@ -93,12 +94,35 @@ describe("readCashbackApplied", () => {
 });
 
 describe("resolveCashbackForPayment", () => {
-  it("tracking da mesma cobrança usa os campos gravados nela", async () => {
+  it("tracking da mesma cobrança com campos forjados e sem reserva: nada aplicado", async () => {
+    // A reserva de quadra é gravável pelo atleta dono e pela equipe da arena:
+    // os números do registro nunca valem — só a reserva do servidor.
     const {db} = makeDb();
     const result = await resolveCashbackForPayment(db, UID, "pay1", {
-      asaasPaymentId: "pay1", cashbackAppliedCents: 500, cashbackHoldId: "h1",
+      asaasPaymentId: "pay1", cashbackAppliedCents: 11500, cashbackHoldId: "h1",
     });
-    assert.deepEqual(result, {appliedCents: 500, holdId: "h1"});
+    assert.deepEqual(result, {appliedCents: 0, holdId: null});
+  });
+
+  it("tracking da mesma cobrança: vale a reserva do servidor, não os campos do registro", async () => {
+    const {fake, db} = makeDb();
+    seedAvailable(fake, "l1", 2000);
+    const {holdId} = await holdCashback(db, {
+      uid: UID, maxCents: 1000, sourceType: "booking", sourceId: "b1",
+      trackingPath: "arenaBookings/b1", label: "Reserva", nowMs: NOW,
+    });
+    await attachHoldPayment(db, UID, holdId!, "pay1");
+    // Outra reserva do mesmo atleta, de outra cobrança: o registro forjado aponta pra ela.
+    const {holdId: otherHoldId} = await holdCashback(db, {
+      uid: UID, maxCents: 500, sourceType: "booking", sourceId: "b2",
+      trackingPath: "arenaBookings/b2", label: "Reserva", nowMs: NOW,
+    });
+    await attachHoldPayment(db, UID, otherHoldId!, "payOther");
+
+    const result = await resolveCashbackForPayment(db, UID, "pay1", {
+      asaasPaymentId: "pay1", cashbackAppliedCents: 9000, cashbackHoldId: otherHoldId,
+    });
+    assert.deepEqual(result, {appliedCents: 1000, holdId});
   });
 
   it("tracking de outra cobrança: acha a reserva pelo id do pagamento", async () => {
@@ -229,6 +253,35 @@ describe("releaseCashbackHoldQuietly / cashbackIdempotencyKey", () => {
     await releaseCashbackHoldQuietly(db, UID, null, NOW);
     await releaseCashbackHoldQuietly(db, UID, holdId, NOW);
     assert.equal(fake.store.get(`${W}/holds/${holdId}`)!.status, "released");
+  });
+
+  it("releaseHoldsOfDeadCharge: devolve só a reserva que o servidor ligou a esta cobrança e a este registro", async () => {
+    const {fake, db} = makeDb();
+    seedAvailable(fake, "l1", 3000);
+    // Reserva de outra quadra, com cobrança viva — é pra ela que um
+    // `cashbackHoldId` forjado na reserva b1 apontaria.
+    const {holdId: otherHoldId} = await holdCashback(db, {
+      uid: UID, maxCents: 1000, sourceType: "booking", sourceId: "b2",
+      trackingPath: "arenaBookings/b2", label: "Reserva", nowMs: NOW,
+    });
+    await attachHoldPayment(db, UID, otherHoldId!, "payB2");
+    const {holdId} = await holdCashback(db, {
+      uid: UID, maxCents: 500, sourceType: "booking", sourceId: "b1",
+      trackingPath: "arenaBookings/b1", label: "Reserva", nowMs: NOW,
+    });
+    await attachHoldPayment(db, UID, holdId!, "payB1");
+
+    // Cobrança "morta" que não é desta reserva (asaasPaymentId forjado na b1).
+    await releaseHoldsOfDeadCharge(db, UID, "arenaBookings/b1", "payB2", NOW);
+    assert.equal(fake.store.get(`${W}/holds/${otherHoldId}`)!.status, "open");
+    assert.equal(fake.store.get(`${W}/holds/${holdId}`)!.status, "open");
+
+    await releaseHoldsOfDeadCharge(db, UID, "arenaBookings/b1", null, NOW);
+    assert.equal(fake.store.get(`${W}/holds/${holdId}`)!.status, "open");
+
+    await releaseHoldsOfDeadCharge(db, UID, "arenaBookings/b1", "payB1", NOW);
+    assert.equal(fake.store.get(`${W}/holds/${holdId}`)!.status, "released");
+    assert.equal(fake.store.get(`${W}/holds/${otherHoldId}`)!.status, "open");
   });
 
   it("muda a chave só quando há saldo aplicado", () => {

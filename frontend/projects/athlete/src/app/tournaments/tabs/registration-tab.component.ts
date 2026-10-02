@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { tournamentCoverOrDefault } from '@nexago/tournament-covers';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
@@ -35,6 +35,7 @@ import {
 import { campaignShareDataOf, type CampaignShareData } from '../campaign/campaign-share';
 import { CampaignShareDialogComponent } from '../campaign/campaign-share-dialog.component';
 import { RegistrationShareDialogComponent } from '../registration/registration-share-dialog.component';
+import { CashbackEarnedNoteComponent } from '../../cashback/cashback-earned-note.component';
 import { TournamentLiveStore } from '../tournament-live.store';
 import { registrationRosterView } from './registration-roster-cta';
 import {
@@ -172,6 +173,7 @@ export const REFUND_PENDING_NOTICE =
     RegistrationShareDialogComponent,
     CampaignShareDialogComponent,
     SubstitutionDialogComponent,
+    CashbackEarnedNoteComponent,
   ],
   templateUrl: './registration-tab.component.html',
   styleUrl: './registration-tab.component.scss',
@@ -180,10 +182,20 @@ export const REFUND_PENDING_NOTICE =
 export class RegistrationTabComponent {
   private readonly auth = inject(AuthService);
   private readonly toasts = inject(NxToastService);
+  private readonly router = inject(Router);
   protected readonly store = inject(TournamentLiveStore);
 
   protected readonly cancelTarget = signal<RegistrationCard | null>(null);
   protected readonly cancelling = signal(false);
+
+  /** Id da cobrança que acabou de confirmar, lido do `state` da navegação que o checkout de
+   *  pagamento faz ao redirecionar pra cá (Ruling 4 do review final): o lote de cashback nasce
+   *  um instante depois do webhook, então essa tela não tem como saber o id sozinha.
+   *  `getCurrentNavigation()` só existe DURANTE a navegação que criou este componente; depois
+   *  dela (e também se a tela for recriada sem passar por aqui), cai no `history.state` que o
+   *  próprio `Router.navigate({ state })` grava — por isso o fallback. Sem id (F5 nesta aba,
+   *  link direto): nada de novo aparece aqui, mas o saldo creditado segue em "Meu cashback". */
+  protected readonly cashbackPaymentId = signal<string | null>(this.resolveCashbackPaymentId());
 
   protected readonly cards = computed<RegistrationCard[]>(() => {
     const t = this.store.tournament();
@@ -717,6 +729,16 @@ export class RegistrationTabComponent {
     if (slot.jerseyNumber != null) parts.push(`Nº ${slot.jerseyNumber}`);
     if (slot.jerseyName) parts.push(slot.jerseyName);
     return parts.length > 0 ? parts.join(' · ') : null;
+  }
+
+  /** Ver o comentário de `cashbackPaymentId`: navegação em curso primeiro, `history.state` como
+   *  fallback (é o que sobra depois que a navegação termina). */
+  private resolveCashbackPaymentId(): string | null {
+    const fromNav = this.router.getCurrentNavigation()?.extras.state?.['cashbackPaymentId'];
+    if (typeof fromNav === 'string' && fromNav.length > 0) return fromNav;
+    const historyState = history.state as Record<string, unknown> | null | undefined;
+    const fromHistory = historyState?.['cashbackPaymentId'];
+    return typeof fromHistory === 'string' && fromHistory.length > 0 ? fromHistory : null;
   }
 }
 

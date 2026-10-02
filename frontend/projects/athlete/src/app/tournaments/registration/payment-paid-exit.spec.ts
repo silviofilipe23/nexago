@@ -54,7 +54,10 @@ describe('TournamentPaymentComponent — saída depois do pagamento', () => {
   const firebase = environment.firebase as { apiKey: string };
   let realApiKey: string;
 
-  function create(): { onRegistrationUpdate(snap: AthleteTournamentRegistration | null): void } {
+  function create(): {
+    onRegistrationUpdate(snap: AthleteTournamentRegistration | null): void;
+    lastChargePaymentId: { set(id: string | null): void };
+  } {
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
@@ -82,6 +85,7 @@ describe('TournamentPaymentComponent — saída depois do pagamento', () => {
     const fixture = TestBed.createComponent(TournamentPaymentComponent);
     return fixture.componentInstance as unknown as {
       onRegistrationUpdate(snap: AthleteTournamentRegistration | null): void;
+      lastChargePaymentId: { set(id: string | null): void };
     };
   }
 
@@ -104,6 +108,20 @@ describe('TournamentPaymentComponent — saída depois do pagamento', () => {
     jasmine.clock().tick(3000);
 
     expect(navigate.calls.mostRecent().args[0]).toEqual(['/torneios', 't1', 'minha-inscricao']);
+  });
+
+  // O lote de cashback nasce logo depois do webhook — sem o id no state da navegação, a aba
+  // "Minha inscrição" não acha o lote e a nota de "+R$ X pendente" nunca aparece lá (Ruling 4).
+  it('leva o id da última cobrança no state da navegação, para a nota de cashback achar o lote', () => {
+    const component = create();
+    component.lastChargePaymentId.set('pay_9');
+    component.onRegistrationUpdate(registration({ isPaid: false }));
+    component.onRegistrationUpdate(registration({ isPaid: true }));
+    jasmine.clock().tick(3000);
+
+    expect(navigate.calls.mostRecent().args[1]).toEqual(
+      jasmine.objectContaining({ state: { cashbackPaymentId: 'pay_9' } }),
+    );
   });
 
   // Solo que pagou o integral ainda deve o parceiro: o fluxo NÃO acabou, e a tela já convida a

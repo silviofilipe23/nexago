@@ -520,7 +520,12 @@ export class TournamentPaymentComponent {
     this.paidRedirectArmed = true;
     const tournamentId = this.tournamentId();
     this.paidRedirectTimer = setTimeout(() => {
-      void this.router.navigate(['/torneios', tournamentId, 'minha-inscricao'], { replaceUrl: true });
+      // O lote de cashback nasce logo depois do webhook — sem o id no state, a aba "Minha
+      // inscrição" não tem como achar o lote e a nota de "+R$ X pendente" nunca aparece lá.
+      void this.router.navigate(['/torneios', tournamentId, 'minha-inscricao'], {
+        replaceUrl: true,
+        state: { cashbackPaymentId: this.lastChargePaymentId() },
+      });
     }, PAID_REVEAL_MS);
   }
 

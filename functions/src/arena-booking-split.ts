@@ -20,6 +20,10 @@ import {getAuth} from "firebase-admin/auth";
 import * as logger from "firebase-functions/logger";
 import {roundMoney, PLATFORM_FEE_FIXED_BRL} from "./mercadopago-arena-helpers";
 import {ARENA_BOOKING_SHARE_PAYMENT_REF_PREFIX} from "./arena-booking-payment-constants";
+import {
+  readArenaBookingServerAmountReais,
+  resolveArenaBookingChargeAmounts,
+} from "./arena-booking-pricing";
 import {asaasArenaSecrets, AsaasApiError} from "./asaas-client";
 import {getOrCreateAsaasCustomer, resolveAthleteCpfCnpj} from "./asaas-customer";
 import {
@@ -240,8 +244,13 @@ export async function splitArenaBookingPaymentCore(
     );
   }
 
-  const expectedTotal = Number(booking.amountToPayNowReais) || 0;
-  if (expectedTotal <= 0) {
+  // Soma das fatias = total do servidor × fração, não o `amountToPayNowReais`
+  // do doc (o dono já conseguiu reescrevê-lo pelo cliente).
+  const {amountToPayNowReais: expectedTotal} = resolveArenaBookingChargeAmounts({
+    serverAmountReais: await readArenaBookingServerAmountReais(db, bookingId),
+    booking,
+  });
+  if (!Number.isFinite(expectedTotal) || expectedTotal <= 0) {
     throw new HttpsError("failed-precondition", "Reserva sem valor pendente para dividir.");
   }
 

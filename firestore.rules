@@ -1504,6 +1504,75 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ---- arenaBookings: o que cada papel grava direto do cliente ----------
+    // Antes, dono e equipe gravavam QUALQUER campo: o atleta reescrevia
+    // `amountReais`/`status` da própria reserva `pending_payment` e saía com um
+    // PIX de R$ 1 (createArenaBookingPixPayment lia o valor do doc) ou com a
+    // reserva confirmada sem pagar. Mapa das escritas diretas (out/2026) — o
+    // resto (criação, valores, pagamento, ids do Asaas, data/horário/quadra,
+    // no-show) é só Cloud Function (Admin SDK, não passa por aqui):
+    //  - dono: app `BookingService.cancelBooking/confirmAttendance/checkIn` e
+    //    portal do atleta `cancelBooking` (arena-bookings-repository.ts);
+    //  - equipe (`agenda`): app `BookingService.*ByArenaManager` + `checkIn`, e
+    //    portal da arena `bookings-repository.ts` — cancelar, desfazer (60s),
+    //    check-in;
+    //  - convidado: app `BookingInviteService.acceptInvite` (participação).
+    // Todos são update parcial; os valores só são checados quando o campo
+    // MUDA (affectedKeys), então reenviar o mesmo valor não derruba o save.
+    function arenaBookingOwnerUpdateOk() {
+      let after = request.resource.data;
+      let keys = after.diff(resource.data).affectedKeys();
+      return keys.hasOnly([
+          'status', 'attendanceStatus', 'canceledAt',
+          'attendanceConfirmed', 'attendanceConfirmedAt',
+          'checkedInAt', 'locationVerified'
+        ]) &&
+        // Só cancela: nunca confirma reserva pendente de pagamento nem
+        // "descancela" (o trigger de slot-release recriaria os locks).
+        (!keys.hasAny(['status']) || after.status == 'canceled') &&
+        (!keys.hasAny(['attendanceStatus']) ||
+          after.attendanceStatus in ['canceled', 'confirmed', 'checked_in']) &&
+        (!keys.hasAny(['attendanceConfirmed']) || after.attendanceConfirmed == true) &&
+        (!keys.hasAny(['canceledAt']) || after.canceledAt == request.time) &&
+        (!keys.hasAny(['attendanceConfirmedAt']) || after.attendanceConfirmedAt == request.time) &&
+        (!keys.hasAny(['checkedInAt']) || after.checkedInAt == request.time) &&
+        (!keys.hasAny(['locationVerified']) || after.locationVerified is bool);
+    }
+    function arenaBookingStaffUpdateOk() {
+      let before = resource.data;
+      let after = request.resource.data;
+      let keys = after.diff(before).affectedKeys();
+      return keys.hasOnly([
+          'status', 'attendanceStatus', 'canceledAt', 'canceledByRole',
+          'cancelReason', 'statusBeforeCancel', 'attendanceStatusBeforeCancel',
+          'checkedInAt', 'locationVerified'
+        ]) &&
+        // Cancelar, ou desfazer voltando EXATAMENTE ao status guardado no
+        // cancelamento (sem ele, 'active' — o default dos dois clientes): a
+        // equipe não confirma por aqui reserva que ainda espera o PIX.
+        (!keys.hasAny(['status']) ||
+          after.status == 'canceled' ||
+          (before.get('status', '') in ['canceled', 'cancelled'] &&
+            after.status == before.get('statusBeforeCancel', 'active'))) &&
+        // O snapshot é o status de antes do cancelamento, e só sai junto com
+        // o desfazer — senão "cancelar, apagar o snapshot, desfazer" lavaria
+        // `pending_payment` em `active`.
+        (!keys.hasAny(['statusBeforeCancel']) ||
+          after.get('statusBeforeCancel', null) == before.get('status', 'active') ||
+          (!('statusBeforeCancel' in after) && keys.hasAny(['status'])));
+    }
+    // Convidado aceitando convite (bookingInvites): +1 participante e o par
+    // guestAthleteId/Name apontando pra si — nunca pra outro atleta.
+    function arenaBookingGuestUpdateOk() {
+      let before = resource.data;
+      let after = request.resource.data;
+      let keys = after.diff(before).affectedKeys();
+      return keys.hasOnly(['confirmedParticipants', 'guestAthleteId', 'guestAthleteName']) &&
+        (!keys.hasAny(['confirmedParticipants']) ||
+          after.confirmedParticipants == before.get('confirmedParticipants', 0) + 1) &&
+        (!keys.hasAny(['guestAthleteId', 'guestAthleteName']) ||
+          after.get('guestAthleteId', null) == request.auth.uid);
+    }
     match /arenaBookings/{bookingId} {
       // Leitura autenticada ampla: o preview do convite compartilhado
       // (/convite/:inviteId) relê a reserva ANTES de o convidado ter vínculo
@@ -1515,14 +1584,11 @@ service cloud.firestore {
         arenaCanWrite(request.resource.data.arenaId, 'agenda')
       );
       allow update: if request.auth != null && (
-        resource.data.athleteId == request.auth.uid ||
-        arenaCanWrite(resource.data.arenaId, 'agenda') ||
+        (resource.data.get('athleteId', null) == request.auth.uid &&
+          arenaBookingOwnerUpdateOk()) ||
+        arenaBookingGuestUpdateOk() ||
         isSuperAdmin() ||
-        // Convidado aceitando convite de reserva (bookingInvites): só pode
-        // tocar os campos de participação — nunca status/pagamento.
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-          ['confirmedParticipants', 'guestAthleteId', 'guestAthleteName']
-        )
+        (arenaCanWrite(resource.data.arenaId, 'agenda') && arenaBookingStaffUpdateOk())
       );
       allow delete: if false;
 
@@ -1538,6 +1604,14 @@ service cloud.firestore {
         );
         allow write: if false;
       }
+    }
+
+    // Total da reserva gravado por createArenaBooking (Admin SDK) no mesmo
+    // commit da reserva: é dele que o PIX, a divisão em fatias e o webhook
+    // partem para cobrar — não de `amountReais` do doc da reserva. Nenhum
+    // cliente lê nem escreve.
+    match /arenaBookingPricing/{bookingId} {
+      allow read, write: if false;
     }
 
     // Lista de espera de horário de quadra lotado (domínio distinto da lista

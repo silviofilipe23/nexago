@@ -9,6 +9,7 @@ import {
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {ARENA_BOOKING_PAYMENT_REF_PREFIX} from "./arena-booking-payment-constants";
+import {readArenaBookingServerAmountReais} from "./arena-booking-pricing";
 import {creditArenaWalletFromBooking} from "./arena-wallet";
 import {roundMoney} from "./mercadopago-arena-helpers";
 import {resolveArenaBookingFeePercent} from "./arena-entitlement";
@@ -168,7 +169,11 @@ export async function processArenaBookingAsaasNotification(
       return;
     }
 
-    const totalReais = Number(booking.amountReais) || 0;
+    // Total do servidor: com `amountReais` adulterado no doc, o sinal de 50%
+    // fecharia como "pago" e a arena não cobraria o resto no local.
+    const totalReais =
+      (await readArenaBookingServerAmountReais(db, bookingId)) ??
+      (Number(booking.amountReais) || 0);
     const fraction = Number(booking.paymentFraction) || 1;
     const paidOnline = roundMoney(amount);
     const dueOnsite = roundMoney(Math.max(0, totalReais - paidOnline));

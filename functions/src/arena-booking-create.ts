@@ -18,6 +18,7 @@ import {
   roundMoney,
 } from "./mercadopago-arena-helpers";
 import {ARENA_BOOKING_PAYMENT_EXPIRY_MINUTES} from "./arena-booking-constants";
+import {ARENA_BOOKING_PRICING} from "./arena-booking-pricing";
 import {
   resolveCouponForBooking,
   reserveCouponRedemptionInTransaction,
@@ -455,6 +456,15 @@ export const createArenaBooking = onCall({
       });
 
       commitCouponRedemption?.();
+
+      // Cópia do total fora do alcance dos clientes: é dela que o PIX, a
+      // divisão em fatias e o webhook partem (ver arena-booking-pricing.ts).
+      transaction.set(db.collection(ARENA_BOOKING_PRICING).doc(bookingId), {
+        arenaId,
+        athleteId,
+        amountReais,
+        createdAt: FieldValue.serverTimestamp(),
+      });
 
       transaction.set(slotRef, {
         arenaId,

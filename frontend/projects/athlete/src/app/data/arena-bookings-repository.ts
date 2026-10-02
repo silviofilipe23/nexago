@@ -306,7 +306,8 @@ export async function cancelPendingBookingPayment(functions: Functions, bookingI
 }
 
 /** Cancela a reserva do atleta dono — espelha `BookingService.cancelBooking` (Flutter):
- *  write direto (rules permitem update de `arenaBookings` quando `athleteId == request.auth.uid`). */
+ *  write direto, dentro da allow-list do dono em `arenaBookings` (firestore.rules,
+ *  `arenaBookingOwnerUpdateOk`). Campo novo neste payload precisa entrar lá antes. */
 export async function cancelBooking(db: Firestore, bookingId: string, athleteId: string): Promise<void> {
   const id = bookingId.trim();
   const uid = athleteId.trim();

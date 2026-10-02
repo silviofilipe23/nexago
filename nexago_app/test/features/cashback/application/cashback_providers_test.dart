@@ -176,6 +176,21 @@ void main() {
     expect(container.read(cashbackEnabledProvider), isFalse);
   });
 
+  test('pílula: desligado não abre o stream da carteira (Minor 3)', () async {
+    final repo = _FakeCashbackRepository(
+      config: CashbackConfig.fallback,
+      wallet: const CashbackWallet(availableCents: 1000),
+    );
+    final container = _container(uid: 'u1', repo: repo);
+
+    container.listen(cashbackPillCentsProvider, (_, _) {});
+    await _valueOf(container, cashbackConfigProvider);
+
+    expect(container.read(cashbackPillCentsProvider), isNull);
+    // Só o `config` foi lido — nenhum `watchWallet` aconteceu.
+    expect(repo.calls, ['config']);
+  });
+
   test('checkout: contexto com a config e o disponível', () async {
     final container = _container(
       uid: 'u1',

@@ -51,7 +51,12 @@ final cashbackLotProvider =
 
 /// Valor da pílula da home; `null` = escondida (desligado, sem saldo ou
 /// carregando).
+///
+/// Com a flag desligada nem abre o stream de `athleteWallets/{uid}`: o
+/// `return` sai antes do `ref.watch(cashbackWalletProvider)` — ele nunca é
+/// lido nesta build, então não há assinatura pra manter viva.
 final cashbackPillCentsProvider = Provider.autoDispose<int?>((ref) {
+  if (!ref.watch(cashbackEnabledProvider)) return null;
   return cashbackPillCents(
     config: ref.watch(cashbackConfigProvider).valueOrNull,
     wallet: ref.watch(cashbackWalletProvider).valueOrNull,

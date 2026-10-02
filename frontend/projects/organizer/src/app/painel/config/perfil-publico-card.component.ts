@@ -188,7 +188,9 @@ interface PendingCover {
       margin: -6px 0 12px;
     }
     .og-pp-bio {
-      margin: 14px 0 2px;
+      margin: 14px 0 0;
+      padding-bottom: 13px;
+      border-bottom: 1px solid var(--nx-line);
       font-family: var(--nx-font-ui);
       font-size: 13.5px;
       line-height: 1.55;

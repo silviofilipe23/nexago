@@ -99,6 +99,7 @@ import {REGISTRATION_HOLD_REVERT_GRACE_MINUTES} from
 import {registrationHoldClearedFields} from
   "./tournament-registration-hold-ops";
 import {tournamentSportToLevelSportCode} from "./category-level-eligibility";
+import {tournamentRegistrationPaymentPath} from "./organizer-create-registration-core";
 import {
   fieldStrengthDocId,
   fieldStrengthPath,
@@ -1571,11 +1572,11 @@ export const resendRegistrationPayment = onCall({
     );
   }
 
-  const paymentPath =
-    `/torneios/${tournamentId}/inscricao` +
-    `?registrationId=${encodeURIComponent(registrationId)}` +
-    (categoryId ? `&categoryId=${encodeURIComponent(categoryId)}` : "") +
-    "&step=payment";
+  const paymentPath = tournamentRegistrationPaymentPath({
+    tournamentId,
+    registrationId,
+    categoryId,
+  });
 
   await Promise.all(
     pendingUids.map((athleteUid) =>

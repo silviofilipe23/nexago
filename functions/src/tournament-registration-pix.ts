@@ -70,6 +70,7 @@ import {
 } from "./cashback-checkout";
 import {registrationCashbackLabel} from "./cashback-intent";
 import {attachHoldPayment} from "./athlete-wallet";
+import {isOrganizerRegistered} from "./organizer-create-registration-core";
 
 const pixPaymentSecrets = [...asaasArenaSecrets, PLATFORM_FEE_FIXED_BRL];
 
@@ -240,15 +241,20 @@ async function prepareRegistrationCharge(
   const teamId = registration.teamId as string;
   const tournamentId = registration.tournamentId as string;
   const categoryId = registration.categoryId as string;
+  // Inscrita pelo organizador: o prazo do torneio não vale para pagá-la.
+  const organizerRegistered = isOrganizerRegistered(registration);
 
   const tournamentData = await assertTournamentAcceptsRegistration(
     db,
     projectId,
     tournamentId,
     categoryId,
-    // Esta inscrição já ocupa vaga: contá-la contra si mesma jogaria na fila
-    // justamente quem está confirmando a vaga que já é dele.
-    {occupancyExcludesRegistrationId: registrationId},
+    {
+      // Esta inscrição já ocupa vaga: contá-la contra si mesma jogaria na fila
+      // justamente quem está confirmando a vaga que já é dele.
+      occupancyExcludesRegistrationId: registrationId,
+      allowClosedRegistration: organizerRegistered,
+    },
   );
 
   if (isDirectWithOrganizerPaymentMode(tournamentData.paymentMode)) {
@@ -339,7 +345,11 @@ async function prepareRegistrationCharge(
     holdExpiresAtMs: shouldWaitlist ?
       null :
       timestampMs(registration.holdExpiresAt),
-    registrationClosesAtMs: timestampMs(tournamentData.registrationClosesAt),
+    // Inscrita pelo organizador: o fim das inscrições não é teto da cobrança —
+    // depois dele, o teto mataria toda cobrança antes de nascer.
+    registrationClosesAtMs: organizerRegistered ?
+      null :
+      timestampMs(tournamentData.registrationClosesAt),
   });
   // Decidido ANTES de matar a cobrança anterior: sem tempo para uma nova, o QR
   // que o atleta já tem na mão continua sendo a melhor chance dele.
@@ -1022,9 +1032,13 @@ export const reserveDirectOrganizerRegistration = onCall({
     projectId,
     tournamentId,
     categoryId,
-    // Esta inscrição já ocupa vaga: contá-la contra si mesma jogaria na fila
-    // justamente quem está confirmando a vaga que já é dele.
-    {occupancyExcludesRegistrationId: registrationId},
+    {
+      // Esta inscrição já ocupa vaga: contá-la contra si mesma jogaria na fila
+      // justamente quem está confirmando a vaga que já é dele.
+      occupancyExcludesRegistrationId: registrationId,
+      // Inscrita pelo organizador: o prazo do torneio não vale para declará-la.
+      allowClosedRegistration: isOrganizerRegistered(registration),
+    },
   );
 
   if (!isDirectWithOrganizerPaymentMode(tournamentData.paymentMode)) {

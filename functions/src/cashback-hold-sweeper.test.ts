@@ -171,6 +171,38 @@ describe("runCashbackHoldSweep", () => {
     assert.equal(stats.intentsGivenUp, 1);
   });
 
+  it("intenção pendente há menos de 2 min fica com o webhook que acabou de gravá-la", async () => {
+    const {fake, db} = makeDb();
+    const intent = buildCashbackIntent({
+      uid: UID, sourceType: "booking", sourceId: "b1", tournamentId: null, arenaId: "a1",
+      label: "Reserva", eventAtMs: NOW + 1e9, cashReais: 100, appliedCents: 0, feeReais: 8,
+      holdId: null, config: {...DEFAULT_CASHBACK_CONFIG, enabled: true},
+    });
+    fake.seedDoc(`${PROCESSED}/payYoung`, {
+      outcome: "approved", processedAt: Timestamp.fromMillis(NOW - 30 * 1000),
+      ...cashbackIntentFields(intent),
+    });
+    fake.seedDoc(`${PROCESSED}/payOld`, {
+      outcome: "approved", processedAt: Timestamp.fromMillis(NOW - 3 * MIN),
+      ...cashbackIntentFields(intent),
+    });
+
+    const stats = await runCashbackHoldSweep(db, "p", NOW, stubAsaas().asaas);
+
+    assert.equal(fake.store.get(`${PROCESSED}/payYoung`)!.cashbackStatus, "pending");
+    assert.equal(fake.store.has(`${W}/lots/payYoung`), false);
+    assert.equal(
+      (fake.store.get(`${PROCESSED}/payYoung`)!.cashback as {attempts: number}).attempts,
+      0,
+    );
+    assert.equal(fake.store.get(`${PROCESSED}/payOld`)!.cashbackStatus, "done");
+    assert.equal(stats.intentsDone, 1);
+
+    // Passada seguinte, já com mais de 2 min: reaplica.
+    await runCashbackHoldSweep(db, "p", NOW + 2 * MIN, stubAsaas().asaas);
+    assert.equal(fake.store.get(`${PROCESSED}/payYoung`)!.cashbackStatus, "done");
+  });
+
   it("retoma estorno interrompido (cashbackStatus 'reversing') e conta em reversalsRetried", async () => {
     const {fake, db} = makeDb();
     fake.seedDoc(`${W}/lots/old`, {

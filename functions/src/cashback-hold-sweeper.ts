@@ -27,7 +27,7 @@ import {
   type Firestore,
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
-import type {CashbackSourceType} from "./cashback-rules";
+import {toMillisOrNull, type CashbackSourceType} from "./cashback-rules";
 import type {HoldDoc} from "./athlete-wallet-state";
 import {captureHold, releaseHold} from "./athlete-wallet";
 import {applyCashbackIntent, MAX_INTENT_ATTEMPTS, type CashbackIntent} from "./cashback-intent";
@@ -44,6 +44,12 @@ import {
 const HOLD_GRACE_MS = 2 * 60 * 1000;
 /** Reserva que nunca ganhou cobrança: a callable caiu entre reservar e cobrar. */
 const UNATTACHED_HOLD_TTL_MS = 15 * 60 * 1000;
+/**
+ * Intenção recém-gravada ainda está com o webhook que a gravou (ele aplica
+ * logo depois do lote): a varredura só pega as pendentes há mais de 2 min,
+ * para não rodar em paralelo com ele.
+ */
+const INTENT_GRACE_MS = 2 * 60 * 1000;
 
 export type HoldAction = "release" | "capture" | "keep";
 
@@ -225,6 +231,10 @@ export async function runCashbackHoldSweep(
     .limit(100)
     .get();
   for (const doc of intentsSnap.docs) {
+    // `processedAt` sai no mesmo lote que grava a intenção. Sem ele (doc
+    // antigo/incompleto) não há como esperar: segue para a retentativa.
+    const processedAtMs = toMillisOrNull(doc.data().processedAt);
+    if (processedAtMs != null && nowMs - processedAtMs < INTENT_GRACE_MS) continue;
     const intent = doc.data().cashback as CashbackIntent | undefined;
     if ((intent?.attempts ?? 0) >= MAX_INTENT_ATTEMPTS) {
       await doc.ref.set({cashbackStatus: "failed"}, {merge: true});

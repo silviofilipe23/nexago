@@ -178,6 +178,22 @@ describe('tournament-reviews (organizador)', () => {
       expect(reviewsEmptyState({ status: 'concluido', endAt: at(2 * DAY) }, NOW)).toBe('opening');
     });
 
+    // `endAt` é DATA: 03:00Z = meia-noite de Brasília; 00:00Z = meia-noite UTC (aparelho em UTC, legado).
+    it('último dia é hoje: ainda não terminou, nas duas convenções de data', () => {
+      expect(reviewsEmptyState({ status: 'andamento', endAt: new Date('2026-10-06T03:00:00Z') }, NOW)).toBe('notEnded');
+      expect(reviewsEmptyState({ status: 'andamento', endAt: new Date('2026-10-06T00:00:00Z') }, NOW)).toBe('notEnded');
+    });
+
+    it('último dia foi ontem: o job das 10h abre, nas duas convenções', () => {
+      expect(reviewsEmptyState({ status: 'andamento', endAt: new Date('2026-10-05T03:00:00Z') }, NOW)).toBe('opening');
+      expect(reviewsEmptyState({ status: 'andamento', endAt: new Date('2026-10-05T00:00:00Z') }, NOW)).toBe('opening');
+    });
+
+    it('corte de 3 dias conta da meia-noite seguinte ao último dia, como no job', () => {
+      expect(reviewsEmptyState({ status: 'andamento', endAt: new Date('2026-10-03T03:00:00Z') }, NOW)).toBe('opening');
+      expect(reviewsEmptyState({ status: 'andamento', endAt: new Date('2026-10-02T03:00:00Z') }, NOW)).toBe('endedBefore');
+    });
+
     it('terminou há mais de 3 dias sem resumo', () => {
       expect(reviewsEmptyState({ status: 'concluido', endAt: at(-30 * DAY) }, NOW)).toBe('endedBefore');
       expect(reviewsEmptyState({ status: 'encerradas', endAt: at(-4 * DAY) }, NOW)).toBe('endedBefore');

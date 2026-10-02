@@ -1,4 +1,3 @@
-import { interviewWithDefaults, type BroadcastInterview } from '../data/broadcast-control';
 import { isKingOfCourtMatchType } from '../data/koc';
 import type { TournamentMatch } from '../data/matches-repository';
 import { formatCourtLabel, spTimeLabel } from '../data/schedule-format';
@@ -22,6 +21,7 @@ export interface TeamRoster {
 export interface InterviewCandidate {
   key: string;
   teamId: string;
+  uid: string;
   name: string;
   photoUrl: string | null;
   partnerName: string | null;
@@ -79,6 +79,7 @@ export function interviewCandidatesOf(
       out.push({
         key: `${teamId}:${member.uid}`,
         teamId,
+        uid: member.uid,
         name: member.name,
         photoUrl: member.photoUrl,
         partnerName: partner,
@@ -132,17 +133,6 @@ export function courtChipsOf(
 export function courtMatchOf(matches: readonly TournamentMatch[], courtId: string | null, nowMs: number): TournamentMatch | null {
   if (!courtId) return null;
   return courtNowOf(matches, courtId, nowMs).match;
-}
-
-export function interviewFromCandidate(c: InterviewCandidate, durationSec: number | null, nowMs: number): BroadcastInterview {
-  return interviewWithDefaults({
-    name: c.name,
-    photoUrl: c.photoUrl,
-    partnerName: c.partnerName,
-    categoryName: c.categoryName,
-    durationSec,
-    shownAt: nowMs,
-  });
 }
 
 /** "0:12" — tempo da tarja no ar. */

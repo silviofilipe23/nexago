@@ -5,13 +5,16 @@ import { DEFAULT_BROADCAST_CONTROL, type BroadcastControl } from '../data/broadc
 import { saveBroadcastControl, watchBroadcastControl, type BroadcastControlPatch } from '../data/broadcast-control-repository';
 import { organizerFirestore } from '../data/firestore';
 import { watchMatches, type TournamentMatch } from '../data/matches-repository';
-import { fetchProfileDisplays, fetchTeamsByIds } from '../data/teams-repository';
+import type { RankingParticipant } from '../data/ranking-positions';
+import { fetchRankingParticipants } from '../data/rankings-repository';
+import { fetchInterviewProfiles, fetchTeamsByIds } from '../data/teams-repository';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { watchTournament } from '../data/tournaments-repository';
+import type { AthleteDetails } from './interview-card';
 import { rosterOf, rosterUidsOf, teamIdsOfMatch, type TeamRoster } from './transmissao-selectors';
 
-/** Estado ao vivo da tela Transmissão: doc do torneio, partidas, controle e os elencos (nome e
- *  foto por atleta, pra tarja). SEM `providedIn` — a tela provê a própria instância, os
+/** Estado ao vivo da tela Transmissão: doc do torneio, partidas, controle, os elencos (nome e
+ *  foto por atleta) e o resto do perfil e o ranking geral que o card de entrevista usa. SEM `providedIn` — a tela provê a própria instância, os
  *  listeners morrem com ela, e o spec troca por um dublê. */
 @Injectable()
 export class TransmissaoDataService {
@@ -22,11 +25,18 @@ export class TransmissaoDataService {
   readonly matches = signal<TournamentMatch[]>([]);
   readonly control = signal<BroadcastControl>(DEFAULT_BROADCAST_CONTROL);
   readonly rosters = signal<ReadonlyMap<string, TeamRoster>>(new Map());
+  /** Cidade/UF e nível por atleta, dos MESMOS docs de perfil que montam os elencos. */
+  readonly details = signal<ReadonlyMap<string, AthleteDetails>>(new Map());
+  /** Ranking geral — vazio até `ensureRanking()`, e vazio de novo se a leitura falhar (o card
+   *  sai sem chip de ranking, não quebra). */
+  readonly athleteRanking = signal<readonly RankingParticipant[]>([]);
+  readonly teamRanking = signal<readonly RankingParticipant[]>([]);
   /** Última escrita recusada/sem rede. A chave volta sozinha (o listener devolve o valor real). */
   readonly saveError = signal(false);
 
   private generation = 0;
   private readonly hydrated = new Set<string>();
+  private rankingLoad: Promise<void> | null = null;
 
   constructor() {
     effect((onCleanup) => {
@@ -36,6 +46,7 @@ export class TransmissaoDataService {
       this.matches.set([]);
       this.control.set(DEFAULT_BROADCAST_CONTROL);
       this.rosters.set(new Map());
+      this.details.set(new Map());
       this.hydrated.clear();
       if (!id) return;
       const unsubTournament = watchTournament(id, (t) => this.tournament.set(t), () => {});
@@ -68,6 +79,22 @@ export class TransmissaoDataService {
     }
   }
 
+  /** O ranking geral é a coleção INTEIRA (é assim que o app numera) — só se lê quando alguém vai
+   *  montar uma entrevista, e uma vez por tela. Falha libera nova tentativa. */
+  ensureRanking(): void {
+    if (this.rankingLoad) return;
+    const projectId = environment.firebase.projectId;
+    if (!projectId) return;
+    this.rankingLoad = fetchRankingParticipants(organizerFirestore(), projectId)
+      .then(({ athletes, teams }) => {
+        this.athleteRanking.set(athletes);
+        this.teamRanking.set(teams);
+      })
+      .catch(() => {
+        this.rankingLoad = null;
+      });
+  }
+
   private async hydrate(matches: TournamentMatch[], generation: number): Promise<void> {
     const ids = [...new Set(matches.flatMap(teamIdsOfMatch))].filter((id) => !this.hydrated.has(id));
     if (ids.length === 0) return;
@@ -77,11 +104,16 @@ export class TransmissaoDataService {
     try {
       const db = organizerFirestore();
       const teams = await fetchTeamsByIds(db, projectId, ids);
-      const profiles = await fetchProfileDisplays(db, [...teams.values()].flatMap(rosterUidsOf));
+      const profiles = await fetchInterviewProfiles(db, [...teams.values()].flatMap(rosterUidsOf));
       if (generation !== this.generation) return;
       this.rosters.update((current) => {
         const next = new Map(current);
         for (const [teamId, team] of teams) next.set(teamId, rosterOf(team, profiles));
+        return next;
+      });
+      this.details.update((current) => {
+        const next = new Map(current);
+        for (const [uid, p] of profiles) next.set(uid, { city: p.city, state: p.state, levelsBySport: p.levelsBySport, legacyLevel: p.legacyLevel });
         return next;
       });
     } catch {

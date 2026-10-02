@@ -1,4 +1,3 @@
-import { interviewWithDefaults } from '../data/broadcast-control';
 import type { TournamentMatch } from '../data/matches-repository';
 import type { OrganizerTeamPlayers } from '../data/teams-repository';
 import {
@@ -6,7 +5,6 @@ import {
   courtMatchOf,
   elapsedLabel,
   interviewCandidatesOf,
-  interviewFromCandidate,
   quickPicksOf,
   rosterOf,
   rosterUidsOf,
@@ -82,7 +80,7 @@ describe('interviewCandidatesOf', () => {
 
   it('um candidato por atleta, com parceiro na dupla e categoria da partida', () => {
     const ana = interviewCandidatesOf(ms, ROSTERS, CATS).find((c) => c.name === 'Ana Souza');
-    expect(ana).toEqual({ key: 'ta:u1', teamId: 'ta', name: 'Ana Souza', photoUrl: 'a.jpg', partnerName: 'Bia Lima', categoryName: 'Feminina B' });
+    expect(ana).toEqual({ key: 'ta:u1', teamId: 'ta', uid: 'u1', name: 'Ana Souza', photoUrl: 'a.jpg', partnerName: 'Bia Lima', categoryName: 'Feminina B' });
   });
 
   it('em equipe de 3+, não há "parceiro"', () => {
@@ -146,19 +144,7 @@ describe('courtChipsOf / courtMatchOf', () => {
   });
 });
 
-describe('interviewFromCandidate / elapsedLabel / transmissaoUrl', () => {
-  it('monta a tarja desnormalizada com duração e carimbo', () => {
-    const [ana] = interviewCandidatesOf([match({})], ROSTERS, CATS);
-    expect(interviewFromCandidate(ana!, 20, 1234)).toEqual(interviewWithDefaults({
-      name: 'Ana Souza',
-      photoUrl: 'a.jpg',
-      partnerName: 'Bia Lima',
-      categoryName: 'Feminina B',
-      durationSec: 20,
-      shownAt: 1234,
-    }));
-  });
-
+describe('elapsedLabel / transmissaoUrl', () => {
   it('formata o tempo no ar', () => {
     expect(elapsedLabel(12_400)).toBe('0:12');
     expect(elapsedLabel(75_000)).toBe('1:15');

@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from './firestore';
-import { chunkIds, fetchTeamsByIds, teamNamesFrom, type OrganizerTeamPlayers } from './teams-repository';
+import { chunkIds, fetchTeamsByIds, levelsBySportOf, teamNamesFrom, type OrganizerTeamPlayers } from './teams-repository';
 
 /** `artifacts/{projectId}/public/data/inscriptions` (mesma coleção que o athlete lê em
  *  `tournament-registrations-repository.ts`) — o doc real só guarda `participantUids`/`teamId`
@@ -171,19 +171,6 @@ export interface InscriptionProfileDisplay {
   photoUrl: string | null;
   levelsBySport: Record<string, string>;
   legacyLevel: string | null;
-}
-
-/** `sportOnboarding.levelsBySport` — só as entradas string, ignorando lixo de docs antigos. */
-function levelsBySportOf(data: Record<string, unknown>): Record<string, string> {
-  const onboarding = data['sportOnboarding'] as Record<string, unknown> | undefined;
-  const raw = onboarding?.['levelsBySport'];
-  if (!raw || typeof raw !== 'object') return {};
-  const out: Record<string, string> = {};
-  for (const [sportCode, value] of Object.entries(raw as Record<string, unknown>)) {
-    const level = optionalStr(value);
-    if (level) out[sportCode] = level;
-  }
-  return out;
 }
 
 function optionalNum(v: unknown): number | null {

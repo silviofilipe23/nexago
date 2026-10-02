@@ -1,11 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal } from '@angular/core';
 import { DomSanitizer } from '@angular/platform-browser';
+import { tournamentSportToLevelSportCode } from '@nexago/levels';
 import {
   interviewLineOf,
   interviewOnAirAt,
   type BroadcastFinalMode,
   type BroadcastGraphicId,
   type BroadcastGraphics,
+  type InterviewKind,
   type KocRoundEndScreen,
 } from '../data/broadcast-control';
 import { resolveCourtNames } from '../data/matches-repository';
@@ -14,13 +16,13 @@ import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { broadcastGroupsFor } from './broadcast-graphics';
+import { interviewCardOf, interviewKindsFor, rosterLabelOf, type InterviewCardSource } from './interview-card';
 import { TransmissaoDataService } from './transmissao-data.service';
 import {
   courtChipsOf,
   courtMatchOf,
   elapsedLabel,
   interviewCandidatesOf,
-  interviewFromCandidate,
   quickPicksOf,
   searchCandidates,
   transmissaoUrl,
@@ -89,7 +91,7 @@ const WIDE_QUERY = '(min-width: 1100px)';
             </div>
           </og-card>
 
-          <og-card kicker="Reporter" title="Tarja de entrevista">
+          <og-card kicker="Reporter" title="Entrevista">
             @if (onAir()) {
               <div class="og-tx-noar">
                 <span class="og-tx-noar-dot" aria-hidden="true"></span>
@@ -101,7 +103,7 @@ const WIDE_QUERY = '(min-width: 1100px)';
               <div class="og-tx-label">Na quadra agora</div>
               <div class="og-tx-chips">
                 @for (c of quickPicks(); track c.key) {
-                  <button type="button" class="og-chip" [class.active]="selected()?.key === c.key" (click)="selected.set(c)">{{ c.name }}</button>
+                  <button type="button" class="og-chip" [class.active]="selected()?.key === c.key" (click)="pick(c)">{{ c.name }}</button>
                 }
               </div>
             }
@@ -115,7 +117,7 @@ const WIDE_QUERY = '(min-width: 1100px)';
               (input)="term.set($any($event.target).value)"
             />
             @for (c of results(); track c.key) {
-              <button type="button" class="og-tx-result" [class.active]="selected()?.key === c.key" (click)="selected.set(c)">
+              <button type="button" class="og-tx-result" [class.active]="selected()?.key === c.key" (click)="pick(c)">
                 <og-avatar [initials]="initials(c.name)" [photoUrl]="c.photoUrl" [size]="32" />
                 <span class="og-tx-result-txt">
                   <span class="og-tx-result-nome">{{ c.name }}</span>
@@ -123,6 +125,31 @@ const WIDE_QUERY = '(min-width: 1100px)';
                 </span>
               </button>
             }
+            @if (kinds().length > 1) {
+              <div class="og-tx-label">Entrevistar</div>
+              <div class="og-tx-chips" role="radiogroup" aria-label="Quem vai pra tarja">
+                @for (k of kinds(); track k) {
+                  <button type="button" class="og-chip" role="radio" [class.active]="kind() === k" [attr.aria-checked]="kind() === k" (click)="kind.set(k)">
+                    {{ kindLabel(k) }}
+                  </button>
+                }
+              </div>
+            }
+            <div class="og-toggle-row og-tx-campanha">
+              <div class="og-toggle-row-text">
+                <div class="og-toggle-row-title">Campanha no torneio</div>
+                <div class="og-toggle-row-desc">Resultados do entrevistado no canto direito da tela</div>
+              </div>
+              <button
+                type="button"
+                class="og-toggle"
+                role="switch"
+                [class.on]="campaignOn()"
+                [attr.aria-checked]="campaignOn()"
+                aria-label="Campanha no torneio"
+                (click)="toggleCampaign()"
+              ></button>
+            </div>
             <div class="og-tx-label">Duração</div>
             <div class="og-tx-chips">
               @for (d of durations; track d.label) {
@@ -319,6 +346,9 @@ const WIDE_QUERY = '(min-width: 1100px)';
       font-size: 12px;
       color: var(--nx-text-dim);
     }
+    .og-tx-campanha {
+      margin-top: 12px;
+    }
     .og-tx-ar {
       width: 100%;
       min-height: 48px;
@@ -379,6 +409,8 @@ export class TransmissaoComponent {
   private readonly now = signal(Date.now());
   protected readonly term = signal('');
   protected readonly selected = signal<InterviewCandidate | null>(null);
+  protected readonly kind = signal<InterviewKind>('atleta');
+  private readonly showCampaign = signal(true);
   protected readonly duration = signal<number | null>(20);
   protected readonly copied = signal(false);
   protected readonly previewOpen = signal(typeof window !== 'undefined' && window.matchMedia(WIDE_QUERY).matches);
@@ -404,6 +436,26 @@ export class TransmissaoComponent {
   );
   protected readonly results = computed(() => searchCandidates(this.candidates(), this.term()));
 
+  /** Tudo que o card de entrevista lê — montado no clique, com os dados do momento. */
+  private readonly cardSource = computed<InterviewCardSource>(() => {
+    const t = this.svc.tournament();
+    return {
+      matches: this.matches(),
+      rosters: this.svc.rosters(),
+      details: this.svc.details(),
+      categories: (t?.categories ?? []).map((c) => ({ id: c.id, name: c.name, teamSize: c.teamSize ?? null })),
+      inLeague: !!t?.leagueId,
+      levelSportCode: tournamentSportToLevelSportCode(t?.sportId),
+      athleteRanking: this.svc.athleteRanking(),
+      teamRanking: this.svc.teamRanking(),
+    };
+  });
+  /** Atleta sempre; dupla/equipe quando o time está completo. */
+  protected readonly kinds = computed(() => {
+    const c = this.selected();
+    return c ? interviewKindsFor(c.teamId, this.cardSource()) : [];
+  });
+
   protected readonly onAir = computed(() => {
     const i = this.svc.control().interview;
     return interviewOnAirAt(i, this.now()) ? i : null;
@@ -414,8 +466,11 @@ export class TransmissaoComponent {
   });
   protected readonly putOnAirLabel = computed(() => {
     const c = this.selected();
-    return c ? `Pôr no ar: ${c.name}` : 'Escolha um atleta';
+    if (!c) return 'Escolha um atleta';
+    return `Pôr no ar: ${this.kind() === 'atleta' ? c.name : (rosterLabelOf(this.svc.rosters().get(c.teamId)) ?? c.name)}`;
   });
+  /** No ar manda o que está no ar; fora dele, a escolha pra próxima tarja. */
+  protected readonly campaignOn = computed(() => this.onAir()?.showCampaign ?? this.showCampaign());
 
   constructor() {
     effect(() => this.svc.tournamentId.set(this.id()));
@@ -446,10 +501,37 @@ export class TransmissaoComponent {
     void this.svc.save({ finalMode });
   }
 
+  /** Escolher alguém é o sinal de que vem entrevista: é aí que o ranking geral começa a carregar. */
+  protected pick(c: InterviewCandidate): void {
+    this.selected.set(c);
+    this.kind.set('atleta');
+    this.svc.ensureRanking();
+  }
+
+  protected kindLabel(kind: InterviewKind): string {
+    if (kind === 'atleta') return this.selected()?.name ?? 'Atleta';
+    return kind === 'dupla' ? 'Dupla' : 'Equipe';
+  }
+
   protected putOnAir(): void {
     const c = this.selected();
     if (!c) return;
-    void this.svc.save({ interview: interviewFromCandidate(c, this.duration(), Date.now()) });
+    const kind = this.kinds().includes(this.kind()) ? this.kind() : 'atleta';
+    const card = interviewCardOf({ kind, teamId: c.teamId, uid: kind === 'atleta' ? c.uid : null }, this.cardSource(), {
+      durationSec: this.duration(),
+      shownAt: Date.now(),
+      showCampaign: this.showCampaign(),
+    });
+    if (card) void this.svc.save({ interview: card });
+  }
+
+  /** Com a tarja no ar, regrava o card com o MESMO carimbo: a campanha entra/sai e a duração
+   *  não reinicia. */
+  protected toggleCampaign(): void {
+    const next = !this.campaignOn();
+    this.showCampaign.set(next);
+    const live = this.onAir();
+    if (live) void this.svc.save({ interview: { ...live, showCampaign: next } });
   }
 
   protected takeOffAir(): void {

@@ -35,7 +35,7 @@ import { podiumToneOf } from './overlay-interview';
           <span class="monograma">{{ monograma() }}</span>
         }
         @default {
-          <og-avatar [initials]="iniciais(d.names[0] ?? d.name)" [photoUrl]="d.photos[0] ?? null" [size]="128" />
+          <og-avatar [initials]="monograma()" [photoUrl]="d.photos[0] ?? null" [size]="128" />
         }
       }
     </div>
@@ -297,6 +297,7 @@ export class OverlayInterviewCardComponent {
 
   protected readonly tone = computed(() => podiumToneOf(this.data().rankingPos));
   protected readonly podio = computed(() => (this.tone() ? `${this.data().rankingPos}º no ranking` : null));
+  /** Iniciais do 1º nome (atleta) ou da equipe — o parser garante ao menos um nome. */
   protected readonly monograma = computed(() => initialsOf(this.data().names[0] ?? this.data().name) || '?');
   /** Até 4 cabem numa linha; 5 e 6 viram duas linhas de 3. */
   protected readonly colunas = computed(() => {

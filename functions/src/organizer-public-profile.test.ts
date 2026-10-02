@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import {Timestamp} from "firebase-admin/firestore";
 import {
   buildOrganizerIdentity,
-  completedListedTournamentIds,
   computeOrganizerStats,
+  isRealizedListedTournament,
   followerCountDelta,
   isListedTournament,
   isOrganizerListed,
@@ -12,11 +12,14 @@ import {
   normalizeWhatsappDigits,
   organizerStatsRelevantChange,
   sameOrganizerIdentity,
-  touchesCompletedTournament,
+  realizedListedTournamentIds,
+  touchesRealizedTournament,
   type TournamentRow,
 } from "./organizer-public-profile";
 
 const ts = (iso: string) => Timestamp.fromDate(new Date(iso));
+const NOW = Date.UTC(2026, 9, 2, 15, 0, 0);
+const HOUR = 3_600_000;
 
 function row(id: string, data: Record<string, unknown>): TournamentRow {
   return {id, data: {managerId: "org-1", listingStatus: "open", visibility: "publicListing", ...data}};
@@ -117,14 +120,28 @@ describe("eventos listados", () => {
     assert.equal(isListedTournament(null), false);
   });
 
-  it("completedListedTournamentIds devolve ids ordenados", () => {
+  it("realizado = completed ou fim + 12 h no passado (endAt, senão startAt)", () => {
+    const open = {listingStatus: "open", visibility: "publicListing"};
+    assert.equal(isRealizedListedTournament({...open, listingStatus: "completed"}, NOW), true);
+    assert.equal(isRealizedListedTournament({...open, endAt: Timestamp.fromMillis(NOW - 13 * HOUR)}, NOW), true);
+    assert.equal(isRealizedListedTournament({...open, endAt: Timestamp.fromMillis(NOW - 11 * HOUR)}, NOW), false);
+    assert.equal(isRealizedListedTournament({...open, startAt: Timestamp.fromMillis(NOW - 13 * HOUR)}, NOW), true);
+    assert.equal(
+      isRealizedListedTournament({...open, startAt: Timestamp.fromMillis(NOW - 48 * HOUR), endAt: Timestamp.fromMillis(NOW + HOUR)}, NOW),
+      false,
+    );
+    assert.equal(isRealizedListedTournament({...open, listingStatus: "cancelled", endAt: Timestamp.fromMillis(0)}, NOW), false);
+    assert.equal(isRealizedListedTournament({...open}, NOW), false);
+  });
+
+  it("realizedListedTournamentIds devolve ids ordenados", () => {
     const rows = [
       row("b", {listingStatus: "completed"}),
       row("a", {listingStatus: "completed"}),
       row("c", {listingStatus: "completed", visibility: "linkOnly"}),
       row("d", {listingStatus: "open"}),
     ];
-    assert.deepEqual(completedListedTournamentIds(rows), ["a", "b"]);
+    assert.deepEqual(realizedListedTournamentIds(rows, NOW), ["a", "b"]);
   });
 });
 
@@ -137,7 +154,7 @@ describe("computeOrganizerStats", () => {
       row("t4", {listingStatus: "closed", sport: "padel", startAt: ts("2026-10-20T12:00:00Z"), arenaId: "arena-9", locationName: "Arena Central"}),
       row("t5", {listingStatus: "draft", sport: "padel", startAt: ts("2019-01-01T12:00:00Z")}),
       row("t6", {listingStatus: "open", visibility: "linkOnly", sport: "padel"}),
-    ], 42);
+    ], 42, NOW);
     assert.equal(stats.listedEvents, 4);
     assert.equal(stats.eventsCompleted, 2);
     assert.equal(stats.openEvents, 1);
@@ -149,11 +166,27 @@ describe("computeOrganizerStats", () => {
   });
 
   it("sem eventos listados: zeros e organizerSince nulo", () => {
-    const stats = computeOrganizerStats([row("t1", {listingStatus: "draft"})], 0);
+    const stats = computeOrganizerStats([row("t1", {listingStatus: "draft"})], 0, NOW);
     assert.deepEqual(stats, {
       listedEvents: 0, eventsCompleted: 0, openEvents: 0, athletes: 0,
       organizerSince: null, sports: [], venues: [],
     });
+  });
+
+  it("evento que acabou sem completed conta como realizado e sai dos abertos", () => {
+    const stats = computeOrganizerStats([
+      row("t1", {listingStatus: "open", startAt: Timestamp.fromMillis(NOW - 72 * HOUR), endAt: Timestamp.fromMillis(NOW - 48 * HOUR)}),
+      row("t2", {listingStatus: "open", startAt: Timestamp.fromMillis(NOW + 72 * HOUR)}),
+    ], 0, NOW);
+    assert.equal(stats.eventsCompleted, 1);
+    assert.equal(stats.openEvents, 1);
+  });
+
+  it("organizerSince ignora evento futuro", () => {
+    const stats = computeOrganizerStats([
+      row("t1", {listingStatus: "open", startAt: ts("2027-01-10T12:00:00Z")}),
+    ], 0, NOW);
+    assert.equal(stats.organizerSince, null);
   });
 
   it("normalizeVenueKey tira acento, caixa e espaço duplicado", () => {
@@ -191,11 +224,11 @@ describe("organizerStatsRelevantChange", () => {
   });
 });
 
-describe("touchesCompletedTournament / followerCountDelta", () => {
+describe("touchesRealizedTournament / followerCountDelta", () => {
   it("só recontar atletas quando há evento realizado no antes ou no depois", () => {
-    assert.equal(touchesCompletedTournament({listingStatus: "open"}, {listingStatus: "completed"}), true);
-    assert.equal(touchesCompletedTournament({listingStatus: "completed"}, null), true);
-    assert.equal(touchesCompletedTournament({listingStatus: "open"}, {listingStatus: "closed"}), false);
+    assert.equal(touchesRealizedTournament({listingStatus: "open"}, {listingStatus: "completed"}, NOW), true);
+    assert.equal(touchesRealizedTournament({listingStatus: "completed"}, null, NOW), true);
+    assert.equal(touchesRealizedTournament({listingStatus: "open"}, {listingStatus: "closed"}, NOW), false);
   });
   it("delta de seguidores", () => {
     assert.equal(followerCountDelta(false, true), 1);

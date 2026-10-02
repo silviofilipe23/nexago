@@ -50,11 +50,14 @@ O que não é público ou não existe:
 | Termo | Definição |
 |---|---|
 | Evento listado | Torneio do `managerId` com `listingStatus` em `open`, `closed` ou `completed`, e `visibility !== 'linkOnly'`. Doc sem `visibility` conta como listado, igual ao app e ao portal (`isPubliclyListedTournamentDoc`). |
-| Evento realizado | Evento listado com `listingStatus === 'completed'`. |
-| Inscrição aberta | Evento listado com `listingStatus === 'open'`. |
+| Fim do evento | `endAt`, senão `startAt` (etapa de liga e evento de um dia gravam só o início). |
+| Evento realizado | Evento listado com `listingStatus === 'completed'` **ou** fim do evento + 12 h no passado. O servidor só grava `completed` quando todas as finais terminam no sistema; sem a regra de data, o evento que acabou sem isso sumia do perfil. Mesma folga das avaliações. |
+| Próximo evento | Evento listado que ainda não é realizado. |
+| Ao vivo (selo) | `liveMatchesNow > 0`, ou `startAt` já passou, o evento não é realizado e `listingStatus !== 'open'`. |
+| Inscrição aberta | Evento listado com `listingStatus === 'open'` que não é realizado. |
 | Atletas | uids distintos de inscrições que jogaram (`isPaid && !waitlist && !partnerPending && teamId`) em eventos realizados. Os uids saem de `registrationAthleteUids(registration, team)`. |
 | Verificado | `organizers/{uid}` existe. Só o cadastro do backoffice (`saveOrganizerRegistration`) cria esse doc. |
-| Organizador desde | Menor `startAt` entre os eventos listados. `users.createdAt` não existe para conta criada como organizador. |
+| Organizador desde | Menor `startAt` já passado entre os eventos listados. `users.createdAt` não existe para conta criada como organizador. |
 | Onde acontece | Até 3 locais mais frequentes entre os eventos listados. A chave é `arenaId` quando existe; senão o `locationName` normalizado (trim, minúsculas, sem acento, espaços colapsados). O painel web nunca grava `arenaId`. |
 | Esportes | Valores distintos de `sport` entre os eventos listados, do mais frequente ao menos frequente. |
 
@@ -90,8 +93,9 @@ identityUpdatedAt: Timestamp
 statsUpdatedAt: Timestamp
 ```
 
-Os números não dependem do relógio (nada de "próximos" calculado no servidor). Mudam só quando
-um torneio muda, então não ficam velhos com o passar do tempo.
+"Realizado", "inscrição aberta" e "organizador desde" dependem do relógio. Além do gatilho de
+torneio, o job diário `refreshOrganizerStatsDaily` (04:00, São Paulo) recalcula quem teve evento
+virando realizado nos últimos 3 dias.
 
 ### `organizerPublicProfiles/{uid}/followers/{athleteUid}`
 

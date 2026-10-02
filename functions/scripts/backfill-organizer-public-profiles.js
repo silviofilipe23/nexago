@@ -20,9 +20,9 @@
 const admin = require("firebase-admin");
 const {
   buildOrganizerIdentity,
-  completedListedTournamentIds,
   computeOrganizerStats,
   isListedTournament,
+  realizedListedTournamentIds,
   ORGANIZER_FOLLOWER_PUSHES_COLLECTION,
   ORGANIZER_PUBLIC_PROFILES_COLLECTION,
   tournamentListingStatus,
@@ -98,8 +98,9 @@ async function backfillOne(userDoc) {
   const lockIds = preExistingLockIds(rows);
 
   if (!APPLY) {
-    const athletes = await countOrganizerAthletes(db, uid, completedListedTournamentIds(rows), projectId);
-    const stats = computeOrganizerStats(rows, athletes);
+    const nowMs = Date.now();
+    const athletes = await countOrganizerAthletes(db, uid, realizedListedTournamentIds(rows, nowMs), projectId);
+    const stats = computeOrganizerStats(rows, athletes, nowMs);
     console.log(
       `${uid} | ${identity.name}${verified ? " ✓" : ""} | eventos ${stats.listedEvents} (realizados ${stats.eventsCompleted}, abertos ${stats.openEvents})` +
       ` | atletas ${stats.athletes} | seguidores ${await countFollowers(uid)} | travas a semear ${lockIds.length}`,

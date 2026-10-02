@@ -6,6 +6,7 @@ import {
   applyOrganizerFollowerDelta,
   countOrganizerAthletes,
   recomputeOrganizerStats,
+  refreshRecentlyRealizedOrganizerStats,
   syncOrganizerIdentity,
   syncOrganizerVerified,
 } from "./organizer-public-profile-sync";
@@ -195,5 +196,28 @@ describe("recomputeOrganizerStats", () => {
     seedTournament(fake, "t1", {listingStatus: "open"});
     await recomputeOrganizerStats(asDb(fake), "org-1", {recountAthletes: false, nowMs: NOW, projectId: PROJECT});
     assert.equal(fake.store.get(PROFILE)?.listed, false);
+  });
+});
+
+describe("refreshRecentlyRealizedOrganizerStats", () => {
+  const HOUR = 3_600_000;
+  it("recalcula só quem teve evento encerrado nos últimos 3 dias (por endAt ou startAt)", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc("organizerPublicProfiles/org-1", {uid: "org-1", isOrganizer: true});
+    fake.seedDoc("organizerPublicProfiles/org-2", {uid: "org-2", isOrganizer: true});
+    fake.seedDoc("tournaments/a", {managerId: "org-1", listingStatus: "open", visibility: "publicListing",
+      startAt: Timestamp.fromMillis(NOW - 40 * HOUR), endAt: Timestamp.fromMillis(NOW - 30 * HOUR)});
+    fake.seedDoc("tournaments/b", {managerId: "org-2", listingStatus: "closed", visibility: "publicListing",
+      startAt: Timestamp.fromMillis(NOW - 20 * HOUR)});
+    fake.seedDoc("tournaments/c", {managerId: "org-3", listingStatus: "open", visibility: "publicListing",
+      startAt: Timestamp.fromMillis(NOW - 30 * 24 * HOUR), endAt: Timestamp.fromMillis(NOW - 30 * 24 * HOUR)});
+    fake.seedDoc("tournaments/d", {managerId: "org-4", listingStatus: "open", visibility: "publicListing",
+      startAt: Timestamp.fromMillis(NOW - 6 * HOUR)});
+    const refreshed = await refreshRecentlyRealizedOrganizerStats(asDb(fake), NOW);
+    assert.equal(refreshed, 2);
+    assert.equal((fake.store.get("organizerPublicProfiles/org-1")?.stats as {eventsCompleted: number}).eventsCompleted, 1);
+    assert.equal((fake.store.get("organizerPublicProfiles/org-2")?.stats as {eventsCompleted: number}).eventsCompleted, 1);
+    assert.equal(fake.store.has("organizerPublicProfiles/org-3"), false);
+    assert.equal(fake.store.has("organizerPublicProfiles/org-4"), false);
   });
 });

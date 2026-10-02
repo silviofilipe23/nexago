@@ -1,11 +1,13 @@
 import {FieldValue, getFirestore, Timestamp, type Firestore} from "firebase-admin/firestore";
 import {onDocumentWritten} from "firebase-functions/v2/firestore";
+import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
+import {EVENT_TIME_ZONE} from "./event-timezone";
 import {artifactsInscriptionsPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 import {
   buildOrganizerIdentity,
-  completedListedTournamentIds,
   computeOrganizerStats,
+  EVENT_END_GRACE_MS,
   followerCountDelta,
   isOrganizerListed,
   ORGANIZER_FOLLOWERS_SUBCOLLECTION,
@@ -13,7 +15,8 @@ import {
   ORGANIZER_STATS_SOURCE_FIELDS,
   organizerStatsRelevantChange,
   sameOrganizerIdentity,
-  touchesCompletedTournament,
+  realizedListedTournamentIds,
+  touchesRealizedTournament,
   type DocData,
   type OrganizerStats,
   type TournamentRow,
@@ -155,18 +158,18 @@ export async function recomputeOrganizerStats(
     let athletes: number | null = null;
     let basis: string | null = null;
     if (opts.recountAthletes) {
-      const completed = completedListedTournamentIds(rowsOf(await tournamentsQuery.get()));
+      const completed = realizedListedTournamentIds(rowsOf(await tournamentsQuery.get()), nowMs);
       athletes = await countOrganizerAthletes(db, organizerId, completed, projectId);
       basis = completed.join(",");
     }
     const result = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       const rows = rowsOf(await tx.get(tournamentsQuery) as {docs: Array<{id: string; data: () => unknown}>});
-      if (basis != null && completedListedTournamentIds(rows).join(",") !== basis) return null;
+      if (basis != null && realizedListedTournamentIds(rows, nowMs).join(",") !== basis) return null;
       const current = snap.exists ? snap.data() as DocData : {};
       const previous = (current.stats ?? {}) as DocData;
       const previousAthletes = typeof previous.athletes === "number" ? previous.athletes : 0;
-      const stats = computeOrganizerStats(rows, athletes ?? previousAthletes);
+      const stats = computeOrganizerStats(rows, athletes ?? previousAthletes, nowMs);
       tx.set(ref, {
         uid: organizerId,
         stats,
@@ -178,6 +181,52 @@ export async function recomputeOrganizerStats(
     if (result) return result;
   }
   throw new Error(`recomputeOrganizerStats: eventos realizados mudando sem parar (${organizerId})`);
+}
+
+/** Janela do job diário: cobre execuções perdidas sem reler o histórico inteiro. */
+const RECENTLY_REALIZED_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+
+/**
+ * Organizadores com evento que virou "realizado" pela data nos últimos 3 dias. O relógio passa
+ * sem escrita no torneio, então o gatilho sozinho deixaria os números parados. Duas consultas de
+ * intervalo em um campo só (sem índice composto): por `endAt`, e por `startAt` para quem não tem
+ * `endAt`.
+ */
+export async function organizersWithRecentlyRealizedEvents(db: Firestore, nowMs: number): Promise<string[]> {
+  const from = Timestamp.fromMillis(nowMs - EVENT_END_GRACE_MS - RECENTLY_REALIZED_WINDOW_MS);
+  const to = Timestamp.fromMillis(nowMs - EVENT_END_GRACE_MS);
+  const tournaments = db.collection("tournaments");
+  const [byEnd, byStart] = await Promise.all([
+    tournaments.where("endAt", ">=", from).where("endAt", "<=", to).select("managerId", "endAt").get(),
+    tournaments.where("startAt", ">=", from).where("startAt", "<=", to).select("managerId", "endAt").get(),
+  ]);
+  const ids = new Set<string>();
+  for (const doc of byEnd.docs) {
+    const id = str((doc.data() as DocData).managerId);
+    if (id) ids.add(id);
+  }
+  for (const doc of byStart.docs) {
+    const data = doc.data() as DocData;
+    if (data.endAt instanceof Timestamp) continue; // já coberto (ou fora) pela consulta de endAt
+    const id = str(data.managerId);
+    if (id) ids.add(id);
+  }
+  return [...ids].sort();
+}
+
+export async function refreshRecentlyRealizedOrganizerStats(db: Firestore, nowMs: number): Promise<number> {
+  const organizerIds = await organizersWithRecentlyRealizedEvents(db, nowMs);
+  let refreshed = 0;
+  for (const organizerId of organizerIds) {
+    // Um organizador com problema não segura os outros.
+    try {
+      await recomputeOrganizerStats(db, organizerId, {recountAthletes: true, nowMs});
+      refreshed += 1;
+    } catch (error) {
+      logger.error("refreshOrganizerStatsDaily: recálculo falhou", {organizerId, error});
+    }
+  }
+  return refreshed;
 }
 
 function dataOf(snap: {exists: boolean; data: () => unknown} | undefined): DocData | null {
@@ -210,7 +259,7 @@ export const onTournamentWrittenOrganizerStats = onDocumentWritten(
     const after = dataOf(event.data?.after);
     if (!organizerStatsRelevantChange(before, after)) return;
     const organizerIds = new Set([str(before?.managerId), str(after?.managerId)].filter((id) => id));
-    const recountAthletes = touchesCompletedTournament(before, after);
+    const recountAthletes = touchesRealizedTournament(before, after, Date.now());
     for (const organizerId of organizerIds) {
       const stats = await recomputeOrganizerStats(getFirestore(), organizerId, {recountAthletes});
       logger.info("organizerPublicProfile: números recalculados", {
@@ -228,5 +277,19 @@ export const onOrganizerFollowerWritten = onDocumentWritten(
   async (event) => {
     const delta = followerCountDelta(event.data?.before?.exists === true, event.data?.after?.exists === true);
     await applyOrganizerFollowerDelta(getFirestore(), event.params.organizerId, delta);
+  },
+);
+
+export const refreshOrganizerStatsDaily = onSchedule(
+  {
+    schedule: "0 4 * * *",
+    timeZone: EVENT_TIME_ZONE,
+    timeoutSeconds: 540,
+  },
+  async (event) => {
+    const scheduled = Date.parse(event.scheduleTime);
+    const nowMs = Number.isFinite(scheduled) ? scheduled : Date.now();
+    const refreshed = await refreshRecentlyRealizedOrganizerStats(getFirestore(), nowMs);
+    logger.info("refreshOrganizerStatsDaily", {refreshed});
   },
 );

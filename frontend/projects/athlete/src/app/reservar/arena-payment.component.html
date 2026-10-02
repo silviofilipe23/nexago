@@ -175,8 +175,15 @@
                       }
                     </div>
 
+                    <app-checkout-cashback-toggle
+                      [priceReais]="pixAmountNow()"
+                      [availableCents]="cashback.availableCents()"
+                      [config]="cashback.config()"
+                      [(use)]="useCashback"
+                    />
+
                     <button type="button" class="pm-btn-primary pm-btn-full" [disabled]="processing()" (click)="generatePix()">
-                      {{ processing() ? 'Gerando…' : 'Gerar código Pix de ' + formatBRL(pixAmountNow()) }}
+                      {{ processing() ? 'Gerando…' : 'Gerar código Pix de ' + formatBRL(pixChargeNow()) }}
                     </button>
                   } @else {
                     <div class="pm-split-setup">
@@ -325,6 +332,12 @@
                 <span class="pm-summary-value pm-summary-value--discount">- {{ formatBRL(couponDiscountReais()) }}</span>
               </div>
             }
+            @if (cashbackAppliedReais() > 0) {
+              <div class="pm-summary-row">
+                <span class="pm-summary-label">Cashback</span>
+                <span class="pm-summary-value pm-summary-value--discount">&minus;{{ formatBRL(cashbackAppliedReais()) }}</span>
+              </div>
+            }
 
             <div class="pm-coupon-block">
               @if (appliedCouponCode(); as code) {
@@ -370,7 +383,7 @@
               <span class="pm-summary-label">
                 {{ splitBookingId() ? 'Dividido com amigos' : selectedMethod() === 'pix' ? 'Você paga agora' : 'Você paga na arena' }}
               </span>
-              <strong class="pm-summary-total">{{ selectedMethod() === 'pix' ? formatBRL(pixAmountNow()) : formatBRL(totalPrice()) }}</strong>
+              <strong class="pm-summary-total">{{ selectedMethod() === 'pix' ? formatBRL(pixChargeNow()) : formatBRL(totalPrice()) }}</strong>
             </div>
 
             @if (selectedMethod() === 'onsite') {

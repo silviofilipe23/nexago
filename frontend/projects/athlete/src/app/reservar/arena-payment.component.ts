@@ -40,6 +40,9 @@ import {
 } from '../data/arena-booking-split-repository';
 import { searchAthleteDirectory, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { pixBookingCreateOptions } from './pix-booking-create-options';
+import { appliedPreviewCents } from '../data/cashback-preview';
+import { CashbackService } from '../data/cashback.service';
+import { CheckoutCashbackToggleComponent } from '../cashback/checkout-cashback-toggle.component';
 import {
   NxBlockingDialogComponent,
   NxFieldErrorComponent,
@@ -141,7 +144,13 @@ function initialsOf(name: string): string {
 @Component({
   selector: 'app-arena-payment',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, NxBlockingDialogComponent, NxFieldErrorComponent],
+  imports: [
+    RouterLink,
+    AtPanelShellComponent,
+    NxBlockingDialogComponent,
+    NxFieldErrorComponent,
+    CheckoutCashbackToggleComponent,
+  ],
   templateUrl: './arena-payment.component.html',
   styleUrl: './arena-payment.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -153,6 +162,7 @@ export class ArenaPaymentComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
   private readonly toasts = inject(NxToastService);
+  protected readonly cashback = inject(CashbackService);
   private countdownInterval: ReturnType<typeof setInterval> | undefined;
   private unwatchBooking: (() => void) | undefined;
 
@@ -287,6 +297,34 @@ export class ArenaPaymentComponent {
   protected readonly pixAmountOnsite = computed(() =>
     Math.max(0, Math.round((this.totalPrice() - this.pixAmountNow()) * 100) / 100),
   );
+
+  /** "Usar meu cashback" — desligado por padrão (o atleta escolhe gastar). Vale só para
+   *  "Gerar Pix": a cota dividida não aceita saldo. */
+  protected readonly useCashback = signal(false);
+
+  /** Cashback desta cobrança: depois do QR, o que o servidor aplicou; antes, a prévia. É também
+   *  o número que decide se a callable recebe `useCashback: true`. `pixAmountNow` segue sendo o
+   *  PREÇO — a divisão e o "Restante na arena" dependem disso. */
+  protected readonly cashbackAppliedReais = computed(() => {
+    const generated = this.pixPayment();
+    if (generated) return generated.cashbackAppliedReais;
+    if (this.selectedMethod() !== 'pix' || this.splitMode() || this.splitBookingId()) return 0;
+    return (
+      appliedPreviewCents({
+        use: this.useCashback(),
+        priceReais: this.pixAmountNow(),
+        availableCents: this.cashback.availableCents(),
+        config: this.cashback.config(),
+      }) / 100
+    );
+  });
+
+  /** O que sai no Pix agora: `chargedReais` do servidor, ou o valor de agora menos a prévia. */
+  protected readonly pixChargeNow = computed(() => {
+    const generated = this.pixPayment();
+    if (generated) return generated.chargedReais;
+    return Math.round((this.pixAmountNow() - this.cashbackAppliedReais()) * 100) / 100;
+  });
 
   protected readonly pixAvailable = computed(() => this.arena()?.onlinePaymentEnabled ?? true);
   protected readonly onsiteAvailable = computed(() => this.arena()?.onsitePaymentEnabled ?? true);
@@ -467,6 +505,7 @@ export class ArenaPaymentComponent {
     }
     this.cpfError.set(null);
     if (!this.firestore) return;
+    const useCashback = this.cashbackAppliedReais() > 0;
 
     this.processing.set(true);
     try {
@@ -482,6 +521,7 @@ export class ArenaPaymentComponent {
         bookingId,
         cpfCnpj: cpf,
         paymentFraction: this.pixFraction(),
+        useCashback,
       });
 
       this.pixBookingId.set(bookingId);

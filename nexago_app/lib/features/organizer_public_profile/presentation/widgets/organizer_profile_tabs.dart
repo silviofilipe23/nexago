@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_radii.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/ui/nexa_skeleton.dart';
 import '../../domain/organizer_event.dart';
 import '../../domain/organizer_public_profile_logic.dart';
 import '../../domain/organizer_public_profile_models.dart';
@@ -12,6 +15,22 @@ import 'organizer_event_tiles.dart';
 const String kOrganizerNoReputationText = 'Ainda sem avaliações suficientes';
 
 typedef OrganizerOpenEvent = void Function(OrganizerEvent event);
+
+/// Estado de uma fonte da tela. Carregando e erro NÃO são vazio: "Nenhum evento" ou "Ainda sem
+/// avaliações" só aparecem com o dado na mão.
+enum OrganizerLoadState { loading, error, ready }
+
+/// Com valor (inclusive recarregando ou com erro depois de ter valor) é pronto.
+OrganizerLoadState organizerLoadStateOf(AsyncValue<Object?> value) {
+  if (value.hasValue) return OrganizerLoadState.ready;
+  if (value.hasError) return OrganizerLoadState.error;
+  return OrganizerLoadState.loading;
+}
+
+const String kOrganizerEventsErrorText =
+    'Não foi possível carregar os eventos.';
+const String kOrganizerReviewsErrorText =
+    'Não foi possível carregar as avaliações.';
 
 class OrganizerOverviewTab extends StatelessWidget {
   const OrganizerOverviewTab({
@@ -26,6 +45,10 @@ class OrganizerOverviewTab extends StatelessWidget {
     required this.onOpenEvent,
     required this.onSeeEvents,
     required this.onSeeReviews,
+    this.eventsState = OrganizerLoadState.ready,
+    this.reputationState = OrganizerLoadState.ready,
+    this.onRetryEvents,
+    this.onRetryReputation,
   });
 
   final OrganizerPublicProfile profile;
@@ -40,6 +63,10 @@ class OrganizerOverviewTab extends StatelessWidget {
   final OrganizerOpenEvent onOpenEvent;
   final VoidCallback onSeeEvents;
   final VoidCallback onSeeReviews;
+  final OrganizerLoadState eventsState;
+  final OrganizerLoadState reputationState;
+  final VoidCallback? onRetryEvents;
+  final VoidCallback? onRetryReputation;
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +99,14 @@ class OrganizerOverviewTab extends StatelessWidget {
             onAction: onSeeEvents,
           ),
           const SizedBox(height: 12),
-          if (upcoming.isEmpty)
+          if (eventsState == OrganizerLoadState.loading)
+            const OrganizerEventsSkeleton()
+          else if (eventsState == OrganizerLoadState.error)
+            OrganizerErrorNote(
+              text: kOrganizerEventsErrorText,
+              onRetry: onRetryEvents,
+            )
+          else if (upcoming.isEmpty)
             OrganizerEmptyNote(
               text: inviteToFollow
                   ? 'Nenhum evento com data marcada agora. Siga para saber quando '
@@ -143,11 +177,27 @@ class OrganizerOverviewTab extends StatelessWidget {
           OrganizerSectionTitle(
             eyebrow: 'Reputação',
             title: 'Avaliações dos atletas',
-            actionLabel: reputation == null ? null : 'Ver todas',
+            actionLabel:
+                reputationState == OrganizerLoadState.ready &&
+                    reputation != null
+                ? 'Ver todas'
+                : null,
             onAction: onSeeReviews,
           ),
           const SizedBox(height: 12),
-          OrganizerReputationCard(view: reputation),
+          switch (reputationState) {
+            OrganizerLoadState.loading => const NexaSkeleton(
+              height: 120,
+              radius: AppRadii.lgAll,
+            ),
+            OrganizerLoadState.error => OrganizerErrorNote(
+              text: kOrganizerReviewsErrorText,
+              onRetry: onRetryReputation,
+            ),
+            OrganizerLoadState.ready => OrganizerReputationCard(
+              view: reputation,
+            ),
+          },
         ],
       ),
     );
@@ -162,6 +212,8 @@ class OrganizerEventsTab extends StatelessWidget {
     required this.completed,
     required this.championNames,
     required this.onOpenEvent,
+    this.eventsState = OrganizerLoadState.ready,
+    this.onRetryEvents,
   });
 
   final DateTime now;
@@ -169,9 +221,14 @@ class OrganizerEventsTab extends StatelessWidget {
   final List<OrganizerEvent> completed;
   final OrganizerChampionNames championNames;
   final OrganizerOpenEvent onOpenEvent;
+  final OrganizerLoadState eventsState;
+  final VoidCallback? onRetryEvents;
 
   @override
   Widget build(BuildContext context) {
+    if (eventsState != OrganizerLoadState.ready) {
+      return _EventsNotReady(state: eventsState, onRetry: onRetryEvents);
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       child: Column(
@@ -223,14 +280,21 @@ class OrganizerResultsTab extends StatelessWidget {
     required this.completed,
     required this.championNames,
     required this.onOpenEvent,
+    this.eventsState = OrganizerLoadState.ready,
+    this.onRetryEvents,
   });
 
   final List<OrganizerEvent> completed;
   final OrganizerChampionNames championNames;
   final OrganizerOpenEvent onOpenEvent;
+  final OrganizerLoadState eventsState;
+  final VoidCallback? onRetryEvents;
 
   @override
   Widget build(BuildContext context) {
+    if (eventsState != OrganizerLoadState.ready) {
+      return _EventsNotReady(state: eventsState, onRetry: onRetryEvents);
+    }
     final colors = context.themeColors;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
@@ -363,21 +427,53 @@ class OrganizerReviewsTab extends StatelessWidget {
     super.key,
     required this.reputation,
     required this.eventRows,
+    this.reputationState = OrganizerLoadState.ready,
+    this.onRetryReputation,
+    this.eventRowsState = OrganizerLoadState.ready,
+    this.onRetryEventRows,
   });
 
   final OrganizerReputationView? reputation;
   final List<OrganizerEventReviewRow> eventRows;
+  final OrganizerLoadState reputationState;
+  final VoidCallback? onRetryReputation;
+
+  /// Estado dos resumos por evento (`tournamentReviewSummaries`).
+  final OrganizerLoadState eventRowsState;
+  final VoidCallback? onRetryEventRows;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final view = reputation;
+    if (reputationState == OrganizerLoadState.loading) {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(20, 20, 20, 0),
+        child: NexaSkeleton(height: 220, radius: AppRadii.lgAll),
+      );
+    }
+    if (reputationState == OrganizerLoadState.error) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+        child: OrganizerErrorNote(
+          text: kOrganizerReviewsErrorText,
+          onRetry: onRetryReputation,
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           OrganizerReputationCard(view: view, showDistribution: true),
+          if (view != null && eventRowsState == OrganizerLoadState.error) ...[
+            const SizedBox(height: 24),
+            OrganizerErrorNote(
+              text: 'Não foi possível carregar a nota por evento.',
+              onRetry: onRetryEventRows,
+            ),
+          ],
           if (view != null && eventRows.isNotEmpty) ...[
             const SizedBox(height: 24),
             const OrganizerSectionTitle(title: 'Nota por evento'),
@@ -802,6 +898,82 @@ class OrganizerSectionCard extends StatelessWidget {
         ),
       ),
       child: child,
+    );
+  }
+}
+
+/// Abas de eventos antes do dado: esqueleto, ou o erro com "Tentar de novo".
+class _EventsNotReady extends StatelessWidget {
+  const _EventsNotReady({required this.state, required this.onRetry});
+
+  final OrganizerLoadState state;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      child: state == OrganizerLoadState.error
+          ? OrganizerErrorNote(
+              text: kOrganizerEventsErrorText,
+              onRetry: onRetry,
+            )
+          : const OrganizerEventsSkeleton(),
+    );
+  }
+}
+
+class OrganizerEventsSkeleton extends StatelessWidget {
+  const OrganizerEventsSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        NexaSkeleton(height: 200, radius: AppRadii.lgAll),
+        SizedBox(height: 12),
+        NexaSkeleton(height: 200, radius: AppRadii.lgAll),
+      ],
+    );
+  }
+}
+
+/// Erro de rede numa seção: a mensagem e "Tentar de novo" (spec, "Estados").
+class OrganizerErrorNote extends StatelessWidget {
+  const OrganizerErrorNote({super.key, required this.text, this.onRetry});
+
+  final String text;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return OrganizerSectionCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          Icon(Icons.cloud_off_rounded, color: colors.onSurfaceMuted),
+          const SizedBox(height: 8),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: AppTypography.soraRegular(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: colors.onSurface,
+            ),
+          ),
+          if (onRetry != null) ...[
+            const SizedBox(height: 4),
+            TextButton(
+              onPressed: onRetry,
+              style: TextButton.styleFrom(foregroundColor: AppColors.brand),
+              child: const Text('Tentar de novo'),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

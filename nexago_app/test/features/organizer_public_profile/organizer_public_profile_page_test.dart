@@ -129,6 +129,8 @@ Future<void> _pump(
   double width = 430,
   String? champion,
   Future<Map<String, String>> Function()? championNames,
+  Stream<List<OrganizerEvent>>? eventsStream,
+  Stream<OrganizerReputation?>? reputationStream,
 }) async {
   _tallScreen(tester, width: width);
   await tester.pumpWidget(
@@ -138,12 +140,12 @@ Future<void> _pump(
           (ref) => Stream<User?>.value(MockUser(uid: viewerUid)),
         ),
         organizerPublicProfileProvider(_orgId).overrideWith((ref) => profile),
-        organizerEventsProvider(
-          _orgId,
-        ).overrideWith((ref) => Stream.value(_events(champion: champion))),
+        organizerEventsProvider(_orgId).overrideWith(
+          (ref) => eventsStream ?? Stream.value(_events(champion: champion)),
+        ),
         organizerReputationProvider(
           _orgId,
-        ).overrideWith((ref) => Stream.value(reputation)),
+        ).overrideWith((ref) => reputationStream ?? Stream.value(reputation)),
         championTeamNamesByKeyProvider.overrideWith(
           (ref, key) =>
               championNames?.call() ?? Future.value(const <String, String>{}),
@@ -416,5 +418,72 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Lima / Prado'), findsOneWidget);
     expect(find.text('Carregando campeões…'), findsNothing);
+  });
+
+  testWidgets('eventos carregando: esqueleto, nunca "Nenhum evento"', (
+    tester,
+  ) async {
+    final events = StreamController<List<OrganizerEvent>>();
+    addTearDown(events.close);
+    await _pump(
+      tester,
+      profile: Stream.value(_profile()),
+      eventsStream: events.stream,
+    );
+    await tester.pump();
+
+    expect(find.byType(NexaSkeleton), findsWidgets);
+    expect(find.textContaining('Nenhum evento'), findsNothing);
+  });
+
+  testWidgets('erro nos eventos: mensagem e "Tentar de novo"', (tester) async {
+    await _pump(
+      tester,
+      profile: Stream.value(_profile()),
+      eventsStream: Stream.error(Exception('offline')),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Não foi possível carregar os eventos.'), findsOneWidget);
+    expect(find.text('Tentar de novo'), findsOneWidget);
+    expect(find.textContaining('Nenhum evento'), findsNothing);
+  });
+
+  testWidgets('reputação carregando não diz "Ainda sem avaliações"', (
+    tester,
+  ) async {
+    final reputation = StreamController<OrganizerReputation?>();
+    addTearDown(reputation.close);
+    await _pump(
+      tester,
+      profile: Stream.value(_profile()),
+      reputationStream: reputation.stream,
+    );
+    await tester.pump();
+
+    expect(find.text('Ainda sem avaliações suficientes'), findsNothing);
+    expect(find.text('Ver todas'), findsNothing);
+
+    reputation.add(null);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Ainda sem avaliações suficientes'), findsOneWidget);
+  });
+
+  testWidgets('erro na reputação: mensagem e "Tentar de novo"', (tester) async {
+    await _pump(
+      tester,
+      profile: Stream.value(_profile()),
+      reputationStream: Stream.error(Exception('offline')),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      find.text('Não foi possível carregar as avaliações.'),
+      findsOneWidget,
+    );
+    expect(find.text('Ainda sem avaliações suficientes'), findsNothing);
   });
 }

@@ -199,11 +199,17 @@ class _OrganizerPublicProfilePageState
   Widget _buildProfile(BuildContext context, OrganizerPublicProfile profile) {
     final uid = ref.watch(authProvider).valueOrNull?.uid.trim() ?? '';
     final isSelf = widget.ownerPreview || uid == profile.uid;
-    final reputation = ref
-        .watch(organizerReputationProvider(_organizerId))
-        .valueOrNull;
+    final reputationAsync = ref.watch(
+      organizerReputationProvider(_organizerId),
+    );
+    final reputation = reputationAsync.valueOrNull;
+    final reputationState = organizerLoadStateOf(reputationAsync);
     final eventsAsync = ref.watch(organizerEventsProvider(_organizerId));
     final events = eventsAsync.valueOrNull ?? const <OrganizerEvent>[];
+    final eventsState = organizerLoadStateOf(eventsAsync);
+    void retryEvents() => ref.invalidate(organizerEventsProvider(_organizerId));
+    void retryReputation() =>
+        ref.invalidate(organizerReputationProvider(_organizerId));
     final followedAsync = isSelf
         ? const AsyncValue<bool>.data(false)
         : ref.watch(organizerIsFollowedProvider(_organizerId));
@@ -260,6 +266,10 @@ class _OrganizerPublicProfilePageState
                   setState(() => _tab = OrganizerProfileTab.events),
               onSeeReviews: () =>
                   setState(() => _tab = OrganizerProfileTab.reviews),
+              eventsState: eventsState,
+              reputationState: reputationState,
+              onRetryEvents: retryEvents,
+              onRetryReputation: retryReputation,
             ),
             OrganizerProfileTab.events => OrganizerEventsTab(
               now: now,
@@ -267,15 +277,21 @@ class _OrganizerPublicProfilePageState
               completed: realized,
               championNames: championNames,
               onOpenEvent: _openEvent,
+              eventsState: eventsState,
+              onRetryEvents: retryEvents,
             ),
             OrganizerProfileTab.results => OrganizerResultsTab(
               completed: realized,
               championNames: championNames,
               onOpenEvent: _openEvent,
+              eventsState: eventsState,
+              onRetryEvents: retryEvents,
             ),
             OrganizerProfileTab.reviews => _ReviewsTabLoader(
               organizerId: _organizerId,
               reputation: reputationView,
+              reputationState: reputationState,
+              onRetryReputation: retryReputation,
               events: events,
             ),
           },
@@ -350,26 +366,34 @@ class _ReviewsTabLoader extends ConsumerWidget {
   const _ReviewsTabLoader({
     required this.organizerId,
     required this.reputation,
+    required this.reputationState,
+    required this.onRetryReputation,
     required this.events,
   });
 
   final String organizerId;
   final OrganizerReputationView? reputation;
+  final OrganizerLoadState reputationState;
+  final VoidCallback onRetryReputation;
   final List<OrganizerEvent> events;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final summaries = reputation == null
-        ? const <TournamentReviewSummary>[]
-        : ref
-                  .watch(organizerReviewSummariesProvider(organizerId))
-                  .valueOrNull ??
-              const <TournamentReviewSummary>[];
+    // Sem reputação pública não há nota por evento a mostrar: nem abre o stream.
+    final summariesAsync = reputation == null
+        ? const AsyncValue<List<TournamentReviewSummary>>.data([])
+        : ref.watch(organizerReviewSummariesProvider(organizerId));
     return OrganizerReviewsTab(
       reputation: reputation,
-      eventRows: organizerEventReviewRows(summaries, {
-        for (final event in events) event.id: event,
-      }),
+      reputationState: reputationState,
+      onRetryReputation: onRetryReputation,
+      eventRowsState: organizerLoadStateOf(summariesAsync),
+      onRetryEventRows: () =>
+          ref.invalidate(organizerReviewSummariesProvider(organizerId)),
+      eventRows: organizerEventReviewRows(
+        summariesAsync.valueOrNull ?? const [],
+        {for (final event in events) event.id: event},
+      ),
     );
   }
 }

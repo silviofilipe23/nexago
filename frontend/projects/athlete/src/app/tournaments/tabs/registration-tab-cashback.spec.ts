@@ -41,6 +41,8 @@ function fakeStore(): TournamentLiveStore {
     matches: signal([]),
     enrolledByCategory: signal(new Map()),
     now: signal(new Date()),
+    reviewInvite: signal(null),
+    myReview: signal(null),
     duoNameOf: () => '',
   } as unknown as TournamentLiveStore;
 }

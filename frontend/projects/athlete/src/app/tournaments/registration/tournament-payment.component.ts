@@ -42,6 +42,7 @@ import { shouldShowRegistrationHoldCountdown, registrationHoldCountdownView } fr
 import { appliedPreviewCents } from '../../data/cashback-preview';
 import { CashbackService } from '../../data/cashback.service';
 import { CheckoutCashbackToggleComponent } from '../../cashback/checkout-cashback-toggle.component';
+import { CashbackEarnedNoteComponent } from '../../cashback/cashback-earned-note.component';
 
 export type PaymentAmountType = 'share' | 'full';
 
@@ -108,6 +109,7 @@ const PAID_REVEAL_MS = 2000;
     NxBlockingDialogComponent,
     RegistrationHoldNoticeComponent,
     CheckoutCashbackToggleComponent,
+    CashbackEarnedNoteComponent,
   ],
   templateUrl: './tournament-payment.component.html',
   styleUrl: './tournament-payment.component.scss',
@@ -157,6 +159,9 @@ export class TournamentPaymentComponent {
   protected readonly pixResult = signal<PixPaymentResult | null>(null);
   /** Cobrança de cartão viva — o pagamento em si acontece no checkout do Asaas. */
   protected readonly cardResult = signal<CardPaymentResult | null>(null);
+  /** Id da última cobrança gerada (PIX ou cartão) — é o id do lote de cashback. Sobrevive ao
+   *  `clearPixState()` do pagamento confirmado para a nota do cartão de sucesso achar o lote. */
+  protected readonly lastChargePaymentId = signal<string | null>(null);
   protected readonly method = signal<PaymentMethod>('pix');
   protected readonly methods = computed(() => resolvePaymentMethods(this.listing()?.paymentMode));
   /** Uma cobrança viva por vez, seja qual for o meio. */
@@ -556,6 +561,7 @@ export class TournamentPaymentComponent {
         useCashback: this.cashbackAppliedReais() > 0,
       });
       this.pixResult.set(result);
+      this.lastChargePaymentId.set(result.paymentId);
       this.pixQrSrc.set(await resolvePixQrSrc(result));
       this.pixExpired.set(false);
       this.documentError.set(null);
@@ -601,6 +607,7 @@ export class TournamentPaymentComponent {
       this.pixResult.set(null);
       this.pixQrSrc.set(null);
       this.cardResult.set(result);
+      this.lastChargePaymentId.set(result.paymentId);
       this.pixExpired.set(false);
       this.documentError.set(null);
       this.schedulePixExpiry(result.expiresAt);

@@ -18,6 +18,7 @@ import {
 import { appliedPreviewCents } from '../data/cashback-preview';
 import { CashbackService } from '../data/cashback.service';
 import { CheckoutCashbackToggleComponent } from '../cashback/checkout-cashback-toggle.component';
+import { CashbackEarnedNoteComponent } from '../cashback/cashback-earned-note.component';
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;
@@ -40,7 +41,7 @@ function onlyDigits(v: string): string {
 @Component({
   selector: 'app-club-session-payment',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, AtPanelShellComponent, CheckoutCashbackToggleComponent],
+  imports: [RouterLink, AtPanelShellComponent, CheckoutCashbackToggleComponent, CashbackEarnedNoteComponent],
   template: `
     <app-at-panel-shell [userName]="accountLabel()">
       <div class="cp-body">
@@ -76,6 +77,9 @@ function onlyDigits(v: string): string {
                   Pagamento confirmado — seu nome já aparece na lista do {{ s.clubName }} em {{ s.date }}.
                 }
               </p>
+              @if (myMethod() === 'pix') {
+                <app-cashback-earned-note [paymentId]="pix()?.paymentId ?? null" />
+              }
               <div class="cp-success-actions">
                 <a class="cp-btn-primary" [routerLink]="['/reservar', s.arenaId, 'clubinho', s.id]">Ver lista</a>
                 <a class="cp-btn-ghost" routerLink="/agenda">Minha agenda</a>

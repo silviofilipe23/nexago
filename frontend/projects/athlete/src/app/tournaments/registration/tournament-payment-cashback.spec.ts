@@ -25,6 +25,7 @@ interface Internals {
   method: WritableSignal<'pix' | 'card'>;
   pixResult: WritableSignal<PixPaymentResult | null>;
   cashbackAppliedReais(): number;
+  lastChargePaymentId: WritableSignal<string | null>;
 }
 
 const firebase = environment.firebase as { apiKey: string };
@@ -232,5 +233,24 @@ describe('TournamentPaymentComponent — cashback', () => {
 
     expect(cashbackSummary(fixture)).toBeNull();
     expect(total(fixture)).toBe('R$ 50,00');
+  });
+});
+
+describe('TournamentPaymentComponent — nota de cashback no sucesso', () => {
+  useBlankFirebaseKey();
+
+  it('pagamento confirmado: a nota ouve o lote da última cobrança, mesmo depois de o QR sumir', async () => {
+    const fake = fakeCashbackService();
+    const { fixture, internals } = create(fake);
+    internals.pixResult.set(pix({ paymentId: 'pay_9' }));
+    internals.lastChargePaymentId.set('pay_9');
+
+    internals.onRegistrationUpdate(registration({ isPaid: true }));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(internals.pixResult()).toBeNull();
+    expect(host(fixture).querySelector('app-cashback-earned-note')).not.toBeNull();
+    expect(fake.lotIds).toEqual(['pay_9']);
   });
 });

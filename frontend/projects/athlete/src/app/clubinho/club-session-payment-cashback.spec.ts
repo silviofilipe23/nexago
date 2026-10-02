@@ -156,3 +156,32 @@ describe('ClubSessionPaymentComponent — cashback', () => {
     expect(host(fixture).querySelector('app-checkout-cashback-toggle')).toBeNull();
   });
 });
+
+describe('ClubSessionPaymentComponent — nota de cashback no sucesso', () => {
+  useBlankFirebaseKey();
+
+  it('confirmado pelo PIX: a nota ouve o lote do pagamento', async () => {
+    const fake = fakeCashbackService();
+    const { fixture, internals } = create(fake);
+    internals.pix.set(pixPayment({ paymentId: 'pay_c' }));
+    internals.myMethod.set('pix');
+    internals.confirmed.set(true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(host(fixture).querySelector('.cp-success app-cashback-earned-note')).not.toBeNull();
+    expect(fake.lotIds).toEqual(['pay_c']);
+  });
+
+  it('confirmado para pagar na arena: sem nota', async () => {
+    const fake = fakeCashbackService();
+    const { fixture, internals } = create(fake);
+    internals.myMethod.set('onsite');
+    internals.confirmed.set(true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(host(fixture).querySelector('app-cashback-earned-note')).toBeNull();
+    expect(fake.lotIds).toEqual([]);
+  });
+});

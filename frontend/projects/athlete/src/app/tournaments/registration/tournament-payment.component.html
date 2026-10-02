@@ -198,6 +198,7 @@
                 <p class="tp-defer-note">Pagamento confirmado — {{ isTeamRegistration() ? 'sua equipe está garantida na categoria' : 'sua dupla está garantida na categoria' }}. Nos vemos na quadra!</p>
                 <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
               }
+              <app-cashback-earned-note [paymentId]="lastChargePaymentId()" />
             </section>
           } @else if (totalPriceReais() === 0) {
             <section class="tp-card">
@@ -214,6 +215,7 @@
             <section class="tp-card">
               <h2 class="tp-card-title">Sua parcela está paga ✔</h2>
               <p class="tp-defer-note">{{ isTeamRegistration() ? 'Agora é com os demais atletas — a inscrição confirma sozinha assim que todas as cotas caírem.' : 'Agora é com seu parceiro — a inscrição confirma sozinha assim que a parte dele cair.' }}</p>
+              <app-cashback-earned-note [paymentId]="lastChargePaymentId()" />
               <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
             </section>
           } @else {

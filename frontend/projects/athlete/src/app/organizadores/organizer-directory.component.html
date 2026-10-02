@@ -1,0 +1,83 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  <div class="od">
+    <nav class="od-crumbs" aria-label="Você está em">
+      <a routerLink="/competir">Competir</a>
+      <span aria-hidden="true">›</span>
+      <span class="od-crumb-current" aria-current="page">Organizadores</span>
+    </nav>
+
+    <header class="od-head">
+      <div>
+        <h1>Organizadores</h1>
+        <p class="od-sub">Quem organiza os torneios e ligas</p>
+      </div>
+      <label class="od-search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></svg>
+        <span class="od-visually-hidden">Buscar organizador por nome ou cidade</span>
+        <input type="search" placeholder="Buscar por nome ou cidade" autocomplete="off" [value]="query()" (input)="onSearch($event)" />
+      </label>
+    </header>
+
+    @switch (status()) {
+      @case ('loading') {
+        <app-nx-page-loading title="Carregando organizadores…" />
+      }
+      @case ('error') {
+        <div class="od-state" role="alert">
+          <p class="od-state-title">Não foi possível carregar os organizadores</p>
+          <p>
+            Verifique sua conexão e tente de novo.
+            @if (errorDetail(); as detail) {
+              <span class="od-state-detail">{{ detail }}</span>
+            }
+          </p>
+          <button type="button" class="od-btn" (click)="load()">Tentar de novo</button>
+        </div>
+      }
+      @default {
+        @if (cards().length > 0) {
+          <ul class="od-grid">
+            @for (c of cards(); track c.id) {
+              <li>
+                <a class="od-card" [routerLink]="c.link">
+                  <span class="od-logo">
+                    @if (c.logoUrl) {
+                      <img [src]="c.logoUrl" alt="" loading="lazy" decoding="async" />
+                    } @else {
+                      <span aria-hidden="true">{{ c.initials }}</span>
+                    }
+                  </span>
+                  <span class="od-body">
+                    <span class="od-name">
+                      <span class="od-name-text">{{ c.name }}</span>
+                      @if (c.verified) {
+                        <svg class="od-verified" width="16" height="16" viewBox="0 0 24 24" role="img" aria-label="Organizador verificado"><path fill="currentColor" d="M12 1.8 14.6 4l3.4-.3.9 3.3 3 1.7-1.2 3.2 1.2 3.2-3 1.7-.9 3.3-3.4-.3L12 22.2 9.4 20l-3.4.3-.9-3.3-3-1.7L3.3 12 2.1 8.8l3-1.7.9-3.3 3.4.3z" /><path d="m8 12.2 2.7 2.7L16.2 9.4" fill="none" stroke="#0a0a0a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                      }
+                    </span>
+                    @if (c.locationLabel) {
+                      <span class="od-location">{{ c.locationLabel }}</span>
+                    }
+                    <span class="od-facts">
+                      @if (c.ratingLabel) {
+                        <span class="od-rating">★ {{ c.ratingLabel }}</span>
+                      }
+                      <span>{{ c.eventsLabel }}</span>
+                      <span>{{ c.followersLabel }}</span>
+                    </span>
+                    @if (c.openLabel) {
+                      <span class="od-open">{{ c.openLabel }}</span>
+                    }
+                  </span>
+                </a>
+              </li>
+            }
+          </ul>
+        } @else if (total() > 0) {
+          <p class="od-empty">Nenhum organizador encontrado para “{{ query() }}”.</p>
+        } @else {
+          <p class="od-empty">Ainda não há organizadores com eventos publicados.</p>
+        }
+      }
+    }
+  </div>
+</app-at-panel-shell>

@@ -210,6 +210,12 @@ export const routes: Routes = [
       import('./competir/competir-hub.component').then((m) => m.CompetirHubComponent),
   },
   {
+    path: 'organizadores',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./organizadores/organizer-directory.component').then((m) => m.OrganizerDirectoryComponent),
+  },
+  {
     path: 'organizadores/:organizerId',
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>

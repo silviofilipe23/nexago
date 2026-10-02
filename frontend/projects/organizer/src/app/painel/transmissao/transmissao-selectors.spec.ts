@@ -1,3 +1,4 @@
+import { interviewWithDefaults } from '../data/broadcast-control';
 import type { TournamentMatch } from '../data/matches-repository';
 import type { OrganizerTeamPlayers } from '../data/teams-repository';
 import {
@@ -148,14 +149,14 @@ describe('courtChipsOf / courtMatchOf', () => {
 describe('interviewFromCandidate / elapsedLabel / transmissaoUrl', () => {
   it('monta a tarja desnormalizada com duração e carimbo', () => {
     const [ana] = interviewCandidatesOf([match({})], ROSTERS, CATS);
-    expect(interviewFromCandidate(ana!, 20, 1234)).toEqual({
+    expect(interviewFromCandidate(ana!, 20, 1234)).toEqual(interviewWithDefaults({
       name: 'Ana Souza',
       photoUrl: 'a.jpg',
       partnerName: 'Bia Lima',
       categoryName: 'Feminina B',
       durationSec: 20,
       shownAt: 1234,
-    });
+    }));
   });
 
   it('formata o tempo no ar', () => {

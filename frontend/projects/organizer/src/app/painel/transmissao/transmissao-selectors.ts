@@ -1,4 +1,4 @@
-import type { BroadcastInterview } from '../data/broadcast-control';
+import { interviewWithDefaults, type BroadcastInterview } from '../data/broadcast-control';
 import { isKingOfCourtMatchType } from '../data/koc';
 import type { TournamentMatch } from '../data/matches-repository';
 import { formatCourtLabel, spTimeLabel } from '../data/schedule-format';
@@ -135,14 +135,14 @@ export function courtMatchOf(matches: readonly TournamentMatch[], courtId: strin
 }
 
 export function interviewFromCandidate(c: InterviewCandidate, durationSec: number | null, nowMs: number): BroadcastInterview {
-  return {
+  return interviewWithDefaults({
     name: c.name,
     photoUrl: c.photoUrl,
     partnerName: c.partnerName,
     categoryName: c.categoryName,
     durationSec,
     shownAt: nowMs,
-  };
+  });
 }
 
 /** "0:12" — tempo da tarja no ar. */

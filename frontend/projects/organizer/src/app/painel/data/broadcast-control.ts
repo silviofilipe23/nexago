@@ -31,8 +31,41 @@ export type KocRoundEndScreen = 'rodizio' | 'resultado' | 'classificadas';
 /** Visual de Grande final. `auto` = segue o matchType da partida. */
 export type BroadcastFinalMode = 'auto' | 'on' | 'off';
 
-/** Tarja de entrevista no ar — DESNORMALIZADA: o painel grava o que mostrou no clique, e o
- *  overlay só desenha, sem leitura extra. */
+export type InterviewKind = 'atleta' | 'dupla' | 'equipe';
+
+export interface InterviewPerson {
+  name: string;
+  photoUrl: string | null;
+}
+
+/** "Ranking 12º". Par vira mapa porque o Firestore não aceita array dentro de array. */
+export interface InterviewChip {
+  label: string;
+  value: string;
+}
+
+export interface InterviewCampaignRow {
+  /** `V`/`D` num duelo; `1º`, `2º`… numa rodada KOTC, que não tem um adversário só. */
+  mark: string;
+  won: boolean;
+  opponent: string;
+  phase: string;
+  score: string;
+}
+
+export interface InterviewCampaign {
+  title: string;
+  /** "5V · 1D" */
+  summary: string;
+  /** Ordem cronológica; só as últimas `INTERVIEW_CAMPAIGN_MAX` cabem no ar. */
+  rows: InterviewCampaignRow[];
+}
+
+/** Tarja de entrevista no ar — DESNORMALIZADA: o painel grava o card inteiro no clique, e o
+ *  overlay só desenha, sem leitura extra.
+ *
+ *  Os seis primeiros campos são a v1 (01/10) e continuam sempre preenchidos: um overlay que
+ *  ainda não foi atualizado segue desenhando a tarja antiga com eles. O resto é a v2. */
 export interface BroadcastInterview {
   name: string;
   photoUrl: string | null;
@@ -40,8 +73,61 @@ export interface BroadcastInterview {
   categoryName: string | null;
   /** Segundos no ar. `null` = fica até "Tirar do ar". */
   durationSec: number | null;
-  /** Identidade do comando: `Date.now()` do painel no clique. */
+  /** Identidade do COMANDO: `Date.now()` do painel no clique. Ligar uma chave da tarja já no ar
+   *  regrava o card com o mesmo carimbo, e a duração não reinicia. */
   shownAt: number;
+  kind: InterviewKind;
+  /** Identidade do ENTREVISTADO. Mudou com a tarja no ar = troca animada. */
+  key: string;
+  /** Atleta: 1 nome. Dupla: os 2. Equipe: o nome da equipe. */
+  names: string[];
+  photos: (string | null)[];
+  /** Elenco da equipe (só `equipe`). */
+  members: InterviewPerson[];
+  badge: string;
+  context: string | null;
+  subtitle: string | null;
+  /** Posição no ranking geral; 1–3 pinta o card de pódio. */
+  rankingPos: number | null;
+  chips: InterviewChip[];
+  campaign: InterviewCampaign | null;
+  showCampaign: boolean;
+}
+
+/** Tetos do que cabe no canvas 1920×1080. */
+export const INTERVIEW_MEMBERS_MAX = 6;
+export const INTERVIEW_CHIPS_MAX = 4;
+export const INTERVIEW_CAMPAIGN_MAX = 6;
+
+export const INTERVIEW_BADGES: Record<InterviewKind, string> = {
+  atleta: 'ATLETA',
+  dupla: 'DUPLA',
+  equipe: 'EQUIPE',
+};
+
+type InterviewV1 = Pick<
+  BroadcastInterview,
+  'name' | 'photoUrl' | 'partnerName' | 'categoryName' | 'durationSec' | 'shownAt'
+>;
+
+/** A tarja v1 vista com os olhos da v2: um atleta, a categoria no contexto e o parceiro no
+ *  subtítulo. Fonte única desse default — o parser usa, e os specs montam fixture com ela. */
+export function interviewWithDefaults(v1: InterviewV1 & Partial<BroadcastInterview>): BroadcastInterview {
+  return {
+    kind: 'atleta',
+    key: `nome:${v1.name}`,
+    names: [v1.name],
+    photos: [v1.photoUrl],
+    members: [],
+    badge: INTERVIEW_BADGES.atleta,
+    context: v1.categoryName,
+    subtitle: v1.partnerName ? `Dupla com ${v1.partnerName}` : null,
+    rankingPos: null,
+    chips: [],
+    campaign: null,
+    showCampaign: true,
+    ...v1,
+  };
 }
 
 /** "Mostrar agora" — carimbos, não estados: o overlay age quando o valor MUDA. */
@@ -92,19 +178,81 @@ function stamp(v: unknown): number {
   return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0;
 }
 
+const KINDS: readonly InterviewKind[] = ['atleta', 'dupla', 'equipe'];
+
+function list(v: unknown): unknown[] {
+  return Array.isArray(v) ? v : [];
+}
+
+function personFromRaw(raw: unknown): InterviewPerson | null {
+  const d = record(raw);
+  const name = text(d['name']);
+  return name ? { name, photoUrl: text(d['photoUrl']) } : null;
+}
+
+function chipFromRaw(raw: unknown): InterviewChip | null {
+  const d = record(raw);
+  const label = text(d['label']);
+  const value = text(d['value']);
+  return label && value ? { label, value } : null;
+}
+
+function campaignRowFromRaw(raw: unknown): InterviewCampaignRow | null {
+  const d = record(raw);
+  const mark = text(d['mark']);
+  const opponent = text(d['opponent']);
+  if (!mark || !opponent) return null;
+  return { mark, won: d['won'] === true, opponent, phase: text(d['phase']) ?? '', score: text(d['score']) ?? '' };
+}
+
+function campaignFromRaw(raw: unknown): InterviewCampaign | null {
+  const d = record(raw);
+  const rows = list(d['rows'])
+    .map(campaignRowFromRaw)
+    .filter((r): r is InterviewCampaignRow => r != null)
+    .slice(-INTERVIEW_CAMPAIGN_MAX);
+  if (rows.length === 0) return null;
+  return { title: text(d['title']) ?? 'Campanha', summary: text(d['summary']) ?? '', rows };
+}
+
+function present<T>(items: (T | null)[]): T[] {
+  return items.filter((x): x is T => x != null);
+}
+
 function interviewFromRaw(raw: unknown): BroadcastInterview | null {
   const d = record(raw);
   const name = text(d['name']);
   const shownAt = stamp(d['shownAt']);
   if (!name || shownAt === 0) return null;
   const dur = d['durationSec'];
-  return {
+  const v1: InterviewV1 = {
     name,
     photoUrl: text(d['photoUrl']),
     partnerName: text(d['partnerName']),
     categoryName: text(d['categoryName']),
     durationSec: typeof dur === 'number' && Number.isFinite(dur) && dur > 0 ? Math.round(dur) : null,
     shownAt,
+  };
+  // v2 se reconhece pelo `kind`. Sem ele é o painel de 01/10, e tudo vem do default.
+  if (typeof d['kind'] !== 'string') return interviewWithDefaults(v1);
+  const kind = KINDS.includes(d['kind'] as InterviewKind) ? (d['kind'] as InterviewKind) : 'atleta';
+  const names = list(d['names']).map(text).filter((n): n is string => !!n);
+  const photos = Array.isArray(d['photos']) ? d['photos'].map(text) : [v1.photoUrl];
+  const pos = d['rankingPos'];
+  return {
+    ...v1,
+    kind,
+    key: text(d['key']) ?? `nome:${name}`,
+    names: names.length > 0 ? names : [name],
+    photos,
+    members: present(list(d['members']).map(personFromRaw)).slice(0, INTERVIEW_MEMBERS_MAX),
+    badge: text(d['badge']) ?? INTERVIEW_BADGES[kind],
+    context: text(d['context']),
+    subtitle: text(d['subtitle']),
+    rankingPos: typeof pos === 'number' && Number.isInteger(pos) && pos > 0 ? pos : null,
+    chips: present(list(d['chips']).map(chipFromRaw)).slice(0, INTERVIEW_CHIPS_MAX),
+    campaign: campaignFromRaw(d['campaign']),
+    showCampaign: d['showCampaign'] !== false,
   };
 }
 

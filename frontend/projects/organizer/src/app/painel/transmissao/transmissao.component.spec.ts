@@ -1,7 +1,7 @@
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { DEFAULT_BROADCAST_CONTROL, type BroadcastControl } from '../data/broadcast-control';
+import { DEFAULT_BROADCAST_CONTROL, interviewWithDefaults, type BroadcastControl } from '../data/broadcast-control';
 import type { BroadcastControlPatch } from '../data/broadcast-control-repository';
 import type { TournamentMatch } from '../data/matches-repository';
 import type { OrganizerTournament } from '../data/tournament.model';
@@ -131,7 +131,7 @@ describe('TransmissaoComponent', () => {
     const fake = new FakeData();
     fake.control.set({
       ...DEFAULT_BROADCAST_CONTROL,
-      interview: { name: 'Ana Souza', photoUrl: null, partnerName: null, categoryName: null, durationSec: null, shownAt: Date.now() },
+      interview: interviewWithDefaults({ name: 'Ana Souza', photoUrl: null, partnerName: null, categoryName: null, durationSec: null, shownAt: Date.now() }),
     });
     const { el } = await mount(fake);
     expect(el.textContent).toContain('No ar:');
@@ -161,7 +161,7 @@ describe('TransmissaoComponent', () => {
     const fake = new FakeData();
     fake.control.set({
       ...DEFAULT_BROADCAST_CONTROL,
-      interview: { name: 'Ana Souza', photoUrl: null, partnerName: null, categoryName: null, durationSec: null, shownAt: Date.now() },
+      interview: interviewWithDefaults({ name: 'Ana Souza', photoUrl: null, partnerName: null, categoryName: null, durationSec: null, shownAt: Date.now() }),
     });
     const { el } = await mount(fake);
     const agora = [...el.querySelectorAll('.og-tx-agora')] as HTMLButtonElement[];

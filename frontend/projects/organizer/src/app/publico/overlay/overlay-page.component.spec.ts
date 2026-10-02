@@ -2,7 +2,7 @@ import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
 import type { OrganizerTournament } from '../../painel/data/tournament.model';
-import { DEFAULT_BROADCAST_CONTROL, type BroadcastControl, type BroadcastInterview } from '../../painel/data/broadcast-control';
+import { DEFAULT_BROADCAST_CONTROL, type BroadcastControl, type BroadcastInterview, interviewWithDefaults } from '../../painel/data/broadcast-control';
 import { OverlayLiveGateway, type OverlayTeam } from './overlay-live.gateway';
 import { OverlayPageComponent } from './overlay-page.component';
 
@@ -154,14 +154,14 @@ function controle(over: Partial<BroadcastControl> = {}): BroadcastControl {
   };
 }
 
-const TARJA: BroadcastInterview = {
+const TARJA: BroadcastInterview = interviewWithDefaults({
   name: 'Ana Souza',
   photoUrl: null,
   partnerName: 'Bia Lima',
   categoryName: 'Feminina B',
   durationSec: null,
   shownAt: 1_000,
-};
+});
 
 /** Monta a página já no fim de rodada, que é quando há duas telas pra alternar. */
 async function noFimDaRodada(inputs: Record<string, unknown> = {}) {

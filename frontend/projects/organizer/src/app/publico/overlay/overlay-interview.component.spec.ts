@@ -1,16 +1,16 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import type { BroadcastInterview } from '../../painel/data/broadcast-control';
+import { interviewWithDefaults, type BroadcastInterview } from '../../painel/data/broadcast-control';
 import { OverlayInterviewComponent } from './overlay-interview.component';
 
-const TARJA: BroadcastInterview = {
+const TARJA: BroadcastInterview = interviewWithDefaults({
   name: 'Ana Souza',
   photoUrl: null,
   partnerName: 'Bia Lima',
   categoryName: 'Feminina B',
   durationSec: 20,
   shownAt: 1_000,
-};
+});
 
 describe('OverlayInterviewComponent', () => {
   beforeEach(async () => {

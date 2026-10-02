@@ -75,11 +75,21 @@ export function nextInterviewAir(
   nowMs: number,
 ): InterviewAir | null {
   if (!interview) return null;
-  if (prev && prev.data.shownAt === interview.shownAt) return prev;
+  // Mesmo carimbo = mesmo comando: a duração continua contando de quando ele chegou. O card
+  // pode ter mudado (chave ligada com a tarja no ar), então os dados acompanham.
+  if (prev && prev.data.shownAt === interview.shownAt) {
+    return sameInterview(prev.data, interview) ? prev : { data: interview, receivedAtMs: prev.receivedAtMs };
+  }
   if (isBaseline && interview.durationSec != null) {
     return { data: interview, receivedAtMs: Number.NEGATIVE_INFINITY };
   }
   return { data: interview, receivedAtMs: nowMs };
+}
+
+/** O parser devolve objeto novo a cada snapshot; comparar o conteúdo evita redesenhar a tarja
+ *  quando o snapshot é de outra chave do painel. O card é pequeno — serializar é barato. */
+function sameInterview(a: BroadcastInterview, b: BroadcastInterview): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 export function interviewVisibleAt(air: InterviewAir | null, nowMs: number): boolean {

@@ -4,16 +4,54 @@ import {
   finalPrefOf,
   interviewLineOf,
   interviewOnAirAt,
+  interviewWithDefaults,
   type BroadcastInterview,
 } from './broadcast-control';
 
-const TARJA: BroadcastInterview = {
+const TARJA: BroadcastInterview = interviewWithDefaults({
   name: 'Ana Souza',
   photoUrl: null,
   partnerName: 'Bia Lima',
   categoryName: 'Feminina B',
   durationSec: 20,
   shownAt: 1_000_000,
+});
+
+/** Tarja v1, exatamente como o painel de 01/10 grava — sem nenhum campo novo. */
+const TARJA_V1 = {
+  name: 'Ana Souza',
+  photoUrl: 'https://x/ana.jpg',
+  partnerName: 'Bia Lima',
+  categoryName: 'Feminina B',
+  durationSec: 20,
+  shownAt: 1_000_000,
+};
+
+const TARJA_V2 = {
+  ...TARJA_V1,
+  name: 'Ana Souza / Bia Lima',
+  kind: 'dupla',
+  key: 'dupla:t1',
+  names: ['Ana Souza', 'Bia Lima'],
+  photos: ['https://x/ana.jpg', null],
+  members: [],
+  badge: 'DUPLA',
+  context: 'Feminina B · Semifinal',
+  subtitle: null,
+  rankingPos: 2,
+  chips: [
+    { label: 'Ranking', value: '2º' },
+    { label: 'Pontos', value: '1.240' },
+  ],
+  campaign: {
+    title: 'Campanha no torneio',
+    summary: '2V · 1D',
+    rows: [
+      { mark: 'V', won: true, opponent: 'Carla / Duda', phase: 'Grupo A', score: '21–15' },
+      { mark: 'D', won: false, opponent: 'Eva / Fê', phase: 'Grupo A', score: '1–2' },
+    ],
+  },
+  showCampaign: false,
 };
 
 describe('broadcastControlFromRaw', () => {
@@ -53,6 +91,80 @@ describe('broadcastControlFromRaw', () => {
     expect(broadcastControlFromRaw({ interview: { ...TARJA, durationSec: 0 } }).interview?.durationSec).toBeNull();
     expect(broadcastControlFromRaw({ interview: { ...TARJA, durationSec: '20' } }).interview?.durationSec).toBeNull();
     expect(broadcastControlFromRaw({ interview: { ...TARJA, durationSec: 20.4 } }).interview?.durationSec).toBe(20);
+  });
+
+  it('tarja v1 (só nome, foto, parceiro e categoria) vira a variante atleta', () => {
+    const t = broadcastControlFromRaw({ interview: TARJA_V1 }).interview!;
+    expect(t.kind).toBe('atleta');
+    expect(t.names).toEqual(['Ana Souza']);
+    expect(t.photos).toEqual(['https://x/ana.jpg']);
+    expect(t.badge).toBe('ATLETA');
+    expect(t.context).toBe('Feminina B');
+    expect(t.subtitle).toBe('Dupla com Bia Lima');
+    expect(t.chips).toEqual([]);
+    expect(t.campaign).toBeNull();
+    expect(t.showCampaign).toBeTrue();
+  });
+
+  it('tarja v1 de pessoas diferentes tem identidades diferentes', () => {
+    const a = broadcastControlFromRaw({ interview: TARJA_V1 }).interview!;
+    const b = broadcastControlFromRaw({ interview: { ...TARJA_V1, name: 'Bia Lima' } }).interview!;
+    expect(a.key).not.toBe(b.key);
+  });
+
+  it('lê a tarja v2 inteira', () => {
+    const t = broadcastControlFromRaw({ interview: TARJA_V2 }).interview!;
+    expect(t.kind).toBe('dupla');
+    expect(t.key).toBe('dupla:t1');
+    expect(t.names).toEqual(['Ana Souza', 'Bia Lima']);
+    expect(t.photos).toEqual(['https://x/ana.jpg', null]);
+    expect(t.context).toBe('Feminina B · Semifinal');
+    expect(t.subtitle).toBeNull();
+    expect(t.rankingPos).toBe(2);
+    expect(t.chips).toEqual(TARJA_V2.chips);
+    expect(t.campaign).toEqual(TARJA_V2.campaign);
+    expect(t.showCampaign).toBeFalse();
+  });
+
+  it('na v2, contexto null fica null — não volta pra categoria da v1', () => {
+    const t = broadcastControlFromRaw({ interview: { ...TARJA_V2, context: null } }).interview!;
+    expect(t.context).toBeNull();
+  });
+
+  it('v2 com lixo cai no neutro de cada campo, sem derrubar a tarja', () => {
+    const t = broadcastControlFromRaw({
+      interview: {
+        ...TARJA_V2,
+        kind: 'trio',
+        names: 'Ana',
+        photos: [1, 'https://x/b.jpg'],
+        rankingPos: -3,
+        chips: [{ label: 'Ranking' }, ['Pontos', '10'], { label: 'Nível', value: 'Open' }],
+        campaign: { title: 'x', summary: 'y', rows: [{ mark: 'V' }] },
+        members: [{ name: '' }, { name: 'Caio', photoUrl: 7 }],
+      },
+    }).interview!;
+    expect(t.kind).toBe('atleta');
+    expect(t.names).toEqual(['Ana Souza / Bia Lima']);
+    expect(t.photos).toEqual([null, 'https://x/b.jpg']);
+    expect(t.rankingPos).toBeNull();
+    expect(t.chips).toEqual([{ label: 'Nível', value: 'Open' }]);
+    expect(t.campaign).toBeNull();
+    expect(t.members).toEqual([{ name: 'Caio', photoUrl: null }]);
+  });
+
+  it('elenco, chips e linhas da campanha têm teto (o que cabe no ar)', () => {
+    const muitos = Array.from({ length: 9 }, (_, i) => ({ name: `A${i}`, photoUrl: null }));
+    const chips = Array.from({ length: 9 }, (_, i) => ({ label: `L${i}`, value: `${i}` }));
+    const rows = Array.from({ length: 9 }, (_, i) => ({ mark: 'V', won: true, opponent: `O${i}`, phase: 'G', score: '1–0' }));
+    const t = broadcastControlFromRaw({
+      interview: { ...TARJA_V2, kind: 'equipe', members: muitos, chips, campaign: { title: 't', summary: 's', rows } },
+    }).interview!;
+    expect(t.members.length).toBe(6);
+    expect(t.chips.length).toBe(4);
+    expect(t.campaign!.rows.length).toBe(6);
+    // As MAIS RECENTES: a campanha vem em ordem cronológica.
+    expect(t.campaign!.rows[5]!.opponent).toBe('O8');
   });
 
   it('carimbo inválido de comando vira 0', () => {

@@ -171,7 +171,7 @@ export class OrganizerProfileStore {
     try {
       await this.source.setFollowing(viewer, organizerId, next);
       if (next) {
-        this.toasts.success(`Seguindo ${this.profile()?.name ?? 'o organizador'}`, 'Você recebe um aviso quando ele abrir inscrições.');
+        this.toasts.success(`Seguindo ${this.profile()?.name ?? 'o organizador'}`, 'Você recebe um aviso quando abrir inscrição em um evento novo.');
       }
     } catch {
       this.following.set(!next);

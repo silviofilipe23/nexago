@@ -196,9 +196,11 @@ describe('próximos e realizados', () => {
     expect(completedOrganizerEvents(list).map((e) => e.summary.id)).toEqual(['b', 'a']);
   });
 
-  it('legenda "N com inscrição aberta" conta só os abertos', () => {
-    expect(openRegistrationCaption([event('a'), event('b'), event('c', { listingStatus: 'closed' })])).toBe('2 com inscrição aberta');
-    expect(openRegistrationCaption([event('c', { listingStatus: 'closed' })])).toBeNull();
+  it('legenda "N com inscrição aberta" conta só o que aceita inscrição agora', () => {
+    const soon = event('d', { registrationOpensAt: ts('2026-10-05T13:00:00Z') });
+    const expired = event('e', { registrationClosesAt: ts('2026-10-01T13:00:00Z') });
+    expect(openRegistrationCaption([event('a'), event('b'), event('c', { listingStatus: 'closed' }), soon, expired], NOW)).toBe('2 com inscrição aberta');
+    expect(openRegistrationCaption([event('c', { listingStatus: 'closed' })], NOW)).toBeNull();
   });
 });
 
@@ -211,7 +213,7 @@ describe('organizerEventCardVm', () => {
     expect(vm.dateLabel).toBe('20–21 out');
     expect(vm.venue).toBe('Arena ErreJota');
     expect(vm.spots).toEqual({ label: '20/32', pct: 63, known: true });
-    expect(vm.price).toEqual({ label: 'R$ 140', hint: 'por dupla' });
+    expect(vm.price).toEqual({ prefix: '', label: 'R$ 140', unit: 'por dupla' });
     expect(vm.cta).toEqual({ label: 'Inscrever', primary: true, link: ['/torneios', 't1', 'inscricao'] });
     expect(vm.link).toEqual(['/torneios', 't1']);
     expect(vm.coverUrl).toBe('/media/tournament-covers/volei_praia.webp');
@@ -261,11 +263,11 @@ describe('organizerEventCardVm', () => {
         { id: 'c2', maxTeams: 16, entryFee: 120 },
       ],
     });
-    expect(organizerEventCardVm(two, 0, NOW).price).toEqual({ label: 'R$ 120', hint: 'a partir de · por dupla' });
+    expect(organizerEventCardVm(two, 0, NOW).price).toEqual({ prefix: 'a partir de', label: 'R$ 120', unit: 'por dupla' });
     const team = event('t2', { categories: [{ id: 'c1', maxTeams: 8, entryFee: 300, teamSize: 4 }] });
-    expect(organizerEventCardVm(team, 0, NOW).price).toEqual({ label: 'R$ 300', hint: 'por equipe' });
+    expect(organizerEventCardVm(team, 0, NOW).price).toEqual({ prefix: '', label: 'R$ 300', unit: 'por equipe' });
     const free = event('t3', { categories: [{ id: 'c1', maxTeams: 8, entryFee: 0 }] });
-    expect(organizerEventCardVm(free, 0, NOW).price).toEqual({ label: 'Grátis', hint: '' });
+    expect(organizerEventCardVm(free, 0, NOW).price).toEqual({ prefix: '', label: 'Grátis', unit: '' });
   });
 
   it('sem categorias: sem vagas e sem preço', () => {

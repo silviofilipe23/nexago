@@ -188,9 +188,17 @@ export function completedOrganizerEvents(events: readonly OrganizerEvent[]): Org
   return events.filter((e) => e.listingStatus === 'completed').sort(byStart(-1));
 }
 
-/** "3 com inscrição aberta" ao lado de "Próximos eventos". */
-export function openRegistrationCaption(upcoming: readonly OrganizerEvent[]): string | null {
-  const n = upcoming.filter((e) => e.listingStatus === 'open').length;
+/** Aceita inscrição agora: status `open`, já passou de `registrationOpensAt` e o prazo não venceu. */
+function registrationOpenNow(e: OrganizerEvent, now: Date): boolean {
+  const { registrationOpensAt, registrationClosesAt } = e.summary;
+  if (e.listingStatus !== 'open') return false;
+  if (registrationOpensAt && registrationOpensAt.getTime() > now.getTime()) return false;
+  return !(registrationClosesAt && registrationClosesAt.getTime() <= now.getTime());
+}
+
+/** "3 com inscrição aberta" ao lado de "Próximos eventos" — os "Em breve" não contam. */
+export function openRegistrationCaption(upcoming: readonly OrganizerEvent[], now: Date): string | null {
+  const n = upcoming.filter((e) => registrationOpenNow(e, now)).length;
   return n === 0 ? null : `${n} com inscrição aberta`;
 }
 
@@ -208,7 +216,8 @@ export interface OrganizerEventCardVm {
   readonly venue: string | null;
   /** `known: false` = contagem de inscrições ainda não chegou: só a capacidade aparece. */
   readonly spots: { readonly label: string; readonly pct: number; readonly known: boolean } | null;
-  readonly price: { readonly label: string; readonly hint: string } | null;
+  /** "a partir de" (valores variam) · "R$ 140" · "por dupla". */
+  readonly price: { readonly prefix: string; readonly label: string; readonly unit: string } | null;
   readonly cta: { readonly label: 'Inscrever' | 'Acompanhar'; readonly primary: boolean; readonly link: readonly string[] };
   readonly coverUrl: string | null;
 }
@@ -230,8 +239,9 @@ function eventPrice(s: TournamentSummary): OrganizerEventCardVm['price'] {
   const cheapest = s.categories.reduce((min, c) => (c.entryFee < min.entryFee ? c : min));
   const varies = s.categories.some((c) => c.entryFee !== cheapest.entryFee);
   const unit = s.format === 'Individual' ? 'atleta' : cheapest.teamSize != null ? 'equipe' : 'dupla';
-  if (cheapest.entryFee <= 0) return { label: 'Grátis', hint: varies ? 'a partir de' : '' };
-  return { label: formatPrice(cheapest.entryFee), hint: varies ? `a partir de · por ${unit}` : `por ${unit}` };
+  const prefix = varies ? 'a partir de' : '';
+  if (cheapest.entryFee <= 0) return { prefix, label: 'Grátis', unit: '' };
+  return { prefix, label: formatPrice(cheapest.entryFee), unit: `por ${unit}` };
 }
 
 function eventBadge(e: OrganizerEvent, fillPct: number | null, now: Date): OrganizerEventCardVm['badge'] {

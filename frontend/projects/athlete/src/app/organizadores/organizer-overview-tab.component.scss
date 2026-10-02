@@ -10,7 +10,7 @@
 // Principal + lateral; em container estreito a lateral desce para depois do conteúdo.
 .ov {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr) 300px;
   gap: var(--nx-s-5);
   align-items: start;
 
@@ -61,7 +61,7 @@
 
 .ov-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
   gap: var(--nx-s-4);
 }
 

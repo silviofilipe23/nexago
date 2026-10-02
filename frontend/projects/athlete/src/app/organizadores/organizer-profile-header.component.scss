@@ -49,7 +49,10 @@
     flex-wrap: wrap;
   }
 
+  // Celular: logo sobre a capa e, embaixo dele, nome e meta na largura toda.
   @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: flex-start;
     gap: var(--nx-s-3);
     margin-top: -36px;
     padding: 0 var(--nx-s-2);
@@ -94,14 +97,13 @@
   padding-bottom: var(--nx-s-1);
 
   @media (max-width: 640px) {
-    flex-basis: 0;
+    flex: none;
+    width: 100%;
   }
 }
 
+// Bloco (não flex): o selo acompanha a última palavra quando o nome quebra de linha.
 .oh-name {
-  display: flex;
-  align-items: center;
-  gap: var(--nx-s-2);
   margin: 0;
   min-width: 0;
   font-family: var(--nx-font-display);
@@ -117,12 +119,13 @@
 }
 
 .oh-name-text {
-  min-width: 0;
   overflow-wrap: anywhere;
 }
 
 .oh-verified {
-  flex: none;
+  display: inline-block;
+  margin-left: 6px;
+  vertical-align: -2px;
   color: var(--nx-orange-500);
 }
 
@@ -244,6 +247,8 @@
   }
 
   @media (max-width: 640px) {
+    // Rótulo que quebra em 2 linhas não desalinha os valores da mesma linha.
+    justify-content: flex-end;
     padding: var(--nx-s-3);
     border: 1px solid var(--nx-line);
     border-radius: var(--nx-r-3);
@@ -252,6 +257,11 @@
     &:first-child {
       padding-left: var(--nx-s-3);
       border-left: 1px solid var(--nx-line);
+    }
+
+    dt {
+      white-space: normal;
+      letter-spacing: 0.08em;
     }
 
     dd {

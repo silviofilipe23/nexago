@@ -34,7 +34,7 @@ export class OrganizerOverviewTabComponent {
       .map((e) => organizerEventCardVm(e, enrolled.get(e.summary.id) ?? null, now));
   });
 
-  protected readonly caption = computed(() => openRegistrationCaption(this.store.upcoming()));
+  protected readonly caption = computed(() => openRegistrationCaption(this.store.upcoming(), this.store.now()));
   protected readonly upcomingCount = computed(() => this.store.upcoming().length);
 
   protected readonly history = computed(() => {

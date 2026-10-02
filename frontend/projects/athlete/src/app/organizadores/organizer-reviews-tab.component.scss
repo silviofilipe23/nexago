@@ -3,15 +3,17 @@
 :host {
   display: block;
   min-width: 0;
+  container-type: inline-size;
 }
 
+// Nota geral e aspectos lado a lado; a nota por evento ocupa a linha inteira.
 .rv {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--nx-s-4);
-  align-items: start;
+  align-items: stretch;
 
-  @media (max-width: 640px) {
+  @container (max-width: 620px) {
     grid-template-columns: minmax(0, 1fr);
   }
 }

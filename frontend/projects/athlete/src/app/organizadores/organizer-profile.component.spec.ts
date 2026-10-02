@@ -1,6 +1,7 @@
 import { provideZonelessChangeDetection, signal } from '@angular/core';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { OrganizerPublicProfileSource } from '../data/organizer-public-profile-repository';
@@ -19,9 +20,10 @@ const PROFILE = organizerPublicProfileFromDoc('org-1', {
   stats: { eventsCompleted: 38, athletes: 1240, sports: ['beachVolleyball'] },
 });
 
+/** A fonte só conhece `org-1`: se o id da rota não chegar à página, ela cai em "não encontrado". */
 function source(profile: OrganizerPublicProfile | null) {
   return {
-    fetchProfile: () => Promise.resolve(profile),
+    fetchProfile: (id: string) => Promise.resolve(id === 'org-1' ? profile : null),
     fetchEvents: () => Promise.resolve([]),
     fetchReputation: () => Promise.resolve(null),
     fetchReviewSummaries: () => Promise.resolve([]),
@@ -33,7 +35,6 @@ function source(profile: OrganizerPublicProfile | null) {
 }
 
 describe('OrganizerProfileComponent', () => {
-  let fixture: ComponentFixture<OrganizerProfileComponent>;
   let apiKey: string | undefined;
 
   beforeEach(() => {
@@ -44,32 +45,34 @@ describe('OrganizerProfileComponent', () => {
 
   afterEach(() => {
     (environment.firebase as { apiKey?: string }).apiKey = apiKey;
-    fixture?.destroy();
     TestBed.resetTestingModule();
   });
 
-  async function mount(opts: { profile?: OrganizerPublicProfile | null; viewer?: string | null; aba?: string } = {}): Promise<HTMLElement> {
+  /** Monta pela rota de verdade (`RouterTestingHarness`): o portal do atleta não liga
+   *  `withComponentInputBinding()`, então o id e a aba têm de chegar pelo `ActivatedRoute`. */
+  async function mount(opts: { profile?: OrganizerPublicProfile | null; viewer?: string | null; url?: string } = {}): Promise<HTMLElement> {
     TestBed.configureTestingModule({
-      imports: [OrganizerProfileComponent],
       providers: [
         provideZonelessChangeDetection(),
-        provideRouter([]),
+        provideRouter([{ path: 'organizadores/:organizerId', component: OrganizerProfileComponent }]),
         { provide: OrganizerPublicProfileSource, useValue: source(opts.profile === undefined ? PROFILE : opts.profile) },
         { provide: AuthService, useValue: { user: signal(opts.viewer === null ? null : { uid: opts.viewer ?? 'me' }), devEmail: signal(null) } },
         { provide: PartnerInvitesService, useValue: { pending: signal([]), pendingCount: signal(0), markAnswered: () => undefined } },
         { provide: StaffTournamentsService, useValue: { count: signal(0) } },
       ],
     });
-    fixture = TestBed.createComponent(OrganizerProfileComponent);
-    fixture.componentRef.setInput('organizerId', 'org-1');
-    if (opts.aba) fixture.componentRef.setInput('aba', opts.aba);
-    fixture.detectChanges();
-    await fixture.whenStable();
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl(opts.url ?? '/organizadores/org-1');
     await new Promise((resolve) => setTimeout(resolve));
-    fixture.detectChanges();
-    await fixture.whenStable();
-    return fixture.nativeElement as HTMLElement;
+    harness.detectChanges();
+    await harness.fixture.whenStable();
+    return harness.routeNativeElement as HTMLElement;
   }
+
+  it('o id vem da rota: outro id não é encontrado', async () => {
+    const host = await mount({ url: '/organizadores/outro' });
+    expect(host.textContent).toContain('Organizador não encontrado');
+  });
 
   it('sem perfil público: "Organizador não encontrado" com link para a lista', async () => {
     const host = await mount({ profile: null });
@@ -94,7 +97,6 @@ describe('OrganizerProfileComponent', () => {
   it('Seguir aparece para outro atleta e some no próprio perfil', async () => {
     const other = await mount({ viewer: 'me' });
     expect(other.querySelector('.oh-btn--follow')?.textContent).toContain('Seguir');
-    fixture.destroy();
     TestBed.resetTestingModule();
 
     const self = await mount({ viewer: 'org-1' });
@@ -102,7 +104,7 @@ describe('OrganizerProfileComponent', () => {
   });
 
   it('a aba vem de ?aba= e "Eventos" mostra a contagem', async () => {
-    const host = await mount({ aba: 'avaliacoes' });
+    const host = await mount({ url: '/organizadores/org-1?aba=avaliacoes' });
     expect(host.querySelector('app-organizer-reviews-tab')).not.toBeNull();
     expect(host.querySelector('.op-tab--active')?.textContent).toContain('Avaliações');
     expect(host.querySelector('app-organizer-reviews-tab')?.textContent).toContain('Ainda sem avaliações suficientes');

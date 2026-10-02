@@ -14,8 +14,9 @@
   padding: 18px 24px 48px;
   min-width: 0;
 
+  // No celular a casca do portal já dá o respiro lateral (16px): aqui só o vertical.
   @media (max-width: 640px) {
-    padding: 12px 16px 32px;
+    padding: 4px 0 32px;
   }
 }
 
@@ -58,7 +59,7 @@
 
 .op-tabs {
   display: flex;
-  gap: var(--nx-s-2);
+  gap: var(--nx-s-1);
   margin-top: var(--nx-s-2);
   border-bottom: 1px solid var(--nx-line);
   overflow-x: auto;
@@ -67,6 +68,11 @@
 
   &::-webkit-scrollbar {
     display: none;
+  }
+
+  @media (max-width: 640px) {
+    justify-content: space-between;
+    gap: var(--nx-s-3);
   }
 }
 
@@ -97,6 +103,12 @@
   &:hover,
   &:focus-visible {
     color: var(--nx-text);
+  }
+
+  // As quatro abas cabem em 375px sem rolar: a aba ativa nunca fica escondida à direita.
+  @media (max-width: 640px) {
+    padding: 0;
+    font-size: 13px;
   }
 }
 

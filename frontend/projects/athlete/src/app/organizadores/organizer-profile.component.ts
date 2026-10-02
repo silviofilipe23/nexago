@@ -1,5 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, untracked } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, untracked } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { map } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxToastService } from '../shared/feedback';
@@ -47,10 +49,16 @@ function nameFromEmail(email: string | null | undefined): string {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class OrganizerProfileComponent {
-  /** Parâmetro de rota (`withComponentInputBinding`) — tem de ser `input()`, nunca `signal()`. */
-  readonly organizerId = input('');
-  /** `?aba=` (também por `withComponentInputBinding`). */
-  readonly aba = input<string | undefined>(undefined);
+  /** O portal do atleta NÃO liga `withComponentInputBinding()`: parâmetro de rota e `?aba=` vêm
+   *  do `ActivatedRoute` (mesmo padrão da casca do torneio). Um `input()` aqui ficaria vazio
+   *  para sempre e a página cairia em "não encontrado". */
+  private readonly route = inject(ActivatedRoute);
+  private readonly organizerId = toSignal(this.route.paramMap.pipe(map((p) => p.get('organizerId') ?? '')), {
+    initialValue: this.route.snapshot.paramMap.get('organizerId') ?? '',
+  });
+  private readonly aba = toSignal(this.route.queryParamMap.pipe(map((q) => q.get('aba'))), {
+    initialValue: this.route.snapshot.queryParamMap.get('aba'),
+  });
 
   protected readonly store = inject(OrganizerProfileStore);
   private readonly auth = inject(AuthService);

@@ -36,9 +36,12 @@
   <div class="ec-foot">
     @if (e.price; as price) {
       <p class="ec-price">
+        @if (price.prefix) {
+          <span>{{ price.prefix }}</span>
+        }
         <strong>{{ price.label }}</strong>
-        @if (price.hint) {
-          <span>{{ price.hint }}</span>
+        @if (price.unit) {
+          <span>{{ price.unit }}</span>
         }
       </p>
     }

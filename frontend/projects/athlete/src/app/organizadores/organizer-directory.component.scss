@@ -14,8 +14,9 @@
   padding: 18px 24px 48px;
   min-width: 0;
 
+  // No celular a casca do portal já dá o respiro lateral (16px): aqui só o vertical.
   @media (max-width: 640px) {
-    padding: 12px 16px 32px;
+    padding: 4px 0 32px;
   }
 }
 

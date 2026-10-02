@@ -3,6 +3,7 @@
 :host {
   display: block;
   min-width: 0;
+  container-type: inline-size;
 }
 
 .ec {
@@ -158,6 +159,16 @@
   justify-content: space-between;
   gap: var(--nx-s-3);
   padding: var(--nx-s-3) var(--nx-s-4) var(--nx-s-4);
+
+  // Card estreito (3 por linha ao lado da coluna lateral): preço em cima, botão inteiro embaixo.
+  @container (max-width: 240px) {
+    flex-direction: column;
+    align-items: stretch;
+
+    .ec-cta {
+      margin-left: 0;
+    }
+  }
 }
 
 .ec-price {
@@ -172,6 +183,7 @@
     font-weight: 800;
     font-size: 17px;
     color: var(--nx-text);
+    white-space: nowrap;
   }
 
   span {
@@ -182,8 +194,10 @@
 
 .ec-cta {
   @include o.button-base;
+  flex: none;
   margin-left: auto;
   min-height: 38px;
+  padding: 0 var(--nx-s-3);
 }
 
 .ec-cta--primary {

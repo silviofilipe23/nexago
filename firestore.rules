@@ -2219,6 +2219,34 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Perfil público do organizador — mantido só por Cloud Function
+    // (organizer-public-profile-sync.ts). Leitura pública, como organizerReputation.
+    // Spec: docs/superpowers/specs/2026-10-02-organizer-public-profile-design.md
+    match /organizerPublicProfiles/{organizerId} {
+      allow read: if true;
+      allow write: if false;
+
+      // Quem segue. O contador `followersCount` do doc pai é mantido pelo gatilho
+      // onOrganizerFollowerWritten. Sem update: seguir é criar, deixar de seguir é apagar.
+      match /followers/{userId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null &&
+          request.auth.uid == userId &&
+          userId != organizerId &&
+          request.resource.data.keys().hasAll(['userId', 'organizerId', 'followedAt']) &&
+          request.resource.data.keys().hasOnly(['userId', 'organizerId', 'followedAt']) &&
+          request.resource.data.userId == userId &&
+          request.resource.data.organizerId == organizerId &&
+          request.resource.data.followedAt == request.time;
+        allow delete: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // Trava do push "abriu inscrições" aos seguidores (organizer-follower-push.ts).
+    match /organizerFollowerPushes/{tournamentId} {
+      allow read, write: if false;
+    }
+
     // O perfil do atleta é armazenado diretamente em users/{userId}
     // As regras acima já cobrem isso - usuários podem ler/escrever seus próprios dados
     //

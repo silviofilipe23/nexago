@@ -125,6 +125,7 @@ import {
   kocGoldenPoint,
   kocFinishRound,
   kocRemoveTeam,
+  kocSetRoundOnDeck,
 } from "./koc-match-ops";
 import {deleteOwnAccount} from "./account-deletion";
 import {onTournamentInscriptionWriteSyncCollectedCents} from "./tournament-collected-stats";
@@ -296,6 +297,7 @@ export {
   kocGoldenPoint,
   kocFinishRound,
   kocRemoveTeam,
+  kocSetRoundOnDeck,
   deleteOwnAccount,
   onTournamentInscriptionWriteSyncCollectedCents,
   onInscriptionWrittenLockLevels,

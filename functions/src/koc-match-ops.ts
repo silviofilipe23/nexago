@@ -13,6 +13,7 @@ import {
   isKingOfCourtMatch,
   isMatchCanceled,
   isMatchCompleted,
+  isMatchScheduled,
 } from "./match-status";
 import {syncTournamentLiveMatchesNow} from "./tournament-live-matches";
 import {parseRemovalDescription} from "./organizer-removal-description";
@@ -58,6 +59,11 @@ const CLOCK_BOUNDS = {
 
 /** Ajuste fino do relógio pela mesa, em segundos. */
 export const KOC_CLOCK_NUDGE_SEC = 60;
+
+/** Estado de fila de quem é a PRÓXIMA da quadra — o mesmo `on_deck` que o app do
+ *  organizador (fila de chamada) e o portal do atleta já entendem. */
+export const QUEUE_ON_DECK = "on_deck";
+const QUEUE_WAITING = "waiting";
 
 interface RoundContext {
   ref: FirebaseFirestore.DocumentReference;
@@ -316,6 +322,9 @@ export async function kocStartRoundCore(
     matchEndedAt: FieldValue.delete(),
     kocStandings: FieldValue.delete(),
     winnerId: FieldValue.delete(),
+    // Começou: deixa de ser "a próxima" (ver `kocSetRoundOnDeckCore`). Só mexe na
+    // marca da mesa — o `queueStatus` de quem não foi marcada fica como estava.
+    ...(round.data.queueStatus === QUEUE_ON_DECK ? {queueStatus: QUEUE_WAITING} : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
 
@@ -791,6 +800,93 @@ export async function kocFinishRoundCore(
   };
 }
 
+// ─── Próxima da quadra ──────────────────────────────────────────────────────
+
+/**
+ * Marca (ou desmarca) a rodada como a próxima da quadra, antes do apito.
+ *
+ * É o que o overlay do OBS e o painel de LED leem para anunciar "Próximos em
+ * quadra" pela palavra da mesa, em vez de adivinhar pela agenda — que, no KOTC,
+ * espalha as rodadas de uma chave pelas quadras e atrasa. Uma por quadra:
+ * marcar esta devolve pra `waiting` qualquer outra marcada na MESMA quadra.
+ *
+ * Só antes do apito: rodada em jogo ou encerrada não é próxima de nada. Sem
+ * quadra não há onde anunciar, e sem elenco não há quem.
+ *
+ * `teamIds` (opcional) é a ordem que a mesa montou na preparação — sem ela o
+ * telão anunciaria a ordem gerada na chave, e não quem de fato entra no trono.
+ * Mesma validação do apito: permutação do elenco, nada de dupla forasteira.
+ */
+export async function kocSetRoundOnDeckCore(
+  db: Firestore,
+  uid: string,
+  data: Record<string, unknown>,
+): Promise<{ok: true; onDeck: boolean; cleared: number}> {
+  const round = await loadRoundOrThrow(db, uid, asString(data.matchId));
+  const onDeck = data.onDeck !== false;
+  const courtId = asString(round.data.courtId);
+
+  if (!onDeck) {
+    // Desmarcar só mexe em quem está marcada — não reescreve `on_court`/`completed`.
+    if (round.data.queueStatus === QUEUE_ON_DECK) {
+      await round.ref.update({
+        queueStatus: QUEUE_WAITING,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    return {ok: true, onDeck: false, cleared: 0};
+  }
+
+  if (!isMatchScheduled(round.data.status) || parseStoredClock(round.data.kocClock)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "A rodada já começou — a próxima se anuncia antes do apito.",
+      {reason: "koc_round_already_started"},
+    );
+  }
+  if (round.teamIds.length === 0) {
+    throw new HttpsError(
+      "failed-precondition",
+      "O elenco desta rodada ainda não foi definido.",
+      {reason: "koc_roster_pending"},
+    );
+  }
+  if (!courtId) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Defina a quadra da rodada antes de anunciá-la como a próxima.",
+      {reason: "koc_round_without_court"},
+    );
+  }
+
+  const teamIds = resolveStartRoster(round.teamIds, data.teamIds);
+
+  const others = await db
+    .collection(artifactsMatchesPath(getFirebaseProjectId()))
+    .where("tournamentId", "==", asString(round.data.tournamentId))
+    .where("courtId", "==", courtId)
+    .where("queueStatus", "==", QUEUE_ON_DECK)
+    .get();
+
+  const batch = db.batch();
+  let cleared = 0;
+  for (const doc of others.docs) {
+    if (doc.id === round.ref.id) continue;
+    batch.update(doc.ref, {
+      queueStatus: QUEUE_WAITING,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    cleared++;
+  }
+  batch.update(round.ref, {
+    queueStatus: QUEUE_ON_DECK,
+    kocTeamIds: teamIds,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  await batch.commit();
+  return {ok: true, onDeck: true, cleared};
+}
+
 // ─── Callables ──────────────────────────────────────────────────────────────
 
 function requireUid(uid: string | undefined): string {
@@ -840,6 +936,16 @@ export const kocFinishRound = onCall(
   {region: CLIENT_FACING_REGIONS},
   async (request) =>
     kocFinishRoundCore(
+      getFirestore(),
+      requireUid(request.auth?.uid),
+      request.data ?? {},
+    ),
+);
+
+export const kocSetRoundOnDeck = onCall(
+  {region: CLIENT_FACING_REGIONS},
+  async (request) =>
+    kocSetRoundOnDeckCore(
       getFirestore(),
       requireUid(request.auth?.uid),
       request.data ?? {},

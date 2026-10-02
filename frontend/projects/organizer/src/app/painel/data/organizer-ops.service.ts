@@ -534,6 +534,22 @@ export function startKocRound(params: {
   });
 }
 
+/** Marca (ou desmarca) a rodada como a PRÓXIMA da quadra, antes do apito — é o que o overlay do
+ *  OBS e o painel de LED anunciam como "Próximos em quadra". Uma por quadra: o servidor tira a
+ *  marca da anterior. `teamIds` leva a ordem da preparação, pro telão anunciar quem de fato entra
+ *  no trono. */
+export function setKocRoundOnDeck(params: {
+  matchId: string;
+  onDeck: boolean;
+  teamIds?: readonly string[];
+}): Promise<{ ok?: boolean; onDeck?: boolean; cleared?: number }> {
+  return call('kocSetRoundOnDeck', {
+    matchId: params.matchId.trim(),
+    onDeck: params.onDeck,
+    ...(params.onDeck && params.teamIds != null ? { teamIds: [...params.teamIds] } : {}),
+  });
+}
+
 /** Desfecho do rally. `serve_fault` é o erro de saque do desafiante: ele perde
  *  a vez e ninguém pontua — por isso não dá pra representar como 'king'. */
 export type KocRallyOutcome = 'king' | 'challenger' | 'serve_fault';

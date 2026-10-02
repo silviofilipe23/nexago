@@ -501,3 +501,55 @@ describe('overlayCourtContextOf — fim de rodada KOTC e "Próximos em quadra"',
     expect(overlayCourtContextOf([r2, r3], 'q2', NOW, memoria, OVERLAY_COURT_FOLLOW).match?.id).toBe('r3');
   });
 });
+
+describe('overlayCourtContextOf — rodada marcada pela mesa como a próxima', () => {
+  it('a marcada vence a agenda, mesmo sem nada ter acabado na quadra (1ª rodada do dia)', () => {
+    const agendadaAntes = rodada({ id: 'r1', matchNumber: 1, scheduledAt: new Date(NOW + 5 * 60_000) });
+    const marcada = rodada({ id: 'r3', matchNumber: 3, scheduledAt: new Date(NOW + 60 * 60_000), onDeck: true });
+
+    expect(overlayCourtContextOf([agendadaAntes, marcada], 'q2', NOW, SEM_MEMORIA).match?.id).toBe('r3');
+  });
+
+  it('vence também jogo de outra categoria marcado antes na quadra', () => {
+    const outra = match({ id: 'duelo-cat2', categoryId: 'cat2', matchType: 'WB', scheduledAt: new Date(NOW) });
+    const marcada = rodada({ id: 'r3', matchNumber: 3, onDeck: true });
+
+    expect(overlayCourtContextOf([outra, marcada], 'q2', NOW, SEM_MEMORIA, OVERLAY_COURT_FOLLOW).match?.id).toBe('r3');
+  });
+
+  it('não fura o fim de rodada: resultado e classificadas terminam antes', () => {
+    const { m: r2, memoria } = encerradaHa(KOC_RESULTADO_MS + 12_000);
+    const marcada = rodada({ id: 'r3', matchNumber: 3, onDeck: true });
+
+    expect(overlayCourtContextOf([r2, marcada], 'q2', NOW, memoria, OVERLAY_COURT_FOLLOW).match?.id).toBe('r2');
+  });
+
+  it('não fura o jogo ao vivo', () => {
+    const aoVivo = rodada({ id: 'r2', status: 'in_progress', matchStartedAt: new Date(NOW) });
+    const marcada = rodada({ id: 'r3', matchNumber: 3, onDeck: true });
+
+    expect(overlayCourtContextOf([aoVivo, marcada], 'q2', NOW, SEM_MEMORIA).match?.id).toBe('r2');
+  });
+
+  it('marca de OUTRA quadra não vale aqui (painel de LED)', () => {
+    const marcadaNaQ1 = rodada({ id: 'r3', matchNumber: 3, courtId: 'q1', onDeck: true });
+
+    expect(overlayCourtContextOf([marcadaNaQ1], 'q2', NOW, SEM_MEMORIA, LED_COURT_FOLLOW).match).toBeNull();
+  });
+
+  it('no overlay, entre rodadas da categoria em outra quadra, a marcada vem antes da agenda', () => {
+    const { m: r6, memoria } = encerradaHa(KOC_FIM_DE_RODADA_MS + 1_000, { id: 'r6', matchNumber: 6 });
+    const r7 = rodada({ id: 'r7', matchNumber: 7, courtId: 'q1', scheduledAt: new Date(NOW) });
+    const r8Marcada = rodada({ id: 'r8', matchNumber: 8, courtId: 'q3', scheduledAt: new Date(NOW + 60 * 60_000), onDeck: true });
+
+    expect(overlayCourtContextOf([r6, r7, r8Marcada], 'q2', NOW, memoria, OVERLAY_COURT_FOLLOW).match?.id).toBe('r8');
+  });
+
+  it('marcada que já começou sai de cena (a marca só vale antes do apito)', () => {
+    const começou = rodada({ id: 'r3', matchNumber: 3, onDeck: true, status: 'in_progress', matchStartedAt: new Date(NOW - 60_000) });
+    const r4 = rodada({ id: 'r4', matchNumber: 4, scheduledAt: new Date(NOW + 60_000) });
+
+    // Ao vivo manda; a marca residual não puxa nada por cima.
+    expect(overlayCourtContextOf([começou, r4], 'q2', NOW, SEM_MEMORIA).match?.id).toBe('r3');
+  });
+});

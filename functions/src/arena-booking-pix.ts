@@ -43,6 +43,7 @@ import {
 } from "./asaas-booking-payment";
 import {callerIsOrganizer, callerIsSuperAdmin} from "./auth-roles";
 import {ARENA_BOOKING_PAYMENT_EXPIRY_MINUTES} from "./arena-booking-constants";
+import {resolveAndSyncArenaBookingChargeAmounts} from "./arena-booking-pricing";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const ARENA_BOOKINGS = "arenaBookings";
@@ -107,21 +108,10 @@ export const createArenaBookingPixPayment = onCall({
     throw new HttpsError("failed-precondition", "Pagamento já registrado para esta reserva");
   }
 
-  let amountToPayNow = Number(booking.amountToPayNowReais);
-  const amountReais = Number(booking.amountReais);
-  const requestedFraction = normalizePixPaymentFraction(data.paymentFraction);
-  if (requestedFraction != null) {
-    if (!Number.isFinite(amountReais) || amountReais <= 0) {
-      throw new HttpsError("failed-precondition", "Valor da reserva inválido");
-    }
-    amountToPayNow = roundMoney(amountReais * requestedFraction);
-    const amountDueOnsiteReais = roundMoney(amountReais - amountToPayNow);
-    await bookingRef.update({
-      paymentFraction: requestedFraction,
-      amountToPayNowReais: amountToPayNow,
-      amountDueOnsiteReais,
-    });
-  }
+  // Valor sai do total gravado pelo servidor na criação (arenaBookingPricing),
+  // não do doc da reserva, que o dono já conseguiu reescrever pelo cliente.
+  const {amountToPayNowReais: amountToPayNow} =
+    await resolveAndSyncArenaBookingChargeAmounts(db, bookingId, booking, data.paymentFraction);
 
   if (!Number.isFinite(amountToPayNow) || amountToPayNow <= 0) {
     throw new HttpsError("failed-precondition", "Valor PIX inválido na reserva");
@@ -801,10 +791,3 @@ export const reviewArenaWithdrawal = onCall({
     throw new HttpsError("internal", "Falha ao processar repasse PIX.");
   }
 });
-
-/** 0.5 (sinal) ou 1 (integral) — alinhado a createArenaBooking. */
-function normalizePixPaymentFraction(raw: unknown): number | null {
-  const n = Number(raw);
-  if (n === 0.5 || n === 1) return n;
-  return null;
-}

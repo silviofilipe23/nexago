@@ -246,6 +246,38 @@ describe("splitArenaBookingPaymentCore", () => {
     assert.equal(sharesSnap.docs.length, 0);
   });
 
+  it("valor a dividir vem do arenaBookingPricing, não do doc adulterado", async () => {
+    const fake = new FakeFirestore();
+    seedPendingPixBooking(fake, "b1", {amountReais: 1, amountToPayNowReais: 1});
+    fake.seedDoc("arenaBookingPricing/b1", {amountReais: 100});
+
+    // Fatias que batem com o valor forjado: recusadas.
+    await assertHttpsError(
+      splitArenaBookingPaymentCore(
+        db(fake),
+        "owner1",
+        "Dono",
+        {bookingId: "b1", shares: [{athleteId: "a", amountReais: 1}]},
+        stubCreateCharge(),
+        stubOriginalCharge().ops,
+        now,
+      ),
+      "failed-precondition",
+    );
+
+    // Fatias que batem com o total do servidor: aceitas.
+    const result = await splitArenaBookingPaymentCore(
+      db(fake),
+      "owner1",
+      "Dono",
+      {bookingId: "b1", shares: [{athleteId: "a", amountReais: 40}, {athleteId: "b", amountReais: 60}]},
+      stubCreateCharge(),
+      stubOriginalCharge().ops,
+      now,
+    );
+    assert.equal(result.shareIds.length, 2);
+  });
+
   it("rejeita quando quem chama não é o dono da reserva", async () => {
     const fake = new FakeFirestore();
     seedPendingPixBooking(fake, "b1");

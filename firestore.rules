@@ -1504,6 +1504,116 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ---- arenaBookings: o que cada papel grava direto do cliente ----------
+    // Antes, dono e equipe gravavam QUALQUER campo: o atleta reescrevia
+    // `amountReais`/`status` da própria reserva `pending_payment` e saía com um
+    // PIX de R$ 1 (createArenaBookingPixPayment lia o valor do doc) ou com a
+    // reserva confirmada sem pagar. Mapa das escritas diretas (out/2026) — o
+    // resto (criação, valores, pagamento, ids do Asaas, data/horário/quadra,
+    // no-show) é só Cloud Function (Admin SDK, não passa por aqui):
+    //  - dono: app `BookingService.cancelBooking/confirmAttendance/checkIn` e
+    //    portal do atleta `cancelBooking` (arena-bookings-repository.ts);
+    //  - equipe (`agenda`): app `BookingService.*ByArenaManager` + `checkIn`, e
+    //    portal da arena `bookings-repository.ts` — cancelar, desfazer (60s),
+    //    check-in.
+    // Todos são update parcial; os valores só são checados quando o campo
+    // MUDA (affectedKeys), então reenviar o mesmo valor não derruba o save.
+    // (O "convidado" que somava participante saiu junto com `bookingInvites`,
+    // ver a regra dela mais abaixo.)
+    //
+    // Início da reserva em UTC: `date` 'YYYY-MM-DD' + `startTime` 'HH:MM' no
+    // fuso de São Paulo (UTC−3, sem horário de verão) — a mesma conta do
+    // servidor (`bookingStartAt` em arena-booking-reminders.ts).
+    function arenaBookingStartsAt(data) {
+      let d = data.date.split('-');
+      let t = data.startTime.split(':');
+      return timestamp.date(int(d[0]), int(d[1]), int(d[2])) +
+        duration.value(int(t[0]) * 60 + int(t[1]) + 180, 'm');
+    }
+    // Duração em minutos; fim ≤ início vira o dia ('23:00'–'00:00' = 60).
+    function arenaBookingMinutes(data) {
+      let s = data.startTime.split(':');
+      let e = data.endTime.split(':');
+      return (int(e[0]) * 60 + int(e[1]) - int(s[0]) * 60 - int(s[1]) + 1440) % 1440;
+    }
+    function arenaBookingHasSchedule(data) {
+      return data.get('date', null) is string &&
+        data.date.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}') &&
+        data.get('startTime', null) is string &&
+        data.startTime.matches('[0-9]{2}:[0-9]{2}') &&
+        data.get('endTime', null) is string &&
+        data.endTime.matches('[0-9]{2}:[0-9]{2}');
+    }
+    // Janelas de presença do app (confirmar: 2h antes do início até o início;
+    // check-in: 20 min antes até 15 min depois do fim), agora também no
+    // servidor — antes só o app checava e o atleta confirmava a qualquer hora
+    // (XP/streak e fuga do no-show). Folga de 1h antes e 2h depois: o app usa
+    // o relógio do aparelho, e arena em Noronha (UTC−2) ou Manaus/Acre
+    // (UTC−4/−5) desloca a janela em relação a SP.
+    function arenaBookingInConfirmWindow(data) {
+      let start = arenaBookingStartsAt(data);
+      return arenaBookingHasSchedule(data) &&
+        request.time >= start - duration.value(185, 'm') &&
+        request.time <= start + duration.value(125, 'm');
+    }
+    function arenaBookingInCheckInWindow(data) {
+      let start = arenaBookingStartsAt(data);
+      return arenaBookingHasSchedule(data) &&
+        request.time >= start - duration.value(85, 'm') &&
+        request.time <= start + duration.value(arenaBookingMinutes(data) + 140, 'm');
+    }
+    function arenaBookingOwnerUpdateOk() {
+      let before = resource.data;
+      let after = request.resource.data;
+      let keys = after.diff(before).affectedKeys();
+      let confirming = keys.hasAny(['attendanceConfirmed']) ||
+        (keys.hasAny(['attendanceStatus']) && after.attendanceStatus == 'confirmed');
+      let checkingIn = keys.hasAny(['attendanceStatus']) && after.attendanceStatus == 'checked_in';
+      return keys.hasOnly([
+          'status', 'attendanceStatus', 'canceledAt',
+          'attendanceConfirmed', 'attendanceConfirmedAt',
+          'checkedInAt', 'locationVerified'
+        ]) &&
+        // Só cancela: nunca confirma reserva pendente de pagamento nem
+        // "descancela" (o trigger de slot-release recriaria os locks).
+        (!keys.hasAny(['status']) || after.status == 'canceled') &&
+        (!keys.hasAny(['attendanceStatus']) ||
+          after.attendanceStatus in ['canceled', 'confirmed', 'checked_in']) &&
+        (!keys.hasAny(['attendanceConfirmed']) || after.attendanceConfirmed == true) &&
+        (!keys.hasAny(['canceledAt']) || after.canceledAt == request.time) &&
+        (!keys.hasAny(['attendanceConfirmedAt']) || after.attendanceConfirmedAt == request.time) &&
+        (!keys.hasAny(['checkedInAt']) || after.checkedInAt == request.time) &&
+        (!keys.hasAny(['locationVerified']) || after.locationVerified is bool) &&
+        // No-show é veredito do servidor (sendArenaBookingReminders): o dono
+        // não o apaga depois cancelando, confirmando ou fazendo check-in.
+        (before.get('attendanceStatus', '') != 'no_show' ||
+          !keys.hasAny(['attendanceStatus', 'attendanceConfirmed'])) &&
+        (!confirming || arenaBookingInConfirmWindow(before)) &&
+        (!checkingIn || arenaBookingInCheckInWindow(before));
+    }
+    function arenaBookingStaffUpdateOk() {
+      let before = resource.data;
+      let after = request.resource.data;
+      let keys = after.diff(before).affectedKeys();
+      return keys.hasOnly([
+          'status', 'attendanceStatus', 'canceledAt', 'canceledByRole',
+          'cancelReason', 'statusBeforeCancel', 'attendanceStatusBeforeCancel',
+          'checkedInAt', 'locationVerified'
+        ]) &&
+        // Cancelar, ou desfazer voltando EXATAMENTE ao status guardado no
+        // cancelamento (sem ele, 'active' — o default dos dois clientes): a
+        // equipe não confirma por aqui reserva que ainda espera o PIX.
+        (!keys.hasAny(['status']) ||
+          after.status == 'canceled' ||
+          (before.get('status', '') in ['canceled', 'cancelled'] &&
+            after.status == before.get('statusBeforeCancel', 'active'))) &&
+        // O snapshot é o status de antes do cancelamento, e só sai junto com
+        // o desfazer — senão "cancelar, apagar o snapshot, desfazer" lavaria
+        // `pending_payment` em `active`.
+        (!keys.hasAny(['statusBeforeCancel']) ||
+          after.get('statusBeforeCancel', null) == before.get('status', 'active') ||
+          (!('statusBeforeCancel' in after) && keys.hasAny(['status'])));
+    }
     match /arenaBookings/{bookingId} {
       // Leitura autenticada ampla: o preview do convite compartilhado
       // (/convite/:inviteId) relê a reserva ANTES de o convidado ter vínculo
@@ -1515,14 +1625,10 @@ service cloud.firestore {
         arenaCanWrite(request.resource.data.arenaId, 'agenda')
       );
       allow update: if request.auth != null && (
-        resource.data.athleteId == request.auth.uid ||
-        arenaCanWrite(resource.data.arenaId, 'agenda') ||
+        (resource.data.get('athleteId', null) == request.auth.uid &&
+          arenaBookingOwnerUpdateOk()) ||
         isSuperAdmin() ||
-        // Convidado aceitando convite de reserva (bookingInvites): só pode
-        // tocar os campos de participação — nunca status/pagamento.
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-          ['confirmedParticipants', 'guestAthleteId', 'guestAthleteName']
-        )
+        (arenaCanWrite(resource.data.arenaId, 'agenda') && arenaBookingStaffUpdateOk())
       );
       allow delete: if false;
 
@@ -1538,6 +1644,14 @@ service cloud.firestore {
         );
         allow write: if false;
       }
+    }
+
+    // Total da reserva gravado por createArenaBooking (Admin SDK) no mesmo
+    // commit da reserva: é dele que o PIX, a divisão em fatias e o webhook
+    // partem para cobrar — não de `amountReais` do doc da reserva. Nenhum
+    // cliente lê nem escreve.
+    match /arenaBookingPricing/{bookingId} {
+      allow read, write: if false;
     }
 
     // Lista de espera de horário de quadra lotado (domínio distinto da lista
@@ -1560,20 +1674,17 @@ service cloud.firestore {
     match /bookingInvites/{inviteId} {
       // O destinatário é desconhecido até aceitar (link compartilhado).
       allow read: if request.auth != null;
-      allow create: if request.auth != null &&
-        request.resource.data.invitedByUid == request.auth.uid &&
-        request.resource.data.status == 'pending' &&
-        request.resource.data.bookingId is string &&
-        request.resource.data.expiresAt is timestamp;
-      // Aceite: transição única pending→accepted, aceitante se identifica e
-      // não pode alterar o convite em si.
-      allow update: if request.auth != null &&
-        resource.data.status == 'pending' &&
-        request.resource.data.status == 'accepted' &&
-        request.resource.data.acceptedByUid == request.auth.uid &&
-        request.resource.data.bookingId == resource.data.bookingId &&
-        request.resource.data.invitedByUid == resource.data.invitedByUid;
-      allow delete: if false;
+      // Escrita de cliente FECHADA (out/2026). O app parou de criar convite em
+      // 08/06/2026 (1.0.1, pré-lançamento: o botão saiu do detalhe da reserva)
+      // e o projeto do app (volley-track-dev-4596c) não tem nenhum doc aqui —
+      // só a tela /convite/:inviteId ainda sabe aceitar. Aberta, a regra
+      // deixava qualquer um criar convite pra QUALQUER reserva e aceitar o
+      // próprio: +20 XP por convite (onBookingInviteAcceptedAwardInviterXp),
+      // push pra `inviteeUid` arbitrário (onBookingInviteCreatedNotifyInvitee)
+      // e "convidado" pendurado na reserva alheia (confirmedParticipants/
+      // guestAthleteId). Reabrir só por callable que valide o dono da reserva
+      // e grave convite + reserva no servidor.
+      allow create, update, delete: if false;
     }
 
     // Horários fixos (mensalistas): série semanal criada pelo gestor.

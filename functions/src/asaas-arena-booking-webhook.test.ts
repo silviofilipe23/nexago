@@ -189,6 +189,26 @@ describe("processArenaBookingAsaasNotification — reserva sem divisão (control
     assert.equal(fake.store.has("arenaWallets/arena1"), true);
   });
 
+  it("sinal pago fecha como parcial pelo total do servidor, mesmo com amountReais adulterado", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake, {
+      amountReais: 50,
+      amountToPayNowReais: 50,
+      paymentFraction: 0.5,
+    });
+    fake.seedDoc("arenaBookingPricing/b1", {amountReais: 100});
+
+    await processArenaBookingAsaasNotification(
+      db, "orig1", bookingPayment("RECEIVED", 50), processedRefOf(db),
+    );
+
+    const booking = fake.store.get(BOOKING_PATH)!;
+    assert.equal(booking.status, "confirmed");
+    assert.equal(booking.paymentStatus, "partial");
+    assert.equal(booking.amountPaidOnlineReais, 50);
+    assert.equal(booking.amountDueOnsiteReais, 50);
+  });
+
   it("OVERDUE cancela a reserva pendente como antes", async () => {
     const {fake, db} = makeDb();
     seedPendingBooking(fake);

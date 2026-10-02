@@ -301,6 +301,7 @@ class _TournamentRegistrationPixPageState
         registrationId: widget.args.registrationId,
         tournamentName: widget.args.tournamentName,
         categoryName: widget.args.categoryName,
+        paymentId: _pix?.paymentId,
       );
       return;
     }

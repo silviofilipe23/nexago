@@ -11,6 +11,7 @@ import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dar
 import 'package:nexago_app/features/cashback/application/cashback_providers.dart';
 import 'package:nexago_app/features/cashback/domain/cashback_models.dart';
 import 'package:nexago_app/features/cashback/presentation/cashback_copy.dart';
+import 'package:nexago_app/features/cashback/presentation/widgets/cashback_earned_note.dart';
 import 'package:nexago_app/features/cashback/presentation/widgets/checkout_cashback_toggle.dart';
 
 const ligado = CashbackConfig(
@@ -173,4 +174,62 @@ void main() {
     await gerarPix(tester);
     expect(repo.useCashbackCalls, [false]);
   });
+
+  testWidgets('PIX confirmado: a tela de sucesso anuncia o cashback do lote',
+      (tester) async {
+    await abrir(
+      tester,
+      session: sessao(),
+      participant: Stream.value(confirmado()),
+      extraOverrides: [
+        cashbackLotProvider('pay_c1').overrideWith(
+          (ref) => Stream.value(
+            const CashbackLot(
+              id: 'pay_c1',
+              status: CashbackLotStatus.pending,
+              earnedCents: 60,
+              remainingCents: 60,
+            ),
+          ),
+        ),
+      ],
+    );
+    await tester.pump();
+
+    expect(find.text('Você está na lista!'), findsOneWidget);
+    expect(find.text(CashbackCopy.earnedNote(60)), findsOneWidget);
+  });
+
+  testWidgets('vaga paga na arena: sem nota de cashback', (tester) async {
+    await abrir(
+      tester,
+      session: sessao(),
+      participant: Stream.value(confirmado(onsite: true)),
+    );
+    await tester.pump();
+
+    expect(find.text('Vaga garantida!'), findsOneWidget);
+    expect(find.byType(CashbackEarnedNote), findsNothing);
+  });
+}
+
+/// Participante que o webhook confirmou (PIX) ou que garantiu na arena.
+ClubParticipant confirmado({bool onsite = false}) {
+  return ClubParticipant(
+    sessionId: 's1',
+    athleteId: 'u1',
+    athleteName: 'Eu',
+    clubId: 'c1',
+    arenaId: 'a1',
+    arenaName: 'Arena Sol',
+    clubName: 'Clubinho da Manhã',
+    date: '2026-10-12',
+    startTime: '08:00',
+    endTime: '10:00',
+    status: 'confirmed',
+    paymentMethod: onsite ? 'onsite' : 'pix',
+    amountReais: 30,
+    refundStatus: 'none',
+    asaasPaymentId: onsite ? null : 'pay_c1',
+  );
 }

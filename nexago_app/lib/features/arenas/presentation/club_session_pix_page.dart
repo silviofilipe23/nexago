@@ -16,6 +16,7 @@ import '../data/arena_clubs_repository.dart';
 import '../domain/arena_club_providers.dart';
 import '../../cashback/application/cashback_providers.dart';
 import '../../cashback/domain/cashback_rules.dart';
+import '../../cashback/presentation/widgets/cashback_earned_note.dart';
 import '../../cashback/presentation/widgets/checkout_cashback_toggle.dart';
 import 'widgets/booking_pix/booking_pix_app_bar.dart';
 import 'widgets/booking_pix/booking_pix_copy_button.dart';
@@ -287,6 +288,11 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
           ? '${session.clubName} · ${session.dateShortLabel} · '
               '${session.timeRangeLabel}'
           : null;
+      // Só PIX pago pelo app gera cashback; vaga paga na arena não tem nota.
+      // Reaberta a tela, o id vem do participante (`asaasPaymentId`).
+      final cashbackPaymentId = isOnsite
+          ? null
+          : (_pix?.paymentId ?? myParticipant?.asaasPaymentId);
       return Scaffold(
         backgroundColor: context.themeColors.canvas,
         body: FeedbackPage.success(
@@ -302,6 +308,12 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
             label: 'Ver a lista',
             onPressed: _onBack,
           ),
+          extraContent: cashbackPaymentId == null
+              ? null
+              : CashbackEarnedNote(
+                  paymentId: cashbackPaymentId,
+                  padding: EdgeInsets.zero,
+                ),
         ),
       );
     }

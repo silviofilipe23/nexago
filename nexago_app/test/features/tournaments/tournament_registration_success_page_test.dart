@@ -31,6 +31,10 @@ import 'package:nexago_app/core/review/app_review_providers.dart';
 import 'package:nexago_app/core/review/app_review_service.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/ui/nexa_skeleton.dart';
+import 'package:nexago_app/features/cashback/application/cashback_providers.dart';
+import 'package:nexago_app/features/cashback/domain/cashback_models.dart';
+import 'package:nexago_app/features/cashback/presentation/cashback_copy.dart';
+import 'package:nexago_app/features/cashback/presentation/widgets/cashback_earned_note.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_inscriptions_repository.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_detail_model.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
@@ -126,6 +130,8 @@ void main() {
     TournamentDetail? tournament,
     TournamentRegistrationReceipt? receipt,
     Map<String, int> inscritosPorCategoria = const {'masc': 5},
+    String? paymentId,
+    List<Override> cashbackOverrides = const [],
   }) async {
     // Tela alta o bastante para o card compartilhável inteiro caber sem
     // overflow (o viewport padrão de 800x600 corta o card de ~420px mais a
@@ -142,12 +148,13 @@ void main() {
       routes: [
         GoRoute(
           path: '/sucesso',
-          builder: (_, __) => const TournamentRegistrationSuccessPage(
+          builder: (_, _) => TournamentRegistrationSuccessPage(
             args: TournamentRegistrationSuccessArgs(
               tournamentId: 't1',
               registrationId: registrationId,
               tournamentName: 'Copa de Teste',
               categoryName: 'Dupla Masculina',
+              paymentId: paymentId,
             ),
           ),
         ),
@@ -187,6 +194,7 @@ void main() {
         tournamentCategoryEnrollmentCountsProvider(
           't1',
         ).overrideWith((ref) => Stream.value(inscritosPorCategoria)),
+        ...cashbackOverrides,
       ],
     );
     addTearDown(container.dispose);
@@ -348,6 +356,56 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
     await tester.pump();
     expect(pedidosDeAvaliacao, 1);
+  });
+
+  testWidgets('pago por PIX nesta sessão: nota do cashback pendente do lote', (
+    tester,
+  ) async {
+    const ligado = CashbackConfig(
+      enabled: true,
+      ratePercent: 2,
+      maxShareOfFee: 0.5,
+      minCashCents: 500,
+      expiryMonths: 6,
+      expiryWarningDays: 15,
+    );
+    await abrirConfirmacao(
+      tester,
+      tournament: torneio([dupla()]),
+      receipt: comprovante(),
+      paymentId: 'pay_t1',
+      cashbackOverrides: [
+        cashbackConfigProvider.overrideWith((ref) => Stream.value(ligado)),
+        cashbackLotProvider('pay_t1').overrideWith(
+          (ref) => Stream.value(
+            const CashbackLot(
+              id: 'pay_t1',
+              status: CashbackLotStatus.pending,
+              earnedCents: 200,
+              remainingCents: 200,
+            ),
+          ),
+        ),
+      ],
+    );
+
+    expect(find.text(CashbackCopy.earnedNote(200)), findsOneWidget);
+
+    await esperarPedidoDeAvaliacao(tester);
+  });
+
+  testWidgets('card reaberto depois (sem paymentId): sem nota de cashback', (
+    tester,
+  ) async {
+    await abrirConfirmacao(
+      tester,
+      tournament: torneio([dupla()]),
+      receipt: comprovante(),
+    );
+
+    expect(find.byType(CashbackEarnedNote), findsNothing);
+
+    await esperarPedidoDeAvaliacao(tester);
   });
 }
 

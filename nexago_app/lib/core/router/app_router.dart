@@ -1550,12 +1550,15 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               registrationId.isNotEmpty &&
               tournamentName.isNotEmpty &&
               categoryName.isNotEmpty) {
+            final paymentId =
+                state.uri.queryParameters['paymentId']?.trim() ?? '';
             return TournamentRegistrationSuccessPage(
               args: TournamentRegistrationSuccessArgs(
                 tournamentId: tournamentId,
                 registrationId: registrationId,
                 tournamentName: tournamentName,
                 categoryName: categoryName,
+                paymentId: paymentId.isEmpty ? null : paymentId,
               ),
             );
           }

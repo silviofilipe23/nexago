@@ -2,6 +2,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { DEFAULT_BROADCAST_CONTROL, interviewWithDefaults } from '../data/broadcast-control';
+import type { TournamentMatch } from '../data/matches-repository';
 import { FakeTransmissaoData as FakeData, torneio } from './transmissao-data.fake';
 import { TransmissaoDataService } from './transmissao-data.service';
 import { TransmissaoComponent } from './transmissao.component';
@@ -90,6 +91,66 @@ describe('TransmissaoComponent', () => {
 
     expect(agora.length).toBe(2);
     expect(agora.every((b) => b.disabled)).toBeTrue();
+  });
+
+  describe('categoria do pódio', () => {
+    const FINAL_FEM = {
+      id: 'f1',
+      tournamentId: 't1',
+      categoryId: 'cat1',
+      courtId: 'q2',
+      status: 'completed',
+      matchType: 'Final',
+      teamAId: 'ta',
+      teamBId: 'tb',
+      winnerSide: 1,
+      sets: [{ a: 21, b: 18 }],
+      team1Label: 'Ana / Bia',
+      team2Label: 'Carla / Dani',
+      matchStartedAt: null,
+      matchEndedAt: null,
+      scheduledAt: null,
+    } as unknown as TournamentMatch;
+
+    function chips(el: HTMLElement): string[] {
+      const grupo = el.querySelector('[aria-label="Categoria do pódio"]')!;
+      return [...grupo.querySelectorAll('button')].map((b) => (b.textContent ?? '').trim() + (b.classList.contains('active') ? ' ✓' : ''));
+    }
+
+    it('automático por padrão, com cada categoria do torneio pra escolher', async () => {
+      const fake = new FakeData();
+      fake.tournament.set(torneio(['single_elimination', 'king_of_court']));
+      const { el } = await mount(fake);
+      expect(chips(el)).toEqual(['Automático ✓', 'Feminina B', 'C1']);
+      expect(el.textContent).toContain('Segue a final que termina na quadra transmitida');
+    });
+
+    it('escolher grava a categoria; Automático volta pra null', async () => {
+      const fake = new FakeData();
+      const { el, fixture } = await mount(fake);
+      botao(el, 'Feminina B').click();
+      expect(fake.saved).toEqual([{ championsCategoryId: 'cat1' }]);
+      fake.control.set({ ...fake.control(), championsCategoryId: 'cat1' });
+      await fixture.whenStable();
+      botao(el, 'Automático').click();
+      expect(fake.saved.at(-1)).toEqual({ championsCategoryId: null });
+    });
+
+    it('final da categoria ainda não decidida: o painel avisa que nada vai ao ar', async () => {
+      const fake = new FakeData();
+      fake.control.set({ ...fake.control(), championsCategoryId: 'cat1' });
+      const { el } = await mount(fake);
+      expect(chips(el)).toContain('Feminina B ✓');
+      expect(el.textContent).toContain('A final de Feminina B ainda não terminou');
+    });
+
+    it('final decidida: o painel diz que o pódio vai ao ar', async () => {
+      const fake = new FakeData();
+      fake.control.set({ ...fake.control(), championsCategoryId: 'cat1' });
+      fake.matches.set([FINAL_FEM]);
+      const { el } = await mount(fake);
+      expect(el.textContent).toContain('Pódio de Feminina B no ar');
+    });
   });
 
   it('Grande final grava o modo escolhido', async () => {

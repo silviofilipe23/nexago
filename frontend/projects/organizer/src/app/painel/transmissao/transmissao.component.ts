@@ -8,6 +8,7 @@ import {
   type KocRoundEndScreen,
 } from '../data/broadcast-control';
 import { resolveCourtNames } from '../data/matches-repository';
+import { categoryFinalOf } from '../../publico/overlay/overlay-final';
 import { OgCardComponent } from '../ui/card.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { broadcastGroupsFor } from './broadcast-graphics';
@@ -124,6 +125,22 @@ const WIDE_QUERY = '(min-width: 1100px)';
                     </button>
                   }
                 </div>
+                <div class="og-tx-label">Categoria do pódio</div>
+                <div class="og-tx-chips" role="radiogroup" aria-label="Categoria do pódio">
+                  @for (o of podiumOptions(); track o.id) {
+                    <button
+                      type="button"
+                      class="og-chip"
+                      role="radio"
+                      [class.active]="svc.control().championsCategoryId === o.id"
+                      [attr.aria-checked]="svc.control().championsCategoryId === o.id"
+                      (click)="setPodiumCategory(o.id)"
+                    >
+                      {{ o.label }}
+                    </button>
+                  }
+                </div>
+                <p class="og-tx-dica og-tx-podio">{{ podiumStatus() }}</p>
               }
             </og-card>
           }
@@ -228,6 +245,9 @@ const WIDE_QUERY = '(min-width: 1100px)';
       flex-wrap: wrap;
       gap: 8px;
     }
+    .og-tx-podio {
+      margin: 8px 0 0;
+    }
     .og-tx-agora {
       margin-right: 10px;
     }
@@ -277,6 +297,23 @@ export class TransmissaoComponent {
 
   protected readonly courtChips = computed(() => courtChipsOf(this.svc.tournament()?.courts ?? [], this.matches(), this.now()));
 
+  /** "Automático" (null) e cada categoria do torneio, na ordem cadastrada. */
+  protected readonly podiumOptions = computed<{ id: string | null; label: string }[]>(() => [
+    { id: null, label: 'Automático' },
+    ...(this.svc.tournament()?.categories ?? []).map((c) => ({ id: c.id, label: c.name })),
+  ]);
+
+  /** O que a escolha põe no ar — escolher uma categoria cuja final não acabou não mostra nada, e
+   *  o operador precisa saber disso antes de procurar defeito no OBS. */
+  protected readonly podiumStatus = computed(() => {
+    const id = this.svc.control().championsCategoryId;
+    if (!id) return 'Segue a final que termina na quadra transmitida.';
+    const nome = this.svc.tournament()?.categories.find((c) => c.id === id)?.name ?? 'esta categoria';
+    return categoryFinalOf(this.svc.matches(), id)
+      ? `Pódio de ${nome} no ar (com a chave Campeões ligada), em qualquer quadra.`
+      : `A final de ${nome} ainda não terminou — o pódio entra quando ela acabar.`;
+  });
+
   protected readonly onAir = computed(() => {
     const i = this.svc.control().interview;
     return interviewOnAirAt(i, this.now()) ? i : null;
@@ -308,6 +345,10 @@ export class TransmissaoComponent {
 
   protected setFinalMode(finalMode: BroadcastFinalMode): void {
     void this.svc.save({ finalMode });
+  }
+
+  protected setPodiumCategory(championsCategoryId: string | null): void {
+    void this.svc.save({ championsCategoryId });
   }
 
   protected copyUrl(): void {

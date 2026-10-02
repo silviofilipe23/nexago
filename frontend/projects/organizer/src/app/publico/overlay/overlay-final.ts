@@ -35,6 +35,15 @@ export function finalResultOf(match: TournamentMatch): FinalResult | null {
   return finalKindOf(match.matchType) === 'final' ? duelo(match) : null;
 }
 
+/** A final JÁ DECIDIDA de uma categoria, em qualquer quadra — o pódio que o painel escolhe pôr
+ *  no ar. O duelo grava uma "Final" por categoria; o KOTC, a rodada `koc_final`. Havendo mais de
+ *  uma decidida (dado refeito à mão), vale a que terminou por último. */
+export function categoryFinalOf(matches: readonly TournamentMatch[], categoryId: string): TournamentMatch | null {
+  const decididas = matches.filter((m) => m.categoryId === categoryId && finalResultOf(m) != null);
+  const fim = (m: TournamentMatch) => (m.matchEndedAt ?? m.scheduledAt)?.getTime() ?? 0;
+  return decididas.sort((a, b) => fim(a) - fim(b)).at(-1) ?? null;
+}
+
 function kocFinal(match: TournamentMatch): FinalResult | null {
   const round = match.koc;
   if (!round) return null;

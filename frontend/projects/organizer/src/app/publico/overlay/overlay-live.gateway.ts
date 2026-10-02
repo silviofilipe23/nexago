@@ -50,6 +50,9 @@ export class OverlayLiveGateway {
    *  no ar — senão um gráfico desligado no painel entra e sai no reload do OBS. Erro também
    *  libera: rules antigas (sem `broadcast`) = comportamento de antes. */
   readonly controlReady = signal(false);
+  /** Todas as partidas do torneio — só assinadas enquanto o painel escolheu a categoria do
+   *  pódio, que pode estar em qualquer quadra. */
+  readonly tournamentMatches = signal<readonly TournamentMatch[]>([]);
 
   private readonly hydrated = new Set<string>();
   private countedRounds = false;
@@ -98,6 +101,17 @@ export class OverlayLiveGateway {
       },
       () => this.controlReady.set(true),
     );
+  }
+
+  /** Pódio de categoria escolhida no painel. No modo quadra a mesma consulta já está aberta e o
+   *  SDK a compartilha; nos outros modos é uma assinatura a mais, só enquanto houver escolha. */
+  watchTournamentMatches(tournamentId: string): () => void {
+    return watchMatches(tournamentId, (ms) => this.tournamentMatches.set(ms), () => {});
+  }
+
+  /** Nome e foto de campeão e vice de uma final fora da partida da tela. */
+  ensureTeams(ids: readonly string[]): void {
+    void this.hydrateTeamIds(ids);
   }
 
   /** `/transmissao` sem quadra escolhida: só o torneio (patrocinadores), nenhuma partida. */

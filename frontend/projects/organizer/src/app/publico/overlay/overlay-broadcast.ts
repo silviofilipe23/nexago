@@ -15,7 +15,8 @@ export interface OverlayLayers extends OverlayAutoLayers {
 
 /** O que vai ao ar: a regra automática de cada tela E a chave do painel. Tarja no ar toma a
  *  tela — placar e faixa KOTC ficam no rodapé, exatamente onde ela entra, e o card de campeões
- *  cobriria a câmera da entrevista. Quando a tarja sai, cada tela volta pela própria regra. */
+ *  cobriria a câmera da entrevista. Pódio no ar toma o lugar das telas de partida. Quando a
+ *  tarja (ou o pódio) sai, cada tela volta pela própria regra. */
 export function overlayLayersOf(
   control: BroadcastControl,
   auto: OverlayAutoLayers,
@@ -25,12 +26,15 @@ export function overlayLayersOf(
     return { duel: false, kocBar: false, kocPreRound: false, roundEnd: false, champions: false, interview: true };
   }
   const g = control.graphics;
+  // O pódio pode ser de OUTRA categoria (escolhida no painel), com jogo rolando na quadra: ele
+  // toma a tela, e o placar volta quando o pódio sai.
+  const champions = auto.champions && g.champions;
   return {
-    duel: auto.duel && g.scoreboard,
-    kocBar: auto.kocBar && g.kocBar,
-    kocPreRound: auto.kocPreRound && g.kocPreRound,
-    roundEnd: auto.roundEnd && g.kocRoundEnd,
-    champions: auto.champions && g.champions,
+    duel: !champions && auto.duel && g.scoreboard,
+    kocBar: !champions && auto.kocBar && g.kocBar,
+    kocPreRound: !champions && auto.kocPreRound && g.kocPreRound,
+    roundEnd: !champions && auto.roundEnd && g.kocRoundEnd,
+    champions,
     interview: false,
   };
 }

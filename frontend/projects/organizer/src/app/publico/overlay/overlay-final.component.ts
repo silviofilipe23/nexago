@@ -8,6 +8,7 @@ import {
   inject,
   input,
 } from '@angular/core';
+import { formatCourtLabel } from '../../painel/data/schedule-format';
 import { OgAvatarComponent } from '../../painel/ui/avatar.component';
 import { ledIniciaisDe } from '../led/led-iniciais';
 import type { FinalPlacar } from './overlay-final';
@@ -66,8 +67,10 @@ export class OverlayFinalComponent {
 
   protected readonly letras = computed(() => [...'CAMPEÕES']);
 
+  /** `formatCourtLabel`: o nome da quadra já costuma vir como "Quadra 3" — prefixar de novo
+   *  punha "Quadra Quadra 3" no ar. */
   protected readonly contexto = computed(() =>
-    [this.categoria(), this.quadra() ? `Quadra ${this.quadra()}` : null]
+    [this.categoria(), formatCourtLabel(this.quadra()) || null]
       .filter((p) => !!p)
       .join(' · '),
   );

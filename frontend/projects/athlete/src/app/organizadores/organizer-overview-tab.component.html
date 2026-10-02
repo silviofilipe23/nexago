@@ -1,0 +1,89 @@
+<div class="ov">
+  <div class="ov-main">
+    <section class="ov-section" aria-labelledby="ov-upcoming">
+      <div class="ov-head">
+        <h2 class="ov-title" id="ov-upcoming">
+          Próximos eventos
+          @if (caption(); as c) {
+            <span class="ov-caption">{{ c }}</span>
+          }
+        </h2>
+        @if (upcomingCount() > 0) {
+          <a class="ov-link" [routerLink]="[]" [queryParams]="{ aba: 'eventos' }">Ver agenda completa</a>
+        }
+      </div>
+
+      @if (cards().length > 0) {
+        <div class="ov-cards">
+          @for (card of cards(); track card.id) {
+            <app-organizer-event-card [vm]="card" />
+          }
+        </div>
+      } @else {
+        <div class="ov-empty">
+          <p>Nenhum evento com inscrição no momento.</p>
+          @if (store.canFollow() && store.following() !== true) {
+            <p>Siga {{ name() }} para receber um aviso quando abrir o próximo.</p>
+            <button
+              type="button"
+              class="ov-follow"
+              [disabled]="store.followBusy() || store.followPending()"
+              [attr.aria-busy]="store.followPending() || null"
+              (click)="store.toggleFollow()"
+            >
+              Seguir
+            </button>
+          } @else if (store.following()) {
+            <p>Você segue {{ name() }} e recebe um aviso quando abrir o próximo.</p>
+          }
+        </div>
+      }
+    </section>
+
+    <section class="ov-card" aria-labelledby="ov-history">
+      <div class="ov-head">
+        <div>
+          <p class="ov-kicker">Histórico</p>
+          <h2 class="ov-title" id="ov-history">Eventos realizados</h2>
+        </div>
+        @if (realizedCount() > 0) {
+          <a class="ov-link" [routerLink]="[]" [queryParams]="{ aba: 'resultados' }">Ver os {{ realizedCount() }}</a>
+        }
+      </div>
+      @if (history().length > 0) {
+        <app-organizer-history-list [rows]="history()" />
+      } @else {
+        <p class="ov-muted">Nenhum evento realizado ainda.</p>
+      }
+    </section>
+  </div>
+
+  <aside class="ov-aside">
+    @if (bio() || venues().length > 0) {
+      <section class="ov-card ov-about" aria-label="Sobre o organizador">
+        @if (bio(); as text) {
+          <p class="ov-bio">{{ text }}</p>
+        }
+        @if (venues().length > 0) {
+          <div class="ov-venues">
+            <p class="ov-kicker">Onde acontece</p>
+            <ul>
+              @for (v of venues(); track (v.arenaId ?? v.name) + ':' + $index) {
+                <li>
+                  <span class="ov-venue-icon" aria-hidden="true">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="17" height="12" rx="2" /><path d="M12 6v12M3.5 12h17" /></svg>
+                  </span>
+                  <span class="ov-venue-name">{{ v.name }}</span>
+                  @if (v.city) {
+                    <span class="ov-venue-city">{{ v.city }}</span>
+                  }
+                </li>
+              }
+            </ul>
+          </div>
+        }
+      </section>
+    }
+    <app-organizer-reputation-card [vm]="reputation()" />
+  </aside>
+</div>

@@ -1,0 +1,205 @@
+@use 'organizer' as o;
+
+:host {
+  display: block;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.ec {
+  @include o.card;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.ec-cover {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  height: 84px;
+  padding: var(--nx-s-3);
+  border-bottom: 1px solid var(--nx-line);
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.035) 0 12px, transparent 12px 24px),
+    var(--nx-surface-1);
+}
+
+.ec-cover-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.45;
+}
+
+.ec-badge,
+.ec-sport {
+  position: relative;
+  font-family: var(--nx-font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ec-badge {
+  padding: 4px 9px;
+  border-radius: var(--nx-r-pill);
+  border: 1px solid currentColor;
+  background: rgba(5, 5, 5, 0.7);
+  color: var(--nx-text-mute);
+
+  &[data-tone='open'] {
+    color: var(--nx-win);
+  }
+
+  &[data-tone='last'] {
+    color: var(--nx-pending);
+  }
+
+  &[data-tone='live'] {
+    color: var(--nx-live);
+  }
+
+  &[data-tone='soon'] {
+    color: var(--nx-orange-400);
+  }
+}
+
+.ec-sport {
+  align-self: flex-end;
+  color: var(--nx-text-mute);
+}
+
+.ec-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--nx-s-4) var(--nx-s-4) var(--nx-s-3);
+  min-width: 0;
+}
+
+.ec-kicker {
+  @include o.kicker;
+  font-size: 9.5px;
+}
+
+.ec-name {
+  margin: 0 0 4px;
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.3;
+
+  a {
+    color: var(--nx-text);
+    text-decoration: none;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--nx-orange-400);
+    }
+  }
+}
+
+.ec-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  color: var(--nx-text-mute);
+
+  svg {
+    flex: none;
+  }
+}
+
+.ec-ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ec-spots {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-s-3);
+  margin-top: var(--nx-s-2);
+}
+
+.ec-bar {
+  @include o.bar;
+  flex: 1;
+}
+
+.ec-bar--full > span {
+  background: var(--nx-text-dim);
+}
+
+.ec-spots-label {
+  flex: none;
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  color: var(--nx-text-mute);
+}
+
+.ec-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--nx-s-3);
+  padding: var(--nx-s-3) var(--nx-s-4) var(--nx-s-4);
+
+  // Card estreito (3 por linha ao lado da coluna lateral): preço em cima, botão inteiro embaixo.
+  @container (max-width: 240px) {
+    flex-direction: column;
+    align-items: stretch;
+
+    .ec-cta {
+      margin-left: 0;
+    }
+  }
+}
+
+.ec-price {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  min-width: 0;
+
+  strong {
+    font-family: var(--nx-font-display);
+    font-weight: 800;
+    font-size: 17px;
+    color: var(--nx-text);
+    white-space: nowrap;
+  }
+
+  span {
+    @include o.kicker;
+    font-size: 9px;
+  }
+}
+
+.ec-cta {
+  @include o.button-base;
+  flex: none;
+  margin-left: auto;
+  min-height: 38px;
+  padding: 0 var(--nx-s-3);
+}
+
+.ec-cta--primary {
+  @include o.button-primary;
+}

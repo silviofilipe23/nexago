@@ -423,6 +423,7 @@ export {
   onOrganizerRecordWrittenSyncVerified,
   onTournamentWrittenOrganizerStats,
   onOrganizerFollowerWritten,
+  refreshOrganizerStatsDaily,
 } from "./organizer-public-profile-sync";
 export {
   onTournamentWrittenNotifyOrganizerFollowers,

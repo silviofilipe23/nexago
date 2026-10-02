@@ -21,12 +21,12 @@ interface CompetirSection {
   link: string;
   title: string;
   desc: string;
-  icon: 'trophy' | 'chart' | 'team' | 'people';
+  icon: 'trophy' | 'chart' | 'team' | 'people' | 'flag';
 }
 
 /** Hub do Competir — espelha o hub do app (Competir agrupa torneios, ranking,
- *  equipes e atletas como sub-seções). No desktop a sidebar tem links diretos;
- *  no mobile este hub é a porta de entrada dessas 4 áreas pela bottom-nav. */
+ *  equipes, atletas e organizadores como sub-seções). No desktop a sidebar tem links
+ *  diretos; no mobile este hub é a porta de entrada dessas áreas pela bottom-nav. */
 @Component({
   selector: 'app-competir-hub',
   standalone: true,
@@ -37,7 +37,7 @@ interface CompetirSection {
       <header class="ch-page-header">
         <div>
           <h1>Competir</h1>
-          <div class="ch-page-header-sub">Torneios, ranking, equipes e atletas</div>
+          <div class="ch-page-header-sub">Torneios, ranking, equipes, atletas e organizadores</div>
         </div>
       </header>
 
@@ -55,6 +55,9 @@ interface CompetirSection {
                   }
                   @case ('team') {
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7.5" r="3.5" /><path d="M5 21c0-3.9 3.1-7 7-7s7 3.1 7 7" /></svg>
+                  }
+                  @case ('flag') {
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4" /><path d="M5 4h11l-2 4 2 4H5" /></svg>
                   }
                   @case ('people') {
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2" /><path d="M2.5 20c0-3.4 2.9-6 6.5-6s6.5 2.6 6.5 6" /><path d="M16 4.5c1.8.3 3.2 1.9 3.2 3.7 0 1.9-1.4 3.4-3.2 3.7" /><path d="M17.5 14.3c2.3.5 4 2.5 4 5" /></svg>
@@ -179,6 +182,7 @@ export class CompetirHubComponent {
     { link: '/ranking', title: 'Ranking', desc: 'Sua posição e a pontuação da temporada', icon: 'chart' },
     { link: '/equipes', title: 'Equipes', desc: 'Suas duplas e times, com histórico de jogos', icon: 'team' },
     { link: '/atletas', title: 'Atletas', desc: 'Encontre jogadores da comunidade', icon: 'people' },
+    { link: '/organizadores', title: 'Organizadores', desc: 'Conheça quem organiza os torneios e ligas', icon: 'flag' },
   ];
 
   protected readonly accountLabel = computed(() => {

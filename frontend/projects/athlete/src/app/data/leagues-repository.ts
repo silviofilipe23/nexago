@@ -44,6 +44,8 @@ export interface League {
   city: string | null;
   state: string | null;
   organizationName: string | null;
+  /** Dono da liga (`leagues/{id}.managerId`) — o card "Organizado por" leva ao perfil dele. */
+  managerId: string | null;
   description: string | null;
   coverUrl: string | null;
   /** `leagues/{id}.sport` — mesmo vocabulário do torneio. Escolhe a capa padrão. */
@@ -92,6 +94,7 @@ function leagueFromDoc(id: string, data: Record<string, unknown>): League {
     city: optionalStr(data['city']),
     state: optionalStr(data['state']),
     organizationName: optionalStr(data['organizationName']),
+    managerId: optionalStr(data['managerId']),
     description: optionalStr(data['description']),
     coverUrl: optionalStr(data['coverUrl']) ?? optionalStr(data['imageUrl']),
     sport: optionalStr(data['sport']),

@@ -314,7 +314,8 @@ function isDraftOrCancelledStatus(statusRaw: string): boolean {
   return statusRaw.includes('draft') || statusRaw.includes('programado') || statusRaw.includes('cancel');
 }
 
-function summaryFromDoc(id: string, data: Record<string, unknown>): TournamentSummary {
+/** Exportado para o perfil do organizador, que lê os torneios dele por `managerId`. */
+export function tournamentSummaryFromDoc(id: string, data: Record<string, unknown>): TournamentSummary {
   const rootUniform: RootUniformFlags = {
     required: data['uniformRequired'] === true,
     numberOnShirt: data['uniformNumberOnShirt'] === true,
@@ -489,13 +490,13 @@ export async function fetchAllTournaments(db: Firestore): Promise<TournamentSumm
   return snap.docs
     .map((d) => ({ id: d.id, data: d.data() as Record<string, unknown> }))
     .filter(({ data }) => isPubliclyListedTournamentDoc(data))
-    .map(({ id, data }) => summaryFromDoc(id, data));
+    .map(({ id, data }) => tournamentSummaryFromDoc(id, data));
 }
 
 export async function fetchTournament(db: Firestore, id: string): Promise<TournamentSummary | null> {
   const snap = await getDoc(doc(db, 'tournaments', id));
   if (!snap.exists()) return null;
-  return summaryFromDoc(snap.id, snap.data() as Record<string, unknown>);
+  return tournamentSummaryFromDoc(snap.id, snap.data() as Record<string, unknown>);
 }
 
 export async function fetchTournamentSummariesByIds(db: Firestore, ids: readonly string[]): Promise<Map<string, TournamentSummary>> {
@@ -508,7 +509,7 @@ export async function fetchTournamentSummariesByIds(db: Firestore, ids: readonly
     const chunk = unique.slice(i, i + 10);
     chunkPromises.push(
       getDocs(query(collection(db, 'tournaments'), where(documentId(), 'in', chunk))).then((snap) => {
-        for (const d of snap.docs) result.set(d.id, summaryFromDoc(d.id, d.data() as Record<string, unknown>));
+        for (const d of snap.docs) result.set(d.id, tournamentSummaryFromDoc(d.id, d.data() as Record<string, unknown>));
       }),
     );
   }

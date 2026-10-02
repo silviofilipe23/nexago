@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal } from '@angular/core';
 import { DomSanitizer } from '@angular/platform-browser';
+import { RouterLink } from '@angular/router';
 import {
   interviewOnAirAt,
   type BroadcastFinalMode,
@@ -38,7 +39,7 @@ const WIDE_QUERY = '(min-width: 1100px)';
   selector: 'og-transmissao',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [TransmissaoDataService],
-  imports: [OgPageHeaderComponent, OgCardComponent, TransmissaoEntrevistaComponent],
+  imports: [OgPageHeaderComponent, OgCardComponent, TransmissaoEntrevistaComponent, RouterLink],
   template: `
     <og-page-header title="Transmissão" subtitle="Controle o que aparece na live do torneio — placar, telas do KOTC, tarja de entrevista e patrocínio">
       <button type="button" class="og-ghost-btn" (click)="copyUrl()">{{ copied() ? 'Link copiado ✓' : 'Copiar link do OBS' }}</button>
@@ -82,14 +83,21 @@ const WIDE_QUERY = '(min-width: 1100px)';
                 <div class="og-toggle-row">
                   <div class="og-toggle-row-text">
                     <div class="og-toggle-row-title">{{ item.nome }}</div>
-                    <div class="og-toggle-row-desc">{{ item.descricao }}</div>
+                    @if (item.id === 'sponsors' && semPatrocinador()) {
+                      <div class="og-toggle-row-desc og-tx-aviso">
+                        <span>Nenhum patrocinador cadastrado —</span>
+                        <a [routerLink]="['/eventos', id()]">cadastrar na página do torneio</a>
+                      </div>
+                    } @else {
+                      <div class="og-toggle-row-desc">{{ item.descricao }}</div>
+                    }
                   </div>
                   @if (item.controle === 'chave+agora') {
                     <button
                       type="button"
                       class="og-mini-btn og-tx-agora"
-                      [disabled]="!svc.control().graphics[item.id] || onAir() != null"
-                      [attr.title]="onAir() ? 'A tarja está no ar — tire a tarja pra mostrar' : null"
+                      [disabled]="!svc.control().graphics[item.id] || onAir() != null || (item.id === 'sponsors' && semPatrocinador())"
+                      [attr.title]="agoraTitle(item.id)"
                       (click)="showNow(item.id)"
                     >
                       Mostrar agora
@@ -248,6 +256,16 @@ const WIDE_QUERY = '(min-width: 1100px)';
     .og-tx-podio {
       margin: 8px 0 0;
     }
+    .og-tx-aviso {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      color: var(--nx-orange-400, #ff8a4a);
+    }
+    .og-tx-aviso a {
+      color: inherit;
+      text-decoration: underline;
+    }
     .og-tx-agora {
       margin-right: 10px;
     }
@@ -314,6 +332,10 @@ export class TransmissaoComponent {
       : `A final de ${nome} ainda não terminou — o pódio entra quando ela acabar.`;
   });
 
+  /** O card "Oferecimento" só tem o que mostrar com patrocinador cadastrado no torneio — sem
+   *  isso o "Mostrar agora" gravava o comando e o ar não mudava, sem explicar por quê. */
+  protected readonly semPatrocinador = computed(() => (this.svc.tournament()?.sponsors ?? []).length === 0);
+
   protected readonly onAir = computed(() => {
     const i = this.svc.control().interview;
     return interviewOnAirAt(i, this.now()) ? i : null;
@@ -322,6 +344,12 @@ export class TransmissaoComponent {
     effect(() => this.svc.tournamentId.set(this.id()));
     const timer = setInterval(() => this.now.set(Date.now()), 1000);
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
+  }
+
+  protected agoraTitle(id: BroadcastGraphicId): string | null {
+    if (this.onAir()) return 'A tarja está no ar — tire a tarja pra mostrar';
+    if (id === 'sponsors' && this.semPatrocinador()) return 'Cadastre patrocinadores na página do torneio';
+    return null;
   }
 
   protected selectCourt(courtId: string): void {

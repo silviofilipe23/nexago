@@ -184,6 +184,7 @@ describe('capa padrão da liga — listagem do atleta', () => {
       city: 'Goiânia',
       state: 'GO',
       organizationName: null,
+      managerId: null,
       description: null,
       coverUrl: null,
       sport: 'beachVolleyball',

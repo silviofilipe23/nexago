@@ -50,6 +50,10 @@
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7.5" r="3.5" /><path d="M5 21c0-3.9 3.1-7 7-7s7 3.1 7 7" /></svg>
         <span>Equipes</span>
       </a>
+      <a routerLink="/organizadores" routerLinkActive="at-nav-item--active" class="at-nav-item">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4" /><path d="M5 4h11l-2 4 2 4H5" /></svg>
+        <span>Organizadores</span>
+      </a>
       <a routerLink="/bora-jogar" routerLinkActive="at-nav-item--active" class="at-nav-item">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 3c2.5 2.4 3.9 5.6 3.9 9s-1.4 6.6-3.9 9M12 3C9.5 5.4 8.1 8.6 8.1 12s1.4 6.6 3.9 9M3.5 9h17M3.5 15h17" /></svg>
         <span>Bora Jogar</span>
@@ -130,9 +134,11 @@
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14" /></svg>
       <span>Reservar</span>
     </a>
+    <!-- Sem routerLinkActive aqui: ele só conhece /competir e, a cada navegação, REMOVE a
+         classe que o sinal de prefixo pôs — o item apagava em /torneios, /ranking etc. O sinal
+         já cobre /competir, então é a única fonte do estado aceso. -->
     <a
       routerLink="/competir"
-      routerLinkActive="at-bottom-nav-item--active"
       class="at-bottom-nav-item"
       [class.at-bottom-nav-item--active]="competirSectionActive()"
     >

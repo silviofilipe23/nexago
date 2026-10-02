@@ -1,0 +1,68 @@
+@let v = vm();
+@if (v.summary; as s) {
+  <div class="rv">
+    <section class="rv-card rv-overall" aria-labelledby="rv-overall-title">
+      <h2 class="rv-kicker" id="rv-overall-title">Nota geral</h2>
+      <div class="rv-score">
+        <strong>{{ s.average }}</strong>
+        <span class="rv-stars" role="img" [attr.aria-label]="s.average + ' de 5 estrelas'">
+          @for (slot of stars; track slot) {
+            <svg width="14" height="14" viewBox="0 0 24 24" [class.rv-star--on]="slot <= s.stars" aria-hidden="true"><path fill="currentColor" d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1Z" /></svg>
+          }
+        </span>
+        <span class="rv-count">{{ s.countLabel }} {{ s.tournamentsLabel }}</span>
+      </div>
+      @if (v.distribution.length > 0) {
+        <ul class="rv-dist" aria-label="Distribuição das notas">
+          @for (row of v.distribution; track row.stars) {
+            <li>
+              <span class="rv-dist-label">{{ row.stars }} ★</span>
+              <span class="rv-bar" aria-hidden="true"><span [style.width.%]="row.pct"></span></span>
+              <span class="rv-dist-count">{{ row.count }}</span>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <section class="rv-card" aria-labelledby="rv-aspects-title">
+      <h2 class="rv-kicker" id="rv-aspects-title">Por aspecto</h2>
+      <ul class="rv-aspects">
+        @for (a of s.aspects; track a.key) {
+          <li>
+            <span class="rv-aspect-label">{{ a.label }}</span>
+            <span class="rv-bar rv-bar--gold" aria-hidden="true"><span [style.width.%]="a.pct"></span></span>
+            <span class="rv-aspect-value">{{ a.value }}</span>
+          </li>
+        }
+      </ul>
+    </section>
+
+    <section class="rv-card rv-events" aria-labelledby="rv-events-title">
+      <h2 class="rv-kicker" id="rv-events-title">Nota por evento</h2>
+      @if (v.events.length > 0) {
+        <ul class="rv-event-list">
+          @for (e of v.events; track e.id) {
+            <li>
+              <a class="rv-event" [routerLink]="e.link">
+                <span class="rv-event-main">
+                  <span class="rv-event-name">{{ e.name }}</span>
+                  <span class="rv-event-date">{{ e.dateLabel }}</span>
+                </span>
+                <span class="rv-event-score">★ {{ e.average }}</span>
+                <span class="rv-event-count">{{ e.countLabel }}</span>
+              </a>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="rv-muted">A nota de cada evento aparece quando a janela de avaliação fecha com pelo menos 3 avaliações.</p>
+      }
+    </section>
+  </div>
+} @else {
+  <div class="rv-empty">
+    <strong>Ainda sem avaliações suficientes</strong>
+    <p>A nota do organizador aparece depois de 3 avaliações de atletas que jogaram os eventos dele.</p>
+  </div>
+}

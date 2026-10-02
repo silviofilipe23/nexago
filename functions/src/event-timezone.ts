@@ -24,3 +24,15 @@ export function eventTimeLabel(d: Date): string {
     minute: "2-digit",
   });
 }
+
+/**
+ * Data civil (`YYYY-MM-DD`) de campo gravado como DATA, como `startAt`/`endAt` de torneio. Os
+ * wizards gravam a meia-noite do aparelho de quem criou: 03:00Z num aparelho no Brasil, 00:00Z num
+ * aparelho em UTC (emulador, organizador fora do país) e no legado. Meia-noite UTC exata vale pela
+ * data UTC; o resto, pelo calendário de São Paulo. Mesma regra de `tournamentEventDateLocal` no app.
+ */
+export function dayKeyFromStoredEventDate(d: Date): string {
+  const utcMidnight = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 &&
+    d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0;
+  return utcMidnight ? d.toISOString().slice(0, 10) : dayKeyFromEventDate(d);
+}

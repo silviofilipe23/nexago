@@ -43,7 +43,7 @@ describe("expireOpenPixCharges", () => {
 
     assert.deepEqual(cancelled, ["pay_1"]);
     assert.deepEqual(marked, ["uid-1"]);
-    assert.deepEqual(result, {expired: 1, failed: 0});
+    assert.deepEqual(result, {expired: 1, failed: 0, reconciled: 0});
   });
 
   it("nunca toca numa cobrança já liquidada", async () => {
@@ -71,7 +71,7 @@ describe("expireOpenPixCharges", () => {
 
     assert.deepEqual(cancelled, []);
     assert.deepEqual(marked, []);
-    assert.deepEqual(result, {expired: 0, failed: 0});
+    assert.deepEqual(result, {expired: 0, failed: 0, reconciled: 0});
   });
 
   it("cobrança ainda no prazo sobrevive à volta da varredura", async () => {
@@ -95,7 +95,7 @@ describe("expireOpenPixCharges", () => {
     });
 
     assert.deepEqual(cancelled, []);
-    assert.deepEqual(result, {expired: 0, failed: 0});
+    assert.deepEqual(result, {expired: 0, failed: 0, reconciled: 0});
   });
 
   it("falha do gateway não marca cancelado — a cobrança pode seguir viva", async () => {
@@ -113,7 +113,7 @@ describe("expireOpenPixCharges", () => {
     });
 
     assert.deepEqual(marked, []);
-    assert.deepEqual(result, {expired: 0, failed: 1});
+    assert.deepEqual(result, {expired: 0, failed: 1, reconciled: 0});
   });
 
   it("uma falha não derruba as outras cobranças da volta", async () => {
@@ -134,7 +134,7 @@ describe("expireOpenPixCharges", () => {
     });
 
     assert.deepEqual(marked, ["uid-2"]);
-    assert.deepEqual(result, {expired: 1, failed: 1});
+    assert.deepEqual(result, {expired: 1, failed: 1, reconciled: 0});
   });
 
   it("documento sem cobrança no gateway só é marcado", async () => {
@@ -159,7 +159,7 @@ describe("expireOpenPixCharges", () => {
 
     assert.deepEqual(cancelled, []);
     assert.deepEqual(marked, ["uid-1"]);
-    assert.deepEqual(result, {expired: 1, failed: 0});
+    assert.deepEqual(result, {expired: 1, failed: 0, reconciled: 0});
   });
 
   it("documento sem vencimento é ignorado, não morre por omissão", async () => {
@@ -176,7 +176,7 @@ describe("expireOpenPixCharges", () => {
     });
 
     assert.deepEqual(cancelled, []);
-    assert.deepEqual(result, {expired: 0, failed: 0});
+    assert.deepEqual(result, {expired: 0, failed: 0, reconciled: 0});
   });
 
   it("cobrança já cancelada não é cancelada de novo", async () => {
@@ -198,7 +198,7 @@ describe("expireOpenPixCharges", () => {
     });
 
     assert.deepEqual(cancelled, []);
-    assert.deepEqual(result, {expired: 0, failed: 0});
+    assert.deepEqual(result, {expired: 0, failed: 0, reconciled: 0});
   });
 });
 
@@ -289,5 +289,120 @@ describe("expireOpenPixCharges: cartão em voo", () => {
 
     assert.deepEqual(marked, []);
     assert.equal(result.failed, 1);
+  });
+});
+
+/** O Asaas recusa apagar cobrança que não está mais pendente — é assim que o PIX pago aparece. */
+const refusesDelete = async () => {
+  throw new Error(
+    "fetchAsaas failed: 400 Só é possível remover cobranças pendentes ou vencidas.",
+  );
+};
+
+describe("expireOpenPixCharges: pagamento que o webhook não creditou", () => {
+  it("PIX pago no gateway é creditado em vez de virar falha eterna", async () => {
+    // Caso real (02/10, pay_n7coyfexgdrma80x): o webhook chegou, a releitura no Asaas levou 403
+    // do CloudFront, o handler respondeu 200 e o Asaas nunca reenviou. A varredura passou a
+    // falhar a cada minuto tentando apagar uma cobrança paga.
+    const reconciled: string[] = [];
+    const marked: string[] = [];
+
+    const result = await expireOpenPixCharges({
+      docs: [expiredPending()],
+      nowMs: NOW,
+      cancelCharge: refusesDelete,
+      markCancelled: async (doc) => {
+        marked.push(doc.id);
+      },
+      resolveChargeStatus: async () => "RECEIVED",
+      reconcilePaidCharge: async (id) => {
+        reconciled.push(id);
+      },
+    });
+
+    assert.deepEqual(reconciled, ["pay_1"]);
+    assert.deepEqual(marked, []);
+    assert.deepEqual(result, {expired: 0, failed: 0, reconciled: 1});
+  });
+
+  it("PIX que o Asaas recusa apagar mas segue pendente continua sendo falha", async () => {
+    const reconciled: string[] = [];
+
+    const result = await expireOpenPixCharges({
+      docs: [expiredPending()],
+      nowMs: NOW,
+      cancelCharge: refusesDelete,
+      markCancelled: async () => {},
+      resolveChargeStatus: async () => "PENDING",
+      reconcilePaidCharge: async (id) => {
+        reconciled.push(id);
+      },
+    });
+
+    assert.deepEqual(reconciled, []);
+    assert.deepEqual(result, {expired: 0, failed: 1, reconciled: 0});
+  });
+
+  it("cartão autorizado cujo webhook se perdeu é creditado", async () => {
+    const reconciled: string[] = [];
+    const cancelled: string[] = [];
+
+    const result = await expireOpenPixCharges({
+      docs: [expiredCard()],
+      nowMs: NOW,
+      cancelCharge: async (id) => {
+        cancelled.push(id);
+      },
+      markCancelled: async () => {},
+      resolveChargeStatus: async () => "CONFIRMED",
+      reconcilePaidCharge: async (id) => {
+        reconciled.push(id);
+      },
+    });
+
+    assert.deepEqual(cancelled, []);
+    assert.deepEqual(reconciled, ["pay_card"]);
+    assert.deepEqual(result, {expired: 0, failed: 0, reconciled: 1});
+  });
+
+  it("cartão em análise de risco segue esperando — ainda não há dinheiro", async () => {
+    const reconciled: string[] = [];
+    const cancelled: string[] = [];
+
+    await expireOpenPixCharges({
+      docs: [expiredCard()],
+      nowMs: NOW,
+      cancelCharge: async (id) => {
+        cancelled.push(id);
+      },
+      markCancelled: async () => {},
+      resolveChargeStatus: async () => "AWAITING_RISK_ANALYSIS",
+      reconcilePaidCharge: async (id) => {
+        reconciled.push(id);
+      },
+    });
+
+    assert.deepEqual(cancelled, []);
+    assert.deepEqual(reconciled, []);
+  });
+
+  it("falha ao creditar não marca nada — a próxima volta tenta de novo", async () => {
+    const marked: string[] = [];
+
+    const result = await expireOpenPixCharges({
+      docs: [expiredPending()],
+      nowMs: NOW,
+      cancelCharge: refusesDelete,
+      markCancelled: async (doc) => {
+        marked.push(doc.id);
+      },
+      resolveChargeStatus: async () => "RECEIVED",
+      reconcilePaidCharge: async () => {
+        throw new Error("firestore indisponível");
+      },
+    });
+
+    assert.deepEqual(marked, []);
+    assert.deepEqual(result, {expired: 0, failed: 1, reconciled: 0});
   });
 });

@@ -77,6 +77,14 @@ describe('AtPanelShellComponent — item Mesa nas navegações', () => {
     expect(mesaBottomItem()).toBeNull();
   });
 
+  // No desktop não há item "Competir": sem este, a lista de organizadores só se achava pelo
+  // breadcrumb do perfil. No celular a entrada é o card no hub Competir.
+  it('a sidebar do desktop tem o item Organizadores', async () => {
+    await build(0);
+    const item = (fixture.nativeElement as HTMLElement).querySelector('.at-nav a[href="/organizadores"]');
+    expect(item?.textContent).toContain('Organizadores');
+  });
+
   it('a bottom-nav fica com seis itens — o teto que o layout aguenta em 320px', async () => {
     await build(1);
     const items = (fixture.nativeElement as HTMLElement).querySelectorAll('.at-bottom-nav .at-bottom-nav-item');
@@ -122,5 +130,94 @@ describe('AtPanelShellComponent — bottom-nav no fluxo de inscrição', () => {
     await fixture.whenStable();
 
     expect((fixture.nativeElement as HTMLElement).querySelector('.at-bottom-nav')).not.toBeNull();
+  });
+});
+
+/** O item Competir aponta só pra `/competir`, mas representa o hub inteiro: torneios, ligas,
+ *  ranking, atletas e equipes também o acendem. Cada tela monta o PRÓPRIO shell, então o caso
+ *  que importa é o shell nascer já numa dessas rotas (link compartilhado, F5, voltar) — era aí
+ *  que o `routerLinkActive` do link apagava, um microtask depois, a classe que o sinal de prefixo
+ *  tinha acabado de pôr. */
+describe('AtPanelShellComponent — item Competir na bottom-nav', () => {
+  const HUB_URLS = [
+    '/competir',
+    '/torneios',
+    '/torneios/t1',
+    '/ligas/l1',
+    '/ranking',
+    '/atletas',
+    '/atletas/fulano',
+    '/equipes',
+    '/equipes/e1',
+  ];
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [AtPanelShellComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter(
+          ['painel', 'agenda', 'competir', 'torneios', 'torneios/:id', 'ligas/:id', 'ranking', 'atletas', 'atletas/:handle', 'equipes', 'equipes/:teamId'].map(
+            (path) => ({ path, component: AtPanelShellComponent }),
+          ),
+        ),
+        { provide: StaffTournamentsService, useValue: { count: signal(0) } },
+        { provide: PartnerInvitesService, useValue: { pending: signal([]), pendingCount: signal(0), markAnswered: () => {} } },
+        { provide: AuthService, useValue: { user: signal(null) } },
+      ],
+    }).compileComponents();
+  });
+
+  function bottomItem(fixture: ComponentFixture<AtPanelShellComponent>, href: string): HTMLAnchorElement {
+    const el = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>(`.at-bottom-nav a[href="${href}"]`);
+    if (!el) throw new Error(`item ${href} ausente da bottom-nav`);
+    return el;
+  }
+
+  function isActive(fixture: ComponentFixture<AtPanelShellComponent>, href: string): boolean {
+    return bottomItem(fixture, href).classList.contains('at-bottom-nav-item--active');
+  }
+
+  /** Como a tela real: a navegação termina e só então a página monta o seu shell. */
+  async function openAt(url: string): Promise<ComponentFixture<AtPanelShellComponent>> {
+    await TestBed.inject(Router).navigateByUrl(url);
+    const fixture = TestBed.createComponent(AtPanelShellComponent);
+    await fixture.whenStable();
+    return fixture;
+  }
+
+  async function navigate(fixture: ComponentFixture<AtPanelShellComponent>, url: string): Promise<void> {
+    await TestBed.inject(Router).navigateByUrl(url);
+    await fixture.whenStable();
+  }
+
+  for (const url of HUB_URLS) {
+    it(`acende ao abrir ${url} direto`, async () => {
+      const fixture = await openAt(url);
+      expect(isActive(fixture, '/competir')).toBeTrue();
+    });
+  }
+
+  it('não acende fora do hub — quem acende é o item da rota', async () => {
+    const fixture = await openAt('/agenda');
+    expect(isActive(fixture, '/competir')).toBeFalse();
+    expect(isActive(fixture, '/agenda')).toBeTrue();
+  });
+
+  it('segue aceso ao trocar de seção do hub com o shell montado', async () => {
+    const fixture = await openAt('/competir');
+    await navigate(fixture, '/ranking');
+    expect(isActive(fixture, '/competir')).toBeTrue();
+    await navigate(fixture, '/torneios/t1');
+    expect(isActive(fixture, '/competir')).toBeTrue();
+  });
+
+  it('apaga ao sair do hub e acende de novo ao voltar', async () => {
+    const fixture = await openAt('/torneios');
+    await navigate(fixture, '/painel');
+    expect(isActive(fixture, '/competir')).toBeFalse();
+    expect(isActive(fixture, '/painel')).toBeTrue();
+    await navigate(fixture, '/equipes');
+    expect(isActive(fixture, '/competir')).toBeTrue();
   });
 });

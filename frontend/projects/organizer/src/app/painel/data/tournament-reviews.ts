@@ -1,3 +1,4 @@
+import { spDayKey, spWallToDate } from './auto-schedule-preview';
 import type { OrganizerTournament } from './tournament.model';
 
 /** Avaliação do torneio pelos atletas, lado do organizador — spec
@@ -189,14 +190,25 @@ export function collectingText(s: TournamentReviewSummary): string {
 
 export type ReviewsEmptyState = 'notEnded' | 'opening' | 'endedBefore' | 'cancelled';
 
-/** Sem resumo: o que dizer. Espelha `reviewCandidateReason` (functions): concluído ou `endAt`
- *  passado entram no job das 10h por até 3 dias. Este modelo não tem `completedAt`; concluído
- *  sem `endAt` passado conta como "acabou agora". */
+/** Meia-noite de São Paulo seguinte ao último dia: quando o torneio sem `completed` conta como
+ *  encerrado. MESMA regra de `tournamentOverAtMs` (functions): `endAt` é DATA, e meia-noite UTC
+ *  exata (aparelho em UTC, legado) vale pela data UTC; o resto, pelo calendário de SP. */
+function tournamentOverAtMs(endAt: Date): number {
+  const utcMidnight = endAt.getUTCHours() === 0 && endAt.getUTCMinutes() === 0 &&
+    endAt.getUTCSeconds() === 0 && endAt.getUTCMilliseconds() === 0;
+  const lastDay = utcMidnight ? endAt.toISOString().slice(0, 10) : spDayKey(endAt);
+  return spWallToDate(lastDay, 24 * 60).getTime();
+}
+
+/** Sem resumo: o que dizer. Espelha `reviewCandidateReason` (functions): concluído, ou o dia
+ *  seguinte ao último dia, entram no job das 10h por até 3 dias. Este modelo não tem
+ *  `completedAt`; concluído antes disso conta como "acabou agora". */
 export function reviewsEmptyState(t: Pick<OrganizerTournament, 'status' | 'endAt'>, now: Date): ReviewsEmptyState {
   if (t.status === 'cancelado') return 'cancelled';
-  const endAtPassed = t.endAt != null && t.endAt.getTime() <= now.getTime();
-  if (t.status !== 'concluido' && !endAtPassed) return 'notEnded';
-  const endedAt = endAtPassed ? t.endAt!.getTime() : now.getTime();
+  const overAt = t.endAt != null ? tournamentOverAtMs(t.endAt) : null;
+  const over = overAt != null && overAt <= now.getTime();
+  if (t.status !== 'concluido' && !over) return 'notEnded';
+  const endedAt = over ? overAt! : now.getTime();
   return now.getTime() - endedAt <= REVIEW_LOOKBACK_MS ? 'opening' : 'endedBefore';
 }
 

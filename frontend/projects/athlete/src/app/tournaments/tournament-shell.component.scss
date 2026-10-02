@@ -105,6 +105,20 @@ router-outlet + * {
   color: var(--nx-text-mute);
 }
 
+.tsh-organizer-link {
+  color: var(--nx-text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--nx-line-strong);
+  text-underline-offset: 3px;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--nx-orange-400);
+    text-decoration-color: currentColor;
+  }
+}
+
 .tsh-action {
   display: inline-flex;
   align-items: center;

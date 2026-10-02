@@ -73,6 +73,22 @@ describe('TransmissaoComponent', () => {
     expect((patro.querySelector('.og-tx-agora') as HTMLButtonElement).disabled).toBeFalse();
   });
 
+  it('torneio sem patrocinador: "Mostrar agora" desabilitado e o painel diz onde cadastrar', async () => {
+    const fake = new FakeData();
+    fake.tournament.set({ ...torneio(['single_elimination']), sponsors: [] });
+    const { el } = await mount(fake);
+    const patro = [...el.querySelectorAll('.og-toggle-row')].find((l) => l.textContent?.includes('Patrocinadores'))!;
+    expect((patro.querySelector('.og-tx-agora') as HTMLButtonElement).disabled).toBeTrue();
+    expect(patro.textContent).toContain('Nenhum patrocinador cadastrado');
+    expect(patro.querySelector('a')?.getAttribute('href')).toBe('/eventos/t1');
+  });
+
+  it('com patrocinador, a linha mostra a descrição de sempre', async () => {
+    const { el } = await mount();
+    const patro = [...el.querySelectorAll('.og-toggle-row')].find((l) => l.textContent?.includes('Patrocinadores'))!;
+    expect(patro.textContent).not.toContain('Nenhum patrocinador cadastrado');
+  });
+
   it('"Mostrar agora" grava o carimbo do comando', async () => {
     const { el, fake } = await mount();
     const patro = [...el.querySelectorAll('.og-toggle-row')].find((l) => l.textContent?.includes('Patrocinadores'))!;

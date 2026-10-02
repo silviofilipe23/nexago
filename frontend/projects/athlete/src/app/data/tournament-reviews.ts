@@ -220,12 +220,6 @@ export function organizerReputationFromData(data: Record<string, unknown> | unde
   };
 }
 
-/** Nome do organizador em `public_profiles/{uid}`: nome completo antes do apelido. */
-export function organizerNameFromData(data: Record<string, unknown> | undefined): string | null {
-  if (!data) return null;
-  return text(data['fullName']) || text(data['name']) || text(data['nickname']).replace(/^@/, '') || null;
-}
-
 /** Uma casa, vírgula — a mesma regra do push de fechamento e do painel do organizador. */
 export function formatRating(value: number): string {
   return value.toFixed(1).replace('.', ',');
@@ -245,13 +239,6 @@ export function organizerReputationLabel(r: OrganizerReputation | null): string 
   if (!r || r.average == null || r.reviewsCount < MIN_PUBLIC_REVIEWS) return null;
   const tournaments = r.tournamentsRated === 1 ? '1 torneio' : `${r.tournamentsRated} torneios`;
   return `★ ${formatRating(r.average)} (${r.reviewsCount} avaliações em ${tournaments})`;
-}
-
-/** Linha do cabeçalho do torneio. Sem nome não há linha — nota solta não diz de quem é. */
-export function organizerLine(name: string | null, reputation: OrganizerReputation | null): string | null {
-  if (!name) return null;
-  const rating = organizerReputationLabel(reputation);
-  return rating ? `Organizado por ${name} · ${rating}` : `Organizado por ${name}`;
 }
 
 /** Barras de "Como os atletas avaliaram": só aspectos com nota, na ordem da lista. */

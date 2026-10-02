@@ -21,10 +21,9 @@ export const MIN_PUBLIC_REVIEWS = 3;
 export const REVIEW_WINDOW_DAYS = 14;
 export const REVIEW_REMINDER_AFTER_DAYS = 3;
 /** Só abre janela de torneio encerrado há no máximo isso: o deploy (ou ligar a flag) não pode
- *  disparar push para torneio antigo. */
+ *  disparar push para torneio antigo. Sem `completed`, o torneio encerra na meia-noite seguinte ao
+ *  último dia (`tournamentOverAtMs`). */
 export const REVIEW_LOOKBACK_DAYS = 3;
-/** Sem `completed`, a janela abre `endAt` + isto. */
-export const REVIEW_END_GRACE_HOURS = 12;
 export const MAX_REVIEW_COMMENT_LENGTH = 1000;
 export const XP_TOURNAMENT_REVIEW = 10;
 

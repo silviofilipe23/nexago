@@ -41,7 +41,11 @@ void main() {
     prizeTotalLabel: r'R$ 13.500',
   );
 
-  Future<void> pumpSection(WidgetTester tester, {String? organizerReputation}) async {
+  Future<void> pumpSection(
+    WidgetTester tester, {
+    String? organizerReputation,
+    VoidCallback? onOrganizerTap,
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.dark,
@@ -52,6 +56,7 @@ void main() {
               organizerName: 'Ana Organiza',
               stats: stats,
               organizerReputation: organizerReputation,
+              onOrganizerTap: onOrganizerTap,
             ),
           ),
         ),
@@ -70,5 +75,23 @@ void main() {
     await pumpSection(tester);
     expect(find.text('Organizador'), findsOneWidget);
     expect(find.textContaining('★'), findsNothing);
+  });
+
+  testWidgets('com perfil público, a linha do organizador abre o perfil', (tester) async {
+    var taps = 0;
+    await pumpSection(tester, onOrganizerTap: () => taps++);
+    expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
+    await tester.tap(find.text('Ana Organiza'));
+    await tester.pump();
+    expect(taps, 1);
+  });
+
+  testWidgets('sem perfil público a linha segue só texto', (tester) async {
+    await pumpSection(tester);
+    expect(find.byIcon(Icons.chevron_right_rounded), findsNothing);
+    expect(
+      find.ancestor(of: find.text('Ana Organiza'), matching: find.byType(InkWell)),
+      findsNothing,
+    );
   });
 }

@@ -1,0 +1,264 @@
+@use 'organizer' as o;
+
+:host {
+  display: block;
+}
+
+.od {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-4);
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 18px 24px 48px;
+  min-width: 0;
+
+  @media (max-width: 640px) {
+    padding: 16px 16px 32px;
+  }
+}
+
+.od-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+
+  a {
+    color: var(--nx-text-dim);
+    text-decoration: none;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--nx-text);
+    }
+  }
+}
+
+.od-crumb-current {
+  color: var(--nx-text);
+}
+
+.od-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--nx-s-4);
+
+  h1 {
+    margin: 0;
+    font-family: var(--nx-font-display);
+    font-weight: 800;
+    font-size: 24px;
+    letter-spacing: -0.02em;
+    color: var(--nx-text);
+  }
+}
+
+.od-sub {
+  @include o.kicker;
+  margin-top: 4px;
+}
+
+.od-search {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-s-2);
+  flex: 0 1 340px;
+  min-width: 0;
+  height: 44px;
+  padding: 0 var(--nx-s-4);
+  border-radius: var(--nx-r-3);
+  border: 1px solid var(--nx-line-strong);
+  background: var(--nx-surface-0);
+  color: var(--nx-text-dim);
+
+  &:focus-within {
+    border-color: var(--nx-orange-500);
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--nx-text);
+    font-family: var(--nx-font-ui);
+    font-size: 14px;
+  }
+
+  @media (max-width: 640px) {
+    flex-basis: 100%;
+  }
+}
+
+.od-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.od-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--nx-s-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  @media (max-width: 640px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.od-card {
+  @include o.card;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--nx-s-4);
+  height: 100%;
+  padding: var(--nx-s-4);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover,
+  &:focus-visible {
+    border-color: var(--nx-line-strong);
+  }
+}
+
+.od-logo {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  font-family: var(--nx-font-display);
+  font-weight: 800;
+  font-size: 17px;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: var(--nx-surface-1);
+  }
+}
+
+.od-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.od-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--nx-text);
+}
+
+.od-name-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.od-verified {
+  flex: none;
+  color: var(--nx-orange-500);
+}
+
+.od-location {
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  color: var(--nx-text-dim);
+}
+
+.od-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--nx-s-3);
+  margin-top: 2px;
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  color: var(--nx-text-mute);
+}
+
+.od-rating {
+  color: var(--nx-pending);
+  font-weight: 600;
+}
+
+.od-open {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 3px 9px;
+  border-radius: var(--nx-r-pill);
+  border: 1px solid currentColor;
+  color: var(--nx-win);
+  font-family: var(--nx-font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.od-empty {
+  @include o.empty;
+}
+
+.od-state {
+  @include o.empty;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--nx-s-2);
+
+  p {
+    margin: 0;
+  }
+}
+
+.od-state-title {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--nx-text);
+}
+
+.od-state-detail {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  color: var(--nx-text-dim);
+  overflow-wrap: anywhere;
+}
+
+.od-btn {
+  @include o.button-base;
+  @include o.button-primary;
+  margin-top: var(--nx-s-2);
+}

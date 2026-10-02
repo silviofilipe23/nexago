@@ -8,6 +8,7 @@ import {
   type InterviewCampaignRow,
   type InterviewChip,
   type InterviewKind,
+  type InterviewReporter,
 } from '../data/broadcast-control';
 import { kocFinalTable } from '../data/koc';
 import type { TournamentMatch } from '../data/matches-repository';
@@ -34,6 +35,11 @@ export interface InterviewSubject {
   uid: string | null;
 }
 
+/** Identidade do entrevistado — a `key` do card no ar e o `id` do item na fila. */
+export function interviewKeyOf(s: InterviewSubject): string {
+  return s.kind === 'atleta' ? `atleta:${s.teamId}:${s.uid ?? ''}` : `${s.kind}:${s.teamId}`;
+}
+
 export interface InterviewCardSource {
   matches: readonly TournamentMatch[];
   rosters: ReadonlyMap<string, TeamRoster>;
@@ -51,6 +57,9 @@ export interface InterviewAirOptions {
   durationSec: number | null;
   shownAt: number;
   showCampaign: boolean;
+  /** Da fila do painel — a pauta e o repórter não saem dos dados do torneio. */
+  question: string | null;
+  reporter: InterviewReporter | null;
 }
 
 function namedMembers(roster: TeamRoster): RosterMember[] {
@@ -201,7 +210,16 @@ export function interviewCardOf(subject: InterviewSubject, src: InterviewCardSou
   const context = [categoryName, teamPhaseOf(subject.teamId, src.matches)].filter((p): p is string => !!p).join(' · ') || null;
   const campaign = campaignOf(subject.teamId, src);
   const isTeam = isTeamCategory(subject.teamId, src);
-  const base = { durationSec: air.durationSec, shownAt: air.shownAt, showCampaign: air.showCampaign, categoryName, context, campaign };
+  const base = {
+    durationSec: air.durationSec,
+    shownAt: air.shownAt,
+    showCampaign: air.showCampaign,
+    question: air.question,
+    reporter: air.reporter,
+    categoryName,
+    context,
+    campaign,
+  };
 
   if (subject.kind === 'atleta') {
     const me = named.find((m) => m.uid === subject.uid);
@@ -215,7 +233,7 @@ export function interviewCardOf(subject: InterviewSubject, src: InterviewCardSou
       photoUrl: me.photoUrl,
       partnerName: partner,
       kind: 'atleta',
-      key: `atleta:${subject.teamId}:${me.uid}`,
+      key: interviewKeyOf({ kind: 'atleta', teamId: subject.teamId, uid: me.uid }),
       names: [me.name],
       photos: [me.photoUrl],
       members: [],
@@ -236,7 +254,7 @@ export function interviewCardOf(subject: InterviewSubject, src: InterviewCardSou
       photoUrl: pair[0]!.photoUrl,
       partnerName: null,
       kind: 'dupla',
-      key: `dupla:${subject.teamId}`,
+      key: interviewKeyOf(subject),
       names: pair.map((m) => m.name),
       photos: pair.map((m) => m.photoUrl),
       members: [],
@@ -254,7 +272,7 @@ export function interviewCardOf(subject: InterviewSubject, src: InterviewCardSou
     photoUrl: null,
     partnerName: null,
     kind: 'equipe',
-    key: `equipe:${subject.teamId}`,
+    key: interviewKeyOf(subject),
     names: [teamName],
     photos: [],
     members: named.slice(0, INTERVIEW_MEMBERS_MAX).map((m) => ({ name: m.name, photoUrl: m.photoUrl })),

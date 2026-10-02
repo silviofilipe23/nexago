@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
 import type { BroadcastInterview } from '../../painel/data/broadcast-control';
-import { InterviewStageDriver } from './overlay-interview';
+import { InterviewStageDriver, QUESTION_TIMINGS, REPORTER_TIMINGS, StageDriver } from './overlay-interview';
 import { OverlayInterviewBrandComponent } from './overlay-interview-brand.component';
 import { OverlayInterviewCampaignComponent } from './overlay-interview-campaign.component';
 import { OverlayInterviewCardComponent } from './overlay-interview-card.component';
@@ -35,7 +35,32 @@ import type { OverlayPatroItem } from './overlay-nx';
       </div>
       <div class="terco" [attr.data-phase]="main.stage().phase">
         @for (c of [d]; track c.key) {
+          <div class="dobra" [class.aberta]="aberta(pauta)">
+            <div class="dobra-clip">
+              @if (pauta.stage().shown; as p) {
+                @for (x of [p]; track x.key) {
+                  <div class="blk pauta" style="--d: 3" [class.solo]="pautaSolo()" [attr.data-own]="pauta.stage().phase">
+                    <span class="pauta-tag">Pauta</span>
+                    <span class="pauta-txt">{{ x.key }}</span>
+                  </div>
+                }
+              }
+            </div>
+          </div>
           <og-overlay-interview-card class="blk" style="--d: 1" [data]="c" />
+          <div class="dobra" [class.aberta]="aberta(reporter)">
+            <div class="dobra-clip">
+              @if (reporter.stage().shown; as r) {
+                @for (x of [r]; track x.key) {
+                  <div class="blk reporter" style="--d: 2" [class.solo]="reporterSolo()" [attr.data-own]="reporter.stage().phase">
+                    <i aria-hidden="true"></i>
+                    <span class="rep-funcao">{{ x.role }}</span>
+                    <span class="rep-nome">{{ x.name }}</span>
+                  </div>
+                }
+              }
+            </div>
+          </div>
         }
       </div>
       <og-overlay-interview-brand class="blk marca" style="--d: 2" [attr.data-phase]="main.stage().phase" [sponsors]="sponsors()" />
@@ -68,6 +93,7 @@ import type { OverlayPatroItem } from './overlay-nx';
         blk-slide-in 0.6s var(--ease) calc(var(--d, 1) * 90ms) both;
     }
     .terco:is([data-phase='swap'], [data-phase='out']) .blk,
+    .blk:is([data-own='swap'], [data-own='out']),
     .campanha:is([data-phase='swap'], [data-phase='out']) .blk,
     .marca[data-phase='out'] {
       animation:
@@ -227,7 +253,12 @@ import type { OverlayPatroItem } from './overlay-nx';
       font-weight: 600;
     }
 
-    /* ── 2. Terço inferior ─────────────────────────────────────── */
+    /* Bloco que entra sozinho (pergunta nova, chave ligada no ar) não espera o escalonamento. */
+    .blk.solo {
+      animation-delay: 0ms;
+    }
+
+    /* ── 2. Terço inferior: pauta, card, repórter ──────────────── */
     .terco {
       position: absolute;
       left: 80px;
@@ -235,7 +266,81 @@ import type { OverlayPatroItem } from './overlay-nx';
       display: flex;
       flex-direction: column;
       align-items: flex-start;
+    }
+    /* Pauta e repórter abrem e fecham a própria linha: o terço cresce pra cima sem pulo. O
+       espaçamento mora DENTRO da dobra — com gap no terço, a dobra fechada ainda ocuparia 10px. */
+    .dobra {
+      display: grid;
+      grid-template-rows: 0fr;
+      transition: grid-template-rows 0.5s var(--ease);
+    }
+    .dobra.aberta {
+      grid-template-rows: 1fr;
+    }
+    .dobra-clip {
+      min-height: 0;
+      overflow-x: visible;
+      overflow-y: clip;
+    }
+    .pauta {
+      display: flex;
+      align-items: stretch;
+      max-width: 1180px;
+      margin-bottom: 10px;
+      border: 1px solid rgba(255, 106, 26, 0.4);
+      border-radius: 10px;
+      background: rgba(11, 11, 12, 0.9);
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5);
+    }
+    .pauta-tag {
+      display: grid;
+      place-items: center;
+      padding: 0 16px;
+      border-radius: 9px 0 0 9px;
+      background: #ff6a1a;
+      color: #120600;
+      font-family: var(--nx-font-mono, 'JetBrains Mono', monospace);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+    .pauta-txt {
+      padding: 14px 22px;
+      font-size: 24px;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+    .reporter {
+      display: inline-flex;
+      align-items: center;
       gap: 10px;
+      margin-top: 10px;
+      padding: 8px 16px 8px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      background: rgba(11, 11, 12, 0.9);
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5);
+    }
+    .reporter i {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ff6a1a;
+      box-shadow: 0 0 8px 2px rgba(255, 106, 26, 0.7);
+    }
+    .rep-funcao {
+      font-family: var(--nx-font-mono, 'JetBrains Mono', monospace);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(244, 244, 245, 0.62);
+    }
+    .rep-nome {
+      font-family: var(--nx-font-display, 'Sora', sans-serif);
+      font-size: 17px;
+      font-weight: 700;
     }
 
     /* ── 3. Campanha ───────────────────────────────────────────── */
@@ -267,6 +372,9 @@ import type { OverlayPatroItem } from './overlay-nx';
       .live i {
         animation: none;
       }
+      .dobra {
+        transition-duration: 1ms;
+      }
     }
   `,
 })
@@ -279,6 +387,14 @@ export class OverlayInterviewComponent {
   protected readonly main = new InterviewStageDriver();
   /** Campanha tem fase própria: a chave do painel a liga e desliga com o card no ar. */
   protected readonly camp = new InterviewStageDriver();
+  /** Pauta e repórter vivem DENTRO do terço e seguem o entrevistado mostrado; mudar a pergunta
+   *  ou a chave com o mesmo entrevistado é transição só deles. A `key` da pauta é o texto. */
+  protected readonly pauta = new StageDriver<{ key: string }>(QUESTION_TIMINGS);
+  protected readonly reporter = new StageDriver<{ key: string; role: string; name: string }>(REPORTER_TIMINGS);
+  /** Entrou sozinho (não junto com o card): sem o atraso do escalonamento. */
+  protected readonly pautaSolo = signal(false);
+  protected readonly reporterSolo = signal(false);
+  private dono: string | null = null;
 
   constructor() {
     effect(() => {
@@ -288,9 +404,40 @@ export class OverlayInterviewComponent {
         this.camp.push(d && d.showCampaign && d.campaign ? d : null);
       });
     });
+    // Segue o MOSTRADO, não o pedido: na troca de entrevistado o terço inteiro sai e volta com o
+    // novo, e a pauta dele entra junto (reset), sem a troca própria de 380 ms por cima.
+    effect(() => {
+      const st = this.main.stage();
+      untracked(() => {
+        const d = st.shown;
+        const q = d?.question ? { key: d.question } : null;
+        const r = d?.reporter ? { key: `${d.reporter.role}|${d.reporter.name}`, ...d.reporter } : null;
+        if ((d?.key ?? null) !== this.dono) {
+          this.dono = d?.key ?? null;
+          this.pauta.reset(q);
+          this.reporter.reset(r);
+          this.pautaSolo.set(false);
+          this.reporterSolo.set(false);
+          return;
+        }
+        if (st.phase !== 'in') return;
+        if (this.pauta.stage().shown?.key !== q?.key) this.pautaSolo.set(true);
+        if (this.reporter.stage().shown?.key !== r?.key) this.reporterSolo.set(true);
+        this.pauta.push(q);
+        this.reporter.push(r);
+      });
+    });
     inject(DestroyRef).onDestroy(() => {
       this.main.destroy();
       this.camp.destroy();
+      this.pauta.destroy();
+      this.reporter.destroy();
     });
+  }
+
+  /** A dobra fecha junto com a saída do bloco e abre junto com a entrada. */
+  protected aberta(driver: StageDriver<{ key: string }>): boolean {
+    const st = driver.stage();
+    return st.shown != null && st.phase !== 'out';
   }
 }

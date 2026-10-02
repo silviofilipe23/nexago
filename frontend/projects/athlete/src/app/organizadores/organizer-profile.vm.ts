@@ -193,12 +193,15 @@ function byStart(direction: 1 | -1) {
  *
  * `completed` só é gravado quando todas as finais de categoria terminam pelo sistema: um evento
  * que acabou sem isso não podia sumir de "Próximos" e de "Realizados" ao mesmo tempo. Por isso
- * "realizado" também vale para o evento cujo fim (`endAt`, ou `startAt`) já passou há 12h.
+ * "realizado" também vale para o evento cujo fim (`endAt`, ou `startAt`) já passou há 36h. São 36h,
+ * não 12h, porque os wizards gravam o DIA (meia-noite local no painel web, meia-noite UTC no app):
+ * com 12h o evento virava realizado ao meio-dia do último dia, ainda em quadra. Com 36h vira na
+ * manhã seguinte nas duas convenções. Mesmo valor de `functions/src/organizer-public-profile.ts`.
  * Um `OrganizerEvent` só existe para evento listado (`organizerEventFromDoc`).
  */
-export const EVENT_END_GRACE_MS = 12 * 60 * 60 * 1000;
+export const EVENT_END_GRACE_MS = 36 * 60 * 60 * 1000;
 
-/** Fim do evento em ms: `endAt`, senão `startAt`; `null` sem nenhum dos dois. */
+/** Fim do evento em ms: `endAt`, senão `startAt` (a meia-noite do dia); `null` sem nenhum dos dois. */
 export function eventEndMs(s: Pick<TournamentSummary, 'startAt' | 'endAt'>): number | null {
   return (s.endAt ?? s.startAt)?.getTime() ?? null;
 }

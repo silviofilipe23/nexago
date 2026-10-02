@@ -191,16 +191,24 @@ describe('definições compartilhadas (app, portal e backend)', () => {
     expect(eventEndMs({ startAt: new Date(1000), endAt: new Date(5000) })).toBe(5000);
     expect(eventEndMs({ startAt: new Date(1000), endAt: null })).toBe(1000);
     expect(eventEndMs({ startAt: null, endAt: null })).toBeNull();
-    expect(EVENT_END_GRACE_MS).toBe(12 * 60 * 60 * 1000);
+    expect(EVENT_END_GRACE_MS).toBe(36 * 60 * 60 * 1000);
   });
 
-  it('realizado: completed, ou 12h depois do fim — mesmo sem completed gravado', () => {
+  it('realizado: completed, ou 36h depois do fim — mesmo sem completed gravado', () => {
     expect(isRealizedOrganizerEvent(event('a', { listingStatus: 'completed', startAt: day('2099-01-01') }), NOW)).toBeTrue();
-    // NOW = 2026-10-02T15:00Z: fim às 03:00Z + 12h = 15:00Z, exatamente agora.
-    expect(isRealizedOrganizerEvent(event('b', { endAt: ts('2026-10-02T03:00:00Z') }), NOW)).toBeTrue();
-    expect(isRealizedOrganizerEvent(event('c', { endAt: ts('2026-10-02T03:00:01Z') }), NOW)).toBeFalse();
     expect(isRealizedOrganizerEvent(event('d', { listingStatus: 'closed', startAt: day('2026-09-01'), endAt: null }), NOW)).toBeTrue();
     expect(isRealizedOrganizerEvent(event('e', { startAt: null, endAt: null }), NOW)).toBeFalse();
+  });
+
+  it('último dia = hoje, gravado como meia-noite UTC (app) ou 03:00 UTC (web): ainda não é realizado ao meio-dia; no dia seguinte ao meio-dia, sim', () => {
+    const todayNoonBrt = NOW; // 2026-10-02T15:00Z = 12:00 em Brasília
+    const nextDayNoonBrt = new Date('2026-10-03T15:00:00Z');
+    for (const lastDay of ['2026-10-02T00:00:00Z', '2026-10-02T03:00:00Z']) {
+      const e = event('x', { listingStatus: 'closed', startAt: ts('2026-10-01T03:00:00Z'), endAt: ts(lastDay) });
+      expect(isRealizedOrganizerEvent(e, todayNoonBrt)).withContext(lastDay).toBeFalse();
+      expect(isUpcomingOrganizerEvent(e, todayNoonBrt)).withContext(lastDay).toBeTrue();
+      expect(isRealizedOrganizerEvent(e, nextDayNoonBrt)).withContext(lastDay).toBeTrue();
+    }
   });
 
   it('próximo é o listado que não foi realizado', () => {

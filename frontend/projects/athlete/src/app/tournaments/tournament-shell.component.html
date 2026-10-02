@@ -23,8 +23,8 @@
           @if (organizer(); as org) {
             <p class="tsh-organizer">
               Organizado por
-              @if (t.managerId) {
-                <a class="tsh-organizer-link" [routerLink]="['/organizadores', t.managerId]">{{ org.name }}</a>
+              @if (org.link) {
+                <a class="tsh-organizer-link" [routerLink]="org.link">{{ org.name }}</a>
               } @else {
                 {{ org.name }}
               }

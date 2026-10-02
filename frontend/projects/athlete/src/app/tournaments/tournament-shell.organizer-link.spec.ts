@@ -57,9 +57,11 @@ describe('TournamentShellComponent — linha "Organizado por"', () => {
   let fixture: ComponentFixture<TournamentShellComponent>;
   let apiKey: string | undefined;
   let reputation: { reviewsCount: number; tournamentsRated: number; average: number } | null;
+  let hasPublicProfile: boolean;
 
   beforeEach(() => {
     reputation = null;
+    hasPublicProfile = true;
     apiKey = environment.firebase.apiKey;
     (environment.firebase as { apiKey?: string }).apiKey = '';
     TestBed.configureTestingModule({
@@ -77,7 +79,7 @@ describe('TournamentShellComponent — linha "Organizado por"', () => {
               cb(reputation);
               return () => undefined;
             },
-            fetchOrganizerName: () => Promise.resolve('Liga Amadora'),
+            fetchOrganizerName: () => Promise.resolve({ name: 'Liga Amadora', hasPublicProfile }),
           },
         },
         { provide: PartnerInvitesService, useValue: { pending: signal([]), pendingCount: signal(0), markAnswered: () => undefined } },
@@ -119,5 +121,13 @@ describe('TournamentShellComponent — linha "Organizado por"', () => {
   it('sem nota: só o nome com link', async () => {
     const host = await render('org-1', false);
     expect(host.querySelector('.tsh-organizer')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Organizado por Liga Amadora');
+    expect(host.querySelector('.tsh-organizer a')).not.toBeNull();
+  });
+
+  it('sem página pública (nome veio de public_profiles): nome sem link, para não levar a "não encontrado"', async () => {
+    hasPublicProfile = false;
+    const host = await render('org-1', true);
+    expect(host.querySelector('.tsh-organizer a')).toBeNull();
+    expect(host.querySelector('.tsh-organizer')?.textContent?.replace(/\s+/g, ' ')).toContain('Organizado por Liga Amadora');
   });
 });

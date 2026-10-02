@@ -5,6 +5,7 @@ import { TournamentLiveStore } from './tournament-live.store';
 import type { TournamentSummary } from '../data/tournaments-repository';
 import { PublicTournamentReviewsSource } from '../data/public-tournament-reviews.source';
 import type { OrganizerReputation, PublicReviewSummary } from '../data/tournament-reviews';
+import type { OrganizerNameLookup } from '../data/organizer-name-lookup';
 
 /**
  * Fixação do bug do round 1 de review da seção Agora: o reconhecimento da chamada de quadra
@@ -87,7 +88,7 @@ describe('TournamentLiveStore — avaliação pública', () => {
     const summaries = new Map<string, (s: PublicReviewSummary | null) => void>();
     const reputations = new Map<string, (r: OrganizerReputation | null) => void>();
     const stopped: string[] = [];
-    const names = new Map<string, Promise<string | null>>();
+    const names = new Map<string, Promise<OrganizerNameLookup | null>>();
     const value = {
       watchSummary: (id: string, cb: (s: PublicReviewSummary | null) => void) => {
         summaries.set(id, cb);
@@ -132,34 +133,34 @@ describe('TournamentLiveStore — avaliação pública', () => {
 
   it('lê nome e reputação do organizador; outro organizador não herda os do anterior', async () => {
     const source = fakeSource();
-    source.names.set('o1', Promise.resolve('Ana Organiza'));
+    source.names.set('o1', Promise.resolve({ name: 'Ana Organiza', hasPublicProfile: true }));
     const store = setup(source);
     store.tournament.set(torneio('t1', 'o1'));
     TestBed.tick();
     await flush();
     source.reputations.get('o1')!({ reviewsCount: 86, tournamentsRated: 5, average: 4.71 });
-    expect(store.organizerName()).toBe('Ana Organiza');
+    expect(store.organizer()).toEqual({ name: 'Ana Organiza', hasPublicProfile: true });
     expect(store.organizerReputation()?.reviewsCount).toBe(86);
 
     store.tournament.set(torneio('t2', 'o2'));
     TestBed.tick();
-    expect(store.organizerName()).toBeNull();
+    expect(store.organizer()).toBeNull();
     expect(store.organizerReputation()).toBeNull();
     expect(source.stopped).toContain('reputation:o1');
   });
 
   it('nome que chega depois da troca de organizador é descartado', async () => {
     const source = fakeSource();
-    let resolveLate!: (name: string | null) => void;
+    let resolveLate!: (organizer: OrganizerNameLookup | null) => void;
     source.names.set('o1', new Promise((resolve) => (resolveLate = resolve)));
     const store = setup(source);
     store.tournament.set(torneio('t1', 'o1'));
     TestBed.tick();
     store.tournament.set(torneio('t2', 'o2'));
     TestBed.tick();
-    resolveLate('Ana Organiza');
+    resolveLate({ name: 'Ana Organiza', hasPublicProfile: true });
     await flush();
-    expect(store.organizerName()).toBeNull();
+    expect(store.organizer()).toBeNull();
   });
 
   it('mesmo organizador em outra leitura do torneio não reabre o listener', () => {

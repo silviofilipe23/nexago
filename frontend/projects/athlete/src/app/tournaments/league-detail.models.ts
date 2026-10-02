@@ -54,6 +54,7 @@ export interface LeagueDetailData {
 
   organizerName: string;
   organizerInitials: string;
-  /** `managerId` da liga: com ele o card vira link para `/organizadores/{id}`. */
+  /** `managerId` da liga, só quando o organizador tem página pública: aí o card vira link para
+   *  `/organizadores/{id}`. */
   organizerId: string | null;
 }

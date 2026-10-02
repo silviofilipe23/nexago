@@ -10,7 +10,7 @@ import { tournamentListingStatus } from '../data/tournaments-repository';
 import { endOfDay, eventDayOf, startOfDay } from './tournament-days';
 import { type TournamentTabId } from './tournament-live.selectors';
 import { TournamentLiveStore } from './tournament-live.store';
-import { TOURNAMENT_REVIEW_XP, organizerLineParts, reviewDialogInviteOf } from '../data/tournament-reviews';
+import { TOURNAMENT_REVIEW_XP, organizerReputationLabel, reviewDialogInviteOf } from '../data/tournament-reviews';
 import { TournamentReviewDialogComponent } from './review/tournament-review-dialog.component';
 
 function titleCase(input: string): string {
@@ -105,8 +105,18 @@ export class TournamentShellComponent {
 
   /** "Organizado por {nome}", com a nota do organizador quando ele tem 3+ avaliações (spec §5).
    *  Fica na casca porque vale para qualquer torneio e qualquer aba. O nome leva ao perfil
-   *  público do organizador (`/organizadores/{managerId}`). */
-  protected readonly organizer = computed(() => organizerLineParts(this.store.organizerName(), this.store.organizerReputation()));
+   *  público do organizador (`/organizadores/{managerId}`) quando ele existe. */
+  protected readonly organizer = computed(() => {
+    const organizer = this.store.organizer();
+    if (!organizer) return null; // Sem nome não há linha: nota solta não diz de quem é.
+    const managerId = this.store.tournament()?.managerId;
+    return {
+      name: organizer.name,
+      rating: organizerReputationLabel(this.store.organizerReputation()),
+      // Sem página pública (`isOrganizer`), o link levaria a "Organizador não encontrado".
+      link: organizer.hasPublicProfile && managerId ? ['/organizadores', managerId] : null,
+    };
+  });
 
   protected readonly isEnded = computed(() => {
     const t = this.store.tournament();

@@ -16,6 +16,7 @@ import '../../../organizer_public_profile/domain/organizer_public_profile_logic.
 import '../../../organizer_public_profile/presentation/widgets/organizer_profile_hero.dart';
 import '../../domain/public_profile/organizer_profile_editor_logic.dart';
 import '../../domain/public_profile/organizer_profile_editor_providers.dart';
+import '../../domain/public_profile/organizer_profile_save_session.dart';
 import '../tournament_create/widgets/organizer_form_widgets.dart';
 
 Uint8List _resizeForUpload(Uint8List bytes) => resizeOrganizerImageJpeg(bytes);
@@ -40,11 +41,10 @@ class _OrganizerPublicProfileEditorPageState
   String _state = '';
   bool _publicWhatsapp = false;
 
-  Uint8List? _newLogo;
-  Uint8List? _newCover;
-  bool _removeCover = false;
+  /// Nasce com o snapshot do doc na abertura da tela e é a base de todo payload (ver
+  /// [OrganizerProfileSaveSession]). `null` até o primeiro valor do stream.
+  OrganizerProfileSaveSession? _session;
 
-  bool _initialized = false;
   bool _submitted = false;
   bool _saving = false;
   bool _pickingImage = false;
@@ -67,9 +67,10 @@ class _OrganizerPublicProfileEditorPageState
   );
 
   /// Preenche a tela com o doc uma vez só: atualizações posteriores do stream (inclusive a do
-  /// próprio save) não atropelam o que o organizador está digitando.
+  /// próprio save, ou uma edição feita no painel web) não atropelam o que o organizador está
+  /// digitando, não entram no payload e não ligam o "Salvar".
   void _initFrom(OrganizerProfileSource source) {
-    if (_initialized) return;
+    if (_session != null) return;
     final form = OrganizerProfileForm.fromSource(source);
     _nameController.text = form.orgName;
     _bioController.text = form.bio;
@@ -77,18 +78,7 @@ class _OrganizerPublicProfileEditorPageState
     _city = form.city;
     _state = form.state;
     _publicWhatsapp = form.publicWhatsapp;
-    _initialized = true;
-  }
-
-  bool _isDirty(OrganizerProfileSource source) {
-    return buildOrganizerProfileUpdate(
-      source: source,
-      form: _form,
-      // Marcadores: a URL real só existe depois do upload.
-      newLogoUrl: _newLogo == null ? null : 'pending',
-      newCoverUrl: _newCover == null ? null : 'pending',
-      removeCover: _removeCover,
-    ).isNotEmpty;
+    _session = OrganizerProfileSaveSession(source);
   }
 
   void _back() {
@@ -119,13 +109,13 @@ class _OrganizerPublicProfileEditorPageState
         return;
       }
       final jpeg = await compute(_resizeForUpload, raw);
-      if (!mounted) return;
+      final session = _session;
+      if (!mounted || session == null) return;
       setState(() {
         if (cover) {
-          _newCover = jpeg;
-          _removeCover = false;
+          session.pickCover(jpeg);
         } else {
-          _newLogo = jpeg;
+          session.pickLogo(jpeg);
         }
       });
     } catch (_) {
@@ -142,16 +132,16 @@ class _OrganizerPublicProfileEditorPageState
   }
 
   void _removeCurrentCover() {
-    setState(() {
-      _newCover = null;
-      _removeCover = true;
-    });
+    setState(() => _session?.markCoverRemoved());
   }
 
-  Future<void> _save(OrganizerProfileSource source) async {
+  Future<void> _save(OrganizerProfileSaveSession session) async {
     if (_saving) return;
     final form = _form;
-    final errors = validateOrganizerProfileForm(form);
+    final errors = validateOrganizerProfileForm(
+      form,
+      baseline: session.baseline,
+    );
     setState(() => _submitted = true);
     if (errors.isNotEmpty) {
       showAppSnackBar(context, 'Revise os campos destacados.', isError: true);
@@ -163,35 +153,22 @@ class _OrganizerPublicProfileEditorPageState
     setState(() => _saving = true);
     final repository = ref.read(organizerPublicProfileEditorRepositoryProvider);
     try {
-      final logo = _newLogo;
-      final coverBytes = _newCover;
-      final logoUrl = logo == null
-          ? null
-          : await repository.uploadLogo(uid, logo);
-      final coverUrl = coverBytes == null
-          ? null
-          : await repository.uploadCover(uid, coverBytes);
-      final update = buildOrganizerProfileUpdate(
-        source: source,
-        form: form,
-        newLogoUrl: logoUrl,
-        newCoverUrl: coverUrl,
-        removeCover: _removeCover,
+      await session.save(
+        form,
+        uploadLogo: (bytes) => repository.uploadLogo(uid, bytes),
+        uploadCover: (bytes) => repository.uploadCover(uid, bytes),
+        persist: (update) => repository.save(uid, update),
       );
-      await repository.save(uid, update);
       if (!mounted) return;
-      setState(() {
-        _newLogo = null;
-        _newCover = null;
-        _removeCover = false;
-        _saving = false;
-      });
+      setState(() => _saving = false);
       showAppSnackBar(
         context,
         'Perfil público salvo. Os atletas veem a mudança em instantes.',
       );
     } catch (_) {
       if (!mounted) return;
+      // O que já foi gravado (ex.: o logo) saiu da fila; o resto continua pendente e a próxima
+      // tentativa não sobe de novo a imagem que já subiu.
       setState(() => _saving = false);
       showAppSnackBar(
         context,
@@ -208,6 +185,7 @@ class _OrganizerPublicProfileEditorPageState
     final sourceAsync = ref.watch(organizerProfileSourceProvider);
     final source = sourceAsync.valueOrNull;
     if (source != null) _initFrom(source);
+    final session = _session;
 
     return Scaffold(
       backgroundColor: colors.canvas,
@@ -262,24 +240,25 @@ class _OrganizerPublicProfileEditorPageState
               ),
             ),
             Expanded(
-              child: sourceAsync.when(
-                skipLoadingOnReload: true,
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, stackTrace) => AppErrorView(
-                  title: 'Não foi possível carregar',
-                  message: 'Confira sua conexão e tente de novo.',
-                  retryLabel: 'Tentar de novo',
-                  onRetry: () => ref.invalidate(organizerProfileSourceProvider),
-                ),
-                data: (source) => _buildForm(context, source),
-              ),
+              // Aberta a tela, o formulário fica: um erro posterior do stream não o derruba.
+              child: session != null
+                  ? _buildForm(context, session)
+                  : sourceAsync.hasError
+                  ? AppErrorView(
+                      title: 'Não foi possível carregar',
+                      message: 'Confira sua conexão e tente de novo.',
+                      retryLabel: 'Tentar de novo',
+                      onRetry: () =>
+                          ref.invalidate(organizerProfileSourceProvider),
+                    )
+                  : const Center(child: CircularProgressIndicator()),
             ),
-            if (source != null)
+            if (session != null)
               OrganizerWizardContinueButton(
                 label: 'Salvar perfil',
-                enabled: _isDirty(source) && !_pickingImage,
+                enabled: session.isDirty(_form) && !_pickingImage,
                 loading: _saving,
-                onPressed: () => _save(source),
+                onPressed: () => _save(session),
               ),
           ],
         ),
@@ -287,21 +266,21 @@ class _OrganizerPublicProfileEditorPageState
     );
   }
 
-  Widget _buildForm(BuildContext context, OrganizerProfileSource source) {
+  Widget _buildForm(BuildContext context, OrganizerProfileSaveSession session) {
     final colors = context.themeColors;
     final theme = Theme.of(context);
+    final source = session.baseline;
     final form = _form;
     final errors = _submitted
-        ? validateOrganizerProfileForm(form)
+        ? validateOrganizerProfileForm(form, baseline: source)
         : const <OrganizerProfileField, String>{};
     final whatsappEnabled = organizerWhatsappSwitchEnabled(form);
     final previewName = form.orgName.trim().isEmpty
         ? source.displayName
         : form.orgName.trim();
-    final hasCover =
-        _newCover != null || (source.coverUrl != null && !_removeCover);
-    final newLogo = _newLogo;
-    final newCover = _newCover;
+    final hasCover = session.hasCover;
+    final newLogo = session.logo?.bytes;
+    final newCover = session.cover?.bytes;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
@@ -330,7 +309,7 @@ class _OrganizerPublicProfileEditorPageState
                   : organizerNetworkImage(source.logoUrl),
               cover: newCover != null
                   ? MemoryImage(newCover)
-                  : (_removeCover
+                  : (session.removeCover
                         ? null
                         : organizerNetworkImage(source.coverUrl)),
             ),

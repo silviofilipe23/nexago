@@ -291,4 +291,76 @@ void main() {
       );
     });
   });
+
+  group('nome de fallback (projeção do backend)', () {
+    test('corta em 60 e apara, como o backend', () {
+      final long = 'A' * 59 + ' Bcdef';
+      final source = OrganizerProfileSource(fallbackName: long);
+      expect(source.displayName, 'A' * 59);
+      expect(OrganizerProfileForm.fromSource(source).orgName, 'A' * 59);
+      expect(organizerNameCap('  Liga  '), 'Liga');
+    });
+
+    test('fallback intocado curto (1 letra) não barra salvar outro campo', () {
+      const source = OrganizerProfileSource(fallbackName: 'A');
+      final form = OrganizerProfileForm.fromSource(
+        source,
+      ).copyWith(bio: 'Nova bio');
+      expect(validateOrganizerProfileForm(form, baseline: source), isEmpty);
+      expect(buildOrganizerProfileUpdate(source: source, form: form), {
+        'organizerProfile.bio': 'Nova bio',
+      });
+      // Mexeu no nome: aí vale a regra.
+      expect(
+        validateOrganizerProfileForm(
+          form.copyWith(orgName: 'B'),
+          baseline: source,
+        ).keys,
+        [OrganizerProfileField.orgName],
+      );
+    });
+
+    test('orgName legado acima de 60, intocado, não é regravado cortado', () {
+      final source = OrganizerProfileSource(orgName: 'x' * 70);
+      final form = OrganizerProfileForm.fromSource(source);
+      expect(buildOrganizerProfileUpdate(source: source, form: form), isEmpty);
+      expect(validateOrganizerProfileForm(form, baseline: source), isEmpty);
+    });
+  });
+
+  group('baseline: o payload compara com o snapshot da abertura', () {
+    test('edição de fora num campo intocado nunca é sobrescrita', () {
+      // A tela abriu com `_source`; depois o painel web mudou a cidade para Anápolis.
+      final opened = OrganizerProfileForm.fromSource(_source);
+      final form = opened.copyWith(bio: 'Bio do app');
+      final update = buildOrganizerProfileUpdate(source: _source, form: form);
+      expect(update, {'organizerProfile.bio': 'Bio do app'});
+      expect(update.containsKey('organizerProfile.city'), isFalse);
+    });
+
+    test('applyOrganizerProfileUpdate aplica o payload sobre a origem', () {
+      final after = applyOrganizerProfileUpdate(_source, {
+        'organizerProfile.bio': 'Nova',
+        'organizerProfile.coverUrl': FieldValue.delete(),
+        'organizerProfile.logoUrl': 'https://x/l2.jpg',
+        'organizerProfile.publicWhatsapp': false,
+      });
+      expect(after.bio, 'Nova');
+      expect(after.coverUrl, isNull);
+      expect(after.logoUrl, 'https://x/l2.jpg');
+      expect(after.publicWhatsapp, isFalse);
+      expect(after.city, _source.city);
+      expect(after.orgName, _source.orgName);
+      // Aplicado, o mesmo formulário não tem mais nada a gravar.
+      expect(
+        buildOrganizerProfileUpdate(
+          source: after,
+          form: OrganizerProfileForm.fromSource(
+            _source,
+          ).copyWith(bio: 'Nova', publicWhatsapp: false),
+        ),
+        isEmpty,
+      );
+    });
+  });
 }

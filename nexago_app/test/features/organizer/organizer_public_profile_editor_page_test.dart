@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -35,8 +36,9 @@ class _FakeEditorRepository implements OrganizerPublicProfileEditorRepository {
 
 Future<_FakeEditorRepository> _pump(
   WidgetTester tester,
-  OrganizerProfileSource source,
-) async {
+  OrganizerProfileSource source, {
+  Stream<OrganizerProfileSource>? stream,
+}) async {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = const Size(430, 2600);
   addTearDown(tester.view.reset);
@@ -49,7 +51,7 @@ Future<_FakeEditorRepository> _pump(
       overrides: [
         organizerEditorUidProvider.overrideWithValue(_uid),
         organizerProfileSourceProvider.overrideWith(
-          (ref) => Stream.value(source),
+          (ref) => stream ?? Stream.value(source),
         ),
         organizerPublicProfileEditorRepositoryProvider.overrideWithValue(
           repository,
@@ -210,5 +212,57 @@ void main() {
       findsOneWidget,
     );
     expect(repository.saved, isEmpty);
+  });
+
+  testWidgets(
+    'mudança de fora (painel web) não liga o Salvar nem é sobrescrita',
+    (tester) async {
+      final docs = StreamController<OrganizerProfileSource>();
+      addTearDown(docs.close);
+      docs.add(_complete);
+      final repository = await _pump(tester, _complete, stream: docs.stream);
+
+      // O painel web trocou a cidade enquanto a tela estava aberta.
+      docs.add(
+        const OrganizerProfileSource(
+          orgName: 'Liga Amadora Goiânia',
+          bio: 'Ligas de areia.',
+          city: 'Anápolis',
+          state: 'GO',
+          contactPhone: '62999990000',
+          publicWhatsapp: true,
+          coverUrl: 'https://x/cover.jpg',
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(_saveButton(tester).onPressed, isNull);
+      expect(find.text('Goiânia · GO'), findsOneWidget);
+
+      await tester.enterText(find.text('Ligas de areia.'), 'Nova bio');
+      await tester.pump();
+      await _tapSave(tester);
+      expect(repository.saved, [
+        {'organizerProfile.bio': 'Nova bio'},
+      ]);
+    },
+  );
+
+  testWidgets('fallback curto intocado não barra salvar a bio', (tester) async {
+    final repository = await _pump(
+      tester,
+      const OrganizerProfileSource(fallbackName: 'A'),
+    );
+
+    await tester.enterText(
+      _field('Conte o que torna seus eventos especiais.'),
+      'Bio nova',
+    );
+    await tester.pump();
+    await _tapSave(tester);
+
+    expect(find.text('Use pelo menos 2 caracteres.'), findsNothing);
+    expect(repository.saved, [
+      {'organizerProfile.bio': 'Bio nova'},
+    ]);
   });
 }

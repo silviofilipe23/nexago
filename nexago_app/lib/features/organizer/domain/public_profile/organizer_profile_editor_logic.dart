@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image/image.dart' as img;
 
 import '../../../../core/location/br_locations_data.dart';
+import '../../../../core/text/safe_display_text.dart';
 
 /// Editor do perfil público no modo organizador — spec
 /// `docs/superpowers/specs/2026-10-02-organizer-public-profile-design.md`, "Edição pelo
@@ -47,10 +48,13 @@ class OrganizerProfileSource {
   /// Nome que o perfil público usa sem `orgName` (mesma cadeia do backend).
   final String fallbackName;
 
-  /// Nome que o atleta vê hoje.
+  /// Nome que o atleta vê hoje — a projeção do backend: `orgName → displayName → fullName →
+  /// name → "Organizador"`, cortado em 60 e aparado.
   String get displayName {
-    if (orgName.isNotEmpty) return orgName;
-    return fallbackName.isNotEmpty ? fallbackName : 'Organizador';
+    final raw = orgName.isNotEmpty
+        ? orgName
+        : (fallbackName.isNotEmpty ? fallbackName : 'Organizador');
+    return organizerNameCap(raw);
   }
 
   static OrganizerProfileSource fromUserDoc(Map<String, dynamic>? data) {
@@ -76,6 +80,49 @@ class OrganizerProfileSource {
       fallbackName: fallback,
     );
   }
+}
+
+/// Corta em [kOrganizerNameMaxLength] unidades e apara, como o backend (`slice(0, 60).trim()`).
+/// Um emoji partido no corte é descartado em vez de virar caractere inválido.
+String organizerNameCap(String name) {
+  final trimmed = name.trim();
+  if (trimmed.length <= kOrganizerNameMaxLength) return trimmed;
+  return sanitizeUtf16(trimmed.substring(0, kOrganizerNameMaxLength)).trim();
+}
+
+/// Aplica um payload de [buildOrganizerProfileUpdate] (ou de imagem) sobre a origem: é o que o
+/// doc passa a ter depois do `update()`. `FieldValue.delete()` vira ausente.
+OrganizerProfileSource applyOrganizerProfileUpdate(
+  OrganizerProfileSource source,
+  Map<String, Object> update,
+) {
+  const p = kOrganizerProfileFieldPrefix;
+  bool has(String field) => update.containsKey('$p$field');
+  String text(String field, String current) {
+    if (!has(field)) return current;
+    final value = update['$p$field'];
+    return value is String ? value : '';
+  }
+
+  String? url(String field, String? current) {
+    if (!has(field)) return current;
+    final value = update['$p$field'];
+    return value is String && value.isNotEmpty ? value : null;
+  }
+
+  return OrganizerProfileSource(
+    orgName: text('orgName', source.orgName),
+    logoUrl: url('logoUrl', source.logoUrl),
+    coverUrl: url('coverUrl', source.coverUrl),
+    bio: text('bio', source.bio),
+    city: text('city', source.city),
+    state: text('state', source.state),
+    contactPhone: text('contactPhone', source.contactPhone),
+    publicWhatsapp: has('publicWhatsapp')
+        ? update['${p}publicWhatsapp'] == true
+        : source.publicWhatsapp,
+    fallbackName: source.fallbackName,
+  );
 }
 
 /// Valores da tela.
@@ -150,12 +197,21 @@ bool organizerWhatsappSwitchEnabled(OrganizerProfileForm form) =>
 enum OrganizerProfileField { orgName, bio, state, contactPhone }
 
 /// Erros por campo (vazio = válido).
+///
+/// Com [baseline], o nome intocado não é validado: ele não vai no payload, então não pode
+/// barrar o save de outro campo (ex.: o fallback "A" de quem nunca preencheu a marca).
 Map<OrganizerProfileField, String> validateOrganizerProfileForm(
-  OrganizerProfileForm form,
-) {
+  OrganizerProfileForm form, {
+  OrganizerProfileSource? baseline,
+}) {
   final errors = <OrganizerProfileField, String>{};
   final name = form.orgName.trim();
-  if (name.length < kOrganizerNameMinLength) {
+  final nameUntouched =
+      baseline != null &&
+      name == OrganizerProfileForm.fromSource(baseline).orgName.trim();
+  if (nameUntouched) {
+    // Não vai ser gravado.
+  } else if (name.length < kOrganizerNameMinLength) {
     errors[OrganizerProfileField.orgName] =
         'Use pelo menos $kOrganizerNameMinLength caracteres.';
   } else if (name.length > kOrganizerNameMaxLength) {
@@ -196,10 +252,10 @@ Map<String, Object> buildOrganizerProfileUpdate({
   final update = <String, Object>{};
 
   final name = form.orgName.trim();
-  // Sem `orgName`, o campo nasce com o nome de fallback: intocado, não vira `orgName`.
-  final untouchedFallback =
-      source.orgName.isEmpty && name == source.displayName;
-  if (name != source.orgName && !untouchedFallback) {
+  // O campo nasce com o nome que o atleta vê (sem `orgName`, o de fallback): intocado, não é
+  // gravado — nem vira `orgName` sem o organizador mexer.
+  final prefill = OrganizerProfileForm.fromSource(source).orgName.trim();
+  if (name != source.orgName && name != prefill) {
     update['${p}orgName'] = name;
   }
 

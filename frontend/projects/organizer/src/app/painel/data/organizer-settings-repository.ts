@@ -1,6 +1,7 @@
-import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { organizerFirestore } from './firestore';
+import type { OrganizerPublicProfilePatch } from './organizer-public-profile';
 import {
   DEFAULT_ORGANIZER_SETTINGS,
   parseOrganizerSettings,
@@ -75,6 +76,17 @@ export async function saveOrganizerDefaults(uid: string, defaults: OrganizerEven
   }
 }
 
+/** Card "Perfil público": `updateDoc` com as três chaves pontilhadas montadas por
+ *  `buildOrganizerPublicProfilePatch` — nunca o mapa `organizerProfile` inteiro, que é do card
+ *  "Perfil". A projeção pública (`organizerPublicProfiles/{uid}`) é refeita por Cloud Function. */
+export async function saveOrganizerPublicProfile(uid: string, patch: OrganizerPublicProfilePatch): Promise<void> {
+  try {
+    await updateDoc(doc(organizerFirestore(), 'users', uid), patch);
+  } catch (err) {
+    throw wrapError(err);
+  }
+}
+
 const MAX_LOGO_BYTES = 4 * 1024 * 1024;
 
 /** `null` = arquivo aceito. */
@@ -91,4 +103,13 @@ export async function uploadOrganizerLogo(uid: string, file: Blob): Promise<stri
   const logoRef = ref(organizerStorage(), `profiles/${uid}/organizer-logo.jpg`);
   await uploadBytes(logoRef, file, { contentType: file.type || 'image/jpeg' });
   return getDownloadURL(logoRef);
+}
+
+/** Storage `profiles/{uid}/organizer-cover.jpg` — mesma rule da logo. Recebe o JPEG já
+ *  redimensionado. Reenviar no mesmo caminho troca o token da URL de download, por isso o card
+ *  só sobe a capa no Salvar, junto com a gravação da URL nova. */
+export async function uploadOrganizerCover(uid: string, jpeg: Blob): Promise<string> {
+  const coverRef = ref(organizerStorage(), `profiles/${uid}/organizer-cover.jpg`);
+  await uploadBytes(coverRef, jpeg, { contentType: 'image/jpeg' });
+  return getDownloadURL(coverRef);
 }

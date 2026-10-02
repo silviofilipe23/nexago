@@ -23,10 +23,19 @@ import {
   type TournamentVisibility,
 } from './tournament-create.model';
 import { pixKeyTypeFromStored, type PixKeyType } from './pix-key';
+import {
+  DEFAULT_ORGANIZER_PUBLIC_PROFILE,
+  parseOrganizerPublicProfile,
+  type OrganizerPublicProfileSettings,
+} from './organizer-public-profile';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
-/** O responsável NÃO fica aqui: é o `displayName` do doc (mesmo campo do Firebase Auth). */
+/** O responsável NÃO fica aqui: é o `displayName` do doc (mesmo campo do Firebase Auth).
+ *
+ *  É o mapa que o card "Perfil" grava INTEIRO (`setDoc` com merge). Não acrescente aqui campo
+ *  editado por outro card: a cópia aberta no "Perfil" reenviaria o valor velho. Bio, capa e o
+ *  switch do WhatsApp moram no mesmo mapa do Firestore mas em `OrganizerPublicProfileSettings`. */
 export interface OrganizerProfile {
   orgName: string;
   contactEmail: string;
@@ -70,6 +79,8 @@ export interface OrganizerEventDefaults {
 
 export interface OrganizerSettings {
   profile: OrganizerProfile;
+  /** Lido do mesmo mapa `organizerProfile`; gravado só pelo card "Perfil público". */
+  publicProfile: OrganizerPublicProfileSettings;
   payments: OrganizerPaymentSettings;
   defaults: OrganizerEventDefaults;
 }
@@ -119,6 +130,7 @@ export const DEFAULT_ORGANIZER_EVENT_DEFAULTS: OrganizerEventDefaults = {
 
 export const DEFAULT_ORGANIZER_SETTINGS: OrganizerSettings = {
   profile: DEFAULT_ORGANIZER_PROFILE,
+  publicProfile: DEFAULT_ORGANIZER_PUBLIC_PROFILE,
   payments: DEFAULT_ORGANIZER_PAYMENTS,
   defaults: DEFAULT_ORGANIZER_EVENT_DEFAULTS,
 };
@@ -230,8 +242,10 @@ function parseDefaults(raw: Record<string, unknown>): OrganizerEventDefaults {
 /** Doc inteiro de `users/{uid}` → settings. Campo ausente vira default; nunca lança. */
 export function parseOrganizerSettings(userDoc: Record<string, unknown> | undefined): OrganizerSettings {
   const doc = mapOf(userDoc);
+  const organizerProfile = mapOf(doc['organizerProfile']);
   return {
-    profile: parseProfile(mapOf(doc['organizerProfile'])),
+    profile: parseProfile(organizerProfile),
+    publicProfile: parseOrganizerPublicProfile(organizerProfile),
     payments: parsePayments(mapOf(doc['organizerPayments'])),
     defaults: parseDefaults(mapOf(doc['organizerDefaults'])),
   };

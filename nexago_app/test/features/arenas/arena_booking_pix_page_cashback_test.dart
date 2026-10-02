@@ -281,6 +281,9 @@ void main() {
   });
 }
 
+// Fake escrito à mão (padrão do repo); `DocumentSnapshot` é sealed, por isso
+// o ignore abaixo.
+// ignore: subtype_of_sealed_class
 /// Doc da reserva como o webhook deixa depois do PIX pago.
 class _PaidBookingSnapshot implements DocumentSnapshot<Map<String, dynamic>> {
   @override

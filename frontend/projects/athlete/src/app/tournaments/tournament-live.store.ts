@@ -89,7 +89,7 @@ export class TournamentLiveStore {
   readonly reviewSummary = signal<PublicReviewSummary | null>(null);
   /** Reputação pública do organizador do torneio, ao vivo. */
   readonly organizerReputation = signal<OrganizerReputation | null>(null);
-  /** Nome do organizador (`public_profiles/{managerId}`) — `null` esconde a linha. */
+  /** Nome do organizador (`organizerPublicProfiles`, senão `public_profiles`) — `null` esconde a linha. */
   readonly organizerName = signal<string | null>(null);
   /** Computed para o efeito do organizador não reabrir a cada `tournament.set` do mesmo dono. */
   private readonly managerId = computed(() => this.tournament()?.managerId ?? null);

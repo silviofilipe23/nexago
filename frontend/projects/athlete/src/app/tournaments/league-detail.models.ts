@@ -54,4 +54,6 @@ export interface LeagueDetailData {
 
   organizerName: string;
   organizerInitials: string;
+  /** `managerId` da liga: com ele o card vira link para `/organizadores/{id}`. */
+  organizerId: string | null;
 }

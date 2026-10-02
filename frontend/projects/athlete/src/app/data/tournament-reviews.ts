@@ -247,11 +247,26 @@ export function organizerReputationLabel(r: OrganizerReputation | null): string 
   return `★ ${formatRating(r.average)} (${r.reviewsCount} avaliações em ${tournaments})`;
 }
 
-/** Linha do cabeçalho do torneio. Sem nome não há linha — nota solta não diz de quem é. */
+/** Nome da marca em `organizerPublicProfiles/{uid}`. O doc pode existir sem identidade (criado só
+ *  pelos números ou pelo contador de seguidores): só vale com `isOrganizer`. */
+export function organizerBrandNameFromData(data: Record<string, unknown> | undefined): string | null {
+  return data?.['isOrganizer'] === true ? text(data['name']) || null : null;
+}
+
+/** Partes da linha "Organizado por": o nome vira link para o perfil, a nota fica ao lado. Sem
+ *  nome não há linha — nota solta não diz de quem é. */
+export function organizerLineParts(
+  name: string | null,
+  reputation: OrganizerReputation | null,
+): { readonly name: string; readonly rating: string | null } | null {
+  return name ? { name, rating: organizerReputationLabel(reputation) } : null;
+}
+
+/** Linha do cabeçalho do torneio, como texto corrido. */
 export function organizerLine(name: string | null, reputation: OrganizerReputation | null): string | null {
-  if (!name) return null;
-  const rating = organizerReputationLabel(reputation);
-  return rating ? `Organizado por ${name} · ${rating}` : `Organizado por ${name}`;
+  const parts = organizerLineParts(name, reputation);
+  if (!parts) return null;
+  return parts.rating ? `Organizado por ${parts.name} · ${parts.rating}` : `Organizado por ${parts.name}`;
 }
 
 /** Barras de "Como os atletas avaliaram": só aspectos com nota, na ordem da lista. */

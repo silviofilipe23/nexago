@@ -521,6 +521,16 @@
   gap: 12px;
 }
 
+.lg-organizer-row--link {
+  color: inherit;
+  text-decoration: none;
+
+  &:hover .lg-organizer-name,
+  &:focus-visible .lg-organizer-name {
+    color: var(--nx-orange-400);
+  }
+}
+
 .lg-organizer-badge {
   flex: none;
   width: 44px;

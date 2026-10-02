@@ -3,6 +3,7 @@ import { httpsCallable, type Functions } from 'firebase/functions';
 import {
   inviteFromData,
   myReviewFromData,
+  organizerBrandNameFromData,
   organizerNameFromData,
   organizerReputationFromData,
   publicSummaryFromData,
@@ -134,8 +135,14 @@ export function watchOrganizerReputation(
   );
 }
 
-/** Nome do organizador em `public_profiles` (leitura pública). Falha vira `null`: sem linha. */
+/** Nome do organizador: a marca (`organizerPublicProfiles`) e, sem ela, `public_profiles` — conta
+ *  só de organizador não tem nome lá. Leituras públicas; falha vira `null`: sem linha. */
 export async function fetchOrganizerName(db: Firestore, organizerId: string): Promise<string | null> {
+  const brand = await getDoc(doc(db, 'organizerPublicProfiles', organizerId)).then(
+    (snap) => organizerBrandNameFromData(snap.data()),
+    () => null,
+  );
+  if (brand) return brand;
   try {
     const snap = await getDoc(doc(db, 'public_profiles', organizerId));
     return snap.exists() ? organizerNameFromData(snap.data()) : null;

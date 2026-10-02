@@ -12,7 +12,9 @@ import {
   shouldLoadMyReview,
   type TournamentReviewInvite,
   formatRating,
+  organizerBrandNameFromData,
   organizerLine,
+  organizerLineParts,
   organizerNameFromData,
   organizerReputationFromData,
   organizerReputationLabel,
@@ -142,6 +144,21 @@ describe('avaliação pública (resumo, reputação e organizador)', () => {
     expect(organizerLine('Ana Organiza', rep)).toBe('Organizado por Ana Organiza · ★ 4,7 (86 avaliações em 5 torneios)');
     expect(organizerLine('Ana Organiza', null)).toBe('Organizado por Ana Organiza');
     expect(organizerLine(null, rep)).toBeNull();
+  });
+
+  it('linha em partes: o nome (que vira link) e a nota separados', () => {
+    const rep = { reviewsCount: 86, tournamentsRated: 5, average: 4.71 };
+    expect(organizerLineParts('Liga Amadora', rep)).toEqual({ name: 'Liga Amadora', rating: '★ 4,7 (86 avaliações em 5 torneios)' });
+    expect(organizerLineParts('Liga Amadora', null)).toEqual({ name: 'Liga Amadora', rating: null });
+    expect(organizerLineParts(null, rep)).toBeNull();
+  });
+
+  it('nome da marca só com isOrganizer: doc criado pelos números ou pelo contador não tem nome', () => {
+    expect(organizerBrandNameFromData({ name: ' Liga Amadora ', isOrganizer: true })).toBe('Liga Amadora');
+    expect(organizerBrandNameFromData({ name: 'Liga Amadora', isOrganizer: false })).toBeNull();
+    expect(organizerBrandNameFromData({ uid: 'o', stats: {}, listed: false })).toBeNull();
+    expect(organizerBrandNameFromData({ followersCount: 3 })).toBeNull();
+    expect(organizerBrandNameFromData(undefined)).toBeNull();
   });
 
   it('aspectos: só os com nota, na ordem da lista; nada sem números públicos', () => {

@@ -195,6 +195,7 @@ export class LeagueDetailShellComponent {
         priceLabel: cheapestFee.length > 0 ? `a partir de ${formatBRL(Math.min(...cheapestFee))}` : null,
         organizerName: league.organizationName ?? 'Organizador da liga',
         organizerInitials: (league.organizationName ?? 'OL').slice(0, 2).toUpperCase(),
+        organizerId: league.managerId,
       });
     } finally {
       this.loading.set(false);

@@ -201,13 +201,23 @@
 
           <div class="lg-card">
             <h2 class="lg-card-title">Organizado por</h2>
-            <div class="lg-organizer-row">
-              <span class="lg-organizer-badge">{{ l.organizerInitials }}</span>
-              <div class="lg-organizer-copy">
-                <p class="lg-organizer-name">{{ l.organizerName }}</p>
-                <p class="lg-organizer-sub">Organizador da liga</p>
+            @if (l.organizerId) {
+              <a class="lg-organizer-row lg-organizer-row--link" [routerLink]="['/organizadores', l.organizerId]">
+                <span class="lg-organizer-badge">{{ l.organizerInitials }}</span>
+                <div class="lg-organizer-copy">
+                  <p class="lg-organizer-name">{{ l.organizerName }}</p>
+                  <p class="lg-organizer-sub">Ver perfil do organizador</p>
+                </div>
+              </a>
+            } @else {
+              <div class="lg-organizer-row">
+                <span class="lg-organizer-badge">{{ l.organizerInitials }}</span>
+                <div class="lg-organizer-copy">
+                  <p class="lg-organizer-name">{{ l.organizerName }}</p>
+                  <p class="lg-organizer-sub">Organizador da liga</p>
+                </div>
               </div>
-            </div>
+            }
           </div>
         </div>
       </div>

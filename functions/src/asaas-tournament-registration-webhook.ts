@@ -45,16 +45,17 @@ import {
   resolvePaymentPhases,
   type RegistrationBillingType,
 } from "./registration-payment-phases";
-import {readCashbackConfig} from "./cashback-config";
+import {DEFAULT_CASHBACK_CONFIG, readCashbackConfig} from "./cashback-config";
 import {toMillisOrNull} from "./cashback-rules";
 import {
   applyCashbackIntent,
   buildCashbackIntent,
   cashbackIntentFields,
   intentHasWork,
-  readCashbackApplied,
   registrationCashbackLabel,
+  resolveCashbackForPayment,
 } from "./cashback-intent";
+import {releaseCashbackHoldQuietly} from "./cashback-checkout";
 
 const ASAAS_NEGATIVE_TERMINAL_STATUSES = new Set([
   "OVERDUE",
@@ -208,14 +209,38 @@ export async function processTournamentRegistrationAsaasNotification(
 
     // Saldo de cashback usado nesta cobrança: o Asaas recebeu só o dinheiro,
     // mas para o torneio a parcela vale o bruto — a nexaGO cobre a diferença.
-    const {appliedCents, holdId} = readCashbackApplied(pendingSnap.data());
+    // Numa rodada só de crédito (cartão RECEIVED depois do CONFIRMED) o valor
+    // já foi gravado na intenção durante a confirmação — mais confiável do
+    // que resolver de novo, pois o pendente pode ter sido reescrito ou
+    // apagado por uma cobrança nova nesse meio tempo. Só recorre ao resolver
+    // quando esse registro não existe.
+    const processedAppliedCents = (processed.cashback as {appliedCents?: unknown} | undefined)
+      ?.appliedCents;
+    const {appliedCents, holdId} =
+      !phases.confirm && typeof processedAppliedCents === "number" &&
+      Number.isFinite(processedAppliedCents) ?
+        {appliedCents: processedAppliedCents, holdId: null} :
+        await resolveCashbackForPayment(db, payerUid, paymentId, pendingSnap.data());
     const grossOnline = roundMoney(paidOnline + appliedCents / 100);
 
     // Comissão negociada no cadastro do organizador; sem cadastro (ou com
     // valor fora da faixa) cai nos 8% padrão. Lida uma vez para as duas fases.
-    const organizerFeePercent = organizerId ?
-      resolveOrganizerTournamentFeePercent((await db.doc(`organizers/${organizerId}`).get()).data()) :
-      0;
+    // Falha aqui NUNCA pode derrubar a confirmação — só o crédito do caixa,
+    // que sabe reprocessar numa reentrega, depende da taxa certa.
+    let organizerFeePercent: number | null = organizerId ? null : 0;
+    if (organizerId) {
+      try {
+        organizerFeePercent = resolveOrganizerTournamentFeePercent(
+          (await db.doc(`organizers/${organizerId}`).get()).data(),
+        );
+      } catch (e) {
+        logger.error(
+          `Asaas tournament registration ${registrationId}: falha ao ler organizers/${organizerId} ` +
+          "— taxa indisponível nesta rodada",
+          e,
+        );
+      }
+    }
 
     // Estado da inscrição para o log final; a fase de confirmação os reescreve.
     let newPaidAmount = Number(regData.paidAmount) || 0;
@@ -242,11 +267,13 @@ export async function processTournamentRegistrationAsaasNotification(
         // Dinheiro entrou sem crédito: a parcela deste atleta já constava paga
         // (em geral o parceiro pagou o integral antes deste PIX ser quitado).
         // Creditar de novo cobraria a mais, então sobra estorno manual — e isso
-        // precisa ser barulhento, não um `return` silencioso.
+        // precisa ser barulhento, não um `return` silencioso. O saldo que esta
+        // cobrança reservou volta: sem crédito, não há o que capturar.
+        await releaseCashbackHoldQuietly(db, payerUid, holdId, Date.now());
         logger.error(
           `Asaas tournament registration ${registrationId}: pagamento duplicado de ` +
           `${payerUid} (R$ ${paidOnline}) — estorno manual necessário`,
-          {registrationId, payerUid, paymentId, paidValue: paidOnline},
+          {registrationId, payerUid, paymentId, paidValue: paidOnline, cashbackAppliedCents: appliedCents},
         );
         await processedRef.set({
           kind: "tournamentRegistration",
@@ -255,6 +282,7 @@ export async function processTournamentRegistrationAsaasNotification(
           outcome: "duplicate_payer",
           paidValue: paidOnline,
           refundRequired: true,
+          cashbackAppliedCents: appliedCents,
           processedAt: FieldValue.serverTimestamp(),
         });
         return;
@@ -285,11 +313,25 @@ export async function processTournamentRegistrationAsaasNotification(
           participantUids :
           [payerUid];
 
+      // Doc de config indisponível não pode derrubar a confirmação: a reserva
+      // de saldo ainda precisa ser capturada mesmo sem conseguir calcular o
+      // ganho desta rodada.
+      let cashbackConfig = DEFAULT_CASHBACK_CONFIG;
+      try {
+        cashbackConfig = await readCashbackConfig(db);
+      } catch (e) {
+        logger.error(
+          `Asaas tournament registration ${registrationId}: falha ao ler appConfig/cashback ` +
+          "— tratando como desligado nesta rodada",
+          e,
+        );
+      }
+
       const intent = buildCashbackIntent({
         uid: payerUid,
         sourceType: "registration",
         sourceId: registrationId,
-        tournamentId,
+        tournamentId: typeof regData.tournamentId === "string" ? regData.tournamentId : null,
         arenaId: null,
         label: registrationCashbackLabel(
           typeof regData.tournamentName === "string" && regData.tournamentName.trim() ?
@@ -299,9 +341,9 @@ export async function processTournamentRegistrationAsaasNotification(
         eventAtMs: toMillisOrNull(tournament?.startAt ?? tournament?.startDate) ?? Date.now(),
         cashReais: paidOnline,
         appliedCents,
-        feeReais: organizerId ? computePlatformFeeReais(grossOnline, organizerFeePercent) : 0,
+        feeReais: organizerId ? computePlatformFeeReais(grossOnline, organizerFeePercent ?? 0) : 0,
         holdId,
-        config: await readCashbackConfig(db),
+        config: cashbackConfig,
       });
 
       const batch = db.batch();
@@ -438,6 +480,11 @@ export async function processTournamentRegistrationAsaasNotification(
     // caixa que ainda não entrou.
     if (phases.credit && organizerId) {
       try {
+        // Taxa indisponível (leitura do organizador falhou): credita com uma
+        // taxa errada seria pior do que não creditar — deixa pra reentrega.
+        if (organizerFeePercent == null) {
+          throw new Error("organizer fee unavailable");
+        }
         await creditTournamentWalletFromRegistration(db, tournamentId, {
           ownerId: organizerId,
           registrationId,

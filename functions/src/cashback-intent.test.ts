@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {Timestamp, type DocumentReference, type Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {DEFAULT_CASHBACK_CONFIG} from "./cashback-config";
-import {holdCashback} from "./athlete-wallet";
+import {attachHoldPayment, holdCashback} from "./athlete-wallet";
 import {
   applyCashbackIntent,
   bookingCashbackLabel,
@@ -11,6 +11,7 @@ import {
   cashbackIntentFields,
   intentHasWork,
   readCashbackApplied,
+  resolveCashbackForPayment,
 } from "./cashback-intent";
 import {
   cashbackIdempotencyKey,
@@ -88,6 +89,46 @@ describe("readCashbackApplied", () => {
     assert.deepEqual(readCashbackApplied({cashbackAppliedCents: -5, cashbackHoldId: " "}), {
       appliedCents: 0, holdId: null,
     });
+  });
+});
+
+describe("resolveCashbackForPayment", () => {
+  it("tracking da mesma cobrança usa os campos gravados nela", async () => {
+    const {db} = makeDb();
+    const result = await resolveCashbackForPayment(db, UID, "pay1", {
+      asaasPaymentId: "pay1", cashbackAppliedCents: 500, cashbackHoldId: "h1",
+    });
+    assert.deepEqual(result, {appliedCents: 500, holdId: "h1"});
+  });
+
+  it("tracking de outra cobrança: acha a reserva pelo id do pagamento", async () => {
+    const {fake, db} = makeDb();
+    seedAvailable(fake, "l1", 2000);
+    const {holdId} = await holdCashback(db, {
+      uid: UID, maxCents: 1000, sourceType: "registration", sourceId: "reg1",
+      trackingPath: "x", label: "Inscrição", nowMs: NOW,
+    });
+    await attachHoldPayment(db, UID, holdId!, "payOld");
+    const result = await resolveCashbackForPayment(db, UID, "payOld", {
+      asaasPaymentId: "payNew", cashbackAppliedCents: 999, cashbackHoldId: "outro",
+    });
+    assert.deepEqual(result, {appliedCents: 1000, holdId});
+  });
+
+  it("tracking de outra cobrança e sem reserva encontrada: nada aplicado", async () => {
+    const {db} = makeDb();
+    const result = await resolveCashbackForPayment(db, UID, "payX", {
+      asaasPaymentId: "payNew",
+    });
+    assert.deepEqual(result, {appliedCents: 0, holdId: null});
+  });
+
+  it("uid vazio não busca nada", async () => {
+    const {db} = makeDb();
+    assert.deepEqual(
+      await resolveCashbackForPayment(db, "", "pay1", undefined),
+      {appliedCents: 0, holdId: null},
+    );
   });
 });
 

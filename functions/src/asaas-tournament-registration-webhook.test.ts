@@ -4,7 +4,7 @@ import type {DocumentReference, Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {processTournamentRegistrationAsaasNotification} from "./asaas-tournament-registration-webhook";
 import {Timestamp} from "firebase-admin/firestore";
-import {holdCashback} from "./athlete-wallet";
+import {attachHoldPayment, holdCashback} from "./athlete-wallet";
 
 process.env.GCLOUD_PROJECT = "p";
 
@@ -440,5 +440,113 @@ describe("asaas-tournament-registration-webhook: cashback", () => {
     );
 
     assert.equal(fake.store.get(REG_PATH)!.paidAmount, 30);
+  });
+
+  it("cartão com saldo: CONFIRMED captura a reserva; RECEIVED credita o bruto mesmo com o pendente apagado", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    seedSpendableLot(fake, "uidA", 2000);
+    const {holdId} = await holdCashback(db, {
+      uid: "uidA", maxCents: 1000, sourceType: "registration", sourceId: REG_ID,
+      trackingPath: PENDING_A, label: "Inscrição · Copa Teste", nowMs: NOW_MS,
+    });
+    await attachHoldPayment(db, "uidA", holdId!, "pay1");
+    fake.seedDoc(PENDING_A, {
+      status: "pending", amountType: "full", asaasPaymentId: "pay1", payerUid: "uidA",
+      billingType: "CREDIT_CARD", cashbackAppliedCents: 1000, cashbackHoldId: holdId,
+    });
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1",
+      {status: "CONFIRMED", value: 90, billingType: "CREDIT_CARD",
+        externalReference: `tournamentRegistration:${REG_ID}:uidA`},
+      processedRefOf(db), makeDeps().deps,
+    );
+
+    assert.equal(fake.store.get(`athleteWallets/uidA/holds/${holdId}`)!.status, "captured");
+    assert.equal(fake.store.get(PROCESSED_PATH)!.cashbackStatus, "done");
+    assert.equal(walletDoc(fake), undefined);
+
+    // O pendente some antes da liquidação (ex.: o atleta gerou outra cobrança
+    // nesse meio tempo) — o crédito tem que achar o saldo pela intenção
+    // gravada na confirmação, não pelo pendente.
+    fake.store.delete(PENDING_A);
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1",
+      {status: "RECEIVED", value: 90, billingType: "CREDIT_CARD", netValue: 87.21,
+        externalReference: `tournamentRegistration:${REG_ID}:uidA`},
+      processedRefOf(db), makeDeps().deps,
+    );
+
+    const credit = tournamentLedger(fake).find((e) => e.type === "credit")!;
+    assert.equal(credit.grossReais, 100);
+    assert.equal(credit.cashbackAppliedReais, 10);
+  });
+
+  it("pagamento tardio de cobrança substituída: acha a reserva pelo id do pagamento, não pelo pendente atual", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    seedSpendableLot(fake, "uidA", 5000);
+    const {holdId: holdOld} = await holdCashback(db, {
+      uid: "uidA", maxCents: 1000, sourceType: "registration", sourceId: REG_ID,
+      trackingPath: PENDING_A, label: "Inscrição · Copa Teste", nowMs: NOW_MS,
+    });
+    await attachHoldPayment(db, "uidA", holdOld!, "payOld");
+    const {holdId: holdNew} = await holdCashback(db, {
+      uid: "uidA", maxCents: 2000, sourceType: "registration", sourceId: REG_ID,
+      trackingPath: PENDING_A, label: "Inscrição · Copa Teste", nowMs: NOW_MS,
+    });
+    await attachHoldPayment(db, "uidA", holdNew!, "payNew");
+    // O atleta gerou uma cobrança nova: o pendente atual aponta pra ela.
+    fake.seedDoc(PENDING_A, {
+      status: "pending", amountType: "share", asaasPaymentId: "payNew", payerUid: "uidA",
+      cashbackAppliedCents: 2000, cashbackHoldId: holdNew,
+    });
+
+    // O webhook da cobrança ANTIGA (payOld) chega atrasado e, mesmo assim, paga.
+    await processTournamentRegistrationAsaasNotification(
+      db, "payOld",
+      {status: "RECEIVED", value: 40, billingType: "PIX",
+        externalReference: `tournamentRegistration:${REG_ID}:uidA`},
+      processedRefOf(db), makeDeps().deps,
+    );
+
+    assert.equal(fake.store.get(`athleteWallets/uidA/holds/${holdOld}`)!.status, "captured");
+    assert.equal(fake.store.get(`athleteWallets/uidA/holds/${holdNew}`)!.status, "open");
+    const credit = tournamentLedger(fake).find((e) => e.type === "credit")!;
+    // Bruto é 40 (dinheiro) + 10 (saldo de payOld) — não os 20 de payNew.
+    assert.equal(credit.grossReais, 50);
+  });
+
+  it("pagamento duplicado com saldo reservado: a reserva é devolvida, não capturada", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    // uidA já consta como pago (o parceiro pagou o integral antes) e mesmo
+    // assim uma cobrança dele, com saldo reservado, chega.
+    seedRegistration(fake, {sharePaidUids: ["uidA", "uidB"], paidAmount: ENTRY_FEE, isPaid: true});
+    seedSpendableLot(fake, "uidA", 2000);
+    const {holdId} = await holdCashback(db, {
+      uid: "uidA", maxCents: 1000, sourceType: "registration", sourceId: REG_ID,
+      trackingPath: PENDING_A, label: "Inscrição · Copa Teste", nowMs: NOW_MS,
+    });
+    fake.seedDoc(PENDING_A, {
+      status: "pending", amountType: "share", asaasPaymentId: "pay1", payerUid: "uidA",
+      cashbackAppliedCents: 1000, cashbackHoldId: holdId,
+    });
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1",
+      {status: "RECEIVED", value: 40, billingType: "PIX",
+        externalReference: `tournamentRegistration:${REG_ID}:uidA`},
+      processedRefOf(db), makeDeps().deps,
+    );
+
+    const processed = fake.store.get(PROCESSED_PATH)!;
+    assert.equal(processed.outcome, "duplicate_payer");
+    assert.equal(processed.cashbackAppliedCents, 1000);
+    assert.equal(fake.store.get(`athleteWallets/uidA/holds/${holdId}`)!.status, "released");
   });
 });

@@ -5,6 +5,11 @@
  * credita a carteira da arena com taxa de 5% SEM piso. Pagamento que chega
  * "tarde" (participante expirado) ainda confirma se houver vaga; sessão
  * lotada ou cancelada → estorno automático imediato, sem crédito.
+ *
+ * Confirmar, creditar e gravar o processado não é atômico: a reentrega do
+ * pagamento que confirmou a vaga, sem processado, refaz crédito e cashback
+ * (ambos idempotentes por pagamento). O processado só é criado, nunca
+ * sobrescrito.
  */
 
 import {
@@ -111,15 +116,21 @@ export async function processArenaClubSessionAsaasNotification(
   const sessionRef = db.collection(ARENA_CLUB_SESSIONS).doc(sessionId);
   const participantRef = sessionRef.collection(CLUB_PARTICIPANTS).doc(athleteUid);
 
+  // O primeiro desfecho gravado vence. Sobrescrever apagaria a intenção de
+  // cashback que uma entrega sobreposta deste pagamento já gravou: o ganho se
+  // perderia, ou um estorno posterior não acharia o lote para cancelar.
   const markProcessed = (outcome: string, extra: Record<string, unknown> = {}) =>
-    processedRef.set({
-      kind: "arenaClubSession",
-      sessionId,
-      participantId: athleteUid,
-      outcome,
-      paymentStatus: status,
-      processedAt: FieldValue.serverTimestamp(),
-      ...extra,
+    db.runTransaction(async (tx: Transaction) => {
+      if ((await tx.get(processedRef)).exists) return;
+      tx.set(processedRef, {
+        kind: "arenaClubSession",
+        sessionId,
+        participantId: athleteUid,
+        outcome,
+        paymentStatus: status,
+        processedAt: FieldValue.serverTimestamp(),
+        ...extra,
+      });
     });
 
   if (ASAAS_PAID_STATUSES.has(status)) {
@@ -198,7 +209,10 @@ export async function processArenaClubSessionAsaasNotification(
       return "approved" as const;
     });
 
-    if (outcome === "approved") {
+    // Tudo o que vem depois de a vaga ser confirmada por ESTE pagamento. Cada
+    // passo é idempotente por pagamento (crédito, nota, ganho, captura e o
+    // processado, que só é criado), então rodar de novo refaz só o que faltou.
+    const settleConfirmedSpot = async (extra: Record<string, unknown> = {}) => {
       const sessionData = (await sessionRef.get()).data() ?? {};
       const arenaId = String(sessionData["arenaId"] ?? "");
       if (arenaId) {
@@ -206,6 +220,7 @@ export async function processArenaClubSessionAsaasNotification(
           await creditArenaWalletFromClubPayment(db, arenaId, {
             sessionId,
             participantId: athleteUid,
+            paymentId,
             grossReais: paidReais,
             platformFeeReais,
             cashbackAppliedReais: appliedCents / 100,
@@ -262,13 +277,18 @@ export async function processArenaClubSessionAsaasNotification(
         holdId,
         config: cashbackConfig,
       });
-      await markProcessed(
-        "approved",
-        intentHasWork(intent) ? cashbackIntentFields(intent) : {},
-      );
+      await markProcessed("approved", {
+        ...extra,
+        ...(intentHasWork(intent) ? cashbackIntentFields(intent) : {}),
+      });
       if (intentHasWork(intent)) {
         await applyCashbackIntent(db, processedRef, paymentId, Date.now());
       }
+      return {sessionData, arenaId};
+    };
+
+    if (outcome === "approved") {
+      const {sessionData, arenaId} = await settleConfirmedSpot();
       try {
         await deps.notify({
           userId: athleteUid,
@@ -321,14 +341,26 @@ export async function processArenaClubSessionAsaasNotification(
       return;
     }
 
-    // already_confirmed / already_refunded — idempotente.
-    if (outcome === "already_confirmed" && confirmedByPaymentId !== paymentId) {
+    if (outcome === "already_confirmed" && confirmedByPaymentId === paymentId) {
+      // Foi ESTE pagamento que confirmou a vaga: reentrega depois de a 1ª
+      // entrega cair antes de gravar o processado, ou entrega sobreposta a
+      // ela. Processado já gravado = a outra entrega terminou; nada a fazer.
+      // Sem ele, refaz o que pode ter faltado (crédito da arena, intenção de
+      // cashback). A reserva de saldo foi consumida pela vaga — não volta.
+      if ((await processedRef.get()).exists) return;
+      await settleConfirmedSpot({settledByRedelivery: true});
+      logger.warn(
+        `Asaas clubinho ${sessionId}/${athleteUid}: reentrega de ${paymentId} completou ` +
+        "uma confirmação interrompida (crédito da arena e cashback)",
+      );
+      return;
+    }
+
+    // already_confirmed por outra cobrança / already_refunded.
+    if (outcome === "already_confirmed") {
       // Pagamento em dobro: a vaga já é do atleta por OUTRA cobrança (ou pelo
       // pagamento no local). Esta não vira serviço, então o saldo que ela usou
-      // volta e o dinheiro precisa de estorno manual. Se foi ESTE pagamento
-      // que confirmou (reentrega depois de cair antes do processado, ou
-      // entregas sobrepostas), a reserva já foi consumida e a arena já
-      // recebeu o bruto — nada volta.
+      // volta e o dinheiro precisa de estorno manual.
       await refundHoldOfPayment(db, athleteUid, paymentId, Date.now());
       logger.error(
         `Asaas clubinho ${sessionId}/${athleteUid}: pagamento em dobro (R$ ${cashPaid}) — ` +

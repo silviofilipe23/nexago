@@ -442,20 +442,113 @@ describe("processArenaClubSessionAsaasNotification — cashback", () => {
     assert.equal(fake.store.get(`athleteWallets/uid1/holds/${holdId}`)!.status, "captured");
   });
 
-  it("reentrega do MESMO pagamento que confirmou a vaga (caiu antes do processado): a reserva segue consumida", async () => {
-    // A 1ª entrega confirmou o participante, creditou a arena pelo bruto e
-    // capturou a reserva; morreu antes de gravar o processado (ou duas
-    // entregas se sobrepuseram). A reentrega cai em already_confirmed, mas
-    // NÃO é pagamento em dobro: devolver o saldo faria a nexaGO pagar o
-    // desconto que a arena já recebeu.
-    const {fake, db} = makeDb();
-    seedSession(fake, {startAt: Timestamp.fromMillis(Date.UTC(2026, 6, 24, 18, 0, 0))});
-    seedSpendableLot(fake, 2000);
+  // A confirmação da vaga, o crédito da arena e o processado (com a intenção
+  // de cashback) não são atômicos. A reentrega do pagamento que confirmou
+  // refaz o que faltou; nada pode sair dobrado nem ser apagado.
+  function creditsOf(fake: FakeFirestore): Record<string, unknown>[] {
+    return arenaLedger(fake).filter((e) => e.type === "credit");
+  }
+
+  function earnEntries(fake: FakeFirestore): Record<string, unknown>[] {
+    return [...fake.store.entries()]
+      .filter(([path, data]) => path.startsWith("athleteWallets/uid1/ledger/") && data.type === "earn")
+      .map(([, data]) => data);
+  }
+
+  async function seedAttachedHold(db: Firestore, paymentId: string): Promise<string> {
     const {holdId} = await holdCashback(db, {
       uid: "uid1", maxCents: 1000, sourceType: "club", sourceId: "club_c1_2026-07-24",
       trackingPath: PARTICIPANT_PATH, label: "Clubinho", nowMs: NOW_MS,
     });
-    await attachHoldPayment(db, "uid1", holdId!, "pay1");
+    await attachHoldPayment(db, "uid1", holdId!, paymentId);
+    return holdId!;
+  }
+
+  /** Ref cujas primeiras `n` leituras diretas ainda não veem o processado (leitura antiga). */
+  function staleReads(ref: DocumentReference, n: number): DocumentReference {
+    let left = n;
+    return {
+      ...(ref as unknown as Record<string, unknown>),
+      get: async () => (left-- > 0 ?
+        {exists: false, id: ref.id, ref, data: () => undefined} :
+        ref.get()),
+    } as unknown as DocumentReference;
+  }
+
+  /** Ref que, na 1ª leitura direta depois de o processado existir, deixa `meanwhile` rodar antes. */
+  function interleaveAfterWrite(
+    fake: FakeFirestore,
+    ref: DocumentReference,
+    meanwhile: () => Promise<void>,
+  ): DocumentReference {
+    let fired = false;
+    return {
+      ...(ref as unknown as Record<string, unknown>),
+      get: async () => {
+        if (!fired && fake.store.has(ref.path)) {
+          fired = true;
+          await meanwhile();
+        }
+        return ref.get();
+      },
+    } as unknown as DocumentReference;
+  }
+
+  it("reentrega depois de cair logo após confirmar a vaga: credita a arena e cria o ganho, uma vez só", async () => {
+    // A 1ª entrega só rodou a transação de confirmação e morreu: sem crédito
+    // na arena, sem processado, sem intenção de cashback.
+    const {fake, db} = makeDb();
+    seedSession(fake, {
+      startAt: Timestamp.fromMillis(Date.UTC(2026, 6, 24, 18, 0, 0)),
+      confirmedCount: 1,
+      pendingCount: 0,
+    });
+    fake.seedDoc("appConfig/cashback", {enabled: true});
+    seedSpendableLot(fake, 2000);
+    const holdId = await seedAttachedHold(db, "pay1");
+    seedParticipant(fake, {
+      status: "confirmed", amountReais: 15, platformFeeReais: 0.75, netReais: 14.25,
+      cashbackAppliedCents: 1000, cashbackHoldId: holdId,
+    });
+    const payment = {...paidPayment, value: 5};
+    const {deps, notified} = makeDeps();
+
+    await processArenaClubSessionAsaasNotification(db, "pay1", payment, processedRefOf(db), deps);
+    // E o Asaas ainda reentrega mais uma vez.
+    await processArenaClubSessionAsaasNotification(db, "pay1", payment, processedRefOf(db), deps);
+
+    const credits = creditsOf(fake);
+    assert.equal(credits.length, 1);
+    assert.equal(credits[0].grossReais, 15);
+    assert.equal(credits[0].cashbackAppliedReais, 10);
+    assert.equal(fake.store.get("arenaWallets/arena1")!.availableReais, 14.25);
+
+    const processed = fake.store.get(PROCESSED_PATH)!;
+    assert.equal(processed.outcome, "approved");
+    assert.equal(processed.cashbackStatus, "done");
+    assert.equal(fake.store.get(`athleteWallets/uid1/holds/${holdId}`)!.status, "captured");
+    assert.equal(fake.store.get("athleteWallets/uid1/lots/old")!.remainingCents, 1000);
+    // 2% dos R$ 5 em dinheiro — o saldo usado não gera ganho.
+    assert.equal(earnEntries(fake).length, 1);
+    assert.equal(fake.store.get("athleteWallets/uid1/lots/pay1")!.earnedCents, 10);
+    assert.equal(refundEntries(fake).length, 0);
+
+    // A vaga já estava contada; a reentrega não mexe nos contadores nem avisa de novo.
+    const session = fake.store.get(SESSION_PATH)!;
+    assert.equal(session.confirmedCount, 1);
+    assert.equal(session.pendingCount, 0);
+    assert.deepEqual(notified, []);
+  });
+
+  it("reentrega depois de cair só antes do processado: não credita a arena nem cria o ganho de novo", async () => {
+    // A 1ª entrega fez tudo — confirmou, creditou o bruto, capturou a reserva,
+    // criou o lote — e morreu antes de o processado ficar gravado. Devolver o
+    // saldo faria a nexaGO pagar o desconto que a arena já recebeu.
+    const {fake, db} = makeDb();
+    seedSession(fake, {startAt: Timestamp.fromMillis(Date.UTC(2026, 6, 24, 18, 0, 0))});
+    fake.seedDoc("appConfig/cashback", {enabled: true});
+    seedSpendableLot(fake, 2000);
+    const holdId = await seedAttachedHold(db, "pay1");
     seedParticipant(fake, {cashbackAppliedCents: 1000, cashbackHoldId: holdId});
     const payment = {...paidPayment, value: 5};
 
@@ -465,10 +558,72 @@ describe("processArenaClubSessionAsaasNotification — cashback", () => {
 
     await processArenaClubSessionAsaasNotification(db, "pay1", payment, processedRefOf(db), makeDeps().deps);
 
-    assert.equal(fake.store.get(PROCESSED_PATH)!.outcome, "already_confirmed");
+    assert.equal(creditsOf(fake).length, 1);
+    assert.equal(fake.store.get("arenaWallets/arena1")!.availableReais, 14.25);
+    const processed = fake.store.get(PROCESSED_PATH)!;
+    assert.equal(processed.outcome, "approved");
+    assert.equal(processed.cashbackStatus, "done");
+    assert.equal(earnEntries(fake).length, 1);
     assert.equal(fake.store.get(`athleteWallets/uid1/holds/${holdId}`)!.status, "captured");
     assert.equal(fake.store.get("athleteWallets/uid1/lots/old")!.remainingCents, 1000);
     assert.equal(refundEntries(fake).length, 0);
+  });
+
+  for (const staleCount of [1, 2]) {
+    const when = staleCount === 1 ?
+      "a 2ª leu o processado antes de a 1ª gravá-lo" :
+      "a 2ª não vê o processado nem ao reler";
+    it(`entregas sobrepostas (${when}): a intenção da 1ª sobrevive e o ganho sai uma vez`, async () => {
+      const {fake, db} = makeDb();
+      seedSession(fake, {startAt: Timestamp.fromMillis(Date.UTC(2026, 6, 24, 18, 0, 0))});
+      fake.seedDoc("appConfig/cashback", {enabled: true});
+      seedParticipant(fake);
+      const ref = processedRefOf(db);
+      // A 2ª entrega roda inteira entre a 1ª gravar a intenção e aplicá-la.
+      const second = () => processArenaClubSessionAsaasNotification(
+        db, "pay1", paidPayment, staleReads(ref, staleCount), makeDeps().deps,
+      );
+
+      await processArenaClubSessionAsaasNotification(
+        db, "pay1", paidPayment, interleaveAfterWrite(fake, ref, second), makeDeps().deps,
+      );
+
+      const processed = fake.store.get(PROCESSED_PATH)!;
+      assert.equal(processed.outcome, "approved");
+      assert.equal(processed.cashbackStatus, "done");
+      assert.equal((processed.cashback as {earnCents?: number}).earnCents, 30);
+      assert.equal(earnEntries(fake).length, 1);
+      assert.equal(fake.store.get("athleteWallets/uid1/lots/pay1")!.earnedCents, 30);
+      assert.equal(creditsOf(fake).length, 1);
+      assert.equal(fake.store.get("arenaWallets/arena1")!.availableReais, 14.25);
+      assert.equal(fake.store.get(SESSION_PATH)!.confirmedCount, 1);
+    });
+  }
+
+  it("estorno sobreposto à confirmação: o processado do REFUNDED não apaga a intenção e o lote é cancelado", async () => {
+    // A entrega do REFUNDED leu o processado antes de o RECEIVED gravá-lo e
+    // termina depois que ele aplicou a intenção. Sobrescrever o processado com
+    // o desfecho dela tiraria a intenção do caminho do estorno: o lote do
+    // ganho de um pagamento devolvido ficaria pendente para sempre.
+    const {fake, db} = makeDb();
+    seedSession(fake, {startAt: Timestamp.fromMillis(Date.UTC(2026, 6, 24, 18, 0, 0))});
+    fake.seedDoc("appConfig/cashback", {enabled: true});
+    seedParticipant(fake);
+    const ref = processedRefOf(db);
+    const {deps} = makeDeps();
+    deps.notify = async () => {
+      await processArenaClubSessionAsaasNotification(
+        db, "pay1", {...paidPayment, status: "REFUNDED"}, staleReads(ref, 1), makeDeps().deps,
+      );
+      await reverseCashbackForPayment(db, ref, "pay1", NOW_MS, {externalReference: EXTERNAL_REF});
+    };
+
+    await processArenaClubSessionAsaasNotification(db, "pay1", paidPayment, ref, deps);
+
+    const processed = fake.store.get(PROCESSED_PATH)!;
+    assert.equal(processed.outcome, "approved");
+    assert.equal(processed.cashbackStatus, "reversed");
+    assert.equal(fake.store.get("athleteWallets/uid1/lots/pay1")!.status, "cancelled");
   });
 
   it("pagamento em dobro (participante já confirmado): devolve a reserva capturada desta cobrança", async () => {
@@ -485,5 +640,33 @@ describe("processArenaClubSessionAsaasNotification — cashback", () => {
     assert.equal(fake.store.get(PROCESSED_PATH)!.outcome, "already_confirmed");
     assert.equal(fake.store.get(`athleteWallets/uid1/holds/${holdId}`)!.status, "refunded");
     assert.equal(refundEntries(fake).length, 1);
+  });
+
+  it("pagamento em dobro reentregue, sobreposto e depois estornado: a reserva volta uma vez, sem crédito nem ganho", async () => {
+    const {fake, db} = makeDb();
+    seedSession(fake, {confirmedCount: 1, pendingCount: 0});
+    fake.seedDoc("appConfig/cashback", {enabled: true});
+    seedSpendableLot(fake, 2000);
+    const holdId = await sweeperCapturedHold(db, "pay1");
+    seedParticipant(fake, {status: "confirmed", asaasPaymentId: "payOutro"});
+    const payment = {...paidPayment, value: 5};
+    const ref = processedRefOf(db);
+
+    await processArenaClubSessionAsaasNotification(db, "pay1", payment, ref, makeDeps().deps);
+    // Entrega sobreposta (leu o processado antes de existir) e reentrega comum.
+    await processArenaClubSessionAsaasNotification(db, "pay1", payment, staleReads(ref, 2), makeDeps().deps);
+    await processArenaClubSessionAsaasNotification(db, "pay1", payment, ref, makeDeps().deps);
+    // O estorno manual dispara o PAYMENT_REFUNDED.
+    await reverseCashbackForPayment(db, ref, "pay1", NOW_MS, {externalReference: EXTERNAL_REF});
+
+    assert.equal(fake.store.get(PROCESSED_PATH)!.outcome, "already_confirmed");
+    assert.equal(fake.store.get(`athleteWallets/uid1/holds/${holdId}`)!.status, "refunded");
+    assert.equal(fake.store.get("athleteWallets/uid1/lots/old")!.remainingCents, 2000);
+    assert.equal(refundEntries(fake).length, 1);
+    assert.equal(refundEntries(fake)[0].amountCents, 1000);
+    assert.equal(creditsOf(fake).length, 0);
+    assert.equal(earnEntries(fake).length, 0);
+    assert.equal(fake.store.has("athleteWallets/uid1/lots/pay1"), false);
+    assert.equal(fake.store.get(SESSION_PATH)!.confirmedCount, 1);
   });
 });

@@ -58,6 +58,9 @@ export async function creditArenaWalletFromBooking(
  * Crédito de vaga paga de clubinho: líquido = bruto − taxa. Ledger carrega
  * `clubSessionId`/`participantId`; `bookingId` recebe o id da sessão para o
  * extrato existente (web/app) exibir a referência sem mudança de parser.
+ *
+ * Idempotente por pagamento: a entrada do ledger tem o id do pagamento, então
+ * a reentrega do webhook (ou duas entregas sobrepostas) credita uma vez só.
  */
 export async function creditArenaWalletFromClubPayment(
   db: Firestore,
@@ -65,6 +68,7 @@ export async function creditArenaWalletFromClubPayment(
   input: {
     sessionId: string;
     participantId: string;
+    paymentId: string;
     grossReais: number;
     platformFeeReais: number;
     cashbackAppliedReais?: number;
@@ -72,10 +76,11 @@ export async function creditArenaWalletFromClubPayment(
 ): Promise<void> {
   const netReais = roundMoney(Math.max(0, input.grossReais - input.platformFeeReais));
   const walletRef = arenaWalletRef(db, arenaId);
-  const ledgerRef = walletRef.collection("ledger").doc();
+  const ledgerRef = walletRef.collection("ledger").doc(`club_${input.paymentId}`);
 
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(walletRef);
+    if ((await tx.get(ledgerRef)).exists) return;
     const prevAvailable = snap.exists ? Number(snap.data()?.availableReais) || 0 : 0;
     const prevPending = snap.exists ? Number(snap.data()?.pendingReais) || 0 : 0;
 
@@ -96,6 +101,7 @@ export async function creditArenaWalletFromClubPayment(
       bookingId: input.sessionId,
       clubSessionId: input.sessionId,
       participantId: input.participantId,
+      asaasPaymentId: input.paymentId,
       grossReais: roundMoney(input.grossReais),
       platformFeeReais: roundMoney(input.platformFeeReais),
       netReais,

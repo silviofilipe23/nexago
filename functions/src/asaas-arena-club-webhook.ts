@@ -40,6 +40,7 @@ import {
   intentHasWork,
   resolveCashbackForPayment,
 } from "./cashback-intent";
+import {refundHoldOfPayment} from "./cashback-reversal";
 
 const ASAAS_NON_TERMINAL_STATUSES = new Set([
   "PENDING",
@@ -284,6 +285,9 @@ export async function processArenaClubSessionAsaasNotification(
       // Dinheiro chegou mas não há vaga/sessão — estorno automático, sem crédito.
       try {
         await deps.refund(paymentId);
+        // O dinheiro volta: o saldo usado nesta cobrança também — inclusive
+        // se a varredura de 5 min já o capturou (Asaas disse pago antes).
+        await refundHoldOfPayment(db, athleteUid, paymentId, Date.now());
         if (outcome !== "orphan") {
           await participantRef.set({
             status: "canceled_by_arena_refunded",
@@ -311,6 +315,11 @@ export async function processArenaClubSessionAsaasNotification(
     }
 
     // already_confirmed / already_refunded — idempotente.
+    if (outcome === "already_confirmed") {
+      // Pagamento em dobro: a vaga já é do atleta por outra cobrança. Esta não
+      // vira serviço (estorno manual), então o saldo que ela usou volta.
+      await refundHoldOfPayment(db, athleteUid, paymentId, Date.now());
+    }
     await markProcessed(outcome);
     return;
   }

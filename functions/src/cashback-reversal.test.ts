@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {Timestamp, type DocumentReference, type Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {DEFAULT_CASHBACK_CONFIG} from "./cashback-config";
-import {holdCashback} from "./athlete-wallet";
+import {attachHoldPayment, captureHold, holdCashback} from "./athlete-wallet";
 import {applyCashbackIntent, buildCashbackIntent, cashbackIntentFields} from "./cashback-intent";
 import {reverseCashbackForPayment} from "./cashback-reversal";
 
@@ -94,5 +94,73 @@ describe("reverseCashbackForPayment", () => {
       await reverseCashbackForPayment(db, db.doc(PROCESSED) as DocumentReference, "pay1", NOW),
       "skipped",
     );
+  });
+});
+
+describe("reverseCashbackForPayment — sem intenção (R2)", () => {
+  /** Reserva do pagamento capturada pela varredura de 5 min: sem webhook, sem intenção. */
+  async function seedSweeperCapturedHold(db: Firestore, paymentId: string): Promise<string> {
+    const {holdId} = await holdCashback(db, {
+      uid: UID, maxCents: 800, sourceType: "club", sourceId: "s1",
+      trackingPath: "arenaClubSessions/s1/clubParticipants/ath1", label: "Clubinho", nowMs: NOW,
+    });
+    await attachHoldPayment(db, UID, holdId!, paymentId);
+    await captureHold(db, UID, holdId!, NOW);
+    return holdId!;
+  }
+
+  function refundEntries(fake: FakeFirestore): Array<Record<string, unknown>> {
+    return [...fake.store.entries()]
+      .filter(([path, data]) => path.startsWith(`${W}/ledger/`) && data.type === "refund")
+      .map(([, data]) => data);
+  }
+
+  const refOf = (db: Firestore, paymentId: string) =>
+    db.doc(`artifacts/p/public/data/asaas_processed_payments/${paymentId}`) as DocumentReference;
+
+  it("clubinho: devolve a reserva achada pelo pagamento uma vez só e não cria o processado", async () => {
+    const {fake, db} = makeDb();
+    const holdId = await seedSweeperCapturedHold(db, "payX");
+    const opts = {externalReference: "arenaClubSession:s1:ath1"};
+
+    assert.equal(await reverseCashbackForPayment(db, refOf(db, "payX"), "payX", NOW, opts), "reversed");
+    assert.equal(await reverseCashbackForPayment(db, refOf(db, "payX"), "payX", NOW, opts), "skipped");
+
+    assert.equal(fake.store.get(`${W}/holds/${holdId}`)!.status, "refunded");
+    assert.equal(fake.store.get(`${W}/lots/old`)!.remainingCents, 2000);
+    assert.equal(refundEntries(fake).length, 1);
+    assert.equal(refundEntries(fake)[0].amountCents, 800);
+    // Um processado criado aqui faria o handler tratar um pagamento futuro como "já processado".
+    assert.equal(fake.store.has("artifacts/p/public/data/asaas_processed_payments/payX"), false);
+  });
+
+  it("inscrição e reserva de quadra: o pagador sai da referência (ou da reserva)", async () => {
+    const {fake, db} = makeDb();
+    const regHold = await seedSweeperCapturedHold(db, "payReg");
+    const bookingHold = await seedSweeperCapturedHold(db, "payBooking");
+    fake.seedDoc("arenaBookings/b1", {athleteId: UID});
+
+    await reverseCashbackForPayment(db, refOf(db, "payReg"), "payReg", NOW, {
+      externalReference: `tournamentRegistration:reg1:${UID}`,
+    });
+    await reverseCashbackForPayment(db, refOf(db, "payBooking"), "payBooking", NOW, {
+      externalReference: "arenaBooking:b1",
+    });
+
+    assert.equal(fake.store.get(`${W}/holds/${regHold}`)!.status, "refunded");
+    assert.equal(fake.store.get(`${W}/holds/${bookingHold}`)!.status, "refunded");
+    assert.equal(refundEntries(fake).length, 2);
+  });
+
+  it("sem referência: usa o pagador gravado no processado (estorno automático do webhook)", async () => {
+    const {fake, db} = makeDb();
+    const holdId = await seedSweeperCapturedHold(db, "payY");
+    fake.seedDoc("artifacts/p/public/data/asaas_processed_payments/payY", {
+      kind: "arenaClubSession", outcome: "refunded_session_full", participantId: UID,
+    });
+
+    await reverseCashbackForPayment(db, refOf(db, "payY"), "payY", NOW);
+
+    assert.equal(fake.store.get(`${W}/holds/${holdId}`)!.status, "refunded");
   });
 });

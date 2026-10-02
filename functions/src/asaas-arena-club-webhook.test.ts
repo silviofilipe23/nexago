@@ -5,7 +5,8 @@ import {Timestamp} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {processArenaClubSessionAsaasNotification} from "./asaas-arena-club-webhook";
 import {parseClubSessionPaymentRef} from "./arena-club-constants";
-import {attachHoldPayment, holdCashback} from "./athlete-wallet";
+import {attachHoldPayment, captureHold, holdCashback} from "./athlete-wallet";
+import {reverseCashbackForPayment} from "./cashback-reversal";
 
 const SESSION_PATH = "arenaClubSessions/club_c1_2026-07-24";
 const PARTICIPANT_PATH = `${SESSION_PATH}/clubParticipants/uid1`;
@@ -341,7 +342,7 @@ describe("processArenaClubSessionAsaasNotification — cashback", () => {
     assert.equal(credit.grossReais, 15);
   });
 
-  it("lista cheia: estorna sem creditar e não mexe na reserva aberta (sweeper libera depois)", async () => {
+  it("lista cheia: estorna sem creditar e devolve a reserva aberta na hora", async () => {
     const {fake, db} = makeDb();
     seedSession(fake, {capacity: 1, confirmedCount: 1, pendingCount: 0});
     seedSpendableLot(fake, 2000);
@@ -360,10 +361,100 @@ describe("processArenaClubSessionAsaasNotification — cashback", () => {
     );
 
     assert.deepEqual(refunds, ["pay1"]);
-    assert.equal(fake.store.get(`athleteWallets/uid1/holds/${holdId}`)!.status, "open");
+    assert.equal(fake.store.get(`athleteWallets/uid1/holds/${holdId}`)!.status, "released");
+    assert.equal(fake.store.get("athleteWallets/uid1/lots/old")!.remainingCents, 2000);
     const processed = fake.store.get(PROCESSED_PATH)!;
     assert.equal(processed.outcome, "refunded_session_full");
     assert.equal(processed.cashback, undefined);
     assert.equal(processed.cashbackStatus, undefined);
+  });
+
+  // R2: a varredura de 5 min pode capturar a reserva (Asaas diz RECEIVED)
+  // antes de o webhook chegar; quando o webhook estorna em vez de consumir,
+  // o saldo tem de voltar — uma vez só, mesmo com o PAYMENT_REFUNDED depois.
+  function refundEntries(fake: FakeFirestore): Array<Record<string, unknown>> {
+    return [...fake.store.entries()]
+      .filter(([path, data]) => path.startsWith("athleteWallets/uid1/ledger/") && data.type === "refund")
+      .map(([, data]) => data);
+  }
+
+  async function sweeperCapturedHold(db: Firestore, paymentId: string): Promise<string> {
+    const {holdId} = await holdCashback(db, {
+      uid: "uid1", maxCents: 1000, sourceType: "club", sourceId: "club_c1_2026-07-24",
+      trackingPath: PARTICIPANT_PATH, label: "Clubinho", nowMs: NOW_MS,
+    });
+    await attachHoldPayment(db, "uid1", holdId!, paymentId);
+    await captureHold(db, "uid1", holdId!, NOW_MS);
+    return holdId!;
+  }
+
+  it("lista cheia com a reserva já capturada pela varredura: estorna e devolve o saldo uma vez", async () => {
+    const {fake, db} = makeDb();
+    seedSession(fake, {capacity: 1, confirmedCount: 1, pendingCount: 0});
+    seedSpendableLot(fake, 2000);
+    const holdId = await sweeperCapturedHold(db, "pay1");
+    seedParticipant(fake, {status: "expired"});
+    const {deps, refunds} = makeDeps();
+
+    await processArenaClubSessionAsaasNotification(
+      db, "pay1", {...paidPayment, value: 5}, processedRefOf(db), deps,
+    );
+    // O estorno automático dispara o PAYMENT_REFUNDED depois.
+    await reverseCashbackForPayment(db, processedRefOf(db), "pay1", NOW_MS, {externalReference: EXTERNAL_REF});
+
+    assert.deepEqual(refunds, ["pay1"]);
+    assert.equal(fake.store.get(`athleteWallets/uid1/holds/${holdId}`)!.status, "refunded");
+    assert.equal(fake.store.get("athleteWallets/uid1/lots/old")!.remainingCents, 2000);
+    assert.equal(refundEntries(fake).length, 1);
+    assert.equal(refundEntries(fake)[0].amountCents, 1000);
+  });
+
+  it("sessão encerrada e participante sumido (órfão): estorno devolve a reserva capturada", async () => {
+    for (const scenario of ["session_closed", "orphan"] as const) {
+      const {fake, db} = makeDb();
+      seedSession(fake, scenario === "session_closed" ? {status: "canceled"} : {});
+      seedSpendableLot(fake, 2000);
+      const holdId = await sweeperCapturedHold(db, "pay1");
+      if (scenario === "session_closed") seedParticipant(fake, {status: "pending_payment"});
+      const {deps, refunds} = makeDeps();
+
+      await processArenaClubSessionAsaasNotification(db, "pay1", paidPayment, processedRefOf(db), deps);
+
+      assert.deepEqual(refunds, ["pay1"], scenario);
+      assert.equal(fake.store.get(`athleteWallets/uid1/holds/${holdId}`)!.status, "refunded", scenario);
+      assert.equal(refundEntries(fake).length, 1, scenario);
+    }
+  });
+
+  it("estorno automático falhou: a reserva capturada fica até o estorno acontecer", async () => {
+    const {fake, db} = makeDb();
+    seedSession(fake, {capacity: 1, confirmedCount: 1, pendingCount: 0});
+    seedSpendableLot(fake, 2000);
+    const holdId = await sweeperCapturedHold(db, "pay1");
+    seedParticipant(fake, {status: "expired"});
+    const {deps} = makeDeps();
+    deps.refund = async () => {
+      throw new Error("Asaas fora");
+    };
+
+    await processArenaClubSessionAsaasNotification(db, "pay1", paidPayment, processedRefOf(db), deps);
+
+    assert.equal(fake.store.get(`athleteWallets/uid1/holds/${holdId}`)!.status, "captured");
+  });
+
+  it("pagamento em dobro (participante já confirmado): devolve a reserva capturada desta cobrança", async () => {
+    const {fake, db} = makeDb();
+    seedSession(fake);
+    seedSpendableLot(fake, 2000);
+    const holdId = await sweeperCapturedHold(db, "pay1");
+    seedParticipant(fake, {status: "confirmed", asaasPaymentId: "payOutro"});
+
+    await processArenaClubSessionAsaasNotification(
+      db, "pay1", {...paidPayment, value: 5}, processedRefOf(db), makeDeps().deps,
+    );
+
+    assert.equal(fake.store.get(PROCESSED_PATH)!.outcome, "already_confirmed");
+    assert.equal(fake.store.get(`athleteWallets/uid1/holds/${holdId}`)!.status, "refunded");
+    assert.equal(refundEntries(fake).length, 1);
   });
 });

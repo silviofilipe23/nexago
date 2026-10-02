@@ -4,7 +4,8 @@ import type {DocumentReference, Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {processTournamentRegistrationAsaasNotification} from "./asaas-tournament-registration-webhook";
 import {Timestamp} from "firebase-admin/firestore";
-import {attachHoldPayment, holdCashback} from "./athlete-wallet";
+import {attachHoldPayment, captureHold, holdCashback} from "./athlete-wallet";
+import {reverseCashbackForPayment} from "./cashback-reversal";
 
 process.env.GCLOUD_PROJECT = "p";
 
@@ -554,5 +555,40 @@ describe("asaas-tournament-registration-webhook: cashback", () => {
     assert.equal(processed.outcome, "duplicate_payer");
     assert.equal(processed.cashbackAppliedCents, 1000);
     assert.equal(fake.store.get(`athleteWallets/uidA/holds/${holdId}`)!.status, "released");
+  });
+
+  it("pagamento duplicado com a reserva já capturada pela varredura: o saldo volta uma vez", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake, {sharePaidUids: ["uidA", "uidB"], paidAmount: ENTRY_FEE, isPaid: true});
+    seedSpendableLot(fake, "uidA", 2000);
+    const {holdId} = await holdCashback(db, {
+      uid: "uidA", maxCents: 1000, sourceType: "registration", sourceId: REG_ID,
+      trackingPath: PENDING_A, label: "Inscrição · Copa Teste", nowMs: NOW_MS,
+    });
+    await attachHoldPayment(db, "uidA", holdId!, "pay1");
+    // A varredura viu RECEIVED no Asaas antes do webhook e capturou.
+    await captureHold(db, "uidA", holdId!, NOW_MS);
+    fake.seedDoc(PENDING_A, {
+      status: "pending", amountType: "share", asaasPaymentId: "pay1", payerUid: "uidA",
+    });
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1",
+      {status: "RECEIVED", value: 40, billingType: "PIX",
+        externalReference: `tournamentRegistration:${REG_ID}:uidA`},
+      processedRefOf(db), makeDeps().deps,
+    );
+    // O estorno manual depois (PAYMENT_REFUNDED) não devolve de novo.
+    await reverseCashbackForPayment(db, processedRefOf(db), "pay1", NOW_MS, {
+      externalReference: `tournamentRegistration:${REG_ID}:uidA`,
+    });
+
+    assert.equal(fake.store.get(PROCESSED_PATH)!.outcome, "duplicate_payer");
+    assert.equal(fake.store.get(`athleteWallets/uidA/holds/${holdId}`)!.status, "refunded");
+    assert.equal(fake.store.get("athleteWallets/uidA/lots/old")!.remainingCents, 2000);
+    const refunds = [...fake.store.entries()]
+      .filter(([path, data]) => path.startsWith("athleteWallets/uidA/ledger/") && data.type === "refund");
+    assert.equal(refunds.length, 1);
   });
 });

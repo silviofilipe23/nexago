@@ -124,9 +124,13 @@ export const asaasWebhook = onRequest({
     `artifacts/${projectId}/public/data/asaas_processed_payments/${paymentId}`,
   );
 
+  // Referência da cobrança: também diz ao estorno quem é o pagador quando o
+  // pagamento não tem intenção de cashback (reserva capturada pela varredura).
+  let refundRef = (body.payment?.externalReference || "").trim();
   try {
     const payment = await getAsaasPayment(paymentId);
     const externalRef = (payment.externalReference || "").trim();
+    if (externalRef) refundRef = externalRef;
     const subscriptionRef = (payment.subscription || "").trim();
     if (externalRef.startsWith(TOURNAMENT_REGISTRATION_PAYMENT_REF_PREFIX)) {
       await processTournamentRegistrationAsaasNotification(
@@ -154,7 +158,9 @@ export const asaasWebhook = onRequest({
   // pode impedir o outro.
   if (event === "PAYMENT_REFUNDED") {
     try {
-      await reverseCashbackForPayment(db, processedRef, paymentId, Date.now());
+      await reverseCashbackForPayment(db, processedRef, paymentId, Date.now(), {
+        externalReference: refundRef,
+      });
     } catch (e) {
       logger.error(`asaasWebhook: estorno do cashback falhou paymentId=${paymentId}`, e);
     }

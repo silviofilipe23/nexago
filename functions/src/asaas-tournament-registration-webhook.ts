@@ -55,7 +55,7 @@ import {
   registrationCashbackLabel,
   resolveCashbackForPayment,
 } from "./cashback-intent";
-import {releaseCashbackHoldQuietly} from "./cashback-checkout";
+import {refundHoldOfPayment} from "./cashback-reversal";
 
 const ASAAS_NEGATIVE_TERMINAL_STATUSES = new Set([
   "OVERDUE",
@@ -268,8 +268,9 @@ export async function processTournamentRegistrationAsaasNotification(
         // (em geral o parceiro pagou o integral antes deste PIX ser quitado).
         // Creditar de novo cobraria a mais, então sobra estorno manual — e isso
         // precisa ser barulhento, não um `return` silencioso. O saldo que esta
-        // cobrança reservou volta: sem crédito, não há o que capturar.
-        await releaseCashbackHoldQuietly(db, payerUid, holdId, Date.now());
+        // cobrança usou volta: sem crédito, não há o que consumir — aberta ou
+        // já capturada pela varredura de 5 min (Asaas disse pago antes).
+        await refundHoldOfPayment(db, payerUid, paymentId, Date.now());
         logger.error(
           `Asaas tournament registration ${registrationId}: pagamento duplicado de ` +
           `${payerUid} (R$ ${paidOnline}) — estorno manual necessário`,

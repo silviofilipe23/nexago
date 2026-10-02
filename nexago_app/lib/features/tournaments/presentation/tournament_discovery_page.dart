@@ -15,12 +15,14 @@ import '../../athlete/presentation/widgets/tournament_access_banner.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'widgets/compete_hub/compete_hub_menu_card.dart';
 import 'widgets/compete_hub/compete_hub_shell_app_bar.dart';
+import 'widgets/compete_hub/compete_hub_wide_card.dart';
 
 /// Respiro entre os cards do grid 2x2, nos dois eixos.
 const double _gridGap = AppSpacing.md + 2;
 
 /// Aba Competir — menu de navegação no padrão do painel do portal web:
-/// quatro cards (Torneios e ligas, Ranking, Equipes, Atletas). O conteúdo
+/// quatro cards (Torneios e ligas, Ranking, Equipes, Atletas) e, abaixo, o
+/// card largo de Organizadores. O conteúdo
 /// em destaque (carrossel de competições, convites) mora na Home.
 class TournamentDiscoveryPage extends ConsumerWidget {
   const TournamentDiscoveryPage({super.key});
@@ -135,6 +137,15 @@ class TournamentDiscoveryPage extends ConsumerWidget {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: _gridGap),
+                    CompeteHubWideCard(
+                      icon: Icons.storefront_outlined,
+                      title: 'Organizadores',
+                      description:
+                          'Conheça quem organiza os eventos e siga para saber quando abrem inscrições',
+                      onTap: () =>
+                          context.pushNamed(AppRouteNames.organizersDirectory),
                     ),
                   ],
                 ),

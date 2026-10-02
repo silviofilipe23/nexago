@@ -539,3 +539,30 @@ String? organizerOpenEventsLabel(int openEvents) {
   if (openEvents <= 0) return null;
   return '$openEvents com inscrição aberta';
 }
+
+/// Linha de números do card da lista: "★ 4,8 · 38 eventos · 2.100 seguidores". A nota só entra
+/// com reputação pública.
+String organizerDirectoryMetaLine(
+  OrganizerPublicProfile profile,
+  OrganizerReputation? reputation,
+) {
+  final events = profile.stats.eventsCompleted;
+  final followers = profile.followersCount;
+  return [
+    if (organizerHasPublicReputation(reputation))
+      '★ ${formatTournamentReviewAverage(reputation!.average!)}',
+    '${formatOrganizerCount(events)} ${events == 1 ? 'evento' : 'eventos'}',
+    '${formatOrganizerCount(followers)} '
+        '${followers == 1 ? 'seguidor' : 'seguidores'}',
+  ].join(' · ');
+}
+
+/// Nome na linha "Organizado por" do torneio: o da marca quando o perfil público é exibível
+/// (`isOrganizer`); senão o nome de antes (perfil do usuário / e-mail).
+String organizerDisplayNameFor(
+  OrganizerPublicProfile? profile, {
+  required String fallback,
+}) {
+  if (profile != null && profile.isDisplayable) return profile.name;
+  return fallback;
+}

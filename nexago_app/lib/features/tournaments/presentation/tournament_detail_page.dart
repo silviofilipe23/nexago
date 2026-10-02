@@ -35,6 +35,9 @@ import 'widgets/tournament_review/tournament_review_cta.dart';
 import '../../organizer/domain/tournament_reviews/organizer_tournament_review_providers.dart';
 import '../domain/tournament_review_public_logic.dart';
 import 'widgets/tournament_review/tournament_public_reviews_section.dart';
+import '../../organizer_public_profile/domain/organizer_public_profile_logic.dart';
+import '../../organizer_public_profile/domain/organizer_public_profile_models.dart';
+import '../../organizer_public_profile/domain/organizer_public_profile_providers.dart';
 
 void _handleTournamentDetailBack(BuildContext context) {
   if (context.canPop()) {
@@ -242,6 +245,11 @@ class _TournamentDetailContentState
     final organizerReputation = managerId.isEmpty
         ? null
         : ref.watch(organizerReputationProvider(managerId)).valueOrNull;
+    // Perfil público do organizador: dá o nome da marca e torna a linha tocável. Sem doc (ou
+    // doc só com números, sem `isOrganizer`), segue o nome de antes e a linha não leva a nada.
+    final organizerProfile = managerId.isEmpty
+        ? null
+        : ref.watch(organizerPublicProfileProvider(managerId)).valueOrNull;
 
     // Abertura agendada: a tela se acerta sozinha na hora marcada — quem está
     // parado aqui esperando as 10:00 vê a barra de inscrição aparecer.
@@ -255,7 +263,15 @@ class _TournamentDetailContentState
         athleteTeamIds: athleteTeamIdsForHighlight(teamIdsByCategory),
         reviewBadge: tournamentReviewBadgeLabel(reviewSummary),
         organizerReputation: organizerReputationLabel(organizerReputation),
+        organizerProfile: organizerProfile,
       ),
+    );
+  }
+
+  void _openOrganizerProfile(String organizerId) {
+    context.pushNamed(
+      AppRouteNames.organizerPublicProfile,
+      pathParameters: {'organizerId': organizerId},
     );
   }
 
@@ -267,6 +283,7 @@ class _TournamentDetailContentState
     required Set<String> athleteTeamIds,
     required String? reviewBadge,
     required String? organizerReputation,
+    required OrganizerPublicProfile? organizerProfile,
   }) {
     // `registrationOpensAt` futuro: o servidor recusa inscrição mesmo com o
     // torneio `open`, então a barra de inscrição também espera a abertura.
@@ -446,9 +463,18 @@ class _TournamentDetailContentState
               SliverToBoxAdapter(
                 child: TournamentDetailTournamentInfoSection(
                   tournament: widget.tournament,
-                  organizerName: widget.organizerName,
+                  organizerName: organizerDisplayNameFor(
+                    organizerProfile,
+                    fallback: widget.organizerName,
+                  ),
                   stats: widget.stats,
                   organizerReputation: organizerReputation,
+                  organizerLogoUrl: organizerProfile?.isDisplayable == true
+                      ? organizerProfile!.logoUrl
+                      : null,
+                  onOrganizerTap: organizerProfile?.isDisplayable == true
+                      ? () => _openOrganizerProfile(organizerProfile!.uid)
+                      : null,
                 ),
               ),
               const SliverPadding(padding: EdgeInsets.only(bottom: 50)),

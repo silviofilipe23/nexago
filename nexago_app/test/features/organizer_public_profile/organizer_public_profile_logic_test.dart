@@ -635,6 +635,39 @@ void main() {
       );
     });
 
+    test('linha de números do card', () {
+      expect(
+        organizerDirectoryMetaLine(
+          _profile(completed: 38, followers: 2100),
+          const OrganizerReputation(
+            reviewsCount: 12,
+            tournamentsRated: 3,
+            average: 4.75,
+          ),
+        ),
+        '★ 4,8 · 38 eventos · 2.100 seguidores',
+      );
+      expect(
+        organizerDirectoryMetaLine(_profile(completed: 1, followers: 1), null),
+        '1 evento · 1 seguidor',
+      );
+    });
+
+    test('nome no torneio: marca só com perfil exibível', () {
+      expect(
+        organizerDisplayNameFor(_profile(name: 'Liga X'), fallback: 'Ana'),
+        'Liga X',
+      );
+      expect(
+        organizerDisplayNameFor(
+          const OrganizerPublicProfile(uid: 'o', name: 'Organizador'),
+          fallback: 'Ana',
+        ),
+        'Ana',
+      );
+      expect(organizerDisplayNameFor(null, fallback: 'Ana'), 'Ana');
+    });
+
     test('rótulo de inscrições abertas', () {
       expect(organizerOpenEventsLabel(0), isNull);
       expect(organizerOpenEventsLabel(3), '3 com inscrição aberta');

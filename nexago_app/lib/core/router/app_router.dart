@@ -169,6 +169,7 @@ import '../../features/athlete/presentation/athlete_discover_page.dart';
 import '../../features/tournaments/presentation/team_discover_page.dart';
 import '../../features/tournaments/presentation/team_profile/team_public_profile_page.dart';
 import '../../features/organizer_public_profile/presentation/organizer_public_profile_page.dart';
+import '../../features/organizer_public_profile/presentation/organizers_directory_page.dart';
 import '../../features/ranking/presentation/athlete_ranking_page.dart';
 import '../../features/tournaments/presentation/my_tournaments_page.dart';
 import '../../features/tournaments/presentation/tournament_discovery_list_page.dart';
@@ -1139,6 +1140,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final teamId = state.pathParameters['teamId']?.trim() ?? '';
           return TeamPublicProfilePage(teamId: teamId);
         },
+      ),
+      GoRoute(
+        path: AppRoutes.organizersDirectory,
+        name: AppRouteNames.organizersDirectory,
+        builder: (context, state) => const OrganizersDirectoryPage(),
       ),
       GoRoute(
         path: AppRoutes.organizerPublicProfile,

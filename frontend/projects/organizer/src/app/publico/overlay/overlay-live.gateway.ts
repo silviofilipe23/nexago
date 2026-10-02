@@ -11,7 +11,7 @@ import {
   type TournamentMatch,
 } from '../../painel/data/matches-repository';
 import { nextFinishMemoryOf, type MatchFinishMemory } from '../../painel/telao/telao-finished';
-import { overlayCourtContextOf } from './overlay-court';
+import { OVERLAY_COURT_FOLLOW, overlayCourtContextOf } from './overlay-court';
 import { fetchProfileDisplays, fetchTeamsByIds } from '../../painel/data/teams-repository';
 import type { OrganizerTournament } from '../../painel/data/tournament.model';
 import { watchTournament } from '../../painel/data/tournaments-repository';
@@ -112,8 +112,9 @@ export class OverlayLiveGateway {
    *
    *  É o que permite o overlay emendar a rodada seguinte sozinho, em vez de alguém trocar a URL
    *  no meio da transmissão. Custa assinar as partidas do torneio — como o telão já faz — em vez
-   *  do doc único do modo partida. A escolha de QUAL partida é do `courtNowOf`, e a memória de
-   *  fim de partida é o que segura a recém-encerrada na tela tempo suficiente pras telas de fim. */
+   *  do doc único do modo partida. A escolha de QUAL partida é do `overlayCourtContextOf`, e a
+   *  memória de fim de partida é o que segura a recém-encerrada na tela tempo suficiente pras
+   *  telas de fim — no KOTC, depois delas entra a próxima rodada ("Próximos em quadra"). */
   startCourt(tournamentId: string, courtId: string): () => void {
     // Trocar de quadra na `/transmissao` não pode deixar a partida da quadra anterior no ar até
     // o 1º snapshot da nova.
@@ -130,7 +131,9 @@ export class OverlayLiveGateway {
     const resolver = () => {
       const agora = Date.now();
       this.finishMemory = nextFinishMemoryOf(this.finishMemory, ultimas, agora);
-      const ctx = overlayCourtContextOf(ultimas, courtId, agora, this.finishMemory);
+      // A rodada KOTC encerrada fica o ciclo inteiro (resultado + classificadas) antes de a
+      // quadra passar pra próxima rodada.
+      const ctx = overlayCourtContextOf(ultimas, courtId, agora, this.finishMemory, OVERLAY_COURT_FOLLOW);
       this.match.set(ctx.match);
       this.categoryMatches.set(ctx.categoryMatches);
       this.totalRounds.set(ctx.totalRounds);

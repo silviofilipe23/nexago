@@ -416,6 +416,49 @@ describe('OverlayPageComponent', () => {
     }
   });
 
+  it('seguindo a quadra: resultado → classificadas → próximos em quadra, sem voltar ao resultado', async () => {
+    jasmine.clock().install();
+    try {
+      const { fixture, fake } = await noFimDaRodada({ matchId: '', tournamentId: 't1', courtId: 'q2' });
+      expect(telaAtual(fixture)).toBe('resultado');
+
+      jasmine.clock().tick(20_000);
+      await fixture.whenStable();
+      expect(telaAtual(fixture)).toBe('classificadas');
+
+      // O gateway troca a partida da quadra ~1 s depois do ciclo; até lá a tabela não pode
+      // voltar pro resultado (piscaria antes da troca).
+      jasmine.clock().tick(15_000);
+      await fixture.whenStable();
+      expect(telaAtual(fixture)).toBe('classificadas');
+
+      const encerrada = rodadaEncerrada();
+      fake.match.set(
+        match({
+          id: 'm2',
+          status: 'scheduled',
+          matchType: 'koc_round',
+          matchNumber: 2,
+          teamAId: '',
+          teamBId: '',
+          sets: [],
+          currentSetIndex: null,
+          koc: { ...encerrada.koc!, teamIds: ['q', 'k', 'c'], standings: [], points: {}, roundLabel: 2 },
+        }),
+      );
+      await fixture.whenStable();
+      const host = fixture.nativeElement as HTMLElement;
+
+      expect(telaAtual(fixture)).toBe('nenhuma');
+      expect(host.querySelector('og-overlay-koc-preround .card')).not.toBeNull();
+      const text = (host.textContent ?? '').replace(/\s+/g, ' ');
+      expect(text).toContain('Próximos');
+      expect(text).toContain('em quadra');
+    } finally {
+      jasmine.clock().uninstall();
+    }
+  });
+
   it('?tela= fixa a visualização e desliga o rodízio', async () => {
     jasmine.clock().install();
     try {

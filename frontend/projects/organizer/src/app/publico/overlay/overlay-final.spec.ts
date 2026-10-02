@@ -1,6 +1,6 @@
 import type { KocRoundState } from '../../painel/data/koc';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
-import { finalResultOf } from './overlay-final';
+import { categoryFinalOf, finalResultOf } from './overlay-final';
 
 function round(overrides: Partial<KocRoundState> = {}): KocRoundState {
   return {
@@ -175,5 +175,34 @@ describe('finalResultOf — final de KOTC', () => {
     const r = round({ standings: [{ teamId: 'a', place: 1, points: 9, crowns: 2, removed: false }] });
 
     expect(finalResultOf(match({ matchType: 'koc_round', teamAId: '', teamBId: '', koc: r }))).toBeNull();
+  });
+});
+
+describe('categoryFinalOf', () => {
+  it('a final encerrada da categoria pedida, em qualquer quadra', () => {
+    const final = match({ id: 'f', categoryId: 'masc', matchType: 'Final', status: 'completed', winnerSide: 1, courtId: 'q3' });
+    const ms = [
+      match({ id: 'sf', categoryId: 'masc', matchType: 'knockout', status: 'completed', winnerSide: 1 }),
+      final,
+      match({ id: 'outra', categoryId: 'fem', matchType: 'Final', status: 'completed', winnerSide: 2 }),
+    ];
+    expect(categoryFinalOf(ms, 'masc')?.id).toBe('f');
+  });
+
+  it('final ainda não decidida não tem pódio', () => {
+    const ms = [match({ categoryId: 'masc', matchType: 'Final', status: 'in_progress' })];
+    expect(categoryFinalOf(ms, 'masc')).toBeNull();
+  });
+
+  it('KOTC: a rodada final encerrada', () => {
+    const ms = [
+      match({ id: 'r1', categoryId: 'k', matchType: 'koc_round', status: 'completed', koc: round() }),
+      match({ id: 'kf', categoryId: 'k', matchType: 'koc_final', status: 'completed', koc: round() }),
+    ];
+    expect(categoryFinalOf(ms, 'k')?.id).toBe('kf');
+  });
+
+  it('categoria sem partidas: nada', () => {
+    expect(categoryFinalOf([], 'masc')).toBeNull();
   });
 });

@@ -77,6 +77,13 @@ describe('broadcastControlFromRaw', () => {
     expect(c.courtId).toBeNull();
   });
 
+  it('categoria do pódio: ausente/vazia = automático (null); id válido passa', () => {
+    expect(DEFAULT_BROADCAST_CONTROL.championsCategoryId).toBeNull();
+    expect(broadcastControlFromRaw({ championsCategoryId: '  ' }).championsCategoryId).toBeNull();
+    expect(broadcastControlFromRaw({ championsCategoryId: 7 }).championsCategoryId).toBeNull();
+    expect(broadcastControlFromRaw({ championsCategoryId: 'cat-masc' }).championsCategoryId).toBe('cat-masc');
+  });
+
   it('lê quadra, tela do fim de rodada e modo final válidos', () => {
     const c = broadcastControlFromRaw({ courtId: 'q2', kocRoundEndScreen: 'classificadas', finalMode: 'off' });
     expect(c.courtId).toBe('q2');

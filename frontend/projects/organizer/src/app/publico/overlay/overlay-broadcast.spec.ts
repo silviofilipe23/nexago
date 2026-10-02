@@ -31,18 +31,36 @@ const TARJA: BroadcastInterview = interviewWithDefaults({
 
 describe('overlayLayersOf', () => {
   it('sem painel mexido, vai ao ar o que a regra automática manda', () => {
-    expect(overlayLayersOf(controle(), TUDO, false)).toEqual({ ...TUDO, interview: false });
+    const semPodio = { ...TUDO, champions: false };
+    expect(overlayLayersOf(controle(), semPodio, false)).toEqual({ ...semPodio, interview: false });
     const nada = { duel: false, kocBar: false, kocPreRound: false, roundEnd: false, champions: false };
     expect(overlayLayersOf(controle(), nada, false)).toEqual({ ...nada, interview: false });
   });
 
   it('chave desligada tira o gráfico mesmo quando a regra automática mandaria', () => {
     const c = controle({ graphics: { ...DEFAULT_BROADCAST_CONTROL.graphics, scoreboard: false, kocRoundEnd: false } });
-    const l = overlayLayersOf(c, TUDO, false);
+    const l = overlayLayersOf(c, { ...TUDO, champions: false }, false);
     expect(l.duel).toBeFalse();
     expect(l.roundEnd).toBeFalse();
     expect(l.kocBar).toBeTrue();
-    expect(l.champions).toBeTrue();
+  });
+
+  it('pódio no ar toma o lugar do placar e das telas do KOTC — a categoria escolhida pode não ser a da quadra', () => {
+    expect(overlayLayersOf(controle(), TUDO, false)).toEqual({
+      duel: false,
+      kocBar: false,
+      kocPreRound: false,
+      roundEnd: false,
+      champions: true,
+      interview: false,
+    });
+  });
+
+  it('chave dos campeões desligada: o placar segue no ar', () => {
+    const c = controle({ graphics: { ...DEFAULT_BROADCAST_CONTROL.graphics, champions: false } });
+    const l = overlayLayersOf(c, TUDO, false);
+    expect(l.champions).toBeFalse();
+    expect(l.duel).toBeTrue();
   });
 
   it('chave ligada não inventa gráfico que a regra automática não pôs', () => {

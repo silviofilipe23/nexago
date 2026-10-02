@@ -90,6 +90,11 @@ test('tarja, comandos e modos completos cabem no allowlist', async () => {
   );
 });
 
+test('categoria do pódio cabe no allowlist (e volta pro automático com null)', async () => {
+  await assertSucceeds(setDoc(controle(as(GESTOR)), patch(GESTOR, { championsCategoryId: 'cat-masc' }), { merge: true }));
+  await assertSucceeds(setDoc(controle(as(GESTOR)), patch(GESTOR, { championsCategoryId: null }), { merge: true }));
+});
+
 test('"Tirar do ar" grava interview: null', async () => {
   await assertSucceeds(setDoc(controle(as(GESTOR)), patch(GESTOR, { interview: null }), { merge: true }));
 });

@@ -1,11 +1,11 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { isKingOfCourtMatchType, kocColumnLabel, normalizeMatchType } from '../../painel/data/koc';
-import { resolveCourtNames } from '../../painel/data/matches-repository';
+import { resolveCourtNames, type TournamentMatch } from '../../painel/data/matches-repository';
 import { finalKindOf } from '../../painel/telao/telao-final-mode';
 import { KOC_CLASSIFICADAS_MS, KOC_RESULTADO_MS } from './overlay-court';
 import { OverlayLiveGateway } from './overlay-live.gateway';
 import { OverlayKocBarComponent } from './overlay-koc-bar.component';
-import { finalResultOf } from './overlay-final';
+import { categoryFinalOf, finalResultOf } from './overlay-final';
 import { OverlayFinalComponent, type FinalCampeoes } from './overlay-final.component';
 import { kocPreRoundOf } from './overlay-koc-preround';
 import { OverlayKocPreRoundComponent } from './overlay-koc-preround.component';
@@ -91,8 +91,8 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
       <og-overlay-final
         [resultado]="c"
         [torneio]="gateway.tournament()?.name ?? ''"
-        [categoria]="categoryName()"
-        [quadra]="courtName()"
+        [categoria]="podioCategoryName()"
+        [quadra]="podioCourtName()"
       />
     }
     <div class="stage">
@@ -339,10 +339,22 @@ export class OverlayPageComponent {
     );
   });
 
-  /** Campeões da categoria. Tem precedência sobre a classificação da rodada: a final KOTC também
-   *  é uma rodada encerrada, e as duas telas juntas seriam duas verdades no mesmo espaço. */
-  private readonly campeoesAuto = computed<FinalCampeoes | null>(() => {
-    const m = this.match();
+  /** Categoria do pódio escolhida no painel; '' = automático. String: o effect que assina as
+   *  partidas do torneio só re-roda quando a ESCOLHA muda. */
+  private readonly categoriaDoPodio = computed(() => this.controle().championsCategoryId ?? '');
+
+  /** Final decidida da categoria escolhida, em qualquer quadra, com o nome da quadra resolvido. */
+  private readonly finalEscolhida = computed(() => {
+    const cat = this.categoriaDoPodio();
+    if (!cat) return null;
+    const m = categoryFinalOf(this.gateway.tournamentMatches(), cat);
+    return m ? (resolveCourtNames([m], this.gateway.tournament()?.courts ?? [])[0] ?? m) : null;
+  });
+
+  /** Partida de onde sai o pódio: a final da categoria escolhida ou, no automático, a da tela. */
+  private readonly partidaDoPodio = computed(() => (this.categoriaDoPodio() ? this.finalEscolhida() : this.match()));
+
+  private campeoesDe(m: TournamentMatch | null): FinalCampeoes | null {
     const r = m ? finalResultOf(m) : null;
     if (!r) return null;
     const face = (teamId: string) => {
@@ -360,14 +372,29 @@ export class OverlayPageComponent {
       fotos: campeao.fotos,
       placar: r.placar,
     };
+  }
+
+  /** Campeões da partida da TELA — a final KOTC também é uma rodada encerrada, e a classificação
+   *  dela não pode disputar o espaço com o pódio. */
+  private readonly campeoesDaQuadra = computed(() => this.campeoesDe(this.match()));
+
+  /** Campeões que vão ao ar: os da categoria escolhida no painel ou, no automático, os da tela. */
+  private readonly campeoesAuto = computed<FinalCampeoes | null>(() =>
+    this.categoriaDoPodio() ? this.campeoesDe(this.finalEscolhida()) : this.campeoesDaQuadra(),
+  );
+
+  protected readonly podioCategoryName = computed(() => {
+    const m = this.partidaDoPodio();
+    return this.gateway.tournament()?.categories.find((c) => c.id === m?.categoryId)?.name ?? null;
   });
+  protected readonly podioCourtName = computed(() => this.partidaDoPodio()?.court ?? null);
   protected readonly campeoes = computed(() => (this.layers().champions ? this.campeoesAuto() : null));
 
   /** Classificação da rodada KOTC encerrada. */
   protected readonly standings = computed(() => {
     const m = this.match();
     if (!m || !isKingOfCourtMatchType(m.matchType) || m.status !== 'completed') return null;
-    if (this.campeoesAuto()) return null;
+    if (this.campeoesDaQuadra()) return null;
     return kocStandingsBoardOf(m, this.gateway.categoryMatches());
   });
 
@@ -593,6 +620,20 @@ export class OverlayPageComponent {
       const torneio = this.torneioDoControle();
       if (!torneio) return;
       onCleanup(this.gateway.watchControl(torneio));
+    });
+
+    // Pódio de categoria escolhida: assina as partidas do torneio só enquanto houver escolha, e
+    // resolve nome/foto de campeão e vice, que podem não estar em nenhuma partida da tela.
+    effect((onCleanup) => {
+      const cat = this.categoriaDoPodio();
+      const torneio = this.torneioDoControle();
+      if (!cat || !torneio) return;
+      onCleanup(this.gateway.watchTournamentMatches(torneio));
+    });
+    effect(() => {
+      const m = this.finalEscolhida();
+      const r = m ? finalResultOf(m) : null;
+      if (r) untracked(() => this.gateway.ensureTeams([r.campeaoTeamId, r.viceTeamId]));
     });
 
     // Comandos do painel: o 1º snapshot é a LINHA DE BASE (recarregar o OBS não repete um

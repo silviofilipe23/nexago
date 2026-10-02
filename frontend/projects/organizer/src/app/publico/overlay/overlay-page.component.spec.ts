@@ -54,7 +54,27 @@ const TOURNAMENT = {
 } as unknown as OrganizerTournament;
 
 /** Dublê do gateway: a tela não abre Firestore no spec. */
-class FakeGateway {
+/** `implements Pick<…>` amarra o dublê ao gateway REAL: membro renomeado lá quebra aqui. */
+class FakeGateway
+  implements
+    Pick<
+      OverlayLiveGateway,
+      | 'match'
+      | 'tournament'
+      | 'teams'
+      | 'totalRounds'
+      | 'categoryMatches'
+      | 'control'
+      | 'controlReady'
+      | 'tournamentMatches'
+      | 'watchControl'
+      | 'startTournament'
+      | 'start'
+      | 'startCourt'
+      | 'watchTournamentMatches'
+      | 'ensureTeams'
+    >
+{
   readonly match = signal<TournamentMatch | null>(null);
   readonly tournament = signal<OrganizerTournament | null>(null);
   readonly teams = signal<ReadonlyMap<string, OverlayTeam>>(new Map<string, OverlayTeam>());
@@ -69,6 +89,21 @@ class FakeGateway {
   readonly controlReady = signal(true);
   readonly controlWatched: string[] = [];
   readonly startedTournaments: string[] = [];
+  readonly tournamentMatches = signal<readonly TournamentMatch[]>([]);
+  /** Assinaturas de todas as partidas ativas (pódio de categoria escolhida). */
+  allMatchesWatchers = 0;
+  readonly ensuredTeams: string[] = [];
+
+  watchTournamentMatches(_tournamentId: string): () => void {
+    this.allMatchesWatchers++;
+    return () => {
+      this.allMatchesWatchers--;
+    };
+  }
+
+  ensureTeams(ids: readonly string[]): void {
+    this.ensuredTeams.push(...ids);
+  }
 
   watchControl(tournamentId: string): () => void {
     this.controlWatched.push(tournamentId);
@@ -667,6 +702,95 @@ describe('OverlayPageComponent', () => {
     expect(text).toContain('Ana');
     expect(text).toContain('Copa VH');
     expect(text).toContain('Carla & Dani');
+  });
+
+  describe('categoria do pódio escolhida no painel', () => {
+    const DUAS_CATEGORIAS = {
+      ...TOURNAMENT,
+      categories: [
+        { id: 'cat1', name: 'Feminina B' },
+        { id: 'masc', name: 'Masculino' },
+      ],
+      courts: [
+        { id: 'q2', name: 'Quadra 2' },
+        { id: 'q3', name: 'Quadra 3' },
+      ],
+    } as unknown as OrganizerTournament;
+
+    const finalMasc = match({
+      id: 'fm',
+      categoryId: 'masc',
+      status: 'completed',
+      matchType: 'Final',
+      winnerSide: 2,
+      teamAId: 'tc',
+      teamBId: 'td',
+      courtId: 'q3',
+      court: null,
+      sets: [{ a: 18, b: 21 }],
+    });
+
+    async function noAr(categoria: string | null) {
+      const montado = await mount({ matchId: 'm1' });
+      const { fixture, fake } = montado;
+      fake.tournament.set(DUAS_CATEGORIAS);
+      fake.teams.set(
+        new Map([
+          ['tc', { label: 'Caio / Davi', players: ['Caio', 'Davi'], photos: [null, null] }],
+          ['td', { label: 'Lord / Muralha', players: ['Lord', 'Muralha'], photos: [null, null] }],
+        ]),
+      );
+      // Jogo rolando na quadra acompanhada, de OUTRA categoria.
+      fake.match.set(match({ status: 'in_progress' }));
+      fake.control.set(controle({ championsCategoryId: categoria }));
+      await fixture.whenStable();
+      return montado;
+    }
+
+    it('mostra o pódio da categoria escolhida, em qualquer quadra, no lugar do placar', async () => {
+      const { fixture, fake } = await noAr('masc');
+      expect(fake.allMatchesWatchers).toBe(1);
+      fake.tournamentMatches.set([finalMasc]);
+      await fixture.whenStable();
+      const host = fixture.nativeElement as HTMLElement;
+      const text = (host.textContent ?? '').replace(/\s+/g, ' ');
+
+      expect(host.querySelector('og-overlay-final')).not.toBeNull();
+      expect(host.querySelector('og-overlay-scoreboard')).toBeNull();
+      expect(text).toContain('Lord');
+      expect(text).toContain('Masculino');
+      expect(text).toContain('Masculino · Quadra 3');
+      expect(text).not.toContain('Quadra Quadra');
+      expect(fake.ensuredTeams).toEqual(jasmine.arrayContaining(['td', 'tc']));
+    });
+
+    it('final da categoria ainda não decidida: nada de pódio, o placar segue', async () => {
+      const { fixture, fake } = await noAr('masc');
+      fake.tournamentMatches.set([{ ...finalMasc, status: 'in_progress' }]);
+      await fixture.whenStable();
+      const host = fixture.nativeElement as HTMLElement;
+
+      expect(host.querySelector('og-overlay-final')).toBeNull();
+      expect(host.querySelector('og-overlay-scoreboard')).not.toBeNull();
+    });
+
+    it('voltar pro automático solta a assinatura e o pódio sai', async () => {
+      const { fixture, fake } = await noAr('masc');
+      fake.tournamentMatches.set([finalMasc]);
+      await fixture.whenStable();
+      fake.control.set(controle({ championsCategoryId: null }));
+      await fixture.whenStable();
+      const host = fixture.nativeElement as HTMLElement;
+
+      expect(fake.allMatchesWatchers).toBe(0);
+      expect(host.querySelector('og-overlay-final')).toBeNull();
+      expect(host.querySelector('og-overlay-scoreboard')).not.toBeNull();
+    });
+
+    it('automático não assina as partidas do torneio', async () => {
+      const { fake } = await noAr(null);
+      expect(fake.allMatchesWatchers).toBe(0);
+    });
   });
 
   it('final sem vencedor declarado não coroa ninguém e também não mostra placar', async () => {

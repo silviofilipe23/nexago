@@ -155,6 +155,9 @@ export interface BroadcastControl {
   graphics: BroadcastGraphics;
   kocRoundEndScreen: KocRoundEndScreen;
   finalMode: BroadcastFinalMode;
+  /** Categoria cujo pódio o card de campeões mostra. `null` = automático: a final que encerra
+   *  na quadra acompanhada (comportamento de antes). */
+  championsCategoryId: string | null;
   interview: BroadcastInterview | null;
   commands: BroadcastCommands;
 }
@@ -172,6 +175,7 @@ export const DEFAULT_BROADCAST_CONTROL: BroadcastControl = {
   },
   kocRoundEndScreen: 'rodizio',
   finalMode: 'auto',
+  championsCategoryId: null,
   interview: null,
   commands: { donationNowAt: 0, sponsorsNowAt: 0 },
 };
@@ -291,6 +295,7 @@ export function broadcastControlFromRaw(raw: unknown): BroadcastControl {
     graphics,
     kocRoundEndScreen: SCREENS.includes(screen) ? screen : 'rodizio',
     finalMode: FINAL_MODES.includes(mode) ? mode : 'auto',
+    championsCategoryId: text(d['championsCategoryId']),
     interview: interviewFromRaw(d['interview']),
     commands: { donationNowAt: stamp(c['donationNowAt']), sponsorsNowAt: stamp(c['sponsorsNowAt']) },
   };

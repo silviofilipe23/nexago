@@ -460,6 +460,8 @@ export {
   splitArenaBookingPayment,
   expireArenaBookingPaymentShares,
 } from "./arena-booking-split";
+// Cashback do atleta: reservas de saldo de cobranças mortas e intenções pendentes (5 min).
+export {expireCashbackHolds} from "./cashback-hold-sweeper";
 // Programa de indicação (referral): código = UID do atleta, recompensa em XP
 // via gamificação (não existe carteira de atleta hoje).
 export {

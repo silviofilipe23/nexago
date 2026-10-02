@@ -1,39 +1,19 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal } from '@angular/core';
 import { DomSanitizer } from '@angular/platform-browser';
-import { tournamentSportToLevelSportCode } from '@nexago/levels';
 import {
-  interviewLineOf,
   interviewOnAirAt,
   type BroadcastFinalMode,
   type BroadcastGraphicId,
   type BroadcastGraphics,
-  type InterviewKind,
   type KocRoundEndScreen,
 } from '../data/broadcast-control';
 import { resolveCourtNames } from '../data/matches-repository';
-import { initialsOf } from '../data/mock-data';
-import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { broadcastGroupsFor } from './broadcast-graphics';
-import { interviewCardOf, interviewKindsFor, rosterLabelOf, type InterviewCardSource } from './interview-card';
 import { TransmissaoDataService } from './transmissao-data.service';
-import {
-  courtChipsOf,
-  courtMatchOf,
-  elapsedLabel,
-  interviewCandidatesOf,
-  quickPicksOf,
-  searchCandidates,
-  transmissaoUrl,
-  type InterviewCandidate,
-} from './transmissao-selectors';
-
-const DURATIONS: readonly { label: string; sec: number | null }[] = [
-  { label: '20 s', sec: 20 },
-  { label: '1 min', sec: 60 },
-  { label: 'Até tirar', sec: null },
-];
+import { TransmissaoEntrevistaComponent } from './transmissao-entrevista.component';
+import { courtChipsOf, transmissaoUrl } from './transmissao-selectors';
 
 const ROUND_END_OPTIONS: readonly { value: KocRoundEndScreen; label: string }[] = [
   { value: 'rodizio', label: 'Rodízio' },
@@ -57,7 +37,7 @@ const WIDE_QUERY = '(min-width: 1100px)';
   selector: 'og-transmissao',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [TransmissaoDataService],
-  imports: [OgPageHeaderComponent, OgCardComponent, OgAvatarComponent],
+  imports: [OgPageHeaderComponent, OgCardComponent, TransmissaoEntrevistaComponent],
   template: `
     <og-page-header title="Transmissão" subtitle="Controle o que aparece na live do torneio — placar, telas do KOTC, tarja de entrevista e patrocínio">
       <button type="button" class="og-ghost-btn" (click)="copyUrl()">{{ copied() ? 'Link copiado ✓' : 'Copiar link do OBS' }}</button>
@@ -91,75 +71,7 @@ const WIDE_QUERY = '(min-width: 1100px)';
             </div>
           </og-card>
 
-          <og-card kicker="Reporter" title="Entrevista">
-            @if (onAir()) {
-              <div class="og-tx-noar">
-                <span class="og-tx-noar-dot" aria-hidden="true"></span>
-                <span class="og-tx-noar-txt">{{ onAirText() }}</span>
-                <button type="button" class="og-mini-btn" (click)="takeOffAir()">Tirar do ar</button>
-              </div>
-            }
-            @if (quickPicks().length > 0) {
-              <div class="og-tx-label">Na quadra agora</div>
-              <div class="og-tx-chips">
-                @for (c of quickPicks(); track c.key) {
-                  <button type="button" class="og-chip" [class.active]="selected()?.key === c.key" (click)="pick(c)">{{ c.name }}</button>
-                }
-              </div>
-            }
-            <label class="og-tx-label" for="og-tx-busca">Buscar atleta do torneio</label>
-            <input
-              id="og-tx-busca"
-              class="og-input-el og-tx-busca"
-              type="search"
-              placeholder="Nome do atleta"
-              [value]="term()"
-              (input)="term.set($any($event.target).value)"
-            />
-            @for (c of results(); track c.key) {
-              <button type="button" class="og-tx-result" [class.active]="selected()?.key === c.key" (click)="pick(c)">
-                <og-avatar [initials]="initials(c.name)" [photoUrl]="c.photoUrl" [size]="32" />
-                <span class="og-tx-result-txt">
-                  <span class="og-tx-result-nome">{{ c.name }}</span>
-                  <span class="og-tx-result-sub">{{ line(c) }}</span>
-                </span>
-              </button>
-            }
-            @if (kinds().length > 1) {
-              <div class="og-tx-label">Entrevistar</div>
-              <div class="og-tx-chips" role="radiogroup" aria-label="Quem vai pra tarja">
-                @for (k of kinds(); track k) {
-                  <button type="button" class="og-chip" role="radio" [class.active]="kind() === k" [attr.aria-checked]="kind() === k" (click)="kind.set(k)">
-                    {{ kindLabel(k) }}
-                  </button>
-                }
-              </div>
-            }
-            <div class="og-toggle-row og-tx-campanha">
-              <div class="og-toggle-row-text">
-                <div class="og-toggle-row-title">Campanha no torneio</div>
-                <div class="og-toggle-row-desc">Resultados do entrevistado no canto direito da tela</div>
-              </div>
-              <button
-                type="button"
-                class="og-toggle"
-                role="switch"
-                [class.on]="campaignOn()"
-                [attr.aria-checked]="campaignOn()"
-                aria-label="Campanha no torneio"
-                (click)="toggleCampaign()"
-              ></button>
-            </div>
-            <div class="og-tx-label">Duração</div>
-            <div class="og-tx-chips">
-              @for (d of durations; track d.label) {
-                <button type="button" class="og-chip" [class.active]="duration() === d.sec" (click)="duration.set(d.sec)">{{ d.label }}</button>
-              }
-            </div>
-            <button type="button" class="og-mini-btn og-mini-btn-primary og-tx-ar" [disabled]="!selected()" (click)="putOnAir()">
-              {{ putOnAirLabel() }}
-            </button>
-          </og-card>
+          <og-tx-entrevista />
         </div>
 
         <div class="og-tx-col">
@@ -316,63 +228,6 @@ const WIDE_QUERY = '(min-width: 1100px)';
       flex-wrap: wrap;
       gap: 8px;
     }
-    .og-tx-busca {
-      height: 44px;
-      padding: 0 12px;
-    }
-    .og-tx-result {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      width: 100%;
-      margin-top: 6px;
-      padding: 8px 10px;
-      border: 1px solid transparent;
-      border-radius: var(--nx-r-3);
-      background: transparent;
-      color: var(--nx-text);
-      text-align: left;
-      cursor: pointer;
-    }
-    .og-tx-result.active {
-      border-color: var(--nx-orange-500);
-    }
-    .og-tx-result-txt {
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-    }
-    .og-tx-result-sub {
-      font-size: 12px;
-      color: var(--nx-text-dim);
-    }
-    .og-tx-campanha {
-      margin-top: 12px;
-    }
-    .og-tx-ar {
-      width: 100%;
-      min-height: 48px;
-      margin-top: 18px;
-      font-size: 15px;
-    }
-    .og-tx-noar {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 12px;
-      border-radius: var(--nx-r-3);
-      background: rgba(255, 59, 48, 0.12);
-    }
-    .og-tx-noar-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: var(--nx-live, #ff3b30);
-    }
-    .og-tx-noar-txt {
-      flex: 1;
-      min-width: 0;
-    }
     .og-tx-agora {
       margin-right: 10px;
     }
@@ -401,17 +256,11 @@ export class TransmissaoComponent {
   /** Preenchido pelo router (`withComponentInputBinding`) a partir de `eventos/:id/transmissao`. */
   readonly id = input.required<string>();
 
-  protected readonly durations = DURATIONS;
   protected readonly roundEndOptions = ROUND_END_OPTIONS;
   protected readonly finalOptions = FINAL_OPTIONS;
 
-  /** Relógio de 1 s: status das quadras e tempo da tarja no ar. */
+  /** Relógio de 1 s: status das quadras e tarja no ar. */
   private readonly now = signal(Date.now());
-  protected readonly term = signal('');
-  protected readonly selected = signal<InterviewCandidate | null>(null);
-  protected readonly kind = signal<InterviewKind>('atleta');
-  private readonly showCampaign = signal(true);
-  protected readonly duration = signal<number | null>(20);
   protected readonly copied = signal(false);
   protected readonly previewOpen = signal(typeof window !== 'undefined' && window.matchMedia(WIDE_QUERY).matches);
 
@@ -428,50 +277,10 @@ export class TransmissaoComponent {
 
   protected readonly courtChips = computed(() => courtChipsOf(this.svc.tournament()?.courts ?? [], this.matches(), this.now()));
 
-  private readonly candidates = computed(() =>
-    interviewCandidatesOf(this.svc.matches(), this.svc.rosters(), this.svc.tournament()?.categories ?? []),
-  );
-  protected readonly quickPicks = computed(() =>
-    quickPicksOf(this.candidates(), courtMatchOf(this.matches(), this.svc.control().courtId, this.now())),
-  );
-  protected readonly results = computed(() => searchCandidates(this.candidates(), this.term()));
-
-  /** Tudo que o card de entrevista lê — montado no clique, com os dados do momento. */
-  private readonly cardSource = computed<InterviewCardSource>(() => {
-    const t = this.svc.tournament();
-    return {
-      matches: this.matches(),
-      rosters: this.svc.rosters(),
-      details: this.svc.details(),
-      categories: (t?.categories ?? []).map((c) => ({ id: c.id, name: c.name, teamSize: c.teamSize ?? null })),
-      inLeague: !!t?.leagueId,
-      levelSportCode: tournamentSportToLevelSportCode(t?.sportId),
-      athleteRanking: this.svc.athleteRanking(),
-      teamRanking: this.svc.teamRanking(),
-    };
-  });
-  /** Atleta sempre; dupla/equipe quando o time está completo. */
-  protected readonly kinds = computed(() => {
-    const c = this.selected();
-    return c ? interviewKindsFor(c.teamId, this.cardSource()) : [];
-  });
-
   protected readonly onAir = computed(() => {
     const i = this.svc.control().interview;
     return interviewOnAirAt(i, this.now()) ? i : null;
   });
-  protected readonly onAirText = computed(() => {
-    const i = this.onAir();
-    return i ? `No ar: ${i.name} · ${elapsedLabel(this.now() - i.shownAt)}` : '';
-  });
-  protected readonly putOnAirLabel = computed(() => {
-    const c = this.selected();
-    if (!c) return 'Escolha um atleta';
-    return `Pôr no ar: ${this.kind() === 'atleta' ? c.name : (rosterLabelOf(this.svc.rosters().get(c.teamId)) ?? c.name)}`;
-  });
-  /** No ar manda o que está no ar; fora dele, a escolha pra próxima tarja. */
-  protected readonly campaignOn = computed(() => this.onAir()?.showCampaign ?? this.showCampaign());
-
   constructor() {
     effect(() => this.svc.tournamentId.set(this.id()));
     const timer = setInterval(() => this.now.set(Date.now()), 1000);
@@ -501,55 +310,10 @@ export class TransmissaoComponent {
     void this.svc.save({ finalMode });
   }
 
-  /** Escolher alguém é o sinal de que vem entrevista: é aí que o ranking geral começa a carregar. */
-  protected pick(c: InterviewCandidate): void {
-    this.selected.set(c);
-    this.kind.set('atleta');
-    this.svc.ensureRanking();
-  }
-
-  protected kindLabel(kind: InterviewKind): string {
-    if (kind === 'atleta') return this.selected()?.name ?? 'Atleta';
-    return kind === 'dupla' ? 'Dupla' : 'Equipe';
-  }
-
-  protected putOnAir(): void {
-    const c = this.selected();
-    if (!c) return;
-    const kind = this.kinds().includes(this.kind()) ? this.kind() : 'atleta';
-    const card = interviewCardOf({ kind, teamId: c.teamId, uid: kind === 'atleta' ? c.uid : null }, this.cardSource(), {
-      durationSec: this.duration(),
-      shownAt: Date.now(),
-      showCampaign: this.showCampaign(),
-    });
-    if (card) void this.svc.save({ interview: card });
-  }
-
-  /** Com a tarja no ar, regrava o card com o MESMO carimbo: a campanha entra/sai e a duração
-   *  não reinicia. */
-  protected toggleCampaign(): void {
-    const next = !this.campaignOn();
-    this.showCampaign.set(next);
-    const live = this.onAir();
-    if (live) void this.svc.save({ interview: { ...live, showCampaign: next } });
-  }
-
-  protected takeOffAir(): void {
-    void this.svc.save({ interview: null });
-  }
-
   protected copyUrl(): void {
     void navigator.clipboard.writeText(this.url()).then(() => {
       this.copied.set(true);
       setTimeout(() => this.copied.set(false), 2000);
     });
-  }
-
-  protected initials(name: string): string {
-    return initialsOf(name) || '?';
-  }
-
-  protected line(c: InterviewCandidate): string {
-    return interviewLineOf(c) ?? '';
   }
 }

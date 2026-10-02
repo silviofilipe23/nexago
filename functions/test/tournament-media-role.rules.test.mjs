@@ -63,6 +63,22 @@ test('mídia grava o controle da transmissão', async () => {
   );
 });
 
+test('mídia grava e lê a fila de entrevistas', async () => {
+  const fila = doc(as(MIDIA), 'tournaments', TORNEIO, 'broadcast', 'interviewQueue');
+  await assertSucceeds(
+    setDoc(fila, {
+      items: [],
+      current: 0,
+      questionIndex: 0,
+      reporter: { role: 'Repórter', name: '' },
+      show: { question: true, reporter: true, campaign: true },
+      updatedAt: serverTimestamp(),
+      updatedBy: MIDIA,
+    }),
+  );
+  await assertSucceeds(getDoc(fila));
+});
+
 test('mídia lê o próprio doc de equipe', async () => {
   await assertSucceeds(getDoc(doc(as(MIDIA), 'tournaments', TORNEIO, 'staff', MIDIA)));
 });

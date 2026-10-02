@@ -1,7 +1,7 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { interviewWithDefaults, type BroadcastInterview } from '../../painel/data/broadcast-control';
-import { INTERVIEW_EXIT_MS, INTERVIEW_SWAP_MS } from './overlay-interview';
+import { INTERVIEW_EXIT_MS, INTERVIEW_SWAP_MS, QUESTION_TIMINGS } from './overlay-interview';
 import { OverlayInterviewComponent } from './overlay-interview.component';
 import type { OverlayPatroItem } from './overlay-nx';
 
@@ -146,12 +146,39 @@ describe('OverlayInterviewComponent', () => {
     expect((await show({ ...DUPLA, showCampaign: false })).querySelector('.campanha')).toBeNull();
   });
 
-  it('marca nexaGO sempre; "Oferecimento" só com patrocinador', async () => {
+  it('pauta acima do card e repórter abaixo', async () => {
+    const el = await show({ ...DUPLA, question: 'Como foi a virada?', reporter: { role: 'Repórter', name: 'Carla Mendes' } });
+    const ordem = [...el.querySelectorAll('.terco .pauta, .terco og-overlay-interview-card, .terco .reporter')].map((n) =>
+      n.classList.contains('pauta') ? 'pauta' : n.classList.contains('reporter') ? 'reporter' : 'card',
+    );
+    expect(ordem).toEqual(['pauta', 'card', 'reporter']);
+    expect(text(el, '.pauta-tag')).toBe('Pauta');
+    expect(text(el, '.pauta-txt')).toBe('Como foi a virada?');
+    expect(text(el, '.rep-funcao')).toBe('Repórter');
+    expect(text(el, '.rep-nome')).toBe('Carla Mendes');
+    expect(el.querySelectorAll('.dobra.aberta').length).toBe(2);
+  });
+
+  it('sem pauta e sem repórter, as dobras ficam fechadas', async () => {
+    const el = await show(DUPLA);
+    expect(el.querySelector('.pauta')).toBeNull();
+    expect(el.querySelector('.reporter')).toBeNull();
+    expect(el.querySelectorAll('.dobra.aberta').length).toBe(0);
+  });
+
+  it('canto direito: a marca d\'água translúcida da nexaGO, como nas outras telas', async () => {
+    const el = await show(TARJA);
+    const marca = el.querySelector('.marca og-overlay-mark') as HTMLElement;
+    expect(marca.querySelector('img')?.getAttribute('src')).toBe('/brand/logo.png');
+    expect(getComputedStyle(marca).opacity).toBe('0.52');
+    expect(el.textContent).not.toContain('NEXAGO');
+  });
+
+  it('"Oferecimento" ao lado da marca só com patrocinador', async () => {
     let el = await show(TARJA);
-    expect(text(el, '.nexa')).toBe('NEXAGO');
     expect(el.querySelector('.oferecimento')).toBeNull();
     el = await show(TARJA, { sponsors: [{ nome: 'Arena Sol', logo: '' }] });
-    expect(text(el, '.oferecimento')).toBe('Oferecimento');
+    expect(text(el, '.marca .oferecimento')).toBe('Oferecimento');
     expect(text(el, '.slot')).toBe('Arena Sol');
   });
 
@@ -192,6 +219,39 @@ describe('OverlayInterviewComponent', () => {
       await fixture.whenStable();
       expect(el.querySelector('.bug')).toBeNull();
       expect(el.querySelector('.campanha')).toBeNull();
+    });
+
+    it('próxima pergunta: só a pauta sai e volta, 380 ms depois, com o texto novo', async () => {
+      let el = await show({ ...DUPLA, question: 'P1' });
+      el = await show({ ...DUPLA, question: 'P2' });
+      expect(text(el, '.pauta-txt')).toBe('P1');
+      expect(el.querySelector('.pauta')!.getAttribute('data-own')).toBe('swap');
+      expect(el.querySelector('.terco')!.getAttribute('data-phase')).toBe('in');
+      jasmine.clock().tick(QUESTION_TIMINGS.swapMs);
+      await fixture.whenStable();
+      expect(text(el, '.pauta-txt')).toBe('P2');
+      expect(el.querySelector('.pauta')!.classList).toContain('solo');
+    });
+
+    it('pauta desligada no ar: sai, a dobra fecha e desmonta', async () => {
+      let el = await show({ ...DUPLA, question: 'P1' });
+      el = await show({ ...DUPLA, question: null });
+      expect(el.querySelector('.pauta')!.getAttribute('data-own')).toBe('out');
+      expect(el.querySelector('.dobra.aberta')).toBeNull();
+      jasmine.clock().tick(QUESTION_TIMINGS.exitMs);
+      await fixture.whenStable();
+      expect(el.querySelector('.pauta')).toBeNull();
+    });
+
+    it('troca de entrevistado: a pauta do novo entra junto com o card, sem troca própria', async () => {
+      let el = await show({ ...TARJA, question: 'Pergunta da Ana' });
+      el = await show({ ...DUPLA, question: 'Pergunta da dupla' });
+      expect(text(el, '.pauta-txt')).toBe('Pergunta da Ana');
+      jasmine.clock().tick(INTERVIEW_SWAP_MS);
+      await fixture.whenStable();
+      expect(text(el, '.pauta-txt')).toBe('Pergunta da dupla');
+      expect(el.querySelector('.pauta')!.getAttribute('data-own')).toBe('in');
+      expect(el.querySelector('.pauta')!.classList).not.toContain('solo');
     });
 
     it('patrocinadores revezam a cada 8 s', async () => {

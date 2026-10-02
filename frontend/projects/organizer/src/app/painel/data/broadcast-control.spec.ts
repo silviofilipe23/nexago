@@ -52,6 +52,8 @@ const TARJA_V2 = {
     ],
   },
   showCampaign: false,
+  question: 'Como foi a virada no segundo set?',
+  reporter: { role: 'Repórter', name: 'Carla Mendes' },
 };
 
 describe('broadcastControlFromRaw', () => {
@@ -104,6 +106,8 @@ describe('broadcastControlFromRaw', () => {
     expect(t.chips).toEqual([]);
     expect(t.campaign).toBeNull();
     expect(t.showCampaign).toBeTrue();
+    expect(t.question).toBeNull();
+    expect(t.reporter).toBeNull();
   });
 
   it('tarja v1 de pessoas diferentes tem identidades diferentes', () => {
@@ -124,6 +128,16 @@ describe('broadcastControlFromRaw', () => {
     expect(t.chips).toEqual(TARJA_V2.chips);
     expect(t.campaign).toEqual(TARJA_V2.campaign);
     expect(t.showCampaign).toBeFalse();
+    expect(t.question).toBe('Como foi a virada no segundo set?');
+    expect(t.reporter).toEqual({ role: 'Repórter', name: 'Carla Mendes' });
+  });
+
+  it('pauta longa demais é cortada; repórter sem nome fica fora', () => {
+    const t = broadcastControlFromRaw({
+      interview: { ...TARJA_V2, question: 'x'.repeat(500), reporter: { role: 'Repórter', name: ' ' } },
+    }).interview!;
+    expect(t.question!.length).toBe(200);
+    expect(t.reporter).toBeNull();
   });
 
   it('na v2, contexto null fica null — não volta pra categoria da v1', () => {

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/firebase/firebase_providers.dart';
+import '../../../core/providers/cache_for.dart';
 import '../../organizer/domain/tournament_reviews/organizer_tournament_review_models.dart';
 import '../../tournaments/domain/tournament_discovery_providers.dart';
 import '../data/organizer_public_profile_repository.dart';
@@ -89,4 +90,14 @@ final organizersDirectoryProvider =
           .watch(organizerPublicProfileRepositoryProvider)
           .watchListedProfiles()
           .map(sortOrganizersDirectory);
+    });
+
+/// Inscrições de um evento realizado (leitura única, `count()`). Cache curto: trocar de aba e
+/// voltar não refaz a leitura.
+final organizerRealizedEntriesProvider = FutureProvider.autoDispose
+    .family<int, String>((ref, tournamentId) {
+      cacheFor(ref, const Duration(minutes: 10));
+      return ref
+          .watch(organizerPublicProfileRepositoryProvider)
+          .countRealizedEntries(tournamentId);
     });

@@ -5,11 +5,11 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../tournaments/data/tournament_inscriptions_repository.dart';
-import '../../../tournaments/domain/tournament_category_spots.dart';
 import '../../../tournaments/domain/tournament_detail_logic.dart';
 import '../../../tournaments/domain/tournament_discovery_labels.dart';
 import '../../domain/organizer_event.dart';
 import '../../domain/organizer_public_profile_logic.dart';
+import '../../domain/organizer_public_profile_providers.dart';
 
 /// Card de evento próximo: selo, tipo, nome, data, local, barra de vagas (contagem real de
 /// `inscriptions`), preço e CTA. Tocar em qualquer parte leva ao evento.
@@ -264,8 +264,8 @@ class OrganizerCompletedEventRow extends ConsumerWidget {
   final Map<String, String> championNames;
   final VoidCallback onOpen;
 
-  /// Liga a contagem viva de inscrições. Fica só no histórico curto (3 linhas): na aba
-  /// Eventos seriam dezenas de consultas abertas para um número secundário.
+  /// Mostra o número de inscrições (uma leitura `count()` por linha). Fica só no histórico
+  /// curto (3 linhas): na aba Eventos seriam dezenas de leituras para um número secundário.
   final bool showEntries;
 
   @override
@@ -274,19 +274,13 @@ class OrganizerCompletedEventRow extends ConsumerWidget {
     final detail = event.detail;
     String? entries;
     if (showEntries) {
-      final countsAsync = ref.watch(
-        tournamentCategoryEnrollmentCountsProvider(event.id),
-      );
-      if (countsAsync.hasValue) {
-        entries = tournamentEnrolledEntriesLabel(
-          tournamentEnrolledEntries(
-            offers: detail.categoryOffers,
-            counts: countsAsync.value!,
-            countsResolved: true,
-            fallbackEnrolled: detail.enrolledCount,
-          ),
-          detail.format,
-        );
+      // Realizado: o número é final, então uma leitura `count()` basta — nada de stream de
+      // todas as inscrições por linha.
+      final count = ref
+          .watch(organizerRealizedEntriesProvider(event.id))
+          .valueOrNull;
+      if (count != null && count > 0) {
+        entries = tournamentEnrolledEntriesLabel(count, detail.format);
       }
     }
     final champion = organizerEventChampionLine(event, championNames);

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../organizer/domain/tournament_reviews/organizer_tournament_review_models.dart';
+import '../../tournaments/data/nexago_artifacts_paths.dart';
 import '../domain/organizer_event.dart';
 import '../domain/organizer_public_profile_models.dart';
 import 'organizer_event_mapper.dart';
@@ -19,6 +20,12 @@ Map<String, Object> organizerFollowerDocData({
     'organizerId': organizerId,
     'followedAt': FieldValue.serverTimestamp(),
   };
+}
+
+/// Inscrições que ocupam vaga: o total menos a fila de espera, nunca negativo.
+int organizerEntriesFromCounts({required int total, required int waitlisted}) {
+  final entries = total - waitlisted;
+  return entries < 0 ? 0 : entries;
 }
 
 /// Leituras do perfil público do organizador e o seguir/deixar de seguir. Os docs públicos são
@@ -102,6 +109,25 @@ class OrganizerPublicProfileRepository {
                 summary,
           ],
         );
+  }
+
+  /// Inscrições de um evento realizado, numa leitura só: o número não muda mais, então não
+  /// vale um stream de todas as inscrições por linha do histórico. Duas agregações `count()`
+  /// (total menos fila de espera) — `waitlist != true` excluiria os docs sem o campo.
+  Future<int> countRealizedEntries(String tournamentId) async {
+    final id = tournamentId.trim();
+    if (id.isEmpty) return 0;
+    final base = _firestore
+        .collection(NexagoArtifactsPaths.inscriptionsCollection())
+        .where('tournamentId', isEqualTo: id);
+    final results = await Future.wait([
+      base.count().get(),
+      base.where('waitlist', isEqualTo: true).count().get(),
+    ]);
+    return organizerEntriesFromCounts(
+      total: results[0].count ?? 0,
+      waitlisted: results[1].count ?? 0,
+    );
   }
 
   Stream<bool> watchIsFollowing({

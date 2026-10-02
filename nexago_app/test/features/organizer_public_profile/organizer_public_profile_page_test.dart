@@ -147,9 +147,9 @@ Future<void> _pump(
         tournamentCategoryEnrollmentCountsProvider(
           'ev-open',
         ).overrideWith((ref) => Stream.value(const {'c1': 10})),
-        tournamentCategoryEnrollmentCountsProvider(
+        organizerRealizedEntriesProvider(
           'ev-done',
-        ).overrideWith((ref) => Stream.value(const <String, int>{})),
+        ).overrideWith((ref) async => 16),
         if (repository != null)
           organizerPublicProfileRepositoryProvider.overrideWithValue(
             repository,
@@ -234,6 +234,8 @@ void main() {
     expect(find.text('POR DUPLA'), findsOneWidget);
     expect(find.text('10/32'), findsOneWidget);
     expect(find.text('Torneio de Abertura'), findsOneWidget);
+    // Realizado: contagem única (count()), não o stream de inscrições.
+    expect(find.textContaining('16 duplas inscritas'), findsOneWidget);
     expect(find.text('Onde acontece'), findsOneWidget);
     expect(find.text('Arena ErreJota'), findsWidgets);
   });

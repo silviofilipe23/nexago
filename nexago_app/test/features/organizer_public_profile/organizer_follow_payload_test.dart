@@ -20,4 +20,13 @@ void main() {
     expect(kOrganizerPublicProfilesCollection, 'organizerPublicProfiles');
     expect(kOrganizerFollowersSubcollection, 'followers');
   });
+
+  test(
+    'inscrições do realizado: total menos fila de espera, nunca negativo',
+    () {
+      expect(organizerEntriesFromCounts(total: 18, waitlisted: 2), 16);
+      expect(organizerEntriesFromCounts(total: 0, waitlisted: 0), 0);
+      expect(organizerEntriesFromCounts(total: 1, waitlisted: 3), 0);
+    },
+  );
 }

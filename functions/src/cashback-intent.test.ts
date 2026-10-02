@@ -30,6 +30,8 @@ const ENABLED = {...DEFAULT_CASHBACK_CONFIG, enabled: true};
 
 function makeDb(): {fake: FakeFirestore; db: Firestore} {
   const fake = new FakeFirestore();
+  // A conta do atleta existe (a intenção só vale para conta viva).
+  fake.seedDoc(`users/${UID}`, {fullName: "Atleta"});
   return {fake, db: fake as unknown as Firestore};
 }
 
@@ -182,6 +184,26 @@ describe("applyCashbackIntent", () => {
     assert.equal(fake.store.get(`${W}/lots/pay1`)!.status, "pending");
     assert.equal(fake.store.get(`${W}/lots/pay1`)!.earnedCents, intent.earnCents);
     assert.equal(fake.store.get(PROCESSED)!.cashbackStatus, "done");
+  });
+
+  it("conta excluída enquanto a intenção estava pendente: não recria a carteira e encerra a intenção", async () => {
+    // deleteOwnAccount apaga users/{uid} e athleteWallets/{uid}; sem o doc
+    // do usuário, o ganho não pode ressuscitar a carteira.
+    const {fake, db} = makeDb();
+    fake.store.delete(`users/${UID}`);
+    const intent = intentFor({holdId: "hSumiu", appliedCents: 1000});
+    fake.seedDoc(PROCESSED, {outcome: "approved", ...cashbackIntentFields(intent)});
+
+    const r = await applyCashbackIntent(db, db.doc(PROCESSED) as DocumentReference, "pay1", NOW);
+
+    assert.equal(r, "skipped");
+    const walletDocs = [...fake.store.keys()].filter((path) => path.startsWith(`${W}`));
+    assert.deepEqual(walletDocs, []);
+    const processed = fake.store.get(PROCESSED)!;
+    assert.equal(processed.cashbackStatus, "done");
+    assert.equal((processed.cashback as {skippedReason?: string}).skippedReason, "user_deleted");
+    // A varredura não pega de novo.
+    assert.equal(await applyCashbackIntent(db, db.doc(PROCESSED) as DocumentReference, "pay1", NOW), "skipped");
   });
 
   it("falha conta tentativa e deixa pendente para a varredura", async () => {

@@ -22,6 +22,8 @@ const PROCESSED = "artifacts/p/public/data/asaas_processed_payments";
 
 function makeDb(): {fake: FakeFirestore; db: Firestore} {
   const fake = new FakeFirestore();
+  // Contas vivas: a intenção de cashback de conta excluída é encerrada sem ganho.
+  fake.seedDoc("users/ath1", {fullName: "Atleta"});
   return {fake, db: fake as unknown as Firestore};
 }
 

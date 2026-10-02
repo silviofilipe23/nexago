@@ -19,6 +19,9 @@ const ENTRY_FEE = 100;
 
 function makeDb(): {fake: FakeFirestore; db: Firestore} {
   const fake = new FakeFirestore();
+  // Contas vivas: a intenção de cashback de conta excluída é encerrada sem ganho.
+  fake.seedDoc("users/uidA", {fullName: "Atleta A"});
+  fake.seedDoc("users/uidB", {fullName: "Atleta B"});
   fake.seedDoc(TOURNAMENT_PATH, {
     name: "Copa Teste",
     categories: [{categoryName: CATEGORY, entryFee: ENTRY_FEE}],

@@ -16,6 +16,9 @@ const PROCESSED_PATH = "artifacts/p/public/data/asaas_processed_payments/orig1";
 
 function makeDb(): {fake: FakeFirestore; db: Firestore} {
   const fake = new FakeFirestore();
+  // Contas vivas: a intenção de cashback de conta excluída é encerrada sem ganho.
+  fake.seedDoc("users/owner1", {fullName: "Atleta"});
+  fake.seedDoc("users/friend1", {fullName: "Atleta"});
   return {fake, db: fake as unknown as Firestore};
 }
 

@@ -14,6 +14,7 @@ const PROCESSED = "artifacts/p/public/data/asaas_processed_payments/pay1";
 
 function makeDb(): {fake: FakeFirestore; db: Firestore} {
   const fake = new FakeFirestore();
+  fake.seedDoc(`users/${UID}`, {fullName: "Atleta"});
   fake.seedDoc(`${W}/lots/old`, {
     uid: UID, sourceType: "booking", sourceId: "b0", tournamentId: null, arenaId: "a1",
     label: "Reserva", earnedCents: 2000, remainingCents: 2000, status: "available",

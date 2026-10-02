@@ -170,6 +170,20 @@ export async function applyCashbackIntent(
     if (data.cashbackStatus !== "pending") return "skipped";
     intent = data.cashback as CashbackIntent | undefined;
     if (!intent) return "skipped";
+    // Conta excluída com a intenção pendente: `deleteOwnAccount` apaga
+    // `users/{uid}` e depois `athleteWallets/{uid}`. Capturar ou ganhar aqui
+    // recriaria a carteira de quem não existe mais — encerra sem tocar nela.
+    if (!(await db.doc(`users/${intent.uid}`).get()).exists) {
+      logger.warn("cashback: intenção de conta excluída encerrada sem mexer na carteira", {
+        paymentId,
+        uid: intent.uid,
+      });
+      await processedRef.set(
+        {cashbackStatus: "done", cashback: {skippedReason: "user_deleted"}},
+        {merge: true},
+      );
+      return "skipped";
+    }
     if (intent.holdId) {
       const capture = await captureHold(db, intent.uid, intent.holdId, nowMs);
       if (capture.shortfallCents > 0) {

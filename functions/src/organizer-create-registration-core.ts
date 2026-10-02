@@ -255,6 +255,24 @@ export function organizerRegistrationStamp(
 }
 
 /**
+ * O organizador inscreveu esta dupla/equipe, ou fechou a dupla sobre a reserva do atleta?
+ *
+ * Quem fura o prazo para INSCREVER também abre o prazo para o atleta PAGAR o que foi inscrito.
+ * Sem isso, a inscrição feita depois do encerramento — o caso principal da tela — nasce
+ * "pendente, o atleta paga pelo app" e toda cobrança cai em "Prazo de inscrição encerrado".
+ *
+ * Lê o carimbo dos DOIS ramos (`organizerRegistrationStamp`); `createdVia` cobre o doc da dupla
+ * nova mesmo se o carimbo faltar.
+ */
+export function isOrganizerRegistered(
+  registration: Record<string, unknown>,
+): boolean {
+  if (registration.createdVia === ORGANIZER_CREATED_VIA) return true;
+  const stamp = registration.organizerRegisteredByUid;
+  return typeof stamp === "string" && stamp.trim().length > 0;
+}
+
+/**
  * Documento da inscrição nova. Espelha o que o fluxo do atleta grava ao fechar
  * a vaga, mais a procedência do organizador.
  */
@@ -339,6 +357,42 @@ export function defaultOrganizerTeamName(athleteNames: readonly string[]): strin
   return "Equipe";
 }
 
+/**
+ * Rota do APP que abre a inscrição direto na etapa de pagamento — a mesma do lembrete de
+ * cobrança do organizador. O porteiro da inscrição trata `step` como preferência: se faltar
+ * uniforme, ele passa por lá antes.
+ */
+export function tournamentRegistrationPaymentPath(params: {
+  tournamentId: string;
+  registrationId: string;
+  categoryId?: string | null;
+}): string {
+  const {tournamentId, registrationId} = params;
+  const categoryId = params.categoryId?.trim() ?? "";
+  return (
+    `/torneios/${tournamentId}/inscricao` +
+    `?registrationId=${encodeURIComponent(registrationId)}` +
+    (categoryId ? `&categoryId=${encodeURIComponent(categoryId)}` : "") +
+    "&step=payment"
+  );
+}
+
+/**
+ * Para onde o aviso da inscrição criada pelo organizador leva o atleta. Pendente vai direto ao
+ * pagamento: a página do torneio, num torneio de várias categorias, cai na lista de categorias
+ * com "Inscreva-se" no card — e depois do prazo nem a barra de inscrição aparece.
+ */
+export function organizerRegistrationNotificationUrl(params: {
+  tournamentId: string;
+  registrationId: string;
+  categoryId: string;
+  isPaid: boolean;
+}): string {
+  const {tournamentId, isPaid} = params;
+  if (isPaid) return `/torneios/${tournamentId}`;
+  return tournamentRegistrationPaymentPath(params);
+}
+
 /** Aviso enviado aos atletas — o par (título, corpo) muda com o estado do pagamento. */
 export function organizerRegistrationNotification(params: {
   tournamentName: string;
@@ -357,6 +411,6 @@ export function organizerRegistrationNotification(params: {
     title: "Inscrição criada pelo organizador",
     body: isPaid
       ? `Sua ${unit} está inscrita em ${where}. Vaga confirmada.`
-      : `Sua ${unit} está inscrita em ${where}. O pagamento segue pendente.`,
+      : `Sua ${unit} está inscrita em ${where}. O pagamento segue pendente — toque para pagar.`,
   };
 }

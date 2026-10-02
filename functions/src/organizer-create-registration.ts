@@ -46,6 +46,7 @@ import {
   categoryCapacityFullOf,
   findCategory,
   resolveCategoryEntryFee,
+  resolveCategoryLabel,
   resolveCategoryMatchKeys,
   resolveTournamentDocRef,
 } from "./tournament-registration-guards";
@@ -92,6 +93,7 @@ import {
   defaultOrganizerTeamName,
   effectiveUniformCategory,
   organizerRegistrationNotification,
+  organizerRegistrationNotificationUrl,
   organizerRegistrationStamp,
   parseCreateTeamRegistrationInput,
   resolveJoiningUid,
@@ -503,7 +505,7 @@ export const organizerCreateTeamRegistration = onCall({
 
     const {title, body} = organizerRegistrationNotification({
       tournamentName: typeof tournament.name === "string" ? tournament.name : "",
-      categoryName: categoryId,
+      categoryName: resolveCategoryLabel(tournament, categoryId),
       isPaid: result.isPaid,
       isTeam: true,
     });
@@ -517,7 +519,13 @@ export const organizerCreateTeamRegistration = onCall({
           data: {
             tournamentId,
             registrationId: result.registrationId,
-            url: `/torneios/${tournamentId}`,
+            categoryId,
+            url: organizerRegistrationNotificationUrl({
+              tournamentId,
+              registrationId: result.registrationId,
+              categoryId,
+              isPaid: result.isPaid,
+            }),
           },
         }).catch(() => undefined),
       ),
@@ -823,7 +831,7 @@ export const organizerCreateTeamRegistration = onCall({
 
   const {title, body} = organizerRegistrationNotification({
     tournamentName: typeof tournament.name === "string" ? tournament.name : "",
-    categoryName: categoryId,
+    categoryName: resolveCategoryLabel(tournament, categoryId),
     isPaid: result.isPaid,
   });
   await Promise.all(
@@ -836,7 +844,13 @@ export const organizerCreateTeamRegistration = onCall({
         data: {
           tournamentId,
           registrationId: result.registrationId,
-          url: `/torneios/${tournamentId}`,
+          categoryId,
+          url: organizerRegistrationNotificationUrl({
+            tournamentId,
+            registrationId: result.registrationId,
+            categoryId,
+            isPaid: result.isPaid,
+          }),
         },
       }).catch(() => undefined),
     ),

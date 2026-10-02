@@ -7,10 +7,13 @@ import {
   buildOrganizerRegistrationDoc,
   defaultOrganizerTeamName,
   effectiveUniformCategory,
+  isOrganizerRegistered,
   organizerRegistrationNotification,
+  organizerRegistrationNotificationUrl,
   organizerRegistrationStamp,
   parseCreateTeamRegistrationInput,
   resolveJoiningUid,
+  tournamentRegistrationPaymentPath,
 } from "./organizer-create-registration-core";
 
 const TS = "__serverTimestamp__";
@@ -344,6 +347,35 @@ describe("organizerRegistrationStamp", () => {
   });
 });
 
+describe("isOrganizerRegistered", () => {
+  it("dupla nova do organizador abre o prazo para pagar", () => {
+    const doc = buildOrganizerRegistrationDoc({
+      teamId: "t1",
+      tournamentId: "tour",
+      categoryId: "cat",
+      athleteUids: ["a", "b"],
+      organizerUid: "org-1",
+      waitlist: false,
+      timestamp: TS,
+    });
+    assert.equal(isOrganizerRegistered(doc), true);
+  });
+
+  it("fusão sobre a reserva do atleta também — o carimbo basta", () => {
+    const merged = {
+      createdVia: "athlete",
+      participantUids: ["a", "b"],
+      ...organizerRegistrationStamp("org-1", TS),
+    };
+    assert.equal(isOrganizerRegistered(merged), true);
+  });
+
+  it("inscrição do fluxo do atleta segue presa ao prazo do torneio", () => {
+    assert.equal(isOrganizerRegistered({participantUids: ["a"]}), false);
+    assert.equal(isOrganizerRegistered({organizerRegisteredByUid: "  "}), false);
+  });
+});
+
 describe("organizerRegistrationNotification", () => {
   it("diz se a vaga está confirmada ou se falta pagar", () => {
     const paid = organizerRegistrationNotification({
@@ -382,5 +414,47 @@ describe("organizerRegistrationNotification", () => {
     });
     assert.match(body, /Masculino B/);
     assert.doesNotMatch(body, /·/);
+  });
+});
+
+describe("tournamentRegistrationPaymentPath", () => {
+  it("abre a inscrição na etapa de pagamento, com ids codificados", () => {
+    assert.equal(
+      tournamentRegistrationPaymentPath({
+        tournamentId: "tour",
+        registrationId: "reg 1",
+        categoryId: "Misto B",
+      }),
+      "/torneios/tour/inscricao?registrationId=reg%201&categoryId=Misto%20B&step=payment",
+    );
+  });
+
+  it("sem categoria, omite o parâmetro", () => {
+    assert.equal(
+      tournamentRegistrationPaymentPath({
+        tournamentId: "tour",
+        registrationId: "reg",
+        categoryId: "  ",
+      }),
+      "/torneios/tour/inscricao?registrationId=reg&step=payment",
+    );
+  });
+});
+
+describe("organizerRegistrationNotificationUrl", () => {
+  const base = {tournamentId: "tour", registrationId: "reg", categoryId: "cat"};
+
+  it("pendente leva direto ao pagamento", () => {
+    assert.equal(
+      organizerRegistrationNotificationUrl({...base, isPaid: false}),
+      "/torneios/tour/inscricao?registrationId=reg&categoryId=cat&step=payment",
+    );
+  });
+
+  it("vaga confirmada leva ao torneio — não há o que pagar", () => {
+    assert.equal(
+      organizerRegistrationNotificationUrl({...base, isPaid: true}),
+      "/torneios/tour",
+    );
   });
 });

@@ -107,6 +107,14 @@ export const routes: Routes = [
       import('./athlete-painel.component').then((m) => m.AthletePainelComponent),
   },
   {
+    // Meu cashback: abre mesmo com o recurso desligado (o saldo já ganho segue visível). Sem item
+    // de menu — chega-se pelo card do painel e pelo `webUrl: '/cashback'` dos pushes.
+    path: 'cashback',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./cashback/athlete-cashback.component').then((m) => m.AthleteCashbackComponent),
+  },
+  {
     path: 'agenda',
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>

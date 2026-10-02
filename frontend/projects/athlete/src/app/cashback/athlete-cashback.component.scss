@@ -1,0 +1,260 @@
+:host {
+  display: block;
+}
+
+// ── Cabeçalho (mesmo desenho de `history/athlete-history.component.scss`) ──
+.cb-page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--nx-line);
+
+  h1 {
+    font-family: var(--nx-font-display);
+    font-weight: 800;
+    font-size: 21px;
+    letter-spacing: -0.02em;
+    color: var(--nx-text);
+    margin: 0;
+  }
+
+  @media (max-width: 640px) {
+    padding: 16px;
+  }
+}
+
+.cb-page-header-sub {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.cb-body {
+  padding: 22px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 720px;
+
+  @media (max-width: 640px) {
+    padding: 16px 16px 32px;
+  }
+}
+
+// ── Herói (acento laranja dos cards do painel) ───────────────
+.cb-hero {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 22px 22px 22px 26px;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-5);
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--nx-orange-500), transparent);
+  }
+}
+
+.cb-kicker {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--nx-orange-500);
+}
+
+.cb-available {
+  font-family: var(--nx-font-display);
+  font-weight: 800;
+  font-size: 36px;
+  letter-spacing: -0.02em;
+  color: var(--nx-text);
+}
+
+.cb-line {
+  margin: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--nx-text-mute);
+}
+
+.cb-line--pending {
+  color: var(--nx-pending);
+}
+
+.cb-line--expiry {
+  color: var(--nx-orange-400);
+}
+
+// ── Cards ────────────────────────────────────────────────────
+.cb-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-5);
+}
+
+.cb-card-title {
+  margin: 0;
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  color: var(--nx-text);
+}
+
+.cb-how {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--nx-text-mute);
+}
+
+.cb-empty {
+  margin: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--nx-text-dim);
+}
+
+// ── Extrato ──────────────────────────────────────────────────
+.cb-month {
+  margin: 8px 0 0;
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.cb-ledger {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.cb-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--nx-line);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.cb-row-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--nx-surface-1);
+  color: var(--nx-text-mute);
+}
+
+.cb-row-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cb-row-title {
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--nx-text);
+}
+
+.cb-row-sub {
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  color: var(--nx-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cb-row-date {
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  color: var(--nx-text-dim);
+}
+
+.cb-row-amount {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-family: var(--nx-font-mono);
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+  color: var(--nx-text);
+}
+
+.cb-row-amount--struck .cb-row-value {
+  text-decoration: line-through;
+}
+
+.cb-row-suffix {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cb-row[data-tone='pending'] {
+  .cb-row-icon,
+  .cb-row-amount {
+    color: var(--nx-pending);
+  }
+}
+
+.cb-row[data-tone='win'] {
+  .cb-row-icon,
+  .cb-row-amount {
+    color: var(--nx-win);
+  }
+}
+
+.cb-row[data-tone='brand'] {
+  .cb-row-icon,
+  .cb-row-amount {
+    color: var(--nx-orange-500);
+  }
+}
+
+.cb-row[data-tone='muted'] .cb-row-amount {
+  color: var(--nx-text-dim);
+}

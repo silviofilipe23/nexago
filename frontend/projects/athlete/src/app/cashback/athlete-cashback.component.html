@@ -1,0 +1,86 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  <header class="cb-page-header">
+    <h1>Meu cashback</h1>
+    <div class="cb-page-header-sub">Saldo que volta pra você jogar</div>
+  </header>
+
+  <div class="cb-body">
+    @if (loading()) {
+      <app-nx-page-loading title="Carregando seu cashback…" subtitle="Saldo e extrato" />
+    } @else {
+      <section class="cb-hero" aria-label="Saldo de cashback">
+        <span class="cb-kicker">Disponível</span>
+        <strong class="cb-available">{{ availableLabel() }}</strong>
+        <p class="cb-line cb-line--pending">Pendente {{ pendingLabel() }} · libera depois do jogo</p>
+        @if (expiryLabel(); as expiry) {
+          <p class="cb-line cb-line--expiry">{{ expiry }}</p>
+        }
+        @if (heldLabel(); as held) {
+          <p class="cb-line">Reservado {{ held }} · em um pagamento em andamento</p>
+        }
+      </section>
+
+      <section class="cb-card">
+        <h2 class="cb-card-title">Como funciona</h2>
+        <ol class="cb-how">
+          @for (line of howItWorks(); track $index) {
+            <li>{{ line }}</li>
+          }
+        </ol>
+      </section>
+
+      <section class="cb-card">
+        <h2 class="cb-card-title">Extrato</h2>
+        @if (cashback.ledgerError()) {
+          <p class="cb-empty">Não foi possível carregar o extrato agora. Tente de novo em instantes.</p>
+        } @else if (!cashback.ledgerLoaded()) {
+          <p class="cb-empty">Carregando extrato…</p>
+        } @else if (months().length === 0) {
+          <p class="cb-empty">{{ emptyText() }}</p>
+        } @else {
+          @for (month of months(); track month.key) {
+            <h3 class="cb-month">{{ month.title }}</h3>
+            <ul class="cb-ledger">
+              @for (row of month.rows; track row.id) {
+                <li class="cb-row" [attr.data-tone]="row.tone">
+                  <span class="cb-row-icon" aria-hidden="true">
+                    @switch (row.icon) {
+                      @case ('check') {
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m4.5 12.5 5 5 10-11" /></svg>
+                      }
+                      @case ('x') {
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                      }
+                      @case ('tag') {
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z" /><circle cx="7.5" cy="7.5" r="1.5" /></svg>
+                      }
+                      @case ('undo') {
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg>
+                      }
+                      @default {
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
+                      }
+                    }
+                  </span>
+                  <span class="cb-row-copy">
+                    <span class="cb-row-title">{{ row.title }}</span>
+                    @if (row.subtitle) {
+                      <span class="cb-row-sub">{{ row.subtitle }}</span>
+                    }
+                  </span>
+                  <span class="cb-row-date">{{ row.dateLabel }}</span>
+                  <span class="cb-row-amount" [class.cb-row-amount--struck]="row.struck">
+                    <span class="cb-row-value">{{ row.amountLabel }}</span>
+                    @if (row.suffix; as suffix) {
+                      <small class="cb-row-suffix">{{ suffix }}</small>
+                    }
+                  </span>
+                </li>
+              }
+            </ul>
+          }
+        }
+      </section>
+    }
+  </div>
+</app-at-panel-shell>

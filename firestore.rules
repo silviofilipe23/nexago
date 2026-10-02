@@ -1240,6 +1240,24 @@ service cloud.firestore {
         allow create, update, delete: if false;
       }
     }
+    // Carteira de cashback do atleta (`athlete-wallet.ts`). Saldo é dinheiro:
+    // só o dono lê; só o servidor escreve — nem lote, nem reserva, nem extrato.
+    match /athleteWallets/{uid} {
+      allow read: if request.auth != null && (
+        isSuperAdmin() ||
+        isAdmin() ||
+        request.auth.uid == uid
+      );
+      allow create, update, delete: if false;
+      match /{subcollection}/{docId} {
+        allow read: if request.auth != null && (
+          isSuperAdmin() ||
+          isAdmin() ||
+          request.auth.uid == uid
+        );
+        allow create, update, delete: if false;
+      }
+    }
     // Chave PIX de repasse da pessoa. Escrita write-only por CF: admin semeando
     // destino de dinheiro é vetor de fraude (mesma regra de `organizerWallets`).
     match /organizerPayoutProfiles/{uid} {

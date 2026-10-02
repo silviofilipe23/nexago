@@ -22,6 +22,7 @@ const NAV_ITEMS: PanelNavItem[] = [
     route: '/painel/arenas/pre-cadastro',
   },
   { id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios' },
+  { id: 'avaliacoes', label: 'Avaliações', icon: 'star', route: '/painel/avaliacoes' },
   { id: 'organizadores', label: 'Organizadores', icon: 'id-badge', route: '/painel/organizadores' },
   { id: 'atletas', label: 'Atletas', icon: 'users', route: '/painel/atletas' },
   { id: 'financeiro', label: 'Financeiro', icon: 'cash', route: '/painel/financeiro' },
@@ -361,6 +362,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/torneios')) {
       return 'torneios';
+    }
+    if (path.startsWith('/painel/avaliacoes')) {
+      return 'avaliacoes';
     }
     if (path.startsWith('/painel/organizadores')) {
       return 'organizadores';

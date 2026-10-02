@@ -382,6 +382,11 @@ class BookingService {
   }
 
   /// Cancela uma reserva do atleta.
+  ///
+  /// `pending_payment` vai pela callable `cancelPendingArenaBookingPayment`, que
+  /// remove a cobrança PIX aberta na Asaas antes de liberar o horário — a escrita
+  /// direta deixava o PIX pagável e o pagamento caía numa reserva já cancelada.
+  /// Os demais status seguem com a escrita direta.
   Future<void> cancelBooking({
     required String bookingId,
     required String athleteId,
@@ -401,6 +406,20 @@ class BookingService {
     final ownerId = (data['athleteId'] as String?)?.trim() ?? '';
     if (ownerId != uid) {
       throw BookingException('Você não pode cancelar esta reserva.');
+    }
+
+    final status = (data['status'] as String?)?.toLowerCase().trim() ?? '';
+    if (status == 'pending_payment') {
+      try {
+        await _functions
+            .httpsCallable('cancelPendingArenaBookingPayment')
+            .call(<String, dynamic>{'bookingId': id});
+      } on FirebaseFunctionsException catch (e) {
+        throw BookingException(
+          e.message ?? 'Não foi possível cancelar a reserva.',
+        );
+      }
+      return;
     }
 
     await ref.update(<String, dynamic>{

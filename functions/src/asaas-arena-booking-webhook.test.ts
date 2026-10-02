@@ -173,6 +173,60 @@ describe("processArenaBookingAsaasNotification — reserva dividida", () => {
   });
 });
 
+describe("processArenaBookingAsaasNotification — pagamento depois do cancelamento", () => {
+  // O app cancelava `pending_payment` com escrita direta ('canceled'), deixando o PIX
+  // aberto na Asaas; o trigger de slot já liberou locks e horário. As functions gravam
+  // 'cancelled' — as duas grafias valem.
+  for (const status of ["canceled", "cancelled"]) {
+    it(`RECEIVED em reserva '${status}' não confirma, não credita e marca estorno`, async () => {
+      const {fake, db} = makeDb();
+      seedPendingBooking(fake, {status, attendanceStatus: "canceled"});
+
+      await processArenaBookingAsaasNotification(
+        db, "orig1", bookingPayment("RECEIVED"), processedRefOf(db),
+      );
+
+      const booking = fake.store.get(BOOKING_PATH)!;
+      assert.equal(booking.status, status);
+      assert.equal(booking.paymentStatus, "pending");
+      assert.equal(booking.amountPaidOnlineReais, undefined);
+      assert.equal(fake.store.has("arenaWallets/arena1"), false);
+
+      const processed = fake.store.get(PROCESSED_PATH)!;
+      assert.equal(processed.outcome, "paid_after_cancel");
+      assert.equal(processed.refundRequired, true);
+      assert.equal(processed.paidValue, 100);
+      assert.equal(processed.bookingStatus, status);
+    });
+  }
+
+  it("não devolve o horário: slot ainda não liberado pelo trigger segue sem 'booked'", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake, {status: "canceled"});
+    fake.seedDoc("arenaSlots/b1", {bookingId: "b1", status: "held"});
+
+    await processArenaBookingAsaasNotification(
+      db, "orig1", bookingPayment("RECEIVED_IN_CASH"), processedRefOf(db),
+    );
+
+    assert.equal(fake.store.get("arenaSlots/b1")!.status, "held");
+    assert.equal(fake.store.get(PROCESSED_PATH)!.outcome, "paid_after_cancel");
+  });
+
+  it("pagamento da original durante a divisão em reserva já cancelada também vira estorno", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake, {status: "cancelled", supersededAsaasPaymentIds: ["orig1"]});
+
+    await processArenaBookingAsaasNotification(
+      db, "orig1", bookingPayment("RECEIVED"), processedRefOf(db),
+    );
+
+    assert.equal(fake.store.get(BOOKING_PATH)!.status, "cancelled");
+    assert.equal(fake.store.has("arenaWallets/arena1"), false);
+    assert.equal(fake.store.get(PROCESSED_PATH)!.outcome, "paid_after_cancel");
+  });
+});
+
 describe("processArenaBookingAsaasNotification — reserva sem divisão (controle)", () => {
   it("RECEIVED confirma a reserva e credita a arena como antes", async () => {
     const {fake, db} = makeDb();

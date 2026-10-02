@@ -794,17 +794,20 @@ describe('OverlayPageComponent — controle do painel', () => {
       await fixture.whenStable();
       const host = fixture.nativeElement as HTMLElement;
 
-      expect(host.querySelector('og-overlay-interview .tarja')).not.toBeNull();
+      expect(host.querySelector('og-overlay-interview .terco[data-phase="in"]')).not.toBeNull();
 
       jasmine.clock().tick(18_000);
       await fixture.whenStable();
-      expect(host.querySelector('og-overlay-interview .tarja')).not.toBeNull();
+      expect(host.querySelector('og-overlay-interview .terco[data-phase="in"]')).not.toBeNull();
 
       jasmine.clock().tick(3_000);
       await fixture.whenStable();
-      // `animate.leave` mantém o nó no DOM durante a saída (animação CSS de verdade, fora do
-      // relógio falso), já com a classe de saída — o que importa é não estar mais "entrando".
-      expect(host.querySelector('og-overlay-interview .tarja:not(.tarja-out)')).toBeNull();
+      // A saída mantém os blocos no DOM enquanto animam — o que importa é não estar mais "no ar".
+      expect(host.querySelector('og-overlay-interview .terco[data-phase="in"]')).toBeNull();
+
+      jasmine.clock().tick(1_000);
+      await fixture.whenStable();
+      expect(host.querySelector('og-overlay-interview .terco')).toBeNull();
     } finally {
       jasmine.clock().uninstall();
     }

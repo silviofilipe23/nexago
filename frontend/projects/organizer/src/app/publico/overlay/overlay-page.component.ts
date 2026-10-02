@@ -148,7 +148,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
         <og-overlay-doacao [config]="doacaoConfig" [show]="cardsNoAr() && doacaoShow()" />
         <og-overlay-patro [itens]="patroItens()" [show]="cardsNoAr() && patroShow()" [visivelSeg]="patroConfig.card.visivelSeg" />
         <!-- Sempre montada: o animate.leave da tarja precisa do host vivo. -->
-        <og-overlay-interview [data]="interviewNoAr()" />
+        <og-overlay-interview [data]="interviewNoAr()" [eventName]="gateway.tournament()?.name ?? ''" [sponsors]="patroItens()" />
       </div>
     </div>
   `,

@@ -25,6 +25,7 @@ const SHELL_ROUTE_PREFIXES = [
   '/historico',
   '/clubinho',
   '/mesa',
+  '/cashback',
 ];
 const AUTH_ROUTES = [
   '/entrar',
@@ -35,7 +36,8 @@ const AUTH_ROUTES = [
   '/onboarding',
 ];
 
-function chromeHiddenForUrl(url: string): boolean {
+/** Exportada só para o spec: decide a moldura do painel por rota, sem montar o Router. */
+export function chromeHiddenForUrl(url: string): boolean {
   const p = pathOnly(url);
   if (AUTH_ROUTES.includes(p)) {
     return true;

@@ -74,6 +74,8 @@ const LEVEL_CODES = [
   "iniciante_2",
   "intermediario_1",
   "intermediario_2",
+  "avancado_1",
+  "avancado_2",
   "open",
 ];
 
@@ -101,6 +103,10 @@ const LEVEL_RANK = {
   intermediario1: 2,
   intermediario_2: 3,
   intermediario2: 3,
+  avancado_1: 4,
+  avancado1: 4,
+  avancado_2: 5,
+  avancado2: 5,
   open: 5,
   // Legados (escada de 3 níveis) — degrau inferior do split.
   iniciante: 0,
@@ -114,6 +120,8 @@ const LEVEL_LABELS = {
   iniciante_2: "Iniciante 2",
   intermediario_1: "Intermediário 1",
   intermediario_2: "Intermediário 2",
+  avancado_1: "Avançado 1",
+  avancado_2: "Avançado 2",
   open: "Open",
 };
 
@@ -123,6 +131,8 @@ const DEFAULT_LEVELS = [
   {code: "iniciante_2", rank: 1, label: "Iniciante 2", initialRating: 1450, promoteAt: 1570, demoteAt: 1350},
   {code: "intermediario_1", rank: 2, label: "Intermediário 1", initialRating: 1600, promoteAt: 1720, demoteAt: 1500},
   {code: "intermediario_2", rank: 3, label: "Intermediário 2", initialRating: 1750, promoteAt: 1870, demoteAt: 1650},
+  {code: "avancado_1", rank: 4, label: "Avançado 1", initialRating: 1900, promoteAt: 2020, demoteAt: 1800},
+  {code: "avancado_2", rank: 5, label: "Avançado 2", initialRating: 2050, promoteAt: 2170, demoteAt: 1950},
   {code: "open", rank: 5, label: "Open", initialRating: 1900, promoteAt: null, demoteAt: 1800},
 ];
 const DEFAULT_INITIAL_RD = 300;
@@ -198,6 +208,8 @@ function levelCodeForRank(rank) {
     case 1: return "iniciante_2";
     case 2: return "intermediario_1";
     case 3: return "intermediario_2";
+    case 4: return "avancado_1";
+    case 5: return "avancado_2";
     default: return "open";
   }
 }

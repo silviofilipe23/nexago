@@ -108,7 +108,7 @@ essas três chaves e `followedAt == request.time`. Apagar, só o próprio atleta
 
 ```
 organizerId: string
-status: 'scheduled' | 'sent' | 'skipped'
+status: 'scheduled' | 'sending' | 'sent' | 'skipped'   // 'sending' = reivindicada; at-most-once
 sendAt: Timestamp
 createdAt: Timestamp
 sentAt?: Timestamp
@@ -155,11 +155,14 @@ Todos os gatilhos herdam a região de `global-options.ts` (São Paulo).
      depois é.
    - Cria a trava com `create()`. Se ela já existe, para: um evento só avisa uma vez, mesmo que
      reabra.
-   - `registrationOpensAt` no futuro: trava com `status: 'scheduled'` e `sendAt`. Senão, envia na
-     hora e grava `status: 'sent'`.
+   - `registrationOpensAt` no futuro: trava com `status: 'scheduled'` e `sendAt`. Senão, cria com
+     `status: 'sending'`, envia na hora e grava `status: 'sent'`. Se a function cair no meio, o
+     reenvio do gatilho encontra a trava e não repete: preferimos perder um aviso a duplicar.
 6. **`sendScheduledOrganizerFollowerPushes`** (agendada, a cada 5 minutos): pega as travas
    `scheduled` com `sendAt <= agora`. Confere se o torneio continua aberto e listado. Envia, ou
-   marca `skipped`.
+   marca `skipped`. A reivindicação (`scheduled` → `sending`) é feita numa transação, então duas
+   execuções simultâneas não enviam duas vezes. Se o organizador adiou `registrationOpensAt`, a
+   trava volta para `scheduled` com o novo `sendAt`.
 7. **Envio** (`notifyOrganizerFollowers`):
    - Destinatários: todos os seguidores, menos o próprio organizador.
    - Usa `deliverNotificationToUser` (push e caixa de entrada) em lotes de 20.

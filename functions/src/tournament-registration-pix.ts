@@ -15,7 +15,6 @@ import {
 import {
   createAsaasCardCharge,
   createAsaasPixCharge,
-  deleteAsaasPaymentIfOpen,
 } from "./asaas-booking-payment";
 import {registrationHoldClearedFields} from
   "./tournament-registration-hold-ops";
@@ -63,10 +62,13 @@ import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {
   cashbackIdempotencyKey,
   cashbackResponseFields,
+  defaultPreviousChargeOps,
   releaseCashbackHoldQuietly,
   reserveCashbackForCharge,
+  retirePreviousCharge,
+  type PreviousChargeOps,
 } from "./cashback-checkout";
-import {readCashbackApplied, registrationCashbackLabel} from "./cashback-intent";
+import {registrationCashbackLabel} from "./cashback-intent";
 import {attachHoldPayment} from "./athlete-wallet";
 
 const pixPaymentSecrets = [...asaasArenaSecrets, PLATFORM_FEE_FIXED_BRL];
@@ -122,23 +124,31 @@ function pixPendingRef(
     .doc(payerUid);
 }
 
-async function cancelExistingPixPending(
+/**
+ * Mata a cobrança pendente do atleta antes de uma nova (ou a pedido dele). O
+ * saldo que ela reservou só volta com prova de que morreu: se o atleta já a
+ * pagou e o webhook ainda não chegou, o DELETE é recusado e a reserva fica
+ * para o webhook capturar — a cobrança nova reserva só o que sobrou.
+ */
+export async function cancelExistingPixPending(
   db: Firestore,
   projectId: string,
   registrationId: string,
   payerUid: string,
+  ops: PreviousChargeOps = defaultPreviousChargeOps,
 ): Promise<void> {
   const pendingRef = pixPendingRef(db, projectId, registrationId, payerUid);
   const pendingSnap = await pendingRef.get();
   if (!pendingSnap.exists) return;
   const pending = pendingSnap.data() ?? {};
   const asaasId = (pending.asaasPaymentId as string | undefined)?.trim();
-  if (asaasId) {
-    await deleteAsaasPaymentIfOpen(asaasId);
-  }
+  await retirePreviousCharge(
+    db,
+    {uid: payerUid, trackingPath: pendingRef.path, paymentId: asaasId},
+    Date.now(),
+    ops,
+  );
   await pendingRef.delete();
-  // O saldo reservado pela cobrança antiga volta antes de a nova reservar de novo.
-  await releaseCashbackHoldQuietly(db, payerUid, readCashbackApplied(pending).holdId, Date.now());
 }
 
 /** Entrada das callables de cobrança (PIX e cartão têm a mesma). */

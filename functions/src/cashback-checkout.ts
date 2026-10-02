@@ -13,6 +13,24 @@ import {readCashbackConfig} from "./cashback-config";
 import {centsToReais, toCents, type CashbackSourceType} from "./cashback-rules";
 import {holdCashback, releaseHold} from "./athlete-wallet";
 import {athleteWalletRef, type HoldDoc} from "./athlete-wallet-state";
+import {
+  deleteAsaasPaymentOrThrow,
+  getAsaasPayment,
+  type AsaasPaymentDetails,
+} from "./asaas-booking-payment";
+import {AsaasApiError} from "./asaas-client";
+
+/** Asaas da cobrança anterior numa reemissão — injetável para testar sem rede. */
+export type PreviousChargeOps = {
+  /** Apaga e PROPAGA a falha (404 = já não existe = sucesso). */
+  deletePayment: (paymentId: string) => Promise<void>;
+  getPayment: (paymentId: string) => Promise<AsaasPaymentDetails>;
+};
+
+export const defaultPreviousChargeOps: PreviousChargeOps = {
+  deletePayment: deleteAsaasPaymentOrThrow,
+  getPayment: getAsaasPayment,
+};
 
 export type CashbackReservation = {
   holdId: string | null;
@@ -126,4 +144,48 @@ export function cashbackResponseFields(
     cashbackAppliedReais: centsToReais(reservation.appliedCents),
     chargedReais: reservation.chargeReais,
   };
+}
+
+/**
+ * Reemissão (PIX/cartão da inscrição gerado de novo, entrada refeita no
+ * clubinho): apaga a cobrança anterior e só devolve a reserva de saldo DELA
+ * com prova de que morreu — DELETE aceito, ou GET dizendo removida
+ * (`deleted: true`) ou inexistente (404). Cobrança recebida, ou sem resposta,
+ * mantém a reserva aberta: o webhook (pago) ou a varredura de 5 min resolvem.
+ * Assim a cobrança nova reserva só o saldo que sobrou, nunca o mesmo duas
+ * vezes. A reserva é achada pelo servidor (`releaseHoldsOfDeadCharge`).
+ * Devolve se a cobrança foi provada morta. Nunca lança.
+ */
+export async function retirePreviousCharge(
+  db: Firestore,
+  p: {uid: string; trackingPath: string; paymentId: string | null | undefined},
+  nowMs: number,
+  ops: PreviousChargeOps = defaultPreviousChargeOps,
+): Promise<boolean> {
+  const paymentId = p.paymentId?.trim();
+  if (!paymentId) return false;
+  let dead = false;
+  try {
+    await ops.deletePayment(paymentId);
+    dead = true;
+  } catch (deleteErr) {
+    try {
+      const payment = await ops.getPayment(paymentId);
+      dead = payment.deleted === true;
+      if (!dead) {
+        logger.warn("cashback: cobrança anterior segue viva — a reserva de saldo dela fica", {
+          uid: p.uid, paymentId, status: payment.status ?? null, error: String(deleteErr),
+        });
+      }
+    } catch (getErr) {
+      dead = getErr instanceof AsaasApiError && getErr.httpStatus === 404;
+      if (!dead) {
+        logger.warn("cashback: cobrança anterior sem resposta do Asaas — a reserva de saldo dela fica", {
+          uid: p.uid, paymentId, error: String(getErr),
+        });
+      }
+    }
+  }
+  if (dead) await releaseHoldsOfDeadCharge(db, p.uid, p.trackingPath, paymentId, nowMs);
+  return dead;
 }

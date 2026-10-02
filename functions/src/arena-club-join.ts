@@ -43,9 +43,10 @@ import {
   cashbackResponseFields,
   releaseCashbackHoldQuietly,
   reserveCashbackForCharge,
+  retirePreviousCharge,
   type CashbackReservation,
 } from "./cashback-checkout";
-import {clubCashbackLabel, readCashbackApplied} from "./cashback-intent";
+import {clubCashbackLabel} from "./cashback-intent";
 import {attachHoldPayment} from "./athlete-wallet";
 
 /** Estados a partir dos quais o atleta pode tentar entrar de novo. */
@@ -347,11 +348,10 @@ export const joinArenaClubSession = onCall({
       previousAsaasPaymentId: typeof existing?.["asaasPaymentId"] === "string" ?
         (existing["asaasPaymentId"] as string).trim() :
         "",
-      previousHoldId: readCashbackApplied(existing ?? undefined).holdId,
     };
   });
 
-  const {session, previousAsaasPaymentId, previousHoldId} = txResult;
+  const {session, previousAsaasPaymentId} = txResult;
 
   let cashback: CashbackReservation = {
     holdId: null,
@@ -381,12 +381,14 @@ export const joinArenaClubSession = onCall({
   };
 
   try {
-    if (previousAsaasPaymentId) {
-      await deleteAsaasPaymentIfOpen(previousAsaasPaymentId);
-    }
-
-    // Entrada refeita: o saldo reservado pela cobrança anterior volta primeiro.
-    await releaseCashbackHoldQuietly(db, uid, previousHoldId, Date.now());
+    // Entrada refeita: a cobrança anterior é apagada e o saldo que ela
+    // reservou volta — só com prova de que morreu. Paga e ainda sem webhook,
+    // a reserva fica para o webhook capturar; a nova reserva só o que sobrou.
+    await retirePreviousCharge(
+      db,
+      {uid, trackingPath: participantRef.path, paymentId: previousAsaasPaymentId},
+      Date.now(),
+    );
 
     let payerEmail = "pagamento@nexago.app";
     let payerName: string | undefined;

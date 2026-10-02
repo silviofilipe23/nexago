@@ -67,7 +67,16 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
 
   static final _dateFmt = DateFormat('d MMM yyyy', 'pt_BR');
 
-  double get _totalReais => widget.args.confirmArgs.amountReais;
+  /// Total da reserva pro cashback (sinal + saldo na arena): o que o
+  /// servidor calculou, com cupom/promoção já aplicados — não o preço de
+  /// lista do `confirmArgs` (que não sabe de desconto nenhum).
+  /// `booking_service.dart` pode devolver os dois zerados; aí cai no preço
+  /// de lista.
+  double get _totalReais {
+    final serverTotal =
+        widget.args.amountToPayNowReais + widget.args.amountDueOnsiteReais;
+    return serverTotal > 0 ? serverTotal : widget.args.confirmArgs.amountReais;
+  }
 
   double get _payNowReais =>
       ArenaBookingPixAmounts.payNowReais(_totalReais, _paymentFraction);

@@ -207,6 +207,45 @@ void main() {
     expect(find.textContaining('do seu cashback'), findsNothing);
   });
 
+  testWidgets(
+      'cupom: a prévia do cashback usa o total do servidor, não o preço de lista (I2)',
+      (tester) async {
+    // Preço de lista R$ 100 (`confirmArgs.amountReais`), mas o cupom fez o
+    // servidor cobrar só R$ 50 (`amountToPayNowReais`) — é esse valor que a
+    // prévia do cashback tem que usar, não o preço de lista.
+    final args = ArenaBookingPixArgs(
+      bookingId: 'b1',
+      confirmArgs: ArenaBookingConfirmArgs(
+        arenaId: 'a1',
+        arenaName: 'Arena Sol',
+        courtId: 'q1',
+        courtName: 'Quadra 1',
+        date: DateTime(2026, 10, 12),
+        startTime: '19:00',
+        endTime: '20:00',
+        amountReais: 100,
+      ),
+      amountToPayNowReais: 50,
+      amountDueOnsiteReais: 0,
+      paymentFraction: 1.0,
+    );
+    final service = _FakePaymentService(resposta(price: 50));
+    await abrirPix(tester, service: service, args: args, availableCents: 6000);
+
+    await tester.tap(find.byKey(CheckoutCashbackToggle.switchKey));
+    await tester.pump();
+
+    // R$ 50 do servidor menos o mínimo de R$ 5: usa R$ 45 — não os R$ 95
+    // que sairiam se a prévia usasse o preço de lista de R$ 100.
+    expect(find.text(CashbackCopy.using(4500)), findsOneWidget);
+    expect(find.text(CashbackCopy.minCashNote(500)), findsOneWidget);
+    expect(find.text('${formatBRL(5)} · pagar com seu banco'), findsOneWidget);
+
+    await gerarPix(tester);
+
+    expect(service.calls.single, (fraction: 1.0, useCashback: true));
+  });
+
   testWidgets('recurso desligado com saldo: nem toggle nem linha de ganho',
       (tester) async {
     final service = _FakePaymentService(resposta(price: 100));

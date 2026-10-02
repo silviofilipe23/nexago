@@ -6,6 +6,7 @@ import {
   registrationOpensAt,
   registrationOpensLabel,
   tournamentIsFinishedOrCancelled,
+  tournamentListingStatus,
   type RegistrationTournamentFields,
   type TournamentCategoryOffer,
 } from './tournaments-repository';
@@ -100,6 +101,39 @@ describe('categoryAcceptsRegistration', () => {
     expect(categoryAcceptsRegistration(tournament({ registrationOpensAt: NOW }), category(), 6, NOW)).toBe(true);
     const past = new Date('2026-08-01T10:00:00-03:00');
     expect(categoryAcceptsRegistration(tournament({ registrationOpensAt: past }), category(), 6, NOW)).toBe(true);
+  });
+
+  // `startAt`/`endAt` são só data (meia-noite): o torneio de um dia não pode "acabar" às 00:00.
+  it('aceita no próprio dia de um torneio de um dia só (endAt à meia-noite)', () => {
+    const day = new Date('2026-10-02T00:00:00-03:00');
+    const morning = new Date('2026-10-02T09:30:00-03:00');
+    expect(categoryAcceptsRegistration(tournament({ startAt: day, endAt: day }), category(), 16, morning)).toBe(true);
+  });
+
+  it('recusa no dia seguinte ao fim do torneio', () => {
+    const day = new Date('2026-10-02T00:00:00-03:00');
+    const nextDay = new Date('2026-10-03T00:30:00-03:00');
+    expect(categoryAcceptsRegistration(tournament({ startAt: day, endAt: day }), category(), 16, nextDay)).toBe(false);
+  });
+});
+
+describe('tournamentListingStatus — último dia do torneio', () => {
+  const base = { rawStatus: 'open' as const, liveMatchesNow: 0, enrolledCount: 4, capacity: 32 };
+
+  it('torneio de um dia não aparece encerrado durante o próprio dia', () => {
+    const day = new Date('2026-10-02T00:00:00-03:00');
+    expect(tournamentListingStatus({ ...base, startAt: day, endAt: day }, new Date('2026-10-02T21:00:00-03:00'))).not.toBe('ended');
+  });
+
+  it('torneio de vários dias não aparece encerrado no último dia', () => {
+    const start = new Date('2026-10-02T00:00:00-03:00');
+    const end = new Date('2026-10-04T00:00:00-03:00');
+    expect(tournamentListingStatus({ ...base, startAt: start, endAt: end }, new Date('2026-10-04T15:00:00-03:00'))).not.toBe('ended');
+  });
+
+  it('encerra depois do fim do último dia', () => {
+    const day = new Date('2026-10-02T00:00:00-03:00');
+    expect(tournamentListingStatus({ ...base, startAt: day, endAt: day }, new Date('2026-10-03T08:00:00-03:00'))).toBe('ended');
   });
 });
 

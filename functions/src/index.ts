@@ -416,6 +416,19 @@ export {onTournamentReviewWritten} from "./tournament-review-derived";
 export {onTournamentReviewCreatedAwardXp} from "./tournament-review-gamification";
 export {tournamentReviewDailySweep} from "./tournament-review-sweep";
 
+// Perfil público do organizador: espelho, números, seguidores e push "abriu inscrições".
+// Spec: docs/superpowers/specs/2026-10-02-organizer-public-profile-design.md
+export {
+  onUserWrittenSyncOrganizerPublicProfile,
+  onOrganizerRecordWrittenSyncVerified,
+  onTournamentWrittenOrganizerStats,
+  onOrganizerFollowerWritten,
+} from "./organizer-public-profile-sync";
+export {
+  onTournamentWrittenNotifyOrganizerFollowers,
+  sendScheduledOrganizerFollowerPushes,
+} from "./organizer-follower-push";
+
 export {
   onGamificationSummaryWrittenSyncSandRank,
   backfillSandRanks,

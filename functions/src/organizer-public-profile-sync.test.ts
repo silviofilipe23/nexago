@@ -42,6 +42,13 @@ describe("syncOrganizerIdentity", () => {
     assert.equal(fake.store.has("organizerPublicProfiles/u-1"), false);
   });
 
+  it("atleta com doc criado só pelo contador de seguidores não ganha identidade", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc("organizerPublicProfiles/u-1", {followersCount: 1});
+    await syncOrganizerIdentity(asDb(fake), "u-1", {roles: ["athlete"], fullName: "Antes"}, {roles: ["athlete"], fullName: "Atleta"}, NOW);
+    assert.deepEqual(fake.store.get("organizerPublicProfiles/u-1"), {followersCount: 1});
+  });
+
   it("escrita que não muda a identidade não grava nada", async () => {
     const fake = new FakeFirestore();
     fake.seedDoc(PROFILE, {uid: "org-1", name: "Antigo"});

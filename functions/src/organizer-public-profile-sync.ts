@@ -55,8 +55,11 @@ export async function syncOrganizerIdentity(
 
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    if (!snap.exists && !next.isOrganizer) return;
     const current = snap.exists ? snap.data() as DocData : {};
+    // Só quem é organizador (ou deixou de ser, para sair da lista) ganha identidade. O doc pode
+    // existir sem ela — os números e o contador de seguidores criam antes —, e um atleta seguido
+    // por link direto não pode virar "organizador" com o nome dele.
+    if (!next.isOrganizer && current.isOrganizer !== true) return;
     // O selo nasce aqui só na primeira vez; depois quem mantém é o gatilho de `organizers/{uid}`.
     // "Primeira vez" é não ter `verified`, não o doc não existir: os números e o contador de
     // seguidores podem criar o doc antes da identidade, e ele nasceria sem selo.

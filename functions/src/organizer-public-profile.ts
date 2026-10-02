@@ -122,7 +122,7 @@ export function completedListedTournamentIds(rows: ReadonlyArray<TournamentRow>)
 export function normalizeVenueKey(name: string): string {
   return name
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();

@@ -1,0 +1,47 @@
+@let e = vm();
+<article class="ec">
+  <div class="ec-cover">
+    @if (e.coverUrl && !coverFailed()) {
+      <img class="ec-cover-img" [src]="e.coverUrl" alt="" loading="lazy" decoding="async" (error)="coverFailed.set(true)" />
+    }
+    <span class="ec-badge" [attr.data-tone]="e.badge.tone">{{ e.badge.label }}</span>
+    @if (e.sportLabel) {
+      <span class="ec-sport">{{ e.sportLabel }}</span>
+    }
+  </div>
+
+  <div class="ec-body">
+    <p class="ec-kicker">{{ e.typeLabel }}</p>
+    <h3 class="ec-name">
+      <a [routerLink]="e.link">{{ e.name }}</a>
+    </h3>
+    <p class="ec-row">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg>
+      {{ e.dateLabel }}
+    </p>
+    @if (e.venue) {
+      <p class="ec-row">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.4-6.5-10.5a6.5 6.5 0 0 1 13 0C18.5 15.6 12 21 12 21z" /><circle cx="12" cy="10.5" r="2.3" /></svg>
+        <span class="ec-ellipsis">{{ e.venue }}</span>
+      </p>
+    }
+    @if (e.spots; as spots) {
+      <div class="ec-spots">
+        <span class="ec-bar" [class.ec-bar--full]="spots.pct >= 100" aria-hidden="true"><span [style.width.%]="spots.pct"></span></span>
+        <span class="ec-spots-label">{{ spots.label }}</span>
+      </div>
+    }
+  </div>
+
+  <div class="ec-foot">
+    @if (e.price; as price) {
+      <p class="ec-price">
+        <strong>{{ price.label }}</strong>
+        @if (price.hint) {
+          <span>{{ price.hint }}</span>
+        }
+      </p>
+    }
+    <a class="ec-cta" [class.ec-cta--primary]="e.cta.primary" [routerLink]="e.cta.link">{{ e.cta.label }}</a>
+  </div>
+</article>

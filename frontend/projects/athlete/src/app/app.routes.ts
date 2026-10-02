@@ -210,6 +210,12 @@ export const routes: Routes = [
       import('./competir/competir-hub.component').then((m) => m.CompetirHubComponent),
   },
   {
+    path: 'organizadores/:organizerId',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./organizadores/organizer-profile.component').then((m) => m.OrganizerProfileComponent),
+  },
+  {
     // Operação do mesário (e do gestor) — os torneios em que ELE é equipe, não em que joga.
     // O `staffGuard` só evita tela vazia por link solto; quem autoriza a escrita são as rules
     // (`canScoreTournament`) e o `assertCanScoreTournament` dos callables.

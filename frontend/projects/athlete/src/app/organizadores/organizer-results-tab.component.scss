@@ -1,0 +1,110 @@
+@use 'organizer' as o;
+
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.rt-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--nx-s-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  @media (max-width: 640px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.rt-card {
+  @include o.card;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-3);
+  padding: var(--nx-s-4) var(--nx-s-5);
+  min-width: 0;
+}
+
+.rt-head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: inherit;
+  text-decoration: none;
+
+  &:hover .rt-name,
+  &:focus-visible .rt-name {
+    color: var(--nx-orange-400);
+  }
+}
+
+.rt-name {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--nx-text);
+  overflow-wrap: anywhere;
+}
+
+.rt-meta {
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  color: var(--nx-text-dim);
+}
+
+.rt-champions {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--nx-s-3);
+    padding: var(--nx-s-2) 0;
+    border-top: 1px solid var(--nx-line);
+    min-width: 0;
+  }
+}
+
+.rt-category {
+  @include o.kicker;
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rt-team {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  color: var(--nx-text);
+  text-align: right;
+  overflow-wrap: anywhere;
+
+  svg {
+    flex: none;
+    color: var(--nx-pending);
+  }
+}
+
+.rt-none {
+  margin: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  color: var(--nx-text-dim);
+}
+
+.rt-empty {
+  @include o.empty;
+}

@@ -1,0 +1,169 @@
+@use 'organizer' as o;
+
+:host {
+  display: block;
+  min-width: 0;
+  // A largura útil depende da sidebar do portal, não só da janela: as quebras medem o container.
+  container-type: inline-size;
+}
+
+// Principal + lateral; em container estreito a lateral desce para depois do conteúdo.
+.ov {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--nx-s-5);
+  align-items: start;
+
+  @container (max-width: 860px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ov-main,
+.ov-aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-5);
+  min-width: 0;
+}
+
+.ov-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-4);
+  min-width: 0;
+}
+
+.ov-head {
+  @include o.section-head;
+}
+
+.ov-title {
+  @include o.title;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px var(--nx-s-3);
+}
+
+.ov-caption,
+.ov-kicker {
+  @include o.kicker;
+}
+
+.ov-kicker {
+  margin-bottom: 4px;
+}
+
+.ov-link {
+  @include o.text-link;
+}
+
+.ov-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--nx-s-4);
+}
+
+.ov-empty {
+  @include o.empty;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+
+  p {
+    margin: 0;
+  }
+}
+
+.ov-follow {
+  @include o.button-base;
+  @include o.button-primary;
+  margin-top: var(--nx-s-2);
+}
+
+.ov-card {
+  @include o.card;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-3);
+  padding: var(--nx-s-5);
+  min-width: 0;
+}
+
+.ov-muted {
+  margin: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  color: var(--nx-text-mute);
+}
+
+.ov-about {
+  gap: var(--nx-s-4);
+}
+
+.ov-bio {
+  margin: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--nx-text-mute);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.ov-venues {
+  padding-top: var(--nx-s-4);
+  border-top: 1px solid var(--nx-line);
+
+  &:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  ul {
+    display: flex;
+    flex-direction: column;
+    gap: var(--nx-s-3);
+    margin: var(--nx-s-3) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: var(--nx-s-3);
+    min-width: 0;
+  }
+}
+
+.ov-venue-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--nx-r-2);
+  border: 1px solid var(--nx-line);
+  background: var(--nx-surface-1);
+  color: var(--nx-text-mute);
+  display: grid;
+  place-items: center;
+}
+
+.ov-venue-name {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--nx-text);
+  overflow-wrap: anywhere;
+}
+
+.ov-venue-city {
+  flex: none;
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  color: var(--nx-text-dim);
+}

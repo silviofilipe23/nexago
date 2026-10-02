@@ -1,0 +1,47 @@
+@use 'organizer' as o;
+
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-7);
+  min-width: 0;
+}
+
+.et-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-4);
+  min-width: 0;
+}
+
+.et-title {
+  @include o.title;
+  display: flex;
+  align-items: center;
+  gap: var(--nx-s-2);
+}
+
+.et-count {
+  padding: 2px 8px;
+  border-radius: var(--nx-r-pill);
+  background: var(--nx-surface-2);
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--nx-text-mute);
+}
+
+.et-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--nx-s-4);
+}
+
+.et-card {
+  @include o.card;
+  padding: var(--nx-s-2) var(--nx-s-5);
+}
+
+.et-empty {
+  @include o.empty;
+}

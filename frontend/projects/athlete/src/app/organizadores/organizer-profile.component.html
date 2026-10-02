@@ -1,0 +1,84 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  <div class="op">
+    <nav class="op-crumbs" aria-label="Você está em">
+      <a routerLink="/competir">Competir</a>
+      <span class="op-crumb-sep" aria-hidden="true">›</span>
+      <a routerLink="/organizadores">Organizadores</a>
+      @if (header(); as h) {
+        <span class="op-crumb-sep" aria-hidden="true">›</span>
+        <span class="op-crumb-current" aria-current="page">{{ h.name }}</span>
+      }
+    </nav>
+
+    @switch (store.status()) {
+      @case ('loading') {
+        <app-nx-page-loading title="Carregando organizador…" />
+      }
+      @case ('not-found') {
+        <div class="op-state">
+          <p class="op-state-title">Organizador não encontrado</p>
+          <p class="op-state-text">O link pode estar errado, ou este perfil não está mais público.</p>
+          <a routerLink="/organizadores" class="op-state-btn">Ver organizadores</a>
+        </div>
+      }
+      @case ('error') {
+        <div class="op-state" role="alert">
+          <p class="op-state-title">Não foi possível carregar o organizador</p>
+          <p class="op-state-text">
+            Verifique sua conexão e tente de novo.
+            @if (store.errorDetail(); as detail) {
+              <span class="op-state-detail">{{ detail }}</span>
+            }
+          </p>
+          <button type="button" class="op-state-btn" (click)="store.retry()">Tentar de novo</button>
+        </div>
+      }
+      @case ('ready') {
+        @if (header(); as h) {
+          <app-organizer-profile-header
+            [vm]="h"
+            [following]="store.following()"
+            [followBusy]="store.followBusy()"
+            [canFollow]="store.canFollow()"
+            (follow)="store.toggleFollow()"
+            (share)="share()"
+          />
+
+          <nav class="op-tabs" aria-label="Seções do organizador">
+            @for (tab of tabs(); track tab.id) {
+              <a
+                class="op-tab"
+                [class.op-tab--active]="tab.id === activeTab()"
+                [routerLink]="[]"
+                [queryParams]="{ aba: tab.id === 'visao-geral' ? null : tab.id }"
+                [attr.aria-current]="tab.id === activeTab() ? 'page' : null"
+              >
+                {{ tab.label }}
+                @if (tab.count != null) {
+                  <span class="op-tab-count">{{ tab.count }}</span>
+                }
+              </a>
+            }
+          </nav>
+
+          <div class="op-content">
+            @switch (activeTab()) {
+              @case ('eventos') {
+                <app-organizer-events-tab />
+              }
+              @case ('resultados') {
+                <app-organizer-results-tab />
+              }
+              @case ('avaliacoes') {
+                <app-organizer-reviews-tab />
+              }
+              @default {
+                <app-organizer-overview-tab />
+              }
+            }
+          </div>
+        }
+      }
+    }
+  </div>
+</app-at-panel-shell>

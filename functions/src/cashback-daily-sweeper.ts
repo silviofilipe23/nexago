@@ -8,7 +8,12 @@
  *    uma vez por lote.
  */
 import {onSchedule} from "firebase-functions/v2/scheduler";
-import {getFirestore, Timestamp, type Firestore} from "firebase-admin/firestore";
+import {
+  getFirestore,
+  Timestamp,
+  type Firestore,
+  type QueryDocumentSnapshot,
+} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {readCashbackConfig, type CashbackConfig} from "./cashback-config";
 import {
@@ -101,48 +106,71 @@ export type DailySweepStats = {
   warned: number;
 };
 
+/**
+ * Lotes vencidos por página e teto de páginas por passada (2.000 lotes cabem
+ * folgados nos 540 s). Lote que espera (cancelamento pendente) não muda de
+ * data e fica sempre na frente da ordem por `eventAt`: sem paginar, uma fila
+ * deles — ou um dia com mais lotes que uma página — atrasava os de trás por
+ * dias. O que passar do teto fica para a passada seguinte.
+ */
+const DUE_PAGE_SIZE = 500;
+const DUE_MAX_PAGES = 4;
+
+export type DailySweepOptions = {pageSize?: number; maxPages?: number};
+
 export async function runCashbackDailySweep(
   db: Firestore,
   projectId: string,
   nowMs: number,
   config: CashbackConfig,
   notify: CashbackNotify,
+  options: DailySweepOptions = {},
 ): Promise<DailySweepStats> {
   const stats: DailySweepStats = {
     released: 0, cancelled: 0, rescheduled: 0, waiting: 0, expired: 0, warned: 0,
   };
   const now = Timestamp.fromMillis(nowMs);
 
-  // 1. Liberar / cancelar / adiar.
+  // 1. Liberar / cancelar / adiar — paginado por cursor de documento: o
+  // cursor anda por (eventAt, caminho), então nem lote que espera nem empate
+  // de data (todos os lotes de um torneio) prendem a fila.
   const releasedByUid = new Map<string, number>();
-  const due = await db.collectionGroup("lots")
-    .where("status", "==", "pending")
-    .where("eventAt", "<=", now)
-    .limit(500)
-    .get();
-  for (const doc of due.docs) {
-    const lot = doc.data() as LotDoc;
-    const uid = doc.ref.parent.parent?.id ?? lot.uid;
-    try {
-      const decision = releaseDecision(await loadSourceState(db, projectId, uid, lot), nowMs);
-      if (decision.kind === "release") {
-        const cents = await releaseLot(db, uid, doc.id, nowMs, config.expiryMonths);
-        if (cents > 0) {
-          releasedByUid.set(uid, (releasedByUid.get(uid) ?? 0) + cents);
-          stats.released++;
+  const pageSize = options.pageSize ?? DUE_PAGE_SIZE;
+  const maxPages = options.maxPages ?? DUE_MAX_PAGES;
+  let cursor: QueryDocumentSnapshot | null = null;
+  for (let page = 0; page < maxPages; page++) {
+    let query = db.collectionGroup("lots")
+      .where("status", "==", "pending")
+      .where("eventAt", "<=", now)
+      .orderBy("eventAt");
+    if (cursor) query = query.startAfter(cursor);
+    const due = await query.limit(pageSize).get();
+    for (const doc of due.docs) {
+      const lot = doc.data() as LotDoc;
+      const uid = doc.ref.parent.parent?.id ?? lot.uid;
+      try {
+        const decision = releaseDecision(await loadSourceState(db, projectId, uid, lot), nowMs);
+        if (decision.kind === "release") {
+          const cents = await releaseLot(db, uid, doc.id, nowMs, config.expiryMonths);
+          if (cents > 0) {
+            releasedByUid.set(uid, (releasedByUid.get(uid) ?? 0) + cents);
+            stats.released++;
+          }
+        } else if (decision.kind === "cancel") {
+          if (await cancelLot(db, uid, doc.id, nowMs)) stats.cancelled++;
+          logger.info("cashback: lote cancelado", {uid, lotId: doc.id, reason: decision.reason});
+        } else if (decision.eventAtMs != null) {
+          await rescheduleLot(db, uid, doc.id, decision.eventAtMs);
+          stats.rescheduled++;
+        } else {
+          stats.waiting++;
         }
-      } else if (decision.kind === "cancel") {
-        if (await cancelLot(db, uid, doc.id, nowMs)) stats.cancelled++;
-        logger.info("cashback: lote cancelado", {uid, lotId: doc.id, reason: decision.reason});
-      } else if (decision.eventAtMs != null) {
-        await rescheduleLot(db, uid, doc.id, decision.eventAtMs);
-        stats.rescheduled++;
-      } else {
-        stats.waiting++;
+      } catch (e) {
+        logger.error("cashback: falha ao conferir lote pendente", {uid, lotId: doc.id, error: String(e)});
       }
-    } catch (e) {
-      logger.error("cashback: falha ao conferir lote pendente", {uid, lotId: doc.id, error: String(e)});
     }
+    if (due.docs.length < pageSize) break;
+    cursor = due.docs[due.docs.length - 1];
   }
   for (const [uid, cents] of releasedByUid) {
     await notify({

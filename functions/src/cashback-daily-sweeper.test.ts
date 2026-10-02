@@ -155,3 +155,56 @@ describe("runCashbackDailySweep — vencimento e aviso", () => {
     assert.equal(fake.store.get(`${W}/lots/later`)!.expiryWarnedAt, null);
   });
 });
+
+describe("runCashbackDailySweep — paginação dos lotes vencidos (M1)", () => {
+  it("lotes que esperam na frente da fila não travam a liberação dos de trás, nem com empate de data", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("tournaments/t1", {startAt: Timestamp.fromMillis(NOW - 5 * DAY)});
+    fake.seedDoc(`${INSCRIPTIONS}/r1`, {tournamentId: "t1", cancellationRequest: {status: "pending"}});
+    // Cancelamento pendente: esperam sem mudar de data — ficam sempre na frente.
+    for (const id of ["w1", "w2", "w3"]) {
+      pendingLot(fake, id, {
+        sourceType: "registration", sourceId: "r1", tournamentId: "t1",
+        eventAt: Timestamp.fromMillis(NOW - 5 * DAY),
+      });
+    }
+    fake.seedDoc("arenaBookings/b1", {status: "confirmed", date: "2026-10-08", startTime: "19:00"});
+    // Mesmo eventAt atravessando a fronteira das páginas (lotes de um mesmo evento).
+    for (const id of ["l1", "l2", "l3", "l4"]) {
+      pendingLot(fake, id, {sourceId: "b1", eventAt: Timestamp.fromMillis(NOW - DAY)});
+    }
+
+    const stats = await runCashbackDailySweep(
+      db, "p", NOW, DEFAULT_CASHBACK_CONFIG, notifySpy().notify, {pageSize: 2},
+    );
+
+    for (const id of ["l1", "l2", "l3", "l4"]) {
+      assert.equal(fake.store.get(`${W}/lots/${id}`)!.status, "available", id);
+    }
+    for (const id of ["w1", "w2", "w3"]) {
+      assert.equal(fake.store.get(`${W}/lots/${id}`)!.status, "pending", id);
+    }
+    assert.equal(stats.released, 4);
+    assert.equal(stats.waiting, 3);
+  });
+
+  it("teto de páginas por passada: o que sobra fica para a próxima", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("arenaBookings/b1", {status: "confirmed", date: "2026-10-08", startTime: "19:00"});
+    for (const id of ["l1", "l2", "l3", "l4", "l5"]) {
+      pendingLot(fake, id, {sourceId: "b1"});
+    }
+
+    const first = await runCashbackDailySweep(
+      db, "p", NOW, DEFAULT_CASHBACK_CONFIG, notifySpy().notify, {pageSize: 2, maxPages: 2},
+    );
+    assert.equal(first.released, 4);
+    assert.equal(fake.store.get(`${W}/lots/l5`)!.status, "pending");
+
+    const second = await runCashbackDailySweep(
+      db, "p", NOW + DAY, DEFAULT_CASHBACK_CONFIG, notifySpy().notify, {pageSize: 2, maxPages: 2},
+    );
+    assert.equal(second.released, 1);
+    assert.equal(fake.store.get(`${W}/lots/l5`)!.status, "available");
+  });
+});

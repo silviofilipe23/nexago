@@ -70,6 +70,7 @@ export interface FakeDocRef {
   parent: {parent: FakeDocRef | null};
   get: () => Promise<FakeDocSnapshot>;
   set: (data: DocData, opts?: {merge?: boolean}) => Promise<void>;
+  create: (data: DocData) => Promise<void>;
   update: (data: DocData) => Promise<void>;
   delete: () => Promise<void>;
   collection: (subPath: string) => ReturnType<FakeFirestore["collection"]>;
@@ -107,6 +108,15 @@ export class FakeFirestore {
       get: async () => self.snapshotOf(path),
       set: async (data: DocData, opts?: {merge?: boolean}) => {
         self.write(path, data, opts);
+      },
+      create: async (data: DocData) => {
+        // Espelha o Admin SDK: `create` em doc existente falha com ALREADY_EXISTS (código 6).
+        if (self.store.has(path)) {
+          const error = new Error(`6 ALREADY_EXISTS: Document already exists: ${path}`);
+          (error as Error & {code: number}).code = 6;
+          throw error;
+        }
+        self.write(path, data);
       },
       update: async (data: DocData) => {
         if (!self.store.has(path)) throw new Error(`update em doc ausente: ${path}`);
@@ -172,6 +182,8 @@ export class FakeFirestore {
           filters: [...spec.filters, (doc: DocData) => matchesWhere(doc[field], op, value)],
         }),
       orderBy: (field: string) => build({...spec, orderField: field}),
+      // Projeção do Admin SDK: no fake devolve o doc inteiro (quem testa campos lê só os que pediu).
+      select: () => build(spec),
       startAfter: (value: unknown) => build({...spec, startAfterValue: value}),
       limit: (count: number) => build({...spec, limitCount: count}),
       get: async () => {

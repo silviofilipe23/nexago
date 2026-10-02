@@ -234,7 +234,9 @@ export function restoreToLot(
   return 0;
 }
 
-export function computeSummary(state: WalletState): WalletSummary {
+/** Totais mostrados ao atleta; ignora lote já vencido que a varredura ainda não processou,
+ *  para o saldo exibido bater com o que `spendableLots`/`holdCashback` aceitariam agora. */
+export function computeSummary(state: WalletState, nowMs: number): WalletSummary {
   let availableCents = 0;
   let pendingCents = 0;
   let heldCents = 0;
@@ -243,8 +245,9 @@ export function computeSummary(state: WalletState): WalletSummary {
   for (const lot of state.lots.values()) {
     if (lot.status === "pending") pendingCents += lot.earnedCents;
     if (lot.status !== "available" || lot.remainingCents <= 0) continue;
-    availableCents += lot.remainingCents;
     const ms = lot.expiresAt ? lot.expiresAt.toMillis() : null;
+    if (ms != null && ms <= nowMs) continue;
+    availableCents += lot.remainingCents;
     if (ms == null) continue;
     if (nextExpiryAtMs == null || ms < nextExpiryAtMs) {
       nextExpiryAtMs = ms;
@@ -274,7 +277,7 @@ export function writeWalletState(
   for (const entry of state.ledger) {
     tx.set(state.walletRef.collection("ledger").doc(), {...entry, createdAt: now});
   }
-  const summary = computeSummary(state);
+  const summary = computeSummary(state, nowMs);
   tx.set(state.walletRef, {
     uid: state.uid,
     availableCents: summary.availableCents,

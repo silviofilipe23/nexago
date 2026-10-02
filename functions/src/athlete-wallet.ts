@@ -80,10 +80,7 @@ export async function attachHoldPayment(
   holdId: string,
   asaasPaymentId: string,
 ): Promise<void> {
-  await athleteWalletRef(db, uid).collection("holds").doc(holdId).set(
-    {asaasPaymentId},
-    {merge: true},
-  );
+  await athleteWalletRef(db, uid).collection("holds").doc(holdId).update({asaasPaymentId});
 }
 
 /** Cobrança morreu sem pagamento: o saldo volta aos lotes de origem. Idempotente. */
@@ -188,7 +185,12 @@ export async function refundCapturedHold(
         0,
         state.lifetimeRedeemedCents - (hold.amountCents - hold.shortfallCents),
       );
-      addLedger(state, {type: "refund", amountCents: restoredCents, label: hold.label, holdId});
+      addLedger(state, {
+        type: "refund",
+        amountCents: hold.amountCents - hold.shortfallCents,
+        label: hold.label,
+        holdId,
+      });
     }
     putHold(state, holdId, {
       ...hold,

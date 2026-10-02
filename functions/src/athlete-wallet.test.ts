@@ -20,7 +20,7 @@ function makeDb(): {fake: FakeFirestore; db: Firestore} {
   return {fake, db: fake as unknown as Firestore};
 }
 
-export function seedLot(
+function seedLot(
   fake: FakeFirestore,
   lotId: string,
   overrides: DocData = {},
@@ -110,6 +110,22 @@ describe("holdCashback", () => {
     assert.equal(b.appliedCents, 300);
     assert.equal(fake.store.get(W)!.availableCents, 0);
     assert.equal(fake.store.get(W)!.heldCents, 1000);
+  });
+
+  it("saldo mostrado ignora lote vencido ainda não varrido", async () => {
+    const {fake, db} = makeDb();
+    seedLot(fake, "valid", {remainingCents: 500, expiresAt: Timestamp.fromMillis(NOW + 50 * DAY)});
+    seedLot(fake, "expired", {
+      remainingCents: 300,
+      status: "available",
+      expiresAt: Timestamp.fromMillis(NOW - DAY),
+    });
+
+    await holdCashback(db, holdParams(100));
+
+    const wallet = fake.store.get(W)!;
+    assert.equal(wallet.availableCents, 400);
+    assert.equal((wallet.nextExpiryAt as Timestamp).toMillis(), NOW + 50 * DAY);
   });
 });
 
@@ -221,5 +237,41 @@ describe("refundCapturedHold", () => {
     assert.equal(wallet.lifetimeRedeemedCents, 0);
     assert.equal(ledgerOf(fake).find((e) => e.type === "refund")?.amountCents, 500);
     assert.equal(await refundCapturedHold(db, UID, holdId!, NOW), 0);
+  });
+
+  it("extrato fecha com o valor cheio mesmo quando o lote de origem já venceu e perdeu o saldo", async () => {
+    const {fake, db} = makeDb();
+    seedLot(fake, "l1", {remainingCents: 1000});
+    const {holdId} = await holdCashback(db, holdParams(500));
+    await captureHold(db, UID, holdId!, NOW);
+    // A varredura venceu o lote antes do estorno chegar: o saldo restante dele (500) se perde.
+    fake.seedDoc(`${W}/lots/l1`, {
+      ...fake.store.get(`${W}/lots/l1`)!,
+      remainingCents: 0,
+      status: "expired",
+    });
+
+    const restored = await refundCapturedHold(db, UID, holdId!, NOW);
+
+    assert.equal(restored, 0);
+    assert.equal(fake.store.get(`${W}/holds/${holdId}`)!.status, "refunded");
+    assert.equal(fake.store.get(W)!.availableCents, 0);
+    const entries = ledgerOf(fake);
+    assert.equal(entries.find((e) => e.type === "refund")?.amountCents, 500);
+    assert.equal(entries.find((e) => e.type === "expire")?.amountCents, 500);
+  });
+
+  it("em reserva ainda aberta, só libera — sem lançamento de estorno", async () => {
+    const {fake, db} = makeDb();
+    seedLot(fake, "l1", {remainingCents: 1000});
+    const {holdId} = await holdCashback(db, holdParams(400));
+
+    const restored = await refundCapturedHold(db, UID, holdId!, NOW);
+
+    assert.equal(restored, 400);
+    assert.equal(fake.store.get(`${W}/lots/l1`)!.remainingCents, 1000);
+    assert.equal(fake.store.get(`${W}/holds/${holdId}`)!.status, "released");
+    assert.equal(fake.store.get(W)!.lifetimeRedeemedCents, 0);
+    assert.equal(ledgerOf(fake).some((e) => e.type === "refund"), false);
   });
 });

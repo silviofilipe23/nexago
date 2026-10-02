@@ -4,10 +4,17 @@ import {Timestamp, type Firestore} from "firebase-admin/firestore";
 import {FakeFirestore, type DocData} from "./fake-firestore.test-helper";
 import {
   attachHoldPayment,
+  cancelLot,
   captureHold,
+  earnPendingLot,
+  expireLot,
   holdCashback,
+  markExpiryWarned,
   refundCapturedHold,
   releaseHold,
+  releaseLot,
+  rescheduleLot,
+  reverseLot,
 } from "./athlete-wallet";
 
 const UID = "ath1";
@@ -273,5 +280,140 @@ describe("refundCapturedHold", () => {
     assert.equal(fake.store.get(`${W}/holds/${holdId}`)!.status, "released");
     assert.equal(fake.store.get(W)!.lifetimeRedeemedCents, 0);
     assert.equal(ledgerOf(fake).some((e) => e.type === "refund"), false);
+  });
+});
+
+function earnParams(overrides: Partial<Parameters<typeof earnPendingLot>[1]> = {}) {
+  return {
+    uid: UID,
+    paymentId: "pay1",
+    earnCents: 240,
+    sourceType: "booking" as const,
+    sourceId: "b1",
+    tournamentId: null,
+    arenaId: "arena1",
+    label: "Reserva · Arena Sol · 12/10",
+    eventAtMs: NOW + 2 * DAY,
+    nowMs: NOW,
+    ...overrides,
+  };
+}
+
+describe("earnPendingLot", () => {
+  it("cria o lote pendente com o id do pagamento e é idempotente", async () => {
+    const {fake, db} = makeDb();
+    assert.equal(await earnPendingLot(db, earnParams()), true);
+    assert.equal(await earnPendingLot(db, earnParams()), false);
+
+    const lot = fake.store.get(`${W}/lots/pay1`)!;
+    assert.equal(lot.status, "pending");
+    assert.equal(lot.earnedCents, 240);
+    assert.equal(lot.remainingCents, 0);
+    assert.equal((lot.eventAt as Timestamp).toMillis(), NOW + 2 * DAY);
+    const wallet = fake.store.get(W)!;
+    assert.equal(wallet.pendingCents, 240);
+    assert.equal(wallet.availableCents, 0);
+    assert.equal(wallet.lifetimeEarnedCents, 240);
+    assert.equal(ledgerOf(fake).filter((e) => e.type === "earn").length, 1);
+  });
+
+  it("ganho zero não cria lote", async () => {
+    const {fake, db} = makeDb();
+    assert.equal(await earnPendingLot(db, earnParams({earnCents: 0})), false);
+    assert.equal(fake.store.has(`${W}/lots/pay1`), false);
+  });
+});
+
+describe("releaseLot", () => {
+  it("libera com validade de N meses e é idempotente", async () => {
+    const {fake, db} = makeDb();
+    await earnPendingLot(db, earnParams());
+
+    assert.equal(await releaseLot(db, UID, "pay1", NOW, 6), 240);
+    assert.equal(await releaseLot(db, UID, "pay1", NOW, 6), 0);
+
+    const lot = fake.store.get(`${W}/lots/pay1`)!;
+    assert.equal(lot.status, "available");
+    assert.equal(lot.remainingCents, 240);
+    assert.equal((lot.expiresAt as Timestamp).toMillis(), Date.UTC(2027, 3, 1, 13, 0, 0));
+    const wallet = fake.store.get(W)!;
+    assert.equal(wallet.pendingCents, 0);
+    assert.equal(wallet.availableCents, 240);
+    assert.equal((wallet.nextExpiryAt as Timestamp).toMillis(), Date.UTC(2027, 3, 1, 13, 0, 0));
+    assert.equal(wallet.nextExpiryCents, 240);
+  });
+});
+
+describe("cancelLot / rescheduleLot", () => {
+  it("cancela só lote pendente", async () => {
+    const {fake, db} = makeDb();
+    await earnPendingLot(db, earnParams());
+    assert.equal(await cancelLot(db, UID, "pay1", NOW), true);
+    assert.equal(await cancelLot(db, UID, "pay1", NOW), false);
+    assert.equal(fake.store.get(`${W}/lots/pay1`)!.status, "cancelled");
+    assert.equal(fake.store.get(W)!.pendingCents, 0);
+    assert.equal(ledgerOf(fake).find((e) => e.type === "cancel")?.amountCents, 240);
+  });
+
+  it("move a data do evento", async () => {
+    const {fake, db} = makeDb();
+    await earnPendingLot(db, earnParams());
+    await rescheduleLot(db, UID, "pay1", NOW + 9 * DAY);
+    assert.equal(
+      (fake.store.get(`${W}/lots/pay1`)!.eventAt as Timestamp).toMillis(),
+      NOW + 9 * DAY,
+    );
+  });
+});
+
+describe("reverseLot", () => {
+  it("pendente é cancelado", async () => {
+    const {fake, db} = makeDb();
+    await earnPendingLot(db, earnParams());
+    assert.equal(await reverseLot(db, UID, "pay1", NOW), "cancelled");
+    assert.equal(fake.store.get(`${W}/lots/pay1`)!.status, "cancelled");
+  });
+
+  it("disponível perde o que resta, sem saldo negativo", async () => {
+    const {fake, db} = makeDb();
+    seedLot(fake, "pay1", {remainingCents: 100, earnedCents: 240});
+    assert.equal(await reverseLot(db, UID, "pay1", NOW), "reversed");
+    const lot = fake.store.get(`${W}/lots/pay1`)!;
+    assert.equal(lot.status, "reversed");
+    assert.equal(lot.remainingCents, 0);
+    assert.equal(fake.store.get(W)!.availableCents, 0);
+    assert.equal(ledgerOf(fake).find((e) => e.type === "reverse")?.amountCents, 100);
+  });
+
+  it("lote inexistente não faz nada", async () => {
+    const {db} = makeDb();
+    assert.equal(await reverseLot(db, UID, "nada", NOW), "none");
+  });
+});
+
+describe("expireLot", () => {
+  it("vence o que sobrou do lote disponível vencido", async () => {
+    const {fake, db} = makeDb();
+    seedLot(fake, "l1", {remainingCents: 320, expiresAt: Timestamp.fromMillis(NOW - 1000)});
+    seedLot(fake, "l2", {remainingCents: 500});
+
+    assert.equal(await expireLot(db, UID, "l1", NOW), 320);
+    assert.equal(await expireLot(db, UID, "l2", NOW), 0);
+
+    assert.equal(fake.store.get(`${W}/lots/l1`)!.status, "expired");
+    assert.equal(fake.store.get(`${W}/lots/l2`)!.status, "available");
+    assert.equal(fake.store.get(W)!.availableCents, 500);
+    assert.equal(ledgerOf(fake).find((e) => e.type === "expire")?.amountCents, 320);
+  });
+});
+
+describe("markExpiryWarned", () => {
+  it("marca os lotes avisados", async () => {
+    const {fake, db} = makeDb();
+    seedLot(fake, "l1");
+    seedLot(fake, "l2");
+    await markExpiryWarned(db, UID, ["l1", "l2"], NOW);
+    assert.equal((fake.store.get(`${W}/lots/l1`)!.expiryWarnedAt as Timestamp).toMillis(), NOW);
+    assert.equal((fake.store.get(`${W}/lots/l2`)!.expiryWarnedAt as Timestamp).toMillis(), NOW);
   });
 });

@@ -7,13 +7,14 @@
  * cliente.
  */
 import {Timestamp, type Firestore} from "firebase-admin/firestore";
-import {allocateFifo, type CashbackSourceType} from "./cashback-rules";
+import {allocateFifo, computeExpiresAtMs, type CashbackSourceType} from "./cashback-rules";
 import {
   addLedger,
   athleteWalletRef,
   debitLot,
   loadWalletState,
   putHold,
+  putLot,
   readHold,
   readLots,
   restoreToLot,
@@ -200,4 +201,168 @@ export async function refundCapturedHold(
     writeWalletState(tx, state, nowMs);
     return restoredCents;
   });
+}
+
+export type EarnLotParams = {
+  uid: string;
+  /** Id do pagamento no Asaas — também é o id do lote: um ganho por pagamento. */
+  paymentId: string;
+  earnCents: number;
+  sourceType: CashbackSourceType;
+  sourceId: string;
+  tournamentId: string | null;
+  arenaId: string | null;
+  label: string;
+  eventAtMs: number;
+  nowMs: number;
+};
+
+/** Ganho nasce PENDENTE e só libera depois do evento. Idempotente pelo id do pagamento. */
+export async function earnPendingLot(db: Firestore, p: EarnLotParams): Promise<boolean> {
+  if (p.earnCents <= 0) return false;
+  return db.runTransaction(async (tx) => {
+    const state = await loadWalletState(tx, db, p.uid);
+    const lotSnap = await tx.get(state.walletRef.collection("lots").doc(p.paymentId));
+    if (lotSnap.exists) return false;
+    const now = Timestamp.fromMillis(p.nowMs);
+    putLot(state, p.paymentId, {
+      uid: p.uid,
+      sourceType: p.sourceType,
+      sourceId: p.sourceId,
+      tournamentId: p.tournamentId,
+      arenaId: p.arenaId,
+      label: p.label,
+      earnedCents: p.earnCents,
+      remainingCents: 0,
+      status: "pending",
+      eventAt: Timestamp.fromMillis(p.eventAtMs),
+      releasedAt: null,
+      expiresAt: null,
+      expiryWarnedAt: null,
+      createdAt: now,
+    });
+    state.lifetimeEarnedCents += p.earnCents;
+    addLedger(state, {type: "earn", amountCents: p.earnCents, label: p.label, lotId: p.paymentId});
+    writeWalletState(tx, state, p.nowMs);
+    return true;
+  });
+}
+
+/** Pendente → disponível, vencendo em `expiryMonths`. Devolve o valor liberado (0 se nada mudou). */
+export async function releaseLot(
+  db: Firestore,
+  uid: string,
+  lotId: string,
+  nowMs: number,
+  expiryMonths: number,
+): Promise<number> {
+  return db.runTransaction(async (tx) => {
+    const state = await loadWalletState(tx, db, uid);
+    const lot = state.lots.get(lotId);
+    if (!lot || lot.status !== "pending") return 0;
+    putLot(state, lotId, {
+      ...lot,
+      status: "available",
+      remainingCents: lot.earnedCents,
+      releasedAt: Timestamp.fromMillis(nowMs),
+      expiresAt: Timestamp.fromMillis(computeExpiresAtMs(nowMs, expiryMonths)),
+    });
+    addLedger(state, {type: "release", amountCents: lot.earnedCents, label: lot.label, lotId});
+    writeWalletState(tx, state, nowMs);
+    return lot.earnedCents;
+  });
+}
+
+/** Vínculo caiu antes do evento: o pendente é cancelado. */
+export async function cancelLot(
+  db: Firestore,
+  uid: string,
+  lotId: string,
+  nowMs: number,
+): Promise<boolean> {
+  return db.runTransaction(async (tx) => {
+    const state = await loadWalletState(tx, db, uid);
+    const lot = state.lots.get(lotId);
+    if (!lot || lot.status !== "pending") return false;
+    putLot(state, lotId, {...lot, status: "cancelled"});
+    addLedger(state, {type: "cancel", amountCents: lot.earnedCents, label: lot.label, lotId});
+    writeWalletState(tx, state, nowMs);
+    return true;
+  });
+}
+
+/** Evento adiado: só move a data em que o lote volta a ser conferido. */
+export async function rescheduleLot(
+  db: Firestore,
+  uid: string,
+  lotId: string,
+  eventAtMs: number,
+): Promise<void> {
+  await athleteWalletRef(db, uid).collection("lots").doc(lotId).set(
+    {eventAt: Timestamp.fromMillis(eventAtMs)},
+    {merge: true},
+  );
+}
+
+/**
+ * Estorno do pagamento que gerou o lote: pendente é cancelado; disponível
+ * perde o que ainda resta. O que o atleta já gastou a nexaGO absorve — o
+ * saldo nunca fica negativo.
+ */
+export async function reverseLot(
+  db: Firestore,
+  uid: string,
+  lotId: string,
+  nowMs: number,
+): Promise<"cancelled" | "reversed" | "none"> {
+  return db.runTransaction(async (tx) => {
+    const state = await loadWalletState(tx, db, uid);
+    await readLots(tx, state, [lotId]);
+    const lot = state.lots.get(lotId);
+    if (!lot) return "none";
+    if (lot.status === "pending") {
+      putLot(state, lotId, {...lot, status: "cancelled"});
+      addLedger(state, {type: "cancel", amountCents: lot.earnedCents, label: lot.label, lotId});
+      writeWalletState(tx, state, nowMs);
+      return "cancelled";
+    }
+    if (lot.status !== "available" && lot.status !== "consumed") return "none";
+    putLot(state, lotId, {...lot, remainingCents: 0, status: "reversed"});
+    addLedger(state, {type: "reverse", amountCents: lot.remainingCents, label: lot.label, lotId});
+    writeWalletState(tx, state, nowMs);
+    return "reversed";
+  });
+}
+
+/** Vence o que sobrou de um lote disponível já vencido. Devolve o valor perdido. */
+export async function expireLot(
+  db: Firestore,
+  uid: string,
+  lotId: string,
+  nowMs: number,
+): Promise<number> {
+  return db.runTransaction(async (tx) => {
+    const state = await loadWalletState(tx, db, uid);
+    const lot = state.lots.get(lotId);
+    if (!lot || lot.status !== "available") return 0;
+    if (!lot.expiresAt || lot.expiresAt.toMillis() > nowMs) return 0;
+    putLot(state, lotId, {...lot, remainingCents: 0, status: "expired"});
+    addLedger(state, {type: "expire", amountCents: lot.remainingCents, label: lot.label, lotId});
+    writeWalletState(tx, state, nowMs);
+    return lot.remainingCents;
+  });
+}
+
+export async function markExpiryWarned(
+  db: Firestore,
+  uid: string,
+  lotIds: string[],
+  nowMs: number,
+): Promise<void> {
+  const batch = db.batch();
+  const lots = athleteWalletRef(db, uid).collection("lots");
+  for (const lotId of lotIds) {
+    batch.set(lots.doc(lotId), {expiryWarnedAt: Timestamp.fromMillis(nowMs)}, {merge: true});
+  }
+  await batch.commit();
 }

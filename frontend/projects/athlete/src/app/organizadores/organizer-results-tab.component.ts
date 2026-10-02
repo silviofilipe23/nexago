@@ -50,6 +50,7 @@ export class OrganizerResultsTabComponent {
   });
 
   constructor() {
-    void this.store.ensureAllDetails();
+    // Só os campeões: esta aba não mostra inscritos.
+    void this.store.ensureResultsTabDetails();
   }
 }

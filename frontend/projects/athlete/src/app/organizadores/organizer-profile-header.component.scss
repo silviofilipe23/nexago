@@ -173,6 +173,14 @@
   @include o.button-primary;
 }
 
+// Enquanto não se sabe se já segue: botão neutro, sem chamar para a ação.
+.oh-btn--pending {
+  background: var(--nx-surface-1);
+  border-color: var(--nx-line-strong);
+  color: var(--nx-text-mute);
+  box-shadow: none;
+}
+
 .oh-btn--following {
   background: transparent;
   border-color: var(--nx-orange-500);

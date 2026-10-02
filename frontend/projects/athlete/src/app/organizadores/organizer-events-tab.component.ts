@@ -52,7 +52,7 @@ export class OrganizerEventsTabComponent {
   });
 
   constructor() {
-    // Duplas e campeões de todos os eventos: só quando esta aba abre.
-    void this.store.ensureAllDetails();
+    // Inscritos e campeões de todos os eventos: só quando esta aba abre.
+    void this.store.ensureEventsTabDetails();
   }
 }

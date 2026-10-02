@@ -55,12 +55,13 @@
         <button
           type="button"
           class="oh-btn oh-btn--follow"
-          [class.oh-btn--following]="following()"
-          [disabled]="followBusy()"
-          [attr.aria-pressed]="following()"
+          [class.oh-btn--following]="following() === true"
+          [class.oh-btn--pending]="followPending()"
+          [disabled]="followBusy() || followPending()"
+          [attr.aria-busy]="followPending() || null"
           (click)="follow.emit()"
         >
-          @if (following()) {
+          @if (following() === true) {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 12.5 5 5 10-11" /></svg>
             Seguindo
           } @else {

@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { RouterLink } from '@angular/router';
 import { OrganizerEventCardComponent } from './organizer-event-card.component';
 import { OrganizerHistoryListComponent } from './organizer-history-list.component';
-import { HISTORY_PREVIEW, OrganizerProfileStore } from './organizer-profile.store';
+import { HISTORY_PREVIEW, OrganizerProfileStore, UPCOMING_PREVIEW } from './organizer-profile.store';
 import {
   openRegistrationCaption,
   organizerEventCardVm,
@@ -10,9 +10,6 @@ import {
   organizerReputationVm,
 } from './organizer-profile.vm';
 import { OrganizerReputationCardComponent } from './organizer-reputation-card.component';
-
-/** Até 3 próximos na visão geral (spec). */
-const UPCOMING_PREVIEW = 3;
 
 /** Aba "Visão geral": próximos eventos, histórico e, na lateral, bio, locais e reputação. */
 @Component({

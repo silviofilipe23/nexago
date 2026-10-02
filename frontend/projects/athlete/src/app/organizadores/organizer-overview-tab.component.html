@@ -22,9 +22,17 @@
       } @else {
         <div class="ov-empty">
           <p>Nenhum evento com inscrição no momento.</p>
-          @if (store.canFollow() && !store.following()) {
+          @if (store.canFollow() && store.following() !== true) {
             <p>Siga {{ name() }} para receber um aviso quando abrir o próximo.</p>
-            <button type="button" class="ov-follow" [disabled]="store.followBusy()" (click)="store.toggleFollow()">Seguir</button>
+            <button
+              type="button"
+              class="ov-follow"
+              [disabled]="store.followBusy() || store.followPending()"
+              [attr.aria-busy]="store.followPending() || null"
+              (click)="store.toggleFollow()"
+            >
+              Seguir
+            </button>
           } @else if (store.following()) {
             <p>Você segue {{ name() }} e recebe um aviso quando abrir o próximo.</p>
           }

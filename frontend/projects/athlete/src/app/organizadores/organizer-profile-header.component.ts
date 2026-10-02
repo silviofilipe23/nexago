@@ -11,8 +11,11 @@ import type { OrganizerHeaderVm } from './organizer-profile.vm';
 })
 export class OrganizerProfileHeaderComponent {
   readonly vm = input.required<OrganizerHeaderVm>();
-  readonly following = input(false);
+  /** `null` = ainda não se sabe se segue. */
+  readonly following = input<boolean | null>(null);
   readonly followBusy = input(false);
+  /** Leitura de "já sigo?" em curso: o botão fica desabilitado. */
+  readonly followPending = input(false);
   /** Falso no próprio perfil e sem sessão: o botão some. */
   readonly canFollow = input(false);
 

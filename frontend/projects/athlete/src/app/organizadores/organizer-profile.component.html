@@ -39,6 +39,7 @@
             [vm]="h"
             [following]="store.following()"
             [followBusy]="store.followBusy()"
+            [followPending]="store.followPending()"
             [canFollow]="store.canFollow()"
             (follow)="store.toggleFollow()"
             (share)="share()"

@@ -128,9 +128,13 @@ export function isOpenListedTournament(t: DocData | null | undefined): boolean {
   return isListedTournament(t) && tournamentListingStatus(t) === "open";
 }
 
-/** Mesma folga das avaliações (`REVIEW_END_GRACE_HOURS`): o evento é dado por encerrado 12 h
- *  depois do fim. */
-export const EVENT_END_GRACE_MS = 12 * 60 * 60 * 1000;
+/**
+ * Folga depois do fim. Os wizards gravam `endAt`/`startAt` como DATA, não como horário de término:
+ * meia-noite local no painel web, meia-noite UTC (data civil) no app. Com 36 h, nas duas
+ * convenções o evento só vira realizado na manhã do dia seguinte ao último dia — 12 h (a folga das
+ * avaliações) daria meio-dia do último dia, com o evento ainda rolando.
+ */
+export const EVENT_END_GRACE_MS = 36 * 60 * 60 * 1000;
 
 /** Fim do evento: `endAt`, ou `startAt` (etapa de liga e evento de um dia gravam só o início). */
 export function tournamentEndMs(t: DocData | null | undefined): number | null {
@@ -138,7 +142,7 @@ export function tournamentEndMs(t: DocData | null | undefined): number | null {
 }
 
 /**
- * Evento realizado: `completed`, OU o fim passou há mais de 12 h. O servidor só grava `completed`
+ * Evento realizado: `completed`, OU o fim passou há mais de 36 h. O servidor só grava `completed`
  * quando todas as finais terminam no sistema; sem a regra de data, o evento que acabou sem isso
  * sumia do perfil (nem próximo, nem realizado). Mesma regra no portal e no app.
  */

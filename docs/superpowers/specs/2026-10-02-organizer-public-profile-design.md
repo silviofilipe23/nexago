@@ -51,7 +51,7 @@ O que não é público ou não existe:
 |---|---|
 | Evento listado | Torneio do `managerId` com `listingStatus` em `open`, `closed` ou `completed`, e `visibility !== 'linkOnly'`. Doc sem `visibility` conta como listado, igual ao app e ao portal (`isPubliclyListedTournamentDoc`). |
 | Fim do evento | `endAt`, senão `startAt` (etapa de liga e evento de um dia gravam só o início). |
-| Evento realizado | Evento listado com `listingStatus === 'completed'` **ou** fim do evento + 12 h no passado. O servidor só grava `completed` quando todas as finais terminam no sistema; sem a regra de data, o evento que acabou sem isso sumia do perfil. Mesma folga das avaliações. |
+| Evento realizado | Evento listado com `listingStatus === 'completed'` **ou** fim do evento + 36 h no passado. O servidor só grava `completed` quando todas as finais terminam no sistema; sem a regra de data, o evento que acabou sem isso sumia do perfil. 36 h porque `endAt` é uma DATA (meia-noite local no web, meia-noite UTC no app): o evento vira realizado na manhã seguinte ao último dia. |
 | Próximo evento | Evento listado que ainda não é realizado. |
 | Ao vivo (selo) | `liveMatchesNow > 0`, ou `startAt` já passou, o evento não é realizado e `listingStatus !== 'open'`. |
 | Inscrição aberta | Evento listado com `listingStatus === 'open'` que não é realizado. |

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {Timestamp, type Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import type {DeliverNotificationInput} from "./notification-delivery";
-import {DAY_MS, HOUR_MS} from "./tournament-review-constants";
+import {DAY_MS} from "./tournament-review-constants";
 import {runTournamentReviewSweep} from "./tournament-review-sweep";
 
 const PROJECT = "test-project";
@@ -129,13 +129,28 @@ describe("runTournamentReviewSweep — abrir", () => {
     assert.equal(fake.store.get("tournamentReviewSummaries/t1")!.invitesComplete, true);
   });
 
-  it("abre por endAt + 12h quando ninguém lançou a final; com 11h ainda não", async () => {
+  it("sem a final lançada, abre na manhã seguinte ao último dia; no último dia, não", async () => {
+    // `endAt` é DATA: 03:00Z = meia-noite de Brasília; 00:00Z = meia-noite UTC (aparelho em UTC, legado).
     const {fake, run} = setup();
-    seedFinishedTournament(fake, "t1", {listingStatus: "closed", completedAt: null, endAt: ts(NOW - 13 * HOUR_MS)});
-    seedFinishedTournament(fake, "t2", {listingStatus: "closed", completedAt: null, endAt: ts(NOW - 11 * HOUR_MS)});
+    const noFinal = {listingStatus: "closed", completedAt: null};
+    seedFinishedTournament(fake, "ontem-brt", {...noFinal, endAt: ts(Date.UTC(2026, 9, 4, 3, 0, 0))});
+    seedFinishedTournament(fake, "ontem-utc", {...noFinal, endAt: ts(Date.UTC(2026, 9, 4, 0, 0, 0))});
+    seedFinishedTournament(fake, "hoje-brt", {...noFinal, endAt: ts(Date.UTC(2026, 9, 5, 3, 0, 0))});
+    seedFinishedTournament(fake, "hoje-utc", {...noFinal, endAt: ts(Date.UTC(2026, 9, 5, 0, 0, 0))});
     await run();
-    assert.equal(fake.store.has("tournamentReviewSummaries/t1"), true);
-    assert.equal(fake.store.has("tournamentReviewSummaries/t2"), false);
+    const opened = ["ontem-brt", "ontem-utc", "hoje-brt", "hoje-utc"]
+      .filter((id) => fake.store.has(`tournamentReviewSummaries/${id}`));
+    assert.deepEqual(opened, ["ontem-brt", "ontem-utc"]);
+  });
+
+  it("retoma até a 3ª manhã depois do fim; na 4ª, não", async () => {
+    const {fake, run} = setup();
+    const noFinal = {listingStatus: "closed", completedAt: null};
+    seedFinishedTournament(fake, "fim-02", {...noFinal, endAt: ts(Date.UTC(2026, 9, 2, 3, 0, 0))});
+    seedFinishedTournament(fake, "fim-01", {...noFinal, endAt: ts(Date.UTC(2026, 9, 1, 3, 0, 0))});
+    await run();
+    assert.equal(fake.store.has("tournamentReviewSummaries/fim-02"), true);
+    assert.equal(fake.store.has("tournamentReviewSummaries/fim-01"), false);
   });
 
   it("sem confirmados: resumo nasce fechado e ninguém recebe push, nem depois", async () => {

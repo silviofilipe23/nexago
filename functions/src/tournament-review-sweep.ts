@@ -19,8 +19,6 @@ import {tournamentManagerUids} from "./tournament-acl";
 import {loadTournamentReviewsConfig} from "./tournament-review-config";
 import {
   DAY_MS,
-  HOUR_MS,
-  REVIEW_END_GRACE_HOURS,
   REVIEW_LOOKBACK_DAYS,
   REVIEW_WINDOW_DAYS,
   reviewInvitePath,
@@ -232,9 +230,11 @@ export async function runTournamentReviewSweep(
       .where("listingStatus", "==", "completed")
       .where("completedAt", ">=", lookback)
       .get(),
+    // `endAt` é data: o torneio encerra na meia-noite seguinte ao último dia, até 27 h depois do
+    // `endAt`. A faixa sobra de propósito; `reviewCandidateReason` faz o corte exato.
     db.collection("tournaments")
-      .where("endAt", ">=", lookback)
-      .where("endAt", "<=", Timestamp.fromMillis(nowMs - REVIEW_END_GRACE_HOURS * HOUR_MS))
+      .where("endAt", ">=", Timestamp.fromMillis(nowMs - (REVIEW_LOOKBACK_DAYS + 2) * DAY_MS))
+      .where("endAt", "<=", Timestamp.fromMillis(nowMs))
       .get(),
   ]);
   const candidates = new Map<string, Record<string, unknown>>();

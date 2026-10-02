@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_review_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_review_models.dart';
 
@@ -54,8 +55,24 @@ enum TournamentReviewsEmptyState { notEnded, opening, endedBefore, cancelled }
 const _cancelledStatuses = {'cancelled', 'canceled', 'cancelado'};
 const _completedStatuses = {'completed', 'concluido', 'concluído'};
 
-/// Sem resumo: o que dizer. Espelha `reviewCandidateReason` (functions): concluído ou `endAt`
-/// passado entram no job das 10h por até 3 dias; cancelado nunca entra.
+/// Meia-noite de São Paulo seguinte ao último dia: quando o torneio sem `completed` conta como
+/// encerrado. MESMA regra de `tournamentOverAtMs` (functions): `endAt` é DATA, e meia-noite UTC
+/// exata (aparelho em UTC, legado) vale pela data UTC; o resto, pelo calendário de SP.
+DateTime _tournamentOverAt(DateTime endAt) {
+  final utc = endAt.toUtc();
+  final utcMidnight = utc.hour == 0 &&
+      utc.minute == 0 &&
+      utc.second == 0 &&
+      utc.millisecond == 0 &&
+      utc.microsecond == 0;
+  final lastDay = utcMidnight ? utc : toNexagoEventLocal(utc);
+  // São Paulo não tem horário de verão: meia-noite + 24 h é a meia-noite seguinte.
+  return nexagoEventDateTime(year: lastDay.year, month: lastDay.month, day: lastDay.day)
+      .add(const Duration(days: 1));
+}
+
+/// Sem resumo: o que dizer. Espelha `reviewCandidateReason` (functions): concluído, ou o dia
+/// seguinte ao último dia, entram no job das 10h por até 3 dias; cancelado nunca entra.
 TournamentReviewsEmptyState tournamentReviewsEmptyState(
   Map<String, dynamic> tournament,
   DateTime now,
@@ -64,12 +81,13 @@ TournamentReviewsEmptyState tournamentReviewsEmptyState(
       '${tournament['listingStatus'] ?? tournament['status'] ?? ''}'.trim().toLowerCase();
   if (_cancelledStatuses.contains(status)) return TournamentReviewsEmptyState.cancelled;
   final endAt = _dateOf(tournament['endAt']);
-  final endAtPassed = endAt != null && !endAt.isAfter(now);
+  final overAt = endAt == null ? null : _tournamentOverAt(endAt);
+  final over = overAt != null && !overAt.isAfter(now);
   DateTime? endedAt;
   if (_completedStatuses.contains(status)) {
-    endedAt = _dateOf(tournament['completedAt']) ?? (endAtPassed ? endAt : now);
-  } else if (endAtPassed) {
-    endedAt = endAt;
+    endedAt = _dateOf(tournament['completedAt']) ?? (over ? overAt : now);
+  } else if (over) {
+    endedAt = overAt;
   }
   if (endedAt == null) return TournamentReviewsEmptyState.notEnded;
   return now.difference(endedAt) <= kTournamentReviewLookback

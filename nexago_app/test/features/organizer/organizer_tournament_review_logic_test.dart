@@ -119,6 +119,44 @@ void main() {
       );
     });
 
+    // `endAt` é DATA: 03:00Z = meia-noite de Brasília; 00:00Z = meia-noite UTC (aparelho em UTC, legado).
+    final noonSp = DateTime.utc(2026, 10, 6, 15); // 06/10 12:00 em São Paulo
+    Map<String, dynamic> closedEndingOn(DateTime endAt) =>
+        {'listingStatus': 'closed', 'endAt': Timestamp.fromDate(endAt)};
+
+    test('último dia é hoje: ainda não terminou, nas duas convenções de data', () {
+      expect(
+        tournamentReviewsEmptyState(closedEndingOn(DateTime.utc(2026, 10, 6, 3)), noonSp),
+        TournamentReviewsEmptyState.notEnded,
+      );
+      expect(
+        tournamentReviewsEmptyState(closedEndingOn(DateTime.utc(2026, 10, 6)), noonSp),
+        TournamentReviewsEmptyState.notEnded,
+      );
+    });
+
+    test('último dia foi ontem: o job das 10h abre, nas duas convenções', () {
+      expect(
+        tournamentReviewsEmptyState(closedEndingOn(DateTime.utc(2026, 10, 5, 3)), noonSp),
+        TournamentReviewsEmptyState.opening,
+      );
+      expect(
+        tournamentReviewsEmptyState(closedEndingOn(DateTime.utc(2026, 10, 5)), noonSp),
+        TournamentReviewsEmptyState.opening,
+      );
+    });
+
+    test('corte de 3 dias conta da meia-noite seguinte ao último dia, como no job', () {
+      expect(
+        tournamentReviewsEmptyState(closedEndingOn(DateTime.utc(2026, 10, 3, 3)), noonSp),
+        TournamentReviewsEmptyState.opening,
+      );
+      expect(
+        tournamentReviewsEmptyState(closedEndingOn(DateTime.utc(2026, 10, 2, 3)), noonSp),
+        TournamentReviewsEmptyState.endedBefore,
+      );
+    });
+
     test('cancelado nunca recebe avaliação', () {
       expect(
         tournamentReviewsEmptyState({'listingStatus': 'cancelled', 'endAt': at(const Duration(days: -1))}, now),

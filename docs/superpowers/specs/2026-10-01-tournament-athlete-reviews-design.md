@@ -50,7 +50,11 @@ O que precisa ser levado em conta:
   dono aceitou o risco do delta: com a média ao vivo, o organizador consegue deduzir a nota de
   cada avaliação nova.
 - **Janela:**
-  - Abre no que vier primeiro: `completed` ou `endAt` + 12h.
+  - Abre no que vier primeiro: `completed` ou o dia seguinte ao último dia (`endAt`).
+  - `endAt` é DATA, não horário de término: os wizards gravam a meia-noite do aparelho de quem
+    criou (03:00Z no Brasil, 00:00Z num aparelho em UTC e no legado). O torneio conta como
+    encerrado à meia-noite de São Paulo seguinte ao último dia, e a janela abre no job das 10h.
+    A regra antiga, `endAt` + 12h, abria na manhã do último dia quando a data vinha à meia-noite UTC.
   - Push às 10h e lembrete no 3º dia.
   - Fecha em 14 dias. Depois disso a nota congela.
 - **Quem avalia:** atleta de inscrição confirmada. Uma avaliação por atleta por torneio,
@@ -230,7 +234,9 @@ o job sai sem fazer nada.
 
 1. **Candidatos:** a união de duas consultas.
    - `listingStatus == 'completed' && completedAt >= now − 3d`
-   - `endAt >= now − 3d && endAt <= now − 12h`
+   - `endAt >= now − 5d && endAt <= now`. A faixa sobra de propósito. O corte exato é
+     `fim ∈ [now − 3d, now]`, com fim = meia-noite de São Paulo seguinte ao último dia
+     (`tournamentOverAtMs`).
 2. **Descarta** `cancelled` e `draft`, e qualquer torneio que já tenha
    `tournamentReviewSummaries/{id}`. O corte de 3 dias impede que o deploy, ou o momento em que a
    flag é ligada, dispare push para torneios antigos.
@@ -465,7 +471,7 @@ Selo de "estreante" seria injusto com quem organizou antes da feature existir.
 
 **Functions** (`node:test`, arquivos `*.test.ts` ao lado do código):
 - Candidatura e elegibilidade:
-  - Corte de 3 dias e de `endAt + 12h`.
+  - Corte de 3 dias e fim no dia seguinte ao último dia, com `endAt` à meia-noite de Brasília e UTC.
   - `cancelled` fica de fora.
   - Torneio com resumo não é reprocessado.
   - Sem repetição entre categorias.

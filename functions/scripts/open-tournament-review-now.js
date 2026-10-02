@@ -7,7 +7,8 @@
  * Reusa `openTournamentReviewWindow` (functions/src/tournament-review-sweep.ts):
  * cria `tournamentReviewSummaries/{id}`, convites em
  * `users/{uid}/tournamentReviewInvites/{id}` e notifica só quem ainda não
- * tinha convite. Ignora lookback de 3 dias e a graça de 12h pós-`endAt`.
+ * tinha convite. Ignora o corte de 3 dias e a espera pelo dia seguinte ao
+ * último dia (`endAt`).
  *
  * Se a janela já estiver aberta (`invitesComplete: true`), nada muda — use
  * `--resend` para reenviar o push aos convites ainda `pending`.

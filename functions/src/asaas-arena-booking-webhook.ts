@@ -33,7 +33,7 @@ import {
   buildCashbackIntent,
   cashbackIntentFields,
   intentHasWork,
-  readCashbackApplied,
+  resolveCashbackForPayment,
 } from "./cashback-intent";
 
 const ARENA_BOOKINGS = "arenaBookings";
@@ -182,7 +182,16 @@ export async function processArenaBookingAsaasNotification(
     const fraction = Number(booking.paymentFraction) || 1;
     // Para a arena, o saldo de cashback é dinheiro recebido online (a nexaGO
     // cobre): tudo que lê `amountPaidOnlineReais` segue certo sem mudar.
-    const {appliedCents, holdId} = readCashbackApplied(booking);
+    // Resolve pelo paymentId, não só pelo tracking do booking: um PIX
+    // regenerado reescreve `cashbackAppliedCents`/`cashbackHoldId` para a
+    // cobrança nova, e um pagamento tardio da cobrança antiga não pode ler
+    // o saldo/hold de uma cobrança diferente.
+    const {appliedCents, holdId} = await resolveCashbackForPayment(
+      db,
+      typeof booking.athleteId === "string" ? booking.athleteId : "",
+      paymentId,
+      booking,
+    );
     const cashPaid = roundMoney(amount);
     const paidOnline = roundMoney(cashPaid + appliedCents / 100);
     const dueOnsite = roundMoney(Math.max(0, totalReais - paidOnline));

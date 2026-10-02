@@ -8,7 +8,7 @@ import {
   processArenaBookingShareAsaasNotification,
 } from "./asaas-arena-booking-webhook";
 import {ARENA_BOOKING_PAYMENT_REF_PREFIX} from "./arena-booking-payment-constants";
-import {holdCashback} from "./athlete-wallet";
+import {attachHoldPayment, holdCashback} from "./athlete-wallet";
 
 const BOOKING_PATH = "arenaBookings/b1";
 const PROCESSED_PATH = "artifacts/p/public/data/asaas_processed_payments/orig1";
@@ -287,5 +287,71 @@ describe("processArenaBookingAsaasNotification — cashback", () => {
     const lot = fake.store.get("athleteWallets/friend1/lots/payS1")!;
     assert.equal(lot.status, "pending");
     assert.equal(lot.earnedCents, 100);
+  });
+
+  it("saldo aplicado nesta cobrança parcial: bruto bate com o fracionamento, hold é capturado", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake, {
+      paymentFraction: 0.5, amountReais: 100, amountToPayNowReais: 50, amountDueOnsiteReais: 50,
+    });
+    seedSpendableLot(fake, 3000);
+    const {holdId} = await holdCashback(db, {
+      uid: "owner1", maxCents: 2000, sourceType: "booking", sourceId: "b1",
+      trackingPath: BOOKING_PATH, label: "Reserva", nowMs: NOW_MS,
+    });
+    await attachHoldPayment(db, "owner1", holdId!, "orig1");
+    fake.seedDoc(BOOKING_PATH, {
+      ...fake.store.get(BOOKING_PATH)!, cashbackAppliedCents: 2000, cashbackHoldId: holdId,
+    });
+
+    await processArenaBookingAsaasNotification(
+      db, "orig1", bookingPayment("RECEIVED", 30), processedRefOf(db),
+    );
+
+    const booking = fake.store.get(BOOKING_PATH)!;
+    assert.equal(booking.paymentStatus, "partial");
+    assert.equal(booking.amountPaidOnlineReais, 50);
+    assert.equal(booking.amountDueOnsiteReais, 50);
+    assert.equal(booking.asaasPaidAmount, 30);
+    assert.equal(booking.cashbackAppliedReais, 20);
+    assert.equal(fake.store.get(`athleteWallets/owner1/holds/${holdId}`)!.status, "captured");
+  });
+
+  it("cobrança substituída: pagamento tardio usa o saldo e o hold DESTA cobrança, não da nova", async () => {
+    const {fake, db} = makeDb();
+    // Sem hasSplitShares/supersededAsaasPaymentIds: isola a resolução do saldo pelo
+    // paymentId do guard de divisão (fase 0), que já tem cobertura própria acima.
+    seedPendingBooking(fake, {asaasPaymentId: "payNew"});
+    seedSpendableLot(fake, 5000);
+
+    const {holdId: holdOldId} = await holdCashback(db, {
+      uid: "owner1", maxCents: 1000, sourceType: "booking", sourceId: "b1",
+      trackingPath: BOOKING_PATH, label: "Reserva", nowMs: NOW_MS,
+    });
+    await attachHoldPayment(db, "owner1", holdOldId!, "payOld");
+
+    const {holdId: holdNewId} = await holdCashback(db, {
+      uid: "owner1", maxCents: 1500, sourceType: "booking", sourceId: "b1",
+      trackingPath: BOOKING_PATH, label: "Reserva", nowMs: NOW_MS,
+    });
+    await attachHoldPayment(db, "owner1", holdNewId!, "payNew");
+
+    // O booking foi reescrito pra cobrança nova: o tracking aponta pro hold novo.
+    fake.seedDoc(BOOKING_PATH, {
+      ...fake.store.get(BOOKING_PATH)!, cashbackAppliedCents: 1500, cashbackHoldId: holdNewId,
+    });
+
+    const processedRefOld =
+      db.doc("artifacts/p/public/data/asaas_processed_payments/payOld") as DocumentReference;
+    await processArenaBookingAsaasNotification(
+      db, "payOld", bookingPayment("RECEIVED", 40), processedRefOld,
+    );
+
+    const booking = fake.store.get(BOOKING_PATH)!;
+    // 40 em dinheiro + R$ 10 (1000 centavos) do hold antigo — NÃO os R$ 15 do hold novo.
+    assert.equal(booking.amountPaidOnlineReais, 50);
+    assert.equal(booking.cashbackAppliedReais, 10);
+    assert.equal(fake.store.get(`athleteWallets/owner1/holds/${holdOldId}`)!.status, "captured");
+    assert.equal(fake.store.get(`athleteWallets/owner1/holds/${holdNewId}`)!.status, "open");
   });
 });

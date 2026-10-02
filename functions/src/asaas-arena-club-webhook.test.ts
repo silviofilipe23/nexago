@@ -1,9 +1,11 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import type {DocumentReference, Firestore} from "firebase-admin/firestore";
+import {Timestamp} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {processArenaClubSessionAsaasNotification} from "./asaas-arena-club-webhook";
 import {parseClubSessionPaymentRef} from "./arena-club-constants";
+import {holdCashback} from "./athlete-wallet";
 
 const SESSION_PATH = "arenaClubSessions/club_c1_2026-07-24";
 const PARTICIPANT_PATH = `${SESSION_PATH}/clubParticipants/uid1`;
@@ -237,5 +239,57 @@ describe("asaas-arena-club-webhook eventos negativos", () => {
 
     assert.equal(fake.store.get(PARTICIPANT_PATH)!["status"], "canceled_refunded");
     assert.equal(fake.store.get(PROCESSED_PATH)!["outcome"], "already_resolved");
+  });
+});
+
+describe("processArenaClubSessionAsaasNotification — cashback", () => {
+  const NOW_MS = Date.now();
+
+  it("saldo aplicado: participante e arena ficam com o bruto; reserva capturada", async () => {
+    const {fake, db} = makeDb();
+    seedSession(fake, {startAt: Timestamp.fromMillis(Date.UTC(2026, 6, 24, 18, 0, 0))});
+    fake.seedDoc("athleteWallets/uid1/lots/old", {
+      uid: "uid1", sourceType: "booking", sourceId: "b0", tournamentId: null, arenaId: "a1",
+      label: "Reserva", earnedCents: 2000, remainingCents: 2000, status: "available",
+      eventAt: Timestamp.fromMillis(NOW_MS - 1000), releasedAt: Timestamp.fromMillis(NOW_MS - 1000),
+      expiresAt: Timestamp.fromMillis(NOW_MS + 90 * 86_400_000), expiryWarnedAt: null,
+      createdAt: Timestamp.fromMillis(NOW_MS - 1000),
+    });
+    const {holdId} = await holdCashback(db, {
+      uid: "uid1", maxCents: 1000, sourceType: "club", sourceId: "club_c1_2026-07-24",
+      trackingPath: PARTICIPANT_PATH, label: "Clubinho", nowMs: NOW_MS,
+    });
+    seedParticipant(fake, {cashbackAppliedCents: 1000, cashbackHoldId: holdId});
+
+    await processArenaClubSessionAsaasNotification(
+      db, "pay1", {...paidPayment, value: 5}, processedRefOf(db), makeDeps().deps,
+    );
+
+    const participant = fake.store.get(PARTICIPANT_PATH)!;
+    assert.equal(participant.status, "confirmed");
+    assert.equal(participant.amountReais, 15);
+    assert.equal(participant.platformFeeReais, 0.75);
+    assert.equal(participant.netReais, 14.25);
+    assert.equal(fake.store.get(`athleteWallets/uid1/holds/${holdId}`)!.status, "captured");
+    assert.equal(fake.store.get(PROCESSED_PATH)!.cashbackStatus, "done");
+  });
+
+  it("cashback ligado: lote pendente até a sessão começar", async () => {
+    const {fake, db} = makeDb();
+    const startMs = Date.UTC(2026, 6, 24, 18, 0, 0);
+    seedSession(fake, {startAt: Timestamp.fromMillis(startMs)});
+    seedParticipant(fake);
+    fake.seedDoc("appConfig/cashback", {enabled: true});
+
+    await processArenaClubSessionAsaasNotification(
+      db, "pay1", paidPayment, processedRefOf(db), makeDeps().deps,
+    );
+
+    const lot = fake.store.get("athleteWallets/uid1/lots/pay1")!;
+    // Taxa do clubinho = 5% de R$ 15 = R$ 0,75 → teto R$ 0,37; 2% = R$ 0,30.
+    assert.equal(lot.earnedCents, 30);
+    assert.equal(lot.sourceType, "club");
+    assert.equal(lot.label, "Clubinho · Clubinho de sexta");
+    assert.equal((lot.eventAt as Timestamp).toMillis(), startMs);
   });
 });

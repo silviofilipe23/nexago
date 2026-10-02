@@ -67,6 +67,7 @@ export async function creditArenaWalletFromClubPayment(
     participantId: string;
     grossReais: number;
     platformFeeReais: number;
+    cashbackAppliedReais?: number;
   },
 ): Promise<void> {
   const netReais = roundMoney(Math.max(0, input.grossReais - input.platformFeeReais));
@@ -98,6 +99,7 @@ export async function creditArenaWalletFromClubPayment(
       grossReais: roundMoney(input.grossReais),
       platformFeeReais: roundMoney(input.platformFeeReais),
       netReais,
+      cashbackAppliedReais: roundMoney(Math.max(0, input.cashbackAppliedReais ?? 0)),
       createdAt: FieldValue.serverTimestamp(),
     });
   });

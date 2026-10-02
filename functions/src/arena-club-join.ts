@@ -39,6 +39,14 @@ import {debitArenaWalletForClubRefund} from "./arena-wallet";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {roundMoney} from "./mercadopago-arena-helpers";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {
+  cashbackResponseFields,
+  releaseCashbackHoldQuietly,
+  reserveCashbackForCharge,
+  type CashbackReservation,
+} from "./cashback-checkout";
+import {clubCashbackLabel, readCashbackApplied} from "./cashback-intent";
+import {attachHoldPayment} from "./athlete-wallet";
 
 /** Estados a partir dos quais o atleta pode tentar entrar de novo. */
 const REJOINABLE_STATUSES = new Set(["expired", "canceled"]);
@@ -119,6 +127,7 @@ interface JoinInput {
   cpfCnpj?: string;
   /** 'pix' (default, antecipado) ou 'onsite' (paga na arena, se o clubinho aceitar). */
   paymentMethod?: string;
+  useCashback?: boolean;
 }
 
 export const joinArenaClubSession = onCall({
@@ -336,10 +345,17 @@ export const joinArenaClubSession = onCall({
       previousAsaasPaymentId: typeof existing?.["asaasPaymentId"] === "string" ?
         (existing["asaasPaymentId"] as string).trim() :
         "",
+      previousHoldId: readCashbackApplied(existing ?? undefined).holdId,
     };
   });
 
-  const {session, previousAsaasPaymentId} = txResult;
+  const {session, previousAsaasPaymentId, previousHoldId} = txResult;
+
+  let cashback: CashbackReservation = {
+    holdId: null,
+    appliedCents: 0,
+    chargeReais: roundMoney(session.priceReais),
+  };
 
   // Cobrança PIX fora da transação (padrão de createArenaBookingPixPayment).
   const rollbackHold = async () => {
@@ -359,12 +375,16 @@ export const joinArenaClubSession = onCall({
     } catch (e) {
       logger.error("joinArenaClubSession: rollback falhou", {sessionId, uid, error: e});
     }
+    await releaseCashbackHoldQuietly(db, uid, cashback.holdId, Date.now());
   };
 
   try {
     if (previousAsaasPaymentId) {
       await deleteAsaasPaymentIfOpen(previousAsaasPaymentId);
     }
+
+    // Entrada refeita: o saldo reservado pela cobrança anterior volta primeiro.
+    await releaseCashbackHoldQuietly(db, uid, previousHoldId, Date.now());
 
     let payerEmail = "pagamento@nexago.app";
     let payerName: string | undefined;
@@ -392,18 +412,35 @@ export const joinArenaClubSession = onCall({
     const description =
       `Clubinho ${session.clubName} — ${session.arenaName} (${session.date} ${session.startTime})`;
 
+    cashback = await reserveCashbackForCharge(db, {
+      uid,
+      useCashback: input.useCashback,
+      priceReais: session.priceReais,
+      sourceType: "club",
+      sourceId: sessionId,
+      trackingPath: participantRef.path,
+      label: clubCashbackLabel(session.clubName),
+      nowMs: Date.now(),
+    });
+
     const charge = await createAsaasPixCharge({
       customerId,
-      valueReais: roundMoney(session.priceReais),
+      valueReais: cashback.chargeReais,
       dueDate: paymentExpiresAt.toDate(),
       description,
       externalReference: clubSessionPaymentRef(sessionId, uid),
       idempotencyKey: `club-join-${sessionId}-${uid}-${nowMs}`,
     });
 
+    if (cashback.holdId) {
+      await attachHoldPayment(db, uid, cashback.holdId, charge.paymentId);
+    }
+
     await participantRef.set({
       asaasPaymentId: charge.paymentId,
       pixCopyPaste: charge.qrCode,
+      cashbackAppliedCents: cashback.appliedCents,
+      cashbackHoldId: cashback.holdId,
       updatedAt: FieldValue.serverTimestamp(),
     }, {merge: true});
 
@@ -415,6 +452,7 @@ export const joinArenaClubSession = onCall({
       pixCopyPaste: charge.qrCode,
       expiresAt: paymentExpiresAt.toDate().toISOString(),
       amountReais: roundMoney(session.priceReais),
+      ...cashbackResponseFields(cashback),
     };
   } catch (e) {
     await rollbackHold();

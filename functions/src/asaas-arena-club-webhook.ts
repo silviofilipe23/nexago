@@ -30,6 +30,16 @@ import {
   requestInvoiceForPaidClubSpot,
   shouldAttemptFiscalInvoice,
 } from "./fiscal/payment-hooks";
+import {readCashbackConfig} from "./cashback-config";
+import {toMillisOrNull} from "./cashback-rules";
+import {
+  applyCashbackIntent,
+  buildCashbackIntent,
+  cashbackIntentFields,
+  clubCashbackLabel,
+  intentHasWork,
+  readCashbackApplied,
+} from "./cashback-intent";
 
 const ASAAS_NON_TERMINAL_STATUSES = new Set([
   "PENDING",
@@ -100,7 +110,7 @@ export async function processArenaClubSessionAsaasNotification(
   const sessionRef = db.collection(ARENA_CLUB_SESSIONS).doc(sessionId);
   const participantRef = sessionRef.collection(CLUB_PARTICIPANTS).doc(athleteUid);
 
-  const markProcessed = (outcome: string) =>
+  const markProcessed = (outcome: string, extra: Record<string, unknown> = {}) =>
     processedRef.set({
       kind: "arenaClubSession",
       sessionId,
@@ -108,14 +118,21 @@ export async function processArenaClubSessionAsaasNotification(
       outcome,
       paymentStatus: status,
       processedAt: FieldValue.serverTimestamp(),
+      ...extra,
     });
 
   if (ASAAS_PAID_STATUSES.has(status)) {
-    const paidReais = roundMoney(Number(payment.value) || 0);
-    if (paidReais <= 0) {
+    // Saldo de cashback usado na vaga: para a arena vale como dinheiro recebido
+    // (a nexaGO cobre). O Asaas só recebeu `cashPaid`.
+    const {appliedCents, holdId} = readCashbackApplied(
+      (await participantRef.get()).data(),
+    );
+    const cashPaid = roundMoney(Number(payment.value) || 0);
+    if (cashPaid <= 0) {
       logger.warn(`Asaas clubinho ${sessionId}/${athleteUid}: valor inválido`);
       return;
     }
+    const paidReais = roundMoney(cashPaid + appliedCents / 100);
     const platformFeeReais = computePlatformFeeReais(
       paidReais,
       CLUB_FEE_PERCENT,
@@ -182,6 +199,7 @@ export async function processArenaClubSessionAsaasNotification(
             participantId: athleteUid,
             grossReais: paidReais,
             platformFeeReais,
+            cashbackAppliedReais: appliedCents / 100,
           });
         } catch (walletErr) {
           logger.error(`Asaas clubinho ${sessionId}: wallet credit failed`, walletErr);
@@ -207,7 +225,27 @@ export async function processArenaClubSessionAsaasNotification(
           logger.error(`Asaas clubinho ${sessionId}: fiscal request failed`, fiscalErr);
         }
       }
-      await markProcessed("approved");
+      const intent = buildCashbackIntent({
+        uid: athleteUid,
+        sourceType: "club",
+        sourceId: sessionId,
+        tournamentId: null,
+        arenaId: arenaId || null,
+        label: clubCashbackLabel(String(sessionData["clubName"] ?? "Clubinho")),
+        eventAtMs: toMillisOrNull(sessionData["startAt"]) ?? Date.now(),
+        cashReais: cashPaid,
+        appliedCents,
+        feeReais: platformFeeReais,
+        holdId,
+        config: await readCashbackConfig(db),
+      });
+      await markProcessed(
+        "approved",
+        intentHasWork(intent) ? cashbackIntentFields(intent) : {},
+      );
+      if (intentHasWork(intent)) {
+        await applyCashbackIntent(db, processedRef, paymentId, Date.now());
+      }
       try {
         await deps.notify({
           userId: athleteUid,

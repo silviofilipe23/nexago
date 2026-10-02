@@ -28,6 +28,7 @@ describe("arena-wallet clubinho", () => {
     await creditArenaWalletFromClubPayment(db, "arena1", {
       sessionId: "club_c1_2026-07-24",
       participantId: "uid1",
+      paymentId: "pay1",
       grossReais: 15,
       platformFeeReais: 0.75,
     });
@@ -42,11 +43,33 @@ describe("arena-wallet clubinho", () => {
     assert.equal(entries[0]!["platformFeeReais"], 0.75);
   });
 
+  it("credita uma vez só por pagamento (reentrega do webhook)", async () => {
+    const {fake, db} = makeDb();
+    const input = {
+      sessionId: "club_c1_2026-07-24",
+      participantId: "uid1",
+      paymentId: "pay1",
+      grossReais: 15,
+      platformFeeReais: 0.75,
+    };
+
+    await creditArenaWalletFromClubPayment(db, "arena1", input);
+    await creditArenaWalletFromClubPayment(db, "arena1", input);
+    // Outro pagamento do mesmo atleta na mesma sessão (saiu com estorno e voltou) credita.
+    await creditArenaWalletFromClubPayment(db, "arena1", {...input, paymentId: "pay2"});
+
+    assert.equal(walletData(fake)["availableReais"], 28.5);
+    const entries = ledgerEntries(fake);
+    assert.equal(entries.length, 2);
+    assert.deepEqual(entries.map((e) => e["asaasPaymentId"]).sort(), ["pay1", "pay2"]);
+  });
+
   it("debita o líquido no estorno, podendo ficar negativo", async () => {
     const {fake, db} = makeDb();
     await creditArenaWalletFromClubPayment(db, "arena1", {
       sessionId: "club_c1_2026-07-24",
       participantId: "uid1",
+      paymentId: "pay1",
       grossReais: 15,
       platformFeeReais: 0.75,
     });

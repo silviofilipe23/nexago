@@ -128,12 +128,33 @@ export function isOpenListedTournament(t: DocData | null | undefined): boolean {
   return isListedTournament(t) && tournamentListingStatus(t) === "open";
 }
 
-export function isCompletedListedTournament(t: DocData | null | undefined): boolean {
-  return isListedTournament(t) && tournamentListingStatus(t) === "completed";
+/**
+ * Folga depois do fim. Os wizards gravam `endAt`/`startAt` como DATA, não como horário de término:
+ * meia-noite local no painel web, meia-noite UTC (data civil) no app. Com 36 h, nas duas
+ * convenções o evento só vira realizado na manhã do dia seguinte ao último dia — 12 h (a folga das
+ * avaliações) daria meio-dia do último dia, com o evento ainda rolando.
+ */
+export const EVENT_END_GRACE_MS = 36 * 60 * 60 * 1000;
+
+/** Fim do evento: `endAt`, ou `startAt` (etapa de liga e evento de um dia gravam só o início). */
+export function tournamentEndMs(t: DocData | null | undefined): number | null {
+  return millisOf(t?.endAt) ?? millisOf(t?.startAt);
 }
 
-export function completedListedTournamentIds(rows: ReadonlyArray<TournamentRow>): string[] {
-  return rows.filter((r) => isCompletedListedTournament(r.data)).map((r) => r.id).sort();
+/**
+ * Evento realizado: `completed`, OU o fim passou há mais de 36 h. O servidor só grava `completed`
+ * quando todas as finais terminam no sistema; sem a regra de data, o evento que acabou sem isso
+ * sumia do perfil (nem próximo, nem realizado). Mesma regra no portal e no app.
+ */
+export function isRealizedListedTournament(t: DocData | null | undefined, nowMs: number): boolean {
+  if (!isListedTournament(t)) return false;
+  if (tournamentListingStatus(t) === "completed") return true;
+  const end = tournamentEndMs(t);
+  return end != null && end + EVENT_END_GRACE_MS <= nowMs;
+}
+
+export function realizedListedTournamentIds(rows: ReadonlyArray<TournamentRow>, nowMs: number): string[] {
+  return rows.filter((r) => isRealizedListedTournament(r.data, nowMs)).map((r) => r.id).sort();
 }
 
 export function normalizeVenueKey(name: string): string {
@@ -153,8 +174,15 @@ interface VenueAcc extends OrganizerVenue {
   lastMs: number;
 }
 
-/** Números do perfil. Nada aqui depende do relógio: só mudam quando um torneio muda. */
-export function computeOrganizerStats(rows: ReadonlyArray<TournamentRow>, athletes: number): OrganizerStats {
+/**
+ * Números do perfil no instante `nowMs`. "Realizado" e "organizador desde" dependem do relógio:
+ * além do gatilho de torneio, um job diário recalcula quem teve evento encerrado.
+ */
+export function computeOrganizerStats(
+  rows: ReadonlyArray<TournamentRow>,
+  athletes: number,
+  nowMs: number,
+): OrganizerStats {
   const listed = rows.filter((r) => isListedTournament(r.data));
   const sportCounts = new Map<string, number>();
   const venues = new Map<string, VenueAcc>();
@@ -165,7 +193,8 @@ export function computeOrganizerStats(rows: ReadonlyArray<TournamentRow>, athlet
     if (sport) sportCounts.set(sport, (sportCounts.get(sport) ?? 0) + 1);
 
     const startMs = millisOf(data.startAt);
-    if (startMs != null && (sinceMs == null || startMs < sinceMs)) sinceMs = startMs;
+    // Evento futuro não conta: organizador novo não pode aparecer "desde" o ano que vem.
+    if (startMs != null && startMs <= nowMs && (sinceMs == null || startMs < sinceMs)) sinceMs = startMs;
 
     const arenaId = strOrNull(data.arenaId);
     const name = str(data.locationName);
@@ -196,8 +225,9 @@ export function computeOrganizerStats(rows: ReadonlyArray<TournamentRow>, athlet
 
   return {
     listedEvents: listed.length,
-    eventsCompleted: listed.filter((r) => tournamentListingStatus(r.data) === "completed").length,
-    openEvents: listed.filter((r) => tournamentListingStatus(r.data) === "open").length,
+    eventsCompleted: listed.filter((r) => isRealizedListedTournament(r.data, nowMs)).length,
+    openEvents: listed.filter((r) =>
+      tournamentListingStatus(r.data) === "open" && !isRealizedListedTournament(r.data, nowMs)).length,
     athletes,
     organizerSince: sinceMs == null ? null : Timestamp.fromMillis(sinceMs),
     sports,
@@ -215,7 +245,7 @@ export function isOrganizerListed(isOrganizer: boolean, stats: unknown): boolean
  *  fora: são a maior parte das escritas em `tournaments` durante o evento. */
 export const ORGANIZER_STATS_SOURCE_FIELDS = [
   "managerId", "listingStatus", "status", "visibility", "sport",
-  "startAt", "locationName", "arenaId", "city",
+  "startAt", "endAt", "locationName", "arenaId", "city",
 ] as const;
 
 function sameValue(a: unknown, b: unknown): boolean {
@@ -229,8 +259,8 @@ export function organizerStatsRelevantChange(before: DocData | null, after: DocD
 }
 
 /** Atletas só mudam quando o conjunto de eventos realizados muda. */
-export function touchesCompletedTournament(before: DocData | null, after: DocData | null): boolean {
-  return isCompletedListedTournament(before) || isCompletedListedTournament(after);
+export function touchesRealizedTournament(before: DocData | null, after: DocData | null, nowMs: number): boolean {
+  return isRealizedListedTournament(before, nowMs) || isRealizedListedTournament(after, nowMs);
 }
 
 export function followerCountDelta(beforeExists: boolean, afterExists: boolean): -1 | 0 | 1 {

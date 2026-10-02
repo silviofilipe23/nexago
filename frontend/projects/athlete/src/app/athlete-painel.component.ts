@@ -48,6 +48,7 @@ import { CampaignShareDialogComponent } from './tournaments/campaign/campaign-sh
 import { recentCampaignsOf, type RecentCampaign } from './tournaments/campaign/recent-campaigns';
 import { duoNameOf, duoPlayersOf } from './tournaments/duo-identity';
 import { AthleteGamificationService } from './profile/athlete-gamification.service';
+import { CashbackPainelCardComponent } from './cashback/cashback-painel-card.component';
 import { FocusDayService } from './tournaments/focus/focus-day.service';
 import {
   resolveLevelConfirmationPromptForTournament,
@@ -417,6 +418,7 @@ function communityMessage(item: CommunityFeedItem): string {
     NxInlineMessageComponent,
     LgpdConsentDialogComponent,
     CampaignShareDialogComponent,
+    CashbackPainelCardComponent,
   ],
   templateUrl: './athlete-painel.component.html',
   styleUrl: './athlete-painel.component.scss',

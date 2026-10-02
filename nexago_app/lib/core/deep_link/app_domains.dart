@@ -35,6 +35,13 @@ abstract final class AppShareLinks {
   static String league(String leagueId) =>
       '${AppDomains.athletePortal}/ligas/$leagueId';
 
+  /// Perfil público do organizador no portal do atleta. Exceção à regra acima, de
+  /// propósito: `/organizadores/**` NÃO é reivindicado como App Link (nem no
+  /// AndroidManifest nem no AASA), então o link abre o portal — o app publicado
+  /// não tem a tela e engoliria o link.
+  static String organizerProfile(String organizerId) =>
+      '${AppDomains.athletePortal}/organizadores/$organizerId';
+
   /// Convite genérico pra conhecer/baixar o app (indicação, Sand Rank).
   static const String appDownload = AppDomains.site;
 }

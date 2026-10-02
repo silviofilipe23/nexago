@@ -168,6 +168,10 @@ import '../../features/tournaments/presentation/league_detail_page.dart';
 import '../../features/athlete/presentation/athlete_discover_page.dart';
 import '../../features/tournaments/presentation/team_discover_page.dart';
 import '../../features/tournaments/presentation/team_profile/team_public_profile_page.dart';
+import '../../features/organizer_public_profile/presentation/organizer_public_profile_page.dart';
+import '../../features/organizer_public_profile/presentation/organizers_directory_page.dart';
+import '../../features/organizer/presentation/public_profile/organizer_own_public_profile_page.dart';
+import '../../features/organizer/presentation/public_profile/organizer_public_profile_editor_page.dart';
 import '../../features/ranking/presentation/athlete_ranking_page.dart';
 import '../../features/tournaments/presentation/my_tournaments_page.dart';
 import '../../features/tournaments/presentation/tournament_discovery_list_page.dart';
@@ -330,6 +334,20 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             path: 'wallet',
             name: AppRouteNames.organizerWallet,
             builder: (context, state) => const OrganizerFinancialPage(),
+          ),
+          GoRoute(
+            path: 'perfil-publico',
+            name: AppRouteNames.organizerPublicProfileEdit,
+            builder: (context, state) =>
+                const OrganizerPublicProfileEditorPage(),
+            routes: [
+              GoRoute(
+                path: 'visualizar',
+                name: AppRouteNames.organizerPublicProfilePreview,
+                builder: (context, state) =>
+                    const OrganizerOwnPublicProfilePage(),
+              ),
+            ],
           ),
           GoRoute(
             path: 'create',
@@ -1137,6 +1155,20 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final teamId = state.pathParameters['teamId']?.trim() ?? '';
           return TeamPublicProfilePage(teamId: teamId);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.organizersDirectory,
+        name: AppRouteNames.organizersDirectory,
+        builder: (context, state) => const OrganizersDirectoryPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.organizerPublicProfile,
+        name: AppRouteNames.organizerPublicProfile,
+        builder: (context, state) {
+          final organizerId =
+              state.pathParameters['organizerId']?.trim() ?? '';
+          return OrganizerPublicProfilePage(organizerId: organizerId);
         },
       ),
       GoRoute(

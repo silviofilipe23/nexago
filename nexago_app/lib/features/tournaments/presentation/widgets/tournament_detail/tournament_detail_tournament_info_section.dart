@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -15,6 +16,8 @@ class TournamentDetailTournamentInfoSection extends StatelessWidget {
     required this.organizerName,
     required this.stats,
     this.organizerReputation,
+    this.organizerLogoUrl,
+    this.onOrganizerTap,
   });
 
   final TournamentDetail tournament;
@@ -23,6 +26,13 @@ class TournamentDetailTournamentInfoSection extends StatelessWidget {
 
   /// "★ 4,7 (86 avaliações em 5 torneios)" (spec §5) — `null` abaixo de 3 avaliações.
   final String? organizerReputation;
+
+  /// Logo do perfil público do organizador; sem ele, o ícone de pessoa de sempre.
+  final String? organizerLogoUrl;
+
+  /// Abre o perfil público do organizador. `null` quando ele não tem perfil exibível — a linha
+  /// fica como texto.
+  final VoidCallback? onOrganizerTap;
 
   @override
   Widget build(BuildContext context) {
@@ -48,17 +58,10 @@ class TournamentDetailTournamentInfoSection extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _InfoCard(
+            onTap: onOrganizerTap,
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: context.themeColors.onSurfaceMuted
-                      .withValues(alpha: 0.12),
-                  child: Icon(
-                    Icons.person_outline_rounded,
-                    color: context.themeColors.onSurfaceMuted,
-                  ),
-                ),
+                _OrganizerAvatar(logoUrl: organizerLogoUrl),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -85,6 +88,14 @@ class TournamentDetailTournamentInfoSection extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (onOrganizerTap != null) ...[
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: context.themeColors.onSurfaceMuted,
+                    semanticLabel: 'Ver perfil do organizador',
+                  ),
+                ],
               ],
             ),
           ),
@@ -185,13 +196,14 @@ class TournamentDetailTournamentInfoSection extends StatelessWidget {
 }
 
 class _InfoCard extends StatelessWidget {
-  const _InfoCard({required this.child});
+  const _InfoCard({required this.child, this.onTap});
 
   final Widget child;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final card = Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: context.themeColors.surfaceRaised,
@@ -201,6 +213,47 @@ class _InfoCard extends StatelessWidget {
         ),
       ),
       child: child,
+    );
+    if (onTap == null) return card;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(onTap: onTap, child: card),
+    );
+  }
+}
+
+/// Logo do organizador (quadrado arredondado, como no perfil público) ou o ícone de pessoa.
+class _OrganizerAvatar extends StatelessWidget {
+  const _OrganizerAvatar({required this.logoUrl});
+
+  final String? logoUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = CircleAvatar(
+      radius: 22,
+      backgroundColor:
+          context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+      child: Icon(
+        Icons.person_outline_rounded,
+        color: context.themeColors.onSurfaceMuted,
+      ),
+    );
+    final url = logoUrl?.trim() ?? '';
+    if (url.isEmpty) return fallback;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: Image(
+          image: CachedNetworkImageProvider(url),
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => fallback,
+        ),
+      ),
     );
   }
 }

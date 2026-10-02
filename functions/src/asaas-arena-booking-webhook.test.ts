@@ -357,6 +357,66 @@ describe("processArenaBookingAsaasNotification — cashback", () => {
     assert.equal(fake.store.get(`athleteWallets/owner1/holds/${holdNewId}`)!.status, "open");
   });
 
+  /** `appConfig/cashback` ilegível (Firestore instável): a leitura lança. */
+  function breakCashbackConfig(fake: FakeFirestore): void {
+    const original = fake.doc.bind(fake);
+    fake.doc = ((path: string) => {
+      const ref = original(path);
+      if (path === "appConfig/cashback") {
+        ref.get = async () => {
+          throw new Error("appConfig indisponível");
+        };
+      }
+      return ref;
+    }) as typeof fake.doc;
+  }
+
+  it("leitura de appConfig/cashback falha: reserva confirmada, arena creditada, reserva de saldo capturada", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake);
+    seedSpendableLot(fake, 3000);
+    const {holdId} = await holdCashback(db, {
+      uid: "owner1", maxCents: 2000, sourceType: "booking", sourceId: "b1",
+      trackingPath: BOOKING_PATH, label: "Reserva", nowMs: NOW_MS,
+    });
+    await attachHoldPayment(db, "owner1", holdId!, "orig1");
+    breakCashbackConfig(fake);
+
+    await processArenaBookingAsaasNotification(
+      db, "orig1", bookingPayment("RECEIVED", 80), processedRefOf(db),
+    );
+
+    const booking = fake.store.get(BOOKING_PATH)!;
+    assert.equal(booking.status, "confirmed");
+    assert.equal(booking.paymentStatus, "paid");
+    assert.equal(booking.amountPaidOnlineReais, 100);
+    assert.equal(fake.store.get(PROCESSED_PATH)!.outcome, "approved");
+    assert.equal(fake.store.get(`athleteWallets/owner1/holds/${holdId}`)!.status, "captured");
+    assert.equal(fake.store.has("athleteWallets/owner1/lots/orig1"), false);
+    assert.equal(arenaLedger(fake).find((e) => e.type === "credit")!.grossReais, 100);
+  });
+
+  it("leitura de appConfig/cashback falha na cota de amigo: cota paga e arena creditada", async () => {
+    const {fake, db} = makeDb();
+    seedSplitBooking(fake);
+    fake.seedDoc(`${BOOKING_PATH}/paymentShares/s1`, {
+      payerAthleteId: "friend1", amountReais: 50, status: "pending", asaasPaymentId: "payS1",
+    });
+    breakCashbackConfig(fake);
+    const shareProcessed = "artifacts/p/public/data/asaas_processed_payments/payS1";
+
+    await processArenaBookingShareAsaasNotification(
+      db, "payS1",
+      {status: "RECEIVED", value: 50, externalReference: "arenaBookingShare:b1:s1"},
+      db.doc(shareProcessed) as DocumentReference,
+    );
+
+    assert.equal(fake.store.get(`${BOOKING_PATH}/paymentShares/s1`)!.status, "paid");
+    assert.equal(fake.store.get(shareProcessed)!.outcome, "approved");
+    assert.equal(fake.store.has("athleteWallets/friend1/lots/payS1"), false);
+    assert.equal(arenaLedger(fake).find((e) => e.type === "credit")!.grossReais, 50);
+  });
+
   // C1: a reserva de quadra é gravável pelo atleta dono e pela equipe da
   // arena — saldo aplicado e reserva NUNCA vêm dela, só da reserva do servidor.
   it("cashbackAppliedCents forjado sem reserva de saldo: arena recebe só o que o Asaas recebeu", async () => {

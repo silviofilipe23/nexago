@@ -25,7 +25,11 @@ import {
   requestInvoiceForPaidBooking,
   shouldAttemptFiscalInvoice,
 } from "./fiscal/payment-hooks";
-import {readCashbackConfig} from "./cashback-config";
+import {
+  DEFAULT_CASHBACK_CONFIG,
+  readCashbackConfig,
+  type CashbackConfig,
+} from "./cashback-config";
 import {bookingEventAtMs} from "./cashback-rules";
 import {
   applyCashbackIntent,
@@ -76,6 +80,26 @@ async function resolvePayerForInvoice(
     return {nome, cpfCnpj};
   } catch {
     return null;
+  }
+}
+
+/**
+ * Doc de config indisponível não pode derrubar a confirmação: o lote de
+ * confirmação ainda não foi gravado, o roteador responde 200 e o Asaas não
+ * reentrega — a reserva paga ficaria `pending_payment`. Cai no padrão
+ * (desligado): a reserva de saldo ainda é capturada, só o ganho desta rodada
+ * não é calculado.
+ */
+async function readCashbackConfigOrOff(db: Firestore, context: string): Promise<CashbackConfig> {
+  try {
+    return await readCashbackConfig(db);
+  } catch (e) {
+    logger.error(
+      `Asaas arena booking ${context}: falha ao ler appConfig/cashback ` +
+      "— tratando como desligado nesta rodada",
+      e,
+    );
+    return DEFAULT_CASHBACK_CONFIG;
   }
 }
 
@@ -219,7 +243,7 @@ export async function processArenaBookingAsaasNotification(
       appliedCents,
       feeReais: platformFee,
       holdId,
-      config: await readCashbackConfig(db),
+      config: await readCashbackConfigOrOff(db, bookingId),
     });
 
     const batch = db.batch();
@@ -414,7 +438,7 @@ export async function processArenaBookingShareAsaasNotification(
       appliedCents: 0,
       feeReais: platformFee,
       holdId: null,
-      config: await readCashbackConfig(db),
+      config: await readCashbackConfigOrOff(db, `${bookingId}/${shareId}`),
     });
 
     const batch = db.batch();

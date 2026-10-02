@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Injectable, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
@@ -14,6 +14,12 @@ const SORTS: readonly { id: SummarySort; label: string }[] = [
   { id: 'recent', label: 'Mais recentes' },
   { id: 'worst', label: 'Pior média' },
 ];
+
+/** A ordenação mora fora da tela: abrir um torneio e voltar recria o componente. */
+@Injectable({ providedIn: 'root' })
+export class AvaliacoesSortState {
+  readonly sort = signal<SummarySort>('recent');
+}
 
 /** Avaliações de torneios (spec §4 "Backoffice"): um resumo por torneio, ordenável, com link para
  *  as avaliações de cada um. Só leitura. */
@@ -32,7 +38,15 @@ const SORTS: readonly { id: SummarySort; label: string }[] = [
 
       <div class="bo-filter-bar">
         @for (s of sorts; track s.id) {
-          <button type="button" class="bo-chip" [class.active]="sort() === s.id" (click)="sort.set(s.id)">{{ s.label }}</button>
+          <button
+            type="button"
+            class="bo-chip"
+            [class.active]="sort() === s.id"
+            [attr.aria-pressed]="sort() === s.id"
+            (click)="sort.set(s.id)"
+          >
+            {{ s.label }}
+          </button>
         }
       </div>
 
@@ -55,7 +69,7 @@ const SORTS: readonly { id: SummarySort; label: string }[] = [
             </div>
             <div>
               @for (row of rows(); track row.id) {
-                <a class="table-row" [routerLink]="['/painel/avaliacoes', row.id]">
+                <a class="table-row" [routerLink]="['/painel/avaliacoes', row.id]" [attr.aria-label]="row.label">
                   <div class="cell-main">
                     <div class="cell-name">{{ row.name }}</div>
                     <div class="cell-sub">{{ row.organizer }}</div>
@@ -168,13 +182,15 @@ const SORTS: readonly { id: SummarySort; label: string }[] = [
 })
 export class PanelAvaliacoesComponent {
   private readonly repository = inject(TournamentReviewsAdminRepository);
+  private loadToken = 0;
 
   protected readonly sorts = SORTS;
   protected readonly state = signal<LoadState>('loading');
   protected readonly errorMessage = signal('');
   protected readonly summaries = signal<readonly ReviewSummary[]>([]);
-  protected readonly names = signal<ReadonlyMap<string, string>>(new Map());
-  protected readonly sort = signal<SummarySort>('recent');
+  /** `null` enquanto os nomes carregam. */
+  protected readonly names = signal<ReadonlyMap<string, string> | null>(null);
+  protected readonly sort = inject(AvaliacoesSortState).sort;
   protected readonly now = signal(new Date());
 
   protected readonly rows = computed(() => summaryRows(sortSummaries(this.summaries(), this.sort()), this.names(), this.now()));
@@ -190,17 +206,22 @@ export class PanelAvaliacoesComponent {
     void this.reload();
   }
 
+  /** O token descarta a resposta de um "Atualizar" anterior que chegar por último. */
   protected async reload(): Promise<void> {
+    const token = ++this.loadToken;
     this.state.set('loading');
     this.errorMessage.set('');
+    this.names.set(null);
     let summaries: ReviewSummary[];
     try {
       summaries = await this.repository.listSummaries();
     } catch (err) {
+      if (token !== this.loadToken) return;
       this.errorMessage.set(reviewsErrorMessage(err));
       this.state.set('error');
       return;
     }
+    if (token !== this.loadToken) return;
     this.now.set(new Date());
     this.summaries.set(summaries);
     this.state.set('ok');
@@ -208,6 +229,7 @@ export class PanelAvaliacoesComponent {
     const names = await this.repository
       .profileNames(summaries.map((s) => s.organizerId))
       .catch(() => new Map<string, string>());
+    if (token !== this.loadToken) return;
     this.names.set(names);
   }
 }

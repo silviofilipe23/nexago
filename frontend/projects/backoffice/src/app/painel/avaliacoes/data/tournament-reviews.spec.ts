@@ -3,8 +3,11 @@ import {
   adminReviewFromData,
   adminReviewRows,
   chunkIds,
+  countMismatchNote,
   fallbackName,
   formatRating,
+  organizerName,
+  personName,
   profileNameFromData,
   responseRateLabel,
   reviewWindowLabel,
@@ -153,7 +156,11 @@ describe('tournament-reviews (backoffice)', () => {
       response: '23 de 42',
       windowLabel: 'Aberta até 15/10',
       windowOpen: true,
+      label: 'Copa Aurora, organizado por Arena Garden Eventos, 26/09/2026. Média 4,6, 23 avaliações, resposta 23 de 42. Aberta até 15/10.',
     });
+    expect(semNota.label).toBe(
+      'Torneio sem nome, organizado por Sem nome (…999999), 26/09/2026. Sem média pública, 2 avaliações, sem atletas aptos. Encerrada.',
+    );
     expect(semNota.name).toBe('Torneio sem nome');
     expect(semNota.organizer).toBe('Sem nome (…999999)');
     expect(semNota.average).toBe('—');
@@ -191,6 +198,34 @@ describe('tournament-reviews (backoffice)', () => {
     expect(rows[1].sentAt).toBe('Enviada em 02/10/2026 10:00');
     expect(rows[1].aspects).toEqual([]);
     expect(rows[1].comment).toBeNull();
+  });
+
+  it('nomes: "…" enquanto carregam, reserva só depois; organizador sem uid vira "Sem organizador"', () => {
+    const names = new Map([['athlete-uid-000002', 'Bruna Lima']]);
+    expect(personName('athlete-uid-000001', null)).toBe('…');
+    expect(personName('athlete-uid-000001', names)).toBe('Sem nome (…000001)');
+    expect(personName('athlete-uid-000002', names)).toBe('Bruna Lima');
+    expect(organizerName('', null)).toBe('Sem organizador');
+    expect(organizerName('', names)).toBe('Sem organizador');
+    expect(organizerName('organizer-uid-123456', null)).toBe('…');
+    expect(summaryRows([summary()], null, NOW)[0].organizer).toBe('…');
+    expect(summaryRows([summary({ organizerId: '' })], new Map(), NOW)[0].organizer).toBe('Sem organizador');
+    expect(adminReviewRows([review()], null)[0].athlete).toBe('…');
+  });
+
+  it('linha com 1 avaliação fala no singular', () => {
+    expect(summaryRows([summary({ count: 1, average: null })], new Map(), NOW)[0].label).toContain('1 avaliação,');
+  });
+
+  it('countMismatchNote: só quando o resumo e a lista divergem', () => {
+    expect(countMismatchNote(summary({ count: 23 }), 23)).toBeNull();
+    expect(countMismatchNote(null, 3)).toBeNull();
+    expect(countMismatchNote(summary({ count: 22 }), 23)).toBe(
+      'O resumo registra 22 avaliações e a lista tem 23: o resumo ainda não foi recalculado.',
+    );
+    expect(countMismatchNote(summary({ count: 1 }), 0)).toBe(
+      'O resumo registra 1 avaliação e a lista tem 0: o resumo ainda não foi recalculado.',
+    );
   });
 
   it('chunkIds: sem repetidos nem vazios, em lotes de 30', () => {

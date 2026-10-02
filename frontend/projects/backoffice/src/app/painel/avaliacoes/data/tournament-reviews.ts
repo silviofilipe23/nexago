@@ -56,6 +56,8 @@ export interface SummaryRow {
   response: string;
   windowLabel: string;
   windowOpen: boolean;
+  /** A linha é um link só: o leitor de tela lê esta frase em vez dos números soltos. */
+  label: string;
 }
 
 export interface AdminReviewRow {
@@ -151,6 +153,17 @@ export function fallbackName(uid: string): string {
   return `Sem nome (…${uid.slice(-6)})`;
 }
 
+/** Mapa `null` = nomes ainda carregando: "…" em vez de afirmar que a pessoa não tem nome. */
+export function personName(uid: string, names: ReadonlyMap<string, string> | null): string {
+  if (names == null) return '…';
+  return names.get(uid) ?? fallbackName(uid);
+}
+
+/** Resumo legado sem `managerId` não tem uid a encurtar. */
+export function organizerName(uid: string, names: ReadonlyMap<string, string> | null): string {
+  return uid ? personName(uid, names) : 'Sem organizador';
+}
+
 /** Uma casa, vírgula — a mesma regra do app e dos portais. */
 export function formatRating(value: number): string {
   return value.toFixed(1).replace('.', ',');
@@ -176,6 +189,16 @@ export function isReviewWindowOpen(s: ReviewSummary, now: Date): boolean {
 
 export function reviewWindowLabel(s: ReviewSummary, now: Date): string {
   return isReviewWindowOpen(s, now) ? `Aberta até ${DAY_MONTH.format(s.closesAt!)}` : 'Encerrada';
+}
+
+function reviewsCount(n: number): string {
+  return n === 1 ? '1 avaliação' : `${n} avaliações`;
+}
+
+/** O gatilho que recalcula o resumo roda segundos depois de cada envio; se falhar, a diferença fica. */
+export function countMismatchNote(s: ReviewSummary | null, listed: number): string | null {
+  if (s == null || s.count === listed) return null;
+  return `O resumo registra ${reviewsCount(s.count)} e a lista tem ${listed}: o resumo ainda não foi recalculado.`;
 }
 
 export function starsText(n: StarValue): string {
@@ -204,19 +227,33 @@ export function sortSummaries(list: readonly ReviewSummary[], mode: SummarySort)
   return [...rated, ...rest];
 }
 
+function rowLabel(row: Omit<SummaryRow, 'label'>, count: number): string {
+  const date = row.date === '—' ? 'sem data' : row.date;
+  const average = row.average === '—' ? 'Sem média pública' : `Média ${row.average}`;
+  const response = row.response === '—' ? 'sem atletas aptos' : `resposta ${row.response}`;
+  return `${row.name}, organizado por ${row.organizer}, ${date}. ${average}, ${reviewsCount(count)}, ${response}. ${row.windowLabel}.`;
+}
+
 /** Mantém a ordem recebida (a ordenação é decisão de quem chama). */
-export function summaryRows(list: readonly ReviewSummary[], names: ReadonlyMap<string, string>, now: Date): SummaryRow[] {
-  return list.map((s) => ({
-    id: s.tournamentId,
-    name: s.tournamentName || 'Torneio sem nome',
-    organizer: names.get(s.organizerId) ?? fallbackName(s.organizerId),
-    date: reviewDate(s.tournamentStartAt ?? s.opensAt),
-    average: hasPublicAverage(s) ? formatRating(s.average!) : '—',
-    reviews: String(s.count),
-    response: responseRateLabel(s),
-    windowLabel: reviewWindowLabel(s, now),
-    windowOpen: isReviewWindowOpen(s, now),
-  }));
+export function summaryRows(
+  list: readonly ReviewSummary[],
+  names: ReadonlyMap<string, string> | null,
+  now: Date,
+): SummaryRow[] {
+  return list.map((s) => {
+    const row = {
+      id: s.tournamentId,
+      name: s.tournamentName || 'Torneio sem nome',
+      organizer: organizerName(s.organizerId, names),
+      date: reviewDate(s.tournamentStartAt ?? s.opensAt),
+      average: hasPublicAverage(s) ? formatRating(s.average!) : '—',
+      reviews: String(s.count),
+      response: responseRateLabel(s),
+      windowLabel: reviewWindowLabel(s, now),
+      windowOpen: isReviewWindowOpen(s, now),
+    };
+    return { ...row, label: rowLabel(row, s.count) };
+  });
 }
 
 function sentLabel(r: AdminReview): string {
@@ -227,12 +264,12 @@ function sentLabel(r: AdminReview): string {
 }
 
 /** Da mais nova para a mais antiga, com o nome do atleta (ou o uid encurtado). */
-export function adminReviewRows(reviews: readonly AdminReview[], names: ReadonlyMap<string, string>): AdminReviewRow[] {
+export function adminReviewRows(reviews: readonly AdminReview[], names: ReadonlyMap<string, string> | null): AdminReviewRow[] {
   return [...reviews]
     .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))
     .map((r) => ({
       id: r.id,
-      athlete: names.get(r.uid) ?? fallbackName(r.uid),
+      athlete: personName(r.uid, names),
       overall: r.overall,
       stars: starsText(r.overall),
       aspects: TOURNAMENT_REVIEW_ASPECTS.flatMap((a) => {

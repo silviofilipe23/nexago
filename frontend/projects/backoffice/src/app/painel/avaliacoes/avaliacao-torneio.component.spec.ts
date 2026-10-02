@@ -90,6 +90,71 @@ describe('AvaliacaoTorneioComponent', () => {
     expect(text).toContain('Premiação e kit 1★');
     expect(text).toContain('Premiação não foi entregue.');
     expect(text).toContain('Sem comentário.');
+    const [comAspecto, semAspecto] = [...host.querySelectorAll('article.rv')];
+    expect(comAspecto.querySelector('.rv-chips')).not.toBeNull();
+    expect(semAspecto.querySelector('.rv-chips')).toBeNull();
+  });
+
+  it('estrelas são uma imagem com nome para o leitor de tela', async () => {
+    const host = await mount({
+      getSummary: () => Promise.resolve(summary()),
+      listReviews: () => Promise.resolve([review()]),
+      profileNames: () => Promise.resolve(new Map()),
+    });
+    const stars = host.querySelector('.rv-stars')!;
+    expect(stars.getAttribute('role')).toBe('img');
+    expect(stars.getAttribute('aria-label')).toBe('4 de 5 estrelas');
+  });
+
+  it('enquanto os nomes carregam: "…" no atleta e no organizador, nunca "Sem nome"', async () => {
+    const host = await mount({
+      getSummary: () => Promise.resolve(summary()),
+      listReviews: () => Promise.resolve([review()]),
+      profileNames: () => new Promise(() => undefined),
+    });
+    expect(host.querySelector('.rv-athlete')!.textContent!.trim()).toBe('…');
+    expect(textOf(host)).toContain('Organizado por … · 26/09/2026');
+    expect(textOf(host)).not.toContain('Sem nome');
+  });
+
+  it('nomes que não carregam: ficam os uids encurtados, sem erro na tela', async () => {
+    const host = await mount({
+      getSummary: () => Promise.resolve(summary()),
+      listReviews: () => Promise.resolve([review()]),
+      profileNames: () => Promise.reject(new Error('offline')),
+    });
+    expect(host.querySelector('.bo-alert')).toBeNull();
+    expect(host.querySelector('.rv-athlete')!.textContent!.trim()).toBe('Sem nome (…000001)');
+    expect(textOf(host)).toContain('Organizado por Sem nome (…123456)');
+  });
+
+  it('resumo sem organizador: "Sem organizador", não um uid vazio', async () => {
+    const host = await mount({
+      getSummary: () => Promise.resolve(summary({ organizerId: '' })),
+      listReviews: () => Promise.resolve([review()]),
+      profileNames: () => Promise.resolve(new Map()),
+    });
+    expect(textOf(host)).toContain('Organizado por Sem organizador · 26/09/2026');
+  });
+
+  it('resumo atrasado em relação à lista: avisa a diferença', async () => {
+    const host = await mount({
+      getSummary: () => Promise.resolve(summary({ count: 1 })),
+      listReviews: () => Promise.resolve([review(), review({ id: 't1_athlete-uid-000002', uid: 'athlete-uid-000002' })]),
+      profileNames: () => Promise.resolve(new Map()),
+    });
+    expect(host.querySelector('.count-note')!.textContent).toContain(
+      'O resumo registra 1 avaliação e a lista tem 2: o resumo ainda não foi recalculado.',
+    );
+  });
+
+  it('resumo em dia com a lista: sem aviso', async () => {
+    const host = await mount({
+      getSummary: () => Promise.resolve(summary({ count: 1 })),
+      listReviews: () => Promise.resolve([review()]),
+      profileNames: () => Promise.resolve(new Map()),
+    });
+    expect(host.querySelector('.count-note')).toBeNull();
   });
 
   it('KPIs: média — abaixo de 3, contagem, resposta e janela', async () => {
@@ -143,6 +208,23 @@ describe('AvaliacaoTorneioComponent', () => {
     expect(text).toContain('Da etapa nova.');
     expect(text).not.toContain('Do torneio antigo.');
     expect(host.querySelector('.bo-detail-header h1')!.textContent).toContain('Etapa Setembro');
+  });
+
+  it('trocar de torneio descarta os nomes atrasados do anterior', async () => {
+    const pending: ((names: Map<string, string>) => void)[] = [];
+    const host = await mount({
+      getSummary: (id: string) => Promise.resolve(summary({ tournamentId: id })),
+      listReviews: (id: string) => Promise.resolve([review({ id: `${id}_athlete-uid-000001` })]),
+      profileNames: () => new Promise<Map<string, string>>((resolve) => pending.push(resolve)),
+    });
+    fixture.componentRef.setInput('id', 't2');
+    fixture.detectChanges();
+    await settle();
+    pending[1](new Map([['athlete-uid-000001', 'Nome novo']]));
+    await settle();
+    pending[0](new Map([['athlete-uid-000001', 'Nome velho']]));
+    await settle();
+    expect(host.querySelector('.rv-athlete')!.textContent!.trim()).toBe('Nome novo');
   });
 
   it('sem permissão: mensagem clara', async () => {

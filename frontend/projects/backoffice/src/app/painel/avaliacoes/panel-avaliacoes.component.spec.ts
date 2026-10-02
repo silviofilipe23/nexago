@@ -113,6 +113,57 @@ describe('PanelAvaliacoesComponent', () => {
     expect([...host.querySelectorAll('button')].some((b) => b.textContent!.includes('Tentar de novo'))).toBeTrue();
   });
 
+  it('a ordenação escolhida sobrevive a abrir um torneio e voltar', async () => {
+    await mount({ listSummaries: () => Promise.resolve(LIST), profileNames: () => Promise.resolve(new Map()) });
+    const host1 = fixture.nativeElement as HTMLElement;
+    [...host1.querySelectorAll<HTMLButtonElement>('.bo-chip')].find((b) => b.textContent!.includes('Pior média'))!.click();
+    await settle();
+    fixture.destroy();
+    fixture = TestBed.createComponent(PanelAvaliacoesComponent);
+    fixture.detectChanges();
+    await settle();
+    const host2 = fixture.nativeElement as HTMLElement;
+    expect(names(host2)).toEqual(['Etapa Setembro', 'Copa Aurora', 'Teste sem atletas']);
+    expect(host2.querySelector('.bo-chip.active')!.textContent).toContain('Pior média');
+  });
+
+  it('enquanto os nomes carregam, o organizador aparece como "…", não como "Sem nome"', async () => {
+    const host = await mount({ listSummaries: () => Promise.resolve(LIST), profileNames: () => new Promise(() => undefined) });
+    const organizers = [...host.querySelectorAll('.cell-sub')].map((e) => e.textContent!.trim());
+    expect(organizers).toEqual(['…', '…', '…']);
+    expect(host.textContent).not.toContain('Sem nome');
+  });
+
+  it('Atualizar no meio da leitura de nomes: a resposta antiga não sobrescreve a nova', async () => {
+    const pending: ((names: Map<string, string>) => void)[] = [];
+    const host = await mount({
+      listSummaries: () => Promise.resolve(LIST),
+      profileNames: () => new Promise<Map<string, string>>((resolve) => pending.push(resolve)),
+    });
+    [...host.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent!.includes('Atualizar'))!.click();
+    await settle();
+    pending[1](new Map([['organizer-uid-123456', 'Nome novo']]));
+    await settle();
+    pending[0](new Map([['organizer-uid-123456', 'Nome velho']]));
+    await settle();
+    expect(host.textContent).toContain('Nome novo');
+    expect(host.textContent).not.toContain('Nome velho');
+  });
+
+  it('acessibilidade: chips dizem qual está ativo e cada linha tem uma frase para o leitor de tela', async () => {
+    const host = await mount({
+      listSummaries: () => Promise.resolve(LIST),
+      profileNames: () => Promise.resolve(new Map([['organizer-uid-123456', 'Arena Garden Eventos']])),
+    });
+    const pressed = [...host.querySelectorAll('.bo-chip')].map((b) => [b.textContent!.trim(), b.getAttribute('aria-pressed')]);
+    expect(pressed).toEqual([
+      ['Mais recentes', 'true'],
+      ['Pior média', 'false'],
+    ]);
+    const copa = [...host.querySelectorAll<HTMLAnchorElement>('a.table-row')][2];
+    expect(copa.getAttribute('aria-label')).toContain('Copa Aurora, organizado por Arena Garden Eventos, 26/09/2026. Média 4,6');
+  });
+
   it('lista vazia explica que nenhum torneio passou pela avaliação', async () => {
     const host = await mount({ listSummaries: () => Promise.resolve([]), profileNames: () => Promise.resolve(new Map()) });
     expect(host.textContent).toContain('Nenhum torneio passou pela avaliação dos atletas ainda.');

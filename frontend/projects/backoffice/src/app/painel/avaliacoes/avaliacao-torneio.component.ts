@@ -7,9 +7,10 @@ import { PanelShellComponent } from '../ui/panel-shell.component';
 import {
   MIN_PUBLIC_REVIEWS,
   adminReviewRows,
-  fallbackName,
+  countMismatchNote,
   formatRating,
   isReviewWindowOpen,
+  organizerName,
   responseRateLabel,
   reviewDate,
   reviewWindowLabel,
@@ -66,11 +67,14 @@ type LoadState = 'loading' | 'ok' | 'error';
           </div>
 
           <bo-panel-card pad="sm" kicker="coleção tournamentReviews" title="Avaliações dos atletas">
+            @if (countNote(); as note) {
+              <p class="status count-note">{{ note }}</p>
+            }
             @for (row of rows(); track row.id) {
               <article class="rv">
                 <div class="rv-head">
                   <span class="rv-athlete">{{ row.athlete }}</span>
-                  <span class="rv-stars" [attr.aria-label]="row.overall + ' de 5 estrelas'">{{ row.stars }}</span>
+                  <span class="rv-stars" role="img" [attr.aria-label]="row.overall + ' de 5 estrelas'">{{ row.stars }}</span>
                 </div>
                 <div class="rv-date">{{ row.sentAt }}</div>
                 @if (row.aspects.length) {
@@ -177,7 +181,8 @@ export class AvaliacaoTorneioComponent {
   protected readonly errorMessage = signal('');
   protected readonly summary = signal<ReviewSummary | null>(null);
   protected readonly reviews = signal<readonly AdminReview[]>([]);
-  protected readonly names = signal<ReadonlyMap<string, string>>(new Map());
+  /** `null` enquanto os nomes carregam. */
+  protected readonly names = signal<ReadonlyMap<string, string> | null>(null);
   protected readonly now = signal(new Date());
 
   protected readonly notFound = computed(() => this.summary() == null && this.reviews().length === 0);
@@ -186,9 +191,9 @@ export class AvaliacaoTorneioComponent {
   protected readonly headerLine = computed(() => {
     const s = this.summary();
     if (!s) return 'Avaliações de torneios';
-    const organizer = this.names().get(s.organizerId) ?? fallbackName(s.organizerId);
-    return `Organizado por ${organizer} · ${reviewDate(s.tournamentStartAt ?? s.opensAt)}`;
+    return `Organizado por ${organizerName(s.organizerId, this.names())} · ${reviewDate(s.tournamentStartAt ?? s.opensAt)}`;
   });
+  protected readonly countNote = computed(() => countMismatchNote(this.summary(), this.reviews().length));
   protected readonly average = computed(() => {
     const s = this.summary();
     return s && s.count >= MIN_PUBLIC_REVIEWS && s.average != null ? formatRating(s.average) : '—';
@@ -225,7 +230,7 @@ export class AvaliacaoTorneioComponent {
     this.errorMessage.set('');
     this.summary.set(null);
     this.reviews.set([]);
-    this.names.set(new Map());
+    this.names.set(null);
     let summary: ReviewSummary | null;
     let reviews: AdminReview[];
     try {

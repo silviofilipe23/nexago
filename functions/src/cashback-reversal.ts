@@ -23,12 +23,18 @@ export async function reverseCashbackForPayment(
   if (!intent || intent.reversedAtMs != null) return "skipped";
   // Primeiro tira a intenção da fila: aplicada depois do estorno, ela capturaria
   // a reserva devolvida aqui e criaria o lote de um pagamento que não existe mais.
-  await processedRef.set({cashbackStatus: "reversed"}, {merge: true});
+  // "reversing" (em vez de já ir para "reversed") deixa a varredura retomar se o
+  // processo cair no meio — as operações abaixo são idempotentes, então rodar de
+  // novo num doc já em "reversing" não tem efeito duplicado.
+  await processedRef.set({cashbackStatus: "reversing"}, {merge: true});
   const lotOutcome = await reverseLot(db, intent.uid, paymentId, nowMs);
   const restoredCents = intent.holdId ?
     await refundCapturedHold(db, intent.uid, intent.holdId, nowMs) :
     0;
-  await processedRef.set({cashback: {reversedAtMs: nowMs}}, {merge: true});
+  await processedRef.set(
+    {cashbackStatus: "reversed", cashback: {reversedAtMs: nowMs}},
+    {merge: true},
+  );
   logger.info("cashback: pagamento estornado", {
     paymentId,
     uid: intent.uid,

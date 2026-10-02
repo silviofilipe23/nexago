@@ -1,9 +1,9 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import {Timestamp, type Firestore} from "firebase-admin/firestore";
+import {Timestamp, type DocumentReference, type Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {attachHoldPayment, holdCashback} from "./athlete-wallet";
-import {cashbackIntentFields, buildCashbackIntent} from "./cashback-intent";
+import {applyCashbackIntent, cashbackIntentFields, buildCashbackIntent} from "./cashback-intent";
 import {DEFAULT_CASHBACK_CONFIG} from "./cashback-config";
 import {decideHoldAction, runCashbackHoldSweep} from "./cashback-hold-sweeper";
 
@@ -124,5 +124,38 @@ describe("runCashbackHoldSweep", () => {
     assert.equal(fake.store.get(`${PROCESSED}/payStuck`)!.cashbackStatus, "failed");
     assert.equal(stats.intentsDone, 1);
     assert.equal(stats.intentsGivenUp, 1);
+  });
+
+  it("retoma estorno interrompido (cashbackStatus 'reversing') e conta em reversalsRetried", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc(`${W}/lots/old`, {
+      uid: UID, sourceType: "booking", sourceId: "b0", tournamentId: null, arenaId: "a1",
+      label: "Reserva", earnedCents: 1000, remainingCents: 1000, status: "available",
+      eventAt: Timestamp.fromMillis(NOW - 1e9), releasedAt: Timestamp.fromMillis(NOW - 1e9),
+      expiresAt: Timestamp.fromMillis(NOW + 1e10), expiryWarnedAt: null,
+      createdAt: Timestamp.fromMillis(NOW - 1e9),
+    });
+    const {holdId} = await holdCashback(db, {
+      uid: UID, maxCents: 100, sourceType: "club", sourceId: "s1",
+      trackingPath: "arenaClubSessions/s1/clubParticipants/ath1", label: "Clubinho", nowMs: NOW,
+    });
+    const intent = buildCashbackIntent({
+      uid: UID, sourceType: "club", sourceId: "s1", tournamentId: null, arenaId: "a1",
+      label: "Clubinho", eventAtMs: NOW + 1e9, cashReais: 5, appliedCents: 100, feeReais: 0.75,
+      holdId, config: {...DEFAULT_CASHBACK_CONFIG, enabled: true},
+    });
+    fake.seedDoc(`${PROCESSED}/payStuckReversal`, {outcome: "approved", ...cashbackIntentFields(intent)});
+    const ref = db.doc(`${PROCESSED}/payStuckReversal`) as DocumentReference;
+    await applyCashbackIntent(db, ref, "payStuckReversal", NOW);
+    // Simula o roteador caindo logo depois de marcar "reversing", antes de
+    // desfazer lote e saldo.
+    await ref.set({cashbackStatus: "reversing"}, {merge: true});
+
+    const stats = await runCashbackHoldSweep(db, "p", NOW);
+
+    assert.equal(fake.store.get(`${W}/lots/payStuckReversal`)!.status, "cancelled");
+    assert.equal(fake.store.get(`${W}/holds/${holdId}`)!.status, "refunded");
+    assert.equal(fake.store.get(`${PROCESSED}/payStuckReversal`)!.cashbackStatus, "reversed");
+    assert.equal(stats.reversalsRetried, 1);
   });
 });

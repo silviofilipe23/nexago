@@ -9,6 +9,9 @@
  *    passar a próxima.
  * B. Intenções de cashback pendentes: reaplica; depois de
  *    `MAX_INTENT_ATTEMPTS`, desiste e loga.
+ * C. Estornos interrompidos (`cashbackStatus: "reversing"`): o roteador marcou
+ *    e caiu no meio, antes de desfazer lote e saldo — retoma do zero; as
+ *    operações são idempotentes.
  */
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import {
@@ -22,6 +25,7 @@ import type {CashbackSourceType} from "./cashback-rules";
 import type {HoldDoc} from "./athlete-wallet-state";
 import {captureHold, releaseHold} from "./athlete-wallet";
 import {applyCashbackIntent, MAX_INTENT_ATTEMPTS, type CashbackIntent} from "./cashback-intent";
+import {reverseCashbackForPayment} from "./cashback-reversal";
 import {getFirebaseProjectId} from "./firebase-paths";
 
 /** Reserva recém-criada pode estar no meio da callable (cobrança ainda sendo criada). */
@@ -66,6 +70,7 @@ export type HoldSweepStats = {
   intentsDone: number;
   intentsFailed: number;
   intentsGivenUp: number;
+  reversalsRetried: number;
 };
 
 export async function runCashbackHoldSweep(
@@ -75,6 +80,7 @@ export async function runCashbackHoldSweep(
 ): Promise<HoldSweepStats> {
   const stats: HoldSweepStats = {
     released: 0, captured: 0, kept: 0, intentsDone: 0, intentsFailed: 0, intentsGivenUp: 0,
+    reversalsRetried: 0,
   };
 
   const holdsSnap = await db
@@ -127,6 +133,23 @@ export async function runCashbackHoldSweep(
     const result = await applyCashbackIntent(db, doc.ref as DocumentReference, doc.id, nowMs);
     if (result === "done") stats.intentsDone++;
     else if (result === "failed") stats.intentsFailed++;
+  }
+
+  const reversingSnap = await db
+    .collection(`artifacts/${projectId}/public/data/asaas_processed_payments`)
+    .where("cashbackStatus", "==", "reversing")
+    .limit(100)
+    .get();
+  for (const doc of reversingSnap.docs) {
+    try {
+      await reverseCashbackForPayment(db, doc.ref as DocumentReference, doc.id, nowMs);
+      stats.reversalsRetried++;
+    } catch (e) {
+      logger.error("cashback: falha ao retomar estorno interrompido", {
+        paymentId: doc.id,
+        error: String(e),
+      });
+    }
   }
 
   return stats;

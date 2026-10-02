@@ -51,7 +51,27 @@ describe("reverseCashbackForPayment", () => {
     assert.equal(fake.store.get(`${W}/holds/${holdId}`)!.status, "refunded");
     assert.equal(fake.store.get(`${W}/lots/old`)!.remainingCents, 2000);
     assert.equal(fake.store.get(PROCESSED)!.cashbackStatus, "reversed");
+    assert.equal((fake.store.get(PROCESSED)!.cashback as {reversedAtMs: number}).reversedAtMs, NOW);
     assert.equal(await reverseCashbackForPayment(db, ref, "pay1", NOW), "skipped");
+  });
+
+  it("retomada: doc preso em 'reversing' (sem reversedAtMs) é concluído, e de novo vira skip", async () => {
+    const {fake, db} = makeDb();
+    const {holdId, ref} = await seedAppliedIntent(fake, db, true);
+    // Simula o roteador caindo logo depois de marcar "reversing", antes de
+    // desfazer lote e saldo — a intenção continua sem `reversedAtMs`.
+    await ref.set({cashbackStatus: "reversing"}, {merge: true});
+
+    assert.equal(await reverseCashbackForPayment(db, ref, "pay1", NOW), "reversed");
+
+    assert.equal(fake.store.get(`${W}/lots/pay1`)!.status, "cancelled");
+    assert.equal(fake.store.get(`${W}/holds/${holdId}`)!.status, "refunded");
+    assert.equal(fake.store.get(`${W}/lots/old`)!.remainingCents, 2000);
+    assert.equal(fake.store.get(PROCESSED)!.cashbackStatus, "reversed");
+
+    // Rodar de novo não duplica o efeito: as operações já estavam feitas.
+    assert.equal(await reverseCashbackForPayment(db, ref, "pay1", NOW), "skipped");
+    assert.equal(fake.store.get(`${W}/lots/old`)!.remainingCents, 2000);
   });
 
   it("estorno antes de a intenção ser aplicada: a varredura não captura nem cria lote depois", async () => {

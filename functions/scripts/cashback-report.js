@@ -7,6 +7,7 @@
  * Pré-requisitos: gcloud auth application-default login
  * Uso (na pasta functions/):
  *   node scripts/cashback-report.js --project <projectId> [--from 2026-10-01] [--to 2026-11-01]
+ * `--to` é exclusivo (o dia informado fica de fora do período).
  */
 
 const admin = require('firebase-admin');
@@ -24,6 +25,10 @@ if (!projectId) {
 }
 const fromMs = argValue('--from') ? Date.parse(`${argValue('--from')}T00:00:00-03:00`) : 0;
 const toMs = argValue('--to') ? Date.parse(`${argValue('--to')}T00:00:00-03:00`) : Date.now() + 1;
+if (Number.isNaN(fromMs) || Number.isNaN(toMs)) {
+  console.error('Data inválida em --from/--to (use AAAA-MM-DD)');
+  process.exit(1);
+}
 
 admin.initializeApp({ projectId });
 const db = admin.firestore();
@@ -51,7 +56,8 @@ async function main() {
   console.log(`Projeto ${projectId}: ${s.wallets} carteiras`);
   console.log(`Passivo atual: ${brl(s.liabilityCents)} (disponível ${brl(s.current.availableCents)}, ` +
     `pendente ${brl(s.current.pendingCents)}, reservado ${brl(s.current.heldCents)})`);
-  console.log(`Acumulado: ganho ${brl(s.lifetime.earnedCents)}, usado ${brl(s.lifetime.redeemedCents)}`);
+  console.log(`Acumulado: ganho bruto (inclui cancelados/estornados) ${brl(s.lifetime.earnedCents)}, ` +
+    `usado ${brl(s.lifetime.redeemedCents)}`);
   console.log('Período:', Object.fromEntries(Object.entries(s.period).map(([k, v]) => [k, brl(v)])));
 }
 

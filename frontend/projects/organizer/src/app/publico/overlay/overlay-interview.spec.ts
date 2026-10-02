@@ -3,7 +3,9 @@ import {
   INTERVIEW_EXIT_MS,
   INTERVIEW_SWAP_MS,
   InterviewStageDriver,
+  QUESTION_TIMINGS,
   STAGE_EMPTY,
+  StageDriver,
   podiumToneOf,
   stageSettled,
   stageToward,
@@ -129,6 +131,40 @@ describe('InterviewStageDriver', () => {
     driver.destroy();
     jasmine.clock().tick(INTERVIEW_EXIT_MS);
     expect(driver.stage().phase).toBe('out');
+  });
+});
+
+describe('StageDriver da pauta', () => {
+  let pauta: StageDriver<{ key: string }>;
+
+  beforeEach(() => {
+    jasmine.clock().install();
+    pauta = new StageDriver(QUESTION_TIMINGS);
+  });
+
+  afterEach(() => {
+    pauta.destroy();
+    jasmine.clock().uninstall();
+  });
+
+  it('próxima pergunta: some, 380 ms, aparece a nova', () => {
+    expect(QUESTION_TIMINGS.swapMs).toBe(380);
+    pauta.push({ key: 'P1' });
+    pauta.push({ key: 'P2' });
+    expect(pauta.stage()).toEqual({ shown: { key: 'P1' }, phase: 'swap' });
+    jasmine.clock().tick(380);
+    expect(pauta.stage()).toEqual({ shown: { key: 'P2' }, phase: 'in' });
+  });
+
+  it('reset troca na hora e cancela a transição pendente — entrevistado novo já entra com a pauta dele', () => {
+    pauta.push({ key: 'P1' });
+    pauta.push(null);
+    pauta.reset({ key: 'Q1' });
+    expect(pauta.stage()).toEqual({ shown: { key: 'Q1' }, phase: 'in' });
+    jasmine.clock().tick(1000);
+    expect(pauta.stage()).toEqual({ shown: { key: 'Q1' }, phase: 'in' });
+    pauta.reset(null);
+    expect(pauta.stage()).toEqual(STAGE_EMPTY);
   });
 });
 

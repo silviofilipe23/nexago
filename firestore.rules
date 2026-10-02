@@ -2326,15 +2326,23 @@ service cloud.firestore {
       // NÃO mora no doc do torneio: cada escrita ali dispara `community-feed` e
       // `search-keywords-sync` e chega a todo mundo que escuta o torneio.
       // Mídia (papel de equipe) grava AQUI e em nenhum outro lugar.
+      // `interviewQueue`: a fila de entrevistas do painel (pauta em texto livre e repórter, em
+      // rascunho). NÃO é pública — o OBS recebe o card pronto em `control.interview`.
       match /broadcast/{docId} {
-        allow read: if true;
-        allow create, update: if docId == 'control' &&
+        allow read: if docId != 'interviewQueue' ||
+          canManageTournament(tournamentId) || isTournamentStaff(tournamentId, ['media']);
+        allow create, update: if
           (canManageTournament(tournamentId) || isTournamentStaff(tournamentId, ['media'])) &&
-          request.resource.data.keys().hasOnly([
-            'courtId', 'graphics', 'kocRoundEndScreen', 'finalMode',
-            'interview', 'commands', 'updatedAt', 'updatedBy'
-          ]) &&
-          request.resource.data.updatedBy == request.auth.uid;
+          request.resource.data.updatedBy == request.auth.uid &&
+          (
+            (docId == 'control' && request.resource.data.keys().hasOnly([
+              'courtId', 'graphics', 'kocRoundEndScreen', 'finalMode',
+              'interview', 'commands', 'updatedAt', 'updatedBy'
+            ])) ||
+            (docId == 'interviewQueue' && request.resource.data.keys().hasOnly([
+              'items', 'current', 'questionIndex', 'reporter', 'show', 'updatedAt', 'updatedBy'
+            ]))
+          );
         allow delete: if false;
       }
 

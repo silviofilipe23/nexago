@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRe
 import { isKingOfCourtMatchType, kocColumnLabel, normalizeMatchType } from '../../painel/data/koc';
 import { resolveCourtNames } from '../../painel/data/matches-repository';
 import { finalKindOf } from '../../painel/telao/telao-final-mode';
+import { KOC_CLASSIFICADAS_MS, KOC_RESULTADO_MS } from './overlay-court';
 import { OverlayLiveGateway } from './overlay-live.gateway';
 import { OverlayKocBarComponent } from './overlay-koc-bar.component';
 import { finalResultOf } from './overlay-final';
@@ -61,10 +62,6 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
   const v = (raw ?? '').trim().toLowerCase();
   return TELAS_KOC.includes(v) ? (v as TelaKoc) : null;
 }
-
-/** Quanto cada tela fica no ar no rodízio do fim de rodada. */
-const RESULTADO_MS = 20_000;
-const CLASSIFICADAS_MS = 15_000;
 
 /** Rota PÚBLICA `/overlay/:matchId` — o Browser Source do OBS, que não tem sessão.
  *
@@ -553,18 +550,23 @@ export class OverlayPageComponent {
     // sempre e nenhuma tela chega a trocar.
     effect((onCleanup) => {
       const chave = this.chaveDoRodizio();
+      // Seguindo a quadra, o ciclo roda UMA vez: depois das classificadas a quadra passa pra
+      // próxima rodada ("Próximos em quadra" — ver `KOC_FIM_DE_RODADA_MS`), e voltar ao resultado
+      // piscaria a tabela antes da troca. Na partida fixa da URL não há próxima, então reveza.
+      const umaVez = this.quadraEfetiva() !== '';
       this.telaKoc.set('resultado');
       // Visualização fixada na URL ou escolhida na mão não reveza.
       if (!chave || this.telaFixa() || this.telaDoPainel()) return;
       let timer: ReturnType<typeof setTimeout>;
       const agenda = (tela: TelaKoc) => {
+        if (umaVez && tela === 'classificadas') return;
         timer = setTimeout(
           () => {
             const proxima: TelaKoc = tela === 'resultado' ? 'classificadas' : 'resultado';
             this.telaKoc.set(proxima);
             agenda(proxima);
           },
-          tela === 'resultado' ? RESULTADO_MS : CLASSIFICADAS_MS,
+          tela === 'resultado' ? KOC_RESULTADO_MS : KOC_CLASSIFICADAS_MS,
         );
       };
       agenda('resultado');

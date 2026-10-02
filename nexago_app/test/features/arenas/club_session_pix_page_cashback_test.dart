@@ -44,7 +44,7 @@ class _FakeClubsRepository implements ArenaClubsRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-ArenaClubSession sessao({double preco = 30}) {
+ArenaClubSession sessao({double preco = 30, bool allowOnsite = false}) {
   return ArenaClubSession(
     id: 's1',
     clubId: 'c1',
@@ -59,7 +59,7 @@ ArenaClubSession sessao({double preco = 30}) {
     capacity: 12,
     priceReais: preco,
     cancelWindowHours: 12,
-    allowOnsitePayment: false,
+    allowOnsitePayment: allowOnsite,
     confirmedCount: 2,
     pendingCount: 0,
     status: 'scheduled',
@@ -156,6 +156,40 @@ void main() {
     expect(repo.useCashbackCalls, [true]);
     expect(find.text(formatBRL(20)), findsOneWidget);
     expect(find.text(CashbackCopy.appliedNote(1000)), findsOneWidget);
+  });
+
+  testWidgets(
+      'seletor com onsite: PIX mostra o valor com cashback, arena mantém o preço cheio (Minor 1)',
+      (tester) async {
+    await abrir(
+      tester,
+      session: sessao(allowOnsite: true),
+      availableCents: 1000,
+    );
+
+    // Antes de ligar o toggle, as duas opções mostram o preço cheio.
+    expect(
+      find.text('${formatBRL(30)} agora · aprovação na hora'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('${formatBRL(30)} no dia · vaga garantida agora'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(CheckoutCashbackToggle.switchKey));
+    await tester.pump();
+
+    // Saldo de R$ 10 sobre R$ 30, mínimo de R$ 5: usa R$ 10 — PIX cai pra
+    // R$ 20. A opção "pagar na arena" continua com o preço cheio.
+    expect(
+      find.text('${formatBRL(20)} agora · aprovação na hora'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('${formatBRL(30)} no dia · vaga garantida agora'),
+      findsOneWidget,
+    );
   });
 
   testWidgets(

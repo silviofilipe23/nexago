@@ -356,7 +356,13 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
                     if (allowOnsite) ...[
                       _MethodSelector(
                         method: _method,
-                        amountLabel: formatBRL(amountReais),
+                        // PIX: com o toggle ligado o preço cai pelo
+                        // cashback; a arena não passa pelo cashback (vaga
+                        // garantida na hora, sem PIX) e mantém o preço cheio.
+                        pixAmountLabel: formatBRL(
+                          cashbackQuote.chargePreviewCents / 100,
+                        ),
+                        onsiteAmountLabel: formatBRL(amountReais),
                         onChanged: (m) => setState(() {
                           _method = m;
                           _pixError = null;
@@ -472,12 +478,18 @@ enum _ClubPayMethod { pix, onsite }
 class _MethodSelector extends StatelessWidget {
   const _MethodSelector({
     required this.method,
-    required this.amountLabel,
+    required this.pixAmountLabel,
+    required this.onsiteAmountLabel,
     required this.onChanged,
   });
 
   final _ClubPayMethod method;
-  final String amountLabel;
+
+  /// Valor do PIX — já com o cashback do toggle (`chargePreviewCents`).
+  final String pixAmountLabel;
+
+  /// Valor na arena — não passa pelo cashback, sempre o preço cheio.
+  final String onsiteAmountLabel;
   final ValueChanged<_ClubPayMethod> onChanged;
 
   @override
@@ -489,7 +501,7 @@ class _MethodSelector extends StatelessWidget {
           icon: Icons.pix_rounded,
           iconColor: AppColors.win,
           title: 'PIX antecipado',
-          subtitle: '$amountLabel agora · aprovação na hora',
+          subtitle: '$pixAmountLabel agora · aprovação na hora',
           selected: method == _ClubPayMethod.pix,
           onTap: () => onChanged(_ClubPayMethod.pix),
         ),
@@ -498,7 +510,7 @@ class _MethodSelector extends StatelessWidget {
           icon: Icons.storefront_rounded,
           iconColor: AppColors.brand,
           title: 'Pagar na arena',
-          subtitle: '$amountLabel no dia · vaga garantida agora',
+          subtitle: '$onsiteAmountLabel no dia · vaga garantida agora',
           selected: method == _ClubPayMethod.onsite,
           onTap: () => onChanged(_ClubPayMethod.onsite),
         ),

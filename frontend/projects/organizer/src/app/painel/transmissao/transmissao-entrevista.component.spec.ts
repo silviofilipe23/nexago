@@ -161,6 +161,19 @@ describe('TransmissaoEntrevistaComponent', () => {
       expect(fake.savedQueues.at(-1)?.reporter).toEqual({ role: 'Repórter', name: 'Júlia Reis' });
     });
 
+    it('depois de escalar, o comando troca o formato do entrevistado da vez (atleta ↔ dupla)', async () => {
+      const fake = new FakeTransmissaoData();
+      fake.queue.set(FILA);
+      const { el } = await mount(fake);
+      const opcoes = [...el.querySelectorAll('[aria-label="Formato do entrevistado da vez"] button')].map((b) => b.textContent?.trim());
+      expect(opcoes).toEqual(['Ana Souza', 'Bia Lima', 'Dupla']);
+      botao(porRotulo(el, 'Formato do entrevistado da vez'), 'Dupla').click();
+      const q = fake.savedQueues.at(-1)!;
+      expect(q.items[0]).toEqual(jasmine.objectContaining({ id: 'dupla:ta', kind: 'dupla', label: 'Ana Souza / Bia Lima' }));
+      expect(q.items[0]?.questions).toEqual(['Como foi a final?', 'E o saque?']);
+      expect(fake.aired).toEqual([]);
+    });
+
     it('elenco ainda não hidratado: "Pôr no ar" espera', async () => {
       const fake = new FakeTransmissaoData();
       fake.queue.set(FILA);
@@ -222,6 +235,23 @@ describe('TransmissaoEntrevistaComponent', () => {
         expect(interview?.shownAt).toBe(noAr.shownAt);
       });
     }
+
+    it('trocar pra dupla com o atleta no ar troca o ar — carimbo novo, a pauta segue', async () => {
+      const { el, fake, noAr } = await anaNoAr();
+      jasmine.clock().install();
+      try {
+        jasmine.clock().mockDate(new Date(noAr.shownAt + 5_000));
+        botao(porRotulo(el, 'Formato do entrevistado da vez'), 'Dupla').click();
+      } finally {
+        jasmine.clock().uninstall();
+      }
+      const { interview, queue } = fake.aired[0]!;
+      expect(interview?.key).toBe('dupla:ta');
+      expect(interview?.names).toEqual(['Ana Souza', 'Bia Lima']);
+      expect(interview?.shownAt).toBeGreaterThan(noAr.shownAt);
+      expect(interview?.question).toBe('Como foi a final?');
+      expect(queue?.items[0]?.id).toBe('dupla:ta');
+    });
 
     it('trocar o repórter no ar atualiza a tarja', async () => {
       const { el, fake, noAr } = await anaNoAr();

@@ -384,6 +384,12 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
                             //         navigateToRoleSelection(context, ref),
                             //   ),
                             // ],
+                            const SizedBox(height: 20),
+                            _PublicProfileShortcut(
+                              onTap: () => context.pushNamed(
+                                AppRouteNames.organizerPublicProfileEdit,
+                              ),
+                            ),
                             const SizedBox(height: 24),
                             if (hasLocalTournamentDraft) ...[
                               _LocalDraftBanner(
@@ -764,6 +770,74 @@ class _LocalDraftBanner extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Atalho para o editor da vitrine pública ("Perfil público") — o que os atletas veem.
+class _PublicProfileShortcut extends StatelessWidget {
+  const _PublicProfileShortcut({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return Material(
+      color: colors.surfaceCard,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: colors.onSurfaceMuted.withValues(alpha: 0.12),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.brand.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.storefront_outlined,
+                  color: AppColors.brand,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Perfil público',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Logo, capa, bio e WhatsApp que os atletas veem',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceMuted,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: colors.onSurfaceMuted),
+            ],
+          ),
+        ),
       ),
     );
   }

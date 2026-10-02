@@ -53,6 +53,12 @@ export interface InterviewCampaignRow {
   score: string;
 }
 
+/** Quem conduz a entrevista — "Repórter · Carla Mendes" abaixo do card. */
+export interface InterviewReporter {
+  role: string;
+  name: string;
+}
+
 export interface InterviewCampaign {
   title: string;
   /** "5V · 1D" */
@@ -92,12 +98,17 @@ export interface BroadcastInterview {
   chips: InterviewChip[];
   campaign: InterviewCampaign | null;
   showCampaign: boolean;
+  /** Pergunta da pauta no ar; `null` = pauta fora. */
+  question: string | null;
+  reporter: InterviewReporter | null;
 }
 
 /** Tetos do que cabe no canvas 1920×1080. */
 export const INTERVIEW_MEMBERS_MAX = 6;
 export const INTERVIEW_CHIPS_MAX = 4;
 export const INTERVIEW_CAMPAIGN_MAX = 6;
+/** Três linhas da caixa da pauta (Inter 24px em 1180px). */
+export const INTERVIEW_QUESTION_MAX = 200;
 
 export const INTERVIEW_BADGES: Record<InterviewKind, string> = {
   atleta: 'ATLETA',
@@ -126,6 +137,8 @@ export function interviewWithDefaults(v1: InterviewV1 & Partial<BroadcastIntervi
     chips: [],
     campaign: null,
     showCampaign: true,
+    question: null,
+    reporter: null,
     ...v1,
   };
 }
@@ -215,6 +228,12 @@ function campaignFromRaw(raw: unknown): InterviewCampaign | null {
   return { title: text(d['title']) ?? 'Campanha', summary: text(d['summary']) ?? '', rows };
 }
 
+function reporterFromRaw(raw: unknown): InterviewReporter | null {
+  const d = record(raw);
+  const name = text(d['name']);
+  return name ? { role: text(d['role']) ?? 'Repórter', name } : null;
+}
+
 function present<T>(items: (T | null)[]): T[] {
   return items.filter((x): x is T => x != null);
 }
@@ -253,6 +272,8 @@ function interviewFromRaw(raw: unknown): BroadcastInterview | null {
     chips: present(list(d['chips']).map(chipFromRaw)).slice(0, INTERVIEW_CHIPS_MAX),
     campaign: campaignFromRaw(d['campaign']),
     showCampaign: d['showCampaign'] !== false,
+    question: text(d['question'])?.slice(0, INTERVIEW_QUESTION_MAX) ?? null,
+    reporter: reporterFromRaw(d['reporter']),
   };
 }
 

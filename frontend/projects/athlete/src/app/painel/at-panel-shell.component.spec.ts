@@ -77,6 +77,14 @@ describe('AtPanelShellComponent — item Mesa nas navegações', () => {
     expect(mesaBottomItem()).toBeNull();
   });
 
+  // No desktop não há item "Competir": sem este, a lista de organizadores só se achava pelo
+  // breadcrumb do perfil. No celular a entrada é o card no hub Competir.
+  it('a sidebar do desktop tem o item Organizadores', async () => {
+    await build(0);
+    const item = (fixture.nativeElement as HTMLElement).querySelector('.at-nav a[href="/organizadores"]');
+    expect(item?.textContent).toContain('Organizadores');
+  });
+
   it('a bottom-nav fica com seis itens — o teto que o layout aguenta em 320px', async () => {
     await build(1);
     const items = (fixture.nativeElement as HTMLElement).querySelectorAll('.at-bottom-nav .at-bottom-nav-item');

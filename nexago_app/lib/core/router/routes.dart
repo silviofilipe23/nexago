@@ -21,6 +21,14 @@ abstract final class AppRoutes {
   /// Home do organizador de torneio.
   static const String organizerHome = '/organizer';
   static const String organizerWallet = '/organizer/wallet';
+
+  /// Editor do perfil público do organizador (logo, capa, bio, WhatsApp).
+  static const String organizerPublicProfileEdit = '/organizer/perfil-publico';
+
+  /// O próprio perfil público visto de dentro do modo organizador — `/competir/**`
+  /// é rota de atleta e o guard de papel devolveria o organizador à home.
+  static const String organizerPublicProfilePreview =
+      '/organizer/perfil-publico/visualizar';
   static const String organizerCreate = '/organizer/create';
   static const String organizerTournamentCreateExpress =
       '/organizer/tournaments/new/express';
@@ -537,6 +545,13 @@ abstract final class AppRoutes {
 
   /// Torneios inscritos do atleta (em andamento e concluídos).
   static const String myTournaments = '/competir/meus-torneios';
+
+  /// Lista "Organizadores" do hub Competir.
+  static const String organizersDirectory = '/competir/organizadores';
+
+  /// Perfil público do organizador: `/competir/organizadores/:organizerId`
+  static const String organizerPublicProfile =
+      '/competir/organizadores/:organizerId';
 }
 
 abstract final class AppRouteNames {
@@ -775,6 +790,11 @@ abstract final class AppRouteNames {
   static const String teamDiscover = 'teamDiscover';
   static const String teamProfile = 'teamProfile';
   static const String myTournaments = 'myTournaments';
+  static const String organizersDirectory = 'organizersDirectory';
+  static const String organizerPublicProfile = 'organizerPublicProfile';
+  static const String organizerPublicProfileEdit = 'organizerPublicProfileEdit';
+  static const String organizerPublicProfilePreview =
+      'organizerPublicProfilePreview';
 }
 
 /// Tela de acompanhamento da substituição (`AppRoutes.tournamentSubstitutionStatus`)

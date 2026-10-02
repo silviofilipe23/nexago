@@ -25,13 +25,35 @@ describe("reviewCandidateReason", () => {
     assert.equal(reviewCandidateReason(tournament, NOW), "ended");
   });
 
-  it("endAt + 12h: entra com exatamente 12h, não com 11h", () => {
-    assert.equal(reviewCandidateReason({listingStatus: "closed", endAt: ts(NOW - 12 * HOUR_MS)}, NOW), "ended");
-    assert.equal(reviewCandidateReason({listingStatus: "closed", endAt: ts(NOW - 11 * HOUR_MS)}, NOW), null);
+  // `endAt` é DATA: meia-noite do aparelho de quem criou. 03:00Z num aparelho no Brasil; 00:00Z num
+  // aparelho em UTC (emulador, organizador fora do país) e no legado.
+  const brtMidnight = (day: number) => Date.UTC(2026, 9, day, 3, 0, 0);
+  const utcMidnight = (day: number) => Date.UTC(2026, 9, day, 0, 0, 0);
+
+  it("último dia é hoje: não entra, em nenhuma das duas convenções de data", () => {
+    assert.equal(reviewCandidateReason({listingStatus: "closed", endAt: ts(brtMidnight(5))}, NOW), null);
+    assert.equal(reviewCandidateReason({listingStatus: "closed", endAt: ts(utcMidnight(5))}, NOW), null);
   });
 
-  it("fora do corte de 3 dias não entra", () => {
-    assert.equal(reviewCandidateReason({listingStatus: "closed", endAt: ts(NOW - 3 * DAY_MS - 1)}, NOW), null);
+  it("último dia foi ontem: entra na manhã seguinte, nas duas convenções", () => {
+    assert.equal(reviewCandidateReason({listingStatus: "closed", endAt: ts(brtMidnight(4))}, NOW), "ended");
+    assert.equal(reviewCandidateReason({listingStatus: "closed", endAt: ts(utcMidnight(4))}, NOW), "ended");
+  });
+
+  it("endAt com horário de verdade (seed: hoje 20:00) só entra no dia seguinte", () => {
+    const todayAt20 = Date.UTC(2026, 9, 5, 23, 0, 0); // 05/10 20:00 em São Paulo
+    assert.equal(reviewCandidateReason({listingStatus: "closed", endAt: ts(todayAt20)}, NOW), null);
+    assert.equal(reviewCandidateReason({listingStatus: "closed", endAt: ts(todayAt20)}, NOW + DAY_MS), "ended");
+  });
+
+  it("corte de 3 dias conta do fim do último dia: o job de 3 manhãs seguidas ainda pega", () => {
+    // Último dia 02/10: encerrado em 03/10 00:00; os jobs de 03, 04 e 05/10 pegam, o de 06/10 não.
+    assert.equal(reviewCandidateReason({listingStatus: "closed", endAt: ts(brtMidnight(2))}, NOW), "ended");
+    assert.equal(reviewCandidateReason({listingStatus: "closed", endAt: ts(brtMidnight(1))}, NOW), null);
+    assert.equal(reviewCandidateReason({listingStatus: "closed", endAt: ts(utcMidnight(1))}, NOW), null);
+  });
+
+  it("completed fora do corte de 3 dias não entra", () => {
     assert.equal(
       reviewCandidateReason({listingStatus: "completed", completedAt: ts(NOW - 3 * DAY_MS - 1)}, NOW),
       null,

@@ -1,9 +1,8 @@
 import {Timestamp} from "firebase-admin/firestore";
+import {dayKeyFromStoredEventDate, eventDateFromDayKeyAndTime} from "./event-timezone";
 import {registrationAthleteUids} from "./tournament-registration-pix-helpers";
 import {
   DAY_MS,
-  HOUR_MS,
-  REVIEW_END_GRACE_HOURS,
   REVIEW_LOOKBACK_DAYS,
   REVIEW_REMINDER_AFTER_DAYS,
 } from "./tournament-review-constants";
@@ -16,6 +15,17 @@ const NEVER_REVIEWED = new Set(["draft", "cancelled", "canceled", "cancelado"]);
 const COMPLETED = new Set(["completed", "concluido", "concluído"]);
 
 export type ReviewCandidateReason = "completed" | "ended";
+
+/**
+ * Quando o torneio sem `completed` conta como encerrado: 00:00 de São Paulo do dia seguinte ao
+ * último dia. `endAt` é DATA, não horário de término (ver `dayKeyFromStoredEventDate`): somar horas
+ * a ele abria a janela na manhã do último dia quando a data vinha à meia-noite UTC.
+ */
+export function tournamentOverAtMs(endAtMs: number): number {
+  const lastDay = dayKeyFromStoredEventDate(new Date(endAtMs));
+  // São Paulo não tem horário de verão: meia-noite + 24 h é a meia-noite seguinte.
+  return eventDateFromDayKeyAndTime(lastDay, 0, 0).getTime() + DAY_MS;
+}
 
 /**
  * Por que o torneio entra na abertura de janela de hoje. Revalida as duas consultas do job
@@ -34,7 +44,8 @@ export function reviewCandidateReason(
     return "completed";
   }
   const endAt = millis(tournament.endAt);
-  if (endAt != null && endAt >= lookbackStart && endAt <= nowMs - REVIEW_END_GRACE_HOURS * HOUR_MS) {
+  const overAt = endAt == null ? null : tournamentOverAtMs(endAt);
+  if (overAt != null && overAt >= lookbackStart && overAt <= nowMs) {
     return "ended";
   }
   return null;

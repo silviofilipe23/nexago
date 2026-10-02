@@ -45,6 +45,16 @@ import {
   resolvePaymentPhases,
   type RegistrationBillingType,
 } from "./registration-payment-phases";
+import {readCashbackConfig} from "./cashback-config";
+import {toMillisOrNull} from "./cashback-rules";
+import {
+  applyCashbackIntent,
+  buildCashbackIntent,
+  cashbackIntentFields,
+  intentHasWork,
+  readCashbackApplied,
+  registrationCashbackLabel,
+} from "./cashback-intent";
 
 const ASAAS_NEGATIVE_TERMINAL_STATUSES = new Set([
   "OVERDUE",
@@ -196,6 +206,17 @@ export async function processTournamentRegistrationAsaasNotification(
     const amountType: "share" | "full" =
       pendingSnap.data()?.amountType === "full" ? "full" : "share";
 
+    // Saldo de cashback usado nesta cobrança: o Asaas recebeu só o dinheiro,
+    // mas para o torneio a parcela vale o bruto — a nexaGO cobre a diferença.
+    const {appliedCents, holdId} = readCashbackApplied(pendingSnap.data());
+    const grossOnline = roundMoney(paidOnline + appliedCents / 100);
+
+    // Comissão negociada no cadastro do organizador; sem cadastro (ou com
+    // valor fora da faixa) cai nos 8% padrão. Lida uma vez para as duas fases.
+    const organizerFeePercent = organizerId ?
+      resolveOrganizerTournamentFeePercent((await db.doc(`organizers/${organizerId}`).get()).data()) :
+      0;
+
     // Estado da inscrição para o log final; a fase de confirmação os reescreve.
     let newPaidAmount = Number(regData.paidAmount) || 0;
     let isPaid = regData.isPaid === true;
@@ -209,10 +230,10 @@ export async function processTournamentRegistrationAsaasNotification(
       if (
         amountType === "share" &&
         expectedShare > 0 &&
-        Math.abs(paidOnline - expectedShare) > 0.02
+        Math.abs(grossOnline - expectedShare) > 0.02
       ) {
         logger.warn(
-          `Asaas tournament registration ${registrationId}: valor ${paidOnline} diverge da parcela ${expectedShare}`,
+          `Asaas tournament registration ${registrationId}: valor ${grossOnline} diverge da parcela ${expectedShare}`,
         );
       }
 
@@ -247,7 +268,7 @@ export async function processTournamentRegistrationAsaasNotification(
         entryFee,
         amountType,
         currentPaidAmount: currentPaid,
-        ...(isTeamRegistration ? {shareCreditReais: paidOnline} : {}),
+        ...(isTeamRegistration ? {shareCreditReais: grossOnline} : {}),
       });
       newPaidAmount = credit.newPaidAmount;
       const wasPaidBefore = regData.isPaid === true;
@@ -263,6 +284,25 @@ export async function processTournamentRegistrationAsaasNotification(
         amountType === "full" && participantUids.length > 0 ?
           participantUids :
           [payerUid];
+
+      const intent = buildCashbackIntent({
+        uid: payerUid,
+        sourceType: "registration",
+        sourceId: registrationId,
+        tournamentId,
+        arenaId: null,
+        label: registrationCashbackLabel(
+          typeof regData.tournamentName === "string" && regData.tournamentName.trim() ?
+            regData.tournamentName.trim() :
+            (typeof tournament?.name === "string" ? tournament.name : "Torneio"),
+        ),
+        eventAtMs: toMillisOrNull(tournament?.startAt ?? tournament?.startDate) ?? Date.now(),
+        cashReais: paidOnline,
+        appliedCents,
+        feeReais: organizerId ? computePlatformFeeReais(grossOnline, organizerFeePercent) : 0,
+        holdId,
+        config: await readCashbackConfig(db),
+      });
 
       const batch = db.batch();
       batch.update(registrationRef, {
@@ -287,9 +327,16 @@ export async function processTournamentRegistrationAsaasNotification(
         billingType,
         confirmedAt: FieldValue.serverTimestamp(),
         processedAt: FieldValue.serverTimestamp(),
+        ...(intentHasWork(intent) ? cashbackIntentFields(intent) : {}),
       }, {merge: true});
 
       await batch.commit();
+
+      // Captura a reserva de saldo e cria o lote pendente. Nunca lança: o que
+      // falhar fica pendente para a varredura de 5 minutos.
+      if (intentHasWork(intent)) {
+        await applyCashbackIntent(db, processedRef, paymentId, Date.now());
+      }
 
       // Inscrição confirmada fecha a janela dos outros atletas: sem isso o QR do
       // parceiro segue pagável até expirar (15 min) e o pagamento dele cai como
@@ -391,18 +438,16 @@ export async function processTournamentRegistrationAsaasNotification(
     // caixa que ainda não entrou.
     if (phases.credit && organizerId) {
       try {
-        // Comissão negociada no cadastro do organizador; sem cadastro (ou com
-        // valor fora da faixa) cai nos 8% padrão.
-        const organizerSnap = await db.doc(`organizers/${organizerId}`).get();
-        const feePercent = resolveOrganizerTournamentFeePercent(organizerSnap.data());
         await creditTournamentWalletFromRegistration(db, tournamentId, {
           ownerId: organizerId,
           registrationId,
           payerUid,
           paymentId,
-          grossReais: paidOnline,
-          platformFeeReais: computePlatformFeeReais(paidOnline, feePercent),
+          grossReais: grossOnline,
+          platformFeeReais: computePlatformFeeReais(grossOnline, organizerFeePercent),
+          // A taxa do gateway é sobre o que o Asaas cobrou (o dinheiro), não sobre o bruto.
           gatewayFeeReais: resolveGatewayFeeReais(payment, billingType, paidOnline),
+          cashbackAppliedReais: appliedCents / 100,
         });
         // Marca a fase só no sucesso: crédito que falhou precisa poder ser
         // reprocessado por uma reentrega do evento.

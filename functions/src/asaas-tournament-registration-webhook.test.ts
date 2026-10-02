@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import type {DocumentReference, Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {processTournamentRegistrationAsaasNotification} from "./asaas-tournament-registration-webhook";
+import {Timestamp} from "firebase-admin/firestore";
+import {holdCashback} from "./athlete-wallet";
 
 process.env.GCLOUD_PROJECT = "p";
 
@@ -309,5 +311,134 @@ describe("asaas-tournament-registration-webhook: PIX inalterado", () => {
 
     assert.equal(fake.store.get(REG_PATH)!["isPaid"], true);
     assert.equal(walletDoc(fake)!["availableReais"], 92);
+  });
+});
+
+describe("asaas-tournament-registration-webhook: cashback", () => {
+  const START_MS = Date.UTC(2026, 10, 7, 11, 0, 0);
+  const NOW_MS = Date.now();
+
+  function seedTournamentWithOrganizer(fake: FakeFirestore, categories?: unknown[]): void {
+    fake.seedDoc(TOURNAMENT_PATH, {
+      name: "Copa Teste",
+      managerId: "org1",
+      startAt: Timestamp.fromMillis(START_MS),
+      categories: categories ?? [{categoryName: CATEGORY, entryFee: ENTRY_FEE}],
+    });
+  }
+
+  function seedSpendableLot(fake: FakeFirestore, uid: string, cents: number): void {
+    fake.seedDoc(`athleteWallets/${uid}/lots/old`, {
+      uid, sourceType: "booking", sourceId: "b0", tournamentId: null, arenaId: "a1",
+      label: "Reserva", earnedCents: cents, remainingCents: cents, status: "available",
+      eventAt: Timestamp.fromMillis(NOW_MS - 1000), releasedAt: Timestamp.fromMillis(NOW_MS - 1000),
+      expiresAt: Timestamp.fromMillis(NOW_MS + 90 * 86_400_000), expiryWarnedAt: null,
+      createdAt: Timestamp.fromMillis(NOW_MS - 1000),
+    });
+  }
+
+  function tournamentLedger(fake: FakeFirestore): Record<string, unknown>[] {
+    return [...fake.store.entries()]
+      .filter(([path]) => path.startsWith("tournamentWallets/t1/ledger/"))
+      .map(([, data]) => data);
+  }
+
+  it("saldo aplicado: o caixa recebe o bruto e a reserva é capturada", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    seedSpendableLot(fake, "uidA", 2000);
+    const {holdId} = await holdCashback(db, {
+      uid: "uidA", maxCents: 1000, sourceType: "registration", sourceId: REG_ID,
+      trackingPath: PENDING_A, label: "Inscrição · Copa Teste", nowMs: NOW_MS,
+    });
+    fake.seedDoc(PENDING_A, {
+      status: "pending", amountType: "share", asaasPaymentId: "pay1", payerUid: "uidA",
+      cashbackAppliedCents: 1000, cashbackHoldId: holdId,
+    });
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1",
+      {status: "RECEIVED", value: 40, billingType: "PIX",
+        externalReference: `tournamentRegistration:${REG_ID}:uidA`},
+      processedRefOf(db), makeDeps().deps,
+    );
+
+    assert.equal(fake.store.get(REG_PATH)!.paidAmount, 50);
+    const credit = tournamentLedger(fake).find((e) => e.type === "credit")!;
+    assert.equal(credit.grossReais, 50);
+    assert.equal(credit.platformFeeReais, 4);
+    assert.equal(credit.netReais, 46);
+    assert.equal(credit.cashbackAppliedReais, 10);
+    assert.equal(fake.store.get(`athleteWallets/uidA/holds/${holdId}`)!.status, "captured");
+    assert.equal(fake.store.get(PROCESSED_PATH)!.cashbackStatus, "done");
+  });
+
+  it("cashback ligado: 2% do dinheiro vira lote pendente até o torneio começar", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc("appConfig/cashback", {enabled: true});
+    fake.seedDoc(PENDING_A, {
+      status: "pending", amountType: "share", asaasPaymentId: "pay1", payerUid: "uidA",
+    });
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1",
+      {status: "RECEIVED", value: 50, billingType: "PIX",
+        externalReference: `tournamentRegistration:${REG_ID}:uidA`},
+      processedRefOf(db), makeDeps().deps,
+    );
+
+    const lot = fake.store.get("athleteWallets/uidA/lots/pay1")!;
+    assert.equal(lot.status, "pending");
+    // 2% de R$ 50 = R$ 1,00; teto = metade da taxa de R$ 4,00 = R$ 2,00.
+    assert.equal(lot.earnedCents, 100);
+    assert.equal(lot.sourceType, "registration");
+    assert.equal(lot.tournamentId, "t1");
+    assert.equal((lot.eventAt as Timestamp).toMillis(), START_MS);
+  });
+
+  it("cashback desligado não cria lote nem grava intenção sem reserva", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, {
+      status: "pending", amountType: "share", asaasPaymentId: "pay1", payerUid: "uidA",
+    });
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1",
+      {status: "RECEIVED", value: 50, billingType: "PIX",
+        externalReference: `tournamentRegistration:${REG_ID}:uidA`},
+      processedRefOf(db), makeDeps().deps,
+    );
+
+    assert.equal(fake.store.has("athleteWallets/uidA/lots/pay1"), false);
+    assert.equal(fake.store.get(PROCESSED_PATH)!.cashbackStatus, undefined);
+  });
+
+  it("equipe: a parcela creditada é o bruto (dinheiro + saldo)", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake, [{categoryName: CATEGORY, entryFee: 90}]);
+    seedRegistration(fake, {teamSize: 3, participantUids: ["uidA", "uidB", "uidC"]});
+    seedSpendableLot(fake, "uidA", 2000);
+    const {holdId} = await holdCashback(db, {
+      uid: "uidA", maxCents: 1000, sourceType: "registration", sourceId: REG_ID,
+      trackingPath: PENDING_A, label: "Inscrição · Copa Teste", nowMs: NOW_MS,
+    });
+    fake.seedDoc(PENDING_A, {
+      status: "pending", amountType: "share", asaasPaymentId: "pay1", payerUid: "uidA",
+      cashbackAppliedCents: 1000, cashbackHoldId: holdId,
+    });
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1",
+      {status: "RECEIVED", value: 20, billingType: "PIX",
+        externalReference: `tournamentRegistration:${REG_ID}:uidA`},
+      processedRefOf(db), makeDeps().deps,
+    );
+
+    assert.equal(fake.store.get(REG_PATH)!.paidAmount, 30);
   });
 });

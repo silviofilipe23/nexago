@@ -60,6 +60,14 @@ import {tournamentManagerUids} from "./tournament-acl";
 import {organizerTournamentNotificationLinks} from "./organizer-notification-links";
 import {artifactsInscriptionsPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {
+  cashbackIdempotencyKey,
+  cashbackResponseFields,
+  releaseCashbackHoldQuietly,
+  reserveCashbackForCharge,
+} from "./cashback-checkout";
+import {readCashbackApplied, registrationCashbackLabel} from "./cashback-intent";
+import {attachHoldPayment} from "./athlete-wallet";
 
 const pixPaymentSecrets = [...asaasArenaSecrets, PLATFORM_FEE_FIXED_BRL];
 
@@ -72,6 +80,10 @@ type PixPaymentResponse = {
   qrCodeBase64: string;
   expiresAt: string;
   amountReais: number;
+  /** Parte paga com cashback (0 sem saldo). `amountReais` segue sendo o preço. */
+  cashbackAppliedReais?: number;
+  /** Valor efetivamente cobrado no Asaas. */
+  chargedReais?: number;
 };
 
 async function loadTournamentEntryFee(
@@ -119,11 +131,14 @@ async function cancelExistingPixPending(
   const pendingRef = pixPendingRef(db, projectId, registrationId, payerUid);
   const pendingSnap = await pendingRef.get();
   if (!pendingSnap.exists) return;
-  const asaasId = (pendingSnap.data()?.asaasPaymentId as string | undefined)?.trim();
+  const pending = pendingSnap.data() ?? {};
+  const asaasId = (pending.asaasPaymentId as string | undefined)?.trim();
   if (asaasId) {
     await deleteAsaasPaymentIfOpen(asaasId);
   }
   await pendingRef.delete();
+  // O saldo reservado pela cobrança antiga volta antes de a nova reservar de novo.
+  await releaseCashbackHoldQuietly(db, payerUid, readCashbackApplied(pending).holdId, Date.now());
 }
 
 /** Entrada das callables de cobrança (PIX e cartão têm a mesma). */
@@ -132,6 +147,7 @@ type RegistrationChargeRequest = {
   cpf?: string;
   cpfCnpj?: string;
   amountType?: string;
+  useCashback?: boolean;
 };
 
 /** Tudo que uma cobrança precisa, já validado e resolvido no gateway. */
@@ -145,6 +161,7 @@ interface PreparedRegistrationCharge {
   description: string;
   externalReference: string;
   expiresAtDate: Date;
+  tournamentName: string;
 }
 
 /**
@@ -403,6 +420,7 @@ async function prepareRegistrationCharge(
     description,
     externalReference,
     expiresAtDate,
+    tournamentName,
   };
 }
 
@@ -417,24 +435,37 @@ export const createTournamentRegistrationPixPayment = onCall({
 
   const {
     db, projectId, registrationId, amountType, chargeAmount,
-    customerId, description, externalReference, expiresAtDate,
+    customerId, description, externalReference, expiresAtDate, tournamentName,
   } = await prepareRegistrationCharge(
     callerUid,
     (request.data ?? {}) as RegistrationChargeRequest,
     "PIX",
   );
 
+  const pendingDocRef = pixPendingRef(db, projectId, registrationId, callerUid);
+  const cashback = await reserveCashbackForCharge(db, {
+    uid: callerUid,
+    useCashback: (request.data as RegistrationChargeRequest | undefined)?.useCashback,
+    priceReais: chargeAmount,
+    sourceType: "registration",
+    sourceId: registrationId,
+    trackingPath: pendingDocRef.path,
+    label: registrationCashbackLabel(tournamentName),
+    nowMs: Date.now(),
+  });
+
   let charge;
   try {
     charge = await createAsaasPixCharge({
       customerId,
-      valueReais: chargeAmount,
+      valueReais: cashback.chargeReais,
       dueDate: expiresAtDate,
       description,
       externalReference,
-      idempotencyKey: `tournament-reg-pix-${registrationId}-${callerUid}`,
+      idempotencyKey: cashbackIdempotencyKey(`tournament-reg-pix-${registrationId}-${callerUid}`, cashback.holdId),
     });
   } catch (e) {
+    await releaseCashbackHoldQuietly(db, callerUid, cashback.holdId, Date.now());
     if (e instanceof AsaasApiError) {
       logger.error(
         "createTournamentRegistrationPixPayment Asaas failed:",
@@ -464,7 +495,11 @@ export const createTournamentRegistrationPixPayment = onCall({
     throw new HttpsError("internal", "Não foi possível gerar o PIX. Tente novamente.");
   }
 
-  await pixPendingRef(db, projectId, registrationId, callerUid).set({
+  if (cashback.holdId) {
+    await attachHoldPayment(db, callerUid, cashback.holdId, charge.paymentId);
+  }
+
+  await pendingDocRef.set({
     asaasPaymentId: charge.paymentId,
     amountReais: chargeAmount,
     amountType,
@@ -472,6 +507,8 @@ export const createTournamentRegistrationPixPayment = onCall({
     status: "pending",
     payerUid: callerUid,
     paymentExpiresAt: Timestamp.fromDate(expiresAtDate),
+    cashbackAppliedCents: cashback.appliedCents,
+    cashbackHoldId: cashback.holdId,
     updatedAt: FieldValue.serverTimestamp(),
   });
 
@@ -481,6 +518,7 @@ export const createTournamentRegistrationPixPayment = onCall({
     qrCodeBase64: charge.qrCodeBase64,
     expiresAt: expiresAtDate.toISOString(),
     amountReais: chargeAmount,
+    ...cashbackResponseFields(cashback),
   };
 });
 
@@ -490,6 +528,10 @@ type CardPaymentResponse = {
   invoiceUrl: string;
   expiresAt: string;
   amountReais: number;
+  /** Parte paga com cashback (0 sem saldo). `amountReais` segue sendo o preço. */
+  cashbackAppliedReais?: number;
+  /** Valor efetivamente cobrado no Asaas. */
+  chargedReais?: number;
 };
 
 /**
@@ -510,24 +552,37 @@ export const createTournamentRegistrationCardPayment = onCall({
 
   const {
     db, projectId, registrationId, amountType, chargeAmount,
-    customerId, description, externalReference, expiresAtDate,
+    customerId, description, externalReference, expiresAtDate, tournamentName,
   } = await prepareRegistrationCharge(
     callerUid,
     (request.data ?? {}) as RegistrationChargeRequest,
     "cartão",
   );
 
+  const pendingDocRef = pixPendingRef(db, projectId, registrationId, callerUid);
+  const cashback = await reserveCashbackForCharge(db, {
+    uid: callerUid,
+    useCashback: (request.data as RegistrationChargeRequest | undefined)?.useCashback,
+    priceReais: chargeAmount,
+    sourceType: "registration",
+    sourceId: registrationId,
+    trackingPath: pendingDocRef.path,
+    label: registrationCashbackLabel(tournamentName),
+    nowMs: Date.now(),
+  });
+
   let charge;
   try {
     charge = await createAsaasCardCharge({
       customerId,
-      valueReais: chargeAmount,
+      valueReais: cashback.chargeReais,
       dueDate: expiresAtDate,
       description,
       externalReference,
-      idempotencyKey: `tournament-reg-card-${registrationId}-${callerUid}`,
+      idempotencyKey: cashbackIdempotencyKey(`tournament-reg-card-${registrationId}-${callerUid}`, cashback.holdId),
     });
   } catch (e) {
+    await releaseCashbackHoldQuietly(db, callerUid, cashback.holdId, Date.now());
     if (e instanceof AsaasApiError) {
       logger.error(
         "createTournamentRegistrationCardPayment Asaas failed:",
@@ -557,7 +612,11 @@ export const createTournamentRegistrationCardPayment = onCall({
     );
   }
 
-  await pixPendingRef(db, projectId, registrationId, callerUid).set({
+  if (cashback.holdId) {
+    await attachHoldPayment(db, callerUid, cashback.holdId, charge.paymentId);
+  }
+
+  await pendingDocRef.set({
     asaasPaymentId: charge.paymentId,
     amountReais: chargeAmount,
     amountType,
@@ -565,6 +624,8 @@ export const createTournamentRegistrationCardPayment = onCall({
     status: "pending",
     payerUid: callerUid,
     paymentExpiresAt: Timestamp.fromDate(expiresAtDate),
+    cashbackAppliedCents: cashback.appliedCents,
+    cashbackHoldId: cashback.holdId,
     updatedAt: FieldValue.serverTimestamp(),
   });
 
@@ -573,6 +634,7 @@ export const createTournamentRegistrationCardPayment = onCall({
     invoiceUrl: charge.invoiceUrl,
     expiresAt: expiresAtDate.toISOString(),
     amountReais: chargeAmount,
+    ...cashbackResponseFields(cashback),
   };
 });
 

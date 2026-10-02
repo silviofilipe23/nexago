@@ -120,6 +120,12 @@ export interface ArenaBookingDoc {
   createdAt: Date | null;
   couponCode: string | null;
   couponDiscountReais: number;
+  /** Cobrança PIX da reserva inteira — também o id do lote de cashback (`lots/{asaasPaymentId}`).
+   *  `null` no local e depois da divisão. */
+  asaasPaymentId: string | null;
+  /** Parte paga com cashback, gravada pelo webhook no pagamento (0 sem saldo). Não usar
+   *  `cashbackAppliedCents`: a divisão devolve a reserva de saldo sem zerar esse campo. */
+  cashbackAppliedReais: number;
 }
 
 export class ArenaBookingError extends Error {
@@ -425,6 +431,8 @@ export function bookingFromSnapshot(snap: DocumentSnapshot<DocumentData>): Arena
     createdAt: toDateOrNull(data['createdAt']),
     couponCode: optionalStr(data['couponCode']),
     couponDiscountReais: Number(data['couponDiscountReais']) || 0,
+    asaasPaymentId: optionalStr(data['asaasPaymentId']),
+    cashbackAppliedReais: Math.max(0, Number(data['cashbackAppliedReais']) || 0),
   };
 }
 

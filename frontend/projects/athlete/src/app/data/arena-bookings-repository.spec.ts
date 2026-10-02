@@ -92,3 +92,28 @@ describe('bookingPixPaymentFromResponse', () => {
     expect(() => bookingPixPaymentFromResponse({ ...base, qrCode: '' })).toThrowError(ArenaBookingError);
   });
 });
+
+describe('bookingFromSnapshot — cashback', () => {
+  const base = {
+    arenaId: 'a1',
+    arenaName: 'Arena Beach',
+    courtId: 'c1',
+    courtName: 'Quadra 1',
+    date: '2026-10-12',
+    startTime: '19:00',
+    endTime: '20:00',
+    amountReais: 120,
+  };
+
+  it('lê o id da cobrança (id do lote) e o cashback pago, gravado pelo webhook', () => {
+    const booking = bookingFromSnapshot(fakeSnapshot('b3', { ...base, asaasPaymentId: 'pay_1', cashbackAppliedReais: 12.4 }));
+    expect(booking?.asaasPaymentId).toBe('pay_1');
+    expect(booking?.cashbackAppliedReais).toBe(12.4);
+  });
+
+  it('reserva sem cobrança (no local, dividida) ou de antes do cashback: null e zero', () => {
+    const booking = bookingFromSnapshot(fakeSnapshot('b4', { ...base, asaasPaymentId: null }));
+    expect(booking?.asaasPaymentId).toBeNull();
+    expect(booking?.cashbackAppliedReais).toBe(0);
+  });
+});

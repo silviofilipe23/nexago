@@ -109,11 +109,19 @@ class OrganizerReputation {
     required this.reviewsCount,
     required this.tournamentsRated,
     this.average,
+    this.distribution,
+    this.aspects,
   });
 
   final int reviewsCount;
   final int tournamentsRated;
   final double? average;
+
+  /// Estrelas (1–5) → quantidade de notas gerais. Nulo abaixo de 3 avaliações.
+  final Map<int, int>? distribution;
+
+  /// Média por aspecto. Nulo abaixo de 3 avaliações; aspecto sem nota fica de fora.
+  final Map<TournamentReviewAspect, TournamentReviewAspectStat>? aspects;
 
   static OrganizerReputation? fromMap(Map<String, dynamic>? data) {
     if (data == null) return null;
@@ -121,6 +129,8 @@ class OrganizerReputation {
       reviewsCount: _countOf(data['reviewsCount']),
       tournamentsRated: _countOf(data['tournamentsRated']),
       average: _numOf(data['average']),
+      distribution: _distributionOf(data['distribution']),
+      aspects: _aspectStatsOf(data['aspects']),
     );
   }
 }

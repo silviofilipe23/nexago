@@ -172,4 +172,36 @@ void main() {
       expect(isOrganizerStaffOperablePath('/torneios'), isFalse);
     });
   });
+
+  // `/cashback` é o destino do push `cashback_released`/`cashback_expiring`:
+  // fora da área do atleta, um organizador ativo abriria a tela do atleta.
+  group('Meu cashback', () {
+    test('é rota do atleta', () {
+      expect(isAthleteExperiencePath(AppRoutes.athleteCashback), isTrue);
+    });
+
+    test('atleta abre; outro papel ativo volta para a própria home', () {
+      expect(
+        redirectForActiveRole(
+          path: AppRoutes.athleteCashback,
+          activeRole: AppMobileRole.athlete,
+          availableRoles: const [AppMobileRole.athlete],
+          needsRoleSelection: false,
+        ),
+        isNull,
+      );
+      expect(
+        redirectForActiveRole(
+          path: AppRoutes.athleteCashback,
+          activeRole: AppMobileRole.organizer,
+          availableRoles: const [
+            AppMobileRole.athlete,
+            AppMobileRole.organizer,
+          ],
+          needsRoleSelection: false,
+        ),
+        AppRoutes.organizerHome,
+      );
+    });
+  });
 }

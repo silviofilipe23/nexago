@@ -15,6 +15,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
+import { withCashbackCharge, type CashbackChargeFields } from './cashback-preview';
 
 /** Clubinho (jogo aberto da arena) — leitura direta de `arenaClubSessions` (+ subcoleção
  *  `clubParticipants`) e escrita 100% via callables (`joinArenaClubSession`/
@@ -259,20 +260,37 @@ export interface ClubJoinPixPayment {
   qrCode: string;
   qrCodeBase64: string;
   expiresAt: string;
+  /** PREÇO da vaga — o cashback não muda este campo. */
   amountReais: number;
+  /** Parte paga com cashback (0 sem saldo). */
+  cashbackAppliedReais: number;
+  /** O que o PIX vale de fato; `amountReais` quando o backend é antigo. */
+  chargedReais: number;
 }
 
-export async function joinClubSession(
-  functions: Functions,
-  sessionId: string,
-  cpfCnpj?: string,
-): Promise<ClubJoinPixPayment> {
+export interface ClubJoinParams {
+  sessionId: string;
+  cpfCnpj?: string;
+  /** Só `true` quando o atleta ligou "Usar meu cashback" e há saldo usável. */
+  useCashback?: boolean;
+}
+
+/** Corpo de `joinArenaClubSession` (PIX). CPF vazio segue indo como `undefined`, como antes. */
+export function clubJoinPayload(params: ClubJoinParams): { sessionId: string; cpfCnpj?: string; useCashback?: boolean } {
+  return {
+    sessionId: params.sessionId,
+    cpfCnpj: params.cpfCnpj || undefined,
+    ...(params.useCashback === true ? { useCashback: true } : {}),
+  };
+}
+
+export async function joinClubSession(functions: Functions, params: ClubJoinParams): Promise<ClubJoinPixPayment> {
   try {
-    const result = await httpsCallable<{ sessionId: string; cpfCnpj?: string }, ClubJoinPixPayment>(
-      functions,
-      'joinArenaClubSession',
-    )({ sessionId, cpfCnpj: cpfCnpj || undefined });
-    return result.data;
+    const result = await httpsCallable<
+      ReturnType<typeof clubJoinPayload>,
+      Omit<ClubJoinPixPayment, keyof CashbackChargeFields>
+    >(functions, 'joinArenaClubSession')(clubJoinPayload(params));
+    return withCashbackCharge(result.data);
   } catch (err) {
     throw mapFunctionsError(err);
   }

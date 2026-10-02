@@ -30,6 +30,17 @@ import {
   requestInvoiceForPaidClubSpot,
   shouldAttemptFiscalInvoice,
 } from "./fiscal/payment-hooks";
+import {DEFAULT_CASHBACK_CONFIG, readCashbackConfig} from "./cashback-config";
+import {toMillisOrNull} from "./cashback-rules";
+import {
+  applyCashbackIntent,
+  buildCashbackIntent,
+  cashbackIntentFields,
+  clubCashbackLabel,
+  intentHasWork,
+  resolveCashbackForPayment,
+} from "./cashback-intent";
+import {refundHoldOfPayment} from "./cashback-reversal";
 
 const ASAAS_NON_TERMINAL_STATUSES = new Set([
   "PENDING",
@@ -100,7 +111,7 @@ export async function processArenaClubSessionAsaasNotification(
   const sessionRef = db.collection(ARENA_CLUB_SESSIONS).doc(sessionId);
   const participantRef = sessionRef.collection(CLUB_PARTICIPANTS).doc(athleteUid);
 
-  const markProcessed = (outcome: string) =>
+  const markProcessed = (outcome: string, extra: Record<string, unknown> = {}) =>
     processedRef.set({
       kind: "arenaClubSession",
       sessionId,
@@ -108,14 +119,22 @@ export async function processArenaClubSessionAsaasNotification(
       outcome,
       paymentStatus: status,
       processedAt: FieldValue.serverTimestamp(),
+      ...extra,
     });
 
   if (ASAAS_PAID_STATUSES.has(status)) {
-    const paidReais = roundMoney(Number(payment.value) || 0);
-    if (paidReais <= 0) {
+    // Saldo de cashback usado na vaga: para a arena vale como dinheiro recebido
+    // (a nexaGO cobre). O Asaas só recebeu `cashPaid`. Resolve pelo id do
+    // pagamento — o participante pode ter sido reescrito por uma entrada nova.
+    const {appliedCents, holdId} = await resolveCashbackForPayment(
+      db, athleteUid, paymentId, (await participantRef.get()).data(),
+    );
+    const cashPaid = roundMoney(Number(payment.value) || 0);
+    if (cashPaid <= 0) {
       logger.warn(`Asaas clubinho ${sessionId}/${athleteUid}: valor inválido`);
       return;
     }
+    const paidReais = roundMoney(cashPaid + appliedCents / 100);
     const platformFeeReais = computePlatformFeeReais(
       paidReais,
       CLUB_FEE_PERCENT,
@@ -123,11 +142,18 @@ export async function processArenaClubSessionAsaasNotification(
     );
     const netReais = roundMoney(paidReais - platformFeeReais);
 
+    // Cobrança que confirmou a vaga, quando ela já estava confirmada: separa a
+    // reentrega deste mesmo pagamento de um pagamento em dobro.
+    let confirmedByPaymentId = "";
     const outcome = await db.runTransaction(async (tx: Transaction) => {
+      confirmedByPaymentId = "";
       const participantSnap = await tx.get(participantRef);
       if (!participantSnap.exists) return "orphan" as const;
       const participant = participantSnap.data() as Record<string, unknown>;
       const pStatus = String(participant["status"] ?? "");
+      if (typeof participant["asaasPaymentId"] === "string") {
+        confirmedByPaymentId = participant["asaasPaymentId"].trim();
+      }
 
       const sessionSnap = await tx.get(sessionRef);
       if (!sessionSnap.exists) return "orphan" as const;
@@ -182,6 +208,7 @@ export async function processArenaClubSessionAsaasNotification(
             participantId: athleteUid,
             grossReais: paidReais,
             platformFeeReais,
+            cashbackAppliedReais: appliedCents / 100,
           });
         } catch (walletErr) {
           logger.error(`Asaas clubinho ${sessionId}: wallet credit failed`, walletErr);
@@ -207,7 +234,41 @@ export async function processArenaClubSessionAsaasNotification(
           logger.error(`Asaas clubinho ${sessionId}: fiscal request failed`, fiscalErr);
         }
       }
-      await markProcessed("approved");
+      // Doc de config indisponível não pode derrubar a confirmação: a reserva
+      // de saldo ainda precisa ser capturada mesmo sem conseguir calcular o
+      // ganho desta rodada.
+      let cashbackConfig = DEFAULT_CASHBACK_CONFIG;
+      try {
+        cashbackConfig = await readCashbackConfig(db);
+      } catch (e) {
+        logger.error(
+          `Asaas clubinho ${sessionId}: falha ao ler appConfig/cashback ` +
+          "— tratando como desligado nesta rodada",
+          e,
+        );
+      }
+
+      const intent = buildCashbackIntent({
+        uid: athleteUid,
+        sourceType: "club",
+        sourceId: sessionId,
+        tournamentId: null,
+        arenaId: arenaId || null,
+        label: clubCashbackLabel(String(sessionData["clubName"] ?? "Clubinho")),
+        eventAtMs: toMillisOrNull(sessionData["startAt"]) ?? Date.now(),
+        cashReais: cashPaid,
+        appliedCents,
+        feeReais: platformFeeReais,
+        holdId,
+        config: cashbackConfig,
+      });
+      await markProcessed(
+        "approved",
+        intentHasWork(intent) ? cashbackIntentFields(intent) : {},
+      );
+      if (intentHasWork(intent)) {
+        await applyCashbackIntent(db, processedRef, paymentId, Date.now());
+      }
       try {
         await deps.notify({
           userId: athleteUid,
@@ -231,6 +292,9 @@ export async function processArenaClubSessionAsaasNotification(
       // Dinheiro chegou mas não há vaga/sessão — estorno automático, sem crédito.
       try {
         await deps.refund(paymentId);
+        // O dinheiro volta: o saldo usado nesta cobrança também — inclusive
+        // se a varredura de 5 min já o capturou (Asaas disse pago antes).
+        await refundHoldOfPayment(db, athleteUid, paymentId, Date.now());
         if (outcome !== "orphan") {
           await participantRef.set({
             status: "canceled_by_arena_refunded",
@@ -258,6 +322,21 @@ export async function processArenaClubSessionAsaasNotification(
     }
 
     // already_confirmed / already_refunded — idempotente.
+    if (outcome === "already_confirmed" && confirmedByPaymentId !== paymentId) {
+      // Pagamento em dobro: a vaga já é do atleta por OUTRA cobrança (ou pelo
+      // pagamento no local). Esta não vira serviço, então o saldo que ela usou
+      // volta e o dinheiro precisa de estorno manual. Se foi ESTE pagamento
+      // que confirmou (reentrega depois de cair antes do processado, ou
+      // entregas sobrepostas), a reserva já foi consumida e a arena já
+      // recebeu o bruto — nada volta.
+      await refundHoldOfPayment(db, athleteUid, paymentId, Date.now());
+      logger.error(
+        `Asaas clubinho ${sessionId}/${athleteUid}: pagamento em dobro (R$ ${cashPaid}) — ` +
+        "estorno manual necessário",
+        {sessionId, athleteUid, paymentId, confirmedByPaymentId: confirmedByPaymentId || null,
+          paidValue: cashPaid, cashbackAppliedCents: appliedCents},
+      );
+    }
     await markProcessed(outcome);
     return;
   }

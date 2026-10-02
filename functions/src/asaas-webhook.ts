@@ -22,6 +22,7 @@ import {processTournamentRegistrationAsaasNotification} from "./asaas-tournament
 import {processArenaSubscriptionAsaasNotification} from "./asaas-arena-subscription-webhook";
 import {processArenaClubSessionAsaasNotification} from "./asaas-arena-club-webhook";
 import {ARENA_CLUB_SESSION_PAYMENT_REF_PREFIX} from "./arena-club-constants";
+import {reverseCashbackForPayment} from "./cashback-reversal";
 import {getFirebaseProjectId} from "./firebase-paths";
 import {WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
@@ -123,9 +124,13 @@ export const asaasWebhook = onRequest({
     `artifacts/${projectId}/public/data/asaas_processed_payments/${paymentId}`,
   );
 
+  // Referência da cobrança: também diz ao estorno quem é o pagador quando o
+  // pagamento não tem intenção de cashback (reserva capturada pela varredura).
+  let refundRef = (body.payment?.externalReference || "").trim();
   try {
     const payment = await getAsaasPayment(paymentId);
     const externalRef = (payment.externalReference || "").trim();
+    if (externalRef) refundRef = externalRef;
     const subscriptionRef = (payment.subscription || "").trim();
     if (externalRef.startsWith(TOURNAMENT_REGISTRATION_PAYMENT_REF_PREFIX)) {
       await processTournamentRegistrationAsaasNotification(
@@ -146,6 +151,19 @@ export const asaasWebhook = onRequest({
     }
   } catch (e) {
     logger.error(`asaasWebhook failed paymentId=${paymentId} event=${event}`, e);
+  }
+
+  // Estorno: desfaz o cashback do pagamento (lote e saldo usado). Separado do
+  // despacho acima — os handlers param no "já processado" e uma falha num não
+  // pode impedir o outro.
+  if (event === "PAYMENT_REFUNDED") {
+    try {
+      await reverseCashbackForPayment(db, processedRef, paymentId, Date.now(), {
+        externalReference: refundRef,
+      });
+    } catch (e) {
+      logger.error(`asaasWebhook: estorno do cashback falhou paymentId=${paymentId}`, e);
+    }
   }
 
   res.status(200).send("OK");

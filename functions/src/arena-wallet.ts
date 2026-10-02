@@ -16,6 +16,7 @@ export async function creditArenaWalletFromBooking(
   bookingId: string,
   grossReais: number,
   platformFeeReais: number,
+  cashbackAppliedReais = 0,
 ): Promise<void> {
   const netReais = roundMoney(Math.max(0, grossReais - platformFeeReais));
   const walletRef = arenaWalletRef(db, arenaId);
@@ -47,6 +48,7 @@ export async function creditArenaWalletFromBooking(
       grossReais: roundMoney(grossReais),
       platformFeeReais: roundMoney(platformFeeReais),
       netReais,
+      cashbackAppliedReais: roundMoney(Math.max(0, cashbackAppliedReais)),
       createdAt: FieldValue.serverTimestamp(),
     });
   });
@@ -65,6 +67,7 @@ export async function creditArenaWalletFromClubPayment(
     participantId: string;
     grossReais: number;
     platformFeeReais: number;
+    cashbackAppliedReais?: number;
   },
 ): Promise<void> {
   const netReais = roundMoney(Math.max(0, input.grossReais - input.platformFeeReais));
@@ -96,6 +99,7 @@ export async function creditArenaWalletFromClubPayment(
       grossReais: roundMoney(input.grossReais),
       platformFeeReais: roundMoney(input.platformFeeReais),
       netReais,
+      cashbackAppliedReais: roundMoney(Math.max(0, input.cashbackAppliedReais ?? 0)),
       createdAt: FieldValue.serverTimestamp(),
     });
   });

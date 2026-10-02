@@ -20,6 +20,10 @@ import {getAuth} from "firebase-admin/auth";
 import * as logger from "firebase-functions/logger";
 import {roundMoney, PLATFORM_FEE_FIXED_BRL} from "./mercadopago-arena-helpers";
 import {ARENA_BOOKING_SHARE_PAYMENT_REF_PREFIX} from "./arena-booking-payment-constants";
+import {
+  readArenaBookingServerAmountReais,
+  resolveArenaBookingChargeAmounts,
+} from "./arena-booking-pricing";
 import {asaasArenaSecrets, AsaasApiError} from "./asaas-client";
 import {getOrCreateAsaasCustomer, resolveAthleteCpfCnpj} from "./asaas-customer";
 import {
@@ -30,6 +34,7 @@ import {
 } from "./asaas-booking-payment";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {releaseHoldsOfDeadCharge} from "./cashback-checkout";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const PAYMENT_SHARES = "paymentShares";
@@ -240,8 +245,13 @@ export async function splitArenaBookingPaymentCore(
     );
   }
 
-  const expectedTotal = Number(booking.amountToPayNowReais) || 0;
-  if (expectedTotal <= 0) {
+  // Soma das fatias = total do servidor × fração, não o `amountToPayNowReais`
+  // do doc (o dono já conseguiu reescrevê-lo pelo cliente).
+  const {amountToPayNowReais: expectedTotal} = resolveArenaBookingChargeAmounts({
+    serverAmountReais: await readArenaBookingServerAmountReais(db, bookingId),
+    booking,
+  });
+  if (!Number.isFinite(expectedTotal) || expectedTotal <= 0) {
     throw new HttpsError("failed-precondition", "Reserva sem valor pendente para dividir.");
   }
 
@@ -476,6 +486,12 @@ export async function splitArenaBookingPaymentCore(
       "Esta reserva não está mais aguardando pagamento.",
     );
   }
+
+  // As cotas não aceitam saldo: o que o PIX da reserva inteira tinha reservado
+  // volta. Chegando aqui a cobrança original está provada morta (cancelada
+  // agora, ou já apagada); a reserva de saldo é achada pelo que o servidor
+  // gravou nela, nunca pelo `cashbackHoldId` desta reserva (gravável pelo dono).
+  await releaseHoldsOfDeadCharge(db, callerUid, bookingRef.path, originalPaymentId, nowMs);
 
   return {bookingId, shareIds, notifications};
 }

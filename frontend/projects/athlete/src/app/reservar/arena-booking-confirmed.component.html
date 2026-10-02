@@ -51,6 +51,10 @@
         }
       </div>
 
+      @if (statusKind() === 'paid' || statusKind() === 'partial') {
+        <app-cashback-earned-note [paymentId]="b.asaasPaymentId" />
+      }
+
       <div class="bc-card bc-summary-card">
         <div class="bc-card-head">
           <h2 class="bc-card-title">{{ b.arenaName }}</h2>
@@ -86,12 +90,12 @@
         @if (statusKind() === 'paid') {
           <div class="bc-row">
             <span class="bc-row-label">Pago via Pix</span>
-            <span class="bc-row-value">{{ formatBRL(b.amountReais) }}</span>
+            <span class="bc-row-value">{{ formatBRL(b.amountReais - cashbackUsedReais()) }}</span>
           </div>
         } @else if (statusKind() === 'partial') {
           <div class="bc-row">
             <span class="bc-row-label">Pago via Pix</span>
-            <span class="bc-row-value">{{ formatBRL(b.amountToPayNowReais) }}</span>
+            <span class="bc-row-value">{{ formatBRL(b.amountToPayNowReais - cashbackUsedReais()) }}</span>
           </div>
           <div class="bc-row">
             <span class="bc-row-label">Restante na arena</span>
@@ -101,6 +105,12 @@
           <div class="bc-row">
             <span class="bc-row-label">Você paga na arena</span>
             <span class="bc-row-value">{{ formatBRL(b.amountDueOnsiteReais || b.amountReais) }}</span>
+          </div>
+        }
+        @if ((statusKind() === 'paid' || statusKind() === 'partial') && cashbackUsedReais() > 0) {
+          <div class="bc-row">
+            <span class="bc-row-label">Pago com cashback</span>
+            <span class="bc-row-value">{{ formatBRL(cashbackUsedReais()) }}</span>
           </div>
         }
       </div>

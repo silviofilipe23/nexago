@@ -1,5 +1,6 @@
 import { routes } from './app.routes';
 import { authGuard } from './auth/auth.guard';
+import { onboardingGuard } from './auth/onboarding.guard';
 
 /** Rotas que existem justamente para quem ainda não tem sessão. */
 const PUBLIC_PATHS = new Set([
@@ -29,5 +30,12 @@ describe('app.routes', () => {
       .map((r) => r.path);
 
     expect(unguarded).toEqual([]);
+  });
+
+  // `webUrl: '/cashback'` dos pushes `cashback_released`/`cashback_expiring` cai aqui.
+  it('Meu cashback exige login e onboarding', () => {
+    const route = routes.find((r) => r.path === 'cashback');
+    expect(route).toBeDefined();
+    expect(route!.canActivate).toEqual([authGuard, onboardingGuard]);
   });
 });

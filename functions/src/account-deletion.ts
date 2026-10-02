@@ -24,6 +24,10 @@ export const deleteOwnAccount = onCall({
   try {
     // Apaga o documento do usuário e todas as subcoleções recursivamente.
     await db.recursiveDelete(db.doc(`users/${uid}`));
+
+    // Saldo de cashback não sobrevive à conta (spec do cashback do atleta):
+    // carteira, lotes, reservas e extrato saem juntos.
+    await db.recursiveDelete(db.doc(`athleteWallets/${uid}`));
   } catch (e) {
     logger.error("deleteOwnAccount: falha ao apagar dados do usuário", {uid, e});
     throw new HttpsError(

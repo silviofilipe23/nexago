@@ -4,7 +4,8 @@ import {Timestamp} from "firebase-admin/firestore";
  * Firestore fake em memória para testes de unidade — implementa apenas o que
  * os módulos de rating/ranking usam: doc get/set (merge profundo), collection
  * add/doc, queries `where` (igualdade, array-contains e intervalos `<`, `<=`,
- * `>`, `>=`) + `orderBy` + `startAfter`/`limit`, `collectionGroup`, `getAll` em
+ * `>`, `>=`) + `orderBy` (empate pelo caminho, como o Firestore) + `startAfter`
+ * (valor ou snapshot de doc) / `limit`, `collectionGroup`, `getAll` em
  * lote, `batch()` (aplicado no commit) e transações sequenciais.
  *
  * O sufixo `.test-helper.ts` fica fora do glob `lib/**​/*.test.js` do harness.
@@ -179,14 +180,28 @@ export class FakeFirestore {
           .filter(([, data]) => spec.filters.every((fn) => fn(data)));
         if (spec.orderField) {
           const field = spec.orderField;
-          entries = entries.sort(([, a], [, b]) => {
+          // Como o Firestore: empate no campo ordena pelo caminho do doc.
+          entries = entries.sort(([ap, a], [bp, b]) => {
             const av = orderValue(a[field]);
             const bv = orderValue(b[field]);
-            return av < bv ? -1 : av > bv ? 1 : 0;
+            if (av !== bv) return av < bv ? -1 : 1;
+            return ap < bp ? -1 : ap > bp ? 1 : 0;
           });
           if (spec.startAfterValue != null) {
-            const cutoff = orderValue(spec.startAfterValue);
-            entries = entries.filter(([, data]) => orderValue(data[field]) > cutoff);
+            const cursor = spec.startAfterValue as {ref?: {path?: unknown}; data?: unknown};
+            if (typeof cursor.ref?.path === "string" && typeof cursor.data === "function") {
+              // Cursor de snapshot (`startAfter(doc)`): valor do campo + caminho
+              // desempatam, então página nenhuma pula docs de mesmo valor.
+              const cutPath = cursor.ref.path;
+              const cutValue = orderValue((cursor.data as () => DocData | undefined)()?.[field]);
+              entries = entries.filter(([docPath, data]) => {
+                const v = orderValue(data[field]);
+                return v > cutValue || (v === cutValue && docPath > cutPath);
+              });
+            } else {
+              const cutoff = orderValue(spec.startAfterValue);
+              entries = entries.filter(([, data]) => orderValue(data[field]) > cutoff);
+            }
           }
         }
         if (spec.limitCount != null) entries = entries.slice(0, spec.limitCount);

@@ -15,6 +15,10 @@ import {
   type ClubJoinPixPayment,
   type ClubSession,
 } from '../data/arena-clubs-repository';
+import { appliedPreviewCents } from '../data/cashback-preview';
+import { CashbackService } from '../data/cashback.service';
+import { CheckoutCashbackToggleComponent } from '../cashback/checkout-cashback-toggle.component';
+import { CashbackEarnedNoteComponent } from '../cashback/cashback-earned-note.component';
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;
@@ -37,7 +41,7 @@ function onlyDigits(v: string): string {
 @Component({
   selector: 'app-club-session-payment',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, AtPanelShellComponent],
+  imports: [RouterLink, AtPanelShellComponent, CheckoutCashbackToggleComponent, CashbackEarnedNoteComponent],
   template: `
     <app-at-panel-shell [userName]="accountLabel()">
       <div class="cp-body">
@@ -73,6 +77,9 @@ function onlyDigits(v: string): string {
                   Pagamento confirmado — seu nome já aparece na lista do {{ s.clubName }} em {{ s.date }}.
                 }
               </p>
+              @if (myMethod() === 'pix') {
+                <app-cashback-earned-note [paymentId]="pix()?.paymentId ?? null" />
+              }
               <div class="cp-success-actions">
                 <a class="cp-btn-primary" [routerLink]="['/reservar', s.arenaId, 'clubinho', s.id]">Ver lista</a>
                 <a class="cp-btn-ghost" routerLink="/agenda">Minha agenda</a>
@@ -82,13 +89,19 @@ function onlyDigits(v: string): string {
             <div class="cp-card">
               <div class="cp-amount-row">
                 <span class="cp-kicker">Pague com PIX</span>
-                <span class="cp-amount">{{ formatBRL(p.amountReais) }}</span>
+                <span class="cp-amount">{{ formatBRL(p.chargedReais) }}</span>
                 @if (!pixExpired()) {
                   <span class="cp-countdown">expira em {{ countdown() }}</span>
                 } @else {
                   <span class="cp-countdown expired">PIX expirado</span>
                 }
               </div>
+
+              @if (cashbackAppliedReais() > 0) {
+                <div class="cp-cashback-summary">
+                  <span>Cashback <strong class="cp-cashback-discount">&minus;{{ formatBRL(cashbackAppliedReais()) }}</strong></span>
+                </div>
+              }
 
               @if (!pixExpired()) {
                 @if (p.qrCodeBase64) {
@@ -132,6 +145,19 @@ function onlyDigits(v: string): string {
                   [value]="cpf()"
                   (input)="onCpfInput($any($event.target).value)"
                 />
+
+                <app-checkout-cashback-toggle
+                  [priceReais]="s.priceReais"
+                  [availableCents]="cashback.availableCents()"
+                  [config]="cashback.config()"
+                  [(use)]="useCashback"
+                />
+                @if (cashbackAppliedReais() > 0) {
+                  <div class="cp-cashback-summary">
+                    <span>Cashback <strong class="cp-cashback-discount">&minus;{{ formatBRL(cashbackAppliedReais()) }}</strong></span>
+                    <span>Você paga <strong>{{ formatBRL(chargeNowReais()) }}</strong></span>
+                  </div>
+                }
 
                 <button type="button" class="cp-btn-primary" [disabled]="processing()" (click)="generate()">
                   {{ processing() ? 'Reservando vaga…' : 'Gerar PIX e segurar vaga' }}
@@ -391,6 +417,22 @@ function onlyDigits(v: string): string {
       margin: 0;
     }
 
+    .cp-cashback-summary {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--nx-text-mute);
+    }
+
+    .cp-cashback-summary strong {
+      color: var(--nx-text);
+    }
+
+    .cp-cashback-summary .cp-cashback-discount {
+      color: var(--nx-win);
+    }
+
     .cp-success {
       align-items: center;
       text-align: center;
@@ -448,6 +490,7 @@ export class ClubSessionPaymentComponent {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
+  protected readonly cashback = inject(CashbackService);
   private countdownInterval: ReturnType<typeof setInterval> | undefined;
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
   private unwatchMy: (() => void) | undefined;
@@ -469,6 +512,32 @@ export class ClubSessionPaymentComponent {
   protected readonly pixExpired = signal(false);
   protected readonly confirmed = signal(false);
   protected readonly myMethod = signal<'pix' | 'onsite'>('pix');
+
+  /** "Usar meu cashback" — desligado por padrão (o atleta escolhe gastar). */
+  protected readonly useCashback = signal(false);
+
+  /** Saldo que a PRÓXIMA cobrança pede — vale também para o "Gerar novo PIX" depois de expirar,
+   *  quando `pix()` ainda guarda a cobrança vencida. */
+  private readonly cashbackRequestCents = computed(() => {
+    const s = this.session();
+    if (!s || this.method() !== 'pix') return 0;
+    return appliedPreviewCents({
+      use: this.useCashback(),
+      priceReais: s.priceReais,
+      availableCents: this.cashback.availableCents(),
+      config: this.cashback.config(),
+    });
+  });
+
+  /** Antes do PIX, a prévia; depois, o que o servidor aplicou. */
+  protected readonly cashbackAppliedReais = computed(() => {
+    const p = this.pix();
+    return p ? p.cashbackAppliedReais : this.cashbackRequestCents() / 100;
+  });
+
+  protected readonly chargeNowReais = computed(
+    () => Math.round(((this.session()?.priceReais ?? 0) - this.cashbackAppliedReais()) * 100) / 100,
+  );
 
   constructor() {
     const db = this.firestore;
@@ -524,7 +593,11 @@ export class ClubSessionPaymentComponent {
 
     this.processing.set(true);
     try {
-      const pix = await joinClubSession(athleteFunctions(), this.sessionId, this.cpf());
+      const pix = await joinClubSession(athleteFunctions(), {
+        sessionId: this.sessionId,
+        cpfCnpj: this.cpf(),
+        useCashback: this.cashbackRequestCents() > 0,
+      });
       this.pix.set(pix);
       this.pixExpired.set(false);
       this.startCountdown(pix.expiresAt);

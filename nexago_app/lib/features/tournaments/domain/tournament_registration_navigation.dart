@@ -12,6 +12,9 @@ import 'tournament_registration_providers.dart';
 import 'tournament_registration_success_args.dart';
 
 /// Navega para a tela de confirmação (compartilhamento social).
+///
+/// [paymentId] é o PIX que acabou de ser pago nesta sessão: a confirmação
+/// ouve o lote de cashback dele. Quem não vem de um pagamento não passa.
 void navigateToTournamentRegistrationSuccess(
   BuildContext context, {
   required WidgetRef ref,
@@ -19,11 +22,13 @@ void navigateToTournamentRegistrationSuccess(
   required String registrationId,
   required String tournamentName,
   required String categoryName,
+  String? paymentId,
 }) {
   ref
       .read(tournamentRegistrationSuccessHandledIdsProvider.notifier)
       .markHandled(registrationId);
 
+  final payment = paymentId?.trim() ?? '';
   context.goNamed(
     AppRouteNames.tournamentRegistrationSuccess,
     pathParameters: {'tournamentId': tournamentId},
@@ -32,11 +37,13 @@ void navigateToTournamentRegistrationSuccess(
       registrationId: registrationId,
       tournamentName: tournamentName,
       categoryName: categoryName,
+      paymentId: payment.isEmpty ? null : payment,
     ),
     queryParameters: {
       'registrationId': registrationId,
       'tournamentName': tournamentName,
       'categoryName': categoryName,
+      if (payment.isNotEmpty) 'paymentId': payment,
     },
   );
 }

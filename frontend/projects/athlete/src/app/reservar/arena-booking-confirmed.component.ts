@@ -7,6 +7,7 @@ import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { fetchArenaBooking, type ArenaBookingDoc } from '../data/arena-bookings-repository';
+import { CashbackEarnedNoteComponent } from '../cashback/cashback-earned-note.component';
 
 const WEEKDAY_FULL = [
   'domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado',
@@ -68,7 +69,7 @@ function formatBRL(value: number): string {
 @Component({
   selector: 'app-arena-booking-confirmed',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent],
+  imports: [RouterLink, AtPanelShellComponent, CashbackEarnedNoteComponent],
   templateUrl: './arena-booking-confirmed.component.html',
   styleUrl: './arena-booking-confirmed.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -156,6 +157,9 @@ export class ArenaBookingConfirmedComponent {
         : `${b?.arenaName ?? ''}, ${a?.locationLabel ?? ''}`;
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
   });
+
+  /** Parte paga com cashback: sai do "Pago via Pix" e ganha linha própria. */
+  protected readonly cashbackUsedReais = computed(() => this.booking()?.cashbackAppliedReais ?? 0);
 
   protected readonly formatBRL = formatBRL;
 

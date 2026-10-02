@@ -24,7 +24,9 @@ class ClubJoinPixResult {
     required this.pixCopyPaste,
     required this.expiresAt,
     required this.amountReais,
-  });
+    this.cashbackAppliedReais = 0,
+    double? chargedReais,
+  }) : chargedReais = chargedReais ?? amountReais;
 
   final String sessionId;
   final String paymentId;
@@ -32,7 +34,15 @@ class ClubJoinPixResult {
   final String qrCodeBase64;
   final String pixCopyPaste;
   final DateTime expiresAt;
+
+  /// Preço da vaga — com cashback aplicado continua o preço cheio.
   final double amountReais;
+
+  /// Parte paga com o saldo de cashback (0 sem saldo).
+  final double cashbackAppliedReais;
+
+  /// O que o QR cobra no PIX.
+  final double chargedReais;
 }
 
 /// Resposta da callable `joinArenaClubSession` com `paymentMethod: 'onsite'`
@@ -154,9 +164,13 @@ class ArenaClubsRepository {
   ///
   /// A confirmação chega pelo webhook — escute [watchMyParticipant] até o
   /// status virar `confirmed`.
+  ///
+  /// `useCashback` só vai no payload com o toggle ligado (sem ele, o de
+  /// sempre).
   Future<ClubJoinPixResult> joinSession({
     required String sessionId,
     String? cpfCnpj,
+    bool useCashback = false,
   }) async {
     final id = sessionId.trim();
     if (id.isEmpty) {
@@ -167,6 +181,9 @@ class ArenaClubsRepository {
       final cpf = cpfCnpj?.replaceAll(RegExp(r'\D'), '') ?? '';
       if (cpf.length == 11 || cpf.length == 14) {
         payload['cpfCnpj'] = cpf;
+      }
+      if (useCashback) {
+        payload['useCashback'] = true;
       }
       final raw =
           await _functions.httpsCallable('joinArenaClubSession').call(payload);
@@ -191,6 +208,10 @@ class ArenaClubsRepository {
           ? DateTime.tryParse(expiresAtRaw)?.toLocal() ??
               DateTime.now().add(pixExpiryFallback)
           : DateTime.now().add(pixExpiryFallback);
+      // `amountReais` segue o preço; o QR vale `chargedReais` (sem o campo —
+      // functions antigas — vale o preço).
+      final applied = (map['cashbackAppliedReais'] as num?)?.toDouble() ?? 0;
+      final charged = (map['chargedReais'] as num?)?.toDouble();
       return ClubJoinPixResult(
         sessionId: (map['sessionId'] as String?)?.trim() ?? id,
         paymentId: paymentId,
@@ -199,6 +220,8 @@ class ArenaClubsRepository {
         pixCopyPaste: (map['pixCopyPaste'] as String?)?.trim() ?? qrCode,
         expiresAt: expiresAt,
         amountReais: amount,
+        cashbackAppliedReais: applied > 0 ? applied : 0,
+        chargedReais: charged != null && charged > 0 ? charged : amount,
       );
     } on FirebaseFunctionsException catch (e) {
       throw ArenaClubException(_mapMessage(e), code: e.code);

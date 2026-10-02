@@ -198,6 +198,7 @@
                 <p class="tp-defer-note">Pagamento confirmado — {{ isTeamRegistration() ? 'sua equipe está garantida na categoria' : 'sua dupla está garantida na categoria' }}. Nos vemos na quadra!</p>
                 <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
               }
+              <app-cashback-earned-note [paymentId]="lastChargePaymentId()" />
             </section>
           } @else if (totalPriceReais() === 0) {
             <section class="tp-card">
@@ -214,6 +215,7 @@
             <section class="tp-card">
               <h2 class="tp-card-title">Sua parcela está paga ✔</h2>
               <p class="tp-defer-note">{{ isTeamRegistration() ? 'Agora é com os demais atletas — a inscrição confirma sozinha assim que todas as cotas caírem.' : 'Agora é com seu parceiro — a inscrição confirma sozinha assim que a parte dele cair.' }}</p>
+              <app-cashback-earned-note [paymentId]="lastChargePaymentId()" />
               <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
             </section>
           } @else {
@@ -298,19 +300,26 @@
                   @if (documentError(); as err) {
                     <app-nx-field-error>{{ err }}</app-nx-field-error>
                   }
+                  <app-checkout-cashback-toggle
+                    [priceReais]="amountDueReais()"
+                    [availableCents]="cashback.availableCents()"
+                    [config]="cashback.config()"
+                    [chargeLabel]="method() === 'card' ? 'cartão' : 'PIX'"
+                    [(use)]="useCashback"
+                  />
                   @if (method() === 'card') {
                     <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="generateCardCheckout()">
                       @if (processing()) {
                         <app-nx-spinner [size]="14" tone="dark" />
                       }
-                      {{ processing() ? 'Abrindo…' : 'Pagar ' + formatBRL(amountDueReais()) + ' no cartão' }}
+                      {{ processing() ? 'Abrindo…' : 'Pagar ' + formatBRL(chargeDueReais()) + ' no cartão' }}
                     </button>
                   } @else {
                     <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="generatePix()">
                       @if (processing()) {
                         <app-nx-spinner [size]="14" tone="dark" />
                       }
-                      {{ processing() ? 'Gerando…' : 'Gerar Pix de ' + formatBRL(amountDueReais()) }}
+                      {{ processing() ? 'Gerando…' : 'Gerar Pix de ' + formatBRL(chargeDueReais()) }}
                     </button>
                   }
                 </div>
@@ -319,7 +328,7 @@
                      `window.open()` depois do await: bloqueador de popup mataria a
                      chamada sem erro visível. Mesmo padrão do portal da arena. -->
                 <div class="tp-pix-block">
-                  <p class="tp-pix-amount">Cartão de <strong>{{ formatBRL(card.amountReais || amountDueReais()) }}</strong></p>
+                  <p class="tp-pix-amount">Cartão de <strong>{{ formatBRL(card.chargedReais || amountDueReais()) }}</strong></p>
                   @if (pixCountdownLabel(); as countdown) {
                     <p class="tp-pix-countdown">Você tem {{ countdown }} para concluir</p>
                   }
@@ -335,7 +344,7 @@
                 </div>
               } @else {
                 <div class="tp-pix-block">
-                  <p class="tp-pix-amount">Pix de <strong>{{ formatBRL(pixResult()!.amountReais || amountDueReais()) }}</strong></p>
+                  <p class="tp-pix-amount">Pix de <strong>{{ formatBRL(pixResult()!.chargedReais || amountDueReais()) }}</strong></p>
                   @if (pixCountdownLabel(); as countdown) {
                     <p class="tp-pix-countdown">Expira em {{ countdown }}</p>
                   }
@@ -382,10 +391,16 @@
               <span class="tp-summary-label">Inscrição total (dupla)</span>
               <span class="tp-summary-value">{{ formatBRL(totalPriceReais()) }}</span>
             </div>
+            @if (cashbackAppliedReais() > 0) {
+              <div class="tp-summary-row">
+                <span class="tp-summary-label">Cashback</span>
+                <span class="tp-summary-value tp-summary-value--discount">&minus;{{ formatBRL(cashbackAppliedReais()) }}</span>
+              </div>
+            }
             @if (totalPriceReais() > 0) {
               <div class="tp-summary-total-row">
                 <span class="tp-summary-label">Você paga agora</span>
-                <strong class="tp-summary-total">{{ formatBRL(amountDueReais()) }}</strong>
+                <strong class="tp-summary-total">{{ formatBRL(chargeDueReais()) }}</strong>
               </div>
             }
           </div>

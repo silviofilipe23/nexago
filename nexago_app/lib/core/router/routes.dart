@@ -196,6 +196,10 @@ abstract final class AppRoutes {
   /// Convide um amigo (programa de indicação).
   static const String athleteReferral = '/athlete/referral';
 
+  /// Meu cashback (saldo, regras e extrato). Mesmo caminho do portal e do
+  /// `url` dos pushes `cashback_released` / `cashback_expiring`.
+  static const String athleteCashback = '/cashback';
+
   /// Esportes e níveis do atleta.
   static const String athleteSportsLevels = '/athlete/profile/sports-levels';
 
@@ -634,6 +638,7 @@ abstract final class AppRouteNames {
   static const String athleteAchievements = 'athleteAchievements';
   static const String athleteSettings = 'athleteSettings';
   static const String athleteReferral = 'athleteReferral';
+  static const String athleteCashback = 'athleteCashback';
   static const String athleteSportsLevels = 'athleteSportsLevels';
   static const String athleteNotificationSettings =
       'athleteNotificationSettings';

@@ -430,6 +430,10 @@
   text-align: right;
 }
 
+.tp-summary-value--discount {
+  color: var(--nx-win);
+}
+
 .tp-summary-total-row {
   display: flex;
   align-items: baseline;

@@ -1,4 +1,7 @@
 <div class="reg">
+  @if (cashbackPaymentId(); as paymentId) {
+    <app-cashback-earned-note [paymentId]="paymentId" />
+  }
   <app-tournament-review-cta [invite]="store.reviewInvite()" [myOverall]="store.myReview()?.overall ?? null" [now]="store.now()" />
   @for (card of cards(); track card.id) {
     <article class="reg-card" [attr.data-state]="card.paymentState">

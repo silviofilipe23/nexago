@@ -14,6 +14,10 @@ import '../../../core/validation/cpf_cnpj.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../data/arena_clubs_repository.dart';
 import '../domain/arena_club_providers.dart';
+import '../../cashback/application/cashback_providers.dart';
+import '../../cashback/domain/cashback_rules.dart';
+import '../../cashback/presentation/widgets/cashback_earned_note.dart';
+import '../../cashback/presentation/widgets/checkout_cashback_toggle.dart';
 import 'widgets/booking_pix/booking_pix_app_bar.dart';
 import 'widgets/booking_pix/booking_pix_copy_button.dart';
 import 'widgets/booking_pix/booking_pix_cpf_field.dart';
@@ -50,6 +54,9 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
   bool _confirmed = false;
   bool _expired = false;
   bool _saveCpf = true;
+
+  /// "Usar meu cashback" — começa desligado: o atleta escolhe gastar.
+  bool _useCashback = false;
   bool _cancelling = false;
   Timer? _expiryTimer;
 
@@ -78,6 +85,18 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
 
   String? get _cpfHint =>
       CpfCnpjValidator.validationMessage(_cpfController.text);
+
+  /// Prévia do cashback sobre o preço da vaga (`session.priceReais`, o mesmo
+  /// que `joinArenaClubSession` cobra).
+  CashbackCheckoutQuote _cashbackQuote(
+    CashbackCheckoutContext? checkout,
+    double priceReais,
+  ) =>
+      quoteCheckoutCashback(
+        priceCents: reaisToCents(priceReais),
+        checkout: checkout,
+        useCashback: _useCashback,
+      );
 
   void _prefillCpf() {
     final saved = ref.read(athleteProfileProvider).valueOrNull?.cpfCnpj;
@@ -116,9 +135,21 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
     });
     try {
       await _saveCpfToProfileIfNeeded();
+      // Só pede o saldo com o switch ligado e algo a usar; o servidor
+      // recalcula e devolve o valor aplicado de verdade.
+      final price = ref
+              .read(clubSessionProvider(widget.sessionId))
+              .valueOrNull
+              ?.priceReais ??
+          0;
+      final useCashback = _cashbackQuote(
+        ref.read(cashbackCheckoutContextProvider),
+        price,
+      ).sendUseCashback;
       final pix = await ref.read(arenaClubsRepositoryProvider).joinSession(
             sessionId: widget.sessionId,
             cpfCnpj: _cpfDigits,
+            useCashback: useCashback,
           );
       if (!mounted) return;
       setState(() {
@@ -242,6 +273,9 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
     final showQr = _pix != null && !_loadingPix;
     final allowOnsite = session?.allowOnsitePayment ?? false;
     final onsiteSelected = allowOnsite && _method == _ClubPayMethod.onsite;
+    final cashbackCtx = ref.watch(cashbackCheckoutContextProvider);
+    final cashbackQuote =
+        _cashbackQuote(cashbackCtx, session?.priceReais ?? 0);
 
     if (_confirmed) {
       final isOnsite =
@@ -254,6 +288,11 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
           ? '${session.clubName} · ${session.dateShortLabel} · '
               '${session.timeRangeLabel}'
           : null;
+      // Só PIX pago pelo app gera cashback; vaga paga na arena não tem nota.
+      // Reaberta a tela, o id vem do participante (`asaasPaymentId`).
+      final cashbackPaymentId = isOnsite
+          ? null
+          : (_pix?.paymentId ?? myParticipant?.asaasPaymentId);
       return Scaffold(
         backgroundColor: context.themeColors.canvas,
         body: FeedbackPage.success(
@@ -269,6 +308,12 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
             label: 'Ver a lista',
             onPressed: _onBack,
           ),
+          extraContent: cashbackPaymentId == null
+              ? null
+              : CashbackEarnedNote(
+                  paymentId: cashbackPaymentId,
+                  padding: EdgeInsets.zero,
+                ),
         ),
       );
     }
@@ -311,7 +356,13 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
                     if (allowOnsite) ...[
                       _MethodSelector(
                         method: _method,
-                        amountLabel: formatBRL(amountReais),
+                        // PIX: com o toggle ligado o preço cai pelo
+                        // cashback; a arena não passa pelo cashback (vaga
+                        // garantida na hora, sem PIX) e mantém o preço cheio.
+                        pixAmountLabel: formatBRL(
+                          cashbackQuote.chargePreviewCents / 100,
+                        ),
+                        onsiteAmountLabel: formatBRL(amountReais),
                         onChanged: (m) => setState(() {
                           _method = m;
                           _pixError = null;
@@ -320,7 +371,9 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
                       const SizedBox(height: 20),
                     ] else ...[
                       BookingPixMethodCard(
-                        amountLabel: formatBRL(amountReais),
+                        amountLabel: formatBRL(
+                          cashbackQuote.chargePreviewCents / 100,
+                        ),
                       ),
                       const SizedBox(height: 20),
                     ],
@@ -334,6 +387,18 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
                         ),
                       ],
                     ] else ...[
+                      if (cashbackCtx != null &&
+                          cashbackQuote.mode != CashbackToggleMode.hidden) ...[
+                        CheckoutCashbackToggle(
+                          priceCents: cashbackQuote.priceCents,
+                          availableCents: cashbackCtx.availableCents,
+                          config: cashbackCtx.config,
+                          value: _useCashback,
+                          enabled: !_loadingPix,
+                          onChanged: (v) => setState(() => _useCashback = v),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
                       BookingPixCpfField(
                         controller: _cpfController,
                         errorText: _cpfHint,
@@ -352,9 +417,16 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
                   ] else ...[
                     BookingPixExpiryCard(
                       expiresAt: _pix!.expiresAt,
-                      amountReais: _pix!.amountReais,
+                      // O QR cobra `chargedReais` (preço − saldo).
+                      amountReais: _pix!.chargedReais,
                     ),
                     const SizedBox(height: 20),
+                    if (_pix!.cashbackAppliedReais > 0) ...[
+                      CheckoutCashbackAppliedNote(
+                        appliedCents: reaisToCents(_pix!.cashbackAppliedReais),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     BookingPixQrCard(
                       base64: _pix!.qrCodeBase64,
                       payload: _pix!.qrCode,
@@ -406,12 +478,18 @@ enum _ClubPayMethod { pix, onsite }
 class _MethodSelector extends StatelessWidget {
   const _MethodSelector({
     required this.method,
-    required this.amountLabel,
+    required this.pixAmountLabel,
+    required this.onsiteAmountLabel,
     required this.onChanged,
   });
 
   final _ClubPayMethod method;
-  final String amountLabel;
+
+  /// Valor do PIX — já com o cashback do toggle (`chargePreviewCents`).
+  final String pixAmountLabel;
+
+  /// Valor na arena — não passa pelo cashback, sempre o preço cheio.
+  final String onsiteAmountLabel;
   final ValueChanged<_ClubPayMethod> onChanged;
 
   @override
@@ -423,7 +501,7 @@ class _MethodSelector extends StatelessWidget {
           icon: Icons.pix_rounded,
           iconColor: AppColors.win,
           title: 'PIX antecipado',
-          subtitle: '$amountLabel agora · aprovação na hora',
+          subtitle: '$pixAmountLabel agora · aprovação na hora',
           selected: method == _ClubPayMethod.pix,
           onTap: () => onChanged(_ClubPayMethod.pix),
         ),
@@ -432,7 +510,7 @@ class _MethodSelector extends StatelessWidget {
           icon: Icons.storefront_rounded,
           iconColor: AppColors.brand,
           title: 'Pagar na arena',
-          subtitle: '$amountLabel no dia · vaga garantida agora',
+          subtitle: '$onsiteAmountLabel no dia · vaga garantida agora',
           selected: method == _ClubPayMethod.onsite,
           onTap: () => onChanged(_ClubPayMethod.onsite),
         ),

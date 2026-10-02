@@ -14,6 +14,7 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/nexa_async_view.dart';
 import '../../../core/ui/nexa_skeleton.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
+import '../../cashback/presentation/widgets/cashback_balance_pill.dart';
 import '../../ranking/domain/ranking_providers.dart';
 import '../../tournaments/data/my_tournament_registrations_repository.dart';
 import '../../tournaments/data/tournament_partner_invite_service.dart';
@@ -142,11 +143,19 @@ class AthleteHomePage extends ConsumerWidget {
                             AppRouteNames.athleteNotifications,
                           ),
                         ),
-                        bottomRight: _HeroXpPill(
-                          current: summary.xpInCurrentLevel,
-                          goal: 100,
-                          onTap: () =>
-                              context.pushNamed(AppRouteNames.athleteQuest),
+                        // Pílula do cashback à esquerda da de XP; o encaixe
+                        // some sozinho com o recurso desligado ou sem saldo.
+                        bottomRight: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const CashbackHeroPillSlot(),
+                            _HeroXpPill(
+                              current: summary.xpInCurrentLevel,
+                              goal: 100,
+                              onTap: () =>
+                                  context.pushNamed(AppRouteNames.athleteQuest),
+                            ),
+                          ],
                         ),
                       );
                     },

@@ -18,6 +18,7 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../auth/auth_legal_urls.dart';
 import '../../auth/presentation/role_selection_page.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
+import '../../cashback/presentation/widgets/cashback_settings_tile.dart';
 import '../domain/achievements/achievement_providers.dart';
 import '../domain/athlete_profile.dart';
 import '../domain/athlete_display_name.dart';
@@ -305,6 +306,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                   onTap: () => showAthleteSettingsComingSoon(context),
                   showDivider: true,
                 ),
+                const CashbackSettingsTile(),
                 AthleteSettingsTile(
                   icon: Icons.account_balance_wallet_outlined,
                   title: 'Pagamentos',

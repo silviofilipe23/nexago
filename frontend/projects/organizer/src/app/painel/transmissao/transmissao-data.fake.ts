@@ -24,6 +24,7 @@ export function torneio(formats: string[]): OrganizerTournament {
       { id: 'q1', name: 'Quadra 1', order: 1 },
       { id: 'q2', name: 'Quadra 2', order: 2 },
     ],
+    sponsors: [{ id: 's1', name: 'Loja Areia', logoUrl: '' }],
   } as unknown as OrganizerTournament;
 }
 

@@ -93,7 +93,10 @@ class OrganizerOverviewTab extends StatelessWidget {
             OrganizerSectionTitle(
               eyebrow: 'Histórico',
               title: 'Eventos realizados',
-              actionLabel: 'Ver os ${completed.length}',
+              // Só quando há mais do que as 3 linhas já mostradas.
+              actionLabel: completed.length > kOrganizerOverviewPreviewCount
+                  ? 'Ver os ${completed.length}'
+                  : null,
               onAction: onSeeEvents,
             ),
             const SizedBox(height: 4),
@@ -485,49 +488,52 @@ class OrganizerReputationCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Nota em cima e barras embaixo, na largura toda: lado a lado, no telefone, a barra
+          // sobrava com uns 20 px.
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Column(
-                children: [
-                  Text(
-                    v.averageText,
-                    style: AppTypography.soraRegular(
-                      fontSize: 40,
-                      fontWeight: FontWeight.w800,
-                      color: colors.onSurface,
-                      height: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  OrganizerStars(average: v.average),
-                  const SizedBox(height: 6),
-                  Text(
-                    v.countLabel.toUpperCase(),
-                    style: AppTypography.mono(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                      color: colors.onSurfaceMuted,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                ],
+              Text(
+                v.averageText,
+                style: AppTypography.soraRegular(
+                  fontSize: 40,
+                  fontWeight: FontWeight.w800,
+                  color: colors.onSurface,
+                  height: 1,
+                ),
               ),
-              const SizedBox(width: 20),
-              Expanded(
+              const SizedBox(width: 14),
+              Flexible(
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (final aspect in v.aspects)
-                      _BarRow(
-                        label: aspect.label,
-                        fraction: aspect.fraction,
-                        value: aspect.valueText,
+                    OrganizerStars(average: v.average, size: 16),
+                    const SizedBox(height: 4),
+                    Text(
+                      v.countLabel.toUpperCase(),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.mono(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: colors.onSurfaceMuted,
+                        letterSpacing: 0.6,
                       ),
+                    ),
                   ],
                 ),
               ),
             ],
           ),
+          if (v.aspects.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            for (final aspect in v.aspects)
+              _BarRow(
+                label: aspect.label,
+                fraction: aspect.fraction,
+                value: aspect.valueText,
+              ),
+          ],
           if (showDistribution) ...[
             const SizedBox(height: 16),
             const _Divider(),
@@ -589,7 +595,7 @@ class _BarRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           SizedBox(
-            width: 30,
+            width: 36,
             child: Text(
               value,
               textAlign: TextAlign.right,

@@ -1,4 +1,4 @@
-import { DEFAULT_BROADCAST_CONTROL, type BroadcastControl, type BroadcastInterview } from '../../painel/data/broadcast-control';
+import { DEFAULT_BROADCAST_CONTROL, type BroadcastControl, type BroadcastInterview, interviewWithDefaults } from '../../painel/data/broadcast-control';
 import {
   interviewVisibleAt,
   nextCommandStep,
@@ -20,14 +20,14 @@ function controle(over: Partial<BroadcastControl> = {}): BroadcastControl {
   };
 }
 
-const TARJA: BroadcastInterview = {
+const TARJA: BroadcastInterview = interviewWithDefaults({
   name: 'Ana Souza',
   photoUrl: null,
   partnerName: 'Bia Lima',
   categoryName: 'Feminina B',
   durationSec: 20,
   shownAt: 1_000,
-};
+});
 
 describe('overlayLayersOf', () => {
   it('sem painel mexido, vai ao ar o que a regra automática manda', () => {
@@ -93,6 +93,13 @@ describe('nextInterviewAir', () => {
   it('mesmo comando em snapshot seguinte mantém o instante de recebimento', () => {
     const air = { data: TARJA, receivedAtMs: 50_000 };
     expect(nextInterviewAir(air, { ...TARJA }, false, 60_000)).toBe(air);
+  });
+
+  it('mesmo carimbo com o card mudado (chave ligada no ar) troca os dados sem reiniciar a duração', () => {
+    const air = { data: TARJA, receivedAtMs: 50_000 };
+    const next = nextInterviewAir(air, { ...TARJA, showCampaign: false }, false, 60_000);
+    expect(next?.data.showCampaign).toBeFalse();
+    expect(next?.receivedAtMs).toBe(50_000);
   });
 
   it('comando novo (outro shownAt) reinicia a contagem', () => {

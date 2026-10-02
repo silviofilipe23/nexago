@@ -2,7 +2,7 @@ import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
 import type { OrganizerTournament } from '../../painel/data/tournament.model';
-import { DEFAULT_BROADCAST_CONTROL, type BroadcastControl, type BroadcastInterview } from '../../painel/data/broadcast-control';
+import { DEFAULT_BROADCAST_CONTROL, type BroadcastControl, type BroadcastInterview, interviewWithDefaults } from '../../painel/data/broadcast-control';
 import { OverlayLiveGateway, type OverlayTeam } from './overlay-live.gateway';
 import { OverlayPageComponent } from './overlay-page.component';
 
@@ -154,14 +154,14 @@ function controle(over: Partial<BroadcastControl> = {}): BroadcastControl {
   };
 }
 
-const TARJA: BroadcastInterview = {
+const TARJA: BroadcastInterview = interviewWithDefaults({
   name: 'Ana Souza',
   photoUrl: null,
   partnerName: 'Bia Lima',
   categoryName: 'Feminina B',
   durationSec: null,
   shownAt: 1_000,
-};
+});
 
 /** Monta a página já no fim de rodada, que é quando há duas telas pra alternar. */
 async function noFimDaRodada(inputs: Record<string, unknown> = {}) {
@@ -794,17 +794,20 @@ describe('OverlayPageComponent — controle do painel', () => {
       await fixture.whenStable();
       const host = fixture.nativeElement as HTMLElement;
 
-      expect(host.querySelector('og-overlay-interview .tarja')).not.toBeNull();
+      expect(host.querySelector('og-overlay-interview .terco[data-phase="in"]')).not.toBeNull();
 
       jasmine.clock().tick(18_000);
       await fixture.whenStable();
-      expect(host.querySelector('og-overlay-interview .tarja')).not.toBeNull();
+      expect(host.querySelector('og-overlay-interview .terco[data-phase="in"]')).not.toBeNull();
 
       jasmine.clock().tick(3_000);
       await fixture.whenStable();
-      // `animate.leave` mantém o nó no DOM durante a saída (animação CSS de verdade, fora do
-      // relógio falso), já com a classe de saída — o que importa é não estar mais "entrando".
-      expect(host.querySelector('og-overlay-interview .tarja:not(.tarja-out)')).toBeNull();
+      // A saída mantém os blocos no DOM enquanto animam — o que importa é não estar mais "no ar".
+      expect(host.querySelector('og-overlay-interview .terco[data-phase="in"]')).toBeNull();
+
+      jasmine.clock().tick(1_000);
+      await fixture.whenStable();
+      expect(host.querySelector('og-overlay-interview .terco')).toBeNull();
     } finally {
       jasmine.clock().uninstall();
     }

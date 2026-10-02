@@ -1,10 +1,12 @@
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { DEFAULT_BROADCAST_CONTROL, type BroadcastControl } from '../data/broadcast-control';
+import { DEFAULT_BROADCAST_CONTROL, interviewWithDefaults, type BroadcastControl } from '../data/broadcast-control';
 import type { BroadcastControlPatch } from '../data/broadcast-control-repository';
 import type { TournamentMatch } from '../data/matches-repository';
+import type { RankingParticipant } from '../data/ranking-positions';
 import type { OrganizerTournament } from '../data/tournament.model';
+import type { AthleteDetails } from './interview-card';
 import { TransmissaoDataService } from './transmissao-data.service';
 import { TransmissaoComponent } from './transmissao.component';
 import type { TeamRoster } from './transmissao-selectors';
@@ -44,8 +46,18 @@ class FakeData {
   readonly matches = signal<TournamentMatch[]>([PARTIDA]);
   readonly control = signal<BroadcastControl>({ ...DEFAULT_BROADCAST_CONTROL, courtId: 'q1' });
   readonly rosters = signal<ReadonlyMap<string, TeamRoster>>(ROSTERS);
+  readonly details = signal<ReadonlyMap<string, AthleteDetails>>(
+    new Map([['u1', { city: 'Goiânia', state: 'GO', levelsBySport: {}, legacyLevel: null }]]),
+  );
+  readonly athleteRanking = signal<readonly RankingParticipant[]>([]);
+  readonly teamRanking = signal<readonly RankingParticipant[]>([]);
   readonly saveError = signal(false);
   readonly saved: BroadcastControlPatch[] = [];
+  rankingRequests = 0;
+
+  ensureRanking(): void {
+    this.rankingRequests++;
+  }
 
   save(patch: BroadcastControlPatch): Promise<void> {
     this.saved.push(patch);
@@ -122,6 +134,72 @@ describe('TransmissaoComponent', () => {
     expect(typeof tarja?.shownAt).toBe('number');
   });
 
+  it('a tarja de atleta sai com o card completo: subtítulo com o parceiro e chips do perfil', async () => {
+    const { el, fake, fixture } = await mount();
+    botao(el, 'Ana Souza').click();
+    await fixture.whenStable();
+    botao(el, 'Pôr no ar').click();
+
+    const tarja = fake.saved[0]?.interview;
+    expect(tarja?.kind).toBe('atleta');
+    expect(tarja?.key).toBe('atleta:ta:u1');
+    expect(tarja?.subtitle).toBe('Dupla com Bia Lima');
+    expect(tarja?.chips).toEqual([{ label: 'Cidade', value: 'Goiânia/GO' }]);
+    expect(tarja?.showCampaign).toBeTrue();
+  });
+
+  it('escolher um atleta começa a carregar o ranking geral', async () => {
+    const { el, fake } = await mount();
+    expect(fake.rankingRequests).toBe(0);
+    botao(el, 'Ana Souza').click();
+    expect(fake.rankingRequests).toBe(1);
+  });
+
+  it('dá pra pôr a dupla inteira no ar', async () => {
+    const { el, fake, fixture } = await mount();
+    botao(el, 'Ana Souza').click();
+    await fixture.whenStable();
+    botao(el, 'Dupla').click();
+    await fixture.whenStable();
+    expect(botao(el, 'Pôr no ar').textContent).toContain('Ana Souza / Bia Lima');
+    botao(el, 'Pôr no ar').click();
+
+    const tarja = fake.saved[0]?.interview;
+    expect(tarja?.kind).toBe('dupla');
+    expect(tarja?.names).toEqual(['Ana Souza', 'Bia Lima']);
+  });
+
+  it('trocar de atleta volta a escolha pra "atleta"', async () => {
+    const { el, fake, fixture } = await mount();
+    botao(el, 'Ana Souza').click();
+    await fixture.whenStable();
+    botao(el, 'Dupla').click();
+    botao(el, 'Carla Dias').click();
+    await fixture.whenStable();
+    botao(el, 'Pôr no ar').click();
+    expect(fake.saved[0]?.interview?.kind).toBe('atleta');
+  });
+
+  it('campanha desligada antes de pôr no ar vai desligada', async () => {
+    const { el, fake, fixture } = await mount();
+    (el.querySelector('button[role="switch"][aria-label="Campanha no torneio"]') as HTMLButtonElement).click();
+    botao(el, 'Ana Souza').click();
+    await fixture.whenStable();
+    botao(el, 'Pôr no ar').click();
+    expect(fake.saved).toEqual([jasmine.objectContaining({ interview: jasmine.objectContaining({ showCampaign: false }) })]);
+  });
+
+  it('chave da campanha com a tarja no ar regrava o card com o MESMO carimbo', async () => {
+    const fake = new FakeData();
+    const noAr = interviewWithDefaults({ name: 'Ana Souza', photoUrl: null, partnerName: null, categoryName: null, durationSec: null, shownAt: Date.now() });
+    fake.control.set({ ...DEFAULT_BROADCAST_CONTROL, interview: noAr });
+    const { el } = await mount(fake);
+    const chave = el.querySelector('button[role="switch"][aria-label="Campanha no torneio"]') as HTMLButtonElement;
+    expect(chave.getAttribute('aria-checked')).toBe('true');
+    chave.click();
+    expect(fake.saved).toEqual([{ interview: { ...noAr, showCampaign: false } }]);
+  });
+
   it('"Pôr no ar" fica desabilitado sem atleta escolhido', async () => {
     const { el } = await mount();
     expect(botao(el, 'Escolha um atleta').disabled).toBeTrue();
@@ -131,7 +209,7 @@ describe('TransmissaoComponent', () => {
     const fake = new FakeData();
     fake.control.set({
       ...DEFAULT_BROADCAST_CONTROL,
-      interview: { name: 'Ana Souza', photoUrl: null, partnerName: null, categoryName: null, durationSec: null, shownAt: Date.now() },
+      interview: interviewWithDefaults({ name: 'Ana Souza', photoUrl: null, partnerName: null, categoryName: null, durationSec: null, shownAt: Date.now() }),
     });
     const { el } = await mount(fake);
     expect(el.textContent).toContain('No ar:');
@@ -161,7 +239,7 @@ describe('TransmissaoComponent', () => {
     const fake = new FakeData();
     fake.control.set({
       ...DEFAULT_BROADCAST_CONTROL,
-      interview: { name: 'Ana Souza', photoUrl: null, partnerName: null, categoryName: null, durationSec: null, shownAt: Date.now() },
+      interview: interviewWithDefaults({ name: 'Ana Souza', photoUrl: null, partnerName: null, categoryName: null, durationSec: null, shownAt: Date.now() }),
     });
     const { el } = await mount(fake);
     const agora = [...el.querySelectorAll('.og-tx-agora')] as HTMLButtonElement[];

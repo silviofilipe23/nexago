@@ -58,7 +58,7 @@ export function chunkIds(ids: readonly string[], size = IN_LIMIT): string[][] {
   return chunks;
 }
 
-async function chunkedByIds<T>(db: Firestore, path: string[], ids: readonly string[], pick: (data: Record<string, unknown>) => T): Promise<Map<string, T>> {
+export async function chunkedByIds<T>(db: Firestore, path: string[], ids: readonly string[], pick: (data: Record<string, unknown>) => T): Promise<Map<string, T>> {
   const result = new Map<string, T>();
   const chunks = chunkIds(ids);
   if (chunks.length === 0) return result;
@@ -94,6 +94,45 @@ export async function fetchProfileDisplays(db: Firestore, uids: readonly string[
     photoUrl:
       optionalStr(data['profilePhotoUrl']) ?? optionalStr(data['avatarUrl']) ?? optionalStr(data['photoURL']) ?? optionalStr(data['photoUrl']),
   }));
+}
+
+/** `sportOnboarding.levelsBySport` — só as entradas string, ignorando lixo de docs antigos. */
+export function levelsBySportOf(data: Record<string, unknown>): Record<string, string> {
+  const onboarding = data['sportOnboarding'] as Record<string, unknown> | undefined;
+  const raw = onboarding?.['levelsBySport'];
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, string> = {};
+  for (const [sportCode, value] of Object.entries(raw as Record<string, unknown>)) {
+    const level = optionalStr(value);
+    if (level) out[sportCode] = level;
+  }
+  return out;
+}
+
+/** Perfil como a tarja de entrevista usa: nome e foto (os mesmos de `fetchProfileDisplays`) mais
+ *  cidade/UF e nível declarado — os chips do card. */
+export interface InterviewProfile extends ProfileDisplay {
+  city: string | null;
+  state: string | null;
+  levelsBySport: Record<string, string>;
+  legacyLevel: string | null;
+}
+
+export function interviewProfileFromDoc(data: Record<string, unknown>): InterviewProfile {
+  return {
+    name: optionalStr(data['nickname']) ?? optionalStr(data['fullName']) ?? optionalStr(data['name']) ?? 'Atleta',
+    photoUrl:
+      optionalStr(data['profilePhotoUrl']) ?? optionalStr(data['avatarUrl']) ?? optionalStr(data['photoURL']) ?? optionalStr(data['photoUrl']),
+    city: optionalStr(data['city']),
+    state: optionalStr(data['state']),
+    levelsBySport: levelsBySportOf(data),
+    legacyLevel: optionalStr(data['level']) ?? optionalStr(data['nivel']),
+  };
+}
+
+/** Mesmas leituras de `fetchProfileDisplays` (os docs são os mesmos), só com mais campos. */
+export async function fetchInterviewProfiles(db: Firestore, uids: readonly string[]): Promise<Map<string, InterviewProfile>> {
+  return chunkedByIds(db, ['public_profiles'], uids, interviewProfileFromDoc);
 }
 
 export async function fetchTeamsByIds(

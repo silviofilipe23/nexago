@@ -120,18 +120,30 @@ describe("eventos listados", () => {
     assert.equal(isListedTournament(null), false);
   });
 
-  it("realizado = completed ou fim + 12 h no passado (endAt, senão startAt)", () => {
+  it("realizado = completed ou fim + 36 h no passado (endAt, senão startAt)", () => {
     const open = {listingStatus: "open", visibility: "publicListing"};
     assert.equal(isRealizedListedTournament({...open, listingStatus: "completed"}, NOW), true);
-    assert.equal(isRealizedListedTournament({...open, endAt: Timestamp.fromMillis(NOW - 13 * HOUR)}, NOW), true);
-    assert.equal(isRealizedListedTournament({...open, endAt: Timestamp.fromMillis(NOW - 11 * HOUR)}, NOW), false);
-    assert.equal(isRealizedListedTournament({...open, startAt: Timestamp.fromMillis(NOW - 13 * HOUR)}, NOW), true);
+    assert.equal(isRealizedListedTournament({...open, endAt: Timestamp.fromMillis(NOW - 37 * HOUR)}, NOW), true);
+    assert.equal(isRealizedListedTournament({...open, endAt: Timestamp.fromMillis(NOW - 35 * HOUR)}, NOW), false);
+    assert.equal(isRealizedListedTournament({...open, startAt: Timestamp.fromMillis(NOW - 37 * HOUR)}, NOW), true);
     assert.equal(
       isRealizedListedTournament({...open, startAt: Timestamp.fromMillis(NOW - 48 * HOUR), endAt: Timestamp.fromMillis(NOW + HOUR)}, NOW),
       false,
     );
     assert.equal(isRealizedListedTournament({...open, listingStatus: "cancelled", endAt: Timestamp.fromMillis(0)}, NOW), false);
     assert.equal(isRealizedListedTournament({...open}, NOW), false);
+  });
+
+  it("evento cujo último dia é hoje não é realizado (data gravada como meia-noite local ou UTC)", () => {
+    const open = {listingStatus: "closed", visibility: "publicListing"};
+    // 02/10/2026 é o último dia; NOW = 02/10 12:00 em Brasília.
+    const lastDayLocalMidnight = Timestamp.fromMillis(Date.UTC(2026, 9, 2, 3, 0, 0));
+    const lastDayUtcMidnight = Timestamp.fromMillis(Date.UTC(2026, 9, 2, 0, 0, 0));
+    assert.equal(isRealizedListedTournament({...open, endAt: lastDayLocalMidnight}, NOW), false);
+    assert.equal(isRealizedListedTournament({...open, endAt: lastDayUtcMidnight}, NOW), false);
+    // Manhã seguinte (03/10 12:00 Brasília) já é realizado nas duas convenções.
+    assert.equal(isRealizedListedTournament({...open, endAt: lastDayLocalMidnight}, NOW + 24 * HOUR), true);
+    assert.equal(isRealizedListedTournament({...open, endAt: lastDayUtcMidnight}, NOW + 24 * HOUR), true);
   });
 
   it("realizedListedTournamentIds devolve ids ordenados", () => {

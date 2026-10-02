@@ -206,13 +206,13 @@ describe("refreshRecentlyRealizedOrganizerStats", () => {
     fake.seedDoc("organizerPublicProfiles/org-1", {uid: "org-1", isOrganizer: true});
     fake.seedDoc("organizerPublicProfiles/org-2", {uid: "org-2", isOrganizer: true});
     fake.seedDoc("tournaments/a", {managerId: "org-1", listingStatus: "open", visibility: "publicListing",
-      startAt: Timestamp.fromMillis(NOW - 40 * HOUR), endAt: Timestamp.fromMillis(NOW - 30 * HOUR)});
+      startAt: Timestamp.fromMillis(NOW - 60 * HOUR), endAt: Timestamp.fromMillis(NOW - 50 * HOUR)});
     fake.seedDoc("tournaments/b", {managerId: "org-2", listingStatus: "closed", visibility: "publicListing",
-      startAt: Timestamp.fromMillis(NOW - 20 * HOUR)});
+      startAt: Timestamp.fromMillis(NOW - 40 * HOUR)});
     fake.seedDoc("tournaments/c", {managerId: "org-3", listingStatus: "open", visibility: "publicListing",
       startAt: Timestamp.fromMillis(NOW - 30 * 24 * HOUR), endAt: Timestamp.fromMillis(NOW - 30 * 24 * HOUR)});
     fake.seedDoc("tournaments/d", {managerId: "org-4", listingStatus: "open", visibility: "publicListing",
-      startAt: Timestamp.fromMillis(NOW - 6 * HOUR)});
+      startAt: Timestamp.fromMillis(NOW - 20 * HOUR)});
     const refreshed = await refreshRecentlyRealizedOrganizerStats(asDb(fake), NOW);
     assert.equal(refreshed, 2);
     assert.equal((fake.store.get("organizerPublicProfiles/org-1")?.stats as {eventsCompleted: number}).eventsCompleted, 1);

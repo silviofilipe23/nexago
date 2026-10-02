@@ -30,7 +30,7 @@ import {
   requestInvoiceForPaidClubSpot,
   shouldAttemptFiscalInvoice,
 } from "./fiscal/payment-hooks";
-import {readCashbackConfig} from "./cashback-config";
+import {DEFAULT_CASHBACK_CONFIG, readCashbackConfig} from "./cashback-config";
 import {toMillisOrNull} from "./cashback-rules";
 import {
   applyCashbackIntent,
@@ -38,7 +38,7 @@ import {
   cashbackIntentFields,
   clubCashbackLabel,
   intentHasWork,
-  readCashbackApplied,
+  resolveCashbackForPayment,
 } from "./cashback-intent";
 
 const ASAAS_NON_TERMINAL_STATUSES = new Set([
@@ -123,9 +123,10 @@ export async function processArenaClubSessionAsaasNotification(
 
   if (ASAAS_PAID_STATUSES.has(status)) {
     // Saldo de cashback usado na vaga: para a arena vale como dinheiro recebido
-    // (a nexaGO cobre). O Asaas só recebeu `cashPaid`.
-    const {appliedCents, holdId} = readCashbackApplied(
-      (await participantRef.get()).data(),
+    // (a nexaGO cobre). O Asaas só recebeu `cashPaid`. Resolve pelo id do
+    // pagamento — o participante pode ter sido reescrito por uma entrada nova.
+    const {appliedCents, holdId} = await resolveCashbackForPayment(
+      db, athleteUid, paymentId, (await participantRef.get()).data(),
     );
     const cashPaid = roundMoney(Number(payment.value) || 0);
     if (cashPaid <= 0) {
@@ -225,6 +226,20 @@ export async function processArenaClubSessionAsaasNotification(
           logger.error(`Asaas clubinho ${sessionId}: fiscal request failed`, fiscalErr);
         }
       }
+      // Doc de config indisponível não pode derrubar a confirmação: a reserva
+      // de saldo ainda precisa ser capturada mesmo sem conseguir calcular o
+      // ganho desta rodada.
+      let cashbackConfig = DEFAULT_CASHBACK_CONFIG;
+      try {
+        cashbackConfig = await readCashbackConfig(db);
+      } catch (e) {
+        logger.error(
+          `Asaas clubinho ${sessionId}: falha ao ler appConfig/cashback ` +
+          "— tratando como desligado nesta rodada",
+          e,
+        );
+      }
+
       const intent = buildCashbackIntent({
         uid: athleteUid,
         sourceType: "club",
@@ -237,7 +252,7 @@ export async function processArenaClubSessionAsaasNotification(
         appliedCents,
         feeReais: platformFeeReais,
         holdId,
-        config: await readCashbackConfig(db),
+        config: cashbackConfig,
       });
       await markProcessed(
         "approved",

@@ -327,6 +327,8 @@ export const joinArenaClubSession = onCall({
       platformFeeReais: null,
       netReais: null,
       asaasPaymentId: existing?.["asaasPaymentId"] ?? null,
+      cashbackAppliedCents: existing?.["cashbackAppliedCents"] ?? 0,
+      cashbackHoldId: existing?.["cashbackHoldId"] ?? null,
       pixCopyPaste: null,
       paymentExpiresAt,
       refundStatus: "none",

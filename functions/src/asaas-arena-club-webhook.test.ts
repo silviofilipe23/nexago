@@ -5,7 +5,7 @@ import {Timestamp} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {processArenaClubSessionAsaasNotification} from "./asaas-arena-club-webhook";
 import {parseClubSessionPaymentRef} from "./arena-club-constants";
-import {holdCashback} from "./athlete-wallet";
+import {attachHoldPayment, holdCashback} from "./athlete-wallet";
 
 const SESSION_PATH = "arenaClubSessions/club_c1_2026-07-24";
 const PARTICIPANT_PATH = `${SESSION_PATH}/clubParticipants/uid1`;
@@ -245,16 +245,26 @@ describe("asaas-arena-club-webhook eventos negativos", () => {
 describe("processArenaClubSessionAsaasNotification — cashback", () => {
   const NOW_MS = Date.now();
 
-  it("saldo aplicado: participante e arena ficam com o bruto; reserva capturada", async () => {
-    const {fake, db} = makeDb();
-    seedSession(fake, {startAt: Timestamp.fromMillis(Date.UTC(2026, 6, 24, 18, 0, 0))});
+  function seedSpendableLot(fake: FakeFirestore, cents: number): void {
     fake.seedDoc("athleteWallets/uid1/lots/old", {
       uid: "uid1", sourceType: "booking", sourceId: "b0", tournamentId: null, arenaId: "a1",
-      label: "Reserva", earnedCents: 2000, remainingCents: 2000, status: "available",
+      label: "Reserva", earnedCents: cents, remainingCents: cents, status: "available",
       eventAt: Timestamp.fromMillis(NOW_MS - 1000), releasedAt: Timestamp.fromMillis(NOW_MS - 1000),
       expiresAt: Timestamp.fromMillis(NOW_MS + 90 * 86_400_000), expiryWarnedAt: null,
       createdAt: Timestamp.fromMillis(NOW_MS - 1000),
     });
+  }
+
+  function arenaLedger(fake: FakeFirestore): Record<string, unknown>[] {
+    return [...fake.store.entries()]
+      .filter(([path]) => path.startsWith("arenaWallets/arena1/ledger/"))
+      .map(([, data]) => data);
+  }
+
+  it("saldo aplicado: participante e arena ficam com o bruto; reserva capturada", async () => {
+    const {fake, db} = makeDb();
+    seedSession(fake, {startAt: Timestamp.fromMillis(Date.UTC(2026, 6, 24, 18, 0, 0))});
+    seedSpendableLot(fake, 2000);
     const {holdId} = await holdCashback(db, {
       uid: "uid1", maxCents: 1000, sourceType: "club", sourceId: "club_c1_2026-07-24",
       trackingPath: PARTICIPANT_PATH, label: "Clubinho", nowMs: NOW_MS,
@@ -272,6 +282,10 @@ describe("processArenaClubSessionAsaasNotification — cashback", () => {
     assert.equal(participant.netReais, 14.25);
     assert.equal(fake.store.get(`athleteWallets/uid1/holds/${holdId}`)!.status, "captured");
     assert.equal(fake.store.get(PROCESSED_PATH)!.cashbackStatus, "done");
+
+    const credit = arenaLedger(fake).find((e) => e.type === "credit")!;
+    assert.equal(credit.grossReais, 15);
+    assert.equal(credit.cashbackAppliedReais, 10);
   });
 
   it("cashback ligado: lote pendente até a sessão começar", async () => {
@@ -291,5 +305,61 @@ describe("processArenaClubSessionAsaasNotification — cashback", () => {
     assert.equal(lot.sourceType, "club");
     assert.equal(lot.label, "Clubinho · Clubinho de sexta");
     assert.equal((lot.eventAt as Timestamp).toMillis(), startMs);
+  });
+
+  it("pagamento tardio de cobrança substituída: acha a reserva pelo id do pagamento, não pelo participante atual", async () => {
+    const {fake, db} = makeDb();
+    seedSession(fake, {startAt: Timestamp.fromMillis(Date.UTC(2026, 6, 24, 18, 0, 0))});
+    seedSpendableLot(fake, 5000);
+    const {holdId: holdOld} = await holdCashback(db, {
+      uid: "uid1", maxCents: 1000, sourceType: "club", sourceId: "club_c1_2026-07-24",
+      trackingPath: PARTICIPANT_PATH, label: "Clubinho", nowMs: NOW_MS,
+    });
+    await attachHoldPayment(db, "uid1", holdOld!, "pay1");
+    const {holdId: holdNew} = await holdCashback(db, {
+      uid: "uid1", maxCents: 1000, sourceType: "club", sourceId: "club_c1_2026-07-24",
+      trackingPath: PARTICIPANT_PATH, label: "Clubinho", nowMs: NOW_MS,
+    });
+    await attachHoldPayment(db, "uid1", holdNew!, "payNew");
+    // O atleta gerou uma cobrança nova: o participante atual aponta pra ela.
+    seedParticipant(fake, {
+      asaasPaymentId: "payNew", cashbackAppliedCents: 1000, cashbackHoldId: holdNew,
+    });
+
+    // O webhook da cobrança ANTIGA (pay1) chega atrasado e, mesmo assim, paga.
+    await processArenaClubSessionAsaasNotification(
+      db, "pay1", {...paidPayment, value: 5}, processedRefOf(db), makeDeps().deps,
+    );
+
+    assert.equal(fake.store.get(`athleteWallets/uid1/holds/${holdOld}`)!.status, "captured");
+    assert.equal(fake.store.get(`athleteWallets/uid1/holds/${holdNew}`)!.status, "open");
+    const credit = arenaLedger(fake).find((e) => e.type === "credit")!;
+    // Bruto é 5 (dinheiro) + 10 (saldo de pay1) — não os 10 de payNew.
+    assert.equal(credit.grossReais, 15);
+  });
+
+  it("lista cheia: estorna sem creditar e não mexe na reserva aberta (sweeper libera depois)", async () => {
+    const {fake, db} = makeDb();
+    seedSession(fake, {capacity: 1, confirmedCount: 1, pendingCount: 0});
+    seedSpendableLot(fake, 2000);
+    const {holdId} = await holdCashback(db, {
+      uid: "uid1", maxCents: 1000, sourceType: "club", sourceId: "club_c1_2026-07-24",
+      trackingPath: PARTICIPANT_PATH, label: "Clubinho", nowMs: NOW_MS,
+    });
+    seedParticipant(fake, {
+      status: "expired", cashbackAppliedCents: 1000, cashbackHoldId: holdId,
+    });
+    const {deps, refunds} = makeDeps();
+
+    await processArenaClubSessionAsaasNotification(
+      db, "pay1", paidPayment, processedRefOf(db), deps,
+    );
+
+    assert.deepEqual(refunds, ["pay1"]);
+    assert.equal(fake.store.get(`athleteWallets/uid1/holds/${holdId}`)!.status, "open");
+    const processed = fake.store.get(PROCESSED_PATH)!;
+    assert.equal(processed.outcome, "refunded_session_full");
+    assert.equal(processed.cashback, undefined);
+    assert.equal(processed.cashbackStatus, undefined);
   });
 });

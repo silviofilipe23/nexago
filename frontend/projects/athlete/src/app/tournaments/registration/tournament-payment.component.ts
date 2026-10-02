@@ -39,6 +39,9 @@ import {
 import { resolveDirectPaymentState, type DirectPaymentState } from './direct-payment-state';
 import { RegistrationHoldNoticeComponent } from './registration-hold-notice.component';
 import { shouldShowRegistrationHoldCountdown, registrationHoldCountdownView } from './registration-hold';
+import { appliedPreviewCents } from '../../data/cashback-preview';
+import { CashbackService } from '../../data/cashback.service';
+import { CheckoutCashbackToggleComponent } from '../../cashback/checkout-cashback-toggle.component';
 
 export type PaymentAmountType = 'share' | 'full';
 
@@ -104,6 +107,7 @@ const PAID_REVEAL_MS = 2000;
     NxFieldErrorComponent,
     NxBlockingDialogComponent,
     RegistrationHoldNoticeComponent,
+    CheckoutCashbackToggleComponent,
   ],
   templateUrl: './tournament-payment.component.html',
   styleUrl: './tournament-payment.component.scss',
@@ -116,6 +120,7 @@ export class TournamentPaymentComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
   private readonly toasts = inject(NxToastService);
+  protected readonly cashback = inject(CashbackService);
 
   protected readonly accountLabel = computed(() => {
     const liveUser = this.auth.user();
@@ -273,6 +278,45 @@ export class TournamentPaymentComponent {
       hasLivePartnerInvite: this.hasLivePartnerInvite(),
     }),
   );
+
+  /** "Usar meu cashback" — desligado por padrão (o atleta escolhe gastar); vale para PIX e cartão. */
+  protected readonly useCashback = signal(false);
+
+  /** Só há o que descontar com a cobrança pelo app ainda por fazer: inscrição paga, parcela paga
+   *  e pagamento direto com o organizador nunca mostram desconto no resumo. */
+  private readonly appChargeOpen = computed(() => {
+    const reg = this.registration();
+    return (
+      reg != null &&
+      !reg.isPaid &&
+      !this.mySharePaid() &&
+      this.methods().length > 0 &&
+      this.totalPriceReais() > 0
+    );
+  });
+
+  /** Cashback desta cobrança: depois de gerada, o que o servidor aplicou; antes, a prévia. É também
+   *  o número que decide se a callable recebe `useCashback: true`. */
+  protected readonly cashbackAppliedReais = computed(() => {
+    const live = this.pixResult() ?? this.cardResult();
+    if (live) return live.cashbackAppliedReais;
+    if (!this.appChargeOpen()) return 0;
+    return (
+      appliedPreviewCents({
+        use: this.useCashback(),
+        priceReais: this.amountDueReais(),
+        availableCents: this.cashback.availableCents(),
+        config: this.cashback.config(),
+      }) / 100
+    );
+  });
+
+  /** O que a cobrança vale: `chargedReais` do servidor, ou a parcela menos a prévia. */
+  protected readonly chargeDueReais = computed(() => {
+    const live = this.pixResult() ?? this.cardResult();
+    if (live) return live.chargedReais || this.amountDueReais();
+    return Math.round((this.amountDueReais() - this.cashbackAppliedReais()) * 100) / 100;
+  });
 
   constructor() {
     interval(1000)
@@ -505,7 +549,12 @@ export class TournamentPaymentComponent {
     }
     this.processing.set(true);
     try {
-      const result = await createRegistrationPixPayment(athleteFunctions(), reg.id, this.amountType(), this.cpfCnpj());
+      const result = await createRegistrationPixPayment(athleteFunctions(), {
+        registrationId: reg.id,
+        amountType: this.amountType(),
+        cpfCnpj: this.cpfCnpj(),
+        useCashback: this.cashbackAppliedReais() > 0,
+      });
       this.pixResult.set(result);
       this.pixQrSrc.set(await resolvePixQrSrc(result));
       this.pixExpired.set(false);
@@ -542,7 +591,12 @@ export class TournamentPaymentComponent {
     }
     this.processing.set(true);
     try {
-      const result = await createRegistrationCardPayment(athleteFunctions(), reg.id, this.amountType(), this.cpfCnpj());
+      const result = await createRegistrationCardPayment(athleteFunctions(), {
+        registrationId: reg.id,
+        amountType: this.amountType(),
+        cpfCnpj: this.cpfCnpj(),
+        useCashback: this.cashbackAppliedReais() > 0,
+      });
       // Uma cobrança viva por vez: duas seriam duas chances de pagar a mesma cota.
       this.pixResult.set(null);
       this.pixQrSrc.set(null);

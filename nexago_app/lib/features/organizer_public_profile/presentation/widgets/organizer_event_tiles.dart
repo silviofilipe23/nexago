@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../../core/ui/rebuild_at.dart';
 import '../../../tournaments/data/tournament_inscriptions_repository.dart';
 import '../../../tournaments/domain/tournament_category_spots.dart';
 import '../../../tournaments/domain/tournament_detail_logic.dart';
@@ -14,20 +13,23 @@ import '../../domain/organizer_public_profile_logic.dart';
 
 /// Card de evento próximo: selo, tipo, nome, data, local, barra de vagas (contagem real de
 /// `inscriptions`), preço e CTA. Tocar em qualquer parte leva ao evento.
+///
+/// [now] vem do relógio da página, que se reconstrói sozinho no próximo instante que muda
+/// alguma decisão (abertura, fechamento, início, fim + 12 h).
 class OrganizerUpcomingEventCard extends ConsumerWidget {
   const OrganizerUpcomingEventCard({
     super.key,
     required this.event,
+    required this.now,
     required this.onOpen,
   });
 
   final OrganizerEvent event;
+  final DateTime now;
   final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // `watch` aqui, no build do consumer — dentro do builder do RebuildAt rodaria no ciclo de
-    // outro elemento.
     final countsAsync = ref.watch(
       tournamentCategoryEnrollmentCountsProvider(event.id),
     );
@@ -36,16 +38,11 @@ class OrganizerUpcomingEventCard extends ConsumerWidget {
       enrollmentByCategoryId: countsAsync.valueOrNull ?? const <String, int>{},
       enrollmentCountsResolved: countsAsync.hasValue,
     );
-
-    // "Em breve" vira "Inscrições abertas" sozinho na hora marcada.
-    return RebuildAt(
-      instant: event.detail.registrationOpensAt,
-      builder: (context, now) => _buildCard(
-        context,
-        enrolled: stats.spotsEnrolled,
-        capacity: stats.spotsTotal,
-        now: now,
-      ),
+    return _buildCard(
+      context,
+      enrolled: stats.spotsEnrolled,
+      capacity: stats.spotsTotal,
+      now: now,
     );
   }
 
@@ -63,8 +60,8 @@ class OrganizerUpcomingEventCard extends ConsumerWidget {
       capacity: capacity,
       now: now,
     );
-    final register = organizerEventCtaIsRegister(badge);
-    final price = organizerEventPriceLabel(detail);
+    final cta = organizerEventCta(badge);
+    final price = organizerEventPrice(detail);
     final fill = organizerEventFill(enrolled: enrolled, capacity: capacity);
 
     return Material(
@@ -110,7 +107,7 @@ class OrganizerUpcomingEventCard extends ConsumerWidget {
               const SizedBox(height: 8),
               _MetaLine(
                 icon: Icons.calendar_today_outlined,
-                text: organizerEventDateLabel(detail, withYear: false),
+                text: organizerEventDateLabel(event, withYear: false),
               ),
               const SizedBox(height: 4),
               _MetaLine(icon: Icons.place_outlined, text: detail.location),
@@ -133,7 +130,10 @@ class OrganizerUpcomingEventCard extends ConsumerWidget {
                     ),
                     const SizedBox(width: 10),
                     Text(
-                      '$enrolled/$capacity',
+                      organizerEventFilledLabel(
+                        enrolled: enrolled,
+                        capacity: capacity,
+                      ),
                       style: AppTypography.mono(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -149,17 +149,32 @@ class OrganizerUpcomingEventCard extends ConsumerWidget {
                   Expanded(
                     child: price == null
                         ? const SizedBox.shrink()
-                        : Text(
-                            price,
-                            style: AppTypography.soraRegular(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: colors.onSurface,
-                            ),
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                price.label,
+                                style: AppTypography.soraRegular(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: colors.onSurface,
+                                ),
+                              ),
+                              if (price.caption != null)
+                                Text(
+                                  price.caption!.toUpperCase(),
+                                  style: AppTypography.mono(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: colors.onSurfaceMuted,
+                                    letterSpacing: 0.6,
+                                  ),
+                                ),
+                            ],
                           ),
                   ),
                   const SizedBox(width: 10),
-                  register
+                  cta == OrganizerEventCta.register
                       ? FilledButton(
                           onPressed: onOpen,
                           style: FilledButton.styleFrom(
@@ -170,7 +185,7 @@ class OrganizerUpcomingEventCard extends ConsumerWidget {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          child: const Text('Inscrever'),
+                          child: Text(cta.label),
                         )
                       : OutlinedButton(
                           onPressed: onOpen,
@@ -186,7 +201,7 @@ class OrganizerUpcomingEventCard extends ConsumerWidget {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          child: const Text('Acompanhar'),
+                          child: Text(cta.label),
                         ),
                 ],
               ),
@@ -208,6 +223,7 @@ class OrganizerEventBadgeChip extends StatelessWidget {
     final color = switch (badge) {
       OrganizerEventBadge.registrationOpen => AppColors.win,
       OrganizerEventBadge.lastSpots => AppColors.pending,
+      OrganizerEventBadge.soldOut => AppColors.live,
       OrganizerEventBadge.live => AppColors.live,
       OrganizerEventBadge.comingSoon => AppColors.brand,
       OrganizerEventBadge.registrationClosed =>
@@ -299,7 +315,7 @@ class OrganizerCompletedEventRow extends ConsumerWidget {
                   const SizedBox(height: 2),
                   Text(
                     [
-                      organizerEventDateLabel(detail),
+                      organizerEventDateLabel(event),
                       if (sport.isNotEmpty) organizerSportLabel(sport),
                     ].join(' · '),
                     style: AppTypography.soraRegular(

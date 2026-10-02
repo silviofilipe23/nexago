@@ -230,7 +230,8 @@ void main() {
     expect(find.text('Copa Verão Beach Vôlei'), findsOneWidget);
     expect(find.text('INSCRIÇÕES ABERTAS'), findsOneWidget);
     expect(find.text('Inscrever'), findsOneWidget);
-    expect(find.text(r'a partir de R$ 140 por dupla'), findsOneWidget);
+    expect(find.text('R\$\u00a0140'), findsOneWidget);
+    expect(find.text('POR DUPLA'), findsOneWidget);
     expect(find.text('10/32'), findsOneWidget);
     expect(find.text('Torneio de Abertura'), findsOneWidget);
     expect(find.text('Onde acontece'), findsOneWidget);

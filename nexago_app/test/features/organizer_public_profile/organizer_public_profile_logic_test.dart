@@ -19,6 +19,7 @@ TournamentDetail _detail({
   String sport = 'beachVolleyball',
   double price = 140,
   List<TournamentCategoryOffer> offers = const [],
+  int liveMatchesNow = 0,
 }) {
   return TournamentDetail(
     id: id,
@@ -37,7 +38,7 @@ TournamentDetail _detail({
     status: TournamentListingStatus.open,
     featured: false,
     enrolledCount: 0,
-    liveMatchesNow: 0,
+    liveMatchesNow: liveMatchesNow,
     leagueId: leagueId,
     leagueStageOrder: stageOrder,
     registrationOpensAt: opensAt,
@@ -50,21 +51,26 @@ TournamentDetail _detail({
 OrganizerEvent _event(
   OrganizerEventListing listing, {
   String id = 't1',
-  required DateTime start,
+  required DateTime? start,
   DateTime? end,
   DateTime? opensAt,
   DateTime? closesAt,
+  int liveMatchesNow = 0,
   List<OrganizerEventChampion> champions = const [],
 }) {
   return OrganizerEvent(
     detail: _detail(
       id: id,
-      start: start,
+      // O TournamentDetail exige início; o evento guarda o cru (que pode faltar).
+      start: start ?? DateTime(2000),
       end: end,
       opensAt: opensAt,
       closesAt: closesAt,
+      liveMatchesNow: liveMatchesNow,
     ),
     listing: listing,
+    startAt: start,
+    endAt: end,
     champions: champions,
   );
 }
@@ -120,12 +126,22 @@ void main() {
     });
 
     test('organizerSinceLabel usa o ano na parede do evento (SP)', () {
-      expect(organizerSinceLabel(null), isNull);
+      final now = DateTime(2026, 10, 2);
+      expect(organizerSinceLabel(null, now: now), isNull);
       // 01/01/2022 01:00 UTC ainda é 31/12/2021 em São Paulo.
       expect(
-        organizerSinceLabel(DateTime.utc(2022, 1, 1, 1)),
+        organizerSinceLabel(DateTime.utc(2022, 1, 1, 1), now: now),
         'Organizador desde 2021',
       );
+    });
+
+    test('organizerSinceLabel some quando o ano está no futuro', () {
+      final now = DateTime(2026, 10, 2);
+      expect(
+        organizerSinceLabel(DateTime(2026, 12, 20), now: now),
+        'Organizador desde 2026',
+      );
+      expect(organizerSinceLabel(DateTime(2027, 2, 1), now: now), isNull);
     });
 
     test('organizerInitials pula conectores e limita a 3 letras', () {
@@ -198,10 +214,52 @@ void main() {
     });
   });
 
-  group('eventos: próximos e realizados', () {
+  group('realizado x próximo (definição compartilhada)', () {
     final now = DateTime(2026, 8, 10, 12);
 
-    test('próximos = abertos/fechados que não terminaram, por data', () {
+    test('completed é realizado na hora, mesmo no futuro', () {
+      final e = _event(
+        OrganizerEventListing.completed,
+        start: DateTime(2026, 9, 1),
+      );
+      expect(organizerEventIsRealized(e, now), isTrue);
+      expect(organizerEventIsUpcoming(e, now), isFalse);
+    });
+
+    test('sem completed, vira realizado 12 h depois do fim', () {
+      final end = DateTime(2026, 8, 10, 0);
+      final e = _event(
+        OrganizerEventListing.closed,
+        start: DateTime(2026, 8, 9, 8),
+        end: end,
+      );
+      expect(
+        organizerEventIsRealized(e, end.add(const Duration(hours: 11))),
+        isFalse,
+      );
+      expect(
+        organizerEventIsRealized(e, end.add(const Duration(hours: 12))),
+        isTrue,
+      );
+    });
+
+    test('sem endAt, o fim é o startAt', () {
+      final e = _event(
+        OrganizerEventListing.open,
+        start: DateTime(2026, 8, 9, 23, 59),
+      );
+      expect(organizerEventEnd(e), DateTime(2026, 8, 9, 23, 59));
+      expect(organizerEventIsRealized(e, now), isTrue);
+    });
+
+    test('sem data nenhuma, nunca vira realizado pelo relógio', () {
+      final e = _event(OrganizerEventListing.closed, start: null);
+      expect(organizerEventEnd(e), isNull);
+      expect(organizerEventIsRealized(e, DateTime(2099)), isFalse);
+      expect(organizerEventIsUpcoming(e, DateTime(2099)), isTrue);
+    });
+
+    test('próximos por data (sem data no fim); realizados do mais recente', () {
       final later = _event(
         OrganizerEventListing.open,
         id: 'later',
@@ -217,49 +275,112 @@ void main() {
         id: 'today',
         start: DateTime(2026, 8, 10, 8),
       );
-      final stale = _event(
+      final undated = _event(
         OrganizerEventListing.open,
-        id: 'stale',
+        id: 'undated',
+        start: null,
+      );
+      final ended = _event(
+        OrganizerEventListing.closed,
+        id: 'ended',
         start: DateTime(2026, 7, 1),
         end: DateTime(2026, 7, 2),
       );
-      final done = _event(
-        OrganizerEventListing.completed,
-        id: 'done',
-        start: DateTime(2026, 9, 5),
-      );
-      final upcoming = organizerUpcomingEvents([
-        later,
-        sooner,
-        today,
-        stale,
-        done,
-      ], now);
-      expect([for (final e in upcoming) e.id], ['today', 'sooner', 'later']);
-    });
-
-    test('realizados = listingStatus completed, mais recente primeiro', () {
       final old = _event(
         OrganizerEventListing.completed,
         id: 'old',
         start: DateTime(2025, 1, 1),
       );
-      final recent = _event(
-        OrganizerEventListing.completed,
-        id: 'recent',
-        start: DateTime(2026, 5, 2),
-      );
-      final open = _event(
-        OrganizerEventListing.open,
-        id: 'open',
-        start: DateTime(2026, 1, 1),
+      final all = [later, sooner, today, undated, ended, old];
+      expect(
+        [for (final e in organizerUpcomingEvents(all, now)) e.id],
+        ['today', 'sooner', 'later', 'undated'],
       );
       expect(
-        [
-          for (final e in organizerCompletedEvents([old, open, recent])) e.id,
-        ],
-        ['recent', 'old'],
+        [for (final e in organizerRealizedEvents(all, now)) e.id],
+        ['ended', 'old'],
       );
+    });
+
+    test(
+      'ao vivo: partida em quadra, ou começou e a inscrição não está aberta',
+      () {
+        final started = DateTime(2026, 8, 10, 8);
+        expect(
+          organizerEventIsLive(
+            _event(OrganizerEventListing.closed, start: started),
+            now,
+          ),
+          isTrue,
+        );
+        // Dia do evento com inscrição ainda aberta não é "Ao vivo".
+        expect(
+          organizerEventIsLive(
+            _event(OrganizerEventListing.open, start: started),
+            now,
+          ),
+          isFalse,
+        );
+        expect(
+          organizerEventIsLive(
+            _event(
+              OrganizerEventListing.open,
+              start: started,
+              liveMatchesNow: 2,
+            ),
+            now,
+          ),
+          isTrue,
+        );
+        expect(
+          organizerEventIsLive(
+            _event(OrganizerEventListing.closed, start: DateTime(2026, 8, 11)),
+            now,
+          ),
+          isFalse,
+        );
+        // Já realizado não é ao vivo.
+        expect(
+          organizerEventIsLive(
+            _event(
+              OrganizerEventListing.closed,
+              start: DateTime(2026, 8, 8),
+              end: DateTime(2026, 8, 9),
+            ),
+            now,
+          ),
+          isFalse,
+        );
+      },
+    );
+
+    test('próximo instante de mudança: o mais cedo depois de agora', () {
+      final e = _event(
+        OrganizerEventListing.open,
+        start: DateTime(2026, 8, 20, 8),
+        end: DateTime(2026, 8, 21, 18),
+        opensAt: DateTime(2026, 8, 9),
+        closesAt: DateTime(2026, 8, 18),
+      );
+      expect(organizerEventNextChangeAt(e, now), DateTime(2026, 8, 18));
+      expect(
+        organizerEventNextChangeAt(e, DateTime(2026, 8, 19)),
+        DateTime(2026, 8, 20, 8),
+      );
+      expect(
+        organizerEventNextChangeAt(e, DateTime(2026, 8, 21, 12)),
+        DateTime(2026, 8, 22, 6),
+      );
+      expect(organizerEventNextChangeAt(e, DateTime(2026, 8, 23)), isNull);
+      final other = _event(
+        OrganizerEventListing.open,
+        start: DateTime(2026, 8, 15),
+      );
+      expect(
+        organizerEventsNextChangeAt([e, other], now),
+        DateTime(2026, 8, 15),
+      );
+      expect(organizerEventsNextChangeAt(const [], now), isNull);
     });
   });
 
@@ -285,10 +406,11 @@ void main() {
       );
       expect(b, OrganizerEventBadge.registrationOpen);
       expect(b.label, 'Inscrições abertas');
-      expect(organizerEventCtaIsRegister(b), isTrue);
+      expect(organizerEventCta(b), OrganizerEventCta.register);
+      expect(organizerEventCta(b).label, 'Inscrever');
     });
 
-    test('80% ou mais → Últimas vagas', () {
+    test('80% ou mais → Últimas vagas; 75% ainda é aberta', () {
       expect(
         badge(
           _event(OrganizerEventListing.open, start: future),
@@ -300,20 +422,24 @@ void main() {
       expect(
         badge(
           _event(OrganizerEventListing.open, start: future),
-          enrolled: 32,
-          capacity: 32,
-        ),
-        OrganizerEventBadge.lastSpots,
-      );
-      // 18/24 = 75%: ainda "abertas".
-      expect(
-        badge(
-          _event(OrganizerEventListing.open, start: future),
           enrolled: 18,
           capacity: 24,
         ),
         OrganizerEventBadge.registrationOpen,
       );
+    });
+
+    test('100% (ou mais) → Vagas esgotadas, CTA Ver evento', () {
+      for (final enrolled in [32, 35]) {
+        final b = badge(
+          _event(OrganizerEventListing.open, start: future),
+          enrolled: enrolled,
+        );
+        expect(b, OrganizerEventBadge.soldOut);
+        expect(b.label, 'Vagas esgotadas');
+        expect(organizerEventCta(b), OrganizerEventCta.view);
+        expect(organizerEventCta(b).label, 'Ver evento');
+      }
     });
 
     test('abertura agendada no futuro → Em breve (CTA Acompanhar)', () {
@@ -325,7 +451,8 @@ void main() {
         ),
       );
       expect(b, OrganizerEventBadge.comingSoon);
-      expect(organizerEventCtaIsRegister(b), isFalse);
+      expect(organizerEventCta(b), OrganizerEventCta.follow);
+      expect(organizerEventCta(b).label, 'Acompanhar');
     });
 
     test('fechado ou prazo vencido → Inscrições encerradas', () {
@@ -345,16 +472,19 @@ void main() {
       );
     });
 
-    test('no dia do evento → Ao vivo', () {
+    test('começou e fechou → Ao vivo; começou com inscrição aberta → não', () {
+      final started = DateTime(2026, 8, 10, 8);
       expect(
-        badge(
-          _event(OrganizerEventListing.closed, start: DateTime(2026, 8, 10, 8)),
-        ),
+        badge(_event(OrganizerEventListing.closed, start: started)),
         OrganizerEventBadge.live,
+      );
+      expect(
+        badge(_event(OrganizerEventListing.open, start: started)),
+        OrganizerEventBadge.registrationOpen,
       );
     });
 
-    test('capacidade desconhecida não vira Últimas vagas', () {
+    test('capacidade desconhecida não vira Últimas vagas nem esgotada', () {
       expect(
         badge(
           _event(OrganizerEventListing.open, start: future),
@@ -363,6 +493,11 @@ void main() {
         ),
         OrganizerEventBadge.registrationOpen,
       );
+    });
+
+    test('preenchido exibido nunca passa do total', () {
+      expect(organizerEventFilledLabel(enrolled: 18, capacity: 24), '18/24');
+      expect(organizerEventFilledLabel(enrolled: 35, capacity: 32), '32/32');
     });
   });
 
@@ -391,43 +526,67 @@ void main() {
       );
     });
 
-    test('preço: por dupla, por inscrição com equipe, nada sem preço', () {
+    test('preço em pt-BR, sem centavos quando inteiro', () {
+      expect(formatOrganizerPrice(140), 'R\$\u00a0140');
+      expect(formatOrganizerPrice(140.5), 'R\$\u00a0140,50');
+      expect(formatOrganizerPrice(1250), 'R\$\u00a01.250');
+    });
+
+    TournamentCategoryOffer offer(double fee, {int? teamSize}) =>
+        TournamentCategoryOffer(
+          id: 'c$fee',
+          name: 'Cat',
+          entryFee: fee,
+          teamSize: teamSize,
+        );
+
+    test('preço: único, "a partir de", equipe, grátis e misto', () {
+      OrganizerEventPrice? price(List<TournamentCategoryOffer> offers) =>
+          organizerEventPrice(
+            _detail(start: DateTime(2026, 1, 1), offers: offers),
+          );
+
+      final single = price([offer(140), offer(140)])!;
+      expect(single.label, 'R\$\u00a0140');
+      expect(single.caption, 'por dupla');
+
+      final range = price([offer(140.5), offer(120.5)])!;
+      expect(range.label, 'a partir de R\$\u00a0120,50');
+      expect(range.caption, 'por dupla');
+
+      expect(price([offer(140, teamSize: 4)])!.caption, 'por inscrição');
+
+      final free = price([offer(0), offer(0)])!;
+      expect(free.label, 'Grátis');
+      expect(free.caption, isNull);
+
+      final mixed = price([offer(0), offer(90)])!;
+      expect(mixed.label, 'Grátis');
+      expect(mixed.caption, 'em algumas categorias');
+    });
+
+    test('preço sem categorias usa o do torneio; sem preço, nada', () {
       expect(
-        organizerEventPriceLabel(_detail(start: DateTime(2026, 1, 1))),
-        r'a partir de R$ 140 por dupla',
+        organizerEventPrice(_detail(start: DateTime(2026, 1, 1)))!.label,
+        'R\$\u00a0140',
       );
       expect(
-        organizerEventPriceLabel(
-          _detail(
-            start: DateTime(2026, 1, 1),
-            offers: const [
-              TournamentCategoryOffer(
-                id: 'c1',
-                name: 'Quarteto',
-                entryFee: 140,
-                teamSize: 4,
-              ),
-            ],
-          ),
-        ),
-        r'a partir de R$ 140 por inscrição',
-      );
-      expect(
-        organizerEventPriceLabel(
-          _detail(start: DateTime(2026, 1, 1), price: 0),
-        ),
+        organizerEventPrice(_detail(start: DateTime(2026, 1, 1), price: 0)),
         isNull,
       );
     });
 
-    test('data: dia único, mesmo mês, meses diferentes, sem ano', () {
+    test('data: dia único, mesmo mês, meses diferentes, sem ano, sem data', () {
       expect(
-        organizerEventDateLabel(_detail(start: DateTime(2026, 2, 14, 8))),
+        organizerEventDateLabel(
+          _event(OrganizerEventListing.open, start: DateTime(2026, 2, 14, 8)),
+        ),
         '14 fev 2026',
       );
       expect(
         organizerEventDateLabel(
-          _detail(
+          _event(
+            OrganizerEventListing.open,
             start: DateTime(2026, 5, 2, 8),
             end: DateTime(2026, 5, 3, 18),
           ),
@@ -436,7 +595,8 @@ void main() {
       );
       expect(
         organizerEventDateLabel(
-          _detail(
+          _event(
+            OrganizerEventListing.open,
             start: DateTime(2026, 4, 30, 8),
             end: DateTime(2026, 5, 2, 18),
           ),
@@ -445,13 +605,20 @@ void main() {
       );
       expect(
         organizerEventDateLabel(
-          _detail(
+          _event(
+            OrganizerEventListing.open,
             start: DateTime(2026, 8, 4, 8),
             end: DateTime(2026, 8, 5, 18),
           ),
           withYear: false,
         ),
         '04–05 ago',
+      );
+      expect(
+        organizerEventDateLabel(
+          _event(OrganizerEventListing.open, start: null),
+        ),
+        'Data a confirmar',
       );
     });
 

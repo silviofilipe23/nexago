@@ -19,6 +19,7 @@ import '../domain/organizer_event.dart';
 import '../domain/organizer_public_profile_logic.dart';
 import '../domain/organizer_public_profile_models.dart';
 import '../domain/organizer_public_profile_providers.dart';
+import 'widgets/organizer_clock.dart';
 import 'widgets/organizer_profile_header_parts.dart';
 import 'widgets/organizer_profile_hero.dart';
 import 'widgets/organizer_profile_tabs.dart';
@@ -222,89 +223,111 @@ class _OrganizerPublicProfilePageState
     final isFollowing =
         _optimisticFollowing ?? followedAsync.valueOrNull ?? false;
 
-    final now = DateTime.now();
-    final upcoming = organizerUpcomingEvents(events, now);
-    final completed = organizerCompletedEvents(events);
     final reputationView = organizerReputationView(reputation);
     final whatsapp = organizerWhatsappUri(profile.whatsapp);
 
-    final tabContent = switch (_tab) {
-      OrganizerProfileTab.overview => OrganizerOverviewTab(
-        profile: profile,
-        upcoming: upcoming,
-        completed: completed,
-        championNames: championNames,
-        reputation: reputationView,
-        inviteToFollow: !isSelf,
-        onOpenEvent: _openEvent,
-        onSeeEvents: () => setState(() => _tab = OrganizerProfileTab.events),
-        onSeeReviews: () => setState(() => _tab = OrganizerProfileTab.reviews),
-      ),
-      OrganizerProfileTab.events => OrganizerEventsTab(
-        upcoming: upcoming,
-        completed: completed,
-        championNames: championNames,
-        onOpenEvent: _openEvent,
-      ),
-      OrganizerProfileTab.results => OrganizerResultsTab(
-        completed: completed,
-        championNames: championNames,
-        onOpenEvent: _openEvent,
-      ),
-      OrganizerProfileTab.reviews => _ReviewsTabLoader(
-        organizerId: _organizerId,
-        reputation: reputationView,
-        events: events,
-      ),
-    };
+    // A página se acerta sozinha no próximo instante que muda alguma decisão (abertura ou
+    // fechamento de inscrição, início, fim + 12 h): o card troca de selo e o evento passa de
+    // "Próximos" para o histórico sem ninguém puxar a tela.
+    return OrganizerClock(
+      nextChangeAt: (now) => organizerEventsNextChangeAt(events, now),
+      builder: (context, now) {
+        final upcoming = organizerUpcomingEvents(events, now);
+        final realized = organizerRealizedEvents(events, now);
 
-    return CustomScrollView(
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: BouncingScrollPhysics(),
-      ),
-      slivers: [
-        SliverToBoxAdapter(
-          child: OrganizerProfileHero(
-            name: profile.name,
-            initials: organizerInitials(profile.name),
-            verified: profile.verified,
-            locationLine: organizerLocationLine(profile.city, profile.state),
-            sinceLabel: organizerSinceLabel(profile.stats.organizerSince),
-            logo: organizerNetworkImage(profile.logoUrl),
-            cover: organizerNetworkImage(profile.coverUrl),
+        final tabContent = switch (_tab) {
+          OrganizerProfileTab.overview => OrganizerOverviewTab(
+            profile: profile,
+            now: now,
+            upcoming: upcoming,
+            completed: realized,
+            championNames: championNames,
+            reputation: reputationView,
+            inviteToFollow: !isSelf,
+            onOpenEvent: _openEvent,
+            onSeeEvents: () =>
+                setState(() => _tab = OrganizerProfileTab.events),
+            onSeeReviews: () =>
+                setState(() => _tab = OrganizerProfileTab.reviews),
           ),
-        ),
-        SliverToBoxAdapter(
-          child: OrganizerProfileStatsRow(
-            stats: organizerHeaderStats(profile, reputation),
+          OrganizerProfileTab.events => OrganizerEventsTab(
+            now: now,
+            upcoming: upcoming,
+            completed: realized,
+            championNames: championNames,
+            onOpenEvent: _openEvent,
           ),
-        ),
-        SliverToBoxAdapter(
-          child: OrganizerProfileActions(
-            showFollow: !isSelf,
-            isFollowing: isFollowing,
-            followBusy: _followBusy || !followedAsync.hasValue,
-            onFollow: () => _toggleFollow(isFollowing),
-            onShare: () => _share(profile),
-            onMessage: whatsapp == null ? null : () => _openWhatsapp(whatsapp),
+          OrganizerProfileTab.results => OrganizerResultsTab(
+            completed: realized,
+            championNames: championNames,
+            onOpenEvent: _openEvent,
           ),
-        ),
-        if (profile.stats.sports.isNotEmpty)
-          SliverToBoxAdapter(
-            child: OrganizerSportChips(sports: profile.stats.sports),
+          OrganizerProfileTab.reviews => _ReviewsTabLoader(
+            organizerId: _organizerId,
+            reputation: reputationView,
+            events: events,
           ),
-        SliverToBoxAdapter(
-          child: OrganizerProfileTabBar(
-            selected: _tab,
-            eventsCount: upcoming.length + completed.length,
-            onChanged: (tab) => setState(() => _tab = tab),
+        };
+
+        return CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
           ),
-        ),
-        SliverToBoxAdapter(child: tabContent),
-        SliverToBoxAdapter(
-          child: SizedBox(height: MediaQuery.paddingOf(context).bottom + 40),
-        ),
-      ],
+          slivers: [
+            SliverToBoxAdapter(
+              child: OrganizerProfileHero(
+                name: profile.name,
+                initials: organizerInitials(profile.name),
+                verified: profile.verified,
+                locationLine: organizerLocationLine(
+                  profile.city,
+                  profile.state,
+                ),
+                sinceLabel: organizerSinceLabel(
+                  profile.stats.organizerSince,
+                  now: now,
+                ),
+                logo: organizerNetworkImage(profile.logoUrl),
+                cover: organizerNetworkImage(profile.coverUrl),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: OrganizerProfileStatsRow(
+                stats: organizerHeaderStats(profile, reputation),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: OrganizerProfileActions(
+                showFollow: !isSelf,
+                isFollowing: isFollowing,
+                followBusy: _followBusy || !followedAsync.hasValue,
+                onFollow: () => _toggleFollow(isFollowing),
+                onShare: () => _share(profile),
+                onMessage: whatsapp == null
+                    ? null
+                    : () => _openWhatsapp(whatsapp),
+              ),
+            ),
+            if (profile.stats.sports.isNotEmpty)
+              SliverToBoxAdapter(
+                child: OrganizerSportChips(sports: profile.stats.sports),
+              ),
+            SliverToBoxAdapter(
+              child: OrganizerProfileTabBar(
+                selected: _tab,
+                eventsCount: upcoming.length + realized.length,
+                onChanged: (tab) => setState(() => _tab = tab),
+              ),
+            ),
+            SliverToBoxAdapter(child: tabContent),
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: MediaQuery.paddingOf(context).bottom + 40,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

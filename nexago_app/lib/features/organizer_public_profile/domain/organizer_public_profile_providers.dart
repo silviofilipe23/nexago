@@ -57,7 +57,7 @@ final organizerChampionTeamIdsKeyProvider = Provider.autoDispose
           ref.watch(organizerEventsProvider(organizerId)).valueOrNull ??
           const <OrganizerEvent>[];
       final ids = organizerChampionTeamIds(
-        organizerCompletedEvents(events),
+        organizerRealizedEvents(events, DateTime.now()),
       ).toList()..sort();
       return ids.join(',');
     });

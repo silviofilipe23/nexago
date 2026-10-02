@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../../tournaments/data/tournament_document_mapper.dart';
 import '../domain/organizer_event.dart';
 
@@ -10,6 +12,8 @@ OrganizerEvent? organizerEventFromMap(String id, Map<String, dynamic> data) {
   return OrganizerEvent(
     detail: detail,
     listing: listing,
+    startAt: _instantOf(data['startAt'] ?? data['startDate']),
+    endAt: _instantOf(data['endAt'] ?? data['endDate']),
     champions: organizerEventChampions(
       data['categoryOps'],
       categoryOrder: [
@@ -56,4 +60,12 @@ List<OrganizerEventChampion> organizerEventChampions(
     return byRank != 0 ? byRank : a.categoryId.compareTo(b.categoryId);
   });
   return champions;
+}
+
+/// Mesmos formatos que o mapper de torneio aceita (`Timestamp`, `DateTime`, ISO).
+DateTime? _instantOf(Object? value) {
+  if (value is Timestamp) return value.toDate();
+  if (value is DateTime) return value;
+  if (value is String) return DateTime.tryParse(value);
+  return null;
 }

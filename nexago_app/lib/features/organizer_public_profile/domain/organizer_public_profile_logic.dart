@@ -1,3 +1,4 @@
+import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/search/search_keywords.dart';
 import '../../../core/text/safe_display_text.dart';
 import '../../../core/time/nexago_event_timezone.dart';
@@ -51,10 +52,13 @@ String? organizerLocationLine(String? city, String? state) {
   return parts.isEmpty ? null : parts.join(' · ');
 }
 
-/// "Organizador desde 2021" — ano do primeiro evento listado, no fuso dos eventos.
-String? organizerSinceLabel(DateTime? since) {
+/// "Organizador desde 2021" — ano do primeiro evento listado, no fuso dos eventos. Some quando
+/// o ano está no futuro: quem só tem evento marcado para o ano que vem ainda não organizou nada.
+String? organizerSinceLabel(DateTime? since, {required DateTime now}) {
   if (since == null) return null;
-  return 'Organizador desde ${toNexagoEventLocal(since).year}';
+  final year = toNexagoEventLocal(since).year;
+  if (year > toNexagoEventLocal(now).year) return null;
+  return 'Organizador desde $year';
 }
 
 const _initialsStopWords = {'de', 'da', 'do', 'das', 'dos', 'e', '&'};
@@ -148,37 +152,105 @@ List<OrganizerHeaderStat> organizerHeaderStats(
 
 // ── Eventos ──────────────────────────────────────────────────────────────────
 
-/// O evento já terminou no relógio (fim efetivo no passado).
-bool organizerEventEnded(OrganizerEvent event, DateTime now) {
-  final start = event.detail.startDate;
-  final end = event.detail.endDate ?? start;
-  return tournamentEffectiveEndAt(start, end).isBefore(now);
+/// Folga depois do fim do evento antes de ele contar como realizado: o organizador fecha as
+/// chaves no sistema só às vezes, e `completed` só é gravado quando TODAS as finais terminam
+/// nele — sem a folga, evento encerrado ficaria para sempre em "Próximos". Mesma régua do
+/// backend e do portal.
+const Duration kOrganizerEventEndGrace = Duration(hours: 12);
+
+/// Fim do evento: `endAt`, ou `startAt` quando falta o fim. `null` sem nenhum dos dois.
+DateTime? organizerEventEnd(OrganizerEvent event) =>
+    event.endAt ?? event.startAt;
+
+/// Realizado: `completed`, ou 12 h depois do fim. Todo [OrganizerEvent] já é listado.
+bool organizerEventIsRealized(OrganizerEvent event, DateTime now) {
+  if (event.listing == OrganizerEventListing.completed) return true;
+  final end = organizerEventEnd(event);
+  return end != null && !end.add(kOrganizerEventEndGrace).isAfter(now);
 }
 
-/// Próximos: abertos ou fechados que ainda não terminaram, do mais cedo ao mais tarde.
+/// Próximo: listado e ainda não realizado.
+bool organizerEventIsUpcoming(OrganizerEvent event, DateTime now) =>
+    !organizerEventIsRealized(event, now);
+
+/// Ao vivo: partida em quadra agora, ou já começou, não foi realizado e a inscrição não está
+/// aberta (no dia do evento com inscrição até as 16h, ainda é "Inscrições abertas").
+bool organizerEventIsLive(OrganizerEvent event, DateTime now) {
+  if (event.detail.liveMatchesNow > 0) return true;
+  final start = event.startAt;
+  return start != null &&
+      !start.isAfter(now) &&
+      !organizerEventIsRealized(event, now) &&
+      event.listing != OrganizerEventListing.open;
+}
+
+/// Próximos, do mais cedo ao mais tarde; sem data, no fim.
 List<OrganizerEvent> organizerUpcomingEvents(
   List<OrganizerEvent> events,
   DateTime now,
 ) {
   final upcoming = [
     for (final event in events)
-      if (event.listing != OrganizerEventListing.completed &&
-          !organizerEventEnded(event, now))
-        event,
+      if (organizerEventIsUpcoming(event, now)) event,
   ];
-  upcoming.sort((a, b) => a.detail.startDate.compareTo(b.detail.startDate));
+  upcoming.sort((a, b) => _compareNullableDates(a.startAt, b.startAt));
   return upcoming;
 }
 
-/// Realizados (`listingStatus == completed`, a mesma régua de `stats.eventsCompleted`), do mais
-/// recente ao mais antigo.
-List<OrganizerEvent> organizerCompletedEvents(List<OrganizerEvent> events) {
-  final completed = [
+/// Realizados, do mais recente ao mais antigo (pelo fim; sem data, no fim).
+List<OrganizerEvent> organizerRealizedEvents(
+  List<OrganizerEvent> events,
+  DateTime now,
+) {
+  final realized = [
     for (final event in events)
-      if (event.listing == OrganizerEventListing.completed) event,
+      if (organizerEventIsRealized(event, now)) event,
   ];
-  completed.sort((a, b) => b.detail.startDate.compareTo(a.detail.startDate));
-  return completed;
+  realized.sort(
+    (a, b) => _compareNullableDates(organizerEventEnd(b), organizerEventEnd(a)),
+  );
+  return realized;
+}
+
+/// Ascendente com `null` no fim. Para descendente, troque os argumentos — e o `null` continua
+/// no fim porque [_compareNullableDates] o trata à parte.
+int _compareNullableDates(DateTime? a, DateTime? b) {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return a.compareTo(b);
+}
+
+/// Próximo instante em que alguma decisão do card muda: abertura e fechamento da inscrição,
+/// início, e fim + 12 h (vira realizado). `null` quando nada mais muda com o relógio.
+DateTime? organizerEventNextChangeAt(OrganizerEvent event, DateTime now) {
+  final end = organizerEventEnd(event);
+  DateTime? next;
+  for (final instant in [
+    event.detail.registrationOpensAt,
+    event.detail.registrationClosesAt,
+    event.startAt,
+    end?.add(kOrganizerEventEndGrace),
+  ]) {
+    if (instant == null || !instant.isAfter(now)) continue;
+    if (next == null || instant.isBefore(next)) next = instant;
+  }
+  return next;
+}
+
+/// O mais cedo entre os eventos — a tela inteira se acerta nesse instante.
+DateTime? organizerEventsNextChangeAt(
+  List<OrganizerEvent> events,
+  DateTime now,
+) {
+  DateTime? next;
+  for (final event in events) {
+    final instant = organizerEventNextChangeAt(event, now);
+    if (instant != null && (next == null || instant.isBefore(next))) {
+      next = instant;
+    }
+  }
+  return next;
 }
 
 /// Preenchimento a partir do qual o card diz "Últimas vagas".
@@ -187,6 +259,7 @@ const double kOrganizerEventLastSpotsThreshold = 0.8;
 enum OrganizerEventBadge {
   registrationOpen('Inscrições abertas'),
   lastSpots('Últimas vagas'),
+  soldOut('Vagas esgotadas'),
   live('Ao vivo'),
   comingSoon('Em breve'),
   registrationClosed('Inscrições encerradas');
@@ -196,9 +269,9 @@ enum OrganizerEventBadge {
   final String label;
 }
 
-/// Selo do card de evento. Ordem: no dia do evento é "Ao vivo"; evento fechado (ou com prazo de
-/// inscrição vencido) é "Inscrições encerradas"; `registrationOpensAt` futuro é "Em breve";
-/// preenchimento ≥ 80% é "Últimas vagas"; senão "Inscrições abertas".
+/// Selo do card de evento próximo. Ordem: ao vivo; fechado (ou prazo vencido) é "Inscrições
+/// encerradas"; abertura no futuro é "Em breve"; 100% é "Vagas esgotadas"; 80% ou mais é
+/// "Últimas vagas"; senão "Inscrições abertas".
 OrganizerEventBadge organizerEventBadge(
   OrganizerEvent event, {
   required int enrolled,
@@ -206,13 +279,7 @@ OrganizerEventBadge organizerEventBadge(
   required DateTime now,
 }) {
   final detail = event.detail;
-  if (isTournamentEventDay(
-    startAt: detail.startDate,
-    endAt: detail.endDate,
-    now: now,
-  )) {
-    return OrganizerEventBadge.live;
-  }
+  if (organizerEventIsLive(event, now)) return OrganizerEventBadge.live;
   if (event.listing != OrganizerEventListing.open) {
     return OrganizerEventBadge.registrationClosed;
   }
@@ -223,22 +290,46 @@ OrganizerEventBadge organizerEventBadge(
   if (closesAt != null && !closesAt.isAfter(now)) {
     return OrganizerEventBadge.registrationClosed;
   }
-  if (organizerEventFill(enrolled: enrolled, capacity: capacity) >=
-      kOrganizerEventLastSpotsThreshold) {
+  final fill = organizerEventFill(enrolled: enrolled, capacity: capacity);
+  if (capacity > 0 && fill >= 1) return OrganizerEventBadge.soldOut;
+  if (fill >= kOrganizerEventLastSpotsThreshold) {
     return OrganizerEventBadge.lastSpots;
   }
   return OrganizerEventBadge.registrationOpen;
 }
 
-/// "Inscrever" só com inscrição aberta; o resto é "Acompanhar". Os dois levam ao evento.
-bool organizerEventCtaIsRegister(OrganizerEventBadge badge) =>
-    badge == OrganizerEventBadge.registrationOpen ||
-    badge == OrganizerEventBadge.lastSpots;
+/// Botão do card. Todos levam ao evento; muda o convite.
+enum OrganizerEventCta {
+  register('Inscrever'),
+  follow('Acompanhar'),
+  view('Ver evento');
+
+  const OrganizerEventCta(this.label);
+
+  final String label;
+}
+
+OrganizerEventCta organizerEventCta(OrganizerEventBadge badge) =>
+    switch (badge) {
+      OrganizerEventBadge.registrationOpen ||
+      OrganizerEventBadge.lastSpots => OrganizerEventCta.register,
+      OrganizerEventBadge.soldOut => OrganizerEventCta.view,
+      _ => OrganizerEventCta.follow,
+    };
 
 /// Fração preenchida (0–1). Capacidade desconhecida é 0.
 double organizerEventFill({required int enrolled, required int capacity}) {
   if (capacity <= 0) return 0;
   return (enrolled / capacity).clamp(0.0, 1.0);
+}
+
+/// "18/24" — o preenchido nunca passa do total (inscrição do organizador fura o teto).
+String organizerEventFilledLabel({
+  required int enrolled,
+  required int capacity,
+}) {
+  final filled = enrolled < 0 ? 0 : (enrolled > capacity ? capacity : enrolled);
+  return '$filled/$capacity';
 }
 
 /// "Torneio · Vôlei de praia" ou "Liga · Etapa 5 · Beach Tennis".
@@ -252,14 +343,53 @@ String organizerEventTypeLabel(TournamentDetail detail) {
   return sport.isEmpty ? type : '$type · ${organizerSportLabel(sport)}';
 }
 
-/// "a partir de R$ 140 por dupla" — "por inscrição" quando há categoria de equipe (trio+).
-/// `null` sem preço definido.
-String? organizerEventPriceLabel(TournamentDetail detail) {
-  if (detail.priceValue <= 0) return null;
-  final unit = detail.categoryOffers.any((c) => c.isTeamCategory)
-      ? 'inscrição'
-      : 'dupla';
-  return 'a partir de ${detail.priceLabel} por $unit';
+/// "R$ 140" / "R$ 140,50" (pt-BR; sem centavos quando é inteiro).
+String formatOrganizerPrice(double value) => value == value.truncateToDouble()
+    ? formatBRLWhole(value)
+    : formatBRL(value);
+
+/// Preço do card: rótulo em destaque e a legenda embaixo.
+class OrganizerEventPrice {
+  const OrganizerEventPrice({required this.label, this.caption});
+
+  final String label;
+  final String? caption;
+}
+
+/// "R$ 140 / por dupla", "a partir de R$ 120 / por dupla" (preços diferentes), "por inscrição"
+/// com categoria de equipe (trio+), "Grátis" quando tudo é grátis e "Grátis / em algumas
+/// categorias" quando há grátis e paga — nunca "a partir de Grátis". `null` sem preço
+/// conhecido.
+OrganizerEventPrice? organizerEventPrice(TournamentDetail detail) {
+  final offers = detail.categoryOffers;
+  final unit = offers.any((c) => c.isTeamCategory)
+      ? 'por inscrição'
+      : 'por dupla';
+  if (offers.isEmpty) {
+    if (detail.priceValue <= 0) return null;
+    return OrganizerEventPrice(
+      label: formatOrganizerPrice(detail.priceValue),
+      caption: unit,
+    );
+  }
+  final paid = [
+    for (final offer in offers)
+      if (offer.entryFee > 0) offer.entryFee,
+  ];
+  if (paid.isEmpty) return const OrganizerEventPrice(label: 'Grátis');
+  if (paid.length < offers.length) {
+    return const OrganizerEventPrice(
+      label: 'Grátis',
+      caption: 'em algumas categorias',
+    );
+  }
+  final cheapest = paid.reduce((a, b) => a < b ? a : b);
+  final same = paid.every((fee) => fee == cheapest);
+  final price = formatOrganizerPrice(cheapest);
+  return OrganizerEventPrice(
+    label: same ? price : 'a partir de $price',
+    caption: unit,
+  );
 }
 
 const _shortMonths = [
@@ -278,13 +408,13 @@ const _shortMonths = [
 ];
 
 /// "14 fev 2026", "02–03 mai 2026", "30 abr – 02 mai 2026". Sem [withYear], o ano some.
-/// Meses escritos à mão (o `MMM` do intl põe ponto). Datas na parede do evento (SP).
-String organizerEventDateLabel(
-  TournamentDetail detail, {
-  bool withYear = true,
-}) {
-  final start = toNexagoEventLocal(detail.startDate);
-  final end = toNexagoEventLocal(detail.endDate ?? detail.startDate);
+/// Meses escritos à mão (o `MMM` do intl põe ponto). Datas na parede do evento (SP). Sem
+/// início: "Data a confirmar".
+String organizerEventDateLabel(OrganizerEvent event, {bool withYear = true}) {
+  final rawStart = event.startAt;
+  if (rawStart == null) return 'Data a confirmar';
+  final start = toNexagoEventLocal(rawStart);
+  final end = toNexagoEventLocal(event.endAt ?? rawStart);
   String day(DateTime d) => d.day.toString().padLeft(2, '0');
   String month(DateTime d) => _shortMonths[d.month - 1];
   final year = withYear ? ' ${end.year}' : '';
@@ -468,10 +598,10 @@ List<OrganizerEventReviewRow> organizerEventReviewRows(
                 dateLabel: eventsById[summary.tournamentId] == null
                     ? null
                     : organizerEventDateLabel(
-                        eventsById[summary.tournamentId]!.detail,
+                        eventsById[summary.tournamentId]!,
                       ),
               ),
-              startAt: eventsById[summary.tournamentId]?.detail.startDate,
+              startAt: eventsById[summary.tournamentId]?.startAt,
             ),
       ]..sort((a, b) {
         final sa = a.startAt;

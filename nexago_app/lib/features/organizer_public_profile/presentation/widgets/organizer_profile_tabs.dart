@@ -19,6 +19,7 @@ class OrganizerOverviewTab extends StatelessWidget {
   const OrganizerOverviewTab({
     super.key,
     required this.profile,
+    required this.now,
     required this.upcoming,
     required this.completed,
     required this.championNames,
@@ -30,6 +31,7 @@ class OrganizerOverviewTab extends StatelessWidget {
   });
 
   final OrganizerPublicProfile profile;
+  final DateTime now;
   final List<OrganizerEvent> upcoming;
   final List<OrganizerEvent> completed;
   final Map<String, String> championNames;
@@ -85,6 +87,7 @@ class OrganizerOverviewTab extends StatelessWidget {
             )) ...[
               OrganizerUpcomingEventCard(
                 event: event,
+                now: now,
                 onOpen: () => onOpenEvent(event),
               ),
               const SizedBox(height: 12),
@@ -156,12 +159,14 @@ class OrganizerOverviewTab extends StatelessWidget {
 class OrganizerEventsTab extends StatelessWidget {
   const OrganizerEventsTab({
     super.key,
+    required this.now,
     required this.upcoming,
     required this.completed,
     required this.championNames,
     required this.onOpenEvent,
   });
 
+  final DateTime now;
   final List<OrganizerEvent> upcoming;
   final List<OrganizerEvent> completed;
   final Map<String, String> championNames;
@@ -182,6 +187,7 @@ class OrganizerEventsTab extends StatelessWidget {
             for (final event in upcoming) ...[
               OrganizerUpcomingEventCard(
                 event: event,
+                now: now,
                 onOpen: () => onOpenEvent(event),
               ),
               const SizedBox(height: 12),
@@ -287,7 +293,7 @@ class _ResultCardBody extends StatelessWidget {
         ),
         const SizedBox(height: 2),
         Text(
-          organizerEventDateLabel(event.detail),
+          organizerEventDateLabel(event),
           style: AppTypography.soraRegular(
             fontSize: 12,
             fontWeight: FontWeight.w500,

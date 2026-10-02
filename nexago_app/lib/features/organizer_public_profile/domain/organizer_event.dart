@@ -22,6 +22,8 @@ class OrganizerEvent {
     required this.detail,
     required this.listing,
     this.champions = const [],
+    this.startAt,
+    this.endAt,
   });
 
   final TournamentDetail detail;
@@ -29,6 +31,11 @@ class OrganizerEvent {
 
   /// Na ordem das categorias do torneio: o primeiro é o da "primeira categoria".
   final List<OrganizerEventChampion> champions;
+
+  /// `startAt`/`endAt` crus do doc. O [TournamentDetail] preenche início ausente com o relógio,
+  /// o que faria um evento sem data parecer acontecer agora.
+  final DateTime? startAt;
+  final DateTime? endAt;
 
   String get id => detail.id;
 }

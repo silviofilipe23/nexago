@@ -264,6 +264,22 @@ export async function processTournamentRegistrationAsaasNotification(
 
       const sharePaidUids = sharePaidUidsFromRegistration(regData);
       if (sharePaidUids.includes(payerUid)) {
+        // Quem pagou a parcela foi ESTE pagamento? Só o lote de confirmação
+        // grava o pendente como `paid` com o id dele — e no mesmo lote do
+        // processado. Então é uma entrega concorrente (esta leu o processado
+        // antes daquele lote e a inscrição depois), não um duplicado: nada a
+        // devolver, e o processado aprovado (com a intenção) não é sobrescrito.
+        const pending = pendingSnap.data();
+        const paidByThisPayment = pending?.status === "paid" &&
+          typeof pending.asaasPaymentId === "string" &&
+          pending.asaasPaymentId.trim() === paymentId;
+        if (paidByThisPayment || (await processedRef.get()).exists) {
+          logger.info(
+            `Asaas tournament registration ${registrationId}: pagamento ${paymentId} ` +
+            "já confirmou esta parcela (entrega concorrente) — nada a fazer",
+          );
+          return;
+        }
         // Dinheiro entrou sem crédito: a parcela deste atleta já constava paga
         // (em geral o parceiro pagou o integral antes deste PIX ser quitado).
         // Creditar de novo cobraria a mais, então sobra estorno manual — e isso

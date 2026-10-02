@@ -557,6 +557,85 @@ describe("asaas-tournament-registration-webhook: cashback", () => {
     assert.equal(fake.store.get(`athleteWallets/uidA/holds/${holdId}`)!.status, "released");
   });
 
+  /**
+   * Entregas concorrentes do MESMO pagamento: B leu o processado antes de o
+   * lote de A gravar e a inscrição depois. Para B a parcela "já consta paga",
+   * mas quem a pagou foi este pagamento — não é duplicado.
+   */
+  async function seedPaidByThisPayment(fake: FakeFirestore, db: Firestore): Promise<string> {
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake, {sharePaidUids: ["uidA"], paidAmount: 50});
+    seedSpendableLot(fake, "uidA", 2000);
+    const {holdId} = await holdCashback(db, {
+      uid: "uidA", maxCents: 1000, sourceType: "registration", sourceId: REG_ID,
+      trackingPath: PENDING_A, label: "Inscrição · Copa Teste", nowMs: NOW_MS,
+    });
+    await attachHoldPayment(db, "uidA", holdId!, "pay1");
+    await captureHold(db, "uidA", holdId!, NOW_MS);
+    // O que o lote de confirmação de A gravou no pendente.
+    fake.seedDoc(PENDING_A, {
+      status: "paid", amountType: "share", asaasPaymentId: "pay1", payerUid: "uidA",
+    });
+    return holdId!;
+  }
+
+  function refundEntriesOf(fake: FakeFirestore): number {
+    return [...fake.store.entries()]
+      .filter(([path, data]) => path.startsWith("athleteWallets/uidA/ledger/") && data.type === "refund")
+      .length;
+  }
+
+  it("parcela paga por ESTE pagamento (entrega concorrente): não é duplicado, não devolve o saldo", async () => {
+    const {fake, db} = makeDb();
+    const holdId = await seedPaidByThisPayment(fake, db);
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1",
+      {status: "RECEIVED", value: 40, billingType: "PIX",
+        externalReference: `tournamentRegistration:${REG_ID}:uidA`},
+      processedRefOf(db), makeDeps().deps,
+    );
+
+    assert.equal(fake.store.get(`athleteWallets/uidA/holds/${holdId}`)!.status, "captured");
+    assert.equal(refundEntriesOf(fake), 0);
+    assert.equal(fake.store.get(PROCESSED_PATH)?.outcome, undefined);
+  });
+
+  it("entrega concorrente não sobrescreve o processado aprovado (com intenção) da outra", async () => {
+    const {fake, db} = makeDb();
+    const holdId = await seedPaidByThisPayment(fake, db);
+    fake.seedDoc(PROCESSED_PATH, {
+      kind: "tournamentRegistration", outcome: "approved", confirmedAt: Timestamp.fromMillis(NOW_MS),
+      cashback: {uid: "uidA", holdId, appliedCents: 1000}, cashbackStatus: "done",
+    });
+    // B leu o processado antes do lote de A: a 1ª leitura vê o doc ausente.
+    const realRef = processedRefOf(db);
+    let reads = 0;
+    const racingRef = {
+      ...realRef,
+      path: realRef.path,
+      get: async () => {
+        reads++;
+        if (reads === 1) return {exists: false, id: "pay1", data: () => undefined};
+        return realRef.get();
+      },
+      set: realRef.set,
+    } as unknown as DocumentReference;
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1",
+      {status: "RECEIVED", value: 40, billingType: "PIX",
+        externalReference: `tournamentRegistration:${REG_ID}:uidA`},
+      racingRef, makeDeps().deps,
+    );
+
+    const processed = fake.store.get(PROCESSED_PATH)!;
+    assert.equal(processed.outcome, "approved");
+    assert.equal((processed.cashback as {holdId: string}).holdId, holdId);
+    assert.equal(fake.store.get(`athleteWallets/uidA/holds/${holdId}`)!.status, "captured");
+    assert.equal(refundEntriesOf(fake), 0);
+  });
+
   it("pagamento duplicado com a reserva já capturada pela varredura: o saldo volta uma vez", async () => {
     const {fake, db} = makeDb();
     seedTournamentWithOrganizer(fake);

@@ -142,11 +142,18 @@ export async function processArenaClubSessionAsaasNotification(
     );
     const netReais = roundMoney(paidReais - platformFeeReais);
 
+    // Cobrança que confirmou a vaga, quando ela já estava confirmada: separa a
+    // reentrega deste mesmo pagamento de um pagamento em dobro.
+    let confirmedByPaymentId = "";
     const outcome = await db.runTransaction(async (tx: Transaction) => {
+      confirmedByPaymentId = "";
       const participantSnap = await tx.get(participantRef);
       if (!participantSnap.exists) return "orphan" as const;
       const participant = participantSnap.data() as Record<string, unknown>;
       const pStatus = String(participant["status"] ?? "");
+      if (typeof participant["asaasPaymentId"] === "string") {
+        confirmedByPaymentId = participant["asaasPaymentId"].trim();
+      }
 
       const sessionSnap = await tx.get(sessionRef);
       if (!sessionSnap.exists) return "orphan" as const;
@@ -315,10 +322,20 @@ export async function processArenaClubSessionAsaasNotification(
     }
 
     // already_confirmed / already_refunded — idempotente.
-    if (outcome === "already_confirmed") {
-      // Pagamento em dobro: a vaga já é do atleta por outra cobrança. Esta não
-      // vira serviço (estorno manual), então o saldo que ela usou volta.
+    if (outcome === "already_confirmed" && confirmedByPaymentId !== paymentId) {
+      // Pagamento em dobro: a vaga já é do atleta por OUTRA cobrança (ou pelo
+      // pagamento no local). Esta não vira serviço, então o saldo que ela usou
+      // volta e o dinheiro precisa de estorno manual. Se foi ESTE pagamento
+      // que confirmou (reentrega depois de cair antes do processado, ou
+      // entregas sobrepostas), a reserva já foi consumida e a arena já
+      // recebeu o bruto — nada volta.
       await refundHoldOfPayment(db, athleteUid, paymentId, Date.now());
+      logger.error(
+        `Asaas clubinho ${sessionId}/${athleteUid}: pagamento em dobro (R$ ${cashPaid}) — ` +
+        "estorno manual necessário",
+        {sessionId, athleteUid, paymentId, confirmedByPaymentId: confirmedByPaymentId || null,
+          paidValue: cashPaid, cashbackAppliedCents: appliedCents},
+      );
     }
     await markProcessed(outcome);
     return;

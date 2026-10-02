@@ -442,6 +442,35 @@ describe("processArenaClubSessionAsaasNotification — cashback", () => {
     assert.equal(fake.store.get(`athleteWallets/uid1/holds/${holdId}`)!.status, "captured");
   });
 
+  it("reentrega do MESMO pagamento que confirmou a vaga (caiu antes do processado): a reserva segue consumida", async () => {
+    // A 1ª entrega confirmou o participante, creditou a arena pelo bruto e
+    // capturou a reserva; morreu antes de gravar o processado (ou duas
+    // entregas se sobrepuseram). A reentrega cai em already_confirmed, mas
+    // NÃO é pagamento em dobro: devolver o saldo faria a nexaGO pagar o
+    // desconto que a arena já recebeu.
+    const {fake, db} = makeDb();
+    seedSession(fake, {startAt: Timestamp.fromMillis(Date.UTC(2026, 6, 24, 18, 0, 0))});
+    seedSpendableLot(fake, 2000);
+    const {holdId} = await holdCashback(db, {
+      uid: "uid1", maxCents: 1000, sourceType: "club", sourceId: "club_c1_2026-07-24",
+      trackingPath: PARTICIPANT_PATH, label: "Clubinho", nowMs: NOW_MS,
+    });
+    await attachHoldPayment(db, "uid1", holdId!, "pay1");
+    seedParticipant(fake, {cashbackAppliedCents: 1000, cashbackHoldId: holdId});
+    const payment = {...paidPayment, value: 5};
+
+    await processArenaClubSessionAsaasNotification(db, "pay1", payment, processedRefOf(db), makeDeps().deps);
+    assert.equal(fake.store.get(`athleteWallets/uid1/holds/${holdId}`)!.status, "captured");
+    fake.store.delete(PROCESSED_PATH);
+
+    await processArenaClubSessionAsaasNotification(db, "pay1", payment, processedRefOf(db), makeDeps().deps);
+
+    assert.equal(fake.store.get(PROCESSED_PATH)!.outcome, "already_confirmed");
+    assert.equal(fake.store.get(`athleteWallets/uid1/holds/${holdId}`)!.status, "captured");
+    assert.equal(fake.store.get("athleteWallets/uid1/lots/old")!.remainingCents, 1000);
+    assert.equal(refundEntries(fake).length, 0);
+  });
+
   it("pagamento em dobro (participante já confirmado): devolve a reserva capturada desta cobrança", async () => {
     const {fake, db} = makeDb();
     seedSession(fake);

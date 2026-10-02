@@ -1,0 +1,132 @@
+@use 'organizer' as o;
+
+:host {
+  display: block;
+  min-width: 0;
+  // Na coluna lateral (~300px) nota e barras lado a lado zeravam a largura das barras.
+  container-type: inline-size;
+}
+
+.rc {
+  @include o.card;
+  padding: var(--nx-s-5);
+}
+
+.rc-head {
+  @include o.section-head;
+  margin-bottom: var(--nx-s-4);
+}
+
+.rc-kicker {
+  @include o.kicker;
+}
+
+.rc-title {
+  @include o.title;
+  margin-top: 4px;
+}
+
+.rc-link {
+  @include o.text-link;
+}
+
+.rc-body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--nx-s-5);
+
+  // Card estreito: nota em cima (em linha), barras embaixo na largura toda.
+  @container (max-width: 400px) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--nx-s-4);
+
+    .rc-score {
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      column-gap: var(--nx-s-3);
+    }
+  }
+}
+
+.rc-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+
+  strong {
+    font-family: var(--nx-font-display);
+    font-weight: 800;
+    font-size: 44px;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--nx-text);
+  }
+}
+
+.rc-stars {
+  display: inline-flex;
+  gap: 2px;
+  color: var(--nx-surface-2);
+}
+
+.rc-star--on {
+  color: var(--nx-pending);
+}
+
+.rc-count {
+  @include o.kicker;
+  font-size: 9.5px;
+}
+
+.rc-aspects {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: 88px minmax(48px, 1fr) 28px;
+    align-items: center;
+    gap: var(--nx-s-3);
+  }
+}
+
+.rc-aspect-label {
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  color: var(--nx-text-mute);
+}
+
+.rc-bar {
+  @include o.bar(var(--nx-pending));
+}
+
+.rc-aspect-value {
+  font-family: var(--nx-font-mono);
+  font-size: 11.5px;
+  color: var(--nx-text);
+  text-align: right;
+}
+
+.rc-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--nx-text-mute);
+
+  strong {
+    font-family: var(--nx-font-display);
+    font-size: 14px;
+    color: var(--nx-text);
+  }
+}

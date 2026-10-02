@@ -3,7 +3,6 @@ import { httpsCallable, type Functions } from 'firebase/functions';
 import {
   inviteFromData,
   myReviewFromData,
-  organizerNameFromData,
   organizerReputationFromData,
   publicSummaryFromData,
   type MyTournamentReview,
@@ -132,14 +131,4 @@ export function watchOrganizerReputation(
     (snap) => onChange(snap.exists() ? organizerReputationFromData(snap.data()) : null),
     () => onError?.(),
   );
-}
-
-/** Nome do organizador em `public_profiles` (leitura pública). Falha vira `null`: sem linha. */
-export async function fetchOrganizerName(db: Firestore, organizerId: string): Promise<string | null> {
-  try {
-    const snap = await getDoc(doc(db, 'public_profiles', organizerId));
-    return snap.exists() ? organizerNameFromData(snap.data()) : null;
-  } catch {
-    return null;
-  }
 }

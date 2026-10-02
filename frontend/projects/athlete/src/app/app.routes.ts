@@ -210,6 +210,13 @@ export const routes: Routes = [
       import('./competir/competir-hub.component').then((m) => m.CompetirHubComponent),
   },
   {
+    // Lista e perfil público de organizadores. Um pai só, com as filhas num arquivo lazy: a carga
+    // inicial (no limite de 1 MB) ganha uma entrada de rota em vez de duas.
+    path: 'organizadores',
+    canActivate: [authGuard, onboardingGuard],
+    loadChildren: () => import('./organizadores/organizer.routes').then((m) => m.ORGANIZER_ROUTES),
+  },
+  {
     // Operação do mesário (e do gestor) — os torneios em que ELE é equipe, não em que joga.
     // O `staffGuard` só evita tela vazia por link solto; quem autoriza a escrita são as rules
     // (`canScoreTournament`) e o `assertCanScoreTournament` dos callables.

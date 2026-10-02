@@ -1,0 +1,168 @@
+@use 'organizer' as o;
+
+:host {
+  display: block;
+}
+
+.op {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-4);
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 18px 24px 48px;
+  min-width: 0;
+
+  @media (max-width: 640px) {
+    padding: 16px 16px 32px;
+  }
+}
+
+// Breadcrumb no padrão do painel do organizador: mono, caixa alta, separador ›.
+.op-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+
+  a {
+    flex: none;
+    color: var(--nx-text-dim);
+    text-decoration: none;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--nx-text);
+    }
+  }
+}
+
+.op-crumb-sep {
+  flex: none;
+  color: var(--nx-text-dim);
+}
+
+.op-crumb-current {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--nx-text);
+}
+
+.op-tabs {
+  display: flex;
+  gap: var(--nx-s-1);
+  margin-top: var(--nx-s-2);
+  border-bottom: 1px solid var(--nx-line);
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (max-width: 640px) {
+    justify-content: space-between;
+    gap: var(--nx-s-3);
+  }
+}
+
+.op-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 var(--nx-s-3);
+  margin-bottom: -1px;
+  scroll-snap-align: start;
+  border-bottom: 2px solid transparent;
+  color: var(--nx-text-mute);
+  font-family: var(--nx-font-display);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color var(--nx-d-fast) var(--nx-ease-out),
+    border-color var(--nx-d-fast) var(--nx-ease-out);
+
+  &:first-child {
+    padding-left: 0;
+  }
+
+  &:hover,
+  &:focus-visible {
+    color: var(--nx-text);
+  }
+
+  // As quatro abas cabem em 375px sem rolar: a aba ativa nunca fica escondida à direita.
+  @media (max-width: 640px) {
+    padding: 0;
+    font-size: 13px;
+  }
+}
+
+.op-tab--active {
+  color: var(--nx-text);
+  font-weight: 700;
+  border-bottom-color: var(--nx-orange-500);
+}
+
+.op-tab-count {
+  font-family: var(--nx-font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--nx-text-dim);
+}
+
+.op-content {
+  margin-top: var(--nx-s-2);
+  min-width: 0;
+}
+
+.op-state {
+  @include o.empty;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--nx-s-2);
+  margin-top: var(--nx-s-6);
+  padding: var(--nx-s-8) var(--nx-s-5);
+}
+
+.op-state-title {
+  margin: 0;
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--nx-text);
+}
+
+.op-state-text {
+  margin: 0;
+  max-width: 440px;
+}
+
+.op-state-detail {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  color: var(--nx-text-dim);
+  overflow-wrap: anywhere;
+}
+
+.op-state-btn {
+  @include o.button-base;
+  @include o.button-primary;
+  margin-top: var(--nx-s-3);
+}

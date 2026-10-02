@@ -1,8 +1,9 @@
 import { Injectable } from '@angular/core';
 import type { Unsubscribe } from 'firebase/firestore';
 import { athleteFirestore } from './firestore';
+import type { OrganizerNameLookup } from './organizer-name-lookup';
 import type { OrganizerReputation, PublicReviewSummary } from './tournament-reviews';
-import { fetchOrganizerName, watchOrganizerReputation, watchPublicReviewSummary } from './tournament-reviews-repository';
+import { watchOrganizerReputation, watchPublicReviewSummary } from './tournament-reviews-repository';
 
 /** Leituras públicas da avaliação: resumo do torneio, reputação e nome do organizador. Existe só
  *  para o `TournamentLiveStore` ser testável sem Firestore de verdade (mesmo papel do
@@ -21,8 +22,10 @@ export class PublicTournamentReviewsSource {
     return watchOrganizerReputation(db, organizerId, onChange, () => onChange(null));
   }
 
-  fetchOrganizerName(organizerId: string): Promise<string | null> {
+  /** Sob demanda: a leitura do nome não precisa pesar na carga inicial do portal. */
+  fetchOrganizerName(organizerId: string): Promise<OrganizerNameLookup | null> {
     const db = athleteFirestore();
-    return db ? fetchOrganizerName(db, organizerId) : Promise.resolve(null);
+    if (!db) return Promise.resolve(null);
+    return import('./organizer-name-lookup').then((m) => m.lookupOrganizerName(db, organizerId)).catch(() => null);
   }
 }

@@ -22,7 +22,7 @@ import { NxBannerComponent } from '../shared/feedback';
 import { AtInviteAnnouncerComponent } from '../shared/partner-invite/at-invite-announcer.component';
 
 /** Rotas que o hub Competir agrupa — mantêm o item "Competir" aceso na bottom-nav mobile. */
-const COMPETIR_PREFIXES = ['/competir', '/torneios', '/ligas', '/ranking', '/equipes', '/atletas'];
+const COMPETIR_PREFIXES = ['/competir', '/torneios', '/ligas', '/ranking', '/equipes', '/atletas', '/organizadores'];
 
 /** Wizard de inscrição: bottom-nav atrapalha o fluxo focado (CTA do passo + voltar). */
 function isRegistrationFlowUrl(url: string): boolean {

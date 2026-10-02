@@ -9,6 +9,7 @@ import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.compon
 import { NxToastService } from '../shared/feedback';
 import { fetchPublicProfilesByIds, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { fetchLeague, fetchLeagueTeamRanking, type League, type LeagueRankingRow as RepoRankingRow } from '../data/leagues-repository';
+import { fetchOrganizerBrandName } from '../data/organizer-name-lookup';
 import { fetchTeamsByIds, fetchTeamsForAthlete, type ArenaTeam } from '../data/teams-repository';
 import { fetchTournamentSummariesByIds, tournamentListingStatus, type TournamentSummary } from '../data/tournaments-repository';
 import type { LeagueDetailData, LeagueRankingRow, LeagueStage, LeagueStageStatus } from './league-detail.models';
@@ -113,7 +114,12 @@ export class LeagueDetailShellComponent {
 
       const sortedStages = [...league.stages].sort((a, b) => a.order - b.order);
       const stageTournamentIds = sortedStages.map((s) => s.tournamentIds[0]).filter((tid): tid is string => !!tid);
-      const tournaments = await fetchTournamentSummariesByIds(db, stageTournamentIds);
+      // Marca do organizador (`organizerPublicProfiles`, só com `isOrganizer`): com ela o card
+      // ganha o nome público e o link do perfil; sem ela fica o nome gravado na liga, sem link.
+      const [tournaments, organizerBrand] = await Promise.all([
+        fetchTournamentSummariesByIds(db, stageTournamentIds),
+        league.managerId ? fetchOrganizerBrandName(db, league.managerId) : Promise.resolve(null),
+      ]);
 
       const now = new Date();
       let sawNext = false;
@@ -193,8 +199,9 @@ export class LeagueDetailShellComponent {
         categoriesLabel: league.categories.length > 0 ? league.categories.map((c) => c.categoryName).join(', ') : null,
         rankingCalcLabel: countingModeLabel(league.countingStagesMode),
         priceLabel: cheapestFee.length > 0 ? `a partir de ${formatBRL(Math.min(...cheapestFee))}` : null,
-        organizerName: league.organizationName ?? 'Organizador da liga',
-        organizerInitials: (league.organizationName ?? 'OL').slice(0, 2).toUpperCase(),
+        organizerName: organizerBrand ?? league.organizationName ?? 'Organizador da liga',
+        organizerInitials: (organizerBrand ?? league.organizationName ?? 'OL').slice(0, 2).toUpperCase(),
+        organizerId: organizerBrand ? league.managerId : null,
       });
     } finally {
       this.loading.set(false);

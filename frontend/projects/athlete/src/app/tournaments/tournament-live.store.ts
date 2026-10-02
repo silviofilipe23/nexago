@@ -10,6 +10,7 @@ import { fetchTournamentAnnouncements, type TournamentAnnouncement } from '../da
 import { watchMyRegistrations, type AthleteTournamentRegistration } from '../data/tournament-registrations-repository';
 import { fetchCategoryEnrolledCounts, fetchTournament, type TournamentCategoryOffer, type TournamentSummary } from '../data/tournaments-repository';
 import { fetchMyTournamentReview, watchTournamentReviewInvite } from '../data/tournament-reviews-repository';
+import type { OrganizerNameLookup } from '../data/organizer-name-lookup';
 import { PublicTournamentReviewsSource } from '../data/public-tournament-reviews.source';
 import {
   shouldLoadMyReview,
@@ -89,8 +90,9 @@ export class TournamentLiveStore {
   readonly reviewSummary = signal<PublicReviewSummary | null>(null);
   /** Reputação pública do organizador do torneio, ao vivo. */
   readonly organizerReputation = signal<OrganizerReputation | null>(null);
-  /** Nome do organizador (`public_profiles/{managerId}`) — `null` esconde a linha. */
-  readonly organizerName = signal<string | null>(null);
+  /** Nome do organizador (`organizerPublicProfiles`, senão `public_profiles`) e se ele tem página
+   *  pública — `null` esconde a linha. */
+  readonly organizer = signal<OrganizerNameLookup | null>(null);
   /** Computed para o efeito do organizador não reabrir a cada `tournament.set` do mesmo dono. */
   private readonly managerId = computed(() => this.tournament()?.managerId ?? null);
 
@@ -279,12 +281,12 @@ export class TournamentLiveStore {
     effect((onCleanup) => {
       const organizerId = this.managerId();
       this.organizerReputation.set(null);
-      this.organizerName.set(null);
+      this.organizer.set(null);
       if (!organizerId) return;
       let active = true;
       const stop = this.publicReviews.watchReputation(organizerId, (reputation) => this.organizerReputation.set(reputation));
-      void this.publicReviews.fetchOrganizerName(organizerId).then((name) => {
-        if (active) this.organizerName.set(name);
+      void this.publicReviews.fetchOrganizerName(organizerId).then((organizer) => {
+        if (active) this.organizer.set(organizer);
       });
       onCleanup(() => {
         active = false;

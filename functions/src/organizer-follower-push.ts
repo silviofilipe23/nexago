@@ -1,4 +1,4 @@
-import {getFirestore, Timestamp, type Firestore} from "firebase-admin/firestore";
+import {getFirestore, Timestamp, type DocumentReference, type Firestore} from "firebase-admin/firestore";
 import {onDocumentWritten} from "firebase-functions/v2/firestore";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
@@ -52,6 +52,18 @@ export function organizerFollowerPushDecision(
   return {action: "send"};
 }
 
+/**
+ * Id da trava. Publicar uma liga cria todas as etapas abertas no mesmo batch: com uma trava por
+ * torneio, cada seguidor levaria N pushes no mesmo segundo. Etapas da mesma liga no mesmo dia
+ * dividem uma trava; uma etapa acrescentada em outro dia avisa de novo.
+ */
+export function followerPushLockId(tournamentId: string, tournament: DocData, nowMs: number): string {
+  const leagueId = str(tournament.leagueId);
+  if (!leagueId) return tournamentId;
+  const day = new Date(nowMs).toLocaleDateString("en-CA", {timeZone: EVENT_TIME_ZONE});
+  return `league_${leagueId}_${day}`;
+}
+
 function eventDay(value: unknown): string {
   if (!(value instanceof Timestamp)) return "";
   return value.toDate().toLocaleDateString("pt-BR", {timeZone: EVENT_TIME_ZONE, day: "2-digit", month: "2-digit"});
@@ -70,6 +82,8 @@ export function organizerFollowerPushContent(
     title: `${organizerName} abriu inscrições`,
     body,
     type: ORGANIZER_FOLLOWER_PUSH_TYPE,
+    // Aviso informativo: não fica preso na tela do navegador (como os outros avisos em massa).
+    requireInteraction: false,
     // `/torneios/{id}` existe no app e no portal; build antigo do app abre `url` que começa com `/`.
     data: {url: path, webUrl: path, tournamentId, organizerId: str(tournament.managerId)},
   };
@@ -110,6 +124,28 @@ function isAlreadyExists(error: unknown): boolean {
   return code === 6 || code === "already-exists" || /already exists/i.test(String((error as Error)?.message));
 }
 
+function registrationOpensAtChanged(before: DocData | null, after: DocData | null): boolean {
+  return opensAtMs(before ?? {}) !== opensAtMs(after ?? {});
+}
+
+/**
+ * Trava ainda agendada acompanha a data de abertura: adiantar (ou limpar) `registrationOpensAt`
+ * puxa o envio para a próxima varredura; adiar empurra. Trava já enviada ou pulada não muda.
+ */
+async function rescheduleFollowerPush(db: Firestore, lockId: string, tournament: DocData, nowMs: number): Promise<void> {
+  const lockRef = db.collection(ORGANIZER_FOLLOWER_PUSHES_COLLECTION).doc(lockId);
+  const opensAt = opensAtMs(tournament);
+  const sendAtMs = opensAt != null && opensAt > nowMs ? opensAt : nowMs;
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(lockRef);
+    const lock = snap.exists ? snap.data() as DocData : null;
+    if (lock?.status !== "scheduled") return;
+    const current = lock.sendAt instanceof Timestamp ? lock.sendAt.toMillis() : null;
+    if (current === sendAtMs) return;
+    tx.update(lockRef, {sendAt: Timestamp.fromMillis(sendAtMs)});
+  });
+}
+
 /**
  * A trava (`create`) garante um aviso por evento, mesmo com o gatilho reentregue ou o evento
  * reaberto. Criada já como `sending`: se a function cair no meio, preferimos perder um aviso a
@@ -123,21 +159,62 @@ export async function handleTournamentOpenedForFollowers(
   nowMs: number,
   notify: Notify,
 ): Promise<void> {
+  if (!after) return;
+  const lockId = followerPushLockId(tournamentId, after, nowMs);
   const decision = organizerFollowerPushDecision(before, after, nowMs);
-  if (decision.action === "none" || !after) return;
-  const lockRef = db.collection(ORGANIZER_FOLLOWER_PUSHES_COLLECTION).doc(tournamentId);
-  const base = {organizerId: str(after.managerId), createdAt: Timestamp.fromMillis(nowMs)};
+  if (decision.action === "none") {
+    if (isOpenListedTournament(before) && isOpenListedTournament(after) && registrationOpensAtChanged(before, after)) {
+      await rescheduleFollowerPush(db, lockId, after, nowMs);
+    }
+    return;
+  }
+  const lockRef = db.collection(ORGANIZER_FOLLOWER_PUSHES_COLLECTION).doc(lockId);
+  const base = {organizerId: str(after.managerId), tournamentId, createdAt: Timestamp.fromMillis(nowMs)};
   try {
     await lockRef.create(decision.action === "schedule" ?
       {...base, status: "scheduled", sendAt: Timestamp.fromMillis(decision.sendAtMs)} :
       {...base, status: "sending", sendAt: Timestamp.fromMillis(nowMs)});
   } catch (error) {
-    if (isAlreadyExists(error)) return;
-    throw error;
+    if (!isAlreadyExists(error)) throw error;
+    // Despublicado e republicado com outra data: a trava agendada segue a data nova.
+    await rescheduleFollowerPush(db, lockId, after, nowMs);
+    return;
   }
   if (decision.action === "schedule") return;
   const recipients = await notifyOrganizerFollowers(db, tournamentId, after, notify);
   await lockRef.update({status: "sent", sentAt: Timestamp.fromMillis(nowMs), recipients});
+}
+
+/** Uma trava vencida. `true` = enviou. */
+async function sendDueLock(
+  db: Firestore,
+  lock: {id: string; ref: DocumentReference; data: () => unknown},
+  nowMs: number,
+  notify: Notify,
+): Promise<boolean> {
+  const claimed = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(lock.ref);
+    if ((snap.data() as DocData | undefined)?.status !== "scheduled") return false;
+    tx.update(lock.ref, {status: "sending"});
+    return true;
+  });
+  if (!claimed) return false;
+
+  const tournamentId = str((lock.data() as DocData | undefined)?.tournamentId) || lock.id;
+  const tournamentSnap = await db.collection("tournaments").doc(tournamentId).get();
+  const tournament = tournamentSnap.exists ? tournamentSnap.data() as DocData : null;
+  if (!tournament || !isOpenListedTournament(tournament)) {
+    await lock.ref.update({status: "skipped", skippedReason: tournament ? "not_open" : "deleted"});
+    return false;
+  }
+  const opensAt = opensAtMs(tournament);
+  if (opensAt != null && opensAt > nowMs) {
+    await lock.ref.update({status: "scheduled", sendAt: Timestamp.fromMillis(opensAt)});
+    return false;
+  }
+  const recipients = await notifyOrganizerFollowers(db, tournamentId, tournament, notify);
+  await lock.ref.update({status: "sent", sentAt: Timestamp.fromMillis(nowMs), recipients});
+  return true;
 }
 
 export async function sendDueOrganizerFollowerPushes(db: Firestore, nowMs: number, notify: Notify): Promise<number> {
@@ -148,28 +225,12 @@ export async function sendDueOrganizerFollowerPushes(db: Firestore, nowMs: numbe
     .get();
   let sent = 0;
   for (const lock of due.docs) {
-    const claimed = await db.runTransaction(async (tx) => {
-      const snap = await tx.get(lock.ref);
-      if ((snap.data() as DocData | undefined)?.status !== "scheduled") return false;
-      tx.update(lock.ref, {status: "sending"});
-      return true;
-    });
-    if (!claimed) continue;
-
-    const tournamentSnap = await db.collection("tournaments").doc(lock.id).get();
-    const tournament = tournamentSnap.exists ? tournamentSnap.data() as DocData : null;
-    if (!tournament || !isOpenListedTournament(tournament)) {
-      await lock.ref.update({status: "skipped", skippedReason: tournament ? "not_open" : "deleted"});
-      continue;
+    // Uma trava com problema não segura as outras até a próxima varredura.
+    try {
+      if (await sendDueLock(db, lock, nowMs, notify)) sent += 1;
+    } catch (error) {
+      logger.error("sendScheduledOrganizerFollowerPushes: trava falhou", {lockId: lock.id, error});
     }
-    const opensAt = opensAtMs(tournament);
-    if (opensAt != null && opensAt > nowMs) {
-      await lock.ref.update({status: "scheduled", sendAt: Timestamp.fromMillis(opensAt)});
-      continue;
-    }
-    const recipients = await notifyOrganizerFollowers(db, lock.id, tournament, notify);
-    await lock.ref.update({status: "sent", sentAt: Timestamp.fromMillis(nowMs), recipients});
-    sent += 1;
   }
   return sent;
 }
@@ -181,6 +242,8 @@ function dataOf(snap: {exists: boolean; data: () => unknown} | undefined): DocDa
 export const onTournamentWrittenNotifyOrganizerFollowers = onDocumentWritten(
   {
     document: "tournaments/{tournamentId}",
+    // Fan-out para milhares de seguidores passa do teto padrão de 60 s.
+    timeoutSeconds: 540,
     secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
   },
   async (event) => {
@@ -199,6 +262,7 @@ export const sendScheduledOrganizerFollowerPushes = onSchedule(
   {
     schedule: "every 5 minutes",
     timeZone: EVENT_TIME_ZONE,
+    timeoutSeconds: 540,
     secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
   },
   async () => {

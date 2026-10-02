@@ -102,12 +102,20 @@ followedAt: Timestamp // serverTimestamp
 ```
 
 Regras: ler, qualquer logado. Criar, só o próprio atleta, sem seguir a si mesmo, com exatamente
-essas três chaves e `followedAt == request.time`. Apagar, só o próprio atleta. Sem update.
+essas três chaves e `followedAt == request.time`, e só se o doc pai tem `isOrganizer == true`.
+Apagar, só o próprio atleta. Sem update.
 
-### `organizerFollowerPushes/{tournamentId}` (privado)
+Um doc pode existir **sem identidade**: o recálculo dos números cria `{uid, stats, listed: false}`
+para qualquer `managerId`. Os clientes só exibem o perfil quando `isOrganizer === true`.
+
+### `organizerFollowerPushes/{lockId}` (privado)
+
+`lockId` = `tournamentId`; etapa de liga usa `league_{leagueId}_{AAAA-MM-DD}` (dia em São Paulo),
+porque publicar uma liga cria todas as etapas abertas no mesmo batch.
 
 ```
 organizerId: string
+tournamentId: string
 status: 'scheduled' | 'sending' | 'sent' | 'skipped'   // 'sending' = reivindicada; at-most-once
 sendAt: Timestamp
 createdAt: Timestamp
@@ -132,13 +140,17 @@ mapa com `setDoc(..., {merge: true})`, então os campos novos sobrevivem ao save
 Todos os gatilhos herdam a região de `global-options.ts` (São Paulo).
 
 1. **`onUserWrittenSyncOrganizerPublicProfile`** (`users/{uid}`)
-   - Projeta a identidade com uma função pura `buildOrganizerIdentity(userData)`.
+   - Projeta a identidade com uma função pura `buildOrganizerIdentity(userData)`: nome até 60,
+     imagens só `https://`, WhatsApp normalizado para 55 + DDD + número.
    - Sai cedo se a projeção de `before` for igual à de `after`. `users` é gravado o tempo todo.
+   - O que grava vem de `users/{uid}` e `organizers/{uid}` lidos na transação, não do `after`:
+     gatilhos não chegam em ordem.
    - Usuário que nunca foi organizador e não tem doc público: não cria nada.
    - Perdeu o papel: `isOrganizer: false`, `listed: false`. Identidade e números ficam.
    - Usuário apagado: apaga o doc público. Os seguidores ficam órfãos, sem problema: nada os
      lê sem o doc.
-2. **`onOrganizerRecordWrittenSyncVerified`** (`organizers/{uid}`): `verified = after.exists`.
+2. **`onOrganizerRecordWrittenSyncVerified`** (`organizers/{uid}`): `verified` = o doc existe,
+   lido na transação.
 3. **`onTournamentWrittenOrganizerStats`** (`tournaments/{id}`)
    - Só age se mudou algum campo relevante: `managerId`, `listingStatus`, `visibility`, `sport`,
      `startAt`, `locationName`, `arenaId`, `city`, ou se o doc foi criado ou apagado. Placar e
@@ -149,12 +161,15 @@ Todos os gatilhos herdam a região de `global-options.ts` (São Paulo).
      Nos outros casos, o valor anterior é preservado.
    - Grava `stats` inteiro com `update` (substitui o mapa), mais `listed`.
 4. **`onOrganizerFollowerWritten`** (`organizerPublicProfiles/{uid}/followers/{f}`): criação
-   soma 1, remoção subtrai 1 de `followersCount`.
+   soma 1, remoção subtrai 1 de `followersCount`. Só em doc existente: não ressuscita perfil
+   apagado.
 5. **`onTournamentWrittenNotifyOrganizerFollowers`** (`tournaments/{id}`)
    - Dispara na transição para "inscrição aberta e listado". Antes não era `open && listado`;
      depois é.
    - Cria a trava com `create()`. Se ela já existe, para: um evento só avisa uma vez, mesmo que
-     reabra.
+     reabra. Se a trava existente ainda está `scheduled`, ela segue a data nova.
+   - Evento já aberto que muda `registrationOpensAt`: trava `scheduled` vai para a nova data, ou
+     para agora se a data foi adiantada ou limpa.
    - `registrationOpensAt` no futuro: trava com `status: 'scheduled'` e `sendAt`. Senão, cria com
      `status: 'sending'`, envia na hora e grava `status: 'sent'`. Se a function cair no meio, o
      reenvio do gatilho encontra a trava e não repete: preferimos perder um aviso a duplicar.
@@ -173,7 +188,9 @@ Todos os gatilhos herdam a região de `global-options.ts` (São Paulo).
      rota existe no app e no portal, e builds antigos do app abrem `url` que começa com `/`.
 8. **Backfill**: `functions/scripts/backfill-organizer-public-profiles.js`. Simula por padrão;
    grava com `--yes`; `--project` obrigatório. Para cada usuário com papel de organizador, roda
-   identidade, verificado, `stats` (com atletas) e conta os seguidores.
+   identidade, verificado, `stats` (com atletas) e conta os seguidores. Semeia trava `skipped`
+   para eventos listados já abertos ou fechados, para um fechado→aberto depois do deploy não
+   avisar no meio de um evento antigo. Falha de um organizador não interrompe os outros.
 
 ## Edição pelo organizador
 

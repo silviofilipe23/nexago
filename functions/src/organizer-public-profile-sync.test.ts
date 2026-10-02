@@ -1,8 +1,9 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import {Timestamp, type Firestore} from "firebase-admin/firestore";
+import {FieldValue, Timestamp, type Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {
+  applyOrganizerFollowerDelta,
   countOrganizerAthletes,
   recomputeOrganizerStats,
   syncOrganizerIdentity,
@@ -26,6 +27,7 @@ const organizerUser = {
 describe("syncOrganizerIdentity", () => {
   it("cria o doc do organizador com selo lido de organizers/{uid}", async () => {
     const fake = new FakeFirestore();
+    fake.seedDoc("users/org-1", organizerUser);
     fake.seedDoc("organizers/org-1", {document: "x"});
     await syncOrganizerIdentity(asDb(fake), "org-1", null, organizerUser, NOW);
     const doc = fake.store.get(PROFILE);
@@ -36,20 +38,34 @@ describe("syncOrganizerIdentity", () => {
     assert.equal(doc?.uid, "org-1");
   });
 
+  it("projeta o users/{uid} atual, não o after do evento (gatilho fora de ordem)", async () => {
+    const fake = new FakeFirestore();
+    const withWhatsapp = {...organizerUser, organizerProfile: {...organizerUser.organizerProfile, contactPhone: "62999991234", publicWhatsapp: true}};
+    const withoutWhatsapp = {...withWhatsapp, organizerProfile: {...withWhatsapp.organizerProfile, publicWhatsapp: false}};
+    fake.seedDoc("users/org-1", withoutWhatsapp);
+    fake.seedDoc(PROFILE, {uid: "org-1", isOrganizer: true, whatsapp: null});
+    // Evento atrasado do "liga" chega depois do "desliga" já aplicado.
+    await syncOrganizerIdentity(asDb(fake), "org-1", organizerUser, withWhatsapp, NOW);
+    assert.equal(fake.store.get(PROFILE)?.whatsapp, null);
+  });
+
   it("não cria doc para quem nunca foi organizador", async () => {
     const fake = new FakeFirestore();
-    await syncOrganizerIdentity(asDb(fake), "u-1", null, {roles: ["athlete"], fullName: "Atleta"}, NOW);
+    const athlete = {roles: ["athlete"], fullName: "Atleta"};
+    fake.seedDoc("users/u-1", athlete);
+    await syncOrganizerIdentity(asDb(fake), "u-1", null, athlete, NOW);
     assert.equal(fake.store.has("organizerPublicProfiles/u-1"), false);
   });
 
-  it("atleta com doc criado só pelo contador de seguidores não ganha identidade", async () => {
+  it("atleta com doc criado só pelos números não ganha identidade", async () => {
     const fake = new FakeFirestore();
-    fake.seedDoc("organizerPublicProfiles/u-1", {followersCount: 1});
+    fake.seedDoc("users/u-1", {roles: ["athlete"], fullName: "Atleta"});
+    fake.seedDoc("organizerPublicProfiles/u-1", {uid: "u-1", stats: {listedEvents: 0}});
     await syncOrganizerIdentity(asDb(fake), "u-1", {roles: ["athlete"], fullName: "Antes"}, {roles: ["athlete"], fullName: "Atleta"}, NOW);
-    assert.deepEqual(fake.store.get("organizerPublicProfiles/u-1"), {followersCount: 1});
+    assert.deepEqual(fake.store.get("organizerPublicProfiles/u-1"), {uid: "u-1", stats: {listedEvents: 0}});
   });
 
-  it("escrita que não muda a identidade não grava nada", async () => {
+  it("escrita que não muda a identidade não lê nem grava nada", async () => {
     const fake = new FakeFirestore();
     fake.seedDoc(PROFILE, {uid: "org-1", name: "Antigo"});
     await syncOrganizerIdentity(asDb(fake), "org-1", {...organizerUser, lastActiveAt: 1}, {...organizerUser, lastActiveAt: 2}, NOW);
@@ -58,6 +74,8 @@ describe("syncOrganizerIdentity", () => {
 
   it("perder o papel tira da lista e preserva números", async () => {
     const fake = new FakeFirestore();
+    fake.seedDoc("users/org-1", {...organizerUser, roles: ["athlete"]});
+    fake.seedDoc("organizers/org-1", {document: "x"});
     fake.seedDoc(PROFILE, {uid: "org-1", name: "Liga A", isOrganizer: true, listed: true, verified: true, stats: {listedEvents: 2}});
     await syncOrganizerIdentity(asDb(fake), "org-1", organizerUser, {...organizerUser, roles: ["athlete"]}, NOW);
     const doc = fake.store.get(PROFILE);
@@ -69,6 +87,7 @@ describe("syncOrganizerIdentity", () => {
 
   it("listed fica true quando já há eventos listados", async () => {
     const fake = new FakeFirestore();
+    fake.seedDoc("users/org-1", organizerUser);
     fake.seedDoc(PROFILE, {uid: "org-1", stats: {listedEvents: 1}});
     await syncOrganizerIdentity(asDb(fake), "org-1", null, organizerUser, NOW);
     assert.equal(fake.store.get(PROFILE)?.listed, true);
@@ -76,18 +95,11 @@ describe("syncOrganizerIdentity", () => {
 
   it("doc criado antes pelos números ainda ganha o selo de organizers/{uid}", async () => {
     const fake = new FakeFirestore();
+    fake.seedDoc("users/org-1", organizerUser);
     fake.seedDoc("organizers/org-1", {document: "x"});
     await recomputeOrganizerStats(asDb(fake), "org-1", {recountAthletes: false, nowMs: NOW, projectId: PROJECT});
     await syncOrganizerIdentity(asDb(fake), "org-1", null, organizerUser, NOW);
     assert.equal(fake.store.get(PROFILE)?.verified, true);
-  });
-
-  it("selo já gravado não é relido de organizers/{uid}", async () => {
-    const fake = new FakeFirestore();
-    fake.seedDoc("organizers/org-1", {document: "x"});
-    fake.seedDoc(PROFILE, {uid: "org-1", verified: false});
-    await syncOrganizerIdentity(asDb(fake), "org-1", null, organizerUser, NOW);
-    assert.equal(fake.store.get(PROFILE)?.verified, false);
   });
 
   it("usuário apagado apaga o doc público", async () => {
@@ -99,13 +111,34 @@ describe("syncOrganizerIdentity", () => {
 });
 
 describe("syncOrganizerVerified", () => {
-  it("atualiza só doc existente", async () => {
+  it("lê organizers/{uid} agora e só atualiza doc existente", async () => {
     const fake = new FakeFirestore();
-    await syncOrganizerVerified(asDb(fake), "org-1", true);
+    fake.seedDoc("organizers/org-1", {document: "x"});
+    await syncOrganizerVerified(asDb(fake), "org-1");
     assert.equal(fake.store.has(PROFILE), false);
     fake.seedDoc(PROFILE, {uid: "org-1", verified: false});
-    await syncOrganizerVerified(asDb(fake), "org-1", true);
+    await syncOrganizerVerified(asDb(fake), "org-1");
     assert.equal(fake.store.get(PROFILE)?.verified, true);
+    fake.store.delete("organizers/org-1");
+    await syncOrganizerVerified(asDb(fake), "org-1");
+    assert.equal(fake.store.get(PROFILE)?.verified, false);
+  });
+});
+
+describe("applyOrganizerFollowerDelta", () => {
+  it("não ressuscita doc apagado", async () => {
+    const fake = new FakeFirestore();
+    await applyOrganizerFollowerDelta(asDb(fake), "org-1", -1);
+    assert.equal(fake.store.has(PROFILE), false);
+  });
+
+  it("incrementa doc existente", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(PROFILE, {uid: "org-1", name: "Liga A"});
+    await applyOrganizerFollowerDelta(asDb(fake), "org-1", 1);
+    const doc = fake.store.get(PROFILE);
+    assert.equal(doc?.name, "Liga A");
+    assert.ok(doc?.followersCount instanceof FieldValue);
   });
 });
 

@@ -28,7 +28,9 @@ before(async () => {
   await testEnv.clearFirestore();
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    await setDoc(doc(db, 'organizerPublicProfiles', ORG), { uid: ORG, name: 'Liga A', listed: true });
+    await setDoc(doc(db, 'organizerPublicProfiles', ORG), { uid: ORG, name: 'Liga A', listed: true, isOrganizer: true });
+    // Doc criado só pelos números (sem identidade): não é organizador seguível.
+    await setDoc(doc(db, 'organizerPublicProfiles', 'stats-only'), { uid: 'stats-only', stats: { listedEvents: 0 } });
     await setDoc(followerRef(db, ORG, OTHER), { userId: OTHER, organizerId: ORG, followedAt: Timestamp.now() });
     await setDoc(doc(db, 'organizerFollowerPushes', 't1'), { status: 'sent' });
   });
@@ -58,13 +60,21 @@ test('seguir: o próprio atleta, com as três chaves e serverTimestamp', async (
   await assertSucceeds(setDoc(followerRef(db, ORG, ATHLETE), { userId: ATHLETE, organizerId: ORG, followedAt: serverTimestamp() }));
 });
 
-test('seguir: negado em nome de outro, com chave extra, data forjada ou a si mesmo', async () => {
-  const db = as(ATHLETE);
-  await assertFails(setDoc(followerRef(db, ORG, 'someone-else'), { userId: 'someone-else', organizerId: ORG, followedAt: serverTimestamp() }));
-  await assertFails(setDoc(followerRef(db, ORG, ATHLETE), { userId: ATHLETE, organizerId: ORG, followedAt: serverTimestamp(), extra: 1 }));
-  await assertFails(setDoc(followerRef(db, ORG, ATHLETE), { userId: ATHLETE, organizerId: ORG, followedAt: Timestamp.fromMillis(0) }));
-  await assertFails(setDoc(followerRef(db, ORG, ATHLETE), { userId: ATHLETE, organizerId: 'other-org', followedAt: serverTimestamp() }));
+// Cada caso negativo usa um uid que ainda não segue ninguém: num doc já existente o `setDoc`
+// vira update e seria negado por outro motivo, passando mesmo com a rule de create frouxa.
+test('seguir: negado em nome de outro, com chave extra, data forjada, organizerId errado ou a si mesmo', async () => {
+  await assertFails(setDoc(followerRef(as('neg-0'), ORG, 'someone-else'), { userId: 'someone-else', organizerId: ORG, followedAt: serverTimestamp() }));
+  await assertFails(setDoc(followerRef(as('neg-1'), ORG, 'neg-1'), { userId: 'neg-1', organizerId: ORG, followedAt: serverTimestamp(), extra: 1 }));
+  await assertFails(setDoc(followerRef(as('neg-2'), ORG, 'neg-2'), { userId: 'neg-2', organizerId: ORG, followedAt: Timestamp.fromMillis(0) }));
+  await assertFails(setDoc(followerRef(as('neg-3'), ORG, 'neg-3'), { userId: 'neg-3', organizerId: 'other-org', followedAt: serverTimestamp() }));
   await assertFails(setDoc(followerRef(as(ORG), ORG, ORG), { userId: ORG, organizerId: ORG, followedAt: serverTimestamp() }));
+  // Controle: o mesmo payload válido passa para um uid novo (prova que os negados caem pela rule certa).
+  await assertSucceeds(setDoc(followerRef(as('neg-4'), ORG, 'neg-4'), { userId: 'neg-4', organizerId: ORG, followedAt: serverTimestamp() }));
+});
+
+test('seguir: só organizador com perfil publicado', async () => {
+  await assertFails(setDoc(followerRef(as('neg-5'), 'stats-only', 'neg-5'), { userId: 'neg-5', organizerId: 'stats-only', followedAt: serverTimestamp() }));
+  await assertFails(setDoc(followerRef(as('neg-6'), 'ghost', 'neg-6'), { userId: 'neg-6', organizerId: 'ghost', followedAt: serverTimestamp() }));
 });
 
 test('deixar de seguir: só o próprio', async () => {

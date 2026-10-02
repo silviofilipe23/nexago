@@ -2228,11 +2228,15 @@ service cloud.firestore {
 
       // Quem segue. O contador `followersCount` do doc pai é mantido pelo gatilho
       // onOrganizerFollowerWritten. Sem update: seguir é criar, deixar de seguir é apagar.
+      // Só se segue organizador com perfil publicado (`isOrganizer`): sem isso, seguir um uid
+      // qualquer criaria doc público lixo pelo contador.
       match /followers/{userId} {
         allow read: if request.auth != null;
         allow create: if request.auth != null &&
           request.auth.uid == userId &&
           userId != organizerId &&
+          exists(/databases/$(database)/documents/organizerPublicProfiles/$(organizerId)) &&
+          get(/databases/$(database)/documents/organizerPublicProfiles/$(organizerId)).data.get('isOrganizer', false) == true &&
           request.resource.data.keys().hasAll(['userId', 'organizerId', 'followedAt']) &&
           request.resource.data.keys().hasOnly(['userId', 'organizerId', 'followedAt']) &&
           request.resource.data.userId == userId &&

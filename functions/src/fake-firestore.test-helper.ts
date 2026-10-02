@@ -182,6 +182,8 @@ export class FakeFirestore {
           filters: [...spec.filters, (doc: DocData) => matchesWhere(doc[field], op, value)],
         }),
       orderBy: (field: string) => build({...spec, orderField: field}),
+      // Projeção do Admin SDK: no fake devolve o doc inteiro (quem testa campos lê só os que pediu).
+      select: () => build(spec),
       startAfter: (value: unknown) => build({...spec, startAfterValue: value}),
       limit: (count: number) => build({...spec, limitCount: count}),
       get: async () => {

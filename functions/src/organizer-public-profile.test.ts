@@ -9,6 +9,7 @@ import {
   isListedTournament,
   isOrganizerListed,
   normalizeVenueKey,
+  normalizeWhatsappDigits,
   organizerStatsRelevantChange,
   sameOrganizerIdentity,
   touchesCompletedTournament,
@@ -70,6 +71,16 @@ describe("buildOrganizerIdentity", () => {
     assert.equal(identity.whatsapp, null);
   });
 
+  it("nome até 60 e só URL https nas imagens", () => {
+    const identity = buildOrganizerIdentity({
+      roles: ["organizer"],
+      organizerProfile: {orgName: "N".repeat(90), logoUrl: "http://x/logo.jpg", coverUrl: "javascript:alert(1)"},
+    });
+    assert.equal(identity.name.length, 60);
+    assert.equal(identity.logoUrl, null);
+    assert.equal(identity.coverUrl, null);
+  });
+
   it("sameOrganizerIdentity compara campo a campo", () => {
     const base = {roles: ["organizer"], organizerProfile: {orgName: "A"}, lastActiveAt: 1};
     assert.equal(sameOrganizerIdentity(buildOrganizerIdentity(base), buildOrganizerIdentity({...base, lastActiveAt: 2})), true);
@@ -77,6 +88,22 @@ describe("buildOrganizerIdentity", () => {
       sameOrganizerIdentity(buildOrganizerIdentity(base), buildOrganizerIdentity({...base, organizerProfile: {orgName: "B"}})),
       false,
     );
+  });
+});
+
+describe("normalizeWhatsappDigits", () => {
+  it("põe o DDI quando falta, tira zero de tronco e respeita DDD 55", () => {
+    assert.equal(normalizeWhatsappDigits("(62) 99999-1234"), "5562999991234");
+    assert.equal(normalizeWhatsappDigits("+55 62 99999-1234"), "5562999991234");
+    assert.equal(normalizeWhatsappDigits("(55) 99999-8888"), "5555999998888");
+    assert.equal(normalizeWhatsappDigits("011 99999-8888"), "5511999998888");
+    assert.equal(normalizeWhatsappDigits("(62) 3333-4444"), "556233334444");
+  });
+
+  it("número curto ou longo demais não vira WhatsApp", () => {
+    assert.equal(normalizeWhatsappDigits("1234"), null);
+    assert.equal(normalizeWhatsappDigits("12345678901234"), null);
+    assert.equal(normalizeWhatsappDigits("446299991234"), null);
   });
 });
 

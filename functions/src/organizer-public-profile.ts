@@ -1,5 +1,4 @@
 import {Timestamp} from "firebase-admin/firestore";
-import {normalizePhoneForWhatsApp} from "./tournament-cancellation-request";
 
 /**
  * Perfil público do organizador (`organizerPublicProfiles/{uid}`): projeções puras usadas pelos
@@ -10,6 +9,8 @@ export const ORGANIZER_PUBLIC_PROFILES_COLLECTION = "organizerPublicProfiles";
 export const ORGANIZER_FOLLOWERS_SUBCOLLECTION = "followers";
 export const ORGANIZER_FOLLOWER_PUSHES_COLLECTION = "organizerFollowerPushes";
 export const ORGANIZER_BIO_MAX = 280;
+export const ORGANIZER_NAME_MAX = 60;
+const URL_MAX = 2048;
 export const ORGANIZER_VENUES_MAX = 3;
 
 export type DocData = Record<string, unknown>;
@@ -60,6 +61,23 @@ function asMap(value: unknown): DocData {
   return value != null && typeof value === "object" && !Array.isArray(value) ? value as DocData : {};
 }
 
+/** Só `https://`: o doc é lido por qualquer visitante e a URL vira `<img src>`. */
+function httpsUrlOrNull(value: unknown): string | null {
+  const url = str(value);
+  return url.startsWith("https://") && url.length <= URL_MAX ? url : null;
+}
+
+/**
+ * Dígitos para `wa.me`: DDI 55 + DDD + número. Aceita com ou sem DDI e com zero de tronco
+ * ("011 ..."); DDD 55 sem DDI ("(55) 99999-8888") também vira 55 + 55 + número. Fora disso, null.
+ */
+export function normalizeWhatsappDigits(phone: string): string | null {
+  const digits = phone.replace(/\D/g, "").replace(/^0+/, "");
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith("55")) return digits;
+  return null;
+}
+
 export function userHasOrganizerRole(user: DocData | null | undefined): boolean {
   const roles = user?.roles;
   return Array.isArray(roles) &&
@@ -69,21 +87,20 @@ export function userHasOrganizerRole(user: DocData | null | undefined): boolean 
 /** Só o que é exibível. `contactEmail` e o telefone sem opt-in nunca saem de `users`. */
 export function buildOrganizerIdentity(user: DocData): OrganizerIdentity {
   const profile = asMap(user.organizerProfile);
-  const name = str(profile.orgName) || str(user.displayName) || str(user.fullName) ||
-    str(user.name) || "Organizador";
+  const name = (str(profile.orgName) || str(user.displayName) || str(user.fullName) ||
+    str(user.name) || "Organizador").slice(0, ORGANIZER_NAME_MAX).trim();
   const bio = str(profile.bio);
   const phone = str(profile.contactPhone);
-  const whatsapp = profile.publicWhatsapp === true && phone ? normalizePhoneForWhatsApp(phone) : "";
+  const whatsapp = profile.publicWhatsapp === true && phone ? normalizeWhatsappDigits(phone) : null;
   const state = str(profile.state).toUpperCase();
   return {
     name,
-    logoUrl: strOrNull(profile.logoUrl),
-    coverUrl: strOrNull(profile.coverUrl),
+    logoUrl: httpsUrlOrNull(profile.logoUrl),
+    coverUrl: httpsUrlOrNull(profile.coverUrl),
     bio: bio ? bio.slice(0, ORGANIZER_BIO_MAX) : null,
     city: strOrNull(profile.city),
     state: state.length > 0 ? state : null,
-    // DDI 55 + DDD + 8/9 dígitos. Menos que isso não abre conversa no wa.me.
-    whatsapp: whatsapp.length >= 12 ? whatsapp : null,
+    whatsapp,
     isOrganizer: userHasOrganizerRole(user),
   };
 }
@@ -193,9 +210,10 @@ export function isOrganizerListed(isOrganizer: boolean, stats: unknown): boolean
   return isOrganizer && typeof listedEvents === "number" && listedEvents > 0;
 }
 
-/** Campos que mudam algum número. Placar, `categoryOps` e `liveMatchesNow` ficam de fora: são a
- *  maior parte das escritas em `tournaments` durante o evento. */
-const STATS_FIELDS = [
+/** Campos que mudam algum número — e os únicos que o recálculo lê (`select`), porque o doc do
+ *  torneio carrega chave e categorias inteiras. Placar, `categoryOps` e `liveMatchesNow` ficam de
+ *  fora: são a maior parte das escritas em `tournaments` durante o evento. */
+export const ORGANIZER_STATS_SOURCE_FIELDS = [
   "managerId", "listingStatus", "status", "visibility", "sport",
   "startAt", "locationName", "arenaId", "city",
 ] as const;
@@ -207,7 +225,7 @@ function sameValue(a: unknown, b: unknown): boolean {
 
 export function organizerStatsRelevantChange(before: DocData | null, after: DocData | null): boolean {
   if (!before || !after) return before !== after;
-  return STATS_FIELDS.some((field) => !sameValue(before[field], after[field]));
+  return ORGANIZER_STATS_SOURCE_FIELDS.some((field) => !sameValue(before[field], after[field]));
 }
 
 /** Atletas só mudam quando o conjunto de eventos realizados muda. */

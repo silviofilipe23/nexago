@@ -10,6 +10,7 @@ import {
   isOrganizerListed,
   ORGANIZER_FOLLOWERS_SUBCOLLECTION,
   ORGANIZER_PUBLIC_PROFILES_COLLECTION,
+  ORGANIZER_STATS_SOURCE_FIELDS,
   organizerStatsRelevantChange,
   sameOrganizerIdentity,
   touchesCompletedTournament,
@@ -35,7 +36,9 @@ function chunk<T>(items: T[], size: number): T[][] {
 
 /**
  * Copia a identidade exibível de `users/{uid}`. `users` é gravado o tempo todo (`lastActiveAt`),
- * então sai sem ler nada quando a projeção não mudou. Quem nunca foi organizador não ganha doc.
+ * então o EVENTO só serve para sair cedo quando a projeção não mudou. O que se grava vem dos docs
+ * lidos AGORA, na transação: gatilhos não chegam em ordem, e projetar o `after` deixaria um
+ * liga→desliga rápido do WhatsApp com o número exposto. Quem nunca foi organizador não ganha doc.
  */
 export async function syncOrganizerIdentity(
   db: Firestore,
@@ -44,45 +47,57 @@ export async function syncOrganizerIdentity(
   after: DocData | null,
   nowMs: number = Date.now(),
 ): Promise<void> {
-  const ref = profileRef(db, uid);
-  if (!after) {
-    const snap = await ref.get();
-    if (snap.exists) await ref.delete();
+  if (before && after && sameOrganizerIdentity(buildOrganizerIdentity(before), buildOrganizerIdentity(after))) {
     return;
   }
-  const next = buildOrganizerIdentity(after);
-  if (before && sameOrganizerIdentity(buildOrganizerIdentity(before), next)) return;
-
+  const ref = profileRef(db, uid);
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
+    const userSnap = await tx.get(db.collection("users").doc(uid));
+    const organizerSnap = await tx.get(db.collection("organizers").doc(uid));
+    if (!userSnap.exists) {
+      // Conta apagada: a identidade sai do ar. Os seguidores ficam órfãos (nada os lê sem o doc).
+      if (snap.exists) tx.delete(ref);
+      return;
+    }
+    const next = buildOrganizerIdentity(userSnap.data() as DocData);
     const current = snap.exists ? snap.data() as DocData : {};
     // Só quem é organizador (ou deixou de ser, para sair da lista) ganha identidade. O doc pode
-    // existir sem ela — os números e o contador de seguidores criam antes —, e um atleta seguido
-    // por link direto não pode virar "organizador" com o nome dele.
+    // existir sem ela — os números criam antes —, e um atleta qualquer não vira "organizador".
     if (!next.isOrganizer && current.isOrganizer !== true) return;
-    // O selo nasce aqui só na primeira vez; depois quem mantém é o gatilho de `organizers/{uid}`.
-    // "Primeira vez" é não ter `verified`, não o doc não existir: os números e o contador de
-    // seguidores podem criar o doc antes da identidade, e ele nasceria sem selo.
-    const verified = typeof current.verified === "boolean" ?
-      current.verified :
-      (await tx.get(db.collection("organizers").doc(uid))).exists;
     tx.set(ref, {
       uid,
       ...next,
-      verified,
+      verified: organizerSnap.exists,
       listed: isOrganizerListed(next.isOrganizer, current.stats),
       identityUpdatedAt: Timestamp.fromMillis(nowMs),
     }, {merge: true});
   });
 }
 
-export async function syncOrganizerVerified(db: Firestore, uid: string, verified: boolean): Promise<void> {
+/** Selo = `organizers/{uid}` existe AGORA (lido na transação, não o `after` do evento). */
+export async function syncOrganizerVerified(db: Firestore, uid: string): Promise<void> {
   const ref = profileRef(db, uid);
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
+    const organizerSnap = await tx.get(db.collection("organizers").doc(uid));
     if (!snap.exists) return;
-    if ((snap.data() as DocData).verified === verified) return;
-    tx.update(ref, {verified});
+    if ((snap.data() as DocData).verified === organizerSnap.exists) return;
+    tx.update(ref, {verified: organizerSnap.exists});
+  });
+}
+
+/**
+ * Contador de seguidores. Só mexe em doc existente: a rule só deixa seguir organizador com perfil,
+ * e um "deixar de seguir" depois de a conta ser apagada não pode ressuscitar o doc com -1.
+ */
+export async function applyOrganizerFollowerDelta(db: Firestore, organizerId: string, delta: number): Promise<void> {
+  if (delta === 0) return;
+  const ref = profileRef(db, organizerId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return;
+    tx.update(ref, {followersCount: FieldValue.increment(delta)});
   });
 }
 
@@ -132,7 +147,9 @@ export async function recomputeOrganizerStats(
   const nowMs = opts.nowMs ?? Date.now();
   const projectId = opts.projectId ?? getFirebaseProjectId();
   const ref = profileRef(db, organizerId);
-  const tournamentsQuery = db.collection("tournaments").where("managerId", "==", organizerId);
+  const tournamentsQuery = db.collection("tournaments")
+    .where("managerId", "==", organizerId)
+    .select(...ORGANIZER_STATS_SOURCE_FIELDS);
 
   for (let attempt = 0; attempt < MAX_STATS_ATTEMPTS; attempt++) {
     let athletes: number | null = null;
@@ -182,7 +199,7 @@ export const onUserWrittenSyncOrganizerPublicProfile = onDocumentWritten(
 export const onOrganizerRecordWrittenSyncVerified = onDocumentWritten(
   "organizers/{organizerId}",
   async (event) => {
-    await syncOrganizerVerified(getFirestore(), event.params.organizerId, event.data?.after?.exists === true);
+    await syncOrganizerVerified(getFirestore(), event.params.organizerId);
   },
 );
 
@@ -210,8 +227,6 @@ export const onOrganizerFollowerWritten = onDocumentWritten(
   `${ORGANIZER_PUBLIC_PROFILES_COLLECTION}/{organizerId}/${ORGANIZER_FOLLOWERS_SUBCOLLECTION}/{userId}`,
   async (event) => {
     const delta = followerCountDelta(event.data?.before?.exists === true, event.data?.after?.exists === true);
-    if (delta === 0) return;
-    await profileRef(getFirestore(), event.params.organizerId)
-      .set({followersCount: FieldValue.increment(delta)}, {merge: true});
+    await applyOrganizerFollowerDelta(getFirestore(), event.params.organizerId, delta);
   },
 );

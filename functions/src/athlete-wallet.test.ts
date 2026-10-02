@@ -364,6 +364,11 @@ describe("cancelLot / rescheduleLot", () => {
       NOW + 9 * DAY,
     );
   });
+
+  it("lote inexistente rejeita em vez de criar um lote fantasma", async () => {
+    const {db} = makeDb();
+    await assert.rejects(() => rescheduleLot(db, UID, "nada", NOW + DAY));
+  });
 });
 
 describe("reverseLot", () => {
@@ -388,6 +393,27 @@ describe("reverseLot", () => {
   it("lote inexistente não faz nada", async () => {
     const {db} = makeDb();
     assert.equal(await reverseLot(db, UID, "nada", NOW), "none");
+  });
+
+  it("consumido com reserva aberta: extrato só fecha quando a reserva é liberada", async () => {
+    const {fake, db} = makeDb();
+    seedLot(fake, "L1", {remainingCents: 500, earnedCents: 500});
+    const {holdId} = await holdCashback(db, holdParams(500));
+    assert.equal(fake.store.get(`${W}/lots/L1`)!.status, "consumed");
+
+    assert.equal(await reverseLot(db, UID, "L1", NOW), "reversed");
+    assert.equal(fake.store.get(`${W}/lots/L1`)!.status, "reversed");
+    assert.equal(fake.store.get(`${W}/lots/L1`)!.remainingCents, 0);
+    assert.equal(ledgerOf(fake).some((e) => e.type === "reverse"), false);
+
+    assert.equal(await releaseHold(db, UID, holdId!, NOW), true);
+
+    assert.equal(fake.store.get(`${W}/lots/L1`)!.status, "reversed");
+    assert.equal(fake.store.get(`${W}/lots/L1`)!.remainingCents, 0);
+    assert.equal(ledgerOf(fake).find((e) => e.type === "reverse")?.amountCents, 500);
+    const wallet = fake.store.get(W)!;
+    assert.equal(wallet.availableCents, 0);
+    assert.equal(wallet.heldCents, 0);
   });
 });
 

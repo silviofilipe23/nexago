@@ -298,10 +298,9 @@ export async function rescheduleLot(
   lotId: string,
   eventAtMs: number,
 ): Promise<void> {
-  await athleteWalletRef(db, uid).collection("lots").doc(lotId).set(
-    {eventAt: Timestamp.fromMillis(eventAtMs)},
-    {merge: true},
-  );
+  await athleteWalletRef(db, uid).collection("lots").doc(lotId).update({
+    eventAt: Timestamp.fromMillis(eventAtMs),
+  });
 }
 
 /**
@@ -362,7 +361,7 @@ export async function markExpiryWarned(
   const batch = db.batch();
   const lots = athleteWalletRef(db, uid).collection("lots");
   for (const lotId of lotIds) {
-    batch.set(lots.doc(lotId), {expiryWarnedAt: Timestamp.fromMillis(nowMs)}, {merge: true});
+    batch.update(lots.doc(lotId), {expiryWarnedAt: Timestamp.fromMillis(nowMs)});
   }
   await batch.commit();
 }

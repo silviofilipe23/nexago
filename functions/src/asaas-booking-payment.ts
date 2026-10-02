@@ -278,6 +278,8 @@ export type AsaasPaymentDetails = {
   subscription?: string;
   /** Vencimento (YYYY-MM-DD) do pagamento. */
   dueDate?: string;
+  /** Cobrança removida — o GET ainda a devolve, só com esta flag em `true`. */
+  deleted?: boolean;
 };
 
 export async function getAsaasPayment(paymentId: string): Promise<AsaasPaymentDetails> {

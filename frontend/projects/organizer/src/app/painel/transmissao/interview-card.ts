@@ -10,6 +10,7 @@ import {
   type InterviewKind,
   type InterviewReporter,
 } from '../data/broadcast-control';
+import type { InterviewQueueItem } from '../data/interview-queue';
 import { kocFinalTable } from '../data/koc';
 import type { TournamentMatch } from '../data/matches-repository';
 import { rankingEntryOf, type RankingParticipant } from '../data/ranking-positions';
@@ -83,6 +84,38 @@ export function interviewKindsFor(teamId: string, src: InterviewCardSource): Int
   const roster = src.rosters.get(teamId);
   if (!roster || namedMembers(roster).length < 2) return ['atleta'];
   return ['atleta', isTeamCategory(teamId, src) ? 'equipe' : 'dupla'];
+}
+
+/** Uma forma de pôr alguém deste time no ar: cada atleta, ou o time inteiro. */
+export interface SubjectOption extends InterviewSubject {
+  label: string;
+}
+
+/** Opções de formato de um time, na ordem do elenco, com o time inteiro por último — é o que o
+ *  operador troca depois de escalar ("Lord | Muralha | Dupla"). */
+export function subjectOptionsFor(teamId: string, src: InterviewCardSource): SubjectOption[] {
+  const roster = src.rosters.get(teamId);
+  if (!roster) return [];
+  const athletes = namedMembers(roster).map<SubjectOption>((m) => ({ kind: 'atleta', teamId, uid: m.uid, label: m.name }));
+  const team = interviewKindsFor(teamId, src).find((k) => k !== 'atleta');
+  return team ? [...athletes, { kind: team, teamId, uid: null, label: team === 'dupla' ? 'Dupla' : 'Equipe' }] : athletes;
+}
+
+/** Item de fila de quem vai ao ar — rótulo e foto só pra listar; a pauta começa vazia. */
+export function queueItemFor(subject: InterviewSubject, src: InterviewCardSource): InterviewQueueItem | null {
+  const roster = src.rosters.get(subject.teamId);
+  if (!roster) return null;
+  const member = subject.kind === 'atleta' ? namedMembers(roster).find((m) => m.uid === subject.uid) : null;
+  if (subject.kind === 'atleta' && !member) return null;
+  return {
+    id: interviewKeyOf(subject),
+    kind: subject.kind,
+    teamId: subject.teamId,
+    uid: subject.kind === 'atleta' ? subject.uid : null,
+    label: member ? member.name : (rosterLabelOf(roster) ?? ''),
+    photoUrl: member ? member.photoUrl : (namedMembers(roster)[0]?.photoUrl ?? null),
+    questions: [],
+  };
 }
 
 /** "Ana Souza / Bia Lima" — ou o nome que a equipe escolheu. */

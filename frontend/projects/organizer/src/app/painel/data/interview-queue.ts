@@ -156,6 +156,24 @@ export function queueMove(q: InterviewQueue, id: string, delta: -1 | 1): Intervi
   return normalized({ ...q, items, current: Math.max(0, items.findIndex((i) => i.id === currentId)) });
 }
 
+/** Troca o formato de quem já está na fila (atleta ↔ dupla/equipe, ou outro atleta do mesmo time)
+ *  sem perder o lugar nem a pauta. Se o novo formato já estava escalado, os dois viram um só — o
+ *  mesmo entrevistado nunca aparece duas vezes — e o cursor acompanha. */
+export function queueReplaceItem(q: InterviewQueue, id: string, next: InterviewQueueItem): InterviewQueue {
+  const at = q.items.findIndex((i) => i.id === id);
+  if (at < 0 || next.id === id) return q;
+  const old = q.items[at]!;
+  const currentId = q.items[q.current]?.id;
+  const existing = q.items.find((i) => i.id === next.id);
+  const items = existing
+    ? q.items
+        .filter((i) => i.id !== id)
+        .map((i) => (i.id === next.id && i.questions.length === 0 ? { ...i, questions: old.questions } : i))
+    : q.items.map((i) => (i.id === id ? { ...next, questions: old.questions } : i));
+  const followId = currentId === id ? next.id : currentId;
+  return normalized({ ...q, items, current: Math.max(0, items.findIndex((i) => i.id === followId)) });
+}
+
 export function queueGoTo(q: InterviewQueue, at: number): InterviewQueue {
   return normalized({ ...q, current: at, questionIndex: 0 });
 }

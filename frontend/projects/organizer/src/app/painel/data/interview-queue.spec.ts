@@ -8,6 +8,7 @@ import {
   queueGoTo,
   queueMove,
   queueRemove,
+  queueReplaceItem,
   queueSetQuestions,
   queueSetReporter,
   queueSetShow,
@@ -91,6 +92,34 @@ describe('queueAdd / queueRemove / queueMove', () => {
     expect(q.items.map((i) => i.id)).toEqual(['b', 'a', 'c']);
     expect(currentItem(q)?.id).toBe('a');
     expect(queueMove(fila(), 'a', -1).items.map((i) => i.id)).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('queueReplaceItem (trocar atleta ↔ dupla depois de escalar)', () => {
+  const dupla: InterviewQueueItem = { id: 'dupla:t-a', kind: 'dupla', teamId: 't-a', uid: null, label: 'A / A2', photoUrl: null, questions: [] };
+
+  it('troca no lugar, mantendo a pauta e o cursor', () => {
+    const q = queueReplaceItem(fila({ current: 0, questionIndex: 1 }), 'a', dupla);
+    expect(q.items.map((i) => i.id)).toEqual(['dupla:t-a', 'b', 'c']);
+    expect(q.items[0]?.questions).toEqual(['P1', 'P2', 'P3']);
+    expect(q.items[0]?.kind).toBe('dupla');
+    expect(q.current).toBe(0);
+    expect(q.questionIndex).toBe(1);
+  });
+
+  it('formato que já está na fila: os dois viram um só, e o cursor vai junto', () => {
+    const base = fila({ items: [item('a', ['P1']), item('b'), { ...dupla, questions: [] }], current: 0 });
+    const q = queueReplaceItem(base, 'a', dupla);
+    expect(q.items.map((i) => i.id)).toEqual(['b', 'dupla:t-a']);
+    expect(currentItem(q)?.id).toBe('dupla:t-a');
+    // A pauta escrita no item que sumiu não se perde quando o outro não tinha nenhuma.
+    expect(currentItem(q)?.questions).toEqual(['P1']);
+  });
+
+  it('o mesmo formato ou item que não existe: nada muda', () => {
+    const q = fila();
+    expect(queueReplaceItem(q, 'a', item('a'))).toBe(q);
+    expect(queueReplaceItem(q, 'zz', dupla)).toBe(q);
   });
 });
 

@@ -8,6 +8,7 @@ import {
   queueGoTo,
   queueMove,
   queueRemove,
+  queueReplaceItem,
   queueSetQuestions,
   queueSetReporter,
   queueSetShow,
@@ -21,7 +22,15 @@ import { resolveCourtNames } from '../data/matches-repository';
 import { initialsOf } from '../data/mock-data';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
-import { interviewCardOf, interviewKeyOf, interviewKindsFor, rosterLabelOf, type InterviewCardSource } from './interview-card';
+import {
+  interviewCardOf,
+  interviewKeyOf,
+  interviewKindsFor,
+  queueItemFor,
+  subjectOptionsFor,
+  type InterviewCardSource,
+  type SubjectOption,
+} from './interview-card';
 import { TransmissaoDataService } from './transmissao-data.service';
 import {
   courtMatchOf,
@@ -165,6 +174,22 @@ const KIND_NAMES: Record<InterviewKind, string> = { atleta: 'Atleta', dupla: 'Du
 
       @if (current(); as cur) {
         <div class="og-tx-label">No comando</div>
+        @if (curOptions().length > 1) {
+          <div class="og-tx-chips og-tx-formato" role="radiogroup" aria-label="Formato do entrevistado da vez">
+            @for (o of curOptions(); track optionKey(o)) {
+              <button
+                type="button"
+                class="og-chip"
+                role="radio"
+                [class.active]="optionKey(o) === cur.id"
+                [attr.aria-checked]="optionKey(o) === cur.id"
+                (click)="setSubject(cur, o)"
+              >
+                {{ o.label }}
+              </button>
+            }
+          </div>
+        }
         <div class="og-tx-comando">
           <button type="button" class="og-ghost-btn" [disabled]="q.current === 0" (click)="goTo(q.current - 1)">◀ Anterior</button>
           <button type="button" class="og-mini-btn og-mini-btn-primary og-tx-ar" [disabled]="!canAir()" (click)="putOnAir()">
@@ -348,6 +373,9 @@ const KIND_NAMES: Record<InterviewKind, string> = { atleta: 'Atleta', dupla: 'Du
       resize: vertical;
       font: inherit;
     }
+    .og-tx-formato {
+      margin-bottom: 10px;
+    }
     .og-tx-comando {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;
@@ -461,6 +489,12 @@ export class TransmissaoEntrevistaComponent {
   });
 
   protected readonly current = computed(() => currentItem(this.svc.queue()));
+  /** Formatos do entrevistado da vez — escalar não congela a escolha: dá pra virar a dupla, ou
+   *  o outro atleta do time, direto no comando. */
+  protected readonly curOptions = computed(() => {
+    const cur = this.current();
+    return cur ? subjectOptionsFor(cur.teamId, this.cardSource()) : [];
+  });
   /** Elenco ainda não hidratado (tela recém-aberta) não monta card — o botão espera. */
   protected readonly canAir = computed(() => this.cardFor(this.svc.queue(), 0, null) != null);
 
@@ -520,6 +554,25 @@ export class TransmissaoEntrevistaComponent {
     const card = this.onAir() ? this.cardFor(next, Date.now(), this.duration()) : null;
     if (card) void this.svc.saveAir(card, next);
     else void this.svc.saveQueue(next);
+  }
+
+  /** Troca o formato do item na fila (lugar e pauta ficam). Se é ele que está no ar, o ar troca
+   *  junto — carimbo novo, o overlay faz a troca animada como num "Próximo". */
+  protected setSubject(item: InterviewQueueItem, option: SubjectOption): void {
+    const replacement = queueItemFor(option, this.cardSource());
+    if (!replacement) return;
+    const next = queueReplaceItem(this.svc.queue(), item.id, replacement);
+    const live = this.onAir();
+    const card =
+      live && live.key === item.id && currentItem(next)?.id === replacement.id
+        ? this.cardFor(next, Date.now(), live.durationSec)
+        : null;
+    if (card) void this.svc.saveAir(card, next);
+    else void this.svc.saveQueue(next);
+  }
+
+  protected optionKey(o: SubjectOption): string {
+    return interviewKeyOf(o);
   }
 
   protected stepQuestion(delta: -1 | 1): void {
@@ -598,17 +651,7 @@ export class TransmissaoEntrevistaComponent {
     const c = this.selected();
     if (!c) return null;
     const kind = this.kinds().includes(this.kind()) ? this.kind() : 'atleta';
-    const roster = this.svc.rosters().get(c.teamId);
-    const subject = { kind, teamId: c.teamId, uid: kind === 'atleta' ? c.uid : null };
-    return {
-      id: interviewKeyOf(subject),
-      kind,
-      teamId: c.teamId,
-      uid: subject.uid,
-      label: kind === 'atleta' ? c.name : (rosterLabelOf(roster) ?? c.name),
-      photoUrl: kind === 'atleta' ? c.photoUrl : (roster?.members[0]?.photoUrl ?? null),
-      questions: [],
-    };
+    return queueItemFor({ kind, teamId: c.teamId, uid: kind === 'atleta' ? c.uid : null }, this.cardSource());
   }
 
   private clearSelection(): void {

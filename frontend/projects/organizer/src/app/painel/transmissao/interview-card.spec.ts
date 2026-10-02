@@ -1,7 +1,16 @@
 import type { KocRoundState } from '../data/koc';
 import type { TournamentMatch } from '../data/matches-repository';
 import type { RankingParticipant } from '../data/ranking-positions';
-import { campaignOf, interviewCardOf, interviewKindsFor, teamPhaseOf, type AthleteDetails, type InterviewCardSource } from './interview-card';
+import {
+  campaignOf,
+  interviewCardOf,
+  interviewKindsFor,
+  queueItemFor,
+  subjectOptionsFor,
+  teamPhaseOf,
+  type AthleteDetails,
+  type InterviewCardSource,
+} from './interview-card';
 import type { TeamRoster } from './transmissao-selectors';
 
 function match(over: Partial<TournamentMatch>): TournamentMatch {
@@ -126,6 +135,35 @@ describe('interviewKindsFor', () => {
 
   it('dupla com um atleta só (parceiro sem perfil) só oferece o atleta', () => {
     expect(interviewKindsFor('solo', source())).toEqual(['atleta']);
+  });
+});
+
+describe('subjectOptionsFor / queueItemFor', () => {
+  it('dupla: cada atleta e a dupla inteira', () => {
+    expect(subjectOptionsFor('ta', source())).toEqual([
+      { kind: 'atleta', teamId: 'ta', uid: 'u1', label: 'Ana Souza' },
+      { kind: 'atleta', teamId: 'ta', uid: 'u2', label: 'Bia Lima' },
+      { kind: 'dupla', teamId: 'ta', uid: null, label: 'Dupla' },
+    ]);
+  });
+
+  it('equipe nomeada termina em "Equipe"; parceiro sem perfil não vira opção', () => {
+    expect(subjectOptionsFor('tc', source()).map((o) => o.label)).toEqual(['Eva', 'Fê', 'Gabi', 'Equipe']);
+    expect(subjectOptionsFor('solo', source()).map((o) => o.label)).toEqual(['Iris']);
+  });
+
+  it('item de fila com o rótulo e a foto de quem vai ao ar', () => {
+    expect(queueItemFor({ kind: 'dupla', teamId: 'ta', uid: null }, source())).toEqual({
+      id: 'dupla:ta',
+      kind: 'dupla',
+      teamId: 'ta',
+      uid: null,
+      label: 'Ana Souza / Bia Lima',
+      photoUrl: 'a.jpg',
+      questions: [],
+    });
+    expect(queueItemFor({ kind: 'atleta', teamId: 'ta', uid: 'u2' }, source())?.label).toBe('Bia Lima');
+    expect(queueItemFor({ kind: 'atleta', teamId: 'zz', uid: 'u2' }, source())).toBeNull();
   });
 });
 

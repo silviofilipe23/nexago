@@ -89,6 +89,7 @@ abstract final class TournamentDocumentMapper {
       listingStatusRaw: listingStatusRaw,
       startAt: startAt,
       endAt: endAt,
+      registrationClosesAt: _timestamp(data['registrationClosesAt']),
       spotsLeft: spotsLeft,
       liveMatchesNow: _int(data['liveMatchesNow']) ?? 0,
     );

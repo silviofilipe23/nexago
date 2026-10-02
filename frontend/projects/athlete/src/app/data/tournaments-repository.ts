@@ -1,6 +1,7 @@
 import { collection, doc, documentId, getDoc, getDocs, query, where, type Firestore } from 'firebase/firestore';
 
 import { resolveRegistrationHoldMinutes } from '../tournaments/registration/registration-hold';
+import { endOfDay } from '../tournaments/tournament-days';
 
 /** `tournaments/{id}` (top-level, leitura pública) — espelha `TournamentDocumentMapper`
  *  (Flutter). Sem paginação: a coleção inteira é lida e filtrada/ordenada em memória (mesma
@@ -389,7 +390,10 @@ function resolveTournamentRawStatus(
 ): TournamentRawStatus {
   if (t.rawStatus === 'completed' || t.rawStatus === 'ended') return t.rawStatus;
   if (t.liveMatchesNow > 0) return 'live';
-  const end = t.endAt ?? t.startAt;
+  // `endAt`/`startAt` são só data (meia-noite): o torneio acaba no FIM do último dia. Comparar
+  // com a meia-noite dava o evento por encerrado às 00:00 do próprio dia — e com ele a inscrição.
+  const lastDay = t.endAt ?? t.startAt;
+  const end = lastDay ? endOfDay(lastDay) : null;
   if (t.rawStatus === 'live') return end && now > end ? 'completed' : 'live';
   if (end && now > end) return 'completed';
   if (t.startAt) {

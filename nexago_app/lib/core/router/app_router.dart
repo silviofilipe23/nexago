@@ -145,6 +145,7 @@ import '../../features/athlete/presentation/achievements/athlete_achievements_pa
 import '../../features/athlete/presentation/athlete_profile_page.dart';
 import '../../features/athlete/presentation/athlete_settings_page.dart';
 import '../../features/athlete/presentation/athlete_referral_page.dart';
+import '../../features/cashback/presentation/cashback_page.dart';
 import '../../features/athlete/presentation/athlete_active_sessions_page.dart';
 import '../../features/athlete/presentation/athlete_change_password_page.dart';
 import '../../features/athlete/presentation/athlete_notification_settings_page.dart';
@@ -958,6 +959,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.athleteReferral,
         name: AppRouteNames.athleteReferral,
         builder: (context, state) => const AthleteReferralPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteCashback,
+        name: AppRouteNames.athleteCashback,
+        builder: (context, state) => const CashbackPage(),
       ),
       GoRoute(
         path: AppRoutes.athleteSportsLevels,

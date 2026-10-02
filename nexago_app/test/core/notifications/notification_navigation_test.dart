@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/notifications/notification_navigation.dart';
+import 'package:nexago_app/core/router/routes.dart';
 
 void main() {
   group('resolveNotificationRoute', () {
@@ -269,5 +270,27 @@ void main() {
       });
       expect(route, '/athlete/history/match/m1');
     });
+  });
+
+  // Varredura diária do backend: `cashback_released` e `cashback_expiring`
+  // mandam `url: '/cashback'` (app) e `webUrl: '/cashback'` (portal).
+  group('cashback', () {
+    for (final type in ['cashback_released', 'cashback_expiring']) {
+      test('$type abre Meu cashback pelo url do app', () {
+        final route = resolveNotificationRoute({
+          'type': type,
+          'url': '/cashback',
+          'webUrl': '/cashback',
+        });
+        expect(route, AppRoutes.athleteCashback);
+      });
+
+      test('$type sem url (item antigo do inbox) também abre Meu cashback', () {
+        expect(
+          resolveNotificationRoute({'type': type}),
+          AppRoutes.athleteCashback,
+        );
+      });
+    }
   });
 }

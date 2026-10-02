@@ -100,16 +100,18 @@ const KIND_NAMES: Record<InterviewKind, string> = { atleta: 'Atleta', dupla: 'Du
         type="search"
         placeholder="Nome do atleta"
         [value]="term()"
-        (input)="term.set($any($event.target).value)"
+        (input)="onSearchInput($any($event.target).value)"
       />
-      @for (c of results(); track c.key) {
-        <button type="button" class="og-tx-result" [class.active]="selected()?.key === c.key" (click)="pick(c)">
-          <og-avatar [initials]="initials(c.name)" [photoUrl]="c.photoUrl" [size]="32" />
-          <span class="og-tx-result-txt">
-            <span class="og-tx-result-nome">{{ c.name }}</span>
-            <span class="og-tx-result-sub">{{ line(c) }}</span>
-          </span>
-        </button>
+      @if (searchOpen()) {
+        @for (c of results(); track c.key) {
+          <button type="button" class="og-tx-result" [class.active]="selected()?.key === c.key" (click)="pick(c)">
+            <og-avatar [initials]="initials(c.name)" [photoUrl]="c.photoUrl" [size]="32" />
+            <span class="og-tx-result-txt">
+              <span class="og-tx-result-nome">{{ c.name }}</span>
+              <span class="og-tx-result-sub">{{ line(c) }}</span>
+            </span>
+          </button>
+        }
       }
       @if (selected(); as sel) {
         @if (kinds().length > 1) {
@@ -409,6 +411,8 @@ export class TransmissaoEntrevistaComponent {
   /** Relógio de 1 s: tempo da tarja no ar e quem está na quadra agora. */
   private readonly now = signal(Date.now());
   protected readonly term = signal('');
+  /** Fecha a lista depois do pick; reabre ao digitar de novo. */
+  protected readonly searchOpen = signal(false);
   protected readonly selected = signal<InterviewCandidate | null>(null);
   protected readonly kind = signal<InterviewKind>('atleta');
   protected readonly duration = signal<number | null>(null);
@@ -471,10 +475,18 @@ export class TransmissaoEntrevistaComponent {
     });
   }
 
-  /** Escolher alguém é o sinal de que vem entrevista: é aí que o ranking geral começa a carregar. */
+  protected onSearchInput(value: string): void {
+    this.term.set(value);
+    this.searchOpen.set(true);
+  }
+
+  /** Escolher alguém é o sinal de que vem entrevista: é aí que o ranking geral começa a carregar.
+   *  O input mostra o nome escolhido e a lista some até digitar de novo. */
   protected pick(c: InterviewCandidate): void {
     this.selected.set(c);
     this.kind.set('atleta');
+    this.term.set(c.name);
+    this.searchOpen.set(false);
     this.svc.ensureRanking();
   }
 
@@ -602,5 +614,6 @@ export class TransmissaoEntrevistaComponent {
   private clearSelection(): void {
     this.selected.set(null);
     this.term.set('');
+    this.searchOpen.set(false);
   }
 }

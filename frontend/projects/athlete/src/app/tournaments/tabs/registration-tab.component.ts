@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { tournamentCoverOrDefault } from '@nexago/tournament-covers';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
+import { filter, map, startWith } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { athleteFunctions } from '../../data/functions';
@@ -194,8 +196,23 @@ export class RegistrationTabComponent {
    *  `getCurrentNavigation()` só existe DURANTE a navegação que criou este componente; depois
    *  dela (e também se a tela for recriada sem passar por aqui), cai no `history.state` que o
    *  próprio `Router.navigate({ state })` grava — por isso o fallback. Sem id (F5 nesta aba,
-   *  link direto): nada de novo aparece aqui, mas o saldo creditado segue em "Meu cashback". */
-  protected readonly cashbackPaymentId = signal<string | null>(this.resolveCashbackPaymentId());
+   *  link direto): nada de novo aparece aqui, mas o saldo creditado segue em "Meu cashback".
+   *
+   *  Ruling 6 (residual do review final): o RouteReuseStrategy padrão do Angular REAPROVEITA
+   *  esta instância ao navegar de `/torneios/A/minha-inscricao` pra `/torneios/B/minha-inscricao`
+   *  (mesma config de rota, só o `:id` muda — é por isso que `tournament-shell.component.ts`
+   *  também resolve o id a cada `NavigationEnd` em vez de só no construtor). Resolver o id uma
+   *  vez só no campo deixava a nota do torneio A grudada na tela do torneio B. Por isso o signal
+   *  é derivado de `router.events`, não de `signal()` + valor fixo: toda vez que uma navegação
+   *  termina, o id é recalculado — com `state` novo mostra a nota nova, sem `state` some. */
+  protected readonly cashbackPaymentId = toSignal(
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      map(() => this.resolveCashbackPaymentId()),
+      startWith(this.resolveCashbackPaymentId()),
+    ),
+    { initialValue: this.resolveCashbackPaymentId() },
+  );
 
   protected readonly cards = computed<RegistrationCard[]>(() => {
     const t = this.store.tournament();

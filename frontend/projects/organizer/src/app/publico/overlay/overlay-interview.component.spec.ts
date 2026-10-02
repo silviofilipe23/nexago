@@ -166,12 +166,19 @@ describe('OverlayInterviewComponent', () => {
     expect(el.querySelectorAll('.dobra.aberta').length).toBe(0);
   });
 
-  it('marca nexaGO sempre; "Oferecimento" só com patrocinador', async () => {
+  it('canto direito: a marca d\'água translúcida da nexaGO, como nas outras telas', async () => {
+    const el = await show(TARJA);
+    const marca = el.querySelector('.marca og-overlay-mark') as HTMLElement;
+    expect(marca.querySelector('img')?.getAttribute('src')).toBe('/brand/logo.png');
+    expect(getComputedStyle(marca).opacity).toBe('0.52');
+    expect(el.textContent).not.toContain('NEXAGO');
+  });
+
+  it('"Oferecimento" ao lado da marca só com patrocinador', async () => {
     let el = await show(TARJA);
-    expect(text(el, '.nexa')).toBe('NEXAGO');
     expect(el.querySelector('.oferecimento')).toBeNull();
     el = await show(TARJA, { sponsors: [{ nome: 'Arena Sol', logo: '' }] });
-    expect(text(el, '.oferecimento')).toBe('Oferecimento');
+    expect(text(el, '.marca .oferecimento')).toBe('Oferecimento');
     expect(text(el, '.slot')).toBe('Arena Sol');
   });
 

@@ -4,11 +4,12 @@ import { InterviewStageDriver, QUESTION_TIMINGS, REPORTER_TIMINGS, StageDriver }
 import { OverlayInterviewBrandComponent } from './overlay-interview-brand.component';
 import { OverlayInterviewCampaignComponent } from './overlay-interview-campaign.component';
 import { OverlayInterviewCardComponent } from './overlay-interview-card.component';
+import { OverlayMarkComponent } from './overlay-mark.component';
 import type { OverlayPatroItem } from './overlay-nx';
 
 /** Tarja de entrevista, comandada pela tela Transmissão do painel. Quatro blocos no canvas
  *  1920×1080: bug "Entrevista · Ao vivo" no topo, card no terço inferior esquerdo, campanha e
- *  marca/patrocínio à direita.
+ *  marca d'água translúcida da nexaGO (com o "Oferecimento" ao lado) à direita.
  *
  *  A página mantém o componente SEMPRE montado; a entrada, a troca de entrevistado (sai → 520 ms
  *  → entra) e a saída são do `InterviewStageDriver`, e o CSS anima pela fase. Cada bloco tem um
@@ -21,7 +22,7 @@ import type { OverlayPatroItem } from './overlay-nx';
 @Component({
   selector: 'og-overlay-interview',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OverlayInterviewCardComponent, OverlayInterviewCampaignComponent, OverlayInterviewBrandComponent],
+  imports: [OverlayInterviewCardComponent, OverlayInterviewCampaignComponent, OverlayInterviewBrandComponent, OverlayMarkComponent],
   host: { 'aria-live': 'polite' },
   template: `
     @if (main.stage().shown; as d) {
@@ -63,7 +64,13 @@ import type { OverlayPatroItem } from './overlay-nx';
           </div>
         }
       </div>
-      <og-overlay-interview-brand class="blk marca" style="--d: 2" [attr.data-phase]="main.stage().phase" [sponsors]="sponsors()" />
+      <div class="blk marca" style="--d: 2" [attr.data-phase]="main.stage().phase">
+        @if (sponsors().length > 0) {
+          <og-overlay-interview-brand [sponsors]="sponsors()" />
+        }
+        <!-- Em fluxo: quem posiciona e anima é este wrapper; a marca guarda a translucidez dela. -->
+        <og-overlay-mark [flow]="true" />
+      </div>
     }
     @if (camp.stage().shown; as c) {
       <div class="campanha" [attr.data-phase]="camp.stage().phase">
@@ -347,15 +354,19 @@ import type { OverlayPatroItem } from './overlay-nx';
     .campanha {
       position: absolute;
       right: 80px;
-      bottom: 150px;
+      /* Acima da marca d'água (74 + 72 de logo), com o mesmo respiro do card de patrocínio. */
+      bottom: 166px;
       --from-x: 60px;
     }
 
-    /* ── 4. Marca / patrocínio ─────────────────────────────────── */
+    /* ── 4. Marca d'água + oferecimento ─────────────────────────── */
     .marca {
       position: absolute;
       right: 80px;
       bottom: 74px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
       --from-x: 60px;
     }
 

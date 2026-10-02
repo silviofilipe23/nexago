@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, input, model } from '@ang
 import { formatCentsBRL, formatRatePercent, type CashbackConfig } from '../data/cashback-model';
 import { checkoutCashbackState } from '../data/cashback-preview';
 
+let nextId = 0;
+
 /** "Usar meu cashback" nos três checkouts, ANTES de gerar a cobrança — o pai some com ele
  *  quando a cobrança existe. Três estados (`checkoutCashbackState`): switch com saldo usável,
  *  só "Ganhe até X%" sem saldo usável, nada com o recurso desligado. Começa DESLIGADO: o atleta
@@ -12,10 +14,18 @@ import { checkoutCashbackState } from '../data/cashback-preview';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (redeem()) {
-      <button type="button" class="cbt-switch" role="switch" [attr.aria-checked]="use()" (click)="toggle()">
+      <button
+        type="button"
+        class="cbt-switch"
+        role="switch"
+        [attr.aria-checked]="use()"
+        aria-label="Usar meu cashback"
+        [attr.aria-describedby]="subId"
+        (click)="toggle()"
+      >
         <span class="cbt-copy">
           <span class="cbt-title">Usar meu cashback</span>
-          <span class="cbt-sub">{{ subLabel() }}</span>
+          <span class="cbt-sub" [id]="subId">{{ subLabel() }}</span>
         </span>
         <span class="cbt-track" [class.cbt-track--on]="use()" aria-hidden="true"><span class="cbt-knob"></span></span>
       </button>
@@ -124,6 +134,9 @@ import { checkoutCashbackState } from '../data/cashback-preview';
   `,
 })
 export class CheckoutCashbackToggleComponent {
+  /** Id único da sublinha — `aria-describedby` do switch, uma instância por checkout. */
+  protected readonly subId = `cbt-sub-${nextId++}`;
+
   /** PREÇO da cobrança que vai ser gerada (parcela, valor de agora da reserva, vaga). */
   readonly priceReais = input.required<number>();
   readonly availableCents = input.required<number>();

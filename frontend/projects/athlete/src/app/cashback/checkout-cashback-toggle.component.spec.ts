@@ -63,6 +63,22 @@ describe('CheckoutCashbackToggleComponent', () => {
     expect(text(el().querySelector('.cbt-sub'))).toBe('Usando R$ 12,40');
   });
 
+  // O texto visível da sublinha muda com o estado ("R$ X disponível" → "Usando R$ X"); sem
+  // `aria-label` fixo, o nome acessível do switch mudava junto — leitor de tela anunciava um
+  // controle diferente a cada clique.
+  it('nome acessível do switch é fixo; a sublinha muda só por aria-describedby', () => {
+    const sub = el().querySelector('.cbt-sub') as HTMLElement;
+    expect(sw()!.getAttribute('aria-label')).toBe('Usar meu cashback');
+    expect(sw()!.getAttribute('aria-describedby')).toBe(sub.id);
+    expect(sub.id).toBeTruthy();
+
+    sw()!.click();
+    fixture.detectChanges();
+
+    expect(sw()!.getAttribute('aria-label')).toBe('Usar meu cashback');
+    expect(sw()!.getAttribute('aria-describedby')).toBe(sub.id);
+  });
+
   it('mínimo em dinheiro travando: avisa que o mínimo vai na cobrança', () => {
     host.price.set(20);
     host.available.set(5000);

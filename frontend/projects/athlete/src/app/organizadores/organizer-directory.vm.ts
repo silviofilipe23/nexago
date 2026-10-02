@@ -1,6 +1,5 @@
 /** Lista "Organizadores" — ordem, busca e card, puros. Spec: "Lista Organizadores". */
-import type { OrganizerPublicProfile, OrganizerReputationDetail } from '../data/organizer-public-profiles';
-import { formatRating } from '../data/tournament-reviews';
+import { formatOrganizerRating, type OrganizerPublicProfile, type OrganizerReputationDetail } from '../data/organizer-public-profiles';
 import { formatCompactCount, formatCount, hasPublicRating, organizerInitials } from './organizer-profile.vm';
 
 export interface OrganizerDirectoryCardVm {
@@ -30,7 +29,7 @@ export function organizerDirectoryCardVm(p: OrganizerPublicProfile, reputation: 
     logoUrl: p.logoUrl,
     verified: p.verified,
     locationLabel: [p.city, p.state].filter((v): v is string => !!v).join(' · ') || null,
-    ratingLabel: hasPublicRating(reputation) ? formatRating(reputation.average) : null,
+    ratingLabel: hasPublicRating(reputation) ? formatOrganizerRating(reputation.average) : null,
     eventsLabel: `${formatCount(eventsCompleted)} ${eventsCompleted === 1 ? 'evento realizado' : 'eventos realizados'}`,
     followersLabel: `${formatCompactCount(p.followersCount)} ${p.followersCount === 1 ? 'seguidor' : 'seguidores'}`,
     openLabel: openEvents > 0 ? `${openEvents} com inscrição aberta` : null,

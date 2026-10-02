@@ -3,14 +3,17 @@
  * Spec: docs/superpowers/specs/2026-10-02-organizer-public-profile-design.md
  */
 import { tournamentCoverOrDefault } from '@nexago/tournament-covers';
-import type {
-  OrganizerEvent,
-  OrganizerPublicProfile,
-  OrganizerReputationDetail,
-  OrganizerReviewSummaryRow,
+import {
+  ORGANIZER_ASPECT_KEYS,
+  ORGANIZER_MIN_PUBLIC_REVIEWS as MIN_PUBLIC_REVIEWS,
+  formatOrganizerRating as formatRating,
+  type OrganizerEvent,
+  type OrganizerPublicProfile,
+  type OrganizerReputationDetail,
+  type OrganizerReviewSummaryRow,
 } from '../data/organizer-public-profiles';
 import { sportLabelForCode } from '../data/sport-catalog';
-import { MIN_PUBLIC_REVIEWS, TOURNAMENT_REVIEW_ASPECTS, formatRating, type TournamentReviewAspectKey } from '../data/tournament-reviews';
+import type { TournamentReviewAspectKey } from '../data/tournament-reviews';
 import { tournamentListingStatus, type TournamentSummary } from '../data/tournaments-repository';
 import { discoveryFillPercent, discoverySpotsOf } from '../tournaments/tournament-discovery.spots';
 
@@ -379,7 +382,7 @@ export function organizerReputationVm(r: OrganizerReputationDetail | null): Orga
     stars: Math.max(0, Math.min(5, Math.round(r.average))),
     countLabel: `${formatCount(r.reviewsCount)} ${plural(r.reviewsCount, 'avaliação', 'avaliações')}`,
     tournamentsLabel: `em ${r.tournamentsRated} ${plural(r.tournamentsRated, 'evento', 'eventos')}`,
-    aspects: TOURNAMENT_REVIEW_ASPECTS.map(({ key }) => {
+    aspects: ORGANIZER_ASPECT_KEYS.map((key) => {
       const value = r.aspects[key];
       return {
         key,

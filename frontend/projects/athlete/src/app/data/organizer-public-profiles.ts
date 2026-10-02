@@ -8,12 +8,20 @@
 import type { AthletePublicProfile } from './public-profiles-repository';
 import { teamMemberIds, type ArenaTeam } from './teams-repository';
 import { isPubliclyListedTournamentDoc, tournamentSummaryFromDoc, type TournamentSummary } from './tournaments-repository';
-import {
-  TOURNAMENT_REVIEW_ASPECTS,
-  organizerReputationFromData,
-  type OrganizerReputation,
-  type TournamentReviewAspectKey,
-} from './tournament-reviews';
+// Só TIPOS de `./tournament-reviews`: aquele módulo mora na carga inicial (o `TournamentLiveStore`
+// usa), e importar valor dele daqui partia o chunk inicial em dois (+210 bytes num orçamento de
+// 1 MB já no limite). As três constantes abaixo repetem as de lá — o spec trava a paridade.
+import type { OrganizerReputation, TournamentReviewAspectKey } from './tournament-reviews';
+
+/** Mesma lista e ordem de `TOURNAMENT_REVIEW_ASPECTS`. */
+export const ORGANIZER_ASPECT_KEYS: readonly TournamentReviewAspectKey[] = ['organization', 'schedule', 'refereeing', 'venue', 'prizes'];
+/** Mesmo valor de `MIN_PUBLIC_REVIEWS`: abaixo disso nada é público. */
+export const ORGANIZER_MIN_PUBLIC_REVIEWS = 3;
+
+/** "4,8" — mesma regra de `formatRating`. */
+export function formatOrganizerRating(value: number): string {
+  return value.toFixed(1).replace('.', ',');
+}
 
 export const ORGANIZER_PUBLIC_PROFILES = 'organizerPublicProfiles';
 export const ORGANIZER_FOLLOWERS = 'followers';
@@ -160,21 +168,25 @@ export function organizerProfileIsPublic(profile: OrganizerPublicProfile | null)
   return profile != null && profile.isOrganizer;
 }
 
-const ASPECT_KEYS: readonly string[] = TOURNAMENT_REVIEW_ASPECTS.map((a) => a.key);
-
 export function organizerReputationDetailFromData(data: Data | undefined): OrganizerReputationDetail | null {
-  const base = organizerReputationFromData(data);
-  if (!base || !data) return null;
+  if (!data) return null;
   const aspects: Partial<Record<TournamentReviewAspectKey, number>> = {};
-  for (const [key, value] of Object.entries(mapOf(data['aspects']))) {
-    const average = decimal(mapOf(value)['average']);
-    if (ASPECT_KEYS.includes(key) && average != null) aspects[key as TournamentReviewAspectKey] = average;
+  const rawAspects = mapOf(data['aspects']);
+  for (const key of ORGANIZER_ASPECT_KEYS) {
+    const average = decimal(mapOf(rawAspects[key])['average']);
+    if (average != null) aspects[key] = average;
   }
   const rawDistribution = data['distribution'];
   const d = mapOf(rawDistribution);
   const distribution: StarDistribution | null =
     rawDistribution == null ? null : { 1: count(d['1']), 2: count(d['2']), 3: count(d['3']), 4: count(d['4']), 5: count(d['5']) };
-  return { ...base, distribution, aspects };
+  return {
+    reviewsCount: count(data['reviewsCount']),
+    tournamentsRated: count(data['tournamentsRated']),
+    average: decimal(data['average']),
+    distribution,
+    aspects,
+  };
 }
 
 export function organizerReviewSummaryFromDoc(id: string, data: Data): OrganizerReviewSummaryRow {

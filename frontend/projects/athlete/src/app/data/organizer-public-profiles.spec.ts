@@ -1,5 +1,9 @@
+import { MIN_PUBLIC_REVIEWS, TOURNAMENT_REVIEW_ASPECTS, formatRating } from './tournament-reviews';
 import {
+  ORGANIZER_ASPECT_KEYS,
+  ORGANIZER_MIN_PUBLIC_REVIEWS,
   championsFromDoc,
+  formatOrganizerRating,
   organizerEventFromDoc,
   organizerFollowWrite,
   organizerProfileIsPublic,
@@ -100,6 +104,14 @@ describe('organizerProfileIsPublic', () => {
     expect(organizerProfileIsPublic(organizerPublicProfileFromDoc('o', { followersCount: 3 }))).toBeFalse();
     expect(organizerProfileIsPublic(organizerPublicProfileFromDoc('o', { name: 'Liga', isOrganizer: false }))).toBeFalse();
     expect(organizerProfileIsPublic(null)).toBeFalse();
+  });
+});
+
+describe('paridade com tournament-reviews (cópias por causa do bundle inicial)', () => {
+  it('aspectos na mesma ordem, mesmo mínimo e mesma formatação da nota', () => {
+    expect(ORGANIZER_ASPECT_KEYS).toEqual(TOURNAMENT_REVIEW_ASPECTS.map((a) => a.key));
+    expect(ORGANIZER_MIN_PUBLIC_REVIEWS).toBe(MIN_PUBLIC_REVIEWS);
+    for (const v of [4.62, 5, 3.05, 4.95]) expect(formatOrganizerRating(v)).toBe(formatRating(v));
   });
 });
 

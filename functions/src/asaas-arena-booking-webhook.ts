@@ -25,6 +25,16 @@ import {
   requestInvoiceForPaidBooking,
   shouldAttemptFiscalInvoice,
 } from "./fiscal/payment-hooks";
+import {readCashbackConfig} from "./cashback-config";
+import {bookingEventAtMs} from "./cashback-rules";
+import {
+  applyCashbackIntent,
+  bookingCashbackLabel,
+  buildCashbackIntent,
+  cashbackIntentFields,
+  intentHasWork,
+  readCashbackApplied,
+} from "./cashback-intent";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -170,7 +180,11 @@ export async function processArenaBookingAsaasNotification(
 
     const totalReais = Number(booking.amountReais) || 0;
     const fraction = Number(booking.paymentFraction) || 1;
-    const paidOnline = roundMoney(amount);
+    // Para a arena, o saldo de cashback é dinheiro recebido online (a nexaGO
+    // cobre): tudo que lê `amountPaidOnlineReais` segue certo sem mudar.
+    const {appliedCents, holdId} = readCashbackApplied(booking);
+    const cashPaid = roundMoney(amount);
+    const paidOnline = roundMoney(cashPaid + appliedCents / 100);
     const dueOnsite = roundMoney(Math.max(0, totalReais - paidOnline));
     const isPartial = fraction < 0.99 || dueOnsite > 0.02;
     const paymentStatus = isPartial ? "partial" : "paid";
@@ -184,6 +198,21 @@ export async function processArenaBookingAsaasNotification(
       platformFee = computePlatformFeeReais(paidOnline, feePercent);
     }
 
+    const intent = buildCashbackIntent({
+      uid: typeof booking.athleteId === "string" ? booking.athleteId : "",
+      sourceType: "booking",
+      sourceId: bookingId,
+      tournamentId: null,
+      arenaId: arenaId ?? null,
+      label: bookingCashbackLabel(String(booking.arenaName ?? "Arena"), booking.date),
+      eventAtMs: bookingEventAtMs(booking.date, booking.startTime) ?? Date.now(),
+      cashReais: cashPaid,
+      appliedCents,
+      feeReais: platformFee,
+      holdId,
+      config: await readCashbackConfig(db),
+    });
+
     const batch = db.batch();
     batch.update(bookingRef, {
       status: "confirmed",
@@ -193,7 +222,8 @@ export async function processArenaBookingAsaasNotification(
       amountPaidOnlineReais: paidOnline,
       amountDueOnsiteReais: dueOnsite,
       asaasPaymentId: paymentId,
-      asaasPaidAmount: paidOnline,
+      asaasPaidAmount: cashPaid,
+      cashbackAppliedReais: appliedCents / 100,
       asaasPaidAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -214,9 +244,14 @@ export async function processArenaBookingAsaasNotification(
       bookingId,
       outcome: "approved",
       processedAt: FieldValue.serverTimestamp(),
+      ...(intentHasWork(intent) ? cashbackIntentFields(intent) : {}),
     });
 
     await batch.commit();
+
+    if (intentHasWork(intent)) {
+      await applyCashbackIntent(db, processedRef, paymentId, Date.now());
+    }
 
     if (arenaId) {
       try {
@@ -226,6 +261,7 @@ export async function processArenaBookingAsaasNotification(
           bookingId,
           paidOnline,
           platformFee,
+          appliedCents / 100,
         );
       } catch (walletErr) {
         logger.error(`Asaas arena booking ${bookingId}: wallet credit failed`, walletErr);
@@ -356,6 +392,22 @@ export async function processArenaBookingShareAsaasNotification(
       platformFee = computePlatformFeeReais(paidOnline, feePercent);
     }
 
+    // Cota de amigo: ganha cashback sobre o que pagou; não usa saldo na v1.
+    const intent = buildCashbackIntent({
+      uid: typeof share.payerAthleteId === "string" ? share.payerAthleteId : "",
+      sourceType: "booking",
+      sourceId: bookingId,
+      tournamentId: null,
+      arenaId: arenaId ?? null,
+      label: bookingCashbackLabel(String(booking.arenaName ?? "Arena"), booking.date),
+      eventAtMs: bookingEventAtMs(booking.date, booking.startTime) ?? Date.now(),
+      cashReais: paidOnline,
+      appliedCents: 0,
+      feeReais: platformFee,
+      holdId: null,
+      config: await readCashbackConfig(db),
+    });
+
     const batch = db.batch();
     batch.set(shareRef, {
       status: "paid",
@@ -372,8 +424,13 @@ export async function processArenaBookingShareAsaasNotification(
       shareId,
       outcome: "approved",
       processedAt: FieldValue.serverTimestamp(),
+      ...(intentHasWork(intent) ? cashbackIntentFields(intent) : {}),
     });
     await batch.commit();
+
+    if (intentHasWork(intent)) {
+      await applyCashbackIntent(db, processedRef, paymentId, Date.now());
+    }
 
     if (arenaId) {
       try {

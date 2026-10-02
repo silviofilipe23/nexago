@@ -1,9 +1,14 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import type {DocumentReference, Firestore} from "firebase-admin/firestore";
+import {Timestamp} from "firebase-admin/firestore";
 import {FakeFirestore, type DocData} from "./fake-firestore.test-helper";
-import {processArenaBookingAsaasNotification} from "./asaas-arena-booking-webhook";
+import {
+  processArenaBookingAsaasNotification,
+  processArenaBookingShareAsaasNotification,
+} from "./asaas-arena-booking-webhook";
 import {ARENA_BOOKING_PAYMENT_REF_PREFIX} from "./arena-booking-payment-constants";
+import {holdCashback} from "./athlete-wallet";
 
 const BOOKING_PATH = "arenaBookings/b1";
 const PROCESSED_PATH = "artifacts/p/public/data/asaas_processed_payments/orig1";
@@ -199,5 +204,88 @@ describe("processArenaBookingAsaasNotification — reserva sem divisão (control
 
     assert.equal(fake.store.get(BOOKING_PATH)!.status, "cancelled");
     assert.equal(fake.store.get(PROCESSED_PATH)!.outcome, "rejected");
+  });
+});
+
+describe("processArenaBookingAsaasNotification — cashback", () => {
+  const NOW_MS = Date.now();
+
+  function seedSpendableLot(fake: FakeFirestore, cents: number): void {
+    fake.seedDoc("athleteWallets/owner1/lots/old", {
+      uid: "owner1", sourceType: "booking", sourceId: "b0", tournamentId: null, arenaId: "a1",
+      label: "Reserva", earnedCents: cents, remainingCents: cents, status: "available",
+      eventAt: Timestamp.fromMillis(NOW_MS - 1000), releasedAt: Timestamp.fromMillis(NOW_MS - 1000),
+      expiresAt: Timestamp.fromMillis(NOW_MS + 90 * 86_400_000), expiryWarnedAt: null,
+      createdAt: Timestamp.fromMillis(NOW_MS - 1000),
+    });
+  }
+
+  function arenaLedger(fake: FakeFirestore): Record<string, unknown>[] {
+    return [...fake.store.entries()]
+      .filter(([path]) => path.startsWith("arenaWallets/arena1/ledger/"))
+      .map(([, data]) => data);
+  }
+
+  it("saldo aplicado conta como pago online: reserva paga, arena recebe o bruto", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake, {date: "2026-10-12", startTime: "19:30", arenaName: "Arena Sol"});
+    seedSpendableLot(fake, 3000);
+    const {holdId} = await holdCashback(db, {
+      uid: "owner1", maxCents: 2000, sourceType: "booking", sourceId: "b1",
+      trackingPath: BOOKING_PATH, label: "Reserva", nowMs: NOW_MS,
+    });
+    fake.seedDoc(BOOKING_PATH, {
+      ...fake.store.get(BOOKING_PATH)!, cashbackAppliedCents: 2000, cashbackHoldId: holdId,
+    });
+
+    await processArenaBookingAsaasNotification(
+      db, "orig1", bookingPayment("RECEIVED", 80), processedRefOf(db),
+    );
+
+    const booking = fake.store.get(BOOKING_PATH)!;
+    assert.equal(booking.paymentStatus, "paid");
+    assert.equal(booking.amountPaidOnlineReais, 100);
+    assert.equal(booking.amountDueOnsiteReais, 0);
+    assert.equal(booking.asaasPaidAmount, 80);
+    assert.equal(booking.cashbackAppliedReais, 20);
+    const credit = arenaLedger(fake).find((e) => e.type === "credit")!;
+    assert.equal(credit.grossReais, 100);
+    assert.equal(credit.cashbackAppliedReais, 20);
+    assert.equal(fake.store.get(`athleteWallets/owner1/holds/${holdId}`)!.status, "captured");
+  });
+
+  it("cashback ligado: lote pendente com a data e hora da reserva", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake, {date: "2026-10-12", startTime: "19:30", arenaName: "Arena Sol"});
+    fake.seedDoc("appConfig/cashback", {enabled: true});
+
+    await processArenaBookingAsaasNotification(
+      db, "orig1", bookingPayment("RECEIVED", 100), processedRefOf(db),
+    );
+
+    const lot = fake.store.get("athleteWallets/owner1/lots/orig1")!;
+    // Taxa sem plano = 8% de R$ 100 = R$ 8,00 → teto R$ 4,00; 2% = R$ 2,00.
+    assert.equal(lot.earnedCents, 200);
+    assert.equal(lot.label, "Reserva · Arena Sol · 12/10");
+    assert.equal((lot.eventAt as Timestamp).toMillis(), Date.UTC(2026, 9, 12, 22, 30, 0));
+  });
+
+  it("cota de amigo paga ganha cashback para quem pagou a cota", async () => {
+    const {fake, db} = makeDb();
+    seedSplitBooking(fake, {date: "2026-10-12", startTime: "19:30", arenaName: "Arena Sol"});
+    fake.seedDoc("appConfig/cashback", {enabled: true});
+    fake.seedDoc(`${BOOKING_PATH}/paymentShares/s1`, {
+      payerAthleteId: "friend1", amountReais: 50, status: "pending", asaasPaymentId: "payS1",
+    });
+
+    await processArenaBookingShareAsaasNotification(
+      db, "payS1",
+      {status: "RECEIVED", value: 50, externalReference: "arenaBookingShare:b1:s1"},
+      db.doc("artifacts/p/public/data/asaas_processed_payments/payS1") as DocumentReference,
+    );
+
+    const lot = fake.store.get("athleteWallets/friend1/lots/payS1")!;
+    assert.equal(lot.status, "pending");
+    assert.equal(lot.earnedCents, 100);
   });
 });

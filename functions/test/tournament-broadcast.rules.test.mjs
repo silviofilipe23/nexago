@@ -121,3 +121,55 @@ test('updatedBy de outra pessoa é recusado', async () => {
 test('ninguém apaga o controle', async () => {
   await assertFails(deleteDoc(controle(as(DONO))));
 });
+
+// ── Fila de entrevistas (`broadcast/interviewQueue`) ──────────────────────────────────────────
+// Rascunho de quem opera: pauta (texto livre) e repórter. O OBS não lê — recebe o card pronto
+// em `control.interview`.
+
+const fila = (db, torneio = TORNEIO) => controle(db, torneio, 'interviewQueue');
+
+/** Mesmo formato que `saveInterviewQueue` grava (painel/data/broadcast-control-repository.ts). */
+function filaDoc(uid, extra = {}) {
+  return {
+    items: [{ id: 'i1', kind: 'atleta', teamId: 't1', uid: 'u1', label: 'Ana Souza', photoUrl: null, questions: ['Como foi o jogo?'] }],
+    current: 0,
+    questionIndex: 0,
+    reporter: { role: 'Repórter', name: 'Carla Mendes' },
+    show: { question: true, reporter: true, campaign: true },
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+    ...extra,
+  };
+}
+
+for (const [papel, uid] of [['dono', DONO], ['gestor', GESTOR], ['administrador', ADMIN_EVENTO]]) {
+  test(`${papel} grava e lê a fila de entrevistas`, async () => {
+    await assertSucceeds(setDoc(fila(as(uid)), filaDoc(uid)));
+    await assertSucceeds(getDoc(fila(as(uid))));
+  });
+}
+
+test('anônimo NÃO lê a fila — o OBS só precisa do controle', async () => {
+  await assertFails(getDoc(fila(anon())));
+});
+
+test('mesário NÃO lê nem grava a fila', async () => {
+  await assertFails(getDoc(fila(as(MESARIO))));
+  await assertFails(setDoc(fila(as(MESARIO)), filaDoc(MESARIO)));
+});
+
+test('campo fora do allowlist da fila é recusado', async () => {
+  await assertFails(setDoc(fila(as(DONO)), filaDoc(DONO, { interview: null })));
+});
+
+test('campo da fila no controle continua recusado', async () => {
+  await assertFails(setDoc(controle(as(DONO)), patch(DONO, { items: [] }), { merge: true }));
+});
+
+test('fila com updatedBy de outra pessoa é recusada', async () => {
+  await assertFails(setDoc(fila(as(DONO)), filaDoc(GESTOR)));
+});
+
+test('ninguém apaga a fila', async () => {
+  await assertFails(deleteDoc(fila(as(DONO))));
+});

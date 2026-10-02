@@ -1,8 +1,16 @@
 import { effect, inject, Injectable, signal } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
-import { DEFAULT_BROADCAST_CONTROL, type BroadcastControl } from '../data/broadcast-control';
-import { saveBroadcastControl, watchBroadcastControl, type BroadcastControlPatch } from '../data/broadcast-control-repository';
+import { DEFAULT_BROADCAST_CONTROL, type BroadcastControl, type BroadcastInterview } from '../data/broadcast-control';
+import {
+  saveBroadcastControl,
+  saveInterviewOnAir,
+  saveInterviewQueue,
+  watchBroadcastControl,
+  watchInterviewQueue,
+  type BroadcastControlPatch,
+} from '../data/broadcast-control-repository';
+import { EMPTY_INTERVIEW_QUEUE, type InterviewQueue } from '../data/interview-queue';
 import { organizerFirestore } from '../data/firestore';
 import { watchMatches, type TournamentMatch } from '../data/matches-repository';
 import type { RankingParticipant } from '../data/ranking-positions';
@@ -24,6 +32,8 @@ export class TransmissaoDataService {
   readonly tournament = signal<OrganizerTournament | null>(null);
   readonly matches = signal<TournamentMatch[]>([]);
   readonly control = signal<BroadcastControl>(DEFAULT_BROADCAST_CONTROL);
+  /** Fila de entrevistas (`broadcast/interviewQueue`) — a mesma pra todo operador. */
+  readonly queue = signal<InterviewQueue>(EMPTY_INTERVIEW_QUEUE);
   readonly rosters = signal<ReadonlyMap<string, TeamRoster>>(new Map());
   /** Cidade/UF e nível por atleta, dos MESMOS docs de perfil que montam os elencos. */
   readonly details = signal<ReadonlyMap<string, AthleteDetails>>(new Map());
@@ -45,6 +55,7 @@ export class TransmissaoDataService {
       this.tournament.set(null);
       this.matches.set([]);
       this.control.set(DEFAULT_BROADCAST_CONTROL);
+      this.queue.set(EMPTY_INTERVIEW_QUEUE);
       this.rosters.set(new Map());
       this.details.set(new Map());
       this.hydrated.clear();
@@ -59,20 +70,40 @@ export class TransmissaoDataService {
         () => {},
       );
       const unsubControl = watchBroadcastControl(id, (c) => this.control.set(c), () => {});
+      const unsubQueue = watchInterviewQueue(id, (q) => this.queue.set(q), () => {});
       onCleanup(() => {
         unsubTournament();
         unsubMatches();
         unsubControl();
+        unsubQueue();
       });
     });
   }
 
   async save(patch: BroadcastControlPatch): Promise<void> {
+    await this.write((id, uid) => saveBroadcastControl(id, patch, uid));
+  }
+
+  /** Edição da fila (escalar, reordenar, pauta, repórter). Aplica na tela antes da volta do
+   *  servidor: digitar e ver a pauta sumir até o snapshot voltar seria pior. Falha volta sozinha
+   *  pelo listener. */
+  async saveQueue(queue: InterviewQueue): Promise<void> {
+    this.queue.set(queue);
+    await this.write((id, uid) => saveInterviewQueue(id, queue, uid));
+  }
+
+  /** Tarja no ar (ou `null`) e, quando muda, o cursor da fila — numa escrita só. */
+  async saveAir(interview: BroadcastInterview | null, queue: InterviewQueue | null): Promise<void> {
+    if (queue) this.queue.set(queue);
+    await this.write((id, uid) => saveInterviewOnAir(id, interview, queue, uid));
+  }
+
+  private async write(op: (tournamentId: string, uid: string) => Promise<void>): Promise<void> {
     const id = this.tournamentId();
     const uid = this.auth.user()?.uid;
     if (!id || !uid) return;
     try {
-      await saveBroadcastControl(id, patch, uid);
+      await op(id, uid);
       this.saveError.set(false);
     } catch {
       this.saveError.set(true);

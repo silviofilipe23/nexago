@@ -116,7 +116,7 @@ function source(over: Partial<InterviewCardSource> = {}): InterviewCardSource {
   };
 }
 
-const AIR = { durationSec: 20, shownAt: 1234, showCampaign: true };
+const AIR = { durationSec: 20, shownAt: 1234, showCampaign: true, question: null, reporter: null };
 
 describe('interviewKindsFor', () => {
   it('dupla oferece atleta e dupla; equipe nomeada oferece atleta e equipe', () => {
@@ -217,9 +217,18 @@ describe('interviewCardOf — dupla e equipe', () => {
   });
 
   it('as opções do ar passam direto', () => {
-    const card = interviewCardOf({ kind: 'dupla', teamId: 'ta', uid: null }, source(), { durationSec: null, shownAt: 9, showCampaign: false })!;
+    const reporter = { role: 'Repórter', name: 'Carla Mendes' };
+    const card = interviewCardOf({ kind: 'dupla', teamId: 'ta', uid: null }, source(), {
+      durationSec: null,
+      shownAt: 9,
+      showCampaign: false,
+      question: 'Como foi a final?',
+      reporter,
+    })!;
     expect(card.durationSec).toBeNull();
     expect(card.showCampaign).toBeFalse();
+    expect(card.question).toBe('Como foi a final?');
+    expect(card.reporter).toEqual(reporter);
   });
 });
 

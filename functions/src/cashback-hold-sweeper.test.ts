@@ -241,7 +241,7 @@ describe("runCashbackHoldSweep", () => {
 
 describe("asaasVerdictForHold", () => {
   it("pago captura; apagado ou estornado devolve; ainda pagável apaga antes; disputa ou status vazio espera", () => {
-    for (const status of ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"]) {
+    for (const status of ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH", "DUNNING_RECEIVED"]) {
       assert.equal(asaasVerdictForHold({status}), "capture", status);
     }
     assert.equal(asaasVerdictForHold({status: "PENDING", deleted: true}), "release");
@@ -367,6 +367,7 @@ describe("runCashbackHoldSweep — confere o Asaas antes de devolver (C2)", () =
     assert.deepEqual(calls.delete, []);
     assert.equal(stats.asaasFailed, 1);
     assert.equal(stats.kept, 1);
+    assert.equal(stats.heldWaiting, 0);
     assert.equal(stats.released, 0);
 
     // Próxima passada, Asaas de volta: apaga e devolve.
@@ -402,6 +403,9 @@ describe("runCashbackHoldSweep — confere o Asaas antes de devolver (C2)", () =
     assert.deepEqual(calls.delete, []);
     assert.equal(fake.store.get(`${W}/holds/${holdId}`)!.status, "open");
     assert.equal(stats.kept, 1);
+    // Contador próprio: reserva parada esperando desfecho no Asaas.
+    assert.equal(stats.heldWaiting, 1);
+    assert.equal(stats.asaasFailed, 0);
   });
 
   it("reserva que nunca ganhou cobrança devolve depois de 15 min sem consultar o Asaas", async () => {

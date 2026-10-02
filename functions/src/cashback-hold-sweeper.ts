@@ -93,7 +93,13 @@ const defaultHoldSweepAsaas: HoldSweepAsaas = {
   deletePayment: deleteAsaasPaymentOrThrow,
 };
 
-const ASAAS_PAID_STATUSES = new Set(["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"]);
+const ASAAS_PAID_STATUSES = new Set([
+  "RECEIVED",
+  "CONFIRMED",
+  "RECEIVED_IN_CASH",
+  // Recebido via negativação: também é pagamento recebido.
+  "DUNNING_RECEIVED",
+]);
 const ASAAS_GONE_STATUSES = new Set(["REFUNDED", "DELETED"]);
 /** Pago e em estorno/disputa: não é pagável nem morto — espera o desfecho. */
 const ASAAS_SETTLING_STATUSES = new Set([
@@ -103,7 +109,6 @@ const ASAAS_SETTLING_STATUSES = new Set([
   "CHARGEBACK_DISPUTE",
   "AWAITING_CHARGEBACK_REVERSAL",
   "DUNNING_REQUESTED",
-  "DUNNING_RECEIVED",
 ]);
 
 export type AsaasHoldVerdict = "capture" | "release" | "delete_then_release" | "wait";
@@ -132,6 +137,11 @@ export type HoldSweepStats = {
   chargesDeleted: number;
   /** GET ou DELETE do Asaas falhou: reserva mantida para a próxima passada. */
   asaasFailed: number;
+  /**
+   * Reservas mantidas porque o Asaas diz estorno/disputa em curso ou não deu
+   * status — esperam o desfecho. Também contam em `kept`.
+   */
+  heldWaiting: number;
   intentsDone: number;
   intentsFailed: number;
   intentsGivenUp: number;
@@ -161,6 +171,7 @@ async function confirmReleaseWithAsaas(
   const verdict = asaasVerdictForHold(payment);
   if (verdict === "capture" || verdict === "release") return verdict;
   if (verdict === "wait") {
+    stats.heldWaiting++;
     logger.warn("cashback: cobrança da reserva em estorno/disputa ou sem status — mantida", {
       ...ctx, paymentId, status: payment.status ?? null,
     });
@@ -186,7 +197,7 @@ export async function runCashbackHoldSweep(
   asaas: HoldSweepAsaas = defaultHoldSweepAsaas,
 ): Promise<HoldSweepStats> {
   const stats: HoldSweepStats = {
-    released: 0, captured: 0, kept: 0, chargesDeleted: 0, asaasFailed: 0,
+    released: 0, captured: 0, kept: 0, chargesDeleted: 0, asaasFailed: 0, heldWaiting: 0,
     intentsDone: 0, intentsFailed: 0, intentsGivenUp: 0, reversalsRetried: 0,
   };
 

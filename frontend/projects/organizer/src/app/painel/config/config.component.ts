@@ -7,12 +7,14 @@ import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgConfigNotificacoesCardComponent } from './notificacoes-card.component';
 import { OgConfigPagamentosCardComponent } from './pagamentos-card.component';
 import { OgConfigPerfilCardComponent } from './perfil-card.component';
+import { OgConfigPerfilPublicoCardComponent } from './perfil-publico-card.component';
 import { OgConfigRegrasCardComponent } from './regras-card.component';
 
 const EMPTY_PAYOUT: OrganizerPayoutProfile = { pixKey: '', pixKeyType: '', hasPixKey: false };
 
-/** Configurações do organizador: perfil da organização, dados de recebimento e regras padrão de
- *  evento — os três mapas de `users/{uid}` descritos em `organizer-settings.model.ts`.
+/** Configurações do organizador: perfil da organização, perfil público (capa, bio e WhatsApp,
+ *  no mesmo mapa `organizerProfile`), dados de recebimento e regras padrão de evento — os três
+ *  mapas de `users/{uid}` descritos em `organizer-settings.model.ts`.
  *
  *  Este componente é só a casca: mantém o listener e distribui as fatias. Cada card cuida do
  *  próprio ciclo de edição/salvamento, então um erro ao salvar Pagamentos não derruba o Perfil.
@@ -25,6 +27,7 @@ const EMPTY_PAYOUT: OrganizerPayoutProfile = { pixKey: '', pixKeyType: '', hasPi
   imports: [
     OgPageHeaderComponent,
     OgConfigPerfilCardComponent,
+    OgConfigPerfilPublicoCardComponent,
     OgConfigPagamentosCardComponent,
     OgConfigRegrasCardComponent,
     OgConfigNotificacoesCardComponent,
@@ -38,6 +41,12 @@ const EMPTY_PAYOUT: OrganizerPayoutProfile = { pixKey: '', pixKeyType: '', hasPi
         [profile]="settings().profile"
         [responsavel]="responsavel()"
         [accountEmail]="accountEmail()"
+        [loading]="loading()"
+      />
+      <og-config-perfil-publico
+        [uid]="uid()"
+        [publicProfile]="settings().publicProfile"
+        [contactPhone]="settings().profile.contactPhone"
         [loading]="loading()"
       />
       <og-config-pagamentos

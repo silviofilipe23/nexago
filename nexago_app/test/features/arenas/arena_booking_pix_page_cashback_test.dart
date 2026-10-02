@@ -1,13 +1,18 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/formatting/app_currency_format.dart';
+import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arenas/data/payment_service.dart';
 import 'package:nexago_app/features/arenas/domain/arena_booking_confirm_args.dart';
 import 'package:nexago_app/features/arenas/domain/arena_booking_pix_args.dart';
+import 'package:nexago_app/features/arenas/domain/arena_booking_success_args.dart';
 import 'package:nexago_app/features/arenas/domain/booking_providers.dart';
 import 'package:nexago_app/features/arenas/domain/payment_providers.dart';
 import 'package:nexago_app/features/arenas/presentation/arena_booking_pix_page.dart';
@@ -219,4 +224,74 @@ void main() {
     await gerarPix(tester);
     expect(service.calls.single.useCashback, isFalse);
   });
+
+  testWidgets('PIX pago: a confirmação recebe o paymentId na extra e na query',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final docs =
+        StreamController<DocumentSnapshot<Map<String, dynamic>>?>.broadcast();
+    addTearDown(docs.close);
+    final service = _FakePaymentService(
+      resposta(price: 100, paymentId: 'pay_9'),
+    );
+    Object? extra;
+    var query = <String, String>{};
+    final router = GoRouter(
+      initialLocation: '/pix',
+      routes: [
+        GoRoute(
+          path: '/pix',
+          builder: (_, _) => ArenaBookingPixPage(arenaId: 'a1', args: reserva()),
+        ),
+        GoRoute(
+          path: AppRoutes.arenaBookingSuccess,
+          builder: (_, state) {
+            extra = state.extra;
+            query = state.uri.queryParameters;
+            return const Scaffold(body: Text('sucesso'));
+          },
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesDaTela(service, bookingDocs: docs.stream),
+        child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    await gerarPix(tester);
+
+    docs.add(_PaidBookingSnapshot());
+    await tester.pump();
+    await tester.pump();
+    // A troca de rota anima a transição de página: sem avançar o relógio a
+    // tela de sucesso ainda não entrou no `Navigator`.
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('sucesso'), findsOneWidget);
+    expect((extra! as BookingSuccessArgs).paymentId, 'pay_9');
+    expect(query['paymentId'], 'pay_9');
+  });
+}
+
+/// Doc da reserva como o webhook deixa depois do PIX pago.
+class _PaidBookingSnapshot implements DocumentSnapshot<Map<String, dynamic>> {
+  @override
+  bool get exists => true;
+
+  @override
+  Map<String, dynamic>? data() => {
+        'paymentStatus': 'paid',
+        'status': 'confirmed',
+      };
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

@@ -271,6 +271,8 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
     final amountLabel = due > 0.02
         ? 'PIX: ${formatBRL(paid)} · Restante no local: ${formatBRL(due)}'
         : 'Total pago: ${formatBRL(paid)}';
+    // Id do pagamento = id do lote de cashback: a confirmação ouve o lote.
+    final paymentId = _pix?.paymentId ?? '';
 
     final uri = Uri(
       path: AppRoutes.arenaBookingSuccess.replaceAll(
@@ -286,6 +288,7 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
         'bookingId': widget.args.bookingId,
         'arenaName': confirm.arenaName,
         'courtName': confirm.courtName,
+        if (paymentId.isNotEmpty) 'paymentId': paymentId,
       },
     );
     context.go(
@@ -306,6 +309,7 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
         paymentLabel: due > 0.02
             ? 'O restante você paga na arena no dia do jogo.'
             : null,
+        paymentId: paymentId.isEmpty ? null : paymentId,
       ),
     );
   }

@@ -18,6 +18,7 @@ class BookingSuccessArgs {
     this.amountLabel,
     this.paymentLabel,
     this.headline,
+    this.paymentId,
   });
 
   final String arenaId;
@@ -34,6 +35,10 @@ class BookingSuccessArgs {
   final String? amountLabel;
   final String? paymentLabel;
   final String? headline;
+
+  /// Pagamento do Asaas que acabou de confirmar (= id do lote de cashback).
+  /// Só vem do PIX pago pelo app; reserva no local não tem.
+  final String? paymentId;
 
   String? get primaryBookingId =>
       bookingIds.isNotEmpty ? bookingIds.first.trim() : null;

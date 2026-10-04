@@ -71,6 +71,17 @@ void main() {
       expect(live.tiebreak, isTrue);
     });
 
+    test('encerrada (W.O. com set aberto): conta todo set, como as outras telas', () {
+      final m = _match({
+        'status': 'Completed',
+        'sets': [
+          {'a': 6, 'b': 4},
+          {'a': 3, 'b': 2},
+        ],
+      });
+      expect(setsWonCountForMatch(m), (2, 0));
+    });
+
     test('partida de pontos: igual a hoje, sem game', () {
       final m = _match({
         'scoringProfile': null,

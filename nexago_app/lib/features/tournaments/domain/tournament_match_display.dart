@@ -399,12 +399,14 @@ String matchCardScoreLabel(TournamentMatch match) {
   return 'A definir';
 }
 
-/// Sets vencidos por cada time (A, B). Partida de games conta só os sets
-/// fechados pela regra dela (ao vivo, 2-1 no set corrente não é set vencido);
-/// pontos mantém a contagem de sempre.
+/// Sets vencidos por cada time (A, B). Partida de games AO VIVO conta só os
+/// sets fechados pela regra dela (2-1 no set corrente não é set vencido);
+/// encerrada, todo set vale, como em [matchClosedSets]. Pontos mantém a
+/// contagem de sempre.
 (int, int) setsWonCountForMatch(TournamentMatch match) {
   final profile = matchScoringProfile(match);
-  if (profile is SetsGamesProfile) {
+  if (profile is SetsGamesProfile &&
+      TournamentMatchStatus.isInProgress(match.status)) {
     final won = ScoringRules.setsWon(
       _setValues(setsForMatch(match)),
       profile,

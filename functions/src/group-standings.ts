@@ -1,6 +1,7 @@
 import {FieldValue, type Firestore} from "firebase-admin/firestore";
 import type {QualifierSlot} from "./category-bracket-builders";
 import {isMatchCompleted} from "./match-status";
+import {effectiveScoringProfile} from "./sports/scoring";
 
 export interface GroupPreview {
   id: string;
@@ -19,6 +20,9 @@ export interface GroupMatchData {
   resultB?: string;
   /** Placar por set (games): [{a, b}, …]. Quando ausente, usa resultA/resultB. */
   sets?: Array<{a?: unknown; b?: unknown}>;
+  /** Perfil carimbado + nº de sets: decidem o critério de desempate do grupo. */
+  scoringProfile?: unknown;
+  bestOf?: unknown;
 }
 
 interface TeamStats {
@@ -123,8 +127,9 @@ export function isPoolRoundRobinComplete(
 /**
  * Classifica as duplas de um grupo aplicando, em ordem:
  *   1. vitórias;
- *   2. saldo de pontos (games feitos − games tomados);
- *   3. confronto direto entre as EMPATADAS (vitórias nos jogos entre elas).
+ *   2. só em grupo de games (`sets_games`): saldo de sets;
+ *   3. saldo de pontos (games feitos − games tomados);
+ *   4. confronto direto entre as EMPATADAS (vitórias nos jogos entre elas).
  *
  * O confronto direto só conta jogos entre duplas empatadas em vitórias E em
  * saldo de pontos. Seed fica só como âncora determinística se as 3 empatam.
@@ -194,7 +199,17 @@ export function computePoolStandings(
     played.push({winnerId, loserId, teamAId, teamBId, score});
   }
 
-  // Confronto direto: só entre duplas empatadas em vitórias e em saldo de pontos.
+  // Grupo de games (spec multiesporte, standings por tipo): o saldo de sets entra antes do
+  // saldo de games. Pontos segue vitórias → saldo de pontos → confronto direto.
+  const games = matches.some((m) =>
+    (m.poolId ?? "").trim() === poolId &&
+    effectiveScoringProfile(m.scoringProfile, m.bestOf).kind === "sets_games");
+  const setDiffOf = (id: string): number => {
+    const s = stats.get(id);
+    return games && s ? s.setsWon - s.setsLost : 0;
+  };
+
+  // Confronto direto: só entre duplas empatadas em todos os critérios anteriores.
   const winsOf = (id: string): number => stats.get(id)?.wins ?? 0;
   const pointDiffOf = (id: string): number => {
     const s = stats.get(id);
@@ -202,6 +217,7 @@ export function computePoolStandings(
   };
   for (const game of played) {
     if (winsOf(game.teamAId) !== winsOf(game.teamBId)) continue;
+    if (setDiffOf(game.teamAId) !== setDiffOf(game.teamBId)) continue;
     if (pointDiffOf(game.teamAId) !== pointDiffOf(game.teamBId)) continue;
     const aStats = stats.get(game.teamAId)!;
     const bStats = stats.get(game.teamBId)!;
@@ -212,6 +228,8 @@ export function computePoolStandings(
   return [...stats.values()]
     .sort((a, b) => {
       if (b.wins !== a.wins) return b.wins - a.wins;
+      const setDiff = setDiffOf(b.teamId) - setDiffOf(a.teamId);
+      if (setDiff !== 0) return setDiff;
       const gameDiffA = a.gamesWon - a.gamesLost;
       const gameDiffB = b.gamesWon - b.gamesLost;
       if (gameDiffB !== gameDiffA) return gameDiffB - gameDiffA;

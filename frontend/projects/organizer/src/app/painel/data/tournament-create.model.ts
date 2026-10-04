@@ -4,6 +4,7 @@
  *  renomear. */
 
 import { KOC_LEGACY_MAX_TEAMS_PER_ROUND, type KocPhaseSpec } from './koc-phase-plan';
+import { sportLabel } from '@nexago/sports';
 
 export type TournamentSport = 'beachVolleyball' | 'indoorVolleyball' | 'footvolley';
 export const KNOWN_TOURNAMENT_SPORTS: readonly TournamentSport[] = ['beachVolleyball', 'indoorVolleyball', 'footvolley'];
@@ -256,11 +257,10 @@ export function emptyTournamentDraft(): TournamentCreateDraft {
 
 // ── Rótulos (mesmos textos do app) ────────────────────────────────────────────
 
-export const SPORT_LABEL: Record<TournamentSport, string> = {
-  beachVolleyball: 'Vôlei de praia',
-  indoorVolleyball: 'Vôlei de quadra',
-  footvolley: 'Futevôlei',
-};
+/** Rótulos do catálogo canônico (`sports/catalog.json`) para os esportes do wizard. */
+export const SPORT_LABEL = Object.fromEntries(
+  KNOWN_TOURNAMENT_SPORTS.map((s) => [s, sportLabel(s) ?? s]),
+) as Record<TournamentSport, string>;
 
 export const BRACKET_SYSTEM_LABEL: Record<TournamentBracketSystem, string> = {
   groupsThenKnockout: 'Fase de grupos + mata-mata',

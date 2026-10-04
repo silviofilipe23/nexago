@@ -21,6 +21,7 @@ import {
   type TournamentPaymentMode,
   type TournamentSport,
   type TournamentVisibility,
+  KNOWN_TOURNAMENT_SPORTS,
 } from './tournament-create.model';
 import { pixKeyTypeFromStored, type PixKeyType } from './pix-key';
 import {
@@ -180,7 +181,7 @@ function oneOf<T extends string>(v: unknown, allowed: readonly T[], fallback: T)
   return typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T) : fallback;
 }
 
-const SPORTS: readonly TournamentSport[] = ['beachVolleyball', 'indoorVolleyball', 'footvolley'];
+const SPORTS = KNOWN_TOURNAMENT_SPORTS;
 const BRACKET_SYSTEMS: readonly TournamentBracketSystem[] = [
   'groupsThenKnockout',
   'singleElimination',

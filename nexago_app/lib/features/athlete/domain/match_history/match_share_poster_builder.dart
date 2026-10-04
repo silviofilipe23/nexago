@@ -91,16 +91,14 @@ MatchSharePosterData buildMatchSharePosterData({
 }
 
 /// Sets fechados, já normalizados (`sets[]` ou o formato legado `resultA/B`).
-List<TournamentMatchSet> matchSharePosterClosedSets(TournamentMatch match) =>
-    matchClosedSets(match);
+/// O super tie-break (gravado 1×0) entra com os pontos dele.
+List<TournamentMatchSet> matchSharePosterClosedSets(TournamentMatch match) => [
+  for (final s in matchClosedDisplaySets(match))
+    TournamentMatchSet(a: s.a, b: s.b),
+];
 
-/// "1–0 · 2º set 14-11".
-String? _liveScoreLine(TournamentMatch match) {
-  final current = matchLiveCurrentSet(match);
-  if (current == null) return null;
-  final (a, b) = matchSharePosterSetWins(match);
-  return '$a–$b · ${current.setNumber}º set ${current.a}-${current.b}';
-}
+/// "1–0 · 2º set 14-11"; em games, com o ponto do game.
+String? _liveScoreLine(TournamentMatch match) => matchLiveScoreLine(match);
 
 // --- Fase -------------------------------------------------------------------
 

@@ -743,3 +743,53 @@ List<({int a, int b})> matchClosedDisplaySets(TournamentMatch match) {
   ];
 }
 
+/// Sets fechados como texto na ótica de um lado ("6-7 (5-7)" visto por B vira
+/// "7-6 (7-5)"); o super tie-break vai pelos pontos dele.
+List<String> matchClosedSetTextsForSide(
+  TournamentMatch match, {
+  required bool sideA,
+}) {
+  final profile = matchScoringProfile(match);
+  final sets = matchClosedSets(match);
+  return [
+    for (var i = 0; i < sets.length; i++)
+      ScoringRules.setScoreText(
+        profile,
+        i,
+        ScoreSetValue(
+          sideA ? sets[i].a : sets[i].b,
+          sideA ? sets[i].b : sets[i].a,
+          tb: sets[i].tb == null
+              ? null
+              : ScoreSetValue(
+                  sideA ? sets[i].tb!.a : sets[i].tb!.b,
+                  sideA ? sets[i].tb!.b : sets[i].tb!.a,
+                ),
+        ),
+      ),
+  ];
+}
+
+/// Linha ao vivo: "1–0 · 2º set 14-11"; em games "1–0 · 2º set 5-4 · 40-15" e,
+/// no super tie-break, "1–1 · super tie-break 7-5". `null` sem set em
+/// andamento.
+String? matchLiveScoreLine(TournamentMatch match) {
+  final current = matchLiveCurrentSet(match);
+  if (current == null) return null;
+  var a = 0;
+  var b = 0;
+  for (final s in matchClosedSets(match)) {
+    if (s.a > s.b) {
+      a++;
+    } else if (s.b > s.a) {
+      b++;
+    }
+  }
+  final game = current.game;
+  if (game != null && current.superTiebreak) {
+    return '$a–$b · super tie-break ${game.a}-${game.b}';
+  }
+  final line = '$a–$b · ${current.setNumber}º set ${current.a}-${current.b}';
+  return game == null ? line : '$line · ${game.a}-${game.b}';
+}
+

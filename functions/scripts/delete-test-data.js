@@ -143,6 +143,8 @@ function ratingEventsPath(pid) {
 const RANKING_COLLECTIONS = [
   {name: "athleteRankings", athleteKey: "@id"},
   {name: "teamRankings", teamKey: "@id"},
+  {name: "athleteRankingsBySport", athleteKey: "athleteId"},
+  {name: "teamRankingsBySport", teamKey: "teamId"},
   {name: "tournamentCategoryResults", teamKey: "teamId", tournamentKey: "tournamentId"},
   {name: "athleteRatings", athleteKey: "athleteId"},
   {name: "leagueAthleteRankings", athleteKey: "athleteId"},

@@ -255,6 +255,7 @@ class TournamentCategoryDraft {
     int? kocRoundDurationSec,
     TournamentBestOf? bestOf,
     bool? finalBestOf5,
+    Map<String, dynamic>? scoringProfileRaw,
     int? maxRegistrationsPerAthlete,
     List<TournamentCategoryPrizeDraft>? prizes,
     bool? genderFree,
@@ -285,7 +286,7 @@ class TournamentCategoryDraft {
       kocRoundDurationSec: kocRoundDurationSec ?? this.kocRoundDurationSec,
       bestOf: bestOf ?? this.bestOf,
       finalBestOf5: finalBestOf5 ?? this.finalBestOf5,
-      scoringProfileRaw: scoringProfileRaw,
+      scoringProfileRaw: scoringProfileRaw ?? this.scoringProfileRaw,
       maxRegistrationsPerAthlete:
           maxRegistrationsPerAthlete ?? this.maxRegistrationsPerAthlete,
       prizes: prizes ?? this.prizes,

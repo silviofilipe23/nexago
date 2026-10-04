@@ -84,6 +84,15 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
           priceCents: draft.defaultPriceCents,
           useDefaultPrice: true,
         );
+    // Categoria NOVA nasce com o placar sugerido do esporte (gravado explícito).
+    if (widget.existing == null) {
+      _category = _category.copyWith(
+        scoringProfileRaw: suggestedScoringProfile(
+          draft.sport,
+          _category.bestOf,
+        ),
+      );
+    }
     _nameController = TextEditingController(text: _category.name);
     _priceController = TextEditingController(
       text: formatCents(_category.priceCents).replaceAll(r'R$', '').trim(),

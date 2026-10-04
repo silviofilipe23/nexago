@@ -278,7 +278,14 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
     }
   }
 
-  void setSport(TournamentSport sport) => _updateDraft(state.draft.copyWith(sport: sport));
+  // O placar das categorias acompanha o esporte (só refaz perfil de outro
+  // tipo; spec multiesporte 2d2b).
+  void setSport(TournamentSport sport) => _updateDraft(
+    state.draft.copyWith(
+      sport: sport,
+      categories: withSportScoring(state.draft.categories, sport),
+    ),
+  );
 
   void setName(String value) => _updateDraft(state.draft.copyWith(name: value));
 

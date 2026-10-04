@@ -116,16 +116,28 @@ interface NormalizedScore {
     labels: {a: string; b: string};
     tiebreak: boolean;
     superTiebreak: boolean;
+    /** O doc tem o ponto do game (`currentGame`, gravado pela mesa). Sem ele (lançamento
+     *  rápido, `liveScore` agregado) não há ponto de game para mostrar nem prever. */
+    hasGamePoints: boolean;
   } | null;
 }
 
 /** Estado de games da mesa a partir do snapshot, ou `null` em partida de pontos. */
-function gamesOf(snapshot: LiveMatchSnapshot, setIndex: number): NormalizedScore["games"] {
+function gamesOf(
+  snapshot: LiveMatchSnapshot,
+  setIndex: number,
+  liveGames: {a: number; b: number} | null = null,
+): NormalizedScore["games"] {
   const profile = effectiveScoringProfile(snapshot.scoringProfile, snapshot.bestOf);
   if (profile.kind !== "sets_games") return null;
-  const sets = Array.isArray(snapshot.sets) ? snapshot.sets : [];
+  const raw = Array.isArray(snapshot.sets) ? snapshot.sets : [];
+  // Placar agregado (sem `sets[]`): o set corrente vem de `liveScore.currentGames*`, pra o
+  // tie-break em 6-6 ser reconhecido.
+  const sets = raw.length === 0 && liveGames ?
+    [...Array.from({length: setIndex}, () => ({a: 0, b: 0})), liveGames] :
+    [...raw];
   const state: GamesLiveState = {
-    sets: [...sets],
+    sets,
     currentSetIndex: setIndex,
     currentGame: snapshot.currentGame ?? {a: 0, b: 0},
     servingTeamId: "",
@@ -137,6 +149,7 @@ function gamesOf(snapshot: LiveMatchSnapshot, setIndex: number): NormalizedScore
     labels: gamesPointLabels(state, profile),
     tiebreak: isTiebreakInProgress(state, profile),
     superTiebreak: isSuperTiebreakSet(profile, idx),
+    hasGamePoints: snapshot.currentGame != null,
   };
 }
 
@@ -168,7 +181,12 @@ function normalize(snapshot: LiveMatchSnapshot): NormalizedScore {
       Math.trunc(rawIndex) :
       Math.max(0, sets.length - 1);
 
-  const games = gamesOf(snapshot, setIndex);
+  const live = snapshot.liveScore;
+  const games = gamesOf(
+    snapshot,
+    setIndex,
+    live ? {a: intOf(live.currentGamesA), b: intOf(live.currentGamesB)} : null,
+  );
 
   if (sets.length > 0) {
     // Games: sets vencidos pela regra do perfil (6-4 fecha; 5-4 não). Pontos: como sempre.
@@ -185,7 +203,6 @@ function normalize(snapshot: LiveMatchSnapshot): NormalizedScore {
     };
   }
 
-  const live = snapshot.liveScore;
   if (live) {
     return {
       wonA: intOf(live.setsA),
@@ -220,7 +237,9 @@ export function liveScoreSignature(snapshot: LiveMatchSnapshot): string {
 /** Quem fecha o set no próximo ponto, e se esse set também fecha a partida. */
 function pointAlertOf(s: NormalizedScore): PointAlert | null {
   if (s.games) {
-    // Games: o próximo PONTO fecha o set só se fecha o game decisivo (ou o tie-break).
+    // Games: o próximo PONTO fecha o set só se fecha o game decisivo (ou o tie-break). Sem o
+    // ponto do game no doc não há como prever.
+    if (!s.games.hasGamePoints) return null;
     const teams = {teamAId: "A", teamBId: "B"};
     for (const side of ["A", "B"] as const) {
       const flag = gamesFlag(s.games.state, s.games.profile, teams, side);
@@ -398,7 +417,7 @@ function statusLabelFor(kind: LiveUpdateKind | null, score: NormalizedScore): st
 /** "20 x 15"; em games "5 x 4 · 40-15" e, no super tie-break, os pontos dele ("9 x 8"). */
 function scoreLineOf(score: NormalizedScore): string {
   const g = score.games;
-  if (!g) return `${score.currentA} x ${score.currentB}`;
+  if (!g || !g.hasGamePoints) return `${score.currentA} x ${score.currentB}`;
   const game = g.state.currentGame;
   if (g.superTiebreak && g.tiebreak) return `${game.a} x ${game.b}`;
   return `${score.currentA} x ${score.currentB} · ${g.labels.a}-${g.labels.b}`;

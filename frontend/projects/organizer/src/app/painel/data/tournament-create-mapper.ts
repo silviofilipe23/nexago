@@ -108,6 +108,8 @@ export function categoryToMap(category: TournamentCategoryDraft, draft: Tourname
     kocPhases: category.kocPhases,
     bestOf: category.bestOf,
     finalBestOf5: category.finalBestOf5,
+    // Perfil de placar: repassado cru (o wizard ainda não edita); não gravar seria apagar.
+    ...(category.scoringProfile ? { scoringProfile: category.scoringProfile } : {}),
     maxRegistrationsPerAthlete: category.maxRegistrationsPerAthlete,
     registrationClosed: false,
     isCompleted: false,
@@ -363,7 +365,13 @@ export function categoryFromMap(map: Record<string, unknown>): TournamentCategor
     finalBestOf5: map['finalBestOf5'] === true,
     maxRegistrationsPerAthlete: num(map['maxRegistrationsPerAthlete']) ?? 2,
     prizes: parsePrizes(map['prizes']),
+    scoringProfile: scoringProfileRawOf(map['scoringProfile']),
   };
+}
+
+/** Perfil de placar cru da categoria (objeto) ou `null`. */
+function scoringProfileRawOf(raw: unknown): Record<string, unknown> | null {
+  return raw && typeof raw === 'object' && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>) } : null;
 }
 
 export interface TournamentDraftLoad {

@@ -6,8 +6,9 @@
 import { KOC_LEGACY_MAX_TEAMS_PER_ROUND, type KocPhaseSpec } from './koc-phase-plan';
 import { sportLabel } from '@nexago/sports';
 
-export type TournamentSport = 'beachVolleyball' | 'indoorVolleyball' | 'footvolley';
-export const KNOWN_TOURNAMENT_SPORTS: readonly TournamentSport[] = ['beachVolleyball', 'indoorVolleyball', 'footvolley'];
+export type TournamentSport = 'beachVolleyball' | 'indoorVolleyball' | 'footvolley' | 'beachTennis';
+/** Na ordem do catálogo (suporte `competition`) — o teste de paridade compara com ela. */
+export const KNOWN_TOURNAMENT_SPORTS: readonly TournamentSport[] = ['beachVolleyball', 'indoorVolleyball', 'footvolley', 'beachTennis'];
 
 /** Leitura de `sport` vinda do Firestore. `sportRaw` só é preenchido quando o
  *  valor existe e o tipo não o representa: é o que volta pro doc no save, para
@@ -124,6 +125,10 @@ export interface TournamentCategoryDraft {
   finalBestOf5: boolean;
   maxRegistrationsPerAthlete: number;
   prizes: CategoryPrizeDraft[];
+  /** Perfil de placar da categoria (spec multiesporte), cru como está no doc. O wizard ainda
+   *  não o edita (2d2), mas precisa carregá-lo: o array `categories` é regravado inteiro, e um
+   *  campo ausente aqui é um campo apagado. Ausente/`null` = sem perfil explícito. */
+  scoringProfile?: Record<string, unknown> | null;
 }
 
 export interface TournamentCreateDraft {
@@ -288,6 +293,13 @@ export const BRACKET_SYSTEM_DESCRIPTION: Record<TournamentBracketSystem, string>
   doubleElimination: 'Dupla eliminatória — sem fase de grupos.',
   kingOfCourt: 'Rodadas de 3 a 5 duplas na mesma quadra. Só quem está no trono pontua.',
 };
+
+/** Formatos que o wizard oferece, na ordem da tela. O KOTC é só de vôlei de praia por enquanto
+ *  (o spec multiesporte deixa KOTC de outros esportes fora de escopo). */
+export function bracketSystemsForSport(sport: TournamentSport): TournamentBracketSystem[] {
+  const all: TournamentBracketSystem[] = ['groupsThenKnockout', 'singleElimination', 'doubleElimination', 'kingOfCourt', 'roundRobin', 'groupsWithRepechage'];
+  return sport === 'beachVolleyball' ? all : all.filter((s) => s !== 'kingOfCourt');
+}
 
 /** Formatos com geração de chave implementada (mesma lista do app). */
 export const SUPPORTED_BRACKET_SYSTEMS: readonly TournamentBracketSystem[] = ['groupsThenKnockout', 'singleElimination', 'doubleElimination', 'kingOfCourt'];
@@ -672,9 +684,12 @@ export function canContinueFromStep(draft: TournamentCreateDraft, step: Tourname
 
 export function publishBlockReasonForUnsupportedBrackets(draft: TournamentCreateDraft): string {
   for (const category of draft.categories) {
+    const label = category.name.trim() || 'sem nome';
     if (!SUPPORTED_BRACKET_SYSTEMS.includes(category.bracketSystem)) {
-      const label = category.name.trim() || 'sem nome';
       return `A categoria "${label}" usa ${BRACKET_SYSTEM_LABEL[category.bracketSystem]}, ainda não suportado.`;
+    }
+    if (category.bracketSystem === 'kingOfCourt' && draft.sport !== 'beachVolleyball') {
+      return `A categoria "${label}" usa King of the Court, que por enquanto é só para vôlei de praia.`;
     }
   }
   return '';

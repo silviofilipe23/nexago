@@ -184,11 +184,31 @@ function renderTsVectors(catalog, scoring) {
     '  readonly normalized: {a: number; b: number; tb?: {a: number; b: number}};',
     '}',
     '',
+    'export interface ScoringLiveState {',
+    '  readonly sets: ReadonlyArray<{a: number; b: number; tb?: {a: number; b: number}}>;',
+    '  readonly currentSetIndex: number;',
+    '  readonly currentGame: {a: number; b: number};',
+    '  readonly servingTeamId: string;',
+    '}',
+    '',
+    'export interface ScoringLiveVector {',
+    '  readonly profile: string;',
+    '  readonly start?: ScoringLiveState;',
+    '  readonly points: string;',
+    '  readonly expect: ScoringLiveState & {',
+    '    readonly winnerSide: "A" | "B" | null;',
+    '    readonly closed: "none" | "game" | "set" | "match" | null;',
+    '  };',
+    '  readonly labels?: {a: string; b: string};',
+    '  readonly hint?: string;',
+    '}',
+    '',
     'export const SCORING_VECTORS: {readonly profiles: Readonly<Record<string, unknown>>; ' +
       'readonly cases: readonly ScoringVectorCase[]; ' +
       'readonly labelVectors: readonly ScoringLabelVector[]; ' +
-      'readonly quickVectors: readonly ScoringQuickVector[]} = ' +
-      `${JSON.stringify({profiles: scoring.profiles, cases: scoring.cases, labelVectors: scoring.labelVectors, quickVectors: scoring.quickVectors})};`,
+      'readonly quickVectors: readonly ScoringQuickVector[]; ' +
+      'readonly liveVectors: readonly ScoringLiveVector[]} = ' +
+      `${JSON.stringify({profiles: scoring.profiles, cases: scoring.cases, labelVectors: scoring.labelVectors, quickVectors: scoring.quickVectors, liveVectors: scoring.liveVectors})};`,
     '',
   ].join('\n');
 }
@@ -261,7 +281,7 @@ function renderDartCatalog(catalog, index) {
 }
 
 function renderDartVectors(catalog, scoring) {
-  const scoringJson = JSON.stringify({profiles: scoring.profiles, cases: scoring.cases, labelVectors: scoring.labelVectors, quickVectors: scoring.quickVectors});
+  const scoringJson = JSON.stringify({profiles: scoring.profiles, cases: scoring.cases, labelVectors: scoring.labelVectors, quickVectors: scoring.quickVectors, liveVectors: scoring.liveVectors});
   if (scoringJson.includes("'''")) fail("scoring-vectors.json não pode conter '''");
   const list = (name, type, vectors) => [
     `const List<(String, ${type})> ${name} = [`,
@@ -285,7 +305,7 @@ export function outputs() {
   const index = validate(catalog);
   const scoring = JSON.parse(fs.readFileSync(path.join(ROOT, 'sports/scoring-vectors.json'), 'utf8'));
   for (const [name, p] of Object.entries(scoring.profiles)) validateScoringProfile(`vetor ${name}`, p);
-  for (const c of [...scoring.cases, ...scoring.labelVectors, ...scoring.quickVectors]) {
+  for (const c of [...scoring.cases, ...scoring.labelVectors, ...scoring.quickVectors, ...scoring.liveVectors]) {
     if (!(c.profile in scoring.profiles)) fail(`vetor com perfil desconhecido: ${c.profile}`);
   }
   const tsCatalog = renderTsCatalog(catalog, index);

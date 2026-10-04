@@ -14,6 +14,7 @@ import {
 
 export * from './catalog.generated';
 export * from './scoring';
+export * from './live-games';
 
 const FOLD: Readonly<Record<string, string>> = {
   'á': 'a', 'à': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',

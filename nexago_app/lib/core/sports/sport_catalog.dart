@@ -3,6 +3,7 @@ import 'sport_catalog_data.dart';
 export 'sport_catalog_data.dart';
 export 'scoring_profile.dart';
 export 'scoring_rules.dart';
+export 'live_games.dart';
 
 /// Catálogo de esportes (spec multiesporte 2026-10-03, eixo 1). Os dados vêm de
 /// `sport_catalog_data.dart` (gerado de `sports/catalog.json`); a lógica é a

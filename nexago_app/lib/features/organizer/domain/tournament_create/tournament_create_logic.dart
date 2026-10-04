@@ -769,7 +769,7 @@ String genderTypeFirestoreValue(TournamentCategoryGender gender) =>
     };
 
 String reviewSportSummary(TournamentCreateDraft draft) =>
-    draft.sportRaw ?? sportLabel(draft.sport);
+    SportCatalog.labelOf(draft.sportRaw) ?? sportLabel(draft.sport);
 
 String reviewCategoriesDetailSummary(TournamentCreateDraft draft) {
   if (draft.categories.isEmpty) return 'Nenhuma categoria';

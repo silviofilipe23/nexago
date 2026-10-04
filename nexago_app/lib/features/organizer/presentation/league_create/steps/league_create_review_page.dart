@@ -14,6 +14,7 @@ import '../league_create_navigation.dart';
 import '../league_create_wizard_scaffold.dart';
 import '../league_published_page.dart';
 import '../../tournament_create/widgets/organizer_form_widgets.dart';
+import '../../../../../core/sports/sport_catalog.dart';
 
 class LeagueCreateReviewPage extends ConsumerStatefulWidget {
   const LeagueCreateReviewPage({super.key});
@@ -126,7 +127,7 @@ class _LeagueCreateReviewPageState extends ConsumerState<LeagueCreateReviewPage>
                 ],
                 const SizedBox(height: 4),
                 Text(
-                  '${(draft.sportRaw ?? sportLabel(draft.sport)).toUpperCase()} · '
+                  '${(SportCatalog.labelOf(draft.sportRaw) ?? sportLabel(draft.sport)).toUpperCase()} · '
                           '${formatLeagueShortSeasonRange(draft.seasonStartAt, draft.seasonEndAt)}'
                       .toUpperCase(),
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(

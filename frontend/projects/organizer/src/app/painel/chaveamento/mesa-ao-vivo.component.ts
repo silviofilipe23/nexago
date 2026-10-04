@@ -1585,7 +1585,7 @@ export class MesaAoVivoComponent {
     this.busyKey.set('undo');
     this.feedback.set(null);
     try {
-      await recordPointTransaction(this.scoring, { matchId: m.id, build: (fresh) => buildUndoWrite(fresh, side, last.setIndex) });
+      await recordPointTransaction(this.scoring, { matchId: m.id, build: (fresh) => buildUndoWrite(fresh, side, last.setIndex, last.prev) });
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao desfazer o ponto.' });
     } finally {

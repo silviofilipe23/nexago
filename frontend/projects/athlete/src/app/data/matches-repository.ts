@@ -605,3 +605,14 @@ export function displaySetScoreOf(m: Pick<TournamentMatch, 'scoringProfile' | 'b
   const profile = profileOf(m);
   return profile.kind === 'sets_games' && s.tb && isSuperTiebreakSet(profile, index) ? { a: s.tb.a, b: s.tb.b } : { a: s.a, b: s.b };
 }
+
+/** Sets fechados em números de exibição (o super tie-break com os pontos dele). */
+export function matchClosedDisplaySets(m: Pick<TournamentMatch, 'sets' | 'resultA' | 'resultB' | 'liveScore' | 'status' | 'bestOf' | 'currentSetIndex' | 'scoringProfile' | 'currentGame'>): { a: number; b: number }[] {
+  return matchClosedSets(m).map((s, i) => displaySetScoreOf(m, i, s));
+}
+
+/** Texto de um set fechado na ótica de um lado ("6-7 (5-7)" visto por B vira "7-6 (7-5)"). */
+export function setTextForSide(m: Pick<TournamentMatch, 'scoringProfile' | 'bestOf'>, index: number, s: MatchSet, side: 'A' | 'B'): string {
+  const mine: MatchSet = side === 'A' ? s : { a: s.b, b: s.a, ...(s.tb ? { tb: { a: s.tb.b, b: s.tb.a } } : {}) };
+  return setScoreText(profileOf(m), index, mine);
+}

@@ -1,4 +1,4 @@
-import { matchFromDoc, type TournamentMatch } from '../data/matches-repository';
+import { matchClosedDisplaySets, matchFromDoc, type TournamentMatch } from '../data/matches-repository';
 import { mesaScoreLabel } from '../mesa/mesa-matches.selectors';
 import { closedPartialsLabelOf, liveScoreLineOf } from './tournament-format';
 import { displaySetsOf } from './tournament-live.selectors';
@@ -32,6 +32,7 @@ describe('exibição de partida de games (portal do atleta)', () => {
     const m = doc({ status: 'Completed', winnerId: 'A', sets: [{ a: 6, b: 4 }, { a: 6, b: 7, tb: { a: 5, b: 7 } }, { a: 1, b: 0, tb: { a: 10, b: 8 } }] });
     expect(closedPartialsLabelOf(m)).toBe('6-4 · 6-7 (5-7) · 10-8');
     expect(displaySetsOf(m).map((s) => [s.a, s.b])).toEqual([[6, 4], [6, 7], [10, 8]]);
+    expect(matchClosedDisplaySets(m)).toEqual([{ a: 6, b: 4 }, { a: 6, b: 7 }, { a: 10, b: 8 }]);
   });
 
   it('partida de pontos: igual a hoje', () => {

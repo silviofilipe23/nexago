@@ -142,6 +142,16 @@ describe('campaignRowsOf', () => {
     expect(rows.map((r) => (r.kind === 'match' ? r.opponentName : ''))).toEqual(['Dupla a', 'Dupla b']);
   });
 
+  it('partida de games: parciais na ótica do atleta, com tie-break e super tie-break em pontos', () => {
+    const BT = { kind: 'sets_games', bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: true, decidingSet: 'super_tiebreak', superTiebreakTo: 10 } as const;
+    const matches = [
+      match({ id: 'g', teamAId: 'x', teamBId: 'mine', status: 'Completed', winnerId: 'mine', scoringProfile: BT, sets: [{ a: 4, b: 6 }, { a: 7, b: 6, tb: { a: 7, b: 5 } }, { a: 0, b: 1, tb: { a: 8, b: 10 } }] }),
+    ];
+    const [row] = campaignRowsOf(matches, 'c1', MINE, NAME_OF);
+    expect(row?.kind === 'match' ? row.partials : null).toEqual(['6-4', '6-7 (5-7)', '10-8']);
+    expect(row?.kind === 'match' ? row.setScore : null).toBe('2–1');
+  });
+
   it('deixa de fora pendente, ao vivo e cancelada', () => {
     const matches = [
       match({ id: 'ok', teamAId: 'mine', status: 'Completed', winnerId: 'mine', sets: [{ a: 21, b: 15 }, { a: 21, b: 18 }] }),

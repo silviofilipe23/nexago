@@ -86,10 +86,11 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
           useDefaultPrice: true,
         );
     // Categoria NOVA nasce com o placar sugerido do esporte (gravado explícito).
-    if (widget.existing == null) {
+    final scoringSport = scoringSportOf(draft.sport, draft.sportRaw);
+    if (widget.existing == null && scoringSport != null) {
       _category = _category.copyWith(
         scoringProfileRaw: suggestedScoringProfile(
-          draft.sport,
+          scoringSport,
           _category.bestOf,
         ),
       );
@@ -335,12 +336,18 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
                     );
                   },
                 ),
-                const SizedBox(height: 20),
-                OrganizerCategoryScoringSection(
-                  category: _category,
-                  sport: ref.watch(tournamentCreateDraftProvider).sport,
-                  onChanged: (c) => setState(() => _category = c),
-                ),
+                if (scoringSportOf(
+                      ref.watch(tournamentCreateDraftProvider).sport,
+                      ref.watch(tournamentCreateDraftProvider).sportRaw,
+                    )
+                    case final scoringSport?) ...[
+                  const SizedBox(height: 20),
+                  OrganizerCategoryScoringSection(
+                    category: _category,
+                    sport: scoringSport,
+                    onChanged: (c) => setState(() => _category = c),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 const OrganizerSectionLabel('VAGAS & PREÇO'),
                 const SizedBox(height: 12),

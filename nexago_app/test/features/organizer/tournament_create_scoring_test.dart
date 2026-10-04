@@ -138,4 +138,13 @@ void main() {
     final cat = (map['categories'] as List).single as Map<String, dynamic>;
     expect((cat['scoringProfile'] as Map)['bestOf'], 1);
   });
+
+  test('esporte desconhecido (sportRaw): sem esporte de placar', () {
+    expect(
+      scoringSportOf(TournamentSport.beachVolleyball, null),
+      TournamentSport.beachVolleyball,
+    );
+    expect(scoringSportOf(TournamentSport.beachVolleyball, 'tennis'), isNull);
+  });
 }
+

@@ -34,6 +34,7 @@ import {
   SUPPORTED_BRACKET_SYSTEMS,
   bracketSystemsForSport,
   categoryScoringView,
+  scoringSportOf,
   patchCategoryScoring,
   withSportScoring,
   type CategoryScoringPatch,
@@ -1054,16 +1055,21 @@ export class CriarTorneioComponent {
   }
 
   /** O placar que a categoria em edição vai carimbar (explícito ou o do servidor sem perfil). */
-  protected readonly catScoring = computed(() => categoryScoringView(this.cat(), this.draft().sport));
+  protected readonly catScoring = computed(() => {
+    // Esporte desconhecido (`sportRaw`): sem bloco de placar — o servidor usa o padrão dele.
+    const sport = scoringSportOf(this.draft());
+    return sport ? categoryScoringView(this.cat(), sport) : null;
+  });
   protected readonly decidingSetOptions = ['Super tie-break', 'Set completo'];
 
   protected patchCatScoring(patch: CategoryScoringPatch): void {
-    this.cat.update((c) => patchCategoryScoring(c, this.draft().sport, patch));
+    const sport = scoringSportOf(this.draft());
+    if (sport) this.cat.update((c) => patchCategoryScoring(c, sport, patch));
   }
 
   protected bumpCatScoring(field: 'setTarget' | 'decidingSetTarget', delta: number): void {
     const sc = this.catScoring();
-    if (sc.kind !== 'sets_points') return;
+    if (!sc || sc.kind !== 'sets_points') return;
     // Alvo do set entre 5 e 50; o decisivo nunca passa do alvo do set.
     const next = field === 'setTarget' ? Math.min(Math.max(sc.setTarget + delta, 5), 50) : Math.min(Math.max(sc.decidingSetTarget + delta, 5), sc.setTarget);
     this.patchCatScoring({ [field]: next });
@@ -1254,7 +1260,7 @@ export class CriarTorneioComponent {
         : applyOrganizerCategoryDefaults(
             { ...emptyCategoryDraft(`${Date.now()}`), priceCents: this.draft().defaultPriceCents },
             this.organizerDefaults,
-            this.draft().sport,
+            scoringSportOf(this.draft()) ?? undefined,
           ),
     );
     this.catPriceInput.set(formatCentsInputValue(this.cat().priceCents));

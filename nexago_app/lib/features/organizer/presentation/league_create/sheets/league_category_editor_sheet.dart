@@ -54,6 +54,17 @@ class _LeagueCategoryEditorSheetState
           useDefaultPrice: true,
           dispute: TournamentCategoryDispute.dupla,
         );
+    // Categoria NOVA nasce com o placar sugerido do esporte, como no portal
+    // (as etapas herdam o perfil da categoria da liga).
+    final scoringSport = scoringSportOf(draft.sport, draft.sportRaw);
+    if (widget.existing == null && scoringSport != null) {
+      _category = _category.copyWith(
+        scoringProfileRaw: suggestedScoringProfile(
+          scoringSport,
+          _category.bestOf,
+        ),
+      );
+    }
     _nameController = TextEditingController(text: _category.name);
     _priceController = TextEditingController(
       text: formatCents(_category.priceCents).replaceAll(r'R$', '').trim(),

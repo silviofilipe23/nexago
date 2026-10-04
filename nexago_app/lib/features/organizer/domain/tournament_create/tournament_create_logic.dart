@@ -872,6 +872,12 @@ const defaultRankingPointsPreview = <String, int>{
 int profileBestOf(TournamentBestOf bestOf) =>
     bestOf == TournamentBestOf.singleSet ? 1 : 3;
 
+/// Esporte que decide o placar da categoria: o do enum, ou `null` quando o
+/// torneio está num esporte que esta versão não conhece (`sportRaw`) — aí não
+/// se sugere nem se mostra placar, e o servidor usa o padrão do esporte real.
+TournamentSport? scoringSportOf(TournamentSport sport, String? sportRaw) =>
+    sportRaw == null ? sport : null;
+
 /// Perfil sugerido para uma categoria NOVA do esporte: o padrão do catálogo
 /// (21/15 vôlei de praia, 25/15 quadra, 18/15 futevôlei, games de beach tennis)
 /// com o `bestOf` da categoria.

@@ -4,7 +4,7 @@
  *  renomear. */
 
 import { KOC_LEGACY_MAX_TEAMS_PER_ROUND, type KocPhaseSpec } from './koc-phase-plan';
-import { sportLabel } from '@nexago/sports';
+import { legacyScoringProfile, scoringProfileFromRaw, sportLabel, SPORT_CATALOG, type ScoringProfile } from '@nexago/sports';
 
 export type TournamentSport = 'beachVolleyball' | 'indoorVolleyball' | 'footvolley' | 'beachTennis';
 /** Na ordem do catálogo (suporte `competition`) — o teste de paridade compara com ela. */
@@ -715,3 +715,65 @@ export function defaultCourtsFromCount(count: number): TournamentCourt[] {
   const n = Math.max(count, 1);
   return Array.from({ length: n }, (_, i) => ({ id: `Q${i + 1}`, name: `Quadra ${i + 1}`, order: i + 1 }));
 }
+
+// ── Placar da categoria (spec multiesporte, fase 2d2a) ────────────────────────
+
+/** `bestOf` numérico do perfil — o mesmo mapeamento do servidor (`matchBestOfFromCategory`):
+ *  set único = 1; MD3 e MD5 = 3 (MD5 ainda não é operável na mesa). */
+export function profileBestOf(bestOf: TournamentBestOf): 1 | 3 {
+  return bestOf === 'singleSet' ? 1 : 3;
+}
+
+/** Perfil sugerido para uma categoria NOVA do esporte: o padrão do catálogo (21/15 vôlei de
+ *  praia, 25/15 quadra, 18/15 futevôlei, games de beach tennis) com o `bestOf` da categoria. */
+export function suggestedScoringProfile(sport: TournamentSport, bestOf: TournamentBestOf): Record<string, unknown> {
+  const base = SPORT_CATALOG.find((e) => e.code === sport)?.scoringProfile ?? legacyScoringProfile(3);
+  return { ...base, bestOf: profileBestOf(bestOf) };
+}
+
+/** O placar que a categoria vai carimbar: o perfil explícito ou, sem ele, o que o servidor usa —
+ *  regra histórica nos esportes de pontos, padrão do catálogo em games. */
+export function categoryScoringView(category: TournamentCategoryDraft, sport: TournamentSport): ScoringProfile {
+  const explicit = scoringProfileFromRaw(category.scoringProfile);
+  if (explicit) return { ...explicit, bestOf: profileBestOf(category.bestOf) };
+  const catalog = scoringProfileFromRaw(SPORT_CATALOG.find((e) => e.code === sport)?.scoringProfile);
+  const base = catalog?.kind === 'sets_games' ? catalog : legacyScoringProfile(3);
+  return { ...base, bestOf: profileBestOf(category.bestOf) };
+}
+
+export interface CategoryScoringPatch {
+  setTarget?: number;
+  decidingSetTarget?: number;
+  noAd?: boolean;
+  decidingSet?: 'full' | 'super_tiebreak';
+}
+
+/** Edição do placar: parte do que a categoria carimba hoje e grava o perfil explícito. Campo de
+ *  outro tipo é ignorado (pontos não tem `noAd`; games não tem alvo de set). */
+export function patchCategoryScoring(
+  category: TournamentCategoryDraft,
+  sport: TournamentSport,
+  patch: CategoryScoringPatch,
+): TournamentCategoryDraft {
+  const current = categoryScoringView(category, sport);
+  const next =
+    current.kind === 'sets_points'
+      ? {
+          ...current,
+          ...(patch.setTarget != null ? { setTarget: patch.setTarget } : {}),
+          ...(patch.decidingSetTarget != null ? { decidingSetTarget: patch.decidingSetTarget } : {}),
+        }
+      : {
+          ...current,
+          ...(patch.noAd != null ? { noAd: patch.noAd } : {}),
+          ...(patch.decidingSet != null ? { decidingSet: patch.decidingSet } : {}),
+        };
+  return { ...category, scoringProfile: { ...next } as Record<string, unknown> };
+}
+
+/** Troca de esporte: categoria com perfil explícito ganha a sugestão do novo esporte (o perfil
+ *  antigo seria de outro tipo); sem perfil continua sem. */
+export function withSportScoring(categories: readonly TournamentCategoryDraft[], sport: TournamentSport): TournamentCategoryDraft[] {
+  return categories.map((c) => (c.scoringProfile ? { ...c, scoringProfile: suggestedScoringProfile(sport, c.bestOf) } : c));
+}
+

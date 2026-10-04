@@ -16,6 +16,7 @@ import {
   isTeamDispute,
   suggestCategoryName,
   bracketSystemsForSport,
+  profileBestOf,
 } from './tournament-create.model';
 
 /** Porta fiel de `league_create_draft.dart` + `league_create_mapper.dart` +
@@ -245,7 +246,7 @@ function leagueCategoryToMap(category: TournamentCategoryDraft): Record<string, 
     maxTeamsPerRound: category.kocMaxTeamsPerRound,
     bestOf: category.bestOf,
     finalBestOf5: category.finalBestOf5,
-    ...(category.scoringProfile ? { scoringProfile: category.scoringProfile } : {}),
+    ...(category.scoringProfile ? { scoringProfile: { ...category.scoringProfile, bestOf: profileBestOf(category.bestOf) } } : {}),
     maxRegistrationsPerAthlete: category.maxRegistrationsPerAthlete,
     registrationClosed: false,
     isCompleted: false,

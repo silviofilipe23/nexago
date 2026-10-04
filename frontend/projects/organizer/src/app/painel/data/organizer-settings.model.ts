@@ -23,6 +23,7 @@ import {
   type TournamentVisibility,
   KNOWN_TOURNAMENT_SPORTS,
   bracketSystemsForSport,
+  suggestedScoringProfile,
 } from './tournament-create.model';
 import { pixKeyTypeFromStored, type PixKeyType } from './pix-key';
 import {
@@ -307,6 +308,8 @@ export function applyOrganizerCategoryDefaults(
     sport && !bracketSystemsForSport(sport).includes(defaults.bracketSystem) ? 'groupsThenKnockout' : defaults.bracketSystem;
   return {
     ...category,
+    // Categoria NOVA nasce com o placar sugerido do esporte (gravado explícito).
+    ...(sport ? { scoringProfile: suggestedScoringProfile(sport, defaults.bestOf) } : {}),
     bracketSystem,
     bestOf: defaults.bestOf,
     finalBestOf5: defaults.finalBestOf5,

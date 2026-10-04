@@ -285,6 +285,7 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
                 ],
                 const SizedBox(height: 20),
                 OrganizerCategoryFormatSection(
+                  sport: ref.watch(tournamentCreateDraftProvider).sport,
                   bracketSystem: _category.bracketSystem,
                   teamsPerGroup: _category.teamsPerGroup,
                   qualifiersPerGroup: _category.qualifiersPerGroup,

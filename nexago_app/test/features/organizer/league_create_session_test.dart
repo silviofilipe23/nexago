@@ -151,11 +151,11 @@ void main() {
       managerUid: 'mgr-1',
       currentStep: LeagueCreateStep.ranking,
       updatedAt: DateTime(2026, 1, 10),
-      draft: const LeagueCreateDraft(name: 'Liga BT', sportRaw: 'beachTennis'),
+      draft: const LeagueCreateDraft(name: 'Liga BT', sportRaw: 'padel'),
     );
     expect(
       LeagueCreateSession.fromJson(session.toJson())!.draft.sportRaw,
-      'beachTennis',
+      'padel',
     );
 
     final old = session.toJson();

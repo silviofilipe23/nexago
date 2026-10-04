@@ -183,7 +183,7 @@ void main() {
       final draft = LeagueStageCreateDraft(
         leagueId: 'liga-bt',
         leagueName: 'Liga BT',
-        sportRaw: 'beachTennis',
+        sportRaw: 'padel',
         leagueCity: 'Goiânia',
         leagueState: 'GO',
         stage: const LeagueStageDraft(id: 's1', name: 'Etapa 1', order: 1),
@@ -194,7 +194,7 @@ void main() {
         tournamentId: 't1',
         publish: false,
       );
-      expect(map['sport'], 'beachTennis');
+      expect(map['sport'], 'padel');
     });
 
     test('publish sets listingStatus open and enabled categories only', () {

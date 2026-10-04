@@ -244,6 +244,8 @@ abstract final class LeagueCreateMapper {
       'roundDurationSec': category.kocRoundDurationSec,
       'bestOf': category.bestOf.name,
       'finalBestOf5': category.finalBestOf5,
+      if (category.scoringProfileRaw != null)
+        'scoringProfile': category.scoringProfileRaw,
       'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,
       'registrationClosed': false,
       'isCompleted': false,
@@ -305,6 +307,7 @@ abstract final class LeagueCreateMapper {
           kocDefaultRoundDurationSec,
       bestOf: _parseBestOf(map['bestOf'] as String?),
       finalBestOf5: map['finalBestOf5'] as bool? ?? true,
+      scoringProfileRaw: scoringProfileRawOf(map['scoringProfile']),
       maxRegistrationsPerAthlete:
           (map['maxRegistrationsPerAthlete'] as num?)?.toInt() ?? 2,
       prizes: _parsePrizes(map['prizes']),

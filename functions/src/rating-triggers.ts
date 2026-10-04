@@ -19,7 +19,7 @@ import {inflateRd} from "./glicko";
 import {artifactsMatchesPath, getFirebaseProjectId} from "./firebase-paths";
 import {MatchStatus} from "./match-status";
 import {
-  RATED_SPORT_CODES,
+  loadRatedSportConfig,
   loadRatingLadderConfig,
   resolveLadderLevel,
   type RatingLadderConfig,
@@ -210,7 +210,7 @@ export const onUserWrittenTrackLevelChanges = onDocumentWritten(
     const projectId = getFirebaseProjectId();
     const isPrivilegedWrite = isPrivilegedLevelChangeWrite(after);
 
-    for (const sportCode of RATED_SPORT_CODES) {
+    for (const sportCode of ATHLETE_SPORT_CODES) {
       const rawBefore = String(beforeLevels[sportCode] ?? "").trim();
       const rawAfter = String(afterLevels[sportCode] ?? "").trim();
       if (!rawAfter || rawAfter === rawBefore) continue;
@@ -330,7 +330,7 @@ export const evaluateRatingLadderDaily = onSchedule(
     const projectId = getFirebaseProjectId();
     const now = new Date();
 
-    for (const sportCode of RATED_SPORT_CODES) {
+    for (const sportCode of ATHLETE_SPORT_CODES) {
       const config = await loadRatingLadderConfig(db, sportCode);
       if (!config.flags.ratingEnabled) continue;
 
@@ -421,7 +421,10 @@ export const recomputeAthleteRating = onCall({
   await superAdminOrThrow(request.auth?.uid);
 
   const sportCode = String(request.data?.sportCode ?? "").trim();
-  if (!(RATED_SPORT_CODES as readonly string[]).includes(sportCode)) {
+  if (
+    !(ATHLETE_SPORT_CODES as readonly string[]).includes(sportCode) ||
+    (await loadRatedSportConfig(getFirestore(), sportCode)) == null
+  ) {
     throw new HttpsError("invalid-argument", "sportCode inválido.");
   }
   const rawIds: unknown = request.data?.athleteIds ?? request.data?.athleteId;

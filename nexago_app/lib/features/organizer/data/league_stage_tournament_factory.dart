@@ -90,6 +90,7 @@ abstract final class LeagueStageTournamentFactory {
     return _baseTournamentMap(
       name: name,
       sport: draft.sport,
+      sportRaw: draft.sportRaw,
       description: '',
       city: stage.city.trim().isEmpty ? draft.leagueCity : stage.city.trim(),
       state:

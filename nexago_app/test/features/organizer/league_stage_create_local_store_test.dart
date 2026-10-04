@@ -8,6 +8,24 @@ import 'package:nexago_app/features/organizer/domain/league_stage_create/league_
 
 void main() {
   group('LeagueStageCreateLocalStore', () {
+    test('sessão de etapa preserva sportRaw no json', () async {
+      final session = LeagueStageCreateSession(
+        draft: LeagueStageCreateDraft(
+          leagueId: 'league-1',
+          leagueName: 'Liga BT',
+          sportRaw: 'beachTennis',
+          stage:
+              const LeagueStageDraft(id: 'stage-1', name: 'Etapa 1', order: 1),
+        ),
+        currentStep: LeagueStageCreateStep.categoriesRegistration,
+        updatedAt: DateTime(2026, 3, 1, 12),
+        managerUid: 'manager-1',
+      );
+      final restored = LeagueStageCreateSession.fromJson(session.toJson())!;
+      expect(restored.draft.sportRaw, 'beachTennis');
+      expect(restored.draft.sportFirestoreValue, 'beachTennis');
+    });
+
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
     });

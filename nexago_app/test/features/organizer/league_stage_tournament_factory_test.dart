@@ -173,12 +173,31 @@ void main() {
         tournamentId: 't1',
       );
 
-      final category = (map['categories'] as List).single as Map<String, dynamic>;
+      final category =
+          (map['categories'] as List).single as Map<String, dynamic>;
       expect(category['minLevel'], 'Avançado 1');
     });
   });
 
   group('LeagueStageTournamentFactory.buildFromStageCreate', () {
+    test('buildFromStageCreate grava o sport cru da liga', () {
+      final draft = LeagueStageCreateDraft(
+        leagueId: 'liga-bt',
+        leagueName: 'Liga BT',
+        sportRaw: 'beachTennis',
+        leagueCity: 'Goiânia',
+        leagueState: 'GO',
+        stage: const LeagueStageDraft(id: 's1', name: 'Etapa 1', order: 1),
+      );
+      final map = LeagueStageTournamentFactory.buildFromStageCreate(
+        draft: draft,
+        managerId: 'm1',
+        tournamentId: 't1',
+        publish: false,
+      );
+      expect(map['sport'], 'beachTennis');
+    });
+
     test('publish sets listingStatus open and enabled categories only', () {
       final map = LeagueStageTournamentFactory.buildFromStageCreate(
         draft: _draft(),
@@ -284,13 +303,15 @@ void main() {
         publish: true,
       );
 
-      final category = (map['categories'] as List).single as Map<String, dynamic>;
+      final category =
+          (map['categories'] as List).single as Map<String, dynamic>;
       expect(category['minLevel'], 'Avançado 1');
     });
   });
 
   group('categoriesFromLeagueCategories (minLevel)', () {
-    test('categoria de nova etapa herda o minLevel gravado pelo portal web', () {
+    test('categoria de nova etapa herda o minLevel gravado pelo portal web',
+        () {
       final categories = categoriesFromLeagueCategories([
         {
           'id': 'cat-elite',
@@ -304,7 +325,8 @@ void main() {
       expect(categories.single.minLevel, 'Avançado 1');
     });
 
-    test('minLevel ausente reidrata como string vazia (categoria sem piso)', () {
+    test('minLevel ausente reidrata como string vazia (categoria sem piso)',
+        () {
       final categories = categoriesFromLeagueCategories([
         {'id': 'cat-livre', 'categoryName': 'Livre', 'maxTeams': 16},
       ], 22000);

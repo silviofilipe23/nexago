@@ -17,6 +17,7 @@ typedef PublishedLeagueForStageAdd = ({
   String leagueName,
   int plannedStagesCount,
   TournamentSport sport,
+  String? sportRaw,
   String city,
   String state,
   int defaultPriceCents,
@@ -168,9 +169,8 @@ class OrganizerLeaguesRepository {
       throw StateError('Usuário não autenticado.');
     }
 
-    final snap = await _leagues
-        .doc(id)
-        .get(const GetOptions(source: Source.server));
+    final snap =
+        await _leagues.doc(id).get(const GetOptions(source: Source.server));
     if (!snap.exists) return;
 
     final data = snap.data();
@@ -187,9 +187,8 @@ class OrganizerLeaguesRepository {
     await _leagues.doc(id).delete();
     await _firestore.waitForPendingWrites();
 
-    final verify = await _leagues
-        .doc(id)
-        .get(const GetOptions(source: Source.server));
+    final verify =
+        await _leagues.doc(id).get(const GetOptions(source: Source.server));
     if (verify.exists) {
       throw StateError(
         'Não foi possível remover o rascunho. Verifique sua conexão e permissões.',
@@ -250,13 +249,11 @@ class OrganizerLeaguesRepository {
       stageTournamentIds[stage.id] = _tournaments.doc().id;
     }
 
-    final stagesWithIds = draft.stages
-        .map((stage) {
-          final tournamentId = stageTournamentIds[stage.id];
-          if (tournamentId == null) return stage;
-          return stage.copyWith(tournamentIds: [tournamentId]);
-        })
-        .toList(growable: false);
+    final stagesWithIds = draft.stages.map((stage) {
+      final tournamentId = stageTournamentIds[stage.id];
+      if (tournamentId == null) return stage;
+      return stage.copyWith(tournamentIds: [tournamentId]);
+    }).toList(growable: false);
 
     final leagueDraft = draft.copyWith(
       leagueId: leagueId,
@@ -346,10 +343,10 @@ class OrganizerLeaguesRepository {
     return (
       leagueId: snap.id,
       leagueName: (data['name'] as String?) ?? 'Liga',
-      plannedStagesCount:
-          (data['plannedStagesCount'] as num?)?.toInt() ??
+      plannedStagesCount: (data['plannedStagesCount'] as num?)?.toInt() ??
           existingStages.where((s) => !s.isGrandFinal).length,
-      sport: _parseSport(data['sport'] as String?),
+      sport: parseTournamentSport(data['sport'] as String?).sport,
+      sportRaw: parseTournamentSport(data['sport'] as String?).raw,
       city: (data['city'] as String?) ?? '',
       state: (data['state'] as String?) ?? '',
       defaultPriceCents: defaultPrice,
@@ -405,9 +402,9 @@ class OrganizerLeaguesRepository {
 
     final mergedStages =
         LeagueStageTournamentFactory.mergeStageIntoLeagueStages(
-          existingStages: existingStages,
-          updatedStage: definedStage,
-        );
+      existingStages: existingStages,
+      updatedStage: definedStage,
+    );
 
     final batch = _firestore.batch();
     final tournamentRef = _tournaments.doc(tournamentId);
@@ -480,13 +477,6 @@ class OrganizerLeaguesRepository {
     });
   }
 
-  TournamentSport _parseSport(String? raw) {
-    for (final value in TournamentSport.values) {
-      if (value.name == raw) return value;
-    }
-    return TournamentSport.beachVolleyball;
-  }
-
   TournamentPaymentMode _parsePaymentMode(String? raw) {
     for (final value in TournamentPaymentMode.values) {
       if (value.name == raw) return value;
@@ -521,8 +511,8 @@ class OrganizerLeaguesRepository {
       throw StateError('Imagem de capa não encontrada.');
     }
     final ref = FirebaseStorage.instance.ref().child(
-      'leagues/$leagueId/cover.jpg',
-    );
+          'leagues/$leagueId/cover.jpg',
+        );
     await ref.putFile(file, SettableMetadata(contentType: 'image/jpeg'));
     return ref.getDownloadURL();
   }

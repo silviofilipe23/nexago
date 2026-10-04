@@ -39,7 +39,8 @@ String leagueContextLabel(LeagueStageCreateDraft draft) {
 
 /// Prioriza slot pending sem torneio; senão append com ordem incrementada.
 LeagueStageDraft resolveTargetStage(List<LeagueStageDraft> existingStages) {
-  final sorted = [...existingStages]..sort((a, b) => a.order.compareTo(b.order));
+  final sorted = [...existingStages]
+    ..sort((a, b) => a.order.compareTo(b.order));
 
   for (final stage in sorted) {
     if (stage.status == LeagueStageStatus.pending &&
@@ -78,20 +79,18 @@ bool canContinueFromStageStep(
   LeagueStageCreateStep step,
 ) {
   return switch (step) {
-    LeagueStageCreateStep.location =>
-      draft.stage.name.trim().isNotEmpty &&
-          draft.stage.city.trim().isNotEmpty &&
-          draft.stage.locationName.trim().isNotEmpty &&
-          draft.stage.startAt != null &&
-          draft.stage.endAt != null &&
-          !draft.stage.endAt!.isBefore(draft.stage.startAt!) &&
-          draft.courtsCount >= 1,
+    LeagueStageCreateStep.location => draft.stage.name.trim().isNotEmpty &&
+        draft.stage.city.trim().isNotEmpty &&
+        draft.stage.locationName.trim().isNotEmpty &&
+        draft.stage.startAt != null &&
+        draft.stage.endAt != null &&
+        !draft.stage.endAt!.isBefore(draft.stage.startAt!) &&
+        draft.courtsCount >= 1,
     LeagueStageCreateStep.categoriesRegistration =>
       draft.enabledCategoriesCount > 0 &&
           draft.registrationOpensAt != null &&
           draft.registrationClosesAt != null &&
-          !draft.registrationClosesAt!
-              .isBefore(draft.registrationOpensAt!),
+          !draft.registrationClosesAt!.isBefore(draft.registrationOpensAt!),
     LeagueStageCreateStep.review => isValidStageForPublish(draft),
   };
 }
@@ -158,8 +157,8 @@ String reviewStageCategoriesSummary(LeagueStageCreateDraft draft) {
 }
 
 String reviewStageRegistrationSummary(LeagueStageCreateDraft draft) {
-  final range =
-      formatRegistrationRange(draft.registrationOpensAt, draft.registrationClosesAt);
+  final range = formatRegistrationRange(
+      draft.registrationOpensAt, draft.registrationClosesAt);
   final price = formatCents(draft.defaultPriceCents);
   return '$range · $price (preço da liga)';
 }
@@ -168,7 +167,8 @@ String reviewStageFormatSummary(LeagueStageCreateDraft draft) {
   final enabled = draft.categories.where((c) => c.enabled).toList();
   if (enabled.isEmpty) return 'Formato por categoria';
   final formats = enabled
-      .map((c) => '${c.name.trim()}: ${bracketSystemShortLabel(c.bracketSystem)}')
+      .map((c) =>
+          '${c.name.trim()}: ${bracketSystemShortLabel(c.bracketSystem)}')
       .join(' · ');
   return '$formats · pontos somam no circuito';
 }
@@ -196,55 +196,61 @@ List<LeagueStageCategoryDraft> categoriesFromLeagueCategories(
   List<dynamic> categoriesRaw,
   int defaultPriceCents,
 ) {
-  return categoriesRaw.whereType<Map>().map((raw) {
-    final map = Map<String, dynamic>.from(raw);
-    final id = (map['id'] as String?) ?? '';
-    if (id.isEmpty) return null;
+  return categoriesRaw
+      .whereType<Map>()
+      .map((raw) {
+        final map = Map<String, dynamic>.from(raw);
+        final id = (map['id'] as String?) ?? '';
+        if (id.isEmpty) return null;
 
-    final name = (map['categoryName'] as String?) ??
-        (map['name'] as String?) ??
-        '';
-    final spots = (map['maxTeams'] as num?)?.toInt() ??
-        (map['spotsTotal'] as num?)?.toInt() ??
-        16;
-    final price = (map['entryFeeCents'] as num?)?.toInt() ?? defaultPriceCents;
-    final bracketRaw = map['bracketFormat'] as String?;
+        final name =
+            (map['categoryName'] as String?) ?? (map['name'] as String?) ?? '';
+        final spots = (map['maxTeams'] as num?)?.toInt() ??
+            (map['spotsTotal'] as num?)?.toInt() ??
+            16;
+        final price =
+            (map['entryFeeCents'] as num?)?.toInt() ?? defaultPriceCents;
+        final bracketRaw = map['bracketFormat'] as String?;
 
-    final composition = map['genderComposition'];
-    return LeagueStageCategoryDraft(
-      categoryId: id,
-      name: name,
-      enabled: true,
-      spots: spots,
-      // Gênero e disputa herdados da liga: sem eles a etapa regravava a
-      // categoria como "male/dupla" — corrompendo trio/quarteto/quinteto
-      // (e o gênero de qualquer categoria) criados no portal.
-      gender: _parseStageGender(map['genderType'] as String?),
-      dispute: _parseStageDispute(map['disputeType'] as String?),
-      genderFree: (map['genderMode'] as String?) == 'free',
-      menCount: composition is Map ? (composition['men'] as num?)?.toInt() : null,
-      womenCount:
-          composition is Map ? (composition['women'] as num?)?.toInt() : null,
-      priceCents: price,
-      bracketSystem: bracketRaw != null && bracketRaw.isNotEmpty
-          ? _parseBracketFormat(bracketRaw)
-          : TournamentBracketSystem.groupsThenKnockout,
-      teamsPerGroup: (map['teamsPerGroup'] as num?)?.toInt() ?? 4,
-      qualifiersPerGroup: (map['qualifiersPerGroup'] as num?)?.toInt() ?? 2,
-      bestOf: _parseBestOf(map['bestOf'] as String?),
-      finalBestOf5: map['finalBestOf5'] as bool? ?? true,
-      // Faixa de nível gravada pelo portal web — preservada ao criar o
-      // torneio da etapa (ver `minLevel` em LeagueStageCategoryDraft).
-      minLevel: (map['minLevel'] as String?) ?? '',
-    );
-  }).whereType<LeagueStageCategoryDraft>().toList();
+        final composition = map['genderComposition'];
+        return LeagueStageCategoryDraft(
+          categoryId: id,
+          name: name,
+          enabled: true,
+          spots: spots,
+          // Gênero e disputa herdados da liga: sem eles a etapa regravava a
+          // categoria como "male/dupla" — corrompendo trio/quarteto/quinteto
+          // (e o gênero de qualquer categoria) criados no portal.
+          gender: _parseStageGender(map['genderType'] as String?),
+          dispute: _parseStageDispute(map['disputeType'] as String?),
+          genderFree: (map['genderMode'] as String?) == 'free',
+          menCount:
+              composition is Map ? (composition['men'] as num?)?.toInt() : null,
+          womenCount: composition is Map
+              ? (composition['women'] as num?)?.toInt()
+              : null,
+          priceCents: price,
+          bracketSystem: bracketRaw != null && bracketRaw.isNotEmpty
+              ? _parseBracketFormat(bracketRaw)
+              : TournamentBracketSystem.groupsThenKnockout,
+          teamsPerGroup: (map['teamsPerGroup'] as num?)?.toInt() ?? 4,
+          qualifiersPerGroup: (map['qualifiersPerGroup'] as num?)?.toInt() ?? 2,
+          bestOf: _parseBestOf(map['bestOf'] as String?),
+          finalBestOf5: map['finalBestOf5'] as bool? ?? true,
+          // Faixa de nível gravada pelo portal web — preservada ao criar o
+          // torneio da etapa (ver `minLevel` em LeagueStageCategoryDraft).
+          minLevel: (map['minLevel'] as String?) ?? '',
+        );
+      })
+      .whereType<LeagueStageCategoryDraft>()
+      .toList();
 }
 
 TournamentCategoryGender _parseStageGender(String? raw) => switch (raw) {
-  'female' || 'fem' || 'feminino' => TournamentCategoryGender.female,
-  'mixed' || 'misto' => TournamentCategoryGender.mixed,
-  _ => TournamentCategoryGender.male,
-};
+      'female' || 'fem' || 'feminino' => TournamentCategoryGender.female,
+      'mixed' || 'misto' => TournamentCategoryGender.mixed,
+      _ => TournamentCategoryGender.male,
+    };
 
 TournamentCategoryDispute _parseStageDispute(String? raw) {
   for (final value in TournamentCategoryDispute.values) {
@@ -256,32 +262,36 @@ TournamentCategoryDispute _parseStageDispute(String? raw) {
 List<LeagueStageDraft> stagesFromLeagueData(List<dynamic>? stagesRaw) {
   if (stagesRaw is! List) return const [];
 
-  return stagesRaw.whereType<Map>().map((raw) {
-    final map = Map<String, dynamic>.from(raw);
-    final id = (map['id'] as String?) ?? '';
-    if (id.isEmpty) return null;
+  return stagesRaw
+      .whereType<Map>()
+      .map((raw) {
+        final map = Map<String, dynamic>.from(raw);
+        final id = (map['id'] as String?) ?? '';
+        if (id.isEmpty) return null;
 
-    final idsRaw = map['tournamentIds'];
-    final ids = <String>[];
-    if (idsRaw is List) {
-      for (final e in idsRaw) {
-        if (e is String && e.isNotEmpty) ids.add(e);
-      }
-    }
+        final idsRaw = map['tournamentIds'];
+        final ids = <String>[];
+        if (idsRaw is List) {
+          for (final e in idsRaw) {
+            if (e is String && e.isNotEmpty) ids.add(e);
+          }
+        }
 
-    return LeagueStageDraft(
-      id: id,
-      name: (map['name'] as String?) ?? '',
-      order: (map['order'] as num?)?.toInt() ?? 1,
-      status: (map['status'] as String?) == 'defined'
-          ? LeagueStageStatus.defined
-          : LeagueStageStatus.pending,
-      isGrandFinal: map['isGrandFinal'] as bool? ?? false,
-      locationName: (map['locationName'] as String?) ?? '',
-      city: (map['city'] as String?) ?? '',
-      state: (map['state'] as String?) ?? '',
-      dateLabel: (map['dateLabel'] as String?) ?? '',
-      tournamentIds: ids,
-    );
-  }).whereType<LeagueStageDraft>().toList();
+        return LeagueStageDraft(
+          id: id,
+          name: (map['name'] as String?) ?? '',
+          order: (map['order'] as num?)?.toInt() ?? 1,
+          status: (map['status'] as String?) == 'defined'
+              ? LeagueStageStatus.defined
+              : LeagueStageStatus.pending,
+          isGrandFinal: map['isGrandFinal'] as bool? ?? false,
+          locationName: (map['locationName'] as String?) ?? '',
+          city: (map['city'] as String?) ?? '',
+          state: (map['state'] as String?) ?? '',
+          dateLabel: (map['dateLabel'] as String?) ?? '',
+          tournamentIds: ids,
+        );
+      })
+      .whereType<LeagueStageDraft>()
+      .toList();
 }

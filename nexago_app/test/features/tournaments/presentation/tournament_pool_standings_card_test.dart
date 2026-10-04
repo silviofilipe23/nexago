@@ -124,6 +124,42 @@ void main() {
     expect(find.text('-11'), findsOneWidget);
   });
 
+  testWidgets('grupo de games: colunas e legenda falam de games', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final gamesGroup = TournamentPoolStandingsGroup(
+      poolId: group.poolId,
+      poolLabel: group.poolLabel,
+      teamCount: group.teamCount,
+      matchCount: group.matchCount,
+      isComplete: group.isComplete,
+      rows: group.rows,
+      isGames: true,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: TournamentPoolStandingsCard(
+              group: gamesGroup,
+              qualifiersPerGroup: 2,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('GF'), findsOneWidget);
+    expect(find.text('GT'), findsOneWidget);
+    expect(find.text('SG'), findsOneWidget);
+    expect(find.text('PF'), findsNothing);
+    expect(find.textContaining('GF feitos · GT tomados · SG saldo'), findsOneWidget);
+  });
+
   testWidgets('em 360dp rola na horizontal em vez de espremer o nome',
       (tester) async {
     await pumpCard(tester, width: 360);

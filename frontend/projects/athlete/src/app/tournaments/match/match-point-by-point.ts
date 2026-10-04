@@ -1,5 +1,6 @@
 import { isSetWon, targetPointsForSet, type LivePointEvent } from '@nexago/live-scoring';
-import { matchBestOf, matchIsLive, type TournamentMatch } from '../../data/matches-repository';
+import { gamesEventText, isSuperTiebreakSet, setWinnerSide, type SetsGamesProfile } from '@nexago/sports';
+import { matchBestOf, matchIsLive, matchScoringProfile, type TournamentMatch } from '../../data/matches-repository';
 import { timeLabelOf } from '../tournament-format';
 
 /**
@@ -25,6 +26,9 @@ export interface PointRow {
   time: string;
   annotation: PointAnnotation | null;
   closesSet: boolean;
+  /** Partida de games: o lance por extenso ("4-3 · 30-15"; game fechado "5-4"; super tie-break
+   *  "7-5"). Ausente em partida de pontos, que mostra `left–right`. */
+  text?: string;
 }
 
 export interface SetSummary {
@@ -56,15 +60,19 @@ export interface PointByPointSet {
   /** Placar do set (final ou parcial) na perspectiva das colunas. */
   score: PointScore;
   blocks: StreakBlock[];
-  /** Pontos que o placar do set tem e a mesa não gravou. 0 = timeline completa. */
+  /** Pontos que o placar do set tem e a mesa não gravou. 0 = timeline completa. Em partida de
+   *  games, games (ver `missingUnit`). */
   missingCount: number;
+  /** Partida de games: a pendência é contada em games. Ausente em pontos. */
+  missingUnit?: 'games';
   /** Trecho do set que a mesa marcou — só quando falta ponto E existe algo gravado. */
   recordedRange: { from: PointScore; to: PointScore } | null;
   summary: SetSummary;
 }
 
-/** A hora crua fica fora do tipo público: só o resumo precisa dela (a UI usa `time` já formatado). */
-type TimedPoint = PointRow & { ts: Date | null };
+/** A hora crua fica fora do tipo público: só o resumo precisa dela (a UI usa `time` já formatado).
+ *  Em games, o ponto do game (na ótica das colunas) fica junto pra deduplicar e fechar o game. */
+type TimedPoint = PointRow & { ts: Date | null; gameLeft?: number; gameRight?: number };
 
 /** Reconstrói os pontos de cada set a partir dos eventos: `point` empilha, `undo-point` desfaz o
  *  último do MESMO set (o mesmo casamento que `lastUndoablePoint` faz para a mesa).
@@ -73,7 +81,7 @@ type TimedPoint = PointRow & { ts: Date | null };
  *  dados reais (dev, seqs 102/103 em 8×1 e 138/139 em 12×10) — e desenhar o mesmo placar duas vezes
  *  lê como bug da tela. A comparação é contra o último ponto QUE SOBROU, então um placar que um
  *  `undo-point` desfez pode voltar normalmente. */
-function replayBySet(events: readonly LivePointEvent[], leftIsA: boolean): Map<number, TimedPoint[]> {
+function replayBySet(events: readonly LivePointEvent[], leftIsA: boolean, games: SetsGamesProfile | null = null): Map<number, TimedPoint[]> {
   const bySet = new Map<number, TimedPoint[]>();
   const ordered = [...events].sort((x, y) => x.seq - y.seq);
 
@@ -82,9 +90,13 @@ function replayBySet(events: readonly LivePointEvent[], leftIsA: boolean): Map<n
     if (e.type === 'point' && e.side != null) {
       const left = leftIsA ? e.scoreA : e.scoreB;
       const right = leftIsA ? e.scoreB : e.scoreA;
+      const gameLeft = games ? ((leftIsA ? e.gameA : e.gameB) ?? 0) : undefined;
+      const gameRight = games ? ((leftIsA ? e.gameB : e.gameA) ?? 0) : undefined;
       const previous = points[points.length - 1];
-      if (!previous || previous.left !== left || previous.right !== right) {
-        points.push({
+      // Em games o placar do set só muda no fim do game: o ponto do game entra na comparação.
+      const repeated = previous != null && previous.left === left && previous.right === right && previous.gameLeft === gameLeft && previous.gameRight === gameRight;
+      if (!repeated) {
+        const point: TimedPoint = {
           fromLeft: leftIsA ? e.side === 'A' : e.side === 'B',
           left,
           right,
@@ -92,7 +104,13 @@ function replayBySet(events: readonly LivePointEvent[], leftIsA: boolean): Map<n
           annotation: null,
           closesSet: false,
           ts: e.ts,
-        });
+        };
+        if (games) {
+          point.gameLeft = gameLeft;
+          point.gameRight = gameRight;
+          point.text = gamesEventText(games, e.setIndex, { a: left, b: right }, { a: gameLeft ?? 0, b: gameRight ?? 0 });
+        }
+        points.push(point);
       }
     } else if (e.type === 'undo-point') {
       points.pop();
@@ -126,6 +144,25 @@ function markSetClosing(points: TimedPoint[], setIndex: number, bestOf: number):
   for (const p of points) {
     p.closesSet = isSetWon(p.left, p.right, target);
   }
+}
+
+/** Games: fecha o set o lance que fechou o game (ponto 0-0) deixando o set decidido pela regra.
+ *  O super tie-break fechado é gravado 1×0 — o texto do lance vira os pontos dele (`tb` do doc). */
+function markGamesSetClosing(points: TimedPoint[], setIndex: number, profile: SetsGamesProfile, tb: { left: number; right: number } | null): void {
+  const placeholder = Array.from({ length: setIndex }, () => ({ a: 0, b: 0 }));
+  for (const p of points) {
+    const gameClosed = (p.gameLeft ?? 0) === 0 && (p.gameRight ?? 0) === 0;
+    // O super tie-break só fecha com o `tb` (o 1×0 sozinho não decide pela regra): usa o do doc.
+    const stb = isSuperTiebreakSet(profile, setIndex) && tb ? { tb: { a: tb.left, b: tb.right } } : {};
+    p.closesSet = gameClosed && setWinnerSide([...placeholder, { a: p.left, b: p.right, ...stb }], setIndex, profile) !== null;
+    if (p.closesSet && tb && isSuperTiebreakSet(profile, setIndex)) p.text = `${tb.left}-${tb.right}`;
+  }
+}
+
+/** Games sem registro: os games do placar menos os lances gravados que fecharam um game. */
+function missingGamesOf(points: readonly TimedPoint[], score: PointScore): number {
+  const closedGames = points.filter((p) => (p.gameLeft ?? 0) === 0 && (p.gameRight ?? 0) === 0).length;
+  return Math.max(0, score.left + score.right - closedGames);
 }
 
 function blocksOf(points: readonly TimedPoint[]): StreakBlock[] {
@@ -223,15 +260,23 @@ export function pointByPointSetsOf(params: {
 }): PointByPointSet[] {
   const leftIsA = params.mySide !== 'B';
   const bestOf = matchBestOf(params.match);
-  const bySet = replayBySet(params.events, leftIsA);
+  const profile = matchScoringProfile(params.match);
+  const games = profile.kind === 'sets_games' ? profile : null;
+  const bySet = replayBySet(params.events, leftIsA, games);
 
   return setIndexesOf(params.match, bySet).map((setIndex) => {
     const points = bySet.get(setIndex) ?? [];
-    annotate(points);
-    markSetClosing(points, setIndex, bestOf);
+    if (games) {
+      // Empate/virada contam pontos do set; em games o placar do set são games — não anota.
+      const tb = params.match.sets[setIndex]?.tb;
+      markGamesSetClosing(points, setIndex, games, tb ? { left: leftIsA ? tb.a : tb.b, right: leftIsA ? tb.b : tb.a } : null);
+    } else {
+      annotate(points);
+      markSetClosing(points, setIndex, bestOf);
+    }
     const blocks = blocksOf(points);
     const score = scoreOf(params.match, setIndex, points, leftIsA);
-    const missingCount = missingCountOf(points, score);
+    const missingCount = games ? missingGamesOf(points, score) : missingCountOf(points, score);
     const first = points[0];
     const last = points[points.length - 1];
     return {
@@ -245,6 +290,7 @@ export function pointByPointSetsOf(params: {
           ? { from: { left: first.left, right: first.right }, to: { left: last.left, right: last.right } }
           : null,
       summary: summaryOf(points, blocks),
+      ...(games ? { missingUnit: 'games' as const } : {}),
     };
   });
 }

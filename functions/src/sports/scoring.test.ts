@@ -8,6 +8,7 @@ import {
   normalizeQuickSet,
   quickSetKind,
   scoringRulesLabel,
+  setScoreText,
   setTargetLabel,
   scoringProfileFromRaw,
   scoringProfileOfMatch,
@@ -65,6 +66,12 @@ describe("sports/scoring · rótulos e lançamento rápido (vetores)", () => {
       const p = scoringProfileFromRaw(SCORING_VECTORS.profiles[v.profile])!;
       assert.equal(quickSetKind(p, v.index, v.set), v.kind);
       assert.deepEqual(normalizeQuickSet(p, v.index, v.set), v.normalized);
+    });
+  }
+  for (const [i, v] of SCORING_VECTORS.textVectors.entries()) {
+    it(`texto do set ${i} (${v.profile})`, () => {
+      const p = scoringProfileFromRaw(SCORING_VECTORS.profiles[v.profile])!;
+      assert.equal(setScoreText(p, v.index, v.set), v.text);
     });
   }
   it("perfil efetivo: carimbo com o bestOf da tela; sem carimbo, histórico", () => {

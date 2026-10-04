@@ -81,5 +81,17 @@
     {"profile": "bt3", "start": {"sets": [{"a": 6, "b": 3}, {"a": 3, "b": 6}], "currentSetIndex": 2, "currentGame": {"a": 0, "b": 0}, "servingTeamId": "A"}, "points": "", "expect": {"sets": [{"a": 6, "b": 3}, {"a": 3, "b": 6}], "currentSetIndex": 2, "currentGame": {"a": 0, "b": 0}, "servingTeamId": "A", "winnerSide": null, "closed": null}, "hint": "super tie-break"},
     {"profile": "bt3", "points": "AAAABBBBAAAABBBBAAAABBBBAAAABBBBAAAABBBBAAAABBBBAAAAAABBBBBBA", "expect": {"sets": [{"a": 6, "b": 6}], "currentSetIndex": 0, "currentGame": {"a": 7, "b": 6}, "servingTeamId": "B", "winnerSide": null, "closed": "none"}, "labels": {"a": "7", "b": "6"}},
     {"profile": "bt3", "start": {"sets": [{"a": 6, "b": 0}, {"a": 0, "b": 6}], "currentSetIndex": 2, "currentGame": {"a": 0, "b": 0}, "servingTeamId": "A"}, "points": "AAAAAAAAABBBBBBBBBA", "expect": {"sets": [{"a": 6, "b": 0}, {"a": 0, "b": 6}, {"a": 0, "b": 0}], "currentSetIndex": 2, "currentGame": {"a": 10, "b": 9}, "servingTeamId": "A", "winnerSide": null, "closed": "none"}, "hint": "match point"}
+  ],
+  "textVectors": [
+    {"profile": "legacy3", "index": 0, "set": {"a": 21, "b": 18}, "text": "21-18"},
+    {"profile": "legacy3", "index": 1, "set": {"a": 21, "b": 19, "tb": {"a": 7, "b": 5}}, "text": "21-19"},
+    {"profile": "bt3", "index": 0, "set": {"a": 6, "b": 4}, "text": "6-4"},
+    {"profile": "bt3", "index": 0, "set": {"a": 7, "b": 6}, "text": "7-6"},
+    {"profile": "bt3", "index": 1, "set": {"a": 7, "b": 6, "tb": {"a": 7, "b": 4}}, "text": "7-6 (7-4)"},
+    {"profile": "bt3", "index": 1, "set": {"a": 6, "b": 7, "tb": {"a": 8, "b": 10}}, "text": "6-7 (8-10)"},
+    {"profile": "bt3", "index": 2, "set": {"a": 1, "b": 0, "tb": {"a": 10, "b": 8}}, "text": "10-8"},
+    {"profile": "bt3", "index": 2, "set": {"a": 0, "b": 1, "tb": {"a": 6, "b": 10}}, "text": "6-10"},
+    {"profile": "bt3", "index": 2, "set": {"a": 1, "b": 0}, "text": "1-0"},
+    {"profile": "tennis3", "index": 2, "set": {"a": 7, "b": 6, "tb": {"a": 7, "b": 3}}, "text": "7-6 (7-3)"}
   ]
 }

@@ -6,6 +6,7 @@ import {
   quickSetKind,
   scoringProfileFromRaw,
   scoringRulesLabel,
+  setScoreText,
   setTargetLabel,
   setWinnerSide,
   validateScoreSets,
@@ -37,6 +38,12 @@ describe('@nexago/sports · rótulos e lançamento rápido (vetores)', () => {
       const p = scoringProfileFromRaw(SCORING_VECTORS.profiles[v.profile])!;
       expect(quickSetKind(p, v.index, v.set)).toBe(v.kind);
       expect(normalizeQuickSet(p, v.index, v.set)).toEqual(v.normalized);
+    });
+  });
+  SCORING_VECTORS.textVectors.forEach((v, i) => {
+    it(`texto do set ${i} (${v.profile})`, () => {
+      const p = scoringProfileFromRaw(SCORING_VECTORS.profiles[v.profile])!;
+      expect(setScoreText(p, v.index, v.set)).toBe(v.text);
     });
   });
   it('perfil efetivo: carimbo com o bestOf da tela; sem carimbo, histórico', () => {

@@ -30,12 +30,11 @@ import {
   type GroupPreview,
 } from "./group-standings";
 import {assertCanManageTournament, assertCanScoreTournament} from "./tournament-acl";
-import {parseAndValidateSets} from "./match-scoring";
+import {DEFAULT_BEST_OF, parseAndValidateSets} from "./match-scoring";
 import {
   legacyScoringProfile,
   matchWinnerSide,
   scoringProfileFromRaw,
-  scoringProfileOfMatch,
   setsWonBy,
 } from "./sports/scoring";
 import {
@@ -803,12 +802,19 @@ export function matchResultFields(params: {
   rawSets: unknown;
   requestBestOf: unknown;
 }): {update: Record<string, unknown>; completed: boolean; winnerId: string | null} {
-  const stamped = scoringProfileOfMatch(params.match);
-  const override = Number(params.requestBestOf);
-  const requested = override === 1 || override === 3 ? override : null;
-  const profile = requested === null ? stamped :
-    scoringProfileFromRaw(params.match.scoringProfile) ? {...stamped, bestOf: requested} :
-      legacyScoringProfile(requested);
+  // Nº de sets com a precedência de sempre: lançamento → doc da partida (a mesa
+  // grava `bestOf` no doc ao trocar o formato) → carimbo → MD3. Só 1 ou 3, como
+  // o placar das mesas entende. O resto do perfil vem do carimbo, se houver.
+  const oneOrThree = (raw: unknown): number | null => {
+    const n = Number(raw);
+    return n === 1 || n === 3 ? n : null;
+  };
+  const stamped = scoringProfileFromRaw(params.match.scoringProfile);
+  const bestOf = oneOrThree(params.requestBestOf) ??
+    oneOrThree(params.match.bestOf) ??
+    stamped?.bestOf ??
+    DEFAULT_BEST_OF;
+  const profile = stamped ? {...stamped, bestOf} : legacyScoringProfile(bestOf);
   const sets = parseAndValidateSets(params.rawSets, profile);
   const teamAId = (params.match.teamAId as string | undefined)?.trim() ?? "";
   const teamBId = (params.match.teamBId as string | undefined)?.trim() ?? "";

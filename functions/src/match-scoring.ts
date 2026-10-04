@@ -51,7 +51,10 @@ export function categoryScoringProfile(
   const explicit = scoringProfileFromRaw(category?.scoringProfile);
   if (explicit) return explicit;
   const bestOf = matchBestOfFromCategory(category?.bestOf);
-  const base = resolveSport(tournamentSport)?.scoringProfile ?? legacyScoringProfile(bestOf);
+  // O fallback parte do histórico de MD3 (decisivo 15), não do `bestOf` da
+  // categoria: assim todo carimbo tem o mesmo formato, e a mesa trocar o
+  // formato no meio da partida não muda o alvo do set decisivo.
+  const base = resolveSport(tournamentSport)?.scoringProfile ?? legacyScoringProfile(DEFAULT_BEST_OF);
   return {...base, bestOf};
 }
 

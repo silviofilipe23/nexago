@@ -92,6 +92,16 @@ describe("perfil de placar carimbado na partida", () => {
     assert.equal(p.kind, "sets_games");
   });
 
+  // O carimbo tem o MESMO formato em qualquer caminho: decisivo 15 mesmo em MD1.
+  // Se o fallback carimbasse `legacyScoringProfile(1)` (decisivo 21), a mesa
+  // trocando para MD3 no meio da partida faria o 3º set exigir 21.
+  it("esporte desconhecido em set único carimba o mesmo formato do catálogo", () => {
+    assert.deepEqual(
+      categoryScoringProfile({bestOf: "singleSet"}, "xadrez"),
+      {...legacyScoringProfile(3), bestOf: 1},
+    );
+  });
+
   it("esporte desconhecido usa a regra histórica", () => {
     assert.deepEqual(categoryScoringProfile({bestOf: "bestOf3"}, "xadrez"), legacyScoringProfile(3));
   });

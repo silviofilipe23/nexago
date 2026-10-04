@@ -119,3 +119,33 @@ test("matchBestOfFromCategory: categoria sem o campo mantém MD3 (torneio antigo
   assert.equal(matchBestOfFromCategory(""), 3);
   assert.equal(matchBestOfFromCategory(3), 3);
 });
+
+test("futevôlei: set fecha em 18 com 2 de diferença e decisivo em 15", () => {
+  assert.equal(targetPointsForSet(0, 3, "footvolley"), 18);
+  assert.equal(targetPointsForSet(1, 3, "footvolley"), 18);
+  assert.equal(targetPointsForSet(2, 3, "footvolley"), 15);
+  assert.equal(targetPointsForSet(0, 1, "footvolley"), 18);
+  // Sem esporte / outros esportes: regra histórica de vôlei de praia.
+  assert.equal(targetPointsForSet(0, 3), 21);
+  assert.equal(targetPointsForSet(0, 3, "beachVolleyball"), 21);
+});
+
+test("futevôlei: 18x16 fecha o set, 18x17 não; vence com 2 sets", () => {
+  const closed = [{a: 18, b: 16}, {a: 18, b: 10}];
+  assert.equal(matchWinnerId(closed, "A", "B", 3, "footvolley"), "A");
+  // Na regra de vôlei de praia esses sets nem fecham.
+  assert.equal(matchWinnerId(closed, "A", "B", 3), null);
+
+  const open = [{a: 18, b: 17}, {a: 17, b: 18}];
+  assert.equal(setsWon(open, 3, "footvolley").a, 0);
+  assert.equal(setsWon([{a: 20, b: 18}], 3, "footvolley").a, 1);
+});
+
+test("futevôlei: 1x1 vai ao 3º set de 15", () => {
+  const sets = [{a: 18, b: 12}, {a: 9, b: 18}, {a: 15, b: 13}];
+  assert.equal(matchWinnerId(sets, "A", "B", 3, "footvolley"), "A");
+  assert.equal(
+    matchWinnerId([{a: 18, b: 12}, {a: 9, b: 18}, {a: 15, b: 14}], "A", "B", 3, "footvolley"),
+    null,
+  );
+});

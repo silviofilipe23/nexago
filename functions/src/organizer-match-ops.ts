@@ -831,10 +831,17 @@ export const submitMatchResult = onCall({
     );
   }
 
+  // Regra de set depende do esporte do torneio (futevôlei: 18/15).
+  const tournamentSnap = await db
+    .collection("tournaments")
+    .doc(data.tournamentId as string)
+    .get();
+  const sport = (tournamentSnap.data()?.sport as string | undefined) ?? null;
+
   const teamAId = (data.teamAId as string | undefined)?.trim() ?? "";
   const teamBId = (data.teamBId as string | undefined)?.trim() ?? "";
-  const winnerId = matchWinnerId(sets, teamAId, teamBId, bestOf);
-  const wins = setsWon(sets, bestOf);
+  const winnerId = matchWinnerId(sets, teamAId, teamBId, bestOf, sport);
+  const wins = setsWon(sets, bestOf, sport);
   const completed = winnerId !== null;
 
   const update: Record<string, unknown> = {

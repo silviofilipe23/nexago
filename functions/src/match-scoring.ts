@@ -8,6 +8,12 @@ export const TIEBREAK_SET_POINTS = 15;
 export const MIN_ADVANTAGE = 2;
 export const DEFAULT_BEST_OF = 3;
 
+/** Esportes com regra de set própria (valor cru de `tournaments/{id}.sport`). */
+const FOOTVOLLEY_SPORT = "footvolley";
+
+/** Futevôlei (FIFV/CBFv): set até 18 e set decisivo até 15, diferença de 2. */
+export const FOOTVOLLEY_SET_POINTS = 18;
+
 export interface ScoreSet {
   a: number;
   b: number;
@@ -28,9 +34,17 @@ export function matchBestOfFromCategory(raw: unknown): number {
   return raw === "singleSet" ? 1 : DEFAULT_BEST_OF;
 }
 
-export function targetPointsForSet(setIndex: number, bestOf: number): number {
+/**
+ * Pontos para fechar o set. Sem `sport` (ou esporte sem regra própria) vale a
+ * regra histórica de vôlei de praia (21 / decisivo 15).
+ */
+export function targetPointsForSet(
+  setIndex: number,
+  bestOf: number,
+  sport?: string | null,
+): number {
   if (bestOf === 3 && setIndex === 2) return TIEBREAK_SET_POINTS;
-  return DEFAULT_SET_POINTS;
+  return sport === FOOTVOLLEY_SPORT ? FOOTVOLLEY_SET_POINTS : DEFAULT_SET_POINTS;
 }
 
 export function isSetWon(
@@ -48,10 +62,11 @@ export function setWinnerSide(
   sets: ScoreSet[],
   index: number,
   bestOf: number = DEFAULT_BEST_OF,
+  sport?: string | null,
 ): "A" | "B" | null {
   if (index < 0 || index >= sets.length) return null;
   const s = sets[index];
-  if (!isSetWon(s.a, s.b, targetPointsForSet(index, bestOf))) return null;
+  if (!isSetWon(s.a, s.b, targetPointsForSet(index, bestOf, sport))) return null;
   return s.a > s.b ? "A" : "B";
 }
 
@@ -59,11 +74,12 @@ export function setWinnerSide(
 export function setsWon(
   sets: ScoreSet[],
   bestOf: number = DEFAULT_BEST_OF,
+  sport?: string | null,
 ): {a: number; b: number} {
   let a = 0;
   let b = 0;
   for (let i = 0; i < sets.length; i++) {
-    const side = setWinnerSide(sets, i, bestOf);
+    const side = setWinnerSide(sets, i, bestOf, sport);
     if (side === "A") a++;
     else if (side === "B") b++;
   }
@@ -73,9 +89,10 @@ export function setsWon(
 export function isMatchWon(
   sets: ScoreSet[],
   bestOf: number = DEFAULT_BEST_OF,
+  sport?: string | null,
 ): boolean {
   const needed = Math.ceil(bestOf / 2);
-  const wins = setsWon(sets, bestOf);
+  const wins = setsWon(sets, bestOf, sport);
   return wins.a >= needed || wins.b >= needed;
 }
 
@@ -84,9 +101,10 @@ export function matchWinnerId(
   teamAId: string,
   teamBId: string,
   bestOf: number = DEFAULT_BEST_OF,
+  sport?: string | null,
 ): string | null {
-  if (!isMatchWon(sets, bestOf)) return null;
-  const wins = setsWon(sets, bestOf);
+  if (!isMatchWon(sets, bestOf, sport)) return null;
+  const wins = setsWon(sets, bestOf, sport);
   if (wins.a > wins.b) return teamAId;
   if (wins.b > wins.a) return teamBId;
   return null;

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, input } from '@angular/core';
 import { formatMedicalTimeoutMmSs, medicalTimeoutRemainingSeconds } from '@nexago/live-scoring';
-import { matchClosedSets, matchLiveCurrentSet, matchSetWins } from '../data/live-set-display';
+import { closedSetColumns, livePointsOf, matchLiveCurrentSet, matchSetWins } from '../data/live-set-display';
 import type { TournamentMatch } from '../data/matches-repository';
 import {
   kocCardTitle,
@@ -160,13 +160,16 @@ import { fireLevelOf } from './telao-streaks';
                   <span class="og-tlc-set" [class.win]="row.side === 'A' ? s.a > s.b : s.b > s.a">{{ row.side === 'A' ? s.a : s.b }}</span>
                 }
                 @if (current(); as c) {
+                  @if (c.game) {
+                    <span class="og-tlc-set og-tlc-set--live">{{ row.side === 'A' ? c.a : c.b }}</span>
+                  }
                   <span
                     class="og-tlc-points"
                     [class.fire-1]="fireLevel(row.side) === 1"
                     [class.fire-2]="fireLevel(row.side) === 2"
                     [class.fire-3]="fireLevel(row.side) >= 3"
-                    [ogPulse]="row.side === 'A' ? c.a : c.b"
-                    >{{ row.side === 'A' ? c.a : c.b }}</span
+                    [ogPulse]="points(c, row.side)"
+                    >{{ points(c, row.side) }}</span
                   >
                 }
               </span>
@@ -448,6 +451,10 @@ import { fireLevelOf } from './telao-streaks';
       padding: 0 8px;
       /* Set recém-fechado entra com pop (o chip é criado na hora do fechamento). */
       animation: og-tlc-in 220ms var(--nx-ease-out);
+    }
+    /* Partida de games: os games do set em andamento, ao lado do ponto do game. */
+    .og-tlc-set--live {
+      color: var(--nx-text);
     }
     .og-tlc-set.win {
       color: var(--nx-orange-400);
@@ -732,13 +739,15 @@ export class TelaoCourtCardComponent {
 
   protected readonly closedSets = computed(() => {
     const m = this.match();
-    return m && this.kind() === 'live' ? matchClosedSets(m) : [];
+    return m && this.kind() === 'live' ? closedSetColumns(m) : [];
   });
 
   protected readonly current = computed(() => {
     const m = this.match();
     return m && this.kind() === 'live' ? matchLiveCurrentSet(m) : null;
   });
+
+  protected readonly points = livePointsOf;
 
   protected readonly leadingSide = computed<'A' | 'B' | null>(() => {
     const m = this.match();
@@ -754,7 +763,7 @@ export class TelaoCourtCardComponent {
 
   protected readonly finishedSets = computed(() => {
     const m = this.match();
-    return m && this.kind() === 'finished' ? matchClosedSets(m) : [];
+    return m && this.kind() === 'finished' ? closedSetColumns(m) : [];
   });
 
   protected readonly setsWon = computed<[number, number]>(() => {

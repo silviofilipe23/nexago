@@ -1,4 +1,12 @@
-import { effectiveScoringProfile, gamesPointLabels, isTiebreakInProgress, setWinnerSide, type ScoringProfile } from '@nexago/sports';
+import {
+  effectiveScoringProfile,
+  gamesPointLabels,
+  isSuperTiebreakSet,
+  isTiebreakInProgress,
+  setScoreText,
+  setWinnerSide,
+  type ScoringProfile,
+} from '@nexago/sports';
 import type { TournamentMatch } from './matches-repository';
 
 /** Porte de `matchLiveCurrentSet`/`matchSetWins`/`matchClosedSets` do portal do ATLETA
@@ -68,4 +76,26 @@ export function matchLiveCurrentSet(m: LiveScoreFields): LiveSetScore | null {
   if (!live) return null;
   const setNumber = m.sets.length > 0 ? matchClosedSets(m).length + 1 : live.setsA + live.setsB + 1;
   return { setNumber, a: live.currentGamesA, b: live.currentGamesB };
+}
+
+/** Sets fechados como texto, como as telas mostram: "21-15", "6-4", "7-6 (7-4)"; o super
+ *  tie-break mostra os pontos dele ("10-8"), não o 1×0 gravado. */
+export function closedSetTexts(m: LiveScoreFields): string[] {
+  const profile = profileOf(m);
+  return matchClosedSets(m).map((s, i) => setScoreText(profile, i, s));
+}
+
+/** Sets fechados em números de coluna (um por lado): o super tie-break entra com os pontos
+ *  dele; o resto, como gravado. */
+export function closedSetColumns(m: LiveScoreFields): Array<{ a: number; b: number }> {
+  const profile = profileOf(m);
+  return matchClosedSets(m).map((s, i) =>
+    profile.kind === 'sets_games' && s.tb && isSuperTiebreakSet(profile, i) ? { a: s.tb.a, b: s.tb.b } : { a: s.a, b: s.b },
+  );
+}
+
+/** Número grande de um lado no set em andamento: o ponto do game (games) ou os pontos do set. */
+export function livePointsOf(current: LiveSetScore, side: 'A' | 'B'): string | number {
+  if (current.game) return side === 'A' ? current.game.a : current.game.b;
+  return side === 'A' ? current.a : current.b;
 }

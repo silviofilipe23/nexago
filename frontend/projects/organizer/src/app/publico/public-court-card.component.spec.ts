@@ -80,6 +80,28 @@ describe('PublicCourtCardComponent', () => {
     expect(text).toContain('5');
   });
 
+  it('partida de games: games do set e ponto do game', async () => {
+    const fixture = TestBed.createComponent(PublicCourtCardComponent);
+    fixture.componentRef.setInput('courtName', 'Quadra 1');
+    fixture.componentRef.setInput('kind', 'live');
+    fixture.componentRef.setInput(
+      'match',
+      match({
+        status: 'in_progress',
+        teamAId: 'tA',
+        teamBId: 'tB',
+        scoringProfile: { kind: 'sets_games', bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: false, decidingSet: 'super_tiebreak', superTiebreakTo: 10 },
+        sets: [{ a: 6, b: 4 }, { a: 5, b: 3 }],
+        currentSetIndex: 1,
+        currentGame: { a: 3, b: 1 },
+      }),
+    );
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    expect([...el.querySelectorAll('.pub-court-games')].map((e) => e.textContent?.trim())).toEqual(['5', '3']);
+    expect([...el.querySelectorAll('.pub-court-points')].map((e) => e.textContent?.trim())).toEqual(['40', '15']);
+  });
+
   it('anuncia o horário da próxima partida da quadra', async () => {
     const fixture = TestBed.createComponent(PublicCourtCardComponent);
     fixture.componentRef.setInput('courtName', 'Quadra 2');

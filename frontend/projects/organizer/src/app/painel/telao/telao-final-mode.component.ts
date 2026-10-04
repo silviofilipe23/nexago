@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { matchClosedSets, matchLiveCurrentSet, matchSetWins } from '../data/live-set-display';
+import { closedSetTexts, livePointsOf, matchClosedSets, matchLiveCurrentSet, matchSetWins } from '../data/live-set-display';
 import type { TournamentMatch } from '../data/matches-repository';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgIconComponent } from '../ui/icon.component';
@@ -72,8 +72,8 @@ const ORDINAL = ['1º', '2º', '3º', '4º', '5º'];
             <p class="og-fm-setlabel">{{ setLabel() }}</p>
             <p class="og-fm-sets">{{ setsWon()[0] }}<i>–</i>{{ setsWon()[1] }}</p>
             <span class="og-fm-chips">
-              @for (s of closedSets(); track $index) {
-                <span class="og-fm-chip">{{ ORDINAL[$index] }} set <strong>{{ s.a }}-{{ s.b }}</strong></span>
+              @for (s of closedSetLabels(); track $index) {
+                <span class="og-fm-chip">{{ ORDINAL[$index] }} set <strong>{{ s }}</strong></span>
               }
             </span>
             @if (alert(); as a) {
@@ -495,9 +495,14 @@ export class TelaoFinalModeComponent {
   protected readonly setsWon = computed(() => matchSetWins(this.match()));
   protected readonly alert = computed(() => (this.state() === 'live' ? pointAlertOf(this.match()) : null));
 
+  protected readonly closedSetLabels = computed(() => closedSetTexts(this.match()));
+
   protected readonly setLabel = computed(() => {
-    const n = this.current()?.setNumber ?? this.closedSets().length;
-    return `${ORDINAL[Math.max(0, n - 1)] ?? `${n}º`} set`;
+    const c = this.current();
+    const n = c?.setNumber ?? this.closedSets().length;
+    const label = `${ORDINAL[Math.max(0, n - 1)] ?? `${n}º`} set`;
+    // Partida de games: o número grande é o ponto do game; os games do set vão no rótulo.
+    return c?.game ? `${label} · ${c.a}-${c.b}` : label;
   });
 
   /** "Saque" ou "Saque · Bruno" — na final o nome de quem saca cabe, e é o que a plateia
@@ -525,11 +530,7 @@ export class TelaoFinalModeComponent {
     return m.winnerSide === 1 ? this.teamA() : m.winnerSide === 2 ? this.teamB() : null;
   });
 
-  protected readonly championSets = computed(() =>
-    this.closedSets()
-      .map((s) => `${s.a}-${s.b}`)
-      .join(' · '),
-  );
+  protected readonly championSets = computed(() => this.closedSetLabels().join(' · '));
 
   protected readonly championEvent = computed(() => [this.eventLine().split(' · ')[0], this.categoryLine().split(' · ')[0]].filter(Boolean).join(' · '));
 
@@ -541,9 +542,9 @@ export class TelaoFinalModeComponent {
     return fireLevelOf(this.fireCount(side));
   }
 
-  protected points(side: 'A' | 'B'): number {
+  protected points(side: 'A' | 'B'): number | string {
     const c = this.current();
-    if (c) return side === 'A' ? c.a : c.b;
+    if (c) return livePointsOf(c, side);
     const last = this.closedSets().at(-1);
     return last ? (side === 'A' ? last.a : last.b) : 0;
   }

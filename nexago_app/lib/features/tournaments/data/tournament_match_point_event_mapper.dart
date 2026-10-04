@@ -31,6 +31,11 @@ abstract final class TournamentMatchPointEventMapper {
       scoreA: _int(data['scoreA']) ?? 0,
       scoreB: _int(data['scoreB']) ?? 0,
       ts: ts,
+      gameA: _int(data['gameA']) ?? 0,
+      gameB: _int(data['gameB']) ?? 0,
+      prev: data['prev'] is Map
+          ? Map<String, dynamic>.from(data['prev'] as Map)
+          : null,
     );
   }
 

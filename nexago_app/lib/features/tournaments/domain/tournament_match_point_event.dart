@@ -8,6 +8,9 @@ class TournamentMatchPointEvent {
     required this.scoreB,
     required this.ts,
     this.side,
+    this.gameA = 0,
+    this.gameB = 0,
+    this.prev,
   });
 
   final int seq;
@@ -17,6 +20,13 @@ class TournamentMatchPointEvent {
   final int scoreA;
   final int scoreB;
   final DateTime ts;
+
+  /// Partida de games: pontos do game depois do lance.
+  final int gameA;
+  final int gameB;
+
+  /// Partida de games: estado da mesa ANTES do lance — o desfazer repõe isto.
+  final Map<String, dynamic>? prev;
 
   bool get isPoint => type.trim().toLowerCase() == 'point';
 

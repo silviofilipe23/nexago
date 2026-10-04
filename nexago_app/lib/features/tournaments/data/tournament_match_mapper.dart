@@ -80,6 +80,7 @@ abstract final class TournamentMatchMapper {
       loserAdvanceSlot: _advanceSlot(data['loserAdvance']),
       liveScore: _liveScore(data['liveScore']),
       scoringProfile: ScoringRules.profileFromRaw(data['scoringProfile']),
+      currentGame: _gamePoints(data['currentGame']),
     );
   }
 
@@ -106,6 +107,13 @@ abstract final class TournamentMatchMapper {
   static int _servingPlayerSlot(dynamic raw) {
     final value = _int(raw);
     return value == 1 || value == 2 ? value! : 0;
+  }
+
+  static ({int a, int b}) _gamePoints(dynamic raw) {
+    if (raw is! Map) return (a: 0, b: 0);
+    final a = raw['a'];
+    final b = raw['b'];
+    return (a: a is num ? a.toInt() : 0, b: b is num ? b.toInt() : 0);
   }
 
   static MatchServingPlayers _servingPlayers(dynamic raw) {

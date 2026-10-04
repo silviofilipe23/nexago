@@ -7,6 +7,7 @@ import '../../tournaments/domain/tournament_match_status.dart';
 import '../domain/match_ops/match_medical_timeout_logic.dart';
 import '../domain/match_ops/match_scoring_logic.dart';
 import '../domain/match_ops/match_serving_player_logic.dart';
+import 'games_point_write.dart';
 
 /// O que o motor devolve ao mexer no placar — mesmo formato de [MatchScoringLogic.applyPoint].
 typedef MatchPointResult = ({
@@ -49,6 +50,8 @@ int _clampedSetIndex(TournamentMatch match) {
 /// partida encerrada reabriria uma chave que o servidor já avançou.
 MatchPointWrite? buildPointWrite(TournamentMatch match, String side) {
   if (match.isCompleted) return null;
+  final games = gamesProfileOf(match);
+  if (games != null) return buildGamesPointWrite(match, side, games);
 
   final setIndex = _clampedSetIndex(match);
   final result = MatchScoringLogic.applyPoint(
@@ -105,11 +108,19 @@ MatchPointWrite? buildPointWrite(TournamentMatch match, String side) {
 
 /// Escrita do "desfazer": tira o ponto do lado que o marcou, no set do evento desfeito.
 /// [setIndex] vem da timeline (identifica QUAL ponto sai); o placar sai do doc recebido.
-MatchPointWrite buildUndoWrite(
+///
+/// Partida de games repõe o [prev] gravado no evento (spec multiesporte, 2b2);
+/// sem [prev] devolve `null` e o desfazer não faz nada.
+MatchPointWrite? buildUndoWrite(
   TournamentMatch match,
   String side,
-  int setIndex,
-) {
+  int setIndex, {
+  Map<String, dynamic>? prev,
+}) {
+  final games = gamesProfileOf(match);
+  if (games != null) {
+    return prev == null ? null : buildGamesUndoWrite(match, side, prev, games);
+  }
   final result = MatchScoringLogic.undoPoint(
     sets: match.sets,
     currentSetIndex: setIndex,

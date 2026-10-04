@@ -280,6 +280,8 @@ async function upsertGlobalRankingDoc(
     docId: string;
     identity: Record<string, string>;
     entry: GlobalRankingResultEntry;
+    /** Só diz se mudaria; não grava. */
+    dryRun?: boolean;
   },
 ): Promise<boolean> {
   const ref = db.collection(params.collectionPath).doc(params.docId);
@@ -301,6 +303,7 @@ async function upsertGlobalRankingDoc(
 
   const merged = upsertRankingResult(results, params.entry);
   if (merged == null) return false;
+  if (params.dryRun) return true;
 
   const aggregates = aggregateRankingResults(merged);
   await ref.set(
@@ -402,24 +405,47 @@ export async function awardGlobalPlacement(
 
   // Por esporte: o doc do esporte do torneio. Esporte não reconhecido não tem doc.
   if (sportCode) {
-    await upsertGlobalRankingDoc(db, {
+    await upsertRankingBySportDocs(db, projectId, {teamId, athleteIds, sportCode, entry});
+  }
+  return true;
+}
+
+/**
+ * Upsert de uma entrada nos docs por esporte da dupla e dos atletas. Devolve
+ * quantos docs mudaram (ou mudariam, com `dryRun`). Usada pelo motor e pelo
+ * backfill (`ranking-by-sport-backfill.ts`).
+ */
+export async function upsertRankingBySportDocs(
+  db: Firestore,
+  projectId: string,
+  params: {
+    teamId: string;
+    athleteIds: string[];
+    sportCode: string;
+    entry: GlobalRankingResultEntry;
+    dryRun?: boolean;
+  },
+): Promise<number> {
+  const {teamId, sportCode, entry, dryRun} = params;
+  const changed = await Promise.all([
+    upsertGlobalRankingDoc(db, {
       collectionPath: teamRankingsBySportPath(projectId),
       docId: rankingBySportDocId(teamId, sportCode),
       identity: {teamId, sport: sportCode},
       entry,
-    });
-    await Promise.all(
-      athleteIds.map((athleteId) =>
-        upsertGlobalRankingDoc(db, {
-          collectionPath: athleteRankingsBySportPath(projectId),
-          docId: rankingBySportDocId(athleteId, sportCode),
-          identity: {athleteId, sport: sportCode},
-          entry,
-        }),
-      ),
-    );
-  }
-  return true;
+      dryRun,
+    }),
+    ...params.athleteIds.map((athleteId) =>
+      upsertGlobalRankingDoc(db, {
+        collectionPath: athleteRankingsBySportPath(projectId),
+        docId: rankingBySportDocId(athleteId, sportCode),
+        identity: {athleteId, sport: sportCode},
+        entry,
+        dryRun,
+      }),
+    ),
+  ]);
+  return changed.filter(Boolean).length;
 }
 
 function isNonGroupCompletedMatch(match: Record<string, unknown>): boolean {

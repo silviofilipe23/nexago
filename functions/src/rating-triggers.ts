@@ -81,7 +81,7 @@ export const onTournamentMatchCompletedUpdateRatings = onDocumentUpdated(
   },
 );
 
-async function superAdminOrThrow(uid: string | undefined): Promise<string> {
+export async function superAdminOrThrow(uid: string | undefined): Promise<string> {
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
   const {getAuth} = await import("firebase-admin/auth");
   let caller: UserRecord;

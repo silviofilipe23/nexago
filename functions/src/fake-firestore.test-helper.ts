@@ -181,7 +181,8 @@ export class FakeFirestore {
           ...spec,
           filters: [...spec.filters, (doc: DocData) => matchesWhere(doc[field], op, value)],
         }),
-      orderBy: (field: string) => build({...spec, orderField: field}),
+      // `FieldPath.documentId()` vira "__name__" (ordena e corta pelo id do doc).
+      orderBy: (field: unknown) => build({...spec, orderField: String(field)}),
       // Projeção do Admin SDK: no fake devolve o doc inteiro (quem testa campos lê só os que pediu).
       select: () => build(spec),
       startAfter: (value: unknown) => build({...spec, startAfterValue: value}),
@@ -192,10 +193,12 @@ export class FakeFirestore {
           .filter(([, data]) => spec.filters.every((fn) => fn(data)));
         if (spec.orderField) {
           const field = spec.orderField;
+          const valueOf = (docPath: string, data: DocData | undefined) =>
+            field === "__name__" ? docPath.slice(docPath.lastIndexOf("/") + 1) : data?.[field];
           // Como o Firestore: empate no campo ordena pelo caminho do doc.
           entries = entries.sort(([ap, a], [bp, b]) => {
-            const av = orderValue(a[field]);
-            const bv = orderValue(b[field]);
+            const av = orderValue(valueOf(ap, a));
+            const bv = orderValue(valueOf(bp, b));
             if (av !== bv) return av < bv ? -1 : 1;
             return ap < bp ? -1 : ap > bp ? 1 : 0;
           });
@@ -205,14 +208,14 @@ export class FakeFirestore {
               // Cursor de snapshot (`startAfter(doc)`): valor do campo + caminho
               // desempatam, então página nenhuma pula docs de mesmo valor.
               const cutPath = cursor.ref.path;
-              const cutValue = orderValue((cursor.data as () => DocData | undefined)()?.[field]);
+              const cutValue = orderValue(valueOf(cutPath, (cursor.data as () => DocData | undefined)()));
               entries = entries.filter(([docPath, data]) => {
-                const v = orderValue(data[field]);
+                const v = orderValue(valueOf(docPath, data));
                 return v > cutValue || (v === cutValue && docPath > cutPath);
               });
             } else {
               const cutoff = orderValue(spec.startAfterValue);
-              entries = entries.filter(([, data]) => orderValue(data[field]) > cutoff);
+              entries = entries.filter(([docPath, data]) => orderValue(valueOf(docPath, data)) > cutoff);
             }
           }
         }

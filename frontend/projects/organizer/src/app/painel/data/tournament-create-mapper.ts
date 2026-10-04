@@ -22,7 +22,6 @@ import {
   type TournamentCategoryDraft,
   type TournamentCreateDraft,
   type TournamentPaymentMode,
-  type TournamentSport,
   type TournamentVisibility,
   bracketSystemFromRaw,
   categoryGenderComposition,
@@ -30,6 +29,8 @@ import {
   isTeamDispute,
   suggestCategoryName,
   totalSpots,
+  parseTournamentSport,
+  sportFirestoreValue,
 } from './tournament-create.model';
 
 /** Porta fiel de `tournament_create_mapper.dart` (Flutter): monta o doc `tournaments/{id}`
@@ -146,7 +147,7 @@ export function tournamentDraftToFirestore(params: {
 
   return {
     name,
-    sport: draft.sport,
+    sport: sportFirestoreValue(draft),
     description: draft.description.trim() || null,
     city: draft.city.trim(),
     state: draft.state.trim() || null,
@@ -221,10 +222,6 @@ function num(v: unknown): number | null {
 function ts(v: unknown): Date | null {
   const t = v as { toDate?: () => Date } | undefined;
   return typeof t?.toDate === 'function' ? t.toDate() : null;
-}
-
-function parseSport(raw: unknown): TournamentSport {
-  return raw === 'indoorVolleyball' || raw === 'footvolley' ? raw : 'beachVolleyball';
 }
 
 function parseGender(raw: unknown): CategoryGender {
@@ -387,7 +384,7 @@ export function tournamentDraftFromFirestore(data: Record<string, unknown>, id: 
 
   const draft: TournamentCreateDraft = {
     tournamentId: id,
-    sport: parseSport(data['sport']),
+    ...parseTournamentSport(data['sport']),
     name: str(data['name']),
     coverImageUrl: str(data['coverUrl']) || str(data['imageUrl']) || null,
     description: str(data['description']),

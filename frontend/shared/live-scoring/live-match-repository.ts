@@ -1,3 +1,4 @@
+import { scoringProfileFromRaw, type ScoringProfile } from '@nexago/sports';
 import { collection, deleteField, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp, updateDoc, type Firestore, type Unsubscribe } from 'firebase/firestore';
 import { applyPoint, liveSetToMap, undoPoint, type ApplyPointResult, type LiveSet } from './live-scoring';
 import { setsWon } from './match-scoring';
@@ -74,6 +75,8 @@ export interface LiveMatch {
   winnerId: string | null;
   courtName: string | null;
   scheduleTime: Date | null;
+  /** Perfil de placar carimbado na partida; `null` em partida antiga (vale a regra histórica). */
+  scoringProfile?: ScoringProfile | null;
 }
 
 export interface LivePointEvent {
@@ -111,7 +114,11 @@ function liveSetsFromRaw(raw: unknown): LiveSet[] {
       const a = typeof o['a'] === 'number' ? o['a'] : null;
       const b = typeof o['b'] === 'number' ? o['b'] : null;
       if (a == null || b == null) return null;
-      const set: LiveSet = { a, b };
+      const tbRaw = o['tb'] as Record<string, unknown> | null | undefined;
+      const tb = tbRaw && typeof tbRaw === 'object' && typeof tbRaw['a'] === 'number' && typeof tbRaw['b'] === 'number'
+        ? { a: tbRaw['a'], b: tbRaw['b'] }
+        : null;
+      const set: LiveSet = tb ? { a, b, tb } : { a, b };
       if (o['startedAt'] != null) set.startedAt = o['startedAt'];
       if (o['endedAt'] != null) set.endedAt = o['endedAt'];
       return set;
@@ -147,6 +154,7 @@ export function liveMatchFromDoc(id: string, data: Record<string, unknown>): Liv
     winnerId: optionalStr(data['winnerId']),
     courtName: optionalStr(data['courtName']),
     scheduleTime: toDate(data['scheduleTime']),
+    scoringProfile: scoringProfileFromRaw(data['scoringProfile']),
   };
 }
 

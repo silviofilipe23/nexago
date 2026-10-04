@@ -7,6 +7,7 @@ import '../domain/tournament_match_point_action.dart';
 import '../domain/tournament_match_serving_players.dart';
 import '../domain/tournament_match_set.dart';
 import '../domain/tournament_match_status.dart';
+import '../../../core/sports/sport_catalog.dart' show ScoringRules;
 
 abstract final class TournamentMatchMapper {
   TournamentMatchMapper._();
@@ -78,6 +79,7 @@ abstract final class TournamentMatchMapper {
       loserAdvanceMatchNumber: _advanceMatchNumber(data['loserAdvance']),
       loserAdvanceSlot: _advanceSlot(data['loserAdvance']),
       liveScore: _liveScore(data['liveScore']),
+      scoringProfile: ScoringRules.profileFromRaw(data['scoringProfile']),
     );
   }
 

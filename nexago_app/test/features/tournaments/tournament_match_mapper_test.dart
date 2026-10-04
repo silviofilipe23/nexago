@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/core/sports/sport_catalog.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_match_mapper.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_display.dart';
 
@@ -192,5 +193,41 @@ void main() {
     });
 
     expect(match.liveScore, isNull);
+  });
+
+  test('lê scoringProfile carimbado e o tb dos sets', () {
+    final match = TournamentMatchMapper.fromMap('m1', {
+      'tournamentId': 't1',
+      'scoringProfile': {
+        'kind': 'sets_games',
+        'bestOf': 3,
+        'gamesPerSet': 6,
+        'winByGames': 2,
+        'tiebreakAtGames': 6,
+        'tiebreakTo': 7,
+        'noAd': true,
+        'decidingSet': 'super_tiebreak',
+        'superTiebreakTo': 10,
+      },
+      'sets': [
+        {'a': 7, 'b': 6, 'tb': {'a': 7, 'b': 4}},
+        {'a': 6, 'b': 2},
+      ],
+    });
+    expect(match.scoringProfile, isA<SetsGamesProfile>());
+    expect(match.sets.first.tb, (a: 7, b: 4));
+    expect(match.sets.first.toMap()['tb'], {'a': 7, 'b': 4});
+    expect(match.sets.last.toMap().containsKey('tb'), isFalse);
+  });
+
+  test('partida sem carimbo continua sem perfil; tb malformado é ignorado', () {
+    final match = TournamentMatchMapper.fromMap('m1', {
+      'tournamentId': 't1',
+      'sets': [
+        {'a': 21, 'b': 19, 'tb': 'x'},
+      ],
+    });
+    expect(match.scoringProfile, isNull);
+    expect(match.sets.first.tb, isNull);
   });
 }

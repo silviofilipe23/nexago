@@ -139,10 +139,16 @@ export function applyBestOfChange(params: { sets: readonly LiveSet[]; newBestOf:
   return { sets: trimmed, currentSetIndex: idx, winnerId, completed: winnerId != null };
 }
 
-/** Serializa o set pro doc — só inclui `startedAt`/`endedAt` quando existem (o Firestore não
- *  aceita `undefined` em campo de mapa). */
+/** Serializa o set pro doc — só inclui `tb`/`startedAt`/`endedAt` quando existem (o Firestore
+ *  não aceita `undefined` em campo de mapa). */
 export function liveSetToMap(s: LiveSet): Record<string, unknown> {
-  return { a: s.a, b: s.b, ...(s.startedAt != null ? { startedAt: s.startedAt } : {}), ...(s.endedAt != null ? { endedAt: s.endedAt } : {}) };
+  return {
+    a: s.a,
+    b: s.b,
+    ...(s.tb ? { tb: { a: s.tb.a, b: s.tb.b } } : {}),
+    ...(s.startedAt != null ? { startedAt: s.startedAt } : {}),
+    ...(s.endedAt != null ? { endedAt: s.endedAt } : {}),
+  };
 }
 
 export function setsWonOf(sets: readonly ScoreSet[], bestOf: number): { a: number; b: number } {

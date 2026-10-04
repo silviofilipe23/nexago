@@ -4,6 +4,13 @@
  * absorvidos e apagados, e tudo que apontava para eles passa a apontar para o
  * sobrevivente.
  *
+ * RANKING POR ESPORTE (multiesporte fase 3a): este script só mexe no legado
+ * (`tournamentCategoryResults`, `teamRankings`, `athleteRankings`). Os docs de
+ * `athleteRankingsBySport`/`teamRankingsBySport` NÃO acompanham — depois de
+ * rodá-lo, rode o callable `backfillRankingsBySport`. O backfill só faz upsert:
+ *   o doc `teamRankingsBySport/{idAbsorvido}_{esporte}` fica para trás e
+ *   precisa ser apagado à mão até existir um modo de reconstrução do zero.
+ *
  * POR QUE existe: até `resolvePairTeamTx` entrar no ar, cada inscrição criava
  * uma equipe nova. Como `teamRankings` é chaveado pelo id da equipe, a mesma
  * dupla aparece duas vezes no ranking com metade da história em cada entrada.

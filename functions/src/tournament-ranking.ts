@@ -347,19 +347,46 @@ export async function awardGlobalPlacement(
   if (points <= 0) return false;
   const finalPlace = finalPlaceForAward(award);
 
+  // Esporte que não alimenta o legado vai SÓ para o doc por esporte: o app da
+  // loja e o portal montam o ranking da temporada direto de
+  // `tournamentCategoryResults` (filtrando só por ano), então gravar ali
+  // somaria beach tennis ao vôlei. Idempotente pelo upsert do doc por esporte.
+  if (sportCode != null && !feedsLegacyRanking(sportCode)) {
+    const changed = await upsertRankingBySportDocs(db, projectId, {
+      teamId,
+      athleteIds: await loadTeamAthleteIds(db, projectId, teamId),
+      sportCode,
+      entry: {tournamentId, categoryId, finalPlace, points, year: params.year, sport: sportCode},
+    });
+    return changed > 0;
+  }
+
   // Resultado por categoria (contrato do model Dart `TournamentCategoryResult`).
   const resultRef = db
     .collection(tournamentCategoryResultsPath(projectId))
     .doc(`${tournamentId}_${categoryId}_${teamId}`);
   const resultSnap = await resultRef.get();
   const prevResult = resultSnap.data();
-  // Resultado antigo sem `sport` NÃO é no-op: precisa ganhar o campo e o doc por esporte.
-  if (
-    prevResult?.finalPlace === finalPlace &&
-    prevResult?.pointsEarned === points &&
-    (sportCode == null || prevResult?.sport === sportCode)
-  ) {
-    return false;
+  if (prevResult?.finalPlace === finalPlace && prevResult?.pointsEarned === points) {
+    if (sportCode == null || prevResult?.sport === sportCode) return false;
+    // Resultado antigo sem `sport`: só o carimbo e o doc por esporte. Ano e
+    // data são os do resultado (a partida de agora pode ser de outro ano) e o
+    // legado fica intocado — nada nele mudou.
+    await resultRef.set({sport: sportCode}, {merge: true});
+    await upsertRankingBySportDocs(db, projectId, {
+      teamId,
+      athleteIds: await loadTeamAthleteIds(db, projectId, teamId),
+      sportCode,
+      entry: {
+        tournamentId,
+        categoryId,
+        finalPlace,
+        points,
+        year: Number(prevResult.year) || params.year,
+        sport: sportCode,
+      },
+    });
+    return true;
   }
   await resultRef.set({
     tournamentId,

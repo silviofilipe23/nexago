@@ -142,6 +142,11 @@ bool isValidLeagueForPublish(LeagueCreateDraft draft) {
     if (!isBracketSystemSupported(category.bracketSystem)) {
       return false;
     }
+    // KOTC só em vôlei de praia: trocar o esporte depois de criar a categoria
+    // não pode publicar etapas KOTC em outro esporte.
+    if (!bracketSystemsForSport(draft.sport).contains(category.bracketSystem)) {
+      return false;
+    }
   }
   return true;
 }

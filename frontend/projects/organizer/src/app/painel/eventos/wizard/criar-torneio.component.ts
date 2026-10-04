@@ -1205,6 +1205,7 @@ export class CriarTorneioComponent {
         : applyOrganizerCategoryDefaults(
             { ...emptyCategoryDraft(`${Date.now()}`), priceCents: this.draft().defaultPriceCents },
             this.organizerDefaults,
+            this.draft().sport,
           ),
     );
     this.catPriceInput.set(formatCentsInputValue(this.cat().priceCents));

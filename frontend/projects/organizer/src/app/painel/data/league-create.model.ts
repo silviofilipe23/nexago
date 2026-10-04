@@ -15,6 +15,7 @@ import {
   defaultCourtsFromCount,
   isTeamDispute,
   suggestCategoryName,
+  bracketSystemsForSport,
 } from './tournament-create.model';
 
 /** Porta fiel de `league_create_draft.dart` + `league_create_mapper.dart` +
@@ -192,7 +193,9 @@ export function isValidLeagueForPublish(draft: LeagueCreateDraft): boolean {
     draft.seasonStartAt != null &&
     draft.seasonEndAt != null &&
     draft.seasonEndAt >= draft.seasonStartAt &&
-    draft.categories.length > 0
+    draft.categories.length > 0 &&
+    // KOTC só em vôlei de praia (as etapas herdam o formato da categoria).
+    draft.categories.every((c) => bracketSystemsForSport(draft.sport).includes(c.bracketSystem))
   );
 }
 

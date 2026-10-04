@@ -218,6 +218,34 @@ void main() {
   });
 
   group('isValidLeagueForPublish', () {
+    test('KOTC fora do vôlei de praia não publica a liga', () {
+      final base = _validDraft();
+      final koc = base.categories.isEmpty
+          ? const TournamentCategoryDraft(
+              id: 'k1',
+              name: 'Rei',
+              bracketSystem: TournamentBracketSystem.kingOfCourt,
+            )
+          : base.categories.first.copyWith(
+              bracketSystem: TournamentBracketSystem.kingOfCourt,
+            );
+      expect(
+        isValidLeagueForPublish(
+          base.copyWith(sport: TournamentSport.beachTennis, categories: [koc]),
+        ),
+        isFalse,
+      );
+      expect(
+        isValidLeagueForPublish(
+          base.copyWith(
+            sport: TournamentSport.beachVolleyball,
+            categories: [koc],
+          ),
+        ),
+        isTrue,
+      );
+    });
+
     test('requires at least one defined stage', () {
       const pendingOnly = LeagueCreateDraft(
         name: 'Copa',

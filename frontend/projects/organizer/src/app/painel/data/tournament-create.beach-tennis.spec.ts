@@ -1,4 +1,6 @@
 import { categoryFromMap, categoryToMap } from './tournament-create-mapper';
+import { emptyLeagueDraft, isValidLeagueForPublish } from './league-create.model';
+import { applyOrganizerCategoryDefaults, DEFAULT_ORGANIZER_EVENT_DEFAULTS } from './organizer-settings.model';
 import {
   bracketSystemsForSport,
   emptyCategoryDraft,
@@ -38,4 +40,18 @@ describe('wizard · beach tennis aberto (fase 2d1)', () => {
     );
     expect(publishBlockReasonForUnsupportedBrackets({ ...emptyTournamentDraft(), sport: 'beachVolleyball', categories: [koc] })).toBe('');
   });
+
+  it('formato padrão KOTC do organizador vira grupos + mata-mata fora do vôlei de praia', () => {
+    const defaults = { ...DEFAULT_ORGANIZER_EVENT_DEFAULTS, bracketSystem: 'kingOfCourt' as const };
+    expect(applyOrganizerCategoryDefaults(emptyCategoryDraft('c1'), defaults, 'beachTennis').bracketSystem).toBe('groupsThenKnockout');
+    expect(applyOrganizerCategoryDefaults(emptyCategoryDraft('c1'), defaults, 'beachVolleyball').bracketSystem).toBe('kingOfCourt');
+  });
+
+  it('liga com categoria KOTC fora do vôlei de praia não publica', () => {
+    const koc = { ...emptyCategoryDraft('c1'), name: 'Rei', bracketSystem: 'kingOfCourt' as const };
+    const league = { ...emptyLeagueDraft(), name: 'Liga', city: 'Goiânia', seasonStartAt: new Date(2026, 9, 1), seasonEndAt: new Date(2026, 11, 1), categories: [koc] };
+    expect(isValidLeagueForPublish({ ...league, sport: 'beachTennis' })).toBeFalse();
+    expect(isValidLeagueForPublish({ ...league, sport: 'beachVolleyball' })).toBeTrue();
+  });
 });
+

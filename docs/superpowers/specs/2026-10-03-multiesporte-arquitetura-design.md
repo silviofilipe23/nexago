@@ -330,6 +330,33 @@ standings por tipo, saque por game. Vôlei de quadra e futevôlei passam a usar 
 Saída: mesa, telão, overlay, Focus e pôster corretos para beach tennis com tie-break e super
 tie-break; vetores verdes nas três linguagens.
 
+**Emenda de 04/10/2026 (fase 2): quatro entregas.**
+A fase 2 toca placar em três plataformas e em cerca de quinze telas; vira quatro PRs, cada um
+mergeável sozinho, e beach tennis só abre no último.
+- **2a, núcleo, sem mudança de comportamento.** Tipo `ScoringProfile` (`sets_points` e
+  `sets_games`), regras de vencedor de set e de partida e validação de placar final nas três
+  linguagens, com vetores compartilhados em `sports/scoring-vectors.json`. `scoringProfile`
+  padrão no catálogo. Carimbo na partida em `bracketMatchDoc`. As quatro cópias da regra de 21
+  pontos passam a delegar ao núcleo com o perfil histórico. O servidor grava `tb` nos sets de
+  games e decide o vencedor pelo perfil; continua aceitando placar parcial como hoje.
+- **2b, lançamento e mesa.** Lançamento rápido (app e portal) e mesa ao vivo lendo o perfil:
+  games, pontos 0/15/30/40/AD, tie-break, super tie-break, saque por game, `liveScore` novo em
+  dupla escrita.
+- **2c, exibição.** Telão, overlay, Focus, pôster, ponto a ponto, card da chave e critério de
+  desempate dos grupos por tipo.
+- **2d, abrir beach tennis.** Wizard com os campos de cada tipo, `beachTennis` no enum e em
+  `competition`, defaults 25/15 (quadra) e 18/15 (futevôlei) só quando o wizard deixar o
+  organizador escolher o alvo.
+
+Decisões que valem para a fase 2 inteira:
+- **Partida sem perfil carimbado usa a regra histórica, qualquer que seja o esporte** (21,
+  decisivo 15 só no 3º set de MD3, vantagem 2). Derivar pelo esporte mudaria o alvo de torneios
+  de futevôlei já em andamento no meio do evento.
+- **Até a 2d, os esportes de competição atuais têm perfil padrão igual à regra histórica.** Trocar
+  para 25 ou 18 sem o organizador poder escolher fecharia sets cedo na mesa ao vivo de quem joga
+  a 21.
+- `single_score` e `timed_rally` saem do tipo até existir estratégia para eles.
+
 **Fase 3: ranking e rating por esporte.**
 Docs por esporte, `sport` nas entradas, dupla escrita, backfill, filtro de esporte na aba
 Ranking (app e portal), gate de rating por flag. Tênis e padel sobem para `competition`.

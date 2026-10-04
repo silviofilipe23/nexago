@@ -200,6 +200,8 @@ service cloud.firestore {
         'status',
         'sets',
         'currentSetIndex',
+        // Pontos do game em andamento numa partida de games (spec multiesporte, 2b2).
+        'currentGame',
         'servingTeamId',
         'servingPlayerSlot',
         'servingPlayerSlots',
@@ -342,6 +344,7 @@ service cloud.firestore {
         'status',
         'sets',
         'currentSetIndex',
+        'currentGame',
         'matchStartedAt',
         'matchEndedAt',
         'lastActions',

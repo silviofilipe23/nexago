@@ -117,6 +117,19 @@ test('campo que ainda NÃO existe no doc não escapa da allowlist', async () => 
   await assertFails(updateDoc(doc(gestor, MATCH_PATH), { campoInventado: 'x' }));
 });
 
+/** Partida de games (spec multiesporte, 2b2): a mesa grava os pontos do game em andamento em
+ *  `currentGame`. Mesário e gestor gravam; o desfazer de games também o regrava. */
+test('mesário e gestor gravam o game em andamento (currentGame)', async () => {
+  const mesario = testEnv.authenticatedContext(MESARIO).firestore();
+  await assertSucceeds(updateDoc(doc(mesario, MATCH_PATH), { ...pointUpdate(), currentGame: { a: 2, b: 1 } }));
+
+  const gestor = testEnv.authenticatedContext(GESTOR).firestore();
+  await assertSucceeds(updateDoc(doc(gestor, MATCH_PATH), { ...pointUpdate(), currentGame: { a: 0, b: 0 } }));
+
+  // O campo novo não abre a porta para outro qualquer.
+  await assertFails(updateDoc(doc(mesario, MATCH_PATH), { currentGame: { a: 1, b: 0 }, gameState: 'x' }));
+});
+
 /** Apagar campo também é escrita: `removedKeys` entra em `affectedKeys`. A mesa faz isso ao
  *  desfazer o ponto que encerrou a partida (`winnerId`/`matchEndedAt` viram deleteField). */
 test('mesário apaga winnerId ao desfazer o ponto final, mas não apaga o que não é dele', async () => {

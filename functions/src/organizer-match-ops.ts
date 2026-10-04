@@ -998,6 +998,7 @@ export function revertToScheduledFields(): Record<string, unknown> {
     matchEndedAt: FieldValue.delete(),
     liveScore: FieldValue.delete(),
     sets: FieldValue.delete(),
+    currentGame: FieldValue.delete(),
     currentSetIndex: FieldValue.delete(),
     servingTeamId: FieldValue.delete(),
     servingPlayerSlot: FieldValue.delete(),

@@ -9,6 +9,7 @@ import {
   isInviteExpired,
   resolveCheckInWindowState,
   type CompatibilityProfile,
+  normalizeFriendlySport,
 } from "./friendly-match-logic";
 import {DEFAULT_FRIENDLY_MATCH_CONFIG} from "./friendly-match-config";
 
@@ -18,7 +19,7 @@ const MINUTE_MS = 60 * 1000;
 /** Perfil base: intermediário_1 de vôlei em Vitória/ES, sem reputação. */
 function profile(overrides: Partial<CompatibilityProfile> = {}): CompatibilityProfile {
   return {
-    levelsBySport: {volei_praia: "intermediario_1"},
+    levelsBySport: {VOLEI_PRAIA: "intermediario_1"},
     city: "Vitória",
     state: "ES",
     ...overrides,
@@ -98,7 +99,7 @@ describe("canTransitionSlot — máquina de estados da vaga", () => {
 });
 
 describe("computeCompatibilityScore", () => {
-  const base = {sport: "volei_praia", objective: "friendly" as const};
+  const base = {sport: "VOLEI_PRAIA", objective: "friendly" as const};
 
   it("mesmo nível + mesma cidade dá score alto; retorna breakdown", () => {
     const {score, breakdown} = computeCompatibilityScore({
@@ -116,12 +117,12 @@ describe("computeCompatibilityScore", () => {
     const near = computeCompatibilityScore({
       ...base,
       sender: profile(),
-      recipient: profile({levelsBySport: {volei_praia: "intermediario_2"}}),
+      recipient: profile({levelsBySport: {VOLEI_PRAIA: "intermediario_2"}}),
     });
     const far = computeCompatibilityScore({
       ...base,
       sender: profile(),
-      recipient: profile({levelsBySport: {volei_praia: "open"}}),
+      recipient: profile({levelsBySport: {VOLEI_PRAIA: "open"}}),
     });
     assert.ok(near.breakdown.levelProximity > far.breakdown.levelProximity);
     assert.ok(near.score > far.score);
@@ -165,13 +166,13 @@ describe("computeCompatibilityScore", () => {
 
   it("objetivo formar dupla premia quem está procurando parceiro", () => {
     const looking = computeCompatibilityScore({
-      sport: "volei_praia",
+      sport: "VOLEI_PRAIA",
       objective: "partner",
       sender: profile(),
       recipient: profile({lookingForPartner: true}),
     });
     const notLooking = computeCompatibilityScore({
-      sport: "volei_praia",
+      sport: "VOLEI_PRAIA",
       objective: "partner",
       sender: profile(),
       recipient: profile({lookingForPartner: false}),
@@ -198,11 +199,11 @@ describe("computeCompatibilityScore", () => {
 
   it("score fica no intervalo 0–100 e é inteiro", () => {
     const worst = computeCompatibilityScore({
-      sport: "volei_praia",
+      sport: "VOLEI_PRAIA",
       objective: "partner",
       sender: profile(),
       recipient: profile({
-        levelsBySport: {volei_praia: "open"},
+        levelsBySport: {VOLEI_PRAIA: "open"},
         city: "Recife",
         state: "PE",
         lookingForPartner: false,
@@ -212,7 +213,7 @@ describe("computeCompatibilityScore", () => {
     assert.ok(worst.score >= 0);
     assert.ok(Number.isInteger(worst.score));
     const best = computeCompatibilityScore({
-      sport: "volei_praia",
+      sport: "VOLEI_PRAIA",
       objective: "partner",
       sender: profile(),
       recipient: profile({lookingForPartner: true, reputationScore: 100}),
@@ -283,5 +284,18 @@ describe("isInviteExpired", () => {
     assert.equal(isInviteExpired(1000, 999), false);
     assert.equal(isInviteExpired(1000, 1000), false);
     assert.equal(isInviteExpired(1000, 1001), true);
+  });
+});
+
+describe("normalizeFriendlySport", () => {
+  it("aceita código de perfil em qualquer caixa e devolve em maiúsculas", () => {
+    assert.equal(normalizeFriendlySport("VOLEI_PRAIA"), "VOLEI_PRAIA");
+    assert.equal(normalizeFriendlySport(" volei_praia "), "VOLEI_PRAIA");
+  });
+
+  it("recusa código que não é esporte do perfil", () => {
+    assert.equal(normalizeFriendlySport("beachVolleyball"), null);
+    assert.equal(normalizeFriendlySport(""), null);
+    assert.equal(normalizeFriendlySport(undefined), null);
   });
 });

@@ -179,7 +179,7 @@ void main() {
     expect(categories[1]['bestOf'], 'bestOf5');
   });
 
-    test('toFirestore includes wizardStep when provided', () {
+  test('toFirestore includes wizardStep when provided', () {
     final draft = TournamentCreateDraft(
       name: 'Rascunho',
       city: 'Goiânia',
@@ -294,7 +294,8 @@ void main() {
     expect(map['capacity'], 28);
   });
 
-  test('toFirestore format is dupla by default and individual when present', () {
+  test('toFirestore format is dupla by default and individual when present',
+      () {
     final dupla = TournamentCreateMapper.toFirestore(
       draft: draftWith(),
       managerId: 'uid',
@@ -364,7 +365,8 @@ void main() {
     expect(prizes[1].valueCents, 8000);
   });
 
-  test('fromFirestore tolerates legacy prize "value" as a string (no crash)', () {
+  test('fromFirestore tolerates legacy prize "value" as a string (no crash)',
+      () {
     final parsed = TournamentCreateMapper.fromFirestore(
       {
         'name': 'Legacy String Prizes',
@@ -458,7 +460,9 @@ void main() {
     expect(parsed.draft.categories, hasLength(1));
   });
 
-  test('toFirestore preserves existing listing status on update without publish', () {
+  test(
+      'toFirestore preserves existing listing status on update without publish',
+      () {
     final draft = TournamentCreateDraft(
       tournamentId: 'published-1',
       name: 'Open Publicado',
@@ -483,25 +487,25 @@ void main() {
 
   group('categoria de equipe (trio+) — roundtrip de edição', () {
     Map<String, dynamic> docWithCategory(Map<String, dynamic> category) => {
-      'name': 'Copa dos Trios',
-      'city': 'Goiânia',
-      'locationName': 'Arena',
-      'startAt': Timestamp.fromDate(DateTime(2026, 5, 10)),
-      'endAt': Timestamp.fromDate(DateTime(2026, 5, 11)),
-      'categories': [category],
-    };
+          'name': 'Copa dos Trios',
+          'city': 'Goiânia',
+          'locationName': 'Arena',
+          'startAt': Timestamp.fromDate(DateTime(2026, 5, 10)),
+          'endAt': Timestamp.fromDate(DateTime(2026, 5, 11)),
+          'categories': [category],
+        };
 
     Map<String, dynamic> trioCompositionCategory() => {
-      'id': 'cat-trio',
-      'categoryName': 'Trio Misto',
-      'genderType': 'mixed',
-      'disputeType': 'trio',
-      'teamSize': 3,
-      'genderMode': 'composition',
-      'genderComposition': {'men': 2, 'women': 1},
-      'maxTeams': 8,
-      'entryFeeCents': 21000,
-    };
+          'id': 'cat-trio',
+          'categoryName': 'Trio Misto',
+          'genderType': 'mixed',
+          'disputeType': 'trio',
+          'teamSize': 3,
+          'genderMode': 'composition',
+          'genderComposition': {'men': 2, 'women': 1},
+          'maxTeams': 8,
+          'entryFeeCents': 21000,
+        };
 
     test('fromFirestore popula dispute trio + composição de gênero', () {
       final parsed = TournamentCreateMapper.fromFirestore(
@@ -517,7 +521,9 @@ void main() {
       expect(category.womenCount, 1);
     });
 
-    test('toFirestore do draft parseado preserva teamSize/genderMode/composição', () {
+    test(
+        'toFirestore do draft parseado preserva teamSize/genderMode/composição',
+        () {
       final parsed = TournamentCreateMapper.fromFirestore(
         docWithCategory(trioCompositionCategory()),
         'trio-1',
@@ -531,7 +537,8 @@ void main() {
         existingListingStatus: 'open',
       );
 
-      final category = (map['categories'] as List).single as Map<String, dynamic>;
+      final category =
+          (map['categories'] as List).single as Map<String, dynamic>;
       expect(category['disputeType'], 'trio');
       expect(category['teamSize'], 3);
       expect(category['genderMode'], 'composition');
@@ -568,7 +575,8 @@ void main() {
         existingListingStatus: 'open',
       );
 
-      final category = (map['categories'] as List).single as Map<String, dynamic>;
+      final category =
+          (map['categories'] as List).single as Map<String, dynamic>;
       expect(category['teamSize'], 4);
       expect(category['genderMode'], 'free');
       expect(category['genderComposition'], isNull);
@@ -591,7 +599,8 @@ void main() {
         publish: true,
       );
 
-      final category = (map['categories'] as List).single as Map<String, dynamic>;
+      final category =
+          (map['categories'] as List).single as Map<String, dynamic>;
       expect(category['teamSize'], 2);
       expect(category.containsKey('genderMode'), isFalse);
       expect(category.containsKey('genderComposition'), isFalse);
@@ -623,7 +632,9 @@ void main() {
       expect(parsed.draft.categories.single.minLevel, 'Avançado 1');
     });
 
-    test('categoria com minLevel sobrevive a um re-save do app (fromFirestore → toFirestore)', () {
+    test(
+        'categoria com minLevel sobrevive a um re-save do app (fromFirestore → toFirestore)',
+        () {
       final parsed = TournamentCreateMapper.fromFirestore(
         {
           'name': 'Faixa Avançado',
@@ -652,11 +663,14 @@ void main() {
         existingListingStatus: 'open',
       );
 
-      final category = (map['categories'] as List).single as Map<String, dynamic>;
+      final category =
+          (map['categories'] as List).single as Map<String, dynamic>;
       expect(category['minLevel'], 'Avançado 1');
     });
 
-    test('minLevel ausente reidrata como \'\' e regrava null (categoria sem piso)', () {
+    test(
+        'minLevel ausente reidrata como \'\' e regrava null (categoria sem piso)',
+        () {
       final parsed = TournamentCreateMapper.fromFirestore(
         {
           'name': 'Livre',
@@ -678,7 +692,8 @@ void main() {
         managerId: 'uid',
         publish: true,
       );
-      final category = (map['categories'] as List).single as Map<String, dynamic>;
+      final category =
+          (map['categories'] as List).single as Map<String, dynamic>;
       expect(category['minLevel'], isNull);
     });
   });
@@ -719,12 +734,62 @@ void main() {
       expect(draft.requireFormedPair, isTrue);
     });
 
-    test('torneio antigo (campo ausente) segue aceitando inscrição individual', () {
+    test('torneio antigo (campo ausente) segue aceitando inscrição individual',
+        () {
       final (:draft, wizardStep: _) = TournamentCreateMapper.fromFirestore(
         <String, dynamic>{},
         't1',
       );
       expect(draft.requireFormedPair, isFalse);
+    });
+  });
+
+  group('sport desconhecido', () {
+    test('fromFirestore preserva o valor cru e trava o enum no default', () {
+      final load = TournamentCreateMapper.fromFirestore(
+        {'name': 'Copa BT', 'sport': 'beachTennis'},
+        'torneio-bt',
+      );
+      expect(load.draft.sport, TournamentSport.beachVolleyball);
+      expect(load.draft.sportRaw, 'beachTennis');
+      expect(load.draft.sportFirestoreValue, 'beachTennis');
+    });
+
+    test('fromFirestore com esporte conhecido não preenche sportRaw', () {
+      final load = TournamentCreateMapper.fromFirestore(
+        {'name': 'Copa', 'sport': 'footvolley'},
+        'torneio-fv',
+      );
+      expect(load.draft.sport, TournamentSport.footvolley);
+      expect(load.draft.sportRaw, isNull);
+    });
+
+    test('toFirestore devolve o valor cru, nunca beachVolleyball', () {
+      final draft = TournamentCreateDraft(
+        sportRaw: 'beach_tennis',
+        name: 'Copa BT',
+        city: 'Goiânia',
+        state: 'GO',
+        locationName: 'Arena',
+        startAt: DateTime(2026, 3, 28),
+        endAt: DateTime(2026, 3, 30),
+        registrationOpensAt: DateTime(2026, 3, 1),
+        registrationClosesAt: DateTime(2026, 3, 26),
+        categories: const [
+          TournamentCategoryDraft(
+            id: 'c1',
+            name: 'Open',
+            spots: 16,
+            priceCents: 100,
+          ),
+        ],
+      );
+      final map = TournamentCreateMapper.toFirestore(
+        draft: draft,
+        managerId: 'm1',
+        publish: false,
+      );
+      expect(map['sport'], 'beach_tennis');
     });
   });
 }

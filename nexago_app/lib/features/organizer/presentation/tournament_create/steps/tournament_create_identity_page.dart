@@ -54,7 +54,9 @@ class _TournamentCreateIdentityPageState
       imageQuality: 85,
     );
     if (file == null) return;
-    ref.read(tournamentCreateWizardProvider.notifier).setCoverImagePath(file.path);
+    ref
+        .read(tournamentCreateWizardProvider.notifier)
+        .setCoverImagePath(file.path);
   }
 
   Future<void> _handleClose() => handleWizardClose(context, ref);
@@ -62,8 +64,8 @@ class _TournamentCreateIdentityPageState
   @override
   Widget build(BuildContext context) {
     final draft = ref.watch(tournamentCreateDraftProvider);
-    final canContinue =
-        ref.watch(tournamentCreateCanContinueProvider(TournamentCreateStep.identity));
+    final canContinue = ref.watch(
+        tournamentCreateCanContinueProvider(TournamentCreateStep.identity));
 
     return TournamentCreateWizardScaffold(
       step: TournamentCreateStep.identity,
@@ -73,30 +75,44 @@ class _TournamentCreateIdentityPageState
         children: [
           const OrganizerSectionLabel('ESPORTE'),
           const SizedBox(height: 8),
-          DropdownButtonFormField<TournamentSport>(
-            value: draft.sport,
-            decoration: _fieldDecoration(context),
-            items: [
-              for (final sport in TournamentSport.values)
-                DropdownMenuItem(
-                  value: sport,
-                  child: Text(sportLabel(sport)),
-                ),
-            ],
-            onChanged: (value) {
-              if (value != null) {
-                ref.read(tournamentCreateWizardProvider.notifier).setSport(value);
-              }
-            },
-          ),
+          if (draft.sportRaw case final sportRaw?)
+            TextFormField(
+              key: const ValueKey('sport-locked'),
+              enabled: false,
+              initialValue: sportRaw,
+              decoration: _fieldDecoration(context).copyWith(
+                helperText:
+                    'Esporte não pode ser alterado nesta versão do app.',
+              ),
+            )
+          else
+            DropdownButtonFormField<TournamentSport>(
+              value: draft.sport,
+              decoration: _fieldDecoration(context),
+              items: [
+                for (final sport in TournamentSport.values)
+                  DropdownMenuItem(
+                    value: sport,
+                    child: Text(sportLabel(sport)),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  ref
+                      .read(tournamentCreateWizardProvider.notifier)
+                      .setSport(value);
+                }
+              },
+            ),
           const SizedBox(height: 20),
           const OrganizerSectionLabel('NOME DO TORNEIO'),
           const SizedBox(height: 8),
           OrganizerTextField(
             controller: _nameController,
             hintText: 'Open Goiânia Beach',
-            onChanged: (value) =>
-                ref.read(tournamentCreateWizardProvider.notifier).setName(value),
+            onChanged: (value) => ref
+                .read(tournamentCreateWizardProvider.notifier)
+                .setName(value),
           ),
           const SizedBox(height: 6),
           Text(

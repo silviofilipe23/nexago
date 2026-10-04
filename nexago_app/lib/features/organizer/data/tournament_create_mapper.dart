@@ -20,9 +20,8 @@ abstract final class TournamentCreateMapper {
     bool isUpdate = false,
     String? existingListingStatus,
   }) {
-    final categories = draft.categories
-        .map((c) => _categoryToMap(c, draft: draft))
-        .toList();
+    final categories =
+        draft.categories.map((c) => _categoryToMap(c, draft: draft)).toList();
     final capacity = draft.totalSpots;
     final startAt = draft.startAt!;
     final endAt = draft.endAt!;
@@ -35,10 +34,9 @@ abstract final class TournamentCreateMapper {
 
     return {
       'name': name,
-      'sport': draft.sport.name,
-      'description': draft.description.trim().isEmpty
-          ? null
-          : draft.description.trim(),
+      'sport': draft.sportFirestoreValue,
+      'description':
+          draft.description.trim().isEmpty ? null : draft.description.trim(),
       'city': draft.city.trim(),
       'state': draft.state.trim().isEmpty ? null : draft.state.trim(),
       'locationName': draft.locationName.trim(),
@@ -78,13 +76,13 @@ abstract final class TournamentCreateMapper {
       'paymentMode': draft.paymentMode.name,
       'organizerPix':
           draft.paymentMode == TournamentPaymentMode.directWithOrganizer
-          ? {
-              'key': draft.organizerPixKey.trim(),
-              'keyType': draft.organizerPixKeyType.trim(),
-              'recipientName': draft.organizerPixRecipientName.trim(),
-              'city': draft.organizerPixCity.trim(),
-            }
-          : null,
+              ? {
+                  'key': draft.organizerPixKey.trim(),
+                  'keyType': draft.organizerPixKeyType.trim(),
+                  'recipientName': draft.organizerPixRecipientName.trim(),
+                  'city': draft.organizerPixCity.trim(),
+                }
+              : null,
       'waitlistEnabled': draft.waitlistEnabled,
       'inviteConfirmEnabled': draft.inviteConfirmEnabled,
       'requireFormedPair': draft.requireFormedPair,
@@ -112,7 +110,7 @@ abstract final class TournamentCreateMapper {
   }
 
   static ({TournamentCreateDraft draft, TournamentCreateStep? wizardStep})
-  fromFirestore(Map<String, dynamic> data, String id) {
+      fromFirestore(Map<String, dynamic> data, String id) {
     final categoriesRaw = data['categories'];
     final tournamentBracketSystem = _parseBracketSystem(
       data['bracketSystem'] as String? ?? data['bracketFormat'] as String?,
@@ -126,30 +124,31 @@ abstract final class TournamentCreateMapper {
 
     final categories = categoriesRaw is List
         ? categoriesRaw
-              .whereType<Map>()
-              .map(
-                (raw) => _categoryFromMap(
-                  Map<String, dynamic>.from(raw),
-                  fallbackBracketSystem: tournamentBracketSystem,
-                  fallbackTeamsPerGroup: tournamentTeamsPerGroup,
-                  fallbackQualifiersPerGroup: tournamentQualifiersPerGroup,
-                  fallbackBestOf: tournamentBestOf,
-                  fallbackFinalBestOf5: tournamentFinalBestOf5,
-                ),
-              )
-              .whereType<TournamentCategoryDraft>()
-              .toList()
+            .whereType<Map>()
+            .map(
+              (raw) => _categoryFromMap(
+                Map<String, dynamic>.from(raw),
+                fallbackBracketSystem: tournamentBracketSystem,
+                fallbackTeamsPerGroup: tournamentTeamsPerGroup,
+                fallbackQualifiersPerGroup: tournamentQualifiersPerGroup,
+                fallbackBestOf: tournamentBestOf,
+                fallbackFinalBestOf5: tournamentFinalBestOf5,
+              ),
+            )
+            .whereType<TournamentCategoryDraft>()
+            .toList()
         : <TournamentCategoryDraft>[];
 
+    final parsedSport = parseTournamentSport(data['sport'] as String?);
     final draft = TournamentCreateDraft(
       tournamentId: id,
-      sport: _parseSport(data['sport'] as String?),
+      sport: parsedSport.sport,
+      sportRaw: parsedSport.raw,
       name: (data['name'] as String?) ?? '',
       coverImageUrl: _parseCoverImageUrl(data),
       description: (data['description'] as String?) ?? '',
       arenaId: data['arenaId'] as String?,
-      locationName:
-          (data['locationName'] as String?) ??
+      locationName: (data['locationName'] as String?) ??
           (data['location'] as String?) ??
           '',
       locationAddress: (data['locationAddress'] as String?) ?? '',
@@ -167,7 +166,8 @@ abstract final class TournamentCreateMapper {
       paymentMode: _parsePaymentMode(data['paymentMode'] as String?),
       organizerPixKey: _pixField(data['organizerPix'], 'key'),
       organizerPixKeyType: _pixField(data['organizerPix'], 'keyType'),
-      organizerPixRecipientName: _pixField(data['organizerPix'], 'recipientName'),
+      organizerPixRecipientName:
+          _pixField(data['organizerPix'], 'recipientName'),
       organizerPixCity: _pixField(data['organizerPix'], 'city'),
       waitlistEnabled: data['waitlistEnabled'] as bool? ?? true,
       inviteConfirmEnabled: data['inviteConfirmEnabled'] as bool? ?? false,
@@ -201,8 +201,7 @@ abstract final class TournamentCreateMapper {
     final id = map['id'] as String?;
     if (id == null || id.isEmpty) return null;
 
-    final entryFeeCents =
-        (map['entryFeeCents'] as num?)?.toInt() ??
+    final entryFeeCents = (map['entryFeeCents'] as num?)?.toInt() ??
         (((map['entryFee'] as num?)?.toDouble() ?? 0) * 100).round();
 
     final bracketRaw = map['bracketFormat'] as String?;
@@ -224,8 +223,7 @@ abstract final class TournamentCreateMapper {
       ageCustomEnabled: _ageRestrictionIsCustom(map['ageRestriction']),
       ageMinYears: _ageRestrictionInt(map['ageRestriction'], 'minAge'),
       ageMaxYears: _ageRestrictionInt(map['ageRestriction'], 'maxAge'),
-      spots:
-          (map['maxTeams'] as num?)?.toInt() ??
+      spots: (map['maxTeams'] as num?)?.toInt() ??
           (map['spotsTotal'] as num?)?.toInt() ??
           16,
       useDefaultPrice: map['useDefaultPrice'] as bool? ?? true,
@@ -235,16 +233,13 @@ abstract final class TournamentCreateMapper {
           : fallbackBracketSystem,
       teamsPerGroup:
           (map['teamsPerGroup'] as num?)?.toInt() ?? fallbackTeamsPerGroup,
-      qualifiersPerGroup:
-          (map['qualifiersPerGroup'] as num?)?.toInt() ??
+      qualifiersPerGroup: (map['qualifiersPerGroup'] as num?)?.toInt() ??
           fallbackQualifiersPerGroup,
       kocTeamsPerCourt:
           (map['teamsPerCourt'] as num?)?.toInt() ?? kocDefaultTeamsPerCourt,
-      kocQualifiersPerRound:
-          (map['qualifiersPerRound'] as num?)?.toInt() ??
+      kocQualifiersPerRound: (map['qualifiersPerRound'] as num?)?.toInt() ??
           kocDefaultQualifiersPerRound,
-      kocRoundDurationSec:
-          (map['roundDurationSec'] as num?)?.toInt() ??
+      kocRoundDurationSec: (map['roundDurationSec'] as num?)?.toInt() ??
           kocDefaultRoundDurationSec,
       bestOf: map['bestOf'] != null
           ? _parseBestOf(map['bestOf'] as String?)
@@ -287,13 +282,6 @@ abstract final class TournamentCreateMapper {
     if (raw is Timestamp) return raw.toDate();
     if (raw is DateTime) return raw;
     return null;
-  }
-
-  static TournamentSport _parseSport(String? raw) {
-    for (final value in TournamentSport.values) {
-      if (value.name == raw) return value;
-    }
-    return TournamentSport.beachVolleyball;
   }
 
   static TournamentBracketSystem _parseBracketSystem(String? raw) {
@@ -363,10 +351,10 @@ abstract final class TournamentCreateMapper {
       final mode = min != null && max != null
           ? 'range'
           : min != null
-          ? 'min'
-          : max != null
-          ? 'max'
-          : 'none';
+              ? 'min'
+              : max != null
+                  ? 'max'
+                  : 'none';
       return {
         'mode': mode,
         if (min != null) 'minAge': min,
@@ -429,21 +417,26 @@ abstract final class TournamentCreateMapper {
       'iniciante' || 'beginner' => TournamentSkillLevel.beginner,
       'intermediário' ||
       'intermediario' ||
-      'intermediate' => TournamentSkillLevel.intermediate,
+      'intermediate' =>
+        TournamentSkillLevel.intermediate,
       'iniciante 1' || 'iniciante_1' => TournamentSkillLevel.iniciante1,
       'iniciante 2' || 'iniciante_2' => TournamentSkillLevel.iniciante2,
       'intermediário 1' ||
       'intermediario 1' ||
-      'intermediario_1' => TournamentSkillLevel.intermediario1,
+      'intermediario_1' =>
+        TournamentSkillLevel.intermediario1,
       'intermediário 2' ||
       'intermediario 2' ||
-      'intermediario_2' => TournamentSkillLevel.intermediario2,
+      'intermediario_2' =>
+        TournamentSkillLevel.intermediario2,
       'avançado 1' ||
       'avancado 1' ||
-      'avancado_1' => TournamentSkillLevel.avancado1,
+      'avancado_1' =>
+        TournamentSkillLevel.avancado1,
       'avançado 2' ||
       'avancado 2' ||
-      'avancado_2' => TournamentSkillLevel.avancado2,
+      'avancado_2' =>
+        TournamentSkillLevel.avancado2,
       'open' || 'livre' => TournamentSkillLevel.open,
       _ => TournamentSkillLevel.open,
     };
@@ -467,8 +460,7 @@ abstract final class TournamentCreateMapper {
       'teamSize': disputeTeamSize(category.dispute),
       if (isTeamDispute(category.dispute)) ...{
         'genderMode': category.genderFree ? 'free' : 'composition',
-        'genderComposition':
-            category.genderFree ||
+        'genderComposition': category.genderFree ||
                 category.menCount == null ||
                 category.womenCount == null
             ? null

@@ -1,32 +1,21 @@
+import { SPORT_CATALOG, resolveSport } from '@nexago/sports';
+
 /**
- * Capa padrão do torneio quando o organizador não subiu nenhuma, indexada pelo
- * esporte gravado em `tournaments/{id}.sport`.
- *
- * A chave é o código camelCase do `TournamentSport` — o MESMO que o wizard do
- * app e o do portal gravam. Espelha `TournamentCoverArt` no Dart
- * (`nexago_app/lib/features/tournaments/domain/tournament_cover_art.dart`):
- * os dois têm de concordar, senão o mesmo torneio ganha capa diferente
- * dependendo de onde é visto.
- *
- * `beachTennis` não está no enum do wizard, mas aparece em torneios legados e
- * no tipo do site — tem arte porque custa zero.
+ * Capa padrão do torneio quando o organizador não subiu nenhuma, pela arte do
+ * esporte no catálogo (`sports/catalog.json`, campo `art`). Aceita qualquer
+ * grafia que o catálogo conheça (`beachVolleyball`, `beach_tennis`, `VOLEI_PRAIA`).
+ * O codegen recusa arte sem o arquivo em `media/`, então o caminho sempre existe.
  *
  * Os arquivos são servidos de `/media/tournament-covers/` (mesma origem, então
  * o canvas dos share cards não esbarra em CORS). A pasta `media/` daqui entra
  * em cada portal pela entrada de `assets` do `angular.json`.
  */
-const BY_SPORT: Record<string, string> = {
-  beachvolleyball: '/media/tournament-covers/volei_praia.webp',
-  indoorvolleyball: '/media/tournament-covers/volei_quadra.webp',
-  footvolley: '/media/tournament-covers/futevolei.webp',
-  beachtennis: '/media/tournament-covers/beach_tennis.webp',
-};
+const COVER_DIR = '/media/tournament-covers';
 
 /** Caminho da arte do esporte, ou `null` quando ele não tem uma. */
 export function tournamentCoverArt(sport: string | null | undefined): string | null {
-  const code = sport?.trim().toLowerCase();
-  if (!code) return null;
-  return BY_SPORT[code] ?? null;
+  const art = resolveSport(sport)?.art;
+  return art ? `${COVER_DIR}/${art}.webp` : null;
 }
 
 /**
@@ -43,4 +32,4 @@ export function tournamentCoverOrDefault(
 }
 
 /** Esportes que hoje têm arte — usado em teste para travar o catálogo. */
-export const SPORTS_WITH_COVER_ART = Object.keys(BY_SPORT);
+export const SPORTS_WITH_COVER_ART: readonly string[] = SPORT_CATALOG.filter((s) => s.art).map((s) => s.code);

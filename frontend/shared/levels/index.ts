@@ -1,3 +1,5 @@
+import { SPORT_CATALOG, sportLabel, sportProfileCode } from '@nexago/sports';
+
 /**
  * Nível declarado do atleta — vocabulário canônico compartilhado entre os
  * portais web. Espelha `functions/src/category-level-eligibility.ts` (backend
@@ -49,36 +51,12 @@ export const LEVEL_OPTIONS: readonly LevelOption[] = [
   { code: 'open', label: 'Open', description: 'Tenho alto nível amador e disputo torneios competitivos.' },
 ];
 
-/** Códigos de esporte do perfil (chaves de `sportOnboarding.levelsBySport`). */
-export const ATHLETE_SPORT_CODES: readonly string[] = [
-  'VOLEI_PRAIA',
-  'VOLEI_QUADRA',
-  'BEACH_TENNIS',
-  'FUTEVOLEI',
-  'FUTEBOL',
-  'BASQUETE',
-  'TENIS',
-  'CORRIDA',
-  'OUTROS',
-];
+/** Códigos de esporte do perfil (chaves de `sportOnboarding.levelsBySport`), na ordem do catálogo. */
+export const ATHLETE_SPORT_CODES: readonly string[] = SPORT_CATALOG.map((s) => s.profileCode);
 
-const SPORT_LABELS: Record<string, string> = {
-  VOLEI_PRAIA: 'Vôlei de praia',
-  VOLEI_QUADRA: 'Vôlei de quadra',
-  BEACH_TENNIS: 'Beach tennis',
-  FUTEVOLEI: 'Futevôlei',
-  FUTEBOL: 'Futebol',
-  BASQUETE: 'Basquete',
-  TENIS: 'Tênis',
-  CORRIDA: 'Corrida',
-  OUTROS: 'Outros',
-};
-
-/** Código de esporte do perfil → rótulo em PT; devolve o próprio código quando
- *  desconhecido (nunca vazio). */
+/** Código de esporte do perfil → rótulo; desconhecido sai em title case (nunca vazio se veio algo). */
 export function athleteSportLabel(code: string | null | undefined): string {
-  const key = code?.trim().toUpperCase() ?? '';
-  return SPORT_LABELS[key] ?? key;
+  return sportLabel(code) ?? '';
 }
 
 /** Código/label de nível → label de exibição (legados sem sufixo inclusos —
@@ -167,19 +145,7 @@ export function levelLabelForRank(rank: number): string {
   }
 }
 
-/** Esporte do torneio (`tournaments/{id}.sport`) → código de esporte do perfil.
- *  `null` quando não há equivalente → o leitor usa o nível global legado. */
+/** Esporte do torneio, em qualquer grafia do catálogo → código do perfil. `null` → nível global. */
 export function tournamentSportToLevelSportCode(sport: string | null | undefined): string | null {
-  switch (sport?.trim().toLowerCase()) {
-    case 'beachvolleyball':
-      return 'VOLEI_PRAIA';
-    case 'indoorvolleyball':
-      return 'VOLEI_QUADRA';
-    case 'footvolley':
-      return 'FUTEVOLEI';
-    case 'beachtennis':
-      return 'BEACH_TENNIS';
-    default:
-      return null;
-  }
+  return sportProfileCode(sport);
 }

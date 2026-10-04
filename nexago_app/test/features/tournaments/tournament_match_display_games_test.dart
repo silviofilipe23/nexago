@@ -132,6 +132,38 @@ void main() {
       expect([last.a, last.b, last.inProgress], [0, 0, true]);
     });
 
+    test('pílulas da chave e placar do lado na lista (super tie-break)', () {
+      final done = _match({
+        'status': 'Completed',
+        'winnerId': 'A',
+        'sets': [
+          {'a': 6, 'b': 4},
+          {'a': 3, 'b': 6},
+          {
+            'a': 1,
+            'b': 0,
+            'tb': {'a': 10, 'b': 8},
+          },
+        ],
+      });
+      expect(matchSetPillsForSide(done, sideA: false), [
+        '4 · 6',
+        '6 · 3',
+        '8 · 10',
+      ]);
+      final stb = _match({
+        'sets': [
+          {'a': 6, 'b': 4},
+          {'a': 3, 'b': 6},
+          {'a': 0, 'b': 0},
+        ],
+        'currentSetIndex': 2,
+        'currentGame': {'a': 7, 'b': 5},
+      });
+      expect(matchLiveSideScore(stb, sideA: true), (mine: 7, theirs: 5));
+      expect(matchGroupLiveScoreLabel(stb), '1–1 · super tie-break 7-5');
+    });
+
     test(
       'encerrada (W.O. com set aberto): conta todo set, como as outras telas',
       () {
@@ -160,6 +192,9 @@ void main() {
       expect([live.setNumber, live.a, live.b], [2, 14, 11]);
       expect(live.game, isNull);
       expect(live.superTiebreak, isFalse);
+      expect(matchSetPillsForSide(m, sideA: true), ['21 · 15', '14 · 11']);
+      expect(matchLiveSideScore(m, sideA: false), (mine: 11, theirs: 14));
+      expect(matchGroupLiveScoreLabel(m), matchCardScoreLabel(m));
       expect(
         matchClosedSetTexts(
           _match({

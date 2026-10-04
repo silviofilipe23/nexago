@@ -798,3 +798,49 @@ String? matchLiveScoreLine(TournamentMatch match, {(int, int)? setWins}) {
   return game == null ? line : '$line · ${game.a}-${game.b}';
 }
 
+/// Pílulas de set da chave na ótica de um lado ("21 · 15"): todos os sets do
+/// doc, como sempre; em games o super tie-break vai pelos pontos dele.
+List<String> matchSetPillsForSide(TournamentMatch match, {required bool sideA}) {
+  final profile = matchScoringProfile(match);
+  final sets = setsForMatch(match);
+  return [
+    for (var i = 0; i < sets.length; i++)
+      () {
+        final s = sets[i];
+        final tb = s.tb;
+        final shown = profile is SetsGamesProfile &&
+                tb != null &&
+                ScoringRules.isSuperTiebreakSet(profile, i)
+            ? (a: tb.a, b: tb.b)
+            : (a: s.a, b: s.b);
+        return sideA ? '${shown.a} · ${shown.b}' : '${shown.b} · ${shown.a}';
+      }(),
+  ];
+}
+
+/// Placar do set em andamento na ótica de um lado, pro número grande da
+/// lista. No super tie-break o set fica 0-0 e os pontos correm em
+/// `currentGame`. `null` sem set em andamento.
+({int mine, int theirs})? matchLiveSideScore(
+  TournamentMatch match, {
+  required bool sideA,
+}) {
+  final live = matchLiveCurrentSet(match);
+  if (live == null) return null;
+  final score = live.superTiebreak
+      ? match.currentGame
+      : (a: live.a, b: live.b);
+  return sideA
+      ? (mine: score.a, theirs: score.b)
+      : (mine: score.b, theirs: score.a);
+}
+
+/// Placar da partida ao vivo na seção do grupo: em games, a linha ao vivo
+/// (com o ponto do game e o super tie-break); em pontos, o rótulo de sempre.
+String matchGroupLiveScoreLabel(TournamentMatch match) {
+  if (matchScoringProfile(match) is SetsGamesProfile) {
+    return matchLiveScoreLine(match) ?? matchCardScoreLabel(match);
+  }
+  return matchCardScoreLabel(match);
+}
+

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { Title } from '@angular/platform-browser';
+import { sportLabel } from '@nexago/sports';
 import { RouterLink } from '@angular/router';
 import { RevealDirective } from '../../shared/reveal.directive';
 import { ButtonDirective } from '../../shared/ui/button.directive';
@@ -18,12 +19,6 @@ import {
   type WeekSchedule,
 } from '../../../lib/firestore/arena-site-data';
 import { getArenaSiteBySlug, type PublicArenaSite } from '../../../lib/firestore/arena-sites';
-
-const SPORT_LABEL: Partial<Record<string, string>> = {
-  beachTennis: 'Beach tennis',
-  beachVolleyball: 'Vôlei de praia',
-  footvolley: 'Futevôlei',
-};
 
 const AMENITY_INFO: Record<AmenityKey, { label: string; hint: string }> = {
   parking: { label: 'Estacionamento', hint: 'Para clientes da arena' },
@@ -167,7 +162,7 @@ export class ArenaSitePage {
   });
 
   protected readonly amenityInfo = AMENITY_INFO;
-  protected readonly sportLabel = SPORT_LABEL;
+  protected readonly sportLabel = sportLabel;
   protected readonly currentYear = new Date().getFullYear();
   /** Exposto para o template poder usar `.filter(Boolean)` — globais do JS não são visíveis
    *  em expressões de template do Angular. */

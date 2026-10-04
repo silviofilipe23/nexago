@@ -27,6 +27,10 @@ describe('sport-catalog', () => {
       expect(sportLabelForCode('FUTEVOLEI_MISTO')).toBe('Futevolei Misto');
     });
 
+    it('resolves any spelling the catalog knows', () => {
+      expect(sportLabelForCode('beachVolleyball')).toBe('Vôlei de praia');
+    });
+
     it('returns an empty string for an empty code', () => {
       expect(sportLabelForCode('')).toBe('');
     });

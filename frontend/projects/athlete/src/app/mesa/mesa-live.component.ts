@@ -15,14 +15,12 @@ import {
   hasUsedMedicalTimeout,
   lastUndoablePoint,
   liveSetToMap,
-  matchWinnerSide,
   medicalTimeoutRemainingSeconds,
   needsServingPlayer,
   needsStartingServe,
   servingPlayerFields,
   servingTeamFields,
   setsWonOf,
-  validateScoreSubmission,
   type LiveMatch,
   type LivePointEvent,
   type MatchDisplayStatus,
@@ -44,6 +42,8 @@ import {
   type MesaSide,
 } from './mesa-board';
 import { EMPTY_HEADER, MesaLiveGateway, type MesaHeaderInfo } from './mesa-live.gateway';
+import { quickPayload, quickRows } from './mesa-quick-score';
+import { effectiveScoringProfile, matchWinnerSide as coreMatchWinnerSide, validateScoreSets } from '@nexago/sports';
 import { EMPTY_TEAM_NAMES, playerNameOf, teamLabelOf, type MesaTeamNames } from './mesa-team-names';
 
 const STATUS_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendada', in_progress: 'Ao vivo', completed: 'Encerrada', canceled: 'Cancelada' };
@@ -341,30 +341,45 @@ interface MedicalOptionView {
             <div class="mesa-quick">
               @for (set of quickSets(); track $index) {
                 <div class="mesa-quick-row">
-                  <span class="mesa-eyebrow">Set {{ $index + 1 }}</span>
-                  <input
-                    class="mesa-input"
-                    type="number"
-                    inputmode="numeric"
-                    min="0"
-                    max="99"
-                    [attr.aria-label]="'Pontos de ' + label('A') + ' no set ' + ($index + 1)"
-                    [value]="set.a"
-                    (input)="updateQuickSet($index, 'a', $event)"
-                  />
-                  <span class="mesa-quick-x">×</span>
-                  <input
-                    class="mesa-input"
-                    type="number"
-                    inputmode="numeric"
-                    min="0"
-                    max="99"
-                    [attr.aria-label]="'Pontos de ' + label('B') + ' no set ' + ($index + 1)"
-                    [value]="set.b"
-                    (input)="updateQuickSet($index, 'b', $event)"
-                  />
+                  <span class="mesa-eyebrow">Set {{ $index + 1 }} · {{ quickRowsView()[$index]?.label }}</span>
+                  @if (quickRowsView()[$index]?.kind === 'super_tiebreak') {
+                    <!-- Super tie-break: digita os pontos; o set grava 1×0 do vencedor. -->
+                    <input class="mesa-input" type="number" inputmode="numeric" min="0" max="99" [attr.aria-label]="'Super tie-break de ' + label('A')" [value]="set.tb?.a ?? 0" (input)="updateQuickSet($index, 'tbA', $event)" />
+                    <span class="mesa-quick-x">×</span>
+                    <input class="mesa-input" type="number" inputmode="numeric" min="0" max="99" [attr.aria-label]="'Super tie-break de ' + label('B')" [value]="set.tb?.b ?? 0" (input)="updateQuickSet($index, 'tbB', $event)" />
+                  } @else {
+                    <input
+                      class="mesa-input"
+                      type="number"
+                      inputmode="numeric"
+                      min="0"
+                      max="99"
+                      [attr.aria-label]="'Pontos de ' + label('A') + ' no set ' + ($index + 1)"
+                      [value]="set.a"
+                      (input)="updateQuickSet($index, 'a', $event)"
+                    />
+                    <span class="mesa-quick-x">×</span>
+                    <input
+                      class="mesa-input"
+                      type="number"
+                      inputmode="numeric"
+                      min="0"
+                      max="99"
+                      [attr.aria-label]="'Pontos de ' + label('B') + ' no set ' + ($index + 1)"
+                      [value]="set.b"
+                      (input)="updateQuickSet($index, 'b', $event)"
+                    />
+                  }
                   <button type="button" class="mesa-quick-del" [disabled]="saving()" (click)="removeQuickSet($index)" aria-label="Remover set">×</button>
                 </div>
+                @if (quickRowsView()[$index]?.kind === 'games_tiebreak') {
+                  <div class="mesa-quick-row">
+                    <span class="mesa-eyebrow">Tie-break do set {{ $index + 1 }}</span>
+                    <input class="mesa-input" type="number" inputmode="numeric" min="0" max="99" [attr.aria-label]="'Tie-break de ' + label('A')" [value]="set.tb?.a ?? 0" (input)="updateQuickSet($index, 'tbA', $event)" />
+                    <span class="mesa-quick-x">×</span>
+                    <input class="mesa-input" type="number" inputmode="numeric" min="0" max="99" [attr.aria-label]="'Tie-break de ' + label('B')" [value]="set.tb?.b ?? 0" (input)="updateQuickSet($index, 'tbB', $event)" />
+                  </div>
+                }
               }
 
               @if (quickIssues().length > 0) {
@@ -1949,7 +1964,7 @@ export class MesaLiveComponent {
     const m = this.match();
     if (!m || this.hydratedQuickFor === m.id) return;
     this.hydratedQuickFor = m.id;
-    const fromDoc = m.sets.map((s) => ({ a: s.a, b: s.b }));
+    const fromDoc = m.sets.map((s) => (s.tb ? { a: s.a, b: s.b, tb: { a: s.tb.a, b: s.tb.b } } : { a: s.a, b: s.b }));
     this.quickSets.set(fromDoc.length > 0 ? fromDoc : [{ a: 0, b: 0 }]);
   }
 
@@ -1966,15 +1981,31 @@ export class MesaLiveComponent {
     this.quickSets.update((sets) => sets.filter((_, i) => i !== index));
   }
 
-  protected updateQuickSet(index: number, side: 'a' | 'b', event: Event): void {
+  protected updateQuickSet(index: number, field: 'a' | 'b' | 'tbA' | 'tbB', event: Event): void {
     const raw = Number((event.target as HTMLInputElement).value);
     const value = Number.isFinite(raw) ? Math.max(0, Math.min(99, Math.trunc(raw))) : 0;
-    this.quickSets.update((sets) => sets.map((s, i) => (i === index ? { ...s, [side]: value } : s)));
+    this.quickSets.update((sets) =>
+      sets.map((s, i) => {
+        if (i !== index) return s;
+        if (field === 'a' || field === 'b') return { ...s, [field]: value };
+        const tb = { a: s.tb?.a ?? 0, b: s.tb?.b ?? 0 };
+        return { ...s, tb: field === 'tbA' ? { ...tb, a: value } : { ...tb, b: value } };
+      }),
+    );
   }
 
-  /** Validação local espelhando `match_scoring_logic.dart` (mensagens idênticas às do app); o
-   *  servidor revalida em `submitMatchResult`. */
-  protected readonly quickIssues = computed(() => validateScoreSubmission(this.quickSets(), this.bestOf()));
+  /** Perfil de placar da partida com o formato atual (spec multiesporte, 2b1). */
+  private readonly quickProfile = computed(() => effectiveScoringProfile(this.match()?.scoringProfile, this.bestOf()));
+
+  /** Tipo e rótulo de cada linha (pontos, games, games + tie-break, super tie-break). */
+  protected readonly quickRowsView = computed(() => quickRows(this.quickProfile(), this.quickSets()));
+
+  /** Sets como vão para o servidor — é sobre eles que a folha valida. */
+  private readonly quickSubmitSets = computed(() => quickPayload(this.quickProfile(), this.quickSets()));
+
+  /** Validação local com as mensagens do núcleo de placar (as mesmas do app); o servidor
+   *  revalida em `submitMatchResult`. */
+  protected readonly quickIssues = computed(() => validateScoreSets(this.quickSubmitSets(), this.quickProfile()));
 
   protected canSubmitQuick(): boolean {
     return this.quickSets().length > 0 && this.quickIssues().length === 0;
@@ -1987,9 +2018,9 @@ export class MesaLiveComponent {
     this.busyKey.set('quick');
     this.feedback.set(null);
     try {
-      const sets = this.quickSets();
+      const sets = this.quickSubmitSets();
       const result = await this.gateway.submitSets(m.id, sets, this.bestOf());
-      const winner = matchWinnerSide(sets, this.bestOf());
+      const winner = coreMatchWinnerSide(sets, this.quickProfile());
       const winnerLabel = winner === 'A' ? this.label('A') : this.label('B');
       this.feedback.set({
         ok: true,

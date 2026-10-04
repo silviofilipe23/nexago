@@ -294,7 +294,9 @@ describe("lockLevelsForTournamentRegistration", () => {
 
   it("esporte sem equivalente no perfil (tournamentSportToLevelSportCode -> null): zero escritas", async () => {
     const db = mockDb({
-      tournaments: {t1: {sport: "futebol"}},
+      // `futebol` virou código conhecido com o catálogo (FUTEBOL); o caso aqui
+      // é esporte que nem o catálogo conhece.
+      tournaments: {t1: {sport: "xadrez"}},
       users: {u1: {}},
     });
     await lockLevelsForTournamentRegistration(db as never, {

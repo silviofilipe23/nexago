@@ -130,6 +130,15 @@ service cloud.firestore {
         request.resource.data.get('organizerPix', null) == resource.data.get('organizerPix', null) &&
         request.resource.data.get('enrolledCount', null) == resource.data.get('enrolledCount', null);
     }
+    /** `sport` congela depois de criado. Só admin da plataforma muda. O app da
+     *  loja (até o build que conhece o catálogo) coage esporte desconhecido pra
+     *  beachVolleyball ao reeditar; a rule é o que impede o rebaixamento.
+     *  Doc legado SEM o campo pode recebê-lo uma vez. Update parcial que não
+     *  manda `sport` herda o atual em `request.resource.data` e passa. */
+    function sportUnchanged() {
+      return !('sport' in resource.data) ||
+        request.resource.data.get('sport', null) == resource.data.sport;
+    }
     /** Quem mexe na equipe do torneio: o dono e o super admin (suporte a torneio alheio).
      *  Duas invariantes que valem para os dois: ninguém se adiciona, e o dono nunca vira
      *  staff do próprio torneio — o acesso dele já vem de `managerId`, e um doc de staff no
@@ -2309,15 +2318,19 @@ service cloud.firestore {
       allow update: if request.auth != null && (
         isAdmin() ||
         isSuperAdmin() ||
-        (isTournamentOrganizer() && organizerCanUpdateOwnTournament()) ||
-        resource.data.managerId == request.auth.uid ||
         (
-          isTournamentStaff(tournamentId, ['manager', 'eventAdmin']) &&
-          staffKeepsTournamentMoneyFields()
-        ) ||
-        (
-          canScoreTournament(tournamentId) &&
-          scorerCanOnlyEditLiveMatchesNowField()
+          sportUnchanged() && (
+            (isTournamentOrganizer() && organizerCanUpdateOwnTournament()) ||
+            resource.data.managerId == request.auth.uid ||
+            (
+              isTournamentStaff(tournamentId, ['manager', 'eventAdmin']) &&
+              staffKeepsTournamentMoneyFields()
+            ) ||
+            (
+              canScoreTournament(tournamentId) &&
+              scorerCanOnlyEditLiveMatchesNowField()
+            )
+          )
         )
       );
 
@@ -2661,7 +2674,7 @@ service cloud.firestore {
       );
       allow update: if request.auth != null && (
         isAdmin() ||
-        organizerCanUpdateOwnLeague()
+        (organizerCanUpdateOwnLeague() && sportUnchanged())
       );
       allow delete: if request.auth != null && (
         isAdmin() ||

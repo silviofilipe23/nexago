@@ -1,4 +1,12 @@
-import { matchBestOf, matchClosedSets, matchIsLive, matchLiveCurrentSet, matchSetWins, type MatchSet, type TournamentMatch } from '../data/matches-repository';
+import {
+  matchBestOf,
+  matchClosedSetTexts,
+  matchIsLive,
+  matchLiveCurrentSet,
+  matchSetWins,
+  type MatchSet,
+  type TournamentMatch,
+} from '../data/matches-repository';
 import { displaySetsOf } from './tournament-live.selectors';
 
 /** Formatação compartilhada pela aba Hoje, pela aba Partidas e pela tela de Partida. Tudo em
@@ -73,8 +81,10 @@ export function partialsLabelOf(sets: readonly MatchSet[]): string | null {
   return sets.length > 0 ? sets.map((s) => `${s.a}-${s.b}`).join(' · ') : null;
 }
 
+/** Parciais dos sets fechados pela regra da partida ("6-4 · 6-7 (5-7) · 10-8" em games). */
 export function closedPartialsLabelOf(m: TournamentMatch): string | null {
-  return partialsLabelOf(matchClosedSets(m));
+  const texts = matchClosedSetTexts(m);
+  return texts.length > 0 ? texts.join(' · ') : null;
 }
 
 /** "2 – 0" em sets, do ponto de vista do lado A. */
@@ -83,13 +93,16 @@ export function setWinsLabelOf(m: TournamentMatch): string {
   return `${a} – ${b}`;
 }
 
-/** Linha de placar ao vivo: "1–0 · 2º set 14-11". Fora do ao vivo devolve `null`. */
+/** Linha de placar ao vivo: "1–0 · 2º set 14-11"; em games "1–0 · 2º set 5-4 · 40-15" e,
+ *  no super tie-break, "1–1 · super tie-break 7-5". Fora do ao vivo devolve `null`. */
 export function liveScoreLineOf(m: TournamentMatch): string | null {
   if (!matchIsLive(m)) return null;
   const current = matchLiveCurrentSet(m);
   if (!current) return null;
   const [a, b] = matchSetWins(m);
-  return `${a}–${b} · ${current.setNumber}º set ${current.a}-${current.b}`;
+  if (current.game && current.superTiebreak) return `${a}–${b} · super tie-break ${current.game.a}-${current.game.b}`;
+  const line = `${a}–${b} · ${current.setNumber}º set ${current.a}-${current.b}`;
+  return current.game ? `${line} · ${current.game.a}-${current.game.b}` : line;
 }
 
 /** "MD3" / "MD5". */

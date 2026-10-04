@@ -16,8 +16,8 @@ export interface SportCatalogEntry {
 
 export const SPORT_CATALOG: readonly SportCatalogEntry[] = [
   {code: "beachVolleyball", profileCode: "VOLEI_PRAIA", appId: "beach_volleyball", label: "Vôlei de praia", art: "volei_praia", support: "competition", scoringProfile: {"kind":"sets_points","bestOf":3,"setTarget":21,"decidingSetTarget":15,"winBy":2,"pointCap":null}},
-  {code: "indoorVolleyball", profileCode: "VOLEI_QUADRA", appId: "indoor_volleyball", label: "Vôlei de quadra", art: "volei_quadra", support: "competition", scoringProfile: {"kind":"sets_points","bestOf":3,"setTarget":21,"decidingSetTarget":15,"winBy":2,"pointCap":null}},
-  {code: "footvolley", profileCode: "FUTEVOLEI", appId: "footvolley", label: "Futevôlei", art: "futevolei", support: "competition", scoringProfile: {"kind":"sets_points","bestOf":3,"setTarget":21,"decidingSetTarget":15,"winBy":2,"pointCap":null}},
+  {code: "indoorVolleyball", profileCode: "VOLEI_QUADRA", appId: "indoor_volleyball", label: "Vôlei de quadra", art: "volei_quadra", support: "competition", scoringProfile: {"kind":"sets_points","bestOf":3,"setTarget":25,"decidingSetTarget":15,"winBy":2,"pointCap":null}},
+  {code: "footvolley", profileCode: "FUTEVOLEI", appId: "footvolley", label: "Futevôlei", art: "futevolei", support: "competition", scoringProfile: {"kind":"sets_points","bestOf":3,"setTarget":18,"decidingSetTarget":15,"winBy":2,"pointCap":null}},
   {code: "football", profileCode: "FUTEBOL", appId: "football", label: "Futebol", art: "futebol", support: "profile", scoringProfile: null},
   {code: "basketball", profileCode: "BASQUETE", appId: "basketball", label: "Basquete", art: "basquete", support: "profile", scoringProfile: null},
   {code: "tennis", profileCode: "TENIS", appId: "tennis", label: "Tênis", art: "tenis", support: "profile", scoringProfile: {"kind":"sets_games","bestOf":3,"gamesPerSet":6,"winByGames":2,"tiebreakAtGames":6,"tiebreakTo":7,"noAd":false,"decidingSet":"full","superTiebreakTo":10}},

@@ -41,8 +41,9 @@ export function matchBestOfFromCategory(raw: unknown): number {
 
 /**
  * Perfil que a geração da chave carimba na partida: o explícito da categoria
- * (quando o wizard passar a gravá-lo) ou o padrão do esporte no catálogo com o
- * `bestOf` da categoria; esporte sem perfil usa a regra histórica.
+ * (gravado pelo wizard) ou, sem ele, o padrão de games do esporte com o `bestOf`
+ * da categoria; esporte de pontos (ou desconhecido) sem perfil usa a regra
+ * histórica.
  */
 export function categoryScoringProfile(
   category: Record<string, unknown> | null | undefined,
@@ -54,7 +55,11 @@ export function categoryScoringProfile(
   // O fallback parte do histórico de MD3 (decisivo 15), não do `bestOf` da
   // categoria: assim todo carimbo tem o mesmo formato, e a mesa trocar o
   // formato no meio da partida não muda o alvo do set decisivo.
-  const base = resolveSport(tournamentSport)?.scoringProfile ?? legacyScoringProfile(DEFAULT_BEST_OF);
+  // Em pontos, o padrão do catálogo (25/15 quadra, 18/15 futevôlei) é só SUGESTÃO do wizard:
+  // categoria sem perfil explícito — todo torneio que já existe — fica na regra histórica (spec
+  // multiesporte, 2d2). Em games não há histórico: vale o padrão do esporte.
+  const catalog = resolveSport(tournamentSport)?.scoringProfile;
+  const base = catalog?.kind === "sets_games" ? catalog : legacyScoringProfile(DEFAULT_BEST_OF);
   return {...base, bestOf};
 }
 

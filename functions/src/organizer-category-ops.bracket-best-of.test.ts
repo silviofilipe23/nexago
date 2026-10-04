@@ -87,6 +87,13 @@ describe("perfil de placar carimbado na partida", () => {
     assert.equal(categoryScoringProfile({bestOf: "bestOf5"}, "beachVolleyball").bestOf, 3);
   });
 
+  // Os padrões 25/15 (quadra) e 18/15 (futevôlei) do catálogo são SUGESTÃO do wizard: categoria
+  // sem perfil explícito (todo torneio existente) continua carimbando a regra histórica.
+  it("vôlei de quadra e futevôlei sem perfil explícito: regra histórica, não o padrão do catálogo", () => {
+    assert.deepEqual(categoryScoringProfile({bestOf: "bestOf3"}, "indoorVolleyball"), legacyScoringProfile(3));
+    assert.deepEqual(categoryScoringProfile({bestOf: "singleSet"}, "footvolley"), {...legacyScoringProfile(3), bestOf: 1});
+  });
+
   it("beach tennis usa o perfil de games do catálogo", () => {
     const p = categoryScoringProfile({bestOf: "bestOf3"}, "beachTennis");
     assert.equal(p.kind, "sets_games");

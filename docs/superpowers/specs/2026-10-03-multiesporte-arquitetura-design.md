@@ -357,6 +357,9 @@ mergeável sozinho, e beach tennis só abre no último.
   chave, cards ao vivo e pôster, com o alerta de set/match point vindo de `gamesFlag`. **2c3**
   cuida do ponto a ponto (eventos de games carregam `gameA`/`gameB`) e da notificação de
   partida acompanhada, que precisa do motor de games nas functions.
+  A 2c2 sai por plataforma, um PR cada: **2c2a** painel do organizador (telão, overlay, página
+  pública, chave), **2c2b** portal do atleta (Focus, chave, listas, detalhe, compartilhamento) e
+  **2c2c** app (Focus, chave, cards, pôster).
 - **2d, abrir beach tennis.** Wizard com os campos de cada tipo, `beachTennis` no enum e em
   `competition`, defaults 25/15 (quadra) e 18/15 (futevôlei) só quando o wizard deixar o
   organizador escolher o alvo.

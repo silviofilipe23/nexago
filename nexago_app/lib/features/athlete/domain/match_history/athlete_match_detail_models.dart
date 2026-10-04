@@ -172,6 +172,7 @@ class MatchDetailPlayByPlayItem {
     required this.scoreLabel,
     required this.teamLabel,
     this.isEstimated = false,
+    this.isGames = false,
   });
 
   final String time;
@@ -183,6 +184,11 @@ class MatchDetailPlayByPlayItem {
   final String scoreLabel;
   final String teamLabel;
 
+  /// Partida de games: [scoreLabel] é o lance por extenso ("4-3 · 30-15";
+  /// game fechado "5-4"), não um placar "x-y" de pontos — quem desenha não
+  /// relê o número nem anota empate/virada.
+  final bool isGames;
+
   /// Ponto inferido do placar do set (sem registro ponto a ponto no placar).
   final bool isEstimated;
 }
@@ -193,7 +199,11 @@ class MatchDetailPlayByPlayGroup {
     required this.setIndex,
     required this.finalScoreLabel,
     required this.items,
+    this.isGames = false,
   });
+
+  /// Partida de games: [finalScoreLabel] pode vir por extenso ("7-6 (7-3)").
+  final bool isGames;
 
   final int setNumber;
   final int setIndex;

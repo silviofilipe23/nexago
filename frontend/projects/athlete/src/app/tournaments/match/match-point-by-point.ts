@@ -152,9 +152,10 @@ function markGamesSetClosing(points: TimedPoint[], setIndex: number, profile: Se
   const placeholder = Array.from({ length: setIndex }, () => ({ a: 0, b: 0 }));
   for (const p of points) {
     const gameClosed = (p.gameLeft ?? 0) === 0 && (p.gameRight ?? 0) === 0;
-    // O super tie-break só fecha com o `tb` (o 1×0 sozinho não decide pela regra): usa o do doc.
-    const stb = isSuperTiebreakSet(profile, setIndex) && tb ? { tb: { a: tb.left, b: tb.right } } : {};
-    p.closesSet = gameClosed && setWinnerSide([...placeholder, { a: p.left, b: p.right, ...stb }], setIndex, profile) !== null;
+    // Set que fecha em tie-break (7-6, ou o super tie-break gravado 1×0) só decide com o `tb`:
+    // o evento não traz, o doc traz.
+    const withTb = tb ? { tb: { a: tb.left, b: tb.right } } : {};
+    p.closesSet = gameClosed && setWinnerSide([...placeholder, { a: p.left, b: p.right, ...withTb }], setIndex, profile) !== null;
     if (p.closesSet && tb && isSuperTiebreakSet(profile, setIndex)) p.text = `${tb.left}-${tb.right}`;
   }
 }

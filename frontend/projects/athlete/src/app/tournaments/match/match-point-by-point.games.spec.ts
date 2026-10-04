@@ -48,4 +48,13 @@ describe('ponto a ponto · partida de games', () => {
     expect(set!.missingCount).toBe(4);
     expect(set!.missingUnit).toBe('games');
   });
+
+  it('tie-break normal: o 7-6 fecha o set (tb do doc)', () => {
+    const events = [ev(1, 'A', 0, [6, 6], [6, 3]), ev(2, 'A', 0, [7, 6], [0, 0])];
+    const [set] = pointByPointSetsOf({ match: doc({ status: 'Completed', winnerId: 'A', sets: [{ a: 7, b: 6, tb: { a: 7, b: 3 } }, { a: 6, b: 0 }] }), events, mySide: 'A' });
+    const rows = set!.blocks.flatMap((b) => b.points);
+    expect(texts(set!)).toEqual(['6-6 · 6-3', '7-6']);
+    expect(rows.at(-1)!.closesSet).toBeTrue();
+  });
 });
+

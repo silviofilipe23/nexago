@@ -88,7 +88,9 @@ List<MatchDetailPlayByPlayGroup> buildPlayByPlayTimeline({
           pointsBySet: pointsBySet,
           games: games,
         ),
+        isGames: games != null,
         items: _toPlayByPlayItems(
+          isGames: games != null,
           points: pointsBySet[setIndex] ?? const [],
           setNumber: setIndex + 1,
           fmt: fmt,
@@ -156,10 +158,7 @@ void _replayPointEventsToTimeline({
             oppGame == 0 &&
             tb != null &&
             ourScore + oppScore == 1 &&
-            ScoringRules.isSuperTiebreakSet(
-              ScoringRules.withBestOf(games, games.bestOf) as SetsGamesProfile,
-              event.setIndex,
-            )) {
+            ScoringRules.isSuperTiebreakSet(games, event.setIndex)) {
           label = ourIsSideA ? '${tb.a}-${tb.b}' : '${tb.b}-${tb.a}';
         }
       }
@@ -328,6 +327,7 @@ List<bool> _interleavePointSides({
 }
 
 List<MatchDetailPlayByPlayItem> _toPlayByPlayItems({
+  bool isGames = false,
   required List<_TimelinePoint> points,
   required int setNumber,
   required DateFormat fmt,
@@ -356,6 +356,7 @@ List<MatchDetailPlayByPlayItem> _toPlayByPlayItems({
           isParticipantView: isParticipantView,
         ),
         isEstimated: point.isEstimated,
+        isGames: isGames,
       ),
   ];
 }

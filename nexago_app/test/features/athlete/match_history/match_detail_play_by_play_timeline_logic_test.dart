@@ -45,6 +45,7 @@ MatchDetailPlayByPlayItem _item({
   required bool isOurTeam,
   required String score,
   String teamLabel = 'sua dupla',
+  bool isGames = false,
 }) {
   return MatchDetailPlayByPlayItem(
     time: time,
@@ -53,10 +54,43 @@ MatchDetailPlayByPlayItem _item({
     setNumber: 1,
     scoreLabel: score,
     teamLabel: teamLabel,
+    isGames: isGames,
   );
 }
 
 void main() {
+  group('buildPlayByPlaySetTimeline · partida de games', () {
+    test('lances de games aparecem por extenso, sem empate/virada', () {
+      final group = MatchDetailPlayByPlayGroup(
+        setNumber: 1,
+        setIndex: 0,
+        finalScoreLabel: '7-6 (7-3)',
+        isGames: true,
+        items: [
+          _item(time: '14:10', isOurTeam: true, score: '0-0 · 15-0', isGames: true),
+          _item(time: '14:11', isOurTeam: false, score: '0-0 · 15-15', isGames: true),
+          _item(time: '14:12', isOurTeam: true, score: '4-3 · AD-40', isGames: true),
+          _item(time: '14:13', isOurTeam: true, score: '7-6', isGames: true),
+        ],
+      );
+      final timeline = buildPlayByPlaySetTimeline(
+        group: group,
+        detail: _detail(groups: [group]),
+      );
+      final labels = [
+        for (final b in timeline.blocks)
+          for (final p in b.points) p.scoreLabel,
+      ];
+      expect(labels, ['0-0 · 15-0', '0-0 · 15-15', '4-3 · AD-40', '7-6']);
+      expect(
+        [for (final b in timeline.blocks) for (final p in b.points) p.annotation],
+        everyElement(isNull),
+      );
+      expect(timeline.summary.finalScore, '7-6 (7-3)');
+      expect(timeline.summary.closerLabel, 'Carlos / Daniel');
+    });
+  });
+
   group('buildPlayByPlaySetTimeline', () {
     test('groups consecutive points into streak blocks', () {
       final group = MatchDetailPlayByPlayGroup(

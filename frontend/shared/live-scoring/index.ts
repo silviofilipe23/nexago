@@ -62,12 +62,13 @@ export {
   medicalTimeoutRemainingSeconds,
 } from './medical-timeout';
 
-export type { LiveMatch, LivePointEvent, LiveScoringContext, PointWrite } from './live-match-repository';
+export type { LandedPoint, LiveMatch, LivePointEvent, LiveScoringContext, PointWrite } from './live-match-repository';
 export {
   buildMedicalTimeoutEndWrite,
   buildMedicalTimeoutStartWrite,
   buildPointWrite,
   buildUndoWrite,
+  GAMES_UNDO_BLOCKED_MESSAGE,
   lastUndoablePoint,
   liveMatchFromDoc,
   recordPointTransaction,

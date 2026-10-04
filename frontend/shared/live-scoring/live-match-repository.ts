@@ -279,9 +279,32 @@ export function buildPointWrite(m: LiveMatch, side: 'A' | 'B'): PointWrite | nul
 
 /** Escrita do "desfazer": tira o ponto do lado que o marcou, no set do evento desfeito.
  *  `setIndex` vem da timeline (identifica QUAL ponto sai); o placar sai do doc recebido. */
-export function buildUndoWrite(m: LiveMatch, side: 'A' | 'B', setIndex: number, prev?: Record<string, unknown> | null): PointWrite | null {
+/** Placar que o ponto desfeito deixou no doc (`scoreA/scoreB` do set, `gameA/gameB`). */
+export interface LandedPoint {
+  scoreA: number;
+  scoreB: number;
+  gameA?: number;
+  gameB?: number;
+}
+
+/** Mensagem da mesa quando o desfazer de games não tem como repor o estado. */
+export const GAMES_UNDO_BLOCKED_MESSAGE = 'Não deu para desfazer: o placar mudou desde este ponto. Confira a mesa e tente de novo.';
+
+export function buildUndoWrite(
+  m: LiveMatch,
+  side: 'A' | 'B',
+  setIndex: number,
+  prev?: Record<string, unknown> | null,
+  landed?: LandedPoint,
+): PointWrite | null {
   const games = gamesProfileOf(m);
-  if (games) return prev ? buildGamesUndoWrite(m, side, prev, games) : null;
+  if (games) {
+    if (!prev) return null;
+    // O `prev` só vale sobre o estado que o ponto deixou: se outra mesa já marcou depois
+    // (timeline desta atrasada), repor o `prev` apagaria o ponto dela sem `undo-point`.
+    if (landed && !landedMatches(m, setIndex, landed)) return null;
+    return buildGamesUndoWrite(m, side, prev, games);
+  }
   const result = undoPoint({ sets: m.sets, currentSetIndex: setIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf });
   const wins = setsWon(result.sets, m.bestOf);
   const current = result.sets[result.currentSetIndex] ?? null;
@@ -312,6 +335,12 @@ export function buildUndoWrite(m: LiveMatch, side: 'A' | 'B', setIndex: number, 
 function gamesProfileOf(m: LiveMatch): SetsGamesProfile | null {
   const p = effectiveScoringProfile(m.scoringProfile, m.bestOf);
   return p.kind === 'sets_games' ? p : null;
+}
+
+function landedMatches(m: LiveMatch, setIndex: number, landed: LandedPoint): boolean {
+  const set = m.sets[setIndex] ?? { a: 0, b: 0 };
+  const game = m.currentGame ?? { a: 0, b: 0 };
+  return set.a === landed.scoreA && set.b === landed.scoreB && game.a === (landed.gameA ?? 0) && game.b === (landed.gameB ?? 0);
 }
 
 /** Estado da mesa antes do lance — gravado no evento para o desfazer repor. */

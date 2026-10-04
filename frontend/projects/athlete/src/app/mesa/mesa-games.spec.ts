@@ -68,6 +68,25 @@ describe('mesa · partida de games', () => {
     expect(buildUndoWrite(m, 'A', 0, { anything: true })).toEqual(buildUndoWrite(m, 'A', 0));
   });
 
+  it('desfazer com a timeline atrasada não repõe estado velho', () => {
+    const landedOf = (w: { pointEvent: Record<string, unknown> }) => ({
+      scoreA: w.pointEvent['scoreA'] as number,
+      scoreB: w.pointEvent['scoreB'] as number,
+      gameA: w.pointEvent['gameA'] as number,
+      gameB: w.pointEvent['gameB'] as number,
+    });
+    const d0 = matchDoc({ sets: [{ a: 5, b: 0 }], currentSetIndex: 0, currentGame: { a: 1, b: 0 } });
+    const p1 = buildPointWrite(liveMatchFromDoc('m1', d0), 'A')!;
+    const d1 = applyUpdate(d0, p1.matchUpdate);
+    const p2 = buildPointWrite(liveMatchFromDoc('m1', d1), 'A')!;
+    const d2 = applyUpdate(d1, p2.matchUpdate);
+    // Outra mesa já marcou P2; esta ainda acha que o último é P1.
+    const stale = buildUndoWrite(liveMatchFromDoc('m1', d2), 'A', 0, p1.pointEvent['prev'] as Record<string, unknown>, landedOf(p1));
+    expect(stale).toBeNull();
+    const ok = buildUndoWrite(liveMatchFromDoc('m1', d2), 'A', 0, p2.pointEvent['prev'] as Record<string, unknown>, landedOf(p2))!;
+    expect(ok.matchUpdate['currentGame']).toEqual({ a: 2, b: 0 });
+  });
+
   it('dois desfazer seguidos miram pontos diferentes (replay da timeline)', () => {
     const ev = (seq: number, type: string, side: 'A' | 'B'): LivePointEvent => ({ id: `e${seq}`, seq, type, side, setIndex: 0, scoreA: 0, scoreB: 0, ts: null });
     const events = [ev(1, 'point', 'A'), ev(2, 'point', 'B'), ev(3, 'undo-point', 'B')];

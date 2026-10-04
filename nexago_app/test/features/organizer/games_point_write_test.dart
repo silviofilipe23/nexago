@@ -42,6 +42,46 @@ Map<String, dynamic> _apply(
 }
 
 void main() {
+  test('desfazer com a timeline atrasada não repõe estado velho', () {
+    ({int scoreA, int scoreB, int gameA, int gameB}) landedOf(
+      Map<String, dynamic> e,
+    ) => (
+      scoreA: e['scoreA'] as int,
+      scoreB: e['scoreB'] as int,
+      gameA: e['gameA'] as int,
+      gameB: e['gameB'] as int,
+    );
+    final d0 = _doc({
+      'scoringProfile': _bt,
+      'sets': [
+        {'a': 5, 'b': 0},
+      ],
+      'currentSetIndex': 0,
+      'currentGame': {'a': 1, 'b': 0},
+    });
+    final p1 = buildPointWrite(TournamentMatchMapper.fromMap('m1', d0), 'A')!;
+    final d1 = _apply(d0, p1.matchUpdate);
+    final p2 = buildPointWrite(TournamentMatchMapper.fromMap('m1', d1), 'A')!;
+    final d2 = _apply(d1, p2.matchUpdate);
+    // Outra mesa já marcou P2; esta ainda acha que o último é P1.
+    final stale = buildUndoWrite(
+      TournamentMatchMapper.fromMap('m1', d2),
+      'A',
+      0,
+      prev: p1.pointEvent['prev'] as Map<String, dynamic>,
+      landed: landedOf(p1.pointEvent),
+    );
+    expect(stale, isNull);
+    final ok = buildUndoWrite(
+      TournamentMatchMapper.fromMap('m1', d2),
+      'A',
+      0,
+      prev: p2.pointEvent['prev'] as Map<String, dynamic>,
+      landed: landedOf(p2.pointEvent),
+    )!;
+    expect(ok.matchUpdate['currentGame'], {'a': 2, 'b': 0});
+  });
+
   test(
     'ponto que fecha o set: currentGame zerado, snapshot no evento; desfazer volta ao 40-0',
     () {

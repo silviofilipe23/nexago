@@ -9,6 +9,7 @@ import {
   buildMedicalTimeoutStartWrite,
   buildPointWrite,
   buildUndoWrite,
+  GAMES_UNDO_BLOCKED_MESSAGE,
   canReduceBestOf,
   elapsedSecondsFromStart,
   formatMedicalTimeoutMmSs,
@@ -1815,7 +1816,11 @@ export class MesaLiveComponent {
     this.busyKey.set('undo');
     this.feedback.set(null);
     try {
-      await this.gateway.recordPoint({ matchId: m.id, build: (fresh) => buildUndoWrite(fresh, side, last.setIndex, last.prev) });
+      const written = await this.gateway.recordPoint({
+        matchId: m.id,
+        build: (fresh) => buildUndoWrite(fresh, side, last.setIndex, last.prev, last),
+      });
+      if (!written) this.feedback.set({ ok: false, message: GAMES_UNDO_BLOCKED_MESSAGE });
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao desfazer o ponto.' });
     } finally {

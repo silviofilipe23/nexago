@@ -498,16 +498,38 @@ class _OrganizerMatchLiveTablePageState
     // Locais finais: a promoção de nulidade não atravessa o closure do `build`.
     final undoneSetIndex = lastPoint.setIndex;
     final undonePrev = lastPoint.prev;
+    final undoneLanded = (
+      scoreA: lastPoint.scoreA,
+      scoreB: lastPoint.scoreB,
+      gameA: lastPoint.gameA,
+      gameB: lastPoint.gameB,
+    );
 
     setState(() => _saving = true);
     try {
       final repo = ref.read(tournamentMatchesRepositoryProvider);
 
-      await repo.recordPointTransaction(
+      final written = await repo.recordPointTransaction(
         matchId: widget.matchId,
-        build: (fresh) =>
-            buildUndoWrite(fresh, side, undoneSetIndex, prev: undonePrev),
+        build: (fresh) => buildUndoWrite(
+          fresh,
+          side,
+          undoneSetIndex,
+          prev: undonePrev,
+          landed: undoneLanded,
+        ),
       );
+      if (written == null) {
+        if (mounted) {
+          showAppSnackBar(
+            context,
+            'Não deu para desfazer: o placar mudou desde este ponto. '
+            'Confira a mesa e tente de novo.',
+            isError: true,
+          );
+        }
+        return;
+      }
       await TournamentLiveMatchesSync.syncForTournament(
         FirebaseFirestore.instance,
         widget.tournamentId,

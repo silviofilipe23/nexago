@@ -110,16 +110,33 @@ MatchPointWrite? buildPointWrite(TournamentMatch match, String side) {
 /// [setIndex] vem da timeline (identifica QUAL ponto sai); o placar sai do doc recebido.
 ///
 /// Partida de games repõe o [prev] gravado no evento (spec multiesporte, 2b2);
-/// sem [prev] devolve `null` e o desfazer não faz nada.
+/// sem [prev] devolve `null` e o desfazer não faz nada. [landed] é o placar
+/// que o ponto desfeito deixou: se o doc já não está nele (outra mesa marcou
+/// depois e a timeline desta está atrasada), também devolve `null` — repor o
+/// [prev] apagaria o ponto da outra mesa sem `undo-point`.
 MatchPointWrite? buildUndoWrite(
   TournamentMatch match,
   String side,
   int setIndex, {
   Map<String, dynamic>? prev,
+  ({int scoreA, int scoreB, int gameA, int gameB})? landed,
 }) {
   final games = gamesProfileOf(match);
   if (games != null) {
-    return prev == null ? null : buildGamesUndoWrite(match, side, prev, games);
+    if (prev == null) return null;
+    if (landed != null) {
+      final set = setIndex < match.sets.length
+          ? match.sets[setIndex]
+          : const TournamentMatchSet(a: 0, b: 0);
+      final game = match.currentGame;
+      if (set.a != landed.scoreA ||
+          set.b != landed.scoreB ||
+          game.a != landed.gameA ||
+          game.b != landed.gameB) {
+        return null;
+      }
+    }
+    return buildGamesUndoWrite(match, side, prev, games);
   }
   final result = MatchScoringLogic.undoPoint(
     sets: match.sets,

@@ -40,5 +40,23 @@
     {"profile": "proSet1", "sets": [{"a": 8, "b": 6}], "setWinners": ["A"], "matchWinner": "A", "issues": []},
     {"profile": "proSet1", "sets": [{"a": 9, "b": 8, "tb": {"a": 7, "b": 3}}], "setWinners": ["A"], "matchWinner": "A", "issues": []},
     {"profile": "advantage1", "sets": [{"a": 9, "b": 7}], "setWinners": ["A"], "matchWinner": "A", "issues": []}
+  ],
+  "labelVectors": [
+    {"profile": "legacy3", "rulesLabel": "set até 21 · decisivo até 15", "setLabels": ["até 21", "até 21", "até 15"]},
+    {"profile": "legacy1", "rulesLabel": "set até 21", "setLabels": ["até 21"]},
+    {"profile": "capped1", "rulesLabel": "set até 21 · teto 25", "setLabels": ["até 21"]},
+    {"profile": "bt3", "rulesLabel": "set até 6 games · tie-break a 7 em 6-6 · super tie-break a 10 · sem vantagem", "setLabels": ["até 6 games", "até 6 games", "super tie-break até 10"]},
+    {"profile": "tennis3", "rulesLabel": "set até 6 games · tie-break a 7 em 6-6", "setLabels": ["até 6 games", "até 6 games", "até 6 games"]},
+    {"profile": "advantage1", "rulesLabel": "set até 6 games", "setLabels": ["até 6 games"]}
+  ],
+  "quickVectors": [
+    {"profile": "legacy3", "index": 0, "set": {"a": 21, "b": 19, "tb": {"a": 7, "b": 5}}, "kind": "points", "normalized": {"a": 21, "b": 19}},
+    {"profile": "bt3", "index": 0, "set": {"a": 7, "b": 6}, "kind": "games_tiebreak", "normalized": {"a": 7, "b": 6}},
+    {"profile": "bt3", "index": 0, "set": {"a": 7, "b": 6, "tb": {"a": 7, "b": 4}}, "kind": "games_tiebreak", "normalized": {"a": 7, "b": 6, "tb": {"a": 7, "b": 4}}},
+    {"profile": "bt3", "index": 0, "set": {"a": 6, "b": 4, "tb": {"a": 7, "b": 4}}, "kind": "games", "normalized": {"a": 6, "b": 4}},
+    {"profile": "bt3", "index": 2, "set": {"a": 0, "b": 0, "tb": {"a": 8, "b": 10}}, "kind": "super_tiebreak", "normalized": {"a": 0, "b": 1, "tb": {"a": 8, "b": 10}}},
+    {"profile": "bt3", "index": 2, "set": {"a": 0, "b": 0}, "kind": "super_tiebreak", "normalized": {"a": 0, "b": 0, "tb": {"a": 0, "b": 0}}},
+    {"profile": "bt3", "index": 2, "set": {"a": 1, "b": 0, "tb": {"a": 10, "b": 10}}, "kind": "super_tiebreak", "normalized": {"a": 0, "b": 0, "tb": {"a": 10, "b": 10}}},
+    {"profile": "tennis3", "index": 2, "set": {"a": 7, "b": 5}, "kind": "games", "normalized": {"a": 7, "b": 5}}
   ]
 }

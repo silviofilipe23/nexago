@@ -2,8 +2,13 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {SCORING_VECTORS} from "./vectors.generated";
 import {
+  effectiveScoringProfile,
   legacyScoringProfile,
   matchWinnerSide,
+  normalizeQuickSet,
+  quickSetKind,
+  scoringRulesLabel,
+  setTargetLabel,
   scoringProfileFromRaw,
   scoringProfileOfMatch,
   setWinnerSide,
@@ -44,5 +49,30 @@ describe("sports/scoring · perfil da partida", () => {
     assert.equal(legacyScoringProfile(3).decidingSetTarget, 15);
     assert.equal(legacyScoringProfile(5).decidingSetTarget, 21);
     assert.equal(legacyScoringProfile(1).decidingSetTarget, 21);
+  });
+});
+
+describe("sports/scoring · rótulos e lançamento rápido (vetores)", () => {
+  for (const v of SCORING_VECTORS.labelVectors) {
+    it(`rótulos ${v.profile}`, () => {
+      const p = scoringProfileFromRaw(SCORING_VECTORS.profiles[v.profile])!;
+      assert.equal(scoringRulesLabel(p), v.rulesLabel);
+      assert.deepEqual(v.setLabels.map((_, i) => setTargetLabel(p, i)), v.setLabels);
+    });
+  }
+  for (const [i, v] of SCORING_VECTORS.quickVectors.entries()) {
+    it(`linha de set ${i} (${v.profile})`, () => {
+      const p = scoringProfileFromRaw(SCORING_VECTORS.profiles[v.profile])!;
+      assert.equal(quickSetKind(p, v.index, v.set), v.kind);
+      assert.deepEqual(normalizeQuickSet(p, v.index, v.set), v.normalized);
+    });
+  }
+  it("perfil efetivo: carimbo com o bestOf da tela; sem carimbo, histórico", () => {
+    const bt = SCORING_VECTORS.profiles["bt3"];
+    const p = effectiveScoringProfile(bt, 1);
+    assert.equal(p.kind, "sets_games");
+    assert.equal(p.bestOf, 1);
+    assert.deepEqual(effectiveScoringProfile(undefined, 1), legacyScoringProfile(1));
+    assert.deepEqual(effectiveScoringProfile({kind: "x"}, "abc"), legacyScoringProfile(3));
   });
 });

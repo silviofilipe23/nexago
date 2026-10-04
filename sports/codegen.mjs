@@ -170,9 +170,25 @@ function renderTsVectors(catalog, scoring) {
     '  readonly issues: readonly string[];',
     '}',
     '',
+    'export interface ScoringLabelVector {',
+    '  readonly profile: string;',
+    '  readonly rulesLabel: string;',
+    '  readonly setLabels: readonly string[];',
+    '}',
+    '',
+    'export interface ScoringQuickVector {',
+    '  readonly profile: string;',
+    '  readonly index: number;',
+    '  readonly set: {a: number; b: number; tb?: {a: number; b: number}};',
+    '  readonly kind: "points" | "games" | "games_tiebreak" | "super_tiebreak";',
+    '  readonly normalized: {a: number; b: number; tb?: {a: number; b: number}};',
+    '}',
+    '',
     'export const SCORING_VECTORS: {readonly profiles: Readonly<Record<string, unknown>>; ' +
-      'readonly cases: readonly ScoringVectorCase[]} = ' +
-      `${JSON.stringify({profiles: scoring.profiles, cases: scoring.cases})};`,
+      'readonly cases: readonly ScoringVectorCase[]; ' +
+      'readonly labelVectors: readonly ScoringLabelVector[]; ' +
+      'readonly quickVectors: readonly ScoringQuickVector[]} = ' +
+      `${JSON.stringify({profiles: scoring.profiles, cases: scoring.cases, labelVectors: scoring.labelVectors, quickVectors: scoring.quickVectors})};`,
     '',
   ].join('\n');
 }
@@ -245,7 +261,7 @@ function renderDartCatalog(catalog, index) {
 }
 
 function renderDartVectors(catalog, scoring) {
-  const scoringJson = JSON.stringify({profiles: scoring.profiles, cases: scoring.cases});
+  const scoringJson = JSON.stringify({profiles: scoring.profiles, cases: scoring.cases, labelVectors: scoring.labelVectors, quickVectors: scoring.quickVectors});
   if (scoringJson.includes("'''")) fail("scoring-vectors.json não pode conter '''");
   const list = (name, type, vectors) => [
     `const List<(String, ${type})> ${name} = [`,
@@ -269,7 +285,7 @@ export function outputs() {
   const index = validate(catalog);
   const scoring = JSON.parse(fs.readFileSync(path.join(ROOT, 'sports/scoring-vectors.json'), 'utf8'));
   for (const [name, p] of Object.entries(scoring.profiles)) validateScoringProfile(`vetor ${name}`, p);
-  for (const c of scoring.cases) {
+  for (const c of [...scoring.cases, ...scoring.labelVectors, ...scoring.quickVectors]) {
     if (!(c.profile in scoring.profiles)) fail(`vetor com perfil desconhecido: ${c.profile}`);
   }
   const tsCatalog = renderTsCatalog(catalog, index);

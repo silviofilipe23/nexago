@@ -12,6 +12,19 @@ class ScoreSetValue {
 
 typedef ScoreIssue = ({int? setIndex, String message});
 
+/// Que campos a linha do set mostra no lançamento rápido.
+enum QuickSetKind {
+  points('points'),
+  games('games'),
+  gamesTiebreak('games_tiebreak'),
+  superTiebreak('super_tiebreak');
+
+  const QuickSetKind(this.wire);
+
+  /// Nome igual ao do TS (`sports/scoring-vectors.json`).
+  final String wire;
+}
+
 /// Núcleo de regras de placar (spec multiesporte, eixo 2). A MESMA lógica vive
 /// em `functions/src/sports/scoring.ts` (autoritativo) e
 /// `frontend/shared/sports/scoring.ts`; os casos de
@@ -125,7 +138,7 @@ abstract final class ScoringRules {
   static int setPointsTarget(SetsPointsProfile p, int index) =>
       _isDecidingSet(index, p.bestOf) ? p.decidingSetTarget : p.setTarget;
 
-  static bool _isSuperTiebreakSet(SetsGamesProfile p, int index) =>
+  static bool isSuperTiebreakSet(SetsGamesProfile p, int index) =>
       p.decidingSet == DecidingSet.superTiebreak &&
       _isDecidingSet(index, p.bestOf);
 
@@ -134,7 +147,7 @@ abstract final class ScoringRules {
     int index,
     SetsGamesProfile p,
   ) {
-    if (_isSuperTiebreakSet(p, index)) {
+    if (isSuperTiebreakSet(p, index)) {
       final tb = s.tb;
       if (tb == null ||
           !isPointsSetWon(
@@ -235,7 +248,7 @@ abstract final class ScoringRules {
         final cap = p.pointCap == null ? '' : ' (teto ${p.pointCap})';
         return '$label: vitória exige $target pontos com vantagem de ${p.winBy}$cap.';
       case SetsGamesProfile p:
-        if (_isSuperTiebreakSet(p, index)) {
+        if (isSuperTiebreakSet(p, index)) {
           return '$label: super tie-break até ${p.superTiebreakTo} com vantagem de $_tiebreakWinBy.';
         }
         final hi = s.a > s.b ? s.a : s.b;
@@ -298,5 +311,107 @@ abstract final class ScoringRules {
       ));
     }
     return issues;
+  }
+
+  /// Cópia do perfil com outro nº de sets.
+  static ScoringProfile withBestOf(ScoringProfile p, int bestOf) => switch (p) {
+    SetsPointsProfile() => SetsPointsProfile(
+      bestOf: bestOf,
+      setTarget: p.setTarget,
+      decidingSetTarget: p.decidingSetTarget,
+      winBy: p.winBy,
+      pointCap: p.pointCap,
+    ),
+    SetsGamesProfile() => SetsGamesProfile(
+      bestOf: bestOf,
+      gamesPerSet: p.gamesPerSet,
+      winByGames: p.winByGames,
+      tiebreakAtGames: p.tiebreakAtGames,
+      tiebreakTo: p.tiebreakTo,
+      noAd: p.noAd,
+      decidingSet: p.decidingSet,
+      superTiebreakTo: p.superTiebreakTo,
+    ),
+  };
+
+  /// Perfil efetivo numa tela de placar: o carimbado com o nº de sets da
+  /// partida; sem carimbo, a regra histórica. Mesma precedência de
+  /// `matchResultFields` no servidor.
+  static ScoringProfile effectiveProfile(Object? raw, Object? bestOf) {
+    final stamped = profileFromRaw(raw);
+    final n = normalizeBestOf(bestOf) ?? stamped?.bestOf ?? 3;
+    return stamped == null ? legacyProfile(n) : withBestOf(stamped, n);
+  }
+
+  /// Resumo das regras do perfil para cabeçalhos de placar.
+  static String rulesLabel(ScoringProfile p) {
+    switch (p) {
+      case SetsPointsProfile():
+        return [
+          'set até ${p.setTarget}',
+          if (p.bestOf > 1) 'decisivo até ${p.decidingSetTarget}',
+          if (p.pointCap != null) 'teto ${p.pointCap}',
+        ].join(' · ');
+      case SetsGamesProfile():
+        final tbAt = p.tiebreakAtGames;
+        return [
+          'set até ${p.gamesPerSet} games',
+          if (tbAt != null) 'tie-break a ${p.tiebreakTo} em $tbAt-$tbAt',
+          if (p.bestOf > 1 && p.decidingSet == DecidingSet.superTiebreak)
+            'super tie-break a ${p.superTiebreakTo}',
+          if (p.noAd) 'sem vantagem',
+        ].join(' · ');
+    }
+  }
+
+  /// Alvo de um set específico ("até 21", "até 6 games", "super tie-break até 10").
+  static String setTargetLabel(ScoringProfile p, int index) {
+    switch (p) {
+      case SetsPointsProfile():
+        return 'até ${setPointsTarget(p, index)}';
+      case SetsGamesProfile():
+        if (isSuperTiebreakSet(p, index)) {
+          return 'super tie-break até ${p.superTiebreakTo}';
+        }
+        return 'até ${p.gamesPerSet} games';
+    }
+  }
+
+  static QuickSetKind quickSetKind(
+    ScoringProfile p,
+    int index,
+    ScoreSetValue set,
+  ) {
+    switch (p) {
+      case SetsPointsProfile():
+        return QuickSetKind.points;
+      case SetsGamesProfile():
+        if (isSuperTiebreakSet(p, index)) return QuickSetKind.superTiebreak;
+        final tbAt = p.tiebreakAtGames;
+        final hi = set.a > set.b ? set.a : set.b;
+        final lo = set.a > set.b ? set.b : set.a;
+        return tbAt != null && hi == tbAt + 1 && lo == tbAt
+            ? QuickSetKind.gamesTiebreak
+            : QuickSetKind.games;
+    }
+  }
+
+  /// Set pronto para envio: `tb` só onde a linha usa; super tie-break vira 1×0
+  /// do vencedor do tie-break.
+  static ScoreSetValue normalizeQuickSet(
+    ScoringProfile p,
+    int index,
+    ScoreSetValue set,
+  ) {
+    final kind = quickSetKind(p, index, set);
+    if (kind == QuickSetKind.superTiebreak) {
+      final tb = ScoreSetValue(set.tb?.a ?? 0, set.tb?.b ?? 0);
+      return ScoreSetValue(tb.a > tb.b ? 1 : 0, tb.b > tb.a ? 1 : 0, tb: tb);
+    }
+    final tb = set.tb;
+    if (kind == QuickSetKind.gamesTiebreak && tb != null) {
+      return ScoreSetValue(set.a, set.b, tb: ScoreSetValue(tb.a, tb.b));
+    }
+    return ScoreSetValue(set.a, set.b);
   }
 }

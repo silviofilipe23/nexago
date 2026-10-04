@@ -7,6 +7,7 @@ import '../../../domain/tournament_create/tournament_create_draft.dart';
 import '../../../domain/tournament_create/tournament_create_logic.dart';
 import '../../../domain/tournament_create/tournament_create_providers.dart';
 import '../widgets/organizer_category_format_section.dart';
+import '../widgets/organizer_category_scoring_section.dart';
 import '../widgets/organizer_form_widgets.dart';
 
 Future<void> showTournamentCategoryEditorSheet(
@@ -333,6 +334,12 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
                       ),
                     );
                   },
+                ),
+                const SizedBox(height: 20),
+                OrganizerCategoryScoringSection(
+                  category: _category,
+                  sport: ref.watch(tournamentCreateDraftProvider).sport,
+                  onChanged: (c) => setState(() => _category = c),
                 ),
                 const SizedBox(height: 20),
                 const OrganizerSectionLabel('VAGAS & PREÇO'),

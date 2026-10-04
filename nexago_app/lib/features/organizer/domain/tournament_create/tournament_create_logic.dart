@@ -2,12 +2,10 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/formatting/app_currency_format.dart';
 import 'tournament_create_draft.dart';
+import '../../../../core/sports/sport_catalog.dart';
 
-String sportLabel(TournamentSport sport) => switch (sport) {
-  TournamentSport.beachVolleyball => 'Vôlei de praia',
-  TournamentSport.indoorVolleyball => 'Vôlei de quadra',
-  TournamentSport.footvolley => 'Futevôlei',
-};
+String sportLabel(TournamentSport sport) =>
+    SportCatalog.labelOf(sport.name) ?? sport.name;
 
 String bracketSystemLabel(TournamentBracketSystem system) => switch (system) {
   TournamentBracketSystem.groupsThenKnockout => 'Fase de grupos + mata-mata',

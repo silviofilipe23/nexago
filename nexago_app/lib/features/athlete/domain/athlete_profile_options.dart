@@ -1,18 +1,13 @@
+import '../../../core/sports/sport_catalog.dart';
+
 /// Opções de esporte e nível para o perfil do atleta (UI + Firestore como string).
 abstract final class AthleteProfileOptions {
   AthleteProfileOptions._();
 
-  static const List<String> sports = [
-    'Vôlei de praia',
-    'Vôlei de quadra',
-    'Futevôlei',
-    'Futebol',
-    'Basquete',
-    'Tênis',
-    'Beach tennis',
-    'Corrida',
-    'Outros',
-  ];
+  /// Rótulos dos esportes, na ordem do catálogo (`sports/catalog.json`).
+  static final List<String> sports = List.unmodifiable([
+    for (final e in kSportCatalog) e.label,
+  ]);
 
   /// Escada única de 7 níveis, a mesma para TODOS os esportes — espelho de
   /// `LEVEL_CODES` em `functions/src/category-level-eligibility.ts`.

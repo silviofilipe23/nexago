@@ -345,7 +345,7 @@ class _SportDetailCard extends StatelessWidget {
       ),
     );
 
-    // Esporte sem arte (Futevôlei, Corrida, Outros) cai no card sólido.
+    // Esporte sem arte (Corrida, Outros) cai no card sólido.
     if (art == null) {
       return Material(
         color: colors.surfaceCard,

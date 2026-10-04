@@ -45,6 +45,7 @@ enum ArenaSportChip {
   padel,
   beachVolleyball,
   volleyball,
+  footvolley,
   football,
 }
 

@@ -261,4 +261,35 @@ void main() {
       );
     });
   });
+
+  group('futevôlei', () {
+    final futevolei = _arena(id: 'f', courtTypes: const ['Futevôlei']);
+    final praia = _arena(id: 'p', courtTypes: const ['Vôlei de praia']);
+    final quadra = _arena(id: 'q', courtTypes: const ['Vôlei de quadra']);
+
+    test('chip futevôlei casa só arena de futevôlei', () {
+      expect(arenaMatchesSportChip(futevolei, ArenaSportChip.footvolley), true);
+      expect(arenaMatchesSportChip(praia, ArenaSportChip.footvolley), false);
+      expect(arenaMatchesSportChip(quadra, ArenaSportChip.footvolley), false);
+    });
+
+    test('arena de futevôlei não vaza para vôlei de praia nem de quadra', () {
+      expect(
+        arenaMatchesSportChip(futevolei, ArenaSportChip.beachVolleyball),
+        false,
+      );
+      expect(arenaMatchesSportChip(futevolei, ArenaSportChip.volleyball), false);
+    });
+
+    test('perfil FUTEVOLEI e rótulo mapeiam para o chip futevôlei', () {
+      expect(
+        defaultSportChipFromProfile(primarySport: 'FUTEVOLEI'),
+        ArenaSportChip.footvolley,
+      );
+      expect(
+        defaultSportChipFromProfile(sport: 'Futevôlei'),
+        ArenaSportChip.footvolley,
+      );
+    });
+  });
 }

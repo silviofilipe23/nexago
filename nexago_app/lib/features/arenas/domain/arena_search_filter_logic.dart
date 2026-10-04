@@ -76,6 +76,12 @@ bool arenaMatchesSportChip(ArenaListItem arena, ArenaSportChip chip) {
   final types = arena.courtTypes.map((t) => t.toLowerCase()).join(' ');
   final name = arena.name.toLowerCase();
   final blob = '$types $name';
+  // Futevôlei contém "vôlei": sem tirar a palavra, a arena vazaria para os
+  // chips de vôlei.
+  final volleyBlob = blob
+      .replaceAll('futevôlei', '')
+      .replaceAll('futevolei', '')
+      .replaceAll('footvolley', '');
 
   return switch (chip) {
     ArenaSportChip.beachTennis =>
@@ -88,11 +94,13 @@ bool arenaMatchesSportChip(ArenaListItem arena, ArenaSportChip chip) {
       blob.contains('beach') ||
           blob.contains('praia') ||
           blob.contains('areia') ||
-          blob.contains('vôlei') ||
-          blob.contains('volei') ||
-          blob.contains('volleyball') ||
-          blob.contains('futevôlei') ||
-          blob.contains('futevolei'),
+          volleyBlob.contains('vôlei') ||
+          volleyBlob.contains('volei') ||
+          volleyBlob.contains('volleyball'),
+    ArenaSportChip.footvolley =>
+      blob.contains('futevôlei') ||
+          blob.contains('futevolei') ||
+          blob.contains('footvolley'),
     ArenaSportChip.tennis =>
       blob.contains('tênis') ||
           blob.contains('tenis') ||
@@ -100,7 +108,7 @@ bool arenaMatchesSportChip(ArenaListItem arena, ArenaSportChip chip) {
     ArenaSportChip.padel =>
       blob.contains('padel') || blob.contains('pádel') || blob.contains('pickle'),
     ArenaSportChip.volleyball =>
-      blob.contains('vôlei') || blob.contains('volleyball'),
+      volleyBlob.contains('vôlei') || volleyBlob.contains('volleyball'),
     ArenaSportChip.football =>
       blob.contains('futebol') || blob.contains('football'),
     ArenaSportChip.all => true,
@@ -298,6 +306,7 @@ ArenaSportChip defaultSportChipFromProfile({
     return switch (firestore) {
       'VOLEI_PRAIA' || 'BEACH_VOLLEYBALL' => ArenaSportChip.beachVolleyball,
       'VOLEI_QUADRA' || 'INDOOR_VOLLEYBALL' => ArenaSportChip.volleyball,
+      'FUTEVOLEI' || 'FOOTVOLLEY' => ArenaSportChip.footvolley,
       'BEACH_TENNIS' => ArenaSportChip.beachTennis,
       'TENIS' => ArenaSportChip.tennis,
       'FUTEBOL' || 'FOOTBALL' => ArenaSportChip.football,
@@ -323,6 +332,11 @@ ArenaSportChip? _sportChipFromLabel(String raw) {
   if (v.contains('beach') &&
       (v.contains('tênis') || v.contains('tenis') || v.contains('tennis'))) {
     return ArenaSportChip.beachTennis;
+  }
+  if (v.contains('futevôlei') ||
+      v.contains('futevolei') ||
+      v.contains('footvolley')) {
+    return ArenaSportChip.footvolley;
   }
   if (v.contains('vôlei') || v.contains('volei') || v.contains('volleyball')) {
     return v.contains('praia') || v.contains('beach')

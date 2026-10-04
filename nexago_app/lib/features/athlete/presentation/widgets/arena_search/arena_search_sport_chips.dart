@@ -22,6 +22,7 @@ const List<(ArenaSportChip chip, String label, IconData icon)>
     'Vôlei de quadra',
     Icons.sports_volleyball_rounded,
   ),
+  (ArenaSportChip.footvolley, 'Futevôlei', Icons.sports_volleyball_rounded),
   (ArenaSportChip.football, 'Futebol', Icons.sports_football_rounded),
 ];
 
@@ -34,6 +35,7 @@ IconData arenaSearchSportChipIcon(ArenaSportChip chip) {
     ArenaSportChip.tennis => Icons.sports_baseball_rounded,
     ArenaSportChip.padel => Icons.sports_handball_rounded,
     ArenaSportChip.volleyball => Icons.sports_volleyball_rounded,
+    ArenaSportChip.footvolley => Icons.sports_volleyball_rounded,
     ArenaSportChip.football => Icons.sports_football_rounded,
   };
 }

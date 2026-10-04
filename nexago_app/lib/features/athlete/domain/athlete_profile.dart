@@ -525,6 +525,7 @@ class AthleteProfile {
     const map = {
       'Vôlei de praia': 'beach_volleyball',
       'Vôlei de quadra': 'indoor_volleyball',
+      'Futevôlei': 'footvolley',
       'Futebol': 'football',
       'Basquete': 'basketball',
       'Tênis': 'tennis',

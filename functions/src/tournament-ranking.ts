@@ -79,12 +79,22 @@ export const RANKING_SCALE_VERSION = 2;
 /** Menos de 10 duplas pagas = desafio: não pontua no ranking global. */
 export const MIN_TEAMS_FOR_GLOBAL_RANKING = 10;
 
-/** Etapa de liga é isenta; torneio avulso exige toggle ligado e categoria cheia. */
+/**
+ * Esportes que já pontuavam no ranking geral (códigos de `profileCode` do catálogo). O ranking
+ * ainda não tem `sport` (fase 3 do spec multiesporte): um esporte novo misturaria os pontos com
+ * os do vôlei, então fica fora até lá. `null` = esporte não reconhecido, que sempre pontuou.
+ */
+export const GLOBAL_RANKING_SPORT_CODES: ReadonlySet<string> = new Set(["VOLEI_PRAIA", "VOLEI_QUADRA", "FUTEVOLEI"]);
+
+/** Etapa de liga é isenta; torneio avulso exige toggle ligado e categoria cheia. Esporte que
+ *  nunca pontuou (hoje: beach tennis) fica fora em qualquer caso, até a fase 3. */
 export function isGlobalRankingEligible(params: {
   isLeagueStage: boolean;
   rankingEnabled: boolean;
   paidTeamsCount: number;
+  sportCode?: string | null;
 }): boolean {
+  if (params.sportCode != null && !GLOBAL_RANKING_SPORT_CODES.has(params.sportCode)) return false;
   if (params.isLeagueStage) return true;
   return (
     params.rankingEnabled &&
@@ -508,6 +518,7 @@ export async function tryAwardGlobalRankingForMatch(
       isLeagueStage,
       rankingEnabled,
       paidTeamsCount: paidTeamIds.size,
+      sportCode: tournamentSportToLevelSportCode(tournament.sport),
     })
   ) {
     logger.info(

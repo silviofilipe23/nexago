@@ -368,6 +368,19 @@ describe("tryAwardGlobalRankingForMatch", () => {
   });
 });
 
+describe("isGlobalRankingEligible · esporte (até a fase 3)", () => {
+  const full = {isLeagueStage: false, rankingEnabled: true, paidTeamsCount: 16};
+  it("beach tennis não pontua no ranking geral, nem em etapa de liga", () => {
+    assert.equal(isGlobalRankingEligible({...full, sportCode: "BEACH_TENNIS"}), false);
+    assert.equal(isGlobalRankingEligible({...full, isLeagueStage: true, sportCode: "BEACH_TENNIS"}), false);
+  });
+  it("vôlei de praia, de quadra, futevôlei e esporte não reconhecido pontuam como hoje", () => {
+    for (const sportCode of ["VOLEI_PRAIA", "VOLEI_QUADRA", "FUTEVOLEI", null]) {
+      assert.equal(isGlobalRankingEligible({...full, sportCode}), true, String(sportCode));
+    }
+  });
+});
+
 describe("isGlobalRankingEligible", () => {
   it("etapa de liga é sempre elegível, mesmo pequena e com toggle off", () => {
     assert.equal(

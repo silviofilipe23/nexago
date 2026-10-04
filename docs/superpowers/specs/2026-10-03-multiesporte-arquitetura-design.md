@@ -377,6 +377,9 @@ mergeável sozinho, e beach tennis só abre no último.
   comportamento do servidor). **2d2, editor de placar:** campos de cada tipo no editor de
   categoria do app e do portal, gravando o perfil explícito; sugestões 25/15 e 18/15 só aí. O
   fallback de categoria sem perfil continua o histórico nesses esportes.
+  A 2d2 sai em duas: **2d2a** portal (núcleo do editor, padrões 25/15 e 18/15 no catálogo com o
+  fallback do servidor histórico em esportes de pontos) e **2d2b** app (o editor de categoria do
+  app ainda nem tem número de sets).
 
 Decisões que valem para a fase 2 inteira:
 - **Partida sem perfil carimbado usa a regra histórica, qualquer que seja o esporte** (21,

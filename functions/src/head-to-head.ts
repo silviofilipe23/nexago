@@ -3,6 +3,7 @@ import {getFirestore, type Firestore} from "firebase-admin/firestore";
 import {artifactsMatchesPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 import {isMatchCompleted} from "./match-status";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {tournamentSportToLevelSportCode} from "./category-level-eligibility";
 
 /**
  * Head-to-head (confronto direto) entre dois atletas — item #3 de
@@ -276,10 +277,18 @@ async function loadTournamentNames(
 /**
  * Callable `getHeadToHeadRecord({athleteIdA, athleteIdB, sportCode?})`.
  *
- * `sportCode` é opcional e, quando informado, restringe o histórico às
- * partidas de torneios daquele esporte (campo `sport` no doc de
- * `tournaments/{id}`, mesmo campo lido em `rating-engine.ts`).
+ * `sportCode` é opcional; aceita o código de perfil (`VOLEI_PRAIA`) ou o
+ * enum do torneio (`beachVolleyball`) e restringe o histórico às partidas de
+ * torneios daquele esporte (campo `sport` em `tournaments/{id}`, mesmo campo
+ * lido em `rating-engine.ts`).
  */
+export function headToHeadSportMatches(tournamentSport: unknown, requested: string): boolean {
+  const wanted =
+    tournamentSportToLevelSportCode(requested) ?? requested.trim().toUpperCase();
+  const actual = tournamentSportToLevelSportCode(tournamentSport);
+  return actual != null && actual === wanted;
+}
+
 export const getHeadToHeadRecord = onCall({
   region: CLIENT_FACING_REGIONS,
 }, async (request) => {
@@ -317,15 +326,17 @@ export const getHeadToHeadRecord = onCall({
 
   if (sportCode) {
     const tournamentIds = new Set(matches.map((m) => m.tournamentId).filter(Boolean));
-    const sportByTournament = new Map<string, string>();
+    const sportByTournament = new Map<string, unknown>();
     await Promise.all(
       [...tournamentIds].map(async (id) => {
         const snap = await db.doc(`tournaments/${id}`).get();
         if (!snap.exists) return;
-        sportByTournament.set(id, String(snap.data()?.sport ?? "").trim());
+        sportByTournament.set(id, snap.data()?.sport);
       }),
     );
-    matches = matches.filter((m) => sportByTournament.get(m.tournamentId) === sportCode);
+    matches = matches.filter((m) =>
+      headToHeadSportMatches(sportByTournament.get(m.tournamentId), sportCode),
+    );
   }
 
   const result = computeHeadToHead(athleteIdA, athleteIdB, matches, teamsById);

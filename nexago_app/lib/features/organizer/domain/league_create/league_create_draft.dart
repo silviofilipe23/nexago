@@ -84,6 +84,7 @@ class LeagueCreateDraft {
   const LeagueCreateDraft({
     this.leagueId,
     this.sport = TournamentSport.beachVolleyball,
+    this.sportRaw,
     this.name = '',
     this.organizationName = '',
     this.coverImagePath,
@@ -107,6 +108,14 @@ class LeagueCreateDraft {
 
   final String? leagueId;
   final TournamentSport sport;
+
+  /// Valor de `sport` que o enum não representa (ver [parseTournamentSport]).
+  /// Quando presente, o seletor fica travado e é ele que vai pro Firestore.
+  final String? sportRaw;
+
+  /// O que gravar em `leagues.sport`.
+  String get sportFirestoreValue => sportRaw ?? sport.name;
+
   final String name;
   final String organizationName;
   final String? coverImagePath;
@@ -134,6 +143,8 @@ class LeagueCreateDraft {
     String? leagueId,
     bool clearLeagueId = false,
     TournamentSport? sport,
+    String? sportRaw,
+    bool clearSportRaw = false,
     String? name,
     String? organizationName,
     String? coverImagePath,
@@ -158,11 +169,11 @@ class LeagueCreateDraft {
     return LeagueCreateDraft(
       leagueId: clearLeagueId ? null : (leagueId ?? this.leagueId),
       sport: sport ?? this.sport,
+      sportRaw: clearSportRaw ? null : (sportRaw ?? this.sportRaw),
       name: name ?? this.name,
       organizationName: organizationName ?? this.organizationName,
-      coverImagePath: clearCoverImagePath
-          ? null
-          : (coverImagePath ?? this.coverImagePath),
+      coverImagePath:
+          clearCoverImagePath ? null : (coverImagePath ?? this.coverImagePath),
       description: description ?? this.description,
       city: city ?? this.city,
       state: state ?? this.state,

@@ -12,6 +12,48 @@ void main() {
   });
 
   group('LeagueCreateMapper', () {
+    test(
+        'fromFirestore preserva sport desconhecido e toFirestore devolve igual',
+        () {
+      final load = LeagueCreateMapper.fromFirestore(
+        {'name': 'Liga BT', 'sport': 'beachTennis'},
+        'liga-bt',
+      );
+      expect(load.draft.sport, TournamentSport.beachVolleyball);
+      expect(load.draft.sportRaw, 'beachTennis');
+
+      final map = LeagueCreateMapper.toFirestore(
+        draft: load.draft.copyWith(
+          seasonStartAt: DateTime(2026, 2, 1),
+          seasonEndAt: DateTime(2026, 10, 1),
+        ),
+        managerId: 'm1',
+        publish: false,
+      );
+      expect(map['sport'], 'beachTennis');
+    });
+
+    test('torneio de etapa gerado da liga herda o sport cru', () {
+      final league = LeagueCreateDraft(
+        name: 'Liga BT',
+        sportRaw: 'beachTennis',
+        seasonStartAt: DateTime(2026, 2, 1),
+        seasonEndAt: DateTime(2026, 10, 1),
+        plannedStagesCount: 1,
+        categories: const [
+          TournamentCategoryDraft(id: 'c1', name: 'Open', spots: 16),
+        ],
+        stages: const [LeagueStageDraft(id: 's1', order: 1, name: 'Etapa 1')],
+      );
+      final map = LeagueStageTournamentFactory.build(
+        league: league,
+        stage: league.stages.first,
+        managerId: 'm1',
+        tournamentId: 't1',
+      );
+      expect(map['sport'], 'beachTennis');
+    });
+
     test('toFirestore includes wizard step and listing status', () {
       final draft = LeagueCreateDraft(
         name: 'Copa Goiás',
@@ -169,7 +211,9 @@ void main() {
       );
     });
 
-    test('categoria com minLevel sobrevive a um re-save do app (fromFirestore → toFirestore)', () {
+    test(
+        'categoria com minLevel sobrevive a um re-save do app (fromFirestore → toFirestore)',
+        () {
       final loaded = LeagueCreateMapper.fromFirestore({
         'name': 'Circuito Elite',
         'seasonStartAt': Timestamp.fromDate(DateTime(2026, 2, 1)),
@@ -192,7 +236,8 @@ void main() {
         managerId: 'm',
         publish: true,
       );
-      final category = (data['categories'] as List).single as Map<String, dynamic>;
+      final category =
+          (data['categories'] as List).single as Map<String, dynamic>;
       expect(category['minLevel'], 'Avançado 1');
     });
 

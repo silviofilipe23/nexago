@@ -24,9 +24,7 @@ final managedOrganizerLeaguesProvider =
     StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
   final uid = FirebaseAuth.instance.currentUser?.uid;
   if (uid == null || uid.isEmpty) return Stream.value(const []);
-  return ref
-      .watch(organizerLeaguesRepositoryProvider)
-      .watchManagedLeagues(uid);
+  return ref.watch(organizerLeaguesRepositoryProvider).watchManagedLeagues(uid);
 });
 
 final leagueCreateLocalStoreProvider =
@@ -219,9 +217,8 @@ class LeagueCreateWizardNotifier extends Notifier<LeagueCreateWizardState> {
       throw ArgumentError('ID da liga inválido.');
     }
 
-    final loaded = await ref
-        .read(organizerLeaguesRepositoryProvider)
-        .getLeagueDraft(id);
+    final loaded =
+        await ref.read(organizerLeaguesRepositoryProvider).getLeagueDraft(id);
     if (loaded == null) {
       throw StateError('Rascunho não encontrado.');
     }
@@ -429,8 +426,8 @@ final hasMeaningfulLocalLeagueWizardSessionProvider = Provider<bool>((ref) {
   return hasMeaningfulLocalLeagueDraft(draft);
 });
 
-final leagueCreateCanContinueProvider = Provider.autoDispose
-    .family<bool, LeagueCreateStep>((ref, step) {
+final leagueCreateCanContinueProvider =
+    Provider.autoDispose.family<bool, LeagueCreateStep>((ref, step) {
   final draft = ref.watch(leagueCreateDraftProvider);
   return canContinueFromLeagueStep(draft, step);
 });

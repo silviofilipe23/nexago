@@ -23,7 +23,8 @@ class LeagueCreateReviewPage extends ConsumerStatefulWidget {
       _LeagueCreateReviewPageState();
 }
 
-class _LeagueCreateReviewPageState extends ConsumerState<LeagueCreateReviewPage> {
+class _LeagueCreateReviewPageState
+    extends ConsumerState<LeagueCreateReviewPage> {
   var _submitting = false;
 
   @override
@@ -42,11 +43,12 @@ class _LeagueCreateReviewPageState extends ConsumerState<LeagueCreateReviewPage>
     try {
       final draft = ref.read(leagueCreateDraftProvider);
       final step = ref.read(leagueCreateCurrentStepProvider);
-      final result = await ref.read(organizerLeaguesRepositoryProvider).saveLeague(
-            draft: draft,
-            publish: publish,
-            wizardStep: step,
-          );
+      final result =
+          await ref.read(organizerLeaguesRepositoryProvider).saveLeague(
+                draft: draft,
+                publish: publish,
+                wizardStep: step,
+              );
       await ref.read(leagueCreateWizardProvider.notifier).clearSession(
             deleteRemoteDraft: false,
           );
@@ -75,7 +77,8 @@ class _LeagueCreateReviewPageState extends ConsumerState<LeagueCreateReviewPage>
         ref.watch(leagueCreateCanContinueProvider(LeagueCreateStep.review));
 
     final locationLine = [
-      if (draft.organizationName.trim().isNotEmpty) draft.organizationName.trim(),
+      if (draft.organizationName.trim().isNotEmpty)
+        draft.organizationName.trim(),
       if (draft.city.trim().isNotEmpty) draft.city.trim(),
       if (draft.state.trim().isNotEmpty) draft.state.trim(),
     ].join(' · ');
@@ -126,7 +129,7 @@ class _LeagueCreateReviewPageState extends ConsumerState<LeagueCreateReviewPage>
                 ],
                 const SizedBox(height: 4),
                 Text(
-                  '${sportLabel(draft.sport).toUpperCase()} · '
+                  '${(draft.sportRaw ?? sportLabel(draft.sport)).toUpperCase()} · '
                           '${formatLeagueShortSeasonRange(draft.seasonStartAt, draft.seasonEndAt)}'
                       .toUpperCase(),
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(

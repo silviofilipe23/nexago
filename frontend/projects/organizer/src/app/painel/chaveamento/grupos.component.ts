@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { truncateName } from '../data/mock-data';
-import { buildGroupStandings, type GroupStanding, type TournamentMatch } from '../data/matches-repository';
+import { buildGroupStandings, groupStandingColumns, type GroupStanding, type GroupStandingColumns, type TournamentMatch } from '../data/matches-repository';
 import { spDayLabel, spTimeLabel } from '../data/schedule-format';
 import { OgCardComponent } from '../ui/card.component';
 import { OgIconComponent } from '../ui/icon.component';
@@ -11,13 +11,14 @@ import { ChaveamentoContextService } from './chaveamento-context.service';
 interface GrupoReal {
   label: string;
   standings: GroupStanding[];
+  columns: GroupStandingColumns;
   matches: TournamentMatch[];
 }
 
 /** Fase de grupos — jogos reais agrupados por pool + CLASSIFICAÇÃO ao vivo (V/D, saldo de
  *  sets, pontos feitos/tomados, saldo de pontos e pontos de classificação). Ordenação igual
- *  ao servidor (`group-standings.ts`): vitórias → saldo de pontos → confronto direto
- *  (só entre empatados em V e SP). Os N primeiros (qualifiersPerGroup) ganham destaque —
+ *  ao servidor (`group-standings.ts`): vitórias → (grupo de games: saldo de sets) → saldo de
+ *  pontos/games → confronto direto (só entre empatados nos critérios anteriores). Os N primeiros (qualifiersPerGroup) ganham destaque —
  *  consistente com o crossover da geração de chave. */
 @Component({
   selector: 'og-grupos',
@@ -45,9 +46,9 @@ interface GrupoReal {
                 <span class="num">V</span>
                 <span class="num">D</span>
                 <span class="num wide" title="Sets ganhos – sets perdidos">Sets</span>
-                <span class="num" title="Pontos feitos">PF</span>
-                <span class="num" title="Pontos tomados">PT</span>
-                <span class="num wide" title="Saldo de pontos (feitos − tomados)">SP</span>
+                <span class="num" [title]="g.columns.madeTitle">{{ g.columns.made }}</span>
+                <span class="num" [title]="g.columns.lostTitle">{{ g.columns.lost }}</span>
+                <span class="num wide" [title]="g.columns.diffTitle">{{ g.columns.diff }}</span>
                 <span class="num" title="Pontos de classificação (2 por vitória)">Pts</span>
               </div>
               @for (s of g.standings; track s.teamId; let i = $index) {
@@ -287,6 +288,7 @@ export class GruposComponent {
       .map(({ label, matches }) => ({
         label,
         standings: buildGroupStandings(matches),
+        columns: groupStandingColumns(matches),
         matches: [...matches].sort((a, b) => a.matchNumber - b.matchNumber),
       }));
   });

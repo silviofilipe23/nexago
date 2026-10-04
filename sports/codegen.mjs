@@ -40,6 +40,32 @@ function fail(msg) {
   throw new Error(`sports/catalog.json: ${msg}`);
 }
 
+const BEST_OF = [1, 3, 5];
+const posInt = (v) => Number.isInteger(v) && v > 0;
+
+export function validateScoringProfile(where, p) {
+  if (p === null) return;
+  if (!p || typeof p !== 'object') fail(`scoringProfile inválido em ${where}`);
+  if (!BEST_OF.includes(p.bestOf)) fail(`bestOf inválido em ${where}: ${p.bestOf}`);
+  if (p.kind === 'sets_points') {
+    for (const k of ['setTarget', 'decidingSetTarget', 'winBy']) {
+      if (!posInt(p[k])) fail(`${k} inválido em ${where}`);
+    }
+    if (p.pointCap !== null && !posInt(p.pointCap)) fail(`pointCap inválido em ${where}`);
+    return;
+  }
+  if (p.kind === 'sets_games') {
+    for (const k of ['gamesPerSet', 'winByGames', 'tiebreakTo', 'superTiebreakTo']) {
+      if (!posInt(p[k])) fail(`${k} inválido em ${where}`);
+    }
+    if (p.tiebreakAtGames !== null && !posInt(p.tiebreakAtGames)) fail(`tiebreakAtGames inválido em ${where}`);
+    if (typeof p.noAd !== 'boolean') fail(`noAd inválido em ${where}`);
+    if (!['full', 'super_tiebreak'].includes(p.decidingSet)) fail(`decidingSet inválido em ${where}`);
+    return;
+  }
+  fail(`kind de placar desconhecido em ${where}: ${p.kind}`);
+}
+
 export function validate(catalog) {
   const index = new Map();
   for (const s of catalog.sports) {
@@ -48,6 +74,9 @@ export function validate(catalog) {
     if (!/^[a-z][a-z0-9_]*$/.test(s.appId)) fail(`appId inválido: ${s.appId}`);
     if (typeof s.label !== 'string' || !s.label.trim()) fail(`label vazio em ${s.code}`);
     if (!SUPPORT.includes(s.support)) fail(`support inválido em ${s.code}: ${s.support}`);
+    if (!('scoringProfile' in s)) fail(`scoringProfile ausente em ${s.code}`);
+    validateScoringProfile(s.code, s.scoringProfile);
+    if (s.support === 'competition' && !s.scoringProfile) fail(`esporte de competição sem scoringProfile: ${s.code}`);
     if (s.art !== null) {
       if (!/^[a-z0-9_]+$/.test(s.art)) fail(`art inválida em ${s.code}: ${s.art}`);
       for (const dir of ART_DIRS) {
@@ -85,11 +114,14 @@ function renderTsCatalog(catalog, index) {
   const rows = catalog.sports.map(
     (s) =>
       `  {code: ${ts(s.code)}, profileCode: ${ts(s.profileCode)}, appId: ${ts(s.appId)}, ` +
-      `label: ${ts(s.label)}, art: ${ts(s.art)}, support: ${ts(s.support)}},`,
+      `label: ${ts(s.label)}, art: ${ts(s.art)}, support: ${ts(s.support)}, ` +
+      `scoringProfile: ${ts(s.scoringProfile)}},`,
   );
   const keys = [...index.entries()].map(([k, code]) => `  ${ts(k)}: ${ts(code)},`);
   return [
     `// ${HEADER}`,
+    '',
+    'import type {ScoringProfile} from "./scoring-profile";',
     '',
     'export type SportSupport = "profile" | "competition";',
     '',
@@ -100,6 +132,7 @@ function renderTsCatalog(catalog, index) {
     '  readonly label: string;',
     '  readonly art: string | null;',
     '  readonly support: SportSupport;',
+    '  readonly scoringProfile: ScoringProfile | null;',
     '}',
     '',
     'export const SPORT_CATALOG: readonly SportCatalogEntry[] = [',
@@ -116,7 +149,7 @@ function renderTsCatalog(catalog, index) {
   ].join('\n');
 }
 
-function renderTsVectors(catalog) {
+function renderTsVectors(catalog, scoring) {
   const list = (name, type, vectors) => [
     `export const ${name}: ReadonlyArray<readonly [string, ${type}]> = [`,
     ...vectors.map(([a, b]) => `  [${ts(a)}, ${ts(b)}],`),
@@ -129,7 +162,32 @@ function renderTsVectors(catalog) {
     ...list('SPORT_NORMALIZE_VECTORS', 'string', catalog.normalizeVectors),
     ...list('SPORT_RESOLVE_VECTORS', 'string | null', catalog.resolveVectors),
     ...list('SPORT_TITLE_CASE_VECTORS', 'string', catalog.titleCaseVectors),
+    'export interface ScoringVectorCase {',
+    '  readonly profile: string;',
+    '  readonly sets: ReadonlyArray<{a: number; b: number; tb?: {a: number; b: number}}>;',
+    '  readonly setWinners: ReadonlyArray<"A" | "B" | null>;',
+    '  readonly matchWinner: "A" | "B" | null;',
+    '  readonly issues: readonly string[];',
+    '}',
+    '',
+    'export const SCORING_VECTORS: {readonly profiles: Readonly<Record<string, unknown>>; ' +
+      'readonly cases: readonly ScoringVectorCase[]} = ' +
+      `${JSON.stringify({profiles: scoring.profiles, cases: scoring.cases})};`,
+    '',
   ].join('\n');
+}
+
+function dartProfile(p) {
+  if (p === null) return 'null';
+  if (p.kind === 'sets_points') {
+    return `SetsPointsProfile(bestOf: ${p.bestOf}, setTarget: ${p.setTarget}, ` +
+      `decidingSetTarget: ${p.decidingSetTarget}, winBy: ${p.winBy}, pointCap: ${p.pointCap})`;
+  }
+  return `SetsGamesProfile(bestOf: ${p.bestOf}, gamesPerSet: ${p.gamesPerSet}, ` +
+    `winByGames: ${p.winByGames}, tiebreakAtGames: ${p.tiebreakAtGames}, ` +
+    `tiebreakTo: ${p.tiebreakTo}, noAd: ${p.noAd}, ` +
+    `decidingSet: DecidingSet.${p.decidingSet === 'super_tiebreak' ? 'superTiebreak' : 'full'}, ` +
+    `superTiebreakTo: ${p.superTiebreakTo})`;
 }
 
 function renderDartCatalog(catalog, index) {
@@ -141,11 +199,14 @@ function renderDartCatalog(catalog, index) {
     `    label: ${dart(s.label)},`,
     `    art: ${dart(s.art)},`,
     `    support: SportSupport.${s.support},`,
+    `    scoringProfile: ${dartProfile(s.scoringProfile)},`,
     '  ),',
   ]);
   const keys = [...index.entries()].map(([k, code]) => `  ${dart(k)}: ${dart(code)},`);
   return [
     `// ${HEADER}`,
+    '',
+    "import 'scoring_profile.dart';",
     '',
     'enum SportSupport { profile, competition }',
     '',
@@ -157,6 +218,7 @@ function renderDartCatalog(catalog, index) {
     '    required this.label,',
     '    required this.art,',
     '    required this.support,',
+    '    required this.scoringProfile,',
     '  });',
     '',
     '  final String code;',
@@ -165,6 +227,7 @@ function renderDartCatalog(catalog, index) {
     '  final String label;',
     '  final String? art;',
     '  final SportSupport support;',
+    '  final ScoringProfile? scoringProfile;',
     '}',
     '',
     'const List<SportCatalogEntry> kSportCatalog = [',
@@ -181,7 +244,9 @@ function renderDartCatalog(catalog, index) {
   ].join('\n');
 }
 
-function renderDartVectors(catalog) {
+function renderDartVectors(catalog, scoring) {
+  const scoringJson = JSON.stringify({profiles: scoring.profiles, cases: scoring.cases});
+  if (scoringJson.includes("'''")) fail("scoring-vectors.json não pode conter '''");
   const list = (name, type, vectors) => [
     `const List<(String, ${type})> ${name} = [`,
     ...vectors.map(([a, b]) => `  (${dart(a)}, ${dart(b)}),`),
@@ -194,21 +259,28 @@ function renderDartVectors(catalog) {
     ...list('kSportNormalizeVectors', 'String', catalog.normalizeVectors),
     ...list('kSportResolveVectors', 'String?', catalog.resolveVectors),
     ...list('kSportTitleCaseVectors', 'String', catalog.titleCaseVectors),
+    `const String kScoringVectorsJson = r'''${scoringJson}''';`,
+    '',
   ].join('\n');
 }
 
 export function outputs() {
   const catalog = JSON.parse(fs.readFileSync(path.join(ROOT, 'sports/catalog.json'), 'utf8'));
   const index = validate(catalog);
+  const scoring = JSON.parse(fs.readFileSync(path.join(ROOT, 'sports/scoring-vectors.json'), 'utf8'));
+  for (const [name, p] of Object.entries(scoring.profiles)) validateScoringProfile(`vetor ${name}`, p);
+  for (const c of scoring.cases) {
+    if (!(c.profile in scoring.profiles)) fail(`vetor com perfil desconhecido: ${c.profile}`);
+  }
   const tsCatalog = renderTsCatalog(catalog, index);
-  const tsVectors = renderTsVectors(catalog);
+  const tsVectors = renderTsVectors(catalog, scoring);
   return {
     'functions/src/sports/catalog.generated.ts': tsCatalog,
     'functions/src/sports/vectors.generated.ts': tsVectors,
     'frontend/shared/sports/catalog.generated.ts': tsCatalog,
     'frontend/shared/sports/vectors.generated.ts': tsVectors,
     'nexago_app/lib/core/sports/sport_catalog_data.dart': renderDartCatalog(catalog, index),
-    'nexago_app/test/core/sports/sport_vectors_data.dart': renderDartVectors(catalog),
+    'nexago_app/test/core/sports/sport_vectors_data.dart': renderDartVectors(catalog, scoring),
   };
 }
 

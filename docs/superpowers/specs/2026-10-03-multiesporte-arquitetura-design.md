@@ -348,6 +348,15 @@ mergeável sozinho, e beach tennis só abre no último.
   2b em diante: o nº de sets vem de `match.bestOf`; o resto do perfil, do carimbo.
 - **2c, exibição.** Telão, overlay, Focus, pôster, ponto a ponto, card da chave e critério de
   desempate dos grupos por tipo.
+  Dividida em três (emenda de 04/10, depois do inventário das telas). Nenhuma tela de exibição
+  lia o perfil, e quase todas passam por três helpers: `live-set-display.ts` do painel,
+  `matches-repository.ts` do portal do atleta e `tournament_match_display.dart` do app.
+  **2c1** troca esses três helpers pelo perfil efetivo, expõe o game em andamento, cria
+  `setScoreText` no núcleo ("7-6 (7-4)"; super tie-break "10-8") e aplica o desempate por tipo
+  nas quatro cópias. **2c2** leva isso às telas: telão, overlay, página pública, Focus, card da
+  chave, cards ao vivo e pôster, com o alerta de set/match point vindo de `gamesFlag`. **2c3**
+  cuida do ponto a ponto (eventos de games carregam `gameA`/`gameB`) e da notificação de
+  partida acompanhada, que precisa do motor de games nas functions.
 - **2d, abrir beach tennis.** Wizard com os campos de cada tipo, `beachTennis` no enum e em
   `competition`, defaults 25/15 (quadra) e 18/15 (futevôlei) só quando o wizard deixar o
   organizador escolher o alvo.

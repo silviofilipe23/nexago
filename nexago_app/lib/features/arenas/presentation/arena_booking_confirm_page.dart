@@ -25,6 +25,7 @@ import '../domain/arenas_providers.dart';
 import '../domain/booking_providers.dart';
 import 'booking_success_page.dart';
 import 'widgets/booking_confirm/booking_confirm_app_bar.dart';
+import 'widgets/booking_confirm/booking_confirm_athletes_count_field.dart';
 import 'widgets/booking_confirm/booking_confirm_cancellation_card.dart';
 import 'widgets/booking_confirm/booking_confirm_coupon_field.dart';
 import 'widgets/booking_confirm/booking_confirm_hero_card.dart';
@@ -65,6 +66,7 @@ class _ArenaBookingConfirmPageState
   String? _couponError;
   String? _appliedCouponCode;
   double _couponDiscountReais = 0;
+  int _estimatedAthletes = 4;
 
   static final _dateFmt = DateFormat('d MMM yyyy', 'pt_BR');
 
@@ -182,6 +184,7 @@ class _ArenaBookingConfirmPageState
             paymentMode: 'pix',
             paymentFraction: 1.0,
             couponCode: _appliedCouponCode,
+            estimatedAthletes: _estimatedAthletes,
           );
       if (!mounted) return;
 
@@ -258,6 +261,7 @@ class _ArenaBookingConfirmPageState
             args: args,
             athleteId: user.uid,
             couponCode: _appliedCouponCode,
+            estimatedAthletes: _estimatedAthletes,
           );
       if (!mounted) return;
       await tryAwardReserveTodayMission(ref, dateKey: args.dateKey);
@@ -457,6 +461,15 @@ class _ArenaBookingConfirmPageState
                                       ArenaBookingCancellationPolicy.freeCancellationSubtitle(
                                         args.arenaName,
                                       ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 18),
+                                child: BookingConfirmAthletesCountField(
+                                  value: _estimatedAthletes,
+                                  enabled: !_submitting,
+                                  onChanged: (v) =>
+                                      setState(() => _estimatedAthletes = v),
                                 ),
                               ),
                               Padding(

@@ -50,6 +50,22 @@ interface BookingInput {
   paymentFraction?: number;
   /** Código de cupom de marketing digitado pelo atleta (opcional). */
   couponCode?: string;
+  /** Quantidade estimada de atletas informada na reserva (opcional, 1–30). */
+  estimatedAthletes?: number;
+}
+
+const MAX_ESTIMATED_ATHLETES = 30;
+
+function parseEstimatedAthletes(raw: unknown): number | null {
+  if (raw == null) return null;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1 || n > MAX_ESTIMATED_ATHLETES) {
+    throw new HttpsError(
+      "invalid-argument",
+      `Informe entre 1 e ${MAX_ESTIMATED_ATHLETES} atletas.`,
+    );
+  }
+  return n;
 }
 
 function parseDateKey(dateRaw: string): string {
@@ -233,6 +249,8 @@ export const createArenaBooking = onCall({
   if (!arenaId || !courtId || !dateKey || startTime.length < 4 || endTime.length < 4) {
     throw new HttpsError("invalid-argument", "Dados da reserva inválidos.");
   }
+
+  const estimatedAthletes = parseEstimatedAthletes(input.estimatedAthletes);
 
   await ensureNotBlocked(arenaId, athleteId);
 
@@ -441,6 +459,7 @@ export const createArenaBooking = onCall({
             ? Timestamp.fromDate(paymentExpiresAt)
             : null,
         source: "platform",
+        estimatedAthletes,
         appliedPromotionIds: total.appliedPromotionIds,
         couponId: couponOutcome.couponId,
         couponCode: couponOutcome.couponCode,

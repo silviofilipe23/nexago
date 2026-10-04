@@ -191,6 +191,7 @@ class BookingService {
     String paymentMode = 'onsite',
     double paymentFraction = 1.0,
     String? couponCode,
+    int? estimatedAthletes,
   }) async {
     if (athleteId.isEmpty) {
       throw BookingException('Faça login para confirmar a reserva.');
@@ -210,6 +211,9 @@ class BookingService {
       final payload = _bookingCallablePayload(args, couponCode: couponCode);
       payload['clientAmountReais'] = args.amountReais;
       payload['paymentMode'] = paymentMode;
+      if (estimatedAthletes != null) {
+        payload['estimatedAthletes'] = estimatedAthletes;
+      }
       if (paymentMode == 'pix') {
         payload['paymentFraction'] = paymentFraction;
       }

@@ -521,10 +521,14 @@ class AthleteProfile {
     return null;
   }
 
+  /// Espelha `AthleteProfileOptions.sports` ↔ `AthleteFirestoreCodes`.
+  /// Toda entrada da lista de rótulos precisa estar aqui (teste
+  /// `athlete_profile_sport_label_test.dart`).
   static String? _labelToAppSportId(String label) {
     const map = {
       'Vôlei de praia': 'beach_volleyball',
       'Vôlei de quadra': 'indoor_volleyball',
+      'Futevôlei': 'footvolley',
       'Futebol': 'football',
       'Basquete': 'basketball',
       'Tênis': 'tennis',

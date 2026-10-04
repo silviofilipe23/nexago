@@ -6,7 +6,7 @@ import { OgIconComponent } from '../ui/icon.component';
 import { OgPulseDirective } from './og-pulse.directive';
 import { TelaoChampionsComponent } from './telao-champions.component';
 import type { TelaoTeamDisplay } from './telao-data.service';
-import { pointAlertOf, type FinalKind } from './telao-final-mode';
+import { liveSetHeadlineOf, pointAlertOf, type FinalKind } from './telao-final-mode';
 import { fireLevelOf } from './telao-streaks';
 
 const ORDINAL = ['1º', '2º', '3º', '4º', '5º'];
@@ -497,13 +497,7 @@ export class TelaoFinalModeComponent {
 
   protected readonly closedSetLabels = computed(() => closedSetTexts(this.match()));
 
-  protected readonly setLabel = computed(() => {
-    const c = this.current();
-    const n = c?.setNumber ?? this.closedSets().length;
-    const label = `${ORDINAL[Math.max(0, n - 1)] ?? `${n}º`} set`;
-    // Partida de games: o número grande é o ponto do game; os games do set vão no rótulo.
-    return c?.game ? `${label} · ${c.a}-${c.b}` : label;
-  });
+  protected readonly setLabel = computed(() => liveSetHeadlineOf(this.current(), this.closedSets().length));
 
   /** "Saque" ou "Saque · Bruno" — na final o nome de quem saca cabe, e é o que a plateia
    *  procura. A partida grava a POSIÇÃO na dupla; o elenco já está carregado pro rótulo. */

@@ -96,7 +96,7 @@ function winnerSideOf(match: TournamentMatch, setsA: number, setsB: number): 'A'
 function setColumnsOf(
   match: TournamentMatch,
   closed: Array<{ a: number; b: number; tb?: { a: number; b: number } }>,
-  live: { setNumber: number; a: number; b: number } | null,
+  live: { setNumber: number; a: number; b: number; superTiebreak?: boolean } | null,
   profile: ScoringProfile,
 ): OverlayDuelSetColumn[] {
   const games = profile.kind === 'sets_games';
@@ -112,8 +112,9 @@ function setColumnsOf(
     cols.push({
       index: live.setNumber - 1,
       label: `SET ${live.setNumber}`,
-      a: games ? live.a : null,
-      b: games ? live.b : null,
+      // Super tie-break: o set fica 0-0 enquanto os pontos correm no número grande.
+      a: games && !live.superTiebreak ? live.a : null,
+      b: games && !live.superTiebreak ? live.b : null,
       active: true,
     });
   } else if (cols.length > 0 && match.status === 'completed') {

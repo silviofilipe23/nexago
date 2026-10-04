@@ -10,6 +10,9 @@ export type DuelAnimEvent =
 type Snap = {
   pointsA: number | null;
   pointsB: number | null;
+  /** Partida de games: ponto do game (o número grande). */
+  gameA: string | null;
+  gameB: string | null;
   setsA: number;
   setsB: number;
   serving: 'A' | 'B' | null;
@@ -28,6 +31,8 @@ export function duelSnapOf(v: OverlayDuelView): Snap {
   return {
     pointsA: v.pointsA,
     pointsB: v.pointsB,
+    gameA: v.gameA,
+    gameB: v.gameB,
     setsA: v.setsA,
     setsB: v.setsB,
     serving: servingOf(v),
@@ -54,10 +59,23 @@ export function duelAnimEventsOf(prev: Snap | null, next: OverlayDuelView): Duel
     events.push({ type: 'setEnd' });
   }
 
-  const aUp = (curr.pointsA ?? 0) > (prev.pointsA ?? 0);
-  const bUp = (curr.pointsB ?? 0) > (prev.pointsB ?? 0);
-  if (aUp && !bUp) events.push({ type: 'point', side: 'A' });
-  if (bUp && !aUp) events.push({ type: 'point', side: 'B' });
+  if (curr.gameA != null && prev.gameA != null && curr.gameB != null && prev.gameB != null) {
+    // Games: o número grande é o ponto do game. Dentro do game, quem mudou foi quem pontuou —
+    // exceto na volta AD → 40-40, em que a string que muda é a de quem PERDEU a vantagem.
+    const aChanged = curr.gameA !== prev.gameA;
+    const bChanged = curr.gameB !== prev.gameB;
+    const backToDeuce = curr.gameA === '40' && curr.gameB === '40' && (prev.gameA === 'AD' || prev.gameB === 'AD');
+    if (backToDeuce) events.push({ type: 'point', side: prev.gameA === 'AD' ? 'B' : 'A' });
+    else if (aChanged && !bChanged && curr.pointsA === prev.pointsA) events.push({ type: 'point', side: 'A' });
+    else if (bChanged && !aChanged && curr.pointsB === prev.pointsB) events.push({ type: 'point', side: 'B' });
+    else if ((curr.pointsA ?? 0) > (prev.pointsA ?? 0)) events.push({ type: 'point', side: 'A' });
+    else if ((curr.pointsB ?? 0) > (prev.pointsB ?? 0)) events.push({ type: 'point', side: 'B' });
+  } else {
+    const aUp = (curr.pointsA ?? 0) > (prev.pointsA ?? 0);
+    const bUp = (curr.pointsB ?? 0) > (prev.pointsB ?? 0);
+    if (aUp && !bUp) events.push({ type: 'point', side: 'A' });
+    if (bUp && !aUp) events.push({ type: 'point', side: 'B' });
+  }
 
   // Bolinha nova: troca de dupla OU de atleta dentro da dupla (rodízio / Saque atleta).
   if (

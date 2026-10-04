@@ -28,6 +28,9 @@ export interface LiveSetScore {
   game?: { a: string; b: string };
   /** Partida de games: o set corrente está num tie-break (normal ou super). */
   tiebreak?: boolean;
+  /** Partida de games: o set corrente é o super tie-break — o set fica 0-0 e os pontos correm
+   *  em `game`; as telas não mostram "games" desse set. Ausente fora dele. */
+  superTiebreak?: boolean;
 }
 
 /** Perfil efetivo da partida: o carimbo com o nº de sets do doc; sem carimbo, a regra histórica. */
@@ -67,7 +70,8 @@ export function matchLiveCurrentSet(m: LiveScoreFields): LiveSetScore | null {
       const score: LiveSetScore = { setNumber: matchClosedSets(m).length + 1, a: s.a, b: s.b };
       if (profile.kind !== 'sets_games') return score;
       const state = { sets: m.sets, currentSetIndex: idx, currentGame: m.currentGame ?? { a: 0, b: 0 }, servingTeamId: '' };
-      return { ...score, game: gamesPointLabels(state, profile), tiebreak: isTiebreakInProgress(state, profile) };
+      const live: LiveSetScore = { ...score, game: gamesPointLabels(state, profile), tiebreak: isTiebreakInProgress(state, profile) };
+      return isSuperTiebreakSet(profile, idx) ? { ...live, superTiebreak: true } : live;
     }
     // Sem set aberto dentro de sets[] (todos fechados) — o corrente, se houver, está no
     // agregado `liveScore` (fluxo do lançamento rápido: sets fechados + currentGames).

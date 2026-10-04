@@ -1,6 +1,6 @@
 import type { TournamentMatch } from '../data/matches-repository';
 import type { MatchFinishMemory } from './telao-finished';
-import { CHAMPIONS_SHOWCASE_MS, finalKindOf, finalShowcaseOf, hasOtherLiveCourts, pointAlertOf } from './telao-final-mode';
+import { CHAMPIONS_SHOWCASE_MS, finalKindOf, finalShowcaseOf, hasOtherLiveCourts, liveSetHeadlineOf, pointAlertOf } from './telao-final-mode';
 
 const NOW = Date.UTC(2026, 7, 4, 18, 0, 0);
 
@@ -188,6 +188,23 @@ describe('telao-final-mode', () => {
 
       it('1 set a 0 e 5-4 em 40-0: match point', () => {
         expect(pointAlertOf(games({ sets: [{ a: 6, b: 3 }, { a: 5, b: 4 }], currentSetIndex: 1, currentGame: { a: 3, b: 0 } }))).toEqual({ side: 'A', kind: 'match' });
+      });
+
+      it('super tie-break em andamento (9-8): match point', () => {
+        expect(pointAlertOf(games({ sets: [{ a: 6, b: 4 }, { a: 3, b: 6 }, { a: 0, b: 0 }], currentSetIndex: 2, currentGame: { a: 9, b: 8 } }))).toEqual({ side: 'A', kind: 'match' });
+      });
+
+      it('3º set completo (sem super tie-break), 6-5 e AD: match point', () => {
+        const full = { ...BT, decidingSet: 'full' } as const;
+        expect(pointAlertOf(games({ scoringProfile: full, sets: [{ a: 6, b: 4 }, { a: 3, b: 6 }, { a: 6, b: 5 }], currentSetIndex: 2, currentGame: { a: 4, b: 3 } }))).toEqual({ side: 'A', kind: 'match' });
+      });
+
+      it('rótulo do set no modo final', () => {
+        expect(liveSetHeadlineOf({ setNumber: 2, a: 14, b: 11 }, 1)).toBe('2º set');
+        expect(liveSetHeadlineOf({ setNumber: 2, a: 5, b: 4, game: { a: '40', b: '15' }, tiebreak: false }, 1)).toBe('2º set · 5-4');
+        expect(liveSetHeadlineOf({ setNumber: 1, a: 6, b: 6, game: { a: '4', b: '2' }, tiebreak: true }, 0)).toBe('1º set · Tie-break');
+        expect(liveSetHeadlineOf({ setNumber: 3, a: 0, b: 0, game: { a: '7', b: '5' }, tiebreak: true, superTiebreak: true }, 2)).toBe('Super tie-break');
+        expect(liveSetHeadlineOf(null, 2)).toBe('2º set');
       });
 
       it('meio de set sem game decisivo: sem alerta', () => {

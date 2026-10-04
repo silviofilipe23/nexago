@@ -28,6 +28,14 @@ function duel(overrides: Partial<OverlayDuelView> = {}): OverlayDuelView {
 }
 
 describe('duelAnimEventsOf', () => {
+  it('partida de games: o ponto anima quando o ponto do game muda (games iguais)', () => {
+    const prev = duelSnapOf(duel({ pointsA: 3, pointsB: 2, gameA: '15', gameB: '0' }));
+    const events = duelAnimEventsOf(prev, duel({ pointsA: 3, pointsB: 2, gameA: '30', gameB: '0' }));
+    expect(events).toContain({ type: 'point', side: 'A' });
+    const deuce = duelSnapOf(duel({ pointsA: 3, pointsB: 2, gameA: 'AD', gameB: '40' }));
+    expect(duelAnimEventsOf(deuce, duel({ pointsA: 3, pointsB: 2, gameA: '40', gameB: '40' }))).toContain({ type: 'point', side: 'B' });
+  });
+
   it('marca ponto do lado que subiu o placar', () => {
     const prev = duelSnapOf(duel({ pointsA: 10, pointsB: 11 }));
     const events = duelAnimEventsOf(

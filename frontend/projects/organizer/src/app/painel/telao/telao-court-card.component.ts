@@ -160,7 +160,7 @@ import { fireLevelOf } from './telao-streaks';
                   <span class="og-tlc-set" [class.win]="row.side === 'A' ? s.a > s.b : s.b > s.a">{{ row.side === 'A' ? s.a : s.b }}</span>
                 }
                 @if (current(); as c) {
-                  @if (c.game) {
+                  @if (c.game && !c.superTiebreak) {
                     <span class="og-tlc-set og-tlc-set--live">{{ row.side === 'A' ? c.a : c.b }}</span>
                   }
                   <span

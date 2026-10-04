@@ -62,7 +62,7 @@ import type { CourtNowKind } from '../painel/telao/telao-selectors';
             <span class="pub-court-score">
               <span class="pub-court-sets">{{ setsA() }}</span>
               @if (current(); as c) {
-                @if (c.game) {
+                @if (c.game && !c.superTiebreak) {
                   <span class="pub-court-games">{{ c.a }}</span>
                 }
                 <span class="pub-court-points">{{ points(c, 'A') }}</span>
@@ -74,7 +74,7 @@ import type { CourtNowKind } from '../painel/telao/telao-selectors';
             <span class="pub-court-score">
               <span class="pub-court-sets">{{ setsB() }}</span>
               @if (current(); as c) {
-                @if (c.game) {
+                @if (c.game && !c.superTiebreak) {
                   <span class="pub-court-games">{{ c.b }}</span>
                 }
                 <span class="pub-court-points">{{ points(c, 'B') }}</span>

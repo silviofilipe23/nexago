@@ -120,6 +120,11 @@ describe('live-set-display', () => {
       expect(matchLiveCurrentSet(m)).toEqual({ setNumber: 1, a: 6, b: 6, game: { a: '4', b: '2' }, tiebreak: true });
     });
 
+    it('super tie-break em andamento: set 0-0, pontos no game e marcado como super tie-break', () => {
+      const m = games({ sets: [{ a: 6, b: 4 }, { a: 3, b: 6 }, { a: 0, b: 0 }], currentSetIndex: 2, currentGame: { a: 7, b: 5 } });
+      expect(matchLiveCurrentSet(m)).toEqual({ setNumber: 3, a: 0, b: 0, game: { a: '7', b: '5' }, tiebreak: true, superTiebreak: true });
+    });
+
     it('super tie-break fechado conta para o vencedor', () => {
       const m = games({ status: 'completed', sets: [{ a: 6, b: 4 }, { a: 3, b: 6 }, { a: 1, b: 0, tb: { a: 10, b: 8 } }], currentSetIndex: 2 });
       expect(matchSetWins(m)).toEqual([2, 1]);

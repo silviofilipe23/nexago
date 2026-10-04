@@ -284,6 +284,8 @@ describe('overlayViewOf · partida de games', () => {
     expect(tb.gameA).toBe('2');
     const stb = overlayViewOf(games({ sets: [{ a: 6, b: 4 }, { a: 3, b: 6 }, { a: 0, b: 0 }], currentSetIndex: 2, currentGame: { a: 7, b: 5 } }), NOW) as OverlayDuelView;
     expect(stb.statusLabel).toBe('Super tie-break');
+    expect(stb.setColumns.at(-1)).toEqual({ index: 2, label: 'SET 3', a: null, b: null, active: true });
+    expect(stb.gameA).toBe('7');
   });
 
   it('set único de games ainda mostra a coluna do set (os games)', () => {

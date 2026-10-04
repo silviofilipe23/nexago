@@ -1,4 +1,4 @@
-import { matchClosedSets, matchLiveCurrentSet, type LiveScoreFields } from '../data/live-set-display';
+import { matchClosedSets, matchLiveCurrentSet, type LiveScoreFields, type LiveSetScore } from '../data/live-set-display';
 import { matchWinnerSide, setWinnerSide, type ScoreSet } from '@nexago/live-scoring';
 import { effectiveScoringProfile, gamesFlag } from '@nexago/sports';
 import type { TournamentMatch } from '../data/matches-repository';
@@ -67,6 +67,19 @@ export function finalShowcaseOf(
 export function hasOtherLiveCourts(matches: readonly TournamentMatch[], courtIds: readonly string[], final: TournamentMatch): boolean {
   const courts = new Set(courtIds);
   return matches.some((m) => m.status === 'in_progress' && m.courtId !== final.courtId && courts.has(m.courtId));
+}
+
+const ORDINAL = ['1º', '2º', '3º', '4º', '5º'];
+
+/** Rótulo do set no modo final: "2º set"; em games, "2º set · 5-4" (o número grande é o ponto do
+ *  game), "1º set · Tie-break" e "Super tie-break" (o set fica 0-0 enquanto os pontos correm). */
+export function liveSetHeadlineOf(current: LiveSetScore | null, closedCount: number): string {
+  const n = current?.setNumber ?? closedCount;
+  const label = `${ORDINAL[Math.max(0, n - 1)] ?? `${n}º`} set`;
+  if (!current?.game) return label;
+  if (current.superTiebreak) return 'Super tie-break';
+  if (current.tiebreak) return `${label} · Tie-break`;
+  return `${label} · ${current.a}-${current.b}`;
 }
 
 export interface PointAlert {

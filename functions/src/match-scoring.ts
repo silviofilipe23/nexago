@@ -1,17 +1,25 @@
 /**
- * Regras de placar (espelho de `MatchScoringLogic` no app Flutter) usadas para
- * validar resultados no servidor de forma autoritativa.
+ * Regras de placar usadas para validar resultados no servidor de forma
+ * autoritativa. As regras moram no núcleo (`sports/scoring.ts`, por perfil);
+ * as funções daqui são invólucros com a regra histórica (21/15, vantagem 2),
+ * mantidas pelas assinaturas que o resto do backend já usa.
  */
+import {
+  isPointsSetWon,
+  legacyScoringProfile,
+  setPointsTarget,
+  setsWonBy,
+  setWinnerSide as coreSetWinnerSide,
+  type ScoreSet,
+} from "./sports/scoring";
+
 
 export const DEFAULT_SET_POINTS = 21;
 export const TIEBREAK_SET_POINTS = 15;
 export const MIN_ADVANTAGE = 2;
 export const DEFAULT_BEST_OF = 3;
 
-export interface ScoreSet {
-  a: number;
-  b: number;
-}
+export type {ScoreSet} from "./sports/scoring";
 
 /**
  * Formato configurado na categoria (`tournaments/{id}.categories[].bestOf`)
@@ -29,8 +37,7 @@ export function matchBestOfFromCategory(raw: unknown): number {
 }
 
 export function targetPointsForSet(setIndex: number, bestOf: number): number {
-  if (bestOf === 3 && setIndex === 2) return TIEBREAK_SET_POINTS;
-  return DEFAULT_SET_POINTS;
+  return setPointsTarget(legacyScoringProfile(bestOf), setIndex);
 }
 
 export function isSetWon(
@@ -38,9 +45,7 @@ export function isSetWon(
   scoreB: number,
   target: number = DEFAULT_SET_POINTS,
 ): boolean {
-  if (scoreA >= target && scoreA - scoreB >= MIN_ADVANTAGE) return true;
-  if (scoreB >= target && scoreB - scoreA >= MIN_ADVANTAGE) return true;
-  return false;
+  return isPointsSetWon(scoreA, scoreB, target, MIN_ADVANTAGE, null);
 }
 
 /** `'A'`, `'B'` ou `null` se o set ainda não foi vencido por ninguém. */
@@ -49,10 +54,7 @@ export function setWinnerSide(
   index: number,
   bestOf: number = DEFAULT_BEST_OF,
 ): "A" | "B" | null {
-  if (index < 0 || index >= sets.length) return null;
-  const s = sets[index];
-  if (!isSetWon(s.a, s.b, targetPointsForSet(index, bestOf))) return null;
-  return s.a > s.b ? "A" : "B";
+  return coreSetWinnerSide(sets, index, legacyScoringProfile(bestOf));
 }
 
 /** Quantos sets cada lado venceu DE FATO (respeitando target/vantagem). */
@@ -60,14 +62,7 @@ export function setsWon(
   sets: ScoreSet[],
   bestOf: number = DEFAULT_BEST_OF,
 ): {a: number; b: number} {
-  let a = 0;
-  let b = 0;
-  for (let i = 0; i < sets.length; i++) {
-    const side = setWinnerSide(sets, i, bestOf);
-    if (side === "A") a++;
-    else if (side === "B") b++;
-  }
-  return {a, b};
+  return setsWonBy(sets, legacyScoringProfile(bestOf));
 }
 
 export function isMatchWon(

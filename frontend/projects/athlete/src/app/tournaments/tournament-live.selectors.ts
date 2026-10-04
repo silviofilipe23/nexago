@@ -458,3 +458,13 @@ export function defaultCategoryViewOf(views: readonly CategoryViewId[]): Categor
 export function defaultTabOf(isRegistered: boolean): TournamentTabId {
   return isRegistered ? 'minha-inscricao' : 'visao-geral';
 }
+
+/** Placar do set em andamento na ótica de um lado, pro número grande da lista de jogos. No
+ *  super tie-break o set fica 0-0 e os pontos correm em `currentGame` — o número é o deles.
+ *  `null` sem set em andamento. */
+export function liveSideScoreOf(m: TournamentMatch, side: 'A' | 'B'): { mine: number; theirs: number } | null {
+  const live = matchLiveCurrentSet(m);
+  if (!live) return null;
+  const score = live.superTiebreak ? (m.currentGame ?? { a: 0, b: 0 }) : live;
+  return side === 'A' ? { mine: score.a, theirs: score.b } : { mine: score.b, theirs: score.a };
+}

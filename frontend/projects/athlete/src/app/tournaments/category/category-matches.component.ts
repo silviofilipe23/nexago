@@ -1,10 +1,10 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { buildBracketColumns, matchIsCanceled, matchIsCompleted, matchIsLive, matchLiveCurrentSet, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
+import { buildBracketColumns, matchIsCanceled, matchIsCompleted, matchIsLive, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
 import { knockoutRounds } from '../focus/focus-journey';
 import { matchNumberLabelOf, timeLabelOf } from '../tournament-format';
-import { byScheduleTime, displaySetsOf, groupLabelOf, isMyMatch, knockoutLabelOf, roundGroupsOf } from '../tournament-live.selectors';
+import { byScheduleTime, displaySetsOf, groupLabelOf, isMyMatch, knockoutLabelOf, liveSideScoreOf, roundGroupsOf } from '../tournament-live.selectors';
 import { TournamentLiveStore, type DuoPlayer } from '../tournament-live.store';
 import { parentCategoryId } from './category-route';
 
@@ -205,12 +205,10 @@ export class CategoryMatchesComponent {
       won = m.winnerId != null && m.winnerId === teamId;
       lost = m.winnerId != null && m.winnerId !== teamId;
     } else if (state === 'live') {
-      const live = matchLiveCurrentSet(m);
+      const live = liveSideScoreOf(m, side);
       if (live) {
-        const mine = side === 'A' ? live.a : live.b;
-        const theirs = side === 'A' ? live.b : live.a;
-        score = String(mine);
-        leading = mine > theirs;
+        score = String(live.mine);
+        leading = live.mine > live.theirs;
       } else {
         score = String(mySets);
       }

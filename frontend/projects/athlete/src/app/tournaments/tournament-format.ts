@@ -7,7 +7,7 @@ import {
   type MatchSet,
   type TournamentMatch,
 } from '../data/matches-repository';
-import { displaySetsOf } from './tournament-live.selectors';
+import { displaySetsOf, type DisplaySet } from './tournament-live.selectors';
 
 /** Formatação compartilhada pela aba Hoje, pela aba Partidas e pela tela de Partida. Tudo em
  *  America/Sao_Paulo, o fuso canônico dos eventos. */
@@ -103,6 +103,12 @@ export function liveScoreLineOf(m: TournamentMatch): string | null {
   if (current.game && current.superTiebreak) return `${a}–${b} · super tie-break ${current.game.a}-${current.game.b}`;
   const line = `${a}–${b} · ${current.setNumber}º set ${current.a}-${current.b}`;
   return current.game ? `${line} · ${current.game.a}-${current.game.b}` : line;
+}
+
+/** Legenda do set em andamento ("agora", "Em andamento"); em games, com o ponto do game:
+ *  "agora · 40-15". */
+export function inProgressCaptionOf(s: DisplaySet, base: string): string {
+  return s.game ? `${base} · ${s.game.a}-${s.game.b}` : base;
 }
 
 /** "MD3" / "MD5". */

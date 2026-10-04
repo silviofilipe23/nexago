@@ -82,7 +82,7 @@
                 @for (s of sets(); track s.index) {
                   <span class="md-set-chip" [class.md-set-chip--live]="s.inProgress">
                     <span class="md-set-chip-score">{{ s.a }}–{{ s.b }}</span>
-                    <span class="md-set-chip-label">{{ s.inProgress ? 'agora' : 'set ' + s.index }}</span>
+                    <span class="md-set-chip-label">{{ s.inProgress ? s.liveCaption : 'set ' + s.index }}</span>
                   </span>
                 }
               </div>

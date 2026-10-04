@@ -1,7 +1,7 @@
 import { matchClosedDisplaySets, matchFromDoc, type TournamentMatch } from '../data/matches-repository';
 import { mesaScoreLabel } from '../mesa/mesa-matches.selectors';
-import { closedPartialsLabelOf, liveScoreLineOf } from './tournament-format';
-import { displaySetsOf } from './tournament-live.selectors';
+import { closedPartialsLabelOf, inProgressCaptionOf, liveScoreLineOf } from './tournament-format';
+import { displaySetsOf, liveSideScoreOf } from './tournament-live.selectors';
 
 const BT = { kind: 'sets_games', bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: false, decidingSet: 'super_tiebreak', superTiebreakTo: 10 };
 
@@ -14,6 +14,25 @@ describe('exibição de partida de games (portal do atleta)', () => {
     const m = doc({ sets: [{ a: 6, b: 4 }, { a: 5, b: 4 }], currentSetIndex: 1, currentGame: { a: 3, b: 1 } });
     expect(liveScoreLineOf(m)).toBe('1–0 · 2º set 5-4 · 40-15');
     expect(mesaScoreLabel(m)).toBe('1×0 · 5-4 · 40-15');
+  });
+
+  it('tie-break em 6-6: pontos corridos na linha', () => {
+    const m = doc({ sets: [{ a: 6, b: 6 }], currentSetIndex: 0, currentGame: { a: 4, b: 2 } });
+    expect(liveScoreLineOf(m)).toBe('0–0 · 1º set 6-6 · 4-2');
+  });
+
+  it('legenda do set em andamento traz o ponto do game (detalhe da partida)', () => {
+    const m = doc({ sets: [{ a: 6, b: 4 }, { a: 5, b: 4 }], currentSetIndex: 1, currentGame: { a: 3, b: 1 } });
+    const live = displaySetsOf(m).at(-1)!;
+    expect(inProgressCaptionOf(live, 'agora')).toBe('agora · 40-15');
+    expect(inProgressCaptionOf({ index: 2, a: 14, b: 11, inProgress: true }, 'agora')).toBe('agora');
+  });
+
+  it('placar do lado na lista: super tie-break usa os pontos dele', () => {
+    const stb = doc({ sets: [{ a: 6, b: 4 }, { a: 3, b: 6 }, { a: 0, b: 0 }], currentSetIndex: 2, currentGame: { a: 7, b: 5 } });
+    expect(liveSideScoreOf(stb, 'A')).toEqual({ mine: 7, theirs: 5 });
+    const pts = doc({ scoringProfile: null, sets: [{ a: 21, b: 15 }, { a: 14, b: 11 }], currentSetIndex: 1 });
+    expect(liveSideScoreOf(pts, 'B')).toEqual({ mine: 11, theirs: 14 });
   });
 
   it('super tie-break em andamento: só os pontos dele', () => {

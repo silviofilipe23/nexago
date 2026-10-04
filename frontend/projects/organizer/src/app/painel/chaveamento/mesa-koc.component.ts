@@ -44,6 +44,16 @@ import { ConfirmPrompt, OgConfirmDialogComponent } from '../ui/confirm-dialog.co
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { ChaveamentoContextService } from './chaveamento-context.service';
+import {
+  KOC_CARD_RANKS,
+  KOC_CARD_SUITS,
+  KOC_SUIT_SYMBOL,
+  kocCardLabel,
+  kocOrderByCards,
+  type KocCard,
+  type KocCardRank,
+  type KocCardSuit,
+} from './koc-card-order';
 
 /** Opções de duração do protótipo (min). Servidor aceita 5–40. */
 const DURATION_OPTIONS_MIN = [10, 12, 15, 20] as const;
@@ -239,10 +249,60 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
             <header class="og-mk-section-head">
               <span class="og-mk-section-title">Ordem da fila</span>
               <span class="og-mk-section-hint">Use ↑↓ para reordenar</span>
-              <button type="button" class="og-ghost-btn og-mk-shuffle" [disabled]="busy()" (click)="shuffleOrder()">
+              <button
+                type="button"
+                class="og-ghost-btn og-mk-shuffle"
+                [disabled]="busy()"
+                [attr.aria-expanded]="cardsOpen()"
+                (click)="toggleCards()"
+              >
+                Sortear por cartas
+              </button>
+              <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="shuffleOrder()">
                 Sortear ordem
               </button>
             </header>
+            @if (cardsOpen()) {
+              <div class="og-mk-cards" role="group" aria-label="Cartas sorteadas">
+                <p class="og-mk-cards-hint">
+                  Cada dupla tira uma carta. A maior começa no trono, a segunda desafia e as demais entram na fila. Ás é a
+                  mais alta; empate de valor desempata pelo naipe (♦ &lt; ♠ &lt; ♥ &lt; ♣).
+                </p>
+                @for (teamId of draftOrder(); track teamId) {
+                  <div class="og-mk-card-row" [class.invalid]="cardProblems().has(teamId)">
+                    <span class="og-mk-order-name">{{ faceOf(teamId).name }}</span>
+                    <select
+                      class="og-mk-card-select"
+                      [attr.aria-label]="'Valor da carta de ' + faceOf(teamId).name"
+                      [disabled]="busy()"
+                      (change)="setCardRank(teamId, $any($event.target).value)"
+                    >
+                      <option value="" [selected]="!cardOf(teamId)">Valor</option>
+                      @for (r of cardRanks; track r) {
+                        <option [value]="r" [selected]="cardOf(teamId)?.rank === r">{{ r }}</option>
+                      }
+                    </select>
+                    <select
+                      class="og-mk-card-select"
+                      [attr.aria-label]="'Naipe da carta de ' + faceOf(teamId).name"
+                      [disabled]="busy()"
+                      (change)="setCardSuit(teamId, $any($event.target).value)"
+                    >
+                      <option value="" [selected]="!cardOf(teamId)">Naipe</option>
+                      @for (s of cardSuits; track s) {
+                        <option [value]="s" [selected]="cardOf(teamId)?.suit === s">{{ suitSymbol[s] }}</option>
+                      }
+                    </select>
+                  </div>
+                }
+                @if (cardsError(); as err) {
+                  <p class="og-mk-cards-error" role="alert">{{ err }}</p>
+                }
+                <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="applyCards()">
+                  Aplicar ordem das cartas
+                </button>
+              </div>
+            }
             <ul class="og-mk-order-list">
               @for (teamId of draftOrder(); track teamId; let i = $index) {
                 <li class="og-mk-order-row" [class.throne]="i === 0" [class.challenger]="i === 1">
@@ -889,6 +949,48 @@ const LOG_ACTION: Record<KocLogLine['kind'], string> = {
     }
     .og-mk-shuffle {
       margin-left: auto;
+    }
+    .og-mk-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 14px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+    }
+    .og-mk-cards-hint {
+      margin: 0 0 4px;
+      font-size: 12px;
+      color: var(--nx-text-dim);
+    }
+    .og-mk-card-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 84px 84px;
+      gap: 8px;
+      align-items: center;
+    }
+    .og-mk-card-row.invalid .og-mk-card-select {
+      border-color: var(--nx-orange-500);
+    }
+    .og-mk-card-select {
+      min-height: 36px;
+      padding: 0 8px;
+      border-radius: 8px;
+      background: var(--nx-surface-0);
+      border: 1px solid var(--nx-line);
+      color: inherit;
+      font: inherit;
+    }
+    .og-mk-cards-error {
+      margin: 0;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--nx-orange-500);
+    }
+    .og-mk-cards .og-ghost-btn {
+      align-self: flex-start;
     }
     .og-mk-sides {
       display: grid;
@@ -3209,6 +3311,16 @@ export class MesaKocComponent {
   protected readonly draftDurationMin = signal(15);
   protected readonly draftQualifiers = signal(2);
 
+  /** Sorteio por cartas: rascunho, só vira ordem no "Aplicar". Carta é parcial
+   *  (valor e naipe escolhidos em momentos diferentes) até estar completa. */
+  protected readonly cardsOpen = signal(false);
+  private readonly cardDraft = signal<Readonly<Record<string, { rank?: KocCardRank; suit?: KocCardSuit }>>>({});
+  protected readonly cardsError = signal<string | null>(null);
+  protected readonly cardProblems = signal<ReadonlySet<string>>(new Set());
+  protected readonly cardRanks = [...KOC_CARD_RANKS].reverse();
+  protected readonly cardSuits = KOC_CARD_SUITS;
+  protected readonly suitSymbol = KOC_SUIT_SYMBOL;
+
   protected readonly loaded = signal(false);
   protected readonly busy = signal(false);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
@@ -3628,6 +3740,54 @@ export class MesaKocComponent {
     next[index] = next[j]!;
     next[j] = tmp;
     this.draftOrder.set(next);
+  }
+
+  protected toggleCards(): void {
+    this.cardsOpen.update((open) => !open);
+    this.cardsError.set(null);
+    this.cardProblems.set(new Set());
+  }
+
+  /** Carta só existe quando valor E naipe estão escolhidos. */
+  protected cardOf(teamId: string): KocCard | undefined {
+    const draft = this.cardDraft()[teamId];
+    return draft?.rank && draft.suit ? { rank: draft.rank, suit: draft.suit } : undefined;
+  }
+
+  protected setCardRank(teamId: string, value: string): void {
+    const rank = KOC_CARD_RANKS.find((r) => r === value);
+    this.cardDraft.update((d) => ({ ...d, [teamId]: { ...d[teamId], rank } }));
+  }
+
+  protected setCardSuit(teamId: string, value: string): void {
+    const suit = KOC_CARD_SUITS.find((s) => s === value);
+    this.cardDraft.update((d) => ({ ...d, [teamId]: { ...d[teamId], suit } }));
+  }
+
+  /** Reordena o rascunho pela carta. Só altera `draftOrder`: o servidor recebe
+   *  a ordem no apito, junto com o resto da preparação. */
+  protected applyCards(): void {
+    const order = this.draftOrder();
+    const cards: Record<string, KocCard | undefined> = {};
+    for (const id of order) cards[id] = this.cardOf(id);
+    const result = kocOrderByCards(order, cards);
+    if (!result.ok) {
+      this.cardProblems.set(new Set(result.teamIds));
+      const names = result.teamIds.map((id) => this.faceOf(id).name).join(', ');
+      this.cardsError.set(
+        result.reason === 'missing' ?
+          `Falta escolher a carta de: ${names}.` :
+          `Carta repetida entre: ${names}. Cada dupla tira uma carta diferente.`,
+      );
+      return;
+    }
+    this.cardProblems.set(new Set());
+    this.cardsError.set(null);
+    this.draftOrder.set(result.order);
+    this.feedback.set({
+      ok: true,
+      message: `Ordem definida pelas cartas: ${result.order.map((id) => kocCardLabel(cards[id]!)).join(' › ')}.`,
+    });
   }
 
   protected shuffleOrder(): void {

@@ -169,5 +169,30 @@ describe('telao-final-mode', () => {
     it('fora do ao vivo não gera alerta', () => {
       expect(pointAlertOf(match({ status: 'completed', sets: [{ a: 21, b: 15 }] }))).toBeNull();
     });
+
+    describe('partida de games', () => {
+      const BT = { kind: 'sets_games', bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: false, decidingSet: 'super_tiebreak', superTiebreakTo: 10 } as const;
+      const games = (o: Partial<TournamentMatch>) => match({ scoringProfile: BT, servingTeamId: 'tA', ...o });
+
+      it('5-4 em 40-15: set point de quem está em 40', () => {
+        expect(pointAlertOf(games({ sets: [{ a: 5, b: 4 }], currentSetIndex: 0, currentGame: { a: 3, b: 1 } }))).toEqual({ side: 'A', kind: 'set' });
+      });
+
+      it('5-4 em 15-40: o ponto de B fecha só o game, sem alerta', () => {
+        expect(pointAlertOf(games({ sets: [{ a: 5, b: 4 }], currentSetIndex: 0, currentGame: { a: 1, b: 3 } }))).toBeNull();
+      });
+
+      it('6-6 com tie-break em 6-5: set point', () => {
+        expect(pointAlertOf(games({ sets: [{ a: 6, b: 6 }], currentSetIndex: 0, currentGame: { a: 6, b: 5 } }))).toEqual({ side: 'A', kind: 'set' });
+      });
+
+      it('1 set a 0 e 5-4 em 40-0: match point', () => {
+        expect(pointAlertOf(games({ sets: [{ a: 6, b: 3 }, { a: 5, b: 4 }], currentSetIndex: 1, currentGame: { a: 3, b: 0 } }))).toEqual({ side: 'A', kind: 'match' });
+      });
+
+      it('meio de set sem game decisivo: sem alerta', () => {
+        expect(pointAlertOf(games({ sets: [{ a: 3, b: 2 }], currentSetIndex: 0, currentGame: { a: 3, b: 0 } }))).toBeNull();
+      });
+    });
   });
 });

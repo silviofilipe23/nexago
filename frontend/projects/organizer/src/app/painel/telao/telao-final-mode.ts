@@ -1,5 +1,6 @@
 import { matchClosedSets, matchLiveCurrentSet, type LiveScoreFields } from '../data/live-set-display';
 import { matchWinnerSide, setWinnerSide, type ScoreSet } from '@nexago/live-scoring';
+import { effectiveScoringProfile, gamesFlag } from '@nexago/sports';
 import type { TournamentMatch } from '../data/matches-repository';
 import { finishedAtOf, type MatchFinishMemory } from './telao-finished';
 
@@ -73,7 +74,7 @@ export interface PointAlert {
   kind: 'match' | 'set';
 }
 
-type PointAlertFields = LiveScoreFields & Pick<TournamentMatch, 'bestOf'>;
+type PointAlertFields = LiveScoreFields & Pick<TournamentMatch, 'bestOf' | 'servingTeamId' | 'teamAId' | 'teamBId'>;
 
 /** Um ponto do fim: MATCH POINT (fecha a partida) ou SET POINT (fecha só o set). Simula o
  *  próximo ponto de cada lado com as regras reais (`match-scoring`) — 21 com vantagem de 2,
@@ -81,6 +82,27 @@ type PointAlertFields = LiveScoreFields & Pick<TournamentMatch, 'bestOf'>;
 export function pointAlertOf(m: PointAlertFields): PointAlert | null {
   const current = matchLiveCurrentSet(m);
   if (!current) return null;
+  const profile = effectiveScoringProfile(m.scoringProfile, m.bestOf);
+  if (profile.kind === 'sets_games') {
+    // Games: o próximo PONTO só fecha o set se fecha o game decisivo (ou o tie-break) — quem
+    // decide é o motor da mesa (`gamesFlag`), não um +1 nos games.
+    const state = {
+      sets: m.sets,
+      currentSetIndex: m.currentSetIndex ?? m.sets.length - 1,
+      currentGame: m.currentGame ?? { a: 0, b: 0 },
+      servingTeamId: m.servingTeamId,
+    };
+    const teams = { teamAId: m.teamAId, teamBId: m.teamBId };
+    const flagOf = (side: 'A' | 'B'): PointAlert | null => {
+      const flag = gamesFlag(state, profile, teams, side);
+      return flag ? { side, kind: flag } : null;
+    };
+    const ga = flagOf('A');
+    const gb = flagOf('B');
+    const game = state.currentGame;
+    if (ga && gb) return game.a === game.b ? null : game.a > game.b ? ga : gb;
+    return ga ?? gb;
+  }
   const closed: ScoreSet[] = matchClosedSets(m).map((s) => ({ a: s.a, b: s.b }));
   const setIndex = closed.length;
 

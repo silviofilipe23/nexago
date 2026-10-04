@@ -30,12 +30,14 @@ import {
   type GroupPreview,
 } from "./group-standings";
 import {assertCanManageTournament, assertCanScoreTournament} from "./tournament-acl";
+import {parseAndValidateSets} from "./match-scoring";
 import {
-  DEFAULT_BEST_OF,
-  matchWinnerId,
-  parseAndValidateSets,
-  setsWon,
-} from "./match-scoring";
+  legacyScoringProfile,
+  matchWinnerSide,
+  scoringProfileFromRaw,
+  scoringProfileOfMatch,
+  setsWonBy,
+} from "./sports/scoring";
 import {
   allCategoryFinalsComplete,
   isFinalMatchType,
@@ -791,6 +793,44 @@ export const declareMatchWalkover = onCall({
 });
 
 /**
+ * Campos do resultado (sem timestamps): perfil de placar efetivo da partida (o
+ * carimbado; sem carimbo, a regra histórica), com o `bestOf` do lançamento
+ * rápido sobrescrevendo quando vier 1 ou 3. Vencedor decidido pelo perfil;
+ * `tb` só é gravado em set de games. Lança `Error` com mensagem amigável.
+ */
+export function matchResultFields(params: {
+  match: Record<string, unknown>;
+  rawSets: unknown;
+  requestBestOf: unknown;
+}): {update: Record<string, unknown>; completed: boolean; winnerId: string | null} {
+  const stamped = scoringProfileOfMatch(params.match);
+  const override = Number(params.requestBestOf);
+  const requested = override === 1 || override === 3 ? override : null;
+  const profile = requested === null ? stamped :
+    scoringProfileFromRaw(params.match.scoringProfile) ? {...stamped, bestOf: requested} :
+      legacyScoringProfile(requested);
+  const sets = parseAndValidateSets(params.rawSets, profile);
+  const teamAId = (params.match.teamAId as string | undefined)?.trim() ?? "";
+  const teamBId = (params.match.teamBId as string | undefined)?.trim() ?? "";
+  // Mesma semântica de `matchWinnerId`: o id do lado vencedor, mesmo vazio.
+  const side = matchWinnerSide(sets, profile);
+  const winnerId = side === "A" ? teamAId : side === "B" ? teamBId : null;
+  const wins = setsWonBy(sets, profile);
+  const completed = winnerId !== null;
+  return {
+    update: {
+      sets: sets.map((s) => (s.tb ? {a: s.a, b: s.b, tb: {a: s.tb.a, b: s.tb.b}} : {a: s.a, b: s.b})),
+      bestOf: profile.bestOf,
+      status: completed ? MatchStatus.completed : MatchStatus.inProgress,
+      resultA: `${wins.a}`,
+      resultB: `${wins.b}`,
+    },
+    completed,
+    winnerId,
+  };
+}
+
+/**
  * Grava o resultado de uma partida validando o placar de forma AUTORITATIVA no
  * servidor (item #5): rejeita sets ilegais/empatados e calcula o vencedor pelas
  * regras (target por set + vantagem), em vez de confiar no que o cliente enviar.
@@ -811,38 +851,23 @@ export const submitMatchResult = onCall({
   await assertCanScoreTournament(db, uid, data.tournamentId as string);
   assertDuelMatch(data);
 
-  // Formato (nº de sets): request (lançamento rápido) → doc da partida → padrão.
-  const normalizeBestOf = (raw: unknown): number | null => {
-    const n = Number(raw);
-    return n === 1 || n === 3 ? n : null;
-  };
-  const bestOf =
-    normalizeBestOf(request.data?.bestOf) ??
-    normalizeBestOf(data.bestOf) ??
-    DEFAULT_BEST_OF;
-
-  let sets;
+  let result;
   try {
-    sets = parseAndValidateSets(request.data?.sets, bestOf);
+    result = matchResultFields({
+      match: data,
+      rawSets: request.data?.sets,
+      requestBestOf: request.data?.bestOf,
+    });
   } catch (e) {
     throw new HttpsError(
       "invalid-argument",
       e instanceof Error ? e.message : "Placar inválido.",
     );
   }
-
-  const teamAId = (data.teamAId as string | undefined)?.trim() ?? "";
-  const teamBId = (data.teamBId as string | undefined)?.trim() ?? "";
-  const winnerId = matchWinnerId(sets, teamAId, teamBId, bestOf);
-  const wins = setsWon(sets, bestOf);
-  const completed = winnerId !== null;
+  const {completed, winnerId} = result;
 
   const update: Record<string, unknown> = {
-    sets: sets.map((s) => ({a: s.a, b: s.b})),
-    bestOf,
-    status: completed ? MatchStatus.completed : MatchStatus.inProgress,
-    resultA: `${wins.a}`,
-    resultB: `${wins.b}`,
+    ...result.update,
     updatedAt: FieldValue.serverTimestamp(),
   };
   if (completed) {

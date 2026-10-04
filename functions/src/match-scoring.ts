@@ -4,13 +4,16 @@
  * as funções daqui são invólucros com a regra histórica (21/15, vantagem 2),
  * mantidas pelas assinaturas que o resto do backend já usa.
  */
+import {resolveSport} from "./sports/catalog";
 import {
   isPointsSetWon,
   legacyScoringProfile,
+  scoringProfileFromRaw,
   setPointsTarget,
   setsWonBy,
   setWinnerSide as coreSetWinnerSide,
   type ScoreSet,
+  type ScoringProfile,
 } from "./sports/scoring";
 
 
@@ -34,6 +37,22 @@ export type {ScoreSet} from "./sports/scoring";
  */
 export function matchBestOfFromCategory(raw: unknown): number {
   return raw === "singleSet" ? 1 : DEFAULT_BEST_OF;
+}
+
+/**
+ * Perfil que a geração da chave carimba na partida: o explícito da categoria
+ * (quando o wizard passar a gravá-lo) ou o padrão do esporte no catálogo com o
+ * `bestOf` da categoria; esporte sem perfil usa a regra histórica.
+ */
+export function categoryScoringProfile(
+  category: Record<string, unknown> | null | undefined,
+  tournamentSport: unknown,
+): ScoringProfile {
+  const explicit = scoringProfileFromRaw(category?.scoringProfile);
+  if (explicit) return explicit;
+  const bestOf = matchBestOfFromCategory(category?.bestOf);
+  const base = resolveSport(tournamentSport)?.scoringProfile ?? legacyScoringProfile(bestOf);
+  return {...base, bestOf};
 }
 
 export function targetPointsForSet(setIndex: number, bestOf: number): number {
@@ -94,8 +113,12 @@ export function matchWinnerId(
  */
 export function parseAndValidateSets(
   raw: unknown,
-  bestOf: number = DEFAULT_BEST_OF,
+  profileOrBestOf: ScoringProfile | number = DEFAULT_BEST_OF,
 ): ScoreSet[] {
+  const profile = typeof profileOrBestOf === "number" ?
+    legacyScoringProfile(profileOrBestOf) :
+    profileOrBestOf;
+  const bestOf = profile.bestOf;
   if (!Array.isArray(raw) || raw.length === 0) {
     throw new Error("Informe ao menos um set.");
   }
@@ -116,6 +139,21 @@ export function parseAndValidateSets(
     // Um set registrado não pode terminar empatado (inclui 0×0).
     if (a === b) {
       throw new Error("Um set não pode terminar empatado.");
+    }
+    // Tie-break só existe em set de games; em set de pontos é descartado.
+    const tbRaw = obj.tb;
+    if (profile.kind === "sets_games" && tbRaw && typeof tbRaw === "object") {
+      const tbObj = tbRaw as Record<string, unknown>;
+      const tbA = Number(tbObj.a);
+      const tbB = Number(tbObj.b);
+      if (!Number.isInteger(tbA) || !Number.isInteger(tbB)) {
+        throw new Error("Placar inválido.");
+      }
+      if (tbA < 0 || tbB < 0 || tbA > 99 || tbB > 99) {
+        throw new Error("Placar fora do intervalo.");
+      }
+      sets.push({a, b, tb: {a: tbA, b: tbB}});
+      continue;
     }
     sets.push({a, b});
   }

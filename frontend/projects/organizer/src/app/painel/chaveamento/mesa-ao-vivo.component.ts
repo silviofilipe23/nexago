@@ -33,6 +33,15 @@ import {
   type MatchDisplayStatus,
   type MatchSide,
 } from '@nexago/live-scoring';
+import {
+  effectiveScoringProfile,
+  gamesLiveHint,
+  gamesPointLabels,
+  isSuperTiebreakSet,
+  isTiebreakInProgress,
+  setsWonBy,
+  setTargetLabel,
+} from '@nexago/sports';
 import { isKingOfCourtMatchType, kocIsExpired, kocMatchPhaseLabel, kocRemainingLabel, normalizeMatchType } from '../data/koc';
 import { organizerFirestore } from '../data/firestore';
 import { organizerLiveScoringContext } from '../data/live-scoring-context';
@@ -89,6 +98,38 @@ interface MedicalOptionView {
  *  "ao vivo" pros atletas antes do primeiro ponto. O ponto que fecha a partida grava
  *  `Completed` + `winnerId` e o avanço de chave dispara sozinho no servidor. A tela é dirigida
  *  pelo doc em tempo real (`onSnapshot`), como no app — sem estado local de placar. */
+/** O que a mesa mostra numa partida de games (spec multiesporte, 2b2). Exportada para teste. */
+export interface MesaGamesView {
+  mainA: string;
+  mainB: string;
+  gamesA: number;
+  gamesB: number;
+  rulesLabel: string;
+  hint: string | null;
+  tiebreak: boolean;
+}
+
+/** Visão de games da partida, ou `null` numa partida de pontos (que segue a tela de sempre). */
+export function mesaGamesView(m: LiveMatch): MesaGamesView | null {
+  const profile = effectiveScoringProfile(m.scoringProfile, m.bestOf);
+  if (profile.kind !== 'sets_games') return null;
+  const idx = Math.min(Math.max(m.currentSetIndex, 0), profile.bestOf - 1);
+  const state = { sets: m.sets, currentSetIndex: m.currentSetIndex, currentGame: m.currentGame ?? { a: 0, b: 0 }, servingTeamId: m.servingTeamId };
+  const labels = gamesPointLabels(state, profile);
+  const set = m.sets[idx] ?? { a: 0, b: 0 };
+  const tiebreak = isTiebreakInProgress(state, profile);
+  const normalTiebreak = tiebreak && !isSuperTiebreakSet(profile, idx);
+  return {
+    mainA: labels.a,
+    mainB: labels.b,
+    gamesA: set.a,
+    gamesB: set.b,
+    rulesLabel: `${setTargetLabel(profile, idx)}${normalTiebreak ? ` · tie-break até ${profile.tiebreakTo}` : ''}`,
+    hint: gamesLiveHint(state, profile, { teamAId: m.teamAId, teamBId: m.teamBId }),
+    tiebreak,
+  };
+}
+
 @Component({
   selector: 'og-mesa-ao-vivo',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -217,7 +258,10 @@ interface MedicalOptionView {
                       <span class="og-mesa-serve" title="No saque">{{ serveBadge() }}</span>
                     }
                   </span>
-                  <span class="og-mesa-score">{{ currentSet().a }}</span>
+                  <span class="og-mesa-score">{{ gamesView()?.mainA ?? currentSet().a }}</span>
+                  @if (gamesView(); as g) {
+                    <span class="og-mesa-sets-lbl">{{ g.gamesA }} games</span>
+                  }
                   @if (canScore()) {
                     <span class="og-mesa-plus">+1 ponto</span>
                   }
@@ -250,7 +294,10 @@ interface MedicalOptionView {
                       <span class="og-mesa-serve" title="No saque">{{ serveBadge() }}</span>
                     }
                   </span>
-                  <span class="og-mesa-score">{{ currentSet().b }}</span>
+                  <span class="og-mesa-score">{{ gamesView()?.mainB ?? currentSet().b }}</span>
+                  @if (gamesView(); as g) {
+                    <span class="og-mesa-sets-lbl">{{ g.gamesB }} games</span>
+                  }
                   @if (canScore()) {
                     <span class="og-mesa-plus">+1 ponto</span>
                   }
@@ -1285,7 +1332,14 @@ export class MesaAoVivoComponent {
 
   protected readonly wins = computed(() => {
     const m = this.match();
-    return m ? setsWonOf(m.sets, m.bestOf) : { a: 0, b: 0 };
+    // Perfil efetivo: sem carimbo é a regra histórica, o mesmo de `setsWonOf`.
+    return m ? setsWonBy(m.sets, effectiveScoringProfile(m.scoringProfile, m.bestOf)) : { a: 0, b: 0 };
+  });
+
+  /** Partida de games: placar do game (0/15/30/40/AD ou tie-break), games, regras e dica. */
+  protected readonly gamesView = computed(() => {
+    const m = this.match();
+    return m ? mesaGamesView(m) : null;
   });
 
   protected readonly setStrip = computed<SetChipView[]>(() => {
@@ -1299,10 +1353,12 @@ export class MesaAoVivoComponent {
     });
   });
 
-  protected readonly rulesLabel = computed(() => setRulesLabel(this.currentSetIdx(), this.bestOf()));
+  protected readonly rulesLabel = computed(() => this.gamesView()?.rulesLabel ?? setRulesLabel(this.currentSetIdx(), this.bestOf()));
 
   protected readonly hint = computed(() => {
     if (this.status() !== 'in_progress') return null;
+    const games = this.gamesView();
+    if (games) return games.hint;
     const s = this.currentSet();
     return setPointHint(s.a, s.b, this.currentSetIdx(), this.bestOf());
   });
@@ -1702,6 +1758,12 @@ export class MesaAoVivoComponent {
   protected async setFormat(newBestOf: number): Promise<void> {
     const m = this.match();
     if (!m || this.saving() || m.status === 'completed' || newBestOf === m.bestOf) return;
+    // Troca de formato é regra de pontos (`applyBestOfChange`); em games só antes do 1º ponto.
+    const game = m.currentGame ?? { a: 0, b: 0 };
+    if (this.gamesView() && (m.sets.some((s) => s.a > 0 || s.b > 0) || game.a + game.b > 0)) {
+      this.feedback.set({ ok: false, message: 'Em partida de games o formato só muda antes do primeiro ponto.' });
+      return;
+    }
     if (newBestOf < m.bestOf && !canReduceBestOf(m.sets, newBestOf)) {
       this.feedback.set({ ok: false, message: `Não dá para mudar para ${newBestOf === 1 ? 'set único' : 'MD3'}: há sets já pontuados.` });
       return;

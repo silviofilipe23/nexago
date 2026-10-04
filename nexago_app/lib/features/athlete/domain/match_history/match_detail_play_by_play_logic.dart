@@ -1,7 +1,11 @@
 import 'package:intl/intl.dart';
 
 import 'package:nexago_app/core/time/nexago_event_timezone.dart';
+import 'package:nexago_app/core/sports/sport_catalog.dart'
+    show LiveGames, ScoreSetValue, ScoringRules, SetsGamesProfile;
 import '../../../tournaments/domain/tournament_match.dart';
+import '../../../tournaments/domain/tournament_match_display.dart'
+    show matchScoringProfile;
 import '../../../tournaments/domain/tournament_match_point_event.dart';
 import 'athlete_match_detail_models.dart';
 
@@ -17,14 +21,18 @@ List<MatchDetailPlayByPlayGroup> buildPlayByPlayTimeline({
 }) {
   final ourIsSideA = match.teamAId.trim() == perspectiveTeamId.trim();
   final pointsBySet = <int, List<_TimelinePoint>>{};
+  final profile = matchScoringProfile(match);
+  final games = profile is SetsGamesProfile ? profile : null;
 
   if (pointEvents.isNotEmpty) {
     _replayPointEventsToTimeline(
       pointEvents: pointEvents,
       pointsBySet: pointsBySet,
       ourIsSideA: ourIsSideA,
+      games: games,
+      match: match,
     );
-  } else {
+  } else if (games == null) {
     final pointActions = match.lastActions.where((a) => a.isPoint).toList()
       ..sort((a, b) => a.ts.compareTo(b.ts));
 
@@ -78,6 +86,7 @@ List<MatchDetailPlayByPlayGroup> buildPlayByPlayTimeline({
           setIndex: setIndex,
           ourIsSideA: ourIsSideA,
           pointsBySet: pointsBySet,
+          games: games,
         ),
         items: _toPlayByPlayItems(
           points: pointsBySet[setIndex] ?? const [],
@@ -115,6 +124,8 @@ void _replayPointEventsToTimeline({
   required List<TournamentMatchPointEvent> pointEvents,
   required Map<int, List<_TimelinePoint>> pointsBySet,
   required bool ourIsSideA,
+  SetsGamesProfile? games,
+  TournamentMatch? match,
 }) {
   final sorted = [...pointEvents]..sort((a, b) => a.seq.compareTo(b.seq));
   final ourSide = ourIsSideA ? 'A' : 'B';
@@ -124,6 +135,34 @@ void _replayPointEventsToTimeline({
       final ourScore = ourIsSideA ? event.scoreA : event.scoreB;
       final oppScore = ourIsSideA ? event.scoreB : event.scoreA;
       final isOurTeam = event.side?.trim().toUpperCase() == ourSide;
+      String? label;
+      if (games != null) {
+        // Games: o lance por extenso ("4-3 · 30-15"; game fechado "5-4";
+        // super tie-break "7-5"), na ótica da dupla de referência.
+        final ourGame = ourIsSideA ? event.gameA : event.gameB;
+        final oppGame = ourIsSideA ? event.gameB : event.gameA;
+        label = LiveGames.eventText(
+          games,
+          event.setIndex,
+          ScoreSetValue(ourScore, oppScore),
+          (a: ourGame, b: oppGame),
+        );
+        // O super tie-break fechado é gravado 1×0: o lance que fechou vira os
+        // pontos dele, do `tb` do doc.
+        final tb = match != null && event.setIndex < match.sets.length
+            ? match.sets[event.setIndex].tb
+            : null;
+        if (ourGame == 0 &&
+            oppGame == 0 &&
+            tb != null &&
+            ourScore + oppScore == 1 &&
+            ScoringRules.isSuperTiebreakSet(
+              ScoringRules.withBestOf(games, games.bestOf) as SetsGamesProfile,
+              event.setIndex,
+            )) {
+          label = ourIsSideA ? '${tb.a}-${tb.b}' : '${tb.b}-${tb.a}';
+        }
+      }
 
       pointsBySet.putIfAbsent(event.setIndex, () => []).add(
             _TimelinePoint(
@@ -131,6 +170,7 @@ void _replayPointEventsToTimeline({
               isOurTeam: isOurTeam,
               ourScore: ourScore,
               oppScore: oppScore,
+              label: label,
             ),
           );
     } else if (event.isUndoPoint) {
@@ -308,7 +348,7 @@ List<MatchDetailPlayByPlayItem> _toPlayByPlayItems({
           isParticipantView: isParticipantView,
         )}',
         setNumber: setNumber,
-        scoreLabel: '${point.ourScore}-${point.oppScore}',
+        scoreLabel: point.label ?? '${point.ourScore}-${point.oppScore}',
         teamLabel: _teamLabelForPoint(
           isOurPoint: point.isOurTeam,
           ourTeamLabel: ourTeamLabel,
@@ -325,11 +365,25 @@ String _finalScoreLabelForSet({
   required int setIndex,
   required bool ourIsSideA,
   required Map<int, List<_TimelinePoint>> pointsBySet,
+  SetsGamesProfile? games,
 }) {
   if (setIndex < match.sets.length) {
     final set = match.sets[setIndex];
     final our = ourIsSideA ? set.a : set.b;
     final opp = ourIsSideA ? set.b : set.a;
+    final tb = set.tb;
+    if (games != null && tb != null) {
+      // Games: tie-break por extenso e super tie-break pelos pontos dele.
+      return ScoringRules.setScoreText(
+        games,
+        setIndex,
+        ScoreSetValue(
+          our,
+          opp,
+          tb: ScoreSetValue(ourIsSideA ? tb.a : tb.b, ourIsSideA ? tb.b : tb.a),
+        ),
+      );
+    }
     if (our + opp > 0) return '$our-$opp';
   }
 
@@ -358,6 +412,7 @@ class _TimelinePoint {
     required this.ourScore,
     required this.oppScore,
     this.isEstimated = false,
+    this.label,
   });
 
   final DateTime ts;
@@ -365,6 +420,9 @@ class _TimelinePoint {
   final int ourScore;
   final int oppScore;
   final bool isEstimated;
+
+  /// Partida de games: o lance por extenso; `null` em pontos.
+  final String? label;
 }
 
 extension _FirstLast<T> on List<T> {

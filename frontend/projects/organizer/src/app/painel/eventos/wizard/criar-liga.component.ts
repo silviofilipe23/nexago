@@ -44,6 +44,7 @@ import {
   isTeamDispute,
   normalizeCategoryComposition,
   suggestCategoryName,
+  withSportScoring,
 } from '../../data/tournament-create.model';
 import { OgAddTileComponent } from '../../ui/add-tile.component';
 import { OgCardComponent } from '../../ui/card.component';
@@ -621,7 +622,8 @@ export class CriarLigaComponent {
 
   protected setSport(label: string): void {
     const sport = (Object.keys(SPORT_LABEL) as TournamentSport[]).find((s) => SPORT_LABEL[s] === label);
-    if (sport) this.patch({ sport });
+    // O placar das categorias acompanha o esporte (as etapas herdam o perfil da categoria).
+    if (sport) this.patch({ sport, categories: withSportScoring(this.draft().categories, sport) });
   }
 
   protected setCatGender(label: string): void {

@@ -771,9 +771,14 @@ export function patchCategoryScoring(
   return { ...category, scoringProfile: { ...next } as Record<string, unknown> };
 }
 
-/** Troca de esporte: categoria com perfil explícito ganha a sugestão do novo esporte (o perfil
- *  antigo seria de outro tipo); sem perfil continua sem. */
+/** Troca de esporte: categoria cujo perfil explícito é de OUTRO tipo (pontos × games) ganha a
+ *  sugestão do novo esporte; do mesmo tipo, o placar editado fica (clicar de novo no esporte ou
+ *  trocar praia ↔ quadra não apaga nada); sem perfil continua sem. */
 export function withSportScoring(categories: readonly TournamentCategoryDraft[], sport: TournamentSport): TournamentCategoryDraft[] {
-  return categories.map((c) => (c.scoringProfile ? { ...c, scoringProfile: suggestedScoringProfile(sport, c.bestOf) } : c));
+  return categories.map((c) => {
+    if (!c.scoringProfile) return c;
+    const suggested = suggestedScoringProfile(sport, c.bestOf);
+    return c.scoringProfile['kind'] === suggested['kind'] ? c : { ...c, scoringProfile: suggested };
+  });
 }
 

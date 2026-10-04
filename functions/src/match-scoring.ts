@@ -49,9 +49,10 @@ export function categoryScoringProfile(
   category: Record<string, unknown> | null | undefined,
   tournamentSport: unknown,
 ): ScoringProfile {
-  const explicit = scoringProfileFromRaw(category?.scoringProfile);
-  if (explicit) return explicit;
   const bestOf = matchBestOfFromCategory(category?.bestOf);
+  // O nº de sets vem da categoria (é o que os editores mostram), mesmo com perfil explícito.
+  const explicit = scoringProfileFromRaw(category?.scoringProfile);
+  if (explicit) return {...explicit, bestOf};
   // O fallback parte do histórico de MD3 (decisivo 15), não do `bestOf` da
   // categoria: assim todo carimbo tem o mesmo formato, e a mesa trocar o
   // formato no meio da partida não muda o alvo do set decisivo.

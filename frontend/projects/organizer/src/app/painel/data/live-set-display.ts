@@ -33,7 +33,7 @@ function setClosed(m: LiveScoreFields, index: number): boolean {
 
 /** Sets fechados — ao vivo, exclui o set em andamento que a mesa mantém dentro de `sets[]`;
  *  encerrada, todo set vale (dados históricos podem fugir da regra e continuam contando). */
-export function matchClosedSets(m: LiveScoreFields): Array<{ a: number; b: number }> {
+export function matchClosedSets(m: LiveScoreFields): TournamentMatch['sets'] {
   if (m.status !== 'in_progress') return m.sets;
   return m.sets.filter((_, i) => setClosed(m, i));
 }

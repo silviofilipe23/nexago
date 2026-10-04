@@ -264,6 +264,52 @@ describe('overlayViewOf', () => {
   });
 });
 
+describe('overlayViewOf · partida de games', () => {
+  const BT = { kind: 'sets_games', bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: false, decidingSet: 'super_tiebreak', superTiebreakTo: 10 } as const;
+  const games = (o: Partial<TournamentMatch>) => match({ status: 'in_progress', scoringProfile: BT, servingTeamId: 'ta', ...o });
+
+  it('número grande = ponto do game; coluna do set ao vivo = games', () => {
+    const view = overlayViewOf(games({ sets: [{ a: 6, b: 4 }, { a: 5, b: 4 }], currentSetIndex: 1, currentGame: { a: 3, b: 1 } }), NOW) as OverlayDuelView;
+    expect(view.gameA).toBe('40');
+    expect(view.gameB).toBe('15');
+    expect(view.setsA).toBe(1);
+    expect(view.statusLabel).toBe('Set 2 · até 6 games');
+    expect(view.setColumns.at(-1)).toEqual({ index: 1, label: 'SET 2', a: 5, b: 4, active: true });
+    expect(view.alert).toEqual({ side: 'A', kind: 'match' });
+  });
+
+  it('tie-break e super tie-break no rótulo', () => {
+    const tb = overlayViewOf(games({ sets: [{ a: 6, b: 6 }], currentSetIndex: 0, currentGame: { a: 2, b: 1 } }), NOW) as OverlayDuelView;
+    expect(tb.statusLabel).toBe('Tie-break');
+    expect(tb.gameA).toBe('2');
+    const stb = overlayViewOf(games({ sets: [{ a: 6, b: 4 }, { a: 3, b: 6 }, { a: 0, b: 0 }], currentSetIndex: 2, currentGame: { a: 7, b: 5 } }), NOW) as OverlayDuelView;
+    expect(stb.statusLabel).toBe('Super tie-break');
+  });
+
+  it('set único de games ainda mostra a coluna do set (os games)', () => {
+    const view = overlayViewOf(games({ bestOf: 1, sets: [{ a: 3, b: 2 }], currentSetIndex: 0, currentGame: { a: 0, b: 1 } }), NOW) as OverlayDuelView;
+    expect(view.showSets).toBeTrue();
+    expect(view.setColumns).toEqual([{ index: 0, label: 'SET 1', a: 3, b: 2, active: true }]);
+  });
+
+  it('super tie-break encerrado mostra os pontos dele na coluna', () => {
+    const view = overlayViewOf(games({ status: 'completed', winnerSide: 1, sets: [{ a: 6, b: 4 }, { a: 3, b: 6 }, { a: 1, b: 0, tb: { a: 10, b: 8 } }] }), NOW) as OverlayDuelView;
+    expect(view.setColumns.map((c) => [c.a, c.b])).toEqual([[6, 4], [3, 6], [10, 8]]);
+  });
+
+  it('partida de pontos no set decisivo de MD3: "Tie-break"', () => {
+    const view = overlayViewOf(match({ status: 'in_progress', sets: [{ a: 21, b: 15 }, { a: 18, b: 21 }, { a: 5, b: 3 }], currentSetIndex: 2 }), NOW) as OverlayDuelView;
+    expect(view.statusLabel).toBe('Tie-break');
+  });
+
+  it('partida de pontos: sem game e rótulo de sempre', () => {
+    const view = overlayViewOf(match({ status: 'in_progress', sets: [{ a: 21, b: 15 }, { a: 14, b: 11 }], currentSetIndex: 1 }), NOW) as OverlayDuelView;
+    expect(view.gameA).toBeNull();
+    expect(view.statusLabel).toBe('Set 2 · até 21');
+    expect(view.setColumns.at(-1)).toEqual({ index: 1, label: 'SET 2', a: null, b: null, active: true });
+  });
+});
+
 describe('overlayCornerOf', () => {
   it('cai no canto superior esquerdo quando a URL não pede canto', () => {
     expect(overlayCornerOf(null)).toBe('tl');

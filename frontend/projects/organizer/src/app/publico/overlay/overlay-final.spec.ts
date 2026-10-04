@@ -139,6 +139,25 @@ describe('finalResultOf — final de duelo', () => {
   });
 });
 
+describe('finalResultOf — final de games', () => {
+  it('super tie-break entra com os pontos dele, não o 1×0 gravado', () => {
+    const BT = { kind: 'sets_games', bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: true, decidingSet: 'super_tiebreak', superTiebreakTo: 10 } as const;
+    const result = finalResultOf(
+      match({ status: 'completed', winnerSide: 2, scoringProfile: BT, sets: [{ a: 6, b: 4 }, { a: 3, b: 6 }, { a: 0, b: 1, tb: { a: 8, b: 10 } }] }),
+    );
+    expect(result?.placar).toEqual({
+      tipo: 'sets',
+      vencidosCampeao: 2,
+      vencidosVice: 1,
+      sets: [
+        { campeao: 4, vice: 6 },
+        { campeao: 6, vice: 3 },
+        { campeao: 10, vice: 8 },
+      ],
+    });
+  });
+});
+
 describe('finalResultOf — final de KOTC', () => {
   const kocFinal = (koc: KocRoundState) =>
     match({ matchType: 'koc_final', teamAId: '', teamBId: '', koc });

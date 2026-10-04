@@ -148,8 +148,8 @@ type ServeKey = `${Side}${1 | 2}`;
                       ? v.setsA
                       : v.setsB
                     : side === 'A'
-                      ? (v.pointsA ?? '–')
-                      : (v.pointsB ?? '–')
+                      ? (v.gameA ?? v.pointsA ?? '–')
+                      : (v.gameB ?? v.pointsB ?? '–')
                 }}</span>
                 @if (v.phase !== 'final' && v.alert?.side === side && v.alert; as alert) {
                   <span
@@ -742,8 +742,7 @@ export class OverlayScoreboardComponent {
   }
 
   protected setStatusLabel(v: OverlayDuelView): string {
-    if (v.targetPoints <= 15 && v.currentSetNumber >= 3) return 'Tie-break';
-    return `Set ${v.currentSetNumber} · até ${v.targetPoints}`;
+    return v.statusLabel;
   }
 
   protected playerName(side: OverlaySide, slot: 1 | 2): string {
@@ -768,13 +767,14 @@ export class OverlayScoreboardComponent {
 
   protected setWon(v: OverlayDuelView, side: Side, colIndex: number): boolean {
     const col = v.setColumns.find((c) => c.index === colIndex);
-    if (!col || col.a == null || col.b == null) return false;
+    // Coluna do set ao vivo (games): quem lidera em games ainda não ganhou o set.
+    if (!col || col.a == null || col.b == null || (col.active && v.phase === 'live')) return false;
     return side === 'A' ? col.a > col.b : col.b > col.a;
   }
 
   protected setLost(v: OverlayDuelView, side: Side, colIndex: number): boolean {
     const col = v.setColumns.find((c) => c.index === colIndex);
-    if (!col || col.a == null || col.b == null) return false;
+    if (!col || col.a == null || col.b == null || (col.active && v.phase === 'live')) return false;
     return side === 'A' ? col.a < col.b : col.b < col.a;
   }
 

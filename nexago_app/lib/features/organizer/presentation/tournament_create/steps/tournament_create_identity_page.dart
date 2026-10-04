@@ -54,9 +54,7 @@ class _TournamentCreateIdentityPageState
       imageQuality: 85,
     );
     if (file == null) return;
-    ref
-        .read(tournamentCreateWizardProvider.notifier)
-        .setCoverImagePath(file.path);
+    ref.read(tournamentCreateWizardProvider.notifier).setCoverImagePath(file.path);
   }
 
   Future<void> _handleClose() => handleWizardClose(context, ref);
@@ -64,8 +62,8 @@ class _TournamentCreateIdentityPageState
   @override
   Widget build(BuildContext context) {
     final draft = ref.watch(tournamentCreateDraftProvider);
-    final canContinue = ref.watch(
-        tournamentCreateCanContinueProvider(TournamentCreateStep.identity));
+    final canContinue =
+        ref.watch(tournamentCreateCanContinueProvider(TournamentCreateStep.identity));
 
     return TournamentCreateWizardScaffold(
       step: TournamentCreateStep.identity,
@@ -110,9 +108,8 @@ class _TournamentCreateIdentityPageState
           OrganizerTextField(
             controller: _nameController,
             hintText: 'Open Goiânia Beach',
-            onChanged: (value) => ref
-                .read(tournamentCreateWizardProvider.notifier)
-                .setName(value),
+            onChanged: (value) =>
+                ref.read(tournamentCreateWizardProvider.notifier).setName(value),
           ),
           const SizedBox(height: 6),
           Text(

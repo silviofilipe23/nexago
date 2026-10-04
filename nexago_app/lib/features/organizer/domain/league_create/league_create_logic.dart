@@ -35,12 +35,14 @@ String leagueStepSubtitle(LeagueCreateStep step) => switch (step) {
         'Valem para todas as etapas. Cada etapa pode abrir ou fechar uma delas.',
       LeagueCreateStep.ranking =>
         'Como os pontos somam e quem chega à decisão.',
-      LeagueCreateStep.stages => 'Adicione as etapas agora ou ao longo do ano.',
+      LeagueCreateStep.stages =>
+        'Adicione as etapas agora ou ao longo do ano.',
       LeagueCreateStep.review =>
         'Publique para abrir o circuito. Etapas podem ser adicionadas depois.',
     };
 
-String countingStagesModeLabel(LeagueCountingStagesMode mode) => switch (mode) {
+String countingStagesModeLabel(LeagueCountingStagesMode mode) =>
+    switch (mode) {
       LeagueCountingStagesMode.best4Of6 => '4 melhores de 6 etapas',
       LeagueCountingStagesMode.best3Of5 => '3 melhores de 5 etapas',
       LeagueCountingStagesMode.allStages => 'Todas as etapas contam',
@@ -114,13 +116,15 @@ LeagueCreateStep? parseLeagueWizardStep(String? raw) {
 bool canContinueFromLeagueStep(LeagueCreateDraft draft, LeagueCreateStep step) {
   return switch (step) {
     LeagueCreateStep.identity => draft.name.trim().isNotEmpty,
-    LeagueCreateStep.season => draft.seasonStartAt != null &&
-        draft.seasonEndAt != null &&
-        !draft.seasonEndAt!.isBefore(draft.seasonStartAt!) &&
-        draft.plannedStagesCount >= 2,
+    LeagueCreateStep.season =>
+      draft.seasonStartAt != null &&
+          draft.seasonEndAt != null &&
+          !draft.seasonEndAt!.isBefore(draft.seasonStartAt!) &&
+          draft.plannedStagesCount >= 2,
     LeagueCreateStep.categories => draft.categories.isNotEmpty,
-    LeagueCreateStep.ranking => draft.grandFinalSpots > 0 &&
-        (!draft.wildcardEnabled || draft.wildcardSpots > 0),
+    LeagueCreateStep.ranking =>
+      draft.grandFinalSpots > 0 &&
+          (!draft.wildcardEnabled || draft.wildcardSpots > 0),
     LeagueCreateStep.stages => draft.stages.isNotEmpty,
     LeagueCreateStep.review => isValidLeagueForPublish(draft),
   };
@@ -189,8 +193,9 @@ String reviewLeagueRankingSummary(LeagueCreateDraft draft) {
 
 String reviewLeagueGrandFinalSummary(LeagueCreateDraft draft) {
   final spots = draft.grandFinalSpots;
-  final wild =
-      draft.wildcardEnabled ? ' + ${draft.wildcardSpots} wildcards' : '';
+  final wild = draft.wildcardEnabled
+      ? ' + ${draft.wildcardSpots} wildcards'
+      : '';
   return '$spots vagas por ranking$wild';
 }
 

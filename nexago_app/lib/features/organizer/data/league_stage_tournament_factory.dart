@@ -93,8 +93,7 @@ abstract final class LeagueStageTournamentFactory {
       sportRaw: draft.sportRaw,
       description: '',
       city: stage.city.trim().isEmpty ? draft.leagueCity : stage.city.trim(),
-      state:
-          stage.state.trim().isEmpty ? draft.leagueState : stage.state.trim(),
+      state: stage.state.trim().isEmpty ? draft.leagueState : stage.state.trim(),
       locationName: stage.locationName.trim(),
       locationAddress: draft.locationAddress,
       arenaId: draft.arenaId,
@@ -224,7 +223,8 @@ abstract final class LeagueStageTournamentFactory {
       'teamSize': disputeTeamSize(category.dispute),
       if (isTeamDispute(category.dispute)) ...{
         'genderMode': category.genderFree ? 'free' : 'composition',
-        'genderComposition': category.genderFree ||
+        'genderComposition':
+            category.genderFree ||
                 category.menCount == null ||
                 category.womenCount == null
             ? null
@@ -269,7 +269,8 @@ abstract final class LeagueStageTournamentFactory {
       'teamSize': disputeTeamSize(category.dispute),
       if (isTeamDispute(category.dispute)) ...{
         'genderMode': category.genderFree ? 'free' : 'composition',
-        'genderComposition': category.genderFree ||
+        'genderComposition':
+            category.genderFree ||
                 category.menCount == null ||
                 category.womenCount == null
             ? null
@@ -331,8 +332,9 @@ abstract final class LeagueStageTournamentFactory {
       'order': stage.order,
       'status': status,
       'isGrandFinal': stage.isGrandFinal,
-      'locationName':
-          stage.locationName.trim().isEmpty ? null : stage.locationName.trim(),
+      'locationName': stage.locationName.trim().isEmpty
+          ? null
+          : stage.locationName.trim(),
       'city': stage.city.trim().isEmpty ? null : stage.city.trim(),
       'state': stage.state.trim().isEmpty ? null : stage.state.trim(),
       'startAt':

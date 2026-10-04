@@ -4,20 +4,19 @@ import '../../../../core/formatting/app_currency_format.dart';
 import 'tournament_create_draft.dart';
 
 String sportLabel(TournamentSport sport) => switch (sport) {
-      TournamentSport.beachVolleyball => 'Vôlei de praia',
-      TournamentSport.indoorVolleyball => 'Vôlei de quadra',
-      TournamentSport.footvolley => 'Futevôlei',
-    };
+  TournamentSport.beachVolleyball => 'Vôlei de praia',
+  TournamentSport.indoorVolleyball => 'Vôlei de quadra',
+  TournamentSport.footvolley => 'Futevôlei',
+};
 
 String bracketSystemLabel(TournamentBracketSystem system) => switch (system) {
-      TournamentBracketSystem.groupsThenKnockout =>
-        'Fase de grupos + mata-mata',
-      TournamentBracketSystem.singleElimination => 'Mata-mata (chave simples)',
-      TournamentBracketSystem.roundRobin => 'Todos contra todos',
-      TournamentBracketSystem.groupsWithRepechage => 'Grupos + repescagem',
-      TournamentBracketSystem.doubleElimination => 'Dupla eliminatória',
-      TournamentBracketSystem.kingOfCourt => 'King of the Court',
-    };
+  TournamentBracketSystem.groupsThenKnockout => 'Fase de grupos + mata-mata',
+  TournamentBracketSystem.singleElimination => 'Mata-mata (chave simples)',
+  TournamentBracketSystem.roundRobin => 'Todos contra todos',
+  TournamentBracketSystem.groupsWithRepechage => 'Grupos + repescagem',
+  TournamentBracketSystem.doubleElimination => 'Dupla eliminatória',
+  TournamentBracketSystem.kingOfCourt => 'King of the Court',
+};
 
 String bracketSystemShortLabel(TournamentBracketSystem system) =>
     switch (system) {
@@ -31,21 +30,19 @@ String bracketSystemShortLabel(TournamentBracketSystem system) =>
 
 String bracketSystemDescription(
   TournamentBracketSystem system,
-) =>
-    switch (system) {
-      TournamentBracketSystem.groupsThenKnockout =>
-        'Grupos classificatórios e depois eliminatória. O mais comum em torneios de praia.',
-      TournamentBracketSystem.singleElimination =>
-        'Eliminação direta do início ao fim.',
-      TournamentBracketSystem.roundRobin =>
-        'Pontos corridos — todos se enfrentam.',
-      TournamentBracketSystem.groupsWithRepechage =>
-        'Quem perde cedo ganha uma segunda chance.',
-      TournamentBracketSystem.doubleElimination =>
-        'Dupla eliminatória — sem fase de grupos.',
-      TournamentBracketSystem.kingOfCourt =>
-        'Rodadas de 3 a 5 duplas na mesma quadra. Só quem está no trono pontua.',
-    };
+) => switch (system) {
+  TournamentBracketSystem.groupsThenKnockout =>
+    'Grupos classificatórios e depois eliminatória. O mais comum em torneios de praia.',
+  TournamentBracketSystem.singleElimination =>
+    'Eliminação direta do início ao fim.',
+  TournamentBracketSystem.roundRobin => 'Pontos corridos — todos se enfrentam.',
+  TournamentBracketSystem.groupsWithRepechage =>
+    'Quem perde cedo ganha uma segunda chance.',
+  TournamentBracketSystem.doubleElimination =>
+    'Dupla eliminatória — sem fase de grupos.',
+  TournamentBracketSystem.kingOfCourt =>
+    'Rodadas de 3 a 5 duplas na mesma quadra. Só quem está no trono pontua.',
+};
 
 /// Formatos com geração de chave e operação dia D implementados.
 const supportedBracketSystems = <TournamentBracketSystem>[
@@ -92,8 +89,9 @@ String? unsupportedBracketFormatHint(String raw) {
 String publishBlockReasonForUnsupportedBrackets(TournamentCreateDraft draft) {
   for (final category in draft.categories) {
     if (!isBracketSystemSupported(category.bracketSystem)) {
-      final label =
-          category.name.trim().isNotEmpty ? category.name.trim() : 'sem nome';
+      final label = category.name.trim().isNotEmpty
+          ? category.name.trim()
+          : 'sem nome';
       return 'A categoria "$label" usa '
           '${bracketSystemLabel(category.bracketSystem)}, '
           'ainda não suportado.';
@@ -103,22 +101,22 @@ String publishBlockReasonForUnsupportedBrackets(TournamentCreateDraft draft) {
 }
 
 String bestOfLabel(TournamentBestOf bestOf) => switch (bestOf) {
-      TournamentBestOf.singleSet => 'Set único',
-      TournamentBestOf.bestOf3 => 'MD3',
-      TournamentBestOf.bestOf5 => 'MD5',
-    };
+  TournamentBestOf.singleSet => 'Set único',
+  TournamentBestOf.bestOf3 => 'MD3',
+  TournamentBestOf.bestOf5 => 'MD5',
+};
 
 String paymentModeLabel(TournamentPaymentMode mode) => switch (mode) {
-      TournamentPaymentMode.appPixCard => 'Pelo app — Pix e cartão',
-      TournamentPaymentMode.directWithOrganizer => 'Direto com o organizador',
-    };
+  TournamentPaymentMode.appPixCard => 'Pelo app — Pix e cartão',
+  TournamentPaymentMode.directWithOrganizer => 'Direto com o organizador',
+};
 
 String paymentModeDescription(TournamentPaymentMode mode) => switch (mode) {
-      TournamentPaymentMode.appPixCard =>
-        'O atleta paga na inscrição. Repasse em D+2.',
-      TournamentPaymentMode.directWithOrganizer =>
-        'Você combina e recebe por fora. O app só reserva a vaga.',
-    };
+  TournamentPaymentMode.appPixCard =>
+    'O atleta paga na inscrição. Repasse em D+2.',
+  TournamentPaymentMode.directWithOrganizer =>
+    'Você combina e recebe por fora. O app só reserva a vaga.',
+};
 
 /// Dados PIX obrigatórios apenas no modo "pagar direto com o organizador".
 /// Exige chave e nome do recebedor; cidade é opcional (default no BR Code).
@@ -131,9 +129,9 @@ bool organizerPixComplete(TournamentCreateDraft draft) {
 }
 
 String visibilityLabel(TournamentVisibility visibility) => switch (visibility) {
-      TournamentVisibility.publicListing => 'Público',
-      TournamentVisibility.linkOnly => 'Por link',
-    };
+  TournamentVisibility.publicListing => 'Público',
+  TournamentVisibility.linkOnly => 'Por link',
+};
 
 String visibilityDescription(TournamentVisibility visibility) =>
     switch (visibility) {
@@ -144,16 +142,16 @@ String visibilityDescription(TournamentVisibility visibility) =>
     };
 
 String categoryGenderLabel(TournamentCategoryGender gender) => switch (gender) {
-      TournamentCategoryGender.male => 'Masculino',
-      TournamentCategoryGender.female => 'Feminino',
-      TournamentCategoryGender.mixed => 'Misto',
-    };
+  TournamentCategoryGender.male => 'Masculino',
+  TournamentCategoryGender.female => 'Feminino',
+  TournamentCategoryGender.mixed => 'Misto',
+};
 
 String categoryGenderShort(TournamentCategoryGender gender) => switch (gender) {
-      TournamentCategoryGender.male => 'Masc',
-      TournamentCategoryGender.female => 'Fem',
-      TournamentCategoryGender.mixed => 'Misto',
-    };
+  TournamentCategoryGender.male => 'Masc',
+  TournamentCategoryGender.female => 'Fem',
+  TournamentCategoryGender.mixed => 'Misto',
+};
 
 /// O wizard do app só CRIA categorias de dupla; trio/quarteto/quinteto nascem
 /// no portal do organizador e aqui são apenas preservadas/exibidas.
@@ -173,40 +171,39 @@ String categoryDisputeShort(TournamentCategoryDispute dispute) =>
     categoryDisputeLabel(dispute);
 
 String ageBandLabel(TournamentAgeBand band) => switch (band) {
-      TournamentAgeBand.open => 'Livre',
-      TournamentAgeBand.sub13 => 'Sub-13',
-      TournamentAgeBand.sub15 => 'Sub-15',
-      TournamentAgeBand.sub17 => 'Sub-17',
-      TournamentAgeBand.sub19 => 'Sub-19',
-      TournamentAgeBand.sub21 => 'Sub-21',
-      TournamentAgeBand.sub23 => 'Sub-23',
-      TournamentAgeBand.plus30 => '+30',
-      TournamentAgeBand.plus35 => '+35',
-      TournamentAgeBand.plus40 => '+40',
-      TournamentAgeBand.plus45 => '+45',
-      TournamentAgeBand.plus50 => '+50',
-      TournamentAgeBand.plus55 => '+55',
-      TournamentAgeBand.plus60 => '+60',
-    };
+  TournamentAgeBand.open => 'Livre',
+  TournamentAgeBand.sub13 => 'Sub-13',
+  TournamentAgeBand.sub15 => 'Sub-15',
+  TournamentAgeBand.sub17 => 'Sub-17',
+  TournamentAgeBand.sub19 => 'Sub-19',
+  TournamentAgeBand.sub21 => 'Sub-21',
+  TournamentAgeBand.sub23 => 'Sub-23',
+  TournamentAgeBand.plus30 => '+30',
+  TournamentAgeBand.plus35 => '+35',
+  TournamentAgeBand.plus40 => '+40',
+  TournamentAgeBand.plus45 => '+45',
+  TournamentAgeBand.plus50 => '+50',
+  TournamentAgeBand.plus55 => '+55',
+  TournamentAgeBand.plus60 => '+60',
+};
 
-String ageReferenceLabel(TournamentAgeReference reference) =>
-    switch (reference) {
-      TournamentAgeReference.tournamentStart => 'Idade no início do torneio',
-      TournamentAgeReference.yearEnd => 'Idade completada no ano (31/dez)',
-      TournamentAgeReference.registration => 'Idade na data da inscrição',
-    };
+String ageReferenceLabel(TournamentAgeReference reference) => switch (reference) {
+  TournamentAgeReference.tournamentStart => 'Idade no início do torneio',
+  TournamentAgeReference.yearEnd => 'Idade completada no ano (31/dez)',
+  TournamentAgeReference.registration => 'Idade na data da inscrição',
+};
 
 String skillLevelLabel(TournamentSkillLevel level) => switch (level) {
-      TournamentSkillLevel.beginner => 'Iniciante',
-      TournamentSkillLevel.intermediate => 'Intermediário',
-      TournamentSkillLevel.open => 'Open',
-      TournamentSkillLevel.iniciante1 => 'Iniciante 1',
-      TournamentSkillLevel.iniciante2 => 'Iniciante 2',
-      TournamentSkillLevel.intermediario1 => 'Intermediário 1',
-      TournamentSkillLevel.intermediario2 => 'Intermediário 2',
-      TournamentSkillLevel.avancado1 => 'Avançado 1',
-      TournamentSkillLevel.avancado2 => 'Avançado 2',
-    };
+  TournamentSkillLevel.beginner => 'Iniciante',
+  TournamentSkillLevel.intermediate => 'Intermediário',
+  TournamentSkillLevel.open => 'Open',
+  TournamentSkillLevel.iniciante1 => 'Iniciante 1',
+  TournamentSkillLevel.iniciante2 => 'Iniciante 2',
+  TournamentSkillLevel.intermediario1 => 'Intermediário 1',
+  TournamentSkillLevel.intermediario2 => 'Intermediário 2',
+  TournamentSkillLevel.avancado1 => 'Avançado 1',
+  TournamentSkillLevel.avancado2 => 'Avançado 2',
+};
 
 /// Escada única de 7 níveis (ordem crescente) para categorias novas de TODOS
 /// os esportes — também é a linha "ATÉ O NÍVEL" do editor (spec 2026-09-30).
@@ -302,16 +299,16 @@ TournamentSkillLevel? categoryLevelUpToCeiling(TournamentCategoryDraft draft) {
 
 /// Dica sob a linha "ATÉ O NÍVEL" — mesmo texto do portal (`upToLevelHint`).
 String categoryLevelUpToHint(TournamentSkillLevel ceiling) => switch (ceiling) {
-      TournamentSkillLevel.iniciante1 =>
-        'Só atletas Iniciante 1. Quem está acima não se inscreve.',
-      TournamentSkillLevel.open =>
-        'Libera todos os níveis (mesma regra do Livre).',
-      TournamentSkillLevel.iniciante2 =>
-        'Libera de Iniciante 1 até Iniciante 2. Quem está acima não se inscreve. '
-            'Mesma regra do preset Iniciante.',
-      _ => 'Libera de Iniciante 1 até ${skillLevelLabel(ceiling)}. '
-          'Quem está acima não se inscreve.',
-    };
+  TournamentSkillLevel.iniciante1 =>
+    'Só atletas Iniciante 1. Quem está acima não se inscreve.',
+  TournamentSkillLevel.open => 'Libera todos os níveis (mesma regra do Livre).',
+  TournamentSkillLevel.iniciante2 =>
+    'Libera de Iniciante 1 até Iniciante 2. Quem está acima não se inscreve. '
+        'Mesma regra do preset Iniciante.',
+  _ =>
+    'Libera de Iniciante 1 até ${skillLevelLabel(ceiling)}. '
+        'Quem está acima não se inscreve.',
+};
 
 /// Categoria nova (id novo, nenhum campo preenchido ainda) — nasce SEMPRE no
 /// preset "Livre" (Iniciante 1–Open), nunca em faixa legada (`minLevel: ''`).
@@ -330,8 +327,7 @@ String spotsUnitLabel(TournamentCategoryDispute dispute, int spots) {
     TournamentCategoryDispute.trio ||
     TournamentCategoryDispute.quarteto ||
     TournamentCategoryDispute.quinteto ||
-    TournamentCategoryDispute.team =>
-      spots == 1 ? 'equipe' : 'equipes',
+    TournamentCategoryDispute.team => spots == 1 ? 'equipe' : 'equipes',
   };
   return '$spots $unit';
 }
@@ -430,28 +426,30 @@ String tournamentWizardDiscardSubtitle(int categoryCount) {
 }
 
 String stepTitle(TournamentCreateStep step) => switch (step) {
-      TournamentCreateStep.identity => 'Identidade do torneio',
-      TournamentCreateStep.location => 'Local e datas',
-      TournamentCreateStep.categories => 'Categorias',
-      TournamentCreateStep.registration => 'Inscrições',
-      TournamentCreateStep.prizes => 'Premiação',
-      TournamentCreateStep.rules => 'Regulamento & ranking',
-      TournamentCreateStep.review => 'Tudo pronto?',
-    };
+  TournamentCreateStep.identity => 'Identidade do torneio',
+  TournamentCreateStep.location => 'Local e datas',
+  TournamentCreateStep.categories => 'Categorias',
+  TournamentCreateStep.registration => 'Inscrições',
+  TournamentCreateStep.prizes => 'Premiação',
+  TournamentCreateStep.rules => 'Regulamento & ranking',
+  TournamentCreateStep.review => 'Tudo pronto?',
+};
 
 String stepSubtitle(TournamentCreateStep step) => switch (step) {
-      TournamentCreateStep.identity =>
-        'O básico que aparece para os atletas na busca.',
-      TournamentCreateStep.location => 'Onde e quando o torneio acontece.',
-      TournamentCreateStep.categories =>
-        'Cada categoria roda sua própria chave, formato, vagas e preço.',
-      TournamentCreateStep.registration =>
-        'Janela de inscrição e como você recebe.',
-      TournamentCreateStep.prizes => 'Quanto e como cada categoria premia.',
-      TournamentCreateStep.rules => 'Regras oficiais e quanto vale no ranking.',
-      TournamentCreateStep.review =>
-        'Revise antes de publicar. Dá pra editar qualquer parte depois.',
-    };
+  TournamentCreateStep.identity =>
+    'O básico que aparece para os atletas na busca.',
+  TournamentCreateStep.location => 'Onde e quando o torneio acontece.',
+  TournamentCreateStep.categories =>
+    'Cada categoria roda sua própria chave, formato, vagas e preço.',
+  TournamentCreateStep.registration =>
+    'Janela de inscrição e como você recebe.',
+  TournamentCreateStep.prizes =>
+    'Quanto e como cada categoria premia.',
+  TournamentCreateStep.rules =>
+    'Regras oficiais e quanto vale no ranking.',
+  TournamentCreateStep.review =>
+    'Revise antes de publicar. Dá pra editar qualquer parte depois.',
+};
 
 String formatShortDate(DateTime? date) {
   if (date == null) return '—';
@@ -470,7 +468,8 @@ String formatShortDateTime(DateTime? date) {
 String formatDateRange(DateTime? start, DateTime? end) {
   if (start == null) return 'Data a confirmar';
   if (end == null) return formatShortDate(start);
-  final sameDay = start.year == end.year &&
+  final sameDay =
+      start.year == end.year &&
       start.month == end.month &&
       start.day == end.day;
   if (sameDay) return formatShortDate(start);
@@ -494,8 +493,9 @@ String formatFirstMatchLabel(DateTime? dateTime) {
   if (dateTime == null) return 'Horário a definir';
   final day = DateFormat('EEEE', 'pt_BR').format(dateTime);
   final time = DateFormat('HH:mm').format(dateTime);
-  final capitalized =
-      day.isEmpty ? day : '${day[0].toUpperCase()}${day.substring(1)}';
+  final capitalized = day.isEmpty
+      ? day
+      : '${day[0].toUpperCase()}${day.substring(1)}';
   return '$capitalized · $time';
 }
 
@@ -505,20 +505,23 @@ bool canContinueFromStep(
 ) {
   return switch (step) {
     TournamentCreateStep.identity => draft.name.trim().isNotEmpty,
-    TournamentCreateStep.location => draft.locationName.trim().isNotEmpty &&
-        draft.city.trim().isNotEmpty &&
-        draft.startAt != null &&
-        draft.endAt != null &&
-        !draft.endAt!.isBefore(draft.startAt!) &&
-        draft.courtsCount > 0,
+    TournamentCreateStep.location =>
+      draft.locationName.trim().isNotEmpty &&
+          draft.city.trim().isNotEmpty &&
+          draft.startAt != null &&
+          draft.endAt != null &&
+          !draft.endAt!.isBefore(draft.startAt!) &&
+          draft.courtsCount > 0,
     TournamentCreateStep.categories => draft.categories.isNotEmpty,
-    TournamentCreateStep.registration => draft.registrationOpensAt != null &&
-        draft.registrationClosesAt != null &&
-        registrationWindowError(draft) == null &&
-        organizerPixComplete(draft),
+    TournamentCreateStep.registration =>
+      draft.registrationOpensAt != null &&
+          draft.registrationClosesAt != null &&
+          registrationWindowError(draft) == null &&
+          organizerPixComplete(draft),
     // Com premiação em dinheiro, toda categoria precisa ter valores definidos.
-    TournamentCreateStep.prizes => !draft.cashPrizesEnabled ||
-        draft.categories.every((c) => c.prizes.isNotEmpty),
+    TournamentCreateStep.prizes =>
+      !draft.cashPrizesEnabled ||
+          draft.categories.every((c) => c.prizes.isNotEmpty),
     TournamentCreateStep.rules => true,
     TournamentCreateStep.review => isValidForPublish(draft),
   };
@@ -718,23 +721,18 @@ TournamentBracketSystem? bracketSystemFromRaw(String raw) {
     'groups_knockout' ||
     'groups_then_knockout' ||
     'pool play + se' ||
-    'pool play+se' =>
-      TournamentBracketSystem.groupsThenKnockout,
+    'pool play+se' => TournamentBracketSystem.groupsThenKnockout,
     'single_elimination' ||
-    'single elimination' =>
-      TournamentBracketSystem.singleElimination,
+    'single elimination' => TournamentBracketSystem.singleElimination,
     'round_robin' || 'round robin' => TournamentBracketSystem.roundRobin,
     'groups_repechage' ||
     'groups_with_repechage' ||
-    'groups with repechage' =>
-      TournamentBracketSystem.groupsWithRepechage,
+    'groups with repechage' => TournamentBracketSystem.groupsWithRepechage,
     'double_elimination' ||
-    'double elimination' =>
-      TournamentBracketSystem.doubleElimination,
+    'double elimination' => TournamentBracketSystem.doubleElimination,
     'king_of_court' ||
     'king of court' ||
-    'kotc' =>
-      TournamentBracketSystem.kingOfCourt,
+    'kotc' => TournamentBracketSystem.kingOfCourt,
     _
         when n.contains('pool') &&
             (n.contains('se') || n.contains('mata') || n.contains('elim')) =>
@@ -777,18 +775,23 @@ String reviewSportSummary(TournamentCreateDraft draft) =>
 
 String reviewCategoriesDetailSummary(TournamentCreateDraft draft) {
   if (draft.categories.isEmpty) return 'Nenhuma categoria';
-  return draft.categories.map((c) {
-    final name = c.name.trim().isEmpty ? suggestCategoryName(c) : c.name.trim();
-    return '$name · ${categoryFormatSummary(c)}';
-  }).join('\n');
+  return draft.categories
+      .map((c) {
+        final name = c.name.trim().isEmpty
+            ? suggestCategoryName(c)
+            : c.name.trim();
+        return '$name · ${categoryFormatSummary(c)}';
+      })
+      .join('\n');
 }
 
 String reviewLocationSummary(TournamentCreateDraft draft) {
   final location = draft.locationName.trim();
   final city = draft.city.trim();
   final dates = formatLongDateRange(draft.startAt, draft.endAt);
-  final courts =
-      draft.courtsCount == 1 ? '1 quadra' : '${draft.courtsCount} quadras';
+  final courts = draft.courtsCount == 1
+      ? '1 quadra'
+      : '${draft.courtsCount} quadras';
   return '$location, $city · $dates · $courts';
 }
 
@@ -804,8 +807,9 @@ String reviewRegistrationSummary(TournamentCreateDraft draft) {
   final payment = draft.paymentMode == TournamentPaymentMode.appPixCard
       ? 'Pix e cartão pelo app'
       : 'pagamento direto';
-  final waitlist =
-      draft.waitlistEnabled ? 'lista de espera ativa' : 'sem lista de espera';
+  final waitlist = draft.waitlistEnabled
+      ? 'lista de espera ativa'
+      : 'sem lista de espera';
   return '$period · $payment · $waitlist';
 }
 
@@ -834,9 +838,9 @@ String reviewRankingSummary(TournamentCreateDraft draft) {
 }
 
 String rankingTableLabel(String id) => switch (id) {
-      'nexago_standalone' => 'Padrão nexaGO · Etapa avulsa',
-      _ => id,
-    };
+  'nexago_standalone' => 'Padrão nexaGO · Etapa avulsa',
+  _ => id,
+};
 
 const defaultRankingPointsPreview = <String, int>{
   '1º': 450,

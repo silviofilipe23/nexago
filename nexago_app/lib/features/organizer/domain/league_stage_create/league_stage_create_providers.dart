@@ -264,8 +264,8 @@ class LeagueStageCreateWizardNotifier
       _updateDraft(state.draft.copyWith(registrationClosesAt: value));
 }
 
-final leagueStageCreateWizardProvider = NotifierProvider<
-    LeagueStageCreateWizardNotifier, LeagueStageCreateWizardState>(
+final leagueStageCreateWizardProvider =
+    NotifierProvider<LeagueStageCreateWizardNotifier, LeagueStageCreateWizardState>(
   LeagueStageCreateWizardNotifier.new,
 );
 
@@ -273,13 +273,12 @@ final leagueStageCreateDraftProvider = Provider<LeagueStageCreateDraft>((ref) {
   return ref.watch(leagueStageCreateWizardProvider).draft;
 });
 
-final leagueStageCreateCurrentStepProvider =
-    Provider<LeagueStageCreateStep>((ref) {
+final leagueStageCreateCurrentStepProvider = Provider<LeagueStageCreateStep>((ref) {
   return ref.watch(leagueStageCreateWizardProvider).currentStep;
 });
 
-final leagueStageCreateCanContinueProvider =
-    Provider.autoDispose.family<bool, LeagueStageCreateStep>((ref, step) {
+final leagueStageCreateCanContinueProvider = Provider.autoDispose
+    .family<bool, LeagueStageCreateStep>((ref, step) {
   final draft = ref.watch(leagueStageCreateDraftProvider);
   return canContinueFromStageStep(draft, step);
 });

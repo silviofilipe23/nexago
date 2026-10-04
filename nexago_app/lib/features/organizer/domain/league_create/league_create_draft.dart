@@ -172,8 +172,9 @@ class LeagueCreateDraft {
       sportRaw: clearSportRaw ? null : (sportRaw ?? this.sportRaw),
       name: name ?? this.name,
       organizationName: organizationName ?? this.organizationName,
-      coverImagePath:
-          clearCoverImagePath ? null : (coverImagePath ?? this.coverImagePath),
+      coverImagePath: clearCoverImagePath
+          ? null
+          : (coverImagePath ?? this.coverImagePath),
       description: description ?? this.description,
       city: city ?? this.city,
       state: state ?? this.state,

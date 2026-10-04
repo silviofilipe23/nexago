@@ -12,9 +12,7 @@ void main() {
   });
 
   group('LeagueCreateMapper', () {
-    test(
-        'fromFirestore preserva sport desconhecido e toFirestore devolve igual',
-        () {
+    test('fromFirestore preserva sport desconhecido e toFirestore devolve igual', () {
       final load = LeagueCreateMapper.fromFirestore(
         {'name': 'Liga BT', 'sport': 'beachTennis'},
         'liga-bt',
@@ -43,7 +41,9 @@ void main() {
         categories: const [
           TournamentCategoryDraft(id: 'c1', name: 'Open', spots: 16),
         ],
-        stages: const [LeagueStageDraft(id: 's1', order: 1, name: 'Etapa 1')],
+        stages: const [
+          LeagueStageDraft(id: 's1', order: 1, name: 'Etapa 1'),
+        ],
       );
       final map = LeagueStageTournamentFactory.build(
         league: league,
@@ -211,9 +211,7 @@ void main() {
       );
     });
 
-    test(
-        'categoria com minLevel sobrevive a um re-save do app (fromFirestore → toFirestore)',
-        () {
+    test('categoria com minLevel sobrevive a um re-save do app (fromFirestore → toFirestore)', () {
       final loaded = LeagueCreateMapper.fromFirestore({
         'name': 'Circuito Elite',
         'seasonStartAt': Timestamp.fromDate(DateTime(2026, 2, 1)),
@@ -236,8 +234,7 @@ void main() {
         managerId: 'm',
         publish: true,
       );
-      final category =
-          (data['categories'] as List).single as Map<String, dynamic>;
+      final category = (data['categories'] as List).single as Map<String, dynamic>;
       expect(category['minLevel'], 'Avançado 1');
     });
 

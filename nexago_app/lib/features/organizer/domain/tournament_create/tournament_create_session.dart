@@ -36,13 +36,13 @@ class TournamentCreateSession {
   }
 
   Map<String, dynamic> toJson() => {
-        'version': 2,
-        'managerUid': managerUid,
-        'updatedAt': updatedAt.toIso8601String(),
-        'currentStep': currentStep.name,
-        'isEditingPublished': isEditingPublished,
-        'draft': _draftToJson(draft),
-      };
+    'version': 2,
+    'managerUid': managerUid,
+    'updatedAt': updatedAt.toIso8601String(),
+    'currentStep': currentStep.name,
+    'isEditingPublished': isEditingPublished,
+    'draft': _draftToJson(draft),
+  };
 
   static TournamentCreateSession? fromJson(Map<String, dynamic> json) {
     try {
@@ -53,8 +53,9 @@ class TournamentCreateSession {
       if (managerUid.isEmpty) return null;
 
       final updatedAtRaw = json['updatedAt'] as String?;
-      final updatedAt =
-          updatedAtRaw != null ? DateTime.tryParse(updatedAtRaw) : null;
+      final updatedAt = updatedAtRaw != null
+          ? DateTime.tryParse(updatedAtRaw)
+          : null;
       if (updatedAt == null) return null;
 
       final currentStep = _parseStep(json['currentStep'] as String?);
@@ -79,40 +80,40 @@ class TournamentCreateSession {
 }
 
 Map<String, dynamic> _draftToJson(TournamentCreateDraft draft) => {
-      'tournamentId': draft.tournamentId,
-      'sport': draft.sport.name,
-      'sportRaw': draft.sportRaw,
-      'name': draft.name,
-      'coverImagePath': draft.coverImagePath,
-      'coverImageUrl': draft.coverImageUrl,
-      'description': draft.description,
-      'arenaId': draft.arenaId,
-      'locationName': draft.locationName,
-      'locationAddress': draft.locationAddress,
-      'city': draft.city,
-      'state': draft.state,
-      'startAt': draft.startAt?.toIso8601String(),
-      'endAt': draft.endAt?.toIso8601String(),
-      'firstMatchAt': draft.firstMatchAt?.toIso8601String(),
-      'courtsCount': draft.courtsCount,
-      'categories': draft.categories.map(_categoryToJson).toList(),
-      'defaultPriceCents': draft.defaultPriceCents,
-      'registrationOpensAt': draft.registrationOpensAt?.toIso8601String(),
-      'registrationClosesAt': draft.registrationClosesAt?.toIso8601String(),
-      'paymentMode': draft.paymentMode.name,
-      'waitlistEnabled': draft.waitlistEnabled,
-      'inviteConfirmEnabled': draft.inviteConfirmEnabled,
-      'requireFormedPair': draft.requireFormedPair,
-      'cashPrizesEnabled': draft.cashPrizesEnabled,
-      'regulationPdfPath': draft.regulationPdfPath,
-      'regulationNotes': draft.regulationNotes,
-      'uniformRequired': draft.uniformRequired,
-      'uniformNumberOnShirt': draft.uniformNumberOnShirt,
-      'uniformNameOnShirt': draft.uniformNameOnShirt,
-      'rankingEnabled': draft.rankingEnabled,
-      'rankingTableId': draft.rankingTableId,
-      'visibility': draft.visibility.name,
-    };
+  'tournamentId': draft.tournamentId,
+  'sport': draft.sport.name,
+  'sportRaw': draft.sportRaw,
+  'name': draft.name,
+  'coverImagePath': draft.coverImagePath,
+  'coverImageUrl': draft.coverImageUrl,
+  'description': draft.description,
+  'arenaId': draft.arenaId,
+  'locationName': draft.locationName,
+  'locationAddress': draft.locationAddress,
+  'city': draft.city,
+  'state': draft.state,
+  'startAt': draft.startAt?.toIso8601String(),
+  'endAt': draft.endAt?.toIso8601String(),
+  'firstMatchAt': draft.firstMatchAt?.toIso8601String(),
+  'courtsCount': draft.courtsCount,
+  'categories': draft.categories.map(_categoryToJson).toList(),
+  'defaultPriceCents': draft.defaultPriceCents,
+  'registrationOpensAt': draft.registrationOpensAt?.toIso8601String(),
+  'registrationClosesAt': draft.registrationClosesAt?.toIso8601String(),
+  'paymentMode': draft.paymentMode.name,
+  'waitlistEnabled': draft.waitlistEnabled,
+  'inviteConfirmEnabled': draft.inviteConfirmEnabled,
+  'requireFormedPair': draft.requireFormedPair,
+  'cashPrizesEnabled': draft.cashPrizesEnabled,
+  'regulationPdfPath': draft.regulationPdfPath,
+  'regulationNotes': draft.regulationNotes,
+  'uniformRequired': draft.uniformRequired,
+  'uniformNumberOnShirt': draft.uniformNumberOnShirt,
+  'uniformNameOnShirt': draft.uniformNameOnShirt,
+  'rankingEnabled': draft.rankingEnabled,
+  'rankingTableId': draft.rankingTableId,
+  'visibility': draft.visibility.name,
+};
 
 TournamentCreateDraft? _draftFromJson(
   Map<String, dynamic> json, {
@@ -126,10 +127,12 @@ TournamentCreateDraft? _draftFromJson(
             TournamentBracketSystem.groupsThenKnockout,
           )
         : TournamentBracketSystem.groupsThenKnockout;
-    final legacyTeamsPerGroup =
-        version == 1 ? json['teamsPerGroup'] as int? ?? 4 : 4;
-    final legacyQualifiersPerGroup =
-        version == 1 ? json['qualifiersPerGroup'] as int? ?? 2 : 2;
+    final legacyTeamsPerGroup = version == 1
+        ? json['teamsPerGroup'] as int? ?? 4
+        : 4;
+    final legacyQualifiersPerGroup = version == 1
+        ? json['qualifiersPerGroup'] as int? ?? 2
+        : 2;
     final legacyBestOf = version == 1
         ? _enumByName(
             TournamentBestOf.values,
@@ -137,8 +140,9 @@ TournamentCreateDraft? _draftFromJson(
             TournamentBestOf.bestOf3,
           )
         : TournamentBestOf.bestOf3;
-    final legacyFinalBestOf5 =
-        version == 1 ? json['finalBestOf5'] as bool? ?? true : true;
+    final legacyFinalBestOf5 = version == 1
+        ? json['finalBestOf5'] as bool? ?? true
+        : true;
 
     var categories = _categoriesFromJson(
       json['categories'],
@@ -156,7 +160,8 @@ TournamentCreateDraft? _draftFromJson(
     return TournamentCreateDraft(
       tournamentId: json['tournamentId'] as String?,
       sport: parseTournamentSport(json['sport'] as String?).sport,
-      sportRaw: json['sportRaw'] as String? ??
+      sportRaw:
+          json['sportRaw'] as String? ??
           parseTournamentSport(json['sport'] as String?).raw,
       name: json['name'] as String? ?? '',
       coverImagePath: json['coverImagePath'] as String?,
@@ -203,38 +208,38 @@ TournamentCreateDraft? _draftFromJson(
 }
 
 Map<String, dynamic> _categoryToJson(TournamentCategoryDraft category) => {
-      'id': category.id,
-      'name': category.name,
-      'gender': category.gender.name,
-      'dispute': category.dispute.name,
-      'ageBand': category.ageBand.name,
-      'ageReference': category.ageReference.name,
-      'ageCustomEnabled': category.ageCustomEnabled,
-      if (category.ageMinYears != null) 'ageMinYears': category.ageMinYears,
-      if (category.ageMaxYears != null) 'ageMaxYears': category.ageMaxYears,
-      'skillLevel': category.skillLevel.name,
-      if (category.minLevel.isNotEmpty) 'minLevel': category.minLevel,
-      'spots': category.spots,
-      'useDefaultPrice': category.useDefaultPrice,
-      'priceCents': category.priceCents,
-      'bracketSystem': category.bracketSystem.name,
-      'teamsPerGroup': category.teamsPerGroup,
-      'qualifiersPerGroup': category.qualifiersPerGroup,
-      'bestOf': category.bestOf.name,
-      'finalBestOf5': category.finalBestOf5,
-      'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,
-      'prizes': category.prizes.map(_prizeToJson).toList(),
-      // Campos de categoria de EQUIPE (trio+) — preservados no rascunho local.
-      'genderFree': category.genderFree,
-      if (category.menCount != null) 'menCount': category.menCount,
-      if (category.womenCount != null) 'womenCount': category.womenCount,
-    };
+  'id': category.id,
+  'name': category.name,
+  'gender': category.gender.name,
+  'dispute': category.dispute.name,
+  'ageBand': category.ageBand.name,
+  'ageReference': category.ageReference.name,
+  'ageCustomEnabled': category.ageCustomEnabled,
+  if (category.ageMinYears != null) 'ageMinYears': category.ageMinYears,
+  if (category.ageMaxYears != null) 'ageMaxYears': category.ageMaxYears,
+  'skillLevel': category.skillLevel.name,
+  if (category.minLevel.isNotEmpty) 'minLevel': category.minLevel,
+  'spots': category.spots,
+  'useDefaultPrice': category.useDefaultPrice,
+  'priceCents': category.priceCents,
+  'bracketSystem': category.bracketSystem.name,
+  'teamsPerGroup': category.teamsPerGroup,
+  'qualifiersPerGroup': category.qualifiersPerGroup,
+  'bestOf': category.bestOf.name,
+  'finalBestOf5': category.finalBestOf5,
+  'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,
+  'prizes': category.prizes.map(_prizeToJson).toList(),
+  // Campos de categoria de EQUIPE (trio+) — preservados no rascunho local.
+  'genderFree': category.genderFree,
+  if (category.menCount != null) 'menCount': category.menCount,
+  if (category.womenCount != null) 'womenCount': category.womenCount,
+};
 
 Map<String, dynamic> _prizeToJson(TournamentCategoryPrizeDraft prize) => {
-      'position': prize.position,
-      'valueCents': prize.valueCents,
-      if (prize.label != null) 'label': prize.label,
-    };
+  'position': prize.position,
+  'valueCents': prize.valueCents,
+  if (prize.label != null) 'label': prize.label,
+};
 
 List<TournamentCategoryDraft> _categoriesFromJson(
   dynamic raw, {

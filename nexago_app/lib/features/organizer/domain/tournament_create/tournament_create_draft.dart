@@ -28,7 +28,6 @@ enum TournamentBracketSystem {
   roundRobin,
   groupsWithRepechage,
   doubleElimination,
-
   /// King of the Court: a unidade é uma RODADA com 3 a 5 duplas na mesma quadra
   /// e uma tabela de pontos, não uma partida de dois lados
   /// (`docs/business-rules/king-of-court.md`).
@@ -47,14 +46,7 @@ enum TournamentCategoryGender { male, female, mixed }
 /// são `trio`/`quarteto`/`quinteto` — categorias de EQUIPE nomeada, criadas
 /// pelo portal do organizador. O app precisa conhecê-los para não corromper
 /// o doc ao reeditar (parse desconhecido caía em `dupla` e regravava).
-enum TournamentCategoryDispute {
-  individual,
-  dupla,
-  trio,
-  quarteto,
-  quinteto,
-  team
-}
+enum TournamentCategoryDispute { individual, dupla, trio, quarteto, quinteto, team }
 
 /// Tamanho do elenco por disputa (dupla=2, trio=3…; `team` legado conta como 2).
 int disputeTeamSize(TournamentCategoryDispute dispute) {
@@ -390,10 +382,9 @@ class TournamentCreateDraft {
   int get totalSpots => categories.fold<int>(0, (sum, c) => sum + c.spots);
 
   int get totalPrizeCents => categories.fold<int>(
-        0,
-        (sum, c) =>
-            sum + c.prizes.fold<int>(0, (pSum, p) => pSum + p.valueCents),
-      );
+    0,
+    (sum, c) => sum + c.prizes.fold<int>(0, (pSum, p) => pSum + p.valueCents),
+  );
 
   TournamentCreateDraft copyWith({
     String? tournamentId,
@@ -441,15 +432,18 @@ class TournamentCreateDraft {
     TournamentVisibility? visibility,
   }) {
     return TournamentCreateDraft(
-      tournamentId:
-          clearTournamentId ? null : (tournamentId ?? this.tournamentId),
+      tournamentId: clearTournamentId
+          ? null
+          : (tournamentId ?? this.tournamentId),
       sport: sport ?? this.sport,
       sportRaw: clearSportRaw ? null : (sportRaw ?? this.sportRaw),
       name: name ?? this.name,
-      coverImagePath:
-          clearCoverImagePath ? null : (coverImagePath ?? this.coverImagePath),
-      coverImageUrl:
-          clearCoverImageUrl ? null : (coverImageUrl ?? this.coverImageUrl),
+      coverImagePath: clearCoverImagePath
+          ? null
+          : (coverImagePath ?? this.coverImagePath),
+      coverImageUrl: clearCoverImageUrl
+          ? null
+          : (coverImageUrl ?? this.coverImageUrl),
       description: description ?? this.description,
       arenaId: clearArenaId ? null : (arenaId ?? this.arenaId),
       locationName: locationName ?? this.locationName,

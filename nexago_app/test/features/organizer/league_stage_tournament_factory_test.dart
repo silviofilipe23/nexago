@@ -173,8 +173,7 @@ void main() {
         tournamentId: 't1',
       );
 
-      final category =
-          (map['categories'] as List).single as Map<String, dynamic>;
+      final category = (map['categories'] as List).single as Map<String, dynamic>;
       expect(category['minLevel'], 'Avançado 1');
     });
   });
@@ -303,15 +302,13 @@ void main() {
         publish: true,
       );
 
-      final category =
-          (map['categories'] as List).single as Map<String, dynamic>;
+      final category = (map['categories'] as List).single as Map<String, dynamic>;
       expect(category['minLevel'], 'Avançado 1');
     });
   });
 
   group('categoriesFromLeagueCategories (minLevel)', () {
-    test('categoria de nova etapa herda o minLevel gravado pelo portal web',
-        () {
+    test('categoria de nova etapa herda o minLevel gravado pelo portal web', () {
       final categories = categoriesFromLeagueCategories([
         {
           'id': 'cat-elite',
@@ -325,8 +322,7 @@ void main() {
       expect(categories.single.minLevel, 'Avançado 1');
     });
 
-    test('minLevel ausente reidrata como string vazia (categoria sem piso)',
-        () {
+    test('minLevel ausente reidrata como string vazia (categoria sem piso)', () {
       final categories = categoriesFromLeagueCategories([
         {'id': 'cat-livre', 'categoryName': 'Livre', 'maxTeams': 16},
       ], 22000);

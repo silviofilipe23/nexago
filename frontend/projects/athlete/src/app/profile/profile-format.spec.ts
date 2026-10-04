@@ -1,4 +1,4 @@
-import { athleteLevelLabel, buildPublicProfileId, buildSportLevels, initialsOf, joinCityState, nameFromEmail, slugify, titleCase } from './profile-format';
+import { athleteLevelLabel, buildPublicProfileId, buildSportLevels, initialsOf, joinCityState, nameFromEmail, slugify, titleCase, primarySportLabel, type SportLevelEntry } from './profile-format';
 
 describe('profile-format', () => {
   describe('titleCase', () => {
@@ -160,5 +160,17 @@ describe('profile-format', () => {
       expect(buildSportLevels(null)).toEqual([]);
       expect(buildSportLevels(undefined)).toEqual([]);
     });
+  });
+});
+
+describe('primarySportLabel', () => {
+  it('usa o rótulo do primeiro esporte declarado', () => {
+    expect(primarySportLabel([{ sportLabel: 'Futevôlei' } as SportLevelEntry])).toBe('Futevôlei');
+  });
+
+  // Atleta sem esporte declarado não vira jogador de vôlei de praia no perfil
+  // (spec multiesporte, eixo 1: nenhum fallback silencioso de esporte).
+  it('sem esporte declarado mostra "Esporte não informado"', () => {
+    expect(primarySportLabel([])).toBe('Esporte não informado');
   });
 });

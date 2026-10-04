@@ -112,7 +112,7 @@
               <p class="at-profile-handle">&#64;{{ handle() }} · {{ cityStateLabel() }}</p>
 
               <div class="at-profile-pills">
-                <span class="at-pill at-pill--orange">{{ primarySportLevel()?.sportLabel ?? 'Vôlei de praia' }}</span>
+                <span class="at-pill at-pill--orange">{{ primarySportName() }}</span>
                 <a class="at-pill" routerLink="/perfil/esportes" title="Gerenciar esportes e níveis">
                   {{ primarySportLevel()?.levelLabel || 'Nível não informado' }}
                 </a>
@@ -211,7 +211,7 @@
                 <div class="at-field">
                   <span>Esporte e nível</span>
                   <p class="at-profile-readonly-note">
-                    {{ primarySportLevel()?.sportLabel ?? 'Vôlei de praia' }} ·
+                    {{ primarySportName() }} ·
                     {{ primarySportLevel()?.levelLabel || 'nível não informado' }}
                   </p>
                   <a class="at-mini-btn" routerLink="/perfil/esportes">Gerenciar esportes e níveis</a>

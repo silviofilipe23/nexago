@@ -127,6 +127,29 @@ export function teamRankingsPath(projectId: string): string {
 }
 
 /**
+ * Ranking geral POR ESPORTE (spec multiesporte, fase 3): `{athleteId}_{profileCode}` em coleção
+ * própria. Na coleção legada, o app da loja (que lê a coleção inteira e usa o `doc.id` como
+ * atleta) mostraria um atleta fantasma por doc, e a limpeza de dados de teste o apagaria.
+ */
+export function athleteRankingsBySportPath(projectId: string): string {
+  return `${artifactsPublicDataBase(projectId)}/athleteRankingsBySport`;
+}
+
+export function teamRankingsBySportPath(projectId: string): string {
+  return `${artifactsPublicDataBase(projectId)}/teamRankingsBySport`;
+}
+
+/** Id do doc por esporte. */
+export function rankingBySportDocId(id: string, sportCode: string): string {
+  return `${id}_${sportCode}`;
+}
+
+/** O doc legado (somado, lido pelo app da loja) só recebe os esportes que já pontuavam. */
+export function feedsLegacyRanking(sportCode: string | null | undefined): boolean {
+  return sportCode == null || GLOBAL_RANKING_SPORT_CODES.has(sportCode);
+}
+
+/**
  * Colocação persistida: 1-4 direto; abaixo do pódio guarda o TOPO da faixa do
  * degrau (quartas 5, oitavas 9, 16-avos 17). Participação é 0 — "sem colocação
  * de mata-mata"; era 9 antes da escada por fase alcançada, e o script de
@@ -167,6 +190,8 @@ export interface GlobalRankingResultEntry {
   finalPlace: number;
   points: number;
   year: number;
+  /** Código do esporte do torneio (profileCode); ausente em resultado antigo/desconhecido. */
+  sport?: string;
 }
 
 /**
@@ -212,6 +237,7 @@ function parseResults(raw: unknown): GlobalRankingResultEntry[] {
       finalPlace: Number(row.finalPlace) || 0,
       points: Number(row.points) || 0,
       year: Number(row.year) || 0,
+      ...(typeof row.sport === "string" && row.sport ? {sport: row.sport} : {}),
     });
   }
   return out;
@@ -231,7 +257,8 @@ export function upsertRankingResult(
     existing &&
     existing.finalPlace === entry.finalPlace &&
     existing.points === entry.points &&
-    existing.year === entry.year
+    existing.year === entry.year &&
+    existing.sport === entry.sport
   ) {
     return null;
   }
@@ -306,9 +333,12 @@ export async function awardGlobalPlacement(
     pointsMultiplier: number;
     year: number;
     completedAt: Date;
+    /** Código do esporte do torneio (profileCode) ou `null` quando não reconhecido. */
+    sportCode?: string | null;
   },
 ): Promise<boolean> {
   const {tournamentId, categoryId, award} = params;
+  const sportCode = params.sportCode ?? null;
   const teamId = award.teamId;
   const points = globalPointsForAward(award, params.pointsMultiplier);
   if (points <= 0) return false;
@@ -320,9 +350,11 @@ export async function awardGlobalPlacement(
     .doc(`${tournamentId}_${categoryId}_${teamId}`);
   const resultSnap = await resultRef.get();
   const prevResult = resultSnap.data();
+  // Resultado antigo sem `sport` NÃO é no-op: precisa ganhar o campo e o doc por esporte.
   if (
     prevResult?.finalPlace === finalPlace &&
-    prevResult?.pointsEarned === points
+    prevResult?.pointsEarned === points &&
+    (sportCode == null || prevResult?.sport === sportCode)
   ) {
     return false;
   }
@@ -335,6 +367,7 @@ export async function awardGlobalPlacement(
     year: params.year,
     completedAt: Timestamp.fromDate(params.completedAt),
     scaleVersion: RANKING_SCALE_VERSION,
+    ...(sportCode ? {sport: sportCode} : {}),
   });
 
   const entry: GlobalRankingResultEntry = {
@@ -343,26 +376,49 @@ export async function awardGlobalPlacement(
     finalPlace,
     points,
     year: params.year,
+    ...(sportCode ? {sport: sportCode} : {}),
   };
-
-  await upsertGlobalRankingDoc(db, {
-    collectionPath: teamRankingsPath(projectId),
-    docId: teamId,
-    identity: {teamId},
-    entry,
-  });
-
   const athleteIds = await loadTeamAthleteIds(db, projectId, teamId);
-  await Promise.all(
-    athleteIds.map((athleteId) =>
-      upsertGlobalRankingDoc(db, {
-        collectionPath: athleteRankingsPath(projectId),
-        docId: athleteId,
-        identity: {athleteId},
-        entry,
-      }),
-    ),
-  );
+
+  // Legado (somado, lido pelo app da loja): só os esportes que já pontuavam.
+  if (feedsLegacyRanking(sportCode)) {
+    await upsertGlobalRankingDoc(db, {
+      collectionPath: teamRankingsPath(projectId),
+      docId: teamId,
+      identity: {teamId},
+      entry,
+    });
+    await Promise.all(
+      athleteIds.map((athleteId) =>
+        upsertGlobalRankingDoc(db, {
+          collectionPath: athleteRankingsPath(projectId),
+          docId: athleteId,
+          identity: {athleteId},
+          entry,
+        }),
+      ),
+    );
+  }
+
+  // Por esporte: o doc do esporte do torneio. Esporte não reconhecido não tem doc.
+  if (sportCode) {
+    await upsertGlobalRankingDoc(db, {
+      collectionPath: teamRankingsBySportPath(projectId),
+      docId: rankingBySportDocId(teamId, sportCode),
+      identity: {teamId, sport: sportCode},
+      entry,
+    });
+    await Promise.all(
+      athleteIds.map((athleteId) =>
+        upsertGlobalRankingDoc(db, {
+          collectionPath: athleteRankingsBySportPath(projectId),
+          docId: rankingBySportDocId(athleteId, sportCode),
+          identity: {athleteId, sport: sportCode},
+          entry,
+        }),
+      ),
+    );
+  }
   return true;
 }
 
@@ -514,11 +570,12 @@ export async function tryAwardGlobalRankingForMatch(
   );
   const paidTeamIds = new Set(paidTeams.keys());
   if (
+    // O esporte não barra mais a premiação: decide em QUAL doc ela cai (legado só para os
+    // esportes que já pontuavam; por esporte sempre que o esporte é reconhecido — fase 3a).
     !isGlobalRankingEligible({
       isLeagueStage,
       rankingEnabled,
       paidTeamsCount: paidTeamIds.size,
-      sportCode: tournamentSportToLevelSportCode(tournament.sport),
     })
   ) {
     logger.info(
@@ -545,7 +602,8 @@ export async function tryAwardGlobalRankingForMatch(
 
   const pointsMultiplier =
     presetWeight * rankingWeight * bracketSizeFactor(paidTeamIds.size);
-  const baseParams = {tournamentId, categoryId, pointsMultiplier, year, completedAt};
+  const sportCode = tournamentSportToLevelSportCode(tournament.sport);
+  const baseParams = {tournamentId, categoryId, pointsMultiplier, year, completedAt, sportCode};
   let teamsUpdated = 0;
   for (const award of placements) {
     if (await awardGlobalPlacement(db, projectId, {...baseParams, award})) {

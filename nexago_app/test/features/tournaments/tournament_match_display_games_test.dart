@@ -71,16 +71,80 @@ void main() {
       expect(live.tiebreak, isTrue);
     });
 
-    test('encerrada (W.O. com set aberto): conta todo set, como as outras telas', () {
+    test('super tie-break em andamento: marcado e exibido pelos pontos', () {
       final m = _match({
-        'status': 'Completed',
         'sets': [
           {'a': 6, 'b': 4},
-          {'a': 3, 'b': 2},
+          {'a': 3, 'b': 6},
+          {'a': 0, 'b': 0},
+        ],
+        'currentSetIndex': 2,
+        'currentGame': {'a': 7, 'b': 5},
+      });
+      final live = matchLiveCurrentSet(m)!;
+      expect(live.superTiebreak, isTrue);
+      expect(live.game, (a: '7', b: '5'));
+      final last = matchDisplaySets(m).last;
+      expect([last.a, last.b, last.inProgress], [7, 5, true]);
+    });
+
+    test('encerrada: textos com tie-break e super tie-break em pontos', () {
+      final m = _match({
+        'status': 'Completed',
+        'winnerId': 'A',
+        'sets': [
+          {'a': 6, 'b': 4},
+          {
+            'a': 6,
+            'b': 7,
+            'tb': {'a': 5, 'b': 7},
+          },
+          {
+            'a': 1,
+            'b': 0,
+            'tb': {'a': 10, 'b': 8},
+          },
         ],
       });
-      expect(setsWonCountForMatch(m), (2, 0));
+      expect(matchClosedSetTexts(m), ['6-4', '6-7 (5-7)', '10-8']);
+      expect(matchClosedDisplaySets(m).map((s) => [s.a, s.b]).toList(), [
+        [6, 4],
+        [6, 7],
+        [10, 8],
+      ]);
+      expect(matchDisplaySets(m).map((s) => [s.a, s.b]).toList(), [
+        [6, 4],
+        [6, 7],
+        [10, 8],
+      ]);
     });
+
+    test('set novo 0-0 com o game começado aparece em andamento', () {
+      final m = _match({
+        'sets': [
+          {'a': 6, 'b': 4},
+          {'a': 0, 'b': 0},
+        ],
+        'currentSetIndex': 1,
+        'currentGame': {'a': 1, 'b': 0},
+      });
+      final last = matchDisplaySets(m).last;
+      expect([last.a, last.b, last.inProgress], [0, 0, true]);
+    });
+
+    test(
+      'encerrada (W.O. com set aberto): conta todo set, como as outras telas',
+      () {
+        final m = _match({
+          'status': 'Completed',
+          'sets': [
+            {'a': 6, 'b': 4},
+            {'a': 3, 'b': 2},
+          ],
+        });
+        expect(setsWonCountForMatch(m), (2, 0));
+      },
+    );
 
     test('partida de pontos: igual a hoje, sem game', () {
       final m = _match({
@@ -95,6 +159,23 @@ void main() {
       final live = matchLiveCurrentSet(m)!;
       expect([live.setNumber, live.a, live.b], [2, 14, 11]);
       expect(live.game, isNull);
+      expect(live.superTiebreak, isFalse);
+      expect(
+        matchClosedSetTexts(
+          _match({
+            'scoringProfile': null,
+            'status': 'Completed',
+            'sets': [
+              {
+                'a': 21,
+                'b': 19,
+                'tb': {'a': 7, 'b': 5},
+              },
+            ],
+          }),
+        ),
+        ['21-19'],
+      );
       // Pontos mantém a contagem de hoje (inclui o set em andamento).
       expect(setsWonCountForMatch(m), (2, 0));
     });

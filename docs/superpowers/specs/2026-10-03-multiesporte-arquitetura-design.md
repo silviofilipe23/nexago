@@ -401,7 +401,10 @@ Saída: ranking de beach tennis separado do de vôlei; rating ligável por confi
   coleção inteira e usa o `doc.id` como atleta) mostraria um atleta fantasma por doc, e o
   script de limpeza de dados de teste os apagaria.
 - **Legado:** continua recebendo só os esportes que já pontuavam (vôlei de praia, de quadra,
-  futevôlei e esporte não reconhecido); beach tennis vai só para o doc do esporte.
+  futevôlei e esporte não reconhecido); beach tennis vai só para o doc do esporte. Isso
+  inclui `tournamentCategoryResults`: o app da loja e o portal montam o ranking da temporada
+  direto dela (filtrando só por ano), então resultado de esporte novo fica só no `results[]`
+  do doc por esporte até a 3b decidir uma coleção própria.
 - **Rating:** inverter o default (ausente = desligado) arriscaria desligar o vôlei em ambiente
   sem o doc. Vôlei de praia e de quadra seguem como hoje; esporte novo só rateia com
   `ratingLadders/{code}` próprio e `flags.ratingEnabled: true` (o doc `default` não liga).

@@ -183,6 +183,14 @@ function renderTsVectors(catalog, scoring) {
     '  readonly text: string;',
     '}',
     '',
+    'export interface ScoringEventTextVector {',
+    '  readonly profile: string;',
+    '  readonly setIndex: number;',
+    '  readonly set: {a: number; b: number};',
+    '  readonly game: {a: number; b: number};',
+    '  readonly text: string;',
+    '}',
+    '',
     'export interface ScoringQuickVector {',
     '  readonly profile: string;',
     '  readonly index: number;',
@@ -215,8 +223,9 @@ function renderTsVectors(catalog, scoring) {
       'readonly labelVectors: readonly ScoringLabelVector[]; ' +
       'readonly quickVectors: readonly ScoringQuickVector[]; ' +
       'readonly liveVectors: readonly ScoringLiveVector[]; ' +
-      'readonly textVectors: readonly ScoringTextVector[]} = ' +
-      `${JSON.stringify({profiles: scoring.profiles, cases: scoring.cases, labelVectors: scoring.labelVectors, quickVectors: scoring.quickVectors, liveVectors: scoring.liveVectors, textVectors: scoring.textVectors})};`,
+      'readonly textVectors: readonly ScoringTextVector[]; ' +
+      'readonly eventTextVectors: readonly ScoringEventTextVector[]} = ' +
+      `${JSON.stringify({profiles: scoring.profiles, cases: scoring.cases, labelVectors: scoring.labelVectors, quickVectors: scoring.quickVectors, liveVectors: scoring.liveVectors, textVectors: scoring.textVectors, eventTextVectors: scoring.eventTextVectors})};`,
     '',
   ].join('\n');
 }
@@ -289,7 +298,7 @@ function renderDartCatalog(catalog, index) {
 }
 
 function renderDartVectors(catalog, scoring) {
-  const scoringJson = JSON.stringify({profiles: scoring.profiles, cases: scoring.cases, labelVectors: scoring.labelVectors, quickVectors: scoring.quickVectors, liveVectors: scoring.liveVectors, textVectors: scoring.textVectors});
+  const scoringJson = JSON.stringify({profiles: scoring.profiles, cases: scoring.cases, labelVectors: scoring.labelVectors, quickVectors: scoring.quickVectors, liveVectors: scoring.liveVectors, textVectors: scoring.textVectors, eventTextVectors: scoring.eventTextVectors});
   if (scoringJson.includes("'''")) fail("scoring-vectors.json não pode conter '''");
   const list = (name, type, vectors) => [
     `const List<(String, ${type})> ${name} = [`,
@@ -313,7 +322,7 @@ export function outputs() {
   const index = validate(catalog);
   const scoring = JSON.parse(fs.readFileSync(path.join(ROOT, 'sports/scoring-vectors.json'), 'utf8'));
   for (const [name, p] of Object.entries(scoring.profiles)) validateScoringProfile(`vetor ${name}`, p);
-  for (const c of [...scoring.cases, ...scoring.labelVectors, ...scoring.quickVectors, ...scoring.liveVectors, ...scoring.textVectors]) {
+  for (const c of [...scoring.cases, ...scoring.labelVectors, ...scoring.quickVectors, ...scoring.liveVectors, ...scoring.textVectors, ...scoring.eventTextVectors]) {
     if (!(c.profile in scoring.profiles)) fail(`vetor com perfil desconhecido: ${c.profile}`);
   }
   const tsCatalog = renderTsCatalog(catalog, index);

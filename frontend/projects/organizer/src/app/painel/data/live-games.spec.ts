@@ -1,5 +1,6 @@
 import {
   applyGamesPoint,
+  gamesEventText,
   gamesLiveHint,
   gamesPointLabels,
   scoringProfileFromRaw,
@@ -39,3 +40,13 @@ describe('@nexago/sports · motor de games da mesa (vetores compartilhados com o
     });
   });
 });
+
+describe('@nexago/sports · texto do lance de games (ponto a ponto)', () => {
+  SCORING_VECTORS.eventTextVectors.forEach((v, i) => {
+    it(`lance ${i} (${v.profile})`, () => {
+      const p = scoringProfileFromRaw(SCORING_VECTORS.profiles[v.profile]) as SetsGamesProfile;
+      expect(gamesEventText(p, v.setIndex, v.set, v.game)).toBe(v.text);
+    });
+  });
+});
+

@@ -90,4 +90,28 @@ void main() {
       });
     }
   });
+
+  group('texto do lance de games (ponto a ponto)', () {
+    final events = vectors['eventTextVectors'] as List<dynamic>;
+    for (var i = 0; i < events.length; i++) {
+      final v = events[i] as Map<String, dynamic>;
+      test('lance $i (${v['profile']})', () {
+        final profile =
+            ScoringRules.profileFromRaw(profiles[v['profile']])!
+                as SetsGamesProfile;
+        final set = v['set'] as Map<String, dynamic>;
+        final game = v['game'] as Map<String, dynamic>;
+        expect(
+          LiveGames.eventText(
+            profile,
+            v['setIndex'] as int,
+            ScoreSetValue(set['a'] as int, set['b'] as int),
+            (a: game['a'] as int, b: game['b'] as int),
+          ),
+          v['text'],
+        );
+      });
+    }
+  });
 }
+

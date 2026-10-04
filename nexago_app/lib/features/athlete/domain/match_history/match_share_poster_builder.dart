@@ -98,7 +98,8 @@ List<TournamentMatchSet> matchSharePosterClosedSets(TournamentMatch match) => [
 ];
 
 /// "1–0 · 2º set 14-11"; em games, com o ponto do game.
-String? _liveScoreLine(TournamentMatch match) => matchLiveScoreLine(match);
+String? _liveScoreLine(TournamentMatch match) =>
+    matchLiveScoreLine(match, setWins: matchSharePosterSetWins(match));
 
 // --- Fase -------------------------------------------------------------------
 

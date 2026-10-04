@@ -772,17 +772,22 @@ List<String> matchClosedSetTextsForSide(
 
 /// Linha ao vivo: "1–0 · 2º set 14-11"; em games "1–0 · 2º set 5-4 · 40-15" e,
 /// no super tie-break, "1–1 · super tie-break 7-5". `null` sem set em
-/// andamento.
-String? matchLiveScoreLine(TournamentMatch match) {
+/// andamento. [setWins] substitui a contagem pelos sets fechados (o pôster
+/// cai no agregado `liveScore` quando não há `sets[]`).
+String? matchLiveScoreLine(TournamentMatch match, {(int, int)? setWins}) {
   final current = matchLiveCurrentSet(match);
   if (current == null) return null;
   var a = 0;
   var b = 0;
-  for (final s in matchClosedSets(match)) {
-    if (s.a > s.b) {
-      a++;
-    } else if (s.b > s.a) {
-      b++;
+  if (setWins != null) {
+    (a, b) = setWins;
+  } else {
+    for (final s in matchClosedSets(match)) {
+      if (s.a > s.b) {
+        a++;
+      } else if (s.b > s.a) {
+        b++;
+      }
     }
   }
   final game = current.game;

@@ -1,4 +1,4 @@
-import { matchClosedSets, matchIsCompleted, type TournamentMatch } from '../../data/matches-repository';
+import { matchClosedSets, matchIsCompleted, matchScoringProfile, type TournamentMatch } from '../../data/matches-repository';
 import type { TournamentPrize } from '../../data/tournaments-repository';
 import { isDoubleElimination } from '../bracket-tree';
 import { isPending, outcomeOf, sideOf } from '../tournament-live.selectors';
@@ -18,6 +18,8 @@ export interface TournamentNumbers {
   pointsAgainst: number;
   pointsPerSet: number;
   sets: SetBar[];
+  /** Unidade de `points`/`pointsPerSet`: games quando a campanha é de partidas de games. */
+  unit: 'pontos' | 'games';
 }
 
 /** Fases de mata-mata da categoria, da mais distante da final para a final. Exportada porque
@@ -292,6 +294,7 @@ export function tournamentNumbersOf(matches: readonly TournamentMatch[], myTeamI
     pointsAgainst,
     pointsPerSet: bars.length > 0 ? Math.round((points / bars.length) * 10) / 10 : 0,
     sets: bars,
+    unit: mine.some((m) => matchScoringProfile(m).kind === 'sets_games') ? 'games' : 'pontos',
   };
 }
 

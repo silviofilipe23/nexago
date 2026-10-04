@@ -33,6 +33,10 @@ import {
   SPORT_LABEL,
   SUPPORTED_BRACKET_SYSTEMS,
   bracketSystemsForSport,
+  categoryScoringView,
+  patchCategoryScoring,
+  withSportScoring,
+  type CategoryScoringPatch,
   TOURNAMENT_CREATE_STEPS,
   type AgeBand,
   type CategoryDispute,
@@ -338,6 +342,30 @@ function inputToDatetime(v: string): Date | null {
               <div style="margin-top:14px">
                 <og-toggle-row title="Final em MD5" desc="A decisão do título usa melhor de 5 sets." [on]="cat().finalBestOf5" (toggled)="patchCat({ finalBestOf5: $event })" />
               </div>
+              <!-- Placar da categoria (spec multiesporte 2d2a): os campos do tipo do esporte. -->
+              @if (catScoring(); as sc) {
+                @if (sc.kind === 'sets_points') {
+                  <div style="margin-top:14px">
+                    <og-stepper-static label="Set até" [value]="'' + sc.setTarget" suffix="pontos" (bump)="bumpCatScoring('setTarget', $event)" />
+                  </div>
+                  @if (cat().bestOf !== 'singleSet') {
+                    <div style="margin-top:14px">
+                      <og-stepper-static label="Set decisivo até" [value]="'' + sc.decidingSetTarget" suffix="pontos" (bump)="bumpCatScoring('decidingSetTarget', $event)" />
+                    </div>
+                  }
+                } @else {
+                  <div style="margin-top:14px">
+                    <og-toggle-row title="Sem vantagem" desc="No 40-40, o próximo ponto fecha o game." [on]="sc.noAd" (toggled)="patchCatScoring({ noAd: $event })" />
+                  </div>
+                  @if (cat().bestOf !== 'singleSet') {
+                    <div style="margin-top:14px">
+                      <og-form-field label="Set decisivo">
+                        <og-select-chips [options]="decidingSetOptions" [active]="sc.decidingSet === 'super_tiebreak' ? decidingSetOptions[0] : decidingSetOptions[1]" (changed)="setCatDecidingSet($event)" />
+                      </og-form-field>
+                    </div>
+                  }
+                }
+              }
               <div style="margin-top:14px">
                 <og-stepper-static label="Limite de inscrições por atleta" [value]="'' + cat().maxRegistrationsPerAthlete" suffix="categorias" (bump)="bumpCat('maxRegistrationsPerAthlete', $event, 1, 5)" />
               </div>
@@ -1021,7 +1049,28 @@ export class CriarTorneioComponent {
 
   protected setSport(label: string): void {
     const sport = (Object.keys(SPORT_LABEL) as TournamentSport[]).find((s) => SPORT_LABEL[s] === label);
-    if (sport) this.patch({ sport });
+    // O placar das categorias acompanha o esporte (o perfil antigo seria de outro tipo).
+    if (sport) this.patch({ sport, categories: withSportScoring(this.draft().categories, sport) });
+  }
+
+  /** O placar que a categoria em edição vai carimbar (explícito ou o do servidor sem perfil). */
+  protected readonly catScoring = computed(() => categoryScoringView(this.cat(), this.draft().sport));
+  protected readonly decidingSetOptions = ['Super tie-break', 'Set completo'];
+
+  protected patchCatScoring(patch: CategoryScoringPatch): void {
+    this.cat.update((c) => patchCategoryScoring(c, this.draft().sport, patch));
+  }
+
+  protected bumpCatScoring(field: 'setTarget' | 'decidingSetTarget', delta: number): void {
+    const sc = this.catScoring();
+    if (sc.kind !== 'sets_points') return;
+    // Alvo do set entre 5 e 50; o decisivo nunca passa do alvo do set.
+    const next = field === 'setTarget' ? Math.min(Math.max(sc.setTarget + delta, 5), 50) : Math.min(Math.max(sc.decidingSetTarget + delta, 5), sc.setTarget);
+    this.patchCatScoring({ [field]: next });
+  }
+
+  protected setCatDecidingSet(label: string): void {
+    this.patchCatScoring({ decidingSet: label === this.decidingSetOptions[0] ? 'super_tiebreak' : 'full' });
   }
 
   protected setCatGender(label: string): void {

@@ -20,7 +20,7 @@ import { OgIconComponent } from '../ui/icon.component';
 import { OgPulseDirective } from './og-pulse.directive';
 import type { TelaoTeamDisplay } from './telao-data.service';
 import { FINISHED_SHOWCASE_MS } from './telao-finished';
-import { leadingSideOf } from './telao-selectors';
+import { leadingSideOf, servingPlayerFirstName } from './telao-selectors';
 import { fireLevelOf } from './telao-streaks';
 
 /** Card de uma quadra no telão: partida ao vivo (avatares, sets fechados, pontos do set
@@ -779,18 +779,15 @@ export class TelaoCourtCardComponent {
     return null;
   });
 
-  /** O ATLETA no saque — a partida grava a posição na dupla (1 ou 2) e o telão resolve o nome
+  /** O ATLETA no saque — a partida grava a posição no elenco (1–5) e o telão resolve o nome
    *  no elenco que já carregou pro rótulo, sem join novo. Primeiro nome só: na parede o que
    *  identifica é ele, e o sobrenome não cabe ao lado do nome da dupla. */
   protected readonly servingPlayerName = computed(() => {
     const m = this.match();
     const side = this.servingSide();
     if (!m || side == null) return null;
-    const slot = m.servingPlayerSlot;
-    if (slot !== 1 && slot !== 2) return null;
     const team = side === 'A' ? this.teamA() : this.teamB();
-    const name = team?.playerNames[slot - 1]?.trim() ?? '';
-    return name ? (name.split(/\s+/)[0] ?? '') : null;
+    return servingPlayerFirstName(team?.playerNames ?? [], m.servingPlayerSlot);
   });
 
   /** Atendimento médico em andamento: a partida está parada. A contagem sai de `startedAt`

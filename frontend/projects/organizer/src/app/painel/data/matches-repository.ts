@@ -6,7 +6,7 @@ import {
   type KocRoundState,
 } from './koc';
 import { collection, doc, getDocs, onSnapshot, query, where, type Unsubscribe } from 'firebase/firestore';
-import { medicalTimeoutFromRaw, statusOf, type MatchDisplayStatus, type MedicalTimeout } from '@nexago/live-scoring';
+import { medicalTimeoutFromRaw, statusOf, type MatchDisplayStatus, type MedicalTimeout, servingPlayerSlotFromRaw } from '@nexago/live-scoring';
 import { effectiveScoringProfile, scoringProfileFromRaw, setScoreText, type ScoringProfile } from '@nexago/sports';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from './firestore';
@@ -315,7 +315,8 @@ export function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawM
     liveScore: liveScoreFromRaw(data['liveScore']),
     currentSetIndex: intOf(data['currentSetIndex']),
     servingTeamId: optionalStr(data['servingTeamId']) ?? '',
-    servingPlayerSlot: data['servingPlayerSlot'] === 1 || data['servingPlayerSlot'] === 2 ? data['servingPlayerSlot'] : 0,
+    // Posição no elenco (1–5: individual, dupla, equipe) — a mesa grava até 5 desde a 4b2.
+    servingPlayerSlot: servingPlayerSlotFromRaw(data['servingPlayerSlot']),
     medicalTimeout: medicalTimeoutFromRaw(data['medicalTimeout']),
     koc,
     matchStartedAt: toDate(data['matchStartedAt']),

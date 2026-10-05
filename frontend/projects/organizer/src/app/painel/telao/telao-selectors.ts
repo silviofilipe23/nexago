@@ -107,3 +107,11 @@ export function teamShortLabel(label: string): string {
   if (parts.length < 2) return truncateName(label, 22);
   return parts.map((p) => p.trim().split(/\s+/)[0] ?? '').join(' / ');
 }
+
+/** Primeiro nome de quem saca pela POSIÇÃO no elenco (1–5) — `null` sem posição declarada ou
+ *  sem nome resolvido nela. Na parede o que identifica é o primeiro nome. */
+export function servingPlayerFirstName(playerNames: readonly string[], slot: number): string | null {
+  if (!Number.isInteger(slot) || slot < 1) return null;
+  const name = playerNames[slot - 1]?.trim() ?? '';
+  return name ? (name.split(/\s+/)[0] ?? null) : null;
+}

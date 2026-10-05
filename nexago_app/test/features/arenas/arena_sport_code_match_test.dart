@@ -176,13 +176,26 @@ void main() {
     expect(find.textContaining('Beach tennis · Futevôlei'), findsOneWidget);
   });
 
-  test('formulário do dono marca a opção certa para código ou rótulo gravado (sem duplicar)', () {
-    const options = ['Vôlei de praia', 'Beach tennis', 'Vôlei indoor', 'Pickleball'];
-    expect(
-      courtTypeOptionsFor(['beachVolleyball', 'Vôlei de praia', 'indoorVolleyball', 'Pickleball'], options),
-      ['Vôlei de praia', 'Vôlei indoor', 'Pickleball'],
-    );
-    // Valor que nenhuma opção cobre segue cru (não some do doc ao salvar).
-    expect(courtTypeOptionsFor(['curling'], options), ['curling']);
-  });
+  test(
+    'formulário do dono marca a opção certa para código ou rótulo gravado (sem duplicar)',
+    () {
+      const options = [
+        'Vôlei de praia',
+        'Beach tennis',
+        'Vôlei indoor',
+        'Pickleball',
+      ];
+      expect(
+        courtTypeOptionsFor([
+          'beachVolleyball',
+          'Vôlei de praia',
+          'indoorVolleyball',
+          'Pickleball',
+        ], options),
+        ['Vôlei de praia', 'Vôlei indoor', 'Pickleball'],
+      );
+      // Valor que nenhuma opção cobre segue cru (não some do doc ao salvar).
+      expect(courtTypeOptionsFor(['curling'], options), ['curling']);
+    },
+  );
 }

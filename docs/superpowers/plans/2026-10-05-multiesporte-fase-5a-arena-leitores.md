@@ -29,3 +29,8 @@
 5. **Arena portal (leitura):** listas/agenda/home exibem rótulo; formulário e perfil reconhecem código gravado como opção marcada (sem esconder/duplicar).
 
 5b (outro PR): formulários gravam código, dedupe por código, `courts.sport = types[0]`; deploy só com `minBuildNumber` ≥ build do app com a 5a.
+
+## Notas para a 5b (da revisão da 5a)
+- Os dois syncs (`syncArenaSearchMetadata` no portal da arena e `ArenaSearchMetadata.mergeSportLabels`/`syncFromCourts` no app) hoje normalizam para o RÓTULO da opção. A 5b precisa virar os dois para código ao mesmo tempo, senão um lado regrava a grafia do outro.
+- Antes da 5b: consultar os valores distintos de `arenas.courtTypes` em produção (texto livre como "Vôlei"/"Volleyball" não resolve e deixa a arena sem filtro).
+- `arenaCourtTypes` ainda não é lido em runtime; a lista de chips é mantida à mão (TS e Dart). Falta uma trava catálogo × chips.

@@ -37,3 +37,18 @@ test('todo esporte de competição tem perfil de placar no catálogo', () => {
     .map((s) => s.code);
   assert.deepEqual(semPerfil, []);
 });
+
+// Fase 4b1: o wizard oferece só os tamanhos de equipe que o esporte aceita.
+test('esporte de competição declara allowedTeamSizes (1–5, ordenado, sem repetição)', () => {
+  const catalog = JSON.parse(fs.readFileSync(path.join(ROOT, 'sports/catalog.json'), 'utf8'));
+  for (const s of catalog.sports) {
+    if (s.support !== 'competition') continue;
+    const sizes = s.allowedTeamSizes;
+    assert.ok(Array.isArray(sizes) && sizes.length > 0, `${s.code} sem allowedTeamSizes`);
+    assert.deepEqual([...new Set(sizes)].sort((a, b) => a - b), sizes, `${s.code} fora de ordem/repetido`);
+    for (const n of sizes) assert.ok(Number.isInteger(n) && n >= 1 && n <= 5, `${s.code}: ${n}`);
+  }
+  const byCode = Object.fromEntries(catalog.sports.map((s) => [s.code, s.allowedTeamSizes]));
+  assert.deepEqual(byCode.tennis, [1, 2]);
+  assert.deepEqual(byCode.beachVolleyball, [2, 3, 4, 5]);
+});

@@ -49,9 +49,13 @@ Future<List<RankingListEntry>> buildAthleteRankingListEntries({
   required RankingRepository repo,
   required UsersRepository users,
   required RankingPageFilter filter,
+  required String sportCode,
   required String? currentUid,
 }) async {
-  var rows = await repo.loadAthleteRanking(year: filter.year);
+  var rows = await repo.loadAthleteRankingForSport(
+    sportCode,
+    year: filter.year,
+  );
   if (rows.isEmpty) return const [];
 
   // Uma leitura em lote cobre filtro de gênero, nível e exibição.
@@ -73,7 +77,8 @@ Future<List<RankingListEntry>> buildAthleteRankingListEntries({
 
   final levelRankByAthlete = <String, int?>{
     for (final row in rows)
-      row.athleteId: athleteLevelRank(profiles[row.athleteId]),
+      row.athleteId:
+          athleteLevelRankForSport(profiles[row.athleteId], sportCode),
   };
   rows = filterAthleteRowsByLevel(rows, filter.level, levelRankByAthlete);
   if (rows.isEmpty) return const [];
@@ -81,7 +86,7 @@ Future<List<RankingListEntry>> buildAthleteRankingListEntries({
   final entries = <RankingListEntry>[];
   for (final row in rows) {
     final profile = profiles[row.athleteId];
-    final levelRank = athleteLevelRank(profile);
+    final levelRank = athleteLevelRankForSport(profile, sportCode);
     final levelLabel = levelRank != null
         ? AthleteProfileOptions.labelForRank(levelRank)
         : null;
@@ -111,9 +116,10 @@ Future<List<RankingListEntry>> buildTeamRankingListEntries({
   required RankingRepository repo,
   required UsersRepository users,
   required RankingPageFilter filter,
+  required String sportCode,
   required String? currentUid,
 }) async {
-  var rows = await repo.loadTeamRanking(year: filter.year);
+  var rows = await repo.loadTeamRankingForSport(sportCode, year: filter.year);
   if (rows.isEmpty) return const [];
 
   final teamIds = rows.map((r) => r.teamId).toList();
@@ -147,9 +153,10 @@ Future<List<RankingListEntry>> buildTeamRankingListEntries({
 
   final levelRankByTeam = <String, int?>{
     for (final row in rows)
-      row.teamId: teamLevelRank(
+      row.teamId: teamLevelRankForSport(
         profiles[teams[row.teamId]?.player1Id],
         profiles[teams[row.teamId]?.player2Id],
+        sportCode,
       ),
   };
   rows = filterTeamRowsByLevel(rows, filter.level, levelRankByTeam);

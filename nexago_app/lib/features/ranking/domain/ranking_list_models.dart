@@ -65,6 +65,7 @@ class RankingPageFilter {
     this.gender = RankingGenderFilter.all,
     this.format = RankingFormatFilter.all,
     this.level = RankingLevelFilter.all,
+    this.sport,
   });
 
   final RankingListMode mode;
@@ -77,6 +78,11 @@ class RankingPageFilter {
 
   /// Faixa de nível selecionada (`all` = todos os níveis).
   final RankingLevelFilter level;
+
+  /// Esporte do ranking (código de perfil, ex.: `BEACH_TENNIS`). `null` =
+  /// esporte principal do atleta (ver `rankingSportProvider`). Não conta em
+  /// [hasActiveFilters]: a legenda do recorte o mostra sempre.
+  final String? sport;
 
   bool get isGeneralMode => year == null;
 
@@ -104,6 +110,7 @@ class RankingPageFilter {
     RankingGenderFilter? gender,
     RankingFormatFilter? format,
     RankingLevelFilter? level,
+    String? Function()? sport,
   }) {
     return RankingPageFilter(
       mode: mode ?? this.mode,
@@ -111,6 +118,7 @@ class RankingPageFilter {
       gender: gender ?? this.gender,
       format: format ?? this.format,
       level: level ?? this.level,
+      sport: sport != null ? sport() : this.sport,
     );
   }
 }

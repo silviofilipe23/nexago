@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/auth_providers.dart';
 import 'package:nexago_app/core/profiles/users_repository.dart';
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
+import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../tournaments/domain/compete_hub_models.dart';
 import '../data/ranking_repository.dart';
 import 'ranking_display_helpers.dart';
@@ -248,10 +249,36 @@ final rankingPageFilterProvider =
   return RankingPageFilter(year: DateTime.now().year);
 });
 
-/// Lista enriquecida para a tela de ranking (atletas ou equipes).
+/// Esporte efetivo da tela de ranking: o escolhido na folha ou, sem escolha,
+/// o principal do atleta (quando tem ranking) — senão vôlei de praia. O perfil
+/// já vive em cache (o `redirect` o lê); o teto de 5s não deixa a tela presa
+/// atrás dele.
+final rankingSportProvider = FutureProvider.autoDispose<String>((ref) async {
+  final chosen = ref.watch(rankingPageFilterProvider.select((f) => f.sport));
+  if (chosen != null) return chosen;
+  final user = await ref.watch(authProvider.future);
+  if (user == null) return defaultRankingSport(null);
+  try {
+    // `selectAsync`: só o esporte principal — qualquer outra escrita em
+    // `users/{uid}` (seguidor, token, bio) não pode recarregar a lista.
+    final primary = await ref
+        .watch(
+          athleteProfileProvider
+              .selectAsync((p) => p?.primarySportFirestoreId),
+        )
+        .timeout(const Duration(seconds: 5));
+    return defaultRankingSport(primary);
+  } catch (_) {
+    return defaultRankingSport(null);
+  }
+});
+
+/// Lista enriquecida para a tela de ranking (atletas ou equipes), do esporte
+/// de [rankingSportProvider] (docs por esporte, multiesporte fase 3b2).
 final rankingListEntriesProvider =
     FutureProvider.autoDispose<List<RankingListEntry>>((ref) async {
   final filter = ref.watch(rankingPageFilterProvider);
+  final sportCode = await ref.watch(rankingSportProvider.future);
   final user = await ref.watch(authProvider.future);
   final currentUid = user?.uid.trim();
   final repo = ref.read(rankingRepositoryProvider);
@@ -262,6 +289,7 @@ final rankingListEntriesProvider =
       repo: repo,
       users: users,
       filter: filter,
+      sportCode: sportCode,
       currentUid: currentUid,
     );
   }
@@ -270,6 +298,7 @@ final rankingListEntriesProvider =
     repo: repo,
     users: users,
     filter: filter,
+    sportCode: sportCode,
     currentUid: currentUid,
   );
 });

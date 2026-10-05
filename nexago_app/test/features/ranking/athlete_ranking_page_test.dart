@@ -29,6 +29,7 @@ void main() {
     container = ProviderContainer(overrides: [
       rankingListEntriesProvider
           .overrideWith((ref) async => const <RankingListEntry>[]),
+      rankingSportProvider.overrideWith((ref) async => 'VOLEI_PRAIA'),
     ]);
     addTearDown(container.dispose);
 
@@ -73,6 +74,18 @@ void main() {
     await tester.tap(find.text('Aplicar filtros'));
     await tester.pumpAndSettle();
   }
+
+  testWidgets('legenda do recorte mostra o esporte e a temporada, mesmo vazia',
+      (tester) async {
+    await pumpPage(tester);
+    expect(
+      find.text('Vôlei de praia · ${DateTime.now().year}'),
+      findsOneWidget,
+    );
+
+    await setFilter(tester, filter().copyWith(year: () => null));
+    expect(find.text('Vôlei de praia · Geral'), findsOneWidget);
+  });
 
   testWidgets('a tela só mostra o segmento — os recortes moram na folha',
       (tester) async {

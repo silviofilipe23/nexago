@@ -81,7 +81,7 @@ function isPermissionDenied(error: unknown): boolean {
  * `true` (gravado só pelo backend, na 1ª inscrição ativa naquele esporte —
  * `functions/src/tournament-level-lock.ts`). Antes do lock (`row.locked ===
  * false`) o dono pode descer livremente — mesma regra que as
- * `firestore.rules` (`sportLevelNotLowered`) já aceitam do lado do servidor.
+ * `firestore.rules` (`sportLevelOk`) já aceitam do lado do servidor.
  */
 @Component({
   selector: 'app-athlete-sports-levels',
@@ -150,7 +150,7 @@ export class AthleteSportsLevelsComponent {
 
   /** Opção travada quando fica ABAIXO do nível salvo — só quando o esporte já
    *  passou pela janela de correção (`row.locked`). Pré-lock nada trava aqui;
-   *  o backend aceita a descida (`sportLevelNotLowered` nas rules). */
+   *  o backend aceita a descida (`sportLevelOk` nas rules). */
   protected isOptionLocked(row: SportLevelRow, option: LevelOption): boolean {
     if (!row.locked || row.savedRank == null) return false;
     const optionRank = levelRankOf(option.code) ?? 0;

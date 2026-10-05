@@ -7,7 +7,7 @@
 //
 //   cd functions && firebase emulators:exec --only firestore --project nexago-rules-test \
 //     "node scripts/measure-users-rules-budget.mjs"
-//   NS=0,9,10,12 (lista de N)   FLAT=1 (variante com uma função só por esporte)
+//   NS=0,9,10,12 (lista de N de esportes na guarda)
 //
 // Resultado de 05/10/2026 no spec multiesporte (emenda "Medição de 05/10/2026").
 import fs from 'node:fs';
@@ -28,8 +28,7 @@ if (!BLOCK.test(BASE_RULES)) throw new Error('bloco de esportes não encontrado'
 
 const P10 = Array.from({ length: 10 }, () => '(1 == 1)').join(' && ');
 const P100 = Array.from({ length: 10 }, () => 'expPad10()').join(' && ');
-const FLAT_FUNC = `    function expSportOk(req, cur, ranks, locked) { return req == cur || !locked || (req is string ? ranks.get(req, -1) : -1) >= (cur is string ? ranks.get(cur, -1) : -1); }\n`;
-const PAD_FUNCS = FLAT_FUNC + `    function expPad10() { return ${P10}; }\n    function expPad100() { return ${P100}; }\n`;
+const PAD_FUNCS = `    function expPad10() { return ${P10}; }\n    function expPad100() { return ${P100}; }\n`;
 /** k unidades = centenas via expPad100(), dezenas via expPad10(), resto inline (árvore rasa). */
 function pad(k) {
   const parts = [];
@@ -41,11 +40,8 @@ function pad(k) {
 
 function rulesFor(n, k) {
   const sports = sportsFor(n);
-  const flat = process.env.FLAT === '1';
   const lines = sports.length
-    ? sports.map((s) => flat
-      ? `          expSportOk(reqLevels.get('${s}', null), curLevels.get('${s}', null), ranks, lockedSports.get('${s}', false))`
-      : `          sportLevelNotLowered(reqLevels, curLevels, '${s}', ranks, lockedSports)`).join(' &&\n')
+    ? sports.map((s) => `          sportLevelOk(reqLevels.get('${s}', null), curLevels.get('${s}', null), ranks, lockedSports.get('${s}', false))`).join(' &&\n')
     : '          true';
   let r = BASE_RULES.replace(BLOCK, (m) => m.replace(/\(reqLevels == curLevels \|\| \(\n[\s\S]*?\n(\s*)\)\);/, `(reqLevels == curLevels || (\n${lines}\n$1));`));
   r = r.replace(UPDATE_HEAD, `allow update: if ${pad(k)}request.auth != null && (\n        (\n          request.auth.uid == userId &&`);

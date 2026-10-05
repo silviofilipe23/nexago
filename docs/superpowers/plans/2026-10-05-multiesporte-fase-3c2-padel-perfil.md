@@ -1,6 +1,10 @@
 # Multiesporte fase 3c2: padel como esporte de perfil — Implementation Plan
 
-> **Status (05/10/2026): BLOQUEADO.** A medição da Task 1 mostrou que um 10º código na guarda de nível das rules faz toda negação estourar o teto de expressões (ver emenda "Medição de 05/10/2026" no spec). Só o teste de pior caso foi mantido; o resto aguarda decisão sobre reestruturar a guarda.
+> **Status (05/10/2026):** a medição mostrou o teto estourando com o 10º esporte; desbloqueado pela **Task 0** — guarda por esporte numa função só (`sportLevelOk`), que leva a folga da negação de 3 para 23 unidades com 9 esportes e 16 com padel (`functions/scripts/measure-users-rules-budget.mjs`).
+
+### Task 0: guarda de nível numa função por esporte
+**Files:** `firestore.rules`, `functions/test/sports-catalog.test.mjs` (regex + trava dos três códigos iguais por linha), comentários que citavam `sportLevelNotLowered`.
+- [x] Testes de nível (38) e rules (290) verdes antes e depois; medição confirma a folga.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

@@ -75,9 +75,9 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
   }
 
   Set<String> _resolveInitialSportTypes(List<String> raw) {
-    if (raw.isEmpty) return {kCourtTypeOptions.first};
-    // Código (`beachTennis`) ou rótulo gravado viram a opção do chip.
-    return courtTypeOptionsFor(raw, kCourtTypeOptions).toSet();
+    if (raw.isEmpty) return {kCourtSportOptions.first.value};
+    // Rótulo legado ou código gravado viram o código (é o que a quadra grava — fase 5b).
+    return courtTypeCodesFor(raw).toSet();
   }
 
   void _toggleSport(String label) {
@@ -249,10 +249,10 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: kCourtTypeOptions.map((label) {
-                final selected = _sportTypes.contains(label);
+              children: kCourtSportOptions.map((option) {
+                final selected = _sportTypes.contains(option.value);
                 return FilterChip(
-                  label: Text(label),
+                  label: Text(option.label),
                   selected: selected,
                   showCheckmark: true,
                   checkmarkColor: AppColors.brand,
@@ -264,7 +264,7 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
                   side: BorderSide(
                     color: selected ? AppColors.brand : context.themeColors.surfaceRaised,
                   ),
-                  onSelected: (_) => _toggleSport(label),
+                  onSelected: (_) => _toggleSport(option.value),
                 );
               }).toList(),
             ),

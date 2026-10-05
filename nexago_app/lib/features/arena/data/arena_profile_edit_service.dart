@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../arenas/domain/arena_amenities.dart';
 import '../../arenas/domain/arena_list_item.dart';
+import '../../arenas/domain/arena_sport_codes.dart';
 
 String _arenaDigitsOnly(String raw) {
   final out = StringBuffer();
@@ -124,11 +125,8 @@ class ArenaProfileEditService {
       );
     }
 
-    final uniqueTypes = <String>[];
-    for (final t in courtTypes) {
-      final s = t.trim();
-      if (s.isNotEmpty && !uniqueTypes.contains(s)) uniqueTypes.add(s);
-    }
+    // Multiesporte fase 5b: esporte gravado como CÓDIGO do catálogo.
+    final uniqueTypes = courtTypeCodesFor(courtTypes);
     final uniqueSurfaces = <String>[];
     for (final t in surfaces) {
       final s = t.trim();

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../arenas/data/arena_search_metadata_service.dart';
 import '../../arenas/domain/arena_search_metadata.dart';
+import '../../arenas/domain/arena_sport_codes.dart';
 
 class CourtServiceException implements Exception {
   CourtServiceException(this.message);
@@ -85,12 +86,17 @@ class CourtService {
     await batch.commit();
   }
 
-  static List<String> _normalizeSportTypes(List<String> sportTypes) {
-    final unique = ArenaSearchMetadata.uniqueLabels(sportTypes);
-    if (unique.isEmpty) {
+  /// Campos de esporte da quadra (multiesporte fase 5b): `types` em CÓDIGO do catálogo
+  /// (rótulo legado vira código; fora do catálogo segue cru), `type` = o primeiro (leitores
+  /// antigos) e `sport` = o primeiro (portal do atleta e site leem `sport`).
+  static Map<String, dynamic> courtSportFields(List<String> sportTypes) {
+    final types = ArenaSearchMetadata.uniqueLabels(
+      courtTypeCodesFor(sportTypes),
+    );
+    if (types.isEmpty) {
       throw CourtServiceException('Selecione ao menos um esporte na quadra.');
     }
-    return unique;
+    return {'types': types, 'type': types.first, 'sport': types.first};
   }
 
   /// Cria uma nova quadra (ID gerado pelo Firestore).
@@ -102,7 +108,7 @@ class CourtService {
   }) async {
     final a = arenaId.trim();
     final n = name.trim();
-    final types = _normalizeSportTypes(sportTypes);
+    final sportFields = courtSportFields(sportTypes);
     if (a.isEmpty) {
       throw CourtServiceException('Arena inválida.');
     }
@@ -112,8 +118,7 @@ class CourtService {
 
     final data = <String, dynamic>{
       'name': n,
-      'types': types,
-      'type': types.first,
+      ...sportFields,
       'status': 'active',
       'createdAt': FieldValue.serverTimestamp(),
     };
@@ -136,7 +141,7 @@ class CourtService {
     final a = arenaId.trim();
     final c = courtId.trim();
     final n = name.trim();
-    final types = _normalizeSportTypes(sportTypes);
+    final sportFields = courtSportFields(sportTypes);
     if (a.isEmpty || c.isEmpty) {
       throw CourtServiceException('Dados inválidos.');
     }
@@ -146,8 +151,7 @@ class CourtService {
 
     final data = <String, dynamic>{
       'name': n,
-      'types': types,
-      'type': types.first,
+      ...sportFields,
       'updatedAt': FieldValue.serverTimestamp(),
     };
     if (basePricePerHourReais != null && basePricePerHourReais > 0) {

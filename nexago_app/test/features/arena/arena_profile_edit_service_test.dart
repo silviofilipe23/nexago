@@ -44,6 +44,12 @@ void main() {
     return firestore.lastSetData!;
   }
 
+  // Multiesporte fase 5b: o perfil grava o CÓDIGO do esporte, não o rótulo.
+  test('courtTypes saem como código do catálogo', () async {
+    final data = await saveAndCapture(isOwner: true);
+    expect(data['courtTypes'], ['beachTennis']);
+  });
+
   // Ronda 2 (ruling da coordenação): a validação de chave PIX
   // (`onlinePaymentEnabled && trimmedPixKey.length < 5`) rodava incondicional
   // a `isOwner` — mesmo o payload já omitindo os 3 campos congelados para

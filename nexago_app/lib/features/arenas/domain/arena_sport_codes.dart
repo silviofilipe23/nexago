@@ -1,4 +1,5 @@
 import '../../../core/sports/sport_catalog.dart';
+import '../../../core/sports/sport_catalog_data.dart';
 
 /// Esporte das quadras da arena pelo catálogo (multiesporte fase 5a).
 ///
@@ -35,29 +36,41 @@ List<String> arenaSportLabels(Iterable<String> courtTypes) {
   return labels;
 }
 
-/// Valores gravados (código ou rótulo legado) → as opções do formulário do dono que representam
-/// o mesmo esporte, sem repetição. O formulário marca chip por igualdade de texto; sem isso um
-/// código gravado pelo portal ficaria escondido e um toque gravaria o rótulo ao lado dele.
-/// Valor que nenhuma opção cobre segue cru, para não sumir do doc ao salvar.
-List<String> courtTypeOptionsFor(
-  Iterable<String> stored,
-  List<String> options,
-) {
+/// Uma opção de esporte no formulário de quadra / perfil da arena: [value] é o que vai para o
+/// Firestore, [label] o que o dono vê.
+class CourtSportOption {
+  const CourtSportOption(this.value, this.label);
+
+  final String value;
+  final String label;
+}
+
+/// Esportes oferecidos no cadastro de quadra (multiesporte fase 5b): os do catálogo com
+/// `arenaCourtTypes`, gravados como CÓDIGO, mais "Pickleball", que ainda não está no catálogo e
+/// segue como texto.
+final List<CourtSportOption> kCourtSportOptions = [
+  for (final e in kSportCatalog)
+    if (e.arenaCourtTypes.isNotEmpty) CourtSportOption(e.code, e.label),
+  const CourtSportOption('Pickleball', 'Pickleball'),
+];
+
+/// Rótulo de uma opção/valor gravado para o chip do formulário.
+String courtSportOptionLabel(String value) {
+  for (final o in kCourtSportOptions) {
+    if (o.value == value) return o.label;
+  }
+  return courtSportLabel(value);
+}
+
+/// Valores (rótulo legado ou código) → o que se GRAVA a partir da fase 5b: o código do esporte;
+/// valor fora do catálogo (superfície, pickleball) segue cru. Sem repetição, na ordem.
+List<String> courtTypeCodesFor(Iterable<String> stored) {
   final out = <String>[];
   for (final raw in stored) {
     final value = raw.trim();
     if (value.isEmpty) continue;
-    final code = SportCatalog.resolve(value)?.code;
-    var option = value;
-    if (code != null) {
-      for (final candidate in options) {
-        if (SportCatalog.resolve(candidate)?.code == code) {
-          option = candidate;
-          break;
-        }
-      }
-    }
-    if (!out.contains(option)) out.add(option);
+    final code = SportCatalog.resolve(value)?.code ?? value;
+    if (!out.contains(code)) out.add(code);
   }
   return out;
 }

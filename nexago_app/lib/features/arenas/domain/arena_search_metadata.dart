@@ -13,18 +13,6 @@ abstract final class ArenaSearchMetadata {
     'Concreto',
   ];
 
-  /// Esportes no perfil da arena (`courtTypes` — só esportes, não superfície).
-  static const List<String> sportLabels = [
-    'Vôlei de praia',
-    'Beach tennis',
-    'Vôlei indoor',
-    'Tênis',
-    'Padel',
-    'Futebol',
-    'Futevôlei',
-    'Pickleball',
-  ];
-
   static final Set<String> _surfaceSet =
       surfaceOptions.map((s) => s.toLowerCase()).toSet();
 
@@ -63,13 +51,15 @@ abstract final class ArenaSearchMetadata {
     return out;
   }
 
-  static List<String> mergeSportLabels({
+  /// `arenas.courtTypes` = esportes do perfil ∪ esportes das quadras, gravados como CÓDIGO
+  /// (multiesporte fase 5b) — rótulo legado e código do mesmo esporte viram uma entrada só.
+  static List<String> mergeSportCodes({
     required Iterable<String> profileSports,
     required Iterable<String> courtTypeLabels,
   }) {
-    // Código (`beachTennis`) e rótulo do mesmo esporte viram uma entrada só (fase 5a).
     return uniqueLabels(
-      courtTypeOptionsFor([...profileSports, ...courtTypeLabels], sportLabels),
+      courtTypeCodesFor([...profileSports, ...courtTypeLabels]),
     );
   }
+
 }

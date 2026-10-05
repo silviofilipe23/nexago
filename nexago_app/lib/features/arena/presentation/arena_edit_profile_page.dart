@@ -216,11 +216,8 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
       a.courtTypes,
       surfacesFromDoc: a.surfaces,
     );
-    // Código (`beachTennis`) ou rótulo gravado viram a opção do chip.
-    _sports = courtTypeOptionsFor(
-      split.sports,
-      ArenaSearchMetadata.sportLabels,
-    );
+    // Rótulo legado ou código gravado viram o código (é o que o perfil grava — fase 5b).
+    _sports = courtTypeCodesFor(split.sports);
     _surfaces = List<String>.from(split.surfaces);
     _onlinePayment = a.onlinePaymentEnabled;
     _onsitePayment = a.onsitePaymentEnabled;
@@ -694,7 +691,8 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                     ),
                     const SizedBox(height: 10),
                     _SearchMetadataChips(
-                      options: ArenaSearchMetadata.sportLabels,
+                      options: [for (final o in kCourtSportOptions) o.value],
+                      labelOf: courtSportOptionLabel,
                       selected: _sports,
                       onToggle: (l) => _toggleMetadataLabel(_sports, l),
                     ),
@@ -1034,9 +1032,14 @@ class _SearchMetadataChips extends StatelessWidget {
     required this.options,
     required this.selected,
     required this.onToggle,
+    this.labelOf,
   });
 
   final List<String> options;
+
+  /// Texto do chip para o valor gravado (esporte grava código, mostra rótulo). Sem ele, o
+  /// próprio valor.
+  final String Function(String value)? labelOf;
   final List<String> selected;
   final ValueChanged<String> onToggle;
 
@@ -1048,7 +1051,7 @@ class _SearchMetadataChips extends StatelessWidget {
       children: options.map((label) {
         final isSelected = selected.contains(label);
         return FilterChip(
-          label: Text(label),
+          label: Text(labelOf?.call(label) ?? label),
           selected: isSelected,
           showCheckmark: true,
           checkmarkColor: AppColors.brand,

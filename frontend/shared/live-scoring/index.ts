@@ -35,20 +35,23 @@ export {
 export type { MatchDisplayStatus } from './match-status';
 export { statusOf } from './match-status';
 
-export type { MatchSide, ServingPlayerSlot, ServingPlayerSlots } from './serving-player';
+export type { MatchSide, RosterSizes, ServingPlayerSlot, ServingPlayerSlots } from './serving-player';
 export {
+  DUPLA_ROSTER_SIZES,
   NO_SERVING_PLAYER_SLOTS,
   needsServingPlayer,
+  rosterSizeFromMemberUids,
   servingPlayerSlotOf,
   servingPlayerSlotsAfterScore,
   servingPlayerSlotsAfterUndo,
   servingPlayerSlotsFromRaw,
   sideOfTeam,
   swappedServingPlayerSlots,
+  withIndividualSlots,
   withServingPlayerSlot,
 } from './serving-player';
 
-export type { MedicalTimeout } from './medical-timeout';
+export type { MedicalTimeout, MedicalTimeoutSlot } from './medical-timeout';
 export {
   MEDICAL_TIMEOUTS_PER_PLAYER,
   MEDICAL_TIMEOUT_SECONDS,
@@ -77,4 +80,5 @@ export {
   updateMatchFields,
   watchLiveMatch,
   watchPointEvents,
+  withRosterSizes,
 } from './live-match-repository';

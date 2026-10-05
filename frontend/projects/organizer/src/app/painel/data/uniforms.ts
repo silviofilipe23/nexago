@@ -1,3 +1,4 @@
+import { isNamedTeamSize } from './team-size';
 import type { InscriptionUniformSlot, TournamentInscription } from './inscriptions-repository';
 import { EMPTY_INSCRIPTION_UNIFORM } from './inscriptions-repository';
 import type { OrganizerTournament, OrganizerTournamentCategory } from './tournament.model';
@@ -157,7 +158,8 @@ export function uniformRowsFromInscriptions(params: {
 
     // Equipe nomeada (trio+): uniforme por atleta em `uniformByUid`; a "dupla" da linha
     // secundária vira o nome da equipe. Dupla clássica mantém os slots Player1/Player2.
-    const isTeam = inscription.teamSize != null;
+    // Individual (teamSize 1) usa o slot Player1, como a dupla.
+    const isTeam = isNamedTeamSize(inscription.teamSize);
     const slots = [inscription.uniformPlayer1, inscription.uniformPlayer2];
     const maxAthletes = isTeam ? inscription.teamSize! : 2;
     inscription.participants.slice(0, maxAthletes).forEach((participant, index) => {

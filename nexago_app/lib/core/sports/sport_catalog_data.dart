@@ -12,6 +12,7 @@ class SportCatalogEntry {
     required this.label,
     required this.art,
     required this.support,
+    required this.allowedTeamSizes,
     required this.scoringProfile,
   });
 
@@ -21,6 +22,10 @@ class SportCatalogEntry {
   final String label;
   final String? art;
   final SportSupport support;
+
+  /// Tamanhos de equipe que o wizard oferece (1 = individual); `null` em
+  /// esporte só de perfil.
+  final List<int>? allowedTeamSizes;
   final ScoringProfile? scoringProfile;
 }
 
@@ -32,6 +37,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Vôlei de praia',
     art: 'volei_praia',
     support: SportSupport.competition,
+    allowedTeamSizes: [2, 3, 4, 5],
     scoringProfile: SetsPointsProfile(bestOf: 3, setTarget: 21, decidingSetTarget: 15, winBy: 2, pointCap: null),
   ),
   SportCatalogEntry(
@@ -41,6 +47,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Vôlei de quadra',
     art: 'volei_quadra',
     support: SportSupport.competition,
+    allowedTeamSizes: [2, 3, 4, 5],
     scoringProfile: SetsPointsProfile(bestOf: 3, setTarget: 25, decidingSetTarget: 15, winBy: 2, pointCap: null),
   ),
   SportCatalogEntry(
@@ -50,6 +57,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Futevôlei',
     art: 'futevolei',
     support: SportSupport.competition,
+    allowedTeamSizes: [2, 3, 4, 5],
     scoringProfile: SetsPointsProfile(bestOf: 3, setTarget: 18, decidingSetTarget: 15, winBy: 2, pointCap: null),
   ),
   SportCatalogEntry(
@@ -59,6 +67,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Futebol',
     art: 'futebol',
     support: SportSupport.profile,
+    allowedTeamSizes: null,
     scoringProfile: null,
   ),
   SportCatalogEntry(
@@ -68,6 +77,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Basquete',
     art: 'basquete',
     support: SportSupport.profile,
+    allowedTeamSizes: null,
     scoringProfile: null,
   ),
   SportCatalogEntry(
@@ -77,6 +87,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Tênis',
     art: 'tenis',
     support: SportSupport.competition,
+    allowedTeamSizes: [1, 2],
     scoringProfile: SetsGamesProfile(bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: false, decidingSet: DecidingSet.full, superTiebreakTo: 10),
   ),
   SportCatalogEntry(
@@ -86,6 +97,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Beach tennis',
     art: 'beach_tennis',
     support: SportSupport.competition,
+    allowedTeamSizes: [2, 3, 4, 5],
     scoringProfile: SetsGamesProfile(bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: true, decidingSet: DecidingSet.superTiebreak, superTiebreakTo: 10),
   ),
   SportCatalogEntry(
@@ -95,6 +107,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Corrida',
     art: 'corrida',
     support: SportSupport.profile,
+    allowedTeamSizes: null,
     scoringProfile: null,
   ),
   SportCatalogEntry(
@@ -104,6 +117,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Padel',
     art: null,
     support: SportSupport.profile,
+    allowedTeamSizes: null,
     scoringProfile: SetsGamesProfile(bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: true, decidingSet: DecidingSet.full, superTiebreakTo: 10),
   ),
   SportCatalogEntry(
@@ -113,6 +127,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Outros',
     art: null,
     support: SportSupport.profile,
+    allowedTeamSizes: null,
     scoringProfile: null,
   ),
 ];

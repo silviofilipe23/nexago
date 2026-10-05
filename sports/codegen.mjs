@@ -77,6 +77,14 @@ export function validate(catalog) {
     if (!('scoringProfile' in s)) fail(`scoringProfile ausente em ${s.code}`);
     validateScoringProfile(s.code, s.scoringProfile);
     if (s.support === 'competition' && !s.scoringProfile) fail(`esporte de competição sem scoringProfile: ${s.code}`);
+    if (!('allowedTeamSizes' in s)) fail(`allowedTeamSizes ausente em ${s.code}`);
+    if (s.allowedTeamSizes !== null) {
+      const sizes = s.allowedTeamSizes;
+      const ok = Array.isArray(sizes) && sizes.length > 0 &&
+        sizes.every((n, i) => Number.isInteger(n) && n >= 1 && n <= 5 && (i === 0 || n > sizes[i - 1]));
+      if (!ok) fail(`allowedTeamSizes inválido em ${s.code}`);
+    }
+    if (s.support === 'competition' && !s.allowedTeamSizes) fail(`esporte de competição sem allowedTeamSizes: ${s.code}`);
     if (s.art !== null) {
       if (!/^[a-z0-9_]+$/.test(s.art)) fail(`art inválida em ${s.code}: ${s.art}`);
       for (const dir of ART_DIRS) {
@@ -115,7 +123,7 @@ function renderTsCatalog(catalog, index) {
     (s) =>
       `  {code: ${ts(s.code)}, profileCode: ${ts(s.profileCode)}, appId: ${ts(s.appId)}, ` +
       `label: ${ts(s.label)}, art: ${ts(s.art)}, support: ${ts(s.support)}, ` +
-      `scoringProfile: ${ts(s.scoringProfile)}},`,
+      `allowedTeamSizes: ${ts(s.allowedTeamSizes)}, scoringProfile: ${ts(s.scoringProfile)}},`,
   );
   const keys = [...index.entries()].map(([k, code]) => `  ${ts(k)}: ${ts(code)},`);
   return [
@@ -132,6 +140,8 @@ function renderTsCatalog(catalog, index) {
     '  readonly label: string;',
     '  readonly art: string | null;',
     '  readonly support: SportSupport;',
+    '  /** Tamanhos de equipe que o wizard oferece (1 = individual); `null` em esporte só de perfil. */',
+    '  readonly allowedTeamSizes: readonly number[] | null;',
     '  readonly scoringProfile: ScoringProfile | null;',
     '}',
     '',
@@ -252,6 +262,7 @@ function renderDartCatalog(catalog, index) {
     `    label: ${dart(s.label)},`,
     `    art: ${dart(s.art)},`,
     `    support: SportSupport.${s.support},`,
+    `    allowedTeamSizes: ${s.allowedTeamSizes === null ? 'null' : `[${s.allowedTeamSizes.join(', ')}]`},`,
     `    scoringProfile: ${dartProfile(s.scoringProfile)},`,
     '  ),',
   ]);
@@ -271,6 +282,7 @@ function renderDartCatalog(catalog, index) {
     '    required this.label,',
     '    required this.art,',
     '    required this.support,',
+    '    required this.allowedTeamSizes,',
     '    required this.scoringProfile,',
     '  });',
     '',
@@ -280,6 +292,10 @@ function renderDartCatalog(catalog, index) {
     '  final String label;',
     '  final String? art;',
     '  final SportSupport support;',
+    '',
+    '  /// Tamanhos de equipe que o wizard oferece (1 = individual); `null` em',
+    '  /// esporte só de perfil.',
+    '  final List<int>? allowedTeamSizes;',
     '  final ScoringProfile? scoringProfile;',
     '}',
     '',

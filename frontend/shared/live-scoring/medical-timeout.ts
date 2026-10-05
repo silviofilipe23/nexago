@@ -15,6 +15,9 @@ import type { MatchSide, ServingPlayerSlot } from './serving-player';
  *
  *  Espelhado em `match_medical_timeout_logic.dart` (mesa I1 do app). */
 
+/** Posição do atleta no elenco (1 individual · 1–2 dupla · até 5 equipe). */
+export type MedicalTimeoutSlot = 1 | 2 | 3 | 4 | 5;
+
 /** 5 minutos — atendimento médico das regras de vôlei de praia (CBV/FIVB). */
 export const MEDICAL_TIMEOUT_SECONDS = 300;
 
@@ -25,8 +28,8 @@ export const MEDICAL_TIMEOUTS_PER_PLAYER = 1;
 export interface MedicalTimeout {
   side: MatchSide;
   teamId: string;
-  /** Posição do atleta na dupla — mesma convenção de `serving-player.ts`. */
-  playerSlot: 1 | 2;
+  /** Posição do atleta no elenco (1–5) — mesma convenção de `serving-player.ts`. */
+  playerSlot: MedicalTimeoutSlot;
   /** Nome congelado no momento do chamado: o telão mostra quem está sendo atendido sem
    *  depender do join de perfis ter chegado. Vazio quando a mesa não tinha o nome. */
   playerName: string;
@@ -37,20 +40,21 @@ export interface MedicalTimeout {
 
 /** Chave de quem já usou o tempo médico — "A1", "B2". Identifica o ATLETA sem precisar do uid,
  *  pela mesma posição na dupla que o saque individual usa. */
-export function medicalTimeoutPlayerKey(side: MatchSide, slot: 1 | 2): string {
+export function medicalTimeoutPlayerKey(side: MatchSide, slot: MedicalTimeoutSlot): string {
   return `${side}${slot}`;
 }
 
 export function medicalTimeoutPlayerKeysFromRaw(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
-  return raw.filter((v): v is string => typeof v === 'string' && /^[AB][12]$/.test(v));
+  return raw.filter((v): v is string => typeof v === 'string' && /^[AB][1-5]$/.test(v));
 }
 
 export function medicalTimeoutFromRaw(raw: unknown): MedicalTimeout | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
   const side = o['side'] === 'A' || o['side'] === 'B' ? o['side'] : null;
-  const playerSlot = o['playerSlot'] === 1 || o['playerSlot'] === 2 ? o['playerSlot'] : null;
+  const rawSlot = o['playerSlot'];
+  const playerSlot = rawSlot === 1 || rawSlot === 2 || rawSlot === 3 || rawSlot === 4 || rawSlot === 5 ? rawSlot : null;
   if (side == null || playerSlot == null) return null;
   const started = o['startedAt'] as { toDate?: () => Date } | undefined;
   const duration = typeof o['durationSec'] === 'number' && o['durationSec'] > 0 ? Math.trunc(o['durationSec']) : MEDICAL_TIMEOUT_SECONDS;
@@ -80,7 +84,7 @@ export function isMedicalTimeoutEnded(timeout: Pick<MedicalTimeout, 'startedAt' 
   return medicalTimeoutRemainingSeconds(timeout, now) <= 0;
 }
 
-export function hasUsedMedicalTimeout(usedKeys: readonly string[], side: MatchSide, slot: 1 | 2): boolean {
+export function hasUsedMedicalTimeout(usedKeys: readonly string[], side: MatchSide, slot: MedicalTimeoutSlot): boolean {
   return usedKeys.includes(medicalTimeoutPlayerKey(side, slot));
 }
 
@@ -88,8 +92,8 @@ export function hasUsedMedicalTimeout(usedKeys: readonly string[], side: MatchSi
  *  atendimento em andamento. */
 export function canRequestMedicalTimeout(params: { usedKeys: readonly string[]; active: MedicalTimeout | null; side: MatchSide; slot: ServingPlayerSlot }): boolean {
   if (params.active != null) return false;
-  if (params.slot !== 1 && params.slot !== 2) return false;
-  return !hasUsedMedicalTimeout(params.usedKeys, params.side, params.slot);
+  if (!Number.isInteger(params.slot) || params.slot < 1 || params.slot > 5) return false;
+  return !hasUsedMedicalTimeout(params.usedKeys, params.side, params.slot as MedicalTimeoutSlot);
 }
 
 /** "04:37" — a contagem do overlay. */

@@ -238,6 +238,8 @@ function parseGender(raw: unknown): CategoryGender {
 function parseDispute(raw: unknown, teamSize: number | null): CategoryDispute {
   if (raw === 'individual' || raw === 'team' || raw === 'trio' || raw === 'quarteto' || raw === 'quinteto') return raw;
   // Doc com teamSize mas sem disputeType conhecido (escrito por outra superfície).
+  // `teamSize: 1` explícito é individual no servidor — carregar como dupla regravaria 2.
+  if (teamSize === 1) return 'individual';
   if (teamSize === 3) return 'trio';
   if (teamSize === 4) return 'quarteto';
   if (teamSize === 5) return 'quinteto';

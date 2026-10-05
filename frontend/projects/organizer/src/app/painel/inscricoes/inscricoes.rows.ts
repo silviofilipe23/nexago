@@ -1,3 +1,4 @@
+import { isNamedTeamSize } from '../data/team-size';
 import type { TournamentInscription } from '../data/inscriptions-repository';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { normalizeSearch, type InscricaoRow, type LgpdStatus, type PayStatus } from './inscricoes.model';
@@ -85,7 +86,7 @@ export function buildInscricaoRows(
           ? 'Declarado pelos atletas'
           : null,
       roster:
-        insc.teamSize != null && insc.partnerPending
+        isNamedTeamSize(insc.teamSize) && insc.partnerPending
           ? `Elenco ${insc.participants.length}/${insc.teamSize}`
           : null,
       cancelPending: insc.cancellationRequest?.status === 'pending',

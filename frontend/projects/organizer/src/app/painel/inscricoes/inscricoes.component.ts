@@ -1,3 +1,4 @@
+import { participantUnit } from '../data/team-size';
 import { ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, effect, inject, input, signal } from '@angular/core';
 import { fetchAthletePhones } from '../data/athlete-contacts-repository';
 import { watchInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
@@ -664,7 +665,7 @@ export class InscricoesComponent {
   protected onCreate(form: NovaInscricaoSubmit): void {
     const categoria = this.categorias().find((c) => c.id === form.categoryId);
     const categoriaNome = categoria?.name ?? 'categoria';
-    const unit = (categoria?.teamSize ?? 0) >= 3 ? 'Equipe' : 'Dupla';
+    const unit = participantUnit(categoria?.teamSize, { capitalized: true });
     void this.run(
       'create',
       async () => {

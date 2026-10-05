@@ -438,6 +438,16 @@ describe('OgNovaInscricaoComponent', () => {
     expect(emitted[0].markAsPaid).toBeFalse();
   });
 
+  describe('categoria individual (fase 4b1)', () => {
+    it('pede 1 atleta, sem nome de equipe, e fala em atleta', async () => {
+      expect(rosterSizeOf(category({ teamSize: 1 }))).toBe(1);
+      const el = await render([category({ teamSize: 1, name: 'Simples' })]);
+      expect(el.querySelectorAll('.og-ni-slot').length).toBe(1);
+      expect(el.textContent).toContain('Atleta · 1 atleta');
+      expect(el.textContent).not.toContain('Nome da equipe');
+    });
+  });
+
   describe('categoria de equipe (trio+)', () => {
     it('rosterSizeOf usa teamSize 3–5 e cai em 2 fora disso', () => {
       expect(rosterSizeOf(category({ teamSize: 3 }))).toBe(3);

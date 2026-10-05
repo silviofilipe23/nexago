@@ -31,6 +31,7 @@ import {
   totalSpots,
   parseTournamentSport,
   sportFirestoreValue,
+  profileBestOf,
 } from './tournament-create.model';
 
 /** Porta fiel de `tournament_create_mapper.dart` (Flutter): monta o doc `tournaments/{id}`
@@ -109,7 +110,8 @@ export function categoryToMap(category: TournamentCategoryDraft, draft: Tourname
     bestOf: category.bestOf,
     finalBestOf5: category.finalBestOf5,
     // Perfil de placar: repassado cru (o wizard ainda não edita); não gravar seria apagar.
-    ...(category.scoringProfile ? { scoringProfile: category.scoringProfile } : {}),
+    // O `bestOf` do perfil acompanha o da categoria (o organizador pode trocar depois).
+    ...(category.scoringProfile ? { scoringProfile: { ...category.scoringProfile, bestOf: profileBestOf(category.bestOf) } } : {}),
     maxRegistrationsPerAthlete: category.maxRegistrationsPerAthlete,
     registrationClosed: false,
     isCompleted: false,

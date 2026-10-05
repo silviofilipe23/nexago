@@ -87,6 +87,13 @@ describe("perfil de placar carimbado na partida", () => {
     assert.equal(categoryScoringProfile({bestOf: "bestOf5"}, "beachVolleyball").bestOf, 3);
   });
 
+  // Os padrões 25/15 (quadra) e 18/15 (futevôlei) do catálogo são SUGESTÃO do wizard: categoria
+  // sem perfil explícito (todo torneio existente) continua carimbando a regra histórica.
+  it("vôlei de quadra e futevôlei sem perfil explícito: regra histórica, não o padrão do catálogo", () => {
+    assert.deepEqual(categoryScoringProfile({bestOf: "bestOf3"}, "indoorVolleyball"), legacyScoringProfile(3));
+    assert.deepEqual(categoryScoringProfile({bestOf: "singleSet"}, "footvolley"), {...legacyScoringProfile(3), bestOf: 1});
+  });
+
   it("beach tennis usa o perfil de games do catálogo", () => {
     const p = categoryScoringProfile({bestOf: "bestOf3"}, "beachTennis");
     assert.equal(p.kind, "sets_games");
@@ -106,8 +113,11 @@ describe("perfil de placar carimbado na partida", () => {
     assert.deepEqual(categoryScoringProfile({bestOf: "bestOf3"}, "xadrez"), legacyScoringProfile(3));
   });
 
-  it("perfil explícito válido na categoria prevalece", () => {
+  it("perfil explícito válido na categoria prevalece, com o nº de sets da categoria", () => {
     const explicit = {kind: "sets_points", bestOf: 1, setTarget: 25, decidingSetTarget: 15, winBy: 2, pointCap: null};
-    assert.deepEqual(categoryScoringProfile({bestOf: "bestOf3", scoringProfile: explicit}, "beachVolleyball"), explicit);
+    // A categoria é a fonte do nº de sets (é o que os editores mostram): um perfil gravado com
+    // `bestOf` divergente não pode fazer a chave sair em MD3 numa categoria de set único.
+    assert.deepEqual(categoryScoringProfile({bestOf: "bestOf3", scoringProfile: explicit}, "beachVolleyball"), {...explicit, bestOf: 3});
+    assert.equal(categoryScoringProfile({bestOf: "singleSet", scoringProfile: {...explicit, bestOf: 3}}, "beachVolleyball").bestOf, 1);
   });
 });

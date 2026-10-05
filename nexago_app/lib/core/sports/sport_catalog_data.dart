@@ -41,7 +41,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Vôlei de quadra',
     art: 'volei_quadra',
     support: SportSupport.competition,
-    scoringProfile: SetsPointsProfile(bestOf: 3, setTarget: 21, decidingSetTarget: 15, winBy: 2, pointCap: null),
+    scoringProfile: SetsPointsProfile(bestOf: 3, setTarget: 25, decidingSetTarget: 15, winBy: 2, pointCap: null),
   ),
   SportCatalogEntry(
     code: 'footvolley',
@@ -50,7 +50,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Futevôlei',
     art: 'futevolei',
     support: SportSupport.competition,
-    scoringProfile: SetsPointsProfile(bestOf: 3, setTarget: 21, decidingSetTarget: 15, winBy: 2, pointCap: null),
+    scoringProfile: SetsPointsProfile(bestOf: 3, setTarget: 18, decidingSetTarget: 15, winBy: 2, pointCap: null),
   ),
   SportCatalogEntry(
     code: 'football',

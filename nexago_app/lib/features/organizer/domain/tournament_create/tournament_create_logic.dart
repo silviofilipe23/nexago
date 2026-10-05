@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:intl/intl.dart';
 
 import '../../../../core/formatting/app_currency_format.dart';
@@ -944,17 +945,23 @@ TournamentCategoryDraft patchCategoryScoring(
 
 /// Troca de esporte: categoria cujo perfil explícito é de OUTRO tipo (pontos ×
 /// games) ganha a sugestão do novo esporte; do mesmo tipo, o placar editado
-/// fica; sem perfil continua sem.
+/// fica; sem perfil continua sem. Perfil igual à sugestão de [previousSport]
+/// não foi editado — vira a sugestão do novo esporte (beach tennis → tênis não
+/// pode levar no-ad e super tie-break calado).
 List<TournamentCategoryDraft> withSportScoring(
   List<TournamentCategoryDraft> categories,
-  TournamentSport sport,
-) => [
+  TournamentSport sport, {
+  TournamentSport? previousSport,
+}) => [
   for (final c in categories)
     () {
       final raw = c.scoringProfileRaw;
       if (raw == null) return c;
       final suggested = suggestedScoringProfile(sport, c.bestOf);
-      return raw['kind'] == suggested['kind']
+      final untouched =
+          previousSport != null &&
+          mapEquals(raw, suggestedScoringProfile(previousSport, c.bestOf));
+      return raw['kind'] == suggested['kind'] && !untouched
           ? c
           : c.copyWith(scoringProfileRaw: suggested);
     }(),

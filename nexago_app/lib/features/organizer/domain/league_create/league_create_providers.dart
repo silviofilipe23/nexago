@@ -248,7 +248,12 @@ class LeagueCreateWizardNotifier extends Notifier<LeagueCreateWizardState> {
   void setSport(TournamentSport sport) => _updateDraft(
     state.draft.copyWith(
       sport: sport,
-      categories: withSportScoring(state.draft.categories, sport),
+      categories: withSportScoring(
+        state.draft.categories,
+        sport,
+        // Esporte desconhecido (`sportRaw`) não deu sugestão a ninguém.
+        previousSport: state.draft.sportRaw == null ? state.draft.sport : null,
+      ),
     ),
   );
 

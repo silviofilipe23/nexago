@@ -118,6 +118,35 @@ void main() {
     },
   );
 
+  test(
+    'trocar beach tennis → tênis: sugestão intacta vira a do tênis; editada fica (3c1)',
+    () {
+      final untouched = TournamentCategoryDraft(
+        id: 'c1',
+        bestOf: TournamentBestOf.bestOf3,
+        scoringProfileRaw: suggestedScoringProfile(
+          TournamentSport.beachTennis,
+          TournamentBestOf.bestOf3,
+        ),
+      );
+      final edited = patchCategoryScoring(
+        untouched,
+        TournamentSport.beachTennis,
+        decidingSet: DecidingSet.full,
+      );
+      final out = withSportScoring(
+        [untouched, edited],
+        TournamentSport.tennis,
+        previousSport: TournamentSport.beachTennis,
+      );
+      expect(out[0].scoringProfileRaw!['noAd'], false);
+      expect(out[0].scoringProfileRaw!['decidingSet'], 'full');
+      // Editada pelo organizador: no-ad do beach tennis + 3º set completo fica.
+      expect(out[1].scoringProfileRaw!['noAd'], true);
+      expect(out[1].scoringProfileRaw!['decidingSet'], 'full');
+    },
+  );
+
   test('o bestOf gravado no perfil acompanha o da categoria', () {
     final c = TournamentCategoryDraft(
       id: 'c1',

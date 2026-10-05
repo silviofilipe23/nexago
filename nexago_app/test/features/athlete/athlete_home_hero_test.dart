@@ -11,14 +11,43 @@ void main() {
         for (final g in <String?>['Masculino', 'Feminino', null]) {
           expect(
             athleteHomeHeroAssetFor(g, sport: sport),
-            AthleteHomeHeroArt.futevolei,
+            'assets/images/sports/futevolei.webp',
             reason: 'para $sport / $g',
           );
         }
       }
     });
 
-    test('outros esportes ou nulo seguem por gênero', () {
+    test('cada esporte com arte usa a sua, em vez da arte por gênero', () {
+      const esperado = {
+        'VOLEI_QUADRA': 'volei_quadra',
+        'BASQUETE': 'basquete',
+        'FUTEBOL': 'futebol',
+        'TENIS': 'tenis',
+        'BEACH_TENNIS': 'beach_tennis',
+        'CORRIDA': 'corrida',
+      };
+      esperado.forEach((code, art) {
+        expect(
+          athleteHomeHeroAssetFor('Masculino', sport: code),
+          'assets/images/sports/$art.webp',
+          reason: code,
+        );
+      });
+    });
+
+    test('esporte sem arte (padel, outros) segue por gênero', () {
+      expect(
+        athleteHomeHeroAssetFor('Feminino', sport: 'PADEL'),
+        AthleteHomeHeroArt.feminino,
+      );
+      expect(
+        athleteHomeHeroAssetFor(null, sport: 'OUTROS'),
+        AthleteHomeHeroArt.neutro,
+      );
+    });
+
+    test('vôlei de praia e nulo seguem por gênero', () {
       expect(
         athleteHomeHeroAssetFor('Masculino', sport: 'VOLEI_PRAIA'),
         AthleteHomeHeroArt.masculino,

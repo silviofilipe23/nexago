@@ -556,6 +556,7 @@ class _TournamentRegistrationPaymentPageState
           _paymentType = initialRegistrationPaymentType(
             awaitingSoloPartner: awaitingSoloPartner,
             isTeamCategory: quote.isTeamCategory,
+            isIndividual: quote.teamSize == 1,
           );
         }
 
@@ -700,7 +701,7 @@ class _TournamentRegistrationPaymentPageState
                 contactBusy: _contactingOrganizer,
               ),
             ),
-            if (snap != null && snap.teamSize != null) ...[
+            if (snap != null && (snap.teamSize ?? 0) >= 3) ...[
               const SizedBox(height: AppSpacing.lg),
               TournamentRegistrationRosterCard(
                 teamName: snap.teamName,

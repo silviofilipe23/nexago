@@ -80,7 +80,8 @@ bool canLeaveTeamRegistration({
   required bool isPaid,
   required List<String> sharePaidUids,
 }) {
-  if (teamSize == null) return false;
+  // Só equipe nomeada (trio+): individual e dupla não têm "sair da equipe".
+  if (teamSize == null || teamSize < 3) return false;
   final uid = myUid?.trim() ?? '';
   if (uid.isEmpty) return false;
   if ((captainUid?.trim() ?? '') == uid) return false;

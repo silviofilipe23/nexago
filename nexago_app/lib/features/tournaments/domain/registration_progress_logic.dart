@@ -119,7 +119,7 @@ String _partnerCaption(
 ) {
   // Equipe nomeada (trio+): a trilha conta o elenco, não "o parceiro".
   final teamSize = registration.teamSize;
-  if (teamSize != null) {
+  if (teamSize != null && teamSize >= 3) {
     if (registration.partnerPending) {
       return 'Elenco ${registration.participantUids.length}/$teamSize';
     }
@@ -145,6 +145,8 @@ String _paymentCaption(
   if (category.entryFee <= 0) return 'Gratuito';
   // Equipe (trio+): a taxa é da equipe e cada atleta paga a própria cota.
   final teamSize = registration.teamSize ?? 2;
+  // Individual: a taxa inteira é do atleta.
+  if (teamSize == 1) return 'Sua inscrição · ${_formatBRL(category.entryFee)}';
   if (teamSize > 2) {
     return 'Sua cota · ${_formatBRL(category.entryFee / teamSize)}';
   }
@@ -193,11 +195,13 @@ RegistrationProgress? buildRegistrationProgress(
   // leva para a tela do parceiro.
   final drafts = <_StepDraft>[
     _StepDraft(label: 'Categoria', caption: category.name, done: true),
-    _StepDraft(
-      label: registration.teamSize != null ? 'Equipe' : 'Dupla',
-      caption: _partnerCaption(registration, myName, partnerName),
-      done: partnerDone,
-    ),
+    // Individual não tem parceiro nem elenco a fechar — sem passo de dupla.
+    if (registration.teamSize != 1)
+      _StepDraft(
+        label: (registration.teamSize ?? 2) >= 3 ? 'Equipe' : 'Dupla',
+        caption: _partnerCaption(registration, myName, partnerName),
+        done: partnerDone,
+      ),
     if (categoryRequiresUniform(category))
       _StepDraft(
         label: 'Uniforme',

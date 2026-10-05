@@ -56,12 +56,12 @@ void main() {
       expect(quote.shareAmount, 50);
     });
 
-    test('teamSize menor que 2 é clampado para 2', () {
-      expect(buildRegistrationQuote(entryFee: 100, teamSize: 1).teamSize, 2);
+    test('teamSize menor que 1 é clampado para 2; 1 é individual (fase 4d1)', () {
+      expect(buildRegistrationQuote(entryFee: 100, teamSize: 1).teamSize, 1);
       expect(buildRegistrationQuote(entryFee: 100, teamSize: 0).teamSize, 2);
       expect(
         buildRegistrationQuote(entryFee: 100, teamSize: 1).shareAmount,
-        50,
+        100,
       );
     });
   });

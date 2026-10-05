@@ -241,14 +241,19 @@ class TournamentCategoryOffer {
   /// ação de substituição no cliente — o servidor é a autoridade do gate.
   final bool bracketPublished;
 
-  /// Categoria de equipe nomeada (trio+) — dupla segue o fluxo clássico.
-  bool get isTeamCategory => teamSize != null;
+  /// Categoria de equipe nomeada (trio+) — dupla e individual seguem o fluxo
+  /// clássico.
+  bool get isTeamCategory => teamSize != null && teamSize! >= 3;
 
-  /// Elenco por inscrição: 2 na dupla, 3–5 na equipe.
+  /// Categoria individual (`teamSize: 1`): inscrição só do atleta.
+  bool get isIndividualCategory => teamSize == 1;
+
+  /// Elenco por inscrição: 1 na individual, 2 na dupla, 3–5 na equipe.
   int get rosterSize => teamSize ?? 2;
 
-  /// "Dupla" / "Trio" / "Quarteto" / "Quinteto" — pill de formato.
+  /// "Individual" / "Dupla" / "Trio" / "Quarteto" / "Quinteto" — pill de formato.
   String get formatLabel => switch (teamSize) {
+    1 => 'Individual',
     3 => 'Trio',
     4 => 'Quarteto',
     5 => 'Quinteto',
@@ -256,8 +261,10 @@ class TournamentCategoryOffer {
   };
 
   /// Unidade das vagas ("duplas"/"equipes").
-  String get unitLabel => isTeamCategory ? 'equipes' : 'duplas';
-  String get unitSingular => isTeamCategory ? 'equipe' : 'dupla';
+  String get unitLabel =>
+      isIndividualCategory ? 'atletas' : (isTeamCategory ? 'equipes' : 'duplas');
+  String get unitSingular =>
+      isIndividualCategory ? 'atleta' : (isTeamCategory ? 'equipe' : 'dupla');
 
   /// Detalhe de gênero da equipe: "Livre" ou "2H + 2M" (misto exato).
   String? get genderDetail {

@@ -53,7 +53,12 @@ bool registrationPaidAwaitingPartner({
 String initialRegistrationPaymentType({
   required bool awaitingSoloPartner,
   required bool isTeamCategory,
-}) => awaitingSoloPartner && !isTeamCategory ? 'full' : 'share';
+
+  /// Individual: só existe o valor inteiro.
+  bool isIndividual = false,
+}) => isIndividual || (awaitingSoloPartner && !isTeamCategory)
+    ? 'full'
+    : 'share';
 
 /// Inscrição cancelável pelo atleta: nenhum pagamento registrado — nem a dupla
 /// confirmada, nem parcela de um dos dois. Espelha o guard da callable
@@ -159,8 +164,9 @@ class TournamentRegistrationQuote {
   /// exibido antes de gerar a cobrança.
   double get shareAmount => entryFee > 0 ? entryFee / teamSize : 0;
 
-  /// "dupla" ou "equipe" — para as copies de pagamento.
-  String get unitSingular => isTeamCategory ? 'equipe' : 'dupla';
+  /// "atleta", "dupla" ou "equipe" — para as copies de pagamento.
+  String get unitSingular =>
+      teamSize == 1 ? 'atleta' : (isTeamCategory ? 'equipe' : 'dupla');
 }
 
 TournamentRegistrationQuote buildRegistrationQuote({
@@ -169,7 +175,8 @@ TournamentRegistrationQuote buildRegistrationQuote({
   int teamSize = 2,
 }) {
   return TournamentRegistrationQuote(
-    teamSize: teamSize < 2 ? 2 : teamSize,
+    // 1 = individual (a cota é a taxa inteira); abaixo disso, dupla.
+    teamSize: teamSize < 1 ? 2 : teamSize,
     entryFee: entryFee < 0 ? 0 : entryFee,
     platformFee: platformFee,
   );
@@ -236,6 +243,7 @@ String directOrganizerShareHint(
   TournamentRegistrationQuote quote,
   String amountType,
 ) {
+  if (quote.teamSize == 1) return 'Você está pagando a inscrição inteira.';
   if (amountType == 'full') {
     return quote.isTeamCategory
         ? 'Você está pagando o valor integral da equipe. '
@@ -487,6 +495,17 @@ String registrationDualPaymentProgressLabel({
   // "confirmada" aqui adianta uma etapa que não aconteceu.
   if (directPaymentState == DirectPaymentState.waitingOrganizer) {
     return 'Pagamento informado. O organizador vai conferir o recebimento.';
+  }
+  // Individual: só o próprio atleta — nenhum texto de "cada atleta"/parceiro.
+  if (quote.teamSize == 1) {
+    if (isPaid) return 'Inscrição confirmada — você está no torneio.';
+    if (isDirectOrganizerPayment) {
+      return 'Informe o pagamento ao organizador para reservar sua vaga.';
+    }
+    if (!registrationRequiresPayment(quote)) {
+      return 'Confirme sua inscrição gratuita.';
+    }
+    return 'Aguardando o seu pagamento.';
   }
   if (isPaid) return 'Inscrição confirmada — dupla inscrita no torneio.';
   if (!registrationRequiresPayment(quote) || isDirectOrganizerPayment) {

@@ -13,6 +13,7 @@ class RegistrationTermsCopy {
     required this.ctaLabel,
     required this.allowsSolo,
     this.secondaryLabel,
+    this.registersDirectly = false,
   });
 
   final String eyebrow;
@@ -25,6 +26,9 @@ class RegistrationTermsCopy {
 
   /// Rótulo da ação secundária (`null` = sem ação secundária).
   final String? secondaryLabel;
+
+  /// Categoria individual: o botão principal JÁ inscreve (não há parceiro).
+  final bool registersDirectly;
 }
 
 RegistrationTermsCopy registrationTermsCopy({
@@ -69,6 +73,21 @@ RegistrationTermsCopy registrationTermsCopy({
   }
 
   final teamSize = category.teamSize;
+  // Individual vem antes de "dupla obrigatória": não existe parceiro, então a
+  // regra do torneio de exigir dupla formada não se aplica (o servidor também
+  // a ignora — multiesporte fase 4).
+  if (teamSize == 1) {
+    return const RegistrationTermsCopy(
+      eyebrow: 'INDIVIDUAL',
+      title: 'Esta categoria é individual',
+      body:
+          'A inscrição é só sua, sem parceiro. Ao continuar a vaga fica '
+          'reservada e o pagamento abre em seguida.',
+      ctaLabel: 'Fazer minha inscrição',
+      allowsSolo: false,
+      registersDirectly: true,
+    );
+  }
   if (teamSize != null && teamSize > 2) {
     return RegistrationTermsCopy(
       eyebrow: 'EQUIPE',

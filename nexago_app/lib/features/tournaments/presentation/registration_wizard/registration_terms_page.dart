@@ -122,9 +122,19 @@ class _RegistrationTermsPageState extends ConsumerState<RegistrationTermsPage> {
             lgpdAccepted: widget.lgpdAccepted,
           );
       if (!mounted) return;
+      final individual = ref
+              .read(tournamentDetailProvider(widget.tournamentId))
+              .valueOrNull
+              ?.categoryOffers
+              .where((c) => c.id == widget.categoryId)
+              .firstOrNull
+              ?.isIndividualCategory ??
+          false;
       showAppSnackBar(
         context,
-        'Vaga reservada! Falta formar a dupla — convide seu parceiro.',
+        individual
+            ? 'Inscrição feita! Sua vaga está reservada — falta só o pagamento.'
+            : 'Vaga reservada! Falta formar a dupla — convide seu parceiro.',
       );
       context.pushNamed(
         AppRouteNames.tournamentRegistration,
@@ -237,6 +247,9 @@ class _RegistrationTermsPageState extends ConsumerState<RegistrationTermsPage> {
             submitting: _processing,
             onConfirm: receivedInvite != null
                 ? () => _openReceivedInvite(receivedInvite)
+                // Individual: o botão principal já inscreve (sem parceiro).
+                : copy.registersDirectly
+                ? _reserveSolo
                 : () => _advance(copy),
             onSecondary: copy.secondaryLabel == null ? null : _reserveSolo,
             onOtherCategories: showOtherCategories
@@ -279,10 +292,14 @@ class _RegistrationTermsPageState extends ConsumerState<RegistrationTermsPage> {
                   _GuaranteeRow(
                     icon: Icons.person_outline_rounded,
                     iconColor: AppColors.win,
-                    title: 'Parceiro definido antes de pagar',
-                    subtitle:
-                        'Nenhum valor é cobrado enquanto a dupla não estiver '
-                        'formada',
+                    // Individual: não há parceiro a definir.
+                    title: category.isIndividualCategory
+                        ? 'Só você na inscrição'
+                        : 'Parceiro definido antes de pagar',
+                    subtitle: category.isIndividualCategory
+                        ? 'A vaga fica reservada assim que você se inscreve'
+                        : 'Nenhum valor é cobrado enquanto a dupla não estiver '
+                              'formada',
                   ),
                   if (closesAt != null) ...[
                     Divider(
@@ -308,7 +325,9 @@ class _RegistrationTermsPageState extends ConsumerState<RegistrationTermsPage> {
                   _GuaranteeRow(
                     icon: Icons.emoji_events_outlined,
                     iconColor: context.themeColors.onSurfaceMuted,
-                    title: 'Os dois precisam caber na categoria',
+                    title: category.isIndividualCategory
+                        ? 'Seu nível precisa caber na categoria'
+                        : 'Os dois precisam caber na categoria',
                     subtitle: 'Nível compatível com ${category.name}',
                   ),
                 ],
@@ -406,7 +425,8 @@ class _PriceCard extends StatelessWidget {
     final colors = context.themeColors;
     final teamSize = category.teamSize;
     final isTeam = teamSize != null && teamSize > 2;
-    final splitBy = isTeam ? teamSize ?? 2 : 2;
+    // Individual (1): a taxa inteira é do atleta.
+    final splitBy = isTeam || teamSize == 1 ? teamSize ?? 2 : 2;
     final perAthlete = category.entryFee / splitBy;
     final perAthleteLabel = formatRegistrationMoney(perAthlete);
     final totalLabel = formatRegistrationMoney(category.entryFee);
@@ -419,7 +439,11 @@ class _PriceCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  isTeam ? 'INSCRIÇÃO DA EQUIPE' : 'INSCRIÇÃO DA DUPLA',
+                  category.isIndividualCategory
+                      ? 'INSCRIÇÃO INDIVIDUAL'
+                      : isTeam
+                      ? 'INSCRIÇÃO DA EQUIPE'
+                      : 'INSCRIÇÃO DA DUPLA',
                   style: AppTypography.eyebrow.copyWith(
                     color: colors.onSurfaceMuted,
                   ),
@@ -434,6 +458,8 @@ class _PriceCard extends StatelessWidget {
               ),
             ],
           ),
+          // Individual: a taxa é do atleta — sem divisão nem "tudo por você".
+          if (!category.isIndividualCategory) ...[
           const SizedBox(height: AppSpacing.lg),
           _PriceOption(
             label: isTeam ? 'Dividido pelo elenco' : 'Metade e metade',
@@ -457,6 +483,7 @@ class _PriceCard extends StatelessWidget {
             badge: 'INTEGRAL',
             badgeColor: colors.onSurfaceMuted,
           ),
+          ],
         ],
       ),
     );

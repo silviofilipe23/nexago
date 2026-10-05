@@ -266,7 +266,9 @@ class _RegistrationCategoryPageState
 
         final closesAt = tournament.registrationClosesAt;
         final pairRequired =
-            tournament.requireFormedPair && !category.isTeamCategory;
+            tournament.requireFormedPair &&
+        !category.isTeamCategory &&
+        !category.isIndividualCategory;
         final canAdvance = access.canAccess && !status.blocked;
 
         return RegistrationWizardScaffold(

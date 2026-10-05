@@ -1075,7 +1075,10 @@ export class CriarTorneioComponent {
     const previous = this.draft().sportRaw ? undefined : this.draft().sport;
     // Tipo de disputa que o novo esporte não aceita (ex.: individual fora do tênis) vira dupla.
     if (sport) {
-      this.patch({ sport, categories: withSportDisputes(withSportScoring(this.draft().categories, sport, previous), sport) });
+      this.patch({
+        sport,
+        categories: withSportDisputes(withSportScoring(this.draft().categories, sport, previous), sport, this.publishedCategoryIds()),
+      });
     }
   }
 

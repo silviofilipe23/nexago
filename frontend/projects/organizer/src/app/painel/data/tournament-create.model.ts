@@ -366,11 +366,16 @@ export function disputeOptionsForSport(sport: TournamentSport): CategoryDispute[
 }
 
 /** Troca de esporte: categoria com tipo que o novo esporte não aceita vira dupla (ou o 1º
- *  tipo aceito); "Livre" só existe em equipe. Tipo aceito fica como está. */
-export function withSportDisputes(categories: readonly TournamentCategoryDraft[], sport: TournamentSport): TournamentCategoryDraft[] {
+ *  tipo aceito); "Livre" só existe em equipe. Tipo aceito fica como está, e categoria travada
+ *  (`lockedIds` — já publicada, com inscrições no tipo dela) nunca muda. */
+export function withSportDisputes(
+  categories: readonly TournamentCategoryDraft[],
+  sport: TournamentSport,
+  lockedIds: ReadonlySet<string> = new Set(),
+): TournamentCategoryDraft[] {
   const allowed = disputeOptionsForSport(sport);
   return categories.map((c) => {
-    if (allowed.includes(c.dispute)) return c;
+    if (lockedIds.has(c.id) || allowed.includes(c.dispute)) return c;
     const dispute = allowed.includes('dupla') ? 'dupla' : allowed[0]!;
     return normalizeCategoryComposition({ ...c, dispute, genderFree: isTeamDispute(dispute) ? c.genderFree : false });
   });

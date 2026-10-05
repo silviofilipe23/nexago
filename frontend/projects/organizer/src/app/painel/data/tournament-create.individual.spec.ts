@@ -1,3 +1,4 @@
+import { categoryFromMap } from './tournament-create-mapper';
 import {
   disputeOptionsForSport,
   disputeSpotsStep,
@@ -28,5 +29,18 @@ describe('categoria individual no wizard (fase 4b1)', () => {
     expect(disputeSpotsStep('dupla')).toBe(2);
     expect(disputeSpotsStep('individual')).toBe(1);
     expect(disputeSpotsStep('trio')).toBe(1);
+  });
+
+  it('teamSize 1 explícito sem disputeType carrega como individual (não regrava dupla)', () => {
+    expect(categoryFromMap({ id: 'c1', teamSize: 1 })?.dispute).toBe('individual');
+    expect(categoryFromMap({ id: 'c2' })?.dispute).toBe('dupla');
+  });
+
+  it('troca de esporte não mexe no tipo de categoria travada (torneio publicado)', () => {
+    const solo = { ...emptyCategoryDraft('c1'), dispute: 'individual' as const };
+    const novo = { ...emptyCategoryDraft('c2'), dispute: 'individual' as const };
+    const [a, b] = withSportDisputes([solo, novo], 'beachVolleyball', new Set(['c1']));
+    expect(a!.dispute).toBe('individual');
+    expect(b!.dispute).toBe('dupla');
   });
 });

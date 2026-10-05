@@ -7,6 +7,7 @@ import '../../../domain/tournament_create/tournament_create_draft.dart';
 import '../../../domain/tournament_create/tournament_create_logic.dart';
 import '../../../domain/tournament_create/tournament_create_providers.dart';
 import '../widgets/organizer_category_format_section.dart';
+import '../widgets/organizer_category_scoring_section.dart';
 import '../widgets/organizer_form_widgets.dart';
 
 Future<void> showTournamentCategoryEditorSheet(
@@ -84,6 +85,16 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
           priceCents: draft.defaultPriceCents,
           useDefaultPrice: true,
         );
+    // Categoria NOVA nasce com o placar sugerido do esporte (gravado explícito).
+    final scoringSport = scoringSportOf(draft.sport, draft.sportRaw);
+    if (widget.existing == null && scoringSport != null) {
+      _category = _category.copyWith(
+        scoringProfileRaw: suggestedScoringProfile(
+          scoringSport,
+          _category.bestOf,
+        ),
+      );
+    }
     _nameController = TextEditingController(text: _category.name);
     _priceController = TextEditingController(
       text: formatCents(_category.priceCents).replaceAll(r'R$', '').trim(),
@@ -325,6 +336,18 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
                     );
                   },
                 ),
+                if (scoringSportOf(
+                      ref.watch(tournamentCreateDraftProvider).sport,
+                      ref.watch(tournamentCreateDraftProvider).sportRaw,
+                    )
+                    case final scoringSport?) ...[
+                  const SizedBox(height: 20),
+                  OrganizerCategoryScoringSection(
+                    category: _category,
+                    sport: scoringSport,
+                    onChanged: (c) => setState(() => _category = c),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 const OrganizerSectionLabel('VAGAS & PREÇO'),
                 const SizedBox(height: 12),

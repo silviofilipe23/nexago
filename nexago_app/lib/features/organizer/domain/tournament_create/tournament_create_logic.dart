@@ -863,3 +863,100 @@ const defaultRankingPointsPreview = <String, int>{
   'Quartas': 80,
   'Fase de grupos': 40,
 };
+
+// --- Placar da categoria (spec multiesporte, fase 2d2b) ---------------------
+// Espelho de `tournament-create.model.ts` do portal (2d2a).
+
+/// `bestOf` do perfil — o mesmo mapeamento do servidor: set único = 1; MD3 e
+/// MD5 = 3 (MD5 ainda não é operável na mesa).
+int profileBestOf(TournamentBestOf bestOf) =>
+    bestOf == TournamentBestOf.singleSet ? 1 : 3;
+
+/// Esporte que decide o placar da categoria: o do enum, ou `null` quando o
+/// torneio está num esporte que esta versão não conhece (`sportRaw`) — aí não
+/// se sugere nem se mostra placar, e o servidor usa o padrão do esporte real.
+TournamentSport? scoringSportOf(TournamentSport sport, String? sportRaw) =>
+    sportRaw == null ? sport : null;
+
+/// Perfil sugerido para uma categoria NOVA do esporte: o padrão do catálogo
+/// (21/15 vôlei de praia, 25/15 quadra, 18/15 futevôlei, games de beach tennis)
+/// com o `bestOf` da categoria.
+Map<String, dynamic> suggestedScoringProfile(
+  TournamentSport sport,
+  TournamentBestOf bestOf,
+) {
+  final base =
+      SportCatalog.resolve(sport.name)?.scoringProfile ??
+      ScoringRules.legacyProfile(3);
+  return ScoringRules.profileToMap(
+    ScoringRules.withBestOf(base, profileBestOf(bestOf)),
+  );
+}
+
+/// O placar que a categoria vai carimbar: o perfil explícito ou, sem ele, o
+/// que o servidor usa — regra histórica em pontos, padrão do catálogo em games.
+ScoringProfile categoryScoringView(
+  TournamentCategoryDraft category,
+  TournamentSport sport,
+) {
+  final bestOf = profileBestOf(category.bestOf);
+  final explicit = ScoringRules.profileFromRaw(category.scoringProfileRaw);
+  if (explicit != null) return ScoringRules.withBestOf(explicit, bestOf);
+  final catalog = SportCatalog.resolve(sport.name)?.scoringProfile;
+  final base = catalog is SetsGamesProfile
+      ? catalog
+      : ScoringRules.legacyProfile(3);
+  return ScoringRules.withBestOf(base, bestOf);
+}
+
+/// Edição do placar: parte do que a categoria carimba hoje e grava o perfil
+/// explícito. Campo de outro tipo é ignorado.
+TournamentCategoryDraft patchCategoryScoring(
+  TournamentCategoryDraft category,
+  TournamentSport sport, {
+  int? setTarget,
+  int? decidingSetTarget,
+  bool? noAd,
+  DecidingSet? decidingSet,
+}) {
+  final current = categoryScoringView(category, sport);
+  final next = switch (current) {
+    SetsPointsProfile() => SetsPointsProfile(
+      bestOf: current.bestOf,
+      setTarget: setTarget ?? current.setTarget,
+      decidingSetTarget: decidingSetTarget ?? current.decidingSetTarget,
+      winBy: current.winBy,
+      pointCap: current.pointCap,
+    ),
+    SetsGamesProfile() => SetsGamesProfile(
+      bestOf: current.bestOf,
+      gamesPerSet: current.gamesPerSet,
+      winByGames: current.winByGames,
+      tiebreakAtGames: current.tiebreakAtGames,
+      tiebreakTo: current.tiebreakTo,
+      noAd: noAd ?? current.noAd,
+      decidingSet: decidingSet ?? current.decidingSet,
+      superTiebreakTo: current.superTiebreakTo,
+    ),
+  };
+  return category.copyWith(scoringProfileRaw: ScoringRules.profileToMap(next));
+}
+
+/// Troca de esporte: categoria cujo perfil explícito é de OUTRO tipo (pontos ×
+/// games) ganha a sugestão do novo esporte; do mesmo tipo, o placar editado
+/// fica; sem perfil continua sem.
+List<TournamentCategoryDraft> withSportScoring(
+  List<TournamentCategoryDraft> categories,
+  TournamentSport sport,
+) => [
+  for (final c in categories)
+    () {
+      final raw = c.scoringProfileRaw;
+      if (raw == null) return c;
+      final suggested = suggestedScoringProfile(sport, c.bestOf);
+      return raw['kind'] == suggested['kind']
+          ? c
+          : c.copyWith(scoringProfileRaw: suggested);
+    }(),
+];
+

@@ -4,6 +4,7 @@ import {
   emptyCategoryDraft,
   emptyTournamentDraft,
   patchCategoryScoring,
+  scoringSportOf,
   suggestedScoringProfile,
   withSportScoring,
 } from './tournament-create.model';
@@ -58,4 +59,12 @@ describe('placar da categoria no wizard (fase 2d2a)', () => {
     const md5 = { ...c, bestOf: 'bestOf5' as const };
     expect((categoryToMap(md5, emptyTournamentDraft())['scoringProfile'] as Record<string, unknown>)['bestOf']).toBe(3);
   });
+
+  it('esporte desconhecido (sportRaw): sem esporte de placar, categoria nova sem perfil', () => {
+    expect(scoringSportOf({ sport: 'beachVolleyball', sportRaw: null })).toBe('beachVolleyball');
+    expect(scoringSportOf({ sport: 'beachVolleyball', sportRaw: 'tennis' })).toBeNull();
+    const c = applyOrganizerCategoryDefaults(emptyCategoryDraft('c1'), DEFAULT_ORGANIZER_EVENT_DEFAULTS, scoringSportOf({ sport: 'beachVolleyball', sportRaw: 'tennis' }) ?? undefined);
+    expect(c.scoringProfile ?? null).toBeNull();
+  });
 });
+

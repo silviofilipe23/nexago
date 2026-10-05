@@ -314,6 +314,32 @@ abstract final class ScoringRules {
   }
 
   /// Cópia do perfil com outro nº de sets.
+  /// Perfil como mapa do Firestore — o formato que [profileFromRaw] lê (e o
+  /// mesmo do catálogo e das functions).
+  static Map<String, dynamic> profileToMap(ScoringProfile p) => switch (p) {
+    SetsPointsProfile() => {
+      'kind': 'sets_points',
+      'bestOf': p.bestOf,
+      'setTarget': p.setTarget,
+      'decidingSetTarget': p.decidingSetTarget,
+      'winBy': p.winBy,
+      'pointCap': p.pointCap,
+    },
+    SetsGamesProfile() => {
+      'kind': 'sets_games',
+      'bestOf': p.bestOf,
+      'gamesPerSet': p.gamesPerSet,
+      'winByGames': p.winByGames,
+      'tiebreakAtGames': p.tiebreakAtGames,
+      'tiebreakTo': p.tiebreakTo,
+      'noAd': p.noAd,
+      'decidingSet': p.decidingSet == DecidingSet.superTiebreak
+          ? 'super_tiebreak'
+          : 'full',
+      'superTiebreakTo': p.superTiebreakTo,
+    },
+  };
+
   static ScoringProfile withBestOf(ScoringProfile p, int bestOf) => switch (p) {
     SetsPointsProfile() => SetsPointsProfile(
       bestOf: bestOf,

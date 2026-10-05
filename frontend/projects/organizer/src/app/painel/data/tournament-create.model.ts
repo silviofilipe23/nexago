@@ -724,6 +724,13 @@ export function profileBestOf(bestOf: TournamentBestOf): 1 | 3 {
   return bestOf === 'singleSet' ? 1 : 3;
 }
 
+/** Esporte que decide o placar da categoria: o do tipo, ou `null` quando o torneio está num
+ *  esporte que esta versão não conhece (`sportRaw`) — aí não se sugere nem se mostra placar, e o
+ *  servidor usa o padrão do esporte real. */
+export function scoringSportOf(d: { sport: TournamentSport; sportRaw?: string | null }): TournamentSport | null {
+  return d.sportRaw ? null : d.sport;
+}
+
 /** Perfil sugerido para uma categoria NOVA do esporte: o padrão do catálogo (21/15 vôlei de
  *  praia, 25/15 quadra, 18/15 futevôlei, games de beach tennis) com o `bestOf` da categoria. */
 export function suggestedScoringProfile(sport: TournamentSport, bestOf: TournamentBestOf): Record<string, unknown> {

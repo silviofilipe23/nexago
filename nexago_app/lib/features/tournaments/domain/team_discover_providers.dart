@@ -20,6 +20,7 @@ class TeamDiscoverState {
     this.isLoadingMore = false,
     this.hasMore = true,
     this.lastDocumentId,
+    this.rankedOffset = 0,
     this.errorMessage,
     this.viewerTeamPoints,
   });
@@ -34,6 +35,9 @@ class TeamDiscoverState {
   final bool isLoadingMore;
   final bool hasMore;
   final String? lastDocumentId;
+
+  /// Cursor da paginação pelo ranking (posições já consumidas).
+  final int rankedOffset;
   final String? errorMessage;
   final int? viewerTeamPoints;
 
@@ -55,6 +59,7 @@ class TeamDiscoverState {
     bool? isLoadingMore,
     bool? hasMore,
     Object? lastDocumentId = _unset,
+    int? rankedOffset,
     Object? errorMessage = _unset,
     int? viewerTeamPoints,
   }) {
@@ -71,6 +76,7 @@ class TeamDiscoverState {
       lastDocumentId: identical(lastDocumentId, _unset)
           ? this.lastDocumentId
           : lastDocumentId as String?,
+      rankedOffset: rankedOffset ?? this.rankedOffset,
       errorMessage: identical(errorMessage, _unset)
           ? this.errorMessage
           : errorMessage as String?,
@@ -130,7 +136,7 @@ class TeamDiscoverNotifier extends AutoDisposeNotifier<TeamDiscoverState> {
     _repo.clearCaches();
     try {
       final viewerPts = await _repo.viewerTeamPoints(_currentUid);
-      final page = await _repo.fetchPage();
+      final page = await _fetchPage(rankedOffset: 0, cursor: null);
       final enriched = await _repo.enrichEntries(
         teams: page.teams,
         currentUserId: _currentUid,
@@ -141,6 +147,7 @@ class TeamDiscoverNotifier extends AutoDisposeNotifier<TeamDiscoverState> {
         isLoading: false,
         hasMore: page.hasMore,
         lastDocumentId: page.lastDocumentId,
+        rankedOffset: page.nextRankedOffset,
         viewerTeamPoints: viewerPts,
         errorMessage: null,
       );
@@ -151,14 +158,40 @@ class TeamDiscoverNotifier extends AutoDisposeNotifier<TeamDiscoverState> {
 
   Future<void> refresh() => loadInitial();
 
+  /// Ordenar por ranking pagina pela ordem do ranking (a lista inteira vem
+  /// ordenada, não só o que já foi carregado); as demais ordenações paginam
+  /// por id e ordenam o que foi carregado.
+  Future<TeamDiscoverRankedPage> _fetchPage({
+    required int rankedOffset,
+    required String? cursor,
+  }) async {
+    if (state.sort == TeamDiscoverSort.ranking) {
+      return _repo.fetchRankedPage(
+        rankedOffset: rankedOffset,
+        startAfterDocumentId: cursor,
+      );
+    }
+    final page = await _repo.fetchPage(startAfterDocumentId: cursor);
+    return TeamDiscoverRankedPage(
+      teams: page.teams,
+      nextRankedOffset: 0,
+      lastDocumentId: page.lastDocumentId,
+      hasMore: page.hasMore,
+    );
+  }
+
   Future<void> loadMore() async {
     if (state.isSearchMode || !state.hasMore || state.isLoadingMore) return;
     final cursor = state.lastDocumentId;
-    if (cursor == null || cursor.isEmpty) return;
+    final ranked = state.sort == TeamDiscoverSort.ranking;
+    if (!ranked && (cursor == null || cursor.isEmpty)) return;
 
     state = state.copyWith(isLoadingMore: true);
     try {
-      final page = await _repo.fetchPage(startAfterDocumentId: cursor);
+      final page = await _fetchPage(
+        rankedOffset: state.rankedOffset,
+        cursor: cursor,
+      );
       final enriched = await _repo.enrichEntries(
         teams: page.teams,
         currentUserId: _currentUid,
@@ -170,6 +203,7 @@ class TeamDiscoverNotifier extends AutoDisposeNotifier<TeamDiscoverState> {
         isLoadingMore: false,
         hasMore: page.hasMore,
         lastDocumentId: page.lastDocumentId,
+        rankedOffset: page.nextRankedOffset,
       );
     } catch (e) {
       state = state.copyWith(isLoadingMore: false, errorMessage: '$e');
@@ -209,9 +243,18 @@ class TeamDiscoverNotifier extends AutoDisposeNotifier<TeamDiscoverState> {
     }
   }
 
-  void setSort(TeamDiscoverSort sort) {
+  Future<void> setSort(TeamDiscoverSort sort) async {
+    if (sort == state.sort) return;
+    final crossesRanking = sort == TeamDiscoverSort.ranking ||
+        state.sort == TeamDiscoverSort.ranking;
     state = state.copyWith(sort: sort);
-    _publishDisplay(state.rawEntries);
+    // Busca já é um conjunto fechado: só reordena. Fora dela, entrar ou sair
+    // do ranking muda a ordem de paginação, então recarrega do começo.
+    if (crossesRanking && !state.isSearchMode) {
+      await loadInitial();
+    } else {
+      _publishDisplay(state.rawEntries);
+    }
   }
 
   void applyFilters(TeamDiscoverFilters filters) {

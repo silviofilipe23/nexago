@@ -8,6 +8,7 @@ import '../../../core/layout/nexa_page_header.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../domain/team_discover_models.dart';
 import '../domain/team_discover_providers.dart';
 import 'widgets/team_discover/team_discover_card.dart';
 import 'widgets/team_discover/team_discover_filters_sheet.dart';
@@ -97,6 +98,8 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _DiscoverAppBar(
+                  sort: state.sort,
+                  onSort: ref.read(teamDiscoverProvider.notifier).setSort,
                   filtersActive: state.filters.hasActiveFilters,
                   onBack: () => context.pop(),
                   onFilters: _openFilters,
@@ -177,11 +180,15 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
 
 class _DiscoverAppBar extends StatelessWidget {
   const _DiscoverAppBar({
+    required this.sort,
+    required this.onSort,
     required this.filtersActive,
     required this.onBack,
     required this.onFilters,
   });
 
+  final TeamDiscoverSort sort;
+  final ValueChanged<TeamDiscoverSort> onSort;
   final bool filtersActive;
   final VoidCallback onBack;
   final VoidCallback onFilters;
@@ -216,6 +223,21 @@ class _DiscoverAppBar extends StatelessWidget {
               color: context.themeColors.onSurface,
             ),
           ),
+        ),
+        PopupMenuButton<TeamDiscoverSort>(
+          tooltip: 'Ordenar',
+          icon: const Icon(Icons.swap_vert_rounded),
+          iconColor: context.themeColors.onSurface,
+          initialValue: sort,
+          onSelected: onSort,
+          itemBuilder: (_) => [
+            for (final option in TeamDiscoverSort.values)
+              CheckedPopupMenuItem(
+                value: option,
+                checked: option == sort,
+                child: Text(option.label),
+              ),
+          ],
         ),
         Stack(
           clipBehavior: Clip.none,

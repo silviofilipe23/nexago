@@ -1,3 +1,5 @@
+import 'arena_sport_codes.dart';
+
 /// Metadados de busca do atleta — rótulos alinhados aos filtros da aba Reservar.
 abstract final class ArenaSearchMetadata {
   ArenaSearchMetadata._();
@@ -65,6 +67,9 @@ abstract final class ArenaSearchMetadata {
     required Iterable<String> profileSports,
     required Iterable<String> courtTypeLabels,
   }) {
-    return uniqueLabels([...profileSports, ...courtTypeLabels]);
+    // Código (`beachTennis`) e rótulo do mesmo esporte viram uma entrada só (fase 5a).
+    return uniqueLabels(
+      courtTypeOptionsFor([...profileSports, ...courtTypeLabels], sportLabels),
+    );
   }
 }

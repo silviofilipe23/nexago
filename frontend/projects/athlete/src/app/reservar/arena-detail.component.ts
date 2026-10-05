@@ -15,6 +15,8 @@ import {
   type ArenaAmenities,
   type ArenaCourtDoc,
   type ArenaListItem,
+  courtDocSportLabel,
+  arenaSportLabels,
 } from '@nexago/arena-discovery';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
@@ -99,11 +101,6 @@ function ratingLabel(ratingAverage: number): string {
   return ratingAverage > 0 ? ratingAverage.toFixed(1) : '—';
 }
 
-/** Lê o esporte de um doc de quadra (`sport` ou `courtType`, mesmo schema usado pelo site público). */
-function courtSportLabel(data: Record<string, unknown>): string {
-  const raw = data['sport'] ?? data['courtType'];
-  return typeof raw === 'string' && raw.trim().length > 0 ? titleCase(raw.trim()) : 'Esporte não informado';
-}
 
 /** Preço/hora da quadra, com fallback pro preço-base da arena. */
 function courtHourlyPrice(data: Record<string, unknown>, arenaFallbackReais: number): number {
@@ -129,6 +126,8 @@ export class ArenaDetailComponent {
 
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
 
+  /** Pills de esporte pelo catálogo — código e rótulo legado viram um rótulo só. */
+  protected readonly sportLabels = arenaSportLabels;
   protected readonly googleMapsApiKey = environment.googleMapsApiKey;
   protected readonly todayKey = slotsQueryDateKey(new Date());
 
@@ -166,7 +165,7 @@ export class ArenaDetailComponent {
     return this.courts().map((c) => ({
       id: c.id,
       name: c.name,
-      sportLabel: courtSportLabel(c.data),
+      sportLabel: courtDocSportLabel(c.data),
       pricePerHourReais: courtHourlyPrice(c.data, arenaFallback),
       nextSlotLabel: nextByCourt[c.id] ?? null,
     }));

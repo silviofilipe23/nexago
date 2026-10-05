@@ -24,6 +24,7 @@ import '../domain/arena_providers.dart';
 import '../domain/payout_pix_key_type.dart';
 import 'widgets/arena_async_state.dart';
 import 'widgets/arena_dashboard_tokens.dart';
+import '../../arenas/domain/arena_sport_codes.dart';
 
 class ArenaEditProfilePage extends ConsumerWidget {
   const ArenaEditProfilePage({super.key});
@@ -215,7 +216,11 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
       a.courtTypes,
       surfacesFromDoc: a.surfaces,
     );
-    _sports = List<String>.from(split.sports);
+    // Código (`beachTennis`) ou rótulo gravado viram a opção do chip.
+    _sports = courtTypeOptionsFor(
+      split.sports,
+      ArenaSearchMetadata.sportLabels,
+    );
     _surfaces = List<String>.from(split.surfaces);
     _onlinePayment = a.onlinePaymentEnabled;
     _onsitePayment = a.onsitePaymentEnabled;

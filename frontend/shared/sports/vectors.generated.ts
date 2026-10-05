@@ -21,6 +21,11 @@ export const SPORT_RESOLVE_VECTORS: ReadonlyArray<readonly [string, string | nul
   ["TENIS", "tennis"],
   ["padel", "padel"],
   ["Pádel", "padel"],
+  ["Futevôlei", "footvolley"],
+  ["Futebol", "football"],
+  ["Tênis", "tennis"],
+  ["Beach tennis", "beachTennis"],
+  ["Padel", "padel"],
   ["curling", null],
   ["", null],
 ];

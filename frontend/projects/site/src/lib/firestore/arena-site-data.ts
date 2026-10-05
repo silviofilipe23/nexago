@@ -9,6 +9,7 @@ import {
   type DocumentData,
 } from 'firebase/firestore/lite';
 import { liteDb } from '../firebase-lite';
+import { courtTypeLabels } from '../format';
 import { WEEKDAYS, type DaySchedule, type WeekSchedule } from './arena-schedule';
 
 /**
@@ -90,8 +91,11 @@ export async function getArenaPublicInfo(arenaId: string): Promise<ArenaPublicIn
       state: str(data['state']),
       amenities: AMENITY_KEYS.filter((k) => amenitiesRaw[k] === true),
       courtsCount,
-      courtTypes: (Array.isArray(data['courtTypes']) ? data['courtTypes'] : []).filter(
-        (t: unknown): t is string => typeof t === 'string' && t.trim().length > 0,
+      // Rótulos para exibição: o doc pode ter código (`beachTennis`) ou rótulo legado.
+      courtTypes: courtTypeLabels(
+        (Array.isArray(data['courtTypes']) ? data['courtTypes'] : []).filter(
+          (t: unknown): t is string => typeof t === 'string' && t.trim().length > 0,
+        ),
       ),
       lat,
       lng,

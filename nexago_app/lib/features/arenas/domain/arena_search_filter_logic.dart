@@ -1,7 +1,7 @@
 import '../../../core/location/user_location_snapshot.dart';
 import 'arena_list_item.dart';
-import 'arena_search_metadata.dart';
 import 'arena_search_providers.dart';
+import 'arena_sport_codes.dart';
 import 'nearby_arenas_logic.dart';
 
 class FilteredArenaSearchResult {
@@ -55,56 +55,32 @@ Set<String> bestPriceArenaIds(Iterable<ArenaSearchResult> results) {
       .toSet();
 }
 
-/// `courtTypes` ainda não sincronizado ou só com rótulos legados → não filtrar por esporte.
-bool arenaHasIndexedSportMetadata(ArenaListItem arena) {
-  if (arena.courtTypes.isEmpty) return false;
-  for (final raw in arena.courtTypes) {
-    final t = raw.toLowerCase();
-    for (final label in ArenaSearchMetadata.sportLabels) {
-      final key = label.toLowerCase();
-      if (t.contains(key) || key.contains(t)) return true;
-    }
-    if (ArenaSearchMetadata.isSurfaceLabel(raw)) return true;
-  }
-  return false;
-}
+/// Arena sem nenhum esporte reconhecido (vazia, só superfície, só esporte fora do catálogo) →
+/// não filtrar por esporte.
+bool arenaHasIndexedSportMetadata(ArenaListItem arena) =>
+    arenaSportCodes(arena.courtTypes).isNotEmpty;
 
+/// Chip → código do esporte no catálogo. `volleyball` é o vôlei de quadra.
+String? _chipSportCode(ArenaSportChip chip) => switch (chip) {
+  ArenaSportChip.all => null,
+  ArenaSportChip.beachVolleyball => 'beachVolleyball',
+  ArenaSportChip.beachTennis => 'beachTennis',
+  ArenaSportChip.tennis => 'tennis',
+  ArenaSportChip.padel => 'padel',
+  ArenaSportChip.volleyball => 'indoorVolleyball',
+  ArenaSportChip.football => 'football',
+  ArenaSportChip.footvolley => 'footvolley',
+};
+
+/// Casamento EXATO pelo código do esporte (multiesporte fase 5a) — nada de substring nem do
+/// nome da arena: beach tennis não aparece mais no chip de vôlei de praia por ter "praia" no
+/// texto. Arena sem esporte reconhecido não é filtrada.
 bool arenaMatchesSportChip(ArenaListItem arena, ArenaSportChip chip) {
-  if (chip == ArenaSportChip.all) return true;
-  if (arena.courtTypes.isEmpty) return true;
-  if (!arenaHasIndexedSportMetadata(arena)) return true;
-  final types = arena.courtTypes.map((t) => t.toLowerCase()).join(' ');
-  final name = arena.name.toLowerCase();
-  final blob = '$types $name';
-
-  return switch (chip) {
-    ArenaSportChip.beachTennis =>
-      blob.contains('beach') ||
-          blob.contains('praia') ||
-          blob.contains('areia') ||
-          blob.contains('tênis') ||
-          blob.contains('tenis'),
-    ArenaSportChip.beachVolleyball =>
-      blob.contains('beach') ||
-          blob.contains('praia') ||
-          blob.contains('areia') ||
-          blob.contains('vôlei') ||
-          blob.contains('volei') ||
-          blob.contains('volleyball') ||
-          blob.contains('futevôlei') ||
-          blob.contains('futevolei'),
-    ArenaSportChip.tennis =>
-      blob.contains('tênis') ||
-          blob.contains('tenis') ||
-          blob.contains('tennis'),
-    ArenaSportChip.padel =>
-      blob.contains('padel') || blob.contains('pádel') || blob.contains('pickle'),
-    ArenaSportChip.volleyball =>
-      blob.contains('vôlei') || blob.contains('volleyball'),
-    ArenaSportChip.football =>
-      blob.contains('futebol') || blob.contains('football'),
-    ArenaSportChip.all => true,
-  };
+  final code = _chipSportCode(chip);
+  if (code == null) return true;
+  final codes = arenaSportCodes(arena.courtTypes);
+  if (codes.isEmpty) return true;
+  return codes.contains(code);
 }
 
 bool arenaMatchesSurface(ArenaListItem arena, Set<String> surfaces) {
@@ -301,6 +277,7 @@ ArenaSportChip defaultSportChipFromProfile({
       'BEACH_TENNIS' => ArenaSportChip.beachTennis,
       'TENIS' => ArenaSportChip.tennis,
       'PADEL' => ArenaSportChip.padel,
+      'FUTEVOLEI' => ArenaSportChip.footvolley,
       'FUTEBOL' || 'FOOTBALL' => ArenaSportChip.football,
       _ =>
         _sportChipFromLabel(sport ?? primarySport ?? '') ??
@@ -320,6 +297,11 @@ ArenaSportChip? _sportChipFromLabel(String raw) {
       v.contains('beach_volleyball') ||
       v.contains('volei_praia')) {
     return ArenaSportChip.beachVolleyball;
+  }
+  if (v.contains('futevôlei') ||
+      v.contains('futevolei') ||
+      v.contains('footvolley')) {
+    return ArenaSportChip.footvolley;
   }
   if (v.contains('beach') &&
       (v.contains('tênis') || v.contains('tenis') || v.contains('tennis'))) {

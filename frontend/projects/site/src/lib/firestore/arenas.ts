@@ -14,11 +14,14 @@ function firstString(...values: unknown[]): string | null {
   return null;
 }
 
-function mapCourt(id: string, c: DocumentData): ArenaCourt {
+/** Exportado para teste. O esporte cai para `types[0]`/`type`, que são o que o portal da arena e o
+ *  app gravam (`sport` só é gravado a partir da fase 5b do multiesporte). */
+export function mapCourt(id: string, c: DocumentData): ArenaCourt {
+  const types = c['types'];
   return {
     id,
     name: firstString(c['name'], c['label']),
-    sport: firstString(c['sport'], c['courtType']),
+    sport: firstString(c['sport'], c['courtType'], Array.isArray(types) ? types[0] : null, c['type']),
     surface: firstString(c['surface']),
   };
 }

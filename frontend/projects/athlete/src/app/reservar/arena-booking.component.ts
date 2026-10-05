@@ -30,6 +30,8 @@ import {
   type ArenaListItem,
   type ArenaSlot,
   type PeakSelectionCheck,
+  courtDocSportLabel,
+  arenaSportLabels,
 } from '@nexago/arena-discovery';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
@@ -103,11 +105,6 @@ function nameFromEmail(email: string | null | undefined): string {
   return local ? titleCase(local) : 'Atleta';
 }
 
-/** Lê o esporte de um doc de quadra (`sport` ou `courtType`, mesmo schema usado pelo site público). */
-function courtSportLabel(data: Record<string, unknown>): string {
-  const raw = data['sport'] ?? data['courtType'];
-  return typeof raw === 'string' && raw.trim().length > 0 ? titleCase(raw.trim()) : 'Esporte não informado';
-}
 
 /** Duração-base do slot da quadra (minutos), mesma regra do gerador de slots virtuais. */
 function slotDurationMinutesOf(data: Record<string, unknown> | null | undefined): number {
@@ -131,6 +128,8 @@ function formatDurationLabel(minutes: number): string {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ArenaBookingComponent {
+  /** Esportes da arena pelo catálogo (código ou rótulo legado). */
+  protected readonly sportLabels = arenaSportLabels;
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
@@ -191,7 +190,7 @@ export class ArenaBookingComponent {
       return {
         id: c.id,
         name: c.name,
-        sportLabel: courtSportLabel(c.data),
+        sportLabel: courtDocSportLabel(c.data),
         availableCount,
         isFull: availableCount === 0,
       };
@@ -603,7 +602,7 @@ export class ArenaBookingComponent {
   }
 
   protected courtSportOf(court: ArenaCourtDoc): string {
-    return courtSportLabel(court.data);
+    return courtDocSportLabel(court.data);
   }
 
   protected slotPrice(view: SlotView): number {

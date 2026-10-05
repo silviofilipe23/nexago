@@ -1,3 +1,5 @@
+import { resolveSport } from '@nexago/sports';
+
 import type { ArenaListItem } from './arena-list-item';
 
 /** Paridade com `ArenaSportChip` (Flutter). */
@@ -8,7 +10,8 @@ export type ArenaSportChip =
   | 'padel'
   | 'beachVolleyball'
   | 'volleyball'
-  | 'football';
+  | 'football'
+  | 'footvolley';
 
 export const ARENA_SPORT_CHIP_OPTIONS: readonly { chip: ArenaSportChip; label: string }[] = [
   { chip: 'all', label: 'Todos' },
@@ -18,79 +21,95 @@ export const ARENA_SPORT_CHIP_OPTIONS: readonly { chip: ArenaSportChip; label: s
   { chip: 'padel', label: 'Padel' },
   { chip: 'volleyball', label: 'Vôlei de quadra' },
   { chip: 'football', label: 'Futebol' },
+  { chip: 'footvolley', label: 'Futevôlei' },
 ];
 
-const SPORT_LABELS = [
-  'Vôlei de praia',
-  'Beach tennis',
-  'Vôlei indoor',
-  'Tênis',
-  'Padel',
-  'Futebol',
-  'Futevôlei',
-  'Pickleball',
-];
+/** Chip → código do esporte no catálogo (`@nexago/sports`). `volleyball` é o vôlei de quadra. */
+const CHIP_SPORT_CODE: Record<Exclude<ArenaSportChip, 'all'>, string> = {
+  beachVolleyball: 'beachVolleyball',
+  beachTennis: 'beachTennis',
+  tennis: 'tennis',
+  padel: 'padel',
+  volleyball: 'indoorVolleyball',
+  football: 'football',
+  footvolley: 'footvolley',
+};
 
-/** `courtTypes` ainda não sincronizado ou só com rótulos legados → não filtrar por esporte. */
-export function arenaHasIndexedSportMetadata(arena: ArenaListItem): boolean {
-  if (arena.courtTypes.length === 0) {
-    return false;
+/** Códigos de esporte das quadras da arena — rótulo legado ("Beach tennis") ou código
+ *  (`beachTennis`) resolvem igual pelo catálogo. Superfície ("Areia") e esporte fora do catálogo
+ *  ("Pickleball") não entram. Sem repetição, na ordem gravada. */
+export function arenaSportCodes(courtTypes: readonly string[]): string[] {
+  const codes: string[] = [];
+  for (const raw of courtTypes) {
+    const code = resolveSport(raw)?.code;
+    if (code && !codes.includes(code)) codes.push(code);
   }
-  for (const raw of arena.courtTypes) {
-    const t = raw.toLowerCase();
-    for (const label of SPORT_LABELS) {
-      const key = label.toLowerCase();
-      if (t.includes(key) || key.includes(t)) {
-        return true;
-      }
-    }
-  }
-  return false;
+  return codes;
 }
 
+/** Rótulo de UM valor de quadra para exibição: do catálogo quando é esporte conhecido; senão o
+ *  valor cru (superfície, esporte fora do catálogo). Vazio → vazio. */
+export function courtSportLabel(raw: string | null | undefined): string {
+  const value = (raw ?? '').trim();
+  if (!value) return '';
+  return resolveSport(value)?.label ?? value;
+}
+
+/** Valores gravados (código ou rótulo legado) → as opções do formulário do dono que representam
+ *  o mesmo esporte, sem repetição. O formulário marca o chip por igualdade de texto; sem isso um
+ *  código gravado ficaria escondido e um toque gravaria o rótulo ao lado dele. Valor que nenhuma
+ *  opção cobre (superfície, esporte fora do catálogo) segue cru, para não sumir do doc ao salvar.
+ *  Espelha `courtTypeOptionsFor` do app. */
+export function courtTypeOptionsFor(stored: readonly string[], options: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const raw of stored) {
+    const value = raw.trim();
+    if (!value) continue;
+    const code = resolveSport(value)?.code;
+    const option = code ? options.find((o) => resolveSport(o)?.code === code) ?? value : value;
+    if (!out.includes(option)) out.push(option);
+  }
+  return out;
+}
+
+/** Esporte de UM doc de quadra para exibição: `sport` (gravado a partir da 5b) → `courtType`
+ *  (site legado) → `types[0]` → `type`, resolvido pelo catálogo. Sem nada: "Esporte não informado". */
+export function courtDocSportLabel(data: Record<string, unknown>): string {
+  const types = data['types'];
+  const candidates = [data['sport'], data['courtType'], Array.isArray(types) ? types[0] : null, data['type']];
+  for (const raw of candidates) {
+    if (typeof raw === 'string' && raw.trim()) return courtSportLabel(raw);
+  }
+  return 'Esporte não informado';
+}
+
+/** Rótulos das quadras da arena para pills/linhas: código + rótulo do mesmo esporte viram um só. */
+export function arenaSportLabels(courtTypes: readonly string[]): string[] {
+  const labels: string[] = [];
+  for (const raw of courtTypes) {
+    const label = courtSportLabel(raw);
+    if (label && !labels.includes(label)) labels.push(label);
+  }
+  return labels;
+}
+
+/** Arena sem nenhum esporte reconhecido (`courtTypes` vazio, só superfície, só esporte fora do
+ *  catálogo) → não filtrar por esporte. */
+export function arenaHasIndexedSportMetadata(arena: ArenaListItem): boolean {
+  return arenaSportCodes(arena.courtTypes).length > 0;
+}
+
+/** Casamento EXATO pelo código do esporte (multiesporte fase 5a) — nada de substring nem do nome
+ *  da arena: beach tennis não aparece mais no chip de vôlei de praia por ter "praia" no texto. */
 export function arenaMatchesSportChip(arena: ArenaListItem, chip: ArenaSportChip): boolean {
   if (chip === 'all') {
     return true;
   }
-  if (arena.courtTypes.length === 0) {
+  const codes = arenaSportCodes(arena.courtTypes);
+  if (codes.length === 0) {
     return true;
   }
-  if (!arenaHasIndexedSportMetadata(arena)) {
-    return true;
-  }
-  const types = arena.courtTypes.map((t) => t.toLowerCase()).join(' ');
-  const name = arena.name.toLowerCase();
-  const blob = `${types} ${name}`;
-
-  switch (chip) {
-    case 'beachTennis':
-      return (
-        blob.includes('beach') ||
-        blob.includes('praia') ||
-        blob.includes('areia') ||
-        blob.includes('tênis') ||
-        blob.includes('tenis')
-      );
-    case 'beachVolleyball':
-      return (
-        blob.includes('beach') ||
-        blob.includes('praia') ||
-        blob.includes('areia') ||
-        blob.includes('vôlei') ||
-        blob.includes('volei') ||
-        blob.includes('volleyball') ||
-        blob.includes('futevôlei') ||
-        blob.includes('futevolei')
-      );
-    case 'tennis':
-      return blob.includes('tênis') || blob.includes('tenis') || blob.includes('tennis');
-    case 'padel':
-      return blob.includes('padel') || blob.includes('pádel') || blob.includes('pickle');
-    case 'volleyball':
-      return blob.includes('vôlei') || blob.includes('volleyball');
-    case 'football':
-      return blob.includes('futebol') || blob.includes('football');
-  }
+  return codes.includes(CHIP_SPORT_CODE[chip]);
 }
 
 function sportChipFromLabel(raw: string): ArenaSportChip | null {
@@ -105,6 +124,9 @@ function sportChipFromLabel(raw: string): ArenaSportChip | null {
     v.includes('volei_praia')
   ) {
     return 'beachVolleyball';
+  }
+  if (v.includes('futevôlei') || v.includes('futevolei') || v.includes('footvolley')) {
+    return 'footvolley';
   }
   if (v.includes('beach') && (v.includes('tênis') || v.includes('tenis') || v.includes('tennis'))) {
     return 'beachTennis';
@@ -147,6 +169,8 @@ export function defaultSportChipFromProfile(params: {
         return 'tennis';
       case 'PADEL':
         return 'padel';
+      case 'FUTEVOLEI':
+        return 'footvolley';
       case 'FUTEBOL':
       case 'FOOTBALL':
         return 'football';
@@ -175,6 +199,8 @@ export function sportFirestoreIdFromChip(chip: ArenaSportChip): string | null {
       return 'FUTEBOL';
     case 'padel':
       return 'PADEL';
+    case 'footvolley':
+      return 'FUTEVOLEI';
     case 'all':
       return null;
   }

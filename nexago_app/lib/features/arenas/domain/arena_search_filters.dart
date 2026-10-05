@@ -46,6 +46,7 @@ enum ArenaSportChip {
   beachVolleyball,
   volleyball,
   football,
+  footvolley,
 }
 
 enum ArenaPriceBand { any, upTo60, band60_100, band100_150, plus150 }

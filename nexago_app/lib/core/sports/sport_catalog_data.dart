@@ -13,6 +13,7 @@ class SportCatalogEntry {
     required this.art,
     required this.support,
     required this.allowedTeamSizes,
+    required this.arenaCourtTypes,
     required this.scoringProfile,
   });
 
@@ -26,6 +27,10 @@ class SportCatalogEntry {
   /// Tamanhos de equipe que o wizard oferece (1 = individual); `null` em
   /// esporte só de perfil.
   final List<int>? allowedTeamSizes;
+
+  /// Rótulos de quadra legados (`courts.types`, `arenas.courtTypes`); vazio =
+  /// esporte sem quadra na aba Reservar.
+  final List<String> arenaCourtTypes;
   final ScoringProfile? scoringProfile;
 }
 
@@ -38,6 +43,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     art: 'volei_praia',
     support: SportSupport.competition,
     allowedTeamSizes: [2, 3, 4, 5],
+    arenaCourtTypes: ['Vôlei de praia'],
     scoringProfile: SetsPointsProfile(bestOf: 3, setTarget: 21, decidingSetTarget: 15, winBy: 2, pointCap: null),
   ),
   SportCatalogEntry(
@@ -48,6 +54,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     art: 'volei_quadra',
     support: SportSupport.competition,
     allowedTeamSizes: [2, 3, 4, 5],
+    arenaCourtTypes: ['Vôlei indoor'],
     scoringProfile: SetsPointsProfile(bestOf: 3, setTarget: 25, decidingSetTarget: 15, winBy: 2, pointCap: null),
   ),
   SportCatalogEntry(
@@ -58,6 +65,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     art: 'futevolei',
     support: SportSupport.competition,
     allowedTeamSizes: [2, 3, 4, 5],
+    arenaCourtTypes: ['Futevôlei'],
     scoringProfile: SetsPointsProfile(bestOf: 3, setTarget: 18, decidingSetTarget: 15, winBy: 2, pointCap: null),
   ),
   SportCatalogEntry(
@@ -68,6 +76,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     art: 'futebol',
     support: SportSupport.profile,
     allowedTeamSizes: null,
+    arenaCourtTypes: ['Futebol'],
     scoringProfile: null,
   ),
   SportCatalogEntry(
@@ -78,6 +87,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     art: 'basquete',
     support: SportSupport.profile,
     allowedTeamSizes: null,
+    arenaCourtTypes: [],
     scoringProfile: null,
   ),
   SportCatalogEntry(
@@ -88,6 +98,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     art: 'tenis',
     support: SportSupport.competition,
     allowedTeamSizes: [1, 2],
+    arenaCourtTypes: ['Tênis'],
     scoringProfile: SetsGamesProfile(bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: false, decidingSet: DecidingSet.full, superTiebreakTo: 10),
   ),
   SportCatalogEntry(
@@ -98,6 +109,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     art: 'beach_tennis',
     support: SportSupport.competition,
     allowedTeamSizes: [2, 3, 4, 5],
+    arenaCourtTypes: ['Beach tennis'],
     scoringProfile: SetsGamesProfile(bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: true, decidingSet: DecidingSet.superTiebreak, superTiebreakTo: 10),
   ),
   SportCatalogEntry(
@@ -108,6 +120,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     art: 'corrida',
     support: SportSupport.profile,
     allowedTeamSizes: null,
+    arenaCourtTypes: [],
     scoringProfile: null,
   ),
   SportCatalogEntry(
@@ -118,6 +131,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     art: null,
     support: SportSupport.profile,
     allowedTeamSizes: null,
+    arenaCourtTypes: ['Padel'],
     scoringProfile: SetsGamesProfile(bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: true, decidingSet: DecidingSet.full, superTiebreakTo: 10),
   ),
   SportCatalogEntry(
@@ -128,6 +142,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     art: null,
     support: SportSupport.profile,
     allowedTeamSizes: null,
+    arenaCourtTypes: [],
     scoringProfile: null,
   ),
 ];

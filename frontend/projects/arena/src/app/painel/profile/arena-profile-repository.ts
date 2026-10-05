@@ -1,7 +1,7 @@
-import { amenitiesFromFirestore, ARENA_AMENITIES_EMPTY } from '@nexago/arena-discovery';
+import { amenitiesFromFirestore, ARENA_AMENITIES_EMPTY, courtTypeOptionsFor } from '@nexago/arena-discovery';
 import { deleteField, doc, setDoc, type Firestore } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes, type FirebaseStorage } from 'firebase/storage';
-import { validateArenaBasicInfo, validateArenaContacts, type ArenaProfile } from '../data/arena-profile.model';
+import { ARENA_SPORT_OPTIONS, validateArenaBasicInfo, validateArenaContacts, type ArenaProfile } from '../data/arena-profile.model';
 
 /** Espelha `ArenaProfileEditService` (Flutter) — mesmo doc `arenas/{arenaId}`, mesmos campos.
  *  Client pode escrever esses campos direto (firestore.rules só congela
@@ -33,7 +33,8 @@ export function arenaProfileFromDoc(data: Record<string, unknown>): ArenaProfile
     state: readString(data, 'state'),
     coverUrl: readString(data, 'coverUrl'),
     logoUrl: readString(data, 'logoUrl'),
-    courtTypes: readStringArray(data, 'courtTypes'),
+    // Código (`beachTennis`) ou rótulo legado viram a opção do chip (multiesporte fase 5a).
+    courtTypes: courtTypeOptionsFor(readStringArray(data, 'courtTypes'), ARENA_SPORT_OPTIONS),
     surfaces: readStringArray(data, 'surfaces'),
     amenities: data['amenities'] != null ? amenitiesFromFirestore(data['amenities']) : ARENA_AMENITIES_EMPTY,
     onlinePaymentEnabled: data['onlinePaymentEnabled'] !== false,

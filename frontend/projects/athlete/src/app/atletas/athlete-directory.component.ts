@@ -61,13 +61,15 @@ const PAGE_TARGET = 30;
 /** Teto de páginas por reload quando refina nível/cidade no client (custo: ≤150 leituras). */
 const MAX_REFINE_PAGES = 5;
 
-const SPORT_SHORT_LABEL: Partial<Record<ArenaSportChip, string>> = {
+/** Exportado para teste. `Record` completo: chip novo sem rótulo não compila. */
+export const SPORT_SHORT_LABEL: Record<Exclude<ArenaSportChip, 'all'>, string> = {
   beachVolleyball: 'Vôlei de praia',
   beachTennis: 'Beach tênis',
   tennis: 'Tênis',
   padel: 'Padel',
   volleyball: 'Vôlei de quadra',
   football: 'Futebol',
+  footvolley: 'Futevôlei',
 };
 
 function createFirestore(): Firestore | null {
@@ -434,7 +436,7 @@ export class AthleteDirectoryComponent implements AfterViewInit {
   }
 
   protected sportShortLabel(chip: ArenaSportChip): string {
-    return SPORT_SHORT_LABEL[chip] ?? chip;
+    return chip === 'all' ? chip : SPORT_SHORT_LABEL[chip];
   }
 
   protected levelLabel(level: FilterLevel): string {

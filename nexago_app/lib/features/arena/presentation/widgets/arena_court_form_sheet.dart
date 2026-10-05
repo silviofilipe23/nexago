@@ -7,6 +7,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../../arenas/domain/arena_court.dart';
 import '../../domain/arena_providers.dart';
+import '../../../arenas/domain/arena_sport_codes.dart';
 
 /// Bottom sheet para criar ou editar uma quadra (nome, esportes e preço base).
 class ArenaCourtFormSheet extends ConsumerStatefulWidget {
@@ -75,7 +76,8 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
 
   Set<String> _resolveInitialSportTypes(List<String> raw) {
     if (raw.isEmpty) return {kCourtTypeOptions.first};
-    return raw.toSet();
+    // Código (`beachTennis`) ou rótulo gravado viram a opção do chip.
+    return courtTypeOptionsFor(raw, kCourtTypeOptions).toSet();
   }
 
   void _toggleSport(String label) {

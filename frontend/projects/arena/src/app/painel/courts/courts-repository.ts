@@ -1,4 +1,5 @@
-import { fetchCourts } from '@nexago/arena-discovery';
+import { courtTypeOptionsFor, fetchCourts } from '@nexago/arena-discovery';
+import { ARENA_SPORT_OPTIONS } from '../data/arena-profile.model';
 import { addDoc, collection, deleteDoc, doc, getDoc, serverTimestamp, setDoc, updateDoc, type Firestore } from 'firebase/firestore';
 import type { ArenaCourt, ArenaCourtStatus } from './court.model';
 
@@ -6,7 +7,9 @@ import type { ArenaCourt, ArenaCourtStatus } from './court.model';
  *  reflexo em `arenas/{arenaId}` (`courtTypes`/`pricePerHourReais`, lido pela tela Perfil e
  *  pela busca do atleta), que `ArenaSearchMetadataService.syncFromCourts` mantém em dia lá. */
 
-function courtFromRaw(id: string, data: Record<string, unknown>): ArenaCourt {
+/** Exportado para teste. `types` chega como as opções do chip: código (`beachTennis`) ou rótulo
+ *  legado do mesmo esporte viram a opção (multiesporte fase 5a). */
+export function courtFromRaw(id: string, data: Record<string, unknown>): ArenaCourt {
   const types = Array.isArray(data['types']) ? (data['types'] as unknown[]).filter((x): x is string => typeof x === 'string') : [];
   const legacyType = typeof data['type'] === 'string' ? data['type'] : null;
   const resolvedTypes = types.length > 0 ? types : legacyType ? [legacyType] : [];
@@ -17,7 +20,7 @@ function courtFromRaw(id: string, data: Record<string, unknown>): ArenaCourt {
   return {
     id,
     name: typeof data['name'] === 'string' && data['name'].trim() ? data['name'] : 'Quadra',
-    types: resolvedTypes,
+    types: courtTypeOptionsFor(resolvedTypes, ARENA_SPORT_OPTIONS),
     status,
     basePricePerHourReais: price,
   };
@@ -70,7 +73,8 @@ async function syncArenaSearchMetadata(db: Firestore, arenaId: string): Promise<
     if (price != null && price > 0 && (minPrice == null || price < minPrice)) minPrice = price;
   }
 
-  const merged = [...new Set([...profileSports, ...fromCourts])];
+  // Código e rótulo do mesmo esporte viram uma entrada só (multiesporte fase 5a).
+  const merged = courtTypeOptionsFor([...profileSports, ...fromCourts], ARENA_SPORT_OPTIONS);
   const patch: Record<string, unknown> = { courtTypes: merged, searchMetadataUpdatedAt: serverTimestamp() };
   if (minPrice != null) {
     patch['pricePerHourReais'] = minPrice;

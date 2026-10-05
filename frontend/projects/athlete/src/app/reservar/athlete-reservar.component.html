@@ -314,7 +314,7 @@
                 <div class="rv-card-slot-row">
                   <div class="rv-slot-info">
                     <span class="rv-slot-none">Fale direto com a arena</span>
-                    <span class="rv-slot-court">{{ item.result.arena.courtTypes.slice(0, 3).join(' · ') || 'Esportes de areia' }}</span>
+                    <span class="rv-slot-court">{{ sportLabels(item.result.arena.courtTypes).slice(0, 3).join(' · ') || 'Esportes de areia' }}</span>
                   </div>
                   @if (contactUrl(item.result.arena); as url) {
                     <a

@@ -21,6 +21,11 @@ const List<(String, String?)> kSportResolveVectors = [
   ('TENIS', 'tennis'),
   ('padel', 'padel'),
   ('Pádel', 'padel'),
+  ('Futevôlei', 'footvolley'),
+  ('Futebol', 'football'),
+  ('Tênis', 'tennis'),
+  ('Beach tennis', 'beachTennis'),
+  ('Padel', 'padel'),
   ('curling', null),
   ('', null),
 ];

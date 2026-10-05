@@ -93,7 +93,10 @@ export function validate(catalog) {
         }
       }
     }
-    for (const raw of [s.code, s.profileCode, s.appId, s.label, ...s.aliases]) {
+    if (!Array.isArray(s.arenaCourtTypes) || s.arenaCourtTypes.some((t) => typeof t !== 'string' || !t.trim())) {
+      fail(`arenaCourtTypes inválido em ${s.code}`);
+    }
+    for (const raw of [s.code, s.profileCode, s.appId, s.label, ...s.aliases, ...s.arenaCourtTypes]) {
       const key = normalizeSportKey(raw);
       if (!key) fail(`chave vazia em ${s.code}: "${raw}"`);
       const owner = index.get(key);
@@ -123,7 +126,8 @@ function renderTsCatalog(catalog, index) {
     (s) =>
       `  {code: ${ts(s.code)}, profileCode: ${ts(s.profileCode)}, appId: ${ts(s.appId)}, ` +
       `label: ${ts(s.label)}, art: ${ts(s.art)}, support: ${ts(s.support)}, ` +
-      `allowedTeamSizes: ${ts(s.allowedTeamSizes)}, scoringProfile: ${ts(s.scoringProfile)}},`,
+      `allowedTeamSizes: ${ts(s.allowedTeamSizes)}, arenaCourtTypes: ${ts(s.arenaCourtTypes)}, ` +
+      `scoringProfile: ${ts(s.scoringProfile)}},`,
   );
   const keys = [...index.entries()].map(([k, code]) => `  ${ts(k)}: ${ts(code)},`);
   return [
@@ -142,6 +146,8 @@ function renderTsCatalog(catalog, index) {
     '  readonly support: SportSupport;',
     '  /** Tamanhos de equipe que o wizard oferece (1 = individual); `null` em esporte só de perfil. */',
     '  readonly allowedTeamSizes: readonly number[] | null;',
+    '  /** Rótulos de quadra legados (`courts.types`, `arenas.courtTypes`); vazio = esporte sem quadra na aba Reservar. */',
+    '  readonly arenaCourtTypes: readonly string[];',
     '  readonly scoringProfile: ScoringProfile | null;',
     '}',
     '',
@@ -263,6 +269,7 @@ function renderDartCatalog(catalog, index) {
     `    art: ${dart(s.art)},`,
     `    support: SportSupport.${s.support},`,
     `    allowedTeamSizes: ${s.allowedTeamSizes === null ? 'null' : `[${s.allowedTeamSizes.join(', ')}]`},`,
+    `    arenaCourtTypes: [${s.arenaCourtTypes.map(dart).join(', ')}],`,
     `    scoringProfile: ${dartProfile(s.scoringProfile)},`,
     '  ),',
   ]);
@@ -283,6 +290,7 @@ function renderDartCatalog(catalog, index) {
     '    required this.art,',
     '    required this.support,',
     '    required this.allowedTeamSizes,',
+    '    required this.arenaCourtTypes,',
     '    required this.scoringProfile,',
     '  });',
     '',
@@ -296,6 +304,10 @@ function renderDartCatalog(catalog, index) {
     '  /// Tamanhos de equipe que o wizard oferece (1 = individual); `null` em',
     '  /// esporte só de perfil.',
     '  final List<int>? allowedTeamSizes;',
+    '',
+    '  /// Rótulos de quadra legados (`courts.types`, `arenas.courtTypes`); vazio =',
+    '  /// esporte sem quadra na aba Reservar.',
+    '  final List<String> arenaCourtTypes;',
     '  final ScoringProfile? scoringProfile;',
     '}',
     '',

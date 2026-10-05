@@ -22,6 +22,14 @@ void main() {
       expect(merged, contains('Beach tennis'));
     });
 
+    test('mergeSportLabels une código e rótulo do mesmo esporte (fase 5a)', () {
+      final merged = ArenaSearchMetadata.mergeSportLabels(
+        profileSports: const ['beachVolleyball'],
+        courtTypeLabels: const ['Vôlei de praia', 'beachTennis', 'Pickleball'],
+      );
+      expect(merged, ['Vôlei de praia', 'Beach tennis', 'Pickleball']);
+    });
+
     test('isSurfaceLabel recognizes filter options', () {
       expect(ArenaSearchMetadata.isSurfaceLabel('Areia'), isTrue);
       expect(ArenaSearchMetadata.isSurfaceLabel('Vôlei de praia'), isFalse);

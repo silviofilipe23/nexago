@@ -59,6 +59,7 @@ export {
   arenaSportCodes,
   arenaSportLabels,
   courtDocSportLabel,
+  courtTypeOptionsFor,
   courtSportLabel,
   defaultSportChipFromProfile,
   sportFirestoreIdFromChip,

@@ -55,6 +55,23 @@ export function courtSportLabel(raw: string | null | undefined): string {
   return resolveSport(value)?.label ?? value;
 }
 
+/** Valores gravados (código ou rótulo legado) → as opções do formulário do dono que representam
+ *  o mesmo esporte, sem repetição. O formulário marca o chip por igualdade de texto; sem isso um
+ *  código gravado ficaria escondido e um toque gravaria o rótulo ao lado dele. Valor que nenhuma
+ *  opção cobre (superfície, esporte fora do catálogo) segue cru, para não sumir do doc ao salvar.
+ *  Espelha `courtTypeOptionsFor` do app. */
+export function courtTypeOptionsFor(stored: readonly string[], options: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const raw of stored) {
+    const value = raw.trim();
+    if (!value) continue;
+    const code = resolveSport(value)?.code;
+    const option = code ? options.find((o) => resolveSport(o)?.code === code) ?? value : value;
+    if (!out.includes(option)) out.push(option);
+  }
+  return out;
+}
+
 /** Esporte de UM doc de quadra para exibição: `sport` (gravado a partir da 5b) → `courtType`
  *  (site legado) → `types[0]` → `type`, resolvido pelo catálogo. Sem nada: "Esporte não informado". */
 export function courtDocSportLabel(data: Record<string, unknown>): string {

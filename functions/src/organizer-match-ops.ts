@@ -722,6 +722,53 @@ export const releaseMatchAfterCheckIn = onCall({
   return {ok: true};
 });
 
+/**
+ * Campos do W.O. Pura e exportada para o teste travar o conjunto.
+ *
+ * Além do resultado ("W.O." pro vencedor) e do check-in do ausente, APAGA o
+ * resíduo do ao vivo quando o W.O. cai numa partida já iniciada: as telas e a
+ * classificação do grupo (`group-standings.ts`) preferem `sets` a `resultA/B`,
+ * então um set parcial deixado no doc contaria saldo para quem levou W.O. A
+ * timeline (`pointEvents`) segue com o histórico do que foi jogado.
+ */
+export function walkoverFields(params: {
+  match: Record<string, unknown>;
+  winnerTeamId: string;
+  uid: string;
+}): Record<string, unknown> {
+  const {match, winnerTeamId, uid} = params;
+  const loserId = match.teamAId === winnerTeamId ? match.teamBId : match.teamAId;
+  return {
+    winnerId: winnerTeamId,
+    status: MatchStatus.completed,
+    resultA: match.teamAId === winnerTeamId ? "W.O." : "0",
+    resultB: match.teamBId === winnerTeamId ? "W.O." : "0",
+    matchEndedAt: FieldValue.serverTimestamp(),
+    queueStatus: "completed",
+    checkIn: {
+      teamA: {
+        status: match.teamAId === loserId ? "wo" : "present",
+        at: FieldValue.serverTimestamp(),
+        byUid: uid,
+      },
+      teamB: {
+        status: match.teamBId === loserId ? "wo" : "present",
+        at: FieldValue.serverTimestamp(),
+        byUid: uid,
+      },
+    },
+    sets: FieldValue.delete(),
+    liveScore: FieldValue.delete(),
+    currentGame: FieldValue.delete(),
+    currentSetIndex: FieldValue.delete(),
+    servingTeamId: FieldValue.delete(),
+    servingPlayerSlot: FieldValue.delete(),
+    servingPlayerSlots: FieldValue.delete(),
+    medicalTimeout: FieldValue.delete(),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+}
+
 export const declareMatchWalkover = onCall({
   region: CLIENT_FACING_REGIONS,
 }, async (request) => {
@@ -749,30 +796,7 @@ export const declareMatchWalkover = onCall({
     );
   }
 
-  const loserId =
-    data.teamAId === winnerTeamId ? data.teamBId : data.teamAId;
-
-  await ref.update({
-    winnerId: winnerTeamId,
-    status: MatchStatus.completed,
-    resultA: data.teamAId === winnerTeamId ? "W.O." : "0",
-    resultB: data.teamBId === winnerTeamId ? "W.O." : "0",
-    matchEndedAt: FieldValue.serverTimestamp(),
-    queueStatus: "completed",
-    checkIn: {
-      teamA: {
-        status: data.teamAId === loserId ? "wo" : "present",
-        at: FieldValue.serverTimestamp(),
-        byUid: uid,
-      },
-      teamB: {
-        status: data.teamBId === loserId ? "wo" : "present",
-        at: FieldValue.serverTimestamp(),
-        byUid: uid,
-      },
-    },
-    updatedAt: FieldValue.serverTimestamp(),
-  });
+  await ref.update(walkoverFields({match: data, winnerTeamId, uid}));
 
   const tournamentId = data.tournamentId as string;
   await syncTournamentLiveMatchesNow(db, projectId, tournamentId);

@@ -1223,7 +1223,10 @@ class _OrganizerMatchLiveTablePageState
                     onRemoveTimeoutB: () =>
                         _removeTimeout(_sidesSwapped ? 'A' : 'B'),
                     servingPlayerName: servingPlayerName,
-                    onSwapServingPlayer: _swapServingPlayer,
+                    // Individual não tem parceiro pra trocar (igual ao modo normal).
+                    onSwapServingPlayer: (servingTeam?.rosterSize ?? 2) == 1
+                        ? null
+                        : _swapServingPlayer,
                     onSwapServe: _swapServe,
                     onSwapSides: _swapSides,
                     onAddTimeout: _openTimeoutTeamPicker,

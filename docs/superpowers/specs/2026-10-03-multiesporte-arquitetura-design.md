@@ -429,6 +429,15 @@ Saída: ranking de beach tennis separado do de vôlei; rating ligável por confi
 - **Ordem de deploy:** functions (3a) → `backfillRankingsBySport` → clientes. Antes do backfill
   a página por esporte aparece vazia.
 
+**Emenda de 04/10/2026 (fase 3c).**
+- A 3c sai em duas: **3c1** tênis em `competition` (placar `tennis3` já tem vetores; arte
+  `tenis` já existe; nada no servidor nem nas rules restringe o esporte do torneio) e **3c2**
+  padel (código de perfil novo `PADEL`: catálogo, rules de nível, `ATHLETE_SPORT_CODES`,
+  onboarding), que depende de medir o custo nas rules.
+- Tênis entra nos tipos dos wizards na ordem do catálogo (antes do beach tennis). Torneio de
+  tênis é de dupla até a fase 4. KOTC segue só no vôlei de praia. Ranking: só os docs por
+  esporte (`TENIS` não alimenta o legado); rating: desligado até existir `ratingLadders/TENIS`.
+
 **Fase 4: equipe por tamanho.**
 Piso 1 em `teamSize`, inscrição individual, `participantNoun`, slots de saque por tamanho,
 tempo médico por slot, confronto direto por `memberUids`, capa de equipe pelo esporte do torneio.

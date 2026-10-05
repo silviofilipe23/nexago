@@ -109,9 +109,13 @@ export async function markTeamRegistrationPaid(
     );
   }
 
+  // Equipe de 1 (categoria individual): `registrationPaid` é o portão das
+  // listagens de equipe ("Descobrir"/"Minhas equipes") — um atleta sozinho não
+  // é equipe para essas telas. O gênero vale do mesmo jeito.
+  const individual = expectedRosterSize(data) === INDIVIDUAL_TEAM_SIZE;
   await teamRef.set(
     {
-      registrationPaid: true,
+      ...(individual ? {} : {registrationPaid: true}),
       ...(teamGender ? {gender: teamGender} : {}),
       updatedAt: FieldValue.serverTimestamp(),
     },

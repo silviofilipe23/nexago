@@ -363,3 +363,23 @@ describe("applySubstitutionToTeamTx", () => {
     assert.equal(db.store.get(`${TEAMS}/time-ab`)!.player2Id, "uid-c", "compartilhado intacto");
   });
 });
+
+describe("substituição na categoria individual (fase 4a)", () => {
+  it("equipe de 1: o novo atleta vira titular (captainUid), sem chave de dupla", async () => {
+    const db = new FakeFirestore();
+    db.seedDoc(`${TEAMS}/solo-a`, {
+      captainUid: "uid-a", memberUids: ["uid-a"], teamSize: 1, player1Id: "uid-a", player2Id: "",
+    });
+    db.seedDoc(`${INSCRIPTIONS}/insc`, {teamId: "solo-a", tournamentId: "T", participantUids: ["uid-a"]});
+    const out = await substitute(db, {
+      tournamentId: "T", registrationId: "insc", teamId: "solo-a",
+      outUid: "uid-a", inUid: "uid-c", rosterAfter: ["uid-c"],
+    });
+    assert.equal(out.forked, false);
+    const team = db.store.get(`${TEAMS}/solo-a`)!;
+    assert.equal(team.captainUid, "uid-c");
+    assert.equal(team.player1Id, "uid-c");
+    assert.deepEqual(team.memberUids, ["uid-c"]);
+    assert.equal(team.pairKey, undefined);
+  });
+});

@@ -10,6 +10,7 @@ import {
   type ArenaCourtDoc,
   type ArenaListItem,
   type ArenaSlot,
+  courtDocSportLabel,
 } from '@nexago/arena-discovery';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
@@ -93,11 +94,6 @@ function nameFromEmail(email: string | null | undefined): string {
   return local ? titleCase(local) : 'Atleta';
 }
 
-/** Lê o esporte de um doc de quadra (`sport` ou `courtType`, mesmo schema usado pelo site público). */
-function courtSportLabel(data: Record<string, unknown>): string {
-  const raw = data['sport'] ?? data['courtType'];
-  return typeof raw === 'string' && raw.trim().length > 0 ? titleCase(raw.trim()) : 'Esporte não informado';
-}
 
 function parseDateParam(value: string | null): Date | null {
   if (!value) return null;
@@ -266,7 +262,7 @@ export class ArenaPaymentComponent {
 
   protected readonly courtSportLabel = computed(() => {
     const c = this.court();
-    return c ? courtSportLabel(c.data) : '';
+    return c ? courtDocSportLabel(c.data) : '';
   });
 
   protected readonly timeRangeLabel = computed(() => {

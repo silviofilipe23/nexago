@@ -84,7 +84,7 @@
             <p class="ad-body-text">{{ a.description ?? 'Esta arena ainda não adicionou uma descrição.' }}</p>
             @if (a.courtTypes.length > 0) {
               <div class="ad-pill-row">
-                @for (s of a.courtTypes; track s) {
+                @for (s of sportLabels(a.courtTypes); track s) {
                   <span class="ad-sport-pill">{{ s }}</span>
                 }
               </div>

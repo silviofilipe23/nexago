@@ -73,7 +73,7 @@
           </section>
 
           <section class="bk-card">
-            <span class="bk-card-kicker">{{ a.courtTypes.join(' · ') }}</span>
+            <span class="bk-card-kicker">{{ sportLabels(a.courtTypes).join(' · ') }}</span>
             <h2 class="bk-card-title">Quadra</h2>
             @if (courtViews().length === 0) {
               <p class="bk-empty-inline">Nenhuma quadra cadastrada ainda.</p>

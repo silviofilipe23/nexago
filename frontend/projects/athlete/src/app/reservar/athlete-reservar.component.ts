@@ -8,6 +8,7 @@ import {
   ARENA_PRICE_BAND_OPTIONS,
   ARENA_SORT_BY_OPTIONS,
   ARENA_SPORT_CHIP_OPTIONS,
+  arenaSportLabels,
   DEFAULT_RADIUS_KM,
   MAX_RADIUS_KM,
   UNLIMITED_RADIUS_KM,
@@ -212,6 +213,8 @@ export class AthleteReservarComponent {
   protected readonly failedLogoIds = signal<ReadonlySet<string>>(new Set());
 
   protected readonly sportChipOptions = ARENA_SPORT_CHIP_OPTIONS;
+  /** Esportes da arena pelo catálogo (código ou rótulo legado). */
+  protected readonly sportLabels = arenaSportLabels;
   protected readonly priceBandOptions = ARENA_PRICE_BAND_OPTIONS;
   protected readonly paymentOptions = ARENA_PAYMENT_FILTER_OPTIONS;
   protected readonly sortByOptions = ARENA_SORT_BY_OPTIONS;
@@ -520,7 +523,7 @@ export class AthleteReservarComponent {
    * sabemos é o esporte.
    */
   protected sportsPillLabel(arena: ArenaListItem): string {
-    const first = arena.courtTypes[0];
+    const first = arenaSportLabels(arena.courtTypes)[0];
     return (first ?? 'AREIA').toUpperCase();
   }
 

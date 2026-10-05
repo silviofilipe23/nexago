@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signa
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
-import { fetchArenaById, arenaListItemImageUrl, type ArenaListItem } from '@nexago/arena-discovery';
+import { fetchArenaById, arenaListItemImageUrl, courtSportLabel, type ArenaListItem } from '@nexago/arena-discovery';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { cancelBooking, fetchArenaBooking, type ArenaBookingDoc } from '../../data/arena-bookings-repository';
@@ -292,7 +292,7 @@ export class AthleteBookingDetailComponent {
 
   protected readonly displayCode = computed(() => bookingDisplayCode(this.bookingId()));
 
-  protected readonly sportLabel = computed(() => this.arena()?.courtTypes[0] ?? null);
+  protected readonly sportLabel = computed(() => courtSportLabel(this.arena()?.courtTypes[0]) || null);
 
   /** Capa da arena pro hero — null enquanto a arena não carregou. */
   protected readonly coverUrl = computed(() => {

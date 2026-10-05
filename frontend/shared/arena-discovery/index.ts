@@ -56,6 +56,10 @@ export {
   ARENA_SPORT_CHIP_OPTIONS,
   arenaHasIndexedSportMetadata,
   arenaMatchesSportChip,
+  arenaSportCodes,
+  arenaSportLabels,
+  courtDocSportLabel,
+  courtSportLabel,
   defaultSportChipFromProfile,
   sportFirestoreIdFromChip,
 } from './sport-chip';

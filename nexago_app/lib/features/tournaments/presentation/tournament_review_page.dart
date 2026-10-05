@@ -64,14 +64,16 @@ class _TournamentReviewPageState extends ConsumerState<TournamentReviewPage> {
 
   @override
   Widget build(BuildContext context) {
-    final inviteAsync =
-        ref.watch(tournamentReviewInviteProvider(widget.tournamentId));
+    final inviteAsync = ref.watch(
+      tournamentReviewInviteProvider(widget.tournamentId),
+    );
     return TournamentDetailSubpageScaffold(
       title: 'Avaliar torneio',
       body: inviteAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, __) => const AppInlineErrorView(
-            message: 'Não foi possível carregar a avaliação.'),
+          message: 'Não foi possível carregar a avaliação.',
+        ),
         data: (invite) => _content(context, invite),
       ),
     );
@@ -117,7 +119,8 @@ class _TournamentReviewPageState extends ConsumerState<TournamentReviewPage> {
                 const SizedBox(height: 12),
                 OutlinedButton(
                   onPressed: () => ref.invalidate(
-                      myTournamentReviewProvider(widget.tournamentId)),
+                    myTournamentReviewProvider(widget.tournamentId),
+                  ),
                   child: const Text('Tentar novamente'),
                 ),
               ],
@@ -142,8 +145,9 @@ class _TournamentReviewPageState extends ConsumerState<TournamentReviewPage> {
         children: [
           Text(
             tournamentReviewQuestion(invite.tournamentName),
-            style: theme.textTheme.titleLarge
-                ?.copyWith(fontWeight: FontWeight.w800),
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
@@ -221,7 +225,7 @@ class _TournamentReviewPageState extends ConsumerState<TournamentReviewPage> {
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  'O organizador lê sem o seu nome. Evite se identificar no texto.',
+                  'A avaliação é anônima. Evite se identificar no texto.',
                   style: theme.textTheme.bodySmall?.copyWith(color: muted),
                 ),
               ),
@@ -236,16 +240,18 @@ class _TournamentReviewPageState extends ConsumerState<TournamentReviewPage> {
                 backgroundColor: AppColors.brand,
                 foregroundColor: AppColors.black,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
-              onPressed:
-                  _overall == null || _sending ? null : () => _submit(invite),
+              onPressed: _overall == null || _sending
+                  ? null
+                  : () => _submit(invite),
               child: Text(
                 _sending
                     ? 'Enviando…'
                     : isEdit
-                        ? 'Salvar alterações'
-                        : 'Enviar avaliação',
+                    ? 'Salvar alterações'
+                    : 'Enviar avaliação',
                 style: const TextStyle(fontWeight: FontWeight.w800),
               ),
             ),
@@ -260,7 +266,9 @@ class _TournamentReviewPageState extends ConsumerState<TournamentReviewPage> {
     if (overall == null || _sending) return;
     setState(() => _sending = true);
     try {
-      final created = await ref.read(tournamentReviewServiceProvider).submit(
+      final created = await ref
+          .read(tournamentReviewServiceProvider)
+          .submit(
             tournamentId: invite.tournamentId,
             overall: overall,
             aspects: Map.of(_aspects),

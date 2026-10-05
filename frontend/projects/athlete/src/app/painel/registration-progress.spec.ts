@@ -200,7 +200,14 @@ describe('buildRegistrationProgress', () => {
   it('individual mostra a inscrição inteira (fase 4c)', () => {
     const progress = build(makeRegistration({ partnerPending: false, teamSize: 1, participantUids: [ME] }))!;
 
-    expect(progress.steps[2].caption).toMatch(/^Sua inscrição · R\$\s180,00$/);
+    expect(progress.steps.find((s) => s.label === 'Pagamento')!.caption).toMatch(/^Sua inscrição · R\$\s180,00$/);
+  });
+
+  it('individual não tem passo de dupla/equipe na trilha (fase 4c)', () => {
+    const progress = build(makeRegistration({ partnerPending: false, teamSize: 1, participantUids: [ME] }))!;
+
+    expect(progress.steps.map((s) => s.label)).not.toContain('Equipe');
+    expect(progress.steps.map((s) => s.label)).not.toContain('Dupla');
   });
 
   it('pagamento direto com o organizador não mostra valor', () => {

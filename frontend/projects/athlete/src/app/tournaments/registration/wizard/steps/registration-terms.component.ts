@@ -83,6 +83,9 @@ export class RegistrationTermsComponent {
    *  justamente quem mais precisa dela por não poder reservar sozinho. */
   protected readonly showOtherCategories = computed(() => this.receivedInvite() == null);
 
+  /** Categoria individual: sem parceiro, sem divisão da taxa. */
+  protected readonly isIndividual = computed(() => this.category()?.teamSize === 1);
+
   protected readonly isTeam = computed(() => {
     const teamSize = this.category()?.teamSize ?? null;
     return teamSize != null && teamSize > 2;

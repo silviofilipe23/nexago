@@ -81,7 +81,9 @@ export function uniformSlotForUid(
   >,
   uid: string,
 ): RegistrationUniformSlot {
-  if (registration.teamSize != null) {
+  // Só equipe nomeada (trio+) usa `uniformByUid`; individual (1) mora no Player1, como a dupla —
+  // é onde o servidor grava (`isTeamUniformRegistration` = trio+).
+  if (registration.teamSize != null && registration.teamSize >= 3) {
     return registration.uniformByUid[uid] ?? EMPTY_SLOT;
   }
   if (registration.player1Id === uid) return registration.uniformPlayer1;
@@ -107,7 +109,7 @@ function partnerCaption(
   partnerName: string | null,
 ): string {
   // Equipe nomeada (trio+): a trilha conta o elenco, não "o parceiro".
-  if (registration.teamSize != null) {
+  if (registration.teamSize != null && registration.teamSize >= 3) {
     if (registration.partnerPending) {
       return `Elenco ${registration.participantUids.length}/${registration.teamSize}`;
     }
@@ -167,11 +169,14 @@ export function buildRegistrationProgress(input: RegistrationProgressInput): Reg
     ...(categoryRequiresUniform(category)
       ? [{ label: 'Uniforme', caption: uniformDone ? 'Salvo' : 'Pendente', done: uniformDone }]
       : []),
-    {
-      label: registration.teamSize != null ? 'Equipe' : 'Dupla',
-      caption: partnerCaption(registration, myName, partnerName),
-      done: partnerDone,
-    },
+    // Individual não tem parceiro nem elenco a fechar — a trilha pula direto ao pagamento.
+    ...(registration.teamSize === 1
+      ? []
+      : [{
+          label: registration.teamSize != null && registration.teamSize >= 3 ? 'Equipe' : 'Dupla',
+          caption: partnerCaption(registration, myName, partnerName),
+          done: partnerDone,
+        }]),
     {
       label: 'Pagamento',
       caption: paymentCaption(registration, tournament, category, myUid),

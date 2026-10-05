@@ -49,3 +49,28 @@ describe('categoria individual (fase 4c)', () => {
     expect(activityDuoNameOf('t1', teams, profiles, null)).toBe('Ana Souza');
   });
 });
+
+import { uniformSlotForUid } from '../painel/registration-progress';
+import { registrationRosterView } from './tabs/registration-roster-cta';
+import { registrationTabHeroBody } from './tabs/registration-tab-view';
+
+describe('inscrição individual · uniforme, sucesso (fase 4c, revisão)', () => {
+  it('uniforme da individual mora no slot Player1 (como o servidor grava)', () => {
+    const filled = { sizeTop: 'M', sizeShorts: null, jerseyNumber: null, jerseyName: null } as never;
+    const slot = uniformSlotForUid({
+      player1Id: 'me', participantUids: ['me'], uniformPlayer1: filled, uniformPlayer2: {} as never,
+      teamSize: 1, uniformByUid: {},
+    }, 'me');
+    expect(slot).toBe(filled);
+  });
+
+  it('a aba "Minha inscrição" fala com o atleta, não com uma equipe', () => {
+    const view = registrationRosterView({ teamSize: 1, partnerPending: false, captainUid: null, player1Id: 'me', participantUids: ['me'] }, 'me');
+    expect(view.teamLabel).toBe('Atleta');
+    const hero = registrationTabHeroBody({ paymentState: 'paid', teamLabel: 'Atleta', rosterComplete: true, entryFee: 120, paymentHint: '' });
+    expect(hero.title).toBe('Inscrição completa. Você está dentro.');
+    expect(hero.body).toContain('você entra no sorteio da chave');
+    expect(registrationTabHeroBody({ paymentState: 'pending', teamLabel: 'Atleta', rosterComplete: true, entryFee: 120, paymentHint: 'h' }).title)
+      .toBe('Inscrição feita. Falta o pagamento.');
+  });
+});

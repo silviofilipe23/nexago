@@ -15,12 +15,17 @@ class _FakeTeams implements TournamentTeamsRepository {
   final Map<String, TournamentTeam> teams;
 
   @override
-  Future<Map<String, TournamentTeam>> getTeamsByIds(Set<String> teamIds) async =>
-      {for (final id in teamIds) if (teams[id] != null) id: teams[id]!};
+  Future<Map<String, TournamentTeam>> getTeamsByIds(
+    Set<String> teamIds,
+  ) async => {
+    for (final id in teamIds)
+      if (teams[id] != null) id: teams[id]!,
+  };
 
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      throw UnimplementedError('TournamentTeamsRepository.${invocation.memberName}');
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError(
+    'TournamentTeamsRepository.${invocation.memberName}',
+  );
 }
 
 class _FakeUsers implements UsersRepository {
@@ -28,8 +33,12 @@ class _FakeUsers implements UsersRepository {
   final Map<String, AppUserProfile> profiles;
 
   @override
-  Future<Map<String, AppUserProfile>> getUsersByIds(Iterable<String> uids) async =>
-      {for (final uid in uids) if (profiles[uid] != null) uid: profiles[uid]!};
+  Future<Map<String, AppUserProfile>> getUsersByIds(
+    Iterable<String> uids,
+  ) async => {
+    for (final uid in uids)
+      if (profiles[uid] != null) uid: profiles[uid]!,
+  };
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>
@@ -81,13 +90,16 @@ void main() {
     }),
   );
 
-  test('enriquecimento leva o elenco: trio com 3 nomes, individual com 1', () async {
-    final card = (await service.enrichMatches([_match()])).single;
-    expect(card.teamA.rosterSize, 3);
-    expect(card.teamA.rosterNames, ['Ana', 'Bia', 'Caio']);
-    expect(card.teamB.rosterSize, 1);
-    expect(card.teamB.rosterNames, ['Duda']);
-  });
+  test(
+    'enriquecimento leva o elenco: trio com 3 nomes, individual com 1',
+    () async {
+      final card = (await service.enrichMatches([_match()])).single;
+      expect(card.teamA.rosterSize, 3);
+      expect(card.teamA.rosterNames, ['Ana', 'Bia', 'Caio']);
+      expect(card.teamB.rosterSize, 1);
+      expect(card.teamB.rosterNames, ['Duda']);
+    },
+  );
 
   test('dupla legada segue elenco 2', () async {
     final card = (await service.enrichMatches([
@@ -110,26 +122,31 @@ void main() {
     expect(card.teamA.rosterSize, 2);
   });
 
-  test('a mesa nomeia o 3º atleta do trio e o individual só tem a posição 1', () async {
-    final card = (await service.enrichMatches([_match()])).single;
-    final trio = liveTableTeamData(
-      match: card.match,
-      sideA: true,
-      enrichedTeam: card.teamA,
-    );
-    expect(trio.rosterSize, 3);
-    expect(trio.slots, [1, 2, 3]);
-    expect(trio.nameForSlot(3), 'Caio');
-    final solo = liveTableTeamData(
-      match: card.match,
-      sideA: false,
-      enrichedTeam: card.teamB,
-    );
-    expect(solo.slots, [1]);
-    expect(solo.nameForSlot(1), 'Duda');
-  });
+  test(
+    'a mesa nomeia o 3º atleta do trio e o individual só tem a posição 1',
+    () async {
+      final card = (await service.enrichMatches([_match()])).single;
+      final trio = liveTableTeamData(
+        match: card.match,
+        sideA: true,
+        enrichedTeam: card.teamA,
+      );
+      expect(trio.rosterSize, 3);
+      expect(trio.slots, [1, 2, 3]);
+      expect(trio.nameForSlot(3), 'Caio');
+      final solo = liveTableTeamData(
+        match: card.match,
+        sideA: false,
+        enrichedTeam: card.teamB,
+      );
+      expect(solo.slots, [1]);
+      expect(solo.nameForSlot(1), 'Duda');
+    },
+  );
 
-  testWidgets('faixa "Quem saca?" oferece os 3 atletas do trio', (tester) async {
+  testWidgets('faixa "Quem saca?" oferece os 3 atletas do trio', (
+    tester,
+  ) async {
     final card = (await service.enrichMatches([_match()])).single;
     final trio = liveTableTeamData(
       match: card.match,

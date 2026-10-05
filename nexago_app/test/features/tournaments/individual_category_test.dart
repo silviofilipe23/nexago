@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_registration_receipt.dart';
 import 'package:nexago_app/features/organizer/data/tournament_create_mapper.dart';
 import 'package:nexago_app/features/organizer/domain/tournament_create/tournament_create_draft.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_document_mapper.dart';
@@ -37,6 +39,56 @@ void main() {
       expect(offer.genderDetail, isNull);
     },
   );
+
+  test(
+    'formato do torneio: Individual só quando TODAS as categorias são individuais',
+    () {
+      Map<String, dynamic> cat(String id, int? size) => {
+        'id': id,
+        'categoryName': id,
+        'entryFee': 100,
+        'teamSize': ?size,
+      };
+      TournamentFormat format(Map<String, dynamic> data) =>
+          TournamentDocumentMapper.detailFromMap('t1', data).format;
+
+      expect(
+        format({
+          'categories': [cat('s', 1)],
+        }),
+        TournamentFormat.individual,
+      );
+      // Tênis com simples e duplas não se anuncia como individual.
+      expect(
+        format({
+          'categories': [cat('s', 1), cat('d', null)],
+        }),
+        TournamentFormat.dupla,
+      );
+      // Rótulo legado `format` não vence as categorias.
+      expect(
+        format({
+          'format': 'Individual',
+          'categories': [cat('d', null)],
+        }),
+        TournamentFormat.dupla,
+      );
+      // Sem categorias, o rótulo legado segue valendo.
+      expect(format({'format': 'Individual'}), TournamentFormat.individual);
+    },
+  );
+
+  test('comprovante: sem segundo atleta na individual (não vira "Atleta")', () {
+    expect(registrationReceiptPlayerName('', null), '');
+    expect(registrationReceiptPlayerName('u2', null), 'Atleta');
+    expect(
+      registrationReceiptPlayerName(
+        'u2',
+        const AppUserProfile(uid: 'u2', fullName: 'Bia Souza'),
+      ),
+      isNotEmpty,
+    );
+  });
 
   test('cotação da individual é a taxa inteira', () {
     final quote = buildRegistrationQuote(entryFee: 120, teamSize: 1);

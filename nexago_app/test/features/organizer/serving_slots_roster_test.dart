@@ -55,66 +55,72 @@ void main() {
     );
   }
 
-  test('saque volta para o lado: individual mantém o 1; dupla alterna; trio roda', () {
-    expect(
-      after(
+  test(
+    'saque volta para o lado: individual mantém o 1; dupla alterna; trio roda',
+    () {
+      expect(
+        after(
+          const MatchServingPlayers(a: 1, b: 1),
+          rosterSizes: const MatchRosterSizes(a: 1, b: 1),
+        ),
         const MatchServingPlayers(a: 1, b: 1),
-        rosterSizes: const MatchRosterSizes(a: 1, b: 1),
-      ),
-      const MatchServingPlayers(a: 1, b: 1),
-    );
-    expect(
-      after(const MatchServingPlayers(a: 1, b: 1)),
-      const MatchServingPlayers(a: 2, b: 1),
-    );
-    expect(
-      after(
+      );
+      expect(
+        after(const MatchServingPlayers(a: 1, b: 1)),
         const MatchServingPlayers(a: 2, b: 1),
-        rosterSizes: const MatchRosterSizes(a: 3, b: 2),
-      ),
-      const MatchServingPlayers(a: 3, b: 1),
-    );
-    expect(
-      after(
+      );
+      expect(
+        after(
+          const MatchServingPlayers(a: 2, b: 1),
+          rosterSizes: const MatchRosterSizes(a: 3, b: 2),
+        ),
         const MatchServingPlayers(a: 3, b: 1),
-        rosterSizes: const MatchRosterSizes(a: 3, b: 2),
-      ),
-      const MatchServingPlayers(a: 1, b: 1),
-    );
-  });
+      );
+      expect(
+        after(
+          const MatchServingPlayers(a: 3, b: 1),
+          rosterSizes: const MatchRosterSizes(a: 3, b: 2),
+        ),
+        const MatchServingPlayers(a: 1, b: 1),
+      );
+    },
+  );
 
-  test('individual: o atleta no saque é sempre o 1, e a mesa não pergunta quem saca', () {
-    expect(
-      MatchServingPlayerLogic.servingPlayerSlot(
-        slots: MatchServingPlayers.none,
+  test(
+    'individual: o atleta no saque é sempre o 1, e a mesa não pergunta quem saca',
+    () {
+      expect(
+        MatchServingPlayerLogic.servingPlayerSlot(
+          slots: MatchServingPlayers.none,
+          servingTeamId: 'tA',
+          teamAId: ids.teamAId,
+          teamBId: ids.teamBId,
+          rosterSizes: const MatchRosterSizes(a: 1, b: 2),
+        ),
+        1,
+      );
+      bool needs({int? roster}) => MatchServingPlayerLogic.needsServingPlayer(
         servingTeamId: 'tA',
+        servingPlayerSlot: 0,
+        status: TournamentMatchStatus.inProgress,
         teamAId: ids.teamAId,
         teamBId: ids.teamBId,
-        rosterSizes: const MatchRosterSizes(a: 1, b: 2),
-      ),
-      1,
-    );
-    bool needs({int? roster}) => MatchServingPlayerLogic.needsServingPlayer(
-      servingTeamId: 'tA',
-      servingPlayerSlot: 0,
-      status: TournamentMatchStatus.inProgress,
-      teamAId: ids.teamAId,
-      teamBId: ids.teamBId,
-      servingRosterSize: roster ?? 2,
-    );
-    expect(needs(roster: 1), isFalse);
-    expect(needs(), isTrue);
-    expect(
-      MatchServingPlayerLogic.swappedSlots(
-        slots: const MatchServingPlayers(a: 1, b: 1),
-        servingTeamId: 'tA',
-        teamAId: ids.teamAId,
-        teamBId: ids.teamBId,
-        rosterSizes: const MatchRosterSizes(a: 1, b: 1),
-      ),
-      const MatchServingPlayers(a: 1, b: 1),
-    );
-  });
+        servingRosterSize: roster ?? 2,
+      );
+      expect(needs(roster: 1), isFalse);
+      expect(needs(), isTrue);
+      expect(
+        MatchServingPlayerLogic.swappedSlots(
+          slots: const MatchServingPlayers(a: 1, b: 1),
+          servingTeamId: 'tA',
+          teamAId: ids.teamAId,
+          teamBId: ids.teamBId,
+          rosterSizes: const MatchRosterSizes(a: 1, b: 1),
+        ),
+        const MatchServingPlayers(a: 1, b: 1),
+      );
+    },
+  );
 
   test('equipe: posição 3–5 declarada não volta a "não declarada"', () {
     expect(
@@ -160,30 +166,39 @@ void main() {
     );
   });
 
-  test('ponto gravado numa individual não aponta para o "atleta 2" inexistente', () {
-    final write = buildPointWrite(
-      match(
-        servingTeamId: 'tB',
-        servingPlayers: const MatchServingPlayers(a: 1, b: 1),
-      ),
-      'A',
-      rosterSizes: const MatchRosterSizes(a: 1, b: 1),
-    )!;
-    expect(write.matchUpdate['servingPlayerSlots'], {'A': 1, 'B': 1});
-    expect(write.matchUpdate['servingPlayerSlot'], 1);
-  });
+  test(
+    'ponto gravado numa individual não aponta para o "atleta 2" inexistente',
+    () {
+      final write = buildPointWrite(
+        match(
+          servingTeamId: 'tB',
+          servingPlayers: const MatchServingPlayers(a: 1, b: 1),
+        ),
+        'A',
+        rosterSizes: const MatchRosterSizes(a: 1, b: 1),
+      )!;
+      expect(write.matchUpdate['servingPlayerSlots'], {'A': 1, 'B': 1});
+      expect(write.matchUpdate['servingPlayerSlot'], 1);
+    },
+  );
 
-  test('individual: a escrita grava o titular na ordem do lado (doc coerente para as outras mesas)', () {
-    final fields = servingTeamFields(
-      match(),
-      'tA',
-      rosterSizes: const MatchRosterSizes(a: 1, b: 1),
-    );
-    expect(fields['servingPlayerSlots'], {'A': 1, 'B': 1});
-    expect(fields['servingPlayerSlot'], 1);
-    // Dupla não ganha `servingPlayerSlots` na troca de time: a ordem declarada não muda.
-    expect(servingTeamFields(match(), 'tA').containsKey('servingPlayerSlots'), isFalse);
-  });
+  test(
+    'individual: a escrita grava o titular na ordem do lado (doc coerente para as outras mesas)',
+    () {
+      final fields = servingTeamFields(
+        match(),
+        'tA',
+        rosterSizes: const MatchRosterSizes(a: 1, b: 1),
+      );
+      expect(fields['servingPlayerSlots'], {'A': 1, 'B': 1});
+      expect(fields['servingPlayerSlot'], 1);
+      // Dupla não ganha `servingPlayerSlots` na troca de time: a ordem declarada não muda.
+      expect(
+        servingTeamFields(match(), 'tA').containsKey('servingPlayerSlots'),
+        isFalse,
+      );
+    },
+  );
 
   test('servingPlayerFields aceita a posição 3 de uma equipe', () {
     final fields = servingPlayerFields(
@@ -197,10 +212,11 @@ void main() {
   });
 
   test('tempo médico aceita posições 1–5 (equipe) e recusa fora disso', () {
-    expect(
-      medicalTimeoutPlayerKeysFromRaw(['A1', 'B3', 'A5', 'B6', 'C1']),
-      ['A1', 'B3', 'A5'],
-    );
+    expect(medicalTimeoutPlayerKeysFromRaw(['A1', 'B3', 'A5', 'B6', 'C1']), [
+      'A1',
+      'B3',
+      'A5',
+    ]);
     expect(
       MatchMedicalTimeout.fromMap(const {
         'side': 'B',
@@ -248,12 +264,15 @@ void main() {
     expect(write!.matchUpdate['medicalTimeoutPlayers'], ['A3']);
   });
 
-  test('elenco pelo memberUids gravado: 1 só na individual; dupla legada/incompleta segue 2', () {
-    expect(rosterSizeFromMemberUids(['a']), 1);
-    expect(rosterSizeFromMemberUids(['a', 'b', 'c']), 3);
-    expect(rosterSizeFromMemberUids(const []), 2);
-    expect(rosterSizeFromMemberUids(null), 2);
-    expect(rosterSizeFromMemberUids(['a', 'a']), 2);
-    expect(rosterSizeFromMemberUids(['a', 'b', 'c', 'd', 'e', 'f']), 2);
-  });
+  test(
+    'elenco pelo memberUids gravado: 1 só na individual; dupla legada/incompleta segue 2',
+    () {
+      expect(rosterSizeFromMemberUids(['a']), 1);
+      expect(rosterSizeFromMemberUids(['a', 'b', 'c']), 3);
+      expect(rosterSizeFromMemberUids(const []), 2);
+      expect(rosterSizeFromMemberUids(null), 2);
+      expect(rosterSizeFromMemberUids(['a', 'a']), 2);
+      expect(rosterSizeFromMemberUids(['a', 'b', 'c', 'd', 'e', 'f']), 2);
+    },
+  );
 }

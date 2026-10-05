@@ -65,11 +65,15 @@ class TournamentRegistrationDuoSummaryCard extends StatelessWidget {
     required this.roster,
     required this.eventSubtitle,
     this.isTeamCategory = false,
+    this.isIndividual = false,
   });
 
   final List<TournamentRosterMember> roster;
   final String eventSubtitle;
   final bool isTeamCategory;
+
+  /// Categoria individual: só o próprio atleta, sem "dupla".
+  final bool isIndividual;
 
   @override
   Widget build(BuildContext context) {
@@ -119,7 +123,11 @@ class TournamentRegistrationDuoSummaryCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isTeamCategory ? 'EQUIPE CONFIRMADA' : 'DUPLA CONFIRMADA',
+                  isIndividual
+                      ? 'INSCRIÇÃO CONFIRMADA'
+                      : isTeamCategory
+                      ? 'EQUIPE CONFIRMADA'
+                      : 'DUPLA CONFIRMADA',
                   style: AppTypography.mono(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,

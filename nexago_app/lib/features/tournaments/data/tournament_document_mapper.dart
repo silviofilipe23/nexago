@@ -113,7 +113,13 @@ abstract final class TournamentDocumentMapper {
       categories: genderCats.isNotEmpty
           ? genderCats
           : const [TournamentGenderCat.mix],
-      format: _parseFormat(_str(data['format'])),
+      // "Individual" só quando TODAS as categorias são individuais: um torneio de tênis com
+      // simples e duplas não pode se anunciar como individual (espelha o portal, 4c).
+      format: offers.isNotEmpty
+          ? (offers.every((o) => o.teamSize == 1)
+                ? TournamentFormat.individual
+                : TournamentFormat.dupla)
+          : _parseFormat(_str(data['format'])),
       priceLabel: _formatBrl(minFee),
       priceValue: minFee,
       spotsLeft: spotsLeft,

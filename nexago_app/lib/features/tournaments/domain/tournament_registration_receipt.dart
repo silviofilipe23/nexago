@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 
 import '../../../core/brand/nexa_hashtag.dart';
+import '../../../core/profiles/app_user_profile.dart';
 import 'tournament_category_spots.dart';
 import 'tournament_detail_model.dart';
 import 'tournament_discovery_models.dart';
@@ -26,6 +27,17 @@ class TournamentRegistrationReceipt {
   final String? player2AvatarUrl;
   final bool isPaid;
   final DateTime? registeredAt;
+}
+
+/// Nome de um atleta no comprovante. Sem uid (o segundo atleta da INDIVIDUAL, que não existe)
+/// fica vazio — senão o card mostraria um "Atleta" fantasma ao lado do inscrito.
+String registrationReceiptPlayerName(String uid, AppUserProfile? profile) {
+  if (uid.trim().isEmpty) return '';
+  if (profile != null) {
+    final label = appUserDisplayName(profile);
+    if (label.isNotEmpty) return label;
+  }
+  return 'Atleta';
 }
 
 final _receiptDateFmt = DateFormat('d MMM yyyy', 'pt_BR');

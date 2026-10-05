@@ -71,21 +71,16 @@ final tournamentRegistrationReceiptProvider =
 
     final users = ref.read(usersRepositoryProvider);
     final p1 = await users.getUserById(raw.player1Id);
-    final p2 = await users.getUserById(raw.player2Id);
-
-    String nameFor(String uid, AppUserProfile? profile) {
-      if (profile != null) {
-        final label = appUserDisplayName(profile);
-        if (label.isNotEmpty) return label;
-      }
-      return 'Atleta';
-    }
+    // Individual não tem segundo atleta (`player2Id` vazio).
+    final p2 = raw.player2Id.trim().isEmpty
+        ? null
+        : await users.getUserById(raw.player2Id);
 
     return TournamentRegistrationReceipt(
       registrationId: raw.registrationId,
       categoryId: raw.categoryId,
-      player1Name: nameFor(raw.player1Id, p1),
-      player2Name: nameFor(raw.player2Id, p2),
+      player1Name: registrationReceiptPlayerName(raw.player1Id, p1),
+      player2Name: registrationReceiptPlayerName(raw.player2Id, p2),
       player1AvatarUrl: p1?.profilePhotoUrl,
       player2AvatarUrl: p2?.profilePhotoUrl,
       isPaid: raw.isPaid,

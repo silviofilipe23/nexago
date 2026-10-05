@@ -63,6 +63,11 @@ export interface ServingPlayerSlots {
 
 export const NO_SERVING_PLAYER_SLOTS: ServingPlayerSlots = { A: 0, B: 0 };
 
+/** Posição gravada no doc (1–5); qualquer outra coisa vira "não declarada". */
+export function servingPlayerSlotFromRaw(raw: unknown): ServingPlayerSlot {
+  return slotOf(raw);
+}
+
 function slotOf(raw: unknown): ServingPlayerSlot {
   return raw === 1 || raw === 2 || raw === 3 || raw === 4 || raw === 5 ? raw : 0;
 }

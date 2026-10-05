@@ -21,6 +21,7 @@ import {
   type MedicalTimeoutSlot,
 } from './medical-timeout';
 import {
+  servingPlayerSlotFromRaw,
   servingPlayerSlotOf,
   servingPlayerSlotsAfterScore,
   servingPlayerSlotsAfterUndo,
@@ -173,7 +174,7 @@ export function liveMatchFromDoc(id: string, data: Record<string, unknown>): Liv
     currentSetIndex: intOf(data['currentSetIndex'], Math.max(0, sets.length - 1)),
     bestOf: data['bestOf'] === 1 ? 1 : 3,
     servingTeamId: optionalStr(data['servingTeamId']) ?? '',
-    servingPlayerSlot: data['servingPlayerSlot'] === 1 || data['servingPlayerSlot'] === 2 ? data['servingPlayerSlot'] : 0,
+    servingPlayerSlot: servingPlayerSlotFromRaw(data['servingPlayerSlot']),
     servingPlayerSlots: servingPlayerSlotsFromRaw(data['servingPlayerSlots']),
     medicalTimeout: medicalTimeoutFromRaw(data['medicalTimeout']),
     medicalTimeoutPlayers: medicalTimeoutPlayerKeysFromRaw(data['medicalTimeoutPlayers']),
@@ -425,7 +426,7 @@ function buildGamesUndoWrite(m: LiveMatch, side: 'A' | 'B', prev: Record<string,
   const currentGame = gamePointsOf(prev['currentGame']);
   const servingTeamId = optionalStr(prev['servingTeamId']) ?? '';
   const slots = servingPlayerSlotsFromRaw(prev['servingPlayerSlots']);
-  const slot = prev['servingPlayerSlot'] === 1 || prev['servingPlayerSlot'] === 2 ? prev['servingPlayerSlot'] : 0;
+  const slot = servingPlayerSlotFromRaw(prev['servingPlayerSlot']);
   const wins = setsWonBy(sets, profile);
   const cur = sets[currentSetIndex] ?? { a: 0, b: 0 };
   return {

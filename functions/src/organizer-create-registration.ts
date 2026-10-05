@@ -71,8 +71,11 @@ import {
 import {refreshRegistrationHold} from "./tournament-registration-hold-ops";
 import {resolvePartnerRegistrationPlan} from "./tournament-solo-registration";
 import type {AthleteGenderBucket} from "./tournament-registration-pix-helpers";
+import {assertTeamGenderEligibility} from "./category-gender-eligibility";
+import {individualTeamData} from "./tournament-individual-registration";
 import {
   evaluateTeamJoin,
+  isIndividualCategory,
   isTeamCategory,
   normalizeTeamName,
   parseGenderComposition,
@@ -362,38 +365,50 @@ export const organizerCreateTeamRegistration = onCall({
   const teamsRef = db.collection(teamsPath);
 
   // ---------------------------------------------------------------------------
-  // Equipe (trio+): elenco completo de uma vez, sem convite.
+  // Equipe (trio+) e individual: elenco completo de uma vez, sem convite.
   // ---------------------------------------------------------------------------
-  if (isTeamCategory(category)) {
-    await assertTeamGenderComposition({
-      db,
-      category: category as Record<string, unknown>,
-      teamSize,
-      athleteUids,
-    });
+  const individual = isIndividualCategory(category);
+  if (isTeamCategory(category) || individual) {
+    let teamName = "";
+    if (individual) {
+      // Sem nome e sem composição: só o gênero do atleta frente à categoria.
+      await assertTeamGenderEligibility({
+        db,
+        category: category as Record<string, unknown>,
+        uids: [...athleteUids],
+        requireDeclared: false,
+      });
+    } else {
+      await assertTeamGenderComposition({
+        db,
+        category: category as Record<string, unknown>,
+        teamSize,
+        athleteUids,
+      });
 
-    let teamName = teamNameInput ? normalizeTeamName(teamNameInput) : "";
-    if (!teamName) {
-      const names = await Promise.all(
-        athleteUids.map((uid) => loadAthleteDisplayName(db, uid)),
-      );
-      teamName = defaultOrganizerTeamName(names);
-    }
-    const nameError = teamNameValidationError(teamName);
-    if (nameError) {
-      throw new HttpsError("invalid-argument", nameError);
-    }
-    teamName = normalizeTeamName(teamName);
-    const nameKey = teamNameKey(teamName);
+      teamName = teamNameInput ? normalizeTeamName(teamNameInput) : "";
+      if (!teamName) {
+        const names = await Promise.all(
+          athleteUids.map((uid) => loadAthleteDisplayName(db, uid)),
+        );
+        teamName = defaultOrganizerTeamName(names);
+      }
+      const nameError = teamNameValidationError(teamName);
+      if (nameError) {
+        throw new HttpsError("invalid-argument", nameError);
+      }
+      teamName = normalizeTeamName(teamName);
+      const nameKey = teamNameKey(teamName);
 
-    await assertTeamCategoryAvailability({
-      db,
-      projectId,
-      tournamentId,
-      categoryKeys,
-      athleteUids,
-      nameKey,
-    });
+      await assertTeamCategoryAvailability({
+        db,
+        projectId,
+        tournamentId,
+        categoryKeys,
+        athleteUids,
+        nameKey,
+      });
+    }
 
     const result = await db.runTransaction(async (tx) => {
       const capacityPlan = capacityFull ?
@@ -429,14 +444,16 @@ export const organizerCreateTeamRegistration = onCall({
 
       tx.set(
         teamRef,
-        buildOrganizerNamedTeamDoc({
-          tournamentId,
-          categoryId,
-          athleteUids,
-          teamSize,
-          teamName,
-          timestamp,
-        }),
+        individual ?
+          individualTeamData({uid: athleteUids[0]!, tournamentId, categoryId}) :
+          buildOrganizerNamedTeamDoc({
+            tournamentId,
+            categoryId,
+            athleteUids,
+            teamSize,
+            teamName,
+            timestamp,
+          }),
       );
 
       const registrationDoc = buildOrganizerRegistrationDoc({
@@ -448,7 +465,7 @@ export const organizerCreateTeamRegistration = onCall({
         waitlist: shouldWaitlist,
         timestamp,
         teamSize,
-        teamName,
+        teamName: individual ? null : teamName,
       });
       const payment = buildOrganizerPaymentFields({
         entryFee,
@@ -483,7 +500,9 @@ export const organizerCreateTeamRegistration = onCall({
     });
 
     const {capacity: teamCapacity, ...teamLogFields} = result;
-    logger.info("Organizer created named team registration", {
+    logger.info(individual ?
+      "Organizer created individual registration" :
+      "Organizer created named team registration", {
       organizerUid,
       tournamentId,
       categoryId,
@@ -507,7 +526,8 @@ export const organizerCreateTeamRegistration = onCall({
       tournamentName: typeof tournament.name === "string" ? tournament.name : "",
       categoryName: resolveCategoryLabel(tournament, categoryId),
       isPaid: result.isPaid,
-      isTeam: true,
+      isTeam: !individual,
+      teamSize,
     });
     await Promise.all(
       athleteUids.map((uid) =>

@@ -45,6 +45,7 @@ import {
   validateUniformPayload,
 } from "./tournament-partner-invite";
 import {
+  isIndividualCategory,
   MIN_TEAM_CATEGORY_SIZE,
   evaluateTeamJoin,
   extractTeamMemberUids,
@@ -147,7 +148,9 @@ export const createTournamentTeamRegistration = onCall({
   if (!isTeamCategory(category)) {
     throw new HttpsError(
       "failed-precondition",
-      "Esta categoria é de dupla. Use a inscrição comum.",
+      isIndividualCategory(category) ?
+        "Esta categoria é individual. Use a inscrição comum." :
+        "Esta categoria é de dupla. Use a inscrição comum.",
     );
   }
   const teamSize = resolveCategoryTeamSize(category);

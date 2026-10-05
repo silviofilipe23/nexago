@@ -184,3 +184,17 @@ describe("head-to-head · filtro de esporte", () => {
     assert.equal(headToHeadSportMatches(undefined, "VOLEI_PRAIA"), false);
   });
 });
+
+describe("head-to-head · elenco por memberUids (fase 4a)", () => {
+  it("atleta que é o 3º de um trio (só em memberUids) conta o confronto", () => {
+    const teamsById = new Map<string, TeamRecord>([
+      ["trio", {id: "trio", player1Id: "x1", player2Id: "x2", memberUids: ["x1", "x2", ATHLETE_A]}],
+      ["solo", {id: "solo", player1Id: ATHLETE_B, player2Id: "", memberUids: [ATHLETE_B]}],
+    ]);
+    const result = computeHeadToHead(ATHLETE_A, ATHLETE_B, [
+      match({id: "m1", teamAId: "trio", teamBId: "solo", winnerId: "trio", matchEndedAt: 1}),
+    ], teamsById);
+    assert.equal(result.wins, 1);
+    assert.equal(result.losses, 0);
+  });
+});

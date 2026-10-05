@@ -229,6 +229,28 @@ describe("ranking por esporte (fase 3a)", () => {
   });
 });
 
+describe("categoria individual (fase 4a)", () => {
+  it("equipe de 1 atleta: pontua o atleta, sem doc de equipe no ranking", async () => {
+    for (const sport of ["beachVolleyball", "tennis"]) {
+      const db = seededDb({sport});
+      db.seedDoc(`artifacts/${PROJECT}/public/data/teams/tA`, {
+        player1Id: "a1", player2Id: "", memberUids: ["a1"], teamSize: 1,
+      });
+      await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+      assert.equal(db.store.get(`${teamRankingsPath(PROJECT)}/tA`), undefined, sport);
+      assert.equal(
+        [...db.store.keys()].some((k) => k.startsWith(`${teamRankingsBySportPath(PROJECT)}/tA_`)),
+        false,
+        sport,
+      );
+      const code = sport === "tennis" ? "TENIS" : "VOLEI_PRAIA";
+      assert.equal(db.store.get(`${athleteRankingsBySportPath(PROJECT)}/a1_${code}`)!.totalPoints, 1000, sport);
+      // A dupla do outro lado segue com doc de equipe.
+      assert.ok(db.store.get(`${teamRankingsBySportPath(PROJECT)}/tB_${code}`), sport);
+    }
+  });
+});
+
 describe("tryAwardGlobalRankingForMatch", () => {
   it("final concede 1º/2º e alimenta resultados + agregados (sem leagueId)", async () => {
     const db = seededDb();

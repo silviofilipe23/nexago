@@ -139,6 +139,15 @@ export function teamRankingsBySportPath(projectId: string): string {
   return `${artifactsPublicDataBase(projectId)}/teamRankingsBySport`;
 }
 
+/**
+ * Equipe de um atleta só (categoria individual, fase 4a): o atleta já tem o
+ * próprio doc no ranking; um doc de "equipe" duplicaria a linha no ranking de
+ * duplas/equipes.
+ */
+function isIndividualRoster(athleteIds: readonly string[]): boolean {
+  return athleteIds.length === 1;
+}
+
 /** Id do doc por esporte. */
 export function rankingBySportDocId(id: string, sportCode: string): string {
   return `${id}_${sportCode}`;
@@ -411,13 +420,16 @@ export async function awardGlobalPlacement(
   const athleteIds = await loadTeamAthleteIds(db, projectId, teamId);
 
   // Legado (somado, lido pelo app da loja): só os esportes que já pontuavam.
+  // Equipe de 1 (categoria individual) não entra no ranking de duplas/equipes.
   if (feedsLegacyRanking(sportCode)) {
-    await upsertGlobalRankingDoc(db, {
-      collectionPath: teamRankingsPath(projectId),
-      docId: teamId,
-      identity: {teamId},
-      entry,
-    });
+    if (!isIndividualRoster(athleteIds)) {
+      await upsertGlobalRankingDoc(db, {
+        collectionPath: teamRankingsPath(projectId),
+        docId: teamId,
+        identity: {teamId},
+        entry,
+      });
+    }
     await Promise.all(
       athleteIds.map((athleteId) =>
         upsertGlobalRankingDoc(db, {
@@ -455,13 +467,13 @@ export async function upsertRankingBySportDocs(
 ): Promise<number> {
   const {teamId, sportCode, entry, dryRun} = params;
   const changed = await Promise.all([
-    upsertGlobalRankingDoc(db, {
+    ...(isIndividualRoster(params.athleteIds) ? [] : [upsertGlobalRankingDoc(db, {
       collectionPath: teamRankingsBySportPath(projectId),
       docId: rankingBySportDocId(teamId, sportCode),
       identity: {teamId, sport: sportCode},
       entry,
       dryRun,
-    }),
+    })]),
     ...params.athleteIds.map((athleteId) =>
       upsertGlobalRankingDoc(db, {
         collectionPath: athleteRankingsBySportPath(projectId),

@@ -1,3 +1,4 @@
+import {extractTeamMemberUids} from "./tournament-team-category";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore, type Firestore} from "firebase-admin/firestore";
 import {artifactsMatchesPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
@@ -47,6 +48,8 @@ export interface TeamRecord {
   id: string;
   player1Id: string;
   player2Id: string;
+  /** Elenco completo (equipe 3–5 e individual); dupla legada só tem player1/2. */
+  memberUids?: string[];
 }
 
 export interface MatchRecord {
@@ -104,7 +107,9 @@ export function computeHeadToHead(
   const isOnTeam = (teamId: string, athleteId: string): boolean => {
     const team = teamsById.get(teamId);
     if (!team) return false;
-    return team.player1Id === athleteId || team.player2Id === athleteId;
+    return team.player1Id === athleteId ||
+      team.player2Id === athleteId ||
+      (team.memberUids ?? []).includes(athleteId);
   };
 
   let wins = 0;
@@ -171,7 +176,7 @@ function scoreLabelFor(match: MatchRecord, athleteASide: "A" | "B"): string {
   return "-";
 }
 
-/** Times (`player1Id`/`player2Id`) em que o atleta aparece. */
+/** Times em que o atleta aparece: `player1Id`/`player2Id` (dupla legada) ou `memberUids` (equipe e individual). */
 async function loadAthleteTeams(
   db: Firestore,
   projectId: string,
@@ -182,17 +187,19 @@ async function loadAthleteTeams(
   if (!id) return map;
 
   const teamsRef = db.collection(artifactsTeamsPath(projectId));
-  const [snap1, snap2] = await Promise.all([
+  const [snap1, snap2, snap3] = await Promise.all([
     teamsRef.where("player1Id", "==", id).get(),
     teamsRef.where("player2Id", "==", id).get(),
+    teamsRef.where("memberUids", "array-contains", id).get(),
   ]);
-  for (const snap of [snap1, snap2]) {
+  for (const snap of [snap1, snap2, snap3]) {
     for (const doc of snap.docs) {
       const data = doc.data();
       map.set(doc.id, {
         id: doc.id,
         player1Id: String(data.player1Id ?? "").trim(),
         player2Id: String(data.player2Id ?? "").trim(),
+        memberUids: extractTeamMemberUids(data),
       });
     }
   }

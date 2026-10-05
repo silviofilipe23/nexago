@@ -318,6 +318,31 @@ void main() {
     });
   });
 
+  group('teamProfileHeaderSportLabel', () {
+    test('esporte do torneio da equipe vence o do perfil (bate com a capa)', () {
+      expect(
+        teamProfileHeaderSportLabel(_teamProfile(
+          sportCodes: ['CORRIDA', 'CORRIDA'],
+          tournamentSport: 'beachTennis',
+        )),
+        'Beach tennis',
+      );
+    });
+
+    test('sem torneio reconhecido, segue o esporte do perfil', () {
+      expect(
+        teamProfileHeaderSportLabel(_teamProfile(
+          sportCodes: ['FUTEVOLEI', 'FUTEVOLEI'],
+          tournamentSport: 'curling',
+        )),
+        teamProfileSportLabel(
+          _teamProfile(sportCodes: ['FUTEVOLEI', 'FUTEVOLEI']).player1,
+          _teamProfile(sportCodes: ['FUTEVOLEI', 'FUTEVOLEI']).player2,
+        ),
+      );
+    });
+  });
+
   group('teamProfileCoverArt', () {
     test('usa a arte do esporte + elenco da equipe', () {
       expect(

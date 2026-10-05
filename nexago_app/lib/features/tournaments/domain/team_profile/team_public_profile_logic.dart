@@ -54,6 +54,14 @@ String teamProfileSportLabel(AthleteProfile? player1, AthleteProfile? player2) {
   return profile.sport.trim().isNotEmpty ? profile.sport : '—';
 }
 
+/// Esporte exibido no cabeçalho do perfil: o do TORNEIO da equipe quando o
+/// catálogo reconhece (mesma fonte da capa — senão a capa diz beach tennis e o
+/// subtítulo diz "Corrida"); senão o do perfil do elenco, como antes.
+String teamProfileHeaderSportLabel(TeamPublicProfile profile) {
+  return SportCatalog.resolve(profile.tournamentSport)?.label ??
+      teamProfileSportLabel(profile.player1, profile.player2);
+}
+
 /// Arte de fundo da capa, ou nulo quando nenhuma serve e o fundo pintado
 /// assume.
 ///

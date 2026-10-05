@@ -4,6 +4,7 @@ import '../../../../core/auth/auth_providers.dart';
 import 'package:nexago_app/core/firebase/firebase_providers.dart';
 import '../../../athlete/domain/athlete_profile.dart';
 import '../../data/team_discover_repository.dart';
+import '../team_discover_models.dart';
 import '../tournament_discovery_providers.dart';
 import 'team_public_profile_models.dart';
 
@@ -86,21 +87,14 @@ final teamPublicProfileProvider = FutureProvider.autoDispose
       ),
   ];
 
-  final ranking = await discoverRepo.rankingFor(id);
-  // Esporte do torneio da equipe para a capa; falha aqui não derruba o perfil.
-  String? tournamentSport;
-  final tournamentId = team.tournamentId?.trim() ?? '';
-  if (tournamentId.isNotEmpty) {
-    try {
-      final details = await ref
-          .read(tournamentsRepositoryProvider)
-          .getTournamentDetails({tournamentId});
-      final sport = details[tournamentId]?.sport.trim() ?? '';
-      if (sport.isNotEmpty) tournamentSport = sport;
-    } catch (_) {
-      tournamentSport = null;
-    }
-  }
+  // Ranking e esporte do torneio em paralelo: o esporte (capa e subtítulo) não
+  // pode atrasar o perfil com leituras em série, e falha nele não o derruba.
+  final results = await Future.wait<Object?>([
+    discoverRepo.rankingFor(id),
+    _loadTournamentSport(ref, team.tournamentId),
+  ]);
+  final ranking = results[0] as TeamDiscoverRankingSnapshot;
+  final tournamentSport = results[1] as String?;
   final isCurrentUserTeam = currentUid != null &&
       currentUid.isNotEmpty &&
       team.containsPlayer(currentUid);
@@ -113,6 +107,21 @@ final teamPublicProfileProvider = FutureProvider.autoDispose
     tournamentSport: tournamentSport,
   );
 });
+
+/// `sport` cru do torneio em que a equipe nasceu; nulo sem torneio ou em falha.
+Future<String?> _loadTournamentSport(Ref ref, String? tournamentId) async {
+  final id = tournamentId ?? '';
+  if (id.isEmpty) return null;
+  try {
+    final details = await ref
+        .read(tournamentsRepositoryProvider)
+        .getTournamentDetails({id});
+    final sport = details[id]?.sport.trim() ?? '';
+    return sport.isEmpty ? null : sport;
+  } catch (_) {
+    return null;
+  }
+}
 
 Future<AthleteProfile?> _loadProfile(Ref ref, String uid) async {
   final id = uid.trim();

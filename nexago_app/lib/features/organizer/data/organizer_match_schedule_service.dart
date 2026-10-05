@@ -139,7 +139,7 @@ class OrganizerMatchScheduleService {
   /// Retorna `{ok, completed, winnerId}`.
   Future<Map<String, dynamic>> submitMatchResult({
     required String matchId,
-    required List<Map<String, int>> sets,
+    required List<Map<String, Object>> sets,
     int? bestOf,
   }) async {
     final callable = _functions.httpsCallable('submitMatchResult');

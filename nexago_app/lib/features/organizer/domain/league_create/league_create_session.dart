@@ -216,6 +216,8 @@ Map<String, dynamic> _categoryToJson(TournamentCategoryDraft category) => {
   'qualifiersPerGroup': category.qualifiersPerGroup,
   'bestOf': category.bestOf.name,
   'finalBestOf5': category.finalBestOf5,
+  if (category.scoringProfileRaw != null)
+    'scoringProfile': category.scoringProfileRaw,
   'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,
   'prizes': category.prizes.map(_prizeToJson).toList(),
 };
@@ -279,6 +281,7 @@ TournamentCategoryDraft? _categoryFromJson(Map<String, dynamic> json) {
         TournamentBestOf.bestOf3,
       ),
       finalBestOf5: json['finalBestOf5'] as bool? ?? true,
+      scoringProfileRaw: scoringProfileRawOf(json['scoringProfile']),
       maxRegistrationsPerAthlete:
           json['maxRegistrationsPerAthlete'] as int? ?? 2,
       prizes: _prizesFromJson(json['prizes']),

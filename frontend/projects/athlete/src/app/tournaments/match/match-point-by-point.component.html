@@ -47,7 +47,7 @@
             <span class="pbp-block-tag">{{ block.label }} · {{ block.time }}</span>
             @for (p of block.points; track $index) {
               <span class="pbp-point" [class.pbp-point--closing]="p.closesSet">
-                <span class="pbp-score">{{ p.left }}–{{ p.right }}</span>
+                <span class="pbp-score">{{ p.text ?? p.left + '–' + p.right }}</span>
                 @if (p.closesSet) {
                   <span class="pbp-flag" data-kind="fechou">fechou o set</span>
                 } @else if (p.annotation) {
@@ -61,7 +61,7 @@
 
       @if (set.missingCount > 0) {
         <p class="pbp-note">
-          +{{ set.missingCount }} {{ set.missingCount === 1 ? 'ponto sem registro' : 'pontos sem registro' }}
+          +{{ set.missingCount }} {{ set.missingUnit === 'games' ? (set.missingCount === 1 ? 'game sem registro' : 'games sem registro') : set.missingCount === 1 ? 'ponto sem registro' : 'pontos sem registro' }}
           @if (set.recordedRange; as range) {
             — a mesa marcou de {{ range.from.left }}–{{ range.from.right }} a {{ range.to.left }}–{{ range.to.right }}
           }

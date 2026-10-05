@@ -200,6 +200,8 @@ service cloud.firestore {
         'status',
         'sets',
         'currentSetIndex',
+        // Pontos do game em andamento numa partida de games (spec multiesporte, 2b2).
+        'currentGame',
         'servingTeamId',
         'servingPlayerSlot',
         'servingPlayerSlots',
@@ -342,6 +344,7 @@ service cloud.firestore {
         'status',
         'sets',
         'currentSetIndex',
+        'currentGame',
         'matchStartedAt',
         'matchEndedAt',
         'lastActions',
@@ -2597,6 +2600,17 @@ service cloud.firestore {
     // Ranking de atletas (agregado) - leitura pública para página de ranking
     // Caminho: /artifacts/{appId}/public/data/athleteRankings
     match /artifacts/{appId}/public/data/athleteRankings/{athleteId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && isAdmin();
+    }
+
+    // Ranking geral por esporte (multiesporte fase 3a): docs `{id}_{profileCode}`
+    // escritos só pelas functions (Admin SDK). Leitura pública como o legado.
+    match /artifacts/{appId}/public/data/athleteRankingsBySport/{docId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && isAdmin();
+    }
+    match /artifacts/{appId}/public/data/teamRankingsBySport/{docId} {
       allow read: if true;
       allow create, update, delete: if request.auth != null && isAdmin();
     }

@@ -186,6 +186,8 @@ Map<String, dynamic> _categoryToJson(LeagueStageCategoryDraft category) => {
   'qualifiersPerGroup': category.qualifiersPerGroup,
   'bestOf': category.bestOf.name,
   'finalBestOf5': category.finalBestOf5,
+  if (category.scoringProfileRaw != null)
+    'scoringProfile': category.scoringProfileRaw,
   'genderFree': category.genderFree,
   if (category.menCount != null) 'menCount': category.menCount,
   if (category.womenCount != null) 'womenCount': category.womenCount,
@@ -243,6 +245,7 @@ LeagueStageCategoryDraft? _categoryFromJson(Map<String, dynamic> json) {
       TournamentBestOf.bestOf3,
     ),
     finalBestOf5: json['finalBestOf5'] as bool? ?? true,
+    scoringProfileRaw: scoringProfileRawOf(json['scoringProfile']),
     genderFree: json['genderFree'] as bool? ?? false,
     menCount: json['menCount'] as int?,
     womenCount: json['womenCount'] as int?,

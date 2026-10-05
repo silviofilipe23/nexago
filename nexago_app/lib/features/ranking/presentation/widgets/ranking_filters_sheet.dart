@@ -4,8 +4,9 @@ import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../domain/ranking_list_models.dart';
+import '../../domain/ranking_logic.dart';
 
-/// Folha única de filtros do ranking: temporada, gênero, nível e — só no modo
+/// Folha única de filtros do ranking: esporte, temporada, gênero, nível e — só no modo
 /// de equipes — formato. Substitui as quatro folhas/chips soltos que dividiam
 /// o mesmo estado (`RankingPageFilter`) em quatro toques diferentes.
 ///
@@ -22,6 +23,7 @@ Future<RankingPageFilter?> showRankingFiltersSheet({
   required BuildContext context,
   required RankingPageFilter initial,
   required List<int> yearOptions,
+  required String sportCode,
 }) {
   return showModalBottomSheet<RankingPageFilter>(
     context: context,
@@ -37,6 +39,7 @@ Future<RankingPageFilter?> showRankingFiltersSheet({
     builder: (_) => _RankingFiltersSheet(
       initial: initial,
       yearOptions: yearOptions,
+      sportCode: sportCode,
     ),
   );
 }
@@ -45,10 +48,14 @@ class _RankingFiltersSheet extends StatefulWidget {
   const _RankingFiltersSheet({
     required this.initial,
     required this.yearOptions,
+    required this.sportCode,
   });
 
   final RankingPageFilter initial;
   final List<int> yearOptions;
+
+  /// Esporte efetivo na tela (o escolhido ou o principal do atleta).
+  final String sportCode;
 
   @override
   State<_RankingFiltersSheet> createState() => _RankingFiltersSheetState();
@@ -60,6 +67,9 @@ class _RankingFiltersSheetState extends State<_RankingFiltersSheet> {
   late RankingLevelFilter _level;
   late RankingFormatFilter _format;
 
+  /// `null` = segue o esporte principal do atleta.
+  String? _sport;
+
   /// Linha individual não tem dupla/trio/quarteto/quinteto.
   bool get _showFormat => widget.initial.mode == RankingListMode.teams;
 
@@ -70,6 +80,7 @@ class _RankingFiltersSheetState extends State<_RankingFiltersSheet> {
     _gender = widget.initial.gender;
     _level = widget.initial.level;
     _format = widget.initial.format;
+    _sport = widget.initial.sport;
   }
 
   RankingPageFilter get _draft => RankingPageFilter(
@@ -78,11 +89,13 @@ class _RankingFiltersSheetState extends State<_RankingFiltersSheet> {
         gender: _gender,
         level: _level,
         format: _showFormat ? _format : RankingFormatFilter.all,
+        sport: _sport,
       );
 
   /// Diferente de `hasActiveFilters`: aqui a temporada conta, porque "Limpar"
   /// devolve o ranking pro Geral junto com o resto.
-  bool get _canClear => _year != null || _draft.hasActiveFilters;
+  bool get _canClear =>
+      _year != null || _sport != null || _draft.hasActiveFilters;
 
   void _clear() {
     setState(() {
@@ -90,6 +103,7 @@ class _RankingFiltersSheetState extends State<_RankingFiltersSheet> {
       _gender = RankingGenderFilter.all;
       _level = RankingLevelFilter.all;
       _format = RankingFormatFilter.all;
+      _sport = null;
     });
   }
 
@@ -150,6 +164,14 @@ class _RankingFiltersSheetState extends State<_RankingFiltersSheet> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
+                const _SectionLabel('ESPORTE'),
+                _FilterChipWrap<String>(
+                  options: [for (final o in rankingSportOptions) o.profileCode],
+                  labelOf: rankingSportLabel,
+                  selected: _sport ?? widget.sportCode,
+                  onSelected: (code) => setState(() => _sport = code),
+                ),
+                const SizedBox(height: 20),
                 const _SectionLabel('TEMPORADA'),
                 _FilterChipWrap<int?>(
                   options: [null, ...widget.yearOptions],

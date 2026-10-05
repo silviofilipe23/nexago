@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
-import { matchBestOf, matchClosedSets, matchIsCompleted, matchIsLive, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
+import { matchBestOf, matchClosedDisplaySets, matchIsCompleted, matchIsLive, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
 import { NxToastService } from '../../shared/feedback';
 import { knockoutRounds } from '../focus/focus-journey';
 import { courtLabelOf, dayLabelOf, liveScoreLineOf, timeLabelOf } from '../tournament-format';
@@ -55,7 +55,8 @@ export class MatchShareDialogComponent {
       teamA: this.teamOf(m.teamAId, m.teamADescription),
       teamB: this.teamOf(m.teamBId, m.teamBDescription),
       winner: finished && m.winnerId ? (m.winnerId === m.teamAId ? 'A' : 'B') : null,
-      sets: matchClosedSets(m),
+      // Super tie-break gravado 1×0 entra com os pontos dele (10-8).
+      sets: matchClosedDisplaySets(m),
       setWins: [a, b],
       liveLine: liveScoreLineOf(m),
       formatLine: bestOf <= 1 ? 'Set único' : `Melhor de ${bestOf}`,

@@ -18,6 +18,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { sportLabel } from '@nexago/sports';
 import { organizerFirestore } from './firestore';
 import { organizerStorage } from './storage';
 import { collectedFromDoc } from './tournament-collected';
@@ -39,14 +40,6 @@ import type {
  *  `managerId == uid` — mesmo campo que `OrganizerTournamentsRepository.watchManagedTournaments`
  *  (Flutter) usa — mais os torneios em que o uid é gestor da equipe (espelho
  *  `users/{uid}/tournamentStaff`). Sem paginação, ordena em memória por `startAt` desc. */
-
-/** Rótulos dos 3 esportes que o wizard do organizador grava (`TournamentSport` no Dart) —
- *  mesmo mapa usado em `frontend/projects/arena/.../tournaments-repository.ts`. */
-const SPORT_LABELS: Record<string, string> = {
-  beachVolleyball: 'Vôlei de praia',
-  indoorVolleyball: 'Vôlei de quadra',
-  footvolley: 'Futevôlei',
-};
 
 function toDate(v: unknown): Date | null {
   const t = v as { toDate?: () => Date } | undefined;
@@ -79,10 +72,9 @@ function stringListOf(v: unknown): string[] {
   return v.map((s) => (typeof s === 'string' ? s.trim() : '')).filter((s) => s.length > 0);
 }
 
-function sportLabelOf(raw: unknown): string {
-  const v = optionalStr(raw);
-  if (!v) return 'Esporte';
-  return SPORT_LABELS[v] ?? v;
+/** Rótulo do esporte pelo catálogo (`@nexago/sports`); ausente → "Esporte". */
+export function sportLabelOf(raw: unknown): string {
+  return sportLabel(raw) ?? 'Esporte';
 }
 
 /** Colapsa `listingStatus`/`status` (draft/open/closed/completed/cancelled, + variantes

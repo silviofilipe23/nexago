@@ -7,6 +7,7 @@ import {
 } from './koc';
 import { collection, doc, getDocs, onSnapshot, query, where, type Unsubscribe } from 'firebase/firestore';
 import { medicalTimeoutFromRaw, statusOf, type MatchDisplayStatus, type MedicalTimeout } from '@nexago/live-scoring';
+import { effectiveScoringProfile, scoringProfileFromRaw, setScoreText, type ScoringProfile } from '@nexago/sports';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from './firestore';
 import { fetchTeamNames } from './teams-repository';
@@ -52,7 +53,11 @@ export interface TournamentMatch {
    *  slot ainda não decidido), sets numéricos, quadra por id e fim do slot agendado. */
   teamAId: string;
   teamBId: string;
-  sets: Array<{ a: number; b: number }>;
+  sets: Array<{ a: number; b: number; tb?: { a: number; b: number } }>;
+  /** Perfil de placar carimbado; `null`/ausente em partida antiga (vale a regra histórica). */
+  scoringProfile?: ScoringProfile | null;
+  /** Partida de games: pontos do game em andamento gravados pela mesa (`null` fora dela). */
+  currentGame?: { a: number; b: number } | null;
   courtId: string;
   scheduleEndAt: Date | null;
   /** Dia da JORNADA a que a partida pertence, como o servidor gravou — não é o dia de
@@ -125,6 +130,7 @@ function optionalStr(v: unknown): string | null {
 interface RawSet {
   a: number;
   b: number;
+  tb?: { a: number; b: number };
 }
 
 function intOf(v: unknown): number | null {
@@ -150,13 +156,19 @@ function setsFromRaw(raw: unknown): RawSet[] {
       const o = s as Record<string, unknown>;
       const a = typeof o['a'] === 'number' ? o['a'] : null;
       const b = typeof o['b'] === 'number' ? o['b'] : null;
-      return a == null || b == null ? null : { a, b };
+      if (a == null || b == null) return null;
+      const tbRaw = o['tb'] as Record<string, unknown> | null | undefined;
+      const tb = tbRaw && typeof tbRaw === 'object' && typeof tbRaw['a'] === 'number' && typeof tbRaw['b'] === 'number'
+        ? { a: tbRaw['a'], b: tbRaw['b'] }
+        : null;
+      return tb ? { a, b, tb } : { a, b };
     })
     .filter((s): s is RawSet => s != null);
 }
 
-function scoreOf(sets: RawSet[], resultA: string | null, resultB: string | null): string | null {
-  if (sets.length > 0) return sets.map((s) => `${s.a}-${s.b}`).join(', ');
+/** Placar em texto ("21-15, 18-21"; games: "6-4, 6-7 (5-7), 10-8"). */
+function scoreOf(sets: RawSet[], resultA: string | null, resultB: string | null, profile: ScoringProfile): string | null {
+  if (sets.length > 0) return sets.map((s, i) => setScoreText(profile, i, s)).join(', ');
   if (resultA && resultB) {
     const a = resultA.split(',').map((n) => n.trim());
     const b = resultB.split(',').map((n) => n.trim());
@@ -256,6 +268,8 @@ export interface RawMatch {
   koc?: KocRoundState | null;
   matchStartedAt: Date | null;
   matchEndedAt: Date | null;
+  scoringProfile: ScoringProfile | null;
+  currentGame: { a: number; b: number } | null;
 }
 
 /** Exportada para teste: é o ponto onde o documento do Firestore vira linha de
@@ -282,7 +296,7 @@ export function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawM
     teamBId,
     teamADescription: optionalStr(data['teamADescription']),
     teamBDescription: optionalStr(data['teamBDescription']),
-    score: scoreOf(sets, resultA, resultB),
+    score: scoreOf(sets, resultA, resultB, effectiveScoringProfile(data['scoringProfile'], data['bestOf'] === 1 ? 1 : 3)),
     winnerSide,
     scheduledAt: toDate(data['scheduleTime']),
     court: optionalStr(data['courtName']),
@@ -306,7 +320,17 @@ export function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawM
     koc,
     matchStartedAt: toDate(data['matchStartedAt']),
     matchEndedAt: toDate(data['matchEndedAt']),
+    scoringProfile: scoringProfileFromRaw(data['scoringProfile']),
+    currentGame: gamePointsFromRaw(data['currentGame']),
   };
+}
+
+function gamePointsFromRaw(raw: unknown): { a: number; b: number } | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const a = intOf(o['a']);
+  const b = intOf(o['b']);
+  return a == null || b == null ? null : { a, b };
 }
 
 /** Preenche o nome da quadra (`court`) pelo `courtId` quando o jogo não tem `courtName`
@@ -438,8 +462,30 @@ interface StandingMutable extends GroupStanding {
   h2hGameDiff: number;
 }
 
+/** Grupo de games: alguma partida do grupo tem perfil efetivo `sets_games`. */
+function isGamesGroup(groupMatches: readonly TournamentMatch[]): boolean {
+  return groupMatches.some((m) => effectiveScoringProfile(m.scoringProfile, m.bestOf).kind === 'sets_games');
+}
+
+export interface GroupStandingColumns {
+  made: string;
+  madeTitle: string;
+  lost: string;
+  lostTitle: string;
+  diff: string;
+  diffTitle: string;
+}
+
+/** Rótulos das colunas feitos/tomados/saldo da tabela do grupo: games em grupo de games. */
+export function groupStandingColumns(groupMatches: readonly TournamentMatch[]): GroupStandingColumns {
+  return isGamesGroup(groupMatches)
+    ? { made: 'GF', madeTitle: 'Games feitos', lost: 'GT', lostTitle: 'Games tomados', diff: 'SG', diffTitle: 'Saldo de games (feitos − tomados)' }
+    : { made: 'PF', madeTitle: 'Pontos feitos', lost: 'PT', lostTitle: 'Pontos tomados', diff: 'SP', diffTitle: 'Saldo de pontos (feitos − tomados)' };
+}
+
 /** Classificação round-robin — mesma cascata de `functions/src/group-standings.ts`:
- *  vitórias → saldo de pontos (game) → confronto direto (só entre empatados em V e SP).
+ *  vitórias → (grupo de games: saldo de sets) → saldo de pontos (game) → confronto direto
+ *  (só entre empatados nos critérios anteriores).
  *  Sem seed aqui (a lista do painel não carrega a ordem de entrada do pool).
  *  Só conta partida concluída com vencedor. */
 export function buildGroupStandings(groupMatches: readonly TournamentMatch[]): GroupStanding[] {
@@ -510,7 +556,14 @@ export function buildGroupStandings(groupMatches: readonly TournamentMatch[]): G
     played.push({ winnerId, teamAId: m.teamAId, teamBId: m.teamBId, setDiff, gameDiff });
   }
 
-  // Confronto direto: só jogos entre duplas empatadas em vitórias e em saldo de pontos.
+  // Grupo de games (spec multiesporte, standings por tipo): saldo de sets antes do saldo de games.
+  const games = isGamesGroup(groupMatches);
+  const setDiffOf = (id: string): number => {
+    const s = byTeam.get(id);
+    return games && s ? s.setsWon - s.setsLost : 0;
+  };
+
+  // Confronto direto: só jogos entre duplas empatadas em todos os critérios anteriores.
   const winsOf = (id: string): number => byTeam.get(id)?.wins ?? 0;
   const pointDiffOf = (id: string): number => {
     const s = byTeam.get(id);
@@ -518,6 +571,7 @@ export function buildGroupStandings(groupMatches: readonly TournamentMatch[]): G
   };
   for (const game of played) {
     if (winsOf(game.teamAId) !== winsOf(game.teamBId)) continue;
+    if (setDiffOf(game.teamAId) !== setDiffOf(game.teamBId)) continue;
     if (pointDiffOf(game.teamAId) !== pointDiffOf(game.teamBId)) continue;
     const a = ensure(game.teamAId);
     const b = ensure(game.teamBId);
@@ -529,6 +583,8 @@ export function buildGroupStandings(groupMatches: readonly TournamentMatch[]): G
   for (const r of rows) r.points = r.wins * 2;
   rows.sort((x, y) => {
     if (y.wins !== x.wins) return y.wins - x.wins;
+    const setDiff = setDiffOf(y.teamId) - setDiffOf(x.teamId);
+    if (setDiff !== 0) return setDiff;
     const gameDiff = y.gamesWon - y.gamesLost - (x.gamesWon - x.gamesLost);
     if (gameDiff !== 0) return gameDiff;
     return y.h2hWins - x.h2hWins;
@@ -570,6 +626,8 @@ function rawToMatch(r: RawMatch, labelOf: (description: string | null, teamId: s
     koc: r.koc,
     matchStartedAt: r.matchStartedAt,
     matchEndedAt: r.matchEndedAt,
+    scoringProfile: r.scoringProfile,
+    currentGame: r.currentGame,
   };
 }
 

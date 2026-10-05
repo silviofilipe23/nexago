@@ -7,6 +7,7 @@ import 'athlete_firestore_codes.dart';
 import 'athlete_notification_preferences.dart';
 import 'athlete_privacy_preferences.dart';
 import 'athlete_profile_options.dart';
+import '../../../core/sports/sport_catalog.dart';
 
 /// Limite máximo de fotos na galeria de destaque do perfil.
 const int maxHighlightPhotos = 6;
@@ -510,34 +511,8 @@ class AthleteProfile {
     };
   }
 
-  static String? _sportLabelToFirestoreId(String label) {
-    for (final entry in AthleteProfileOptions.sports) {
-      if (entry == label) {
-        return AthleteFirestoreCodes.sportAppToFirestore(
-          _labelToAppSportId(label),
-        );
-      }
-    }
-    return null;
-  }
-
-  /// Espelha `AthleteProfileOptions.sports` ↔ `AthleteFirestoreCodes`.
-  /// Toda entrada da lista de rótulos precisa estar aqui (teste
-  /// `athlete_profile_sport_label_test.dart`).
-  static String? _labelToAppSportId(String label) {
-    const map = {
-      'Vôlei de praia': 'beach_volleyball',
-      'Vôlei de quadra': 'indoor_volleyball',
-      'Futevôlei': 'footvolley',
-      'Futebol': 'football',
-      'Basquete': 'basketball',
-      'Tênis': 'tennis',
-      'Beach tennis': 'beach_tennis',
-      'Corrida': 'running',
-      'Outros': 'other',
-    };
-    return map[label];
-  }
+  static String? _sportLabelToFirestoreId(String label) =>
+      SportCatalog.resolve(label)?.profileCode;
 
   static const Object _copyWithUnset = Object();
 

@@ -731,12 +731,12 @@ void main() {
   group('sport desconhecido', () {
     test('fromFirestore preserva o valor cru e trava o enum no default', () {
       final load = TournamentCreateMapper.fromFirestore(
-        {'name': 'Copa BT', 'sport': 'beachTennis'},
+        {'name': 'Copa BT', 'sport': 'padel'},
         'torneio-bt',
       );
       expect(load.draft.sport, TournamentSport.beachVolleyball);
-      expect(load.draft.sportRaw, 'beachTennis');
-      expect(load.draft.sportFirestoreValue, 'beachTennis');
+      expect(load.draft.sportRaw, 'padel');
+      expect(load.draft.sportFirestoreValue, 'padel');
     });
 
     test('fromFirestore com esporte conhecido não preenche sportRaw', () {

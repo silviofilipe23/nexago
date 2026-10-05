@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
+import '../../../../core/sports/sport_catalog.dart';
 
 /// Metadado de esporte no onboarding.
 class OnboardingSportOption {
   const OnboardingSportOption({
     required this.id,
-    required this.label,
     required this.icon,
     this.dimmed = false,
   });
 
   final String id;
-  final String label;
   final IconData icon;
   final bool dimmed;
+
+  /// Rótulo do catálogo (`sports/catalog.json`); o ícone é escolha desta tela.
+  String get label => SportCatalog.byAppId(id)?.label ?? id;
 }
 
 /// Metadado de objetivo no onboarding.
@@ -46,47 +48,38 @@ abstract final class AthleteOnboardingOptions {
   static const List<OnboardingSportOption> sports = [
     OnboardingSportOption(
       id: 'beach_volleyball',
-      label: 'Vôlei de praia',
       icon: Icons.sports_volleyball_outlined,
     ),
     OnboardingSportOption(
       id: 'indoor_volleyball',
-      label: 'Vôlei de quadra',
       icon: Icons.sports_volleyball,
     ),
     OnboardingSportOption(
       id: 'footvolley',
-      label: 'Futevôlei',
       icon: Icons.sports_soccer,
     ),
     OnboardingSportOption(
       id: 'football',
-      label: 'Futebol',
       icon: Icons.sports_soccer_outlined,
     ),
     OnboardingSportOption(
       id: 'basketball',
-      label: 'Basquete',
       icon: Icons.sports_basketball_outlined,
     ),
     OnboardingSportOption(
       id: 'tennis',
-      label: 'Tênis',
       icon: Icons.sports_tennis_outlined,
     ),
     OnboardingSportOption(
       id: 'beach_tennis',
-      label: 'Beach tennis',
       icon: Icons.sports_tennis,
     ),
     OnboardingSportOption(
       id: 'running',
-      label: 'Corrida',
       icon: Icons.directions_run_rounded,
     ),
     OnboardingSportOption(
       id: 'other',
-      label: 'Outros',
       icon: Icons.more_horiz_rounded,
       dimmed: true,
     ),

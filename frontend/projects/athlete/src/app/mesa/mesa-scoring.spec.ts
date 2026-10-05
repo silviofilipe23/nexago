@@ -1,4 +1,4 @@
-import { applyPoint, lastUndoablePoint, setsWonOf, undoPoint, validateScoreSubmission, type ApplyPointResult, type LivePointEvent, type LiveSet } from '@nexago/live-scoring';
+import { applyPoint, lastUndoablePoint, setsWonOf, undoPoint, validateScoreSubmission, type ApplyPointResult, type LivePointEvent, type LiveSet, liveMatchFromDoc, liveSetToMap } from '@nexago/live-scoring';
 
 /** O motor da mesa é compartilhado com o portal do organizador (`@nexago/live-scoring`) e já
  *  tem os casos de regra lá. Aqui provamos o que ESTA tela faz com ele: a sequência real de
@@ -94,5 +94,27 @@ describe('mesa (portal do atleta) — escrita de placar', () => {
     it('recusa lista vazia', () => {
       expect(validateScoreSubmission([], 3).map((i) => i.message)).toEqual(['Informe ao menos um set.']);
     });
+  });
+});
+
+describe('mesa · partida carrega o perfil de placar e o tie-break', () => {
+  it('liveMatchFromDoc lê o perfil e preserva o tb; liveSetToMap regrava o tb', () => {
+    const m = liveMatchFromDoc('m1', {
+      teamAId: 'A',
+      teamBId: 'B',
+      bestOf: 3,
+      scoringProfile: { kind: 'sets_games', bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: true, decidingSet: 'super_tiebreak', superTiebreakTo: 10 },
+      sets: [{ a: 7, b: 6, tb: { a: 7, b: 4 } }, { a: 6, b: 2 }],
+    });
+    expect(m.scoringProfile?.kind).toBe('sets_games');
+    expect(m.sets[0]!.tb).toEqual({ a: 7, b: 4 });
+    expect(liveSetToMap(m.sets[0]!)['tb']).toEqual({ a: 7, b: 4 });
+    expect('tb' in liveSetToMap(m.sets[1]!)).toBeFalse();
+  });
+
+  it('partida sem carimbo: perfil nulo e tb malformado descartado', () => {
+    const m = liveMatchFromDoc('m1', { teamAId: 'A', teamBId: 'B', sets: [{ a: 21, b: 19, tb: 'x' }] });
+    expect(m.scoringProfile).toBeNull();
+    expect(m.sets[0]!.tb).toBeUndefined();
   });
 });

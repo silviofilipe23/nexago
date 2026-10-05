@@ -1,5 +1,9 @@
+import { rankingEntryOf } from './ranking-positions';
 import {
   athleteParticipantOf,
+  bySportRankingRowOf,
+  inSport,
+  rankingSportOf,
   rankingProfileFromDoc,
   rankingTeamFromDoc,
   rankingTotalsFromDoc,
@@ -77,5 +81,37 @@ describe('interviewProfileFromDoc', () => {
       levelsBySport: { VOLEI_PRAIA: 'open' },
       legacyLevel: 'Intermediário',
     });
+  });
+});
+
+describe('rankings-repository (por esporte, fase 3b1)', () => {
+  it('linha do doc por esporte: id do campo; sem ele, id do doc sem o sufixo do esporte', () => {
+    expect(bySportRankingRowOf('a1_BEACH_TENNIS', { athleteId: 'a1', totalPoints: 800, tournamentsCount: 2 }, 'athleteId', 'BEACH_TENNIS')).toEqual({
+      id: 'a1',
+      totals: { points: 800, tournaments: 2 },
+    });
+    expect(bySportRankingRowOf('t_9_VOLEI_PRAIA', { totalPoints: 5 }, 'teamId', 'VOLEI_PRAIA').id).toBe('t_9');
+  });
+
+  it('no esporte do torneio, a posição é entre todos que pontuaram nele (esporte do perfil não recorta)', () => {
+    const profiles = new Map<string, RankingProfile>([
+      ['a', { sport: 'beachVolleyball', gender: 'Feminino' }],
+      ['b', { sport: 'beachTennis', gender: 'Feminino' }],
+    ]);
+    const athletes = inSport(
+      [
+        athleteParticipantOf('a', { points: 900, tournaments: 3 }, profiles.get('a')),
+        athleteParticipantOf('b', { points: 500, tournaments: 1 }, profiles.get('b')),
+      ],
+      'BEACH_TENNIS',
+    );
+    expect(rankingEntryOf(athletes, 'b')).toEqual({ position: 2, points: 500, tournaments: 1 });
+  });
+
+  it('esporte do ranking = código de perfil do torneio; desconhecido = null (total somado); sem torneio = undefined', () => {
+    expect(rankingSportOf({ sportId: 'beachTennis' })).toBe('BEACH_TENNIS');
+    expect(rankingSportOf({ sportId: 'footvolley' })).toBe('FUTEVOLEI');
+    expect(rankingSportOf({ sportId: 'xadrez' })).toBeNull();
+    expect(rankingSportOf(null)).toBeUndefined();
   });
 });

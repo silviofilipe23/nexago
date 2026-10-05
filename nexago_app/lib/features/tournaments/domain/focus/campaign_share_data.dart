@@ -174,7 +174,6 @@ CampaignShareData buildCampaignShareData({
 
     var mySets = 0;
     var theirSets = 0;
-    final partials = <String>[];
     for (final s in matchClosedSets(m)) {
       final my = iAmA ? s.a : s.b;
       final their = iAmA ? s.b : s.a;
@@ -183,8 +182,10 @@ CampaignShareData buildCampaignShareData({
       } else if (their > my) {
         theirSets++;
       }
-      partials.add('$my-$their');
     }
+    // Parciais na ótica do atleta; em games, tie-break por extenso e super
+    // tie-break pelos pontos dele.
+    final partials = matchClosedSetTextsForSide(m, sideA: iAmA);
     setsWon += mySets;
     setsLost += theirSets;
 

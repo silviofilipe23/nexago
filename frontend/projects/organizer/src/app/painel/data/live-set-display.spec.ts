@@ -1,4 +1,4 @@
-import { matchClosedSets, matchLiveCurrentSet, matchSetWins, type LiveScoreFields } from './live-set-display';
+import { closedSetColumns, closedSetTexts, livePointsOf, matchClosedSets, matchLiveCurrentSet, matchSetWins, type LiveScoreFields } from './live-set-display';
 
 /** Casos espelhados de `matchLiveCurrentSet`/`matchSetWins` do portal do atleta
  *  (`projects/athlete/src/app/data/matches-repository.ts`) — o telão tem que mostrar o mesmo
@@ -93,6 +93,68 @@ describe('live-set-display', () => {
     it('sem sets[], sets ganhos vêm do agregado liveScore', () => {
       const m = live({ liveScore: { setsA: 1, setsB: 0, currentGamesA: 2, currentGamesB: 2 } });
       expect(matchSetWins(m)).toEqual([1, 0]);
+    });
+  });
+
+  describe('partida de games (perfil carimbado)', () => {
+    const BT = { kind: 'sets_games', bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: false, decidingSet: 'super_tiebreak', superTiebreakTo: 10 } as const;
+    function games(partial: Partial<LiveScoreFields>): LiveScoreFields {
+      return live({ scoringProfile: BT, ...partial });
+    }
+
+    it('6-4 fecha o set; o game em andamento vem em 0/15/30/40', () => {
+      const m = games({ sets: [{ a: 6, b: 4 }, { a: 2, b: 1 }], currentSetIndex: 1, currentGame: { a: 3, b: 1 } });
+      expect(matchSetWins(m)).toEqual([1, 0]);
+      expect(matchClosedSets(m)).toEqual([{ a: 6, b: 4 }]);
+      expect(matchLiveCurrentSet(m)).toEqual({ setNumber: 2, a: 2, b: 1, game: { a: '40', b: '15' }, tiebreak: false });
+    });
+
+    it('5-4 não fecha; vantagem aparece como AD', () => {
+      const m = games({ sets: [{ a: 5, b: 4 }], currentSetIndex: 0, currentGame: { a: 4, b: 3 } });
+      expect(matchSetWins(m)).toEqual([0, 0]);
+      expect(matchLiveCurrentSet(m)).toEqual({ setNumber: 1, a: 5, b: 4, game: { a: 'AD', b: '40' }, tiebreak: false });
+    });
+
+    it('6-6 em tie-break: pontos corridos e tiebreak ligado', () => {
+      const m = games({ sets: [{ a: 6, b: 6 }], currentSetIndex: 0, currentGame: { a: 4, b: 2 } });
+      expect(matchLiveCurrentSet(m)).toEqual({ setNumber: 1, a: 6, b: 6, game: { a: '4', b: '2' }, tiebreak: true });
+    });
+
+    it('super tie-break em andamento: set 0-0, pontos no game e marcado como super tie-break', () => {
+      const m = games({ sets: [{ a: 6, b: 4 }, { a: 3, b: 6 }, { a: 0, b: 0 }], currentSetIndex: 2, currentGame: { a: 7, b: 5 } });
+      expect(matchLiveCurrentSet(m)).toEqual({ setNumber: 3, a: 0, b: 0, game: { a: '7', b: '5' }, tiebreak: true, superTiebreak: true });
+    });
+
+    it('super tie-break fechado conta para o vencedor', () => {
+      const m = games({ status: 'completed', sets: [{ a: 6, b: 4 }, { a: 3, b: 6 }, { a: 1, b: 0, tb: { a: 10, b: 8 } }], currentSetIndex: 2 });
+      expect(matchSetWins(m)).toEqual([2, 1]);
+    });
+
+    it('partida de pontos não ganha game', () => {
+      const m = live({ sets: [{ a: 14, b: 11 }], currentSetIndex: 0, currentGame: { a: 3, b: 1 } });
+      expect(matchLiveCurrentSet(m)).toEqual({ setNumber: 1, a: 14, b: 11 });
+    });
+  });
+
+  describe('exibição dos sets e do número grande', () => {
+    const BT = { kind: 'sets_games', bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: true, decidingSet: 'super_tiebreak', superTiebreakTo: 10 } as const;
+    const done = (sets: LiveScoreFields['sets'], scoringProfile: LiveScoreFields['scoringProfile'] = BT) => live({ status: 'completed', sets, scoringProfile });
+
+    it('games: tie-break por extenso e super tie-break com os pontos dele', () => {
+      const m = done([{ a: 6, b: 4 }, { a: 6, b: 7, tb: { a: 5, b: 7 } }, { a: 1, b: 0, tb: { a: 10, b: 8 } }]);
+      expect(closedSetTexts(m)).toEqual(['6-4', '6-7 (5-7)', '10-8']);
+      expect(closedSetColumns(m)).toEqual([{ a: 6, b: 4 }, { a: 6, b: 7 }, { a: 10, b: 8 }]);
+    });
+
+    it('pontos: igual a hoje', () => {
+      const m = done([{ a: 21, b: 15 }, { a: 18, b: 21 }], null);
+      expect(closedSetTexts(m)).toEqual(['21-15', '18-21']);
+      expect(closedSetColumns(m)).toEqual([{ a: 21, b: 15 }, { a: 18, b: 21 }]);
+    });
+
+    it('número grande: ponto do game em games, pontos do set em pontos', () => {
+      expect(livePointsOf({ setNumber: 1, a: 5, b: 4, game: { a: 'AD', b: '40' }, tiebreak: false }, 'A')).toBe('AD');
+      expect(livePointsOf({ setNumber: 1, a: 14, b: 11 }, 'B')).toBe(11);
     });
   });
 });

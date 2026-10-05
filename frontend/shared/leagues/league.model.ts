@@ -1,3 +1,5 @@
+import { sportLabel } from '@nexago/sports';
+
 /** Modelo de `leagues/{id}` (top-level, leitura pública) compartilhado entre os portais.
  *
  *  Fonte da verdade das escritas é o Flutter (`league_create_mapper.dart` +
@@ -62,14 +64,6 @@ export interface League {
   updatedAt: Date | null;
 }
 
-/** Mesmos rótulos de `tournaments-repository.ts` — ligas gravam `sport` com os valores de
- *  `TournamentSport` (`league_create_mapper.dart`: `'sport': draft.sport.name`). */
-const SPORT_LABELS: Record<string, string> = {
-  beachVolleyball: 'Vôlei de praia',
-  indoorVolleyball: 'Vôlei de quadra',
-  footvolley: 'Futevôlei',
-};
-
 export const LEAGUE_STATUS_LABEL: Record<LeagueListingStatus, string> = {
   draft: 'Rascunho',
   open: 'Publicada',
@@ -83,10 +77,9 @@ export const LEAGUE_COUNTING_MODE_LABEL: Record<LeagueCountingStagesMode, string
   all_stages: 'Todas as etapas contam',
 };
 
+/** Rótulo do esporte da liga pelo catálogo (`@nexago/sports`); ausente → "Esporte". */
 export function leagueSportLabel(raw: unknown): string {
-  const v = optionalStr(raw);
-  if (!v) return 'Esporte';
-  return SPORT_LABELS[v] ?? v;
+  return sportLabel(raw) ?? 'Esporte';
 }
 
 function optionalStr(v: unknown): string | null {

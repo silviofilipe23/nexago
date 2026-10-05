@@ -51,6 +51,8 @@ function courtLabel(courtName: string | null): string | null {
 export function mesaScoreLabel(m: TournamentMatch): string {
   const [a, b] = matchSetWins(m);
   const current = matchLiveCurrentSet(m);
+  if (current?.game && current.superTiebreak) return `${a}×${b} · ${current.game.a}-${current.game.b}`;
+  if (current?.game) return `${a}×${b} · ${current.a}-${current.b} · ${current.game.a}-${current.game.b}`;
   if (current) return `${a}×${b} · ${current.a}-${current.b}`;
   if (matchIsLive(m) || matchIsCompleted(m)) return `${a}×${b}`;
   return '';

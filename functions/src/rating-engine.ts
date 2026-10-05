@@ -2,7 +2,7 @@ import {FieldValue, Timestamp, type Firestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {compositeTeamRating, updateRating, type GlickoRating} from "./glicko";
 import {
-  RATED_SPORT_CODES,
+  sportHasRatingLadder,
   loadRatingLadderConfig,
   resolveLadderLevel,
   type RatingLadderConfig,
@@ -199,16 +199,16 @@ export async function applyMatchRatingUpdate(
   const sportCode = tournamentSportToLevelSportCode(
     tournamentSnap.data()?.sport,
   );
-  // Ter código de esporte no perfil não basta: só os esportes da escada v1
-  // são rateados (footvolley/beach tennis têm nível declarado, sem rating).
-  if (
-    !sportCode ||
-    !(RATED_SPORT_CODES as readonly string[]).includes(sportCode)
-  ) {
+  // Ter código de esporte no perfil não basta: vôlei de praia/quadra rateiam
+  // como sempre; esporte novo só com `ratingLadders/{code}` ligando o rating.
+  if (!sportCode) {
     return {processed: false, reason: "sport_not_rated"};
   }
 
   const config = await loadRatingLadderConfig(db, sportCode);
+  if (!sportHasRatingLadder(config)) {
+    return {processed: false, reason: "sport_not_rated"};
+  }
   if (!config.flags.ratingEnabled) {
     return {processed: false, reason: "rating_disabled"};
   }

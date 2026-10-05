@@ -13,13 +13,34 @@ AppUserProfile _user({required String uid, required String fullName}) {
 /// Fake em memória: só os dois métodos que o mapper de equipes usa.
 /// Qualquer outro acesso estoura via [noSuchMethod] — nada toca o Firestore.
 class _FakeRankingRepository implements RankingRepository {
-  _FakeRankingRepository({required this.rows, required this.teams});
+  _FakeRankingRepository({
+    this.rows = const [],
+    this.teams = const {},
+    this.athleteRows = const [],
+  });
 
   final List<TeamRankingRow> rows;
   final Map<String, RankingTeamPlayers> teams;
+  final List<AthleteRankingRow> athleteRows;
+  final calls = <String>[];
 
   @override
-  Future<List<TeamRankingRow>> loadTeamRanking({int? year}) async => rows;
+  Future<List<TeamRankingRow>> loadTeamRankingForSport(
+    String sportCode, {
+    int? year,
+  }) async {
+    calls.add('teams:$sportCode:$year');
+    return rows;
+  }
+
+  @override
+  Future<List<AthleteRankingRow>> loadAthleteRankingForSport(
+    String sportCode, {
+    int? year,
+  }) async {
+    calls.add('athletes:$sportCode:$year');
+    return athleteRows;
+  }
 
   @override
   Future<Map<String, RankingTeamPlayers>> loadTeamsMap(
@@ -37,11 +58,18 @@ class _FakeRankingRepository implements RankingRepository {
 }
 
 class _FakeUsersRepository implements UsersRepository {
+  _FakeUsersRepository([this.profiles = const {}]);
+
+  final Map<String, AppUserProfile> profiles;
+
   @override
   Future<Map<String, AppUserProfile>> getUsersByIds(
     Iterable<String> uids,
   ) async {
-    return const {};
+    return {
+      for (final uid in uids)
+        if (profiles[uid] != null) uid: profiles[uid]!,
+    };
   }
 
   @override
@@ -135,6 +163,7 @@ void main() {
         repo: _FakeRankingRepository(rows: rows, teams: teams),
         users: _FakeUsersRepository(),
         filter: filter,
+        sportCode: 'VOLEI_PRAIA',
         currentUid: null,
       );
     }
@@ -183,6 +212,64 @@ void main() {
       );
       expect(entries.map((e) => e.entityId), ['trioM']);
       expect(entries.single.rank, 1);
+    });
+  });
+
+  group('ranking por esporte (3b2)', () {
+    test('lê o esporte e a temporada pedidos', () async {
+      final repo = _FakeRankingRepository();
+      await buildTeamRankingListEntries(
+        repo: repo,
+        users: _FakeUsersRepository(),
+        filter: const RankingPageFilter(
+          mode: RankingListMode.teams,
+          year: 2026,
+        ),
+        sportCode: 'BEACH_TENNIS',
+        currentUid: null,
+      );
+      await buildAthleteRankingListEntries(
+        repo: repo,
+        users: _FakeUsersRepository(),
+        filter: const RankingPageFilter(),
+        sportCode: 'FUTEVOLEI',
+        currentUid: null,
+      );
+      expect(repo.calls, ['teams:BEACH_TENNIS:2026', 'athletes:FUTEVOLEI:null']);
+    });
+
+    test('nível do atleta é o do esporte do ranking (filtro e rótulo)',
+        () async {
+      final repo = _FakeRankingRepository(
+        athleteRows: const [
+          AthleteRankingRow(
+            rank: 1,
+            athleteId: 'a1',
+            totalPoints: 800,
+            tournamentsCount: 2,
+          ),
+        ],
+      );
+      final users = _FakeUsersRepository({
+        'a1': const AppUserProfile(
+          uid: 'a1',
+          fullName: 'Ana Souza',
+          primarySportFirestoreId: 'VOLEI_PRAIA',
+          levelsBySportFirestore: {
+            'VOLEI_PRAIA': 'iniciante_1',
+            'BEACH_TENNIS': 'open',
+          },
+        ),
+      });
+      final open = await buildAthleteRankingListEntries(
+        repo: repo,
+        users: users,
+        filter: const RankingPageFilter(level: RankingLevelFilter.open),
+        sportCode: 'BEACH_TENNIS',
+        currentUid: null,
+      );
+      expect(open.single.entityId, 'a1');
+      expect(open.single.subtitle, startsWith('OPEN'));
     });
   });
 }

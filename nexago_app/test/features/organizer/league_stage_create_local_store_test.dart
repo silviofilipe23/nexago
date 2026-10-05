@@ -13,7 +13,7 @@ void main() {
         draft: LeagueStageCreateDraft(
           leagueId: 'league-1',
           leagueName: 'Liga BT',
-          sportRaw: 'beachTennis',
+          sportRaw: 'padel',
           stage:
               const LeagueStageDraft(id: 'stage-1', name: 'Etapa 1', order: 1),
         ),
@@ -22,8 +22,8 @@ void main() {
         managerUid: 'manager-1',
       );
       final restored = LeagueStageCreateSession.fromJson(session.toJson())!;
-      expect(restored.draft.sportRaw, 'beachTennis');
-      expect(restored.draft.sportFirestoreValue, 'beachTennis');
+      expect(restored.draft.sportRaw, 'padel');
+      expect(restored.draft.sportFirestoreValue, 'padel');
     });
 
     setUp(() async {

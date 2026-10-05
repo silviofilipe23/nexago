@@ -5,6 +5,7 @@ import 'tournament_match_serving_players.dart';
 import 'tournament_match_set.dart';
 import 'tournament_match_status.dart';
 import 'tournament_match_type.dart';
+import '../../../core/sports/scoring_profile.dart';
 
 /// Partida em `artifacts/{projectId}/public/data/matches`.
 class TournamentMatch {
@@ -57,6 +58,8 @@ class TournamentMatch {
     this.loserAdvanceMatchNumber,
     this.loserAdvanceSlot,
     this.liveScore,
+    this.scoringProfile,
+    this.currentGame = (a: 0, b: 0),
     this.kocStandingTeamIds = const [],
     this.kocTeamIds = const [],
     this.kocDurationSec = 0,
@@ -135,6 +138,14 @@ class TournamentMatch {
   /// Placar parcial "ao vivo" do set em andamento (games/sets), gravado por
   /// `updateLiveMatchScore`. Só faz sentido exibir quando [isInProgress].
   final MatchLiveScore? liveScore;
+
+  /// Perfil de placar carimbado na criação da partida (spec multiesporte).
+  /// `null` em partida antiga: vale a regra histórica com [bestOf].
+  final ScoringProfile? scoringProfile;
+
+  /// Pontos do game em andamento numa partida de games (spec multiesporte,
+  /// 2b2); `(0, 0)` quando ausente.
+  final ({int a, int b}) currentGame;
 
   /// Duplas da rodada King of the Court em ordem de colocação, gravadas no
   /// encerramento. É o RESULTADO da rodada, como `winnerId` e `sets` são o de um

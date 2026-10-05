@@ -1,4 +1,5 @@
 import { collection, getDocs, query, where, type Firestore } from 'firebase/firestore';
+import { sportLabel } from '@nexago/sports';
 import { chunkIds } from '../data/chunk-ids';
 import type { ArenaTournament, ArenaTournamentStatus } from './tournament.model';
 
@@ -6,12 +7,6 @@ import type { ArenaTournament, ArenaTournamentStatus } from './tournament.model'
  *  Flutter) filtrados por `arenaId` — é só a localização (quem organiza é `managerId`, sempre um
  *  organizador; a arena nunca cria torneio, só sedia). Não existe endpoint pra "torneios da minha
  *  arena", filtra em memória/query direta por campo. */
-
-const SPORT_LABELS: Record<string, string> = {
-  beachVolleyball: 'Vôlei de praia',
-  indoorVolleyball: 'Vôlei de quadra',
-  footvolley: 'Futevôlei',
-};
 
 function toDate(v: unknown): Date | null {
   const t = v as { toDate?: () => Date } | undefined;
@@ -31,10 +26,9 @@ function numberOf(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
 
-function sportLabelOf(raw: unknown): string {
-  const v = optionalStr(raw);
-  if (!v) return 'Esporte';
-  return SPORT_LABELS[v] ?? v;
+/** Rótulo do esporte pelo catálogo (`@nexago/sports`); ausente → "Esporte". */
+export function sportLabelOf(raw: unknown): string {
+  return sportLabel(raw) ?? 'Esporte';
 }
 
 function statusOf(rawStatus: string, startAt: Date | null, endAt: Date | null, now: Date): ArenaTournamentStatus {

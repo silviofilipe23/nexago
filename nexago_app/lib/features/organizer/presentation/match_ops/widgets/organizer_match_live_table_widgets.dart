@@ -17,6 +17,10 @@ import '../../../domain/category_ops/category_ops_models.dart';
 import '../../../domain/match_ops/match_ops_logic.dart';
 import '../../../domain/match_ops/match_scoring_logic.dart';
 import '../../category_ops/widgets/organizer_team_dual_avatars.dart';
+import '../../../../../core/sports/sport_catalog.dart'
+    show LiveGames, QuickSetKind, ScoringProfile, ScoringRules;
+import '../../../data/games_point_write.dart';
+import '../../../domain/match_ops/quick_score_rows.dart';
 
 /// Dados de exibição de uma dupla na mesa ao vivo.
 class LiveTableTeamData {
@@ -336,6 +340,8 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
     required this.teamB,
     required this.scoreA,
     required this.scoreB,
+    this.scoreLabelA,
+    this.scoreLabelB,
     required this.isServingA,
     required this.isServingB,
     required this.onAddPointA,
@@ -352,6 +358,10 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
   final LiveTableTeamData teamB;
   final int scoreA;
   final int scoreB;
+
+  /// Partida de games: rótulo do game (0/15/30/40/AD) no lugar do número.
+  final String? scoreLabelA;
+  final String? scoreLabelB;
   final bool isServingA;
   final bool isServingB;
 
@@ -375,6 +385,7 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
             child: LiveTableTeamScoreCard(
               team: teamA,
               score: scoreA,
+              scoreLabel: scoreLabelA,
               isServing: isServingA,
               servingPlayerName: isServingA ? servingPlayerName : null,
               seed: seedA,
@@ -388,6 +399,7 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
             child: LiveTableTeamScoreCard(
               team: teamB,
               score: scoreB,
+              scoreLabel: scoreLabelB,
               isServing: isServingB,
               servingPlayerName: isServingB ? servingPlayerName : null,
               seed: seedB,
@@ -407,6 +419,7 @@ class LiveTableTeamScoreCard extends StatelessWidget {
     super.key,
     required this.team,
     required this.score,
+    this.scoreLabel,
     required this.isServing,
     this.seed,
     this.servingPlayerName,
@@ -417,6 +430,7 @@ class LiveTableTeamScoreCard extends StatelessWidget {
 
   final LiveTableTeamData team;
   final int score;
+  final String? scoreLabel;
   final bool isServing;
   final int? seed;
 
@@ -510,7 +524,7 @@ class LiveTableTeamScoreCard extends StatelessWidget {
           ],
           const SizedBox(height: 12),
           Text(
-            '$score',
+            scoreLabel ?? '$score',
             textAlign: TextAlign.center,
             style: AppTypography.mono(
               fontSize: 44,
@@ -851,6 +865,8 @@ class LiveTableFullModeMesa extends StatelessWidget {
     required this.teamB,
     required this.scoreA,
     required this.scoreB,
+    this.scoreLabelA,
+    this.scoreLabelB,
     required this.isServingA,
     required this.isServingB,
     required this.timeoutsA,
@@ -881,6 +897,10 @@ class LiveTableFullModeMesa extends StatelessWidget {
   final LiveTableTeamData teamB;
   final int scoreA;
   final int scoreB;
+
+  /// Partida de games: rótulo do game (0/15/30/40/AD) no lugar do número.
+  final String? scoreLabelA;
+  final String? scoreLabelB;
   final bool isServingA;
   final bool isServingB;
   final int timeoutsA;
@@ -929,6 +949,7 @@ class LiveTableFullModeMesa extends StatelessWidget {
                         child: _FullModeTeamPanel(
                           team: teamA,
                           score: scoreA,
+                          scoreLabel: scoreLabelA,
                           isServing: isServingA,
                           servingPlayerName: isServingA ? servingPlayerName : null,
                           onSwapServingPlayer: isServingA ? onSwapServingPlayer : null,
@@ -948,6 +969,7 @@ class LiveTableFullModeMesa extends StatelessWidget {
                         child: _FullModeTeamPanel(
                           team: teamB,
                           score: scoreB,
+                          scoreLabel: scoreLabelB,
                           isServing: isServingB,
                           servingPlayerName: isServingB ? servingPlayerName : null,
                           onSwapServingPlayer: isServingB ? onSwapServingPlayer : null,
@@ -1060,6 +1082,7 @@ class _FullModeTeamPanel extends StatelessWidget {
   const _FullModeTeamPanel({
     required this.team,
     required this.score,
+    this.scoreLabel,
     required this.isServing,
     required this.timeouts,
     required this.enabled,
@@ -1071,6 +1094,7 @@ class _FullModeTeamPanel extends StatelessWidget {
 
   final LiveTableTeamData team;
   final int score;
+  final String? scoreLabel;
   final bool isServing;
   final int timeouts;
   final bool enabled;
@@ -1148,7 +1172,7 @@ class _FullModeTeamPanel extends StatelessWidget {
               Expanded(
                 child: FittedBox(
                   child: Text(
-                    '$score',
+                    scoreLabel ?? '$score',
                     style: AppTypography.mono(
                       fontSize: 160,
                       fontWeight: FontWeight.w800,
@@ -2012,6 +2036,8 @@ class LiveTablePresentView extends StatelessWidget {
     required this.teamB,
     required this.scoreA,
     required this.scoreB,
+    this.scoreLabelA,
+    this.scoreLabelB,
     required this.isServingA,
     required this.isServingB,
     required this.setsWonA,
@@ -2025,6 +2051,10 @@ class LiveTablePresentView extends StatelessWidget {
   final LiveTableTeamData teamB;
   final int scoreA;
   final int scoreB;
+
+  /// Partida de games: rótulo do game (0/15/30/40/AD) no lugar do número.
+  final String? scoreLabelA;
+  final String? scoreLabelB;
   final bool isServingA;
   final bool isServingB;
   final int setsWonA;
@@ -2059,7 +2089,9 @@ class LiveTablePresentView extends StatelessWidget {
                       teamA: teamA,
                       teamB: teamB,
                       scoreA: scoreA,
+                      scoreLabelA: scoreLabelA,
                       scoreB: scoreB,
+                      scoreLabelB: scoreLabelB,
                       isServingA: isServingA,
                       isServingB: isServingB,
                       setsWonA: setsWonA,
@@ -2071,7 +2103,9 @@ class LiveTablePresentView extends StatelessWidget {
                       teamA: teamA,
                       teamB: teamB,
                       scoreA: scoreA,
+                      scoreLabelA: scoreLabelA,
                       scoreB: scoreB,
+                      scoreLabelB: scoreLabelB,
                       isServingA: isServingA,
                       isServingB: isServingB,
                       setsWonA: setsWonA,
@@ -2093,6 +2127,8 @@ class _PresentPortrait extends StatelessWidget {
     required this.teamB,
     required this.scoreA,
     required this.scoreB,
+    this.scoreLabelA,
+    this.scoreLabelB,
     required this.isServingA,
     required this.isServingB,
     required this.setsWonA,
@@ -2105,6 +2141,10 @@ class _PresentPortrait extends StatelessWidget {
   final LiveTableTeamData teamB;
   final int scoreA;
   final int scoreB;
+
+  /// Partida de games: rótulo do game (0/15/30/40/AD) no lugar do número.
+  final String? scoreLabelA;
+  final String? scoreLabelB;
   final bool isServingA;
   final bool isServingB;
   final int setsWonA;
@@ -2121,6 +2161,7 @@ class _PresentPortrait extends StatelessWidget {
           child: _PresentTeamBlock(
             team: teamA,
             score: scoreA,
+            scoreLabel: scoreLabelA,
             isServing: isServingA,
           ),
         ),
@@ -2131,6 +2172,7 @@ class _PresentPortrait extends StatelessWidget {
           child: _PresentTeamBlock(
             team: teamB,
             score: scoreB,
+            scoreLabel: scoreLabelB,
             isServing: isServingB,
           ),
         ),
@@ -2147,6 +2189,8 @@ class _PresentLandscape extends StatelessWidget {
     required this.teamB,
     required this.scoreA,
     required this.scoreB,
+    this.scoreLabelA,
+    this.scoreLabelB,
     required this.isServingA,
     required this.isServingB,
     required this.setsWonA,
@@ -2159,6 +2203,10 @@ class _PresentLandscape extends StatelessWidget {
   final LiveTableTeamData teamB;
   final int scoreA;
   final int scoreB;
+
+  /// Partida de games: rótulo do game (0/15/30/40/AD) no lugar do número.
+  final String? scoreLabelA;
+  final String? scoreLabelB;
   final bool isServingA;
   final bool isServingB;
   final int setsWonA;
@@ -2177,6 +2225,7 @@ class _PresentLandscape extends StatelessWidget {
                 child: _PresentTeamBlock(
                   team: teamA,
                   score: scoreA,
+                  scoreLabel: scoreLabelA,
                   isServing: isServingA,
                 ),
               ),
@@ -2187,6 +2236,7 @@ class _PresentLandscape extends StatelessWidget {
                 child: _PresentTeamBlock(
                   team: teamB,
                   score: scoreB,
+                  scoreLabel: scoreLabelB,
                   isServing: isServingB,
                 ),
               ),
@@ -2204,11 +2254,13 @@ class _PresentTeamBlock extends StatelessWidget {
   const _PresentTeamBlock({
     required this.team,
     required this.score,
+    this.scoreLabel,
     required this.isServing,
   });
 
   final LiveTableTeamData team;
   final int score;
+  final String? scoreLabel;
   final bool isServing;
 
   @override
@@ -2248,7 +2300,7 @@ class _PresentTeamBlock extends StatelessWidget {
         ),
         FittedBox(
           child: Text(
-            '$score',
+            scoreLabel ?? '$score',
             style: AppTypography.mono(
               fontSize: 120,
               fontWeight: FontWeight.w800,
@@ -3010,15 +3062,20 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
     }
   }
 
+  /// Perfil de placar da partida com o formato escolhido aqui (spec multiesporte, 2b1).
+  ScoringProfile get _profile =>
+      quickScoreProfile(widget.match.scoringProfile, _bestOf);
+
   QuickScoreValidationResult _validateSubmission({
     bool requireMatchWinner = true,
   }) {
     return MatchScoringLogic.validateQuickScoreSubmission(
-      sets: _sets,
+      sets: quickScoreNormalized(_profile, _sets),
       bestOf: _bestOf,
       teamAId: widget.match.teamAId,
       teamBId: widget.match.teamBId,
       requireMatchWinner: requireMatchWinner,
+      profile: widget.match.scoringProfile,
     );
   }
 
@@ -3046,12 +3103,20 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
     }
   }
 
-  void _updateSet(int index, {int? a, int? b}) {
+  void _updateSet(int index, {int? a, int? b, int? tbA, int? tbB}) {
     setState(() {
       final current = _sets[index];
+      // Tie-break (ou super tie-break) do set de games — ver `quick_score_rows.dart`.
+      final tb = tbA != null || tbB != null
+          ? (
+              a: (tbA ?? current.tb?.a ?? 0).clamp(0, 99),
+              b: (tbB ?? current.tb?.b ?? 0).clamp(0, 99),
+            )
+          : current.tb;
       _sets[index] = TournamentMatchSet(
         a: (a ?? current.a).clamp(0, 99),
         b: (b ?? current.b).clamp(0, 99),
+        tb: tb,
       );
       _setErrors = _validateSubmission(
         requireMatchWinner: false,
@@ -3231,7 +3296,7 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
 
     setState(() => _saving = true);
     try {
-      await widget.onSubmit(List<TournamentMatchSet>.from(_sets), _bestOf);
+      await widget.onSubmit(quickScoreNormalized(_profile, _sets), _bestOf);
       if (mounted) Navigator.pop(context);
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -3249,13 +3314,15 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final wins = MatchScoringLogic.setsWon(_sets, bestOf: _bestOf);
-    final winnerId = MatchScoringLogic.matchWinnerId(
-      sets: _sets,
-      teamAId: widget.match.teamAId,
-      teamBId: widget.match.teamBId,
-      bestOf: _bestOf,
-    );
+    final profile = _profile;
+    final rows = quickScoreRows(profile, _sets);
+    final wins = quickScoreWins(profile, _sets);
+    final winnerSide = quickScoreWinnerSide(profile, _sets);
+    final winnerId = winnerSide == 'A'
+        ? widget.match.teamAId
+        : winnerSide == 'B'
+            ? widget.match.teamBId
+            : null;
     final winnerLabel = winnerId == widget.match.teamAId
         ? widget.teamA.label
         : winnerId == widget.match.teamBId
@@ -3327,8 +3394,7 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
               const SizedBox(height: 20),
               _QuickScoreSectionHeader(
                 title: 'GAMES POR SET',
-                trailing: 'set até ${MatchScoringLogic.defaultSetPoints} · '
-                    'decisivo até ${MatchScoringLogic.tiebreakSetPoints}',
+                trailing: ScoringRules.rulesLabel(profile),
               ),
               const SizedBox(height: 12),
               _QuickScoreFormatRow(
@@ -3339,15 +3405,40 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
               for (var i = 0; i < _sets.length; i++) ...[
                 KeyedSubtree(
                   key: _setRowKeys[i],
-                  child: _QuickScoreSetRow(
+                  child: rows[i].kind == QuickSetKind.superTiebreak
+                      ? _QuickScoreSetRow(
+                          index: i,
+                          label: 'SET ${i + 1} · SUPER TIE-BREAK',
+                          set: TournamentMatchSet(
+                            a: _sets[i].tb?.a ?? 0,
+                            b: _sets[i].tb?.b ?? 0,
+                          ),
+                          errorText: _setErrors[i],
+                          onChangeA: (v) => _updateSet(i, tbA: v),
+                          onChangeB: (v) => _updateSet(i, tbB: v),
+                          onCommitted: _revalidateSets,
+                        )
+                      : _QuickScoreSetRow(
+                          index: i,
+                          set: _sets[i],
+                          errorText: _setErrors[i],
+                          onChangeA: (v) => _updateSet(i, a: v),
+                          onChangeB: (v) => _updateSet(i, b: v),
+                          onCommitted: _revalidateSets,
+                        ),
+                ),
+                if (rows[i].kind == QuickSetKind.gamesTiebreak)
+                  _QuickScoreSetRow(
                     index: i,
-                    set: _sets[i],
-                    errorText: _setErrors[i],
-                    onChangeA: (v) => _updateSet(i, a: v),
-                    onChangeB: (v) => _updateSet(i, b: v),
+                    label: 'TIE-BREAK',
+                    set: TournamentMatchSet(
+                      a: _sets[i].tb?.a ?? 0,
+                      b: _sets[i].tb?.b ?? 0,
+                    ),
+                    onChangeA: (v) => _updateSet(i, tbA: v),
+                    onChangeB: (v) => _updateSet(i, tbB: v),
                     onCommitted: _revalidateSets,
                   ),
-                ),
                 if (i < _sets.length - 1)
                   Divider(
                     height: 1,
@@ -3620,9 +3711,13 @@ class _QuickScoreSetRow extends StatelessWidget {
     required this.onChangeB,
     this.errorText,
     this.onCommitted,
+    this.label,
   });
 
   final int index;
+
+  /// Rótulo da linha; padrão `SET n` (tie-break e super tie-break usam outro).
+  final String? label;
   final TournamentMatchSet set;
   final ValueChanged<int> onChangeA;
   final ValueChanged<int> onChangeB;
@@ -3643,7 +3738,7 @@ class _QuickScoreSetRow extends StatelessWidget {
           Row(
             children: [
               Text(
-                'SET ${index + 1}',
+                label ?? 'SET ${index + 1}',
                 style: AppTypography.mono(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
@@ -4117,8 +4212,41 @@ int liveTableCurrentSetScore(TournamentMatch match, {required bool sideA}) {
 /// Sets vencidos por cada dupla — via `matchClosedSets`, nunca contando o set
 /// em andamento (`setsWonCountForMatch` mente ao vivo, ver nota do projeto).
 (int, int) liveTableSetsWon(TournamentMatch match) {
+  final games = gamesProfileOf(match);
+  if (games != null) {
+    final w = ScoringRules.setsWon(gamesLiveStateOf(match).sets, games);
+    return (w.a, w.b);
+  }
   final closed = matchClosedSets(match);
   final a = closed.where((s) => s.a > s.b).length;
   final b = closed.where((s) => s.b > s.a).length;
   return (a, b);
+}
+
+/// Placar da mesa numa partida de games (spec multiesporte, 2b2): rótulo do
+/// game (0/15/30/40/AD ou pontos do tie-break), regra do set e dica. `null` =
+/// partida de pontos. Espelho de `mesaGamesView` do painel web.
+({String labelA, String labelB, String rules, String? hint})?
+liveTableGamesView(TournamentMatch match) {
+  final games = gamesProfileOf(match);
+  if (games == null) return null;
+  final state = gamesLiveStateOf(match);
+  final idx = state.currentSetIndex.clamp(0, games.bestOf - 1);
+  final labels = LiveGames.pointLabels(state, games);
+  final normalTiebreak =
+      LiveGames.isTiebreakInProgress(state, games) &&
+      !ScoringRules.isSuperTiebreakSet(games, idx);
+  return (
+    labelA: labels.a,
+    labelB: labels.b,
+    rules:
+        '${ScoringRules.setTargetLabel(games, idx)}'
+        '${normalTiebreak ? ' · tie-break até ${games.tiebreakTo}' : ''}',
+    hint: LiveGames.hint(
+      state,
+      games,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+    ),
+  );
 }

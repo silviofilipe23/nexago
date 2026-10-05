@@ -66,8 +66,14 @@ describe('leagueSummaryFromDoc', () => {
     expect(summary.stagesTotalCount).toBe(0);
   });
 
-  it('mantém o esporte cru quando não há tradução conhecida', () => {
-    expect(leagueSummaryFromDoc('l1', { sport: 'beachTennis' }, 0).sport).toBe('beachTennis');
+  // Contrato do catálogo (spec multiesporte, emenda de 04/10): esporte que o
+  // catálogo conhece sai com o rótulo dele; desconhecido sai em title case.
+  it('esporte conhecido pelo catálogo sai com o rótulo, mesmo fora do wizard', () => {
+    expect(leagueSummaryFromDoc('l1', { sport: 'beachTennis' }, 0).sport).toBe('Beach tennis');
+  });
+
+  it('esporte desconhecido sai em title case, sem inventar tradução', () => {
+    expect(leagueSummaryFromDoc('l1', { sport: 'padel' }, 0).sport).toBe('Padel');
   });
 
   it('não confunde `stages` malformado com etapas', () => {

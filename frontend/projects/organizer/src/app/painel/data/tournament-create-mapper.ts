@@ -31,6 +31,7 @@ import {
   totalSpots,
   parseTournamentSport,
   sportFirestoreValue,
+  profileBestOf,
 } from './tournament-create.model';
 
 /** Porta fiel de `tournament_create_mapper.dart` (Flutter): monta o doc `tournaments/{id}`
@@ -108,6 +109,9 @@ export function categoryToMap(category: TournamentCategoryDraft, draft: Tourname
     kocPhases: category.kocPhases,
     bestOf: category.bestOf,
     finalBestOf5: category.finalBestOf5,
+    // Perfil de placar: repassado cru (o wizard ainda não edita); não gravar seria apagar.
+    // O `bestOf` do perfil acompanha o da categoria (o organizador pode trocar depois).
+    ...(category.scoringProfile ? { scoringProfile: { ...category.scoringProfile, bestOf: profileBestOf(category.bestOf) } } : {}),
     maxRegistrationsPerAthlete: category.maxRegistrationsPerAthlete,
     registrationClosed: false,
     isCompleted: false,
@@ -363,7 +367,13 @@ export function categoryFromMap(map: Record<string, unknown>): TournamentCategor
     finalBestOf5: map['finalBestOf5'] === true,
     maxRegistrationsPerAthlete: num(map['maxRegistrationsPerAthlete']) ?? 2,
     prizes: parsePrizes(map['prizes']),
+    scoringProfile: scoringProfileRawOf(map['scoringProfile']),
   };
+}
+
+/** Perfil de placar cru da categoria (objeto) ou `null`. */
+function scoringProfileRawOf(raw: unknown): Record<string, unknown> | null {
+  return raw && typeof raw === 'object' && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>) } : null;
 }
 
 export interface TournamentDraftLoad {

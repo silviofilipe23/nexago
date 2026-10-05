@@ -154,9 +154,9 @@ void main() {
 
     test('organizerSportLabel traduz o código do torneio', () {
       expect(organizerSportLabel('beachVolleyball'), 'Vôlei de praia');
-      expect(organizerSportLabel('beachTennis'), 'Beach Tennis');
+      expect(organizerSportLabel('beachTennis'), 'Beach tennis');
       expect(organizerSportLabel('footvolley'), 'Futevôlei');
-      expect(organizerSportLabel('curling'), 'curling');
+      expect(organizerSportLabel('curling'), 'Curling');
     });
 
     test('organizerWhatsappUri exige DDI + DDD + número', () {
@@ -545,7 +545,7 @@ void main() {
             sport: 'beachTennis',
           ),
         ),
-        'Liga · Etapa 5 · Beach Tennis',
+        'Liga · Etapa 5 · Beach tennis',
       );
       expect(
         organizerEventTypeLabel(

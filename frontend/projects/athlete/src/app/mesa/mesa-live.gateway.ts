@@ -31,6 +31,11 @@ export const EMPTY_HEADER: MesaHeaderInfo = { tournamentName: null, categoryName
  *
  *  As escritas são as MESMAS do portal do organizador (motor `@nexago/live-scoring` + callables
  *  autorizados por `assertCanScoreTournament`). */
+/** Sets no formato do callable: `a`/`b` e o tie-break quando a linha tem (spec multiesporte, 2b1). */
+export function setsForSubmit(sets: readonly ScoreSet[]): Array<{ a: number; b: number; tb?: { a: number; b: number } }> {
+  return sets.map((s) => (s.tb ? { a: s.a, b: s.b, tb: { a: s.tb.a, b: s.tb.b } } : { a: s.a, b: s.b }));
+}
+
 @Injectable({ providedIn: 'root' })
 export class MesaLiveGateway {
   private readonly scoring = athleteLiveScoringContext();
@@ -78,7 +83,7 @@ export class MesaLiveGateway {
   }
 
   submitSets(matchId: string, sets: readonly ScoreSet[], bestOf: number): Promise<{ completed?: boolean }> {
-    return submitMatchResult({ matchId, sets: sets.map((s) => ({ a: s.a, b: s.b })), bestOf });
+    return submitMatchResult({ matchId, sets: setsForSubmit(sets), bestOf });
   }
 
   validate(matchId: string): Promise<unknown> {

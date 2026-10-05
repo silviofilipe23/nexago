@@ -9,6 +9,7 @@ import '../../tournaments/domain/tournament_listing_status.dart';
 import '../../tournaments/domain/tournament_review_models.dart';
 import 'organizer_event.dart';
 import 'organizer_public_profile_models.dart';
+import '../../../core/sports/sport_catalog.dart';
 
 /// Regras de exibição do perfil público do organizador e da lista "Organizadores" — spec
 /// `docs/superpowers/specs/2026-10-02-organizer-public-profile-design.md`, seção "O que o
@@ -80,20 +81,9 @@ String organizerInitials(String name) {
   return source.take(3).map((w) => firstGraphemesUpper(w, 1)).join();
 }
 
-const _sportLabels = {
-  'beachvolleyball': 'Vôlei de praia',
-  'indoorvolleyball': 'Vôlei de quadra',
-  'footvolley': 'Futevôlei',
-  'beachtennis': 'Beach Tennis',
-  'padel': 'Padel',
-};
-
-/// Rótulo do código de `tournaments.sport` (camelCase do `TournamentSport`). Código fora do mapa
-/// sai como veio — melhor o código cru que um chip vazio.
-String organizerSportLabel(String code) {
-  final key = code.trim().toLowerCase();
-  return _sportLabels[key] ?? code.trim();
-}
+/// Rótulo do código de `tournaments.sport`, em qualquer grafia do catálogo.
+/// Código desconhecido sai em title case; vazio sai vazio.
+String organizerSportLabel(String code) => SportCatalog.labelOf(code) ?? '';
 
 /// `https://wa.me/{dígitos}`, ou `null` sem número que abra conversa (DDI + DDD + 8/9 dígitos).
 Uri? organizerWhatsappUri(String? whatsapp) {

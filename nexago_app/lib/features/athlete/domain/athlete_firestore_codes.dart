@@ -1,44 +1,10 @@
+import '../../../core/sports/sport_catalog.dart';
+
 /// Códigos do documento `users/{uid}` (campo [sportOnboarding]).
 abstract final class AthleteFirestoreCodes {
   AthleteFirestoreCodes._();
 
   static const int sportOnboardingVersion = 1;
-
-  static const Map<String, String> _sportAppToFirestore = {
-    'beach_volleyball': 'VOLEI_PRAIA',
-    'indoor_volleyball': 'VOLEI_QUADRA',
-    'footvolley': 'FUTEVOLEI',
-    'football': 'FUTEBOL',
-    'basketball': 'BASQUETE',
-    'tennis': 'TENIS',
-    'beach_tennis': 'BEACH_TENNIS',
-    'running': 'CORRIDA',
-    'other': 'OUTROS',
-  };
-
-  static const Map<String, String> _sportFirestoreToApp = {
-    'VOLEI_PRAIA': 'beach_volleyball',
-    'VOLEI_QUADRA': 'indoor_volleyball',
-    'FUTEVOLEI': 'footvolley',
-    'FUTEBOL': 'football',
-    'BASQUETE': 'basketball',
-    'TENIS': 'tennis',
-    'BEACH_TENNIS': 'beach_tennis',
-    'CORRIDA': 'running',
-    'OUTROS': 'other',
-  };
-
-  static const Map<String, String> _sportFirestoreToLabel = {
-    'VOLEI_PRAIA': 'Vôlei de praia',
-    'VOLEI_QUADRA': 'Vôlei de quadra',
-    'FUTEVOLEI': 'Futevôlei',
-    'FUTEBOL': 'Futebol',
-    'BASQUETE': 'Basquete',
-    'TENIS': 'Tênis',
-    'BEACH_TENNIS': 'Beach tennis',
-    'CORRIDA': 'Corrida',
-    'OUTROS': 'Outros',
-  };
 
   static const Map<String, String> _goalAppToFirestore = {
     'book_arena': 'RESERVAR_ARENA',
@@ -86,19 +52,17 @@ abstract final class AthleteFirestoreCodes {
 
   static String? sportAppToFirestore(String? appId) {
     if (appId == null || appId.isEmpty) return null;
-    return _sportAppToFirestore[appId];
+    return SportCatalog.byAppId(appId)?.profileCode;
   }
 
   static String? sportFirestoreToLabel(String? code) {
     if (code == null || code.isEmpty) return null;
-    return _sportFirestoreToLabel[code] ??
-        _sportFirestoreToLabel[code.toUpperCase()];
+    return SportCatalog.byProfileCode(code)?.label;
   }
 
   static String? sportFirestoreToApp(String? code) {
     if (code == null || code.isEmpty) return null;
-    final key = code.toUpperCase();
-    return _sportFirestoreToApp[key] ?? _sportFirestoreToApp[code];
+    return SportCatalog.byProfileCode(code)?.appId;
   }
 
   static List<String> sportFirestoreIdsToLabels(Iterable<String> codes) {

@@ -106,10 +106,10 @@ avulso):
 | `beachVolleyball` | `VOLEI_PRAIA` | competition | Como hoje |
 | `indoorVolleyball` | `VOLEI_QUADRA` | competition | Como hoje; placar 25/15 na fase 2 |
 | `footvolley` | `FUTEVOLEI` | competition | Como hoje; placar 18/15 na fase 2 |
-| `beachTennis` | `BEACH_TENNIS` | profile → competition na fase 1 | Já tem arte de capa |
+| `beachTennis` | `BEACH_TENNIS` | profile → competition na fase 2 | Já tem arte de capa. Ver emenda de 04/10 |
 | `tennis` | `TENIS` | profile → competition na fase 3 | Individual exige fase 4 |
-| `padel` | `PADEL` (novo) | profile → competition na fase 3 | Código de perfil novo entra nas rules |
-| `pickleball` | `PICKLEBALL` (novo) | profile | Placar side-out fica fora deste spec |
+| `padel` | `PADEL` (novo) | entra no catálogo na fase 3 | Código de perfil novo entra nas rules |
+| `pickleball` | `PICKLEBALL` (novo) | entra no catálogo quando houver uso | Placar side-out fica fora deste spec |
 | `football` | `FUTEBOL` | profile | `single_score` fora deste spec |
 | `basketball` | `BASQUETE` | profile | idem |
 | `running` | `CORRIDA` | profile | Sem competição no produto |
@@ -274,7 +274,7 @@ override de rótulo) continua.
 | Situação | Comportamento |
 |---|---|
 | Doc com `sport` em grafia legada (`beach_tennis`) | Resolvido por alias na leitura. Não é regravado. |
-| Doc com `sport` desconhecido | `resolveSportCode` retorna `null`; UI mostra "Esporte não informado"; elegibilidade cai no nível global, como hoje. Nunca é coagido. |
+| Doc com `sport` desconhecido | `resolveSportCode` retorna `null`; UI mostra o código em title case (emenda de 04/10); elegibilidade cai no nível global, como hoje. Nunca é coagido. |
 | App antigo reedita torneio de esporte novo | Rule recusa o update porque `sport` mudaria. O organizador vê erro de salvamento e precisa do app novo. Aceito. |
 | Partida sem `scoringProfile` | Derivado de `bestOf` + esporte do torneio. |
 | `liveScore` lido por app antigo | `currentGamesA/B` continuam escritos até o build mínimo subir. |
@@ -297,26 +297,146 @@ Remover a coerção para `beachVolleyball` (8 pontos listados no Contexto; valor
 `friendly-match-logic.ts` (chave em UPPER_SNAKE) e `athlete_profile.dart` (futevôlei no mapa).
 Saída: nenhum caminho reescreve `sport`; testes de rules cobrindo o congelamento.
 
-**Fase 1: catálogo e beach tennis.**
+**Fase 1: catálogo.**
 `sports/catalog.json`, codegen, `@nexago/sports`, `functions/src/sports/`, `core/sports/` no
-app. Trocar as pontes e os mapas de rótulo/ícone/arte pelo catálogo. Teste rules × catálogo.
-`beachTennis` entra em `TournamentSport` nas três superfícies, ainda com `sets_points` (o
-organizador de beach tennis lança o placar em games como se fossem pontos até a fase 2; é como
-já faria hoje em qualquer outro sistema sem suporte). Saída: criar e operar um torneio de beach
-tennis em app e portal, sem default silencioso em lugar nenhum.
+app. Trocar as pontes de código e os mapas de rótulo e arte pelo catálogo. Teste rules ×
+catálogo. Saída: um esporte novo de perfil entra editando um arquivo; nenhuma tela mostra
+"Vôlei de praia" para algo que não é.
 
-**Fase 2: perfil de placar.**
-Tipo `ScoringProfile`, estratégias `sets_points` e `sets_games` nas três implementações,
+**Emenda de 04/10/2026 (fase 1).**
+- **Beach tennis abre na fase 2, não na 1.** A validação de placar hoje exige set de 21 pontos
+  com vantagem de 2 no servidor e nas mesas; um set de beach tennis (6-4) é recusado. Abrir a
+  criação antes do tipo `sets_games` geraria torneios impossíveis de operar. Na fase 1
+  `beachTennis` fica no catálogo com suporte `profile`, e o torneio legado nessa grafia segue
+  travado pelo `sportRaw` da fase 0, agora exibindo "Beach tennis".
+- **Esporte desconhecido mostra o próprio código em title case** ("Padel", "Curling"), não
+  "Esporte não informado". O rótulo genérico fica só para ausência do campo. Motivo: o código
+  é informação real e "não informado" seria falso.
+- **Padel e pickleball ficam fora do catálogo inicial.** Código de perfil novo mexe nas rules
+  de nível, que já estão perto do teto de avaliação; entram quando houver uso.
+- **Ícones e chips de arena/descoberta ficam fora da fase 1.** Os ícones por tela são escolha
+  visual e os chips são da fase 5. O campo `icon` entra no catálogo quando o primeiro
+  consumidor for migrado.
+- **Normalização igual nas três linguagens por construção:** minúsculas, tabela fixa de
+  acentos do português, remove tudo que não é letra ou dígito. Os vetores de teste moram no
+  `catalog.json` e o codegen os emite nos três alvos.
+
+**Fase 2: perfil de placar e beach tennis.**
+`beachTennis` entra em `TournamentSport` nas três superfícies e sobe para `competition`, já
+com `sets_games` (emenda de 04/10). Tipo `ScoringProfile`, estratégias `sets_points` e `sets_games` nas três implementações,
 vetores de placar, carimbo na partida, derivação para legado, validação no servidor,
 `liveScore` novo com dupla escrita, wizard com campos por tipo, consumidores lendo o perfil,
 standings por tipo, saque por game. Vôlei de quadra e futevôlei passam a usar seus defaults.
 Saída: mesa, telão, overlay, Focus e pôster corretos para beach tennis com tie-break e super
 tie-break; vetores verdes nas três linguagens.
 
+**Emenda de 04/10/2026 (fase 2): quatro entregas.**
+A fase 2 toca placar em três plataformas e em cerca de quinze telas; vira quatro PRs, cada um
+mergeável sozinho, e beach tennis só abre no último.
+- **2a, núcleo, sem mudança de comportamento.** Tipo `ScoringProfile` (`sets_points` e
+  `sets_games`), regras de vencedor de set e de partida e validação de placar final nas três
+  linguagens, com vetores compartilhados em `sports/scoring-vectors.json`. `scoringProfile`
+  padrão no catálogo. Carimbo na partida em `bracketMatchDoc`. As quatro cópias da regra de 21
+  pontos passam a delegar ao núcleo com o perfil histórico. O servidor grava `tb` nos sets de
+  games e decide o vencedor pelo perfil; continua aceitando placar parcial como hoje.
+- **2b, lançamento e mesa.** Lançamento rápido (app e portal) e mesa ao vivo lendo o perfil:
+  games, pontos 0/15/30/40/AD, tie-break, super tie-break, saque por game, `liveScore` novo em
+  dupla escrita.
+  Dividida em **2b1** (lançamento rápido nas quatro telas, modelos lendo `scoringProfile` e `tb`)
+  e **2b2** (mesa ao vivo ponto a ponto com games; o desfazer de hoje decrementa o placar, o
+  que é ambíguo com games, então passa a restaurar um snapshot gravado no evento). Regra de
+  2b em diante: o nº de sets vem de `match.bestOf`; o resto do perfil, do carimbo.
+- **2c, exibição.** Telão, overlay, Focus, pôster, ponto a ponto, card da chave e critério de
+  desempate dos grupos por tipo.
+  Dividida em três (emenda de 04/10, depois do inventário das telas). Nenhuma tela de exibição
+  lia o perfil, e quase todas passam por três helpers: `live-set-display.ts` do painel,
+  `matches-repository.ts` do portal do atleta e `tournament_match_display.dart` do app.
+  **2c1** troca esses três helpers pelo perfil efetivo, expõe o game em andamento, cria
+  `setScoreText` no núcleo ("7-6 (7-4)"; super tie-break "10-8") e aplica o desempate por tipo
+  nas quatro cópias. **2c2** leva isso às telas: telão, overlay, página pública, Focus, card da
+  chave, cards ao vivo e pôster, com o alerta de set/match point vindo de `gamesFlag`. **2c3**
+  cuida do ponto a ponto (eventos de games carregam `gameA`/`gameB`) e da notificação de
+  partida acompanhada, que precisa do motor de games nas functions.
+  A 2c2 sai por plataforma, um PR cada: **2c2a** painel do organizador (telão, overlay, página
+  pública, chave), **2c2b** portal do atleta (Focus, chave, listas, detalhe, compartilhamento) e
+  **2c2c** app (Focus, chave, cards, pôster).
+  A 2c3 também sai em duas: **2c3a** ponto a ponto (portal do atleta e app, com um texto
+  canônico do lance de games no núcleo) e **2c3b** notificação de partida acompanhada (motor de
+  games nas functions).
+- **2d, abrir beach tennis.** Wizard com os campos de cada tipo, `beachTennis` no enum e em
+  `competition`, defaults 25/15 (quadra) e 18/15 (futevôlei) só quando o wizard deixar o
+  organizador escolher o alvo.
+  Dividida em duas (emenda de 04/10, depois do inventário): nada no servidor nem nas rules
+  bloqueia o esporte — o bloqueio é só o enum dos dois clientes. **2d1, abrir com segurança:**
+  `beachTennis` em `competition` e nos dois enums (último, na ordem do catálogo); o array de
+  categorias é regravado inteiro pelos dois wizards, então `scoringProfile` passa a fazer ida e
+  volta (senão uma reedição apagaria o perfil); KOTC fica só para vôlei de praia; e, até a fase
+  3, torneio de esporte que nunca pontuou no ranking geral (hoje: beach tennis) não pontua —
+  o ranking não tem `sport` e misturaria os pontos com os do vôlei. Sem perfil explícito, a
+  categoria de beach tennis carimba o padrão do catálogo com o `bestOf` da categoria (já é o
+  comportamento do servidor). **2d2, editor de placar:** campos de cada tipo no editor de
+  categoria do app e do portal, gravando o perfil explícito; sugestões 25/15 e 18/15 só aí. O
+  fallback de categoria sem perfil continua o histórico nesses esportes.
+  A 2d2 sai em duas: **2d2a** portal (núcleo do editor, padrões 25/15 e 18/15 no catálogo com o
+  fallback do servidor histórico em esportes de pontos) e **2d2b** app (o editor de categoria do
+  app ainda nem tem número de sets).
+
+Decisões que valem para a fase 2 inteira:
+- **Partida sem perfil carimbado usa a regra histórica, qualquer que seja o esporte** (21,
+  decisivo 15 só no 3º set de MD3, vantagem 2). Derivar pelo esporte mudaria o alvo de torneios
+  de futevôlei já em andamento no meio do evento.
+- **Até a 2d, os esportes de competição atuais têm perfil padrão igual à regra histórica.** Trocar
+  para 25 ou 18 sem o organizador poder escolher fecharia sets cedo na mesa ao vivo de quem joga
+  a 21.
+- `single_score` e `timed_rally` saem do tipo até existir estratégia para eles.
+
 **Fase 3: ranking e rating por esporte.**
 Docs por esporte, `sport` nas entradas, dupla escrita, backfill, filtro de esporte na aba
 Ranking (app e portal), gate de rating por flag. Tênis e padel sobem para `competition`.
 Saída: ranking de beach tennis separado do de vôlei; rating ligável por config.
+
+**Emenda de 04/10/2026 (fase 3), depois do inventário:**
+- **Docs por esporte em coleções novas**, `athleteRankingsBySport/{athleteId}_{profileCode}` e
+  `teamRankingsBySport/{teamId}_{profileCode}`. Na coleção legada, o app da loja (que lê a
+  coleção inteira e usa o `doc.id` como atleta) mostraria um atleta fantasma por doc, e o
+  script de limpeza de dados de teste os apagaria.
+- **Legado:** continua recebendo só os esportes que já pontuavam (vôlei de praia, de quadra,
+  futevôlei e esporte não reconhecido); beach tennis vai só para o doc do esporte. Isso
+  inclui `tournamentCategoryResults`: o app da loja e o portal montam o ranking da temporada
+  direto dela (filtrando só por ano), então resultado de esporte novo fica só no `results[]`
+  do doc por esporte até a 3b decidir uma coleção própria.
+- **Rating:** inverter o default (ausente = desligado) arriscaria desligar o vôlei em ambiente
+  sem o doc. Vôlei de praia e de quadra seguem como hoje; esporte novo só rateia com
+  `ratingLadders/{code}` próprio e `flags.ratingEnabled: true` (o doc `default` não liga).
+- A fase sai em três: **3a** servidor (docs por esporte, `sport` nos resultados, backfill com
+  `dryRun`, rating por config); **3b** telas (filtro de esporte na aba Ranking, app e portais);
+  **3c** tênis e padel em `competition`.
+
+**Emenda de 04/10/2026 (fase 3b), depois do inventário das telas:**
+- Só o app e os portais do atleta e do organizador leem o ranking geral; backoffice, coach,
+  arena e site não. A 3b sai em duas: **3b1** portais (página Ranking do atleta e card de
+  entrevista da transmissão) e **3b2** app (página Ranking e posição por esporte do perfil
+  público). As demais superfícies (KPI da home, comunidade, equipes, minhas competições)
+  continuam no total somado até uma fase própria.
+- **Temporada por esporte** vem de `pointsByYear[ano]` dos docs por esporte, não de
+  `tournamentCategoryResults` (beach tennis não está lá). Ano sem pontos não entra na lista.
+- **Filtro de esporte** usa os esportes `competition` do catálogo, por código de perfil
+  (futevôlei incluso); o padrão é o esporte principal do atleta quando é de competição, senão
+  vôlei de praia. O nível mostrado e filtrado é o do esporte escolhido (`levelsBySport`), com
+  o nível global como reserva.
+- **Card de entrevista** usa o esporte do torneio; torneio de esporte não reconhecido segue
+  no total somado.
+- **Ordem de deploy:** functions (3a) → `backfillRankingsBySport` → clientes. Antes do backfill
+  a página por esporte aparece vazia.
+
+**Emenda de 04/10/2026 (fase 3c).**
+- A 3c sai em duas: **3c1** tênis em `competition` (placar `tennis3` já tem vetores; arte
+  `tenis` já existe; nada no servidor nem nas rules restringe o esporte do torneio) e **3c2**
+  padel (código de perfil novo `PADEL`: catálogo, rules de nível, `ATHLETE_SPORT_CODES`,
+  onboarding), que depende de medir o custo nas rules.
+- Tênis entra nos tipos dos wizards na ordem do catálogo (antes do beach tennis). Torneio de
+  tênis é de dupla até a fase 4. KOTC segue só no vôlei de praia. Ranking: só os docs por
+  esporte (`TENIS` não alimenta o legado); rating: desligado até existir `ratingLadders/TENIS`.
 
 **Fase 4: equipe por tamanho.**
 Piso 1 em `teamSize`, inscrição individual, `participantNoun`, slots de saque por tamanho,

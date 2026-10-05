@@ -27,6 +27,7 @@ import 'athlete_profile_ranking_section.dart';
 import 'athlete_profile_section_header.dart';
 import 'athlete_profile_skeleton.dart';
 import 'match_history/athlete_profile_history_section.dart';
+import '../../../../core/sports/sport_catalog.dart';
 
 const _locationFallback = 'Aparecida de Goiânia · GO';
 
@@ -113,7 +114,7 @@ class AthleteProfileMainView extends StatelessWidget {
         : _locationFallback;
     final sport = profile.sport.trim().isNotEmpty
         ? profile.sport.trim()
-        : 'Vôlei de praia';
+        : kSportUnknownLabel;
     final levelLabel = profile.level.trim().isNotEmpty
         ? profile.level.trim().toUpperCase()
         : 'INICIANTE';

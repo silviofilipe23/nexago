@@ -319,6 +319,7 @@ export {
   migrateAthleteRatingLevelRanks,
 } from "./rating-triggers";
 export {onTournamentMatchCompletedAwardGlobalPoints} from "./tournament-ranking";
+export {backfillRankingsBySport} from "./ranking-by-sport-backfill";
 
 // Initialize Firebase Admin
 initializeApp();

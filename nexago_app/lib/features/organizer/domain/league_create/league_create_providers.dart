@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/league_create_local_store.dart';
 import '../../data/organizer_leagues_repository.dart';
 import '../tournament_create/tournament_create_draft.dart';
+import '../tournament_create/tournament_create_logic.dart' show withSportScoring;
 import 'league_create_draft.dart';
 import 'league_create_logic.dart';
 import 'league_create_session.dart';
@@ -242,8 +243,19 @@ class LeagueCreateWizardNotifier extends Notifier<LeagueCreateWizardState> {
     }
   }
 
-  void setSport(TournamentSport sport) =>
-      _updateDraft(state.draft.copyWith(sport: sport));
+  // O placar das categorias acompanha o esporte (só refaz perfil de outro
+  // tipo; spec multiesporte 2d2b) — as etapas herdam o perfil da categoria.
+  void setSport(TournamentSport sport) => _updateDraft(
+    state.draft.copyWith(
+      sport: sport,
+      categories: withSportScoring(
+        state.draft.categories,
+        sport,
+        // Esporte desconhecido (`sportRaw`) não deu sugestão a ninguém.
+        previousSport: state.draft.sportRaw == null ? state.draft.sport : null,
+      ),
+    ),
+  );
 
   void setName(String value) => _updateDraft(state.draft.copyWith(name: value));
 

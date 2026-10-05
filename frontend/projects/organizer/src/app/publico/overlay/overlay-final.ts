@@ -2,6 +2,7 @@ import { kocFinalTable, normalizeMatchType } from '../../painel/data/koc';
 import { matchClosedSets } from '../../painel/data/live-set-display';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
 import { finalKindOf } from '../../painel/telao/telao-final-mode';
+import { effectiveScoringProfile, isSuperTiebreakSet } from '@nexago/sports';
 
 export type FinalPlacar =
   | {
@@ -74,11 +75,13 @@ function duelo(match: TournamentMatch): FinalResult | null {
 
   const campeaoEhA = match.winnerSide === 1;
   const fechados = matchClosedSets(match);
-  // Vira pra perspectiva do campeão, pra tela nunca precisar saber de que lado ele jogou.
-  const sets = fechados.map((s) => ({
-    campeao: campeaoEhA ? s.a : s.b,
-    vice: campeaoEhA ? s.b : s.a,
-  }));
+  const profile = effectiveScoringProfile(match.scoringProfile, match.bestOf);
+  // Vira pra perspectiva do campeão, pra tela nunca precisar saber de que lado ele jogou. Super
+  // tie-break gravado 1×0 entra com os pontos dele (10-8).
+  const sets = fechados.map((set, i) => {
+    const s = profile.kind === 'sets_games' && set.tb && isSuperTiebreakSet(profile, i) ? set.tb : set;
+    return { campeao: campeaoEhA ? s.a : s.b, vice: campeaoEhA ? s.b : s.a };
+  });
 
   return {
     campeaoTeamId: campeaoEhA ? match.teamAId : match.teamBId,

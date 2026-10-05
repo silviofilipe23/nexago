@@ -1,5 +1,6 @@
 import { defaultSportChipFromProfile } from '@nexago/arena-discovery';
-import { collection, getDocs, type Firestore } from 'firebase/firestore';
+import { tournamentSportToLevelSportCode } from '@nexago/levels';
+import { collection, getDocs, query, where, type Firestore } from 'firebase/firestore';
 import { deriveTeamGender, normalizeRankingGender, teamFormatOf, type RankingParticipant } from './ranking-positions';
 import { chunkedByIds, teamMemberIds } from './teams-repository';
 
@@ -95,24 +96,63 @@ export function teamParticipantOf(
   };
 }
 
+/** Linha do doc por esporte (`{id}_{CODE}`, multiesporte fase 3a): o dono vem do CAMPO. */
+export function bySportRankingRowOf(
+  docId: string,
+  data: Record<string, unknown>,
+  idField: 'athleteId' | 'teamId',
+  sportCode: string,
+): { id: string; totals: RankingTotals } {
+  const suffix = `_${sportCode}`;
+  const id = optionalStr(data[idField]) ?? (docId.endsWith(suffix) ? docId.slice(0, -suffix.length) : docId);
+  return { id, totals: rankingTotalsFromDoc(data) };
+}
+
+/** Ranking de UM esporte: o dado já é do esporte, então o esporte do perfil não recorta —
+ *  todo participante fica com o código do esporte e `rankingEntryOf` compara só gênero/formato. */
+export function inSport(participants: readonly RankingParticipant[], sportCode: string): RankingParticipant[] {
+  return participants.map((p) => ({ ...p, sport: sportCode }));
+}
+
+/** Esporte do ranking do card: código de perfil do torneio; `null` = esporte não reconhecido
+ *  (total somado, como antes); `undefined` = torneio ainda não carregado. */
+export function rankingSportOf(tournament: { sportId: string | null } | null): string | null | undefined {
+  if (!tournament) return undefined;
+  return tournamentSportToLevelSportCode(tournament.sportId);
+}
+
 export interface RankingParticipants {
   athletes: RankingParticipant[];
   teams: RankingParticipant[];
 }
 
-export async function fetchRankingParticipants(db: Firestore, projectId: string): Promise<RankingParticipants> {
+/** `sportCode` (código de perfil) lê `athleteRankingsBySport`/`teamRankingsBySport` daquele
+ *  esporte; `null` lê o ranking somado legado, como antes da fase 3b1. */
+export async function fetchRankingParticipants(db: Firestore, projectId: string, sportCode: string | null): Promise<RankingParticipants> {
   const base = ['artifacts', projectId, 'public', 'data'] as const;
-  const [athleteSnap, teamSnap] = await Promise.all([
-    getDocs(collection(db, ...base, 'athleteRankings')),
-    getDocs(collection(db, ...base, 'teamRankings')),
-  ]);
-  const athleteRows = athleteSnap.docs.map((d) => ({ id: d.id, totals: rankingTotalsFromDoc(d.data()) }));
-  const teamRows = teamSnap.docs.map((d) => ({ id: d.id, totals: rankingTotalsFromDoc(d.data()) }));
+  let athleteRows: { id: string; totals: RankingTotals }[];
+  let teamRows: { id: string; totals: RankingTotals }[];
+  if (sportCode) {
+    const [athleteSnap, teamSnap] = await Promise.all([
+      getDocs(query(collection(db, ...base, 'athleteRankingsBySport'), where('sport', '==', sportCode))),
+      getDocs(query(collection(db, ...base, 'teamRankingsBySport'), where('sport', '==', sportCode))),
+    ]);
+    athleteRows = athleteSnap.docs.map((d) => bySportRankingRowOf(d.id, d.data(), 'athleteId', sportCode));
+    teamRows = teamSnap.docs.map((d) => bySportRankingRowOf(d.id, d.data(), 'teamId', sportCode));
+  } else {
+    const [athleteSnap, teamSnap] = await Promise.all([
+      getDocs(collection(db, ...base, 'athleteRankings')),
+      getDocs(collection(db, ...base, 'teamRankings')),
+    ]);
+    athleteRows = athleteSnap.docs.map((d) => ({ id: d.id, totals: rankingTotalsFromDoc(d.data()) }));
+    teamRows = teamSnap.docs.map((d) => ({ id: d.id, totals: rankingTotalsFromDoc(d.data()) }));
+  }
   const teams = await chunkedByIds(db, [...base, 'teams'], teamRows.map((r) => r.id), rankingTeamFromDoc);
   const memberUids = [...teams.values()].flatMap((t) => teamMemberIds(t));
   const profiles = await chunkedByIds(db, ['public_profiles'], [...athleteRows.map((r) => r.id), ...memberUids], rankingProfileFromDoc);
-  return {
-    athletes: athleteRows.map((r) => athleteParticipantOf(r.id, r.totals, profiles.get(r.id))),
-    teams: teamRows.filter((r) => teams.has(r.id)).map((r) => teamParticipantOf(r.id, r.totals, teams.get(r.id)!, profiles)),
-  };
+  const athletes = athleteRows.map((r) => athleteParticipantOf(r.id, r.totals, profiles.get(r.id)));
+  const teamParticipants = teamRows.filter((r) => teams.has(r.id)).map((r) => teamParticipantOf(r.id, r.totals, teams.get(r.id)!, profiles));
+  return sportCode
+    ? { athletes: inSport(athletes, sportCode), teams: inSport(teamParticipants, sportCode) }
+    : { athletes, teams: teamParticipants };
 }

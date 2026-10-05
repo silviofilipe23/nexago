@@ -17,6 +17,8 @@ import '../../../tournaments/domain/tournament_match_set.dart';
 import 'organizer_match_error.dart';
 import 'widgets/organizer_match_live_table_widgets.dart';
 import '../../presentation/category_ops/widgets/organizer_team_dual_avatars.dart';
+import '../../../../core/sports/sport_catalog.dart' show QuickSetKind, ScoringRules;
+import '../../domain/match_ops/quick_score_rows.dart';
 
 /// I2 — Lançamento rápido de placar.
 class OrganizerMatchQuickScorePage extends ConsumerStatefulWidget {
@@ -55,12 +57,20 @@ class _OrganizerMatchQuickScorePageState
     _initialized = true;
   }
 
-  void _updateSet(int index, {int? a, int? b}) {
+  void _updateSet(int index, {int? a, int? b, int? tbA, int? tbB}) {
     setState(() {
       final current = _sets[index];
+      // Tie-break (ou super tie-break) do set de games — ver `quick_score_rows.dart`.
+      final tb = tbA != null || tbB != null
+          ? (
+              a: (tbA ?? current.tb?.a ?? 0).clamp(0, 99),
+              b: (tbB ?? current.tb?.b ?? 0).clamp(0, 99),
+            )
+          : current.tb;
       _sets[index] = TournamentMatchSet(
         a: (a ?? current.a).clamp(0, 99),
         b: (b ?? current.b).clamp(0, 99),
+        tb: tb,
       );
     });
   }
@@ -146,12 +156,14 @@ class _OrganizerMatchQuickScorePageState
   Future<void> _save(TournamentMatch match) async {
     // Pré-validação local para feedback rápido; a validação autoritativa
     // (placar legal + cálculo do vencedor pelas regras) ocorre no servidor.
+    final profile = quickScoreProfile(match.scoringProfile, _bestOf);
     final validation = MatchScoringLogic.validateQuickScoreSubmission(
-      sets: _sets,
+      sets: quickScoreNormalized(profile, _sets),
       bestOf: _bestOf,
       teamAId: match.teamAId,
       teamBId: match.teamBId,
       requireMatchWinner: true,
+      profile: match.scoringProfile,
     );
     if (!validation.isValid) {
       showAppSnackBar(
@@ -164,7 +176,7 @@ class _OrganizerMatchQuickScorePageState
     try {
       await ref.read(organizerMatchScheduleServiceProvider).submitMatchResult(
             matchId: widget.matchId,
-            sets: _sets.map((s) => {'a': s.a, 'b': s.b}).toList(),
+            sets: quickScorePayload(profile, _sets),
             bestOf: _bestOf,
           );
       // Avanço de chave + ranking são propagados pelo trigger
@@ -294,15 +306,17 @@ class _OrganizerMatchQuickScorePageState
             enrichedTeam: enriched?.teamB,
           );
 
-          final wins = MatchScoringLogic.setsWon(_sets, bestOf: _bestOf);
+          final profile = quickScoreProfile(match.scoringProfile, _bestOf);
+          final rows = quickScoreRows(profile, _sets);
+          final wins = quickScoreWins(profile, _sets);
           final setsWonA = wins.a;
           final setsWonB = wins.b;
-          final winnerId = MatchScoringLogic.matchWinnerId(
-            sets: _sets,
-            teamAId: match.teamAId,
-            teamBId: match.teamBId,
-            bestOf: _bestOf,
-          );
+          final winnerSide = quickScoreWinnerSide(profile, _sets);
+          final winnerId = winnerSide == 'A'
+              ? match.teamAId
+              : winnerSide == 'B'
+                  ? match.teamBId
+                  : null;
           final winnerLabel = winnerId == match.teamAId
               ? teamA.label
               : winnerId == match.teamBId
@@ -358,8 +372,7 @@ class _OrganizerMatchQuickScorePageState
                     const SizedBox(height: 24),
                     _SectionHeader(
                       title: 'GAMES POR SET',
-                      trailing: 'set até ${MatchScoringLogic.defaultSetPoints}'
-                          ' · decisivo até ${MatchScoringLogic.tiebreakSetPoints}',
+                      trailing: ScoringRules.rulesLabel(profile),
                     ),
                     const SizedBox(height: 12),
                     _FormatRow(
@@ -368,12 +381,36 @@ class _OrganizerMatchQuickScorePageState
                     ),
                     const SizedBox(height: 12),
                     for (var i = 0; i < _sets.length; i++) ...[
-                      _SetInputRow(
-                        index: i,
-                        set: _sets[i],
-                        onChangeA: (v) => _updateSet(i, a: v),
-                        onChangeB: (v) => _updateSet(i, b: v),
-                      ),
+                      if (rows[i].kind == QuickSetKind.superTiebreak)
+                        _SetInputRow(
+                          index: i,
+                          label: 'SET ${i + 1} · SUPER TIE-BREAK',
+                          set: TournamentMatchSet(
+                            a: _sets[i].tb?.a ?? 0,
+                            b: _sets[i].tb?.b ?? 0,
+                          ),
+                          onChangeA: (v) => _updateSet(i, tbA: v),
+                          onChangeB: (v) => _updateSet(i, tbB: v),
+                        )
+                      else ...[
+                        _SetInputRow(
+                          index: i,
+                          set: _sets[i],
+                          onChangeA: (v) => _updateSet(i, a: v),
+                          onChangeB: (v) => _updateSet(i, b: v),
+                        ),
+                        if (rows[i].kind == QuickSetKind.gamesTiebreak)
+                          _SetInputRow(
+                            index: i,
+                            label: 'TIE-BREAK',
+                            set: TournamentMatchSet(
+                              a: _sets[i].tb?.a ?? 0,
+                              b: _sets[i].tb?.b ?? 0,
+                            ),
+                            onChangeA: (v) => _updateSet(i, tbA: v),
+                            onChangeB: (v) => _updateSet(i, tbB: v),
+                          ),
+                      ],
                       if (i < _sets.length - 1)
                         Divider(
                           height: 1,
@@ -743,9 +780,13 @@ class _SetInputRow extends StatelessWidget {
     required this.set,
     required this.onChangeA,
     required this.onChangeB,
+    this.label,
   });
 
   final int index;
+
+  /// Rótulo da linha; padrão `SET n` (tie-break e super tie-break usam outro).
+  final String? label;
   final TournamentMatchSet set;
   final ValueChanged<int> onChangeA;
   final ValueChanged<int> onChangeB;
@@ -760,7 +801,7 @@ class _SetInputRow extends StatelessWidget {
       child: Row(
         children: [
           Text(
-            'SET ${index + 1}',
+            label ?? 'SET ${index + 1}',
             style: AppTypography.mono(
               fontSize: 10,
               fontWeight: FontWeight.w800,

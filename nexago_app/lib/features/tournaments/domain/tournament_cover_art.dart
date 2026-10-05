@@ -1,33 +1,24 @@
-/// Capa padrão do torneio quando o organizador não subiu nenhuma, indexada
-/// pelo esporte gravado em `tournaments/{id}.sport`.
+import '../../../core/sports/sport_catalog.dart';
+
+/// Capa padrão do torneio quando o organizador não subiu nenhuma, pela arte
+/// do esporte no catálogo (`sports/catalog.json`, campo `art`).
 ///
-/// A chave é o código camelCase do `TournamentSport` — o MESMO que o wizard do
-/// app e o do portal gravam. Não confundir com o `SportArtCatalog` do perfil do
-/// atleta, que indexa por `VOLEI_PRAIA`/`BEACH_TENNIS`: são vocabulários
-/// diferentes sobre as mesmas artes, e casar um pelo outro devolve nulo mudo.
+/// Aceita qualquer grafia que o catálogo conheça (`beachVolleyball`,
+/// `beach_tennis`, `VOLEI_PRAIA`). O codegen recusa arte sem o arquivo em
+/// `assets/images/sports/`, então o caminho sempre existe.
 ///
-/// `beachTennis` não está no enum do wizard, mas aparece em torneios legados e
-/// no tipo do site — tem arte porque custa zero e o app já carrega o asset.
-///
-/// Esporte fora do mapa devolve nulo de propósito: quem consome cai no
-/// gradiente, que segue sendo o último recurso.
+/// Esporte sem arte (ou desconhecido) devolve nulo de propósito: quem consome
+/// cai no gradiente, que segue sendo o último recurso.
 abstract final class TournamentCoverArt {
   TournamentCoverArt._();
 
-  static const Map<String, String> _bySport = {
-    'beachvolleyball': 'assets/images/sports/volei_praia.webp',
-    'indoorvolleyball': 'assets/images/sports/volei_quadra.webp',
-    'footvolley': 'assets/images/sports/futevolei.webp',
-    'beachtennis': 'assets/images/sports/beach_tennis.webp',
-  };
-
   /// Caminho da arte, ou nulo quando o esporte não tem uma.
   static String? assetFor(String? sport) {
-    final code = sport?.trim().toLowerCase();
-    if (code == null || code.isEmpty) return null;
-    return _bySport[code];
+    final art = SportCatalog.artOf(sport);
+    return art == null ? null : 'assets/images/sports/$art.webp';
   }
 
   /// Esportes que hoje têm arte — usado em teste para travar o catálogo.
-  static Iterable<String> get sportsWithArt => _bySport.keys;
+  static Iterable<String> get sportsWithArt =>
+      kSportCatalog.where((e) => e.art != null).map((e) => e.code);
 }

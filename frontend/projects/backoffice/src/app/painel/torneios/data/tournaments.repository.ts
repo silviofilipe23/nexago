@@ -12,6 +12,7 @@ import {
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
+import { sportLabel as catalogSportLabel } from '@nexago/sports';
 import { backofficeDb } from '../../data/firebase';
 
 /** `encerradas`: inscrições fechadas (`closed`) e o evento ainda não começou — ver `statusFrom`. */
@@ -38,13 +39,6 @@ export interface TournamentPage {
 }
 
 const PAGE_SIZE = 40;
-
-const SPORT_LABEL: Record<string, string> = {
-  beachtennis: 'Beach tennis',
-  beachvolleyball: 'Vôlei de praia',
-  footvolley: 'Futevôlei',
-  futevolei: 'Futevôlei',
-};
 
 function str(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
@@ -87,11 +81,9 @@ function startOfDay(d: Date): number {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
-function sportLabel(raw: string | null): string | null {
-  if (!raw) {
-    return null;
-  }
-  return SPORT_LABEL[raw.toLowerCase().replace(/[^a-z]/g, '')] ?? raw;
+/** Rótulo do esporte pelo catálogo (`@nexago/sports`); ausente → `null`. */
+export function sportLabel(raw: string | null): string | null {
+  return catalogSportLabel(raw);
 }
 
 function toRow(doc: QueryDocumentSnapshot<DocumentData>): TournamentRow {

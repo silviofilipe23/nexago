@@ -28,7 +28,7 @@ import { NxSpinnerComponent } from '../shared/loading/nx-spinner.component';
 import { SandRankCardComponent } from './sand-rank-card.component';
 import { ACHIEVEMENT_CATALOG, buildAchievementViewModels } from './achievement-catalog';
 import { AthleteGamificationService } from './athlete-gamification.service';
-import { buildPublicProfileId, buildSportLevels, initialsOf, joinCityState, nameFromEmail, slugify, type SportLevelEntry } from './profile-format';
+import { buildPublicProfileId, buildSportLevels, initialsOf, joinCityState, nameFromEmail, primarySportLabel, slugify, type SportLevelEntry } from './profile-format';
 import { athleteFunctions } from '../data/functions';
 import {
   registerReferral,
@@ -249,6 +249,7 @@ export class AthleteProfileSettingsComponent {
     () => joinCityState(this.profileState().city, this.profileState().state) || 'Cidade não informada',
   );
   protected readonly primarySportLevel = computed<SportLevelEntry | null>(() => this.sportLevels()[0] ?? null);
+  protected readonly primarySportName = computed(() => primarySportLabel(this.sportLevels()));
   protected readonly otherSportLevels = computed(() => this.sportLevels().slice(1));
   protected readonly profileBio = computed(
     () => this.profileState().bio || 'Conte um pouco sobre seu jogo editando o perfil.',

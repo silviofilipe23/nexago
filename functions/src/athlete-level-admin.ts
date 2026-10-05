@@ -38,9 +38,8 @@ import {
 import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {
-  RATED_SPORT_CODES,
   RatingLadderConfig,
-  loadRatingLadderConfig,
+  loadRatedSportConfig,
   resolveLadderLevel,
 } from "./rating-config";
 import {athleteRatingDocId, athleteRatingsPath} from "./rating-engine";
@@ -530,12 +529,12 @@ export const getAthleteLevelState = onCall({
   return {
     uid,
     primarySportId,
-    sports: declared.map((sportCode) => ({
+    sports: await Promise.all(declared.map(async (sportCode) => ({
       sportCode,
       level: bySport[sportCode] ?? null,
       label: levelDisplayLabel(bySport[sportCode]),
-      rated: (RATED_SPORT_CODES as readonly string[]).includes(sportCode),
-    })),
+      rated: (await loadRatedSportConfig(db, sportCode)) != null,
+    }))),
     history: historySnap.docs.map((doc) => {
       const entry = doc.data();
       const createdAt = entry["createdAt"];
@@ -658,8 +657,8 @@ export const setAthleteLevel = onCall({
   }
 
   // Esporte fora da escada não tem doc de rating para realinhar.
-  const rated = (RATED_SPORT_CODES as readonly string[]).includes(sportCode);
-  const config = rated ? await loadRatingLadderConfig(db, sportCode) : null;
+  const config = await loadRatedSportConfig(db, sportCode);
+  const rated = config != null;
   const ratingRef = db
     .collection(athleteRatingsPath(getFirebaseProjectId()))
     .doc(athleteRatingDocId(uid, sportCode));

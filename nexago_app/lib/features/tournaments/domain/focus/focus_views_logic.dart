@@ -313,7 +313,13 @@ String? liveScoreLineOf(TournamentMatch m) {
       setsB++;
     }
   }
-  return '$setsA–$setsB · ${current.setNumber}º set ${current.a}-${current.b}';
+  final game = current.game;
+  if (game != null && current.superTiebreak) {
+    return '$setsA–$setsB · super tie-break ${game.a}-${game.b}';
+  }
+  final line =
+      '$setsA–$setsB · ${current.setNumber}º set ${current.a}-${current.b}';
+  return game == null ? line : '$line · ${game.a}-${game.b}';
 }
 
 /// "Sua próxima partida · Grupo A · Rodada 2".

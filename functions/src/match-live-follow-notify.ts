@@ -28,6 +28,19 @@ import {
 } from "./firebase-paths";
 import {coerceNotificationData} from "./notification-delivery";
 import {
+  effectiveScoringProfile,
+  isSuperTiebreakSet,
+  setsWonBy,
+  type SetsGamesProfile,
+} from "./sports/scoring";
+import {
+  gamesFlag,
+  gamesPointLabels,
+  isTiebreakInProgress,
+  type GamePoints,
+  type GamesLiveState,
+} from "./sports/live-games";
+import {
   isDuelMatch,
   isMatchCanceled,
   isMatchCompleted,
@@ -59,6 +72,10 @@ export interface LiveMatchSnapshot {
   liveScore: LiveScoreFields | null;
   currentSetIndex: number | null;
   bestOf: number | null;
+  /** Perfil carimbado na partida (cru do doc); ausente = regra histórica de pontos. */
+  scoringProfile?: unknown;
+  /** Partida de games: pontos do game em andamento gravados pela mesa. */
+  currentGame?: GamePoints | null;
 }
 
 export interface NotifySidecar {
@@ -92,6 +109,48 @@ interface NormalizedScore {
   currentB: number;
   setIndex: number;
   bestOf: number;
+  /** Partida de games (spec multiesporte, 2c3b): perfil e estado da mesa. `null` em pontos. */
+  games: {
+    profile: SetsGamesProfile;
+    state: GamesLiveState;
+    labels: {a: string; b: string};
+    tiebreak: boolean;
+    superTiebreak: boolean;
+    /** O doc tem o ponto do game (`currentGame`, gravado pela mesa). Sem ele (lançamento
+     *  rápido, `liveScore` agregado) não há ponto de game para mostrar nem prever. */
+    hasGamePoints: boolean;
+  } | null;
+}
+
+/** Estado de games da mesa a partir do snapshot, ou `null` em partida de pontos. */
+function gamesOf(
+  snapshot: LiveMatchSnapshot,
+  setIndex: number,
+  liveGames: {a: number; b: number} | null = null,
+): NormalizedScore["games"] {
+  const profile = effectiveScoringProfile(snapshot.scoringProfile, snapshot.bestOf);
+  if (profile.kind !== "sets_games") return null;
+  const raw = Array.isArray(snapshot.sets) ? snapshot.sets : [];
+  // Placar agregado (sem `sets[]`): o set corrente vem de `liveScore.currentGames*`, pra o
+  // tie-break em 6-6 ser reconhecido.
+  const sets = raw.length === 0 && liveGames ?
+    [...Array.from({length: setIndex}, () => ({a: 0, b: 0})), liveGames] :
+    [...raw];
+  const state: GamesLiveState = {
+    sets,
+    currentSetIndex: setIndex,
+    currentGame: snapshot.currentGame ?? {a: 0, b: 0},
+    servingTeamId: "",
+  };
+  const idx = Math.min(Math.max(setIndex, 0), profile.bestOf - 1);
+  return {
+    profile,
+    state,
+    labels: gamesPointLabels(state, profile),
+    tiebreak: isTiebreakInProgress(state, profile),
+    superTiebreak: isSuperTiebreakSet(profile, idx),
+    hasGamePoints: snapshot.currentGame != null,
+  };
 }
 
 /** Mesma regra de `organizer-match-ops.ts`: só 1 ou 3 são formatos válidos. */
@@ -122,8 +181,16 @@ function normalize(snapshot: LiveMatchSnapshot): NormalizedScore {
       Math.trunc(rawIndex) :
       Math.max(0, sets.length - 1);
 
+  const live = snapshot.liveScore;
+  const games = gamesOf(
+    snapshot,
+    setIndex,
+    live ? {a: intOf(live.currentGamesA), b: intOf(live.currentGamesB)} : null,
+  );
+
   if (sets.length > 0) {
-    const wins = setsWon(sets, bestOf);
+    // Games: sets vencidos pela regra do perfil (6-4 fecha; 5-4 não). Pontos: como sempre.
+    const wins = games ? setsWonBy(sets, games.profile) : setsWon(sets, bestOf);
     const current = sets[setIndex] ?? {a: 0, b: 0};
     return {
       wonA: wins.a,
@@ -132,10 +199,10 @@ function normalize(snapshot: LiveMatchSnapshot): NormalizedScore {
       currentB: intOf(current.b),
       setIndex,
       bestOf,
+      games,
     };
   }
 
-  const live = snapshot.liveScore;
   if (live) {
     return {
       wonA: intOf(live.setsA),
@@ -144,10 +211,11 @@ function normalize(snapshot: LiveMatchSnapshot): NormalizedScore {
       currentB: intOf(live.currentGamesB),
       setIndex,
       bestOf,
+      games,
     };
   }
 
-  return {wonA: 0, wonB: 0, currentA: 0, currentB: 0, setIndex, bestOf};
+  return {wonA: 0, wonB: 0, currentA: 0, currentB: 0, setIndex, bestOf, games};
 }
 
 /**
@@ -159,11 +227,26 @@ function normalize(snapshot: LiveMatchSnapshot): NormalizedScore {
 export function liveScoreSignature(snapshot: LiveMatchSnapshot): string {
   const s = normalize(snapshot);
   const status = String(snapshot.status ?? "").trim().toLowerCase();
-  return [status, s.wonA, s.wonB, s.currentA, s.currentB, s.setIndex].join("|");
+  const base = [status, s.wonA, s.wonB, s.currentA, s.currentB, s.setIndex];
+  // Games: o placar do set só muda no fim do game — o ponto do game entra na assinatura (só
+  // em games; a de pontos fica igual, o sidecar guarda assinaturas antigas).
+  if (s.games) base.push(s.games.state.currentGame.a, s.games.state.currentGame.b);
+  return base.join("|");
 }
 
 /** Quem fecha o set no próximo ponto, e se esse set também fecha a partida. */
 function pointAlertOf(s: NormalizedScore): PointAlert | null {
+  if (s.games) {
+    // Games: o próximo PONTO fecha o set só se fecha o game decisivo (ou o tie-break). Sem o
+    // ponto do game no doc não há como prever.
+    if (!s.games.hasGamePoints) return null;
+    const teams = {teamAId: "A", teamBId: "B"};
+    for (const side of ["A", "B"] as const) {
+      const flag = gamesFlag(s.games.state, s.games.profile, teams, side);
+      if (flag) return {side, closesMatch: flag === "match"};
+    }
+    return null;
+  }
   const target = targetPointsForSet(s.setIndex, s.bestOf);
   const neededSets = Math.ceil(s.bestOf / 2);
 
@@ -323,10 +406,21 @@ export interface MatchLiveContext {
   pointAlert: PointAlert | null;
 }
 
-function statusLabelFor(kind: LiveUpdateKind | null, setIndex: number): string {
+function statusLabelFor(kind: LiveUpdateKind | null, score: NormalizedScore): string {
   if (kind === "end") return "Encerrada";
   if (kind === "dismiss") return "Cancelada";
-  return `Set ${setIndex + 1}`;
+  if (score.games?.superTiebreak && score.games.tiebreak) return "Super tie-break";
+  if (score.games?.tiebreak) return "Tie-break";
+  return `Set ${score.setIndex + 1}`;
+}
+
+/** "20 x 15"; em games "5 x 4 · 40-15" e, no super tie-break, os pontos dele ("9 x 8"). */
+function scoreLineOf(score: NormalizedScore): string {
+  const g = score.games;
+  if (!g || !g.hasGamePoints) return `${score.currentA} x ${score.currentB}`;
+  const game = g.state.currentGame;
+  if (g.superTiebreak && g.tiebreak) return `${game.a} x ${game.b}`;
+  return `${score.currentA} x ${score.currentB} · ${g.labels.a}-${g.labels.b}`;
 }
 
 /**
@@ -352,9 +446,9 @@ export function buildMatchLiveContext(params: {
     teamALabel: params.teamALabel,
     teamBLabel: params.teamBLabel,
     courtName: params.courtName,
-    scoreLine: `${score.currentA} x ${score.currentB}`,
+    scoreLine: scoreLineOf(score),
     setsLine: `${score.wonA} x ${score.wonB}`,
-    statusLabel: statusLabelFor(params.decision.kind, score.setIndex),
+    statusLabel: statusLabelFor(params.decision.kind, score),
     updatedAtMs: params.updatedAtMs,
     pointAlert: params.decision.pointAlert,
   };
@@ -474,9 +568,16 @@ function setsFromRaw(raw: unknown): ScoreSet[] {
   for (const entry of raw) {
     if (!entry || typeof entry !== "object") continue;
     const obj = entry as Record<string, unknown>;
-    out.push({a: intOf(obj.a), b: intOf(obj.b)});
+    const tb = obj.tb && typeof obj.tb === "object" ? obj.tb as Record<string, unknown> : null;
+    out.push(tb ? {a: intOf(obj.a), b: intOf(obj.b), tb: {a: intOf(tb.a), b: intOf(tb.b)}} : {a: intOf(obj.a), b: intOf(obj.b)});
   }
   return out;
+}
+
+function gamePointsFromRaw(raw: unknown): GamePoints | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  return {a: intOf(obj.a), b: intOf(obj.b)};
 }
 
 function liveScoreFromRaw(raw: unknown): LiveScoreFields | null {
@@ -502,6 +603,8 @@ export function snapshotFromMatchData(
     liveScore: liveScoreFromRaw(d.liveScore),
     currentSetIndex: typeof rawIndex === "number" ? Math.trunc(rawIndex) : null,
     bestOf: typeof d.bestOf === "number" ? d.bestOf : null,
+    scoringProfile: d.scoringProfile,
+    currentGame: gamePointsFromRaw(d.currentGame),
   };
 }
 

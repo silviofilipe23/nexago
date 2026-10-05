@@ -92,8 +92,8 @@ export function hasUsedMedicalTimeout(usedKeys: readonly string[], side: MatchSi
  *  atendimento em andamento. */
 export function canRequestMedicalTimeout(params: { usedKeys: readonly string[]; active: MedicalTimeout | null; side: MatchSide; slot: ServingPlayerSlot }): boolean {
   if (params.active != null) return false;
-  if (params.slot !== 1 && params.slot !== 2) return false;
-  return !hasUsedMedicalTimeout(params.usedKeys, params.side, params.slot);
+  if (!Number.isInteger(params.slot) || params.slot < 1 || params.slot > 5) return false;
+  return !hasUsedMedicalTimeout(params.usedKeys, params.side, params.slot as MedicalTimeoutSlot);
 }
 
 /** "04:37" — a contagem do overlay. */

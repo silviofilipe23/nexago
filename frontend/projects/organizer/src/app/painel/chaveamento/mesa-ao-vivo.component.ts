@@ -35,6 +35,8 @@ import {
   type MatchSide,
   type MedicalTimeoutSlot,
   type RosterSizes,
+  rosterSizeFromMemberUids,
+  swappedServingPlayerSlots,
   withRosterSizes,
 } from '@nexago/live-scoring';
 import {
@@ -381,7 +383,7 @@ export function mesaGamesView(m: LiveMatch): MesaGamesView | null {
                 <!-- "Voltar ponto" mora na faixa sticky do placar — aqui só as
                      ações secundárias, pra não competir com o alvo do toque. -->
                 <button type="button" class="og-mini-btn" [disabled]="saving()" (click)="swapServe()">Saque dupla</button>
-                <button type="button" class="og-mini-btn" [disabled]="saving() || servingPlayerSlot() === 0" (click)="swapServingPlayer()">Saque atleta</button>
+                <button type="button" class="og-mini-btn" [disabled]="saving() || servingPlayerSlot() === 0 || servingRosterIsIndividual()" (click)="swapServingPlayer()">Saque atleta</button>
                 <button type="button" class="og-mini-btn og-mesa-medical" [disabled]="saving() || !canOpenMedical()" (click)="openMedicalPicker()">Tempo médico</button>
                 <button type="button" class="og-mini-btn og-mesa-revert" [disabled]="saving()" (click)="askRevert()">Tirar do ao vivo</button>
                 <div class="og-filter-bar og-mesa-format">
@@ -1266,13 +1268,13 @@ export class MesaAoVivoComponent {
   /** Nomes do elenco por equipe, na ordem de posição (1 = titular / player1). O tamanho da
    *  lista é o elenco: 1 individual, 2 dupla, 3–5 equipe (multiesporte fase 4b2). */
   private readonly playersByTeam = signal<ReadonlyMap<string, readonly string[]>>(new Map());
+  /** Elenco por equipe pelo `memberUids` GRAVADO (`rosterSizeFromMemberUids`): a dupla
+   *  procurando parceiro (mesmo uid duas vezes) segue dupla, não vira individual. */
+  private readonly rosterByTeam = signal<ReadonlyMap<string, number>>(new Map());
   /** Atletas por lado — o que faz saque e tempo médico seguirem o elenco, não a regra da dupla. */
   protected readonly rosterSizes = computed<RosterSizes>(() => {
     const m = this.match();
-    const sizeOf = (teamId: string | undefined) => {
-      const n = teamId ? this.playersByTeam().get(teamId)?.length : undefined;
-      return n != null && n >= 1 && n <= 5 ? n : 2;
-    };
+    const sizeOf = (teamId: string | undefined) => (teamId ? this.rosterByTeam().get(teamId) : undefined) ?? 2;
     return { A: sizeOf(m?.teamAId), B: sizeOf(m?.teamBId) };
   });
   private readonly hydratedTeams = new Set<string>();
@@ -1416,10 +1418,12 @@ export class MesaAoVivoComponent {
       const names = await fetchProfileNames(db, [...teams.values()].flatMap((t) => teamMemberIds(t)));
       this.playersByTeam.update((current) => {
         const next = new Map(current);
-        for (const [teamId, team] of teams) {
-          const members = teamMemberIds(team);
-          next.set(teamId, (members.length > 0 ? members : [team.player1Id, team.player2Id]).map((uid) => names.get(uid) ?? ''));
-        }
+        for (const [teamId, team] of teams) next.set(teamId, teamMemberIds(team).map((uid) => names.get(uid) ?? ''));
+        return next;
+      });
+      this.rosterByTeam.update((current) => {
+        const next = new Map(current);
+        for (const [teamId, team] of teams) next.set(teamId, rosterSizeFromMemberUids(team.memberUids));
         return next;
       });
     } catch {
@@ -1440,6 +1444,11 @@ export class MesaAoVivoComponent {
   }
 
   protected readonly servingPlayerSlot = computed(() => this.match()?.servingPlayerSlot ?? 0);
+  /** Individual no saque: não há outro atleta para trocar. */
+  protected readonly servingRosterIsIndividual = computed(() => {
+    const side = this.servingSide();
+    return side != null && this.rosterSizes()[side] === 1;
+  });
 
   /** "SAQUE" ou "SAQUE · BRUNO" — primeiro nome só, pra caber no selo do painel. */
   protected readonly serveBadge = computed(() => {
@@ -1668,7 +1677,7 @@ export class MesaAoVivoComponent {
     try {
       const written = await recordPointTransaction(this.scoring, {
         matchId: m.id,
-        build: (fresh) => buildUndoWrite(fresh, side, last.setIndex, last.prev, last),
+        build: (fresh) => buildUndoWrite(withRosterSizes(fresh, this.rosterSizes()), side, last.setIndex, last.prev, last),
       });
       if (!written) this.feedback.set({ ok: false, message: GAMES_UNDO_BLOCKED_MESSAGE });
     } catch (e) {
@@ -1732,9 +1741,19 @@ export class MesaAoVivoComponent {
   /** Troca o sacador DENTRO da dupla no saque — o conserto de mão pro caso em que o rodízio
    *  saiu do lugar (um desfazer que caiu numa virada de saque, por exemplo). */
   protected async swapServingPlayer(): Promise<void> {
-    const slot = this.servingPlayerSlot();
-    if (slot !== 1 && slot !== 2) return;
-    await this.chooseServingPlayer(slot === 1 ? 2 : 1);
+    // Mesma regra do elenco que o ponto usa: dupla alterna, equipe roda, individual não troca.
+    const m = this.match();
+    const side = this.servingSide();
+    if (!m || side == null || this.servingPlayerSlot() === 0 || this.rosterSizes()[side] === 1) return;
+    const next = swappedServingPlayerSlots({
+      slots: m.servingPlayerSlots,
+      servingTeamId: m.servingTeamId,
+      teamAId: m.teamAId,
+      teamBId: m.teamBId,
+      rosterSizes: this.rosterSizes(),
+    })[side];
+    if (next === 0) return;
+    await this.chooseServingPlayer(next as MedicalTimeoutSlot);
   }
 
   protected openMedicalPicker(): void {

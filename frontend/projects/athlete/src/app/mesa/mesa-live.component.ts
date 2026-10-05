@@ -1835,7 +1835,7 @@ export class MesaLiveComponent {
     try {
       const written = await this.gateway.recordPoint({
         matchId: m.id,
-        build: (fresh) => buildUndoWrite(fresh, side, last.setIndex, last.prev, last),
+        build: (fresh) => buildUndoWrite(withRosterSizes(fresh, this.rosterSizes()), side, last.setIndex, last.prev, last),
       });
       if (!written) this.feedback.set({ ok: false, message: GAMES_UNDO_BLOCKED_MESSAGE });
     } catch (e) {

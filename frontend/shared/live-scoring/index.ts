@@ -40,12 +40,14 @@ export {
   DUPLA_ROSTER_SIZES,
   NO_SERVING_PLAYER_SLOTS,
   needsServingPlayer,
+  rosterSizeFromMemberUids,
   servingPlayerSlotOf,
   servingPlayerSlotsAfterScore,
   servingPlayerSlotsAfterUndo,
   servingPlayerSlotsFromRaw,
   sideOfTeam,
   swappedServingPlayerSlots,
+  withIndividualSlots,
   withServingPlayerSlot,
 } from './serving-player';
 

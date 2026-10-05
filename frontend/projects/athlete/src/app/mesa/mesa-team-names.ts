@@ -1,3 +1,4 @@
+import { rosterSizeFromMemberUids } from '@nexago/live-scoring';
 import type { Firestore } from 'firebase/firestore';
 import { fetchPublicProfilesByIds, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { fetchTeamsByIds, teamMemberIds, type ArenaTeam } from '../data/teams-repository';
@@ -39,9 +40,9 @@ export function playerNameOf(names: MesaTeamNames, teamId: string, slot: number)
   return name || `Atleta ${slot}`;
 }
 
-/** Atletas do elenco (1 individual, 2 dupla, 3–5 equipe). Sem o time carregado ainda, dupla. */
+/** Atletas do elenco (1 individual, 2 dupla, 3–5 equipe) pelo `memberUids` gravado — a dupla
+ *  procurando parceiro segue dupla. Sem o time carregado ainda, dupla. */
 export function rosterSizeOf(names: MesaTeamNames, teamId: string): number {
   const team = teamId ? names.teams.get(teamId) : undefined;
-  const n = team ? teamMemberIds(team).length : 0;
-  return n >= 1 && n <= 5 ? n : 2;
+  return rosterSizeFromMemberUids(team?.memberUids);
 }

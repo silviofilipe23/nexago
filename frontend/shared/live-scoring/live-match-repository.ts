@@ -25,6 +25,7 @@ import {
   servingPlayerSlotsAfterScore,
   servingPlayerSlotsAfterUndo,
   servingPlayerSlotsFromRaw,
+  withIndividualSlots,
   type MatchSide,
   type RosterSizes,
   type ServingPlayerSlot,
@@ -261,14 +262,14 @@ export function buildPointWrite(m: LiveMatch, side: 'A' | 'B'): PointWrite | nul
   const result = applyPoint({ sets: m.sets, currentSetIndex: m.currentSetIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf });
   const wins = setsWon(result.sets, m.bestOf);
   const current = result.sets[setIndex] ?? null;
-  const slots = servingPlayerSlotsAfterScore({
+  const slots = withIndividualSlots(servingPlayerSlotsAfterScore({
     rosterSizes: m.rosterSizes,
     slots: m.servingPlayerSlots,
     previousServingTeamId: m.servingTeamId,
     nextServingTeamId: result.servingTeamId,
     teamAId: m.teamAId,
     teamBId: m.teamBId,
-  });
+  }), m.rosterSizes);
 
   return {
     matchUpdate: {
@@ -320,7 +321,7 @@ export function buildUndoWrite(
   const result = undoPoint({ sets: m.sets, currentSetIndex: setIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf });
   const wins = setsWon(result.sets, m.bestOf);
   const current = result.sets[result.currentSetIndex] ?? null;
-  const slots = servingPlayerSlotsAfterUndo({ slots: m.servingPlayerSlots, nextServingTeamId: result.servingTeamId });
+  const slots = withIndividualSlots(servingPlayerSlotsAfterUndo({ slots: m.servingPlayerSlots, nextServingTeamId: result.servingTeamId }), m.rosterSizes);
 
   return {
     matchUpdate: {
@@ -380,14 +381,14 @@ function buildGamesPointWrite(m: LiveMatch, side: 'A' | 'B', profile: SetsGamesP
   const winnerId = r.winnerSide === 'A' ? m.teamAId : r.winnerSide === 'B' ? m.teamBId : null;
   const wins = setsWonBy(sets, profile);
   const landed = sets[setIndex] ?? { a: 0, b: 0 };
-  const slots = servingPlayerSlotsAfterScore({
+  const slots = withIndividualSlots(servingPlayerSlotsAfterScore({
     rosterSizes: m.rosterSizes,
     slots: m.servingPlayerSlots,
     previousServingTeamId: m.servingTeamId,
     nextServingTeamId: r.servingTeamId,
     teamAId: m.teamAId,
     teamBId: m.teamBId,
-  });
+  }), m.rosterSizes);
   return {
     matchUpdate: {
       sets: sets.map(liveSetToMap),
@@ -451,9 +452,12 @@ function buildGamesUndoWrite(m: LiveMatch, side: 'A' | 'B', prev: Record<string,
  *  Não mexe na ordem declarada de cada dupla — só reaponta quem está sacando agora, que é o
  *  atleta que aquela dupla já tinha na vez. */
 export function servingTeamFields(m: LiveMatch, teamId: string): Record<string, unknown> {
+  // Individual: grava o titular na ordem do lado, para as mesas que não sabem o elenco.
+  const slots = withIndividualSlots(m.servingPlayerSlots, m.rosterSizes);
   return {
+    ...(slots.A !== m.servingPlayerSlots.A || slots.B !== m.servingPlayerSlots.B ? { servingPlayerSlots: slots } : {}),
     servingTeamId: teamId,
-    servingPlayerSlot: servingPlayerSlotOf({ slots: m.servingPlayerSlots, servingTeamId: teamId, teamAId: m.teamAId, teamBId: m.teamBId, rosterSizes: m.rosterSizes }),
+    servingPlayerSlot: servingPlayerSlotOf({ slots, servingTeamId: teamId, teamAId: m.teamAId, teamBId: m.teamBId, rosterSizes: m.rosterSizes }),
   };
 }
 

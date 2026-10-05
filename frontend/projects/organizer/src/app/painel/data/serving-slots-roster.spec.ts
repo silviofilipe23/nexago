@@ -1,8 +1,11 @@
 import {
+  buildMedicalTimeoutStartWrite,
   buildPointWrite,
+  servingTeamFields,
   liveMatchFromDoc,
   medicalTimeoutFromRaw,
   medicalTimeoutPlayerKeysFromRaw,
+  rosterSizeFromMemberUids,
   needsServingPlayer,
   servingPlayerSlotOf,
   servingPlayerSlotsAfterScore,
@@ -44,5 +47,32 @@ describe('slots de saque e tempo médico por elenco', () => {
     expect(medicalTimeoutPlayerKeysFromRaw(['A1', 'B3', 'A5', 'B6', 'C1'])).toEqual(['A1', 'B3', 'A5']);
     expect(medicalTimeoutFromRaw({ side: 'B', playerSlot: 4, teamId: 'tB' })?.playerSlot).toBe(4);
     expect(medicalTimeoutFromRaw({ side: 'B', playerSlot: 6, teamId: 'tB' })).toBeNull();
+  });
+
+  it('tempo médico do 3º atleta de uma equipe grava (não só 1 e 2)', () => {
+    const m = withRosterSizes(liveMatchFromDoc('m1', {
+      tournamentId: 'T', teamAId: 'tA', teamBId: 'tB', status: 'In Progress',
+      sets: [{ teamAScore: 3, teamBScore: 3 }], currentSetIndex: 0, bestOf: 3,
+    }), { A: 4, B: 4 });
+    const write = buildMedicalTimeoutStartWrite(m, { side: 'A', playerSlot: 3, playerName: 'Ana' });
+    expect(write).not.toBeNull();
+    expect(write!.matchUpdate['medicalTimeoutPlayers']).toEqual(['A3']);
+  });
+
+  it('individual: a escrita grava o titular na ordem do lado (doc coerente para as outras mesas)', () => {
+    const m = withRosterSizes(liveMatchFromDoc('m1', {
+      tournamentId: 'T', teamAId: 'tA', teamBId: 'tB', status: 'In Progress',
+      sets: [{ teamAScore: 0, teamBScore: 0 }], currentSetIndex: 0, bestOf: 3,
+    }), { A: 1, B: 1 });
+    expect(servingTeamFields(m, 'tA')).toEqual(jasmine.objectContaining({ servingPlayerSlots: { A: 1, B: 1 }, servingPlayerSlot: 1 }));
+  });
+
+  it('elenco pelo memberUids gravado: 1 só na individual; dupla legada/incompleta segue 2', () => {
+    expect(rosterSizeFromMemberUids(['a'])).toBe(1);
+    expect(rosterSizeFromMemberUids(['a', 'b', 'c'])).toBe(3);
+    // Dupla legada sem memberUids e dupla "procurando parceiro" (mesmo uid duas vezes).
+    expect(rosterSizeFromMemberUids([])).toBe(2);
+    expect(rosterSizeFromMemberUids(undefined)).toBe(2);
+    expect(rosterSizeFromMemberUids(['a', 'a'])).toBe(2);
   });
 });

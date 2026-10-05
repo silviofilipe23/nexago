@@ -32,6 +32,24 @@ function rosterOf(sizes: RosterSizes | undefined, side: MatchSide): number {
   return Number.isInteger(n) && n >= 1 && n <= 5 ? n : 2;
 }
 
+/** Elenco a partir do `memberUids` GRAVADO no doc da equipe: 1 = individual, 3–5 = equipe.
+ *  Dupla legada (sem `memberUids`) e dupla incompleta (o mesmo uid nos dois lugares) seguem 2 —
+ *  não deduplica de propósito, senão a dupla procurando parceiro viraria individual na mesa. */
+export function rosterSizeFromMemberUids(memberUids: readonly string[] | null | undefined): number {
+  const n = (memberUids ?? []).filter((uid) => typeof uid === 'string' && uid.trim().length > 0).length;
+  return n >= 1 && n <= 5 && !(n === 2 && memberUids![0]?.trim() === memberUids![1]?.trim()) ? n : 2;
+}
+
+/** Individual: a ordem do lado é sempre o titular — grava 1 no lado de elenco 1 (doc coerente
+ *  para as outras mesas, que não sabem o elenco). */
+export function withIndividualSlots(slots: ServingPlayerSlots, rosterSizes: RosterSizes | undefined): ServingPlayerSlots {
+  if (!rosterSizes) return slots;
+  return {
+    A: rosterOf(rosterSizes, 'A') === 1 ? 1 : slots.A,
+    B: rosterOf(rosterSizes, 'B') === 1 ? 1 : slots.B,
+  };
+}
+
 /** Próximo da ordem de saque do elenco: individual fica no 1, dupla alterna, equipe roda. */
 function nextSlotInRoster(current: ServingPlayerSlot, roster: number): ServingPlayerSlot {
   if (current === 0) return 0;

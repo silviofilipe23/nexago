@@ -21,7 +21,8 @@ export function mapCourt(id: string, c: DocumentData): ArenaCourt {
   return {
     id,
     name: firstString(c['name'], c['label']),
-    sport: firstString(c['sport'], c['courtType'], Array.isArray(types) ? types[0] : null, c['type']),
+    // `types` é gravado por todo escritor; `sport` só desde a 5b (um app sem a 5b deixa `sport` velho).
+    sport: firstString(Array.isArray(types) ? types[0] : null, c['type'], c['sport'], c['courtType']),
     surface: firstString(c['surface']),
   };
 }

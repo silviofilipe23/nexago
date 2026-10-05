@@ -1,5 +1,4 @@
 import '../../../core/sports/sport_catalog.dart';
-import '../../../core/sports/sport_catalog_data.dart';
 
 /// Esporte das quadras da arena pelo catálogo (multiesporte fase 5a).
 ///

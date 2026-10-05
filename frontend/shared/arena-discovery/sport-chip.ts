@@ -94,11 +94,13 @@ export function courtTypeCodesFor(stored: readonly string[]): string[] {
   return out;
 }
 
-/** Esporte de UM doc de quadra para exibição: `sport` (gravado a partir da 5b) → `courtType`
- *  (site legado) → `types[0]` → `type`, resolvido pelo catálogo. Sem nada: "Esporte não informado". */
+/** Esporte de UM doc de quadra para exibição: `types[0]` → `type` → `sport` (gravado desde a
+ *  5b) → `courtType` (site legado), resolvido pelo catálogo. Sem nada: "Esporte não informado". */
 export function courtDocSportLabel(data: Record<string, unknown>): string {
   const types = data['types'];
-  const candidates = [data['sport'], data['courtType'], Array.isArray(types) ? types[0] : null, data['type']];
+  // `types` é gravado por TODO escritor; `sport` só desde a 5b — um app sem a 5b que edite a quadra
+  // atualiza `types` e deixa `sport` velho. Então `types` manda.
+  const candidates = [Array.isArray(types) ? types[0] : null, data['type'], data['sport'], data['courtType']];
   for (const raw of candidates) {
     if (typeof raw === 'string' && raw.trim()) return courtSportLabel(raw);
   }

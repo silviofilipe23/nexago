@@ -61,8 +61,11 @@ describe('esporte da arena por código', () => {
     expect(courtSportLabel('')).toBe('');
   });
 
-  it('esporte de UM doc de quadra: sport → courtType → types[0] → type, pelo catálogo', () => {
-    expect(courtDocSportLabel({ sport: 'beachTennis', types: ['Tênis'] })).toBe('Beach tennis');
+  it('esporte de UM doc de quadra: types[0] → type → sport → courtType, pelo catálogo', () => {
+    // `types` é gravado por TODO escritor; `sport` só a partir da 5b. Um app sem a 5b que edite a
+    // quadra atualiza `types` e deixa `sport` velho — então `types` manda.
+    expect(courtDocSportLabel({ sport: 'beachVolleyball', types: ['beachTennis'] })).toBe('Beach tennis');
+    expect(courtDocSportLabel({ sport: 'beachTennis', courtType: 'Tênis' })).toBe('Beach tennis');
     expect(courtDocSportLabel({ types: ['Vôlei de praia', 'Futevôlei'], type: 'Vôlei de praia' })).toBe('Vôlei de praia');
     expect(courtDocSportLabel({ type: 'padel' })).toBe('Padel');
     expect(courtDocSportLabel({ types: ['Pickleball'] })).toBe('Pickleball');

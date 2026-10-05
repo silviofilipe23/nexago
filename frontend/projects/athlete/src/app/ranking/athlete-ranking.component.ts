@@ -144,8 +144,9 @@ export class AthleteRankingComponent {
 
   protected readonly queryInput = signal('');
   protected readonly filterQuery = signal('');
-  /** Código de perfil do esporte do ranking; `null` até o perfil dizer o esporte principal. */
-  protected readonly sportFilter = signal<string | null>(null);
+  /** Código de perfil do esporte do ranking. Abre em vôlei de praia e troca para o esporte
+   *  principal quando o perfil chega — a lista não espera a leitura do perfil. */
+  protected readonly sportFilter = signal<string>(DEFAULT_RANKING_SPORT);
   /** O atleta escolheu um esporte: o principal que chegar depois não sobrescreve. */
   private sportChosen = false;
   /** Cada leitura ganha um número; resposta de leitura velha (troca rápida de filtro) é descartada. */
@@ -158,7 +159,6 @@ export class AthleteRankingComponent {
   private queryDebounceHandle: ReturnType<typeof setTimeout> | undefined;
 
   protected readonly sportOptions = RANKING_SPORT_OPTIONS;
-  protected readonly defaultSport = DEFAULT_RANKING_SPORT;
   protected readonly levelOptions = LEVEL_OPTIONS;
   protected readonly genderOptions = GENDER_OPTIONS;
   protected readonly formatOptions = FORMAT_OPTIONS;
@@ -194,7 +194,7 @@ export class AthleteRankingComponent {
    *  por alguém que só pontuou em outro esporte dá "nenhum resultado" sem explicar por quê.
    *  Gênero/formato só entram quando ativos, senão a linha vira um trem de "Todos os…". */
   protected readonly sliceLabel = computed(() => {
-    const parts = [this.sportLabel(this.sportFilter() ?? DEFAULT_RANKING_SPORT), this.levelLabel(this.levelFilter()), this.cityLabel(this.cityFilter())];
+    const parts = [this.sportLabel(this.sportFilter()), this.levelLabel(this.levelFilter()), this.cityLabel(this.cityFilter())];
     if (this.genderFilter() !== 'all') parts.push(this.genderLabel(this.genderFilter()));
     if (this.formatFilter() !== 'all') parts.push(this.formatLabel(this.formatFilter()));
     return parts.join(' · ');
@@ -239,7 +239,6 @@ export class AthleteRankingComponent {
       const mode = this.mode();
       const period = this.period();
       const sport = this.sportFilter();
-      if (sport == null) return;
       void this.loadRanking(mode, period, sport);
     });
 
@@ -395,6 +394,8 @@ export class AthleteRankingComponent {
   protected setSport(code: string): void {
     this.sportChosen = true;
     this.sportFilter.set(code);
+    // Outro esporte é outra lista: a cidade escolhida pode nem existir nela (select sem opção).
+    this.cityFilter.set(CITY_ALL);
   }
 
   protected setLevel(level: string): void {

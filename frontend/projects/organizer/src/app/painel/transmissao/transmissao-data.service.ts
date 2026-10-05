@@ -1,4 +1,4 @@
-import { effect, inject, Injectable, signal } from '@angular/core';
+import { effect, inject, Injectable, signal, untracked } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { DEFAULT_BROADCAST_CONTROL, type BroadcastControl, type BroadcastInterview } from '../data/broadcast-control';
@@ -66,6 +66,13 @@ export class TransmissaoDataService {
       this.rosters.set(new Map());
       this.details.set(new Map());
       this.hydrated.clear();
+      // Ranking é do esporte do torneio: o do anterior não pode sobrar no card enquanto o novo
+      // doc chega, e outro torneio só lê de novo se alguém for montar entrevista nele.
+      this.rankingWanted.set(false);
+      this.rankingLoad = null;
+      this.rankingSport = null;
+      this.athleteRanking.set([]);
+      this.teamRanking.set([]);
       if (!id) return;
       const unsubTournament = watchTournament(id, (t) => this.tournament.set(t), () => {});
       const unsubMatches = watchMatches(
@@ -121,7 +128,8 @@ export class TransmissaoDataService {
    *  quando alguém vai montar uma entrevista, e uma vez por esporte. Falha libera nova tentativa. */
   ensureRanking(): void {
     this.rankingWanted.set(true);
-    this.loadRanking();
+    // Quem chama costuma estar num effect: ler `tournament` aqui não pode virar dependência dele.
+    untracked(() => this.loadRanking());
   }
 
   private loadRanking(): void {

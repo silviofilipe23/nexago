@@ -133,6 +133,8 @@ function paymentCaption(
   if (category.entryFee <= 0) return 'Gratuito';
   // Equipe (trio+): a taxa é da equipe e cada atleta paga a própria cota.
   const teamSize = registration.teamSize ?? 2;
+  // Individual: a taxa inteira é do atleta.
+  if (teamSize === 1) return `Sua inscrição · ${formatBRL(category.entryFee)}`;
   if (teamSize > 2) return `Sua cota · ${formatBRL(category.entryFee / teamSize)}`;
   return `Sua metade · ${formatBRL(category.entryFee / 2)}`;
 }

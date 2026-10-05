@@ -193,20 +193,27 @@ export class TournamentPaymentComponent {
     () => this.registration()?.teamSize ?? this.selectedCategory()?.teamSize ?? 2,
   );
   protected readonly isTeamRegistration = computed(() => this.teamSize() > 2);
+  /** Individual: a taxa inteira é do atleta — "parcela" e "total" são o mesmo valor. */
+  protected readonly isIndividualRegistration = computed(() => this.teamSize() === 1);
   /** Valor exibido antes de gerar a cobrança — a cota exata (com resto de centavos) é do
    *  servidor; aqui é a divisão simples da taxa pelo elenco. */
   protected readonly amountDueReais = computed(() =>
     this.amountType() === 'share' ? this.totalPriceReais() / this.teamSize() : this.totalPriceReais(),
   );
   /** Copies dos botões de valor — "metade da dupla" vira "cota da equipe" no trio+. */
-  protected readonly shareHint = computed(() =>
-    this.isTeamRegistration() ? `Sua cota (1/${this.teamSize()} da equipe)` : 'Metade da inscrição da dupla',
-  );
+  protected readonly shareHint = computed(() => {
+    if (this.isIndividualRegistration()) return 'Inscrição individual';
+    return this.isTeamRegistration() ? `Sua cota (1/${this.teamSize()} da equipe)` : 'Metade da inscrição da dupla';
+  });
   protected readonly fullHint = computed(() => {
+    if (this.isIndividualRegistration()) return 'Inscrição individual';
     if (this.isTeamRegistration()) return 'Valor total da equipe';
     return this.partnerPending() ? 'Garante sua vaga — o parceiro entra sem taxa' : 'Valor total da dupla';
   });
-  protected readonly fullLabel = computed(() => (this.isTeamRegistration() ? 'Total da equipe' : 'Total da dupla'));
+  protected readonly fullLabel = computed(() => {
+    if (this.isIndividualRegistration()) return 'Total';
+    return this.isTeamRegistration() ? 'Total da equipe' : 'Total da dupla';
+  });
   protected readonly cpfCnpjDisplay = computed(() => formatCpfCnpjDisplay(this.cpfCnpj()));
 
   /** BR Code estático do organizador (QR + copia-e-cola), com valor da parcela escolhida.
@@ -424,6 +431,8 @@ export class TournamentPaymentComponent {
         ) {
           this.amountType.set('full');
         }
+        // Individual: só existe o valor inteiro (o seletor de parcela nem aparece).
+        if (reg?.teamSize === 1) this.amountType.set('full');
         this.startRegistrationWatch(reg?.id ?? null);
         this.startSentInvitesWatch(id, uid);
       }

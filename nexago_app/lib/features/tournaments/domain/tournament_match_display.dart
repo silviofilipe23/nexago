@@ -4,6 +4,7 @@ import '../../../core/time/nexago_event_timezone.dart';
 import 'tournament_match.dart';
 import 'tournament_match_set.dart';
 import 'tournament_match_status.dart';
+import '../../../core/sports/sport_catalog.dart' show ScoringRules;
 
 String matchStatusPillLabelPt(String status) {
   if (TournamentMatchStatus.isInProgress(status)) return 'AO VIVO';
@@ -121,18 +122,20 @@ int get matchMinSetAdvantage => _minSetAdvantage;
 /// Mesma régua de [matchSetIsWon] — exposta para a simulação de cenários do
 /// Focus, que precisa gerar placares legais.
 int matchSetTargetPoints(int index, int bestOf) =>
-    bestOf == 3 && index == 2 ? _tiebreakSetPoints : _defaultSetPoints;
+    ScoringRules.setPointsTarget(ScoringRules.legacyProfile(bestOf), index);
 
 int matchBestOf(TournamentMatch match) =>
     match.bestOf > 0 ? match.bestOf : _defaultBestOf;
 
 /// Set já decidido pela regra de pontos (21, ou 15 no tiebreak do melhor de 3).
-bool matchSetIsWon(TournamentMatchSet set, int index, int bestOf) {
-  final target =
-      bestOf == 3 && index == 2 ? _tiebreakSetPoints : _defaultSetPoints;
-  return (set.a >= target && set.a - set.b >= _minSetAdvantage) ||
-      (set.b >= target && set.b - set.a >= _minSetAdvantage);
-}
+bool matchSetIsWon(TournamentMatchSet set, int index, int bestOf) =>
+    ScoringRules.isPointsSetWon(
+      set.a,
+      set.b,
+      matchSetTargetPoints(index, bestOf),
+      _minSetAdvantage,
+      null,
+    );
 
 /// Sets fechados, já normalizados (`sets[]` ou o formato legado `resultA/B`).
 /// Ao vivo, o set em andamento (que a mesa mantém dentro de `sets[]`) fica de

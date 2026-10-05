@@ -2,15 +2,15 @@
   "$comment": "Fonte única dos esportes. Edite aqui e rode `node sports/codegen.mjs`. Spec: docs/superpowers/specs/2026-10-03-multiesporte-arquitetura-design.md",
   "unknownLabel": "Esporte não informado",
   "sports": [
-    {"code": "beachVolleyball", "profileCode": "VOLEI_PRAIA", "appId": "beach_volleyball", "label": "Vôlei de praia", "art": "volei_praia", "support": "competition", "aliases": []},
-    {"code": "indoorVolleyball", "profileCode": "VOLEI_QUADRA", "appId": "indoor_volleyball", "label": "Vôlei de quadra", "art": "volei_quadra", "support": "competition", "aliases": ["Vôlei indoor"]},
-    {"code": "footvolley", "profileCode": "FUTEVOLEI", "appId": "footvolley", "label": "Futevôlei", "art": "futevolei", "support": "competition", "aliases": []},
-    {"code": "football", "profileCode": "FUTEBOL", "appId": "football", "label": "Futebol", "art": "futebol", "support": "profile", "aliases": []},
-    {"code": "basketball", "profileCode": "BASQUETE", "appId": "basketball", "label": "Basquete", "art": "basquete", "support": "profile", "aliases": []},
-    {"code": "tennis", "profileCode": "TENIS", "appId": "tennis", "label": "Tênis", "art": "tenis", "support": "profile", "aliases": []},
-    {"code": "beachTennis", "profileCode": "BEACH_TENNIS", "appId": "beach_tennis", "label": "Beach tennis", "art": "beach_tennis", "support": "profile", "aliases": ["Beach tênis"]},
-    {"code": "running", "profileCode": "CORRIDA", "appId": "running", "label": "Corrida", "art": "corrida", "support": "profile", "aliases": []},
-    {"code": "other", "profileCode": "OUTROS", "appId": "other", "label": "Outros", "art": null, "support": "profile", "aliases": []}
+    {"code": "beachVolleyball", "profileCode": "VOLEI_PRAIA", "appId": "beach_volleyball", "label": "Vôlei de praia", "art": "volei_praia", "support": "competition", "aliases": [], "scoringProfile": {"kind": "sets_points", "bestOf": 3, "setTarget": 21, "decidingSetTarget": 15, "winBy": 2, "pointCap": null}},
+    {"code": "indoorVolleyball", "profileCode": "VOLEI_QUADRA", "appId": "indoor_volleyball", "label": "Vôlei de quadra", "art": "volei_quadra", "support": "competition", "aliases": ["Vôlei indoor"], "scoringProfile": {"kind": "sets_points", "bestOf": 3, "setTarget": 21, "decidingSetTarget": 15, "winBy": 2, "pointCap": null}},
+    {"code": "footvolley", "profileCode": "FUTEVOLEI", "appId": "footvolley", "label": "Futevôlei", "art": "futevolei", "support": "competition", "aliases": [], "scoringProfile": {"kind": "sets_points", "bestOf": 3, "setTarget": 21, "decidingSetTarget": 15, "winBy": 2, "pointCap": null}},
+    {"code": "football", "profileCode": "FUTEBOL", "appId": "football", "label": "Futebol", "art": "futebol", "support": "profile", "aliases": [], "scoringProfile": null},
+    {"code": "basketball", "profileCode": "BASQUETE", "appId": "basketball", "label": "Basquete", "art": "basquete", "support": "profile", "aliases": [], "scoringProfile": null},
+    {"code": "tennis", "profileCode": "TENIS", "appId": "tennis", "label": "Tênis", "art": "tenis", "support": "profile", "aliases": [], "scoringProfile": {"kind": "sets_games", "bestOf": 3, "gamesPerSet": 6, "winByGames": 2, "tiebreakAtGames": 6, "tiebreakTo": 7, "noAd": false, "decidingSet": "full", "superTiebreakTo": 10}},
+    {"code": "beachTennis", "profileCode": "BEACH_TENNIS", "appId": "beach_tennis", "label": "Beach tennis", "art": "beach_tennis", "support": "profile", "aliases": ["Beach tênis"], "scoringProfile": {"kind": "sets_games", "bestOf": 3, "gamesPerSet": 6, "winByGames": 2, "tiebreakAtGames": 6, "tiebreakTo": 7, "noAd": true, "decidingSet": "super_tiebreak", "superTiebreakTo": 10}},
+    {"code": "running", "profileCode": "CORRIDA", "appId": "running", "label": "Corrida", "art": "corrida", "support": "profile", "aliases": [], "scoringProfile": null},
+    {"code": "other", "profileCode": "OUTROS", "appId": "other", "label": "Outros", "art": null, "support": "profile", "aliases": [], "scoringProfile": null}
   ],
   "normalizeVectors": [
     ["Vôlei de praia", "voleidepraia"],

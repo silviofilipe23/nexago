@@ -24,3 +24,11 @@ test('rules guardam o nível de todo código de perfil do catálogo', () => {
   const catalog = JSON.parse(fs.readFileSync(path.join(ROOT, 'sports/catalog.json'), 'utf8'));
   assert.deepEqual(inRules, catalog.sports.map((s) => s.profileCode).sort());
 });
+
+test('todo esporte de competição tem perfil de placar no catálogo', () => {
+  const catalog = JSON.parse(fs.readFileSync(path.join(ROOT, 'sports/catalog.json'), 'utf8'));
+  const semPerfil = catalog.sports
+    .filter((s) => s.support === 'competition' && !s.scoringProfile)
+    .map((s) => s.code);
+  assert.deepEqual(semPerfil, []);
+});

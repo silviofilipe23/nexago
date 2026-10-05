@@ -7,7 +7,8 @@ import {
 import * as logger from "firebase-functions/logger";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {MatchStatus, isMatchCompleted, isMatchInProgress} from "./match-status";
-import {matchBestOfFromCategory} from "./match-scoring";
+import {categoryScoringProfile} from "./match-scoring";
+import type {ScoringProfile} from "./sports/scoring";
 import {
   buildDoubleEliminationMatches,
   buildGroupsKnockoutMatches,
@@ -127,7 +128,7 @@ function normalizePhoneForWhatsApp(phone: string): string {
  */
 export function bracketMatchDoc(
   draft: MatchDraft,
-  meta: {tournamentId: string; categoryId: string; bestOf: number},
+  meta: {tournamentId: string; categoryId: string; bestOf: number; scoringProfile: ScoringProfile},
 ): Record<string, unknown> {
   return {
     tournamentId: meta.tournamentId,
@@ -139,6 +140,7 @@ export function bracketMatchDoc(
     teamBId: draft.teamBId,
     status: MatchStatus.scheduled,
     bestOf: meta.bestOf,
+    scoringProfile: meta.scoringProfile,
     resultA: "",
     resultB: "",
     isGroupMatch: draft.isGroupMatch,
@@ -555,7 +557,10 @@ export async function runGenerateCategoryBracket(
   // Formato de placar escolhido na categoria. Gravar na partida é o que faz a
   // escolha do organizador chegar na mesa/telão/app — antes o campo nunca era
   // escrito na criação e TODA partida caía no fallback histórico (MD3).
-  const bestOf = matchBestOfFromCategory(categoryMeta?.bestOf);
+  // Perfil de placar carimbado em cada partida (spec multiesporte, fase 2a):
+  // para os esportes atuais é a regra histórica, com o mesmo `bestOf` de antes.
+  const scoringProfile = categoryScoringProfile(categoryMeta, tournamentData.sport);
+  const bestOf = scoringProfile.bestOf;
 
   const inscriptionsSnap = await db
     .collection(artifactsInscriptionsPath(projectId))
@@ -770,7 +775,7 @@ export async function runGenerateCategoryBracket(
     koc ?
       koc.docs :
       matchDrafts.map((draft) =>
-        bracketMatchDoc(draft, {tournamentId, categoryId, bestOf}),
+        bracketMatchDoc(draft, {tournamentId, categoryId, bestOf, scoringProfile}),
       );
 
   for (const doc of newMatchDocs) {

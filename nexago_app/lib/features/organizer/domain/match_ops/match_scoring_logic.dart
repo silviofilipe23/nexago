@@ -1,6 +1,7 @@
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_set.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
+import '../../../../core/sports/sport_catalog.dart' show ScoreSetValue, ScoringRules;
 
 /// Um problema encontrado na validação de placar completo / lançamento rápido.
 class QuickScoreValidationIssue {
@@ -52,11 +53,13 @@ abstract final class MatchScoringLogic {
   static const int tiebreakSetPoints = 15;
   static const int minAdvantage = 2;
 
-  static bool isSetWon(int scoreA, int scoreB, {int target = defaultSetPoints}) {
-    if (scoreA >= target && scoreA - scoreB >= minAdvantage) return true;
-    if (scoreB >= target && scoreB - scoreA >= minAdvantage) return true;
-    return false;
-  }
+  static bool isSetWon(int scoreA, int scoreB, {int target = defaultSetPoints}) =>
+      ScoringRules.isPointsSetWon(scoreA, scoreB, target, minAdvantage, null);
+
+  /// Sets do modelo → sets do núcleo de placar (`core/sports/scoring_rules.dart`).
+  static List<ScoreSetValue> _values(List<TournamentMatchSet> sets) => [
+        for (final s in sets) ScoreSetValue(s.a, s.b),
+      ];
 
   /// Vencedor de um set conforme as regras (target por índice + vantagem):
   /// `'A'`, `'B'` ou `null` se o set ainda não foi vencido por ninguém.
@@ -65,11 +68,11 @@ abstract final class MatchScoringLogic {
     int index, {
     int bestOf = defaultBestOf,
   }) {
-    if (index < 0 || index >= sets.length) return null;
-    final s = sets[index];
-    final target = targetPointsForSet(index, bestOf);
-    if (!isSetWon(s.a, s.b, target: target)) return null;
-    return s.a > s.b ? 'A' : 'B';
+    return ScoringRules.setWinnerSide(
+      _values(sets),
+      index,
+      ScoringRules.legacyProfile(bestOf),
+    );
   }
 
   /// Quantos sets cada lado venceu DE FATO (respeitando target/vantagem).
@@ -78,17 +81,7 @@ abstract final class MatchScoringLogic {
     List<TournamentMatchSet> sets, {
     int bestOf = defaultBestOf,
   }) {
-    var a = 0;
-    var b = 0;
-    for (var i = 0; i < sets.length; i++) {
-      final side = setWinnerSide(sets, i, bestOf: bestOf);
-      if (side == 'A') {
-        a++;
-      } else if (side == 'B') {
-        b++;
-      }
-    }
-    return (a: a, b: b);
+    return ScoringRules.setsWon(_values(sets), ScoringRules.legacyProfile(bestOf));
   }
 
   static bool isMatchWon(List<TournamentMatchSet> sets, {int bestOf = 3}) {
@@ -110,10 +103,8 @@ abstract final class MatchScoringLogic {
     return null;
   }
 
-  static int targetPointsForSet(int setIndex, int totalSets) {
-    if (totalSets == 3 && setIndex == 2) return tiebreakSetPoints;
-    return defaultSetPoints;
-  }
+  static int targetPointsForSet(int setIndex, int totalSets) =>
+      ScoringRules.setPointsTarget(ScoringRules.legacyProfile(totalSets), setIndex);
 
   /// Quem fica com o saque depois de mexer no placar. Do 1º ponto em diante o rally resolve
   /// sozinho — quem marca, saca —, MENOS na virada de set: pela regra do vôlei de praia o saque
@@ -335,81 +326,20 @@ abstract final class MatchScoringLogic {
     String? teamBId,
     bool requireMatchWinner = true,
   }) {
-    final issues = <QuickScoreValidationIssue>[];
-
-    if (sets.isEmpty) {
-      issues.add(
-        const QuickScoreValidationIssue(
-          message: 'Informe ao menos um set.',
-        ),
-      );
-      return QuickScoreValidationResult(issues: issues);
-    }
-
-    if (sets.length > bestOf) {
-      issues.add(
-        QuickScoreValidationIssue(
-          message: 'Máximo de $bestOf sets.',
-        ),
-      );
-    }
-
-    for (var i = 0; i < sets.length; i++) {
-      final s = sets[i];
-      final setLabel = 'Set ${i + 1}';
-
-      if (s.a == s.b) {
-        issues.add(
-          QuickScoreValidationIssue(
-            setIndex: i,
-            message: '$setLabel: não pode terminar empatado.',
-          ),
-        );
-        continue;
-      }
-
-      if (s.a < 0 || s.b < 0 || s.a > 99 || s.b > 99) {
-        issues.add(
-          QuickScoreValidationIssue(
-            setIndex: i,
-            message: '$setLabel: placar fora do intervalo (0–99).',
-          ),
-        );
-        continue;
-      }
-
-      final target = targetPointsForSet(i, bestOf);
-      if (!isSetWon(s.a, s.b, target: target)) {
-        issues.add(
-          QuickScoreValidationIssue(
-            setIndex: i,
-            message:
-                '$setLabel: vitória exige $target pontos com vantagem de $minAdvantage.',
-          ),
-        );
-      }
-    }
-
-    final hasSetErrors = issues.any((issue) => issue.setIndex != null);
     final aId = teamAId?.trim() ?? '';
     final bId = teamBId?.trim() ?? '';
-    if (requireMatchWinner && !hasSetErrors && aId.isNotEmpty && bId.isNotEmpty) {
-      final winner = matchWinnerId(
-        sets: sets,
-        teamAId: aId,
-        teamBId: bId,
-        bestOf: bestOf,
-      );
-      if (winner == null) {
-        issues.add(
-          const QuickScoreValidationIssue(
-            message: 'Complete o placar: nenhuma dupla venceu ainda.',
-          ),
-        );
-      }
-    }
-
-    return QuickScoreValidationResult(issues: issues);
+    final issues = ScoringRules.validate(
+      _values(sets),
+      ScoringRules.legacyProfile(bestOf),
+      requireMatchWinner:
+          requireMatchWinner && aId.isNotEmpty && bId.isNotEmpty,
+    );
+    return QuickScoreValidationResult(
+      issues: [
+        for (final i in issues)
+          QuickScoreValidationIssue(setIndex: i.setIndex, message: i.message),
+      ],
+    );
   }
 
   static const int defaultBestOf = 3;

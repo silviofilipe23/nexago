@@ -1,5 +1,7 @@
 // GERADO por sports/codegen.mjs a partir de sports/catalog.json — não editar.
 
+import 'scoring_profile.dart';
+
 enum SportSupport { profile, competition }
 
 class SportCatalogEntry {
@@ -10,6 +12,7 @@ class SportCatalogEntry {
     required this.label,
     required this.art,
     required this.support,
+    required this.scoringProfile,
   });
 
   final String code;
@@ -18,6 +21,7 @@ class SportCatalogEntry {
   final String label;
   final String? art;
   final SportSupport support;
+  final ScoringProfile? scoringProfile;
 }
 
 const List<SportCatalogEntry> kSportCatalog = [
@@ -28,6 +32,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Vôlei de praia',
     art: 'volei_praia',
     support: SportSupport.competition,
+    scoringProfile: SetsPointsProfile(bestOf: 3, setTarget: 21, decidingSetTarget: 15, winBy: 2, pointCap: null),
   ),
   SportCatalogEntry(
     code: 'indoorVolleyball',
@@ -36,6 +41,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Vôlei de quadra',
     art: 'volei_quadra',
     support: SportSupport.competition,
+    scoringProfile: SetsPointsProfile(bestOf: 3, setTarget: 21, decidingSetTarget: 15, winBy: 2, pointCap: null),
   ),
   SportCatalogEntry(
     code: 'footvolley',
@@ -44,6 +50,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Futevôlei',
     art: 'futevolei',
     support: SportSupport.competition,
+    scoringProfile: SetsPointsProfile(bestOf: 3, setTarget: 21, decidingSetTarget: 15, winBy: 2, pointCap: null),
   ),
   SportCatalogEntry(
     code: 'football',
@@ -52,6 +59,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Futebol',
     art: 'futebol',
     support: SportSupport.profile,
+    scoringProfile: null,
   ),
   SportCatalogEntry(
     code: 'basketball',
@@ -60,6 +68,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Basquete',
     art: 'basquete',
     support: SportSupport.profile,
+    scoringProfile: null,
   ),
   SportCatalogEntry(
     code: 'tennis',
@@ -68,6 +77,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Tênis',
     art: 'tenis',
     support: SportSupport.profile,
+    scoringProfile: SetsGamesProfile(bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: false, decidingSet: DecidingSet.full, superTiebreakTo: 10),
   ),
   SportCatalogEntry(
     code: 'beachTennis',
@@ -76,6 +86,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Beach tennis',
     art: 'beach_tennis',
     support: SportSupport.profile,
+    scoringProfile: SetsGamesProfile(bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: true, decidingSet: DecidingSet.superTiebreak, superTiebreakTo: 10),
   ),
   SportCatalogEntry(
     code: 'running',
@@ -84,6 +95,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Corrida',
     art: 'corrida',
     support: SportSupport.profile,
+    scoringProfile: null,
   ),
   SportCatalogEntry(
     code: 'other',
@@ -92,6 +104,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     label: 'Outros',
     art: null,
     support: SportSupport.profile,
+    scoringProfile: null,
   ),
 ];
 

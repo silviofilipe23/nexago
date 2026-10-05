@@ -52,7 +52,7 @@ class FocusTournamentNumbers extends StatelessWidget {
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: _Card(
-                label: 'PONTOS',
+                label: numbers.unit == 'games' ? 'GAMES' : 'PONTOS',
                 value: '${numbers.points}',
                 valueColor: colors.onSurface,
                 support: '${_decimal(numbers.pointsPerSet)} / set',

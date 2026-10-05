@@ -225,9 +225,10 @@ String? _metaLabelOf(TournamentMatch m) {
 /// primeiro; lido direto, o atleta do lado B pareceria ter perdido o set que
 /// venceu.
 String? _mySetsLabelOf(TournamentMatch m, bool iAmA) {
-  final sets = matchClosedSets(m);
-  if (sets.isEmpty) return null;
-  return sets.map((s) => iAmA ? '${s.a}-${s.b}' : '${s.b}-${s.a}').join(' · ');
+  // Em games, tie-break por extenso e super tie-break pelos pontos dele.
+  final texts = matchClosedSetTextsForSide(m, sideA: iAmA);
+  if (texts.isEmpty) return null;
+  return texts.join(' · ');
 }
 
 (int, int) _setWins(TournamentMatch m, bool iAmA) {

@@ -1,3 +1,5 @@
+import '../../../../core/sports/sport_catalog.dart'
+    show ScoringProfile, ScoringRules, SetsGamesProfile;
 import '../tournament_group_standings_logic.dart';
 import '../tournament_match.dart';
 import '../tournament_match_display.dart';
@@ -41,11 +43,15 @@ class RoundScenario {
 /// precisa vencer e PERDER zerado os que não contam para o resultado (só para o
 /// saldo de pontos). O set que fecha o jogo é sempre vitória do atleta, então
 /// nunca entra como set perdido.
-List<List<TournamentMatchSet>> winBoundsOf(int bestOf) {
+List<List<TournamentMatchSet>> winBoundsOf(
+  int bestOf, [
+  ScoringProfile? profile,
+]) {
   // `bestOf` chega cru do Firestore e nada trava o topo; um documento
   // malformado alocaria arrays proporcionais a ele. Trava no maior formato que
   // o app realmente oferece.
   final clamped = bestOf > 5 ? 5 : (bestOf < 1 ? 3 : bestOf);
+  if (profile is SetsGamesProfile) return _gamesWinBoundsOf(clamped, profile);
   final setsToWin = (clamped / 2).ceil();
   final setsToLose = setsToWin - 1;
   final totalSets = setsToWin + setsToLose;
@@ -74,8 +80,67 @@ List<List<TournamentMatchSet>> winBoundsOf(int bestOf) {
   return [widest, narrowest];
 }
 
-List<TournamentMatchSet> _mirror(List<TournamentMatchSet> sets) =>
-    [for (final s in sets) TournamentMatchSet(a: s.b, b: s.a)];
+/// Os dois extremos de [winBoundsOf] numa partida de games (desempate:
+/// vitórias → saldo de sets → saldo de games). O mais largo vence os sets
+/// necessários por 6-0; o mais estreito perde os que não decidem por 0-6 e
+/// vence os que precisa pela margem mínima: 7-6 com tie-break, o super
+/// tie-break (1-0, o set conta 1 game) ou, sem tie-break, `gamesPerSet` ×
+/// `gamesPerSet − winByGames`. Espelho de `gamesWinBoundsOf` do portal.
+List<List<TournamentMatchSet>> _gamesWinBoundsOf(
+  int bestOf,
+  SetsGamesProfile p,
+) {
+  final setsToWin = (bestOf / 2).ceil();
+  final setsToLose = setsToWin - 1;
+  final totalSets = setsToWin + setsToLose;
+  final deciderIndex = totalSets - 1;
+  final profile = ScoringRules.withBestOf(p, bestOf) as SetsGamesProfile;
+
+  final widest = <TournamentMatchSet>[
+    for (var i = 0; i < setsToWin; i++)
+      TournamentMatchSet(a: p.gamesPerSet, b: 0),
+  ];
+
+  TournamentMatchSet narrowestWin(int i) {
+    if (ScoringRules.isSuperTiebreakSet(profile, i)) {
+      return TournamentMatchSet(
+        a: 1,
+        b: 0,
+        tb: (a: p.superTiebreakTo, b: p.superTiebreakTo - 2),
+      );
+    }
+    final tbAt = p.tiebreakAtGames;
+    if (tbAt != null) {
+      return TournamentMatchSet(
+        a: tbAt + 1,
+        b: tbAt,
+        tb: (a: p.tiebreakTo, b: p.tiebreakTo - 2),
+      );
+    }
+    return TournamentMatchSet(a: p.gamesPerSet, b: p.gamesPerSet - p.winByGames);
+  }
+
+  final narrowest = <TournamentMatchSet>[];
+  var remainingLosses = setsToLose;
+  for (var i = 0; i < totalSets; i++) {
+    if (i != deciderIndex && remainingLosses > 0) {
+      narrowest.add(TournamentMatchSet(a: 0, b: p.gamesPerSet));
+      remainingLosses--;
+    } else {
+      narrowest.add(narrowestWin(i));
+    }
+  }
+  return [widest, narrowest];
+}
+
+List<TournamentMatchSet> _mirror(List<TournamentMatchSet> sets) => [
+  for (final s in sets)
+    TournamentMatchSet(
+      a: s.b,
+      b: s.a,
+      tb: s.tb == null ? null : (a: s.tb!.b, b: s.tb!.a),
+    ),
+];
 
 bool _isPending(TournamentMatch m) =>
     !TournamentMatchStatus.isCompleted(m.status) &&
@@ -116,6 +181,7 @@ TournamentMatch _withHypothetical(
     winnerId: winnerId,
     sets: oriented,
     bestOf: m.bestOf,
+    scoringProfile: m.scoringProfile,
   );
 }
 
@@ -205,7 +271,10 @@ RoundScenario _scenarioOf({
   }
 
   final ranks = <int?>[];
-  for (final bound in winBoundsOf(matchBestOf(mine))) {
+  for (final bound in winBoundsOf(
+    matchBestOf(mine),
+    matchScoringProfile(mine),
+  )) {
     final oriented = won ? bound : _mirror(bound);
     // Substitui em vez de remover-e-reanexar: a ordem de inserção é o
     // desempate de ÚLTIMO recurso entre duplas empatadas em tudo o mais, e

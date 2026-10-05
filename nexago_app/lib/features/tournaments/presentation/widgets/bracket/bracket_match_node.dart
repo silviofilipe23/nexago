@@ -216,14 +216,8 @@ List<String> _setPillsForTeam({
   required TournamentMatch match,
   required bool isTeamA,
 }) {
-  final sets = setsForMatch(match);
-  if (sets.isEmpty) return const [];
-
-  return sets.map((s) {
-    final own = isTeamA ? s.a : s.b;
-    final opp = isTeamA ? s.b : s.a;
-    return '$own · $opp';
-  }).toList();
+  // Em games o super tie-break vai pelos pontos dele; pontos, como sempre.
+  return matchSetPillsForSide(match, sideA: isTeamA);
 }
 
 /// Rodapé com o agendamento da partida (`Sáb 29/03 · 16:30 · Quadra 1`) —

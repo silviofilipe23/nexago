@@ -50,15 +50,15 @@ class BookingConfirmPriceSummary extends StatelessWidget {
                   color: context.themeColors.onSurface,
                 ),
               ),
-              SizedBox(height: 12),
-              _PriceRow(
-                label: 'Taxa de plataforma',
-                value: platformFeeLabel,
-                valueStyle: theme.textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.win,
-                ),
-              ),
+              // SizedBox(height: 12),
+              // _PriceRow(
+              //   label: 'Taxa de plataforma',
+              //   value: platformFeeLabel,
+              //   valueStyle: theme.textTheme.bodyLarge?.copyWith(
+              //     fontWeight: FontWeight.w700,
+              //     color: AppColors.win,
+              //   ),
+              // ),
             ],
           ),
         ),

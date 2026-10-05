@@ -529,13 +529,13 @@ function inputToDatetime(v: string): Date | null {
                       desc="O atleta paga na inscrição. Repasse em D+2."
                       (click)="patch({ paymentMode: 'appPixCard' })"
                     />
-                    <og-radio-row
+                    <!-- <og-radio-row
                       style="cursor:pointer"
                       [selected]="draft().paymentMode === 'directWithOrganizer'"
                       title="Direto com o organizador"
                       desc="Você combina e recebe por fora. O app só reserva a vaga."
                       (click)="patch({ paymentMode: 'directWithOrganizer' })"
-                    />
+                    /> -->
                   </div>
                   @if (draft().paymentMode === 'directWithOrganizer') {
                     <div class="og-field-grid" style="margin-top:14px">

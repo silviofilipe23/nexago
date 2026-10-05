@@ -20,6 +20,18 @@ tem `teamAId`/`teamBId` — tem um elenco (`kocTeamIds`) e uma tabela de pontos.
 
 Nos três casos entra o próximo da fila, e ele passa a sacar.
 
+## Ordem de entrada por cartas
+Na preparação da rodada (mesa do portal), o mesário pode sortear a ordem por **cartas**:
+cada dupla tira uma carta do baralho e a ordem de entrada sai delas, da maior para a menor.
+
+- A **maior carta começa no trono**, a segunda desafia e as demais formam a fila.
+- Ás é a mais alta. Valores iguais desempatam pelo naipe, na ordem do truco:
+  ♦ < ♠ < ♥ < ♣.
+- A mesa **recusa** dupla sem carta e carta repetida entre duplas, apontando quais.
+- É um rascunho: só vale no apito, como a reordenação manual. O servidor continua
+  recebendo apenas a permutação do elenco (`kocStartRound`), então a regra vive no
+  portal (`koc-card-order.ts`).
+
 ## Fim da rodada
 - Por **tempo**, definido pelo organizador (padrão 15 min, faixa de 5 a 40). Pode
   variar por fase — é comum a final ser mais longa que a classificatória.

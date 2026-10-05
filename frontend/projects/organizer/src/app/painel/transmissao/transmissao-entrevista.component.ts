@@ -447,7 +447,7 @@ export class TransmissaoEntrevistaComponent {
   protected readonly openId = signal<string | null>(null);
 
   /** Jogo do auto-agendamento antigo só gravou `courtId` — o nome sai das quadras do torneio. */
-  private readonly matches = computed(() => resolveCourtNames(this.svc.matches(), this.svc.tournament()?.courts ?? []));
+  private readonly matches = computed(() => resolveCourtNames(this.svc.matches(), this.svc.tournament()?.courts ?? [], this.svc.tournament()?.sportId));
 
   private readonly candidates = computed(() =>
     interviewCandidatesOf(this.svc.matches(), this.svc.rosters(), this.svc.tournament()?.categories ?? []),

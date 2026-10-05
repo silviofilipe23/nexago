@@ -96,6 +96,10 @@ export interface TournamentMatch {
   /** Fim real da partida (mesa/lançamento gravam ao completar) — o telão usa pra celebrar
    *  partidas recém-encerradas mesmo quando a TV recarregou no ponto do jogo. */
   matchEndedAt: Date | null;
+  /** `sport` cru gravado pelo servidor na criação da chave (`footvolley`…); ausente em partida
+   *  antiga — aí vale o do torneio (`resolveCourtNames` preenche) e, sem ele, vôlei de praia (21).
+   *  Opcional de propósito: nenhuma fixture precisa conhecê-lo. Ver `@nexago/live-scoring`. */
+  sport?: string | null;
 }
 
 function toDate(v: unknown): Date | null {
@@ -256,6 +260,7 @@ export interface RawMatch {
   koc?: KocRoundState | null;
   matchStartedAt: Date | null;
   matchEndedAt: Date | null;
+  sport: string | null;
 }
 
 /** Exportada para teste: é o ponto onde o documento do Firestore vira linha de
@@ -306,6 +311,7 @@ export function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawM
     koc,
     matchStartedAt: toDate(data['matchStartedAt']),
     matchEndedAt: toDate(data['matchEndedAt']),
+    sport: optionalStr(data['sport']),
   };
 }
 
@@ -317,11 +323,23 @@ export function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawM
 export function resolveCourtNames(
   matches: TournamentMatch[],
   courts: readonly { id: string; name: string }[],
+  /** `sport` cru do torneio: fallback pras partidas antigas, sem `sport` próprio (regra de placar). */
+  tournamentSport?: string | null,
 ): TournamentMatch[] {
-  const needsFix = matches.some((m) => !m.court && m.courtId);
-  if (!needsFix) return matches;
+  const needsCourt = matches.some((m) => !m.court && m.courtId);
+  const needsSport = !!tournamentSport && matches.some((m) => !m.sport);
+  if (!needsCourt && !needsSport) return matches;
   const nameById = new Map(courts.map((c) => [c.id, c.name]));
-  return matches.map((m) => (m.court || !m.courtId ? m : { ...m, court: nameById.get(m.courtId) || m.courtId }));
+  return matches.map((m) => {
+    const fixCourt = !m.court && !!m.courtId;
+    const fixSport = !!tournamentSport && !m.sport;
+    if (!fixCourt && !fixSport) return m;
+    return {
+      ...m,
+      ...(fixCourt ? { court: nameById.get(m.courtId) || m.courtId } : {}),
+      ...(fixSport ? { sport: tournamentSport } : {}),
+    };
+  });
 }
 
 // ── Colunas de mata-mata (porta fiel de `buildBracketColumns` do athlete) ─────
@@ -570,6 +588,7 @@ function rawToMatch(r: RawMatch, labelOf: (description: string | null, teamId: s
     koc: r.koc,
     matchStartedAt: r.matchStartedAt,
     matchEndedAt: r.matchEndedAt,
+    sport: r.sport,
   };
 }
 

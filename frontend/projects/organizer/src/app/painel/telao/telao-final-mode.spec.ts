@@ -169,5 +169,11 @@ describe('telao-final-mode', () => {
     it('fora do ao vivo não gera alerta', () => {
       expect(pointAlertOf(match({ status: 'completed', sets: [{ a: 21, b: 15 }] }))).toBeNull();
     });
+
+    it('futevôlei: 17-12 já é set point (alvo 18); sem sport o mesmo placar não alerta', () => {
+      const sets = [{ a: 17, b: 12 }];
+      expect(pointAlertOf(match({ sport: 'footvolley', sets, currentSetIndex: 0 }))).toEqual({ side: 'A', kind: 'set' });
+      expect(pointAlertOf(match({ sets, currentSetIndex: 0 }))).toBeNull();
+    });
   });
 });

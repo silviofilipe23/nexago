@@ -8,7 +8,7 @@ import type { TournamentMatch } from './matches-repository';
  *  ponto a ponto mantém o set corrente DENTRO de `sets[]` + `currentSetIndex`; o lançamento
  *  rápido (`updateLiveMatchScore`) publica só o agregado `liveScore.currentGames*`. */
 
-export type LiveScoreFields = Pick<TournamentMatch, 'status' | 'sets' | 'liveScore' | 'currentSetIndex' | 'bestOf'>;
+export type LiveScoreFields = Pick<TournamentMatch, 'status' | 'sets' | 'liveScore' | 'currentSetIndex' | 'bestOf' | 'sport'>;
 
 export interface LiveSetScore {
   /** Número do set exibido (1-based, contando só os fechados antes dele). */
@@ -17,15 +17,15 @@ export interface LiveSetScore {
   b: number;
 }
 
-function setClosed(s: { a: number; b: number }, index: number, bestOf: number): boolean {
-  return isSetWon(s.a, s.b, targetPointsForSet(index, bestOf));
+function setClosed(s: { a: number; b: number }, index: number, bestOf: number, sport?: string | null): boolean {
+  return isSetWon(s.a, s.b, targetPointsForSet(index, bestOf, sport));
 }
 
 /** Sets fechados — ao vivo, exclui o set em andamento que a mesa mantém dentro de `sets[]`;
  *  encerrada, todo set vale (dados históricos podem fugir da regra e continuam contando). */
 export function matchClosedSets(m: LiveScoreFields): Array<{ a: number; b: number }> {
   if (m.status !== 'in_progress') return m.sets;
-  return m.sets.filter((s, i) => setClosed(s, i, m.bestOf));
+  return m.sets.filter((s, i) => setClosed(s, i, m.bestOf, m.sport));
 }
 
 /** Sets ganhos por lado — `sets[]` quando existe, senão o agregado `liveScore`. */
@@ -44,7 +44,7 @@ export function matchLiveCurrentSet(m: LiveScoreFields): LiveSetScore | null {
   if (m.sets.length > 0) {
     const idx = Math.min(Math.max(m.currentSetIndex ?? m.sets.length - 1, 0), m.bestOf - 1);
     const s = m.sets[idx];
-    if (s && !setClosed(s, idx, m.bestOf)) return { setNumber: matchClosedSets(m).length + 1, a: s.a, b: s.b };
+    if (s && !setClosed(s, idx, m.bestOf, m.sport)) return { setNumber: matchClosedSets(m).length + 1, a: s.a, b: s.b };
     // Sem set aberto dentro de sets[] (todos fechados) — o corrente, se houver, está no
     // agregado `liveScore` (fluxo do lançamento rápido: sets fechados + currentGames).
   }

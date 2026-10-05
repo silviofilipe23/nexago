@@ -94,5 +94,24 @@ describe('live-set-display', () => {
       const m = live({ liveScore: { setsA: 1, setsB: 0, currentGamesA: 2, currentGamesB: 2 } });
       expect(matchSetWins(m)).toEqual([1, 0]);
     });
+
+  describe('futevôlei (sport)', () => {
+    it('18x16 fecha o set; sem sport (vôlei de praia) segue aberto até 21', () => {
+      const sets = [{ a: 18, b: 16 }];
+      expect(matchSetWins(live({ status: 'completed', sets, sport: 'footvolley' }))).toEqual([1, 0]);
+      expect(matchClosedSets(live({ sets, sport: 'footvolley' }))).toEqual(sets);
+      expect(matchClosedSets(live({ sets }))).toEqual([]);
+      expect(matchClosedSets(live({ sets, sport: null }))).toEqual([]);
+    });
+
+    it('set decisivo de MD3 segue em 15 também no futevôlei', () => {
+      const sets = [{ a: 18, b: 10 }, { a: 12, b: 18 }, { a: 15, b: 13 }];
+      expect(matchSetWins(live({ status: 'completed', sets, sport: 'footvolley' }))).toEqual([2, 1]);
+    });
+
+    it('18x17 não fecha (vantagem de 2)', () => {
+      expect(matchClosedSets(live({ sets: [{ a: 18, b: 17 }], sport: 'footvolley' }))).toEqual([]);
+    });
+  });
   });
 });

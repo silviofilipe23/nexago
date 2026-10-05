@@ -529,7 +529,7 @@ export class TelaoScreenComponent {
   protected readonly publicQr = signal<string | null>(null);
 
   /** Partidas com o nome da quadra resolvido pelo `courtId` (jogos auto-agendados antigos). */
-  private readonly matches = computed(() => resolveCourtNames(this.svc.matches(), this.svc.tournament()?.courts ?? []));
+  private readonly matches = computed(() => resolveCourtNames(this.svc.matches(), this.svc.tournament()?.courts ?? [], this.svc.tournament()?.sportId));
 
   private readonly categoryNameById = computed(() => new Map((this.svc.tournament()?.categories ?? []).map((c) => [c.id, c.name])));
 

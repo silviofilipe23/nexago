@@ -72,4 +72,19 @@ describe('resolveCourtNames', () => {
 
     expect(resolveCourtNames(matches, COURTS)).toBe(matches);
   });
+
+describe('resolveCourtNames · sport do torneio como fallback', () => {
+  it('partida sem sport herda o do torneio; a que já tem sport é preservada', () => {
+    const out = resolveCourtNames([match({ id: 'a' }), match({ id: 'b', sport: 'beachVolleyball' })], COURTS, 'footvolley');
+
+    expect(out[0]!.sport).toBe('footvolley');
+    expect(out[1]!.sport).toBe('beachVolleyball');
+  });
+
+  it('sem sport no torneio nada muda (mesma lista) e o placar segue 21', () => {
+    const matches = [match({ id: 'a' })];
+
+    expect(resolveCourtNames(matches, COURTS, null)).toBe(matches);
+    expect(resolveCourtNames(matches, COURTS)).toBe(matches);
+  });
 });

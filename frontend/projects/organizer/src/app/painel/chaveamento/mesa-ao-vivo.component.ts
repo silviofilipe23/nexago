@@ -1283,9 +1283,13 @@ export class MesaAoVivoComponent {
     return m?.sets[this.currentSetIdx()] ?? { a: 0, b: 0 };
   });
 
+  /** Esporte da partida (`matches/{id}.sport`). Sem fallback pro torneio de propósito: `applyPoint`/
+   *  `undoPoint` (shared) fecham o set só pelo `sport` da partida, e a tela precisa mostrar a mesma regra. */
+  private readonly sport = computed(() => this.match()?.sport ?? null);
+
   protected readonly wins = computed(() => {
     const m = this.match();
-    return m ? setsWonOf(m.sets, m.bestOf) : { a: 0, b: 0 };
+    return m ? setsWonOf(m.sets, m.bestOf, this.sport()) : { a: 0, b: 0 };
   });
 
   protected readonly setStrip = computed<SetChipView[]>(() => {
@@ -1299,12 +1303,12 @@ export class MesaAoVivoComponent {
     });
   });
 
-  protected readonly rulesLabel = computed(() => setRulesLabel(this.currentSetIdx(), this.bestOf()));
+  protected readonly rulesLabel = computed(() => setRulesLabel(this.currentSetIdx(), this.bestOf(), this.sport()));
 
   protected readonly hint = computed(() => {
     if (this.status() !== 'in_progress') return null;
     const s = this.currentSet();
-    return setPointHint(s.a, s.b, this.currentSetIdx(), this.bestOf());
+    return setPointHint(s.a, s.b, this.currentSetIdx(), this.bestOf(), this.sport());
   });
 
   protected readonly elapsed = computed(() => {
@@ -1707,8 +1711,8 @@ export class MesaAoVivoComponent {
       return;
     }
 
-    const result = applyBestOfChange({ sets: m.sets, newBestOf, teamAId: m.teamAId, teamBId: m.teamBId });
-    const wins = setsWonOf(result.sets, newBestOf);
+    const result = applyBestOfChange({ sets: m.sets, newBestOf, teamAId: m.teamAId, teamBId: m.teamBId, sport: this.sport() });
+    const wins = setsWonOf(result.sets, newBestOf, this.sport());
 
     this.saving.set(true);
     this.feedback.set(null);

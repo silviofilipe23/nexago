@@ -151,7 +151,7 @@ export function overlayViewOf(
   const pointsA = points?.a ?? null;
   const pointsB = points?.b ?? null;
   const currentSetNumber = live?.setNumber ?? Math.max(1, closed.length);
-  const targetPoints = targetPointsForSet(Math.max(0, currentSetNumber - 1), match.bestOf);
+  const targetPoints = targetPointsForSet(Math.max(0, currentSetNumber - 1), match.bestOf, match.sport);
   return {
     kind: 'duel',
     phase: phaseOf(match.status),

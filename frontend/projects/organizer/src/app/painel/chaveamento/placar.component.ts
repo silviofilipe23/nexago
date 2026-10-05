@@ -511,9 +511,12 @@ export class PlacarComponent {
     return m ? courtChangeBlockReason(m) : 'unscheduled';
   });
 
-  protected readonly wins = computed(() => setsWon(this.sets(), this.bestOf()));
+  /** Esporte da partida (futevôlei: set até 18) — o do doc, senão o do torneio; ausente = 21. */
+  private readonly sport = computed(() => this.match()?.sport ?? this.ctx.tournament()?.sportId ?? null);
 
-  protected readonly issues = computed(() => validateScoreSubmission(this.sets(), this.bestOf()));
+  protected readonly wins = computed(() => setsWon(this.sets(), this.bestOf(), this.sport()));
+
+  protected readonly issues = computed(() => validateScoreSubmission(this.sets(), this.bestOf(), this.sport()));
 
   protected readonly canSubmit = computed(() => this.teamsReady() && this.sets().length > 0 && this.issues().length === 0);
 
@@ -537,7 +540,7 @@ export class PlacarComponent {
   }
 
   protected targetOf(index: number): number {
-    return targetPointsForSet(index, this.bestOf());
+    return targetPointsForSet(index, this.bestOf(), this.sport());
   }
 
   protected readonly headerSubtitle = computed(() => {
@@ -583,7 +586,7 @@ export class PlacarComponent {
     this.feedback.set(null);
     try {
       const result = await submitMatchResult({ matchId: m.id, sets: this.sets(), bestOf: this.bestOf() });
-      const winner = matchWinnerSide(this.sets(), this.bestOf());
+      const winner = matchWinnerSide(this.sets(), this.bestOf(), this.sport());
       const winnerLabel = winner === 'A' ? m.team1Label : m.team2Label;
       this.feedback.set({
         ok: true,

@@ -76,8 +76,8 @@ export interface PointAlert {
 type PointAlertFields = LiveScoreFields & Pick<TournamentMatch, 'bestOf'>;
 
 /** Um ponto do fim: MATCH POINT (fecha a partida) ou SET POINT (fecha só o set). Simula o
- *  próximo ponto de cada lado com as regras reais (`match-scoring`) — 21 com vantagem de 2,
- *  15 no set decisivo de MD3. */
+ *  próximo ponto de cada lado com as regras reais (`match-scoring`) — 21 (futevôlei 18) com
+ *  vantagem de 2, 15 no set decisivo de MD3. */
 export function pointAlertOf(m: PointAlertFields): PointAlert | null {
   const current = matchLiveCurrentSet(m);
   if (!current) return null;
@@ -87,8 +87,8 @@ export function pointAlertOf(m: PointAlertFields): PointAlert | null {
   const alertFor = (side: 'A' | 'B'): PointAlert | null => {
     const next: ScoreSet = side === 'A' ? { a: current.a + 1, b: current.b } : { a: current.a, b: current.b + 1 };
     const simulated = [...closed, next];
-    if (setWinnerSide(simulated, setIndex, m.bestOf) !== side) return null;
-    return { side, kind: matchWinnerSide(simulated, m.bestOf) === side ? 'match' : 'set' };
+    if (setWinnerSide(simulated, setIndex, m.bestOf, m.sport) !== side) return null;
+    return { side, kind: matchWinnerSide(simulated, m.bestOf, m.sport) === side ? 'match' : 'set' };
   };
 
   const a = alertFor('A');

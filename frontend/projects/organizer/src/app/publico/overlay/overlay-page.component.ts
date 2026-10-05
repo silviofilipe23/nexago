@@ -289,7 +289,7 @@ export class OverlayPageComponent {
   private readonly match = computed(() => {
     const m = this.gateway.match();
     if (!m) return null;
-    return resolveCourtNames([m], this.gateway.tournament()?.courts ?? [])[0] ?? m;
+    return resolveCourtNames([m], this.gateway.tournament()?.courts ?? [], this.gateway.tournament()?.sportId)[0] ?? m;
   });
 
   /** Final (duelo ou KOTC) já encerrada nesta tela — o placar some; o que fica é o pódio. */
@@ -348,7 +348,7 @@ export class OverlayPageComponent {
     const cat = this.categoriaDoPodio();
     if (!cat) return null;
     const m = categoryFinalOf(this.gateway.tournamentMatches(), cat);
-    return m ? (resolveCourtNames([m], this.gateway.tournament()?.courts ?? [])[0] ?? m) : null;
+    return m ? (resolveCourtNames([m], this.gateway.tournament()?.courts ?? [], this.gateway.tournament()?.sportId)[0] ?? m) : null;
   });
 
   /** Partida de onde sai o pódio: a final da categoria escolhida ou, no automático, a da tela. */

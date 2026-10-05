@@ -418,8 +418,13 @@ class _OrganizerMatchLiveTablePageState
       newBestOf: newBestOf,
       teamAId: match.teamAId,
       teamBId: match.teamBId,
+      sport: match.sport,
     );
-    final wins = MatchScoringLogic.setsWon(result.sets, bestOf: newBestOf);
+    final wins = MatchScoringLogic.setsWon(
+      result.sets,
+      bestOf: newBestOf,
+      sport: match.sport,
+    );
 
     setState(() => _saving = true);
     try {
@@ -1005,12 +1010,14 @@ class _OrganizerMatchLiveTablePageState
                 final rules = MatchScoringLogic.setRulesLabel(
                   setIdx,
                   bestOf: match.bestOf,
+                  sport: match.sport,
                 );
                 final setPoint = MatchScoringLogic.setPointHint(
                   current.a,
                   current.b,
                   setIndex: setIdx,
                   bestOf: match.bestOf,
+                  sport: match.sport,
                 );
                 final teamA = liveTableTeamData(
                   match: match,

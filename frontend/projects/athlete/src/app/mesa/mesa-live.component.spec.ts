@@ -144,6 +144,7 @@ function liveMatch(partial: Partial<LiveMatch> = {}): LiveMatch {
     matchNumber: 7,
     sets: [{ a: 14, b: 12 }],
     currentSetIndex: 0,
+    sport: null,
     bestOf: 3,
     servingTeamId: 'time-a',
     servingPlayerSlot: 1,

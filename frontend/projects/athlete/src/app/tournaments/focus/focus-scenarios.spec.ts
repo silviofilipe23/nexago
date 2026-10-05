@@ -29,6 +29,7 @@ function match(partial: Partial<TournamentMatch> & Pick<TournamentMatch, 'id'>):
     queueStatus: null,
     bestOf: 3,
     currentSetIndex: null,
+    sport: null,
     ...partial,
   };
 }
@@ -195,5 +196,15 @@ describe('winBoundsOf', () => {
     const [widest, narrowest] = winBoundsOf(99);
     expect(widest.length).toBe(3); // setsToWin de um MD5 (ceil(5 / 2))
     expect(narrowest.length).toBe(5); // total de sets de um MD5 (3 + 2)
+  });
+});
+
+describe('winBoundsOf (esporte)', () => {
+  it('futevôlei usa alvo 18 nos sets 1-2 e 15 no decisivo; sem sport segue 21', () => {
+    const [widestFv, narrowestFv] = winBoundsOf(3, 'footvolley');
+    expect(widestFv).toEqual([{ a: 18, b: 0 }, { a: 18, b: 0 }]);
+    expect(narrowestFv[2]).toEqual({ a: 15, b: 13 });
+    const [widest] = winBoundsOf(3);
+    expect(widest).toEqual([{ a: 21, b: 0 }, { a: 21, b: 0 }]);
   });
 });

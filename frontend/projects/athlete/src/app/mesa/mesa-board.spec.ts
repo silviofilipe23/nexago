@@ -17,6 +17,7 @@ function board(partial: Partial<LiveMatch> = {}): LiveMatch {
     matchNumber: 5,
     sets: [{ a: 0, b: 0 }],
     currentSetIndex: 0,
+    sport: null,
     bestOf: 3,
     servingTeamId: 'time-a',
     servingPlayerSlot: 1,
@@ -70,6 +71,11 @@ describe('mesa-board', () => {
     it('set decisivo de MD3 usa o alvo 15', () => {
       const m = board({ sets: [{ a: 21, b: 15 }, { a: 10, b: 21 }, { a: 14, b: 9 }], currentSetIndex: 2 });
       expect(flagOf(m, 'A')).toBe('match');
+    });
+
+    it('futevôlei: set até 18 (18×16 fecha), sem sport segue em 21', () => {
+      expect(flagOf(board({ sets: [{ a: 17, b: 16 }], sport: 'footvolley' }), 'A')).toBe('set');
+      expect(flagOf(board({ sets: [{ a: 17, b: 16 }], sport: null }), 'A')).toBeNull();
     });
 
     it('fora do ao vivo, nenhuma bandeira', () => {
@@ -144,6 +150,8 @@ describe('mesa-board', () => {
       expect(bestOfLabelOf(1)).toBe('set único');
       expect(setRuleLineOf(board({ currentSetIndex: 0 }))).toBe('1º set · até 21');
       expect(setRuleLineOf(board({ currentSetIndex: 2 }))).toBe('3º set · até 15');
+      expect(setRuleLineOf(board({ currentSetIndex: 0, sport: 'footvolley' }))).toBe('1º set · até 18');
+      expect(setRuleLineOf(board({ currentSetIndex: 2, sport: 'footvolley' }))).toBe('3º set · até 15');
     });
   });
 });

@@ -60,6 +60,9 @@ export interface TournamentMatch {
   winnerId: string | null;
   isGroupMatch: boolean;
   matchNumber: number;
+  /** `matches/{id}.sport` (gravado na criação da chave); ausente em partidas antigas — aí vale o
+   *  esporte do torneio (`withFallbackSport`). Ausente/desconhecido = vôlei de praia (21). */
+  sport: string | null;
   /** Fiação da planta (`bracket-definitions`): pra qual jogo o VENCEDOR desta partida vai e em
    *  qual slot (A/B). Usado só pelo layout da árvore — ver o cabeçalho deste arquivo. */
   winnerAdvanceMatchNumber: number | null;
@@ -152,6 +155,7 @@ function matchFromDoc(id: string, data: Record<string, unknown>): TournamentMatc
     winnerId: optionalStr(data['winnerId']),
     isGroupMatch: data['isGroupMatch'] === true,
     matchNumber: typeof data['matchNumber'] === 'number' ? data['matchNumber'] : 0,
+    sport: optionalStr(data['sport']),
     winnerAdvanceMatchNumber: advanceMatchNumberOf(data['winnerAdvance']),
     winnerAdvanceSlot: advanceSlotOf(data['winnerAdvance']),
     scheduleTime: toDate(data['scheduleTime']),
@@ -225,25 +229,33 @@ export function matchBestOf(m: Pick<TournamentMatch, 'bestOf'>): number {
 }
 
 /** Regras de set (espelho mínimo de `match_scoring_logic.dart`, também replicado — e validado
- *  de fato — em `functions/src/match-scoring.ts`): alvo 21, decisivo até 15 no 3º set de MD3,
+ *  de fato — em `functions/src/match-scoring.ts`): alvo 21 (futevôlei 18), decisivo até 15 no 3º set de MD3,
  *  vantagem de 2. As três cópias concordam, e nenhuma delas trata o 5º set de MD5 como
  *  decisivo — ele também vai a 21. Não é uma lacuna deste espelho: é a regra em produção. */
 const DEFAULT_SET_POINTS = 21;
 const TIEBREAK_SET_POINTS = 15;
+/** Futevôlei (FIFV/CBFv): set até 18, decisivo até 15. */
+const FOOTVOLLEY_SET_POINTS = 18;
 export const MIN_ADVANTAGE = 2;
 
 /** Alvo de pontos de um set pelo índice (0-based) dentro do formato — exportado pra quem precisa
  *  montar placares hipotéticos legais (`focus-scenarios.ts`) sem duplicar os números mágicos. */
-export function setTargetPointsOf(index: number, bestOf: number): number {
-  return bestOf === 3 && index === 2 ? TIEBREAK_SET_POINTS : DEFAULT_SET_POINTS;
+export function setTargetPointsOf(index: number, bestOf: number, sport?: string | null): number {
+  if (bestOf === 3 && index === 2) return TIEBREAK_SET_POINTS;
+  return sport === 'footvolley' ? FOOTVOLLEY_SET_POINTS : DEFAULT_SET_POINTS;
 }
 
-function setIsWon(s: MatchSet, index: number, bestOf: number): boolean {
-  const target = setTargetPointsOf(index, bestOf);
+/** Partidas antigas não têm `sport`: herdam o do torneio (as que têm, mantêm o próprio). */
+export function withFallbackSport(matches: readonly TournamentMatch[], sport: string | null | undefined): TournamentMatch[] {
+  return sport ? matches.map((m) => (m.sport ? m : { ...m, sport })) : [...matches];
+}
+
+function setIsWon(s: MatchSet, index: number, bestOf: number, sport?: string | null): boolean {
+  const target = setTargetPointsOf(index, bestOf, sport);
   return (s.a >= target && s.a - s.b >= MIN_ADVANTAGE) || (s.b >= target && s.b - s.a >= MIN_ADVANTAGE);
 }
 
-type MatchScoreFields = Pick<TournamentMatch, 'sets' | 'resultA' | 'resultB' | 'liveScore' | 'status' | 'bestOf' | 'currentSetIndex'>;
+type MatchScoreFields = Pick<TournamentMatch, 'sets' | 'resultA' | 'resultB' | 'liveScore' | 'status' | 'bestOf' | 'currentSetIndex' | 'sport'>;
 
 /** Sets ganhos por lado, unificando as três formas em que o placar aparece no doc:
  *  `sets[]` (canônico), `resultA/resultB` (legado, "21,19,10") e `liveScore` (agregado).
@@ -252,7 +264,7 @@ type MatchScoreFields = Pick<TournamentMatch, 'sets' | 'resultA' | 'resultB' | '
  *  fugir da regra e continuam contando como sempre contaram). */
 export function matchSetWins(m: MatchScoreFields): [number, number] {
   if (m.sets.length > 0) {
-    const closed = matchIsLive(m) ? m.sets.filter((s, i) => setIsWon(s, i, matchBestOf(m))) : m.sets;
+    const closed = matchIsLive(m) ? m.sets.filter((s, i) => setIsWon(s, i, matchBestOf(m), m.sport)) : m.sets;
     return [closed.filter((s) => s.a > s.b).length, closed.filter((s) => s.b > s.a).length];
   }
   const legacy = legacySets(m.resultA, m.resultB);
@@ -267,7 +279,7 @@ export function matchSetWins(m: MatchScoreFields): [number, number] {
 export function matchClosedSets(m: MatchScoreFields): MatchSet[] {
   const sets = m.sets.length > 0 ? m.sets : legacySets(m.resultA, m.resultB);
   if (!matchIsLive(m)) return sets;
-  return sets.filter((s, i) => setIsWon(s, i, matchBestOf(m)));
+  return sets.filter((s, i) => setIsWon(s, i, matchBestOf(m), m.sport));
 }
 
 export interface MatchLiveSetScore {
@@ -287,7 +299,7 @@ export function matchLiveCurrentSet(m: MatchScoreFields): MatchLiveSetScore | nu
   if (m.sets.length > 0) {
     const idx = Math.min(Math.max(m.currentSetIndex ?? m.sets.length - 1, 0), matchBestOf(m) - 1);
     const s = m.sets[idx];
-    if (s && !setIsWon(s, idx, matchBestOf(m))) return { setNumber: matchClosedSets(m).length + 1, a: s.a, b: s.b };
+    if (s && !setIsWon(s, idx, matchBestOf(m), m.sport)) return { setNumber: matchClosedSets(m).length + 1, a: s.a, b: s.b };
     // Sem set aberto dentro de sets[] (todos fechados) — o corrente, se houver, está no
     // agregado `liveScore` (fluxo do lançamento rápido: sets fechados + currentGames).
   }

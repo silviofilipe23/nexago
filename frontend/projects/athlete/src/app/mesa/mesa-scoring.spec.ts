@@ -91,6 +91,11 @@ describe('mesa (portal do atleta) — escrita de placar', () => {
       expect(issues.map((i) => i.message)).toEqual(['Complete o placar: nenhuma dupla venceu ainda.']);
     });
 
+    it('futevôlei: 18×16 fecha o set; sem sport, 18×16 exige 21', () => {
+      expect(validateScoreSubmission([{ a: 18, b: 16 }], 1, 'footvolley')).toEqual([]);
+      expect(validateScoreSubmission([{ a: 18, b: 16 }], 1).map((i) => i.message)).toEqual(['Set 1: vitória exige 21 pontos com vantagem de 2.']);
+    });
+
     it('recusa lista vazia', () => {
       expect(validateScoreSubmission([], 3).map((i) => i.message)).toEqual(['Informe ao menos um set.']);
     });

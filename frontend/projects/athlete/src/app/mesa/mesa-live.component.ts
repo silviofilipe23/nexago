@@ -1540,7 +1540,7 @@ export class MesaLiveComponent {
 
   protected readonly wins = computed(() => {
     const m = this.match();
-    return m ? setsWonOf(m.sets, m.bestOf) : { a: 0, b: 0 };
+    return m ? setsWonOf(m.sets, m.bestOf, m.sport) : { a: 0, b: 0 };
   });
 
   protected readonly setPills = computed<MesaSetPill[]>(() => {
@@ -1902,8 +1902,8 @@ export class MesaLiveComponent {
       return;
     }
 
-    const result = applyBestOfChange({ sets: m.sets, newBestOf, teamAId: m.teamAId, teamBId: m.teamBId });
-    const wins = setsWonOf(result.sets, newBestOf);
+    const result = applyBestOfChange({ sets: m.sets, newBestOf, teamAId: m.teamAId, teamBId: m.teamBId, sport: m.sport });
+    const wins = setsWonOf(result.sets, newBestOf, m.sport);
 
     this.saving.set(true);
     this.feedback.set(null);
@@ -1974,7 +1974,7 @@ export class MesaLiveComponent {
 
   /** Validação local espelhando `match_scoring_logic.dart` (mensagens idênticas às do app); o
    *  servidor revalida em `submitMatchResult`. */
-  protected readonly quickIssues = computed(() => validateScoreSubmission(this.quickSets(), this.bestOf()));
+  protected readonly quickIssues = computed(() => validateScoreSubmission(this.quickSets(), this.bestOf(), this.match()?.sport));
 
   protected canSubmitQuick(): boolean {
     return this.quickSets().length > 0 && this.quickIssues().length === 0;
@@ -1989,7 +1989,7 @@ export class MesaLiveComponent {
     try {
       const sets = this.quickSets();
       const result = await this.gateway.submitSets(m.id, sets, this.bestOf());
-      const winner = matchWinnerSide(sets, this.bestOf());
+      const winner = matchWinnerSide(sets, this.bestOf(), m.sport);
       const winnerLabel = winner === 'A' ? this.label('A') : this.label('B');
       this.feedback.set({
         ok: true,

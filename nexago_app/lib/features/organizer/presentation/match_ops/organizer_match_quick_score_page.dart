@@ -152,6 +152,7 @@ class _OrganizerMatchQuickScorePageState
       teamAId: match.teamAId,
       teamBId: match.teamBId,
       requireMatchWinner: true,
+      sport: match.sport,
     );
     if (!validation.isValid) {
       showAppSnackBar(
@@ -294,7 +295,11 @@ class _OrganizerMatchQuickScorePageState
             enrichedTeam: enriched?.teamB,
           );
 
-          final wins = MatchScoringLogic.setsWon(_sets, bestOf: _bestOf);
+          final wins = MatchScoringLogic.setsWon(
+            _sets,
+            bestOf: _bestOf,
+            sport: match.sport,
+          );
           final setsWonA = wins.a;
           final setsWonB = wins.b;
           final winnerId = MatchScoringLogic.matchWinnerId(
@@ -302,6 +307,7 @@ class _OrganizerMatchQuickScorePageState
             teamAId: match.teamAId,
             teamBId: match.teamBId,
             bestOf: _bestOf,
+            sport: match.sport,
           );
           final winnerLabel = winnerId == match.teamAId
               ? teamA.label
@@ -358,7 +364,7 @@ class _OrganizerMatchQuickScorePageState
                     const SizedBox(height: 24),
                     _SectionHeader(
                       title: 'GAMES POR SET',
-                      trailing: 'set até ${MatchScoringLogic.defaultSetPoints}'
+                      trailing: 'set até ${MatchScoringLogic.setPointsFor(match.sport)}'
                           ' · decisivo até ${MatchScoringLogic.tiebreakSetPoints}',
                     ),
                     const SizedBox(height: 12),

@@ -107,29 +107,42 @@ List<TournamentMatchSet> setsForMatch(TournamentMatch match) {
 
 const _defaultBestOf = 3;
 const _defaultSetPoints = 21;
+const _footvolleySetPoints = 18;
 const _tiebreakSetPoints = 15;
+const _footvolleySport = 'footvolley';
+
+/// Pontos que fecham um set normal no esporte (futevôlei = 18; sem esporte = 21).
+int _setPointsForSport(String? sport) =>
+    sport?.trim() == _footvolleySport ? _footvolleySetPoints : _defaultSetPoints;
 const _minSetAdvantage = 2;
 
 /// Pontos que fecham um set normal e um tie-break. Expostos porque o Modo Focus
 /// mostra o formato da partida ao atleta ("MD3 · 21 PTS", "tie 15") e a régua
 /// tem que ser a MESMA que decide se o set acabou.
 int get matchSetPoints => _defaultSetPoints;
+
+/// Pontos do set normal para o [sport] (futevôlei = 18; nulo = 21).
+int matchSetPointsFor(String? sport) => _setPointsForSport(sport);
 int get matchTiebreakSetPoints => _tiebreakSetPoints;
 int get matchMinSetAdvantage => _minSetAdvantage;
 
 /// Pontos que fecham o set de índice [index] num jogo melhor-de-[bestOf].
 /// Mesma régua de [matchSetIsWon] — exposta para a simulação de cenários do
 /// Focus, que precisa gerar placares legais.
-int matchSetTargetPoints(int index, int bestOf) =>
-    bestOf == 3 && index == 2 ? _tiebreakSetPoints : _defaultSetPoints;
+int matchSetTargetPoints(int index, int bestOf, {String? sport}) =>
+    bestOf == 3 && index == 2 ? _tiebreakSetPoints : _setPointsForSport(sport);
 
 int matchBestOf(TournamentMatch match) =>
     match.bestOf > 0 ? match.bestOf : _defaultBestOf;
 
 /// Set já decidido pela regra de pontos (21, ou 15 no tiebreak do melhor de 3).
-bool matchSetIsWon(TournamentMatchSet set, int index, int bestOf) {
-  final target =
-      bestOf == 3 && index == 2 ? _tiebreakSetPoints : _defaultSetPoints;
+bool matchSetIsWon(
+  TournamentMatchSet set,
+  int index,
+  int bestOf, {
+  String? sport,
+}) {
+  final target = matchSetTargetPoints(index, bestOf, sport: sport);
   return (set.a >= target && set.a - set.b >= _minSetAdvantage) ||
       (set.b >= target && set.b - set.a >= _minSetAdvantage);
 }
@@ -143,7 +156,7 @@ List<TournamentMatchSet> matchClosedSets(TournamentMatch match) {
   final bestOf = matchBestOf(match);
   return [
     for (var i = 0; i < sets.length; i++)
-      if (matchSetIsWon(sets[i], i, bestOf)) sets[i],
+      if (matchSetIsWon(sets[i], i, bestOf, sport: match.sport)) sets[i],
   ];
 }
 
@@ -159,7 +172,7 @@ List<TournamentMatchSet> matchClosedSets(TournamentMatch match) {
       0,
       bestOf - 1,
     );
-    if (index < sets.length && !matchSetIsWon(sets[index], index, bestOf)) {
+    if (index < sets.length && !matchSetIsWon(sets[index], index, bestOf, sport: match.sport)) {
       return (
         setNumber: matchClosedSets(match).length + 1,
         a: sets[index].a,

@@ -30,14 +30,14 @@ export function scoreText(points: number): string {
   return String(Math.max(0, points)).padStart(2, '0');
 }
 
-export function flagOf(m: Pick<LiveMatch, 'sets' | 'currentSetIndex' | 'bestOf' | 'status'>, side: MesaSide): MesaFlag {
+export function flagOf(m: Pick<LiveMatch, 'sets' | 'currentSetIndex' | 'bestOf' | 'status' | 'sport'>, side: MesaSide): MesaFlag {
   if (m.status !== 'in_progress') return null;
   const idx = currentSetIndexOf(m);
   const { a, b } = currentSetOf(m);
-  const target = targetPointsForSet(idx, m.bestOf);
+  const target = targetPointsForSet(idx, m.bestOf, m.sport);
   const closesSet = side === 'A' ? isSetWon(a + 1, b, target) : isSetWon(b + 1, a, target);
   if (!closesSet) return null;
-  const wins = setsWonOf(m.sets, m.bestOf);
+  const wins = setsWonOf(m.sets, m.bestOf, m.sport);
   const needed = Math.ceil(m.bestOf / 2);
   const mine = side === 'A' ? wins.a : wins.b;
   return mine + 1 >= needed ? 'match' : 'set';
@@ -83,10 +83,10 @@ export function bestOfLabelOf(bestOf: number): string {
   return bestOf === 1 ? 'set único' : `melhor de ${bestOf}`;
 }
 
-/** "2º set · até 21" — o alvo muda no set decisivo de MD3. */
-export function setRuleLineOf(m: Pick<LiveMatch, 'currentSetIndex' | 'bestOf'>): string {
+/** "2º set · até 21" — o alvo muda no set decisivo de MD3 (futevôlei: 18/15). */
+export function setRuleLineOf(m: Pick<LiveMatch, 'currentSetIndex' | 'bestOf' | 'sport'>): string {
   const idx = currentSetIndexOf(m);
-  return `${idx + 1}º set · até ${targetPointsForSet(idx, m.bestOf)}`;
+  return `${idx + 1}º set · até ${targetPointsForSet(idx, m.bestOf, m.sport)}`;
 }
 
 /** "07:32" no jogo normal e "1:07:32" quando passa da hora. `formatElapsedMmSs` (compartilhado)

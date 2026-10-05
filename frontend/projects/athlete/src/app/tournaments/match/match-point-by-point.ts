@@ -121,8 +121,8 @@ function annotate(points: TimedPoint[]): void {
 
 /** O ponto que fechou o set é o que levou o placar ao alvo com vantagem — a mesma regra do motor
  *  compartilhado, então o set em andamento (10×8) não ganha o selo. */
-function markSetClosing(points: TimedPoint[], setIndex: number, bestOf: number): void {
-  const target = targetPointsForSet(setIndex, bestOf);
+function markSetClosing(points: TimedPoint[], setIndex: number, bestOf: number, sport?: string | null): void {
+  const target = targetPointsForSet(setIndex, bestOf, sport);
   for (const p of points) {
     p.closesSet = isSetWon(p.left, p.right, target);
   }
@@ -228,7 +228,7 @@ export function pointByPointSetsOf(params: {
   return setIndexesOf(params.match, bySet).map((setIndex) => {
     const points = bySet.get(setIndex) ?? [];
     annotate(points);
-    markSetClosing(points, setIndex, bestOf);
+    markSetClosing(points, setIndex, bestOf, params.match.sport);
     const blocks = blocksOf(points);
     const score = scoreOf(params.match, setIndex, points, leftIsA);
     const missingCount = missingCountOf(points, score);

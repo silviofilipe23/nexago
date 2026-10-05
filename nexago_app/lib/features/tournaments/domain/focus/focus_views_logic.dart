@@ -363,7 +363,7 @@ NextMatchView? nextMatchViewOf(FocusViewContext ctx, DateTime now) {
       return label.trim().isEmpty ? null : label;
     }(),
     bestOfLabel: 'MD${matchBestOf(m)}',
-    formatLabel: 'MD${matchBestOf(m)} · $matchSetPoints PTS',
+    formatLabel: 'MD${matchBestOf(m)} · ${matchSetPointsFor(m.sport)} PTS',
     countdownClock: live ? null : countdownClockOf(m.scheduleTime, now),
     scheduleTime: m.scheduleTime,
     checkedIn: checkIn.trim().toLowerCase() == 'present',

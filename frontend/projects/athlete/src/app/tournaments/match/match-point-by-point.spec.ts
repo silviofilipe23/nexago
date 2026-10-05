@@ -31,6 +31,7 @@ function match(partial: Partial<TournamentMatch> = {}): TournamentMatch {
     queueStatus: null,
     bestOf: 3,
     currentSetIndex: 0,
+    sport: null,
     ...partial,
   };
 }
@@ -227,6 +228,15 @@ describe('pointByPointSetsOf: marcações do ponto', () => {
       mySide: 'A',
     });
     expect(rows(set!).every((p) => !p.closesSet)).toBe(true);
+  });
+
+  it('futevôlei: 18×16 fecha o set; sem sport o mesmo placar segue em andamento (alvo 21)', () => {
+    const closes = (sport: string | null) => {
+      const [set] = pointByPointSetsOf({ match: match({ sets: [{ a: 18, b: 16 }], sport }), events: rallyTo(18, 16), mySide: 'A' });
+      return rows(set!).filter((p) => p.closesSet).length;
+    };
+    expect(closes('footvolley')).toBe(1);
+    expect(closes(null)).toBe(0);
   });
 
   it('usa o alvo de 15 do terceiro set de MD3 para reconhecer o fechamento', () => {

@@ -69,6 +69,7 @@ abstract final class TournamentMatchMapper {
       teamAConfirmed: _reportBool(data['report'], 'teamAConfirmed'),
       teamBConfirmed: _reportBool(data['report'], 'teamBConfirmed'),
       bestOf: _bestOf(data['bestOf']),
+      sport: _str(data['sport']),
       kocStandingTeamIds: _kocStandingTeamIds(data['kocStandings']),
       kocTeamIds: _teamIdList(data['kocTeamIds']),
       kocDurationSec: _kocDurationSec(data['kocConfig']),

@@ -3019,6 +3019,7 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
       teamAId: widget.match.teamAId,
       teamBId: widget.match.teamBId,
       requireMatchWinner: requireMatchWinner,
+      sport: widget.match.sport,
     );
   }
 
@@ -3249,12 +3250,17 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final wins = MatchScoringLogic.setsWon(_sets, bestOf: _bestOf);
+    final wins = MatchScoringLogic.setsWon(
+      _sets,
+      bestOf: _bestOf,
+      sport: widget.match.sport,
+    );
     final winnerId = MatchScoringLogic.matchWinnerId(
       sets: _sets,
       teamAId: widget.match.teamAId,
       teamBId: widget.match.teamBId,
       bestOf: _bestOf,
+      sport: widget.match.sport,
     );
     final winnerLabel = winnerId == widget.match.teamAId
         ? widget.teamA.label
@@ -3327,7 +3333,7 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
               const SizedBox(height: 20),
               _QuickScoreSectionHeader(
                 title: 'GAMES POR SET',
-                trailing: 'set até ${MatchScoringLogic.defaultSetPoints} · '
+                trailing: 'set até ${MatchScoringLogic.setPointsFor(widget.match.sport)} · '
                     'decisivo até ${MatchScoringLogic.tiebreakSetPoints}',
               ),
               const SizedBox(height: 12),
@@ -4095,15 +4101,20 @@ List<int> liveTableCompletedSetScores(
   final end = idx.clamp(0, match.sets.length);
   return [
     for (var i = 0; i < end; i++)
-      if (_isCompletedSet(match.sets[i]))
+      if (_isCompletedSet(match, i))
         sideA ? match.sets[i].a : match.sets[i].b,
   ];
 }
 
-bool _isCompletedSet(TournamentMatchSet set) {
+bool _isCompletedSet(TournamentMatch match, int index) {
+  final set = match.sets[index];
+  final target = MatchScoringLogic.targetPointsForSet(
+    index,
+    match.bestOf,
+    sport: match.sport,
+  );
   return set.endedAt != null ||
-      MatchScoringLogic.isSetWon(set.a, set.b) ||
-      MatchScoringLogic.isSetWon(set.b, set.a);
+      MatchScoringLogic.isSetWon(set.a, set.b, target: target);
 }
 
 int liveTableCurrentSetScore(TournamentMatch match, {required bool sideA}) {

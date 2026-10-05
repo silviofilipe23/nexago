@@ -29,6 +29,7 @@ function match(partial: Partial<TournamentMatch> & Pick<TournamentMatch, 'id'>):
     queueStatus: null,
     bestOf: 3,
     currentSetIndex: null,
+    sport: null,
     ...partial,
   };
 }

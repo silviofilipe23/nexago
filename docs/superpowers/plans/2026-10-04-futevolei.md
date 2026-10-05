@@ -19,7 +19,11 @@ arte. Faltam regras próprias de jogo, rating e acabamento de busca/reserva.
 - Padrão de atletas estimados na reserva por esporte da quadra (`estimatedAthletes`
   hoje fixo em 4): passar o tipo da quadra nos args da confirmação.
 
-## Fatia 3 — Regras de placar por esporte (decisão de produto primeiro)
+## Fatia 3 — Regras de placar por esporte (feita, sem compilar)
+Regra adotada: melhor de 3, set até 18, decisivo até 15, diferença de 2 (FIFV/CBFv; fontes
+conferidas só por resumos de busca). `sport` vai gravado na partida na criação da chave
+(`bracketMatchDoc`); partidas antigas: `functions/scripts/backfill-match-sport.js`.
+Original do levantamento:
 - Hoje tudo é vôlei de praia: set até 21, tie-break 15 no 3º set, `bestOf` 3 —
   em três cópias que precisam andar juntas: `functions/src/match-scoring.ts`,
   `nexago_app/.../match_ops/match_scoring_logic.dart`,

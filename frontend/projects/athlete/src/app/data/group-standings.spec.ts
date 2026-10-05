@@ -26,6 +26,7 @@ function matchOf(over: Partial<TournamentMatch> & { poolId: string; teamAId: str
     queueStatus: null,
     bestOf: 3,
     currentSetIndex: null,
+    sport: null,
     ...over,
   };
 }

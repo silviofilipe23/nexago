@@ -58,8 +58,13 @@ MatchPointWrite? buildPointWrite(TournamentMatch match, String side) {
     teamAId: match.teamAId,
     teamBId: match.teamBId,
     bestOf: match.bestOf,
+    sport: match.sport,
   );
-  final wins = MatchScoringLogic.setsWon(result.sets, bestOf: match.bestOf);
+  final wins = MatchScoringLogic.setsWon(
+    result.sets,
+    bestOf: match.bestOf,
+    sport: match.sport,
+  );
   final current = result.sets.length > setIndex ? result.sets[setIndex] : null;
   final slots = MatchServingPlayerLogic.slotsAfterScore(
     slots: match.servingPlayers,
@@ -117,8 +122,13 @@ MatchPointWrite buildUndoWrite(
     teamAId: match.teamAId,
     teamBId: match.teamBId,
     bestOf: match.bestOf,
+    sport: match.sport,
   );
-  final wins = MatchScoringLogic.setsWon(result.sets, bestOf: match.bestOf);
+  final wins = MatchScoringLogic.setsWon(
+    result.sets,
+    bestOf: match.bestOf,
+    sport: match.sport,
+  );
   final idx = result.currentSetIndex;
   final current = result.sets.length > idx ? result.sets[idx] : null;
   final slots = MatchServingPlayerLogic.slotsAfterUndo(

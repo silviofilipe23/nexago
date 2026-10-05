@@ -46,7 +46,7 @@ export interface RoundScenario {
  * (`x` bate `y` 21-19/9-21/15-5) derrubava a garantia em ~4% dos grupos simulados; o mesmo
  * defeito, sem essa conta, reaparece em MD5 com uma faixa ainda mais larga de saldo de pontos.
  */
-export function winBoundsOf(bestOf: number): readonly MatchSet[][] {
+export function winBoundsOf(bestOf: number, sport?: string | null): readonly MatchSet[][] {
   // `bestOf` chega cru do documento do Firestore (`matchBestOf` só cai pro padrão com valores <=
   // 0 — nada trava o topo). Um documento malformado ou editado à mão com um número gigante
   // alocaria arrays proporcionais a ele e travaria a aba; trava no maior formato que o app
@@ -61,7 +61,7 @@ export function winBoundsOf(bestOf: number): readonly MatchSet[][] {
   // (adversário zerado em cada set).
   const widest: MatchSet[] = [];
   for (let i = 0; i < setsToWin; i++) {
-    widest.push({ a: setTargetPointsOf(i, clampedBestOf), b: 0 });
+    widest.push({ a: setTargetPointsOf(i, clampedBestOf, sport), b: 0 });
   }
 
   // Vence o mínimo pra fechar o jogo, indo até o fim: os `setsToLose` sets que não decidem nada
@@ -70,7 +70,7 @@ export function winBoundsOf(bestOf: number): readonly MatchSet[][] {
   const narrowest: MatchSet[] = [];
   let remainingLosses = setsToLose;
   for (let i = 0; i < totalSets; i++) {
-    const target = setTargetPointsOf(i, clampedBestOf);
+    const target = setTargetPointsOf(i, clampedBestOf, sport);
     if (i !== deciderIndex && remainingLosses > 0) {
       narrowest.push({ a: 0, b: target });
       remainingLosses--;
@@ -149,7 +149,7 @@ export function roundScenariosOf(
     // Só os dois EXTREMOS de winBoundsOf, derivados do bestOf desta partida — a monotonicidade
     // do desempate garante que, se ambos derem a mesma posição, todo placar legal no meio
     // também dá (ver doc da função).
-    const ranks = winBoundsOf(matchBestOf(mine)).map((bound) => {
+    const ranks = winBoundsOf(matchBestOf(mine), mine.sport).map((bound) => {
       const oriented = iWin ? bound : mirror(bound);
       // Substitui em vez de remover-e-reanexar: `buildGroupStandings` semeia seu mapa na ordem
       // de iteração das partidas e o `sort` é estável, então a ordem de inserção é o desempate

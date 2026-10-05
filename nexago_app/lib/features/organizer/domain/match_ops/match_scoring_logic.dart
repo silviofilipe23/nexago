@@ -50,7 +50,15 @@ abstract final class MatchScoringLogic {
 
   static const int defaultSetPoints = 21;
   static const int tiebreakSetPoints = 15;
+  static const int footvolleySetPoints = 18;
   static const int minAdvantage = 2;
+
+  /// Valor cru do esporte futevôlei (`sport` da partida/torneio).
+  static const String _footvolleySport = 'footvolley';
+
+  /// Pontos que fecham um set normal (não decisivo) no esporte. Sem esporte = 21.
+  static int setPointsFor(String? sport) =>
+      sport?.trim() == _footvolleySport ? footvolleySetPoints : defaultSetPoints;
 
   static bool isSetWon(int scoreA, int scoreB, {int target = defaultSetPoints}) {
     if (scoreA >= target && scoreA - scoreB >= minAdvantage) return true;
@@ -64,10 +72,11 @@ abstract final class MatchScoringLogic {
     List<TournamentMatchSet> sets,
     int index, {
     int bestOf = defaultBestOf,
+    String? sport,
   }) {
     if (index < 0 || index >= sets.length) return null;
     final s = sets[index];
-    final target = targetPointsForSet(index, bestOf);
+    final target = targetPointsForSet(index, bestOf, sport: sport);
     if (!isSetWon(s.a, s.b, target: target)) return null;
     return s.a > s.b ? 'A' : 'B';
   }
@@ -77,11 +86,12 @@ abstract final class MatchScoringLogic {
   static ({int a, int b}) setsWon(
     List<TournamentMatchSet> sets, {
     int bestOf = defaultBestOf,
+    String? sport,
   }) {
     var a = 0;
     var b = 0;
     for (var i = 0; i < sets.length; i++) {
-      final side = setWinnerSide(sets, i, bestOf: bestOf);
+      final side = setWinnerSide(sets, i, bestOf: bestOf, sport: sport);
       if (side == 'A') {
         a++;
       } else if (side == 'B') {
@@ -91,9 +101,13 @@ abstract final class MatchScoringLogic {
     return (a: a, b: b);
   }
 
-  static bool isMatchWon(List<TournamentMatchSet> sets, {int bestOf = 3}) {
+  static bool isMatchWon(
+    List<TournamentMatchSet> sets, {
+    int bestOf = 3,
+    String? sport,
+  }) {
     final needed = (bestOf / 2).ceil();
-    final wins = setsWon(sets, bestOf: bestOf);
+    final wins = setsWon(sets, bestOf: bestOf, sport: sport);
     return wins.a >= needed || wins.b >= needed;
   }
 
@@ -102,17 +116,18 @@ abstract final class MatchScoringLogic {
     required String teamAId,
     required String teamBId,
     int bestOf = 3,
+    String? sport,
   }) {
-    if (!isMatchWon(sets, bestOf: bestOf)) return null;
-    final wins = setsWon(sets, bestOf: bestOf);
+    if (!isMatchWon(sets, bestOf: bestOf, sport: sport)) return null;
+    final wins = setsWon(sets, bestOf: bestOf, sport: sport);
     if (wins.a > wins.b) return teamAId;
     if (wins.b > wins.a) return teamBId;
     return null;
   }
 
-  static int targetPointsForSet(int setIndex, int totalSets) {
+  static int targetPointsForSet(int setIndex, int totalSets, {String? sport}) {
     if (totalSets == 3 && setIndex == 2) return tiebreakSetPoints;
-    return defaultSetPoints;
+    return setPointsFor(sport);
   }
 
   /// Quem fica com o saque depois de mexer no placar. Do 1º ponto em diante o rally resolve
@@ -134,9 +149,19 @@ abstract final class MatchScoringLogic {
     required String teamAId,
     required String teamBId,
     required int bestOf,
+    String? sport,
   }) {
-    final setClosed = setWinnerSide(sets, setIndex, bestOf: bestOf) != null;
-    if (setClosed && matchWinnerId(sets: sets, teamAId: teamAId, teamBId: teamBId, bestOf: bestOf) == null) {
+    final setClosed =
+        setWinnerSide(sets, setIndex, bestOf: bestOf, sport: sport) != null;
+    if (setClosed &&
+        matchWinnerId(
+              sets: sets,
+              teamAId: teamAId,
+              teamBId: teamBId,
+              bestOf: bestOf,
+              sport: sport,
+            ) ==
+            null) {
       return '';
     }
     return side.toUpperCase() == 'A' ? teamAId : teamBId;
@@ -155,6 +180,7 @@ abstract final class MatchScoringLogic {
     required String teamAId,
     required String teamBId,
     int bestOf = 3,
+    String? sport,
   }) {
     final idx = currentSetIndex.clamp(0, bestOf - 1);
     final working = List<TournamentMatchSet>.from(sets);
@@ -171,10 +197,10 @@ abstract final class MatchScoringLogic {
     );
     working[idx] = updated;
 
-    final target = targetPointsForSet(idx, bestOf);
+    final target = targetPointsForSet(idx, bestOf, sport: sport);
     var nextSetIndex = idx;
     if (isSetWon(updated.a, updated.b, target: target)) {
-      if (!isMatchWon(working, bestOf: bestOf) && idx < bestOf - 1) {
+      if (!isMatchWon(working, bestOf: bestOf, sport: sport) && idx < bestOf - 1) {
         nextSetIndex = idx + 1;
       }
     }
@@ -184,6 +210,7 @@ abstract final class MatchScoringLogic {
       teamAId: teamAId,
       teamBId: teamBId,
       bestOf: bestOf,
+      sport: sport,
     );
 
     return (
@@ -197,6 +224,7 @@ abstract final class MatchScoringLogic {
         teamAId: teamAId,
         teamBId: teamBId,
         bestOf: bestOf,
+        sport: sport,
       ),
     );
   }
@@ -229,6 +257,7 @@ abstract final class MatchScoringLogic {
     required int newBestOf,
     required String teamAId,
     required String teamBId,
+    String? sport,
   }) {
     final trimmed = sets.length > newBestOf
         ? sets.sublist(0, newBestOf)
@@ -239,12 +268,13 @@ abstract final class MatchScoringLogic {
       teamAId: teamAId,
       teamBId: teamBId,
       bestOf: newBestOf,
+      sport: sport,
     );
 
     // Índice do set atual: primeiro set ainda não vencido, limitado ao formato.
     var idx = 0;
     while (idx < trimmed.length &&
-        setWinnerSide(trimmed, idx, bestOf: newBestOf) != null &&
+        setWinnerSide(trimmed, idx, bestOf: newBestOf, sport: sport) != null &&
         idx < newBestOf - 1) {
       idx++;
     }
@@ -267,6 +297,7 @@ abstract final class MatchScoringLogic {
     required String teamAId,
     required String teamBId,
     int bestOf = 3,
+    String? sport,
   }) {
     String serving(List<TournamentMatchSet> s, int setIndex) => _servingTeamIdAfterScore(
           sets: s,
@@ -275,6 +306,7 @@ abstract final class MatchScoringLogic {
           teamAId: teamAId,
           teamBId: teamBId,
           bestOf: bestOf,
+          sport: sport,
         );
 
     final isA = side.toUpperCase() == 'A';
@@ -313,7 +345,7 @@ abstract final class MatchScoringLogic {
 
   static String setsScoreLabel(TournamentMatch match) {
     if (match.sets.isEmpty) return match.scoreLabel;
-    final wins = setsWon(match.sets, bestOf: match.bestOf);
+    final wins = setsWon(match.sets, bestOf: match.bestOf, sport: match.sport);
     return '${wins.a} × ${wins.b}';
   }
 
@@ -334,6 +366,7 @@ abstract final class MatchScoringLogic {
     String? teamAId,
     String? teamBId,
     bool requireMatchWinner = true,
+    String? sport,
   }) {
     final issues = <QuickScoreValidationIssue>[];
 
@@ -378,7 +411,7 @@ abstract final class MatchScoringLogic {
         continue;
       }
 
-      final target = targetPointsForSet(i, bestOf);
+      final target = targetPointsForSet(i, bestOf, sport: sport);
       if (!isSetWon(s.a, s.b, target: target)) {
         issues.add(
           QuickScoreValidationIssue(
@@ -399,6 +432,7 @@ abstract final class MatchScoringLogic {
         teamAId: aId,
         teamBId: bId,
         bestOf: bestOf,
+        sport: sport,
       );
       if (winner == null) {
         issues.add(
@@ -427,8 +461,12 @@ abstract final class MatchScoringLogic {
     return now.difference(startedAt).inSeconds.clamp(0, 99999);
   }
 
-  static String setRulesLabel(int setIndex, {int bestOf = defaultBestOf}) {
-    final target = targetPointsForSet(setIndex, bestOf);
+  static String setRulesLabel(
+    int setIndex, {
+    int bestOf = defaultBestOf,
+    String? sport,
+  }) {
+    final target = targetPointsForSet(setIndex, bestOf, sport: sport);
     return 'set até $target · vantagem de $minAdvantage';
   }
 
@@ -437,8 +475,9 @@ abstract final class MatchScoringLogic {
     int scoreB, {
     required int setIndex,
     int bestOf = defaultBestOf,
+    String? sport,
   }) {
-    final target = targetPointsForSet(setIndex, bestOf);
+    final target = targetPointsForSet(setIndex, bestOf, sport: sport);
     return isSetWon(scoreA + 1, scoreB, target: target) ||
         isSetWon(scoreB + 1, scoreA, target: target);
   }
@@ -448,10 +487,17 @@ abstract final class MatchScoringLogic {
     int scoreB, {
     required int setIndex,
     int bestOf = defaultBestOf,
+    String? sport,
   }) {
-    final target = targetPointsForSet(setIndex, bestOf);
+    final target = targetPointsForSet(setIndex, bestOf, sport: sport);
     if (isSetWon(scoreA, scoreB, target: target)) return null;
-    if (isTeamAtSetPoint(scoreA, scoreB, setIndex: setIndex, bestOf: bestOf)) {
+    if (isTeamAtSetPoint(
+      scoreA,
+      scoreB,
+      setIndex: setIndex,
+      bestOf: bestOf,
+      sport: sport,
+    )) {
       return 'set point em 1';
     }
     final leader = scoreA > scoreB ? scoreA : scoreB;

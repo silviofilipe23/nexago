@@ -28,6 +28,7 @@ function bracketMatch(partial: Partial<TournamentMatch> & Pick<TournamentMatch, 
     queueStatus: null,
     bestOf: 3,
     currentSetIndex: null,
+    sport: null,
     ...partial,
   };
 }

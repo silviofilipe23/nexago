@@ -41,7 +41,7 @@ class RoundScenario {
 /// precisa vencer e PERDER zerado os que não contam para o resultado (só para o
 /// saldo de pontos). O set que fecha o jogo é sempre vitória do atleta, então
 /// nunca entra como set perdido.
-List<List<TournamentMatchSet>> winBoundsOf(int bestOf) {
+List<List<TournamentMatchSet>> winBoundsOf(int bestOf, {String? sport}) {
   // `bestOf` chega cru do Firestore e nada trava o topo; um documento
   // malformado alocaria arrays proporcionais a ele. Trava no maior formato que
   // o app realmente oferece.
@@ -54,13 +54,13 @@ List<List<TournamentMatchSet>> winBoundsOf(int bestOf) {
   // Vence tudo, perde nada.
   final widest = <TournamentMatchSet>[
     for (var i = 0; i < setsToWin; i++)
-      TournamentMatchSet(a: matchSetTargetPoints(i, clamped), b: 0),
+      TournamentMatchSet(a: matchSetTargetPoints(i, clamped, sport: sport), b: 0),
   ];
 
   final narrowest = <TournamentMatchSet>[];
   var remainingLosses = setsToLose;
   for (var i = 0; i < totalSets; i++) {
-    final target = matchSetTargetPoints(i, clamped);
+    final target = matchSetTargetPoints(i, clamped, sport: sport);
     if (i != deciderIndex && remainingLosses > 0) {
       narrowest.add(TournamentMatchSet(a: 0, b: target));
       remainingLosses--;
@@ -116,6 +116,7 @@ TournamentMatch _withHypothetical(
     winnerId: winnerId,
     sets: oriented,
     bestOf: m.bestOf,
+    sport: m.sport,
   );
 }
 
@@ -205,7 +206,7 @@ RoundScenario _scenarioOf({
   }
 
   final ranks = <int?>[];
-  for (final bound in winBoundsOf(matchBestOf(mine))) {
+  for (final bound in winBoundsOf(matchBestOf(mine), sport: mine.sport)) {
     final oriented = won ? bound : _mirror(bound);
     // Substitui em vez de remover-e-reanexar: a ordem de inserção é o
     // desempate de ÚLTIMO recurso entre duplas empatadas em tudo o mais, e

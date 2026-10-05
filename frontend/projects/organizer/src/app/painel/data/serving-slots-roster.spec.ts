@@ -1,6 +1,7 @@
 import {
   buildMedicalTimeoutStartWrite,
   buildPointWrite,
+  buildUndoWrite,
   servingTeamFields,
   liveMatchFromDoc,
   medicalTimeoutFromRaw,
@@ -74,5 +75,28 @@ describe('slots de saque e tempo médico por elenco', () => {
     expect(rosterSizeFromMemberUids([])).toBe(2);
     expect(rosterSizeFromMemberUids(undefined)).toBe(2);
     expect(rosterSizeFromMemberUids(['a', 'a'])).toBe(2);
+  });
+
+  it('posição 3–5 gravada no doc volta da leitura (escalar e desfazer de games), não vira "não declarada"', () => {
+    const m = liveMatchFromDoc('m1', {
+      tournamentId: 'T', teamAId: 'tA', teamBId: 'tB', status: 'In Progress',
+      sets: [{ teamAScore: 3, teamBScore: 3 }], currentSetIndex: 0, bestOf: 3,
+      servingTeamId: 'tA', servingPlayerSlots: { A: 3, B: 1 }, servingPlayerSlot: 3,
+    });
+    expect(m.servingPlayerSlot).toBe(3);
+    expect(liveMatchFromDoc('m2', { servingPlayerSlot: 6 }).servingPlayerSlot).toBe(0);
+    expect(needsServingPlayer({ servingTeamId: 'tA', servingPlayerSlot: m.servingPlayerSlot, status: 'in_progress', ...ids, servingRosterSize: 3 })).toBeFalse();
+  });
+
+  it('desfazer de games repõe a posição 3 gravada no evento', () => {
+    const m = liveMatchFromDoc('m1', {
+      tournamentId: 'T', teamAId: 'tA', teamBId: 'tB', status: 'In Progress',
+      sets: [{ teamAScore: 1, teamBScore: 0 }], currentSetIndex: 0, bestOf: 3,
+      currentGame: { a: 1, b: 0 },
+      scoringProfile: { kind: 'sets_games', bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: false, decidingSet: 'super_tiebreak', superTiebreakTo: 10 },
+    });
+    const prev = { sets: [{ teamAScore: 1, teamBScore: 0 }], currentSetIndex: 0, currentGame: { a: 0, b: 0 }, servingTeamId: 'tA', servingPlayerSlots: { A: 3, B: 1 }, servingPlayerSlot: 3 };
+    const write = buildUndoWrite(m, 'A', 0, prev);
+    expect(write?.matchUpdate['servingPlayerSlot']).toBe(3);
   });
 });

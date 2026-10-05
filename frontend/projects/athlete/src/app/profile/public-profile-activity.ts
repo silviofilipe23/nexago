@@ -94,6 +94,8 @@ export function duoNameOf(
   const team = teamId ? teams.get(teamId) : undefined;
   if (!team) return fallback ?? 'Adversário';
   if (team.teamName) return team.teamName;
+  // Individual (equipe de um atleta, sem segundo slot): o nome do atleta, inteiro.
+  if (!team.player2Id?.trim()) return profiles.get(team.player1Id)?.displayName?.trim() || fallback || 'Adversário';
   const p1 = profiles.get(team.player1Id)?.displayName?.trim().split(/\s+/)[0];
   const p2 = profiles.get(team.player2Id)?.displayName?.trim().split(/\s+/)[0];
   if (!p1 && !p2) return fallback ?? 'Adversário';

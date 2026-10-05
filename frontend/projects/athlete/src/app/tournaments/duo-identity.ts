@@ -43,6 +43,8 @@ export function duoNameOf(teams: TeamsById, profiles: ProfilesById, teamId: stri
   const team = teams.get(teamId);
   if (!team) return fallback ?? 'Dupla';
   if (team.teamName) return team.teamName;
+  // Individual (equipe de um atleta, sem segundo slot): o nome do atleta, inteiro.
+  if (!team.player2Id?.trim()) return profiles.get(team.player1Id)?.displayName?.trim() || fallback || 'Atleta';
   const p1 = firstNameOf(profiles.get(team.player1Id)?.displayName);
   const p2 = firstNameOf(profiles.get(team.player2Id)?.displayName);
   if (!p1 && !p2) return fallback ?? 'Dupla';

@@ -13,8 +13,8 @@ export type RosterViewRegistration = Pick<
 >;
 
 export interface RegistrationRosterView {
-  /** Rótulo do fato no card: "Equipe" (trio+) ou "Dupla". */
-  teamLabel: 'Equipe' | 'Dupla';
+  /** Rótulo do fato no card: "Equipe" (trio+), "Dupla" ou "Atleta" (individual). */
+  teamLabel: 'Equipe' | 'Dupla' | 'Atleta';
   /** "Elenco 2/4" (equipe com vaga aberta) ou "convite pendente" (dupla aguardando). */
   rosterFlag: string | null;
   /** Texto do CTA que leva ao shell de inscrição; `null` = sem CTA. */
@@ -27,8 +27,8 @@ export function registrationRosterView(
   registration: RosterViewRegistration,
   uid: string | null,
 ): RegistrationRosterView {
-  const isTeam = registration.teamSize != null;
-  const teamLabel = isTeam ? 'Equipe' : 'Dupla';
+  const isTeam = registration.teamSize != null && registration.teamSize >= 3;
+  const teamLabel = registration.teamSize === 1 ? 'Atleta' : isTeam ? 'Equipe' : 'Dupla';
 
   if (!registration.partnerPending) {
     return { teamLabel, rosterFlag: null, inviteLabel: null, captainOnlyHint: null };

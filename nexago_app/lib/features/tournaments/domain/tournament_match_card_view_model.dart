@@ -23,10 +23,20 @@ class TournamentMatchCardTeamViewModel {
   const TournamentMatchCardTeamViewModel({
     required this.displayName,
     required this.players,
+    this.rosterSize = 2,
+    this.rosterNames = const [],
   });
 
   final String displayName;
   final List<TournamentMatchCardPlayerViewModel> players;
+
+  /// Atletas do elenco (1 individual, 2 dupla, 3–5 equipe) pelo `memberUids` gravado — é o
+  /// que a mesa usa pro rodízio do saque e pro tempo médico. Sem a equipe resolvida, dupla.
+  final int rosterSize;
+
+  /// Nomes na ORDEM do elenco (`memberUids`; na dupla legada, player1/player2) — a posição
+  /// que o doc da partida grava no saque e no tempo médico. Vazio sem a equipe resolvida.
+  final List<String> rosterNames;
 }
 
 class TournamentMatchCardViewModel {

@@ -93,6 +93,7 @@
                   <h2 class="tp-card-title">Pagamento direto com o organizador</h2>
                   <p class="tp-defer-note">Esse torneio não recebe pagamento pelo app — pague o Pix do organizador e informe abaixo.</p>
 
+                  @if (!isIndividualRegistration()) {
                   <div class="tp-amount-section">
                     <p class="tp-amount-label">Quanto você quer pagar agora?</p>
                     <div class="tp-amount-toggle" role="group" aria-label="Tipo de pagamento">
@@ -118,9 +119,10 @@
                       </button>
                     </div>
                   </div>
+                  }
 
                   <div class="tp-due-box">
-                    <span class="tp-due-label">{{ amountType() === 'full' ? fullLabel() : 'Sua parcela' }}</span>
+                    <span class="tp-due-label">{{ isIndividualRegistration() ? 'Sua inscrição' : amountType() === 'full' ? fullLabel() : 'Sua parcela' }}</span>
                     <strong class="tp-due-value">{{ formatBRL(amountDueReais()) }}</strong>
                   </div>
 
@@ -222,6 +224,7 @@
             <section class="tp-card">
               <h2 class="tp-card-title">Pagamento</h2>
 
+              @if (!isIndividualRegistration()) {
               <div class="tp-amount-section">
                 <p class="tp-amount-label">Quanto você quer pagar agora?</p>
                 <div class="tp-amount-toggle" role="group" aria-label="Tipo de pagamento">
@@ -249,9 +252,10 @@
                   </button>
                 </div>
               </div>
+              }
 
               <div class="tp-due-box">
-                <span class="tp-due-label">{{ amountType() === 'full' ? fullLabel() : 'Sua parcela' }}</span>
+                <span class="tp-due-label">{{ isIndividualRegistration() ? 'Sua inscrição' : amountType() === 'full' ? fullLabel() : 'Sua parcela' }}</span>
                 <strong class="tp-due-value">{{ formatBRL(amountDueReais()) }}</strong>
               </div>
 

@@ -1,3 +1,4 @@
+import { parseTeamSizeField } from './team-size';
 import {
   collection,
   doc,
@@ -184,7 +185,7 @@ function registrationFromDoc(id: string, data: Record<string, unknown>): Athlete
     uniformPlayer1: uniformSlotFromDoc(data, 'Player1'),
     uniformPlayer2: uniformSlotFromDoc(data, 'Player2'),
     teamName: optionalStr(data['teamName']),
-    teamSize: teamSizeRaw != null && teamSizeRaw >= 3 && teamSizeRaw <= 5 ? teamSizeRaw : null,
+    teamSize: parseTeamSizeField(teamSizeRaw),
     captainUid: optionalStr(data['captainUid']),
     uniformByUid: uniformByUidFromDoc(data),
     substitutionHistory: substitutionHistoryFromDoc(data['substitutionHistory']),
@@ -323,7 +324,7 @@ export function partnerInvitesFromDocs(docs: readonly RawInviteDoc[], now = Date
         expiresAt: toDate(data['expiresAt']),
         isTeamInvite: data['isTeamInvite'] === true,
         teamName: optionalStr(data['teamName']),
-        teamSize: teamSize != null && teamSize >= 3 && teamSize <= 5 ? teamSize : null,
+        teamSize: parseTeamSizeField(teamSize),
         isSubstitutionInvite: data['isSubstitutionInvite'] === true,
         replacedName: optionalStr(data['replacedName']),
       };

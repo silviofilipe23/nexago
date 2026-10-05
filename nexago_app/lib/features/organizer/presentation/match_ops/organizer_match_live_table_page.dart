@@ -23,6 +23,7 @@ import '../../../tournaments/domain/tournament_discovery_providers.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_card_view_model.dart';
 import '../../../tournaments/domain/tournament_match_point_event.dart';
+import '../../../tournaments/domain/tournament_match_serving_players.dart';
 import '../../../tournaments/domain/tournament_match_set.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
 import 'organizer_match_error.dart';
@@ -328,7 +329,8 @@ class _OrganizerMatchLiveTablePageState
 
       await repo.recordPointTransaction(
         matchId: widget.matchId,
-        build: (fresh) => buildPointWrite(fresh, side),
+        build: (fresh) =>
+            buildPointWrite(fresh, side, rosterSizes: _rosterSizes()),
       );
       // Avanço de chave + ranking são propagados pelo trigger
       // onTournamentMatchCompletedAdvance ao concluir a partida (atômico +
@@ -517,6 +519,7 @@ class _OrganizerMatchLiveTablePageState
           undoneSetIndex,
           prev: undonePrev,
           landed: undoneLanded,
+          rosterSizes: _rosterSizes(),
         ),
       );
       if (written == null) {
@@ -670,7 +673,11 @@ class _OrganizerMatchLiveTablePageState
           .read(tournamentMatchesRepositoryProvider)
           .updateMatchFields(
             matchId: widget.matchId,
-            fields: servingTeamFields(match, teamId),
+            fields: servingTeamFields(
+              match,
+              teamId,
+              rosterSizes: _rosterSizes(),
+            ),
           );
     } catch (e) {
       if (mounted) {
@@ -697,7 +704,11 @@ class _OrganizerMatchLiveTablePageState
           .read(tournamentMatchesRepositoryProvider)
           .updateMatchFields(
             matchId: widget.matchId,
-            fields: servingTeamFields(match, next),
+            fields: servingTeamFields(
+              match,
+              next,
+              rosterSizes: _rosterSizes(),
+            ),
           );
     } catch (e) {
       if (mounted) {
@@ -708,7 +719,20 @@ class _OrganizerMatchLiveTablePageState
     }
   }
 
-  /// Declara qual atleta da dupla no saque vai à linha (posição 1 ou 2 da dupla). Não marca
+  /// Elenco de cada lado (1 individual, 2 dupla, 3–5 equipe), do enriquecimento que a tela já
+  /// carregou. O doc da partida não sabe o elenco; enquanto as equipes não chegam, dupla —
+  /// mesma regra das mesas web (`withRosterSizes`).
+  MatchRosterSizes _rosterSizes() {
+    final card = ref
+        .read(organizerMatchCardsByIdProvider(widget.tournamentId))
+        .valueOrNull?[widget.matchId];
+    return MatchRosterSizes(
+      a: card?.teamA.rosterSize ?? 2,
+      b: card?.teamB.rosterSize ?? 2,
+    );
+  }
+
+  /// Declara qual atleta da dupla no saque vai à linha (posição no elenco). Não marca
   /// ponto nem inicia nada — a partir daí o rodízio resolve sozinho a cada virada de saque.
   Future<void> _chooseServingPlayer(int slot) async {
     final match = _currentMatch();
@@ -726,7 +750,12 @@ class _OrganizerMatchLiveTablePageState
           .read(tournamentMatchesRepositoryProvider)
           .updateMatchFields(
             matchId: widget.matchId,
-            fields: servingPlayerFields(match, side, slot),
+            fields: servingPlayerFields(
+              match,
+              side,
+              slot,
+              rosterSizes: _rosterSizes(),
+            ),
           );
     } catch (e) {
       if (mounted) {
@@ -753,7 +782,19 @@ class _OrganizerMatchLiveTablePageState
     );
     if (side == null) return;
     final current = match.servingPlayers.slotForSide(side);
-    await _chooseServingPlayer(current == 1 ? 2 : 1);
+    if (current == 0) {
+      await _chooseServingPlayer(1);
+      return;
+    }
+    // Próximo do elenco: dupla alterna, equipe roda, individual fica no 1.
+    final next = MatchServingPlayerLogic.swappedSlots(
+      slots: match.servingPlayers,
+      servingTeamId: match.servingTeamId,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+      rosterSizes: _rosterSizes(),
+    ).slotForSide(side);
+    await _chooseServingPlayer(next);
   }
 
   void _openMedicalPicker() {
@@ -897,7 +938,7 @@ class _OrganizerMatchLiveTablePageState
     return side == 'A' ? teamA : teamB;
   }
 
-  /// Os quatro atletas da partida, com a cota de atendimento de cada um.
+  /// Os atletas da partida (o elenco de cada lado), com a cota de atendimento de cada um.
   List<LiveTableMedicalOption> _medicalOptions(
     TournamentMatch match,
     LiveTableTeamData teamA,
@@ -905,7 +946,7 @@ class _OrganizerMatchLiveTablePageState
   ) {
     final options = <LiveTableMedicalOption>[];
     for (final entry in [('A', teamA), ('B', teamB)]) {
-      for (var slot = 1; slot <= 2; slot++) {
+      for (final slot in entry.$2.slots) {
         options.add(
           LiveTableMedicalOption(
             side: entry.$1,
@@ -1095,6 +1136,7 @@ class _OrganizerMatchLiveTablePageState
                       status: match.status,
                       teamAId: match.teamAId,
                       teamBId: match.teamBId,
+                      servingRosterSize: servingTeam?.rosterSize ?? 2,
                     );
                 // Atendimento em andamento PARA a partida: nada de ponto, desfazer ou troca de
                 // saque enquanto o overlay está no ar — nas três mesas, porque a guarda sai do
@@ -1287,7 +1329,10 @@ class _OrganizerMatchLiveTablePageState
                           teamB,
                         ).any((option) => !option.used),
                         onMedicalTimeout: _openMedicalPicker,
-                        onSwapServingPlayer: match.servingPlayerSlot == 0
+                        // Individual não tem parceiro pra trocar.
+                        onSwapServingPlayer:
+                            match.servingPlayerSlot == 0 ||
+                                (servingTeam?.rosterSize ?? 2) == 1
                             ? null
                             : _swapServingPlayer,
                         onUndo: _undoLastPoint,

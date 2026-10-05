@@ -16,6 +16,8 @@ List<String> substitutionReplaceableUids({
   required bool bracketPublished,
 }) {
   if (bracketPublished || partnerPending) return const [];
+  // Individual: não há parceiro nem elenco a trocar.
+  if (teamSize == 1) return const [];
   if (!participantUids.contains(uid)) return const [];
   final isTeam = (teamSize ?? 2) >= 3;
   if (!isTeam) return participantUids;

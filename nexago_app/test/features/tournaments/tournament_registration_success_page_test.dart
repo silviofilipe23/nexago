@@ -407,6 +407,40 @@ void main() {
 
     await esperarPedidoDeAvaliacao(tester);
   });
+
+  testWidgets(
+    'individual: card fala da inscrição do atleta — sem "dupla" nem segundo atleta',
+    (tester) async {
+      await abrirConfirmacao(
+        tester,
+        tournament: torneio([
+          const TournamentCategoryOffer(
+            id: 'masc',
+            name: 'Simples',
+            entryFee: 100,
+            maxTeams: 8,
+            spotsTotal: 8,
+            spotsLeft: 3,
+            teamSize: 1,
+          ),
+        ]),
+        receipt: TournamentRegistrationReceipt(
+          registrationId: registrationId,
+          categoryId: 'masc',
+          player1Name: 'Eu Mesmo',
+          player2Name: '',
+          isPaid: true,
+          registeredAt: DateTime(2026, 8, 1),
+        ),
+      );
+
+      expect(find.text('DUPLA CONFIRMADA'), findsNothing);
+      expect(find.text('INSCRIÇÃO CONFIRMADA'), findsOneWidget);
+      expect(find.byKey(const ValueKey('share-card-avatar-2')), findsNothing);
+
+      await esperarPedidoDeAvaliacao(tester);
+    },
+  );
 }
 
 /// `ListView` do corpo da casca do wizard — o que a barra fixa NÃO é.

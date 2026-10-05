@@ -65,11 +65,15 @@ class TournamentRegistrationDuoSummaryCard extends StatelessWidget {
     required this.roster,
     required this.eventSubtitle,
     this.isTeamCategory = false,
+    this.isIndividual = false,
   });
 
   final List<TournamentRosterMember> roster;
   final String eventSubtitle;
   final bool isTeamCategory;
+
+  /// Categoria individual: só o próprio atleta, sem "dupla".
+  final bool isIndividual;
 
   @override
   Widget build(BuildContext context) {
@@ -119,7 +123,11 @@ class TournamentRegistrationDuoSummaryCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isTeamCategory ? 'EQUIPE CONFIRMADA' : 'DUPLA CONFIRMADA',
+                  isIndividual
+                      ? 'INSCRIÇÃO CONFIRMADA'
+                      : isTeamCategory
+                      ? 'EQUIPE CONFIRMADA'
+                      : 'DUPLA CONFIRMADA',
                   style: AppTypography.mono(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -183,6 +191,16 @@ class TournamentRegistrationPaymentOptionsSection extends StatelessWidget {
           style: AppTypography.eyebrow.copyWith(color: colors.onSurfaceMuted),
         ),
         const SizedBox(height: AppSpacing.md),
+        // Individual: não há parte a dividir — uma opção só, a taxa inteira.
+        if (quote.teamSize == 1)
+          _PaymentOptionTile(
+            selected: true,
+            onTap: () => onPaymentTypeChanged('full'),
+            icon: Icons.person_outline_rounded,
+            title: 'Inscrição individual · $totalLabel',
+            subtitle: 'Você paga a inscrição inteira no app',
+          )
+        else ...[
         _PaymentOptionTile(
           selected: paymentType == 'share',
           onTap: () => onPaymentTypeChanged('share'),
@@ -207,6 +225,7 @@ class TournamentRegistrationPaymentOptionsSection extends StatelessWidget {
                 ? 'O restante vocês acertam direto, fora do app'
                 : 'A metade dele vocês acertam direto, fora do app',
           ),
+        ],
         ],
       ],
     );

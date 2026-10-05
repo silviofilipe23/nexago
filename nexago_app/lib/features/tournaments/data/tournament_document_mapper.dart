@@ -113,7 +113,13 @@ abstract final class TournamentDocumentMapper {
       categories: genderCats.isNotEmpty
           ? genderCats
           : const [TournamentGenderCat.mix],
-      format: _parseFormat(_str(data['format'])),
+      // "Individual" só quando TODAS as categorias são individuais: um torneio de tênis com
+      // simples e duplas não pode se anunciar como individual (espelha o portal, 4c).
+      format: offers.isNotEmpty
+          ? (offers.every((o) => o.teamSize == 1)
+                ? TournamentFormat.individual
+                : TournamentFormat.dupla)
+          : _parseFormat(_str(data['format'])),
       priceLabel: _formatBrl(minFee),
       priceValue: minFee,
       spotsLeft: spotsLeft,
@@ -281,12 +287,14 @@ abstract final class TournamentDocumentMapper {
       // Categoria de EQUIPE (trio/quarteto/quinteto) gravada pelo portal:
       // teamSize 3–5, genderMode free/composition e a composição exata.
       final teamSizeRaw = _int(map['teamSize']);
+      // 1 = individual (multiesporte fase 4d1), 3–5 = equipe; resto = dupla.
       final teamSize =
-          teamSizeRaw != null && teamSizeRaw >= 3 && teamSizeRaw <= 5
+          teamSizeRaw != null &&
+              (teamSizeRaw == 1 || (teamSizeRaw >= 3 && teamSizeRaw <= 5))
           ? teamSizeRaw
           : null;
-      final genderFree =
-          teamSize != null && _str(map['genderMode']) == 'free';
+      final isNamedTeam = teamSize != null && teamSize >= 3;
+      final genderFree = isNamedTeam && _str(map['genderMode']) == 'free';
       final compositionRaw = map['genderComposition'];
       final compositionMen = compositionRaw is Map
           ? _int(compositionRaw['men'])
@@ -295,7 +303,7 @@ abstract final class TournamentDocumentMapper {
           ? _int(compositionRaw['women'])
           : null;
       final compositionValid =
-          teamSize != null &&
+          isNamedTeam &&
           !genderFree &&
           compositionMen != null &&
           compositionWomen != null &&

@@ -28,16 +28,32 @@ class LiveTableTeamData {
     required this.label,
     required this.player1,
     required this.player2,
+    this.rosterSize = 2,
+    this.rosterNames = const [],
   });
 
   final String label;
   final OrganizerCategoryPlayerInfo player1;
   final OrganizerCategoryPlayerInfo player2;
 
-  /// Nome do atleta pela POSIÇÃO na dupla (1 ou 2) — a mesma ordem que o doc de `teams` grava
-  /// em `player1Id`/`player2Id`, que é como o saque individual é guardado na partida. Vazio
-  /// quando a posição não existe (dupla sem segundo atleta) ou o slot não foi declarado.
+  /// Atletas do elenco (1 individual, 2 dupla, 3–5 equipe) — ver
+  /// `TournamentMatchCardTeamViewModel.rosterSize`.
+  final int rosterSize;
+
+  /// Nomes na ordem do elenco; só a individual e a equipe usam (a dupla segue player1/2).
+  final List<String> rosterNames;
+
+  /// As posições que a mesa pergunta no saque e no tempo médico: 1..elenco.
+  List<int> get slots => [for (var i = 1; i <= rosterSize; i++) i];
+
+  /// Nome do atleta pela POSIÇÃO no elenco — a mesma ordem que o doc de `teams` grava
+  /// (`memberUids`; na dupla, `player1Id`/`player2Id`), que é como o saque individual é
+  /// guardado na partida. Vazio quando a posição não existe ou o slot não foi declarado.
   String nameForSlot(int slot) {
+    if (slot < 1 || slot > rosterSize) return '';
+    if (rosterSize != 2 && slot <= rosterNames.length) {
+      return rosterNames[slot - 1].trim();
+    }
     if (slot == 1) return player1.name.trim();
     if (slot == 2) return player2.name.trim();
     return '';
@@ -2505,13 +2521,22 @@ class LiveTableServingPlayer extends StatelessWidget {
 
   final LiveTableTeamData team;
 
-  /// Recebe a POSIÇÃO do atleta na dupla (1 ou 2) — a mesma que o doc grava.
+  /// Recebe a POSIÇÃO do atleta no elenco (1..N) — a mesma que o doc grava.
   final ValueChanged<int> onChoose;
   final bool enabled;
 
   @override
   Widget build(BuildContext context) {
-    final names = [team.nameForSlot(1), team.nameForSlot(2)];
+    final slots = team.slots;
+    Widget option(int slot) {
+      final name = team.nameForSlot(slot);
+      return _StartingServeOption(
+        label: name.isNotEmpty ? name : 'Atleta $slot',
+        enabled: enabled,
+        onTap: () => onChoose(slot),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       child: Container(
@@ -2536,21 +2561,22 @@ class LiveTableServingPlayer extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            Row(
-              children: [
-                for (var slot = 1; slot <= 2; slot++) ...[
-                  if (slot > 1) const SizedBox(width: 10),
-                  Expanded(
-                    child: _StartingServeOption(
-                      label: names[slot - 1].isNotEmpty
-                          ? names[slot - 1]
-                          : 'Atleta $slot',
-                      enabled: enabled,
-                      onTap: () => onChoose(slot),
-                    ),
-                  ),
-                ],
-              ],
+            // Equipe (3–5) quebra em duas colunas; dupla segue numa linha só.
+            LayoutBuilder(
+              builder: (context, constraints) {
+                const gap = 10.0;
+                final perRow = slots.length <= 2 ? slots.length : 2;
+                final width =
+                    (constraints.maxWidth - gap * (perRow - 1)) / perRow;
+                return Wrap(
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    for (final slot in slots)
+                      SizedBox(width: width, child: option(slot)),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -4056,6 +4082,8 @@ LiveTableTeamData liveTableTeamData({
     label: label,
     player1: players.$1,
     player2: players.$2,
+    rosterSize: enrichedTeam?.rosterSize ?? 2,
+    rosterNames: enrichedTeam?.rosterNames ?? const [],
   );
 }
 

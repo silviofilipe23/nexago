@@ -21,7 +21,11 @@ class TournamentRegistrationShareCard extends StatelessWidget {
     this.player2AvatarUrl,
     required this.locationLine,
     required this.footerLabel,
+    this.isIndividual = false,
   });
+
+  /// Categoria individual: um atleta só — um avatar e "INSCRIÇÃO CONFIRMADA".
+  final bool isIndividual;
 
   final String headlineLine1;
   final String headlineLine2;
@@ -121,8 +125,9 @@ class TournamentRegistrationShareCard extends StatelessWidget {
                           clipBehavior: Clip.none,
                           children: [
                             Transform.translate(
-                              offset: const Offset(-40, 0),
+                              offset: Offset(isIndividual ? 0 : -40, 0),
                               child: _PartnerAvatar(
+                                key: const ValueKey('share-card-avatar-1'),
                                 initials: initials1,
                                 avatarUrl: player1AvatarUrl,
                                 size: 100,
@@ -131,9 +136,11 @@ class TournamentRegistrationShareCard extends StatelessWidget {
                                 borderWidth: 3,
                               ),
                             ),
+                            if (!isIndividual)
                             Transform.translate(
                               offset: const Offset(40, 0),
                               child: _PartnerAvatar(
+                                key: const ValueKey('share-card-avatar-2'),
                                 initials: initials2,
                                 avatarUrl: player2AvatarUrl,
                                 size: 100,
@@ -148,7 +155,9 @@ class TournamentRegistrationShareCard extends StatelessWidget {
                       ),
                       SizedBox(height: 20),
                       Text(
-                        'DUPLA CONFIRMADA',
+                        isIndividual
+                            ? 'INSCRIÇÃO CONFIRMADA'
+                            : 'DUPLA CONFIRMADA',
                         style: AppTypography.mono(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -388,6 +397,7 @@ class _LogoFallback extends StatelessWidget {
 
 class _PartnerAvatar extends StatelessWidget {
   const _PartnerAvatar({
+    super.key,
     required this.initials,
     required this.size,
     required this.backgroundColor,

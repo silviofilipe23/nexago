@@ -186,7 +186,9 @@ TournamentUniformSelection uniformSlotFor({
   TournamentUniformSelection? uniformPlayer1,
   TournamentUniformSelection? uniformPlayer2,
 }) {
-  if (teamSize != null) {
+  // Só equipe nomeada (trio+) usa `uniformByUid`; individual (1) mora no
+  // Player1, como a dupla — é onde o servidor grava.
+  if (teamSize != null && teamSize >= 3) {
     return uniformByUid[uid] ?? _emptyUniformSelection;
   }
   if (player1Id == uid) {

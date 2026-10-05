@@ -83,6 +83,9 @@ export class RegistrationTermsComponent {
    *  justamente quem mais precisa dela por não poder reservar sozinho. */
   protected readonly showOtherCategories = computed(() => this.receivedInvite() == null);
 
+  /** Categoria individual: sem parceiro, sem divisão da taxa. */
+  protected readonly isIndividual = computed(() => this.category()?.teamSize === 1);
+
   protected readonly isTeam = computed(() => {
     const teamSize = this.category()?.teamSize ?? null;
     return teamSize != null && teamSize > 2;
@@ -98,7 +101,8 @@ export class RegistrationTermsComponent {
   protected readonly perAthleteLabel = computed(() => {
     const category = this.category();
     if (!category) return '—';
-    const splitBy = this.isTeam() ? (category.teamSize ?? 2) : 2;
+    // Individual (teamSize 1): a taxa inteira é do atleta.
+    const splitBy = this.isTeam() || category.teamSize === 1 ? (category.teamSize ?? 2) : 2;
     return formatBRL(category.entryFee / splitBy);
   });
 
@@ -113,6 +117,11 @@ export class RegistrationTermsComponent {
     const invite = this.receivedInvite();
     if (invite != null) {
       void this.acceptInvite();
+      return;
+    }
+    // Individual: não há parceiro a escolher — o botão principal já faz a inscrição.
+    if (this.copy()?.registersDirectly) {
+      void this.reserveSolo();
       return;
     }
     const p = this.params();
@@ -132,7 +141,11 @@ export class RegistrationTermsComponent {
       const result = await registerSolo(athleteFunctions(), p.tournamentId, category.id, undefined, {
         lgpdAccepted: p.lgpdAccepted,
       });
-      this.toasts.success('Vaga reservada', 'Falta formar a dupla — convide seu parceiro.');
+      if (category.teamSize === 1) {
+        this.toasts.success('Inscrição feita', 'Sua vaga está reservada — falta só o pagamento.');
+      } else {
+        this.toasts.success('Vaga reservada', 'Falta formar a dupla — convide seu parceiro.');
+      }
       void this.router.navigate(['/torneios', p.tournamentId, 'inscricao'], {
         queryParams: wizardQueryParams({ categoryId: category.id, registrationId: result.registrationId }),
       });

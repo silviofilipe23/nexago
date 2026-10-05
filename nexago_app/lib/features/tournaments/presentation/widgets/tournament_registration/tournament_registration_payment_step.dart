@@ -118,6 +118,7 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
             roster: duoRoster!,
             eventSubtitle: eventSubtitle,
             isTeamCategory: quote.isTeamCategory,
+            isIndividual: quote.teamSize == 1,
           ),
           const SizedBox(height: AppSpacing.lg),
         ],

@@ -109,6 +109,7 @@ class TournamentRegistrationSuccessPage extends ConsumerWidget {
       player2: player2,
       player1AvatarUrl: receipt?.player1AvatarUrl,
       player2AvatarUrl: receipt?.player2AvatarUrl,
+      isIndividual: offer?.isIndividualCategory ?? false,
       dateLabel: dateLabel,
       locationLine: locationLine,
       footerLabel: footerLabel,
@@ -127,6 +128,7 @@ class _TournamentRegistrationSuccessView extends ConsumerStatefulWidget {
     required this.player2,
     this.player1AvatarUrl,
     this.player2AvatarUrl,
+    this.isIndividual = false,
     required this.dateLabel,
     required this.locationLine,
     required this.footerLabel,
@@ -143,6 +145,9 @@ class _TournamentRegistrationSuccessView extends ConsumerStatefulWidget {
   final String player2;
   final String? player1AvatarUrl;
   final String? player2AvatarUrl;
+
+  /// Categoria individual: o card e o convite de calendário falam de UM atleta.
+  final bool isIndividual;
   final String dateLabel;
   final String locationLine;
   final String footerLabel;
@@ -272,6 +277,7 @@ class _TournamentRegistrationSuccessViewState
                   player2Name: widget.player2,
                   player1AvatarUrl: widget.player1AvatarUrl,
                   player2AvatarUrl: widget.player2AvatarUrl,
+                  isIndividual: widget.isIndividual,
                   locationLine: widget.locationLine,
                   footerLabel: widget.footerLabel,
                 ),
@@ -365,7 +371,8 @@ class _TournamentRegistrationSuccessViewState
       'Torneio · ${widget.args.tournamentName}',
     );
     final details = Uri.encodeComponent(
-      '${widget.args.categoryName} · Dupla: ${formatShareCardPlayerLine(widget.player1, widget.player2)}',
+      '${widget.args.categoryName} · ${widget.isIndividual ? 'Atleta' : 'Dupla'}: '
+      '${formatShareCardPlayerLine(widget.player1, widget.player2)}',
     );
     final location = Uri.encodeComponent(tournament.location);
     final url = Uri.parse(

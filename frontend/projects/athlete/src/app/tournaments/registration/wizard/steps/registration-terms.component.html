@@ -23,15 +23,17 @@
       }
 
       <section class="wz-card">
-        <div class="wz-row">
-          <span class="wz-row-icon wz-row-icon--win">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-          </span>
-          <span class="wz-row-text">
-            <strong>Parceiro definido antes de pagar</strong>
-            <span>Nenhum valor é cobrado enquanto a dupla não estiver formada</span>
-          </span>
-        </div>
+        @if (!isIndividual()) {
+          <div class="wz-row">
+            <span class="wz-row-icon wz-row-icon--win">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+            </span>
+            <span class="wz-row-text">
+              <strong>Parceiro definido antes de pagar</strong>
+              <span>Nenhum valor é cobrado enquanto a dupla não estiver formada</span>
+            </span>
+          </div>
+        }
         @if (closesLabel(); as closes) {
           <div class="wz-row">
             <span class="wz-row-icon wz-row-icon--pending">
@@ -48,7 +50,7 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M6 4h12v5a6 6 0 0 1-12 0z" /><path d="M12 15v4M8 21h8" /></svg>
           </span>
           <span class="wz-row-text">
-            <strong>Os dois precisam caber na categoria</strong>
+            <strong>{{ isIndividual() ? 'Seu nível precisa caber na categoria' : 'Os dois precisam caber na categoria' }}</strong>
             <span>Nível compatível com {{ cat.categoryName }}</span>
           </span>
         </div>
@@ -56,9 +58,10 @@
 
       <section class="wz-card">
         <div class="tm-price-head">
-          <p class="wz-eyebrow">{{ isTeam() ? 'Inscrição da equipe' : 'Inscrição da dupla' }}</p>
+          <p class="wz-eyebrow">{{ isIndividual() ? 'Inscrição individual' : isTeam() ? 'Inscrição da equipe' : 'Inscrição da dupla' }}</p>
           <strong class="tm-total">{{ totalLabel() }}</strong>
         </div>
+        @if (!isIndividual()) {
         <div class="tm-option">
           <span class="wz-row-text">
             <strong>{{ isTeam() ? 'Dividido pelo elenco' : 'Metade e metade' }}</strong>
@@ -79,6 +82,7 @@
             <span class="wz-pill">Integral</span>
           </span>
         </div>
+        }
       </section>
 
       <div class="wz-bar" wizardActions>

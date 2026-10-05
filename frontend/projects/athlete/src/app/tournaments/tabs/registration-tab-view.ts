@@ -40,11 +40,15 @@ export function registrationTabWhereLabel(location: string | null, city: string 
 
 export function registrationTabHeroTitle(params: {
   paymentState: RegistrationTabPaymentState;
-  teamLabel: 'Dupla' | 'Equipe';
+  teamLabel: 'Dupla' | 'Equipe' | 'Atleta';
   rosterComplete: boolean;
 }): string {
   const unit = params.teamLabel.toLowerCase();
   if (params.paymentState === 'waitlist') return 'Você está na lista de espera.';
+  // Individual: fala com o atleta (não há elenco a fechar nem "vocês").
+  if (params.teamLabel === 'Atleta') {
+    return params.paymentState === 'paid' ? 'Inscrição completa. Você está dentro.' : 'Inscrição feita. Falta o pagamento.';
+  }
   if (!params.rosterComplete) {
     return params.teamLabel === 'Equipe'
       ? 'Equipe incompleta. Falta gente no elenco.'
@@ -65,7 +69,7 @@ export function registrationTabHeroTitle(params: {
  */
 export function registrationTabHeroBody(params: {
   paymentState: RegistrationTabPaymentState;
-  teamLabel: 'Dupla' | 'Equipe';
+  teamLabel: 'Dupla' | 'Equipe' | 'Atleta';
   rosterComplete: boolean;
   entryFee: number | null;
   paymentHint: string;
@@ -79,14 +83,18 @@ export function registrationTabHeroBody(params: {
   if (params.paymentState === 'paid' && params.rosterComplete && params.entryFee != null && params.entryFee > 0) {
     const totalLabel = formatBRL(params.entryFee);
     const unit = params.teamLabel.toLowerCase();
-    const body = `A inscrição de ${totalLabel} está quitada e a ${unit} entra no sorteio da chave.`;
+    const body = params.teamLabel === 'Atleta'
+      ? `A inscrição de ${totalLabel} está quitada e você entra no sorteio da chave.`
+      : `A inscrição de ${totalLabel} está quitada e a ${unit} entra no sorteio da chave.`;
     return { title, body, highlights: [totalLabel] };
   }
 
   if (params.paymentState === 'paid' && params.rosterComplete) {
     return {
       title,
-      body: `A inscrição está confirmada e a ${params.teamLabel.toLowerCase()} entra no sorteio da chave.`,
+      body: params.teamLabel === 'Atleta'
+        ? 'A inscrição está confirmada e você entra no sorteio da chave.'
+        : `A inscrição está confirmada e a ${params.teamLabel.toLowerCase()} entra no sorteio da chave.`,
       highlights: [],
     };
   }

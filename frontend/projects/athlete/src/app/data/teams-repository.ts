@@ -1,3 +1,4 @@
+import { parseTeamSizeField } from './team-size';
 import { collection, doc, documentId, getDoc, getDocs, query, where, type Firestore } from 'firebase/firestore';
 import type { MatchSet } from './matches-repository';
 
@@ -36,7 +37,7 @@ function teamFromDoc(id: string, data: Record<string, unknown>): ArenaTeam {
     player2Id: typeof data['player2Id'] === 'string' ? data['player2Id'] : '',
     teamName: typeof data['teamName'] === 'string' && data['teamName'].trim() ? data['teamName'].trim() : null,
     gender: typeof data['gender'] === 'string' && data['gender'].trim() ? data['gender'].trim() : null,
-    teamSize: typeof data['teamSize'] === 'number' && data['teamSize'] >= 3 ? data['teamSize'] : null,
+    teamSize: parseTeamSizeField(data['teamSize']),
     registrationPaid: data['registrationPaid'] === true,
     memberUids: Array.isArray(memberUidsRaw) ? memberUidsRaw.filter((u): u is string => typeof u === 'string' && u.trim().length > 0) : [],
     createdAt: typeof createdAtRaw?.toDate === 'function' ? createdAtRaw.toDate() : null,

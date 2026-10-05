@@ -28,7 +28,7 @@ class MatchMedicalTimeout {
   final String side;
   final String teamId;
 
-  /// Posição do atleta na dupla (1 ou 2) — ver `tournament_match_serving_players.dart`.
+  /// Posição do atleta no elenco (1–5) — ver `tournament_match_serving_players.dart`.
   final int playerSlot;
 
   /// Nome congelado no chamado: o telão mostra quem está sendo atendido sem depender de o join
@@ -42,7 +42,7 @@ class MatchMedicalTimeout {
     final side = (map['side'] as String?)?.trim().toUpperCase() ?? '';
     final slot = (map['playerSlot'] as num?)?.toInt() ?? 0;
     if (side != 'A' && side != 'B') return null;
-    if (slot != 1 && slot != 2) return null;
+    if (slot < 1 || slot > 5) return null;
 
     final duration = (map['durationSec'] as num?)?.toInt() ?? 0;
     return MatchMedicalTimeout(
@@ -74,7 +74,7 @@ const int medicalTimeoutsPerPlayer = 1;
 String medicalTimeoutPlayerKey(String side, int slot) =>
     '${side.toUpperCase()}$slot';
 
-final RegExp _medicalTimeoutPlayerKeyPattern = RegExp(r'^[AB][12]$');
+final RegExp _medicalTimeoutPlayerKeyPattern = RegExp(r'^[AB][1-5]$');
 
 List<String> medicalTimeoutPlayerKeysFromRaw(dynamic raw) {
   if (raw is! List) return const [];

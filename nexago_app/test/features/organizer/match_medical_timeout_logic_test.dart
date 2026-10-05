@@ -112,7 +112,7 @@ void main() {
       );
     });
 
-    test('a lista do doc só aceita as quatro chaves válidas', () {
+    test('a lista do doc só aceita chaves A1–B5', () {
       expect(
         medicalTimeoutPlayerKeysFromRaw(const ['A1', 'b2', 'C3', 42, 'A']),
         const ['A1', 'B2'],
@@ -150,7 +150,8 @@ void main() {
       expect(MatchMedicalTimeout.fromMap(const {'playerSlot': 1}), isNull);
       expect(MatchMedicalTimeout.fromMap(const {'side': 'A'}), isNull);
       expect(
-        MatchMedicalTimeout.fromMap(const {'side': 'A', 'playerSlot': 3}),
+        // Posição fora do elenco (equipe vai até 5 — fase 4d2).
+        MatchMedicalTimeout.fromMap(const {'side': 'A', 'playerSlot': 6}),
         isNull,
       );
     });

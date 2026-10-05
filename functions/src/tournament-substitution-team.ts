@@ -145,6 +145,11 @@ export async function applySubstitutionToTeamTx(
   if (trimmed(params.team.player1Id) === params.outUid) {
     teamUpdate.player1Id = params.inUid;
   }
+  // Individual (equipe de 1): quem sai é o titular. Em equipe nomeada o
+  // capitão nunca é substituído (guarda no chamador), então isto não a toca.
+  if (trimmed(params.team.captainUid) === params.outUid) {
+    teamUpdate.captainUid = params.inUid;
+  }
   if (trimmed(params.team.player2Id) === params.outUid) {
     teamUpdate.player2Id = params.inUid;
   }

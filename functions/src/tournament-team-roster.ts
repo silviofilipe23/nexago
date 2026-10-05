@@ -13,6 +13,7 @@ import {
 } from "./tournament-registration-pix-helpers";
 import {
   DUPLA_TEAM_SIZE,
+  INDIVIDUAL_TEAM_SIZE,
   MAX_TEAM_CATEGORY_SIZE,
   extractTeamMemberUids,
   teamGenderLabelForBuckets,
@@ -46,11 +47,11 @@ export async function loadTeamMemberUids(
   return extractTeamMemberUids(teamSnap.data());
 }
 
-/** Elenco esperado do doc de equipe: `teamSize` quando plausível, senão dupla. */
+/** Elenco esperado do doc de equipe: `teamSize` quando plausível (1 = individual), senão dupla. */
 function expectedRosterSize(team: Record<string, unknown>): number {
   const rawSize = Number(team.teamSize);
   return Number.isInteger(rawSize) &&
-    rawSize >= DUPLA_TEAM_SIZE &&
+    rawSize >= INDIVIDUAL_TEAM_SIZE &&
     rawSize <= MAX_TEAM_CATEGORY_SIZE ?
     rawSize :
     DUPLA_TEAM_SIZE;
@@ -108,9 +109,13 @@ export async function markTeamRegistrationPaid(
     );
   }
 
+  // Equipe de 1 (categoria individual): `registrationPaid` é o portão das
+  // listagens de equipe ("Descobrir"/"Minhas equipes") — um atleta sozinho não
+  // é equipe para essas telas. O gênero vale do mesmo jeito.
+  const individual = expectedRosterSize(data) === INDIVIDUAL_TEAM_SIZE;
   await teamRef.set(
     {
-      registrationPaid: true,
+      ...(individual ? {} : {registrationPaid: true}),
       ...(teamGender ? {gender: teamGender} : {}),
       updatedAt: FieldValue.serverTimestamp(),
     },

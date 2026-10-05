@@ -1,3 +1,4 @@
+import {assertCategoryAcceptsPartner} from "./tournament-individual-registration";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {
   getFirestore,
@@ -106,9 +107,12 @@ export const createExternalPartnerInvite = onCall({
     // — aqui, um que ainda nem tem conta. Nada nasce neste caminho, então nada é queimado.
     {claimantUids: [uid]},
   );
-  if (!findCategory(tournament, categoryId)) {
+  const category = findCategory(tournament, categoryId);
+  if (!category) {
     throw new HttpsError("not-found", "Categoria não encontrada neste torneio.");
   }
+  // Categoria individual não tem parceiro para convidar.
+  assertCategoryAcceptsPartner(category);
 
   const now = Date.now();
   const ref = db.collection(EXTERNAL_INVITES_COLLECTION).doc();

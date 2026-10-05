@@ -16,6 +16,8 @@
 import {roundMoney} from "./mercadopago-arena-helpers";
 import type {AthleteGenderBucket} from "./tournament-registration-pix-helpers";
 
+/** Categoria individual (`teamSize: 1` explícito — multiesporte fase 4a). */
+export const INDIVIDUAL_TEAM_SIZE = 1;
 export const DUPLA_TEAM_SIZE = 2;
 export const MIN_TEAM_CATEGORY_SIZE = 3;
 export const MAX_TEAM_CATEGORY_SIZE = 5;
@@ -46,8 +48,10 @@ function toCount(raw: unknown): number | null {
 }
 
 /**
- * Tamanho da equipe da categoria. `teamSize` explícito vence; senão deriva do
- * `disputeType` ("trio" → 3…); categoria legada sem nada = dupla.
+ * Tamanho da equipe da categoria. `teamSize` explícito vence (1 = individual);
+ * senão deriva do `disputeType` ("trio" → 3…); categoria legada sem nada = dupla.
+ * `disputeType: 'individual'` SEM `teamSize` continua dupla: pode haver
+ * categoria antiga assim, rodada como dupla (spec multiesporte, fase 4).
  */
 export function resolveCategoryTeamSize(
   category: Record<string, unknown> | null | undefined,
@@ -56,7 +60,7 @@ export function resolveCategoryTeamSize(
   const explicit = toCount(category.teamSize);
   if (
     explicit != null &&
-    explicit >= DUPLA_TEAM_SIZE &&
+    explicit >= INDIVIDUAL_TEAM_SIZE &&
     explicit <= MAX_TEAM_CATEGORY_SIZE
   ) {
     return explicit;
@@ -68,6 +72,48 @@ export function resolveCategoryTeamSize(
   return fromDispute != null && fromDispute >= DUPLA_TEAM_SIZE
     ? fromDispute
     : DUPLA_TEAM_SIZE;
+}
+
+/** Categoria individual: um atleta por inscrição, sem parceiro nem convite. */
+export function isIndividualCategory(
+  category: Record<string, unknown> | null | undefined,
+): boolean {
+  return resolveCategoryTeamSize(category) === INDIVIDUAL_TEAM_SIZE;
+}
+
+const PARTICIPANT_NOUNS: Record<number, {singular: string; plural: string; masculine: boolean}> = {
+  1: {singular: "atleta", plural: "atletas", masculine: true},
+  2: {singular: "dupla", plural: "duplas", masculine: false},
+  3: {singular: "trio", plural: "trios", masculine: true},
+  4: {singular: "quarteto", plural: "quartetos", masculine: true},
+  5: {singular: "quinteto", plural: "quintetos", masculine: true},
+};
+
+/**
+ * Como chamar o participante de uma categoria nas mensagens: "atleta", "dupla",
+ * "trio"… (`plural`, `article` opcionais). Tamanho fora de 1–5 = "equipe".
+ * NÃO é o "dupla" de "dupla eliminatória" (formato de chave).
+ */
+export function participantNoun(
+  teamSize: number,
+  opts: {plural?: boolean; article?: boolean} = {},
+): string {
+  const noun = PARTICIPANT_NOUNS[teamSize];
+  const word = noun ? (opts.plural ? noun.plural : noun.singular) : opts.plural ? "equipes" : "equipe";
+  if (!opts.article) return word;
+  const masculine = noun?.masculine ?? false;
+  const article = opts.plural ? (masculine ? "os" : "as") : masculine ? "o" : "a";
+  return `${article} ${word}`;
+}
+
+/**
+ * Cota por atleta dinâmica (restante ÷ pagadores que faltam) — vale para todo
+ * tamanho que não seja a dupla, cuja parcela fixa é a metade. Na individual a
+ * "cota" é a taxa inteira: o app antigo que paga "share" é cobrado e creditado
+ * pelo valor cheio e a inscrição fecha.
+ */
+export function usesDynamicShare(teamSize: number): boolean {
+  return teamSize !== DUPLA_TEAM_SIZE;
 }
 
 /** Categoria de equipe nomeada (trio+) — dupla segue o fluxo clássico. */
@@ -88,7 +134,7 @@ export function registrationTeamSize(
   const fromRegistration = toCount(registration?.teamSize);
   if (
     fromRegistration != null &&
-    fromRegistration >= DUPLA_TEAM_SIZE &&
+    fromRegistration >= INDIVIDUAL_TEAM_SIZE &&
     fromRegistration <= MAX_TEAM_CATEGORY_SIZE
   ) {
     return fromRegistration;

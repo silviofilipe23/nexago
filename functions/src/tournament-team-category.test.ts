@@ -4,10 +4,12 @@ import {
   computeTeamMemberShareReais,
   evaluateTeamJoin,
   extractTeamMemberUids,
+  isIndividualCategory,
   isTeamCategory,
   isTeamRosterComplete,
   normalizeTeamName,
   parseGenderComposition,
+  participantNoun,
   registrationTeamSize,
   resolveCategoryTeamSize,
   teamGenderLabelForBuckets,
@@ -340,5 +342,38 @@ describe("computeTeamMemberShareReais", () => {
       }),
       33.33,
     );
+  });
+});
+
+describe("categoria individual (multiesporte fase 4a)", () => {
+  it("teamSize 1 explícito é individual", () => {
+    assert.equal(resolveCategoryTeamSize({teamSize: 1}), 1);
+    assert.equal(resolveCategoryTeamSize({teamSize: 1, disputeType: "individual"}), 1);
+    assert.equal(isIndividualCategory({teamSize: 1}), true);
+    assert.equal(isTeamCategory({teamSize: 1}), false);
+  });
+
+  it("legado: disputeType 'individual' sem teamSize continua dupla", () => {
+    assert.equal(resolveCategoryTeamSize({disputeType: "individual"}), 2);
+    assert.equal(isIndividualCategory({disputeType: "individual"}), false);
+  });
+
+  it("inscrição com teamSize 1 gravado é individual", () => {
+    assert.equal(registrationTeamSize({teamSize: 1}, {teamSize: 2}), 1);
+    assert.equal(registrationTeamSize({}, {teamSize: 1}), 1);
+  });
+
+  it("substantivo do participante por tamanho", () => {
+    assert.equal(participantNoun(1), "atleta");
+    assert.equal(participantNoun(2), "dupla");
+    assert.equal(participantNoun(3), "trio");
+    assert.equal(participantNoun(5), "quinteto");
+    assert.equal(participantNoun(1, {plural: true}), "atletas");
+    assert.equal(participantNoun(2, {plural: true}), "duplas");
+    assert.equal(participantNoun(4, {plural: true}), "quartetos");
+    assert.equal(participantNoun(1, {article: true}), "o atleta");
+    assert.equal(participantNoun(2, {article: true}), "a dupla");
+    assert.equal(participantNoun(3, {article: true}), "o trio");
+    assert.equal(participantNoun(9), "equipe");
   });
 });

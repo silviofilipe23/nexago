@@ -160,3 +160,16 @@ describe("recomputeTeamGenderAfterRosterChange", () => {
     assert.equal(team("t1", fake)?.gender, "Masculino");
   });
 });
+
+describe("markTeamRegistrationPaid · individual (fase 4a)", () => {
+  it("equipe de 1 não ganha registrationPaid (não vira 'equipe' nas listagens)", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("users/a", {gender: "Feminino"});
+    fake.seedDoc(`${TEAMS}/t1`, {teamSize: 1, memberUids: ["a"], player1Id: "a", player2Id: ""});
+
+    await markTeamRegistrationPaid(db, PROJECT, "t1");
+
+    assert.equal(team("t1", fake)?.registrationPaid, undefined);
+    assert.equal(team("t1", fake)?.gender, "Feminino");
+  });
+});

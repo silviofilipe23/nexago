@@ -19,6 +19,7 @@ import {
 import {parseUniformPayload} from "./tournament-partner-invite";
 import type {TournamentCategory, UniformPayload} from "./tournament-partner-invite";
 import {
+  INDIVIDUAL_TEAM_SIZE,
   DUPLA_TEAM_SIZE,
   MAX_TEAM_CATEGORY_SIZE,
   MIN_TEAM_CATEGORY_SIZE,
@@ -79,10 +80,10 @@ export function parseCreateTeamRegistrationInput(
       .filter((uid) => uid.length > 0)
     : [];
 
-  if (uids.length < DUPLA_TEAM_SIZE || uids.length > MAX_TEAM_CATEGORY_SIZE) {
+  if (uids.length < INDIVIDUAL_TEAM_SIZE || uids.length > MAX_TEAM_CATEGORY_SIZE) {
     throw new HttpsError(
       "invalid-argument",
-      `Informe de ${DUPLA_TEAM_SIZE} a ${MAX_TEAM_CATEGORY_SIZE} atletas.`,
+      `Informe de ${INDIVIDUAL_TEAM_SIZE} a ${MAX_TEAM_CATEGORY_SIZE} atletas.`,
     );
   }
   if (new Set(uids).size !== uids.length) {
@@ -125,6 +126,12 @@ export function assertAthleteUidsMatchCategorySize(
   expectedSize: number,
 ): void {
   if (athleteUids.length === expectedSize) return;
+  if (expectedSize === INDIVIDUAL_TEAM_SIZE) {
+    throw new HttpsError(
+      "invalid-argument",
+      `Esta categoria é individual: informe 1 atleta. Você informou ${athleteUids.length}.`,
+    );
+  }
   const unit = expectedSize >= MIN_TEAM_CATEGORY_SIZE ? "equipe" : "dupla";
   throw new HttpsError(
     "invalid-argument",
@@ -291,8 +298,9 @@ export function buildOrganizerRegistrationDoc(
     teamName,
   } = params;
   const captainUid = athleteUids[0] ?? "";
+  // Equipe (trio+) e individual gravam elenco completo; só a dupla mantém o shape legado.
   const isTeam =
-    teamSize != null && teamSize >= MIN_TEAM_CATEGORY_SIZE;
+    teamSize != null && teamSize !== DUPLA_TEAM_SIZE;
 
   return {
     teamId,
@@ -306,7 +314,7 @@ export function buildOrganizerRegistrationDoc(
     ...organizerRegistrationStamp(organizerUid, timestamp),
     ...(waitlist ? {waitlist: true} : {}),
     // Dupla mantém o shape legado (sem player1Id / partnerPending na inscrição).
-    // Equipe espelha o fluxo do capitão, com elenco já completo.
+    // Equipe e individual espelham o fluxo do atleta, com elenco já completo.
     ...(isTeam
       ? {
           teamSize,
@@ -400,11 +408,21 @@ export function organizerRegistrationNotification(params: {
   isPaid: boolean;
   /** `true` = trio+; copy fala em equipe. */
   isTeam?: boolean;
+  /** 1 = categoria individual: a copy fala com o atleta, não com uma dupla. */
+  teamSize?: number;
 }): {title: string; body: string} {
   const {tournamentName, categoryName, isPaid, isTeam = false} = params;
   const where = tournamentName
     ? `${tournamentName}${categoryName ? ` · ${categoryName}` : ""}`
     : categoryName;
+  if (params.teamSize === INDIVIDUAL_TEAM_SIZE) {
+    return {
+      title: "Inscrição criada pelo organizador",
+      body: isPaid
+        ? `Você está inscrito em ${where}. Vaga confirmada.`
+        : `Você está inscrito em ${where}. O pagamento segue pendente — toque para pagar.`,
+    };
+  }
   const unit = isTeam ? "equipe" : "dupla";
 
   return {

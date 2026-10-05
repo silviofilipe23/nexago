@@ -1,3 +1,4 @@
+import {DUPLA_TEAM_SIZE, INDIVIDUAL_TEAM_SIZE, resolveCategoryTeamSize} from "./tournament-team-category";
 import {getAuth} from "firebase-admin/auth";
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import {defineSecret} from "firebase-functions/params";
@@ -146,6 +147,22 @@ function verifyMercadoPagoWebhookSignature(input: {
 /**
  * Verifica se o organizador já vinculou a conta Mercado Pago (para exibir "Conta vinculada" no perfil).
  */
+/**
+ * Valor da inscrição no caminho legado do Mercado Pago: parcela da dupla é a
+ * metade; "full" e a categoria individual (fase 4a — cota = taxa inteira)
+ * cobram a taxa toda.
+ */
+export function legacyMercadoPagoChargeReais(params: {
+  entryFee: number;
+  amountType: "share" | "full";
+  teamSize: number;
+}): number {
+  if (params.amountType === "full" || params.teamSize === INDIVIDUAL_TEAM_SIZE) {
+    return params.entryFee;
+  }
+  return Math.round((params.entryFee / DUPLA_TEAM_SIZE) * 100) / 100;
+}
+
 export const getMercadoPagoStatus = onCall({
   region: CLIENT_FACING_REGIONS,
   secrets: [MERCADOPAGO_APP_ID],
@@ -429,13 +446,11 @@ export const createMercadoPagoPreference = onCall({
       throw new HttpsError("failed-precondition", "Categoria sem taxa de inscrição");
     }
 
-    const teamSize = 2; // equipes
-    let amount: number;
-    if (amountType === "full") {
-      amount = entryFee;
-    } else {
-      amount = Math.round((entryFee / teamSize) * 100) / 100;
-    }
+    const amount = legacyMercadoPagoChargeReais({
+      entryFee,
+      amountType: amountType === "full" ? "full" : "share",
+      teamSize: resolveCategoryTeamSize(category as Record<string, unknown> | undefined),
+    });
     if (amount <= 0) {
       throw new HttpsError("failed-precondition", "Valor a pagar inválido");
     }

@@ -41,7 +41,7 @@ import {
   sharePaidUidsFromRegistration,
 } from "./tournament-registration-pix-helpers";
 import {
-  MIN_TEAM_CATEGORY_SIZE,
+  usesDynamicShare,
   computeTeamMemberShareReais,
   registrationTeamSize,
 } from "./tournament-team-category";
@@ -313,14 +313,14 @@ async function prepareRegistrationCharge(
     throw new HttpsError("failed-precondition", "Categoria sem taxa de inscrição");
   }
 
-  // Cota do atleta: metade (dupla) ou, em categoria de equipe, o RESTANTE
+  // Cota do atleta: metade (dupla) ou, em equipe e individual, o RESTANTE
   // dividido pelos pagadores que faltam (some o problema de centavos e absorve
-  // um "full" anterior).
+  // um "full" anterior; na individual é a taxa inteira).
   const regTeamSize = registrationTeamSize(
     registration,
     findCategory(tournamentData, categoryId),
   );
-  const isTeamRegistration = regTeamSize >= MIN_TEAM_CATEGORY_SIZE;
+  const isTeamRegistration = usesDynamicShare(regTeamSize);
   const shareAmount = isTeamRegistration
     ? computeTeamMemberShareReais({
         entryFee,
@@ -419,11 +419,13 @@ async function prepareRegistrationCharge(
   const expiresAtDate = new Date(pixWindow.expiresAtMs);
   const description =
     `Inscrição ${tournamentName} — ${categoryId} ` +
-    (amountType === "full"
-      ? isTeamRegistration
-        ? "(equipe inteira)"
-        : "(dupla inteira)"
-      : "(sua parcela)");
+    (regTeamSize === 1
+      ? "(individual)"
+      : amountType === "full"
+        ? isTeamRegistration
+          ? "(equipe inteira)"
+          : "(dupla inteira)"
+        : "(sua parcela)");
 
   const externalReference = buildTournamentRegistrationExternalReference(
     registrationId,

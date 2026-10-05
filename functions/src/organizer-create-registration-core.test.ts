@@ -121,14 +121,15 @@ describe("parseCreateTeamRegistrationInput", () => {
     rejectsInvalidArgument({tournamentId: "  ", categoryId: "c", athleteUids: ["a", "b"]});
   });
 
-  it("exige de 2 a 5 atletas distintos", () => {
+  it("exige de 1 a 5 atletas distintos (1 = categoria individual)", () => {
     const base = {tournamentId: "t1", categoryId: "c"};
-    rejectsInvalidArgument({...base, athleteUids: ["a"]});
+    assert.deepEqual(parseCreateTeamRegistrationInput({...base, athleteUids: ["a"]}).athleteUids, ["a"]);
+    rejectsInvalidArgument({...base, athleteUids: []});
     rejectsInvalidArgument({...base, athleteUids: ["a", "b", "c", "d", "e", "f"]});
     rejectsInvalidArgument({...base, athleteUids: ["a", "a"]});
     rejectsInvalidArgument({...base, athleteUids: ["a", "b", "a"]});
-    // Um uid vazio some na limpeza e cai no mesmo erro de faixa.
-    rejectsInvalidArgument({...base, athleteUids: ["a", "   "]});
+    // Uid vazio some na limpeza: só vazios cai no erro de faixa.
+    rejectsInvalidArgument({...base, athleteUids: ["   "]});
     rejectsInvalidArgument({...base, athleteUids: "a,b"});
     rejectsInvalidArgument({...base});
   });
@@ -456,5 +457,34 @@ describe("organizerRegistrationNotificationUrl", () => {
       organizerRegistrationNotificationUrl({...base, isPaid: true}),
       "/torneios/tour",
     );
+  });
+});
+
+describe("organizador inscreve em categoria individual (fase 4a)", () => {
+  it("tamanho errado em categoria individual fala de 1 atleta", () => {
+    assert.throws(
+      () => assertAthleteUidsMatchCategorySize(["a", "b"], 1),
+      (e: {message?: string}) => /individual/.test(e.message ?? "") && /1 atleta/.test(e.message ?? ""),
+    );
+    assert.doesNotThrow(() => assertAthleteUidsMatchCategorySize(["a"], 1));
+  });
+
+  it("inscrição individual nasce completa, com teamSize 1 e o atleta como titular", () => {
+    const doc = buildOrganizerRegistrationDoc({
+      teamId: "t1", tournamentId: "T", categoryId: "C", athleteUids: ["a"],
+      organizerUid: "org", waitlist: false, timestamp: "ts", teamSize: 1, teamName: null,
+    });
+    assert.equal(doc.teamSize, 1);
+    assert.equal(doc.partnerPending, false);
+    assert.equal(doc.player1Id, "a");
+    assert.equal(doc.captainUid, "a");
+    assert.equal("teamName" in doc, false);
+  });
+
+  it("aviso ao atleta não fala em dupla", () => {
+    const {body} = organizerRegistrationNotification({
+      tournamentName: "Open", categoryName: "Simples", isPaid: true, teamSize: 1,
+    });
+    assert.match(body, /^Você está inscrito em Open · Simples\./);
   });
 });

@@ -56,6 +56,11 @@ import {
 import {formatCategoryInviteNotificationLabel} from "./category-display-labels";
 import {artifactsInscriptionsPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 import {resolvePairTeamTx} from "./tournament-pair-team";
+import {
+  assertCategoryAcceptsPartner,
+  individualRegistrationFields,
+  individualTeamData,
+} from "./tournament-individual-registration";
 import {registrationAthleteUids} from "./tournament-registration-pix-helpers";
 import {asaasArenaSecrets} from "./asaas-client";
 import {
@@ -68,6 +73,7 @@ import {
   TEAM_CATEGORY_REQUIRES_TEAM_FLOW_MESSAGE,
   evaluateTeamJoin,
   extractTeamMemberUids,
+  isIndividualCategory,
   isTeamCategory,
   isTeamRosterComplete,
   parseGenderComposition,
@@ -938,6 +944,9 @@ export async function sendPartnerInviteFor(
 
   const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
 
+  // Categoria individual não tem parceiro (inscrição já nasce completa).
+  assertCategoryAcceptsPartner(category);
+
   // Categoria de equipe: convite anexado à inscrição do capitão, sem fusão de
   // reservas solo. LGPD/uniforme do capitão já vivem na inscrição criada em
   // createTournamentTeamRegistration.
@@ -1165,10 +1174,14 @@ export const registerSoloTournament = onCall({
     );
   }
 
+  // Categoria individual (teamSize 1): a inscrição solo JÁ é a inscrição
+  // completa — sem parceiro, então o "exigir dupla formada" não se aplica.
+  const individual = isIndividualCategory(category);
+
   // Torneio de dupla já formada não tem reserva solo: a inscrição nasce no
   // aceite do convite (`acceptTournamentPartnerInvite`, plano `create`), que já
   // é um caminho completo do backend. Aqui só fechamos a porta da vaga sozinha.
-  if (requiresFormedPair(tournament)) {
+  if (!individual && requiresFormedPair(tournament)) {
     throw new HttpsError("failed-precondition", FORMED_PAIR_REQUIRED_MESSAGE);
   }
 
@@ -1215,16 +1228,21 @@ export const registerSoloTournament = onCall({
 
   const inscriptionsRef = db.collection(artifactsInscriptionsPath(projectId));
   const regRef = inscriptionsRef.doc();
+  // Individual: a equipe de um atleta nasce junto (é o que entra na chave).
+  const teamRef = individual ?
+    db.collection(artifactsTeamsPath(projectId)).doc() :
+    null;
 
-  // A EQUIPE não é criada aqui: uma dupla com 1 atleta não deve existir. A vaga
-  // fica reservada apenas na inscrição (player1Id). O doc em `teams` é criado
-  // quando o parceiro aceita o convite (em acceptTournamentPartnerInvite).
+  // Dupla: a EQUIPE não é criada aqui — uma dupla com 1 atleta não deve
+  // existir. A vaga fica reservada apenas na inscrição (player1Id). O doc em
+  // `teams` é criado quando o parceiro aceita o convite.
   const regData: Record<string, unknown> = {
     tournamentId,
     categoryId,
     player1Id: uid,
     participantUids: [uid],
     partnerPending: true,
+    ...(teamRef ? individualRegistrationFields(teamRef.id) : {}),
     isPaid: false,
     paidAmount: 0,
     createdAt: FieldValue.serverTimestamp(),
@@ -1269,18 +1287,27 @@ export const registerSoloTournament = onCall({
         "Você já possui inscrição nesta categoria.",
       );
     }
+    if (teamRef) {
+      tx.set(teamRef, individualTeamData({uid, tournamentId, categoryId}));
+    }
     tx.set(regRef, regData);
     writeSpotPassClaimTx(tx, spotPassClaim, spotPassReads, regRef.id);
   });
 
   await markStaleCreateInvitesAfterSolo(db, tournamentId, categoryId, uid);
 
-  logger.info("Tournament solo registration created (no team yet)", {
-    registrationId: regRef.id,
-    tournamentId,
-    categoryId,
-    uid,
-  });
+  logger.info(
+    teamRef ?
+      "Tournament individual registration created" :
+      "Tournament solo registration created (no team yet)",
+    {
+      registrationId: regRef.id,
+      tournamentId,
+      categoryId,
+      uid,
+      ...(teamRef ? {teamId: teamRef.id} : {}),
+    },
+  );
 
   return {registrationId: regRef.id};
 });
@@ -1565,6 +1592,8 @@ export const acceptTournamentPartnerInvite = onCall({
     category: previewCategory,
     uids: [invitePreviewData.inviterUid as string | undefined, uid],
   });
+  // Convite pendente de antes da categoria virar individual: não vira parceria.
+  assertCategoryAcceptsPartner(previewCategory);
   // Dupla de gênero fixo fecha aqui: os DOIS precisam ter gênero declarado e
   // compatível (requireDeclared). Equipe valida composição na transação.
   if (!isTeamCategory(previewCategory)) {

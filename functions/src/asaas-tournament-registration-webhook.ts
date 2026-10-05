@@ -21,7 +21,7 @@ import {
   sharePaidUidsFromRegistration,
 } from "./tournament-registration-pix-helpers";
 import {
-  MIN_TEAM_CATEGORY_SIZE,
+  usesDynamicShare,
   registrationTeamSize,
 } from "./tournament-team-category";
 import {
@@ -184,13 +184,14 @@ export async function processTournamentRegistrationAsaasNotification(
   const entryFee = tournament ? resolveCategoryEntryFee(tournament, categoryId) : 0;
   const organizerId = typeof tournament?.managerId === "string" ?
     tournament.managerId.trim() : "";
-  // Categoria de equipe: cota dinâmica (restante ÷ pagadores que faltam) — o
-  // aviso de divergência da metade fixa e o crédito por parcela não se aplicam.
+  // Equipe e individual: cota dinâmica (restante ÷ pagadores que faltam; na
+  // individual, a taxa inteira) — o aviso de divergência da metade fixa e o
+  // crédito por parcela não se aplicam.
   const regTeamSize = registrationTeamSize(
     regData,
     tournament ? findCategory(tournament, categoryId) : null,
   );
-  const isTeamRegistration = regTeamSize >= MIN_TEAM_CATEGORY_SIZE;
+  const isTeamRegistration = usesDynamicShare(regTeamSize);
   const expectedShare = isTeamRegistration
     ? 0
     : computeTournamentShareAmountReais(entryFee);

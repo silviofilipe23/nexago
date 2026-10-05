@@ -149,7 +149,8 @@ export function isFreeRegistrationFullyConfirmed(
   const uniqueTeamUids = teamUids
     .map((id) => id.trim())
     .filter((id, idx, arr) => id.length > 0 && arr.indexOf(id) === idx);
-  if (uniqueTeamUids.length < Math.max(TEAM_SIZE, expectedSize)) return false;
+  // `expectedSize` 1 = categoria individual (fecha com o próprio atleta).
+  if (uniqueTeamUids.length < Math.max(1, expectedSize)) return false;
   return uniqueTeamUids.every((uid) => sharePaidUids.includes(uid));
 }
 

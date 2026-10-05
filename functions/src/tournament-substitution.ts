@@ -676,6 +676,8 @@ export async function acceptSubstitutionInviteFor(
     // A inscrição acompanha o fork; quem não bifurcou segue no mesmo doc.
     if (teamOutcome?.forked) regUpdate.teamId = effectiveTeamId;
     if (str(reg.player1Id) === outUid) regUpdate.player1Id = uid;
+    // Individual: a inscrição também guarda o titular (dono da vaga para prazo/cancelamento).
+    if (str(reg.captainUid) === outUid) regUpdate.captainUid = uid;
     if (outHadPaid) {
       regUpdate.sharePaidUids = replaceUidInList(sharePaidUidsFromRegistration(reg), outUid, uid);
     }

@@ -206,85 +206,38 @@ class RankingRepository {
     return out;
   }
 
-  /// Ranking individual POR MODALIDADE, no formato `{código do esporte: linhas}`.
-  ///
-  /// O ranking normal é um só, global: os resultados carregam `tournamentId`,
-  /// mas não o esporte. A modalidade mora em `tournaments/{id}.sport`, então é
-  /// preciso juntar resultado → torneio para poder separar os baldes.
-  ///
-  /// A leitura dos torneios vai em lotes de 10 com `documentId whereIn`, em
-  /// paralelo — mesmo padrão de `UsersRepository`. Um `get()` por torneio
-  /// transformaria uma tela em dezenas de idas ao Firestore.
-  ///
-  /// Só existe POR ANO. O ranking geral sai de `athleteRankings`, uma coleção
-  /// pré-calculada que também não tem esporte; separar por modalidade exige os
-  /// resultados crus, e esses só são consultáveis por ano.
-  Future<Map<String, List<AthleteRankingRow>>> loadAthleteRankingBySport({
+  /// Posição do atleta no ranking de CADA esporte em que pontuou no ano
+  /// (`{código do esporte: posição}`), pelos docs por esporte — beach tennis
+  /// incluso. Lê os docs dele e, para cada esporte com pontos no ano, a lista
+  /// daquele esporte.
+  Future<Map<String, int>> loadAthleteSportRanks(
+    String athleteId, {
     required int year,
   }) async {
-    final results = await getResultsByYear(year);
-    if (results.isEmpty) return const {};
-
-    final sportByTournament = await _loadSportByTournament(
-      results.map((r) => r.tournamentId).where((id) => id.isNotEmpty).toSet(),
-    );
-    if (sportByTournament.isEmpty) return const {};
-
-    final teamPlayers = await _loadTeamsMap(
-      results.map((r) => r.teamId).where((id) => id.isNotEmpty).toSet(),
-    );
-
-    // {esporte: {atleta: [pontos]}}
-    final bySport = <String, Map<String, List<int>>>{};
-    for (final result in results) {
-      final sport = sportByTournament[result.tournamentId];
-      if (sport == null) continue;
-      final players = teamPlayers[result.teamId];
-      if (players == null) continue;
-      final bucket = bySport.putIfAbsent(sport, () => <String, List<int>>{});
-      for (final uid in players.memberIds) {
-        bucket.putIfAbsent(uid, () => []).add(result.pointsEarned);
-      }
+    final id = athleteId.trim();
+    if (id.isEmpty) return const {};
+    final snap = await _firestore
+        .collection(NexagoArtifactsPaths.athleteRankingsBySportCollection())
+        .where('athleteId', isEqualTo: id)
+        .get();
+    final own = <String, AthleteRankingEntry>{};
+    for (final doc in snap.docs) {
+      final sport = doc.data()['sport'];
+      if (sport is! String || sport.isEmpty) continue;
+      own[sport] = AthleteRankingEntry.fromBySportData(doc.id, doc.data(), sport);
     }
-
-    return {
-      for (final entry in bySport.entries)
-        entry.key: buildAthleteRankingRowsFromPointsByAthlete(
-          entry.value,
-          year: year,
-        ),
-    };
-  }
-
-  /// `{tournamentId: código de esporte do perfil}`. Torneio sem esporte
-  /// reconhecido fica de fora — melhor não contar do que contar no balde errado.
-  Future<Map<String, String>> _loadSportByTournament(Set<String> ids) async {
-    if (ids.isEmpty) return const {};
-
-    final chunks = <List<String>>[];
-    final all = ids.toList();
-    for (var i = 0; i < all.length; i += 10) {
-      chunks.add(all.sublist(i, i + 10 > all.length ? all.length : i + 10));
-    }
-
-    final snaps = await Future.wait(
-      chunks.map(
-        (chunk) =>
-            _tournaments.where(FieldPath.documentId, whereIn: chunk).get(),
-      ),
+    final sports = sportsScoredInYear(own, year);
+    final lists = await Future.wait(
+      sports.map((sport) => loadAthleteRankingForSport(sport, year: year)),
     );
-
-    final out = <String, String>{};
-    for (final snap in snaps) {
-      for (final doc in snap.docs) {
-        final raw = doc.data()['sport'] as String?;
-        final code = CategoryLevelEligibility.tournamentSportToLevelSportCode(
-          raw,
-        );
-        if (code != null && code.isNotEmpty) out[doc.id] = code;
-      }
-    }
-    return out;
+    return athleteSportRanksFrom(
+      athleteId: id,
+      year: year,
+      ownDocsBySport: own,
+      rowsBySport: {
+        for (var i = 0; i < sports.length; i++) sports[i]: lists[i],
+      },
+    );
   }
 
   Future<List<TeamRankingRow>> loadTeamRankingByYear(int year) async {

@@ -157,6 +157,35 @@ List<AthleteRankingRow> buildAthleteRankingRowsForPeriod(
   ]);
 }
 
+/// Esportes em que o atleta pontuou no ano, pelos docs dele por esporte.
+List<String> sportsScoredInYear(
+  Map<String, AthleteRankingEntry> ownDocsBySport,
+  int year,
+) {
+  return [
+    for (final e in ownDocsBySport.entries)
+      if ((e.value.pointsByYear['$year'] ?? 0) > 0) e.key,
+  ];
+}
+
+/// `{esporte: posição}` do atleta no ano — só esporte em que ele pontuou e
+/// cuja lista o contém (a UI mostra travessão no resto).
+Map<String, int> athleteSportRanksFrom({
+  required String athleteId,
+  required int year,
+  required Map<String, AthleteRankingEntry> ownDocsBySport,
+  required Map<String, List<AthleteRankingRow>> rowsBySport,
+}) {
+  final out = <String, int>{};
+  for (final sport in sportsScoredInYear(ownDocsBySport, year)) {
+    final row = rowsBySport[sport]
+        ?.where((r) => r.athleteId == athleteId)
+        .firstOrNull;
+    if (row != null) out[sport] = row.rank;
+  }
+  return out;
+}
+
 List<TeamRankingRow> buildTeamRankingRowsForPeriod(
   List<TeamRankingEntry> entries, {
   int? year,

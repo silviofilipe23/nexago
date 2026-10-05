@@ -130,4 +130,63 @@ void main() {
       expect(rankingSportLabel('BEACH_TENNIS'), 'Beach tennis');
     });
   });
+
+  group('posição por esporte do perfil público', () {
+    test('só esportes com pontos no ano; posição do atleta em cada um', () {
+      final ranks = athleteSportRanksFrom(
+        athleteId: 'a1',
+        year: 2026,
+        ownDocsBySport: const {
+          'BEACH_TENNIS': AthleteRankingEntry(
+            athleteId: 'a1',
+            totalPoints: 800,
+            tournamentsCount: 2,
+            pointsByYear: {'2026': 800},
+          ),
+          'VOLEI_PRAIA': AthleteRankingEntry(
+            athleteId: 'a1',
+            totalPoints: 300,
+            tournamentsCount: 1,
+            pointsByYear: {'2025': 300},
+          ),
+        },
+        rowsBySport: const {
+          'BEACH_TENNIS': [
+            AthleteRankingRow(
+              rank: 1,
+              athleteId: 'x',
+              totalPoints: 900,
+              tournamentsCount: 3,
+            ),
+            AthleteRankingRow(
+              rank: 2,
+              athleteId: 'a1',
+              totalPoints: 800,
+              tournamentsCount: 2,
+            ),
+          ],
+        },
+      );
+      expect(ranks, {'BEACH_TENNIS': 2});
+    });
+
+    test('sportsScoredInYear lista quem tem pontos no ano', () {
+      expect(
+        sportsScoredInYear(const {
+          'BEACH_TENNIS': AthleteRankingEntry(
+            athleteId: 'a1',
+            totalPoints: 800,
+            tournamentsCount: 2,
+            pointsByYear: {'2026': 800},
+          ),
+          'FUTEVOLEI': AthleteRankingEntry(
+            athleteId: 'a1',
+            totalPoints: 0,
+            tournamentsCount: 0,
+          ),
+        }, 2026),
+        ['BEACH_TENNIS'],
+      );
+    });
+  });
 }

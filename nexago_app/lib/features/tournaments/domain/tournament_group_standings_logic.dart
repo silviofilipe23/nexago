@@ -1,4 +1,6 @@
+import '../../../core/sports/sport_catalog.dart' show SetsGamesProfile;
 import 'tournament_match.dart';
+import 'tournament_match_display.dart' show matchScoringProfile;
 import 'tournament_match_card_view_model.dart';
 import 'tournament_match_status.dart';
 import 'tournament_matches_logic.dart';
@@ -76,6 +78,7 @@ class TournamentPoolStandingsGroup {
     required this.teamCount,
     required this.matchCount,
     required this.isComplete,
+    this.isGames = false,
   });
 
   final String poolId;
@@ -84,6 +87,9 @@ class TournamentPoolStandingsGroup {
   final int teamCount;
   final int matchCount;
   final bool isComplete;
+
+  /// Grupo de partidas de games: a tabela fala em games (GF/GT/SG), não pontos.
+  final bool isGames;
 }
 
 class _MatchScore {
@@ -208,6 +214,13 @@ bool isPoolRoundRobinComplete(
   return completed >= expected;
 }
 
+/// Grupo de games: alguma partida do pool tem perfil efetivo `sets_games`.
+bool isGamesPool(String poolId, List<TournamentMatch> matches) => matches.any(
+  (m) =>
+      m.poolId.trim() == poolId &&
+      matchScoringProfile(m) is SetsGamesProfile,
+);
+
 List<String> computePoolStandings(
   String poolId,
   List<String> teamIds,
@@ -263,6 +276,14 @@ List<String> computePoolStandings(
     );
   }
 
+  // Grupo de games (spec multiesporte, standings por tipo): saldo de sets antes
+  // do saldo de games.
+  final games = isGamesPool(poolId, matches);
+  int setDiffOf(String id) {
+    final s = stats[id];
+    return games && s != null ? s.setsWon - s.setsLost : 0;
+  }
+
   int winsOf(String id) => stats[id]?.wins ?? 0;
   int pointDiffOf(String id) {
     final s = stats[id];
@@ -271,6 +292,7 @@ List<String> computePoolStandings(
 
   for (final game in played) {
     if (winsOf(game.teamAId) != winsOf(game.teamBId)) continue;
+    if (setDiffOf(game.teamAId) != setDiffOf(game.teamBId)) continue;
     if (pointDiffOf(game.teamAId) != pointDiffOf(game.teamBId)) continue;
     final aStats = stats[game.teamAId]!;
     final bStats = stats[game.teamBId]!;
@@ -284,6 +306,8 @@ List<String> computePoolStandings(
   final entries = stats.values.toList()
     ..sort((a, b) {
       if (b.wins != a.wins) return b.wins.compareTo(a.wins);
+      final setDiff = setDiffOf(b.teamId) - setDiffOf(a.teamId);
+      if (setDiff != 0) return setDiff;
       final gameDiffA = a.gamesWon - a.gamesLost;
       final gameDiffB = b.gamesWon - b.gamesLost;
       if (gameDiffB != gameDiffA) return gameDiffB.compareTo(gameDiffA);
@@ -527,6 +551,7 @@ List<TournamentPoolStandingsGroup> buildPoolStandingsGroups({
       teamCount: teamIds.length,
       matchCount: group.matches.length,
       isComplete: isComplete,
+      isGames: isGamesPool(effectivePoolId, group.matches),
     );
   }).toList();
 }

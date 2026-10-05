@@ -176,6 +176,13 @@ function renderTsVectors(catalog, scoring) {
     '  readonly setLabels: readonly string[];',
     '}',
     '',
+    'export interface ScoringTextVector {',
+    '  readonly profile: string;',
+    '  readonly index: number;',
+    '  readonly set: {a: number; b: number; tb?: {a: number; b: number}};',
+    '  readonly text: string;',
+    '}',
+    '',
     'export interface ScoringQuickVector {',
     '  readonly profile: string;',
     '  readonly index: number;',
@@ -207,8 +214,9 @@ function renderTsVectors(catalog, scoring) {
       'readonly cases: readonly ScoringVectorCase[]; ' +
       'readonly labelVectors: readonly ScoringLabelVector[]; ' +
       'readonly quickVectors: readonly ScoringQuickVector[]; ' +
-      'readonly liveVectors: readonly ScoringLiveVector[]} = ' +
-      `${JSON.stringify({profiles: scoring.profiles, cases: scoring.cases, labelVectors: scoring.labelVectors, quickVectors: scoring.quickVectors, liveVectors: scoring.liveVectors})};`,
+      'readonly liveVectors: readonly ScoringLiveVector[]; ' +
+      'readonly textVectors: readonly ScoringTextVector[]} = ' +
+      `${JSON.stringify({profiles: scoring.profiles, cases: scoring.cases, labelVectors: scoring.labelVectors, quickVectors: scoring.quickVectors, liveVectors: scoring.liveVectors, textVectors: scoring.textVectors})};`,
     '',
   ].join('\n');
 }
@@ -281,7 +289,7 @@ function renderDartCatalog(catalog, index) {
 }
 
 function renderDartVectors(catalog, scoring) {
-  const scoringJson = JSON.stringify({profiles: scoring.profiles, cases: scoring.cases, labelVectors: scoring.labelVectors, quickVectors: scoring.quickVectors, liveVectors: scoring.liveVectors});
+  const scoringJson = JSON.stringify({profiles: scoring.profiles, cases: scoring.cases, labelVectors: scoring.labelVectors, quickVectors: scoring.quickVectors, liveVectors: scoring.liveVectors, textVectors: scoring.textVectors});
   if (scoringJson.includes("'''")) fail("scoring-vectors.json não pode conter '''");
   const list = (name, type, vectors) => [
     `const List<(String, ${type})> ${name} = [`,
@@ -305,7 +313,7 @@ export function outputs() {
   const index = validate(catalog);
   const scoring = JSON.parse(fs.readFileSync(path.join(ROOT, 'sports/scoring-vectors.json'), 'utf8'));
   for (const [name, p] of Object.entries(scoring.profiles)) validateScoringProfile(`vetor ${name}`, p);
-  for (const c of [...scoring.cases, ...scoring.labelVectors, ...scoring.quickVectors, ...scoring.liveVectors]) {
+  for (const c of [...scoring.cases, ...scoring.labelVectors, ...scoring.quickVectors, ...scoring.liveVectors, ...scoring.textVectors]) {
     if (!(c.profile in scoring.profiles)) fail(`vetor com perfil desconhecido: ${c.profile}`);
   }
   const tsCatalog = renderTsCatalog(catalog, index);

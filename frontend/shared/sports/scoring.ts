@@ -266,6 +266,16 @@ export function setTargetLabel(p: ScoringProfile, index: number): string {
   return `até ${p.gamesPerSet} games`;
 }
 
+/** Placar de um set como texto: '21-18', '6-4', '7-6 (7-4)'. O super tie-break mostra os pontos
+ *  dele ('10-8'), não o 1×0 gravado. Em pontos o `tb` é ignorado. */
+export function setScoreText(p: ScoringProfile, index: number, set: ScoreSet): string {
+  if (p.kind === 'sets_games' && set.tb) {
+    if (isSuperTiebreakSet(p, index)) return `${set.tb.a}-${set.tb.b}`;
+    return `${set.a}-${set.b} (${set.tb.a}-${set.tb.b})`;
+  }
+  return `${set.a}-${set.b}`;
+}
+
 /** Que campos a linha do set mostra no lançamento rápido. */
 export function quickSetKind(p: ScoringProfile, index: number, set: ScoreSet): QuickSetKind {
   if (p.kind === 'sets_points') return 'points';

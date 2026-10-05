@@ -199,7 +199,10 @@ class TournamentPoolStandingsCard extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            _StandingsTableHeader(nameWidth: nameWidth),
+                            _StandingsTableHeader(
+                              nameWidth: nameWidth,
+                              isGames: group.isGames,
+                            ),
                             const SizedBox(height: 4),
                             for (final row in group.rows)
                               _StandingsTableRow(
@@ -221,7 +224,10 @@ class TournamentPoolStandingsCard extends StatelessWidget {
                     color: Colors.white.withValues(alpha: 0.10),
                   ),
                   const SizedBox(height: 10),
-                  _StandingsCardFooter(qualifiersPerGroup: qualifiersPerGroup),
+                  _StandingsCardFooter(
+                    qualifiersPerGroup: qualifiersPerGroup,
+                    isGames: group.isGames,
+                  ),
                 ],
               ],
             ),
@@ -278,9 +284,10 @@ const double _tableMinWidth = _rowLeadingInset +
     _rowTrailingInset;
 
 class _StandingsTableHeader extends StatelessWidget {
-  const _StandingsTableHeader({required this.nameWidth});
+  const _StandingsTableHeader({required this.nameWidth, this.isGames = false});
 
   final double nameWidth;
+  final bool isGames;
 
   @override
   Widget build(BuildContext context) {
@@ -318,11 +325,11 @@ class _StandingsTableHeader extends StatelessWidget {
           const SizedBox(width: _colGap),
           cell('SETS', _colSets),
           const SizedBox(width: _colGap),
-          cell('PF', _colPointsFor),
+          cell(isGames ? 'GF' : 'PF', _colPointsFor),
           const SizedBox(width: _colGap),
-          cell('PT', _colPointsAgainst),
+          cell(isGames ? 'GT' : 'PT', _colPointsAgainst),
           const SizedBox(width: _colGap),
-          cell('SP', _colPointsDiff),
+          cell(isGames ? 'SG' : 'SP', _colPointsDiff),
           const SizedBox(width: _colGap),
           cell('PTS', _colPoints, align: TextAlign.end),
         ],
@@ -479,9 +486,13 @@ class _StandingsTableRow extends StatelessWidget {
 }
 
 class _StandingsCardFooter extends StatelessWidget {
-  const _StandingsCardFooter({required this.qualifiersPerGroup});
+  const _StandingsCardFooter({
+    required this.qualifiersPerGroup,
+    this.isGames = false,
+  });
 
   final int qualifiersPerGroup;
+  final bool isGames;
 
   @override
   Widget build(BuildContext context) {
@@ -507,7 +518,7 @@ class _StandingsCardFooter extends StatelessWidget {
           // única forma de decifrar a tabela.
           child: Text(
             '$rule  V vitórias · D derrotas · SETS · '
-            'PF feitos · PT tomados · SP saldo · PTS',
+            '${isGames ? 'GF feitos · GT tomados · SG saldo' : 'PF feitos · PT tomados · SP saldo'} · PTS',
             style: AppTypography.soraRegular(
               fontSize: 11,
               color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.8),

@@ -95,4 +95,40 @@ describe('live-set-display', () => {
       expect(matchSetWins(m)).toEqual([1, 0]);
     });
   });
+
+  describe('partida de games (perfil carimbado)', () => {
+    const BT = { kind: 'sets_games', bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: false, decidingSet: 'super_tiebreak', superTiebreakTo: 10 } as const;
+    function games(partial: Partial<LiveScoreFields>): LiveScoreFields {
+      return live({ scoringProfile: BT, ...partial });
+    }
+
+    it('6-4 fecha o set; o game em andamento vem em 0/15/30/40', () => {
+      const m = games({ sets: [{ a: 6, b: 4 }, { a: 2, b: 1 }], currentSetIndex: 1, currentGame: { a: 3, b: 1 } });
+      expect(matchSetWins(m)).toEqual([1, 0]);
+      expect(matchClosedSets(m)).toEqual([{ a: 6, b: 4 }]);
+      expect(matchLiveCurrentSet(m)).toEqual({ setNumber: 2, a: 2, b: 1, game: { a: '40', b: '15' }, tiebreak: false });
+    });
+
+    it('5-4 não fecha; vantagem aparece como AD', () => {
+      const m = games({ sets: [{ a: 5, b: 4 }], currentSetIndex: 0, currentGame: { a: 4, b: 3 } });
+      expect(matchSetWins(m)).toEqual([0, 0]);
+      expect(matchLiveCurrentSet(m)).toEqual({ setNumber: 1, a: 5, b: 4, game: { a: 'AD', b: '40' }, tiebreak: false });
+    });
+
+    it('6-6 em tie-break: pontos corridos e tiebreak ligado', () => {
+      const m = games({ sets: [{ a: 6, b: 6 }], currentSetIndex: 0, currentGame: { a: 4, b: 2 } });
+      expect(matchLiveCurrentSet(m)).toEqual({ setNumber: 1, a: 6, b: 6, game: { a: '4', b: '2' }, tiebreak: true });
+    });
+
+    it('super tie-break fechado conta para o vencedor', () => {
+      const m = games({ status: 'completed', sets: [{ a: 6, b: 4 }, { a: 3, b: 6 }, { a: 1, b: 0, tb: { a: 10, b: 8 } }], currentSetIndex: 2 });
+      expect(matchSetWins(m)).toEqual([2, 1]);
+    });
+
+    it('partida de pontos não ganha game', () => {
+      const m = live({ sets: [{ a: 14, b: 11 }], currentSetIndex: 0, currentGame: { a: 3, b: 1 } });
+      expect(matchLiveCurrentSet(m)).toEqual({ setNumber: 1, a: 14, b: 11 });
+    });
+  });
 });
+

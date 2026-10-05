@@ -69,6 +69,21 @@ void main() {
         ], labels);
       });
     }
+    final texts = vectors['textVectors'] as List<dynamic>;
+    for (var i = 0; i < texts.length; i++) {
+      final v = texts[i] as Map<String, dynamic>;
+      test('texto do set $i (${v['profile']})', () {
+        final p = ScoringRules.profileFromRaw(profiles[v['profile']])!;
+        expect(
+          ScoringRules.setScoreText(
+            p,
+            v['index'] as int,
+            _set(v['set'] as Map<String, dynamic>),
+          ),
+          v['text'],
+        );
+      });
+    }
     final quick = vectors['quickVectors'] as List<dynamic>;
     for (var i = 0; i < quick.length; i++) {
       final v = quick[i] as Map<String, dynamic>;

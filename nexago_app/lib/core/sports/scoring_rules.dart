@@ -377,6 +377,18 @@ abstract final class ScoringRules {
     }
   }
 
+  /// Placar de um set como texto: "21-18", "6-4", "7-6 (7-4)". O super
+  /// tie-break mostra os pontos dele ("10-8"), não o 1×0 gravado. Em pontos o
+  /// `tb` é ignorado.
+  static String setScoreText(ScoringProfile p, int index, ScoreSetValue set) {
+    final tb = set.tb;
+    if (p is SetsGamesProfile && tb != null) {
+      if (isSuperTiebreakSet(p, index)) return '${tb.a}-${tb.b}';
+      return '${set.a}-${set.b} (${tb.a}-${tb.b})';
+    }
+    return '${set.a}-${set.b}';
+  }
+
   static QuickSetKind quickSetKind(
     ScoringProfile p,
     int index,

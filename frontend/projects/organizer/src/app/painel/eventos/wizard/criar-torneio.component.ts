@@ -23,7 +23,9 @@ import {
   DISPUTE_LABEL,
   LEVEL_UP_TO_CHIP_LABEL,
   SKILL_LEVEL_LADDER,
-  DISPUTE_OPTIONS,
+  disputeOptionsForSport,
+  disputeSpotsStep,
+  withSportDisputes,
   GENDER_LABEL,
   KOC_MAX_ROUND_DURATION_SEC,
   KOC_MIN_ROUND_DURATION_SEC,
@@ -219,7 +221,10 @@ function inputToDatetime(v: string): Date | null {
               </og-form-field>
               <div class="og-field-grid" style="margin-top:16px">
                 <og-form-field label="Disputa">
-                  <og-select-chips [options]="disputeOptions" [active]="disputeLabel[cat().dispute]" (changed)="setCatDispute($event)" />
+                  <og-select-chips [options]="disputeOptions()" [active]="disputeLabel[cat().dispute]" (changed)="setCatDispute($event)" />
+                  @if (catDisputeLocked()) {
+                    <p class="og-wizard-hint">Categoria já publicada: o tipo de disputa não muda (as inscrições foram feitas nele).</p>
+                  }
                 </og-form-field>
                 <og-form-field label="Gênero">
                   <og-select-chips [options]="catGenderOptions()" [active]="catGenderActive()" (changed)="setCatGender($event)" />
@@ -303,7 +308,7 @@ function inputToDatetime(v: string): Date | null {
               </div>
               @if (cat().bracketSystem === 'groupsThenKnockout') {
                 <div class="og-field-grid" style="margin-top:14px">
-                  <og-stepper-static [label]="catIsTeam() ? 'Equipes por grupo' : 'Duplas por grupo'" [value]="'' + cat().teamsPerGroup" (bump)="bumpCat('teamsPerGroup', $event, 2, 8)" />
+                  <og-stepper-static [label]="catGroupUnitLabel() + ' por grupo'" [value]="'' + cat().teamsPerGroup" (bump)="bumpCat('teamsPerGroup', $event, 2, 8)" />
                   <og-stepper-static label="Classificam" [value]="'' + cat().qualifiersPerGroup" (bump)="bumpCat('qualifiersPerGroup', $event, 1, 4)" />
                 </div>
               }
@@ -834,7 +839,20 @@ export class CriarTorneioComponent {
   protected readonly genderOptions = Object.values(GENDER_LABEL);
   protected readonly ageBandOptions = Object.values(AGE_BAND_LABEL);
   protected readonly disputeLabel = DISPUTE_LABEL;
-  protected readonly disputeOptions = DISPUTE_OPTIONS.map((d) => DISPUTE_LABEL[d]);
+  /** Categorias que já existiam no torneio publicado: o tipo de disputa delas não muda (trocar
+   *  o tamanho da equipe com inscrições prenderia reservas ou anexaria parceiro a individual). */
+  private readonly publishedCategoryIds = signal<ReadonlySet<string>>(new Set());
+  protected readonly catDisputeLocked = computed(() => this.publishedCategoryIds().has(this.cat().id));
+  /** Tipos de disputa do esporte (`allowedTeamSizes` do catálogo) — individual só onde existe. */
+  protected readonly disputeOptions = computed(() =>
+    this.catDisputeLocked()
+      ? [DISPUTE_LABEL[this.cat().dispute]]
+      : disputeOptionsForSport(this.draft().sport).map((d) => DISPUTE_LABEL[d]),
+  );
+  protected readonly catGroupUnitLabel = computed(() => {
+    const unit = categoryUnitLabel(this.cat());
+    return unit.charAt(0).toUpperCase() + unit.slice(1);
+  });
   protected readonly suggestCategoryName = suggestCategoryName;
   protected readonly tagsOf = categoryTags;
   protected readonly unitOf = categoryUnitLabel;
@@ -983,6 +1001,8 @@ export class CriarTorneioComponent {
       }
       this.draft.set(loaded.draft);
       this.existingListingStatus = loaded.existingListingStatus;
+      const published = !!loaded.existingListingStatus && !['draft', 'rascunho'].includes(loaded.existingListingStatus.toLowerCase());
+      this.publishedCategoryIds.set(published ? new Set(loaded.draft.categories.map((c) => c.id)) : new Set());
       this.editEntry.set(true);
       this.applyDeepLink();
     } finally {
@@ -1053,7 +1073,10 @@ export class CriarTorneioComponent {
     // O placar das categorias acompanha o esporte (o perfil antigo seria de outro tipo).
     // Sugestão intacta do esporte anterior também é refeita (esporte desconhecido não sugere nada).
     const previous = this.draft().sportRaw ? undefined : this.draft().sport;
-    if (sport) this.patch({ sport, categories: withSportScoring(this.draft().categories, sport, previous) });
+    // Tipo de disputa que o novo esporte não aceita (ex.: individual fora do tênis) vira dupla.
+    if (sport) {
+      this.patch({ sport, categories: withSportDisputes(withSportScoring(this.draft().categories, sport, previous), sport) });
+    }
   }
 
   /** O placar que a categoria em edição vai carimbar (explícito ou o do servidor sem perfil). */
@@ -1092,6 +1115,7 @@ export class CriarTorneioComponent {
   }
 
   protected setCatDispute(label: string): void {
+    if (this.catDisputeLocked()) return;
     const dispute = (Object.keys(DISPUTE_LABEL) as CategoryDispute[]).find((d) => DISPUTE_LABEL[d] === label);
     if (!dispute) return;
     this.cat.update((c) => {
@@ -1145,8 +1169,8 @@ export class CriarTorneioComponent {
   }
 
   protected bumpCatSpots(delta: number): void {
-    // Dupla anda de 2 em 2 (comportamento histórico); equipe de 1 em 1.
-    const step = this.catIsTeam() ? 1 : 2;
+    // Dupla anda de 2 em 2 (comportamento histórico); individual e equipe de 1 em 1.
+    const step = disputeSpotsStep(this.cat().dispute);
     this.patchCat({ spots: Math.min(Math.max(this.cat().spots + delta * step, 2), 64) });
   }
 

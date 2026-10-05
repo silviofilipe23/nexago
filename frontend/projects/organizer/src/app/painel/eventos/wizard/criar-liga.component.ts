@@ -28,7 +28,9 @@ import {
   BRACKET_SYSTEM_SHORT_LABEL,
   CATEGORY_LEVEL_PRESETS,
   DISPUTE_LABEL,
-  DISPUTE_OPTIONS,
+  disputeOptionsForSport,
+  disputeSpotsStep,
+  withSportDisputes,
   GENDER_LABEL,
   SKILL_LEVEL_LABEL,
   SPORT_LABEL,
@@ -164,7 +166,7 @@ interface RemoveTarget {
               </og-form-field>
               <div class="og-field-grid" style="margin-top:16px">
                 <og-form-field label="Disputa">
-                  <og-select-chips [options]="disputeOptions" [active]="disputeLabel[cat().dispute]" (changed)="setCatDispute($event)" />
+                  <og-select-chips [options]="disputeOptions()" [active]="disputeLabel[cat().dispute]" (changed)="setCatDispute($event)" />
                 </og-form-field>
                 <og-form-field label="Gênero">
                   <og-select-chips [options]="catGenderOptions()" [active]="catGenderActive()" (changed)="setCatGender($event)" />
@@ -507,7 +509,10 @@ export class CriarLigaComponent {
   protected readonly tagsOf = categoryTags;
   protected readonly unitOf = categoryUnitLabel;
   protected readonly disputeLabel = DISPUTE_LABEL;
-  protected readonly disputeOptions = DISPUTE_OPTIONS.map((d) => DISPUTE_LABEL[d]);
+  /** Tipos de disputa do esporte (`allowedTeamSizes` do catálogo) — individual só onde existe. */
+  protected readonly disputeOptions = computed(() =>
+    disputeOptionsForSport(this.draft().sport).map((d) => DISPUTE_LABEL[d]),
+  );
 
   // ── Categoria de equipe (trio/quarteto/quinteto) ──
   protected readonly catIsTeam = computed(() => isTeamDispute(this.cat().dispute));
@@ -624,7 +629,13 @@ export class CriarLigaComponent {
     const sport = (Object.keys(SPORT_LABEL) as TournamentSport[]).find((s) => SPORT_LABEL[s] === label);
     // O placar das categorias acompanha o esporte (as etapas herdam o perfil da categoria).
     // Sugestão intacta do esporte anterior também é refeita (liga nova: o esporte é sempre conhecido).
-    if (sport) this.patch({ sport, categories: withSportScoring(this.draft().categories, sport, this.draft().sport) });
+    // Tipo de disputa que o novo esporte não aceita (ex.: individual fora do tênis) vira dupla.
+    if (sport) {
+      this.patch({
+        sport,
+        categories: withSportDisputes(withSportScoring(this.draft().categories, sport, this.draft().sport), sport),
+      });
+    }
   }
 
   protected setCatGender(label: string): void {
@@ -667,7 +678,7 @@ export class CriarLigaComponent {
 
   protected bumpCatSpots(delta: number): void {
     // Dupla anda de 2 em 2 (comportamento histórico); equipe de 1 em 1.
-    const step = this.catIsTeam() ? 1 : 2;
+    const step = disputeSpotsStep(this.cat().dispute);
     this.patchCat({ spots: Math.min(Math.max(this.cat().spots + delta * step, 2), 64) });
   }
 

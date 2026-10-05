@@ -11,7 +11,9 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../data/games_point_write.dart';
 import '../../data/match_point_write.dart';
+import '../../domain/match_ops/live_point_replay.dart';
 import '../../domain/match_ops/match_medical_timeout_logic.dart';
 import '../../domain/match_ops/match_ops_providers.dart';
 import '../../domain/match_ops/match_serving_player_logic.dart';
@@ -400,6 +402,20 @@ class _OrganizerMatchLiveTablePageState
 
   Future<void> _changeFormat(TournamentMatch match, int newBestOf) async {
     if (match.isCompleted) return;
+    // Troca de formato é regra de pontos (`applyBestOfChange`); em games só
+    // antes do 1º ponto.
+    if (gamesProfileOf(match) != null &&
+        (match.sets.any((s) => s.a > 0 || s.b > 0) ||
+            match.currentGame.a + match.currentGame.b > 0)) {
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          'Em partida de games o formato só muda antes do primeiro ponto.',
+          isError: true,
+        );
+      }
+      return;
+    }
     if (newBestOf < match.bestOf &&
         !MatchScoringLogic.canReduceBestOf(match.sets, newBestOf)) {
       if (mounted) {
@@ -470,13 +486,7 @@ class _OrganizerMatchLiveTablePageState
     final events = (eventsAsync.valueOrNull ?? const [])
         .whereType<TournamentMatchPointEvent>()
         .toList();
-    TournamentMatchPointEvent? lastPoint;
-    for (final event in events.reversed) {
-      if (event.isPoint) {
-        lastPoint = event;
-        break;
-      }
-    }
+    final lastPoint = _lastUndoablePoint(match, events);
     if (lastPoint == null) {
       if (mounted) {
         showAppSnackBar(context, 'Nenhum ponto para desfazer.', isError: true);
@@ -487,15 +497,39 @@ class _OrganizerMatchLiveTablePageState
     final side = lastPoint.side ?? 'A';
     // Locais finais: a promoção de nulidade não atravessa o closure do `build`.
     final undoneSetIndex = lastPoint.setIndex;
+    final undonePrev = lastPoint.prev;
+    final undoneLanded = (
+      scoreA: lastPoint.scoreA,
+      scoreB: lastPoint.scoreB,
+      gameA: lastPoint.gameA,
+      gameB: lastPoint.gameB,
+    );
 
     setState(() => _saving = true);
     try {
       final repo = ref.read(tournamentMatchesRepositoryProvider);
 
-      await repo.recordPointTransaction(
+      final written = await repo.recordPointTransaction(
         matchId: widget.matchId,
-        build: (fresh) => buildUndoWrite(fresh, side, undoneSetIndex),
+        build: (fresh) => buildUndoWrite(
+          fresh,
+          side,
+          undoneSetIndex,
+          prev: undonePrev,
+          landed: undoneLanded,
+        ),
       );
+      if (written == null) {
+        if (mounted) {
+          showAppSnackBar(
+            context,
+            'Não deu para desfazer: o placar mudou desde este ponto. '
+            'Confira a mesa e tente de novo.',
+            isError: true,
+          );
+        }
+        return;
+      }
       await TournamentLiveMatchesSync.syncForTournament(
         FirebaseFirestore.instance,
         widget.tournamentId,
@@ -787,6 +821,20 @@ class _OrganizerMatchLiveTablePageState
     }
   }
 
+  /// Ponto que o "desfazer" tira. Partida de games usa o replay da timeline
+  /// (o `prev` do evento repõe o estado; dois desfazer seguidos não podem
+  /// mirar o mesmo ponto). Pontos segue com o último `point` cru, como sempre.
+  TournamentMatchPointEvent? _lastUndoablePoint(
+    TournamentMatch match,
+    List<TournamentMatchPointEvent> events,
+  ) {
+    if (gamesProfileOf(match) != null) return lastUndoablePoint(events);
+    for (final event in events.reversed) {
+      if (event.isPoint) return event;
+    }
+    return null;
+  }
+
   Future<void> _undoIfSide(String side) async {
     final eventsAsync = ref.read(
       organizerMatchPointEventsProvider(widget.matchId),
@@ -794,13 +842,10 @@ class _OrganizerMatchLiveTablePageState
     final events = (eventsAsync.valueOrNull ?? const [])
         .whereType<TournamentMatchPointEvent>()
         .toList();
-    TournamentMatchPointEvent? lastPoint;
-    for (final event in events.reversed) {
-      if (event.isPoint) {
-        lastPoint = event;
-        break;
-      }
-    }
+    final match = _currentMatch();
+    final lastPoint = match == null
+        ? null
+        : _lastUndoablePoint(match, events);
     if (lastPoint == null) {
       if (mounted) {
         showAppSnackBar(context, 'Nenhum ponto para desfazer.', isError: true);
@@ -1009,16 +1054,23 @@ class _OrganizerMatchLiveTablePageState
                   match: match,
                   categoryLabel: categoryLabel,
                 );
-                final rules = MatchScoringLogic.setRulesLabel(
-                  setIdx,
-                  bestOf: match.bestOf,
-                );
-                final setPoint = MatchScoringLogic.setPointHint(
-                  current.a,
-                  current.b,
-                  setIndex: setIdx,
-                  bestOf: match.bestOf,
-                );
+                final gamesView = liveTableGamesView(match);
+                final rules =
+                    gamesView?.rules ??
+                    MatchScoringLogic.setRulesLabel(
+                      setIdx,
+                      bestOf: match.bestOf,
+                    );
+                final setPoint = gamesView != null
+                    ? gamesView.hint
+                    : MatchScoringLogic.setPointHint(
+                        current.a,
+                        current.b,
+                        setIndex: setIdx,
+                        bestOf: match.bestOf,
+                      );
+                final labelA = gamesView?.labelA;
+                final labelB = gamesView?.labelB;
                 final teamA = liveTableTeamData(
                   match: match,
                   sideA: true,
@@ -1066,6 +1118,8 @@ class _OrganizerMatchLiveTablePageState
                       match,
                       sideA: _sidesSwapped,
                     ),
+                    scoreLabelA: _sidesSwapped ? labelB : labelA,
+                    scoreLabelB: _sidesSwapped ? labelA : labelB,
                     isServingA: liveTableIsServing(
                       match,
                       sideA: !_sidesSwapped,
@@ -1110,6 +1164,8 @@ class _OrganizerMatchLiveTablePageState
                       match,
                       sideA: _sidesSwapped,
                     ),
+                    scoreLabelA: _sidesSwapped ? labelB : labelA,
+                    scoreLabelB: _sidesSwapped ? labelA : labelB,
                     isServingA: liveTableIsServing(
                       match,
                       sideA: !_sidesSwapped,
@@ -1194,6 +1250,8 @@ class _OrganizerMatchLiveTablePageState
                         teamB: teamB,
                         scoreA: liveTableCurrentSetScore(match, sideA: true),
                         scoreB: liveTableCurrentSetScore(match, sideA: false),
+                        scoreLabelA: labelA,
+                        scoreLabelB: labelB,
                         isServingA: liveTableIsServing(match, sideA: true),
                         isServingB: liveTableIsServing(match, sideA: false),
                         servingPlayerName: servingPlayerName,

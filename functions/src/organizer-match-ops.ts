@@ -830,6 +830,9 @@ export function matchResultFields(params: {
       status: completed ? MatchStatus.completed : MatchStatus.inProgress,
       resultA: `${wins.a}`,
       resultB: `${wins.b}`,
+      // Partida de games: o lançamento substitui os sets, então o game em
+      // andamento da mesa (spec multiesporte, 2b2) deixa de existir.
+      ...(params.match.currentGame !== undefined ? {currentGame: FieldValue.delete()} : {}),
     },
     completed,
     winnerId,
@@ -998,6 +1001,7 @@ export function revertToScheduledFields(): Record<string, unknown> {
     matchEndedAt: FieldValue.delete(),
     liveScore: FieldValue.delete(),
     sets: FieldValue.delete(),
+    currentGame: FieldValue.delete(),
     currentSetIndex: FieldValue.delete(),
     servingTeamId: FieldValue.delete(),
     servingPlayerSlot: FieldValue.delete(),

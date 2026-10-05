@@ -1,4 +1,13 @@
 import { formatElapsedMmSs, isSetWon, setsWonOf, targetPointsForSet, type LiveMatch, type LiveSet } from '@nexago/live-scoring';
+import {
+  effectiveScoringProfile,
+  gamesFlag,
+  gamesPointLabels,
+  isSuperTiebreakSet,
+  isTiebreakInProgress,
+  type GamesLiveState,
+  type SetsGamesProfile,
+} from '@nexago/sports';
 
 /** Leituras do placar que o painel mostra — puras, pra caberem em teste sem Firestore. O que
  *  ELAS não fazem é decidir placar: quem soma, fecha set e declara vencedor é o motor
@@ -96,4 +105,42 @@ export function elapsedLabelOf(totalSec: number): string {
   if (safe < 3600) return formatElapsedMmSs(safe);
   const hours = Math.floor(safe / 3600);
   return `${hours}:${formatElapsedMmSs(safe % 3600)}`;
+}
+
+// ── Partida de games (spec multiesporte, 2b2) ────────────────────────────────────
+
+type GamesMatch = Pick<LiveMatch, 'sets' | 'currentSetIndex' | 'bestOf' | 'scoringProfile' | 'currentGame' | 'servingTeamId' | 'teamAId' | 'teamBId'>;
+
+function gamesOf(m: GamesMatch): { profile: SetsGamesProfile; state: GamesLiveState } | null {
+  const profile = effectiveScoringProfile(m.scoringProfile, m.bestOf);
+  if (profile.kind !== 'sets_games') return null;
+  return {
+    profile,
+    state: { sets: m.sets, currentSetIndex: m.currentSetIndex, currentGame: m.currentGame ?? { a: 0, b: 0 }, servingTeamId: m.servingTeamId },
+  };
+}
+
+/** Placar do game daquele lado ("15", "40", "AD", ou o ponto do tie-break); `null` em partida de pontos. */
+export function gamesMainOf(m: GamesMatch, side: MesaSide): string | null {
+  const g = gamesOf(m);
+  if (!g) return null;
+  const labels = gamesPointLabels(g.state, g.profile);
+  return side === 'A' ? labels.a : labels.b;
+}
+
+/** Bandeira de set/partida numa partida de games; `null` também em partida de pontos. */
+export function gamesFlagOf(m: GamesMatch, side: MesaSide): MesaFlag {
+  const g = gamesOf(m);
+  if (!g) return null;
+  return gamesFlag(g.state, g.profile, { teamAId: m.teamAId, teamBId: m.teamBId }, side);
+}
+
+/** "2º set · até 6 games", "1º set · tie-break até 7", "3º set · super tie-break até 10"; `null` em pontos. */
+export function gamesRuleLineOf(m: GamesMatch): string | null {
+  const g = gamesOf(m);
+  if (!g) return null;
+  const idx = currentSetIndexOf(m);
+  if (isSuperTiebreakSet(g.profile, idx)) return `${idx + 1}º set · super tie-break até ${g.profile.superTiebreakTo}`;
+  if (isTiebreakInProgress(g.state, g.profile)) return `${idx + 1}º set · tie-break até ${g.profile.tiebreakTo}`;
+  return `${idx + 1}º set · até ${g.profile.gamesPerSet} games`;
 }

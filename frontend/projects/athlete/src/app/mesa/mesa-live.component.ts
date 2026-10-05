@@ -9,6 +9,7 @@ import {
   buildMedicalTimeoutStartWrite,
   buildPointWrite,
   buildUndoWrite,
+  GAMES_UNDO_BLOCKED_MESSAGE,
   canReduceBestOf,
   elapsedSecondsFromStart,
   formatMedicalTimeoutMmSs,
@@ -34,6 +35,9 @@ import {
   currentSetOf,
   elapsedLabelOf,
   flagOf,
+  gamesFlagOf,
+  gamesMainOf,
+  gamesRuleLineOf,
   phaseLabelOf,
   scoreText,
   setPillsOf,
@@ -43,7 +47,7 @@ import {
 } from './mesa-board';
 import { EMPTY_HEADER, MesaLiveGateway, type MesaHeaderInfo } from './mesa-live.gateway';
 import { quickPayload, quickRows } from './mesa-quick-score';
-import { effectiveScoringProfile, matchWinnerSide as coreMatchWinnerSide, validateScoreSets } from '@nexago/sports';
+import { effectiveScoringProfile, matchWinnerSide as coreMatchWinnerSide, setsWonBy, validateScoreSets } from '@nexago/sports';
 import { EMPTY_TEAM_NAMES, playerNameOf, teamLabelOf, type MesaTeamNames } from './mesa-team-names';
 
 const STATUS_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendada', in_progress: 'Ao vivo', completed: 'Encerrada', canceled: 'Cancelada' };
@@ -1463,7 +1467,10 @@ export class MesaLiveComponent {
     effect(() => {
       const m = this.live();
       if (!m) return;
-      const score = currentSetOf(m);
+      // Em games o ponto mexe no `currentGame` antes dos games do set: a chave junta os dois.
+      const set = currentSetOf(m);
+      const game = m.currentGame ?? { a: 0, b: 0 };
+      const score = { a: set.a * 1000 + game.a, b: set.b * 1000 + game.b };
       const previous = this.lastScore;
       this.lastScore = score;
       if (!previous) return;
@@ -1538,13 +1545,16 @@ export class MesaLiveComponent {
   protected points(side: MesaSide): string {
     const m = this.match();
     if (!m) return '00';
+    const games = gamesMainOf(m, side);
+    if (games !== null) return games;
     const set = currentSetOf(m);
     return scoreText(side === 'A' ? set.a : set.b);
   }
 
   protected flag(side: MesaSide) {
     const m = this.match();
-    return m ? flagOf(m, side) : null;
+    if (!m) return null;
+    return gamesRuleLineOf(m) !== null ? gamesFlagOf(m, side) : flagOf(m, side);
   }
 
   protected readonly winnerLabel = computed(() => {
@@ -1555,7 +1565,8 @@ export class MesaLiveComponent {
 
   protected readonly wins = computed(() => {
     const m = this.match();
-    return m ? setsWonOf(m.sets, m.bestOf) : { a: 0, b: 0 };
+    // Perfil efetivo: sem carimbo é a regra histórica, o mesmo de `setsWonOf`.
+    return m ? setsWonBy(m.sets, effectiveScoringProfile(m.scoringProfile, m.bestOf)) : { a: 0, b: 0 };
   });
 
   protected readonly setPills = computed<MesaSetPill[]>(() => {
@@ -1583,7 +1594,7 @@ export class MesaLiveComponent {
     const m = this.match();
     if (!m) return '';
     if (this.status() === 'completed') return `vitória de ${this.winnerLabel()}`;
-    return setRuleLineOf(m);
+    return gamesRuleLineOf(m) ?? setRuleLineOf(m);
   });
 
   protected readonly elapsed = computed(() => {
@@ -1805,7 +1816,11 @@ export class MesaLiveComponent {
     this.busyKey.set('undo');
     this.feedback.set(null);
     try {
-      await this.gateway.recordPoint({ matchId: m.id, build: (fresh) => buildUndoWrite(fresh, side, last.setIndex) });
+      const written = await this.gateway.recordPoint({
+        matchId: m.id,
+        build: (fresh) => buildUndoWrite(fresh, side, last.setIndex, last.prev, last),
+      });
+      if (!written) this.feedback.set({ ok: false, message: GAMES_UNDO_BLOCKED_MESSAGE });
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao desfazer o ponto.' });
     } finally {
@@ -1912,6 +1927,12 @@ export class MesaLiveComponent {
     const m = this.match();
     if (!m || this.saving() || m.status === 'completed') return;
     const newBestOf = m.bestOf === 1 ? 3 : 1;
+    // Troca de formato é regra de pontos (`applyBestOfChange`); em games só antes do 1º ponto.
+    const game = m.currentGame ?? { a: 0, b: 0 };
+    if (gamesRuleLineOf(m) !== null && (m.sets.some((s) => s.a > 0 || s.b > 0) || game.a + game.b > 0)) {
+      this.feedback.set({ ok: false, message: 'Em partida de games o formato só muda antes do primeiro ponto.' });
+      return;
+    }
     if (newBestOf < m.bestOf && !canReduceBestOf(m.sets, newBestOf)) {
       this.feedback.set({ ok: false, message: 'Não dá para mudar para set único: há sets já pontuados.' });
       return;

@@ -87,6 +87,7 @@ describe("revertToScheduledFields", () => {
       .filter((key) => key !== "status" && key !== "updatedAt")
       .sort();
     assert.deepEqual(cleared, [
+      "currentGame",
       "currentSetIndex",
       "liveScore",
       "matchEndedAt",

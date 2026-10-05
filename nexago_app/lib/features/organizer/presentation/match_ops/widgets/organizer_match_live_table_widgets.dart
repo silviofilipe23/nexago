@@ -18,7 +18,8 @@ import '../../../domain/match_ops/match_ops_logic.dart';
 import '../../../domain/match_ops/match_scoring_logic.dart';
 import '../../category_ops/widgets/organizer_team_dual_avatars.dart';
 import '../../../../../core/sports/sport_catalog.dart'
-    show QuickSetKind, ScoringProfile, ScoringRules;
+    show LiveGames, QuickSetKind, ScoringProfile, ScoringRules;
+import '../../../data/games_point_write.dart';
 import '../../../domain/match_ops/quick_score_rows.dart';
 
 /// Dados de exibição de uma dupla na mesa ao vivo.
@@ -339,6 +340,8 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
     required this.teamB,
     required this.scoreA,
     required this.scoreB,
+    this.scoreLabelA,
+    this.scoreLabelB,
     required this.isServingA,
     required this.isServingB,
     required this.onAddPointA,
@@ -355,6 +358,10 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
   final LiveTableTeamData teamB;
   final int scoreA;
   final int scoreB;
+
+  /// Partida de games: rótulo do game (0/15/30/40/AD) no lugar do número.
+  final String? scoreLabelA;
+  final String? scoreLabelB;
   final bool isServingA;
   final bool isServingB;
 
@@ -378,6 +385,7 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
             child: LiveTableTeamScoreCard(
               team: teamA,
               score: scoreA,
+              scoreLabel: scoreLabelA,
               isServing: isServingA,
               servingPlayerName: isServingA ? servingPlayerName : null,
               seed: seedA,
@@ -391,6 +399,7 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
             child: LiveTableTeamScoreCard(
               team: teamB,
               score: scoreB,
+              scoreLabel: scoreLabelB,
               isServing: isServingB,
               servingPlayerName: isServingB ? servingPlayerName : null,
               seed: seedB,
@@ -410,6 +419,7 @@ class LiveTableTeamScoreCard extends StatelessWidget {
     super.key,
     required this.team,
     required this.score,
+    this.scoreLabel,
     required this.isServing,
     this.seed,
     this.servingPlayerName,
@@ -420,6 +430,7 @@ class LiveTableTeamScoreCard extends StatelessWidget {
 
   final LiveTableTeamData team;
   final int score;
+  final String? scoreLabel;
   final bool isServing;
   final int? seed;
 
@@ -513,7 +524,7 @@ class LiveTableTeamScoreCard extends StatelessWidget {
           ],
           const SizedBox(height: 12),
           Text(
-            '$score',
+            scoreLabel ?? '$score',
             textAlign: TextAlign.center,
             style: AppTypography.mono(
               fontSize: 44,
@@ -854,6 +865,8 @@ class LiveTableFullModeMesa extends StatelessWidget {
     required this.teamB,
     required this.scoreA,
     required this.scoreB,
+    this.scoreLabelA,
+    this.scoreLabelB,
     required this.isServingA,
     required this.isServingB,
     required this.timeoutsA,
@@ -884,6 +897,10 @@ class LiveTableFullModeMesa extends StatelessWidget {
   final LiveTableTeamData teamB;
   final int scoreA;
   final int scoreB;
+
+  /// Partida de games: rótulo do game (0/15/30/40/AD) no lugar do número.
+  final String? scoreLabelA;
+  final String? scoreLabelB;
   final bool isServingA;
   final bool isServingB;
   final int timeoutsA;
@@ -932,6 +949,7 @@ class LiveTableFullModeMesa extends StatelessWidget {
                         child: _FullModeTeamPanel(
                           team: teamA,
                           score: scoreA,
+                          scoreLabel: scoreLabelA,
                           isServing: isServingA,
                           servingPlayerName: isServingA ? servingPlayerName : null,
                           onSwapServingPlayer: isServingA ? onSwapServingPlayer : null,
@@ -951,6 +969,7 @@ class LiveTableFullModeMesa extends StatelessWidget {
                         child: _FullModeTeamPanel(
                           team: teamB,
                           score: scoreB,
+                          scoreLabel: scoreLabelB,
                           isServing: isServingB,
                           servingPlayerName: isServingB ? servingPlayerName : null,
                           onSwapServingPlayer: isServingB ? onSwapServingPlayer : null,
@@ -1063,6 +1082,7 @@ class _FullModeTeamPanel extends StatelessWidget {
   const _FullModeTeamPanel({
     required this.team,
     required this.score,
+    this.scoreLabel,
     required this.isServing,
     required this.timeouts,
     required this.enabled,
@@ -1074,6 +1094,7 @@ class _FullModeTeamPanel extends StatelessWidget {
 
   final LiveTableTeamData team;
   final int score;
+  final String? scoreLabel;
   final bool isServing;
   final int timeouts;
   final bool enabled;
@@ -1151,7 +1172,7 @@ class _FullModeTeamPanel extends StatelessWidget {
               Expanded(
                 child: FittedBox(
                   child: Text(
-                    '$score',
+                    scoreLabel ?? '$score',
                     style: AppTypography.mono(
                       fontSize: 160,
                       fontWeight: FontWeight.w800,
@@ -2015,6 +2036,8 @@ class LiveTablePresentView extends StatelessWidget {
     required this.teamB,
     required this.scoreA,
     required this.scoreB,
+    this.scoreLabelA,
+    this.scoreLabelB,
     required this.isServingA,
     required this.isServingB,
     required this.setsWonA,
@@ -2028,6 +2051,10 @@ class LiveTablePresentView extends StatelessWidget {
   final LiveTableTeamData teamB;
   final int scoreA;
   final int scoreB;
+
+  /// Partida de games: rótulo do game (0/15/30/40/AD) no lugar do número.
+  final String? scoreLabelA;
+  final String? scoreLabelB;
   final bool isServingA;
   final bool isServingB;
   final int setsWonA;
@@ -2062,7 +2089,9 @@ class LiveTablePresentView extends StatelessWidget {
                       teamA: teamA,
                       teamB: teamB,
                       scoreA: scoreA,
+                      scoreLabelA: scoreLabelA,
                       scoreB: scoreB,
+                      scoreLabelB: scoreLabelB,
                       isServingA: isServingA,
                       isServingB: isServingB,
                       setsWonA: setsWonA,
@@ -2074,7 +2103,9 @@ class LiveTablePresentView extends StatelessWidget {
                       teamA: teamA,
                       teamB: teamB,
                       scoreA: scoreA,
+                      scoreLabelA: scoreLabelA,
                       scoreB: scoreB,
+                      scoreLabelB: scoreLabelB,
                       isServingA: isServingA,
                       isServingB: isServingB,
                       setsWonA: setsWonA,
@@ -2096,6 +2127,8 @@ class _PresentPortrait extends StatelessWidget {
     required this.teamB,
     required this.scoreA,
     required this.scoreB,
+    this.scoreLabelA,
+    this.scoreLabelB,
     required this.isServingA,
     required this.isServingB,
     required this.setsWonA,
@@ -2108,6 +2141,10 @@ class _PresentPortrait extends StatelessWidget {
   final LiveTableTeamData teamB;
   final int scoreA;
   final int scoreB;
+
+  /// Partida de games: rótulo do game (0/15/30/40/AD) no lugar do número.
+  final String? scoreLabelA;
+  final String? scoreLabelB;
   final bool isServingA;
   final bool isServingB;
   final int setsWonA;
@@ -2124,6 +2161,7 @@ class _PresentPortrait extends StatelessWidget {
           child: _PresentTeamBlock(
             team: teamA,
             score: scoreA,
+            scoreLabel: scoreLabelA,
             isServing: isServingA,
           ),
         ),
@@ -2134,6 +2172,7 @@ class _PresentPortrait extends StatelessWidget {
           child: _PresentTeamBlock(
             team: teamB,
             score: scoreB,
+            scoreLabel: scoreLabelB,
             isServing: isServingB,
           ),
         ),
@@ -2150,6 +2189,8 @@ class _PresentLandscape extends StatelessWidget {
     required this.teamB,
     required this.scoreA,
     required this.scoreB,
+    this.scoreLabelA,
+    this.scoreLabelB,
     required this.isServingA,
     required this.isServingB,
     required this.setsWonA,
@@ -2162,6 +2203,10 @@ class _PresentLandscape extends StatelessWidget {
   final LiveTableTeamData teamB;
   final int scoreA;
   final int scoreB;
+
+  /// Partida de games: rótulo do game (0/15/30/40/AD) no lugar do número.
+  final String? scoreLabelA;
+  final String? scoreLabelB;
   final bool isServingA;
   final bool isServingB;
   final int setsWonA;
@@ -2180,6 +2225,7 @@ class _PresentLandscape extends StatelessWidget {
                 child: _PresentTeamBlock(
                   team: teamA,
                   score: scoreA,
+                  scoreLabel: scoreLabelA,
                   isServing: isServingA,
                 ),
               ),
@@ -2190,6 +2236,7 @@ class _PresentLandscape extends StatelessWidget {
                 child: _PresentTeamBlock(
                   team: teamB,
                   score: scoreB,
+                  scoreLabel: scoreLabelB,
                   isServing: isServingB,
                 ),
               ),
@@ -2207,11 +2254,13 @@ class _PresentTeamBlock extends StatelessWidget {
   const _PresentTeamBlock({
     required this.team,
     required this.score,
+    this.scoreLabel,
     required this.isServing,
   });
 
   final LiveTableTeamData team;
   final int score;
+  final String? scoreLabel;
   final bool isServing;
 
   @override
@@ -2251,7 +2300,7 @@ class _PresentTeamBlock extends StatelessWidget {
         ),
         FittedBox(
           child: Text(
-            '$score',
+            scoreLabel ?? '$score',
             style: AppTypography.mono(
               fontSize: 120,
               fontWeight: FontWeight.w800,
@@ -4163,8 +4212,41 @@ int liveTableCurrentSetScore(TournamentMatch match, {required bool sideA}) {
 /// Sets vencidos por cada dupla — via `matchClosedSets`, nunca contando o set
 /// em andamento (`setsWonCountForMatch` mente ao vivo, ver nota do projeto).
 (int, int) liveTableSetsWon(TournamentMatch match) {
+  final games = gamesProfileOf(match);
+  if (games != null) {
+    final w = ScoringRules.setsWon(gamesLiveStateOf(match).sets, games);
+    return (w.a, w.b);
+  }
   final closed = matchClosedSets(match);
   final a = closed.where((s) => s.a > s.b).length;
   final b = closed.where((s) => s.b > s.a).length;
   return (a, b);
+}
+
+/// Placar da mesa numa partida de games (spec multiesporte, 2b2): rótulo do
+/// game (0/15/30/40/AD ou pontos do tie-break), regra do set e dica. `null` =
+/// partida de pontos. Espelho de `mesaGamesView` do painel web.
+({String labelA, String labelB, String rules, String? hint})?
+liveTableGamesView(TournamentMatch match) {
+  final games = gamesProfileOf(match);
+  if (games == null) return null;
+  final state = gamesLiveStateOf(match);
+  final idx = state.currentSetIndex.clamp(0, games.bestOf - 1);
+  final labels = LiveGames.pointLabels(state, games);
+  final normalTiebreak =
+      LiveGames.isTiebreakInProgress(state, games) &&
+      !ScoringRules.isSuperTiebreakSet(games, idx);
+  return (
+    labelA: labels.a,
+    labelB: labels.b,
+    rules:
+        '${ScoringRules.setTargetLabel(games, idx)}'
+        '${normalTiebreak ? ' · tie-break até ${games.tiebreakTo}' : ''}',
+    hint: LiveGames.hint(
+      state,
+      games,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+    ),
+  );
 }

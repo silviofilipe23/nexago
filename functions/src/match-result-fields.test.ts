@@ -2,6 +2,7 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {matchResultFields} from "./organizer-match-ops";
 import {categoryScoringProfile} from "./match-scoring";
+import {FieldValue} from "firebase-admin/firestore";
 
 const BT = {kind: "sets_games", bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: true, decidingSet: "super_tiebreak", superTiebreakTo: 10};
 
@@ -26,6 +27,24 @@ describe("matchResultFields", () => {
     });
     assert.equal(r.winnerId, "A");
     assert.deepEqual(r.update.sets, [{a: 7, b: 6, tb: {a: 7, b: 4}}, {a: 6, b: 2}]);
+  });
+
+  it("lançamento rápido apaga o game em andamento da mesa (não sobra 40-30 velho)", () => {
+    const r = matchResultFields({
+      match: {teamAId: "A", teamBId: "B", bestOf: 3, scoringProfile: BT, currentGame: {a: 3, b: 2}},
+      rawSets: [{a: 6, b: 4}, {a: 1, b: 0}],
+      requestBestOf: undefined,
+    });
+    assert.ok((r.update.currentGame as FieldValue).isEqual(FieldValue.delete()));
+  });
+
+  it("partida sem game em andamento: nada de currentGame no update", () => {
+    const r = matchResultFields({
+      match: {teamAId: "A", teamBId: "B", bestOf: 3},
+      rawSets: [{a: 21, b: 18}, {a: 21, b: 19}],
+      requestBestOf: undefined,
+    });
+    assert.equal("currentGame" in r.update, false);
   });
 
   it("tb numa partida de pontos é ignorado", () => {

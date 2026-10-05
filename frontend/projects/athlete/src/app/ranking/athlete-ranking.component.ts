@@ -11,7 +11,6 @@ import {
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { ARENA_SPORT_CHIP_OPTIONS, type ArenaSportChip } from '@nexago/arena-discovery';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
@@ -20,12 +19,12 @@ import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { AtBellComponent } from '../painel/at-bell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { levelLabelOf } from '../data/athlete-level';
-import { fetchPublicProfilesByIds, type AthletePublicProfile } from '../data/public-profiles-repository';
+import { fetchPublicProfilesByIds, levelForSport, type AthletePublicProfile } from '../data/public-profiles-repository';
 import {
-  fetchAthleteRankingGeneral,
-  fetchTeamRankingGeneral,
-  fetchTournamentCategoryResultsByYear,
-  sumPoints,
+  fetchAthleteRankingBySport,
+  fetchTeamRankingBySport,
+  pointsForPeriod,
+  type RankingBySportRow,
 } from '../data/rankings-repository';
 import { fetchMyAthleteProfile } from '../data/my-athlete-profile-repository';
 import { fetchTeamsByIds, teamIsLookingForPartner, teamMemberIds, type ArenaTeam } from '../data/teams-repository';
@@ -33,6 +32,9 @@ import { RANKING_SCORING_RULES } from './athlete-ranking.models';
 import type { FilterFormat, FilterGender, FilterLevel, RankingAvatar, RankingMode, RankingParticipant, RankingPeriod } from './athlete-ranking.models';
 import {
   CITY_ALL,
+  DEFAULT_RANKING_SPORT,
+  RANKING_SPORT_OPTIONS,
+  defaultRankingSport,
   deriveTeamGender,
   athleteProfileLink,
   hasSearchQuery,
@@ -99,10 +101,10 @@ function teamDisplayName(team: ArenaTeam, p1: AthletePublicProfile | undefined, 
   return `${a} / ${b}`;
 }
 
-/** Ranking real: `athleteRankings`/`teamRankings` (modo Geral, soma tudo) ou
- *  `tournamentCategoryResults` do ano corrente (modo Temporada, soma do ano) — espelha
- *  `loadAthleteRankingGeneral`/`getResultsByYear` (Flutter). Sem dado de "trend" (variação de
- *  posição) no backend hoje — sempre 0, sem seta. */
+/** Ranking real por esporte (multiesporte fase 3b1): `athleteRankingsBySport`/
+ *  `teamRankingsBySport` do esporte escolhido — modo Geral soma tudo (`totalPoints`), modo
+ *  Temporada lê `pointsByYear` do ano corrente. Sem dado de "trend" (variação de posição) no
+ *  backend hoje — sempre 0, sem seta. */
 @Component({
   selector: 'app-athlete-ranking',
   standalone: true,
@@ -142,7 +144,12 @@ export class AthleteRankingComponent {
 
   protected readonly queryInput = signal('');
   protected readonly filterQuery = signal('');
-  protected readonly sportFilter = signal<ArenaSportChip>('beachVolleyball');
+  /** Código de perfil do esporte do ranking; `null` até o perfil dizer o esporte principal. */
+  protected readonly sportFilter = signal<string | null>(null);
+  /** O atleta escolheu um esporte: o principal que chegar depois não sobrescreve. */
+  private sportChosen = false;
+  /** Cada leitura ganha um número; resposta de leitura velha (troca rápida de filtro) é descartada. */
+  private loadGeneration = 0;
   protected readonly levelFilter = signal<FilterLevel>('all');
   protected readonly cityFilter = signal<string>(CITY_ALL);
   protected readonly genderFilter = signal<FilterGender>('all');
@@ -150,7 +157,8 @@ export class AthleteRankingComponent {
 
   private queryDebounceHandle: ReturnType<typeof setTimeout> | undefined;
 
-  protected readonly sportOptions = ARENA_SPORT_CHIP_OPTIONS.filter((o) => o.chip !== 'all');
+  protected readonly sportOptions = RANKING_SPORT_OPTIONS;
+  protected readonly defaultSport = DEFAULT_RANKING_SPORT;
   protected readonly levelOptions = LEVEL_OPTIONS;
   protected readonly genderOptions = GENDER_OPTIONS;
   protected readonly formatOptions = FORMAT_OPTIONS;
@@ -163,12 +171,11 @@ export class AthleteRankingComponent {
     return [CITY_ALL, ...cities];
   });
 
-  /** Ranking do recorte (esporte + categoria + cidade + gênero + formato). A busca fica de
+  /** Ranking do recorte (esporte, já na leitura, + categoria + cidade + gênero + formato). A busca fica de
    *  fora de propósito: ela é consulta, não recorte — se entrasse aqui renumeraria o buscado
    *  como 1º e o jogaria no pódio, além de zerar o card "Sua posição". */
   protected readonly rankedList = computed<RankingRow[]>(() =>
     rankParticipants(this.allParticipants(), {
-      sport: this.sportFilter(),
       level: this.levelFilter(),
       city: this.cityFilter(),
       gender: this.genderFilter(),
@@ -183,11 +190,11 @@ export class AthleteRankingComponent {
   protected readonly searchCountLabel = computed(() =>
     this.searchCount() === 1 ? '1 resultado' : `${this.searchCount()} resultados`,
   );
-  /** Recorte ativo em texto — o esporte já vem travado em Vôlei de praia, então sem isso
-   *  a busca por um atleta de outro esporte dá "nenhum resultado" sem explicar por quê.
+  /** Recorte ativo em texto — o esporte abre no principal do atleta, então sem isso a busca
+   *  por alguém que só pontuou em outro esporte dá "nenhum resultado" sem explicar por quê.
    *  Gênero/formato só entram quando ativos, senão a linha vira um trem de "Todos os…". */
   protected readonly sliceLabel = computed(() => {
-    const parts = [this.sportLabel(this.sportFilter()), this.levelLabel(this.levelFilter()), this.cityLabel(this.cityFilter())];
+    const parts = [this.sportLabel(this.sportFilter() ?? DEFAULT_RANKING_SPORT), this.levelLabel(this.levelFilter()), this.cityLabel(this.cityFilter())];
     if (this.genderFilter() !== 'all') parts.push(this.genderLabel(this.genderFilter()));
     if (this.formatFilter() !== 'all') parts.push(this.formatLabel(this.formatFilter()));
     return parts.join(' · ');
@@ -231,7 +238,9 @@ export class AthleteRankingComponent {
     effect(() => {
       const mode = this.mode();
       const period = this.period();
-      void this.loadRanking(mode, period);
+      const sport = this.sportFilter();
+      if (sport == null) return;
+      void this.loadRanking(mode, period, sport);
     });
 
     effect(() => {
@@ -239,17 +248,30 @@ export class AthleteRankingComponent {
       const db = this.firestore;
       if (!uid || !db) {
         this.myProfilePhotoUrl.set(null);
+        this.applyDefaultSport(null);
         return;
       }
       fetchMyAthleteProfile(db, uid)
-        .then((profile) => this.myProfilePhotoUrl.set(profile?.profilePhotoUrl ?? null))
-        .catch(() => this.myProfilePhotoUrl.set(null));
+        .then((profile) => {
+          this.myProfilePhotoUrl.set(profile?.profilePhotoUrl ?? null);
+          this.applyDefaultSport(profile?.primarySportId ?? null);
+        })
+        .catch(() => {
+          this.myProfilePhotoUrl.set(null);
+          this.applyDefaultSport(null);
+        });
     });
   }
 
-  private async loadRanking(mode: RankingMode, period: RankingPeriod): Promise<void> {
+  private applyDefaultSport(primarySportId: string | null): void {
+    if (this.sportChosen) return;
+    this.sportFilter.set(defaultRankingSport(primarySportId));
+  }
+
+  private async loadRanking(mode: RankingMode, period: RankingPeriod, sport: string): Promise<void> {
     const db = this.firestore;
     const projectId = environment.firebase.projectId;
+    const generation = ++this.loadGeneration;
     if (!db || !projectId) {
       this.allParticipants.set([]);
       this.loading.set(false);
@@ -257,76 +279,42 @@ export class AthleteRankingComponent {
     }
 
     this.loading.set(true);
+    // Temporada: só quem pontuou no ano entra (doc por esporte guarda o histórico inteiro).
+    const scored = (rows: RankingBySportRow[]) =>
+      rows
+        .map((r) => ({ id: r.id, points: pointsForPeriod(r, period, this.currentYear) }))
+        .filter((r) => period === 'geral' || r.points > 0);
     try {
-      if (period === 'geral') {
-        if (mode === 'individual') {
-          const rows = await fetchAthleteRankingGeneral(db, projectId);
-          const profiles = await fetchPublicProfilesByIds(db, rows.map((r) => r.id));
-          this.allParticipants.set(
-            rows.map((r) => this.participantFromAthlete(r.id, r.totalPoints, profiles.get(r.id))),
-          );
-        } else {
-          const rows = await fetchTeamRankingGeneral(db, projectId);
-          const teams = await fetchTeamsByIds(db, projectId, rows.map((r) => r.id));
-          const profileIds = [...teams.values()].flatMap((t) => teamMemberIds(t));
-          const profiles = await fetchPublicProfilesByIds(db, profileIds);
-          this.allParticipants.set(
-            rows
-              .filter((r) => teams.has(r.id))
-              .map((r) => this.participantFromTeam(r.id, r.totalPoints, teams.get(r.id)!, profiles)),
-          );
-        }
+      let participants: RankingParticipant[];
+      if (mode === 'individual') {
+        const rows = scored(await fetchAthleteRankingBySport(db, projectId, sport));
+        const profiles = await fetchPublicProfilesByIds(db, rows.map((r) => r.id));
+        participants = rows.map((r) => this.participantFromAthlete(r.id, r.points, profiles.get(r.id), sport));
       } else {
-        const results = await fetchTournamentCategoryResultsByYear(db, projectId, this.currentYear);
-        const teamIds = [...new Set(results.map((r) => r.teamId).filter((id) => id))];
-        const teams = await fetchTeamsByIds(db, projectId, teamIds);
+        const rows = scored(await fetchTeamRankingBySport(db, projectId, sport));
+        const teams = await fetchTeamsByIds(db, projectId, rows.map((r) => r.id));
         const profileIds = [...teams.values()].flatMap((t) => teamMemberIds(t));
         const profiles = await fetchPublicProfilesByIds(db, profileIds);
-
-        const pointsByTeam = new Map<string, number[]>();
-        for (const r of results) {
-          if (!r.teamId) continue;
-          (pointsByTeam.get(r.teamId) ?? pointsByTeam.set(r.teamId, []).get(r.teamId)!).push(r.pointsEarned);
-        }
-
-        if (mode === 'doubles') {
-          this.allParticipants.set(
-            [...pointsByTeam.entries()]
-              .filter(([teamId]) => teams.has(teamId))
-              .map(([teamId, points]) => this.participantFromTeam(teamId, sumPoints(points), teams.get(teamId)!, profiles)),
-          );
-        } else {
-          const pointsByAthlete = new Map<string, number[]>();
-          for (const [teamId, points] of pointsByTeam) {
-            const team = teams.get(teamId);
-            if (!team) continue;
-            for (const athleteId of teamMemberIds(team)) {
-              (pointsByAthlete.get(athleteId) ?? pointsByAthlete.set(athleteId, []).get(athleteId)!).push(...points);
-            }
-          }
-          this.allParticipants.set(
-            [...pointsByAthlete.entries()].map(([athleteId, points]) =>
-              this.participantFromAthlete(athleteId, sumPoints(points), profiles.get(athleteId)),
-            ),
-          );
-        }
+        participants = rows
+          .filter((r) => teams.has(r.id))
+          .map((r) => this.participantFromTeam(r.id, r.points, teams.get(r.id)!, profiles, sport));
       }
+      if (generation === this.loadGeneration) this.allParticipants.set(participants);
     } catch {
-      this.allParticipants.set([]);
+      if (generation === this.loadGeneration) this.allParticipants.set([]);
     } finally {
-      this.loading.set(false);
+      if (generation === this.loadGeneration) this.loading.set(false);
     }
   }
 
-  private participantFromAthlete(id: string, points: number, profile: AthletePublicProfile | undefined): RankingParticipant {
+  private participantFromAthlete(id: string, points: number, profile: AthletePublicProfile | undefined, sport: string): RankingParticipant {
     const name = profile?.displayName ?? `Atleta (…${id.slice(-6)})`;
     return {
       id,
       name,
       city: profile?.city ?? '',
       points,
-      level: levelLabelOf(profile?.levelCode ?? null),
-      sport: profile?.sportChip ?? 'beachVolleyball',
+      level: levelLabelOf(profile ? levelForSport(profile, sport) : null),
       gender: normalizeRankingGender(profile?.gender),
       format: null,
       trend: 0,
@@ -335,7 +323,13 @@ export class AthleteRankingComponent {
     };
   }
 
-  private participantFromTeam(id: string, points: number, team: ArenaTeam, profiles: Map<string, AthletePublicProfile>): RankingParticipant {
+  private participantFromTeam(
+    id: string,
+    points: number,
+    team: ArenaTeam,
+    profiles: Map<string, AthletePublicProfile>,
+    sport: string,
+  ): RankingParticipant {
     const memberIds = teamMemberIds(team);
     const gender = deriveTeamGender(team.gender, memberIds.map((uid) => profiles.get(uid)?.gender ?? null));
     const format = teamFormatOf(team.teamSize, memberIds.length);
@@ -348,7 +342,6 @@ export class AthleteRankingComponent {
         city: '',
         points,
         level: null,
-        sport: 'beachVolleyball',
         gender,
         format,
         trend: 0,
@@ -363,8 +356,7 @@ export class AthleteRankingComponent {
       name: teamDisplayName(team, p1, p2),
       city: p1?.city ?? p2?.city ?? '',
       points,
-      level: levelLabelOf(p1?.levelCode ?? p2?.levelCode ?? null),
-      sport: p1?.sportChip ?? p2?.sportChip ?? 'beachVolleyball',
+      level: levelLabelOf((p1 ? levelForSport(p1, sport) : null) ?? (p2 ? levelForSport(p2, sport) : null)),
       gender,
       format,
       trend: 0,
@@ -400,8 +392,9 @@ export class AthleteRankingComponent {
     this.period.set(period);
   }
 
-  protected setSport(chip: string): void {
-    this.sportFilter.set(chip as ArenaSportChip);
+  protected setSport(code: string): void {
+    this.sportChosen = true;
+    this.sportFilter.set(code);
   }
 
   protected setLevel(level: string): void {
@@ -420,8 +413,8 @@ export class AthleteRankingComponent {
     this.formatFilter.set(format as FilterFormat);
   }
 
-  protected sportLabel(chip: ArenaSportChip): string {
-    return this.sportOptions.find((o) => o.chip === chip)?.label ?? chip;
+  protected sportLabel(code: string): string {
+    return this.sportOptions.find((o) => o.code === code)?.label ?? code;
   }
 
   protected levelLabel(level: FilterLevel): string {

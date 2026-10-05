@@ -64,16 +64,15 @@
       <span class="rk-toolbar-divider" aria-hidden="true"></span>
 
       <label class="rk-filter-btn">
-        <span>{{ sportLabel(sportFilter()) }}</span>
+        <span>{{ sportLabel(sportFilter() ?? defaultSport) }}</span>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
         <select
           class="rk-native-select"
           aria-label="Esporte"
-          [value]="sportFilter()"
           (change)="setSport($any($event.target).value)"
         >
-          @for (o of sportOptions; track o.chip) {
-            <option [value]="o.chip">{{ o.label }}</option>
+          @for (o of sportOptions; track o.code) {
+            <option [value]="o.code" [selected]="o.code === (sportFilter() ?? defaultSport)">{{ o.label }}</option>
           }
         </select>
       </label>

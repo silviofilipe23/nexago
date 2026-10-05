@@ -1,6 +1,8 @@
 import type { RankingParticipant } from './athlete-ranking.models';
 import {
   CITY_ALL,
+  RANKING_SPORT_OPTIONS,
+  defaultRankingSport,
   deriveTeamGender,
   hasSearchQuery,
   normalizeRankingGender,
@@ -17,7 +19,6 @@ function participant(partial: Partial<RankingParticipant> & Pick<RankingParticip
     name: `Atleta ${partial.id}`,
     city: 'Goiânia',
     level: 'Iniciante 1',
-    sport: 'beachVolleyball',
     gender: null,
     format: null,
     trend: 0,
@@ -27,7 +28,7 @@ function participant(partial: Partial<RankingParticipant> & Pick<RankingParticip
   };
 }
 
-const ALL_SPORTS: RankingSlice = { sport: 'beachVolleyball', level: 'all', city: CITY_ALL, gender: 'all', format: 'all' };
+const ALL_SPORTS: RankingSlice = { level: 'all', city: CITY_ALL, gender: 'all', format: 'all' };
 
 /** Ranking com 5 atletas de vôlei de praia: 100, 80, 60, 40 e 20 pontos. */
 function sample(): RankingParticipant[] {
@@ -53,10 +54,11 @@ describe('rankParticipants', () => {
     ]);
   });
 
-  it('descarta outros esportes', () => {
-    const rows = [...sample(), participant({ id: 'x', points: 999, sport: 'beachTennis' })];
+  it('não recorta por esporte do perfil: a lista já vem do doc por esporte', () => {
+    // Atleta de beach tennis no perfil que pontuou no vôlei aparece no ranking do vôlei.
+    const rows = [...sample(), participant({ id: 'x', points: 999 })];
 
-    expect(rankParticipants(rows, ALL_SPORTS).some((r) => r.id === 'x')).toBe(false);
+    expect(rankParticipants(rows, ALL_SPORTS)[0]).toEqual(jasmine.objectContaining({ id: 'x', rank: 1 }));
   });
 
   it('renumera dentro do recorte de cidade', () => {
@@ -231,5 +233,19 @@ describe('hasSearchQuery', () => {
     expect(hasSearchQuery('')).toBe(false);
     expect(hasSearchQuery('   ')).toBe(false);
     expect(hasSearchQuery('22')).toBe(true);
+  });
+});
+
+describe('esporte do ranking', () => {
+  it('opções = esportes de competição do catálogo, por código de perfil (com futevôlei)', () => {
+    expect(RANKING_SPORT_OPTIONS.map((o) => o.code)).toEqual(['VOLEI_PRAIA', 'VOLEI_QUADRA', 'FUTEVOLEI', 'BEACH_TENNIS']);
+    expect(RANKING_SPORT_OPTIONS.find((o) => o.code === 'FUTEVOLEI')?.label).toBe('Futevôlei');
+  });
+
+  it('padrão = esporte principal quando é de competição; senão vôlei de praia', () => {
+    expect(defaultRankingSport('FUTEVOLEI')).toBe('FUTEVOLEI');
+    expect(defaultRankingSport('BEACH_TENNIS')).toBe('BEACH_TENNIS');
+    expect(defaultRankingSport('CORRIDA')).toBe('VOLEI_PRAIA');
+    expect(defaultRankingSport(null)).toBe('VOLEI_PRAIA');
   });
 });

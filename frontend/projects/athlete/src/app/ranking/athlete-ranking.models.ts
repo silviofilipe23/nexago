@@ -1,4 +1,3 @@
-import type { ArenaSportChip } from '@nexago/arena-discovery';
 import type { AthleteLevelLabel } from '../data/athlete-level';
 
 export type RankingMode = 'individual' | 'doubles';
@@ -25,8 +24,8 @@ export interface RankingParticipant {
   name: string;
   city: string;
   points: number;
+  /** Nível no esporte do ranking (`levelsBySport`), com o global como reserva. */
   level: RankingLevel | null;
-  sport: ArenaSportChip;
   /** Gênero do atleta (Individual) ou do time (Duplas) — null quando desconhecido,
    *  e aí a linha só aparece com o filtro em "Todos". */
   gender: RankingGender | null;

@@ -412,6 +412,23 @@ Saída: ranking de beach tennis separado do de vôlei; rating ligável por confi
   `dryRun`, rating por config); **3b** telas (filtro de esporte na aba Ranking, app e portais);
   **3c** tênis e padel em `competition`.
 
+**Emenda de 04/10/2026 (fase 3b), depois do inventário das telas:**
+- Só o app e os portais do atleta e do organizador leem o ranking geral; backoffice, coach,
+  arena e site não. A 3b sai em duas: **3b1** portais (página Ranking do atleta e card de
+  entrevista da transmissão) e **3b2** app (página Ranking e posição por esporte do perfil
+  público). As demais superfícies (KPI da home, comunidade, equipes, minhas competições)
+  continuam no total somado até uma fase própria.
+- **Temporada por esporte** vem de `pointsByYear[ano]` dos docs por esporte, não de
+  `tournamentCategoryResults` (beach tennis não está lá). Ano sem pontos não entra na lista.
+- **Filtro de esporte** usa os esportes `competition` do catálogo, por código de perfil
+  (futevôlei incluso); o padrão é o esporte principal do atleta quando é de competição, senão
+  vôlei de praia. O nível mostrado e filtrado é o do esporte escolhido (`levelsBySport`), com
+  o nível global como reserva.
+- **Card de entrevista** usa o esporte do torneio; torneio de esporte não reconhecido segue
+  no total somado.
+- **Ordem de deploy:** functions (3a) → `backfillRankingsBySport` → clientes. Antes do backfill
+  a página por esporte aparece vazia.
+
 **Fase 4: equipe por tamanho.**
 Piso 1 em `teamSize`, inscrição individual, `participantNoun`, slots de saque por tamanho,
 tempo médico por slot, confronto direto por `memberUids`, capa de equipe pelo esporte do torneio.

@@ -1,3 +1,4 @@
+import { participantUnit } from '../data/team-size';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -1354,7 +1355,7 @@ export class TorneioDetalheComponent {
         pagas,
         pend: rows.length - pagas,
         full: c.maxTeams != null && rows.length >= c.maxTeams,
-        unit: c.teamSize != null ? 'equipes' : 'duplas',
+        unit: participantUnit(c.teamSize, { plural: true }),
         hasMatches: withMatches.has(c.id),
       };
     });

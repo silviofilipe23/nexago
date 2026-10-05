@@ -1,3 +1,4 @@
+import { parseTeamSizeField } from './team-size';
 import {
   collection,
   documentId,
@@ -204,11 +205,9 @@ function uniformByUidFromDoc(data: Record<string, unknown>): Record<string, Insc
   return out;
 }
 
-/** `teamSize` 3–5 = categoria de equipe; qualquer outra coisa é dupla (`null`). */
+/** `teamSize` 1 = individual, 3–5 = equipe; qualquer outra coisa é dupla (`null`). */
 function teamSizeFromDoc(data: Record<string, unknown>): number | null {
-  const raw = data['teamSize'];
-  const n = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
-  return Number.isInteger(n) && n >= 3 && n <= 5 ? n : null;
+  return parseTeamSizeField(data['teamSize']);
 }
 
 function rawFromDoc(id: string, data: Record<string, unknown>): RawInscription {

@@ -1,3 +1,4 @@
+import { participantUnit } from '../data/team-size';
 import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal } from '@angular/core';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 import {
@@ -60,10 +61,10 @@ export function teamNameValidationError(raw: string): string | null {
   return null;
 }
 
-/** Quantos atletas a categoria pede — `teamSize` 3–5 vence; resto é dupla. */
+/** Quantos atletas a categoria pede — `teamSize` 1 (individual) ou 3–5 vence; resto é dupla. */
 export function rosterSizeOf(category: Pick<OrganizerTournamentCategory, 'teamSize'> | null | undefined): number {
   const size = category?.teamSize;
-  return size != null && size >= 3 && size <= 5 ? size : DUPLA_SIZE;
+  return size != null && (size === 1 || (size >= 3 && size <= 5)) ? size : DUPLA_SIZE;
 }
 
 /** Formulário de inscrição criada pelo organizador — a saída para quem não conseguiu se
@@ -87,7 +88,7 @@ export function rosterSizeOf(category: Pick<OrganizerTournamentCategory, 'teamSi
     <og-card kicker="Nova inscrição" [title]="'Inscrever uma ' + unitLabel().toLowerCase()" pad="lg">
       <p class="og-ni-hint">
         Para quando os atletas não conseguiram se inscrever.
-        {{ rosterSize() === 2 ? 'Os dois' : 'Todos os ' + rosterSize() }} precisam ter conta no nexaGO.
+        {{ rosterSize() === 1 ? 'O atleta precisa' : rosterSize() === 2 ? 'Os dois precisam' : 'Todos os ' + rosterSize() + ' precisam' }} ter conta no nexaGO.
       </p>
 
       @if (categorias().length > 1) {
@@ -128,7 +129,7 @@ export function rosterSizeOf(category: Pick<OrganizerTournamentCategory, 'teamSi
       }
 
       <div class="og-ni-field">
-        <span class="og-ni-label">{{ unitLabel() }} · {{ rosterSize() }} atletas</span>
+        <span class="og-ni-label">{{ unitLabel() }} · {{ rosterSize() }} {{ rosterSize() === 1 ? 'atleta' : 'atletas' }}</span>
         <div class="og-ni-slots">
           @for (slot of slots(); track $index) {
             <div class="og-ni-slot" [class.filled]="slot !== null">
@@ -222,7 +223,7 @@ export function rosterSizeOf(category: Pick<OrganizerTournamentCategory, 'teamSi
         } @else {
           <p class="og-ni-status">
             Esta categoria tem uniforme: escolha
-            {{ rosterSize() === 2 ? 'os dois atletas' : 'os ' + rosterSize() + ' atletas' }}
+            {{ rosterSize() === 1 ? 'o atleta' : rosterSize() === 2 ? 'os dois atletas' : 'os ' + rosterSize() + ' atletas' }}
             para informar os tamanhos.
           </p>
         }
@@ -435,7 +436,7 @@ export class OgNovaInscricaoComponent {
 
   protected readonly isNamedTeam = computed(() => this.rosterSize() >= 3);
 
-  protected readonly unitLabel = computed(() => (this.isNamedTeam() ? 'Equipe' : 'Dupla'));
+  protected readonly unitLabel = computed(() => participantUnit(this.rosterSize() === 2 ? null : this.rosterSize(), { capitalized: true }));
 
   /** Erro só depois que o organizador começou a digitar — campo vazio trava o botão sem gritar. */
   protected readonly teamNameError = computed(() => {

@@ -40,8 +40,7 @@ class OrganizerCategoryExploreSection extends ConsumerWidget {
             final categoryMatches = matches
                 .where((m) => m.categoryId.trim() == categoryId.trim())
                 .toList();
-            final live =
-                categoryMatches.where((m) => m.isInProgress).length;
+            final live = categoryMatches.where((m) => m.isInProgress).length;
             return organizerCategoryExploreMatchesSubtitle(
               total: categoryMatches.length,
               live: live,
@@ -67,7 +66,7 @@ class OrganizerCategoryExploreSection extends ConsumerWidget {
           const SizedBox(height: 12),
           ExploreCard(
             icon: Icons.groups_rounded,
-            title: 'Duplas',
+            title: 'Equipes',
             subtitle: organizerCategoryExploreTeamsSubtitle(
               teamCount: teamCount,
               pendingCount: pendingCount,

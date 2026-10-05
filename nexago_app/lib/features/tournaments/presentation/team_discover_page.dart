@@ -216,7 +216,7 @@ class _DiscoverAppBar extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            'Duplas',
+            'Equipes',
             style: AppTypography.soraRegular(
               fontSize: 22,
               fontWeight: FontWeight.w900,
@@ -280,7 +280,7 @@ List<Widget> _buildBodySlivers({required TeamDiscoverState state}) {
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Text(
-              'Não foi possível carregar duplas.\n${state.errorMessage}',
+              'Não foi possível carregar equipes.\n${state.errorMessage}',
               textAlign: TextAlign.center,
               style: const TextStyle(color: AppColors.live),
             ),
@@ -297,7 +297,7 @@ List<Widget> _buildBodySlivers({required TeamDiscoverState state}) {
         child: Builder(
           builder: (context) => Center(
             child: Text(
-              'Nenhuma dupla encontrada.',
+              'Nenhuma equipe encontrada.',
               style: TextStyle(color: context.themeColors.onSurfaceMuted),
             ),
           ),

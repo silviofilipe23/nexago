@@ -447,6 +447,29 @@ esportes; reordenar a comparação não muda nada. A escrita continua negada, ma
 não pela regra. Padel como esporte de perfil fica bloqueado até a guarda ser reestruturada
 (decisão pendente com o produto).
 
+Experimento de orçamento (`functions/scripts/measure-users-rules-budget.mjs`; folga em
+unidades de enchimento ≈ 5 expressões; teto ≈ 195 unidades):
+
+| Cenário | N=0 | N=5 | N=9 (hoje) | N=10 | N=12 | N=15 |
+|---|---|---|---|---|---|---|
+| sobe nível global (permitida) | 127 | 127 | 127 | 127 | 127 | 127 |
+| rebaixa nível global (negada) | 86 | 40 | **3** | estoura | estoura | estoura |
+| sobe todos travados + global (permitida) | 121 | 66 | 21 | 10 | estoura | estoura |
+| rebaixa 1 esporte travado (negada) | — | 40 | **3** | estoura | estoura | estoura |
+| *variante com 1 função por esporte:* rebaixa (negada) | 86 | | 23 | 16 | 1 | estoura |
+
+- **Escrita permitida que não mexe em esporte:** custo zero por esporte (o
+  `reqLevels == curLevels` corta).
+- **Escrita negada:** cada esporte custa ~9 unidades (~45 expressões) **mesmo sem ter mudado
+  e mesmo quando o motivo da negação é outro** — no caminho negado o motor avalia a guarda
+  inteira, sem o corte. A base da negação (N=0) já consome ~109 das ~195 unidades (as 16
+  proteções de campo do dono + o mapa de ranks + as alternativas `isSuperAdmin` e
+  pré-cadastro); a negação custa ~41 unidades a mais que a permitida com os mesmos campos.
+- Com 9 esportes a negação usa ~98% do teto. Uma função única por esporte (em vez da cadeia
+  `sportLevelNotLowered` → `levelNotLowered` → `athleteLevelRank` ×2) baixa o custo por esporte
+  para ~7 unidades e abre espaço para até 12 esportes — fôlego curto; a base da regra é o
+  maior consumidor.
+
 **Fase 4: equipe por tamanho.**
 Piso 1 em `teamSize`, inscrição individual, `participantNoun`, slots de saque por tamanho,
 tempo médico por slot, confronto direto por `memberUids`, capa de equipe pelo esporte do torneio.

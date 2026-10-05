@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'arena_sport_codes.dart';
 import 'virtual_slot_generator.dart';
 
 /// Status operacional da quadra no painel.
@@ -29,8 +30,11 @@ class ArenaCourt {
   /// Primeiro esporte — compatibilidade com código que lia `type`.
   String? get type => sportTypes.isEmpty ? null : sportTypes.first;
 
-  String get sportTypesLabel =>
-      sportTypes.isEmpty ? '—' : sportTypes.join(' · ');
+  /// Esportes pelo catálogo — código (`beachTennis`) ou rótulo legado viram o rótulo.
+  String get sportTypesLabel {
+    final labels = arenaSportLabels(sportTypes);
+    return labels.isEmpty ? '—' : labels.join(' · ');
+  }
 
   final ArenaCourtStatus status;
 

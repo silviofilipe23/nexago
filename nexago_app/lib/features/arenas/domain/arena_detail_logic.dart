@@ -2,6 +2,7 @@ import 'arena_court.dart';
 import 'arena_search_metadata.dart';
 import 'arena_search_providers.dart';
 import 'arena_slot.dart';
+import 'arena_sport_codes.dart';
 import 'arena_list_item.dart';
 
 /// Resumo de disponibilidade de uma quadra no dia.
@@ -114,7 +115,7 @@ String? courtSurfaceBadgeLabel(ArenaListItem arena, ArenaCourt court) {
     }
   }
   if (court.sportTypes.isNotEmpty) {
-    return court.sportTypes.first.toUpperCase();
+    return courtSportLabel(court.sportTypes.first).toUpperCase();
   }
   return null;
 }

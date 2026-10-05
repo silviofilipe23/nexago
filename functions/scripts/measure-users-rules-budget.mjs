@@ -18,7 +18,7 @@ import { doc, setDoc, updateDoc } from 'firebase/firestore';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BASE_RULES = fs.readFileSync(path.join(__dirname, '../../firestore.rules'), 'utf8');
-const REAL = ['VOLEI_PRAIA','VOLEI_QUADRA','BEACH_TENNIS','FUTEVOLEI','FUTEBOL','BASQUETE','TENIS','CORRIDA','OUTROS'];
+const REAL = ['VOLEI_PRAIA','VOLEI_QUADRA','BEACH_TENNIS','FUTEVOLEI','FUTEBOL','BASQUETE','TENIS','CORRIDA','PADEL','OUTROS'];
 const sportsFor = (n) => [...REAL, ...Array.from({ length: 20 }, (_, i) => `XTRA_${i + 1}`)].slice(0, n);
 
 const UPDATE_HEAD = 'allow update: if request.auth != null && (\n        (\n          request.auth.uid == userId &&';
@@ -111,7 +111,7 @@ async function headroom(n, scenario, hi = 1200) {
 
 const cal = await headroom(0, 'calibração', 2000);
 console.log(`CALIBRAÇÃO: coleção só com enchimento cabe k=${cal.k} → ~${(1000 / (cal.k + 1)).toFixed(2)} expressões por unidade`);
-const Ns = (process.env.NS ?? '0,5,9,10,12,15').split(',').map(Number);
+const Ns = (process.env.NS ?? '0,5,10,11,12').split(',').map(Number);
 for (const scenario of Object.keys(SCENARIOS)) {
   const row = [];
   for (const n of Ns) {

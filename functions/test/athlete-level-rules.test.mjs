@@ -383,10 +383,10 @@ for (const n of [5, ALL_SPORTS.length]) {
 
 // Pior caso real: TODOS os esportes travados (o lock não curto-circuita, cada
 // um paga os dois lookups de rank) subindo de uma vez, junto com os dois
-// campos legados de nível global. Medido em 05/10/2026 (3c2): com 9 cabe; um
-// 10º esporte na guarda faz TODA negação estourar o teto (inclusive a do nível
-// global, que nem chega nos esportes) — o orçamento do update de `users` está
-// no limite. Esporte de perfil novo exige reestruturar a guarda antes.
+// campos legados de nível global. Medido em 05/10/2026 (3c2): com a guarda em
+// `sportLevelOk` (uma função por esporte) os 10 esportes cabem com folga de ~80
+// expressões na negação; um 11º/12º esporte exige medir de novo
+// (`functions/scripts/measure-users-rules-budget.mjs`).
 await seed({ ...allSportsLockedUser, level: 'intermediario_1', sportProfile: { level: 'intermediario_1' } });
 await expect(
   `subir os ${ALL_SPORTS.length} esportes TRAVADOS + nível global numa tacada cabe no teto`,

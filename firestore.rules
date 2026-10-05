@@ -1858,6 +1858,11 @@ service cloud.firestore {
       
       // Atualizar: próprio usuário pode atualizar a si mesmo sem alterar roles/superAdmin;
       // super admin ou convidador do parceiro pendente
+      // ORÇAMENTO: esta regra está perto do teto de 1000 expressões por request no
+      // caminho NEGADO (que avalia tudo, sem curto-circuito): folga medida em
+      // 05/10/2026 de ~80 expressões com 10 esportes. Qualquer cláusula nova aqui
+      // (ou esporte novo na guarda de nível) exige rodar
+      // `functions/scripts/measure-users-rules-budget.mjs` e o teste de nível.
       allow update: if request.auth != null && (
         (
           request.auth.uid == userId &&

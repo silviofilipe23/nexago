@@ -469,6 +469,14 @@ unidades de enchimento ≈ 5 expressões; teto ≈ 195 unidades):
   `sportLevelNotLowered` → `levelNotLowered` → `athleteLevelRank` ×2) baixa o custo por esporte
   para ~7 unidades e abre espaço para até 12 esportes — fôlego curto; a base da regra é o
   maior consumidor.
+- **Decisão (05/10/2026, 3c2):** a guarda passou a `sportLevelOk` (uma função por esporte,
+  semântica idêntica) e o padel entrou como esporte de perfil. Folga medida com 10 esportes:
+  negação 16 unidades (~80 expressões); "sobe todos travados + global" 31. Cláusula nova no
+  update de `users` ou 11º esporte exige nova medição (aviso no próprio `firestore.rules`).
+- **Torneio legado gravado como `padel`** (via `sportRaw`, nunca oferecido pelo wizard) passa a
+  mapear para `PADEL`: nível, lock e sorteio de padel; pontua só em `*_PADEL` (doc por esporte,
+  ainda sem tela — padel não é `competition`). Conferir no banco se existe algum antes do
+  deploy (`tournaments` com `sport` padel).
 
 **Fase 4: equipe por tamanho.**
 Piso 1 em `teamSize`, inscrição individual, `participantNoun`, slots de saque por tamanho,

@@ -43,7 +43,7 @@ describe('organizer-settings', () => {
 
     it('ignora valor fora do enum e cai no default', () => {
       const s = parseOrganizerSettings({
-        organizerDefaults: { sport: 'padel', bracketSystem: 'inventado', visibility: 'secreto' },
+        organizerDefaults: { sport: 'football', bracketSystem: 'inventado', visibility: 'secreto' },
       });
       expect(s.defaults.sport).toBe(DEFAULT_ORGANIZER_EVENT_DEFAULTS.sport);
       expect(s.defaults.bracketSystem).toBe(DEFAULT_ORGANIZER_EVENT_DEFAULTS.bracketSystem);

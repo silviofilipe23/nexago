@@ -192,12 +192,12 @@ void main() {
       updatedAt: DateTime(2026, 1, 10, 9, 30),
       draft: const TournamentCreateDraft(
         name: 'Copa BT',
-        sportRaw: 'padel',
+        sportRaw: 'football',
       ),
     );
     final restored = TournamentCreateSession.fromJson(session.toJson())!;
-    expect(restored.draft.sportRaw, 'padel');
-    expect(restored.draft.sportFirestoreValue, 'padel');
+    expect(restored.draft.sportRaw, 'football');
+    expect(restored.draft.sportFirestoreValue, 'football');
   });
 
   test('json de app anterior, sem sportRaw, restaura com sportRaw nulo', () {

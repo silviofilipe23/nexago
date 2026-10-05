@@ -115,6 +115,8 @@ class AthleteHomePage extends ConsumerWidget {
                               : 'Atleta',
                         ),
                         gender: profile?.gender,
+                        sport:
+                            profile?.primarySportFirestoreId ?? profile?.sport,
                         tagline: 'O esporte conecta.',
                         // O avatar não está no mockup, mas é a ÚNICA entrada
                         // para o perfil em todas as cinco abas — a grade de

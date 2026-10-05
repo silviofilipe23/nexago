@@ -7,7 +7,17 @@ import '../../athlete/domain/athlete_public_profile_models.dart';
 import '../../ranking/domain/ranking_list_models.dart';
 import 'tournament_team.dart';
 
-enum TeamDiscoverSort { ranking, proximity, trending }
+enum TeamDiscoverSort {
+  ranking,
+  proximity,
+  trending;
+
+  String get label => switch (this) {
+        TeamDiscoverSort.ranking => 'Ranking',
+        TeamDiscoverSort.proximity => 'Mais próximas',
+        TeamDiscoverSort.trending => 'Em alta',
+      };
+}
 
 enum TeamDiscoverGenderFilter {
   all,
@@ -203,6 +213,26 @@ class TeamDiscoverPageResult {
   });
 
   final List<TournamentTeam> teams;
+  final String? lastDocumentId;
+  final bool hasMore;
+}
+
+/// Página da listagem ordenada pelo ranking: primeiro as equipes com pontos
+/// (na ordem do ranking), depois as sem pontos (por id).
+class TeamDiscoverRankedPage {
+  const TeamDiscoverRankedPage({
+    required this.teams,
+    required this.nextRankedOffset,
+    required this.lastDocumentId,
+    required this.hasMore,
+  });
+
+  final List<TournamentTeam> teams;
+
+  /// Quantas posições do ranking já foram consumidas (cursor da fase 1).
+  final int nextRankedOffset;
+
+  /// Cursor da fase 2 (equipes sem pontos, por id).
   final String? lastDocumentId;
   final bool hasMore;
 }

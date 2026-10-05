@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
@@ -6,6 +8,71 @@ import 'package:nexago_app/features/athlete/presentation/widgets/athlete_home/at
 
 void main() {
   group('athleteHomeHeroAssetFor', () {
+    test('esporte com arte por gênero usa a do gênero, e o arquivo existe', () {
+      const slugs = {
+        'VOLEI_QUADRA': 'volei_quadra',
+        'FUTEVOLEI': 'futevolei',
+        'BEACH_TENNIS': 'beach_tennis',
+        'TENIS': 'tenis',
+        'PADEL': 'padel',
+        'BASQUETE': 'basquete',
+        'FUTEBOL': 'futebol',
+        'CORRIDA': 'corrida',
+      };
+      slugs.forEach((code, slug) {
+        for (final (g, suffix) in [
+          ('Masculino', 'masculino'),
+          ('Feminino', 'feminino'),
+        ]) {
+          final path = athleteHomeHeroAssetFor(g, sport: code);
+          expect(path, 'assets/images/home/sport/${slug}_$suffix.webp');
+          expect(File(path).existsSync(), isTrue, reason: path);
+        }
+      });
+    });
+
+    test('futevôlei aceita grafias do rótulo', () {
+      for (final sport in ['Futevôlei', 'futevolei']) {
+        expect(
+          athleteHomeHeroAssetFor('Feminino', sport: sport),
+          'assets/images/home/sport/futevolei_feminino.webp',
+        );
+      }
+    });
+
+    test('sem gênero reconhecido usa a arte neutra do esporte', () {
+      expect(
+        athleteHomeHeroAssetFor(null, sport: 'TENIS'),
+        'assets/images/sports/tenis.webp',
+      );
+      expect(
+        athleteHomeHeroAssetFor('Outro', sport: 'FUTEVOLEI'),
+        'assets/images/sports/futevolei.webp',
+      );
+    });
+
+    test('padel sem gênero e esporte sem arte seguem por gênero', () {
+      expect(
+        athleteHomeHeroAssetFor(null, sport: 'PADEL'),
+        AthleteHomeHeroArt.neutro,
+      );
+      expect(
+        athleteHomeHeroAssetFor('Feminino', sport: 'OUTROS'),
+        AthleteHomeHeroArt.feminino,
+      );
+    });
+
+    test('vôlei de praia e nulo seguem por gênero', () {
+      expect(
+        athleteHomeHeroAssetFor('Masculino', sport: 'VOLEI_PRAIA'),
+        AthleteHomeHeroArt.masculino,
+      );
+      expect(
+        athleteHomeHeroAssetFor('Feminino', sport: null),
+        AthleteHomeHeroArt.feminino,
+      );
+    });
+
     test('casa masculino por prefixo, sem ligar para caixa ou espaço', () {
       for (final g in ['Masculino', 'masculino', '  MASCULINO  ', 'Masc']) {
         expect(

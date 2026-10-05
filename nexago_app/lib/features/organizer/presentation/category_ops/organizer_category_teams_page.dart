@@ -28,10 +28,12 @@ class OrganizerCategoryTeamsPage extends ConsumerWidget {
       categoryId: categoryId,
     );
     final filterState = ref.watch(organizerCategoryFilterProvider);
-    final filteredTeams = ref.watch(organizerCategoryFilteredTeamsProvider(key));
+    final filteredTeams = ref.watch(
+      organizerCategoryFilteredTeamsProvider(key),
+    );
 
     return OrganizerTournamentSubpageScaffold(
-      title: 'Duplas',
+      title: 'Equipes',
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
@@ -42,7 +44,7 @@ class OrganizerCategoryTeamsPage extends ConsumerWidget {
                 color: context.themeColors.onSurface,
               ),
               decoration: InputDecoration(
-                hintText: 'Buscar dupla ou atleta...',
+                hintText: 'Buscar equipe ou atleta...',
                 hintStyle: AppTypography.soraRegular(
                   fontSize: 14,
                   color: context.themeColors.onSurfaceMuted,
@@ -115,7 +117,7 @@ class _TeamsMetaRow extends StatelessWidget {
       children: [
         Expanded(
           child: Text(
-            '$total DUPLAS',
+            '$total EQUIPES',
             style: AppTypography.mono(
               fontSize: 11,
               fontWeight: FontWeight.w700,

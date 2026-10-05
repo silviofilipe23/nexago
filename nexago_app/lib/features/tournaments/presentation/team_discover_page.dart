@@ -8,6 +8,7 @@ import '../../../core/layout/nexa_page_header.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../domain/team_discover_models.dart';
 import '../domain/team_discover_providers.dart';
 import 'widgets/team_discover/team_discover_card.dart';
 import 'widgets/team_discover/team_discover_filters_sheet.dart';
@@ -97,6 +98,8 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _DiscoverAppBar(
+                  sort: state.sort,
+                  onSort: ref.read(teamDiscoverProvider.notifier).setSort,
                   filtersActive: state.filters.hasActiveFilters,
                   onBack: () => context.pop(),
                   onFilters: _openFilters,
@@ -177,11 +180,15 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
 
 class _DiscoverAppBar extends StatelessWidget {
   const _DiscoverAppBar({
+    required this.sort,
+    required this.onSort,
     required this.filtersActive,
     required this.onBack,
     required this.onFilters,
   });
 
+  final TeamDiscoverSort sort;
+  final ValueChanged<TeamDiscoverSort> onSort;
   final bool filtersActive;
   final VoidCallback onBack;
   final VoidCallback onFilters;
@@ -209,13 +216,28 @@ class _DiscoverAppBar extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            'Duplas',
+            'Equipes',
             style: AppTypography.soraRegular(
               fontSize: 22,
               fontWeight: FontWeight.w900,
               color: context.themeColors.onSurface,
             ),
           ),
+        ),
+        PopupMenuButton<TeamDiscoverSort>(
+          tooltip: 'Ordenar',
+          icon: const Icon(Icons.swap_vert_rounded),
+          iconColor: context.themeColors.onSurface,
+          initialValue: sort,
+          onSelected: onSort,
+          itemBuilder: (_) => [
+            for (final option in TeamDiscoverSort.values)
+              CheckedPopupMenuItem(
+                value: option,
+                checked: option == sort,
+                child: Text(option.label),
+              ),
+          ],
         ),
         Stack(
           clipBehavior: Clip.none,
@@ -258,7 +280,7 @@ List<Widget> _buildBodySlivers({required TeamDiscoverState state}) {
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Text(
-              'Não foi possível carregar duplas.\n${state.errorMessage}',
+              'Não foi possível carregar equipes.\n${state.errorMessage}',
               textAlign: TextAlign.center,
               style: const TextStyle(color: AppColors.live),
             ),
@@ -275,7 +297,7 @@ List<Widget> _buildBodySlivers({required TeamDiscoverState state}) {
         child: Builder(
           builder: (context) => Center(
             child: Text(
-              'Nenhuma dupla encontrada.',
+              'Nenhuma equipe encontrada.',
               style: TextStyle(color: context.themeColors.onSurfaceMuted),
             ),
           ),

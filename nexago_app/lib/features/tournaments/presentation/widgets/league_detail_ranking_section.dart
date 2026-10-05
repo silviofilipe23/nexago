@@ -65,10 +65,10 @@ class _LeagueDetailRankingSectionState
   }
 
   String? get _categoryId => resolveSelectedCategoryId(
-        widget.league.categories,
-        _genderFilter,
-        _selectedCategoryId,
-      );
+    widget.league.categories,
+    _genderFilter,
+    _selectedCategoryId,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -94,8 +94,9 @@ class _LeagueDetailRankingSectionState
       widget.league,
       widget.tournamentsById,
     );
-    final entityLabel =
-        _viewMode == LeagueRankingViewMode.teams ? 'DUPLA' : 'ATLETA';
+    final entityLabel = _viewMode == LeagueRankingViewMode.teams
+        ? 'DUPLA'
+        : 'ATLETA';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -120,10 +121,10 @@ class _LeagueDetailRankingSectionState
                   Text(
                     leagueCountingModeLabel(widget.league.countingStagesMode),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: context.themeColors.onSurface,
-                          height: 1.2,
-                        ),
+                      fontWeight: FontWeight.w800,
+                      color: context.themeColors.onSurface,
+                      height: 1.2,
+                    ),
                   ),
                 ],
               ),
@@ -144,7 +145,7 @@ class _LeagueDetailRankingSectionState
           children: [
             Expanded(
               child: _ModeChip(
-                label: 'Duplas',
+                label: 'Equipes',
                 selected: _viewMode == LeagueRankingViewMode.teams,
                 onTap: () =>
                     setState(() => _viewMode = LeagueRankingViewMode.teams),
@@ -168,13 +169,11 @@ class _LeagueDetailRankingSectionState
             children: [
               for (final gender in TournamentGenderCat.values) ...[
                 _GenderChip(
-                  label: categoryGenderDisplayLabelFromTag(
-                    switch (gender) {
-                      TournamentGenderCat.m => 'MASCULINO',
-                      TournamentGenderCat.f => 'FEMININO',
-                      TournamentGenderCat.mix => 'MISTO',
-                    },
-                  ),
+                  label: categoryGenderDisplayLabelFromTag(switch (gender) {
+                    TournamentGenderCat.m => 'MASCULINO',
+                    TournamentGenderCat.f => 'FEMININO',
+                    TournamentGenderCat.mix => 'MISTO',
+                  }),
                   selected: _genderFilter == gender,
                   enabled: categoryForGender(categories, gender) != null,
                   onTap: () => _onGenderSelected(gender),
@@ -206,17 +205,17 @@ class _LeagueDetailRankingSectionState
           ),
           error: (_, __) => Text(
             'Não foi possível carregar o ranking.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.live,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.live),
           ),
           data: (rows) {
             if (rows.isEmpty) {
               return Text(
                 'O ranking aparece aqui conforme as etapas forem encerradas.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: context.themeColors.onSurfaceMuted,
-                    ),
+                  color: context.themeColors.onSurfaceMuted,
+                ),
               );
             }
 
@@ -245,13 +244,13 @@ class _LeagueDetailRankingSectionState
                           children: [
                             SizedBox(
                               width: 28,
-                              child: Text(
-                                '#',
-                                style: _headerStyle(context),
-                              ),
+                              child: Text('#', style: _headerStyle(context)),
                             ),
                             Expanded(
-                              child: Text(entityLabel, style: _headerStyle(context)),
+                              child: Text(
+                                entityLabel,
+                                style: _headerStyle(context),
+                              ),
                             ),
                             Text('PTS', style: _headerStyle(context)),
                           ],
@@ -294,9 +293,9 @@ class _LeagueDetailRankingSectionState
                       child: Text(
                         'Ver ranking completo →',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: context.themeColors.onSurfaceMuted,
-                              fontWeight: FontWeight.w600,
-                            ),
+                          color: context.themeColors.onSurfaceMuted,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -333,9 +332,7 @@ class _ModeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected
-          ? AppColors.brand
-          : context.themeColors.surfaceRaised,
+      color: selected ? AppColors.brand : context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -346,11 +343,7 @@ class _ModeChip extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (selected) ...[
-                Icon(
-                  Icons.check_rounded,
-                  size: 16,
-                  color: AppColors.black,
-                ),
+                Icon(Icons.check_rounded, size: 16, color: AppColors.black),
                 const SizedBox(width: 6),
               ],
               Text(
@@ -456,10 +449,7 @@ class _CategoryDropdown extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       itemBuilder: (context) => [
         for (final category in categories)
-          PopupMenuItem<String>(
-            value: category.id,
-            child: Text(category.name),
-          ),
+          PopupMenuItem<String>(value: category.id, child: Text(category.name)),
       ],
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -495,10 +485,7 @@ class _CategoryDropdown extends StatelessWidget {
 }
 
 class _TeamRankingTableRow extends StatelessWidget {
-  const _TeamRankingTableRow({
-    required this.row,
-    required this.highlight,
-  });
+  const _TeamRankingTableRow({required this.row, required this.highlight});
 
   final LeagueTeamRankingRow row;
   final bool highlight;
@@ -515,10 +502,7 @@ class _TeamRankingTableRow extends StatelessWidget {
 }
 
 class _AthleteRankingTableRow extends StatelessWidget {
-  const _AthleteRankingTableRow({
-    required this.row,
-    required this.highlight,
-  });
+  const _AthleteRankingTableRow({required this.row, required this.highlight});
 
   final LeagueAthleteRankingRow row;
   final bool highlight;
@@ -578,9 +562,9 @@ class _RankingTableRowShell extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: context.themeColors.onSurface,
-                        ),
+                      fontWeight: FontWeight.w700,
+                      color: context.themeColors.onSurface,
+                    ),
                   ),
                 ),
                 if (highlight) ...[

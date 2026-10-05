@@ -14,25 +14,23 @@ import '../domain/team_discover_logic.dart';
 import '../domain/team_discover_models.dart';
 import '../domain/tournament_team.dart';
 import 'nexago_artifacts_paths.dart';
+
 class TeamDiscoverRepository {
   TeamDiscoverRepository({
     required FirebaseFirestore firestore,
     required RankingRepository rankingRepository,
   })  : _teams = firestore.collection(NexagoArtifactsPaths.teamsCollection()),
-        _teamRankings =
-            firestore.collection(NexagoArtifactsPaths.teamRankingsCollection()),
         _users = firestore.collection('public_profiles'),
         _rankingRepository = rankingRepository;
 
   final CollectionReference<Map<String, dynamic>> _teams;
-  final CollectionReference<Map<String, dynamic>> _teamRankings;
   final CollectionReference<Map<String, dynamic>> _users;
   final RankingRepository _rankingRepository;
 
   static const pageSize = 30;
 
   final _rankingCache = <String, TeamDiscoverRankingSnapshot>{};
-  List<TeamRankingRow>? _generalTeamRanking;
+  Future<List<TeamRankingRow>>? _generalTeamRanking;
 
   Future<AthleteProfile?> _profileFor(String uid) async {
     final id = uid.trim();
@@ -96,32 +94,85 @@ class TeamDiscoverRepository {
     );
   }
 
-  Future<TeamDiscoverRankingSnapshot> rankingFor(String teamId) async {
-    final cached = _rankingCache[teamId];
-    if (cached != null) return cached;
+  /// Posições do ranking geral com pontos, na ordem. Cacheado até
+  /// [clearCaches]; também abastece [_rankingCache] pra não reler cada doc.
+  Future<List<TeamRankingRow>> _rankedRows() => _generalTeamRanking ??=
+          _rankingRepository.loadTeamRankingGeneral().then((all) {
+        final rows = all.where((r) => r.totalPoints > 0).toList();
+        for (final r in rows) {
+          _rankingCache[r.teamId] = TeamDiscoverRankingSnapshot(
+            rank: r.rank,
+            points: r.totalPoints,
+            tournamentsCount: r.tournamentsCount,
+          );
+        }
+        return rows;
+      }).catchError((Object e) {
+        _generalTeamRanking = null;
+        throw e;
+      });
 
-    final snap = await _teamRankings.doc(teamId).get();
-    TeamRankingEntry? entry;
-    if (snap.exists) {
-      entry = TeamRankingEntry.fromFirestore(snap);
+  /// Página ordenada pelo ranking, paginada de ponta a ponta: equipes com
+  /// pontos na ordem do ranking e, esgotadas, as sem pontos por id. Só
+  /// equipes com inscrição paga entram; ids do ranking sem equipe paga são
+  /// pulados (a página pode vir menor que [limit], nunca vazia com mais).
+  Future<TeamDiscoverRankedPage> fetchRankedPage({
+    int rankedOffset = 0,
+    String? startAfterDocumentId,
+    int limit = pageSize,
+  }) async {
+    final rows = await _rankedRows();
+    var offset = rankedOffset;
+    var cursor = startAfterDocumentId;
+    final collected = <TournamentTeam>[];
+
+    while (offset < rows.length && collected.isEmpty) {
+      final end = min(offset + limit, rows.length);
+      final ids = [for (final r in rows.sublist(offset, end)) r.teamId];
+      offset = end;
+      final snap = await _teams
+          .where(FieldPath.documentId, whereIn: ids)
+          .where('registrationPaid', isEqualTo: true)
+          .get();
+      final byId = {
+        for (final doc in snap.docs) doc.id: TournamentTeam.fromFirestore(doc),
+      };
+      collected.addAll([
+        for (final id in ids)
+          if (byId[id] != null) byId[id]!,
+      ]);
+    }
+    if (collected.isNotEmpty || offset < rows.length) {
+      return TeamDiscoverRankedPage(
+        teams: collected,
+        nextRankedOffset: offset,
+        lastDocumentId: cursor,
+        hasMore: true,
+      );
     }
 
-    var rank = 0;
-    if (entry != null && entry.totalPoints > 0) {
-      _generalTeamRanking ??=
-          await _rankingRepository.loadTeamRankingGeneral();
-      final idx =
-          _generalTeamRanking!.indexWhere((r) => r.teamId == teamId);
-      if (idx >= 0) rank = idx + 1;
+    // Fase 2: sem pontos, por id, ignorando as já listadas na fase 1.
+    final ranked = {for (final r in rows) r.teamId};
+    var hasMore = true;
+    while (collected.isEmpty && hasMore) {
+      final page = await fetchPage(startAfterDocumentId: cursor, limit: limit);
+      cursor = page.lastDocumentId;
+      hasMore = page.hasMore;
+      collected.addAll(page.teams.where((t) => !ranked.contains(t.id)));
     }
-
-    final snapshot = TeamDiscoverRankingSnapshot(
-      rank: rank > 0 ? rank : null,
-      points: entry?.totalPoints ?? 0,
-      tournamentsCount: entry?.tournamentsCount ?? 0,
+    return TeamDiscoverRankedPage(
+      teams: collected,
+      nextRankedOffset: offset,
+      lastDocumentId: cursor,
+      hasMore: hasMore,
     );
-    _rankingCache[teamId] = snapshot;
-    return snapshot;
+  }
+
+  /// Posição e pontos vêm do ranking geral (uma leitura da coleção, em cache),
+  /// não de um doc por equipe.
+  Future<TeamDiscoverRankingSnapshot> rankingFor(String teamId) async {
+    await _rankedRows();
+    return _rankingCache[teamId] ?? const TeamDiscoverRankingSnapshot();
   }
 
   Future<List<TeamDiscoverEntry>> enrichEntries({
@@ -129,28 +180,39 @@ class TeamDiscoverRepository {
     required String? currentUserId,
     Set<String> followingTeamIds = const {},
   }) async {
-    final entries = <TeamDiscoverEntry>[];
-    for (final team in teams) {
-      final p1 = await _profileFor(team.player1Id);
-      final p2 = team.isLookingForPartner
-          ? null
-          : await _profileFor(team.player2Id);
-      final ranking = await rankingFor(team.id);
-      final isCurrent = currentUserId != null &&
-          currentUserId.isNotEmpty &&
-          team.containsPlayer(currentUserId);
-      entries.add(
-        buildTeamDiscoverEntry(
+    return Future.wait([
+      for (final team in teams)
+        _enrichOne(
           team: team,
-          player1: p1,
-          player2: p2,
-          ranking: ranking,
-          isFollowing: followingTeamIds.contains(team.id),
-          isCurrentUserTeam: isCurrent,
+          currentUserId: currentUserId,
+          followingTeamIds: followingTeamIds,
         ),
-      );
-    }
-    return entries;
+    ]);
+  }
+
+  Future<TeamDiscoverEntry> _enrichOne({
+    required TournamentTeam team,
+    required String? currentUserId,
+    required Set<String> followingTeamIds,
+  }) async {
+    final results = await Future.wait([
+      _profileFor(team.player1Id),
+      team.isLookingForPartner
+          ? Future<AthleteProfile?>.value(null)
+          : _profileFor(team.player2Id),
+      rankingFor(team.id),
+    ]);
+    final isCurrent = currentUserId != null &&
+        currentUserId.isNotEmpty &&
+        team.containsPlayer(currentUserId);
+    return buildTeamDiscoverEntry(
+      team: team,
+      player1: results[0] as AthleteProfile?,
+      player2: results[1] as AthleteProfile?,
+      ranking: results[2] as TeamDiscoverRankingSnapshot,
+      isFollowing: followingTeamIds.contains(team.id),
+      isCurrentUserTeam: isCurrent,
+    );
   }
 
   Future<int?> viewerTeamPoints(String? currentUserId) async {

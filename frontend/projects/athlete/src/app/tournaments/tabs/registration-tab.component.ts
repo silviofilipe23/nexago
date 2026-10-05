@@ -98,7 +98,7 @@ export interface RegistrationCard {
   entryFee: string;
   teamName: string;
   /** "Equipe" (trio+) ou "Dupla" — rótulo do fato no card. */
-  teamLabel: 'Equipe' | 'Dupla';
+  teamLabel: 'Equipe' | 'Dupla' | 'Atleta';
   /** "Elenco 2/4" / "convite pendente" enquanto o elenco está aberto. */
   rosterFlag: string | null;
   /** CTA que leva ao shell de inscrição pra convidar; `null` = sem CTA. */
@@ -238,7 +238,8 @@ export class RegistrationTabComponent {
   ): RegistrationCard {
     const uid = this.auth.user()?.uid ?? null;
     const isPlayer1 = uid != null && (r.player1Id === uid || r.participantUids[0] === uid);
-    const isTeam = r.teamSize != null;
+    // Equipe nomeada é trio+; individual (1) segue a dupla no uniforme (slot Player1).
+    const isTeam = r.teamSize != null && r.teamSize >= 3;
     const paymentState = this.paymentStateOf(r, uid);
     // Equipe nomeada (trio+): o nome vem da própria inscrição e o uniforme é por uid.
     const teamName =

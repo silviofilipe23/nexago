@@ -14,6 +14,8 @@ export interface RegistrationTermsCopy {
   readonly allowsSolo: boolean;
   /** Rótulo da ação secundária (`null` = sem ação secundária). */
   readonly secondaryLabel: string | null;
+  /** Categoria individual: o botão principal JÁ inscreve (não há parceiro a escolher). */
+  readonly registersDirectly: boolean;
 }
 
 export interface RegistrationTermsCopyInput {
@@ -38,6 +40,7 @@ export function registrationTermsCopy(input: RegistrationTermsCopyInput): Regist
         ctaLabel: 'Aceitar convite',
         allowsSolo: false,
         secondaryLabel: null,
+        registersDirectly: false,
       };
     }
     return {
@@ -47,10 +50,24 @@ export function registrationTermsCopy(input: RegistrationTermsCopyInput): Regist
       ctaLabel: 'Aceitar convite',
       allowsSolo: false,
       secondaryLabel: null,
+      registersDirectly: false,
     };
   }
 
   const teamSize = input.category.teamSize;
+  // Individual vem antes de "dupla obrigatória": não existe parceiro, então a regra do torneio
+  // de exigir dupla formada não se aplica (o servidor também a ignora).
+  if (teamSize === 1) {
+    return {
+      eyebrow: 'INDIVIDUAL',
+      title: 'Esta categoria é individual',
+      body: 'A inscrição é só sua, sem parceiro. Ao continuar a vaga fica reservada e o pagamento abre em seguida.',
+      ctaLabel: 'Fazer minha inscrição',
+      allowsSolo: false,
+      secondaryLabel: null,
+      registersDirectly: true,
+    };
+  }
   if (teamSize != null && teamSize > 2) {
     return {
       eyebrow: 'EQUIPE',
@@ -59,6 +76,7 @@ export function registrationTermsCopy(input: RegistrationTermsCopyInput): Regist
       ctaLabel: 'Montar meu elenco',
       allowsSolo: false,
       secondaryLabel: null,
+      registersDirectly: false,
     };
   }
 
@@ -70,6 +88,7 @@ export function registrationTermsCopy(input: RegistrationTermsCopyInput): Regist
       ctaLabel: 'Definir meu parceiro',
       allowsSolo: false,
       secondaryLabel: null,
+      registersDirectly: false,
     };
   }
 
@@ -80,5 +99,6 @@ export function registrationTermsCopy(input: RegistrationTermsCopyInput): Regist
     ctaLabel: 'Escolher meu parceiro',
     allowsSolo: true,
     secondaryLabel: 'Guardar minha vaga sem parceiro',
+    registersDirectly: false,
   };
 }

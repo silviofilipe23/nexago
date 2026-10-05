@@ -1,3 +1,4 @@
+import { parseTeamSizeField } from './team-size';
 import { collection, doc, documentId, getDoc, getDocs, query, where, type Firestore } from 'firebase/firestore';
 
 import { resolveRegistrationHoldMinutes } from '../tournaments/registration/registration-hold';
@@ -128,15 +129,15 @@ function categoryOfferFromRaw(raw: unknown, rootUniform: RootUniformFlags): Tour
     uniformNameOnShirt = rootUniform.nameOnShirt;
   }
 
-  // Categoria de equipe (trio/quarteto/quinteto) — gravada pelo portal do organizador.
-  const teamSizeRaw = numberOf(o['teamSize']);
-  const teamSize = teamSizeRaw != null && teamSizeRaw >= 3 && teamSizeRaw <= 5 ? teamSizeRaw : null;
+  // Individual (1) ou equipe (trio/quarteto/quinteto) — gravados pelo portal do organizador.
+  const teamSize = parseTeamSizeField(o['teamSize']);
   const compositionRaw = o['genderComposition'] && typeof o['genderComposition'] === 'object' ? (o['genderComposition'] as Record<string, unknown>) : null;
   const men = numberOf(compositionRaw?.['men']);
   const women = numberOf(compositionRaw?.['women']);
-  const genderFree = teamSize != null && optionalStr(o['genderMode']) === 'free';
+  const isTeam = teamSize != null && teamSize >= 3;
+  const genderFree = isTeam && optionalStr(o['genderMode']) === 'free';
   const genderComposition =
-    teamSize != null && !genderFree && men != null && women != null && men + women === teamSize ? { men, women } : null;
+    isTeam && !genderFree && men != null && women != null && men + women === teamSize ? { men, women } : null;
 
   return {
     id,
@@ -171,12 +172,19 @@ function categoryOfferFromRaw(raw: unknown, rootUniform: RootUniformFlags): Tour
 // ── Categoria de equipe (trio/quarteto/quinteto) — helpers de exibição ────────
 
 export function isTeamCategoryOffer(category: Pick<TournamentCategoryOffer, 'teamSize'>): boolean {
-  return category.teamSize != null;
+  return category.teamSize != null && category.teamSize >= 3;
+}
+
+/** Categoria individual (`teamSize: 1`): inscrição só do atleta, sem parceiro. */
+export function isIndividualCategoryOffer(category: Pick<TournamentCategoryOffer, 'teamSize'>): boolean {
+  return category.teamSize === 1;
 }
 
 /** "Dupla" / "Trio" / "Quarteto" / "Quinteto" — pill de formato da categoria. */
 export function categoryFormatLabel(category: Pick<TournamentCategoryOffer, 'teamSize'>): string {
   switch (category.teamSize) {
+    case 1:
+      return 'Individual';
     case 3:
       return 'Trio';
     case 4:
@@ -190,11 +198,13 @@ export function categoryFormatLabel(category: Pick<TournamentCategoryOffer, 'tea
 
 /** Unidade das vagas: "duplas" ou "equipes". */
 export function categoryUnitLabel(category: Pick<TournamentCategoryOffer, 'teamSize'>): string {
-  return category.teamSize != null ? 'equipes' : 'duplas';
+  if (category.teamSize === 1) return 'atletas';
+  return isTeamCategoryOffer(category) ? 'equipes' : 'duplas';
 }
 
 export function categoryUnitSingular(category: Pick<TournamentCategoryOffer, 'teamSize'>): string {
-  return category.teamSize != null ? 'equipe' : 'dupla';
+  if (category.teamSize === 1) return 'atleta';
+  return isTeamCategoryOffer(category) ? 'equipe' : 'dupla';
 }
 
 /** Detalhe de gênero da equipe: "Livre" (sem restrição) ou "2H + 2M" (composição mista). */
@@ -336,7 +346,11 @@ export function tournamentSummaryFromDoc(id: string, data: Record<string, unknow
     dateLabel: optionalStr(data['dateLabel']),
     startAt: toDate(data['startAt']) ?? toDate(data['startDate']),
     endAt: toDate(data['endAt']) ?? toDate(data['endDate']),
-    format: optionalStr(data['format'])?.toLowerCase().includes('individual') ? 'Individual' : 'Dupla',
+    // "Individual" só quando TODAS as categorias são individuais: um torneio de tênis com
+    // simples e duplas não pode se anunciar como individual.
+    format: categories.length > 0
+      ? (categories.every((c) => c.teamSize === 1) ? 'Individual' : 'Dupla')
+      : optionalStr(data['format'])?.toLowerCase().includes('individual') ? 'Individual' : 'Dupla',
     capacity,
     enrolledCount: numberOf(data['enrolledCount']) ?? 0,
     featured: data['featured'] === true,

@@ -15,8 +15,28 @@ import type { MatchDisplayStatus } from './match-status';
 
 export type MatchSide = 'A' | 'B';
 
-/** `0` = a dupla ainda não declarou quem abre o saque dela neste set. */
-export type ServingPlayerSlot = 0 | 1 | 2;
+/** `0` = a equipe ainda não declarou quem abre o saque dela neste set. 1–5 = posição no elenco
+ *  (individual só tem o 1; dupla 1–2; equipe até 5 — multiesporte fase 4b2). */
+export type ServingPlayerSlot = 0 | 1 | 2 | 3 | 4 | 5;
+
+/** Atletas por lado (1 individual, 2 dupla, 3–5 equipe). Ausente = dupla, como sempre foi. */
+export interface RosterSizes {
+  A: number;
+  B: number;
+}
+
+export const DUPLA_ROSTER_SIZES: RosterSizes = { A: 2, B: 2 };
+
+function rosterOf(sizes: RosterSizes | undefined, side: MatchSide): number {
+  const n = sizes?.[side] ?? 2;
+  return Number.isInteger(n) && n >= 1 && n <= 5 ? n : 2;
+}
+
+/** Próximo da ordem de saque do elenco: individual fica no 1, dupla alterna, equipe roda. */
+function nextSlotInRoster(current: ServingPlayerSlot, roster: number): ServingPlayerSlot {
+  if (current === 0) return 0;
+  return ((current % roster) + 1) as ServingPlayerSlot;
+}
 
 export interface ServingPlayerSlots {
   A: ServingPlayerSlot;
@@ -26,7 +46,7 @@ export interface ServingPlayerSlots {
 export const NO_SERVING_PLAYER_SLOTS: ServingPlayerSlots = { A: 0, B: 0 };
 
 function slotOf(raw: unknown): ServingPlayerSlot {
-  return raw === 1 || raw === 2 ? raw : 0;
+  return raw === 1 || raw === 2 || raw === 3 || raw === 4 || raw === 5 ? raw : 0;
 }
 
 /** Lê o par de posições como o doc grava (`{ A: 1, B: 2 }`), tolerando doc antigo sem campo. */
@@ -44,10 +64,18 @@ export function sideOfTeam(teamId: string, teamAId: string, teamBId: string): Ma
   return null;
 }
 
-/** A posição de quem está sacando AGORA — derivada do lado que está com o saque. */
-export function servingPlayerSlotOf(params: { slots: ServingPlayerSlots; servingTeamId: string; teamAId: string; teamBId: string }): ServingPlayerSlot {
+/** A posição de quem está sacando AGORA — derivada do lado que está com o saque. Individual não
+ *  tem o que declarar: o atleta no saque é sempre o 1. */
+export function servingPlayerSlotOf(params: {
+  slots: ServingPlayerSlots;
+  servingTeamId: string;
+  teamAId: string;
+  teamBId: string;
+  rosterSizes?: RosterSizes;
+}): ServingPlayerSlot {
   const side = sideOfTeam(params.servingTeamId, params.teamAId, params.teamBId);
-  return side == null ? 0 : params.slots[side];
+  if (side == null) return 0;
+  return rosterOf(params.rosterSizes, side) === 1 ? 1 : params.slots[side];
 }
 
 /** Quem saca pela dupla depois de mexer no placar.
@@ -65,6 +93,7 @@ export function servingPlayerSlotsAfterScore(params: {
   nextServingTeamId: string;
   teamAId: string;
   teamBId: string;
+  rosterSizes?: RosterSizes;
 }): ServingPlayerSlots {
   const { slots, teamAId, teamBId } = params;
   const previous = params.previousServingTeamId.trim();
@@ -77,7 +106,7 @@ export function servingPlayerSlotsAfterScore(params: {
   if (side == null) return { ...slots };
   const current = slots[side];
   if (current === 0) return { ...slots };
-  return { ...slots, [side]: current === 1 ? 2 : 1 };
+  return { ...slots, [side]: nextSlotInRoster(current, rosterOf(params.rosterSizes, side)) };
 }
 
 /** Desfazer NÃO devolve a ordem de saque: o evento da timeline guarda o placar, não quem estava
@@ -94,16 +123,22 @@ export function servingPlayerSlotsAfterUndo(params: { slots: ServingPlayerSlots;
 
 /** Troca o sacador da dupla que está com o saque (ação manual da mesa). Sem dupla no saque, ou
  *  com a dupla ainda sem ordem declarada, não há o que trocar. */
-export function swappedServingPlayerSlots(params: { slots: ServingPlayerSlots; servingTeamId: string; teamAId: string; teamBId: string }): ServingPlayerSlots {
+export function swappedServingPlayerSlots(params: {
+  slots: ServingPlayerSlots;
+  servingTeamId: string;
+  teamAId: string;
+  teamBId: string;
+  rosterSizes?: RosterSizes;
+}): ServingPlayerSlots {
   const side = sideOfTeam(params.servingTeamId, params.teamAId, params.teamBId);
   if (side == null) return { ...params.slots };
   const current = params.slots[side];
   if (current === 0) return { ...params.slots };
-  return { ...params.slots, [side]: current === 1 ? 2 : 1 };
+  return { ...params.slots, [side]: nextSlotInRoster(current, rosterOf(params.rosterSizes, side)) };
 }
 
 /** Declara quem abre o saque da dupla de um lado — o que a faixa "Quem saca?" grava. */
-export function withServingPlayerSlot(slots: ServingPlayerSlots, side: MatchSide, slot: 1 | 2): ServingPlayerSlots {
+export function withServingPlayerSlot(slots: ServingPlayerSlots, side: MatchSide, slot: Exclude<ServingPlayerSlot, 0>): ServingPlayerSlots {
   return { ...slots, [side]: slot };
 }
 
@@ -122,8 +157,11 @@ export function needsServingPlayer(params: {
   status: MatchDisplayStatus;
   teamAId: string;
   teamBId: string;
+  /** Elenco do lado no saque: individual (1) nunca pergunta — só há um atleta. */
+  servingRosterSize?: number;
 }): boolean {
   const { servingTeamId, status, teamAId, teamBId } = params;
+  if (params.servingRosterSize === 1) return false;
   if (needsStartingServe({ servingTeamId, status, teamAId, teamBId })) return false;
   if (status === 'completed' || status === 'canceled') return false;
   if (teamAId.trim() === '' || teamBId.trim() === '') return false;

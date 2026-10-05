@@ -1,6 +1,6 @@
 import type { Firestore } from 'firebase/firestore';
 import { fetchPublicProfilesByIds, type AthletePublicProfile } from '../data/public-profiles-repository';
-import { fetchTeamsByIds, type ArenaTeam } from '../data/teams-repository';
+import { fetchTeamsByIds, teamMemberIds, type ArenaTeam } from '../data/teams-repository';
 import { duoNameOf } from '../profile/public-profile-activity';
 
 /** Nomes das duplas pra mesa: `teams` → `public_profiles`, mesmo join (e mesmo `duoNameOf`) do
@@ -17,7 +17,7 @@ export async function fetchTeamNamesFor(db: Firestore, projectId: string, teamId
   const ids = [...new Set(teamIds.filter((id) => id.trim().length > 0))];
   if (ids.length === 0) return EMPTY_TEAM_NAMES;
   const teams = await fetchTeamsByIds(db, projectId, ids);
-  const profileIds = [...teams.values()].flatMap((t) => [t.player1Id, t.player2Id]);
+  const profileIds = [...teams.values()].flatMap((t) => teamMemberIds(t));
   const profiles = await fetchPublicProfilesByIds(db, profileIds);
   return { teams, profiles };
 }
@@ -28,13 +28,20 @@ export function teamLabelOf(names: MesaTeamNames, teamId: string, fallback: stri
   return duoNameOf(teamId, names.teams, names.profiles, fallback);
 }
 
-/** Nome do atleta pela POSIÇÃO na dupla (1 ou 2) — a mesma ordem de `player1Id`/`player2Id` que
- *  o doc da partida usa pra dizer quem está sacando (ver `serving-player.ts`). Cai em
- *  "Atleta N" enquanto o join não chegou ou o perfil não tem nome: o que importa na mesa é a
- *  posição, que é o que fica gravado. */
-export function playerNameOf(names: MesaTeamNames, teamId: string, slot: 1 | 2): string {
+/** Nome do atleta pela POSIÇÃO no elenco (1..N) — a ordem de `memberUids` (na dupla legada,
+ *  `player1Id`/`player2Id`) que o doc da partida usa pra dizer quem está sacando (ver
+ *  `serving-player.ts`). Cai em "Atleta N" enquanto o join não chegou ou o perfil não tem nome:
+ *  o que importa na mesa é a posição, que é o que fica gravado. */
+export function playerNameOf(names: MesaTeamNames, teamId: string, slot: number): string {
   const team = teamId ? names.teams.get(teamId) : undefined;
-  const uid = slot === 1 ? team?.player1Id : team?.player2Id;
+  const uid = team ? teamMemberIds(team)[slot - 1] : undefined;
   const name = (uid ? names.profiles.get(uid)?.displayName : '')?.trim() ?? '';
   return name || `Atleta ${slot}`;
+}
+
+/** Atletas do elenco (1 individual, 2 dupla, 3–5 equipe). Sem o time carregado ainda, dupla. */
+export function rosterSizeOf(names: MesaTeamNames, teamId: string): number {
+  const team = teamId ? names.teams.get(teamId) : undefined;
+  const n = team ? teamMemberIds(team).length : 0;
+  return n >= 1 && n <= 5 ? n : 2;
 }

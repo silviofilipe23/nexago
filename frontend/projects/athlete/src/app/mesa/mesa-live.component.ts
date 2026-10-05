@@ -26,6 +26,9 @@ import {
   type LivePointEvent,
   type MatchDisplayStatus,
   type ScoreSet,
+  type MedicalTimeoutSlot,
+  type RosterSizes,
+  withRosterSizes,
 } from '@nexago/live-scoring';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { NxSpinnerComponent } from '../shared/loading/nx-spinner.component';
@@ -48,7 +51,7 @@ import {
 import { EMPTY_HEADER, MesaLiveGateway, type MesaHeaderInfo } from './mesa-live.gateway';
 import { quickPayload, quickRows } from './mesa-quick-score';
 import { effectiveScoringProfile, matchWinnerSide as coreMatchWinnerSide, setsWonBy, validateScoreSets } from '@nexago/sports';
-import { EMPTY_TEAM_NAMES, playerNameOf, teamLabelOf, type MesaTeamNames } from './mesa-team-names';
+import { EMPTY_TEAM_NAMES, playerNameOf, rosterSizeOf, teamLabelOf, type MesaTeamNames } from './mesa-team-names';
 
 const STATUS_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendada', in_progress: 'Ao vivo', completed: 'Encerrada', canceled: 'Cancelada' };
 
@@ -62,10 +65,16 @@ interface FeedRowView {
   undo: boolean;
 }
 
+/** Posições do elenco (1..N) — individual só tem a 1; dupla, 1 e 2; equipe, até 5. */
+function rosterSlots(size: number): MedicalTimeoutSlot[] {
+  const n = Math.min(Math.max(Math.trunc(size), 1), 5);
+  return Array.from({ length: n }, (_, i) => (i + 1) as MedicalTimeoutSlot);
+}
+
 /** Um atleta no seletor do tempo médico: quem é, de que lado, e se a cota dele já foi usada. */
 interface MedicalOptionView {
   side: MesaSide;
-  slot: 1 | 2;
+  slot: MedicalTimeoutSlot;
   playerName: string;
   teamLabel: string;
   used: boolean;
@@ -1620,8 +1629,15 @@ export class MesaLiveComponent {
     return needsStartingServe({ servingTeamId: m.servingTeamId, status: m.status, teamAId: m.teamAId, teamBId: m.teamBId });
   });
 
-  /** Nome do atleta pela POSIÇÃO na dupla (1 ou 2) — a ordem que o doc guarda no saque. */
-  protected playerName(side: MesaSide, slot: 1 | 2): string {
+  /** Atletas por lado — saque e tempo médico seguem o elenco (multiesporte fase 4b2). */
+  protected readonly rosterSizes = computed<RosterSizes>(() => {
+    const m = this.match();
+    const names = this.names();
+    return { A: m ? rosterSizeOf(names, m.teamAId) : 2, B: m ? rosterSizeOf(names, m.teamBId) : 2 };
+  });
+
+  /** Nome do atleta pela POSIÇÃO no elenco — a ordem que o doc guarda no saque. */
+  protected playerName(side: MesaSide, slot: number): string {
     const m = this.match();
     if (!m) return `Atleta ${slot}`;
     return playerNameOf(this.names(), side === 'A' ? m.teamAId : m.teamBId, slot);
@@ -1633,7 +1649,7 @@ export class MesaLiveComponent {
   protected readonly serveBadge = computed(() => {
     const side = this.servingSide();
     const slot = this.servingPlayerSlot();
-    if (side == null || (slot !== 1 && slot !== 2)) return 'SAQUE';
+    if (side == null || slot < 1) return 'SAQUE';
     const first = this.playerName(side, slot).split(/\s+/)[0] ?? '';
     return first ? `SAQUE · ${first.toUpperCase()}` : 'SAQUE';
   });
@@ -1645,14 +1661,15 @@ export class MesaLiveComponent {
 
   /** A faixa "Quem saca por…?" — mesma regra (`needsServingPlayer`) das outras duas mesas.
    *  Some no modo exibição, como a do time: ali a tela está virada pros atletas. */
-  protected readonly askingServingPlayer = computed<{ teamLabel: string; players: { slot: 1 | 2; playerName: string }[] } | null>(() => {
+  protected readonly askingServingPlayer = computed<{ teamLabel: string; players: { slot: MedicalTimeoutSlot; playerName: string }[] } | null>(() => {
     const m = this.match();
     const side = this.servingSide();
     if (!m || side == null || this.present()) return null;
-    if (!needsServingPlayer({ servingTeamId: m.servingTeamId, servingPlayerSlot: m.servingPlayerSlot, status: m.status, teamAId: m.teamAId, teamBId: m.teamBId })) return null;
+    const roster = this.rosterSizes()[side];
+    if (!needsServingPlayer({ servingTeamId: m.servingTeamId, servingPlayerSlot: m.servingPlayerSlot, status: m.status, teamAId: m.teamAId, teamBId: m.teamBId, servingRosterSize: roster })) return null;
     return {
       teamLabel: this.label(side),
-      players: ([1, 2] as const).map((slot) => ({ slot, playerName: this.playerName(side, slot) })),
+      players: rosterSlots(roster).map((slot) => ({ slot, playerName: this.playerName(side, slot) })),
     };
   });
 
@@ -1661,7 +1678,7 @@ export class MesaLiveComponent {
     const m = this.match();
     if (!m) return [];
     return (['A', 'B'] as const).flatMap((side) =>
-      ([1, 2] as const).map((slot) => ({
+      rosterSlots(this.rosterSizes()[side]).map((slot) => ({
         side,
         slot,
         playerName: this.playerName(side, slot),
@@ -1771,7 +1788,7 @@ export class MesaLiveComponent {
     this.saving.set(true);
     this.feedback.set(null);
     try {
-      const written = await this.gateway.recordPoint({ matchId: m.id, build: (fresh) => buildPointWrite(fresh, side) });
+      const written = await this.gateway.recordPoint({ matchId: m.id, build: (fresh) => buildPointWrite(withRosterSizes(fresh, this.rosterSizes()), side) });
       if (!written) return;
       // Set novo começa com os tempos técnicos zerados.
       if (written.result.currentSetIndex !== written.setIndex) this.timeouts.set({ A: 0, B: 0 });
@@ -1838,7 +1855,7 @@ export class MesaLiveComponent {
     if (!teamId) return;
     this.saving.set(true);
     try {
-      await this.gateway.updateFields(m.id, servingTeamFields(m, teamId));
+      await this.gateway.updateFields(m.id, servingTeamFields(withRosterSizes(m, this.rosterSizes()), teamId));
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao definir quem começa sacando.' });
     } finally {
@@ -1854,7 +1871,7 @@ export class MesaLiveComponent {
     if (!next) return;
     this.saving.set(true);
     try {
-      await this.gateway.updateFields(m.id, servingTeamFields(m, next));
+      await this.gateway.updateFields(m.id, servingTeamFields(withRosterSizes(m, this.rosterSizes()), next));
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao trocar o saque.' });
     } finally {
@@ -1864,13 +1881,13 @@ export class MesaLiveComponent {
 
   /** Declara qual atleta da dupla no saque vai à linha. Daí em diante o rodízio resolve sozinho
    *  a cada virada de saque — espelha as outras duas mesas. */
-  protected async chooseServingPlayer(slot: 1 | 2): Promise<void> {
+  protected async chooseServingPlayer(slot: MedicalTimeoutSlot): Promise<void> {
     const m = this.match();
     const side = this.servingSide();
     if (!m || side == null || this.saving() || m.status === 'completed') return;
     this.saving.set(true);
     try {
-      await this.gateway.updateFields(m.id, servingPlayerFields(m, side, slot));
+      await this.gateway.updateFields(m.id, servingPlayerFields(withRosterSizes(m, this.rosterSizes()), side, slot));
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao definir o sacador.' });
     } finally {

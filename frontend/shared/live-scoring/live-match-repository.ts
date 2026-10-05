@@ -18,6 +18,7 @@ import {
   medicalTimeoutPlayerKey,
   medicalTimeoutPlayerKeysFromRaw,
   type MedicalTimeout,
+  type MedicalTimeoutSlot,
 } from './medical-timeout';
 import {
   servingPlayerSlotOf,
@@ -25,6 +26,7 @@ import {
   servingPlayerSlotsAfterUndo,
   servingPlayerSlotsFromRaw,
   type MatchSide,
+  type RosterSizes,
   type ServingPlayerSlot,
   type ServingPlayerSlots,
 } from './serving-player';
@@ -75,6 +77,9 @@ export interface LiveMatch {
   servingPlayerSlot: ServingPlayerSlot;
   /** A ordem de saque declarada por cada dupla no set corrente. */
   servingPlayerSlots: ServingPlayerSlots;
+  /** Atletas por lado (1 individual, 2 dupla, 3–5 equipe). O doc da partida não sabe; a mesa
+   *  preenche com o elenco que já carregou (`withRosterSizes`). Ausente = dupla. */
+  rosterSizes?: RosterSizes;
   /** Atendimento médico em andamento — `null` quando ninguém está sendo atendido. */
   medicalTimeout: MedicalTimeout | null;
   /** Atletas que já usaram o tempo médico nesta partida ("A1", "B2"). */
@@ -139,6 +144,12 @@ function liveSetsFromRaw(raw: unknown): LiveSet[] {
       return set;
     })
     .filter((s): s is LiveSet => s != null);
+}
+
+/** A partida com o elenco de cada lado — é o que faz o saque e o tempo médico da individual (1) e
+ *  da equipe (3–5) não caírem na regra da dupla. */
+export function withRosterSizes(m: LiveMatch, rosterSizes: RosterSizes): LiveMatch {
+  return { ...m, rosterSizes };
 }
 
 export function liveMatchFromDoc(id: string, data: Record<string, unknown>): LiveMatch {
@@ -251,6 +262,7 @@ export function buildPointWrite(m: LiveMatch, side: 'A' | 'B'): PointWrite | nul
   const wins = setsWon(result.sets, m.bestOf);
   const current = result.sets[setIndex] ?? null;
   const slots = servingPlayerSlotsAfterScore({
+    rosterSizes: m.rosterSizes,
     slots: m.servingPlayerSlots,
     previousServingTeamId: m.servingTeamId,
     nextServingTeamId: result.servingTeamId,
@@ -265,7 +277,7 @@ export function buildPointWrite(m: LiveMatch, side: 'A' | 'B'): PointWrite | nul
       status: result.winnerId != null ? 'Completed' : 'In Progress',
       servingTeamId: result.servingTeamId,
       servingPlayerSlots: slots,
-      servingPlayerSlot: servingPlayerSlotOf({ slots, servingTeamId: result.servingTeamId, teamAId: m.teamAId, teamBId: m.teamBId }),
+      servingPlayerSlot: servingPlayerSlotOf({ slots, servingTeamId: result.servingTeamId, teamAId: m.teamAId, teamBId: m.teamBId, rosterSizes: m.rosterSizes }),
       ...(result.winnerId != null ? { winnerId: result.winnerId, matchEndedAt: serverTimestamp() } : {}),
       ...(m.matchStartedAt == null ? { matchStartedAt: serverTimestamp() } : {}),
       resultA: `${wins.a}`,
@@ -317,7 +329,7 @@ export function buildUndoWrite(
       status: 'In Progress',
       servingTeamId: result.servingTeamId,
       servingPlayerSlots: slots,
-      servingPlayerSlot: servingPlayerSlotOf({ slots, servingTeamId: result.servingTeamId, teamAId: m.teamAId, teamBId: m.teamBId }),
+      servingPlayerSlot: servingPlayerSlotOf({ slots, servingTeamId: result.servingTeamId, teamAId: m.teamAId, teamBId: m.teamBId, rosterSizes: m.rosterSizes }),
       winnerId: deleteField(),
       matchEndedAt: deleteField(),
       resultA: `${wins.a}`,
@@ -369,6 +381,7 @@ function buildGamesPointWrite(m: LiveMatch, side: 'A' | 'B', profile: SetsGamesP
   const wins = setsWonBy(sets, profile);
   const landed = sets[setIndex] ?? { a: 0, b: 0 };
   const slots = servingPlayerSlotsAfterScore({
+    rosterSizes: m.rosterSizes,
     slots: m.servingPlayerSlots,
     previousServingTeamId: m.servingTeamId,
     nextServingTeamId: r.servingTeamId,
@@ -383,7 +396,7 @@ function buildGamesPointWrite(m: LiveMatch, side: 'A' | 'B', profile: SetsGamesP
       status: winnerId != null ? 'Completed' : 'In Progress',
       servingTeamId: r.servingTeamId,
       servingPlayerSlots: slots,
-      servingPlayerSlot: servingPlayerSlotOf({ slots, servingTeamId: r.servingTeamId, teamAId: m.teamAId, teamBId: m.teamBId }),
+      servingPlayerSlot: servingPlayerSlotOf({ slots, servingTeamId: r.servingTeamId, teamAId: m.teamAId, teamBId: m.teamBId, rosterSizes: m.rosterSizes }),
       ...(winnerId != null ? { winnerId, matchEndedAt: serverTimestamp() } : {}),
       ...(m.matchStartedAt == null ? { matchStartedAt: serverTimestamp() } : {}),
       resultA: `${wins.a}`,
@@ -440,17 +453,17 @@ function buildGamesUndoWrite(m: LiveMatch, side: 'A' | 'B', prev: Record<string,
 export function servingTeamFields(m: LiveMatch, teamId: string): Record<string, unknown> {
   return {
     servingTeamId: teamId,
-    servingPlayerSlot: servingPlayerSlotOf({ slots: m.servingPlayerSlots, servingTeamId: teamId, teamAId: m.teamAId, teamBId: m.teamBId }),
+    servingPlayerSlot: servingPlayerSlotOf({ slots: m.servingPlayerSlots, servingTeamId: teamId, teamAId: m.teamAId, teamBId: m.teamBId, rosterSizes: m.rosterSizes }),
   };
 }
 
 /** Campos de "quem saca pela dupla X" — a faixa que aparece quando `needsServingPlayer`, e
  *  também o "Trocar sacador" (que manda a outra posição). */
-export function servingPlayerFields(m: LiveMatch, side: MatchSide, slot: 1 | 2): Record<string, unknown> {
+export function servingPlayerFields(m: LiveMatch, side: MatchSide, slot: Exclude<ServingPlayerSlot, 0>): Record<string, unknown> {
   const slots: ServingPlayerSlots = { ...m.servingPlayerSlots, [side]: slot };
   return {
     servingPlayerSlots: slots,
-    servingPlayerSlot: servingPlayerSlotOf({ slots, servingTeamId: m.servingTeamId, teamAId: m.teamAId, teamBId: m.teamBId }),
+    servingPlayerSlot: servingPlayerSlotOf({ slots, servingTeamId: m.servingTeamId, teamAId: m.teamAId, teamBId: m.teamBId, rosterSizes: m.rosterSizes }),
   };
 }
 
@@ -460,7 +473,7 @@ export function servingPlayerFields(m: LiveMatch, side: MatchSide, slot: 1 | 2):
  *
  *  `null` quando o atleta já usou o dele, quando outro atendimento está rolando ou quando a
  *  partida já encerrou — a mesma guarda do ponto, avaliada sobre o doc FRESCO da transação. */
-export function buildMedicalTimeoutStartWrite(m: LiveMatch, params: { side: MatchSide; playerSlot: 1 | 2; playerName: string }): PointWrite | null {
+export function buildMedicalTimeoutStartWrite(m: LiveMatch, params: { side: MatchSide; playerSlot: MedicalTimeoutSlot; playerName: string }): PointWrite | null {
   if (m.status === 'completed' || m.status === 'canceled') return null;
   if (!canRequestMedicalTimeout({ usedKeys: m.medicalTimeoutPlayers, active: m.medicalTimeout, side: params.side, slot: params.playerSlot })) return null;
 

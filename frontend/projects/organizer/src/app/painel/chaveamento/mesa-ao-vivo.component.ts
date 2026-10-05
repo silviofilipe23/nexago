@@ -33,6 +33,9 @@ import {
   type LivePointEvent,
   type MatchDisplayStatus,
   type MatchSide,
+  type MedicalTimeoutSlot,
+  type RosterSizes,
+  withRosterSizes,
 } from '@nexago/live-scoring';
 import {
   effectiveScoringProfile,
@@ -47,7 +50,7 @@ import { isKingOfCourtMatchType, kocIsExpired, kocMatchPhaseLabel, kocRemainingL
 import { organizerFirestore } from '../data/firestore';
 import { organizerLiveScoringContext } from '../data/live-scoring-context';
 import { formatCourtLabel } from '../data/schedule-format';
-import { fetchProfileNames, fetchTeamsByIds } from '../data/teams-repository';
+import { fetchProfileNames, fetchTeamsByIds, teamMemberIds } from '../data/teams-repository';
 import { AuthService } from '../../auth/auth.service';
 import { saveBroadcastControl } from '../data/broadcast-control-repository';
 import { environment } from '../../../environments/environment';
@@ -81,10 +84,16 @@ interface FeedRowView {
   undo: boolean;
 }
 
+/** Posições do elenco (1..N) — individual só tem a 1; dupla, 1 e 2; equipe, até 5. */
+function rosterSlots(size: number): MedicalTimeoutSlot[] {
+  const n = Math.min(Math.max(Math.trunc(size), 1), 5);
+  return Array.from({ length: n }, (_, i) => (i + 1) as MedicalTimeoutSlot);
+}
+
 /** Um atleta no seletor do tempo médico: quem é, de que lado, e se a cota dele já foi usada. */
 interface MedicalOptionView {
   side: MatchSide;
-  slot: 1 | 2;
+  slot: MedicalTimeoutSlot;
   playerName: string;
   teamLabel: string;
   used: boolean;
@@ -1254,7 +1263,18 @@ export class MesaAoVivoComponent {
   /** Nomes dos DOIS atletas de cada dupla, na ordem de `player1Id`/`player2Id` — é essa ordem
    *  que o doc da partida usa pra dizer quem está sacando (ver `serving-player.ts`). O cache de
    *  rótulos do contexto só traz o nome da dupla inteira, então a mesa hidrata os atletas. */
-  private readonly playersByTeam = signal<ReadonlyMap<string, readonly [string, string]>>(new Map());
+  /** Nomes do elenco por equipe, na ordem de posição (1 = titular / player1). O tamanho da
+   *  lista é o elenco: 1 individual, 2 dupla, 3–5 equipe (multiesporte fase 4b2). */
+  private readonly playersByTeam = signal<ReadonlyMap<string, readonly string[]>>(new Map());
+  /** Atletas por lado — o que faz saque e tempo médico seguirem o elenco, não a regra da dupla. */
+  protected readonly rosterSizes = computed<RosterSizes>(() => {
+    const m = this.match();
+    const sizeOf = (teamId: string | undefined) => {
+      const n = teamId ? this.playersByTeam().get(teamId)?.length : undefined;
+      return n != null && n >= 1 && n <= 5 ? n : 2;
+    };
+    return { A: sizeOf(m?.teamAId), B: sizeOf(m?.teamBId) };
+  });
   private readonly hydratedTeams = new Set<string>();
 
   protected readonly medicalPickerOpen = signal(false);
@@ -1393,10 +1413,13 @@ export class MesaAoVivoComponent {
     try {
       const db = organizerFirestore();
       const teams = await fetchTeamsByIds(db, projectId, ids);
-      const names = await fetchProfileNames(db, [...teams.values()].flatMap((t) => [t.player1Id, t.player2Id]));
+      const names = await fetchProfileNames(db, [...teams.values()].flatMap((t) => teamMemberIds(t)));
       this.playersByTeam.update((current) => {
         const next = new Map(current);
-        for (const [teamId, team] of teams) next.set(teamId, [names.get(team.player1Id) ?? '', names.get(team.player2Id) ?? '']);
+        for (const [teamId, team] of teams) {
+          const members = teamMemberIds(team);
+          next.set(teamId, (members.length > 0 ? members : [team.player1Id, team.player2Id]).map((uid) => names.get(uid) ?? ''));
+        }
         return next;
       });
     } catch {
@@ -1408,7 +1431,7 @@ export class MesaAoVivoComponent {
   /** Nome do atleta pela POSIÇÃO na dupla (1 ou 2). Cai em "Atleta N" enquanto o join não
    *  chegou ou o perfil não tem nome — o que importa na mesa é a posição, que é o que o doc
    *  guarda. */
-  protected playerName(side: MatchSide, slot: 1 | 2): string {
+  protected playerName(side: MatchSide, slot: number): string {
     const m = this.match();
     const teamId = side === 'A' ? m?.teamAId : m?.teamBId;
     const pair = teamId ? this.playersByTeam().get(teamId) : undefined;
@@ -1422,20 +1445,21 @@ export class MesaAoVivoComponent {
   protected readonly serveBadge = computed(() => {
     const side = this.servingSide();
     const slot = this.servingPlayerSlot();
-    if (side == null || (slot !== 1 && slot !== 2)) return 'SAQUE';
+    if (side == null || slot < 1) return 'SAQUE';
     const first = this.playerName(side, slot).split(/\s+/)[0] ?? '';
     return first ? `SAQUE · ${first.toUpperCase()}` : 'SAQUE';
   });
 
   /** A faixa "Quem saca por…?" — mesma regra (`needsServingPlayer`) das outras duas mesas. */
-  protected readonly askingServingPlayer = computed<{ teamLabel: string; players: { slot: 1 | 2; playerName: string }[] } | null>(() => {
+  protected readonly askingServingPlayer = computed<{ teamLabel: string; players: { slot: MedicalTimeoutSlot; playerName: string }[] } | null>(() => {
     const m = this.match();
     const side = this.servingSide();
     if (!m || side == null) return null;
-    if (!needsServingPlayer({ servingTeamId: m.servingTeamId, servingPlayerSlot: m.servingPlayerSlot, status: m.status, teamAId: m.teamAId, teamBId: m.teamBId })) return null;
+    const roster = this.rosterSizes()[side];
+    if (!needsServingPlayer({ servingTeamId: m.servingTeamId, servingPlayerSlot: m.servingPlayerSlot, status: m.status, teamAId: m.teamAId, teamBId: m.teamBId, servingRosterSize: roster })) return null;
     return {
       teamLabel: this.sideLabel(side),
-      players: ([1, 2] as const).map((slot) => ({ slot, playerName: this.playerName(side, slot) })),
+      players: rosterSlots(roster).map((slot) => ({ slot, playerName: this.playerName(side, slot) })),
     };
   });
 
@@ -1444,7 +1468,7 @@ export class MesaAoVivoComponent {
     const m = this.match();
     if (!m) return [];
     return (['A', 'B'] as const).flatMap((side) =>
-      ([1, 2] as const).map((slot) => ({
+      rosterSlots(this.rosterSizes()[side]).map((slot) => ({
         side,
         slot,
         playerName: this.playerName(side, slot),
@@ -1606,7 +1630,7 @@ export class MesaAoVivoComponent {
     this.saving.set(true);
     this.feedback.set(null);
     try {
-      const written = await recordPointTransaction(this.scoring, { matchId: m.id, build: (fresh) => buildPointWrite(fresh, side) });
+      const written = await recordPointTransaction(this.scoring, { matchId: m.id, build: (fresh) => buildPointWrite(withRosterSizes(fresh, this.rosterSizes()), side) });
       const winnerId = written?.result.winnerId ?? null;
       if (winnerId != null) {
         this.feedback.set({ ok: true, message: `Partida encerrada — vitória de ${winnerId === m.teamAId ? this.teamALabel() : this.teamBLabel()}. A chave avança automaticamente.` });
@@ -1664,7 +1688,7 @@ export class MesaAoVivoComponent {
     if (!teamId) return;
     this.saving.set(true);
     try {
-      await updateMatchFields(this.scoring, m.id, servingTeamFields(m, teamId));
+      await updateMatchFields(this.scoring, m.id, servingTeamFields(withRosterSizes(m, this.rosterSizes()), teamId));
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao definir quem começa sacando.' });
     } finally {
@@ -1681,7 +1705,7 @@ export class MesaAoVivoComponent {
     if (!next) return;
     this.saving.set(true);
     try {
-      await updateMatchFields(this.scoring, m.id, servingTeamFields(m, next));
+      await updateMatchFields(this.scoring, m.id, servingTeamFields(withRosterSizes(m, this.rosterSizes()), next));
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao trocar o saque.' });
     } finally {
@@ -1691,13 +1715,13 @@ export class MesaAoVivoComponent {
 
   /** Declara qual atleta da dupla no saque vai à linha. Daí em diante o rodízio resolve sozinho
    *  a cada virada de saque — espelha `_chooseServingPlayer` da mesa do app. */
-  protected async chooseServingPlayer(slot: 1 | 2): Promise<void> {
+  protected async chooseServingPlayer(slot: MedicalTimeoutSlot): Promise<void> {
     const m = this.match();
     const side = this.servingSide();
     if (!m || side == null || this.saving() || m.status === 'completed') return;
     this.saving.set(true);
     try {
-      await updateMatchFields(this.scoring, m.id, servingPlayerFields(m, side, slot));
+      await updateMatchFields(this.scoring, m.id, servingPlayerFields(withRosterSizes(m, this.rosterSizes()), side, slot));
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao definir o sacador.' });
     } finally {

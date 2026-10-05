@@ -25,8 +25,8 @@ void main() {
     expect(item?.subtitle, 'Quadra 2');
   });
 
-  test('sem nome de quadra, subtítulo vazio (não "Vôlei de praia")', () {
+  test('sem nome de quadra, subtítulo genérico (nunca vazio, nunca "Vôlei de praia")', () {
     final item = mapBookingToAgendaItem(booking(), now: DateTime(2026, 10, 1));
-    expect(item?.subtitle, isNot(contains('Vôlei')));
+    expect(item?.subtitle, 'Locação de quadra');
   });
 }

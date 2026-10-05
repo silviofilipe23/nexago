@@ -40,7 +40,8 @@ class LiveTableTeamData {
   /// `TournamentMatchCardTeamViewModel.rosterSize`.
   final int rosterSize;
 
-  /// Nomes na ordem do elenco; só a individual e a equipe usam (a dupla segue player1/2).
+  /// Nomes na ordem do elenco (perfis) — vale para todo tamanho; player1/2 (rótulo
+  /// dividido) só quando o elenco não carregou.
   final List<String> rosterNames;
 
   /// As posições que a mesa pergunta no saque e no tempo médico: 1..elenco.

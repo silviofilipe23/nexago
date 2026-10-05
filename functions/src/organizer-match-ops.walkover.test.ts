@@ -36,7 +36,10 @@ describe("walkoverFields", () => {
       "servingPlayerSlots",
       "medicalTimeout",
     ]) {
-      assert.ok(patch[key] instanceof FieldValue, `${key} precisa ser apagado`);
+      assert.ok(
+        patch[key] instanceof FieldValue && (patch[key] as FieldValue).isEqual(FieldValue.delete()),
+        `${key} precisa ser apagado`,
+      );
     }
   });
 });

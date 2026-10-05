@@ -146,8 +146,11 @@ AthleteAgendaItem? mapBookingToAgendaItem(
     endsAt: end,
     title: item.arenaName.trim().isNotEmpty ? item.arenaName.trim() : 'Arena',
     // A reserva não guarda esporte — afirmar "Vôlei de praia" mentia nas
-    // quadras de beach tennis/tênis (multiesporte). Só a quadra.
-    subtitle: item.courtName?.trim() ?? '',
+    // quadras de beach tennis/tênis (multiesporte). Só a quadra; sem ela, um
+    // genérico — o card reserva a linha do subtítulo mesmo vazia.
+    subtitle: (item.courtName?.trim().isNotEmpty ?? false)
+        ? item.courtName!.trim()
+        : 'Locação de quadra',
     statusLabel: bookingStatusLabel(stage, start),
     accentColor: bookingStageColor(stage),
     rental: AthleteAgendaRentalPayload(

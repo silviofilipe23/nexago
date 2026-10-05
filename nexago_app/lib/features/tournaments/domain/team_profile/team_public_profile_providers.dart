@@ -87,6 +87,20 @@ final teamPublicProfileProvider = FutureProvider.autoDispose
   ];
 
   final ranking = await discoverRepo.rankingFor(id);
+  // Esporte do torneio da equipe para a capa; falha aqui não derruba o perfil.
+  String? tournamentSport;
+  final tournamentId = team.tournamentId?.trim() ?? '';
+  if (tournamentId.isNotEmpty) {
+    try {
+      final details = await ref
+          .read(tournamentsRepositoryProvider)
+          .getTournamentDetails({tournamentId});
+      final sport = details[tournamentId]?.sport.trim() ?? '';
+      if (sport.isNotEmpty) tournamentSport = sport;
+    } catch (_) {
+      tournamentSport = null;
+    }
+  }
   final isCurrentUserTeam = currentUid != null &&
       currentUid.isNotEmpty &&
       team.containsPlayer(currentUid);
@@ -96,6 +110,7 @@ final teamPublicProfileProvider = FutureProvider.autoDispose
     members: members,
     ranking: ranking,
     isCurrentUserTeam: isCurrentUserTeam,
+    tournamentSport: tournamentSport,
   );
 });
 

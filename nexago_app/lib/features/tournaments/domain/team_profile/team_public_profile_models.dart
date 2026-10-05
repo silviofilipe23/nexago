@@ -26,9 +26,15 @@ class TeamPublicProfile {
     this.members = const [],
     this.ranking = const TeamDiscoverRankingSnapshot(),
     this.isCurrentUserTeam = false,
+    this.tournamentSport,
   });
 
   final TournamentTeam team;
+
+  /// `sport` do torneio da equipe (`team.tournamentId`), cru como o doc grava.
+  /// Nulo quando a equipe não guarda o torneio (dupla legada) ou ele não
+  /// carregou — aí a capa cai no esporte do perfil do elenco.
+  final String? tournamentSport;
 
   /// Elenco inteiro, na ordem de `team.memberIds` — 1 na dupla à procura de
   /// parceiro, 2 na dupla formada, 3–5 nas equipes nomeadas.

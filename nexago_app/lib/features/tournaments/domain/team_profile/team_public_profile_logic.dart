@@ -6,6 +6,7 @@ import '../../../athlete/domain/athlete_firestore_codes.dart';
 import '../../../athlete/domain/athlete_profile.dart';
 import '../../../athlete/domain/athlete_public_profile_models.dart';
 import '../../../athlete/domain/sport_art_catalog.dart';
+import '../../../../core/sports/sport_catalog.dart';
 import '../tournament_match.dart';
 import '../tournament_match_display.dart';
 import '../tournament_match_status.dart';
@@ -61,7 +62,11 @@ String teamProfileSportLabel(AthleteProfile? player1, AthleteProfile? player2) {
 /// segura esporte sem arte de equipe: uma silhueta de corrida ainda diz mais
 /// do que um gradiente.
 String? teamProfileCoverArt(TeamPublicProfile profile) {
-  final code = teamProfileSportCode(profile.loadedProfiles);
+  // Esporte do TORNEIO da equipe primeiro (spec multiesporte, eixo 4): o perfil
+  // do atleta diz o esporte preferido dele, não o que a equipe joga.
+  final code =
+      SportCatalog.resolve(profile.tournamentSport)?.profileCode ??
+      teamProfileSportCode(profile.loadedProfiles);
   return TeamCoverArtCatalog.assetFor(
         firestoreCode: code,
         rosterSize: teamProfileRosterSize(profile),

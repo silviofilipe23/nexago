@@ -96,4 +96,19 @@ void main() {
       expect(team.isLargeRoster, isFalse);
     });
   });
+
+  test('lê o torneio em que a equipe nasceu (capa pelo esporte do torneio)', () {
+    final team = TournamentTeam.fromMap('t1', const {
+      'player1Id': 'u1',
+      'player2Id': '',
+      'memberUids': ['u1'],
+      'tournamentId': ' tour-9 ',
+    });
+    expect(team.tournamentId, 'tour-9');
+    expect(
+      TournamentTeam.fromMap('t2', const {'player1Id': 'a', 'player2Id': 'b'})
+          .tournamentId,
+      isNull,
+    );
+  });
 }

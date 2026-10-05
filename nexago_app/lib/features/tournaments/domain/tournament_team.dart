@@ -14,6 +14,7 @@ class TournamentTeam {
     this.memberUids = const [],
     this.teamSize,
     this.captainUid,
+    this.tournamentId,
     this.teamName,
     this.gender,
     this.registrationPaid = false,
@@ -31,6 +32,10 @@ class TournamentTeam {
   final int? teamSize;
 
   final String? captainUid;
+
+  /// Torneio em que a equipe nasceu — gravado nas equipes nomeadas e
+  /// individuais; dupla legada pode não ter (e atravessa vários torneios).
+  final String? tournamentId;
   final String? teamName;
   final String? gender;
 
@@ -103,6 +108,7 @@ class TournamentTeam {
       memberUids: _strList(data['memberUids']),
       teamSize: rawSize is num && rawSize >= 3 ? rawSize.toInt() : null,
       captainUid: _str(data['captainUid']),
+      tournamentId: _str(data['tournamentId']),
       teamName: _str(data['teamName']),
       gender: _str(data['gender']),
       registrationPaid: data['registrationPaid'] == true,

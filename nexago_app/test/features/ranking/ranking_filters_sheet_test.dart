@@ -42,6 +42,7 @@ void main() {
                     context: context,
                     initial: initial,
                     yearOptions: const [2026, 2025, 2024],
+                    sportCode: 'VOLEI_PRAIA',
                   );
                 },
                 child: const Text('abrir'),
@@ -70,6 +71,7 @@ void main() {
       initial: const RankingPageFilter(mode: RankingListMode.teams),
     );
 
+    expect(find.text('ESPORTE'), findsOneWidget);
     expect(find.text('TEMPORADA'), findsOneWidget);
     expect(find.text('GÊNERO'), findsOneWidget);
     expect(find.text('NÍVEL'), findsOneWidget);
@@ -93,6 +95,20 @@ void main() {
     expect(applied!.gender, RankingGenderFilter.mixed);
     expect(applied!.format, RankingFormatFilter.quarteto);
     expect(applied!.mode, RankingListMode.teams);
+  });
+
+  testWidgets('esporte: sem tocar segue o principal; escolher devolve o código',
+      (tester) async {
+    await pumpSheet(tester, initial: const RankingPageFilter());
+    await tester.tap(find.text('Aplicar filtros'));
+    await tester.pumpAndSettle();
+    expect(applied!.sport, isNull);
+
+    await pumpSheet(tester, initial: const RankingPageFilter());
+    await tapOption(tester, 'Beach tennis');
+    await tester.tap(find.text('Aplicar filtros'));
+    await tester.pumpAndSettle();
+    expect(applied!.sport, 'BEACH_TENNIS');
   });
 
   testWidgets('fechar sem aplicar devolve null', (tester) async {
@@ -129,6 +145,7 @@ void main() {
         gender: RankingGenderFilter.female,
         level: RankingLevelFilter.open,
         format: RankingFormatFilter.quinteto,
+        sport: 'FUTEVOLEI',
       ),
     );
 
@@ -141,6 +158,8 @@ void main() {
     expect(applied!.level, RankingLevelFilter.all);
     expect(applied!.format, RankingFormatFilter.all);
     expect(applied!.mode, RankingListMode.teams);
+    // Volta ao esporte principal, não a outro esporte fixo.
+    expect(applied!.sport, isNull);
   });
 
   testWidgets('em tela curta com fonte ampliada rola em vez de quebrar',

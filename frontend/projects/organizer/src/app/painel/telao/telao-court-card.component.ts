@@ -779,7 +779,7 @@ export class TelaoCourtCardComponent {
     return null;
   });
 
-  /** O ATLETA no saque — a partida grava a posição na dupla (1 ou 2) e o telão resolve o nome
+  /** O ATLETA no saque — a partida grava a posição no elenco (1–5) e o telão resolve o nome
    *  no elenco que já carregou pro rótulo, sem join novo. Primeiro nome só: na parede o que
    *  identifica é ele, e o sobrenome não cabe ao lado do nome da dupla. */
   protected readonly servingPlayerName = computed(() => {

@@ -501,7 +501,7 @@ export class TelaoFinalModeComponent {
   protected readonly setLabel = computed(() => liveSetHeadlineOf(this.current(), this.closedSets().length));
 
   /** "Saque" ou "Saque · Bruno" — na final o nome de quem saca cabe, e é o que a plateia
-   *  procura. A partida grava a POSIÇÃO na dupla; o elenco já está carregado pro rótulo. */
+   *  procura. A partida grava a POSIÇÃO no elenco (1–5); o elenco já está carregado pro rótulo. */
   protected readonly serveLabel = computed(() => {
     const side = this.serving();
     if (side == null) return 'Saque';

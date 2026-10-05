@@ -106,6 +106,16 @@ export function participantNoun(
   return `${article} ${word}`;
 }
 
+/**
+ * Cota por atleta dinâmica (restante ÷ pagadores que faltam) — vale para todo
+ * tamanho que não seja a dupla, cuja parcela fixa é a metade. Na individual a
+ * "cota" é a taxa inteira: o app antigo que paga "share" é cobrado e creditado
+ * pelo valor cheio e a inscrição fecha.
+ */
+export function usesDynamicShare(teamSize: number): boolean {
+  return teamSize !== DUPLA_TEAM_SIZE;
+}
+
 /** Categoria de equipe nomeada (trio+) — dupla segue o fluxo clássico. */
 export function isTeamCategory(
   category: Record<string, unknown> | null | undefined,

@@ -15,6 +15,7 @@ import {
   resolveTournamentRegistrationCredit,
   sharePaidUidsFromRegistration,
 } from "./tournament-registration-pix-helpers";
+import {computeTeamMemberShareReais, usesDynamicShare} from "./tournament-team-category";
 
 describe("tournament-registration-pix-helpers", () => {
   it("builds and parses external reference", () => {
@@ -201,5 +202,35 @@ describe("tournament-registration-pix-helpers", () => {
       {player1Id: "p1", player2Id: ""},
     );
     assert.deepEqual(uids, ["p1"]);
+  });
+});
+
+describe("categoria individual paga a taxa inteira (fase 4a)", () => {
+  it("inscrição gratuita/declarada fecha com 1 atleta quando o tamanho é 1", () => {
+    assert.equal(isFreeRegistrationFullyConfirmed(["a"], ["a"], 1), true);
+    assert.equal(isFreeRegistrationFullyConfirmed(["a"], [], 1), false);
+    // Sem tamanho informado continua dupla.
+    assert.equal(isFreeRegistrationFullyConfirmed(["a"], ["a"]), false);
+  });
+
+  it("cota dinâmica vale para todo tamanho diferente de 2", () => {
+    assert.equal(usesDynamicShare(1), true);
+    assert.equal(usesDynamicShare(2), false);
+    assert.equal(usesDynamicShare(3), true);
+  });
+
+  it("cota da individual = taxa inteira, e o crédito dela confirma a inscrição", () => {
+    assert.equal(
+      computeTeamMemberShareReais({entryFee: 120, paidAmount: 0, confirmedCount: 0, teamSize: 1}),
+      120,
+    );
+    const credit = resolveTournamentRegistrationCredit({
+      entryFee: 120,
+      amountType: "share",
+      currentPaidAmount: 0,
+      shareCreditReais: 120,
+    });
+    assert.equal(credit.isPaid, true);
+    assert.equal(credit.newPaidAmount, 120);
   });
 });

@@ -3,7 +3,7 @@ import { environment } from '../../../environments/environment';
 import { organizerFirestore } from '../data/firestore';
 import { watchMatches, type TournamentMatch } from '../data/matches-repository';
 import { initialsOf } from '../data/mock-data';
-import { fetchProfileDisplays, fetchTeamsByIds, type OrganizerTeamPlayers, type ProfileDisplay } from '../data/teams-repository';
+import { fetchProfileDisplays, fetchTeamsByIds, teamMemberIds, type OrganizerTeamPlayers, type ProfileDisplay } from '../data/teams-repository';
 import { watchTournament } from '../data/tournaments-repository';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { nextFinishMemoryOf, type MatchFinishMemory } from './telao-finished';
@@ -17,19 +17,21 @@ export interface TelaoTeamDisplay {
   short: string;
   sub: string | null;
   players: { initials: string; photoUrl: string | null }[];
-  /** Nomes na ORDEM DOS SLOTS da dupla (`player1Id`, `player2Id`) — é por essa posição que a
-   *  partida grava quem está sacando e quem está em atendimento médico, então o telão precisa
-   *  dela indexável, não só na sublinha. Vazio no slot sem perfil resolvido. */
-  playerNames: [string, string];
+  /** Nomes na ORDEM DOS SLOTS do elenco (`memberUids`; dupla legada: `player1Id`, `player2Id`)
+   *  — é por essa posição (1–5) que a partida grava quem está sacando e quem está em
+   *  atendimento médico, então o telão precisa dela indexável, não só na sublinha. Vazio no slot
+   *  sem perfil resolvido. */
+  playerNames: string[];
 }
 
 /** Enquanto `teams`/`public_profiles` não respondem, o card usa a descrição do slot
  *  ("Vencedor Jogo #1") ou "A definir" que veio no doc da partida. */
 export function fallbackTeamDisplay(label: string): TelaoTeamDisplay {
-  return { label, short: teamShortLabel(label), sub: null, players: [], playerNames: ['', ''] };
+  return { label, short: teamShortLabel(label), sub: null, players: [], playerNames: [] };
 }
 
-function buildTeamDisplay(team: OrganizerTeamPlayers, profiles: ReadonlyMap<string, ProfileDisplay>): TelaoTeamDisplay | null {
+/** Exportado para teste. */
+export function buildTeamDisplay(team: OrganizerTeamPlayers, profiles: ReadonlyMap<string, ProfileDisplay>): TelaoTeamDisplay | null {
   const p1 = team.player1Id ? profiles.get(team.player1Id) : undefined;
   const p2 = team.player2Id && team.player2Id !== team.player1Id ? profiles.get(team.player2Id) : undefined;
   const names = [p1?.name, p2?.name].filter((n): n is string => !!n);
@@ -40,7 +42,7 @@ function buildTeamDisplay(team: OrganizerTeamPlayers, profiles: ReadonlyMap<stri
     short: teamShortLabel(label),
     sub: names.length > 0 ? names.join(' · ') : null,
     players: [p1, p2].filter((p): p is ProfileDisplay => !!p).map((p) => ({ initials: initialsOf(p.name), photoUrl: p.photoUrl })),
-    playerNames: [p1?.name ?? '', p2?.name ?? ''],
+    playerNames: teamMemberIds(team).map((uid) => profiles.get(uid)?.name ?? ''),
   };
 }
 
@@ -132,7 +134,8 @@ export class TelaoDataService {
       const projectId = environment.firebase.projectId;
       if (!projectId) return;
       const teams = await fetchTeamsByIds(db, projectId, ids);
-      const playerIds = [...teams.values()].flatMap((t) => [t.player1Id, t.player2Id]).filter((x) => x.length > 0);
+      // Elenco inteiro (trio+ grava só os dois primeiros em player1/player2).
+      const playerIds = [...teams.values()].flatMap((t) => [t.player1Id, t.player2Id, ...teamMemberIds(t)]).filter((x) => x.length > 0);
       const profiles = await fetchProfileDisplays(db, playerIds);
       if (generation !== this.generation) return;
       this.teams.update((current) => {

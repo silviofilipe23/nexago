@@ -41,6 +41,7 @@ export {
   NO_SERVING_PLAYER_SLOTS,
   needsServingPlayer,
   rosterSizeFromMemberUids,
+  servingPlayerSlotFromRaw,
   servingPlayerSlotOf,
   servingPlayerSlotsAfterScore,
   servingPlayerSlotsAfterUndo,

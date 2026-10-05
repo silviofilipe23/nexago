@@ -8,6 +8,7 @@ import { TelaoChampionsComponent } from './telao-champions.component';
 import type { TelaoTeamDisplay } from './telao-data.service';
 import { liveSetHeadlineOf, pointAlertOf, type FinalKind } from './telao-final-mode';
 import { fireLevelOf } from './telao-streaks';
+import { servingPlayerFirstName } from './telao-selectors';
 
 const ORDINAL = ['1º', '2º', '3º', '4º', '5º'];
 
@@ -503,11 +504,9 @@ export class TelaoFinalModeComponent {
    *  procura. A partida grava a POSIÇÃO na dupla; o elenco já está carregado pro rótulo. */
   protected readonly serveLabel = computed(() => {
     const side = this.serving();
-    const slot = this.match().servingPlayerSlot;
-    if (side == null || (slot !== 1 && slot !== 2)) return 'Saque';
+    if (side == null) return 'Saque';
     const team = side === 'A' ? this.teamA() : this.teamB();
-    const name = team?.playerNames[slot - 1]?.trim() ?? '';
-    const first = name ? (name.split(/\s+/)[0] ?? '') : '';
+    const first = servingPlayerFirstName(team?.playerNames ?? [], this.match().servingPlayerSlot);
     return first ? `Saque · ${first}` : 'Saque';
   });
 

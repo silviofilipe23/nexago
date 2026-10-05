@@ -4,6 +4,7 @@ import 'package:nexago_app/core/profiles/users_repository.dart';
 import '../domain/tournament_match.dart';
 import '../domain/tournament_match_card_players.dart';
 import '../domain/tournament_match_card_view_model.dart';
+import '../domain/tournament_match_serving_players.dart';
 import '../domain/tournament_team.dart';
 import 'tournament_teams_repository.dart';
 
@@ -33,6 +34,8 @@ class TournamentMatchEnrichmentService {
     for (final team in teams.values) {
       if (team.player1Id.isNotEmpty) userIds.add(team.player1Id);
       if (team.player2Id.isNotEmpty) userIds.add(team.player2Id);
+      // Equipe (3–5): a mesa nomeia o elenco inteiro, não só o espelho player1/player2.
+      userIds.addAll(team.memberIds);
     }
 
     final profiles = await _usersRepository.getUsersByIds(userIds);
@@ -166,6 +169,11 @@ class TournamentMatchEnrichmentService {
         return TournamentMatchCardTeamViewModel(
           displayName: label,
           players: playersFromTeam(team, profiles),
+          rosterSize: rosterSizeFromMemberUids(team.memberUids),
+          rosterNames: [
+            for (final uid in team.memberIds)
+              playerDisplayNameFor(profiles[uid], uid),
+          ],
         );
       }
     }

@@ -3,11 +3,13 @@ import {
   matchBestOf,
   matchIsCanceled,
   matchIsCompleted,
+  matchScoringProfile,
   setTargetPointsOf,
   MIN_ADVANTAGE,
   type MatchSet,
   type TournamentMatch,
 } from '../../data/matches-repository';
+import { isSuperTiebreakSet, type ScoringProfile, type SetsGamesProfile } from '@nexago/sports';
 import { ordinalOf } from '../tournament-format';
 import { isPending } from '../tournament-live.selectors';
 
@@ -46,7 +48,8 @@ export interface RoundScenario {
  * (`x` bate `y` 21-19/9-21/15-5) derrubava a garantia em ~4% dos grupos simulados; o mesmo
  * defeito, sem essa conta, reaparece em MD5 com uma faixa ainda mais larga de saldo de pontos.
  */
-export function winBoundsOf(bestOf: number): readonly MatchSet[][] {
+export function winBoundsOf(bestOf: number, profile?: ScoringProfile): readonly MatchSet[][] {
+  if (profile?.kind === 'sets_games') return gamesWinBoundsOf(Math.min(bestOf, 5), profile);
   // `bestOf` chega cru do documento do Firestore (`matchBestOf` só cai pro padrão com valores <=
   // 0 — nada trava o topo). Um documento malformado ou editado à mão com um número gigante
   // alocaria arrays proporcionais a ele e travaria a aba; trava no maior formato que o app
@@ -82,8 +85,41 @@ export function winBoundsOf(bestOf: number): readonly MatchSet[][] {
   return [widest, narrowest];
 }
 
+/** Mesmos dois extremos de `winBoundsOf`, em partida de games (desempate: vitórias → saldo de
+ *  sets → saldo de games). O mais largo é vencer todos os sets necessários por "pneu" (6-0); o
+ *  mais estreito perde os sets que não decidem por 0-6 e vence os que precisa pela margem mínima
+ *  de games: 7-6 com tie-break, o super tie-break (1-0, o set conta 1 game) ou, sem tie-break,
+ *  `gamesPerSet` × `gamesPerSet − winByGames`. */
+function gamesWinBoundsOf(bestOf: number, p: SetsGamesProfile): readonly MatchSet[][] {
+  const setsToWin = Math.ceil(bestOf / 2);
+  const setsToLose = setsToWin - 1;
+  const totalSets = setsToWin + setsToLose;
+  const deciderIndex = totalSets - 1;
+  const profile: SetsGamesProfile = { ...p, bestOf };
+
+  const widest: MatchSet[] = [];
+  for (let i = 0; i < setsToWin; i++) widest.push({ a: p.gamesPerSet, b: 0 });
+
+  const narrowestWin = (i: number): MatchSet => {
+    if (isSuperTiebreakSet(profile, i)) return { a: 1, b: 0, tb: { a: p.superTiebreakTo, b: p.superTiebreakTo - 2 } };
+    if (p.tiebreakAtGames !== null) return { a: p.tiebreakAtGames + 1, b: p.tiebreakAtGames, tb: { a: p.tiebreakTo, b: p.tiebreakTo - 2 } };
+    return { a: p.gamesPerSet, b: p.gamesPerSet - p.winByGames };
+  };
+  const narrowest: MatchSet[] = [];
+  let remainingLosses = setsToLose;
+  for (let i = 0; i < totalSets; i++) {
+    if (i !== deciderIndex && remainingLosses > 0) {
+      narrowest.push({ a: 0, b: p.gamesPerSet });
+      remainingLosses--;
+    } else {
+      narrowest.push(narrowestWin(i));
+    }
+  }
+  return [widest, narrowest];
+}
+
 function mirror(sets: readonly MatchSet[]): MatchSet[] {
-  return sets.map((s) => ({ a: s.b, b: s.a }));
+  return sets.map((s) => ({ a: s.b, b: s.a, ...(s.tb ? { tb: { a: s.tb.b, b: s.tb.a } } : {}) }));
 }
 
 /** Aplica um resultado hipotético à partida do atleta, preservando de que lado ele joga. */
@@ -149,7 +185,7 @@ export function roundScenariosOf(
     // Só os dois EXTREMOS de winBoundsOf, derivados do bestOf desta partida — a monotonicidade
     // do desempate garante que, se ambos derem a mesma posição, todo placar legal no meio
     // também dá (ver doc da função).
-    const ranks = winBoundsOf(matchBestOf(mine)).map((bound) => {
+    const ranks = winBoundsOf(matchBestOf(mine), matchScoringProfile(mine)).map((bound) => {
       const oriented = iWin ? bound : mirror(bound);
       // Substitui em vez de remover-e-reanexar: `buildGroupStandings` semeia seu mapa na ordem
       // de iteração das partidas e o `sort` é estável, então a ordem de inserção é o desempate

@@ -82,11 +82,11 @@
         <dd>{{ numbers().setsWon }}–{{ numbers().setsLost }}</dd>
       </div>
       <div class="jr-stat">
-        <dt>Pontos</dt>
+        <dt>{{ numbers().unit === 'games' ? 'Games' : 'Pontos' }}</dt>
         <dd>{{ numbers().points }}</dd>
       </div>
       <div class="jr-stat">
-        <dt>Pontos por set</dt>
+        <dt>{{ numbers().unit === 'games' ? 'Games por set' : 'Pontos por set' }}</dt>
         <dd>{{ numbers().pointsPerSet }}</dd>
       </div>
       <div class="jr-stat">
@@ -96,7 +96,11 @@
     </dl>
 
     @if (numbers().sets.length > 0) {
-      <div class="jr-bars" role="img" aria-label="Pontos por set, você contra o adversário, em cada partida encerrada">
+      <div
+        class="jr-bars"
+        role="img"
+        [attr.aria-label]="(numbers().unit === 'games' ? 'Games' : 'Pontos') + ' por set, você contra o adversário, em cada partida encerrada'"
+      >
         @for (bar of numbers().sets; track bar.label) {
           <div class="jr-bar-group">
             <div class="jr-bar-pair">

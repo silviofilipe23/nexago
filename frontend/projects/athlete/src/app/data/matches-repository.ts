@@ -1,10 +1,12 @@
 import {
   effectiveScoringProfile,
   gamesPointLabels,
+  isSuperTiebreakSet,
   isTiebreakInProgress,
   legacyScoringProfile,
   scoringProfileFromRaw,
   setPointsTarget,
+  setScoreText,
   setWinnerSide,
   type ScoringProfile,
 } from '@nexago/sports';
@@ -270,6 +272,10 @@ type MatchScoreFields = Pick<
 >;
 
 /** Perfil efetivo: o carimbo com o nº de sets do doc; sem carimbo, a regra histórica. */
+export function matchScoringProfile(m: Pick<TournamentMatch, 'scoringProfile' | 'bestOf'>): ScoringProfile {
+  return profileOf(m);
+}
+
 function profileOf(m: Pick<TournamentMatch, 'scoringProfile' | 'bestOf'>): ScoringProfile {
   return effectiveScoringProfile(m.scoringProfile, matchBestOf(m));
 }
@@ -316,6 +322,9 @@ export interface MatchLiveSetScore {
   game?: { a: string; b: string };
   /** Partida de games: o set corrente está num tie-break (normal ou super). */
   tiebreak?: boolean;
+  /** Partida de games: o set corrente é o super tie-break — o set fica 0-0 e os pontos correm
+   *  em `game`. Ausente fora dele. */
+  superTiebreak?: boolean;
 }
 
 /** Pontos do set em andamento de uma partida ao vivo, unificando os dois escritores:
@@ -333,7 +342,8 @@ export function matchLiveCurrentSet(m: MatchScoreFields): MatchLiveSetScore | nu
       const score: MatchLiveSetScore = { setNumber: matchClosedSets(m).length + 1, a: s.a, b: s.b };
       if (profile.kind !== 'sets_games') return score;
       const state = { sets: m.sets, currentSetIndex: idx, currentGame: m.currentGame ?? { a: 0, b: 0 }, servingTeamId: '' };
-      return { ...score, game: gamesPointLabels(state, profile), tiebreak: isTiebreakInProgress(state, profile) };
+      const live: MatchLiveSetScore = { ...score, game: gamesPointLabels(state, profile), tiebreak: isTiebreakInProgress(state, profile) };
+      return isSuperTiebreakSet(profile, idx) ? { ...live, superTiebreak: true } : live;
     }
     // Sem set aberto dentro de sets[] (todos fechados) — o corrente, se houver, está no
     // agregado `liveScore` (fluxo do lançamento rápido: sets fechados + currentGames).
@@ -581,4 +591,28 @@ export function buildGroupStandings(matches: readonly TournamentMatch[], categor
 
 export function distinctPoolIds(matches: readonly TournamentMatch[]): string[] {
   return [...new Set(matches.filter((m) => m.poolId).map((m) => m.poolId))].sort();
+}
+
+/** Sets fechados como texto: "21-15", "6-4", "7-6 (7-4)"; o super tie-break mostra os pontos
+ *  dele ("10-8"), não o 1×0 gravado. */
+export function matchClosedSetTexts(m: Pick<TournamentMatch, 'sets' | 'resultA' | 'resultB' | 'liveScore' | 'status' | 'bestOf' | 'currentSetIndex' | 'scoringProfile' | 'currentGame'>): string[] {
+  const profile = profileOf(m);
+  return matchClosedSets(m).map((s, i) => setScoreText(profile, i, s));
+}
+
+/** Set fechado em números de exibição: o super tie-break entra com os pontos dele. */
+export function displaySetScoreOf(m: Pick<TournamentMatch, 'scoringProfile' | 'bestOf'>, index: number, s: MatchSet): { a: number; b: number } {
+  const profile = profileOf(m);
+  return profile.kind === 'sets_games' && s.tb && isSuperTiebreakSet(profile, index) ? { a: s.tb.a, b: s.tb.b } : { a: s.a, b: s.b };
+}
+
+/** Sets fechados em números de exibição (o super tie-break com os pontos dele). */
+export function matchClosedDisplaySets(m: Pick<TournamentMatch, 'sets' | 'resultA' | 'resultB' | 'liveScore' | 'status' | 'bestOf' | 'currentSetIndex' | 'scoringProfile' | 'currentGame'>): { a: number; b: number }[] {
+  return matchClosedSets(m).map((s, i) => displaySetScoreOf(m, i, s));
+}
+
+/** Texto de um set fechado na ótica de um lado ("6-7 (5-7)" visto por B vira "7-6 (7-5)"). */
+export function setTextForSide(m: Pick<TournamentMatch, 'scoringProfile' | 'bestOf'>, index: number, s: MatchSet, side: 'A' | 'B'): string {
+  const mine: MatchSet = side === 'A' ? s : { a: s.b, b: s.a, ...(s.tb ? { tb: { a: s.tb.b, b: s.tb.a } } : {}) };
+  return setScoreText(profileOf(m), index, mine);
 }

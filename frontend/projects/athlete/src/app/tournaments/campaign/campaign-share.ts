@@ -1,4 +1,4 @@
-import { matchClosedSets, matchIsCompleted, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
+import { matchClosedSets, matchIsCompleted, matchSetWins, setTextForSide, type TournamentMatch } from '../../data/matches-repository';
 import { isFinalMatchTypeOf, knockoutRounds, tournamentNumbersOf } from '../focus/focus-journey';
 import { byScheduleTime, groupLabelOf, knockoutLabelOf, outcomeOf, roundDisplayNumberOf, sideOf } from '../tournament-live.selectors';
 
@@ -156,7 +156,7 @@ export function campaignRowsOf(
         phaseLabel: campaignPhaseLabelOf(categoryMatches, m, knockoutRoundsOfCategory),
         opponentName: duoNameOf(opponentId, opponentDescription),
         setScore: `${mySets}–${theirSets}`,
-        partials: matchClosedSets(m).map((s) => (side === 'A' ? `${s.a}-${s.b}` : `${s.b}-${s.a}`)),
+        partials: matchClosedSets(m).map((s, i) => setTextForSide(m, i, s, side)),
       };
     });
 }

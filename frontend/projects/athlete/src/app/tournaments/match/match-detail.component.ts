@@ -8,7 +8,7 @@ import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
 import { matchIsCompleted, matchIsLive, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
 import { knockoutRounds } from '../focus/focus-journey';
-import { bestOfLabelOf, courtLabelOf, currentSetNumberOf, elapsedLabelOf, matchNumberLabelOf, ordinalOf, timeLabelOf } from '../tournament-format';
+import { bestOfLabelOf, courtLabelOf, currentSetNumberOf, elapsedLabelOf, inProgressCaptionOf, matchNumberLabelOf, ordinalOf, timeLabelOf } from '../tournament-format';
 import {
   campaignOf,
   displaySetsOf,
@@ -56,6 +56,8 @@ export interface SetRowView {
   a: number;
   b: number;
   inProgress: boolean;
+  /** Legenda do chip do set em andamento: "agora" ou, em games, "agora · 40-15". */
+  liveCaption: string;
   /** "Você venceu" / "Adversário venceu" / "Marcelo & Enzo venceu". */
   label: string;
   /** Proporção do set para a barra, 0–100 do ponto de vista do lado A. */
@@ -255,7 +257,8 @@ export class MatchDetailComponent {
       a: s.a,
       b: s.b,
       inProgress: s.inProgress,
-      label: s.inProgress ? 'Em andamento' : mySide != null ? (iWon ? 'Você venceu' : 'Adversário venceu') : `${winnerName} venceu`,
+      liveCaption: inProgressCaptionOf(s, 'agora'),
+      label: s.inProgress ? inProgressCaptionOf(s, 'Em andamento') : mySide != null ? (iWon ? 'Você venceu' : 'Adversário venceu') : `${winnerName} venceu`,
       sharePercent: total > 0 ? Math.round((s.a / total) * 100) : 50,
       tone: s.inProgress ? 'live' : aWon ? 'a' : 'b',
     };

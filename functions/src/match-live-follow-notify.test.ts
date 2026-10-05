@@ -644,3 +644,163 @@ test("tópico de id sujo é o id saneado mais o hash do original", () => {
   assert.equal(matchLiveTopics("a/b").android, "match-a_b.g8wk3l-android");
   assert.equal(matchLiveTopics("a b").ios, "match-a_b.4m7u2a-ios");
 });
+
+// --- Partida de games (spec multiesporte, 2c3b) ------------------------------
+
+const BT = {kind: "sets_games", bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: true, decidingSet: "super_tiebreak", superTiebreakTo: 10};
+const TENNIS = {...BT, noAd: false, decidingSet: "full"};
+
+function games(over: Partial<LiveMatchSnapshot> = {}): LiveMatchSnapshot {
+  return snap({scoringProfile: BT, ...over});
+}
+
+function contextOf(snapshot: LiveMatchSnapshot) {
+  const decision = resolveLiveUpdate(snap({status: MatchStatus.inProgress, sets: [{a: 9, b: 9}]}), snapshot, sidecar(), NOW);
+  return buildMatchLiveContext({
+    matchId: "m1",
+    tournamentId: "t1",
+    teamALabel: "Ana / Bia",
+    teamBLabel: "Carla / Dani",
+    courtName: "Quadra 3",
+    snapshot,
+    decision,
+    updatedAtMs: NOW,
+  });
+}
+
+test("games: ponto dentro do game muda a assinatura; em pontos, currentGame não entra", () => {
+  const a = games({sets: [{a: 2, b: 1}], currentGame: {a: 1, b: 0}});
+  const b = games({sets: [{a: 2, b: 1}], currentGame: {a: 2, b: 0}});
+  assert.notEqual(liveScoreSignature(a), liveScoreSignature(b));
+  const p = snap({sets: [{a: 10, b: 8}], currentGame: {a: 1, b: 0}});
+  const q = snap({sets: [{a: 10, b: 8}], currentGame: {a: 2, b: 0}});
+  assert.equal(liveScoreSignature(p), liveScoreSignature(q));
+  assert.equal(liveScoreSignature(p), liveScoreSignature(snap({sets: [{a: 10, b: 8}]})));
+});
+
+test("games: 5-4 de 30-30 para 40-30 entra em set point", () => {
+  const d = resolveLiveUpdate(
+    games({sets: [{a: 5, b: 4}], currentGame: {a: 2, b: 2}}),
+    games({sets: [{a: 5, b: 4}], currentGame: {a: 3, b: 2}}),
+    pushedAgo(1_000),
+    NOW,
+  );
+  assert.equal(d.kind, "matchPoint");
+  assert.deepEqual(d.pointAlert, {side: "A", closesMatch: false});
+});
+
+test("games sem vantagem em 40-40: só quem fecha o set é alertado", () => {
+  const d = resolveLiveUpdate(
+    games({sets: [{a: 5, b: 4}], currentGame: {a: 3, b: 2}}),
+    games({sets: [{a: 5, b: 4}], currentGame: {a: 3, b: 3}}),
+    pushedAgo(1_000),
+    NOW,
+  );
+  assert.deepEqual(d.pointAlert ?? null, null);
+  const fresh = resolveLiveUpdate(
+    games({sets: [{a: 5, b: 4}], currentGame: {a: 2, b: 3}}),
+    games({sets: [{a: 5, b: 4}], currentGame: {a: 3, b: 3}}),
+    pushedAgo(1_000),
+    NOW,
+  );
+  assert.deepEqual(fresh.pointAlert, {side: "A", closesMatch: false});
+});
+
+test("games: 6-4 fecha o set; 5-4 não", () => {
+  const closed = resolveLiveUpdate(
+    games({sets: [{a: 5, b: 4}], currentGame: {a: 3, b: 0}}),
+    games({sets: [{a: 6, b: 4}], currentSetIndex: 1, currentGame: {a: 0, b: 0}}),
+    pushedAgo(60_000),
+    NOW,
+  );
+  assert.equal(closed.kind, "set");
+  const open = resolveLiveUpdate(
+    games({sets: [{a: 4, b: 4}], currentGame: {a: 3, b: 0}}),
+    games({sets: [{a: 5, b: 4}], currentGame: {a: 0, b: 0}}),
+    pushedAgo(60_000),
+    NOW,
+  );
+  assert.notEqual(open.kind, "set");
+});
+
+test("games: linhas da notificação com o ponto do game, tie-break e super tie-break", () => {
+  const normal = contextOf(games({sets: [{a: 6, b: 4}, {a: 5, b: 4}], currentSetIndex: 1, currentGame: {a: 3, b: 1}}));
+  assert.equal(normal.scoreLine, "5 x 4 · 40-15");
+  assert.equal(normal.setsLine, "1 x 0");
+  assert.equal(normal.statusLabel, "Set 2");
+  const tb = contextOf(games({sets: [{a: 6, b: 6}], currentSetIndex: 0, currentGame: {a: 4, b: 2}}));
+  assert.equal(tb.scoreLine, "6 x 6 · 4-2");
+  assert.equal(tb.statusLabel, "Tie-break");
+  const stb = contextOf(games({sets: [{a: 6, b: 4}, {a: 3, b: 6}, {a: 0, b: 0}], currentSetIndex: 2, currentGame: {a: 9, b: 8}}));
+  assert.equal(stb.scoreLine, "9 x 8");
+  assert.equal(stb.setsLine, "1 x 1");
+  assert.equal(stb.statusLabel, "Super tie-break");
+});
+
+test("games: super tie-break 8-8 → 9-8 entra em match point", () => {
+  const sets = [{a: 6, b: 4}, {a: 3, b: 6}, {a: 0, b: 0}];
+  const d = resolveLiveUpdate(
+    games({sets, currentSetIndex: 2, currentGame: {a: 8, b: 8}}),
+    games({sets, currentSetIndex: 2, currentGame: {a: 9, b: 8}}),
+    pushedAgo(1_000),
+    NOW,
+  );
+  assert.equal(d.kind, "matchPoint");
+  assert.deepEqual(d.pointAlert, {side: "A", closesMatch: true});
+});
+
+test("games com vantagem: AD no 3º set completo é match point", () => {
+  const d = resolveLiveUpdate(
+    snap({scoringProfile: TENNIS, sets: [{a: 6, b: 4}, {a: 3, b: 6}, {a: 6, b: 5}], currentSetIndex: 2, currentGame: {a: 3, b: 3}}),
+    snap({scoringProfile: TENNIS, sets: [{a: 6, b: 4}, {a: 3, b: 6}, {a: 6, b: 5}], currentSetIndex: 2, currentGame: {a: 4, b: 3}}),
+    pushedAgo(1_000),
+    NOW,
+  );
+  assert.deepEqual(d.pointAlert, {side: "A", closesMatch: true});
+});
+
+test("snapshotFromMatchData lê o perfil, o game em andamento e o tie-break", () => {
+  const s = snapshotFromMatchData({status: "In Progress", scoringProfile: BT, currentGame: {a: 2, b: 1}, sets: [{a: 7, b: 6, tb: {a: 7, b: 4}}], bestOf: 3});
+  assert.deepEqual(s.currentGame, {a: 2, b: 1});
+  assert.deepEqual(s.sets, [{a: 7, b: 6, tb: {a: 7, b: 4}}]);
+  assert.deepEqual(s.scoringProfile, BT);
+});
+
+test("games pelo placar agregado (lançamento rápido): sem ponto de game inventado, tie-break em 6-6", () => {
+  const snapshot = games({sets: [], currentSetIndex: null, liveScore: live(0, 0, 6, 6)});
+  const c = contextOf(snapshot);
+  assert.equal(c.scoreLine, "6 x 6");
+  assert.equal(c.statusLabel, "Tie-break");
+  const d = resolveLiveUpdate(games({sets: [], liveScore: live(0, 0, 5, 6)}), snapshot, pushedAgo(1_000), NOW);
+  assert.equal(d.pointAlert, null);
+});
+
+test("games com sets mas sem currentGame no doc: sem sufixo e sem alerta", () => {
+  const snapshot = games({sets: [{a: 5, b: 4}], currentSetIndex: 0});
+  assert.equal(contextOf(snapshot).scoreLine, "5 x 4");
+  const d = resolveLiveUpdate(games({sets: [{a: 4, b: 4}], currentSetIndex: 0}), snapshot, pushedAgo(1_000), NOW);
+  assert.equal(d.pointAlert, null);
+});
+
+test("games: fim de partida no super tie-break vira end com os sets pela regra", () => {
+  const sets = [{a: 6, b: 4}, {a: 3, b: 6}];
+  const d = resolveLiveUpdate(
+    games({sets: [...sets, {a: 0, b: 0}], currentSetIndex: 2, currentGame: {a: 9, b: 8}}),
+    games({status: MatchStatus.completed, sets: [...sets, {a: 1, b: 0, tb: {a: 10, b: 8}}], currentSetIndex: 2, currentGame: {a: 0, b: 0}}),
+    pushedAgo(1_000),
+    NOW,
+  );
+  assert.equal(d.kind, "end");
+  const c = buildMatchLiveContext({
+    matchId: "m1",
+    tournamentId: "t1",
+    teamALabel: "Ana / Bia",
+    teamBLabel: "Carla / Dani",
+    courtName: "Quadra 3",
+    snapshot: games({status: MatchStatus.completed, sets: [...sets, {a: 1, b: 0, tb: {a: 10, b: 8}}], currentSetIndex: 2, currentGame: {a: 0, b: 0}}),
+    decision: d,
+    updatedAtMs: NOW,
+  });
+  assert.equal(c.setsLine, "2 x 1");
+  assert.equal(c.statusLabel, "Encerrada");
+});

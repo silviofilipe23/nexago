@@ -7,6 +7,7 @@ import {
 } from './koc';
 import { collection, doc, getDocs, onSnapshot, query, where, type Unsubscribe } from 'firebase/firestore';
 import { medicalTimeoutFromRaw, statusOf, type MatchDisplayStatus, type MedicalTimeout } from '@nexago/live-scoring';
+import { scoringProfileFromRaw, type ScoringProfile } from '@nexago/sports';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from './firestore';
 import { fetchTeamNames } from './teams-repository';
@@ -52,7 +53,9 @@ export interface TournamentMatch {
    *  slot ainda não decidido), sets numéricos, quadra por id e fim do slot agendado. */
   teamAId: string;
   teamBId: string;
-  sets: Array<{ a: number; b: number }>;
+  sets: Array<{ a: number; b: number; tb?: { a: number; b: number } }>;
+  /** Perfil de placar carimbado; `null`/ausente em partida antiga (vale a regra histórica). */
+  scoringProfile?: ScoringProfile | null;
   courtId: string;
   scheduleEndAt: Date | null;
   /** Dia da JORNADA a que a partida pertence, como o servidor gravou — não é o dia de
@@ -125,6 +128,7 @@ function optionalStr(v: unknown): string | null {
 interface RawSet {
   a: number;
   b: number;
+  tb?: { a: number; b: number };
 }
 
 function intOf(v: unknown): number | null {
@@ -150,7 +154,12 @@ function setsFromRaw(raw: unknown): RawSet[] {
       const o = s as Record<string, unknown>;
       const a = typeof o['a'] === 'number' ? o['a'] : null;
       const b = typeof o['b'] === 'number' ? o['b'] : null;
-      return a == null || b == null ? null : { a, b };
+      if (a == null || b == null) return null;
+      const tbRaw = o['tb'] as Record<string, unknown> | null | undefined;
+      const tb = tbRaw && typeof tbRaw === 'object' && typeof tbRaw['a'] === 'number' && typeof tbRaw['b'] === 'number'
+        ? { a: tbRaw['a'], b: tbRaw['b'] }
+        : null;
+      return tb ? { a, b, tb } : { a, b };
     })
     .filter((s): s is RawSet => s != null);
 }
@@ -256,6 +265,7 @@ export interface RawMatch {
   koc?: KocRoundState | null;
   matchStartedAt: Date | null;
   matchEndedAt: Date | null;
+  scoringProfile: ScoringProfile | null;
 }
 
 /** Exportada para teste: é o ponto onde o documento do Firestore vira linha de
@@ -306,6 +316,7 @@ export function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawM
     koc,
     matchStartedAt: toDate(data['matchStartedAt']),
     matchEndedAt: toDate(data['matchEndedAt']),
+    scoringProfile: scoringProfileFromRaw(data['scoringProfile']),
   };
 }
 
@@ -570,6 +581,7 @@ function rawToMatch(r: RawMatch, labelOf: (description: string | null, teamId: s
     koc: r.koc,
     matchStartedAt: r.matchStartedAt,
     matchEndedAt: r.matchEndedAt,
+    scoringProfile: r.scoringProfile,
   };
 }
 

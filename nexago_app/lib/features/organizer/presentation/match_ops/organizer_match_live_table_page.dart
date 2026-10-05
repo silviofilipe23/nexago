@@ -568,7 +568,14 @@ class _OrganizerMatchLiveTablePageState
           .read(organizerMatchScheduleServiceProvider)
           .submitMatchResult(
             matchId: widget.matchId,
-            sets: sets.map((s) => {'a': s.a, 'b': s.b}).toList(),
+            sets: [
+              for (final s in sets)
+                <String, Object>{
+                  'a': s.a,
+                  'b': s.b,
+                  if (s.tb != null) 'tb': {'a': s.tb!.a, 'b': s.tb!.b},
+                },
+            ],
             bestOf: bestOf,
           );
       await TournamentLiveMatchesSync.syncForTournament(

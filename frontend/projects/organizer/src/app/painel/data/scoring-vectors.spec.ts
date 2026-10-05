@@ -1,4 +1,15 @@
-import { matchWinnerSide, scoringProfileFromRaw, setWinnerSide, validateScoreSets } from '@nexago/sports';
+import {
+  effectiveScoringProfile,
+  legacyScoringProfile,
+  matchWinnerSide,
+  normalizeQuickSet,
+  quickSetKind,
+  scoringProfileFromRaw,
+  scoringRulesLabel,
+  setTargetLabel,
+  setWinnerSide,
+  validateScoreSets,
+} from '@nexago/sports';
 import { SCORING_VECTORS } from '../../../../../../shared/sports/vectors.generated';
 
 describe('@nexago/sports · vetores de placar compartilhados com functions e app', () => {
@@ -10,5 +21,29 @@ describe('@nexago/sports · vetores de placar compartilhados com functions e app
       expect(matchWinnerSide(c.sets, profile!)).toBe(c.matchWinner);
       expect(validateScoreSets(c.sets, profile!).map((x) => x.message)).toEqual([...c.issues]);
     });
+  });
+});
+
+describe('@nexago/sports · rótulos e lançamento rápido (vetores)', () => {
+  SCORING_VECTORS.labelVectors.forEach((v) => {
+    it(`rótulos ${v.profile}`, () => {
+      const p = scoringProfileFromRaw(SCORING_VECTORS.profiles[v.profile])!;
+      expect(scoringRulesLabel(p)).toBe(v.rulesLabel);
+      expect(v.setLabels.map((_, i) => setTargetLabel(p, i))).toEqual([...v.setLabels]);
+    });
+  });
+  SCORING_VECTORS.quickVectors.forEach((v, i) => {
+    it(`linha de set ${i} (${v.profile})`, () => {
+      const p = scoringProfileFromRaw(SCORING_VECTORS.profiles[v.profile])!;
+      expect(quickSetKind(p, v.index, v.set)).toBe(v.kind);
+      expect(normalizeQuickSet(p, v.index, v.set)).toEqual(v.normalized);
+    });
+  });
+  it('perfil efetivo: carimbo com o bestOf da tela; sem carimbo, histórico', () => {
+    const p = effectiveScoringProfile(SCORING_VECTORS.profiles['bt3'], 1);
+    expect(p.kind).toBe('sets_games');
+    expect(p.bestOf).toBe(1);
+    expect(effectiveScoringProfile(undefined, 1)).toEqual(legacyScoringProfile(1));
+    expect(effectiveScoringProfile({ kind: 'x' }, 'abc')).toEqual(legacyScoringProfile(3));
   });
 });

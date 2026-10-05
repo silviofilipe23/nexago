@@ -55,4 +55,53 @@ void main() {
     );
     expect(p.bestOf, 3);
   });
+
+  group('rótulos e lançamento rápido (vetores)', () {
+    for (final raw in vectors['labelVectors'] as List<dynamic>) {
+      final v = raw as Map<String, dynamic>;
+      test('rótulos ${v['profile']}', () {
+        final p = ScoringRules.profileFromRaw(profiles[v['profile']])!;
+        expect(ScoringRules.rulesLabel(p), v['rulesLabel']);
+        final labels = v['setLabels'] as List<dynamic>;
+        expect([
+          for (var i = 0; i < labels.length; i++)
+            ScoringRules.setTargetLabel(p, i),
+        ], labels);
+      });
+    }
+    final quick = vectors['quickVectors'] as List<dynamic>;
+    for (var i = 0; i < quick.length; i++) {
+      final v = quick[i] as Map<String, dynamic>;
+      test('linha de set $i (${v['profile']})', () {
+        final p = ScoringRules.profileFromRaw(profiles[v['profile']])!;
+        final set = _set(v['set'] as Map<String, dynamic>);
+        final index = v['index'] as int;
+        expect(ScoringRules.quickSetKind(p, index, set).wire, v['kind']);
+        final n = ScoringRules.normalizeQuickSet(p, index, set);
+        final want = v['normalized'] as Map<String, dynamic>;
+        final wantTb = want['tb'] as Map<String, dynamic>?;
+        expect([n.a, n.b], [want['a'], want['b']]);
+        expect(
+          n.tb == null ? null : [n.tb!.a, n.tb!.b],
+          wantTb == null ? null : [wantTb['a'], wantTb['b']],
+        );
+      });
+    }
+    test(
+      'perfil efetivo: carimbo com o bestOf da tela; sem carimbo, histórico',
+      () {
+        final p = ScoringRules.effectiveProfile(profiles['bt3'], 1);
+        expect(p, isA<SetsGamesProfile>());
+        expect(p.bestOf, 1);
+        final legacy =
+            ScoringRules.effectiveProfile(null, 1) as SetsPointsProfile;
+        expect(
+          [legacy.bestOf, legacy.setTarget, legacy.decidingSetTarget],
+          [1, 21, 21],
+        );
+        final fallback = ScoringRules.effectiveProfile({'kind': 'x'}, 'abc');
+        expect(fallback.bestOf, 3);
+      },
+    );
+  });
 }

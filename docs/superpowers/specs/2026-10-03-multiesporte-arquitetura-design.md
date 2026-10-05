@@ -342,6 +342,10 @@ mergeável sozinho, e beach tennis só abre no último.
 - **2b, lançamento e mesa.** Lançamento rápido (app e portal) e mesa ao vivo lendo o perfil:
   games, pontos 0/15/30/40/AD, tie-break, super tie-break, saque por game, `liveScore` novo em
   dupla escrita.
+  Dividida em **2b1** (lançamento rápido nas quatro telas, modelos lendo `scoringProfile` e `tb`)
+  e **2b2** (mesa ao vivo ponto a ponto com games; o desfazer de hoje decrementa o placar, o
+  que é ambíguo com games, então passa a restaurar um snapshot gravado no evento). Regra de
+  2b em diante: o nº de sets vem de `match.bestOf`; o resto do perfil, do carimbo.
 - **2c, exibição.** Telão, overlay, Focus, pôster, ponto a ponto, card da chave e critério de
   desempate dos grupos por tipo.
 - **2d, abrir beach tennis.** Wizard com os campos de cada tipo, `beachTennis` no enum e em

@@ -1,7 +1,8 @@
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_set.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
-import '../../../../core/sports/sport_catalog.dart' show ScoreSetValue, ScoringRules;
+import '../../../../core/sports/sport_catalog.dart'
+    show ScoreSetValue, ScoringProfile, ScoringRules;
 
 /// Um problema encontrado na validação de placar completo / lançamento rápido.
 class QuickScoreValidationIssue {
@@ -58,7 +59,12 @@ abstract final class MatchScoringLogic {
 
   /// Sets do modelo → sets do núcleo de placar (`core/sports/scoring_rules.dart`).
   static List<ScoreSetValue> _values(List<TournamentMatchSet> sets) => [
-        for (final s in sets) ScoreSetValue(s.a, s.b),
+        for (final s in sets)
+          ScoreSetValue(
+            s.a,
+            s.b,
+            tb: s.tb == null ? null : ScoreSetValue(s.tb!.a, s.tb!.b),
+          ),
       ];
 
   /// Vencedor de um set conforme as regras (target por índice + vantagem):
@@ -325,12 +331,15 @@ abstract final class MatchScoringLogic {
     String? teamAId,
     String? teamBId,
     bool requireMatchWinner = true,
+    ScoringProfile? profile,
   }) {
     final aId = teamAId?.trim() ?? '';
     final bId = teamBId?.trim() ?? '';
     final issues = ScoringRules.validate(
       _values(sets),
-      ScoringRules.legacyProfile(bestOf),
+      profile == null
+          ? ScoringRules.legacyProfile(bestOf)
+          : ScoringRules.withBestOf(profile, bestOf),
       requireMatchWinner:
           requireMatchWinner && aId.isNotEmpty && bId.isNotEmpty,
     );

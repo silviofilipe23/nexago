@@ -116,7 +116,7 @@ export function setPointsTarget(p: SetsPointsProfile, index: number): number {
   return isDecidingSet(index, p.bestOf) ? p.decidingSetTarget : p.setTarget;
 }
 
-function isSuperTiebreakSet(p: SetsGamesProfile, index: number): boolean {
+export function isSuperTiebreakSet(p: SetsGamesProfile, index: number): boolean {
   return p.decidingSet === "super_tiebreak" && isDecidingSet(index, p.bestOf);
 }
 
@@ -226,4 +226,62 @@ export function validateScoreSets(
     issues.push({setIndex: null, message: "Complete o placar: nenhuma dupla venceu ainda."});
   }
   return issues;
+}
+
+export type QuickSetKind = "points" | "games" | "games_tiebreak" | "super_tiebreak";
+
+/**
+ * Perfil efetivo numa tela de placar: o carimbado com o nº de sets da partida
+ * (a mesa grava `bestOf` no doc ao trocar o formato); sem carimbo, a regra
+ * histórica. Mesma precedência de `matchResultFields` no servidor.
+ */
+export function effectiveScoringProfile(raw: unknown, bestOf: unknown): ScoringProfile {
+  const stamped = scoringProfileFromRaw(raw);
+  const n = normalizeBestOf(bestOf) ?? stamped?.bestOf ?? 3;
+  return stamped ? {...stamped, bestOf: n} : legacyScoringProfile(n);
+}
+
+/** Resumo das regras do perfil para cabeçalhos de placar ("set até 21 · decisivo até 15"). */
+export function scoringRulesLabel(p: ScoringProfile): string {
+  if (p.kind === "sets_points") {
+    const parts = [`set até ${p.setTarget}`];
+    if (p.bestOf > 1) parts.push(`decisivo até ${p.decidingSetTarget}`);
+    if (p.pointCap !== null) parts.push(`teto ${p.pointCap}`);
+    return parts.join(" · ");
+  }
+  const parts = [`set até ${p.gamesPerSet} games`];
+  if (p.tiebreakAtGames !== null) {
+    parts.push(`tie-break a ${p.tiebreakTo} em ${p.tiebreakAtGames}-${p.tiebreakAtGames}`);
+  }
+  if (p.bestOf > 1 && p.decidingSet === "super_tiebreak") parts.push(`super tie-break a ${p.superTiebreakTo}`);
+  if (p.noAd) parts.push("sem vantagem");
+  return parts.join(" · ");
+}
+
+/** Alvo de um set específico ("até 21", "até 6 games", "super tie-break até 10"). */
+export function setTargetLabel(p: ScoringProfile, index: number): string {
+  if (p.kind === "sets_points") return `até ${setPointsTarget(p, index)}`;
+  if (isSuperTiebreakSet(p, index)) return `super tie-break até ${p.superTiebreakTo}`;
+  return `até ${p.gamesPerSet} games`;
+}
+
+/** Que campos a linha do set mostra no lançamento rápido. */
+export function quickSetKind(p: ScoringProfile, index: number, set: ScoreSet): QuickSetKind {
+  if (p.kind === "sets_points") return "points";
+  if (isSuperTiebreakSet(p, index)) return "super_tiebreak";
+  const tbAt = p.tiebreakAtGames;
+  const hi = Math.max(set.a, set.b);
+  const lo = Math.min(set.a, set.b);
+  return tbAt !== null && hi === tbAt + 1 && lo === tbAt ? "games_tiebreak" : "games";
+}
+
+/** Set pronto para envio: `tb` só onde a linha usa; super tie-break vira 1×0 do vencedor do tie-break. */
+export function normalizeQuickSet(p: ScoringProfile, index: number, set: ScoreSet): ScoreSet {
+  const kind = quickSetKind(p, index, set);
+  if (kind === "super_tiebreak") {
+    const tb = {a: set.tb?.a ?? 0, b: set.tb?.b ?? 0};
+    return {a: tb.a > tb.b ? 1 : 0, b: tb.b > tb.a ? 1 : 0, tb};
+  }
+  if (kind === "games_tiebreak" && set.tb) return {a: set.a, b: set.b, tb: {a: set.tb.a, b: set.tb.b}};
+  return {a: set.a, b: set.b};
 }

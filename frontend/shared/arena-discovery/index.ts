@@ -51,7 +51,7 @@ export {
   isPastSlot,
 } from './arena-search';
 
-export type { ArenaSportChip } from './sport-chip';
+export type { ArenaSportChip, CourtSportOption } from './sport-chip';
 export {
   ARENA_SPORT_CHIP_OPTIONS,
   arenaHasIndexedSportMetadata,
@@ -59,7 +59,10 @@ export {
   arenaSportCodes,
   arenaSportLabels,
   courtDocSportLabel,
-  courtTypeOptionsFor,
+  courtTypeCodesFor,
+  courtSportOptionLabel,
+  arenaSportChipCode,
+  COURT_SPORT_OPTIONS,
   courtSportLabel,
   defaultSportChipFromProfile,
   sportFirestoreIdFromChip,

@@ -1,5 +1,6 @@
 import {
   ARENA_SPORT_CHIP_OPTIONS,
+  arenaSportChipCode,
   arenaHasIndexedSportMetadata,
   arenaMatchesSportChip,
   arenaSportLabels,
@@ -9,6 +10,7 @@ import {
   sportFirestoreIdFromChip,
   type ArenaListItem,
 } from '@nexago/arena-discovery';
+import { SPORT_CATALOG } from '@nexago/sports';
 
 /** Multiesporte fase 5a: o esporte da quadra casa por IGUALDADE de código (rótulo legado ou código
  *  gravado), sem substring e sem o nome da arena. */
@@ -65,5 +67,11 @@ describe('esporte da arena por código', () => {
     expect(courtDocSportLabel({ type: 'padel' })).toBe('Padel');
     expect(courtDocSportLabel({ types: ['Pickleball'] })).toBe('Pickleball');
     expect(courtDocSportLabel({})).toBe('Esporte não informado');
+  });
+
+  it('trava catálogo × chips: todo esporte com quadra no catálogo tem chip (e vice-versa)', () => {
+    const chipCodes = new Set(ARENA_SPORT_CHIP_OPTIONS.filter((o) => o.chip !== 'all').map((o) => arenaSportChipCode(o.chip)));
+    const catalogCodes = new Set(SPORT_CATALOG.filter((e) => e.arenaCourtTypes.length > 0).map((e) => e.code));
+    expect([...chipCodes].sort()).toEqual([...catalogCodes].sort());
   });
 });

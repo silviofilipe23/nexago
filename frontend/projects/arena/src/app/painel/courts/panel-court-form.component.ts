@@ -46,8 +46,8 @@ const STATUS_OPTIONS: ArenaCourtStatus[] = ['active', 'maintenance'];
 
               <div class="field-label">Modalidades</div>
               <div class="ar-filter-bar">
-                @for (opt of sportOptions; track opt) {
-                  <button type="button" class="ar-chip" [class.active]="types().includes(opt)" (click)="toggleType(opt)">{{ opt }}</button>
+                @for (opt of sportOptions; track opt.value) {
+                  <button type="button" class="ar-chip" [class.active]="types().includes(opt.value)" (click)="toggleType(opt.value)">{{ opt.label }}</button>
                 }
               </div>
             </ar-panel-card>

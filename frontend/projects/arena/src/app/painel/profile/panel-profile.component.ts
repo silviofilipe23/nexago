@@ -162,8 +162,8 @@ function initialsOfName(name: string): string {
               <ar-panel-card title="Modalidades">
                 <div class="field-label">Esportes</div>
                 <div class="chip-row">
-                  @for (s of sportOptions; track s) {
-                    <button type="button" class="ar-chip" [class.active]="courtTypes().includes(s)" (click)="toggleSport(s)">{{ s }}</button>
+                  @for (s of sportOptions; track s.value) {
+                    <button type="button" class="ar-chip" [class.active]="courtTypes().includes(s.value)" (click)="toggleSport(s.value)">{{ s.label }}</button>
                   }
                 </div>
 

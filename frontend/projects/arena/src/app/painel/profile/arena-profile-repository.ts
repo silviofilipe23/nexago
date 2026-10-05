@@ -1,7 +1,7 @@
-import { amenitiesFromFirestore, ARENA_AMENITIES_EMPTY, courtTypeOptionsFor } from '@nexago/arena-discovery';
+import { amenitiesFromFirestore, ARENA_AMENITIES_EMPTY, courtTypeCodesFor } from '@nexago/arena-discovery';
 import { deleteField, doc, setDoc, type Firestore } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes, type FirebaseStorage } from 'firebase/storage';
-import { ARENA_SPORT_OPTIONS, validateArenaBasicInfo, validateArenaContacts, type ArenaProfile } from '../data/arena-profile.model';
+import { validateArenaBasicInfo, validateArenaContacts, type ArenaProfile } from '../data/arena-profile.model';
 
 /** Espelha `ArenaProfileEditService` (Flutter) — mesmo doc `arenas/{arenaId}`, mesmos campos.
  *  Client pode escrever esses campos direto (firestore.rules só congela
@@ -33,8 +33,8 @@ export function arenaProfileFromDoc(data: Record<string, unknown>): ArenaProfile
     state: readString(data, 'state'),
     coverUrl: readString(data, 'coverUrl'),
     logoUrl: readString(data, 'logoUrl'),
-    // Código (`beachTennis`) ou rótulo legado viram a opção do chip (multiesporte fase 5a).
-    courtTypes: courtTypeOptionsFor(readStringArray(data, 'courtTypes'), ARENA_SPORT_OPTIONS),
+    // Rótulo legado vira código — é o que o perfil grava (multiesporte fase 5b).
+    courtTypes: courtTypeCodesFor(readStringArray(data, 'courtTypes')),
     surfaces: readStringArray(data, 'surfaces'),
     amenities: data['amenities'] != null ? amenitiesFromFirestore(data['amenities']) : ARENA_AMENITIES_EMPTY,
     onlinePaymentEnabled: data['onlinePaymentEnabled'] !== false,
@@ -56,7 +56,8 @@ export async function saveArenaBasicInfo(db: Firestore, arenaId: string, input: 
     throw new Error(error);
   }
 
-  const uniqueTypes = [...new Set(input.courtTypes.map((t) => t.trim()).filter(Boolean))];
+  // Esporte em CÓDIGO do catálogo (multiesporte 5b); fora do catálogo segue cru.
+  const uniqueTypes = courtTypeCodesFor(input.courtTypes);
   const uniqueSurfaces = [...new Set(input.surfaces.map((t) => t.trim()).filter(Boolean))];
 
   await setDoc(

@@ -660,7 +660,7 @@ export class PanelHomeComponent {
 
       void fetchCourtsList(db, arenaId).then((courts) => {
         const map = new Map<string, string>();
-        for (const c of courts) map.set(c.id, c.types[0] ?? 'Esporte');
+        for (const c of courts) map.set(c.id, c.typeLabels[0] ?? 'Esporte');
         this.courtSportById.set(map);
       });
 

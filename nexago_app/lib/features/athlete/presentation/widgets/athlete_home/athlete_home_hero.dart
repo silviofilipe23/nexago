@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/sports/sport_catalog.dart';
+import '../../../domain/sport_art_catalog.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_spacing.dart';
@@ -16,10 +17,6 @@ abstract final class AthleteHomeHeroArt {
 
   /// Quadra vazia — usada por quem não declarou gênero.
   static const String neutro = 'assets/images/home/hero_neutro.webp';
-
-  /// Futevôlei: as artes por gênero mostram vôlei de praia, então quem joga
-  /// futevôlei usa a arte do esporte (escura à esquerda, onde fica o texto).
-  static const String futevolei = 'assets/images/sports/futevolei.webp';
 }
 
 /// Escolhe a arte do hero a partir do `gender` cru do perfil.
@@ -31,10 +28,13 @@ abstract final class AthleteHomeHeroArt {
 /// for reconhecido para o neutro. Nunca cai no masculino por omissão.
 ///
 /// [sport] (código Firestore ou rótulo) tem precedência quando o esporte tem
-/// arte própria no hero — hoje só o futevôlei; os demais seguem por gênero.
+/// arte própria no catálogo (`SportArtCatalog`) — as artes por gênero mostram
+/// vôlei de praia, então quem joga outra coisa não pode vê-las. Vôlei de praia,
+/// esportes sem arte (padel, outros) e nulo seguem por gênero.
 String athleteHomeHeroAssetFor(String? gender, {String? sport}) {
-  if (SportCatalog.profileCodeOf(sport) == 'FUTEVOLEI') {
-    return AthleteHomeHeroArt.futevolei;
+  if (SportCatalog.profileCodeOf(sport) != 'VOLEI_PRAIA') {
+    final sportArt = SportArtCatalog.assetFor(sport);
+    if (sportArt != null) return sportArt;
   }
   final g = gender?.trim().toLowerCase() ?? '';
   if (g.startsWith('masc')) return AthleteHomeHeroArt.masculino;

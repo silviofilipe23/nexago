@@ -19,12 +19,14 @@ export const SPORT_RESOLVE_VECTORS: ReadonlyArray<readonly [string, string | nul
   ["Vôlei indoor", "indoorVolleyball"],
   ["futevolei", "footvolley"],
   ["TENIS", "tennis"],
-  ["padel", null],
+  ["padel", "padel"],
+  ["Pádel", "padel"],
+  ["curling", null],
   ["", null],
 ];
 
 export const SPORT_TITLE_CASE_VECTORS: ReadonlyArray<readonly [string, string]> = [
-  ["padel", "Padel"],
+  ["curling", "Curling"],
   ["curling", "Curling"],
   ["FUTEVOLEI_MISTO", "Futevolei Misto"],
   ["beachTennisPro", "Beach Tennis Pro"],

@@ -10,6 +10,6 @@ describe("draw-sessions · esporte do torneio para o sorteio", () => {
 
   it("torneio sem esporte ou com esporte sem mapeamento cai no nível global (null)", () => {
     assert.equal(drawSportCodeOf({}), null);
-    assert.equal(drawSportCodeOf({sport: "padel"}), null);
+    assert.equal(drawSportCodeOf({sport: "curling"}), null);
   });
 });

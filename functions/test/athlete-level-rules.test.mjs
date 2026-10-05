@@ -204,12 +204,13 @@ const multiSportUser = {
   sportOnboarding: {
     version: 1,
     primarySportId: 'VOLEI_PRAIA',
-    secondarySportIds: ['FUTEVOLEI', 'FUTEBOL', 'TENIS', 'OUTROS'],
+    secondarySportIds: ['FUTEVOLEI', 'FUTEBOL', 'TENIS', 'PADEL', 'OUTROS'],
     levelsBySport: {
       VOLEI_PRAIA: 'intermediario_1',
       FUTEVOLEI: 'intermediario_2',
       FUTEBOL: 'open',
       TENIS: 'iniciante_2',
+      PADEL: 'avancado_1',
       OUTROS: 'intermediario_1',
     },
     levelLocked: {
@@ -217,6 +218,7 @@ const multiSportUser = {
       FUTEVOLEI: true,
       FUTEBOL: true,
       TENIS: true,
+      PADEL: true,
       OUTROS: true,
     },
   },
@@ -227,6 +229,7 @@ for (const [sportId, lower] of [
   ['FUTEVOLEI', 'intermediario_1'],
   ['FUTEBOL', 'intermediario_2'],
   ['TENIS', 'iniciante_1'],
+  ['PADEL', 'intermediario_2'],
   ['OUTROS', 'iniciante_2'],
 ]) {
   await seed(multiSportUser);
@@ -329,13 +332,13 @@ await expect(
 );
 
 // ── Orçamento de expressões (teto de 1000 por request) ────────────────────
-// A guarda enumera os 9 esportes; cada esporte que MUDA paga dois lookups de
+// A guarda enumera os 10 esportes; cada esporte que MUDA paga dois lookups de
 // rank. Um perfil completo editado de uma vez ("editar todos os meus
 // esportes") tem que caber no teto, e a negação de um rebaixamento tem que
 // vir da REGRA — não do orçamento estourado no meio do caminho.
 const ALL_SPORTS = [
   'VOLEI_PRAIA', 'VOLEI_QUADRA', 'BEACH_TENNIS', 'FUTEVOLEI', 'FUTEBOL',
-  'BASQUETE', 'TENIS', 'CORRIDA', 'OUTROS',
+  'BASQUETE', 'TENIS', 'CORRIDA', 'PADEL', 'OUTROS',
 ];
 
 const allSportsUser = {

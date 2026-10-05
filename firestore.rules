@@ -470,7 +470,7 @@ service cloud.firestore {
     // de novo. Legados se comportam como o degrau inferior do split
     // (iniciante→0, intermediario→2).
     // Lookup por map literal (barato) em vez de cadeias de `in` sobre listas:
-    // a guarda roda para 9 esportes por update e a versão com ternários
+    // a guarda roda para 10 esportes por update e a versão com ternários
     // estourava o limite de expressões avaliadas por request. O literal é
     // montado UMA vez por request (`let ranks` em athleteLevelsNotDowngraded,
     // que o rules avalia sob demanda e reaproveita) e desce por PARÂMETRO até
@@ -478,7 +478,8 @@ service cloud.firestore {
     // da função que rankeia, 5 esportes alterados numa tacada já estouravam o
     // teto — e QUALQUER negação estourava, mesmo em perfil de um esporte só,
     // porque o caminho negado ainda paga os ramos `isSuperAdmin()` /
-    // pré-cadastro e o match seguinte. Montando uma vez: 9 esportes mais os
+    // pré-cadastro e o match seguinte. Montando uma vez: 9 esportes (10 com
+    // padel, depois da função única `sportLevelOk` — medido em 05/10/2026) mais os
     // dois legados globais cabem, e a negação volta a vir da regra.
     function athleteLevelRanks() {
       return {
@@ -537,7 +538,7 @@ service cloud.firestore {
     // espelha ATHLETE_SPORT_CODES em functions/src/category-level-eligibility.ts
     // e AthleteFirestoreCodes no app) + os campos legados de nível global,
     // fallback do backend para docs antigos. Mapa inalterado curto-circuita
-    // os 9 checks por esporte (caso comum: update sem mexer em nível).
+    // os 10 checks por esporte (caso comum: update sem mexer em nível).
     function athleteLevelsNotDowngraded() {
       let ranks = athleteLevelRanks();
       let reqLevels = levelsBySportOf(request.resource.data);
@@ -562,6 +563,7 @@ service cloud.firestore {
           sportLevelOk(reqLevels.get('BASQUETE', null), curLevels.get('BASQUETE', null), ranks, lockedSports.get('BASQUETE', false)) &&
           sportLevelOk(reqLevels.get('TENIS', null), curLevels.get('TENIS', null), ranks, lockedSports.get('TENIS', false)) &&
           sportLevelOk(reqLevels.get('CORRIDA', null), curLevels.get('CORRIDA', null), ranks, lockedSports.get('CORRIDA', false)) &&
+          sportLevelOk(reqLevels.get('PADEL', null), curLevels.get('PADEL', null), ranks, lockedSports.get('PADEL', false)) &&
           sportLevelOk(reqLevels.get('OUTROS', null), curLevels.get('OUTROS', null), ranks, lockedSports.get('OUTROS', false))
         ));
     }

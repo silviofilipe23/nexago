@@ -23,6 +23,7 @@ export const SPORT_CATALOG: readonly SportCatalogEntry[] = [
   {code: "tennis", profileCode: "TENIS", appId: "tennis", label: "Tênis", art: "tenis", support: "competition", scoringProfile: {"kind":"sets_games","bestOf":3,"gamesPerSet":6,"winByGames":2,"tiebreakAtGames":6,"tiebreakTo":7,"noAd":false,"decidingSet":"full","superTiebreakTo":10}},
   {code: "beachTennis", profileCode: "BEACH_TENNIS", appId: "beach_tennis", label: "Beach tennis", art: "beach_tennis", support: "competition", scoringProfile: {"kind":"sets_games","bestOf":3,"gamesPerSet":6,"winByGames":2,"tiebreakAtGames":6,"tiebreakTo":7,"noAd":true,"decidingSet":"super_tiebreak","superTiebreakTo":10}},
   {code: "running", profileCode: "CORRIDA", appId: "running", label: "Corrida", art: "corrida", support: "profile", scoringProfile: null},
+  {code: "padel", profileCode: "PADEL", appId: "padel", label: "Padel", art: null, support: "profile", scoringProfile: {"kind":"sets_games","bestOf":3,"gamesPerSet":6,"winByGames":2,"tiebreakAtGames":6,"tiebreakTo":7,"noAd":true,"decidingSet":"full","superTiebreakTo":10}},
   {code: "other", profileCode: "OUTROS", appId: "other", label: "Outros", art: null, support: "profile", scoringProfile: null},
 ];
 
@@ -47,6 +48,7 @@ export const SPORT_INDEX: Readonly<Record<string, string>> = {
   "beachtenis": "beachTennis",
   "running": "running",
   "corrida": "running",
+  "padel": "padel",
   "other": "other",
   "outros": "other",
 };

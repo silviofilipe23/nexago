@@ -38,7 +38,8 @@ describe("sports/catalog · rótulo e pontes", () => {
 
   it("código de perfil de qualquer grafia conhecida", () => {
     assert.equal(sportProfileCode("beachVolleyball"), "VOLEI_PRAIA");
-    assert.equal(sportProfileCode("padel"), null);
+    assert.equal(sportProfileCode("padel"), "PADEL");
+    assert.equal(sportProfileCode("curling"), null);
   });
 
   it("ATHLETE_SPORT_CODES é o conjunto de códigos de perfil do catálogo", () => {

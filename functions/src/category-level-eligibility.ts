@@ -54,6 +54,7 @@ export const ATHLETE_SPORT_CODES = [
   "BASQUETE",
   "TENIS",
   "CORRIDA",
+  "PADEL",
   "OUTROS",
 ] as const;
 

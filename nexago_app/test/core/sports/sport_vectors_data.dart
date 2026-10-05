@@ -19,12 +19,14 @@ const List<(String, String?)> kSportResolveVectors = [
   ('Vôlei indoor', 'indoorVolleyball'),
   ('futevolei', 'footvolley'),
   ('TENIS', 'tennis'),
-  ('padel', null),
+  ('padel', 'padel'),
+  ('Pádel', 'padel'),
+  ('curling', null),
   ('', null),
 ];
 
 const List<(String, String)> kSportTitleCaseVectors = [
-  ('padel', 'Padel'),
+  ('curling', 'Curling'),
   ('curling', 'Curling'),
   ('FUTEVOLEI_MISTO', 'Futevolei Misto'),
   ('beachTennisPro', 'Beach Tennis Pro'),

@@ -113,7 +113,7 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
                   ),
                   decoration: InputDecoration(
                     isDense: true,
-                    hintText: 'Nome da dupla ou atletas',
+                    hintText: 'Nome da equipe ou atletas',
                     hintStyle: AppTypography.soraRegular(
                       fontSize: 13,
                       color: context.themeColors.onSurfaceMuted,

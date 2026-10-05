@@ -76,7 +76,7 @@ function formatBRL(n: number): string {
                   </div>
                   <div>
                     <div class="card-title">{{ c.name }}</div>
-                    <div class="card-meta">{{ c.types.join(', ') || 'Sem modalidade' }}</div>
+                    <div class="card-meta">{{ c.typeLabels.join(', ') || 'Sem modalidade' }}</div>
                   </div>
                   <div class="stat-box">
                     <div class="stat-label">Preço/h</div>

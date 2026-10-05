@@ -1,5 +1,4 @@
-import { courtTypeOptionsFor, fetchCourts } from '@nexago/arena-discovery';
-import { ARENA_SPORT_OPTIONS } from '../data/arena-profile.model';
+import { arenaSportLabels, courtTypeCodesFor, fetchCourts } from '@nexago/arena-discovery';
 import { addDoc, collection, deleteDoc, doc, getDoc, serverTimestamp, setDoc, updateDoc, type Firestore } from 'firebase/firestore';
 import type { ArenaCourt, ArenaCourtStatus } from './court.model';
 
@@ -7,8 +6,8 @@ import type { ArenaCourt, ArenaCourtStatus } from './court.model';
  *  reflexo em `arenas/{arenaId}` (`courtTypes`/`pricePerHourReais`, lido pela tela Perfil e
  *  pela busca do atleta), que `ArenaSearchMetadataService.syncFromCourts` mantém em dia lá. */
 
-/** Exportado para teste. `types` chega como as opções do chip: código (`beachTennis`) ou rótulo
- *  legado do mesmo esporte viram a opção (multiesporte fase 5a). */
+/** Exportado para teste. `types` chega em CÓDIGO (rótulo legado vira código — multiesporte 5b);
+ *  `typeLabels` é o que as telas exibem. */
 export function courtFromRaw(id: string, data: Record<string, unknown>): ArenaCourt {
   const types = Array.isArray(data['types']) ? (data['types'] as unknown[]).filter((x): x is string => typeof x === 'string') : [];
   const legacyType = typeof data['type'] === 'string' ? data['type'] : null;
@@ -20,7 +19,8 @@ export function courtFromRaw(id: string, data: Record<string, unknown>): ArenaCo
   return {
     id,
     name: typeof data['name'] === 'string' && data['name'].trim() ? data['name'] : 'Quadra',
-    types: courtTypeOptionsFor(resolvedTypes, ARENA_SPORT_OPTIONS),
+    types: courtTypeCodesFor(resolvedTypes),
+    typeLabels: arenaSportLabels(resolvedTypes),
     status,
     basePricePerHourReais: price,
   };
@@ -73,8 +73,9 @@ async function syncArenaSearchMetadata(db: Firestore, arenaId: string): Promise<
     if (price != null && price > 0 && (minPrice == null || price < minPrice)) minPrice = price;
   }
 
-  // Código e rótulo do mesmo esporte viram uma entrada só (multiesporte fase 5a).
-  const merged = courtTypeOptionsFor([...profileSports, ...fromCourts], ARENA_SPORT_OPTIONS);
+  // Gravado em CÓDIGO; rótulo legado e código do mesmo esporte viram uma entrada só
+  // (multiesporte 5b — mesmo critério de `ArenaSearchMetadata.mergeSportCodes` no app).
+  const merged = courtTypeCodesFor([...profileSports, ...fromCourts]);
   const patch: Record<string, unknown> = { courtTypes: merged, searchMetadataUpdatedAt: serverTimestamp() };
   if (minPrice != null) {
     patch['pricePerHourReais'] = minPrice;
@@ -83,12 +84,15 @@ async function syncArenaSearchMetadata(db: Firestore, arenaId: string): Promise<
   await setDoc(doc(db, 'arenas', arenaId), patch, { merge: true });
 }
 
-function courtPayload(input: CourtInput): Record<string, unknown> {
-  const uniqueTypes = [...new Set(input.types.map((t) => t.trim()).filter(Boolean))];
+/** Exportado para teste. Esporte em CÓDIGO do catálogo (multiesporte 5b): `types`, `type` (o
+ *  primeiro, leitores antigos) e `sport` (o primeiro — portal do atleta e site leem `sport`). */
+export function courtPayload(input: CourtInput): Record<string, unknown> {
+  const uniqueTypes = courtTypeCodesFor(input.types);
   const payload: Record<string, unknown> = {
     name: input.name.trim(),
     types: uniqueTypes,
     type: uniqueTypes[0],
+    sport: uniqueTypes[0],
     status: input.status,
   };
   if (input.basePricePerHourReais != null && input.basePricePerHourReais > 0) {

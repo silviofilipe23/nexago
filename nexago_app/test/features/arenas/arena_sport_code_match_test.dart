@@ -177,25 +177,19 @@ void main() {
   });
 
   test(
-    'formulário do dono marca a opção certa para código ou rótulo gravado (sem duplicar)',
+    'formulário do dono lê código ou rótulo gravado como o código (fase 5b)',
     () {
-      const options = [
-        'Vôlei de praia',
-        'Beach tennis',
-        'Vôlei indoor',
-        'Pickleball',
-      ];
       expect(
-        courtTypeOptionsFor([
+        courtTypeCodesFor([
           'beachVolleyball',
           'Vôlei de praia',
           'indoorVolleyball',
+          'Vôlei indoor',
           'Pickleball',
-        ], options),
-        ['Vôlei de praia', 'Vôlei indoor', 'Pickleball'],
+        ]),
+        ['beachVolleyball', 'indoorVolleyball', 'Pickleball'],
       );
-      // Valor que nenhuma opção cobre segue cru (não some do doc ao salvar).
-      expect(courtTypeOptionsFor(['curling'], options), ['curling']);
+      expect(courtTypeCodesFor(['curling']), ['curling']);
     },
   );
 }

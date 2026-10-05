@@ -61,7 +61,7 @@ bool arenaHasIndexedSportMetadata(ArenaListItem arena) =>
     arenaSportCodes(arena.courtTypes).isNotEmpty;
 
 /// Chip → código do esporte no catálogo. `volleyball` é o vôlei de quadra.
-String? _chipSportCode(ArenaSportChip chip) => switch (chip) {
+String? arenaSportChipCode(ArenaSportChip chip) => switch (chip) {
   ArenaSportChip.all => null,
   ArenaSportChip.beachVolleyball => 'beachVolleyball',
   ArenaSportChip.beachTennis => 'beachTennis',
@@ -76,7 +76,7 @@ String? _chipSportCode(ArenaSportChip chip) => switch (chip) {
 /// nome da arena: beach tennis não aparece mais no chip de vôlei de praia por ter "praia" no
 /// texto. Arena sem esporte reconhecido não é filtrada.
 bool arenaMatchesSportChip(ArenaListItem arena, ArenaSportChip chip) {
-  final code = _chipSportCode(chip);
+  final code = arenaSportChipCode(chip);
   if (code == null) return true;
   final codes = arenaSportCodes(arena.courtTypes);
   if (codes.isEmpty) return true;

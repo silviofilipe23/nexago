@@ -1,5 +1,6 @@
 import {
   ARENA_SPORT_CHIP_OPTIONS,
+  arenaSportChipCode,
   arenaHasIndexedSportMetadata,
   arenaMatchesSportChip,
   arenaSportLabels,
@@ -9,6 +10,7 @@ import {
   sportFirestoreIdFromChip,
   type ArenaListItem,
 } from '@nexago/arena-discovery';
+import { SPORT_CATALOG } from '@nexago/sports';
 
 /** Multiesporte fase 5a: o esporte da quadra casa por IGUALDADE de código (rótulo legado ou código
  *  gravado), sem substring e sem o nome da arena. */
@@ -59,11 +61,20 @@ describe('esporte da arena por código', () => {
     expect(courtSportLabel('')).toBe('');
   });
 
-  it('esporte de UM doc de quadra: sport → courtType → types[0] → type, pelo catálogo', () => {
-    expect(courtDocSportLabel({ sport: 'beachTennis', types: ['Tênis'] })).toBe('Beach tennis');
+  it('esporte de UM doc de quadra: types[0] → type → sport → courtType, pelo catálogo', () => {
+    // `types` é gravado por TODO escritor; `sport` só a partir da 5b. Um app sem a 5b que edite a
+    // quadra atualiza `types` e deixa `sport` velho — então `types` manda.
+    expect(courtDocSportLabel({ sport: 'beachVolleyball', types: ['beachTennis'] })).toBe('Beach tennis');
+    expect(courtDocSportLabel({ sport: 'beachTennis', courtType: 'Tênis' })).toBe('Beach tennis');
     expect(courtDocSportLabel({ types: ['Vôlei de praia', 'Futevôlei'], type: 'Vôlei de praia' })).toBe('Vôlei de praia');
     expect(courtDocSportLabel({ type: 'padel' })).toBe('Padel');
     expect(courtDocSportLabel({ types: ['Pickleball'] })).toBe('Pickleball');
     expect(courtDocSportLabel({})).toBe('Esporte não informado');
+  });
+
+  it('trava catálogo × chips: todo esporte com quadra no catálogo tem chip (e vice-versa)', () => {
+    const chipCodes = new Set(ARENA_SPORT_CHIP_OPTIONS.filter((o) => o.chip !== 'all').map((o) => arenaSportChipCode(o.chip)));
+    const catalogCodes = new Set(SPORT_CATALOG.filter((e) => e.arenaCourtTypes.length > 0).map((e) => e.code));
+    expect([...chipCodes].sort()).toEqual([...catalogCodes].sort());
   });
 });

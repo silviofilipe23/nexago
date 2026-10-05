@@ -43,7 +43,7 @@ class ArenaSearchMetadataService {
     final sports = profileSports ?? existing.sports;
     final surfaceList = surfaces ?? existing.surfaces;
     final fromCourts = await courtTypeLabelsFromCourts(id);
-    final courtTypes = ArenaSearchMetadata.mergeSportLabels(
+    final courtTypes = ArenaSearchMetadata.mergeSportCodes(
       profileSports: sports,
       courtTypeLabels: fromCourts,
     );

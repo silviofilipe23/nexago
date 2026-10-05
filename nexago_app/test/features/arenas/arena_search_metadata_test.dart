@@ -12,22 +12,20 @@ void main() {
       expect(split.sports, contains('Beach tennis'));
     });
 
-    test('mergeSportLabels deduplicates case-insensitively', () {
-      final merged = ArenaSearchMetadata.mergeSportLabels(
+    test('mergeSportCodes deduplica rótulo (qualquer caixa) e código do mesmo esporte', () {
+      final merged = ArenaSearchMetadata.mergeSportCodes(
         profileSports: const ['Vôlei de praia'],
         courtTypeLabels: const ['vôlei de praia', 'Beach tennis'],
       );
-      expect(merged, hasLength(2));
-      expect(merged, contains('Vôlei de praia'));
-      expect(merged, contains('Beach tennis'));
+      expect(merged, ['beachVolleyball', 'beachTennis']);
     });
 
-    test('mergeSportLabels une código e rótulo do mesmo esporte (fase 5a)', () {
-      final merged = ArenaSearchMetadata.mergeSportLabels(
+    test('mergeSportCodes grava código; fora do catálogo segue cru (fase 5b)', () {
+      final merged = ArenaSearchMetadata.mergeSportCodes(
         profileSports: const ['beachVolleyball'],
         courtTypeLabels: const ['Vôlei de praia', 'beachTennis', 'Pickleball'],
       );
-      expect(merged, ['Vôlei de praia', 'Beach tennis', 'Pickleball']);
+      expect(merged, ['beachVolleyball', 'beachTennis', 'Pickleball']);
     });
 
     test('isSurfaceLabel recognizes filter options', () {

@@ -1,4 +1,4 @@
-import { resolveSport } from '@nexago/sports';
+import { resolveSport, SPORT_CATALOG } from '@nexago/sports';
 
 import type { ArenaListItem } from './arena-list-item';
 
@@ -35,6 +35,11 @@ const CHIP_SPORT_CODE: Record<Exclude<ArenaSportChip, 'all'>, string> = {
   footvolley: 'footvolley',
 };
 
+/** Código do catálogo de um chip (`null` para `all`). */
+export function arenaSportChipCode(chip: ArenaSportChip): string | null {
+  return chip === 'all' ? null : CHIP_SPORT_CODE[chip];
+}
+
 /** Códigos de esporte das quadras da arena — rótulo legado ("Beach tennis") ou código
  *  (`beachTennis`) resolvem igual pelo catálogo. Superfície ("Areia") e esporte fora do catálogo
  *  ("Pickleball") não entram. Sem repetição, na ordem gravada. */
@@ -55,28 +60,47 @@ export function courtSportLabel(raw: string | null | undefined): string {
   return resolveSport(value)?.label ?? value;
 }
 
-/** Valores gravados (código ou rótulo legado) → as opções do formulário do dono que representam
- *  o mesmo esporte, sem repetição. O formulário marca o chip por igualdade de texto; sem isso um
- *  código gravado ficaria escondido e um toque gravaria o rótulo ao lado dele. Valor que nenhuma
- *  opção cobre (superfície, esporte fora do catálogo) segue cru, para não sumir do doc ao salvar.
- *  Espelha `courtTypeOptionsFor` do app. */
-export function courtTypeOptionsFor(stored: readonly string[], options: readonly string[]): string[] {
+/** Uma opção de esporte no cadastro de quadra / perfil da arena: `value` vai para o Firestore,
+ *  `label` é o que o dono vê. */
+export interface CourtSportOption {
+  readonly value: string;
+  readonly label: string;
+}
+
+/** Esportes oferecidos no cadastro de quadra (multiesporte fase 5b): os do catálogo com
+ *  `arenaCourtTypes`, gravados como CÓDIGO, mais "Pickleball", que ainda não está no catálogo e
+ *  segue como texto. Espelha `kCourtSportOptions` do app. */
+export const COURT_SPORT_OPTIONS: readonly CourtSportOption[] = [
+  ...SPORT_CATALOG.filter((e) => e.arenaCourtTypes.length > 0).map((e) => ({ value: e.code, label: e.label })),
+  { value: 'Pickleball', label: 'Pickleball' },
+];
+
+/** Rótulo de um valor gravado para o chip do formulário. */
+export function courtSportOptionLabel(value: string): string {
+  return COURT_SPORT_OPTIONS.find((o) => o.value === value)?.label ?? courtSportLabel(value);
+}
+
+/** Valores (rótulo legado ou código) → o que se GRAVA a partir da fase 5b: o código do esporte;
+ *  valor fora do catálogo (superfície, pickleball) segue cru. Sem repetição, na ordem. Espelha
+ *  `courtTypeCodesFor` do app. */
+export function courtTypeCodesFor(stored: readonly string[]): string[] {
   const out: string[] = [];
   for (const raw of stored) {
     const value = raw.trim();
     if (!value) continue;
-    const code = resolveSport(value)?.code;
-    const option = code ? options.find((o) => resolveSport(o)?.code === code) ?? value : value;
-    if (!out.includes(option)) out.push(option);
+    const code = resolveSport(value)?.code ?? value;
+    if (!out.includes(code)) out.push(code);
   }
   return out;
 }
 
-/** Esporte de UM doc de quadra para exibição: `sport` (gravado a partir da 5b) → `courtType`
- *  (site legado) → `types[0]` → `type`, resolvido pelo catálogo. Sem nada: "Esporte não informado". */
+/** Esporte de UM doc de quadra para exibição: `types[0]` → `type` → `sport` (gravado desde a
+ *  5b) → `courtType` (site legado), resolvido pelo catálogo. Sem nada: "Esporte não informado". */
 export function courtDocSportLabel(data: Record<string, unknown>): string {
   const types = data['types'];
-  const candidates = [data['sport'], data['courtType'], Array.isArray(types) ? types[0] : null, data['type']];
+  // `types` é gravado por TODO escritor; `sport` só desde a 5b — um app sem a 5b que edite a quadra
+  // atualiza `types` e deixa `sport` velho. Então `types` manda.
+  const candidates = [Array.isArray(types) ? types[0] : null, data['type'], data['sport'], data['courtType']];
   for (const raw of candidates) {
     if (typeof raw === 'string' && raw.trim()) return courtSportLabel(raw);
   }

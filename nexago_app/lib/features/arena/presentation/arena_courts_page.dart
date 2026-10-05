@@ -9,6 +9,7 @@ import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../arenas/domain/arena_court.dart';
+import '../../arenas/domain/arena_sport_codes.dart';
 import '../domain/arena_plan.dart';
 import '../domain/arena_plan_providers.dart';
 import '../domain/arena_providers.dart';
@@ -448,7 +449,7 @@ class _AddCourtButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final sportsPreview = kCourtTypeOptions.take(3).join(', ');
+    final sportsPreview = kCourtSportOptions.take(3).map((o) => o.label).join(', ');
 
     return Material(
       color: Colors.transparent,

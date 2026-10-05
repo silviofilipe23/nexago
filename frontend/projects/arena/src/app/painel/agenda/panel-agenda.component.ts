@@ -545,7 +545,7 @@ export class PanelAgendaComponent {
   protected readonly agendaCourts = computed<AgendaCourt[]>(() =>
     this.courts()
       .filter((c) => !this.courtFilter() || c.id === this.courtFilter())
-      .map((c) => ({ id: c.id, name: c.name, sport: c.types.join(', ') || '—' })),
+      .map((c) => ({ id: c.id, name: c.name, sport: c.typeLabels.join(', ') || '—' })),
   );
 
   private bookingFor(slot: ArenaSlot): ArenaBooking | null {

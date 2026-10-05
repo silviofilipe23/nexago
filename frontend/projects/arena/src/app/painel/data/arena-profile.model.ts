@@ -1,21 +1,13 @@
-import type { ArenaAmenities } from '@nexago/arena-discovery';
+import { COURT_SPORT_OPTIONS, type ArenaAmenities } from '@nexago/arena-discovery';
 
 /** Espelha `nexago_app/.../arena/data/arena_profile_edit_service.dart` — schema real e
  *  validação de `arenas/{arenaId}` (campos que o gestor edita diretamente, permitidos
  *  pela firestore.rules). Vendas/PIX de repasse ficam de fora (fluxo próprio em
  *  arena_wallet_repository.dart/arena_payments_page.dart, não é "perfil"). */
 
-/** `arenas.courtTypes` — só esporte, não superfície. Espelha `ArenaSearchMetadata.sportLabels`. */
-export const ARENA_SPORT_OPTIONS: readonly string[] = [
-  'Vôlei de praia',
-  'Beach tennis',
-  'Vôlei indoor',
-  'Tênis',
-  'Padel',
-  'Futebol',
-  'Futevôlei',
-  'Pickleball',
-];
+/** `arenas.courtTypes` / `courts.types` — só esporte, não superfície. Código do catálogo desde a
+ *  fase 5b do multiesporte (`COURT_SPORT_OPTIONS`, espelha `kCourtSportOptions` do app). */
+export const ARENA_SPORT_OPTIONS = COURT_SPORT_OPTIONS;
 
 /** `arenas.surfaces`. Espelha `ArenaSearchMetadata.surfaceOptions`. */
 export const ARENA_SURFACE_OPTIONS: readonly string[] = ['Areia', 'Saibro', 'Sintética', 'Grama', 'Concreto'];

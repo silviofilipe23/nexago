@@ -27,20 +27,44 @@ abstract final class AthleteHomeHeroArt {
 /// `athleteGenderShortLabel` e do filtro do Descobrir — e manda TUDO que não
 /// for reconhecido para o neutro. Nunca cai no masculino por omissão.
 ///
-/// [sport] (código Firestore ou rótulo) tem precedência quando o esporte tem
-/// arte própria no catálogo (`SportArtCatalog`) — as artes por gênero mostram
-/// vôlei de praia, então quem joga outra coisa não pode vê-las. Vôlei de praia,
-/// esportes sem arte (padel, outros) e nulo seguem por gênero.
+/// [sport] (código Firestore ou rótulo) tem precedência: as artes por gênero
+/// mostram vôlei de praia, então quem joga outra coisa não pode vê-las.
+/// 1. esporte com arte por gênero (`assets/images/home/sport/`) + gênero
+///    reconhecido → a arte do esporte naquele gênero;
+/// 2. esporte com arte no catálogo (`SportArtCatalog`) e gênero não
+///    reconhecido → a arte neutra do esporte;
+/// 3. vôlei de praia, esporte sem arte (outros) e nulo → arte por gênero.
 String athleteHomeHeroAssetFor(String? gender, {String? sport}) {
-  if (SportCatalog.profileCodeOf(sport) != 'VOLEI_PRAIA') {
+  final g = gender?.trim().toLowerCase() ?? '';
+  final isMasc = g.startsWith('masc');
+  final isFem = g.startsWith('fem');
+
+  final code = SportCatalog.profileCodeOf(sport);
+  if (code != null && code != 'VOLEI_PRAIA') {
+    final slug = _heroSportSlugByCode[code];
+    if (slug != null && (isMasc || isFem)) {
+      return 'assets/images/home/sport/${slug}_${isMasc ? 'masculino' : 'feminino'}.webp';
+    }
     final sportArt = SportArtCatalog.assetFor(sport);
     if (sportArt != null) return sportArt;
   }
-  final g = gender?.trim().toLowerCase() ?? '';
-  if (g.startsWith('masc')) return AthleteHomeHeroArt.masculino;
-  if (g.startsWith('fem')) return AthleteHomeHeroArt.feminino;
+  if (isMasc) return AthleteHomeHeroArt.masculino;
+  if (isFem) return AthleteHomeHeroArt.feminino;
   return AthleteHomeHeroArt.neutro;
 }
+
+/// Esportes com arte do hero nos dois gêneros
+/// (`assets/images/home/sport/<slug>_{masculino,feminino}.webp`).
+const _heroSportSlugByCode = <String, String>{
+  'VOLEI_QUADRA': 'volei_quadra',
+  'FUTEVOLEI': 'futevolei',
+  'BEACH_TENNIS': 'beach_tennis',
+  'TENIS': 'tenis',
+  'PADEL': 'padel',
+  'BASQUETE': 'basquete',
+  'FUTEBOL': 'futebol',
+  'CORRIDA': 'corrida',
+};
 
 /// "Bom dia/Boa tarde/Boa noite" pelo horário local.
 String athleteHomeGreetingByHour(DateTime now) {

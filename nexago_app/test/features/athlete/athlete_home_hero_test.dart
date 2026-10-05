@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
@@ -6,44 +8,57 @@ import 'package:nexago_app/features/athlete/presentation/widgets/athlete_home/at
 
 void main() {
   group('athleteHomeHeroAssetFor', () {
-    test('futevôlei usa a arte do esporte, qualquer que seja o gênero', () {
-      for (final sport in ['FUTEVOLEI', 'Futevôlei', 'futevolei']) {
-        for (final g in <String?>['Masculino', 'Feminino', null]) {
-          expect(
-            athleteHomeHeroAssetFor(g, sport: sport),
-            'assets/images/sports/futevolei.webp',
-            reason: 'para $sport / $g',
-          );
-        }
-      }
-    });
-
-    test('cada esporte com arte usa a sua, em vez da arte por gênero', () {
-      const esperado = {
+    test('esporte com arte por gênero usa a do gênero, e o arquivo existe', () {
+      const slugs = {
         'VOLEI_QUADRA': 'volei_quadra',
+        'FUTEVOLEI': 'futevolei',
+        'BEACH_TENNIS': 'beach_tennis',
+        'TENIS': 'tenis',
+        'PADEL': 'padel',
         'BASQUETE': 'basquete',
         'FUTEBOL': 'futebol',
-        'TENIS': 'tenis',
-        'BEACH_TENNIS': 'beach_tennis',
         'CORRIDA': 'corrida',
       };
-      esperado.forEach((code, art) {
-        expect(
-          athleteHomeHeroAssetFor('Masculino', sport: code),
-          'assets/images/sports/$art.webp',
-          reason: code,
-        );
+      slugs.forEach((code, slug) {
+        for (final (g, suffix) in [
+          ('Masculino', 'masculino'),
+          ('Feminino', 'feminino'),
+        ]) {
+          final path = athleteHomeHeroAssetFor(g, sport: code);
+          expect(path, 'assets/images/home/sport/${slug}_$suffix.webp');
+          expect(File(path).existsSync(), isTrue, reason: path);
+        }
       });
     });
 
-    test('esporte sem arte (padel, outros) segue por gênero', () {
+    test('futevôlei aceita grafias do rótulo', () {
+      for (final sport in ['Futevôlei', 'futevolei']) {
+        expect(
+          athleteHomeHeroAssetFor('Feminino', sport: sport),
+          'assets/images/home/sport/futevolei_feminino.webp',
+        );
+      }
+    });
+
+    test('sem gênero reconhecido usa a arte neutra do esporte', () {
       expect(
-        athleteHomeHeroAssetFor('Feminino', sport: 'PADEL'),
-        AthleteHomeHeroArt.feminino,
+        athleteHomeHeroAssetFor(null, sport: 'TENIS'),
+        'assets/images/sports/tenis.webp',
       );
       expect(
-        athleteHomeHeroAssetFor(null, sport: 'OUTROS'),
+        athleteHomeHeroAssetFor('Outro', sport: 'FUTEVOLEI'),
+        'assets/images/sports/futevolei.webp',
+      );
+    });
+
+    test('padel sem gênero e esporte sem arte seguem por gênero', () {
+      expect(
+        athleteHomeHeroAssetFor(null, sport: 'PADEL'),
         AthleteHomeHeroArt.neutro,
+      );
+      expect(
+        athleteHomeHeroAssetFor('Feminino', sport: 'OUTROS'),
+        AthleteHomeHeroArt.feminino,
       );
     });
 

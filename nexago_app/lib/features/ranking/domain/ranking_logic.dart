@@ -137,7 +137,8 @@ List<TeamRankingRow> assignTeamRanks(List<TeamRankingRow> rows) {
 /// Ranking de UM esporte a partir dos docs por esporte: geral = total;
 /// temporada = `pointsByYear[ano]` (beach tennis não está em
 /// `tournamentCategoryResults`, então a temporada por esporte sai daqui) e
-/// quem não pontuou no ano fica fora.
+/// quem não pontuou no ano fica fora. Na temporada a contagem de torneios sai
+/// zerada (o doc só tem a da carreira; o subtítulo omite zero).
 List<AthleteRankingRow> buildAthleteRankingRowsForPeriod(
   List<AthleteRankingEntry> entries, {
   int? year,
@@ -150,7 +151,7 @@ List<AthleteRankingRow> buildAthleteRankingRowsForPeriod(
         AthleteRankingEntry(
           athleteId: e.athleteId,
           totalPoints: e.pointsByYear[key]!,
-          tournamentsCount: e.tournamentsCount,
+          tournamentsCount: 0,
           lastUpdated: e.lastUpdated,
           pointsByYear: e.pointsByYear,
         ),
@@ -198,7 +199,7 @@ List<TeamRankingRow> buildTeamRankingRowsForPeriod(
         TeamRankingEntry(
           teamId: e.teamId,
           totalPoints: e.pointsByYear[key]!,
-          tournamentsCount: e.tournamentsCount,
+          tournamentsCount: 0,
           lastUpdated: e.lastUpdated,
           pointsByYear: e.pointsByYear,
         ),

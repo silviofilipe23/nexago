@@ -63,7 +63,8 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
   }) {
     final sessionKey =
         '${filter.mode}|${filter.year}|${filter.gender}|${filter.format}|'
-        '${filter.level}|${userEntry?.entityId}|${userEntry?.rank}';
+        '${filter.level}|${filter.sport}|${userEntry?.entityId}|'
+        '${userEntry?.rank}';
     if (_floatingSessionKey == sessionKey) return;
     _floatingSessionKey = sessionKey;
     _userCardFloating = true;

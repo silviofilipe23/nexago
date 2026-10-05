@@ -50,6 +50,15 @@ void main() {
       ]);
     });
 
+    test('temporada não mostra a contagem de torneios da carreira', () {
+      final rows = buildAthleteRankingRowsForPeriod(entries, year: 2026);
+      expect(rows.single.tournamentsCount, 0);
+      expect(
+        buildAthleteRankingRowsForPeriod(entries).first.tournamentsCount,
+        3,
+      );
+    });
+
     test('temporada: pontos do ano; sem pontos no ano fica fora', () {
       final rows = buildAthleteRankingRowsForPeriod(entries, year: 2026);
       expect(rows.map((r) => [r.rank, r.athleteId, r.totalPoints]), [

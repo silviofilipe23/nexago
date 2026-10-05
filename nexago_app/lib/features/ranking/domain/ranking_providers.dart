@@ -259,10 +259,15 @@ final rankingSportProvider = FutureProvider.autoDispose<String>((ref) async {
   final user = await ref.watch(authProvider.future);
   if (user == null) return defaultRankingSport(null);
   try {
-    final profile = await ref
-        .watch(athleteProfileProvider.future)
+    // `selectAsync`: só o esporte principal — qualquer outra escrita em
+    // `users/{uid}` (seguidor, token, bio) não pode recarregar a lista.
+    final primary = await ref
+        .watch(
+          athleteProfileProvider
+              .selectAsync((p) => p?.primarySportFirestoreId),
+        )
         .timeout(const Duration(seconds: 5));
-    return defaultRankingSport(profile?.primarySportFirestoreId);
+    return defaultRankingSport(primary);
   } catch (_) {
     return defaultRankingSport(null);
   }

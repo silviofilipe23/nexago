@@ -366,6 +366,17 @@ mergeável sozinho, e beach tennis só abre no último.
 - **2d, abrir beach tennis.** Wizard com os campos de cada tipo, `beachTennis` no enum e em
   `competition`, defaults 25/15 (quadra) e 18/15 (futevôlei) só quando o wizard deixar o
   organizador escolher o alvo.
+  Dividida em duas (emenda de 04/10, depois do inventário): nada no servidor nem nas rules
+  bloqueia o esporte — o bloqueio é só o enum dos dois clientes. **2d1, abrir com segurança:**
+  `beachTennis` em `competition` e nos dois enums (último, na ordem do catálogo); o array de
+  categorias é regravado inteiro pelos dois wizards, então `scoringProfile` passa a fazer ida e
+  volta (senão uma reedição apagaria o perfil); KOTC fica só para vôlei de praia; e, até a fase
+  3, torneio de esporte que nunca pontuou no ranking geral (hoje: beach tennis) não pontua —
+  o ranking não tem `sport` e misturaria os pontos com os do vôlei. Sem perfil explícito, a
+  categoria de beach tennis carimba o padrão do catálogo com o `bestOf` da categoria (já é o
+  comportamento do servidor). **2d2, editor de placar:** campos de cada tipo no editor de
+  categoria do app e do portal, gravando o perfil explícito; sugestões 25/15 e 18/15 só aí. O
+  fallback de categoria sem perfil continua o histórico nesses esportes.
 
 Decisões que valem para a fase 2 inteira:
 - **Partida sem perfil carimbado usa a regra histórica, qualquer que seja o esporte** (21,

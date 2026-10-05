@@ -246,6 +246,8 @@ abstract final class LeagueStageTournamentFactory {
       'qualifiersPerGroup': category.qualifiersPerGroup,
       'bestOf': category.bestOf.name,
       'finalBestOf5': category.finalBestOf5,
+      if (category.scoringProfileRaw != null)
+        'scoringProfile': category.scoringProfileRaw,
       'maxRegistrationsPerAthlete': 2,
       'registrationClosed': !category.enabled,
       'isCompleted': false,
@@ -292,6 +294,8 @@ abstract final class LeagueStageTournamentFactory {
       'qualifiersPerGroup': category.qualifiersPerGroup,
       'bestOf': category.bestOf.name,
       'finalBestOf5': category.finalBestOf5,
+      if (category.scoringProfileRaw != null)
+        'scoringProfile': category.scoringProfileRaw,
       'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,
       'registrationClosed': false,
       'isCompleted': false,

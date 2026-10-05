@@ -30,6 +30,7 @@ class LeagueStageCategoryDraft {
     // Mesmo padrão do wizard de torneio: set único.
     this.bestOf = TournamentBestOf.singleSet,
     this.finalBestOf5 = true,
+    this.scoringProfileRaw,
     this.genderFree = false,
     this.menCount,
     this.womenCount,
@@ -50,6 +51,9 @@ class LeagueStageCategoryDraft {
   final int qualifiersPerGroup;
   final TournamentBestOf bestOf;
   final bool finalBestOf5;
+
+  /// Perfil de placar da categoria da liga, cru — repassado à etapa.
+  final Map<String, dynamic>? scoringProfileRaw;
 
   /// Campos de categoria de EQUIPE (trio+) herdados da liga — o app não os
   /// edita, só preserva o que o portal gravou.
@@ -97,6 +101,7 @@ class LeagueStageCategoryDraft {
       qualifiersPerGroup: qualifiersPerGroup ?? this.qualifiersPerGroup,
       bestOf: bestOf ?? this.bestOf,
       finalBestOf5: finalBestOf5 ?? this.finalBestOf5,
+      scoringProfileRaw: scoringProfileRaw,
       genderFree: genderFree ?? this.genderFree,
       menCount: menCount ?? this.menCount,
       womenCount: womenCount ?? this.womenCount,

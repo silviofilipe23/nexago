@@ -32,6 +32,7 @@ import {
   SKILL_LEVEL_LABEL,
   SPORT_LABEL,
   SUPPORTED_BRACKET_SYSTEMS,
+  bracketSystemsForSport,
   TOURNAMENT_CREATE_STEPS,
   type AgeBand,
   type CategoryDispute,
@@ -284,7 +285,7 @@ function inputToDatetime(v: string): Date | null {
             </og-card>
             <og-card kicker="Formato" title="Sistema de disputa da categoria">
               <div style="display:grid;gap:10px">
-                @for (bs of bracketOptions; track bs) {
+                @for (bs of bracketOptions(); track bs) {
                   <og-radio-row
                     style="cursor:pointer"
                     [selected]="cat().bracketSystem === bs"
@@ -798,7 +799,8 @@ export class CriarTorneioComponent {
   protected readonly bracketShortLabel = BRACKET_SYSTEM_SHORT_LABEL;
   protected readonly bracketDesc = BRACKET_SYSTEM_DESCRIPTION;
   protected readonly supported = SUPPORTED_BRACKET_SYSTEMS;
-  protected readonly bracketOptions: TournamentBracketSystem[] = ['groupsThenKnockout', 'singleElimination', 'doubleElimination', 'kingOfCourt', 'roundRobin', 'groupsWithRepechage'];
+  /** KOTC só aparece em vôlei de praia (`bracketSystemsForSport`). */
+  protected readonly bracketOptions = computed<TournamentBracketSystem[]>(() => bracketSystemsForSport(this.draft().sport));
   protected readonly sportOptions = Object.values(SPORT_LABEL);
   protected readonly genderOptions = Object.values(GENDER_LABEL);
   protected readonly ageBandOptions = Object.values(AGE_BAND_LABEL);
@@ -1203,6 +1205,7 @@ export class CriarTorneioComponent {
         : applyOrganizerCategoryDefaults(
             { ...emptyCategoryDraft(`${Date.now()}`), priceCents: this.draft().defaultPriceCents },
             this.organizerDefaults,
+            this.draft().sport,
           ),
     );
     this.catPriceInput.set(formatCentsInputValue(this.cat().priceCents));

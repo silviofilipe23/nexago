@@ -86,17 +86,32 @@ String? unsupportedBracketFormatHint(String raw) {
 
 String publishBlockReasonForUnsupportedBrackets(TournamentCreateDraft draft) {
   for (final category in draft.categories) {
+    final label = category.name.trim().isNotEmpty
+        ? category.name.trim()
+        : 'sem nome';
     if (!isBracketSystemSupported(category.bracketSystem)) {
-      final label = category.name.trim().isNotEmpty
-          ? category.name.trim()
-          : 'sem nome';
       return 'A categoria "$label" usa '
           '${bracketSystemLabel(category.bracketSystem)}, '
           'ainda não suportado.';
     }
+    if (category.bracketSystem == TournamentBracketSystem.kingOfCourt &&
+        draft.sport != TournamentSport.beachVolleyball) {
+      return 'A categoria "$label" usa King of the Court, que por enquanto é '
+          'só para vôlei de praia.';
+    }
   }
   return '';
 }
+
+/// Formatos com geração de chave que o wizard oferece para o esporte. O KOTC é
+/// só de vôlei de praia por enquanto (o spec multiesporte deixa KOTC de outros
+/// esportes fora de escopo).
+List<TournamentBracketSystem> bracketSystemsForSport(TournamentSport sport) => [
+  for (final system in supportedBracketSystems)
+    if (system != TournamentBracketSystem.kingOfCourt ||
+        sport == TournamentSport.beachVolleyball)
+      system,
+];
 
 String bestOfLabel(TournamentBestOf bestOf) => switch (bestOf) {
   TournamentBestOf.singleSet => 'Set único',

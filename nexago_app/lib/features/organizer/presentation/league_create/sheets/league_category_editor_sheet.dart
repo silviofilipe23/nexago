@@ -228,6 +228,7 @@ class _LeagueCategoryEditorSheetState
             ],
             const SizedBox(height: 20),
             OrganizerCategoryFormatSection(
+              sport: ref.watch(leagueCreateDraftProvider).sport,
               bracketSystem: _category.bracketSystem,
               teamsPerGroup: _category.teamsPerGroup,
               qualifiersPerGroup: _category.qualifiersPerGroup,

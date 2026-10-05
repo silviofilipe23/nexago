@@ -690,6 +690,7 @@ export class CriarLigaComponent {
         : applyOrganizerCategoryDefaults(
             { ...emptyCategoryDraft(`${Date.now()}`), priceCents: this.draft().defaultPriceCents },
             this.organizerDefaults,
+            this.draft().sport,
           ),
     );
     this.subView.set('categoria');

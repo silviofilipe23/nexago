@@ -22,6 +22,7 @@ import {
   type TournamentSport,
   type TournamentVisibility,
   KNOWN_TOURNAMENT_SPORTS,
+  bracketSystemsForSport,
 } from './tournament-create.model';
 import { pixKeyTypeFromStored, type PixKeyType } from './pix-key';
 import {
@@ -298,10 +299,15 @@ export function applyOrganizerPaymentDefaults(
 export function applyOrganizerCategoryDefaults(
   category: TournamentCategoryDraft,
   defaults: OrganizerEventDefaults,
+  sport?: TournamentSport,
 ): TournamentCategoryDraft {
+  // O formato padrão do organizador pode ser KOTC, que é só de vôlei de praia: em outro esporte a
+  // categoria nova nasce em grupos + mata-mata.
+  const bracketSystem =
+    sport && !bracketSystemsForSport(sport).includes(defaults.bracketSystem) ? 'groupsThenKnockout' : defaults.bracketSystem;
   return {
     ...category,
-    bracketSystem: defaults.bracketSystem,
+    bracketSystem,
     bestOf: defaults.bestOf,
     finalBestOf5: defaults.finalBestOf5,
     spots: defaults.spots,

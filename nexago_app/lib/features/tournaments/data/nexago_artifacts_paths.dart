@@ -19,6 +19,13 @@ abstract final class NexagoArtifactsPaths {
 
   static String teamRankingsCollection() => '$publicDataBase/teamRankings';
 
+  /// Ranking por esporte (multiesporte fase 3a): docs `{id}_{CODE}`.
+  static String athleteRankingsBySportCollection() =>
+      '$publicDataBase/athleteRankingsBySport';
+
+  static String teamRankingsBySportCollection() =>
+      '$publicDataBase/teamRankingsBySport';
+
   static String leagueTeamRankingsCollection() =>
       '$publicDataBase/leagueTeamRankings';
 

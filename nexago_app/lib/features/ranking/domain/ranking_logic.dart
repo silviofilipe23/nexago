@@ -1,3 +1,4 @@
+import 'package:nexago_app/core/sports/sport_catalog.dart';
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_options.dart';
 
@@ -133,6 +134,48 @@ List<TeamRankingRow> assignTeamRanks(List<TeamRankingRow> rows) {
   ];
 }
 
+/// Ranking de UM esporte a partir dos docs por esporte: geral = total;
+/// temporada = `pointsByYear[ano]` (beach tennis não está em
+/// `tournamentCategoryResults`, então a temporada por esporte sai daqui) e
+/// quem não pontuou no ano fica fora.
+List<AthleteRankingRow> buildAthleteRankingRowsForPeriod(
+  List<AthleteRankingEntry> entries, {
+  int? year,
+}) {
+  if (year == null) return buildAthleteRankingRowsFromEntries(entries);
+  final key = '$year';
+  return buildAthleteRankingRowsFromEntries([
+    for (final e in entries)
+      if ((e.pointsByYear[key] ?? 0) > 0)
+        AthleteRankingEntry(
+          athleteId: e.athleteId,
+          totalPoints: e.pointsByYear[key]!,
+          tournamentsCount: e.tournamentsCount,
+          lastUpdated: e.lastUpdated,
+          pointsByYear: e.pointsByYear,
+        ),
+  ]);
+}
+
+List<TeamRankingRow> buildTeamRankingRowsForPeriod(
+  List<TeamRankingEntry> entries, {
+  int? year,
+}) {
+  if (year == null) return buildTeamRankingRowsFromEntries(entries);
+  final key = '$year';
+  return buildTeamRankingRowsFromEntries([
+    for (final e in entries)
+      if ((e.pointsByYear[key] ?? 0) > 0)
+        TeamRankingEntry(
+          teamId: e.teamId,
+          totalPoints: e.pointsByYear[key]!,
+          tournamentsCount: e.tournamentsCount,
+          lastUpdated: e.lastUpdated,
+          pointsByYear: e.pointsByYear,
+        ),
+  ]);
+}
+
 List<TeamRankingRow> buildTeamRankingRowsFromEntries(
   List<TeamRankingEntry> entries,
 ) {
@@ -255,6 +298,53 @@ int? athleteLevelRank(AppUserProfile? profile) {
     if (perSport != null) return perSport;
   }
   return AthleteProfileOptions.levelRank(profile.level);
+}
+
+/// Rank de nível no esporte do ranking: `levelsBySport[esporte]`; sem nível
+/// nele, o global legado — nunca o do esporte principal, que é outra escada.
+int? athleteLevelRankForSport(AppUserProfile? profile, String sportCode) {
+  if (profile == null) return null;
+  return AthleteProfileOptions.levelRank(
+        profile.levelsBySportFirestore[sportCode],
+      ) ??
+      AthleteProfileOptions.levelRank(profile.level);
+}
+
+/// Dupla no esporte do ranking: vale o integrante mais forte, como
+/// [teamLevelRank].
+int? teamLevelRankForSport(
+  AppUserProfile? player1,
+  AppUserProfile? player2,
+  String sportCode,
+) {
+  final r1 = athleteLevelRankForSport(player1, sportCode);
+  final r2 = athleteLevelRankForSport(player2, sportCode);
+  if (r1 == null) return r2;
+  if (r2 == null) return r1;
+  return r1 > r2 ? r1 : r2;
+}
+
+/// Esportes com ranking: os de competição do catálogo, na ordem dele.
+final List<SportCatalogEntry> rankingSportOptions =
+    SportCatalog.withSupport(SportSupport.competition).toList(growable: false);
+
+const String kDefaultRankingSport = 'VOLEI_PRAIA';
+
+/// O ranking abre no esporte principal quando ele tem ranking; senão vôlei
+/// de praia.
+String defaultRankingSport(String? primarySportFirestoreId) {
+  return rankingSportOptions
+          .any((o) => o.profileCode == primarySportFirestoreId)
+      ? primarySportFirestoreId!
+      : kDefaultRankingSport;
+}
+
+String rankingSportLabel(String sportCode) {
+  return rankingSportOptions
+          .where((o) => o.profileCode == sportCode)
+          .firstOrNull
+          ?.label ??
+      sportCode;
 }
 
 /// Rank de nível da dupla: o maior entre os dois atletas (mesma regra do

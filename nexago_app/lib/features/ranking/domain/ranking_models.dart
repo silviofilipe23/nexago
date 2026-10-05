@@ -18,6 +18,33 @@ DateTime? _readTimestamp(dynamic value) {
   return null;
 }
 
+Map<String, int> _readPointsByYear(dynamic raw) {
+  final byYear = <String, int>{};
+  if (raw is Map) {
+    for (final entry in raw.entries) {
+      final value = entry.value;
+      if (value is num) byYear[entry.key.toString()] = value.round();
+    }
+  }
+  return byYear;
+}
+
+/// Dono do doc por esporte (`{id}_{CODE}`, multiesporte fase 3a): vem do
+/// CAMPO; sem ele, o id do doc sem o sufixo do esporte (o código tem `_`).
+String _bySportOwnerId(
+  String docId,
+  Map<String, dynamic> data,
+  String field,
+  String sportCode,
+) {
+  final fromField = _readStr(data[field]);
+  if (fromField != null) return fromField;
+  final suffix = '_$sportCode';
+  return docId.endsWith(suffix)
+      ? docId.substring(0, docId.length - suffix.length)
+      : docId;
+}
+
 /// Resultado de equipe em categoria finalizada.
 class TournamentCategoryResult {
   const TournamentCategoryResult({
@@ -94,6 +121,21 @@ class AthleteRankingEntry {
       tournamentsCount: _readInt(data['tournamentsCount']),
       lastUpdated: _readTimestamp(data['lastUpdated']),
       pointsByYear: byYear,
+    );
+  }
+
+  /// Doc de `athleteRankingsBySport/{athleteId}_{sportCode}`.
+  factory AthleteRankingEntry.fromBySportData(
+    String docId,
+    Map<String, dynamic> data,
+    String sportCode,
+  ) {
+    return AthleteRankingEntry(
+      athleteId: _bySportOwnerId(docId, data, 'athleteId', sportCode),
+      totalPoints: _readInt(data['totalPoints']),
+      tournamentsCount: _readInt(data['tournamentsCount']),
+      lastUpdated: _readTimestamp(data['lastUpdated']),
+      pointsByYear: _readPointsByYear(data['pointsByYear']),
     );
   }
 }
@@ -230,6 +272,21 @@ class TeamRankingEntry {
       tournamentsCount: _readInt(data['tournamentsCount']),
       lastUpdated: _readTimestamp(data['lastUpdated']),
       pointsByYear: byYear,
+    );
+  }
+
+  /// Doc de `teamRankingsBySport/{teamId}_{sportCode}`.
+  factory TeamRankingEntry.fromBySportData(
+    String docId,
+    Map<String, dynamic> data,
+    String sportCode,
+  ) {
+    return TeamRankingEntry(
+      teamId: _bySportOwnerId(docId, data, 'teamId', sportCode),
+      totalPoints: _readInt(data['totalPoints']),
+      tournamentsCount: _readInt(data['tournamentsCount']),
+      lastUpdated: _readTimestamp(data['lastUpdated']),
+      pointsByYear: _readPointsByYear(data['pointsByYear']),
     );
   }
 }

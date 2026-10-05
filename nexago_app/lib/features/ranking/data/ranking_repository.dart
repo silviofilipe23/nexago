@@ -343,6 +343,38 @@ class RankingRepository {
     }
   }
 
+  /// Ranking de atletas de UM esporte (código de perfil) — geral pelo total,
+  /// temporada por `pointsByYear`. Lê os docs por esporte (fase 3a).
+  Future<List<AthleteRankingRow>> loadAthleteRankingForSport(
+    String sportCode, {
+    int? year,
+  }) async {
+    final snap = await _firestore
+        .collection(NexagoArtifactsPaths.athleteRankingsBySportCollection())
+        .where('sport', isEqualTo: sportCode)
+        .get();
+    final entries = snap.docs
+        .map(
+          (d) => AthleteRankingEntry.fromBySportData(d.id, d.data(), sportCode),
+        )
+        .toList();
+    return buildAthleteRankingRowsForPeriod(entries, year: year);
+  }
+
+  Future<List<TeamRankingRow>> loadTeamRankingForSport(
+    String sportCode, {
+    int? year,
+  }) async {
+    final snap = await _firestore
+        .collection(NexagoArtifactsPaths.teamRankingsBySportCollection())
+        .where('sport', isEqualTo: sportCode)
+        .get();
+    final entries = snap.docs
+        .map((d) => TeamRankingEntry.fromBySportData(d.id, d.data(), sportCode))
+        .toList();
+    return buildTeamRankingRowsForPeriod(entries, year: year);
+  }
+
   Future<List<AthleteRankingRow>> loadAthleteRanking({int? year}) async {
     if (year != null) {
       return loadAthleteRankingByYear(year);

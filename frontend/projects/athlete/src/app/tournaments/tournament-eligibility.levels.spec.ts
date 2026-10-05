@@ -14,6 +14,7 @@ function profile(overrides: Partial<MyAthleteProfile>): MyAthleteProfile {
     gender: null,
     birthDate: null,
     level: null,
+    primarySportId: null,
     levelsBySport: {},
     levelLocked: {},
     fullName: null,

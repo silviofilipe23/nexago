@@ -1,4 +1,4 @@
-import type { ArenaSportChip } from '@nexago/arena-discovery';
+import { sportsWithSupport } from '@nexago/sports';
 import type { FilterFormat, FilterGender, FilterLevel, RankingGender, RankingParticipant, TeamFormat } from './athlete-ranking.models';
 
 export interface RankingRow extends RankingParticipant {
@@ -8,7 +8,6 @@ export interface RankingRow extends RankingParticipant {
 /** Recorte que define QUAL ranking está na tela. A busca não entra aqui de propósito:
  *  posição é propriedade do ranking, não do que o atleta digitou na caixa de busca. */
 export interface RankingSlice {
-  sport: ArenaSportChip;
   level: FilterLevel;
   city: string;
   gender: FilterGender;
@@ -16,6 +15,25 @@ export interface RankingSlice {
 }
 
 export const CITY_ALL = 'all';
+
+export interface RankingSportOption {
+  /** Código de perfil (`VOLEI_PRAIA`, `FUTEVOLEI`…) — o mesmo do doc por esporte. */
+  code: string;
+  label: string;
+}
+
+/** Esportes com ranking: os de competição do catálogo, na ordem dele. */
+export const RANKING_SPORT_OPTIONS: readonly RankingSportOption[] = sportsWithSupport('competition').map((e) => ({
+  code: e.profileCode,
+  label: e.label,
+}));
+
+export const DEFAULT_RANKING_SPORT = 'VOLEI_PRAIA';
+
+/** O ranking abre no esporte principal do atleta quando ele tem ranking; senão vôlei de praia. */
+export function defaultRankingSport(primarySportId: string | null | undefined): string {
+  return RANKING_SPORT_OPTIONS.some((o) => o.code === primarySportId) ? primarySportId! : DEFAULT_RANKING_SPORT;
+}
 
 function normalize(value: string): string {
   return value
@@ -25,12 +43,12 @@ function normalize(value: string): string {
     .toLowerCase();
 }
 
-/** A posição nasce aqui — esporte + categoria + cidade + gênero + formato renumeram
- *  (é outro ranking), então "1º de Goiânia na Iniciante 1" é uma leitura válida do pódio.
- *  Gênero/formato desconhecidos (null) só aparecem com o filtro em "Todos". */
+/** A posição nasce aqui — categoria + cidade + gênero + formato renumeram (é outro ranking),
+ *  então "1º de Goiânia na Iniciante 1" é uma leitura válida do pódio. O esporte NÃO é recorte
+ *  daqui: a lista já chega do doc por esporte (quem pontuou naquele esporte, seja qual for o
+ *  esporte principal do perfil). Gênero/formato desconhecidos (null) só aparecem em "Todos". */
 export function rankParticipants(all: readonly RankingParticipant[], slice: RankingSlice): RankingRow[] {
   return all
-    .filter((p) => p.sport === slice.sport)
     .filter((p) => slice.level === 'all' || p.level === slice.level)
     .filter((p) => slice.city === CITY_ALL || p.city === slice.city)
     .filter((p) => slice.gender === 'all' || p.gender === slice.gender)

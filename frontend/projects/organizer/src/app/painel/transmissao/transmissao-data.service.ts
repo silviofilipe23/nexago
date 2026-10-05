@@ -1,4 +1,4 @@
-import { effect, inject, Injectable, signal } from '@angular/core';
+import { effect, inject, Injectable, signal, untracked } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { DEFAULT_BROADCAST_CONTROL, type BroadcastControl, type BroadcastInterview } from '../data/broadcast-control';
@@ -14,7 +14,7 @@ import { EMPTY_INTERVIEW_QUEUE, type InterviewQueue } from '../data/interview-qu
 import { organizerFirestore } from '../data/firestore';
 import { watchMatches, type TournamentMatch } from '../data/matches-repository';
 import type { RankingParticipant } from '../data/ranking-positions';
-import { fetchRankingParticipants } from '../data/rankings-repository';
+import { fetchRankingParticipants, rankingSportOf } from '../data/rankings-repository';
 import { fetchInterviewProfiles, fetchTeamsByIds } from '../data/teams-repository';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { watchTournament } from '../data/tournaments-repository';
@@ -47,8 +47,15 @@ export class TransmissaoDataService {
   private generation = 0;
   private readonly hydrated = new Set<string>();
   private rankingLoad: Promise<void> | null = null;
+  /** Esporte da leitura em curso/feita (`null` = total somado). */
+  private rankingSport: string | null = null;
+  /** Alguém vai montar entrevista: a leitura espera o torneio dizer o esporte. */
+  private readonly rankingWanted = signal(false);
 
   constructor() {
+    effect(() => {
+      if (this.rankingWanted()) this.loadRanking();
+    });
     effect((onCleanup) => {
       const id = this.tournamentId();
       this.generation++;
@@ -59,6 +66,13 @@ export class TransmissaoDataService {
       this.rosters.set(new Map());
       this.details.set(new Map());
       this.hydrated.clear();
+      // Ranking é do esporte do torneio: o do anterior não pode sobrar no card enquanto o novo
+      // doc chega, e outro torneio só lê de novo se alguém for montar entrevista nele.
+      this.rankingWanted.set(false);
+      this.rankingLoad = null;
+      this.rankingSport = null;
+      this.athleteRanking.set([]);
+      this.teamRanking.set([]);
       if (!id) return;
       const unsubTournament = watchTournament(id, (t) => this.tournament.set(t), () => {});
       const unsubMatches = watchMatches(
@@ -110,20 +124,33 @@ export class TransmissaoDataService {
     }
   }
 
-  /** O ranking geral é a coleção INTEIRA (é assim que o app numera) — só se lê quando alguém vai
-   *  montar uma entrevista, e uma vez por tela. Falha libera nova tentativa. */
+  /** O ranking é a coleção INTEIRA do esporte do torneio (é assim que o app numera) — só se lê
+   *  quando alguém vai montar uma entrevista, e uma vez por esporte. Falha libera nova tentativa. */
   ensureRanking(): void {
-    if (this.rankingLoad) return;
+    this.rankingWanted.set(true);
+    // Quem chama costuma estar num effect: ler `tournament` aqui não pode virar dependência dele.
+    untracked(() => this.loadRanking());
+  }
+
+  private loadRanking(): void {
+    const sport = rankingSportOf(this.tournament());
+    if (sport === undefined) return; // torneio ainda não chegou: o effect tenta de novo
+    if (this.rankingLoad && this.rankingSport === sport) return;
     const projectId = environment.firebase.projectId;
     if (!projectId) return;
-    this.rankingLoad = fetchRankingParticipants(organizerFirestore(), projectId)
+    this.rankingSport = sport;
+    this.athleteRanking.set([]);
+    this.teamRanking.set([]);
+    const load: Promise<void> = fetchRankingParticipants(organizerFirestore(), projectId, sport)
       .then(({ athletes, teams }) => {
+        if (this.rankingLoad !== load) return; // trocou o esporte no meio: resposta velha
         this.athleteRanking.set(athletes);
         this.teamRanking.set(teams);
       })
       .catch(() => {
-        this.rankingLoad = null;
+        if (this.rankingLoad === load) this.rankingLoad = null;
       });
+    this.rankingLoad = load;
   }
 
   private async hydrate(matches: TournamentMatch[], generation: number): Promise<void> {

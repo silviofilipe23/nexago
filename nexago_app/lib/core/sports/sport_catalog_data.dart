@@ -76,7 +76,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     appId: 'tennis',
     label: 'Tênis',
     art: 'tenis',
-    support: SportSupport.profile,
+    support: SportSupport.competition,
     scoringProfile: SetsGamesProfile(bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: false, decidingSet: DecidingSet.full, superTiebreakTo: 10),
   ),
   SportCatalogEntry(

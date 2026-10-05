@@ -125,6 +125,7 @@ void main() {
         'VOLEI_PRAIA',
         'VOLEI_QUADRA',
         'FUTEVOLEI',
+        'TENIS',
         'BEACH_TENNIS',
       ]);
     });

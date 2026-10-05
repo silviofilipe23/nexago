@@ -6,9 +6,9 @@
 import { KOC_LEGACY_MAX_TEAMS_PER_ROUND, type KocPhaseSpec } from './koc-phase-plan';
 import { legacyScoringProfile, scoringProfileFromRaw, sportLabel, SPORT_CATALOG, type ScoringProfile } from '@nexago/sports';
 
-export type TournamentSport = 'beachVolleyball' | 'indoorVolleyball' | 'footvolley' | 'beachTennis';
+export type TournamentSport = 'beachVolleyball' | 'indoorVolleyball' | 'footvolley' | 'tennis' | 'beachTennis';
 /** Na ordem do catálogo (suporte `competition`) — o teste de paridade compara com ela. */
-export const KNOWN_TOURNAMENT_SPORTS: readonly TournamentSport[] = ['beachVolleyball', 'indoorVolleyball', 'footvolley', 'beachTennis'];
+export const KNOWN_TOURNAMENT_SPORTS: readonly TournamentSport[] = ['beachVolleyball', 'indoorVolleyball', 'footvolley', 'tennis', 'beachTennis'];
 
 /** Leitura de `sport` vinda do Firestore. `sportRaw` só é preenchido quando o
  *  valor existe e o tipo não o representa: é o que volta pro doc no save, para
@@ -780,12 +780,25 @@ export function patchCategoryScoring(
 
 /** Troca de esporte: categoria cujo perfil explícito é de OUTRO tipo (pontos × games) ganha a
  *  sugestão do novo esporte; do mesmo tipo, o placar editado fica (clicar de novo no esporte ou
- *  trocar praia ↔ quadra não apaga nada); sem perfil continua sem. */
-export function withSportScoring(categories: readonly TournamentCategoryDraft[], sport: TournamentSport): TournamentCategoryDraft[] {
+ *  trocar praia ↔ quadra não apaga nada); sem perfil continua sem. Perfil igual à sugestão de
+ *  `previousSport` não foi editado — vira a sugestão do novo esporte (beach tennis → tênis não
+ *  pode levar no-ad e super tie-break calado). */
+export function withSportScoring(
+  categories: readonly TournamentCategoryDraft[],
+  sport: TournamentSport,
+  previousSport?: TournamentSport,
+): TournamentCategoryDraft[] {
   return categories.map((c) => {
     if (!c.scoringProfile) return c;
     const suggested = suggestedScoringProfile(sport, c.bestOf);
-    return c.scoringProfile['kind'] === suggested['kind'] ? c : { ...c, scoringProfile: suggested };
+    const untouched = previousSport != null && sameFlatRecord(c.scoringProfile, suggestedScoringProfile(previousSport, c.bestOf));
+    return c.scoringProfile['kind'] === suggested['kind'] && !untouched ? c : { ...c, scoringProfile: suggested };
   });
+}
+
+/** Perfil de placar é plano (só primitivos): igualdade campo a campo. */
+function sameFlatRecord(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k]);
 }
 

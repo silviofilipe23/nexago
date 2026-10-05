@@ -1051,7 +1051,9 @@ export class CriarTorneioComponent {
   protected setSport(label: string): void {
     const sport = (Object.keys(SPORT_LABEL) as TournamentSport[]).find((s) => SPORT_LABEL[s] === label);
     // O placar das categorias acompanha o esporte (o perfil antigo seria de outro tipo).
-    if (sport) this.patch({ sport, categories: withSportScoring(this.draft().categories, sport) });
+    // Sugestão intacta do esporte anterior também é refeita (esporte desconhecido não sugere nada).
+    const previous = this.draft().sportRaw ? undefined : this.draft().sport;
+    if (sport) this.patch({ sport, categories: withSportScoring(this.draft().categories, sport, previous) });
   }
 
   /** O placar que a categoria em edição vai carimbar (explícito ou o do servidor sem perfil). */

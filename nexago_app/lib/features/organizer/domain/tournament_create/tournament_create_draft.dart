@@ -2,7 +2,13 @@ import 'package:flutter/foundation.dart';
 
 /// Na ordem do catálogo (suporte `competition`) — o teste de paridade compara
 /// com ela.
-enum TournamentSport { beachVolleyball, indoorVolleyball, footvolley, beachTennis }
+enum TournamentSport {
+  beachVolleyball,
+  indoorVolleyball,
+  footvolley,
+  tennis,
+  beachTennis,
+}
 
 /// Perfil de placar cru da categoria (`scoringProfile` do doc) ou `null`.
 Map<String, dynamic>? scoringProfileRawOf(Object? raw) =>

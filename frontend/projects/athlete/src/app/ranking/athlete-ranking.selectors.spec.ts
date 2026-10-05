@@ -238,7 +238,7 @@ describe('hasSearchQuery', () => {
 
 describe('esporte do ranking', () => {
   it('opções = esportes de competição do catálogo, por código de perfil (com futevôlei)', () => {
-    expect(RANKING_SPORT_OPTIONS.map((o) => o.code)).toEqual(['VOLEI_PRAIA', 'VOLEI_QUADRA', 'FUTEVOLEI', 'BEACH_TENNIS']);
+    expect(RANKING_SPORT_OPTIONS.map((o) => o.code)).toEqual(['VOLEI_PRAIA', 'VOLEI_QUADRA', 'FUTEVOLEI', 'TENIS', 'BEACH_TENNIS']);
     expect(RANKING_SPORT_OPTIONS.find((o) => o.code === 'FUTEVOLEI')?.label).toBe('Futevôlei');
   });
 

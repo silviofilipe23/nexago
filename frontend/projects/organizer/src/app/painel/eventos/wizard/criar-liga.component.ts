@@ -623,7 +623,8 @@ export class CriarLigaComponent {
   protected setSport(label: string): void {
     const sport = (Object.keys(SPORT_LABEL) as TournamentSport[]).find((s) => SPORT_LABEL[s] === label);
     // O placar das categorias acompanha o esporte (as etapas herdam o perfil da categoria).
-    if (sport) this.patch({ sport, categories: withSportScoring(this.draft().categories, sport) });
+    // Sugestão intacta do esporte anterior também é refeita (liga nova: o esporte é sempre conhecido).
+    if (sport) this.patch({ sport, categories: withSportScoring(this.draft().categories, sport, this.draft().sport) });
   }
 
   protected setCatGender(label: string): void {

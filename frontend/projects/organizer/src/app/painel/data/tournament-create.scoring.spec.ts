@@ -53,6 +53,14 @@ describe('placar da categoria no wizard (fase 2d2a)', () => {
     expect(indoor!.scoringProfile).toEqual(jasmine.objectContaining({ kind: 'sets_points', decidingSetTarget: 11 }));
   });
 
+  it('trocar beach tennis → tênis: sugestão intacta vira a do tênis; editada fica (3c1)', () => {
+    const untouched = { ...emptyCategoryDraft('c1'), bestOf: 'bestOf3' as const, scoringProfile: suggestedScoringProfile('beachTennis', 'bestOf3') };
+    const edited = patchCategoryScoring(untouched, 'beachTennis', { decidingSet: 'full' });
+    const [a, b] = withSportScoring([untouched, edited], 'tennis', 'beachTennis');
+    expect(a!.scoringProfile).toEqual(jasmine.objectContaining({ noAd: false, decidingSet: 'full' }));
+    expect(b!.scoringProfile).toEqual(jasmine.objectContaining({ noAd: true, decidingSet: 'full' }));
+  });
+
   it('o bestOf gravado no perfil acompanha o da categoria (MD5 vira 3, como no servidor)', () => {
     const c = { ...emptyCategoryDraft('c1'), bestOf: 'singleSet' as const, scoringProfile: suggestedScoringProfile('beachTennis', 'bestOf3') };
     expect((categoryToMap(c, emptyTournamentDraft())['scoringProfile'] as Record<string, unknown>)['bestOf']).toBe(1);

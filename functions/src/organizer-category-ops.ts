@@ -127,7 +127,7 @@ function normalizePhoneForWhatsApp(phone: string): string {
  */
 export function bracketMatchDoc(
   draft: MatchDraft,
-  meta: {tournamentId: string; categoryId: string; bestOf: number},
+  meta: {tournamentId: string; categoryId: string; bestOf: number; sport?: string | null},
 ): Record<string, unknown> {
   return {
     tournamentId: meta.tournamentId,
@@ -139,6 +139,8 @@ export function bracketMatchDoc(
     teamBId: draft.teamBId,
     status: MatchStatus.scheduled,
     bestOf: meta.bestOf,
+    // Esporte do torneio: o placar (alvo do set) depende dele em mesa/telão/app.
+    ...(meta.sport ? {sport: meta.sport} : {}),
     resultA: "",
     resultB: "",
     isGroupMatch: draft.isGroupMatch,
@@ -556,6 +558,8 @@ export async function runGenerateCategoryBracket(
   // escolha do organizador chegar na mesa/telão/app — antes o campo nunca era
   // escrito na criação e TODA partida caía no fallback histórico (MD3).
   const bestOf = matchBestOfFromCategory(categoryMeta?.bestOf);
+  const matchSport =
+    typeof tournamentData.sport === "string" ? tournamentData.sport : null;
 
   const inscriptionsSnap = await db
     .collection(artifactsInscriptionsPath(projectId))
@@ -770,7 +774,7 @@ export async function runGenerateCategoryBracket(
     koc ?
       koc.docs :
       matchDrafts.map((draft) =>
-        bracketMatchDoc(draft, {tournamentId, categoryId, bestOf}),
+        bracketMatchDoc(draft, {tournamentId, categoryId, bestOf, sport: matchSport}),
       );
 
   for (const doc of newMatchDocs) {

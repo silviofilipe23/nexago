@@ -2,10 +2,11 @@
  *  marcação ponto a ponto da mesa ao vivo e o acesso ao doc da partida. Vive fora dos projetos
  *  porque o MESÁRIO opera pelos dois — mesma escrita, mesmas regras, um desenho só. */
 
-export type { ScoreSet, ScoreValidationIssue } from './match-scoring';
+export type { MatchSport, ScoreSet, ScoreValidationIssue } from './match-scoring';
 export {
   DEFAULT_BEST_OF,
   DEFAULT_SET_POINTS,
+  FOOTVOLLEY_SET_POINTS,
   MIN_ADVANTAGE,
   TIEBREAK_SET_POINTS,
   isSetWon,

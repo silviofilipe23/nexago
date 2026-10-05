@@ -836,7 +836,10 @@ export const submitMatchResult = onCall({
     .collection("tournaments")
     .doc(data.tournamentId as string)
     .get();
-  const sport = (tournamentSnap.data()?.sport as string | undefined) ?? null;
+  const sport =
+    (data.sport as string | undefined) ??
+    (tournamentSnap.data()?.sport as string | undefined) ??
+    null;
 
   const teamAId = (data.teamAId as string | undefined)?.trim() ?? "";
   const teamBId = (data.teamBId as string | undefined)?.trim() ?? "";

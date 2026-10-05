@@ -59,6 +59,8 @@ export interface LiveMatchSnapshot {
   liveScore: LiveScoreFields | null;
   currentSetIndex: number | null;
   bestOf: number | null;
+  /** Esporte da partida (define o alvo do set); ausente = regra de vôlei de praia. */
+  sport?: string | null;
 }
 
 export interface NotifySidecar {
@@ -92,6 +94,7 @@ interface NormalizedScore {
   currentB: number;
   setIndex: number;
   bestOf: number;
+  sport: string | null;
 }
 
 /** Mesma regra de `organizer-match-ops.ts`: só 1 ou 3 são formatos válidos. */
@@ -115,6 +118,7 @@ function intOf(raw: unknown): number {
  */
 function normalize(snapshot: LiveMatchSnapshot): NormalizedScore {
   const bestOf = normalizeBestOf(snapshot.bestOf);
+  const sport = snapshot.sport ?? null;
   const sets = Array.isArray(snapshot.sets) ? snapshot.sets : [];
   const rawIndex = snapshot.currentSetIndex;
   const setIndex =
@@ -123,7 +127,7 @@ function normalize(snapshot: LiveMatchSnapshot): NormalizedScore {
       Math.max(0, sets.length - 1);
 
   if (sets.length > 0) {
-    const wins = setsWon(sets, bestOf);
+    const wins = setsWon(sets, bestOf, sport);
     const current = sets[setIndex] ?? {a: 0, b: 0};
     return {
       wonA: wins.a,
@@ -132,6 +136,7 @@ function normalize(snapshot: LiveMatchSnapshot): NormalizedScore {
       currentB: intOf(current.b),
       setIndex,
       bestOf,
+      sport,
     };
   }
 
@@ -144,10 +149,11 @@ function normalize(snapshot: LiveMatchSnapshot): NormalizedScore {
       currentB: intOf(live.currentGamesB),
       setIndex,
       bestOf,
+      sport,
     };
   }
 
-  return {wonA: 0, wonB: 0, currentA: 0, currentB: 0, setIndex, bestOf};
+  return {wonA: 0, wonB: 0, currentA: 0, currentB: 0, setIndex, bestOf, sport};
 }
 
 /**
@@ -164,7 +170,7 @@ export function liveScoreSignature(snapshot: LiveMatchSnapshot): string {
 
 /** Quem fecha o set no próximo ponto, e se esse set também fecha a partida. */
 function pointAlertOf(s: NormalizedScore): PointAlert | null {
-  const target = targetPointsForSet(s.setIndex, s.bestOf);
+  const target = targetPointsForSet(s.setIndex, s.bestOf, s.sport);
   const neededSets = Math.ceil(s.bestOf / 2);
 
   if (isSetWon(s.currentA + 1, s.currentB, target)) {
@@ -502,6 +508,7 @@ export function snapshotFromMatchData(
     liveScore: liveScoreFromRaw(d.liveScore),
     currentSetIndex: typeof rawIndex === "number" ? Math.trunc(rawIndex) : null,
     bestOf: typeof d.bestOf === "number" ? d.bestOf : null,
+    sport: typeof d.sport === "string" ? d.sport : null,
   };
 }
 

@@ -59,6 +59,8 @@ export interface LiveMatch {
   sets: LiveSet[];
   currentSetIndex: number;
   bestOf: 1 | 3;
+  /** Esporte (`matches/{id}.sport`, gravado na criação da chave); ausente = vôlei de praia. */
+  sport: string | null;
   servingTeamId: string;
   /** Posição (1 ou 2) do atleta no saque dentro da dupla de `servingTeamId`; 0 = não declarada.
    *  Ver `serving-player.ts` — é derivada de [servingPlayerSlots] e vem denormalizada no doc
@@ -138,6 +140,7 @@ export function liveMatchFromDoc(id: string, data: Record<string, unknown>): Liv
     // Partida antiga sem `currentSetIndex` cai no último set do array (mesmo fallback do app).
     currentSetIndex: intOf(data['currentSetIndex'], Math.max(0, sets.length - 1)),
     bestOf: data['bestOf'] === 1 ? 1 : 3,
+    sport: optionalStr(data['sport']),
     servingTeamId: optionalStr(data['servingTeamId']) ?? '',
     servingPlayerSlot: data['servingPlayerSlot'] === 1 || data['servingPlayerSlot'] === 2 ? data['servingPlayerSlot'] : 0,
     servingPlayerSlots: servingPlayerSlotsFromRaw(data['servingPlayerSlots']),
@@ -213,8 +216,8 @@ export function buildPointWrite(m: LiveMatch, side: 'A' | 'B'): PointWrite | nul
   if (m.status === 'completed') return null;
 
   const setIndex = clampedSetIndex(m);
-  const result = applyPoint({ sets: m.sets, currentSetIndex: m.currentSetIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf });
-  const wins = setsWon(result.sets, m.bestOf);
+  const result = applyPoint({ sets: m.sets, currentSetIndex: m.currentSetIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf, sport: m.sport });
+  const wins = setsWon(result.sets, m.bestOf, m.sport);
   const current = result.sets[setIndex] ?? null;
   const slots = servingPlayerSlotsAfterScore({
     slots: m.servingPlayerSlots,
@@ -246,8 +249,8 @@ export function buildPointWrite(m: LiveMatch, side: 'A' | 'B'): PointWrite | nul
 /** Escrita do "desfazer": tira o ponto do lado que o marcou, no set do evento desfeito.
  *  `setIndex` vem da timeline (identifica QUAL ponto sai); o placar sai do doc recebido. */
 export function buildUndoWrite(m: LiveMatch, side: 'A' | 'B', setIndex: number): PointWrite {
-  const result = undoPoint({ sets: m.sets, currentSetIndex: setIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf });
-  const wins = setsWon(result.sets, m.bestOf);
+  const result = undoPoint({ sets: m.sets, currentSetIndex: setIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf, sport: m.sport });
+  const wins = setsWon(result.sets, m.bestOf, m.sport);
   const current = result.sets[result.currentSetIndex] ?? null;
   const slots = servingPlayerSlotsAfterUndo({ slots: m.servingPlayerSlots, nextServingTeamId: result.servingTeamId });
 

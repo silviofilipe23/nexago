@@ -41,6 +41,20 @@ describe("bracketMatchDoc", () => {
     assert.equal(docFor(undefined).bestOf, 3);
   });
 
+  it("grava o esporte do torneio na partida (regra de set do futevôlei)", () => {
+    const doc = bracketMatchDoc(DRAFT, {
+      tournamentId: "t1",
+      categoryId: "cat-1",
+      bestOf: 3,
+      sport: "footvolley",
+    });
+    assert.equal(doc.sport, "footvolley");
+  });
+
+  it("não grava sport quando o torneio não o traz", () => {
+    assert.equal("sport" in docFor("bestOf3"), false);
+  });
+
   it("não perde os demais campos da partida", () => {
     const doc = docFor("singleSet");
     assert.equal(doc.tournamentId, "t1");

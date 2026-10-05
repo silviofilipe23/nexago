@@ -10,6 +10,8 @@ export interface MyAthleteProfile {
   birthDate: string | null;
   /** Nível global legado — fallback quando não há nível pro esporte do torneio. */
   level: string | null;
+  /** Esporte principal (`sportOnboarding.primarySportId`, código de perfil ex.: `FUTEVOLEI`). */
+  primarySportId: string | null;
   /** `sportOnboarding.levelsBySport` (código do esporte → código do nível). */
   levelsBySport: Record<string, string>;
   /** `sportOnboarding.levelLocked` — janela de correção (plano de calibração
@@ -47,6 +49,7 @@ export async function fetchMyAthleteProfile(db: Firestore, uid: string): Promise
     gender: optionalStr(data['gender']),
     birthDate: optionalStr(data['birthDate']),
     level: optionalStr(data['level']) ?? optionalStr(data['nivel']),
+    primarySportId: optionalStr(sportOnboarding?.['primarySportId']) ?? optionalStr(data['primarySport']) ?? optionalStr(data['sport']),
     levelsBySport,
     levelLocked,
     fullName: optionalStr(data['fullName']) ?? optionalStr(data['name']),

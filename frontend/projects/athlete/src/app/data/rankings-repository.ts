@@ -44,6 +44,60 @@ export async function fetchTeamRankingGeneral(db: Firestore, projectId: string):
     .sort((a, b) => b.totalPoints - a.totalPoints);
 }
 
+/** Linha do ranking por esporte (`athleteRankingsBySport`/`teamRankingsBySport`, multiesporte
+ *  fase 3a). O id do doc é `{id}_{CODE}` — quem é o atleta/equipe vem do CAMPO. */
+export interface RankingBySportRow {
+  id: string;
+  totalPoints: number;
+  tournamentsCount: number;
+  pointsByYear: Record<string, number>;
+}
+
+export function rankingBySportRowFromDoc(
+  docId: string,
+  data: Record<string, unknown>,
+  idField: 'athleteId' | 'teamId',
+  sportCode: string,
+): RankingBySportRow {
+  const fromField = typeof data[idField] === 'string' ? (data[idField] as string).trim() : '';
+  const suffix = `_${sportCode}`;
+  const fromDocId = docId.endsWith(suffix) ? docId.slice(0, -suffix.length) : docId;
+  const rawByYear = data['pointsByYear'];
+  const pointsByYear: Record<string, number> = {};
+  if (rawByYear && typeof rawByYear === 'object' && !Array.isArray(rawByYear)) {
+    for (const [year, points] of Object.entries(rawByYear as Record<string, unknown>)) {
+      if (typeof points === 'number') pointsByYear[year] = points;
+    }
+  }
+  return { id: fromField || fromDocId, ...aggregateFromDoc(docId, data), pointsByYear };
+}
+
+/** Geral = total do esporte; temporada = pontos do ano (`pointsByYear`) — beach tennis não
+ *  está em `tournamentCategoryResults`, então a temporada por esporte sai daqui. */
+export function pointsForPeriod(row: RankingBySportRow, period: 'geral' | 'temporada', year: number): number {
+  return period === 'geral' ? row.totalPoints : (row.pointsByYear[String(year)] ?? 0);
+}
+
+async function fetchRankingBySport(
+  db: Firestore,
+  projectId: string,
+  collectionName: 'athleteRankingsBySport' | 'teamRankingsBySport',
+  idField: 'athleteId' | 'teamId',
+  sportCode: string,
+): Promise<RankingBySportRow[]> {
+  const snap = await getDocs(query(collection(db, ...artifactsBase(projectId), collectionName), where('sport', '==', sportCode)));
+  return snap.docs.map((d) => rankingBySportRowFromDoc(d.id, d.data() as Record<string, unknown>, idField, sportCode));
+}
+
+/** Ranking de atletas de UM esporte (código de perfil, ex.: `BEACH_TENNIS`). Ordena quem chama. */
+export function fetchAthleteRankingBySport(db: Firestore, projectId: string, sportCode: string): Promise<RankingBySportRow[]> {
+  return fetchRankingBySport(db, projectId, 'athleteRankingsBySport', 'athleteId', sportCode);
+}
+
+export function fetchTeamRankingBySport(db: Firestore, projectId: string, sportCode: string): Promise<RankingBySportRow[]> {
+  return fetchRankingBySport(db, projectId, 'teamRankingsBySport', 'teamId', sportCode);
+}
+
 export interface TournamentCategoryResult {
   tournamentId: string;
   categoryId: string;

@@ -300,6 +300,7 @@ ArenaSportChip defaultSportChipFromProfile({
       'VOLEI_QUADRA' || 'INDOOR_VOLLEYBALL' => ArenaSportChip.volleyball,
       'BEACH_TENNIS' => ArenaSportChip.beachTennis,
       'TENIS' => ArenaSportChip.tennis,
+      'PADEL' => ArenaSportChip.padel,
       'FUTEBOL' || 'FOOTBALL' => ArenaSportChip.football,
       _ =>
         _sportChipFromLabel(sport ?? primarySport ?? '') ??

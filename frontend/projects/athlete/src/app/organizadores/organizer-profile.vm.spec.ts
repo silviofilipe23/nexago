@@ -104,6 +104,7 @@ describe('identidade', () => {
     expect(tournamentSportLabel('beachVolleyball')).toBe('Vôlei de praia');
     expect(tournamentSportLabel('footvolley')).toBe('Futevôlei');
     expect(tournamentSportLabel('beachTennis')).toBe('Beach tennis');
+    expect(tournamentSportLabel('beach_tennis')).toBe('Beach tennis');
     expect(tournamentSportLabel('VOLEI_PRAIA')).toBe('Vôlei de praia');
     expect(tournamentSportLabel(null)).toBeNull();
   });

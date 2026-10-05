@@ -2,6 +2,7 @@
  * Perfil público do organizador — regras puras de exibição (sem Angular, sem Firestore).
  * Spec: docs/superpowers/specs/2026-10-02-organizer-public-profile-design.md
  */
+import { sportLabel } from '@nexago/sports';
 import { tournamentCoverOrDefault } from '@nexago/tournament-covers';
 import {
   ORGANIZER_ASPECT_KEYS,
@@ -12,7 +13,6 @@ import {
   type OrganizerReputationDetail,
   type OrganizerReviewSummaryRow,
 } from '../data/organizer-public-profiles';
-import { sportLabelForCode } from '../data/sport-catalog';
 import type { TournamentReviewAspectKey } from '../data/tournament-reviews';
 import type { TournamentSummary } from '../data/tournaments-repository';
 import { discoveryFillPercent, discoverySpotsOf } from '../tournaments/tournament-discovery.spots';
@@ -59,19 +59,9 @@ export function organizerInitials(name: string): string {
   return significant.slice(0, 3).map((w) => w.charAt(0).toUpperCase()).join('') || 'O';
 }
 
-/** `tournaments.sport` é camelCase (`beachVolleyball`); o catálogo do perfil usa `VOLEI_PRAIA`. */
-const TOURNAMENT_SPORT_LABELS: Record<string, string> = {
-  beachvolleyball: 'Vôlei de praia',
-  indoorvolleyball: 'Vôlei de quadra',
-  footvolley: 'Futevôlei',
-  beachtennis: 'Beach tennis',
-  padel: 'Padel',
-};
-
+/** Rótulo do esporte pelo catálogo (`@nexago/sports`), aceita `beachVolleyball` e `VOLEI_PRAIA`. */
 export function tournamentSportLabel(code: string | null | undefined): string | null {
-  const raw = code?.trim();
-  if (!raw) return null;
-  return TOURNAMENT_SPORT_LABELS[raw.toLowerCase()] ?? sportLabelForCode(raw);
+  return sportLabel(code);
 }
 
 // ── Datas (sempre no fuso de São Paulo, o do torneio) ───────────────────────

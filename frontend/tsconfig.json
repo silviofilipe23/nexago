@@ -28,6 +28,7 @@
         "shared/search-keywords/index.ts"
       ],
       "@nexago/push-notifications": ["shared/push-notifications/index.ts"],
+      "@nexago/sports": ["shared/sports/index.ts"],
       "@nexago/tournament-covers": ["shared/tournament-covers/index.ts"]
     }
   },

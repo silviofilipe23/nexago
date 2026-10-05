@@ -38,7 +38,7 @@ void main() {
     await tester.pump();
 
     expect(find.byType(DropdownButtonFormField<TournamentSport>), findsNothing);
-    expect(find.text('beachTennis'), findsOneWidget);
+    expect(find.text('Beach tennis'), findsOneWidget);
     expect(
       find.textContaining('não pode ser alterado nesta versão'),
       findsOneWidget,

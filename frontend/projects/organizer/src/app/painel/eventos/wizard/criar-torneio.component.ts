@@ -77,6 +77,7 @@ import { OgToggleRowComponent } from '../../ui/toggle-row.component';
 import { OgWizardShellComponent } from '../../ui/wizard-shell.component';
 import { NxPageLoadingComponent } from '../../../shared/loading/nx-page-loading.component';
 import { BrLocationsService } from '@nexago/br-locations';
+import { sportLabel } from '@nexago/sports';
 
 type SubView = 'categoria' | 'premio' | null;
 
@@ -369,7 +370,7 @@ function inputToDatetime(v: string): Date | null {
                   <div class="og-field-grid">
                     <og-form-field label="Esporte">
                       @if (draft().sportRaw; as sportRaw) {
-                        <div class="og-config-row"><span class="val">{{ sportRaw }}</span><span class="lbl">Não pode ser alterado nesta versão do painel.</span></div>
+                        <div class="og-config-row"><span class="val">{{ lockedSportLabel(sportRaw) }}</span><span class="lbl">Não pode ser alterado nesta versão do painel.</span></div>
                       } @else {
                         <og-select-chips [options]="sportOptions" [active]="sportLabel[draft().sport]" (changed)="setSport($event)" />
                       }
@@ -1433,8 +1434,13 @@ export class CriarTorneioComponent {
   }
 
   // Resumos da revisão (espelham `review*Summary` do app)
+  protected lockedSportLabel(raw: string): string {
+    return sportLabel(raw) ?? raw;
+  }
+
   protected reviewSport(): string {
-    return this.draft().sportRaw ?? SPORT_LABEL[this.draft().sport];
+    const raw = this.draft().sportRaw;
+    return raw ? this.lockedSportLabel(raw) : SPORT_LABEL[this.draft().sport];
   }
 
   protected reviewLocation(): string {

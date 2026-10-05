@@ -12,11 +12,11 @@ import {
 import {
   BEST_OF_LABEL,
   BRACKET_SYSTEM_LABEL,
+  KNOWN_TOURNAMENT_SPORTS,
   SPORT_LABEL,
   SUPPORTED_BRACKET_SYSTEMS,
   type TournamentBestOf,
   type TournamentBracketSystem,
-  type TournamentSport,
 } from '../data/tournament-create.model';
 import { OgCardComponent } from '../ui/card.component';
 import { OgFormFieldComponent } from '../ui/form-field.component';
@@ -26,7 +26,7 @@ import { OgStepperStaticComponent } from '../ui/stepper-static.component';
 import { OgToggleRowComponent } from '../ui/toggle-row.component';
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-const SPORTS: readonly TournamentSport[] = ['beachVolleyball', 'indoorVolleyball', 'footvolley'];
+const SPORTS = KNOWN_TOURNAMENT_SPORTS;
 const BEST_OFS: readonly TournamentBestOf[] = ['singleSet', 'bestOf3', 'bestOf5'];
 
 /** Card "Regras padrão de evento" de `/painel/config`: o que o wizard de criar torneio usa como

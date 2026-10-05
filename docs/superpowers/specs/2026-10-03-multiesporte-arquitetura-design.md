@@ -106,10 +106,10 @@ avulso):
 | `beachVolleyball` | `VOLEI_PRAIA` | competition | Como hoje |
 | `indoorVolleyball` | `VOLEI_QUADRA` | competition | Como hoje; placar 25/15 na fase 2 |
 | `footvolley` | `FUTEVOLEI` | competition | Como hoje; placar 18/15 na fase 2 |
-| `beachTennis` | `BEACH_TENNIS` | profile → competition na fase 1 | Já tem arte de capa |
+| `beachTennis` | `BEACH_TENNIS` | profile → competition na fase 2 | Já tem arte de capa. Ver emenda de 04/10 |
 | `tennis` | `TENIS` | profile → competition na fase 3 | Individual exige fase 4 |
-| `padel` | `PADEL` (novo) | profile → competition na fase 3 | Código de perfil novo entra nas rules |
-| `pickleball` | `PICKLEBALL` (novo) | profile | Placar side-out fica fora deste spec |
+| `padel` | `PADEL` (novo) | entra no catálogo na fase 3 | Código de perfil novo entra nas rules |
+| `pickleball` | `PICKLEBALL` (novo) | entra no catálogo quando houver uso | Placar side-out fica fora deste spec |
 | `football` | `FUTEBOL` | profile | `single_score` fora deste spec |
 | `basketball` | `BASQUETE` | profile | idem |
 | `running` | `CORRIDA` | profile | Sem competição no produto |
@@ -274,7 +274,7 @@ override de rótulo) continua.
 | Situação | Comportamento |
 |---|---|
 | Doc com `sport` em grafia legada (`beach_tennis`) | Resolvido por alias na leitura. Não é regravado. |
-| Doc com `sport` desconhecido | `resolveSportCode` retorna `null`; UI mostra "Esporte não informado"; elegibilidade cai no nível global, como hoje. Nunca é coagido. |
+| Doc com `sport` desconhecido | `resolveSportCode` retorna `null`; UI mostra o código em title case (emenda de 04/10); elegibilidade cai no nível global, como hoje. Nunca é coagido. |
 | App antigo reedita torneio de esporte novo | Rule recusa o update porque `sport` mudaria. O organizador vê erro de salvamento e precisa do app novo. Aceito. |
 | Partida sem `scoringProfile` | Derivado de `bestOf` + esporte do torneio. |
 | `liveScore` lido por app antigo | `currentGamesA/B` continuam escritos até o build mínimo subir. |
@@ -297,16 +297,33 @@ Remover a coerção para `beachVolleyball` (8 pontos listados no Contexto; valor
 `friendly-match-logic.ts` (chave em UPPER_SNAKE) e `athlete_profile.dart` (futevôlei no mapa).
 Saída: nenhum caminho reescreve `sport`; testes de rules cobrindo o congelamento.
 
-**Fase 1: catálogo e beach tennis.**
+**Fase 1: catálogo.**
 `sports/catalog.json`, codegen, `@nexago/sports`, `functions/src/sports/`, `core/sports/` no
-app. Trocar as pontes e os mapas de rótulo/ícone/arte pelo catálogo. Teste rules × catálogo.
-`beachTennis` entra em `TournamentSport` nas três superfícies, ainda com `sets_points` (o
-organizador de beach tennis lança o placar em games como se fossem pontos até a fase 2; é como
-já faria hoje em qualquer outro sistema sem suporte). Saída: criar e operar um torneio de beach
-tennis em app e portal, sem default silencioso em lugar nenhum.
+app. Trocar as pontes de código e os mapas de rótulo e arte pelo catálogo. Teste rules ×
+catálogo. Saída: um esporte novo de perfil entra editando um arquivo; nenhuma tela mostra
+"Vôlei de praia" para algo que não é.
 
-**Fase 2: perfil de placar.**
-Tipo `ScoringProfile`, estratégias `sets_points` e `sets_games` nas três implementações,
+**Emenda de 04/10/2026 (fase 1).**
+- **Beach tennis abre na fase 2, não na 1.** A validação de placar hoje exige set de 21 pontos
+  com vantagem de 2 no servidor e nas mesas; um set de beach tennis (6-4) é recusado. Abrir a
+  criação antes do tipo `sets_games` geraria torneios impossíveis de operar. Na fase 1
+  `beachTennis` fica no catálogo com suporte `profile`, e o torneio legado nessa grafia segue
+  travado pelo `sportRaw` da fase 0, agora exibindo "Beach tennis".
+- **Esporte desconhecido mostra o próprio código em title case** ("Padel", "Curling"), não
+  "Esporte não informado". O rótulo genérico fica só para ausência do campo. Motivo: o código
+  é informação real e "não informado" seria falso.
+- **Padel e pickleball ficam fora do catálogo inicial.** Código de perfil novo mexe nas rules
+  de nível, que já estão perto do teto de avaliação; entram quando houver uso.
+- **Ícones e chips de arena/descoberta ficam fora da fase 1.** Os ícones por tela são escolha
+  visual e os chips são da fase 5. O campo `icon` entra no catálogo quando o primeiro
+  consumidor for migrado.
+- **Normalização igual nas três linguagens por construção:** minúsculas, tabela fixa de
+  acentos do português, remove tudo que não é letra ou dígito. Os vetores de teste moram no
+  `catalog.json` e o codegen os emite nos três alvos.
+
+**Fase 2: perfil de placar e beach tennis.**
+`beachTennis` entra em `TournamentSport` nas três superfícies e sobe para `competition`, já
+com `sets_games` (emenda de 04/10). Tipo `ScoringProfile`, estratégias `sets_points` e `sets_games` nas três implementações,
 vetores de placar, carimbo na partida, derivação para legado, validação no servidor,
 `liveScore` novo com dupla escrita, wizard com campos por tipo, consumidores lendo o perfil,
 standings por tipo, saque por game. Vôlei de quadra e futevôlei passam a usar seus defaults.

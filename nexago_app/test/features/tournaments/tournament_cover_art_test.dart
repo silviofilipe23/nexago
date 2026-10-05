@@ -29,12 +29,21 @@ void main() {
   });
 
   test('esporte desconhecido devolve nulo em vez de caminho inventado', () {
-    // Torneio legado pode não ter `sport`, e o vocabulário do perfil do atleta
-    // (`VOLEI_PRAIA`) não é o do torneio: casar por engano traria asset fora
-    // do bundle. Sem arte é o gradiente, que segue sendo o último recurso.
-    for (final code in [null, '', '   ', 'VOLEI_PRAIA', 'xadrez']) {
+    // Torneio legado pode não ter `sport`. Sem arte é o gradiente, que segue
+    // sendo o último recurso.
+    for (final code in [null, '', '   ', 'xadrez']) {
       expect(TournamentCoverArt.assetFor(code), isNull, reason: 'para $code');
     }
+  });
+
+  test('código do perfil resolve pelo catálogo para a mesma arte', () {
+    // Desde o catálogo canônico (`sports/catalog.json`) `VOLEI_PRAIA` e
+    // `beachVolleyball` são o mesmo esporte, e o codegen recusa arte sem o
+    // arquivo no bundle — o risco que este caso travava antes não existe mais.
+    expect(
+      TournamentCoverArt.assetFor('VOLEI_PRAIA'),
+      'assets/images/sports/volei_praia.webp',
+    );
   });
 
   test('todo esporte que o wizard grava tem arte', () {

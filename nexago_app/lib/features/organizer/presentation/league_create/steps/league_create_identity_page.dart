@@ -14,6 +14,7 @@ import '../../../../athlete/presentation/widgets/br_state_city_fields.dart';
 import '../league_create_navigation.dart';
 import '../league_create_wizard_scaffold.dart';
 import '../../tournament_create/widgets/organizer_form_widgets.dart';
+import '../../../../../core/sports/sport_catalog.dart';
 
 class LeagueCreateIdentityPage extends ConsumerStatefulWidget {
   const LeagueCreateIdentityPage({super.key});
@@ -83,7 +84,7 @@ class _LeagueCreateIdentityPageState
             TextFormField(
               key: const ValueKey('sport-locked'),
               enabled: false,
-              initialValue: sportRaw,
+              initialValue: SportCatalog.labelOf(sportRaw) ?? sportRaw,
               decoration: _fieldDecoration(context).copyWith(
                 helperText:
                     'Esporte não pode ser alterado nesta versão do app.',

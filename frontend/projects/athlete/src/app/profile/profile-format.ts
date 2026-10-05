@@ -1,6 +1,7 @@
 import { levelLabelOf } from '../data/athlete-level';
 import { levelDisplayLabel } from '@nexago/levels';
 import { sportLabelForCode } from '../data/sport-catalog';
+import { SPORT_UNKNOWN_LABEL } from '@nexago/sports';
 
 export function titleCase(input: string): string {
   return input
@@ -69,6 +70,11 @@ export interface SportLevelEntry {
   code: string;
   sportLabel: string;
   levelLabel: string;
+}
+
+/** Rótulo do esporte principal (o primeiro declarado); sem esporte → "Esporte não informado". */
+export function primarySportLabel(levels: readonly SportLevelEntry[]): string {
+  return levels[0]?.sportLabel ?? SPORT_UNKNOWN_LABEL;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

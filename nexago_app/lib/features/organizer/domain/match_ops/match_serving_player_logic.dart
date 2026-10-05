@@ -22,19 +22,40 @@ abstract final class MatchServingPlayerLogic {
     return null;
   }
 
-  /// A posição de quem está sacando AGORA — derivada do lado que está com o saque.
+  /// A posição de quem está sacando AGORA — derivada do lado que está com o saque. Individual
+  /// não tem o que declarar: o atleta no saque é sempre o 1.
   static int servingPlayerSlot({
     required MatchServingPlayers slots,
     required String servingTeamId,
     required String teamAId,
     required String teamBId,
+    MatchRosterSizes rosterSizes = MatchRosterSizes.dupla,
   }) {
     final side = sideOfTeam(
       teamId: servingTeamId,
       teamAId: teamAId,
       teamBId: teamBId,
     );
-    return side == null ? 0 : slots.slotForSide(side);
+    if (side == null) return 0;
+    return rosterSizes.forSide(side) == 1 ? 1 : slots.slotForSide(side);
+  }
+
+  /// Individual: a ordem do lado é sempre o titular — grava 1 no lado de elenco 1 (doc coerente
+  /// para as outras mesas, que não sabem o elenco).
+  static MatchServingPlayers withIndividualSlots(
+    MatchServingPlayers slots,
+    MatchRosterSizes rosterSizes,
+  ) {
+    return MatchServingPlayers(
+      a: rosterSizes.forSide('A') == 1 ? 1 : slots.a,
+      b: rosterSizes.forSide('B') == 1 ? 1 : slots.b,
+    );
+  }
+
+  /// Próximo da ordem de saque do elenco: individual fica no 1, dupla alterna, equipe roda.
+  static int _nextSlotInRoster(int current, int roster) {
+    if (current == 0) return 0;
+    return (current % roster) + 1;
   }
 
   /// Quem saca pela dupla depois de mexer no placar.
@@ -52,6 +73,7 @@ abstract final class MatchServingPlayerLogic {
     required String nextServingTeamId,
     required String teamAId,
     required String teamBId,
+    MatchRosterSizes rosterSizes = MatchRosterSizes.dupla,
   }) {
     final previous = previousServingTeamId.trim();
     final next = nextServingTeamId.trim();
@@ -63,7 +85,10 @@ abstract final class MatchServingPlayerLogic {
     if (side == null) return slots;
     final current = slots.slotForSide(side);
     if (current == 0) return slots;
-    return slots.withSide(side, current == 1 ? 2 : 1);
+    return slots.withSide(
+      side,
+      _nextSlotInRoster(current, rosterSizes.forSide(side)),
+    );
   }
 
   /// Desfazer NÃO devolve a ordem de saque: o evento da timeline guarda o placar, não quem
@@ -88,6 +113,7 @@ abstract final class MatchServingPlayerLogic {
     required String servingTeamId,
     required String teamAId,
     required String teamBId,
+    MatchRosterSizes rosterSizes = MatchRosterSizes.dupla,
   }) {
     final side = sideOfTeam(
       teamId: servingTeamId,
@@ -97,7 +123,10 @@ abstract final class MatchServingPlayerLogic {
     if (side == null) return slots;
     final current = slots.slotForSide(side);
     if (current == 0) return slots;
-    return slots.withSide(side, current == 1 ? 2 : 1);
+    return slots.withSide(
+      side,
+      _nextSlotInRoster(current, rosterSizes.forSide(side)),
+    );
   }
 
   /// A mesa precisa perguntar QUAL ATLETA está sacando?
@@ -107,13 +136,18 @@ abstract final class MatchServingPlayerLogic {
   /// Fora disso vale sempre que a dupla no saque ainda não declarou a ordem dela neste set —
   /// inclusive com a partida já ao vivo, porque a dupla que ainda não tinha sacado estreia no
   /// meio do set.
+  ///
+  /// [servingRosterSize] é o elenco do lado no saque: individual (1) nunca pergunta — só há
+  /// um atleta.
   static bool needsServingPlayer({
     required String servingTeamId,
     required int servingPlayerSlot,
     required String status,
     required String teamAId,
     required String teamBId,
+    int servingRosterSize = 2,
   }) {
+    if (servingRosterSize == 1) return false;
     if (MatchScoringLogic.needsStartingServe(
       servingTeamId: servingTeamId,
       status: status,
@@ -128,6 +162,6 @@ abstract final class MatchServingPlayerLogic {
     }
     if (teamAId.trim().isEmpty || teamBId.trim().isEmpty) return false;
     if (servingTeamId.trim().isEmpty) return false;
-    return servingPlayerSlot != 1 && servingPlayerSlot != 2;
+    return servingPlayerSlot < 1 || servingPlayerSlot > 5;
   }
 }

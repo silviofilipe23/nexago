@@ -103,10 +103,10 @@ abstract final class TournamentMatchMapper {
     return value > 0 ? value : 0;
   }
 
-  /// Posição do sacador; qualquer coisa fora de 1/2 vira "não declarada".
+  /// Posição do sacador no elenco; qualquer coisa fora de 1–5 vira "não declarada".
   static int _servingPlayerSlot(dynamic raw) {
     final value = _int(raw);
-    return value == 1 || value == 2 ? value! : 0;
+    return value != null && value >= 1 && value <= 5 ? value : 0;
   }
 
   static ({int a, int b}) _gamePoints(dynamic raw) {

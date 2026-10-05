@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../tournaments/domain/tournament_match.dart';
 import '../../tournaments/domain/tournament_match_medical_timeout.dart';
+import '../../tournaments/domain/tournament_match_serving_players.dart';
 import '../../tournaments/domain/tournament_match_set.dart';
 import '../../tournaments/domain/tournament_match_status.dart';
 import '../domain/match_ops/match_medical_timeout_logic.dart';
@@ -48,10 +49,20 @@ int _clampedSetIndex(TournamentMatch match) {
 /// Devolve `null` quando a partida já está encerrada no doc: nesse caso a outra mesa (ou o ponto
 /// anterior) fechou a partida enquanto esta tela ainda mostrava "ao vivo", e somar ponto em
 /// partida encerrada reabriria uma chave que o servidor já avançou.
-MatchPointWrite? buildPointWrite(TournamentMatch match, String side) {
+///
+/// [rosterSizes] é o elenco de cada lado, que o doc da partida não conhece: a mesa passa o que
+/// carregou dos docs de `teams`, e é o que faz a individual (1) e a equipe (3–5) não caírem na
+/// alternância da dupla.
+MatchPointWrite? buildPointWrite(
+  TournamentMatch match,
+  String side, {
+  MatchRosterSizes rosterSizes = MatchRosterSizes.dupla,
+}) {
   if (match.isCompleted) return null;
   final games = gamesProfileOf(match);
-  if (games != null) return buildGamesPointWrite(match, side, games);
+  if (games != null) {
+    return buildGamesPointWrite(match, side, games, rosterSizes: rosterSizes);
+  }
 
   final setIndex = _clampedSetIndex(match);
   final result = MatchScoringLogic.applyPoint(
@@ -64,12 +75,16 @@ MatchPointWrite? buildPointWrite(TournamentMatch match, String side) {
   );
   final wins = MatchScoringLogic.setsWon(result.sets, bestOf: match.bestOf);
   final current = result.sets.length > setIndex ? result.sets[setIndex] : null;
-  final slots = MatchServingPlayerLogic.slotsAfterScore(
-    slots: match.servingPlayers,
-    previousServingTeamId: match.servingTeamId,
-    nextServingTeamId: result.servingTeamId,
-    teamAId: match.teamAId,
-    teamBId: match.teamBId,
+  final slots = MatchServingPlayerLogic.withIndividualSlots(
+    MatchServingPlayerLogic.slotsAfterScore(
+      slots: match.servingPlayers,
+      previousServingTeamId: match.servingTeamId,
+      nextServingTeamId: result.servingTeamId,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+      rosterSizes: rosterSizes,
+    ),
+    rosterSizes,
   );
 
   return MatchPointWrite(
@@ -86,6 +101,7 @@ MatchPointWrite? buildPointWrite(TournamentMatch match, String side) {
         servingTeamId: result.servingTeamId,
         teamAId: match.teamAId,
         teamBId: match.teamBId,
+        rosterSizes: rosterSizes,
       ),
       if (result.winnerId != null) 'winnerId': result.winnerId,
       if (result.winnerId != null) 'matchEndedAt': FieldValue.serverTimestamp(),
@@ -120,6 +136,7 @@ MatchPointWrite? buildUndoWrite(
   int setIndex, {
   Map<String, dynamic>? prev,
   ({int scoreA, int scoreB, int gameA, int gameB})? landed,
+  MatchRosterSizes rosterSizes = MatchRosterSizes.dupla,
 }) {
   final games = gamesProfileOf(match);
   if (games != null) {
@@ -149,9 +166,12 @@ MatchPointWrite? buildUndoWrite(
   final wins = MatchScoringLogic.setsWon(result.sets, bestOf: match.bestOf);
   final idx = result.currentSetIndex;
   final current = result.sets.length > idx ? result.sets[idx] : null;
-  final slots = MatchServingPlayerLogic.slotsAfterUndo(
-    slots: match.servingPlayers,
-    nextServingTeamId: result.servingTeamId,
+  final slots = MatchServingPlayerLogic.withIndividualSlots(
+    MatchServingPlayerLogic.slotsAfterUndo(
+      slots: match.servingPlayers,
+      nextServingTeamId: result.servingTeamId,
+    ),
+    rosterSizes,
   );
 
   return MatchPointWrite(
@@ -166,6 +186,7 @@ MatchPointWrite? buildUndoWrite(
         servingTeamId: result.servingTeamId,
         teamAId: match.teamAId,
         teamBId: match.teamBId,
+        rosterSizes: rosterSizes,
       ),
       'winnerId': FieldValue.delete(),
       'matchEndedAt': FieldValue.delete(),
@@ -192,14 +213,25 @@ MatchPointWrite? buildUndoWrite(
 /// Campos de uma troca MANUAL da dupla no saque ("Quem começa sacando?" e "Trocar saque"). Não
 /// mexe na ordem declarada de cada dupla — só reaponta quem está sacando agora, que é o atleta
 /// que aquela dupla já tinha na vez. Espelha `servingTeamFields` de `live-match-repository.ts`.
-Map<String, dynamic> servingTeamFields(TournamentMatch match, String teamId) {
+Map<String, dynamic> servingTeamFields(
+  TournamentMatch match,
+  String teamId, {
+  MatchRosterSizes rosterSizes = MatchRosterSizes.dupla,
+}) {
+  // Individual: grava o titular na ordem do lado, para as mesas que não sabem o elenco.
+  final slots = MatchServingPlayerLogic.withIndividualSlots(
+    match.servingPlayers,
+    rosterSizes,
+  );
   return {
+    if (slots != match.servingPlayers) 'servingPlayerSlots': slots.toMap(),
     'servingTeamId': teamId,
     'servingPlayerSlot': MatchServingPlayerLogic.servingPlayerSlot(
-      slots: match.servingPlayers,
+      slots: slots,
       servingTeamId: teamId,
       teamAId: match.teamAId,
       teamBId: match.teamBId,
+      rosterSizes: rosterSizes,
     ),
   };
 }
@@ -209,8 +241,9 @@ Map<String, dynamic> servingTeamFields(TournamentMatch match, String teamId) {
 Map<String, dynamic> servingPlayerFields(
   TournamentMatch match,
   String side,
-  int slot,
-) {
+  int slot, {
+  MatchRosterSizes rosterSizes = MatchRosterSizes.dupla,
+}) {
   final slots = match.servingPlayers.withSide(side, slot);
   return {
     'servingPlayerSlots': slots.toMap(),
@@ -219,6 +252,7 @@ Map<String, dynamic> servingPlayerFields(
       servingTeamId: match.servingTeamId,
       teamAId: match.teamAId,
       teamBId: match.teamBId,
+      rosterSizes: rosterSizes,
     ),
   };
 }

@@ -53,8 +53,9 @@ GamesLiveState gamesLiveStateOf(TournamentMatch match) => (
 MatchPointWrite buildGamesPointWrite(
   TournamentMatch match,
   String side,
-  SetsGamesProfile profile,
-) {
+  SetsGamesProfile profile, {
+  MatchRosterSizes rosterSizes = MatchRosterSizes.dupla,
+}) {
   final setIndex = (match.currentSetIndex ?? 0).clamp(0, profile.bestOf - 1);
   final r = LiveGames.apply(
     gamesLiveStateOf(match),
@@ -89,12 +90,16 @@ MatchPointWrite buildGamesPointWrite(
   final landed = st.sets.length > setIndex
       ? st.sets[setIndex]
       : const ScoreSetValue(0, 0);
-  final slots = MatchServingPlayerLogic.slotsAfterScore(
-    slots: match.servingPlayers,
-    previousServingTeamId: match.servingTeamId,
-    nextServingTeamId: st.servingTeamId,
-    teamAId: match.teamAId,
-    teamBId: match.teamBId,
+  final slots = MatchServingPlayerLogic.withIndividualSlots(
+    MatchServingPlayerLogic.slotsAfterScore(
+      slots: match.servingPlayers,
+      previousServingTeamId: match.servingTeamId,
+      nextServingTeamId: st.servingTeamId,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+      rosterSizes: rosterSizes,
+    ),
+    rosterSizes,
   );
   return MatchPointWrite(
     matchUpdate: {
@@ -111,6 +116,7 @@ MatchPointWrite buildGamesPointWrite(
         servingTeamId: st.servingTeamId,
         teamAId: match.teamAId,
         teamBId: match.teamBId,
+        rosterSizes: rosterSizes,
       ),
       if (winnerId != null) 'winnerId': winnerId,
       if (winnerId != null) 'matchEndedAt': FieldValue.serverTimestamp(),
@@ -164,7 +170,7 @@ MatchPointWrite buildGamesUndoWrite(
       ? MatchServingPlayers.fromMap(Map<String, dynamic>.from(rawSlots))
       : MatchServingPlayers.none;
   final rawSlot = prev['servingPlayerSlot'];
-  final slot = rawSlot == 1 || rawSlot == 2 ? rawSlot as int : 0;
+  final slot = rawSlot is int && rawSlot >= 1 && rawSlot <= 5 ? rawSlot : 0;
   final wins = ScoringRules.setsWon([for (final s in sets) _value(s)], profile);
   final cur = sets.length > idx
       ? sets[idx]

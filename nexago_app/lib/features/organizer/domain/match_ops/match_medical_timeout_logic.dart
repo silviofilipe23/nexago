@@ -41,7 +41,7 @@ abstract final class MatchMedicalTimeoutLogic {
     required int slot,
   }) {
     if (active != null) return false;
-    if (slot != 1 && slot != 2) return false;
+    if (slot < 1 || slot > 5) return false;
     return !hasUsed(usedKeys, side, slot);
   }
 

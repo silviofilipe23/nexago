@@ -479,6 +479,27 @@ unidades de enchimento ≈ 5 expressões; teto ≈ 195 unidades):
   deploy (`tournaments` com `sport` padel).
 
 **Fase 4: equipe por tamanho.**
+
+**Emenda de 05/10/2026 (fase 4), depois do inventário** (~100 pontos de lógica e ~220 de texto
+nas três plataformas; o modelo de "individual" já existe pela metade — enum, rótulo, `teamSize: 1`
+no mapa — mas todo leitor o devolve a 2 ou "dupla"):
+- Sai em quatro: **4a** servidor (categoria individual funciona no backend; nenhum cliente a
+  oferece ainda), **4b** catálogo `allowedTeamSizes` + painel do organizador (cria categoria
+  individual, mesa por slots), **4c** portal do atleta, **4d** app.
+- **Individual = `teamSize: 1` EXPLÍCITO.** `disputeType: 'individual'` sem `teamSize` continua
+  dupla: pode haver categoria antiga assim, rodada como dupla. Os escritores novos gravam os dois.
+- **Inscrição individual é completa na hora:** `registerSoloTournament` (o callable que o app da
+  loja já chama) cria a equipe de 1 (`memberUids: [uid]`, `player1Id`, `player2Id: ""`,
+  `teamSize: 1`) e a inscrição com `teamId` e `partnerPending: false` — entra na chave como
+  qualquer equipe. Convite de parceiro (enviar, aceitar, externo) é recusado em categoria
+  individual.
+- **Pagamento:** a cota da individual é a taxa inteira — o caminho de cota dinâmica (o de
+  equipe) vale para todo tamanho ≠ 2; inscrição gratuita/declarada fecha com 1 atleta.
+- **Ranking:** equipe de 1 não gera `teamRankings*` (o atleta já tem o seu); confronto direto
+  passa a `memberUids`.
+- `participantNoun(teamSize)` entra no servidor nas mensagens tocadas pela 4a; "dupla
+  eliminatória" (formato) e "inscrição individual" no sentido de reserva solo não são o
+  substantivo do participante e não mudam.
 Piso 1 em `teamSize`, inscrição individual, `participantNoun`, slots de saque por tamanho,
 tempo médico por slot, confronto direto por `memberUids`, capa de equipe pelo esporte do torneio.
 Saída: torneio de tênis individual de ponta a ponta.

@@ -51,8 +51,12 @@ class LiveTableTeamData {
   /// guardado na partida. Vazio quando a posição não existe ou o slot não foi declarado.
   String nameForSlot(int slot) {
     if (slot < 1 || slot > rosterSize) return '';
-    if (rosterSize != 2 && slot <= rosterNames.length) {
-      return rosterNames[slot - 1].trim();
+    // Elenco real (perfis) primeiro — dupla com nome de equipe ("Os
+    // Invencíveis") não tem "Ana / Bia" no rótulo para dividir. Sem equipe
+    // resolvida, cai no rótulo dividido como sempre.
+    if (slot <= rosterNames.length) {
+      final name = rosterNames[slot - 1].trim();
+      if (name.isNotEmpty) return name;
     }
     if (slot == 1) return player1.name.trim();
     if (slot == 2) return player2.name.trim();

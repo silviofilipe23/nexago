@@ -81,6 +81,11 @@ void main() {
         'player1Id': 'u1',
         'player2Id': 'u2',
       }),
+      'nomeada': TournamentTeam.fromMap('nomeada', const {
+        'player1Id': 'u1',
+        'player2Id': 'u2',
+        'teamName': 'Os Invencíveis',
+      }),
     }),
     usersRepository: _FakeUsers({
       'u1': const AppUserProfile(uid: 'u1', fullName: 'Ana'),
@@ -165,5 +170,33 @@ void main() {
     expect(find.text('Bia'), findsOneWidget);
     await tester.tap(find.text('Caio'));
     expect(chosen, 3);
+  });
+
+  test('dupla com nome de equipe nomeia as posições pelos atletas, não pelo rótulo', () async {
+    final card = (await service.enrichMatches([
+      const TournamentMatch(
+        id: 'm3',
+        tournamentId: 'T',
+        categoryId: 'c1',
+        round: 1,
+        matchType: 'group',
+        poolId: '',
+        teamAId: 'nomeada',
+        teamBId: '',
+        status: 'In Progress',
+        resultA: '0',
+        resultB: '0',
+        isGroupMatch: true,
+        matchNumber: 3,
+      ),
+    ])).single;
+    final dupla = liveTableTeamData(
+      match: card.match,
+      sideA: true,
+      enrichedTeam: card.teamA,
+    );
+    expect(dupla.label, 'Os Invencíveis');
+    expect(dupla.nameForSlot(1), 'Ana');
+    expect(dupla.nameForSlot(2), 'Bia');
   });
 }

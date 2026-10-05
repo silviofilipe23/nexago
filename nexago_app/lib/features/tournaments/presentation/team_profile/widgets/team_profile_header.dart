@@ -36,7 +36,7 @@ class TeamProfileHeader extends StatelessWidget {
       player1: profile.player1,
       player2: profile.player2,
     );
-    final sport = teamProfileSportLabel(profile.player1, profile.player2);
+    final sport = teamProfileHeaderSportLabel(profile);
     // final together = formatTeamTogetherLabel(profile.team.createdAt);
     final tags = teamProfileTagLabels(
       profile.player1,

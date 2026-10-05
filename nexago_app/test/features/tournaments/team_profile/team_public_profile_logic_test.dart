@@ -318,6 +318,31 @@ void main() {
     });
   });
 
+  group('teamProfileHeaderSportLabel', () {
+    test('esporte do torneio da equipe vence o do perfil (bate com a capa)', () {
+      expect(
+        teamProfileHeaderSportLabel(_teamProfile(
+          sportCodes: ['CORRIDA', 'CORRIDA'],
+          tournamentSport: 'beachTennis',
+        )),
+        'Beach tennis',
+      );
+    });
+
+    test('sem torneio reconhecido, segue o esporte do perfil', () {
+      expect(
+        teamProfileHeaderSportLabel(_teamProfile(
+          sportCodes: ['FUTEVOLEI', 'FUTEVOLEI'],
+          tournamentSport: 'curling',
+        )),
+        teamProfileSportLabel(
+          _teamProfile(sportCodes: ['FUTEVOLEI', 'FUTEVOLEI']).player1,
+          _teamProfile(sportCodes: ['FUTEVOLEI', 'FUTEVOLEI']).player2,
+        ),
+      );
+    });
+  });
+
   group('teamProfileCoverArt', () {
     test('usa a arte do esporte + elenco da equipe', () {
       expect(
@@ -355,6 +380,29 @@ void main() {
       );
     });
 
+    // Multiesporte (spec, eixo 4): a capa segue o esporte do TORNEIO da equipe —
+    // dupla de beach tennis cujo capitão marcou "Corrida" no perfil não ganha
+    // capa de corrida.
+    test('esporte do torneio da equipe vence o esporte do perfil', () {
+      expect(
+        teamProfileCoverArt(_teamProfile(
+          sportCodes: ['CORRIDA', 'CORRIDA'],
+          tournamentSport: 'beachTennis',
+        )),
+        'assets/images/team_covers/beach_tennis_dupla.webp',
+      );
+    });
+
+    test('torneio sem esporte reconhecido cai no esporte do perfil', () {
+      expect(
+        teamProfileCoverArt(_teamProfile(
+          sportCodes: ['FUTEVOLEI', 'FUTEVOLEI'],
+          tournamentSport: 'curling',
+        )),
+        'assets/images/team_covers/futevolei_dupla.webp',
+      );
+    });
+
     test('esporte desconhecido devolve nulo para o fundo pintado assumir', () {
       expect(teamProfileCoverArt(_teamProfile(sportCodes: [null, null])), isNull);
       expect(
@@ -384,6 +432,7 @@ AthleteProfile _athlete(
 TeamPublicProfile _teamProfile({
   required List<String?> sportCodes,
   int? teamSize,
+  String? tournamentSport,
 }) {
   final members = [
     for (var i = 0; i < sportCodes.length; i++)
@@ -401,5 +450,6 @@ TeamPublicProfile _teamProfile({
       teamSize: teamSize,
     ),
     members: members,
+    tournamentSport: tournamentSport,
   );
 }

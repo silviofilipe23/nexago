@@ -6,6 +6,29 @@ import 'package:nexago_app/features/athlete/presentation/widgets/athlete_home/at
 
 void main() {
   group('athleteHomeHeroAssetFor', () {
+    test('futevôlei usa a arte do esporte, qualquer que seja o gênero', () {
+      for (final sport in ['FUTEVOLEI', 'Futevôlei', 'futevolei']) {
+        for (final g in <String?>['Masculino', 'Feminino', null]) {
+          expect(
+            athleteHomeHeroAssetFor(g, sport: sport),
+            AthleteHomeHeroArt.futevolei,
+            reason: 'para $sport / $g',
+          );
+        }
+      }
+    });
+
+    test('outros esportes ou nulo seguem por gênero', () {
+      expect(
+        athleteHomeHeroAssetFor('Masculino', sport: 'VOLEI_PRAIA'),
+        AthleteHomeHeroArt.masculino,
+      );
+      expect(
+        athleteHomeHeroAssetFor('Feminino', sport: null),
+        AthleteHomeHeroArt.feminino,
+      );
+    });
+
     test('casa masculino por prefixo, sem ligar para caixa ou espaço', () {
       for (final g in ['Masculino', 'masculino', '  MASCULINO  ', 'Masc']) {
         expect(

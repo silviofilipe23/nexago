@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../core/sports/sport_catalog.dart';
+
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -14,6 +16,10 @@ abstract final class AthleteHomeHeroArt {
 
   /// Quadra vazia — usada por quem não declarou gênero.
   static const String neutro = 'assets/images/home/hero_neutro.webp';
+
+  /// Futevôlei: as artes por gênero mostram vôlei de praia, então quem joga
+  /// futevôlei usa a arte do esporte (escura à esquerda, onde fica o texto).
+  static const String futevolei = 'assets/images/sports/futevolei.webp';
 }
 
 /// Escolhe a arte do hero a partir do `gender` cru do perfil.
@@ -23,7 +29,13 @@ abstract final class AthleteHomeHeroArt {
 /// Casa por prefixo em minúsculas — mesmo critério de
 /// `athleteGenderShortLabel` e do filtro do Descobrir — e manda TUDO que não
 /// for reconhecido para o neutro. Nunca cai no masculino por omissão.
-String athleteHomeHeroAssetFor(String? gender) {
+///
+/// [sport] (código Firestore ou rótulo) tem precedência quando o esporte tem
+/// arte própria no hero — hoje só o futevôlei; os demais seguem por gênero.
+String athleteHomeHeroAssetFor(String? gender, {String? sport}) {
+  if (SportCatalog.profileCodeOf(sport) == 'FUTEVOLEI') {
+    return AthleteHomeHeroArt.futevolei;
+  }
   final g = gender?.trim().toLowerCase() ?? '';
   if (g.startsWith('masc')) return AthleteHomeHeroArt.masculino;
   if (g.startsWith('fem')) return AthleteHomeHeroArt.feminino;
@@ -77,6 +89,7 @@ class AthleteHomeHero extends StatelessWidget {
     super.key,
     required this.name,
     required this.gender,
+    this.sport,
     this.tagline,
     this.leading,
     this.topRight,
@@ -90,6 +103,9 @@ class AthleteHomeHero extends StatelessWidget {
 
   /// `gender` cru do perfil — pode ser nulo.
   final String? gender;
+
+  /// Esporte principal do perfil (código Firestore ou rótulo) — pode ser nulo.
+  final String? sport;
 
   /// Linha de apoio sob a saudação.
   final String? tagline;
@@ -132,7 +148,7 @@ class AthleteHomeHero extends StatelessWidget {
         children: [
           // Fundo escuro fixo: se a arte falhar, o texto branco ainda lê.
           const ColoredBox(color: AppColors.canvas),
-          _HeroArt(gender: gender),
+          _HeroArt(gender: gender, sport: sport),
           DecoratedBox(decoration: BoxDecoration(gradient: _scrimTo(canvas))),
           Padding(
             padding: EdgeInsets.fromLTRB(
@@ -214,9 +230,10 @@ class AthleteHomeHero extends StatelessWidget {
 
 /// A arte em si, decodificada na largura em que aparece.
 class _HeroArt extends StatelessWidget {
-  const _HeroArt({required this.gender});
+  const _HeroArt({required this.gender, this.sport});
 
   final String? gender;
+  final String? sport;
 
   @override
   Widget build(BuildContext context) {
@@ -228,7 +245,7 @@ class _HeroArt extends StatelessWidget {
             : null;
 
         return Image.asset(
-          athleteHomeHeroAssetFor(gender),
+          athleteHomeHeroAssetFor(gender, sport: sport),
           fit: BoxFit.cover,
           cacheWidth: cacheWidth,
           // Decorativa: quem carrega o significado é a saudação.

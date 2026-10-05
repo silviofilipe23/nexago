@@ -556,6 +556,7 @@ class _TournamentRegistrationPaymentPageState
           _paymentType = initialRegistrationPaymentType(
             awaitingSoloPartner: awaitingSoloPartner,
             isTeamCategory: quote.isTeamCategory,
+            isIndividual: quote.teamSize == 1,
           );
         }
 

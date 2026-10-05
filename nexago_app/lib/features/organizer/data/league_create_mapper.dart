@@ -283,6 +283,7 @@ abstract final class LeagueCreateMapper {
       ),
       dispute: _parseDispute(
         map['disputeType'] as String? ?? map['dispute'] as String?,
+        (map['teamSize'] as num?)?.toInt(),
       ),
       ageBand: _parseAgeBand(map['ageBand'] as String?),
       skillLevel: _parseSkillLevel(map['level'] as String?),
@@ -369,11 +370,20 @@ abstract final class LeagueCreateMapper {
     };
   }
 
-  static TournamentCategoryDispute _parseDispute(String? raw) {
+  /// `disputeType` conhecido vence; sem ele, o `teamSize` gravado decide
+  /// (1 = individual — o servidor já trata assim; regravar como dupla mudaria
+  /// a categoria em silêncio). Nada dos dois = dupla.
+  static TournamentCategoryDispute _parseDispute(String? raw, int? teamSize) {
     for (final value in TournamentCategoryDispute.values) {
       if (value.name == raw) return value;
     }
-    return TournamentCategoryDispute.dupla;
+    return switch (teamSize) {
+      1 => TournamentCategoryDispute.individual,
+      3 => TournamentCategoryDispute.trio,
+      4 => TournamentCategoryDispute.quarteto,
+      5 => TournamentCategoryDispute.quinteto,
+      _ => TournamentCategoryDispute.dupla,
+    };
   }
 
   static TournamentAgeBand _parseAgeBand(String? raw) {

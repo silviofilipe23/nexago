@@ -122,9 +122,19 @@ class _RegistrationTermsPageState extends ConsumerState<RegistrationTermsPage> {
             lgpdAccepted: widget.lgpdAccepted,
           );
       if (!mounted) return;
+      final individual = ref
+              .read(tournamentDetailProvider(widget.tournamentId))
+              .valueOrNull
+              ?.categoryOffers
+              .where((c) => c.id == widget.categoryId)
+              .firstOrNull
+              ?.isIndividualCategory ??
+          false;
       showAppSnackBar(
         context,
-        'Vaga reservada! Falta formar a dupla — convide seu parceiro.',
+        individual
+            ? 'Inscrição feita! Sua vaga está reservada — falta só o pagamento.'
+            : 'Vaga reservada! Falta formar a dupla — convide seu parceiro.',
       );
       context.pushNamed(
         AppRouteNames.tournamentRegistration,
@@ -237,6 +247,9 @@ class _RegistrationTermsPageState extends ConsumerState<RegistrationTermsPage> {
             submitting: _processing,
             onConfirm: receivedInvite != null
                 ? () => _openReceivedInvite(receivedInvite)
+                // Individual: o botão principal já inscreve (sem parceiro).
+                : copy.registersDirectly
+                ? _reserveSolo
                 : () => _advance(copy),
             onSecondary: copy.secondaryLabel == null ? null : _reserveSolo,
             onOtherCategories: showOtherCategories
@@ -406,7 +419,8 @@ class _PriceCard extends StatelessWidget {
     final colors = context.themeColors;
     final teamSize = category.teamSize;
     final isTeam = teamSize != null && teamSize > 2;
-    final splitBy = isTeam ? teamSize ?? 2 : 2;
+    // Individual (1): a taxa inteira é do atleta.
+    final splitBy = isTeam || teamSize == 1 ? teamSize ?? 2 : 2;
     final perAthlete = category.entryFee / splitBy;
     final perAthleteLabel = formatRegistrationMoney(perAthlete);
     final totalLabel = formatRegistrationMoney(category.entryFee);

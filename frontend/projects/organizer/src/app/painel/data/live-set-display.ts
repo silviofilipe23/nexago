@@ -1,4 +1,12 @@
-import { effectiveScoringProfile, gamesPointLabels, isTiebreakInProgress, setWinnerSide, type ScoringProfile } from '@nexago/sports';
+import {
+  effectiveScoringProfile,
+  gamesPointLabels,
+  isSuperTiebreakSet,
+  isTiebreakInProgress,
+  setScoreText,
+  setWinnerSide,
+  type ScoringProfile,
+} from '@nexago/sports';
 import type { TournamentMatch } from './matches-repository';
 
 /** Porte de `matchLiveCurrentSet`/`matchSetWins`/`matchClosedSets` do portal do ATLETA
@@ -20,6 +28,9 @@ export interface LiveSetScore {
   game?: { a: string; b: string };
   /** Partida de games: o set corrente está num tie-break (normal ou super). */
   tiebreak?: boolean;
+  /** Partida de games: o set corrente é o super tie-break — o set fica 0-0 e os pontos correm
+   *  em `game`; as telas não mostram "games" desse set. Ausente fora dele. */
+  superTiebreak?: boolean;
 }
 
 /** Perfil efetivo da partida: o carimbo com o nº de sets do doc; sem carimbo, a regra histórica. */
@@ -33,7 +44,7 @@ function setClosed(m: LiveScoreFields, index: number): boolean {
 
 /** Sets fechados — ao vivo, exclui o set em andamento que a mesa mantém dentro de `sets[]`;
  *  encerrada, todo set vale (dados históricos podem fugir da regra e continuam contando). */
-export function matchClosedSets(m: LiveScoreFields): Array<{ a: number; b: number }> {
+export function matchClosedSets(m: LiveScoreFields): TournamentMatch['sets'] {
   if (m.status !== 'in_progress') return m.sets;
   return m.sets.filter((_, i) => setClosed(m, i));
 }
@@ -59,7 +70,8 @@ export function matchLiveCurrentSet(m: LiveScoreFields): LiveSetScore | null {
       const score: LiveSetScore = { setNumber: matchClosedSets(m).length + 1, a: s.a, b: s.b };
       if (profile.kind !== 'sets_games') return score;
       const state = { sets: m.sets, currentSetIndex: idx, currentGame: m.currentGame ?? { a: 0, b: 0 }, servingTeamId: '' };
-      return { ...score, game: gamesPointLabels(state, profile), tiebreak: isTiebreakInProgress(state, profile) };
+      const live: LiveSetScore = { ...score, game: gamesPointLabels(state, profile), tiebreak: isTiebreakInProgress(state, profile) };
+      return isSuperTiebreakSet(profile, idx) ? { ...live, superTiebreak: true } : live;
     }
     // Sem set aberto dentro de sets[] (todos fechados) — o corrente, se houver, está no
     // agregado `liveScore` (fluxo do lançamento rápido: sets fechados + currentGames).
@@ -68,4 +80,26 @@ export function matchLiveCurrentSet(m: LiveScoreFields): LiveSetScore | null {
   if (!live) return null;
   const setNumber = m.sets.length > 0 ? matchClosedSets(m).length + 1 : live.setsA + live.setsB + 1;
   return { setNumber, a: live.currentGamesA, b: live.currentGamesB };
+}
+
+/** Sets fechados como texto, como as telas mostram: "21-15", "6-4", "7-6 (7-4)"; o super
+ *  tie-break mostra os pontos dele ("10-8"), não o 1×0 gravado. */
+export function closedSetTexts(m: LiveScoreFields): string[] {
+  const profile = profileOf(m);
+  return matchClosedSets(m).map((s, i) => setScoreText(profile, i, s));
+}
+
+/** Sets fechados em números de coluna (um por lado): o super tie-break entra com os pontos
+ *  dele; o resto, como gravado. */
+export function closedSetColumns(m: LiveScoreFields): Array<{ a: number; b: number }> {
+  const profile = profileOf(m);
+  return matchClosedSets(m).map((s, i) =>
+    profile.kind === 'sets_games' && s.tb && isSuperTiebreakSet(profile, i) ? { a: s.tb.a, b: s.tb.b } : { a: s.a, b: s.b },
+  );
+}
+
+/** Número grande de um lado no set em andamento: o ponto do game (games) ou os pontos do set. */
+export function livePointsOf(current: LiveSetScore, side: 'A' | 'B'): string | number {
+  if (current.game) return side === 'A' ? current.game.a : current.game.b;
+  return side === 'A' ? current.a : current.b;
 }

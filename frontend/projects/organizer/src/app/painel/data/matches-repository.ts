@@ -7,7 +7,7 @@ import {
 } from './koc';
 import { collection, doc, getDocs, onSnapshot, query, where, type Unsubscribe } from 'firebase/firestore';
 import { medicalTimeoutFromRaw, statusOf, type MatchDisplayStatus, type MedicalTimeout } from '@nexago/live-scoring';
-import { effectiveScoringProfile, scoringProfileFromRaw, type ScoringProfile } from '@nexago/sports';
+import { effectiveScoringProfile, scoringProfileFromRaw, setScoreText, type ScoringProfile } from '@nexago/sports';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from './firestore';
 import { fetchTeamNames } from './teams-repository';
@@ -166,8 +166,9 @@ function setsFromRaw(raw: unknown): RawSet[] {
     .filter((s): s is RawSet => s != null);
 }
 
-function scoreOf(sets: RawSet[], resultA: string | null, resultB: string | null): string | null {
-  if (sets.length > 0) return sets.map((s) => `${s.a}-${s.b}`).join(', ');
+/** Placar em texto ("21-15, 18-21"; games: "6-4, 6-7 (5-7), 10-8"). */
+function scoreOf(sets: RawSet[], resultA: string | null, resultB: string | null, profile: ScoringProfile): string | null {
+  if (sets.length > 0) return sets.map((s, i) => setScoreText(profile, i, s)).join(', ');
   if (resultA && resultB) {
     const a = resultA.split(',').map((n) => n.trim());
     const b = resultB.split(',').map((n) => n.trim());
@@ -295,7 +296,7 @@ export function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawM
     teamBId,
     teamADescription: optionalStr(data['teamADescription']),
     teamBDescription: optionalStr(data['teamBDescription']),
-    score: scoreOf(sets, resultA, resultB),
+    score: scoreOf(sets, resultA, resultB, effectiveScoringProfile(data['scoringProfile'], data['bestOf'] === 1 ? 1 : 3)),
     winnerSide,
     scheduledAt: toDate(data['scheduleTime']),
     court: optionalStr(data['courtName']),

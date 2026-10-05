@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { matchLiveCurrentSet, matchSetWins } from '../painel/data/live-set-display';
+import { livePointsOf, matchLiveCurrentSet, matchSetWins } from '../painel/data/live-set-display';
 import {
   kocHasStarted,
   kocIsExpired,
@@ -62,7 +62,10 @@ import type { CourtNowKind } from '../painel/telao/telao-selectors';
             <span class="pub-court-score">
               <span class="pub-court-sets">{{ setsA() }}</span>
               @if (current(); as c) {
-                <span class="pub-court-points">{{ c.a }}</span>
+                @if (c.game && !c.superTiebreak) {
+                  <span class="pub-court-games">{{ c.a }}</span>
+                }
+                <span class="pub-court-points">{{ points(c, 'A') }}</span>
               }
             </span>
           </div>
@@ -71,7 +74,10 @@ import type { CourtNowKind } from '../painel/telao/telao-selectors';
             <span class="pub-court-score">
               <span class="pub-court-sets">{{ setsB() }}</span>
               @if (current(); as c) {
-                <span class="pub-court-points">{{ c.b }}</span>
+                @if (c.game && !c.superTiebreak) {
+                  <span class="pub-court-games">{{ c.b }}</span>
+                }
+                <span class="pub-court-points">{{ points(c, 'B') }}</span>
               }
             </span>
           </div>
@@ -154,6 +160,12 @@ import type { CourtNowKind } from '../painel/telao/telao-selectors';
       font-size: 20px;
       font-weight: 700;
     }
+    /* Partida de games: os games do set em andamento, entre os sets e o ponto do game. */
+    .pub-court-games {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--nx-text-dim);
+    }
 
     .pub-koc-clock {
       font-family: var(--nx-font-mono);
@@ -232,6 +244,8 @@ export class PublicCourtCardComponent {
     const m = this.match();
     return m ? matchLiveCurrentSet(m) : null;
   });
+
+  protected readonly points = livePointsOf;
 
   protected readonly time = computed(() => {
     const at = this.match()?.scheduledAt;

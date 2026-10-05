@@ -52,3 +52,23 @@ test('esporte de competição declara allowedTeamSizes (1–5, ordenado, sem rep
   assert.deepEqual(byCode.tennis, [1, 2]);
   assert.deepEqual(byCode.beachVolleyball, [2, 3, 4, 5]);
 });
+
+// Fase 5a: rótulos de quadra que o portal da arena e o app gravam hoje em
+// `courts.types` / `arenas.courtTypes`. Cada um resolve para um esporte — é o
+// que deixa o filtro da aba Reservar casar por igualdade de código.
+test('rótulos de quadra legados pertencem a um esporte (arenaCourtTypes)', () => {
+  const catalog = JSON.parse(fs.readFileSync(path.join(ROOT, 'sports/catalog.json'), 'utf8'));
+  const byCode = Object.fromEntries(catalog.sports.map((s) => [s.code, s.arenaCourtTypes]));
+  assert.deepEqual(byCode.beachVolleyball, ['Vôlei de praia']);
+  assert.deepEqual(byCode.beachTennis, ['Beach tennis']);
+  assert.deepEqual(byCode.indoorVolleyball, ['Vôlei indoor']);
+  assert.deepEqual(byCode.tennis, ['Tênis']);
+  assert.deepEqual(byCode.padel, ['Padel']);
+  assert.deepEqual(byCode.football, ['Futebol']);
+  assert.deepEqual(byCode.footvolley, ['Futevôlei']);
+  for (const s of catalog.sports) assert.ok(Array.isArray(s.arenaCourtTypes), `${s.code} sem arenaCourtTypes`);
+  const vectors = new Map(catalog.resolveVectors.map(([k, v]) => [k, v]));
+  for (const s of catalog.sports) {
+    for (const label of s.arenaCourtTypes) assert.equal(vectors.get(label), s.code, `vetor de resolução para "${label}"`);
+  }
+});

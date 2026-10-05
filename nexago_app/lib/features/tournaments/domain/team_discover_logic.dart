@@ -228,6 +228,7 @@ List<String> teamDiscoverSportFilterOptions() {
     'FUTEBOL',
     'BASQUETE',
     'TENIS',
+    'PADEL',
   ];
   return ids
       .map(AthleteFirestoreCodes.sportFirestoreToLabel)
@@ -245,6 +246,7 @@ String? teamSportFirestoreIdForLabel(String label) {
     'BASQUETE',
     'TENIS',
     'CORRIDA',
+    'PADEL',
     'OUTROS',
   ];
   for (final id in ids) {

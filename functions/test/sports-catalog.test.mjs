@@ -14,13 +14,18 @@ test('arquivos gerados do catálogo de esportes estão em dia', () => {
 });
 
 // As rules não iteram mapas: `athleteLevelsNotDowngraded` lista um
-// `sportLevelNotLowered(...)` por código de perfil. Esporte novo no catálogo
+// `sportLevelOk(...)` por código de perfil. Esporte novo no catálogo
 // sem a linha nas rules deixaria o nível dele sem a guarda "só sobe".
 test('rules guardam o nível de todo código de perfil do catálogo', () => {
   const rules = fs.readFileSync(path.join(ROOT, 'firestore.rules'), 'utf8');
-  const inRules = [
-    ...rules.matchAll(/sportLevelNotLowered\(reqLevels, curLevels, '([A-Z_]+)'/g),
-  ].map((m) => m[1]).sort();
+  const lines = [
+    ...rules.matchAll(
+      /sportLevelOk\(reqLevels\.get\('([A-Z_]+)', null\), curLevels\.get\('([A-Z_]+)', null\), ranks, lockedSports\.get\('([A-Z_]+)', false\)\)/g,
+    ),
+  ];
+  // Linha copiada com um dos três códigos trocado guardaria o esporte errado.
+  for (const m of lines) assert.ok(m[1] === m[2] && m[2] === m[3], `códigos diferentes na linha: ${m[0]}`);
+  const inRules = lines.map((m) => m[1]).sort();
   const catalog = JSON.parse(fs.readFileSync(path.join(ROOT, 'sports/catalog.json'), 'utf8'));
   assert.deepEqual(inRules, catalog.sports.map((s) => s.profileCode).sort());
 });

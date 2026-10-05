@@ -36,12 +36,15 @@ void main() {
     }
   });
 
-  test('todo esporte do app tem arte, exceto Outros', () {
+  test('todo esporte do app tem arte, exceto Outros e Padel', () {
     // Guarda o inverso: esporte novo entrando no app sem arte cairia no card
     // sólido caladamente. Aqui a omissão falha o teste em vez de passar batido.
+    // Padel (3c2) entrou sem arte de propósito — por isso fica fora do wizard
+    // de torneio até ganhar uma; a exceção é explícita, não um `art == null`.
+    const semArteDeProposito = {'Outros', 'Padel'};
     final semArte = <String>[];
     for (final label in AthleteProfileOptions.sports) {
-      if (label == 'Outros') continue;
+      if (semArteDeProposito.contains(label)) continue;
       final code = AthleteFirestoreCodes.sportFirestoreToLabel;
       final match = SportArtCatalog.codesWithArt.where(
         (c) => code(c) == label,

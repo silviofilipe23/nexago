@@ -414,7 +414,7 @@ String? _normalizedGenderForFirestore(String? raw) {
 /// legados só agem se algum caminho ainda incluir o campo (defesa barata —
 /// remover quando os legados aposentarem de vez).
 ///
-/// JANELA DE CORREÇÃO (Task 4, espelho do `sportLevelNotLowered` das rules):
+/// JANELA DE CORREÇÃO (Task 4, espelho do `sportLevelOk` das rules):
 /// o clamp por esporte em `levelsBySport` só entra em ação quando
 /// `sportOnboarding.levelLocked.{sportId}` já é `true` no doc EXISTENTE — sem
 /// isso o notifier (`AthleteSportsLevelsNotifier.updateLevel`) já decidiu

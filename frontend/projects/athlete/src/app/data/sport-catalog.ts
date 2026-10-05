@@ -9,6 +9,7 @@ export interface SportCatalogEntry {
 const ICON_BY_CODE: Readonly<Record<string, SportCatalogEntry['icon']>> = {
   TENIS: 'racket',
   BEACH_TENNIS: 'racket',
+  PADEL: 'racket',
   CORRIDA: 'running',
   OUTROS: 'plus',
 };

@@ -254,6 +254,13 @@ void main() {
       );
     });
 
+    test('maps PADEL firestore code even with a legacy sport label', () {
+      expect(
+        defaultSportChipFromProfile(primarySport: 'PADEL', sport: 'Vôlei'),
+        ArenaSportChip.padel,
+      );
+    });
+
     test('maps beach tennis profile label', () {
       expect(
         defaultSportChipFromProfile(sport: 'Beach tennis'),

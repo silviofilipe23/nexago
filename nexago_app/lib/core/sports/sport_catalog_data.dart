@@ -98,6 +98,15 @@ const List<SportCatalogEntry> kSportCatalog = [
     scoringProfile: null,
   ),
   SportCatalogEntry(
+    code: 'padel',
+    profileCode: 'PADEL',
+    appId: 'padel',
+    label: 'Padel',
+    art: null,
+    support: SportSupport.profile,
+    scoringProfile: SetsGamesProfile(bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: true, decidingSet: DecidingSet.full, superTiebreakTo: 10),
+  ),
+  SportCatalogEntry(
     code: 'other',
     profileCode: 'OUTROS',
     appId: 'other',
@@ -129,6 +138,7 @@ const Map<String, String> kSportIndex = {
   'beachtenis': 'beachTennis',
   'running': 'running',
   'corrida': 'running',
+  'padel': 'padel',
   'other': 'other',
   'outros': 'other',
 };

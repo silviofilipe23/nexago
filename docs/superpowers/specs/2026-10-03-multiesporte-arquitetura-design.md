@@ -438,6 +438,46 @@ Saída: ranking de beach tennis separado do de vôlei; rating ligável por confi
   tênis é de dupla até a fase 4. KOTC segue só no vôlei de praia. Ranking: só os docs por
   esporte (`TENIS` não alimenta o legado); rating: desligado até existir `ratingLadders/TENIS`.
 
+**Medição de 05/10/2026 (3c2, padel).** A guarda de nível do update de `users`
+(`athleteLevelsNotDowngraded`) cabe no teto de 1000 expressões com os 9 códigos atuais,
+inclusive no pior caso (todos travados subindo + nível global; teste novo em
+`functions/test/athlete-level-rules.test.mjs`). Com `PADEL` como 10º código, **toda negação**
+de rebaixamento passa a estourar o teto — inclusive a do nível global, que nem chega nos
+esportes; reordenar a comparação não muda nada. A escrita continua negada, mas pelo estouro,
+não pela regra. Padel como esporte de perfil fica bloqueado até a guarda ser reestruturada
+(decisão pendente com o produto).
+
+Experimento de orçamento (`functions/scripts/measure-users-rules-budget.mjs`; folga em
+unidades de enchimento ≈ 5 expressões; teto ≈ 195 unidades):
+
+| Cenário | N=0 | N=5 | N=9 (hoje) | N=10 | N=12 | N=15 |
+|---|---|---|---|---|---|---|
+| sobe nível global (permitida) | 127 | 127 | 127 | 127 | 127 | 127 |
+| rebaixa nível global (negada) | 86 | 40 | **3** | estoura | estoura | estoura |
+| sobe todos travados + global (permitida) | 121 | 66 | 21 | 10 | estoura | estoura |
+| rebaixa 1 esporte travado (negada) | — | 40 | **3** | estoura | estoura | estoura |
+| *variante com 1 função por esporte:* rebaixa (negada) | 86 | | 23 | 16 | 1 | estoura |
+
+- **Escrita permitida que não mexe em esporte:** custo zero por esporte (o
+  `reqLevels == curLevels` corta).
+- **Escrita negada:** cada esporte custa ~9 unidades (~45 expressões) **mesmo sem ter mudado
+  e mesmo quando o motivo da negação é outro** — no caminho negado o motor avalia a guarda
+  inteira, sem o corte. A base da negação (N=0) já consome ~109 das ~195 unidades (as 16
+  proteções de campo do dono + o mapa de ranks + as alternativas `isSuperAdmin` e
+  pré-cadastro); a negação custa ~41 unidades a mais que a permitida com os mesmos campos.
+- Com 9 esportes a negação usa ~98% do teto. Uma função única por esporte (em vez da cadeia
+  `sportLevelNotLowered` → `levelNotLowered` → `athleteLevelRank` ×2) baixa o custo por esporte
+  para ~7 unidades e abre espaço para até 12 esportes — fôlego curto; a base da regra é o
+  maior consumidor.
+- **Decisão (05/10/2026, 3c2):** a guarda passou a `sportLevelOk` (uma função por esporte,
+  semântica idêntica) e o padel entrou como esporte de perfil. Folga medida com 10 esportes:
+  negação 16 unidades (~80 expressões); "sobe todos travados + global" 31. Cláusula nova no
+  update de `users` ou 11º esporte exige nova medição (aviso no próprio `firestore.rules`).
+- **Torneio legado gravado como `padel`** (via `sportRaw`, nunca oferecido pelo wizard) passa a
+  mapear para `PADEL`: nível, lock e sorteio de padel; pontua só em `*_PADEL` (doc por esporte,
+  ainda sem tela — padel não é `competition`). Conferir no banco se existe algum antes do
+  deploy (`tournaments` com `sport` padel).
+
 **Fase 4: equipe por tamanho.**
 Piso 1 em `teamSize`, inscrição individual, `participantNoun`, slots de saque por tamanho,
 tempo médico por slot, confronto direto por `memberUids`, capa de equipe pelo esporte do torneio.

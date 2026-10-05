@@ -470,7 +470,7 @@ service cloud.firestore {
     // de novo. Legados se comportam como o degrau inferior do split
     // (iniciante→0, intermediario→2).
     // Lookup por map literal (barato) em vez de cadeias de `in` sobre listas:
-    // a guarda roda para 9 esportes por update e a versão com ternários
+    // a guarda roda para 10 esportes por update e a versão com ternários
     // estourava o limite de expressões avaliadas por request. O literal é
     // montado UMA vez por request (`let ranks` em athleteLevelsNotDowngraded,
     // que o rules avalia sob demanda e reaproveita) e desce por PARÂMETRO até
@@ -478,7 +478,8 @@ service cloud.firestore {
     // da função que rankeia, 5 esportes alterados numa tacada já estouravam o
     // teto — e QUALQUER negação estourava, mesmo em perfil de um esporte só,
     // porque o caminho negado ainda paga os ramos `isSuperAdmin()` /
-    // pré-cadastro e o match seguinte. Montando uma vez: 9 esportes mais os
+    // pré-cadastro e o match seguinte. Montando uma vez: 9 esportes (10 com
+    // padel, depois da função única `sportLevelOk` — medido em 05/10/2026) mais os
     // dois legados globais cabem, e a negação volta a vir da regra.
     function athleteLevelRanks() {
       return {
@@ -521,23 +522,23 @@ service cloud.firestore {
       return reqValue == curValue ||
         athleteLevelRank(reqValue, ranks) >= athleteLevelRank(curValue, ranks);
     }
-    // Sem lock (ainda não houve 1ª inscrição ativa nesse esporte) o dono
-    // pode descer à vontade — `lockedSports` já foi lido de `resource.data`
-    // em `athleteLevelsNotDowngraded()`, então aqui é só um `.get` barato
-    // que curto-circuita ANTES do lookup de rank quando destravado.
-    function sportLevelNotLowered(reqLevels, curLevels, sportId, ranks, lockedSports) {
-      return !lockedSports.get(sportId, false) ||
-        levelNotLowered(
-          reqLevels.get(sportId, null),
-          curLevels.get(sportId, null),
-          ranks
-        );
+    // Um esporte, numa função só (medido em 05/10/2026, spec multiesporte: a
+    // cadeia antiga sportLevelNotLowered → levelNotLowered → athleteLevelRank ×2
+    // custava ~45 expressões por esporte no caminho NEGADO — que avalia a guarda
+    // inteira, sem curto-circuito —; esta custa ~35 e abre espaço para o 10º).
+    // Valor inalterado sai primeiro; sem lock (ainda não houve 1ª inscrição
+    // ativa nesse esporte) o dono pode descer à vontade; com lock, o rank novo
+    // não pode ficar abaixo do atual. `req`/`cur`/`locked` chegam já lidos.
+    function sportLevelOk(req, cur, ranks, locked) {
+      return req == cur || !locked ||
+        (req is string ? ranks.get(req, -1) : -1) >=
+          (cur is string ? ranks.get(cur, -1) : -1);
     }
     // Guarda TODOS os esportes do perfil (rules não iteram mapas — a lista
     // espelha ATHLETE_SPORT_CODES em functions/src/category-level-eligibility.ts
     // e AthleteFirestoreCodes no app) + os campos legados de nível global,
     // fallback do backend para docs antigos. Mapa inalterado curto-circuita
-    // os 9 checks por esporte (caso comum: update sem mexer em nível).
+    // os 10 checks por esporte (caso comum: update sem mexer em nível).
     function athleteLevelsNotDowngraded() {
       let ranks = athleteLevelRanks();
       let reqLevels = levelsBySportOf(request.resource.data);
@@ -554,15 +555,16 @@ service cloud.firestore {
           ranks
         ) &&
         (reqLevels == curLevels || (
-          sportLevelNotLowered(reqLevels, curLevels, 'VOLEI_PRAIA', ranks, lockedSports) &&
-          sportLevelNotLowered(reqLevels, curLevels, 'VOLEI_QUADRA', ranks, lockedSports) &&
-          sportLevelNotLowered(reqLevels, curLevels, 'BEACH_TENNIS', ranks, lockedSports) &&
-          sportLevelNotLowered(reqLevels, curLevels, 'FUTEVOLEI', ranks, lockedSports) &&
-          sportLevelNotLowered(reqLevels, curLevels, 'FUTEBOL', ranks, lockedSports) &&
-          sportLevelNotLowered(reqLevels, curLevels, 'BASQUETE', ranks, lockedSports) &&
-          sportLevelNotLowered(reqLevels, curLevels, 'TENIS', ranks, lockedSports) &&
-          sportLevelNotLowered(reqLevels, curLevels, 'CORRIDA', ranks, lockedSports) &&
-          sportLevelNotLowered(reqLevels, curLevels, 'OUTROS', ranks, lockedSports)
+          sportLevelOk(reqLevels.get('VOLEI_PRAIA', null), curLevels.get('VOLEI_PRAIA', null), ranks, lockedSports.get('VOLEI_PRAIA', false)) &&
+          sportLevelOk(reqLevels.get('VOLEI_QUADRA', null), curLevels.get('VOLEI_QUADRA', null), ranks, lockedSports.get('VOLEI_QUADRA', false)) &&
+          sportLevelOk(reqLevels.get('BEACH_TENNIS', null), curLevels.get('BEACH_TENNIS', null), ranks, lockedSports.get('BEACH_TENNIS', false)) &&
+          sportLevelOk(reqLevels.get('FUTEVOLEI', null), curLevels.get('FUTEVOLEI', null), ranks, lockedSports.get('FUTEVOLEI', false)) &&
+          sportLevelOk(reqLevels.get('FUTEBOL', null), curLevels.get('FUTEBOL', null), ranks, lockedSports.get('FUTEBOL', false)) &&
+          sportLevelOk(reqLevels.get('BASQUETE', null), curLevels.get('BASQUETE', null), ranks, lockedSports.get('BASQUETE', false)) &&
+          sportLevelOk(reqLevels.get('TENIS', null), curLevels.get('TENIS', null), ranks, lockedSports.get('TENIS', false)) &&
+          sportLevelOk(reqLevels.get('CORRIDA', null), curLevels.get('CORRIDA', null), ranks, lockedSports.get('CORRIDA', false)) &&
+          sportLevelOk(reqLevels.get('PADEL', null), curLevels.get('PADEL', null), ranks, lockedSports.get('PADEL', false)) &&
+          sportLevelOk(reqLevels.get('OUTROS', null), curLevels.get('OUTROS', null), ranks, lockedSports.get('OUTROS', false))
         ));
     }
     // O dono nunca escreve o lock em si — só o trigger de backend (Task 1)
@@ -1856,6 +1858,11 @@ service cloud.firestore {
       
       // Atualizar: próprio usuário pode atualizar a si mesmo sem alterar roles/superAdmin;
       // super admin ou convidador do parceiro pendente
+      // ORÇAMENTO: esta regra está perto do teto de 1000 expressões por request no
+      // caminho NEGADO (que avalia tudo, sem curto-circuito): folga medida em
+      // 05/10/2026 de ~80 expressões com 10 esportes. Qualquer cláusula nova aqui
+      // (ou esporte novo na guarda de nível) exige rodar
+      // `functions/scripts/measure-users-rules-budget.mjs` e o teste de nível.
       allow update: if request.auth != null && (
         (
           request.auth.uid == userId &&

@@ -180,7 +180,7 @@ describe("head-to-head · filtro de esporte", () => {
   });
 
   it("torneio sem mapeamento de esporte nunca casa com filtro", () => {
-    assert.equal(headToHeadSportMatches("padel", "VOLEI_PRAIA"), false);
+    assert.equal(headToHeadSportMatches("curling", "VOLEI_PRAIA"), false);
     assert.equal(headToHeadSportMatches(undefined, "VOLEI_PRAIA"), false);
   });
 });

@@ -79,6 +79,10 @@ abstract final class AthleteOnboardingOptions {
       icon: Icons.directions_run_rounded,
     ),
     OnboardingSportOption(
+      id: 'padel',
+      icon: Icons.sports_handball,
+    ),
+    OnboardingSportOption(
       id: 'other',
       icon: Icons.more_horiz_rounded,
       dimmed: true,

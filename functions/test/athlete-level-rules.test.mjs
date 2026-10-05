@@ -204,12 +204,13 @@ const multiSportUser = {
   sportOnboarding: {
     version: 1,
     primarySportId: 'VOLEI_PRAIA',
-    secondarySportIds: ['FUTEVOLEI', 'FUTEBOL', 'TENIS', 'OUTROS'],
+    secondarySportIds: ['FUTEVOLEI', 'FUTEBOL', 'TENIS', 'PADEL', 'OUTROS'],
     levelsBySport: {
       VOLEI_PRAIA: 'intermediario_1',
       FUTEVOLEI: 'intermediario_2',
       FUTEBOL: 'open',
       TENIS: 'iniciante_2',
+      PADEL: 'avancado_1',
       OUTROS: 'intermediario_1',
     },
     levelLocked: {
@@ -217,6 +218,7 @@ const multiSportUser = {
       FUTEVOLEI: true,
       FUTEBOL: true,
       TENIS: true,
+      PADEL: true,
       OUTROS: true,
     },
   },
@@ -227,6 +229,7 @@ for (const [sportId, lower] of [
   ['FUTEVOLEI', 'intermediario_1'],
   ['FUTEBOL', 'intermediario_2'],
   ['TENIS', 'iniciante_1'],
+  ['PADEL', 'intermediario_2'],
   ['OUTROS', 'iniciante_2'],
 ]) {
   await seed(multiSportUser);
@@ -329,13 +332,13 @@ await expect(
 );
 
 // ── Orçamento de expressões (teto de 1000 por request) ────────────────────
-// A guarda enumera os 9 esportes; cada esporte que MUDA paga dois lookups de
+// A guarda enumera os 10 esportes; cada esporte que MUDA paga dois lookups de
 // rank. Um perfil completo editado de uma vez ("editar todos os meus
 // esportes") tem que caber no teto, e a negação de um rebaixamento tem que
 // vir da REGRA — não do orçamento estourado no meio do caminho.
 const ALL_SPORTS = [
   'VOLEI_PRAIA', 'VOLEI_QUADRA', 'BEACH_TENNIS', 'FUTEVOLEI', 'FUTEBOL',
-  'BASQUETE', 'TENIS', 'CORRIDA', 'OUTROS',
+  'BASQUETE', 'TENIS', 'CORRIDA', 'PADEL', 'OUTROS',
 ];
 
 const allSportsUser = {
@@ -368,7 +371,7 @@ function raisePatch(sportIds, level = 'intermediario_2') {
   );
 }
 
-for (const n of [5, 9]) {
+for (const n of [5, ALL_SPORTS.length]) {
   await seed(allSportsUser);
   await expect(
     `subir ${n} esportes numa tacada só é permitido`,
@@ -377,6 +380,24 @@ for (const n of [5, 9]) {
     ),
   );
 }
+
+// Pior caso real: TODOS os esportes travados (o lock não curto-circuita, cada
+// um paga os dois lookups de rank) subindo de uma vez, junto com os dois
+// campos legados de nível global. Medido em 05/10/2026 (3c2): com a guarda em
+// `sportLevelOk` (uma função por esporte) os 10 esportes cabem com folga de ~80
+// expressões na negação; um 11º/12º esporte exige medir de novo
+// (`functions/scripts/measure-users-rules-budget.mjs`).
+await seed({ ...allSportsLockedUser, level: 'intermediario_1', sportProfile: { level: 'intermediario_1' } });
+await expect(
+  `subir os ${ALL_SPORTS.length} esportes TRAVADOS + nível global numa tacada cabe no teto`,
+  assertSucceeds(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      ...raisePatch(ALL_SPORTS),
+      level: 'intermediario_2',
+      'sportProfile.level': 'intermediario_2',
+    }),
+  ),
+);
 
 await seed(allSportsLockedUser);
 await expect(

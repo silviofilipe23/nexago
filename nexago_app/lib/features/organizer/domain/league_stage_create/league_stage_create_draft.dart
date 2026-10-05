@@ -30,6 +30,7 @@ class LeagueStageCategoryDraft {
     // Mesmo padrão do wizard de torneio: set único.
     this.bestOf = TournamentBestOf.singleSet,
     this.finalBestOf5 = true,
+    this.scoringProfileRaw,
     this.genderFree = false,
     this.menCount,
     this.womenCount,
@@ -50,6 +51,9 @@ class LeagueStageCategoryDraft {
   final int qualifiersPerGroup;
   final TournamentBestOf bestOf;
   final bool finalBestOf5;
+
+  /// Perfil de placar da categoria da liga, cru — repassado à etapa.
+  final Map<String, dynamic>? scoringProfileRaw;
 
   /// Campos de categoria de EQUIPE (trio+) herdados da liga — o app não os
   /// edita, só preserva o que o portal gravou.
@@ -97,6 +101,7 @@ class LeagueStageCategoryDraft {
       qualifiersPerGroup: qualifiersPerGroup ?? this.qualifiersPerGroup,
       bestOf: bestOf ?? this.bestOf,
       finalBestOf5: finalBestOf5 ?? this.finalBestOf5,
+      scoringProfileRaw: scoringProfileRaw,
       genderFree: genderFree ?? this.genderFree,
       menCount: menCount ?? this.menCount,
       womenCount: womenCount ?? this.womenCount,
@@ -113,6 +118,7 @@ class LeagueStageCreateDraft {
     this.leagueName = '',
     this.plannedStagesCount = 6,
     this.sport = TournamentSport.beachVolleyball,
+    this.sportRaw,
     this.leagueCity = '',
     this.leagueState = '',
     this.defaultPriceCents = 22000,
@@ -132,6 +138,14 @@ class LeagueStageCreateDraft {
   final String leagueName;
   final int plannedStagesCount;
   final TournamentSport sport;
+
+  /// Valor de `sport` da liga que o enum não representa (ver
+  /// [parseTournamentSport]). É ele que vai pro torneio da etapa.
+  final String? sportRaw;
+
+  /// O que gravar em `tournaments.sport` da etapa.
+  String get sportFirestoreValue => sportRaw ?? sport.name;
+
   final String leagueCity;
   final String leagueState;
   final int defaultPriceCents;
@@ -157,6 +171,8 @@ class LeagueStageCreateDraft {
     String? leagueName,
     int? plannedStagesCount,
     TournamentSport? sport,
+    String? sportRaw,
+    bool clearSportRaw = false,
     String? leagueCity,
     String? leagueState,
     int? defaultPriceCents,
@@ -177,6 +193,7 @@ class LeagueStageCreateDraft {
       leagueName: leagueName ?? this.leagueName,
       plannedStagesCount: plannedStagesCount ?? this.plannedStagesCount,
       sport: sport ?? this.sport,
+      sportRaw: clearSportRaw ? null : (sportRaw ?? this.sportRaw),
       leagueCity: leagueCity ?? this.leagueCity,
       leagueState: leagueState ?? this.leagueState,
       defaultPriceCents: defaultPriceCents ?? this.defaultPriceCents,

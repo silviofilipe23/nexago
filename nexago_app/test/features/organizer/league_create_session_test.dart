@@ -145,4 +145,21 @@ void main() {
       );
     });
   });
+
+  test('toJson/fromJson preservam sportRaw e json antigo restaura nulo', () {
+    final session = LeagueCreateSession(
+      managerUid: 'mgr-1',
+      currentStep: LeagueCreateStep.ranking,
+      updatedAt: DateTime(2026, 1, 10),
+      draft: const LeagueCreateDraft(name: 'Liga BT', sportRaw: 'padel'),
+    );
+    expect(
+      LeagueCreateSession.fromJson(session.toJson())!.draft.sportRaw,
+      'padel',
+    );
+
+    final old = session.toJson();
+    (old['draft'] as Map<String, dynamic>).remove('sportRaw');
+    expect(LeagueCreateSession.fromJson(old)!.draft.sportRaw, isNull);
+  });
 }

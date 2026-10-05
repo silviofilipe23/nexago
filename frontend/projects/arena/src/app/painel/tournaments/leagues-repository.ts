@@ -1,4 +1,5 @@
 import { collection, documentId, getDocs, query, where, type Firestore } from 'firebase/firestore';
+import { sportLabel } from '@nexago/sports';
 import { chunkIds } from '../data/chunk-ids';
 import type { ArenaTournament } from './tournament.model';
 import type { ArenaLeagueSummary } from './league.model';
@@ -7,20 +8,13 @@ import type { ArenaLeagueSummary } from './league.model';
  *  próprio) — a única forma de achar "ligas com etapa nesta arena" é olhar pros torneios já
  *  filtrados por `arenaId` e juntar os `leagueId` distintos, igual o Flutter faz. */
 
-const SPORT_LABELS: Record<string, string> = {
-  beachVolleyball: 'Vôlei de praia',
-  indoorVolleyball: 'Vôlei de quadra',
-  footvolley: 'Futevôlei',
-};
-
 function optionalStr(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
-function sportLabelOf(raw: unknown): string {
-  const v = optionalStr(raw);
-  if (!v) return 'Esporte';
-  return SPORT_LABELS[v] ?? v;
+/** Rótulo do esporte pelo catálogo (`@nexago/sports`); ausente → "Esporte". */
+export function sportLabelOf(raw: unknown): string {
+  return sportLabel(raw) ?? 'Esporte';
 }
 
 /** Quantas etapas de cada liga acontecem nesta arena — contagem sobre os torneios JÁ filtrados

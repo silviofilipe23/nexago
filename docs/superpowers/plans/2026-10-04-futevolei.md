@@ -8,7 +8,7 @@ arte. Faltam regras próprias de jogo, rating e acabamento de busca/reserva.
 - Chip "Futevôlei" na busca de arenas; futevôlei deixa de vazar para os chips de vôlei
   de praia e de quadra.
 - `defaultSportChipFromProfile` trata `FUTEVOLEI`.
-- `AthleteProfile._labelToAppSportId` ganha `'Futevôlei'`.
+- (Mapa rótulo→esporte do perfil: a `main` passou a usar `SportCatalog`, que já cobre futevôlei.)
 - Pendente (mesmo tema, fora desta fatia): espelho TS em
   `frontend/shared/arena-discovery/sport-chip.ts` (chip, `defaultSportChipFromProfile`,
   `sportFirestoreIdFromChip`).
@@ -19,18 +19,13 @@ arte. Faltam regras próprias de jogo, rating e acabamento de busca/reserva.
 - Padrão de atletas estimados na reserva por esporte da quadra (`estimatedAthletes`
   hoje fixo em 4): passar o tipo da quadra nos args da confirmação.
 
-## Fatia 3 — Regras de placar por esporte (feita, sem compilar)
-Regra adotada: melhor de 3, set até 18, decisivo até 15, diferença de 2 (FIFV/CBFv; fontes
-conferidas só por resumos de busca). `sport` vai gravado na partida na criação da chave
-(`bracketMatchDoc`); partidas antigas: `functions/scripts/backfill-match-sport.js`.
-Original do levantamento:
-- Hoje tudo é vôlei de praia: set até 21, tie-break 15 no 3º set, `bestOf` 3 —
-  em três cópias que precisam andar juntas: `functions/src/match-scoring.ts`,
-  `nexago_app/.../match_ops/match_scoring_logic.dart`,
-  `frontend/shared/live-scoring/match-scoring.ts` (+ testes de paridade).
-- Definir: pontos por set, tie-break, `bestOf` padrão e vantagem do futevôlei.
-- Introduzir `sport` como parâmetro de `targetPointsForSet` / `isSetWon` /
-  `validateScoreSubmission`. Corrige de quebra o vôlei de quadra (25 / melhor de 5).
+## Fatia 3 — Regras de placar por esporte (resolvida pela `main`)
+A `main` já trouxe o núcleo multiesporte (`sports/scoring.ts`, perfis de pontuação carimbados
+na partida; catálogo de esportes com futevôlei 18/15 como padrão *sugerido* pelo wizard;
+torneios existentes ficam na regra histórica de propósito — spec multiesporte 2d2).
+Uma implementação paralela desta branch foi descartada na resolução do conflito.
+Pendente, se quiserem a regra 18/15 nos torneios de futevôlei já criados: decidir
+produto (migrar `scoringProfile` das categorias) — não é automático.
 
 ## Fatia 4 — Formato de torneio por esporte
 - Presets por esporte: tamanho de time (dupla), gênero, categorias.

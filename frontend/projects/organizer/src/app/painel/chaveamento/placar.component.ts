@@ -2,7 +2,18 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, si
 import { Router } from '@angular/router';
 import { truncateName } from '../data/mock-data';
 import { courtChangeBlockReason, courtChangePayload } from '../data/match-court-change';
-import { type ScoreSet, matchWinnerSide, setsWon, targetPointsForSet, validateScoreSubmission } from '@nexago/live-scoring';
+import { type ScoreSet } from '@nexago/live-scoring';
+import {
+  effectiveScoringProfile,
+  matchWinnerSide,
+  normalizeQuickSet,
+  quickSetKind,
+  setsWonBy,
+  setTargetLabel,
+  validateScoreSets,
+  type QuickSetKind,
+  type ScoringProfile,
+} from '@nexago/sports';
 import { declareMatchWalkover, scheduleMatch, submitMatchResult, validateMatchResult } from '../data/organizer-ops.service';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
@@ -32,6 +43,22 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
  *  `/painel/eventos/:id/categorias/:catId/placar/:matchId` (nível 3 da cascata); lê a partida
  *  do cache do `ChaveamentoContextService` (dirigido pela rota via `PanelContextService`) e
  *  recarrega os jogos após cada escrita. */
+/** Linha de set do placar: o que mostrar e com que rótulo de alvo. Exportada para teste. */
+export interface PlacarRow {
+  index: number;
+  kind: QuickSetKind;
+  label: string;
+}
+
+export function placarRows(profile: ScoringProfile, sets: readonly ScoreSet[]): PlacarRow[] {
+  return sets.map((s, index) => ({ index, kind: quickSetKind(profile, index, s), label: setTargetLabel(profile, index) }));
+}
+
+/** Sets prontos para `submitMatchResult`: `tb` só onde a linha usa; super tie-break vira 1×0. */
+export function placarPayload(profile: ScoringProfile, sets: readonly ScoreSet[]): ScoreSet[] {
+  return sets.map((s, index) => normalizeQuickSet(profile, index, s));
+}
+
 @Component({
   selector: 'og-placar',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -118,35 +145,64 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
           <og-card kicker="Placar por set" title="Sets">
             @for (s of sets(); track $index; let i = $index) {
               <div class="og-placar-set-row">
-                <span class="og-placar-set-label">Set {{ i + 1 }} <em>até {{ targetOf(i) }}</em></span>
-                <div style="flex:1;display:flex;gap:20px">
-                  <div class="og-placar-set-box-wrap">
-                    <span class="lbl">{{ match()!.team1Label }}</span>
-                    <input
-                      type="number"
-                      inputmode="numeric"
-                      min="0"
-                      max="99"
-                      class="og-placar-set-input"
-                      [value]="s.a"
-                      (input)="updateSet(i, 'a', $event)"
-                    />
+                <span class="og-placar-set-label">Set {{ i + 1 }} <em>{{ rows()[i]?.label }}</em></span>
+                @if (rows()[i]?.kind === 'super_tiebreak') {
+                  <!-- Super tie-break: digita os pontos do tie-break; o set grava 1×0 do vencedor. -->
+                  <div style="flex:1;display:flex;gap:20px">
+                    <div class="og-placar-set-box-wrap">
+                      <span class="lbl">{{ match()!.team1Label }}</span>
+                      <input type="number" inputmode="numeric" min="0" max="99" class="og-placar-set-input" [value]="s.tb?.a ?? 0" (input)="updateSet(i, 'tbA', $event)" />
+                    </div>
+                    <div class="og-placar-set-box-wrap">
+                      <span class="lbl">{{ match()!.team2Label }}</span>
+                      <input type="number" inputmode="numeric" min="0" max="99" class="og-placar-set-input" [value]="s.tb?.b ?? 0" (input)="updateSet(i, 'tbB', $event)" />
+                    </div>
                   </div>
-                  <div class="og-placar-set-box-wrap">
-                    <span class="lbl">{{ match()!.team2Label }}</span>
-                    <input
-                      type="number"
-                      inputmode="numeric"
-                      min="0"
-                      max="99"
-                      class="og-placar-set-input"
-                      [value]="s.b"
-                      (input)="updateSet(i, 'b', $event)"
-                    />
+                } @else {
+                  <div style="flex:1;display:flex;gap:20px">
+                    <div class="og-placar-set-box-wrap">
+                      <span class="lbl">{{ match()!.team1Label }}</span>
+                      <input
+                        type="number"
+                        inputmode="numeric"
+                        min="0"
+                        max="99"
+                        class="og-placar-set-input"
+                        [value]="s.a"
+                        (input)="updateSet(i, 'a', $event)"
+                      />
+                    </div>
+                    <div class="og-placar-set-box-wrap">
+                      <span class="lbl">{{ match()!.team2Label }}</span>
+                      <input
+                        type="number"
+                        inputmode="numeric"
+                        min="0"
+                        max="99"
+                        class="og-placar-set-input"
+                        [value]="s.b"
+                        (input)="updateSet(i, 'b', $event)"
+                      />
+                    </div>
                   </div>
-                </div>
+                }
                 <button type="button" class="og-ghost-btn" (click)="removeSet(i)">Remover</button>
               </div>
+              @if (rows()[i]?.kind === 'games_tiebreak') {
+                <div class="og-placar-set-row">
+                  <span class="og-placar-set-label">Tie-break <em>do set {{ i + 1 }}</em></span>
+                  <div style="flex:1;display:flex;gap:20px">
+                    <div class="og-placar-set-box-wrap">
+                      <span class="lbl">{{ match()!.team1Label }}</span>
+                      <input type="number" inputmode="numeric" min="0" max="99" class="og-placar-set-input" [value]="s.tb?.a ?? 0" (input)="updateSet(i, 'tbA', $event)" />
+                    </div>
+                    <div class="og-placar-set-box-wrap">
+                      <span class="lbl">{{ match()!.team2Label }}</span>
+                      <input type="number" inputmode="numeric" min="0" max="99" class="og-placar-set-input" [value]="s.tb?.b ?? 0" (input)="updateSet(i, 'tbB', $event)" />
+                    </div>
+                  </div>
+                </div>
+              }
               @if (issueForSet(i); as msg) {
                 <p class="og-placar-error">{{ msg }}</p>
               }
@@ -471,7 +527,7 @@ export class PlacarComponent {
       const m = this.match();
       if (!m || this.hydratedMatchId === m.id) return;
       this.hydratedMatchId = m.id;
-      this.sets.set(m.sets.map((s) => ({ a: s.a, b: s.b })));
+      this.sets.set(m.sets.map((s) => (s.tb ? { a: s.a, b: s.b, tb: { a: s.tb.a, b: s.tb.b } } : { a: s.a, b: s.b })));
       this.bestOf.set(m.bestOf);
       this.feedback.set(null);
       this.courtFeedback.set(null);
@@ -511,12 +567,18 @@ export class PlacarComponent {
     return m ? courtChangeBlockReason(m) : 'unscheduled';
   });
 
-  /** Esporte da partida (futevôlei: set até 18) — o do doc, senão o do torneio; ausente = 21. */
-  private readonly sport = computed(() => this.match()?.sport ?? this.ctx.tournament()?.sportId ?? null);
+  /** Perfil de placar da partida com o formato escolhido aqui (spec multiesporte, 2b1). */
+  protected readonly profile = computed(() => effectiveScoringProfile(this.match()?.scoringProfile, this.bestOf()));
 
-  protected readonly wins = computed(() => setsWon(this.sets(), this.bestOf(), this.sport()));
+  /** Tipo e rótulo de cada linha de set (pontos, games, games + tie-break, super tie-break). */
+  protected readonly rows = computed(() => placarRows(this.profile(), this.sets()));
 
-  protected readonly issues = computed(() => validateScoreSubmission(this.sets(), this.bestOf(), this.sport()));
+  /** Sets como vão para o servidor — é sobre eles que a tela valida e conta. */
+  private readonly payload = computed(() => placarPayload(this.profile(), this.sets()));
+
+  protected readonly wins = computed(() => setsWonBy(this.payload(), this.profile()));
+
+  protected readonly issues = computed(() => validateScoreSets(this.payload(), this.profile()));
 
   protected readonly canSubmit = computed(() => this.teamsReady() && this.sets().length > 0 && this.issues().length === 0);
 
@@ -537,10 +599,6 @@ export class PlacarComponent {
   protected globalIssue(): string | null {
     if (this.sets().length === 0) return null;
     return this.issues().find((i) => i.setIndex == null)?.message ?? null;
-  }
-
-  protected targetOf(index: number): number {
-    return targetPointsForSet(index, this.bestOf(), this.sport());
   }
 
   protected readonly headerSubtitle = computed(() => {
@@ -572,10 +630,17 @@ export class PlacarComponent {
     this.sets.update((s) => s.filter((_, i) => i !== index));
   }
 
-  protected updateSet(index: number, side: 'a' | 'b', event: Event): void {
+  protected updateSet(index: number, field: 'a' | 'b' | 'tbA' | 'tbB', event: Event): void {
     const raw = Number((event.target as HTMLInputElement).value);
     const value = Number.isFinite(raw) ? Math.max(0, Math.min(99, Math.trunc(raw))) : 0;
-    this.sets.update((sets) => sets.map((s, i) => (i === index ? { ...s, [side]: value } : s)));
+    this.sets.update((sets) =>
+      sets.map((s, i) => {
+        if (i !== index) return s;
+        if (field === 'a' || field === 'b') return { ...s, [field]: value };
+        const tb = { a: s.tb?.a ?? 0, b: s.tb?.b ?? 0 };
+        return { ...s, tb: field === 'tbA' ? { ...tb, a: value } : { ...tb, b: value } };
+      }),
+    );
   }
 
   protected async save(): Promise<void> {
@@ -585,8 +650,8 @@ export class PlacarComponent {
     this.busyKey.set('save');
     this.feedback.set(null);
     try {
-      const result = await submitMatchResult({ matchId: m.id, sets: this.sets(), bestOf: this.bestOf() });
-      const winner = matchWinnerSide(this.sets(), this.bestOf(), this.sport());
+      const result = await submitMatchResult({ matchId: m.id, sets: this.payload(), bestOf: this.bestOf() });
+      const winner = matchWinnerSide(this.payload(), this.profile());
       const winnerLabel = winner === 'A' ? m.team1Label : m.team2Label;
       this.feedback.set({
         ok: true,

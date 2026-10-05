@@ -1,23 +1,28 @@
 /**
- * Regras de placar (espelho de `MatchScoringLogic` no app Flutter) usadas para
- * validar resultados no servidor de forma autoritativa.
+ * Regras de placar usadas para validar resultados no servidor de forma
+ * autoritativa. As regras moram no núcleo (`sports/scoring.ts`, por perfil);
+ * as funções daqui são invólucros com a regra histórica (21/15, vantagem 2),
+ * mantidas pelas assinaturas que o resto do backend já usa.
  */
+import {resolveSport} from "./sports/catalog";
+import {
+  isPointsSetWon,
+  legacyScoringProfile,
+  scoringProfileFromRaw,
+  setPointsTarget,
+  setsWonBy,
+  setWinnerSide as coreSetWinnerSide,
+  type ScoreSet,
+  type ScoringProfile,
+} from "./sports/scoring";
+
 
 export const DEFAULT_SET_POINTS = 21;
 export const TIEBREAK_SET_POINTS = 15;
 export const MIN_ADVANTAGE = 2;
 export const DEFAULT_BEST_OF = 3;
 
-/** Esportes com regra de set própria (valor cru de `tournaments/{id}.sport`). */
-const FOOTVOLLEY_SPORT = "footvolley";
-
-/** Futevôlei (FIFV/CBFv): set até 18 e set decisivo até 15, diferença de 2. */
-export const FOOTVOLLEY_SET_POINTS = 18;
-
-export interface ScoreSet {
-  a: number;
-  b: number;
-}
+export type {ScoreSet} from "./sports/scoring";
 
 /**
  * Formato configurado na categoria (`tournaments/{id}.categories[].bestOf`)
@@ -35,16 +40,32 @@ export function matchBestOfFromCategory(raw: unknown): number {
 }
 
 /**
- * Pontos para fechar o set. Sem `sport` (ou esporte sem regra própria) vale a
- * regra histórica de vôlei de praia (21 / decisivo 15).
+ * Perfil que a geração da chave carimba na partida: o explícito da categoria
+ * (gravado pelo wizard) ou, sem ele, o padrão de games do esporte com o `bestOf`
+ * da categoria; esporte de pontos (ou desconhecido) sem perfil usa a regra
+ * histórica.
  */
-export function targetPointsForSet(
-  setIndex: number,
-  bestOf: number,
-  sport?: string | null,
-): number {
-  if (bestOf === 3 && setIndex === 2) return TIEBREAK_SET_POINTS;
-  return sport === FOOTVOLLEY_SPORT ? FOOTVOLLEY_SET_POINTS : DEFAULT_SET_POINTS;
+export function categoryScoringProfile(
+  category: Record<string, unknown> | null | undefined,
+  tournamentSport: unknown,
+): ScoringProfile {
+  const bestOf = matchBestOfFromCategory(category?.bestOf);
+  // O nº de sets vem da categoria (é o que os editores mostram), mesmo com perfil explícito.
+  const explicit = scoringProfileFromRaw(category?.scoringProfile);
+  if (explicit) return {...explicit, bestOf};
+  // O fallback parte do histórico de MD3 (decisivo 15), não do `bestOf` da
+  // categoria: assim todo carimbo tem o mesmo formato, e a mesa trocar o
+  // formato no meio da partida não muda o alvo do set decisivo.
+  // Em pontos, o padrão do catálogo (25/15 quadra, 18/15 futevôlei) é só SUGESTÃO do wizard:
+  // categoria sem perfil explícito — todo torneio que já existe — fica na regra histórica (spec
+  // multiesporte, 2d2). Em games não há histórico: vale o padrão do esporte.
+  const catalog = resolveSport(tournamentSport)?.scoringProfile;
+  const base = catalog?.kind === "sets_games" ? catalog : legacyScoringProfile(DEFAULT_BEST_OF);
+  return {...base, bestOf};
+}
+
+export function targetPointsForSet(setIndex: number, bestOf: number): number {
+  return setPointsTarget(legacyScoringProfile(bestOf), setIndex);
 }
 
 export function isSetWon(
@@ -52,9 +73,7 @@ export function isSetWon(
   scoreB: number,
   target: number = DEFAULT_SET_POINTS,
 ): boolean {
-  if (scoreA >= target && scoreA - scoreB >= MIN_ADVANTAGE) return true;
-  if (scoreB >= target && scoreB - scoreA >= MIN_ADVANTAGE) return true;
-  return false;
+  return isPointsSetWon(scoreA, scoreB, target, MIN_ADVANTAGE, null);
 }
 
 /** `'A'`, `'B'` ou `null` se o set ainda não foi vencido por ninguém. */
@@ -62,37 +81,24 @@ export function setWinnerSide(
   sets: ScoreSet[],
   index: number,
   bestOf: number = DEFAULT_BEST_OF,
-  sport?: string | null,
 ): "A" | "B" | null {
-  if (index < 0 || index >= sets.length) return null;
-  const s = sets[index];
-  if (!isSetWon(s.a, s.b, targetPointsForSet(index, bestOf, sport))) return null;
-  return s.a > s.b ? "A" : "B";
+  return coreSetWinnerSide(sets, index, legacyScoringProfile(bestOf));
 }
 
 /** Quantos sets cada lado venceu DE FATO (respeitando target/vantagem). */
 export function setsWon(
   sets: ScoreSet[],
   bestOf: number = DEFAULT_BEST_OF,
-  sport?: string | null,
 ): {a: number; b: number} {
-  let a = 0;
-  let b = 0;
-  for (let i = 0; i < sets.length; i++) {
-    const side = setWinnerSide(sets, i, bestOf, sport);
-    if (side === "A") a++;
-    else if (side === "B") b++;
-  }
-  return {a, b};
+  return setsWonBy(sets, legacyScoringProfile(bestOf));
 }
 
 export function isMatchWon(
   sets: ScoreSet[],
   bestOf: number = DEFAULT_BEST_OF,
-  sport?: string | null,
 ): boolean {
   const needed = Math.ceil(bestOf / 2);
-  const wins = setsWon(sets, bestOf, sport);
+  const wins = setsWon(sets, bestOf);
   return wins.a >= needed || wins.b >= needed;
 }
 
@@ -101,10 +107,9 @@ export function matchWinnerId(
   teamAId: string,
   teamBId: string,
   bestOf: number = DEFAULT_BEST_OF,
-  sport?: string | null,
 ): string | null {
-  if (!isMatchWon(sets, bestOf, sport)) return null;
-  const wins = setsWon(sets, bestOf, sport);
+  if (!isMatchWon(sets, bestOf)) return null;
+  const wins = setsWon(sets, bestOf);
   if (wins.a > wins.b) return teamAId;
   if (wins.b > wins.a) return teamBId;
   return null;
@@ -117,8 +122,12 @@ export function matchWinnerId(
  */
 export function parseAndValidateSets(
   raw: unknown,
-  bestOf: number = DEFAULT_BEST_OF,
+  profileOrBestOf: ScoringProfile | number = DEFAULT_BEST_OF,
 ): ScoreSet[] {
+  const profile = typeof profileOrBestOf === "number" ?
+    legacyScoringProfile(profileOrBestOf) :
+    profileOrBestOf;
+  const bestOf = profile.bestOf;
   if (!Array.isArray(raw) || raw.length === 0) {
     throw new Error("Informe ao menos um set.");
   }
@@ -139,6 +148,21 @@ export function parseAndValidateSets(
     // Um set registrado não pode terminar empatado (inclui 0×0).
     if (a === b) {
       throw new Error("Um set não pode terminar empatado.");
+    }
+    // Tie-break só existe em set de games; em set de pontos é descartado.
+    const tbRaw = obj.tb;
+    if (profile.kind === "sets_games" && tbRaw && typeof tbRaw === "object") {
+      const tbObj = tbRaw as Record<string, unknown>;
+      const tbA = Number(tbObj.a);
+      const tbB = Number(tbObj.b);
+      if (!Number.isInteger(tbA) || !Number.isInteger(tbB)) {
+        throw new Error("Placar inválido.");
+      }
+      if (tbA < 0 || tbB < 0 || tbA > 99 || tbB > 99) {
+        throw new Error("Placar fora do intervalo.");
+      }
+      sets.push({a, b, tb: {a: tbA, b: tbB}});
+      continue;
     }
     sets.push({a, b});
   }

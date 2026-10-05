@@ -22,7 +22,6 @@ import {
   type TournamentCategoryDraft,
   type TournamentCreateDraft,
   type TournamentPaymentMode,
-  type TournamentSport,
   type TournamentVisibility,
   bracketSystemFromRaw,
   categoryGenderComposition,
@@ -30,6 +29,9 @@ import {
   isTeamDispute,
   suggestCategoryName,
   totalSpots,
+  parseTournamentSport,
+  sportFirestoreValue,
+  profileBestOf,
 } from './tournament-create.model';
 
 /** Porta fiel de `tournament_create_mapper.dart` (Flutter): monta o doc `tournaments/{id}`
@@ -107,6 +109,9 @@ export function categoryToMap(category: TournamentCategoryDraft, draft: Tourname
     kocPhases: category.kocPhases,
     bestOf: category.bestOf,
     finalBestOf5: category.finalBestOf5,
+    // Perfil de placar: repassado cru (o wizard ainda não edita); não gravar seria apagar.
+    // O `bestOf` do perfil acompanha o da categoria (o organizador pode trocar depois).
+    ...(category.scoringProfile ? { scoringProfile: { ...category.scoringProfile, bestOf: profileBestOf(category.bestOf) } } : {}),
     maxRegistrationsPerAthlete: category.maxRegistrationsPerAthlete,
     registrationClosed: false,
     isCompleted: false,
@@ -146,7 +151,7 @@ export function tournamentDraftToFirestore(params: {
 
   return {
     name,
-    sport: draft.sport,
+    sport: sportFirestoreValue(draft),
     description: draft.description.trim() || null,
     city: draft.city.trim(),
     state: draft.state.trim() || null,
@@ -221,10 +226,6 @@ function num(v: unknown): number | null {
 function ts(v: unknown): Date | null {
   const t = v as { toDate?: () => Date } | undefined;
   return typeof t?.toDate === 'function' ? t.toDate() : null;
-}
-
-function parseSport(raw: unknown): TournamentSport {
-  return raw === 'indoorVolleyball' || raw === 'footvolley' ? raw : 'beachVolleyball';
 }
 
 function parseGender(raw: unknown): CategoryGender {
@@ -366,7 +367,13 @@ export function categoryFromMap(map: Record<string, unknown>): TournamentCategor
     finalBestOf5: map['finalBestOf5'] === true,
     maxRegistrationsPerAthlete: num(map['maxRegistrationsPerAthlete']) ?? 2,
     prizes: parsePrizes(map['prizes']),
+    scoringProfile: scoringProfileRawOf(map['scoringProfile']),
   };
+}
+
+/** Perfil de placar cru da categoria (objeto) ou `null`. */
+function scoringProfileRawOf(raw: unknown): Record<string, unknown> | null {
+  return raw && typeof raw === 'object' && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>) } : null;
 }
 
 export interface TournamentDraftLoad {
@@ -387,7 +394,7 @@ export function tournamentDraftFromFirestore(data: Record<string, unknown>, id: 
 
   const draft: TournamentCreateDraft = {
     tournamentId: id,
-    sport: parseSport(data['sport']),
+    ...parseTournamentSport(data['sport']),
     name: str(data['name']),
     coverImageUrl: str(data['coverUrl']) || str(data['imageUrl']) || null,
     description: str(data['description']),

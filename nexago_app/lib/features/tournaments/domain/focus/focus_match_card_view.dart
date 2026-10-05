@@ -88,6 +88,17 @@ String focusMatchCardContext({
     // Sem set aberto ainda (intervalo / WO parcial): só os sets vencidos.
     return (center: '$setsA-$setsB', detail: null);
   }
+  final game = live.game;
+  if (game != null) {
+    // Partida de games: o número grande é o ponto do game; a linha fina leva
+    // sets e games do set (no super tie-break o set fica 0-0, então só o nome).
+    return (
+      center: '${game.a}-${game.b}',
+      detail: live.superTiebreak
+          ? 'SETS $setsA-$setsB · SUPER TIE-BREAK'
+          : 'SETS $setsA-$setsB · ${live.a}-${live.b}',
+    );
+  }
   return (
     center: '${live.a}-${live.b}',
     detail: 'SETS $setsA-$setsB',
@@ -115,9 +126,12 @@ String focusMatchCardContext({
   return (a, b);
 }
 
-/// "21-14 · 21-18" — as parciais da partida encerrada.
+/// "21-14 · 21-18" — as parciais da partida encerrada; em games, com o
+/// tie-break por extenso e o super tie-break pelos pontos ("6-7 (5-7) · 10-8").
 String? _closedDetailOf(TournamentMatch match) {
-  final sets = matchDisplaySets(match);
-  if (sets.isEmpty) return null;
-  return sets.map((s) => '${s.a}-${s.b}').join(' · ');
+  final texts = matchClosedSetTexts(match)
+      .where((t) => t != '0-0')
+      .toList();
+  if (texts.isEmpty) return null;
+  return texts.join(' · ');
 }

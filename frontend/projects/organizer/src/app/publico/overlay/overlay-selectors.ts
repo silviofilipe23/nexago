@@ -4,6 +4,7 @@ import { matchClosedSets, matchLiveCurrentSet, matchSetWins } from '../../painel
 import type { TournamentMatch } from '../../painel/data/matches-repository';
 import { pointAlertOf, type PointAlert } from '../../painel/telao/telao-final-mode';
 import { targetPointsForSet } from '@nexago/live-scoring';
+import { effectiveScoringProfile, isSuperTiebreakSet, setTargetLabel, type ScoringProfile } from '@nexago/sports';
 
 export type OverlayPhase = 'pregame' | 'live' | 'final';
 
@@ -31,6 +32,12 @@ export interface OverlayDuelView {
   setsB: number;
   pointsA: number | null;
   pointsB: number | null;
+  /** Partida de games ao vivo: ponto do game (0/15/30/40/AD, ou do tie-break) — é o número
+   *  grande; `pointsA/B` ficam com os games do set, que vão na coluna do set ao vivo. */
+  gameA: string | null;
+  gameB: string | null;
+  /** Faixa de status: "Set 2 · até 21", "Tie-break", "Set 1 · até 6 games", "Super tie-break". */
+  statusLabel: string;
   alert: PointAlert | null;
   /** Partida de set único nunca sai de 0-0 em sets — a coluna só ocuparia espaço no ar. */
   showSets: boolean;
@@ -88,29 +95,42 @@ function winnerSideOf(match: TournamentMatch, setsA: number, setsB: number): 'A'
 
 function setColumnsOf(
   match: TournamentMatch,
-  closed: Array<{ a: number; b: number }>,
-  live: { setNumber: number; a: number; b: number } | null,
+  closed: Array<{ a: number; b: number; tb?: { a: number; b: number } }>,
+  live: { setNumber: number; a: number; b: number; superTiebreak?: boolean } | null,
+  profile: ScoringProfile,
 ): OverlayDuelSetColumn[] {
-  if (match.bestOf <= 1) return [];
-  const cols: OverlayDuelSetColumn[] = closed.map((s, i) => ({
-    index: i,
-    label: `SET ${i + 1}`,
-    a: s.a,
-    b: s.b,
-    active: false,
-  }));
+  const games = profile.kind === 'sets_games';
+  // Set único de pontos: o número grande já é o set. Em games, o número grande é o ponto do
+  // game e os games do set precisam de uma coluna.
+  if (match.bestOf <= 1 && !games) return [];
+  const cols: OverlayDuelSetColumn[] = closed.map((s, i) => {
+    // Super tie-break gravado 1×0: a coluna mostra os pontos dele (10-8).
+    const shown = profile.kind === 'sets_games' && s.tb && isSuperTiebreakSet(profile, i) ? s.tb : s;
+    return { index: i, label: `SET ${i + 1}`, a: shown.a, b: shown.b, active: false };
+  });
   if (live) {
     cols.push({
       index: live.setNumber - 1,
       label: `SET ${live.setNumber}`,
-      a: null,
-      b: null,
+      // Super tie-break: o set fica 0-0 enquanto os pontos correm no número grande.
+      a: games && !live.superTiebreak ? live.a : null,
+      b: games && !live.superTiebreak ? live.b : null,
       active: true,
     });
   } else if (cols.length > 0 && match.status === 'completed') {
     cols[cols.length - 1]!.active = true;
   }
   return cols;
+}
+
+function statusLabelOf(profile: ScoringProfile, setNumber: number, targetPoints: number, tiebreak: boolean): string {
+  if (profile.kind === 'sets_points') {
+    if (targetPoints <= 15 && setNumber >= 3) return 'Tie-break';
+    return `Set ${setNumber} · até ${targetPoints}`;
+  }
+  const idx = Math.max(0, setNumber - 1);
+  if (tiebreak) return isSuperTiebreakSet(profile, idx) ? 'Super tie-break' : 'Tie-break';
+  return `Set ${setNumber} · ${setTargetLabel(profile, idx)}`;
 }
 
 export function overlayViewOf(
@@ -151,7 +171,9 @@ export function overlayViewOf(
   const pointsA = points?.a ?? null;
   const pointsB = points?.b ?? null;
   const currentSetNumber = live?.setNumber ?? Math.max(1, closed.length);
-  const targetPoints = targetPointsForSet(Math.max(0, currentSetNumber - 1), match.bestOf, match.sport);
+  const targetPoints = targetPointsForSet(Math.max(0, currentSetNumber - 1), match.bestOf);
+  const profile = effectiveScoringProfile(match.scoringProfile, match.bestOf);
+  const games = profile.kind === 'sets_games';
   return {
     kind: 'duel',
     phase: phaseOf(match.status),
@@ -161,12 +183,15 @@ export function overlayViewOf(
     setsB,
     pointsA,
     pointsB,
+    gameA: live?.game?.a ?? null,
+    gameB: live?.game?.b ?? null,
+    statusLabel: statusLabelOf(profile, currentSetNumber, targetPoints, live?.tiebreak === true),
     alert: pointAlertOf(match),
-    showSets: match.bestOf > 1,
+    showSets: match.bestOf > 1 || games,
     pointsLead: pointsLeadOf(pointsA, pointsB),
     currentSetNumber,
     targetPoints,
-    setColumns: setColumnsOf(match, closed, live),
+    setColumns: setColumnsOf(match, closed, live, profile),
     roundLabel: match.round?.trim() || null,
     winnerSide: winnerSideOf(match, setsA, setsB),
     servingPlayerSlot:

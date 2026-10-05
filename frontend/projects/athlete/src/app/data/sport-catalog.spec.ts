@@ -2,7 +2,7 @@ import { SPORT_CATALOG, sportLabelForCode } from './sport-catalog';
 
 describe('sport-catalog', () => {
   describe('SPORT_CATALOG', () => {
-    it('includes the 9 sports used by onboarding, in a stable order', () => {
+    it('includes the 10 sports used by onboarding, in a stable order', () => {
       expect(SPORT_CATALOG.map((entry) => entry.code)).toEqual([
         'VOLEI_PRAIA',
         'VOLEI_QUADRA',
@@ -12,8 +12,13 @@ describe('sport-catalog', () => {
         'TENIS',
         'BEACH_TENNIS',
         'CORRIDA',
+        'PADEL',
         'OUTROS',
       ]);
+    });
+
+    it('padel usa o ícone de raquete', () => {
+      expect(SPORT_CATALOG.find((entry) => entry.code === 'PADEL')?.icon).toBe('racket');
     });
   });
 
@@ -25,6 +30,10 @@ describe('sport-catalog', () => {
 
     it('falls back to a title-cased version of unknown codes', () => {
       expect(sportLabelForCode('FUTEVOLEI_MISTO')).toBe('Futevolei Misto');
+    });
+
+    it('resolves any spelling the catalog knows', () => {
+      expect(sportLabelForCode('beachVolleyball')).toBe('Vôlei de praia');
     });
 
     it('returns an empty string for an empty code', () => {

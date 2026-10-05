@@ -276,7 +276,7 @@ export class PublicTournamentPageComponent {
 
   private readonly matchesWithCourtNames = computed(() =>
     applyTeamLabels(
-      resolveCourtNames(this.store.matches(), this.store.tournament()?.courts ?? [], this.store.tournament()?.sportId),
+      resolveCourtNames(this.store.matches(), this.store.tournament()?.courts ?? []),
       this.store.teamLabels(),
     ),
   );

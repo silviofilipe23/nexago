@@ -32,6 +32,12 @@ import {
   SKILL_LEVEL_LABEL,
   SPORT_LABEL,
   SUPPORTED_BRACKET_SYSTEMS,
+  bracketSystemsForSport,
+  categoryScoringView,
+  scoringSportOf,
+  patchCategoryScoring,
+  withSportScoring,
+  type CategoryScoringPatch,
   TOURNAMENT_CREATE_STEPS,
   type AgeBand,
   type CategoryDispute,
@@ -77,6 +83,7 @@ import { OgToggleRowComponent } from '../../ui/toggle-row.component';
 import { OgWizardShellComponent } from '../../ui/wizard-shell.component';
 import { NxPageLoadingComponent } from '../../../shared/loading/nx-page-loading.component';
 import { BrLocationsService } from '@nexago/br-locations';
+import { sportLabel } from '@nexago/sports';
 
 type SubView = 'categoria' | 'premio' | null;
 
@@ -283,7 +290,7 @@ function inputToDatetime(v: string): Date | null {
             </og-card>
             <og-card kicker="Formato" title="Sistema de disputa da categoria">
               <div style="display:grid;gap:10px">
-                @for (bs of bracketOptions; track bs) {
+                @for (bs of bracketOptions(); track bs) {
                   <og-radio-row
                     style="cursor:pointer"
                     [selected]="cat().bracketSystem === bs"
@@ -336,6 +343,30 @@ function inputToDatetime(v: string): Date | null {
               <div style="margin-top:14px">
                 <og-toggle-row title="Final em MD5" desc="A decisão do título usa melhor de 5 sets." [on]="cat().finalBestOf5" (toggled)="patchCat({ finalBestOf5: $event })" />
               </div>
+              <!-- Placar da categoria (spec multiesporte 2d2a): os campos do tipo do esporte. -->
+              @if (catScoring(); as sc) {
+                @if (sc.kind === 'sets_points') {
+                  <div style="margin-top:14px">
+                    <og-stepper-static label="Set até" [value]="'' + sc.setTarget" suffix="pontos" (bump)="bumpCatScoring('setTarget', $event)" />
+                  </div>
+                  @if (cat().bestOf !== 'singleSet') {
+                    <div style="margin-top:14px">
+                      <og-stepper-static label="Set decisivo até" [value]="'' + sc.decidingSetTarget" suffix="pontos" (bump)="bumpCatScoring('decidingSetTarget', $event)" />
+                    </div>
+                  }
+                } @else {
+                  <div style="margin-top:14px">
+                    <og-toggle-row title="Sem vantagem" desc="No 40-40, o próximo ponto fecha o game." [on]="sc.noAd" (toggled)="patchCatScoring({ noAd: $event })" />
+                  </div>
+                  @if (cat().bestOf !== 'singleSet') {
+                    <div style="margin-top:14px">
+                      <og-form-field label="Set decisivo">
+                        <og-select-chips [options]="decidingSetOptions" [active]="sc.decidingSet === 'super_tiebreak' ? decidingSetOptions[0] : decidingSetOptions[1]" (changed)="setCatDecidingSet($event)" />
+                      </og-form-field>
+                    </div>
+                  }
+                }
+              }
               <div style="margin-top:14px">
                 <og-stepper-static label="Limite de inscrições por atleta" [value]="'' + cat().maxRegistrationsPerAthlete" suffix="categorias" (bump)="bumpCat('maxRegistrationsPerAthlete', $event, 1, 5)" />
               </div>
@@ -368,7 +399,11 @@ function inputToDatetime(v: string): Date | null {
                 <og-card title="Detalhes">
                   <div class="og-field-grid">
                     <og-form-field label="Esporte">
-                      <og-select-chips [options]="sportOptions" [active]="sportLabel[draft().sport]" (changed)="setSport($event)" />
+                      @if (draft().sportRaw; as sportRaw) {
+                        <div class="og-config-row"><span class="val">{{ lockedSportLabel(sportRaw) }}</span><span class="lbl">Não pode ser alterado nesta versão do painel.</span></div>
+                      } @else {
+                        <og-select-chips [options]="sportOptions" [active]="sportLabel[draft().sport]" (changed)="setSport($event)" />
+                      }
                     </og-form-field>
                     <og-form-field label="Nome do torneio">
                       <input class="og-input-el" [value]="draft().name" (input)="patch({ name: $any($event.target).value })" placeholder="Ex.: Open Goiânia Beach" />
@@ -793,7 +828,8 @@ export class CriarTorneioComponent {
   protected readonly bracketShortLabel = BRACKET_SYSTEM_SHORT_LABEL;
   protected readonly bracketDesc = BRACKET_SYSTEM_DESCRIPTION;
   protected readonly supported = SUPPORTED_BRACKET_SYSTEMS;
-  protected readonly bracketOptions: TournamentBracketSystem[] = ['groupsThenKnockout', 'singleElimination', 'doubleElimination', 'kingOfCourt', 'roundRobin', 'groupsWithRepechage'];
+  /** KOTC só aparece em vôlei de praia (`bracketSystemsForSport`). */
+  protected readonly bracketOptions = computed<TournamentBracketSystem[]>(() => bracketSystemsForSport(this.draft().sport));
   protected readonly sportOptions = Object.values(SPORT_LABEL);
   protected readonly genderOptions = Object.values(GENDER_LABEL);
   protected readonly ageBandOptions = Object.values(AGE_BAND_LABEL);
@@ -1014,7 +1050,35 @@ export class CriarTorneioComponent {
 
   protected setSport(label: string): void {
     const sport = (Object.keys(SPORT_LABEL) as TournamentSport[]).find((s) => SPORT_LABEL[s] === label);
-    if (sport) this.patch({ sport });
+    // O placar das categorias acompanha o esporte (o perfil antigo seria de outro tipo).
+    // Sugestão intacta do esporte anterior também é refeita (esporte desconhecido não sugere nada).
+    const previous = this.draft().sportRaw ? undefined : this.draft().sport;
+    if (sport) this.patch({ sport, categories: withSportScoring(this.draft().categories, sport, previous) });
+  }
+
+  /** O placar que a categoria em edição vai carimbar (explícito ou o do servidor sem perfil). */
+  protected readonly catScoring = computed(() => {
+    // Esporte desconhecido (`sportRaw`): sem bloco de placar — o servidor usa o padrão dele.
+    const sport = scoringSportOf(this.draft());
+    return sport ? categoryScoringView(this.cat(), sport) : null;
+  });
+  protected readonly decidingSetOptions = ['Super tie-break', 'Set completo'];
+
+  protected patchCatScoring(patch: CategoryScoringPatch): void {
+    const sport = scoringSportOf(this.draft());
+    if (sport) this.cat.update((c) => patchCategoryScoring(c, sport, patch));
+  }
+
+  protected bumpCatScoring(field: 'setTarget' | 'decidingSetTarget', delta: number): void {
+    const sc = this.catScoring();
+    if (!sc || sc.kind !== 'sets_points') return;
+    // Alvo do set entre 5 e 50; o decisivo nunca passa do alvo do set.
+    const next = field === 'setTarget' ? Math.min(Math.max(sc.setTarget + delta, 5), 50) : Math.min(Math.max(sc.decidingSetTarget + delta, 5), sc.setTarget);
+    this.patchCatScoring({ [field]: next });
+  }
+
+  protected setCatDecidingSet(label: string): void {
+    this.patchCatScoring({ decidingSet: label === this.decidingSetOptions[0] ? 'super_tiebreak' : 'full' });
   }
 
   protected setCatGender(label: string): void {
@@ -1198,6 +1262,7 @@ export class CriarTorneioComponent {
         : applyOrganizerCategoryDefaults(
             { ...emptyCategoryDraft(`${Date.now()}`), priceCents: this.draft().defaultPriceCents },
             this.organizerDefaults,
+            scoringSportOf(this.draft()) ?? undefined,
           ),
     );
     this.catPriceInput.set(formatCentsInputValue(this.cat().priceCents));
@@ -1429,8 +1494,13 @@ export class CriarTorneioComponent {
   }
 
   // Resumos da revisão (espelham `review*Summary` do app)
+  protected lockedSportLabel(raw: string): string {
+    return sportLabel(raw) ?? raw;
+  }
+
   protected reviewSport(): string {
-    return SPORT_LABEL[this.draft().sport];
+    const raw = this.draft().sportRaw;
+    return raw ? this.lockedSportLabel(raw) : SPORT_LABEL[this.draft().sport];
   }
 
   protected reviewLocation(): string {

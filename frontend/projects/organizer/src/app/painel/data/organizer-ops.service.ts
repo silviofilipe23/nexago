@@ -244,6 +244,8 @@ export function sendCategoryCommunication(params: {
 export interface MatchSetInput {
   a: number;
   b: number;
+  /** Tie-break do set de games (ou super tie-break do set decisivo). */
+  tb?: { readonly a: number; readonly b: number } | null;
 }
 
 export function submitMatchResult(params: { matchId: string; sets: MatchSetInput[]; bestOf?: number }): Promise<{ ok?: boolean; completed?: boolean; winnerId?: string }> {

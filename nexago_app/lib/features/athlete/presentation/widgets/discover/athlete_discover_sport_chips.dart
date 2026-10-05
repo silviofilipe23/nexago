@@ -24,6 +24,7 @@ class AthleteDiscoverSportChips extends StatelessWidget {
     ('VOLEI_QUADRA', 'Vôlei de quadra', Icons.sports_volleyball_rounded),
     ('BASQUETE', 'Basquete', Icons.sports_basketball_rounded),
     ('TENIS', 'Tênis', Icons.sports_tennis_rounded),
+    ('PADEL', 'Padel', Icons.sports_handball_rounded),
   ];
 
   @override

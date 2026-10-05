@@ -311,7 +311,7 @@ export class TransmissaoComponent {
   });
 
   /** Jogo do auto-agendamento antigo só gravou `courtId` — o nome sai das quadras do torneio. */
-  private readonly matches = computed(() => resolveCourtNames(this.svc.matches(), this.svc.tournament()?.courts ?? [], this.svc.tournament()?.sportId));
+  private readonly matches = computed(() => resolveCourtNames(this.svc.matches(), this.svc.tournament()?.courts ?? []));
 
   protected readonly courtChips = computed(() => courtChipsOf(this.svc.tournament()?.courts ?? [], this.matches(), this.now()));
 

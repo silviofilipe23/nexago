@@ -313,7 +313,13 @@ String? liveScoreLineOf(TournamentMatch m) {
       setsB++;
     }
   }
-  return '$setsA–$setsB · ${current.setNumber}º set ${current.a}-${current.b}';
+  final game = current.game;
+  if (game != null && current.superTiebreak) {
+    return '$setsA–$setsB · super tie-break ${game.a}-${game.b}';
+  }
+  final line =
+      '$setsA–$setsB · ${current.setNumber}º set ${current.a}-${current.b}';
+  return game == null ? line : '$line · ${game.a}-${game.b}';
 }
 
 /// "Sua próxima partida · Grupo A · Rodada 2".
@@ -363,7 +369,7 @@ NextMatchView? nextMatchViewOf(FocusViewContext ctx, DateTime now) {
       return label.trim().isEmpty ? null : label;
     }(),
     bestOfLabel: 'MD${matchBestOf(m)}',
-    formatLabel: 'MD${matchBestOf(m)} · ${matchSetPointsFor(m.sport)} PTS',
+    formatLabel: 'MD${matchBestOf(m)} · $matchSetPoints PTS',
     countdownClock: live ? null : countdownClockOf(m.scheduleTime, now),
     scheduleTime: m.scheduleTime,
     checkedIn: checkIn.trim().toLowerCase() == 'present',

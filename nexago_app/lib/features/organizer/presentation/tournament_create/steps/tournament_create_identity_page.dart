@@ -13,6 +13,7 @@ import '../../../domain/tournament_create/tournament_create_providers.dart';
 import '../tournament_create_navigation.dart';
 import '../tournament_create_wizard_scaffold.dart';
 import '../widgets/organizer_form_widgets.dart';
+import '../../../../../core/sports/sport_catalog.dart';
 
 class TournamentCreateIdentityPage extends ConsumerStatefulWidget {
   const TournamentCreateIdentityPage({super.key});
@@ -73,22 +74,35 @@ class _TournamentCreateIdentityPageState
         children: [
           const OrganizerSectionLabel('ESPORTE'),
           const SizedBox(height: 8),
-          DropdownButtonFormField<TournamentSport>(
-            value: draft.sport,
-            decoration: _fieldDecoration(context),
-            items: [
-              for (final sport in TournamentSport.values)
-                DropdownMenuItem(
-                  value: sport,
-                  child: Text(sportLabel(sport)),
-                ),
-            ],
-            onChanged: (value) {
-              if (value != null) {
-                ref.read(tournamentCreateWizardProvider.notifier).setSport(value);
-              }
-            },
-          ),
+          if (draft.sportRaw case final sportRaw?)
+            TextFormField(
+              key: const ValueKey('sport-locked'),
+              enabled: false,
+              initialValue: SportCatalog.labelOf(sportRaw) ?? sportRaw,
+              decoration: _fieldDecoration(context).copyWith(
+                helperText:
+                    'Esporte não pode ser alterado nesta versão do app.',
+              ),
+            )
+          else
+            DropdownButtonFormField<TournamentSport>(
+              value: draft.sport,
+              decoration: _fieldDecoration(context),
+              items: [
+                for (final sport in TournamentSport.values)
+                  DropdownMenuItem(
+                    value: sport,
+                    child: Text(sportLabel(sport)),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  ref
+                      .read(tournamentCreateWizardProvider.notifier)
+                      .setSport(value);
+                }
+              },
+            ),
           const SizedBox(height: 20),
           const OrganizerSectionLabel('NOME DO TORNEIO'),
           const SizedBox(height: 8),

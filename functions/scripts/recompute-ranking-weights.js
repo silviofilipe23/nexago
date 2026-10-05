@@ -2,6 +2,11 @@
 /**
  * Recálculo retroativo do ranking geral com os pesos da fase 3.
  *
+ * RANKING POR ESPORTE (multiesporte fase 3a): este script só mexe no legado
+ * (`tournamentCategoryResults`, `teamRankings`, `athleteRankings`). Os docs de
+ * `athleteRankingsBySport`/`teamRankingsBySport` NÃO acompanham — depois de
+ * rodá-lo, rode o callable `backfillRankingsBySport`.
+ *
  * PROBLEMA (19/08): a fase 3 pôs peso por preset de categoria, grade do
  * torneio (`rankingWeight`) e modulador por tamanho de chave em
  * `functions/src/tournament-ranking.ts` — mas só para premiações NOVAS. O

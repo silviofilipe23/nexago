@@ -82,6 +82,7 @@ class TournamentCreateSession {
 Map<String, dynamic> _draftToJson(TournamentCreateDraft draft) => {
   'tournamentId': draft.tournamentId,
   'sport': draft.sport.name,
+  'sportRaw': draft.sportRaw,
   'name': draft.name,
   'coverImagePath': draft.coverImagePath,
   'coverImageUrl': draft.coverImageUrl,
@@ -158,11 +159,10 @@ TournamentCreateDraft? _draftFromJson(
 
     return TournamentCreateDraft(
       tournamentId: json['tournamentId'] as String?,
-      sport: _enumByName(
-        TournamentSport.values,
-        json['sport'] as String?,
-        TournamentSport.beachVolleyball,
-      ),
+      sport: parseTournamentSport(json['sport'] as String?).sport,
+      sportRaw:
+          json['sportRaw'] as String? ??
+          parseTournamentSport(json['sport'] as String?).raw,
       name: json['name'] as String? ?? '',
       coverImagePath: json['coverImagePath'] as String?,
       coverImageUrl: json['coverImageUrl'] as String?,
@@ -227,6 +227,8 @@ Map<String, dynamic> _categoryToJson(TournamentCategoryDraft category) => {
   'qualifiersPerGroup': category.qualifiersPerGroup,
   'bestOf': category.bestOf.name,
   'finalBestOf5': category.finalBestOf5,
+  if (category.scoringProfileRaw != null)
+    'scoringProfile': category.scoringProfileRaw,
   'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,
   'prizes': category.prizes.map(_prizeToJson).toList(),
   // Campos de categoria de EQUIPE (trio+) — preservados no rascunho local.
@@ -334,6 +336,7 @@ TournamentCategoryDraft? _categoryFromJson(
             )
           : fallbackBestOf,
       finalBestOf5: json['finalBestOf5'] as bool? ?? fallbackFinalBestOf5,
+      scoringProfileRaw: scoringProfileRawOf(json['scoringProfile']),
       maxRegistrationsPerAthlete:
           json['maxRegistrationsPerAthlete'] as int? ?? 2,
       prizes: _prizesFromJson(json['prizes']),

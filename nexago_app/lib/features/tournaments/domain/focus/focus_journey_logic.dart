@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import '../tournament_match.dart';
 import '../tournament_match_display.dart';
 import '../tournament_match_status.dart';
+import '../../../../core/sports/sport_catalog.dart' show SetsGamesProfile;
 
 /// A Trajetória do Focus: quanto falta pro título, por onde passa o caminho, e
 /// os números da campanha. Porte de `focus/focus-journey.ts` do portal do
@@ -29,6 +30,7 @@ class TournamentNumbers {
     required this.pointsAgainst,
     required this.pointsPerSet,
     required this.sets,
+    this.unit = 'pontos',
   });
 
   final int matches;
@@ -38,6 +40,10 @@ class TournamentNumbers {
   final int pointsAgainst;
   final double pointsPerSet;
   final List<SetBar> sets;
+
+  /// Unidade de [points]/[pointsPerSet]: `'games'` quando a campanha é de
+  /// partidas de games; `'pontos'` nas demais.
+  final String unit;
 }
 
 /// Um caminho de mata-mata nunca é maior que isto. Só existe pra que fiação
@@ -364,5 +370,8 @@ TournamentNumbers tournamentNumbersOf(
     pointsPerSet:
         bars.isNotEmpty ? (points / bars.length * 10).round() / 10 : 0,
     sets: bars,
+    unit: mine.any((m) => matchScoringProfile(m) is SetsGamesProfile)
+        ? 'games'
+        : 'pontos',
   );
 }

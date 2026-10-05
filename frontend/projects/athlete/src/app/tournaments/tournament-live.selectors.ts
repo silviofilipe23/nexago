@@ -1,4 +1,5 @@
 import {
+  displaySetScoreOf,
   matchClosedSets,
   matchIsCanceled,
   matchIsCompleted,
@@ -341,16 +342,24 @@ export interface DisplaySet {
   a: number;
   b: number;
   inProgress: boolean;
+  /** Partida de games: ponto do game em andamento (0/15/30/40/AD ou pontos do tie-break). */
+  game?: { a: string; b: string };
 }
 
 export function displaySetsOf(m: TournamentMatch): DisplaySet[] {
   const closed: MatchSet[] = matchClosedSets(m);
-  const sets: DisplaySet[] = closed.map((s, i) => ({ index: i + 1, a: s.a, b: s.b, inProgress: false }));
+  // Super tie-break fechado (gravado 1×0) entra com os pontos dele.
+  const sets: DisplaySet[] = closed.map((s, i) => ({ index: i + 1, ...displaySetScoreOf(m, i, s), inProgress: false }));
   // O set em andamento só existe enquanto a partida roda (e só aparece com ponto marcado):
   // depois de encerrada, `sets` já o contém.
   const live = matchLiveCurrentSet(m);
-  if (live && (live.a > 0 || live.b > 0)) {
-    sets.push({ index: sets.length + 1, a: live.a, b: live.b, inProgress: true });
+  if (live?.superTiebreak) {
+    // Super tie-break em andamento: o set fica 0-0; os pontos dele são o placar do set.
+    const game = m.currentGame ?? { a: 0, b: 0 };
+    if (game.a > 0 || game.b > 0) sets.push({ index: sets.length + 1, a: game.a, b: game.b, inProgress: true });
+  } else if (live && (live.a > 0 || live.b > 0 || (live.game != null && (live.game.a !== '0' || live.game.b !== '0')))) {
+    const set: DisplaySet = { index: sets.length + 1, a: live.a, b: live.b, inProgress: true };
+    sets.push(live.game ? { ...set, game: live.game } : set);
   }
   return sets;
 }
@@ -448,4 +457,14 @@ export function defaultCategoryViewOf(views: readonly CategoryViewId[]): Categor
  *  Quem tem jogo hoje é levado ao Modo Focus por outro caminho, não por estas abas. */
 export function defaultTabOf(isRegistered: boolean): TournamentTabId {
   return isRegistered ? 'minha-inscricao' : 'visao-geral';
+}
+
+/** Placar do set em andamento na ótica de um lado, pro número grande da lista de jogos. No
+ *  super tie-break o set fica 0-0 e os pontos correm em `currentGame` — o número é o deles.
+ *  `null` sem set em andamento. */
+export function liveSideScoreOf(m: TournamentMatch, side: 'A' | 'B'): { mine: number; theirs: number } | null {
+  const live = matchLiveCurrentSet(m);
+  if (!live) return null;
+  const score = live.superTiebreak ? (m.currentGame ?? { a: 0, b: 0 }) : live;
+  return side === 'A' ? { mine: score.a, theirs: score.b } : { mine: score.b, theirs: score.a };
 }

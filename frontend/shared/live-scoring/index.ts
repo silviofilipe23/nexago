@@ -2,11 +2,10 @@
  *  marcação ponto a ponto da mesa ao vivo e o acesso ao doc da partida. Vive fora dos projetos
  *  porque o MESÁRIO opera pelos dois — mesma escrita, mesmas regras, um desenho só. */
 
-export type { MatchSport, ScoreSet, ScoreValidationIssue } from './match-scoring';
+export type { ScoreSet, ScoreValidationIssue } from './match-scoring';
 export {
   DEFAULT_BEST_OF,
   DEFAULT_SET_POINTS,
-  FOOTVOLLEY_SET_POINTS,
   MIN_ADVANTAGE,
   TIEBREAK_SET_POINTS,
   isSetWon,
@@ -63,12 +62,13 @@ export {
   medicalTimeoutRemainingSeconds,
 } from './medical-timeout';
 
-export type { LiveMatch, LivePointEvent, LiveScoringContext, PointWrite } from './live-match-repository';
+export type { LandedPoint, LiveMatch, LivePointEvent, LiveScoringContext, PointWrite } from './live-match-repository';
 export {
   buildMedicalTimeoutEndWrite,
   buildMedicalTimeoutStartWrite,
   buildPointWrite,
   buildUndoWrite,
+  GAMES_UNDO_BLOCKED_MESSAGE,
   lastUndoablePoint,
   liveMatchFromDoc,
   recordPointTransaction,

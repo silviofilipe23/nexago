@@ -43,7 +43,7 @@ import {
 } from './data/tournament-registrations-repository';
 import { athleteFunctions } from './data/functions';
 import { fetchTournament, fetchTournamentSummariesByIds, type TournamentSummary } from './data/tournaments-repository';
-import { fetchMatchesForTournament, withFallbackSport } from './data/matches-repository';
+import { fetchMatchesForTournament } from './data/matches-repository';
 import { fetchTeamsByIds } from './data/teams-repository';
 import { campaignShareDataOf, type CampaignShareData } from './tournaments/campaign/campaign-share';
 import { CampaignShareDialogComponent } from './tournaments/campaign/campaign-share-dialog.component';
@@ -520,7 +520,7 @@ export class AthletePainelComponent {
       const category = tournament.categories.find((c) => c.id === campaign.categoryId) ?? null;
       this.campaignShareData.set(
         campaignShareDataOf({
-          matches: withFallbackSport(matches, tournament.sport),
+          matches,
           categoryId: campaign.categoryId,
           myTeamIds: this.myTeamIdsState(),
           duoNameOf: (id, fallback) => duoNameOf(teams, profiles, id, fallback),

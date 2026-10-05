@@ -191,12 +191,10 @@ TournamentMatchRowSide _sideOf({
     won = isMatchTeamWinner(match, isTeamA: isTeamA);
     lost = matchTeamAWon(match) != null && !won;
   } else if (state == TournamentMatchRowState.live) {
-    final live = matchLiveCurrentSet(match);
+    final live = matchLiveSideScore(match, sideA: isTeamA);
     if (live != null) {
-      final mine = isTeamA ? live.a : live.b;
-      final theirs = isTeamA ? live.b : live.a;
-      score = '$mine';
-      leading = mine > theirs;
+      score = '${live.mine}';
+      leading = live.mine > live.theirs;
     } else {
       score = '$setsWon';
     }

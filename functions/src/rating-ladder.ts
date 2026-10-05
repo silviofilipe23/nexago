@@ -4,6 +4,7 @@ import {
   type DocumentReference,
   type Firestore,
 } from "firebase-admin/firestore";
+import {resolveSport} from "./sports/catalog";
 import * as logger from "firebase-functions/logger";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {
@@ -68,14 +69,9 @@ export interface LadderEvaluation {
 
 const DAY_MS = 86_400_000;
 
-const SPORT_LABELS: Record<string, string> = {
-  VOLEI_PRAIA: "vôlei de praia",
-  VOLEI_QUADRA: "vôlei de quadra",
-  BEACH_TENNIS: "beach tennis",
-};
-
+/** Rótulo do esporte em minúsculas pro texto da notificação; código desconhecido sai cru. */
 export function sportLabel(sportCode: string): string {
-  return SPORT_LABELS[sportCode] ?? sportCode;
+  return resolveSport(sportCode)?.label.toLowerCase() ?? sportCode;
 }
 
 /** Zona informativa do rating dentro das bandas do nível atual. */

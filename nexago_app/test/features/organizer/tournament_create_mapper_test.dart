@@ -727,4 +727,53 @@ void main() {
       expect(draft.requireFormedPair, isFalse);
     });
   });
+
+  group('sport desconhecido', () {
+    test('fromFirestore preserva o valor cru e trava o enum no default', () {
+      final load = TournamentCreateMapper.fromFirestore(
+        {'name': 'Copa BT', 'sport': 'padel'},
+        'torneio-bt',
+      );
+      expect(load.draft.sport, TournamentSport.beachVolleyball);
+      expect(load.draft.sportRaw, 'padel');
+      expect(load.draft.sportFirestoreValue, 'padel');
+    });
+
+    test('fromFirestore com esporte conhecido não preenche sportRaw', () {
+      final load = TournamentCreateMapper.fromFirestore(
+        {'name': 'Copa', 'sport': 'footvolley'},
+        'torneio-fv',
+      );
+      expect(load.draft.sport, TournamentSport.footvolley);
+      expect(load.draft.sportRaw, isNull);
+    });
+
+    test('toFirestore devolve o valor cru, nunca beachVolleyball', () {
+      final draft = TournamentCreateDraft(
+        sportRaw: 'beach_tennis',
+        name: 'Copa BT',
+        city: 'Goiânia',
+        state: 'GO',
+        locationName: 'Arena',
+        startAt: DateTime(2026, 3, 28),
+        endAt: DateTime(2026, 3, 30),
+        registrationOpensAt: DateTime(2026, 3, 1),
+        registrationClosesAt: DateTime(2026, 3, 26),
+        categories: const [
+          TournamentCategoryDraft(
+            id: 'c1',
+            name: 'Open',
+            spots: 16,
+            priceCents: 100,
+          ),
+        ],
+      );
+      final map = TournamentCreateMapper.toFirestore(
+        draft: draft,
+        managerId: 'm1',
+        publish: false,
+      );
+      expect(map['sport'], 'beach_tennis');
+    });
+  });
 }

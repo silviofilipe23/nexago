@@ -477,7 +477,7 @@ export class PanelInicioComponent {
     const tournamentNameOf = new Map(active.map((t) => [t.id, t.name]));
     // `matchLists[i]` é do torneio `active[i]` — resolve a quadra com as quadras daquele
     // torneio antes de achatar (ver `resolveCourtNames`).
-    const allMatches = matchLists.flatMap((list, i) => resolveCourtNames(list, active[i]?.courts ?? [], active[i]?.sportId));
+    const allMatches = matchLists.flatMap((list, i) => resolveCourtNames(list, active[i]?.courts ?? []));
 
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfToday = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);

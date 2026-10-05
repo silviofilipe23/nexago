@@ -260,7 +260,7 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
                 if (matchCourtLabelForCard(m).trim().isNotEmpty)
                   matchCourtLabelForCard(m),
               ].join(' · '),
-              score: matchCardScoreLabel(m),
+              score: matchGroupLiveScoreLabel(m),
             ),
         ],
       ],

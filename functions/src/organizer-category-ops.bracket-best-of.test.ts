@@ -1,7 +1,8 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {bracketMatchDoc} from "./organizer-category-ops";
-import {matchBestOfFromCategory} from "./match-scoring";
+import {categoryScoringProfile, matchBestOfFromCategory} from "./match-scoring";
+import {legacyScoringProfile} from "./sports/scoring";
 import type {MatchDraft} from "./category-bracket-builders";
 
 /**
@@ -25,6 +26,7 @@ function docFor(categoryBestOf: unknown): Record<string, unknown> {
     tournamentId: "t1",
     categoryId: "cat-1",
     bestOf: matchBestOfFromCategory(categoryBestOf),
+    scoringProfile: legacyScoringProfile(matchBestOfFromCategory(categoryBestOf)),
   });
 }
 
@@ -39,20 +41,6 @@ describe("bracketMatchDoc", () => {
 
   it("grava 3 sets na categoria de torneio antigo, sem o campo", () => {
     assert.equal(docFor(undefined).bestOf, 3);
-  });
-
-  it("grava o esporte do torneio na partida (regra de set do futevôlei)", () => {
-    const doc = bracketMatchDoc(DRAFT, {
-      tournamentId: "t1",
-      categoryId: "cat-1",
-      bestOf: 3,
-      sport: "footvolley",
-    });
-    assert.equal(doc.sport, "footvolley");
-  });
-
-  it("não grava sport quando o torneio não o traz", () => {
-    assert.equal("sport" in docFor("bestOf3"), false);
   });
 
   it("não perde os demais campos da partida", () => {
@@ -74,8 +62,70 @@ describe("bracketMatchDoc", () => {
   it("preserva o avanço da chave quando o draft traz", () => {
     const doc = bracketMatchDoc(
       {...DRAFT, winnerAdvance: {matchNumber: 9, teamSlot: "teamAId", round: 2}},
-      {tournamentId: "t1", categoryId: "cat-1", bestOf: 1},
+      {tournamentId: "t1", categoryId: "cat-1", bestOf: 1, scoringProfile: legacyScoringProfile(1)},
     );
     assert.deepEqual(doc.winnerAdvance, {matchNumber: 9, teamSlot: "teamAId", round: 2});
+  });
+});
+
+describe("perfil de placar carimbado na partida", () => {
+  it("bracketMatchDoc grava o perfil recebido", () => {
+    const profile = legacyScoringProfile(3);
+    const doc = bracketMatchDoc(DRAFT, {tournamentId: "t", categoryId: "c", bestOf: 3, scoringProfile: profile});
+    assert.deepEqual(doc.scoringProfile, profile);
+  });
+
+  it("vôlei de praia: perfil do catálogo igual à regra histórica, com o bestOf da categoria", () => {
+    assert.deepEqual(
+      categoryScoringProfile({bestOf: "singleSet"}, "beachVolleyball"),
+      {...legacyScoringProfile(3), bestOf: 1},
+    );
+    assert.deepEqual(categoryScoringProfile({bestOf: "bestOf3"}, "beachVolleyball"), legacyScoringProfile(3));
+  });
+
+  it("MD5 continua virando MD3 no carimbo", () => {
+    assert.equal(categoryScoringProfile({bestOf: "bestOf5"}, "beachVolleyball").bestOf, 3);
+  });
+
+  // Os padrões 25/15 (quadra) e 18/15 (futevôlei) do catálogo são SUGESTÃO do wizard: categoria
+  // sem perfil explícito (todo torneio existente) continua carimbando a regra histórica.
+  it("vôlei de quadra e futevôlei sem perfil explícito: regra histórica, não o padrão do catálogo", () => {
+    assert.deepEqual(categoryScoringProfile({bestOf: "bestOf3"}, "indoorVolleyball"), legacyScoringProfile(3));
+    assert.deepEqual(categoryScoringProfile({bestOf: "singleSet"}, "footvolley"), {...legacyScoringProfile(3), bestOf: 1});
+  });
+
+  it("beach tennis usa o perfil de games do catálogo", () => {
+    const p = categoryScoringProfile({bestOf: "bestOf3"}, "beachTennis");
+    assert.equal(p.kind, "sets_games");
+  });
+
+  it("tênis usa o perfil de games do catálogo: com vantagem, 3º set completo (fase 3c1)", () => {
+    const p = categoryScoringProfile({bestOf: "bestOf3"}, "tennis") as unknown as Record<string, unknown>;
+    assert.equal(p.kind, "sets_games");
+    assert.equal(p.noAd, false);
+    assert.equal(p.decidingSet, "full");
+    assert.equal(p.bestOf, 3);
+  });
+
+  // O carimbo tem o MESMO formato em qualquer caminho: decisivo 15 mesmo em MD1.
+  // Se o fallback carimbasse `legacyScoringProfile(1)` (decisivo 21), a mesa
+  // trocando para MD3 no meio da partida faria o 3º set exigir 21.
+  it("esporte desconhecido em set único carimba o mesmo formato do catálogo", () => {
+    assert.deepEqual(
+      categoryScoringProfile({bestOf: "singleSet"}, "xadrez"),
+      {...legacyScoringProfile(3), bestOf: 1},
+    );
+  });
+
+  it("esporte desconhecido usa a regra histórica", () => {
+    assert.deepEqual(categoryScoringProfile({bestOf: "bestOf3"}, "xadrez"), legacyScoringProfile(3));
+  });
+
+  it("perfil explícito válido na categoria prevalece, com o nº de sets da categoria", () => {
+    const explicit = {kind: "sets_points", bestOf: 1, setTarget: 25, decidingSetTarget: 15, winBy: 2, pointCap: null};
+    // A categoria é a fonte do nº de sets (é o que os editores mostram): um perfil gravado com
+    // `bestOf` divergente não pode fazer a chave sair em MD3 numa categoria de set único.
+    assert.deepEqual(categoryScoringProfile({bestOf: "bestOf3", scoringProfile: explicit}, "beachVolleyball"), {...explicit, bestOf: 3});
+    assert.equal(categoryScoringProfile({bestOf: "singleSet", scoringProfile: {...explicit, bestOf: 3}}, "beachVolleyball").bestOf, 1);
   });
 });

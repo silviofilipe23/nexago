@@ -173,6 +173,8 @@ async function main() {
           pointsMultiplier,
           year: completedAt.getFullYear(),
           completedAt,
+          // Fase 3a: o esporte decide em qual doc o ponto cai (legado × por esporte).
+          sportCode: tournamentSportToLevelSportCode(tournament.sport),
         });
         if (changed) written++;
         status = changed ? "  gravado" : "  já estava igual";

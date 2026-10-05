@@ -283,6 +283,16 @@ export function kocDrawReproducesPhaseOne(
 // createDrawSession
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Código de esporte do PERFIL (`VOLEI_PRAIA`) usado pelas potes/cabeças do
+ * sorteio. Lê `tournaments/{id}.sport` — o campo que o wizard grava. Até
+ * 10/2026 lia `sportId`, que não existe no doc (é só um rename do modelo do
+ * portal), então o sorteio ignorava nível e rating por esporte.
+ */
+export function drawSportCodeOf(tournament: Record<string, unknown>): string | null {
+  return tournamentSportToLevelSportCode(tournament.sport);
+}
+
 export const createDrawSession = onCall({
   region: CLIENT_FACING_REGIONS,
 }, async (request) => {
@@ -388,7 +398,7 @@ export const createDrawSession = onCall({
     Math.max(...kocPlan[0]!.bracketSizes) :
     category.teamsPerGroup;
 
-  const sportCode = tournamentSportToLevelSportCode(tournament.sportId);
+  const sportCode = drawSportCodeOf(tournament);
   const teams = await fetchByIds(db, artifactsTeamsPath(projectId), teamIds);
 
   const uidsByTeam = new Map<string, string[]>(

@@ -1,3 +1,12 @@
+import {
+  applyGamesPoint,
+  effectiveScoringProfile,
+  scoringProfileFromRaw,
+  setsWonBy,
+  type GamePoints,
+  type ScoringProfile,
+  type SetsGamesProfile,
+} from '@nexago/sports';
 import { collection, deleteField, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp, updateDoc, type Firestore, type Unsubscribe } from 'firebase/firestore';
 import { applyPoint, liveSetToMap, undoPoint, type ApplyPointResult, type LiveSet } from './live-scoring';
 import { setsWon } from './match-scoring';
@@ -59,8 +68,6 @@ export interface LiveMatch {
   sets: LiveSet[];
   currentSetIndex: number;
   bestOf: 1 | 3;
-  /** Esporte (`matches/{id}.sport`, gravado na criação da chave); ausente = vôlei de praia. */
-  sport: string | null;
   servingTeamId: string;
   /** Posição (1 ou 2) do atleta no saque dentro da dupla de `servingTeamId`; 0 = não declarada.
    *  Ver `serving-player.ts` — é derivada de [servingPlayerSlots] e vem denormalizada no doc
@@ -76,6 +83,10 @@ export interface LiveMatch {
   winnerId: string | null;
   courtName: string | null;
   scheduleTime: Date | null;
+  /** Perfil de placar carimbado na partida; `null` em partida antiga (vale a regra histórica). */
+  scoringProfile?: ScoringProfile | null;
+  /** Pontos do game em andamento numa partida de games (`{0, 0}` quando ausente). */
+  currentGame?: GamePoints;
 }
 
 export interface LivePointEvent {
@@ -87,6 +98,11 @@ export interface LivePointEvent {
   scoreA: number;
   scoreB: number;
   ts: Date | null;
+  /** Partida de games: pontos do game depois do lance. */
+  gameA?: number;
+  gameB?: number;
+  /** Partida de games: estado da mesa ANTES do lance — o desfazer repõe isto. */
+  prev?: Record<string, unknown> | null;
 }
 
 function toDate(v: unknown): Date | null {
@@ -113,7 +129,11 @@ function liveSetsFromRaw(raw: unknown): LiveSet[] {
       const a = typeof o['a'] === 'number' ? o['a'] : null;
       const b = typeof o['b'] === 'number' ? o['b'] : null;
       if (a == null || b == null) return null;
-      const set: LiveSet = { a, b };
+      const tbRaw = o['tb'] as Record<string, unknown> | null | undefined;
+      const tb = tbRaw && typeof tbRaw === 'object' && typeof tbRaw['a'] === 'number' && typeof tbRaw['b'] === 'number'
+        ? { a: tbRaw['a'], b: tbRaw['b'] }
+        : null;
+      const set: LiveSet = tb ? { a, b, tb } : { a, b };
       if (o['startedAt'] != null) set.startedAt = o['startedAt'];
       if (o['endedAt'] != null) set.endedAt = o['endedAt'];
       return set;
@@ -140,7 +160,6 @@ export function liveMatchFromDoc(id: string, data: Record<string, unknown>): Liv
     // Partida antiga sem `currentSetIndex` cai no último set do array (mesmo fallback do app).
     currentSetIndex: intOf(data['currentSetIndex'], Math.max(0, sets.length - 1)),
     bestOf: data['bestOf'] === 1 ? 1 : 3,
-    sport: optionalStr(data['sport']),
     servingTeamId: optionalStr(data['servingTeamId']) ?? '',
     servingPlayerSlot: data['servingPlayerSlot'] === 1 || data['servingPlayerSlot'] === 2 ? data['servingPlayerSlot'] : 0,
     servingPlayerSlots: servingPlayerSlotsFromRaw(data['servingPlayerSlots']),
@@ -150,7 +169,14 @@ export function liveMatchFromDoc(id: string, data: Record<string, unknown>): Liv
     winnerId: optionalStr(data['winnerId']),
     courtName: optionalStr(data['courtName']),
     scheduleTime: toDate(data['scheduleTime']),
+    scoringProfile: scoringProfileFromRaw(data['scoringProfile']),
+    currentGame: gamePointsOf(data['currentGame']),
   };
+}
+
+function gamePointsOf(raw: unknown): GamePoints {
+  const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  return { a: intOf(o['a'], 0), b: intOf(o['b'], 0) };
 }
 
 function matchesCol(ctx: LiveScoringContext) {
@@ -183,6 +209,9 @@ export function watchPointEvents(ctx: LiveScoringContext, matchId: string, onCha
             scoreA: intOf(o['scoreA'], 0),
             scoreB: intOf(o['scoreB'], 0),
             ts: toDate(o['ts']),
+            gameA: intOf(o['gameA'], 0),
+            gameB: intOf(o['gameB'], 0),
+            prev: o['prev'] && typeof o['prev'] === 'object' ? (o['prev'] as Record<string, unknown>) : null,
           };
         }),
       ),
@@ -214,10 +243,12 @@ function clampedSetIndex(m: Pick<LiveMatch, 'currentSetIndex' | 'bestOf'>): numb
  *  em partida encerrada reabriria uma chave que o servidor já avançou. */
 export function buildPointWrite(m: LiveMatch, side: 'A' | 'B'): PointWrite | null {
   if (m.status === 'completed') return null;
+  const games = gamesProfileOf(m);
+  if (games) return buildGamesPointWrite(m, side, games);
 
   const setIndex = clampedSetIndex(m);
-  const result = applyPoint({ sets: m.sets, currentSetIndex: m.currentSetIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf, sport: m.sport });
-  const wins = setsWon(result.sets, m.bestOf, m.sport);
+  const result = applyPoint({ sets: m.sets, currentSetIndex: m.currentSetIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf });
+  const wins = setsWon(result.sets, m.bestOf);
   const current = result.sets[setIndex] ?? null;
   const slots = servingPlayerSlotsAfterScore({
     slots: m.servingPlayerSlots,
@@ -248,9 +279,34 @@ export function buildPointWrite(m: LiveMatch, side: 'A' | 'B'): PointWrite | nul
 
 /** Escrita do "desfazer": tira o ponto do lado que o marcou, no set do evento desfeito.
  *  `setIndex` vem da timeline (identifica QUAL ponto sai); o placar sai do doc recebido. */
-export function buildUndoWrite(m: LiveMatch, side: 'A' | 'B', setIndex: number): PointWrite {
-  const result = undoPoint({ sets: m.sets, currentSetIndex: setIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf, sport: m.sport });
-  const wins = setsWon(result.sets, m.bestOf, m.sport);
+/** Placar que o ponto desfeito deixou no doc (`scoreA/scoreB` do set, `gameA/gameB`). */
+export interface LandedPoint {
+  scoreA: number;
+  scoreB: number;
+  gameA?: number;
+  gameB?: number;
+}
+
+/** Mensagem da mesa quando o desfazer de games não tem como repor o estado. */
+export const GAMES_UNDO_BLOCKED_MESSAGE = 'Não deu para desfazer: o placar mudou desde este ponto. Confira a mesa e tente de novo.';
+
+export function buildUndoWrite(
+  m: LiveMatch,
+  side: 'A' | 'B',
+  setIndex: number,
+  prev?: Record<string, unknown> | null,
+  landed?: LandedPoint,
+): PointWrite | null {
+  const games = gamesProfileOf(m);
+  if (games) {
+    if (!prev) return null;
+    // O `prev` só vale sobre o estado que o ponto deixou: se outra mesa já marcou depois
+    // (timeline desta atrasada), repor o `prev` apagaria o ponto dela sem `undo-point`.
+    if (landed && !landedMatches(m, setIndex, landed)) return null;
+    return buildGamesUndoWrite(m, side, prev, games);
+  }
+  const result = undoPoint({ sets: m.sets, currentSetIndex: setIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf });
+  const wins = setsWon(result.sets, m.bestOf);
   const current = result.sets[result.currentSetIndex] ?? null;
   const slots = servingPlayerSlotsAfterUndo({ slots: m.servingPlayerSlots, nextServingTeamId: result.servingTeamId });
 
@@ -270,6 +326,111 @@ export function buildUndoWrite(m: LiveMatch, side: 'A' | 'B', setIndex: number):
     pointEvent: { type: 'undo-point', side, setIndex: result.currentSetIndex, scoreA: current?.a ?? 0, scoreB: current?.b ?? 0 },
     result: { ...result, winnerId: null },
     setIndex: result.currentSetIndex,
+  };
+}
+
+// ── Partida de games (spec multiesporte, fase 2b2) ───────────────────────────────
+
+/** Perfil de games da partida, ou `null` (partida de pontos segue o motor de sempre). */
+function gamesProfileOf(m: LiveMatch): SetsGamesProfile | null {
+  const p = effectiveScoringProfile(m.scoringProfile, m.bestOf);
+  return p.kind === 'sets_games' ? p : null;
+}
+
+function landedMatches(m: LiveMatch, setIndex: number, landed: LandedPoint): boolean {
+  const set = m.sets[setIndex] ?? { a: 0, b: 0 };
+  const game = m.currentGame ?? { a: 0, b: 0 };
+  return set.a === landed.scoreA && set.b === landed.scoreB && game.a === (landed.gameA ?? 0) && game.b === (landed.gameB ?? 0);
+}
+
+/** Estado da mesa antes do lance — gravado no evento para o desfazer repor. */
+function snapshotOf(m: LiveMatch): Record<string, unknown> {
+  return {
+    sets: m.sets.map(liveSetToMap),
+    currentSetIndex: m.currentSetIndex,
+    currentGame: { ...(m.currentGame ?? { a: 0, b: 0 }) },
+    servingTeamId: m.servingTeamId,
+    servingPlayerSlots: { ...m.servingPlayerSlots },
+    servingPlayerSlot: m.servingPlayerSlot,
+  };
+}
+
+function buildGamesPointWrite(m: LiveMatch, side: 'A' | 'B', profile: SetsGamesProfile): PointWrite {
+  const setIndex = clampedSetIndex(m);
+  const r = applyGamesPoint<LiveSet>(
+    { sets: m.sets, currentSetIndex: m.currentSetIndex, currentGame: m.currentGame ?? { a: 0, b: 0 }, servingTeamId: m.servingTeamId },
+    side,
+    profile,
+    { teamAId: m.teamAId, teamBId: m.teamBId },
+  );
+  // Mesmo carimbo do motor de pontos: o 1º lance do set marca o início dele.
+  const sets = r.sets.map((s, i) => (i === setIndex && s.startedAt == null ? { ...s, startedAt: new Date() } : s));
+  const winnerId = r.winnerSide === 'A' ? m.teamAId : r.winnerSide === 'B' ? m.teamBId : null;
+  const wins = setsWonBy(sets, profile);
+  const landed = sets[setIndex] ?? { a: 0, b: 0 };
+  const slots = servingPlayerSlotsAfterScore({
+    slots: m.servingPlayerSlots,
+    previousServingTeamId: m.servingTeamId,
+    nextServingTeamId: r.servingTeamId,
+    teamAId: m.teamAId,
+    teamBId: m.teamBId,
+  });
+  return {
+    matchUpdate: {
+      sets: sets.map(liveSetToMap),
+      currentSetIndex: r.currentSetIndex,
+      currentGame: { ...r.currentGame },
+      status: winnerId != null ? 'Completed' : 'In Progress',
+      servingTeamId: r.servingTeamId,
+      servingPlayerSlots: slots,
+      servingPlayerSlot: servingPlayerSlotOf({ slots, servingTeamId: r.servingTeamId, teamAId: m.teamAId, teamBId: m.teamBId }),
+      ...(winnerId != null ? { winnerId, matchEndedAt: serverTimestamp() } : {}),
+      ...(m.matchStartedAt == null ? { matchStartedAt: serverTimestamp() } : {}),
+      resultA: `${wins.a}`,
+      resultB: `${wins.b}`,
+    },
+    pointEvent: {
+      type: 'point',
+      side,
+      setIndex,
+      scoreA: landed.a,
+      scoreB: landed.b,
+      gameA: r.currentGame.a,
+      gameB: r.currentGame.b,
+      prev: snapshotOf(m),
+    },
+    result: { sets, currentSetIndex: r.currentSetIndex, winnerId, servingTeamId: r.servingTeamId },
+    setIndex,
+  };
+}
+
+/** Desfazer de games: repõe o estado gravado no evento desfeito (decrementar é ambíguo com games). */
+function buildGamesUndoWrite(m: LiveMatch, side: 'A' | 'B', prev: Record<string, unknown>, profile: SetsGamesProfile): PointWrite {
+  const sets = liveSetsFromRaw(prev['sets']);
+  const currentSetIndex = intOf(prev['currentSetIndex'], 0);
+  const currentGame = gamePointsOf(prev['currentGame']);
+  const servingTeamId = optionalStr(prev['servingTeamId']) ?? '';
+  const slots = servingPlayerSlotsFromRaw(prev['servingPlayerSlots']);
+  const slot = prev['servingPlayerSlot'] === 1 || prev['servingPlayerSlot'] === 2 ? prev['servingPlayerSlot'] : 0;
+  const wins = setsWonBy(sets, profile);
+  const cur = sets[currentSetIndex] ?? { a: 0, b: 0 };
+  return {
+    matchUpdate: {
+      sets: sets.map(liveSetToMap),
+      currentSetIndex,
+      currentGame,
+      status: 'In Progress',
+      servingTeamId,
+      servingPlayerSlots: slots,
+      servingPlayerSlot: slot,
+      winnerId: deleteField(),
+      matchEndedAt: deleteField(),
+      resultA: `${wins.a}`,
+      resultB: `${wins.b}`,
+    },
+    pointEvent: { type: 'undo-point', side, setIndex: currentSetIndex, scoreA: cur.a, scoreB: cur.b, gameA: currentGame.a, gameB: currentGame.b },
+    result: { sets, currentSetIndex, winnerId: null, servingTeamId },
+    setIndex: currentSetIndex,
   };
 }
 

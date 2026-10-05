@@ -30,12 +30,13 @@ import {
   type GroupPreview,
 } from "./group-standings";
 import {assertCanManageTournament, assertCanScoreTournament} from "./tournament-acl";
+import {DEFAULT_BEST_OF, parseAndValidateSets} from "./match-scoring";
 import {
-  DEFAULT_BEST_OF,
-  matchWinnerId,
-  parseAndValidateSets,
-  setsWon,
-} from "./match-scoring";
+  legacyScoringProfile,
+  matchWinnerSide,
+  scoringProfileFromRaw,
+  setsWonBy,
+} from "./sports/scoring";
 import {
   allCategoryFinalsComplete,
   isFinalMatchType,
@@ -791,6 +792,54 @@ export const declareMatchWalkover = onCall({
 });
 
 /**
+ * Campos do resultado (sem timestamps): perfil de placar efetivo da partida (o
+ * carimbado; sem carimbo, a regra histórica), com o `bestOf` do lançamento
+ * rápido sobrescrevendo quando vier 1 ou 3. Vencedor decidido pelo perfil;
+ * `tb` só é gravado em set de games. Lança `Error` com mensagem amigável.
+ */
+export function matchResultFields(params: {
+  match: Record<string, unknown>;
+  rawSets: unknown;
+  requestBestOf: unknown;
+}): {update: Record<string, unknown>; completed: boolean; winnerId: string | null} {
+  // Nº de sets com a precedência de sempre: lançamento → doc da partida (a mesa
+  // grava `bestOf` no doc ao trocar o formato) → carimbo → MD3. Só 1 ou 3, como
+  // o placar das mesas entende. O resto do perfil vem do carimbo, se houver.
+  const oneOrThree = (raw: unknown): number | null => {
+    const n = Number(raw);
+    return n === 1 || n === 3 ? n : null;
+  };
+  const stamped = scoringProfileFromRaw(params.match.scoringProfile);
+  const bestOf = oneOrThree(params.requestBestOf) ??
+    oneOrThree(params.match.bestOf) ??
+    stamped?.bestOf ??
+    DEFAULT_BEST_OF;
+  const profile = stamped ? {...stamped, bestOf} : legacyScoringProfile(bestOf);
+  const sets = parseAndValidateSets(params.rawSets, profile);
+  const teamAId = (params.match.teamAId as string | undefined)?.trim() ?? "";
+  const teamBId = (params.match.teamBId as string | undefined)?.trim() ?? "";
+  // Mesma semântica de `matchWinnerId`: o id do lado vencedor, mesmo vazio.
+  const side = matchWinnerSide(sets, profile);
+  const winnerId = side === "A" ? teamAId : side === "B" ? teamBId : null;
+  const wins = setsWonBy(sets, profile);
+  const completed = winnerId !== null;
+  return {
+    update: {
+      sets: sets.map((s) => (s.tb ? {a: s.a, b: s.b, tb: {a: s.tb.a, b: s.tb.b}} : {a: s.a, b: s.b})),
+      bestOf: profile.bestOf,
+      status: completed ? MatchStatus.completed : MatchStatus.inProgress,
+      resultA: `${wins.a}`,
+      resultB: `${wins.b}`,
+      // Partida de games: o lançamento substitui os sets, então o game em
+      // andamento da mesa (spec multiesporte, 2b2) deixa de existir.
+      ...(params.match.currentGame !== undefined ? {currentGame: FieldValue.delete()} : {}),
+    },
+    completed,
+    winnerId,
+  };
+}
+
+/**
  * Grava o resultado de uma partida validando o placar de forma AUTORITATIVA no
  * servidor (item #5): rejeita sets ilegais/empatados e calcula o vencedor pelas
  * regras (target por set + vantagem), em vez de confiar no que o cliente enviar.
@@ -811,48 +860,23 @@ export const submitMatchResult = onCall({
   await assertCanScoreTournament(db, uid, data.tournamentId as string);
   assertDuelMatch(data);
 
-  // Formato (nº de sets): request (lançamento rápido) → doc da partida → padrão.
-  const normalizeBestOf = (raw: unknown): number | null => {
-    const n = Number(raw);
-    return n === 1 || n === 3 ? n : null;
-  };
-  const bestOf =
-    normalizeBestOf(request.data?.bestOf) ??
-    normalizeBestOf(data.bestOf) ??
-    DEFAULT_BEST_OF;
-
-  let sets;
+  let result;
   try {
-    sets = parseAndValidateSets(request.data?.sets, bestOf);
+    result = matchResultFields({
+      match: data,
+      rawSets: request.data?.sets,
+      requestBestOf: request.data?.bestOf,
+    });
   } catch (e) {
     throw new HttpsError(
       "invalid-argument",
       e instanceof Error ? e.message : "Placar inválido.",
     );
   }
-
-  // Regra de set depende do esporte do torneio (futevôlei: 18/15).
-  const tournamentSnap = await db
-    .collection("tournaments")
-    .doc(data.tournamentId as string)
-    .get();
-  const sport =
-    (data.sport as string | undefined) ??
-    (tournamentSnap.data()?.sport as string | undefined) ??
-    null;
-
-  const teamAId = (data.teamAId as string | undefined)?.trim() ?? "";
-  const teamBId = (data.teamBId as string | undefined)?.trim() ?? "";
-  const winnerId = matchWinnerId(sets, teamAId, teamBId, bestOf, sport);
-  const wins = setsWon(sets, bestOf, sport);
-  const completed = winnerId !== null;
+  const {completed, winnerId} = result;
 
   const update: Record<string, unknown> = {
-    sets: sets.map((s) => ({a: s.a, b: s.b})),
-    bestOf,
-    status: completed ? MatchStatus.completed : MatchStatus.inProgress,
-    resultA: `${wins.a}`,
-    resultB: `${wins.b}`,
+    ...result.update,
     updatedAt: FieldValue.serverTimestamp(),
   };
   if (completed) {
@@ -977,6 +1001,7 @@ export function revertToScheduledFields(): Record<string, unknown> {
     matchEndedAt: FieldValue.delete(),
     liveScore: FieldValue.delete(),
     sets: FieldValue.delete(),
+    currentGame: FieldValue.delete(),
     currentSetIndex: FieldValue.delete(),
     servingTeamId: FieldValue.delete(),
     servingPlayerSlot: FieldValue.delete(),

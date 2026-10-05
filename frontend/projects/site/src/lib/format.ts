@@ -1,14 +1,9 @@
+import { SPORT_UNKNOWN_LABEL, sportLabel as catalogSportLabel } from '@nexago/sports';
 import type { Sport, TournamentListingStatus } from './firestore/types';
 
+/** Rótulo do esporte pelo catálogo (`@nexago/sports`); ausente → "Esporte não informado". */
 export function sportLabel(sport: Sport): string {
-  switch (sport) {
-    case 'beachTennis':
-      return 'Beach tennis';
-    case 'beachVolleyball':
-      return 'Vôlei de praia';
-    default:
-      return 'Esporte de areia';
-  }
+  return catalogSportLabel(sport) ?? SPORT_UNKNOWN_LABEL;
 }
 
 export function genderLabel(genderType?: string): string {

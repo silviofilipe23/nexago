@@ -1,4 +1,5 @@
 import {HttpsError} from "firebase-functions/v2/https";
+import {sportProfileCode} from "./sports/catalog";
 import type {Firestore} from "firebase-admin/firestore";
 import {loadUserAccessData, type UserAccessData} from "./athlete-tournament-access";
 
@@ -53,6 +54,7 @@ export const ATHLETE_SPORT_CODES = [
   "BASQUETE",
   "TENIS",
   "CORRIDA",
+  "PADEL",
   "OUTROS",
 ] as const;
 
@@ -188,24 +190,13 @@ export function levelLabelForRank(rank: number): string {
 }
 
 /**
- * Esporte do torneio (`tournaments/{id}.sport`, nome do enum) → código de esporte
- * do perfil do atleta (chave de `sportOnboarding.levelsBySport`). `null` quando
- * não há equivalente (esporte desconhecido cai no nível global).
+ * Esporte do torneio, em qualquer grafia que o catálogo conheça
+ * (`sports/catalog.json`) → código de esporte do perfil (chave de
+ * `sportOnboarding.levelsBySport`). `null` quando não há equivalente (esporte
+ * desconhecido cai no nível global).
  */
 export function tournamentSportToLevelSportCode(sport: unknown): string | null {
-  const key = normalizeLevelKey(sport);
-  switch (key) {
-    case "beachvolleyball":
-      return "VOLEI_PRAIA";
-    case "indoorvolleyball":
-      return "VOLEI_QUADRA";
-    case "footvolley":
-      return "FUTEVOLEI";
-    case "beachtennis":
-      return "BEACH_TENNIS";
-    default:
-      return null;
-  }
+  return sportProfileCode(sport);
 }
 
 /**

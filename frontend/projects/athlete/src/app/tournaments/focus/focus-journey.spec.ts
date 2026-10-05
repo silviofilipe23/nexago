@@ -30,7 +30,6 @@ function match(partial: Partial<TournamentMatch> & Pick<TournamentMatch, 'id'>):
     queueStatus: null,
     bestOf: 3,
     currentSetIndex: null,
-    sport: null,
     ...partial,
   };
 }
@@ -142,6 +141,14 @@ describe('winsToTitleOf', () => {
 });
 
 describe('tournamentNumbersOf', () => {
+  it('unidade: games em campanha de games, pontos nas demais', () => {
+    const BT = { kind: 'sets_games', bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: true, decidingSet: 'super_tiebreak', superTiebreakTo: 10 } as const;
+    const games = [match({ id: 'g', status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine', scoringProfile: BT, sets: [{ a: 6, b: 4 }, { a: 6, b: 3 }] })];
+    expect(tournamentNumbersOf(games, MINE).unit).toBe('games');
+    const points = [match({ id: 'p', status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine', sets: [{ a: 21, b: 15 }, { a: 21, b: 12 }] })];
+    expect(tournamentNumbersOf(points, MINE).unit).toBe('pontos');
+  });
+
   it('soma sets e pontos das partidas encerradas do atleta', () => {
     const matches = [
       match({ id: 'm1', status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine', sets: [{ a: 21, b: 15 }, { a: 21, b: 12 }] }),

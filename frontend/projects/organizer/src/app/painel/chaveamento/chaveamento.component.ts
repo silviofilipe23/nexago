@@ -14,6 +14,8 @@ import { RouterLink } from '@angular/router';
 import { kocColumnLabel, kocHasStarted, kocLiveOrder, kocPointsOf } from '../data/koc';
 import { truncateName, type PillTone } from '../data/mock-data';
 import type { MatchDisplayStatus, TournamentMatch } from '../data/matches-repository';
+import { matchSetWins } from '../data/live-set-display';
+import { effectiveScoringProfile } from '@nexago/sports';
 import { matchMetaLabel, matchScheduleLabel } from '../data/schedule-format';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgIconComponent } from '../ui/icon.component';
@@ -69,6 +71,15 @@ function setsWonOf(score: string): [number, number] {
     else if (sb > sa) b++;
   }
   return [a, b];
+}
+
+/** Sets vencidos por lado no card da chave. Partida de games conta pelo perfil (o texto tem
+ *  tie-break por extenso e, ao vivo, o set em andamento não é set vencido); pontos lê o
+ *  placar textual como sempre. `null` = sem placar. */
+export function bracketSetsWonOf(m: TournamentMatch): [number, number] | null {
+  if (!m.score) return null;
+  if (effectiveScoringProfile(m.scoringProfile, m.bestOf).kind === 'sets_games') return matchSetWins(m);
+  return setsWonOf(m.score);
 }
 
 /** Chave de mata-mata da categoria selecionada — dados reais (`listMatches`, Task O6).
@@ -623,9 +634,9 @@ export class ChaveamentoComponent {
   });
 
   protected sideScore(m: TournamentMatch, side: 1 | 2): number | string {
-    if (!m.score) return '–';
-    const [a, b] = setsWonOf(m.score);
-    return side === 1 ? a : b;
+    const won = bracketSetsWonOf(m);
+    if (!won) return '–';
+    return side === 1 ? won[0] : won[1];
   }
 
   protected zoomIn(): void {

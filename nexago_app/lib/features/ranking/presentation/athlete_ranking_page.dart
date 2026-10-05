@@ -63,7 +63,8 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
   }) {
     final sessionKey =
         '${filter.mode}|${filter.year}|${filter.gender}|${filter.format}|'
-        '${filter.level}|${userEntry?.entityId}|${userEntry?.rank}';
+        '${filter.level}|${filter.sport}|${userEntry?.entityId}|'
+        '${userEntry?.rank}';
     if (_floatingSessionKey == sessionKey) return;
     _floatingSessionKey = sessionKey;
     _userCardFloating = true;
@@ -110,6 +111,8 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
       context: context,
       initial: ref.read(rankingPageFilterProvider),
       yearOptions: ref.read(rankingYearOptionsProvider),
+      sportCode:
+          ref.read(rankingSportProvider).valueOrNull ?? kDefaultRankingSport,
     );
     if (applied == null || !mounted) return;
     ref.read(rankingPageFilterProvider.notifier).state = applied;
@@ -162,6 +165,8 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
     final theme = Theme.of(context);
     final filter = ref.watch(rankingPageFilterProvider);
     final entriesAsync = ref.watch(rankingListEntriesProvider);
+    final sportCode =
+        ref.watch(rankingSportProvider).valueOrNull ?? kDefaultRankingSport;
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
@@ -231,7 +236,19 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
                         );
                       },
                     ),
-                    SizedBox(height: 20),
+                    SizedBox(height: 12),
+                    // Esporte e temporada sempre à vista: o esporte mora na folha de
+                    // filtros, e lista vazia de um esporte sem isso parece defeito.
+                    Text(
+                      '${rankingSportLabel(sportCode)} · '
+                      '${filter.isGeneralMode ? 'Geral' : '${filter.year}'}',
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: context.themeColors.onSurfaceMuted,
+                      ),
+                    ),
+                    SizedBox(height: 16),
                     if (visible.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 24),

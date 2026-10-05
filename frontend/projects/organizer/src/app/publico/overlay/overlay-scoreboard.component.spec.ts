@@ -14,6 +14,9 @@ function duel(overrides: Partial<OverlayDuelView> = {}): OverlayDuelView {
     setsB: 0,
     pointsA: 14,
     pointsB: 11,
+    gameA: null,
+    gameB: null,
+    statusLabel: 'Set 2 · até 21',
     alert: null,
     showSets: true,
     pointsLead: 'A',
@@ -84,9 +87,18 @@ describe('OverlayScoreboardComponent', () => {
     expect(host.querySelectorAll('.athlete').length).toBe(4);
   });
 
+  it('partida de games: o número grande é o ponto do game', async () => {
+    const fixture = await render({
+      view: duel({ pointsA: 5, pointsB: 4, gameA: 'AD', gameB: '40' }),
+      teams: TEAMS,
+    });
+    const nums = [...(fixture.nativeElement as HTMLElement).querySelectorAll('.points-num')].map((e) => e.textContent?.trim());
+    expect(nums).toEqual(['AD', '40']);
+  });
+
   it('no tie-break troca o rótulo da faixa', async () => {
     const fixture = await render({
-      view: duel({ currentSetNumber: 3, targetPoints: 15 }),
+      view: duel({ currentSetNumber: 3, targetPoints: 15, statusLabel: 'Tie-break' }),
       teams: TEAMS,
     });
 

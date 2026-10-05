@@ -4,6 +4,7 @@ import '../../athlete/domain/athlete_firestore_codes.dart';
 import '../../athlete/domain/athlete_profile.dart';
 import '../../athlete/domain/athlete_profile_options.dart';
 import 'tournament_discovery_models.dart';
+import '../../../core/sports/sport_catalog.dart';
 
 /// Elegibilidade de categoria por nível do atleta (anti-sandbagging) e por
 /// piso mínimo da categoria.
@@ -27,23 +28,12 @@ abstract final class CategoryLevelEligibility {
 
   static const int _highestRank = 6;
 
-  /// Esporte do torneio (`tournaments/{id}.sport`, nome do enum) → código de
-  /// esporte do perfil (chave de `sportOnboarding.levelsBySport`). `null`
-  /// quando não há equivalente — nesse caso usa-se o nível global.
-  static String? tournamentSportToLevelSportCode(String? sport) {
-    switch (sport?.trim().toLowerCase()) {
-      case 'beachvolleyball':
-        return 'VOLEI_PRAIA';
-      case 'indoorvolleyball':
-        return 'VOLEI_QUADRA';
-      case 'footvolley':
-        return 'FUTEVOLEI';
-      case 'beachtennis':
-        return 'BEACH_TENNIS';
-      default:
-        return null;
-    }
-  }
+  /// Esporte do torneio, em qualquer grafia do catálogo
+  /// (`sports/catalog.json`) → código de esporte do perfil (chave de
+  /// `sportOnboarding.levelsBySport`). `null` quando não há equivalente —
+  /// nesse caso usa-se o nível global.
+  static String? tournamentSportToLevelSportCode(String? sport) =>
+      SportCatalog.profileCodeOf(sport);
 
   /// Rank do nível a partir de label (`Open`) ou código (`open`); legados inclusos.
   /// `null` quando ausente/desconhecido.

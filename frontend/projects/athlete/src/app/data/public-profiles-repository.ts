@@ -40,6 +40,10 @@ export interface AthletePublicProfile {
   sportChip: ArenaSportChip;
   /** Código do nível pro esporte principal (ex.: `intermediario_1`), já com fallback pro nível legado. */
   levelCode: string | null;
+  /** `sportOnboarding.levelsBySport` (código do esporte → código do nível). */
+  levelsBySport: Record<string, string>;
+  /** Nível global legado (`level`/`nivel`) — reserva quando o esporte não tem nível. */
+  legacyLevelCode: string | null;
   /** `users/{uid}.gender` cru ("Masculino"/"Feminino"/...) — normalizar com `normalizeAthleteGender`. */
   gender: string | null;
   hasAthleteRole: boolean;
@@ -93,6 +97,21 @@ function isDiscoverable(data: Record<string, unknown>): boolean {
   return readPublicProfileEnabled(data) && visibility !== 'private';
 }
 
+function stringMap(raw: Record<string, unknown> | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw ?? {})) {
+    const v = optionalTrimmed(value);
+    if (v) out[key] = v;
+  }
+  return out;
+}
+
+/** Nível do atleta no esporte (código de perfil); sem nível nele, o global legado — nunca o
+ *  do esporte principal, que é outra escada. */
+export function levelForSport(profile: Pick<AthletePublicProfile, 'levelsBySport' | 'legacyLevelCode'>, sportCode: string): string | null {
+  return profile.levelsBySport[sportCode] ?? profile.legacyLevelCode;
+}
+
 export function athletePublicProfileFromDoc(id: string, data: Record<string, unknown>): AthletePublicProfile {
   const nickname = optionalTrimmed(data['nickname']);
   const sportOnboarding = data['sportOnboarding'] as Record<string, unknown> | undefined;
@@ -112,6 +131,8 @@ export function athletePublicProfileFromDoc(id: string, data: Record<string, unk
     primarySportId,
     sportChip: defaultSportChipFromProfile({ primarySport: primarySportId, sport: optionalTrimmed(data['sport']) }),
     levelCode: levelForPrimarySport ?? optionalTrimmed(data['level']) ?? optionalTrimmed(data['nivel']),
+    levelsBySport: stringMap(levelsBySport),
+    legacyLevelCode: optionalTrimmed(data['level']) ?? optionalTrimmed(data['nivel']),
     gender: optionalTrimmed(data['gender']),
     hasAthleteRole: data['hasAthleteRole'] === true || roles.includes('athlete') || data['role'] === 'athlete',
     lookingForPartner: data['lookingForPartner'] === true,

@@ -143,7 +143,7 @@ void main() {
 
   group('buildUndoWrite', () {
     test('tira o ponto do lado que marcou e limpa vencedor', () {
-      final write = buildUndoWrite(match(), 'B', 0);
+      final write = buildUndoWrite(match(), 'B', 0)!;
 
       expect(write.pointEvent['type'], 'undo-point');
       expect(write.pointEvent['scoreA'], 14);

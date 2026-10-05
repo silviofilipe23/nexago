@@ -184,4 +184,27 @@ void main() {
       );
     });
   });
+
+  test('toJson/fromJson preservam sportRaw', () {
+    final session = TournamentCreateSession(
+      managerUid: 'mgr-1',
+      currentStep: TournamentCreateStep.identity,
+      updatedAt: DateTime(2026, 1, 10, 9, 30),
+      draft: const TournamentCreateDraft(
+        name: 'Copa BT',
+        sportRaw: 'padel',
+      ),
+    );
+    final restored = TournamentCreateSession.fromJson(session.toJson())!;
+    expect(restored.draft.sportRaw, 'padel');
+    expect(restored.draft.sportFirestoreValue, 'padel');
+  });
+
+  test('json de app anterior, sem sportRaw, restaura com sportRaw nulo', () {
+    final json = _session().toJson();
+    (json['draft'] as Map<String, dynamic>).remove('sportRaw');
+    final restored = TournamentCreateSession.fromJson(json)!;
+    expect(restored.draft.sportRaw, isNull);
+    expect(restored.draft.sport, TournamentSport.beachVolleyball);
+  });
 }

@@ -47,7 +47,7 @@ export class ChaveamentoContextService {
 
   /** Jogos do torneio selecionado com o nome da quadra resolvido pelas quadras do torneio —
    *  ver `resolveCourtNames` (jogos auto-agendados antes do fix só têm `courtId`). */
-  readonly matches = computed<TournamentMatch[]>(() => resolveCourtNames(this.matchesLoaded(), this.tournament()?.courts ?? [], this.tournament()?.sportId));
+  readonly matches = computed<TournamentMatch[]>(() => resolveCourtNames(this.matchesLoaded(), this.tournament()?.courts ?? []));
 
   readonly categories = computed<OrganizerTournamentCategory[]>(() => this.tournament()?.categories ?? []);
 

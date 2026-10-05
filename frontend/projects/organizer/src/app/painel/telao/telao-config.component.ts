@@ -395,7 +395,7 @@ export class TelaoConfigComponent {
     const t = this.svc.tournament();
     const cfg = this.cfg();
     if (!t || !cfg) return [];
-    const matches = resolveCourtNames(this.svc.matches(), t.courts, t.sportId);
+    const matches = resolveCourtNames(this.svc.matches(), t.courts);
     return t.courts.map((court) => {
       const { kind, match } = courtNowOf(matches, court.id, this.now());
       return {

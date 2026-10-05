@@ -79,6 +79,7 @@ Map<String, dynamic> _draftToJson(LeagueStageCreateDraft draft) => {
   'leagueName': draft.leagueName,
   'plannedStagesCount': draft.plannedStagesCount,
   'sport': draft.sport.name,
+  'sportRaw': draft.sportRaw,
   'leagueCity': draft.leagueCity,
   'leagueState': draft.leagueState,
   'defaultPriceCents': draft.defaultPriceCents,
@@ -104,11 +105,10 @@ LeagueStageCreateDraft? _draftFromJson(Map<String, dynamic> json) {
       leagueId: json['leagueId'] as String? ?? '',
       leagueName: json['leagueName'] as String? ?? '',
       plannedStagesCount: json['plannedStagesCount'] as int? ?? 6,
-      sport: _enumByName(
-        TournamentSport.values,
-        json['sport'] as String?,
-        TournamentSport.beachVolleyball,
-      ),
+      sport: parseTournamentSport(json['sport'] as String?).sport,
+      sportRaw:
+          json['sportRaw'] as String? ??
+          parseTournamentSport(json['sport'] as String?).raw,
       leagueCity: json['leagueCity'] as String? ?? '',
       leagueState: json['leagueState'] as String? ?? '',
       defaultPriceCents: json['defaultPriceCents'] as int? ?? 22000,
@@ -186,6 +186,8 @@ Map<String, dynamic> _categoryToJson(LeagueStageCategoryDraft category) => {
   'qualifiersPerGroup': category.qualifiersPerGroup,
   'bestOf': category.bestOf.name,
   'finalBestOf5': category.finalBestOf5,
+  if (category.scoringProfileRaw != null)
+    'scoringProfile': category.scoringProfileRaw,
   'genderFree': category.genderFree,
   if (category.menCount != null) 'menCount': category.menCount,
   if (category.womenCount != null) 'womenCount': category.womenCount,
@@ -243,6 +245,7 @@ LeagueStageCategoryDraft? _categoryFromJson(Map<String, dynamic> json) {
       TournamentBestOf.bestOf3,
     ),
     finalBestOf5: json['finalBestOf5'] as bool? ?? true,
+    scoringProfileRaw: scoringProfileRawOf(json['scoringProfile']),
     genderFree: json['genderFree'] as bool? ?? false,
     menCount: json['menCount'] as int?,
     womenCount: json['womenCount'] as int?,

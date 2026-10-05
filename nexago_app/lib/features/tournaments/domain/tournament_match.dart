@@ -5,6 +5,7 @@ import 'tournament_match_serving_players.dart';
 import 'tournament_match_set.dart';
 import 'tournament_match_status.dart';
 import 'tournament_match_type.dart';
+import '../../../core/sports/scoring_profile.dart';
 
 /// Partida em `artifacts/{projectId}/public/data/matches`.
 class TournamentMatch {
@@ -52,12 +53,13 @@ class TournamentMatch {
     this.teamAConfirmed = false,
     this.teamBConfirmed = false,
     this.bestOf = 3,
-    this.sport,
     this.winnerAdvanceMatchNumber,
     this.winnerAdvanceSlot,
     this.loserAdvanceMatchNumber,
     this.loserAdvanceSlot,
     this.liveScore,
+    this.scoringProfile,
+    this.currentGame = (a: 0, b: 0),
     this.kocStandingTeamIds = const [],
     this.kocTeamIds = const [],
     this.kocDurationSec = 0,
@@ -121,10 +123,6 @@ class TournamentMatch {
   /// Número de sets da partida (formato): 1 = set único, 3 = melhor de 3.
   final int bestOf;
 
-  /// Esporte da partida (`sport` do doc; ex.: `'footvolley'`). Nulo = regra
-  /// padrão (set até 21, decisivo até 15). Define o alvo do set no placar.
-  final String? sport;
-
   /// Fiação da chave (plantas de `functions/src/bracket-definitions`): nº do
   /// jogo para onde o vencedor avança e o slot ('A'/'B') que ele ocupa lá.
   /// Nulos em partidas geradas antes da fiação explícita ou sem avanço (Final).
@@ -140,6 +138,14 @@ class TournamentMatch {
   /// Placar parcial "ao vivo" do set em andamento (games/sets), gravado por
   /// `updateLiveMatchScore`. Só faz sentido exibir quando [isInProgress].
   final MatchLiveScore? liveScore;
+
+  /// Perfil de placar carimbado na criação da partida (spec multiesporte).
+  /// `null` em partida antiga: vale a regra histórica com [bestOf].
+  final ScoringProfile? scoringProfile;
+
+  /// Pontos do game em andamento numa partida de games (spec multiesporte,
+  /// 2b2); `(0, 0)` quando ausente.
+  final ({int a, int b}) currentGame;
 
   /// Duplas da rodada King of the Court em ordem de colocação, gravadas no
   /// encerramento. É o RESULTADO da rodada, como `winnerId` e `sets` são o de um

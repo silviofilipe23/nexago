@@ -2,6 +2,7 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {
   computeHeadToHead,
+  headToHeadSportMatches,
   EMPTY_HEAD_TO_HEAD_RESULT,
   type MatchRecord,
   type TeamRecord,
@@ -164,5 +165,22 @@ describe("head-to-head · computeHeadToHead", () => {
     assert.equal(result.recentMatches.length, 5);
     assert.equal(result.recentMatches[0].matchId, "m7");
     assert.equal(result.recentMatches[4].matchId, "m3");
+  });
+});
+
+describe("head-to-head · filtro de esporte", () => {
+  it("aceita o código de perfil e compara com o esporte do torneio mapeado", () => {
+    assert.equal(headToHeadSportMatches("beachVolleyball", "VOLEI_PRAIA"), true);
+    assert.equal(headToHeadSportMatches("indoorVolleyball", "VOLEI_PRAIA"), false);
+  });
+
+  it("aceita o enum do torneio como filtro (cliente antigo)", () => {
+    assert.equal(headToHeadSportMatches("beachVolleyball", "beachVolleyball"), true);
+    assert.equal(headToHeadSportMatches("footvolley", "beachVolleyball"), false);
+  });
+
+  it("torneio sem mapeamento de esporte nunca casa com filtro", () => {
+    assert.equal(headToHeadSportMatches("curling", "VOLEI_PRAIA"), false);
+    assert.equal(headToHeadSportMatches(undefined, "VOLEI_PRAIA"), false);
   });
 });

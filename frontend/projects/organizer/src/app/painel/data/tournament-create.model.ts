@@ -4,8 +4,33 @@
  *  renomear. */
 
 import { KOC_LEGACY_MAX_TEAMS_PER_ROUND, type KocPhaseSpec } from './koc-phase-plan';
+import { legacyScoringProfile, scoringProfileFromRaw, sportLabel, SPORT_CATALOG, type ScoringProfile } from '@nexago/sports';
 
-export type TournamentSport = 'beachVolleyball' | 'indoorVolleyball' | 'footvolley';
+export type TournamentSport = 'beachVolleyball' | 'indoorVolleyball' | 'footvolley' | 'tennis' | 'beachTennis';
+/** Na ordem do catálogo (suporte `competition`) — o teste de paridade compara com ela. */
+export const KNOWN_TOURNAMENT_SPORTS: readonly TournamentSport[] = ['beachVolleyball', 'indoorVolleyball', 'footvolley', 'tennis', 'beachTennis'];
+
+/** Leitura de `sport` vinda do Firestore. `sportRaw` só é preenchido quando o
+ *  valor existe e o tipo não o representa: é o que volta pro doc no save, para
+ *  esta versão do portal nunca rebaixar um esporte que não conhece (spec
+ *  multiesporte 2026-10-03, fase 0). Ausente/vazio cai no default sem raw. */
+export interface ParsedTournamentSport {
+  sport: TournamentSport;
+  sportRaw: string | null;
+}
+
+export function parseTournamentSport(raw: unknown): ParsedTournamentSport {
+  const value = typeof raw === 'string' ? raw.trim() : '';
+  if ((KNOWN_TOURNAMENT_SPORTS as readonly string[]).includes(value)) {
+    return { sport: value as TournamentSport, sportRaw: null };
+  }
+  return { sport: 'beachVolleyball', sportRaw: value || null };
+}
+
+/** O que gravar em `sport`. */
+export function sportFirestoreValue(d: { sport: TournamentSport; sportRaw: string | null }): string {
+  return d.sportRaw ?? d.sport;
+}
 export type TournamentBracketSystem = 'groupsThenKnockout' | 'singleElimination' | 'roundRobin' | 'groupsWithRepechage' | 'doubleElimination' | 'kingOfCourt';
 export type TournamentBestOf = 'singleSet' | 'bestOf3' | 'bestOf5';
 export type TournamentPaymentMode = 'appPixCard' | 'directWithOrganizer';
@@ -100,11 +125,17 @@ export interface TournamentCategoryDraft {
   finalBestOf5: boolean;
   maxRegistrationsPerAthlete: number;
   prizes: CategoryPrizeDraft[];
+  /** Perfil de placar da categoria (spec multiesporte), cru como está no doc. O wizard ainda
+   *  não o edita (2d2), mas precisa carregá-lo: o array `categories` é regravado inteiro, e um
+   *  campo ausente aqui é um campo apagado. Ausente/`null` = sem perfil explícito. */
+  scoringProfile?: Record<string, unknown> | null;
 }
 
 export interface TournamentCreateDraft {
   tournamentId: string | null;
   sport: TournamentSport;
+  /** Valor de `sport` que o tipo não representa (ver `parseTournamentSport`). */
+  sportRaw: string | null;
   name: string;
   coverImageUrl: string | null;
   description: string;
@@ -190,6 +221,7 @@ export function emptyTournamentDraft(): TournamentCreateDraft {
   return {
     tournamentId: null,
     sport: 'beachVolleyball',
+    sportRaw: null,
     name: '',
     coverImageUrl: null,
     description: '',
@@ -230,11 +262,10 @@ export function emptyTournamentDraft(): TournamentCreateDraft {
 
 // ── Rótulos (mesmos textos do app) ────────────────────────────────────────────
 
-export const SPORT_LABEL: Record<TournamentSport, string> = {
-  beachVolleyball: 'Vôlei de praia',
-  indoorVolleyball: 'Vôlei de quadra',
-  footvolley: 'Futevôlei',
-};
+/** Rótulos do catálogo canônico (`sports/catalog.json`) para os esportes do wizard. */
+export const SPORT_LABEL = Object.fromEntries(
+  KNOWN_TOURNAMENT_SPORTS.map((s) => [s, sportLabel(s) ?? s]),
+) as Record<TournamentSport, string>;
 
 export const BRACKET_SYSTEM_LABEL: Record<TournamentBracketSystem, string> = {
   groupsThenKnockout: 'Fase de grupos + mata-mata',
@@ -262,6 +293,13 @@ export const BRACKET_SYSTEM_DESCRIPTION: Record<TournamentBracketSystem, string>
   doubleElimination: 'Dupla eliminatória — sem fase de grupos.',
   kingOfCourt: 'Rodadas de 3 a 5 duplas na mesma quadra. Só quem está no trono pontua.',
 };
+
+/** Formatos que o wizard oferece, na ordem da tela. O KOTC é só de vôlei de praia por enquanto
+ *  (o spec multiesporte deixa KOTC de outros esportes fora de escopo). */
+export function bracketSystemsForSport(sport: TournamentSport): TournamentBracketSystem[] {
+  const all: TournamentBracketSystem[] = ['groupsThenKnockout', 'singleElimination', 'doubleElimination', 'kingOfCourt', 'roundRobin', 'groupsWithRepechage'];
+  return sport === 'beachVolleyball' ? all : all.filter((s) => s !== 'kingOfCourt');
+}
 
 /** Formatos com geração de chave implementada (mesma lista do app). */
 export const SUPPORTED_BRACKET_SYSTEMS: readonly TournamentBracketSystem[] = ['groupsThenKnockout', 'singleElimination', 'doubleElimination', 'kingOfCourt'];
@@ -646,9 +684,12 @@ export function canContinueFromStep(draft: TournamentCreateDraft, step: Tourname
 
 export function publishBlockReasonForUnsupportedBrackets(draft: TournamentCreateDraft): string {
   for (const category of draft.categories) {
+    const label = category.name.trim() || 'sem nome';
     if (!SUPPORTED_BRACKET_SYSTEMS.includes(category.bracketSystem)) {
-      const label = category.name.trim() || 'sem nome';
       return `A categoria "${label}" usa ${BRACKET_SYSTEM_LABEL[category.bracketSystem]}, ainda não suportado.`;
+    }
+    if (category.bracketSystem === 'kingOfCourt' && draft.sport !== 'beachVolleyball') {
+      return `A categoria "${label}" usa King of the Court, que por enquanto é só para vôlei de praia.`;
     }
   }
   return '';
@@ -674,3 +715,90 @@ export function defaultCourtsFromCount(count: number): TournamentCourt[] {
   const n = Math.max(count, 1);
   return Array.from({ length: n }, (_, i) => ({ id: `Q${i + 1}`, name: `Quadra ${i + 1}`, order: i + 1 }));
 }
+
+// ── Placar da categoria (spec multiesporte, fase 2d2a) ────────────────────────
+
+/** `bestOf` numérico do perfil — o mesmo mapeamento do servidor (`matchBestOfFromCategory`):
+ *  set único = 1; MD3 e MD5 = 3 (MD5 ainda não é operável na mesa). */
+export function profileBestOf(bestOf: TournamentBestOf): 1 | 3 {
+  return bestOf === 'singleSet' ? 1 : 3;
+}
+
+/** Esporte que decide o placar da categoria: o do tipo, ou `null` quando o torneio está num
+ *  esporte que esta versão não conhece (`sportRaw`) — aí não se sugere nem se mostra placar, e o
+ *  servidor usa o padrão do esporte real. */
+export function scoringSportOf(d: { sport: TournamentSport; sportRaw?: string | null }): TournamentSport | null {
+  return d.sportRaw ? null : d.sport;
+}
+
+/** Perfil sugerido para uma categoria NOVA do esporte: o padrão do catálogo (21/15 vôlei de
+ *  praia, 25/15 quadra, 18/15 futevôlei, games de beach tennis) com o `bestOf` da categoria. */
+export function suggestedScoringProfile(sport: TournamentSport, bestOf: TournamentBestOf): Record<string, unknown> {
+  const base = SPORT_CATALOG.find((e) => e.code === sport)?.scoringProfile ?? legacyScoringProfile(3);
+  return { ...base, bestOf: profileBestOf(bestOf) };
+}
+
+/** O placar que a categoria vai carimbar: o perfil explícito ou, sem ele, o que o servidor usa —
+ *  regra histórica nos esportes de pontos, padrão do catálogo em games. */
+export function categoryScoringView(category: TournamentCategoryDraft, sport: TournamentSport): ScoringProfile {
+  const explicit = scoringProfileFromRaw(category.scoringProfile);
+  if (explicit) return { ...explicit, bestOf: profileBestOf(category.bestOf) };
+  const catalog = scoringProfileFromRaw(SPORT_CATALOG.find((e) => e.code === sport)?.scoringProfile);
+  const base = catalog?.kind === 'sets_games' ? catalog : legacyScoringProfile(3);
+  return { ...base, bestOf: profileBestOf(category.bestOf) };
+}
+
+export interface CategoryScoringPatch {
+  setTarget?: number;
+  decidingSetTarget?: number;
+  noAd?: boolean;
+  decidingSet?: 'full' | 'super_tiebreak';
+}
+
+/** Edição do placar: parte do que a categoria carimba hoje e grava o perfil explícito. Campo de
+ *  outro tipo é ignorado (pontos não tem `noAd`; games não tem alvo de set). */
+export function patchCategoryScoring(
+  category: TournamentCategoryDraft,
+  sport: TournamentSport,
+  patch: CategoryScoringPatch,
+): TournamentCategoryDraft {
+  const current = categoryScoringView(category, sport);
+  const next =
+    current.kind === 'sets_points'
+      ? {
+          ...current,
+          ...(patch.setTarget != null ? { setTarget: patch.setTarget } : {}),
+          ...(patch.decidingSetTarget != null ? { decidingSetTarget: patch.decidingSetTarget } : {}),
+        }
+      : {
+          ...current,
+          ...(patch.noAd != null ? { noAd: patch.noAd } : {}),
+          ...(patch.decidingSet != null ? { decidingSet: patch.decidingSet } : {}),
+        };
+  return { ...category, scoringProfile: { ...next } as Record<string, unknown> };
+}
+
+/** Troca de esporte: categoria cujo perfil explícito é de OUTRO tipo (pontos × games) ganha a
+ *  sugestão do novo esporte; do mesmo tipo, o placar editado fica (clicar de novo no esporte ou
+ *  trocar praia ↔ quadra não apaga nada); sem perfil continua sem. Perfil igual à sugestão de
+ *  `previousSport` não foi editado — vira a sugestão do novo esporte (beach tennis → tênis não
+ *  pode levar no-ad e super tie-break calado). */
+export function withSportScoring(
+  categories: readonly TournamentCategoryDraft[],
+  sport: TournamentSport,
+  previousSport?: TournamentSport,
+): TournamentCategoryDraft[] {
+  return categories.map((c) => {
+    if (!c.scoringProfile) return c;
+    const suggested = suggestedScoringProfile(sport, c.bestOf);
+    const untouched = previousSport != null && sameFlatRecord(c.scoringProfile, suggestedScoringProfile(previousSport, c.bestOf));
+    return c.scoringProfile['kind'] === suggested['kind'] && !untouched ? c : { ...c, scoringProfile: suggested };
+  });
+}
+
+/** Perfil de placar é plano (só primitivos): igualdade campo a campo. */
+function sameFlatRecord(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k]);
+}
+

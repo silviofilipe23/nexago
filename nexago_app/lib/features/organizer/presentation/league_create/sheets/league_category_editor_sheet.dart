@@ -54,6 +54,17 @@ class _LeagueCategoryEditorSheetState
           useDefaultPrice: true,
           dispute: TournamentCategoryDispute.dupla,
         );
+    // Categoria NOVA nasce com o placar sugerido do esporte, como no portal
+    // (as etapas herdam o perfil da categoria da liga).
+    final scoringSport = scoringSportOf(draft.sport, draft.sportRaw);
+    if (widget.existing == null && scoringSport != null) {
+      _category = _category.copyWith(
+        scoringProfileRaw: suggestedScoringProfile(
+          scoringSport,
+          _category.bestOf,
+        ),
+      );
+    }
     _nameController = TextEditingController(text: _category.name);
     _priceController = TextEditingController(
       text: formatCents(_category.priceCents).replaceAll(r'R$', '').trim(),
@@ -228,6 +239,7 @@ class _LeagueCategoryEditorSheetState
             ],
             const SizedBox(height: 20),
             OrganizerCategoryFormatSection(
+              sport: ref.watch(leagueCreateDraftProvider).sport,
               bracketSystem: _category.bracketSystem,
               teamsPerGroup: _category.teamsPerGroup,
               qualifiersPerGroup: _category.qualifiersPerGroup,

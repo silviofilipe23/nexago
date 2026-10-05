@@ -158,6 +158,7 @@ describe('registrationCategoryStatus', () => {
       gender: 'Feminino',
       birthDate: null,
       level: null,
+      primarySportId: null,
       levelsBySport: {},
       levelLocked: {},
       fullName: 'Ana',

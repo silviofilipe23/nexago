@@ -21,6 +21,9 @@ import {
   type TournamentPaymentMode,
   type TournamentSport,
   type TournamentVisibility,
+  KNOWN_TOURNAMENT_SPORTS,
+  bracketSystemsForSport,
+  suggestedScoringProfile,
 } from './tournament-create.model';
 import { pixKeyTypeFromStored, type PixKeyType } from './pix-key';
 import {
@@ -180,7 +183,7 @@ function oneOf<T extends string>(v: unknown, allowed: readonly T[], fallback: T)
   return typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T) : fallback;
 }
 
-const SPORTS: readonly TournamentSport[] = ['beachVolleyball', 'indoorVolleyball', 'footvolley'];
+const SPORTS = KNOWN_TOURNAMENT_SPORTS;
 const BRACKET_SYSTEMS: readonly TournamentBracketSystem[] = [
   'groupsThenKnockout',
   'singleElimination',
@@ -297,10 +300,17 @@ export function applyOrganizerPaymentDefaults(
 export function applyOrganizerCategoryDefaults(
   category: TournamentCategoryDraft,
   defaults: OrganizerEventDefaults,
+  sport?: TournamentSport,
 ): TournamentCategoryDraft {
+  // O formato padrão do organizador pode ser KOTC, que é só de vôlei de praia: em outro esporte a
+  // categoria nova nasce em grupos + mata-mata.
+  const bracketSystem =
+    sport && !bracketSystemsForSport(sport).includes(defaults.bracketSystem) ? 'groupsThenKnockout' : defaults.bracketSystem;
   return {
     ...category,
-    bracketSystem: defaults.bracketSystem,
+    // Categoria NOVA nasce com o placar sugerido do esporte (gravado explícito).
+    ...(sport ? { scoringProfile: suggestedScoringProfile(sport, defaults.bestOf) } : {}),
+    bracketSystem,
     bestOf: defaults.bestOf,
     finalBestOf5: defaults.finalBestOf5,
     spots: defaults.spots,

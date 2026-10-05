@@ -145,6 +145,8 @@ export function defaultSportChipFromProfile(params: {
         return 'beachTennis';
       case 'TENIS':
         return 'tennis';
+      case 'PADEL':
+        return 'padel';
       case 'FUTEBOL':
       case 'FOOTBALL':
         return 'football';
@@ -158,7 +160,7 @@ export function defaultSportChipFromProfile(params: {
 }
 
 /** Chip da UI → código Firestore (`AthleteFirestoreCodes` / onboarding). `null` = sem pré-filtro
- *  no backend (ex.: padel ainda sem código canônico). */
+ *  no backend (só "todos"). */
 export function sportFirestoreIdFromChip(chip: ArenaSportChip): string | null {
   switch (chip) {
     case 'beachVolleyball':
@@ -172,6 +174,7 @@ export function sportFirestoreIdFromChip(chip: ArenaSportChip): string | null {
     case 'football':
       return 'FUTEBOL';
     case 'padel':
+      return 'PADEL';
     case 'all':
       return null;
   }

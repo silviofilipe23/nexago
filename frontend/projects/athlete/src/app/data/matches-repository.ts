@@ -1,3 +1,15 @@
+import {
+  effectiveScoringProfile,
+  gamesPointLabels,
+  isSuperTiebreakSet,
+  isTiebreakInProgress,
+  legacyScoringProfile,
+  scoringProfileFromRaw,
+  setPointsTarget,
+  setScoreText,
+  setWinnerSide,
+  type ScoringProfile,
+} from '@nexago/sports';
 import { collection, doc, getDoc, getDocs, onSnapshot, query, where, type Firestore, type Unsubscribe } from 'firebase/firestore';
 
 /** `artifacts/{projectId}/public/data/matches` — espelha `TournamentMatchMapper` +
@@ -23,6 +35,8 @@ function optionalStr(v: unknown): string | null {
 export interface MatchSet {
   a: number;
   b: number;
+  /** Tie-break do set (partida de games); o super tie-break grava `{a: 1, b: 0, tb}`. */
+  tb?: { a: number; b: number };
 }
 
 /** Placar parcial gravado por `updateLiveMatchScore` (mesário/staff) — o set em andamento
@@ -60,9 +74,6 @@ export interface TournamentMatch {
   winnerId: string | null;
   isGroupMatch: boolean;
   matchNumber: number;
-  /** `matches/{id}.sport` (gravado na criação da chave); ausente em partidas antigas — aí vale o
-   *  esporte do torneio (`withFallbackSport`). Ausente/desconhecido = vôlei de praia (21). */
-  sport: string | null;
   /** Fiação da planta (`bracket-definitions`): pra qual jogo o VENCEDOR desta partida vai e em
    *  qual slot (A/B). Usado só pelo layout da árvore — ver o cabeçalho deste arquivo. */
   winnerAdvanceMatchNumber: number | null;
@@ -80,6 +91,10 @@ export interface TournamentMatch {
    *  do organizador), que mantém o set corrente DENTRO de `sets[]`. Nulo nas partidas lançadas
    *  só pelo placar agregado (`updateLiveMatchScore`/`submitMatchResult`). */
   currentSetIndex: number | null;
+  /** Perfil de placar carimbado; ausente/`null` em partida antiga (vale a regra histórica). */
+  scoringProfile?: ScoringProfile | null;
+  /** Partida de games: pontos do game em andamento gravados pela mesa. */
+  currentGame?: { a: number; b: number } | null;
 }
 
 export const DEFAULT_BEST_OF = 3;
@@ -92,9 +107,19 @@ function setsFromRaw(raw: unknown): MatchSet[] {
       const o = s as Record<string, unknown>;
       const a = typeof o['a'] === 'number' ? o['a'] : null;
       const b = typeof o['b'] === 'number' ? o['b'] : null;
-      return a == null || b == null ? null : { a, b };
+      if (a == null || b == null) return null;
+      const tb = gamePointsFromRaw(o['tb']);
+      return tb ? { a, b, tb } : { a, b };
     })
     .filter((s): s is MatchSet => s != null);
+}
+
+function gamePointsFromRaw(raw: unknown): { a: number; b: number } | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const a = intOf(o['a']);
+  const b = intOf(o['b']);
+  return a == null || b == null ? null : { a, b };
 }
 
 function intOf(v: unknown): number | null {
@@ -136,7 +161,8 @@ function advanceSlotOf(raw: unknown): 'A' | 'B' | null {
   return null;
 }
 
-function matchFromDoc(id: string, data: Record<string, unknown>): TournamentMatch {
+/** Exportada para teste: é onde o doc do Firestore vira partida. */
+export function matchFromDoc(id: string, data: Record<string, unknown>): TournamentMatch {
   return {
     id,
     tournamentId: optionalStr(data['tournamentId']) ?? '',
@@ -155,7 +181,6 @@ function matchFromDoc(id: string, data: Record<string, unknown>): TournamentMatc
     winnerId: optionalStr(data['winnerId']),
     isGroupMatch: data['isGroupMatch'] === true,
     matchNumber: typeof data['matchNumber'] === 'number' ? data['matchNumber'] : 0,
-    sport: optionalStr(data['sport']),
     winnerAdvanceMatchNumber: advanceMatchNumberOf(data['winnerAdvance']),
     winnerAdvanceSlot: advanceSlotOf(data['winnerAdvance']),
     scheduleTime: toDate(data['scheduleTime']),
@@ -166,6 +191,8 @@ function matchFromDoc(id: string, data: Record<string, unknown>): TournamentMatc
     queueStatus: optionalStr(data['queueStatus']),
     bestOf: intOf(data['bestOf']),
     currentSetIndex: intOf(data['currentSetIndex']),
+    scoringProfile: scoringProfileFromRaw(data['scoringProfile']),
+    currentGame: gamePointsFromRaw(data['currentGame']),
   };
 }
 
@@ -228,34 +255,35 @@ export function matchBestOf(m: Pick<TournamentMatch, 'bestOf'>): number {
   return m.bestOf && m.bestOf > 0 ? m.bestOf : DEFAULT_BEST_OF;
 }
 
-/** Regras de set (espelho mínimo de `match_scoring_logic.dart`, também replicado — e validado
- *  de fato — em `functions/src/match-scoring.ts`): alvo 21 (futevôlei 18), decisivo até 15 no 3º set de MD3,
- *  vantagem de 2. As três cópias concordam, e nenhuma delas trata o 5º set de MD5 como
- *  decisivo — ele também vai a 21. Não é uma lacuna deste espelho: é a regra em produção. */
-const DEFAULT_SET_POINTS = 21;
-const TIEBREAK_SET_POINTS = 15;
-/** Futevôlei (FIFV/CBFv): set até 18, decisivo até 15. */
-const FOOTVOLLEY_SET_POINTS = 18;
+/** Regras de set: moram no núcleo de placar (`@nexago/sports`), o mesmo das functions e do app.
+ *  Aqui é a regra histórica (21, decisivo 15 no 3º set de MD3, vantagem 2), que é a de toda
+ *  partida sem perfil carimbado. */
 export const MIN_ADVANTAGE = 2;
 
 /** Alvo de pontos de um set pelo índice (0-based) dentro do formato — exportado pra quem precisa
  *  montar placares hipotéticos legais (`focus-scenarios.ts`) sem duplicar os números mágicos. */
-export function setTargetPointsOf(index: number, bestOf: number, sport?: string | null): number {
-  if (bestOf === 3 && index === 2) return TIEBREAK_SET_POINTS;
-  return sport === 'footvolley' ? FOOTVOLLEY_SET_POINTS : DEFAULT_SET_POINTS;
+export function setTargetPointsOf(index: number, bestOf: number): number {
+  return setPointsTarget(legacyScoringProfile(bestOf), index);
 }
 
-/** Partidas antigas não têm `sport`: herdam o do torneio (as que têm, mantêm o próprio). */
-export function withFallbackSport(matches: readonly TournamentMatch[], sport: string | null | undefined): TournamentMatch[] {
-  return sport ? matches.map((m) => (m.sport ? m : { ...m, sport })) : [...matches];
+type MatchScoreFields = Pick<
+  TournamentMatch,
+  'sets' | 'resultA' | 'resultB' | 'liveScore' | 'status' | 'bestOf' | 'currentSetIndex' | 'scoringProfile' | 'currentGame'
+>;
+
+/** Perfil efetivo: o carimbo com o nº de sets do doc; sem carimbo, a regra histórica. */
+export function matchScoringProfile(m: Pick<TournamentMatch, 'scoringProfile' | 'bestOf'>): ScoringProfile {
+  return profileOf(m);
 }
 
-function setIsWon(s: MatchSet, index: number, bestOf: number, sport?: string | null): boolean {
-  const target = setTargetPointsOf(index, bestOf, sport);
-  return (s.a >= target && s.a - s.b >= MIN_ADVANTAGE) || (s.b >= target && s.b - s.a >= MIN_ADVANTAGE);
+function profileOf(m: Pick<TournamentMatch, 'scoringProfile' | 'bestOf'>): ScoringProfile {
+  return effectiveScoringProfile(m.scoringProfile, matchBestOf(m));
 }
 
-type MatchScoreFields = Pick<TournamentMatch, 'sets' | 'resultA' | 'resultB' | 'liveScore' | 'status' | 'bestOf' | 'currentSetIndex' | 'sport'>;
+/** Set já decidido pela regra da partida (pontos: 21/15 +2; games: 6 games, tie-break...). */
+function setIsWon(sets: readonly MatchSet[], index: number, profile: ScoringProfile): boolean {
+  return setWinnerSide(sets, index, profile) !== null;
+}
 
 /** Sets ganhos por lado, unificando as três formas em que o placar aparece no doc:
  *  `sets[]` (canônico), `resultA/resultB` (legado, "21,19,10") e `liveScore` (agregado).
@@ -264,7 +292,8 @@ type MatchScoreFields = Pick<TournamentMatch, 'sets' | 'resultA' | 'resultB' | '
  *  fugir da regra e continuam contando como sempre contaram). */
 export function matchSetWins(m: MatchScoreFields): [number, number] {
   if (m.sets.length > 0) {
-    const closed = matchIsLive(m) ? m.sets.filter((s, i) => setIsWon(s, i, matchBestOf(m), m.sport)) : m.sets;
+    const profile = profileOf(m);
+    const closed = matchIsLive(m) ? m.sets.filter((_, i) => setIsWon(m.sets, i, profile)) : m.sets;
     return [closed.filter((s) => s.a > s.b).length, closed.filter((s) => s.b > s.a).length];
   }
   const legacy = legacySets(m.resultA, m.resultB);
@@ -279,7 +308,8 @@ export function matchSetWins(m: MatchScoreFields): [number, number] {
 export function matchClosedSets(m: MatchScoreFields): MatchSet[] {
   const sets = m.sets.length > 0 ? m.sets : legacySets(m.resultA, m.resultB);
   if (!matchIsLive(m)) return sets;
-  return sets.filter((s, i) => setIsWon(s, i, matchBestOf(m), m.sport));
+  const profile = profileOf(m);
+  return sets.filter((_, i) => setIsWon(sets, i, profile));
 }
 
 export interface MatchLiveSetScore {
@@ -287,6 +317,14 @@ export interface MatchLiveSetScore {
   setNumber: number;
   a: number;
   b: number;
+  /** Partida de games, vindo da mesa: placar do game em andamento (0/15/30/40/AD, ou os
+   *  pontos do tie-break). Ausente em partida de pontos. */
+  game?: { a: string; b: string };
+  /** Partida de games: o set corrente está num tie-break (normal ou super). */
+  tiebreak?: boolean;
+  /** Partida de games: o set corrente é o super tie-break — o set fica 0-0 e os pontos correm
+   *  em `game`. Ausente fora dele. */
+  superTiebreak?: boolean;
 }
 
 /** Pontos do set em andamento de uma partida ao vivo, unificando os dois escritores:
@@ -297,9 +335,16 @@ export interface MatchLiveSetScore {
 export function matchLiveCurrentSet(m: MatchScoreFields): MatchLiveSetScore | null {
   if (!matchIsLive(m)) return null;
   if (m.sets.length > 0) {
-    const idx = Math.min(Math.max(m.currentSetIndex ?? m.sets.length - 1, 0), matchBestOf(m) - 1);
+    const profile = profileOf(m);
+    const idx = Math.min(Math.max(m.currentSetIndex ?? m.sets.length - 1, 0), profile.bestOf - 1);
     const s = m.sets[idx];
-    if (s && !setIsWon(s, idx, matchBestOf(m), m.sport)) return { setNumber: matchClosedSets(m).length + 1, a: s.a, b: s.b };
+    if (s && !setIsWon(m.sets, idx, profile)) {
+      const score: MatchLiveSetScore = { setNumber: matchClosedSets(m).length + 1, a: s.a, b: s.b };
+      if (profile.kind !== 'sets_games') return score;
+      const state = { sets: m.sets, currentSetIndex: idx, currentGame: m.currentGame ?? { a: 0, b: 0 }, servingTeamId: '' };
+      const live: MatchLiveSetScore = { ...score, game: gamesPointLabels(state, profile), tiebreak: isTiebreakInProgress(state, profile) };
+      return isSuperTiebreakSet(profile, idx) ? { ...live, superTiebreak: true } : live;
+    }
     // Sem set aberto dentro de sets[] (todos fechados) — o corrente, se houver, está no
     // agregado `liveScore` (fluxo do lançamento rápido: sets fechados + currentGames).
   }
@@ -440,6 +485,11 @@ function parseLegacyResult(raw: string | null): number[] {
  * Cascata (mesma de `functions/src/group-standings.ts`): vitórias → saldo de pontos (game) →
  * confronto direto (só entre empatados em V e SP).
  */
+/** Grupo de games: alguma partida do grupo tem perfil efetivo `sets_games`. */
+export function isGamesGroup(poolMatches: readonly TournamentMatch[]): boolean {
+  return poolMatches.some((m) => profileOf(m).kind === 'sets_games');
+}
+
 export function buildGroupStandings(matches: readonly TournamentMatch[], categoryId: string, poolId: string): GroupStanding[] {
   const poolMatches = matches.filter((m) => m.categoryId === categoryId && m.poolId === poolId);
   const byTeam = new Map<string, StandingMutable>();
@@ -505,6 +555,12 @@ export function buildGroupStandings(matches: readonly TournamentMatch[], categor
     played.push({ winnerId, teamAId: m.teamAId, teamBId: m.teamBId, setDiff, gameDiff });
   }
 
+  // Grupo de games (spec multiesporte, standings por tipo): saldo de sets antes do saldo de games.
+  const games = isGamesGroup(poolMatches);
+  const setDiffOf = (id: string): number => {
+    const s = byTeam.get(id);
+    return games && s ? s.setsWon - s.setsLost : 0;
+  };
   const winsOf = (id: string): number => byTeam.get(id)?.wins ?? 0;
   const pointDiffOf = (id: string): number => {
     const s = byTeam.get(id);
@@ -512,6 +568,7 @@ export function buildGroupStandings(matches: readonly TournamentMatch[], categor
   };
   for (const game of played) {
     if (winsOf(game.teamAId) !== winsOf(game.teamBId)) continue;
+    if (setDiffOf(game.teamAId) !== setDiffOf(game.teamBId)) continue;
     if (pointDiffOf(game.teamAId) !== pointDiffOf(game.teamBId)) continue;
     const a = ensure(game.teamAId);
     const b = ensure(game.teamBId);
@@ -523,6 +580,8 @@ export function buildGroupStandings(matches: readonly TournamentMatch[], categor
   for (const r of rows) r.points = r.wins * 2;
   rows.sort((x, y) => {
     if (y.wins !== x.wins) return y.wins - x.wins;
+    const setDiff = setDiffOf(y.teamId) - setDiffOf(x.teamId);
+    if (setDiff !== 0) return setDiff;
     const gameDiff = y.gamesWon - y.gamesLost - (x.gamesWon - x.gamesLost);
     if (gameDiff !== 0) return gameDiff;
     return y.h2hWins - x.h2hWins;
@@ -532,4 +591,28 @@ export function buildGroupStandings(matches: readonly TournamentMatch[], categor
 
 export function distinctPoolIds(matches: readonly TournamentMatch[]): string[] {
   return [...new Set(matches.filter((m) => m.poolId).map((m) => m.poolId))].sort();
+}
+
+/** Sets fechados como texto: "21-15", "6-4", "7-6 (7-4)"; o super tie-break mostra os pontos
+ *  dele ("10-8"), não o 1×0 gravado. */
+export function matchClosedSetTexts(m: Pick<TournamentMatch, 'sets' | 'resultA' | 'resultB' | 'liveScore' | 'status' | 'bestOf' | 'currentSetIndex' | 'scoringProfile' | 'currentGame'>): string[] {
+  const profile = profileOf(m);
+  return matchClosedSets(m).map((s, i) => setScoreText(profile, i, s));
+}
+
+/** Set fechado em números de exibição: o super tie-break entra com os pontos dele. */
+export function displaySetScoreOf(m: Pick<TournamentMatch, 'scoringProfile' | 'bestOf'>, index: number, s: MatchSet): { a: number; b: number } {
+  const profile = profileOf(m);
+  return profile.kind === 'sets_games' && s.tb && isSuperTiebreakSet(profile, index) ? { a: s.tb.a, b: s.tb.b } : { a: s.a, b: s.b };
+}
+
+/** Sets fechados em números de exibição (o super tie-break com os pontos dele). */
+export function matchClosedDisplaySets(m: Pick<TournamentMatch, 'sets' | 'resultA' | 'resultB' | 'liveScore' | 'status' | 'bestOf' | 'currentSetIndex' | 'scoringProfile' | 'currentGame'>): { a: number; b: number }[] {
+  return matchClosedSets(m).map((s, i) => displaySetScoreOf(m, i, s));
+}
+
+/** Texto de um set fechado na ótica de um lado ("6-7 (5-7)" visto por B vira "7-6 (7-5)"). */
+export function setTextForSide(m: Pick<TournamentMatch, 'scoringProfile' | 'bestOf'>, index: number, s: MatchSet, side: 'A' | 'B'): string {
+  const mine: MatchSet = side === 'A' ? s : { a: s.b, b: s.a, ...(s.tb ? { tb: { a: s.tb.b, b: s.tb.a } } : {}) };
+  return setScoreText(profileOf(m), index, mine);
 }

@@ -7,6 +7,7 @@ import '../domain/tournament_match_point_action.dart';
 import '../domain/tournament_match_serving_players.dart';
 import '../domain/tournament_match_set.dart';
 import '../domain/tournament_match_status.dart';
+import '../../../core/sports/sport_catalog.dart' show ScoringRules;
 
 abstract final class TournamentMatchMapper {
   TournamentMatchMapper._();
@@ -69,7 +70,6 @@ abstract final class TournamentMatchMapper {
       teamAConfirmed: _reportBool(data['report'], 'teamAConfirmed'),
       teamBConfirmed: _reportBool(data['report'], 'teamBConfirmed'),
       bestOf: _bestOf(data['bestOf']),
-      sport: _str(data['sport']),
       kocStandingTeamIds: _kocStandingTeamIds(data['kocStandings']),
       kocTeamIds: _teamIdList(data['kocTeamIds']),
       kocDurationSec: _kocDurationSec(data['kocConfig']),
@@ -79,6 +79,8 @@ abstract final class TournamentMatchMapper {
       loserAdvanceMatchNumber: _advanceMatchNumber(data['loserAdvance']),
       loserAdvanceSlot: _advanceSlot(data['loserAdvance']),
       liveScore: _liveScore(data['liveScore']),
+      scoringProfile: ScoringRules.profileFromRaw(data['scoringProfile']),
+      currentGame: _gamePoints(data['currentGame']),
     );
   }
 
@@ -105,6 +107,13 @@ abstract final class TournamentMatchMapper {
   static int _servingPlayerSlot(dynamic raw) {
     final value = _int(raw);
     return value == 1 || value == 2 ? value! : 0;
+  }
+
+  static ({int a, int b}) _gamePoints(dynamic raw) {
+    if (raw is! Map) return (a: 0, b: 0);
+    final a = raw['a'];
+    final b = raw['b'];
+    return (a: a is num ? a.toInt() : 0, b: b is num ? b.toInt() : 0);
   }
 
   static MatchServingPlayers _servingPlayers(dynamic raw) {

@@ -3,7 +3,7 @@ import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore, type Unsubscribe } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
-import { buildGroupStandings, distinctPoolIds, fetchMatchesForTournament, watchMatchesForTournament, withFallbackSport, type TournamentMatch } from '../data/matches-repository';
+import { buildGroupStandings, distinctPoolIds, fetchMatchesForTournament, watchMatchesForTournament, type TournamentMatch } from '../data/matches-repository';
 import { fetchPublicProfilesByIds, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { fetchTeamsByIds, type ArenaTeam } from '../data/teams-repository';
 import { fetchTournamentAnnouncements, type TournamentAnnouncement } from '../data/tournament-announcements-repository';
@@ -345,7 +345,7 @@ export class TournamentLiveStore {
       if (token !== this.loadToken) return;
 
       this.tournament.set(tournament);
-      this.matches.set(withFallbackSport(matches, tournament?.sport));
+      this.matches.set(matches);
       this.enrolledByCategory.set(enrolled);
       this.announcements.set(announcements);
 
@@ -403,8 +403,7 @@ export class TournamentLiveStore {
       db,
       this.projectId,
       tournamentId,
-      (raw) => {
-        const matches = withFallbackSport(raw, this.tournament()?.sport);
+      (matches) => {
         this.matches.set(matches);
         this.isLiveConnected.set(true);
         // Duplas novas entram na chave conforme o mata-mata avança.

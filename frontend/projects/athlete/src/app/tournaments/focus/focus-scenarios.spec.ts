@@ -1,5 +1,6 @@
 import type { TournamentMatch } from '../../data/matches-repository';
 import { roundScenariosOf, winBoundsOf } from './focus-scenarios';
+import { scoringProfileFromRaw, validateScoreSets, type ScoringProfile } from '@nexago/sports';
 
 function match(partial: Partial<TournamentMatch> & Pick<TournamentMatch, 'id'>): TournamentMatch {
   return {
@@ -29,7 +30,6 @@ function match(partial: Partial<TournamentMatch> & Pick<TournamentMatch, 'id'>):
     queueStatus: null,
     bestOf: 3,
     currentSetIndex: null,
-    sport: null,
     ...partial,
   };
 }
@@ -189,6 +189,22 @@ describe('roundScenariosOf', () => {
 });
 
 describe('winBoundsOf', () => {
+  it('games: limites legais pelo perfil (6-0 6-0 e 0-6, 7-6 com tie-break, super tie-break)', () => {
+    const bt = scoringProfileFromRaw({ kind: 'sets_games', bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: true, decidingSet: 'super_tiebreak', superTiebreakTo: 10 }) as ScoringProfile;
+    const [widest, narrowest] = winBoundsOf(3, bt);
+    expect(widest).toEqual([{ a: 6, b: 0 }, { a: 6, b: 0 }]);
+    expect(narrowest).toEqual([{ a: 0, b: 6 }, { a: 7, b: 6, tb: { a: 7, b: 5 } }, { a: 1, b: 0, tb: { a: 10, b: 8 } }]);
+    expect(validateScoreSets(widest!, bt)).toEqual([]);
+    expect(validateScoreSets(narrowest!, bt)).toEqual([]);
+  });
+
+  it('games sem tie-break e 3º set completo: margem mínima de games', () => {
+    const p = scoringProfileFromRaw({ kind: 'sets_games', bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: null, tiebreakTo: 7, noAd: false, decidingSet: 'full', superTiebreakTo: 10 }) as ScoringProfile;
+    const [, narrowest] = winBoundsOf(3, p);
+    expect(narrowest).toEqual([{ a: 0, b: 6 }, { a: 6, b: 4 }, { a: 6, b: 4 }]);
+    expect(validateScoreSets(narrowest!, p)).toEqual([]);
+  });
+
   it('trava no maior formato real (MD5) mesmo com um bestOf malformado — sem alocar arrays proporcionais ao valor cru', () => {
     // `bestOf` chega cru do documento do Firestore (`matchBestOf` só cobre valores <= 0, caindo
     // pro padrão); nada trava o topo. Um documento malformado ou editado à mão com um número
@@ -196,15 +212,5 @@ describe('winBoundsOf', () => {
     const [widest, narrowest] = winBoundsOf(99);
     expect(widest.length).toBe(3); // setsToWin de um MD5 (ceil(5 / 2))
     expect(narrowest.length).toBe(5); // total de sets de um MD5 (3 + 2)
-  });
-});
-
-describe('winBoundsOf (esporte)', () => {
-  it('futevôlei usa alvo 18 nos sets 1-2 e 15 no decisivo; sem sport segue 21', () => {
-    const [widestFv, narrowestFv] = winBoundsOf(3, 'footvolley');
-    expect(widestFv).toEqual([{ a: 18, b: 0 }, { a: 18, b: 0 }]);
-    expect(narrowestFv[2]).toEqual({ a: 15, b: 13 });
-    const [widest] = winBoundsOf(3);
-    expect(widest).toEqual([{ a: 21, b: 0 }, { a: 21, b: 0 }]);
   });
 });

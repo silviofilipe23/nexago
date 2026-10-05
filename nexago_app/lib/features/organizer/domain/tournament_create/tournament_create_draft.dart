@@ -1,6 +1,38 @@
 import 'package:flutter/foundation.dart';
 
-enum TournamentSport { beachVolleyball, indoorVolleyball, footvolley }
+/// Na ordem do catálogo (suporte `competition`) — o teste de paridade compara
+/// com ela.
+enum TournamentSport {
+  beachVolleyball,
+  indoorVolleyball,
+  footvolley,
+  tennis,
+  beachTennis,
+}
+
+/// Perfil de placar cru da categoria (`scoringProfile` do doc) ou `null`.
+Map<String, dynamic>? scoringProfileRawOf(Object? raw) =>
+    raw is Map ? Map<String, dynamic>.from(raw) : null;
+
+/// Leitura de `sport` vinda do Firestore ou da sessão local.
+///
+/// [raw] só é preenchido quando o valor existe e o enum não o representa.
+/// É o que volta pro doc no save: esta versão do app não pode rebaixar um
+/// esporte que não conhece (spec multiesporte 2026-10-03, fase 0). Valor
+/// ausente ou vazio cai no default sem [raw], porque doc legado sem o campo
+/// não é "esporte desconhecido".
+typedef ParsedTournamentSport = ({TournamentSport sport, String? raw});
+
+ParsedTournamentSport parseTournamentSport(String? value) {
+  final trimmed = value?.trim();
+  if (trimmed == null || trimmed.isEmpty) {
+    return (sport: TournamentSport.beachVolleyball, raw: null);
+  }
+  for (final known in TournamentSport.values) {
+    if (known.name == trimmed) return (sport: known, raw: null);
+  }
+  return (sport: TournamentSport.beachVolleyball, raw: trimmed);
+}
 
 enum TournamentBracketSystem {
   groupsThenKnockout,
@@ -138,6 +170,7 @@ class TournamentCategoryDraft {
     // do organizador no wizard.
     this.bestOf = TournamentBestOf.singleSet,
     this.finalBestOf5 = true,
+    this.scoringProfileRaw,
     this.maxRegistrationsPerAthlete = 2,
     this.prizes = const [],
     this.genderFree = false,
@@ -178,6 +211,11 @@ class TournamentCategoryDraft {
 
   final TournamentBestOf bestOf;
   final bool finalBestOf5;
+
+  /// Perfil de placar da categoria (spec multiesporte), cru como está no doc.
+  /// O wizard ainda não o edita (2d2), mas precisa carregá-lo: o array
+  /// `categories` é regravado inteiro, e um campo ausente aqui é apagado.
+  final Map<String, dynamic>? scoringProfileRaw;
   final int maxRegistrationsPerAthlete;
   final List<TournamentCategoryPrizeDraft> prizes;
 
@@ -223,6 +261,7 @@ class TournamentCategoryDraft {
     int? kocRoundDurationSec,
     TournamentBestOf? bestOf,
     bool? finalBestOf5,
+    Map<String, dynamic>? scoringProfileRaw,
     int? maxRegistrationsPerAthlete,
     List<TournamentCategoryPrizeDraft>? prizes,
     bool? genderFree,
@@ -253,6 +292,7 @@ class TournamentCategoryDraft {
       kocRoundDurationSec: kocRoundDurationSec ?? this.kocRoundDurationSec,
       bestOf: bestOf ?? this.bestOf,
       finalBestOf5: finalBestOf5 ?? this.finalBestOf5,
+      scoringProfileRaw: scoringProfileRaw ?? this.scoringProfileRaw,
       maxRegistrationsPerAthlete:
           maxRegistrationsPerAthlete ?? this.maxRegistrationsPerAthlete,
       prizes: prizes ?? this.prizes,
@@ -270,6 +310,7 @@ class TournamentCreateDraft {
   const TournamentCreateDraft({
     this.tournamentId,
     this.sport = TournamentSport.beachVolleyball,
+    this.sportRaw,
     this.name = '',
     this.coverImagePath,
     this.coverImageUrl,
@@ -308,6 +349,14 @@ class TournamentCreateDraft {
 
   final String? tournamentId;
   final TournamentSport sport;
+
+  /// Valor de `sport` que o enum não representa (ver [parseTournamentSport]).
+  /// Quando presente, o seletor fica travado e é ele que vai pro Firestore.
+  final String? sportRaw;
+
+  /// O que gravar em `tournaments.sport`.
+  String get sportFirestoreValue => sportRaw ?? sport.name;
+
   final String name;
   final String? coverImagePath;
   final String? coverImageUrl;
@@ -361,6 +410,8 @@ class TournamentCreateDraft {
     String? tournamentId,
     bool clearTournamentId = false,
     TournamentSport? sport,
+    String? sportRaw,
+    bool clearSportRaw = false,
     String? name,
     String? coverImagePath,
     bool clearCoverImagePath = false,
@@ -405,6 +456,7 @@ class TournamentCreateDraft {
           ? null
           : (tournamentId ?? this.tournamentId),
       sport: sport ?? this.sport,
+      sportRaw: clearSportRaw ? null : (sportRaw ?? this.sportRaw),
       name: name ?? this.name,
       coverImagePath: clearCoverImagePath
           ? null

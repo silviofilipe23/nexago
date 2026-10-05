@@ -1,4 +1,4 @@
-import { DEFAULT_SET_POINTS, MIN_ADVANTAGE, isSetWon, matchWinnerSide, setWinnerSide, setsWon, targetPointsForSet, type MatchSport, type ScoreSet } from './match-scoring';
+import { DEFAULT_SET_POINTS, MIN_ADVANTAGE, isSetWon, matchWinnerSide, setWinnerSide, setsWon, targetPointsForSet, type ScoreSet } from './match-scoring';
 import type { MatchDisplayStatus } from './match-status';
 
 /** Porta fiel da parte PONTO A PONTO de `match_scoring_logic.dart` (mesa ao vivo I1 do app):
@@ -31,8 +31,8 @@ export interface BestOfChangeResult {
   completed: boolean;
 }
 
-function matchWinnerId(sets: readonly ScoreSet[], teamAId: string, teamBId: string, bestOf: number, sport?: MatchSport): string | null {
-  const side = matchWinnerSide(sets, bestOf, sport);
+function matchWinnerId(sets: readonly ScoreSet[], teamAId: string, teamBId: string, bestOf: number): string | null {
+  const side = matchWinnerSide(sets, bestOf);
   if (side === 'A') return teamAId;
   if (side === 'B') return teamBId;
   return null;
@@ -50,18 +50,18 @@ function matchWinnerId(sets: readonly ScoreSet[], teamAId: string, teamBId: stri
  *
  *  Mora aqui, e não em cada tela, porque as três mesas (organizador, portal do atleta e app)
  *  têm que virar o set do mesmo jeito — espelhado em `MatchScoringLogic`. */
-function servingTeamIdAfterScore(params: { sets: readonly ScoreSet[]; setIndex: number; side: 'A' | 'B'; teamAId: string; teamBId: string; bestOf: number; sport?: MatchSport }): string {
-  const { sets, setIndex, side, teamAId, teamBId, bestOf, sport } = params;
-  const setClosed = setWinnerSide(sets, setIndex, bestOf, sport) != null;
-  if (setClosed && matchWinnerSide(sets, bestOf, sport) == null) return '';
+function servingTeamIdAfterScore(params: { sets: readonly ScoreSet[]; setIndex: number; side: 'A' | 'B'; teamAId: string; teamBId: string; bestOf: number }): string {
+  const { sets, setIndex, side, teamAId, teamBId, bestOf } = params;
+  const setClosed = setWinnerSide(sets, setIndex, bestOf) != null;
+  if (setClosed && matchWinnerSide(sets, bestOf) == null) return '';
   return side === 'A' ? teamAId : teamBId;
 }
 
 /** Espelha `MatchScoringLogic.applyPoint`: soma 1 ponto ao set atual, fecha o set quando a
  *  regra permite (avança o índice se a partida continua) e devolve o vencedor quando o ponto
  *  encerra a partida. */
-export function applyPoint(params: { sets: readonly LiveSet[]; currentSetIndex: number; side: 'A' | 'B'; teamAId: string; teamBId: string; bestOf: number; sport?: MatchSport }): ApplyPointResult {
-  const { side, teamAId, teamBId, bestOf, sport } = params;
+export function applyPoint(params: { sets: readonly LiveSet[]; currentSetIndex: number; side: 'A' | 'B'; teamAId: string; teamBId: string; bestOf: number }): ApplyPointResult {
+  const { side, teamAId, teamBId, bestOf } = params;
   const idx = Math.min(Math.max(params.currentSetIndex, 0), bestOf - 1);
   const working: LiveSet[] = params.sets.map((s) => ({ ...s }));
   while (working.length <= idx) working.push({ a: 0, b: 0 });
@@ -76,15 +76,15 @@ export function applyPoint(params: { sets: readonly LiveSet[]; currentSetIndex: 
   };
 
   let nextSetIndex = idx;
-  if (isSetWon(working[idx]!.a, working[idx]!.b, targetPointsForSet(idx, bestOf, sport))) {
-    if (matchWinnerSide(working, bestOf, sport) == null && idx < bestOf - 1) nextSetIndex = idx + 1;
+  if (isSetWon(working[idx]!.a, working[idx]!.b, targetPointsForSet(idx, bestOf))) {
+    if (matchWinnerSide(working, bestOf) == null && idx < bestOf - 1) nextSetIndex = idx + 1;
   }
 
   return {
     sets: working,
     currentSetIndex: nextSetIndex,
-    winnerId: matchWinnerId(working, teamAId, teamBId, bestOf, sport),
-    servingTeamId: servingTeamIdAfterScore({ sets: working, setIndex: idx, side, teamAId, teamBId, bestOf, sport }),
+    winnerId: matchWinnerId(working, teamAId, teamBId, bestOf),
+    servingTeamId: servingTeamIdAfterScore({ sets: working, setIndex: idx, side, teamAId, teamBId, bestOf }),
   };
 }
 
@@ -92,10 +92,10 @@ export function applyPoint(params: { sets: readonly LiveSet[]; currentSetIndex: 
  *  zera e não é o primeiro, remove o set e volta o índice (desfazer o ponto que abriu o set).
  *  Devolve o saque pelo mesmo critério do ponto, avaliado no set que sobrou: desfazer o ponto
  *  que abriu um set devolve a mesa ao set anterior JÁ FECHADO, e aí a pergunta tem que voltar. */
-export function undoPoint(params: { sets: readonly LiveSet[]; currentSetIndex: number; side: 'A' | 'B'; teamAId: string; teamBId: string; bestOf: number; sport?: MatchSport }): { sets: LiveSet[]; currentSetIndex: number; servingTeamId: string } {
-  const { side, teamAId, teamBId, bestOf, sport } = params;
+export function undoPoint(params: { sets: readonly LiveSet[]; currentSetIndex: number; side: 'A' | 'B'; teamAId: string; teamBId: string; bestOf: number }): { sets: LiveSet[]; currentSetIndex: number; servingTeamId: string } {
+  const { side, teamAId, teamBId, bestOf } = params;
   const serving = (sets: readonly LiveSet[], setIndex: number): string =>
-    servingTeamIdAfterScore({ sets, setIndex, side, teamAId, teamBId, bestOf, sport });
+    servingTeamIdAfterScore({ sets, setIndex, side, teamAId, teamBId, bestOf });
 
   if (params.sets.length === 0) {
     return { sets: [...params.sets], currentSetIndex: params.currentSetIndex, servingTeamId: side === 'A' ? teamAId : teamBId };
@@ -128,36 +128,42 @@ export function canReduceBestOf(sets: readonly ScoreSet[], newBestOf: number): b
 
 /** Espelha `MatchScoringLogic.applyBestOfChange`: trunca sets excedentes ao novo formato e
  *  recalcula vencedor/índice do set atual/conclusão. */
-export function applyBestOfChange(params: { sets: readonly LiveSet[]; newBestOf: number; teamAId: string; teamBId: string; sport?: MatchSport }): BestOfChangeResult {
-  const { newBestOf, teamAId, teamBId, sport } = params;
+export function applyBestOfChange(params: { sets: readonly LiveSet[]; newBestOf: number; teamAId: string; teamBId: string }): BestOfChangeResult {
+  const { newBestOf, teamAId, teamBId } = params;
   const trimmed: LiveSet[] = params.sets.slice(0, Math.min(params.sets.length, newBestOf)).map((s) => ({ ...s }));
-  const winnerId = matchWinnerId(trimmed, teamAId, teamBId, newBestOf, sport);
+  const winnerId = matchWinnerId(trimmed, teamAId, teamBId, newBestOf);
 
   let idx = 0;
-  while (idx < trimmed.length && setWinnerSide(trimmed, idx, newBestOf, sport) != null && idx < newBestOf - 1) idx++;
+  while (idx < trimmed.length && setWinnerSide(trimmed, idx, newBestOf) != null && idx < newBestOf - 1) idx++;
 
   return { sets: trimmed, currentSetIndex: idx, winnerId, completed: winnerId != null };
 }
 
-/** Serializa o set pro doc — só inclui `startedAt`/`endedAt` quando existem (o Firestore não
- *  aceita `undefined` em campo de mapa). */
+/** Serializa o set pro doc — só inclui `tb`/`startedAt`/`endedAt` quando existem (o Firestore
+ *  não aceita `undefined` em campo de mapa). */
 export function liveSetToMap(s: LiveSet): Record<string, unknown> {
-  return { a: s.a, b: s.b, ...(s.startedAt != null ? { startedAt: s.startedAt } : {}), ...(s.endedAt != null ? { endedAt: s.endedAt } : {}) };
+  return {
+    a: s.a,
+    b: s.b,
+    ...(s.tb ? { tb: { a: s.tb.a, b: s.tb.b } } : {}),
+    ...(s.startedAt != null ? { startedAt: s.startedAt } : {}),
+    ...(s.endedAt != null ? { endedAt: s.endedAt } : {}),
+  };
 }
 
-export function setsWonOf(sets: readonly ScoreSet[], bestOf: number, sport?: MatchSport): { a: number; b: number } {
-  return setsWon(sets, bestOf, sport);
+export function setsWonOf(sets: readonly ScoreSet[], bestOf: number): { a: number; b: number } {
+  return setsWon(sets, bestOf);
 }
 
-/** "set até 21 · vantagem de 2" (futevôlei: 18) — espelha `setRulesLabel`. */
-export function setRulesLabel(setIndex: number, bestOf: number, sport?: MatchSport): string {
-  return `set até ${targetPointsForSet(setIndex, bestOf, sport)} · vantagem de ${MIN_ADVANTAGE}`;
+/** "set até 21 · vantagem de 2" — espelha `setRulesLabel`. */
+export function setRulesLabel(setIndex: number, bestOf: number): string {
+  return `set até ${targetPointsForSet(setIndex, bestOf)} · vantagem de ${MIN_ADVANTAGE}`;
 }
 
 /** Espelha `setPointHint`: "set point em 1" quando o próximo ponto fecha o set; "set point em
  *  N" (2..5) quando o líder está perto do target. `null` fora dessas janelas. */
-export function setPointHint(scoreA: number, scoreB: number, setIndex: number, bestOf: number, sport?: MatchSport): string | null {
-  const target = targetPointsForSet(setIndex, bestOf, sport);
+export function setPointHint(scoreA: number, scoreB: number, setIndex: number, bestOf: number): string | null {
+  const target = targetPointsForSet(setIndex, bestOf);
   if (isSetWon(scoreA, scoreB, target)) return null;
   if (isSetWon(scoreA + 1, scoreB, target) || isSetWon(scoreB + 1, scoreA, target)) return 'set point em 1';
   const leader = Math.max(scoreA, scoreB);

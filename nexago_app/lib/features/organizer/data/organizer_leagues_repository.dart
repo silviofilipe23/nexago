@@ -17,6 +17,7 @@ typedef PublishedLeagueForStageAdd = ({
   String leagueName,
   int plannedStagesCount,
   TournamentSport sport,
+  String? sportRaw,
   String city,
   String state,
   int defaultPriceCents,
@@ -349,7 +350,8 @@ class OrganizerLeaguesRepository {
       plannedStagesCount:
           (data['plannedStagesCount'] as num?)?.toInt() ??
           existingStages.where((s) => !s.isGrandFinal).length,
-      sport: _parseSport(data['sport'] as String?),
+      sport: parseTournamentSport(data['sport'] as String?).sport,
+      sportRaw: parseTournamentSport(data['sport'] as String?).raw,
       city: (data['city'] as String?) ?? '',
       state: (data['state'] as String?) ?? '',
       defaultPriceCents: defaultPrice,
@@ -478,13 +480,6 @@ class OrganizerLeaguesRepository {
       'status': listingStatus,
       'updatedAt': FieldValue.serverTimestamp(),
     });
-  }
-
-  TournamentSport _parseSport(String? raw) {
-    for (final value in TournamentSport.values) {
-      if (value.name == raw) return value;
-    }
-    return TournamentSport.beachVolleyball;
   }
 
   TournamentPaymentMode _parsePaymentMode(String? raw) {

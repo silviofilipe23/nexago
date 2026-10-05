@@ -2,6 +2,11 @@
 /**
  * Re-derivação da colocação do histórico pela ESTRUTURA da chave (19/08).
  *
+ * RANKING POR ESPORTE (multiesporte fase 3a): este script só mexe no legado
+ * (`tournamentCategoryResults`, `teamRankings`, `athleteRankings`). Os docs de
+ * `athleteRankingsBySport`/`teamRankingsBySport` NÃO acompanham — depois de
+ * rodá-lo, rode o callable `backfillRankingsBySport`.
+ *
  * PROBLEMA: até a escada por fase alcançada, o motor só tinha dois destinos
  * abaixo do pódio — `quarters` para qualquer eliminação de mata-mata e `groups`
  * para participação. Numa chave de 22 duplas, as 18 eliminadas (da 5ª à 22ª

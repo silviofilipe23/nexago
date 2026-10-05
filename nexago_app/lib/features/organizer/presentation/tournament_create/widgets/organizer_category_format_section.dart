@@ -25,7 +25,11 @@ class OrganizerCategoryFormatSection extends StatelessWidget {
     this.onKocTeamsPerCourtChanged,
     this.onKocQualifiersPerRoundChanged,
     this.onKocRoundDurationSecChanged,
+    this.sport = TournamentSport.beachVolleyball,
   });
+
+  /// Esporte do torneio: o KOTC só aparece em vôlei de praia.
+  final TournamentSport sport;
 
   final TournamentBracketSystem bracketSystem;
   final int teamsPerGroup;
@@ -63,7 +67,7 @@ class OrganizerCategoryFormatSection extends StatelessWidget {
           _UnsupportedFormatBanner(system: bracketSystem),
           const SizedBox(height: 12),
         ],
-        for (final system in supportedBracketSystems) ...[
+        for (final system in bracketSystemsForSport(sport)) ...[
           OrganizerRadioOptionCard(
             title: bracketSystemLabel(system),
             subtitle: bracketSystemDescription(system),

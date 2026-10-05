@@ -6,6 +6,7 @@ import 'package:nexago_app/features/tournaments/data/tournament_document_mapper.
 import 'package:nexago_app/features/tournaments/domain/registration_terms_copy.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_logic.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_substitution_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_team_roster_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_uniform_selection.dart';
 
@@ -131,4 +132,60 @@ void main() {
       ]);
     },
   );
+
+  test('individual não oferece substituir atleta (não há parceiro)', () {
+    expect(
+      substitutionReplaceableUids(
+        participantUids: const ['me'],
+        uid: 'me',
+        teamSize: 1,
+        captainUid: null,
+        partnerPending: false,
+        bracketPublished: false,
+      ),
+      isEmpty,
+    );
+  });
+
+  test('textos de pagamento da individual não citam parceiro', () {
+    final quote = buildRegistrationQuote(entryFee: 120, teamSize: 1);
+    final free = buildRegistrationQuote(entryFee: 0, teamSize: 1);
+    expect(
+      registrationDualPaymentProgressLabel(
+        quote: quote,
+        paidAmount: 0,
+        isPaid: false,
+      ),
+      isNot(contains('parceiro')),
+    );
+    expect(
+      registrationDualPaymentProgressLabel(
+        quote: free,
+        paidAmount: 0,
+        isPaid: false,
+      ),
+      'Confirme sua inscrição gratuita.',
+    );
+    expect(
+      registrationDualPaymentProgressLabel(
+        quote: quote,
+        paidAmount: 0,
+        isPaid: false,
+        isDirectOrganizerPayment: true,
+      ),
+      isNot(contains('Cada atleta')),
+    );
+    expect(
+      registrationDualPaymentProgressLabel(
+        quote: quote,
+        paidAmount: 120,
+        isPaid: true,
+      ),
+      isNot(contains('dupla')),
+    );
+    expect(
+      directOrganizerShareHint(quote, 'full'),
+      'Você está pagando a inscrição inteira.',
+    );
+  });
 }

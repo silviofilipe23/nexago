@@ -243,6 +243,7 @@ String directOrganizerShareHint(
   TournamentRegistrationQuote quote,
   String amountType,
 ) {
+  if (quote.teamSize == 1) return 'Você está pagando a inscrição inteira.';
   if (amountType == 'full') {
     return quote.isTeamCategory
         ? 'Você está pagando o valor integral da equipe. '
@@ -494,6 +495,17 @@ String registrationDualPaymentProgressLabel({
   // "confirmada" aqui adianta uma etapa que não aconteceu.
   if (directPaymentState == DirectPaymentState.waitingOrganizer) {
     return 'Pagamento informado. O organizador vai conferir o recebimento.';
+  }
+  // Individual: só o próprio atleta — nenhum texto de "cada atleta"/parceiro.
+  if (quote.teamSize == 1) {
+    if (isPaid) return 'Inscrição confirmada — você está no torneio.';
+    if (isDirectOrganizerPayment) {
+      return 'Informe o pagamento ao organizador para reservar sua vaga.';
+    }
+    if (!registrationRequiresPayment(quote)) {
+      return 'Confirme sua inscrição gratuita.';
+    }
+    return 'Aguardando o seu pagamento.';
   }
   if (isPaid) return 'Inscrição confirmada — dupla inscrita no torneio.';
   if (!registrationRequiresPayment(quote) || isDirectOrganizerPayment) {

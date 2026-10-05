@@ -51,7 +51,10 @@ export function parseCategoryRegistration(
   const partnerPending = registration.partnerPending === true;
   const participantUids = extractParticipantUids(registration, team);
   const pairKey = derivePairKey(participantUids, partnerPending, team);
-  const isComplete = isCompleteRegistration(participantUids, partnerPending, team);
+  // Individual (teamSize 1, fase 4a) já nasce completa: nenhum convite a trata como reserva
+  // solo "anexável" — nem se a categoria mudar de tamanho depois.
+  const individual = Number(registration.teamSize) === 1 || Number(team?.teamSize) === 1;
+  const isComplete = individual || isCompleteRegistration(participantUids, partnerPending, team);
   return {
     registrationId,
     participantUids,

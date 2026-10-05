@@ -11,20 +11,22 @@ export interface SportCatalogEntry {
   readonly label: string;
   readonly art: string | null;
   readonly support: SportSupport;
+  /** Tamanhos de equipe que o wizard oferece (1 = individual); `null` em esporte só de perfil. */
+  readonly allowedTeamSizes: readonly number[] | null;
   readonly scoringProfile: ScoringProfile | null;
 }
 
 export const SPORT_CATALOG: readonly SportCatalogEntry[] = [
-  {code: "beachVolleyball", profileCode: "VOLEI_PRAIA", appId: "beach_volleyball", label: "Vôlei de praia", art: "volei_praia", support: "competition", scoringProfile: {"kind":"sets_points","bestOf":3,"setTarget":21,"decidingSetTarget":15,"winBy":2,"pointCap":null}},
-  {code: "indoorVolleyball", profileCode: "VOLEI_QUADRA", appId: "indoor_volleyball", label: "Vôlei de quadra", art: "volei_quadra", support: "competition", scoringProfile: {"kind":"sets_points","bestOf":3,"setTarget":25,"decidingSetTarget":15,"winBy":2,"pointCap":null}},
-  {code: "footvolley", profileCode: "FUTEVOLEI", appId: "footvolley", label: "Futevôlei", art: "futevolei", support: "competition", scoringProfile: {"kind":"sets_points","bestOf":3,"setTarget":18,"decidingSetTarget":15,"winBy":2,"pointCap":null}},
-  {code: "football", profileCode: "FUTEBOL", appId: "football", label: "Futebol", art: "futebol", support: "profile", scoringProfile: null},
-  {code: "basketball", profileCode: "BASQUETE", appId: "basketball", label: "Basquete", art: "basquete", support: "profile", scoringProfile: null},
-  {code: "tennis", profileCode: "TENIS", appId: "tennis", label: "Tênis", art: "tenis", support: "competition", scoringProfile: {"kind":"sets_games","bestOf":3,"gamesPerSet":6,"winByGames":2,"tiebreakAtGames":6,"tiebreakTo":7,"noAd":false,"decidingSet":"full","superTiebreakTo":10}},
-  {code: "beachTennis", profileCode: "BEACH_TENNIS", appId: "beach_tennis", label: "Beach tennis", art: "beach_tennis", support: "competition", scoringProfile: {"kind":"sets_games","bestOf":3,"gamesPerSet":6,"winByGames":2,"tiebreakAtGames":6,"tiebreakTo":7,"noAd":true,"decidingSet":"super_tiebreak","superTiebreakTo":10}},
-  {code: "running", profileCode: "CORRIDA", appId: "running", label: "Corrida", art: "corrida", support: "profile", scoringProfile: null},
-  {code: "padel", profileCode: "PADEL", appId: "padel", label: "Padel", art: null, support: "profile", scoringProfile: {"kind":"sets_games","bestOf":3,"gamesPerSet":6,"winByGames":2,"tiebreakAtGames":6,"tiebreakTo":7,"noAd":true,"decidingSet":"full","superTiebreakTo":10}},
-  {code: "other", profileCode: "OUTROS", appId: "other", label: "Outros", art: null, support: "profile", scoringProfile: null},
+  {code: "beachVolleyball", profileCode: "VOLEI_PRAIA", appId: "beach_volleyball", label: "Vôlei de praia", art: "volei_praia", support: "competition", allowedTeamSizes: [2,3,4,5], scoringProfile: {"kind":"sets_points","bestOf":3,"setTarget":21,"decidingSetTarget":15,"winBy":2,"pointCap":null}},
+  {code: "indoorVolleyball", profileCode: "VOLEI_QUADRA", appId: "indoor_volleyball", label: "Vôlei de quadra", art: "volei_quadra", support: "competition", allowedTeamSizes: [2,3,4,5], scoringProfile: {"kind":"sets_points","bestOf":3,"setTarget":25,"decidingSetTarget":15,"winBy":2,"pointCap":null}},
+  {code: "footvolley", profileCode: "FUTEVOLEI", appId: "footvolley", label: "Futevôlei", art: "futevolei", support: "competition", allowedTeamSizes: [2,3,4,5], scoringProfile: {"kind":"sets_points","bestOf":3,"setTarget":18,"decidingSetTarget":15,"winBy":2,"pointCap":null}},
+  {code: "football", profileCode: "FUTEBOL", appId: "football", label: "Futebol", art: "futebol", support: "profile", allowedTeamSizes: null, scoringProfile: null},
+  {code: "basketball", profileCode: "BASQUETE", appId: "basketball", label: "Basquete", art: "basquete", support: "profile", allowedTeamSizes: null, scoringProfile: null},
+  {code: "tennis", profileCode: "TENIS", appId: "tennis", label: "Tênis", art: "tenis", support: "competition", allowedTeamSizes: [1,2], scoringProfile: {"kind":"sets_games","bestOf":3,"gamesPerSet":6,"winByGames":2,"tiebreakAtGames":6,"tiebreakTo":7,"noAd":false,"decidingSet":"full","superTiebreakTo":10}},
+  {code: "beachTennis", profileCode: "BEACH_TENNIS", appId: "beach_tennis", label: "Beach tennis", art: "beach_tennis", support: "competition", allowedTeamSizes: [2,3,4,5], scoringProfile: {"kind":"sets_games","bestOf":3,"gamesPerSet":6,"winByGames":2,"tiebreakAtGames":6,"tiebreakTo":7,"noAd":true,"decidingSet":"super_tiebreak","superTiebreakTo":10}},
+  {code: "running", profileCode: "CORRIDA", appId: "running", label: "Corrida", art: "corrida", support: "profile", allowedTeamSizes: null, scoringProfile: null},
+  {code: "padel", profileCode: "PADEL", appId: "padel", label: "Padel", art: null, support: "profile", allowedTeamSizes: null, scoringProfile: {"kind":"sets_games","bestOf":3,"gamesPerSet":6,"winByGames":2,"tiebreakAtGames":6,"tiebreakTo":7,"noAd":true,"decidingSet":"full","superTiebreakTo":10}},
+  {code: "other", profileCode: "OUTROS", appId: "other", label: "Outros", art: null, support: "profile", allowedTeamSizes: null, scoringProfile: null},
 ];
 
 /** Chave normalizada (`normalizeSportKey`) → `code`. */

@@ -105,3 +105,19 @@ describe("tournament-pair-uniqueness", () => {
     assert.match(registrationConflictMessage("bothPaid"), /Fale com o organizador/);
   });
 });
+
+describe("inscrição individual nunca é anexável (fase 4b1)", () => {
+  it("teamSize 1 na inscrição ou na equipe = completa, mesmo com 1 atleta", () => {
+    const fromReg = parseCategoryRegistration("r1", {
+      teamId: "t1", teamSize: 1, partnerPending: false, participantUids: ["a"], player1Id: "a",
+    }, {player1Id: "a", player2Id: "", memberUids: ["a"]});
+    assert.equal(fromReg.isComplete, true);
+    const fromTeam = parseCategoryRegistration("r2", {
+      teamId: "t2", partnerPending: false, participantUids: ["a"],
+    }, {player1Id: "a", player2Id: "", memberUids: ["a"], teamSize: 1});
+    assert.equal(fromTeam.isComplete, true);
+    // Reserva solo de dupla continua incompleta (é o que o convite anexa).
+    const solo = parseCategoryRegistration("r3", {partnerPending: true, participantUids: ["a"], player1Id: "a"});
+    assert.equal(solo.isComplete, false);
+  });
+});

@@ -1,3 +1,4 @@
+import { parseTeamSizeField } from './team-size';
 import {
   collection,
   doc,
@@ -111,7 +112,8 @@ export function categoryFromRaw(raw: unknown): OrganizerTournamentCategory | nul
     gender: categoryGenderFromRaw(o['genderType'] ?? o['gender']),
     maxTeams: numberOf(o['maxTeams']) ?? numberOf(o['spotsTotal']),
     entryFee: numberOf(o['entryFee']) ?? 0,
-    teamSize: teamSizeRaw != null && teamSizeRaw >= 3 && teamSizeRaw <= 5 ? teamSizeRaw : null,
+    // 1 = individual, 3–5 = equipe nomeada, resto = dupla (null).
+    teamSize: parseTeamSizeField(teamSizeRaw),
     bracketFormat: optionalStr(o['bracketFormat']),
     teamsPerGroup: numberOf(o['teamsPerGroup']) ?? 4,
     qualifiersPerGroup: numberOf(o['qualifiersPerGroup']) ?? 2,

@@ -1,3 +1,4 @@
+import { participantUnit } from '../data/team-size';
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LEVEL_OPTIONS, tournamentSportToLevelSportCode } from '@nexago/levels';
@@ -473,7 +474,7 @@ export class CategoriaDetalheComponent {
   protected readonly formatLabel = computed(() => categoryFormatLabel(this.category()?.bracketFormat));
 
   /** "Duplas" ou "Equipes" (trio+) — segue o `teamSize` da categoria. */
-  protected readonly unitLabel = computed(() => (this.category()?.teamSize != null ? 'Equipes' : 'Duplas'));
+  protected readonly unitLabel = computed(() => participantUnit(this.category()?.teamSize, { plural: true, capitalized: true }));
 
   protected readonly headerSubtitle = computed(() => {
     const cat = this.category();

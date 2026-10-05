@@ -349,6 +349,43 @@ export const DISPUTE_TEAM_SIZE: Record<CategoryDispute, number> = {
 /** Formatos oferecidos no builder (individual/`team` legado ficam de fora). */
 export const DISPUTE_OPTIONS: readonly CategoryDispute[] = ['dupla', 'trio', 'quarteto', 'quinteto'];
 
+const DISPUTE_BY_SIZE: Record<number, CategoryDispute> = {
+  1: 'individual',
+  2: 'dupla',
+  3: 'trio',
+  4: 'quarteto',
+  5: 'quinteto',
+};
+
+/** Tipos de disputa que o wizard oferece para o esporte (`allowedTeamSizes` do catálogo;
+ *  esporte sem a lista cai nas opções históricas). Individual só onde o esporte aceita. */
+export function disputeOptionsForSport(sport: TournamentSport): CategoryDispute[] {
+  const sizes = SPORT_CATALOG.find((e) => e.code === sport)?.allowedTeamSizes;
+  if (!sizes?.length) return [...DISPUTE_OPTIONS];
+  return sizes.map((n) => DISPUTE_BY_SIZE[n]).filter((d): d is CategoryDispute => d != null);
+}
+
+/** Troca de esporte: categoria com tipo que o novo esporte não aceita vira dupla (ou o 1º
+ *  tipo aceito); "Livre" só existe em equipe. Tipo aceito fica como está, e categoria travada
+ *  (`lockedIds` — já publicada, com inscrições no tipo dela) nunca muda. */
+export function withSportDisputes(
+  categories: readonly TournamentCategoryDraft[],
+  sport: TournamentSport,
+  lockedIds: ReadonlySet<string> = new Set(),
+): TournamentCategoryDraft[] {
+  const allowed = disputeOptionsForSport(sport);
+  return categories.map((c) => {
+    if (lockedIds.has(c.id) || allowed.includes(c.dispute)) return c;
+    const dispute = allowed.includes('dupla') ? 'dupla' : allowed[0]!;
+    return normalizeCategoryComposition({ ...c, dispute, genderFree: isTeamDispute(dispute) ? c.genderFree : false });
+  });
+}
+
+/** Passo das vagas no stepper: dupla anda de 2 em 2 (histórico); individual e equipe, de 1 em 1. */
+export function disputeSpotsStep(dispute: CategoryDispute): number {
+  return dispute === 'dupla' || dispute === 'team' ? 2 : 1;
+}
+
 /** Categoria de equipe nomeada (trio+) — dupla segue o fluxo clássico. */
 export function isTeamDispute(dispute: CategoryDispute): boolean {
   return DISPUTE_TEAM_SIZE[dispute] >= 3;

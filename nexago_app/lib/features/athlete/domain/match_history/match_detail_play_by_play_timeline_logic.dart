@@ -84,7 +84,7 @@ PlayByPlaySetTimeline buildPlayByPlaySetTimeline({
           detail: detail,
           finalScoreLabel: group.finalScoreLabel,
         ),
-        finalScore: _displayScore(group.finalScoreLabel),
+        finalScore: _displayScore(group.finalScoreLabel, isGames: group.isGames),
         maxStreak: 0,
         comebackCount: 0,
         tieCount: 0,
@@ -100,7 +100,7 @@ PlayByPlaySetTimeline buildPlayByPlaySetTimeline({
       blocks: const [],
       summary: PlayByPlaySetSummary(
         closerLabel: '—',
-        finalScore: _displayScore(group.finalScoreLabel),
+        finalScore: _displayScore(group.finalScoreLabel, isGames: group.isGames),
         maxStreak: 0,
         comebackCount: 0,
         tieCount: 0,
@@ -146,11 +146,11 @@ PlayByPlaySetTimeline buildPlayByPlaySetTimeline({
     blocks: blocks,
     unrecordedPointsCount: unrecordedPointsCount,
     lastRecordedScoreLabel: unrecordedPointsCount > 0
-        ? _displayScore(lastRecorded.scoreLabel)
+        ? _displayScore(lastRecorded.scoreLabel, isGames: lastRecorded.isGames)
         : null,
     summary: PlayByPlaySetSummary(
       closerLabel: closerLabel,
-      finalScore: _displayScore(group.finalScoreLabel),
+      finalScore: _displayScore(group.finalScoreLabel, isGames: group.isGames),
       maxStreak: maxStreak,
       comebackCount: comebackCount,
       tieCount: tieCount,
@@ -237,7 +237,10 @@ List<_RawStreakBlock> _buildStreakBlocks(
           : _parseScore(streakItems[j - 1].scoreLabel);
 
       PlayByPlayPointAnnotation? annotation;
-      if (score.our == score.opp) {
+      if (item.isGames) {
+        // Games: o placar do set são games — empate/virada de pontos não se
+        // aplicam (mesma decisão do portal).
+      } else if (score.our == score.opp) {
         annotation = PlayByPlayPointAnnotation.empate;
       } else if (_tookLead(
         before: prevScore,
@@ -249,7 +252,7 @@ List<_RawStreakBlock> _buildStreakBlocks(
 
       points.add(
         PlayByPlayPointRow(
-          scoreLabel: _displayScore(item.scoreLabel),
+          scoreLabel: _displayScore(item.scoreLabel, isGames: item.isGames),
           annotation: annotation,
         ),
       );
@@ -270,8 +273,17 @@ List<_RawStreakBlock> _buildStreakBlocks(
   return blocks;
 }
 
-({int our, int opp}) _parseScore(String raw) {
-  final normalized = raw.replaceAll('—', '-').replaceAll('–', '-');
+({int our, int opp}) _parseScore(String raw) =>
+    parsePlayByPlayScore(raw);
+
+/// O placar "x-y" no início de um rótulo do ponto a ponto: "21-15" → (21, 15);
+/// em games, "7-6 (7-3)" e "4-3 · 30-15" → os games (7, 6) e (4, 3).
+({int our, int opp}) parsePlayByPlayScore(String raw) {
+  final normalized = raw
+      .replaceAll('—', '-')
+      .replaceAll('–', '-')
+      .split(RegExp(r'[ ·(]'))
+      .first;
   final parts = normalized.split('-').map((p) => p.trim()).toList();
   if (parts.length != 2) return (our: 0, opp: 0);
   return (our: int.tryParse(parts[0]) ?? 0, opp: int.tryParse(parts[1]) ?? 0);
@@ -298,7 +310,9 @@ bool _tookLead({
   return after.opp > after.our && before.opp <= before.our;
 }
 
-String _displayScore(String raw) {
+String _displayScore(String raw, {bool isGames = false}) {
+  // Games: o rótulo já vem pronto ("4-3 · AD-40", "7-6 (7-3)").
+  if (isGames) return raw;
   final score = _parseScore(raw);
   return '${score.our} – ${score.opp}';
 }

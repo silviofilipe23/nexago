@@ -6,6 +6,8 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../domain/match_history/athlete_match_detail_models.dart';
+import '../../../domain/match_history/match_detail_play_by_play_timeline_logic.dart'
+    show parsePlayByPlayScore;
 import 'match_detail_section_header.dart';
 
 class MatchDetailPlayByPlaySection extends StatelessWidget {
@@ -140,7 +142,13 @@ class MatchDetailPlayByPlaySection extends StatelessWidget {
       final recorded = group.items.where((i) => !i.isEstimated).toList();
       if (recorded.isEmpty) continue;
       final closing = recorded.last;
-      if (closing.scoreLabel != group.finalScoreLabel) continue;
+      // Games: o placar final vem por extenso ("7-6 (7-3)") e o lance que
+      // fechou, só com os games ("7-6") — compara o placar, não o texto.
+      final closesSet = group.isGames
+          ? parsePlayByPlayScore(closing.scoreLabel) ==
+                parsePlayByPlayScore(group.finalScoreLabel)
+          : closing.scoreLabel == group.finalScoreLabel;
+      if (!closesSet) continue;
       if (closing.scoreLabel == item.scoreLabel && closing.time == item.time) {
         return true;
       }

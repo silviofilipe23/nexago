@@ -93,5 +93,15 @@
     {"profile": "bt3", "index": 2, "set": {"a": 0, "b": 1, "tb": {"a": 6, "b": 10}}, "text": "6-10"},
     {"profile": "bt3", "index": 2, "set": {"a": 1, "b": 0}, "text": "1-0"},
     {"profile": "tennis3", "index": 2, "set": {"a": 7, "b": 6, "tb": {"a": 7, "b": 3}}, "text": "7-6 (7-3)"}
+  ],
+  "eventTextVectors": [
+    {"profile": "bt3", "setIndex": 0, "set": {"a": 0, "b": 0}, "game": {"a": 1, "b": 0}, "text": "0-0 · 15-0"},
+    {"profile": "tennis3", "setIndex": 0, "set": {"a": 3, "b": 2}, "game": {"a": 3, "b": 3}, "text": "3-2 · 40-40"},
+    {"profile": "tennis3", "setIndex": 1, "set": {"a": 4, "b": 3}, "game": {"a": 4, "b": 3}, "text": "4-3 · AD-40"},
+    {"profile": "bt3", "setIndex": 0, "set": {"a": 5, "b": 4}, "game": {"a": 0, "b": 0}, "text": "5-4"},
+    {"profile": "bt3", "setIndex": 0, "set": {"a": 6, "b": 6}, "game": {"a": 4, "b": 2}, "text": "6-6 · 4-2"},
+    {"profile": "bt3", "setIndex": 2, "set": {"a": 0, "b": 0}, "game": {"a": 7, "b": 5}, "text": "7-5"},
+    {"profile": "bt3", "setIndex": 2, "set": {"a": 1, "b": 0}, "game": {"a": 0, "b": 0}, "text": "1-0"},
+    {"profile": "bt3", "setIndex": 1, "set": {"a": 2, "b": 1}, "game": {"a": 3, "b": 3}, "text": "2-1 · 40-40"}
   ]
 }

@@ -160,3 +160,18 @@ export function gamesFlag(state: GamesLiveState, profile: SetsGamesProfile, team
   if (closed === 'set') return 'set';
   return null;
 }
+
+/** Texto de um lance de games no ponto a ponto, a partir do que o evento grava (games do set e
+ *  ponto do game DEPOIS do lance): "4-3 · 30-15"; game fechado (ponto 0-0) → só os games
+ *  ("5-4"); super tie-break → só os pontos dele ("7-5"). */
+export function gamesEventText(profile: SetsGamesProfile, setIndex: number, set: { a: number; b: number }, game: GamePoints): string {
+  const idx = clampSetIndex(setIndex, profile.bestOf);
+  if (game.a === 0 && game.b === 0) return `${set.a}-${set.b}`;
+  if (isSuperTiebreakSet(profile, idx)) return `${game.a}-${game.b}`;
+  const sets: ScoreSet[] = [];
+  for (let i = 0; i < idx; i++) sets.push({ a: 0, b: 0 });
+  sets.push({ a: set.a, b: set.b });
+  const labels = gamesPointLabels({ sets, currentSetIndex: idx, currentGame: game, servingTeamId: '' }, profile);
+  return `${set.a}-${set.b} · ${labels.a}-${labels.b}`;
+}
+

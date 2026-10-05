@@ -4,6 +4,7 @@ import {Timestamp} from "firebase-admin/firestore";
 import {FakeFirestore, type DocData} from "./fake-firestore.test-helper";
 import {
   aggregateRankingResults,
+  athleteRankingsBySportPath,
   athleteRankingsPath,
   bracketSizeFactor,
   DEFAULT_GLOBAL_POINTS,
@@ -11,6 +12,7 @@ import {
   globalPointsForAward,
   isGlobalRankingEligible,
   RANKING_SCALE_VERSION,
+  teamRankingsBySportPath,
   teamRankingsPath,
   tournamentCategoryResultsPath,
   tryAwardGlobalRankingForMatch,
@@ -107,10 +109,10 @@ describe("upsertRankingResult", () => {
 
 // ─── Fluxo completo com Firestore fake ───────────────────────────────────────
 
-function seededDb(opts: {paidTeams?: number} = {}): FakeFirestore {
+function seededDb(opts: {paidTeams?: number; sport?: string} = {}): FakeFirestore {
   const paidTeams = opts.paidTeams ?? 10;
   const db = new FakeFirestore();
-  db.seedDoc("tournaments/T1", {sport: "beachVolleyball"});
+  db.seedDoc("tournaments/T1", {sport: opts.sport ?? "beachVolleyball"});
   db.seedDoc(`artifacts/${PROJECT}/public/data/teams/tA`, {player1Id: "a1", player2Id: "a2"});
   db.seedDoc(`artifacts/${PROJECT}/public/data/teams/tB`, {player1Id: "b1", player2Id: "b2"});
   // A final em `matches` marca tA/tB como times de mata-mata (o bucket "groups"
@@ -144,6 +146,88 @@ function finalMatch(overrides: DocData = {}): DocData {
     ...overrides,
   };
 }
+
+describe("ranking por esporte (fase 3a)", () => {
+  it("vôlei de praia: legado igual a hoje e doc por esporte com o mesmo total", async () => {
+    const db = seededDb();
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    const result = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`)!;
+    assert.equal(result.sport, "VOLEI_PRAIA");
+    assert.equal(db.store.get(`${teamRankingsPath(PROJECT)}/tA`)!.totalPoints, 1000);
+    const bySport = db.store.get(`${teamRankingsBySportPath(PROJECT)}/tA_VOLEI_PRAIA`)!;
+    assert.equal(bySport.totalPoints, 1000);
+    assert.equal(bySport.teamId, "tA");
+    assert.equal(bySport.sport, "VOLEI_PRAIA");
+    const athlete = db.store.get(`${athleteRankingsBySportPath(PROJECT)}/a1_VOLEI_PRAIA`)!;
+    assert.equal(athlete.totalPoints, 1000);
+    assert.equal(athlete.athleteId, "a1");
+    assert.equal((athlete.results as Array<{sport?: string}>)[0]!.sport, "VOLEI_PRAIA");
+  });
+
+  it("beach tennis: nada no legado, só no doc do esporte", async () => {
+    const db = seededDb({sport: "beachTennis"});
+    const r = await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    assert.equal(r.awarded, true);
+    assert.equal(db.store.get(`${teamRankingsPath(PROJECT)}/tA`), undefined);
+    assert.equal(db.store.get(`${athleteRankingsPath(PROJECT)}/a1`), undefined);
+    assert.equal(db.store.get(`${teamRankingsBySportPath(PROJECT)}/tA_BEACH_TENNIS`)!.totalPoints, 1000);
+    // O app da loja e o portal montam o ranking da temporada direto de
+    // `tournamentCategoryResults` (só por ano): esporte novo não entra ali.
+    assert.equal(
+      [...db.store.keys()].some((k) => k.startsWith(tournamentCategoryResultsPath(PROJECT))),
+      false,
+    );
+    const rerun = await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    assert.equal(rerun.teamsUpdated, 0);
+    assert.equal((db.store.get(`${teamRankingsBySportPath(PROJECT)}/tA_BEACH_TENNIS`)!.results as unknown[]).length, 1);
+  });
+
+  it("carimbar sport em resultado antigo preserva ano/data e não reescreve o legado", async () => {
+    const db = seededDb();
+    const completedAt = Timestamp.fromDate(new Date("2025-12-20T18:00:00Z"));
+    db.seedDoc(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`, {
+      tournamentId: "T1", categoryId: "C1", teamId: "tA", finalPlace: 1, pointsEarned: 1000,
+      year: 2025, completedAt, scaleVersion: 2,
+    });
+    const legacyRow = {tournamentId: "T1", categoryId: "C1", finalPlace: 1, points: 1000, year: 2025};
+    db.seedDoc(`${teamRankingsPath(PROJECT)}/tA`, {
+      teamId: "tA", results: [legacyRow], totalPoints: 1000, tournamentsCount: 1,
+      pointsByYear: {"2025": 1000}, scaleVersion: 2, lastUpdated: "antes",
+    });
+    const legacyBefore = JSON.stringify(db.store.get(`${teamRankingsPath(PROJECT)}/tA`));
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    const result = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`)!;
+    assert.equal(result.sport, "VOLEI_PRAIA");
+    assert.equal(result.year, 2025);
+    assert.equal((result.completedAt as Timestamp).toMillis(), completedAt.toMillis());
+    assert.equal(JSON.stringify(db.store.get(`${teamRankingsPath(PROJECT)}/tA`)), legacyBefore);
+    assert.deepEqual(
+      db.store.get(`${teamRankingsBySportPath(PROJECT)}/tA_VOLEI_PRAIA`)!.pointsByYear,
+      {"2025": 1000},
+    );
+  });
+
+  it("re-run idempotente nas duas coleções; resultado antigo sem sport ganha o campo", async () => {
+    const db = seededDb();
+    db.seedDoc(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`, {
+      tournamentId: "T1", categoryId: "C1", teamId: "tA", finalPlace: 1, pointsEarned: 1000, year: 2026, scaleVersion: 2,
+    });
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    assert.equal(db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`)!.sport, "VOLEI_PRAIA");
+    const rerun = await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    assert.equal(rerun.teamsUpdated, 0);
+    assert.equal((db.store.get(`${teamRankingsBySportPath(PROJECT)}/tA_VOLEI_PRAIA`)!.results as unknown[]).length, 1);
+    // Como antes da fase 3a: resultado igual não reescreve o legado (só ganha o carimbo).
+    assert.equal(db.store.get(`${teamRankingsPath(PROJECT)}/tA`), undefined);
+  });
+
+  it("esporte não reconhecido: só o legado, como sempre", async () => {
+    const db = seededDb({sport: "xadrez"});
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    assert.equal(db.store.get(`${teamRankingsPath(PROJECT)}/tA`)!.totalPoints, 1000);
+    assert.equal([...db.store.keys()].some((k) => k.includes("RankingsBySport")), false);
+  });
+});
 
 describe("tryAwardGlobalRankingForMatch", () => {
   it("final concede 1º/2º e alimenta resultados + agregados (sem leagueId)", async () => {

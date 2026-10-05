@@ -10,11 +10,26 @@ import {levelRank} from "./category-level-eligibility";
  */
 
 /**
- * Esportes com escada de rating no v1 (beach tennis/futevôlei adiados — sem
- * volume de torneios ainda). Gate explícito da engine: ter código de esporte
- * no perfil NÃO significa ser rateado.
+ * Esportes que já rateavam antes da fase 3a: doc de config ausente = ligado
+ * (o kill switch é `flags.ratingEnabled: false`). Qualquer outro esporte só
+ * rateia com `ratingLadders/{code}` próprio e `flags.ratingEnabled: true`
+ * explícito — ver [loadRatingLadderConfig] e [sportHasRatingLadder]. Ter código
+ * de esporte no perfil NÃO significa ser rateado.
  */
 export const RATED_SPORT_CODES = ["VOLEI_PRAIA", "VOLEI_QUADRA"] as const;
+
+function isLegacyRatedSport(sportCode: string): boolean {
+  return (RATED_SPORT_CODES as readonly string[]).includes(sportCode);
+}
+
+/**
+ * O esporte tem escada de rating (doc de rating por atleta, realinhamento de
+ * nível)? Os legados sempre têm — a flag deles é kill switch, não existência;
+ * os demais só quando o doc próprio liga o rating.
+ */
+export function sportHasRatingLadder(config: RatingLadderConfig): boolean {
+  return isLegacyRatedSport(config.sportCode) || config.flags.ratingEnabled;
+}
 
 export interface RatingLadderLevel {
   code: string;
@@ -200,7 +215,10 @@ export function parseLadderConfig(
       ),
     },
     flags: {
-      ratingEnabled: booleanOr(flagsRaw.ratingEnabled, defaults.flags.ratingEnabled),
+      // Esporte novo: só `true` explícito liga (o default hardcoded é dos legados).
+      ratingEnabled: isLegacyRatedSport(sportCode)
+        ? booleanOr(flagsRaw.ratingEnabled, defaults.flags.ratingEnabled)
+        : flagsRaw.ratingEnabled === true,
       shadowMode: booleanOr(flagsRaw.shadowMode, defaults.flags.shadowMode),
       notificationsEnabled: booleanOr(
         flagsRaw.notificationsEnabled,
@@ -221,17 +239,20 @@ export function parseLadderConfig(
 
 /**
  * Carrega `ratingLadders/{sportCode}` (fallback: `ratingLadders/default`,
- * depois defaults hardcoded). Nunca lança por doc ausente/malformado.
+ * depois defaults hardcoded). Nunca lança por doc ausente/malformado. O
+ * fallback não liga esporte novo: sem doc próprio, `ratingEnabled` dele é false.
  */
 export async function loadRatingLadderConfig(
   db: Firestore,
   sportCode: string,
 ): Promise<RatingLadderConfig> {
   let data: Record<string, unknown> | undefined;
+  let ownDoc = false;
   try {
     const snap = await db.doc(`ratingLadders/${sportCode}`).get();
     if (snap.exists) {
       data = snap.data();
+      ownDoc = true;
     } else {
       const fallback = await db.doc("ratingLadders/default").get();
       if (fallback.exists) data = fallback.data();
@@ -239,7 +260,18 @@ export async function loadRatingLadderConfig(
   } catch {
     data = undefined;
   }
-  return parseLadderConfig(sportCode, data);
+  const config = parseLadderConfig(sportCode, data);
+  if (!ownDoc && !isLegacyRatedSport(sportCode)) config.flags.ratingEnabled = false;
+  return config;
+}
+
+/** Config do esporte quando ele tem escada de rating ([sportHasRatingLadder]); senão null. */
+export async function loadRatedSportConfig(
+  db: Firestore,
+  sportCode: string,
+): Promise<RatingLadderConfig | null> {
+  const config = await loadRatingLadderConfig(db, sportCode);
+  return sportHasRatingLadder(config) ? config : null;
 }
 
 /** Nível da escada pelo código exato (novo) ou por aliasing de rank (legado). */

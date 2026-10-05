@@ -2604,6 +2604,17 @@ service cloud.firestore {
       allow create, update, delete: if request.auth != null && isAdmin();
     }
 
+    // Ranking geral por esporte (multiesporte fase 3a): docs `{id}_{profileCode}`
+    // escritos só pelas functions (Admin SDK). Leitura pública como o legado.
+    match /artifacts/{appId}/public/data/athleteRankingsBySport/{docId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && isAdmin();
+    }
+    match /artifacts/{appId}/public/data/teamRankingsBySport/{docId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && isAdmin();
+    }
+
     // ── Engine de rating (Glicko-2) e escada de níveis ───────────────────
     // Config da escada por esporte (bandas, flags de rollout). Escrita só
     // pelo backoffice/admin; a engine lê via Admin SDK.

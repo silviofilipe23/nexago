@@ -395,6 +395,23 @@ Docs por esporte, `sport` nas entradas, dupla escrita, backfill, filtro de espor
 Ranking (app e portal), gate de rating por flag. Tênis e padel sobem para `competition`.
 Saída: ranking de beach tennis separado do de vôlei; rating ligável por config.
 
+**Emenda de 04/10/2026 (fase 3), depois do inventário:**
+- **Docs por esporte em coleções novas**, `athleteRankingsBySport/{athleteId}_{profileCode}` e
+  `teamRankingsBySport/{teamId}_{profileCode}`. Na coleção legada, o app da loja (que lê a
+  coleção inteira e usa o `doc.id` como atleta) mostraria um atleta fantasma por doc, e o
+  script de limpeza de dados de teste os apagaria.
+- **Legado:** continua recebendo só os esportes que já pontuavam (vôlei de praia, de quadra,
+  futevôlei e esporte não reconhecido); beach tennis vai só para o doc do esporte. Isso
+  inclui `tournamentCategoryResults`: o app da loja e o portal montam o ranking da temporada
+  direto dela (filtrando só por ano), então resultado de esporte novo fica só no `results[]`
+  do doc por esporte até a 3b decidir uma coleção própria.
+- **Rating:** inverter o default (ausente = desligado) arriscaria desligar o vôlei em ambiente
+  sem o doc. Vôlei de praia e de quadra seguem como hoje; esporte novo só rateia com
+  `ratingLadders/{code}` próprio e `flags.ratingEnabled: true` (o doc `default` não liga).
+- A fase sai em três: **3a** servidor (docs por esporte, `sport` nos resultados, backfill com
+  `dryRun`, rating por config); **3b** telas (filtro de esporte na aba Ranking, app e portais);
+  **3c** tênis e padel em `competition`.
+
 **Fase 4: equipe por tamanho.**
 Piso 1 em `teamSize`, inscrição individual, `participantNoun`, slots de saque por tamanho,
 tempo médico por slot, confronto direto por `memberUids`, capa de equipe pelo esporte do torneio.

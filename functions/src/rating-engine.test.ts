@@ -2,7 +2,12 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {Timestamp} from "firebase-admin/firestore";
 import {updateRating} from "./glicko";
-import {parseLadderConfig} from "./rating-config";
+import {
+  loadRatedSportConfig,
+  loadRatingLadderConfig,
+  parseLadderConfig,
+  sportHasRatingLadder,
+} from "./rating-config";
 import {
   applyMatchRatingUpdate,
   athleteRatingDocId,
@@ -285,5 +290,59 @@ describe("applyMatchRatingUpdate", () => {
     const b1 = ratingDocOf(db, "b1")!;
     assert.ok((b1.rating as number) > 1600);
     assert.equal(b1.wins, 1);
+  });
+});
+
+// ─── Fase 3a: rating ligado por configuração ────────────────────────────────
+
+describe("rating por configuração (fase 3a)", () => {
+  function sportDocOf(db: FakeFirestore, uid: string, sportCode: string): DocData | undefined {
+    return db.store.get(`${athleteRatingsPath(PROJECT)}/${athleteRatingDocId(uid, sportCode)}`);
+  }
+
+  it("vôlei de praia sem doc de config rateia como hoje", async () => {
+    const config = await loadRatingLadderConfig(new FakeFirestore() as never, "VOLEI_PRAIA");
+    assert.equal(config.flags.ratingEnabled, true);
+    assert.equal(sportHasRatingLadder(config), true);
+  });
+
+  it("futevôlei sem doc próprio não rateia, nem com o default ligado", async () => {
+    const db = seededDb();
+    db.seedDoc("tournaments/T1", {sport: "footvolley"});
+    db.seedDoc("ratingLadders/default", {flags: {ratingEnabled: true}});
+    const config = await loadRatingLadderConfig(db as never, "FUTEVOLEI");
+    assert.equal(config.flags.ratingEnabled, false);
+    assert.equal(sportHasRatingLadder(config), false);
+    const result = await applyMatchRatingUpdate(db as never, PROJECT, {matchId: "m1", match: match()});
+    assert.equal(result.reason, "sport_not_rated");
+  });
+
+  it("loadRatedSportConfig: config só de esporte com escada (vôlei sempre; novo só ligado)", async () => {
+    const db = new FakeFirestore();
+    db.seedDoc("ratingLadders/VOLEI_QUADRA", {flags: {ratingEnabled: false}});
+    db.seedDoc("ratingLadders/FUTEVOLEI", {flags: {ratingEnabled: true}});
+    assert.equal((await loadRatedSportConfig(db as never, "VOLEI_PRAIA"))?.sportCode, "VOLEI_PRAIA");
+    // Kill switch desliga a engine, mas o esporte continua tendo escada (realinha nível).
+    assert.equal((await loadRatedSportConfig(db as never, "VOLEI_QUADRA"))?.sportCode, "VOLEI_QUADRA");
+    assert.equal((await loadRatedSportConfig(db as never, "FUTEVOLEI"))?.sportCode, "FUTEVOLEI");
+    assert.equal(await loadRatedSportConfig(db as never, "BEACH_TENNIS"), null);
+  });
+
+  it("beach tennis com doc próprio sem a flag explícita não rateia", async () => {
+    const db = seededDb();
+    db.seedDoc("tournaments/T1", {sport: "beachTennis"});
+    db.seedDoc("ratingLadders/BEACH_TENNIS", {glicko: {tau: 0.5}});
+    const result = await applyMatchRatingUpdate(db as never, PROJECT, {matchId: "m1", match: match()});
+    assert.equal(result.reason, "sport_not_rated");
+  });
+
+  it("beach tennis com ratingLadders/BEACH_TENNIS ratingEnabled=true rateia no doc do esporte", async () => {
+    const db = seededDb();
+    db.seedDoc("tournaments/T1", {sport: "beachTennis"});
+    db.seedDoc("ratingLadders/BEACH_TENNIS", {flags: {ratingEnabled: true}});
+    const result = await applyMatchRatingUpdate(db as never, PROJECT, {matchId: "m1", match: match()});
+    assert.equal(result.processed, true);
+    assert.equal(sportDocOf(db, "a1", "BEACH_TENNIS")!.wins, 1);
+    assert.equal(ratingDocOf(db, "a1"), undefined);
   });
 });

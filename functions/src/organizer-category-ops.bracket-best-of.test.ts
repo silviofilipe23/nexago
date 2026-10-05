@@ -99,6 +99,14 @@ describe("perfil de placar carimbado na partida", () => {
     assert.equal(p.kind, "sets_games");
   });
 
+  it("tênis usa o perfil de games do catálogo: com vantagem, 3º set completo (fase 3c1)", () => {
+    const p = categoryScoringProfile({bestOf: "bestOf3"}, "tennis") as unknown as Record<string, unknown>;
+    assert.equal(p.kind, "sets_games");
+    assert.equal(p.noAd, false);
+    assert.equal(p.decidingSet, "full");
+    assert.equal(p.bestOf, 3);
+  });
+
   // O carimbo tem o MESMO formato em qualquer caminho: decisivo 15 mesmo em MD1.
   // Se o fallback carimbasse `legacyScoringProfile(1)` (decisivo 21), a mesa
   // trocando para MD3 no meio da partida faria o 3º set exigir 21.

@@ -33,7 +33,7 @@ abstract final class LeagueCreateMapper {
 
     return {
       'name': name,
-      'sport': draft.sport.name,
+      'sport': draft.sportFirestoreValue,
       'organizationName': draft.organizationName.trim().isEmpty
           ? null
           : draft.organizationName.trim(),
@@ -104,7 +104,8 @@ abstract final class LeagueCreateMapper {
 
     final draft = LeagueCreateDraft(
       leagueId: id,
-      sport: _parseSport(data['sport'] as String?),
+      sport: parseTournamentSport(data['sport'] as String?).sport,
+      sportRaw: parseTournamentSport(data['sport'] as String?).raw,
       name: (data['name'] as String?) ?? '',
       organizationName: (data['organizationName'] as String?) ?? '',
       description: (data['description'] as String?) ?? '',
@@ -201,13 +202,6 @@ abstract final class LeagueCreateMapper {
     if (raw is Timestamp) return raw.toDate();
     if (raw is DateTime) return raw;
     return null;
-  }
-
-  static TournamentSport _parseSport(String? raw) {
-    for (final value in TournamentSport.values) {
-      if (value.name == raw) return value;
-    }
-    return TournamentSport.beachVolleyball;
   }
 
   static Map<String, dynamic> _categoryToMap(TournamentCategoryDraft category) {

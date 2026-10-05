@@ -1,5 +1,5 @@
 import type {FriendlyMatchConfig} from "./friendly-match-config";
-import {levelRank} from "./category-level-eligibility";
+import {ATHLETE_SPORT_CODES, levelRank} from "./category-level-eligibility";
 
 /**
  * Lógica pura do Bora Jogar: máquina de estados, score de compatibilidade,
@@ -98,6 +98,17 @@ function normalizePlace(raw: unknown): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, " ");
+}
+
+/**
+ * `sport` do jogo aberto é um código de esporte do PERFIL (chave de
+ * `levelsBySport`, sempre em maiúsculas). O app manda em maiúsculas; o
+ * servidor normaliza a caixa e recusa o que não está em `ATHLETE_SPORT_CODES`,
+ * senão a proximidade de nível cai em silêncio no valor neutro.
+ */
+export function normalizeFriendlySport(raw: unknown): string | null {
+  const code = typeof raw === "string" ? raw.trim().toUpperCase() : "";
+  return (ATHLETE_SPORT_CODES as readonly string[]).includes(code) ? code : null;
 }
 
 /**

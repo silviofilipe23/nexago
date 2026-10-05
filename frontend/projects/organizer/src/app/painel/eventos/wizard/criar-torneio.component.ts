@@ -368,7 +368,11 @@ function inputToDatetime(v: string): Date | null {
                 <og-card title="Detalhes">
                   <div class="og-field-grid">
                     <og-form-field label="Esporte">
-                      <og-select-chips [options]="sportOptions" [active]="sportLabel[draft().sport]" (changed)="setSport($event)" />
+                      @if (draft().sportRaw; as sportRaw) {
+                        <div class="og-config-row"><span class="val">{{ sportRaw }}</span><span class="lbl">Não pode ser alterado nesta versão do painel.</span></div>
+                      } @else {
+                        <og-select-chips [options]="sportOptions" [active]="sportLabel[draft().sport]" (changed)="setSport($event)" />
+                      }
                     </og-form-field>
                     <og-form-field label="Nome do torneio">
                       <input class="og-input-el" [value]="draft().name" (input)="patch({ name: $any($event.target).value })" placeholder="Ex.: Open Goiânia Beach" />
@@ -1430,7 +1434,7 @@ export class CriarTorneioComponent {
 
   // Resumos da revisão (espelham `review*Summary` do app)
   protected reviewSport(): string {
-    return SPORT_LABEL[this.draft().sport];
+    return this.draft().sportRaw ?? SPORT_LABEL[this.draft().sport];
   }
 
   protected reviewLocation(): string {

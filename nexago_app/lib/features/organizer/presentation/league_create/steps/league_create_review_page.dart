@@ -126,7 +126,7 @@ class _LeagueCreateReviewPageState extends ConsumerState<LeagueCreateReviewPage>
                 ],
                 const SizedBox(height: 4),
                 Text(
-                  '${sportLabel(draft.sport).toUpperCase()} · '
+                  '${(draft.sportRaw ?? sportLabel(draft.sport)).toUpperCase()} · '
                           '${formatLeagueShortSeasonRange(draft.seasonStartAt, draft.seasonEndAt)}'
                       .toUpperCase(),
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(

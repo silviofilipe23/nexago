@@ -36,6 +36,7 @@ abstract final class LeagueStageTournamentFactory {
     return _baseTournamentMap(
       name: name,
       sport: league.sport,
+      sportRaw: league.sportRaw,
       description: league.description,
       city: city,
       state: state,
@@ -89,6 +90,7 @@ abstract final class LeagueStageTournamentFactory {
     return _baseTournamentMap(
       name: name,
       sport: draft.sport,
+      sportRaw: draft.sportRaw,
       description: '',
       city: stage.city.trim().isEmpty ? draft.leagueCity : stage.city.trim(),
       state: stage.state.trim().isEmpty ? draft.leagueState : stage.state.trim(),
@@ -125,6 +127,7 @@ abstract final class LeagueStageTournamentFactory {
   static Map<String, dynamic> _baseTournamentMap({
     required String name,
     required TournamentSport sport,
+    String? sportRaw,
     required String description,
     required String city,
     required String state,
@@ -152,7 +155,7 @@ abstract final class LeagueStageTournamentFactory {
 
     return {
       'name': name,
-      'sport': sport.name,
+      'sport': sportRaw ?? sport.name,
       'description': description.trim().isEmpty ? null : description.trim(),
       'city': city,
       'state': state.isEmpty ? null : state,

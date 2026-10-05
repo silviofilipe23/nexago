@@ -8,7 +8,10 @@ import {
   type TournamentCategoryDraft,
   type TournamentPaymentMode,
   type TournamentSport,
+  type ParsedTournamentSport,
   categoryGenderComposition,
+  parseTournamentSport,
+  sportFirestoreValue,
   defaultCourtsFromCount,
   isTeamDispute,
   suggestCategoryName,
@@ -446,6 +449,8 @@ export interface PublishedLeagueForStageAdd {
   leagueId: string;
   leagueName: string;
   sport: TournamentSport;
+  /** Valor de `sport` que o tipo não representa (ver `parseTournamentSport`). */
+  sportRaw: string | null;
   city: string;
   state: string;
   defaultPriceCents: number;
@@ -453,6 +458,12 @@ export interface PublishedLeagueForStageAdd {
   paymentMode: TournamentPaymentMode;
   categoriesRaw: Array<Record<string, unknown>>;
   existingStages: LeagueStageDraft[];
+}
+
+/** Esporte da liga lido do doc, preservando o valor cru quando o tipo não o
+ *  representa (mesma regra de `parseTournamentSport`). */
+export function publishedLeagueSport(data: Record<string, unknown>): ParsedTournamentSport {
+  return parseTournamentSport(data['sport']);
 }
 
 export async function getPublishedLeagueForStageAdd(leagueId: string, uid: string): Promise<PublishedLeagueForStageAdd> {
@@ -474,7 +485,7 @@ export async function getPublishedLeagueForStageAdd(leagueId: string, uid: strin
   return {
     leagueId: snap.id,
     leagueName: str(data['name']) || 'Liga',
-    sport: (data['sport'] === 'indoorVolleyball' || data['sport'] === 'footvolley' ? data['sport'] : 'beachVolleyball') as TournamentSport,
+    ...publishedLeagueSport(data),
     city: str(data['city']),
     state: str(data['state']),
     defaultPriceCents: num(data['defaultEntryFeeCents']) ?? 22000,
@@ -518,7 +529,7 @@ export async function saveLeagueStage(params: {
 
   const tournamentDoc: Record<string, unknown> = {
     name,
-    sport: league.sport,
+    sport: sportFirestoreValue(league),
     description: null,
     city,
     state: state || null,

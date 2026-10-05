@@ -23,7 +23,7 @@ function seedProfile(fake: FakeFirestore, uid: string, overrides: DocData = {}):
     fullName: `Atleta ${uid}`,
     city: "Vitória",
     state: "ES",
-    sportOnboarding: {levelsBySport: {volei_praia: "intermediario_1"}},
+    sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "intermediario_1"}},
     ...overrides,
   });
 }
@@ -39,7 +39,7 @@ async function sendInvite(
   for (const toUid of toUids) seedProfile(fake, toUid);
   const result = await sendFriendlyMatchInviteCore(db(fake), "a", {
     toUids,
-    sport: "volei_praia",
+    sport: "VOLEI_PRAIA",
     objective: "friendly",
     scheduledAtMs: nowMs + 48 * HOUR_MS,
     location: {arenaId: "arena1", arenaName: "Arena Teste"},
@@ -93,7 +93,7 @@ describe("sendFriendlyMatchInviteCore", () => {
     seedProfile(fake, "d");
     const result = await sendFriendlyMatchInviteCore(db(fake), "a", {
       toUids: ["b", "c", "d"],
-      sport: "volei_praia",
+      sport: "VOLEI_PRAIA",
       objective: "friendly",
       scheduledAtMs: now + 48 * HOUR_MS,
       location: {freeText: "Praia de Camburi"},
@@ -104,6 +104,36 @@ describe("sendFriendlyMatchInviteCore", () => {
     assert.equal(result.notifications.length, 3);
     assert.deepEqual(result.notifications.map((n) => n.userId).sort(), ["b", "c", "d"]);
     assert.ok(result.notifications.every((n) => n.type === "friendly_match_invite"));
+  });
+
+  it("esporte em minúsculas é aceito e gravado em maiúsculas", async () => {
+    const fake = new FakeFirestore();
+    seedProfile(fake, "a");
+    seedProfile(fake, "b");
+    const result = await sendFriendlyMatchInviteCore(db(fake), "a", {
+      toUids: ["b"],
+      sport: "volei_praia",
+      objective: "friendly",
+      scheduledAtMs: now + 48 * HOUR_MS,
+      location: {freeText: "Praia de Camburi"},
+    }, now);
+    assert.equal(matchData(fake, result.matchId).sport, "VOLEI_PRAIA");
+  });
+
+  it("esporte que não é código de perfil é recusado", async () => {
+    const fake = new FakeFirestore();
+    seedProfile(fake, "a");
+    seedProfile(fake, "b");
+    await assertHttpsError(
+      sendFriendlyMatchInviteCore(db(fake), "a", {
+        toUids: ["b"],
+        sport: "beachVolleyball",
+        objective: "friendly",
+        scheduledAtMs: now + 48 * HOUR_MS,
+        location: {freeText: "Praia de Camburi"},
+      }, now),
+      "invalid-argument",
+    );
   });
 
   it("rejeita horários alternativos quando há mais de 1 convidado", async () => {
@@ -134,7 +164,7 @@ describe("sendFriendlyMatchInviteCore", () => {
     seedProfile(fake, "a");
     await assertHttpsError(
       sendFriendlyMatchInviteCore(db(fake), "a", {
-        toUids: ["ghost"], sport: "volei_praia", objective: "friendly",
+        toUids: ["ghost"], sport: "VOLEI_PRAIA", objective: "friendly",
         scheduledAtMs: now + HOUR_MS, location: {freeText: "x"},
       }, now),
       "not-found",
@@ -146,7 +176,7 @@ describe("sendFriendlyMatchInviteCore", () => {
     seedProfile(fake, "a");
     seedProfile(fake, "b");
     const valid = {
-      toUids: ["b"], sport: "volei_praia", objective: "friendly" as const,
+      toUids: ["b"], sport: "VOLEI_PRAIA", objective: "friendly" as const,
       scheduledAtMs: now + HOUR_MS, location: {freeText: "x"},
     };
     await assertHttpsError(
@@ -172,7 +202,7 @@ describe("sendFriendlyMatchInviteCore", () => {
     seedProfile(fake, "a");
     await assertHttpsError(
       sendFriendlyMatchInviteCore(db(fake), "b", {
-        toUids: ["a"], sport: "volei_praia", objective: "friendly",
+        toUids: ["a"], sport: "VOLEI_PRAIA", objective: "friendly",
         scheduledAtMs: now + HOUR_MS, location: {freeText: "x"},
       }, now),
       "failed-precondition",

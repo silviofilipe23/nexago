@@ -15,6 +15,7 @@ import {
   isInviteExpired,
   type CompatibilityProfile,
   type FriendlyMatchObjective,
+  normalizeFriendlySport,
 } from "./friendly-match-logic";
 import {applyReputationEvent, lateCancelEventId} from "./friendly-match-reputation";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
@@ -244,7 +245,7 @@ export async function sendFriendlyMatchInviteCore(
   nowMs: number = Date.now(),
 ): Promise<FriendlyMatchActionResult> {
   const toUids = sanitizeToUids(input.toUids, uid);
-  const sport = typeof input.sport === "string" ? input.sport.trim() : "";
+  const sport = normalizeFriendlySport(input.sport);
   if (!sport) {
     throw new HttpsError("invalid-argument", "Informe o esporte do jogo.");
   }

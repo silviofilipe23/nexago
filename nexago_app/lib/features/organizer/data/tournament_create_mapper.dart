@@ -35,7 +35,7 @@ abstract final class TournamentCreateMapper {
 
     return {
       'name': name,
-      'sport': draft.sport.name,
+      'sport': draft.sportFirestoreValue,
       'description': draft.description.trim().isEmpty
           ? null
           : draft.description.trim(),
@@ -141,9 +141,11 @@ abstract final class TournamentCreateMapper {
               .toList()
         : <TournamentCategoryDraft>[];
 
+    final parsedSport = parseTournamentSport(data['sport'] as String?);
     final draft = TournamentCreateDraft(
       tournamentId: id,
-      sport: _parseSport(data['sport'] as String?),
+      sport: parsedSport.sport,
+      sportRaw: parsedSport.raw,
       name: (data['name'] as String?) ?? '',
       coverImageUrl: _parseCoverImageUrl(data),
       description: (data['description'] as String?) ?? '',
@@ -287,13 +289,6 @@ abstract final class TournamentCreateMapper {
     if (raw is Timestamp) return raw.toDate();
     if (raw is DateTime) return raw;
     return null;
-  }
-
-  static TournamentSport _parseSport(String? raw) {
-    for (final value in TournamentSport.values) {
-      if (value.name == raw) return value;
-    }
-    return TournamentSport.beachVolleyball;
   }
 
   static TournamentBracketSystem _parseBracketSystem(String? raw) {

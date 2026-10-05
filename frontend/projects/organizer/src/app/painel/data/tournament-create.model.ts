@@ -6,6 +6,29 @@
 import { KOC_LEGACY_MAX_TEAMS_PER_ROUND, type KocPhaseSpec } from './koc-phase-plan';
 
 export type TournamentSport = 'beachVolleyball' | 'indoorVolleyball' | 'footvolley';
+export const KNOWN_TOURNAMENT_SPORTS: readonly TournamentSport[] = ['beachVolleyball', 'indoorVolleyball', 'footvolley'];
+
+/** Leitura de `sport` vinda do Firestore. `sportRaw` só é preenchido quando o
+ *  valor existe e o tipo não o representa: é o que volta pro doc no save, para
+ *  esta versão do portal nunca rebaixar um esporte que não conhece (spec
+ *  multiesporte 2026-10-03, fase 0). Ausente/vazio cai no default sem raw. */
+export interface ParsedTournamentSport {
+  sport: TournamentSport;
+  sportRaw: string | null;
+}
+
+export function parseTournamentSport(raw: unknown): ParsedTournamentSport {
+  const value = typeof raw === 'string' ? raw.trim() : '';
+  if ((KNOWN_TOURNAMENT_SPORTS as readonly string[]).includes(value)) {
+    return { sport: value as TournamentSport, sportRaw: null };
+  }
+  return { sport: 'beachVolleyball', sportRaw: value || null };
+}
+
+/** O que gravar em `sport`. */
+export function sportFirestoreValue(d: { sport: TournamentSport; sportRaw: string | null }): string {
+  return d.sportRaw ?? d.sport;
+}
 export type TournamentBracketSystem = 'groupsThenKnockout' | 'singleElimination' | 'roundRobin' | 'groupsWithRepechage' | 'doubleElimination' | 'kingOfCourt';
 export type TournamentBestOf = 'singleSet' | 'bestOf3' | 'bestOf5';
 export type TournamentPaymentMode = 'appPixCard' | 'directWithOrganizer';
@@ -105,6 +128,8 @@ export interface TournamentCategoryDraft {
 export interface TournamentCreateDraft {
   tournamentId: string | null;
   sport: TournamentSport;
+  /** Valor de `sport` que o tipo não representa (ver `parseTournamentSport`). */
+  sportRaw: string | null;
   name: string;
   coverImageUrl: string | null;
   description: string;
@@ -190,6 +215,7 @@ export function emptyTournamentDraft(): TournamentCreateDraft {
   return {
     tournamentId: null,
     sport: 'beachVolleyball',
+    sportRaw: null,
     name: '',
     coverImageUrl: null,
     description: '',

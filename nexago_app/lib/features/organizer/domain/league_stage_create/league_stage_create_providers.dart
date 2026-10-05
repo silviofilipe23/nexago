@@ -163,6 +163,7 @@ class LeagueStageCreateWizardNotifier
           leagueName: context.leagueName,
           plannedStagesCount: context.plannedStagesCount,
           sport: context.sport,
+          sportRaw: context.sportRaw,
           leagueCity: context.city,
           leagueState: context.state,
           defaultPriceCents: context.defaultPriceCents,

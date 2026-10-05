@@ -77,6 +77,7 @@ class LeagueCreateSession {
 Map<String, dynamic> _draftToJson(LeagueCreateDraft draft) => {
   'leagueId': draft.leagueId,
   'sport': draft.sport.name,
+  'sportRaw': draft.sportRaw,
   'name': draft.name,
   'organizationName': draft.organizationName,
   'coverImagePath': draft.coverImagePath,
@@ -104,11 +105,10 @@ LeagueCreateDraft? _draftFromJson(Map<String, dynamic> json) {
   try {
     return LeagueCreateDraft(
       leagueId: json['leagueId'] as String?,
-      sport: _enumByName(
-        TournamentSport.values,
-        json['sport'] as String?,
-        TournamentSport.beachVolleyball,
-      ),
+      sport: parseTournamentSport(json['sport'] as String?).sport,
+      sportRaw:
+          json['sportRaw'] as String? ??
+          parseTournamentSport(json['sport'] as String?).raw,
       name: json['name'] as String? ?? '',
       organizationName: json['organizationName'] as String? ?? '',
       coverImagePath: json['coverImagePath'] as String?,

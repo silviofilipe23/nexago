@@ -368,7 +368,7 @@ function raisePatch(sportIds, level = 'intermediario_2') {
   );
 }
 
-for (const n of [5, 9]) {
+for (const n of [5, ALL_SPORTS.length]) {
   await seed(allSportsUser);
   await expect(
     `subir ${n} esportes numa tacada só é permitido`,
@@ -377,6 +377,24 @@ for (const n of [5, 9]) {
     ),
   );
 }
+
+// Pior caso real: TODOS os esportes travados (o lock não curto-circuita, cada
+// um paga os dois lookups de rank) subindo de uma vez, junto com os dois
+// campos legados de nível global. Medido em 05/10/2026 (3c2): com 9 cabe; um
+// 10º esporte na guarda faz TODA negação estourar o teto (inclusive a do nível
+// global, que nem chega nos esportes) — o orçamento do update de `users` está
+// no limite. Esporte de perfil novo exige reestruturar a guarda antes.
+await seed({ ...allSportsLockedUser, level: 'intermediario_1', sportProfile: { level: 'intermediario_1' } });
+await expect(
+  `subir os ${ALL_SPORTS.length} esportes TRAVADOS + nível global numa tacada cabe no teto`,
+  assertSucceeds(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      ...raisePatch(ALL_SPORTS),
+      level: 'intermediario_2',
+      'sportProfile.level': 'intermediario_2',
+    }),
+  ),
+);
 
 await seed(allSportsLockedUser);
 await expect(

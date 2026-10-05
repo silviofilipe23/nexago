@@ -1,5 +1,7 @@
 # Multiesporte fase 3c2: padel como esporte de perfil — Implementation Plan
 
+> **Status (05/10/2026): BLOQUEADO.** A medição da Task 1 mostrou que um 10º código na guarda de nível das rules faz toda negação estourar o teto de expressões (ver emenda "Medição de 05/10/2026" no spec). Só o teste de pior caso foi mantido; o resto aguarda decisão sobre reestruturar a guarda.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** O atleta escolhe padel no onboarding e no perfil (app e portal), declara nível, e o nível fica protegido pelas rules como os demais esportes. Padel NÃO vira esporte de torneio nesta fase (não há arte de capa; o teste de capa do wizard trava isso).

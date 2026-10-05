@@ -438,6 +438,15 @@ Saída: ranking de beach tennis separado do de vôlei; rating ligável por confi
   tênis é de dupla até a fase 4. KOTC segue só no vôlei de praia. Ranking: só os docs por
   esporte (`TENIS` não alimenta o legado); rating: desligado até existir `ratingLadders/TENIS`.
 
+**Medição de 05/10/2026 (3c2, padel).** A guarda de nível do update de `users`
+(`athleteLevelsNotDowngraded`) cabe no teto de 1000 expressões com os 9 códigos atuais,
+inclusive no pior caso (todos travados subindo + nível global; teste novo em
+`functions/test/athlete-level-rules.test.mjs`). Com `PADEL` como 10º código, **toda negação**
+de rebaixamento passa a estourar o teto — inclusive a do nível global, que nem chega nos
+esportes; reordenar a comparação não muda nada. A escrita continua negada, mas pelo estouro,
+não pela regra. Padel como esporte de perfil fica bloqueado até a guarda ser reestruturada
+(decisão pendente com o produto).
+
 **Fase 4: equipe por tamanho.**
 Piso 1 em `teamSize`, inscrição individual, `participantNoun`, slots de saque por tamanho,
 tempo médico por slot, confronto direto por `memberUids`, capa de equipe pelo esporte do torneio.

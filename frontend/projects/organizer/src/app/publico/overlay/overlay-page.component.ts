@@ -15,6 +15,7 @@ import { kocStandingsBoardOf } from './overlay-koc-standings';
 import { OverlayKocStandingsComponent } from './overlay-koc-standings.component';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
 import { OverlayPrejogoComponent } from './overlay-prejogo.component';
+import { OverlayRankingComponent } from './overlay-ranking.component';
 import { OverlayResumoComponent } from './overlay-resumo.component';
 import { RESUMO_AUTO_DELAY_MS, RESUMO_AUTO_MAX_MS, resumoOf, type ResumoView } from './overlay-resumo';
 import { OverlayMedicoComponent } from './overlay-medico.component';
@@ -91,6 +92,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
     OverlayMedicoComponent,
     OverlayResumoComponent,
     OverlayPrejogoComponent,
+    OverlayRankingComponent,
   ],
   providers: [OverlayLiveGateway],
   host: {
@@ -163,6 +165,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
         <og-overlay-tecnico [view]="tecnico()" [teams]="gateway.teams()" [sponsors]="patroItens()" />
 
         <og-overlay-prejogo [card]="prejogo()" [sponsors]="patroItens()" />
+        <og-overlay-ranking [card]="ranking()" [mode]="controle().ranking.mode" [sponsors]="patroItens()" />
         <og-overlay-resumo [view]="resumo()" [teams]="gateway.teams()" [sponsors]="patroItens()" />
         <og-overlay-medico [view]="medico()" [teams]="gateway.teams()" />
 
@@ -286,7 +289,7 @@ export class OverlayPageComponent {
   /** Doação e patrocínio só entram com o controle já resolvido e sem tarja — a tarja toma a
    *  tela, inclusive para um "Mostrar agora". */
   protected readonly cardsNoAr = computed(
-    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null && this.prejogo() == null,
+    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null && this.prejogo() == null && this.ranking() == null,
   );
 
   /** O que vai ao ar: regra automática de cada tela E chave do painel; tarja toma a tela.
@@ -604,6 +607,12 @@ export class OverlayPageComponent {
   protected readonly prejogo = computed(() => {
     const p = this.controle().prejogo;
     return this.gateway.controlReady() && p.on && !this.interviewOnAir() ? p.card : null;
+  });
+
+  /** Ranking Top 10 no ar: tela cheia opaca que cobre o resto. A tarja de entrevista toma a tela. */
+  protected readonly ranking = computed(() => {
+    const r = this.controle().ranking;
+    return this.gateway.controlReady() && r.on && !this.interviewOnAir() ? r.card : null;
   });
 
   /** Resumo aberto sozinho no fim do jogo: id da partida (some quando o jogo muda, é desfeito ou

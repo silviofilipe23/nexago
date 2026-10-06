@@ -1,3 +1,5 @@
+import { DEFAULT_BROADCAST_PREJOGO, prejogoFromRaw, type BroadcastPrejogo } from './broadcast-prejogo';
+
 /** Controle da transmissão do torneio — `tournaments/{id}/broadcast/control`.
  *
  *  Gravado pela tela "Transmissão" do painel e lido SEM LOGIN pelo overlay do OBS. Doc ausente =
@@ -161,6 +163,8 @@ export interface BroadcastControl {
   /** Tela de Resumo ligada à mão (parcial no meio do jogo). O automático — 4,5 s depois do ponto
    *  que fecha o jogo — não passa por aqui. Padrão desligado: ligar é decisão da transmissão. */
   summaryOn: boolean;
+  /** Card do Pré-jogo montado pelo painel e se está no ar. */
+  prejogo: BroadcastPrejogo;
   interview: BroadcastInterview | null;
   commands: BroadcastCommands;
 }
@@ -180,6 +184,7 @@ export const DEFAULT_BROADCAST_CONTROL: BroadcastControl = {
   finalMode: 'auto',
   championsCategoryId: null,
   summaryOn: false,
+  prejogo: DEFAULT_BROADCAST_PREJOGO,
   interview: null,
   commands: { donationNowAt: 0, sponsorsNowAt: 0 },
 };
@@ -301,6 +306,7 @@ export function broadcastControlFromRaw(raw: unknown): BroadcastControl {
     finalMode: FINAL_MODES.includes(mode) ? mode : 'auto',
     championsCategoryId: text(d['championsCategoryId']),
     summaryOn: d['summaryOn'] === true,
+    prejogo: prejogoFromRaw(d['prejogo']),
     interview: interviewFromRaw(d['interview']),
     commands: { donationNowAt: stamp(c['donationNowAt']), sponsorsNowAt: stamp(c['sponsorsNowAt']) },
   };

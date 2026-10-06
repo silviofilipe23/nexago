@@ -348,3 +348,74 @@ MatchPointWrite? buildMedicalTimeoutEndWrite(TournamentMatch match) {
     setIndex: setIndex,
   );
 }
+
+/// Duração do tempo técnico (1 minuto) publicada no doc — o overlay de transmissão conta a
+/// partir do `startedAt` do servidor.
+const technicalTimeoutSeconds = 60;
+
+/// Publica o tempo técnico no doc da partida pro overlay de transmissão enxergar. O placar do
+/// set corrente vai junto: o overlay esconde a tela quando qualquer ponto é marcado depois.
+/// `null` quando a partida já encerrou/cancelou.
+MatchPointWrite? buildTechnicalTimeoutStartWrite(
+  TournamentMatch match, {
+  required String side,
+}) {
+  if (match.isCompleted || match.isCanceled) return null;
+
+  final upperSide = side.toUpperCase();
+  final setIndex = _clampedSetIndex(match);
+  final current = match.sets.length > setIndex ? match.sets[setIndex] : null;
+  final teamId = upperSide == 'A' ? match.teamAId : match.teamBId;
+
+  return MatchPointWrite(
+    matchUpdate: {
+      'technicalTimeout': {
+        'side': upperSide,
+        'teamId': teamId,
+        'startedAt': FieldValue.serverTimestamp(),
+        'durationSec': technicalTimeoutSeconds,
+        'setIndex': setIndex,
+        'scoreA': current?.a ?? 0,
+        'scoreB': current?.b ?? 0,
+      },
+    },
+    pointEvent: {
+      'type': 'technical-timeout',
+      'side': upperSide,
+      'setIndex': setIndex,
+      'scoreA': current?.a ?? 0,
+      'scoreB': current?.b ?? 0,
+    },
+    result: (
+      sets: match.sets,
+      currentSetIndex: match.currentSetIndex ?? 0,
+      winnerId: null,
+      servingTeamId: match.servingTeamId,
+    ),
+    setIndex: setIndex,
+  );
+}
+
+/// Tira o tempo técnico do doc. Sempre devolve o write (deletar campo ausente é inofensivo);
+/// o evento de fim registra o placar do set corrente.
+MatchPointWrite buildTechnicalTimeoutEndWrite(TournamentMatch match) {
+  final setIndex = _clampedSetIndex(match);
+  final current = match.sets.length > setIndex ? match.sets[setIndex] : null;
+
+  return MatchPointWrite(
+    matchUpdate: {'technicalTimeout': FieldValue.delete()},
+    pointEvent: {
+      'type': 'technical-timeout-end',
+      'setIndex': setIndex,
+      'scoreA': current?.a ?? 0,
+      'scoreB': current?.b ?? 0,
+    },
+    result: (
+      sets: match.sets,
+      currentSetIndex: match.currentSetIndex ?? 0,
+      winnerId: null,
+      servingTeamId: match.servingTeamId,
+    ),
+    setIndex: setIndex,
+  );
+}

@@ -20,6 +20,7 @@ import {
   type MedicalTimeout,
   type MedicalTimeoutSlot,
 } from './medical-timeout';
+import { TECHNICAL_TIMEOUT_SECONDS, technicalTimeoutFromRaw, type TechnicalTimeout } from './technical-timeout';
 import {
   servingPlayerSlotFromRaw,
   servingPlayerSlotOf,
@@ -86,6 +87,8 @@ export interface LiveMatch {
   medicalTimeout: MedicalTimeout | null;
   /** Atletas que já usaram o tempo médico nesta partida ("A1", "B2"). */
   medicalTimeoutPlayers: string[];
+  /** Tempo técnico em andamento — `null` quando nenhum está rolando (ver `technical-timeout.ts`). */
+  technicalTimeout?: TechnicalTimeout | null;
   matchStartedAt: Date | null;
   winnerId: string | null;
   courtName: string | null;
@@ -178,6 +181,7 @@ export function liveMatchFromDoc(id: string, data: Record<string, unknown>): Liv
     servingPlayerSlots: servingPlayerSlotsFromRaw(data['servingPlayerSlots']),
     medicalTimeout: medicalTimeoutFromRaw(data['medicalTimeout']),
     medicalTimeoutPlayers: medicalTimeoutPlayerKeysFromRaw(data['medicalTimeoutPlayers']),
+    technicalTimeout: technicalTimeoutFromRaw(data['technicalTimeout']),
     matchStartedAt: toDate(data['matchStartedAt']),
     winnerId: optionalStr(data['winnerId']),
     courtName: optionalStr(data['courtName']),
@@ -533,6 +537,53 @@ export function buildMedicalTimeoutEndWrite(m: LiveMatch): PointWrite | null {
       scoreB: current?.b ?? 0,
       playerSlot: active.playerSlot,
     },
+    result: { sets: m.sets, currentSetIndex: m.currentSetIndex, winnerId: null, servingTeamId: m.servingTeamId },
+    setIndex,
+  };
+}
+
+/** Abre o tempo técnico de uma dupla: grava o minuto em andamento (o overlay de transmissão entra
+ *  sozinho) e registra o chamado na timeline. A cota de 2 por set segue sendo da tela da mesa.
+ *
+ *  `null` quando a partida já encerrou — a mesma guarda do ponto, sobre o doc FRESCO. */
+export function buildTechnicalTimeoutStartWrite(m: LiveMatch, params: { side: MatchSide }): PointWrite | null {
+  if (m.status === 'completed' || m.status === 'canceled') return null;
+
+  const setIndex = clampedSetIndex(m);
+  const current = m.sets[setIndex] ?? null;
+  const scoreA = current?.a ?? 0;
+  const scoreB = current?.b ?? 0;
+
+  return {
+    matchUpdate: {
+      technicalTimeout: {
+        side: params.side,
+        teamId: params.side === 'A' ? m.teamAId : m.teamBId,
+        startedAt: serverTimestamp(),
+        durationSec: TECHNICAL_TIMEOUT_SECONDS,
+        setIndex,
+        scoreA,
+        scoreB,
+      },
+    },
+    pointEvent: { type: 'technical-timeout', side: params.side, setIndex, scoreA, scoreB },
+    result: { sets: m.sets, currentSetIndex: m.currentSetIndex, winnerId: null, servingTeamId: m.servingTeamId },
+    setIndex,
+  };
+}
+
+/** Encerra o tempo técnico (a mesa encerrou, com ou sem o minuto cheio). Sem doc a ler: apagar um
+ *  campo ausente é inofensivo, então a mesa não precisa esperar o snapshot pra poder encerrar. */
+export function buildTechnicalTimeoutEndWrite(m: LiveMatch): PointWrite | null {
+  const active = m.technicalTimeout;
+  if (!active) return null;
+
+  const setIndex = clampedSetIndex(m);
+  const current = m.sets[setIndex] ?? null;
+
+  return {
+    matchUpdate: { technicalTimeout: deleteField() },
+    pointEvent: { type: 'technical-timeout-end', side: active.side, setIndex, scoreA: current?.a ?? 0, scoreB: current?.b ?? 0 },
     result: { sets: m.sets, currentSetIndex: m.currentSetIndex, winnerId: null, servingTeamId: m.servingTeamId },
     setIndex,
   };

@@ -14,6 +14,8 @@ import { OverlayKocQualifiedComponent } from './overlay-koc-qualified.component'
 import { kocStandingsBoardOf } from './overlay-koc-standings';
 import { OverlayKocStandingsComponent } from './overlay-koc-standings.component';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
+import { OverlayTecnicoComponent } from './overlay-tecnico.component';
+import { TECNICO_AUTO_SEGUNDOS, tecnicoAutoKeyOf, tecnicoInfoOf, tecnicoManualOf, tecnicoNoAr, type OverlayTecnicoView } from './overlay-tecnico';
 import { DEFAULT_BROADCAST_CONTROL, finalPrefOf, type BroadcastControl } from '../../painel/data/broadcast-control';
 import {
   interviewVisibleAt,
@@ -80,6 +82,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
     OverlayDoacaoComponent,
     OverlayPatroComponent,
     OverlayInterviewComponent,
+    OverlayTecnicoComponent,
   ],
   providers: [OverlayLiveGateway],
   host: {
@@ -104,6 +107,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
             [categoryName]="categoryName()"
             [courtName]="courtName()"
             [isFinal]="duelFinalMode()"
+            [tecnicoSide]="tecnico()?.side ?? null"
           />
         }
         @if (telaDoResultado(); as board) {
@@ -144,6 +148,9 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
             [isFinal]="kocBarFinal()"
           />
         }
+
+        <!-- Sempre montada: o animate.leave do card precisa do host vivo. -->
+        <og-overlay-tecnico [view]="tecnico()" [teams]="gateway.teams()" [sponsors]="patroItens()" />
 
         <og-overlay-doacao [config]="doacaoConfig" [show]="cardsNoAr() && doacaoShow()" />
         <og-overlay-patro [itens]="patroItens()" [show]="cardsNoAr() && patroShow()" [visivelSeg]="patroConfig.card.visivelSeg" />
@@ -467,7 +474,7 @@ export class OverlayPageComponent {
     const m = this.match();
     const pausado = m?.status === 'in_progress' && (m.koc?.clock?.pausedAtMs != null || m.medicalTimeout != null);
     const fimDeRodada = this.layers().roundEnd && this.standings() != null;
-    return pausado || this.campeoes() != null || fimDeRodada || this.doacaoShow() || this.interviewOnAir();
+    return pausado || this.campeoes() != null || fimDeRodada || this.doacaoShow() || this.interviewOnAir() || this.tecnico() != null;
   });
 
   private readonly patroCycle = signal<PatroCycleState>(patroCycleStop());
@@ -542,6 +549,27 @@ export class OverlayPageComponent {
     const m = this.match();
     const isFinal = m ? finalKindOf(m.matchType) === 'final' : false;
     return overlayFinalModeOf(isFinal, this.finalPref());
+  });
+
+  /** Tempo técnico automático (vôlei, 21 pontos no set): quando o overlay VÊ a soma chegar a 21.
+   *  O início é o relógio desta tela — o doc não guarda nada — e a 1ª leitura é só linha de base:
+   *  recarregar o OBS com o set já em 21 não reabre um minuto que ninguém chamou. */
+  private readonly tecnicoAuto = signal<{ key: string; startMs: number } | null>(null);
+  private tecnicoBaseline = false;
+  private readonly tecnicoAutoKey = computed(() => tecnicoAutoKeyOf(this.match(), this.duelViewAuto()));
+
+  /** Tempo técnico no ar: o chamado pela mesa tem prioridade sobre o automático. */
+  protected readonly tecnico = computed<OverlayTecnicoView | null>(() => {
+    if (!this.layers().duel) return null;
+    const v = this.duelViewAuto();
+    const nowMs = this.tick();
+    const manual = tecnicoManualOf(this.match(), v, nowMs, this.categoryName());
+    if (manual) return manual;
+    const auto = this.tecnicoAuto();
+    if (!auto || !v || auto.key !== this.tecnicoAutoKey()) return null;
+    const durMs = TECNICO_AUTO_SEGUNDOS * 1000;
+    if (!tecnicoNoAr(auto.startMs, durMs, nowMs)) return null;
+    return { kind: 'auto', key: auto.key, startMs: auto.startMs, durMs, side: null, teamId: '', info: tecnicoInfoOf(v, this.categoryName()) };
   });
 
   private readonly view = computed(() => {
@@ -676,6 +704,23 @@ export class OverlayPageComponent {
         if (this.patroCycle().phase === 'visible' && temPatro()) return;
         this.runPatro(patroCycleStart(this.patroInput()));
       });
+    });
+
+    // Automático: a chave só existe com o set em 21; chave nova = relógio novo (a 1ª é a base).
+    effect(() => {
+      const key = this.tecnicoAutoKey();
+      untracked(() => {
+        if (!key) {
+          if (this.tecnicoAuto() != null) this.tecnicoAuto.set(null);
+          return;
+        }
+        if (this.tecnicoAuto()?.key === key) return;
+        const baseline = !this.tecnicoBaseline;
+        this.tecnicoAuto.set({ key, startMs: baseline ? 0 : Date.now() });
+      });
+    });
+    effect(() => {
+      if (this.match()) untracked(() => (this.tecnicoBaseline = true));
     });
 
     const handle = setInterval(() => this.tick.set(Date.now()), 1000);

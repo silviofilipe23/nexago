@@ -64,7 +64,7 @@ class _OrganizerMatchLiveTablePageState
   /// mesmo `_clockTimer` de 1s do relógio decorrido em vez de um timer
   /// próprio — `_maybeTickTechnicalTimeout` só age quando `_timeoutSide`
   /// não é nulo e a fase é `running`.
-  static const _timeoutDurationSeconds = 60;
+  static const _timeoutDurationSeconds = technicalTimeoutSeconds;
   bool _timeoutPickerOpen = false;
   String? _timeoutSide;
   int _timeoutNumber = 0;
@@ -127,6 +127,7 @@ class _OrganizerMatchLiveTablePageState
   @override
   void dispose() {
     _clockTimer?.cancel();
+    if (_timeoutSide != null) _publishTechnicalTimeoutEnd();
     if (_presentMode) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       WakelockPlus.disable();
@@ -170,6 +171,29 @@ class _OrganizerMatchLiveTablePageState
       _timeoutRemainingSeconds = _timeoutDurationSeconds;
       _timeoutPhase = LiveTableTimeoutPhase.running;
     });
+    _publishTechnicalTimeoutStart(side);
+  }
+
+  /// Publica o tempo técnico no doc pro overlay de transmissão. Best-effort: a contagem local
+  /// manda e a mesa não vê erro nem reverte se a escrita falhar.
+  void _publishTechnicalTimeoutStart(String side) {
+    ref
+        .read(tournamentMatchesRepositoryProvider)
+        .recordPointTransaction(
+          matchId: widget.matchId,
+          build: (fresh) => buildTechnicalTimeoutStartWrite(fresh, side: side),
+        )
+        .catchError((Object _) => null);
+  }
+
+  void _publishTechnicalTimeoutEnd() {
+    ref
+        .read(tournamentMatchesRepositoryProvider)
+        .recordPointTransaction(
+          matchId: widget.matchId,
+          build: buildTechnicalTimeoutEndWrite,
+        )
+        .catchError((Object _) => null);
   }
 
   /// Desconta um tempo técnico lançado por engano — cada painel tem o seu
@@ -192,7 +216,10 @@ class _OrganizerMatchLiveTablePageState
     setState(() => _timeoutPhase = LiveTableTimeoutPhase.running);
   }
 
-  void _endTechnicalTimeout() => setState(() => _timeoutSide = null);
+  void _endTechnicalTimeout() {
+    setState(() => _timeoutSide = null);
+    _publishTechnicalTimeoutEnd();
+  }
 
   Future<void> _enterPresentMode() async {
     setState(() => _presentMode = true);

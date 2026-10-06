@@ -192,6 +192,7 @@ service cloud.firestore {
     // com o saque, no mesmo update do ponto — mesma razão. `medicalTimeout`/
     // `medicalTimeoutPlayers` são o atendimento de 5 minutos: quem para a partida por lesão é a
     // MESA, então a cota e o atendimento em andamento também são escrita de mesário.
+    // `technicalTimeout` é o minuto tático em andamento (o overlay de transmissão o lê).
     function scorerCanOnlyEditScoreFields() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'resultA',
@@ -207,6 +208,7 @@ service cloud.firestore {
         'servingPlayerSlots',
         'medicalTimeout',
         'medicalTimeoutPlayers',
+        'technicalTimeout',
         'matchStartedAt',
         'matchEndedAt',
         'lastActions',
@@ -336,6 +338,7 @@ service cloud.firestore {
         'servingPlayerSlots',
         'medicalTimeout',
         'medicalTimeoutPlayers',
+        'technicalTimeout',
         'report',
         'liveElapsedSec',
         'resultA',
@@ -372,7 +375,7 @@ service cloud.firestore {
       return request.resource.data.keys().hasAll(['seq', 'type', 'setIndex', 'scoreA', 'scoreB', 'ts']) &&
         request.resource.data.seq is int &&
         request.resource.data.seq == expectedSeq &&
-        request.resource.data.type in ['match-start', 'point', 'set-end', 'undo-point', 'undo-set-end', 'match-end', 'medical-timeout', 'medical-timeout-end'] &&
+        request.resource.data.type in ['match-start', 'point', 'set-end', 'undo-point', 'undo-set-end', 'match-end', 'medical-timeout', 'medical-timeout-end', 'technical-timeout', 'technical-timeout-end'] &&
         request.resource.data.setIndex is int &&
         request.resource.data.setIndex >= 0 &&
         request.resource.data.setIndex <= 2 &&

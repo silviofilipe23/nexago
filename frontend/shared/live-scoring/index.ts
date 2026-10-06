@@ -66,10 +66,15 @@ export {
   medicalTimeoutRemainingSeconds,
 } from './medical-timeout';
 
+export type { TechnicalTimeout } from './technical-timeout';
+export { TECHNICAL_TIMEOUT_SECONDS, technicalTimeoutFromRaw, technicalTimeoutRemainingSeconds } from './technical-timeout';
+
 export type { LandedPoint, LiveMatch, LivePointEvent, LiveScoringContext, PointWrite } from './live-match-repository';
 export {
   buildMedicalTimeoutEndWrite,
   buildMedicalTimeoutStartWrite,
+  buildTechnicalTimeoutEndWrite,
+  buildTechnicalTimeoutStartWrite,
   buildPointWrite,
   buildUndoWrite,
   GAMES_UNDO_BLOCKED_MESSAGE,

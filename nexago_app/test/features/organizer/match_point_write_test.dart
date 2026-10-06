@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/organizer/data/match_point_write.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
@@ -218,6 +219,54 @@ void main() {
 
       expect(fields['servingPlayerSlots'], {'A': 2, 'B': 0});
       expect(fields['servingPlayerSlot'], 2);
+    });
+  });
+
+  group('tempo técnico', () {
+    test(
+        'publica o tempo técnico com o placar do set corrente e registra o chamado',
+        () {
+      final write = buildTechnicalTimeoutStartWrite(
+        match(sets: const [TournamentMatchSet(a: 14, b: 12)]),
+        side: 'b',
+      )!;
+
+      final timeout =
+          write.matchUpdate['technicalTimeout'] as Map<String, dynamic>;
+      expect(timeout['side'], 'B');
+      expect(timeout['teamId'], 'time-b');
+      expect(timeout['durationSec'], technicalTimeoutSeconds);
+      expect(timeout['setIndex'], 0);
+      expect(timeout['scoreA'], 14);
+      expect(timeout['scoreB'], 12);
+      expect(timeout.containsKey('startedAt'), isTrue);
+      expect(write.pointEvent, containsPair('type', 'technical-timeout'));
+      expect(write.pointEvent['side'], 'B');
+      expect(write.pointEvent['scoreA'], 14);
+      expect(write.pointEvent['scoreB'], 12);
+      expect(write.matchUpdate.containsKey('sets'), isFalse);
+    });
+
+    test('nega em partida encerrada', () {
+      expect(
+        buildTechnicalTimeoutStartWrite(
+          match(status: TournamentMatchStatus.completed),
+          side: 'A',
+        ),
+        isNull,
+      );
+    });
+
+    test('encerrar deleta o campo e registra o fim', () {
+      final write = buildTechnicalTimeoutEndWrite(
+        match(sets: const [TournamentMatchSet(a: 3, b: 5)]),
+      );
+
+      expect(write.matchUpdate.keys, ['technicalTimeout']);
+      expect(write.matchUpdate['technicalTimeout'], isA<FieldValue>());
+      expect(write.pointEvent, containsPair('type', 'technical-timeout-end'));
+      expect(write.pointEvent['scoreA'], 3);
+      expect(write.pointEvent['scoreB'], 5);
     });
   });
 

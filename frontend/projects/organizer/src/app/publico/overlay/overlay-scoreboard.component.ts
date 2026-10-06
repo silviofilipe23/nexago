@@ -95,6 +95,7 @@ type ServeKey = `${Side}${1 | 2}`;
               [class.row--win]="winSide() === side"
               [class.row--lose]="loseSide() === side"
               [class.row--blink]="winBlink() === side"
+              [class.row--tecnico]="tecnicoSide() === side"
               [class.row--enter]="rowEnter()"
               [style.animation-delay]="rowEnter() ? i * 110 + 'ms' : null"
             >
@@ -412,6 +413,15 @@ type ServeKey = `${Side}${1 | 2}`;
       height: 96px;
       color: #fff;
     }
+    .row--tecnico::before {
+      content: '';
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 4px;
+      z-index: 1;
+      background: var(--nx-orange-500, #ff6a1a);
+      box-shadow: 0 0 14px rgba(255, 106, 26, 0.85);
+    }
     .row + .row {
       border-top: 1px solid var(--nx-line, rgba(255, 255, 255, 0.08));
     }
@@ -715,6 +725,8 @@ export class OverlayScoreboardComponent {
   /** Modo Grande final — preferência do painel / partida final. */
   readonly isFinal = input(false);
   /** Elenco por time — cada atleta numa linha. Sem isto, cai no rótulo "A / B". */
+  /** Lado que está em tempo técnico: ganha o filete laranja à esquerda. */
+  readonly tecnicoSide = input<Side | null>(null);
   readonly teams = input<ReadonlyMap<string, OverlayKocTeam>>(new Map<string, OverlayKocTeam>());
 
   protected readonly sides: readonly Side[] = ['A', 'B'];

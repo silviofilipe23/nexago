@@ -6,7 +6,7 @@ import {
   type KocRoundState,
 } from './koc';
 import { collection, doc, getDocs, onSnapshot, query, where, type Unsubscribe } from 'firebase/firestore';
-import { medicalTimeoutFromRaw, statusOf, type MatchDisplayStatus, type MedicalTimeout, servingPlayerSlotFromRaw } from '@nexago/live-scoring';
+import { medicalTimeoutFromRaw, statusOf, technicalTimeoutFromRaw, type TechnicalTimeout, type MatchDisplayStatus, type MedicalTimeout, servingPlayerSlotFromRaw } from '@nexago/live-scoring';
 import { effectiveScoringProfile, scoringProfileFromRaw, setScoreText, type ScoringProfile } from '@nexago/sports';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from './firestore';
@@ -92,6 +92,8 @@ export interface TournamentMatch {
   /** Atendimento médico em andamento — o telão mostra quem está sendo atendido e a contagem,
    *  derivada de `startedAt`. Nulo quando ninguém está sendo atendido. */
   medicalTimeout: MedicalTimeout | null;
+  /** Tempo técnico em andamento (a mesa grava; o overlay lê). */
+  technicalTimeout?: TechnicalTimeout | null;
   /** Rodada King of the Court, quando `matchType` é `koc_*`. A rodada não tem
    *  dois lados: `teamAId`/`teamBId` vêm vazios e o elenco/estado vivem aqui.
    *  Ausente em toda partida de duelo — opcional de propósito, para que nenhuma
@@ -265,6 +267,8 @@ export interface RawMatch {
   servingTeamId: string;
   servingPlayerSlot: number;
   medicalTimeout: MedicalTimeout | null;
+  /** Tempo técnico em andamento (a mesa grava; o overlay lê). */
+  technicalTimeout?: TechnicalTimeout | null;
   koc?: KocRoundState | null;
   matchStartedAt: Date | null;
   matchEndedAt: Date | null;
@@ -318,6 +322,7 @@ export function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawM
     // Posição no elenco (1–5: individual, dupla, equipe) — a mesa grava até 5 desde a 4b2.
     servingPlayerSlot: servingPlayerSlotFromRaw(data['servingPlayerSlot']),
     medicalTimeout: medicalTimeoutFromRaw(data['medicalTimeout']),
+    technicalTimeout: technicalTimeoutFromRaw(data['technicalTimeout']),
     koc,
     matchStartedAt: toDate(data['matchStartedAt']),
     matchEndedAt: toDate(data['matchEndedAt']),
@@ -624,6 +629,7 @@ function rawToMatch(r: RawMatch, labelOf: (description: string | null, teamId: s
     servingTeamId: r.servingTeamId,
     servingPlayerSlot: r.servingPlayerSlot,
     medicalTimeout: r.medicalTimeout,
+    technicalTimeout: r.technicalTimeout ?? null,
     koc: r.koc,
     matchStartedAt: r.matchStartedAt,
     matchEndedAt: r.matchEndedAt,

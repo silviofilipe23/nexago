@@ -8,6 +8,7 @@ import {
   type BroadcastInterview,
   type KocRoundEndScreen,
 } from './broadcast-control';
+import type { BroadcastMulti } from './broadcast-multi';
 import type { BroadcastRanking } from './broadcast-ranking';
 import type { BroadcastPrejogo } from './broadcast-prejogo';
 import { organizerFirestore } from './firestore';
@@ -24,6 +25,7 @@ export interface BroadcastControlPatch {
   summaryOn?: boolean;
   prejogo?: BroadcastPrejogo;
   ranking?: BroadcastRanking;
+  multi?: BroadcastMulti;
   interview?: BroadcastInterview | null;
   commands?: Partial<BroadcastCommands>;
 }

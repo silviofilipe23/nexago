@@ -15,6 +15,9 @@ const base = (over: Partial<MultiCard> = {}): MultiCard => ({
   b: { teamId: 'tb', label: 'Batrane / Tiisaar', serving: false },
   sets: [{ a: 21, b: 18 }],
   live: { a: 10, b: 8 },
+  games: false,
+  liveGame: null,
+  tiebreak: null,
   setNumber: 2,
   setsA: 1,
   setsB: 0,
@@ -34,6 +37,19 @@ async function mount(cards: MultiCard[], mode: 'full' | 'strip' = 'full') {
 }
 
 describe('OverlayMultiComponent', () => {
+  it('games: set em andamento laranja, ponto do game no quadro e rodapé com tie-break', async () => {
+    const f = await mount([base({ games: true, live: { a: 6, b: 6 }, liveGame: { a: '5', b: '4' }, tiebreak: 'tiebreak', sets: [{ a: 7, b: 6 }], setNumber: 2 })]);
+    const el = f.nativeElement as HTMLElement;
+    expect(el.querySelectorAll('.set--live').length).toBe(2);
+    expect(Array.from(el.querySelectorAll('.pts')).map((e) => e.textContent?.trim())).toEqual(['5', '4']);
+    expect(el.querySelector('.c-pe')?.textContent).toContain('Tie-break');
+  });
+
+  it('games: super tie-break no rodapé e AD no quadro', async () => {
+    const f = await mount([base({ games: true, live: { a: 0, b: 0 }, liveGame: { a: '9', b: '8' }, tiebreak: 'super', setNumber: 3 })]);
+    expect((f.nativeElement as HTMLElement).querySelector('.c-pe')?.textContent).toContain('Super tie-break');
+  });
+
   it('tela cheia: título, um cartão por quadra, destaque e patrocinadores', async () => {
     const f = await mount([base(), base({ courtId: 'q2', number: 2, status: 'scheduled', time: '15:40', live: null, sets: [] })]);
     f.componentRef.setInput('focusCourtId', 'q2');

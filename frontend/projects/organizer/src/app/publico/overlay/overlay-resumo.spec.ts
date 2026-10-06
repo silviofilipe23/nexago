@@ -1,7 +1,7 @@
 import type { TournamentMatch } from '../../painel/data/matches-repository';
 import { overlayViewOf, type OverlayDuelView } from './overlay-selectors';
 import type { LivePointEvent } from '@nexago/live-scoring';
-import { flowDiffs, maxStreak, replayPointSides, resumoOf, syntheticSetPoints } from './overlay-resumo';
+import { flowDiffs, replayGamesPoints, maxStreak, replayPointSides, resumoOf, syntheticSetPoints } from './overlay-resumo';
 
 const NOW = Date.UTC(2026, 9, 6, 18, 0, 0);
 
@@ -98,5 +98,23 @@ describe('overlay-resumo', () => {
     expect(r?.stats.find((s) => s.label === 'Pontos no saque')).toEqual({ label: 'Pontos no saque', a: 1, b: 0 });
     expect(r?.stats.find((s) => s.label === 'Side-outs')).toEqual({ label: 'Side-outs', a: 0, b: 1 });
     expect(r?.duracao).toBe('2 min');
+  });
+
+  it('games: saque, devolução e quebras vêm do estado anterior gravado no evento', () => {
+    const at = (seq: number, side: 'A' | 'B', server: string, a: number, b: number): LivePointEvent => ({
+      ...ev(seq, 'point', side),
+      scoreA: a,
+      scoreB: b,
+      prev: { servingTeamId: server },
+    });
+    // A saca o game 1 e vence (1-0); B quebra no game 2 (1-1).
+    const events = [at(1, 'A', 'ta', 0, 0), at(2, 'A', 'ta', 1, 0), at(3, 'B', 'ta', 1, 0), at(4, 'B', 'tb', 1, 0), at(5, 'B', 'tb', 1, 1)];
+    const r = replayGamesPoints(events, { teamAId: 'ta', teamBId: 'tb' }).get(0)!;
+    expect(r.map((p) => p.closesGame)).toEqual([false, true, false, false, true]);
+    expect(r.map((p) => p.server)).toEqual(['A', 'A', 'A', 'B', 'B']);
+    const m = match({ sets: [{ a: 1, b: 1 }], scoringProfile: { kind: 'sets_games', bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: false, decidingSet: 'super_tiebreak', superTiebreakTo: 10 } });
+    const res = resumoOf(m, viewOf(m), events, { categoryName: null, courtName: null });
+    expect(res?.games).toBeTrue();
+    expect(res?.stats.map((x) => x.label)).toEqual(['Pontos totais', 'Pontos no saque', 'Pontos na devolução', 'Quebras de saque', 'Maior sequência']);
   });
 });

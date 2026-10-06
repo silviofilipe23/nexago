@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import type { PrejogoCard, PrejogoSide, PrejogoTeam } from '../../painel/data/broadcast-prejogo';
+import { ledIniciaisDe } from '../led/led-iniciais';
 import type { OverlayPatroItem } from './overlay-nx';
 
 /** Do 1º ao 3º lugar a etiqueta e as fotos ficam ouro/prata/bronze. */
@@ -60,7 +61,7 @@ export function prejogoNameSize(names: readonly string[]): number {
                       @if (team(c, side).photos[i]; as src) {
                         <img [src]="src" [alt]="team(c, side).names[i]" />
                       } @else {
-                        <span>Foto<br />atleta {{ i + 1 }}</span>
+                        <span>{{ iniciais(team(c, side), i) }}</span>
                       }
                     </div>
                   }
@@ -366,15 +367,13 @@ export function prejogoNameSize(names: readonly string[]): number {
       box-shadow: none;
       background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0 9px, transparent 9px 18px), #151517;
     }
+    /* Sem foto: iniciais do nome no avatar. */
     .foto--vazia span {
-      font-family: var(--mono);
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.14em;
+      font-size: 40px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
       text-transform: uppercase;
-      text-align: center;
-      line-height: 1.5;
-      color: rgba(255, 255, 255, 0.55);
+      color: rgba(255, 255, 255, 0.8);
     }
     .foto.medal-gold {
       border-color: var(--gold);
@@ -684,6 +683,10 @@ export class OverlayPrejogoComponent {
 
   protected team(c: PrejogoCard, side: PrejogoSide): PrejogoTeam {
     return side === 'A' ? c.a : c.b;
+  }
+
+  protected iniciais(t: PrejogoTeam, i: number): string {
+    return ledIniciaisDe(t.names[i] ?? '') || '?';
   }
 
   protected medal(t: PrejogoTeam): 'gold' | 'silver' | 'bronze' | null {

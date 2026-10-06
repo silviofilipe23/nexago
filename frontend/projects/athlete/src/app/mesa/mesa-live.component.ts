@@ -7,6 +7,7 @@ import {
   applyBestOfChange,
   buildMedicalTimeoutEndWrite,
   buildMedicalTimeoutStartWrite,
+  buildTechnicalTimeoutStartWrite,
   buildPointWrite,
   buildUndoWrite,
   GAMES_UNDO_BLOCKED_MESSAGE,
@@ -1745,12 +1746,17 @@ export class MesaLiveComponent {
     this.swapped.update((v) => !v);
   }
 
-  /** Tempo técnico da dupla que está no saque (2 por set, como na regra) — visual, o doc não
-   *  tem campo pra isso. */
+  /** Tempo técnico da dupla que está no saque (2 por set, como na regra). A COTA é só desta
+   *  tela; o minuto em andamento vai pro doc pra o overlay de transmissão entrar sozinho. */
   protected addTimeout(): void {
     const side = this.servingSide();
-    if (!side) return;
-    this.timeouts.update((t) => (t[side] >= 2 ? t : { ...t, [side]: t[side] + 1 }));
+    const m = this.match();
+    if (!side || this.timeouts()[side] >= 2) return;
+    this.timeouts.update((t) => ({ ...t, [side]: t[side] + 1 }));
+    if (!m || this.status() !== 'in_progress') return;
+    // Best-effort e fora do `saving`: a falha de rede não pode travar o ponto a ponto, e o
+    // tempo contado na tela continua valendo.
+    void this.gateway.recordPoint({ matchId: m.id, build: (fresh) => buildTechnicalTimeoutStartWrite(fresh, { side }) }).catch(() => undefined);
   }
 
   // ── Escritas ───────────────────────────────────────────────────────────────

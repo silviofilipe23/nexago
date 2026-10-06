@@ -2,12 +2,12 @@ import { emptyTournamentDraft, parseTournamentSport, sportFirestoreValue } from 
 import { tournamentDraftFromFirestore, tournamentDraftToFirestore } from './tournament-create-mapper';
 
 describe('esporte desconhecido no wizard de torneio', () => {
-  it('parseTournamentSport reconhece os 3 esportes do enum', () => {
+  it('parseTournamentSport reconhece os esportes do enum', () => {
     expect(parseTournamentSport('footvolley')).toEqual({ sport: 'footvolley', sportRaw: null });
   });
 
   it('parseTournamentSport guarda o valor cru quando não reconhece', () => {
-    expect(parseTournamentSport('padel')).toEqual({ sport: 'beachVolleyball', sportRaw: 'padel' });
+    expect(parseTournamentSport('football')).toEqual({ sport: 'beachVolleyball', sportRaw: 'football' });
     expect(parseTournamentSport(' beach_tennis ')).toEqual({ sport: 'beachVolleyball', sportRaw: 'beach_tennis' });
   });
 
@@ -16,10 +16,10 @@ describe('esporte desconhecido no wizard de torneio', () => {
     expect(parseTournamentSport('')).toEqual({ sport: 'beachVolleyball', sportRaw: null });
   });
 
-  it('torneio gravado com padel carrega travado e salva padel de volta', () => {
-    const { draft } = tournamentDraftFromFirestore({ name: 'Copa Padel', sport: 'padel' }, 'torneio-padel');
+  it('torneio gravado com football carrega travado e salva football de volta', () => {
+    const { draft } = tournamentDraftFromFirestore({ name: 'Copa Futebol', sport: 'football' }, 'torneio-football');
     expect(draft.sport).toBe('beachVolleyball');
-    expect(draft.sportRaw).toBe('padel');
+    expect(draft.sportRaw).toBe('football');
 
     const map = tournamentDraftToFirestore({
       draft: { ...draft, startAt: new Date(2026, 2, 28), endAt: new Date(2026, 2, 30) },
@@ -28,7 +28,7 @@ describe('esporte desconhecido no wizard de torneio', () => {
       isUpdate: true,
       existingListingStatus: 'draft',
     });
-    expect(map['sport']).toBe('padel');
+    expect(map['sport']).toBe('football');
   });
 
   it('draft novo nasce sem sportRaw e grava o enum', () => {

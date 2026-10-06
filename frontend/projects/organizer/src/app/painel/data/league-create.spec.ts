@@ -112,8 +112,8 @@ describe('escada por fase alcançada na tabela da liga', () => {
 });
 
 describe('league-create · esporte da liga publicada', () => {
-  it('liga gravada com padel mantém o valor cru para as etapas', () => {
-    expect(publishedLeagueSport({ sport: 'padel' })).toEqual({ sport: 'beachVolleyball', sportRaw: 'padel' });
+  it('liga gravada com football mantém o valor cru para as etapas', () => {
+    expect(publishedLeagueSport({ sport: 'football' })).toEqual({ sport: 'beachVolleyball', sportRaw: 'football' });
   });
 
   it('liga de futevôlei é reconhecida sem raw', () => {

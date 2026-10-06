@@ -8,6 +8,7 @@ enum TournamentSport {
   footvolley,
   tennis,
   beachTennis,
+  padel,
 }
 
 /// Perfil de placar cru da categoria (`scoringProfile` do doc) ou `null`.

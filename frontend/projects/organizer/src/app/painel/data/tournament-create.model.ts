@@ -6,9 +6,9 @@
 import { KOC_LEGACY_MAX_TEAMS_PER_ROUND, type KocPhaseSpec } from './koc-phase-plan';
 import { legacyScoringProfile, scoringProfileFromRaw, sportLabel, SPORT_CATALOG, type ScoringProfile } from '@nexago/sports';
 
-export type TournamentSport = 'beachVolleyball' | 'indoorVolleyball' | 'footvolley' | 'tennis' | 'beachTennis';
+export type TournamentSport = 'beachVolleyball' | 'indoorVolleyball' | 'footvolley' | 'tennis' | 'beachTennis' | 'padel';
 /** Na ordem do catálogo (suporte `competition`) — o teste de paridade compara com ela. */
-export const KNOWN_TOURNAMENT_SPORTS: readonly TournamentSport[] = ['beachVolleyball', 'indoorVolleyball', 'footvolley', 'tennis', 'beachTennis'];
+export const KNOWN_TOURNAMENT_SPORTS: readonly TournamentSport[] = ['beachVolleyball', 'indoorVolleyball', 'footvolley', 'tennis', 'beachTennis', 'padel'];
 
 /** Leitura de `sport` vinda do Firestore. `sportRaw` só é preenchido quando o
  *  valor existe e o tipo não o representa: é o que volta pro doc no save, para

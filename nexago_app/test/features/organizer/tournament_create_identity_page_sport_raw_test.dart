@@ -21,7 +21,7 @@ void main() {
             updatedAt: DateTime(2026, 1, 10),
             draft: const TournamentCreateDraft(
               name: 'Copa BT',
-              sportRaw: 'padel',
+              sportRaw: 'football',
             ),
           ),
         );
@@ -38,7 +38,7 @@ void main() {
     await tester.pump();
 
     expect(find.byType(DropdownButtonFormField<TournamentSport>), findsNothing);
-    expect(find.text('Padel'), findsOneWidget);
+    expect(find.text('Futebol'), findsOneWidget);
     expect(
       find.textContaining('não pode ser alterado nesta versão'),
       findsOneWidget,

@@ -14,11 +14,11 @@ void main() {
   group('LeagueCreateMapper', () {
     test('fromFirestore preserva sport desconhecido e toFirestore devolve igual', () {
       final load = LeagueCreateMapper.fromFirestore(
-        {'name': 'Liga BT', 'sport': 'padel'},
+        {'name': 'Liga BT', 'sport': 'football'},
         'liga-bt',
       );
       expect(load.draft.sport, TournamentSport.beachVolleyball);
-      expect(load.draft.sportRaw, 'padel');
+      expect(load.draft.sportRaw, 'football');
 
       final map = LeagueCreateMapper.toFirestore(
         draft: load.draft.copyWith(
@@ -28,13 +28,13 @@ void main() {
         managerId: 'm1',
         publish: false,
       );
-      expect(map['sport'], 'padel');
+      expect(map['sport'], 'football');
     });
 
     test('torneio de etapa gerado da liga herda o sport cru', () {
       final league = LeagueCreateDraft(
         name: 'Liga BT',
-        sportRaw: 'padel',
+        sportRaw: 'football',
         seasonStartAt: DateTime(2026, 2, 1),
         seasonEndAt: DateTime(2026, 10, 1),
         plannedStagesCount: 1,
@@ -51,7 +51,7 @@ void main() {
         managerId: 'm1',
         tournamentId: 't1',
       );
-      expect(map['sport'], 'padel');
+      expect(map['sport'], 'football');
     });
 
     test('toFirestore includes wizard step and listing status', () {

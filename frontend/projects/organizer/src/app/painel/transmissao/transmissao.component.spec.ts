@@ -17,8 +17,11 @@ async function mount(fake = new FakeData()) {
   return { fixture, fake, el: fixture.nativeElement as HTMLElement };
 }
 
-function botao(el: HTMLElement, texto: string): HTMLButtonElement {
-  const b = [...el.querySelectorAll('button')].find((x) => (x.textContent ?? '').trim().startsWith(texto));
+/** `escopo` restringe a busca a um grupo (aria-label): outros cards da tela — Grade do dia,
+ *  Multi-quadras — também listam as categorias do torneio com os mesmos nomes. */
+function botao(el: HTMLElement, texto: string, escopo?: string): HTMLButtonElement {
+  const raiz = escopo ? el.querySelector(`[aria-label="${escopo}"]`)! : el;
+  const b = [...raiz.querySelectorAll('button')].find((x) => (x.textContent ?? '').trim().startsWith(texto));
   if (!b) throw new Error(`botão "${texto}" não encontrado`);
   return b as HTMLButtonElement;
 }
@@ -144,11 +147,11 @@ describe('TransmissaoComponent', () => {
     it('escolher grava a categoria; Automático volta pra null', async () => {
       const fake = new FakeData();
       const { el, fixture } = await mount(fake);
-      botao(el, 'Feminina B').click();
+      botao(el, 'Feminina B', 'Categoria do pódio').click();
       expect(fake.saved).toEqual([{ championsCategoryId: 'cat1' }]);
       fake.control.set({ ...fake.control(), championsCategoryId: 'cat1' });
       await fixture.whenStable();
-      botao(el, 'Automático').click();
+      botao(el, 'Automático', 'Categoria do pódio').click();
       expect(fake.saved.at(-1)).toEqual({ championsCategoryId: null });
     });
 

@@ -198,3 +198,51 @@ export async function fetchRankingEntries(db: Firestore, projectId: string, spor
     results: r.results,
   }));
 }
+
+export interface TeamRankingEntry {
+  teamId: string;
+  totalPoints: number;
+  gender: RankingGender | null;
+  /** Uids dos dois atletas da dupla, na ordem de exibição. */
+  memberIds: string[];
+  results: RankingEntry['results'];
+}
+
+/** Linha de ranking de time → entrada de DUPLA, ou `null` (trio/equipe, dupla incompleta ou
+ *  procurando parceiro ficam fora do card). Gênero como o ranking do app: o do time, senão o do
+ *  elenco. */
+export function teamRankingEntryOf(
+  row: { id: string; totalPoints: number; results: RankingEntry['results'] },
+  team: RankingTeamDoc | undefined,
+  profiles: ReadonlyMap<string, RankingProfile>,
+): TeamRankingEntry | null {
+  if (!team || team.isLookingForPartner) return null;
+  const members = teamMemberIds(team);
+  if (members.length !== 2 || teamFormatOf(team.teamSize, members.length) !== 'dupla') return null;
+  return {
+    teamId: row.id,
+    totalPoints: row.totalPoints,
+    gender: deriveTeamGender(team.gender, members.map((uid) => profiles.get(uid)?.gender ?? null)),
+    memberIds: members,
+    results: row.results,
+  };
+}
+
+/** Ranking de duplas com `results[]`, gênero e atletas, pro card Top 10 de duplas. Espelha
+ *  `fetchRankingEntries`: `sportCode` `null` lê a coleção legada somada (sem `results`). Os docs de
+ *  time usam o mesmo `results[]`/`totalPoints` dos de atleta (mesma `upsertGlobalRankingDoc`). */
+export async function fetchTeamRankingEntries(db: Firestore, projectId: string, sportCode: string | null): Promise<TeamRankingEntry[]> {
+  const base = ['artifacts', projectId, 'public', 'data'] as const;
+  const snap = sportCode
+    ? await getDocs(query(collection(db, ...base, 'teamRankingsBySport'), where('sport', '==', sportCode)))
+    : await getDocs(collection(db, ...base, 'teamRankings'));
+  const rows = snap.docs.map((d) => {
+    const data = d.data() as Record<string, unknown>;
+    const id = sportCode ? bySportRankingRowOf(d.id, data, 'teamId', sportCode).id : d.id;
+    return { id, totalPoints: rankingTotalsFromDoc(data).points, results: rankingResultsOf(data['results']) };
+  });
+  const teams = await chunkedByIds(db, [...base, 'teams'], rows.map((r) => r.id), rankingTeamFromDoc);
+  const memberUids = [...teams.values()].flatMap((t) => teamMemberIds(t));
+  const profiles = await chunkedByIds(db, ['public_profiles'], memberUids, rankingProfileFromDoc);
+  return rows.map((r) => teamRankingEntryOf(r, teams.get(r.id), profiles)).filter((e): e is TeamRankingEntry => e !== null);
+}

@@ -12,10 +12,23 @@ const ANIM_TOTAL_MS = 4200;
 const easeOutCubic = (x: number) => 1 - Math.pow(1 - Math.min(Math.max(x, 0), 1), 3);
 
 interface Spark {
-  left: number;
-  size: number;
-  delay: number;
-  dur: number;
+  x: number;
+  s: number;
+  t: number;
+  dl: number;
+  dx: number;
+}
+
+/** mulberry32: mesma semente, mesma sequência — as faíscas são idênticas em toda tela e a cada abertura. */
+function rng(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 /** Tela de Resumo (1920×1080): card de 1440 px a 64 px do topo, sobre um escurecimento radial.
@@ -32,9 +45,9 @@ interface Spark {
       <section class="card" animate.enter="rs-card-in" animate.leave="rs-card-out" aria-label="Resumo da partida">
         <i class="filete" aria-hidden="true"></i>
         @if (winnerSide() !== null) {
-          <div class="sparks" [class.sparks--r]="winnerSide() === 'B'" aria-hidden="true">
-            @for (s of sparks(); track $index) {
-              <i [style.left.%]="s.left" [style.width.px]="s.size" [style.height.px]="s.size" [style.animation-delay.s]="s.delay" [style.animation-duration.s]="s.dur"></i>
+          <div class="rs-fx" aria-hidden="true">
+            @for (k of sparks(); track $index) {
+              <span class="spk" [style.--x]="k.x + '%'" [style.--s]="k.s + 'px'" [style.--t]="k.t + 's'" [style.--dl]="k.dl + 's'" [style.--dx]="k.dx + 'px'"></span>
             }
           </div>
         }
@@ -263,33 +276,41 @@ interface Spark {
         transform: scaleX(0);
       }
     }
-    .sparks {
+    /* Camada das faíscas: atrás de todo o conteúdo (z-index 1); o overflow do card corta na borda. */
+    .rs-fx {
       position: absolute;
-      inset: 0 50% 0 0;
+      inset: 0;
       overflow: hidden;
+      pointer-events: none;
+      z-index: 0;
     }
-    .sparks--r {
-      inset: 0 0 0 50%;
+    .card > :not(.rs-fx):not(.filete) {
+      position: relative;
+      z-index: 1;
     }
-    .sparks i {
+    .spk {
       position: absolute;
       bottom: -8px;
+      left: var(--x);
+      width: var(--s);
+      height: var(--s);
       border-radius: 50%;
-      background: var(--o5);
+      background: var(--o4);
+      box-shadow: 0 0 10px rgba(255, 138, 74, 0.9);
       opacity: 0;
-      animation: rs-spark linear infinite;
+      animation: spk var(--t) linear var(--dl) infinite;
     }
-    @keyframes rs-spark {
+    @keyframes spk {
       0% {
         opacity: 0;
-        transform: translateY(0);
+        transform: translate(0, 0);
       }
-      15% {
+      12% {
         opacity: 0.9;
       }
       100% {
         opacity: 0;
-        transform: translateY(-620px);
+        transform: translate(var(--dx), -820px);
       }
     }
 
@@ -714,13 +735,16 @@ export class OverlayResumoComponent {
     return v?.a.winner ? 'A' : v?.b.winner ? 'B' : null;
   });
 
+  /** 26 faíscas, só no lado do vencedor (A: 2–48 % do card; B: 52–98 %). Semente fixa. */
   protected readonly sparks = computed<Spark[]>(() => {
-    this.view()?.key;
+    const r = rng(3);
+    const base = this.winnerSide() === 'B' ? 52 : 2;
     return Array.from({ length: 26 }, () => ({
-      left: Math.random() * 96,
-      size: 2 + Math.random() * 4,
-      delay: Math.random() * 6,
-      dur: 4 + Math.random() * 4,
+      x: base + r() * 46,
+      s: 2 + r() * 4,
+      t: 4 + r() * 4,
+      dl: 1 + r() * 5,
+      dx: (r() - 0.5) * 120,
     }));
   });
 

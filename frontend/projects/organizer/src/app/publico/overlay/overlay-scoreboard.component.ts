@@ -36,6 +36,7 @@ type ServeKey = `${Side}${1 | 2}`;
         class="board"
         [class.board--final-mode]="isFinal()"
         [class.board--ended]="v.phase === 'final'"
+        [class.board--encolhido]="encolhido()"
       >
         @if (flash()) {
           <span class="flash" aria-hidden="true"></span>
@@ -184,6 +185,14 @@ type ServeKey = `${Side}${1 | 2}`;
       bottom: 74px;
       width: max-content;
       max-width: calc(100% - 160px);
+    }
+
+    .board {
+      transform-origin: 0 100%;
+      transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .board--encolhido {
+      transform: scale(0.8);
     }
 
     .flash {
@@ -726,6 +735,8 @@ export class OverlayScoreboardComponent {
   readonly isFinal = input(false);
   /** Elenco por time — cada atleta numa linha. Sem isto, cai no rótulo "A / B". */
   /** Lado que está em tempo técnico: ganha o filete laranja à esquerda. */
+  /** Jogo parado (tempo médico): o placar perde destaque, encolhido a partir do canto. */
+  readonly encolhido = input(false);
   readonly tecnicoSide = input<Side | null>(null);
   readonly teams = input<ReadonlyMap<string, OverlayKocTeam>>(new Map<string, OverlayKocTeam>());
 

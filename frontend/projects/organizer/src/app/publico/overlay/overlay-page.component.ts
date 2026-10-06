@@ -14,6 +14,7 @@ import { OverlayKocQualifiedComponent } from './overlay-koc-qualified.component'
 import { kocStandingsBoardOf } from './overlay-koc-standings';
 import { OverlayKocStandingsComponent } from './overlay-koc-standings.component';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
+import { OverlayPrejogoComponent } from './overlay-prejogo.component';
 import { OverlayResumoComponent } from './overlay-resumo.component';
 import { RESUMO_AUTO_DELAY_MS, RESUMO_AUTO_MAX_MS, resumoOf, type ResumoView } from './overlay-resumo';
 import { OverlayMedicoComponent } from './overlay-medico.component';
@@ -89,6 +90,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
     OverlayTecnicoComponent,
     OverlayMedicoComponent,
     OverlayResumoComponent,
+    OverlayPrejogoComponent,
   ],
   providers: [OverlayLiveGateway],
   host: {
@@ -115,7 +117,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
             [isFinal]="duelFinalMode()"
             [tecnicoSide]="tecnico()?.side ?? null"
             [encolhido]="medico() != null"
-            [class.fora]="resumo() != null || tecnico() != null"
+            [class.fora]="resumo() != null || tecnico() != null || prejogo() != null"
           />
         }
         @if (telaDoResultado(); as board) {
@@ -160,6 +162,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
         <!-- Sempre montada: o animate.leave do card precisa do host vivo. -->
         <og-overlay-tecnico [view]="tecnico()" [teams]="gateway.teams()" [sponsors]="patroItens()" />
 
+        <og-overlay-prejogo [card]="prejogo()" [sponsors]="patroItens()" />
         <og-overlay-resumo [view]="resumo()" [teams]="gateway.teams()" [sponsors]="patroItens()" />
         <og-overlay-medico [view]="medico()" [teams]="gateway.teams()" />
 
@@ -283,7 +286,7 @@ export class OverlayPageComponent {
   /** Doação e patrocínio só entram com o controle já resolvido e sem tarja — a tarja toma a
    *  tela, inclusive para um "Mostrar agora". */
   protected readonly cardsNoAr = computed(
-    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null,
+    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null && this.prejogo() == null,
   );
 
   /** O que vai ao ar: regra automática de cada tela E chave do painel; tarja toma a tela.
@@ -595,6 +598,12 @@ export class OverlayPageComponent {
     const durMs = TECNICO_AUTO_SEGUNDOS * 1000;
     if (!tecnicoNoAr(auto.startMs, durMs, nowMs)) return null;
     return { kind: 'auto', key: auto.key, startMs: auto.startMs, durMs, side: null, teamId: '', info: tecnicoInfoOf(v, this.categoryName()) };
+  });
+
+  /** Pré-jogo no ar: o painel monta o card e liga a chave. A tarja de entrevista toma a tela. */
+  protected readonly prejogo = computed(() => {
+    const p = this.controle().prejogo;
+    return this.gateway.controlReady() && p.on && !this.interviewOnAir() ? p.card : null;
   });
 
   /** Resumo aberto sozinho no fim do jogo: id da partida (some quando o jogo muda, é desfeito ou

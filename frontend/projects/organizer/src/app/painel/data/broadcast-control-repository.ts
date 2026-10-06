@@ -8,6 +8,7 @@ import {
   type BroadcastInterview,
   type KocRoundEndScreen,
 } from './broadcast-control';
+import type { BroadcastPrejogo } from './broadcast-prejogo';
 import { organizerFirestore } from './firestore';
 import { interviewQueueFromRaw, type InterviewQueue } from './interview-queue';
 
@@ -20,6 +21,7 @@ export interface BroadcastControlPatch {
   finalMode?: BroadcastFinalMode;
   championsCategoryId?: string | null;
   summaryOn?: boolean;
+  prejogo?: BroadcastPrejogo;
   interview?: BroadcastInterview | null;
   commands?: Partial<BroadcastCommands>;
 }

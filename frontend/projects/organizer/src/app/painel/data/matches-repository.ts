@@ -655,6 +655,22 @@ export async function listMatches(tournamentId: string): Promise<TournamentMatch
   return rows.map((r) => rawToMatch(r, labelOf));
 }
 
+/** Histórico de UMA dupla em todos os torneios — duas queries de igualdade (`teamAId`/`teamBId`,
+ *  sem `where` de status: não há índice composto), mescladas por id. Quem chama filtra em memória
+ *  (encerradas, adversário). Limitação: a identidade da dupla é o `teamId`; uma dupla refeita com
+ *  outro id em outro torneio não aparece aqui. */
+export async function fetchMatchesOfTeam(teamId: string): Promise<TournamentMatch[]> {
+  const projectId = environment.firebase.projectId;
+  if (!projectId || !teamId) return [];
+  const col = collection(organizerFirestore(), 'artifacts', projectId, 'public', 'data', 'matches');
+  const [byA, byB] = await Promise.all([getDocs(query(col, where('teamAId', '==', teamId))), getDocs(query(col, where('teamBId', '==', teamId)))]);
+  const byId = new Map<string, TournamentMatch>();
+  for (const d of [...byA.docs, ...byB.docs]) {
+    byId.set(d.id, rawToMatch(rawMatchFromDoc(d.id, d.data() as Record<string, unknown>), (description) => description ?? 'A definir'));
+  }
+  return [...byId.values()];
+}
+
 /** Versão ao vivo de `listMatches`, SEM o join de nomes — cada snapshot precisa emitir na
  *  hora, e o telão hidrata nomes/fotos por conta própria (`telao-data.service.ts`).
  *  `team1Label`/`team2Label` caem na descrição do slot ("Vencedor Jogo #1") ou "A definir". */

@@ -149,6 +149,21 @@ const WIDE_QUERY = '(min-width: 1100px)';
                   }
                 </div>
                 <p class="og-tx-dica og-tx-podio">{{ podiumStatus() }}</p>
+                <div class="og-toggle-row">
+                  <div class="og-toggle-row-text">
+                    <div class="og-toggle-row-title">Resumo da partida</div>
+                    <div class="og-toggle-row-desc">Estatísticas e fluxo do jogo. Ao fim da partida entra sozinho; ligado no meio do jogo vira "Resumo parcial"</div>
+                  </div>
+                  <button
+                    type="button"
+                    class="og-toggle"
+                    role="switch"
+                    [class.on]="svc.control().summaryOn"
+                    [attr.aria-checked]="svc.control().summaryOn"
+                    aria-label="Resumo da partida"
+                    (click)="toggleSummary()"
+                  ></button>
+                </div>
               }
             </og-card>
           }
@@ -360,6 +375,10 @@ export class TransmissaoComponent {
     const graphics: Partial<BroadcastGraphics> = {};
     graphics[id] = !this.svc.control().graphics[id];
     void this.svc.save({ graphics });
+  }
+
+  protected toggleSummary(): void {
+    void this.svc.save({ summaryOn: !this.svc.control().summaryOn });
   }
 
   protected showNow(id: BroadcastGraphicId): void {

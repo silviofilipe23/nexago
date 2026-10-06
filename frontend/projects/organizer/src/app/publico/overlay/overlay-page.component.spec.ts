@@ -1,4 +1,5 @@
 import { provideZonelessChangeDetection, signal } from '@angular/core';
+import type { LivePointEvent } from '@nexago/live-scoring';
 import { TestBed } from '@angular/core/testing';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
 import type { OrganizerTournament } from '../../painel/data/tournament.model';
@@ -73,6 +74,8 @@ class FakeGateway
       | 'startCourt'
       | 'watchTournamentMatches'
       | 'ensureTeams'
+      | 'pointEvents'
+      | 'watchPointEvents'
     >
 {
   readonly match = signal<TournamentMatch | null>(null);
@@ -93,6 +96,11 @@ class FakeGateway
   /** Assinaturas de todas as partidas ativas (pódio de categoria escolhida). */
   allMatchesWatchers = 0;
   readonly ensuredTeams: string[] = [];
+  readonly pointEvents = signal<readonly LivePointEvent[]>([]);
+
+  watchPointEvents(_matchId: string): () => void {
+    return () => {};
+  }
 
   watchTournamentMatches(_tournamentId: string): () => void {
     this.allMatchesWatchers++;

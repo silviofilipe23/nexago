@@ -14,6 +14,8 @@ import { OverlayKocQualifiedComponent } from './overlay-koc-qualified.component'
 import { kocStandingsBoardOf } from './overlay-koc-standings';
 import { OverlayKocStandingsComponent } from './overlay-koc-standings.component';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
+import { OverlayResumoComponent } from './overlay-resumo.component';
+import { RESUMO_AUTO_DELAY_MS, RESUMO_AUTO_MAX_MS, resumoOf, type ResumoView } from './overlay-resumo';
 import { OverlayMedicoComponent } from './overlay-medico.component';
 import { medicoOf, type OverlayMedicoView } from './overlay-medico';
 import { OverlayTecnicoComponent } from './overlay-tecnico.component';
@@ -86,6 +88,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
     OverlayInterviewComponent,
     OverlayTecnicoComponent,
     OverlayMedicoComponent,
+    OverlayResumoComponent,
   ],
   providers: [OverlayLiveGateway],
   host: {
@@ -112,6 +115,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
             [isFinal]="duelFinalMode()"
             [tecnicoSide]="tecnico()?.side ?? null"
             [encolhido]="medico() != null"
+            [class.fora]="resumo() != null"
           />
         }
         @if (telaDoResultado(); as board) {
@@ -156,6 +160,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
         <!-- Sempre montada: o animate.leave do card precisa do host vivo. -->
         <og-overlay-tecnico [view]="tecnico()" [teams]="gateway.teams()" [sponsors]="patroItens()" />
 
+        <og-overlay-resumo [view]="resumo()" [teams]="gateway.teams()" [sponsors]="patroItens()" />
         <og-overlay-medico [view]="medico()" [teams]="gateway.teams()" />
 
         <og-overlay-doacao [config]="doacaoConfig" [show]="cardsNoAr() && doacaoShow()" />
@@ -174,6 +179,16 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
       height: 100%;
       background: transparent;
       overflow: hidden;
+    }
+    /* Resumo no ar: o placar sai com fade e 30 px pra baixo. */
+    og-overlay-scoreboard {
+      transition:
+        opacity 0.6s ease,
+        transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    og-overlay-scoreboard.fora {
+      opacity: 0;
+      transform: translateY(30px);
     }
     :host.preview {
       background:
@@ -267,7 +282,9 @@ export class OverlayPageComponent {
 
   /** Doação e patrocínio só entram com o controle já resolvido e sem tarja — a tarja toma a
    *  tela, inclusive para um "Mostrar agora". */
-  protected readonly cardsNoAr = computed(() => this.gateway.controlReady() && !this.interviewOnAir());
+  protected readonly cardsNoAr = computed(
+    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null,
+  );
 
   /** O que vai ao ar: regra automática de cada tela E chave do painel; tarja toma a tela.
    *  Antes do controle responder, nada controlável entra (ver `controlReady`). */
@@ -401,7 +418,9 @@ export class OverlayPageComponent {
     return this.gateway.tournament()?.categories.find((c) => c.id === m?.categoryId)?.name ?? null;
   });
   protected readonly podioCourtName = computed(() => this.partidaDoPodio()?.court ?? null);
-  protected readonly campeoes = computed(() => (this.layers().champions ? this.campeoesAuto() : null));
+  protected readonly campeoes = computed(() =>
+    this.layers().champions && this.resumo() == null ? this.campeoesAuto() : null,
+  );
 
   /** Classificação da rodada KOTC encerrada. */
   protected readonly standings = computed(() => {
@@ -566,7 +585,7 @@ export class OverlayPageComponent {
 
   /** Tempo técnico no ar: o chamado pela mesa tem prioridade sobre o automático. */
   protected readonly tecnico = computed<OverlayTecnicoView | null>(() => {
-    if (!this.layers().duel) return null;
+    if (!this.layers().duel || this.resumo() != null) return null;
     const v = this.duelViewAuto();
     const nowMs = this.tick();
     const manual = tecnicoManualOf(this.match(), v, nowMs, this.categoryName());
@@ -578,9 +597,38 @@ export class OverlayPageComponent {
     return { kind: 'auto', key: auto.key, startMs: auto.startMs, durMs, side: null, teamId: '', info: tecnicoInfoOf(v, this.categoryName()) };
   });
 
+  /** Resumo aberto sozinho no fim do jogo: id da partida (some quando o jogo muda, é desfeito ou
+   *  passam `RESUMO_AUTO_MAX_MS`). O manual vem do painel (`summaryOn`). */
+  private readonly resumoAuto = signal<string | null>(null);
+  private resumoMemo: { id: string; completed: boolean } | null = null;
+  private resumoTimers: ReturnType<typeof setTimeout>[] = [];
+
+  private limparResumoTimers(): void {
+    this.resumoTimers.forEach(clearTimeout);
+    this.resumoTimers = [];
+  }
+
+  /** Só duelo tem Resumo; a partida precisa já ter pontos. */
+  private readonly resumoEventsId = computed(() => {
+    const v = this.view();
+    const m = this.match();
+    return v?.kind === 'duel' && m && m.status !== 'scheduled' ? m.id : '';
+  });
+
+  protected readonly resumo = computed<ResumoView | null>(() => {
+    const m = this.match();
+    const v = this.view();
+    if (!m || v?.kind !== 'duel' || !this.gateway.controlReady() || this.interviewOnAir()) return null;
+    if (!this.controle().summaryOn && this.resumoAuto() !== m.id) return null;
+    return resumoOf(m, v, this.gateway.pointEvents(), {
+      categoryName: this.categoryName(),
+      courtName: this.courtName(),
+    });
+  });
+
   /** Atendimento médico no ar — sem patrocinadores, e o placar encolhe (o jogo está parado). */
   protected readonly medico = computed<OverlayMedicoView | null>(() =>
-    this.layers().duel ? medicoOf(this.match(), this.duelViewAuto(), this.tick()) : null,
+    this.layers().duel && this.resumo() == null ? medicoOf(this.match(), this.duelViewAuto(), this.tick()) : null,
   );
 
   private readonly view = computed(() => {
@@ -716,6 +764,37 @@ export class OverlayPageComponent {
         this.runPatro(patroCycleStart(this.patroInput()));
       });
     });
+
+    // Log de pontos do Resumo: só enquanto há duelo com jogo começado.
+    effect((onCleanup) => {
+      const id = this.resumoEventsId();
+      if (!id) return;
+      onCleanup(this.gateway.watchPointEvents(id));
+    });
+    // Resumo automático: a TRANSIÇÃO ao vivo → encerrada (não o estado) abre, 4,5 s depois do
+    // ponto final. Recarregar o OBS numa partida já encerrada não reabre o resumo.
+    effect(() => {
+      const m = this.match();
+      untracked(() => {
+        const completed = m?.status === 'completed';
+        const prev = this.resumoMemo;
+        this.resumoMemo = m ? { id: m.id, completed } : null;
+        if (!m || prev?.id !== m.id || !completed) {
+          this.limparResumoTimers();
+          if (this.resumoAuto() != null && (!m || this.resumoAuto() !== m.id || !completed)) this.resumoAuto.set(null);
+          return;
+        }
+        if (prev.completed || this.resumoAuto() === m.id || this.resumoTimers.length > 0) return;
+        const id = m.id;
+        this.resumoTimers.push(
+          setTimeout(() => {
+            this.resumoAuto.set(id);
+            this.resumoTimers.push(setTimeout(() => this.resumoAuto.set(null), RESUMO_AUTO_MAX_MS));
+          }, RESUMO_AUTO_DELAY_MS),
+        );
+      });
+    });
+    destroyRef.onDestroy(() => this.limparResumoTimers());
 
     // Automático: a chave só existe com o set em 21; chave nova = relógio novo (a 1ª é a base).
     effect(() => {

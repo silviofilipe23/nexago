@@ -566,7 +566,7 @@ const FLASH_MS = 700;
       gap: 14px;
     }
     .logo {
-      height: 60px;
+      height: 100px;
       display: grid;
       place-items: center;
       overflow: hidden;
@@ -581,7 +581,7 @@ const FLASH_MS = 700;
       padding: 6px;
     }
     .logo img {
-      width: 100%;
+      width: 80px;
       height: 100%;
       object-fit: contain;
       object-position: center;

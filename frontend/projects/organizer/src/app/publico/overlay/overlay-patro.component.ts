@@ -152,7 +152,7 @@ import type { OverlayPatroItem } from './overlay-nx';
     .slot img {
       /* 100% nos dois eixos + contain: o logo ESCALA pra caber (pequeno cresce, grande encolhe).
          max-* em % não resolve numa célula de altura intrínseca e o overflow cortava o logo. */
-      width: 100%;
+      width: 80px;
       height: 100%;
       object-fit: contain;
       object-position: center;

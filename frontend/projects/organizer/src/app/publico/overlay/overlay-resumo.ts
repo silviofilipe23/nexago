@@ -11,8 +11,9 @@ import type { OverlayDuelView } from './overlay-selectors';
  *  (replay com o desfazer), que NÃO grava quem sacava: no vôlei de praia (ponto corrido) quem
  *  saca é quem fez o ponto anterior, e é daí que saem "pontos no saque" e "side-outs". O 1º
  *  ponto de cada set fica de fora dessas duas contas — ninguém sabe quem sacou. Em partida de
- *  games o saque muda por game, não por ponto: não há derivação honesta, então só entram os
- *  números que o log dá direto. */
+ *  games o saque muda por game, não por ponto, mas o evento de ponto grava o estado ANTERIOR em
+ *  `prev` (inclusive `servingTeamId`): é de lá que saem saque, devolução e quebras. Evento antigo
+ *  ou partida sem saque declarado entra só nos totais. */
 
 export const RESUMO_AUTO_DELAY_MS = 4500;
 /** Resumo aberto sozinho no fim do jogo sai depois disto (o manual fica até o painel desligar). */
@@ -85,6 +86,48 @@ export function syntheticSetPoints(a: number, b: number): Side[] {
   return out;
 }
 
+export interface GamesPoint {
+  side: Side;
+  /** Quem sacava o ponto; `null` = saque não declarado. */
+  server: Side | null;
+  /** O ponto fechou um game (o placar de games do set subiu). */
+  closesGame: boolean;
+}
+
+/** Replay do log de games com o desfazer. `closesGame` sai da subida de scoreA+scoreB (games do
+ *  set) entre dois lances válidos seguidos — o tie-break e o super tie-break também contam. */
+export function replayGamesPoints(
+  events: readonly LivePointEvent[],
+  teams: { teamAId: string; teamBId: string },
+): Map<number, GamesPoint[]> {
+  type Entry = GamesPoint & { sum: number };
+  const bySet = new Map<number, Entry[]>();
+  for (const e of [...events].sort((x, y) => x.seq - y.seq)) {
+    if (e.side == null) continue;
+    const stack = bySet.get(e.setIndex) ?? [];
+    if (e.type === 'point') {
+      const serving = typeof e.prev?.['servingTeamId'] === 'string' ? (e.prev['servingTeamId'] as string) : '';
+      const server: Side | null = serving !== '' && serving === teams.teamAId ? 'A' : serving !== '' && serving === teams.teamBId ? 'B' : null;
+      stack.push({ side: e.side, server, closesGame: false, sum: e.scoreA + e.scoreB });
+    } else if (e.type === 'undo-point') stack.pop();
+    else continue;
+    bySet.set(e.setIndex, stack);
+  }
+  const out = new Map<number, GamesPoint[]>();
+  for (const [i, stack] of bySet) {
+    let prev = 0;
+    out.set(
+      i,
+      stack.map((p) => {
+        const closes = p.sum > prev;
+        prev = p.sum;
+        return { side: p.side, server: p.server, closesGame: closes };
+      }),
+    );
+  }
+  return out;
+}
+
 export function maxStreak(points: readonly Side[]): { a: number; b: number } {
   const best = { a: 0, b: 0 };
   let run = 0;
@@ -149,8 +192,19 @@ export function resumoOf(
   const all = perSet.flat();
   if (games) {
     if (all.length > 0) {
-      stats.push({ label: 'Pontos totais', a: all.filter((p) => p === 'A').length, b: all.filter((p) => p === 'B').length });
+      const gp = [...replayGamesPoints(events, { teamAId: match.teamAId, teamBId: match.teamBId }).values()];
+      const flat = gp.flat();
+      const count = (f: (p: GamesPoint) => boolean, side: Side) => flat.filter((p) => p.side === side && f(p)).length;
+      const known = flat.some((p) => p.server != null);
       const streak = perSet.map(maxStreak);
+      stats.push({ label: 'Pontos totais', a: all.filter((p) => p === 'A').length, b: all.filter((p) => p === 'B').length });
+      if (known) {
+        stats.push(
+          { label: 'Pontos no saque', a: count((p) => p.server === 'A', 'A'), b: count((p) => p.server === 'B', 'B') },
+          { label: 'Pontos na devolução', a: count((p) => p.server === 'B', 'A'), b: count((p) => p.server === 'A', 'B') },
+          { label: 'Quebras de saque', a: count((p) => p.closesGame && p.server === 'B', 'A'), b: count((p) => p.closesGame && p.server === 'A', 'B') },
+        );
+      }
       stats.push({ label: 'Maior sequência', a: Math.max(...streak.map((s) => s.a)), b: Math.max(...streak.map((s) => s.b)) });
     }
   } else {

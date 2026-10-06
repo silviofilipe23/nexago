@@ -5,11 +5,19 @@
  *  overlay público só desenha. O card traz os DOIS estados — antes e depois da etapa — porque a
  *  tela anima de um pro outro (linhas deslizam, pontos contam, quem sai/entra aparece). */
 
+/** `atleta` = ranking individual; `dupla` = ranking de duplas (cada linha é uma dupla). */
+export type RankingKind = 'atleta' | 'dupla';
+
 export interface RankingAthlete {
   /** Identidade estável: casa a linha "antes" com a "depois" pra deslizar até a nova posição. */
   id: string;
+  /** Atleta: o nome. Dupla: os dois nomes juntos ("Berger / Hölting Nilsson"). */
   name: string;
   photo: string | null;
+  /** Só dupla: um nome e uma foto por atleta, alinhados (o overlay desenha as duas fotos
+   *  sobrepostas). Vazio no ranking individual. */
+  names: string[];
+  photos: (string | null)[];
   /** Linha de baixo do nome. Clube/arena não existe no cadastro: o painel usa cidade/UF. */
   sub: string | null;
   /** Posição NO RANKING INTEIRO antes da etapa (pode passar de 10; entrou no top 10 vinda de
@@ -25,6 +33,8 @@ export interface RankingAthlete {
 export interface RankingHighlightLeader {
   name: string;
   photo: string | null;
+  /** Só dupla: as duas fotos do destaque. */
+  photos: (string | null)[];
   points: number;
   /** `true` = mantém a liderança; `false` = assume. */
   keeps: boolean;
@@ -33,6 +43,7 @@ export interface RankingHighlightLeader {
 export interface RankingHighlightClimber {
   name: string;
   photo: string | null;
+  photos: (string | null)[];
   from: number;
   to: number;
 }
@@ -40,11 +51,13 @@ export interface RankingHighlightClimber {
 export interface RankingHighlightTopGain {
   name: string;
   photo: string | null;
+  photos: (string | null)[];
   sub: string | null;
   gain: number;
 }
 
 export interface RankingCard {
+  kind: RankingKind;
   /** Mudou = a tela reinicia e anima de novo (Atualizar, trocar de categoria). */
   key: string;
   /** "MASCULINO" / "FEMININO" — vai depois de "RANKING " no título, em laranja. */
@@ -83,6 +96,10 @@ function int(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? Math.trunc(v) : null;
 }
 
+function photosFromRaw(raw: unknown): (string | null)[] {
+  return (Array.isArray(raw) ? raw : []).slice(0, 2).map(text);
+}
+
 function athleteFromRaw(raw: unknown): RankingAthlete | null {
   const d = record(raw);
   const id = text(d['id']);
@@ -94,6 +111,8 @@ function athleteFromRaw(raw: unknown): RankingAthlete | null {
     id,
     name,
     photo: text(d['photo']),
+    names: (Array.isArray(d['names']) ? d['names'] : []).map(text).filter((n): n is string => n !== null).slice(0, 2),
+    photos: photosFromRaw(d['photos']),
     sub: text(d['sub']),
     posBefore: posBefore != null && posBefore > 0 ? posBefore : null,
     posAfter,
@@ -123,15 +142,16 @@ function cardFromRaw(raw: unknown): RankingCard | null {
   const to = int(c['to']);
   const gain = int(g['gain']);
   return {
+    kind: d['kind'] === 'dupla' ? 'dupla' : 'atleta',
     key,
     categoryLabel: text(d['categoryLabel']) ?? '',
     stageName: text(d['stageName']) ?? '',
     updated: d['updated'] === true,
     before: before.length > 0 ? before : after,
     after,
-    leader: lName ? { name: lName, photo: text(l['photo']), points: int(l['points']) ?? 0, keeps: l['keeps'] === true } : null,
-    climber: cName && from != null && to != null ? { name: cName, photo: text(c['photo']), from, to } : null,
-    topGain: gName && gain != null ? { name: gName, photo: text(g['photo']), sub: text(g['sub']), gain } : null,
+    leader: lName ? { name: lName, photo: text(l['photo']), photos: photosFromRaw(l['photos']), points: int(l['points']) ?? 0, keeps: l['keeps'] === true } : null,
+    climber: cName && from != null && to != null ? { name: cName, photo: text(c['photo']), photos: photosFromRaw(c['photos']), from, to } : null,
+    topGain: gName && gain != null ? { name: gName, photo: text(g['photo']), photos: photosFromRaw(g['photos']), sub: text(g['sub']), gain } : null,
   };
 }
 

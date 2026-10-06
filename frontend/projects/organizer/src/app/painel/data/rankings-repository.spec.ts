@@ -8,6 +8,7 @@ import {
   rankingTeamFromDoc,
   rankingTotalsFromDoc,
   teamParticipantOf,
+  teamRankingEntryOf,
   type RankingProfile,
 } from './rankings-repository';
 import { interviewProfileFromDoc } from './teams-repository';
@@ -113,5 +114,31 @@ describe('rankings-repository (por esporte, fase 3b1)', () => {
     expect(rankingSportOf({ sportId: 'footvolley' })).toBe('FUTEVOLEI');
     expect(rankingSportOf({ sportId: 'xadrez' })).toBeNull();
     expect(rankingSportOf(null)).toBeUndefined();
+  });
+});
+
+describe('teamRankingEntryOf (duplas do card Top 10)', () => {
+  const profiles = new Map<string, RankingProfile>([
+    ['a', { sport: 'beachTennis', gender: 'Masculino' }],
+    ['b', { sport: 'beachTennis', gender: 'Masculino' }],
+    ['c', { sport: 'beachTennis', gender: 'Feminino' }],
+  ]);
+  const row = { id: 't1', totalPoints: 500, results: [{ tournamentId: 'x', points: 500 }] };
+  const team = (over: Record<string, unknown>) => rankingTeamFromDoc({ player1Id: 'a', player2Id: 'b', ...over });
+
+  it('dupla legada: gênero do elenco, membros na ordem', () => {
+    expect(teamRankingEntryOf(row, team({}), profiles)).toEqual({ teamId: 't1', totalPoints: 500, gender: 'male', memberIds: ['a', 'b'], results: row.results });
+  });
+
+  it('gênero do time vence; elenco misto vira misto', () => {
+    expect(teamRankingEntryOf(row, team({ gender: 'Feminino' }), profiles)!.gender).toBe('female');
+    expect(teamRankingEntryOf(row, team({ player2Id: 'c' }), profiles)!.gender).toBe('mixed');
+  });
+
+  it('trio, quarteto, procurando parceiro, incompleta e sem doc ficam fora', () => {
+    expect(teamRankingEntryOf(row, team({ teamSize: 3, memberUids: ['a', 'b', 'c'] }), profiles)).toBeNull();
+    expect(teamRankingEntryOf(row, team({ isLookingForPartner: true }), profiles)).toBeNull();
+    expect(teamRankingEntryOf(row, rankingTeamFromDoc({ player1Id: 'a' }), profiles)).toBeNull();
+    expect(teamRankingEntryOf(row, undefined, profiles)).toBeNull();
   });
 });

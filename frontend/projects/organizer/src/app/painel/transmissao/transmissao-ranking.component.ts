@@ -1,9 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { environment } from '../../../environments/environment';
-import type { BroadcastRanking, RankingCard, RankingMode } from '../data/broadcast-ranking';
+import type { BroadcastRanking, RankingCard, RankingKind, RankingMode } from '../data/broadcast-ranking';
 import { organizerFirestore } from '../data/firestore';
 import type { RankingGender } from '../data/ranking-positions';
-import { fetchRankingEntries, rankingSportOf } from '../data/rankings-repository';
+import { fetchRankingEntries, fetchTeamRankingEntries, rankingSportOf } from '../data/rankings-repository';
 import { fetchInterviewProfiles } from '../data/teams-repository';
 import { OgCardComponent } from '../ui/card.component';
 import { rankingCardOf, type RankingCardProfile } from './ranking-card';
@@ -24,8 +24,24 @@ const LABELS: Record<CardGender, string> = { male: 'MASCULINO', female: 'FEMININ
   imports: [OgCardComponent],
   template: `
     @let rk = svc.control().ranking;
-    <og-card kicker="Apresentação" title="Ranking Top 10">
-      <div class="og-rk-label">Categoria</div>
+    <og-card kicker="Apresentação" [title]="kind() === 'dupla' ? 'Ranking Top 10 — Duplas' : 'Ranking Top 10 — Atletas'">
+      <div class="og-rk-label">Ranking de</div>
+      <div class="og-rk-chips" role="radiogroup" aria-label="Tipo do ranking">
+        @for (k of kinds; track k.value) {
+          <button
+            type="button"
+            class="og-chip"
+            role="radio"
+            [class.active]="kind() === k.value"
+            [attr.aria-checked]="kind() === k.value"
+            [disabled]="busy()"
+            (click)="selectKind(k.value)"
+          >
+            {{ k.label }}
+          </button>
+        }
+      </div>
+      <div class="og-rk-label og-rk-label-gap">Categoria</div>
       <div class="og-rk-chips" role="radiogroup" aria-label="Categoria do ranking">
         @for (g of genders; track g.value) {
           <button
@@ -55,7 +71,7 @@ const LABELS: Record<CardGender, string> = { male: 'MASCULINO', female: 'FEMININ
 
       @if (rk.card; as card) {
         <div class="og-rk-card">
-          <div class="og-rk-card-titulo">Ranking {{ card.categoryLabel }} · {{ card.after.length }} atletas</div>
+          <div class="og-rk-card-titulo">Ranking {{ card.categoryLabel }} · {{ card.after.length }} {{ card.kind === 'dupla' ? 'duplas' : 'atletas' }}</div>
           <div class="og-rk-card-sub">{{ card.updated ? 'Atualizado após' : 'Antes da' }} {{ card.stageName }}</div>
         </div>
         <div class="og-rk-acoes">
@@ -91,6 +107,9 @@ const LABELS: Record<CardGender, string> = { male: 'MASCULINO', female: 'FEMININ
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: var(--nx-text-dim);
+    }
+    .og-rk-label-gap {
+      margin-top: 12px;
     }
     .og-rk-chips {
       display: flex;
@@ -132,6 +151,11 @@ const LABELS: Record<CardGender, string> = { male: 'MASCULINO', female: 'FEMININ
 export class TransmissaoRankingComponent {
   protected readonly svc = inject(TransmissaoDataService);
 
+  protected readonly kinds: { value: RankingKind; label: string }[] = [
+    { value: 'atleta', label: 'Atletas' },
+    { value: 'dupla', label: 'Duplas' },
+  ];
+
   protected readonly genders: { value: CardGender; label: string }[] = [
     { value: 'male', label: 'Masculino' },
     { value: 'female', label: 'Feminino' },
@@ -139,6 +163,9 @@ export class TransmissaoRankingComponent {
 
   /** Escolha do operador; sem ela, o gênero da 1ª categoria do torneio (senão masculino). */
   private readonly picked = signal<CardGender | null>(null);
+  /** Tipo do ranking; sem escolha, o do card já gravado (senão atletas). */
+  private readonly pickedKind = signal<RankingKind | null>(null);
+  protected readonly kind = computed<RankingKind>(() => this.pickedKind() ?? this.svc.control().ranking.card?.kind ?? 'atleta');
   protected readonly gender = computed<CardGender>(() => {
     const p = this.picked();
     if (p) return p;
@@ -149,7 +176,7 @@ export class TransmissaoRankingComponent {
   protected readonly empty = signal(false);
 
   private newKey(): string {
-    return `${this.svc.tournamentId() ?? 'rk'}:${this.gender()}:${Date.now()}`;
+    return `${this.svc.tournamentId() ?? 'rk'}:${this.kind()}:${this.gender()}:${Date.now()}`;
   }
 
   private patch(on: boolean, mode: RankingMode, card: RankingCard | null): { ranking: BroadcastRanking } {
@@ -159,6 +186,12 @@ export class TransmissaoRankingComponent {
   protected selectGender(g: CardGender): void {
     if (g === this.gender()) return;
     this.picked.set(g);
+    if (this.svc.control().ranking.card) void this.build();
+  }
+
+  protected selectKind(k: RankingKind): void {
+    if (k === this.kind()) return;
+    this.pickedKind.set(k);
     if (this.svc.control().ranking.card) void this.build();
   }
 
@@ -174,15 +207,27 @@ export class TransmissaoRankingComponent {
       const db = organizerFirestore();
       const sport = rankingSportOf(t) ?? null;
       const gender = this.gender();
-      const entries = (await fetchRankingEntries(db, projectId, sport)).filter((e) => e.gender === gender);
-      const withPoints = entries.filter((e) => e.totalPoints > 0);
-      const profiles = await fetchInterviewProfiles(db, withPoints.map((e) => e.athleteId));
+      const kind = this.kind();
+      let entries: { id: string; totalPoints: number; results: { tournamentId: string; points: number }[] }[];
+      let teams: Map<string, string[]> | undefined;
+      if (kind === 'dupla') {
+        const rows = (await fetchTeamRankingEntries(db, projectId, sport)).filter((e) => e.gender === gender);
+        teams = new Map(rows.map((e) => [e.teamId, e.memberIds]));
+        entries = rows.map((e) => ({ id: e.teamId, totalPoints: e.totalPoints, results: e.results }));
+      } else {
+        const rows = (await fetchRankingEntries(db, projectId, sport)).filter((e) => e.gender === gender);
+        entries = rows.map((e) => ({ id: e.athleteId, totalPoints: e.totalPoints, results: e.results }));
+      }
+      const uids = entries.filter((e) => e.totalPoints > 0).flatMap((e) => teams?.get(e.id) ?? [e.id]);
+      const profiles = await fetchInterviewProfiles(db, uids);
       const cardProfiles = new Map<string, RankingCardProfile>(
         [...profiles].map(([uid, p]) => [uid, { name: p.name, photoUrl: p.photoUrl, city: p.city, state: p.state }]),
       );
       const card = rankingCardOf(
         {
+          kind,
           entries,
+          teams,
           tournamentId: t.id,
           tournamentName: t.name,
           categoryLabel: LABELS[gender],

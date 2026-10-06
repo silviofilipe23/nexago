@@ -6,6 +6,8 @@ const ath = (id: string, posBefore: number | null, posAfter: number, over: Parti
   id,
   name: id.toUpperCase(),
   photo: null,
+  names: [],
+  photos: [],
   sub: null,
   posBefore,
   posAfter,
@@ -16,6 +18,7 @@ const ath = (id: string, posBefore: number | null, posAfter: number, over: Parti
 });
 
 const card = (before: RankingAthlete[], after: RankingAthlete[]): RankingCard => ({
+  kind: 'atleta',
   key: 'k1',
   categoryLabel: 'MASCULINO',
   stageName: 'Praia do Futuro',

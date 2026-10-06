@@ -28,7 +28,7 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (card(); as c) {
-      <div class="tela" animate.enter="rk-fade-in" animate.leave="rk-fade-out">
+      <div class="tela" [class.dupla]="c.kind === 'dupla'" animate.enter="rk-fade-in" animate.leave="rk-fade-out">
         <i class="luz" aria-hidden="true"></i>
 
         @for (k of [c.key]; track k) {
@@ -36,7 +36,7 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
             <div class="head-l rk-up" style="--d: 0.1s">
               <div class="linha1">
                 <span class="selo"><b class="shine" aria-hidden="true"></b>Ranking nexaGO</span>
-                <span class="top">Top 10</span>
+                <span class="top">Top 10{{ c.kind === 'dupla' ? ' · Duplas' : '' }}</span>
               </div>
               <h1>Ranking <em>{{ c.categoryLabel }}</em></h1>
             </div>
@@ -49,7 +49,7 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
           <div class="tabela">
             <div class="cols rk-up" style="--d: 0.3s">
               <span class="c-pos">Posição</span>
-              <span class="c-atl">Atleta</span>
+              <span class="c-atl">{{ c.kind === 'dupla' ? 'Dupla' : 'Atleta' }}</span>
               <span class="c-et">Na etapa</span>
               <span class="c-pts">Pontos</span>
             </div>
@@ -69,11 +69,11 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
                     <b class="quad">{{ idx(r) === null ? '' : idx(r)! + 1 }}</b>
                     <span class="move" [class]="'move move--' + moveKind(r)">{{ moveText(r) }}</span>
                   </div>
-                  <div class="foto" [class.foto--vazia]="!r.athlete.photo">
-                    @if (r.athlete.photo; as src) {
-                      <img [src]="src" [alt]="r.athlete.name" />
-                    } @else {
-                      <span>Foto</span>
+                  <div class="fotos">
+                    @for (p of fotosDe(r.athlete.photos, r.athlete.photo, c.kind); track $index) {
+                      <div class="foto" [class.foto--vazia]="!p">
+                        @if (p) { <img [src]="p" [alt]="r.athlete.name" /> } @else { <span>Foto</span> }
+                      </div>
                     }
                   </div>
                   <div class="quem">
@@ -85,7 +85,7 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
                   <div class="et">
                     @if (depois()) {
                       @if (r.athlete.gain === null) {
-                        <span class="pil pil--nao">Não jogou</span>
+                        <span class="pil pil--nao">{{ c.kind === 'dupla' ? 'Não jogaram' : 'Não jogou' }}</span>
                       } @else {
                         <span class="pil pil--gain">+{{ r.athlete.gain }}</span>
                       }
@@ -102,11 +102,15 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
             <div class="cards" [class.cards--on]="depois()">
               @if (c.leader; as l) {
                 <div class="card card--lider" style="--s: 0s">
-                  <div class="foto foto--g" [class.foto--vazia]="!l.photo">
-                    @if (l.photo; as src) { <img [src]="src" [alt]="l.name" /> } @else { <span>Foto</span> }
+                  <div class="fotos fotos--g">
+                    @for (p of fotosDe(l.photos, l.photo, c.kind); track $index) {
+                      <div class="foto foto--g" [class.foto--vazia]="!p">
+                        @if (p) { <img [src]="p" [alt]="l.name" /> } @else { <span>Foto</span> }
+                      </div>
+                    }
                   </div>
                   <div class="card-t">
-                    <span class="k">Líder do ranking</span>
+                    <span class="k">{{ c.kind === 'dupla' ? 'Dupla líder' : 'Líder do ranking' }}</span>
                     <b class="n">{{ l.name }}</b>
                     <span class="d">{{ l.keeps ? 'Mantém a liderança' : 'Assume a liderança' }}</span>
                   </div>
@@ -115,8 +119,12 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
               }
               @if (c.climber; as m) {
                 <div class="card" style="--s: 0.12s">
-                  <div class="foto foto--m" [class.foto--vazia]="!m.photo">
-                    @if (m.photo; as src) { <img [src]="src" [alt]="m.name" /> } @else { <span>Foto</span> }
+                  <div class="fotos">
+                    @for (p of fotosDe(m.photos, m.photo, c.kind); track $index) {
+                      <div class="foto foto--m" [class.foto--vazia]="!p">
+                        @if (p) { <img [src]="p" [alt]="m.name" /> } @else { <span>Foto</span> }
+                      </div>
+                    }
                   </div>
                   <div class="card-t">
                     <span class="k">Maior subida</span>
@@ -128,8 +136,12 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
               }
               @if (c.topGain; as g) {
                 <div class="card" style="--s: 0.24s">
-                  <div class="foto foto--m" [class.foto--vazia]="!g.photo">
-                    @if (g.photo; as src) { <img [src]="src" [alt]="g.name" /> } @else { <span>Foto</span> }
+                  <div class="fotos">
+                    @for (p of fotosDe(g.photos, g.photo, c.kind); track $index) {
+                      <div class="foto foto--m" [class.foto--vazia]="!p">
+                        @if (p) { <img [src]="p" [alt]="g.name" /> } @else { <span>Foto</span> }
+                      </div>
+                    }
                   </div>
                   <div class="card-t">
                     <span class="k">Mais pontos na etapa</span>
@@ -340,7 +352,7 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
       text-align: center;
     }
     .c-atl {
-      padding-left: 66px;
+      padding-left: calc(var(--fw, 52px) + 16px);
     }
     .corpo {
       position: relative;
@@ -355,7 +367,7 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
       height: 68px;
       box-sizing: border-box;
       display: grid;
-      grid-template-columns: 150px 52px 1fr 200px 170px;
+      grid-template-columns: 150px var(--fw, 52px) 1fr 200px 170px;
       column-gap: 16px;
       align-items: center;
       padding: 0 20px;
@@ -554,7 +566,7 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
     }
     .card {
       display: grid;
-      grid-template-columns: 62px 1fr auto;
+      grid-template-columns: var(--cw, 62px) 1fr auto;
       column-gap: 16px;
       align-items: center;
       padding: 14px 20px;
@@ -572,9 +584,37 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
       transform: none;
     }
     .card--lider {
-      grid-template-columns: 96px 1fr auto;
+      grid-template-columns: var(--lw, 96px) 1fr auto;
       padding: 18px 22px;
       border-color: rgba(242, 193, 78, 0.6);
+    }
+    .tela.dupla {
+      --fw: 90px;
+      --cw: 104px;
+      --lw: 128px;
+    }
+    .dupla .foto--g {
+      width: 70px;
+      height: 70px;
+    }
+    .fotos {
+      display: flex;
+    }
+    .fotos .foto + .foto {
+      margin-left: -14px;
+    }
+    .dupla .nome {
+      font-size: 24px;
+    }
+    .dupla .n {
+      font-size: 24px;
+      white-space: normal;
+    }
+    .dupla .n--m {
+      font-size: 22px;
+    }
+    .dupla .card--lider .n {
+      font-size: 24px;
     }
     .foto--g {
       width: 90px;
@@ -760,6 +800,12 @@ export class OverlayRankingComponent {
 
   protected pointsFmt(n: number): string {
     return rankingPointsText(n);
+  }
+
+  /** Uma foto por atleta; dupla = as duas (completa com placeholder). */
+  protected fotosDe(photos: readonly (string | null)[], single: string | null, kind: 'atleta' | 'dupla'): (string | null)[] {
+    if (kind !== 'dupla') return [single];
+    return [photos[0] ?? null, photos[1] ?? null];
   }
 
   protected statusText(c: RankingCard): string {

@@ -191,7 +191,9 @@ export function resumoOf(
   }
 
   const flow: ResumoFlowSet[] = perSet.map((pts, i) => ({ label: `SET ${i + 1}`, diffs: flowDiffs(pts) })).filter((f) => f.diffs.length > 0);
-  const winner = partial ? null : duel.winnerSide;
+  // No parcial, quem lidera em sets ganha o destaque (laranja, "Vencedores", faíscas) — como no
+  // protótipo; empate não destaca ninguém.
+  const winner = partial ? (duel.setsA > duel.setsB ? 'A' : duel.setsB > duel.setsA ? 'B' : null) : duel.winnerSide;
   const selo = partial ? 'Resumo parcial' : finalKindOf(match.matchType) === 'final' ? 'Campeões' : 'Fim de jogo';
   return {
     key: `${match.id}:${partial ? 'parcial' : 'fim'}`,

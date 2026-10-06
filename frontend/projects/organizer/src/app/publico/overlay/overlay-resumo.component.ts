@@ -43,7 +43,7 @@ interface Spark {
           <span class="selo"><b class="selo-shine" aria-hidden="true"></b>{{ v.selo }}</span>
           <span class="ctx">{{ v.contexto }}</span>
           @if (v.duracao) {
-            <span class="dur">Duração {{ v.duracao }}</span>
+            <span class="dur">Duração <b>{{ v.duracao }}</b></span>
           }
         </header>
 
@@ -333,6 +333,9 @@ interface Spark {
     .dur {
       margin-left: auto;
     }
+    .dur b {
+      color: #fff;
+    }
 
     .hero {
       display: grid;
@@ -458,6 +461,7 @@ interface Spark {
     .setrow {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 10px;
       font-family: var(--mono);
       font-size: 42px;
@@ -617,6 +621,8 @@ interface Spark {
     .bar {
       display: flex;
       height: 10px;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.06);
     }
     .bar--l {
       justify-content: flex-end;

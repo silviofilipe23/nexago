@@ -215,9 +215,12 @@ import { tecnicoClock, tecnicoRestanteSeg, type OverlayTecnicoView } from './ove
       padding: 12px;
     }
     .cell img {
-      max-width: 100%;
-      max-height: 100%;
+      /* 100% nos dois eixos + contain: o logo ESCALA pra caber (pequeno cresce, grande encolhe).
+         max-* em % não resolve numa célula de altura intrínseca e o overflow cortava o logo. */
+      width: 100%;
+      height: 100%;
       object-fit: contain;
+      object-position: center;
     }
     .ph {
       font-family: var(--nx-font-mono, 'JetBrains Mono', ui-monospace, monospace);

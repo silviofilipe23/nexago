@@ -47,3 +47,21 @@ export function technicalTimeoutRemainingSeconds(timeout: Pick<TechnicalTimeout,
   const elapsed = Math.floor((now.getTime() - timeout.startedAt.getTime()) / 1000);
   return Math.min(Math.max(timeout.durationSec - elapsed, 0), timeout.durationSec);
 }
+
+/** Cota do tempo técnico: 2 por equipe em cada set. Estado de tela de cada mesa (o doc só guarda
+ *  o minuto em andamento), então recarregar zera — igual ao app. */
+export const TECHNICAL_TIMEOUTS_PER_SET = 2;
+
+/** Quantos tempos técnicos cada lado já usou no set corrente. */
+export type TechnicalTimeoutCounts = Record<MatchSide, number>;
+
+export const EMPTY_TECHNICAL_TIMEOUT_COUNTS: TechnicalTimeoutCounts = { A: 0, B: 0 };
+
+export function canCallTechnicalTimeout(counts: TechnicalTimeoutCounts, side: MatchSide): boolean {
+  return counts[side] < TECHNICAL_TIMEOUTS_PER_SET;
+}
+
+/** Chamado é chamado: a cota sai na escolha da equipe, mesmo que a mesa encerre antes do minuto. */
+export function countTechnicalTimeout(counts: TechnicalTimeoutCounts, side: MatchSide): TechnicalTimeoutCounts {
+  return canCallTechnicalTimeout(counts, side) ? { ...counts, [side]: counts[side] + 1 } : counts;
+}

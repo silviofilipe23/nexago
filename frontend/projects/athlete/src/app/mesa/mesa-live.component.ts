@@ -7,8 +7,15 @@ import {
   applyBestOfChange,
   buildMedicalTimeoutEndWrite,
   buildMedicalTimeoutStartWrite,
+  buildTechnicalTimeoutEndWrite,
   buildTechnicalTimeoutStartWrite,
   buildPointWrite,
+  canCallTechnicalTimeout,
+  countTechnicalTimeout,
+  TECHNICAL_TIMEOUT_SECONDS,
+  TECHNICAL_TIMEOUTS_PER_SET,
+  technicalTimeoutRemainingSeconds,
+  type TechnicalTimeoutCounts,
   buildUndoWrite,
   GAMES_UNDO_BLOCKED_MESSAGE,
   canReduceBestOf,
@@ -293,7 +300,7 @@ interface MedicalOptionView {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 4 3 8l4 4" /><path d="M3 8h13" /><path d="M17 20l4-4-4-4" /><path d="M21 16H8" /></svg>
           Quadra
         </button>
-        <button type="button" class="mesa-tool" (click)="addTimeout()">
+        <button type="button" class="mesa-tool" [disabled]="!canOpenTechnical()" (click)="openTechnicalPicker()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></svg>
           Tempo
         </button>
@@ -339,6 +346,35 @@ interface MedicalOptionView {
               </button>
             }
             <button type="button" class="mesa-btn" (click)="cancelMedicalPicker()">Cancelar</button>
+          </div>
+        </div>
+      } @else if (technicalView(); as t) {
+        <!-- Tempo técnico: a cota é só desta tela; o minuto em andamento vai pro doc pro overlay
+             de transmissão. Não para o ponto no doc — a mesa só cobre a tela. -->
+        <div class="mesa-scrim mesa-scrim--med" role="dialog" aria-live="polite">
+          <div class="mesa-med">
+            <span class="mesa-med-kicker">TEMPO TÉCNICO · {{ t.number }}º DO SET</span>
+            <strong class="mesa-med-name">{{ t.teamLabel }}</strong>
+            <span class="mesa-med-clock" [class.over]="t.ended">{{ t.clock }}</span>
+            @if (t.ended) {
+              <span class="mesa-med-done">TEMPO ENCERRADO</span>
+            }
+            <button type="button" class="mesa-btn" (click)="endTechnical()">Encerrar tempo</button>
+          </div>
+        </div>
+      } @else if (technicalPickerOpen()) {
+        <div class="mesa-scrim mesa-scrim--med" role="dialog" (click)="cancelTechnicalPicker()">
+          <div class="mesa-med" (click)="$event.stopPropagation()">
+            <span class="mesa-med-kicker">QUEM PEDIU TEMPO TÉCNICO?</span>
+            <span class="mesa-med-team">1 minuto — {{ technicalPerSet }} por equipe em cada set.</span>
+            @for (side of technicalSides; track side) {
+              <button type="button" class="mesa-med-opt" [disabled]="!canCallTechnical(side)" (click)="startTechnical(side)">
+                <span class="mesa-badge">{{ side }}</span>
+                <span class="who"><b>{{ label(side) }}</b><i>{{ timeouts()[side] }} de {{ technicalPerSet }} usados</i></span>
+                <span class="state">{{ canCallTechnical(side) ? 'disponível' : 'esgotado' }}</span>
+              </button>
+            }
+            <button type="button" class="mesa-btn" (click)="cancelTechnicalPicker()">Cancelar</button>
           </div>
         </div>
       }
@@ -1402,7 +1438,9 @@ export class MesaLiveComponent {
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly gateway = inject(MesaLiveGateway);
 
-  protected readonly timeoutSlots = [0, 1] as const;
+  protected readonly timeoutSlots = Array.from({ length: TECHNICAL_TIMEOUTS_PER_SET }, (_, i) => i);
+  protected readonly technicalSides = ['A', 'B'] as const;
+  protected readonly technicalPerSet = TECHNICAL_TIMEOUTS_PER_SET;
 
   protected readonly tournamentId = toSignal(this.route.paramMap.pipe(map((p) => p.get('tournamentId')?.trim() ?? '')), {
     initialValue: this.route.snapshot.paramMap.get('tournamentId')?.trim() ?? '',
@@ -1428,7 +1466,9 @@ export class MesaLiveComponent {
    *  quadra. Recarregar a página zera — o placar não, esse é do servidor. */
   protected readonly present = signal(false);
   protected readonly swapped = signal(false);
-  protected readonly timeouts = signal<Record<MesaSide, number>>({ A: 0, B: 0 });
+  protected readonly timeouts = signal<TechnicalTimeoutCounts>({ A: 0, B: 0 });
+  protected readonly technicalPickerOpen = signal(false);
+  private readonly technicalRun = signal<{ side: MesaSide; number: number; startedAt: Date } | null>(null);
   protected readonly bumped = signal<MesaSide | null>(null);
 
   protected readonly medicalPickerOpen = signal(false);
@@ -1746,17 +1786,54 @@ export class MesaLiveComponent {
     this.swapped.update((v) => !v);
   }
 
-  /** Tempo técnico da dupla que está no saque (2 por set, como na regra). A COTA é só desta
-   *  tela; o minuto em andamento vai pro doc pra o overlay de transmissão entrar sozinho. */
-  protected addTimeout(): void {
-    const side = this.servingSide();
+  /** Contagem na tela — derivada do carimbo local; o `now` de 1 s só redesenha. */
+  protected readonly technicalView = computed<{ teamLabel: string; number: number; clock: string; ended: boolean } | null>(() => {
+    const run = this.technicalRun();
+    if (!run) return null;
+    const remaining = technicalTimeoutRemainingSeconds({ startedAt: run.startedAt, durationSec: TECHNICAL_TIMEOUT_SECONDS }, new Date(this.now()));
+    return { teamLabel: this.label(run.side), number: run.number, clock: formatMedicalTimeoutMmSs(remaining), ended: remaining <= 0 };
+  });
+
+  protected readonly canOpenTechnical = computed(
+    () =>
+      this.status() === 'in_progress' &&
+      this.teamsReady() &&
+      this.technicalRun() == null &&
+      this.match()?.medicalTimeout == null &&
+      (canCallTechnicalTimeout(this.timeouts(), 'A') || canCallTechnicalTimeout(this.timeouts(), 'B')),
+  );
+
+  protected canCallTechnical(side: MesaSide): boolean {
+    return canCallTechnicalTimeout(this.timeouts(), side);
+  }
+
+  protected openTechnicalPicker(): void {
+    if (!this.canOpenTechnical()) return;
+    this.technicalPickerOpen.set(true);
+  }
+
+  protected cancelTechnicalPicker(): void {
+    this.technicalPickerOpen.set(false);
+  }
+
+  /** Tempo técnico (2 por set): a mesa escolhe a equipe, em vez de inferir pelo saque. A COTA é
+   *  só desta tela; o minuto em andamento vai pro doc pro overlay de transmissão entrar sozinho.
+   *  Best-effort e fora do `saving`: falha de rede não trava o ponto a ponto. */
+  protected startTechnical(side: MesaSide): void {
     const m = this.match();
-    if (!side || this.timeouts()[side] >= 2) return;
-    this.timeouts.update((t) => ({ ...t, [side]: t[side] + 1 }));
-    if (!m || this.status() !== 'in_progress') return;
-    // Best-effort e fora do `saving`: a falha de rede não pode travar o ponto a ponto, e o
-    // tempo contado na tela continua valendo.
+    if (!m || !this.canCallTechnical(side)) return;
+    const counts = countTechnicalTimeout(this.timeouts(), side);
+    this.technicalPickerOpen.set(false);
+    this.timeouts.set(counts);
+    this.technicalRun.set({ side, number: counts[side], startedAt: new Date() });
     void this.gateway.recordPoint({ matchId: m.id, build: (fresh) => buildTechnicalTimeoutStartWrite(fresh, { side }) }).catch(() => undefined);
+  }
+
+  protected endTechnical(): void {
+    const m = this.match();
+    this.technicalRun.set(null);
+    if (!m) return;
+    void this.gateway.recordPoint({ matchId: m.id, build: buildTechnicalTimeoutEndWrite }).catch(() => undefined);
   }
 
   // ── Escritas ───────────────────────────────────────────────────────────────

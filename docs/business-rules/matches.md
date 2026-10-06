@@ -21,6 +21,14 @@
 - A mesa tem "Trocar saque" (troca a dupla) e "Trocar sacador" (troca o atleta) pro conserto na
   mão — o desfazer não reconstrói a ordem de saque.
 
+## Tempo técnico
+- Minuto de pausa tática: 2 por equipe em cada set, zera na virada do set. Não trava o ponto
+  no doc; na mesa, a contagem de 1 minuto cobre a tela até o mesário encerrar.
+- A mesa (painel do organizador, portal do atleta e app) pergunta QUEM pediu — não infere pelo
+  saque. Chamado é chamado: a cota sai na escolha, mesmo encerrando antes do minuto.
+- A cota é estado de tela (recarregar zera). O que vai pro doc é só o minuto em andamento
+  (`technicalTimeout`), que o overlay de transmissão lê; qualquer ponto marcado o encerra.
+
 ## Tempo médico
 - Atendimento de 5 minutos a um atleta contundido. Diferente do tempo técnico (1 minuto,
   2 por set, tático), ele PARA a partida: com um atendimento em andamento nenhuma mesa marca

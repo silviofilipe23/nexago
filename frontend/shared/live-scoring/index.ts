@@ -66,8 +66,16 @@ export {
   medicalTimeoutRemainingSeconds,
 } from './medical-timeout';
 
-export type { TechnicalTimeout } from './technical-timeout';
-export { TECHNICAL_TIMEOUT_SECONDS, technicalTimeoutFromRaw, technicalTimeoutRemainingSeconds } from './technical-timeout';
+export type { TechnicalTimeout, TechnicalTimeoutCounts } from './technical-timeout';
+export {
+  EMPTY_TECHNICAL_TIMEOUT_COUNTS,
+  TECHNICAL_TIMEOUTS_PER_SET,
+  TECHNICAL_TIMEOUT_SECONDS,
+  canCallTechnicalTimeout,
+  countTechnicalTimeout,
+  technicalTimeoutFromRaw,
+  technicalTimeoutRemainingSeconds,
+} from './technical-timeout';
 
 export type { LandedPoint, LiveMatch, LivePointEvent, LiveScoringContext, PointWrite } from './live-match-repository';
 export {

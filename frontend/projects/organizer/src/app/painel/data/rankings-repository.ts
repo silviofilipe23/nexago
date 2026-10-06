@@ -1,7 +1,7 @@
 import { defaultSportChipFromProfile } from '@nexago/arena-discovery';
 import { tournamentSportToLevelSportCode } from '@nexago/levels';
 import { collection, getDocs, query, where, type Firestore } from 'firebase/firestore';
-import { deriveTeamGender, normalizeRankingGender, teamFormatOf, type RankingParticipant } from './ranking-positions';
+import { deriveTeamGender, normalizeRankingGender, teamFormatOf, type RankingGender, type RankingParticipant } from './ranking-positions';
 import { chunkedByIds, teamMemberIds } from './teams-repository';
 
 /** Ranking geral do nexaGO (`artifacts/{projectId}/public/data/athleteRankings` e
@@ -155,4 +155,46 @@ export async function fetchRankingParticipants(db: Firestore, projectId: string,
   return sportCode
     ? { athletes: inSport(athletes, sportCode), teams: inSport(teamParticipants, sportCode) }
     : { athletes, teams: teamParticipants };
+}
+
+export interface RankingEntry {
+  athleteId: string;
+  totalPoints: number;
+  /** Gênero do perfil público; `null` = sem perfil/sem gênero (fica fora do recorte por gênero). */
+  gender: RankingGender | null;
+  /** Pontos por etapa (`results[]` do doc por esporte). Vazio no ranking legado somado. */
+  results: { tournamentId: string; points: number }[];
+}
+
+/** Só o que o card do overlay precisa de `results[]`: etapa e pontos (entradas sem etapa saem). */
+export function rankingResultsOf(raw: unknown): RankingEntry['results'] {
+  if (!Array.isArray(raw)) return [];
+  const out: RankingEntry['results'] = [];
+  for (const r of raw) {
+    const d = record(r);
+    const tournamentId = optionalStr(d['tournamentId']);
+    if (tournamentId) out.push({ tournamentId, points: typeof d['points'] === 'number' ? d['points'] : 0 });
+  }
+  return out;
+}
+
+/** Ranking de atletas com `results[]` e gênero, pro card Top 10 da transmissão. `sportCode`
+ *  `null` lê a coleção legada somada (sem `results`), como `fetchRankingParticipants`. */
+export async function fetchRankingEntries(db: Firestore, projectId: string, sportCode: string | null): Promise<RankingEntry[]> {
+  const base = ['artifacts', projectId, 'public', 'data'] as const;
+  const snap = sportCode
+    ? await getDocs(query(collection(db, ...base, 'athleteRankingsBySport'), where('sport', '==', sportCode)))
+    : await getDocs(collection(db, ...base, 'athleteRankings'));
+  const rows = snap.docs.map((d) => {
+    const data = d.data() as Record<string, unknown>;
+    const id = sportCode ? bySportRankingRowOf(d.id, data, 'athleteId', sportCode).id : d.id;
+    return { id, totalPoints: rankingTotalsFromDoc(data).points, results: rankingResultsOf(data['results']) };
+  });
+  const profiles = await chunkedByIds(db, ['public_profiles'], rows.map((r) => r.id), rankingProfileFromDoc);
+  return rows.map((r) => ({
+    athleteId: r.id,
+    totalPoints: r.totalPoints,
+    gender: normalizeRankingGender(profiles.get(r.id)?.gender),
+    results: r.results,
+  }));
 }

@@ -1,3 +1,4 @@
+import { DEFAULT_BROADCAST_RANKING, rankingFromRaw, type BroadcastRanking } from './broadcast-ranking';
 import { DEFAULT_BROADCAST_PREJOGO, prejogoFromRaw, type BroadcastPrejogo } from './broadcast-prejogo';
 
 /** Controle da transmissão do torneio — `tournaments/{id}/broadcast/control`.
@@ -165,6 +166,8 @@ export interface BroadcastControl {
   summaryOn: boolean;
   /** Card do Pré-jogo montado pelo painel e se está no ar. */
   prejogo: BroadcastPrejogo;
+  /** Card do Ranking Top 10 montado pelo painel, se está no ar e em que modo. */
+  ranking: BroadcastRanking;
   interview: BroadcastInterview | null;
   commands: BroadcastCommands;
 }
@@ -185,6 +188,7 @@ export const DEFAULT_BROADCAST_CONTROL: BroadcastControl = {
   championsCategoryId: null,
   summaryOn: false,
   prejogo: DEFAULT_BROADCAST_PREJOGO,
+  ranking: DEFAULT_BROADCAST_RANKING,
   interview: null,
   commands: { donationNowAt: 0, sponsorsNowAt: 0 },
 };
@@ -307,6 +311,7 @@ export function broadcastControlFromRaw(raw: unknown): BroadcastControl {
     championsCategoryId: text(d['championsCategoryId']),
     summaryOn: d['summaryOn'] === true,
     prejogo: prejogoFromRaw(d['prejogo']),
+    ranking: rankingFromRaw(d['ranking']),
     interview: interviewFromRaw(d['interview']),
     commands: { donationNowAt: stamp(c['donationNowAt']), sponsorsNowAt: stamp(c['sponsorsNowAt']) },
   };

@@ -31,6 +31,16 @@ const card: RankingCard = {
 };
 
 describe('OverlayRankingComponent', () => {
+  it('sem foto: iniciais no avatar (atleta e cada atleta da dupla)', async () => {
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    const fixture = TestBed.createComponent(OverlayRankingComponent);
+    const dupla: RankingAthlete = { ...ath('t1', 1), name: 'Berger / Hölting Nilsson', names: ['Berger', 'Hölting Nilsson'], photos: [null, null] };
+    fixture.componentRef.setInput('card', { ...card, kind: 'dupla', before: [dupla], after: [dupla] });
+    await fixture.whenStable();
+    const ini = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('.row .foto span')).map((e) => e.textContent?.trim());
+    expect(ini).toEqual(['BE', 'HN']);
+  });
+
   it('dupla: duas fotos por linha, nomes unidos e rótulos no plural', async () => {
     TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
     const fixture = TestBed.createComponent(OverlayRankingComponent);

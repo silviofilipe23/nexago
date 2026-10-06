@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import type { RankingCard, RankingMode } from '../../painel/data/broadcast-ranking';
+import { ledIniciaisDe } from '../led/led-iniciais';
 import type { OverlayPatroItem } from './overlay-nx';
 import {
   RANKING_COUNT_MS,
@@ -72,7 +73,7 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
                   <div class="fotos">
                     @for (p of fotosDe(r.athlete.photos, r.athlete.photo, c.kind); track $index) {
                       <div class="foto" [class.foto--vazia]="!p">
-                        @if (p) { <img [src]="p" [alt]="r.athlete.name" /> } @else { <span>Foto</span> }
+                        @if (p) { <img [src]="p" [alt]="r.athlete.name" /> } @else { <span>{{ iniciais(r.athlete.name, $index, c.kind) }}</span> }
                       </div>
                     }
                   </div>
@@ -105,7 +106,7 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
                   <div class="fotos fotos--g">
                     @for (p of fotosDe(l.photos, l.photo, c.kind); track $index) {
                       <div class="foto foto--g" [class.foto--vazia]="!p">
-                        @if (p) { <img [src]="p" [alt]="l.name" /> } @else { <span>Foto</span> }
+                        @if (p) { <img [src]="p" [alt]="l.name" /> } @else { <span>{{ iniciais(l.name, $index, c.kind) }}</span> }
                       </div>
                     }
                   </div>
@@ -122,7 +123,7 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
                   <div class="fotos">
                     @for (p of fotosDe(m.photos, m.photo, c.kind); track $index) {
                       <div class="foto foto--m" [class.foto--vazia]="!p">
-                        @if (p) { <img [src]="p" [alt]="m.name" /> } @else { <span>Foto</span> }
+                        @if (p) { <img [src]="p" [alt]="m.name" /> } @else { <span>{{ iniciais(m.name, $index, c.kind) }}</span> }
                       </div>
                     }
                   </div>
@@ -139,7 +140,7 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
                   <div class="fotos">
                     @for (p of fotosDe(g.photos, g.photo, c.kind); track $index) {
                       <div class="foto foto--m" [class.foto--vazia]="!p">
-                        @if (p) { <img [src]="p" [alt]="g.name" /> } @else { <span>Foto</span> }
+                        @if (p) { <img [src]="p" [alt]="g.name" /> } @else { <span>{{ iniciais(g.name, $index, c.kind) }}</span> }
                       </div>
                     }
                   </div>
@@ -467,12 +468,19 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
       border: 1.5px dashed rgba(255, 255, 255, 0.25);
       background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0 6px, transparent 6px 12px), #151517;
     }
+    /* Sem foto: iniciais do nome no avatar. */
     .foto span {
-      font-family: var(--mono);
-      font-size: 9px;
-      letter-spacing: 0.14em;
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
       text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.5);
+      color: rgba(255, 255, 255, 0.78);
+    }
+    .foto--g span {
+      font-size: 26px;
+    }
+    .foto--m span {
+      font-size: 20px;
     }
     .row--gold .foto {
       border-color: var(--gold);
@@ -806,6 +814,13 @@ export class OverlayRankingComponent {
   protected fotosDe(photos: readonly (string | null)[], single: string | null, kind: 'atleta' | 'dupla'): (string | null)[] {
     if (kind !== 'dupla') return [single];
     return [photos[0] ?? null, photos[1] ?? null];
+  }
+
+  /** Iniciais pro avatar sem foto: ranking de dupla traz os dois nomes juntos ("A / B"), e o
+   *  avatar `i` mostra as do atleta `i`. */
+  protected iniciais(fullName: string, i: number, kind: 'atleta' | 'dupla'): string {
+    const nome = kind === 'dupla' ? (fullName.split(/\s*\/\s*/)[i] ?? fullName) : fullName;
+    return ledIniciaisDe(nome) || '?';
   }
 
   protected statusText(c: RankingCard): string {

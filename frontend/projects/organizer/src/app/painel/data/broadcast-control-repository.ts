@@ -19,6 +19,7 @@ export interface BroadcastControlPatch {
   kocRoundEndScreen?: KocRoundEndScreen;
   finalMode?: BroadcastFinalMode;
   championsCategoryId?: string | null;
+  summaryOn?: boolean;
   interview?: BroadcastInterview | null;
   commands?: Partial<BroadcastCommands>;
 }

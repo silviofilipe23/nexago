@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { tournamentSportToLevelSportCode } from '@nexago/levels';
 import { fetchAthleteRatings } from '../data/athlete-ratings-repository';
 import { fetchMatchesOfTeam, resolveCourtNames, type TournamentMatch } from '../data/matches-repository';
@@ -19,10 +19,11 @@ import { courtMatchOf } from './transmissao-selectors';
 @Component({
   selector: 'og-tx-prejogo',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[class.og-tx-bare]': 'bare()' },
   imports: [OgCardComponent],
   template: `
     @let pj = svc.control().prejogo;
-    <og-card kicker="Apresentação" title="Pré-jogo">
+    <og-card [kicker]="bare() ? '' : 'Apresentação'" [title]="bare() ? '' : 'Pré-jogo'">
       <label class="og-pj-label" for="og-pj-partida">Partida</label>
       <select id="og-pj-partida" class="og-input-el" (change)="select($any($event.target).value)">
         <option value="" [selected]="selectedId() === ''">Escolha a partida…</option>
@@ -55,6 +56,7 @@ import { courtMatchOf } from './transmissao-selectors';
           <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="swap()">Inverter lados</button>
         </div>
       }
+      @if (!bare()) {
       <div class="og-toggle-row">
         <div class="og-toggle-row-text">
           <div class="og-toggle-row-title">No ar</div>
@@ -71,6 +73,7 @@ import { courtMatchOf } from './transmissao-selectors';
           (click)="toggleOnAir()"
         ></button>
       </div>
+      }
     </og-card>
   `,
   styles: `
@@ -116,6 +119,8 @@ import { courtMatchOf } from './transmissao-selectors';
   `,
 })
 export class TransmissaoPrejogoComponent {
+  /** Dentro da coluna "Configurações" da tela: sem moldura, título nem chave "No ar" próprios. */
+  readonly bare = input(false);
   protected readonly svc = inject(TransmissaoDataService);
 
   protected readonly selectedId = signal('');

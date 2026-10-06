@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import type { MultiMode } from '../data/broadcast-multi';
 import { OgCardComponent } from '../ui/card.component';
 import { TransmissaoDataService } from './transmissao-data.service';
@@ -9,10 +9,12 @@ import { TransmissaoDataService } from './transmissao-data.service';
 @Component({
   selector: 'og-tx-multi',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[class.og-tx-bare]': 'bare()' },
   imports: [OgCardComponent],
   template: `
     @let m = svc.control().multi;
-    <og-card kicker="Apresentação" title="Multi-quadras">
+    <og-card [kicker]="bare() ? '' : 'Apresentação'" [title]="bare() ? '' : 'Multi-quadras'">
+      @if (!bare()) {
       <div class="og-toggle-row">
         <div class="og-toggle-row-text">
           <div class="og-toggle-row-title">Placar de todas as quadras</div>
@@ -28,6 +30,7 @@ import { TransmissaoDataService } from './transmissao-data.service';
           (click)="toggle()"
         ></button>
       </div>
+      }
 
       <div class="og-mq-label">Modo</div>
       <div class="og-mq-chips" role="radiogroup" aria-label="Modo da tela">
@@ -72,6 +75,8 @@ import { TransmissaoDataService } from './transmissao-data.service';
   `,
 })
 export class TransmissaoMultiComponent {
+  /** Dentro da coluna "Configurações" da tela: sem moldura, título nem chave "No ar" próprios. */
+  readonly bare = input(false);
   protected readonly svc = inject(TransmissaoDataService);
 
   protected readonly modes: { value: MultiMode; label: string }[] = [

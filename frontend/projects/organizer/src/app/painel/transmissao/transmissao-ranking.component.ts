@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import type { BroadcastRanking, RankingCard, RankingKind, RankingMode } from '../data/broadcast-ranking';
 import { organizerFirestore } from '../data/firestore';
@@ -21,10 +21,11 @@ const LABELS: Record<CardGender, string> = { male: 'MASCULINO', female: 'FEMININ
 @Component({
   selector: 'og-tx-ranking',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[class.og-tx-bare]': 'bare()' },
   imports: [OgCardComponent],
   template: `
     @let rk = svc.control().ranking;
-    <og-card kicker="Apresentação" [title]="kind() === 'dupla' ? 'Ranking Top 10 — Duplas' : 'Ranking Top 10 — Atletas'">
+    <og-card [kicker]="bare() ? '' : 'Apresentação'" [title]="bare() ? '' : kind() === 'dupla' ? 'Ranking Top 10 — Duplas' : 'Ranking Top 10 — Atletas'">
       <div class="og-rk-label">Ranking de</div>
       <div class="og-rk-chips" role="radiogroup" aria-label="Tipo do ranking">
         @for (k of kinds; track k.value) {
@@ -81,6 +82,7 @@ const LABELS: Record<CardGender, string> = { male: 'MASCULINO', female: 'FEMININ
           </button>
         </div>
       }
+      @if (!bare()) {
       <div class="og-toggle-row">
         <div class="og-toggle-row-text">
           <div class="og-toggle-row-title">No ar</div>
@@ -97,6 +99,7 @@ const LABELS: Record<CardGender, string> = { male: 'MASCULINO', female: 'FEMININ
           (click)="toggleOnAir()"
         ></button>
       </div>
+      }
     </og-card>
   `,
   styles: `
@@ -149,6 +152,8 @@ const LABELS: Record<CardGender, string> = { male: 'MASCULINO', female: 'FEMININ
   `,
 })
 export class TransmissaoRankingComponent {
+  /** Dentro da coluna "Configurações" da tela: sem moldura, título nem chave "No ar" próprios. */
+  readonly bare = input(false);
   protected readonly svc = inject(TransmissaoDataService);
 
   protected readonly kinds: { value: RankingKind; label: string }[] = [

@@ -2761,3 +2761,11 @@ button {
   line-height: 1.5;
   color: var(--nx-text-dim);
 }
+
+/* Subcomponente da Transmissão dentro da coluna "Configurações": a coluna já é o painel, então o
+   card interno perde moldura e recuo. */
+.og-tx-bare > .og-card {
+  padding: 0;
+  border: 0;
+  background: none;
+}

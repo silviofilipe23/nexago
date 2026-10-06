@@ -34,6 +34,11 @@ export interface GradeRow {
   /** "11:20". */
   label: string;
   startMs: number;
+  /** Quantas "alturas de cartão" a linha ocupa: 2+ quando dois jogos caem no mesmo bloco da mesma
+   *  quadra (a programação real não segue a grade de 40 min à risca) — nenhum jogo some. */
+  span: number;
+  /** Posição da linha, em alturas de cartão, desde o topo da trilha. */
+  offset: number;
   /** Uma lista por quadra (mesma ordem de `courts`); vazia = horário sem jogo. */
   cells: GradeCell[][];
 }
@@ -45,6 +50,8 @@ export interface GradeView {
   now: { row: number; frac: number; label: string } | null;
   /** Primeira linha visível (rolagem automática). */
   firstVisible: number;
+  /** Altura total da trilha, em alturas de cartão. */
+  totalUnits: number;
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -76,12 +83,15 @@ export function gradeViewOf(
   const cols = [...courts].sort((x, y) => x.order - y.order).slice(0, GRADE_MAX_COURTS);
   if (cols.length === 0) return null;
   const colIndex = new Map(cols.map((c, i) => [c.id, i] as const));
+  // Jogo antigo só gravou o NOME da quadra (sem `courtId` que case): cai na coluna de mesmo nome.
+  const nameIndex = new Map(cols.map((c, i) => [c.name.trim().toLowerCase(), i] as const));
+  const colOf = (m: TournamentMatch): number | undefined => colIndex.get(m.courtId) ?? nameIndex.get((m.court ?? '').trim().toLowerCase());
   const dayMatches = matches.filter(
     (m) =>
       m.scheduledAt != null &&
       m.status !== 'canceled' &&
       !isKingOfCourtMatchType(m.matchType) &&
-      colIndex.has(m.courtId) &&
+      colOf(m) !== undefined &&
       dayKeyOf(m.scheduledAt.getTime()) === day,
   );
   if (dayMatches.length === 0) return null;
@@ -93,14 +103,16 @@ export function gradeViewOf(
   const rows: GradeRow[] = Array.from({ length: slots }, (_, i) => ({
     label: clockOf(start + i * slotMs),
     startMs: start + i * slotMs,
+    span: 1,
+    offset: 0,
     cells: cols.map(() => []),
   }));
 
   // "Próximo": o primeiro jogo ainda por vir de cada quadra (não encerrado e não ao vivo).
   const nextIds = new Set<string>();
-  for (const c of cols) {
+  for (const [ci] of cols.entries()) {
     const first = dayMatches
-      .filter((m) => m.courtId === c.id && m.status === 'scheduled' && m.scheduledAt!.getTime() >= nowMs - slotMs)
+      .filter((m) => colOf(m) === ci && m.status === 'scheduled' && m.scheduledAt!.getTime() >= nowMs - slotMs)
       .sort((a, b) => a.scheduledAt!.getTime() - b.scheduledAt!.getTime())[0];
     if (first) nextIds.add(first.id);
   }
@@ -109,7 +121,7 @@ export function gradeViewOf(
     const r = Math.floor((m.scheduledAt!.getTime() - start) / slotMs);
     const state: GradeState = m.status === 'completed' ? 'final' : m.status === 'in_progress' ? 'live' : nextIds.has(m.id) ? 'next' : 'scheduled';
     const [sa, sb] = matchSetWins(m);
-    rows[r]!.cells[colIndex.get(m.courtId)!]!.push({
+    rows[r]!.cells[colOf(m)!]!.push({
       matchId: m.id,
       categoryId: m.categoryId,
       phase: m.round?.trim() ?? '',
@@ -121,10 +133,23 @@ export function gradeViewOf(
     });
   }
 
+  // Alturas variáveis: a linha cresce com o maior número de jogos empilhados numa quadra.
+  let acc = 0;
+  for (const r of rows) {
+    r.span = Math.max(1, ...r.cells.map((c) => c.length));
+    r.offset = acc;
+    acc += r.span;
+  }
+  const totalUnits = acc;
+
   const idx = Math.floor((nowMs - start) / slotMs);
   const now = nowMs >= start && idx < slots ? { row: idx, frac: ((nowMs - start) % slotMs) / slotMs, label: clockOf(nowMs) } : null;
   // Antes do 1º jogo mostra o começo; depois do último, o fim.
   const anchor = now ? now.row : nowMs < start ? 0 : slots - 1;
-  const maxFirst = Math.max(0, slots - GRADE_VISIBLE_ROWS);
-  return { courts: cols.map((c, i) => ({ id: c.id, number: Number(/(\d+)/.exec(c.name)?.[1] ?? i + 1), name: c.name })), rows, now, firstVisible: Math.min(maxFirst, Math.max(0, anchor - GRADE_ROWS_BEFORE_NOW)) };
+  // Última linha de partida que ainda deixa a janela cheia (GRADE_VISIBLE_ROWS alturas).
+  let maxFirst = 0;
+  rows.forEach((r, i) => {
+    if (totalUnits - r.offset >= GRADE_VISIBLE_ROWS) maxFirst = i;
+  });
+  return { courts: cols.map((c, i) => ({ id: c.id, number: Number(/(\d+)/.exec(c.name)?.[1] ?? i + 1), name: c.name })), rows, now, firstVisible: Math.min(maxFirst, Math.max(0, anchor - GRADE_ROWS_BEFORE_NOW)), totalUnits };
 }

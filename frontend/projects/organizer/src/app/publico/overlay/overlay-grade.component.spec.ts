@@ -21,11 +21,12 @@ const view: GradeView = {
     { id: 'q2', number: 2, name: 'Quadra 2' },
   ],
   rows: [
-    { label: '11:20', startMs: 0, cells: [[cell({ matchId: 'f', state: 'final', score: '2–1', winner: 'A' })], []] },
-    { label: '12:00', startMs: 1, cells: [[cell({ matchId: 'l', state: 'live', categoryId: 'c2' })], [cell({ matchId: 'n', state: 'next' })]] },
+    { label: '11:20', startMs: 0, span: 1, offset: 0, cells: [[cell({ matchId: 'f', state: 'final', score: '2–1', winner: 'A' })], []] },
+    { label: '12:00', startMs: 1, span: 1, offset: 1, cells: [[cell({ matchId: 'l', state: 'live', categoryId: 'c2' })], [cell({ matchId: 'n', state: 'next' })]] },
   ],
   now: { row: 1, frac: 0.5, label: '12:20' },
   firstVisible: 0,
+  totalUnits: 2,
 };
 
 async function mount(categoryId: string | null = null) {
@@ -57,6 +58,20 @@ describe('OverlayGradeComponent', () => {
     expect(el.querySelector('.jogo--live .et--live')).not.toBeNull();
     expect(el.querySelector('.jogo--next .et--next')).not.toBeNull();
     expect(el.querySelectorAll('.vazio').length).toBe(1);
+  });
+
+  it('vários jogos na mesma célula aparecem todos, empilhados', async () => {
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    const f = TestBed.createComponent(OverlayGradeComponent);
+    f.componentRef.setInput('view', {
+      ...view,
+      rows: [{ label: '11:20', startMs: 0, span: 2, offset: 0, cells: [[cell({ matchId: 'a' }), cell({ matchId: 'b' })], []] }],
+      now: null,
+      totalUnits: 2,
+    });
+    f.componentRef.setInput('categories', [{ id: 'c1', name: 'Masculino A' }]);
+    await f.whenStable();
+    expect((f.nativeElement as HTMLElement).querySelectorAll('.jogo').length).toBe(2);
   });
 
   it('filtro de categoria esmaece os outros jogos', async () => {

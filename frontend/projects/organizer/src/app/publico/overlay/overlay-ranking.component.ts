@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import type { RankingCard, RankingMode } from '../../painel/data/broadcast-ranking';
 import { ledIniciaisDe } from '../led/led-iniciais';
+import { nomesCurtosDe } from './overlay-nome';
 import type { OverlayPatroItem } from './overlay-nx';
 import {
   RANKING_COUNT_MS,
@@ -78,7 +79,7 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
                     }
                   </div>
                   <div class="quem">
-                    <span class="nome">{{ r.athlete.name }}</span>
+                    <span class="nome">{{ curto(r.athlete.name) }}</span>
                     @if (r.athlete.sub) {
                       <span class="sub">{{ r.athlete.sub }}</span>
                     }
@@ -112,7 +113,7 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
                   </div>
                   <div class="card-t">
                     <span class="k">{{ c.kind === 'dupla' ? 'Dupla líder' : 'Líder do ranking' }}</span>
-                    <b class="n">{{ l.name }}</b>
+                    <b class="n">{{ curto(l.name) }}</b>
                     <span class="d">{{ l.keeps ? 'Mantém a liderança' : 'Assume a liderança' }}</span>
                   </div>
                   <b class="big big--gold">{{ pointsFmt(l.points) }}</b>
@@ -129,7 +130,7 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
                   </div>
                   <div class="card-t">
                     <span class="k">Maior subida</span>
-                    <b class="n n--m">{{ m.name }}</b>
+                    <b class="n n--m">{{ curto(m.name) }}</b>
                     <span class="d">Do {{ m.from }}º para o {{ m.to }}º</span>
                   </div>
                   <b class="big big--up">▲{{ m.from - m.to }}</b>
@@ -146,7 +147,7 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
                   </div>
                   <div class="card-t">
                     <span class="k">Mais pontos na etapa</span>
-                    <b class="n n--m">{{ g.name }}</b>
+                    <b class="n n--m">{{ curto(g.name) }}</b>
                     @if (g.sub) { <span class="d">{{ g.sub }}</span> }
                   </div>
                   <b class="big big--up">+{{ g.gain }}</b>
@@ -818,6 +819,11 @@ export class OverlayRankingComponent {
 
   /** Iniciais pro avatar sem foto: ranking de dupla traz os dois nomes juntos ("A / B"), e o
    *  avatar `i` mostra as do atleta `i`. */
+  /** Nome de exibição: no máximo dois primeiros nomes de cada atleta. */
+  protected curto(nome: string): string {
+    return nomesCurtosDe(nome);
+  }
+
   protected iniciais(fullName: string, i: number, kind: 'atleta' | 'dupla'): string {
     const nome = kind === 'dupla' ? (fullName.split(/\s*\/\s*/)[i] ?? fullName) : fullName;
     return ledIniciaisDe(nome) || '?';

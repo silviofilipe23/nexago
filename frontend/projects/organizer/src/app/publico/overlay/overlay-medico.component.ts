@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import type { OverlayTeam } from './overlay-live.gateway';
+import { nomeCurtoDe } from './overlay-nome';
 import type { OverlayMedicoView } from './overlay-medico';
 import { tecnicoClock, tecnicoRestanteSeg } from './overlay-tecnico';
 
@@ -214,14 +215,14 @@ export class OverlayMedicoComponent {
   protected readonly atleta = computed(() => {
     const v = this.view();
     if (!v) return '';
-    return v.playerName || this.equipe()?.players[v.playerSlot - 1]?.trim() || `Atleta ${v.playerSlot}`;
+    return nomeCurtoDe(v.playerName || this.equipe()?.players[v.playerSlot - 1] || '') || `Atleta ${v.playerSlot}`;
   });
 
   /** "Dupla Fulano / Ciclano · Set 2 · 17–19". */
   protected readonly detalhe = computed(() => {
     const v = this.view();
     if (!v) return '';
-    const nomes = (this.equipe()?.players ?? []).map((p) => p.trim()).filter((p) => p !== '');
+    const nomes = (this.equipe()?.players ?? []).map(nomeCurtoDe).filter((p) => p !== '');
     const dupla = nomes.length > 0 ? nomes.join(' / ') : this.equipe()?.label?.trim() || `Dupla ${v.side}`;
     return `Dupla ${dupla} · ${v.setInfo}`;
   });

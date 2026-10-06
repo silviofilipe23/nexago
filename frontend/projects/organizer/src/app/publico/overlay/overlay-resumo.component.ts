@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import type { OverlayTeam } from './overlay-live.gateway';
+import { nomeCurtoDe } from './overlay-nome';
 import type { OverlayPatroItem } from './overlay-nx';
 import type { ResumoView } from './overlay-resumo';
 
@@ -803,7 +804,7 @@ export class OverlayResumoComponent {
 
   protected namesOf(v: ResumoView, side: 'A' | 'B'): string[] {
     const s = side === 'A' ? v.a : v.b;
-    const players = (this.teams().get(s.teamId)?.players ?? []).map((p) => p.trim()).filter((p) => p !== '');
+    const players = (this.teams().get(s.teamId)?.players ?? []).map(nomeCurtoDe).filter((p) => p !== '');
     if (players.length > 0) return players;
     const parts = s.label.split(/\s*\/\s*/).filter((p) => p !== '');
     return parts.length > 0 ? parts : [s.label];

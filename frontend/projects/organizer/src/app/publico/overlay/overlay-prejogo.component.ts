@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import type { PrejogoCard, PrejogoSide, PrejogoTeam } from '../../painel/data/broadcast-prejogo';
 import { ledIniciaisDe } from '../led/led-iniciais';
+import { nomeCurtoDe } from './overlay-nome';
 import type { OverlayPatroItem } from './overlay-nx';
 
 /** Do 1º ao 3º lugar a etiqueta e as fotos ficam ouro/prata/bronze. */
@@ -74,7 +75,7 @@ export function prejogoNameSize(names: readonly string[]): number {
                     }
                   </div>
                   <div class="nomes" [style.font-size.px]="nameSize(team(c, side))">
-                    @for (n of team(c, side).names; track $index) {
+                    @for (n of nomesDe(team(c, side)); track $index) {
                       <span>{{ n }}</span>
                     }
                   </div>
@@ -685,8 +686,12 @@ export class OverlayPrejogoComponent {
     return side === 'A' ? c.a : c.b;
   }
 
+  protected nomesDe(t: PrejogoTeam): string[] {
+    return t.names.map(nomeCurtoDe);
+  }
+
   protected iniciais(t: PrejogoTeam, i: number): string {
-    return ledIniciaisDe(t.names[i] ?? '') || '?';
+    return ledIniciaisDe(this.nomesDe(t)[i] ?? '') || '?';
   }
 
   protected medal(t: PrejogoTeam): 'gold' | 'silver' | 'bronze' | null {
@@ -694,7 +699,7 @@ export class OverlayPrejogoComponent {
   }
 
   protected nameSize(t: PrejogoTeam): number {
-    return prejogoNameSize(t.names);
+    return prejogoNameSize(this.nomesDe(t));
   }
 
   protected contexto(c: PrejogoCard): string[] {

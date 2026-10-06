@@ -115,7 +115,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
             [isFinal]="duelFinalMode()"
             [tecnicoSide]="tecnico()?.side ?? null"
             [encolhido]="medico() != null"
-            [class.fora]="resumo() != null"
+            [class.fora]="resumo() != null || tecnico() != null"
           />
         }
         @if (telaDoResultado(); as board) {
@@ -180,7 +180,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
       background: transparent;
       overflow: hidden;
     }
-    /* Resumo no ar: o placar sai com fade e 30 px pra baixo. */
+    /* Resumo ou tempo técnico no ar: o placar (e a marca) saem com fade e 30 px pra baixo. */
     og-overlay-scoreboard {
       transition:
         opacity 0.6s ease,
@@ -283,7 +283,7 @@ export class OverlayPageComponent {
   /** Doação e patrocínio só entram com o controle já resolvido e sem tarja — a tarja toma a
    *  tela, inclusive para um "Mostrar agora". */
   protected readonly cardsNoAr = computed(
-    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null,
+    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null,
   );
 
   /** O que vai ao ar: regra automática de cada tela E chave do painel; tarja toma a tela.

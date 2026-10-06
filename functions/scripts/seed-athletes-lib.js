@@ -8,6 +8,7 @@
  */
 
 const admin = require("firebase-admin");
+const {DEFAULT_SEED_SPORT_CODE, resolveSeedSport} = require("./seed-sport");
 
 // `short` entra nas KEYWORDS do atleta (busca por "ini_1" no seed) e o
 // `code`/`label` continua sendo o nível de verdade. O nome exibido não
@@ -81,9 +82,6 @@ const GENDERS = [
     avatar: FEMALE_AVATAR,
   },
 ];
-
-const SPORT_LABEL = "Vôlei de praia";
-const PRIMARY_SPORT = "VOLEI_PRAIA";
 
 /** Prefixos de busca (espelha o comportamento de keywords do app). */
 function generateKeywords(sources) {
@@ -208,7 +206,19 @@ async function seedAthletes({
   log = console.log,
   levels,
   genders,
+  sport = DEFAULT_SEED_SPORT_CODE,
 }) {
+  const sportEntry = resolveSeedSport(sport);
+  if (!sportEntry) throw new Error(`Esporte de seed desconhecido: ${sport}`);
+  const PRIMARY_SPORT = sportEntry.profileCode;
+  const SPORT_LABEL = sportEntry.label;
+  // O e-mail (e com ele o uid) identifica o atleta: reaproveitar o do vôlei de
+  // praia num esporte novo REESCREVERIA o perfil dele. Só o default mantém a
+  // identidade original; os demais ganham o esporte no meio.
+  const isDefaultSport = sportEntry.code === DEFAULT_SEED_SPORT_CODE;
+  const sportTag = isDefaultSport ?
+    "" :
+    `${sportEntry.profileCode.toLowerCase().replace(/_/g, "-")}-`;
   const levelFilter = toFilterSet(levels);
   const genderFilter = toFilterSet(genders);
   let total = 0;
@@ -225,7 +235,7 @@ async function seedAthletes({
         const seq = baseSeq + n;
         const firstName = gender.names[(seq - 1) % gender.names.length];
         const fullName = `${firstName} ${String(seq).padStart(2, "0")}`;
-        const identity = `${level.code}-${gender.short}-${nn}`;
+        const identity = `${sportTag}${level.code}-${gender.short}-${nn}`;
         const email = `seed-${identity}@nexago.test`;
         const phone = phoneFor(seq);
         const birthDate = birthDateForLevel(n);
@@ -256,8 +266,11 @@ async function seedAthletes({
           isProfileComplete: true,
           onboardingCompleted: true,
           sport: SPORT_LABEL,
-          level: level.label,
-          sportProfile: {level: level.code},
+          // `level`/`sportProfile` são legado SEM esporte: leitores os tomam por
+          // vôlei de praia, então um atleta de outro esporte não os recebe.
+          ...(isDefaultSport ?
+            {level: level.label, sportProfile: {level: level.code}} :
+            {}),
           sports: [],
           primarySportFirestoreId: PRIMARY_SPORT,
           secondarySportFirestoreIds: [],

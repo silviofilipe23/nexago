@@ -21,6 +21,13 @@
  *   --levels open --genders male --teams-per-category 10 --count 20
  * O recorte vale também para os atletas: sem ele, `--count 20` criaria 200
  * contas para usar 20.
+ * `--sport <código>` escolhe o esporte do torneio e dos atletas (default
+ * `beachVolleyball`): beachVolleyball, indoorVolleyball, footvolley, tennis,
+ * beachTennis. Os atletas ganham o nível naquele esporte
+ * (`levelsBySport[<perfil>]`) e e-mail próprio (`seed-<esporte>-...`), então
+ * esporte novo não sobrescreve os atletas de vôlei de praia. A categoria King
+ * of the Court só existe no vôlei de praia. Como as categorias, o esporte só
+ * vale na CRIAÇÃO do torneio.
  * O torneio nasce `open`, SEM chave gerada — gerar a chave pelo painel é o
  * fluxo que se quer testar.
  *
@@ -46,6 +53,11 @@
 const fs = require("fs");
 const admin = require("firebase-admin");
 const {generateKeywords, seedAthletes} = require("./seed-athletes-lib");
+const {
+  DEFAULT_SEED_SPORT_CODE,
+  SEED_SPORT_CODES,
+  resolveSeedSport,
+} = require("./seed-sport");
 const {
   LEVELS,
   GENDERS,
@@ -141,6 +153,12 @@ function parseArgs() {
   const levels = optionalListArg("--levels", LEVELS.map((l) => l.code));
   const genders = optionalListArg("--genders", GENDERS.map((g) => g.type));
 
+  const sport = (argValue("--sport") || DEFAULT_SEED_SPORT_CODE).trim();
+  if (!resolveSeedSport(sport)) {
+    console.error(`--sport: esporte inválido (${sport}). Aceitos: ${SEED_SPORT_CODES.join(", ")}.`);
+    process.exit(1);
+  }
+
   const credentialsPath = (
     argValue("--credentials") ||
     process.env.GOOGLE_APPLICATION_CREDENTIALS ||
@@ -173,6 +191,7 @@ function parseArgs() {
     teamsPerCategory,
     levels,
     genders,
+    sport: resolveSeedSport(sport).code,
   };
 }
 
@@ -241,7 +260,10 @@ async function run() {
     teamsPerCategory,
     levels,
     genders,
+    sport,
   } = parseArgs();
+  const sportEntry = resolveSeedSport(sport);
+  const isDefaultSport = sport === DEFAULT_SEED_SPORT_CODE;
   const db = admin.firestore();
   const auth = admin.auth();
 
@@ -249,13 +271,16 @@ async function run() {
     categories === undefined &&
     teamsPerCategory === undefined &&
     levels === undefined &&
-    genders === undefined ?
+    genders === undefined &&
+    isDefaultSport ?
       undefined :
       {
         maxCategories: categories,
         maxTeamsPerCategory: teamsPerCategory,
         levels,
         genders,
+        // A KOTC é formato do vôlei de praia.
+        kingOfCourt: isDefaultSport,
       };
 
   // Os atletas nascem por (nível × gênero): o mesmo recorte que escolhe as
@@ -267,6 +292,7 @@ async function run() {
 
   console.log(`Projeto: ${projectId}`);
   console.log(`Modo: ${APPLY ? "APLICAR (--yes)" : "DRY-RUN"}`);
+  console.log(`Esporte: ${sportEntry.label} (${sport})`);
   console.log(`Atletas por nível×gênero: ${count} (total ${athleteTotal})`);
   console.log(`Torneio: "${tournamentName}" (${TODAY ? "hoje" : "em 14 dias"})`);
   if (categoryOptions) {
@@ -327,6 +353,7 @@ async function run() {
       state: STATE,
       levels,
       genders,
+      sport,
     });
     console.log(`Atletas criados/atualizados: ${total}`);
   }
@@ -337,8 +364,9 @@ async function run() {
     defaultTournamentName: tournamentName,
     buildTournamentDoc: (categories, name) =>
       TODAY ?
-        buildTournamentDocToday(categories, name) :
-        buildTournamentDocFuture(categories, name, 14),
+        buildTournamentDocToday(categories, name, sport) :
+        buildTournamentDocFuture(categories, name, 14, sport),
+    sport,
     // A busca por nome casa por substring nos dois sentidos, então
     // `--tournament-name "Copa"` acharia a "Copa Goiás" REAL. Reutilizar um
     // torneio real seria irreversível: o seed grava inscrições e teams

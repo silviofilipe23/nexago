@@ -22,6 +22,7 @@ const require = createRequire(import.meta.url);
 const {seedAthletes, avatarUrlFor, LEVELS, GENDERS} = require(
   "../scripts/seed-athletes-lib",
 );
+const {athleteLevelCode} = require("../scripts/seed-tournament-enrollments-lib");
 
 const COUNT = 2;
 
@@ -234,5 +235,34 @@ describe("seed de atletas: nome de gente", () => {
     const profile = profiles.get("seed-intermediario_1-m-01@nexago.test");
     assert.equal(profile.level, "Intermediário 1");
     assert.equal(profile.sportProfile.level, "intermediario_1");
+  });
+
+  describe("esporte", () => {
+    it("sem --sport o perfil continua de vôlei de praia", async () => {
+      const {profiles} = await runSeed({levels: ["open"], genders: ["male"]});
+      const profile = profiles.get("seed-open-m-01@nexago.test");
+      assert.equal(profile.primarySportFirestoreId, "VOLEI_PRAIA");
+      assert.equal(profile.levelsBySportFirestore.VOLEI_PRAIA, "open");
+    });
+
+    it("esporte novo grava o nível no esporte e não reusa o e-mail do vôlei", async () => {
+      const {profiles} = await runSeed({
+        levels: ["open"],
+        genders: ["male"],
+        sport: "beachTennis",
+      });
+      assert.equal(profiles.has("seed-open-m-01@nexago.test"), false);
+      const profile = profiles.get("seed-beach-tennis-open-m-01@nexago.test");
+      assert.equal(profile.primarySportFirestoreId, "BEACH_TENNIS");
+      assert.equal(profile.sport, "Beach tennis");
+      assert.deepEqual(profile.sportOnboarding.levelsBySport, {BEACH_TENNIS: "open"});
+      assert.equal(athleteLevelCode(profile, "BEACH_TENNIS"), "open");
+      // O mesmo perfil não conta como atleta de vôlei de praia.
+      assert.equal(athleteLevelCode(profile, "VOLEI_PRAIA"), null);
+    });
+
+    it("esporte desconhecido falha em vez de cair no default", async () => {
+      await assert.rejects(runSeed({sport: "curling"}), /desconhecido/);
+    });
   });
 });

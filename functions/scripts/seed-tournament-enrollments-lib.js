@@ -15,6 +15,8 @@ const {
 } = require("../lib/organizer-category-ops-payments");
 const {resolveCategoryEntryFee} = require("../lib/tournament-registration-guards");
 
+const {DEFAULT_SEED_SPORT_CODE, resolveSeedSport} = require("./seed-sport");
+
 const EVENT_TIME_ZONE = "America/Sao_Paulo";
 
 /** Escada de 5 níveis do vôlei — espelho de `category-level-eligibility.ts`. */
@@ -339,7 +341,12 @@ function buildMatchOps(activeDayKey = "") {
 }
 
 /** Torneio com início daqui a [offsetDays] (comportamento original). */
-function buildTournamentDocFuture(categories, tournamentName, offsetDays = 14) {
+function buildTournamentDocFuture(
+  categories,
+  tournamentName,
+  offsetDays = 14,
+  sport = DEFAULT_SEED_SPORT_CODE,
+) {
   const now = new Date();
   const startAt = new Date(now);
   startAt.setDate(startAt.getDate() + offsetDays);
@@ -351,7 +358,7 @@ function buildTournamentDocFuture(categories, tournamentName, offsetDays = 14) {
 
   return {
     name: tournamentName,
-    sport: "beachVolleyball",
+    sport,
     description: "Torneio gerado por seed-tournament-with-enrollments.js",
     city: "Goiânia",
     state: "GO",
@@ -395,7 +402,11 @@ function buildTournamentDocFuture(categories, tournamentName, offsetDays = 14) {
 }
 
 /** Torneio no dia atual (calendário America/Sao_Paulo). */
-function buildTournamentDocToday(categories, tournamentName) {
+function buildTournamentDocToday(
+  categories,
+  tournamentName,
+  sport = DEFAULT_SEED_SPORT_CODE,
+) {
   const dayKey = dayKeyInSaoPaulo();
   const startAt = eventInstantFromDayKeyAndTime(dayKey, 8, 0);
   const endAt = eventInstantFromDayKeyAndTime(dayKey, 20, 0);
@@ -406,7 +417,7 @@ function buildTournamentDocToday(categories, tournamentName) {
 
   return {
     name: tournamentName,
-    sport: "beachVolleyball",
+    sport,
     description: "Torneio gerado por seed-tournament-today-with-enrollments.js",
     city: "Goiânia",
     state: "GO",
@@ -484,12 +495,15 @@ async function findTournamentByName(db, name) {
   return null;
 }
 
-function athleteLevelCode(userData) {
+function athleteLevelCode(userData, profileCode = "VOLEI_PRAIA") {
+  // Os campos legados (`sportProfile.level`, `level`) não dizem de qual esporte
+  // são: só o seed de vôlei de praia — que os gravava — pode ser lido por eles.
+  const allowLegacy = profileCode === "VOLEI_PRAIA";
   const sportOnboarding = userData.sportOnboarding;
   if (sportOnboarding && typeof sportOnboarding === "object") {
     const levelsBySport = sportOnboarding.levelsBySport;
     if (levelsBySport && typeof levelsBySport === "object") {
-      const code = levelsBySport.VOLEI_PRAIA;
+      const code = levelsBySport[profileCode];
       const resolved = resolveVolleyballLevelCode(code);
       if (resolved) return resolved;
     }
@@ -497,10 +511,12 @@ function athleteLevelCode(userData) {
 
   const bySport = userData.levelsBySportFirestore;
   if (bySport && typeof bySport === "object") {
-    const code = bySport.VOLEI_PRAIA;
+    const code = bySport[profileCode];
     const resolved = resolveVolleyballLevelCode(code);
     if (resolved) return resolved;
   }
+
+  if (!allowLegacy) return null;
 
   const sportProfile = userData.sportProfile;
   if (sportProfile && typeof sportProfile.level === "string") {
@@ -520,8 +536,8 @@ function athleteGenderLabel(userData) {
   return typeof g === "string" && g.trim() ? g.trim() : null;
 }
 
-function categoryIdForAthlete(userData) {
-  const level = athleteLevelCode(userData);
+function categoryIdForAthlete(userData, profileCode) {
+  const level = athleteLevelCode(userData, profileCode);
   const gender = athleteGenderLabel(userData);
   if (!level || !gender) return null;
 
@@ -540,7 +556,7 @@ function isSeedAthlete(userData) {
   return email.endsWith("@nexago.test") && email.startsWith("seed-");
 }
 
-async function loadSeedAthletesByCategory(db) {
+async function loadSeedAthletesByCategory(db, profileCode) {
   const byCategory = new Map();
   for (const level of LEVELS) {
     for (const gender of GENDERS) {
@@ -552,7 +568,7 @@ async function loadSeedAthletesByCategory(db) {
   for (const doc of snap.docs) {
     const data = doc.data();
     if (!isSeedAthlete(data)) continue;
-    const categoryId = categoryIdForAthlete(data);
+    const categoryId = categoryIdForAthlete(data, profileCode);
     if (!categoryId || !byCategory.has(categoryId)) continue;
     byCategory.get(categoryId).push({uid: doc.id, data});
   }
@@ -901,7 +917,10 @@ async function runTournamentEnrollmentSeed({
   args,
   requireSeedFlagOnReuse = false,
   categoryOptions,
+  sport = DEFAULT_SEED_SPORT_CODE,
 }) {
+  const sportEntry = resolveSeedSport(sport);
+  if (!sportEntry) throw new Error(`Esporte de seed desconhecido: ${sport}`);
   const {APPLY, projectId, MANAGER_UID, TOURNAMENT_NAME} =
     args || parseSeedArgs(defaultTournamentName);
   const db = admin.firestore();
@@ -910,6 +929,7 @@ async function runTournamentEnrollmentSeed({
   console.log(`Modo: ${APPLY ? "APLICAR (--yes)" : "DRY-RUN"}`);
   console.log(`Torneio: "${TOURNAMENT_NAME}"`);
   console.log(`Organizador: ${MANAGER_UID}`);
+  console.log(`Esporte: ${sportEntry.label} (${sportEntry.code})`);
   for (const line of extraLogLines()) {
     console.log(line);
   }
@@ -925,6 +945,14 @@ async function runTournamentEnrollmentSeed({
       throw reuseAbortError(TOURNAMENT_NAME, tournament);
     }
     console.log(`\nTorneio existente reutilizado: ${tournamentId}`);
+    if (tournament.data.sport !== sportEntry.code) {
+      // O esporte, como as categorias, só é gravado na CRIAÇÃO: o pool de
+      // atletas seria o de um esporte e o torneio, de outro.
+      console.log(
+        `  AVISO: o torneio é "${tournament.data.sport}", não "${sportEntry.code}" —` +
+        " o esporte só vale na criação. Use --tournament-name novo.",
+      );
+    }
     if (categoryOptions) {
       // As categorias só são gravadas na CRIAÇÃO; num torneio reutilizado
       // valem as que já estão no doc. Silenciar isso faria o operador achar
@@ -972,7 +1000,10 @@ async function runTournamentEnrollmentSeed({
     console.log("Torneio criado.");
   }
 
-  const athletesByCategory = await loadSeedAthletesByCategory(db);
+  const athletesByCategory = await loadSeedAthletesByCategory(
+    db,
+    sportEntry.profileCode,
+  );
   const {enrolledUids, teamsByCategory, teamIdsInTournament} =
     await loadEnrollmentState(db, projectId, tournamentId);
 
@@ -1053,6 +1084,7 @@ module.exports = {
   KOC_CATEGORY_ID,
   KOC_SOURCE_CATEGORY_ID,
   dayKeyInSaoPaulo,
+  athleteLevelCode,
   buildCategories,
   buildTournamentDocFuture,
   buildTournamentDocToday,

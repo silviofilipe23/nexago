@@ -86,9 +86,12 @@ const FLASH_MS = 700;
                               @for (s of c.sets; track $index) {
                                 <span class="set" [class.set--win]="side === 'A' ? s.a > s.b : s.b > s.a">{{ side === 'A' ? s.a : s.b }}</span>
                               }
+                              @if (c.games && c.live) {
+                                <span class="set set--live">{{ side === 'A' ? c.live.a : c.live.b }}</span>
+                              }
                             </div>
                             @if (c.live) {
-                              <b class="pts" [class.pts--flash]="flashing().has(c.courtId + side)">{{ side === 'A' ? c.live.a : c.live.b }}</b>
+                              <b class="pts" [class.pts--saque]="teamOf(c, side).serving" [class.pts--flash]="flashing().has(c.courtId + side)">{{ ptsOf(c, side) }}</b>
                             } @else if (c.winner === side) {
                               <span class="venceu">Venceu</span>
                             } @else {
@@ -102,6 +105,9 @@ const FLASH_MS = 700;
                           <span>Partida encerrada</span>
                         } @else {
                           <span>{{ c.setNumber }}º set
+                            @if (c.tiebreak) {
+                              · <b>{{ c.tiebreak === 'super' ? 'Super tie-break' : 'Tie-break' }}</b>
+                            }
                             @if (c.pointSide) {
                               · <b class="hot">{{ nome(teamOf(c, c.pointSide)) }} · {{ c.status === 'matchpoint' ? 'match point' : 'set point' }}</b>
                             }
@@ -153,9 +159,12 @@ const FLASH_MS = 700;
                       @for (s of c.sets; track $index) {
                         <span class="set" [class.set--win]="side === 'A' ? s.a > s.b : s.b > s.a">{{ side === 'A' ? s.a : s.b }}</span>
                       }
+                      @if (c.games && c.live) {
+                        <span class="set set--live">{{ side === 'A' ? c.live.a : c.live.b }}</span>
+                      }
                     </span>
                     @if (c.live) {
-                      <b class="pts pts--s" [class.pts--flash]="flashing().has(c.courtId + side)">{{ side === 'A' ? c.live.a : c.live.b }}</b>
+                      <b class="pts pts--s" [class.pts--saque]="teamOf(c, side).serving" [class.pts--flash]="flashing().has(c.courtId + side)">{{ ptsOf(c, side) }}</b>
                     }
                   </div>
                 }
@@ -449,6 +458,15 @@ const FLASH_MS = 700;
       color: #fff;
       background: #1f1f23;
     }
+    /* Set em andamento (games): laranja. */
+    .set--live {
+      color: var(--o4);
+      background: rgba(255, 106, 26, 0.12);
+      box-shadow: inset 0 0 0 1px rgba(255, 106, 26, 0.55);
+    }
+    .pts--saque {
+      background: #3a2217;
+    }
     .pts {
       display: grid;
       place-items: center;
@@ -666,22 +684,22 @@ export class OverlayMultiComponent {
 
   /** `idQuadra + lado` dos placares que acabaram de mudar — o quadro pisca laranja por `FLASH_MS`. */
   protected readonly flashing = signal<ReadonlySet<string>>(new Set());
-  private last = new Map<string, number>();
+  private last = new Map<string, string>();
 
   constructor() {
     effect((onCleanup) => {
       const cards = this.cards();
       const changed: string[] = [];
       untracked(() => {
-        const next = new Map<string, number>();
+        const next = new Map<string, string>();
         for (const c of cards) {
           for (const side of this.sides) {
             const key = c.courtId + side;
-            const v = c.live ? (side === 'A' ? c.live.a : c.live.b) : -1;
+            const v = c.live ? `${c.matchId}|${this.ptsOf(c, side)}` : '';
             next.set(key, v);
             const before = this.last.get(key);
-            // Pisca só em ponto novo na MESMA partida ao vivo (não na 1ª leitura nem na troca de jogo).
-            if (before !== undefined && before >= 0 && v > before) changed.push(key);
+            // Pisca quando o placar muda na MESMA partida ao vivo (não na 1ª leitura nem na troca de jogo).
+            if (before && v && before !== v && before.split('|')[0] === c.matchId) changed.push(key);
           }
         }
         this.last = next;
@@ -691,6 +709,14 @@ export class OverlayMultiComponent {
       const t = setTimeout(() => this.flashing.update((s) => new Set([...s].filter((k) => !changed.includes(k)))), FLASH_MS);
       onCleanup(() => clearTimeout(t));
     });
+  }
+
+  /** Quadro grande: ponto do game (0/15/30/40/AD ou tie-break) em partida de games; senão os
+   *  pontos do set. */
+  protected ptsOf(c: MultiCard, side: Side): string {
+    if (!c.live) return '';
+    if (c.liveGame) return side === 'A' ? c.liveGame.a : c.liveGame.b;
+    return String(side === 'A' ? c.live.a : c.live.b);
   }
 
   protected teamOf(c: MultiCard, side: Side): MultiTeam {

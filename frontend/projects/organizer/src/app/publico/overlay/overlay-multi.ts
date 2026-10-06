@@ -1,4 +1,4 @@
-import { effectiveScoringProfile, isPointsSetWon, setPointsTarget } from '@nexago/sports';
+import { applyGamesPoint, effectiveScoringProfile, isPointsSetWon, isSuperTiebreakSet, setPointsTarget } from '@nexago/sports';
 import { isKingOfCourtMatchType } from '../../painel/data/koc';
 import { matchClosedSets, matchLiveCurrentSet, matchSetWins } from '../../painel/data/live-set-display';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
@@ -36,8 +36,14 @@ export interface MultiCard {
   b: MultiTeam;
   /** Sets fechados, em ordem. */
   sets: { a: number; b: number }[];
-  /** Pontos do set em andamento; `null` fora do ao vivo. */
+  /** Pontos do set em andamento (partida de games: os GAMES do set); `null` fora do ao vivo. */
   live: { a: number; b: number } | null;
+  /** Partida de games (tênis/beach tennis): o quadro grande mostra o ponto do game. */
+  games: boolean;
+  /** Ponto do game em andamento (0/15/30/40/AD, ou a contagem do tie-break); `null` em vôlei. */
+  liveGame: { a: string; b: string } | null;
+  /** Set em andamento decidido em tie-break / super tie-break. */
+  tiebreak: 'tiebreak' | 'super' | null;
   /** "2º set" — set em andamento (ou o último, no final). */
   setNumber: number;
   setsA: number;
@@ -61,6 +67,25 @@ export function pointSituationOf(
   setsWon: { a: number; b: number },
 ): { side: Side | null; matchPoint: boolean } {
   const profile = effectiveScoringProfile(match.scoringProfile, match.bestOf);
+  if (profile.kind === 'sets_games') {
+    // Games: simula o próximo ponto de cada lado com o MESMO motor da mesa — set point é o ponto
+    // que fecha o set, match point o que fecha a partida (cobre vantagem, no-ad e tie-breaks).
+    const state = {
+      sets: match.sets,
+      currentSetIndex: match.currentSetIndex ?? Math.max(0, live.setNumber - 1),
+      currentGame: match.currentGame ?? { a: 0, b: 0 },
+      servingTeamId: match.servingTeamId,
+    };
+    const teams = { teamAId: match.teamAId, teamBId: match.teamBId };
+    const ra = applyGamesPoint(state, 'A', profile, teams);
+    const rb = applyGamesPoint(state, 'B', profile, teams);
+    const closes = (c: string) => c === 'set' || c === 'match';
+    const aCloses = closes(ra.closed);
+    const bCloses = closes(rb.closed);
+    if (aCloses === bCloses) return { side: null, matchPoint: false };
+    const r = aCloses ? ra : rb;
+    return { side: aCloses ? 'A' : 'B', matchPoint: r.closed === 'match' };
+  }
   if (profile.kind !== 'sets_points') return { side: null, matchPoint: false };
   const idx = Math.max(0, live.setNumber - 1);
   const target = setPointsTarget(profile, idx);
@@ -109,12 +134,17 @@ export function multiCardsOf(
       return {
         courtId: court.id, number, courtName: court.name, context: '', status: 'free', time: null, matchId: '',
         a: { teamId: '', label: '', serving: false }, b: { teamId: '', label: '', serving: false },
-        sets: [], live: null, setNumber: 1, setsA: 0, setsB: 0, winner: null, pointSide: null,
+        sets: [], live: null, games: false, liveGame: null, tiebreak: null, setNumber: 1, setsA: 0, setsB: 0, winner: null, pointSide: null,
       } satisfies MultiCard;
     }
     const [setsA, setsB] = matchSetWins(m);
     const live = kind === 'live' ? matchLiveCurrentSet(m) : null;
-    const closed = matchClosedSets(m).map((s) => ({ a: s.a, b: s.b }));
+    const profile = effectiveScoringProfile(m.scoringProfile, m.bestOf);
+    const games = profile.kind === 'sets_games';
+    // Super tie-break fechado vale 1×0 no doc: a coluna mostra os pontos dele (10–8).
+    const closed = matchClosedSets(m).map((s, i) =>
+      profile.kind === 'sets_games' && s.tb && isSuperTiebreakSet(profile, i) ? { a: s.tb.a, b: s.tb.b } : { a: s.a, b: s.b },
+    );
     let status: MultiStatus = kind === 'live' ? 'live' : kind === 'final' ? 'final' : 'scheduled';
     let pointSide: Side | null = null;
     if (live) {
@@ -135,6 +165,9 @@ export function multiCardsOf(
       b: { teamId: m.teamBId, label: m.team2Label, serving: m.teamBId !== '' && m.teamBId === m.servingTeamId },
       sets: closed,
       live: live ? { a: live.a, b: live.b } : null,
+      games,
+      liveGame: live?.game ?? null,
+      tiebreak: live?.superTiebreak ? 'super' : live?.tiebreak ? 'tiebreak' : null,
       setNumber: live?.setNumber ?? Math.max(1, closed.length),
       setsA,
       setsB,

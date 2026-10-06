@@ -1,5 +1,6 @@
 import type { TournamentMatch } from '../../painel/data/matches-repository';
 import type { OrganizerTournamentCourt } from '../../painel/data/tournament.model';
+import type { ScoringProfile } from '@nexago/sports';
 import { courtNumberOf, multiCardsOf, multiColumnsOf, pointSituationOf } from './overlay-multi';
 
 const NOW = Date.UTC(2026, 9, 6, 18, 0, 0);
@@ -65,5 +66,51 @@ describe('overlay-multi', () => {
     expect(cards.length).toBe(2);
     expect(cards[0]?.matchId).toBe('m1');
     expect(cards[1]?.status).toBe('free');
+  });
+
+  describe('games (beach tennis e tênis)', () => {
+    const beach: ScoringProfile = { kind: 'sets_games', bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: true, decidingSet: 'super_tiebreak', superTiebreakTo: 10 };
+    const tenis: ScoringProfile = { ...beach, noAd: false, decidingSet: 'full' };
+    const gm = (over: Partial<TournamentMatch> = {}) =>
+      match({ scoringProfile: beach, sets: [{ a: 6, b: 4 }, { a: 5, b: 3 }], currentSetIndex: 1, currentGame: { a: 3, b: 1 }, ...over });
+
+    it('mostra games do set, ponto do game e saque', () => {
+      const c = multiCardsOf([gm({ currentGame: { a: 1, b: 2 } })], courts, cat, NOW)[0]!;
+      expect(c.games).toBeTrue();
+      expect(c.live).toEqual({ a: 5, b: 3 });
+      expect(c.liveGame).toEqual({ a: '15', b: '30' });
+      expect(c.sets).toEqual([{ a: 6, b: 4 }]);
+      expect(c.status).toBe('live');
+    });
+
+    it('match point: o ponto fecha o set e a partida (1 set a 0)', () => {
+      const c = multiCardsOf([gm()], courts, cat, NOW)[0]!;
+      expect(c.status).toBe('matchpoint');
+      expect(c.pointSide).toBe('A');
+    });
+
+    it('set point (sem fechar a partida) e sem destaque quando o ponto só fecha game', () => {
+      const m = gm({ sets: [{ a: 4, b: 6 }, { a: 5, b: 3 }] });
+      expect(multiCardsOf([m], courts, cat, NOW)[0]?.status).toBe('setpoint');
+      const meio = gm({ sets: [{ a: 6, b: 4 }, { a: 2, b: 2 }], currentGame: { a: 3, b: 1 } });
+      expect(multiCardsOf([meio], courts, cat, NOW)[0]?.status).toBe('live');
+    });
+
+    it('no-ad: no 40–40 o ponto decide o game (set point pra quem está a um game); com vantagem 40–40 ainda não decide', () => {
+      const noAd = gm({ currentGame: { a: 3, b: 3 }, sets: [{ a: 6, b: 4 }, { a: 5, b: 3 }] });
+      // 40–40 sem vantagem: o ponto seguinte decide o game; A (5–3) fecha o set 6–3, B só empata em 5–4.
+      expect(multiCardsOf([noAd], courts, cat, NOW)[0]?.pointSide).toBe('A');
+      const ad = gm({ scoringProfile: tenis, currentGame: { a: 3, b: 3 } });
+      expect(multiCardsOf([ad], courts, cat, NOW)[0]?.pointSide).toBeNull();
+    });
+
+    it('tie-break do set e super tie-break', () => {
+      const tb = gm({ sets: [{ a: 6, b: 4 }, { a: 6, b: 6 }], currentGame: { a: 3, b: 2 } });
+      const c = multiCardsOf([tb], courts, cat, NOW)[0]!;
+      expect(c.tiebreak).toBe('tiebreak');
+      expect(c.liveGame).toEqual({ a: '3', b: '2' });
+      const stb = gm({ sets: [{ a: 6, b: 4 }, { a: 4, b: 6 }, { a: 0, b: 0 }], currentSetIndex: 2, currentGame: { a: 9, b: 8 } });
+      expect(multiCardsOf([stb], courts, cat, NOW)[0]?.tiebreak).toBe('super');
+    });
   });
 });

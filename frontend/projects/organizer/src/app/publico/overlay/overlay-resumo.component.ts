@@ -699,12 +699,15 @@ function rng(seed: number): () => number {
     .plogo--img {
       border: 0;
       background: #fff;
-      padding: 8px;
+      padding: 6px;
     }
     .plogo img {
-      max-width: 100%;
-      max-height: 100%;
+      /* 100% nos dois eixos + contain: o logo ESCALA pra caber (pequeno cresce, grande encolhe).
+         max-* em % não resolve numa célula de altura intrínseca e o overflow cortava o logo. */
+      width: 100%;
+      height: 100%;
       object-fit: contain;
+      object-position: center;
     }
     .plogo span {
       font-family: var(--mono);

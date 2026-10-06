@@ -1,8 +1,10 @@
 import { Injectable, signal } from '@angular/core';
+import { watchPointEvents as watchLivePointEvents, type LivePointEvent } from '@nexago/live-scoring';
 import { environment } from '../../../environments/environment';
 import type { BroadcastControl } from '../../painel/data/broadcast-control';
 import { watchBroadcastControl } from '../../painel/data/broadcast-control-repository';
 import { organizerFirestore } from '../../painel/data/firestore';
+import { organizerLiveScoringContext } from '../../painel/data/live-scoring-context';
 import { isKingOfCourtMatchType, normalizeMatchType } from '../../painel/data/koc';
 import {
   listMatches,
@@ -53,6 +55,15 @@ export class OverlayLiveGateway {
   /** Todas as partidas do torneio — só assinadas enquanto o painel escolheu a categoria do
    *  pódio, que pode estar em qualquer quadra. */
   readonly tournamentMatches = signal<readonly TournamentMatch[]>([]);
+  /** Log ponto a ponto da partida da tela — alimenta as estatísticas do Resumo. */
+  readonly pointEvents = signal<readonly LivePointEvent[]>([]);
+
+  /** Assina o log de pontos de UMA partida (o Resumo só existe pra duelo). Erro não limpa: o
+   *  último log conhecido segue valendo, como no resto do overlay. */
+  watchPointEvents(matchId: string): () => void {
+    this.pointEvents.set([]);
+    return watchLivePointEvents(organizerLiveScoringContext(), matchId, (events) => this.pointEvents.set(events));
+  }
 
   private readonly hydrated = new Set<string>();
   private countedRounds = false;

@@ -158,6 +158,9 @@ export interface BroadcastControl {
   /** Categoria cujo pódio o card de campeões mostra. `null` = automático: a final que encerra
    *  na quadra acompanhada (comportamento de antes). */
   championsCategoryId: string | null;
+  /** Tela de Resumo ligada à mão (parcial no meio do jogo). O automático — 4,5 s depois do ponto
+   *  que fecha o jogo — não passa por aqui. Padrão desligado: ligar é decisão da transmissão. */
+  summaryOn: boolean;
   interview: BroadcastInterview | null;
   commands: BroadcastCommands;
 }
@@ -176,6 +179,7 @@ export const DEFAULT_BROADCAST_CONTROL: BroadcastControl = {
   kocRoundEndScreen: 'rodizio',
   finalMode: 'auto',
   championsCategoryId: null,
+  summaryOn: false,
   interview: null,
   commands: { donationNowAt: 0, sponsorsNowAt: 0 },
 };
@@ -296,6 +300,7 @@ export function broadcastControlFromRaw(raw: unknown): BroadcastControl {
     kocRoundEndScreen: SCREENS.includes(screen) ? screen : 'rodizio',
     finalMode: FINAL_MODES.includes(mode) ? mode : 'auto',
     championsCategoryId: text(d['championsCategoryId']),
+    summaryOn: d['summaryOn'] === true,
     interview: interviewFromRaw(d['interview']),
     commands: { donationNowAt: stamp(c['donationNowAt']), sponsorsNowAt: stamp(c['sponsorsNowAt']) },
   };

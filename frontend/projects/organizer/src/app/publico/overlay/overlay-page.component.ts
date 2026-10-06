@@ -15,6 +15,8 @@ import { kocStandingsBoardOf } from './overlay-koc-standings';
 import { OverlayKocStandingsComponent } from './overlay-koc-standings.component';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
 import { OverlayPrejogoComponent } from './overlay-prejogo.component';
+import { OverlayMultiComponent } from './overlay-multi.component';
+import { multiCardsOf } from './overlay-multi';
 import { OverlayRankingComponent } from './overlay-ranking.component';
 import { OverlayResumoComponent } from './overlay-resumo.component';
 import { RESUMO_AUTO_DELAY_MS, RESUMO_AUTO_MAX_MS, resumoOf, type ResumoView } from './overlay-resumo';
@@ -93,6 +95,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
     OverlayResumoComponent,
     OverlayPrejogoComponent,
     OverlayRankingComponent,
+    OverlayMultiComponent,
   ],
   providers: [OverlayLiveGateway],
   host: {
@@ -119,7 +122,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
             [isFinal]="duelFinalMode()"
             [tecnicoSide]="tecnico()?.side ?? null"
             [encolhido]="medico() != null"
-            [class.fora]="resumo() != null || tecnico() != null || prejogo() != null"
+            [class.fora]="resumo() != null || tecnico() != null || prejogo() != null || multiNoAr()"
           />
         }
         @if (telaDoResultado(); as board) {
@@ -165,6 +168,14 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
         <og-overlay-tecnico [view]="tecnico()" [teams]="gateway.teams()" [sponsors]="patroItens()" />
 
         <og-overlay-prejogo [card]="prejogo()" [sponsors]="patroItens()" />
+        <og-overlay-multi
+          [cards]="multiCards()"
+          [mode]="multiMode()"
+          [focusCourtId]="multiFocus()"
+          [teams]="gateway.teams()"
+          [eventName]="gateway.tournament()?.name ?? ''"
+          [sponsors]="patroItens()"
+        />
         <og-overlay-ranking [card]="ranking()" [mode]="rankingMode()" [sponsors]="patroItens()" />
         <og-overlay-resumo [view]="resumo()" [teams]="gateway.teams()" [sponsors]="patroItens()" />
         <og-overlay-medico [view]="medico()" [teams]="gateway.teams()" />
@@ -289,7 +300,7 @@ export class OverlayPageComponent {
   /** Doação e patrocínio só entram com o controle já resolvido e sem tarja — a tarja toma a
    *  tela, inclusive para um "Mostrar agora". */
   protected readonly cardsNoAr = computed(
-    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null && this.prejogo() == null && this.ranking() == null,
+    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null && this.prejogo() == null && this.ranking() == null && !this.multiNoAr(),
   );
 
   /** O que vai ao ar: regra automática de cada tela E chave do painel; tarja toma a tela.
@@ -611,6 +622,24 @@ export class OverlayPageComponent {
 
   protected readonly rankingMode = computed(() => this.controle().ranking.mode);
 
+  /** Multi-quadras no ar: lê as partidas do torneio (públicas) e atualiza a cada ponto. A tarja de
+   *  entrevista toma a tela. */
+  protected readonly multiNoAr = computed(
+    () => this.gateway.controlReady() && this.controle().multi.on && !this.interviewOnAir(),
+  );
+  protected readonly multiMode = computed(() => this.controle().multi.mode);
+  protected readonly multiFocus = computed(() => this.controle().multi.focusCourtId);
+  protected readonly multiCards = computed(() => {
+    if (!this.multiNoAr()) return [];
+    const t = this.gateway.tournament();
+    return multiCardsOf(
+      this.gateway.tournamentMatches(),
+      t?.courts ?? [],
+      (id) => t?.categories.find((c) => c.id === id)?.name ?? null,
+      this.tick(),
+    );
+  });
+
   /** Ranking Top 10 no ar: tela cheia opaca que cobre o resto. A tarja de entrevista toma a tela. */
   protected readonly ranking = computed(() => {
     const r = this.controle().ranking;
@@ -727,6 +756,18 @@ export class OverlayPageComponent {
       const torneio = this.torneioDoControle();
       if (!torneio) return;
       onCleanup(this.gateway.watchControl(torneio));
+    });
+
+    // Multi-quadras: assina as partidas do torneio só enquanto a tela está no ar e resolve os
+    // elencos das partidas mostradas.
+    effect((onCleanup) => {
+      const torneio = this.torneioDoControle();
+      if (!this.multiNoAr() || !torneio) return;
+      onCleanup(this.gateway.watchTournamentMatches(torneio));
+    });
+    effect(() => {
+      const ids = this.multiCards().flatMap((c) => [c.a.teamId, c.b.teamId]).filter((id) => id !== '');
+      if (ids.length > 0) untracked(() => this.gateway.ensureTeams(ids));
     });
 
     // Pódio de categoria escolhida: assina as partidas do torneio só enquanto houver escolha, e

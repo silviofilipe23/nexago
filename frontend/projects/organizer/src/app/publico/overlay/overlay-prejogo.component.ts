@@ -644,24 +644,24 @@ export function prejogoNameSize(names: readonly string[]): number {
       gap: 12px;
     }
     .logo {
-      height: 44px;
+      height: 100px;
       display: grid;
       place-items: center;
       overflow: hidden;
       box-sizing: border-box;
       border-radius: 6px;
       border: 1.5px dashed rgba(255, 255, 255, 0.22);
-      background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.045) 0 10px, transparent 10px 20px);
+      // background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.045) 0 10px, transparent 10px 20px);
       animation: pj-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
     .logo--img {
       border: 0;
-      background: #fff;
+      // background: #fff;
       padding: 6px;
     }
     .logo img {
       width: 100%;
-      height: 100%;
+      height: 80px;
       object-fit: contain;
       object-position: center;
     }

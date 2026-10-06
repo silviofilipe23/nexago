@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import type { OverlayTeam } from './overlay-live.gateway';
+import { nomeCurtoDe } from './overlay-nome';
 import type { OverlayPatroItem } from './overlay-nx';
 import { tecnicoClock, tecnicoRestanteSeg, type OverlayTecnicoView } from './overlay-tecnico';
 
@@ -265,7 +266,7 @@ export class OverlayTecnicoComponent {
     if (!v) return [];
     if (v.kind === 'auto') return ['21 pontos no set'];
     const team = this.teams().get(v.teamId);
-    const players = (team?.players ?? []).map((p) => p.trim()).filter((p) => p !== '');
+    const players = (team?.players ?? []).map(nomeCurtoDe).filter((p) => p !== '');
     if (players.length > 0) return players;
     return [team?.label?.trim() || (v.side === 'B' ? 'Dupla B' : 'Dupla A')];
   });

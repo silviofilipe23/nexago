@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { OverlayMarkComponent } from './overlay-mark.component';
+import { nomeCurtoDe } from './overlay-nome';
 import type { OverlayKocTeam } from './overlay-koc-bar.component';
 import { duelAnimEventsOf, duelSnapOf } from './overlay-duel-anim';
 import type { OverlayDuelView, OverlaySide } from './overlay-selectors';
@@ -769,10 +770,10 @@ export class OverlayScoreboardComponent {
   }
 
   protected playerName(side: OverlaySide, slot: 1 | 2): string {
-    const fromTeam = this.teams().get(side.teamId)?.players[slot - 1]?.trim() ?? '';
+    const fromTeam = nomeCurtoDe(this.teams().get(side.teamId)?.players[slot - 1] ?? '');
     if (fromTeam) return fromTeam;
     const parts = side.label.split(/\s*\/\s*/);
-    return (parts[slot - 1] ?? '').trim() || `Atleta ${slot}`;
+    return nomeCurtoDe(parts[slot - 1] ?? '') || `Atleta ${slot}`;
   }
 
   protected isServing(v: OverlayDuelView, side: Side, slot: 1 | 2): boolean {

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import type { BroadcastInterview } from '../../painel/data/broadcast-control';
 import { initialsOf } from '../../painel/data/mock-data';
+import { nomeCurtoDe } from './overlay-nome';
 import { OgAvatarComponent } from '../../painel/ui/avatar.component';
 import { podiumToneOf } from './overlay-interview';
 
@@ -27,7 +28,7 @@ import { podiumToneOf } from './overlay-interview';
         @case ('dupla') {
           <span class="par">
             @for (n of d.names; track $index) {
-              <span class="anel"><og-avatar [initials]="iniciais(n)" [photoUrl]="d.photos[$index] ?? null" [size]="120" /></span>
+              <span class="anel"><og-avatar [initials]="iniciais(nomeDe(n))" [photoUrl]="d.photos[$index] ?? null" [size]="120" /></span>
             }
           </span>
         }
@@ -54,7 +55,7 @@ import { podiumToneOf } from './overlay-interview';
           @if ($index > 0) {
             <span class="sep">/</span>
           }
-          <span>{{ n }}</span>
+          <span>{{ nomeDe(n) }}</span>
         }
       </div>
       @if (d.kind === 'atleta' && d.subtitle) {
@@ -64,8 +65,8 @@ import { podiumToneOf } from './overlay-interview';
         <div class="elenco" [style.--cols]="colunas()">
           @for (m of d.members; track $index) {
             <span class="membro">
-              <og-avatar [initials]="iniciais(m.name)" [photoUrl]="m.photoUrl" [size]="40" />
-              <span class="membro-nome">{{ m.name }}</span>
+              <og-avatar [initials]="iniciais(nomeCurtoDe(m.name))" [photoUrl]="m.photoUrl" [size]="40" />
+              <span class="membro-nome">{{ nomeCurtoDe(m.name) }}</span>
             </span>
           }
         </div>
@@ -304,6 +305,14 @@ export class OverlayInterviewCardComponent {
     const n = this.data().members.length;
     return n <= 4 ? n : 3;
   });
+
+  /** Atleta e dupla: no máximo dois primeiros nomes. Equipe: `names` é o NOME DA EQUIPE, que não
+   *  se encurta. */
+  protected nomeDe(n: string): string {
+    return this.data().kind === 'equipe' ? n : nomeCurtoDe(n);
+  }
+
+  protected readonly nomeCurtoDe = nomeCurtoDe;
 
   protected iniciais(name: string): string {
     return initialsOf(name) || '?';

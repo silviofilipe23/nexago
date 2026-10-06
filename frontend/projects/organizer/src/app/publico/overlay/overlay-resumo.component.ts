@@ -686,7 +686,7 @@ function rng(seed: number): () => number {
       gap: 12px;
     }
     .plogo {
-      height: 60px;
+      height: 200px;
       display: grid;
       place-items: center;
       overflow: hidden;
@@ -704,8 +704,8 @@ function rng(seed: number): () => number {
     .plogo img {
       /* 100% nos dois eixos + contain: o logo ESCALA pra caber (pequeno cresce, grande encolhe).
          max-* em % não resolve numa célula de altura intrínseca e o overflow cortava o logo. */
-      width: 100%;
-      height: 100%;
+      width: auto;
+      height: 180px;
       object-fit: contain;
       object-position: center;
     }

@@ -16,6 +16,7 @@ import { broadcastGroupsFor } from './broadcast-graphics';
 import { TransmissaoDataService } from './transmissao-data.service';
 import { TransmissaoEntrevistaComponent } from './transmissao-entrevista.component';
 import { TransmissaoPrejogoComponent } from './transmissao-prejogo.component';
+import { TransmissaoGradeComponent } from './transmissao-grade.component';
 import { TransmissaoMultiComponent } from './transmissao-multi.component';
 import { TransmissaoRankingComponent } from './transmissao-ranking.component';
 import { courtChipsOf, transmissaoUrl } from './transmissao-selectors';
@@ -42,7 +43,7 @@ const WIDE_QUERY = '(min-width: 1100px)';
   selector: 'og-transmissao',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [TransmissaoDataService],
-  imports: [OgPageHeaderComponent, OgCardComponent, TransmissaoEntrevistaComponent, TransmissaoPrejogoComponent, TransmissaoRankingComponent, TransmissaoMultiComponent, RouterLink],
+  imports: [OgPageHeaderComponent, OgCardComponent, TransmissaoEntrevistaComponent, TransmissaoPrejogoComponent, TransmissaoRankingComponent, TransmissaoMultiComponent, TransmissaoGradeComponent, RouterLink],
   template: `
     <og-page-header title="Transmissão" subtitle="Controle o que aparece na live do torneio — placar, telas do KOTC, tarja de entrevista e patrocínio">
       <button type="button" class="og-ghost-btn" (click)="copyUrl()">{{ copied() ? 'Link copiado ✓' : 'Copiar link do OBS' }}</button>
@@ -81,6 +82,7 @@ const WIDE_QUERY = '(min-width: 1100px)';
           <og-tx-prejogo />
           <og-tx-ranking />
           <og-tx-multi />
+          <og-tx-grade />
         </div>
 
         <div class="og-tx-col">

@@ -1,3 +1,4 @@
+import { DEFAULT_BROADCAST_GRADE, gradeFromRaw, type BroadcastGrade } from './broadcast-grade';
 import { DEFAULT_BROADCAST_MULTI, multiFromRaw, type BroadcastMulti } from './broadcast-multi';
 import { DEFAULT_BROADCAST_RANKING, rankingFromRaw, type BroadcastRanking } from './broadcast-ranking';
 import { DEFAULT_BROADCAST_PREJOGO, prejogoFromRaw, type BroadcastPrejogo } from './broadcast-prejogo';
@@ -171,6 +172,8 @@ export interface BroadcastControl {
   ranking: BroadcastRanking;
   /** Tela Multi-quadras: no ar, modo e quadra em destaque. */
   multi: BroadcastMulti;
+  /** Tela Grade do dia: no ar e categoria em destaque. */
+  grade: BroadcastGrade;
   interview: BroadcastInterview | null;
   commands: BroadcastCommands;
 }
@@ -193,6 +196,7 @@ export const DEFAULT_BROADCAST_CONTROL: BroadcastControl = {
   prejogo: DEFAULT_BROADCAST_PREJOGO,
   ranking: DEFAULT_BROADCAST_RANKING,
   multi: DEFAULT_BROADCAST_MULTI,
+  grade: DEFAULT_BROADCAST_GRADE,
   interview: null,
   commands: { donationNowAt: 0, sponsorsNowAt: 0 },
 };
@@ -317,6 +321,7 @@ export function broadcastControlFromRaw(raw: unknown): BroadcastControl {
     prejogo: prejogoFromRaw(d['prejogo']),
     ranking: rankingFromRaw(d['ranking']),
     multi: multiFromRaw(d['multi']),
+    grade: gradeFromRaw(d['grade']),
     interview: interviewFromRaw(d['interview']),
     commands: { donationNowAt: stamp(c['donationNowAt']), sponsorsNowAt: stamp(c['sponsorsNowAt']) },
   };

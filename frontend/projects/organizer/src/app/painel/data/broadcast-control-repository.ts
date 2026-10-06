@@ -8,6 +8,7 @@ import {
   type BroadcastInterview,
   type KocRoundEndScreen,
 } from './broadcast-control';
+import type { BroadcastGrade } from './broadcast-grade';
 import type { BroadcastMulti } from './broadcast-multi';
 import type { BroadcastRanking } from './broadcast-ranking';
 import type { BroadcastPrejogo } from './broadcast-prejogo';
@@ -26,6 +27,7 @@ export interface BroadcastControlPatch {
   prejogo?: BroadcastPrejogo;
   ranking?: BroadcastRanking;
   multi?: BroadcastMulti;
+  grade?: BroadcastGrade;
   interview?: BroadcastInterview | null;
   commands?: Partial<BroadcastCommands>;
 }

@@ -58,7 +58,7 @@ export function prejogoNameSize(names: readonly string[]): number {
                   @for (i of [0, 1]; track i) {
                     <div class="foto" [class]="'foto medal-' + (medal(team(c, side)) ?? 'none')" [class.foto--vazia]="!team(c, side).photos[i]">
                       @if (team(c, side).photos[i]; as src) {
-                        <img [src]="src" [alt]="team(c, side).names[i] ?? ''" />
+                        <img [src]="src" [alt]="team(c, side).names[i]" />
                       } @else {
                         <span>Foto<br />atleta {{ i + 1 }}</span>
                       }

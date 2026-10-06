@@ -165,7 +165,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
         <og-overlay-tecnico [view]="tecnico()" [teams]="gateway.teams()" [sponsors]="patroItens()" />
 
         <og-overlay-prejogo [card]="prejogo()" [sponsors]="patroItens()" />
-        <og-overlay-ranking [card]="ranking()" [mode]="controle().ranking.mode" [sponsors]="patroItens()" />
+        <og-overlay-ranking [card]="ranking()" [mode]="rankingMode()" [sponsors]="patroItens()" />
         <og-overlay-resumo [view]="resumo()" [teams]="gateway.teams()" [sponsors]="patroItens()" />
         <og-overlay-medico [view]="medico()" [teams]="gateway.teams()" />
 
@@ -608,6 +608,8 @@ export class OverlayPageComponent {
     const p = this.controle().prejogo;
     return this.gateway.controlReady() && p.on && !this.interviewOnAir() ? p.card : null;
   });
+
+  protected readonly rankingMode = computed(() => this.controle().ranking.mode);
 
   /** Ranking Top 10 no ar: tela cheia opaca que cobre o resto. A tarja de entrevista toma a tela. */
   protected readonly ranking = computed(() => {

@@ -41,6 +41,25 @@ describe('overlay-grade', () => {
     expect(v.rows[2]!.cells[0]![0]!.matchId).toBe('c');
   });
 
+  it('dois jogos no mesmo bloco/quadra: a linha cresce e NENHUM some', () => {
+    const ms = [
+      match({ id: 'a', scheduledAt: at(11, 20), courtId: 'q1' }),
+      match({ id: 'b', scheduledAt: at(11, 40), courtId: 'q1' }),
+      match({ id: 'c', scheduledAt: at(12, 40), courtId: 'q1' }),
+    ];
+    const v = gradeViewOf(ms, courts, NOW)!;
+    expect(v.rows[0]!.cells[0]!.map((c) => c.matchId)).toEqual(['a', 'b']);
+    expect(v.rows[0]!.span).toBe(2);
+    expect(v.rows[1]!.offset).toBe(2);
+    expect(v.totalUnits).toBe(4);
+  });
+
+  it('jogo sem courtId que case entra pela coluna de mesmo nome', () => {
+    const ms = [match({ id: 'a', courtId: 'antigo', court: 'quadra 2' })];
+    const v = gradeViewOf(ms, courts, NOW)!;
+    expect(v.rows[0]!.cells[1]!.map((c) => c.matchId)).toEqual(['a']);
+  });
+
   it('estados: final com placar e vencedor, ao vivo, próximo (1º futuro por quadra) e agendado', () => {
     const ms = [
       match({ id: 'f', scheduledAt: at(11, 20), status: 'completed', winnerSide: 1, sets: [{ a: 21, b: 15 }, { a: 21, b: 19 }] }),

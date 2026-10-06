@@ -49,13 +49,13 @@ const CAT_COLORS = ['#4da3ff', '#ff6a1a', '#ff5fa8', '#a07bff', '#3ddc84', '#f2c
         </div>
 
         <div class="janela" [style.height.px]="janelaH">
-          <div class="trilha" [style.transform]="'translateY(' + -v.firstVisible * pitch + 'px)'">
+          <div class="trilha" [style.transform]="'translateY(' + -(v.rows[v.firstVisible]?.offset ?? 0) * pitch + 'px)'">
             @for (r of v.rows; track r.startMs; let i = $index) {
-              <div class="linha" [class.linha--agora]="v.now?.row === i" [style.top.px]="i * pitch" [style.grid-template-columns]="cols(v)" [style.--d]="0.4 + (i < 8 ? i : 8) * 0.06 + 's'">
+              <div class="linha" [class.linha--agora]="v.now?.row === i" [style.top.px]="r.offset * pitch" [style.height.px]="r.span * pitch - gap" [style.grid-template-columns]="cols(v)" [style.--d]="0.4 + (i < 8 ? i : 8) * 0.06 + 's'">
                 <span class="hora">{{ r.label }}</span>
                 @for (cell of r.cells; track $index) {
-                  @if (cell.length > 0) {
-                    @let c = cell[0]!;
+                  <div class="coluna">
+                  @for (c of cell; track c.matchId) {
                     <div class="jogo" [class]="'jogo jogo--' + c.state" [class.jogo--dim]="dimmed(c)" [style.--cor]="cor(c.categoryId)">
                       <div class="topo">
                         <i class="bola"></i>
@@ -81,14 +81,15 @@ const CAT_COLORS = ['#4da3ff', '#ff6a1a', '#ff5fa8', '#a07bff', '#3ddc84', '#f2c
                         }
                       </div>
                     </div>
-                  } @else {
+                  } @empty {
                     <div class="vazio"></div>
                   }
+                  </div>
                 }
               </div>
             }
             @if (v.now; as n) {
-              <div class="agora" [style.top.px]="(n.row + n.frac) * pitch + roww / 2">
+              <div class="agora" [style.top.px]="agoraTop(v, n)">
                 <span class="agora-tag">Agora · {{ n.label }}</span>
                 <i class="agora-linha"></i>
               </div>
@@ -308,7 +309,6 @@ const CAT_COLORS = ['#4da3ff', '#ff6a1a', '#ff5fa8', '#a07bff', '#3ddc84', '#f2c
       position: absolute;
       left: 0;
       right: 0;
-      height: ${ROW_H}px;
       display: grid;
       column-gap: 10px;
       align-items: stretch;
@@ -322,6 +322,20 @@ const CAT_COLORS = ['#4da3ff', '#ff6a1a', '#ff5fa8', '#a07bff', '#3ddc84', '#f2c
     }
     .linha--agora .hora {
       color: #fff;
+    }
+    /* Jogos empilhados quando mais de um cai no mesmo bloco da mesma quadra. */
+    .coluna {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: ${ROW_PITCH - ROW_H}px;
+    }
+    .coluna > .jogo {
+      flex: none;
+      height: ${ROW_H}px;
+    }
+    .coluna > .vazio {
+      flex: 1;
     }
     .vazio {
       border-radius: 8px;
@@ -552,9 +566,17 @@ export class OverlayGradeComponent {
 
   protected readonly pitch = ROW_PITCH;
   protected readonly roww = ROW_H;
+  protected readonly gap = ROW_PITCH - ROW_H;
   /** Altura da janela: `GRADE_VISIBLE_ROWS` linhas (a última sem o espaço de respiro). */
   protected readonly janelaH = GRADE_VISIBLE_ROWS * ROW_PITCH - (ROW_PITCH - ROW_H);
   protected readonly logos = computed(() => this.sponsors().slice(0, 5));
+
+  /** Posição do "agora": dentro da linha atual, proporcional ao horário. */
+  protected agoraTop(v: GradeView, n: { row: number; frac: number }): number {
+    const r = v.rows[n.row];
+    if (!r) return 0;
+    return r.offset * ROW_PITCH + n.frac * (r.span * ROW_PITCH - (ROW_PITCH - ROW_H));
+  }
 
   protected cols(v: GradeView): string {
     return `100px repeat(${v.courts.length}, minmax(0, 1fr))`;

@@ -14,6 +14,8 @@ import { OverlayKocQualifiedComponent } from './overlay-koc-qualified.component'
 import { kocStandingsBoardOf } from './overlay-koc-standings';
 import { OverlayKocStandingsComponent } from './overlay-koc-standings.component';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
+import { OverlayMedicoComponent } from './overlay-medico.component';
+import { medicoOf, type OverlayMedicoView } from './overlay-medico';
 import { OverlayTecnicoComponent } from './overlay-tecnico.component';
 import { TECNICO_AUTO_SEGUNDOS, tecnicoAutoKeyOf, tecnicoInfoOf, tecnicoManualOf, tecnicoNoAr, type OverlayTecnicoView } from './overlay-tecnico';
 import { DEFAULT_BROADCAST_CONTROL, finalPrefOf, type BroadcastControl } from '../../painel/data/broadcast-control';
@@ -83,6 +85,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
     OverlayPatroComponent,
     OverlayInterviewComponent,
     OverlayTecnicoComponent,
+    OverlayMedicoComponent,
   ],
   providers: [OverlayLiveGateway],
   host: {
@@ -108,6 +111,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
             [courtName]="courtName()"
             [isFinal]="duelFinalMode()"
             [tecnicoSide]="tecnico()?.side ?? null"
+            [encolhido]="medico() != null"
           />
         }
         @if (telaDoResultado(); as board) {
@@ -151,6 +155,8 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
 
         <!-- Sempre montada: o animate.leave do card precisa do host vivo. -->
         <og-overlay-tecnico [view]="tecnico()" [teams]="gateway.teams()" [sponsors]="patroItens()" />
+
+        <og-overlay-medico [view]="medico()" [teams]="gateway.teams()" />
 
         <og-overlay-doacao [config]="doacaoConfig" [show]="cardsNoAr() && doacaoShow()" />
         <og-overlay-patro [itens]="patroItens()" [show]="cardsNoAr() && patroShow()" [visivelSeg]="patroConfig.card.visivelSeg" />
@@ -571,6 +577,11 @@ export class OverlayPageComponent {
     if (!tecnicoNoAr(auto.startMs, durMs, nowMs)) return null;
     return { kind: 'auto', key: auto.key, startMs: auto.startMs, durMs, side: null, teamId: '', info: tecnicoInfoOf(v, this.categoryName()) };
   });
+
+  /** Atendimento médico no ar — sem patrocinadores, e o placar encolhe (o jogo está parado). */
+  protected readonly medico = computed<OverlayMedicoView | null>(() =>
+    this.layers().duel ? medicoOf(this.match(), this.duelViewAuto(), this.tick()) : null,
+  );
 
   private readonly view = computed(() => {
     const m = this.match();

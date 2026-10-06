@@ -2,6 +2,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { DEFAULT_BROADCAST_CONTROL, interviewWithDefaults } from '../data/broadcast-control';
+import type { BroadcastPrejogo } from '../data/broadcast-prejogo';
 import type { TournamentMatch } from '../data/matches-repository';
 import { FakeTransmissaoData as FakeData, torneio } from './transmissao-data.fake';
 import { TransmissaoDataService } from './transmissao-data.service';
@@ -16,6 +17,27 @@ async function mount(fake = new FakeData()) {
   await fixture.whenStable();
   return { fixture, fake, el: fixture.nativeElement as HTMLElement };
 }
+
+/** Linha da lista "Gráficos" pelo nome. */
+function linha(el: HTMLElement, nome: string): HTMLElement {
+  const l = [...el.querySelectorAll<HTMLElement>('.og-tx-row')].find((r) => r.querySelector('.og-tx-row-nome')?.textContent?.trim().startsWith(nome));
+  if (!l) throw new Error(`linha "${nome}" não encontrada`);
+  return l;
+}
+
+function switchDe(el: HTMLElement, nome: string): HTMLButtonElement {
+  return linha(el, nome).querySelector('button[role="switch"]') as HTMLButtonElement;
+}
+
+function selecionar(el: HTMLElement, nome: string): void {
+  (linha(el, nome).querySelector('.og-tx-row-main') as HTMLButtonElement).click();
+}
+
+function tecla(key: string, alvo: EventTarget = document): void {
+  alvo.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+}
+
+const CARD = { a: { names: ['Ana'] }, b: { names: ['Carla'] } };
 
 /** `escopo` restringe a busca a um grupo (aria-label): outros cards da tela — Grade do dia,
  *  Multi-quadras — também listam as categorias do torneio com os mesmos nomes. */
@@ -39,24 +61,153 @@ describe('TransmissaoComponent', () => {
     expect(fake.tournamentId()).toBe('t1');
   });
 
-  it('sem categoria KOTC, o grupo King of the Court não aparece', async () => {
-    const { el } = await mount();
-    expect(el.textContent).not.toContain('King of the Court');
-    expect(el.textContent).toContain('Placar');
+  describe('lista de gráficos', () => {
+    it('agrupa os gráficos na ordem da tela, com a linha de cada um', async () => {
+      const { el } = await mount();
+      const grupos = [...el.querySelectorAll('.og-tx-lista .og-tx-grupo')].map((g) => g.textContent?.trim());
+      expect(grupos).toEqual(['Partida', 'Apresentação', 'Entrevista', 'Encerramento', 'Patrocínio']);
+      const nomes = [...el.querySelectorAll('.og-tx-lista .og-tx-row-nome')].map((n) => n.textContent?.replace(/\d$/, '').trim());
+      expect(nomes).toEqual([
+        'Placar',
+        'Multi-quadras',
+        'Pré-jogo',
+        'Ranking Top 10',
+        'Grade do dia',
+        'Entrevista',
+        'Campeões',
+        'Resumo da partida',
+        'Patrocinadores',
+        'Doação PIX',
+      ]);
+    });
+
+    it('cada linha traz o resumo do estado', async () => {
+      const fake = new FakeData();
+      fake.control.set({ ...fake.control(), multi: { on: true, mode: 'full', focusCourtId: null } });
+      const { el } = await mount(fake);
+      expect(linha(el, 'Placar').textContent).toContain('Canto inferior esquerdo');
+      expect(linha(el, 'Multi-quadras').textContent).toContain('Tela cheia · destaque: Nenhuma');
+      expect(linha(el, 'Campeões').textContent).toContain('Pódio quando a final termina');
+      expect(linha(el, 'Entrevista').textContent).toContain('Fila · 0');
+    });
+
+    it('sem categoria KOTC, o grupo King of the Court não aparece', async () => {
+      const { el } = await mount();
+      expect(el.textContent).not.toContain('King of the Court');
+      expect(el.textContent).toContain('Placar');
+    });
+
+    it('com categoria KOTC, aparecem as linhas e a escolha do fim de rodada', async () => {
+      const fake = new FakeData();
+      fake.tournament.set(torneio(['king_of_court']));
+      const { el, fixture } = await mount(fake);
+      expect(el.textContent).toContain('Faixa da rodada');
+      selecionar(el, 'Fim de rodada');
+      await fixture.whenStable();
+      expect(el.textContent).toContain('Classificadas');
+      botao(el, 'Resultado', 'Configurações').click();
+      expect(fake.saved).toEqual([{ kocRoundEndScreen: 'resultado' }]);
+    });
+
+    it('conta quantos gráficos estão no ar', async () => {
+      const fake = new FakeData();
+      const { el, fixture } = await mount(fake);
+      // padrão do torneio sem KOTC: Placar, Campeões, Patrocinadores e Doação PIX
+      expect(el.querySelector('.og-tx-count')?.textContent?.trim()).toBe('4 NO AR');
+      fake.control.set({ ...fake.control(), multi: { on: true, mode: 'full', focusCourtId: null }, summaryOn: true });
+      await fixture.whenStable();
+      expect(el.querySelector('.og-tx-count')?.textContent?.trim()).toBe('6 NO AR');
+    });
+
+    it('desligar o placar grava só a chave dele', async () => {
+      const { el, fake } = await mount();
+      (el.querySelector('button[role="switch"][aria-label="Placar"]') as HTMLButtonElement).click();
+      expect(fake.saved).toEqual([{ graphics: { scoreboard: false } }]);
+    });
+
+    it('o switch não seleciona a linha; clicar na linha seleciona', async () => {
+      const { el, fixture } = await mount();
+      switchDe(el, 'Multi-quadras').click();
+      await fixture.whenStable();
+      expect(el.querySelector('.og-tx-cfg h2')?.textContent).toContain('Placar');
+      selecionar(el, 'Multi-quadras');
+      await fixture.whenStable();
+      expect(el.querySelector('.og-tx-cfg h2')?.textContent).toContain('Multi-quadras');
+      expect(linha(el, 'Multi-quadras').classList).toContain('sel');
+    });
+
+    it('multi-quadras liga pelo switch com o resto do estado preservado', async () => {
+      const { el, fake } = await mount();
+      switchDe(el, 'Multi-quadras').click();
+      expect(fake.saved).toEqual([{ multi: { on: true, mode: 'full', focusCourtId: null } }]);
+    });
   });
 
-  it('com categoria KOTC, aparecem as linhas e a escolha do fim de rodada', async () => {
-    const fake = new FakeData();
-    fake.tournament.set(torneio(['king_of_court']));
-    const { el } = await mount(fake);
-    expect(el.textContent).toContain('Faixa da rodada');
-    expect(el.textContent).toContain('Classificadas');
+  describe('itens travados', () => {
+    it('Pré-jogo e Ranking sem card: amarelos, "Monte o card primeiro" e switch travado', async () => {
+      const { el, fake } = await mount();
+      for (const nome of ['Pré-jogo', 'Ranking Top 10']) {
+        const l = linha(el, nome);
+        expect(l.textContent).toContain('Monte o card primeiro');
+        expect(l.classList).toContain('warn');
+        const sw = switchDe(el, nome);
+        expect(sw.disabled).toBeTrue();
+        sw.click();
+      }
+      expect(fake.saved).toEqual([]);
+    });
+
+    it('com o card montado o switch libera e liga com o card preservado', async () => {
+      const fake = new FakeData();
+      const prejogo = { on: false, card: CARD } as unknown as BroadcastPrejogo;
+      fake.control.set({ ...fake.control(), prejogo });
+      const { el } = await mount(fake);
+      expect(switchDe(el, 'Pré-jogo').disabled).toBeFalse();
+      expect(linha(el, 'Pré-jogo').textContent).toContain('Ana × Carla');
+      switchDe(el, 'Pré-jogo').click();
+      expect(fake.saved).toEqual([{ prejogo: { on: true, card: CARD } }] as never);
+    });
+
+    it('dígito de item travado não faz nada', async () => {
+      const { fake, fixture } = await mount();
+      tecla('3'); // Pré-jogo
+      await fixture.whenStable();
+      expect(fake.saved).toEqual([]);
+    });
   });
 
-  it('desligar o placar grava só a chave dele', async () => {
-    const { el, fake } = await mount();
-    (el.querySelector('button[role="switch"][aria-label="Placar"]') as HTMLButtonElement).click();
-    expect(fake.saved).toEqual([{ graphics: { scoreboard: false } }]);
+  describe('coluna Configurações', () => {
+    it('mostra as opções do gráfico selecionado', async () => {
+      const { el, fixture } = await mount();
+      const visivel = (tag: string) => !(el.querySelector(tag) as HTMLElement).hidden;
+      expect(visivel('og-tx-multi')).toBeFalse();
+      selecionar(el, 'Multi-quadras');
+      await fixture.whenStable();
+      expect(visivel('og-tx-multi')).toBeTrue();
+      expect(visivel('og-tx-entrevista')).toBeFalse();
+      selecionar(el, 'Entrevista');
+      await fixture.whenStable();
+      expect(visivel('og-tx-entrevista')).toBeTrue();
+      expect(visivel('og-tx-multi')).toBeFalse();
+      selecionar(el, 'Grade do dia');
+      await fixture.whenStable();
+      expect(visivel('og-tx-grade')).toBeTrue();
+    });
+
+    it('sem moldura nem chave "No ar" duplicada dentro dos cards', async () => {
+      const { el } = await mount();
+      expect(el.querySelector('og-tx-multi button[aria-label="Multi-quadras no ar"]')).toBeNull();
+      expect(el.querySelector('og-tx-grade button[aria-label="Grade do dia no ar"]')).toBeNull();
+      expect(el.querySelector('og-tx-multi .og-card-title')).toBeNull();
+    });
+
+    it('o "No ar" do cabeçalho tem o mesmo efeito do switch da lista', async () => {
+      const { el, fixture, fake } = await mount();
+      selecionar(el, 'Grade do dia');
+      await fixture.whenStable();
+      (el.querySelector('.og-tx-cfg button[aria-label="Grade do dia no ar"]') as HTMLButtonElement).click();
+      expect(fake.saved).toEqual([{ grade: { on: true, categoryId: null } }]);
+    });
   });
 
   it('escolher a quadra grava courtId', async () => {
@@ -65,51 +216,70 @@ describe('TransmissaoComponent', () => {
     expect(fake.saved).toEqual([{ courtId: 'q2' }]);
   });
 
-  it('"Mostrar agora" fica desabilitado com a chave desligada', async () => {
-    const fake = new FakeData();
-    fake.control.set({ ...DEFAULT_BROADCAST_CONTROL, graphics: { ...DEFAULT_BROADCAST_CONTROL.graphics, donation: false } });
-    const { el } = await mount(fake);
-    const linhas = [...el.querySelectorAll('.og-toggle-row')];
-    const doacao = linhas.find((l) => l.textContent?.includes('Doação PIX'))!;
-    const patro = linhas.find((l) => l.textContent?.includes('Patrocinadores'))!;
-    expect((doacao.querySelector('.og-tx-agora') as HTMLButtonElement).disabled).toBeTrue();
-    expect((patro.querySelector('.og-tx-agora') as HTMLButtonElement).disabled).toBeFalse();
-  });
-
-  it('torneio sem patrocinador: "Mostrar agora" desabilitado e o painel diz onde cadastrar', async () => {
-    const fake = new FakeData();
-    fake.tournament.set({ ...torneio(['single_elimination']), sponsors: [] });
-    const { el } = await mount(fake);
-    const patro = [...el.querySelectorAll('.og-toggle-row')].find((l) => l.textContent?.includes('Patrocinadores'))!;
-    expect((patro.querySelector('.og-tx-agora') as HTMLButtonElement).disabled).toBeTrue();
-    expect(patro.textContent).toContain('Nenhum patrocinador cadastrado');
-    expect(patro.querySelector('a')?.getAttribute('href')).toBe('/eventos/t1');
-  });
-
-  it('com patrocinador, a linha mostra a descrição de sempre', async () => {
+  it('copia o link do OBS', async () => {
+    const copiar = spyOn(navigator.clipboard, 'writeText').and.resolveTo();
     const { el } = await mount();
-    const patro = [...el.querySelectorAll('.og-toggle-row')].find((l) => l.textContent?.includes('Patrocinadores'))!;
-    expect(patro.textContent).not.toContain('Nenhum patrocinador cadastrado');
+    botao(el, 'Copiar').click();
+    expect(copiar).toHaveBeenCalledWith(`${location.origin}/transmissao/t1`);
   });
 
-  it('"Mostrar agora" grava o carimbo do comando', async () => {
-    const { el, fake } = await mount();
-    const patro = [...el.querySelectorAll('.og-toggle-row')].find((l) => l.textContent?.includes('Patrocinadores'))!;
-    (patro.querySelector('.og-tx-agora') as HTMLButtonElement).click();
-    expect(typeof fake.saved[0]?.commands?.sponsorsNowAt).toBe('number');
+  it('o "?" mostra a instrução do OBS', async () => {
+    const { el, fixture } = await mount();
+    expect(el.querySelector('[role="note"]')).toBeNull();
+    (el.querySelector('button[aria-label="Como usar no OBS"]') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(el.querySelector('[role="note"]')?.textContent).toContain('1920×1080');
   });
 
-  it('"Mostrar agora" fica desabilitado com a tarja no ar — a tarja toma a tela', async () => {
-    const fake = new FakeData();
-    fake.control.set({
-      ...DEFAULT_BROADCAST_CONTROL,
-      interview: interviewWithDefaults({ name: 'Ana Souza', photoUrl: null, partnerName: null, categoryName: null, durationSec: null, shownAt: Date.now() }),
+  describe('"Agora"', () => {
+    it('fica desabilitado com a chave desligada', async () => {
+      const fake = new FakeData();
+      fake.control.set({ ...DEFAULT_BROADCAST_CONTROL, graphics: { ...DEFAULT_BROADCAST_CONTROL.graphics, donation: false } });
+      const { el } = await mount(fake);
+      expect((linha(el, 'Doação PIX').querySelector('.og-tx-agora') as HTMLButtonElement).disabled).toBeTrue();
+      expect((linha(el, 'Patrocinadores').querySelector('.og-tx-agora') as HTMLButtonElement).disabled).toBeFalse();
     });
-    const { el } = await mount(fake);
-    const agora = [...el.querySelectorAll('.og-tx-agora')] as HTMLButtonElement[];
 
-    expect(agora.length).toBe(2);
-    expect(agora.every((b) => b.disabled)).toBeTrue();
+    it('torneio sem patrocinador: desabilitado e o painel diz onde cadastrar', async () => {
+      const fake = new FakeData();
+      fake.tournament.set({ ...torneio(['single_elimination']), sponsors: [] });
+      const { el, fixture } = await mount(fake);
+      const patro = linha(el, 'Patrocinadores');
+      expect((patro.querySelector('.og-tx-agora') as HTMLButtonElement).disabled).toBeTrue();
+      selecionar(el, 'Patrocinadores');
+      await fixture.whenStable();
+      const cfg = el.querySelector('.og-tx-cfg')!;
+      expect(cfg.textContent).toContain('Nenhum patrocinador cadastrado');
+      expect(cfg.querySelector('a')?.getAttribute('href')).toBe('/eventos/t1');
+      expect((cfg.querySelector('.og-tx-agora-cfg') as HTMLButtonElement).disabled).toBeTrue();
+    });
+
+    it('com patrocinador, nada de aviso de cadastro', async () => {
+      const { el, fixture } = await mount();
+      selecionar(el, 'Patrocinadores');
+      await fixture.whenStable();
+      expect(el.querySelector('.og-tx-cfg')!.textContent).not.toContain('Nenhum patrocinador cadastrado');
+    });
+
+    it('grava o carimbo do comando', async () => {
+      const { el, fake } = await mount();
+      (linha(el, 'Patrocinadores').querySelector('.og-tx-agora') as HTMLButtonElement).click();
+      expect(typeof fake.saved[0]?.commands?.sponsorsNowAt).toBe('number');
+      (linha(el, 'Doação PIX').querySelector('.og-tx-agora') as HTMLButtonElement).click();
+      expect(typeof fake.saved[1]?.commands?.donationNowAt).toBe('number');
+    });
+
+    it('fica desabilitado com a tarja no ar — a tarja toma a tela', async () => {
+      const fake = new FakeData();
+      fake.control.set({
+        ...DEFAULT_BROADCAST_CONTROL,
+        interview: interviewWithDefaults({ name: 'Ana Souza', photoUrl: null, partnerName: null, categoryName: null, durationSec: null, shownAt: Date.now() }),
+      });
+      const { el } = await mount(fake);
+      const agora = [...el.querySelectorAll('.og-tx-agora')] as HTMLButtonElement[];
+      expect(agora.length).toBe(2);
+      expect(agora.every((b) => b.disabled)).toBeTrue();
+    });
   });
 
   describe('categoria do pódio', () => {
@@ -139,7 +309,9 @@ describe('TransmissaoComponent', () => {
     it('automático por padrão, com cada categoria do torneio pra escolher', async () => {
       const fake = new FakeData();
       fake.tournament.set(torneio(['single_elimination', 'king_of_court']));
-      const { el } = await mount(fake);
+      const { el, fixture } = await mount(fake);
+      selecionar(el, 'Campeões');
+      await fixture.whenStable();
       expect(chips(el)).toEqual(['Automático ✓', 'Feminina B', 'C1']);
       expect(el.textContent).toContain('Segue a final que termina na quadra transmitida');
     });
@@ -147,6 +319,8 @@ describe('TransmissaoComponent', () => {
     it('escolher grava a categoria; Automático volta pra null', async () => {
       const fake = new FakeData();
       const { el, fixture } = await mount(fake);
+      selecionar(el, 'Campeões');
+      await fixture.whenStable();
       botao(el, 'Feminina B', 'Categoria do pódio').click();
       expect(fake.saved).toEqual([{ championsCategoryId: 'cat1' }]);
       fake.control.set({ ...fake.control(), championsCategoryId: 'cat1' });
@@ -158,7 +332,9 @@ describe('TransmissaoComponent', () => {
     it('final da categoria ainda não decidida: o painel avisa que nada vai ao ar', async () => {
       const fake = new FakeData();
       fake.control.set({ ...fake.control(), championsCategoryId: 'cat1' });
-      const { el } = await mount(fake);
+      const { el, fixture } = await mount(fake);
+      selecionar(el, 'Campeões');
+      await fixture.whenStable();
       expect(chips(el)).toContain('Feminina B ✓');
       expect(el.textContent).toContain('A final de Feminina B ainda não terminou');
     });
@@ -167,15 +343,132 @@ describe('TransmissaoComponent', () => {
       const fake = new FakeData();
       fake.control.set({ ...fake.control(), championsCategoryId: 'cat1' });
       fake.matches.set([FINAL_FEM]);
-      const { el } = await mount(fake);
+      const { el, fixture } = await mount(fake);
+      selecionar(el, 'Campeões');
+      await fixture.whenStable();
       expect(el.textContent).toContain('Pódio de Feminina B no ar');
     });
   });
 
   it('Grande final grava o modo escolhido', async () => {
-    const { el, fake } = await mount();
-    botao(el, 'Ligado').click();
+    const { el, fake, fixture } = await mount();
+    selecionar(el, 'Campeões');
+    await fixture.whenStable();
+    botao(el, 'Ligado', 'Configurações').click();
     expect(fake.saved).toEqual([{ finalMode: 'on' }]);
+  });
+
+  it('Resumo da partida liga pela lista', async () => {
+    const { el, fake } = await mount();
+    switchDe(el, 'Resumo da partida').click();
+    expect(fake.saved).toEqual([{ summaryOn: true }]);
+  });
+
+  describe('No ar', () => {
+    it('a prévia mostra uma caixa por gráfico ligado, e a marca N', async () => {
+      const fake = new FakeData();
+      fake.control.set({ ...fake.control(), multi: { on: true, mode: 'strip', focusCourtId: null } });
+      const { el } = await mount(fake);
+      const caixas = [...el.querySelectorAll('.og-tx-preview .og-tx-pv')].map((c) => c.textContent?.trim());
+      expect(caixas).toEqual(['Placar', 'Multi-quadras', 'Campeões', 'Oferecimento', 'Doação PIX']);
+      expect(el.querySelector('.og-tx-pv-strip')?.textContent).toContain('Multi-quadras');
+      expect(el.querySelector('.og-tx-pv-mark')?.textContent).toBe('N');
+    });
+
+    it('"Ativos agora" lista o que está no ar e o × desliga', async () => {
+      const { el, fake } = await mount();
+      const chips = [...el.querySelectorAll('.og-tx-ativo')].map((c) => c.textContent?.replace('×', '').trim());
+      expect(chips).toEqual(['Placar', 'Campeões', 'Patrocinadores', 'Doação PIX']);
+      (el.querySelector('button[aria-label="Tirar Doação PIX do ar"]') as HTMLButtonElement).click();
+      expect(fake.saved).toEqual([{ graphics: { donation: false } }]);
+    });
+
+    it('o × da entrevista tira a tarja', async () => {
+      const fake = new FakeData();
+      fake.control.set({
+        ...fake.control(),
+        interview: interviewWithDefaults({ name: 'Ana Souza', photoUrl: null, partnerName: null, categoryName: null, durationSec: null, shownAt: Date.now() }),
+      });
+      const { el } = await mount(fake);
+      (el.querySelector('button[aria-label="Tirar Entrevista do ar"]') as HTMLButtonElement).click();
+      expect(fake.aired).toEqual([{ interview: null, queue: null }]);
+    });
+
+    it('lista os atalhos', async () => {
+      const { el } = await mount();
+      const t = el.querySelector('.og-tx-atalhos')!.textContent!;
+      expect(t).toContain('Liga/desliga o gráfico da lista');
+      expect(t).toContain('Navega entre gráficos');
+      expect(t).toContain('Tira tudo do ar, menos o placar');
+    });
+  });
+
+  describe('atalhos de teclado', () => {
+    it('um dígito liga/desliga o N-ésimo item da lista', async () => {
+      const { fake, fixture } = await mount();
+      tecla('1');
+      expect(fake.saved).toEqual([{ graphics: { scoreboard: false } }]);
+      tecla('2');
+      expect(fake.saved.at(-1)).toEqual({ multi: { on: true, mode: 'full', focusCourtId: null } });
+      await fixture.whenStable();
+    });
+
+    it('↑ ↓ movem a seleção', async () => {
+      const { el, fixture } = await mount();
+      tecla('ArrowDown');
+      await fixture.whenStable();
+      expect(el.querySelector('.og-tx-cfg h2')?.textContent).toContain('Multi-quadras');
+      tecla('ArrowUp');
+      tecla('ArrowUp');
+      await fixture.whenStable();
+      expect(el.querySelector('.og-tx-cfg h2')?.textContent).toContain('Placar');
+    });
+
+    it('Esc tira tudo do ar, menos o placar', async () => {
+      const fake = new FakeData();
+      const prejogo = { on: true, card: CARD } as unknown as BroadcastPrejogo;
+      fake.control.set({
+        ...fake.control(),
+        multi: { on: true, mode: 'strip', focusCourtId: null },
+        grade: { on: true, categoryId: 'cat1' },
+        prejogo,
+        summaryOn: true,
+        interview: interviewWithDefaults({ name: 'Ana Souza', photoUrl: null, partnerName: null, categoryName: null, durationSec: null, shownAt: Date.now() }),
+      });
+      const { fixture } = await mount(fake);
+      tecla('Escape');
+      await fixture.whenStable();
+      expect(fake.saved.length).toBe(1);
+      const patch = fake.saved[0];
+      expect(patch.graphics).toEqual({ champions: false, sponsors: false, donation: false });
+      expect(patch.multi).toEqual({ on: false, mode: 'strip', focusCourtId: null });
+      expect(patch.grade).toEqual({ on: false, categoryId: 'cat1' });
+      expect(patch.prejogo).toEqual({ on: false, card: CARD } as never);
+      expect(patch.summaryOn).toBeFalse();
+      expect(fake.aired).toEqual([{ interview: null, queue: null }]);
+    });
+
+    it('Esc sem tarja no ar não mexe na tarja', async () => {
+      const { fake } = await mount();
+      tecla('Escape');
+      expect(fake.aired).toEqual([]);
+    });
+
+    it('ignora as teclas com o foco num campo de texto', async () => {
+      const { el, fake } = await mount();
+      const campo = el.querySelector('input[aria-label="Nome do repórter"]') as HTMLInputElement;
+      tecla('1', campo);
+      tecla('ArrowDown', campo);
+      tecla('Escape', campo);
+      expect(fake.saved).toEqual([]);
+      expect(fake.aired).toEqual([]);
+    });
+
+    it('ignora com modificador', async () => {
+      const { fake } = await mount();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: '1', ctrlKey: true, bubbles: true }));
+      expect(fake.saved).toEqual([]);
+    });
   });
 
   it('erro de escrita aparece na tela', async () => {

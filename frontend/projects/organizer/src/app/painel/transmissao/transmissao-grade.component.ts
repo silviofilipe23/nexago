@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
 import { OgCardComponent } from '../ui/card.component';
 import { TransmissaoDataService } from './transmissao-data.service';
 
@@ -7,10 +7,12 @@ import { TransmissaoDataService } from './transmissao-data.service';
 @Component({
   selector: 'og-tx-grade',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[class.og-tx-bare]': 'bare()' },
   imports: [OgCardComponent],
   template: `
     @let g = svc.control().grade;
-    <og-card kicker="Apresentação" title="Grade do dia">
+    <og-card [kicker]="bare() ? '' : 'Apresentação'" [title]="bare() ? '' : 'Grade do dia'">
+      @if (!bare()) {
       <div class="og-toggle-row">
         <div class="og-toggle-row-text">
           <div class="og-toggle-row-title">Programação das quadras</div>
@@ -18,6 +20,7 @@ import { TransmissaoDataService } from './transmissao-data.service';
         </div>
         <button type="button" class="og-toggle" role="switch" [class.on]="g.on" [attr.aria-checked]="g.on" aria-label="Grade do dia no ar" (click)="toggle()"></button>
       </div>
+      }
 
       <div class="og-gd-label">Destacar categoria</div>
       <div class="og-gd-chips" role="radiogroup" aria-label="Categoria em destaque">
@@ -53,6 +56,8 @@ import { TransmissaoDataService } from './transmissao-data.service';
   `,
 })
 export class TransmissaoGradeComponent {
+  /** Dentro da coluna "Configurações" da tela: sem moldura, título nem chave "No ar" próprios. */
+  readonly bare = input(false);
   protected readonly svc = inject(TransmissaoDataService);
 
   protected toggle(): void {

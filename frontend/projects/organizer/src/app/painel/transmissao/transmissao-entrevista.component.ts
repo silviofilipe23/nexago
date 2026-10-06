@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
 import { tournamentSportToLevelSportCode } from '@nexago/levels';
 import { interviewLineOf, interviewOnAirAt, type BroadcastInterview, type InterviewKind } from '../data/broadcast-control';
 import {
@@ -65,10 +65,11 @@ const KIND_NAMES: Record<InterviewKind, string> = { atleta: 'Atleta', dupla: 'Du
 @Component({
   selector: 'og-tx-entrevista',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[class.og-tx-bare]': 'bare()' },
   imports: [OgCardComponent, OgAvatarComponent],
   template: `
     @let q = svc.queue();
-    <og-card kicker="Reporter" title="Entrevista">
+    <og-card [kicker]="bare() ? '' : 'Reporter'" [title]="bare() ? '' : 'Entrevista'">
       @if (onAir(); as live) {
         <div class="og-tx-noar">
           <span class="og-tx-noar-dot" aria-hidden="true"></span>
@@ -431,6 +432,8 @@ const KIND_NAMES: Record<InterviewKind, string> = { atleta: 'Atleta', dupla: 'Du
   `,
 })
 export class TransmissaoEntrevistaComponent {
+  /** Dentro da coluna "Configurações" da tela: sem moldura, título nem chave "No ar" próprios. */
+  readonly bare = input(false);
   protected readonly svc = inject(TransmissaoDataService);
 
   protected readonly durations = DURATIONS;

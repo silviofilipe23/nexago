@@ -1,4 +1,5 @@
 import { Injectable, signal } from '@angular/core';
+import { FieldPath, collection, getCountFromServer, query, where } from 'firebase/firestore';
 import { watchPointEvents as watchLivePointEvents, type LivePointEvent } from '@nexago/live-scoring';
 import { environment } from '../../../environments/environment';
 import type { BroadcastControl } from '../../painel/data/broadcast-control';
@@ -18,6 +19,10 @@ import { fetchProfileDisplays, fetchTeamsByIds } from '../../painel/data/teams-r
 import type { OrganizerTournament } from '../../painel/data/tournament.model';
 import { watchTournament } from '../../painel/data/tournaments-repository';
 import { overlayTeamIdsOf } from './overlay-selectors';
+import type { BolaoContagem } from './overlay-bolao';
+
+/** Intervalo da contagem de palpites (a agregação do Firestore não é em tempo real). */
+export const PALPITES_POLL_MS = 5000;
 
 export interface OverlayTeam {
   label: string;
@@ -57,6 +62,36 @@ export class OverlayLiveGateway {
   readonly tournamentMatches = signal<readonly TournamentMatch[]>([]);
   /** Log ponto a ponto da partida da tela — alimenta as estatísticas do Resumo. */
   readonly pointEvents = signal<readonly LivePointEvent[]>([]);
+  /** Palpites da partida da tela por dupla (`null` até a 1ª contagem) — alimenta o Bolão ao vivo. */
+  readonly palpites = signal<BolaoContagem | null>(null);
+
+  /** Conta, a cada `PALPITES_POLL_MS`, quantos palpites apontaram cada dupla da partida.
+   *
+   *  `tournamentPredictions/{torneio}/entries/{uid}` (leitura pública) guarda `picks: {partida: teamId}`.
+   *  Contar com `getCountFromServer` por dupla são 2 consultas de agregação — não leem os docs nem
+   *  expõem uids, ao contrário de assinar a coleção inteira. Não é tempo real (agregação não
+   *  assina), por isso o intervalo. Falha de rede mantém a última contagem. */
+  watchPalpites(tournamentId: string, matchId: string, teamAId: string, teamBId: string): () => void {
+    this.palpites.set(null);
+    let parou = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const entries = collection(organizerFirestore(), 'tournamentPredictions', tournamentId, 'entries');
+    const contar = async (teamId: string): Promise<number> => (await getCountFromServer(query(entries, where(new FieldPath('picks', matchId), '==', teamId)))).data().count;
+    const tick = async (): Promise<void> => {
+      try {
+        const [a, b] = await Promise.all([contar(teamAId), contar(teamBId)]);
+        if (!parou) this.palpites.set({ a, b });
+      } catch {
+        // mantém a última contagem
+      }
+      if (!parou) timer = setTimeout(() => void tick(), PALPITES_POLL_MS);
+    };
+    void tick();
+    return () => {
+      parou = true;
+      clearTimeout(timer);
+    };
+  }
 
   /** Assina o log de pontos de UMA partida (o Resumo só existe pra duelo). Erro não limpa: o
    *  último log conhecido segue valendo, como no resto do overlay. */

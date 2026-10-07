@@ -9,7 +9,7 @@ import { BROADCAST_GRAPHICS, tournamentHasKoc } from './broadcast-graphics';
 /** Cada linha da lista "Gráficos" do painel de Transmissão. As chaves de `BroadcastGraphicId`
  *  valem como são; o resto (Multi, Pré-jogo, Ranking, Grade, Entrevista, Resumo) é controle
  *  próprio, fora de `control.graphics`. */
-export type TxItemKey = BroadcastGraphicId | 'multi' | 'prejogo' | 'ranking' | 'grade' | 'intervalo' | 'grupo' | 'chave' | 'eventos' | 'interview' | 'summary';
+export type TxItemKey = BroadcastGraphicId | 'multi' | 'bolao' | 'prejogo' | 'ranking' | 'grade' | 'intervalo' | 'grupo' | 'chave' | 'eventos' | 'interview' | 'summary';
 
 export interface TxItem {
   key: TxItemKey;
@@ -95,6 +95,15 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
           locked: false,
           warn: false,
           resumo: `${c.multi.mode === 'full' ? 'Tela cheia' : 'Faixa'} · destaque: ${courtName(c.multi.focusCourtId)}`,
+          agora: false,
+        },
+        {
+          key: 'bolao',
+          nome: 'Bolão ao vivo',
+          on: c.bolao.on,
+          locked: false,
+          warn: false,
+          resumo: c.bolao.on ? 'Palpites da partida da quadra' : 'Desligado',
           agora: false,
         },
       ],

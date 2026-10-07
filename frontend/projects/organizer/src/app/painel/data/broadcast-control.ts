@@ -1,3 +1,4 @@
+import { DEFAULT_BROADCAST_EVENTOS, eventosFromRaw, type BroadcastEventos } from './broadcast-eventos';
 import { DEFAULT_BROADCAST_CHAVE, chaveFromRaw, type BroadcastChave } from './broadcast-chave';
 import { DEFAULT_BROADCAST_GRUPO, grupoFromRaw, type BroadcastGrupo } from './broadcast-grupo';
 import { DEFAULT_BROADCAST_INTERVALO, intervaloFromRaw, type BroadcastIntervalo } from './broadcast-intervalo';
@@ -183,6 +184,8 @@ export interface BroadcastControl {
   grupo: BroadcastGrupo;
   /** Tela Chaves: no ar e categoria. */
   chave: BroadcastChave;
+  /** Card da tela Próximos eventos montado pelo painel: no ar, modo e eventos. */
+  eventos: BroadcastEventos;
   interview: BroadcastInterview | null;
   commands: BroadcastCommands;
 }
@@ -209,6 +212,7 @@ export const DEFAULT_BROADCAST_CONTROL: BroadcastControl = {
   intervalo: DEFAULT_BROADCAST_INTERVALO,
   grupo: DEFAULT_BROADCAST_GRUPO,
   chave: DEFAULT_BROADCAST_CHAVE,
+  eventos: DEFAULT_BROADCAST_EVENTOS,
   interview: null,
   commands: { donationNowAt: 0, sponsorsNowAt: 0 },
 };
@@ -337,6 +341,7 @@ export function broadcastControlFromRaw(raw: unknown): BroadcastControl {
     intervalo: intervaloFromRaw(d['intervalo']),
     grupo: grupoFromRaw(d['grupo']),
     chave: chaveFromRaw(d['chave']),
+    eventos: eventosFromRaw(d['eventos']),
     interview: interviewFromRaw(d['interview']),
     commands: { donationNowAt: stamp(c['donationNowAt']), sponsorsNowAt: stamp(c['sponsorsNowAt']) },
   };

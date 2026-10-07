@@ -11,6 +11,7 @@ import type { BroadcastControlPatch } from '../data/broadcast-control-repository
 import { resolveCourtNames } from '../data/matches-repository';
 import { categoryFinalOf } from '../../publico/overlay/overlay-final';
 import { TransmissaoDataService } from './transmissao-data.service';
+import { TransmissaoEventosComponent } from './transmissao-eventos.component';
 import { TransmissaoEntrevistaComponent } from './transmissao-entrevista.component';
 import { TransmissaoGradeComponent } from './transmissao-grade.component';
 import { TransmissaoChaveComponent } from './transmissao-chave.component';
@@ -48,6 +49,7 @@ const PREVIEW_SPOT: Record<TxItemKey, { label: string; spot: string }> = {
   intervalo: { label: 'INTERVALO', spot: 'full' },
   grupo: { label: 'TABELA DO GRUPO', spot: 'c' },
   chave: { label: 'CHAVES', spot: 'full' },
+  eventos: { label: 'PRÓXIMOS EVENTOS', spot: 'full' },
   multi: { label: 'Multi-quadras', spot: 'full' },
   kocBar: { label: 'Faixa da rodada', spot: 'strip' },
   kocPreRound: { label: 'Próximos em quadra', spot: 'c' },
@@ -67,7 +69,7 @@ function typingTarget(t: EventTarget | null): boolean {
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [TransmissaoDataService],
   host: { '(document:keydown)': 'onKey($event)' },
-  imports: [TransmissaoEntrevistaComponent, TransmissaoPrejogoComponent, TransmissaoRankingComponent, TransmissaoMultiComponent, TransmissaoGradeComponent, TransmissaoIntervaloComponent, TransmissaoGrupoComponent, TransmissaoChaveComponent, RouterLink],
+  imports: [TransmissaoEntrevistaComponent, TransmissaoPrejogoComponent, TransmissaoRankingComponent, TransmissaoMultiComponent, TransmissaoGradeComponent, TransmissaoIntervaloComponent, TransmissaoGrupoComponent, TransmissaoChaveComponent, TransmissaoEventosComponent, RouterLink],
   template: `
     <div class="og-tx-page">
       <header class="og-tx-bar">
@@ -191,6 +193,7 @@ function typingTarget(t: EventTarget | null): boolean {
             <og-tx-intervalo [bare]="true" [hidden]="selectedKey() !== 'intervalo'" />
             <og-tx-grupo [bare]="true" [hidden]="selectedKey() !== 'grupo'" />
             <og-tx-chave [bare]="true" [hidden]="selectedKey() !== 'chave'" />
+            <og-tx-eventos [bare]="true" [hidden]="selectedKey() !== 'eventos'" />
 
             @switch (selectedKey()) {
               @case ('scoreboard') {
@@ -806,7 +809,8 @@ export class TransmissaoComponent {
   protected readonly previewBoxes = computed(() =>
     this.ativos().map((i) => {
       const p = PREVIEW_SPOT[i.key];
-      const strip = i.key === 'multi' && this.svc.control().multi.mode === 'strip';
+      const strip =
+        (i.key === 'multi' && this.svc.control().multi.mode === 'strip') || (i.key === 'eventos' && this.svc.control().eventos.mode === 'strip');
       return { key: i.key, label: p.label, spot: strip ? 'strip' : p.spot };
     }),
   );
@@ -887,6 +891,9 @@ export class TransmissaoComponent {
       case 'chave':
         void this.svc.save({ chave: { ...c.chave, on: !c.chave.on } });
         break;
+      case 'eventos':
+        if (c.eventos.card || c.eventos.on) void this.svc.save({ eventos: { ...c.eventos, on: !c.eventos.on } });
+        break;
       case 'interview':
         // A tarja só sobe pelo card de Entrevista (precisa de entrevistado): aqui só se tira.
         if (this.onAir()) void this.svc.saveAir(null, null);
@@ -918,6 +925,7 @@ export class TransmissaoComponent {
       intervalo: { ...c.intervalo, on: false },
       grupo: { ...c.grupo, on: false },
       chave: { ...c.chave, on: false },
+      eventos: { ...c.eventos, on: false },
       summaryOn: false,
     };
     void this.svc.save(patch);

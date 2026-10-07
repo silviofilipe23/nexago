@@ -54,6 +54,13 @@ describe('overlay-chave', () => {
     expect(by(5).col).toBeLessThan(by(7).col);
   });
 
+  it('dentro da coluna os cartões entram de cima pra baixo (row)', () => {
+    const v = chaveViewOf(simples(), 'c1')!;
+    const quartas = v.nodes.filter((n) => n.col === 0).sort((a, b) => a.top - b.top);
+    expect(quartas.map((n) => n.row)).toEqual([0, 1, 2, 3]);
+    expect(quartas.map((n) => n.matchNumber)).toEqual([1, 2, 3, 4]);
+  });
+
   it('vagas sem dupla dizem de onde vêm (Vencedor Quartas 4, Perdedor Semi 1…)', () => {
     const v = chaveViewOf(simples(), 'c1')!;
     const by = (n: number) => v.nodes.find((x) => x.matchNumber === n)!;

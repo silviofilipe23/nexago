@@ -44,6 +44,8 @@ export interface ChaveNode {
   top: number;
   /** Coluna (0 = mais à esquerda): ordem da animação de entrada. */
   col: number;
+  /** Posição dentro da coluna, de cima pra baixo: dentro da coluna os cartões entram nessa ordem. */
+  row: number;
   /** "QUARTAS 1" · "SEMI 2" · "FINAL" · "V5" · "P3" · "GF" · "3º LUGAR". */
   code: string;
   /** "Q1" — quadra abreviada. */
@@ -228,6 +230,7 @@ export function chaveViewOf(matches: readonly TournamentMatch[], categoryId: str
       left: n.left,
       top: topOf(n),
       col: colOf(n),
+      row: 0,
       code: code.get(m.matchNumber) ?? '',
       court: cn ? `Q${cn}` : null,
       tag:
@@ -244,6 +247,13 @@ export function chaveViewOf(matches: readonly TournamentMatch[], categoryId: str
       eliminates: norm(m) === 'lb' && m.status === 'completed',
     };
   });
+
+  for (const col of new Set(nodes.map((n) => n.col))) {
+    nodes
+      .filter((n) => n.col === col)
+      .sort((x, y) => x.top - y.top)
+      .forEach((n, i) => (n.row = i));
+  }
 
   // Ligações: cotovelo da lateral do jogo de origem até a vaga certa do destino; acendem quando a origem termina.
   const nodeByNumber = new Map(layout.nodes.map((n) => [n.match.matchNumber, n] as const));

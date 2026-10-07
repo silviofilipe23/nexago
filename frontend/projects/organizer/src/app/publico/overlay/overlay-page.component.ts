@@ -25,6 +25,7 @@ import { categoriesWithChave, chaveViewOf } from './overlay-chave';
 import { OverlayGrupoComponent } from './overlay-grupo.component';
 import { categoriesWithGroups, gruposViewOf } from './overlay-grupo';
 import { OverlayIntervaloComponent } from './overlay-intervalo.component';
+import { OverlayTelasComponent } from './overlay-telas.component';
 import { intervaloViewOf } from './overlay-intervalo';
 import { OverlayGradeComponent } from './overlay-grade.component';
 import { gradeViewOf } from './overlay-grade';
@@ -111,6 +112,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
     OverlayMultiComponent,
     OverlayGradeComponent,
     OverlayIntervaloComponent,
+    OverlayTelasComponent,
     OverlayGrupoComponent,
     OverlayChaveComponent,
     OverlayEventosComponent,
@@ -142,7 +144,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
             [isFinal]="duelFinalMode()"
             [tecnicoSide]="tecnico()?.side ?? null"
             [encolhido]="medico() != null"
-            [class.fora]="resumo() != null || tecnico() != null || prejogo() != null || multiNoAr() || gradeNoAr() || intervaloNoAr() || grupoNoAr() || chaveNoAr() || eventosNoAr() || decisivoView() != null || bolaoView() != null"
+            [class.fora]="resumo() != null || tecnico() != null || prejogo() != null || multiNoAr() || gradeNoAr() || intervaloNoAr() || telasNoAr() || grupoNoAr() || chaveNoAr() || eventosNoAr() || decisivoView() != null || bolaoView() != null"
           />
         }
         @if (telaDoResultado(); as board) {
@@ -212,6 +214,15 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
           [view]="intervaloView()"
           [teams]="gateway.teams()"
           [eventName]="gateway.tournament()?.name ?? ''"
+          [sponsors]="patroItens()"
+        />
+        <og-overlay-telas
+          [config]="telasCfg()"
+          [primeiro]="telasPrimeiro()"
+          [proximo]="telasProximo()"
+          [teams]="gateway.teams()"
+          [eventName]="gateway.tournament()?.name ?? ''"
+          [startAt]="gateway.tournament()?.startAt ?? null"
           [sponsors]="patroItens()"
         />
         <og-overlay-grade
@@ -354,7 +365,7 @@ export class OverlayPageComponent {
   /** Doação e patrocínio só entram com o controle já resolvido e sem tarja — a tarja toma a
    *  tela, inclusive para um "Mostrar agora". */
   protected readonly cardsNoAr = computed(
-    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null && this.prejogo() == null && this.ranking() == null && !this.multiNoAr() && !this.gradeNoAr() && !this.intervaloNoAr() && !this.grupoNoAr() && !this.chaveNoAr() && !this.eventosNoAr() && this.decisivoView() == null && this.bolaoView() == null,
+    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null && this.prejogo() == null && this.ranking() == null && !this.multiNoAr() && !this.gradeNoAr() && !this.intervaloNoAr() && !this.telasNoAr() && !this.grupoNoAr() && !this.chaveNoAr() && !this.eventosNoAr() && this.decisivoView() == null && this.bolaoView() == null,
   );
 
   /** O que vai ao ar: regra automática de cada tela E chave do painel; tarja toma a tela.
@@ -771,6 +782,19 @@ export class OverlayPageComponent {
     );
   });
 
+  /** Início/Fim no ar: tela e contagem do painel; "Primeiro jogo" das partidas, próxima etapa do card de eventos. */
+  protected readonly telasCfg = computed(() => {
+    const t = this.controle().telas;
+    return this.gateway.controlReady() && t.on && !this.interviewOnAir() ? t : null;
+  });
+  protected readonly telasNoAr = computed(() => this.telasCfg() != null);
+  protected readonly telasPrimeiro = computed(() => {
+    if (this.telasCfg()?.tela !== 'ini') return null;
+    const t = this.gateway.tournament();
+    return intervaloViewOf(this.gateway.tournamentMatches(), t?.courts ?? [], (id) => t?.categories.find((c) => c.id === id)?.name ?? null, this.tick()).next;
+  });
+  protected readonly telasProximo = computed(() => (this.telasCfg()?.tela === 'fim' ? (this.controle().eventos.card?.items[0] ?? null) : null));
+
   /** Grade do dia no ar: programação lida das partidas do torneio (públicas). */
   protected readonly gradeNoAr = computed(
     () => this.gateway.controlReady() && this.controle().grade.on && !this.interviewOnAir(),
@@ -943,13 +967,14 @@ export class OverlayPageComponent {
     // elencos das partidas mostradas.
     effect((onCleanup) => {
       const torneio = this.torneioDoControle();
-      if (!(this.multiNoAr() || this.gradeNoAr() || this.intervaloNoAr() || this.grupoNoAr() || this.chaveNoAr()) || !torneio) return;
+      if (!(this.multiNoAr() || this.gradeNoAr() || this.intervaloNoAr() || this.telasNoAr() || this.grupoNoAr() || this.chaveNoAr()) || !torneio) return;
       onCleanup(this.gateway.watchTournamentMatches(torneio));
     });
     effect(() => {
       const gradeIds = (this.gradeView()?.rows ?? []).flatMap((r) => r.cells.flat().flatMap((c) => [c.a.teamId, c.b.teamId]));
       const iv = this.intervaloView();
-      const intervaloIds = iv ? [iv.next, ...iv.following].flatMap((g) => (g ? [g.a.teamId, g.b.teamId] : [])).concat(iv.results.flatMap((r) => [r.winner.teamId, r.loser.teamId])) : [];
+      const tp = this.telasPrimeiro();
+      const intervaloIds = tp ? [tp.a.teamId, tp.b.teamId] : iv ? [iv.next, ...iv.following].flatMap((g) => (g ? [g.a.teamId, g.b.teamId] : [])).concat(iv.results.flatMap((r) => [r.winner.teamId, r.loser.teamId])) : [];
       const chaveIds = this.chaveView()?.nodes.flatMap((n) => [n.a.teamId, n.b.teamId]) ?? [];
       const grupoIds = this.grupoTodos().flatMap((g) => g.rows.map((r) => r.teamId));
       const ids = [...chaveIds, ...grupoIds, ...this.multiCards().flatMap((c) => [c.a.teamId, c.b.teamId]), ...gradeIds, ...intervaloIds].filter((id) => id !== '');

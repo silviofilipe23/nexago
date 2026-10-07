@@ -83,6 +83,7 @@ describe('TransmissaoComponent', () => {
         'Ranking Top 10',
         'Grade do dia',
         'Intervalo',
+        'Início e fim',
         'Tabela do grupo',
         'Chaves',
         'Próximos eventos',
@@ -114,6 +115,22 @@ describe('TransmissaoComponent', () => {
       fake.control.set({ ...fake.control(), intervalo: { ...fake.control().intervalo, mode: 'pausa', durationSec: 0 } });
       await fixture.whenStable();
       expect(linha(el, 'Intervalo').textContent).toContain('Pausa · sem contagem');
+    });
+
+    it('Início e fim: "Desligado"; tela e tempo restante quando no ar', async () => {
+      const fake = new FakeData();
+      const { el, fixture } = await mount(fake);
+      const telas = DEFAULT_BROADCAST_CONTROL.telas;
+      expect(linha(el, 'Início e fim').textContent).toContain('Desligado');
+      fake.control.set({ ...fake.control(), telas: { ...telas, on: true } });
+      await fixture.whenStable();
+      expect(linha(el, 'Início e fim').textContent).toContain('Início · 10 min');
+      fake.control.set({ ...fake.control(), telas: { ...telas, on: true, startedAt: new Date(Date.now() - 60_000) } });
+      await fixture.whenStable();
+      expect(linha(el, 'Início e fim').textContent).toMatch(/Início · [89]:\d\d/);
+      fake.control.set({ ...fake.control(), telas: { ...telas, on: true, tela: 'fim' } });
+      await fixture.whenStable();
+      expect(linha(el, 'Início e fim').textContent).toContain('Fim');
     });
 
     it('sem categoria KOTC, o grupo King of the Court não aparece', async () => {
@@ -291,7 +308,7 @@ describe('TransmissaoComponent', () => {
 
     it('atalho numérico liga a tabela', async () => {
       const { fake } = await mount(comGrupos());
-      tecla('9');
+      tecla('a');
       expect(fake.saved).toEqual([{ grupo: { ...base, on: true } }]);
     });
   });
@@ -348,7 +365,7 @@ describe('TransmissaoComponent', () => {
 
     it('atalho numérico liga a chave', async () => {
       const { fake } = await mount(comChaves());
-      tecla('a');
+      tecla('b');
       expect(fake.saved).toEqual([{ chave: { ...base, on: true } }]);
     });
 
@@ -443,9 +460,9 @@ describe('TransmissaoComponent', () => {
       expect(fake.saved[0].eventos).toEqual({ on: false, mode: 'full', card: CARD_EVENTOS });
     });
 
-    it('atalho de letra liga o item (11º da lista = B)', async () => {
+    it('atalho de letra liga o item (12º da lista = C)', async () => {
       const { fake } = await mount(comCard());
-      tecla('b');
+      tecla('c');
       expect(fake.saved).toEqual([{ eventos: { on: true, mode: 'full', card: CARD_EVENTOS } }]);
     });
   });
@@ -513,6 +530,73 @@ describe('TransmissaoComponent', () => {
       const { el } = await mount(fake);
       botao(el, '15 min', 'Duração da contagem').click();
       expect(fake.saved).toEqual([{ intervalo: { ...base, durationSec: 900, startedAt: inicio } }]);
+    });
+  });
+
+  describe('Início e fim', () => {
+    const base = DEFAULT_BROADCAST_CONTROL.telas;
+    /** Botão do card Início e fim (o Intervalo tem botões de mesmo nome). */
+    const naTelas = (el: HTMLElement, texto: string) =>
+      [...el.querySelector('og-tx-telas')!.querySelectorAll('button')].find((x) => (x.textContent ?? '').trim().startsWith(texto)) as HTMLButtonElement;
+
+    it('o switch da lista e o "No ar" do cabeçalho gravam o objeto completo', async () => {
+      const { el, fixture, fake } = await mount();
+      switchDe(el, 'Início e fim').click();
+      expect(fake.saved).toEqual([{ telas: { ...base, on: true } }]);
+      selecionar(el, 'Início e fim');
+      await fixture.whenStable();
+      (el.querySelector('.og-tx-cfg button[aria-label="Início e fim no ar"]') as HTMLButtonElement).click();
+      expect(fake.saved.at(-1)).toEqual({ telas: { ...base, on: true } });
+    });
+
+    it('trocar a tela grava só a tela', async () => {
+      const { el, fake } = await mount();
+      naTelas(el, 'Fim').click();
+      expect(fake.saved).toEqual([{ telas: { ...base, tela: 'fim' } }]);
+    });
+
+    it('presets gravam a duração e reiniciam a contagem', async () => {
+      const { el, fake } = await mount();
+      naTelas(el, '15 min').click();
+      const patch = fake.saved[0].telas!;
+      expect(patch.durationSec).toBe(900);
+      expect(patch.startedAt instanceof FieldValue).toBeTrue();
+      expect((patch.startedAt as FieldValue).isEqual(serverTimestamp())).toBeTrue();
+      expect({ ...patch, durationSec: 600, startedAt: null } as unknown).toEqual(base);
+    });
+
+    it('±1 min ajusta a duração e mantém o mesmo início', async () => {
+      const fake = new FakeData();
+      const inicio = new Date(Date.now() - 60_000);
+      fake.control.set({ ...fake.control(), telas: { ...base, startedAt: inicio } });
+      const { el } = await mount(fake);
+      naTelas(el, '+1 min').click();
+      expect(fake.saved).toEqual([{ telas: { ...base, durationSec: 660, startedAt: inicio } }]);
+      naTelas(el, '−1 min').click();
+      expect(fake.saved.at(-1)).toEqual({ telas: { ...base, durationSec: 540, startedAt: inicio } });
+    });
+
+    it('iniciar grava o carimbo do servidor; parar grava null', async () => {
+      const { el, fixture, fake } = await mount();
+      naTelas(el, 'Iniciar contagem').click();
+      expect((fake.saved[0].telas!.startedAt as FieldValue).isEqual(serverTimestamp())).toBeTrue();
+      fake.control.set({ ...fake.control(), telas: { ...base, startedAt: new Date(Date.now() - 60_000) } });
+      await fixture.whenStable();
+      naTelas(el, 'Parar contagem').click();
+      expect(fake.saved.at(-1)).toEqual({ telas: { ...base, startedAt: null } });
+    });
+
+    it('o atalho 9 liga', async () => {
+      const { fake } = await mount();
+      tecla('9');
+      expect(fake.saved).toEqual([{ telas: { ...base, on: true } }]);
+    });
+
+    it('no ar, aparece na prévia como INÍCIO / FIM', async () => {
+      const ligado = new FakeData();
+      ligado.control.set({ ...ligado.control(), telas: { ...base, on: true } });
+      const { el } = await mount(ligado);
+      expect(el.querySelector('.og-tx-preview')?.textContent).toContain('INÍCIO / FIM');
     });
   });
 
@@ -762,14 +846,14 @@ describe('TransmissaoComponent', () => {
       const { el } = await mount();
       const badges = Array.from(el.querySelectorAll('.og-tx-row-nome kbd')).map((k) => k.textContent?.trim());
       expect(badges.slice(0, 9)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
-      expect(badges.slice(9, 15)).toEqual(['A', 'B', 'C', 'D', 'E', 'F']);
+      expect(badges.slice(9, 16)).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
     });
 
     it('uma letra liga/desliga o item correspondente, maiúscula ou minúscula', async () => {
       const { fake } = await mount();
-      tecla('d'); // 13º: Campeões
+      tecla('e'); // 14º: Campeões
       expect(fake.saved.at(-1)).toEqual({ graphics: { champions: false } });
-      tecla('F'); // 15º: Patrocinadores
+      tecla('G'); // 16º: Patrocinadores
       expect(fake.saved.at(-1)).toEqual({ graphics: { sponsors: false } });
       tecla('z'); // além da lista: nada
       expect(fake.saved.length).toBe(2);
@@ -803,6 +887,7 @@ describe('TransmissaoComponent', () => {
         multi: { on: true, mode: 'strip', focusCourtId: null },
         grade: { on: true, categoryId: 'cat1' },
         intervalo: { ...DEFAULT_BROADCAST_CONTROL.intervalo, on: true },
+        telas: { ...DEFAULT_BROADCAST_CONTROL.telas, on: true },
         grupo: { on: true, categoryId: 'cat1', mode: 'todos', group: 'A' },
         chave: { on: true, categoryId: 'cat1' },
         prejogo,
@@ -818,6 +903,7 @@ describe('TransmissaoComponent', () => {
       expect(patch.multi).toEqual({ on: false, mode: 'strip', focusCourtId: null });
       expect(patch.grade).toEqual({ on: false, categoryId: 'cat1' });
       expect(patch.intervalo).toEqual({ ...DEFAULT_BROADCAST_CONTROL.intervalo, on: false });
+      expect(patch.telas).toEqual({ ...DEFAULT_BROADCAST_CONTROL.telas, on: false });
       expect(patch.grupo).toEqual({ on: false, categoryId: 'cat1', mode: 'todos', group: 'A' });
       expect(patch.chave).toEqual({ on: false, categoryId: 'cat1' });
       expect(patch.prejogo).toEqual({ on: false, card: CARD } as never);

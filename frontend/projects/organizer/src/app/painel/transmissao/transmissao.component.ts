@@ -19,6 +19,7 @@ import { TransmissaoChaveComponent } from './transmissao-chave.component';
 import { TransmissaoGrupoComponent } from './transmissao-grupo.component';
 import { txAtalhoOf, txGroupsOf, txIndexOfAtalho, txItemsOf, type TxItem, type TxItemKey } from './transmissao-itens';
 import { TransmissaoIntervaloComponent } from './transmissao-intervalo.component';
+import { TransmissaoTelasComponent } from './transmissao-telas.component';
 import { TransmissaoMultiComponent } from './transmissao-multi.component';
 import { TransmissaoPrejogoComponent } from './transmissao-prejogo.component';
 import { TransmissaoRankingComponent } from './transmissao-ranking.component';
@@ -49,6 +50,7 @@ const PREVIEW_SPOT: Record<TxItemKey, { label: string; spot: string }> = {
   ranking: { label: 'Ranking Top 10', spot: 'full' },
   grade: { label: 'Grade do dia', spot: 'full' },
   intervalo: { label: 'INTERVALO', spot: 'full' },
+  telas: { label: 'INÍCIO / FIM', spot: 'full' },
   grupo: { label: 'TABELA DO GRUPO', spot: 'c' },
   chave: { label: 'CHAVES', spot: 'full' },
   eventos: { label: 'PRÓXIMOS EVENTOS', spot: 'full' },
@@ -72,7 +74,7 @@ function typingTarget(t: EventTarget | null): boolean {
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [TransmissaoDataService],
   host: { '(document:keydown)': 'onKey($event)' },
-  imports: [TransmissaoEntrevistaComponent, TransmissaoPrejogoComponent, TransmissaoRankingComponent, TransmissaoMultiComponent, TransmissaoBolaoComponent, TransmissaoGradeComponent, TransmissaoIntervaloComponent, TransmissaoGrupoComponent, TransmissaoChaveComponent, TransmissaoEventosComponent, RouterLink],
+  imports: [TransmissaoEntrevistaComponent, TransmissaoPrejogoComponent, TransmissaoRankingComponent, TransmissaoMultiComponent, TransmissaoBolaoComponent, TransmissaoGradeComponent, TransmissaoIntervaloComponent, TransmissaoTelasComponent, TransmissaoGrupoComponent, TransmissaoChaveComponent, TransmissaoEventosComponent, RouterLink],
   template: `
     <div class="og-tx-page">
       <header class="og-tx-bar">
@@ -195,6 +197,7 @@ function typingTarget(t: EventTarget | null): boolean {
             <og-tx-bolao [bare]="true" [hidden]="selectedKey() !== 'bolao'" />
             <og-tx-grade [bare]="true" [hidden]="selectedKey() !== 'grade'" />
             <og-tx-intervalo [bare]="true" [hidden]="selectedKey() !== 'intervalo'" />
+            <og-tx-telas [bare]="true" [hidden]="selectedKey() !== 'telas'" />
             <og-tx-grupo [bare]="true" [hidden]="selectedKey() !== 'grupo'" />
             <og-tx-chave [bare]="true" [hidden]="selectedKey() !== 'chave'" />
             <og-tx-eventos [bare]="true" [hidden]="selectedKey() !== 'eventos'" />
@@ -895,6 +898,9 @@ export class TransmissaoComponent {
       case 'intervalo':
         void this.svc.save({ intervalo: { ...c.intervalo, on: !c.intervalo.on } });
         break;
+      case 'telas':
+        void this.svc.save({ telas: { ...c.telas, on: !c.telas.on } });
+        break;
       case 'grupo':
         void this.svc.save({ grupo: { ...c.grupo, on: !c.grupo.on } });
         break;
@@ -934,6 +940,7 @@ export class TransmissaoComponent {
       bolao: { ...c.bolao, on: false },
       grade: { ...c.grade, on: false },
       intervalo: { ...c.intervalo, on: false },
+      telas: { ...c.telas, on: false },
       grupo: { ...c.grupo, on: false },
       chave: { ...c.chave, on: false },
       eventos: { ...c.eventos, on: false },

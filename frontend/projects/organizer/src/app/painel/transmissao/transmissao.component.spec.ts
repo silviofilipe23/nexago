@@ -77,6 +77,7 @@ describe('TransmissaoComponent', () => {
         'Grade do dia',
         'Intervalo',
         'Tabela do grupo',
+        'Chaves',
         'Entrevista',
         'Campeões',
         'Resumo da partida',
@@ -284,6 +285,72 @@ describe('TransmissaoComponent', () => {
       const { fake } = await mount(comGrupos());
       tecla('7');
       expect(fake.saved).toEqual([{ grupo: { ...base, on: true } }]);
+    });
+  });
+
+  describe('Chaves', () => {
+    const base = DEFAULT_BROADCAST_CONTROL.chave;
+    const partida = (categoryId: string, matchType: string) => ({ ...PARTIDA, id: `${categoryId}-${matchType}`, categoryId, matchType }) as unknown as TournamentMatch;
+    const comChaves = () => {
+      const fake = new FakeData();
+      fake.tournament.set(torneio(['single_elimination', 'groups', 'double_elimination']));
+      fake.matches.set([partida('cat1', 'knockout'), partida('cat2', 'group'), partida('cat3', 'WB')]);
+      return fake;
+    };
+
+    it('resumo: desligado, categoria e automática', async () => {
+      const fake = comChaves();
+      const { el, fixture } = await mount(fake);
+      expect(linha(el, 'Chaves').textContent).toContain('Desligado');
+      fake.control.set({ ...fake.control(), chave: { on: true, categoryId: 'cat3' } });
+      await fixture.whenStable();
+      expect(linha(el, 'Chaves').textContent).toContain('C2');
+      fake.control.set({ ...fake.control(), chave: { on: true, categoryId: null } });
+      await fixture.whenStable();
+      expect(linha(el, 'Chaves').textContent).toContain('Automática');
+    });
+
+    it('switch da lista e "No ar" do cabeçalho gravam o objeto completo', async () => {
+      const { el, fixture, fake } = await mount(comChaves());
+      switchDe(el, 'Chaves').click();
+      expect(fake.saved).toEqual([{ chave: { ...base, on: true } }]);
+      selecionar(el, 'Chaves');
+      await fixture.whenStable();
+      (el.querySelector('.og-tx-cfg button[aria-label="Chaves no ar"]') as HTMLButtonElement).click();
+      expect(fake.saved.at(-1)).toEqual({ chave: { ...base, on: true } });
+      expect(el.querySelector('og-tx-chave button[aria-label="Chaves no ar"]')).toBeNull();
+    });
+
+    it('chips: só categorias com chave; escolher grava o objeto completo', async () => {
+      const { el, fixture, fake } = await mount(comChaves());
+      selecionar(el, 'Chaves');
+      await fixture.whenStable();
+      const categorias = [...el.querySelectorAll('[aria-label="Categoria da chave"] button')].map((b) => b.textContent?.trim());
+      expect(categorias).toEqual(['Automática', 'Feminina B', 'C2']);
+      botao(el, 'C2', 'Categoria da chave').click();
+      expect(fake.saved.at(-1)).toEqual({ chave: { ...base, categoryId: 'cat3' } });
+    });
+
+    it('sem categoria com chave, avisa', async () => {
+      const fake = new FakeData();
+      fake.matches.set([]);
+      const { el } = await mount(fake);
+      expect(el.querySelector('og-tx-chave')?.textContent).toContain('Nenhuma categoria deste torneio tem chave eliminatória');
+    });
+
+    it('atalho numérico liga a chave', async () => {
+      const { fake } = await mount(comChaves());
+      tecla('8');
+      expect(fake.saved).toEqual([{ chave: { ...base, on: true } }]);
+    });
+
+    it('no ar, aparece na prévia como CHAVES e o chip × desliga', async () => {
+      const fake = comChaves();
+      fake.control.set({ ...fake.control(), chave: { on: true, categoryId: 'cat1' } });
+      const { el } = await mount(fake);
+      expect(el.querySelector('.og-tx-preview')?.textContent).toContain('CHAVES');
+      (el.querySelector('button[aria-label="Tirar Chaves do ar"]') as HTMLButtonElement).click();
+      expect(fake.saved).toEqual([{ chave: { on: false, categoryId: 'cat1' } }]);
     });
   });
 
@@ -576,6 +643,7 @@ describe('TransmissaoComponent', () => {
         grade: { on: true, categoryId: 'cat1' },
         intervalo: { ...DEFAULT_BROADCAST_CONTROL.intervalo, on: true },
         grupo: { on: true, categoryId: 'cat1', mode: 'todos', group: 'A' },
+        chave: { on: true, categoryId: 'cat1' },
         prejogo,
         summaryOn: true,
         interview: interviewWithDefaults({ name: 'Ana Souza', photoUrl: null, partnerName: null, categoryName: null, durationSec: null, shownAt: Date.now() }),
@@ -590,6 +658,7 @@ describe('TransmissaoComponent', () => {
       expect(patch.grade).toEqual({ on: false, categoryId: 'cat1' });
       expect(patch.intervalo).toEqual({ ...DEFAULT_BROADCAST_CONTROL.intervalo, on: false });
       expect(patch.grupo).toEqual({ on: false, categoryId: 'cat1', mode: 'todos', group: 'A' });
+      expect(patch.chave).toEqual({ on: false, categoryId: 'cat1' });
       expect(patch.prejogo).toEqual({ on: false, card: CARD } as never);
       expect(patch.summaryOn).toBeFalse();
       expect(fake.aired).toEqual([{ interview: null, queue: null }]);

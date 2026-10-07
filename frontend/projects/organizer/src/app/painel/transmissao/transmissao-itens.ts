@@ -9,7 +9,7 @@ import { BROADCAST_GRAPHICS, tournamentHasKoc } from './broadcast-graphics';
 /** Cada linha da lista "Gráficos" do painel de Transmissão. As chaves de `BroadcastGraphicId`
  *  valem como são; o resto (Multi, Pré-jogo, Ranking, Grade, Entrevista, Resumo) é controle
  *  próprio, fora de `control.graphics`. */
-export type TxItemKey = BroadcastGraphicId | 'multi' | 'prejogo' | 'ranking' | 'grade' | 'intervalo' | 'grupo' | 'interview' | 'summary';
+export type TxItemKey = BroadcastGraphicId | 'multi' | 'prejogo' | 'ranking' | 'grade' | 'intervalo' | 'grupo' | 'chave' | 'interview' | 'summary';
 
 export interface TxItem {
   key: TxItemKey;
@@ -69,6 +69,10 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
     if (c.grupo.mode === 'todos') return `Todos os grupos · ${nome}`;
     const letra = c.grupo.group ?? (categoria ? gruposDaCategoria(x.matches, categoria.id)[0] : undefined);
     return `${letra ? `Grupo ${letra}` : 'Primeiro grupo'} · ${nome}`;
+  };
+  const chaveResumo = (): string => {
+    if (!c.chave.on) return 'Desligado';
+    return (t?.categories ?? []).find((k) => k.id === c.chave.categoryId)?.name ?? 'Automática';
   };
   const semPatrocinador = (t?.sponsors ?? []).length === 0;
 
@@ -143,6 +147,15 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
           locked: false,
           warn: false,
           resumo: grupoResumo(),
+          agora: false,
+        },
+        {
+          key: 'chave',
+          nome: 'Chaves',
+          on: c.chave.on,
+          locked: false,
+          warn: false,
+          resumo: chaveResumo(),
           agora: false,
         },
       ],

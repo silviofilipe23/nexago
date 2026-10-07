@@ -112,7 +112,7 @@ const TICK_MS = 500;
           @if (logos().length > 0) {
             <div class="patro">
               <span class="patro-k iv-up" style="--d: 1.2s">Oferecimento</span>
-              <og-overlay-patro-faixa [itens]="logos()" [delay]="1.2" style="--h: 100px; --gap: 18px" />
+              <og-overlay-patro-faixa [itens]="logos()" [delay]="1.2" [highlight]="destaque() % logos().length" style="--h: 100px; --gap: 18px" />
             </div>
           }
         </div>

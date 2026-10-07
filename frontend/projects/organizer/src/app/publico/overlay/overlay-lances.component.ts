@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, output, signal, untracked } from '@angular/core';
 import type { BroadcastLances, LanceTipo } from '../../painel/data/broadcast-lances';
 import { lanceDeveDisparar, lanceViewOf, type LanceDupla, type LanceView } from './overlay-lances';
 
@@ -333,6 +333,9 @@ export class OverlayLancesComponent {
   readonly court = input<string | null>(null);
   readonly category = input<string | null>(null);
 
+  /** Vinheta ou tarja no ar: a página tira o placar enquanto durar e o devolve depois. */
+  readonly noAr = output<boolean>();
+
   protected readonly run = signal<Run | null>(null);
   protected readonly vinheta = signal(false);
   protected readonly tarja = signal<'off' | 'on' | 'out'>('off');
@@ -345,6 +348,11 @@ export class OverlayLancesComponent {
 
   constructor() {
     inject(DestroyRef).onDestroy(() => this.limpa());
+
+    effect(() => {
+      const no = this.vinheta() || this.tarja() !== 'off';
+      untracked(() => this.noAr.emit(no));
+    });
 
     effect(() => {
       const c = this.config();

@@ -128,7 +128,7 @@ export function prejogoNameSize(names: readonly string[]): number {
             @if (logos().length > 0) {
               <div class="patro">
                 <span class="tit">Oferecimento</span>
-                <og-overlay-patro-faixa [itens]="logos()" [delay]="1.2" style="--h: 100px; --gap: 18px" />
+                <og-overlay-patro-faixa [itens]="logos()" [delay]="1.8" style="--h: 44px; --gap: 12px" />
               </div>
             }
           </footer>
@@ -581,7 +581,8 @@ export function prejogoNameSize(names: readonly string[]): number {
 
     .rodape {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      /* minmax(0, …): sem isso a coluna cresce até o tamanho da fila de logos e o carrossel nunca ativa. */
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       column-gap: 40px;
       padding-top: 20px;
       border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -592,9 +593,11 @@ export function prejogoNameSize(names: readonly string[]): number {
       flex-direction: column;
       align-items: flex-start;
       gap: 10px;
+      min-width: 0;
     }
     .patro {
       align-items: stretch;
+      overflow: hidden;
     }
     .tit {
       font-family: var(--mono);

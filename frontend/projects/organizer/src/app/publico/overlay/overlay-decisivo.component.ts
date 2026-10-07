@@ -410,16 +410,17 @@ export class OverlayDecisivoComponent {
     return [...TITULO[v.kind]];
   }
 
-  /** Set point/match point: pontos do set; tie-break: os SETS no placar. */
+  /** Placar grande: sempre os PONTOS do set em andamento (set point, match point e tie-break); os
+   *  sets ficam na linha de baixo de cada dupla e nas bolinhas. */
   protected placar(v: DecisivoView, side: Side): number {
-    if (v.kind === 'tb') return side === 'A' ? v.setsA : v.setsB;
     return side === 'A' ? v.a.score : v.b.score;
   }
 
-  /** "Match point" / "2º match point" pra quem tem a chance; "Sets 1" pro outro (e no tie-break). */
+  /** "Match point" / "2º match point" pra quem tem a chance (com os sets); "Sets 1" pro outro e no tie-break. */
   protected situacao(v: DecisivoView, side: Side): string {
-    if (v.kind !== 'tb' && v.side === side) return v.n > 1 ? `${v.n}º ${ORDINAL_TIPO[v.kind]}` : TITULO[v.kind];
-    return `Sets ${side === 'A' ? v.setsA : v.setsB}`;
+    const sets = side === 'A' ? v.setsA : v.setsB;
+    if (v.kind !== 'tb' && v.side === side) return `${v.n > 1 ? `${v.n}º ${ORDINAL_TIPO[v.kind]}` : TITULO[v.kind]} · Sets ${sets}`;
+    return `Sets ${sets}`;
   }
 
   /** Um nome por linha: elenco carregado, senão o rótulo da partida. */

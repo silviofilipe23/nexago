@@ -33,7 +33,7 @@ describe('overlay-chave', () => {
     expect(chaveMatchesOf(ms, 'c1').length).toBe(8);
   });
 
-  it('eliminatória simples: códigos, colunas, tags e campeão a definir', () => {
+  it('eliminatória simples: códigos, colunas e tags', () => {
     const v = chaveViewOf(simples({ 1: { status: 'completed', winnerSide: 1, sets: [{ a: 21, b: 15 }] }, 4: { status: 'in_progress', sets: [{ a: 11, b: 9 }] } }), 'c1')!;
     expect(v.kind).toBe('simples');
     expect(v.formatLabel).toBe('Eliminatória simples');
@@ -47,8 +47,6 @@ describe('overlay-chave', () => {
     expect(by(4).a.score).toBe(11);
     expect(by(2).tag).toEqual({ kind: 'hora', text: '16:00' });
     expect(by(1).court).toBe('Q1');
-    expect(v.champion.done).toBeFalse();
-    expect(v.champion.label).toBeNull();
     // colunas à esquerda → direita
     expect(by(1).col).toBeLessThan(by(5).col);
     expect(by(5).col).toBeLessThan(by(7).col);
@@ -81,14 +79,6 @@ describe('overlay-chave', () => {
     expect(chaveViewOf(simples(), 'c1')!.edges.every((e) => e.d.startsWith('M '))).toBeTrue();
   });
 
-  it('final encerrada: campeão com nome e ligação acesa', () => {
-    const v = chaveViewOf(simples({ 7: { status: 'completed', winnerSide: 2, teamAId: 'x', teamBId: 'y', team1Label: 'Alison / Bruno', team2Label: 'Pedro / Guto', sets: [{ a: 18, b: 21 }] } }), 'c1')!;
-    expect(v.champion.done).toBeTrue();
-    expect(v.champion.teamId).toBe('y');
-    expect(v.champion.label).toBe('Pedro / Guto');
-    expect(v.edges.at(-1)!.done).toBeTrue();
-    expect(v.champion.left).toBeGreaterThan(v.nodes.find((n) => n.matchNumber === 7)!.left);
-  });
 
   it('melhor de 3 mostra sets vencidos; sem partidas da categoria não há chave', () => {
     const v = chaveViewOf(simples({ 1: { bestOf: 3, status: 'completed', winnerSide: 1, sets: [{ a: 21, b: 15 }, { a: 18, b: 21 }, { a: 15, b: 10 }] } }), 'c1')!;
@@ -97,7 +87,7 @@ describe('overlay-chave', () => {
     expect(chaveViewOf(simples(), 'outra')).toBeNull();
   });
 
-  it('dupla eliminatória: códigos V/P/GF, campeão acima da Final e nada fora da tela', () => {
+  it('dupla eliminatória: códigos V/P/GF e nada fora da tela', () => {
     const wb = (n: number, over: Partial<TournamentMatch>) => m({ matchNumber: n, matchType: 'WB', roundNumber: 1, ...over });
     const ms = [
       wb(1, { winnerAdvanceMatchNumber: 3, winnerAdvanceSlot: 'A', loserAdvanceMatchNumber: 4, teamAId: 'a', teamBId: 'b', team1Label: 'A1 / A2', team2Label: 'B1 / B2' }),
@@ -115,9 +105,8 @@ describe('overlay-chave', () => {
     expect(codes).toContain('V1');
     expect(codes).toContain('P1');
     expect(codes).toContain('GF');
-    // nada com coordenada negativa (a chave inteira desce pra abrir espaço pro campeão)
+    // nada com coordenada negativa
     expect(v!.nodes.every((n) => n.top >= 0 && n.left >= 0)).toBeTrue();
-    expect(v!.champion.top).toBeGreaterThanOrEqual(0);
     // a derrota na chave dos perdedores risca o nome do perdedor
     const lb = chaveViewOf(ms.map((x) => (x.matchNumber === 4 ? { ...x, status: 'completed' as const, winnerSide: 1 as const, teamAId: 'p', teamBId: 'q' } : x)), 'c1')!;
     expect(lb.nodes.find((n) => n.matchNumber === 4)!.eliminates).toBeTrue();

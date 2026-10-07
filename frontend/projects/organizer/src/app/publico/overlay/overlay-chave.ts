@@ -9,13 +9,13 @@ import {
 import { isKingOfCourtMatchType } from '../../painel/data/koc';
 import { matchLiveCurrentSet, matchSetWins } from '../../painel/data/live-set-display';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
-import { finalResultOf } from './overlay-final';
 
-/** Chaves: a chave eliminatória (simples ou dupla) de uma categoria, desenhada das partidas.
+/** Chaves: a chave eliminatória (simples ou dupla) de uma categoria, desenhada das partidas — só os
+ *  cartões dos jogos e as ligações (sem card de campeão).
  *
  *  A GEOMETRIA vem do motor do painel (`buildDoubleEliminationLayout` / `buildKnockoutTreeLayout`,
  *  o mesmo do app e do portal); aqui só se montam os cartões (código do jogo, tag, linhas das
- *  duplas, vaga ainda não definida), as ligações com estado e o campeão. Puro. */
+ *  duplas, vaga ainda não definida), e as ligações com estado. Puro. */
 
 export const CHAVE_CARD_W = BRACKET_MATCH_WIDTH;
 /** O cartão do overlay é mais baixo que o do painel (sem avatar nem rodapé de agenda): cabeçalho 34 + 2 linhas de 44. */
@@ -23,8 +23,6 @@ export const CHAVE_CARD_H = 122;
 const HEAD_H = 34;
 const ROW_H = 44;
 const SLOT_GAP = (BRACKET_MATCH_HEIGHT - CHAVE_CARD_H) / 2;
-export const CHAVE_CHAMP_W = 270;
-const CHAMP_GAP = 96;
 
 export interface ChaveSlot {
   teamId: string;
@@ -65,14 +63,6 @@ export interface ChaveEdge {
   col: number;
 }
 
-export interface ChaveChampion {
-  left: number;
-  top: number;
-  teamId: string | null;
-  label: string | null;
-  done: boolean;
-}
-
 export interface ChaveView {
   kind: 'simples' | 'dupla';
   formatLabel: string;
@@ -81,7 +71,6 @@ export interface ChaveView {
   nodes: ChaveNode[];
   edges: ChaveEdge[];
   labels: { label: string; left: number; top: number }[];
-  champion: ChaveChampion;
 }
 
 const norm = (m: TournamentMatch): string => m.matchType.trim().toLowerCase().replace(/_/g, ' ');
@@ -197,27 +186,7 @@ export function chaveViewOf(matches: readonly TournamentMatch[], categoryId: str
     };
   };
 
-  // Campeão: à direita da Final (simples) ou acima dela (dupla, onde a Final fica no centro — e
-  // aí a chave inteira desce `shiftY` pra abrir espaço).
-  const finalNode = layout.nodes.find((n) => isFinalType(norm(n.match)));
-  const result = finalNode ? finalResultOf(finalNode.match) : null;
-  const champTeam = result && finalNode ? result.campeaoTeamId : null;
-  const champLabel = finalNode && champTeam ? (finalNode.match.teamAId === champTeam ? finalNode.match.team1Label : finalNode.match.team2Label) : null;
-  let champLeft = 0;
-  let champTop = 0;
-  let shiftY = 0;
-  if (finalNode) {
-    if (double) {
-      champLeft = finalNode.left + (CHAVE_CARD_W - CHAVE_CHAMP_W) / 2;
-      champTop = finalNode.top - CHAVE_CARD_H - 56;
-      if (champTop < 0) shiftY = -champTop;
-    } else {
-      champLeft = finalNode.left + CHAVE_CARD_W + CHAMP_GAP;
-      champTop = finalNode.top + SLOT_GAP;
-    }
-  }
-  champTop += shiftY;
-  const topOf = (n: DeLayoutNode) => n.top + shiftY;
+  const topOf = (n: DeLayoutNode) => n.top;
 
   const hora = (d: Date | null) => (d ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : '');
 
@@ -278,21 +247,13 @@ export function chaveViewOf(matches: readonly TournamentMatch[], categoryId: str
     edges.push({ d: `M ${x1} ${y1} H ${mid} V ${y2} H ${x2}`, done: m.status === 'completed' && m.winnerSide != null, col: colOf(n) });
   }
 
-  if (finalNode && !double) {
-    const mid = topOf(finalNode) + BRACKET_MATCH_HEIGHT / 2;
-    edges.push({ d: `M ${finalNode.left + CHAVE_CARD_W} ${mid} H ${champLeft}`, done: result != null, col: colOf(finalNode) + 1 });
-  }
-
-  const width = Math.max(layout.width, champLeft + CHAVE_CHAMP_W);
-  const height = layout.height + shiftY;
   return {
     kind: double ? 'dupla' : 'simples',
     formatLabel: double ? 'Dupla eliminatória' : 'Eliminatória simples',
-    width,
-    height,
+    width: layout.width,
+    height: layout.height,
     nodes,
     edges,
-    labels: layout.labels.map((l) => ({ label: l.label, left: l.left, top: l.top + shiftY })),
-    champion: { left: champLeft, top: champTop, teamId: champTeam, label: champLabel, done: result != null },
+    labels: layout.labels.map((l) => ({ label: l.label, left: l.left, top: l.top })),
   };
 }

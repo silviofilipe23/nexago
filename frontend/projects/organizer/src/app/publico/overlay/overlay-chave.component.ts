@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import type { OverlayTeam } from './overlay-live.gateway';
-import { CHAVE_CARD_H, CHAVE_CARD_W, CHAVE_CHAMP_W, type ChaveNode, type ChaveSlot, type ChaveView } from './overlay-chave';
+import { CHAVE_CARD_H, CHAVE_CARD_W, type ChaveNode, type ChaveSlot, type ChaveView } from './overlay-chave';
 import { nomeCurtoDe } from './overlay-nome';
 
 const AREA = { left: 60, top: 196, width: 1800, height: 850 };
@@ -10,9 +10,7 @@ const ROW_STEP_S = 0.06;
 const CARD_START_S = 0.35;
 const CARD_S = 0.44;
 const EDGE_S = 0.42;
-/** O campeão entra por último, perto de 1,3 s. */
-const CHAMP_AT_S = 1.3;
-/** Efeitos de jogo (placar, vaga, fim, início, campeão) ficam marcados por este tempo. */
+/** Efeitos de jogo (placar, vaga, fim, início) ficam marcados por este tempo. */
 const FX_MS = 1600;
 
 interface Fx {
@@ -20,9 +18,8 @@ interface Fx {
   terminou: ReadonlySet<string>;
   placar: ReadonlySet<string>;
   vaga: ReadonlySet<string>;
-  campeao: boolean;
 }
-const NO_FX: Fx = { inicio: new Set(), terminou: new Set(), placar: new Set(), vaga: new Set(), campeao: false };
+const NO_FX: Fx = { inicio: new Set(), terminou: new Set(), placar: new Set(), vaga: new Set() };
 
 interface Snap {
   live: boolean;
@@ -33,8 +30,9 @@ interface Snap {
 
 /** Chaves (1920×1080, fundo transparente): a chave eliminatória da categoria sobre a transmissão.
  *
- *  Só apresentação — `chaveViewOf` já traz geometria, cartões, ligações e campeão. O "palco" é
- *  escalado pra caber na área útil (a chave de 16 duplas é bem maior que a de 8). */
+ *  Só apresentação — `chaveViewOf` já traz geometria, cartões e ligações. O "palco" é
+ *  escalado pra caber na área útil (a chave de 16 duplas é bem maior que a de 8). Só os cartões das
+ *  partidas e as ligações — sem card de campeão. */
 @Component({
   selector: 'og-overlay-chave',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -93,20 +91,6 @@ interface Snap {
             </article>
           }
 
-          <aside
-            class="camp ch-up"
-            [class.camp--done]="v.champion.done"
-            [style.left.px]="v.champion.left"
-            [style.top.px]="v.champion.top"
-            [style.width.px]="champW"
-            [style.height.px]="cardH"
-            style="--d: ${CHAMP_AT_S}s"
-          >
-            <div class="camp-in" [class.camp-in--entra]="fx().campeao">
-              <span class="camp-k">{{ v.champion.done ? 'Campeões' : 'Campeão' }}</span>
-              <b class="camp-n">{{ v.champion.done ? campeao(v) : 'A definir' }}</b>
-            </div>
-          </aside>
         </div>
       </div>
     }
@@ -398,73 +382,6 @@ interface Snap {
         transform: scale(1.4);
       }
     }
-
-    .camp {
-      position: absolute;
-      box-sizing: border-box;
-      border-radius: 12px;
-      border: 1.5px dashed rgba(255, 255, 255, 0.3);
-      background: rgba(10, 10, 11, 0.5);
-      text-align: center;
-    }
-    .camp-in {
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
-    .camp-k {
-      font-family: var(--mono);
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0.3em;
-      text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.5);
-    }
-    .camp-n {
-      padding: 0 14px;
-      font-size: 34px;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      color: rgba(255, 255, 255, 0.55);
-    }
-    .camp {
-      animation: ch-camp-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) var(--d, 1.3s) both;
-    }
-    /* Entrada do campeão (a "A definir" aparece por último): cresce de 94% a 100%. */
-    @keyframes ch-camp-in {
-      from {
-        opacity: 0;
-        transform: scale(0.94);
-      }
-    }
-    /* Campeão definido: parte de 90% e muito claro, passa do tamanho (103%) e assenta (0,9 s, mola). */
-    .camp-in--entra {
-      animation: ch-camp-def 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-    }
-    @keyframes ch-camp-def {
-      0% {
-        transform: scale(0.9);
-        filter: brightness(2.6);
-      }
-      60% {
-        transform: scale(1.03);
-      }
-    }
-    .camp--done {
-      border: 1.5px solid var(--o5);
-      background: linear-gradient(180deg, rgba(255, 106, 26, 0.3), rgba(10, 10, 11, 0.92));
-      box-shadow: 0 0 40px rgba(255, 106, 26, 0.55);
-    }
-    .camp--done .camp-k {
-      color: var(--o4);
-    }
-    .camp--done .camp-n {
-      font-size: 26px;
-      color: #fff;
-    }
   `,
 })
 export class OverlayChaveComponent {
@@ -475,7 +392,6 @@ export class OverlayChaveComponent {
 
   protected readonly cardW = CHAVE_CARD_W;
   protected readonly cardH = CHAVE_CARD_H;
-  protected readonly champW = CHAVE_CHAMP_W;
   /** O nó do motor tem a altura do cartão do painel (154); o do overlay é mais baixo e fica centrado. */
   protected readonly slotGap = (154 - CHAVE_CARD_H) / 2;
 
@@ -493,7 +409,6 @@ export class OverlayChaveComponent {
   /** Efeitos de jogo em curso (só nas MUDANÇAS: a 1ª leitura é linha de base, não anima). */
   protected readonly fx = signal<Fx>(NO_FX);
   private prev: Map<string, Snap> | null = null;
-  private prevChampion = false;
   private readonly timers = new Set<ReturnType<typeof setTimeout>>();
 
   constructor() {
@@ -522,7 +437,6 @@ export class OverlayChaveComponent {
   private diff(v: ChaveView | null): void {
     if (!v) {
       this.prev = null;
-      this.prevChampion = false;
       this.entered.set(false);
       return;
     }
@@ -547,14 +461,6 @@ export class OverlayChaveComponent {
           if (p.team[i] === '' && c.team[i] !== '') add('vaga', n.matchId + i);
         });
       }
-      if (!this.prevChampion && v.champion.done) {
-        this.fx.update((f) => ({ ...f, campeao: true }));
-        const t = setTimeout(() => {
-          this.timers.delete(t);
-          this.fx.update((f) => ({ ...f, campeao: false }));
-        }, FX_MS);
-        this.timers.add(t);
-      }
     } else {
       // A entrada leva ~2 s; depois dela, ligações que acendem se redesenham sem atraso.
       const t = setTimeout(() => {
@@ -564,7 +470,6 @@ export class OverlayChaveComponent {
       this.timers.add(t);
     }
     this.prev = cur;
-    this.prevChampion = v.champion.done;
   }
 
   protected slots(n: ChaveNode): ChaveSlot[] {
@@ -583,10 +488,4 @@ export class OverlayChaveComponent {
     return p.length > 0 ? p.join(' · ') : s.label;
   }
 
-  protected campeao(v: ChaveView): string {
-    const c = v.champion;
-    if (!c.teamId) return '';
-    const p = this.players(c.teamId, c.label ?? '');
-    return p.length > 0 ? p.join(' · ') : (c.label ?? '');
-  }
 }

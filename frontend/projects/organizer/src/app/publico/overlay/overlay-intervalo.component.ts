@@ -3,6 +3,7 @@ import { INTERVALO_BADGE, type BroadcastIntervalo } from '../../painel/data/broa
 import type { OverlayTeam } from './overlay-live.gateway';
 import { intervaloRestanteSeg, type IntervaloGame, type IntervaloView } from './overlay-intervalo';
 import { nomeCurtoDe, nomesCurtosDe } from './overlay-nome';
+import { OverlayPatroFaixaComponent } from './overlay-patro-faixa.component';
 import type { OverlayPatroItem } from './overlay-nx';
 
 /** A cortina cobre a tela em 1 s; o conteúdo troca aos 0,5 s, com tudo coberto. */
@@ -19,6 +20,7 @@ const TICK_MS = 500;
 @Component({
   selector: 'og-overlay-intervalo',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OverlayPatroFaixaComponent],
   template: `
     @if (shown(); as c) {
       @for (m of [c.mode]; track m) {
@@ -110,13 +112,7 @@ const TICK_MS = 500;
           @if (logos().length > 0) {
             <div class="patro">
               <span class="patro-k iv-up" style="--d: 1.2s">Oferecimento</span>
-              <div class="patro-grade" [style.grid-template-columns]="'repeat(' + logos().length + ', 1fr)'">
-                @for (s of logos(); track $index) {
-                  <div class="logo iv-up" [class.logo--on]="destaque() === $index" [class.logo--img]="!!s.logo" [style.--d]="1.2 + $index * 0.08 + 's'">
-                    @if (s.logo) { <img [src]="s.logo" [alt]="s.nome" /> } @else { <span>{{ s.nome }}</span> }
-                  </div>
-                }
-              </div>
+              <og-overlay-patro-faixa [itens]="logos()" [delay]="1.2" [highlight]="destaque() % logos().length" style="--h: 100px; --gap: 18px" />
             </div>
           }
         </div>
@@ -541,49 +537,6 @@ const TICK_MS = 500;
       text-transform: uppercase;
       color: var(--o5);
     }
-    .patro-grade {
-      flex: 1;
-      display: grid;
-      gap: 18px;
-      height: 100%;
-    }
-    .logo {
-      display: grid;
-      place-items: center;
-      overflow: hidden;
-      box-sizing: border-box;
-      border-radius: 8px;
-      border: 1.5px dashed rgba(255, 255, 255, 0.2);
-      background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0 10px, transparent 10px 20px);
-      transition:
-        transform 0.5s ease,
-        border-color 0.5s ease,
-        box-shadow 0.5s ease;
-    }
-    .logo--img {
-      border: 1.5px solid transparent;
-      background: #fff;
-      padding: 10px;
-    }
-    .logo--on {
-      transform: translateY(-4px);
-      border: 1.5px solid var(--o5);
-      box-shadow: 0 0 22px rgba(255, 106, 26, 0.55);
-    }
-    .logo img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      object-position: center;
-    }
-    .logo span {
-      font-family: var(--mono);
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.55);
-    }
 
     /* Cortina laranja: cobre da esquerda pra direita e se recolhe pra direita, em 1 s. */
     .cortina {
@@ -624,7 +577,7 @@ export class OverlayIntervaloComponent {
   private targetMode: string | null = null;
   private swapTimer: ReturnType<typeof setTimeout> | undefined;
 
-  protected readonly logos = computed(() => this.sponsors().slice(0, 5));
+  protected readonly logos = computed(() => this.sponsors());
 
   protected readonly restante = computed(() => {
     const c = this.shown();

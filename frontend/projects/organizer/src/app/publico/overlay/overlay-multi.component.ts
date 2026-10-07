@@ -3,6 +3,7 @@ import type { MultiMode } from '../../painel/data/broadcast-multi';
 import type { OverlayTeam } from './overlay-live.gateway';
 import { multiColumnsOf, type MultiCard, type MultiStatus, type MultiTeam } from './overlay-multi';
 import { nomeCurtoDe, nomesCurtosDe } from './overlay-nome';
+import { OverlayPatroFaixaComponent } from './overlay-patro-faixa.component';
 import type { OverlayPatroItem } from './overlay-nx';
 
 type Side = 'A' | 'B';
@@ -25,6 +26,7 @@ const FLASH_MS = 700;
 @Component({
   selector: 'og-overlay-multi',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OverlayPatroFaixaComponent],
   template: `
     @if (cards().length > 0) {
       @if (mode() === 'full') {
@@ -124,13 +126,7 @@ const FLASH_MS = 700;
             @if (logos().length > 0) {
               <footer class="patro mq-up" style="--d: 0.9s">
                 <span class="patro-t">Oferecimento</span>
-                <div class="patro-grade" [style.grid-template-columns]="'repeat(' + logos().length + ', 1fr)'">
-                  @for (s of logos(); track $index) {
-                    <div class="logo" [class.logo--img]="!!s.logo">
-                      @if (s.logo) { <img [src]="s.logo" [alt]="s.nome" /> } @else { <span>{{ s.nome }}</span> }
-                    </div>
-                  }
-                </div>
+                <og-overlay-patro-faixa [itens]="logos()" [delay]="0" style="--h: 60px; --gap: 14px" />
               </footer>
             }
           }
@@ -560,40 +556,6 @@ const FLASH_MS = 700;
       text-transform: uppercase;
       color: var(--o5);
     }
-    .patro-grade {
-      flex: 1;
-      display: grid;
-      gap: 14px;
-    }
-    .logo {
-      height: 100px;
-      display: grid;
-      place-items: center;
-      overflow: hidden;
-      box-sizing: border-box;
-      border-radius: 6px;
-      border: 1.5px dashed rgba(255, 255, 255, 0.22);
-      background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.045) 0 10px, transparent 10px 20px);
-    }
-    .logo--img {
-      border: 0;
-      background: #fff;
-      padding: 6px;
-    }
-    .logo img {
-      width: 80px;
-      height: 100%;
-      object-fit: contain;
-      object-position: center;
-    }
-    .logo span {
-      font-family: var(--mono);
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.55);
-    }
 
     /* Faixa sobre o vídeo (fundo transparente). */
     .faixa {
@@ -680,7 +642,7 @@ export class OverlayMultiComponent {
   protected readonly sides: readonly Side[] = ['A', 'B'];
   protected readonly colunas = computed(() => multiColumnsOf(this.cards().length));
   protected readonly linhas = computed(() => Math.max(1, Math.ceil(this.cards().length / this.colunas())));
-  protected readonly logos = computed(() => this.sponsors().slice(0, 5));
+  protected readonly logos = computed(() => this.sponsors());
 
   /** `idQuadra + lado` dos placares que acabaram de mudar — o quadro pisca laranja por `FLASH_MS`. */
   protected readonly flashing = signal<ReadonlySet<string>>(new Set());

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import type { OverlayTeam } from './overlay-live.gateway';
 import { nomeCurtoDe } from './overlay-nome';
+import { OverlayPatroFaixaComponent } from './overlay-patro-faixa.component';
 import type { OverlayPatroItem } from './overlay-nx';
 import { tecnicoClock, tecnicoRestanteSeg, type OverlayTecnicoView } from './overlay-tecnico';
 
@@ -11,6 +12,7 @@ import { tecnicoClock, tecnicoRestanteSeg, type OverlayTecnicoView } from './ove
 @Component({
   selector: 'og-overlay-tecnico',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OverlayPatroFaixaComponent],
   template: `
     @if (view(); as v) {
       <section
@@ -39,17 +41,7 @@ import { tecnicoClock, tecnicoRestanteSeg, type OverlayTecnicoView } from './ove
 
         @if (sponsors().length > 0) {
           <div class="divider"><span>Oferecimento</span><i></i></div>
-          <div class="grid" [style.grid-template-columns]="'repeat(' + colunas() + ', 1fr)'">
-            @for (s of sponsors(); track $index) {
-              <div class="cell" [class.has-logo]="!!s.logo" [style.animation-delay]="0.35 + $index * 0.08 + 's'">
-                @if (s.logo) {
-                  <img [src]="s.logo" [alt]="s.nome" />
-                } @else {
-                  <span class="ph">{{ s.nome }}</span>
-                }
-              </div>
-            }
-          </div>
+          <og-overlay-patro-faixa [itens]="sponsors()" [delay]="0.35" style="--h: 110px; --gap: 16px" />
         }
       </section>
     }
@@ -195,44 +187,6 @@ import { tecnicoClock, tecnicoRestanteSeg, type OverlayTecnicoView } from './ove
       background: rgba(255, 255, 255, 0.12);
     }
 
-    .grid {
-      display: grid;
-      gap: 16px;
-    }
-    .cell {
-      height: 110px;
-      display: grid;
-      place-items: center;
-      box-sizing: border-box;
-      overflow: hidden;
-      border-radius: 8px;
-      border: 1.5px dashed rgba(255, 255, 255, 0.22);
-      background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.045) 0 10px, transparent 10px 20px);
-      animation: tec-logo 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
-    }
-    .cell.has-logo {
-      border: 0;
-      background: #fff;
-      padding: 12px;
-    }
-    .cell img {
-      /* 100% nos dois eixos + contain: o logo ESCALA pra caber (pequeno cresce, grande encolhe).
-         max-* em % não resolve numa célula de altura intrínseca e o overflow cortava o logo. */
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      object-position: center;
-    }
-    .ph {
-      font-family: var(--nx-font-mono, 'JetBrains Mono', ui-monospace, monospace);
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.55);
-      text-align: center;
-      padding: 0 8px;
-    }
     @keyframes tec-logo {
       from {
         opacity: 0;
@@ -271,11 +225,6 @@ export class OverlayTecnicoComponent {
     return [team?.label?.trim() || (v.side === 'B' ? 'Dupla B' : 'Dupla A')];
   });
 
-  /** 6 logos viram 2 linhas de 3; fora isso, até 5 por linha. */
-  protected readonly colunas = computed(() => {
-    const n = this.sponsors().length;
-    return n === 6 ? 3 : Math.max(1, Math.min(n, 5));
-  });
 
   constructor() {
     // Relógio de 250 ms só enquanto há tempo técnico no ar.

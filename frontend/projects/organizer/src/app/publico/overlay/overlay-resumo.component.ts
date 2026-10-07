@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import type { OverlayTeam } from './overlay-live.gateway';
 import { nomeCurtoDe } from './overlay-nome';
+import { OverlayPatroFaixaComponent } from './overlay-patro-faixa.component';
 import type { OverlayPatroItem } from './overlay-nx';
 import type { ResumoView } from './overlay-resumo';
 
@@ -39,6 +40,7 @@ function rng(seed: number): () => number {
 @Component({
   selector: 'og-overlay-resumo',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OverlayPatroFaixaComponent],
   template: `
     @if (view(); as v) {
       <div class="scrim" animate.enter="rs-fade-in" animate.leave="rs-fade-out"></div>
@@ -149,17 +151,7 @@ function rng(seed: number): () => number {
         @if (sponsors().length > 0) {
           <div class="patro rs-b" style="--d: 2.6s">
             <span class="patro-t">Oferecimento</span>
-            <div class="patro-grid" [style.grid-template-columns]="'repeat(' + sponsors().length + ', 1fr)'">
-              @for (s of sponsors(); track $index) {
-                <div class="plogo" [class.plogo--img]="!!s.logo" [style.animation-delay]="2.7 + $index * 0.09 + 's'">
-                  @if (s.logo) {
-                    <img [src]="s.logo" [alt]="s.nome" />
-                  } @else {
-                    <span>{{ s.nome }}</span>
-                  }
-                </div>
-              }
-            </div>
+            <og-overlay-patro-faixa [itens]="sponsors()" [delay]="2.7" style="--h: 60px; --gap: 12px" />
           </div>
         }
       </section>
@@ -681,42 +673,6 @@ function rng(seed: number): () => number {
       letter-spacing: 0.22em;
       text-transform: uppercase;
       color: var(--o4);
-    }
-    .patro-grid {
-      display: grid;
-      gap: 12px;
-    }
-    .plogo {
-      height: 200px;
-      display: grid;
-      place-items: center;
-      overflow: hidden;
-      box-sizing: border-box;
-      border-radius: 6px;
-      border: 1.5px dashed rgba(255, 255, 255, 0.22);
-      background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.045) 0 10px, transparent 10px 20px);
-      animation: rs-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
-    }
-    .plogo--img {
-      border: 0;
-      background: #fff;
-      padding: 6px;
-    }
-    .plogo img {
-      /* 100% nos dois eixos + contain: o logo ESCALA pra caber (pequeno cresce, grande encolhe).
-         max-* em % não resolve numa célula de altura intrínseca e o overflow cortava o logo. */
-      width: auto;
-      height: 180px;
-      object-fit: contain;
-      object-position: center;
-    }
-    .plogo span {
-      font-family: var(--mono);
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.55);
     }
   `,
 })

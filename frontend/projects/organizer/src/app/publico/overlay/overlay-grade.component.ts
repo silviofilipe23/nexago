@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import type { OverlayTeam } from './overlay-live.gateway';
 import { GRADE_VISIBLE_ROWS, type GradeCell, type GradeView } from './overlay-grade';
 import { nomeCurtoDe, nomesCurtosDe } from './overlay-nome';
+import { OverlayPatroFaixaComponent } from './overlay-patro-faixa.component';
 import type { OverlayPatroItem } from './overlay-nx';
 
 const ROW_PITCH = 83;
@@ -16,6 +17,7 @@ const CAT_COLORS = ['#4da3ff', '#ff6a1a', '#ff5fa8', '#a07bff', '#3ddc84', '#f2c
 @Component({
   selector: 'og-overlay-grade',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OverlayPatroFaixaComponent],
   template: `
     @if (view(); as v) {
       <div class="tela" animate.enter="gd-fade-in" animate.leave="gd-fade-out">
@@ -100,13 +102,7 @@ const CAT_COLORS = ['#4da3ff', '#ff6a1a', '#ff5fa8', '#a07bff', '#3ddc84', '#f2c
         @if (logos().length > 0) {
           <footer class="patro gd-up" style="--d: 0.9s">
             <span class="patro-t">Oferecimento</span>
-            <div class="patro-grade" [style.grid-template-columns]="'repeat(' + logos().length + ', 1fr)'">
-              @for (s of logos(); track $index) {
-                <div class="logo" [class.logo--img]="!!s.logo">
-                  @if (s.logo) { <img [src]="s.logo" [alt]="s.nome" /> } @else { <span>{{ s.nome }}</span> }
-                </div>
-              }
-            </div>
+            <og-overlay-patro-faixa [itens]="logos()" [delay]="0" style="--h: 64px; --gap: 14px" />
           </footer>
         }
       </div>
@@ -520,40 +516,6 @@ const CAT_COLORS = ['#4da3ff', '#ff6a1a', '#ff5fa8', '#a07bff', '#3ddc84', '#f2c
       text-transform: uppercase;
       color: var(--o5);
     }
-    .patro-grade {
-      flex: 1;
-      display: grid;
-      gap: 14px;
-    }
-    .logo {
-      height: 64px;
-      display: grid;
-      place-items: center;
-      overflow: hidden;
-      box-sizing: border-box;
-      border-radius: 6px;
-      border: 1.5px dashed rgba(255, 255, 255, 0.22);
-      background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.045) 0 10px, transparent 10px 20px);
-    }
-    .logo--img {
-      border: 0;
-      background: #fff;
-      padding: 6px;
-    }
-    .logo img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      object-position: center;
-    }
-    .logo span {
-      font-family: var(--mono);
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.55);
-    }
   `,
 })
 export class OverlayGradeComponent {
@@ -569,7 +531,7 @@ export class OverlayGradeComponent {
   protected readonly gap = ROW_PITCH - ROW_H;
   /** Altura da janela: `GRADE_VISIBLE_ROWS` linhas (a última sem o espaço de respiro). */
   protected readonly janelaH = GRADE_VISIBLE_ROWS * ROW_PITCH - (ROW_PITCH - ROW_H);
-  protected readonly logos = computed(() => this.sponsors().slice(0, 5));
+  protected readonly logos = computed(() => this.sponsors());
 
   /** Posição do "agora": dentro da linha atual, proporcional ao horário. */
   protected agoraTop(v: GradeView, n: { row: number; frac: number }): number {

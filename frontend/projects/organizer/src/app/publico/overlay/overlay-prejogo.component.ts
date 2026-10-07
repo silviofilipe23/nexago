@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import type { PrejogoCard, PrejogoSide, PrejogoTeam } from '../../painel/data/broadcast-prejogo';
 import { ledIniciaisDe } from '../led/led-iniciais';
 import { nomeCurtoDe } from './overlay-nome';
+import { OverlayPatroFaixaComponent } from './overlay-patro-faixa.component';
 import type { OverlayPatroItem } from './overlay-nx';
 
 /** Do 1º ao 3º lugar a etiqueta e as fotos ficam ouro/prata/bronze. */
@@ -26,6 +27,7 @@ export function prejogoNameSize(names: readonly string[]): number {
 @Component({
   selector: 'og-overlay-prejogo',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OverlayPatroFaixaComponent],
   template: `
     @if (card(); as c) {
       <div class="scrim" animate.enter="pj-fade-in" animate.leave="pj-fade-out"></div>
@@ -126,17 +128,7 @@ export function prejogoNameSize(names: readonly string[]): number {
             @if (logos().length > 0) {
               <div class="patro">
                 <span class="tit">Oferecimento</span>
-                <div class="grade" [style.grid-template-columns]="'repeat(' + logos().length + ', 1fr)'">
-                  @for (s of logos(); track $index) {
-                    <div class="logo" [class.logo--img]="!!s.logo" [style.animation-delay]="1.8 + $index * 0.08 + 's'">
-                      @if (s.logo) {
-                        <img [src]="s.logo" [alt]="s.nome" />
-                      } @else {
-                        <span>{{ s.nome }}</span>
-                      }
-                    </div>
-                  }
-                </div>
+                <og-overlay-patro-faixa [itens]="logos()" [delay]="1.8" style="--h: 44px; --gap: 12px" />
               </div>
             }
           </footer>
@@ -639,40 +631,6 @@ export function prejogoNameSize(names: readonly string[]): number {
     .dot--b {
       background: #e9e9ec;
     }
-    .grade {
-      display: grid;
-      gap: 12px;
-    }
-    .logo {
-      height: 100px;
-      display: grid;
-      place-items: center;
-      overflow: hidden;
-      box-sizing: border-box;
-      border-radius: 6px;
-      border: 1.5px dashed rgba(255, 255, 255, 0.22);
-      // background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.045) 0 10px, transparent 10px 20px);
-      animation: pj-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
-    }
-    .logo--img {
-      border: 0;
-      // background: #fff;
-      padding: 6px;
-    }
-    .logo img {
-      width: 100%;
-      height: 80px;
-      object-fit: contain;
-      object-position: center;
-    }
-    .logo span {
-      font-family: var(--mono);
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.55);
-    }
   `,
 })
 export class OverlayPrejogoComponent {
@@ -680,7 +638,7 @@ export class OverlayPrejogoComponent {
   readonly sponsors = input<OverlayPatroItem[]>([]);
 
   protected readonly sides: readonly PrejogoSide[] = ['A', 'B'];
-  protected readonly logos = computed(() => this.sponsors().slice(0, 4));
+  protected readonly logos = computed(() => this.sponsors());
 
   protected team(c: PrejogoCard, side: PrejogoSide): PrejogoTeam {
     return side === 'A' ? c.a : c.b;

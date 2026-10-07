@@ -22,6 +22,9 @@ export interface TxItem {
   resumo: string;
   /** Tem o botão "Mostrar agora" (Patrocinadores e Doação). */
   agora: boolean;
+  /** Entra e sai sozinho (Momento decisivo): o switch só autoriza — não conta como "no ar"
+   *  nem aparece em "Ativos agora". */
+  auto?: boolean;
 }
 
 export interface TxGroup {
@@ -84,6 +87,7 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
       label: 'Partida',
       itens: [
         graphic('scoreboard', 'Canto inferior esquerdo'),
+        graphic('decisivo', c.graphics.decisivo ? 'Automático · set point, match point e tie-break' : 'Desligado', { auto: true }),
         {
           key: 'multi',
           nome: 'Multi-quadras',

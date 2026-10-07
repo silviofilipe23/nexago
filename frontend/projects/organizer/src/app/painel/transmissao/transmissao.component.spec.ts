@@ -76,6 +76,7 @@ describe('TransmissaoComponent', () => {
       });
       expect(nomes).toEqual([
         'Placar',
+        'Momento decisivo',
         'Multi-quadras',
         'Pré-jogo',
         'Ranking Top 10',
@@ -193,7 +194,7 @@ describe('TransmissaoComponent', () => {
 
     it('dígito de item travado não faz nada', async () => {
       const { fake, fixture } = await mount();
-      tecla('3'); // Pré-jogo
+      tecla('4'); // Pré-jogo (3º é o Multi-quadras; o 2º, o Momento decisivo)
       await fixture.whenStable();
       expect(fake.saved).toEqual([]);
     });
@@ -289,7 +290,7 @@ describe('TransmissaoComponent', () => {
 
     it('atalho numérico liga a tabela', async () => {
       const { fake } = await mount(comGrupos());
-      tecla('7');
+      tecla('8');
       expect(fake.saved).toEqual([{ grupo: { ...base, on: true } }]);
     });
   });
@@ -346,7 +347,7 @@ describe('TransmissaoComponent', () => {
 
     it('atalho numérico liga a chave', async () => {
       const { fake } = await mount(comChaves());
-      tecla('8');
+      tecla('9');
       expect(fake.saved).toEqual([{ chave: { ...base, on: true } }]);
     });
 
@@ -441,9 +442,9 @@ describe('TransmissaoComponent', () => {
       expect(fake.saved[0].eventos).toEqual({ on: false, mode: 'full', card: CARD_EVENTOS });
     });
 
-    it('atalho numérico liga o item (9º da lista)', async () => {
+    it('atalho de letra liga o item (10º da lista = A)', async () => {
       const { fake } = await mount(comCard());
-      tecla('9');
+      tecla('a');
       expect(fake.saved).toEqual([{ eventos: { on: true, mode: 'full', card: CARD_EVENTOS } }]);
     });
   });
@@ -709,19 +710,40 @@ describe('TransmissaoComponent', () => {
     });
   });
 
+  describe('Momento decisivo', () => {
+    it('é automático: o switch autoriza, a linha não conta como "no ar" e não vira chip em "Ativos agora"', async () => {
+      const { el, fake, fixture } = await mount();
+      const linhaD = linha(el, 'Momento decisivo');
+      expect(linhaD.textContent).toContain('Automático');
+      expect(linhaD.querySelector('.og-tx-dot')?.classList.contains('on')).toBeFalse();
+      expect(el.querySelector('.og-tx-ativos')?.textContent ?? '').not.toContain('Momento decisivo');
+      switchDe(el, 'Momento decisivo').click();
+      expect(fake.saved.at(-1)).toEqual({ graphics: { decisivo: false } });
+      await fixture.whenStable();
+    });
+
+    it('o Esc tira tudo menos o placar E o momento decisivo (que é do placar)', async () => {
+      const { fake } = await mount();
+      tecla('Escape');
+      const g = (fake.saved.at(-1) as { graphics?: Record<string, boolean> } | undefined)?.graphics;
+      expect(g?.['decisivo']).not.toBeFalse();
+      expect(g?.['scoreboard']).not.toBeFalse();
+    });
+  });
+
   describe('atalhos de teclado', () => {
     it('os itens depois do 9º ganham letras (A, B, C…), mostradas na lista', async () => {
       const { el } = await mount();
       const badges = Array.from(el.querySelectorAll('.og-tx-row-nome kbd')).map((k) => k.textContent?.trim());
       expect(badges.slice(0, 9)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
-      expect(badges.slice(9, 14)).toEqual(['A', 'B', 'C', 'D', 'E']);
+      expect(badges.slice(9, 15)).toEqual(['A', 'B', 'C', 'D', 'E', 'F']);
     });
 
     it('uma letra liga/desliga o item correspondente, maiúscula ou minúscula', async () => {
       const { fake } = await mount();
-      tecla('b'); // 11º: Campeões
+      tecla('c'); // 12º: Campeões
       expect(fake.saved.at(-1)).toEqual({ graphics: { champions: false } });
-      tecla('D'); // 13º: Patrocinadores
+      tecla('E'); // 14º: Patrocinadores
       expect(fake.saved.at(-1)).toEqual({ graphics: { sponsors: false } });
       tecla('z'); // além da lista: nada
       expect(fake.saved.length).toBe(2);
@@ -731,7 +753,7 @@ describe('TransmissaoComponent', () => {
       const { fake, fixture } = await mount();
       tecla('1');
       expect(fake.saved).toEqual([{ graphics: { scoreboard: false } }]);
-      tecla('2');
+      tecla('3');
       expect(fake.saved.at(-1)).toEqual({ multi: { on: true, mode: 'full', focusCourtId: null } });
       await fixture.whenStable();
     });
@@ -740,7 +762,7 @@ describe('TransmissaoComponent', () => {
       const { el, fixture } = await mount();
       tecla('ArrowDown');
       await fixture.whenStable();
-      expect(el.querySelector('.og-tx-cfg h2')?.textContent).toContain('Multi-quadras');
+      expect(el.querySelector('.og-tx-cfg h2')?.textContent).toContain('Momento decisivo');
       tecla('ArrowUp');
       tecla('ArrowUp');
       await fixture.whenStable();

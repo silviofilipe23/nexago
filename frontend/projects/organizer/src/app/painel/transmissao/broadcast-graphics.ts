@@ -46,6 +46,7 @@ export function tournamentHasKoc(t: OrganizerTournament, matches: readonly Tourn
 
 export const BROADCAST_GRAPHICS: readonly BroadcastGraphicDef[] = [
   { id: 'scoreboard', nome: 'Placar', descricao: 'Placar da partida no canto inferior esquerdo', grupo: 'partida', controle: 'chave' },
+  { id: 'decisivo', nome: 'Momento decisivo', descricao: 'Alerta de set point, match point e tie-break (entra sozinho)', grupo: 'partida', controle: 'chave' },
   { id: 'kocBar', nome: 'Faixa da rodada', descricao: 'Rei, desafiante, fila e cronômetro no rodapé', grupo: 'koc', controle: 'chave', aparece: tournamentHasKoc },
   { id: 'kocPreRound', nome: 'Próximos em quadra', descricao: 'Elenco da rodada antes do apito', grupo: 'koc', controle: 'chave', aparece: tournamentHasKoc },
   { id: 'kocRoundEnd', nome: 'Fim de rodada', descricao: 'Classificação da rodada e classificadas da fase', grupo: 'koc', controle: 'chave', aparece: tournamentHasKoc },

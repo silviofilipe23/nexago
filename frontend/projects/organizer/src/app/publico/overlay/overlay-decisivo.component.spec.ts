@@ -28,7 +28,7 @@ describe('OverlayDecisivoComponent', () => {
     expect(titulo(el)).toBe('Set point');
     expect(el.querySelector('.lado--a')?.classList.contains('lado--chance')).toBeTrue();
     expect(el.querySelector('.lado--b')?.classList.contains('lado--chance')).toBeFalse();
-    expect(el.querySelector('.lado--a em')?.textContent).toContain('Set point');
+    expect(el.querySelector('.lado--a em')?.textContent).toContain('Set point · Sets 1');
     expect(el.querySelector('.lado--b em')?.textContent).toContain('Sets 1');
     expect(Array.from(el.querySelectorAll('.placar')).map((p) => p.textContent?.trim())).toEqual(['14', '12']);
     expect(el.querySelectorAll('.lado--a .nomes span').length).toBe(2);
@@ -39,18 +39,19 @@ describe('OverlayDecisivoComponent', () => {
   it('match point repetido: "2º match point" e pulso mais rápido (classe dc--mp)', async () => {
     const { el } = await mount(view({ kind: 'mp', n: 2, side: 'B' }));
     expect(titulo(el)).toBe('Match point');
-    expect(el.querySelector('.lado--b em')?.textContent).toContain('2º match point');
+    expect(el.querySelector('.lado--b em')?.textContent).toContain('2º match point · Sets 1');
     expect(el.querySelector('.dc')?.classList.contains('dc--mp')).toBeTrue();
   });
 
-  it('tie-break: "Até 15 pontos", sets no placar e ninguém em destaque', async () => {
+  it('tie-break: "Até 15 pontos", PONTOS no placar, sets na linha de baixo e ninguém em destaque', async () => {
     const { el } = await mount(view({ kind: 'tb', side: null, limite: 15, setsA: 1, setsB: 1 }));
     expect(el.querySelector('.info')?.textContent).toContain('Até 15 pontos');
     expect(el.querySelector('.bolas')).toBeNull();
     expect(el.querySelector('.mini')?.textContent).toContain('Set decisivo');
     expect(titulo(el)).toBe('Tie-break');
     expect(el.querySelectorAll('.lado--chance').length).toBe(0);
-    expect(Array.from(el.querySelectorAll('.placar')).map((p) => p.textContent?.trim())).toEqual(['1', '1']);
+    expect(Array.from(el.querySelectorAll('.placar')).map((p) => p.textContent?.trim())).toEqual(['14', '12']);
+    expect(Array.from(el.querySelectorAll('.nomes em')).map((e) => e.textContent?.trim())).toEqual(['Sets 1', 'Sets 1']);
   });
 
   it('salvo: "Salvo" no centro branco; borda de luz e pulso das bordas param', async () => {

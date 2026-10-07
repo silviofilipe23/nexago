@@ -84,7 +84,7 @@ const SPONSOR_STEP_MS = 3000;
               @if (sponsors().length > 0) {
                 <div class="patro">
                   <span class="patro-k tl-up" style="--d: 0.85s">Oferecimento</span>
-                  <og-overlay-patro-faixa [itens]="sponsors()" [delay]="0.85" [highlight]="destaque() % sponsors().length" style="--h: 80px; --gap: 16px" />
+                  <og-overlay-patro-faixa [itens]="sponsors()" [delay]="0.85" style="--h: 100px; --gap: 18px" />
                 </div>
               }
             </footer>
@@ -157,7 +157,7 @@ const SPONSOR_STEP_MS = 3000;
       from { opacity: 0; transform: translateY(40px); filter: blur(14px); }
       to { opacity: 1; transform: none; filter: blur(0); }
     }
-    .topo { position: absolute; top: 56px; left: 80px; right: 80px; display: flex; align-items: center; gap: 28px; }
+    .topo { position: absolute; top: 56px; left: 32px; right: 32px; display: flex; align-items: center; gap: 28px; }
     .selo {
       position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 12px;
       padding: 12px 26px; border-radius: 999px; background: var(--o5); color: #0a0a0b;
@@ -176,7 +176,7 @@ const SPONSOR_STEP_MS = 3000;
     .progresso { position: absolute; left: 0; right: 0; top: 88px; height: 4px; background: rgba(255, 255, 255, 0.12); }
     .progresso i { display: block; height: 100%; background: var(--o5); transform-origin: left; transition: transform 0.5s linear; }
 
-    .centro { position: absolute; inset: 150px 80px 330px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+    .centro { position: absolute; inset: 170px 32px 153px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
     .k { color: var(--o5); font-size: 34px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; }
     .relogio { display: flex; align-items: baseline; justify-content: center; margin: 6px 0 4px; font-family: var(--nx-font-mono, 'JetBrains Mono', ui-monospace, monospace); font-weight: 800; font-size: 300px; line-height: 1; }
     .dig { display: inline-block; height: 1em; overflow: hidden; width: 0.62em; text-align: center; }
@@ -189,7 +189,7 @@ const SPONSOR_STEP_MS = 3000;
     .nome { margin: 10px 0 0; font-size: 84px; font-weight: 800; line-height: 1.05; }
     .dia { margin: 14px 0 0; font-size: 38px; font-weight: 500; color: rgba(255, 255, 255, 0.7); }
 
-    .base { position: absolute; left: 80px; right: 80px; bottom: 56px; display: flex; align-items: flex-end; justify-content: space-between; gap: 40px; }
+    .base { position: absolute; left: 32px; right: 32px; bottom: 56px; display: flex; align-items: flex-end; justify-content: space-between; gap: 40px; }
     .jogo { padding: 24px 36px; border-radius: 24px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); }
     .jogo-k, .patro-k { display: block; margin-bottom: 14px; font-size: 22px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--o5); }
     .duelo { display: flex; align-items: center; gap: 36px; }
@@ -202,9 +202,9 @@ const SPONSOR_STEP_MS = 3000;
     .vs small { font-size: 18px; color: rgba(255, 255, 255, 0.65); }
     .patro { width: 760px; min-width: 0; overflow: hidden; }
 
-    .fim { position: absolute; inset: 170px 80px 150px; display: flex; align-items: center; justify-content: space-between; gap: 60px; }
+    .fim { position: absolute; inset: 170px 32px 153px; display: flex; align-items: center; justify-content: space-between; gap: 60px; }
     .esq { flex: 1; min-width: 0; }
-    .obrigado { margin: 0; font-size: 230px; font-weight: 900; line-height: 0.9; letter-spacing: -0.04em; text-transform: uppercase; }
+    .obrigado { margin: 0; font-size: 200px; font-weight: 900; line-height: 0.9; letter-spacing: -0.04em; text-transform: uppercase; }
     .ate { margin: 18px 0 0; max-width: 760px; font-size: 104px; font-weight: 900; line-height: 0.92; letter-spacing: -0.03em; text-transform: uppercase; color: var(--o5); }
     .app { display: flex; align-items: center; gap: 24px; margin-top: 34px; }
     .app img { width: 150px; height: 150px; padding: 10px; border-radius: 16px; background: #fff; }
@@ -220,14 +220,14 @@ const SPONSOR_STEP_MS = 3000;
     .prox-k { font-size: 22px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--o5); }
     .linha { display: flex; gap: 22px; align-items: center; margin-top: 14px; }
     .data { display: flex; flex-direction: column; align-items: center; padding: 12px 20px; border-radius: 16px; background: var(--o5); color: #0a0a0b; }
-    .data b { font-size: 44px; font-weight: 800; line-height: 1; }
+    .data b { font-size: 28px; font-weight: 800; line-height: 1; }
     .data span { font-size: 22px; font-weight: 700; letter-spacing: 0.1em; }
     .info h2 { margin: 0; font-size: 38px; font-weight: 800; line-height: 1.1; }
     .info p { margin: 6px 0 0; font-size: 24px; color: rgba(255, 255, 255, 0.65); }
     .rodape-card { display: flex; justify-content: space-between; margin-top: 22px; font-size: 24px; color: rgba(255, 255, 255, 0.75); }
     .faltam { font-weight: 700; color: #fff; }
     .rodape-card b, .siga b { color: var(--o5); }
-    .siga { position: absolute; left: 80px; right: 80px; bottom: 50px; display: flex; justify-content: space-between; font-size: 30px; color: rgba(255, 255, 255, 0.7); }
+    .siga { position: absolute; left: 32px; right: 32px; bottom: 50px; display: flex; justify-content: space-between; font-size: 30px; color: rgba(255, 255, 255, 0.7); }
   `,
 })
 export class OverlayTelasComponent {

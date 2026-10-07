@@ -5,7 +5,7 @@ import { OverlayDecisivoComponent } from './overlay-decisivo.component';
 
 const view = (over: Partial<DecisivoView> = {}): DecisivoView => ({
   kind: 'sp', salvo: false, side: 'A', n: 1, limite: null, court: 'Quadra 2', category: 'Masculino B', setNumber: 3, bestOf: 3, setsA: 1, setsB: 1,
-  a: { teamId: 'ta', label: 'Hölting Nilsson / Berger', score: 14 }, b: { teamId: 'tb', label: 'Batrane / Tiisaar', score: 12 }, ...over,
+  a: { teamId: 'ta', label: 'Hölting Nilsson / Berger', score: 14, ponto: null }, b: { teamId: 'tb', label: 'Batrane / Tiisaar', score: 12, ponto: null }, ...over,
 });
 
 async function mount(v: DecisivoView | null) {
@@ -34,6 +34,18 @@ describe('OverlayDecisivoComponent', () => {
     expect(el.querySelectorAll('.lado--a .nomes span').length).toBe(2);
     expect(el.querySelector('.borda-pulso')).not.toBeNull();
     expect(el.querySelector('.gira')).not.toBeNull();
+  });
+
+  it('tênis/beach tennis: games do set no placar grande E o ponto do game ao lado', async () => {
+    const { el } = await mount(view({ kind: 'mp', a: { teamId: 'ta', label: 'A1 / A2', score: 5, ponto: '40' }, b: { teamId: 'tb', label: 'B1 / B2', score: 4, ponto: 'AD' } }));
+    expect(Array.from(el.querySelectorAll('.placar')).map((p) => p.textContent?.trim())).toEqual(['5', '4']);
+    expect(Array.from(el.querySelectorAll('.ponto b')).map((p) => p.textContent?.trim())).toEqual(['40', 'AD']);
+    expect(el.querySelector('.ponto i')?.textContent).toContain('Ponto');
+  });
+
+  it('vôlei não mostra o quadro de ponto do game', async () => {
+    const { el } = await mount(view());
+    expect(el.querySelector('.ponto')).toBeNull();
   });
 
   it('match point repetido: "2º match point" e pulso mais rápido (classe dc--mp)', async () => {

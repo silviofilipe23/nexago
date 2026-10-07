@@ -6,7 +6,7 @@ import { DEFAULT_BROADCAST_CONTROL, interviewWithDefaults } from '../data/broadc
 import { INTERVALO_PRESETS } from '../data/broadcast-intervalo';
 import type { BroadcastPrejogo } from '../data/broadcast-prejogo';
 import type { TournamentMatch } from '../data/matches-repository';
-import { FakeTransmissaoData as FakeData, torneio } from './transmissao-data.fake';
+import { FakeTransmissaoData as FakeData, PARTIDA, torneio } from './transmissao-data.fake';
 import { TransmissaoDataService } from './transmissao-data.service';
 import { TransmissaoComponent } from './transmissao.component';
 
@@ -76,6 +76,7 @@ describe('TransmissaoComponent', () => {
         'Ranking Top 10',
         'Grade do dia',
         'Intervalo',
+        'Tabela do grupo',
         'Entrevista',
         'Campeões',
         'Resumo da partida',
@@ -222,6 +223,67 @@ describe('TransmissaoComponent', () => {
       await fixture.whenStable();
       (el.querySelector('.og-tx-cfg button[aria-label="Grade do dia no ar"]') as HTMLButtonElement).click();
       expect(fake.saved).toEqual([{ grade: { on: true, categoryId: null } }]);
+    });
+  });
+
+  describe('Tabela do grupo', () => {
+    const base = DEFAULT_BROADCAST_CONTROL.grupo;
+    const partida = (categoryId: string, round: string) => ({ ...PARTIDA, id: `${categoryId}-${round}`, categoryId, round }) as unknown as TournamentMatch;
+    const comGrupos = () => {
+      const fake = new FakeData();
+      fake.tournament.set(torneio(['groups', 'groups', 'single_elimination']));
+      fake.matches.set([partida('cat1', 'Grupo A'), partida('cat1', 'Grupo B'), partida('cat2', 'Grupo C'), partida('cat3', 'Rodada 1')]);
+      return fake;
+    };
+
+    it('resumo: desligado, um grupo e todos os grupos', async () => {
+      const fake = comGrupos();
+      const { el, fixture } = await mount(fake);
+      expect(linha(el, 'Tabela do grupo').textContent).toContain('Desligado');
+      fake.control.set({ ...fake.control(), grupo: { on: true, categoryId: 'cat1', mode: 'um', group: 'B' } });
+      await fixture.whenStable();
+      expect(linha(el, 'Tabela do grupo').textContent).toContain('Grupo B · Feminina B');
+      fake.control.set({ ...fake.control(), grupo: { on: true, categoryId: null, mode: 'todos', group: null } });
+      await fixture.whenStable();
+      expect(linha(el, 'Tabela do grupo').textContent).toContain('Todos os grupos · Feminina B');
+    });
+
+    it('switch da lista e "No ar" do cabeçalho gravam o objeto completo', async () => {
+      const { el, fixture, fake } = await mount(comGrupos());
+      switchDe(el, 'Tabela do grupo').click();
+      expect(fake.saved).toEqual([{ grupo: { ...base, on: true } }]);
+      selecionar(el, 'Tabela do grupo');
+      await fixture.whenStable();
+      (el.querySelector('.og-tx-cfg button[aria-label="Tabela do grupo no ar"]') as HTMLButtonElement).click();
+      expect(fake.saved.at(-1)).toEqual({ grupo: { ...base, on: true } });
+      expect(el.querySelector('og-tx-grupo button[aria-label="Tabela do grupo no ar"]')).toBeNull();
+    });
+
+    it('chips: só categorias com grupos; categoria, modo e grupo gravam o objeto completo', async () => {
+      const { el, fixture, fake } = await mount(comGrupos());
+      selecionar(el, 'Tabela do grupo');
+      await fixture.whenStable();
+      const categorias = [...el.querySelectorAll('[aria-label="Categoria da tabela"] button')].map((b) => b.textContent?.trim());
+      expect(categorias).toEqual(['Automática', 'Feminina B', 'C1']);
+      botao(el, 'C1', 'Categoria da tabela').click();
+      expect(fake.saved.at(-1)).toEqual({ grupo: { ...base, categoryId: 'cat2' } });
+      botao(el, 'Todos os grupos', 'Modo da tabela').click();
+      expect(fake.saved.at(-1)).toEqual({ grupo: { ...base, mode: 'todos' } });
+      const letras = [...el.querySelectorAll('[aria-label="Grupo da tabela"] button')].map((b) => b.textContent?.trim());
+      expect(letras).toEqual(['Primeiro', 'A', 'B']);
+      botao(el, 'B', 'Grupo da tabela').click();
+      expect(fake.saved.at(-1)).toEqual({ grupo: { ...base, group: 'B' } });
+    });
+
+    it('sem categoria com grupos, avisa', async () => {
+      const { el } = await mount();
+      expect(el.querySelector('og-tx-grupo')?.textContent).toContain('Nenhuma categoria deste torneio tem fase de grupos');
+    });
+
+    it('atalho numérico liga a tabela', async () => {
+      const { fake } = await mount(comGrupos());
+      tecla('7');
+      expect(fake.saved).toEqual([{ grupo: { ...base, on: true } }]);
     });
   });
 
@@ -513,6 +575,7 @@ describe('TransmissaoComponent', () => {
         multi: { on: true, mode: 'strip', focusCourtId: null },
         grade: { on: true, categoryId: 'cat1' },
         intervalo: { ...DEFAULT_BROADCAST_CONTROL.intervalo, on: true },
+        grupo: { on: true, categoryId: 'cat1', mode: 'todos', group: 'A' },
         prejogo,
         summaryOn: true,
         interview: interviewWithDefaults({ name: 'Ana Souza', photoUrl: null, partnerName: null, categoryName: null, durationSec: null, shownAt: Date.now() }),
@@ -526,6 +589,7 @@ describe('TransmissaoComponent', () => {
       expect(patch.multi).toEqual({ on: false, mode: 'strip', focusCourtId: null });
       expect(patch.grade).toEqual({ on: false, categoryId: 'cat1' });
       expect(patch.intervalo).toEqual({ ...DEFAULT_BROADCAST_CONTROL.intervalo, on: false });
+      expect(patch.grupo).toEqual({ on: false, categoryId: 'cat1', mode: 'todos', group: 'A' });
       expect(patch.prejogo).toEqual({ on: false, card: CARD } as never);
       expect(patch.summaryOn).toBeFalse();
       expect(fake.aired).toEqual([{ interview: null, queue: null }]);

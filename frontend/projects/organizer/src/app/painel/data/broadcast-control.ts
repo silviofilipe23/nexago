@@ -1,3 +1,4 @@
+import { DEFAULT_BROADCAST_GRUPO, grupoFromRaw, type BroadcastGrupo } from './broadcast-grupo';
 import { DEFAULT_BROADCAST_INTERVALO, intervaloFromRaw, type BroadcastIntervalo } from './broadcast-intervalo';
 import { DEFAULT_BROADCAST_GRADE, gradeFromRaw, type BroadcastGrade } from './broadcast-grade';
 import { DEFAULT_BROADCAST_MULTI, multiFromRaw, type BroadcastMulti } from './broadcast-multi';
@@ -177,6 +178,8 @@ export interface BroadcastControl {
   grade: BroadcastGrade;
   /** Tela de Intervalo: no ar, modo, textos e contagem. */
   intervalo: BroadcastIntervalo;
+  /** Tela Tabela do grupo: no ar, categoria, modo e grupo. */
+  grupo: BroadcastGrupo;
   interview: BroadcastInterview | null;
   commands: BroadcastCommands;
 }
@@ -201,6 +204,7 @@ export const DEFAULT_BROADCAST_CONTROL: BroadcastControl = {
   multi: DEFAULT_BROADCAST_MULTI,
   grade: DEFAULT_BROADCAST_GRADE,
   intervalo: DEFAULT_BROADCAST_INTERVALO,
+  grupo: DEFAULT_BROADCAST_GRUPO,
   interview: null,
   commands: { donationNowAt: 0, sponsorsNowAt: 0 },
 };
@@ -327,6 +331,7 @@ export function broadcastControlFromRaw(raw: unknown): BroadcastControl {
     multi: multiFromRaw(d['multi']),
     grade: gradeFromRaw(d['grade']),
     intervalo: intervaloFromRaw(d['intervalo']),
+    grupo: grupoFromRaw(d['grupo']),
     interview: interviewFromRaw(d['interview']),
     commands: { donationNowAt: stamp(c['donationNowAt']), sponsorsNowAt: stamp(c['sponsorsNowAt']) },
   };

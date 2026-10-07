@@ -3,12 +3,13 @@ import { INTERVALO_BADGE } from '../data/broadcast-intervalo';
 import type { InterviewQueue } from '../data/interview-queue';
 import type { TournamentMatch } from '../data/matches-repository';
 import type { OrganizerTournament } from '../data/tournament.model';
+import { categoriasComGrupos, gruposDaCategoria } from './transmissao-grupo';
 import { BROADCAST_GRAPHICS, tournamentHasKoc } from './broadcast-graphics';
 
 /** Cada linha da lista "Gráficos" do painel de Transmissão. As chaves de `BroadcastGraphicId`
  *  valem como são; o resto (Multi, Pré-jogo, Ranking, Grade, Entrevista, Resumo) é controle
  *  próprio, fora de `control.graphics`. */
-export type TxItemKey = BroadcastGraphicId | 'multi' | 'prejogo' | 'ranking' | 'grade' | 'intervalo' | 'interview' | 'summary';
+export type TxItemKey = BroadcastGraphicId | 'multi' | 'prejogo' | 'ranking' | 'grade' | 'intervalo' | 'grupo' | 'interview' | 'summary';
 
 export interface TxItem {
   key: TxItemKey;
@@ -60,6 +61,15 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
   });
   const courtName = (id: string | null) => (id ? ((t?.courts ?? []).find((q) => q.id === id)?.name ?? 'Nenhuma') : 'Nenhuma');
   const categoryName = (id: string | null) => (id ? ((t?.categories ?? []).find((k) => k.id === id)?.name ?? 'Todas') : 'Todas');
+  const grupoResumo = (): string => {
+    if (!c.grupo.on) return 'Desligado';
+    const comGrupos = categoriasComGrupos(x.matches, t?.categories ?? []);
+    const categoria = comGrupos.find((k) => k.id === c.grupo.categoryId) ?? comGrupos[0];
+    const nome = categoria?.name ?? 'Sem categoria';
+    if (c.grupo.mode === 'todos') return `Todos os grupos · ${nome}`;
+    const letra = c.grupo.group ?? (categoria ? gruposDaCategoria(x.matches, categoria.id)[0] : undefined);
+    return `${letra ? `Grupo ${letra}` : 'Primeiro grupo'} · ${nome}`;
+  };
   const semPatrocinador = (t?.sponsors ?? []).length === 0;
 
   const prejogoCard = c.prejogo.card;
@@ -124,6 +134,15 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
           resumo: c.intervalo.on
             ? `${INTERVALO_BADGE[c.intervalo.mode]} · ${c.intervalo.durationSec > 0 ? intervaloClock(c.intervalo.durationSec) : 'sem contagem'}`
             : 'Desligado',
+          agora: false,
+        },
+        {
+          key: 'grupo',
+          nome: 'Tabela do grupo',
+          on: c.grupo.on,
+          locked: false,
+          warn: false,
+          resumo: grupoResumo(),
           agora: false,
         },
       ],

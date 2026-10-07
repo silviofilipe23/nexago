@@ -224,9 +224,9 @@ const FLASH_MS = 700;
 
     .head {
       position: absolute;
-      left: 64px;
-      right: 64px;
-      top: 22px;
+      left: 32px;
+      right: 32px;
+      top: 32px;
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
@@ -296,8 +296,8 @@ const FLASH_MS = 700;
 
     .grade {
       position: absolute;
-      left: 64px;
-      right: 64px;
+      left: 32px;
+      right: 32px;
       top: 160px;
       bottom: 150px;
       display: grid;
@@ -539,8 +539,8 @@ const FLASH_MS = 700;
 
     .patro {
       position: absolute;
-      left: 64px;
-      right: 64px;
+      left: 32px;
+      right: 32px;
       bottom: 16px;
       display: flex;
       align-items: center;

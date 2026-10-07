@@ -1,7 +1,9 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { FieldValue, serverTimestamp } from 'firebase/firestore';
 import { DEFAULT_BROADCAST_CONTROL, interviewWithDefaults } from '../data/broadcast-control';
+import { INTERVALO_PRESETS } from '../data/broadcast-intervalo';
 import type { BroadcastPrejogo } from '../data/broadcast-prejogo';
 import type { TournamentMatch } from '../data/matches-repository';
 import { FakeTransmissaoData as FakeData, torneio } from './transmissao-data.fake';
@@ -73,6 +75,7 @@ describe('TransmissaoComponent', () => {
         'Pré-jogo',
         'Ranking Top 10',
         'Grade do dia',
+        'Intervalo',
         'Entrevista',
         'Campeões',
         'Resumo da partida',
@@ -89,6 +92,18 @@ describe('TransmissaoComponent', () => {
       expect(linha(el, 'Multi-quadras').textContent).toContain('Tela cheia · destaque: Nenhuma');
       expect(linha(el, 'Campeões').textContent).toContain('Pódio quando a final termina');
       expect(linha(el, 'Entrevista').textContent).toContain('Fila · 0');
+    });
+
+    it('Intervalo: "Desligado" fora do ar; modo e duração quando no ar', async () => {
+      const fake = new FakeData();
+      const { el, fixture } = await mount(fake);
+      expect(linha(el, 'Intervalo').textContent).toContain('Desligado');
+      fake.control.set({ ...fake.control(), intervalo: { ...fake.control().intervalo, on: true } });
+      await fixture.whenStable();
+      expect(linha(el, 'Intervalo').textContent).toContain('Intervalo · 5:00');
+      fake.control.set({ ...fake.control(), intervalo: { ...fake.control().intervalo, mode: 'pausa', durationSec: 0 } });
+      await fixture.whenStable();
+      expect(linha(el, 'Intervalo').textContent).toContain('Pausa · sem contagem');
     });
 
     it('sem categoria KOTC, o grupo King of the Court não aparece', async () => {
@@ -207,6 +222,72 @@ describe('TransmissaoComponent', () => {
       await fixture.whenStable();
       (el.querySelector('.og-tx-cfg button[aria-label="Grade do dia no ar"]') as HTMLButtonElement).click();
       expect(fake.saved).toEqual([{ grade: { on: true, categoryId: null } }]);
+    });
+  });
+
+  describe('Intervalo', () => {
+    const base = DEFAULT_BROADCAST_CONTROL.intervalo;
+
+    it('o switch da lista e o "No ar" do cabeçalho gravam o objeto completo', async () => {
+      const { el, fixture, fake } = await mount();
+      switchDe(el, 'Intervalo').click();
+      expect(fake.saved).toEqual([{ intervalo: { ...base, on: true } }]);
+      selecionar(el, 'Intervalo');
+      await fixture.whenStable();
+      (el.querySelector('.og-tx-cfg button[aria-label="Intervalo no ar"]') as HTMLButtonElement).click();
+      expect(fake.saved.at(-1)).toEqual({ intervalo: { ...base, on: true } });
+    });
+
+    it('trocar o modo aplica o preset e mantém o resto', async () => {
+      const { el, fixture, fake } = await mount();
+      selecionar(el, 'Intervalo');
+      await fixture.whenStable();
+      botao(el, 'Pausa', 'Modo do intervalo').click();
+      expect(fake.saved).toEqual([
+        { intervalo: { ...base, mode: 'pausa', line1: 'Pausa para', line2: 'o almoço', subtitle: INTERVALO_PRESETS.pausa.subtitle, durationSec: 300 } },
+      ]);
+    });
+
+    it('texto grava ao sair do campo, não a cada tecla', async () => {
+      const { el, fixture, fake } = await mount();
+      const campo = el.querySelector('#og-iv-line1') as HTMLInputElement;
+      campo.value = 'Voltamos em';
+      campo.dispatchEvent(new Event('input'));
+      expect(fake.saved).toEqual([]);
+      campo.dispatchEvent(new Event('blur'));
+      await fixture.whenStable();
+      expect(fake.saved).toEqual([{ intervalo: { ...base, line1: 'Voltamos em' } }]);
+    });
+
+    it('duração em chips', async () => {
+      const { el, fake } = await mount();
+      botao(el, '10 min', 'Duração da contagem').click();
+      expect(fake.saved).toEqual([{ intervalo: { ...base, durationSec: 600 } }]);
+    });
+
+    it('iniciar contagem grava o carimbo do servidor; parar grava null', async () => {
+      const { el, fixture, fake } = await mount();
+      botao(el, 'Iniciar contagem').click();
+      const patch = fake.saved[0].intervalo!;
+      expect(patch.startedAt instanceof FieldValue).toBeTrue();
+      expect((patch.startedAt as FieldValue).isEqual(serverTimestamp())).toBeTrue();
+      expect({ ...patch, startedAt: null } as unknown).toEqual(base);
+
+      const inicio = new Date(Date.now() - 60_000);
+      fake.control.set({ ...fake.control(), intervalo: { ...base, startedAt: inicio } });
+      await fixture.whenStable();
+      expect(botao(el, 'Reiniciar')).toBeTruthy();
+      botao(el, 'Parar contagem').click();
+      expect(fake.saved.at(-1)).toEqual({ intervalo: { ...base, startedAt: null } });
+    });
+
+    it('editar com a contagem rolando regrava o mesmo início', async () => {
+      const fake = new FakeData();
+      const inicio = new Date(Date.now() - 60_000);
+      fake.control.set({ ...fake.control(), intervalo: { ...base, startedAt: inicio } });
+      const { el } = await mount(fake);
+      botao(el, '15 min', 'Duração da contagem').click();
+      expect(fake.saved).toEqual([{ intervalo: { ...base, durationSec: 900, startedAt: inicio } }]);
     });
   });
 
@@ -431,6 +512,7 @@ describe('TransmissaoComponent', () => {
         ...fake.control(),
         multi: { on: true, mode: 'strip', focusCourtId: null },
         grade: { on: true, categoryId: 'cat1' },
+        intervalo: { ...DEFAULT_BROADCAST_CONTROL.intervalo, on: true },
         prejogo,
         summaryOn: true,
         interview: interviewWithDefaults({ name: 'Ana Souza', photoUrl: null, partnerName: null, categoryName: null, durationSec: null, shownAt: Date.now() }),
@@ -443,6 +525,7 @@ describe('TransmissaoComponent', () => {
       expect(patch.graphics).toEqual({ champions: false, sponsors: false, donation: false });
       expect(patch.multi).toEqual({ on: false, mode: 'strip', focusCourtId: null });
       expect(patch.grade).toEqual({ on: false, categoryId: 'cat1' });
+      expect(patch.intervalo).toEqual({ ...DEFAULT_BROADCAST_CONTROL.intervalo, on: false });
       expect(patch.prejogo).toEqual({ on: false, card: CARD } as never);
       expect(patch.summaryOn).toBeFalse();
       expect(fake.aired).toEqual([{ interview: null, queue: null }]);

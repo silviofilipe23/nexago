@@ -1,4 +1,5 @@
 import type { BroadcastControl, BroadcastGraphicId, BroadcastInterview } from '../data/broadcast-control';
+import { INTERVALO_BADGE } from '../data/broadcast-intervalo';
 import type { InterviewQueue } from '../data/interview-queue';
 import type { TournamentMatch } from '../data/matches-repository';
 import type { OrganizerTournament } from '../data/tournament.model';
@@ -7,7 +8,7 @@ import { BROADCAST_GRAPHICS, tournamentHasKoc } from './broadcast-graphics';
 /** Cada linha da lista "Gráficos" do painel de Transmissão. As chaves de `BroadcastGraphicId`
  *  valem como são; o resto (Multi, Pré-jogo, Ranking, Grade, Entrevista, Resumo) é controle
  *  próprio, fora de `control.graphics`. */
-export type TxItemKey = BroadcastGraphicId | 'multi' | 'prejogo' | 'ranking' | 'grade' | 'interview' | 'summary';
+export type TxItemKey = BroadcastGraphicId | 'multi' | 'prejogo' | 'ranking' | 'grade' | 'intervalo' | 'interview' | 'summary';
 
 export interface TxItem {
   key: TxItemKey;
@@ -38,6 +39,11 @@ export interface TxInput {
 
 const KOC_ITEMS = BROADCAST_GRAPHICS.filter((g) => g.grupo === 'koc');
 const GRAPHIC = (id: BroadcastGraphicId) => BROADCAST_GRAPHICS.find((g) => g.id === id)!;
+
+/** Duração da contagem como "5:00". */
+function intervaloClock(sec: number): string {
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+}
 
 /** Grupos da lista, na ordem da tela. O King of the Court só entra em torneio que o usa. */
 export function txGroupsOf(x: TxInput): TxGroup[] {
@@ -107,6 +113,17 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
           locked: false,
           warn: false,
           resumo: c.grade.categoryId ? `Destaque: ${categoryName(c.grade.categoryId)}` : 'Programação das quadras · todas as categorias',
+          agora: false,
+        },
+        {
+          key: 'intervalo',
+          nome: 'Intervalo',
+          on: c.intervalo.on,
+          locked: false,
+          warn: false,
+          resumo: c.intervalo.on
+            ? `${INTERVALO_BADGE[c.intervalo.mode]} · ${c.intervalo.durationSec > 0 ? intervaloClock(c.intervalo.durationSec) : 'sem contagem'}`
+            : 'Desligado',
           agora: false,
         },
       ],

@@ -14,6 +14,7 @@ import { TransmissaoDataService } from './transmissao-data.service';
 import { TransmissaoEntrevistaComponent } from './transmissao-entrevista.component';
 import { TransmissaoGradeComponent } from './transmissao-grade.component';
 import { txGroupsOf, txItemsOf, type TxItem, type TxItemKey } from './transmissao-itens';
+import { TransmissaoIntervaloComponent } from './transmissao-intervalo.component';
 import { TransmissaoMultiComponent } from './transmissao-multi.component';
 import { TransmissaoPrejogoComponent } from './transmissao-prejogo.component';
 import { TransmissaoRankingComponent } from './transmissao-ranking.component';
@@ -42,6 +43,7 @@ const PREVIEW_SPOT: Record<TxItemKey, { label: string; spot: string }> = {
   summary: { label: 'Resumo', spot: 'c' },
   ranking: { label: 'Ranking Top 10', spot: 'full' },
   grade: { label: 'Grade do dia', spot: 'full' },
+  intervalo: { label: 'INTERVALO', spot: 'full' },
   multi: { label: 'Multi-quadras', spot: 'full' },
   kocBar: { label: 'Faixa da rodada', spot: 'strip' },
   kocPreRound: { label: 'Próximos em quadra', spot: 'c' },
@@ -61,7 +63,7 @@ function typingTarget(t: EventTarget | null): boolean {
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [TransmissaoDataService],
   host: { '(document:keydown)': 'onKey($event)' },
-  imports: [TransmissaoEntrevistaComponent, TransmissaoPrejogoComponent, TransmissaoRankingComponent, TransmissaoMultiComponent, TransmissaoGradeComponent, RouterLink],
+  imports: [TransmissaoEntrevistaComponent, TransmissaoPrejogoComponent, TransmissaoRankingComponent, TransmissaoMultiComponent, TransmissaoGradeComponent, TransmissaoIntervaloComponent, RouterLink],
   template: `
     <div class="og-tx-page">
       <header class="og-tx-bar">
@@ -182,6 +184,7 @@ function typingTarget(t: EventTarget | null): boolean {
             <og-tx-ranking [bare]="true" [hidden]="selectedKey() !== 'ranking'" />
             <og-tx-multi [bare]="true" [hidden]="selectedKey() !== 'multi'" />
             <og-tx-grade [bare]="true" [hidden]="selectedKey() !== 'grade'" />
+            <og-tx-intervalo [bare]="true" [hidden]="selectedKey() !== 'intervalo'" />
 
             @switch (selectedKey()) {
               @case ('scoreboard') {
@@ -869,6 +872,9 @@ export class TransmissaoComponent {
       case 'grade':
         void this.svc.save({ grade: { ...c.grade, on: !c.grade.on } });
         break;
+      case 'intervalo':
+        void this.svc.save({ intervalo: { ...c.intervalo, on: !c.intervalo.on } });
+        break;
       case 'interview':
         // A tarja só sobe pelo card de Entrevista (precisa de entrevistado): aqui só se tira.
         if (this.onAir()) void this.svc.saveAir(null, null);
@@ -897,6 +903,7 @@ export class TransmissaoComponent {
       prejogo: { ...c.prejogo, on: false },
       ranking: { ...c.ranking, on: false },
       grade: { ...c.grade, on: false },
+      intervalo: { ...c.intervalo, on: false },
       summaryOn: false,
     };
     void this.svc.save(patch);

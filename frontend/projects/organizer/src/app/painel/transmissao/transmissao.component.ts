@@ -16,7 +16,7 @@ import { TransmissaoEntrevistaComponent } from './transmissao-entrevista.compone
 import { TransmissaoGradeComponent } from './transmissao-grade.component';
 import { TransmissaoChaveComponent } from './transmissao-chave.component';
 import { TransmissaoGrupoComponent } from './transmissao-grupo.component';
-import { txGroupsOf, txItemsOf, type TxItem, type TxItemKey } from './transmissao-itens';
+import { txAtalhoOf, txGroupsOf, txIndexOfAtalho, txItemsOf, type TxItem, type TxItemKey } from './transmissao-itens';
 import { TransmissaoIntervaloComponent } from './transmissao-intervalo.component';
 import { TransmissaoMultiComponent } from './transmissao-multi.component';
 import { TransmissaoPrejogoComponent } from './transmissao-prejogo.component';
@@ -133,8 +133,8 @@ function typingTarget(t: EventTarget | null): boolean {
                   <button type="button" class="og-tx-row-main" [attr.aria-current]="item.key === selectedKey()" (click)="select(item.key)">
                     <span class="og-tx-row-nome">
                       {{ item.nome }}
-                      @if (numero(item.key); as n) {
-                        <kbd>{{ n }}</kbd>
+                      @if (atalho(item.key); as k) {
+                        <kbd>{{ k }}</kbd>
                       }
                     </span>
                     <span class="og-tx-row-resumo" [class.warn]="item.warn">{{ item.resumo }}</span>
@@ -311,7 +311,7 @@ function typingTarget(t: EventTarget | null): boolean {
               }
             </div>
             <ul class="og-tx-atalhos" aria-label="Atalhos">
-              <li><kbd>1–9</kbd> Liga/desliga o gráfico da lista</li>
+              <li><kbd>1–9</kbd> <kbd>A–Z</kbd> Liga/desliga o gráfico da lista (letras a partir do 10º)</li>
               <li><kbd>↑ ↓</kbd> Navega entre gráficos</li>
               <li><kbd>Esc</kbd> Tira tudo do ar, menos o placar</li>
             </ul>
@@ -842,10 +842,10 @@ export class TransmissaoComponent {
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
   }
 
-  /** Atalho 1–9 mostrado na linha. */
-  protected numero(key: TxItemKey): number | null {
-    const n = this.items().findIndex((i) => i.key === key) + 1;
-    return n >= 1 && n <= 9 ? n : null;
+  /** Atalho mostrado na linha: 1–9 e, passando do 9º item, A, B, C… */
+  protected atalho(key: TxItemKey): string | null {
+    const i = this.items().findIndex((x) => x.key === key);
+    return i < 0 ? null : txAtalhoOf(i);
   }
 
   protected agoraDisabled(item: TxItem): boolean {
@@ -942,8 +942,8 @@ export class TransmissaoComponent {
       const i = items.findIndex((x) => x.key === this.selectedKey());
       const next = items[Math.min(items.length - 1, Math.max(0, i + (e.key === 'ArrowDown' ? 1 : -1)))];
       if (next) this.select(next.key);
-    } else if (/^[1-9]$/.test(e.key)) {
-      const item = items[Number(e.key) - 1];
+    } else if (txIndexOfAtalho(e.key) != null) {
+      const item = items[txIndexOfAtalho(e.key)!];
       if (!item || item.locked) return;
       this.toggleItem(item.key);
     } else {

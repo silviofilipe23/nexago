@@ -69,7 +69,11 @@ describe('TransmissaoComponent', () => {
       const { el } = await mount();
       const grupos = [...el.querySelectorAll('.og-tx-lista .og-tx-grupo')].map((g) => g.textContent?.trim());
       expect(grupos).toEqual(['Partida', 'Apresentação', 'Entrevista', 'Encerramento', 'Patrocínio']);
-      const nomes = [...el.querySelectorAll('.og-tx-lista .og-tx-row-nome')].map((n) => n.textContent?.replace(/\d$/, '').trim());
+      const nomes = [...el.querySelectorAll('.og-tx-lista .og-tx-row-nome')].map((n) => {
+        const c = n.cloneNode(true) as HTMLElement;
+        c.querySelector('kbd')?.remove(); // tira a etiqueta do atalho (1–9, A, B…)
+        return c.textContent?.trim();
+      });
       expect(nomes).toEqual([
         'Placar',
         'Multi-quadras',
@@ -697,6 +701,8 @@ describe('TransmissaoComponent', () => {
     it('lista os atalhos', async () => {
       const { el } = await mount();
       const t = el.querySelector('.og-tx-atalhos')!.textContent!;
+      expect(t).toContain('1–9');
+      expect(t).toContain('A–Z');
       expect(t).toContain('Liga/desliga o gráfico da lista');
       expect(t).toContain('Navega entre gráficos');
       expect(t).toContain('Tira tudo do ar, menos o placar');
@@ -704,6 +710,23 @@ describe('TransmissaoComponent', () => {
   });
 
   describe('atalhos de teclado', () => {
+    it('os itens depois do 9º ganham letras (A, B, C…), mostradas na lista', async () => {
+      const { el } = await mount();
+      const badges = Array.from(el.querySelectorAll('.og-tx-row-nome kbd')).map((k) => k.textContent?.trim());
+      expect(badges.slice(0, 9)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
+      expect(badges.slice(9, 14)).toEqual(['A', 'B', 'C', 'D', 'E']);
+    });
+
+    it('uma letra liga/desliga o item correspondente, maiúscula ou minúscula', async () => {
+      const { fake } = await mount();
+      tecla('b'); // 11º: Campeões
+      expect(fake.saved.at(-1)).toEqual({ graphics: { champions: false } });
+      tecla('D'); // 13º: Patrocinadores
+      expect(fake.saved.at(-1)).toEqual({ graphics: { sponsors: false } });
+      tecla('z'); // além da lista: nada
+      expect(fake.saved.length).toBe(2);
+    });
+
     it('um dígito liga/desliga o N-ésimo item da lista', async () => {
       const { fake, fixture } = await mount();
       tecla('1');

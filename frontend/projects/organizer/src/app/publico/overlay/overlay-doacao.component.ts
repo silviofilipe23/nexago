@@ -51,8 +51,8 @@ import type { OverlayDoacaoConfig } from './overlay-nx';
   styles: `
     :host {
       position: fixed;
-      top: 74px;
-      right: 80px;
+      top: 32px;
+      right: 32px;
       z-index: 20;
       display: block;
       pointer-events: none;
@@ -129,9 +129,9 @@ import type { OverlayDoacaoConfig } from './overlay-nx';
 
     .qr-wrap {
       flex: none;
-      width: 112px;
-      height: 112px;
-      padding: 8px;
+      width: 180px;
+      height: 180px;
+      // padding: 8px;
       border-radius: 12px;
       background: #fff;
       animation: doacao-qr 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 0.25s both;
@@ -150,6 +150,7 @@ import type { OverlayDoacaoConfig } from './overlay-nx';
       display: block;
       width: 100%;
       height: 100%;
+      border-radius: 12px;
       object-fit: contain;
     }
     .qr--empty {

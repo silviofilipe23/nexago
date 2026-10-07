@@ -268,8 +268,8 @@ import type { OverlayPatroItem } from './overlay-nx';
     /* ── 2. Terço inferior: pauta, card, repórter ──────────────── */
     .terco {
       position: absolute;
-      left: 80px;
-      bottom: 74px;
+      left: 32px;
+      bottom: 32px;
       display: flex;
       flex-direction: column;
       align-items: flex-start;
@@ -353,7 +353,7 @@ import type { OverlayPatroItem } from './overlay-nx';
     /* ── 3. Campanha ───────────────────────────────────────────── */
     .campanha {
       position: absolute;
-      right: 80px;
+      right: 32px;
       /* Acima da marca d'água (74 + 72 de logo), com o mesmo respiro do card de patrocínio. */
       bottom: 166px;
       --from-x: 60px;
@@ -362,8 +362,8 @@ import type { OverlayPatroItem } from './overlay-nx';
     /* ── 4. Marca d'água + oferecimento ─────────────────────────── */
     .marca {
       position: absolute;
-      right: 80px;
-      bottom: 74px;
+      right: 32px;
+      bottom: 32px;
       display: flex;
       align-items: center;
       gap: 16px;

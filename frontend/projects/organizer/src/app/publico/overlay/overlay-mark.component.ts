@@ -31,12 +31,12 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.55));
     }
     :host([data-pos='br']) {
-      right: 80px;
-      bottom: 74px;
+      right: 32px;
+      bottom: 32px;
     }
     :host([data-pos='tr']) {
-      right: 80px;
-      top: 74px;
+      right: 32px;
+      top: 32px;
     }
     /* Modo de fluxo: entra no layout do cabeçalho em vez de flutuar. Vem DEPOIS das regras de
        canto de propósito: escrito antes, o position fixed delas continuaria valendo. */

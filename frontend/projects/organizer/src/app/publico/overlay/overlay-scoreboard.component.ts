@@ -181,8 +181,8 @@ type ServeKey = `${Side}${1 | 2}`;
 
     .board {
       position: absolute;
-      left: 80px;
-      bottom: 74px;
+      left: 32px;
+      bottom: 32px;
       width: max-content;
       max-width: calc(100% - 160px);
     }
@@ -233,7 +233,7 @@ type ServeKey = `${Side}${1 | 2}`;
       background: rgba(11, 11, 12, 0.86);
       overflow: hidden;
       font-family: var(--nx-font-mono, 'JetBrains Mono', ui-monospace, monospace);
-      font-size: 13px;
+      font-size: 10px;
       font-weight: 700;
       letter-spacing: 0.16em;
       text-transform: uppercase;
@@ -503,7 +503,7 @@ type ServeKey = `${Side}${1 | 2}`;
       display: grid;
       grid-template-rows: 1fr 1fr;
       align-content: center;
-      gap: 6px;
+      // gap: 6px;
       min-width: 0;
       padding: 0 26px 0 22px;
       background: linear-gradient(180deg, #17171a, #0d0d0f);
@@ -566,7 +566,7 @@ type ServeKey = `${Side}${1 | 2}`;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      line-height: 1.1;
+      line-height: 1.2;
       color: #fff;
     }
     .name--dim {

@@ -50,9 +50,9 @@ import type { OverlayPatroItem } from './overlay-nx';
   styles: `
     :host {
       position: fixed;
-      right: 80px;
+      right: 32px;
       /* Acima da marca nexaGO (bottom 74 + 72 de logo), com respiro. */
-      bottom: 166px;
+      bottom: 32px;
       z-index: 20;
       display: block;
       pointer-events: none;

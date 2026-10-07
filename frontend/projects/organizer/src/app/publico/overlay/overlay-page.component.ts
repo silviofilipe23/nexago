@@ -15,6 +15,8 @@ import { kocStandingsBoardOf } from './overlay-koc-standings';
 import { OverlayKocStandingsComponent } from './overlay-koc-standings.component';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
 import { OverlayPrejogoComponent } from './overlay-prejogo.component';
+import { OverlayIntervaloComponent } from './overlay-intervalo.component';
+import { intervaloViewOf } from './overlay-intervalo';
 import { OverlayGradeComponent } from './overlay-grade.component';
 import { gradeViewOf } from './overlay-grade';
 import { OverlayMultiComponent } from './overlay-multi.component';
@@ -99,6 +101,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
     OverlayRankingComponent,
     OverlayMultiComponent,
     OverlayGradeComponent,
+    OverlayIntervaloComponent,
   ],
   providers: [OverlayLiveGateway],
   host: {
@@ -125,7 +128,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
             [isFinal]="duelFinalMode()"
             [tecnicoSide]="tecnico()?.side ?? null"
             [encolhido]="medico() != null"
-            [class.fora]="resumo() != null || tecnico() != null || prejogo() != null || multiNoAr() || gradeNoAr()"
+            [class.fora]="resumo() != null || tecnico() != null || prejogo() != null || multiNoAr() || gradeNoAr() || intervaloNoAr()"
           />
         }
         @if (telaDoResultado(); as board) {
@@ -171,6 +174,14 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
         <og-overlay-tecnico [view]="tecnico()" [teams]="gateway.teams()" [sponsors]="patroItens()" />
 
         <og-overlay-prejogo [card]="prejogo()" [sponsors]="patroItens()" />
+        <!-- Sempre montado: a cortina de saída precisa do host vivo. -->
+        <og-overlay-intervalo
+          [config]="intervaloCfg()"
+          [view]="intervaloView()"
+          [teams]="gateway.teams()"
+          [eventName]="gateway.tournament()?.name ?? ''"
+          [sponsors]="patroItens()"
+        />
         <og-overlay-grade
           [view]="gradeView()"
           [categories]="gateway.tournament()?.categories ?? []"
@@ -311,7 +322,7 @@ export class OverlayPageComponent {
   /** Doação e patrocínio só entram com o controle já resolvido e sem tarja — a tarja toma a
    *  tela, inclusive para um "Mostrar agora". */
   protected readonly cardsNoAr = computed(
-    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null && this.prejogo() == null && this.ranking() == null && !this.multiNoAr() && !this.gradeNoAr(),
+    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null && this.prejogo() == null && this.ranking() == null && !this.multiNoAr() && !this.gradeNoAr() && !this.intervaloNoAr(),
   );
 
   /** O que vai ao ar: regra automática de cada tela E chave do painel; tarja toma a tela.
@@ -638,6 +649,23 @@ export class OverlayPageComponent {
   protected readonly multiNoAr = computed(
     () => this.gateway.controlReady() && this.controle().multi.on && !this.interviewOnAir(),
   );
+  /** Intervalo no ar: textos e contagem do painel; "A seguir" e resultados das partidas públicas. */
+  protected readonly intervaloCfg = computed(() => {
+    const i = this.controle().intervalo;
+    return this.gateway.controlReady() && i.on && !this.interviewOnAir() ? i : null;
+  });
+  protected readonly intervaloNoAr = computed(() => this.intervaloCfg() != null);
+  protected readonly intervaloView = computed(() => {
+    if (!this.intervaloNoAr()) return null;
+    const t = this.gateway.tournament();
+    return intervaloViewOf(
+      this.gateway.tournamentMatches(),
+      t?.courts ?? [],
+      (id) => t?.categories.find((c) => c.id === id)?.name ?? null,
+      this.tick(),
+    );
+  });
+
   /** Grade do dia no ar: programação lida das partidas do torneio (públicas). */
   protected readonly gradeNoAr = computed(
     () => this.gateway.controlReady() && this.controle().grade.on && !this.interviewOnAir(),
@@ -783,12 +811,14 @@ export class OverlayPageComponent {
     // elencos das partidas mostradas.
     effect((onCleanup) => {
       const torneio = this.torneioDoControle();
-      if (!(this.multiNoAr() || this.gradeNoAr()) || !torneio) return;
+      if (!(this.multiNoAr() || this.gradeNoAr() || this.intervaloNoAr()) || !torneio) return;
       onCleanup(this.gateway.watchTournamentMatches(torneio));
     });
     effect(() => {
       const gradeIds = (this.gradeView()?.rows ?? []).flatMap((r) => r.cells.flat().flatMap((c) => [c.a.teamId, c.b.teamId]));
-      const ids = [...this.multiCards().flatMap((c) => [c.a.teamId, c.b.teamId]), ...gradeIds].filter((id) => id !== '');
+      const iv = this.intervaloView();
+      const intervaloIds = iv ? [iv.next, ...iv.following].flatMap((g) => (g ? [g.a.teamId, g.b.teamId] : [])).concat(iv.results.flatMap((r) => [r.winner.teamId, r.loser.teamId])) : [];
+      const ids = [...this.multiCards().flatMap((c) => [c.a.teamId, c.b.teamId]), ...gradeIds, ...intervaloIds].filter((id) => id !== '');
       if (ids.length > 0) untracked(() => this.gateway.ensureTeams(ids));
     });
 

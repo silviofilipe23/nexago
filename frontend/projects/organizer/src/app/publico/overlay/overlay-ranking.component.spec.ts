@@ -62,7 +62,7 @@ describe('OverlayRankingComponent', () => {
   });
 
 
-  it('mostra o Oferecimento com os patrocinadores (até 3)', async () => {
+  it('mostra o Oferecimento com TODOS os patrocinadores (a faixa vira carrossel se não couber)', async () => {
     TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
     const fixture = TestBed.createComponent(OverlayRankingComponent);
     fixture.componentRef.setInput('card', card);
@@ -75,7 +75,8 @@ describe('OverlayRankingComponent', () => {
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('.patro')).not.toBeNull();
-    expect(el.querySelectorAll('.patro .logo').length).toBe(3);
+    // 1ª cópia da lista: todos os 4 (sem limite); a 2ª, se existir, é a cópia do carrossel.
+    expect(el.querySelectorAll('.patro .lista:first-child .logo').length).toBe(4);
   });
 
   it('sem patrocinadores a faixa não existe', async () => {

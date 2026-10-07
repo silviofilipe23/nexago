@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, input, signal } f
 import type { RankingCard, RankingMode } from '../../painel/data/broadcast-ranking';
 import { ledIniciaisDe } from '../led/led-iniciais';
 import { nomesCurtosDe } from './overlay-nome';
+import { OverlayPatroFaixaComponent } from './overlay-patro-faixa.component';
 import type { OverlayPatroItem } from './overlay-nx';
 import {
   RANKING_COUNT_MS,
@@ -28,6 +29,7 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
 @Component({
   selector: 'og-overlay-ranking',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OverlayPatroFaixaComponent],
   template: `
     @if (card(); as c) {
       <div class="tela" [class.dupla]="c.kind === 'dupla'" animate.enter="rk-fade-in" animate.leave="rk-fade-out">
@@ -157,13 +159,7 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
             @if (logos().length > 0) {
               <div class="patro rk-up" style="--d: 1.2s">
                 <span class="lado-t">Oferecimento</span>
-                <div class="grade" [style.grid-template-columns]="'repeat(' + logos().length + ', 1fr)'">
-                  @for (s of logos(); track $index) {
-                    <div class="logo" [class.logo--img]="!!s.logo">
-                      @if (s.logo) { <img [src]="s.logo" [alt]="s.nome" /> } @else { <span>{{ s.nome }}</span> }
-                    </div>
-                  }
-                </div>
+                <og-overlay-patro-faixa [itens]="logos()" [delay]="0" style="--h: 56px; --gap: 12px" />
               </div>
             }
           </aside>
@@ -683,39 +679,6 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
       flex-direction: column;
       gap: 12px;
     }
-    .grade {
-      display: grid;
-      gap: 12px;
-    }
-    .logo {
-      height: 56px;
-      display: grid;
-      place-items: center;
-      overflow: hidden;
-      box-sizing: border-box;
-      border-radius: 6px;
-      border: 1.5px dashed rgba(255, 255, 255, 0.22);
-      background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.045) 0 10px, transparent 10px 20px);
-    }
-    .logo--img {
-      border: 0;
-      background: #fff;
-      padding: 6px;
-    }
-    .logo img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      object-position: center;
-    }
-    .logo span {
-      font-family: var(--mono);
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.55);
-    }
   `,
 })
 export class OverlayRankingComponent {
@@ -723,7 +686,7 @@ export class OverlayRankingComponent {
   readonly mode = input<RankingMode>('auto');
   readonly sponsors = input<OverlayPatroItem[]>([]);
 
-  protected readonly logos = computed(() => this.sponsors().slice(0, 3));
+  protected readonly logos = computed(() => this.sponsors());
   protected readonly rows = computed<RankingRow[]>(() => {
     const c = this.card();
     return c ? rankingRowsOf(c) : [];

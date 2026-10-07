@@ -15,6 +15,8 @@ import { kocStandingsBoardOf } from './overlay-koc-standings';
 import { OverlayKocStandingsComponent } from './overlay-koc-standings.component';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
 import { OverlayPrejogoComponent } from './overlay-prejogo.component';
+import { OverlayBolaoComponent } from './overlay-bolao.component';
+import { bolaoViewOf } from './overlay-bolao';
 import { OverlayDecisivoComponent } from './overlay-decisivo.component';
 import { DECISIVO_INICIAL, decisivoNext, decisivoSituacaoOf, decisivoViewOf, type DecisivoState } from './overlay-decisivo';
 import { OverlayEventosComponent } from './overlay-eventos.component';
@@ -113,6 +115,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
     OverlayChaveComponent,
     OverlayEventosComponent,
     OverlayDecisivoComponent,
+    OverlayBolaoComponent,
   ],
   providers: [OverlayLiveGateway],
   host: {
@@ -139,7 +142,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
             [isFinal]="duelFinalMode()"
             [tecnicoSide]="tecnico()?.side ?? null"
             [encolhido]="medico() != null"
-            [class.fora]="resumo() != null || tecnico() != null || prejogo() != null || multiNoAr() || gradeNoAr() || intervaloNoAr() || grupoNoAr() || chaveNoAr() || eventosNoAr() || decisivoView() != null"
+            [class.fora]="resumo() != null || tecnico() != null || prejogo() != null || multiNoAr() || gradeNoAr() || intervaloNoAr() || grupoNoAr() || chaveNoAr() || eventosNoAr() || decisivoView() != null || bolaoView() != null"
           />
         }
         @if (telaDoResultado(); as board) {
@@ -185,6 +188,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
         <og-overlay-tecnico [view]="tecnico()" [teams]="gateway.teams()" [sponsors]="patroItens()" />
 
         <og-overlay-prejogo [card]="prejogo()" [sponsors]="patroItens()" />
+        <og-overlay-bolao [view]="bolaoView()" [teams]="gateway.teams()" />
         <og-overlay-decisivo [view]="decisivoView()" [teams]="gateway.teams()" />
         <og-overlay-eventos [card]="eventosCard()" [mode]="eventosMode()" />
         <og-overlay-chave
@@ -350,7 +354,7 @@ export class OverlayPageComponent {
   /** Doação e patrocínio só entram com o controle já resolvido e sem tarja — a tarja toma a
    *  tela, inclusive para um "Mostrar agora". */
   protected readonly cardsNoAr = computed(
-    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null && this.prejogo() == null && this.ranking() == null && !this.multiNoAr() && !this.gradeNoAr() && !this.intervaloNoAr() && !this.grupoNoAr() && !this.chaveNoAr() && !this.eventosNoAr() && this.decisivoView() == null,
+    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null && this.prejogo() == null && this.ranking() == null && !this.multiNoAr() && !this.gradeNoAr() && !this.intervaloNoAr() && !this.grupoNoAr() && !this.chaveNoAr() && !this.eventosNoAr() && this.decisivoView() == null && this.bolaoView() == null,
   );
 
   /** O que vai ao ar: regra automática de cada tela E chave do painel; tarja toma a tela.
@@ -688,6 +692,23 @@ export class OverlayPageComponent {
     return decisivoViewOf(this.decisivoState(), m, v, { court: this.courtName(), category: this.categoryName() });
   });
 
+  /** Bolão ao vivo: divisão dos palpites da partida da tela (contados por polling no gateway). O
+   *  Momento decisivo (mesmo lugar da tela) tem prioridade enquanto está no ar. */
+  protected readonly bolaoNoAr = computed(() => this.gateway.controlReady() && this.controle().bolao.on && !this.interviewOnAir());
+  /** Chave ESTÁVEL da assinatura: o snapshot da partida é objeto novo a cada ponto, e reassinar zeraria a contagem. */
+  private readonly bolaoChave = computed(() => {
+    const m = this.match();
+    return this.bolaoNoAr() && m && m.teamAId !== '' && m.teamBId !== '' && m.tournamentId ? [m.tournamentId, m.id, m.teamAId, m.teamBId].join('|') : '';
+  });
+  protected readonly bolaoView = computed(() => {
+    if (!this.bolaoNoAr() || this.decisivoView() != null) return null;
+    const m = this.match();
+    const v = this.view();
+    const contagem = this.gateway.palpites();
+    if (!m || v?.kind !== 'duel' || !contagem) return null;
+    return bolaoViewOf(m, v, contagem, this.tick(), { court: this.courtName(), category: this.categoryName() });
+  });
+
   /** Próximos eventos no ar: card montado pelo painel (as vagas exigem login pra contar). */
   protected readonly eventosNoAr = computed(
     () => this.gateway.controlReady() && this.controle().eventos.on && this.controle().eventos.card != null && !this.interviewOnAir(),
@@ -909,6 +930,13 @@ export class OverlayPageComponent {
         });
         if (next !== prev) this.decisivoState.set(next);
       });
+    });
+
+    // Bolão: conta os palpites da partida enquanto a tela estiver no ar (chave estável = ids).
+    effect((onCleanup) => {
+      const [torneio, partida, a, b] = this.bolaoChave().split('|');
+      if (!torneio || !partida || !a || !b) return;
+      onCleanup(this.gateway.watchPalpites(torneio, partida, a, b));
     });
 
     // Multi-quadras: assina as partidas do torneio só enquanto a tela está no ar e resolve os

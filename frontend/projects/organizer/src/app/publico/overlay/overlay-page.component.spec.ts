@@ -5,6 +5,7 @@ import type { TournamentMatch } from '../../painel/data/matches-repository';
 import type { OrganizerTournament } from '../../painel/data/tournament.model';
 import { DEFAULT_BROADCAST_CONTROL, type BroadcastControl, type BroadcastInterview, interviewWithDefaults } from '../../painel/data/broadcast-control';
 import { OverlayLiveGateway, type OverlayTeam } from './overlay-live.gateway';
+import type { BolaoContagem } from './overlay-bolao';
 import { OverlayPageComponent } from './overlay-page.component';
 
 function match(overrides: Partial<TournamentMatch>): TournamentMatch {
@@ -76,6 +77,8 @@ class FakeGateway
       | 'ensureTeams'
       | 'pointEvents'
       | 'watchPointEvents'
+      | 'palpites'
+      | 'watchPalpites'
     >
 {
   readonly match = signal<TournamentMatch | null>(null);
@@ -99,6 +102,14 @@ class FakeGateway
   readonly pointEvents = signal<readonly LivePointEvent[]>([]);
 
   watchPointEvents(_matchId: string): () => void {
+    return () => {};
+  }
+
+  readonly palpites = signal<BolaoContagem | null>(null);
+  readonly palpitesWatched: string[] = [];
+
+  watchPalpites(_t: string, matchId: string): () => void {
+    this.palpitesWatched.push(matchId);
     return () => {};
   }
 

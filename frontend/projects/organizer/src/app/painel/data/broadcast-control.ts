@@ -1,3 +1,4 @@
+import { DEFAULT_BROADCAST_BOLAO, bolaoFromRaw, type BroadcastBolao } from './broadcast-bolao';
 import { DEFAULT_BROADCAST_EVENTOS, eventosFromRaw, type BroadcastEventos } from './broadcast-eventos';
 import { DEFAULT_BROADCAST_CHAVE, chaveFromRaw, type BroadcastChave } from './broadcast-chave';
 import { DEFAULT_BROADCAST_GRUPO, grupoFromRaw, type BroadcastGrupo } from './broadcast-grupo';
@@ -188,6 +189,8 @@ export interface BroadcastControl {
   chave: BroadcastChave;
   /** Card da tela Próximos eventos montado pelo painel: no ar, modo e eventos. */
   eventos: BroadcastEventos;
+  /** Tela Bolão ao vivo (palpites da partida): no ar. */
+  bolao: BroadcastBolao;
   interview: BroadcastInterview | null;
   commands: BroadcastCommands;
 }
@@ -216,6 +219,7 @@ export const DEFAULT_BROADCAST_CONTROL: BroadcastControl = {
   grupo: DEFAULT_BROADCAST_GRUPO,
   chave: DEFAULT_BROADCAST_CHAVE,
   eventos: DEFAULT_BROADCAST_EVENTOS,
+  bolao: DEFAULT_BROADCAST_BOLAO,
   interview: null,
   commands: { donationNowAt: 0, sponsorsNowAt: 0 },
 };
@@ -345,6 +349,7 @@ export function broadcastControlFromRaw(raw: unknown): BroadcastControl {
     grupo: grupoFromRaw(d['grupo']),
     chave: chaveFromRaw(d['chave']),
     eventos: eventosFromRaw(d['eventos']),
+    bolao: bolaoFromRaw(d['bolao']),
     interview: interviewFromRaw(d['interview']),
     commands: { donationNowAt: stamp(c['donationNowAt']), sponsorsNowAt: stamp(c['sponsorsNowAt']) },
   };

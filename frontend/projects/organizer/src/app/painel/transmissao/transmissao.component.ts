@@ -13,6 +13,7 @@ import { categoryFinalOf } from '../../publico/overlay/overlay-final';
 import { TransmissaoDataService } from './transmissao-data.service';
 import { TransmissaoEventosComponent } from './transmissao-eventos.component';
 import { TransmissaoEntrevistaComponent } from './transmissao-entrevista.component';
+import { TransmissaoBolaoComponent } from './transmissao-bolao.component';
 import { TransmissaoGradeComponent } from './transmissao-grade.component';
 import { TransmissaoChaveComponent } from './transmissao-chave.component';
 import { TransmissaoGrupoComponent } from './transmissao-grupo.component';
@@ -52,6 +53,7 @@ const PREVIEW_SPOT: Record<TxItemKey, { label: string; spot: string }> = {
   chave: { label: 'CHAVES', spot: 'full' },
   eventos: { label: 'PRÓXIMOS EVENTOS', spot: 'full' },
   multi: { label: 'Multi-quadras', spot: 'full' },
+  bolao: { label: 'BOLÃO AO VIVO', spot: 'bc' },
   kocBar: { label: 'Faixa da rodada', spot: 'strip' },
   kocPreRound: { label: 'Próximos em quadra', spot: 'c' },
   kocRoundEnd: { label: 'Fim de rodada', spot: 'c' },
@@ -70,7 +72,7 @@ function typingTarget(t: EventTarget | null): boolean {
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [TransmissaoDataService],
   host: { '(document:keydown)': 'onKey($event)' },
-  imports: [TransmissaoEntrevistaComponent, TransmissaoPrejogoComponent, TransmissaoRankingComponent, TransmissaoMultiComponent, TransmissaoGradeComponent, TransmissaoIntervaloComponent, TransmissaoGrupoComponent, TransmissaoChaveComponent, TransmissaoEventosComponent, RouterLink],
+  imports: [TransmissaoEntrevistaComponent, TransmissaoPrejogoComponent, TransmissaoRankingComponent, TransmissaoMultiComponent, TransmissaoBolaoComponent, TransmissaoGradeComponent, TransmissaoIntervaloComponent, TransmissaoGrupoComponent, TransmissaoChaveComponent, TransmissaoEventosComponent, RouterLink],
   template: `
     <div class="og-tx-page">
       <header class="og-tx-bar">
@@ -190,6 +192,7 @@ function typingTarget(t: EventTarget | null): boolean {
             <og-tx-prejogo [bare]="true" [hidden]="selectedKey() !== 'prejogo'" />
             <og-tx-ranking [bare]="true" [hidden]="selectedKey() !== 'ranking'" />
             <og-tx-multi [bare]="true" [hidden]="selectedKey() !== 'multi'" />
+            <og-tx-bolao [bare]="true" [hidden]="selectedKey() !== 'bolao'" />
             <og-tx-grade [bare]="true" [hidden]="selectedKey() !== 'grade'" />
             <og-tx-intervalo [bare]="true" [hidden]="selectedKey() !== 'intervalo'" />
             <og-tx-grupo [bare]="true" [hidden]="selectedKey() !== 'grupo'" />
@@ -883,6 +886,9 @@ export class TransmissaoComponent {
       case 'ranking':
         if (c.ranking.card || c.ranking.on) void this.svc.save({ ranking: { ...c.ranking, on: !c.ranking.on } });
         break;
+      case 'bolao':
+        void this.svc.save({ bolao: { ...c.bolao, on: !c.bolao.on } });
+        break;
       case 'grade':
         void this.svc.save({ grade: { ...c.grade, on: !c.grade.on } });
         break;
@@ -925,6 +931,7 @@ export class TransmissaoComponent {
       multi: { ...c.multi, on: false },
       prejogo: { ...c.prejogo, on: false },
       ranking: { ...c.ranking, on: false },
+      bolao: { ...c.bolao, on: false },
       grade: { ...c.grade, on: false },
       intervalo: { ...c.intervalo, on: false },
       grupo: { ...c.grupo, on: false },

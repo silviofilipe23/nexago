@@ -51,6 +51,20 @@ describe('overlay-decisivo — situação', () => {
   });
 });
 
+describe('overlay-decisivo — games', () => {
+  it('a view carrega o ponto do game (0/15/30/40/AD) junto dos games do set', () => {
+    const beach = { kind: 'sets_games', bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: true, decisivoSet: 0, decidingSet: 'super_tiebreak', superTiebreakTo: 10 } as never;
+    const m = match({ scoringProfile: beach, sets: [{ a: 6, b: 4 }, { a: 5, b: 3 }], currentSetIndex: 1, currentGame: { a: 3, b: 1 }, servingTeamId: 'ta' });
+    const v = overlayViewOf(m, 0) as OverlayDuelView;
+    const s = decisivoSituacaoOf(m, v)!;
+    expect(s).toEqual(jasmine.objectContaining({ kind: 'mp', side: 'A' }));
+    const st = decisivoNext(DECISIVO_INICIAL, { matchId: 'm1', sit: s, sets: [1, 0], encerrada: false, nowMs: NOW });
+    const view = decisivoViewOf(st, m, v, { court: null, category: null })!;
+    expect([view.a.score, view.b.score]).toEqual([5, 3]);
+    expect([view.a.ponto, view.b.ponto]).toEqual(['40', '15']);
+  });
+});
+
 describe('overlay-decisivo — máquina', () => {
   const entrada = (s: DecisivoSituacao | null, over: Partial<DecisivoEntrada> = {}): DecisivoEntrada => ({ matchId: 'm1', sit: s, sets: [0, 0], encerrada: false, nowMs: NOW, ...over });
   const mp = (side: 'A' | 'B' = 'A'): DecisivoSituacao => ({ kind: 'mp', side, setNumber: 2, limite: null });
@@ -116,6 +130,7 @@ describe('overlay-decisivo — máquina', () => {
     const view = decisivoViewOf(st, m, v, { court: 'Quadra 2', category: 'Masculino B' })!;
     expect(view).toEqual(jasmine.objectContaining({ kind: 'sp', salvo: false, side: 'A', n: 1, setNumber: 1, court: 'Quadra 2', category: 'Masculino B' }));
     expect([view.a.score, view.b.score]).toEqual([14, 12]);
+    expect([view.a.ponto, view.b.ponto]).toEqual([null, null]); // vôlei: sem ponto do game
     expect(decisivoViewOf(DECISIVO_INICIAL, m, v, { court: null, category: null })).toBeNull();
   });
 });

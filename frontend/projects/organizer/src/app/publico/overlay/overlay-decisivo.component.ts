@@ -46,6 +46,9 @@ const ORDINAL_TIPO = { sp: 'set point', mp: 'match point', tb: '' } as const;
                   @for (n of jogadores(v, 'A'); track $index) { <span>{{ n }}</span> }
                   <em>{{ situacao(v, 'A') }}</em>
                 </div>
+                @if (v.a.ponto !== null) {
+                  <span class="ponto"><i>Ponto</i><b>{{ v.a.ponto }}</b></span>
+                }
                 <b class="placar" [class.placar--pulso]="chance(v, 'A') && !v.salvo">{{ placar(v, 'A') }}</b>
               </div>
 
@@ -59,6 +62,9 @@ const ORDINAL_TIPO = { sp: 'set point', mp: 'match point', tb: '' } as const;
 
               <div class="lado lado--b dc-slide-r" [class.lado--chance]="chance(v, 'B')">
                 <b class="placar" [class.placar--pulso]="chance(v, 'B') && !v.salvo">{{ placar(v, 'B') }}</b>
+                @if (v.b.ponto !== null) {
+                  <span class="ponto"><i>Ponto</i><b>{{ v.b.ponto }}</b></span>
+                }
                 <div class="nomes">
                   @for (n of jogadores(v, 'B'); track $index) { <span>{{ n }}</span> }
                   <em>{{ situacao(v, 'B') }}</em>
@@ -297,6 +303,36 @@ const ORDINAL_TIPO = { sp: 'set point', mp: 'match point', tb: '' } as const;
       color: var(--o5);
       font-weight: 700;
     }
+    /* Tênis/beach tennis: o ponto do game (0/15/30/40/AD) ao lado dos games do set. */
+    .ponto {
+      flex: none;
+      min-width: 74px;
+      padding: 8px 12px 6px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.06);
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .ponto i {
+      font-style: normal;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.45);
+    }
+    .ponto b {
+      font-size: 40px;
+      font-weight: 800;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .lado--chance .ponto {
+      background: rgba(255, 106, 26, 0.16);
+      box-shadow: inset 0 0 0 1px rgba(255, 106, 26, 0.5);
+    }
     .placar--pulso {
       animation: dc-placar 1.2s ease-in-out infinite;
     }
@@ -410,8 +446,8 @@ export class OverlayDecisivoComponent {
     return [...TITULO[v.kind]];
   }
 
-  /** Placar grande: sempre os PONTOS do set em andamento (set point, match point e tie-break); os
-   *  sets ficam na linha de baixo de cada dupla e nas bolinhas. */
+  /** Placar grande: os PONTOS do set em andamento (vôlei) ou os GAMES do set (tênis/beach tennis, que
+   *  ainda mostram o ponto do game ao lado); os sets ficam na linha de baixo de cada dupla e nas bolinhas. */
   protected placar(v: DecisivoView, side: Side): number {
     return side === 'A' ? v.a.score : v.b.score;
   }

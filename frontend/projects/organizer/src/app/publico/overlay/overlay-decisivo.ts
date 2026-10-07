@@ -153,8 +153,9 @@ export interface DecisivoView {
   bestOf: number;
   setsA: number;
   setsB: number;
-  a: { teamId: string; label: string; score: number };
-  b: { teamId: string; label: string; score: number };
+  /** Placar grande: pontos do set (vôlei) ou GAMES do set (tênis/beach tennis). */
+  a: { teamId: string; label: string; score: number; ponto: string | null };
+  b: { teamId: string; label: string; score: number; ponto: string | null };
 }
 
 export function decisivoViewOf(
@@ -176,7 +177,9 @@ export function decisivoViewOf(
     bestOf: match.bestOf,
     setsA: v.setsA,
     setsB: v.setsB,
-    a: { teamId: v.a.teamId, label: v.a.label, score: v.pointsA ?? 0 },
-    b: { teamId: v.b.teamId, label: v.b.label, score: v.pointsB ?? 0 },
+    // Partida de games: além dos games do set, o PONTO do game em andamento (0/15/30/40/AD ou a
+    // contagem do tie-break) — sem ele o alerta só diria "5×4" e esconderia o 40–AD que decide.
+    a: { teamId: v.a.teamId, label: v.a.label, score: v.pointsA ?? 0, ponto: v.gameA },
+    b: { teamId: v.b.teamId, label: v.b.label, score: v.pointsB ?? 0, ponto: v.gameB },
   };
 }

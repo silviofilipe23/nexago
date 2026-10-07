@@ -128,7 +128,7 @@ export function prejogoNameSize(names: readonly string[]): number {
             @if (logos().length > 0) {
               <div class="patro">
                 <span class="tit">Oferecimento</span>
-                <og-overlay-patro-faixa [itens]="logos()" [delay]="1.8" style="--h: 44px; --gap: 12px" />
+                <og-overlay-patro-faixa [itens]="logos()" [delay]="1.8" style="--h: 100px; --gap: 18px" />
               </div>
             }
           </footer>

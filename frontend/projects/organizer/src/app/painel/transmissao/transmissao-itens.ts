@@ -217,3 +217,19 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
 export function txItemsOf(groups: readonly TxGroup[]): TxItem[] {
   return groups.flatMap((g) => g.itens);
 }
+
+/** Atalho de teclado de cada linha da lista: 1–9 pras nove primeiras e A, B, C… pras que passam
+ *  disso — a ordem da lista define a tecla. `null` além do Z. */
+export function txAtalhoOf(index: number): string | null {
+  if (index < 0) return null;
+  if (index < 9) return String(index + 1);
+  const letra = index - 9;
+  return letra < 26 ? String.fromCharCode(65 + letra) : null;
+}
+
+/** Inverso de `txAtalhoOf`: a tecla apertada (dígito ou letra, qualquer caixa) vira o índice na lista. */
+export function txIndexOfAtalho(key: string): number | null {
+  if (/^[1-9]$/.test(key)) return Number(key) - 1;
+  if (/^[a-zA-Z]$/.test(key)) return 9 + key.toUpperCase().charCodeAt(0) - 65;
+  return null;
+}

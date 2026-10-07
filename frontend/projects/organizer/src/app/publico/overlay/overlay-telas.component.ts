@@ -124,7 +124,7 @@ const SPONSOR_STEP_MS = 3000;
               }
             </main>
             <footer class="siga tl-up" style="--d: 0.8s">
-              <span>Siga <b>&#64;nexagobr</b></span>
+              <span>Siga no Instagram <b>&#64;nexagobr</b></span>
               <span>Baixe o app · <b>linktr.ee/nexago</b></span>
             </footer>
           }

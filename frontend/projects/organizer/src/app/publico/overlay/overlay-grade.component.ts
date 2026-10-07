@@ -166,8 +166,8 @@ const CAT_COLORS = ['#4da3ff', '#ff6a1a', '#ff5fa8', '#a07bff', '#3ddc84', '#f2c
 
     .head {
       position: absolute;
-      left: 88px;
-      right: 88px;
+      left: 32px;
+      right: 32px;
       top: 20px;
       display: flex;
       justify-content: space-between;
@@ -268,8 +268,8 @@ const CAT_COLORS = ['#4da3ff', '#ff6a1a', '#ff5fa8', '#a07bff', '#3ddc84', '#f2c
 
     .cabecas {
       position: absolute;
-      left: 88px;
-      right: 88px;
+      left: 32px;
+      right: 32px;
       top: 206px;
       display: grid;
       column-gap: 10px;
@@ -292,8 +292,8 @@ const CAT_COLORS = ['#4da3ff', '#ff6a1a', '#ff5fa8', '#a07bff', '#3ddc84', '#f2c
 
     .janela {
       position: absolute;
-      left: 88px;
-      right: 88px;
+      left: 32px;
+      right: 32px;
       top: 262px;
       overflow: hidden;
     }
@@ -498,8 +498,8 @@ const CAT_COLORS = ['#4da3ff', '#ff6a1a', '#ff5fa8', '#a07bff', '#3ddc84', '#f2c
 
     .patro {
       position: absolute;
-      left: 88px;
-      right: 88px;
+      left: 32px;
+      right: 32px;
       bottom: 26px;
       display: flex;
       align-items: center;

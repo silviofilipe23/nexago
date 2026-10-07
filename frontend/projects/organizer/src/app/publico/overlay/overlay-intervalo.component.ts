@@ -187,7 +187,7 @@ const TICK_MS = 500;
     }
     .marca {
       position: absolute;
-      right: 92px;
+      right: 54px;
       top: 34px;
       font-size: 34px;
       font-weight: 800;
@@ -198,8 +198,8 @@ const TICK_MS = 500;
 
     .esq {
       position: absolute;
-      left: 108px;
-      top: 184px;
+      left: 54px;
+      top: 92px;
       width: 1040px;
     }
     .linha1 {
@@ -320,7 +320,7 @@ const TICK_MS = 500;
 
     .dir {
       position: absolute;
-      left: 1197px;
+      left: 1260px;
       top: 118px;
       width: 603px;
       display: flex;
@@ -519,8 +519,8 @@ const TICK_MS = 500;
 
     .patro {
       position: absolute;
-      left: 108px;
-      right: 108px;
+      left: 54px;
+      right: 54px;
       bottom: 48px;
       height: 110px;
       display: flex;

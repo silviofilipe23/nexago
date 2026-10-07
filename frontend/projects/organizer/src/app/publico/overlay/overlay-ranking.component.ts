@@ -229,8 +229,8 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
 
     .head {
       position: absolute;
-      left: 88px;
-      right: 88px;
+      left: 32px; 
+      right: 32px;
       top: 22px;
       display: flex;
       justify-content: space-between;
@@ -329,7 +329,7 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
 
     .tabela {
       position: absolute;
-      left: 88px;
+      left: 32px;
       top: 190px;
       width: 1140px;
     }

@@ -15,6 +15,8 @@ import { kocStandingsBoardOf } from './overlay-koc-standings';
 import { OverlayKocStandingsComponent } from './overlay-koc-standings.component';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
 import { OverlayPrejogoComponent } from './overlay-prejogo.component';
+import { OverlayDecisivoComponent } from './overlay-decisivo.component';
+import { DECISIVO_INICIAL, decisivoNext, decisivoSituacaoOf, decisivoViewOf, type DecisivoState } from './overlay-decisivo';
 import { OverlayEventosComponent } from './overlay-eventos.component';
 import { OverlayChaveComponent } from './overlay-chave.component';
 import { categoriesWithChave, chaveViewOf } from './overlay-chave';
@@ -110,6 +112,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
     OverlayGrupoComponent,
     OverlayChaveComponent,
     OverlayEventosComponent,
+    OverlayDecisivoComponent,
   ],
   providers: [OverlayLiveGateway],
   host: {
@@ -136,7 +139,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
             [isFinal]="duelFinalMode()"
             [tecnicoSide]="tecnico()?.side ?? null"
             [encolhido]="medico() != null"
-            [class.fora]="resumo() != null || tecnico() != null || prejogo() != null || multiNoAr() || gradeNoAr() || intervaloNoAr() || grupoNoAr() || chaveNoAr() || eventosNoAr()"
+            [class.fora]="resumo() != null || tecnico() != null || prejogo() != null || multiNoAr() || gradeNoAr() || intervaloNoAr() || grupoNoAr() || chaveNoAr() || eventosNoAr() || decisivoView() != null"
           />
         }
         @if (telaDoResultado(); as board) {
@@ -182,6 +185,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
         <og-overlay-tecnico [view]="tecnico()" [teams]="gateway.teams()" [sponsors]="patroItens()" />
 
         <og-overlay-prejogo [card]="prejogo()" [sponsors]="patroItens()" />
+        <og-overlay-decisivo [view]="decisivoView()" [teams]="gateway.teams()" />
         <og-overlay-eventos [card]="eventosCard()" [mode]="eventosMode()" />
         <og-overlay-chave
           [view]="chaveView()"
@@ -346,7 +350,7 @@ export class OverlayPageComponent {
   /** Doação e patrocínio só entram com o controle já resolvido e sem tarja — a tarja toma a
    *  tela, inclusive para um "Mostrar agora". */
   protected readonly cardsNoAr = computed(
-    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null && this.prejogo() == null && this.ranking() == null && !this.multiNoAr() && !this.gradeNoAr() && !this.intervaloNoAr() && !this.grupoNoAr() && !this.chaveNoAr() && !this.eventosNoAr(),
+    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null && this.prejogo() == null && this.ranking() == null && !this.multiNoAr() && !this.gradeNoAr() && !this.intervaloNoAr() && !this.grupoNoAr() && !this.chaveNoAr() && !this.eventosNoAr() && this.decisivoView() == null,
   );
 
   /** O que vai ao ar: regra automática de cada tela E chave do painel; tarja toma a tela.
@@ -673,6 +677,17 @@ export class OverlayPageComponent {
   protected readonly multiNoAr = computed(
     () => this.gateway.controlReady() && this.controle().multi.on && !this.interviewOnAir(),
   );
+  /** Momento decisivo: o alerta entra sozinho no set point, match point e tie-break da partida da
+   *  tela (liga/desliga no painel, `graphics.decisivo`) e cobre o placar enquanto dura. */
+  private readonly decisivoState = signal<DecisivoState>(DECISIVO_INICIAL);
+  protected readonly decisivoView = computed(() => {
+    if (!this.layers().duel || !this.controle().graphics.decisivo) return null;
+    const m = this.match();
+    const v = this.view();
+    if (!m || v?.kind !== 'duel') return null;
+    return decisivoViewOf(this.decisivoState(), m, v, { court: this.courtName(), category: this.categoryName() });
+  });
+
   /** Próximos eventos no ar: card montado pelo painel (as vagas exigem login pra contar). */
   protected readonly eventosNoAr = computed(
     () => this.gateway.controlReady() && this.controle().eventos.on && this.controle().eventos.card != null && !this.interviewOnAir(),
@@ -874,6 +889,26 @@ export class OverlayPageComponent {
       const torneio = this.torneioDoControle();
       if (!torneio) return;
       onCleanup(this.gateway.watchControl(torneio));
+    });
+
+    // Momento decisivo: a máquina avança a cada snapshot da partida e a cada segundo (o "Salvo" e o
+    // aviso de tie-break expiram por tempo). Idempotente: sem mudança, mantém o mesmo estado.
+    effect(() => {
+      const m = this.match();
+      const v = this.view();
+      const now = this.tick();
+      untracked(() => {
+        const duel = v?.kind === 'duel' ? v : null;
+        const prev = this.decisivoState();
+        const next = decisivoNext(prev, {
+          matchId: m?.id ?? '',
+          sit: decisivoSituacaoOf(m, duel),
+          sets: duel ? [duel.setsA, duel.setsB] : [0, 0],
+          encerrada: m?.status === 'completed',
+          nowMs: now,
+        });
+        if (next !== prev) this.decisivoState.set(next);
+      });
     });
 
     // Multi-quadras: assina as partidas do torneio só enquanto a tela está no ar e resolve os

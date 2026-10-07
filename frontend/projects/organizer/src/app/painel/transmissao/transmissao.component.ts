@@ -38,6 +38,7 @@ const FINAL_OPTIONS: readonly { value: BroadcastFinalMode; label: string }[] = [
 /** Onde cada gráfico aparece na tela de 1920×1080 — só o esquema da prévia. */
 const PREVIEW_SPOT: Record<TxItemKey, { label: string; spot: string }> = {
   scoreboard: { label: 'Placar', spot: 'bl' },
+  decisivo: { label: 'MOMENTO DECISIVO', spot: 'bc' },
   sponsors: { label: 'Oferecimento', spot: 'tr' },
   donation: { label: 'Doação PIX', spot: 'r' },
   champions: { label: 'Campeões', spot: 'tc' },
@@ -129,7 +130,7 @@ function typingTarget(t: EventTarget | null): boolean {
               <div class="og-tx-grupo">{{ g.label }}</div>
               @for (item of g.itens; track item.key) {
                 <div class="og-tx-row" [class.sel]="item.key === selectedKey()" [class.warn]="item.warn && item.locked">
-                  <span class="og-tx-dot" [class.on]="item.on" aria-hidden="true"></span>
+                  <span class="og-tx-dot" [class.on]="item.on && !item.auto" aria-hidden="true"></span>
                   <button type="button" class="og-tx-row-main" [attr.aria-current]="item.key === selectedKey()" (click)="select(item.key)">
                     <span class="og-tx-row-nome">
                       {{ item.nome }}
@@ -198,6 +199,9 @@ function typingTarget(t: EventTarget | null): boolean {
             @switch (selectedKey()) {
               @case ('scoreboard') {
                 <p class="og-tx-dica">O placar da partida da quadra transmitida, no canto inferior esquerdo. Troque a quadra na barra de cima.</p>
+              }
+              @case ('decisivo') {
+                <p class="og-tx-dica">Alerta que entra sozinho, no centro de baixo, quando a partida da quadra transmitida chega a set point, match point ou tie-break (e some quando passa). Desligue aqui se não quiser o alerta.</p>
               }
               @case ('summary') {
                 <p class="og-tx-dica">Estatísticas e fluxo do jogo. Ao fim da partida entra sozinho; ligado no meio do jogo vira "Resumo parcial".</p>
@@ -801,7 +805,7 @@ export class TransmissaoComponent {
   );
   private readonly items = computed(() => txItemsOf(this.groups()));
   protected readonly selected = computed<TxItem>(() => this.items().find((i) => i.key === this.selectedKey()) ?? this.items()[0]);
-  protected readonly ativos = computed(() => this.items().filter((i) => i.on));
+  protected readonly ativos = computed(() => this.items().filter((i) => i.on && !i.auto));
   protected readonly noAr = computed(() => this.ativos().length);
   protected readonly isKoc = computed(() => this.selectedKey().startsWith('koc'));
 
@@ -914,7 +918,7 @@ export class TransmissaoComponent {
     const c = this.svc.control();
     const graphics: Partial<BroadcastGraphics> = {};
     for (const item of this.items()) {
-      if (item.key !== 'scoreboard' && item.key in c.graphics) graphics[item.key as BroadcastGraphicId] = false;
+      if (item.key !== 'scoreboard' && item.key !== 'decisivo' && item.key in c.graphics) graphics[item.key as BroadcastGraphicId] = false;
     }
     const patch: BroadcastControlPatch = {
       graphics,

@@ -15,6 +15,7 @@ import { DEFAULT_BROADCAST_PREJOGO, prejogoFromRaw, type BroadcastPrejogo } from
 
 export type BroadcastGraphicId =
   | 'scoreboard'
+  | 'decisivo'
   | 'kocBar'
   | 'kocPreRound'
   | 'kocRoundEnd'
@@ -24,6 +25,7 @@ export type BroadcastGraphicId =
 
 export const BROADCAST_GRAPHIC_IDS: readonly BroadcastGraphicId[] = [
   'scoreboard',
+  'decisivo',
   'kocBar',
   'kocPreRound',
   'kocRoundEnd',
@@ -194,6 +196,7 @@ export const DEFAULT_BROADCAST_CONTROL: BroadcastControl = {
   courtId: null,
   graphics: {
     scoreboard: true,
+    decisivo: true,
     kocBar: true,
     kocPreRound: true,
     kocRoundEnd: true,

@@ -584,7 +584,7 @@ function typingTarget(t: EventTarget | null): boolean {
     }
     .og-tx-row-resumo {
       max-width: 100%;
-      font-size: 11.5px;
+      font-size: 9px;
       color: var(--nx-text-dim);
       white-space: nowrap;
       overflow: hidden;

@@ -453,7 +453,7 @@ const STRIP_OUT_MS = 280;
     }
     .data {
       flex: none;
-      width: 128px;
+      width: 140px;
       height: 128px;
       border-radius: 14px;
       background: var(--o5);
@@ -614,7 +614,7 @@ const STRIP_OUT_MS = 280;
     }
     .lin {
       display: grid;
-      grid-template-columns: 124px 1fr auto;
+      grid-template-columns: 140px 1fr auto;
       align-items: center;
       height: 138px;
       margin-bottom: 14px;
@@ -651,7 +651,7 @@ const STRIP_OUT_MS = 280;
       display: block;
       font-size: 38px;
       font-weight: 800;
-      line-height: 1.05;
+      line-height: 1.3;
       letter-spacing: -0.02em;
       text-transform: uppercase;
       white-space: nowrap;

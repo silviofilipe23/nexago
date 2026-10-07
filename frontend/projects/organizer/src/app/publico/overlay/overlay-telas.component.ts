@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
+import { shareQrSvgDataUrl } from '../../painel/data/share-qr';
 import type { BroadcastTelas } from '../../painel/data/broadcast-telas';
 import type { EventoItem } from '../../painel/data/broadcast-eventos';
 import { eventoDataOf, eventoDiasRestantes, eventoLocalLabel } from './overlay-eventos';
@@ -93,6 +94,13 @@ const SPONSOR_STEP_MS = 3000;
                 <h1 class="obrigado tl-up" style="--d: 0.2s">Obrigado</h1>
                 <p class="ate tl-up" style="--d: 0.35s">Até a próxima etapa</p>
                 <p class="resumo tl-up" style="--d: 0.5s">Valeu por acompanhar a {{ eventName() }}. Resultados, chaves e replays completos no app.</p>
+                <div class="app tl-up" style="--d: 0.65s">
+                  @if (qr(); as src) { <img [src]="src" alt="" /> }
+                  <div>
+                    <span class="app-k">Baixe o app</span>
+                    <b>linktr.ee/nexago</b>
+                  </div>
+                </div>
               </section>
               @if (proximo(); as e) {
                 <article class="prox tl-up" style="--d: 0.6s">
@@ -109,7 +117,7 @@ const SPONSOR_STEP_MS = 3000;
                     </div>
                     <div class="rodape-card">
                       <span class="faltam">{{ faltam(e) }}</span>
-                      <span class="baixe">Baixe o app · <b>linktr.ee/nexago</b></span>
+                      
                     </div>
                   </div>
                 </article>
@@ -196,8 +204,12 @@ const SPONSOR_STEP_MS = 3000;
 
     .fim { position: absolute; inset: 170px 80px 150px; display: flex; align-items: center; justify-content: space-between; gap: 60px; }
     .esq { flex: 1; min-width: 0; }
-    .obrigado { margin: 0; font-size: 260px; font-weight: 800; line-height: 0.95; letter-spacing: -0.02em; }
-    .ate { margin: 16px 0 0; font-size: 72px; font-weight: 700; color: var(--o5); }
+    .obrigado { margin: 0; font-size: 230px; font-weight: 900; line-height: 0.9; letter-spacing: -0.04em; text-transform: uppercase; }
+    .ate { margin: 18px 0 0; max-width: 760px; font-size: 104px; font-weight: 900; line-height: 0.92; letter-spacing: -0.03em; text-transform: uppercase; color: var(--o5); }
+    .app { display: flex; align-items: center; gap: 24px; margin-top: 34px; }
+    .app img { width: 150px; height: 150px; padding: 10px; border-radius: 16px; background: #fff; }
+    .app-k { display: block; font-size: 22px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(255, 255, 255, 0.6); }
+    .app b { font-size: 40px; font-weight: 800; color: var(--o5); }
     .resumo { margin: 28px 0 0; max-width: 820px; font-size: 32px; line-height: 1.4; color: rgba(255, 255, 255, 0.72); }
     .prox { position: relative; width: 640px; flex: none; border-radius: 28px; padding: 3px; overflow: hidden; background: #131315; }
     .borda { position: absolute; inset: -60%; background: conic-gradient(from 0deg, transparent 0 70%, var(--o5) 90%, transparent); animation: tl-gira 5s linear infinite; }
@@ -229,6 +241,7 @@ export class OverlayTelasComponent {
   readonly sponsors = input<OverlayPatroItem[]>([]);
 
   protected readonly destaque = signal(0);
+  protected readonly qr = signal<string | null>(null);
   private readonly now = signal(Date.now());
 
   protected readonly relogio = computed(() => {
@@ -244,6 +257,7 @@ export class OverlayTelasComponent {
   protected readonly diaLabel = computed(() => telasDiaLabelOf(this.startAt(), this.primeiro()?.phase ?? null, this.now()));
 
   constructor() {
+    void shareQrSvgDataUrl('https://linktr.ee/nexago').then((src) => this.qr.set(src));
     effect((onCleanup) => {
       if (!this.config()) return;
       this.now.set(Date.now());

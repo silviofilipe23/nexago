@@ -189,7 +189,7 @@ const ORDINAL_TIPO = { sp: 'set point', mp: 'match point', tb: '' } as const;
       position: relative;
       height: 150px;
       display: grid;
-      grid-template-columns: 1fr 590px 1fr;
+      grid-template-columns: 1fr 630px 1fr;
       border-radius: 12px;
       overflow: hidden;
       background: #111113;

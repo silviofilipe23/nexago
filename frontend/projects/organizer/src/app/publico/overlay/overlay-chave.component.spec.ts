@@ -16,7 +16,7 @@ const view = (over: Partial<ChaveView> = {}): ChaveView => ({
   ],
   edges: [{ d: 'M 280 77 H 310 V 100 H 340', done: true, col: 0 }, { d: 'M 620 77 H 650', done: false, col: 1 }],
   labels: [{ label: 'Quartas', left: 0, top: 0 }, { label: 'Semifinais', left: 340, top: 0 }],
-  champion: { left: 900, top: 20, teamId: null, label: null, done: false }, ...over,
+  ...over,
 });
 
 async function mount(v: ChaveView | null) {
@@ -36,6 +36,12 @@ describe('OverlayChaveComponent', () => {
     expect(el.querySelector('.ctx')?.textContent).toContain('Eliminatória simples');
     expect(el.querySelector('h1')?.textContent).toContain('Masculino B');
     expect(el.querySelector('h1 em')?.textContent).toContain('Chave');
+  });
+
+  it('só os cartões das partidas: nada de card de campeão', async () => {
+    const { el } = await mount(view());
+    expect(el.querySelector('.camp, .camp-k, .camp-n')).toBeNull();
+    expect(el.textContent).not.toContain('Campeão');
   });
 
   it('cartões: código e quadra, tag, vencedora em destaque, perdedora apagada, ao vivo com borda', async () => {
@@ -58,16 +64,6 @@ describe('OverlayChaveComponent', () => {
     expect(el.querySelectorAll('.liga path.acesa').length).toBe(1);
   });
 
-  it('campeão: "A definir" com borda tracejada; encerrada mostra "Campeões" e os nomes', async () => {
-    const { f, el } = await mount(view());
-    expect(el.querySelector('.camp-n')?.textContent).toContain('A definir');
-    expect(el.querySelector('.camp--done')).toBeNull();
-    f.componentRef.setInput('view', view({ champion: { left: 900, top: 20, teamId: 'x', label: 'Pedro / Guto', done: true } }));
-    await f.whenStable();
-    expect(el.querySelector('.camp--done')).not.toBeNull();
-    expect(el.querySelector('.camp-k')?.textContent).toContain('Campeões');
-    expect(el.querySelector('.camp-n')?.textContent).toContain('Pedro · Guto');
-  });
 
   it('chave dupla: perdedor eliminado na chave dos perdedores tem o nome riscado', async () => {
     const eliminado = node(3, { code: 'P1', eliminates: true, tag: { kind: 'fim', text: 'Fim' }, a: slot({ winner: true, score: 21 }), b: slot({ label: 'Kaio / Renan', loser: true, score: 12 }) });
@@ -75,16 +71,15 @@ describe('OverlayChaveComponent', () => {
     expect(el.querySelectorAll('.lin--risca').length).toBe(1);
   });
 
-  it('animações de jogo só nas MUDANÇAS: placar, vaga preenchida, fim, início e campeão', async () => {
+  it('animações de jogo só nas MUDANÇAS: placar, vaga preenchida, fim e início', async () => {
     jasmine.clock().install();
     try {
       const antes = view({ nodes: [node(1, { a: slot({ teamId: '', placeholder: true, label: 'Vencedor X' }), b: slot({ score: 3 }), tag: { kind: 'hora', text: '16:00' } })] });
       const { f, el } = await mount(antes);
       // linha de base: nada pisca na 1ª leitura
-      expect(el.querySelectorAll('.sc--pulso, .nome--entra, .lin--flash, .jogo-in--inicio, .camp-in--entra').length).toBe(0);
+      expect(el.querySelectorAll('.sc--pulso, .nome--entra, .lin--flash, .jogo-in--inicio').length).toBe(0);
       const depois = view({
         nodes: [node(1, { live: true, tag: { kind: 'live', text: 'Ao vivo' }, a: slot({ teamId: 'a', label: 'Alison / Bruno', score: 0 }), b: slot({ score: 4 }) })],
-        champion: { left: 900, top: 20, teamId: null, label: null, done: false },
       });
       f.componentRef.setInput('view', depois);
       await f.whenStable();
@@ -92,19 +87,17 @@ describe('OverlayChaveComponent', () => {
       expect(el.querySelectorAll('.nome--entra').length).toBe(1); // a vaga A foi preenchida
       expect(el.querySelectorAll('.jogo-in--inicio').length).toBe(1);
       expect(el.querySelector('.tag--live .dot')).not.toBeNull();
-      // terminou + campeão definido
+      // terminou
       const fim = view({
         nodes: [node(1, { tag: { kind: 'fim', text: 'Fim' }, a: slot({ teamId: 'a', winner: true, score: 21 }), b: slot({ loser: true, score: 4 }) })],
-        champion: { left: 900, top: 20, teamId: 'a', label: 'Alison / Bruno', done: true },
       });
       f.componentRef.setInput('view', fim);
       await f.whenStable();
       expect(el.querySelectorAll('.lin--flash').length).toBe(1);
-      expect(el.querySelectorAll('.camp-in--entra').length).toBe(1);
       // os marcadores saem sozinhos
       jasmine.clock().tick(1700);
       await f.whenStable();
-      expect(el.querySelectorAll('.sc--pulso, .nome--entra, .lin--flash, .jogo-in--inicio, .camp-in--entra').length).toBe(0);
+      expect(el.querySelectorAll('.sc--pulso, .nome--entra, .lin--flash, .jogo-in--inicio').length).toBe(0);
     } finally {
       jasmine.clock().uninstall();
     }

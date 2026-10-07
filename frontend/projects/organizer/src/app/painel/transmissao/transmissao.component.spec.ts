@@ -4,6 +4,7 @@ import { provideRouter } from '@angular/router';
 import { FieldValue, serverTimestamp } from 'firebase/firestore';
 import { DEFAULT_BROADCAST_CONTROL, interviewWithDefaults } from '../data/broadcast-control';
 import { INTERVALO_PRESETS } from '../data/broadcast-intervalo';
+import type { EventosCard } from '../data/broadcast-eventos';
 import type { BroadcastPrejogo } from '../data/broadcast-prejogo';
 import type { TournamentMatch } from '../data/matches-repository';
 import { FakeTransmissaoData as FakeData, PARTIDA, torneio } from './transmissao-data.fake';
@@ -78,6 +79,7 @@ describe('TransmissaoComponent', () => {
         'Intervalo',
         'Tabela do grupo',
         'Chaves',
+        'Próximos eventos',
         'Entrevista',
         'Campeões',
         'Resumo da partida',
@@ -351,6 +353,94 @@ describe('TransmissaoComponent', () => {
       expect(el.querySelector('.og-tx-preview')?.textContent).toContain('CHAVES');
       (el.querySelector('button[aria-label="Tirar Chaves do ar"]') as HTMLButtonElement).click();
       expect(fake.saved).toEqual([{ chave: { on: false, categoryId: 'cat1' } }]);
+    });
+  });
+
+  describe('Próximos eventos', () => {
+    const CARD_EVENTOS: EventosCard = {
+      key: 'ev:1',
+      season: 'Circuito NexaGO 2026',
+      items: [
+        {
+          id: 'e1',
+          name: 'Etapa Jeri',
+          startMs: Date.UTC(2026, 10, 20, 12),
+          endMs: Date.UTC(2026, 10, 21, 12),
+          venue: null,
+          city: null,
+          state: null,
+          coverUrl: null,
+          categories: [],
+          prizeCents: null,
+          filled: null,
+          total: null,
+          status: 'abertas',
+          url: 'https://nexago.com.br/torneios/etapa-jeri-e1',
+        },
+      ],
+    };
+    const comCard = (over: Partial<typeof DEFAULT_BROADCAST_CONTROL.eventos> = {}) => {
+      const fake = new FakeData();
+      fake.control.set({ ...fake.control(), eventos: { on: false, mode: 'full', card: CARD_EVENTOS, ...over } });
+      return fake;
+    };
+
+    it('sem card: item travado e amarelo, "Monte o card primeiro"', async () => {
+      const { el } = await mount();
+      const l = linha(el, 'Próximos eventos');
+      expect(l.textContent).toContain('Monte o card primeiro');
+      expect(l.classList).toContain('warn');
+      expect(switchDe(el, 'Próximos eventos').disabled).toBeTrue();
+    });
+
+    it('com card: "Desligado" e, no ar, modo e quantidade', async () => {
+      const fake = comCard();
+      const { el, fixture } = await mount(fake);
+      expect(linha(el, 'Próximos eventos').textContent).toContain('Desligado');
+      expect(switchDe(el, 'Próximos eventos').disabled).toBeFalse();
+      fake.control.set({ ...fake.control(), eventos: { on: true, mode: 'full', card: CARD_EVENTOS } });
+      await fixture.whenStable();
+      expect(linha(el, 'Próximos eventos').textContent).toContain('Tela cheia · 1 evento');
+    });
+
+    it('o switch da lista e o "No ar" do cabeçalho gravam o objeto completo', async () => {
+      const { el, fake, fixture } = await mount(comCard());
+      switchDe(el, 'Próximos eventos').click();
+      expect(fake.saved).toEqual([{ eventos: { on: true, mode: 'full', card: CARD_EVENTOS } }]);
+      selecionar(el, 'Próximos eventos');
+      await fixture.whenStable();
+      (el.querySelector('.og-tx-cfg-noar ~ button[role="switch"]') as HTMLButtonElement).click();
+      expect(fake.saved.at(-1)).toEqual({ eventos: { on: true, mode: 'full', card: CARD_EVENTOS } });
+    });
+
+    it('trocar o modo grava o objeto completo', async () => {
+      const { el, fake } = await mount(comCard({ on: true }));
+      botao(el, 'Faixa', 'Modo dos eventos').click();
+      expect(fake.saved).toEqual([{ eventos: { on: true, mode: 'strip', card: CARD_EVENTOS } }]);
+    });
+
+    it('editar a temporada regrava o card com o novo nome, sem mudar a key', async () => {
+      const { el, fake } = await mount(comCard());
+      const campo = el.querySelector('input[aria-label="Temporada"]') as HTMLInputElement;
+      expect(campo.value).toBe('Circuito NexaGO 2026');
+      campo.value = 'Copa Verão';
+      campo.dispatchEvent(new Event('input'));
+      campo.dispatchEvent(new Event('blur'));
+      expect(fake.saved).toEqual([{ eventos: { on: false, mode: 'full', card: { ...CARD_EVENTOS, season: 'Copa Verão' } } }]);
+    });
+
+    it('no ar, aparece na prévia e o Esc desliga na mesma escrita', async () => {
+      const { el, fake } = await mount(comCard({ on: true }));
+      expect(el.querySelector('.og-tx-preview')?.textContent).toContain('PRÓXIMOS EVENTOS');
+      tecla('Escape');
+      expect(fake.saved.length).toBe(1);
+      expect(fake.saved[0].eventos).toEqual({ on: false, mode: 'full', card: CARD_EVENTOS });
+    });
+
+    it('atalho numérico liga o item (9º da lista)', async () => {
+      const { fake } = await mount(comCard());
+      tecla('9');
+      expect(fake.saved).toEqual([{ eventos: { on: true, mode: 'full', card: CARD_EVENTOS } }]);
     });
   });
 

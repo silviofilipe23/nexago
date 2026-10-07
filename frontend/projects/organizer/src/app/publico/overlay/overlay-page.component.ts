@@ -15,6 +15,7 @@ import { kocStandingsBoardOf } from './overlay-koc-standings';
 import { OverlayKocStandingsComponent } from './overlay-koc-standings.component';
 import { OverlayScoreboardComponent } from './overlay-scoreboard.component';
 import { OverlayPrejogoComponent } from './overlay-prejogo.component';
+import { OverlayEventosComponent } from './overlay-eventos.component';
 import { OverlayChaveComponent } from './overlay-chave.component';
 import { categoriesWithChave, chaveViewOf } from './overlay-chave';
 import { OverlayGrupoComponent } from './overlay-grupo.component';
@@ -108,6 +109,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
     OverlayIntervaloComponent,
     OverlayGrupoComponent,
     OverlayChaveComponent,
+    OverlayEventosComponent,
   ],
   providers: [OverlayLiveGateway],
   host: {
@@ -134,7 +136,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
             [isFinal]="duelFinalMode()"
             [tecnicoSide]="tecnico()?.side ?? null"
             [encolhido]="medico() != null"
-            [class.fora]="resumo() != null || tecnico() != null || prejogo() != null || multiNoAr() || gradeNoAr() || intervaloNoAr() || grupoNoAr() || chaveNoAr()"
+            [class.fora]="resumo() != null || tecnico() != null || prejogo() != null || multiNoAr() || gradeNoAr() || intervaloNoAr() || grupoNoAr() || chaveNoAr() || eventosNoAr()"
           />
         }
         @if (telaDoResultado(); as board) {
@@ -180,6 +182,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
         <og-overlay-tecnico [view]="tecnico()" [teams]="gateway.teams()" [sponsors]="patroItens()" />
 
         <og-overlay-prejogo [card]="prejogo()" [sponsors]="patroItens()" />
+        <og-overlay-eventos [card]="eventosCard()" [mode]="eventosMode()" />
         <og-overlay-chave
           [view]="chaveView()"
           [categoryName]="chaveCategoryName()"
@@ -343,7 +346,7 @@ export class OverlayPageComponent {
   /** Doação e patrocínio só entram com o controle já resolvido e sem tarja — a tarja toma a
    *  tela, inclusive para um "Mostrar agora". */
   protected readonly cardsNoAr = computed(
-    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null && this.prejogo() == null && this.ranking() == null && !this.multiNoAr() && !this.gradeNoAr() && !this.intervaloNoAr() && !this.grupoNoAr() && !this.chaveNoAr(),
+    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null && this.prejogo() == null && this.ranking() == null && !this.multiNoAr() && !this.gradeNoAr() && !this.intervaloNoAr() && !this.grupoNoAr() && !this.chaveNoAr() && !this.eventosNoAr(),
   );
 
   /** O que vai ao ar: regra automática de cada tela E chave do painel; tarja toma a tela.
@@ -670,6 +673,13 @@ export class OverlayPageComponent {
   protected readonly multiNoAr = computed(
     () => this.gateway.controlReady() && this.controle().multi.on && !this.interviewOnAir(),
   );
+  /** Próximos eventos no ar: card montado pelo painel (as vagas exigem login pra contar). */
+  protected readonly eventosNoAr = computed(
+    () => this.gateway.controlReady() && this.controle().eventos.on && this.controle().eventos.card != null && !this.interviewOnAir(),
+  );
+  protected readonly eventosCard = computed(() => (this.eventosNoAr() ? this.controle().eventos.card : null));
+  protected readonly eventosMode = computed(() => this.controle().eventos.mode);
+
   /** Chaves no ar: a chave eliminatória da categoria, desenhada das partidas públicas. */
   protected readonly chaveNoAr = computed(
     () => this.gateway.controlReady() && this.controle().chave.on && !this.interviewOnAir(),

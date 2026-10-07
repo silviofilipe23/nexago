@@ -9,7 +9,7 @@ import { BROADCAST_GRAPHICS, tournamentHasKoc } from './broadcast-graphics';
 /** Cada linha da lista "Gráficos" do painel de Transmissão. As chaves de `BroadcastGraphicId`
  *  valem como são; o resto (Multi, Pré-jogo, Ranking, Grade, Entrevista, Resumo) é controle
  *  próprio, fora de `control.graphics`. */
-export type TxItemKey = BroadcastGraphicId | 'multi' | 'prejogo' | 'ranking' | 'grade' | 'intervalo' | 'grupo' | 'chave' | 'interview' | 'summary';
+export type TxItemKey = BroadcastGraphicId | 'multi' | 'prejogo' | 'ranking' | 'grade' | 'intervalo' | 'grupo' | 'chave' | 'eventos' | 'interview' | 'summary';
 
 export interface TxItem {
   key: TxItemKey;
@@ -78,6 +78,7 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
 
   const prejogoCard = c.prejogo.card;
   const rankingCard = c.ranking.card;
+  const eventosCard = c.eventos.card;
   const groups: TxGroup[] = [
     {
       label: 'Partida',
@@ -156,6 +157,19 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
           locked: false,
           warn: false,
           resumo: chaveResumo(),
+          agora: false,
+        },
+        {
+          key: 'eventos',
+          nome: 'Próximos eventos',
+          on: c.eventos.on,
+          locked: !eventosCard && !c.eventos.on,
+          warn: !eventosCard,
+          resumo: !eventosCard
+            ? 'Monte o card primeiro'
+            : c.eventos.on
+              ? `${c.eventos.mode === 'full' ? 'Tela cheia' : 'Faixa'} · ${eventosCard.items.length} ${eventosCard.items.length === 1 ? 'evento' : 'eventos'}`
+              : 'Desligado',
           agora: false,
         },
       ],

@@ -41,7 +41,7 @@ import { tecnicoClock, tecnicoRestanteSeg, type OverlayTecnicoView } from './ove
 
         @if (sponsors().length > 0) {
           <div class="divider"><span>Oferecimento</span><i></i></div>
-          <og-overlay-patro-faixa [itens]="sponsors()" [delay]="0.35" style="--h: 110px; --gap: 16px" />
+          <og-overlay-patro-faixa [itens]="sponsors()" [delay]="0.35" style="--h: 100px; --gap: 18px" />
         }
       </section>
     }

@@ -126,7 +126,7 @@ const FLASH_MS = 700;
             @if (logos().length > 0) {
               <footer class="patro mq-up" style="--d: 0.9s">
                 <span class="patro-t">Oferecimento</span>
-                <og-overlay-patro-faixa [itens]="logos()" [delay]="0" style="--h: 60px; --gap: 14px" />
+                <og-overlay-patro-faixa [itens]="logos()" [delay]="1.2" style="--h: 100px; --gap: 18px" />
               </footer>
             }
           }
@@ -541,11 +541,11 @@ const FLASH_MS = 700;
       position: absolute;
       left: 64px;
       right: 64px;
-      bottom: 28px;
+      bottom: 16px;
       display: flex;
       align-items: center;
       gap: 24px;
-      padding-top: 16px;
+      padding-top: 8px;
       border-top: 1px solid rgba(255, 255, 255, 0.08);
     }
     .patro-t {

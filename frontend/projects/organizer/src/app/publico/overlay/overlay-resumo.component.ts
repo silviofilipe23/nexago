@@ -151,7 +151,7 @@ function rng(seed: number): () => number {
         @if (sponsors().length > 0) {
           <div class="patro rs-b" style="--d: 2.6s">
             <span class="patro-t">Oferecimento</span>
-            <og-overlay-patro-faixa [itens]="sponsors()" [delay]="2.7" style="--h: 60px; --gap: 12px" />
+            <og-overlay-patro-faixa [itens]="sponsors()" [delay]="2.7" style="--h: 100px; --gap: 18px" />
           </div>
         }
       </section>

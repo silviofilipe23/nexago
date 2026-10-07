@@ -102,7 +102,7 @@ const CAT_COLORS = ['#4da3ff', '#ff6a1a', '#ff5fa8', '#a07bff', '#3ddc84', '#f2c
         @if (logos().length > 0) {
           <footer class="patro gd-up" style="--d: 0.9s">
             <span class="patro-t">Oferecimento</span>
-            <og-overlay-patro-faixa [itens]="logos()" [delay]="0" style="--h: 64px; --gap: 14px" />
+            <og-overlay-patro-faixa [itens]="logos()" [delay]="1.2" style="--h: 100px; --gap: 18px" />
           </footer>
         }
       </div>

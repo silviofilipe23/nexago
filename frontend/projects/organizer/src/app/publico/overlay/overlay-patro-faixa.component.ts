@@ -115,7 +115,7 @@ export function patroFaixaVoltaSeg(listaPx: number): number {
     }
     img {
       display: block;
-      height: 100%;
+      height: 80px;
       width: auto;
       max-width: 320px;
       object-fit: contain;

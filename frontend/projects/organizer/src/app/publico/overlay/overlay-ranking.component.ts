@@ -159,7 +159,7 @@ const medalOf = (idx: number | null): Medal => (idx === 0 ? 'gold' : idx === 1 ?
             @if (logos().length > 0) {
               <div class="patro rk-up" style="--d: 1.2s">
                 <span class="lado-t">Oferecimento</span>
-                <og-overlay-patro-faixa [itens]="logos()" [delay]="0" style="--h: 56px; --gap: 12px" />
+                <og-overlay-patro-faixa [itens]="logos()" [delay]="1.2" style="--h: 100px; --gap: 18px" />
               </div>
             }
           </aside>

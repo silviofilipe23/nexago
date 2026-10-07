@@ -537,6 +537,49 @@ const TICK_MS = 500;
       text-transform: uppercase;
       color: var(--o5);
     }
+    .patro-grade {
+      flex: 1;
+      display: grid;
+      gap: 18px;
+      height: 100px;
+    }
+    .logo {
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      box-sizing: border-box;
+      border-radius: 8px;
+      border: 1.5px dashed rgba(255, 255, 255, 0.2);
+      background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0 10px, transparent 10px 20px);
+      transition:
+        transform 0.5s ease,
+        border-color 0.5s ease,
+        box-shadow 0.5s ease;
+    }
+    .logo--img {
+      border: 1.5px solid transparent;
+      background: #fff;
+      padding: 10px;
+    }
+    .logo--on {
+      transform: translateY(-4px);
+      border: 1.5px solid var(--o5);
+      box-shadow: 0 0 22px rgba(255, 106, 26, 0.55);
+    }
+    .logo img {
+      width: 80px;
+      height: 100%;
+      object-fit: contain;
+      object-position: center;
+    }
+    .logo span {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.55);
+    }
 
     /* Cortina laranja: cobre da esquerda pra direita e se recolhe pra direita, em 1 s. */
     .cortina {

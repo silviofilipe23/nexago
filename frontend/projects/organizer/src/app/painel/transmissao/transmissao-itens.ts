@@ -1,4 +1,5 @@
 import type { BroadcastControl, BroadcastGraphicId, BroadcastInterview } from '../data/broadcast-control';
+import { LANCE_LABEL } from '../data/broadcast-lances';
 import { INTERVALO_BADGE } from '../data/broadcast-intervalo';
 import type { InterviewQueue } from '../data/interview-queue';
 import type { TournamentMatch } from '../data/matches-repository';
@@ -9,7 +10,7 @@ import { BROADCAST_GRAPHICS, tournamentHasKoc } from './broadcast-graphics';
 /** Cada linha da lista "Gráficos" do painel de Transmissão. As chaves de `BroadcastGraphicId`
  *  valem como são; o resto (Multi, Pré-jogo, Ranking, Grade, Entrevista, Resumo) é controle
  *  próprio, fora de `control.graphics`. */
-export type TxItemKey = BroadcastGraphicId | 'multi' | 'bolao' | 'prejogo' | 'ranking' | 'grade' | 'intervalo' | 'telas' | 'grupo' | 'chave' | 'eventos' | 'interview' | 'summary';
+export type TxItemKey = BroadcastGraphicId | 'multi' | 'bolao' | 'prejogo' | 'ranking' | 'grade' | 'intervalo' | 'telas' | 'lances' | 'grupo' | 'chave' | 'eventos' | 'interview' | 'summary';
 
 export interface TxItem {
   key: TxItemKey;
@@ -25,6 +26,8 @@ export interface TxItem {
   /** Entra e sai sozinho (Momento decisivo): o switch só autoriza — não conta como "no ar"
    *  nem aparece em "Ativos agora". */
   auto?: boolean;
+  /** Dispara em vez de ligar/desligar (Lances): sem switch "No ar", fora de "Ativos agora" e do Esc. */
+  disparo?: boolean;
 }
 
 export interface TxGroup {
@@ -160,6 +163,16 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
             ? `${INTERVALO_BADGE[c.intervalo.mode]} · ${c.intervalo.durationSec > 0 ? intervaloClock(c.intervalo.durationSec) : 'sem contagem'}`
             : 'Desligado',
           agora: false,
+        },
+        {
+          key: 'lances',
+          nome: 'Lances',
+          on: false,
+          locked: false,
+          warn: false,
+          resumo: c.lances.tipo ? `Último: ${LANCE_LABEL[c.lances.tipo]}` : 'Dispare a vinheta de um lance',
+          agora: false,
+          disparo: true,
         },
         {
           key: 'grupo',

@@ -84,6 +84,7 @@ describe('TransmissaoComponent', () => {
         'Grade do dia',
         'Intervalo',
         'Início e fim',
+        'Lances',
         'Tabela do grupo',
         'Chaves',
         'Próximos eventos',
@@ -308,7 +309,7 @@ describe('TransmissaoComponent', () => {
 
     it('atalho numérico liga a tabela', async () => {
       const { fake } = await mount(comGrupos());
-      tecla('a');
+      tecla('b');
       expect(fake.saved).toEqual([{ grupo: { ...base, on: true } }]);
     });
   });
@@ -365,7 +366,7 @@ describe('TransmissaoComponent', () => {
 
     it('atalho numérico liga a chave', async () => {
       const { fake } = await mount(comChaves());
-      tecla('b');
+      tecla('c');
       expect(fake.saved).toEqual([{ chave: { ...base, on: true } }]);
     });
 
@@ -460,9 +461,9 @@ describe('TransmissaoComponent', () => {
       expect(fake.saved[0].eventos).toEqual({ on: false, mode: 'full', card: CARD_EVENTOS });
     });
 
-    it('atalho de letra liga o item (12º da lista = C)', async () => {
+    it('atalho de letra liga o item (13º da lista = D)', async () => {
       const { fake } = await mount(comCard());
-      tecla('c');
+      tecla('d');
       expect(fake.saved).toEqual([{ eventos: { on: true, mode: 'full', card: CARD_EVENTOS } }]);
     });
   });
@@ -597,6 +598,56 @@ describe('TransmissaoComponent', () => {
       ligado.control.set({ ...ligado.control(), telas: { ...base, on: true } });
       const { el } = await mount(ligado);
       expect(el.querySelector('.og-tx-preview')?.textContent).toContain('INÍCIO / FIM');
+    });
+  });
+
+  describe('Lances', () => {
+    const naLances = (el: HTMLElement, texto: string, escopo?: string) => {
+      const raiz = el.querySelector('og-tx-lances')!;
+      const r = escopo ? raiz.querySelector(`[aria-label="${escopo}"]`)! : raiz;
+      return [...r.querySelectorAll('button')].find((x) => (x.textContent ?? '').trim().startsWith(texto)) as HTMLButtonElement;
+    };
+
+    it('está na lista, sem switch, e o atalho A seleciona', async () => {
+      const { el, fixture } = await mount();
+      expect(linha(el, 'Lances').querySelector('button[role="switch"]')).toBeNull();
+      tecla('A');
+      await fixture.whenStable();
+      expect(el.querySelector('.og-tx-cfg h2')?.textContent).toContain('Lances');
+    });
+
+    it('disparar grava seq+1, tipo, lado, atleta, count e at (serverTimestamp)', async () => {
+      const { el, fake, fixture } = await mount();
+      naLances(el, 'Carla / Dani', 'Dupla').click();
+      await fixture.whenStable();
+      naLances(el, 'Dani Ávila', 'Atleta').click();
+      naLances(el, 'Ace', 'Lance').click();
+      naLances(el, 'Disparar').click();
+      const l = fake.saved[0].lances!;
+      expect(l).toEqual(jasmine.objectContaining({ seq: 1, tipo: 'ace', lado: 1, atleta: 1, count: 1, n: 0, seg: 6, contagem: '{"ace|1|1":1}' }));
+      expect((l.at as FieldValue).isEqual(serverTimestamp())).toBeTrue();
+    });
+
+    it('o segundo disparo do mesmo atleta sobe o count', async () => {
+      const { el, fake } = await mount();
+      naLances(el, 'Disparar').click();
+      fake.control.set({ ...fake.control(), lances: { ...fake.control().lances, ...fake.saved[0].lances!, at: null } });
+      naLances(el, 'Disparar').click();
+      expect(fake.saved[1].lances).toEqual(jasmine.objectContaining({ seq: 2, tipo: 'block', count: 2 }));
+    });
+
+    it('rally grava n e count', async () => {
+      const { el, fake } = await mount();
+      naLances(el, 'Rally Monstro', 'Lance').click();
+      naLances(el, 'Disparar').click();
+      expect(fake.saved[0].lances).toEqual(jasmine.objectContaining({ tipo: 'rally', n: 18, count: 18, atleta: 0 }));
+    });
+
+    it('zerar limpa a contagem e não mexe no seq', async () => {
+      const { el, fake } = await mount();
+      fake.control.set({ ...fake.control(), lances: { ...fake.control().lances, seq: 4, tipo: 'ace', contagem: '{"ace|0|0":3}' } });
+      naLances(el, 'Zerar').click();
+      expect(fake.saved).toEqual([{ lances: jasmine.objectContaining({ seq: 4, tipo: 'ace', contagem: '{}' }) }]);
     });
   });
 
@@ -846,14 +897,14 @@ describe('TransmissaoComponent', () => {
       const { el } = await mount();
       const badges = Array.from(el.querySelectorAll('.og-tx-row-nome kbd')).map((k) => k.textContent?.trim());
       expect(badges.slice(0, 9)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
-      expect(badges.slice(9, 16)).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
+      expect(badges.slice(9, 17)).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']);
     });
 
     it('uma letra liga/desliga o item correspondente, maiúscula ou minúscula', async () => {
       const { fake } = await mount();
-      tecla('e'); // 14º: Campeões
+      tecla('f'); // 15º: Campeões
       expect(fake.saved.at(-1)).toEqual({ graphics: { champions: false } });
-      tecla('G'); // 16º: Patrocinadores
+      tecla('H'); // 17º: Patrocinadores
       expect(fake.saved.at(-1)).toEqual({ graphics: { sponsors: false } });
       tecla('z'); // além da lista: nada
       expect(fake.saved.length).toBe(2);

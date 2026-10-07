@@ -26,6 +26,8 @@ import { OverlayGrupoComponent } from './overlay-grupo.component';
 import { categoriesWithGroups, gruposViewOf } from './overlay-grupo';
 import { OverlayIntervaloComponent } from './overlay-intervalo.component';
 import { OverlayTelasComponent } from './overlay-telas.component';
+import { OverlayLancesComponent } from './overlay-lances.component';
+import { lanceDuplaOf } from './overlay-lances';
 import { intervaloViewOf } from './overlay-intervalo';
 import { OverlayGradeComponent } from './overlay-grade.component';
 import { gradeViewOf } from './overlay-grade';
@@ -113,6 +115,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
     OverlayGradeComponent,
     OverlayIntervaloComponent,
     OverlayTelasComponent,
+    OverlayLancesComponent,
     OverlayGrupoComponent,
     OverlayChaveComponent,
     OverlayEventosComponent,
@@ -224,6 +227,12 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
           [eventName]="gateway.tournament()?.name ?? ''"
           [startAt]="gateway.tournament()?.startAt ?? null"
           [sponsors]="patroItens()"
+        />
+        <og-overlay-lances
+          [config]="lancesCfg()"
+          [duplas]="lancesDuplas()"
+          [court]="courtName()"
+          [category]="categoryName()"
         />
         <og-overlay-grade
           [view]="gradeView()"
@@ -786,6 +795,16 @@ export class OverlayPageComponent {
   protected readonly telasCfg = computed(() => {
     const t = this.controle().telas;
     return this.gateway.controlReady() && t.on && !this.interviewOnAir() ? t : null;
+  });
+  /** Lances: disparo do painel; nomes das duplas da partida ao vivo da quadra. */
+  protected readonly lancesCfg = computed(() => (this.gateway.controlReady() ? this.controle().lances : null));
+  protected readonly lancesDuplas = computed(() => {
+    const m = this.match();
+    const teams = this.gateway.teams();
+    return [
+      lanceDuplaOf(m ? teams.get(m.teamAId)?.players : null, 'Dupla A'),
+      lanceDuplaOf(m ? teams.get(m.teamBId)?.players : null, 'Dupla B'),
+    ] as const;
   });
   protected readonly telasNoAr = computed(() => this.telasCfg() != null);
   protected readonly telasPrimeiro = computed(() => {

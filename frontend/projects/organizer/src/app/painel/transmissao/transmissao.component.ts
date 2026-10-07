@@ -19,6 +19,7 @@ import { TransmissaoChaveComponent } from './transmissao-chave.component';
 import { TransmissaoGrupoComponent } from './transmissao-grupo.component';
 import { txAtalhoOf, txGroupsOf, txIndexOfAtalho, txItemsOf, type TxItem, type TxItemKey } from './transmissao-itens';
 import { TransmissaoIntervaloComponent } from './transmissao-intervalo.component';
+import { TransmissaoLancesComponent } from './transmissao-lances.component';
 import { TransmissaoTelasComponent } from './transmissao-telas.component';
 import { TransmissaoMultiComponent } from './transmissao-multi.component';
 import { TransmissaoPrejogoComponent } from './transmissao-prejogo.component';
@@ -51,6 +52,7 @@ const PREVIEW_SPOT: Record<TxItemKey, { label: string; spot: string }> = {
   grade: { label: 'Grade do dia', spot: 'full' },
   intervalo: { label: 'INTERVALO', spot: 'full' },
   telas: { label: 'INÍCIO / FIM', spot: 'full' },
+  lances: { label: 'LANCES', spot: 'full' },
   grupo: { label: 'TABELA DO GRUPO', spot: 'c' },
   chave: { label: 'CHAVES', spot: 'full' },
   eventos: { label: 'PRÓXIMOS EVENTOS', spot: 'full' },
@@ -74,7 +76,7 @@ function typingTarget(t: EventTarget | null): boolean {
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [TransmissaoDataService],
   host: { '(document:keydown)': 'onKey($event)' },
-  imports: [TransmissaoEntrevistaComponent, TransmissaoPrejogoComponent, TransmissaoRankingComponent, TransmissaoMultiComponent, TransmissaoBolaoComponent, TransmissaoGradeComponent, TransmissaoIntervaloComponent, TransmissaoTelasComponent, TransmissaoGrupoComponent, TransmissaoChaveComponent, TransmissaoEventosComponent, RouterLink],
+  imports: [TransmissaoEntrevistaComponent, TransmissaoPrejogoComponent, TransmissaoRankingComponent, TransmissaoMultiComponent, TransmissaoBolaoComponent, TransmissaoGradeComponent, TransmissaoIntervaloComponent, TransmissaoTelasComponent, TransmissaoLancesComponent, TransmissaoGrupoComponent, TransmissaoChaveComponent, TransmissaoEventosComponent, RouterLink],
   template: `
     <div class="og-tx-page">
       <header class="og-tx-bar">
@@ -155,6 +157,7 @@ function typingTarget(t: EventTarget | null): boolean {
                       Agora
                     </button>
                   }
+                  @if (!item.disparo) {
                   <button
                     type="button"
                     class="og-toggle og-tx-sw"
@@ -165,6 +168,7 @@ function typingTarget(t: EventTarget | null): boolean {
                     [disabled]="item.locked"
                     (click)="toggleItem(item.key)"
                   ></button>
+                  }
                 </div>
               }
             }
@@ -174,6 +178,7 @@ function typingTarget(t: EventTarget | null): boolean {
         <section class="og-tx-panel og-tx-cfg" aria-label="Configurações">
           <div class="og-tx-panel-head">
             <h2>{{ selected().nome }}</h2>
+            @if (!selected().disparo) {
             <span class="og-tx-cfg-noar">No ar</span>
             <button
               type="button"
@@ -185,6 +190,7 @@ function typingTarget(t: EventTarget | null): boolean {
               [disabled]="selected().locked"
               (click)="toggleItem(selected().key)"
             ></button>
+            }
           </div>
           <div class="og-tx-panel-body og-tx-cfg-body">
             @if (selected().locked && selected().warn) {
@@ -198,6 +204,7 @@ function typingTarget(t: EventTarget | null): boolean {
             <og-tx-grade [bare]="true" [hidden]="selectedKey() !== 'grade'" />
             <og-tx-intervalo [bare]="true" [hidden]="selectedKey() !== 'intervalo'" />
             <og-tx-telas [bare]="true" [hidden]="selectedKey() !== 'telas'" />
+            <og-tx-lances [bare]="true" [hidden]="selectedKey() !== 'lances'" />
             <og-tx-grupo [bare]="true" [hidden]="selectedKey() !== 'grupo'" />
             <og-tx-chave [bare]="true" [hidden]="selectedKey() !== 'chave'" />
             <og-tx-eventos [bare]="true" [hidden]="selectedKey() !== 'eventos'" />
@@ -811,7 +818,7 @@ export class TransmissaoComponent {
   );
   private readonly items = computed(() => txItemsOf(this.groups()));
   protected readonly selected = computed<TxItem>(() => this.items().find((i) => i.key === this.selectedKey()) ?? this.items()[0]);
-  protected readonly ativos = computed(() => this.items().filter((i) => i.on && !i.auto));
+  protected readonly ativos = computed(() => this.items().filter((i) => i.on && !i.auto && !i.disparo));
   protected readonly noAr = computed(() => this.ativos().length);
   protected readonly isKoc = computed(() => this.selectedKey().startsWith('koc'));
 
@@ -917,6 +924,9 @@ export class TransmissaoComponent {
       case 'summary':
         void this.svc.save({ summaryOn: !c.summaryOn });
         break;
+      case 'lances':
+        // Disparo, não liga/desliga: o botão do card é quem grava.
+        break;
       default: {
         const graphics: Partial<BroadcastGraphics> = {};
         graphics[key] = !c.graphics[key];
@@ -963,7 +973,8 @@ export class TransmissaoComponent {
     } else if (txIndexOfAtalho(e.key) != null) {
       const item = items[txIndexOfAtalho(e.key)!];
       if (!item || item.locked) return;
-      this.toggleItem(item.key);
+      if (item.disparo) this.select(item.key);
+      else this.toggleItem(item.key);
     } else {
       return;
     }

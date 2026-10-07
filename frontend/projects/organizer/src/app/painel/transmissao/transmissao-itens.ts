@@ -127,21 +127,21 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
       label: 'Apresentação',
       itens: [
         {
-          key: 'telas',
-          nome: 'Início e fim',
-          on: c.telas.on,
-          locked: false,
-          warn: false,
-          resumo: telasResumo(),
-          agora: false,
-        },
-        {
           key: 'prejogo',
           nome: 'Pré-jogo',
           on: c.prejogo.on,
           locked: !prejogoCard && !c.prejogo.on,
           warn: !prejogoCard,
           resumo: prejogoCard ? `${prejogoCard.a.names.join(' / ')} × ${prejogoCard.b.names.join(' / ')}` : 'Monte o card primeiro',
+          agora: false,
+        },
+        {
+          key: 'ranking',
+          nome: 'Ranking Top 10',
+          on: c.ranking.on,
+          locked: !rankingCard && !c.ranking.on,
+          warn: !rankingCard,
+          resumo: rankingCard ? `Ranking ${rankingCard.categoryLabel}` : 'Monte o card primeiro',
           agora: false,
         },
         {
@@ -162,6 +162,15 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
           resumo: c.intervalo.on
             ? `${INTERVALO_BADGE[c.intervalo.mode]} · ${c.intervalo.durationSec > 0 ? intervaloClock(c.intervalo.durationSec) : 'sem contagem'}`
             : 'Desligado',
+          agora: false,
+        },
+        {
+          key: 'telas',
+          nome: 'Início e fim',
+          on: c.telas.on,
+          locked: false,
+          warn: false,
+          resumo: telasResumo(),
           agora: false,
         },
         {
@@ -190,15 +199,6 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
           locked: false,
           warn: false,
           resumo: chaveResumo(),
-          agora: false,
-        },
-        {
-          key: 'ranking',
-          nome: 'Ranking Top 10',
-          on: c.ranking.on,
-          locked: !rankingCard && !c.ranking.on,
-          warn: !rankingCard,
-          resumo: rankingCard ? `Ranking ${rankingCard.categoryLabel}` : 'Monte o card primeiro',
           agora: false,
         },
         {

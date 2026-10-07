@@ -9,6 +9,7 @@ import {
   type KocRoundEndScreen,
 } from './broadcast-control';
 import type { BroadcastIntervalo } from './broadcast-intervalo';
+import type { BroadcastTelas } from './broadcast-telas';
 import type { BroadcastBolao } from './broadcast-bolao';
 import type { BroadcastEventos } from './broadcast-eventos';
 import type { BroadcastChave } from './broadcast-chave';
@@ -37,6 +38,8 @@ export interface BroadcastControlPatch {
   chave?: BroadcastChave;
   eventos?: BroadcastEventos;
   bolao?: BroadcastBolao;
+  /** `startedAt` aceita `serverTimestamp()`/`null` na escrita (por isso `unknown`). */
+  telas?: Omit<BroadcastTelas, 'startedAt'> & { startedAt: unknown };
   /** `startedAt` aceita `serverTimestamp()`/`null` na escrita (por isso `unknown`). */
   intervalo?: Omit<BroadcastIntervalo, 'startedAt'> & { startedAt: unknown };
   interview?: BroadcastInterview | null;

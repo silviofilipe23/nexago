@@ -9,7 +9,7 @@ import { BROADCAST_GRAPHICS, tournamentHasKoc } from './broadcast-graphics';
 /** Cada linha da lista "Gráficos" do painel de Transmissão. As chaves de `BroadcastGraphicId`
  *  valem como são; o resto (Multi, Pré-jogo, Ranking, Grade, Entrevista, Resumo) é controle
  *  próprio, fora de `control.graphics`. */
-export type TxItemKey = BroadcastGraphicId | 'multi' | 'bolao' | 'prejogo' | 'ranking' | 'grade' | 'intervalo' | 'grupo' | 'chave' | 'eventos' | 'interview' | 'summary';
+export type TxItemKey = BroadcastGraphicId | 'multi' | 'bolao' | 'prejogo' | 'ranking' | 'grade' | 'intervalo' | 'telas' | 'grupo' | 'chave' | 'eventos' | 'interview' | 'summary';
 
 export interface TxItem {
   key: TxItemKey;
@@ -76,6 +76,13 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
   const chaveResumo = (): string => {
     if (!c.chave.on) return 'Desligado';
     return (t?.categories ?? []).find((k) => k.id === c.chave.categoryId)?.name ?? 'Automática';
+  };
+  const telasResumo = (): string => {
+    if (!c.telas.on) return 'Desligado';
+    if (c.telas.tela === 'fim') return 'Fim';
+    const { startedAt, durationSec } = c.telas;
+    const left = startedAt ? Math.ceil((startedAt.getTime() + durationSec * 1000 - Date.now()) / 1000) : 0;
+    return left > 0 ? `Início · ${intervaloClock(left)}` : `Início · ${Math.round(durationSec / 60)} min`;
   };
   const semPatrocinador = (t?.sponsors ?? []).length === 0;
 
@@ -152,6 +159,15 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
           resumo: c.intervalo.on
             ? `${INTERVALO_BADGE[c.intervalo.mode]} · ${c.intervalo.durationSec > 0 ? intervaloClock(c.intervalo.durationSec) : 'sem contagem'}`
             : 'Desligado',
+          agora: false,
+        },
+        {
+          key: 'telas',
+          nome: 'Início e fim',
+          on: c.telas.on,
+          locked: false,
+          warn: false,
+          resumo: telasResumo(),
           agora: false,
         },
         {

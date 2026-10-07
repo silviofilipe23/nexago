@@ -40,7 +40,8 @@ describe('OverlayEventosComponent', () => {
     const status = Array.from(el.querySelectorAll('.lin .st')).map((e) => e.textContent?.trim());
     expect(status).toEqual(['Últimas vagas', 'Em breve', 'Esgotado', 'Inscrições encerradas']);
     expect(el.querySelector('.seq-h')?.textContent).toContain('4 eventos');
-    expect(el.querySelector('.rodape')?.textContent).toContain('Inscrições pelo app');
+    expect(el.querySelector('.rodape')?.textContent).toContain('Baixe o app');
+    expect(el.querySelector('.rodape .site')?.textContent).toContain('linktr.ee/nexago');
   });
 
   it('sem vagas contadas não há barra; sem premiação a linha não mostra valor', async () => {
@@ -63,6 +64,8 @@ describe('OverlayEventosComponent', () => {
     expect(el.querySelectorAll('.f-prog i').length).toBe(3);
     expect(el.querySelectorAll('.f-prog u.enche').length).toBe(1);
     expect(el.querySelector('.f-qr')).not.toBeNull();
+    expect(el.querySelector('.f-site')?.textContent).toContain('Baixe o app');
+    expect(el.querySelector('.f-site')?.textContent).toContain('linktr.ee/nexago');
     expect(el.querySelector('.tela')).toBeNull();
   });
 

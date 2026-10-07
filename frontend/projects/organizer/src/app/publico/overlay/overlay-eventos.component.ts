@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
-import { environment } from '../../../environments/environment';
 import { EVENTO_STATUS_LABEL, type EventoItem, type EventosCard, type EventosMode } from '../../painel/data/broadcast-eventos';
 import { shareQrSvgDataUrl } from '../../painel/data/share-qr';
 import {
@@ -13,6 +12,9 @@ import {
   eventoVagasPct,
 } from './overlay-eventos';
 
+/** O QR e o endereço da tela levam ao download do app (um link só, igual pra todos os eventos). */
+export const EVENTOS_APP_URL = 'https://linktr.ee/nexago';
+
 /** Troca de evento na faixa: o atual sobe e some (0,28 s) e o próximo entra de baixo (0,48 s). */
 const STRIP_OUT_MS = 280;
 
@@ -20,7 +22,7 @@ const STRIP_OUT_MS = 280;
  *  em destaque + "na sequência") ou faixa (lower third) que troca de evento a cada 7 s.
  *
  *  Só apresentação: o card vem pronto do painel (`broadcast/control.eventos`). O QR é gerado aqui
- *  do link de inscrição que o painel gravou. */
+ *  do link do app (`EVENTOS_APP_URL`). */
 @Component({
   selector: 'og-overlay-eventos',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -83,8 +85,8 @@ const STRIP_OUT_MS = 280;
                         <b>{{ pct(e) }}%</b>
                       </div>
                     }
-                    <div class="qr" [class.qr--vazio]="!qr(e)">
-                      @if (qr(e); as src) { <img [src]="src" alt="QR de inscrição" /> } @else { <span>QR<br />inscrição</span> }
+                    <div class="qr" [class.qr--vazio]="!qr()">
+                      @if (qr(); as src) { <img [src]="src" alt="QR para baixar o app" /> } @else { <span>QR<br />app</span> }
                     </div>
                   </div>
                 </div>
@@ -111,7 +113,7 @@ const STRIP_OUT_MS = 280;
             }
 
             <footer class="rodape ev-up" style="--d: 0.9s">
-              <span>Inscrições pelo app <b>NexaGO</b></span>
+              <span>Baixe o app <b>NexaGO</b></span>
               <span class="site">{{ site }}</span>
             </footer>
           }
@@ -141,10 +143,10 @@ const STRIP_OUT_MS = 280;
               </div>
             </div>
             <div class="f-qr">
-              <div class="qr qr--s" [class.qr--vazio]="!qr(e)">
-                @if (qr(e); as src) { <img [src]="src" alt="QR de inscrição" /> } @else { <span>QR</span> }
+              <div class="qr qr--s" [class.qr--vazio]="!qr()">
+                @if (qr(); as src) { <img [src]="src" alt="QR para baixar o app" /> } @else { <span>QR</span> }
               </div>
-              <div class="f-site"><span>Inscreva-se</span><b>{{ site }}</b></div>
+              <div class="f-site"><span>Baixe o app</span><b>{{ site }}</b></div>
             </div>
           </div>
         }
@@ -912,13 +914,13 @@ export class OverlayEventosComponent {
   readonly card = input<EventosCard | null>(null);
   readonly mode = input<EventosMode>('full');
 
-  protected readonly site = `${new URL(environment.publicSiteUrl).host}/torneios`;
+  protected readonly site = EVENTOS_APP_URL.replace(/^https?:\/\//, '');
 
   private readonly now = signal(Date.now());
   /** Faixa: índice do evento na tela e a fase de saída entre um e outro. */
   protected readonly indice = signal(0);
   protected readonly saindo = signal(false);
-  private readonly qrs = signal<ReadonlyMap<string, string>>(new Map());
+  protected readonly qr = signal<string | null>(null);
 
   protected readonly atual = computed<EventoItem | null>(() => {
     const items = this.card()?.items ?? [];
@@ -932,18 +934,8 @@ export class OverlayEventosComponent {
     const clock = setInterval(() => this.now.set(Date.now()), 60_000);
     destroyRef.onDestroy(() => clearInterval(clock));
 
-    // QR de cada evento (assíncrono; o SVG vem do link de inscrição gravado pelo painel).
-    effect(() => {
-      const items = this.card()?.items ?? [];
-      untracked(() => {
-        for (const e of items) {
-          if (this.qrs().has(e.url)) continue;
-          void shareQrSvgDataUrl(e.url).then((src) => {
-            if (src) this.qrs.update((m) => new Map(m).set(e.url, src));
-          });
-        }
-      });
-    });
+    // QR do download do app, gerado uma vez (assíncrono).
+    void shareQrSvgDataUrl(EVENTOS_APP_URL).then((src) => this.qr.set(src));
 
     // Faixa: a cada 7 s o atual sobe e some (0,28 s) e o próximo entra de baixo; reinicia a cada card novo.
     effect((onCleanup) => {
@@ -992,8 +984,5 @@ export class OverlayEventosComponent {
   }
   protected statusLabel(e: EventoItem): string {
     return EVENTO_STATUS_LABEL[e.status];
-  }
-  protected qr(e: EventoItem): string | null {
-    return this.qrs().get(e.url) ?? null;
   }
 }

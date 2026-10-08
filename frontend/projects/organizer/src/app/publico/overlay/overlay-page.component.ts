@@ -28,6 +28,7 @@ import { OverlayIntervaloComponent } from './overlay-intervalo.component';
 import { OverlayTelasComponent } from './overlay-telas.component';
 import { OverlayLancesComponent } from './overlay-lances.component';
 import { OverlayAtletaComponent } from './overlay-atleta.component';
+import { OverlayCabineComponent } from './overlay-cabine.component';
 import { lanceDuplaOf } from './overlay-lances';
 import { intervaloViewOf } from './overlay-intervalo';
 import { OverlayGradeComponent } from './overlay-grade.component';
@@ -118,6 +119,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
     OverlayTelasComponent,
     OverlayLancesComponent,
     OverlayAtletaComponent,
+    OverlayCabineComponent,
     OverlayGrupoComponent,
     OverlayChaveComponent,
     OverlayEventosComponent,
@@ -149,7 +151,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
             [isFinal]="duelFinalMode()"
             [tecnicoSide]="tecnico()?.side ?? null"
             [encolhido]="medico() != null"
-            [class.fora]="resumo() != null || tecnico() != null || prejogo() != null || multiNoAr() || gradeNoAr() || intervaloNoAr() || telasNoAr() || lancesNoAr() || grupoNoAr() || chaveNoAr() || eventosNoAr() || decisivoView() != null || bolaoView() != null"
+            [class.fora]="resumo() != null || tecnico() != null || prejogo() != null || multiNoAr() || gradeNoAr() || intervaloNoAr() || telasNoAr() || lancesNoAr() || cabineNoAr() || grupoNoAr() || chaveNoAr() || eventosNoAr() || decisivoView() != null || bolaoView() != null"
           />
         }
         @if (telaDoResultado(); as board) {
@@ -238,6 +240,12 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
           (noAr)="lancesNoAr.set($event)"
         />
         <og-overlay-atleta [config]="atletaCfg()" />
+        <og-overlay-cabine
+          [config]="cabineCfg()"
+          [eventName]="gateway.tournament()?.name ?? ''"
+          [court]="courtName()"
+          (noAr)="cabineNoAr.set($event)"
+        />
         <og-overlay-grade
           [view]="gradeView()"
           [categories]="gateway.tournament()?.categories ?? []"
@@ -378,7 +386,7 @@ export class OverlayPageComponent {
   /** Doação e patrocínio só entram com o controle já resolvido e sem tarja — a tarja toma a
    *  tela, inclusive para um "Mostrar agora". */
   protected readonly cardsNoAr = computed(
-    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null && this.prejogo() == null && this.ranking() == null && !this.multiNoAr() && !this.gradeNoAr() && !this.intervaloNoAr() && !this.telasNoAr() && !this.lancesNoAr() && !this.grupoNoAr() && !this.chaveNoAr() && !this.eventosNoAr() && this.decisivoView() == null && this.bolaoView() == null,
+    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null && this.prejogo() == null && this.ranking() == null && !this.multiNoAr() && !this.gradeNoAr() && !this.intervaloNoAr() && !this.telasNoAr() && !this.lancesNoAr() && !this.cabineNoAr() && !this.grupoNoAr() && !this.chaveNoAr() && !this.eventosNoAr() && this.decisivoView() == null && this.bolaoView() == null,
   );
 
   /** O que vai ao ar: regra automática de cada tela E chave do painel; tarja toma a tela.
@@ -802,6 +810,8 @@ export class OverlayPageComponent {
   });
   /** Lances: disparo do painel; nomes das duplas da partida ao vivo da quadra. */
   protected readonly lancesNoAr = signal(false);
+  protected readonly cabineNoAr = signal(false);
+  protected readonly cabineCfg = computed(() => (this.gateway.controlReady() ? this.controle().comentaristas : null));
   protected readonly atletaCfg = computed(() => (this.gateway.controlReady() ? this.controle().atleta : null));
   protected readonly lancesCfg = computed(() => (this.gateway.controlReady() ? this.controle().lances : null));
   protected readonly lancesDuplas = computed(() => {

@@ -9,6 +9,7 @@ import type { BroadcastPrejogo } from '../data/broadcast-prejogo';
 import type { TournamentMatch } from '../data/matches-repository';
 import { FakeTransmissaoData as FakeData, PARTIDA, torneio } from './transmissao-data.fake';
 import { ATLETA_HISTORY_FETCHER } from './transmissao-atleta.component';
+import { CABINE_PHOTO_UPLOADER } from './transmissao-comentaristas.component';
 import { TransmissaoDataService } from './transmissao-data.service';
 import { TransmissaoComponent } from './transmissao.component';
 
@@ -82,6 +83,7 @@ describe('TransmissaoComponent', () => {
         'Bolão ao vivo',
         'Lances',
         'Atleta',
+        'Comentaristas',
         'Pré-jogo',
         'Ranking Top 10',
         'Grade do dia',
@@ -215,7 +217,7 @@ describe('TransmissaoComponent', () => {
 
     it('dígito de item travado não faz nada', async () => {
       const { fake, fixture } = await mount();
-      tecla('7'); // Pré-jogo (6º é o Atleta; 5º, os Lances; 4º, o Bolão; 3º, o Multi-quadras; 2º, o Momento decisivo)
+      tecla('8'); // Pré-jogo (7º é os Comentaristas; 6º é o Atleta; 5º, os Lances; 4º, o Bolão; 3º, o Multi-quadras; 2º, o Momento decisivo)
       await fixture.whenStable();
       expect(fake.saved).toEqual([]);
     });
@@ -311,7 +313,7 @@ describe('TransmissaoComponent', () => {
 
     it('atalho numérico liga a tabela', async () => {
       const { fake } = await mount(comGrupos());
-      tecla('c');
+      tecla('d');
       expect(fake.saved).toEqual([{ grupo: { ...base, on: true } }]);
     });
   });
@@ -368,7 +370,7 @@ describe('TransmissaoComponent', () => {
 
     it('atalho numérico liga a chave', async () => {
       const { fake } = await mount(comChaves());
-      tecla('d');
+      tecla('e');
       expect(fake.saved).toEqual([{ chave: { ...base, on: true } }]);
     });
 
@@ -463,9 +465,9 @@ describe('TransmissaoComponent', () => {
       expect(fake.saved[0].eventos).toEqual({ on: false, mode: 'full', card: CARD_EVENTOS });
     });
 
-    it('atalho de letra liga o item (14º da lista = E)', async () => {
+    it('atalho de letra liga o item (15º da lista = F)', async () => {
       const { fake } = await mount(comCard());
-      tecla('e');
+      tecla('f');
       expect(fake.saved).toEqual([{ eventos: { on: true, mode: 'full', card: CARD_EVENTOS } }]);
     });
   });
@@ -591,7 +593,7 @@ describe('TransmissaoComponent', () => {
 
     it('o atalho A liga', async () => {
       const { fake } = await mount();
-      tecla('B');
+      tecla('C');
       expect(fake.saved).toEqual([{ telas: { ...base, on: true } }]);
     });
 
@@ -669,6 +671,125 @@ describe('TransmissaoComponent', () => {
       naAtleta(el, 'Bia Lima').click();
       await fixture.whenStable();
       expect(fake.saved[0].atleta!.seg).toBe(0);
+    });
+  });
+
+  describe('Comentaristas', () => {
+    const P = (id: string, name: string) => ({ id, role: 'Narração', name, handle: null, desc: null, photoUrl: null, mic: true });
+    const ctl = (fake: FakeData, pessoas: ReturnType<typeof P>[], extra: Record<string, unknown> = {}) =>
+      fake.control.set({ ...fake.control(), comentaristas: { ...fake.control().comentaristas, pessoas, ...extra } });
+    const naCab = (el: HTMLElement, texto: string) =>
+      [...el.querySelector('og-tx-comentaristas')!.querySelectorAll('button')].find((x) => (x.textContent ?? '').trim().startsWith(texto) || x.getAttribute('aria-label') === texto) as HTMLButtonElement;
+
+    it('está na lista logo após Atleta, sem switch, e o atalho 7 seleciona', async () => {
+      const { el, fixture } = await mount();
+      expect(linha(el, 'Comentaristas').querySelector('button[role="switch"]')).toBeNull();
+      tecla('7');
+      await fixture.whenStable();
+      expect(el.querySelector('.og-tx-cfg h2')?.textContent).toContain('Comentaristas');
+      expect(el.querySelector('og-tx-comentaristas')!.textContent).toContain('Cadastre ao menos uma pessoa');
+    });
+
+    it('adicionar pessoa grava pessoas sem mexer em seq', async () => {
+      const { el, fake, fixture } = await mount();
+      naCab(el, 'Adicionar pessoa').click();
+      await fixture.whenStable();
+      const c = fake.saved[0].comentaristas!;
+      expect(c.pessoas.length).toBe(1);
+      expect(c.pessoas[0].id).toBeTruthy();
+      expect(c.seq).toBe(0);
+      expect(c.modo).toBeNull();
+    });
+
+    it('Mostrar grava seq+1, modo um, idx e at (serverTimestamp)', async () => {
+      const fake = new FakeData();
+      ctl(fake, [P('a', 'Rafa'), P('b', 'Lia')], { seq: 4 });
+      const { el, fixture } = await mount(fake);
+      naCab(el, 'Lia').click();
+      await fixture.whenStable();
+      naCab(el, 'Mostrar').click();
+      const c = fake.saved[0].comentaristas!;
+      expect(c.seq).toBe(5);
+      expect(c.modo).toBe('um');
+      expect(c.idx).toBe(1);
+      expect(c.seg).toBe(8);
+      expect((c.at as unknown as FieldValue).isEqual(serverTimestamp())).toBeTrue();
+    });
+
+    it('▶ avança (circular) e já mostra', async () => {
+      const fake = new FakeData();
+      ctl(fake, [P('a', 'Rafa'), P('b', 'Lia')]);
+      const { el, fixture } = await mount(fake);
+      naCab(el, 'Próxima pessoa').click();
+      await fixture.whenStable();
+      expect(fake.saved.at(-1)!.comentaristas!.idx).toBe(1);
+      naCab(el, 'Próxima pessoa').click();
+      await fixture.whenStable();
+      expect(fake.saved.at(-1)!.comentaristas!.idx).toBe(0);
+    });
+
+    it('Cabine fica desabilitada com 1 pessoa e grava modo cabine com 2', async () => {
+      const fake = new FakeData();
+      ctl(fake, [P('a', 'Rafa')]);
+      const { el, fixture } = await mount(fake);
+      expect(naCab(el, 'Cabine').disabled).toBeTrue();
+      ctl(fake, [P('a', 'Rafa'), P('b', 'Lia')]);
+      await fixture.whenStable();
+      expect(naCab(el, 'Cabine').disabled).toBeFalse();
+      naCab(el, 'Cabine').click();
+      const c = fake.saved[0].comentaristas!;
+      expect(c.modo).toBe('cabine');
+      expect(c.seq).toBe(1);
+    });
+
+    it('Sair grava modo null com seq+1', async () => {
+      const fake = new FakeData();
+      ctl(fake, [P('a', 'Rafa')], { seq: 2, modo: 'um' });
+      const { el } = await mount(fake);
+      naCab(el, 'Sair').click();
+      const c = fake.saved[0].comentaristas!;
+      expect(c.modo).toBeNull();
+      expect(c.seq).toBe(3);
+    });
+
+    it('tempo 0 grava seg 0', async () => {
+      const fake = new FakeData();
+      ctl(fake, [P('a', 'Rafa')]);
+      const { el } = await mount(fake);
+      const campo = el.querySelector('og-tx-comentaristas input[aria-label="Tempo (s)"]') as HTMLInputElement;
+      campo.value = '0';
+      campo.dispatchEvent(new Event('input'));
+      naCab(el, 'Mostrar').click();
+      expect(fake.saved[0].comentaristas!.seg).toBe(0);
+    });
+
+    it('subir foto grava o photoUrl da pessoa; falha mostra o aviso', async () => {
+      const fake = new FakeData();
+      ctl(fake, [P('a', 'Rafa')]);
+      TestBed.overrideProvider(CABINE_PHOTO_UPLOADER, { useValue: (t: string, id: string) => Promise.resolve(`https://x/${t}/${id}.jpg`) });
+      const { el, fixture } = await mount(fake);
+      const arq = el.querySelector('og-tx-comentaristas input[type="file"]') as HTMLInputElement;
+      const dt = new DataTransfer();
+      dt.items.add(new File(['x'], 'f.png', { type: 'image/png' }));
+      arq.files = dt.files;
+      arq.dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+      expect(fake.saved[0].comentaristas!.pessoas[0].photoUrl).toBe('https://x/t1/a.jpg');
+    });
+
+    it('falha no upload mostra "Não deu pra enviar a foto"', async () => {
+      const fake = new FakeData();
+      ctl(fake, [P('a', 'Rafa')]);
+      TestBed.overrideProvider(CABINE_PHOTO_UPLOADER, { useValue: () => Promise.reject(new Error('negado')) });
+      const { el, fixture } = await mount(fake);
+      const arq = el.querySelector('og-tx-comentaristas input[type="file"]') as HTMLInputElement;
+      const dt = new DataTransfer();
+      dt.items.add(new File(['x'], 'f.png', { type: 'image/png' }));
+      arq.files = dt.files;
+      arq.dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+      expect(fake.saved).toEqual([]);
+      expect(el.querySelector('og-tx-comentaristas')!.textContent).toContain('Não deu pra enviar a foto');
     });
   });
 
@@ -987,9 +1108,9 @@ describe('TransmissaoComponent', () => {
 
     it('uma letra liga/desliga o item correspondente, maiúscula ou minúscula', async () => {
       const { fake } = await mount();
-      tecla('g'); // 16º: Campeões
+      tecla('h'); // 17º: Campeões
       expect(fake.saved.at(-1)).toEqual({ graphics: { champions: false } });
-      tecla('I'); // 18º: Patrocinadores
+      tecla('J'); // 19º: Patrocinadores
       expect(fake.saved.at(-1)).toEqual({ graphics: { sponsors: false } });
       tecla('z'); // além da lista: nada
       expect(fake.saved.length).toBe(2);

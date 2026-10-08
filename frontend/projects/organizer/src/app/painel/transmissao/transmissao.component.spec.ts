@@ -79,12 +79,12 @@ describe('TransmissaoComponent', () => {
         'Momento decisivo',
         'Multi-quadras',
         'Bolão ao vivo',
+        'Lances',
         'Pré-jogo',
         'Ranking Top 10',
         'Grade do dia',
         'Intervalo',
         'Início e fim',
-        'Lances',
         'Tabela do grupo',
         'Chaves',
         'Próximos eventos',
@@ -213,7 +213,7 @@ describe('TransmissaoComponent', () => {
 
     it('dígito de item travado não faz nada', async () => {
       const { fake, fixture } = await mount();
-      tecla('5'); // Pré-jogo (4º é o Bolão; 3º, o Multi-quadras; 2º, o Momento decisivo)
+      tecla('6'); // Pré-jogo (5º são os Lances; 4º, o Bolão; 3º, o Multi-quadras; 2º, o Momento decisivo)
       await fixture.whenStable();
       expect(fake.saved).toEqual([]);
     });
@@ -587,9 +587,9 @@ describe('TransmissaoComponent', () => {
       expect(fake.saved.at(-1)).toEqual({ telas: { ...base, startedAt: null } });
     });
 
-    it('o atalho 9 liga', async () => {
+    it('o atalho A liga', async () => {
       const { fake } = await mount();
-      tecla('9');
+      tecla('A');
       expect(fake.saved).toEqual([{ telas: { ...base, on: true } }]);
     });
 
@@ -608,10 +608,10 @@ describe('TransmissaoComponent', () => {
       return [...r.querySelectorAll('button')].find((x) => (x.textContent ?? '').trim().startsWith(texto)) as HTMLButtonElement;
     };
 
-    it('está na lista, sem switch, e o atalho A seleciona', async () => {
+    it('está na lista, sem switch, e o atalho 5 seleciona', async () => {
       const { el, fixture } = await mount();
       expect(linha(el, 'Lances').querySelector('button[role="switch"]')).toBeNull();
-      tecla('A');
+      tecla('5');
       await fixture.whenStable();
       expect(el.querySelector('.og-tx-cfg h2')?.textContent).toContain('Lances');
     });

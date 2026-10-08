@@ -1,3 +1,4 @@
+import { DEFAULT_BROADCAST_ATLETA, atletaFromRaw, type BroadcastAtleta } from './broadcast-atleta';
 import { DEFAULT_BROADCAST_LANCES, lancesFromRaw, type BroadcastLances } from './broadcast-lances';
 import { DEFAULT_BROADCAST_TELAS, telasFromRaw, type BroadcastTelas } from './broadcast-telas';
 import { DEFAULT_BROADCAST_BOLAO, bolaoFromRaw, type BroadcastBolao } from './broadcast-bolao';
@@ -197,6 +198,8 @@ export interface BroadcastControl {
   telas: BroadcastTelas;
   /** Lances (vinheta + tarja): último disparo e contagem por atleta. */
   lances: BroadcastLances;
+  /** Card do Atleta: último comando (mostrar/sair) e o card montado pelo painel. */
+  atleta: BroadcastAtleta;
   interview: BroadcastInterview | null;
   commands: BroadcastCommands;
 }
@@ -228,6 +231,7 @@ export const DEFAULT_BROADCAST_CONTROL: BroadcastControl = {
   bolao: DEFAULT_BROADCAST_BOLAO,
   telas: DEFAULT_BROADCAST_TELAS,
   lances: DEFAULT_BROADCAST_LANCES,
+  atleta: DEFAULT_BROADCAST_ATLETA,
   interview: null,
   commands: { donationNowAt: 0, sponsorsNowAt: 0 },
 };
@@ -360,6 +364,7 @@ export function broadcastControlFromRaw(raw: unknown): BroadcastControl {
     bolao: bolaoFromRaw(d['bolao']),
     telas: telasFromRaw(d['telas']),
     lances: lancesFromRaw(d['lances']),
+    atleta: atletaFromRaw(d['atleta']),
     interview: interviewFromRaw(d['interview']),
     commands: { donationNowAt: stamp(c['donationNowAt']), sponsorsNowAt: stamp(c['sponsorsNowAt']) },
   };

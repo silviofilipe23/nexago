@@ -690,13 +690,29 @@ describe('TransmissaoComponent', () => {
       expect(el.querySelector('og-tx-comentaristas')!.textContent).toContain('Cadastre ao menos uma pessoa');
     });
 
-    it('adicionar pessoa grava pessoas sem mexer em seq', async () => {
+    it('o formulário de cadastro já aparece com a lista vazia e só adiciona com nome', async () => {
       const { el, fake, fixture } = await mount();
+      tecla('7');
+      await fixture.whenStable();
+      const raiz = el.querySelector('og-tx-comentaristas')!;
+      const campo = (rotulo: string) => raiz.querySelector(`input[aria-label="${rotulo}"]`) as HTMLInputElement;
+      const digita = (rotulo: string, v: string) => {
+        campo(rotulo).value = v;
+        campo(rotulo).dispatchEvent(new Event('input'));
+      };
+      expect(raiz.textContent).toContain('Cadastrar pessoa');
+      expect(naCab(el, 'Adicionar pessoa').disabled).toBeTrue();
+      digita('Nova função', 'Narração');
+      await fixture.whenStable();
+      expect(naCab(el, 'Adicionar pessoa').disabled).toBeTrue(); // sem nome
+      digita('Novo nome', 'Rafael Moura');
+      digita('Novo @', '@rafamoura');
+      digita('Nova descrição', 'Ex-atleta');
+      await fixture.whenStable();
       naCab(el, 'Adicionar pessoa').click();
       await fixture.whenStable();
       const c = fake.saved[0].comentaristas!;
-      expect(c.pessoas.length).toBe(1);
-      expect(c.pessoas[0].id).toBeTruthy();
+      expect(c.pessoas).toEqual([jasmine.objectContaining({ role: 'Narração', name: 'Rafael Moura', handle: '@rafamoura', desc: 'Ex-atleta', mic: true })]);
       expect(c.seq).toBe(0);
       expect(c.modo).toBeNull();
     });

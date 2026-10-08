@@ -688,7 +688,7 @@ class _OrganizerMatchLiveTablePageState
 
   /// Abre o saque na dupla escolhida. Não inicia a partida nem marca ponto: grava só o campo,
   /// como o "Trocar saque" — daí em diante o rally resolve sozinho.
-  Future<void> _chooseServe(String side) async {
+  Future<void> _chooseServe(String side, {int? slot}) async {
     final match = _currentMatch();
     if (match == null || _saving || match.isCompleted) return;
     final teamId = side.toUpperCase() == 'A' ? match.teamAId : match.teamBId;
@@ -700,11 +700,18 @@ class _OrganizerMatchLiveTablePageState
           .read(tournamentMatchesRepositoryProvider)
           .updateMatchFields(
             matchId: widget.matchId,
-            fields: servingTeamFields(
-              match,
-              teamId,
-              rosterSizes: _rosterSizes(),
-            ),
+            fields: slot == null
+                ? servingTeamFields(
+                    match,
+                    teamId,
+                    rosterSizes: _rosterSizes(),
+                  )
+                : startingServeFields(
+                    match,
+                    side.toUpperCase(),
+                    slot,
+                    rosterSizes: _rosterSizes(),
+                  ),
           );
     } catch (e) {
       if (mounted) {
@@ -1309,7 +1316,7 @@ class _OrganizerMatchLiveTablePageState
                           teamA: teamA,
                           teamB: teamB,
                           enabled: !_saving,
-                          onChoose: _chooseServe,
+                          onChoose: (side, slot) => _chooseServe(side, slot: slot),
                         ),
                       if (needsServingPlayer && servingTeam != null)
                         LiveTableServingPlayer(

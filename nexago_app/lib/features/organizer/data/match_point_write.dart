@@ -236,6 +236,33 @@ Map<String, dynamic> servingTeamFields(
   };
 }
 
+/// Abertura num toque só ("Quem começa sacando?"): a dupla no saque E o atleta que vai à linha.
+/// A ordem da outra dupla fica por declarar — ela estreia quando o saque virar, e o rodízio
+/// (`slotsAfterScore`) segue a partir daí.
+Map<String, dynamic> startingServeFields(
+  TournamentMatch match,
+  String side,
+  int slot, {
+  MatchRosterSizes rosterSizes = MatchRosterSizes.dupla,
+}) {
+  final teamId = side.toUpperCase() == 'A' ? match.teamAId : match.teamBId;
+  final slots = MatchServingPlayerLogic.withIndividualSlots(
+    match.servingPlayers.withSide(side.toUpperCase(), slot),
+    rosterSizes,
+  );
+  return {
+    'servingTeamId': teamId,
+    'servingPlayerSlots': slots.toMap(),
+    'servingPlayerSlot': MatchServingPlayerLogic.servingPlayerSlot(
+      slots: slots,
+      servingTeamId: teamId,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+      rosterSizes: rosterSizes,
+    ),
+  };
+}
+
 /// Campos de "quem saca pela dupla X" — a faixa que aparece quando
 /// [MatchServingPlayerLogic.needsServingPlayer], e também o "Trocar sacador".
 Map<String, dynamic> servingPlayerFields(

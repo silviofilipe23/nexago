@@ -210,6 +210,14 @@ void main() {
       expect(fields, {'servingTeamId': 'time-b', 'servingPlayerSlot': 2});
     });
 
+    test('abertura grava a dupla e o atleta que saca num toque só', () {
+      final fields = startingServeFields(match(), 'B', 2);
+
+      expect(fields['servingTeamId'], 'time-b');
+      expect(fields['servingPlayerSlots'], {'A': 0, 'B': 2});
+      expect(fields['servingPlayerSlot'], 2);
+    });
+
     test('declarar o sacador grava a ordem da dupla e a posição atual', () {
       final fields = servingPlayerFields(
         match(servingTeamId: 'time-a'),

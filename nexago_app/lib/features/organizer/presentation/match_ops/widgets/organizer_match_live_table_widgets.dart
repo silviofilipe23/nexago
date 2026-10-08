@@ -2397,12 +2397,52 @@ class LiveTableStartingServe extends StatelessWidget {
   final LiveTableTeamData teamA;
   final LiveTableTeamData teamB;
 
-  /// Recebe `'A'` ou `'B'` — o mesmo lado que o resto da mesa usa.
-  final ValueChanged<String> onChoose;
+  /// Recebe o lado (`'A'`/`'B'`) e a POSIÇÃO do atleta no elenco (1..N): dupla e sacador numa
+  /// escolha só.
+  final void Function(String side, int slot) onChoose;
   final bool enabled;
 
   @override
   Widget build(BuildContext context) {
+    Widget teamColumn(String side, LiveTableTeamData team) {
+      final single = team.rosterSize == 1;
+      return Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!single)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  team.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: AppTypography.soraRegular(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: context.themeColors.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              ),
+            for (final slot in team.slots)
+              Padding(
+                padding: EdgeInsets.only(top: slot == 1 ? 0 : 8),
+                child: _StartingServeOption(
+                  label: single
+                      ? team.label
+                      : (team.nameForSlot(slot).isNotEmpty
+                            ? team.nameForSlot(slot)
+                            : 'Atleta $slot'),
+                  enabled: enabled,
+                  onTap: () => onChoose(side, slot),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       child: Container(
@@ -2426,22 +2466,11 @@ class LiveTableStartingServe extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: _StartingServeOption(
-                    label: teamA.label,
-                    enabled: enabled,
-                    onTap: () => onChoose('A'),
-                  ),
-                ),
+                teamColumn('A', teamA),
                 const SizedBox(width: 10),
-                Expanded(
-                  child: _StartingServeOption(
-                    label: teamB.label,
-                    enabled: enabled,
-                    onTap: () => onChoose('B'),
-                  ),
-                ),
+                teamColumn('B', teamB),
               ],
             ),
           ],

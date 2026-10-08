@@ -258,7 +258,7 @@ void main() {
     },
   );
 
-  testWidgets('LiveTableStartingServe pergunta e devolve a dupla escolhida', (
+  testWidgets('LiveTableStartingServe pergunta o atleta e devolve lado e posição', (
     tester,
   ) async {
     final chosen = <String>[];
@@ -267,19 +267,20 @@ void main() {
         LiveTableStartingServe(
           teamA: team('Marcos / Victor'),
           teamB: team('Igor / João'),
-          onChoose: chosen.add,
+          onChoose: (side, slot) => chosen.add('$side$slot'),
         ),
       ),
     );
 
     expect(find.text('Quem começa sacando?'), findsOneWidget);
-    expect(find.text('Marcos / Victor'), findsOneWidget);
-    expect(find.text('Igor / João'), findsOneWidget);
+    for (final name in ['Marcos', 'Victor', 'Igor', 'João']) {
+      expect(find.text(name), findsOneWidget);
+    }
 
-    await tester.tap(find.text('Igor / João'));
+    await tester.tap(find.text('João'));
     await tester.pump();
 
-    expect(chosen, ['B']);
+    expect(chosen, ['B2']);
   });
 
   test('liveTableIsServing não acende SAQUE em ninguém sem saque definido', () {

@@ -154,12 +154,21 @@ export class TransmissaoLancesComponent {
     const matches = resolveCourtNames(this.svc.matches(), this.svc.tournament()?.courts ?? []);
     const m = courtMatchOf(matches, this.svc.control().courtId, Date.now());
     const rosters = this.svc.rosters();
+    const membros = (teamId: string | undefined): string[] =>
+      ((teamId ? rosters.get(teamId)?.members : undefined) ?? []).map((p) => nomeCurtoDe(p.name)).filter((n) => n !== '');
     const side = (teamId: string | undefined, label: string): string[] => {
-      const nomes = ((teamId ? rosters.get(teamId)?.members : undefined) ?? []).map((p) => nomeCurtoDe(p.name)).filter((n) => n !== '');
+      const nomes = membros(teamId);
       return nomes.length > 0 ? nomes.slice(0, 2) : [`${label} · 1`, `${label} · 2`];
     };
+    /** Elenco primeiro (o rótulo da partida vem "A definir" enquanto as equipes não carregam). */
+    const dupla = (teamId: string | undefined, label: string | undefined): string => {
+      const nomes = membros(teamId);
+      if (nomes.length > 0) return nomes.slice(0, 2).join(' / ');
+      const doJogo = label ? nomesCurtosDe(label) : '';
+      return doJogo !== '' && doJogo !== 'A definir' ? doJogo : '';
+    };
     return {
-      nomes: [m ? nomesCurtosDe(m.team1Label) : '', m ? nomesCurtosDe(m.team2Label) : ''],
+      nomes: [dupla(m?.teamAId, m?.team1Label), dupla(m?.teamBId, m?.team2Label)],
       atletas: [side(m?.teamAId, 'Dupla A'), side(m?.teamBId, 'Dupla B')] as const,
     };
   });

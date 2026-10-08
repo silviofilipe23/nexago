@@ -19,6 +19,7 @@ import { TransmissaoChaveComponent } from './transmissao-chave.component';
 import { TransmissaoGrupoComponent } from './transmissao-grupo.component';
 import { txAtalhoOf, txGroupsOf, txIndexOfAtalho, txItemsOf, type TxItem, type TxItemKey } from './transmissao-itens';
 import { TransmissaoIntervaloComponent } from './transmissao-intervalo.component';
+import { TransmissaoAtletaComponent } from './transmissao-atleta.component';
 import { TransmissaoLancesComponent } from './transmissao-lances.component';
 import { TransmissaoTelasComponent } from './transmissao-telas.component';
 import { TransmissaoMultiComponent } from './transmissao-multi.component';
@@ -53,6 +54,7 @@ const PREVIEW_SPOT: Record<TxItemKey, { label: string; spot: string }> = {
   intervalo: { label: 'INTERVALO', spot: 'full' },
   telas: { label: 'INÍCIO / FIM', spot: 'full' },
   lances: { label: 'LANCES', spot: 'full' },
+  atleta: { label: 'ATLETA', spot: 'full' },
   grupo: { label: 'TABELA DO GRUPO', spot: 'c' },
   chave: { label: 'CHAVES', spot: 'full' },
   eventos: { label: 'PRÓXIMOS EVENTOS', spot: 'full' },
@@ -76,7 +78,7 @@ function typingTarget(t: EventTarget | null): boolean {
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [TransmissaoDataService],
   host: { '(document:keydown)': 'onKey($event)' },
-  imports: [TransmissaoEntrevistaComponent, TransmissaoPrejogoComponent, TransmissaoRankingComponent, TransmissaoMultiComponent, TransmissaoBolaoComponent, TransmissaoGradeComponent, TransmissaoIntervaloComponent, TransmissaoTelasComponent, TransmissaoLancesComponent, TransmissaoGrupoComponent, TransmissaoChaveComponent, TransmissaoEventosComponent, RouterLink],
+  imports: [TransmissaoEntrevistaComponent, TransmissaoPrejogoComponent, TransmissaoRankingComponent, TransmissaoMultiComponent, TransmissaoBolaoComponent, TransmissaoGradeComponent, TransmissaoIntervaloComponent, TransmissaoTelasComponent, TransmissaoLancesComponent, TransmissaoAtletaComponent, TransmissaoGrupoComponent, TransmissaoChaveComponent, TransmissaoEventosComponent, RouterLink],
   template: `
     <div class="og-tx-page">
       <header class="og-tx-bar">
@@ -205,6 +207,7 @@ function typingTarget(t: EventTarget | null): boolean {
             <og-tx-intervalo [bare]="true" [hidden]="selectedKey() !== 'intervalo'" />
             <og-tx-telas [bare]="true" [hidden]="selectedKey() !== 'telas'" />
             <og-tx-lances [bare]="true" [hidden]="selectedKey() !== 'lances'" />
+            <og-tx-atleta [bare]="true" [hidden]="selectedKey() !== 'atleta'" />
             <og-tx-grupo [bare]="true" [hidden]="selectedKey() !== 'grupo'" />
             <og-tx-chave [bare]="true" [hidden]="selectedKey() !== 'chave'" />
             <og-tx-eventos [bare]="true" [hidden]="selectedKey() !== 'eventos'" />
@@ -925,6 +928,7 @@ export class TransmissaoComponent {
         void this.svc.save({ summaryOn: !c.summaryOn });
         break;
       case 'lances':
+      case 'atleta':
         // Disparo, não liga/desliga: o botão do card é quem grava.
         break;
       default: {

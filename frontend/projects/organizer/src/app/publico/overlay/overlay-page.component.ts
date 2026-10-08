@@ -27,6 +27,7 @@ import { categoriesWithGroups, gruposViewOf } from './overlay-grupo';
 import { OverlayIntervaloComponent } from './overlay-intervalo.component';
 import { OverlayTelasComponent } from './overlay-telas.component';
 import { OverlayLancesComponent } from './overlay-lances.component';
+import { OverlayAtletaComponent } from './overlay-atleta.component';
 import { lanceDuplaOf } from './overlay-lances';
 import { intervaloViewOf } from './overlay-intervalo';
 import { OverlayGradeComponent } from './overlay-grade.component';
@@ -116,6 +117,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
     OverlayIntervaloComponent,
     OverlayTelasComponent,
     OverlayLancesComponent,
+    OverlayAtletaComponent,
     OverlayGrupoComponent,
     OverlayChaveComponent,
     OverlayEventosComponent,
@@ -235,6 +237,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
           [category]="categoryName()"
           (noAr)="lancesNoAr.set($event)"
         />
+        <og-overlay-atleta [config]="atletaCfg()" />
         <og-overlay-grade
           [view]="gradeView()"
           [categories]="gateway.tournament()?.categories ?? []"
@@ -799,6 +802,7 @@ export class OverlayPageComponent {
   });
   /** Lances: disparo do painel; nomes das duplas da partida ao vivo da quadra. */
   protected readonly lancesNoAr = signal(false);
+  protected readonly atletaCfg = computed(() => (this.gateway.controlReady() ? this.controle().atleta : null));
   protected readonly lancesCfg = computed(() => (this.gateway.controlReady() ? this.controle().lances : null));
   protected readonly lancesDuplas = computed(() => {
     const m = this.match();

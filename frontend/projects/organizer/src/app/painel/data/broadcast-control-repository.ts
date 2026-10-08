@@ -9,6 +9,7 @@ import {
   type KocRoundEndScreen,
 } from './broadcast-control';
 import type { BroadcastIntervalo } from './broadcast-intervalo';
+import type { BroadcastAtleta } from './broadcast-atleta';
 import type { BroadcastLances } from './broadcast-lances';
 import type { BroadcastTelas } from './broadcast-telas';
 import type { BroadcastBolao } from './broadcast-bolao';
@@ -42,6 +43,7 @@ export interface BroadcastControlPatch {
   /** `startedAt` aceita `serverTimestamp()`/`null` na escrita (por isso `unknown`). */
   telas?: Omit<BroadcastTelas, 'startedAt'> & { startedAt: unknown };
   lances?: Omit<BroadcastLances, 'at'> & { at: unknown };
+  atleta?: Omit<BroadcastAtleta, 'at'> & { at: unknown };
   /** `startedAt` aceita `serverTimestamp()`/`null` na escrita (por isso `unknown`). */
   intervalo?: Omit<BroadcastIntervalo, 'startedAt'> & { startedAt: unknown };
   interview?: BroadcastInterview | null;

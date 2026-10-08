@@ -10,7 +10,7 @@ import { BROADCAST_GRAPHICS, tournamentHasKoc } from './broadcast-graphics';
 /** Cada linha da lista "Gráficos" do painel de Transmissão. As chaves de `BroadcastGraphicId`
  *  valem como são; o resto (Multi, Pré-jogo, Ranking, Grade, Entrevista, Resumo) é controle
  *  próprio, fora de `control.graphics`. */
-export type TxItemKey = BroadcastGraphicId | 'multi' | 'bolao' | 'prejogo' | 'ranking' | 'grade' | 'intervalo' | 'telas' | 'lances' | 'grupo' | 'chave' | 'eventos' | 'interview' | 'summary';
+export type TxItemKey = BroadcastGraphicId | 'multi' | 'bolao' | 'prejogo' | 'ranking' | 'grade' | 'intervalo' | 'telas' | 'lances' | 'atleta' | 'grupo' | 'chave' | 'eventos' | 'interview' | 'summary';
 
 export interface TxItem {
   key: TxItemKey;
@@ -26,7 +26,7 @@ export interface TxItem {
   /** Entra e sai sozinho (Momento decisivo): o switch só autoriza — não conta como "no ar"
    *  nem aparece em "Ativos agora". */
   auto?: boolean;
-  /** Dispara em vez de ligar/desligar (Lances): sem switch "No ar", fora de "Ativos agora" e do Esc. */
+  /** Dispara em vez de ligar/desligar (Lances, Atleta): sem switch "No ar", fora de "Ativos agora" e do Esc. */
   disparo?: boolean;
 }
 
@@ -123,6 +123,16 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
           locked: false,
           warn: false,
           resumo: c.lances.tipo ? `Último: ${LANCE_LABEL[c.lances.tipo]}` : 'Dispare a vinheta de um lance',
+          agora: false,
+          disparo: true,
+        },
+        {
+          key: 'atleta',
+          nome: 'Atleta',
+          on: false,
+          locked: false,
+          warn: false,
+          resumo: c.atleta.card ? `No ar: ${c.atleta.card.name}` : 'Mostre o card de um atleta',
           agora: false,
           disparo: true,
         },

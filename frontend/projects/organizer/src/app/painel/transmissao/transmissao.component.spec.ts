@@ -8,6 +8,7 @@ import type { EventosCard } from '../data/broadcast-eventos';
 import type { BroadcastPrejogo } from '../data/broadcast-prejogo';
 import type { TournamentMatch } from '../data/matches-repository';
 import { FakeTransmissaoData as FakeData, PARTIDA, torneio } from './transmissao-data.fake';
+import { ATLETA_HISTORY_FETCHER } from './transmissao-atleta.component';
 import { TransmissaoDataService } from './transmissao-data.service';
 import { TransmissaoComponent } from './transmissao.component';
 
@@ -55,7 +56,7 @@ describe('TransmissaoComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [TransmissaoComponent],
-      providers: [provideZonelessChangeDetection(), provideRouter([])],
+      providers: [provideZonelessChangeDetection(), provideRouter([]), { provide: ATLETA_HISTORY_FETCHER, useValue: () => Promise.resolve([]) }],
     }).compileComponents();
   });
 
@@ -80,6 +81,7 @@ describe('TransmissaoComponent', () => {
         'Multi-quadras',
         'Bolão ao vivo',
         'Lances',
+        'Atleta',
         'Pré-jogo',
         'Ranking Top 10',
         'Grade do dia',
@@ -213,7 +215,7 @@ describe('TransmissaoComponent', () => {
 
     it('dígito de item travado não faz nada', async () => {
       const { fake, fixture } = await mount();
-      tecla('6'); // Pré-jogo (5º são os Lances; 4º, o Bolão; 3º, o Multi-quadras; 2º, o Momento decisivo)
+      tecla('7'); // Pré-jogo (6º é o Atleta; 5º, os Lances; 4º, o Bolão; 3º, o Multi-quadras; 2º, o Momento decisivo)
       await fixture.whenStable();
       expect(fake.saved).toEqual([]);
     });
@@ -309,7 +311,7 @@ describe('TransmissaoComponent', () => {
 
     it('atalho numérico liga a tabela', async () => {
       const { fake } = await mount(comGrupos());
-      tecla('b');
+      tecla('c');
       expect(fake.saved).toEqual([{ grupo: { ...base, on: true } }]);
     });
   });
@@ -366,7 +368,7 @@ describe('TransmissaoComponent', () => {
 
     it('atalho numérico liga a chave', async () => {
       const { fake } = await mount(comChaves());
-      tecla('c');
+      tecla('d');
       expect(fake.saved).toEqual([{ chave: { ...base, on: true } }]);
     });
 
@@ -461,9 +463,9 @@ describe('TransmissaoComponent', () => {
       expect(fake.saved[0].eventos).toEqual({ on: false, mode: 'full', card: CARD_EVENTOS });
     });
 
-    it('atalho de letra liga o item (13º da lista = D)', async () => {
+    it('atalho de letra liga o item (14º da lista = E)', async () => {
       const { fake } = await mount(comCard());
-      tecla('d');
+      tecla('e');
       expect(fake.saved).toEqual([{ eventos: { on: true, mode: 'full', card: CARD_EVENTOS } }]);
     });
   });
@@ -589,7 +591,7 @@ describe('TransmissaoComponent', () => {
 
     it('o atalho A liga', async () => {
       const { fake } = await mount();
-      tecla('A');
+      tecla('B');
       expect(fake.saved).toEqual([{ telas: { ...base, on: true } }]);
     });
 
@@ -598,6 +600,75 @@ describe('TransmissaoComponent', () => {
       ligado.control.set({ ...ligado.control(), telas: { ...base, on: true } });
       const { el } = await mount(ligado);
       expect(el.querySelector('.og-tx-preview')?.textContent).toContain('INÍCIO / FIM');
+    });
+  });
+
+  describe('Atleta', () => {
+    const naAtleta = (el: HTMLElement, texto: string) =>
+      [...el.querySelector('og-tx-atleta')!.querySelectorAll('button')].find((x) => (x.textContent ?? '').trim().startsWith(texto) || x.getAttribute('aria-label') === texto) as HTMLButtonElement;
+
+    it('está na lista logo após Lances, sem switch, e o atalho 6 seleciona', async () => {
+      const { el, fixture } = await mount();
+      expect(linha(el, 'Atleta').querySelector('button[role="switch"]')).toBeNull();
+      tecla('6');
+      await fixture.whenStable();
+      expect(el.querySelector('.og-tx-cfg h2')?.textContent).toContain('Atleta');
+      expect([...el.querySelectorAll('og-tx-atleta [aria-label="Atleta"] button')].map((b) => b.textContent?.trim())).toEqual(['Ana Souza', 'Bia Lima', 'Carla Dias', 'Dani Ávila']);
+    });
+
+    it('clicar no atleta grava seq+1, o card dele e at (serverTimestamp)', async () => {
+      const { el, fake, fixture } = await mount();
+      fake.control.set({ ...fake.control(), atleta: { ...fake.control().atleta, seq: 3 } });
+      naAtleta(el, 'Carla Dias').click();
+      await fixture.whenStable();
+      expect(fake.rankingRequests).toBeGreaterThan(0);
+      const a = fake.saved[0].atleta!;
+      expect(a.seq).toBe(4);
+      expect(a.seg).toBe(12);
+      expect(a.card?.name).toBe('Carla Dias');
+      expect((a.at as unknown as FieldValue).isEqual(serverTimestamp())).toBeTrue();
+    });
+
+    it('▶ avança (circular) e já mostra; contador acompanha', async () => {
+      const { el, fake, fixture } = await mount();
+      naAtleta(el, 'Dani Ávila').click();
+      await fixture.whenStable();
+      expect(el.querySelector('og-tx-atleta')!.textContent).toContain('4 / 4');
+      naAtleta(el, 'Próximo atleta').click();
+      await fixture.whenStable();
+      expect(fake.saved.at(-1)!.atleta!.card?.name).toBe('Ana Souza');
+      expect(el.querySelector('og-tx-atleta')!.textContent).toContain('1 / 4');
+      naAtleta(el, 'Atleta anterior').click();
+      await fixture.whenStable();
+      expect(fake.saved.at(-1)!.atleta!.card?.name).toBe('Dani Ávila');
+    });
+
+    it('falha no histórico avisa mas mostra o card mesmo assim', async () => {
+      TestBed.overrideProvider(ATLETA_HISTORY_FETCHER, { useValue: () => Promise.reject(new Error('x')) });
+      const { el, fake, fixture } = await mount();
+      naAtleta(el, 'Ana Souza').click();
+      await fixture.whenStable();
+      expect(el.querySelector('og-tx-atleta')!.textContent).toContain('Não deu pra carregar o histórico');
+      expect(fake.saved[0].atleta!.card?.name).toBe('Ana Souza');
+    });
+
+    it('Sair grava card null com seq+1', async () => {
+      const { el, fake } = await mount();
+      naAtleta(el, 'Sair').click();
+      const a = fake.saved[0].atleta!;
+      expect(a.seq).toBe(1);
+      expect(a.card).toBeNull();
+      expect((a.at as unknown as FieldValue).isEqual(serverTimestamp())).toBeTrue();
+    });
+
+    it('tempo 0 grava seg 0', async () => {
+      const { el, fake, fixture } = await mount();
+      const campo = el.querySelector('og-tx-atleta input[aria-label="Tempo (s)"]') as HTMLInputElement;
+      campo.value = '0';
+      campo.dispatchEvent(new Event('input'));
+      naAtleta(el, 'Bia Lima').click();
+      await fixture.whenStable();
+      expect(fake.saved[0].atleta!.seg).toBe(0);
     });
   });
 
@@ -911,14 +982,14 @@ describe('TransmissaoComponent', () => {
       const { el } = await mount();
       const badges = Array.from(el.querySelectorAll('.og-tx-row-nome kbd')).map((k) => k.textContent?.trim());
       expect(badges.slice(0, 9)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
-      expect(badges.slice(9, 17)).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']);
+      expect(badges.slice(9, 18)).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']);
     });
 
     it('uma letra liga/desliga o item correspondente, maiúscula ou minúscula', async () => {
       const { fake } = await mount();
-      tecla('f'); // 15º: Campeões
+      tecla('g'); // 16º: Campeões
       expect(fake.saved.at(-1)).toEqual({ graphics: { champions: false } });
-      tecla('H'); // 17º: Patrocinadores
+      tecla('I'); // 18º: Patrocinadores
       expect(fake.saved.at(-1)).toEqual({ graphics: { sponsors: false } });
       tecla('z'); // além da lista: nada
       expect(fake.saved.length).toBe(2);

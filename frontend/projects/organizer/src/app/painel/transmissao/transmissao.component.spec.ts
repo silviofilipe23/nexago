@@ -700,7 +700,7 @@ describe('TransmissaoComponent', () => {
         campo(rotulo).value = v;
         campo(rotulo).dispatchEvent(new Event('input'));
       };
-      expect(raiz.textContent).toContain('Cadastrar pessoa');
+      expect(raiz.textContent).toContain('Cadastrar a primeira pessoa');
       expect(naCab(el, 'Adicionar pessoa').disabled).toBeTrue();
       digita('Nova função', 'Narração');
       await fixture.whenStable();

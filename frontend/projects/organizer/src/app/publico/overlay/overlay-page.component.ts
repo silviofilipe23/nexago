@@ -147,7 +147,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
             [isFinal]="duelFinalMode()"
             [tecnicoSide]="tecnico()?.side ?? null"
             [encolhido]="medico() != null"
-            [class.fora]="resumo() != null || tecnico() != null || prejogo() != null || multiNoAr() || gradeNoAr() || intervaloNoAr() || telasNoAr() || grupoNoAr() || chaveNoAr() || eventosNoAr() || decisivoView() != null || bolaoView() != null"
+            [class.fora]="resumo() != null || tecnico() != null || prejogo() != null || multiNoAr() || gradeNoAr() || intervaloNoAr() || telasNoAr() || lancesNoAr() || grupoNoAr() || chaveNoAr() || eventosNoAr() || decisivoView() != null || bolaoView() != null"
           />
         }
         @if (telaDoResultado(); as board) {
@@ -233,6 +233,7 @@ function telaFixadaEm(raw: string | null): TelaKoc | null {
           [duplas]="lancesDuplas()"
           [court]="courtName()"
           [category]="categoryName()"
+          (noAr)="lancesNoAr.set($event)"
         />
         <og-overlay-grade
           [view]="gradeView()"
@@ -374,7 +375,7 @@ export class OverlayPageComponent {
   /** Doação e patrocínio só entram com o controle já resolvido e sem tarja — a tarja toma a
    *  tela, inclusive para um "Mostrar agora". */
   protected readonly cardsNoAr = computed(
-    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null && this.prejogo() == null && this.ranking() == null && !this.multiNoAr() && !this.gradeNoAr() && !this.intervaloNoAr() && !this.telasNoAr() && !this.grupoNoAr() && !this.chaveNoAr() && !this.eventosNoAr() && this.decisivoView() == null && this.bolaoView() == null,
+    () => this.gateway.controlReady() && !this.interviewOnAir() && this.resumo() == null && this.tecnico() == null && this.prejogo() == null && this.ranking() == null && !this.multiNoAr() && !this.gradeNoAr() && !this.intervaloNoAr() && !this.telasNoAr() && !this.lancesNoAr() && !this.grupoNoAr() && !this.chaveNoAr() && !this.eventosNoAr() && this.decisivoView() == null && this.bolaoView() == null,
   );
 
   /** O que vai ao ar: regra automática de cada tela E chave do painel; tarja toma a tela.
@@ -797,6 +798,7 @@ export class OverlayPageComponent {
     return this.gateway.controlReady() && t.on && !this.interviewOnAir() ? t : null;
   });
   /** Lances: disparo do painel; nomes das duplas da partida ao vivo da quadra. */
+  protected readonly lancesNoAr = signal(false);
   protected readonly lancesCfg = computed(() => (this.gateway.controlReady() ? this.controle().lances : null));
   protected readonly lancesDuplas = computed(() => {
     const m = this.match();

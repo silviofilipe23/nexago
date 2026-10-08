@@ -33,20 +33,20 @@ const clampInt = (v: unknown, min: number, max: number, fallback: number): numbe
   imports: [OgCardComponent],
   template: `
     <og-card [kicker]="bare() ? '' : 'Apresentação'" [title]="bare() ? '' : 'Lances'">
-      <div class="og-lc-label">Dupla</div>
-      <div class="og-lc-chips" role="radiogroup" aria-label="Dupla">
-        @for (l of lados(); track l.lado) {
-          <button type="button" class="og-chip" role="radio" [class.active]="lado() === l.lado" [attr.aria-checked]="lado() === l.lado" (click)="lado.set(l.lado)">
-            {{ l.label }}
-          </button>
-        }
-      </div>
-
-      @if (!daDupla()) {
+      @if (daDupla()) {
+        <div class="og-lc-label">Dupla</div>
+        <div class="og-lc-chips" role="radiogroup" aria-label="Dupla">
+          @for (l of lados(); track l.lado) {
+            <button type="button" class="og-chip" role="radio" [class.active]="lado() === l.lado" [attr.aria-checked]="lado() === l.lado" (click)="lado.set(l.lado)">
+              {{ l.label }}
+            </button>
+          }
+        </div>
+      } @else {
         <div class="og-lc-label">Atleta</div>
         <div class="og-lc-chips" role="radiogroup" aria-label="Atleta">
-          @for (a of atletas(); track a.atleta) {
-            <button type="button" class="og-chip" role="radio" [class.active]="atleta() === a.atleta" [attr.aria-checked]="atleta() === a.atleta" (click)="atleta.set(a.atleta)">
+          @for (a of todosAtletas(); track a.lado + '-' + a.atleta) {
+            <button type="button" class="og-chip" role="radio" [class.active]="lado() === a.lado && atleta() === a.atleta" [attr.aria-checked]="lado() === a.lado && atleta() === a.atleta" (click)="escolhe(a.lado, a.atleta)">
               {{ a.label }}
             </button>
           }
@@ -178,13 +178,17 @@ export class TransmissaoLancesComponent {
     { lado: 1 as const, label: this.elenco().nomes[1] || 'Dupla B' },
   ]);
 
-  protected readonly atletas = computed(() => {
-    const nomes = this.elenco().atletas[this.lado()];
-    return [
-      { atleta: 0 as const, label: nomes[0] ?? 'Atleta 1' },
-      { atleta: 1 as const, label: nomes[1] ?? 'Atleta 2' },
-    ];
-  });
+  /** Os quatro atletas da partida, lado a lado — escolher um já define dupla e atleta. */
+  protected readonly todosAtletas = computed(() =>
+    ([0, 1] as const).flatMap((lado) =>
+      ([0, 1] as const).map((atleta) => ({ lado, atleta, label: this.elenco().atletas[lado][atleta] ?? `Atleta ${atleta + 1}` })),
+    ),
+  );
+
+  protected escolhe(lado: 0 | 1, atleta: 0 | 1): void {
+    this.lado.set(lado);
+    this.atleta.set(atleta);
+  }
 
   /** Quantas vezes o atleta selecionado já fez o lance (ou o valor que sobe, no lance da dupla). */
   protected readonly feitos = computed(() => {

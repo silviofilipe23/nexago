@@ -616,20 +616,24 @@ describe('TransmissaoComponent', () => {
       expect(el.querySelector('.og-tx-cfg h2')?.textContent).toContain('Lances');
     });
 
-    it('mostra os nomes do elenco mesmo com o rótulo da partida "A definir"', async () => {
+    it('lista os quatro atletas e só pede a dupla nos lances da dupla (nomes do elenco, mesmo com rótulo "A definir")', async () => {
       const fake = new FakeData();
       fake.matches.set(fake.matches().map((m) => ({ ...m, team1Label: 'A definir', team2Label: 'A definir' })));
       const { el, fixture } = await mount(fake);
       selecionar(el, 'Lances');
       await fixture.whenStable();
-      const botoes = [...el.querySelector('og-tx-lances')!.querySelectorAll('[aria-label="Dupla"] button')].map((b) => (b.textContent ?? '').trim());
-      expect(botoes).toEqual(['Ana Souza / Bia Lima', 'Carla Dias / Dani Ávila']);
+      const raiz = el.querySelector('og-tx-lances')!;
+      const atletas = [...raiz.querySelectorAll('[aria-label="Atleta"] button')].map((b) => (b.textContent ?? '').trim());
+      expect(atletas).toEqual(['Ana Souza', 'Bia Lima', 'Carla Dias', 'Dani Ávila']);
+      expect(raiz.querySelector('[aria-label="Dupla"]')).toBeNull();
+      naLances(el, 'Rally', 'Lance').click();
+      await fixture.whenStable();
+      const duplas = [...raiz.querySelectorAll('[aria-label="Dupla"] button')].map((b) => (b.textContent ?? '').trim());
+      expect(duplas).toEqual(['Ana Souza / Bia Lima', 'Carla Dias / Dani Ávila']);
     });
 
     it('disparar grava seq+1, tipo, lado, atleta, count e at (serverTimestamp)', async () => {
       const { el, fake, fixture } = await mount();
-      naLances(el, 'Carla Dias / Dani Ávila', 'Dupla').click();
-      await fixture.whenStable();
       naLances(el, 'Dani Ávila', 'Atleta').click();
       naLances(el, 'Ace', 'Lance').click();
       naLances(el, 'Disparar').click();

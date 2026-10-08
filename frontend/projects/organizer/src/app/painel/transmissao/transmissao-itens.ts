@@ -10,7 +10,7 @@ import { BROADCAST_GRAPHICS, tournamentHasKoc } from './broadcast-graphics';
 /** Cada linha da lista "Gráficos" do painel de Transmissão. As chaves de `BroadcastGraphicId`
  *  valem como são; o resto (Multi, Pré-jogo, Ranking, Grade, Entrevista, Resumo) é controle
  *  próprio, fora de `control.graphics`. */
-export type TxItemKey = BroadcastGraphicId | 'multi' | 'bolao' | 'prejogo' | 'ranking' | 'grade' | 'intervalo' | 'telas' | 'lances' | 'atleta' | 'grupo' | 'chave' | 'eventos' | 'interview' | 'summary';
+export type TxItemKey = BroadcastGraphicId | 'multi' | 'bolao' | 'prejogo' | 'ranking' | 'grade' | 'intervalo' | 'telas' | 'lances' | 'atleta' | 'comentaristas' | 'grupo' | 'chave' | 'eventos' | 'interview' | 'summary';
 
 export interface TxItem {
   key: TxItemKey;
@@ -133,6 +133,16 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
           locked: false,
           warn: false,
           resumo: c.atleta.card ? `No ar: ${c.atleta.card.name}` : 'Mostre o card de um atleta',
+          agora: false,
+          disparo: true,
+        },
+        {
+          key: 'comentaristas',
+          nome: 'Comentaristas',
+          on: false,
+          locked: false,
+          warn: false,
+          resumo: c.comentaristas.pessoas.length > 0 ? `${c.comentaristas.pessoas.length} ${c.comentaristas.pessoas.length === 1 ? 'pessoa' : 'pessoas'} na cabine` : 'Cadastre quem está no microfone',
           agora: false,
           disparo: true,
         },

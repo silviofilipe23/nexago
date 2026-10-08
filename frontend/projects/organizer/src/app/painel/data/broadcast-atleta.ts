@@ -1,4 +1,4 @@
-/** Card do Atleta — perfil, temporada e jogos do torneio, no canto inferior esquerdo.
+/** Card do Atleta — perfil, temporada e jogos do torneio, numa coluna no canto superior direito.
  *
  *  DESNORMALIZADO como o Pré-jogo e a tarja de entrevista: o painel (que enxerga ranking, perfis e
  *  histórico) monta o card e grava em `broadcast/control.atleta`; o overlay, público e sem login,

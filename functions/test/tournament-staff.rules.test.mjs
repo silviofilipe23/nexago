@@ -19,6 +19,7 @@ const ADMIN = 'admin-sem-super-uid';
 const ESTRANHO = 'organizador-estranho-uid';
 const MESARIO = 'mesario-uid';
 const NOVATO = 'novato-uid';
+const GESTOR = 'gestor-equipe-uid';
 const TORNEIO = 'copa-teste';
 
 const testEnv = await initializeTestEnvironment({
@@ -37,6 +38,9 @@ async function seed() {
       enrolledCount: 0,
       collectedCents: 0,
       categories: [{ id: 'cat-1', name: 'Open' }],
+    });
+    await setDoc(doc(db, 'tournaments', TORNEIO, 'staff', GESTOR), {
+      role: 'manager', status: 'active', displayName: 'Gestor', nickname: '', photoUrl: null, addedBy: DONO,
     });
     await setDoc(doc(db, 'tournaments', TORNEIO, 'staff', MESARIO), {
       role: 'scorer',
@@ -59,6 +63,7 @@ function ctx(uid, claims) {
 const dono = () => ctx(DONO, { roles: ['organizer'] });
 const superAdmin = () => ctx(SUPER, { roles: ['admin', 'organizer'], superAdmin: true });
 const adminSemSuper = () => ctx(ADMIN, { roles: ['admin'] });
+const gestor = () => ctx(GESTOR, { roles: ['organizer'] });
 const estranho = () => ctx(ESTRANHO, { roles: ['organizer'] });
 
 /** Payload de adição idêntico ao que `staff-repository.ts` grava no portal web. */
@@ -140,4 +145,30 @@ test('super admin não grava membro pendente — acesso é imediato ou nada', as
   await assertFails(
     setDoc(staffRef(superAdmin(), NOVATO), { ...membro('manager', SUPER), status: 'pending' }),
   );
+});
+
+test('gestor da equipe adiciona membro', async () => {
+  await assertSucceeds(setDoc(staffRef(gestor(), 'add-gestor'), membro('scorer', GESTOR)));
+});
+
+test('gestor da equipe troca o papel de outro membro', async () => {
+  await assertSucceeds(
+    setDoc(staffRef(gestor(), MESARIO), { role: 'media', status: 'active' }, { merge: true }),
+  );
+});
+
+test('gestor da equipe remove outro membro', async () => {
+  await testEnv.withSecurityRulesDisabled(async (c) => {
+    await setDoc(staffRef(c.firestore(), 'remover-gestor'), membro('scorer', DONO));
+  });
+  await assertSucceeds(deleteDoc(staffRef(gestor(), 'remover-gestor')));
+});
+
+test('gestor da equipe não se auto-edita nem se remove', async () => {
+  await assertFails(setDoc(staffRef(gestor(), GESTOR), membro('manager', GESTOR)));
+  await assertFails(deleteDoc(staffRef(gestor(), GESTOR)));
+});
+
+test('gestor da equipe não cria staff para o dono', async () => {
+  await assertFails(setDoc(staffRef(gestor(), DONO), membro('manager', GESTOR)));
 });

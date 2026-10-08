@@ -148,7 +148,13 @@ service cloud.firestore {
         staffUserId != request.auth.uid &&
         exists(/databases/$(database)/documents/tournaments/$(tournamentId)) &&
         tournamentManagerId(tournamentId) != staffUserId &&
-        (isSuperAdmin() || tournamentManagerId(tournamentId) == request.auth.uid);
+        (
+          isSuperAdmin() ||
+          tournamentManagerId(tournamentId) == request.auth.uid ||
+          // Gestor da equipe (papel `manager`) também adiciona/promove membros. O
+          // administrador (`eventAdmin`) continua de fora: não se promove.
+          isTournamentStaff(tournamentId, ['manager'])
+        );
     }
     function isTournamentStaff(tournamentId, allowedRoles) {
       return request.auth != null &&
@@ -2373,8 +2379,13 @@ service cloud.firestore {
           request.resource.data.status == 'active';
         // Remover não passa pela guarda do dono: se um doc de staff no nome dele existir
         // (lixo de uma escrita anterior), alguém precisa conseguir apagar.
-        allow delete: if request.auth != null &&
-          (isTournamentOwner(tournamentId) || isSuperAdmin());
+        allow delete: if request.auth != null && (
+          isTournamentOwner(tournamentId) || isSuperAdmin() ||
+          // Gestor remove outros membros, nunca a si mesmo nem o dono.
+          (isTournamentStaff(tournamentId, ['manager']) &&
+            staffUserId != request.auth.uid &&
+            tournamentManagerId(tournamentId) != staffUserId)
+        );
       }
 
       // Controle da transmissão (tela "Transmissão" do painel → overlay do OBS). Leitura

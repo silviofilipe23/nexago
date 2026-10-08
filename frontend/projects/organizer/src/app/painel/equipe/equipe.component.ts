@@ -37,16 +37,18 @@ const SEARCH_DEBOUNCE_MS = 350;
 const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
 
 /** Espelha `canManageTournamentStaff` em `firestore.rules`: gerenciam a equipe o dono do
- *  torneio e o super admin dando suporte a torneio alheio. Enquanto o torneio ou o usuário
+ *  torneio, o gestor da equipe (staff `manager`) e o super admin dando suporte a torneio alheio. Enquanto o torneio ou o usuário
  *  não resolveram, ninguém gerencia — a tela abre em leitura e só libera os botões depois. */
 export function canManageTournamentStaff(params: {
   isSuperAdmin: boolean;
   uid: string | undefined;
   managerId: string | null | undefined;
+  /** O usuário está na equipe com papel `manager` (gestor). */
+  isStaffManager?: boolean;
 }): boolean {
-  const { isSuperAdmin, uid, managerId } = params;
+  const { isSuperAdmin, uid, managerId, isStaffManager } = params;
   if (!uid || !managerId) return false;
-  return isSuperAdmin || managerId === uid;
+  return isSuperAdmin || managerId === uid || !!isStaffManager;
 }
 
 /** Quem a busca de candidato NÃO pode oferecer: quem já está na equipe, quem está buscando e
@@ -110,7 +112,7 @@ export function staffCandidateExclusions(params: {
         <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
       }
       @if (!loading() && !canManage()) {
-        <div class="og-banner">Somente o organizador do torneio pode gerenciar a equipe.</div>
+        <div class="og-banner">Somente o organizador ou um gestor do torneio pode gerenciar a equipe.</div>
       }
 
       @if (adding()) {
@@ -580,6 +582,7 @@ export class EquipeComponent {
       isSuperAdmin: this.auth.isSuperAdmin(),
       uid: this.auth.user()?.uid,
       managerId: this.tournament()?.managerId,
+      isStaffManager: this.members().some((m) => m.uid === this.auth.user()?.uid && m.role === 'manager'),
     }),
   );
 

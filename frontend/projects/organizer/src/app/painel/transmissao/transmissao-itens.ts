@@ -116,6 +116,16 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
           resumo: c.bolao.on ? 'Palpites da partida da quadra' : 'Desligado',
           agora: false,
         },
+        {
+          key: 'lances',
+          nome: 'Lances',
+          on: false,
+          locked: false,
+          warn: false,
+          resumo: c.lances.tipo ? `Último: ${LANCE_LABEL[c.lances.tipo]}` : 'Dispare a vinheta de um lance',
+          agora: false,
+          disparo: true,
+        },
       ],
     },
   ];
@@ -172,16 +182,6 @@ export function txGroupsOf(x: TxInput): TxGroup[] {
           warn: false,
           resumo: telasResumo(),
           agora: false,
-        },
-        {
-          key: 'lances',
-          nome: 'Lances',
-          on: false,
-          locked: false,
-          warn: false,
-          resumo: c.lances.tipo ? `Último: ${LANCE_LABEL[c.lances.tipo]}` : 'Dispare a vinheta de um lance',
-          agora: false,
-          disparo: true,
         },
         {
           key: 'grupo',

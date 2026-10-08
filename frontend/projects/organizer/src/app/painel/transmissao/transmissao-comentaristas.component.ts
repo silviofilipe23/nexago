@@ -75,9 +75,21 @@ const novoId = (): string =>
       @if (erroFoto()) {
         <p class="og-cb-dica og-cb-aviso">Não deu pra enviar a foto</p>
       }
-      <div class="og-cb-acoes">
-        <button type="button" class="og-ghost-btn" [disabled]="pessoas().length >= max" (click)="adiciona()">Adicionar pessoa</button>
-      </div>
+      @if (pessoas().length < max) {
+        <div class="og-cb-label">{{ pessoas().length === 0 ? 'Cadastrar pessoa' : 'Adicionar outra pessoa' }}</div>
+        <form class="og-cb-novo" (submit)="$event.preventDefault(); adiciona()">
+          <div class="og-cb-campos">
+            <input type="text" list="og-cb-funcoes" placeholder="Função (Narração…)" aria-label="Nova função" [value]="rascunho().role" (input)="rascunhoCampo('role', $event)" />
+            <input type="text" placeholder="Nome" aria-label="Novo nome" [value]="rascunho().name" (input)="rascunhoCampo('name', $event)" />
+            <input type="text" placeholder="@usuario" aria-label="Novo @" [value]="rascunho().handle" (input)="rascunhoCampo('handle', $event)" />
+            <input type="text" placeholder="Descrição (Ex-atleta · …)" aria-label="Nova descrição" [value]="rascunho().desc" (input)="rascunhoCampo('desc', $event)" />
+          </div>
+          <div class="og-cb-acoes">
+            <button type="submit" class="og-mini-btn og-mini-btn-primary" [disabled]="rascunho().name.trim() === ''">Adicionar pessoa</button>
+          </div>
+          <p class="og-cb-dica">A foto e o microfone se ajustam depois de adicionar.</p>
+        </form>
+      }
 
       @if (pessoas().length === 0) {
         <p class="og-cb-dica">Cadastre ao menos uma pessoa.</p>
@@ -106,6 +118,9 @@ const novoId = (): string =>
     </og-card>
   `,
   styles: `
+    .og-cb-novo {
+      padding-top: 4px;
+    }
     .og-cb-label {
       display: block;
       margin: 14px 0 8px;
@@ -221,9 +236,24 @@ export class TransmissaoComentaristasComponent {
     return this.pessoas().map((p, k) => (k === i ? { ...p, ...parte } : p));
   }
 
+  protected readonly rascunho = signal({ role: '', name: '', handle: '', desc: '' });
+
+  protected rascunhoCampo(campo: 'role' | 'name' | 'handle' | 'desc', e: Event): void {
+    const v = (e.target as HTMLInputElement).value;
+    this.rascunho.update((r) => ({ ...r, [campo]: v }));
+  }
+
+  /** Só cria com nome: o overlay ignora quem não tem (e uma pessoa em branco sumiria da lista). */
   protected adiciona(): void {
-    if (this.pessoas().length >= CABINE_PESSOAS_MAX) return;
-    void this.salvaPessoas([...this.pessoas(), { id: novoId(), role: '', name: '', handle: null, desc: null, photoUrl: null, mic: true }]);
+    const r = this.rascunho();
+    const name = r.name.trim();
+    if (name === '' || this.pessoas().length >= CABINE_PESSOAS_MAX) return;
+    const handle = r.handle.trim();
+    const desc = r.desc.trim();
+    void this.salvaPessoas([
+      ...this.pessoas(),
+      { id: novoId(), role: r.role.trim(), name, handle: handle === '' ? null : handle, desc: desc === '' ? null : desc, photoUrl: null, mic: true },
+    ]).then(() => this.rascunho.set({ role: '', name: '', handle: '', desc: '' }));
   }
 
   protected remove(i: number): void {

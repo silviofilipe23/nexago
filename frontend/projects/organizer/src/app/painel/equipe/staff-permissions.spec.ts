@@ -14,6 +14,10 @@ describe('canManageTournamentStaff', () => {
     expect(canManageTournamentStaff({ isSuperAdmin: true, uid: 'super-uid', managerId: dono })).toBe(true);
   });
 
+  it('o gestor da equipe (staff manager) gerencia a equipe', () => {
+    expect(canManageTournamentStaff({ isSuperAdmin: false, uid: 'gestor-uid', managerId: dono, isStaffManager: true })).toBe(true);
+  });
+
   it('organizador comum não gerencia torneio alheio', () => {
     expect(canManageTournamentStaff({ isSuperAdmin: false, uid: 'outro-uid', managerId: dono })).toBe(false);
   });

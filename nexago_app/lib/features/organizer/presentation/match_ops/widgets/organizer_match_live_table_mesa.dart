@@ -6,6 +6,9 @@ import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
+import '../../../../athlete/presentation/public_profile/widgets/profile_photo_viewer.dart';
+import '../../../../athlete/presentation/widgets/athlete_profile_avatar.dart';
+
 /// Uma dupla na mesa "bloco de saque" (metade da tela inteira tocável).
 class LiveTableMesaTeam {
   const LiveTableMesaTeam({
@@ -15,6 +18,7 @@ class LiveTableMesaTeam {
     required this.onTap,
     required this.onMinus,
     this.servingPlayerName,
+    this.servingPlayerPhotoUrl,
     this.onTapServingPlayer,
   });
 
@@ -28,6 +32,9 @@ class LiveTableMesaTeam {
 
   /// Atleta no saque — só vale quando [isServing].
   final String? servingPlayerName;
+
+  /// Foto do atleta no saque — sem ela o pill mostra a inicial.
+  final String? servingPlayerPhotoUrl;
   final VoidCallback? onTapServingPlayer;
 }
 
@@ -447,6 +454,7 @@ class _TeamHalf extends StatelessWidget {
                         child: serving
                             ? _ServePill(
                                 name: team.servingPlayerName,
+                                photoUrl: team.servingPlayerPhotoUrl,
                                 onTap: enabled ? team.onTapServingPlayer : null,
                               )
                             : Text(
@@ -558,10 +566,47 @@ class _MinusButton extends StatelessWidget {
   }
 }
 
+/// Avatar do pill de saque. Com foto, o toque amplia (e não troca o sacador); sem foto o
+/// toque cai no pill, como antes.
+class _ServePillAvatar extends StatelessWidget {
+  const _ServePillAvatar({
+    required this.initial,
+    required this.photoUrl,
+  });
+
+  static const double size = 32;
+
+  final String initial;
+  final String? photoUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = photoUrl?.trim() ?? '';
+    final avatar = AthleteProfileAvatar(
+      size: size,
+      initials: initial,
+      imageUrl: url.isEmpty ? null : url,
+    );
+    if (url.isEmpty) return avatar;
+    // O meio da tela já é um Semantics que esconde os filhos, então não há rótulo próprio aqui.
+    return GestureDetector(
+      key: const ValueKey('serve-pill-avatar-zoom'),
+      behavior: HitTestBehavior.opaque,
+      onTap: () => openProfilePhotoViewer(context, photoUrls: [url]),
+      child: avatar,
+    );
+  }
+}
+
 class _ServePill extends StatelessWidget {
-  const _ServePill({required this.name, required this.onTap});
+  const _ServePill({
+    required this.name,
+    required this.onTap,
+    this.photoUrl,
+  });
 
   final String? name;
+  final String? photoUrl;
   final VoidCallback? onTap;
 
   @override
@@ -579,27 +624,11 @@ class _ServePill extends StatelessWidget {
         onTap: onTap,
         customBorder: const StadiumBorder(),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 18, 8),
+          padding: const EdgeInsets.fromLTRB(6, 6, 18, 6),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 28,
-                height: 28,
-                alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                  color: AppColors.brand,
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  initial,
-                  style: AppTypography.soraRegular(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: _nxInk,
-                  ),
-                ),
-              ),
+              _ServePillAvatar(initial: initial, photoUrl: photoUrl),
               const SizedBox(width: 10),
               Flexible(
                 child: Text(

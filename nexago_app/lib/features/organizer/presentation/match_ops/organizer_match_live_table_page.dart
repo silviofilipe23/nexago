@@ -311,6 +311,7 @@ class _OrganizerMatchLiveTablePageState
                     ListTile(
                       leading: const Icon(Icons.sync_alt_rounded),
                       title: const Text('Trocar saque'),
+                      enabled: !MatchServingPlayerLogic.isServeOrderLocked(match),
                       onTap: () {
                         Navigator.pop(sheetContext);
                         _swapServe();
@@ -946,6 +947,9 @@ class _OrganizerMatchLiveTablePageState
     final match = _currentMatch();
     if (match == null || match.isCompleted) return;
 
+    // Depois do 1º ponto do set a ordem de saque não se mexe (ver `isServeOrderLocked`).
+    if (MatchServingPlayerLogic.isServeOrderLocked(match)) return;
+
     final current = match.servingTeamId.trim();
     final next = current.isEmpty || current == match.teamBId
         ? match.teamAId
@@ -1036,6 +1040,7 @@ class _OrganizerMatchLiveTablePageState
       await _chooseServingPlayer(1);
       return;
     }
+    if (MatchServingPlayerLogic.isServeOrderLocked(match)) return;
     // Próximo do elenco: dupla alterna, equipe roda, individual fica no 1.
     final next = MatchServingPlayerLogic.swappedSlots(
       slots: match.servingPlayers,
@@ -1415,6 +1420,8 @@ class _OrganizerMatchLiveTablePageState
                     teamAId: match.teamAId,
                     teamBId: match.teamBId,
                   );
+                  final serveLocked =
+                      MatchServingPlayerLogic.isServeOrderLocked(match);
                   void handleTap(String side) {
                     if (needsServe) {
                       _chooseServe(side);
@@ -1452,10 +1459,11 @@ class _OrganizerMatchLiveTablePageState
                         _removeTimeout(_sidesSwapped ? 'A' : 'B'),
                     servingPlayerName: servingPlayerName,
                     // Individual não tem parceiro pra trocar (igual ao modo normal).
-                    onSwapServingPlayer: (servingTeam?.rosterSize ?? 2) == 1
+                    onSwapServingPlayer: (servingTeam?.rosterSize ?? 2) == 1 ||
+                            serveLocked
                         ? null
                         : _swapServingPlayer,
-                    onSwapServe: _swapServe,
+                    onSwapServe: serveLocked ? null : _swapServe,
                     onSwapSides: _swapSides,
                     onAddTimeout: _openTimeoutTeamPicker,
                     onUndo: _undoLastPoint,
@@ -1512,8 +1520,12 @@ class _OrganizerMatchLiveTablePageState
                 final swapped = _sidesSwapped != autoFlips.isOdd;
                 final topSideA = !swapped;
 
+                // Sem trocar o sacador depois do 1º ponto; declarar quem ainda não foi
+                // declarado (slot 0) segue livre — é o que a faixa "Quem saca por…?" faz.
                 final servingPlayerEnabled =
-                    (servingTeam?.rosterSize ?? 2) != 1;
+                    (servingTeam?.rosterSize ?? 2) != 1 &&
+                        (!MatchServingPlayerLogic.isServeOrderLocked(match) ||
+                            match.servingPlayerSlot == 0);
                 LiveTableMesaTeam mesaTeam(bool sideA) {
                   final side = sideA ? 'A' : 'B';
                   final team = sideA ? teamA : teamB;
@@ -1526,6 +1538,9 @@ class _OrganizerMatchLiveTablePageState
                     onTap: () => _point(side),
                     onMinus: () => _undoIfSide(side),
                     servingPlayerName: isServing ? servingPlayerName : null,
+                    servingPlayerPhotoUrl: isServing
+                        ? servingTeam?.playerForSlot(match.servingPlayerSlot)?.profilePhotoUrl
+                        : null,
                     onTapServingPlayer: isServing && servingPlayerEnabled
                         ? _swapServingPlayer
                         : null,

@@ -969,7 +969,7 @@ class LiveTableFullModeMesa extends StatelessWidget {
     required this.onTapB,
     required this.onRemoveTimeoutA,
     required this.onRemoveTimeoutB,
-    required this.onSwapServe,
+    this.onSwapServe,
     required this.onSwapSides,
     required this.onAddTimeout,
     required this.onUndo,
@@ -1003,7 +1003,8 @@ class LiveTableFullModeMesa extends StatelessWidget {
   final VoidCallback onTapB;
   final VoidCallback onRemoveTimeoutA;
   final VoidCallback onRemoveTimeoutB;
-  final VoidCallback onSwapServe;
+  /// `null` depois do 1º ponto do set: a ordem de saque trava.
+  final VoidCallback? onSwapServe;
   final VoidCallback onSwapSides;
   final VoidCallback onAddTimeout;
   final VoidCallback onUndo;
@@ -1084,7 +1085,7 @@ class LiveTableFullModeMesa extends StatelessWidget {
                           label: 'Trocar saque',
                           icon: Icons.circle,
                           iconColor: AppColors.brand,
-                          enabled: enabled,
+                          enabled: enabled && onSwapServe != null,
                           onPressed: onSwapServe,
                           borderColor: context.themeColors.onSurfaceMuted
                               .withValues(alpha: 0.14),

@@ -1,3 +1,4 @@
+import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_serving_players.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
 import 'match_scoring_logic.dart';
@@ -104,6 +105,27 @@ abstract final class MatchServingPlayerLogic {
   }) {
     if (nextServingTeamId.trim().isEmpty) return MatchServingPlayers.none;
     return slots;
+  }
+
+  /// Depois do 1º ponto do set a ordem de saque (qual dupla saca e qual atleta de cada dupla)
+  /// não se mexe mais: a escolha é obrigatória ANTES de a partida começar ("Quem começa
+  /// sacando?") e daí em diante só o rodízio resolve. Voltar o placar a 0–0 (desfazer o 1º
+  /// ponto) reabre a escolha, e cada set novo começa livre de novo.
+  ///
+  /// Vale pelo set CORRENTE: placar do set ou, na partida de games, os pontos do game em curso.
+  static bool isServeOrderLocked(TournamentMatch match) {
+    if (TournamentMatchStatus.isCompleted(match.status) ||
+        TournamentMatchStatus.isCanceled(match.status)) {
+      return true;
+    }
+    final idx = match.currentSetIndex ??
+        (match.sets.isEmpty ? 0 : match.sets.length - 1);
+    final set = idx >= 0 && idx < match.sets.length ? match.sets[idx] : null;
+    final played = (set?.a ?? 0) +
+        (set?.b ?? 0) +
+        match.currentGame.a +
+        match.currentGame.b;
+    return played > 0;
   }
 
   /// Troca o sacador da dupla que está com o saque (ação manual da mesa). Sem dupla no saque,

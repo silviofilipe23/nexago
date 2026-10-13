@@ -52,6 +52,18 @@ class OrganizerCategoryScoringSection extends StatelessWidget {
           labelBuilder: _bestOfLabel,
           onSelected: (b) => onChanged(category.copyWith(bestOf: b)),
         ),
+        if (category.bestOf == TournamentBestOf.singleSet) ...[
+          const SizedBox(height: 12),
+          OrganizerToggleSettingRow(
+            icon: Icons.emoji_events_outlined,
+            title: 'Mata-mata em MD3',
+            subtitle:
+                'Quartas, semifinais e final em melhor de 3 sets; a fase de grupos segue em set único.',
+            value: category.knockoutBestOf3,
+            onChanged: (v) =>
+                onChanged(category.copyWith(knockoutBestOf3: v)),
+          ),
+        ],
         const SizedBox(height: 16),
         switch (profile) {
           SetsPointsProfile() => Row(

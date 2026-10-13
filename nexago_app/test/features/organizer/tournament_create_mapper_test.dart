@@ -179,6 +179,33 @@ void main() {
     expect(categories[1]['bestOf'], 'bestOf5');
   });
 
+  test('knockoutBestOf3 vai pro doc e volta na leitura', () {
+    final draft = TournamentCreateDraft(
+      name: 'Mata-mata MD3',
+      city: 'Goiânia',
+      locationName: 'Arena',
+      startAt: DateTime(2026, 4, 1),
+      endAt: DateTime(2026, 4, 2),
+      categories: const [
+        TournamentCategoryDraft(id: 'c1', knockoutBestOf3: true),
+        TournamentCategoryDraft(id: 'c2'),
+      ],
+    );
+
+    final map = TournamentCreateMapper.toFirestore(
+      draft: draft,
+      managerId: 'uid',
+      publish: true,
+    );
+    final categories = map['categories'] as List;
+    expect(categories[0]['knockoutBestOf3'], isTrue);
+    expect(categories[1]['knockoutBestOf3'], isFalse);
+
+    final parsed = TournamentCreateMapper.fromFirestore(map, 't1');
+    expect(parsed.draft.categories[0].knockoutBestOf3, isTrue);
+    expect(parsed.draft.categories[1].knockoutBestOf3, isFalse);
+  });
+
     test('toFirestore includes wizardStep when provided', () {
     final draft = TournamentCreateDraft(
       name: 'Rascunho',

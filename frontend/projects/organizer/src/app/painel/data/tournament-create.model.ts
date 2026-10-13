@@ -123,6 +123,8 @@ export interface TournamentCategoryDraft {
   kocPhases: KocPhaseSpec[] | null;
   bestOf: TournamentBestOf;
   finalBestOf5: boolean;
+  /** Mata-mata (quartas, semis, final…) em MD3 mesmo com a categoria em set único: a chave já nasce assim. */
+  knockoutBestOf3: boolean;
   maxRegistrationsPerAthlete: number;
   prizes: CategoryPrizeDraft[];
   /** Perfil de placar da categoria (spec multiesporte), cru como está no doc. O wizard ainda
@@ -212,6 +214,7 @@ export function emptyCategoryDraft(id: string): TournamentCategoryDraft {
     // Padrão do NexaGO: partida de set único (MD3/MD5 são escolha explícita).
     bestOf: 'singleSet',
     finalBestOf5: false,
+    knockoutBestOf3: false,
     maxRegistrationsPerAthlete: 2,
     prizes: [],
   };

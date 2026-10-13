@@ -253,6 +253,7 @@ abstract final class TournamentCreateMapper {
           ? _parseBestOf(map['bestOf'] as String?)
           : fallbackBestOf,
       finalBestOf5: map['finalBestOf5'] as bool? ?? fallbackFinalBestOf5,
+      knockoutBestOf3: map['knockoutBestOf3'] as bool? ?? false,
       scoringProfileRaw: scoringProfileRawOf(map['scoringProfile']),
       maxRegistrationsPerAthlete:
           (map['maxRegistrationsPerAthlete'] as num?)?.toInt() ?? 2,
@@ -503,6 +504,7 @@ abstract final class TournamentCreateMapper {
       'roundDurationSec': category.kocRoundDurationSec,
       'bestOf': category.bestOf.name,
       'finalBestOf5': category.finalBestOf5,
+      'knockoutBestOf3': category.knockoutBestOf3,
       // O `bestOf` do perfil acompanha o da categoria (o organizador pode
       // trocar depois).
       if (category.scoringProfileRaw != null)

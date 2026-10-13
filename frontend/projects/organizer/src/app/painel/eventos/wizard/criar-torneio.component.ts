@@ -345,6 +345,11 @@ function inputToDatetime(v: string): Date | null {
                   <og-select-chips [options]="['Set único', 'MD3', 'MD5']" [active]="bestOfLabel[cat().bestOf]" (changed)="setCatBestOf($event)" />
                 </og-form-field>
               </div>
+              @if (cat().bestOf === 'singleSet') {
+                <div style="margin-top:14px">
+                  <og-toggle-row title="Mata-mata em MD3" desc="Quartas, semifinais e final já nascem em melhor de 3 sets; a fase de grupos segue em set único." [on]="cat().knockoutBestOf3" (toggled)="patchCat({ knockoutBestOf3: $event })" />
+                </div>
+              }
               <div style="margin-top:14px">
                 <og-toggle-row title="Final em MD5" desc="A decisão do título usa melhor de 5 sets." [on]="cat().finalBestOf5" (toggled)="patchCat({ finalBestOf5: $event })" />
               </div>

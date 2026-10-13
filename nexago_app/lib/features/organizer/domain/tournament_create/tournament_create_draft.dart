@@ -171,6 +171,7 @@ class TournamentCategoryDraft {
     // do organizador no wizard.
     this.bestOf = TournamentBestOf.singleSet,
     this.finalBestOf5 = true,
+    this.knockoutBestOf3 = false,
     this.scoringProfileRaw,
     this.maxRegistrationsPerAthlete = 2,
     this.prizes = const [],
@@ -212,6 +213,10 @@ class TournamentCategoryDraft {
 
   final TournamentBestOf bestOf;
   final bool finalBestOf5;
+
+  /// Mata-mata (quartas, semis, final…) em MD3 mesmo com a categoria em set
+  /// único: a chave já nasce assim, sem depender de ajuste partida a partida.
+  final bool knockoutBestOf3;
 
   /// Perfil de placar da categoria (spec multiesporte), cru como está no doc.
   /// O wizard ainda não o edita (2d2), mas precisa carregá-lo: o array
@@ -262,6 +267,7 @@ class TournamentCategoryDraft {
     int? kocRoundDurationSec,
     TournamentBestOf? bestOf,
     bool? finalBestOf5,
+    bool? knockoutBestOf3,
     Map<String, dynamic>? scoringProfileRaw,
     int? maxRegistrationsPerAthlete,
     List<TournamentCategoryPrizeDraft>? prizes,
@@ -293,6 +299,7 @@ class TournamentCategoryDraft {
       kocRoundDurationSec: kocRoundDurationSec ?? this.kocRoundDurationSec,
       bestOf: bestOf ?? this.bestOf,
       finalBestOf5: finalBestOf5 ?? this.finalBestOf5,
+      knockoutBestOf3: knockoutBestOf3 ?? this.knockoutBestOf3,
       scoringProfileRaw: scoringProfileRaw ?? this.scoringProfileRaw,
       maxRegistrationsPerAthlete:
           maxRegistrationsPerAthlete ?? this.maxRegistrationsPerAthlete,

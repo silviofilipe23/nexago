@@ -128,8 +128,18 @@ function normalizePhoneForWhatsApp(phone: string): string {
  */
 export function bracketMatchDoc(
   draft: MatchDraft,
-  meta: {tournamentId: string; categoryId: string; bestOf: number; scoringProfile: ScoringProfile},
+  meta: {
+    tournamentId: string;
+    categoryId: string;
+    bestOf: number;
+    scoringProfile: ScoringProfile;
+    /** Categoria com "mata-mata em MD3": só as partidas fora da fase de grupos sobem para 3 sets. */
+    knockoutBestOf3?: boolean;
+  },
 ): Record<string, unknown> {
+  const knockoutMd3 = meta.knockoutBestOf3 === true && !draft.isGroupMatch && meta.bestOf < 3;
+  const bestOf = knockoutMd3 ? 3 : meta.bestOf;
+  const scoringProfile = knockoutMd3 ? {...meta.scoringProfile, bestOf: 3} as ScoringProfile : meta.scoringProfile;
   return {
     tournamentId: meta.tournamentId,
     categoryId: meta.categoryId,
@@ -139,8 +149,8 @@ export function bracketMatchDoc(
     teamAId: draft.teamAId,
     teamBId: draft.teamBId,
     status: MatchStatus.scheduled,
-    bestOf: meta.bestOf,
-    scoringProfile: meta.scoringProfile,
+    bestOf,
+    scoringProfile,
     resultA: "",
     resultB: "",
     isGroupMatch: draft.isGroupMatch,
@@ -775,7 +785,13 @@ export async function runGenerateCategoryBracket(
     koc ?
       koc.docs :
       matchDrafts.map((draft) =>
-        bracketMatchDoc(draft, {tournamentId, categoryId, bestOf, scoringProfile}),
+        bracketMatchDoc(draft, {
+          tournamentId,
+          categoryId,
+          bestOf,
+          scoringProfile,
+          knockoutBestOf3: categoryMeta?.knockoutBestOf3 === true,
+        }),
       );
 
   for (const doc of newMatchDocs) {

@@ -638,11 +638,76 @@ class _ScoreControlButton extends StatelessWidget {
 /// Rótulo amigável do formato (nº de sets) da partida.
 String matchBestOfLabel(int bestOf) => bestOf == 1 ? '1 set' : 'Melhor de 3';
 
+/// Troca de quadra por pontos: [interval] pontos somados; [due] = o placar do
+/// set acabou de chegar no múltiplo e o árbitro deve mandar trocar de lado.
+class LiveTableCourtSwitch {
+  const LiveTableCourtSwitch({
+    required this.interval,
+    required this.total,
+    required this.due,
+  });
+
+  final int interval;
+  final int total;
+  final bool due;
+}
+
+class _CourtSwitchNotice extends StatelessWidget {
+  const _CourtSwitchNotice({required this.info});
+
+  final LiveTableCourtSwitch info;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    if (!info.due) {
+      return Text(
+        'Troca de quadra a cada ${info.interval} pontos',
+        style: AppTypography.mono(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: colors.onSurfaceMuted,
+        ),
+      );
+    }
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.brand.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.brand),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.swap_horiz_rounded, color: AppColors.brand),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                'Troca de quadra! ${info.total} pontos no set',
+                style: AppTypography.mono(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: colors.onSurface,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class LiveTableSetRules extends StatelessWidget {
   const LiveTableSetRules({
     super.key,
     required this.rulesLabel,
     this.setPointHint,
+    this.courtSwitch,
     this.bestOf = 3,
     this.onChangeFormat,
     this.formatEnabled = true,
@@ -650,6 +715,9 @@ class LiveTableSetRules extends StatelessWidget {
 
   final String rulesLabel;
   final String? setPointHint;
+
+  /// Troca de quadra por pontos (vôlei de praia); `null` = esporte sem a regra.
+  final LiveTableCourtSwitch? courtSwitch;
   final int bestOf;
 
   /// Quando não nulo, exibe um chip tocável para trocar o formato (nº de sets).
@@ -685,6 +753,10 @@ class LiveTableSetRules extends StatelessWidget {
             ),
             textAlign: TextAlign.center,
           ),
+          if (courtSwitch case final sw?) ...[
+            const SizedBox(height: 8),
+            _CourtSwitchNotice(info: sw),
+          ],
           if (onChangeFormat != null) ...[
             const SizedBox(height: 8),
             _FormatChip(

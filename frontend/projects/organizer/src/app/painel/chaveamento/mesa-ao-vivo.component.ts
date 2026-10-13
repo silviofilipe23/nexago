@@ -49,9 +49,11 @@ import {
   withRosterSizes,
 } from '@nexago/live-scoring';
 import {
+  courtSwitchInterval,
   effectiveScoringProfile,
   gamesLiveHint,
   gamesPointLabels,
+  isCourtSwitchDue,
   isSuperTiebreakSet,
   isTiebreakInProgress,
   setsWonBy,
@@ -357,6 +359,15 @@ export function mesaGamesView(m: LiveMatch): MesaGamesView | null {
                 <og-pill tone="yellow">{{ h }}</og-pill>
               }
             </div>
+            @if (courtSwitch(); as sw) {
+              <p class="og-mesa-switch" role="status" [class.due]="sw.due">
+                @if (sw.due) {
+                  <strong>⇄ Troca de quadra!</strong> {{ sw.total }} pontos no set — as duplas trocam de lado.
+                } @else {
+                  Troca de quadra a cada {{ sw.interval }} pontos
+                }
+              </p>
+            }
 
             @if (status() === 'in_progress') {
               <!-- No celular/tablet o placar + botões de ponto ocupam a 1ª tela;
@@ -912,6 +923,20 @@ export function mesaGamesView(m: LiveMatch): MesaGamesView | null {
       font-family: var(--nx-font-mono);
       font-size: 11px;
       color: var(--nx-text-dim);
+    }
+    .og-mesa-switch {
+      margin: 8px 0 0;
+      font-family: var(--nx-font-ui);
+      font-size: 12px;
+      color: var(--nx-text-dim);
+    }
+    .og-mesa-switch.due {
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      color: var(--nx-text);
+      background: color-mix(in srgb, var(--nx-brand, #f5b301) 22%, transparent);
+      border: 1px solid var(--nx-brand, #f5b301);
     }
     .og-mesa-hint {
       font-family: var(--nx-font-ui);
@@ -1481,6 +1506,19 @@ export class MesaAoVivoComponent {
     if (games) return games.hint;
     const s = this.currentSet();
     return setPointHint(s.a, s.b, this.currentSetIdx(), this.bestOf());
+  });
+
+  /** Troca de quadra por pontos (vôlei de praia: a cada 7; decisivo, a cada 5). `due` = acabou de
+   *  chegar no múltiplo — calculado do placar, então desfazer o ponto apaga o aviso. */
+  protected readonly courtSwitch = computed(() => {
+    const m = this.match();
+    if (!m || m.status !== 'in_progress') return null;
+    const profile = effectiveScoringProfile(m.scoringProfile, m.bestOf);
+    const idx = this.currentSetIdx();
+    const interval = courtSwitchInterval(profile, idx);
+    if (interval === null) return null;
+    const s = this.currentSet();
+    return { interval, total: s.a + s.b, due: isCourtSwitchDue(profile, idx, s) };
   });
 
   protected readonly elapsed = computed(() => {

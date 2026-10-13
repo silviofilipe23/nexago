@@ -51,6 +51,28 @@ abstract final class ScoringRules {
     pointCap: null,
   );
 
+  /// A cada quantos pontos somados do set as duplas trocam de quadra. Vôlei de
+  /// praia: set de 21 troca a cada 7; o decisivo de 15 (de um set de 21), a cada
+  /// 5. Perfis sem troca por pontos (quadra 25, futevôlei 18, games) → `null`.
+  /// Espelho de `courtSwitchInterval` em `frontend/shared/sports/scoring.ts`.
+  static int? courtSwitchInterval(ScoringProfile p, int index) {
+    if (p is! SetsPointsProfile || p.setTarget != 21) return null;
+    return switch (setPointsTarget(p, index)) {
+      21 => 7,
+      15 => 5,
+      _ => null,
+    };
+  }
+
+  /// O placar do set em curso acabou de chegar num múltiplo do intervalo de
+  /// troca. Só vale com a partida em andamento: ao fechar o set, o índice
+  /// avança pro set zerado.
+  static bool isCourtSwitchDue(ScoringProfile p, int index, ScoreSetValue set) {
+    final interval = courtSwitchInterval(p, index);
+    final total = set.a + set.b;
+    return interval != null && total > 0 && total % interval == 0;
+  }
+
   static int? _posInt(Object? v) {
     if (v is! num) return null;
     if (v != v.roundToDouble() || v <= 0) return null;

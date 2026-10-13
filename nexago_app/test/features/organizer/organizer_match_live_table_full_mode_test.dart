@@ -15,6 +15,7 @@ import 'package:nexago_app/features/organizer/domain/tournament_ops/tournament_o
 import 'package:nexago_app/features/organizer/presentation/match_ops/organizer_match_live_table_page.dart';
 import 'package:nexago_app/features/organizer/presentation/match_ops/organizer_match_navigation.dart';
 import 'package:nexago_app/features/organizer/presentation/match_ops/widgets/organizer_match_live_table_mesa.dart';
+import 'package:nexago_app/features/organizer/presentation/match_ops/widgets/organizer_match_live_table_start_serve.dart';
 import 'package:nexago_app/features/organizer/presentation/match_ops/widgets/organizer_match_live_table_widgets.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_matches_repository.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_providers.dart';
@@ -507,16 +508,60 @@ void main() {
     );
   });
 
+  group('tela "Quem começa sacando?"', () {
+    testWidgets('cobre a mesa sem saque; CTA desabilitado até escolher a dupla', (
+      tester,
+    ) async {
+      await pumpLiveTable(tester, initialMatch: buildMatch(servingTeamId: ''));
+
+      expect(find.byType(LiveTableStartServeScreen), findsOneWidget);
+      expect(find.text('Quem começa sacando?'), findsOneWidget);
+      expect(find.text('Escolha quem saca'), findsOneWidget);
+      expect(fakeRepo.updateFieldsCalls, isEmpty);
+    });
+
+    testWidgets('escolher a dupla habilita o CTA e grava saque + 1º sacador', (
+      tester,
+    ) async {
+      await pumpLiveTable(tester, initialMatch: buildMatch(servingTeamId: ''));
+
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(LiveTableStartServeScreen),
+              matching: find.text(teamBLabel),
+            )
+            .first,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.textContaining('Começar set ·'), findsOneWidget);
+
+      await tester.tap(find.textContaining('Começar set ·'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(fakeRepo.updateFieldsCalls, hasLength(1));
+      final fields = fakeRepo.updateFieldsCalls.single.fields;
+      expect(fields['servingTeamId'], teamBId);
+      expect(fields['servingPlayerSlots'], {'A': 2, 'B': 1});
+    });
+  });
+
   group('sem saque definido ainda', () {
     testWidgets(
       'tocar no painel ESCOLHE quem saca sem marcar ponto; só depois de '
       'escolhido o toque marca ponto de verdade',
       (tester) async {
+        // A mesa normal cobre a tela com "Quem começa sacando?" enquanto não há saque,
+        // então o modo full é ligado antes e o saque some depois.
         await pumpLiveTable(
           tester,
-          initialMatch: buildMatch(servingTeamId: ''),
+          initialMatch: buildMatch(servingTeamId: teamAId),
         );
         await toggleFullMode(tester);
+        matchController.add(buildMatch(servingTeamId: ''));
+        await tester.pump();
+        await tester.pump();
 
         await tester.tap(panelWithLabel(teamALabel));
         await tester.pump();

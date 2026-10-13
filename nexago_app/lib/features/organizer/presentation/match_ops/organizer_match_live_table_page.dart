@@ -14,6 +14,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../data/games_point_write.dart';
 import '../../data/match_point_write.dart';
+import '../../data/match_sanction_write.dart';
 import '../../domain/match_ops/live_point_replay.dart';
 import '../../domain/match_ops/match_medical_timeout_logic.dart';
 import '../../domain/match_ops/match_ops_providers.dart';
@@ -25,12 +26,15 @@ import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_display.dart';
 import '../../../tournaments/domain/tournament_match_card_view_model.dart';
 import '../../../tournaments/domain/tournament_match_point_event.dart';
+import '../../../tournaments/domain/tournament_match_sanction.dart';
 import '../../../tournaments/domain/tournament_match_serving_players.dart';
 import '../../../tournaments/domain/tournament_match_set.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
 import 'organizer_match_error.dart';
 import 'organizer_match_navigation.dart';
 import 'widgets/organizer_match_live_table_mesa.dart';
+import 'widgets/organizer_match_live_table_sanction_sheet.dart';
+import 'widgets/organizer_match_live_table_start_serve.dart';
 import 'widgets/organizer_match_live_table_widgets.dart';
 
 /// I1 — Mesa ao vivo ponto a ponto.
@@ -368,6 +372,15 @@ class _OrganizerMatchLiveTablePageState
                       },
                     ),
                   ListTile(
+                    leading: const Icon(Icons.style_rounded),
+                    title: const Text('Cartão'),
+                    subtitle: const Text('Amarelo ou vermelho na súmula'),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _openSanctionSheet(match: match, teamA: teamA, teamB: teamB);
+                    },
+                  ),
+                  ListTile(
                     leading: const Icon(Icons.schedule_rounded),
                     title: const Text('Histórico'),
                     onTap: () {
@@ -443,6 +456,86 @@ class _OrganizerMatchLiveTablePageState
         FirebaseFirestore.instance,
         widget.tournamentId,
       );
+    } catch (e) {
+      if (mounted) {
+        showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _openSanctionSheet({
+    required TournamentMatch match,
+    required LiveTableTeamData teamA,
+    required LiveTableTeamData teamB,
+  }) {
+    return showMatchSanctionSheet(
+      context,
+      teamA: teamA,
+      teamB: teamB,
+      sanctions: match.sanctions,
+      onConfirm: _recordSanction,
+      onRemove: _removeSanction,
+    );
+  }
+
+  /// Vermelho vira ponto do adversário na MESMA transação do cartão — ver [buildSanctionWrite].
+  Future<void> _recordSanction(SanctionChoice choice) async {
+    final match = _currentMatch();
+    if (match == null || match.isCompleted) return;
+
+    // Um id por lançamento, fora do `build`: a transação pode repetir o build.
+    final sanctionId = FirebaseFirestore.instance.collection('_').doc().id;
+    setState(() => _saving = true);
+    try {
+      final written = await ref
+          .read(tournamentMatchesRepositoryProvider)
+          .recordPointTransaction(
+            matchId: widget.matchId,
+            build: (fresh) => buildSanctionWrite(
+              fresh,
+              sanctionId: sanctionId,
+              card: choice.card,
+              side: choice.side,
+              playerSlot: choice.slot,
+              playerName: choice.playerName,
+              reason: choice.reason,
+              rosterSizes: _rosterSizes(),
+            ),
+          );
+      if (written == null) {
+        if (mounted) {
+          showAppSnackBar(
+            context,
+            'Não foi possível lançar o cartão — a partida já foi encerrada.',
+            isError: true,
+          );
+        }
+      } else if (choice.card == MatchSanctionCard.red) {
+        await TournamentLiveMatchesSync.syncForTournament(
+          FirebaseFirestore.instance,
+          widget.tournamentId,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _removeSanction(String sanctionId) async {
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(tournamentMatchesRepositoryProvider)
+          .recordPointTransaction(
+            matchId: widget.matchId,
+            build: (fresh) => buildSanctionRemovalWrite(fresh, sanctionId),
+          );
     } catch (e) {
       if (mounted) {
         showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
@@ -785,6 +878,61 @@ class _OrganizerMatchLiveTablePageState
                     rosterSizes: _rosterSizes(),
                   ),
           );
+    } catch (e) {
+      if (mounted) {
+        showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  /// Última abertura confirmada nesta sessão (set + escolhas): os sets seguintes chegam
+  /// pré-preenchidos com o saque invertido. O tie-break nunca herda — sorteio novo.
+  int? _lastStartSet;
+  LiveTableStartConfig? _lastStart;
+
+  LiveTableStartConfig? _startPrefill(int setIdx, int bestOf) {
+    final last = _lastStart;
+    final lastSet = _lastStartSet;
+    if (last == null || lastSet == null || setIdx <= lastSet) return null;
+    final isTieBreak = bestOf >= 3 && setIdx >= 2;
+    if (isTieBreak) return null;
+    String other(String side) => side == 'A' ? 'B' : 'A';
+    return LiveTableStartConfig(
+      servingSide: other(last.servingSide),
+      slotA: last.slotA,
+      slotB: last.slotB,
+      leftSide: other(last.leftSide),
+    );
+  }
+
+  Future<void> _startSet(LiveTableStartConfig config, int setIdx) async {
+    final match = _currentMatch();
+    if (match == null || _saving || match.isCompleted) return;
+    final teamId = config.servingSide == 'A' ? match.teamAId : match.teamBId;
+    if (teamId.trim().isEmpty) return;
+    setState(() => _saving = true);
+    try {
+      await ref.read(tournamentMatchesRepositoryProvider).updateMatchFields(
+            matchId: widget.matchId,
+            fields: startingSetFields(
+              match,
+              config.servingSide,
+              slotA: config.slotA,
+              slotB: config.slotB,
+              rosterSizes: _rosterSizes(),
+            ),
+          );
+      if (mounted) {
+        setState(() {
+          _lastStartSet = setIdx;
+          _lastStart = config;
+          _sidesSwapped = config.leftSide == 'B';
+          _switchAckSet = null;
+          _switchAckTotal = null;
+        });
+      }
     } catch (e) {
       if (mounted) {
         showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
@@ -1401,12 +1549,9 @@ class _OrganizerMatchLiveTablePageState
                   top: mesaTeam(topSideA),
                   bottom: mesaTeam(!topSideA),
                   net: LiveTableMesaNet(
-                    finishText: match.isCompleted
-                        ? 'FIM DO JOGO${leaderLabel == null ? '' : ' · ${leaderLabel.toUpperCase()}'}'
-                        : null,
-                    setPointText: atSetPoint && leaderLabel != null
-                        ? 'SET POINT · ${leaderLabel.toUpperCase()}'
-                        : null,
+                    finished: match.isCompleted,
+                    finishTeam: leaderLabel,
+                    setPointTeam: atSetPoint ? leaderLabel : null,
                     interval: match.isCompleted ? null : switchInterval,
                     total: switchTotal,
                   ),
@@ -1448,25 +1593,16 @@ class _OrganizerMatchLiveTablePageState
                       : null,
                   overlays: [
                     if (needsServe)
-                      // Deixa o header (voltar/⋯) e a barra de ações livres: a pergunta cobre só
-                      // a área dos placares.
-                      Padding(
-                        padding: const EdgeInsets.only(top: 72, bottom: 72),
-                        child: ColoredBox(
-                          color: const Color(0xE6050505),
-                          child: Center(
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.all(16),
-                              child: LiveTableStartingServe(
-                                teamA: teamA,
-                                teamB: teamB,
-                                enabled: !_saving,
-                                onChoose: (side, slot) =>
-                                    _chooseServe(side, slot: slot),
-                              ),
-                            ),
-                          ),
-                        ),
+                      LiveTableStartServeScreen(
+                        // Recria a tela a cada set: o pré-preenchimento só vale na abertura.
+                        key: ValueKey('start-serve-$setIdx'),
+                        teamA: teamA,
+                        teamB: teamB,
+                        courtLabel: court,
+                        enabled: !_saving,
+                        initial: _startPrefill(setIdx, match.bestOf),
+                        onBack: () => context.pop(),
+                        onConfirm: (config) => _startSet(config, setIdx),
                       ),
                     if (_timeoutPickerOpen)
                       LiveTableTimeoutTeamPicker(

@@ -35,14 +35,26 @@ class LiveTableMesaTeam {
 /// point, troca no próximo ponto, contador de troca.
 class LiveTableMesaNet {
   const LiveTableMesaNet({
-    this.finishText,
-    this.setPointText,
+    this.finishTeam,
+    this.setPointTeam,
+    this.finished = false,
     this.interval,
     this.total = 0,
   });
 
-  final String? finishText;
-  final String? setPointText;
+  /// Partida encerrada ([finishTeam] = vencedor, se houver).
+  final bool finished;
+  final String? finishTeam;
+
+  /// Dupla que está em set point.
+  final String? setPointTeam;
+
+  String? get finishText => !finished
+      ? null
+      : 'FIM DO JOGO${finishTeam == null ? '' : ' · ${finishTeam!.toUpperCase()}'}';
+  String? get setPointText => setPointTeam == null
+      ? null
+      : 'SET POINT · ${setPointTeam!.toUpperCase()}';
 
   /// Pontos somados entre trocas de quadra; `null` = a regra não existe no esporte.
   final int? interval;
@@ -161,28 +173,22 @@ class _Portrait extends StatelessWidget {
         children: [
           _PortraitHeader(screen: screen),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: _TeamHalf(
-                team: screen.top,
-                sideLabel: 'LADO A',
-                enabled: pointsEnabled,
-                radius: 26,
-                fontSize: 150,
-              ),
+            child: _TeamHalf(
+              team: screen.top,
+              sideLabel: 'LADO A',
+              enabled: pointsEnabled,
+              radius: 0,
+              fontSize: 150,
             ),
           ),
           _NetRow(net: screen.net),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: _TeamHalf(
-                team: screen.bottom,
-                sideLabel: 'LADO B',
-                enabled: pointsEnabled,
-                radius: 26,
-                fontSize: 150,
-              ),
+            child: _TeamHalf(
+              team: screen.bottom,
+              sideLabel: 'LADO B',
+              enabled: pointsEnabled,
+              radius: 0,
+              fontSize: 150,
             ),
           ),
           Padding(
@@ -316,8 +322,7 @@ class _TeamHalf extends StatelessWidget {
     required this.enabled,
     required this.radius,
     required this.fontSize,
-    this.showSideLabel = true,
-    this.minusAtTop = false,
+    this.landscape = false,
     this.minusOnLeft = false,
   });
 
@@ -326,10 +331,10 @@ class _TeamHalf extends StatelessWidget {
   final bool enabled;
   final double radius;
   final double fontSize;
-  final bool showSideLabel;
 
-  /// Landscape: o "−" sobe pro canto superior, do lado de fora.
-  final bool minusAtTop;
+  /// Paisagem: tela inteira como área de toque — nome e rodapé centralizados, abaixo do
+  /// header flutuante, e o "−" no canto superior do lado de FORA ([minusOnLeft]).
+  final bool landscape;
   final bool minusOnLeft;
 
   @override
@@ -342,8 +347,8 @@ class _TeamHalf extends StatelessWidget {
     final minus = Positioned(
       right: minusOnLeft ? null : 14,
       left: minusOnLeft ? 14 : null,
-      top: minusAtTop ? 14 : null,
-      bottom: minusAtTop ? null : 14,
+      top: landscape ? 64 : null,
+      bottom: landscape ? null : 14,
       child: _MinusButton(
         onPressed: team.onMinus,
         enabled: enabled,
@@ -377,7 +382,9 @@ class _TeamHalf extends StatelessWidget {
           child: Stack(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                padding: landscape
+                    ? const EdgeInsets.fromLTRB(72, 70, 72, 14)
+                    : const EdgeInsets.fromLTRB(20, 16, 20, 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -388,6 +395,8 @@ class _TeamHalf extends StatelessWidget {
                           child: Text(
                             team.label,
                             maxLines: 2,
+                            textAlign:
+                                landscape ? TextAlign.center : TextAlign.start,
                             overflow: TextOverflow.ellipsis,
                             style: AppTypography.soraRegular(
                               fontSize: 16,
@@ -397,7 +406,7 @@ class _TeamHalf extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (showSideLabel)
+                        if (!landscape)
                           Padding(
                             padding: const EdgeInsets.only(left: 8, top: 3),
                             child: Text(
@@ -433,7 +442,8 @@ class _TeamHalf extends StatelessWidget {
                     SizedBox(
                       height: 52,
                       child: Align(
-                        alignment: Alignment.centerLeft,
+                        alignment:
+                            landscape ? Alignment.center : Alignment.centerLeft,
                         child: serving
                             ? _ServePill(
                                 name: team.servingPlayerName,
@@ -867,7 +877,12 @@ class _Landscape extends StatelessWidget {
       if (screen.setLabel != null) screen.setLabel!,
       screen.elapsedLabel,
     ].join(' · ');
-    final status = net.finishText ?? net.setPointText;
+    final finished = net.finished;
+    final statusTeam = finished ? net.finishTeam : net.setPointTeam;
+    final status = finished
+        ? 'Fim do jogo${statusTeam == null ? '' : ' · $statusTeam'}'
+        : (net.setPointTeam == null ? null : 'Set point · ${net.setPointTeam}');
+    final statusColor = finished ? AppColors.win : AppColors.brandHover;
     final until = net.untilSwitch;
 
     return Stack(
@@ -881,57 +896,78 @@ class _Landscape extends StatelessWidget {
                 enabled: pointsEnabled,
                 radius: 0,
                 fontSize: 190,
-                showSideLabel: false,
-                minusAtTop: true,
+                landscape: true,
                 minusOnLeft: true,
               ),
             ),
-            SizedBox(
+            // Rede: coluna escura, linha tracejada vertical e os controles de mesa.
+            Container(
               width: 64,
+              color: colors.canvas,
               child: SafeArea(
                 left: false,
                 right: false,
-                child: Column(
+                child: Stack(
                   children: [
-                    const SizedBox(height: 12),
-                    _SquareIconButton(
-                      icon: Icons.undo_rounded,
-                      tooltip: 'Desfazer',
-                      size: 40,
-                      onPressed: pointsEnabled ? screen.onUndo : () {},
-                    ),
-                    const Expanded(child: _Dashes(vertical: true)),
-                    if (until != null)
-                      Container(
-                        width: 48,
-                        height: 48,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: net.switchNext
-                                ? AppColors.pending
-                                : _nxLineStrong,
-                            width: 2,
-                          ),
+                    const Positioned.fill(child: _Dashes(vertical: true)),
+                    Column(
+                      children: [
+                        const SizedBox(height: 40),
+                        _SquareIconButton(
+                          icon: Icons.undo_rounded,
+                          tooltip: 'Desfazer',
+                          size: 40,
+                          onPressed: pointsEnabled ? screen.onUndo : () {},
                         ),
-                        child: Text(
-                          '$until',
-                          style: AppTypography.mono(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: colors.onSurface,
+                        const Spacer(),
+                        if (until != null)
+                          Container(
+                            width: 48,
+                            height: 48,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: colors.canvas,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: net.switchNext
+                                    ? AppColors.pending
+                                    : _nxLineStrong,
+                                width: 2,
+                              ),
+                            ),
+                            child: Text(
+                              '$until',
+                              style: AppTypography.mono(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: colors.onSurface,
+                              ),
+                            ),
                           ),
+                        if (until != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            '⇄ TROCA',
+                            style: AppTypography.mono(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: net.switchNext
+                                  ? AppColors.pending
+                                  : colors.onSurfaceMuted,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ],
+                        const Spacer(),
+                        _SquareIconButton(
+                          icon: Icons.more_horiz_rounded,
+                          tooltip: 'Mais opções',
+                          size: 40,
+                          onPressed: screen.onMore,
                         ),
-                      ),
-                    const Expanded(child: _Dashes(vertical: true)),
-                    _SquareIconButton(
-                      icon: Icons.more_horiz_rounded,
-                      tooltip: 'Mais opções',
-                      size: 40,
-                      onPressed: screen.onMore,
+                        const SizedBox(height: 12),
+                      ],
                     ),
-                    const SizedBox(height: 12),
                   ],
                 ),
               ),
@@ -943,58 +979,69 @@ class _Landscape extends StatelessWidget {
                 enabled: pointsEnabled,
                 radius: 0,
                 fontSize: 190,
-                showSideLabel: false,
-                minusAtTop: true,
+                landscape: true,
               ),
             ),
           ],
         ),
+        // Header flutuante: voltar + relógio à esquerda, set point à direita.
         Positioned(
-          top: 8,
+          top: 12,
           left: 0,
           right: 0,
           child: SafeArea(
             bottom: false,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 76),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
                 children: [
                   _SquareIconButton(
                     icon: Icons.chevron_left_rounded,
                     tooltip: 'Voltar',
-                    size: 40,
+                    size: 44,
                     onPressed: screen.onBack,
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    headerText,
-                    style: AppTypography.mono(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.live,
-                      letterSpacing: 0.8,
+                  Container(
+                    height: 32,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: _nxInk,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.live.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: Text(
+                      '● $headerText',
+                      style: AppTypography.mono(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.live,
+                        letterSpacing: 0.8,
+                      ),
                     ),
                   ),
                   const Spacer(),
                   if (status != null)
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
+                      height: 32,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: _nxInk.withValues(alpha: 0.7),
-                        borderRadius: BorderRadius.circular(20),
+                        color: _nxInk,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: statusColor.withValues(alpha: 0.55),
+                        ),
                       ),
                       child: Text(
                         status,
-                        style: AppTypography.mono(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: net.finishText != null
-                              ? AppColors.win
-                              : AppColors.brandHover,
-                          letterSpacing: 0.8,
+                        style: AppTypography.soraRegular(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: statusColor,
                         ),
                       ),
                     ),

@@ -1,6 +1,7 @@
 import 'tournament_match_live_score.dart';
 import 'tournament_match_medical_timeout.dart';
 import 'tournament_match_point_action.dart';
+import 'tournament_match_sanction.dart';
 import 'tournament_match_serving_players.dart';
 import 'tournament_match_set.dart';
 import 'tournament_match_status.dart';
@@ -46,6 +47,7 @@ class TournamentMatch {
     this.servingPlayers = MatchServingPlayers.none,
     this.medicalTimeout,
     this.medicalTimeoutPlayers = const [],
+    this.sanctions = const [],
     this.liveElapsedSec = 0,
     this.pointEventSeq = 0,
     this.reportStatus = '',
@@ -112,6 +114,9 @@ class TournamentMatch {
 
   /// Atletas que já usaram o tempo médico nesta partida ("A1", "B2") — a cota é por atleta.
   final List<String> medicalTimeoutPlayers;
+
+  /// Cartões da súmula (amarelo/vermelho), na ordem em que foram lançados.
+  final List<MatchSanction> sanctions;
 
   final int liveElapsedSec;
   final int pointEventSeq;

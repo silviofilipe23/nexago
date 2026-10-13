@@ -4,6 +4,7 @@ import '../domain/tournament_match.dart';
 import '../domain/tournament_match_live_score.dart';
 import '../domain/tournament_match_medical_timeout.dart';
 import '../domain/tournament_match_point_action.dart';
+import '../domain/tournament_match_sanction.dart';
 import '../domain/tournament_match_serving_players.dart';
 import '../domain/tournament_match_set.dart';
 import '../domain/tournament_match_status.dart';
@@ -63,6 +64,7 @@ abstract final class TournamentMatchMapper {
       medicalTimeout: _medicalTimeout(data['medicalTimeout']),
       medicalTimeoutPlayers:
           medicalTimeoutPlayerKeysFromRaw(data['medicalTimeoutPlayers']),
+      sanctions: MatchSanction.listFromRaw(data['sanctions']),
       liveElapsedSec: _int(data['liveElapsedSec']) ?? 0,
       pointEventSeq: _int(data['pointEventSeq']) ?? 0,
       reportStatus: _reportStatus(data['report']),

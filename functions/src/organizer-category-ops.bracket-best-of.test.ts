@@ -129,3 +129,28 @@ describe("perfil de placar carimbado na partida", () => {
     assert.equal(categoryScoringProfile({bestOf: "singleSet", scoringProfile: {...explicit, bestOf: 3}}, "beachVolleyball").bestOf, 1);
   });
 });
+
+describe("bracketMatchDoc — mata-mata em MD3", () => {
+  const base = {
+    tournamentId: "t1",
+    categoryId: "cat-1",
+    bestOf: 1,
+    scoringProfile: legacyScoringProfile(1),
+    knockoutBestOf3: true,
+  };
+
+  it("sobe a eliminatória para 3 sets, perfil junto", () => {
+    const doc = bracketMatchDoc({...DRAFT, matchType: "knockout", isGroupMatch: false}, base);
+    assert.equal(doc.bestOf, 3);
+    assert.equal((doc.scoringProfile as {bestOf: number}).bestOf, 3);
+  });
+
+  it("não mexe na fase de grupos", () => {
+    assert.equal(bracketMatchDoc(DRAFT, base).bestOf, 1);
+  });
+
+  it("sem o flag, a eliminatória segue o formato da categoria", () => {
+    const doc = bracketMatchDoc({...DRAFT, isGroupMatch: false}, {...base, knockoutBestOf3: false});
+    assert.equal(doc.bestOf, 1);
+  });
+});

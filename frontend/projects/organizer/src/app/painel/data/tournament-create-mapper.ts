@@ -109,6 +109,7 @@ export function categoryToMap(category: TournamentCategoryDraft, draft: Tourname
     kocPhases: category.kocPhases,
     bestOf: category.bestOf,
     finalBestOf5: category.finalBestOf5,
+    knockoutBestOf3: category.knockoutBestOf3,
     // Perfil de placar: repassado cru (o wizard ainda não edita); não gravar seria apagar.
     // O `bestOf` do perfil acompanha o da categoria (o organizador pode trocar depois).
     ...(category.scoringProfile ? { scoringProfile: { ...category.scoringProfile, bestOf: profileBestOf(category.bestOf) } } : {}),
@@ -367,6 +368,7 @@ export function categoryFromMap(map: Record<string, unknown>): TournamentCategor
     kocPhases: parseKocPhases(map['kocPhases']),
     bestOf: parseBestOf(map['bestOf']),
     finalBestOf5: map['finalBestOf5'] === true,
+    knockoutBestOf3: map['knockoutBestOf3'] === true,
     maxRegistrationsPerAthlete: num(map['maxRegistrationsPerAthlete']) ?? 2,
     prizes: parsePrizes(map['prizes']),
     scoringProfile: scoringProfileRawOf(map['scoringProfile']),

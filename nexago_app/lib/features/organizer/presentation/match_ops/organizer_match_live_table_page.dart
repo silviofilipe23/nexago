@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nexago_app/core/sports/sport_catalog.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
@@ -21,6 +22,7 @@ import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../tournaments/data/tournament_live_matches_sync.dart';
 import '../../../tournaments/domain/tournament_discovery_providers.dart';
 import '../../../tournaments/domain/tournament_match.dart';
+import '../../../tournaments/domain/tournament_match_display.dart';
 import '../../../tournaments/domain/tournament_match_card_view_model.dart';
 import '../../../tournaments/domain/tournament_match_point_event.dart';
 import '../../../tournaments/domain/tournament_match_serving_players.dart';
@@ -138,6 +140,36 @@ class _OrganizerMatchLiveTablePageState
   void _toggleFullMode() => setState(() => _fullMode = !_fullMode);
 
   void _swapSides() => setState(() => _sidesSwapped = !_sidesSwapped);
+
+  /// Último total de pontos em que a troca de quadra já vibrou — evita
+  /// repetir a vibração a cada rebuild do mesmo placar.
+  int? _courtSwitchBuzzedAt;
+
+  /// Troca de quadra por pontos (vôlei de praia: 7, e 5 no decisivo). Sai do
+  /// placar, então desfazer o ponto apaga o aviso. `null` = sem a regra.
+  LiveTableCourtSwitch? _courtSwitchOf(TournamentMatch match, int setIdx) {
+    if (!match.isInProgress) return null;
+    final profile = matchScoringProfile(match);
+    final interval = ScoringRules.courtSwitchInterval(profile, setIdx);
+    if (interval == null) return null;
+    final sets = match.sets;
+    final set = setIdx < sets.length ? sets[setIdx] : null;
+    final total = (set?.a ?? 0) + (set?.b ?? 0);
+    final due = ScoringRules.isCourtSwitchDue(
+      profile,
+      setIdx,
+      ScoreSetValue(set?.a ?? 0, set?.b ?? 0),
+    );
+    if (due && _courtSwitchBuzzedAt != total) {
+      _courtSwitchBuzzedAt = total;
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => HapticFeedback.mediumImpact(),
+      );
+    } else if (!due) {
+      _courtSwitchBuzzedAt = null;
+    }
+    return LiveTableCourtSwitch(interval: interval, total: total, due: due);
+  }
 
   /// Zera os tempos técnicos ao trocar de set — mesma regra do web
   /// (`timeouts` é visual, o doc da partida não tem campo pra isso).
@@ -1345,6 +1377,7 @@ class _OrganizerMatchLiveTablePageState
                       LiveTableSetRules(
                         rulesLabel: rules,
                         setPointHint: setPoint,
+                        courtSwitch: _courtSwitchOf(match, setIdx),
                         bestOf: match.bestOf,
                         formatEnabled: !_saving && !match.isCompleted,
                         onChangeFormat: () => _showFormatSheet(match),

@@ -117,6 +117,30 @@ export function setPointsTarget(p: SetsPointsProfile, index: number): number {
   return isDecidingSet(index, p.bestOf) ? p.decidingSetTarget : p.setTarget;
 }
 
+/**
+ * A cada quantos pontos somados do set as duplas trocam de quadra. Regra do vôlei de praia:
+ * sets de 21 trocam a cada 7; o decisivo de 15 (de um set de 21) troca a cada 5. Perfis sem
+ * troca por pontos (vôlei de quadra 25, futevôlei 18, esportes de games) devolvem `null`.
+ * MESMA regra de `ScoringRules.courtSwitchInterval` no app.
+ */
+export function courtSwitchInterval(p: ScoringProfile, index: number): number | null {
+  if (p.kind !== 'sets_points' || p.setTarget !== 21) return null;
+  const target = setPointsTarget(p, index);
+  if (target === 21) return 7;
+  if (target === 15) return 5;
+  return null;
+}
+
+/**
+ * O placar do set em curso acabou de chegar num múltiplo do intervalo de troca. Quem chama
+ * só pergunta com a partida em andamento: ao fechar o set, `currentSetIndex` avança pro set zerado.
+ */
+export function isCourtSwitchDue(p: ScoringProfile, index: number, set: ScoreSet): boolean {
+  const interval = courtSwitchInterval(p, index);
+  const total = set.a + set.b;
+  return interval !== null && total > 0 && total % interval === 0;
+}
+
 export function isSuperTiebreakSet(p: SetsGamesProfile, index: number): boolean {
   return p.decidingSet === 'super_tiebreak' && isDecidingSet(index, p.bestOf);
 }

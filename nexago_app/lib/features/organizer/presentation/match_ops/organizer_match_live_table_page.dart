@@ -30,6 +30,7 @@ import '../../../tournaments/domain/tournament_match_set.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
 import 'organizer_match_error.dart';
 import 'organizer_match_navigation.dart';
+import 'widgets/organizer_match_live_table_mesa.dart';
 import 'widgets/organizer_match_live_table_widgets.dart';
 
 /// I1 — Mesa ao vivo ponto a ponto.
@@ -82,6 +83,8 @@ class _OrganizerMatchLiveTablePageState
   @override
   void initState() {
     super.initState();
+    // Tela ligada enquanto a partida está aberta na mesa.
+    unawaited(WakelockPlus.enable().catchError((Object _) {}));
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       _maybeTickTechnicalTimeout();
@@ -132,14 +135,24 @@ class _OrganizerMatchLiveTablePageState
     if (_timeoutSide != null) _publishTechnicalTimeoutEnd();
     if (_presentMode) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-      WakelockPlus.disable();
     }
+    unawaited(WakelockPlus.disable().catchError((Object _) {}));
     super.dispose();
   }
 
   void _toggleFullMode() => setState(() => _fullMode = !_fullMode);
 
   void _swapSides() => setState(() => _sidesSwapped = !_sidesSwapped);
+
+  /// Troca de lado já confirmada pela mesa: (set, total de pontos). Enquanto o par atual
+  /// não bate com isto, o modal de troca fica de pé e nenhum ponto entra.
+  int? _switchAckSet;
+  int? _switchAckTotal;
+
+  void _confirmSideSwitch(int setIdx, int total) => setState(() {
+        _switchAckSet = setIdx;
+        _switchAckTotal = total;
+      });
 
   /// Último total de pontos em que a troca de quadra já vibrou — evita
   /// repetir a vibração a cada rebuild do mesmo placar.
@@ -272,6 +285,7 @@ class _OrganizerMatchLiveTablePageState
     required TournamentMatch match,
     required LiveTableTeamData teamA,
     required LiveTableTeamData teamB,
+    bool canSwapServingPlayer = false,
   }) async {
     await showModalBottomSheet<void>(
       context: context,
@@ -289,6 +303,33 @@ class _OrganizerMatchLiveTablePageState
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (!_fullMode && !match.isCompleted) ...[
+                    ListTile(
+                      leading: const Icon(Icons.sync_alt_rounded),
+                      title: const Text('Trocar saque'),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _swapServe();
+                      },
+                    ),
+                    if (canSwapServingPlayer)
+                      ListTile(
+                        leading: const Icon(Icons.person_outline_rounded),
+                        title: const Text('Trocar atleta no saque'),
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          _swapServingPlayer();
+                        },
+                      ),
+                    ListTile(
+                      leading: const Icon(Icons.swap_horiz_rounded),
+                      title: const Text('Trocar lados da tela'),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _swapSides();
+                      },
+                    ),
+                  ],
                   if (!match.isCompleted)
                     ListTile(
                       leading: const Icon(Icons.tune_rounded),
@@ -348,8 +389,12 @@ class _OrganizerMatchLiveTablePageState
                   //   },
                   // ),
                   ListTile(
-                    leading: const Icon(Icons.close_rounded),
-                    title: const Text('Sair do modo full'),
+                    leading: Icon(
+                      _fullMode
+                          ? Icons.close_rounded
+                          : Icons.view_column_rounded,
+                    ),
+                    title: Text(_fullMode ? 'Sair do modo full' : 'Modo full'),
                     onTap: () {
                       Navigator.pop(sheetContext);
                       _toggleFullMode();
@@ -610,13 +655,12 @@ class _OrganizerMatchLiveTablePageState
     required LiveTableTeamData teamA,
     required LiveTableTeamData teamB,
   }) async {
-    final events =
-        (ref
-                    .read(organizerMatchPointEventsProvider(widget.matchId))
-                    .valueOrNull ??
-                const [])
-            .whereType<TournamentMatchPointEvent>()
-            .toList();
+    final events = (ref
+                .read(organizerMatchPointEventsProvider(widget.matchId))
+                .valueOrNull ??
+            const [])
+        .whereType<TournamentMatchPointEvent>()
+        .toList();
     final hasPartialScore =
         match.sets.any((s) => s.a > 0 || s.b > 0) || events.isNotEmpty;
 
@@ -660,9 +704,7 @@ class _OrganizerMatchLiveTablePageState
   ) async {
     setState(() => _saving = true);
     try {
-      await ref
-          .read(organizerMatchScheduleServiceProvider)
-          .submitMatchResult(
+      await ref.read(organizerMatchScheduleServiceProvider).submitMatchResult(
             matchId: widget.matchId,
             sets: [
               for (final s in sets)
@@ -728,9 +770,7 @@ class _OrganizerMatchLiveTablePageState
 
     setState(() => _saving = true);
     try {
-      await ref
-          .read(tournamentMatchesRepositoryProvider)
-          .updateMatchFields(
+      await ref.read(tournamentMatchesRepositoryProvider).updateMatchFields(
             matchId: widget.matchId,
             fields: slot == null
                 ? servingTeamFields(
@@ -766,9 +806,7 @@ class _OrganizerMatchLiveTablePageState
 
     setState(() => _saving = true);
     try {
-      await ref
-          .read(tournamentMatchesRepositoryProvider)
-          .updateMatchFields(
+      await ref.read(tournamentMatchesRepositoryProvider).updateMatchFields(
             matchId: widget.matchId,
             fields: servingTeamFields(
               match,
@@ -812,9 +850,7 @@ class _OrganizerMatchLiveTablePageState
 
     setState(() => _saving = true);
     try {
-      await ref
-          .read(tournamentMatchesRepositoryProvider)
-          .updateMatchFields(
+      await ref.read(tournamentMatchesRepositoryProvider).updateMatchFields(
             matchId: widget.matchId,
             fields: servingPlayerFields(
               match,
@@ -950,9 +986,7 @@ class _OrganizerMatchLiveTablePageState
         .whereType<TournamentMatchPointEvent>()
         .toList();
     final match = _currentMatch();
-    final lastPoint = match == null
-        ? null
-        : _lastUndoablePoint(match, events);
+    final lastPoint = match == null ? null : _lastUndoablePoint(match, events);
     if (lastPoint == null) {
       if (mounted) {
         showAppSnackBar(context, 'Nenhum ponto para desfazer.', isError: true);
@@ -1115,14 +1149,13 @@ class _OrganizerMatchLiveTablePageState
         matchId: widget.matchId,
       )),
     );
-    final pointEventsAsync = ref.watch(
-      organizerMatchPointEventsProvider(widget.matchId),
-    );
+    // Mantém o stream vivo: desfazer lê os eventos com `ref.read`, que sozinho deixaria o
+    // provider autodispose descartar o histórico.
+    ref.watch(organizerMatchPointEventsProvider(widget.matchId));
     final enrichedCard = ref
         .watch(organizerMatchCardsByIdProvider(widget.tournamentId))
         .valueOrNull?[widget.matchId];
-    final tournamentCategories =
-        ref
+    final tournamentCategories = ref
             .watch(organizerTournamentDetailProvider(widget.tournamentId))
             .valueOrNull
             ?.categories ??
@@ -1162,12 +1195,6 @@ class _OrganizerMatchLiveTablePageState
                   categoryLabel: categoryLabel,
                 );
                 final gamesView = liveTableGamesView(match);
-                final rules =
-                    gamesView?.rules ??
-                    MatchScoringLogic.setRulesLabel(
-                      setIdx,
-                      bestOf: match.bestOf,
-                    );
                 final setPoint = gamesView != null
                     ? gamesView.hint
                     : MatchScoringLogic.setPointHint(
@@ -1195,23 +1222,11 @@ class _OrganizerMatchLiveTablePageState
                   teamB,
                 );
                 final servingTeam = _servingTeamData(match, teamA, teamB);
-                final needsServingPlayer =
-                    MatchServingPlayerLogic.needsServingPlayer(
-                      servingTeamId: match.servingTeamId,
-                      servingPlayerSlot: match.servingPlayerSlot,
-                      status: match.status,
-                      teamAId: match.teamAId,
-                      teamBId: match.teamBId,
-                      servingRosterSize: servingTeam?.rosterSize ?? 2,
-                    );
                 // Atendimento em andamento PARA a partida: nada de ponto, desfazer ou troca de
                 // saque enquanto o overlay está no ar — nas três mesas, porque a guarda sai do
                 // doc, não da tela.
                 final actionsEnabled =
                     !_saving && !match.isCompleted && medical == null;
-                final events = (pointEventsAsync.valueOrNull ?? const [])
-                    .whereType<TournamentMatchPointEvent>()
-                    .toList();
 
                 if (_presentMode) {
                   final (setsWonA, setsWonB) = liveTableSetsWon(match);
@@ -1242,8 +1257,7 @@ class _OrganizerMatchLiveTablePageState
                 }
 
                 if (_fullMode) {
-                  final fullModeEnabled =
-                      actionsEnabled &&
+                  final fullModeEnabled = actionsEnabled &&
                       _timeoutSide == null &&
                       !_timeoutPickerOpen &&
                       !_medicalPickerOpen;
@@ -1300,9 +1314,8 @@ class _OrganizerMatchLiveTablePageState
                     activeTimeout: _timeoutSide == null
                         ? null
                         : LiveTableActiveTimeout(
-                            teamLabel: _timeoutSide == 'A'
-                                ? teamA.label
-                                : teamB.label,
+                            teamLabel:
+                                _timeoutSide == 'A' ? teamA.label : teamB.label,
                             timeoutNumber: _timeoutNumber,
                             remainingSeconds: _timeoutRemainingSeconds,
                             totalSeconds: _timeoutDurationSeconds,
@@ -1325,136 +1338,163 @@ class _OrganizerMatchLiveTablePageState
                   );
                 }
 
-                return SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      LiveTableHeader(
-                        courtLabel: court.isNotEmpty ? court : '—',
-                        titleLabel: title.isNotEmpty ? title : 'Partida',
-                        elapsedLabel: _elapsedLabel(match),
-                        onBack: () => context.pop(),
-                        fullModeActive: _fullMode,
-                        onToggleFullMode: _toggleFullMode,
-                      ),
-                      LiveTableSetStrip(sets: sets, currentSetIndex: setIdx),
-                      if (MatchScoringLogic.needsStartingServe(
-                        servingTeamId: match.servingTeamId,
-                        status: match.status,
-                        teamAId: match.teamAId,
-                        teamBId: match.teamBId,
-                      ))
-                        LiveTableStartingServe(
-                          teamA: teamA,
-                          teamB: teamB,
-                          enabled: !_saving,
-                          onChoose: (side, slot) => _chooseServe(side, slot: slot),
-                        ),
-                      if (needsServingPlayer && servingTeam != null)
-                        LiveTableServingPlayer(
-                          team: servingTeam,
-                          enabled: !_saving && medical == null,
-                          onChoose: _chooseServingPlayer,
-                        ),
-                      LiveTableTeamScoreBoard(
-                        teamA: teamA,
-                        teamB: teamB,
-                        scoreA: liveTableCurrentSetScore(match, sideA: true),
-                        scoreB: liveTableCurrentSetScore(match, sideA: false),
-                        scoreLabelA: labelA,
-                        scoreLabelB: labelB,
-                        isServingA: liveTableIsServing(match, sideA: true),
-                        isServingB: liveTableIsServing(match, sideA: false),
-                        servingPlayerName: servingPlayerName,
-                        seedA: liveTableTeamSeed(match, sideA: true),
-                        seedB: liveTableTeamSeed(match, sideA: false),
-                        enabled: actionsEnabled,
-                        onAddPointA: () => _point('A'),
-                        onAddPointB: () => _point('B'),
-                        onSubtractA: () => _undoIfSide('A'),
-                        onSubtractB: () => _undoIfSide('B'),
-                      ),
-                      LiveTableSetRules(
-                        rulesLabel: rules,
-                        setPointHint: setPoint,
-                        courtSwitch: _courtSwitchOf(match, setIdx),
-                        bestOf: match.bestOf,
-                        formatEnabled: !_saving && !match.isCompleted,
-                        onChangeFormat: () => _showFormatSheet(match),
-                      ),
-                      if (!match.isCompleted)
-                        LiveTableQuickScoreEntry(
-                          enabled: actionsEnabled,
-                          onTap: () => _openQuickScoreSheet(
-                            match: match,
-                            teamA: teamA,
-                            teamB: teamB,
-                          ),
-                        ),
-                      LiveTableActionBar(
-                        enabled: actionsEnabled,
-                        medicalTimeoutEnabled: _medicalOptions(
-                          match,
-                          teamA,
-                          teamB,
-                        ).any((option) => !option.used),
-                        onMedicalTimeout: _openMedicalPicker,
-                        // Individual não tem parceiro pra trocar.
-                        onSwapServingPlayer:
-                            match.servingPlayerSlot == 0 ||
-                                (servingTeam?.rosterSize ?? 2) == 1
-                            ? null
-                            : _swapServingPlayer,
-                        onUndo: _undoLastPoint,
-                        onSwapServe: _swapServe,
-                        onQuickScore: () => _openQuickScoreSheet(
-                          match: match,
-                          teamA: teamA,
-                          teamB: teamB,
-                        ),
-                        onHistory: () => context.push(
-                          organizerMatchSummaryPath(
-                            widget.tournamentId,
-                            widget.matchId,
-                          ),
-                        ),
-                      ),
-                      LiveTablePointFeed(
-                        setIndex: setIdx,
-                        events: events,
-                        teamA: teamA,
-                        teamB: teamB,
-                      ),
-                      if (match.isCompleted)
-                        SafeArea(
-                          top: false,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                            child: FilledButton(
-                              onPressed: () => context.push(
-                                organizerMatchValidatePath(
-                                  widget.tournamentId,
-                                  widget.matchId,
-                                ),
+                final needsServe = MatchScoringLogic.needsStartingServe(
+                  servingTeamId: match.servingTeamId,
+                  status: match.status,
+                  teamAId: match.teamAId,
+                  teamBId: match.teamBId,
+                );
+                final profile = matchScoringProfile(match);
+                final switchInterval = ScoringRules.courtSwitchInterval(
+                  profile,
+                  setIdx,
+                );
+                final switchTotal = current.a + current.b;
+                final courtSwitch = _courtSwitchOf(match, setIdx);
+                final due = courtSwitch?.due ?? false;
+                if (!due) _switchAckTotal = null;
+                final switchPending = due &&
+                    !(_switchAckSet == setIdx &&
+                        _switchAckTotal == switchTotal);
+                // Lados = floor(total / intervalo) % 2, sem contar a troca que ainda não foi
+                // confirmada. Derivado do placar: desfazer o ponto desfaz a troca sozinho.
+                final autoFlips = switchInterval == null
+                    ? 0
+                    : switchTotal ~/ switchInterval - (switchPending ? 1 : 0);
+                final swapped = _sidesSwapped != autoFlips.isOdd;
+                final topSideA = !swapped;
+
+                final servingPlayerEnabled =
+                    (servingTeam?.rosterSize ?? 2) != 1;
+                LiveTableMesaTeam mesaTeam(bool sideA) {
+                  final side = sideA ? 'A' : 'B';
+                  final team = sideA ? teamA : teamB;
+                  final isServing = liveTableIsServing(match, sideA: sideA);
+                  return LiveTableMesaTeam(
+                    label: team.label,
+                    score: (sideA ? labelA : labelB) ??
+                        '${liveTableCurrentSetScore(match, sideA: sideA)}',
+                    isServing: isServing,
+                    onTap: () => _point(side),
+                    onMinus: () => _undoIfSide(side),
+                    servingPlayerName: isServing ? servingPlayerName : null,
+                    onTapServingPlayer: isServing && servingPlayerEnabled
+                        ? _swapServingPlayer
+                        : null,
+                  );
+                }
+
+                final topTeam = topSideA ? teamA : teamB;
+                final bottomTeam = topSideA ? teamB : teamA;
+                final leaderLabel = current.a == current.b
+                    ? null
+                    : (current.a > current.b ? teamA.label : teamB.label);
+                final atSetPoint = gamesView == null &&
+                    setPoint == 'set point em 1' &&
+                    !match.isCompleted;
+
+                return LiveTableMesaScreen(
+                  courtLabel: court,
+                  titleLabel: title.isNotEmpty ? title : 'Partida',
+                  elapsedLabel: _elapsedLabel(match),
+                  setLabel: match.bestOf > 1 ? 'SET ${setIdx + 1}' : null,
+                  top: mesaTeam(topSideA),
+                  bottom: mesaTeam(!topSideA),
+                  net: LiveTableMesaNet(
+                    finishText: match.isCompleted
+                        ? 'FIM DO JOGO${leaderLabel == null ? '' : ' · ${leaderLabel.toUpperCase()}'}'
+                        : null,
+                    setPointText: atSetPoint && leaderLabel != null
+                        ? 'SET POINT · ${leaderLabel.toUpperCase()}'
+                        : null,
+                    interval: match.isCompleted ? null : switchInterval,
+                    total: switchTotal,
+                  ),
+                  enabled: actionsEnabled &&
+                      !needsServe &&
+                      _timeoutSide == null &&
+                      !_timeoutPickerOpen &&
+                      !_medicalPickerOpen,
+                  onBack: () => context.pop(),
+                  onUndo: _undoLastPoint,
+                  onTimeout: _openTimeoutTeamPicker,
+                  onMore: () => _showFullModeMoreMenu(
+                    match: match,
+                    teamA: teamA,
+                    teamB: teamB,
+                    canSwapServingPlayer:
+                        servingPlayerEnabled && match.servingPlayerSlot != 0,
+                  ),
+                  onValidate: match.isCompleted
+                      ? () => context.push(
+                            organizerMatchValidatePath(
+                              widget.tournamentId,
+                              widget.matchId,
+                            ),
+                          )
+                      : null,
+                  switchPending: switchPending
+                      ? LiveTableMesaSwitchPending(
+                          total: switchTotal,
+                          number: switchInterval == null
+                              ? 1
+                              : switchTotal ~/ switchInterval,
+                          topLabel: topTeam.label,
+                          bottomLabel: bottomTeam.label,
+                          onConfirm: () =>
+                              _confirmSideSwitch(setIdx, switchTotal),
+                          onUndo: _undoLastPoint,
+                        )
+                      : null,
+                  overlays: [
+                    if (needsServe)
+                      // Deixa o header (voltar/⋯) e a barra de ações livres: a pergunta cobre só
+                      // a área dos placares.
+                      Padding(
+                        padding: const EdgeInsets.only(top: 72, bottom: 72),
+                        child: ColoredBox(
+                          color: const Color(0xE6050505),
+                          child: Center(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.all(16),
+                              child: LiveTableStartingServe(
+                                teamA: teamA,
+                                teamB: teamB,
+                                enabled: !_saving,
+                                onChoose: (side, slot) =>
+                                    _chooseServe(side, slot: slot),
                               ),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: AppColors.brand,
-                                foregroundColor: AppColors.black,
-                                minimumSize: const Size.fromHeight(48),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                textStyle: AppTypography.soraRegular(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              child: const Text('Validar resultado'),
                             ),
                           ),
                         ),
-                    ],
-                  ),
+                      ),
+                    if (_timeoutPickerOpen)
+                      LiveTableTimeoutTeamPicker(
+                        teamA: topTeam,
+                        teamB: bottomTeam,
+                        isServingA: liveTableIsServing(match, sideA: topSideA),
+                        isServingB: liveTableIsServing(match, sideA: !topSideA),
+                        timeoutsA: _timeouts[topSideA ? 'A' : 'B'] ?? 0,
+                        timeoutsB: _timeouts[topSideA ? 'B' : 'A'] ?? 0,
+                        onPickA: () => _chooseTimeoutTeam(topSideA ? 'A' : 'B'),
+                        onPickB: () => _chooseTimeoutTeam(topSideA ? 'B' : 'A'),
+                        onCancel: _cancelTimeoutTeamPicker,
+                      )
+                    else if (_timeoutSide != null)
+                      LiveTableTechnicalTimeoutOverlay(
+                        timeout: LiveTableActiveTimeout(
+                          teamLabel:
+                              _timeoutSide == 'A' ? teamA.label : teamB.label,
+                          timeoutNumber: _timeoutNumber,
+                          remainingSeconds: _timeoutRemainingSeconds,
+                          totalSeconds: _timeoutDurationSeconds,
+                          phase: _timeoutPhase,
+                        ),
+                        onPause: _pauseTechnicalTimeout,
+                        onResume: _resumeTechnicalTimeout,
+                        onEnd: _endTechnicalTimeout,
+                      ),
+                  ],
                 );
               },
             ),

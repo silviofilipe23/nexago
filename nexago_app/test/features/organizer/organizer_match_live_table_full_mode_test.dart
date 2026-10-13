@@ -14,6 +14,7 @@ import 'package:nexago_app/features/organizer/domain/match_ops/match_ops_provide
 import 'package:nexago_app/features/organizer/domain/tournament_ops/tournament_ops_providers.dart';
 import 'package:nexago_app/features/organizer/presentation/match_ops/organizer_match_live_table_page.dart';
 import 'package:nexago_app/features/organizer/presentation/match_ops/organizer_match_navigation.dart';
+import 'package:nexago_app/features/organizer/presentation/match_ops/widgets/organizer_match_live_table_mesa.dart';
 import 'package:nexago_app/features/organizer/presentation/match_ops/widgets/organizer_match_live_table_widgets.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_matches_repository.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_providers.dart';
@@ -200,17 +201,23 @@ void main() {
   }
 
   Future<void> toggleFullMode(WidgetTester tester) async {
-    // Não usar `find.byIcon(Icons.tune_rounded)` puro: o mesmo ícone também
-    // aparece no chip "Formato: Melhor de 3" (`_FormatChip`), sem relação
-    // com o modo full. Escopar por `LiveTableHeader` — só existe UM
-    // tune_rounded ali dentro — resolve o problema.
+    // A mesa normal (bloco de saque) abre o menu "⋯" do header; o modo full
+    // abre o "⋮" próprio. Nos dois, o item "Modo full"/"Sair do modo full"
+    // alterna.
+    final inFull = find.byType(LiveTableFullModeMesa).evaluate().isNotEmpty;
     await tester.tap(
-      find.descendant(
-        of: find.byType(LiveTableHeader),
-        matching: find.byIcon(Icons.tune_rounded),
-      ),
+      inFull
+          ? find.byIcon(Icons.more_vert_rounded)
+          : find.byIcon(Icons.more_horiz_rounded).first,
     );
+    await tester.pumpAndSettle(const Duration(milliseconds: 100));
+    final item = find.text(inFull ? 'Sair do modo full' : 'Modo full');
+    await tester.ensureVisible(item);
     await tester.pump();
+    await tester.tap(item);
+    await tester.pump();
+    // Deixa a folha terminar de sair — senão os itens dela ficam duplicados na árvore.
+    await tester.pump(const Duration(milliseconds: 400));
   }
 
   // `_FullModeTeamPanel` é privado (outra library) — localizamos pelo nome
@@ -320,6 +327,56 @@ void main() {
     await tester.pump();
   }
 
+  group('mesa bloco de saque: troca de lado', () {
+    testWidgets('com 7 pontos no set abre o modal e trava os pontos', (
+      tester,
+    ) async {
+      await pumpLiveTable(
+        tester,
+        initialMatch: buildMatch(sets: const [TournamentMatchSet(a: 4, b: 3)]),
+      );
+
+      expect(find.text('Trocar de lado'), findsOneWidget);
+      expect(find.text('7 PONTOS · TROCA Nº 1'), findsOneWidget);
+
+      await tester.tap(find.text(teamALabel).first, warnIfMissed: false);
+      await tester.pump();
+      expect(fakeRepo.pointWrites, isEmpty);
+    });
+
+    testWidgets('confirmar fecha o modal e inverte as metades', (tester) async {
+      await pumpLiveTable(
+        tester,
+        initialMatch: buildMatch(sets: const [TournamentMatchSet(a: 4, b: 3)]),
+      );
+      // Antes: A em cima (LADO A), B embaixo.
+      expect(
+        tester.getCenter(find.text(teamALabel).first).dy,
+        lessThan(tester.getCenter(find.text(teamBLabel).first).dy),
+      );
+
+      await tester.tap(find.text('Duplas trocaram de lado'));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('Trocar de lado'), findsNothing);
+      expect(
+        tester.getCenter(find.text(teamALabel)).dy,
+        greaterThan(tester.getCenter(find.text(teamBLabel)).dy),
+      );
+    });
+
+    testWidgets('sem múltiplo de 7 não há modal e a rede mostra o contador', (
+      tester,
+    ) async {
+      await pumpLiveTable(
+        tester,
+        initialMatch: buildMatch(sets: const [TournamentMatchSet(a: 2, b: 2)]),
+      );
+      expect(find.text('Trocar de lado'), findsNothing);
+      expect(find.textContaining('TROCA EM 3'), findsOneWidget);
+    });
+  });
+
   group('modo full desligado por padrão', () {
     testWidgets(
       'mostra a mesa pequena de sempre, sem a mesa dedicada do modo full',
@@ -327,10 +384,7 @@ void main() {
         await pumpLiveTable(tester, initialMatch: buildMatch());
 
         expect(find.byType(LiveTableFullModeMesa), findsNothing);
-        expect(find.byType(LiveTableHeader), findsOneWidget);
-        expect(find.byType(LiveTableSetStrip), findsOneWidget);
-        expect(find.byType(LiveTableTeamScoreBoard), findsOneWidget);
-        expect(find.byType(LiveTableActionBar), findsOneWidget);
+        expect(find.byType(LiveTableMesaScreen), findsOneWidget);
       },
     );
 
@@ -346,7 +400,7 @@ void main() {
           surfaceSize: const Size(734, 373),
         );
 
-        expect(find.byType(LiveTableTeamScoreBoard), findsOneWidget);
+        expect(find.byType(LiveTableMesaScreen), findsOneWidget);
         expect(find.byType(LiveTableFullModeMesa), findsNothing);
 
         final overflows = <Object>[];
@@ -374,10 +428,7 @@ void main() {
         await toggleFullMode(tester);
 
         expect(find.byType(LiveTableFullModeMesa), findsOneWidget);
-        expect(find.byType(LiveTableHeader), findsNothing);
-        expect(find.byType(LiveTableSetStrip), findsNothing);
-        expect(find.byType(LiveTableTeamScoreBoard), findsNothing);
-        expect(find.byType(LiveTableActionBar), findsNothing);
+        expect(find.byType(LiveTableMesaScreen), findsNothing);
       },
     );
   });
@@ -1363,7 +1414,7 @@ void main() {
         await tester.pump();
 
         expect(find.byType(LiveTableFullModeMesa), findsNothing);
-        expect(find.byType(LiveTableHeader), findsOneWidget);
+        expect(find.byType(LiveTableMesaScreen), findsOneWidget);
       },
     );
   });

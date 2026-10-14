@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { CoachContextService } from '../access/coach-context.service';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AthleteAvatarComponent } from '../ui/athlete-avatar.component';
 import { FormFieldComponent } from '../ui/form-field.component';
@@ -107,6 +108,7 @@ import { AthletesService, type AthleteSearchHit } from './athletes.service';
   `,
 })
 export class PanelNovoAtletaComponent {
+  private readonly ctx = inject(CoachContextService);
   private readonly athletesService = inject(AthletesService);
   private readonly squadContext = inject(SquadContextService);
   private readonly fb = inject(NonNullableFormBuilder);
@@ -128,6 +130,9 @@ export class PanelNovoAtletaComponent {
   protected readonly error = signal<string | null>(null);
 
   protected async search(): Promise<void> {
+    if (!this.ctx.can('atletas', 'write')) {
+      return;
+    }
     this.error.set(null);
     if (this.searchForm.invalid) {
       this.error.set('Informe um e-mail válido.');
@@ -148,6 +153,9 @@ export class PanelNovoAtletaComponent {
   }
 
   protected async invite(hit: AthleteSearchHit): Promise<void> {
+    if (!this.ctx.can('atletas', 'write')) {
+      return;
+    }
     this.error.set(null);
     this.inviting.set(true);
     try {

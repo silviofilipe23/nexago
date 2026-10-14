@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { CoachContextService } from '../access/coach-context.service';
 import { IconComponent } from '../ui/icon.component';
 import { KpiCardComponent } from '../ui/kpi-card.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
@@ -37,10 +38,12 @@ function brl(value: number): string {
   template: `
     <co-panel-shell>
       <co-page-header title="Planos" subtitle="Planos de mensalidade da equipe · 4 ativos">
-        <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/financeiro/planos/novo">
-          <co-icon name="plus" [size]="14" />
-          Novo plano
-        </a>
+        @if (ctx.can('financeiro', 'write')) {
+          <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/financeiro/planos/novo">
+            <co-icon name="plus" [size]="14" />
+            Novo plano
+          </a>
+        }
       </co-page-header>
 
       <div class="body">
@@ -124,6 +127,7 @@ function brl(value: number): string {
   `,
 })
 export class PanelPlanosComponent {
+  protected readonly ctx = inject(CoachContextService);
   protected readonly plans = PLAN_DEFS;
 
   protected brl(value: number): string {

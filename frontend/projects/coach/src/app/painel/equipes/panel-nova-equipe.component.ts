@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
+import { CoachContextService } from '../access/coach-context.service';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormFieldComponent } from '../ui/form-field.component';
@@ -63,6 +64,7 @@ import { SquadsService } from './squads.service';
   `,
 })
 export class PanelNovaEquipeComponent {
+  private readonly ctx = inject(CoachContextService);
   private readonly squadsService = inject(SquadsService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -104,6 +106,9 @@ export class PanelNovaEquipeComponent {
   }
 
   protected async submit(): Promise<void> {
+    if (!this.ctx.can('atletas', 'write')) {
+      return;
+    }
     this.error.set(null);
     if (this.form.invalid) {
       this.error.set('Informe o nome da equipe.');

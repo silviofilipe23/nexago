@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { CoachContextService } from '../access/coach-context.service';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AthletesService } from '../atletas/athletes.service';
@@ -96,6 +97,7 @@ import { CallUpsService } from './call-ups.service';
   `,
 })
 export class PanelNovaConvocacaoComponent {
+  private readonly ctx = inject(CoachContextService);
   private readonly callUpsService = inject(CallUpsService);
   private readonly athletesService = inject(AthletesService);
   private readonly squadContext = inject(SquadContextService);
@@ -136,6 +138,9 @@ export class PanelNovaConvocacaoComponent {
   }
 
   protected async submit(): Promise<void> {
+    if (!this.ctx.can('convocacoes', 'write')) {
+      return;
+    }
     this.error.set(null);
     const squadId = this.squadContext.activeSquadId();
     if (!squadId) {

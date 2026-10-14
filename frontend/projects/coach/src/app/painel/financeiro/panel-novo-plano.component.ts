@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { CoachContextService } from '../access/coach-context.service';
 import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { FormFieldComponent } from '../ui/form-field.component';
@@ -130,6 +131,7 @@ function brl(value: number): string {
   `,
 })
 export class PanelNovoPlanoComponent {
+  private readonly ctx = inject(CoachContextService);
   private readonly router = inject(Router);
   private readonly fb = inject(NonNullableFormBuilder);
 
@@ -150,6 +152,9 @@ export class PanelNovoPlanoComponent {
   }
 
   protected submit(): void {
+    if (!this.ctx.can('financeiro', 'write')) {
+      return;
+    }
     void this.router.navigateByUrl('/painel/financeiro/planos');
   }
 }

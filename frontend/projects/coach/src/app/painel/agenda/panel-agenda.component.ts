@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { CoachContextService } from '../access/coach-context.service';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
@@ -44,10 +45,12 @@ interface WeekDay {
         <div class="actions">
           <button type="button" class="co-ghost-btn" (click)="previousWeek()">← Anterior</button>
           <button type="button" class="co-ghost-btn" (click)="nextWeek()">Próxima →</button>
-          <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/treinos/novo">
-            <co-icon name="plus" [size]="14" />
-            Novo treino
-          </a>
+          @if (ctx.can('treinos', 'write')) {
+            <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/treinos/novo">
+              <co-icon name="plus" [size]="14" />
+              Novo treino
+            </a>
+          }
         </div>
       </co-page-header>
 
@@ -123,6 +126,7 @@ interface WeekDay {
   `,
 })
 export class PanelAgendaComponent {
+  protected readonly ctx = inject(CoachContextService);
   private readonly trainingsService = inject(TrainingsService);
   private readonly squadContext = inject(SquadContextService);
 

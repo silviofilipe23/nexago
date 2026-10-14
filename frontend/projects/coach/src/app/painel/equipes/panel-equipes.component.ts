@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { CoachContextService } from '../access/coach-context.service';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
@@ -20,10 +21,12 @@ import { SquadsService, type Squad } from './squads.service';
   template: `
     <co-panel-shell>
       <co-page-header title="Equipes" [subtitle]="subtitleLabel()">
-        <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/equipes/nova">
-          <co-icon name="plus" [size]="14" />
-          Nova equipe
-        </a>
+        @if (ctx.can('atletas', 'write')) {
+          <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/equipes/nova">
+            <co-icon name="plus" [size]="14" />
+            Nova equipe
+          </a>
+        }
       </co-page-header>
 
       <div class="body">
@@ -48,7 +51,9 @@ import { SquadsService, type Squad } from './squads.service';
                       Tornar ativa
                     }
                   </button>
-                  @if (confirmingDeleteId() === squad.id) {
+                  @if (!ctx.can('atletas', 'write')) {
+                    <!-- leitura: só seleciona a equipe ativa -->
+                  } @else if (confirmingDeleteId() === squad.id) {
                     <span class="confirm">Excluir esta equipe?</span>
                     <button type="button" class="co-ghost-btn danger" [disabled]="deleting()" (click)="remove(squad)">Excluir</button>
                     <button type="button" class="co-ghost-btn" (click)="confirmingDeleteId.set(null)">Voltar</button>
@@ -104,6 +109,7 @@ import { SquadsService, type Squad } from './squads.service';
   `,
 })
 export class PanelEquipesComponent {
+  protected readonly ctx = inject(CoachContextService);
   private readonly squadsService = inject(SquadsService);
   private readonly squadContext = inject(SquadContextService);
 
@@ -132,6 +138,9 @@ export class PanelEquipesComponent {
   }
 
   protected askDelete(squad: Squad): void {
+    if (!this.ctx.can('atletas', 'write')) {
+      return;
+    }
     this.error.set(null);
     const check = checkSquadDeletable(
       squad.id,
@@ -146,6 +155,9 @@ export class PanelEquipesComponent {
   }
 
   protected async remove(squad: Squad): Promise<void> {
+    if (!this.ctx.can('atletas', 'write')) {
+      return;
+    }
     this.error.set(null);
     this.deleting.set(true);
     try {

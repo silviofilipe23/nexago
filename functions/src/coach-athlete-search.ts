@@ -3,6 +3,7 @@ import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {resolveCoachUid, assertCoachAreaAccess} from "./coach-area-access";
 
 export interface AthleteSearchResult {
   uid: string;
@@ -39,7 +40,9 @@ export const searchAthleteForCoachInvite = onCall({
   }
 
   const db = getFirestore();
-  const coachSnap = await db.doc(`coaches/${uid}`).get();
+  const coachUid = resolveCoachUid(request.data, uid);
+  await assertCoachAreaAccess(db, uid, coachUid, "atletas", "write");
+  const coachSnap = await db.doc(`coaches/${coachUid}`).get();
   if (!coachSnap.exists) {
     throw new HttpsError("permission-denied", "Apenas treinadores podem buscar atletas.");
   }
@@ -56,7 +59,7 @@ export const searchAthleteForCoachInvite = onCall({
     throw err;
   }
 
-  if (user.uid === uid) {
+  if (user.uid === coachUid || user.uid === uid) {
     throw new HttpsError("invalid-argument", "Você não pode convidar a si mesmo.");
   }
 
@@ -67,6 +70,6 @@ export const searchAthleteForCoachInvite = onCall({
     initials: initialsFromName(displayName),
   };
 
-  logger.info("Coach searched for athlete", {coachUid: uid, foundUid: user.uid});
+  logger.info("Coach searched for athlete", {coachUid, byUid: uid, foundUid: user.uid});
   return {result};
 });

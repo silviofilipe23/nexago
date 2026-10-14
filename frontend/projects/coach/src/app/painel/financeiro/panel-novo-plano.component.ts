@@ -1,73 +1,61 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormFieldComponent } from '../ui/form-field.component';
 import { FormSelectComponent } from '../ui/form-select.component';
 import { FormTextareaComponent } from '../ui/form-textarea.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
-import { PillComponent } from '../ui/pill.component';
-import { RowComponent } from '../ui/row.component';
-import { PLAN_DEFS } from './panel-planos.component';
+import { FinanceService } from './finance.service';
+import { CYCLE_LABEL, centsToInput, toCents, type PlanCycle } from './finance-rules';
 
-function brl(value: number): string {
-  return 'R$ ' + value.toLocaleString('pt-BR');
+const CYCLES: PlanCycle[] = ['mensal', 'trimestral', 'anual'];
+const CYCLE_OPTIONS = CYCLES.map((c) => CYCLE_LABEL[c]);
+
+function cycleFromLabel(label: string): PlanCycle {
+  return CYCLES.find((c) => CYCLE_LABEL[c] === label) ?? 'mensal';
 }
 
-/** Novo plano (protótipo TrNovoPlanoScreen) — tela mock: formulário interativo,
- *  mas "Criar plano" não persiste nada, só navega de volta pra Planos.
- *  Ver docs/superpowers/specs/2026-07-13-coach-remaining-screens-mock-design.md. */
+/** Cria e edita um plano de mensalidade. */
 @Component({
   selector: 'co-panel-novo-plano',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    ReactiveFormsModule,
-    FormFieldComponent,
-    FormSelectComponent,
-    FormTextareaComponent,
-    PageHeaderComponent,
-    PanelCardComponent,
-    PanelShellComponent,
-    PillComponent,
-    RowComponent,
-  ],
+  imports: [ReactiveFormsModule, FormFieldComponent, FormSelectComponent, FormTextareaComponent, PageHeaderComponent, PanelCardComponent, PanelShellComponent],
   template: `
     <co-panel-shell>
-      <co-page-header title="Novo plano" subtitle="Criar plano de mensalidade">
-        <button type="button" class="co-mini-btn co-mini-btn-primary" (click)="submit()">Criar plano</button>
+      <co-page-header title="Planos" [subtitle]="editingId ? 'Editar plano' : 'Novo plano'">
+        <button type="button" class="co-mini-btn co-mini-btn-primary" [disabled]="saving() || !canSubmit()" (click)="submit()">
+          @if (saving()) {
+            Salvando…
+          } @else if (editingId) {
+            Salvar alterações
+          } @else {
+            Criar plano
+          }
+        </button>
       </co-page-header>
 
       <div class="body">
-        <co-panel-card title="Dados do plano" kicker="Nome e valor">
+        @if (finance.error(); as err) {
+          <div class="co-alert" role="alert">{{ err }}</div>
+        }
+        @if (error(); as err) {
+          <div class="co-alert" role="alert">{{ err }}</div>
+        }
+        @if (editingId && finance.ready() && !loaded()) {
+          <div class="co-alert" role="alert">Plano não encontrado.</div>
+        }
+
+        <co-panel-card title="Dados do plano" kicker="Mensalidade da escola">
           <form [formGroup]="form" class="grid">
-            <co-form-field label="Nome do plano" placeholder="Ex: Semestral" formControlName="nome" />
-            <co-form-field label="Valor" placeholder="R$ 0,00" formControlName="valor" />
-            <co-form-select label="Ciclo de cobrança" [options]="ciclos" formControlName="ciclo" />
-            <co-form-select label="Cobrança automática" [options]="cobrancaAutomatica" formControlName="automatica" />
-            <co-form-textarea label="Descrição" formControlName="descricao" />
+            <co-form-field label="Nome do plano" placeholder="Ex: Mensal" formControlName="name" [wide]="true" [error]="fieldError('name')" />
+            <co-form-field label="Valor (R$)" placeholder="180,00" formControlName="amount" [error]="fieldError('amount')" />
+            <co-form-select label="Ciclo de cobrança" [options]="cycleOptions" formControlName="cycle" />
+            <co-form-textarea label="Descrição" formControlName="description" />
           </form>
-        </co-panel-card>
-
-        <co-panel-card title="Pré-visualização" kicker="Como o atleta vê">
-          <div class="preview-card">
-            <div class="preview-head">
-              <div class="preview-name">Semestral</div>
-              <co-pill tone="orange">0 atletas</co-pill>
-            </div>
-            <div class="preview-price">
-              <span class="preview-value">{{ brl(900) }}</span>
-              <span class="preview-cycle">/ semestral</span>
-            </div>
-            <p class="preview-desc">Treinos regulares, avaliações técnicas e acesso à biblioteca.</p>
-          </div>
-        </co-panel-card>
-
-        <co-panel-card title="Planos existentes" kicker="Para referência">
-          @for (p of existingPlans; track p.id; let last = $last) {
-            <co-row [title]="p.nome" [sub]="brl(p.valor) + ' / ' + p.ciclo.toLowerCase()" [last]="last">
-              <co-pill row-trailing tone="dim">{{ p.ativos }}</co-pill>
-            </co-row>
+          @if (editingId) {
+            <p class="note">Mudar o valor não altera as parcelas já geradas.</p>
           }
         </co-panel-card>
       </div>
@@ -112,54 +100,96 @@ function brl(value: number): string {
       font-size: 15px;
       color: var(--nx-text);
     }
-    .preview-price {
-      display: flex;
-      align-items: baseline;
-      gap: 6px;
-      margin-bottom: 4px;
-    }
-    .preview-value {
-      font-family: var(--nx-font-display);
-      font-weight: 800;
-      font-size: 26px;
-      color: var(--nx-orange-500);
-      letter-spacing: -0.02em;
-    }
-    .preview-cycle {
-      font-family: var(--nx-font-mono);
-      font-size: 10.5px;
+    .note {
+      margin: 12px 0 0;
+      font-size: 12.5px;
       color: var(--nx-text-dim);
-    }
-    .preview-desc {
-      font-family: var(--nx-font-ui);
-      font-size: 11.5px;
-      color: var(--nx-text-mute);
-      line-height: 1.4;
-      margin: 0;
     }
   `,
 })
 export class PanelNovoPlanoComponent {
+  protected readonly finance = inject(FinanceService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly fb = inject(NonNullableFormBuilder);
 
-  protected readonly existingPlans = PLAN_DEFS;
-  protected readonly ciclos = ['Mensal', 'Trimestral', 'Semestral', 'Anual', 'Por treino'];
-  protected readonly cobrancaAutomatica = ['Ativada', 'Desativada'];
+  protected readonly cycleOptions = CYCLE_OPTIONS;
+  /** `null` = criando; com id = editando. */
+  protected readonly editingId = this.route.snapshot.paramMap.get('id');
 
   protected readonly form = this.fb.group({
-    nome: '',
-    valor: '',
-    ciclo: 'Mensal',
-    automatica: 'Ativada',
-    descricao: 'O que este plano inclui — visível para os atletas na confirmação.',
+    name: ['', Validators.required],
+    amount: ['', Validators.required],
+    cycle: [CYCLE_LABEL.mensal],
+    description: [''],
   });
 
-  protected brl(value: number): string {
-    return brl(value);
+  protected readonly saving = signal(false);
+  protected readonly error = signal<string | null>(null);
+  protected readonly submitted = signal(false);
+  protected readonly loaded = signal(false);
+  protected readonly canSubmit = computed(() => (this.editingId ? this.loaded() : true));
+
+  constructor() {
+    if (!this.editingId) {
+      return;
+    }
+    // Os planos chegam por snapshot; preenche o form assim que o plano aparecer (uma vez).
+    const ref = effect(() => {
+      const plan = this.finance.plans().find((p) => p.id === this.editingId);
+      if (!plan) {
+        return;
+      }
+      this.form.setValue({
+        name: plan.name,
+        amount: centsToInput(plan.amountCents),
+        cycle: CYCLE_LABEL[plan.cycle],
+        description: plan.description,
+      });
+      this.loaded.set(true);
+      ref.destroy();
+    });
   }
 
-  protected submit(): void {
-    void this.router.navigateByUrl('/painel/financeiro/planos');
+  protected fieldError(field: 'name' | 'amount'): string | null {
+    if (!this.submitted()) {
+      return null;
+    }
+    const raw = this.form.getRawValue();
+    if (field === 'name') {
+      return raw.name.trim() ? null : 'Informe o nome.';
+    }
+    const cents = toCents(raw.amount);
+    return cents !== null && cents > 0 ? null : 'Informe um valor maior que zero.';
+  }
+
+  protected async submit(): Promise<void> {
+    this.error.set(null);
+    this.submitted.set(true);
+    const raw = this.form.getRawValue();
+    const cents = toCents(raw.amount);
+    if (!raw.name.trim() || cents === null || cents <= 0) {
+      this.error.set('Revise os campos destacados.');
+      return;
+    }
+    const input = {
+      name: raw.name,
+      amountCents: cents,
+      cycle: cycleFromLabel(raw.cycle),
+      description: raw.description,
+    };
+    this.saving.set(true);
+    try {
+      if (this.editingId) {
+        await this.finance.updatePlan(this.editingId, input);
+      } else {
+        await this.finance.createPlan(input);
+      }
+      void this.router.navigateByUrl('/painel/financeiro/planos');
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : 'Não foi possível salvar o plano.');
+    } finally {
+      this.saving.set(false);
+    }
   }
 }

@@ -1,42 +1,24 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { IconComponent } from '../ui/icon.component';
 import { KpiCardComponent } from '../ui/kpi-card.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
-import { PillComponent, type PillTone } from '../ui/pill.component';
+import { PillComponent } from '../ui/pill.component';
+import { FinanceService } from './finance.service';
+import { CYCLE_LABEL, formatBRL, monthlyEquivalentCents } from './finance-rules';
+import type { Plan } from './finance-model';
 
-interface PlanDef {
-  id: string;
-  nome: string;
-  valor: number;
-  ciclo: string;
-  ativos: number;
-  tone: PillTone;
-  descricao: string;
-}
-
-export const PLAN_DEFS: PlanDef[] = [
-  { id: 'mensal', nome: 'Mensal', valor: 180, ciclo: 'Mensal', ativos: 14, tone: 'orange', descricao: 'Acesso a treinos regulares e avaliações mensais.' },
-  { id: 'trimestral', nome: 'Trimestral', valor: 480, ciclo: 'A cada 3 meses', ativos: 6, tone: 'green', descricao: 'Mesmo acesso do Mensal, com desconto de 11% no ciclo.' },
-  { id: 'anual', nome: 'Anual', valor: 1600, ciclo: 'Anual', ativos: 3, tone: 'dim', descricao: 'Inclui inscrição gratuita em 2 torneios por ano.' },
-  { id: 'avulso', nome: 'Avulso', valor: 30, ciclo: 'Por treino', ativos: 1, tone: 'yellow', descricao: 'Cobrança por treino avulso, sem vínculo mensal.' },
-];
-
-function brl(value: number): string {
-  return 'R$ ' + value.toLocaleString('pt-BR');
-}
-
-/** Planos — listagem (protótipo TrPlanosScreen) — tela mock, sem Firestore.
- *  Ver docs/superpowers/specs/2026-07-13-coach-remaining-screens-mock-design.md. */
+/** Planos de mensalidade do treinador (livro-caixa manual, fase 1). */
 @Component({
   selector: 'co-panel-planos',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, IconComponent, KpiCardComponent, PageHeaderComponent, PanelCardComponent, PanelShellComponent, PillComponent],
   template: `
     <co-panel-shell>
-      <co-page-header title="Planos" subtitle="Planos de mensalidade da equipe · 4 ativos">
+      <co-page-header title="Planos" [subtitle]="subtitle()">
+        <a class="co-mini-btn" routerLink="/painel/financeiro">Pagamentos</a>
         <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/financeiro/planos/novo">
           <co-icon name="plus" [size]="14" />
           Novo plano
@@ -44,23 +26,44 @@ function brl(value: number): string {
       </co-page-header>
 
       <div class="body">
+        @if (finance.error(); as err) {
+          <div class="co-alert" role="alert">{{ err }}</div>
+        }
+        @if (actionError(); as err) {
+          <div class="co-alert" role="alert">{{ err }}</div>
+        }
+
         <div class="kpi-row">
-          <co-kpi-card label="Planos ativos" value="4" delta="1 avulso, 3 recorrentes" />
-          <co-kpi-card label="Atletas cobertos" value="24" delta="100% da equipe" deltaTone="green" />
-          <co-kpi-card label="Receita recorrente" [value]="brl(180 * 14 + 160 * 6 + 133 * 3)" delta="Estimativa mensal" deltaTone="flat" />
+          <co-kpi-card label="Planos ativos" [value]="'' + activePlansCount()" />
+          <co-kpi-card label="Alunos matriculados" [value]="'' + enrolledCount()" />
+          <co-kpi-card label="Receita mensal prevista" [value]="monthlyRevenue()" delta="Soma das matrículas ativas" deltaTone="flat" />
         </div>
+
+        @if (finance.ready() && !finance.error() && plans().length === 0) {
+          <co-panel-card title="Nenhum plano ainda" kicker="Comece por aqui">
+            <p class="desc">Crie seu primeiro plano de mensalidade para matricular os alunos.</p>
+          </co-panel-card>
+        }
+
         <div class="grid">
-          @for (p of plans; track p.id) {
-            <co-panel-card pad="lg" class="plan-card">
+          @for (p of plans(); track p.id) {
+            <co-panel-card pad="lg">
               <div class="plan-head">
-                <div class="plan-name">{{ p.nome }}</div>
-                <co-pill [tone]="p.tone">{{ p.ativos }} atletas</co-pill>
+                <div class="plan-name">{{ p.name }}</div>
+                <co-pill [tone]="p.active ? 'green' : 'dim'">{{ p.active ? 'Ativo' : 'Inativo' }}</co-pill>
               </div>
               <div class="plan-price">
-                <span class="plan-value">{{ brl(p.valor) }}</span>
-                <span class="plan-cycle">/ {{ p.ciclo.toLowerCase() }}</span>
+                <span class="plan-value">{{ money(p.amountCents) }}</span>
+                <span class="plan-cycle">{{ cycleLabel(p) }}</span>
               </div>
-              <p class="plan-desc">{{ p.descricao }}</p>
+              <p class="desc">{{ p.description || 'Sem descrição.' }}</p>
+              <div class="plan-meta">{{ enrolledIn(p.id) }} aluno(s) matriculado(s)</div>
+              <div class="actions">
+                <a class="co-ghost-btn" [routerLink]="['/painel/financeiro/planos', p.id, 'editar']">Editar</a>
+                <button type="button" class="co-ghost-btn" [disabled]="busyId() === p.id" (click)="toggleActive(p)">
+                  {{ p.active ? 'Desativar' : 'Reativar' }}
+                </button>
+              </div>
             </co-panel-card>
           }
         </div>
@@ -78,10 +81,11 @@ function brl(value: number): string {
     .kpi-row {
       display: flex;
       gap: 16px;
+      flex-wrap: wrap;
     }
     .grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: 16px;
     }
     @media (max-width: 900px) {
@@ -93,45 +97,82 @@ function brl(value: number): string {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 10px;
+      gap: 12px;
     }
     .plan-name {
       font-family: var(--nx-font-display);
       font-weight: 700;
-      font-size: 15px;
+      font-size: 16px;
       color: var(--nx-text);
     }
     .plan-price {
+      margin: 10px 0 6px;
       display: flex;
       align-items: baseline;
-      gap: 6px;
-      margin-bottom: 4px;
+      gap: 8px;
     }
     .plan-value {
       font-family: var(--nx-font-display);
       font-weight: 800;
-      font-size: 26px;
-      color: var(--nx-orange-500);
-      letter-spacing: -0.02em;
+      font-size: 24px;
+      color: var(--nx-text);
     }
-    .plan-cycle {
-      font-family: var(--nx-font-mono);
-      font-size: 10.5px;
+    .plan-cycle,
+    .plan-meta {
+      font-size: 12px;
       color: var(--nx-text-dim);
     }
-    .plan-desc {
-      font-family: var(--nx-font-ui);
-      font-size: 11.5px;
+    .desc {
+      margin: 6px 0;
       color: var(--nx-text-mute);
-      line-height: 1.4;
-      margin: 0;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
     }
   `,
 })
 export class PanelPlanosComponent {
-  protected readonly plans = PLAN_DEFS;
+  protected readonly finance = inject(FinanceService);
 
-  protected brl(value: number): string {
-    return brl(value);
+  protected readonly busyId = signal<string | null>(null);
+  protected readonly actionError = signal<string | null>(null);
+
+  protected readonly plans = computed(() => [...this.finance.plans()].sort((a, b) => a.name.localeCompare(b.name)));
+  protected readonly activePlansCount = computed(() => this.plans().filter((p) => p.active).length);
+  protected readonly enrolledCount = computed(() => this.finance.enrollments().filter((e) => e.status === 'ativa').length);
+  protected readonly monthlyRevenue = computed(() =>
+    formatBRL(monthlyEquivalentCents(this.finance.enrollments(), this.finance.plans())),
+  );
+  protected readonly subtitle = computed(() => {
+    const n = this.plans().length;
+    return `Planos de mensalidade · ${n} plano${n === 1 ? '' : 's'}`;
+  });
+
+  protected money(cents: number): string {
+    return formatBRL(cents);
+  }
+
+  protected cycleLabel(plan: Plan): string {
+    return CYCLE_LABEL[plan.cycle];
+  }
+
+  protected enrolledIn(planId: string): number {
+    return this.finance.enrollments().filter((e) => e.planId === planId && e.status === 'ativa').length;
+  }
+
+  protected async toggleActive(plan: Plan): Promise<void> {
+    this.actionError.set(null);
+    this.busyId.set(plan.id);
+    try {
+      await this.finance.setPlanActive(plan.id, !plan.active);
+    } catch (err) {
+      this.actionError.set(err instanceof Error ? err.message : 'Não foi possível atualizar o plano.');
+    } finally {
+      this.busyId.set(null);
+    }
   }
 }

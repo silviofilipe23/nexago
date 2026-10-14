@@ -3,6 +3,7 @@ import {getFirestore, FieldValue, Timestamp, type Firestore} from "firebase-admi
 import * as logger from "firebase-functions/logger";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {resolveCoachUid, assertCoachAreaAccess} from "./coach-area-access";
 
 const INVITES_COLLECTION = "coachAthleteInvites";
 const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
@@ -20,10 +21,11 @@ async function findPendingInvite(db: Firestore, coachUid: string, athleteUid: st
 export const sendCoachAthleteInvite = onCall({
   region: CLIENT_FACING_REGIONS,
 }, async (request) => {
-  const coachUid = request.auth?.uid;
-  if (!coachUid) {
+  const uid = request.auth?.uid;
+  if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");
   }
+  const coachUid = resolveCoachUid(request.data, uid);
 
   const athleteUid = (request.data?.athleteUid as string | undefined)?.trim() ?? "";
   const athleteName = (request.data?.athleteName as string | undefined)?.trim() || "Atleta";
@@ -37,6 +39,7 @@ export const sendCoachAthleteInvite = onCall({
   }
 
   const db = getFirestore();
+  await assertCoachAreaAccess(db, uid, coachUid, "atletas", "write");
 
   const coachSnap = await db.doc(`coaches/${coachUid}`).get();
   if (!coachSnap.exists) {
@@ -60,6 +63,7 @@ export const sendCoachAthleteInvite = onCall({
   const ref = db.collection(INVITES_COLLECTION).doc();
   await ref.set({
     coachUid,
+    createdBy: uid,
     coachName,
     athleteUid,
     athleteName,
@@ -85,7 +89,7 @@ export const sendCoachAthleteInvite = onCall({
     });
   }
 
-  logger.info("Coach athlete invite sent", {inviteId: ref.id, coachUid, athleteUid});
+  logger.info("Coach athlete invite sent", {inviteId: ref.id, coachUid, byUid: uid, athleteUid});
   return {inviteId: ref.id};
 });
 
@@ -164,8 +168,19 @@ export const cancelCoachAthleteInvite = onCall({
     throw new HttpsError("failed-precondition", "Este convite não está mais pendente.");
   }
 
-  const isCoach = invite["coachUid"] === uid;
+  let isCoach = invite["coachUid"] === uid;
   const isAthlete = invite["athleteUid"] === uid;
+  if (!asDecline && !isCoach && !isAthlete) {
+    try {
+      await assertCoachAreaAccess(db, uid, String(invite["coachUid"] ?? ""), "atletas", "write");
+      isCoach = true;
+    } catch (err: unknown) {
+      if (!(err instanceof HttpsError)) {
+        logger.warn("cancelCoachAthleteInvite: falha ao checar acesso por área", {error: err});
+      }
+      isCoach = false;
+    }
+  }
 
   if (asDecline) {
     if (!isAthlete) {

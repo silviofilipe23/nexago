@@ -1,4 +1,5 @@
 import {
+  addDays,
   canDeleteTraining,
   compareTrainings,
   isEndBeforeStart,
@@ -59,4 +60,12 @@ describe('sanitizeDuration', () => {
     expect(sanitizeDuration(NaN)).toBe(10);
   });
   it('limita a 240', () => expect(sanitizeDuration(999)).toBe(240));
+});
+
+describe('addDays', () => {
+  it('soma dias dentro do mês', () => expect(addDays('2026-10-14', 7)).toBe('2026-10-21'));
+  it('vira o mês e o ano', () => {
+    expect(addDays('2026-10-28', 7)).toBe('2026-11-04');
+    expect(addDays('2026-12-30', 7)).toBe('2027-01-06');
+  });
 });

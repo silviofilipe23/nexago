@@ -37,3 +37,9 @@ export function isEndBeforeStart(startTime: string, endTime: string): boolean {
 export function sanitizeDuration(value: number): number {
   return Number.isFinite(value) && value >= 1 ? Math.min(240, Math.round(value)) : 10;
 }
+
+/** Soma `days` a uma data `YYYY-MM-DD` no calendário local (sem depender de fuso/horário de verão). */
+export function addDays(iso: string, days: number): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return localIsoDate(new Date(y!, m! - 1, d! + days));
+}

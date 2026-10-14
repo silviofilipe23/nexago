@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CoachContextService } from '../access/coach-context.service';
 import { COACH_STAFF_ROLES, ROLE_LABELS, ROLE_SUMMARIES, isCoachStaffRole, type CoachRole, type CoachStaffRole } from '../access/coach-roles.model';
-import { CoachStaffService, inviteLink, type StaffInvite, type StaffMember } from '../access/coach-staff.service';
+import { CoachStaffService, inviteLink, staffErrorMessage, type StaffInvite, type StaffMember } from '../access/coach-staff.service';
 import { AthleteAvatarComponent } from '../ui/athlete-avatar.component';
 import { FormFieldComponent } from '../ui/form-field.component';
 import { initialsOf } from '../ui/initials';
@@ -46,13 +46,13 @@ const ROLE_ORDER: CoachRole[] = ['principal', ...COACH_STAFF_ROLES];
                 <div row-trailing class="actions">
                   @if (confirmingRemoveId() === m.uid) {
                     <span class="confirm">Remover da comissão?</span>
-                    <button type="button" class="co-ghost-btn danger" [disabled]="busyId() === m.uid" (click)="remove(m)">Remover</button>
+                    <button type="button" class="co-ghost-btn danger" [disabled]="isBusy(m.uid)" (click)="remove(m)">Remover</button>
                     <button type="button" class="co-ghost-btn" (click)="confirmingRemoveId.set(null)">Voltar</button>
                   } @else {
                     <select
                       class="role-select"
                       [attr.aria-label]="'Cargo de ' + (m.displayName || m.email)"
-                      [disabled]="busyId() === m.uid"
+                      [disabled]="isBusy(m.uid)"
                       (change)="onRoleChange(m, $event)"
                     >
                       @for (r of staffRoles; track r) {
@@ -70,7 +70,7 @@ const ROLE_ORDER: CoachRole[] = ['principal', ...COACH_STAFF_ROLES];
 
           <co-panel-card title="Convidar para a comissão">
             <form class="invite" [formGroup]="inviteForm" (ngSubmit)="sendInvite()">
-              <co-form-field label="E-mail" formControlName="email" [wide]="true" placeholder="pessoa@email.com" />
+              <co-form-field label="E-mail" formControlName="email" placeholder="pessoa@email.com" />
               <label class="role-field">
                 <span>Cargo</span>
                 <select formControlName="role">
@@ -95,6 +95,12 @@ const ROLE_ORDER: CoachRole[] = ['principal', ...COACH_STAFF_ROLES];
           </co-panel-card>
 
           <co-panel-card title="Convites pendentes" [kicker]="invites().length + ''">
+            @if (manualLink(); as link) {
+              <div class="link-box">
+                <input class="link-input" type="text" readonly [value]="link" aria-label="Link do convite" />
+              </div>
+              <p class="note">Não foi possível copiar automaticamente: copie o link manualmente.</p>
+            }
             @for (i of invites(); track i.id; let last = $last) {
               <co-row [title]="i.emailLower" [sub]="expiryLabel(i)" [last]="last">
                 <div row-trailing class="actions">
@@ -102,7 +108,7 @@ const ROLE_ORDER: CoachRole[] = ['principal', ...COACH_STAFF_ROLES];
                   <button type="button" class="co-ghost-btn" (click)="copy(linkFor(i))">
                     {{ copiedLink() === linkFor(i) ? 'Link copiado' : 'Copiar link' }}
                   </button>
-                  <button type="button" class="co-ghost-btn danger" [disabled]="busyId() === i.id" (click)="revoke(i)">Revogar</button>
+                  <button type="button" class="co-ghost-btn danger" [disabled]="isBusy(i.id)" (click)="revoke(i)">Revogar</button>
                 </div>
               </co-row>
             } @empty {
@@ -249,11 +255,13 @@ export class PanelPermissoesComponent {
   protected readonly members = signal<StaffMember[]>([]);
   protected readonly invites = signal<StaffInvite[]>([]);
   protected readonly error = signal<string | null>(null);
-  protected readonly busyId = signal<string | null>(null);
+  private readonly busyIds = signal<ReadonlySet<string>>(new Set());
   protected readonly confirmingRemoveId = signal<string | null>(null);
   protected readonly inviting = signal(false);
   protected readonly newLink = signal<string | null>(null);
   protected readonly copiedLink = signal<string | null>(null);
+  /** Link exibido para cópia manual quando a área de transferência não está disponível. */
+  protected readonly manualLink = signal<string | null>(null);
 
   /** Só no painel próprio o usuário gerencia a comissão (um membro nunca vê isto). */
   protected readonly isOwner = computed(() => this.ctx.activeContext()?.isOwn === true);
@@ -279,6 +287,22 @@ export class PanelPermissoesComponent {
         stopMembers();
         stopInvites();
       });
+    });
+  }
+
+  protected isBusy(id: string): boolean {
+    return this.busyIds().has(id);
+  }
+
+  private setBusy(id: string, busy: boolean): void {
+    this.busyIds.update((cur) => {
+      const next = new Set(cur);
+      if (busy) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
     });
   }
 
@@ -316,8 +340,10 @@ export class PanelPermissoesComponent {
     try {
       await navigator.clipboard.writeText(link);
       this.copiedLink.set(link);
+      this.manualLink.set(null);
     } catch {
-      /* sem permissão de área de transferência: o link continua visível para copiar à mão */
+      // Sem área de transferência (permissão negada / contexto inseguro): mostra o link para copiar à mão.
+      this.manualLink.set(link);
     }
   }
 
@@ -328,43 +354,43 @@ export class PanelPermissoesComponent {
       return;
     }
     this.error.set(null);
-    this.busyId.set(m.uid);
+    this.setBusy(m.uid, true);
     try {
       await this.staff.changeRole(m.uid, role);
     } catch (err) {
       select.value = m.role;
       this.fail(err, 'Não foi possível trocar o cargo.');
     } finally {
-      this.busyId.set(null);
+      this.setBusy(m.uid, false);
     }
   }
 
   protected async remove(m: StaffMember): Promise<void> {
     this.error.set(null);
-    this.busyId.set(m.uid);
+    this.setBusy(m.uid, true);
     try {
       await this.staff.remove(m.uid);
       this.confirmingRemoveId.set(null);
     } catch (err) {
       this.fail(err, 'Não foi possível remover o membro.');
     } finally {
-      this.busyId.set(null);
+      this.setBusy(m.uid, false);
     }
   }
 
   protected async revoke(i: StaffInvite): Promise<void> {
     this.error.set(null);
-    this.busyId.set(i.id);
+    this.setBusy(i.id, true);
     try {
       await this.staff.revokeInvite(i.id);
     } catch (err) {
       this.fail(err, 'Não foi possível revogar o convite.');
     } finally {
-      this.busyId.set(null);
+      this.setBusy(i.id, false);
     }
   }
 
   private fail(err: unknown, fallback: string): void {
-    this.error.set(err instanceof Error && err.message ? err.message : fallback);
+    this.error.set(staffErrorMessage(err, fallback));
   }
 }

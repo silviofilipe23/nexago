@@ -104,9 +104,9 @@ function pathOnly(url: string): string {
           <div class="leave">
             @if (confirmingLeave()) {
               <button type="button" class="leave-btn danger" [disabled]="leaving()" (click)="leave()">Confirmar saída</button>
-              <button type="button" class="leave-btn" (click)="confirmingLeave.set(false)">Cancelar</button>
+              <button type="button" class="leave-btn" (click)="cancelLeave()">Cancelar</button>
             } @else {
-              <button type="button" class="leave-btn" (click)="confirmingLeave.set(true)">Sair desta comissão</button>
+              <button type="button" class="leave-btn" (click)="leaveArmedFor.set(ctx.activeCoachUid())">Sair desta comissão</button>
             }
             @if (leaveError(); as err) {
               <div class="leave-error" role="alert">{{ err }}</div>
@@ -422,7 +422,11 @@ export class PanelShellComponent {
   private readonly staff = inject(CoachStaffService);
   protected readonly ctx = inject(CoachContextService);
 
-  protected readonly confirmingLeave = signal(false);
+  /** Painel para o qual a saída foi armada; só vale enquanto ele continuar sendo o ativo. */
+  protected readonly leaveArmedFor = signal<string | null>(null);
+  protected readonly confirmingLeave = computed(
+    () => this.leaveArmedFor() !== null && this.leaveArmedFor() === this.ctx.activeCoachUid(),
+  );
   protected readonly leaving = signal(false);
   protected readonly leaveError = signal<string | null>(null);
 
@@ -442,6 +446,10 @@ export class PanelShellComponent {
         return;
       }
       const current = { coachUid: this.ctx.activeCoachUid(), role: this.ctx.role() };
+      if (this.leaveArmedFor() !== current.coachUid) {
+        this.leaveArmedFor.set(null);
+        this.leaveError.set(null);
+      }
       const before = this.baseline;
       this.baseline = current;
       if (before && (before.coachUid !== current.coachUid || before.role !== current.role)) {
@@ -451,16 +459,21 @@ export class PanelShellComponent {
     });
   }
 
+  protected cancelLeave(): void {
+    this.leaveArmedFor.set(null);
+    this.leaveError.set(null);
+  }
+
   protected async leave(): Promise<void> {
     const coachUid = this.ctx.activeContext()?.isOwn === false ? this.ctx.activeCoachUid() : null;
-    if (!coachUid) {
+    if (!coachUid || this.leaveArmedFor() !== coachUid) {
       return;
     }
     this.leaveError.set(null);
     this.leaving.set(true);
     try {
       await this.staff.leave(coachUid);
-      this.confirmingLeave.set(false);
+      this.leaveArmedFor.set(null);
       // O espelho some em ~1 s e o contexto cai para outro painel (ou /sem-acesso, pelo effect acima).
       void this.router.navigateByUrl('/painel');
     } catch (err) {
@@ -475,6 +488,8 @@ export class PanelShellComponent {
   }
 
   protected switchCoach(coachUid: string): void {
+    this.leaveArmedFor.set(null);
+    this.leaveError.set(null);
     this.ctx.select(coachUid);
     void this.router.navigateByUrl('/painel');
   }

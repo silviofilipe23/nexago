@@ -30,6 +30,23 @@ export function inviteLink(origin: string, inviteId: string): string {
   return `${origin.replace(/\/+$/, '')}/convite-equipe/${inviteId}`;
 }
 
+const SERVER_MESSAGE_CODES = new Set([
+  'functions/already-exists',
+  'functions/invalid-argument',
+  'functions/failed-precondition',
+  'functions/permission-denied',
+  'functions/resource-exhausted',
+]);
+
+/** Mensagem para a tela: o texto do servidor (já em português) só para erros de regra de negócio;
+ *  `internal`, `not-found` (callable não publicada), rede etc. viram o `fallback`. */
+export function staffErrorMessage(err: unknown, fallback: string): string {
+  const e = err as { code?: unknown; message?: unknown } | null;
+  const code = typeof e?.code === 'string' ? e.code : '';
+  const message = typeof e?.message === 'string' ? e.message.trim() : '';
+  return SERVER_MESSAGE_CODES.has(code) && message ? message : fallback;
+}
+
 /** Leitura ao vivo da comissão e chamadas dos callables (a escrita direta é negada pelas rules). */
 @Injectable({ providedIn: 'root' })
 export class CoachStaffService {
@@ -71,6 +88,8 @@ export class CoachStaffService {
         where('status', '==', 'pending'),
       ),
       (snap) => {
+        // Vencidos são filtrados só quando o snapshot chega: sem timer, um convite que vence com a
+        // tela aberta some no próximo snapshot (o servidor também recusa o aceite vencido).
         const now = Date.now();
         const invites: StaffInvite[] = [];
         for (const d of snap.docs) {

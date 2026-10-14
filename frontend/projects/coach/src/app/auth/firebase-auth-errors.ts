@@ -27,6 +27,12 @@ export function mapFirebaseAuthError(error: unknown): string {
       return 'Este link expirou. Peça um novo link de redefinição.';
     case 'auth/invalid-action-code':
       return 'Link inválido ou já usado. Peça um novo link de redefinição.';
+    case 'auth/account-exists-with-different-credential':
+      return 'Já existe uma conta com este e-mail usando outro método. Entre com e-mail e senha.';
+    case 'auth/popup-blocked':
+      return 'O navegador bloqueou a janela do Google. Libere pop-ups e tente de novo.';
+    case 'auth/unauthorized-domain':
+      return 'Este domínio não está autorizado para login com Google.';
     case 'auth/operation-not-allowed':
       return 'Este método de login não está habilitado no projeto.';
     default:

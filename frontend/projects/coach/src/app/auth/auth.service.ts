@@ -4,12 +4,14 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   confirmPasswordReset,
+  GoogleAuthProvider,
   createUserWithEmailAndPassword,
   getAuth,
   onAuthStateChanged,
   sendPasswordResetEmail,
   setPersistence,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut,
   updateProfile,
   verifyPasswordResetCode,
@@ -65,6 +67,42 @@ export class AuthService {
   async signInWithEmail(email: string, password: string, remember: boolean): Promise<void> {
     await setPersistence(this.auth, remember ? browserLocalPersistence : browserSessionPersistence);
     await signInWithEmailAndPassword(this.auth, email.trim(), password);
+  }
+
+  /** Login com Google. `provision=false` (tela de entrar) só admite quem já é
+   *  treinador — conta sem a claim é deslogada e recebe erro, pra um atleta não
+   *  virar treinador sem querer. `provision=true` (tela de cadastro) completa o
+   *  autocadastro via Cloud Function, preservando os papéis existentes.
+   *  Retorna `false` se o usuário fechou o popup. */
+  async signInWithGoogle(remember: boolean, provision: boolean): Promise<boolean> {
+    await setPersistence(this.auth, remember ? browserLocalPersistence : browserSessionPersistence);
+    let user: User;
+    try {
+      user = (await signInWithPopup(this.auth, new GoogleAuthProvider())).user;
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error ? String((error as { code: string }).code) : '';
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        return false;
+      }
+      throw error;
+    }
+
+    let roles = await this.readRoleClaims(user);
+    if (!roles.includes('coach')) {
+      if (!provision) {
+        await this.signOutUser();
+        throw new Error(
+          'Esta conta Google ainda não é de treinador. Use "Cadastrar como treinador".',
+        );
+      }
+      const displayName = user.displayName?.trim() || user.email?.split('@')[0] || 'Treinador';
+      await httpsCallable(this.functions, 'completeCoachSignup')({ displayName, phone: '' });
+      const refreshed = (await user.getIdTokenResult(true)).claims['roles'];
+      roles = Array.isArray(refreshed) ? refreshed.map(String) : [];
+    }
+    // Atualiza já, pra o coachGuard não rodar com claims antigas antes do onAuthStateChanged.
+    this.roleClaims.set(roles);
+    return true;
   }
 
   async sendPasswordReset(email: string): Promise<void> {

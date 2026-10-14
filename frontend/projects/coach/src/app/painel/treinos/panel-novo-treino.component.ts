@@ -9,7 +9,19 @@ import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { SquadContextService } from '../ui/squad-context.service';
-import { addDays, followingInSeries, generateOccurrences, isEndBeforeStart, MAX_SERIES_OCCURRENCES, sanitizeDuration } from './training-rules';
+import {
+  addDays,
+  conflictMessage,
+  findConflicts,
+  followingInSeries,
+  generateOccurrences,
+  isEndBeforeStart,
+  localIsoDate,
+  MAX_SERIES_OCCURRENCES,
+  pastCount,
+  pastDatesMessage,
+  sanitizeDuration,
+} from './training-rules';
 import { TrainingsService, type Training } from './trainings.service';
 
 @Component({
@@ -73,6 +85,9 @@ import { TrainingsService, type Training } from './trainings.service';
             <co-form-field label="Local" placeholder="Quadra 2 · Arena CFC" formControlName="location" />
             <co-form-textarea label="Materiais" formControlName="materials" />
           </form>
+          @for (w of warnings(); track w) {
+            <p class="warn-note" role="status">{{ w }}</p>
+          }
         </co-panel-card>
 
         @if (!editingId) {
@@ -153,6 +168,15 @@ import { TrainingsService, type Training } from './trainings.service';
       font-family: var(--nx-font-mono);
       font-size: 11px;
       color: var(--nx-text-dim);
+    }
+    .warn-note {
+      margin: 12px 0 0;
+      padding: 9px 12px;
+      border-radius: var(--nx-r-2);
+      background: rgba(244, 197, 67, 0.12);
+      color: var(--nx-pending, #f4c543);
+      font-size: 12.5px;
+      line-height: 1.5;
     }
     .squad-note {
       margin: 0 0 12px;
@@ -284,6 +308,39 @@ export class PanelNovoTreinoComponent {
   protected readonly occurrences = computed(() => {
     const v = this.formValue();
     return generateOccurrences(v.date ?? '', v.repeatUntil ?? '', this.repeatDays());
+  });
+  /** Datas que o professor está prestes a criar: as da série, ou só a do formulário. */
+  private readonly candidateDates = computed(() => {
+    const series = this.occurrences().slice(0, MAX_SERIES_OCCURRENCES);
+    if (series.length > 0) {
+      return series;
+    }
+    const date = this.formValue().date;
+    return date ? [date] : [];
+  });
+
+  /** Avisos que não bloqueiam: data passada (só ao criar/duplicar) e conflito de horário. */
+  protected readonly warnings = computed(() => {
+    const dates = this.candidateDates();
+    const v = this.formValue();
+    const out: string[] = [];
+    if (!this.editingId) {
+      const past = pastDatesMessage(pastCount(dates, localIsoDate()), dates.length);
+      if (past) {
+        out.push(past);
+      }
+    }
+    const squads = this.squadContext.squads();
+    const conflict = conflictMessage(
+      findConflicts(dates, v.startTime ?? '', v.endTime ?? '', this.trainingsService.trainings(), this.editingId ?? undefined),
+      dates.length,
+      (id) => squads.find((sq) => sq.id === id)?.name ?? null,
+      this.squadContext.activeSquadId(),
+    );
+    if (conflict) {
+      out.push(conflict);
+    }
+    return out;
   });
   protected readonly repeatSummary = computed(() => {
     const list = this.occurrences();

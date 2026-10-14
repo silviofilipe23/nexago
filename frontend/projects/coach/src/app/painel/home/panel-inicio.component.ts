@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
+import { CoachContextService } from '../access/coach-context.service';
 import { AthletesService } from '../atletas/athletes.service';
 import { EvaluationsService } from '../avaliacoes/evaluations.service';
 import { CallUpsService } from '../convocacoes/call-ups.service';
@@ -32,19 +33,32 @@ import { SquadContextService } from '../ui/squad-context.service';
       <div class="body">
         <div class="kpi-row">
           <co-kpi-card label="Nº de atletas" [value]="rosterCountLabel()" [icon]="'team'" />
-          <co-kpi-card label="Frequência" [value]="attendanceRateLabel()" [icon]="'check'" />
-          <co-kpi-card label="Avaliações no mês" [value]="evaluationsThisMonthLabel()" [icon]="'radar'" />
-          <co-kpi-card label="Convocações pendentes" [value]="pendingResponsesLabel()" [icon]="'bell'" />
+          @if (ctx.can('treinos')) {
+            <co-kpi-card label="Frequência" [value]="attendanceRateLabel()" [icon]="'check'" />
+          }
+          @if (ctx.can('avaliacoes')) {
+            <co-kpi-card label="Avaliações no mês" [value]="evaluationsThisMonthLabel()" [icon]="'radar'" />
+          }
+          @if (ctx.can('convocacoes')) {
+            <co-kpi-card label="Convocações pendentes" [value]="pendingResponsesLabel()" [icon]="'bell'" />
+          }
         </div>
 
-        <div class="grid">
+        <div class="grid" [class.single]="!ctx.can('treinos')">
+          @if (ctx.can('treinos')) {
           <co-panel-card title="Próximos treinos" kicker="Data mais próxima primeiro">
             @for (t of upcomingTrainings(); track t.id; let last = $last) {
               <co-row [title]="t.title" [sub]="t.date + ' · ' + t.startTime + ' · ' + (t.location || 'Local não definido')" [last]="last" />
             } @empty {
-              <p class="empty">Nenhum treino agendado. <a routerLink="/painel/treinos/novo">Criar treino</a></p>
+              <p class="empty">
+                Nenhum treino agendado.
+                @if (ctx.can('treinos', 'write')) {
+                  <a routerLink="/painel/treinos/novo">Criar treino</a>
+                }
+              </p>
             }
           </co-panel-card>
+          }
 
           <div class="side">
             <co-panel-card title="Atletas lesionados" [kicker]="injuredCountLabel()">
@@ -90,6 +104,9 @@ import { SquadContextService } from '../ui/squad-context.service';
       gap: 16px;
       align-items: start;
     }
+    .grid.single {
+      grid-template-columns: 1fr;
+    }
     .side {
       display: flex;
       flex-direction: column;
@@ -105,6 +122,7 @@ import { SquadContextService } from '../ui/squad-context.service';
   `,
 })
 export class PanelInicioComponent {
+  protected readonly ctx = inject(CoachContextService);
   private readonly auth = inject(AuthService);
   private readonly athletesService = inject(AthletesService);
   private readonly trainingsService = inject(TrainingsService);

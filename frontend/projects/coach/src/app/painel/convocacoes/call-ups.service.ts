@@ -1,9 +1,9 @@
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { getApps, initializeApp } from 'firebase/app';
 import { collection, getFirestore, onSnapshot, type Firestore } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { environment } from '../../../environments/environment';
-import { AuthService } from '../../auth/auth.service';
+import { CoachContextService } from '../access/coach-context.service';
 import { FUNCTIONS_REGION } from '@nexago/firebase-config';
 
 export type CallUpResponseValue = 'confirmado' | 'talvez' | 'nao_vou' | 'aguardando';
@@ -48,7 +48,7 @@ function readCallUp(id: string, data: Record<string, unknown> | undefined): Call
 /** `coaches/{uid}/callUps` só permite leitura direta do client (Task 2); escrita é 100% via Cloud Function. */
 @Injectable({ providedIn: 'root' })
 export class CallUpsService {
-  private readonly auth = inject(AuthService);
+  private readonly ctx = inject(CoachContextService);
   private readonly firestore = createFirestore();
 
   private readonly callUpsState = signal<CallUp[]>([]);
@@ -56,9 +56,13 @@ export class CallUpsService {
 
   constructor() {
     effect((onCleanup) => {
-      const uid = this.auth.user()?.uid ?? null;
-      if (!uid) {
-        this.callUpsState.set([]);
+      const uid = this.ctx.activeCoachUid();
+      // Reset ANTES de reassinar: as convocações do treinador anterior não sobrevivem à troca.
+      // untracked: o reset não pode virar dependência do effect (setSquads lê activeSquadId => loop).
+      untracked(() => this.callUpsState.set([]));
+      // Deps rastreadas (de propósito): activeCoachUid e role (via can). O cargo mudar para o mesmo
+      // treinador reabre/fecha o listener; sem 'convocacoes' nem abrimos o listener (as rules negariam).
+      if (!uid || !this.ctx.can('convocacoes')) {
         return;
       }
 
@@ -75,11 +79,11 @@ export class CallUpsService {
   }
 
   async sendCallUp(input: NewCallUpInput): Promise<string> {
-    const fn = httpsCallable<NewCallUpInput, { callUpId: string }>(
+    const fn = httpsCallable<NewCallUpInput & { coachUid: string | null }, { callUpId: string }>(
       getFunctions(getApps()[0]!, FUNCTIONS_REGION),
       'sendCallUp',
     );
-    const res = await fn(input);
+    const res = await fn({ coachUid: this.ctx.activeCoachUid(), ...input });
     return res.data.callUpId;
   }
 }

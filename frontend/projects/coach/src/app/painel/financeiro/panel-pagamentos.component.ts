@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { CoachContextService } from '../access/coach-context.service';
 import { RouterLink } from '@angular/router';
 import { AthleteAvatarComponent, type AthleteStatus } from '../ui/athlete-avatar.component';
 import { IconComponent } from '../ui/icon.component';
@@ -109,7 +110,7 @@ function brl(value: number): string {
               <div row-trailing class="trailing">
                 <span class="valor">{{ brl(p.valor) }}</span>
                 <co-pill [tone]="STATUS_TONE[p.status]">{{ STATUS_LABEL[p.status] }}</co-pill>
-                @if (p.status !== 'pago') {
+                @if (p.status !== 'pago' && ctx.can('financeiro', 'write')) {
                   <button type="button" class="co-mini-btn co-mini-btn-primary">Cobrar</button>
                 }
               </div>
@@ -206,6 +207,7 @@ function brl(value: number): string {
   `,
 })
 export class PanelPagamentosComponent {
+  protected readonly ctx = inject(CoachContextService);
   protected readonly tabs = ['Todos', 'Pendentes', 'Pagos'];
   protected readonly activeTab = signal('Todos');
   protected readonly STATUS_TONE = STATUS_TONE;

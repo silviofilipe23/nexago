@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ReactiveFormsModule, NonNullableFormBuilder, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from './auth.service';
 import { mapFirebaseAuthError } from './firebase-auth-errors';
 import { AuthShellComponent } from './ui/auth-shell.component';
+import { isInviteRedirect, validRedirect } from './invite-redirect';
 import { FieldComponent } from './ui/field.component';
 import { StrengthMeterComponent } from './ui/strength-meter.component';
 
@@ -18,7 +19,7 @@ import { StrengthMeterComponent } from './ui/strength-meter.component';
   template: `
     <co-auth-shell [wide]="true">
       <form [formGroup]="form" (ngSubmit)="submit()">
-        <a class="co-back-link" routerLink="/entrar">
+        <a class="co-back-link" routerLink="/entrar" [queryParams]="redirectParams">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
@@ -66,15 +67,7 @@ import { StrengthMeterComponent } from './ui/strength-meter.component';
             [error]="fieldError('nome', 'Informe seu nome completo.')"
           />
 
-          <div class="co-grid-2">
-            <co-field
-              label="Telefone"
-              type="tel"
-              placeholder="(62) 99999-0000"
-              autocomplete="tel"
-              formControlName="telefone"
-              [error]="fieldError('telefone', 'Informe seu telefone.')"
-            />
+          @if (invited) {
             <co-field
               label="E-mail"
               type="email"
@@ -83,7 +76,26 @@ import { StrengthMeterComponent } from './ui/strength-meter.component';
               formControlName="email"
               [error]="emailError()"
             />
-          </div>
+          } @else {
+            <div class="co-grid-2">
+              <co-field
+                label="Telefone"
+                type="tel"
+                placeholder="(62) 99999-0000"
+                autocomplete="tel"
+                formControlName="telefone"
+                [error]="fieldError('telefone', 'Informe seu telefone.')"
+              />
+              <co-field
+                label="E-mail"
+                type="email"
+                placeholder="voce@email.com"
+                autocomplete="email"
+                formControlName="email"
+                [error]="emailError()"
+              />
+            </div>
+          }
 
           <div class="co-stack-sm">
             <co-field
@@ -115,7 +127,14 @@ import { StrengthMeterComponent } from './ui/strength-meter.component';
 export class SignupComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly fb = inject(NonNullableFormBuilder);
+
+  /** Destino pedido por quem chegou aqui (ex.: link de convite) — mesma validação do login. */
+  private readonly redirect = validRedirect(this.route.snapshot.queryParamMap.get('redirect'));
+  /** Veio de um convite da comissão: cria só a conta (sem painel de treinador próprio) e não pede telefone. */
+  protected readonly invited = isInviteRedirect(this.redirect);
+  protected readonly redirectParams = this.redirect ? { redirect: this.redirect } : null;
 
   protected readonly loading = signal(false);
   protected readonly googleLoading = signal(false);
@@ -125,7 +144,7 @@ export class SignupComponent {
 
   protected readonly form = this.fb.group({
     nome: ['', Validators.required],
-    telefone: ['', Validators.required],
+    telefone: ['', this.invited ? [] : [Validators.required]],
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(8)]],
   });
@@ -178,8 +197,12 @@ export class SignupComponent {
     this.loading.set(true);
     try {
       const { nome, telefone, email, password } = this.form.getRawValue();
-      await this.auth.createCoachAccount(email, password, nome, telefone);
-      void this.router.navigateByUrl('/painel');
+      if (this.invited) {
+        await this.auth.createAccountOnly(email, password, nome);
+      } else {
+        await this.auth.createCoachAccount(email, password, nome, telefone);
+      }
+      void this.router.navigateByUrl(this.redirect ?? '/painel');
     } catch (err) {
       this.error.set(mapFirebaseAuthError(err));
     } finally {
@@ -193,9 +216,9 @@ export class SignupComponent {
     this.error.set(null);
     this.googleLoading.set(true);
     try {
-      const ok = await this.auth.signInWithGoogle(true, true);
+      const ok = await this.auth.signInWithGoogle(true, true, { invited: this.invited });
       if (ok) {
-        void this.router.navigateByUrl('/painel');
+        void this.router.navigateByUrl(this.redirect ?? '/painel');
       }
     } catch (err) {
       this.error.set(mapFirebaseAuthError(err));

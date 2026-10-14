@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { CoachContextService } from '../access/coach-context.service';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
@@ -15,10 +16,12 @@ import { CallUpsService, type CallUp, type CallUpResponseValue } from './call-up
   template: `
     <co-panel-shell>
       <co-page-header title="Convocações" [subtitle]="subtitle()">
-        <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/convocacoes/nova">
-          <co-icon name="bell" [size]="14" />
-          Nova convocação
-        </a>
+        @if (ctx.can('convocacoes', 'write')) {
+          <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/convocacoes/nova">
+            <co-icon name="bell" [size]="14" />
+            Nova convocação
+          </a>
+        }
       </co-page-header>
 
       <div class="body">
@@ -65,6 +68,7 @@ import { CallUpsService, type CallUp, type CallUpResponseValue } from './call-up
   `,
 })
 export class PanelConvocacoesComponent {
+  protected readonly ctx = inject(CoachContextService);
   private readonly callUpsService = inject(CallUpsService);
   private readonly squadContext = inject(SquadContextService);
 

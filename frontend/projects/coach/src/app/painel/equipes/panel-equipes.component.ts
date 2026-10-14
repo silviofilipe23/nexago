@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { CoachContextService } from '../access/coach-context.service';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
@@ -20,10 +21,12 @@ import { SquadsService, type Squad } from './squads.service';
   template: `
     <co-panel-shell>
       <co-page-header title="Equipes" [subtitle]="subtitleLabel()">
-        <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/equipes/nova">
-          <co-icon name="plus" [size]="14" />
-          Nova equipe
-        </a>
+        @if (ctx.can('atletas', 'write')) {
+          <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/equipes/nova">
+            <co-icon name="plus" [size]="14" />
+            Nova equipe
+          </a>
+        }
       </co-page-header>
 
       <div class="body">
@@ -32,7 +35,11 @@ import { SquadsService, type Squad } from './squads.service';
         }
         @if (squads().length === 0) {
           <co-panel-card title="Nenhuma equipe ainda" kicker="Comece por aqui">
-            <p class="desc">Crie sua primeira equipe pra começar a adicionar atletas, treinos e avaliações.</p>
+            @if (ctx.can('atletas', 'write')) {
+              <p class="desc">Crie sua primeira equipe pra começar a adicionar atletas, treinos e avaliações.</p>
+            } @else {
+              <p class="desc">Nenhuma equipe ainda.</p>
+            }
           </co-panel-card>
         } @else {
           <div class="grid">
@@ -48,13 +55,15 @@ import { SquadsService, type Squad } from './squads.service';
                       Tornar ativa
                     }
                   </button>
-                  @if (confirmingDeleteId() === squad.id) {
-                    <span class="confirm">Excluir esta equipe?</span>
-                    <button type="button" class="co-ghost-btn danger" [disabled]="deleting()" (click)="remove(squad)">Excluir</button>
-                    <button type="button" class="co-ghost-btn" (click)="confirmingDeleteId.set(null)">Voltar</button>
-                  } @else {
-                    <a class="co-ghost-btn" [routerLink]="['/painel/equipes', squad.id, 'editar']">Editar</a>
-                    <button type="button" class="co-ghost-btn danger" (click)="askDelete(squad)">Excluir</button>
+                  @if (ctx.can('atletas', 'write')) {
+                    @if (confirmingDeleteId() === squad.id) {
+                      <span class="confirm">Excluir esta equipe?</span>
+                      <button type="button" class="co-ghost-btn danger" [disabled]="deleting()" (click)="remove(squad)">Excluir</button>
+                      <button type="button" class="co-ghost-btn" (click)="confirmingDeleteId.set(null)">Voltar</button>
+                    } @else {
+                      <a class="co-ghost-btn" [routerLink]="['/painel/equipes', squad.id, 'editar']">Editar</a>
+                      <button type="button" class="co-ghost-btn danger" (click)="askDelete(squad)">Excluir</button>
+                    }
                   }
                 </div>
               </co-panel-card>
@@ -104,6 +113,7 @@ import { SquadsService, type Squad } from './squads.service';
   `,
 })
 export class PanelEquipesComponent {
+  protected readonly ctx = inject(CoachContextService);
   private readonly squadsService = inject(SquadsService);
   private readonly squadContext = inject(SquadContextService);
 
@@ -132,6 +142,9 @@ export class PanelEquipesComponent {
   }
 
   protected askDelete(squad: Squad): void {
+    if (!this.ctx.can('atletas', 'write')) {
+      return;
+    }
     this.error.set(null);
     const check = checkSquadDeletable(
       squad.id,
@@ -146,6 +159,9 @@ export class PanelEquipesComponent {
   }
 
   protected async remove(squad: Squad): Promise<void> {
+    if (!this.ctx.can('atletas', 'write')) {
+      return;
+    }
     this.error.set(null);
     this.deleting.set(true);
     try {

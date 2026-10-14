@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
+import { CoachContextService } from '../access/coach-context.service';
 import { AthleteAvatarComponent } from '../ui/athlete-avatar.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
@@ -33,17 +34,26 @@ const STATUS_LABEL: Record<AttendanceStatus, string> = {
 
       <div class="body">
         @if (!selected()) {
-          <p class="empty">Nenhum treino agendado para esta equipe ainda. Crie um treino primeiro.</p>
+          <p class="empty">
+            Nenhum treino agendado para esta equipe ainda.
+            @if (ctx.can('treinos', 'write')) {
+              Crie um treino primeiro.
+            }
+          </p>
         } @else {
           <co-panel-card title="Marcar presença" [kicker]="roster().length + ' convocados'">
             @for (a of roster(); track a.athleteUid; let last = $last) {
               <co-row [title]="a.displayName" [sub]="a.category" [last]="last">
                 <co-athlete-avatar row-avatar [initials]="a.initials" [size]="34" [status]="a.status" />
                 <div row-trailing class="options">
-                  @for (s of statusOptions; track s) {
-                    <button type="button" class="opt" [class.active]="statusFor(a.athleteUid) === s" (click)="setStatus(a.athleteUid, s)">
-                      {{ STATUS_LABEL[s] }}
-                    </button>
+                  @if (ctx.can('treinos', 'write')) {
+                    @for (s of statusOptions; track s) {
+                      <button type="button" class="opt" [class.active]="statusFor(a.athleteUid) === s" (click)="setStatus(a.athleteUid, s)">
+                        {{ STATUS_LABEL[s] }}
+                      </button>
+                    }
+                  } @else {
+                    <span class="opt readonly">{{ readonlyLabel(a.athleteUid) }}</span>
                   }
                 </div>
               </co-row>
@@ -51,13 +61,15 @@ const STATUS_LABEL: Record<AttendanceStatus, string> = {
               <p class="empty">Nenhum atleta vinculado a esta equipe ainda.</p>
             }
           </co-panel-card>
-          <button type="button" class="co-mini-btn co-mini-btn-primary save-btn" [disabled]="saving()" (click)="save()">
-            @if (saving()) {
-              Salvando…
-            } @else {
-              Salvar
-            }
-          </button>
+          @if (ctx.can('treinos', 'write')) {
+            <button type="button" class="co-mini-btn co-mini-btn-primary save-btn" [disabled]="saving()" (click)="save()">
+              @if (saving()) {
+                Salvando…
+              } @else {
+                Salvar
+              }
+            </button>
+          }
         }
       </div>
     </co-panel-shell>
@@ -106,12 +118,18 @@ const STATUS_LABEL: Record<AttendanceStatus, string> = {
       border-color: transparent;
       color: var(--nx-text-on-orange);
     }
+    .opt.readonly {
+      display: inline-flex;
+      align-items: center;
+      cursor: default;
+    }
     .save-btn {
       align-self: flex-start;
     }
   `,
 })
 export class PanelPresencaComponent {
+  protected readonly ctx = inject(CoachContextService);
   private readonly trainingsService = inject(TrainingsService);
   private readonly athletesService = inject(AthletesService);
   private readonly squadContext = inject(SquadContextService);
@@ -173,13 +191,21 @@ export class PanelPresencaComponent {
     return this.draftAttendance()[athleteUid] ?? null;
   }
 
+  protected readonlyLabel(athleteUid: string): string {
+    const status = this.statusFor(athleteUid);
+    return status ? STATUS_LABEL[status] : 'Sem registro';
+  }
+
   protected setStatus(athleteUid: string, status: AttendanceStatus): void {
+    if (!this.ctx.can('treinos', 'write')) {
+      return;
+    }
     this.draftAttendance.update((map) => ({ ...map, [athleteUid]: status }));
   }
 
   protected async save(): Promise<void> {
     const t = this.selected();
-    if (!t) {
+    if (!t || !this.ctx.can('treinos', 'write')) {
       return;
     }
     this.saving.set(true);

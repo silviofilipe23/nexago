@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { CoachContextService } from '../access/coach-context.service';
 import { AthleteAvatarComponent } from '../ui/athlete-avatar.component';
 import { FormFieldComponent } from '../ui/form-field.component';
 import { FormSelectComponent } from '../ui/form-select.component';
@@ -53,14 +54,18 @@ const STATUS_TONE: Record<string, 'green' | 'red' | 'yellow' | 'dim'> = {
           <co-icon name="radar" [size]="14" />
           Comparar atletas
         </a>
-        <a class="co-ghost-btn" routerLink="/painel/atletas/plano-evolucao">
-          <co-icon name="clipboard" [size]="14" />
-          Plano de evolução
-        </a>
-        <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/atletas/novo">
-          <co-icon name="plus" [size]="14" />
-          Convidar atleta
-        </a>
+        @if (ctx.can('fisico')) {
+          <a class="co-ghost-btn" routerLink="/painel/atletas/plano-evolucao">
+            <co-icon name="clipboard" [size]="14" />
+            Plano de evolução
+          </a>
+        }
+        @if (ctx.can('atletas', 'write')) {
+          <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/atletas/novo">
+            <co-icon name="plus" [size]="14" />
+            Convidar atleta
+          </a>
+        }
       </co-page-header>
 
       <div class="body">
@@ -75,7 +80,12 @@ const STATUS_TONE: Record<string, 'green' | 'red' | 'yellow' | 'dim'> = {
                 </div>
               </div>
             } @empty {
-              <p class="empty">Nenhum atleta vinculado ainda. Convide o primeiro atleta da sua equipe.</p>
+              <p class="empty">
+                Nenhum atleta vinculado ainda.
+                @if (ctx.can('atletas', 'write')) {
+                  Convide o primeiro atleta da sua equipe.
+                }
+              </p>
             }
           </div>
         </co-panel-card>
@@ -90,14 +100,16 @@ const STATUS_TONE: Record<string, 'green' | 'red' | 'yellow' | 'dim'> = {
                   <div class="header-meta">{{ athlete.category || 'Sem categoria' }} · {{ athlete.position || 'Posição não definida' }}</div>
                 </div>
                 <co-pill [tone]="statusTone(athlete.status)">{{ statusLabel(athlete.status) }}</co-pill>
-                <button type="button" class="co-ghost-btn" (click)="toggleEdit(athlete)">
-                  <co-icon name="edit" [size]="14" />
-                  {{ editing() ? 'Cancelar' : 'Editar' }}
-                </button>
+                @if (ctx.can('atletas', 'write')) {
+                  <button type="button" class="co-ghost-btn" (click)="toggleEdit(athlete)">
+                    <co-icon name="edit" [size]="14" />
+                    {{ editing() ? 'Cancelar' : 'Editar' }}
+                  </button>
+                }
               </div>
             </co-panel-card>
 
-            @if (editing()) {
+            @if (editing() && ctx.can('atletas', 'write')) {
               <co-panel-card title="Editar dados do vínculo" kicker="Só o treinador vê estes campos">
                 <form [formGroup]="editForm" class="grid">
                   <co-form-select label="Status na equipe" [options]="statusOptions" formControlName="status" />
@@ -236,6 +248,7 @@ const STATUS_TONE: Record<string, 'green' | 'red' | 'yellow' | 'dim'> = {
   `,
 })
 export class PanelAtletasComponent {
+  protected readonly ctx = inject(CoachContextService);
   private readonly athletesService = inject(AthletesService);
   private readonly squadContext = inject(SquadContextService);
   private readonly fb = inject(NonNullableFormBuilder);
@@ -289,6 +302,9 @@ export class PanelAtletasComponent {
   }
 
   protected toggleEdit(athlete: RosterAthlete): void {
+    if (!this.ctx.can('atletas', 'write')) {
+      return;
+    }
     if (!this.editing()) {
       this.editForm.setValue({
         status: athlete.status,
@@ -304,6 +320,9 @@ export class PanelAtletasComponent {
   }
 
   protected async save(athleteUid: string): Promise<void> {
+    if (!this.ctx.can('atletas', 'write')) {
+      return;
+    }
     this.saving.set(true);
     try {
       const raw = this.editForm.getRawValue();

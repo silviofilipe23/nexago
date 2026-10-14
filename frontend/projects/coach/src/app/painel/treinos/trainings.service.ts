@@ -1,4 +1,4 @@
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { getApps, initializeApp } from 'firebase/app';
 import {
   collection,
@@ -13,7 +13,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
-import { AuthService } from '../../auth/auth.service';
+import { CoachContextService } from '../access/coach-context.service';
 
 export type TrainingStatus = 'agendado' | 'realizado' | 'cancelado';
 export type AttendanceStatus = 'presente' | 'ausente' | 'atrasado' | 'justificado';
@@ -81,7 +81,7 @@ function readTraining(id: string, data: Record<string, unknown> | undefined): Tr
 /** `coaches/{uid}/trainings` é ownership-only (Task 2) — leitura/escrita direta do client. */
 @Injectable({ providedIn: 'root' })
 export class TrainingsService {
-  private readonly auth = inject(AuthService);
+  private readonly ctx = inject(CoachContextService);
   private readonly firestore = createFirestore();
 
   private readonly trainingsState = signal<Training[]>([]);
@@ -91,10 +91,20 @@ export class TrainingsService {
 
   constructor() {
     effect((onCleanup) => {
-      const uid = this.auth.user()?.uid ?? null;
-      if (!uid) {
+      const uid = this.ctx.activeCoachUid();
+      // Reset ANTES de reassinar: os treinos do treinador anterior não sobrevivem à troca.
+      // untracked: o reset não pode virar dependência do effect (setSquads lê activeSquadId => loop).
+      untracked(() => {
         this.trainingsState.set([]);
         this.ready.set(false);
+      });
+      if (!uid) {
+        return;
+      }
+      // Deps rastreadas (de propósito): activeCoachUid e role (via can). Cargo sem 'treinos' não abre
+      // o listener: a lista fica vazia e `ready` true (não fica "carregando" para sempre).
+      if (!this.ctx.can('treinos')) {
+        untracked(() => this.ready.set(true));
         return;
       }
 
@@ -115,9 +125,9 @@ export class TrainingsService {
   }
 
   async createTraining(input: NewTrainingInput): Promise<string> {
-    const uid = this.auth.user()?.uid;
+    const uid = this.ctx.activeCoachUid();
     if (!uid) {
-      throw new Error('Usuário não autenticado.');
+      throw new Error('Nenhum painel de treinador ativo.');
     }
     const ref = doc(collection(this.firestore, 'coaches', uid, 'trainings'));
     await setDoc(ref, {
@@ -163,9 +173,9 @@ export class TrainingsService {
   }
 
   async setAttendance(trainingId: string, attendance: Record<string, AttendanceStatus>): Promise<void> {
-    const uid = this.auth.user()?.uid;
+    const uid = this.ctx.activeCoachUid();
     if (!uid) {
-      throw new Error('Usuário não autenticado.');
+      throw new Error('Nenhum painel de treinador ativo.');
     }
     const current = this.trainingsState().find((t) => t.id === trainingId);
     // Treino cancelado continua cancelado — salvar presença não pode "ressuscitá-lo".
@@ -205,9 +215,9 @@ export class TrainingsService {
   }
 
   private requireUid(): string {
-    const uid = this.auth.user()?.uid;
+    const uid = this.ctx.activeCoachUid();
     if (!uid) {
-      throw new Error('Usuário não autenticado.');
+      throw new Error('Nenhum painel de treinador ativo.');
     }
     return uid;
   }

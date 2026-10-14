@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { CoachContextService } from '../access/coach-context.service';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
@@ -29,10 +30,12 @@ const STATUS_TONE: Record<TrainingStatus, PillTone> = {
   template: `
     <co-panel-shell>
       <co-page-header title="Treinos" [subtitle]="subtitle()">
-        <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/treinos/novo">
-          <co-icon name="plus" [size]="14" />
-          Novo treino
-        </a>
+        @if (ctx.can('treinos', 'write')) {
+          <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/treinos/novo">
+            <co-icon name="plus" [size]="14" />
+            Novo treino
+          </a>
+        }
       </co-page-header>
 
       <div class="body">
@@ -59,7 +62,7 @@ const STATUS_TONE: Record<TrainingStatus, PillTone> = {
             <co-row [title]="t.title" [sub]="t.date + ' · ' + t.startTime + ' · ' + (t.location || 'Local não definido')" [last]="last">
               <div row-trailing class="actions">
                 <co-pill [tone]="tone(t)">{{ label(t) }}</co-pill>
-                @if (confirmingDeleteId() === t.id) {
+                @if (confirmingDeleteId() === t.id && ctx.can('treinos', 'write')) {
                   <span class="confirm">Excluir este treino?</span>
                   <button type="button" class="co-ghost-btn danger" [disabled]="busyId() === t.id" (click)="remove(t)">Excluir</button>
                   <button type="button" class="co-ghost-btn" (click)="confirmingDeleteId.set(null)">Voltar</button>
@@ -67,15 +70,17 @@ const STATUS_TONE: Record<TrainingStatus, PillTone> = {
                   @if (t.status !== 'cancelado') {
                     <a class="co-ghost-btn" [routerLink]="['/painel/presenca']" [queryParams]="{ treino: t.id }">Chamada</a>
                   }
-                  <a class="co-ghost-btn" [routerLink]="['/painel/treinos/novo']" [queryParams]="{ de: t.id }">Duplicar</a>
-                  <a class="co-ghost-btn" [routerLink]="['/painel/treinos', t.id, 'editar']">Editar</a>
-                  @if (t.status === 'cancelado') {
-                    <button type="button" class="co-ghost-btn" [disabled]="busyId() === t.id" (click)="reactivate(t)">Reativar</button>
-                  } @else {
-                    <button type="button" class="co-ghost-btn" [disabled]="busyId() === t.id" (click)="cancel(t)">Cancelar</button>
-                  }
-                  @if (canDelete(t)) {
-                    <button type="button" class="co-ghost-btn danger" (click)="confirmingDeleteId.set(t.id)">Excluir</button>
+                  @if (ctx.can('treinos', 'write')) {
+                    <a class="co-ghost-btn" [routerLink]="['/painel/treinos/novo']" [queryParams]="{ de: t.id }">Duplicar</a>
+                    <a class="co-ghost-btn" [routerLink]="['/painel/treinos', t.id, 'editar']">Editar</a>
+                    @if (t.status === 'cancelado') {
+                      <button type="button" class="co-ghost-btn" [disabled]="busyId() === t.id" (click)="reactivate(t)">Reativar</button>
+                    } @else {
+                      <button type="button" class="co-ghost-btn" [disabled]="busyId() === t.id" (click)="cancel(t)">Cancelar</button>
+                    }
+                    @if (canDelete(t)) {
+                      <button type="button" class="co-ghost-btn danger" (click)="confirmingDeleteId.set(t.id)">Excluir</button>
+                    }
                   }
                 }
               </div>
@@ -118,6 +123,7 @@ const STATUS_TONE: Record<TrainingStatus, PillTone> = {
   `,
 })
 export class PanelTreinosComponent {
+  protected readonly ctx = inject(CoachContextService);
   private readonly trainingsService = inject(TrainingsService);
   private readonly squadContext = inject(SquadContextService);
 
@@ -156,6 +162,9 @@ export class PanelTreinosComponent {
   }
 
   private async run(id: string, action: () => Promise<void>, verb: string): Promise<void> {
+    if (!this.ctx.can('treinos', 'write')) {
+      return;
+    }
     this.error.set(null);
     this.busyId.set(id);
     try {

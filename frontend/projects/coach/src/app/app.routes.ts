@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './auth/auth.guard';
 import { coachGuard } from './auth/coach.guard';
+import { areaGuard } from './painel/access/area.guard';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'entrar' },
@@ -34,49 +35,56 @@ export const routes: Routes = [
   {
     path: 'painel',
     title: 'Painel — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'atletas' },
     loadComponent: () =>
       import('./painel/home/panel-inicio.component').then((m) => m.PanelInicioComponent),
   },
   {
     path: 'painel/equipes',
     title: 'Equipes — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'atletas' },
     loadComponent: () =>
       import('./painel/equipes/panel-equipes.component').then((m) => m.PanelEquipesComponent),
   },
   {
     path: 'painel/equipes/nova',
     title: 'Nova equipe — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'atletas', mode: 'write' },
     loadComponent: () =>
       import('./painel/equipes/panel-nova-equipe.component').then((m) => m.PanelNovaEquipeComponent),
   },
   {
     path: 'painel/equipes/:id/editar',
     title: 'Editar equipe — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'atletas', mode: 'write' },
     loadComponent: () =>
       import('./painel/equipes/panel-nova-equipe.component').then((m) => m.PanelNovaEquipeComponent),
   },
   {
     path: 'painel/atletas',
     title: 'Atletas — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'atletas' },
     loadComponent: () =>
       import('./painel/atletas/panel-atletas.component').then((m) => m.PanelAtletasComponent),
   },
   {
     path: 'painel/atletas/novo',
     title: 'Convidar atleta — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'atletas', mode: 'write' },
     loadComponent: () =>
       import('./painel/atletas/panel-novo-atleta.component').then((m) => m.PanelNovoAtletaComponent),
   },
   {
     path: 'painel/atletas/comparar',
     title: 'Comparar atletas — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'atletas' },
     loadComponent: () =>
       import('./painel/atletas/panel-comparar-atletas.component').then(
         (m) => m.PanelCompararAtletasComponent,
@@ -85,7 +93,8 @@ export const routes: Routes = [
   {
     path: 'painel/atletas/plano-evolucao',
     title: 'Plano de evolução — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'fisico' },
     loadComponent: () =>
       import('./painel/evolucao/panel-plano-evolucao.component').then(
         (m) => m.PanelPlanoEvolucaoComponent,
@@ -94,7 +103,8 @@ export const routes: Routes = [
   {
     path: 'painel/atletas/plano-evolucao/novo',
     title: 'Novo objetivo — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'fisico', mode: 'write' },
     loadComponent: () =>
       import('./painel/evolucao/panel-novo-objetivo.component').then(
         (m) => m.PanelNovoObjetivoComponent,
@@ -108,44 +118,57 @@ export const routes: Routes = [
       import('./convites/convite-atleta.component').then((m) => m.ConviteAtletaComponent),
   },
   {
+    path: 'convite-equipe/:id',
+    title: 'Convite da comissão — NexaGO Treinador',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./convites/convite-equipe.component').then((m) => m.ConviteEquipeComponent),
+  },
+  {
     path: 'painel/treinos',
     title: 'Treinos — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'treinos' },
     loadComponent: () =>
       import('./painel/treinos/panel-treinos.component').then((m) => m.PanelTreinosComponent),
   },
   {
     path: 'painel/treinos/novo',
     title: 'Novo treino — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'treinos', mode: 'write' },
     loadComponent: () =>
       import('./painel/treinos/panel-novo-treino.component').then((m) => m.PanelNovoTreinoComponent),
   },
   {
     path: 'painel/treinos/:id/editar',
     title: 'Editar treino — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'treinos', mode: 'write' },
     loadComponent: () =>
       import('./painel/treinos/panel-novo-treino.component').then((m) => m.PanelNovoTreinoComponent),
   },
   {
     path: 'painel/presenca',
     title: 'Presença — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'treinos' },
     loadComponent: () =>
       import('./painel/presenca/panel-presenca.component').then((m) => m.PanelPresencaComponent),
   },
   {
     path: 'painel/convocacoes',
     title: 'Convocações — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'convocacoes' },
     loadComponent: () =>
       import('./painel/convocacoes/panel-convocacoes.component').then((m) => m.PanelConvocacoesComponent),
   },
   {
     path: 'painel/convocacoes/nova',
     title: 'Nova convocação — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'convocacoes', mode: 'write' },
     loadComponent: () =>
       import('./painel/convocacoes/panel-nova-convocacao.component').then((m) => m.PanelNovaConvocacaoComponent),
   },
@@ -158,42 +181,48 @@ export const routes: Routes = [
   {
     path: 'painel/avaliacoes',
     title: 'Avaliações — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'avaliacoes' },
     loadComponent: () =>
       import('./painel/avaliacoes/panel-avaliacoes.component').then((m) => m.PanelAvaliacoesComponent),
   },
   {
     path: 'painel/avaliacoes/nova',
     title: 'Nova avaliação — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'avaliacoes', mode: 'write' },
     loadComponent: () =>
       import('./painel/avaliacoes/panel-nova-avaliacao.component').then((m) => m.PanelNovaAvaliacaoComponent),
   },
   {
     path: 'painel/historico',
     title: 'Histórico — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'treinos' },
     loadComponent: () =>
       import('./painel/historico/panel-historico.component').then((m) => m.PanelHistoricoComponent),
   },
   {
     path: 'painel/historico/relatorios',
     title: 'Relatórios — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'treinos' },
     loadComponent: () =>
       import('./painel/historico/panel-relatorios.component').then((m) => m.PanelRelatoriosComponent),
   },
   {
     path: 'painel/lesoes',
     title: 'Lesões — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'saude' },
     loadComponent: () =>
       import('./painel/lesoes/panel-lesoes.component').then((m) => m.PanelLesoesComponent),
   },
   {
     path: 'painel/lesoes/novo',
     title: 'Registrar lesão — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'saude', mode: 'write' },
     loadComponent: () =>
       import('./painel/lesoes/panel-registro-lesao.component').then(
         (m) => m.PanelRegistroLesaoComponent,
@@ -202,90 +231,103 @@ export const routes: Routes = [
   {
     path: 'painel/torneios',
     title: 'Torneios — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'atletas' },
     loadComponent: () =>
       import('./painel/torneios/panel-torneios.component').then((m) => m.PanelTorneiosComponent),
   },
   {
     path: 'painel/torneios/estatisticas',
     title: 'Estatísticas da equipe — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'atletas' },
     loadComponent: () =>
       import('./painel/torneios/panel-estatisticas.component').then((m) => m.PanelEstatisticasComponent),
   },
   {
     path: 'painel/perfil',
     title: 'Perfil — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'principal' },
     loadComponent: () =>
       import('./painel/perfil/panel-perfil.component').then((m) => m.PanelPerfilComponent),
   },
   {
     path: 'painel/agenda',
     title: 'Agenda — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'treinos' },
     loadComponent: () =>
       import('./painel/agenda/panel-agenda.component').then((m) => m.PanelAgendaComponent),
   },
   {
     path: 'painel/permissoes',
     title: 'Permissões — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'equipe' },
     loadComponent: () =>
       import('./painel/permissoes/panel-permissoes.component').then((m) => m.PanelPermissoesComponent),
   },
   {
     path: 'painel/financeiro',
     title: 'Pagamentos — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'financeiro' },
     loadComponent: () =>
       import('./painel/financeiro/panel-pagamentos.component').then((m) => m.PanelPagamentosComponent),
   },
   {
     path: 'painel/financeiro/planos',
     title: 'Planos — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'financeiro' },
     loadComponent: () =>
       import('./painel/financeiro/panel-planos.component').then((m) => m.PanelPlanosComponent),
   },
   {
     path: 'painel/financeiro/planos/novo',
     title: 'Novo plano — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'financeiro', mode: 'write' },
     loadComponent: () =>
       import('./painel/financeiro/panel-novo-plano.component').then((m) => m.PanelNovoPlanoComponent),
   },
   {
     path: 'painel/comunicacao',
     title: 'Comunicação — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'comunicacao' },
     loadComponent: () =>
       import('./painel/comunicacao/panel-comunicacao.component').then((m) => m.PanelComunicacaoComponent),
   },
   {
     path: 'painel/biblioteca',
     title: 'Biblioteca — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'principal' },
     loadComponent: () =>
       import('./painel/biblioteca/panel-biblioteca.component').then((m) => m.PanelBibliotecaComponent),
   },
   {
     path: 'painel/ia',
     title: 'IA do treinador — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'principal' },
     loadComponent: () => import('./painel/ia/panel-ia.component').then((m) => m.PanelIaComponent),
   },
   {
     path: 'painel/ia/evolucao-rating',
     title: 'Evolução do rating — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'principal' },
     loadComponent: () =>
       import('./painel/ia/panel-evolucao-rating.component').then((m) => m.PanelEvolucaoRatingComponent),
   },
   {
     path: 'painel/ia/recomendacao-categoria',
     title: 'Recomendação de categoria — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'principal' },
     loadComponent: () =>
       import('./painel/ia/panel-recomendacao-categoria.component').then(
         (m) => m.PanelRecomendacaoCategoriaComponent,
@@ -294,7 +336,8 @@ export const routes: Routes = [
   {
     path: 'painel/ia/descoberta-talentos',
     title: 'Descoberta de talentos — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'principal' },
     loadComponent: () =>
       import('./painel/ia/panel-descoberta-talentos.component').then(
         (m) => m.PanelDescobertaTalentosComponent,
@@ -303,18 +346,27 @@ export const routes: Routes = [
   {
     path: 'painel/ia/gestao-metas',
     title: 'Gestão de metas — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'principal' },
     loadComponent: () =>
       import('./painel/ia/panel-gestao-metas.component').then((m) => m.PanelGestaoMetasComponent),
   },
   {
     path: 'painel/ia/analise-pos-torneio',
     title: 'Análise pós-torneio — NexaGO Treinador',
-    canActivate: [authGuard, coachGuard],
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'principal' },
     loadComponent: () =>
       import('./painel/ia/panel-analise-pos-torneio.component').then(
         (m) => m.PanelAnalisePosTorneioComponent,
       ),
+  },
+  {
+    path: 'sem-acesso',
+    title: 'Sem acesso — NexaGO Treinador',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/access/no-access.component').then((m) => m.NoAccessComponent),
   },
   { path: '**', redirectTo: '' },
 ];

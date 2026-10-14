@@ -2947,6 +2947,17 @@ service cloud.firestore {
       match /evaluations/{evalId} {
         allow read, write: if request.auth != null && request.auth.uid == coachUid;
       }
+      // Financeiro (fase 1, livro-caixa manual): planos, matrículas (id = uid do atleta) e parcelas.
+      // Só o treinador dono — o aluno não lê nada nesta fase.
+      match /plans/{planId} {
+        allow read, write: if request.auth != null && request.auth.uid == coachUid;
+      }
+      match /enrollments/{athleteUid} {
+        allow read, write: if request.auth != null && request.auth.uid == coachUid;
+      }
+      match /charges/{chargeId} {
+        allow read, write: if request.auth != null && request.auth.uid == coachUid;
+      }
     }
 
     // Convite de vínculo treinador→atleta. Leitura só de quem participa;

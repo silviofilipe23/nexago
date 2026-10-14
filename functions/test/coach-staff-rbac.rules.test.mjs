@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
-import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rules = fs.readFileSync(path.join(__dirname, '../../firestore.rules'), 'utf8');
@@ -153,4 +153,46 @@ test('campos congelados: trainings do auxiliar nao tem campo de identidade/dinhe
   // `trainings`. Se um campo sensivel (ex.: ownerUid, valor) entrar no doc, este teste
   // deve ser trocado por um assertFails por campo, como em staffKeepsTournamentMoneyFields.
   await assertSucceeds(setDoc(doc(as(AUX), 'coaches', COACH, 'trainings', 'x1'), { attendance: { a: 'presente' }, status: 'done' }));
+});
+
+test('lista: dono consulta os próprios convites pendentes (coachUid + status)', async () => {
+  const q = query(
+    collection(as(COACH), 'coachStaffInvites'),
+    where('coachUid', '==', COACH),
+    where('status', '==', 'pending'),
+  );
+  await assertSucceeds(getDocs(q));
+});
+
+test('lista: dono NÃO consulta convites de outro treinador', async () => {
+  const q = query(
+    collection(as(COACH), 'coachStaffInvites'),
+    where('coachUid', '==', OUTRO_COACH),
+    where('status', '==', 'pending'),
+  );
+  await assertFails(getDocs(q));
+});
+
+test('lista: sem filtro nenhum, nem o dono lista a coleção inteira de convites', async () => {
+  await assertFails(getDocs(collection(as(COACH), 'coachStaffInvites')));
+});
+
+test('lista: convidado consulta pelo próprio e-mail', async () => {
+  const db = as('novo-uid', { email: 'novo@x.com' });
+  await assertSucceeds(getDocs(query(collection(db, 'coachStaffInvites'), where('emailLower', '==', 'novo@x.com'))));
+});
+
+test('lista: convidado NÃO consulta por e-mail alheio', async () => {
+  const db = as('novo-uid', { email: 'novo@x.com' });
+  await assertFails(getDocs(query(collection(db, 'coachStaffInvites'), where('emailLower', '==', 'outro@x.com'))));
+});
+
+test('lista: dono lista a própria comissão; membro não lista a de outro', async () => {
+  await assertSucceeds(getDocs(collection(as(COACH), 'coaches', COACH, 'staff')));
+  await assertFails(getDocs(collection(as(AUX), 'coaches', COACH, 'staff')));
+});
+
+test('lista: o usuário lista os próprios vínculos em users/{uid}/coachStaff, não os de outro', async () => {
+  await assertSucceeds(getDocs(collection(as(AUX), 'users', AUX, 'coachStaff')));
+  await assertFails(getDocs(collection(as(PSICO), 'users', AUX, 'coachStaff')));
 });

@@ -3,6 +3,7 @@ import { getApps, initializeApp } from 'firebase/app';
 import {
   collection,
   doc,
+  getDocs,
   getFirestore,
   onSnapshot,
   query,
@@ -10,6 +11,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
   type CollectionReference,
   type Firestore,
 } from 'firebase/firestore';
@@ -17,13 +19,30 @@ import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { localIsoDate } from '../treinos/training-rules';
 import { readCharge, readEnrollment, readPlan, type Charge, type Enrollment, type Plan } from './finance-model';
-import { currentMonth, monthRange, type PlanCycle } from './finance-rules';
+import {
+  currentMonth,
+  generateCharges,
+  monthRange,
+  nextPeriodStart,
+  replacementStart,
+  type GeneratedCharge,
+  type PlanCycle,
+} from './finance-rules';
 
 export interface PlanInput {
   name: string;
   amountCents: number;
   cycle: PlanCycle;
   description: string;
+}
+
+export interface EnrollInput {
+  athleteUid: string;
+  athleteName: string;
+  plan: Plan;
+  startDate: string;
+  dueDay: number;
+  count: number;
 }
 
 function createFirestore(): Firestore {
@@ -189,5 +208,122 @@ export class FinanceService {
 
   async setPlanActive(id: string, active: boolean): Promise<void> {
     await updateDoc(doc(this.col('plans'), id), { active, updatedAt: serverTimestamp() });
+  }
+
+  /** Todas as parcelas de um aluno (uma leitura pontual; índice de campo único é automático). */
+  private async loadAthleteCharges(athleteUid: string): Promise<Charge[]> {
+    const snap = await getDocs(query(this.col('charges'), where('athleteUid', '==', athleteUid)));
+    return snap.docs.map((d) => readCharge(d.id, d.data()));
+  }
+
+  private chargeData(enrollment: Pick<Enrollment, 'athleteUid' | 'athleteName'>, plan: Plan, g: GeneratedCharge) {
+    return {
+      athleteUid: enrollment.athleteUid,
+      athleteName: enrollment.athleteName,
+      planId: plan.id,
+      planName: plan.name,
+      periodKey: g.periodKey,
+      amountCents: g.amountCents,
+      dueDate: g.dueDate,
+      status: 'pendente',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+  }
+
+  private activePeriods(charges: Charge[]): string[] {
+    return charges.filter((c) => c.status !== 'cancelado').map((c) => c.periodKey);
+  }
+
+  /** Matricula (ou re-matricula) o aluno e gera as parcelas, tudo num lote. Devolve quantas criou. */
+  async enroll(input: EnrollInput): Promise<number> {
+    const existing = await this.loadAthleteCharges(input.athleteUid);
+    const generated = generateCharges({
+      cycle: input.plan.cycle,
+      amountCents: input.plan.amountCents,
+      startDate: input.startDate,
+      dueDay: input.dueDay,
+      count: input.count,
+      existingPeriods: this.activePeriods(existing),
+    });
+    const enrollment = { athleteUid: input.athleteUid, athleteName: input.athleteName };
+    const batch = writeBatch(this.firestore);
+    // Sem merge: re-matricular regrava o doc inteiro como `ativa` (some o `endedAt`).
+    batch.set(doc(this.col('enrollments'), input.athleteUid), {
+      ...enrollment,
+      planId: input.plan.id,
+      startDate: input.startDate,
+      dueDay: input.dueDay,
+      status: 'ativa',
+      createdAt: serverTimestamp(),
+    });
+    for (const g of generated) {
+      batch.set(doc(this.col('charges')), this.chargeData(enrollment, input.plan, g));
+    }
+    await batch.commit();
+    return generated.length;
+  }
+
+  /** Gera mais parcelas a partir do período seguinte ao último que o aluno já tem. */
+  async generateMore(enrollment: Enrollment, plan: Plan, count: number): Promise<number> {
+    const existing = await this.loadAthleteCharges(enrollment.athleteUid);
+    const lastPeriod = existing.map((c) => c.periodKey).sort().pop();
+    const generated = generateCharges({
+      cycle: plan.cycle,
+      amountCents: plan.amountCents,
+      startDate: lastPeriod ? nextPeriodStart(lastPeriod, plan.cycle) : enrollment.startDate,
+      dueDay: enrollment.dueDay,
+      count,
+      existingPeriods: this.activePeriods(existing),
+    });
+    const batch = writeBatch(this.firestore);
+    for (const g of generated) {
+      batch.set(doc(this.col('charges')), this.chargeData(enrollment, plan, g));
+    }
+    await batch.commit();
+    return generated.length;
+  }
+
+  /**
+   * Troca o plano: cancela as pendentes com vencimento de hoje em diante e gera uma série nova do plano novo,
+   * recomeçando no mesmo período da primeira cancelada. Pagas e vencidas não são tocadas.
+   */
+  async changePlan(enrollment: Enrollment, newPlan: Plan, count: number, today: string): Promise<number> {
+    const existing = await this.loadAthleteCharges(enrollment.athleteUid);
+    const toCancel = existing.filter((c) => c.status === 'pendente' && c.dueDate >= today);
+    const cancelledIds = new Set(toCancel.map((c) => c.id));
+    const kept = existing.filter((c) => !cancelledIds.has(c.id));
+    const generated = generateCharges({
+      cycle: newPlan.cycle,
+      amountCents: newPlan.amountCents,
+      startDate: replacementStart(toCancel.map((c) => c.periodKey), today),
+      dueDay: enrollment.dueDay,
+      count,
+      existingPeriods: this.activePeriods(kept),
+    });
+    const batch = writeBatch(this.firestore);
+    batch.update(doc(this.col('enrollments'), enrollment.athleteUid), { planId: newPlan.id });
+    for (const c of toCancel) {
+      batch.update(doc(this.col('charges'), c.id), { status: 'cancelado', updatedAt: serverTimestamp() });
+    }
+    for (const g of generated) {
+      batch.set(doc(this.col('charges')), this.chargeData(enrollment, newPlan, g));
+    }
+    await batch.commit();
+    return generated.length;
+  }
+
+  /** Encerra a matrícula e cancela as pendentes com vencimento de hoje em diante; o resto é histórico. */
+  async endEnrollment(enrollment: Enrollment, today: string): Promise<void> {
+    const existing = await this.loadAthleteCharges(enrollment.athleteUid);
+    const batch = writeBatch(this.firestore);
+    batch.update(doc(this.col('enrollments'), enrollment.athleteUid), {
+      status: 'encerrada',
+      endedAt: serverTimestamp(),
+    });
+    for (const c of existing.filter((x) => x.status === 'pendente' && x.dueDate >= today)) {
+      batch.update(doc(this.col('charges'), c.id), { status: 'cancelado', updatedAt: serverTimestamp() });
+    }
+    await batch.commit();
   }
 }

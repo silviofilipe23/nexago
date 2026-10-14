@@ -1,4 +1,6 @@
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { Injectable, Injector, computed, effect, inject, signal } from '@angular/core';
+import { toObservable } from '@angular/core/rxjs-interop';
+import { waitUntil } from './wait-until';
 import { getApps, initializeApp } from 'firebase/app';
 import { collection, doc, getFirestore, onSnapshot, type Firestore, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
@@ -44,6 +46,7 @@ function readMembership(d: QueryDocumentSnapshot): CoachMembership {
 export class CoachContextService {
   private readonly auth = inject(AuthService);
   private readonly firestore = createFirestore();
+  private readonly injector = inject(Injector);
 
   private readonly ownExists = signal(false);
   private readonly memberships = signal<CoachMembership[]>([]);
@@ -105,6 +108,16 @@ export class CoachContextService {
   can(area: PanelArea, mode: AccessMode = 'read'): boolean {
     const role = this.role();
     return role !== null && roleCanAccess(role, area, mode);
+  }
+
+  /** Espera o painel de `coachUid` aparecer em `contexts()` (o espelho do membro chega por trigger,
+   *  ~1 s depois de aceitar o convite). `false` se não chegar no prazo. Não altera `select()`. */
+  whenHasContext(coachUid: string, timeoutMs: number): Promise<boolean> {
+    return waitUntil(
+      toObservable(this.contexts, { injector: this.injector }),
+      (list) => list.some((c) => c.coachUid === coachUid),
+      timeoutMs,
+    );
   }
 
   select(coachUid: string): void {

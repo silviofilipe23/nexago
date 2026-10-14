@@ -13,6 +13,7 @@ import { FUNCTIONS_REGION } from '@nexago/firebase-config';
 type ScreenState = 'loading' | 'not-found' | 'ready' | 'not-pending' | 'expired' | 'wrong-account';
 
 interface InviteView {
+  coachUid: string;
   coachName: string;
   role: CoachStaffRole;
 }
@@ -37,6 +38,15 @@ function createFirestore(): Firestore {
           }
           @case ('not-found') {
             <p class="muted">Convite não encontrado.</p>
+            <p class="muted">
+              Você está conectado como <strong>{{ auth.user()?.email }}</strong>. Se o convite foi
+              enviado para outro e-mail, saia e entre com ele.
+            </p>
+            <div class="actions">
+              <button type="button" class="co-btn-primary" [disabled]="busy()" (click)="switchAccount()">
+                Sair e trocar de conta
+              </button>
+            </div>
           }
           @case ('not-pending') {
             <p class="muted">Este convite já foi usado ou foi cancelado.</p>
@@ -173,7 +183,7 @@ export class ConviteEquipeComponent implements OnInit {
         this.auth.user()?.email ?? null,
         Date.now(),
       );
-      this.invite.set({ coachName: (data['coachName'] as string | undefined) ?? 'Treinador', role });
+      this.invite.set({ coachUid: String(data['coachUid'] ?? ''), coachName: (data['coachName'] as string | undefined) ?? 'Treinador', role });
       this.state.set(view);
     } catch {
       // As rules só deixam o e-mail convidado (e a comissão) ler — o resto vira "não encontrado".
@@ -190,15 +200,27 @@ export class ConviteEquipeComponent implements OnInit {
         'acceptCoachStaffInvite',
       );
       const { data } = await fn({ inviteId: this.inviteId });
-      // A claim `coach` acabou de ser concedida: sem renovar o token o coachGuard barraria o novo membro.
-      await this.auth.refreshClaims();
-      this.context.select(data.coachUid);
-      await this.router.navigateByUrl('/painel');
+      await this.enterPanel(data.coachUid);
     } catch (err) {
+      if ((err as { code?: string })?.code === 'functions/already-exists') {
+        // Já é membro (resposta perdida / segundo aceite): trata como sucesso.
+        await this.enterPanel(this.invite()?.coachUid ?? '');
+        return;
+      }
       this.error.set(err instanceof Error ? err.message : 'Não foi possível aceitar o convite.');
     } finally {
       this.busy.set(false);
     }
+  }
+
+  private async enterPanel(coachUid: string): Promise<void> {
+    // A claim `coach` acabou de ser concedida: sem renovar o token o coachGuard barraria o novo membro.
+    await this.auth.refreshClaims();
+    // O espelho users/{uid}/coachStaff chega por trigger ~1 s depois; select() ignora uid ausente.
+    if (coachUid && (await this.context.whenHasContext(coachUid, 10_000))) {
+      this.context.select(coachUid);
+    }
+    await this.router.navigateByUrl('/painel');
   }
 
   protected async switchAccount(): Promise<void> {

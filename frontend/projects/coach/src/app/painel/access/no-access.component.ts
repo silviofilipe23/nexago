@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
+import { CoachContextService } from './coach-context.service';
 
 /** Conta autenticada sem nenhum painel de treinador (nem próprio, nem como membro de comissão). */
 @Component({
@@ -67,6 +68,15 @@ import { AuthService } from '../../auth/auth.service';
 export class NoAccessComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly ctx = inject(CoachContextService);
+
+  /** Rede de segurança: se o espelho de um convite aceito chegar depois, sai daqui sozinho. O
+   *  areaGuard só manda para cá com contexts() vazio, então não há laço. */
+  private readonly rescue = effect(() => {
+    if (this.ctx.ready() && this.ctx.contexts().length > 0) {
+      void this.router.navigateByUrl('/painel');
+    }
+  });
 
   protected async signOut(): Promise<void> {
     await this.auth.signOutUser();

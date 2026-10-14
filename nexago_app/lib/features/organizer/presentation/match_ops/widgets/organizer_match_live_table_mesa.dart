@@ -6,6 +6,12 @@ import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
+import '../../../../athlete/presentation/public_profile/widgets/profile_photo_viewer.dart';
+import '../../../../athlete/presentation/widgets/athlete_profile_avatar.dart';
+import '../../../../tournaments/domain/tournament_match_kit_color.dart';
+import '../mesa_sun/mesa_sun.dart';
+import 'organizer_match_kit_color_widgets.dart';
+
 /// Uma dupla na mesa "bloco de saque" (metade da tela inteira tocável).
 class LiveTableMesaTeam {
   const LiveTableMesaTeam({
@@ -15,7 +21,9 @@ class LiveTableMesaTeam {
     required this.onTap,
     required this.onMinus,
     this.servingPlayerName,
+    this.servingPlayerPhotoUrl,
     this.onTapServingPlayer,
+    this.kit,
   });
 
   final String label;
@@ -28,21 +36,45 @@ class LiveTableMesaTeam {
 
   /// Atleta no saque — só vale quando [isServing].
   final String? servingPlayerName;
+
+  /// Foto do atleta no saque — sem ela o pill mostra a inicial.
+  final String? servingPlayerPhotoUrl;
   final VoidCallback? onTapServingPlayer;
+
+  /// Cor da camisa da dupla: faixa de 8px no topo, quadradinho no nome e o rótulo escrito.
+  final KitColor? kit;
 }
 
 /// O que a rede (faixa entre as metades) mostra. Prioridade: fim do set, set
 /// point, troca no próximo ponto, contador de troca.
 class LiveTableMesaNet {
   const LiveTableMesaNet({
-    this.finishText,
-    this.setPointText,
+    this.finishTeam,
+    this.setPointTeam,
+    this.finished = false,
     this.interval,
     this.total = 0,
+    this.finishKit,
+    this.setPointKit,
   });
 
-  final String? finishText;
-  final String? setPointText;
+  /// Partida encerrada ([finishTeam] = vencedor, se houver).
+  final bool finished;
+  final String? finishTeam;
+
+  /// Dupla que está em set point.
+  final String? setPointTeam;
+
+  /// Cor da camisa de quem aparece no aviso (quadradinho antes do nome).
+  final KitColor? finishKit;
+  final KitColor? setPointKit;
+
+  String? get finishText => !finished
+      ? null
+      : 'FIM DO JOGO${finishTeam == null ? '' : ' · ${finishTeam!.toUpperCase()}'}';
+  String? get setPointText => setPointTeam == null
+      ? null
+      : 'SET POINT · ${setPointTeam!.toUpperCase()}';
 
   /// Pontos somados entre trocas de quadra; `null` = a regra não existe no esporte.
   final int? interval;
@@ -67,8 +99,12 @@ class LiveTableMesaSwitchPending {
     required this.bottomLabel,
     required this.onConfirm,
     required this.onUndo,
+    this.topKit,
+    this.bottomKit,
   });
 
+  final KitColor? topKit;
+  final KitColor? bottomKit;
   final int total;
   final int number;
   final String topLabel;
@@ -161,28 +197,22 @@ class _Portrait extends StatelessWidget {
         children: [
           _PortraitHeader(screen: screen),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: _TeamHalf(
-                team: screen.top,
-                sideLabel: 'LADO A',
-                enabled: pointsEnabled,
-                radius: 26,
-                fontSize: 150,
-              ),
+            child: _TeamHalf(
+              team: screen.top,
+              sideLabel: 'LADO A',
+              enabled: pointsEnabled,
+              radius: 0,
+              fontSize: 150,
             ),
           ),
           _NetRow(net: screen.net),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: _TeamHalf(
-                team: screen.bottom,
-                sideLabel: 'LADO B',
-                enabled: pointsEnabled,
-                radius: 26,
-                fontSize: 150,
-              ),
+            child: _TeamHalf(
+              team: screen.bottom,
+              sideLabel: 'LADO B',
+              enabled: pointsEnabled,
+              radius: 0,
+              fontSize: 150,
             ),
           ),
           Padding(
@@ -230,7 +260,9 @@ class _PortraitHeader extends StatelessWidget {
                         style: AppTypography.mono(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.live,
+                          color: MesaSun.isOn(context)
+                              ? MesaSun.live
+                              : AppColors.live,
                           letterSpacing: 0.8,
                         ),
                       ),
@@ -289,11 +321,17 @@ class _SquareIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    final sun = MesaSun.isOn(context);
     return Tooltip(
       message: tooltip ?? '',
       child: Material(
-        color: colors.surfaceRaised,
-        borderRadius: BorderRadius.circular(14),
+        color: sun ? MesaSun.white : colors.surfaceRaised,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: sun
+              ? const BorderSide(color: MesaSun.ink, width: 2)
+              : BorderSide.none,
+        ),
         child: InkWell(
           onTap: onPressed,
           borderRadius: BorderRadius.circular(14),
@@ -316,8 +354,7 @@ class _TeamHalf extends StatelessWidget {
     required this.enabled,
     required this.radius,
     required this.fontSize,
-    this.showSideLabel = true,
-    this.minusAtTop = false,
+    this.landscape = false,
     this.minusOnLeft = false,
   });
 
@@ -326,24 +363,26 @@ class _TeamHalf extends StatelessWidget {
   final bool enabled;
   final double radius;
   final double fontSize;
-  final bool showSideLabel;
 
-  /// Landscape: o "−" sobe pro canto superior, do lado de fora.
-  final bool minusAtTop;
+  /// Paisagem: tela inteira como área de toque — nome e rodapé centralizados, abaixo do
+  /// header flutuante, e o "−" no canto superior do lado de FORA ([minusOnLeft]).
+  final bool landscape;
   final bool minusOnLeft;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final serving = team.isServing;
-    final fg = serving ? _nxInk : colors.onSurface;
-    final muted =
-        serving ? _nxInk.withValues(alpha: 0.6) : colors.onSurfaceMuted;
+    final sun = MesaSun.isOn(context);
+    final fg = serving || sun ? (sun ? MesaSun.ink : _nxInk) : colors.onSurface;
+    final muted = sun
+        ? MesaSun.ink
+        : (serving ? _nxInk.withValues(alpha: 0.6) : colors.onSurfaceMuted);
     final minus = Positioned(
       right: minusOnLeft ? null : 14,
       left: minusOnLeft ? 14 : null,
-      top: minusAtTop ? 14 : null,
-      bottom: minusAtTop ? null : 14,
+      top: landscape ? 56 : null,
+      bottom: landscape ? null : 14,
       child: _MinusButton(
         onPressed: team.onMinus,
         enabled: enabled,
@@ -353,7 +392,8 @@ class _TeamHalf extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label: 'Ponto para ${team.label}. Placar ${team.score}. '
+      label:
+          'Ponto para ${team.label}. Placar ${team.score}. '
           '${serving ? 'Sacando' : 'Recebendo'}',
       excludeSemantics: true,
       onTap: enabled ? team.onTap : null,
@@ -361,10 +401,13 @@ class _TeamHalf extends StatelessWidget {
         color: serving ? AppColors.brand : colors.surfaceCard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radius),
-          side: serving
-              ? BorderSide.none
-              : BorderSide(
-                  color: colors.onSurfaceMuted.withValues(alpha: 0.18)),
+          side: sun
+              ? const BorderSide(color: MesaSun.ink, width: 3)
+              : (serving
+                    ? BorderSide.none
+                    : BorderSide(
+                        color: colors.onSurfaceMuted.withValues(alpha: 0.18),
+                      )),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -377,7 +420,9 @@ class _TeamHalf extends StatelessWidget {
           child: Stack(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                padding: landscape
+                    ? const EdgeInsets.fromLTRB(110, 70, 110, 14)
+                    : const EdgeInsets.fromLTRB(20, 16, 20, 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -385,9 +430,18 @@ class _TeamHalf extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: Text(
-                            team.label,
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                if (team.kit != null)
+                                  kitSquareSpan(team.kit!, 16),
+                                TextSpan(text: team.label),
+                              ],
+                            ),
                             maxLines: 2,
+                            textAlign: landscape
+                                ? TextAlign.center
+                                : TextAlign.start,
                             overflow: TextOverflow.ellipsis,
                             style: AppTypography.soraRegular(
                               fontSize: 16,
@@ -397,11 +451,13 @@ class _TeamHalf extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (showSideLabel)
+                        if (!landscape)
                           Padding(
                             padding: const EdgeInsets.only(left: 8, top: 3),
                             child: Text(
-                              sideLabel,
+                              team.kit == null
+                                  ? sideLabel
+                                  : '$sideLabel · CAMISA ${team.kit!.label.toUpperCase()}',
                               style: AppTypography.mono(
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.w700,
@@ -412,6 +468,22 @@ class _TeamHalf extends StatelessWidget {
                           ),
                       ],
                     ),
+                    // Paisagem não tem o rótulo do lado: o nome da cor fica por escrito aqui
+                    // (a cor nunca pode ser só visual — daltonismo).
+                    if (landscape && team.kit != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          'CAMISA ${team.kit!.label.toUpperCase()}',
+                          textAlign: TextAlign.center,
+                          style: AppTypography.mono(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: muted,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
                     Expanded(
                       child: Center(
                         child: FittedBox(
@@ -433,17 +505,22 @@ class _TeamHalf extends StatelessWidget {
                     SizedBox(
                       height: 52,
                       child: Align(
-                        alignment: Alignment.centerLeft,
+                        alignment: landscape
+                            ? Alignment.center
+                            : Alignment.centerLeft,
                         child: serving
                             ? _ServePill(
                                 name: team.servingPlayerName,
+                                photoUrl: team.servingPlayerPhotoUrl,
                                 onTap: enabled ? team.onTapServingPlayer : null,
                               )
                             : Text(
                                 'recebendo · toque = +1',
                                 style: AppTypography.mono(
                                   fontSize: 12,
-                                  fontWeight: FontWeight.w500,
+                                  fontWeight: sun
+                                      ? FontWeight.w600
+                                      : FontWeight.w500,
                                   color: muted,
                                 ),
                               ),
@@ -452,6 +529,15 @@ class _TeamHalf extends StatelessWidget {
                   ],
                 ),
               ),
+              // Faixa da camisa por cima do laranja do saque: o saque segue sendo o destaque,
+              // a faixa só identifica a dupla.
+              if (team.kit != null)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: KitStrip(color: team.kit!),
+                ),
               minus,
             ],
           ),
@@ -479,8 +565,10 @@ class _ScorePopState extends State<_ScorePop>
     duration: const Duration(milliseconds: 280),
     value: 1,
   );
-  late final Animation<double> _scale = Tween<double>(begin: 1.12, end: 1)
-      .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+  late final Animation<double> _scale = Tween<double>(
+    begin: 1.12,
+    end: 1,
+  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
 
   @override
   void didUpdateWidget(covariant _ScorePop oldWidget) {
@@ -521,18 +609,25 @@ class _MinusButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final fg = serving ? _nxInk : colors.onSurface;
+    final sun = MesaSun.isOn(context);
+    final fg = sun ? MesaSun.ink : (serving ? _nxInk : colors.onSurface);
     return Semantics(
       button: true,
       label: 'Remover último ponto desta dupla',
       excludeSemantics: true,
       child: Material(
-        color: serving ? _nxInk.withValues(alpha: 0.18) : colors.surfaceRaised,
+        color: sun
+            ? MesaSun.white
+            : (serving ? _nxInk.withValues(alpha: 0.18) : colors.surfaceRaised),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: serving
-              ? BorderSide.none
-              : BorderSide(color: colors.onSurfaceMuted.withValues(alpha: 0.2)),
+          side: sun
+              ? const BorderSide(color: MesaSun.ink, width: 2)
+              : (serving
+                    ? BorderSide.none
+                    : BorderSide(
+                        color: colors.onSurfaceMuted.withValues(alpha: 0.2),
+                      )),
         ),
         child: InkWell(
           onTap: enabled ? onPressed : null,
@@ -548,48 +643,63 @@ class _MinusButton extends StatelessWidget {
   }
 }
 
+/// Avatar do pill de saque. Com foto, o toque amplia (e não troca o sacador); sem foto o
+/// toque cai no pill, como antes.
+class _ServePillAvatar extends StatelessWidget {
+  const _ServePillAvatar({required this.initial, required this.photoUrl});
+
+  static const double size = 32;
+
+  final String initial;
+  final String? photoUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = photoUrl?.trim() ?? '';
+    final avatar = AthleteProfileAvatar(
+      size: size,
+      initials: initial,
+      imageUrl: url.isEmpty ? null : url,
+    );
+    if (url.isEmpty) return avatar;
+    // O meio da tela já é um Semantics que esconde os filhos, então não há rótulo próprio aqui.
+    return GestureDetector(
+      key: const ValueKey('serve-pill-avatar-zoom'),
+      behavior: HitTestBehavior.opaque,
+      onTap: () => openProfilePhotoViewer(context, photoUrls: [url]),
+      child: avatar,
+    );
+  }
+}
+
 class _ServePill extends StatelessWidget {
-  const _ServePill({required this.name, required this.onTap});
+  const _ServePill({required this.name, required this.onTap, this.photoUrl});
 
   final String? name;
+  final String? photoUrl;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final trimmed = name?.trim() ?? '';
-    final initial =
-        trimmed.isEmpty ? '?' : trimmed.characters.first.toUpperCase();
+    final initial = trimmed.isEmpty
+        ? '?'
+        : trimmed.characters.first.toUpperCase();
     final text = trimmed.isEmpty
         ? (onTap != null ? 'Saque · escolher atleta' : 'Saque')
         : 'Saque · $trimmed';
     return Material(
-      color: _nxInk,
+      color: MesaSun.isOn(context) ? MesaSun.ink : _nxInk,
       shape: const StadiumBorder(),
       child: InkWell(
         onTap: onTap,
         customBorder: const StadiumBorder(),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 18, 8),
+          padding: const EdgeInsets.fromLTRB(6, 6, 18, 6),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 28,
-                height: 28,
-                alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                  color: AppColors.brand,
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  initial,
-                  style: AppTypography.soraRegular(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: _nxInk,
-                  ),
-                ),
-              ),
+              _ServePillAvatar(initial: initial, photoUrl: photoUrl),
               const SizedBox(width: 10),
               Flexible(
                 child: Text(
@@ -597,9 +707,11 @@ class _ServePill extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.soraRegular(
-                    fontSize: 14,
+                    fontSize: MesaSun.isOn(context) ? 15 : 14,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.brand,
+                    color: MesaSun.isOn(context)
+                        ? MesaSun.white
+                        : AppColors.brand,
                   ),
                 ),
               ),
@@ -626,9 +738,15 @@ class _NetRow extends StatelessWidget {
         child: Row(
           children: [
             const Expanded(child: _Dashes()),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: _NetContent(net: net),
+            Flexible(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                // O aviso com nome de dupla + quadradinho pode passar da largura: encolhe, não estoura.
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: _NetContent(net: net),
+                ),
+              ),
             ),
             const Expanded(child: _Dashes()),
           ],
@@ -645,22 +763,64 @@ class _NetContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sun = MesaSun.isOn(context);
+    // Sol: tudo preto e mais pesado — o texto da rede não depende de cor pra ser lido.
     TextStyle style(Color color) => AppTypography.mono(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: color,
-          letterSpacing: 1,
-        );
+      fontSize: 13,
+      fontWeight: sun ? FontWeight.w800 : FontWeight.w700,
+      color: sun ? MesaSun.ink : color,
+      letterSpacing: 1,
+    );
+    // Sol: o estado vira chip sólido com borda preta (laranja, verde, amarelo).
+    Widget chip(String text, Color fill, Color fallbackText, [KitColor? kit]) {
+      final text0 = Text(text, style: style(fallbackText));
+      // O nome sempre vem com o quadradinho da camisa.
+      final label = kit == null
+          ? text0
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                KitSquare(color: kit, fontSize: 13),
+                const SizedBox(width: 6),
+                text0,
+              ],
+            );
+      if (!sun) return label;
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: fill,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: MesaSun.ink, width: 2),
+        ),
+        child: label,
+      );
+    }
+
     if (net.finishText != null) {
-      return Text(net.finishText!, style: style(AppColors.win));
+      return chip(
+        net.finishText!,
+        MesaSun.winFill,
+        AppColors.win,
+        net.finishKit,
+      );
     }
     if (net.setPointText != null) {
-      return Text(net.setPointText!, style: style(AppColors.brandHover));
+      return chip(
+        net.setPointText!,
+        MesaSun.orange,
+        AppColors.brandHover,
+        net.setPointKit,
+      );
     }
     final interval = net.interval;
     if (interval == null) return const SizedBox.shrink();
     if (net.switchNext) {
-      return Text('⇄ TROCA NO PRÓXIMO PONTO', style: style(AppColors.pending));
+      return chip(
+        '⇄ TROCA NO PRÓXIMO PONTO',
+        MesaSun.pendingFill,
+        AppColors.pending,
+      );
     }
     final filled = net.total % interval;
     return Row(
@@ -668,16 +828,18 @@ class _NetContent extends StatelessWidget {
       children: [
         Text(
           '⇄ TROCA EM ${net.untilSwitch} ·',
-          style: style(context.themeColors.onSurfaceMuted),
+          style: AppTypography.mono(fontSize: 35),
         ),
         const SizedBox(width: 8),
         for (var i = 0; i < interval; i++)
           Container(
             width: 18,
-            height: 6,
+            height: sun ? 8 : 6,
             margin: EdgeInsets.only(left: i == 0 ? 0 : 3),
             decoration: BoxDecoration(
-              color: i < filled ? AppColors.pending : _nxMarkEmpty,
+              color: sun
+                  ? (i < filled ? MesaSun.ink : MesaSun.markEmpty)
+                  : (i < filled ? AppColors.pending : _nxMarkEmpty),
               borderRadius: BorderRadius.circular(3),
             ),
           ),
@@ -694,25 +856,30 @@ class _Dashes extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      painter: _DashPainter(vertical: vertical),
+      painter: _DashPainter(vertical: vertical, sun: MesaSun.isOn(context)),
       child: const SizedBox.expand(),
     );
   }
 }
 
 class _DashPainter extends CustomPainter {
-  _DashPainter({required this.vertical});
+  _DashPainter({required this.vertical, this.sun = false});
 
   final bool vertical;
+
+  /// Sol: traço de 3px preto, 8 de traço e 4 de espaço.
+  final bool sun;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = _nxLineStrong
-      ..strokeWidth = 1.5;
+      ..color = sun ? MesaSun.ink : _nxLineStrong
+      ..strokeWidth = sun ? 3 : 1.5;
     final length = vertical ? size.height : size.width;
-    for (double d = 0; d < length; d += 10) {
-      final end = (d + 6).clamp(0, length).toDouble();
+    final dash = sun ? 8.0 : 6.0;
+    final step = sun ? 12.0 : 10.0;
+    for (double d = 0; d < length; d += step) {
+      final end = (d + dash).clamp(0, length).toDouble();
       if (vertical) {
         canvas.drawLine(
           Offset(size.width / 2, d),
@@ -730,7 +897,8 @@ class _DashPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _DashPainter old) => old.vertical != vertical;
+  bool shouldRepaint(covariant _DashPainter old) =>
+      old.vertical != vertical || old.sun != sun;
 }
 
 class _ActionBar extends StatelessWidget {
@@ -784,8 +952,10 @@ class _BarButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    final sun = MesaSun.isOn(context);
+    // Sol: desabilitado fica tracejado/claro, mas nunca abaixo de 66% de opacidade.
     final color = onPressed == null
-        ? colors.onSurface.withValues(alpha: 0.4)
+        ? colors.onSurface.withValues(alpha: sun ? 0.66 : 0.4)
         : colors.onSurface;
     return Semantics(
       button: true,
@@ -795,8 +965,11 @@ class _BarButton extends StatelessWidget {
         color: colors.surfaceCard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side:
-              BorderSide(color: colors.onSurfaceMuted.withValues(alpha: 0.18)),
+          side: sun
+              ? const BorderSide(color: MesaSun.ink, width: 2)
+              : BorderSide(
+                  color: colors.onSurfaceMuted.withValues(alpha: 0.18),
+                ),
         ),
         child: InkWell(
           onTap: onPressed,
@@ -860,6 +1033,7 @@ class _Landscape extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    final sun = MesaSun.isOn(context);
     final net = screen.net;
     final court = screen.courtLabel.trim();
     final headerText = [
@@ -867,7 +1041,13 @@ class _Landscape extends StatelessWidget {
       if (screen.setLabel != null) screen.setLabel!,
       screen.elapsedLabel,
     ].join(' · ');
-    final status = net.finishText ?? net.setPointText;
+    final finished = net.finished;
+    final statusTeam = finished ? net.finishTeam : net.setPointTeam;
+    final status = finished
+        ? 'Fim do jogo${statusTeam == null ? '' : ' · $statusTeam'}'
+        : (net.setPointTeam == null ? null : 'Set point · ${net.setPointTeam}');
+    final statusColor = finished ? AppColors.win : AppColors.brandHover;
+    final statusFill = finished ? MesaSun.winFill : MesaSun.orange;
     final until = net.untilSwitch;
 
     return Stack(
@@ -881,57 +1061,86 @@ class _Landscape extends StatelessWidget {
                 enabled: pointsEnabled,
                 radius: 0,
                 fontSize: 190,
-                showSideLabel: false,
-                minusAtTop: true,
+                landscape: true,
                 minusOnLeft: true,
               ),
             ),
-            SizedBox(
+            // Rede: coluna escura, linha tracejada vertical e os controles de mesa.
+            Container(
               width: 64,
+              color: colors.canvas,
               child: SafeArea(
                 left: false,
                 right: false,
-                child: Column(
+                child: Stack(
                   children: [
-                    const SizedBox(height: 12),
-                    _SquareIconButton(
-                      icon: Icons.undo_rounded,
-                      tooltip: 'Desfazer',
-                      size: 40,
-                      onPressed: pointsEnabled ? screen.onUndo : () {},
-                    ),
-                    const Expanded(child: _Dashes(vertical: true)),
-                    if (until != null)
-                      Container(
-                        width: 48,
-                        height: 48,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: net.switchNext
-                                ? AppColors.pending
-                                : _nxLineStrong,
-                            width: 2,
-                          ),
+                    const Positioned.fill(child: _Dashes(vertical: true)),
+                    Column(
+                      children: [
+                        const SizedBox(height: 40),
+                        _SquareIconButton(
+                          icon: Icons.undo_rounded,
+                          tooltip: 'Desfazer',
+                          size: 40,
+                          onPressed: pointsEnabled ? screen.onUndo : () {},
                         ),
-                        child: Text(
-                          '$until',
-                          style: AppTypography.mono(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: colors.onSurface,
+                        const Spacer(),
+                        if (until != null)
+                          Container(
+                            width: 48,
+                            height: 48,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: sun
+                                  ? (net.switchNext
+                                        ? MesaSun.pendingFill
+                                        : MesaSun.white)
+                                  : colors.canvas,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: sun
+                                    ? MesaSun.ink
+                                    : (net.switchNext
+                                          ? AppColors.pending
+                                          : _nxLineStrong),
+                                width: sun ? 3 : 2,
+                              ),
+                            ),
+                            child: Text(
+                              '$until',
+                              style: AppTypography.mono(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: colors.onSurface,
+                              ),
+                            ),
                           ),
+                        if (until != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            '⇄ TROCA',
+                            style: AppTypography.mono(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: sun
+                                  ? MesaSun.ink
+                                  : (net.switchNext
+                                        ? AppColors.pending
+                                        : colors.onSurfaceMuted),
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ],
+                        const Spacer(),
+                        _SquareIconButton(
+                          icon: Icons.more_horiz_rounded,
+                          tooltip: 'Mais opções',
+                          size: 40,
+                          onPressed: screen.onMore,
                         ),
-                      ),
-                    const Expanded(child: _Dashes(vertical: true)),
-                    _SquareIconButton(
-                      icon: Icons.more_horiz_rounded,
-                      tooltip: 'Mais opções',
-                      size: 40,
-                      onPressed: screen.onMore,
+                        const SizedBox(height: 12),
+                      ],
                     ),
-                    const SizedBox(height: 12),
                   ],
                 ),
               ),
@@ -943,59 +1152,84 @@ class _Landscape extends StatelessWidget {
                 enabled: pointsEnabled,
                 radius: 0,
                 fontSize: 190,
-                showSideLabel: false,
-                minusAtTop: true,
+                landscape: true,
               ),
             ),
           ],
         ),
+        // Header flutuante: voltar + relógio à esquerda, set point à direita.
         Positioned(
-          top: 8,
+          top: 12,
           left: 0,
           right: 0,
           child: SafeArea(
             bottom: false,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 76),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
                 children: [
                   _SquareIconButton(
                     icon: Icons.chevron_left_rounded,
                     tooltip: 'Voltar',
-                    size: 40,
+                    size: 44,
                     onPressed: screen.onBack,
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    headerText,
-                    style: AppTypography.mono(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.live,
-                      letterSpacing: 0.8,
+                  Container(
+                    height: 32,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: sun ? MesaSun.white : _nxInk,
+                      borderRadius: BorderRadius.circular(16),
+                      border: sun
+                          ? Border.all(color: MesaSun.ink, width: 2)
+                          : Border.all(
+                              color: AppColors.live.withValues(alpha: 0.5),
+                            ),
+                    ),
+                    child: Text(
+                      '● $headerText',
+                      style: AppTypography.mono(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: sun ? MesaSun.live : AppColors.live,
+                        letterSpacing: 0.8,
+                      ),
                     ),
                   ),
                   const Spacer(),
                   if (status != null)
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
+                      height: 32,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: _nxInk.withValues(alpha: 0.7),
-                        borderRadius: BorderRadius.circular(20),
+                        color: sun ? statusFill : _nxInk,
+                        borderRadius: BorderRadius.circular(16),
+                        border: sun
+                            ? Border.all(color: MesaSun.ink, width: 2)
+                            : Border.all(
+                                color: statusColor.withValues(alpha: 0.55),
+                              ),
                       ),
-                      child: Text(
-                        status,
-                        style: AppTypography.mono(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: net.finishText != null
-                              ? AppColors.win
-                              : AppColors.brandHover,
-                          letterSpacing: 0.8,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if ((finished ? net.finishKit : net.setPointKit)
+                              case final kit?) ...[
+                            KitSquare(color: kit, fontSize: 14),
+                            const SizedBox(width: 6),
+                          ],
+                          Text(
+                            status,
+                            style: AppTypography.soraRegular(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: sun ? MesaSun.ink : statusColor,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                 ],
@@ -1018,125 +1252,136 @@ class _SwitchDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    return BackdropFilter(
-      filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-      child: ColoredBox(
-        color: const Color(0xD1050505),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: landscape ? 520 : 400),
-                child: Semantics(
-                  liveRegion: true,
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: colors.surfaceSheet,
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(
-                        color: AppColors.pending.withValues(alpha: 0.45),
+    final sun = MesaSun.isOn(context);
+    final dialog = ColoredBox(
+      // Sol: véu branco a 90%, sem blur.
+      color: sun ? const Color(0xE6FFFFFF) : const Color(0xD1050505),
+      child: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: landscape ? 520 : 400),
+              child: Semantics(
+                liveRegion: true,
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceSheet,
+                    borderRadius: BorderRadius.circular(28),
+                    border: sun
+                        ? Border.all(color: MesaSun.ink, width: 3)
+                        : Border.all(
+                            color: AppColors.pending.withValues(alpha: 0.45),
+                          ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        '${info.total} PONTOS · TROCA Nº ${info.number}',
+                        textAlign: TextAlign.center,
+                        style: AppTypography.mono(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: sun ? MesaSun.ink : AppColors.pending,
+                          letterSpacing: 1.2,
+                        ),
                       ),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          '${info.total} PONTOS · TROCA Nº ${info.number}',
-                          textAlign: TextAlign.center,
-                          style: AppTypography.mono(
-                            fontSize: 11,
+                      const SizedBox(height: 10),
+                      Text(
+                        'Trocar de lado',
+                        textAlign: TextAlign.center,
+                        style: AppTypography.soraRegular(
+                          fontSize: landscape ? 24 : 30,
+                          fontWeight: FontWeight.w800,
+                          color: colors.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _SwitchTeam(
+                              kit: info.topKit,
+                              label: info.topLabel,
+                              direction: 'esquerda → direita',
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: Icon(
+                              Icons.swap_horiz_rounded,
+                              color: sun ? MesaSun.ink : AppColors.pending,
+                            ),
+                          ),
+                          Expanded(
+                            child: _SwitchTeam(
+                              kit: info.bottomKit,
+                              label: info.bottomLabel,
+                              direction: 'direita → esquerda',
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        'Novos pontos ficam bloqueados até confirmar',
+                        textAlign: TextAlign.center,
+                        style: AppTypography.soraRegular(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: colors.onSurfaceMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      FilledButton(
+                        onPressed: info.onConfirm,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: sun
+                              ? MesaSun.pendingFill
+                              : AppColors.pending,
+                          foregroundColor: sun ? MesaSun.ink : _nxInk,
+                          minimumSize: const Size.fromHeight(60),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            side: sun
+                                ? const BorderSide(color: MesaSun.ink, width: 2)
+                                : BorderSide.none,
+                          ),
+                          textStyle: AppTypography.soraRegular(
+                            fontSize: 15,
                             fontWeight: FontWeight.w800,
-                            color: AppColors.pending,
-                            letterSpacing: 1.2,
                           ),
                         ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Trocar de lado',
-                          textAlign: TextAlign.center,
-                          style: AppTypography.soraRegular(
-                            fontSize: landscape ? 24 : 30,
-                            fontWeight: FontWeight.w800,
-                            color: colors.onSurface,
+                        child: const Text('Duplas trocaram de lado'),
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        onPressed: info.onUndo,
+                        icon: const Icon(Icons.undo_rounded, size: 18),
+                        label: const Text('Desfazer último ponto'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: colors.onSurface,
+                          minimumSize: const Size.fromHeight(52),
+                          side: sun
+                              ? const BorderSide(color: MesaSun.ink, width: 2)
+                              : BorderSide(
+                                  color: colors.onSurfaceMuted.withValues(
+                                    alpha: 0.3,
+                                  ),
+                                ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          textStyle: AppTypography.soraRegular(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _SwitchTeam(
-                                label: info.topLabel,
-                                direction: 'esquerda → direita',
-                              ),
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 10),
-                              child: Icon(
-                                Icons.swap_horiz_rounded,
-                                color: AppColors.pending,
-                              ),
-                            ),
-                            Expanded(
-                              child: _SwitchTeam(
-                                label: info.bottomLabel,
-                                direction: 'direita → esquerda',
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          'Novos pontos ficam bloqueados até confirmar',
-                          textAlign: TextAlign.center,
-                          style: AppTypography.soraRegular(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: colors.onSurfaceMuted,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        FilledButton(
-                          onPressed: info.onConfirm,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.pending,
-                            foregroundColor: _nxInk,
-                            minimumSize: const Size.fromHeight(60),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            textStyle: AppTypography.soraRegular(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          child: const Text('Duplas trocaram de lado'),
-                        ),
-                        const SizedBox(height: 10),
-                        OutlinedButton.icon(
-                          onPressed: info.onUndo,
-                          icon: const Icon(Icons.undo_rounded, size: 18),
-                          label: const Text('Desfazer último ponto'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: colors.onSurface,
-                            minimumSize: const Size.fromHeight(52),
-                            side: BorderSide(
-                              color:
-                                  colors.onSurfaceMuted.withValues(alpha: 0.3),
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            textStyle: AppTypography.soraRegular(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -1145,30 +1390,43 @@ class _SwitchDialog extends StatelessWidget {
         ),
       ),
     );
+    if (sun) return dialog;
+    return BackdropFilter(
+      filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+      child: dialog,
+    );
   }
 }
 
 class _SwitchTeam extends StatelessWidget {
-  const _SwitchTeam({required this.label, required this.direction});
+  const _SwitchTeam({required this.label, required this.direction, this.kit});
 
+  final KitColor? kit;
   final String label;
   final String direction;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    final sun = MesaSun.isOn(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       decoration: BoxDecoration(
-        color: colors.surfaceCard,
+        color: sun ? MesaSun.surface : colors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
-        border:
-            Border.all(color: colors.onSurfaceMuted.withValues(alpha: 0.18)),
+        border: sun
+            ? Border.all(color: MesaSun.ink, width: 2)
+            : Border.all(color: colors.onSurfaceMuted.withValues(alpha: 0.18)),
       ),
       child: Column(
         children: [
-          Text(
-            label,
+          Text.rich(
+            TextSpan(
+              children: [
+                if (kit != null) kitSquareSpan(kit!, 14),
+                TextSpan(text: label),
+              ],
+            ),
             textAlign: TextAlign.center,
             maxLines: 3,
             overflow: TextOverflow.ellipsis,

@@ -15,6 +15,7 @@ import 'package:nexago_app/features/organizer/domain/tournament_ops/tournament_o
 import 'package:nexago_app/features/organizer/presentation/match_ops/organizer_match_live_table_page.dart';
 import 'package:nexago_app/features/organizer/presentation/match_ops/organizer_match_navigation.dart';
 import 'package:nexago_app/features/organizer/presentation/match_ops/widgets/organizer_match_live_table_mesa.dart';
+import 'package:nexago_app/features/organizer/presentation/match_ops/widgets/organizer_match_live_table_start_serve.dart';
 import 'package:nexago_app/features/organizer/presentation/match_ops/widgets/organizer_match_live_table_widgets.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_matches_repository.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_providers.dart';
@@ -230,8 +231,19 @@ void main() {
   // Só é seguro chamar isto DEPOIS de entrar no modo full: a mesa pequena
   // também mostra o mesmo texto do label da dupla (`LiveTableTeamScoreCard`),
   // então antes do toggle o `find.text(label)` bateria no widget errado.
+  // Nome da dupla na mesa: agora vem num `Text.rich` com o quadradinho da camisa na frente,
+  // então o texto "puro" tem um caractere de placeholder antes do nome.
+  Finder labelText(String label) => find.byWidgetPredicate(
+        (w) =>
+            w is Text &&
+            (w.data ?? w.textSpan?.toPlainText() ?? '')
+                    .replaceAll('\uFFFC', '')
+                    .trim() ==
+                label,
+      );
+
   Finder panelWithLabel(String label) => find.ancestor(
-        of: find.text(label),
+        of: labelText(label),
         matching: fullModePanel(),
       );
 
@@ -258,8 +270,8 @@ void main() {
   int filledTimeoutDots(WidgetTester tester, Finder panel) {
     final dots = tester
         .widgetList<Container>(
-          find.descendant(of: panel, matching: find.byType(Container)),
-        )
+      find.descendant(of: panel, matching: find.byType(Container)),
+    )
         .where((c) {
       final constraints = c.constraints;
       return constraints != null &&
@@ -273,7 +285,8 @@ void main() {
           'de tempo técnico',
     );
     return dots
-        .where((c) => (c.decoration as BoxDecoration?)?.color == AppColors.brand)
+        .where(
+            (c) => (c.decoration as BoxDecoration?)?.color == AppColors.brand)
         .length;
   }
 
@@ -321,7 +334,8 @@ void main() {
   // da barra (só abre o seletor) e então escolhe o cartão da equipe —
   // reaproveitado pelos testes que só se importam com o overlay de
   // contagem já aberto, sem repetir os dois toques em cada um.
-  Future<void> callTechnicalTimeout(WidgetTester tester, String teamLabel) async {
+  Future<void> callTechnicalTimeout(
+      WidgetTester tester, String teamLabel) async {
     await openTimeoutPicker(tester);
     await tester.tap(timeoutCardWithLabel(teamLabel));
     await tester.pump();
@@ -339,7 +353,7 @@ void main() {
       expect(find.text('Trocar de lado'), findsOneWidget);
       expect(find.text('7 PONTOS · TROCA Nº 1'), findsOneWidget);
 
-      await tester.tap(find.text(teamALabel).first, warnIfMissed: false);
+      await tester.tap(labelText(teamALabel).first, warnIfMissed: false);
       await tester.pump();
       expect(fakeRepo.pointWrites, isEmpty);
     });
@@ -351,8 +365,8 @@ void main() {
       );
       // Antes: A em cima (LADO A), B embaixo.
       expect(
-        tester.getCenter(find.text(teamALabel).first).dy,
-        lessThan(tester.getCenter(find.text(teamBLabel).first).dy),
+        tester.getCenter(labelText(teamALabel).first).dy,
+        lessThan(tester.getCenter(labelText(teamBLabel).first).dy),
       );
 
       await tester.tap(find.text('Duplas trocaram de lado'));
@@ -360,8 +374,8 @@ void main() {
 
       expect(find.text('Trocar de lado'), findsNothing);
       expect(
-        tester.getCenter(find.text(teamALabel)).dy,
-        greaterThan(tester.getCenter(find.text(teamBLabel)).dy),
+        tester.getCenter(labelText(teamALabel)).dy,
+        greaterThan(tester.getCenter(labelText(teamBLabel)).dy),
       );
     });
 
@@ -472,16 +486,16 @@ void main() {
         await toggleFullMode(tester);
 
         // Antes de inverter: A está à esquerda de B.
-        final beforeA = tester.getCenter(find.text(teamALabel)).dx;
-        final beforeB = tester.getCenter(find.text(teamBLabel)).dx;
+        final beforeA = tester.getCenter(labelText(teamALabel)).dx;
+        final beforeB = tester.getCenter(labelText(teamBLabel)).dx;
         expect(beforeA, lessThan(beforeB));
 
         await tester.tap(find.text('Trocar quadra'));
         await tester.pump();
 
         // Depois de inverter: B passa a aparecer à esquerda.
-        final afterA = tester.getCenter(find.text(teamALabel)).dx;
-        final afterB = tester.getCenter(find.text(teamBLabel)).dx;
+        final afterA = tester.getCenter(labelText(teamALabel)).dx;
+        final afterB = tester.getCenter(labelText(teamBLabel)).dx;
         expect(
           afterB,
           lessThan(afterA),
@@ -507,16 +521,61 @@ void main() {
     );
   });
 
+  group('tela "Quem começa sacando?"', () {
+    testWidgets('cobre a mesa sem saque; CTA desabilitado até escolher a dupla',
+        (
+      tester,
+    ) async {
+      await pumpLiveTable(tester, initialMatch: buildMatch(servingTeamId: ''));
+
+      expect(find.byType(LiveTableStartServeScreen), findsOneWidget);
+      expect(find.text('Quem começa sacando?'), findsOneWidget);
+      expect(find.text('Escolha quem saca'), findsOneWidget);
+      expect(fakeRepo.updateFieldsCalls, isEmpty);
+    });
+
+    testWidgets('escolher a dupla habilita o CTA e grava saque + 1º sacador', (
+      tester,
+    ) async {
+      await pumpLiveTable(tester, initialMatch: buildMatch(servingTeamId: ''));
+
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(LiveTableStartServeScreen),
+              matching: labelText(teamBLabel),
+            )
+            .first,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.textContaining('Começar set ·'), findsOneWidget);
+
+      await tester.tap(find.textContaining('Começar set ·'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(fakeRepo.updateFieldsCalls, hasLength(1));
+      final fields = fakeRepo.updateFieldsCalls.single.fields;
+      expect(fields['servingTeamId'], teamBId);
+      expect(fields['servingPlayerSlots'], {'A': 2, 'B': 1});
+    });
+  });
+
   group('sem saque definido ainda', () {
     testWidgets(
       'tocar no painel ESCOLHE quem saca sem marcar ponto; só depois de '
       'escolhido o toque marca ponto de verdade',
       (tester) async {
+        // A mesa normal cobre a tela com "Quem começa sacando?" enquanto não há saque,
+        // então o modo full é ligado antes e o saque some depois.
         await pumpLiveTable(
           tester,
-          initialMatch: buildMatch(servingTeamId: ''),
+          initialMatch: buildMatch(servingTeamId: teamAId),
         );
         await toggleFullMode(tester);
+        matchController.add(buildMatch(servingTeamId: ''));
+        await tester.pump();
+        await tester.pump();
 
         await tester.tap(panelWithLabel(teamALabel));
         await tester.pump();
@@ -1260,10 +1319,10 @@ void main() {
         await tester.pump();
         expect(fakeRepo.pointWrites, isEmpty);
 
-        final beforeA = tester.getCenter(find.text(teamALabel)).dx;
+        final beforeA = tester.getCenter(labelText(teamALabel)).dx;
         await tester.tap(find.text('Trocar quadra'));
         await tester.pump();
-        final afterA = tester.getCenter(find.text(teamALabel)).dx;
+        final afterA = tester.getCenter(labelText(teamALabel)).dx;
         expect(
           afterA,
           beforeA,

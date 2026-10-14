@@ -263,6 +263,39 @@ Map<String, dynamic> startingServeFields(
   };
 }
 
+/// Abertura completa do set ("Quem começa sacando?"): a dupla no saque e o 1º sacador de CADA
+/// dupla. O rodízio (`slotsAfterScore`) avança o atleta quando a dupla RECUPERA o saque, então
+/// a dupla que recebe é gravada um passo ANTES do escolhido: ao virar o rally, quem vai à linha
+/// é exatamente o 1º sacador declarado para ela.
+Map<String, dynamic> startingSetFields(
+  TournamentMatch match,
+  String servingSide, {
+  required int slotA,
+  required int slotB,
+  MatchRosterSizes rosterSizes = MatchRosterSizes.dupla,
+}) {
+  final serving = servingSide.toUpperCase();
+  int before(int slot, int roster) =>
+      roster <= 1 ? 1 : ((slot - 2 + roster) % roster) + 1;
+  final raw = MatchServingPlayers(
+    a: serving == 'A' ? slotA : before(slotA, rosterSizes.forSide('A')),
+    b: serving == 'B' ? slotB : before(slotB, rosterSizes.forSide('B')),
+  );
+  final slots = MatchServingPlayerLogic.withIndividualSlots(raw, rosterSizes);
+  final teamId = serving == 'A' ? match.teamAId : match.teamBId;
+  return {
+    'servingTeamId': teamId,
+    'servingPlayerSlots': slots.toMap(),
+    'servingPlayerSlot': MatchServingPlayerLogic.servingPlayerSlot(
+      slots: slots,
+      servingTeamId: teamId,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+      rosterSizes: rosterSizes,
+    ),
+  };
+}
+
 /// Campos de "quem saca pela dupla X" — a faixa que aparece quando
 /// [MatchServingPlayerLogic.needsServingPlayer], e também o "Trocar sacador".
 Map<String, dynamic> servingPlayerFields(

@@ -11,6 +11,7 @@ import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_display.dart';
 import 'organizer_match_navigation.dart';
+import 'widgets/organizer_match_live_table_sanction_sheet.dart';
 import 'widgets/organizer_match_live_table_widgets.dart';
 import 'widgets/organizer_match_validate_widgets.dart';
 import '../../presentation/category_ops/widgets/organizer_team_dual_avatars.dart';
@@ -97,6 +98,14 @@ class OrganizerMatchSummaryPage extends ConsumerWidget {
                       setsWonB: counts.$2,
                       sets: sets,
                     ),
+                    if (match.sanctions.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      _SummarySanctionsSection(
+                        match: match,
+                        teamA: teamA,
+                        teamB: teamB,
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     _SummaryHistorySection(auditAsync: auditAsync),
                   ],
@@ -425,6 +434,42 @@ class _StatCell extends StatelessWidget {
             color: context.themeColors.onSurfaceMuted,
           ),
         ),
+      ],
+    );
+  }
+}
+
+class _SummarySanctionsSection extends StatelessWidget {
+  const _SummarySanctionsSection({
+    required this.match,
+    required this.teamA,
+    required this.teamB,
+  });
+
+  final TournamentMatch match;
+  final LiveTableTeamData teamA;
+  final LiveTableTeamData teamB;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'CARTÕES',
+          style: AppTypography.mono(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            color: context.themeColors.onSurfaceMuted,
+            letterSpacing: 0.6,
+          ),
+        ),
+        const SizedBox(height: 6),
+        for (final s in match.sanctions)
+          MatchSanctionTile(
+            sanction: s,
+            teamLabel: s.side == 'A' ? teamA.label : teamB.label,
+          ),
       ],
     );
   }

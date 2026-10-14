@@ -2,6 +2,7 @@ import { Injectable, effect, inject, signal } from '@angular/core';
 import { getApps, initializeApp } from 'firebase/app';
 import {
   collection,
+  deleteField,
   doc,
   getDocs,
   getFirestore,
@@ -18,12 +19,13 @@ import {
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { localIsoDate } from '../treinos/training-rules';
-import { readCharge, readEnrollment, readPlan, type Charge, type Enrollment, type Plan } from './finance-model';
+import { readCharge, readEnrollment, readPlan, type Charge, type Enrollment, type PaymentMethod, type Plan } from './finance-model';
 import {
   currentMonth,
   generateCharges,
   monthRange,
-  nextPeriodStart,
+  msUntilNextMidnight,
+  nextSeriesStart,
   replacementStart,
   type GeneratedCharge,
   type PlanCycle,
@@ -89,8 +91,15 @@ export class FinanceService {
   readonly error = this.errorState.asReadonly();
   /** Mês visível em Pagamentos (`YYYY-MM`). */
   readonly month = signal(currentMonth());
+  /** Hoje no fuso local; vira à meia-noite e quando a aba volta a ficar visível (o serviço vive a sessão toda). */
+  readonly today = signal(localIsoDate());
 
   constructor() {
+    this.scheduleDayRollover();
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => this.today.set(localIsoDate()));
+    }
+
     effect((onCleanup) => {
       const uid = this.auth.user()?.uid ?? null;
       if (!uid) {
@@ -161,13 +170,20 @@ export class FinanceService {
         query(
           collection(this.firestore, 'coaches', uid, 'charges'),
           where('status', '==', 'pendente'),
-          where('dueDate', '<', localIsoDate()),
+          where('dueDate', '<', this.today()),
         ),
         (snap) => this.overdueState.set(snap.docs.map((d) => readCharge(d.id, d.data()))),
         (error) => this.errorState.set(describeError(error)),
       );
       onCleanup(stop);
     });
+  }
+
+  private scheduleDayRollover(): void {
+    setTimeout(() => {
+      this.today.set(localIsoDate());
+      this.scheduleDayRollover();
+    }, msUntilNextMidnight() + 1000);
   }
 
   protected requireUid(): string {
@@ -267,11 +283,10 @@ export class FinanceService {
   /** Gera mais parcelas a partir do período seguinte ao último que o aluno já tem. */
   async generateMore(enrollment: Enrollment, plan: Plan, count: number): Promise<number> {
     const existing = await this.loadAthleteCharges(enrollment.athleteUid);
-    const lastPeriod = existing.map((c) => c.periodKey).sort().pop();
     const generated = generateCharges({
       cycle: plan.cycle,
       amountCents: plan.amountCents,
-      startDate: lastPeriod ? nextPeriodStart(lastPeriod, plan.cycle) : enrollment.startDate,
+      startDate: nextSeriesStart(existing, plan.cycle, enrollment.startDate),
       dueDay: enrollment.dueDay,
       count,
       existingPeriods: this.activePeriods(existing),
@@ -325,5 +340,40 @@ export class FinanceService {
       batch.update(doc(this.col('charges'), c.id), { status: 'cancelado', updatedAt: serverTimestamp() });
     }
     await batch.commit();
+  }
+
+  async markPaid(chargeId: string, input: { paidAt: string; method: PaymentMethod; note: string }): Promise<void> {
+    await updateDoc(doc(this.col('charges'), chargeId), {
+      status: 'pago',
+      paidAt: input.paidAt,
+      method: input.method,
+      note: input.note.trim(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  /** Volta para pendente e apaga os dados da baixa. */
+  async undoPaid(chargeId: string): Promise<void> {
+    await updateDoc(doc(this.col('charges'), chargeId), {
+      status: 'pendente',
+      paidAt: deleteField(),
+      method: deleteField(),
+      note: deleteField(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  /** `periodKey` acompanha o mês do novo vencimento, senão "Gerar próximos" recriaria a parcela. */
+  async editCharge(chargeId: string, input: { amountCents: number; dueDate: string }): Promise<void> {
+    await updateDoc(doc(this.col('charges'), chargeId), {
+      amountCents: input.amountCents,
+      dueDate: input.dueDate,
+      periodKey: input.dueDate.slice(0, 7),
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  async cancelCharge(chargeId: string): Promise<void> {
+    await updateDoc(doc(this.col('charges'), chargeId), { status: 'cancelado', updatedAt: serverTimestamp() });
   }
 }

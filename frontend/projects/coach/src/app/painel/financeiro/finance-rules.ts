@@ -204,3 +204,26 @@ export function replacementStart(cancelledPeriods: string[], today: string): str
   }
   return `${[...cancelledPeriods].sort()[0]}-01`;
 }
+
+/**
+ * Onde "Gerar próximos" recomeça: depois do maior período das parcelas NÃO canceladas (cancelada por troca
+ * de plano ou encerramento não conta — senão abre buraco sem cobrança). Sem nenhuma ativa, usa `fallbackStart`.
+ */
+export function nextSeriesStart(
+  charges: { periodKey: string; status: string }[],
+  cycle: PlanCycle,
+  fallbackStart: string,
+): string {
+  const last = charges
+    .filter((c) => c.status !== 'cancelado')
+    .map((c) => c.periodKey)
+    .sort()
+    .pop();
+  return last ? nextPeriodStart(last, cycle) : fallbackStart;
+}
+
+/** Milissegundos até a próxima meia-noite local (à meia-noite em ponto, um dia inteiro). */
+export function msUntilNextMidnight(now: Date = new Date()): number {
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  return next.getTime() - now.getTime();
+}

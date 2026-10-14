@@ -131,3 +131,76 @@ export function generateCharges(input: GenerateChargesInput): GeneratedCharge[] 
   }
   return out;
 }
+
+export type ChargeState = 'pago' | 'cancelado' | 'atrasado' | 'pendente';
+
+/** "Atrasado" não é gravado: é `pendente` com vencimento anterior a hoje (vence hoje ainda é pendente). */
+export function chargeState(
+  charge: { status: 'pendente' | 'pago' | 'cancelado'; dueDate: string },
+  today: string,
+): ChargeState {
+  if (charge.status === 'pago') {
+    return 'pago';
+  }
+  if (charge.status === 'cancelado') {
+    return 'cancelado';
+  }
+  return charge.dueDate < today ? 'atrasado' : 'pendente';
+}
+
+interface MoneyCharge {
+  status: 'pendente' | 'pago' | 'cancelado';
+  dueDate: string;
+  amountCents: number;
+}
+
+/** Recebido e a receber de um conjunto de parcelas (o chamador já filtrou o mês). */
+export function monthTotals(charges: MoneyCharge[], today: string): { receivedCents: number; toReceiveCents: number } {
+  let receivedCents = 0;
+  let toReceiveCents = 0;
+  for (const c of charges) {
+    if (c.status === 'pago') {
+      receivedCents += c.amountCents;
+    } else if (c.status === 'pendente' && c.dueDate >= today) {
+      toReceiveCents += c.amountCents;
+    }
+  }
+  return { receivedCents, toReceiveCents };
+}
+
+/** Pendentes vencidas, de qualquer mês. */
+export function overdueSummary(charges: MoneyCharge[], today: string): { count: number; cents: number } {
+  const overdue = charges.filter((c) => c.status === 'pendente' && c.dueDate < today);
+  return { count: overdue.length, cents: overdue.reduce((sum, c) => sum + c.amountCents, 0) };
+}
+
+/** Receita mensal prevista: trimestral ÷ 3, anual ÷ 12, só matrículas ativas. */
+export function monthlyEquivalentCents(
+  enrollments: { planId: string; status: 'ativa' | 'encerrada' }[],
+  plans: { id: string; amountCents: number; cycle: PlanCycle }[],
+): number {
+  const byId = new Map(plans.map((p) => [p.id, p]));
+  let total = 0;
+  for (const e of enrollments) {
+    const plan = byId.get(e.planId);
+    if (e.status === 'ativa' && plan) {
+      total += Math.round(plan.amountCents / CYCLE_MONTHS[plan.cycle]);
+    }
+  }
+  return total;
+}
+
+export function collectionMessage(amountCents: number, dueDate: string): string {
+  return `Olá! Lembrando da mensalidade de ${formatBRL(amountCents)}, com vencimento em ${formatShortDate(dueDate)}.`;
+}
+
+/**
+ * Onde recomeça a série ao trocar de plano: no período da primeira parcela cancelada (pra não abrir
+ * buraco), ou hoje se nada foi cancelado. `cancelledPeriods` são `YYYY-MM`.
+ */
+export function replacementStart(cancelledPeriods: string[], today: string): string {
+  if (cancelledPeriods.length === 0) {
+    return today;
+  }
+  return `${[...cancelledPeriods].sort()[0]}-01`;
+}

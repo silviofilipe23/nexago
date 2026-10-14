@@ -1,5 +1,7 @@
 import {
   centsToInput,
+  chargeState,
+  collectionMessage,
   currentMonth,
   formatBRL,
   formatDate,
@@ -7,7 +9,11 @@ import {
   fromCents,
   generateCharges,
   monthRange,
+  monthTotals,
+  monthlyEquivalentCents,
   nextPeriodStart,
+  overdueSummary,
+  replacementStart,
   shiftMonth,
   toCents,
   type GenerateChargesInput,
@@ -110,5 +116,68 @@ describe('nextPeriodStart', () => {
     expect(nextPeriodStart('2026-12', 'mensal')).toBe('2027-01-01');
     expect(nextPeriodStart('2026-11', 'trimestral')).toBe('2027-02-01');
     expect(nextPeriodStart('2026-05', 'anual')).toBe('2027-05-01');
+  });
+});
+
+describe('chargeState', () => {
+  it('vence hoje ainda é pendente; vencida é atrasada', () => {
+    expect(chargeState({ status: 'pendente', dueDate: '2026-10-14' }, '2026-10-14')).toBe('pendente');
+    expect(chargeState({ status: 'pendente', dueDate: '2026-10-13' }, '2026-10-14')).toBe('atrasado');
+  });
+
+  it('pago e cancelado ganham de qualquer data', () => {
+    expect(chargeState({ status: 'pago', dueDate: '2026-01-01' }, '2026-10-14')).toBe('pago');
+    expect(chargeState({ status: 'cancelado', dueDate: '2026-01-01' }, '2026-10-14')).toBe('cancelado');
+  });
+});
+
+describe('totais', () => {
+  const charges = [
+    { status: 'pago', dueDate: '2026-10-05', amountCents: 18000 },
+    { status: 'pendente', dueDate: '2026-10-20', amountCents: 18000 },
+    { status: 'pendente', dueDate: '2026-10-01', amountCents: 5000 },
+    { status: 'cancelado', dueDate: '2026-10-25', amountCents: 999 },
+  ] as const;
+
+  it('recebido e a receber (cancelado e atrasado ficam fora do a receber)', () => {
+    expect(monthTotals([...charges], '2026-10-14')).toEqual({ receivedCents: 18000, toReceiveCents: 18000 });
+  });
+
+  it('em atraso conta só pendentes vencidas', () => {
+    expect(overdueSummary([...charges], '2026-10-14')).toEqual({ count: 1, cents: 5000 });
+  });
+});
+
+describe('monthlyEquivalentCents', () => {
+  it('divide trimestral por 3 e anual por 12, só matrículas ativas com plano existente', () => {
+    const plans = [
+      { id: 'a', amountCents: 18000, cycle: 'mensal' as const },
+      { id: 'b', amountCents: 48000, cycle: 'trimestral' as const },
+      { id: 'c', amountCents: 160000, cycle: 'anual' as const },
+    ];
+    const enrollments = [
+      { planId: 'a', status: 'ativa' as const },
+      { planId: 'b', status: 'ativa' as const },
+      { planId: 'c', status: 'ativa' as const },
+      { planId: 'a', status: 'encerrada' as const },
+      { planId: 'sumiu', status: 'ativa' as const },
+    ];
+    expect(monthlyEquivalentCents(enrollments, plans)).toBe(18000 + 16000 + 13333);
+  });
+});
+
+describe('collectionMessage', () => {
+  it('monta o texto pronto para colar', () => {
+    expect(collectionMessage(18000, '2026-11-05')).toBe('Olá! Lembrando da mensalidade de R$ 180,00, com vencimento em 05/11.');
+  });
+});
+
+describe('replacementStart', () => {
+  it('recomeça no mesmo período da primeira parcela cancelada', () => {
+    expect(replacementStart(['2026-12', '2026-11', '2027-01'], '2026-10-14')).toBe('2026-11-01');
+  });
+
+  it('sem parcelas canceladas, recomeça hoje', () => {
+    expect(replacementStart([], '2026-10-14')).toBe('2026-10-14');
   });
 });

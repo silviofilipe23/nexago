@@ -1,3 +1,4 @@
+import { compareTrainings } from './training-rules';
 import type { AttendanceStatus, Training } from './trainings.service';
 
 /** Única regra de "compareceu": presente e atrasado contam; ausente e justificado não. */
@@ -59,4 +60,64 @@ export function attendanceRate(athleteUid: string, trainings: Training[]): numbe
     return isPresent(t.attendance[athleteUid]!);
   }).length;
   return Math.round((attended / relevant.length) * 100);
+}
+
+/** 2 faltas seguidas pedem atenção; 3 ou mais são críticas. */
+export const ABSENCE_WARN = 2;
+export const ABSENCE_CRITICAL = 3;
+
+export interface AbsenceStreak {
+  /** Faltas (`ausente`) seguidas terminando no treino realizado mais recente do atleta. */
+  streak: number;
+  /** Data do treino da última presença (presente/atrasado), ou `null` se nunca compareceu. */
+  lastPresentDate: string | null;
+}
+
+/**
+ * Sequência atual de faltas. Só conta treinos `realizado` com registro do atleta; `presente`,
+ * `atrasado` e `justificado` quebram a sequência (justificado: o professor já sabe o motivo).
+ * `trainings` deve ser só os da equipe do atleta.
+ */
+export function absenceStreak(athleteUid: string, trainings: Training[]): AbsenceStreak {
+  const recorded = trainings
+    .filter((t) => t.status === 'realizado' && athleteUid in t.attendance)
+    .sort(compareTrainings);
+  let streak = 0;
+  for (let i = recorded.length - 1; i >= 0 && recorded[i]!.attendance[athleteUid] === 'ausente'; i--) {
+    streak++;
+  }
+  const lastPresent = [...recorded].reverse().find((t) => isPresent(t.attendance[athleteUid]!));
+  return { streak, lastPresentDate: lastPresent?.date ?? null };
+}
+
+export interface AthleteAtRisk extends AbsenceStreak {
+  athleteUid: string;
+  displayName: string;
+  level: 'atencao' | 'critico';
+}
+
+/**
+ * Atletas `ativo` com {@link ABSENCE_WARN}+ faltas seguidas, mais críticos primeiro.
+ * Lesionado, afastado e férias ficam de fora: a ausência deles já é esperada.
+ */
+export function athletesAtRisk(
+  roster: { athleteUid: string; displayName: string; squadId: string | null; status: string }[],
+  trainings: Training[],
+): AthleteAtRisk[] {
+  const out: AthleteAtRisk[] = [];
+  for (const a of roster) {
+    if (a.status !== 'ativo' || !a.squadId) {
+      continue;
+    }
+    const result = absenceStreak(a.athleteUid, trainings.filter((t) => t.squadId === a.squadId));
+    if (result.streak >= ABSENCE_WARN) {
+      out.push({
+        athleteUid: a.athleteUid,
+        displayName: a.displayName,
+        ...result,
+        level: result.streak >= ABSENCE_CRITICAL ? 'critico' : 'atencao',
+      });
+    }
+  }
+  return out.sort((x, y) => y.streak - x.streak || x.displayName.localeCompare(y.displayName));
 }

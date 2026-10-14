@@ -3,10 +3,11 @@ import { ActivatedRoute } from '@angular/router';
 import { AthleteAvatarComponent } from '../ui/athlete-avatar.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
+import { PillComponent } from '../ui/pill.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { SquadContextService } from '../ui/squad-context.service';
 import { AthletesService } from '../atletas/athletes.service';
-import { defaultAttendance, sameAttendance, summarizeAttendance } from '../treinos/attendance-stats';
+import { athletesAtRisk, defaultAttendance, sameAttendance, summarizeAttendance } from '../treinos/attendance-stats';
 import { compareTrainings, localIsoDate } from '../treinos/training-rules';
 import { TrainingsService, type AttendanceStatus } from '../treinos/trainings.service';
 
@@ -20,7 +21,7 @@ const STATUS_LABEL: Record<AttendanceStatus, string> = {
 @Component({
   selector: 'co-panel-presenca',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AthleteAvatarComponent, PageHeaderComponent, PanelCardComponent, PanelShellComponent],
+  imports: [AthleteAvatarComponent, PageHeaderComponent, PanelCardComponent, PanelShellComponent, PillComponent],
   template: `
     <co-panel-shell>
       <co-page-header title="Controle de presença" [subtitle]="subtitle()">
@@ -51,7 +52,12 @@ const STATUS_LABEL: Record<AttendanceStatus, string> = {
                 <div class="who">
                   <co-athlete-avatar [initials]="a.initials" [size]="36" [status]="a.status" />
                   <div class="who-text">
-                    <div class="name">{{ a.displayName }}</div>
+                    <div class="name">
+                      {{ a.displayName }}
+                      @if (riskFor(a.athleteUid); as risk) {
+                        <co-pill [tone]="risk.level === 'critico' ? 'red' : 'yellow'">{{ risk.streak }} faltas seguidas</co-pill>
+                      }
+                    </div>
                     @if (a.category) {
                       <div class="cat">{{ a.category }}</div>
                     }
@@ -293,6 +299,15 @@ export class PanelPresencaComponent {
     const t = this.selected();
     return t ? `${t.title} · ${t.date} · ${t.startTime}` : 'Selecione um treino';
   });
+
+  /** Alerta de faltas seguidas, só com presenças já salvas (o rascunho da chamada não entra). */
+  private readonly riskByUid = computed(
+    () => new Map(athletesAtRisk(this.roster(), this.trainingsService.trainings()).map((r) => [r.athleteUid, r])),
+  );
+
+  protected riskFor(uid: string) {
+    return this.riskByUid().get(uid) ?? null;
+  }
 
   protected readonly rosterUids = computed(() => this.roster().map((a) => a.athleteUid));
   protected readonly summary = computed(() => summarizeAttendance(this.draftAttendance(), this.rosterUids()));

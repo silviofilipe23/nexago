@@ -1,4 +1,4 @@
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { getApps, initializeApp } from 'firebase/app';
 import {
   collection,
@@ -141,9 +141,12 @@ export class AthletesService {
     effect((onCleanup) => {
       const uid = this.ctx.activeCoachUid();
       // Reset ANTES de reassinar: o elenco do treinador anterior não sobrevive à troca.
-      this.profilesGeneration++;
-      this.linksState.set([]);
-      this.profilesState.set(new Map());
+      // untracked: o reset não pode virar dependência do effect (setSquads lê activeSquadId => loop).
+      untracked(() => {
+        this.profilesGeneration++;
+        this.linksState.set([]);
+        this.profilesState.set(new Map());
+      });
       if (!uid) {
         return;
       }

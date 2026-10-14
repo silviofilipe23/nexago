@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { getApps } from 'firebase/app';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -96,7 +96,7 @@ export class PanelTorneiosComponent {
     effect(() => {
       const coachUid = this.ctx.activeCoachUid();
       const squadId = this.squadContext.activeSquadId();
-      void this.load(coachUid, squadId);
+      untracked(() => void this.load(coachUid, squadId));
     });
   }
 

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
@@ -446,7 +446,7 @@ export class PanelShellComponent {
         return;
       }
       const current = { coachUid: this.ctx.activeCoachUid(), role: this.ctx.role() };
-      if (this.leaveArmedFor() !== current.coachUid) {
+      if (untracked(() => this.leaveArmedFor()) !== current.coachUid) {
         this.leaveArmedFor.set(null);
         this.leaveError.set(null);
       }

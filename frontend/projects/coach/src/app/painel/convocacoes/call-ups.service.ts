@@ -1,4 +1,4 @@
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { getApps, initializeApp } from 'firebase/app';
 import { collection, getFirestore, onSnapshot, type Firestore } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -58,7 +58,8 @@ export class CallUpsService {
     effect((onCleanup) => {
       const uid = this.ctx.activeCoachUid();
       // Reset ANTES de reassinar: as convocações do treinador anterior não sobrevivem à troca.
-      this.callUpsState.set([]);
+      // untracked: o reset não pode virar dependência do effect (setSquads lê activeSquadId => loop).
+      untracked(() => this.callUpsState.set([]));
       if (!uid) {
         return;
       }

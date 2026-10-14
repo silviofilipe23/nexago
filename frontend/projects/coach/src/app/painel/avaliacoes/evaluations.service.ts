@@ -1,4 +1,4 @@
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { getApps, initializeApp } from 'firebase/app';
 import {
   collection,
@@ -60,7 +60,8 @@ export class EvaluationsService {
     effect((onCleanup) => {
       const uid = this.ctx.activeCoachUid();
       // Reset ANTES de reassinar: as avaliações do treinador anterior não sobrevivem à troca.
-      this.evaluationsState.set([]);
+      // untracked: o reset não pode virar dependência do effect (setSquads lê activeSquadId => loop).
+      untracked(() => this.evaluationsState.set([]));
       if (!uid) {
         return;
       }

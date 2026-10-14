@@ -478,6 +478,10 @@ export {
   removeCoachStaff,
   leaveCoachStaff,
 } from "./coach-staff-ops";
+export {
+  onCoachStaffWrittenSyncMirror,
+  onCoachDeletedCleanupStaff,
+} from "./coach-staff-sync";
 
 // Split de pagamento em reserva de quadra (PIX, multi-pagador).
 export {

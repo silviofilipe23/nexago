@@ -75,3 +75,59 @@ export function shiftMonth(month: string, delta: number): string {
 export function monthRange(month: string): { start: string; end: string } {
   return { start: `${month}-01`, end: `${month}-31` };
 }
+
+function ymd(year: number, month: number, day: number): string {
+  return `${year}-${pad(month)}-${pad(day)}`;
+}
+
+/** Primeiro dia do período que vem depois de `lastPeriodKey` (`YYYY-MM`), pulando o passo do ciclo. */
+export function nextPeriodStart(lastPeriodKey: string, cycle: PlanCycle): string {
+  const [y, m] = lastPeriodKey.split('-').map(Number);
+  const [ny, nm] = addMonths(y!, m!, CYCLE_MONTHS[cycle]);
+  return ymd(ny, nm, 1);
+}
+
+export interface GenerateChargesInput {
+  cycle: PlanCycle;
+  amountCents: number;
+  startDate: string;
+  dueDay: number;
+  /** Quantos períodos percorrer (os já existentes são pulados, então pode voltar menos). */
+  count: number;
+  /** `periodKey` das parcelas não canceladas do aluno. */
+  existingPeriods: string[];
+}
+
+export interface GeneratedCharge {
+  periodKey: string;
+  dueDate: string;
+  amountCents: number;
+}
+
+/**
+ * Primeiro vencimento: o `dueDay` (limitado ao fim do mês) no mês de `startDate`; se já passou do início,
+ * vai pro mês seguinte. Os demais somam o passo do ciclo, recalculando o dia a cada mês.
+ */
+export function generateCharges(input: GenerateChargesInput): GeneratedCharge[] {
+  const [sy, sm] = input.startDate.split('-').map(Number);
+  let [by, bm] = [sy!, sm!];
+  if (ymd(by, bm, Math.min(input.dueDay, daysInMonth(by, bm))) < input.startDate) {
+    [by, bm] = addMonths(by, bm, 1);
+  }
+  const existing = new Set(input.existingPeriods);
+  const step = CYCLE_MONTHS[input.cycle];
+  const out: GeneratedCharge[] = [];
+  for (let k = 0; k < input.count; k++) {
+    const [y, m] = addMonths(by, bm, k * step);
+    const periodKey = `${y}-${pad(m)}`;
+    if (existing.has(periodKey)) {
+      continue;
+    }
+    out.push({
+      periodKey,
+      dueDate: ymd(y, m, Math.min(input.dueDay, daysInMonth(y, m))),
+      amountCents: input.amountCents,
+    });
+  }
+  return out;
+}

@@ -5,9 +5,12 @@ import {
   formatDate,
   formatShortDate,
   fromCents,
+  generateCharges,
   monthRange,
+  nextPeriodStart,
   shiftMonth,
   toCents,
+  type GenerateChargesInput,
 } from './finance-rules';
 
 describe('toCents', () => {
@@ -63,5 +66,49 @@ describe('datas', () => {
 
   it('monthRange vale até fevereiro (comparação é de texto)', () => {
     expect(monthRange('2026-02')).toEqual({ start: '2026-02-01', end: '2026-02-31' });
+  });
+});
+
+describe('generateCharges', () => {
+  const gen = (over: Partial<GenerateChargesInput> = {}) =>
+    generateCharges({ cycle: 'mensal', amountCents: 18000, startDate: '2026-10-14', dueDay: 5, count: 3, existingPeriods: [], ...over });
+
+  it('primeiro vencimento já passado vai para o mês seguinte', () => {
+    expect(gen().map((c) => c.dueDate)).toEqual(['2026-11-05', '2026-12-05', '2027-01-05']);
+    expect(gen().map((c) => c.periodKey)).toEqual(['2026-11', '2026-12', '2027-01']);
+  });
+
+  it('vencimento no mês do início quando ainda não passou (inclusive no próprio dia)', () => {
+    expect(gen({ startDate: '2026-10-01' }).map((c) => c.dueDate)).toEqual(['2026-10-05', '2026-11-05', '2026-12-05']);
+    expect(gen({ startDate: '2026-10-05' })[0]!.dueDate).toBe('2026-10-05');
+  });
+
+  it('limita o dia ao fim do mês e respeita ano bissexto', () => {
+    expect(gen({ startDate: '2026-01-31', dueDay: 31 }).map((c) => c.dueDate)).toEqual(['2026-01-31', '2026-02-28', '2026-03-31']);
+    expect(gen({ startDate: '2028-02-01', dueDay: 29, count: 1 })[0]!.dueDate).toBe('2028-02-29');
+    expect(gen({ startDate: '2027-02-01', dueDay: 29, count: 1 })[0]!.dueDate).toBe('2027-02-28');
+  });
+
+  it('trimestral soma 3 meses e anual 12', () => {
+    expect(gen({ cycle: 'trimestral', startDate: '2026-10-01', dueDay: 10, count: 4 }).map((c) => c.dueDate)).toEqual([
+      '2026-10-10', '2027-01-10', '2027-04-10', '2027-07-10',
+    ]);
+    expect(gen({ cycle: 'anual', count: 1 })).toHaveSize(1);
+  });
+
+  it('pula períodos que já existem', () => {
+    expect(gen({ startDate: '2026-11-01', existingPeriods: ['2026-12'] }).map((c) => c.periodKey)).toEqual(['2026-11', '2027-01']);
+  });
+
+  it('copia o valor do plano em cada parcela', () => {
+    expect(gen({ amountCents: 9990 }).every((c) => c.amountCents === 9990)).toBeTrue();
+  });
+});
+
+describe('nextPeriodStart', () => {
+  it('pula o passo do ciclo a partir do último período', () => {
+    expect(nextPeriodStart('2026-12', 'mensal')).toBe('2027-01-01');
+    expect(nextPeriodStart('2026-11', 'trimestral')).toBe('2027-02-01');
+    expect(nextPeriodStart('2026-05', 'anual')).toBe('2027-05-01');
   });
 });

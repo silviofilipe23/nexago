@@ -21,7 +21,8 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       display: flex;
       align-items: center;
       gap: 16px;
-      padding: 20px 32px;
+      padding: 20px var(--co-gutter);
+      flex-wrap: wrap;
       border-bottom: 1px solid var(--nx-line);
       flex: none;
     }
@@ -55,6 +56,26 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
     .spacer {
       flex: 1;
+    }
+
+    @media (max-width: 900px) {
+      .header {
+        padding-block: 14px;
+        gap: 10px;
+      }
+
+      h1 {
+        font-size: 18px;
+        white-space: normal;
+      }
+
+      .subtitle {
+        white-space: normal;
+      }
+
+      .spacer {
+        display: none;
+      }
     }
   `,
 })

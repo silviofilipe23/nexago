@@ -593,3 +593,19 @@ button {
 .co-shortcut span {
   color: var(--nx-text);
 }
+
+/* Painel responsivo: margem lateral das páginas e alvos de toque maiores no mobile. */
+:root {
+  --co-gutter: 32px;
+}
+
+@media (max-width: 900px) {
+  :root {
+    --co-gutter: 16px;
+  }
+
+  .co-mini-btn,
+  .co-ghost-btn {
+    min-height: 40px;
+  }
+}

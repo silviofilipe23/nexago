@@ -2,6 +2,7 @@ import {
   addDays,
   canDeleteTraining,
   compareTrainings,
+  followingInSeries,
   generateOccurrences,
   MAX_SERIES_OCCURRENCES,
   isEndBeforeStart,
@@ -9,6 +10,7 @@ import {
   sanitizeDuration,
   splitUpcoming,
 } from './training-rules';
+import type { Training } from './trainings.service';
 
 describe('canDeleteTraining', () => {
   it('permite excluir treino sem presença', () => {
@@ -100,5 +102,49 @@ describe('generateOccurrences', () => {
   it('para uma além do teto, pra quem chama detectar o estouro', () => {
     const all = generateOccurrences('2026-01-05', '2027-12-31', [0, 1, 2, 3, 4, 5, 6]);
     expect(all.length).toBe(MAX_SERIES_OCCURRENCES + 1);
+  });
+});
+
+describe('followingInSeries', () => {
+  const t = (id: string, over: Partial<Training> = {}): Training => ({
+    id,
+    squadId: 's1',
+    title: 'Aula',
+    date: '2026-10-13',
+    startTime: '19:00',
+    endTime: '',
+    location: '',
+    materials: '',
+    exercises: [],
+    status: 'agendado',
+    attendance: {},
+    seriesId: 'A',
+    ...over,
+  });
+
+  it('inclui o próprio treino e os posteriores da mesma série, em ordem', () => {
+    const a = t('a', { date: '2026-10-13' });
+    const b = t('b', { date: '2026-10-20' });
+    const c = t('c', { date: '2026-10-15' });
+    expect(followingInSeries([b, c, a], a).map((x) => x.id)).toEqual(['a', 'c', 'b']);
+  });
+
+  it('ignora anteriores, outra série, outra equipe, realizados e cancelados', () => {
+    const from = t('from', { date: '2026-10-15' });
+    const all = [
+      from,
+      t('antes', { date: '2026-10-13' }),
+      t('outra-serie', { date: '2026-10-22', seriesId: 'B' }),
+      t('outra-equipe', { date: '2026-10-22', squadId: 's2' }),
+      t('feito', { date: '2026-10-22', status: 'realizado' }),
+      t('cancelado', { date: '2026-10-29', status: 'cancelado' }),
+      t('ok', { date: '2026-11-05' }),
+    ];
+    expect(followingInSeries(all, from).map((x) => x.id)).toEqual(['from', 'ok']);
+  });
+
+  it('treino avulso não tem seguintes', () => {
+    const solo = t('solo', { seriesId: null });
+    expect(followingInSeries([solo], solo)).toEqual([]);
   });
 });

@@ -9,8 +9,8 @@ import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { SquadContextService } from '../ui/squad-context.service';
-import { addDays, generateOccurrences, isEndBeforeStart, MAX_SERIES_OCCURRENCES, sanitizeDuration } from './training-rules';
-import { TrainingsService } from './trainings.service';
+import { addDays, followingInSeries, generateOccurrences, isEndBeforeStart, MAX_SERIES_OCCURRENCES, sanitizeDuration } from './training-rules';
+import { TrainingsService, type Training } from './trainings.service';
 
 @Component({
   selector: 'co-panel-novo-treino',
@@ -52,6 +52,15 @@ import { TrainingsService } from './trainings.service';
         <co-panel-card title="Detalhes do treino" kicker="Objetivo e horário">
           @if (duplicatedTitle(); as source) {
             <p class="squad-note">Duplicando de «{{ source }}»</p>
+          }
+          @if (editingId && followingCount() > 1) {
+            <div class="chips scope" role="group" aria-label="Aplicar a">
+              <button type="button" class="chip" [class.on]="editScope() === 'single'" [attr.aria-pressed]="editScope() === 'single'" (click)="setScope('single')">Só este</button>
+              <button type="button" class="chip" [class.on]="editScope() === 'following'" [attr.aria-pressed]="editScope() === 'following'" (click)="setScope('following')">Este e os seguintes ({{ followingCount() }})</button>
+            </div>
+            @if (editScope() === 'following') {
+              <p class="squad-note">Cada treino mantém a sua data; as demais alterações valem para todos.</p>
+            }
           }
           @if (!editingId && squadName(); as name) {
             <p class="squad-note">Equipe: <strong>{{ name }}</strong></p>
@@ -112,7 +121,7 @@ import { TrainingsService } from './trainings.service';
   styles: `
     .body {
       flex: 1;
-      padding: 22px 32px 28px;
+      padding: 22px var(--co-gutter) 28px;
       display: flex;
       flex-direction: column;
       gap: 16px;
@@ -122,6 +131,11 @@ import { TrainingsService } from './trainings.service';
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 16px;
+    }
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
     }
     .ex-row {
       display: flex;
@@ -170,6 +184,9 @@ import { TrainingsService } from './trainings.service';
       border-color: transparent;
       color: var(--nx-text-on-orange);
     }
+    .scope {
+      margin-bottom: 10px;
+    }
     .until {
       margin-top: 14px;
     }
@@ -189,11 +206,13 @@ import { TrainingsService } from './trainings.service';
     }
     .ex-add {
       display: flex;
+      flex-wrap: wrap;
       gap: 8px;
       margin-top: 12px;
     }
     .ex-input {
-      flex: 1;
+      flex: 1 1 160px;
+      min-width: 0;
       height: 36px;
       padding: 0 10px;
       background: var(--nx-surface-1);
@@ -248,6 +267,15 @@ export class PanelNovoTreinoComponent {
     { value: 5, label: 'Sex' },
     { value: 6, label: 'Sáb' },
   ];
+  /** Edição de treino de série: aplica só neste ou neste e nos seguintes. */
+  protected readonly editScope = signal<'single' | 'following'>('single');
+  private readonly editingTraining = signal<Training | null>(null);
+  protected readonly followingIds = computed(() => {
+    const t = this.editingTraining();
+    return t ? followingInSeries(this.trainingsService.trainings(), t).map((x) => x.id) : [];
+  });
+  protected readonly followingCount = computed(() => new Set([...(this.editingId ? [this.editingId] : []), ...this.followingIds()]).size);
+
   protected readonly maxSeries = MAX_SERIES_OCCURRENCES;
   protected readonly repeatDays = signal<number[]>([]);
   private readonly formValue = toSignal(this.form.valueChanges, { initialValue: this.form.getRawValue() });
@@ -300,6 +328,9 @@ export class PanelNovoTreinoComponent {
       if (this.duplicateFromId) {
         this.duplicatedTitle.set(t.title);
       }
+      if (this.editingId) {
+        this.editingTraining.set(t);
+      }
       this.form.setValue({
         title: t.title,
         // Duplicar sugere a mesma aula na semana seguinte; editar mantém a data.
@@ -334,6 +365,16 @@ export class PanelNovoTreinoComponent {
         return this.repeatDays().length > 0 && !raw.repeatUntil ? 'Informe até quando repetir.' : null;
       case 'endTime':
         return isEndBeforeStart(raw.startTime, raw.endTime) ? 'O fim precisa ser depois do início.' : null;
+    }
+  }
+
+  protected setScope(scope: 'single' | 'following'): void {
+    this.editScope.set(scope);
+    // Em "este e os seguintes" cada treino mantém a sua data.
+    if (scope === 'following') {
+      this.form.controls.date.disable();
+    } else {
+      this.form.controls.date.enable();
     }
   }
 
@@ -388,7 +429,11 @@ export class PanelNovoTreinoComponent {
         materials: raw.materials,
         exercises: this.exercises().map((e, i) => ({ ...e, order: i })),
       };
-      if (this.editingId) {
+      if (this.editingId && this.editScope() === 'following') {
+        const { date: _date, ...withoutDate } = fields;
+        const ids = [...new Set([this.editingId, ...this.followingIds()])];
+        await this.trainingsService.updateTrainings(ids, withoutDate);
+      } else if (this.editingId) {
         await this.trainingsService.updateTraining(this.editingId, fields);
       } else {
         if (repeating) {

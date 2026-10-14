@@ -68,3 +68,23 @@ export function generateOccurrences(start: string, until: string, weekdays: numb
   }
   return out;
 }
+
+/**
+ * Treinos que "este e os seguintes" alcança: mesma série e equipe, a partir de `from` (inclusive,
+ * em ordem cronológica), só os ainda `agendado` — realizados e cancelados são histórico e ficam como estão.
+ * Treino avulso (sem `seriesId`) não tem seguintes.
+ */
+export function followingInSeries(all: Training[], from: Training): Training[] {
+  if (!from.seriesId) {
+    return [];
+  }
+  return all
+    .filter(
+      (t) =>
+        t.seriesId === from.seriesId &&
+        t.squadId === from.squadId &&
+        t.status === 'agendado' &&
+        compareTrainings(t, from) >= 0,
+    )
+    .sort(compareTrainings);
+}

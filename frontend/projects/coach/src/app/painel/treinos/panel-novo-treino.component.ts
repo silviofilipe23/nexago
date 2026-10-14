@@ -8,7 +8,7 @@ import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { SquadContextService } from '../ui/squad-context.service';
-import { isEndBeforeStart, sanitizeDuration } from './training-rules';
+import { addDays, isEndBeforeStart, sanitizeDuration } from './training-rules';
 import { TrainingsService } from './trainings.service';
 
 @Component({
@@ -49,6 +49,9 @@ import { TrainingsService } from './trainings.service';
         }
 
         <co-panel-card title="Detalhes do treino" kicker="Objetivo e horário">
+          @if (duplicatedTitle(); as source) {
+            <p class="squad-note">Duplicando de «{{ source }}»</p>
+          }
           @if (!editingId && squadName(); as name) {
             <p class="squad-note">Equipe: <strong>{{ name }}</strong></p>
           }
@@ -168,6 +171,9 @@ export class PanelNovoTreinoComponent {
 
   /** `null` = criando; com id = editando um treino existente. */
   protected readonly editingId = this.route.snapshot.paramMap.get('id');
+  /** `?de=<id>`: cria um treino novo partindo de um existente. */
+  private readonly duplicateFromId = this.editingId ? null : this.route.snapshot.queryParamMap.get('de');
+  protected readonly duplicatedTitle = signal<string | null>(null);
 
   protected readonly form = this.fb.group({
     title: ['', Validators.required],
@@ -193,18 +199,23 @@ export class PanelNovoTreinoComponent {
   protected readonly canSubmit = computed(() => (this.editingId ? this.loaded() : !!this.squadName()));
 
   constructor() {
-    if (!this.editingId) {
+    const sourceId = this.editingId ?? this.duplicateFromId;
+    if (!sourceId) {
       return;
     }
     // Os treinos chegam por snapshot; preenche o form assim que o treino aparecer (uma vez).
     const ref = effect(() => {
-      const t = this.trainingsService.trainings().find((x) => x.id === this.editingId);
+      const t = this.trainingsService.trainings().find((x) => x.id === sourceId);
       if (!t) {
         return;
       }
+      if (this.duplicateFromId) {
+        this.duplicatedTitle.set(t.title);
+      }
       this.form.setValue({
         title: t.title,
-        date: t.date,
+        // Duplicar sugere a mesma aula na semana seguinte; editar mantém a data.
+        date: this.duplicateFromId && t.date ? addDays(t.date, 7) : t.date,
         startTime: t.startTime,
         endTime: t.endTime,
         location: t.location,

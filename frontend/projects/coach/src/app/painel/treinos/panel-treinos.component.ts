@@ -67,6 +67,7 @@ const STATUS_TONE: Record<TrainingStatus, PillTone> = {
                   @if (t.status !== 'cancelado') {
                     <a class="co-ghost-btn" [routerLink]="['/painel/presenca']" [queryParams]="{ treino: t.id }">Chamada</a>
                   }
+                  <a class="co-ghost-btn" [routerLink]="['/painel/treinos/novo']" [queryParams]="{ de: t.id }">Duplicar</a>
                   <a class="co-ghost-btn" [routerLink]="['/painel/treinos', t.id, 'editar']">Editar</a>
                   @if (t.status === 'cancelado') {
                     <button type="button" class="co-ghost-btn" [disabled]="busyId() === t.id" (click)="reactivate(t)">Reativar</button>

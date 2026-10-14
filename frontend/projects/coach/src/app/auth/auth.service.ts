@@ -63,6 +63,17 @@ export class AuthService {
     return Array.isArray(roles) ? roles.map(String) : [];
   }
 
+  /** Relê as claims do ID token (forçando refresh) — usado depois de entrar numa comissão,
+   *  quando o servidor acabou de conceder a claim `coach`. */
+  async refreshClaims(): Promise<void> {
+    const user = this.auth.currentUser;
+    if (!user) {
+      return;
+    }
+    const roles = (await user.getIdTokenResult(true)).claims['roles'];
+    this.roleClaims.set(Array.isArray(roles) ? roles.map(String) : []);
+  }
+
   /** `remember=false` derruba a sessão ao fechar o navegador (browserSessionPersistence). */
   async signInWithEmail(email: string, password: string, remember: boolean): Promise<void> {
     await setPersistence(this.auth, remember ? browserLocalPersistence : browserSessionPersistence);

@@ -2,6 +2,7 @@ import { Injectable, effect, inject, signal } from '@angular/core';
 import { getApps, initializeApp } from 'firebase/app';
 import {
   collection,
+  deleteField,
   doc,
   getDocs,
   getFirestore,
@@ -18,7 +19,7 @@ import {
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { localIsoDate } from '../treinos/training-rules';
-import { readCharge, readEnrollment, readPlan, type Charge, type Enrollment, type Plan } from './finance-model';
+import { readCharge, readEnrollment, readPlan, type Charge, type Enrollment, type PaymentMethod, type Plan } from './finance-model';
 import {
   currentMonth,
   generateCharges,
@@ -325,5 +326,40 @@ export class FinanceService {
       batch.update(doc(this.col('charges'), c.id), { status: 'cancelado', updatedAt: serverTimestamp() });
     }
     await batch.commit();
+  }
+
+  async markPaid(chargeId: string, input: { paidAt: string; method: PaymentMethod; note: string }): Promise<void> {
+    await updateDoc(doc(this.col('charges'), chargeId), {
+      status: 'pago',
+      paidAt: input.paidAt,
+      method: input.method,
+      note: input.note.trim(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  /** Volta para pendente e apaga os dados da baixa. */
+  async undoPaid(chargeId: string): Promise<void> {
+    await updateDoc(doc(this.col('charges'), chargeId), {
+      status: 'pendente',
+      paidAt: deleteField(),
+      method: deleteField(),
+      note: deleteField(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  /** `periodKey` acompanha o mês do novo vencimento, senão "Gerar próximos" recriaria a parcela. */
+  async editCharge(chargeId: string, input: { amountCents: number; dueDate: string }): Promise<void> {
+    await updateDoc(doc(this.col('charges'), chargeId), {
+      amountCents: input.amountCents,
+      dueDate: input.dueDate,
+      periodKey: input.dueDate.slice(0, 7),
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  async cancelCharge(chargeId: string): Promise<void> {
+    await updateDoc(doc(this.col('charges'), chargeId), { status: 'cancelado', updatedAt: serverTimestamp() });
   }
 }

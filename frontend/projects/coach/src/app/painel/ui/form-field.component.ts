@@ -64,7 +64,7 @@ let nextFormFieldId = 0;
 })
 export class FormFieldComponent implements ControlValueAccessor {
   readonly label = input.required<string>();
-  readonly type = input<'text' | 'tel' | 'number'>('text');
+  readonly type = input<'text' | 'tel' | 'number' | 'date' | 'time'>('text');
   readonly placeholder = input('');
   readonly wide = input(false);
 

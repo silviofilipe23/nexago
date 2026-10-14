@@ -42,9 +42,9 @@ import { TrainingsService } from './trainings.service';
         <co-panel-card title="Detalhes do treino" kicker="Objetivo e horário">
           <form [formGroup]="form" class="grid">
             <co-form-field label="Título" placeholder="Ex: Treino técnico · Recepção" formControlName="title" [wide]="true" />
-            <co-form-field label="Data" placeholder="AAAA-MM-DD" formControlName="date" />
-            <co-form-field label="Início" placeholder="19:00" formControlName="startTime" />
-            <co-form-field label="Fim" placeholder="20:30" formControlName="endTime" />
+            <co-form-field label="Data" type="date" formControlName="date" />
+            <co-form-field label="Início" type="time" formControlName="startTime" />
+            <co-form-field label="Fim" type="time" formControlName="endTime" />
             <co-form-field label="Local" placeholder="Quadra 2 · Arena CFC" formControlName="location" />
             <co-form-textarea label="Materiais" formControlName="materials" />
           </form>

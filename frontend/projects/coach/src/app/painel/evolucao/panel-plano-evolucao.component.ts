@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { CoachContextService } from '../access/coach-context.service';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
@@ -29,10 +30,12 @@ const GOALS: Goal[] = [
   template: `
     <co-panel-shell>
       <co-page-header title="Plano de evolução" subtitle="Ana Beatriz · 3 objetivos ativos">
-        <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/atletas/plano-evolucao/novo">
-          <co-icon name="plus" [size]="14" />
-          Novo objetivo
-        </a>
+        @if (ctx.can('fisico', 'write')) {
+          <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/atletas/plano-evolucao/novo">
+            <co-icon name="plus" [size]="14" />
+            Novo objetivo
+          </a>
+        }
       </co-page-header>
 
       <div class="body">
@@ -91,5 +94,6 @@ const GOALS: Goal[] = [
   `,
 })
 export class PanelPlanoEvolucaoComponent {
+  protected readonly ctx = inject(CoachContextService);
   protected readonly goals = GOALS;
 }

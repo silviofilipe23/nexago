@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { CoachContextService } from '../access/coach-context.service';
 import { AthleteAvatarComponent } from '../ui/athlete-avatar.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
@@ -51,10 +52,12 @@ import { AthletesService, type RosterAthlete } from './athletes.service';
                 <div class="athlete-head">
                   <co-athlete-avatar [initials]="a.initials" [size]="56" [status]="a.status" />
                 </div>
-                @if (axesFor(a.athleteUid); as axes) {
-                  <div class="radar-wrap"><co-radar-chart [axes]="axes" [size]="260" /></div>
-                } @else {
-                  <p class="empty">Sem avaliação registrada.</p>
+                @if (ctx.can('avaliacoes')) {
+                  @if (axesFor(a.athleteUid); as axes) {
+                    <div class="radar-wrap"><co-radar-chart [axes]="axes" [size]="260" /></div>
+                  } @else {
+                    <p class="empty">Sem avaliação registrada.</p>
+                  }
                 }
               </co-panel-card>
             }
@@ -63,25 +66,31 @@ import { AthletesService, type RosterAthlete } from './athletes.service';
                 <div class="athlete-head">
                   <co-athlete-avatar [initials]="b.initials" [size]="56" [status]="b.status" />
                 </div>
-                @if (axesFor(b.athleteUid); as axes) {
-                  <div class="radar-wrap"><co-radar-chart [axes]="axes" [size]="260" accent="#2A6FDB" /></div>
-                } @else {
-                  <p class="empty">Sem avaliação registrada.</p>
+                @if (ctx.can('avaliacoes')) {
+                  @if (axesFor(b.athleteUid); as axes) {
+                    <div class="radar-wrap"><co-radar-chart [axes]="axes" [size]="260" accent="#2A6FDB" /></div>
+                  } @else {
+                    <p class="empty">Sem avaliação registrada.</p>
+                  }
                 }
               </co-panel-card>
             }
 
             <co-panel-card title="Comparação direta" class="compare-card">
+              @if (ctx.can('avaliacoes')) {
               <div class="compare-row">
                 <span class="compare-value" [class.win]="isBetterOrEqual(averageForSelected('a'), averageForSelected('b'))">{{ formatScore(averageForSelected('a')) }}</span>
                 <span class="compare-label">Média geral</span>
                 <span class="compare-value" [class.win]="isBetterOrEqual(averageForSelected('b'), averageForSelected('a'))">{{ formatScore(averageForSelected('b')) }}</span>
               </div>
+              }
+              @if (ctx.can('treinos')) {
               <div class="compare-row">
                 <span class="compare-value" [class.win]="isBetterOrEqual(attendanceForSelected('a'), attendanceForSelected('b'))">{{ formatPercent(attendanceForSelected('a')) }}</span>
                 <span class="compare-label">Presença</span>
                 <span class="compare-value" [class.win]="isBetterOrEqual(attendanceForSelected('b'), attendanceForSelected('a'))">{{ formatPercent(attendanceForSelected('b')) }}</span>
               </div>
+              }
             </co-panel-card>
           </div>
         }
@@ -171,6 +180,7 @@ import { AthletesService, type RosterAthlete } from './athletes.service';
   `,
 })
 export class PanelCompararAtletasComponent {
+  protected readonly ctx = inject(CoachContextService);
   private readonly athletesService = inject(AthletesService);
   private readonly squadContext = inject(SquadContextService);
   private readonly evaluationsService = inject(EvaluationsService);

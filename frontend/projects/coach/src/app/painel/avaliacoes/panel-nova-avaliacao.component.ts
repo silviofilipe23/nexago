@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { CoachContextService } from '../access/coach-context.service';
 import { Router } from '@angular/router';
 import { AthletesService } from '../atletas/athletes.service';
 import { PageHeaderComponent } from '../ui/page-header.component';
@@ -141,6 +142,7 @@ function defaultScores(): EvaluationScores {
   `,
 })
 export class PanelNovaAvaliacaoComponent {
+  private readonly ctx = inject(CoachContextService);
   private readonly evaluationsService = inject(EvaluationsService);
   private readonly athletesService = inject(AthletesService);
   private readonly squadContext = inject(SquadContextService);
@@ -178,6 +180,9 @@ export class PanelNovaAvaliacaoComponent {
   }
 
   protected async submit(): Promise<void> {
+    if (!this.ctx.can('avaliacoes', 'write')) {
+      return;
+    }
     const uid = this.athleteUid();
     if (!uid) {
       return;

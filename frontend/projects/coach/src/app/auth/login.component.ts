@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from './auth.service';
 import { mapFirebaseAuthError } from './firebase-auth-errors';
 import { AuthShellComponent } from './ui/auth-shell.component';
+import { isInviteRedirect, validRedirect } from './invite-redirect';
 import { FieldComponent } from './ui/field.component';
 
 @Component({
@@ -92,7 +93,7 @@ import { FieldComponent } from './ui/field.component';
         </button>
 
         <p class="co-fine">
-          Ainda não tem conta? <a class="co-text-link" routerLink="/cadastro">Cadastrar como treinador</a>
+          Ainda não tem conta? <a class="co-text-link" routerLink="/cadastro" [queryParams]="signupQueryParams()">Cadastrar como treinador</a>
         </p>
       </form>
     </co-auth-shell>
@@ -164,7 +165,9 @@ export class LoginComponent {
     this.error.set(null);
     this.googleLoading.set(true);
     try {
-      const ok = await this.auth.signInWithGoogle(this.form.getRawValue().remember, false);
+      const ok = await this.auth.signInWithGoogle(this.form.getRawValue().remember, false, {
+        invited: isInviteRedirect(this.rawRedirect()),
+      });
       if (ok) {
         this.redirectAfterLogin();
       }
@@ -175,9 +178,21 @@ export class LoginComponent {
     }
   }
 
+  private rawRedirect(): string | null {
+    return this.route.snapshot.queryParamMap.get('redirect');
+  }
+
+  private validRedirect(): string | null {
+    return validRedirect(this.rawRedirect());
+  }
+
+  /** O link "Cadastrar" repassa o destino pedido (ex.: convite da comissão). */
+  protected signupQueryParams(): { redirect: string } | null {
+    const redirect = this.validRedirect();
+    return redirect ? { redirect } : null;
+  }
+
   private redirectAfterLogin(): void {
-    const redirect = this.route.snapshot.queryParamMap.get('redirect');
-    const target = redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/painel';
-    void this.router.navigateByUrl(target);
+    void this.router.navigateByUrl(this.validRedirect() ?? '/painel');
   }
 }

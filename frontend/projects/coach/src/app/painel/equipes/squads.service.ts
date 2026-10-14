@@ -1,4 +1,4 @@
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { getApps, initializeApp } from 'firebase/app';
 import {
   collection,
@@ -11,7 +11,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
-import { AuthService } from '../../auth/auth.service';
+import { CoachContextService } from '../access/coach-context.service';
 import { initialsOf } from '../ui/initials';
 import { SquadContextService, type SquadSummary } from '../ui/squad-context.service';
 
@@ -52,7 +52,7 @@ function toSummary(squad: Squad): SquadSummary {
 /** `coaches/{uid}/squads` é ownership-only (Task 2) — leitura/escrita direta do client, sem Cloud Function. */
 @Injectable({ providedIn: 'root' })
 export class SquadsService {
-  private readonly auth = inject(AuthService);
+  private readonly ctx = inject(CoachContextService);
   private readonly squadContext = inject(SquadContextService);
   private readonly firestore = createFirestore();
 
@@ -61,10 +61,16 @@ export class SquadsService {
 
   constructor() {
     effect((onCleanup) => {
-      const uid = this.auth.user()?.uid ?? null;
-      if (!uid) {
+      const uid = this.ctx.activeCoachUid();
+      // Reset ANTES de reassinar: a lista e a equipe ativa do treinador anterior não sobrevivem à troca.
+      // untracked: o reset não pode virar dependência do effect (setSquads lê activeSquadId => loop).
+      untracked(() => {
         this.squadsState.set([]);
         this.squadContext.setSquads([]);
+      });
+      // Deps rastreadas (de propósito): activeCoachUid e role (via can). O cargo mudar para o mesmo
+      // treinador reabre/fecha o listener; sem 'atletas' nem abrimos o listener (as rules negariam).
+      if (!uid || !this.ctx.can('atletas')) {
         return;
       }
 
@@ -86,9 +92,9 @@ export class SquadsService {
   }
 
   async createSquad(input: NewSquadInput): Promise<string> {
-    const uid = this.auth.user()?.uid;
+    const uid = this.ctx.activeCoachUid();
     if (!uid) {
-      throw new Error('Usuário não autenticado.');
+      throw new Error('Nenhum painel de treinador ativo.');
     }
     const ref = doc(collection(this.firestore, 'coaches', uid, 'squads'));
     await setDoc(ref, {
@@ -120,9 +126,9 @@ export class SquadsService {
   }
 
   private requireUid(): string {
-    const uid = this.auth.user()?.uid;
+    const uid = this.ctx.activeCoachUid();
     if (!uid) {
-      throw new Error('Usuário não autenticado.');
+      throw new Error('Nenhum painel de treinador ativo.');
     }
     return uid;
   }

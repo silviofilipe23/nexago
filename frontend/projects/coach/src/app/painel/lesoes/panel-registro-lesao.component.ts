@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { CoachContextService } from '../access/coach-context.service';
 import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { FormFieldComponent } from '../ui/form-field.component';
@@ -83,6 +84,7 @@ import { RowComponent } from '../ui/row.component';
   `,
 })
 export class PanelRegistroLesaoComponent {
+  private readonly ctx = inject(CoachContextService);
   private readonly router = inject(Router);
   private readonly fb = inject(NonNullableFormBuilder);
 
@@ -99,6 +101,9 @@ export class PanelRegistroLesaoComponent {
   });
 
   protected submit(): void {
+    if (!this.ctx.can('saude', 'write')) {
+      return;
+    }
     void this.router.navigateByUrl('/painel/lesoes');
   }
 }

@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { CoachContextService } from '../access/coach-context.service';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -260,6 +261,7 @@ import { TrainingsService, type Training } from './trainings.service';
   `,
 })
 export class PanelNovoTreinoComponent {
+  private readonly ctx = inject(CoachContextService);
   private readonly trainingsService = inject(TrainingsService);
   private readonly squadContext = inject(SquadContextService);
   private readonly router = inject(Router);
@@ -454,6 +456,9 @@ export class PanelNovoTreinoComponent {
   }
 
   protected async submit(): Promise<void> {
+    if (!this.ctx.can('treinos', 'write')) {
+      return;
+    }
     this.error.set(null);
     const squadId = this.squadContext.activeSquadId();
     if (!this.editingId && !squadId) {

@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { CoachContextService } from '../access/coach-context.service';
 import { AthleteAvatarComponent } from '../ui/athlete-avatar.component';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
@@ -54,10 +55,12 @@ const STATUS_TONE: Record<InjuryStatus, PillTone> = {
   template: `
     <co-panel-shell>
       <co-page-header title="Lesões" subtitle="3 registros ativos">
-        <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/lesoes/novo">
-          <co-icon name="plus" [size]="14" />
-          Registrar lesão
-        </a>
+        @if (ctx.can('saude', 'write')) {
+          <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/lesoes/novo">
+            <co-icon name="plus" [size]="14" />
+            Registrar lesão
+          </a>
+        }
       </co-page-header>
 
       <div class="body">
@@ -118,6 +121,7 @@ const STATUS_TONE: Record<InjuryStatus, PillTone> = {
   `,
 })
 export class PanelLesoesComponent {
+  protected readonly ctx = inject(CoachContextService);
   protected readonly injuries = INJURIES;
 
   protected statusLabel(status: InjuryStatus): string {

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { CoachContextService } from '../access/coach-context.service';
 import { AthletesService } from '../atletas/athletes.service';
 import { AthleteAvatarComponent } from '../ui/athlete-avatar.component';
 import { IconComponent } from '../ui/icon.component';
@@ -28,10 +29,12 @@ import { EvaluationsService } from './evaluations.service';
   template: `
     <co-panel-shell>
       <co-page-header title="Avaliações" subtitle="Histórico de avaliações da equipe">
-        <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/avaliacoes/nova">
-          <co-icon name="plus" [size]="14" />
-          Nova avaliação
-        </a>
+        @if (ctx.can('avaliacoes', 'write')) {
+          <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/avaliacoes/nova">
+            <co-icon name="plus" [size]="14" />
+            Nova avaliação
+          </a>
+        }
       </co-page-header>
 
       <div class="body">
@@ -98,6 +101,7 @@ import { EvaluationsService } from './evaluations.service';
   `,
 })
 export class PanelAvaliacoesComponent {
+  protected readonly ctx = inject(CoachContextService);
   private readonly evaluationsService = inject(EvaluationsService);
   private readonly athletesService = inject(AthletesService);
   private readonly squadContext = inject(SquadContextService);

@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { CoachContextService } from '../access/coach-context.service';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
@@ -80,6 +81,7 @@ function createFirestore(): Firestore {
 })
 export class PanelPerfilComponent implements OnInit {
   protected readonly auth = inject(AuthService);
+  private readonly ctx = inject(CoachContextService);
   private readonly router = inject(Router);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly firestore = createFirestore();
@@ -108,7 +110,7 @@ export class PanelPerfilComponent implements OnInit {
 
   protected async save(): Promise<void> {
     const uid = this.auth.user()?.uid;
-    if (!uid || this.form.invalid) {
+    if (!uid || this.form.invalid || !this.ctx.can('principal', 'write')) {
       return;
     }
     this.error.set(null);

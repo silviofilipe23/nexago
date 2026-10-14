@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { CoachContextService } from '../access/coach-context.service';
 import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { FormFieldComponent } from '../ui/form-field.component';
@@ -80,6 +81,7 @@ import { RowComponent } from '../ui/row.component';
   `,
 })
 export class PanelNovoObjetivoComponent {
+  private readonly ctx = inject(CoachContextService);
   private readonly router = inject(Router);
   private readonly fb = inject(NonNullableFormBuilder);
 
@@ -93,6 +95,9 @@ export class PanelNovoObjetivoComponent {
   });
 
   protected submit(): void {
+    if (!this.ctx.can('fisico', 'write')) {
+      return;
+    }
     void this.router.navigateByUrl('/painel/atletas/plano-evolucao');
   }
 }

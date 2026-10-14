@@ -63,6 +63,17 @@ export class AuthService {
     return Array.isArray(roles) ? roles.map(String) : [];
   }
 
+  /** Relê as claims do ID token (forçando refresh) — usado depois de entrar numa comissão,
+   *  quando o servidor acabou de conceder a claim `coach`. */
+  async refreshClaims(): Promise<void> {
+    const user = this.auth.currentUser;
+    if (!user) {
+      return;
+    }
+    const roles = (await user.getIdTokenResult(true)).claims['roles'];
+    this.roleClaims.set(Array.isArray(roles) ? roles.map(String) : []);
+  }
+
   /** `remember=false` derruba a sessão ao fechar o navegador (browserSessionPersistence). */
   async signInWithEmail(email: string, password: string, remember: boolean): Promise<void> {
     await setPersistence(this.auth, remember ? browserLocalPersistence : browserSessionPersistence);
@@ -74,7 +85,11 @@ export class AuthService {
    *  virar treinador sem querer. `provision=true` (tela de cadastro) completa o
    *  autocadastro via Cloud Function, preservando os papéis existentes.
    *  Retorna `false` se o usuário fechou o popup. */
-  async signInWithGoogle(remember: boolean, provision: boolean): Promise<boolean> {
+  async signInWithGoogle(
+    remember: boolean,
+    provision: boolean,
+    options: { invited?: boolean } = {},
+  ): Promise<boolean> {
     await setPersistence(this.auth, remember ? browserLocalPersistence : browserSessionPersistence);
     let user: User;
     try {
@@ -88,6 +103,12 @@ export class AuthService {
     }
 
     let roles = await this.readRoleClaims(user);
+    if (options.invited) {
+      // Convite da comissão: só autentica. Sem completeCoachSignup (não cria coaches/{uid}) e sem
+      // signOut de quem não tem a claim — acceptCoachStaffInvite concede a claim `coach` ao aceitar.
+      this.roleClaims.set(roles);
+      return true;
+    }
     if (!roles.includes('coach')) {
       if (!provision) {
         await this.signOutUser();
@@ -147,6 +168,13 @@ export class AuthService {
     const refreshed = await credential.user.getIdTokenResult(true);
     const roles = refreshed.claims['roles'];
     this.roleClaims.set(Array.isArray(roles) ? roles.map(String) : []);
+  }
+
+  /** Conta só de autenticação (convite da comissão): NÃO chama completeCoachSignup, então não cria
+   *  `coaches/{uid}` nem painel próprio. A claim `coach` vem do aceite do convite. */
+  async createAccountOnly(email: string, password: string, displayName: string): Promise<void> {
+    const credential = await createUserWithEmailAndPassword(this.auth, email.trim(), password);
+    await updateProfile(credential.user, { displayName: displayName.trim() });
   }
 
   /** Mantém o displayName do Firebase Auth (usado no rodapé da sidebar) em sincronia com o editado no Perfil. */

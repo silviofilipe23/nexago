@@ -105,7 +105,7 @@ const STATUS_LABEL: Record<AttendanceStatus, string> = {
   styles: `
     .body {
       flex: 1;
-      padding: 22px 32px 0;
+      padding: 22px var(--co-gutter) 0;
       display: flex;
       flex-direction: column;
       gap: 16px;
@@ -204,8 +204,8 @@ const STATUS_LABEL: Record<AttendanceStatus, string> = {
       align-items: center;
       flex-wrap: wrap;
       gap: 10px 16px;
-      margin: 0 -32px;
-      padding: 12px 32px;
+      margin: 0 calc(var(--co-gutter) * -1);
+      padding: 12px var(--co-gutter);
       background: var(--nx-bg);
       border-top: 1px solid var(--nx-line);
     }

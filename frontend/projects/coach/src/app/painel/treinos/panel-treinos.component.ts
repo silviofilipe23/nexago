@@ -98,7 +98,7 @@ const STATUS_TONE: Record<TrainingStatus, PillTone> = {
   styles: `
     .body {
       flex: 1;
-      padding: 22px 32px 28px;
+      padding: 22px var(--co-gutter) 28px;
       display: flex;
       flex-direction: column;
       gap: 16px;

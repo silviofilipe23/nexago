@@ -88,7 +88,7 @@ const DIFFERENTIALS: DifferentialLink[] = [
   styles: `
     .body {
       flex: 1;
-      padding: 22px 32px 28px;
+      padding: 22px var(--co-gutter) 28px;
       display: flex;
       flex-direction: column;
       gap: 16px;
@@ -98,6 +98,11 @@ const DIFFERENTIALS: DifferentialLink[] = [
       display: grid;
       grid-template-columns: 320px 1fr;
       gap: 16px;
+    }
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
     }
     .prompt {
       padding: 9px 13px;
@@ -136,6 +141,11 @@ const DIFFERENTIALS: DifferentialLink[] = [
       display: grid;
       grid-template-columns: repeat(5, 1fr);
       gap: 12px;
+    }
+    @media (max-width: 900px) {
+      .diff-grid {
+        grid-template-columns: 1fr;
+      }
     }
     .diff-card {
       display: block;

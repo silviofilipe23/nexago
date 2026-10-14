@@ -76,7 +76,7 @@ type ServeKey = `${Side}${1 | 2}`;
         <div
           class="panel"
           [class.panel--final-mode]="isFinal()"
-          [style.--set-cols]="v.showSets ? v.setColumns.length : 0"
+          [style.--grid-cols]="gridCols(v)"
         >
           <div class="head">
             <span class="head-dupla">{{ v.phase === 'final' ? 'Resultado' : 'Dupla' }}</span>
@@ -330,7 +330,6 @@ type ServeKey = `${Side}${1 | 2}`;
     }
 
     .panel {
-      --set-cols: 0;
       position: relative;
       border-radius: var(--nx-r-2, 10px);
       background: #0b0b0c;
@@ -380,7 +379,7 @@ type ServeKey = `${Side}${1 | 2}`;
     .head,
     .row {
       display: grid;
-      grid-template-columns: minmax(340px, auto) repeat(var(--set-cols), 64px) 104px;
+      grid-template-columns: var(--grid-cols, minmax(340px, auto) 104px);
       align-items: stretch;
     }
 
@@ -503,7 +502,6 @@ type ServeKey = `${Side}${1 | 2}`;
       display: grid;
       grid-template-rows: 1fr 1fr;
       align-content: center;
-      // gap: 6px;
       min-width: 0;
       padding: 0 26px 0 22px;
       background: linear-gradient(180deg, #17171a, #0d0d0f);
@@ -762,6 +760,12 @@ export class OverlayScoreboardComponent {
 
   protected serveKey(side: Side, slot: 1 | 2): ServeKey {
     return `${side}${slot}`;
+  }
+
+  /** `repeat(0, …)` é inválido em CSS e derrubaria o grid inteiro — sem sets, a lista é só dupla + pontos. */
+  protected gridCols(v: OverlayDuelView): string {
+    const sets = v.showSets ? v.setColumns.length : 0;
+    return `minmax(340px, auto)${sets > 0 ? ` repeat(${sets}, 64px)` : ''} 104px`;
   }
 
   protected setStatusLabel(v: OverlayDuelView): string {

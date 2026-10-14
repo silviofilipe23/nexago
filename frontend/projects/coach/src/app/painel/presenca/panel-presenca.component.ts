@@ -4,9 +4,9 @@ import { AthleteAvatarComponent } from '../ui/athlete-avatar.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
-import { RowComponent } from '../ui/row.component';
 import { SquadContextService } from '../ui/squad-context.service';
 import { AthletesService } from '../atletas/athletes.service';
+import { defaultAttendance, sameAttendance, summarizeAttendance } from '../treinos/attendance-stats';
 import { compareTrainings, localIsoDate } from '../treinos/training-rules';
 import { TrainingsService, type AttendanceStatus } from '../treinos/trainings.service';
 
@@ -20,11 +20,11 @@ const STATUS_LABEL: Record<AttendanceStatus, string> = {
 @Component({
   selector: 'co-panel-presenca',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AthleteAvatarComponent, PageHeaderComponent, PanelCardComponent, PanelShellComponent, RowComponent],
+  imports: [AthleteAvatarComponent, PageHeaderComponent, PanelCardComponent, PanelShellComponent],
   template: `
     <co-panel-shell>
       <co-page-header title="Controle de presença" [subtitle]="subtitle()">
-        <select class="picker" (change)="selectTraining($any($event.target).value)">
+        <select class="picker" aria-label="Treino" (change)="selectTraining($any($event.target).value)">
           @for (t of trainings(); track t.id) {
             <option [value]="t.id" [selected]="t.id === selectedId()">{{ t.title }} · {{ t.date }}</option>
           }
@@ -35,29 +35,69 @@ const STATUS_LABEL: Record<AttendanceStatus, string> = {
         @if (!selected()) {
           <p class="empty">Nenhum treino agendado para esta equipe ainda. Crie um treino primeiro.</p>
         } @else {
+          @if (error(); as err) {
+            <div class="co-alert" role="alert">{{ err }}</div>
+          }
+          @if (startsAllPresent()) {
+            <p class="hint">Todos começam como presentes. Ajuste só quem faltou ou chegou atrasado.</p>
+          }
+
           <co-panel-card title="Marcar presença" [kicker]="roster().length + ' convocados'">
-            @for (a of roster(); track a.athleteUid; let last = $last) {
-              <co-row [title]="a.displayName" [sub]="a.category" [last]="last">
-                <co-athlete-avatar row-avatar [initials]="a.initials" [size]="34" [status]="a.status" />
-                <div row-trailing class="options">
+            <div class="tools">
+              <button type="button" class="co-ghost-btn" (click)="markAllPresent()">Todos presentes</button>
+            </div>
+            @for (a of roster(); track a.athleteUid) {
+              <div class="athlete">
+                <div class="who">
+                  <co-athlete-avatar [initials]="a.initials" [size]="36" [status]="a.status" />
+                  <div class="who-text">
+                    <div class="name">{{ a.displayName }}</div>
+                    @if (a.category) {
+                      <div class="cat">{{ a.category }}</div>
+                    }
+                  </div>
+                </div>
+                <div class="options" role="group" [attr.aria-label]="'Presença de ' + a.displayName">
                   @for (s of statusOptions; track s) {
-                    <button type="button" class="opt" [class.active]="statusFor(a.athleteUid) === s" (click)="setStatus(a.athleteUid, s)">
+                    <button
+                      type="button"
+                      class="opt"
+                      [class]="'opt ' + s"
+                      [class.active]="statusFor(a.athleteUid) === s"
+                      [attr.aria-pressed]="statusFor(a.athleteUid) === s"
+                      (click)="setStatus(a.athleteUid, s)"
+                    >
                       {{ STATUS_LABEL[s] }}
                     </button>
                   }
                 </div>
-              </co-row>
+              </div>
             } @empty {
               <p class="empty">Nenhum atleta vinculado a esta equipe ainda.</p>
             }
           </co-panel-card>
-          <button type="button" class="co-mini-btn co-mini-btn-primary save-btn" [disabled]="saving()" (click)="save()">
-            @if (saving()) {
-              Salvando…
-            } @else {
-              Salvar
+
+          <div class="savebar">
+            <div class="summary" aria-live="polite">
+              <span class="s-presente">{{ summary().presente }} presentes</span>
+              <span class="s-ausente">{{ summary().ausente }} ausentes</span>
+              <span class="s-atrasado">{{ summary().atrasado }} atrasados</span>
+              <span>{{ summary().justificado }} justificados</span>
+              @if (summary().semMarcacao > 0) {
+                <span class="s-pendente">{{ summary().semMarcacao }} sem marcação</span>
+              }
+            </div>
+            @if (justSaved()) {
+              <span class="saved" role="status">Presença salva</span>
             }
-          </button>
+            <button type="button" class="co-mini-btn co-mini-btn-primary save-btn" [disabled]="saving() || !dirty()" (click)="save()">
+              @if (saving()) {
+                Salvando…
+              } @else {
+                Salvar presença
+              }
+            </button>
+          </div>
         }
       </div>
     </co-panel-shell>
@@ -65,15 +105,20 @@ const STATUS_LABEL: Record<AttendanceStatus, string> = {
   styles: `
     .body {
       flex: 1;
-      padding: 22px 32px 28px;
+      padding: 22px 32px 0;
       display: flex;
       flex-direction: column;
       gap: 16px;
-      overflow: hidden;
+      overflow-y: auto;
     }
     .empty {
       color: var(--nx-text-mute);
       font-size: 13px;
+    }
+    .hint {
+      margin: 0;
+      color: var(--nx-text-dim);
+      font-size: 12.5px;
     }
     .picker {
       height: 36px;
@@ -85,29 +130,113 @@ const STATUS_LABEL: Record<AttendanceStatus, string> = {
       font-family: var(--nx-font-ui);
       font-size: 12.5px;
     }
+    .tools {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 4px;
+    }
+    .athlete {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--nx-line);
+    }
+    .athlete:last-child {
+      border-bottom: none;
+    }
+    .who {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1 1 200px;
+      min-width: 0;
+    }
+    .name {
+      font-family: var(--nx-font-display);
+      font-weight: 600;
+      font-size: 13.5px;
+      color: var(--nx-text);
+    }
+    .cat {
+      font-size: 11.5px;
+      color: var(--nx-text-dim);
+      margin-top: 2px;
+    }
     .options {
       display: flex;
+      flex-wrap: wrap;
       gap: 6px;
     }
     .opt {
-      height: 26px;
-      padding: 0 10px;
+      min-height: 44px;
+      padding: 0 14px;
       border-radius: 999px;
       border: 1px solid var(--nx-line-strong);
       background: transparent;
       color: var(--nx-text-dim);
       font-family: var(--nx-font-ui);
       font-weight: 600;
-      font-size: 10.5px;
+      font-size: 12px;
       cursor: pointer;
     }
     .opt.active {
-      background: var(--nx-orange-500);
       border-color: transparent;
-      color: var(--nx-text-on-orange);
+      color: #0b0b0c;
+    }
+    .opt.presente.active {
+      background: var(--nx-green-500, #3ecf8e);
+    }
+    .opt.ausente.active {
+      background: var(--nx-red-500, #ff5b5b);
+    }
+    .opt.atrasado.active {
+      background: var(--nx-yellow-500, #f5c542);
+    }
+    .opt.justificado.active {
+      background: var(--nx-text-dim);
+    }
+    .savebar {
+      position: sticky;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      margin: 0 -32px;
+      padding: 12px 32px;
+      background: var(--nx-bg);
+      border-top: 1px solid var(--nx-line);
+    }
+    .summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 14px;
+      flex: 1 1 280px;
+      font-family: var(--nx-font-mono);
+      font-size: 11px;
+      color: var(--nx-text-dim);
+    }
+    .s-presente {
+      color: var(--nx-green-500, #3ecf8e);
+    }
+    .s-ausente {
+      color: var(--nx-red-500, #ff5b5b);
+    }
+    .s-atrasado {
+      color: var(--nx-yellow-500, #f5c542);
+    }
+    .s-pendente {
+      color: var(--nx-orange-500);
+    }
+    .saved {
+      font-size: 12px;
+      color: var(--nx-green-500, #3ecf8e);
     }
     .save-btn {
-      align-self: flex-start;
+      min-height: 44px;
+      padding: 0 20px;
     }
   `,
 })
@@ -139,6 +268,13 @@ export class PanelPresencaComponent {
   );
   protected readonly draftAttendance = signal<Record<string, AttendanceStatus>>({});
   protected readonly saving = signal(false);
+  protected readonly error = signal<string | null>(null);
+  protected readonly justSaved = signal(false);
+  /** Treino sem presença salva abre com o elenco todo `presente`. */
+  protected readonly startsAllPresent = computed(() => {
+    const t = this.selected();
+    return !!t && Object.keys(t.attendance).length === 0 && this.roster().length > 0;
+  });
 
   protected readonly selected = computed(() => {
     const list = this.trainings();
@@ -158,11 +294,32 @@ export class PanelPresencaComponent {
     return t ? `${t.title} · ${t.date} · ${t.startTime}` : 'Selecione um treino';
   });
 
+  protected readonly rosterUids = computed(() => this.roster().map((a) => a.athleteUid));
+  protected readonly summary = computed(() => summarizeAttendance(this.draftAttendance(), this.rosterUids()));
+  protected readonly dirty = computed(() => {
+    const t = this.selected();
+    return !!t && !sameAttendance(this.draftAttendance(), t.attendance);
+  });
+
   constructor() {
     effect(() => {
       const t = this.selected();
-      this.draftAttendance.set(t ? { ...t.attendance } : {});
+      const uids = this.rosterUids();
+      this.error.set(null);
+      this.justSaved.set(false);
+      if (!t) {
+        this.draftAttendance.set({});
+      } else if (Object.keys(t.attendance).length === 0) {
+        this.draftAttendance.set(defaultAttendance(uids));
+      } else {
+        this.draftAttendance.set({ ...t.attendance });
+      }
     });
+  }
+
+  protected markAllPresent(): void {
+    this.justSaved.set(false);
+    this.draftAttendance.set(defaultAttendance(this.rosterUids()));
   }
 
   protected selectTraining(id: string): void {
@@ -174,6 +331,7 @@ export class PanelPresencaComponent {
   }
 
   protected setStatus(athleteUid: string, status: AttendanceStatus): void {
+    this.justSaved.set(false);
     this.draftAttendance.update((map) => ({ ...map, [athleteUid]: status }));
   }
 
@@ -182,9 +340,13 @@ export class PanelPresencaComponent {
     if (!t) {
       return;
     }
+    this.error.set(null);
     this.saving.set(true);
     try {
       await this.trainingsService.setAttendance(t.id, this.draftAttendance());
+      this.justSaved.set(true);
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : 'Não foi possível salvar a presença.');
     } finally {
       this.saving.set(false);
     }

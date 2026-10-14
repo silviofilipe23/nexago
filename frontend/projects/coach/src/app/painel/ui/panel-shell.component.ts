@@ -1,8 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
+import { CoachContextService } from '../access/coach-context.service';
+import { ROLE_LABELS, type PanelArea } from '../access/coach-roles.model';
 import { IconComponent, type PanelIconName } from './icon.component';
 import { initialsOf } from './initials';
 import { SquadContextService } from './squad-context.service';
@@ -12,25 +14,26 @@ interface PanelNavItem {
   label: string;
   icon: PanelIconName;
   route: string;
+  area: PanelArea;
 }
 
-const NAV_ITEMS: PanelNavItem[] = [
-  { id: 'inicio', label: 'Início', icon: 'home', route: '/painel' },
-  { id: 'atletas', label: 'Atletas', icon: 'person', route: '/painel/atletas' },
-  { id: 'equipes', label: 'Equipes', icon: 'team', route: '/painel/equipes' },
-  { id: 'treinos', label: 'Treinos', icon: 'clipboard', route: '/painel/treinos' },
-  { id: 'presenca', label: 'Presença', icon: 'check', route: '/painel/presenca' },
-  { id: 'avaliacoes', label: 'Avaliações', icon: 'radar', route: '/painel/avaliacoes' },
-  { id: 'agenda', label: 'Agenda', icon: 'calendar', route: '/painel/agenda' },
-  { id: 'convocacoes', label: 'Convocações', icon: 'bell', route: '/painel/convocacoes' },
-  { id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios' },
-  { id: 'historico', label: 'Histórico', icon: 'clock', route: '/painel/historico' },
-  { id: 'lesoes', label: 'Lesões', icon: 'medical', route: '/painel/lesoes' },
-  { id: 'permissoes', label: 'Permissões', icon: 'gear', route: '/painel/permissoes' },
-  { id: 'financeiro', label: 'Financeiro', icon: 'wallet', route: '/painel/financeiro' },
-  { id: 'comunicacao', label: 'Comunicação', icon: 'chat', route: '/painel/comunicacao' },
-  { id: 'biblioteca', label: 'Biblioteca', icon: 'folder', route: '/painel/biblioteca' },
-  { id: 'ia', label: 'IA do treinador', icon: 'sparkle', route: '/painel/ia' },
+export const NAV_ITEMS: PanelNavItem[] = [
+  { id: 'inicio', label: 'Início', icon: 'home', route: '/painel', area: 'atletas' },
+  { id: 'atletas', label: 'Atletas', icon: 'person', route: '/painel/atletas', area: 'atletas' },
+  { id: 'equipes', label: 'Equipes', icon: 'team', route: '/painel/equipes', area: 'atletas' },
+  { id: 'treinos', label: 'Treinos', icon: 'clipboard', route: '/painel/treinos', area: 'treinos' },
+  { id: 'presenca', label: 'Presença', icon: 'check', route: '/painel/presenca', area: 'treinos' },
+  { id: 'avaliacoes', label: 'Avaliações', icon: 'radar', route: '/painel/avaliacoes', area: 'avaliacoes' },
+  { id: 'agenda', label: 'Agenda', icon: 'calendar', route: '/painel/agenda', area: 'treinos' },
+  { id: 'convocacoes', label: 'Convocações', icon: 'bell', route: '/painel/convocacoes', area: 'convocacoes' },
+  { id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios', area: 'atletas' },
+  { id: 'historico', label: 'Histórico', icon: 'clock', route: '/painel/historico', area: 'treinos' },
+  { id: 'lesoes', label: 'Lesões', icon: 'medical', route: '/painel/lesoes', area: 'saude' },
+  { id: 'permissoes', label: 'Permissões', icon: 'gear', route: '/painel/permissoes', area: 'equipe' },
+  { id: 'financeiro', label: 'Financeiro', icon: 'wallet', route: '/painel/financeiro', area: 'financeiro' },
+  { id: 'comunicacao', label: 'Comunicação', icon: 'chat', route: '/painel/comunicacao', area: 'comunicacao' },
+  { id: 'biblioteca', label: 'Biblioteca', icon: 'folder', route: '/painel/biblioteca', area: 'principal' },
+  { id: 'ia', label: 'IA do treinador', icon: 'sparkle', route: '/painel/ia', area: 'principal' },
 ];
 
 function pathOnly(url: string): string {
@@ -63,9 +66,22 @@ function pathOnly(url: string): string {
           <co-icon name="chevron-right" [size]="13" style="color: var(--nx-text-dim); transform: rotate(90deg)" />
         </div>
 
+        @if (ctx.contexts().length > 1) {
+          <label class="coach-switcher">
+            <span class="nav-kicker">Painel</span>
+            <select (change)="onCoachChange($event)">
+              @for (c of ctx.contexts(); track c.coachUid) {
+                <option [value]="c.coachUid" [selected]="c.coachUid === ctx.activeCoachUid()">
+                  {{ c.isOwn ? 'Meu painel' : c.coachName }}
+                </option>
+              }
+            </select>
+          </label>
+        }
+
         <nav class="nav">
           <div class="nav-kicker">Comissão técnica</div>
-          @for (item of navItems; track item.id) {
+          @for (item of navItems(); track item.id) {
             <a class="nav-item" [class.active]="activeId() === item.id" [routerLink]="item.route">
               <co-icon [name]="item.icon" [size]="17" [strokeWidth]="1.9" />
               <span>{{ item.label }}</span>
@@ -79,7 +95,7 @@ function pathOnly(url: string): string {
           <div class="avatar" aria-hidden="true">{{ initials() }}</div>
           <div class="who">
             <div class="who-name">{{ displayName() }}</div>
-            <div class="who-role">Treinador(a)</div>
+            <div class="who-role">{{ roleLabel() }}</div>
           </div>
         </div>
       </aside>
@@ -198,6 +214,24 @@ function pathOnly(url: string): string {
       font-size: 8.5px;
       font-weight: 600;
       color: var(--nx-text-dim);
+    }
+
+    .coach-switcher {
+      display: block;
+      margin-top: 10px;
+    }
+
+    .coach-switcher select {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+      color: var(--nx-text);
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 12.5px;
+      cursor: pointer;
     }
 
     .nav {
@@ -337,8 +371,41 @@ export class PanelShellComponent {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly squadContext = inject(SquadContextService);
+  protected readonly ctx = inject(CoachContextService);
 
-  protected readonly navItems = NAV_ITEMS;
+  protected readonly navItems = computed(() => NAV_ITEMS.filter((i) => this.ctx.can(i.area)));
+  protected readonly roleLabel = computed(() => ROLE_LABELS[this.ctx.role() ?? 'principal']);
+
+  /** Painel/cargo com que esta página foi aberta; muda só se o vínculo mudar por baixo dela. */
+  private baseline: { coachUid: string | null; role: string | null } | null = null;
+
+  constructor() {
+    effect(() => {
+      if (!this.ctx.ready()) {
+        return;
+      }
+      if (this.ctx.contexts().length === 0) {
+        void this.router.navigateByUrl('/sem-acesso');
+        return;
+      }
+      const current = { coachUid: this.ctx.activeCoachUid(), role: this.ctx.role() };
+      const before = this.baseline;
+      this.baseline = current;
+      if (before && (before.coachUid !== current.coachUid || before.role !== current.role)) {
+        // O cargo/painel mudou com a página aberta: ela pode não ser mais permitida.
+        void this.router.navigateByUrl('/painel');
+      }
+    });
+  }
+
+  protected onCoachChange(event: Event): void {
+    this.switchCoach((event.target as HTMLSelectElement).value);
+  }
+
+  protected switchCoach(coachUid: string): void {
+    this.ctx.select(coachUid);
+    void this.router.navigateByUrl('/painel');
+  }
 
   private readonly currentPath = toSignal(
     this.router.events.pipe(

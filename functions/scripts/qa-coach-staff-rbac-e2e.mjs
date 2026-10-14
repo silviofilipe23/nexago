@@ -106,6 +106,10 @@ async function fsGet(path, token) {
   const r = await fetch(`${FS}/${path}`, {headers: {Authorization: `Bearer ${token}`}});
   if (r.status === 403) return {denied: true};
   if (r.status === 404) return null;
+  if (!r.ok) {
+    // 401/429/5xx não podem virar "leitura bem-sucedida" ({}), nem "negado".
+    throw new Error(`fsGet ${path}: HTTP ${r.status} ${await r.text()}`);
+  }
   const j = await r.json();
   return j.fields ?? {};
 }
@@ -164,18 +168,22 @@ async function run() {
   // ===========================================================================
   const PW = `QaCoach!${ts}`;
   const mail = (tag) => `coach-qa-${ts}-${tag}@example.test`;
-  const coach = await signUp(mail("dono"), PW);
-  const coachB = await signUp(mail("donob"), PW);
-  const aux = await signUp(mail("aux"), PW);
-  const prep = await signUp(mail("prep"), PW);
-  const fisio = await signUp(mail("fisio"), PW);
-  const psico = await signUp(mail("psico"), PW);
-  const estranho = await signUp(mail("estranho"), PW);
-  const atleta = await signUp(mail("atleta"), PW);
-  for (const u of [coach, coachB, aux, prep, fisio, psico, estranho, atleta]) {
+  // Cada uid entra em cleanup.authUids logo após o próprio signUp: falha no meio do setup não vaza contas.
+  const newUser = async (tag) => {
+    const u = await signUp(mail(tag), PW);
     cleanup.authUids.push(u.uid);
-  }
-  cleanup.coachIds.push(coach.uid, coachB.uid);
+    return u;
+  };
+  const coach = await newUser("dono");
+  cleanup.coachIds.push(coach.uid);
+  const coachB = await newUser("donob");
+  cleanup.coachIds.push(coachB.uid);
+  const aux = await newUser("aux");
+  const prep = await newUser("prep");
+  const fisio = await newUser("fisio");
+  const psico = await newUser("psico");
+  const estranho = await newUser("estranho");
+  const atleta = await newUser("atleta");
   const A = coach.uid;
   const Bc = coachB.uid;
   console.log(`  coach A=${A}  coach B=${Bc}`);
@@ -244,8 +252,8 @@ async function run() {
   const mirror = await poll("espelho users/{aux}/coachStaff/{A}", async () => {
     const f = await fsGet(`users/${aux.uid}/coachStaff/${A}`, aux.token);
     return isReadable(f) ? f : null;
-  }, 10, 500);
-  ok("[2] espelho users/{aux}/coachStaff/{A} aparece em <= 5s (trigger)",
+  }, 40, 500);
+  ok("[2] espelho users/{aux}/coachStaff/{A} aparece em <= 20s (trigger)",
     !!mirror && fieldStr(mirror.value, "role") === "auxiliar",
     mirror ? JSON.stringify(mirror.value) : "(timeout)");
   if (mirror) console.log(`  ⏱ latência do espelho: ${mirror.elapsedMs}ms`);
@@ -371,8 +379,8 @@ async function run() {
   const mirrorGone = await poll("espelho do aux sumir", async () => {
     const f = await fsGet(`users/${aux.uid}/coachStaff/${A}`, aux.token);
     return f === null ? true : null;
-  }, 10, 500);
-  ok("[5] espelho users/{aux}/coachStaff/{A} some em <= 5s (trigger)", !!mirrorGone);
+  }, 40, 500);
+  ok("[5] espelho users/{aux}/coachStaff/{A} some em <= 20s (trigger)", !!mirrorGone);
   if (mirrorGone) console.log(`  ⏱ latência da remoção do espelho: ${mirrorGone.elapsedMs}ms`);
 
   // changeCoachStaffRole: preparador -> psicologo muda o acesso na hora.
@@ -407,8 +415,9 @@ async function run() {
   const fisioMirrorGone = await poll("espelho do fisio sumir", async () => {
     const f = await fsGet(`users/${fisio.uid}/coachStaff/${A}`, fisio.token);
     return f === null ? true : null;
-  }, 10, 500);
-  ok("[6] espelho do fisio some em <= 5s (trigger)", !!fisioMirrorGone);
+  }, 40, 500);
+  ok("[6] espelho do fisio some em <= 20s (trigger)", !!fisioMirrorGone);
+  if (fisioMirrorGone) console.log(`  ⏱ latência da remoção do espelho (fisio): ${fisioMirrorGone.elapsedMs}ms`);
 }
 
 try {

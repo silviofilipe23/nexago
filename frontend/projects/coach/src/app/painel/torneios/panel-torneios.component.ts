@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { RouterLink } from '@angular/router';
 import { getApps } from 'firebase/app';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { CoachContextService } from '../access/coach-context.service';
 import { AthletesService } from '../atletas/athletes.service';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
@@ -78,6 +79,9 @@ interface CoachTournamentOverviewItem {
 export class PanelTorneiosComponent {
   private readonly athletesService = inject(AthletesService);
   private readonly squadContext = inject(SquadContextService);
+  private readonly ctx = inject(CoachContextService);
+  /** Descarta respostas de uma carga anterior (troca de treinador/equipe com a chamada em voo). */
+  private loadGeneration = 0;
 
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
@@ -90,25 +94,39 @@ export class PanelTorneiosComponent {
 
   constructor() {
     effect(() => {
+      const coachUid = this.ctx.activeCoachUid();
       const squadId = this.squadContext.activeSquadId();
-      void this.load(squadId);
+      void this.load(coachUid, squadId);
     });
   }
 
-  private async load(squadId: string | null): Promise<void> {
-    this.loading.set(true);
+  private async load(coachUid: string | null, squadId: string | null): Promise<void> {
+    const generation = ++this.loadGeneration;
+    // Reset ANTES de recarregar: os torneios do treinador anterior não sobrevivem à troca.
+    this.tournaments.set([]);
     this.error.set(null);
+    if (!coachUid) {
+      this.loading.set(false);
+      return;
+    }
+    this.loading.set(true);
     try {
-      const fn = httpsCallable<{ squadId?: string }, { tournaments: CoachTournamentOverviewItem[] }>(
+      const fn = httpsCallable<{ coachUid?: string | null; squadId?: string }, { tournaments: CoachTournamentOverviewItem[] }>(
         getFunctions(getApps()[0]!, FUNCTIONS_REGION),
         'getCoachTournamentOverview',
       );
-      const res = await fn(squadId ? { squadId } : {});
-      this.tournaments.set(res.data.tournaments);
+      const res = await fn({ coachUid, ...(squadId ? { squadId } : {}) });
+      if (generation === this.loadGeneration) {
+        this.tournaments.set(res.data.tournaments);
+      }
     } catch (err) {
-      this.error.set(err instanceof Error ? err.message : 'Não foi possível carregar os torneios.');
+      if (generation === this.loadGeneration) {
+        this.error.set(err instanceof Error ? err.message : 'Não foi possível carregar os torneios.');
+      }
     } finally {
-      this.loading.set(false);
+      if (generation === this.loadGeneration) {
+        this.loading.set(false);
+      }
     }
   }
 

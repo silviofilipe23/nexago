@@ -10,7 +10,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
-import { AuthService } from '../../auth/auth.service';
+import { CoachContextService } from '../access/coach-context.service';
 import type { Evaluation, EvaluationScores } from './evaluation-stats';
 
 export interface NewEvaluationInput {
@@ -50,7 +50,7 @@ function readEvaluation(id: string, data: Record<string, unknown> | undefined): 
 /** `coaches/{uid}/evaluations` é ownership-only (Task 2) — leitura/escrita direta do client. */
 @Injectable({ providedIn: 'root' })
 export class EvaluationsService {
-  private readonly auth = inject(AuthService);
+  private readonly ctx = inject(CoachContextService);
   private readonly firestore = createFirestore();
 
   private readonly evaluationsState = signal<Evaluation[]>([]);
@@ -58,9 +58,10 @@ export class EvaluationsService {
 
   constructor() {
     effect((onCleanup) => {
-      const uid = this.auth.user()?.uid ?? null;
+      const uid = this.ctx.activeCoachUid();
+      // Reset ANTES de reassinar: as avaliações do treinador anterior não sobrevivem à troca.
+      this.evaluationsState.set([]);
       if (!uid) {
-        this.evaluationsState.set([]);
         return;
       }
 
@@ -77,9 +78,9 @@ export class EvaluationsService {
   }
 
   async createEvaluation(input: NewEvaluationInput): Promise<string> {
-    const uid = this.auth.user()?.uid;
+    const uid = this.ctx.activeCoachUid();
     if (!uid) {
-      throw new Error('Usuário não autenticado.');
+      throw new Error('Nenhum painel de treinador ativo.');
     }
     const ref = doc(collection(this.firestore, 'coaches', uid, 'evaluations'));
     await setDoc(ref, {

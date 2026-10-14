@@ -15,7 +15,7 @@ import {
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { levelDisplayLabel } from '@nexago/levels';
 import { environment } from '../../../environments/environment';
-import { AuthService } from '../../auth/auth.service';
+import { CoachContextService } from '../access/coach-context.service';
 import { initialsOf } from '../ui/initials';
 import type { AthleteStatus } from '../ui/athlete-avatar.component';
 import { FUNCTIONS_REGION } from '@nexago/firebase-config';
@@ -121,7 +121,9 @@ function chunk<T>(list: T[], size: number): T[][] {
  */
 @Injectable({ providedIn: 'root' })
 export class AthletesService {
-  private readonly auth = inject(AuthService);
+  private readonly ctx = inject(CoachContextService);
+  /** Descarta respostas de `loadProfiles` de uma assinatura anterior (troca de treinador). */
+  private profilesGeneration = 0;
   private readonly firestore = createFirestore();
 
   private readonly linksState = signal<AthleteLink[]>([]);
@@ -137,10 +139,12 @@ export class AthletesService {
 
   constructor() {
     effect((onCleanup) => {
-      const uid = this.auth.user()?.uid ?? null;
+      const uid = this.ctx.activeCoachUid();
+      // Reset ANTES de reassinar: o elenco do treinador anterior não sobrevive à troca.
+      this.profilesGeneration++;
+      this.linksState.set([]);
+      this.profilesState.set(new Map());
       if (!uid) {
-        this.linksState.set([]);
-        this.profilesState.set(new Map());
         return;
       }
 
@@ -162,6 +166,7 @@ export class AthletesService {
   }
 
   private async loadProfiles(athleteUids: string[]): Promise<void> {
+    const generation = ++this.profilesGeneration;
     if (athleteUids.length === 0) {
       this.profilesState.set(new Map());
       return;
@@ -173,31 +178,33 @@ export class AthletesService {
       );
       snap.docs.forEach((d) => map.set(d.id, readPublicProfile(d.data())));
     }
-    this.profilesState.set(map);
+    if (generation === this.profilesGeneration) {
+      this.profilesState.set(map);
+    }
   }
 
   async searchAthleteByEmail(email: string): Promise<AthleteSearchHit | null> {
-    const fn = httpsCallable<{ email: string }, { result: AthleteSearchHit | null }>(
+    const fn = httpsCallable<{ coachUid: string | null; email: string }, { result: AthleteSearchHit | null }>(
       getFunctions(getApps()[0]!, FUNCTIONS_REGION),
       'searchAthleteForCoachInvite',
     );
-    const res = await fn({ email });
+    const res = await fn({ coachUid: this.ctx.activeCoachUid(), email });
     return res.data.result;
   }
 
   async inviteAthlete(athleteUid: string, athleteName: string, squadId: string | null): Promise<string> {
     const fn = httpsCallable<
-      { athleteUid: string; athleteName: string; squadId?: string },
+      { coachUid: string | null; athleteUid: string; athleteName: string; squadId?: string },
       { inviteId: string }
     >(getFunctions(getApps()[0]!, FUNCTIONS_REGION), 'sendCoachAthleteInvite');
-    const res = await fn({ athleteUid, athleteName, ...(squadId ? { squadId } : {}) });
+    const res = await fn({ coachUid: this.ctx.activeCoachUid(), athleteUid, athleteName, ...(squadId ? { squadId } : {}) });
     return res.data.inviteId;
   }
 
   async updateAthleteLink(athleteUid: string, patch: Partial<Omit<AthleteLink, 'athleteUid'>>): Promise<void> {
-    const uid = this.auth.user()?.uid;
+    const uid = this.ctx.activeCoachUid();
     if (!uid) {
-      throw new Error('Usuário não autenticado.');
+      throw new Error('Nenhum painel de treinador ativo.');
     }
     await setDoc(doc(this.firestore, 'coaches', uid, 'athletes', athleteUid), patch, { merge: true });
   }

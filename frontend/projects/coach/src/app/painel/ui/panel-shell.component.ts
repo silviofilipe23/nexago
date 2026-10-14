@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
 import { CoachContextService } from '../access/coach-context.service';
+import { CoachStaffService } from '../access/coach-staff.service';
 import { ROLE_LABELS, type PanelArea } from '../access/coach-roles.model';
 import { IconComponent, type PanelIconName } from './icon.component';
 import { initialsOf } from './initials';
@@ -98,6 +99,20 @@ function pathOnly(url: string): string {
             <div class="who-role">{{ roleLabel() }}</div>
           </div>
         </div>
+
+        @if (ctx.activeContext()?.isOwn === false) {
+          <div class="leave">
+            @if (confirmingLeave()) {
+              <button type="button" class="leave-btn danger" [disabled]="leaving()" (click)="leave()">Confirmar saída</button>
+              <button type="button" class="leave-btn" (click)="confirmingLeave.set(false)">Cancelar</button>
+            } @else {
+              <button type="button" class="leave-btn" (click)="confirmingLeave.set(true)">Sair desta comissão</button>
+            }
+            @if (leaveError(); as err) {
+              <div class="leave-error" role="alert">{{ err }}</div>
+            }
+          </div>
+        }
       </aside>
 
       <div class="content">
@@ -349,6 +364,39 @@ function pathOnly(url: string): string {
       color: var(--nx-text-dim);
     }
 
+    .leave {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .leave-btn {
+      background: none;
+      border: none;
+      padding: 2px 4px;
+      font-family: var(--nx-font-ui);
+      font-size: 11px;
+      color: var(--nx-text-dim);
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    .leave-btn.danger {
+      color: var(--nx-red-500, #ff5b5b);
+    }
+
+    .leave-btn:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    .leave-error {
+      width: 100%;
+      font-size: 11px;
+      color: #ff9b94;
+    }
+
     .content {
       display: flex;
       flex-direction: column;
@@ -371,7 +419,12 @@ export class PanelShellComponent {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly squadContext = inject(SquadContextService);
+  private readonly staff = inject(CoachStaffService);
   protected readonly ctx = inject(CoachContextService);
+
+  protected readonly confirmingLeave = signal(false);
+  protected readonly leaving = signal(false);
+  protected readonly leaveError = signal<string | null>(null);
 
   protected readonly navItems = computed(() => NAV_ITEMS.filter((i) => this.ctx.can(i.area)));
   protected readonly roleLabel = computed(() => ROLE_LABELS[this.ctx.role() ?? 'principal']);
@@ -396,6 +449,25 @@ export class PanelShellComponent {
         void this.router.navigateByUrl('/painel');
       }
     });
+  }
+
+  protected async leave(): Promise<void> {
+    const coachUid = this.ctx.activeContext()?.isOwn === false ? this.ctx.activeCoachUid() : null;
+    if (!coachUid) {
+      return;
+    }
+    this.leaveError.set(null);
+    this.leaving.set(true);
+    try {
+      await this.staff.leave(coachUid);
+      this.confirmingLeave.set(false);
+      // O espelho some em ~1 s e o contexto cai para outro painel (ou /sem-acesso, pelo effect acima).
+      void this.router.navigateByUrl('/painel');
+    } catch (err) {
+      this.leaveError.set(err instanceof Error && err.message ? err.message : 'Não foi possível sair da comissão.');
+    } finally {
+      this.leaving.set(false);
+    }
   }
 
   protected onCoachChange(event: Event): void {

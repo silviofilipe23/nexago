@@ -8,6 +8,9 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../athlete/presentation/widgets/athlete_profile_avatar.dart';
 import '../../../../athlete/presentation/public_profile/widgets/profile_photo_viewer.dart';
+import '../../../../tournaments/domain/tournament_match_kit_color.dart';
+import '../mesa_sun/mesa_sun.dart';
+import 'organizer_match_kit_color_widgets.dart';
 import 'organizer_match_live_table_widgets.dart' show LiveTableTeamData;
 
 /// Configuração escolhida antes do 1º ponto do set.
@@ -17,6 +20,8 @@ class LiveTableStartConfig {
     required this.slotA,
     required this.slotB,
     required this.leftSide,
+    this.kitA = KitColors.defaultA,
+    this.kitB = KitColors.defaultB,
     this.toss = false,
   });
 
@@ -29,6 +34,10 @@ class LiveTableStartConfig {
 
   /// Dupla que começa à ESQUERDA, vista da mesa.
   final String leftSide;
+
+  /// Cor da camisa de cada dupla nesta partida (nunca iguais).
+  final KitColor kitA;
+  final KitColor kitB;
   final bool toss;
 }
 
@@ -43,6 +52,8 @@ class LiveTableStartServeScreen extends StatefulWidget {
     required this.onBack,
     required this.onConfirm,
     this.initial,
+    this.initialKitA,
+    this.initialKitB,
     this.enabled = true,
   });
 
@@ -54,6 +65,10 @@ class LiveTableStartServeScreen extends StatefulWidget {
 
   /// Sets seguintes chegam pré-preenchidos; set 1 e tie-break, `null`.
   final LiveTableStartConfig? initial;
+
+  /// Cores já gravadas na partida (set 2 em diante): mandam sobre o padrão.
+  final KitColor? initialKitA;
+  final KitColor? initialKitB;
   final bool enabled;
 
   @override
@@ -66,6 +81,10 @@ class _LiveTableStartServeScreenState extends State<LiveTableStartServeScreen> {
   late int _slotA = widget.initial?.slotA ?? 1;
   late int _slotB = widget.initial?.slotB ?? 1;
   late String _left = widget.initial?.leftSide ?? 'A';
+  late KitColor _kitA =
+      widget.initial?.kitA ?? widget.initialKitA ?? KitColors.defaultA;
+  late KitColor _kitB =
+      widget.initial?.kitB ?? widget.initialKitB ?? KitColors.defaultB;
   bool _toss = false;
   int _pulse = 0;
   String? _pulsedSide;
@@ -107,6 +126,23 @@ class _LiveTableStartServeScreenState extends State<LiveTableStartServeScreen> {
         }
       });
 
+  KitColor _kit(String side) => side == 'A' ? _kitA : _kitB;
+
+  /// As duas duplas nunca ficam com a mesma cor: escolher a da outra faz as duas trocarem.
+  void _pickKit(String side, KitColor color) {
+    HapticFeedback.selectionClick();
+    final next = KitColors.pick(
+      side: side,
+      chosen: color,
+      currentA: _kitA,
+      currentB: _kitB,
+    );
+    setState(() {
+      _kitA = next.a;
+      _kitB = next.b;
+    });
+  }
+
   void _swapLeft() => setState(() => _left = _left == 'A' ? 'B' : 'A');
 
   void _draw() => _select(math.Random().nextBool() ? 'A' : 'B', toss: true);
@@ -123,39 +159,52 @@ class _LiveTableStartServeScreenState extends State<LiveTableStartServeScreen> {
 
     final step1 = _Step1(state: this, onDraw: widget.enabled ? _draw : null);
     final step2 = _Step2(state: this);
+    final stepKit = _StepKit(state: this);
     final step3 = _Step3(state: this);
 
+    final sun = MesaSun.isOn(context);
+    final ctaDisabled = !(serving != null && widget.enabled);
     final cta = Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Semantics(
         button: true,
-        child: FilledButton(
-          onPressed: serving != null && widget.enabled
-              ? () => widget.onConfirm(
-                    LiveTableStartConfig(
-                      servingSide: serving,
-                      slotA: _slotA,
-                      slotB: _slotB,
-                      leftSide: _left,
-                      toss: _toss,
-                    ),
-                  )
-              : null,
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.brand,
-            foregroundColor: AppColors.black,
-            disabledBackgroundColor: colors.surfaceRaised,
-            disabledForegroundColor: colors.onSurfaceMuted,
-            minimumSize: const Size.fromHeight(60),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+        child: CustomPaint(
+          // Sol: o desabilitado é tracejado, pra não parecer ativo.
+          foregroundPainter:
+              sun && ctaDisabled ? const MesaSunDashedBorder() : null,
+          child: FilledButton(
+            onPressed: serving != null && widget.enabled
+                ? () => widget.onConfirm(
+                      LiveTableStartConfig(
+                        servingSide: serving,
+                        slotA: _slotA,
+                        slotB: _slotB,
+                        leftSide: _left,
+                        kitA: _kitA,
+                        kitB: _kitB,
+                        toss: _toss,
+                      ),
+                    )
+                : null,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.brand,
+              foregroundColor: AppColors.black,
+              disabledBackgroundColor:
+                  sun ? MesaSun.surfaceStrong : colors.surfaceRaised,
+              disabledForegroundColor: sun
+                  ? MesaSun.ink.withValues(alpha: 0.6)
+                  : colors.onSurfaceMuted,
+              minimumSize: const Size.fromHeight(50),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              textStyle: AppTypography.soraRegular(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
             ),
-            textStyle: AppTypography.soraRegular(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-            ),
+            child: Text(ctaLabel, maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
-          child: Text(ctaLabel, maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
       ),
     );
@@ -179,8 +228,10 @@ class _LiveTableStartServeScreenState extends State<LiveTableStartServeScreen> {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 step1,
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 6),
                                 step2,
+                                const SizedBox(height: 6),
+                                stepKit,
                               ],
                             ),
                           ),
@@ -215,9 +266,11 @@ class _LiveTableStartServeScreenState extends State<LiveTableStartServeScreen> {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 step1,
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 6),
                                 step2,
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 6),
+                                stepKit,
+                                const SizedBox(height: 6),
                                 step3,
                               ],
                             ),
@@ -243,16 +296,22 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    final sun = MesaSun.isOn(context);
     final court = courtLabel.trim();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      padding: const EdgeInsets.fromLTRB(12, 2, 12, 6),
       child: Row(
         children: [
           Tooltip(
             message: 'Voltar',
             child: Material(
-              color: colors.surfaceRaised,
-              borderRadius: BorderRadius.circular(14),
+              color: sun ? MesaSun.white : colors.surfaceRaised,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: sun
+                    ? const BorderSide(color: MesaSun.ink, width: 2)
+                    : BorderSide.none,
+              ),
               child: InkWell(
                 onTap: onBack,
                 borderRadius: BorderRadius.circular(14),
@@ -275,7 +334,7 @@ class _Header extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.live,
+                    color: sun ? MesaSun.live : AppColors.live,
                     letterSpacing: 0.8,
                   ),
                 ),
@@ -291,7 +350,7 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 44),
+          const MesaSunToggleButton(),
         ],
       ),
     );
@@ -307,7 +366,7 @@ class _StepLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 32,
+      height: 22,
       child: Row(
         children: [
           Expanded(
@@ -342,15 +401,19 @@ class _Step1 extends StatelessWidget {
         _StepLabel(
           '1 · DUPLA QUE SACA',
           trailing: Material(
-            color: AppColors.brand.withValues(alpha: 0.14),
+            color: MesaSun.isOn(context)
+                ? MesaSun.white
+                : AppColors.brand.withValues(alpha: 0.14),
             shape: StadiumBorder(
-              side: BorderSide(color: AppColors.brand.withValues(alpha: 0.4)),
+              side: MesaSun.isOn(context)
+                  ? const BorderSide(color: MesaSun.ink, width: 2)
+                  : BorderSide(color: AppColors.brand.withValues(alpha: 0.4)),
             ),
             child: InkWell(
               onTap: onDraw,
               customBorder: const StadiumBorder(),
               child: Container(
-                height: 32,
+                height: 28,
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 alignment: Alignment.center,
                 child: Text(
@@ -358,14 +421,16 @@ class _Step1 extends StatelessWidget {
                   style: AppTypography.soraRegular(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.brandHover,
+                    color: MesaSun.isOn(context)
+                        ? MesaSun.ink
+                        : AppColors.brandHover,
                   ),
                 ),
               ),
             ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         Semantics(
           container: true,
           label: 'Dupla que saca primeiro',
@@ -398,6 +463,7 @@ class _TeamCard extends StatelessWidget {
     final team = state._team(side);
     final chosen = state._serving;
     final selected = chosen == side;
+    final sun = MesaSun.isOn(context);
     final fg = selected ? Colors.black : colors.onSurface;
     final legend = chosen == null
         ? 'toque para escolher'
@@ -422,26 +488,33 @@ class _TeamCard extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(22),
             side: BorderSide(
-              color: selected
-                  ? AppColors.brand
-                  : colors.onSurfaceMuted.withValues(alpha: 0.2),
-              width: 1.5,
+              color: sun
+                  ? MesaSun.ink
+                  : (selected
+                      ? AppColors.brand
+                      : colors.onSurfaceMuted.withValues(alpha: 0.2)),
+              width: sun ? 2.5 : 1.5,
             ),
           ),
           child: InkWell(
             onTap: state.widget.enabled ? () => state._select(side) : null,
             borderRadius: BorderRadius.circular(22),
             child: SizedBox(
-              height: 140,
+              height: 116,
               child: Padding(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _Avatars(state: state, side: side, selected: selected),
                     const Spacer(),
-                    Text(
-                      team.label,
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          kitSquareSpan(state._kit(side), 12),
+                          TextSpan(text: team.label),
+                        ],
+                      ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: AppTypography.soraRegular(
@@ -454,12 +527,16 @@ class _TeamCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       legend,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: AppTypography.soraRegular(
                         fontSize: 11.5,
-                        fontWeight: FontWeight.w500,
-                        color: selected
-                            ? Colors.black.withValues(alpha: 0.7)
-                            : colors.onSurfaceMuted,
+                        fontWeight: sun ? FontWeight.w600 : FontWeight.w500,
+                        color: sun
+                            ? MesaSun.ink
+                            : (selected
+                                ? Colors.black.withValues(alpha: 0.7)
+                                : colors.onSurfaceMuted),
                       ),
                     ),
                   ],
@@ -484,7 +561,7 @@ class _Avatars extends StatelessWidget {
   final String side;
   final bool selected;
 
-  static const double _size = 48;
+  static const double _size = 30;
 
   @override
   Widget build(BuildContext context) {
@@ -512,11 +589,18 @@ class _Avatars extends StatelessWidget {
                   team: team,
                   slots: slots,
                   index: i,
-                  child: AthleteProfileAvatar(
-                    size: _size - 5,
-                    initials: _initials(team, side, slots[i]),
-                    imageUrl: _photo(team, slots[i]),
-                  ),
+                  child: _photo(team, slots[i]) == null
+                      // Sem foto: iniciais na cor da camisa da dupla (fundo hex, texto onHex).
+                      ? _KitInitials(
+                          size: _size - 5,
+                          initials: _initials(team, side, slots[i]),
+                          color: state._kit(side),
+                        )
+                      : AthleteProfileAvatar(
+                          size: _size - 5,
+                          initials: _initials(team, side, slots[i]),
+                          imageUrl: _photo(team, slots[i]),
+                        ),
                 ),
               ),
             ),
@@ -572,6 +656,85 @@ class _Avatars extends StatelessWidget {
   }
 }
 
+/// Passo 3 — cor da camisa de cada dupla. Entre "primeiro sacador" e "lado inicial".
+class _StepKit extends StatelessWidget {
+  const _StepKit({required this.state});
+
+  final _LiveTableStartServeScreenState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final sun = MesaSun.isOn(context);
+    Widget row(String side) => Container(
+          padding: const EdgeInsets.fromLTRB(14, 0, 4, 0),
+          decoration: BoxDecoration(
+            color: colors.surfaceCard,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: sun
+                  ? MesaSun.ink
+                  : colors.onSurfaceMuted.withValues(alpha: 0.18),
+              width: sun ? 2 : 1,
+            ),
+          ),
+          child: KitColorRow(
+            side: side,
+            teamLabel: state._team(side).label,
+            selected: state._kit(side),
+            onPick: state.widget.enabled
+                ? (color) => state._pickKit(side, color)
+                : null,
+          ),
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _StepLabel('3 · COR DA CAMISA'),
+        const SizedBox(height: 6),
+        row('A'),
+        const SizedBox(height: 4),
+        row('B'),
+      ],
+    );
+  }
+}
+
+class _KitInitials extends StatelessWidget {
+  const _KitInitials({
+    required this.size,
+    required this.initials,
+    required this.color,
+  });
+
+  final double size;
+  final String initials;
+  final KitColor color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: kitOutlined(
+        context,
+        fill: color.hex,
+        radius: BorderRadius.circular(size / 2),
+        child: Center(
+          child: Text(
+            initials,
+            style: AppTypography.soraRegular(
+              fontSize: size * 0.34,
+              fontWeight: FontWeight.w800,
+              color: color.onHex,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _Step2 extends StatelessWidget {
   const _Step2({required this.state});
 
@@ -583,9 +746,9 @@ class _Step2 extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const _StepLabel('2 · PRIMEIRO SACADOR DE CADA DUPLA'),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         _ServerRow(state: state, side: 'A'),
-        const SizedBox(height: 10),
+        const SizedBox(height: 6),
         _ServerRow(state: state, side: 'B'),
       ],
     );
@@ -604,16 +767,19 @@ class _ServerRow extends StatelessWidget {
     final team = state._team(side);
     final chosen = state._serving;
     final isServing = chosen == side;
+    final sun = MesaSun.isOn(context);
     final legend = chosen == null
         ? '1º sacador da dupla'
         : (isServing ? 'saca o 1º ponto' : 'saca ao recuperar o saque');
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+      padding: const EdgeInsets.fromLTRB(14, 4, 6, 4),
       decoration: BoxDecoration(
         color: colors.surfaceCard,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: colors.onSurfaceMuted.withValues(alpha: 0.18),
+          color:
+              sun ? MesaSun.ink : colors.onSurfaceMuted.withValues(alpha: 0.18),
+          width: sun ? 2 : 1,
         ),
       ),
       child: Row(
@@ -622,9 +788,14 @@ class _ServerRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  team.label,
-                  maxLines: 2,
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      kitSquareSpan(state._kit(side), 13.5),
+                      TextSpan(text: team.label),
+                    ],
+                  ),
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.soraRegular(
                     fontSize: 13.5,
@@ -635,12 +806,16 @@ class _ServerRow extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   legend,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: AppTypography.soraRegular(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w500,
-                    color: isServing
-                        ? AppColors.brandHover
-                        : colors.onSurfaceMuted,
+                    color: sun
+                        ? (isServing ? MesaSun.orangeText : MesaSun.mute)
+                        : (isServing
+                            ? AppColors.brandHover
+                            : colors.onSurfaceMuted),
                   ),
                 ),
               ],
@@ -648,10 +823,11 @@ class _ServerRow extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Container(
-            padding: const EdgeInsets.all(3),
+            padding: EdgeInsets.all(sun ? 1 : 3),
             decoration: BoxDecoration(
               color: colors.canvas,
               borderRadius: BorderRadius.circular(12),
+              border: sun ? Border.all(color: MesaSun.ink, width: 2) : null,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -691,6 +867,7 @@ class _ServerOption extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final orange = selected && highlight;
+    final sun = MesaSun.isOn(context);
     return Semantics(
       inMutuallyExclusiveGroup: true,
       checked: selected,
@@ -700,18 +877,23 @@ class _ServerOption extends StatelessWidget {
       child: Material(
         color: orange
             ? AppColors.brand
-            : (selected ? colors.surfaceSheet : Colors.transparent),
+            : (selected
+                ? (sun ? MesaSun.ink : colors.surfaceSheet)
+                : Colors.transparent),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
-          side: selected && !orange
-              ? BorderSide(color: colors.onSurfaceMuted.withValues(alpha: 0.4))
-              : BorderSide.none,
+          side: sun && orange
+              ? const BorderSide(color: MesaSun.ink, width: 2)
+              : (selected && !orange && !sun
+                  ? BorderSide(
+                      color: colors.onSurfaceMuted.withValues(alpha: 0.4))
+                  : BorderSide.none),
         ),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(10),
           child: Container(
-            constraints: const BoxConstraints(minWidth: 76, minHeight: 44),
+            constraints: BoxConstraints(minWidth: 76, minHeight: sun ? 32 : 36),
             alignment: Alignment.center,
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Text(
@@ -723,7 +905,11 @@ class _ServerOption extends StatelessWidget {
                 fontWeight: FontWeight.w700,
                 color: orange
                     ? Colors.black
-                    : (selected ? colors.onSurface : colors.onSurfaceMuted),
+                    : (sun
+                        ? (selected ? MesaSun.white : MesaSun.ink)
+                        : (selected
+                            ? colors.onSurface
+                            : colors.onSurfaceMuted)),
               ),
             ),
           ),
@@ -741,6 +927,7 @@ class _Step3 extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    final sun = MesaSun.isOn(context);
     final leftSide = state._left;
     final rightSide = leftSide == 'A' ? 'B' : 'A';
     final leftTeam = state._team(leftSide);
@@ -756,17 +943,25 @@ class _Step3 extends StatelessWidget {
               height: 12,
               child: ball
                   ? Container(
-                      width: 10,
-                      height: 10,
-                      decoration: const BoxDecoration(
+                      width: sun ? 12 : 10,
+                      height: sun ? 12 : 10,
+                      decoration: BoxDecoration(
                         color: AppColors.brand,
                         shape: BoxShape.circle,
+                        border: sun
+                            ? Border.all(color: MesaSun.ink, width: 3)
+                            : null,
                       ),
                     )
                   : null,
             ),
-            Text(
-              team.label,
+            Text.rich(
+              TextSpan(
+                children: [
+                  kitSquareSpan(state._kit(side), 13),
+                  TextSpan(text: team.label),
+                ],
+              ),
               maxLines: 2,
               textAlign: TextAlign.center,
               overflow: TextOverflow.ellipsis,
@@ -783,7 +978,7 @@ class _Step3 extends StatelessWidget {
               style: AppTypography.mono(
                 fontSize: 9.5,
                 fontWeight: FontWeight.w700,
-                color: colors.onSurfaceMuted,
+                color: sun ? MesaSun.ink : colors.onSurfaceMuted,
                 letterSpacing: 1,
               ),
             ),
@@ -795,15 +990,17 @@ class _Step3 extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _StepLabel('3 · LADO INICIAL (VISTA DA MESA)'),
-        const SizedBox(height: 8),
+        const _StepLabel('4 · LADO INICIAL (VISTA DA MESA)'),
+        const SizedBox(height: 4),
         Container(
-          constraints: const BoxConstraints(minHeight: 76),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          constraints: const BoxConstraints(minHeight: 56),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
           decoration: BoxDecoration(
-            color: const Color(0xFF1A1410),
+            color: sun ? MesaSun.orangeTint : const Color(0xFF1A1410),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFF3A3A42)),
+            border: sun
+                ? Border.all(color: MesaSun.ink, width: 2)
+                : Border.all(color: const Color(0xFF3A3A42)),
           ),
           child: Row(
             children: [

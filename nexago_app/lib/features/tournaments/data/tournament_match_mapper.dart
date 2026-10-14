@@ -65,6 +65,8 @@ abstract final class TournamentMatchMapper {
       medicalTimeoutPlayers:
           medicalTimeoutPlayerKeysFromRaw(data['medicalTimeoutPlayers']),
       sanctions: MatchSanction.listFromRaw(data['sanctions']),
+      kitColorA: _str(data['kitColorA']),
+      kitColorB: _str(data['kitColorB']),
       liveElapsedSec: _int(data['liveElapsedSec']) ?? 0,
       pointEventSeq: _int(data['pointEventSeq']) ?? 0,
       reportStatus: _reportStatus(data['report']),

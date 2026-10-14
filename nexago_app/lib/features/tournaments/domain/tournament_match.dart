@@ -48,6 +48,8 @@ class TournamentMatch {
     this.medicalTimeout,
     this.medicalTimeoutPlayers = const [],
     this.sanctions = const [],
+    this.kitColorA,
+    this.kitColorB,
     this.liveElapsedSec = 0,
     this.pointEventSeq = 0,
     this.reportStatus = '',
@@ -117,6 +119,11 @@ class TournamentMatch {
 
   /// Cartões da súmula (amarelo/vermelho), na ordem em que foram lançados.
   final List<MatchSanction> sanctions;
+
+  /// Cor da camisa de cada dupla NESTA partida (id de `KitColors`). Segue a dupla A/B do doc, não
+  /// o lado da tela — então vai junto na troca de lado. Nula em partida antiga: vale o padrão.
+  final String? kitColorA;
+  final String? kitColorB;
 
   final int liveElapsedSec;
   final int pointEventSeq;

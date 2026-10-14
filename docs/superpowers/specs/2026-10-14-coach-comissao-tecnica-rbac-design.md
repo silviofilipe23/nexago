@@ -27,8 +27,7 @@ na v1.
 | Área | Dados | principal | auxiliar | prep. físico | fisio | psicólogo |
 |---|---|---|---|---|---|---|
 | `atletas` | `athletes`, `squads` | rw | r | r | r | r |
-| `treinos` | `trainings` (agenda, série) | rw | rw | r | r | — |
-| `presenca` | presença dentro de `trainings` | rw | rw | r | r | — |
+| `treinos` | `trainings` (agenda, série e presença — `attendance`) | rw | rw | r | r | — |
 | `convocacoes` | `callUps` | rw | rw | — | — | — |
 | `avaliacoes` | `evaluations` (técnicas) | rw | r | r | — | — |
 | `fisico` | plano de evolução física (novo) | rw | — | rw | r | — |
@@ -38,9 +37,7 @@ na v1.
 | `financeiro` | pagamentos/planos (novo) | rw | — | — | — | — |
 | `equipe` | `staff`, convites | rw | — | — | — | — |
 
-`presenca` mora dentro do doc de `trainings`; hoje é um campo no mesmo doc. Como rule não separa
-campo por área sem lista explícita, `presenca` exige a guarda de campos da seção 5 — ou mover a
-presença para subcoleção `trainings/{id}/attendance` (preferível: a rule fica trivial).
+`presenca` foi fundida em `treinos`: colunas idênticas em todos os cargos (decisão do plano da fase 1). Se as colunas divergirem no futuro, `attendance` vai para subcoleção `trainings/{id}/attendance`.
 
 ### Disponibilidade vs. clínico
 

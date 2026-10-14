@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormFieldComponent } from '../ui/form-field.component';
 import { FormSelectComponent } from '../ui/form-select.component';
 import { FormTextareaComponent } from '../ui/form-textarea.component';
@@ -23,10 +23,12 @@ import { SquadsService } from './squads.service';
   ],
   template: `
     <co-panel-shell>
-      <co-page-header title="Nova equipe" subtitle="Cadastro de equipe">
+      <co-page-header [title]="editingId ? 'Editar equipe' : 'Nova equipe'" subtitle="Cadastro de equipe">
         <button type="button" class="co-mini-btn co-mini-btn-primary" [disabled]="saving()" (click)="submit()">
           @if (saving()) {
             Salvando…
+          } @else if (editingId) {
+            Salvar alterações
           } @else {
             Criar equipe
           }
@@ -63,10 +65,14 @@ import { SquadsService } from './squads.service';
 export class PanelNovaEquipeComponent {
   private readonly squadsService = inject(SquadsService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly fb = inject(NonNullableFormBuilder);
 
   protected readonly categoryOptions = ['Sub-15', 'Sub-17', 'Adulto', 'Livre'];
   protected readonly genderOptions = ['Masculino', 'Feminino', 'Misto'];
+
+  /** `null` = criando; com id = editando uma equipe existente. */
+  protected readonly editingId = this.route.snapshot.paramMap.get('id');
 
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -78,6 +84,25 @@ export class PanelNovaEquipeComponent {
     description: [''],
   });
 
+  constructor() {
+    if (!this.editingId) {
+      return;
+    }
+    const ref = effect(() => {
+      const squad = this.squadsService.squads().find((s) => s.id === this.editingId);
+      if (!squad) {
+        return;
+      }
+      this.form.setValue({
+        name: squad.name,
+        category: squad.category,
+        gender: squad.gender,
+        description: squad.description,
+      });
+      ref.destroy();
+    });
+  }
+
   protected async submit(): Promise<void> {
     this.error.set(null);
     if (this.form.invalid) {
@@ -86,10 +111,14 @@ export class PanelNovaEquipeComponent {
     }
     this.saving.set(true);
     try {
-      await this.squadsService.createSquad(this.form.getRawValue());
+      if (this.editingId) {
+        await this.squadsService.updateSquad(this.editingId, this.form.getRawValue());
+      } else {
+        await this.squadsService.createSquad(this.form.getRawValue());
+      }
       void this.router.navigateByUrl('/painel/equipes');
     } catch (err) {
-      this.error.set(err instanceof Error ? err.message : 'Não foi possível criar a equipe.');
+      this.error.set(err instanceof Error ? err.message : 'Não foi possível salvar a equipe.');
     } finally {
       this.saving.set(false);
     }

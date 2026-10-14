@@ -27,7 +27,12 @@ let nextFormFieldId = 0;
         [disabled]="disabled()"
         (input)="handleInput($event)"
         (blur)="onTouched()"
+        [class.invalid]="!!error()"
+        [attr.aria-invalid]="error() ? 'true' : null"
       />
+      @if (error(); as message) {
+        <div class="field-error" role="alert">{{ message }}</div>
+      }
     </div>
   `,
   styles: `
@@ -53,6 +58,15 @@ let nextFormFieldId = 0;
       color: var(--nx-text);
       box-sizing: border-box;
     }
+    input.invalid {
+      border-color: var(--nx-red-500, #ff5b5b);
+    }
+    .field-error {
+      margin-top: 4px;
+      font-family: var(--nx-font-ui);
+      font-size: 11.5px;
+      color: var(--nx-red-500, #ff5b5b);
+    }
     input:focus {
       outline: none;
       border-color: var(--nx-orange-500);
@@ -67,6 +81,7 @@ export class FormFieldComponent implements ControlValueAccessor {
   readonly type = input<'text' | 'tel' | 'number' | 'date' | 'time'>('text');
   readonly placeholder = input('');
   readonly wide = input(false);
+  readonly error = input<string | null>(null);
 
   protected readonly fieldId = `co-form-field-${nextFormFieldId++}`;
   protected readonly value = signal('');

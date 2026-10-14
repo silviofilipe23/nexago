@@ -470,6 +470,15 @@ export {sendCallUp, respondToCallUp} from "./coach-call-up";
 
 export {getCoachTournamentOverview} from "./coach-tournament-overview";
 
+export {
+  createCoachStaffInvite,
+  acceptCoachStaffInvite,
+  revokeCoachStaffInvite,
+  changeCoachStaffRole,
+  removeCoachStaff,
+  leaveCoachStaff,
+} from "./coach-staff-ops";
+
 // Split de pagamento em reserva de quadra (PIX, multi-pagador).
 export {
   splitArenaBookingPayment,

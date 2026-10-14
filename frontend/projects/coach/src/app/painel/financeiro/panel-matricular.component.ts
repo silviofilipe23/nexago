@@ -267,9 +267,9 @@ export class PanelMatricularComponent {
   protected readonly canEnroll = computed(() => !!this.athleteUid() && !!this.selectedPlan() && this.preview().length > 0);
 
   constructor() {
-    // Ao escolher um plano novo, sugere a quantidade padrão do ciclo.
+    // Sugere a quantidade padrão do ciclo do plano escolhido — ou, numa matrícula já ativa, do plano atual.
     effect(() => {
-      const plan = this.selectedPlan();
+      const plan = this.selectedPlan() ?? this.currentPlan();
       if (plan) {
         this.form.controls.count.setValue(String(DEFAULT_INSTALLMENTS[plan.cycle]));
       }

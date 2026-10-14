@@ -10,6 +10,8 @@ import {
   generateCharges,
   monthRange,
   monthTotals,
+  msUntilNextMidnight,
+  nextSeriesStart,
   monthlyEquivalentCents,
   nextPeriodStart,
   overdueSummary,
@@ -179,5 +181,36 @@ describe('replacementStart', () => {
 
   it('sem parcelas canceladas, recomeça hoje', () => {
     expect(replacementStart([], '2026-10-14')).toBe('2026-10-14');
+  });
+});
+
+describe('nextSeriesStart', () => {
+  it('ignora parcelas canceladas ao achar o último período (sem abrir buraco depois de trocar de plano)', () => {
+    // mensal 2026-11..2027-10 cancelada na troca; trimestral gerada até 2027-08.
+    const cancelled = Array.from({ length: 12 }, (_, i) => ({ periodKey: shiftMonth('2026-11', i), status: 'cancelado' }));
+    const active = ['2026-11', '2027-02', '2027-05', '2027-08'].map((periodKey) => ({ periodKey, status: 'pendente' }));
+    expect(nextSeriesStart([...cancelled, ...active], 'trimestral', '2026-10-01')).toBe('2027-11-01');
+  });
+
+  it('sem parcelas ativas, usa o início de segurança', () => {
+    expect(nextSeriesStart([], 'mensal', '2026-10-14')).toBe('2026-10-14');
+    expect(nextSeriesStart([{ periodKey: '2026-11', status: 'cancelado' }], 'mensal', '2026-10-14')).toBe('2026-10-14');
+  });
+
+  it('continua do maior período ativo, pago ou pendente', () => {
+    expect(
+      nextSeriesStart([{ periodKey: '2026-12', status: 'pago' }, { periodKey: '2026-11', status: 'pendente' }], 'mensal', '2026-10-01'),
+    ).toBe('2027-01-01');
+  });
+});
+
+describe('msUntilNextMidnight', () => {
+  it('conta os milissegundos até a próxima meia-noite local', () => {
+    expect(msUntilNextMidnight(new Date(2026, 9, 14, 23, 59, 30))).toBe(30_000);
+    expect(msUntilNextMidnight(new Date(2026, 9, 14, 12, 0, 0))).toBe(12 * 3_600_000);
+  });
+
+  it('à meia-noite em ponto, falta um dia inteiro', () => {
+    expect(msUntilNextMidnight(new Date(2026, 9, 14, 0, 0, 0))).toBe(24 * 3_600_000);
   });
 });

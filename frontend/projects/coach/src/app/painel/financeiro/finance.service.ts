@@ -24,7 +24,8 @@ import {
   currentMonth,
   generateCharges,
   monthRange,
-  nextPeriodStart,
+  msUntilNextMidnight,
+  nextSeriesStart,
   replacementStart,
   type GeneratedCharge,
   type PlanCycle,
@@ -90,8 +91,15 @@ export class FinanceService {
   readonly error = this.errorState.asReadonly();
   /** Mês visível em Pagamentos (`YYYY-MM`). */
   readonly month = signal(currentMonth());
+  /** Hoje no fuso local; vira à meia-noite e quando a aba volta a ficar visível (o serviço vive a sessão toda). */
+  readonly today = signal(localIsoDate());
 
   constructor() {
+    this.scheduleDayRollover();
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => this.today.set(localIsoDate()));
+    }
+
     effect((onCleanup) => {
       const uid = this.auth.user()?.uid ?? null;
       if (!uid) {
@@ -162,13 +170,20 @@ export class FinanceService {
         query(
           collection(this.firestore, 'coaches', uid, 'charges'),
           where('status', '==', 'pendente'),
-          where('dueDate', '<', localIsoDate()),
+          where('dueDate', '<', this.today()),
         ),
         (snap) => this.overdueState.set(snap.docs.map((d) => readCharge(d.id, d.data()))),
         (error) => this.errorState.set(describeError(error)),
       );
       onCleanup(stop);
     });
+  }
+
+  private scheduleDayRollover(): void {
+    setTimeout(() => {
+      this.today.set(localIsoDate());
+      this.scheduleDayRollover();
+    }, msUntilNextMidnight() + 1000);
   }
 
   protected requireUid(): string {
@@ -268,11 +283,10 @@ export class FinanceService {
   /** Gera mais parcelas a partir do período seguinte ao último que o aluno já tem. */
   async generateMore(enrollment: Enrollment, plan: Plan, count: number): Promise<number> {
     const existing = await this.loadAthleteCharges(enrollment.athleteUid);
-    const lastPeriod = existing.map((c) => c.periodKey).sort().pop();
     const generated = generateCharges({
       cycle: plan.cycle,
       amountCents: plan.amountCents,
-      startDate: lastPeriod ? nextPeriodStart(lastPeriod, plan.cycle) : enrollment.startDate,
+      startDate: nextSeriesStart(existing, plan.cycle, enrollment.startDate),
       dueDay: enrollment.dueDay,
       count,
       existingPeriods: this.activePeriods(existing),

@@ -6,7 +6,6 @@ import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
 import { TabsComponent } from '../ui/tabs.component';
-import { localIsoDate } from '../treinos/training-rules';
 import { FinanceService } from './finance.service';
 import { METHOD_LABEL, type Charge, type PaymentMethod } from './finance-model';
 import {
@@ -268,7 +267,9 @@ export class PanelPagamentosComponent {
   protected readonly tabs = TABS;
   protected readonly methods = METHODS;
   protected readonly activeTab = signal('Todos');
-  private readonly today = localIsoDate();
+  private get today(): string {
+    return this.finance.today();
+  }
 
   protected readonly openId = signal<string | null>(null);
   protected readonly mode = signal<ActionMode>('baixa');

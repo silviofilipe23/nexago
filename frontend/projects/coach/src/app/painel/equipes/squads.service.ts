@@ -2,6 +2,7 @@ import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { getApps, initializeApp } from 'firebase/app';
 import {
   collection,
+  deleteDoc,
   doc,
   getFirestore,
   onSnapshot,
@@ -98,5 +99,31 @@ export class SquadsService {
       createdAt: serverTimestamp(),
     });
     return ref.id;
+  }
+
+  async updateSquad(squadId: string, input: NewSquadInput): Promise<void> {
+    await setDoc(
+      doc(this.firestore, 'coaches', this.requireUid(), 'squads', squadId),
+      {
+        name: input.name.trim(),
+        category: input.category,
+        gender: input.gender,
+        description: input.description.trim(),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+  }
+
+  async deleteSquad(squadId: string): Promise<void> {
+    await deleteDoc(doc(this.firestore, 'coaches', this.requireUid(), 'squads', squadId));
+  }
+
+  private requireUid(): string {
+    const uid = this.auth.user()?.uid;
+    if (!uid) {
+      throw new Error('Usuário não autenticado.');
+    }
+    return uid;
   }
 }

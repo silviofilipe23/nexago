@@ -2,11 +2,13 @@ import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { getApps, initializeApp } from 'firebase/app';
 import {
   collection,
+  deleteDoc,
   doc,
   getFirestore,
   onSnapshot,
   serverTimestamp,
   setDoc,
+  updateDoc,
   type Firestore,
 } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
@@ -83,12 +85,15 @@ export class TrainingsService {
 
   private readonly trainingsState = signal<Training[]>([]);
   readonly trainings = computed(() => this.trainingsState());
+  /** `true` depois do primeiro snapshot (ou erro): distingue "carregando" de "não existe". */
+  readonly ready = signal(false);
 
   constructor() {
     effect((onCleanup) => {
       const uid = this.auth.user()?.uid ?? null;
       if (!uid) {
         this.trainingsState.set([]);
+        this.ready.set(false);
         return;
       }
 
@@ -96,8 +101,12 @@ export class TrainingsService {
         collection(this.firestore, 'coaches', uid, 'trainings'),
         (snapshot) => {
           this.trainingsState.set(snapshot.docs.map((d) => readTraining(d.id, d.data())));
+          this.ready.set(true);
         },
-        () => this.trainingsState.set([]),
+        () => {
+          this.trainingsState.set([]);
+          this.ready.set(true);
+        },
       );
 
       onCleanup(stop);
@@ -131,10 +140,48 @@ export class TrainingsService {
     if (!uid) {
       throw new Error('Usuário não autenticado.');
     }
+    const current = this.trainingsState().find((t) => t.id === trainingId);
+    // Treino cancelado continua cancelado — salvar presença não pode "ressuscitá-lo".
+    const status: TrainingStatus = current?.status === 'cancelado' ? 'cancelado' : 'realizado';
     await setDoc(
       doc(this.firestore, 'coaches', uid, 'trainings', trainingId),
-      { attendance, status: 'realizado' },
+      { attendance, status },
       { merge: true },
     );
+  }
+
+  /** Edita os dados do treino; `attendance`, `status` e `squadId` ficam intactos.
+   *  `updateDoc` (e não `setDoc` com merge) pra falhar se o treino não existe, em vez de criar um doc fantasma. */
+  async updateTraining(trainingId: string, input: Omit<NewTrainingInput, 'squadId'>): Promise<void> {
+    await updateDoc(
+      doc(this.firestore, 'coaches', this.requireUid(), 'trainings', trainingId),
+      {
+        title: input.title,
+        date: input.date,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        location: input.location,
+        materials: input.materials,
+        exercises: input.exercises,
+        updatedAt: serverTimestamp(),
+      },
+    );
+  }
+
+  /** Cancelar é lógico (`cancelado`); quem chama decide o status de volta ao reativar. */
+  async setTrainingStatus(trainingId: string, status: TrainingStatus): Promise<void> {
+    await updateDoc(doc(this.firestore, 'coaches', this.requireUid(), 'trainings', trainingId), { status });
+  }
+
+  async deleteTraining(trainingId: string): Promise<void> {
+    await deleteDoc(doc(this.firestore, 'coaches', this.requireUid(), 'trainings', trainingId));
+  }
+
+  private requireUid(): string {
+    const uid = this.auth.user()?.uid;
+    if (!uid) {
+      throw new Error('Usuário não autenticado.');
+    }
+    return uid;
   }
 }

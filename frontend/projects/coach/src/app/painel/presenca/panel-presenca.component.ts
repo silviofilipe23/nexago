@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { AthleteAvatarComponent } from '../ui/athlete-avatar.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
@@ -6,6 +7,7 @@ import { PanelShellComponent } from '../ui/panel-shell.component';
 import { RowComponent } from '../ui/row.component';
 import { SquadContextService } from '../ui/squad-context.service';
 import { AthletesService } from '../atletas/athletes.service';
+import { compareTrainings, localIsoDate } from '../treinos/training-rules';
 import { TrainingsService, type AttendanceStatus } from '../treinos/trainings.service';
 
 const STATUS_LABEL: Record<AttendanceStatus, string> = {
@@ -22,9 +24,9 @@ const STATUS_LABEL: Record<AttendanceStatus, string> = {
   template: `
     <co-panel-shell>
       <co-page-header title="Controle de presença" [subtitle]="subtitle()">
-        <select class="picker" [value]="selected()?.id ?? ''" (change)="selectTraining($any($event.target).value)">
+        <select class="picker" (change)="selectTraining($any($event.target).value)">
           @for (t of trainings(); track t.id) {
-            <option [value]="t.id">{{ t.title }} · {{ t.date }}</option>
+            <option [value]="t.id" [selected]="t.id === selectedId()">{{ t.title }} · {{ t.date }}</option>
           }
         </select>
       </co-page-header>
@@ -119,7 +121,10 @@ export class PanelPresencaComponent {
 
   protected readonly trainings = computed(() => {
     const activeId = this.squadContext.activeSquadId();
-    return this.trainingsService.trainings().filter((t) => !activeId || t.squadId === activeId);
+    return this.trainingsService
+      .trainings()
+      .filter((t) => (!activeId || t.squadId === activeId) && t.status !== 'cancelado')
+      .sort(compareTrainings);
   });
 
   protected readonly roster = computed(() => {
@@ -128,14 +133,25 @@ export class PanelPresencaComponent {
     return activeId ? all.filter((a) => a.squadId === activeId) : all;
   });
 
-  protected readonly selectedTrainingId = signal<string | null>(null);
+  /** `?treino=<id>` vem do atalho "Chamada" da lista de treinos. */
+  protected readonly selectedTrainingId = signal<string | null>(
+    inject(ActivatedRoute).snapshot.queryParamMap.get('treino'),
+  );
   protected readonly draftAttendance = signal<Record<string, AttendanceStatus>>({});
   protected readonly saving = signal(false);
 
   protected readonly selected = computed(() => {
-    const id = this.selectedTrainingId() ?? this.trainings()[0]?.id ?? null;
-    return this.trainings().find((t) => t.id === id) ?? null;
+    const list = this.trainings();
+    const chosen = list.find((t) => t.id === this.selectedTrainingId());
+    if (chosen) {
+      return chosen;
+    }
+    // Sem escolha: o treino de hoje/mais próximo; se todos já passaram, o mais recente.
+    const today = localIsoDate();
+    return list.find((t) => t.date >= today) ?? list[list.length - 1] ?? null;
   });
+
+  protected readonly selectedId = computed(() => this.selected()?.id ?? null);
 
   protected readonly subtitle = computed(() => {
     const t = this.selected();

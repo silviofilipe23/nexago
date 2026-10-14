@@ -53,6 +53,13 @@ export const routes: Routes = [
       import('./painel/equipes/panel-nova-equipe.component').then((m) => m.PanelNovaEquipeComponent),
   },
   {
+    path: 'painel/equipes/:id/editar',
+    title: 'Editar equipe — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/equipes/panel-nova-equipe.component').then((m) => m.PanelNovaEquipeComponent),
+  },
+  {
     path: 'painel/atletas',
     title: 'Atletas — NexaGO Treinador',
     canActivate: [authGuard, coachGuard],
@@ -110,6 +117,13 @@ export const routes: Routes = [
   {
     path: 'painel/treinos/novo',
     title: 'Novo treino — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/treinos/panel-novo-treino.component').then((m) => m.PanelNovoTreinoComponent),
+  },
+  {
+    path: 'painel/treinos/:id/editar',
+    title: 'Editar treino — NexaGO Treinador',
     canActivate: [authGuard, coachGuard],
     loadComponent: () =>
       import('./painel/treinos/panel-novo-treino.component').then((m) => m.PanelNovoTreinoComponent),

@@ -1,11 +1,14 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { SquadContextService } from '../ui/squad-context.service';
-import { SquadsService } from './squads.service';
+import { AthletesService } from '../atletas/athletes.service';
+import { TrainingsService } from '../treinos/trainings.service';
+import { checkSquadDeletable } from './squad-rules';
+import { SquadsService, type Squad } from './squads.service';
 
 /** Lista de equipes (protótipo TrEquipesScreen) — sem os indicadores de atletas/próximo
  *  treino/win rate do protótipo ainda, porque dependem de AthletesService (Task 9) e
@@ -24,6 +27,9 @@ import { SquadsService } from './squads.service';
       </co-page-header>
 
       <div class="body">
+        @if (error(); as err) {
+          <div class="co-alert" role="alert">{{ err }}</div>
+        }
         @if (squads().length === 0) {
           <co-panel-card title="Nenhuma equipe ainda" kicker="Comece por aqui">
             <p class="desc">Crie sua primeira equipe pra começar a adicionar atletas, treinos e avaliações.</p>
@@ -33,14 +39,24 @@ import { SquadsService } from './squads.service';
             @for (squad of squads(); track squad.id) {
               <co-panel-card [title]="squad.name" [kicker]="squad.category + ' · ' + squad.gender">
                 <p class="desc">{{ squad.description || 'Sem descrição.' }}</p>
-                <button type="button" class="co-ghost-btn" [class.active]="isActive(squad.id)" (click)="select(squad.id)">
-                  @if (isActive(squad.id)) {
-                    <co-icon name="check" [size]="13" />
-                    Equipe ativa
+                <div class="actions">
+                  <button type="button" class="co-ghost-btn" [class.active]="isActive(squad.id)" (click)="select(squad.id)">
+                    @if (isActive(squad.id)) {
+                      <co-icon name="check" [size]="13" />
+                      Equipe ativa
+                    } @else {
+                      Tornar ativa
+                    }
+                  </button>
+                  @if (confirmingDeleteId() === squad.id) {
+                    <span class="confirm">Excluir esta equipe?</span>
+                    <button type="button" class="co-ghost-btn danger" [disabled]="deleting()" (click)="remove(squad)">Excluir</button>
+                    <button type="button" class="co-ghost-btn" (click)="confirmingDeleteId.set(null)">Voltar</button>
                   } @else {
-                    Tornar ativa
+                    <a class="co-ghost-btn" [routerLink]="['/painel/equipes', squad.id, 'editar']">Editar</a>
+                    <button type="button" class="co-ghost-btn danger" (click)="askDelete(squad)">Excluir</button>
                   }
-                </button>
+                </div>
               </co-panel-card>
             }
           </div>
@@ -53,6 +69,22 @@ import { SquadsService } from './squads.service';
       flex: 1;
       padding: 22px 32px 28px;
       overflow: hidden;
+    }
+    .actions {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .confirm {
+      font-size: 12px;
+      color: var(--nx-text-dim);
+    }
+    .danger {
+      color: var(--nx-red-500, #ff5b5b);
+    }
+    .co-alert {
+      margin-bottom: 12px;
     }
     .grid {
       display: grid;
@@ -75,7 +107,13 @@ export class PanelEquipesComponent {
   private readonly squadsService = inject(SquadsService);
   private readonly squadContext = inject(SquadContextService);
 
+  private readonly athletesService = inject(AthletesService);
+  private readonly trainingsService = inject(TrainingsService);
+
   protected readonly squads = this.squadsService.squads;
+  protected readonly confirmingDeleteId = signal<string | null>(null);
+  protected readonly deleting = signal(false);
+  protected readonly error = signal<string | null>(null);
 
   protected readonly subtitleLabel = computed(() => {
     const n = this.squads().length;
@@ -91,5 +129,32 @@ export class PanelEquipesComponent {
 
   protected select(id: string): void {
     this.squadContext.setActiveSquad(id);
+  }
+
+  protected askDelete(squad: Squad): void {
+    this.error.set(null);
+    const check = checkSquadDeletable(
+      squad.id,
+      this.athletesService.roster().map((a) => a.squadId),
+      this.trainingsService.trainings().map((t) => t.squadId),
+    );
+    if (!check.ok) {
+      this.error.set(`${squad.name}: ${check.reason}`);
+      return;
+    }
+    this.confirmingDeleteId.set(squad.id);
+  }
+
+  protected async remove(squad: Squad): Promise<void> {
+    this.error.set(null);
+    this.deleting.set(true);
+    try {
+      await this.squadsService.deleteSquad(squad.id);
+      this.confirmingDeleteId.set(null);
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : 'Não foi possível excluir a equipe.');
+    } finally {
+      this.deleting.set(false);
+    }
   }
 }

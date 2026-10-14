@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
@@ -7,7 +8,8 @@ import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
 import { RowComponent } from '../ui/row.component';
 import { SquadContextService } from '../ui/squad-context.service';
-import { TrainingsService, type TrainingStatus } from './trainings.service';
+import { canDeleteTraining, localIsoDate, splitUpcoming } from './training-rules';
+import { TrainingsService, type Training, type TrainingStatus } from './trainings.service';
 
 const STATUS_LABEL: Record<TrainingStatus, string> = {
   agendado: 'Agendado',
@@ -23,7 +25,7 @@ const STATUS_TONE: Record<TrainingStatus, PillTone> = {
 @Component({
   selector: 'co-panel-treinos',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, IconComponent, PageHeaderComponent, PanelCardComponent, PanelShellComponent, PillComponent, RowComponent],
+  imports: [NgTemplateOutlet, RouterLink, IconComponent, PageHeaderComponent, PanelCardComponent, PanelShellComponent, PillComponent, RowComponent],
   template: `
     <co-panel-shell>
       <co-page-header title="Treinos" [subtitle]="subtitle()">
@@ -34,15 +36,53 @@ const STATUS_TONE: Record<TrainingStatus, PillTone> = {
       </co-page-header>
 
       <div class="body">
-        <co-panel-card title="Todos os treinos">
-          @for (t of trainings(); track t.id; let last = $last) {
+        @if (error(); as err) {
+          <div class="co-alert" role="alert">{{ err }}</div>
+        }
+        @if (trainings().length === 0) {
+          <co-panel-card title="Treinos">
+            <p class="empty">Nenhum treino agendado ainda.</p>
+          </co-panel-card>
+        } @else {
+          <co-panel-card title="Próximos treinos" [kicker]="groups().upcoming.length + ''">
+            <ng-container *ngTemplateOutlet="rows; context: { list: groups().upcoming, emptyText: 'Nenhum treino a partir de hoje.' }" />
+          </co-panel-card>
+          @if (groups().past.length > 0) {
+            <co-panel-card title="Anteriores" [kicker]="groups().past.length + ''">
+              <ng-container *ngTemplateOutlet="rows; context: { list: groups().past, emptyText: '' }" />
+            </co-panel-card>
+          }
+        }
+
+        <ng-template #rows let-list="list" let-emptyText="emptyText">
+          @for (t of list; track t.id; let last = $last) {
             <co-row [title]="t.title" [sub]="t.date + ' · ' + t.startTime + ' · ' + (t.location || 'Local não definido')" [last]="last">
-              <co-pill row-trailing [tone]="STATUS_TONE[t.status]">{{ STATUS_LABEL[t.status] }}</co-pill>
+              <div row-trailing class="actions">
+                <co-pill [tone]="tone(t)">{{ label(t) }}</co-pill>
+                @if (confirmingDeleteId() === t.id) {
+                  <span class="confirm">Excluir este treino?</span>
+                  <button type="button" class="co-ghost-btn danger" [disabled]="busyId() === t.id" (click)="remove(t)">Excluir</button>
+                  <button type="button" class="co-ghost-btn" (click)="confirmingDeleteId.set(null)">Voltar</button>
+                } @else {
+                  @if (t.status !== 'cancelado') {
+                    <a class="co-ghost-btn" [routerLink]="['/painel/presenca']" [queryParams]="{ treino: t.id }">Chamada</a>
+                  }
+                  <a class="co-ghost-btn" [routerLink]="['/painel/treinos', t.id, 'editar']">Editar</a>
+                  @if (t.status === 'cancelado') {
+                    <button type="button" class="co-ghost-btn" [disabled]="busyId() === t.id" (click)="reactivate(t)">Reativar</button>
+                  } @else {
+                    <button type="button" class="co-ghost-btn" [disabled]="busyId() === t.id" (click)="cancel(t)">Cancelar</button>
+                  }
+                  @if (canDelete(t)) {
+                    <button type="button" class="co-ghost-btn danger" (click)="confirmingDeleteId.set(t.id)">Excluir</button>
+                  }
+                }
+              </div>
             </co-row>
           } @empty {
-            <p class="empty">Nenhum treino agendado ainda.</p>
+            <p class="empty">{{ emptyText }}</p>
           }
-        </co-panel-card>
+        </ng-template>
       </div>
     </co-panel-shell>
   `,
@@ -50,7 +90,24 @@ const STATUS_TONE: Record<TrainingStatus, PillTone> = {
     .body {
       flex: 1;
       padding: 22px 32px 28px;
-      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .confirm {
+      font-size: 12px;
+      color: var(--nx-text-dim);
+    }
+    .danger {
+      color: var(--nx-red-500, #ff5b5b);
+    }
+    .co-alert {
+      margin-bottom: 12px;
     }
     .empty {
       color: var(--nx-text-mute);
@@ -66,10 +123,55 @@ export class PanelTreinosComponent {
   protected readonly STATUS_LABEL = STATUS_LABEL;
   protected readonly STATUS_TONE = STATUS_TONE;
 
+  protected readonly confirmingDeleteId = signal<string | null>(null);
+  protected readonly busyId = signal<string | null>(null);
+  protected readonly error = signal<string | null>(null);
+
+  protected tone(t: Training): PillTone {
+    return STATUS_TONE[t.status];
+  }
+
+  protected label(t: Training): string {
+    return STATUS_LABEL[t.status];
+  }
+
+  protected canDelete(t: Training): boolean {
+    return canDeleteTraining(t);
+  }
+
+  protected cancel(t: Training): Promise<void> {
+    return this.run(t.id, () => this.trainingsService.setTrainingStatus(t.id, 'cancelado'), 'cancelar');
+  }
+
+  protected reactivate(t: Training): Promise<void> {
+    // Treino que já tem presença voltou a ser "realizado"; senão, volta a agendado.
+    const status: TrainingStatus = Object.keys(t.attendance).length > 0 ? 'realizado' : 'agendado';
+    return this.run(t.id, () => this.trainingsService.setTrainingStatus(t.id, status), 'reativar');
+  }
+
+  protected async remove(t: Training): Promise<void> {
+    await this.run(t.id, () => this.trainingsService.deleteTraining(t.id), 'excluir');
+    this.confirmingDeleteId.set(null);
+  }
+
+  private async run(id: string, action: () => Promise<void>, verb: string): Promise<void> {
+    this.error.set(null);
+    this.busyId.set(id);
+    try {
+      await action();
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : `Não foi possível ${verb} o treino.`);
+    } finally {
+      this.busyId.set(null);
+    }
+  }
+
   protected readonly trainings = computed(() => {
     const activeId = this.squadContext.activeSquadId();
     return this.trainingsService.trainings().filter((t) => !activeId || t.squadId === activeId);
   });
+
+  protected readonly groups = computed(() => splitUpcoming(this.trainings(), localIsoDate()));
 
   protected readonly subtitle = computed(() => {
     const n = this.trainings().length;

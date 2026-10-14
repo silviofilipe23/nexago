@@ -1,0 +1,62 @@
+import {
+  canDeleteTraining,
+  compareTrainings,
+  isEndBeforeStart,
+  localIsoDate,
+  sanitizeDuration,
+  splitUpcoming,
+} from './training-rules';
+
+describe('canDeleteTraining', () => {
+  it('permite excluir treino sem presença', () => {
+    expect(canDeleteTraining({ attendance: {} })).toBe(true);
+  });
+
+  it('bloqueia treino com presença registrada', () => {
+    expect(canDeleteTraining({ attendance: { a1: 'presente' } })).toBe(false);
+  });
+});
+
+describe('localIsoDate', () => {
+  it('usa o dia local, não o UTC', () => {
+    // 23:30 local do dia 14 — em UTC (Brasil) já seria dia 15.
+    expect(localIsoDate(new Date(2026, 9, 14, 23, 30))).toBe('2026-10-14');
+  });
+});
+
+describe('compareTrainings / splitUpcoming', () => {
+  const t = (date: string, startTime: string) => ({ date, startTime });
+
+  it('ordena por data e depois por horário', () => {
+    const list = [t('2026-10-15', '19:00'), t('2026-10-14', '20:00'), t('2026-10-15', '08:00')];
+    expect([...list].sort(compareTrainings)).toEqual([t('2026-10-14', '20:00'), t('2026-10-15', '08:00'), t('2026-10-15', '19:00')]);
+  });
+
+  it('separa próximos (crescente, hoje incluso) e anteriores (mais recente primeiro)', () => {
+    const { upcoming, past } = splitUpcoming(
+      [t('2026-10-10', '19:00'), t('2026-10-14', '19:00'), t('2026-10-20', '19:00'), t('2026-10-12', '19:00')],
+      '2026-10-14',
+    );
+    expect(upcoming.map((x) => x.date)).toEqual(['2026-10-14', '2026-10-20']);
+    expect(past.map((x) => x.date)).toEqual(['2026-10-12', '2026-10-10']);
+  });
+});
+
+describe('isEndBeforeStart', () => {
+  it('aceita fim vazio', () => expect(isEndBeforeStart('19:00', '')).toBe(false));
+  it('aceita fim depois do início', () => expect(isEndBeforeStart('19:00', '20:30')).toBe(false));
+  it('recusa fim igual ou antes do início', () => {
+    expect(isEndBeforeStart('19:00', '19:00')).toBe(true);
+    expect(isEndBeforeStart('19:00', '18:00')).toBe(true);
+  });
+});
+
+describe('sanitizeDuration', () => {
+  it('mantém valores válidos arredondados', () => expect(sanitizeDuration(12.4)).toBe(12));
+  it('cai em 10 para zero, negativo ou NaN', () => {
+    expect(sanitizeDuration(0)).toBe(10);
+    expect(sanitizeDuration(-5)).toBe(10);
+    expect(sanitizeDuration(NaN)).toBe(10);
+  });
+  it('limita a 240', () => expect(sanitizeDuration(999)).toBe(240));
+});

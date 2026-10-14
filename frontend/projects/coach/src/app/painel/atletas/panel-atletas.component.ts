@@ -54,10 +54,12 @@ const STATUS_TONE: Record<string, 'green' | 'red' | 'yellow' | 'dim'> = {
           <co-icon name="radar" [size]="14" />
           Comparar atletas
         </a>
-        <a class="co-ghost-btn" routerLink="/painel/atletas/plano-evolucao">
-          <co-icon name="clipboard" [size]="14" />
-          Plano de evolução
-        </a>
+        @if (ctx.can('fisico')) {
+          <a class="co-ghost-btn" routerLink="/painel/atletas/plano-evolucao">
+            <co-icon name="clipboard" [size]="14" />
+            Plano de evolução
+          </a>
+        }
         @if (ctx.can('atletas', 'write')) {
           <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/atletas/novo">
             <co-icon name="plus" [size]="14" />
@@ -78,7 +80,12 @@ const STATUS_TONE: Record<string, 'green' | 'red' | 'yellow' | 'dim'> = {
                 </div>
               </div>
             } @empty {
-              <p class="empty">Nenhum atleta vinculado ainda. Convide o primeiro atleta da sua equipe.</p>
+              <p class="empty">
+                Nenhum atleta vinculado ainda.
+                @if (ctx.can('atletas', 'write')) {
+                  Convide o primeiro atleta da sua equipe.
+                }
+              </p>
             }
           </div>
         </co-panel-card>

@@ -33,12 +33,19 @@ import { SquadContextService } from '../ui/squad-context.service';
       <div class="body">
         <div class="kpi-row">
           <co-kpi-card label="Nº de atletas" [value]="rosterCountLabel()" [icon]="'team'" />
-          <co-kpi-card label="Frequência" [value]="attendanceRateLabel()" [icon]="'check'" />
-          <co-kpi-card label="Avaliações no mês" [value]="evaluationsThisMonthLabel()" [icon]="'radar'" />
-          <co-kpi-card label="Convocações pendentes" [value]="pendingResponsesLabel()" [icon]="'bell'" />
+          @if (ctx.can('treinos')) {
+            <co-kpi-card label="Frequência" [value]="attendanceRateLabel()" [icon]="'check'" />
+          }
+          @if (ctx.can('avaliacoes')) {
+            <co-kpi-card label="Avaliações no mês" [value]="evaluationsThisMonthLabel()" [icon]="'radar'" />
+          }
+          @if (ctx.can('convocacoes')) {
+            <co-kpi-card label="Convocações pendentes" [value]="pendingResponsesLabel()" [icon]="'bell'" />
+          }
         </div>
 
-        <div class="grid">
+        <div class="grid" [class.single]="!ctx.can('treinos')">
+          @if (ctx.can('treinos')) {
           <co-panel-card title="Próximos treinos" kicker="Data mais próxima primeiro">
             @for (t of upcomingTrainings(); track t.id; let last = $last) {
               <co-row [title]="t.title" [sub]="t.date + ' · ' + t.startTime + ' · ' + (t.location || 'Local não definido')" [last]="last" />
@@ -51,6 +58,7 @@ import { SquadContextService } from '../ui/squad-context.service';
               </p>
             }
           </co-panel-card>
+          }
 
           <div class="side">
             <co-panel-card title="Atletas lesionados" [kicker]="injuredCountLabel()">
@@ -95,6 +103,9 @@ import { SquadContextService } from '../ui/squad-context.service';
       grid-template-columns: 1fr 360px;
       gap: 16px;
       align-items: start;
+    }
+    .grid.single {
+      grid-template-columns: 1fr;
     }
     .side {
       display: flex;

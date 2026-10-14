@@ -1,5 +1,5 @@
 import { Injectable, Injector, computed, effect, inject, signal } from '@angular/core';
-import { toObservable } from '@angular/core/rxjs-interop';
+import { Observable } from 'rxjs';
 import { waitUntil } from './wait-until';
 import { getApps, initializeApp } from 'firebase/app';
 import { collection, doc, getFirestore, onSnapshot, type Firestore, type QueryDocumentSnapshot } from 'firebase/firestore';
@@ -81,7 +81,8 @@ export class CoachContextService {
           this.ownExists.set(snap.exists());
           this.ownReady.set(true);
         },
-        () => {
+        (error) => {
+          console.warn('CoachContext: listener falhou', error);
           this.ownExists.set(false);
           this.ownReady.set(true);
         },
@@ -92,7 +93,8 @@ export class CoachContextService {
           this.memberships.set(snap.docs.map(readMembership));
           this.membershipsReady.set(true);
         },
-        () => {
+        (error) => {
+          console.warn('CoachContext: listener falhou', error);
           this.memberships.set([]);
           this.membershipsReady.set(true);
         },
@@ -113,8 +115,14 @@ export class CoachContextService {
   /** Espera o painel de `coachUid` aparecer em `contexts()` (o espelho do membro chega por trigger,
    *  ~1 s depois de aceitar o convite). `false` se não chegar no prazo. Não altera `select()`. */
   whenHasContext(coachUid: string, timeoutMs: number): Promise<boolean> {
+    // O effect vive só enquanto houver assinante: firstValueFrom/timeout cancelam a assinatura quando a
+    // promessa resolve e o teardown destrói o effect (toObservable no injector raiz vazaria um por chamada).
+    const contexts$ = new Observable<CoachContext[]>((subscriber) => {
+      const ref = effect(() => subscriber.next(this.contexts()), { injector: this.injector });
+      return () => ref.destroy();
+    });
     return waitUntil(
-      toObservable(this.contexts, { injector: this.injector }),
+      contexts$,
       (list) => list.some((c) => c.coachUid === coachUid),
       timeoutMs,
     );

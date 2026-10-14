@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { doc, getDoc, getFirestore, type Firestore } from 'firebase/firestore';
@@ -135,6 +135,11 @@ export class ConviteEquipeComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly context = inject(CoachContextService);
   private readonly firestore = createFirestore();
+  private destroyed = false;
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => (this.destroyed = true));
+  }
 
   protected readonly state = signal<ScreenState>('loading');
   protected readonly invite = signal<InviteView | null>(null);
@@ -204,7 +209,11 @@ export class ConviteEquipeComponent implements OnInit {
     } catch (err) {
       if ((err as { code?: string })?.code === 'functions/already-exists') {
         // Já é membro (resposta perdida / segundo aceite): trata como sucesso.
-        await this.enterPanel(this.invite()?.coachUid ?? '');
+        try {
+          await this.enterPanel(this.invite()?.coachUid ?? '');
+        } catch (enterErr) {
+          this.error.set(enterErr instanceof Error ? enterErr.message : 'Não foi possível entrar no painel.');
+        }
         return;
       }
       this.error.set(err instanceof Error ? err.message : 'Não foi possível aceitar o convite.');
@@ -217,8 +226,12 @@ export class ConviteEquipeComponent implements OnInit {
     // A claim `coach` acabou de ser concedida: sem renovar o token o coachGuard barraria o novo membro.
     await this.auth.refreshClaims();
     // O espelho users/{uid}/coachStaff chega por trigger ~1 s depois; select() ignora uid ausente.
-    if (coachUid && (await this.context.whenHasContext(coachUid, 10_000))) {
+    if (coachUid && (await this.context.whenHasContext(coachUid, 10_000)) && !this.destroyed) {
       this.context.select(coachUid);
+    }
+    // Quem saiu da tela durante a espera (10 s) não deve ser levado a lugar nenhum.
+    if (this.destroyed) {
+      return;
     }
     await this.router.navigateByUrl('/painel');
   }

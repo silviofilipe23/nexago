@@ -101,6 +101,12 @@ export class TrainingsService {
       if (!uid) {
         return;
       }
+      // Deps rastreadas (de propósito): activeCoachUid e role (via can). Cargo sem 'treinos' não abre
+      // o listener: a lista fica vazia e `ready` true (não fica "carregando" para sempre).
+      if (!this.ctx.can('treinos')) {
+        untracked(() => this.ready.set(true));
+        return;
+      }
 
       const stop = onSnapshot(
         collection(this.firestore, 'coaches', uid, 'trainings'),

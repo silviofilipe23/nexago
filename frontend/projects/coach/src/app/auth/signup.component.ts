@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from './auth.service';
 import { mapFirebaseAuthError } from './firebase-auth-errors';
 import { AuthShellComponent } from './ui/auth-shell.component';
+import { isInviteRedirect, validRedirect } from './invite-redirect';
 import { FieldComponent } from './ui/field.component';
 import { StrengthMeterComponent } from './ui/strength-meter.component';
 
@@ -66,15 +67,7 @@ import { StrengthMeterComponent } from './ui/strength-meter.component';
             [error]="fieldError('nome', 'Informe seu nome completo.')"
           />
 
-          <div class="co-grid-2">
-            <co-field
-              label="Telefone"
-              type="tel"
-              placeholder="(62) 99999-0000"
-              autocomplete="tel"
-              formControlName="telefone"
-              [error]="fieldError('telefone', 'Informe seu telefone.')"
-            />
+          @if (invited) {
             <co-field
               label="E-mail"
               type="email"
@@ -83,7 +76,26 @@ import { StrengthMeterComponent } from './ui/strength-meter.component';
               formControlName="email"
               [error]="emailError()"
             />
-          </div>
+          } @else {
+            <div class="co-grid-2">
+              <co-field
+                label="Telefone"
+                type="tel"
+                placeholder="(62) 99999-0000"
+                autocomplete="tel"
+                formControlName="telefone"
+                [error]="fieldError('telefone', 'Informe seu telefone.')"
+              />
+              <co-field
+                label="E-mail"
+                type="email"
+                placeholder="voce@email.com"
+                autocomplete="email"
+                formControlName="email"
+                [error]="emailError()"
+              />
+            </div>
+          }
 
           <div class="co-stack-sm">
             <co-field
@@ -119,10 +131,9 @@ export class SignupComponent {
   private readonly fb = inject(NonNullableFormBuilder);
 
   /** Destino pedido por quem chegou aqui (ex.: link de convite) — mesma validação do login. */
-  private readonly redirect = (() => {
-    const value = this.route.snapshot.queryParamMap.get('redirect');
-    return value && value.startsWith('/') && !value.startsWith('//') ? value : null;
-  })();
+  private readonly redirect = validRedirect(this.route.snapshot.queryParamMap.get('redirect'));
+  /** Veio de um convite da comissão: cria só a conta (sem painel de treinador próprio) e não pede telefone. */
+  protected readonly invited = isInviteRedirect(this.redirect);
   protected readonly redirectParams = this.redirect ? { redirect: this.redirect } : null;
 
   protected readonly loading = signal(false);
@@ -133,7 +144,7 @@ export class SignupComponent {
 
   protected readonly form = this.fb.group({
     nome: ['', Validators.required],
-    telefone: ['', Validators.required],
+    telefone: ['', this.invited ? [] : [Validators.required]],
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(8)]],
   });
@@ -186,7 +197,11 @@ export class SignupComponent {
     this.loading.set(true);
     try {
       const { nome, telefone, email, password } = this.form.getRawValue();
-      await this.auth.createCoachAccount(email, password, nome, telefone);
+      if (this.invited) {
+        await this.auth.createAccountOnly(email, password, nome);
+      } else {
+        await this.auth.createCoachAccount(email, password, nome, telefone);
+      }
       void this.router.navigateByUrl(this.redirect ?? '/painel');
     } catch (err) {
       this.error.set(mapFirebaseAuthError(err));
@@ -201,7 +216,7 @@ export class SignupComponent {
     this.error.set(null);
     this.googleLoading.set(true);
     try {
-      const ok = await this.auth.signInWithGoogle(true, true);
+      const ok = await this.auth.signInWithGoogle(true, true, { invited: this.invited });
       if (ok) {
         void this.router.navigateByUrl(this.redirect ?? '/painel');
       }

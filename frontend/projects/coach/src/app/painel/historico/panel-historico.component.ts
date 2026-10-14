@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { CoachContextService } from '../access/coach-context.service';
 import { AthletesService } from '../atletas/athletes.service';
 import { averageScore } from '../avaliacoes/evaluation-stats';
 import { EvaluationsService } from '../avaliacoes/evaluations.service';
@@ -135,6 +136,7 @@ const ATTENDANCE_LABEL: Record<AttendanceStatus, string> = {
   `,
 })
 export class PanelHistoricoComponent {
+  private readonly ctx = inject(CoachContextService);
   private readonly athletesService = inject(AthletesService);
   private readonly trainingsService = inject(TrainingsService);
   private readonly evaluationsService = inject(EvaluationsService);
@@ -169,8 +171,7 @@ export class PanelHistoricoComponent {
         sub: [t.startTime, t.location].filter(Boolean).join(' · '),
       }));
 
-    const evaluationItems: HistoryItem[] = this.evaluationsService
-      .evaluations()
+    const evaluationItems: HistoryItem[] = (this.ctx.can('avaliacoes') ? this.evaluationsService.evaluations() : [])
       .filter((e) => e.athleteUid === uid)
       .map((e) => ({
         date: e.date,

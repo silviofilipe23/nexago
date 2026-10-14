@@ -147,7 +147,9 @@ export class AthletesService {
         this.linksState.set([]);
         this.profilesState.set(new Map());
       });
-      if (!uid) {
+      // Deps rastreadas (de propósito): activeCoachUid e role (via can). O cargo mudar para o mesmo
+      // treinador reabre/fecha o listener; sem 'atletas' nem abrimos o listener (as rules negariam).
+      if (!uid || !this.ctx.can('atletas')) {
         return;
       }
 

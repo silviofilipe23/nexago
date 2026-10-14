@@ -34,7 +34,12 @@ const STATUS_LABEL: Record<AttendanceStatus, string> = {
 
       <div class="body">
         @if (!selected()) {
-          <p class="empty">Nenhum treino agendado para esta equipe ainda. Crie um treino primeiro.</p>
+          <p class="empty">
+            Nenhum treino agendado para esta equipe ainda.
+            @if (ctx.can('treinos', 'write')) {
+              Crie um treino primeiro.
+            }
+          </p>
         } @else {
           <co-panel-card title="Marcar presença" [kicker]="roster().length + ' convocados'">
             @for (a of roster(); track a.athleteUid; let last = $last) {

@@ -4,7 +4,7 @@ import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
 import { CoachContextService } from '../access/coach-context.service';
-import { CoachStaffService } from '../access/coach-staff.service';
+import { CoachStaffService, staffErrorMessage } from '../access/coach-staff.service';
 import { ROLE_LABELS, type PanelArea } from '../access/coach-roles.model';
 import { IconComponent, type PanelIconName } from './icon.component';
 import { initialsOf } from './initials';
@@ -477,7 +477,7 @@ export class PanelShellComponent {
       // O espelho some em ~1 s e o contexto cai para outro painel (ou /sem-acesso, pelo effect acima).
       void this.router.navigateByUrl('/painel');
     } catch (err) {
-      this.leaveError.set(err instanceof Error && err.message ? err.message : 'Não foi possível sair da comissão.');
+      this.leaveError.set(staffErrorMessage(err, 'Não foi possível sair da comissão.'));
     } finally {
       this.leaving.set(false);
     }
@@ -524,7 +524,7 @@ export class PanelShellComponent {
   protected readonly squadCountLabel = computed(() => {
     const n = this.squadContext.squads().length;
     if (n === 0) {
-      return 'Crie sua primeira equipe';
+      return this.ctx.can('atletas', 'write') ? 'Crie sua primeira equipe' : 'Nenhuma equipe';
     }
     return n === 1 ? '1 equipe' : `${n} equipes`;
   });

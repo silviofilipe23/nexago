@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
-import { CanActivateFn, Router } from '@angular/router';
+import { CanActivateFn, Router, UrlTree } from '@angular/router';
 import { filter, map, take } from 'rxjs/operators';
 import { CoachContextService } from './coach-context.service';
 import type { AccessMode, PanelArea } from './coach-roles.model';
@@ -19,17 +19,22 @@ export const areaGuard: CanActivateFn = (route) => {
   const router = inject(Router);
   const area = route.data['area'] as PanelArea | undefined;
   const mode = (route.data['mode'] as AccessMode | undefined) ?? 'read';
+  const decide = (): boolean | UrlTree => {
+    if (ctx.contexts().length === 0) {
+      return router.createUrlTree(['/sem-acesso']);
+    }
+    if (!area || ctx.can(area, mode)) {
+      return true;
+    }
+    return router.createUrlTree(['/painel']);
+  };
+  // Atalho: com os listeners já respondidos não criamos um toObservable (effect raiz) por navegação.
+  if (ctx.ready()) {
+    return decide();
+  }
   return toObservable(ctx.ready).pipe(
     filter((ready) => ready),
     take(1),
-    map(() => {
-      if (ctx.contexts().length === 0) {
-        return router.createUrlTree(['/sem-acesso']);
-      }
-      if (!area || ctx.can(area, mode)) {
-        return true;
-      }
-      return router.createUrlTree(['/painel']);
-    }),
+    map(decide),
   );
 };

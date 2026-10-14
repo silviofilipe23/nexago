@@ -35,7 +35,11 @@ import { SquadsService, type Squad } from './squads.service';
         }
         @if (squads().length === 0) {
           <co-panel-card title="Nenhuma equipe ainda" kicker="Comece por aqui">
-            <p class="desc">Crie sua primeira equipe pra começar a adicionar atletas, treinos e avaliações.</p>
+            @if (ctx.can('atletas', 'write')) {
+              <p class="desc">Crie sua primeira equipe pra começar a adicionar atletas, treinos e avaliações.</p>
+            } @else {
+              <p class="desc">Nenhuma equipe ainda.</p>
+            }
           </co-panel-card>
         } @else {
           <div class="grid">
@@ -51,15 +55,15 @@ import { SquadsService, type Squad } from './squads.service';
                       Tornar ativa
                     }
                   </button>
-                  @if (!ctx.can('atletas', 'write')) {
-                    <!-- leitura: só seleciona a equipe ativa -->
-                  } @else if (confirmingDeleteId() === squad.id) {
-                    <span class="confirm">Excluir esta equipe?</span>
-                    <button type="button" class="co-ghost-btn danger" [disabled]="deleting()" (click)="remove(squad)">Excluir</button>
-                    <button type="button" class="co-ghost-btn" (click)="confirmingDeleteId.set(null)">Voltar</button>
-                  } @else {
-                    <a class="co-ghost-btn" [routerLink]="['/painel/equipes', squad.id, 'editar']">Editar</a>
-                    <button type="button" class="co-ghost-btn danger" (click)="askDelete(squad)">Excluir</button>
+                  @if (ctx.can('atletas', 'write')) {
+                    @if (confirmingDeleteId() === squad.id) {
+                      <span class="confirm">Excluir esta equipe?</span>
+                      <button type="button" class="co-ghost-btn danger" [disabled]="deleting()" (click)="remove(squad)">Excluir</button>
+                      <button type="button" class="co-ghost-btn" (click)="confirmingDeleteId.set(null)">Voltar</button>
+                    } @else {
+                      <a class="co-ghost-btn" [routerLink]="['/painel/equipes', squad.id, 'editar']">Editar</a>
+                      <button type="button" class="co-ghost-btn danger" (click)="askDelete(squad)">Excluir</button>
+                    }
                   }
                 </div>
               </co-panel-card>

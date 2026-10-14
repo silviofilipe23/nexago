@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from './auth.service';
 import { mapFirebaseAuthError } from './firebase-auth-errors';
 import { AuthShellComponent } from './ui/auth-shell.component';
+import { isInviteRedirect, validRedirect } from './invite-redirect';
 import { FieldComponent } from './ui/field.component';
 
 @Component({
@@ -164,7 +165,9 @@ export class LoginComponent {
     this.error.set(null);
     this.googleLoading.set(true);
     try {
-      const ok = await this.auth.signInWithGoogle(this.form.getRawValue().remember, false);
+      const ok = await this.auth.signInWithGoogle(this.form.getRawValue().remember, false, {
+        invited: isInviteRedirect(this.rawRedirect()),
+      });
       if (ok) {
         this.redirectAfterLogin();
       }
@@ -175,9 +178,12 @@ export class LoginComponent {
     }
   }
 
+  private rawRedirect(): string | null {
+    return this.route.snapshot.queryParamMap.get('redirect');
+  }
+
   private validRedirect(): string | null {
-    const redirect = this.route.snapshot.queryParamMap.get('redirect');
-    return redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : null;
+    return validRedirect(this.rawRedirect());
   }
 
   /** O link "Cadastrar" repassa o destino pedido (ex.: convite da comissão). */

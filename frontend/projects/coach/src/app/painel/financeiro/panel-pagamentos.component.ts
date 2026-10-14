@@ -1,11 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { AthletesService } from '../atletas/athletes.service';
 import { KpiCardComponent } from '../ui/kpi-card.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
 import { TabsComponent } from '../ui/tabs.component';
+import { athletesAtRisk, type AthleteAtRisk } from '../treinos/attendance-stats';
+import { TrainingsService } from '../treinos/trainings.service';
 import { FinanceService } from './finance.service';
 import { METHOD_LABEL, type Charge, type PaymentMethod } from './finance-model';
 import {
@@ -62,6 +65,12 @@ type ActionMode = 'baixa' | 'editar' | 'cancelar' | 'desfazer';
           <co-kpi-card label="Em atraso" [value]="money(overdue().cents)" [delta]="overdue().count + ' parcela(s)'" deltaTone="red" />
         </div>
 
+        @if (debtorsAtRisk() > 0) {
+          <div class="risk-note" role="status">
+            {{ debtorsAtRisk() }} {{ debtorsAtRisk() === 1 ? 'aluno devendo' : 'alunos devendo' }} com faltas seguidas
+          </div>
+        }
+
         <co-tabs [tabs]="tabs" [active]="activeTab()" (change)="activeTab.set($event)" />
 
         <co-panel-card [title]="activeTab() === 'Atrasados' ? 'Atrasadas (todos os meses)' : 'Parcelas do mês'" [kicker]="rows().length + ' parcela(s)'">
@@ -78,6 +87,9 @@ type ActionMode = 'baixa' | 'editar' | 'cancelar' | 'desfazer';
               </div>
               <div class="amount">{{ money(c.amountCents) }}</div>
               <co-pill [tone]="tone(c)">{{ label(c) }}</co-pill>
+              @if (riskFor(c); as risk) {
+                <co-pill [tone]="risk.level === 'critico' ? 'red' : 'yellow'">{{ risk.streak }} faltas seguidas</co-pill>
+              }
               <div class="actions">
                 @if (c.status === 'pendente') {
                   <button type="button" class="co-ghost-btn" (click)="open(c, 'baixa')">Dar baixa</button>
@@ -169,6 +181,13 @@ type ActionMode = 'baixa' | 'editar' | 'cancelar' | 'desfazer';
       color: var(--nx-text);
       min-width: 130px;
       text-align: center;
+    }
+    .risk-note {
+      padding: 10px 14px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-orange-tint);
+      color: var(--nx-text);
+      font-size: 13px;
     }
     .disclaimer {
       margin: 0;
@@ -263,6 +282,8 @@ type ActionMode = 'baixa' | 'editar' | 'cancelar' | 'desfazer';
 })
 export class PanelPagamentosComponent {
   protected readonly finance = inject(FinanceService);
+  private readonly athletes = inject(AthletesService);
+  private readonly trainings = inject(TrainingsService);
 
   protected readonly tabs = TABS;
   protected readonly methods = METHODS;
@@ -286,6 +307,18 @@ export class PanelPagamentosComponent {
   protected readonly monthLabel = computed(() => {
     const [y, m] = this.finance.month().split('-').map(Number);
     return `${MONTH_NAMES[m! - 1]} de ${y}`;
+  });
+
+  /** Alunos com 2+ faltas seguidas (mesma regra e faixas do Início). */
+  private readonly riskByUid = computed(
+    () => new Map(athletesAtRisk(this.athletes.roster(), this.trainings.trainings()).map((r) => [r.athleteUid, r])),
+  );
+
+  /** Alunos distintos com parcela em aberto (pendente ou atrasada) e faltas seguidas. */
+  protected readonly debtorsAtRisk = computed(() => {
+    const risk = this.riskByUid();
+    const open = [...this.finance.monthCharges(), ...this.finance.overdueCharges()].filter((c) => c.status === 'pendente');
+    return new Set(open.filter((c) => risk.has(c.athleteUid)).map((c) => c.athleteUid)).size;
   });
 
   protected readonly totals = computed(() => monthTotals(this.finance.monthCharges(), this.today));
@@ -316,6 +349,10 @@ export class PanelPagamentosComponent {
   }
   protected tone(c: Charge): PillTone {
     return STATE_TONE[this.state(c)];
+  }
+  /** Selo de faltas só em parcela em aberto: o alerta cruza "sumiu" com "está devendo". */
+  protected riskFor(c: Charge): AthleteAtRisk | null {
+    return c.status === 'pendente' ? (this.riskByUid().get(c.athleteUid) ?? null) : null;
   }
   protected methodLabel(method: PaymentMethod | null): string {
     return method ? METHOD_LABEL[method] : '';

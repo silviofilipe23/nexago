@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormFieldComponent } from '../ui/form-field.component';
@@ -8,7 +9,7 @@ import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { SquadContextService } from '../ui/squad-context.service';
-import { isEndBeforeStart, sanitizeDuration } from './training-rules';
+import { addDays, generateOccurrences, isEndBeforeStart, MAX_SERIES_OCCURRENCES, sanitizeDuration } from './training-rules';
 import { TrainingsService } from './trainings.service';
 
 @Component({
@@ -49,6 +50,9 @@ import { TrainingsService } from './trainings.service';
         }
 
         <co-panel-card title="Detalhes do treino" kicker="Objetivo e horário">
+          @if (duplicatedTitle(); as source) {
+            <p class="squad-note">Duplicando de «{{ source }}»</p>
+          }
           @if (!editingId && squadName(); as name) {
             <p class="squad-note">Equipe: <strong>{{ name }}</strong></p>
           }
@@ -61,6 +65,26 @@ import { TrainingsService } from './trainings.service';
             <co-form-textarea label="Materiais" formControlName="materials" />
           </form>
         </co-panel-card>
+
+        @if (!editingId) {
+          <co-panel-card title="Repetir" kicker="Opcional · gera vários treinos de uma vez">
+            <div class="chips" role="group" aria-label="Dias da semana">
+              @for (d of weekdayChips; track d.value) {
+                <button type="button" class="chip" [class.on]="repeatDays().includes(d.value)" [attr.aria-pressed]="repeatDays().includes(d.value)" (click)="toggleDay(d.value)">
+                  {{ d.label }}
+                </button>
+              }
+            </div>
+            @if (repeatDays().length > 0) {
+              <form [formGroup]="form" class="grid until">
+                <co-form-field label="Até" type="date" formControlName="repeatUntil" [error]="fieldError('repeatUntil')" />
+              </form>
+              @if (repeatSummary(); as summary) {
+                <p class="repeat-summary" [class.warn]="occurrences().length === 0 || occurrences().length > maxSeries">{{ summary }}</p>
+              }
+            }
+          </co-panel-card>
+        }
 
         <co-panel-card title="Exercícios" kicker="Aquecimento, técnica, tático...">
           @for (ex of exercises(); track $index; let i = $index) {
@@ -124,6 +148,39 @@ import { TrainingsService } from './trainings.service';
     .squad-note strong {
       color: var(--nx-text);
     }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .chip {
+      height: 32px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid var(--nx-line-strong);
+      background: transparent;
+      color: var(--nx-text-dim);
+      font-family: var(--nx-font-ui);
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .chip.on {
+      background: var(--nx-orange-500);
+      border-color: transparent;
+      color: var(--nx-text-on-orange);
+    }
+    .until {
+      margin-top: 14px;
+    }
+    .repeat-summary {
+      margin: 12px 0 0;
+      font-size: 12.5px;
+      color: var(--nx-text-dim);
+    }
+    .repeat-summary.warn {
+      color: var(--nx-red-500, #ff5b5b);
+    }
     .ex-total {
       margin-top: 10px;
       font-family: var(--nx-font-mono);
@@ -168,6 +225,9 @@ export class PanelNovoTreinoComponent {
 
   /** `null` = criando; com id = editando um treino existente. */
   protected readonly editingId = this.route.snapshot.paramMap.get('id');
+  /** `?de=<id>`: cria um treino novo partindo de um existente. */
+  private readonly duplicateFromId = this.editingId ? null : this.route.snapshot.queryParamMap.get('de');
+  protected readonly duplicatedTitle = signal<string | null>(null);
 
   protected readonly form = this.fb.group({
     title: ['', Validators.required],
@@ -176,6 +236,40 @@ export class PanelNovoTreinoComponent {
     endTime: [''],
     location: [''],
     materials: [''],
+    repeatUntil: [''],
+  });
+
+  protected readonly weekdayChips = [
+    { value: 0, label: 'Dom' },
+    { value: 1, label: 'Seg' },
+    { value: 2, label: 'Ter' },
+    { value: 3, label: 'Qua' },
+    { value: 4, label: 'Qui' },
+    { value: 5, label: 'Sex' },
+    { value: 6, label: 'Sáb' },
+  ];
+  protected readonly maxSeries = MAX_SERIES_OCCURRENCES;
+  protected readonly repeatDays = signal<number[]>([]);
+  private readonly formValue = toSignal(this.form.valueChanges, { initialValue: this.form.getRawValue() });
+
+  /** Datas da série (vazio = treino único). Mais que o teto vem com `MAX + 1` itens, só pra acusar o estouro. */
+  protected readonly occurrences = computed(() => {
+    const v = this.formValue();
+    return generateOccurrences(v.date ?? '', v.repeatUntil ?? '', this.repeatDays());
+  });
+  protected readonly repeatSummary = computed(() => {
+    const list = this.occurrences();
+    if (this.repeatDays().length === 0) {
+      return null;
+    }
+    if (list.length === 0) {
+      return 'Nenhuma data no período. Confira a data do treino e o "Até".';
+    }
+    if (list.length > MAX_SERIES_OCCURRENCES) {
+      return `Muitos treinos de uma vez (máximo ${MAX_SERIES_OCCURRENCES}). Reduza o período.`;
+    }
+    const fmt = (iso: string) => iso.split('-').reverse().slice(0, 2).join('/');
+    return `Vai criar ${list.length} treino${list.length === 1 ? '' : 's'} · ${fmt(list[0]!)} a ${fmt(list[list.length - 1]!)}`;
   });
 
   protected readonly exercises = signal<{ label: string; durationMin: number }[]>([]);
@@ -193,22 +287,28 @@ export class PanelNovoTreinoComponent {
   protected readonly canSubmit = computed(() => (this.editingId ? this.loaded() : !!this.squadName()));
 
   constructor() {
-    if (!this.editingId) {
+    const sourceId = this.editingId ?? this.duplicateFromId;
+    if (!sourceId) {
       return;
     }
     // Os treinos chegam por snapshot; preenche o form assim que o treino aparecer (uma vez).
     const ref = effect(() => {
-      const t = this.trainingsService.trainings().find((x) => x.id === this.editingId);
+      const t = this.trainingsService.trainings().find((x) => x.id === sourceId);
       if (!t) {
         return;
       }
+      if (this.duplicateFromId) {
+        this.duplicatedTitle.set(t.title);
+      }
       this.form.setValue({
         title: t.title,
-        date: t.date,
+        // Duplicar sugere a mesma aula na semana seguinte; editar mantém a data.
+        date: this.duplicateFromId && t.date ? addDays(t.date, 7) : t.date,
         startTime: t.startTime,
         endTime: t.endTime,
         location: t.location,
         materials: t.materials,
+        repeatUntil: '',
       });
       this.exercises.set(
         [...t.exercises].sort((a, b) => a.order - b.order).map((e) => ({ label: e.label, durationMin: e.durationMin })),
@@ -218,7 +318,7 @@ export class PanelNovoTreinoComponent {
     });
   }
 
-  protected fieldError(field: 'title' | 'date' | 'startTime' | 'endTime'): string | null {
+  protected fieldError(field: 'title' | 'date' | 'startTime' | 'endTime' | 'repeatUntil'): string | null {
     if (!this.submitted()) {
       return null;
     }
@@ -230,9 +330,15 @@ export class PanelNovoTreinoComponent {
         return raw.date ? null : 'Informe a data.';
       case 'startTime':
         return raw.startTime ? null : 'Informe o início.';
+      case 'repeatUntil':
+        return this.repeatDays().length > 0 && !raw.repeatUntil ? 'Informe até quando repetir.' : null;
       case 'endTime':
         return isEndBeforeStart(raw.startTime, raw.endTime) ? 'O fim precisa ser depois do início.' : null;
     }
+  }
+
+  protected toggleDay(day: number): void {
+    this.repeatDays.update((list) => (list.includes(day) ? list.filter((d) => d !== day) : [...list, day]));
   }
 
   protected addExercise(): void {
@@ -266,6 +372,11 @@ export class PanelNovoTreinoComponent {
       this.error.set('Revise os campos destacados.');
       return;
     }
+    const repeating = !this.editingId && this.repeatDays().length > 0;
+    if (repeating && (!raw.repeatUntil || this.occurrences().length === 0 || this.occurrences().length > MAX_SERIES_OCCURRENCES)) {
+      this.error.set(this.fieldError('repeatUntil') ?? this.repeatSummary() ?? 'Revise a repetição.');
+      return;
+    }
     this.saving.set(true);
     try {
       const fields = {
@@ -280,7 +391,13 @@ export class PanelNovoTreinoComponent {
       if (this.editingId) {
         await this.trainingsService.updateTraining(this.editingId, fields);
       } else {
-        await this.trainingsService.createTraining({ squadId: squadId!, ...fields });
+        if (repeating) {
+          await this.trainingsService.createTrainings(
+            this.occurrences().map((date) => ({ squadId: squadId!, ...fields, date })),
+          );
+        } else {
+          await this.trainingsService.createTraining({ squadId: squadId!, ...fields });
+        }
       }
       void this.router.navigateByUrl('/painel/treinos');
     } catch (err) {

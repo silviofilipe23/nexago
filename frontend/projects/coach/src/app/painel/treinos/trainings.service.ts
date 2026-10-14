@@ -9,6 +9,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  writeBatch,
   type Firestore,
 } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
@@ -133,6 +134,32 @@ export class TrainingsService {
       createdAt: serverTimestamp(),
     });
     return ref.id;
+  }
+
+  /** Cria vários treinos de uma vez (série recorrente), atomicamente, todos com o mesmo `seriesId`. */
+  async createTrainings(inputs: NewTrainingInput[]): Promise<string> {
+    const uid = this.requireUid();
+    const col = collection(this.firestore, 'coaches', uid, 'trainings');
+    const seriesId = doc(col).id;
+    const batch = writeBatch(this.firestore);
+    for (const input of inputs) {
+      batch.set(doc(col), {
+        squadId: input.squadId,
+        title: input.title,
+        date: input.date,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        location: input.location,
+        materials: input.materials,
+        exercises: input.exercises,
+        status: 'agendado',
+        attendance: {},
+        seriesId,
+        createdAt: serverTimestamp(),
+      });
+    }
+    await batch.commit();
+    return seriesId;
   }
 
   async setAttendance(trainingId: string, attendance: Record<string, AttendanceStatus>): Promise<void> {

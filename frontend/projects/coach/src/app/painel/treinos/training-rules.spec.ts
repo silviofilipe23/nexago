@@ -2,6 +2,8 @@ import {
   addDays,
   canDeleteTraining,
   compareTrainings,
+  generateOccurrences,
+  MAX_SERIES_OCCURRENCES,
   isEndBeforeStart,
   localIsoDate,
   sanitizeDuration,
@@ -67,5 +69,36 @@ describe('addDays', () => {
   it('vira o mês e o ano', () => {
     expect(addDays('2026-10-28', 7)).toBe('2026-11-04');
     expect(addDays('2026-12-30', 7)).toBe('2027-01-06');
+  });
+});
+
+describe('generateOccurrences', () => {
+  // 2026-10-13 é terça-feira.
+  it('gera terças e quintas no intervalo, inclusive o último dia', () => {
+    expect(generateOccurrences('2026-10-13', '2026-10-22', [2, 4])).toEqual([
+      '2026-10-13',
+      '2026-10-15',
+      '2026-10-20',
+      '2026-10-22',
+    ]);
+  });
+
+  it('não inclui a data inicial se o dia da semana não está marcado', () => {
+    expect(generateOccurrences('2026-10-13', '2026-10-20', [4])).toEqual(['2026-10-15']);
+  });
+
+  it('atravessa a virada de mês e de ano', () => {
+    expect(generateOccurrences('2026-12-29', '2027-01-12', [2])).toEqual(['2026-12-29', '2027-01-05', '2027-01-12']);
+  });
+
+  it('devolve vazio sem dias, sem datas ou com "até" antes do início', () => {
+    expect(generateOccurrences('2026-10-13', '2026-10-30', [])).toEqual([]);
+    expect(generateOccurrences('', '2026-10-30', [2])).toEqual([]);
+    expect(generateOccurrences('2026-10-13', '2026-10-01', [2])).toEqual([]);
+  });
+
+  it('para uma além do teto, pra quem chama detectar o estouro', () => {
+    const all = generateOccurrences('2026-01-05', '2027-12-31', [0, 1, 2, 3, 4, 5, 6]);
+    expect(all.length).toBe(MAX_SERIES_OCCURRENCES + 1);
   });
 });

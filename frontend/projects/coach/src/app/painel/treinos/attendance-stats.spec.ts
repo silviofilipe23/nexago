@@ -14,6 +14,7 @@ function training(overrides: Partial<Training> = {}): Training {
     exercises: [],
     status: 'realizado',
     attendance: {},
+    seriesId: null,
     ...overrides,
   };
 }

@@ -4,13 +4,14 @@ import { AuthService } from '../../auth/auth.service';
 import { AthletesService } from '../atletas/athletes.service';
 import { EvaluationsService } from '../avaliacoes/evaluations.service';
 import { CallUpsService } from '../convocacoes/call-ups.service';
-import { isPresent } from '../treinos/attendance-stats';
+import { athletesAtRisk, isPresent } from '../treinos/attendance-stats';
 import { TrainingsService } from '../treinos/trainings.service';
 import { AthleteAvatarComponent } from '../ui/athlete-avatar.component';
 import { KpiCardComponent } from '../ui/kpi-card.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
+import { PillComponent } from '../ui/pill.component';
 import { RowComponent } from '../ui/row.component';
 import { SquadContextService } from '../ui/squad-context.service';
 
@@ -24,6 +25,7 @@ import { SquadContextService } from '../ui/squad-context.service';
     PageHeaderComponent,
     PanelCardComponent,
     PanelShellComponent,
+    PillComponent,
     RowComponent,
   ],
   template: `
@@ -48,6 +50,15 @@ import { SquadContextService } from '../ui/squad-context.service';
           </co-panel-card>
 
           <div class="side">
+            <co-panel-card title="Faltas seguidas" [kicker]="atRiskCountLabel()">
+              @for (a of atRisk(); track a.athleteUid; let last = $last) {
+                <co-row [title]="a.displayName" [sub]="lastPresentLabel(a.lastPresentDate)" [last]="last">
+                  <co-pill row-trailing [tone]="a.level === 'critico' ? 'red' : 'yellow'">{{ a.streak }} faltas seguidas</co-pill>
+                </co-row>
+              } @empty {
+                <p class="empty">Nenhum atleta em risco.</p>
+              }
+            </co-panel-card>
             <co-panel-card title="Atletas lesionados" [kicker]="injuredCountLabel()">
               @for (a of injured(); track a.athleteUid; let last = $last) {
                 <co-row [title]="a.displayName" [sub]="a.category" [last]="last">
@@ -141,6 +152,13 @@ export class PanelInicioComponent {
     this.roster().filter((a) => a.status === 'afastado' || a.status === 'ferias'),
   );
   protected readonly awayCountLabel = computed(() => `${this.awayOrVacation().length}`);
+
+  protected readonly atRisk = computed(() => athletesAtRisk(this.roster(), this.trainingsService.trainings()));
+  protected readonly atRiskCountLabel = computed(() => `${this.atRisk().length}`);
+
+  protected lastPresentLabel(iso: string | null): string {
+    return iso ? `Última presença em ${iso.split('-').reverse().slice(0, 2).join('/')}` : 'Sem presença registrada';
+  }
 
   protected readonly upcomingTrainings = computed(() => {
     const activeId = this.squadContext.activeSquadId();

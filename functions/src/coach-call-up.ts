@@ -55,6 +55,7 @@ export const sendCallUp = onCall({
 
   const ref = db.collection(`coaches/${coachUid}/callUps`).doc();
   await ref.set({
+    createdBy: uid,
     coachName,
     squadId,
     title,

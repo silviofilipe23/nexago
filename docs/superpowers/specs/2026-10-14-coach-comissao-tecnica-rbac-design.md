@@ -50,8 +50,8 @@ Preparador e auxiliar precisam saber **quem pode treinar**, não o diagnóstico.
 ## 3. Modelo de dados
 
 ```
-coaches/{coachUid}/staff/{memberUid}     { role, displayName, invitedBy, createdAt }
-coachStaffInvites/{inviteId}             { coachUid, role, status, expiresAt, createdBy, acceptedBy? }
+coaches/{coachUid}/staff/{memberUid}     { role, email, displayName, photoUrl, addedBy, addedAt }  (+ updatedAt após troca de cargo)
+coachStaffInvites/{inviteId}             { coachUid, coachName, emailLower, role, status, invitedBy, acceptedBy, createdAt, expiresAt }
 users/{uid}/coachStaff/{coachUid}        { role, coachName }   ← espelho por trigger
 coaches/{c}/injuries, fisico, wellbeingNotes, announcements   (novos, por área)
 ```
@@ -63,6 +63,11 @@ coaches/{c}/injuries, fisico, wellbeingNotes, announcements   (novos, por área)
   transação (convite + vínculo + espelho).
 - O espelho `users/{uid}/coachStaff/{coachUid}` é como o portal descobre a que treinadores o usuário
   pertence (as rules não permitem query por `staff` de outro).
+
+- Os docs de convocação (`coaches/{c}/callUps`) e de convite de atleta (`coachAthleteInvites`) ganham
+  `createdBy` (uid de quem chamou a callable), para auditoria quando um membro age pelo treinador.
+- A claim `coach` é **mantida** após remoção/saída do membro. A fase 2 deve decidir "é staff de X" pelo
+  espelho/`staff`, nunca pela claim.
 
 Callables novas: `createCoachStaffInvite`, `acceptCoachStaffInvite`, `changeCoachStaffRole`,
 `removeCoachStaff`, `leaveCoachStaff`. O principal não sai nem é removido na v1.

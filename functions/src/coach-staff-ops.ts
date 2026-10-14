@@ -7,6 +7,7 @@ import {withCoachRole} from "./coach-signup";
 import {isCoachStaffRole, type CoachStaffRole} from "./coach-staff-roles";
 import {normalizeInviteEmail} from "./arena-staff-roles";
 import {inviteClaimState} from "./arena-staff-ops";
+import {assertSafeDocId} from "./coach-area-access";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const INVITES = "coachStaffInvites";
@@ -72,13 +73,18 @@ export const createCoachStaffInvite = onCall({
     }
   }
 
-  const duplicate = await db.collection(INVITES)
+  const pending = await db.collection(INVITES)
     .where("coachUid", "==", coachUid)
     .where("emailLower", "==", email)
     .where("status", "==", "pending")
-    .limit(1)
     .get();
-  if (!duplicate.empty) {
+  // Convite vencido continua "pending" no banco, mas não deve impedir um novo convite.
+  const nowMs = Date.now();
+  const hasLive = pending.docs.some((d) => {
+    const exp = d.data().expiresAt as Timestamp | undefined;
+    return (exp?.toMillis?.() ?? 0) > nowMs;
+  });
+  if (hasLive) {
     throw new HttpsError("already-exists", "Já existe um convite pendente para este e-mail.");
   }
 
@@ -111,7 +117,21 @@ export const acceptCoachStaffInvite = onCall({
   const db = getFirestore();
   const ref = db.doc(`${INVITES}/${inviteId}`);
 
-  // Transação: dois aceites simultâneos não podem criar o vínculo duas vezes nem reusar o convite.
+  // Sessão válida antes de qualquer escrita (fora da transação: chamada de rede ao Auth).
+  let user;
+  try {
+    user = await getAuth().getUser(uid);
+  } catch (err: unknown) {
+    if ((err as {code?: string})?.code === "auth/user-not-found") {
+      throw new HttpsError("unauthenticated", "Sua sessão expirou. Entre novamente para continuar.");
+    }
+    throw err;
+  }
+
+  // Transação: o vínculo em `staff` e a baixa do convite (`accepted`) são gravados juntos
+  // (tudo ou nada); dois aceites simultâneos ou um revoke concorrente reexecutam a leitura e
+  // não criam o vínculo duas vezes nem reusam o convite. A claim `coach` NÃO entra na
+  // transação (é Auth, não Firestore): é concedida logo após o commit, de forma idempotente.
   const result = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) throw new HttpsError("not-found", "Convite não encontrado.");
@@ -143,32 +163,27 @@ export const acceptCoachStaffInvite = onCall({
     }
     const staffRef = db.doc(`coaches/${coachUid}/staff/${uid}`);
     if ((await tx.get(staffRef)).exists) {
-      tx.set(ref, {status: "accepted", acceptedBy: uid, acceptedAt: FieldValue.serverTimestamp()}, {merge: true});
-      throw new HttpsError("already-exists", "Você já faz parte desta comissão.");
+      // Não lança aqui: um throw dentro do callback reverte qualquer escrita. O tratamento
+      // (recuperar a claim e responder already-exists) acontece após a transação.
+      return {alreadyMember: true as const, coachUid};
     }
-    return {coachUid, role, staffRef};
+    tx.create(staffRef, {
+      role,
+      email,
+      displayName: user.displayName || email.split("@")[0],
+      photoUrl: user.photoURL ?? null,
+      addedBy: String(invite.invitedBy ?? ""),
+      addedAt: FieldValue.serverTimestamp(),
+    });
+    tx.update(ref, {status: "accepted", acceptedBy: uid, acceptedAt: FieldValue.serverTimestamp()});
+    return {alreadyMember: false as const, coachUid, role};
   });
 
-  let user;
-  try {
-    user = await getAuth().getUser(uid);
-  } catch (err: unknown) {
-    if ((err as {code?: string})?.code === "auth/user-not-found") {
-      throw new HttpsError("unauthenticated", "Sua sessão expirou. Entre novamente para continuar.");
-    }
-    throw err;
-  }
-
-  await result.staffRef.set({
-    role: result.role,
-    email,
-    displayName: user.displayName || email.split("@")[0],
-    photoUrl: user.photoURL ?? null,
-    addedBy: String((await ref.get()).data()?.invitedBy ?? ""),
-    addedAt: FieldValue.serverTimestamp(),
-  });
+  // Idempotente: também recupera a claim quando uma tentativa anterior falhou depois do commit.
   await ensureCoachRole(uid);
-  await ref.set({status: "accepted", acceptedBy: uid, acceptedAt: FieldValue.serverTimestamp()}, {merge: true});
+  if (result.alreadyMember) {
+    throw new HttpsError("already-exists", "Você já faz parte desta comissão.");
+  }
   logger.info("coachStaff: convite aceito", {coachUid: result.coachUid, inviteId, uid, role: result.role});
   return {coachUid: result.coachUid, role: result.role};
 });
@@ -185,6 +200,9 @@ export const revokeCoachStaffInvite = onCall({
   if (snap.data()?.coachUid !== uid) {
     throw new HttpsError("permission-denied", "Apenas o treinador principal gerencia a comissão.");
   }
+  if (snap.data()?.status !== "pending") {
+    throw new HttpsError("failed-precondition", "Este convite não está mais pendente.");
+  }
   await ref.set({status: "revoked", revokedAt: FieldValue.serverTimestamp()}, {merge: true});
   return {ok: true as const};
 });
@@ -197,8 +215,16 @@ export const changeCoachStaffRole = onCall({
   if (!staffUserId) throw new HttpsError("invalid-argument", "staffUserId é obrigatório.");
   const role = assertInviteRole(request.data?.role);
   const ref = getFirestore().doc(`coaches/${uid}/staff/${staffUserId}`);
-  if (!(await ref.get()).exists) throw new HttpsError("not-found", "Membro não encontrado na sua comissão.");
-  await ref.set({role, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+  try {
+    // update() falha com NOT_FOUND se o doc sumiu: uma remoção concorrente não é recriada.
+    await ref.update({role, updatedAt: FieldValue.serverTimestamp()});
+  } catch (err: unknown) {
+    const code = (err as {code?: unknown})?.code;
+    if (code === 5 || code === "NOT_FOUND") {
+      throw new HttpsError("not-found", "Membro não encontrado na sua comissão.");
+    }
+    throw err;
+  }
   return {ok: true as const};
 });
 
@@ -219,6 +245,7 @@ export const leaveCoachStaff = onCall({
   const uid = requireUid(request);
   const coachUid = String(request.data?.coachUid ?? "").trim();
   if (!coachUid) throw new HttpsError("invalid-argument", "coachUid é obrigatório.");
+  assertSafeDocId(coachUid, "coachUid");
   await getFirestore().doc(`coaches/${coachUid}/staff/${uid}`).delete();
   return {ok: true as const};
 });

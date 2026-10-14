@@ -35,11 +35,20 @@ export function decideCoachAreaAccess(
   return mode === "write" ? coachRoleCanWrite(role, area) : coachRoleCanRead(role, area);
 }
 
+/** Segmento de path do Firestore: não vazio e sem "/" (evita escapar para outro doc/coleção). */
+export function assertSafeDocId(value: string, label: string): void {
+  if (!value || value.includes("/")) {
+    throw new HttpsError("invalid-argument", `${label} inválido.`);
+  }
+}
+
 /** `coachUid` do payload (aparado) ou, se ausente/vazio/não-string, quem chama. */
 export function resolveCoachUid(data: unknown, callerUid: string): string {
   const raw = (data as {coachUid?: unknown} | null | undefined)?.coachUid;
   const trimmed = typeof raw === "string" ? raw.trim() : "";
-  return trimmed || callerUid;
+  if (!trimmed) return callerUid;
+  assertSafeDocId(trimmed, "coachUid");
+  return trimmed;
 }
 
 export async function assertCoachAreaAccess(

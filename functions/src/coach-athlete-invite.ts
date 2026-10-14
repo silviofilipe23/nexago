@@ -63,6 +63,7 @@ export const sendCoachAthleteInvite = onCall({
   const ref = db.collection(INVITES_COLLECTION).doc();
   await ref.set({
     coachUid,
+    createdBy: uid,
     coachName,
     athleteUid,
     athleteName,
@@ -173,7 +174,10 @@ export const cancelCoachAthleteInvite = onCall({
     try {
       await assertCoachAreaAccess(db, uid, String(invite["coachUid"] ?? ""), "atletas", "write");
       isCoach = true;
-    } catch {
+    } catch (err: unknown) {
+      if (!(err instanceof HttpsError)) {
+        logger.warn("cancelCoachAthleteInvite: falha ao checar acesso por área", {error: err});
+      }
       isCoach = false;
     }
   }

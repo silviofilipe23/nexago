@@ -1,6 +1,7 @@
 import {strict as assert} from "node:assert";
 import {test} from "node:test";
-import {decideCoachAreaAccess, resolveCoachUid} from "./coach-area-access";
+import {HttpsError} from "firebase-functions/v2/https";
+import {assertSafeDocId, decideCoachAreaAccess, resolveCoachUid} from "./coach-area-access";
 
 test("dono sempre pode, em toda area e modo", () => {
   assert.equal(decideCoachAreaAccess("c1", "c1", null, "financeiro", "write"), true);
@@ -54,4 +55,26 @@ test("contrato: coachUid forjado de outro treinador sem vinculo nega", () => {
 test("contrato: psicologo nao envia convocacao, auxiliar envia", () => {
   assert.equal(decideCoachAreaAccess("B", "m", {role: "psicologo"}, "convocacoes", "write"), false);
   assert.equal(decideCoachAreaAccess("B", "m", {role: "auxiliar"}, "convocacoes", "write"), true);
+});
+
+test("resolveCoachUid: coachUid com barra e invalid-argument", () => {
+  assert.throws(
+    () => resolveCoachUid({coachUid: "a/b"}, "me"),
+    (e: unknown) => e instanceof HttpsError && e.code === "invalid-argument",
+  );
+  assert.equal(resolveCoachUid({coachUid: "   "}, "me"), "me");
+});
+
+test("assertSafeDocId: vazio ou com barra rejeita; id comum passa", () => {
+  assert.doesNotThrow(() => assertSafeDocId("abc123", "coachUid"));
+  for (const bad of ["", "a/b", "/"]) {
+    assert.throws(
+      () => assertSafeDocId(bad, "coachUid"),
+      (e: unknown) => e instanceof HttpsError && e.code === "invalid-argument" && e.message === "coachUid inválido.",
+    );
+  }
+});
+
+test("decideCoachAreaAccess: coachUid e uid vazios com staff nulo nega", () => {
+  assert.equal(decideCoachAreaAccess("", "", null, "atletas", "read"), false);
 });

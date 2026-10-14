@@ -16,8 +16,9 @@ function parseMap(name) {
   assert.ok(m, `funcao ${name} nao encontrada em firestore.rules`);
   const out = {};
   for (const line of m[1].split('\n')) {
-    const e = line.match(/'([a-z_]+)':\s*\[([^\]]*)\]/);
-    if (!e) continue;
+    if (!line.trim()) continue;
+    const e = line.match(/'([A-Za-z0-9_]+)':\s*\[([^\]]*)\]/);
+    assert.ok(e, `linha do mapa ${name} nao reconhecida pelo parser: ${line}`);
     out[e[1]] = e[2].split(',').map((s) => s.trim().replace(/'/g, '')).filter(Boolean).sort();
   }
   return out;

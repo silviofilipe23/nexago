@@ -59,7 +59,7 @@ export const searchAthleteForCoachInvite = onCall({
     throw err;
   }
 
-  if (user.uid === uid) {
+  if (user.uid === coachUid || user.uid === uid) {
     throw new HttpsError("invalid-argument", "Você não pode convidar a si mesmo.");
   }
 

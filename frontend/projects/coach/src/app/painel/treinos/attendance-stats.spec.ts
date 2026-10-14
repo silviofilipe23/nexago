@@ -1,4 +1,4 @@
-import { attendanceRate } from './attendance-stats';
+import { attendanceRate, defaultAttendance, isPresent, sameAttendance, summarizeAttendance } from './attendance-stats';
 import type { Training } from './trainings.service';
 
 function training(overrides: Partial<Training> = {}): Training {
@@ -54,5 +54,44 @@ describe('attendanceRate', () => {
   it('ignores trainings that are not realizado, even if attendance is present', () => {
     const trainings = [training({ status: 'agendado', attendance: { a1: 'presente' } })];
     expect(attendanceRate('a1', trainings)).toBeNull();
+  });
+});
+
+describe('isPresent', () => {
+  it('conta presente e atrasado', () => {
+    expect(isPresent('presente')).toBe(true);
+    expect(isPresent('atrasado')).toBe(true);
+  });
+  it('não conta ausente nem justificado', () => {
+    expect(isPresent('ausente')).toBe(false);
+    expect(isPresent('justificado')).toBe(false);
+  });
+});
+
+describe('defaultAttendance', () => {
+  it('marca todo o elenco como presente', () => {
+    expect(defaultAttendance(['a1', 'a2'])).toEqual({ a1: 'presente', a2: 'presente' });
+  });
+  it('elenco vazio dá chamada vazia', () => expect(defaultAttendance([])).toEqual({}));
+});
+
+describe('summarizeAttendance', () => {
+  it('conta por status e quem ficou sem marcação', () => {
+    const summary = summarizeAttendance({ a1: 'presente', a2: 'ausente', a3: 'atrasado' }, ['a1', 'a2', 'a3', 'a4']);
+    expect(summary).toEqual({ presente: 1, ausente: 1, atrasado: 1, justificado: 0, semMarcacao: 1 });
+  });
+  it('ignora quem não está mais no elenco', () => {
+    const summary = summarizeAttendance({ a1: 'presente', velho: 'ausente' }, ['a1']);
+    expect(summary).toEqual({ presente: 1, ausente: 0, atrasado: 0, justificado: 0, semMarcacao: 0 });
+  });
+});
+
+describe('sameAttendance', () => {
+  it('ignora a ordem das chaves', () => {
+    expect(sameAttendance({ a: 'presente', b: 'ausente' }, { b: 'ausente', a: 'presente' })).toBe(true);
+  });
+  it('detecta diferença de status ou de chaves', () => {
+    expect(sameAttendance({ a: 'presente' }, { a: 'ausente' })).toBe(false);
+    expect(sameAttendance({ a: 'presente' }, {})).toBe(false);
   });
 });

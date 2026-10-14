@@ -4,6 +4,7 @@ import { AuthService } from '../../auth/auth.service';
 import { AthletesService } from '../atletas/athletes.service';
 import { EvaluationsService } from '../avaliacoes/evaluations.service';
 import { CallUpsService } from '../convocacoes/call-ups.service';
+import { isPresent } from '../treinos/attendance-stats';
 import { TrainingsService } from '../treinos/trainings.service';
 import { AthleteAvatarComponent } from '../ui/athlete-avatar.component';
 import { KpiCardComponent } from '../ui/kpi-card.component';
@@ -154,7 +155,7 @@ export class PanelInicioComponent {
     for (const t of trainings) {
       for (const status of Object.values(t.attendance)) {
         total++;
-        if (status === 'presente') {
+        if (isPresent(status)) {
           present++;
         }
       }

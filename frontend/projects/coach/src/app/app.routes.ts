@@ -118,6 +118,13 @@ export const routes: Routes = [
       import('./convites/convite-atleta.component').then((m) => m.ConviteAtletaComponent),
   },
   {
+    path: 'convite-equipe/:id',
+    title: 'Convite da comissão — NexaGO Treinador',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./convites/convite-equipe.component').then((m) => m.ConviteEquipeComponent),
+  },
+  {
     path: 'painel/treinos',
     title: 'Treinos — NexaGO Treinador',
     canActivate: [authGuard, coachGuard, areaGuard],

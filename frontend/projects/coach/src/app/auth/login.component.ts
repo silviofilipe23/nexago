@@ -92,7 +92,7 @@ import { FieldComponent } from './ui/field.component';
         </button>
 
         <p class="co-fine">
-          Ainda não tem conta? <a class="co-text-link" routerLink="/cadastro">Cadastrar como treinador</a>
+          Ainda não tem conta? <a class="co-text-link" routerLink="/cadastro" [queryParams]="signupQueryParams()">Cadastrar como treinador</a>
         </p>
       </form>
     </co-auth-shell>
@@ -175,9 +175,18 @@ export class LoginComponent {
     }
   }
 
-  private redirectAfterLogin(): void {
+  private validRedirect(): string | null {
     const redirect = this.route.snapshot.queryParamMap.get('redirect');
-    const target = redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/painel';
-    void this.router.navigateByUrl(target);
+    return redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : null;
+  }
+
+  /** O link "Cadastrar" repassa o destino pedido (ex.: convite da comissão). */
+  protected signupQueryParams(): { redirect: string } | null {
+    const redirect = this.validRedirect();
+    return redirect ? { redirect } : null;
+  }
+
+  private redirectAfterLogin(): void {
+    void this.router.navigateByUrl(this.validRedirect() ?? '/painel');
   }
 }

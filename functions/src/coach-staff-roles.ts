@@ -1,9 +1,13 @@
 /**
  * Cargos da comissão técnica do treinador e matriz de acesso por área.
  *
- * ESPELHO MANUAL da matriz: este arquivo e `firestore.rules` (`coachWriteAreas` /
- * `coachReadAreas`, a autoridade de verdade) precisam andar juntos. A comparação
- * automática entre os dois entra em tarefa posterior.
+ * A matriz vive em DOIS lugares: este arquivo e `firestore.rules` (funções
+ * `coachWriteAreas` / `coachReadAreas`, a autoridade de verdade). Mudou um, muda o outro.
+ * `functions/test/coach-roles-parity.test.mjs` extrai os mapas das rules e os compara
+ * com este arquivo: divergência quebra o teste.
+ *
+ * Consumidores: o guard `assertCoachAreaAccess` (coach-area-access.ts) e as callables
+ * de equipe. O modelo do portal (fase 2) entra na mesma comparação.
  *
  * O treinador principal é o dono (`uid == coachUid`) e não é um cargo: não aparece aqui.
  * `presenca` foi fundida em `treinos` (colunas idênticas; a presença é o campo

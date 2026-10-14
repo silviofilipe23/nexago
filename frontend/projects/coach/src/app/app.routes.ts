@@ -263,6 +263,13 @@ export const routes: Routes = [
       import('./painel/financeiro/panel-novo-plano.component').then((m) => m.PanelNovoPlanoComponent),
   },
   {
+    path: 'painel/financeiro/matricular',
+    title: 'Matrícula — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/financeiro/panel-matricular.component').then((m) => m.PanelMatricularComponent),
+  },
+  {
     path: 'painel/comunicacao',
     title: 'Comunicação — NexaGO Treinador',
     canActivate: [authGuard, coachGuard],

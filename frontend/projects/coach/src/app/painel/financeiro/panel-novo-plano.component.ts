@@ -64,11 +64,19 @@ function cycleFromLabel(label: string): PlanCycle {
   styles: `
     .body {
       flex: 1;
-      padding: 22px var(--co-gutter, 32px) 28px;
-      display: flex;
-      flex-direction: column;
+      padding: 22px var(--co-gutter) 28px;
+      display: grid;
+      grid-template-columns: 1fr 340px;
       gap: 16px;
-      max-width: 760px;
+    }
+    @media (max-width: 900px) {
+      .body {
+        grid-template-columns: 1fr;
+      }
+    }
+    .body > co-panel-card:first-child {
+      grid-column: 1;
+      grid-row: 1 / 3;
     }
     .grid {
       display: grid;
@@ -79,6 +87,18 @@ function cycleFromLabel(label: string): PlanCycle {
       .grid {
         grid-template-columns: 1fr;
       }
+    }
+    .preview-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .preview-name {
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--nx-text);
     }
     .note {
       margin: 12px 0 0;

@@ -49,12 +49,17 @@ const PROSPECTS: ProspectAthlete[] = [
   styles: `
     .body {
       flex: 1;
-      padding: 22px 32px 28px;
+      padding: 22px var(--co-gutter) 28px;
       display: grid;
       grid-template-columns: 280px 1fr;
       gap: 16px;
       min-height: 0;
       overflow: hidden;
+    }
+    @media (max-width: 900px) {
+      .body {
+        grid-template-columns: 1fr;
+      }
     }
     .field {
       display: flex;

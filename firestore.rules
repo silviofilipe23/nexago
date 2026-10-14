@@ -655,6 +655,44 @@ service cloud.firestore {
         arenaReadAreas(arenaStaffDoc(arenaId).get('role', '')).hasAny([area])
       );
     }
+    // ESPELHO MANUAL de `functions/src/coach-staff-roles.ts` — `functions/test/coach-roles-parity.test.mjs`
+    // extrai estes dois mapas e os compara com o TS. Não renomear `coachWriteAreas`/`coachReadAreas`.
+    function coachStaffExists(coachUid) {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/coaches/$(coachUid)/staff/$(request.auth.uid));
+    }
+    function coachStaffRole(coachUid) {
+      return get(/databases/$(database)/documents/coaches/$(coachUid)/staff/$(request.auth.uid)).data.get('role', '');
+    }
+    function coachWriteAreas(role) {
+      return {
+        'auxiliar': ['treinos', 'convocacoes', 'comunicacao'],
+        'preparador_fisico': ['fisico'],
+        'fisioterapeuta': ['saude'],
+        'psicologo': ['mental']
+      }.get(role, []);
+    }
+    function coachReadAreas(role) {
+      return {
+        'auxiliar': ['treinos', 'convocacoes', 'comunicacao', 'atletas', 'avaliacoes'],
+        'preparador_fisico': ['fisico', 'atletas', 'treinos', 'avaliacoes'],
+        'fisioterapeuta': ['saude', 'atletas', 'treinos', 'fisico'],
+        'psicologo': ['mental', 'atletas']
+      }.get(role, []);
+    }
+    // Dono OU membro cujo cargo cobre a área. `exists()` antes do `get()`: get em doc
+    // inexistente é erro de avaliação (deny mudo). Cargo desconhecido cai em [] => nega.
+    function coachCan(coachUid, area, write) {
+      return request.auth != null && (
+        request.auth.uid == coachUid || (
+          coachStaffExists(coachUid) && (
+            write
+              ? coachWriteAreas(coachStaffRole(coachUid)).hasAny([area])
+              : coachReadAreas(coachStaffRole(coachUid)).hasAny([area])
+          )
+        )
+      );
+    }
     function canManageArenaProducts(arenaId) {
       return request.auth != null && (
         arenaCanWrite(arenaId, 'estoque') ||
@@ -2082,6 +2120,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Espelho de `coaches/{coachUid}/staff/{uid}` (descoberta no portal). Mantido por trigger.
+    match /users/{userId}/coachStaff/{coachUid} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+
     match /users/{userId}/slotVacancyAlerts/{alertId} {
       allow read, create, update, delete: if request.auth != null && request.auth.uid == userId;
     }
@@ -2922,14 +2966,23 @@ service cloud.firestore {
     match /coaches/{coachUid} {
       allow read, write: if request.auth != null && request.auth.uid == coachUid;
 
+      // Vínculo da comissão: só o dono e o próprio membro leem; ninguém escreve (Cloud Function).
+      match /staff/{staffUserId} {
+        allow read: if request.auth != null && (request.auth.uid == coachUid || request.auth.uid == staffUserId);
+        allow write: if false;
+      }
+
       match /squads/{squadId} {
-        allow read, write: if request.auth != null && request.auth.uid == coachUid;
+        allow read: if coachCan(coachUid, 'atletas', false);
+        allow write: if coachCan(coachUid, 'atletas', true);
       }
       match /athletes/{athleteUid} {
-        allow read, write: if request.auth != null && request.auth.uid == coachUid;
+        allow read: if coachCan(coachUid, 'atletas', false);
+        allow write: if coachCan(coachUid, 'atletas', true);
       }
       match /trainings/{trainingId} {
-        allow read, write: if request.auth != null && request.auth.uid == coachUid;
+        allow read: if coachCan(coachUid, 'treinos', false);
+        allow write: if coachCan(coachUid, 'treinos', true);
       }
       // Diferente das outras subcoleções: um atleta CONVOCADO também precisa
       // ler este doc (pra ver os detalhes antes de responder em /convocacao).
@@ -2939,13 +2992,14 @@ service cloud.firestore {
       // client-write direto.
       match /callUps/{callUpId} {
         allow read: if request.auth != null && (
-          request.auth.uid == coachUid ||
+          coachCan(coachUid, 'convocacoes', false) ||
           request.auth.uid in resource.data.recipients
         );
         allow write: if false;
       }
       match /evaluations/{evalId} {
-        allow read, write: if request.auth != null && request.auth.uid == coachUid;
+        allow read: if coachCan(coachUid, 'avaliacoes', false);
+        allow write: if coachCan(coachUid, 'avaliacoes', true);
       }
       // Financeiro (fase 1, livro-caixa manual): planos, matrículas (id = uid do atleta) e parcelas.
       // Só o treinador dono — o aluno não lê nada nesta fase.
@@ -2958,6 +3012,20 @@ service cloud.firestore {
       match /charges/{chargeId} {
         allow read, write: if request.auth != null && request.auth.uid == coachUid;
       }
+    }
+
+    // Convite nominal da comissão. Lido pelo dono e por quem tem o e-mail convidado
+    // (a rota de convite precisa ler antes de aceitar). Escrita só via function.
+    match /coachStaffInvites/{inviteId} {
+      allow read: if request.auth != null && (
+        resource.data.get('coachUid', '') == request.auth.uid ||
+        (
+          resource.data.get('emailLower', '') != '' &&
+          request.auth.token.get('email', '') != '' &&
+          request.auth.token.email.lower() == resource.data.emailLower
+        )
+      );
+      allow write: if false;
     }
 
     // Convite de vínculo treinador→atleta. Leitura só de quem participa;

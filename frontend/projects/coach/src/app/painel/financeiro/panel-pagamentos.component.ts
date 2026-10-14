@@ -1,120 +1,161 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { CoachContextService } from '../access/coach-context.service';
 import { RouterLink } from '@angular/router';
-import { AthleteAvatarComponent, type AthleteStatus } from '../ui/athlete-avatar.component';
-import { IconComponent } from '../ui/icon.component';
+import { AthletesService } from '../atletas/athletes.service';
 import { KpiCardComponent } from '../ui/kpi-card.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
-import { ProgressBarComponent } from '../ui/progress-bar.component';
-import { RowComponent } from '../ui/row.component';
 import { TabsComponent } from '../ui/tabs.component';
+import { athletesAtRisk, type AthleteAtRisk } from '../treinos/attendance-stats';
+import { TrainingsService } from '../treinos/trainings.service';
+import { FinanceService } from './finance.service';
+import { METHOD_LABEL, type Charge, type PaymentMethod } from './finance-model';
+import {
+  centsToInput,
+  chargeState,
+  collectionMessage,
+  formatBRL,
+  formatDate,
+  monthTotals,
+  overdueSummary,
+  shiftMonth,
+  toCents,
+  type ChargeState,
+} from './finance-rules';
 
-type PaymentStatus = 'pago' | 'pendente' | 'atrasado';
+const TABS = ['Todos', 'Pendentes', 'Atrasados', 'Pagos'];
+const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const STATE_LABEL: Record<ChargeState, string> = { pago: 'Pago', pendente: 'Pendente', atrasado: 'Atrasado', cancelado: 'Cancelado' };
+const STATE_TONE: Record<ChargeState, PillTone> = { pago: 'green', pendente: 'yellow', atrasado: 'red', cancelado: 'dim' };
+const METHODS: PaymentMethod[] = ['pix', 'dinheiro', 'cartao', 'outro'];
 
-interface Payment {
-  athleteName: string;
-  athleteInitials: string;
-  athleteStatus: AthleteStatus;
-  plano: string;
-  valor: number;
-  vencimento: string;
-  status: PaymentStatus;
-  metodo: string | null;
-  dataPagamento: string | null;
-}
+type ActionMode = 'baixa' | 'editar' | 'cancelar' | 'desfazer';
 
-const PAYMENTS: Payment[] = [
-  { athleteName: 'João Silva', athleteInitials: 'JS', athleteStatus: 'ativo', plano: 'Mensal', valor: 180, vencimento: '05/07/2026', status: 'pago', metodo: 'Pix', dataPagamento: '04/07' },
-  { athleteName: 'Ana Beatriz', athleteInitials: 'AB', athleteStatus: 'ativo', plano: 'Trimestral', valor: 480, vencimento: '10/07/2026', status: 'pago', metodo: 'Cartão', dataPagamento: '09/07' },
-  { athleteName: 'Lucas Ramos', athleteInitials: 'LR', athleteStatus: 'lesionado', plano: 'Mensal', valor: 180, vencimento: '01/07/2026', status: 'atrasado', metodo: null, dataPagamento: null },
-  { athleteName: 'Pedro Silva', athleteInitials: 'PS', athleteStatus: 'lesionado', plano: 'Mensal', valor: 180, vencimento: '08/07/2026', status: 'pendente', metodo: null, dataPagamento: null },
-  { athleteName: 'João Vitor', athleteInitials: 'JV', athleteStatus: 'afastado', plano: 'Anual', valor: 1600, vencimento: '15/01/2027', status: 'pago', metodo: 'Cartão', dataPagamento: '15/01' },
-  { athleteName: 'Rafael Nunes', athleteInitials: 'RN', athleteStatus: 'ferias', plano: 'Mensal', valor: 180, vencimento: '12/07/2026', status: 'pendente', metodo: null, dataPagamento: null },
-];
-
-const STATUS_TONE: Record<PaymentStatus, PillTone> = { pago: 'green', pendente: 'yellow', atrasado: 'red' };
-const STATUS_LABEL: Record<PaymentStatus, string> = { pago: 'Pago', pendente: 'Pendente', atrasado: 'Atrasado' };
-
-function brl(value: number): string {
-  return 'R$ ' + value.toLocaleString('pt-BR');
-}
-
-/** Pagamentos (protótipo TrPagamentosScreen) — tela mock, sem Firestore.
- *  Ver docs/superpowers/specs/2026-07-13-coach-remaining-screens-mock-design.md. */
+/** Pagamentos: parcelas do mês, atrasos e baixa manual (livro-caixa, fase 1). */
 @Component({
   selector: 'co-panel-pagamentos',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    RouterLink,
-    AthleteAvatarComponent,
-    IconComponent,
-    KpiCardComponent,
-    PageHeaderComponent,
-    PanelCardComponent,
-    PanelShellComponent,
-    PillComponent,
-    ProgressBarComponent,
-    RowComponent,
-    TabsComponent,
-  ],
+  imports: [RouterLink, KpiCardComponent, PageHeaderComponent, PanelCardComponent, PanelShellComponent, PillComponent, TabsComponent],
   template: `
     <co-panel-shell>
-      <co-page-header title="Pagamentos" subtitle="Planos dos atletas · Equipe Adulto Masculino">
-        <a class="co-ghost-btn" routerLink="/painel/financeiro/planos">
-          <co-icon name="wallet" [size]="14" />
-          Planos
-        </a>
-        <button type="button" class="co-mini-btn co-mini-btn-primary">
-          <co-icon name="download" [size]="14" />
-          Exportar
-        </button>
+      <co-page-header title="Pagamentos" [subtitle]="monthLabel()">
+        <a class="co-mini-btn" routerLink="/painel/financeiro/planos">Planos</a>
+        <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/financeiro/matricular">Matricular aluno</a>
       </co-page-header>
 
       <div class="body">
+        <div class="month-nav">
+          <button type="button" class="co-mini-btn" aria-label="Mês anterior" (click)="shift(-1)">‹</button>
+          <span class="month-label">{{ monthLabel() }}</span>
+          <button type="button" class="co-mini-btn" aria-label="Próximo mês" (click)="shift(1)">›</button>
+        </div>
+        <p class="disclaimer">Controle interno de mensalidades. O nexaGO não processa esses pagamentos.</p>
+
+        @if (finance.error(); as err) {
+          <div class="co-alert" role="alert">{{ err }}</div>
+        }
+        @if (actionError(); as err) {
+          <div class="co-alert" role="alert">{{ err }}</div>
+        }
+
         <div class="kpi-row">
-          <co-kpi-card label="Recebido no mês" [value]="brl(recebido())" delta="4 de 6 atletas" deltaTone="green" />
-          <co-kpi-card label="Em aberto" [value]="brl(emAberto())" delta="2 pendências" deltaTone="orange" />
-          <co-kpi-card label="Inadimplentes" value="1" delta="Vencido há 11 dias" deltaTone="red" />
-          <co-kpi-card label="Adimplência" value="67%" delta="Da equipe" deltaTone="flat" />
+          <co-kpi-card label="Recebido no mês" [value]="money(totals().receivedCents)" />
+          <co-kpi-card label="A receber no mês" [value]="money(totals().toReceiveCents)" deltaTone="flat" />
+          <co-kpi-card label="Em atraso" [value]="money(overdue().cents)" [delta]="overdue().count + ' parcela(s)'" deltaTone="red" />
         </div>
 
-        <co-panel-card pad="lg" class="summary-card">
-          <div class="summary-head">
-            <div>
-              <div class="summary-kicker">Arrecadado no mês</div>
-              <div class="summary-value">{{ brl(recebido()) }}</div>
-            </div>
-            <div class="summary-forecast">
-              <div class="summary-total">{{ brl(recebido() + emAberto()) }}</div>
-              <div class="summary-forecast-label">previsto no mês</div>
-            </div>
+        @if (debtorsAtRisk() > 0) {
+          <div class="risk-note" role="status">
+            {{ debtorsAtRisk() }} {{ debtorsAtRisk() === 1 ? 'aluno devendo' : 'alunos devendo' }} com faltas seguidas
           </div>
-          <co-progress-bar [pct]="paidPct()" tone="green" [height]="8" />
-          <div class="summary-foot">
-            <span>4 de 6 planos pagos</span>
-            <span class="pending">{{ brl(emAberto()) }} em aberto</span>
-          </div>
-        </co-panel-card>
+        }
 
-        <div class="tabs-row">
-          <co-tabs [tabs]="tabs" [active]="activeTab()" (change)="activeTab.set($event)" />
-        </div>
+        <co-tabs [tabs]="tabs" [active]="activeTab()" (change)="activeTab.set($event)" />
 
-        <co-panel-card [title]="activeTab() === 'Todos' ? 'Todos os planos' : activeTab()" [kicker]="filteredPayments().length + ' atletas'" class="list-card">
-          @for (p of filteredPayments(); track p.athleteName; let last = $last) {
-            <co-row [title]="p.athleteName" [sub]="paymentSub(p)" [last]="last">
-              <co-athlete-avatar row-avatar [initials]="p.athleteInitials" [size]="34" [status]="p.athleteStatus" />
-              <div row-trailing class="trailing">
-                <span class="valor">{{ brl(p.valor) }}</span>
-                <co-pill [tone]="STATUS_TONE[p.status]">{{ STATUS_LABEL[p.status] }}</co-pill>
-                @if (p.status !== 'pago' && ctx.can('financeiro', 'write')) {
-                  <button type="button" class="co-mini-btn co-mini-btn-primary">Cobrar</button>
-                }
+        <co-panel-card [title]="activeTab() === 'Atrasados' ? 'Atrasadas (todos os meses)' : 'Parcelas do mês'" [kicker]="rows().length + ' parcela(s)'">
+          @for (c of rows(); track c.id) {
+            <div class="row">
+              <div class="who">
+                <div class="name">{{ c.athleteName || 'Atleta' }}</div>
+                <div class="sub">
+                  {{ c.planName }} · vence {{ date(c.dueDate) }}
+                  @if (c.status === 'pago' && c.paidAt) {
+                    · pago em {{ date(c.paidAt) }} ({{ methodLabel(c.method) }})
+                  }
+                </div>
               </div>
-            </co-row>
+              <div class="amount">{{ money(c.amountCents) }}</div>
+              <co-pill [tone]="tone(c)">{{ label(c) }}</co-pill>
+              @if (riskFor(c); as risk) {
+                <co-pill [tone]="risk.level === 'critico' ? 'red' : 'yellow'">{{ risk.streak }} faltas seguidas</co-pill>
+              }
+              <div class="actions">
+                @if (c.status === 'pendente') {
+                  <button type="button" class="co-ghost-btn" (click)="open(c, 'baixa')">Dar baixa</button>
+                  <button type="button" class="co-ghost-btn" (click)="open(c, 'editar')">Editar</button>
+                  <button type="button" class="co-ghost-btn danger" (click)="open(c, 'cancelar')">Cancelar</button>
+                }
+                @if (c.status === 'pago') {
+                  <button type="button" class="co-ghost-btn" (click)="open(c, 'desfazer')">Desfazer baixa</button>
+                }
+                @if (state(c) === 'atrasado') {
+                  <button type="button" class="co-ghost-btn" (click)="copy(c)">{{ copiedId() === c.id ? 'Copiado!' : 'Copiar cobrança' }}</button>
+                }
+                <a class="co-ghost-btn" [routerLink]="['/painel/financeiro/matricular']" [queryParams]="{ aluno: c.athleteUid }">Matrícula</a>
+              </div>
+
+              @if (openId() === c.id) {
+                <div class="panel">
+                  @switch (mode()) {
+                    @case ('baixa') {
+                      <label class="lbl" [for]="'m-' + c.id">Método</label>
+                      <select class="input" [id]="'m-' + c.id" (change)="payMethod.set($any($event.target).value)">
+                        @for (m of methods; track m) {
+                          <option [value]="m" [selected]="m === payMethod()">{{ methodLabel(m) }}</option>
+                        }
+                      </select>
+                      <label class="lbl" [for]="'d-' + c.id">Data do pagamento</label>
+                      <input class="input" type="date" [id]="'d-' + c.id" [value]="payDate()" (input)="payDate.set($any($event.target).value)" />
+                      <label class="lbl" [for]="'n-' + c.id">Nota (opcional)</label>
+                      <input class="input" [id]="'n-' + c.id" [value]="payNote()" (input)="payNote.set($any($event.target).value)" />
+                      <div class="panel-actions">
+                        <button type="button" class="co-mini-btn co-mini-btn-primary" [disabled]="busyId() === c.id || !payDate()" (click)="confirmPaid(c)">Confirmar baixa</button>
+                        <button type="button" class="co-ghost-btn" (click)="close()">Voltar</button>
+                      </div>
+                    }
+                    @case ('editar') {
+                      <label class="lbl" [for]="'v-' + c.id">Valor (R$)</label>
+                      <input class="input" [id]="'v-' + c.id" [value]="editAmount()" (input)="editAmount.set($any($event.target).value)" />
+                      <label class="lbl" [for]="'dd-' + c.id">Vencimento</label>
+                      <input class="input" type="date" [id]="'dd-' + c.id" [value]="editDue()" (input)="editDue.set($any($event.target).value)" />
+                      <div class="panel-actions">
+                        <button type="button" class="co-mini-btn co-mini-btn-primary" [disabled]="busyId() === c.id" (click)="confirmEdit(c)">Salvar</button>
+                        <button type="button" class="co-ghost-btn" (click)="close()">Voltar</button>
+                      </div>
+                    }
+                    @case ('cancelar') {
+                      <p class="note">Cancelar esta parcela?</p>
+                      <div class="panel-actions">
+                        <button type="button" class="co-ghost-btn danger" [disabled]="busyId() === c.id" (click)="confirmCancel(c)">Cancelar parcela</button>
+                        <button type="button" class="co-ghost-btn" (click)="close()">Voltar</button>
+                      </div>
+                    }
+                    @case ('desfazer') {
+                      <p class="note">Voltar esta parcela para pendente? Os dados da baixa serão apagados.</p>
+                      <div class="panel-actions">
+                        <button type="button" class="co-ghost-btn danger" [disabled]="busyId() === c.id" (click)="confirmUndo(c)">Desfazer baixa</button>
+                        <button type="button" class="co-ghost-btn" (click)="close()">Voltar</button>
+                      </div>
+                    }
+                  }
+                </div>
+              }
+            </div>
+          } @empty {
+            @if (finance.ready() && !finance.error()) {
+              <p class="note">Nenhuma parcela aqui. <a routerLink="/painel/financeiro/matricular">Matricular um aluno</a> gera as parcelas.</p>
+            }
           }
         </co-panel-card>
       </div>
@@ -123,126 +164,269 @@ function brl(value: number): string {
   styles: `
     .body {
       flex: 1;
-      padding: 22px 32px 28px;
+      padding: 22px var(--co-gutter, 32px) 28px;
       display: flex;
       flex-direction: column;
       gap: 16px;
-      overflow: auto;
+    }
+    .month-nav {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .month-label {
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--nx-text);
+      min-width: 130px;
+      text-align: center;
+    }
+    .risk-note {
+      padding: 10px 14px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-orange-tint);
+      color: var(--nx-text);
+      font-size: 13px;
+    }
+    .disclaimer {
+      margin: 0;
+      font-size: 12px;
+      color: var(--nx-text-dim);
     }
     .kpi-row {
       display: flex;
       gap: 16px;
+      flex-wrap: wrap;
     }
-    .summary-card {
-      background: var(--nx-orange-tint);
-      border-color: rgba(255, 106, 26, 0.3);
-    }
-    .summary-head {
+    .row {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--nx-line);
     }
-    .summary-kicker {
-      font-family: var(--nx-font-mono);
-      font-size: 9.5px;
-      font-weight: 700;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--nx-orange-400);
+    .row:last-child {
+      border-bottom: none;
     }
-    .summary-value {
+    .who {
+      flex: 1 1 220px;
+      min-width: 0;
+    }
+    .name {
       font-family: var(--nx-font-display);
-      font-weight: 800;
-      font-size: 30px;
+      font-weight: 600;
+      font-size: 13.5px;
       color: var(--nx-text);
-      letter-spacing: -0.03em;
+    }
+    .sub {
+      margin-top: 2px;
+      font-size: 11.5px;
+      color: var(--nx-text-dim);
+    }
+    .amount {
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--nx-text);
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .panel {
+      flex: 1 1 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 12px 14px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+    }
+    .lbl {
+      font-family: var(--nx-font-mono);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+    }
+    .input {
+      height: 38px;
+      padding: 0 12px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-0);
+      border: 1px solid var(--nx-line-strong);
+      color: var(--nx-text);
+      font-family: var(--nx-font-ui);
+      font-size: 13px;
+    }
+    .panel-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
       margin-top: 6px;
     }
-    .summary-forecast {
-      text-align: right;
-    }
-    .summary-total {
-      font-family: var(--nx-font-mono);
-      font-weight: 700;
-      font-size: 15px;
-      color: var(--nx-text-mute);
-    }
-    .summary-forecast-label {
-      font-family: var(--nx-font-ui);
-      font-size: 10.5px;
+    .note {
+      margin: 0;
+      font-size: 12.5px;
       color: var(--nx-text-dim);
-      margin-top: 1px;
     }
-    .summary-foot {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 8px;
-      font-family: var(--nx-font-mono);
-      font-size: 10.5px;
-      color: var(--nx-text-mute);
-    }
-    .summary-foot .pending {
-      color: var(--nx-pending);
-    }
-    .tabs-row {
-      display: flex;
-    }
-    .list-card {
-      flex: 1;
-      min-height: 0;
-      overflow: hidden;
-    }
-    .trailing {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .valor {
-      font-family: var(--nx-font-mono);
-      font-weight: 700;
-      font-size: 13px;
-      color: var(--nx-text);
+    .danger {
+      color: var(--nx-red-500, #ff5b5b);
     }
   `,
 })
 export class PanelPagamentosComponent {
-  protected readonly ctx = inject(CoachContextService);
-  protected readonly tabs = ['Todos', 'Pendentes', 'Pagos'];
+  protected readonly finance = inject(FinanceService);
+  private readonly athletes = inject(AthletesService);
+  private readonly trainings = inject(TrainingsService);
+
+  protected readonly tabs = TABS;
+  protected readonly methods = METHODS;
   protected readonly activeTab = signal('Todos');
-  protected readonly STATUS_TONE = STATUS_TONE;
-  protected readonly STATUS_LABEL = STATUS_LABEL;
-
-  protected readonly filteredPayments = computed(() => {
-    const tab = this.activeTab();
-    if (tab === 'Pendentes') {
-      return PAYMENTS.filter((p) => p.status !== 'pago');
-    }
-    if (tab === 'Pagos') {
-      return PAYMENTS.filter((p) => p.status === 'pago');
-    }
-    return PAYMENTS;
-  });
-
-  protected readonly recebido = computed(() =>
-    PAYMENTS.filter((p) => p.status === 'pago').reduce((sum, p) => sum + p.valor, 0),
-  );
-
-  protected readonly emAberto = computed(() =>
-    PAYMENTS.filter((p) => p.status !== 'pago').reduce((sum, p) => sum + p.valor, 0),
-  );
-
-  protected readonly paidPct = computed(() =>
-    Math.round((this.recebido() / (this.recebido() + this.emAberto())) * 100),
-  );
-
-  protected brl(value: number): string {
-    return brl(value);
+  private get today(): string {
+    return this.finance.today();
   }
 
-  protected paymentSub(p: Payment): string {
-    return p.status === 'pago'
-      ? `${p.plano} · ${p.metodo} · recebido em ${p.dataPagamento}`
-      : `${p.plano} · vence em ${p.vencimento}`;
+  protected readonly openId = signal<string | null>(null);
+  protected readonly mode = signal<ActionMode>('baixa');
+  protected readonly busyId = signal<string | null>(null);
+  protected readonly actionError = signal<string | null>(null);
+  protected readonly copiedId = signal<string | null>(null);
+
+  protected readonly payMethod = signal<PaymentMethod>('pix');
+  protected readonly payDate = signal(this.today);
+  protected readonly payNote = signal('');
+  protected readonly editAmount = signal('');
+  protected readonly editDue = signal('');
+
+  protected readonly monthLabel = computed(() => {
+    const [y, m] = this.finance.month().split('-').map(Number);
+    return `${MONTH_NAMES[m! - 1]} de ${y}`;
+  });
+
+  /** Alunos com 2+ faltas seguidas (mesma regra e faixas do Início). */
+  private readonly riskByUid = computed(
+    () => new Map(athletesAtRisk(this.athletes.roster(), this.trainings.trainings()).map((r) => [r.athleteUid, r])),
+  );
+
+  /** Alunos distintos com parcela em aberto (pendente ou atrasada) e faltas seguidas. */
+  protected readonly debtorsAtRisk = computed(() => {
+    const risk = this.riskByUid();
+    const open = [...this.finance.monthCharges(), ...this.finance.overdueCharges()].filter((c) => c.status === 'pendente');
+    return new Set(open.filter((c) => risk.has(c.athleteUid)).map((c) => c.athleteUid)).size;
+  });
+
+  protected readonly totals = computed(() => monthTotals(this.finance.monthCharges(), this.today));
+  protected readonly overdue = computed(() => overdueSummary(this.finance.overdueCharges(), this.today));
+
+  protected readonly rows = computed(() => {
+    const tab = this.activeTab();
+    const source = tab === 'Atrasados' ? this.finance.overdueCharges() : this.finance.monthCharges();
+    return source
+      .filter((c) => {
+        const s = chargeState(c, this.today);
+        return tab === 'Todos' || tab === 'Atrasados' || (tab === 'Pendentes' && s === 'pendente') || (tab === 'Pagos' && s === 'pago');
+      })
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.athleteName.localeCompare(b.athleteName));
+  });
+
+  protected money(cents: number): string {
+    return formatBRL(cents);
+  }
+  protected date(iso: string): string {
+    return formatDate(iso);
+  }
+  protected state(c: Charge): ChargeState {
+    return chargeState(c, this.today);
+  }
+  protected label(c: Charge): string {
+    return STATE_LABEL[this.state(c)];
+  }
+  protected tone(c: Charge): PillTone {
+    return STATE_TONE[this.state(c)];
+  }
+  /** Selo de faltas só em parcela em aberto: o alerta cruza "sumiu" com "está devendo". */
+  protected riskFor(c: Charge): AthleteAtRisk | null {
+    return c.status === 'pendente' ? (this.riskByUid().get(c.athleteUid) ?? null) : null;
+  }
+  protected methodLabel(method: PaymentMethod | null): string {
+    return method ? METHOD_LABEL[method] : '';
+  }
+
+  protected shift(delta: number): void {
+    this.close();
+    this.finance.month.update((m) => shiftMonth(m, delta));
+  }
+
+  protected open(c: Charge, mode: ActionMode): void {
+    this.actionError.set(null);
+    this.openId.set(c.id);
+    this.mode.set(mode);
+    if (mode === 'baixa') {
+      this.payMethod.set('pix');
+      this.payDate.set(this.today);
+      this.payNote.set('');
+    }
+    if (mode === 'editar') {
+      this.editAmount.set(centsToInput(c.amountCents));
+      this.editDue.set(c.dueDate);
+    }
+  }
+
+  protected close(): void {
+    this.openId.set(null);
+  }
+
+  private async run(id: string, action: () => Promise<void>, failure: string): Promise<void> {
+    this.actionError.set(null);
+    this.busyId.set(id);
+    try {
+      await action();
+      this.close();
+    } catch (err) {
+      this.actionError.set(err instanceof Error ? err.message : failure);
+    } finally {
+      this.busyId.set(null);
+    }
+  }
+
+  protected confirmPaid(c: Charge): Promise<void> {
+    return this.run(
+      c.id,
+      () => this.finance.markPaid(c.id, { paidAt: this.payDate(), method: this.payMethod(), note: this.payNote() }),
+      'Não foi possível dar baixa.',
+    );
+  }
+
+  protected confirmEdit(c: Charge): Promise<void> {
+    const cents = toCents(this.editAmount());
+    if (cents === null || cents <= 0 || !this.editDue()) {
+      this.actionError.set('Informe um valor maior que zero e o vencimento.');
+      return Promise.resolve();
+    }
+    return this.run(c.id, () => this.finance.editCharge(c.id, { amountCents: cents, dueDate: this.editDue() }), 'Não foi possível editar a parcela.');
+  }
+
+  protected confirmCancel(c: Charge): Promise<void> {
+    return this.run(c.id, () => this.finance.cancelCharge(c.id), 'Não foi possível cancelar a parcela.');
+  }
+
+  protected confirmUndo(c: Charge): Promise<void> {
+    return this.run(c.id, () => this.finance.undoPaid(c.id), 'Não foi possível desfazer a baixa.');
+  }
+
+  protected async copy(c: Charge): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(collectionMessage(c.amountCents, c.dueDate));
+      this.copiedId.set(c.id);
+      setTimeout(() => this.copiedId.set(null), 2000);
+    } catch {
+      this.actionError.set('Não foi possível copiar. Copie a mensagem manualmente.');
+    }
   }
 }

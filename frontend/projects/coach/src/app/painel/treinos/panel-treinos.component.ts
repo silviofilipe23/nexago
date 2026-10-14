@@ -9,7 +9,7 @@ import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
 import { RowComponent } from '../ui/row.component';
 import { SquadContextService } from '../ui/squad-context.service';
-import { canDeleteTraining, localIsoDate, splitUpcoming } from './training-rules';
+import { canDeleteTraining, followingInSeries, localIsoDate, splitUpcoming } from './training-rules';
 import { TrainingsService, type Training, type TrainingStatus } from './trainings.service';
 
 const STATUS_LABEL: Record<TrainingStatus, string> = {
@@ -61,11 +61,19 @@ const STATUS_TONE: Record<TrainingStatus, PillTone> = {
           @for (t of list; track t.id; let last = $last) {
             <co-row [title]="t.title" [sub]="t.date + ' · ' + t.startTime + ' · ' + (t.location || 'Local não definido')" [last]="last">
               <div row-trailing class="actions">
+                @if (t.seriesId) {
+                  <co-pill tone="dim">Série</co-pill>
+                }
                 <co-pill [tone]="tone(t)">{{ label(t) }}</co-pill>
                 @if (confirmingDeleteId() === t.id && ctx.can('treinos', 'write')) {
                   <span class="confirm">Excluir este treino?</span>
                   <button type="button" class="co-ghost-btn danger" [disabled]="busyId() === t.id" (click)="remove(t)">Excluir</button>
                   <button type="button" class="co-ghost-btn" (click)="confirmingDeleteId.set(null)">Voltar</button>
+                } @else if (confirmingCancelId() === t.id && ctx.can('treinos', 'write')) {
+                  <span class="confirm">Cancelar:</span>
+                  <button type="button" class="co-ghost-btn" [disabled]="busyId() === t.id" (click)="cancel(t, 'single')">Só este</button>
+                  <button type="button" class="co-ghost-btn danger" [disabled]="busyId() === t.id" (click)="cancel(t, 'following')">Este e os seguintes ({{ followingCount(t) }})</button>
+                  <button type="button" class="co-ghost-btn" (click)="confirmingCancelId.set(null)">Voltar</button>
                 } @else {
                   @if (t.status !== 'cancelado') {
                     <a class="co-ghost-btn" [routerLink]="['/painel/presenca']" [queryParams]="{ treino: t.id }">Chamada</a>
@@ -76,7 +84,7 @@ const STATUS_TONE: Record<TrainingStatus, PillTone> = {
                     @if (t.status === 'cancelado') {
                       <button type="button" class="co-ghost-btn" [disabled]="busyId() === t.id" (click)="reactivate(t)">Reativar</button>
                     } @else {
-                      <button type="button" class="co-ghost-btn" [disabled]="busyId() === t.id" (click)="cancel(t)">Cancelar</button>
+                      <button type="button" class="co-ghost-btn" [disabled]="busyId() === t.id" (click)="askCancel(t)">Cancelar</button>
                     }
                     @if (canDelete(t)) {
                       <button type="button" class="co-ghost-btn danger" (click)="confirmingDeleteId.set(t.id)">Excluir</button>
@@ -95,7 +103,7 @@ const STATUS_TONE: Record<TrainingStatus, PillTone> = {
   styles: `
     .body {
       flex: 1;
-      padding: 22px 32px 28px;
+      padding: 22px var(--co-gutter) 28px;
       display: flex;
       flex-direction: column;
       gap: 16px;
@@ -146,8 +154,32 @@ export class PanelTreinosComponent {
     return canDeleteTraining(t);
   }
 
-  protected cancel(t: Training): Promise<void> {
-    return this.run(t.id, () => this.trainingsService.setTrainingStatus(t.id, 'cancelado'), 'cancelar');
+  protected readonly confirmingCancelId = signal<string | null>(null);
+
+  /** Quantos treinos "este e os seguintes" alcança (inclui o próprio). */
+  protected followingCount(t: Training): number {
+    return followingInSeries(this.trainingsService.trainings(), t).length;
+  }
+
+  /** Treino de série com seguintes pergunta o alcance; os demais cancelam direto. */
+  protected askCancel(t: Training): void {
+    if (!this.ctx.can('treinos', 'write')) {
+      return;
+    }
+    if (this.followingCount(t) > 1) {
+      this.confirmingCancelId.set(t.id);
+    } else {
+      void this.cancel(t, 'single');
+    }
+  }
+
+  protected async cancel(t: Training, scope: 'single' | 'following'): Promise<void> {
+    const ids =
+      scope === 'following'
+        ? [...new Set([t.id, ...followingInSeries(this.trainingsService.trainings(), t).map((x) => x.id)])]
+        : [t.id];
+    await this.run(t.id, () => this.trainingsService.setTrainingsStatus(ids, 'cancelado'), 'cancelar');
+    this.confirmingCancelId.set(null);
   }
 
   protected reactivate(t: Training): Promise<void> {

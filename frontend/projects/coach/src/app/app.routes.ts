@@ -293,6 +293,22 @@ export const routes: Routes = [
       import('./painel/financeiro/panel-novo-plano.component').then((m) => m.PanelNovoPlanoComponent),
   },
   {
+    path: 'painel/financeiro/planos/:id/editar',
+    title: 'Editar plano — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'financeiro', mode: 'write' },
+    loadComponent: () =>
+      import('./painel/financeiro/panel-novo-plano.component').then((m) => m.PanelNovoPlanoComponent),
+  },
+  {
+    path: 'painel/financeiro/matricular',
+    title: 'Matrícula — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard, areaGuard],
+    data: { area: 'financeiro', mode: 'write' },
+    loadComponent: () =>
+      import('./painel/financeiro/panel-matricular.component').then((m) => m.PanelMatricularComponent),
+  },
+  {
     path: 'painel/comunicacao',
     title: 'Comunicação — NexaGO Treinador',
     canActivate: [authGuard, coachGuard, areaGuard],

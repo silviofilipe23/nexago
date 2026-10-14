@@ -36,6 +36,8 @@ const EXPECTED: Record<string, [string, 'read' | 'write']> = {
   'painel/financeiro': ['financeiro', 'read'],
   'painel/financeiro/planos': ['financeiro', 'read'],
   'painel/financeiro/planos/novo': ['financeiro', 'write'],
+  'painel/financeiro/planos/:id/editar': ['financeiro', 'write'],
+  'painel/financeiro/matricular': ['financeiro', 'write'],
   'painel/comunicacao': ['comunicacao', 'read'],
   'painel/perfil': ['principal', 'read'],
   'painel/biblioteca': ['principal', 'read'],

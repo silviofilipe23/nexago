@@ -47,9 +47,34 @@ function pathOnly(url: string): string {
   selector: 'co-panel-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, IconComponent],
+  host: { '(document:keydown.escape)': 'closeMenu()' },
   template: `
     <div class="shell">
-      <aside class="sidebar">
+      <header class="topbar">
+        <button
+          type="button"
+          class="menu-btn"
+          aria-label="Abrir menu"
+          aria-controls="co-nav"
+          [attr.aria-expanded]="menuOpen()"
+          (click)="menuOpen.set(!menuOpen())"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
+        </button>
+        <img class="mark" src="/brand/logo.png" alt="" width="26" height="26" />
+        <a class="top-squad" routerLink="/painel/equipes">
+          <span class="switcher-avatar" aria-hidden="true">{{ activeSquadInitials() }}</span>
+          <span class="top-squad-name">{{ activeSquadName() }}</span>
+        </a>
+      </header>
+
+      @if (menuOpen()) {
+        <div class="backdrop" (click)="closeMenu()" aria-hidden="true"></div>
+      }
+
+      <aside id="co-nav" class="sidebar" [class.open]="menuOpen()">
         <div class="brand">
           <img class="mark" src="/brand/logo.png" alt="" width="30" height="30" />
           <div class="wordmark">
@@ -58,7 +83,7 @@ function pathOnly(url: string): string {
           </div>
         </div>
 
-        <div class="switcher" routerLink="/painel/equipes">
+        <div class="switcher" routerLink="/painel/equipes" (click)="closeMenu()">
           <div class="switcher-avatar" aria-hidden="true">{{ activeSquadInitials() }}</div>
           <div class="switcher-body">
             <div class="switcher-name">{{ activeSquadName() }}</div>
@@ -83,7 +108,8 @@ function pathOnly(url: string): string {
         <nav class="nav">
           <div class="nav-kicker">Comissão técnica</div>
           @for (item of navItems(); track item.id) {
-            <a class="nav-item" [class.active]="activeId() === item.id" [routerLink]="item.route">
+            <a class="nav-item" [class.active]="activeId() === item.id" [routerLink]="item.route" (click)="closeMenu()">
+
               <co-icon [name]="item.icon" [size]="17" [strokeWidth]="1.9" />
               <span>{{ item.label }}</span>
             </a>
@@ -404,13 +430,95 @@ function pathOnly(url: string): string {
       min-height: 100dvh;
     }
 
+    .topbar,
+    .backdrop {
+      display: none;
+    }
+
     @media (max-width: 900px) {
       .shell {
         grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
       }
 
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        position: sticky;
+        top: 0;
+        z-index: 30;
+        height: 56px;
+        padding: 0 var(--co-gutter);
+        background: #070708;
+        border-bottom: 1px solid var(--nx-line);
+      }
+
+      .menu-btn {
+        width: 44px;
+        height: 44px;
+        margin-left: -10px;
+        display: grid;
+        place-items: center;
+        background: transparent;
+        border: none;
+        border-radius: var(--nx-r-2);
+        color: var(--nx-text);
+        cursor: pointer;
+      }
+
+      .top-squad {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        text-decoration: none;
+      }
+
+      .top-squad-name {
+        font-family: var(--nx-font-display);
+        font-weight: 700;
+        font-size: 12.5px;
+        color: var(--nx-text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        background: rgba(0, 0, 0, 0.6);
+      }
+
+      /* Gaveta: mesma sidebar, fora da tela até abrir. visibility tira o conteúdo do foco quando fechada. */
       .sidebar {
-        display: none;
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 50;
+        width: min(288px, 86vw);
+        overflow-y: auto;
+        transform: translateX(-100%);
+        visibility: hidden;
+        transition:
+          transform 200ms var(--nx-ease-out),
+          visibility 0s linear 200ms;
+      }
+
+      .sidebar.open {
+        transform: translateX(0);
+        visibility: visible;
+        transition-delay: 0s;
+      }
+
+      .nav-item {
+        height: 44px;
       }
     }
   `,
@@ -492,6 +600,13 @@ export class PanelShellComponent {
     this.leaveError.set(null);
     this.ctx.select(coachUid);
     void this.router.navigateByUrl('/painel');
+  }
+
+  /** Gaveta do menu no mobile (≤ 900px); no desktop a sidebar é fixa e este estado é ignorado. */
+  protected readonly menuOpen = signal(false);
+
+  protected closeMenu(): void {
+    this.menuOpen.set(false);
   }
 
   private readonly currentPath = toSignal(

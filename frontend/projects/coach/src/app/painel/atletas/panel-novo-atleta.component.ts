@@ -73,7 +73,7 @@ import { AthletesService, type AthleteSearchHit } from './athletes.service';
   styles: `
     .body {
       flex: 1;
-      padding: 22px 32px 28px;
+      padding: 22px var(--co-gutter) 28px;
       max-width: 560px;
     }
     .search-row {

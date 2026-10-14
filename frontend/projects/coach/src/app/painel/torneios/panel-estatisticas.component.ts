@@ -64,7 +64,7 @@ const CATEGORY_PARTICIPATION: CategoryParticipation[] = [
   styles: `
     .body {
       flex: 1;
-      padding: 22px 32px 28px;
+      padding: 22px var(--co-gutter) 28px;
       display: flex;
       flex-direction: column;
       gap: 16px;
@@ -78,6 +78,11 @@ const CATEGORY_PARTICIPATION: CategoryParticipation[] = [
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 16px;
+    }
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
     }
     .cat-row {
       margin-bottom: 14px;

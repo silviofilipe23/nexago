@@ -66,12 +66,17 @@ const MESSAGES: ChatMessage[] = [
   styles: `
     .body {
       flex: 1;
-      padding: 20px 32px 28px;
+      padding: 20px var(--co-gutter) 28px;
       display: grid;
       grid-template-columns: 280px 1fr;
       gap: 16px;
       min-height: 0;
       overflow: hidden;
+    }
+    @media (max-width: 900px) {
+      .body {
+        grid-template-columns: 1fr;
+      }
     }
     .conversations-card {
       min-height: 0;

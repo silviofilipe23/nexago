@@ -3001,6 +3001,17 @@ service cloud.firestore {
         allow read: if coachCan(coachUid, 'avaliacoes', false);
         allow write: if coachCan(coachUid, 'avaliacoes', true);
       }
+      // Financeiro (fase 1, livro-caixa manual): planos, matrículas (id = uid do atleta) e parcelas.
+      // Só o treinador dono — o aluno não lê nada nesta fase.
+      match /plans/{planId} {
+        allow read, write: if request.auth != null && request.auth.uid == coachUid;
+      }
+      match /enrollments/{athleteUid} {
+        allow read, write: if request.auth != null && request.auth.uid == coachUid;
+      }
+      match /charges/{chargeId} {
+        allow read, write: if request.auth != null && request.auth.uid == coachUid;
+      }
     }
 
     // Convite nominal da comissão. Lido pelo dono e por quem tem o e-mail convidado

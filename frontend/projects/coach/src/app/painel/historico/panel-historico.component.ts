@@ -71,7 +71,7 @@ const ATTENDANCE_LABEL: Record<AttendanceStatus, string> = {
   styles: `
     .body {
       flex: 1;
-      padding: 22px 32px 28px;
+      padding: 22px var(--co-gutter) 28px;
       overflow: auto;
     }
     .picker {

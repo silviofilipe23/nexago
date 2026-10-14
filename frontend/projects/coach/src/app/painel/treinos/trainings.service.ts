@@ -36,6 +36,8 @@ export interface Training {
   exercises: TrainingExercise[];
   status: TrainingStatus;
   attendance: Record<string, AttendanceStatus>;
+  /** Mesmo valor em todos os treinos gerados juntos por "Repetir"; `null` em treino avulso. */
+  seriesId: string | null;
 }
 
 export interface NewTrainingInput {
@@ -75,6 +77,7 @@ function readTraining(id: string, data: Record<string, unknown> | undefined): Tr
     }),
     status: (data?.['status'] as TrainingStatus | undefined) ?? 'agendado',
     attendance: (data?.['attendance'] as Record<string, AttendanceStatus> | undefined) ?? {},
+    seriesId: typeof data?.['seriesId'] === 'string' ? (data['seriesId'] as string) : null,
   };
 }
 
@@ -208,6 +211,33 @@ export class TrainingsService {
   /** Cancelar é lógico (`cancelado`); quem chama decide o status de volta ao reativar. */
   async setTrainingStatus(trainingId: string, status: TrainingStatus): Promise<void> {
     await updateDoc(doc(this.firestore, 'coaches', this.requireUid(), 'trainings', trainingId), { status });
+  }
+
+  /** Aplica os mesmos campos (menos a data — cada treino mantém a sua) a vários treinos, atomicamente. */
+  async updateTrainings(ids: string[], input: Omit<NewTrainingInput, 'squadId' | 'date'>): Promise<void> {
+    const col = collection(this.firestore, 'coaches', this.requireUid(), 'trainings');
+    const batch = writeBatch(this.firestore);
+    for (const id of ids) {
+      batch.update(doc(col, id), {
+        title: input.title,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        location: input.location,
+        materials: input.materials,
+        exercises: input.exercises,
+        updatedAt: serverTimestamp(),
+      });
+    }
+    await batch.commit();
+  }
+
+  async setTrainingsStatus(ids: string[], status: TrainingStatus): Promise<void> {
+    const col = collection(this.firestore, 'coaches', this.requireUid(), 'trainings');
+    const batch = writeBatch(this.firestore);
+    for (const id of ids) {
+      batch.update(doc(col, id), { status });
+    }
+    await batch.commit();
   }
 
   async deleteTraining(trainingId: string): Promise<void> {

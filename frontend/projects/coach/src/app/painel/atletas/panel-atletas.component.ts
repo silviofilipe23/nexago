@@ -154,11 +154,16 @@ const STATUS_TONE: Record<string, 'green' | 'red' | 'yellow' | 'dim'> = {
   styles: `
     .body {
       flex: 1;
-      padding: 20px 32px 28px;
+      padding: 20px var(--co-gutter) 28px;
       display: grid;
       grid-template-columns: 300px 1fr;
       gap: 16px;
       min-height: 0;
+    }
+    @media (max-width: 900px) {
+      .body {
+        grid-template-columns: 1fr;
+      }
     }
     .list-card {
       min-height: 0;
@@ -228,6 +233,11 @@ const STATUS_TONE: Record<string, 'green' | 'red' | 'yellow' | 'dim'> = {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 20px;
+    }
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
     }
     .grid.readonly {
       gap: 20px;

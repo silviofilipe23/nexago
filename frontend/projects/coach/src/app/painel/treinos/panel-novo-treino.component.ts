@@ -121,7 +121,7 @@ import { TrainingsService, type Training } from './trainings.service';
   styles: `
     .body {
       flex: 1;
-      padding: 22px 32px 28px;
+      padding: 22px var(--co-gutter) 28px;
       display: flex;
       flex-direction: column;
       gap: 16px;
@@ -131,6 +131,11 @@ import { TrainingsService, type Training } from './trainings.service';
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 16px;
+    }
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
     }
     .ex-row {
       display: flex;
@@ -201,11 +206,13 @@ import { TrainingsService, type Training } from './trainings.service';
     }
     .ex-add {
       display: flex;
+      flex-wrap: wrap;
       gap: 8px;
       margin-top: 12px;
     }
     .ex-input {
-      flex: 1;
+      flex: 1 1 160px;
+      min-width: 0;
       height: 36px;
       padding: 0 10px;
       background: var(--nx-surface-1);

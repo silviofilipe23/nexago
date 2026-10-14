@@ -70,7 +70,7 @@ function defaultScores(): EvaluationScores {
   styles: `
     .body {
       flex: 1;
-      padding: 22px 32px 28px;
+      padding: 22px var(--co-gutter) 28px;
       display: flex;
       flex-direction: column;
       gap: 16px;
@@ -92,6 +92,11 @@ function defaultScores(): EvaluationScores {
       display: grid;
       grid-template-columns: 320px 1fr;
       gap: 16px;
+    }
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
     }
     .radar-card {
       display: flex;

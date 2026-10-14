@@ -74,7 +74,7 @@ import { SquadContextService } from '../ui/squad-context.service';
   styles: `
     .body {
       flex: 1;
-      padding: 22px 32px 28px;
+      padding: 22px var(--co-gutter) 28px;
       display: flex;
       flex-direction: column;
       gap: 16px;
@@ -90,6 +90,11 @@ import { SquadContextService } from '../ui/squad-context.service';
       grid-template-columns: 1fr 360px;
       gap: 16px;
       align-items: start;
+    }
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
     }
     .side {
       display: flex;

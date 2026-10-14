@@ -3,6 +3,7 @@ import {getFirestore} from "firebase-admin/firestore";
 import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
 import {loadTournamentData} from "./tournament-registration-guards";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {resolveCoachUid, assertCoachAreaAccess} from "./coach-area-access";
 
 export interface RawInscriptionRow {
   athleteUid: string;
@@ -54,14 +55,16 @@ export function groupEntriesByTournament(
 export const getCoachTournamentOverview = onCall({
   region: CLIENT_FACING_REGIONS,
 }, async (request) => {
-  const coachUid = request.auth?.uid;
-  if (!coachUid) {
+  const uid = request.auth?.uid;
+  if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");
   }
+  const coachUid = resolveCoachUid(request.data, uid);
 
   const squadId = (request.data?.squadId as string | undefined)?.trim() ?? "";
 
   const db = getFirestore();
+  await assertCoachAreaAccess(db, uid, coachUid, "atletas", "read");
   const projectId = getFirebaseProjectId();
 
   const athletesSnap = await db.collection(`coaches/${coachUid}/athletes`).get();

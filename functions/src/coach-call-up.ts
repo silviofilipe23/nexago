@@ -3,6 +3,7 @@ import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {resolveCoachUid, assertCoachAreaAccess} from "./coach-area-access";
 
 export type CallUpResponse = "confirmado" | "talvez" | "nao_vou" | "aguardando";
 
@@ -18,10 +19,11 @@ export function buildInitialResponses(recipients: string[]): Record<string, Call
 export const sendCallUp = onCall({
   region: CLIENT_FACING_REGIONS,
 }, async (request) => {
-  const coachUid = request.auth?.uid;
-  if (!coachUid) {
+  const uid = request.auth?.uid;
+  if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");
   }
+  const coachUid = resolveCoachUid(request.data, uid);
 
   const squadId = (request.data?.squadId as string | undefined)?.trim() ?? "";
   const title = (request.data?.title as string | undefined)?.trim() ?? "";
@@ -36,9 +38,10 @@ export const sendCallUp = onCall({
   }
 
   const db = getFirestore();
+  await assertCoachAreaAccess(db, uid, coachUid, "convocacoes", "write");
 
   const linkSnaps = await Promise.all(
-    recipients.map((uid) => db.doc(`coaches/${coachUid}/athletes/${uid}`).get()),
+    recipients.map((recipientUid) => db.doc(`coaches/${coachUid}/athletes/${recipientUid}`).get()),
   );
   if (linkSnaps.some((s) => !s.exists)) {
     throw new HttpsError(
@@ -63,20 +66,20 @@ export const sendCallUp = onCall({
   });
 
   await Promise.all(
-    recipients.map((uid) =>
+    recipients.map((recipientUid) =>
       deliverNotificationToUser({
-        userId: uid,
+        userId: recipientUid,
         title: `${coachName} enviou uma convocação`,
         body: title,
         type: "coach_call_up",
         data: {coachUid, callUpId: ref.id, url: `/convocacao/${coachUid}/${ref.id}`},
       }).catch((notifyError) => {
-        logger.warn("Falha ao notificar atleta da convocação", {callUpId: ref.id, uid, notifyError});
+        logger.warn("Falha ao notificar atleta da convocação", {callUpId: ref.id, uid: recipientUid, notifyError});
       }),
     ),
   );
 
-  logger.info("Coach call-up sent", {callUpId: ref.id, coachUid, recipients: recipients.length});
+  logger.info("Coach call-up sent", {callUpId: ref.id, coachUid, byUid: uid, recipients: recipients.length});
   return {callUpId: ref.id};
 });
 

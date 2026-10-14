@@ -37,3 +37,21 @@ test("resolveCoachUid: default e quem chama; payload vazio ou so espacos tambem"
   assert.equal(resolveCoachUid({coachUid: " c1 "}, "me"), "c1");
   assert.equal(resolveCoachUid({coachUid: 42}, "me"), "me");
 });
+
+test("contrato das callables: payload sem coachUid opera como hoje (dono)", () => {
+  const caller = "u1";
+  const coachUid = resolveCoachUid({squadId: "s"}, caller);
+  assert.equal(coachUid, caller);
+  assert.equal(decideCoachAreaAccess(coachUid, caller, null, "convocacoes", "write"), true);
+});
+
+test("contrato: coachUid forjado de outro treinador sem vinculo nega", () => {
+  const coachUid = resolveCoachUid({coachUid: "B"}, "u1");
+  assert.equal(coachUid, "B");
+  assert.equal(decideCoachAreaAccess(coachUid, "u1", null, "convocacoes", "write"), false);
+});
+
+test("contrato: psicologo nao envia convocacao, auxiliar envia", () => {
+  assert.equal(decideCoachAreaAccess("B", "m", {role: "psicologo"}, "convocacoes", "write"), false);
+  assert.equal(decideCoachAreaAccess("B", "m", {role: "auxiliar"}, "convocacoes", "write"), true);
+});

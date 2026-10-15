@@ -33,6 +33,7 @@ export type PanelIconName =
   | 'ticket'
   | 'swap'
   | 'archive'
+  | 'bag'
   | 'ban'
   | 'trash'
   | 'star';
@@ -157,6 +158,9 @@ export type PanelIconName =
         }
         @case ('archive') {
           <rect x="3" y="4" width="18" height="5" rx="1.2" /><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9" /><path d="M10 13h4" />
+        }
+        @case ('bag') {
+          <path d="M6 8h12l-1 11.5a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 7 19.5Z" /><path d="M9 8V6.5a3 3 0 0 1 6 0V8" />
         }
         @case ('ban') {
           <circle cx="12" cy="12" r="9" /><path d="m6 6 12 12" />

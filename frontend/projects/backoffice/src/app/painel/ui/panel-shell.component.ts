@@ -5,29 +5,57 @@ import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
 import { IconComponent, type PanelIconName } from './icon.component';
 
-interface PanelNavItem {
+export interface NavLink {
+  kind: 'link';
   id: string;
   label: string;
   icon: PanelIconName;
-  route: string | null;
+  route: string;
+  badge?: number;
 }
 
-const NAV_ITEMS: PanelNavItem[] = [
-  { id: 'inicio', label: 'Início', icon: 'home', route: '/painel' },
-  { id: 'arenas', label: 'Arenas', icon: 'arena', route: '/painel/arenas' },
+export interface NavSoon {
+  kind: 'soon';
+  id: string;
+  label: string;
+  icon: PanelIconName;
+  badge?: number;
+}
+
+export interface NavGroup {
+  kind: 'group';
+  id: string;
+  label: string;
+  icon: PanelIconName;
+  children: ReadonlyArray<NavLink | NavSoon>;
+}
+
+/** Um nível só de aninhamento: grupo não entra dentro de grupo. */
+export type PanelNavItem = NavLink | NavSoon | NavGroup;
+
+const NAV_ITEMS: readonly PanelNavItem[] = [
+  { kind: 'link', id: 'inicio', label: 'Início', icon: 'home', route: '/painel' },
+  { kind: 'link', id: 'arenas', label: 'Arenas', icon: 'arena', route: '/painel/arenas' },
   {
+    kind: 'link',
     id: 'arenas-pre-cadastro',
     label: 'Pré-cadastradas',
     icon: 'arena',
     route: '/painel/arenas/pre-cadastro',
   },
-  { id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios' },
-  { id: 'avaliacoes', label: 'Avaliações', icon: 'star', route: '/painel/avaliacoes' },
-  { id: 'organizadores', label: 'Organizadores', icon: 'id-badge', route: '/painel/organizadores' },
-  { id: 'atletas', label: 'Atletas', icon: 'users', route: '/painel/atletas' },
-  { id: 'financeiro', label: 'Financeiro', icon: 'cash', route: '/painel/financeiro' },
-  { id: 'moderacao', label: 'Moderação', icon: 'shield', route: null },
-  { id: 'equipe', label: 'Equipe', icon: 'team', route: '/painel/equipe' },
+  { kind: 'link', id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios' },
+  { kind: 'link', id: 'avaliacoes', label: 'Avaliações', icon: 'star', route: '/painel/avaliacoes' },
+  {
+    kind: 'link',
+    id: 'organizadores',
+    label: 'Organizadores',
+    icon: 'id-badge',
+    route: '/painel/organizadores',
+  },
+  { kind: 'link', id: 'atletas', label: 'Atletas', icon: 'users', route: '/painel/atletas' },
+  { kind: 'link', id: 'financeiro', label: 'Financeiro', icon: 'cash', route: '/painel/financeiro' },
+  { kind: 'soon', id: 'moderacao', label: 'Moderação', icon: 'shield' },
+  { kind: 'link', id: 'equipe', label: 'Equipe', icon: 'team', route: '/painel/equipe' },
 ];
 
 function pathOnly(url: string): string {
@@ -64,21 +92,24 @@ function initialsOf(name: string): string {
         <nav class="nav">
           <div class="nav-kicker">Operação</div>
           @for (item of navItems; track item.id) {
-            @if (item.route) {
-              <a
-                class="nav-item"
-                [class.active]="activeId() === item.id"
-                [routerLink]="item.route"
-              >
-                <bo-icon [name]="item.icon" [size]="17" [strokeWidth]="1.9" />
-                <span>{{ item.label }}</span>
-              </a>
-            } @else {
-              <div class="nav-item disabled" title="Em breve">
-                <bo-icon [name]="item.icon" [size]="17" [strokeWidth]="1.9" />
-                <span>{{ item.label }}</span>
-                <span class="soon">Em breve</span>
-              </div>
+            @switch (item.kind) {
+              @case ('link') {
+                <a
+                  class="nav-item"
+                  [class.active]="activeId() === item.id"
+                  [routerLink]="item.route"
+                >
+                  <bo-icon [name]="item.icon" [size]="17" [strokeWidth]="1.9" />
+                  <span>{{ item.label }}</span>
+                </a>
+              }
+              @case ('soon') {
+                <div class="nav-item disabled" title="Em breve">
+                  <bo-icon [name]="item.icon" [size]="17" [strokeWidth]="1.9" />
+                  <span>{{ item.label }}</span>
+                  <span class="soon">Em breve</span>
+                </div>
+              }
             }
           }
         </nav>

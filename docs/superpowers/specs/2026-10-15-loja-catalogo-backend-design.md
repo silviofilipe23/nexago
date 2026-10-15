@@ -32,10 +32,13 @@ bar da arena — outro domínio, outra dona, nenhum código compartilhado.
   dos SKUs, código de SKU e slug são únicos, e a versão que detecta conflito não pode ser escolhida
   pelo cliente. As rules do catálogo ficam curtas de propósito — leitura para admin, **escrita negada a
   todo cliente** — porque rules que validam documento grande já custaram caro neste repositório.
-- **Admin da plataforma, e só.** Guard novo e estreito, `callerIsPlatformAdmin`: papel `admin` na lista
-  de `roles` ou claim `superAdmin`. **Não** reusar `callerCanAccessBackoffice`, que é
-  `callerIsOrganizer(user) || isSuperAdminClaim(...)` — com ele, qualquer gestor de torneio editaria
-  preço e estoque do catálogo da marca. É o menor acesso que atende hoje e afrouxa depois sem migração.
+- **Admin da plataforma, e só** — reusando `callerCanAccessBackoffice`, que já é exatamente isso.
+  Cuidado com a leitura do código: ele é `callerIsOrganizer(user) || isSuperAdminClaim(...)`, mas
+  **`callerIsOrganizer` checa o papel `admin`, não `organizer`** (`auth-roles.ts:39`, cujo próprio
+  docstring avisa). O nome engana; o comportamento está certo. Organizador de torneio não passa, e
+  escrever um helper novo só duplicaria o que existe e sairia da convenção de `backoffice-finance.ts`
+  e `athlete-level-admin.ts`. Casa exatamente com `isAdmin()` das rules, que é `hasRoleClaim('admin')`
+  — guard da callable e rule concordam por construção, não por coincidência.
 - **SKUs em subcoleção, não array embutido no produto.** A tela 06 · Estoque já prevê estoque **por
   local** (CD + arenas) dentro de cada SKU: num array embutido isso cresce por produto × local no mesmo
   documento e todo ajuste disputa o mesmo doc. Em subcoleção cada SKU escreve sozinho, e a lista de

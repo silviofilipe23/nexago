@@ -66,6 +66,12 @@ export interface CheckboxToggle {
       width: 17px;
       height: 17px;
       border-radius: 5px;
+      /*
+       * Decisão do dono (15/10/2026): manter o token mesmo reprovando no contraste.
+       * Medido: 1,54:1 contra o card e 1,35:1 contra a barra de lote, onde a WCAG 1.4.11
+       * pede 3:1 para borda de controle. Passaria a partir de rgba(255,255,255,0.34).
+       * Não "corrigir" sem falar com ele: a escolha foi consistência do token.
+       */
       border: 1.5px solid var(--nx-line-strong);
       background: transparent;
       display: grid;
